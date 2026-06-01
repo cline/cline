@@ -8,6 +8,8 @@ interface LearningModuleCardProps {
 	item: LearningModuleItem
 	setError: (error: string | null) => void
 	onRecognitionChange?: (moduleId: string, starred: boolean, aiHydroStars: number) => void
+	/** When the module belongs to a course, its title — rendered as a "Part of:" chip. */
+	courseTitle?: string
 }
 
 const LEVEL_COLORS: Record<string, { bg: string; text: string }> = {
@@ -22,11 +24,13 @@ function levelStyle(level: string) {
 }
 
 function formatCount(n: number): string {
-	if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, "") + "k"
+	if (n >= 1000) {
+		return (n / 1000).toFixed(1).replace(/\.0$/, "") + "k"
+	}
 	return String(n)
 }
 
-const LearningModuleCard = ({ item, setError, onRecognitionChange }: LearningModuleCardProps) => {
+const LearningModuleCard = ({ item, setError, onRecognitionChange, courseTitle }: LearningModuleCardProps) => {
 	const [isInstalling, setIsInstalling] = useState(false)
 	const [installed, setInstalled] = useState(item.isInstalled)
 	const [isStarring, setIsStarring] = useState(false)
@@ -37,7 +41,9 @@ const LearningModuleCard = ({ item, setError, onRecognitionChange }: LearningMod
 	const handleInstall = async (e: React.MouseEvent) => {
 		e.preventDefault()
 		e.stopPropagation()
-		if (isInstalling || installed) return
+		if (isInstalling || installed) {
+			return
+		}
 		setIsInstalling(true)
 		setError(null)
 		try {
@@ -64,7 +70,9 @@ const LearningModuleCard = ({ item, setError, onRecognitionChange }: LearningMod
 	const handleStar = async (e: React.MouseEvent) => {
 		e.preventDefault()
 		e.stopPropagation()
-		if (isStarring) return
+		if (isStarring) {
+			return
+		}
 		const nextStarred = !starred
 		setIsStarring(true)
 		setError(null)
@@ -305,6 +313,21 @@ const LearningModuleCard = ({ item, setError, onRecognitionChange }: LearningMod
 
 			{/* Footer: topic + tags + github */}
 			<div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+				{courseTitle && (
+					<span
+						style={{
+							fontSize: 10,
+							padding: "2px 7px",
+							borderRadius: 10,
+							background: "rgba(0,221,255,0.12)",
+							color: cyan,
+							fontWeight: 500,
+						}}
+						title={`Part of the "${courseTitle}" course`}>
+						<span className="codicon codicon-mortar-board" style={{ fontSize: 10, marginRight: 4 }} />
+						Part of: {courseTitle}
+					</span>
+				)}
 				{item.topic && (
 					<span
 						style={{

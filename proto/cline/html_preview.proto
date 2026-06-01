@@ -219,10 +219,71 @@ message LearningModuleItem {
   int32 ai_hydro_installs = 24;
   int32 ai_hydro_stars = 25;
   bool starred_by_client = 26;
+  // Course membership (empty when the module is standalone)
+  string course_id = 27;
+  string course_title = 28;
+  int32 course_order = 29;
 }
 
 message LearningModuleCatalog {
   repeated LearningModuleItem items = 1;
+}
+
+// A single module entry within a course syllabus.
+message CourseModuleRef {
+  string module_id = 1;
+  string title = 2;
+  string abstract = 3;
+  string path = 4;
+  string download_url = 5;
+  int32 estimated_minutes = 6;
+  repeated string prerequisites = 7;
+  bool is_installed = 8;
+}
+
+// A course bundles an ordered sequence of modules behind a single install.
+message CourseCatalogItem {
+  string course_id = 1;
+  string title = 2;
+  string abstract = 3;
+  string author = 4;
+  string author_affiliation = 5;
+  string version = 6;
+  string license = 7;
+  int32 estimated_hours = 8;
+  string level = 9;
+  repeated string tags = 10;
+  string thumbnail_url = 11;
+  string course_url = 12;
+  string github_url = 13;
+  // Raw URL of the course.json manifest.
+  string manifest_url = 14;
+  bool is_featured = 15;
+  string created_at = 16;
+  string updated_at = 17;
+  repeated CourseModuleRef modules = 18;
+  // Progress reflected from local store (0 when not started).
+  int32 modules_completed = 19;
+  bool is_installed = 20;
+}
+
+message CourseCatalog {
+  repeated CourseCatalogItem items = 1;
+}
+
+message InstallCourseRequest {
+  string course_id = 1;
+  // Raw URL of the course.json manifest.
+  string manifest_url = 2;
+}
+
+message InstallCourseResponse {
+  string course_id = 1;
+  bool success = 2;
+  int32 modules_installed = 3;
+  // Module id that should open first (the entry point).
+  string entry_module_id = 4;
+  optional string error = 5;
 }
 
 message InstallModuleRequest {
@@ -282,8 +343,14 @@ service HtmlPreviewService {
     // Fetch the learning modules marketplace catalog
     rpc refreshModulesMarketplace(EmptyRequest) returns (LearningModuleCatalog);
 
+    // Fetch the courses marketplace catalog
+    rpc refreshCoursesMarketplace(EmptyRequest) returns (CourseCatalog);
+
     // Download and install a learning module locally
     rpc installModule(InstallModuleRequest) returns (InstallModuleResponse);
+
+    // Download and install all modules in a course, set it active
+    rpc installCourse(InstallCourseRequest) returns (InstallCourseResponse);
 
     // Star or unstar a module in AI-Hydro recognition.
     rpc starModule(MarketplaceStarRequest) returns (MarketplaceStarResponse);

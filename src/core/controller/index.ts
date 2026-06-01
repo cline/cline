@@ -804,12 +804,103 @@ export class Controller {
 						githubReactions: item.githubReactions || item.github_reactions || 0,
 						isFeatured: item.isFeatured || item.is_featured || false,
 						discussionUrl: item.discussionUrl || item.discussion_url || "",
+						courseId: item.courseId || item.course_id || "",
+						courseTitle: item.courseTitle || item.course_title || "",
+						courseOrder: item.courseOrder || item.course_order || 0,
 					}
 				}),
 			}
 			return catalog
 		} catch (error) {
 			console.error("Failed to fetch Modules marketplace:", error)
+			return undefined
+		}
+	}
+
+	async silentlyRefreshCoursesMarketplaceRPC(): Promise<import("@shared/proto/cline/html_preview").CourseCatalog | undefined> {
+		try {
+			const response = await axios.get(`${AiHydroEnv.config().modulesBaseUrl}/courses.json`, {
+				headers: { "Content-Type": "application/json", "User-Agent": "aihydro-vscode-extension" },
+			})
+			if (!response.data) throw new Error("Invalid response from Courses marketplace API")
+			const { CourseCatalog } = await import("@shared/proto/cline/html_preview")
+
+			// Reflect local install + progress state from disk so the UI can show
+			// "Installed", progress rings, and a "Continue" affordance without an
+			// extra round-trip.
+			const fsp = await import("fs/promises")
+			const osMod = await import("os")
+			const pathMod = await import("path")
+			let registry: Record<string, any> = {}
+			try {
+				registry = JSON.parse(
+					await fsp.readFile(pathMod.join(osMod.homedir(), ".aihydro", "modules", "installed.json"), "utf-8"),
+				)
+			} catch {
+				// no modules installed yet
+			}
+			const installedIds = new Set(Object.keys(registry))
+
+			const items = await Promise.all(
+				(Array.isArray(response.data) ? response.data : []).map(async (item: any) => {
+					const courseId = item.courseId || item.course_id || item.id || ""
+					const modules = (Array.isArray(item.modules) ? item.modules : []).map((m: any, idx: number) => {
+						const moduleId = m.id || m.moduleId || m.module_id || ""
+						return {
+							moduleId,
+							title: m.title || "",
+							abstract: m.abstract || m.description || "",
+							path: m.path || "",
+							downloadUrl: m.downloadUrl || m.download_url || "",
+							estimatedMinutes: m.estimatedMinutes || m.estimated_minutes || 0,
+							prerequisites: m.prerequisites || [],
+							isInstalled: installedIds.has(moduleId),
+							courseOrder: idx + 1,
+						}
+					})
+					// A course counts as installed once every member module is on disk.
+					const courseInstalled = modules.length > 0 && modules.every((m: any) => m.isInstalled)
+					// modulesCompleted from the per-course progress file.
+					let modulesCompleted = 0
+					if (courseId) {
+						try {
+							const { loadProgress } = await import("@/services/htmlPreview/courseProgressStore")
+							const progress = await loadProgress(courseId)
+							modulesCompleted = modules.filter((m: any) => progress.completed[m.moduleId]).length
+						} catch {
+							// no progress yet
+						}
+					}
+					const authors = Array.isArray(item.authors) ? item.authors : []
+					return { item, courseId, modules, courseInstalled, modulesCompleted, authors }
+				}),
+			).then((rows) =>
+				rows.map(({ item, courseId, modules, courseInstalled, modulesCompleted, authors }) => ({
+					courseId: item.courseId || item.course_id || item.id || "",
+					title: item.title || "",
+					abstract: item.abstract || item.description || "",
+					author: item.author || authors[0]?.name || "",
+					authorAffiliation: item.authorAffiliation || item.author_affiliation || authors[0]?.affiliation || "",
+					version: item.version || "0.1.0",
+					license: item.license || "CC-BY-4.0",
+					estimatedHours: item.estimatedHours || item.estimated_hours || 0,
+					level: item.level || "intro",
+					tags: item.tags || [],
+					thumbnailUrl: item.thumbnailUrl || item.thumbnail_url || "",
+					courseUrl: item.courseUrl || item.course_url || "",
+					githubUrl: item.githubUrl || item.github_url || "",
+					manifestUrl: item.manifestUrl || item.manifest_url || item.downloadUrl || item.download_url || "",
+					isFeatured: item.isFeatured || item.is_featured || false,
+					createdAt: item.createdAt || item.created_at || "",
+					updatedAt: item.updatedAt || item.updated_at || "",
+					modules,
+					modulesCompleted,
+					isInstalled: courseInstalled,
+				})),
+			)
+			return CourseCatalog.create({ items })
+		} catch (error) {
+			console.error("Failed to fetch Courses marketplace:", error)
 			return undefined
 		}
 	}
