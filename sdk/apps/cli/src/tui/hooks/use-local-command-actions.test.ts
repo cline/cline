@@ -45,6 +45,19 @@ describe("runLocalSlashCommandAction", () => {
 		expect(openSkills).toHaveBeenCalledWith(invocation);
 	});
 
+	it("opens settings to the plugins tab with plugins", () => {
+		const openConfig = vi.fn();
+		const actions = makeActions({ openConfig });
+
+		const handled = runLocalSlashCommandAction({
+			name: "plugins",
+			...actions,
+		});
+
+		expect(handled).toBe(true);
+		expect(openConfig).toHaveBeenCalledWith({ initialTab: "plugins" });
+	});
+
 	it("waits for clear to reset the runtime session", async () => {
 		let resolveClear: (() => void) | undefined;
 		const clearConversation = vi.fn(

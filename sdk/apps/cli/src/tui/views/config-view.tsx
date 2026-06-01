@@ -27,6 +27,7 @@ import {
 	resolveActiveConfigItems,
 	resolveConfigItemSelectAction,
 	resolveConfigItemToggleAction,
+	resolveInitialConfigTab,
 	toTabLabel,
 } from "./config-view-helpers";
 
@@ -125,6 +126,7 @@ export interface ConfigPanelProps extends ChoiceContext<ConfigAction> {
 	providerDisplayName: string;
 	currentMode: string;
 	currentCompactionMode: CliCompactionMode;
+	initialTab?: InteractiveConfigTab;
 	onToggleConfigItem?: (
 		item: InteractiveConfigItem,
 		options?: LoadInteractiveConfigDataOptions,
@@ -316,7 +318,9 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 	const [compactionMode, setCompactionMode] = useState(
 		props.currentCompactionMode,
 	);
-	const [activeTab, setActiveTab] = useState<InteractiveConfigTab>("general");
+	const [activeTab, setActiveTab] = useState<InteractiveConfigTab>(() =>
+		resolveInitialConfigTab(props.initialTab),
+	);
 	const [configData, setConfigData] = useState(props.configData);
 	const [pluginToolsLoaded, setPluginToolsLoaded] = useState(
 		props.configData.tools.some((item) => item.pluginName),
