@@ -15,6 +15,7 @@ pnpm-lock.yaml
 .clineignore
 .cline/enterprise
 .cline/remote-config
+**/.cline/remote-config
 .venv
 .actrc
 CLAUDE.local.md
