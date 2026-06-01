@@ -32,6 +32,22 @@ describe("SdkTaskControlCoordinator", () => {
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()
 	})
 
+	it("raises the cancel fence BEFORE aborting the session (so stragglers are fenced)", async () => {
+		const activeSession = makeActiveSession()
+		const { coordinator, options } = makeCoordinator({ activeSession })
+
+		const order: string[] = []
+		;(options.raiseCancelFence as ReturnType<typeof vi.fn>).mockImplementation(() => order.push("fence"))
+		;(activeSession.sdkHost.abort as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+			order.push("abort")
+		})
+
+		await coordinator.cancelTask()
+
+		expect(options.raiseCancelFence).toHaveBeenCalledOnce()
+		expect(order).toEqual(["fence", "abort"])
+	})
+
 	it("clears the active session and task proxy without writing classic UI message persistence", async () => {
 		const activeSession = makeActiveSession()
 		const task = makeTask("task-1", [{ ts: 1, type: "say", say: "text", text: "hi", partial: true }])
@@ -178,6 +194,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		}),
 		onAskResponse: vi.fn().mockResolvedValue(undefined),
 		resetMessageTranslator: vi.fn(),
+		raiseCancelFence: vi.fn(),
 		postStateToWebview: vi.fn().mockResolvedValue(undefined),
 	} as unknown as SdkTaskControlCoordinatorOptions & {
 		sessions: SdkTaskControlCoordinatorOptions["sessions"] & {

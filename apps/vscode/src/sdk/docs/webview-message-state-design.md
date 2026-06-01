@@ -364,7 +364,13 @@ Each step is independently shippable and re-verified against the reproductions.
       clineAsk, so the SDK backend resolves the pending promise correctly. → fixes RC1.
       (The legacy isInertStatusMessage skip-walk + getButtonConfigForMessages remain as the
       fallback path; they can be deleted once classic is fully retired.)
-- S6. Cancel: fence-before-abort; usage exemption; replace the ask-only filter.
+- S6. Cancel: fence-before-abort; usage exemption. DONE: cancelTask raises the cancel fence
+      (epoch bump via raiseCancelFence) SYNCHRONOUSLY before awaiting sdkHost.abort, and
+      SdkController.cancelTask sets phase=resumable first — so straggler events carry the old
+      epoch (dropped by the webview reducer) and the resumable UI is authoritative. Usage was
+      never gated by the message filter, so post-cancel usage events still bill (exemption holds).
+      Ordering covered by a unit test. (The legacy !isRunning ask-only filter is now redundant
+      given the epoch fence but left in place as defense-in-depth; safe to remove with classic.)
 - S7. Translator hygiene: suppress `ask_question` `say:tool`; one-`id` tool calls; remove the
       `done` synthetic ask and the mistake-limit abort.
 - S8. Full live pass: plan ask_question, act command approval, attempt_completion, cancel
