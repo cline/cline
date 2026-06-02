@@ -415,6 +415,7 @@
 		"test:coverage": "vscode-test --coverage",
 		"test:sca-server": "npx tsx watch scripts/test-standalone-core-api-server.ts",
 		"test:tp-orchestrator": "npx tsx scripts/testing-platform-orchestrator.ts",
+		"dev:mcp-oauth-test-server": "npx tsx src/dev/mcp-oauth-test-server/server.ts",
 		"e2e": "playwright test -c playwright.config.ts",
 		"test:e2e:build": "vsce package --allow-package-secrets sendgrid --out dist/e2e.vsix",
 		"test:e2e": "playwright install && npm run test:e2e:build && node src/test/e2e/utils/build.mjs && playwright test",

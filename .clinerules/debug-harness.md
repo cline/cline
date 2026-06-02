@@ -43,8 +43,15 @@ For **Cline OAuth** (SDK local callback): The SDK starts a local HTTP server, th
 is captured. To complete: open the captured URL in a real browser (it redirects back to the
 SDK's callback server), OR extract the callback port and `curl http://127.0.0.1:PORT/callback?code=...`.
 
-For **MCP/Provider OAuth** (vscode:// URI): The redirect goes to a vscode:// URI. Use
-`oauth.simulate_callback` to build it, then inject via `ext.evaluate` calling the URI handler.
+For **MCP/Provider OAuth** (vscode:// URI): The redirect goes to a vscode:// URI.
+`oauth.simulate_callback` only *builds* the URI — it does not deliver it, and the ESM
+extension host can't `require()` the handler. To actually deliver the callback, call the
+debug-only hook via `ext.evaluate` (with `awaitPromise: true`):
+`globalThis.__clineHandleUri("vscode://saoudrizwan.claude-dev/...?code=...&state=...")`.
+It runs the same `SharedUriHandler.handleUri` as VSCode's real URI handler and exists only
+when `CLINE_CAPTURE_BROWSER` is set (the harness always sets it; never ships in prod).
+For end-to-end MCP OAuth, get a real `code` from the local MCP OAuth test server
+(`npm run dev:mcp-oauth-test-server`).
 
 ## Navigating Views — Use Commands, Not Clicks
 
