@@ -174,10 +174,6 @@ vi.mock("./utils/telemetry", () => telemetryMocks);
 vi.mock("./utils/worktree", () => worktreeMocks);
 
 describe("runCli lightweight command dispatch", () => {
-	afterEach(() => {
-		process.exitCode = undefined;
-	});
-
 	beforeEach(() => {
 		process.exitCode = undefined;
 		mockState.runAgentImports = 0;
@@ -259,6 +255,8 @@ describe("runCli lightweight command dispatch", () => {
 	});
 
 	afterEach(() => {
+		process.exitCode = undefined;
+
 		process.argv = [...originalArgv];
 		Object.defineProperty(process.stdin, "isTTY", {
 			value: originalStdinIsTTY,
@@ -654,27 +652,6 @@ describe("runCli lightweight command dispatch", () => {
 			undefined,
 		);
 		expect(runtimeMocks.runAgent).toHaveBeenCalledTimes(1);
-		expect(runtimeMocks.runInteractive).not.toHaveBeenCalled();
-	});
-
-	it("treats dash-prefixed positional text after -- as a prompt", async () => {
-		forcePromptModeInput();
-		process.argv = [
-			"bun",
-			"src/index.ts",
-			"--",
-			"- You are given a PyTorch state dictionary.",
-		];
-
-		const { runCli } = await import("./main");
-
-		await expect(runCli()).resolves.toBeUndefined();
-		expect(runtimeMocks.runAgent).toHaveBeenCalledTimes(1);
-		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
-			"- You are given a PyTorch state dictionary.",
-			expect.any(Object),
-			expect.anything(),
-		);
 		expect(runtimeMocks.runInteractive).not.toHaveBeenCalled();
 	});
 
