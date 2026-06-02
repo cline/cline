@@ -14,6 +14,7 @@ export type LocalSlashCommandName =
 	| "settings"
 	| "config"
 	| "mcp"
+	| "plugins"
 	| "account"
 	| "model"
 	| "compact"
@@ -70,6 +71,10 @@ const TUI_LOCAL_COMMANDS: Array<{
 		description: "Manage MCP servers",
 	},
 	{
+		name: "plugins",
+		description: "Manage plugins",
+	},
+	{
 		name: "compact",
 		description: "Compact context",
 	},
@@ -109,6 +114,7 @@ const SYSTEM_COMMAND_ORDER = [
 	"model",
 	"account",
 	"mcp",
+	"plugins",
 	"compact",
 	"skills",
 	"fork",
