@@ -7,6 +7,20 @@ import { Logger } from "@/shared/services/Logger"
 import { openExternal } from "@/utils/env"
 import { getMcpServerCallbackPath, getServerAuthHash } from "@/utils/mcpAuth"
 import { McpOAuthRedirectResolver } from "./McpOAuthRedirectResolver"
+import { shouldStartNewOAuthFlow } from "./mcpOAuthFlow"
+
+/**
+ * OAuth `state` lifetime, measured from when a flow starts.
+ *
+ * Used to decide whether an in-progress flow is still fresh (so a repeated
+ * `redirectToAuthorization()` keeps it rather than starting a new one) and to
+ * expire a state during callback validation.
+ *
+ * Users typically complete OAuth within seconds/minutes of clicking
+ * "Authenticate"; 10 minutes leaves room to create an account, while still
+ * guaranteeing a stale flow eventually expires so the system makes progress.
+ */
+export const MCP_OAUTH_STATE_EXPIRY_MS = 10 * 60 * 1000 // 10 minutes
 
 /**
  * Structure for all OAuth data stored in the single mcpOAuthSecrets JSON
@@ -21,6 +35,11 @@ interface McpOAuthSecrets {
 		oauth_state?: string
 		oauth_state_timestamp?: number
 		pending_auth_url?: string
+		// PKCE verifier captured when the pending flow was created. The SDK calls
+		// saveCodeVerifier() with a new verifier on every connect attempt; when an
+		// in-progress flow is kept, this verifier is restored so it stays paired
+		// with the code_challenge baked into pending_auth_url.
+		pending_code_verifier?: string
 	}
 }
 
@@ -230,20 +249,50 @@ class ClineOAuthClientProvider implements OAuthClientProvider {
 			return
 		}
 
-		// Generate and add state parameter for CSRF protection
-		const state = crypto.randomBytes(32).toString("hex")
-		authorizationUrl.searchParams.set("state", state)
-
-		// Save state, timestamp, and the complete auth URL for later use
-		// These will be used when the user clicks "Authenticate" button
 		const secrets = getMcpOAuthSecrets()
 		if (!secrets[this.serverHash]) {
 			secrets[this.serverHash] = {}
 		}
 
+		// The SDK calls this on every connection attempt, and a single server can be
+		// reconnected repeatedly (settings watcher, reconnect handler, restart). The
+		// authorization URL of an in-progress flow may already be open in the user's
+		// browser, so an in-progress, still-fresh flow is kept rather than replaced —
+		// otherwise the stored state would diverge from the URL the user completes and
+		// the callback would fail validation.
+		const existing = secrets[this.serverHash]
+		const hasInProgressFlow = Boolean(existing.oauth_state && existing.pending_auth_url)
+		if (
+			hasInProgressFlow &&
+			!shouldStartNewOAuthFlow({
+				existingFlowStartedAt: existing.oauth_state_timestamp,
+				now: Date.now(),
+				ttlMs: MCP_OAUTH_STATE_EXPIRY_MS,
+			})
+		) {
+			// The SDK just called saveCodeVerifier() with a fresh verifier for this
+			// (now-discarded) attempt. Restore the verifier that pairs with the kept
+			// flow's pending_auth_url, otherwise token exchange would fail PKCE.
+			if (existing.pending_code_verifier) {
+				secrets[this.serverHash].code_verifier = existing.pending_code_verifier
+				saveMcpOAuthSecrets(secrets)
+			}
+			Logger.log(`[McpOAuth] Keeping in-progress OAuth flow for ${this.serverName}`)
+			return
+		}
+
+		// Generate and add state parameter for CSRF protection
+		const state = crypto.randomBytes(32).toString("hex")
+		authorizationUrl.searchParams.set("state", state)
+
+		// Save state, timestamp, and the complete auth URL for use when the user
+		// clicks "Authenticate". Capture the verifier the SDK just saved (it pairs
+		// with this URL's code_challenge) so it can be restored if a later attempt
+		// keeps this flow.
 		secrets[this.serverHash].oauth_state = state
 		secrets[this.serverHash].oauth_state_timestamp = Date.now()
 		secrets[this.serverHash].pending_auth_url = authorizationUrl.toString()
+		secrets[this.serverHash].pending_code_verifier = secrets[this.serverHash].code_verifier
 		saveMcpOAuthSecrets(secrets)
 
 		Logger.log(`[McpOAuth] OAuth required for ${this.serverName} - user must click Authenticate button`)
@@ -295,12 +344,6 @@ class ClineOAuthClientProvider implements OAuthClientProvider {
  */
 export class McpOAuthManager {
 	private providers: Map<string, OAuthClientProvider> = new Map()
-	// OAuth state parameter timeout - prevents replay attacks
-	// The state is used for CSRF protection during the redirect back from the OAuth provider
-	// Users typically complete the OAuth flow within seconds/minutes of clicking "Authenticate"
-	// but we allow 10 minutes in case they get distracted or need to create an account
-	// After 10 minutes, the state expires and user must click "Authenticate" again for security
-	private readonly STATE_EXPIRY_MS = 10 * 60 * 1000 // 10 minutes
 
 	/**
 	 * Gets or creates an OAuthClientProvider for a server
@@ -333,7 +376,7 @@ export class McpOAuthManager {
 
 		// Check if state has expired
 		if (serverData.oauth_state_timestamp) {
-			if (Date.now() - serverData.oauth_state_timestamp > this.STATE_EXPIRY_MS) {
+			if (Date.now() - serverData.oauth_state_timestamp > MCP_OAUTH_STATE_EXPIRY_MS) {
 				Logger.error(`OAuth state expired for server hash: ${serverHash}`)
 				// Clear expired state
 				delete serverData.oauth_state
