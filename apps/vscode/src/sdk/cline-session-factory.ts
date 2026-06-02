@@ -557,6 +557,8 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 
 	const stateManager = StateManager.get()
 	const globalSubagentsEnabled = stateManager.getGlobalSettingsKey("subagentsEnabled") ?? false
+	const globalUseAutoCondense = stateManager.getGlobalSettingsKey("useAutoCondense") ?? false
+	const useAutoCondense = input.taskSettings?.useAutoCondense ?? globalUseAutoCondense
 
 	// Core resolves providers against the SDK registry, which uses the SDK's
 	// own provider id spelling (e.g. "openai-compatible" rather than the
@@ -589,6 +591,14 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		enableTools: true,
 		enableSpawnAgent: input.taskSettings?.subagentsEnabled ?? globalSubagentsEnabled,
 		enableAgentTeams: false,
+		...(useAutoCondense
+			? {
+					compaction: {
+						enabled: true,
+						strategy: "basic",
+					},
+				}
+			: {}),
 		disableMcpSettingsTools: true,
 		mode: mode === "plan" ? "plan" : "act",
 		...reasoningConfig,
