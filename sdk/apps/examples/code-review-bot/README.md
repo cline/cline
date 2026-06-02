@@ -18,7 +18,7 @@ bun run build:sdk
 Set an API key:
 
 ```bash
-export CLINE_API_KEY="cline_..."
+export CLINE_API_KEY="sk_..."
 ```
 
 Optionally set a GitHub token. Public PRs can be loaded without one, but a token is recommended for private repositories and higher rate limits:

@@ -19,7 +19,7 @@ All examples live in this directory. Each is a standalone project with its own `
 cd apps/examples/<example-name>
 bun install
 bun run build:sdk
-export CLINE_API_KEY="cline_..."
+export CLINE_API_KEY="sk_..."
 bun dev
 ```
 
