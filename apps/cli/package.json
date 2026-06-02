@@ -96,6 +96,7 @@
 		"@cline/core": "workspace:*",
 		"@cline/shared": "workspace:*",
 		"@microsoft/tui-test": "^0.0.2",
-		"@types/react": "19.2.14"
+		"@types/react": "19.2.14",
+		"vitest": "^4.0.18"
 	}
 }
