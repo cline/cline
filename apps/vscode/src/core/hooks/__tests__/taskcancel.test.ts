@@ -12,6 +12,12 @@ describe("TaskCancel Hook", () => {
 	let getEnv: () => { tempDir: string }
 	let hookTestEnv: HookTestEnv
 
+	// On Windows, hooks execute via a PowerShell bridge that spawns a child
+	// Node process. That double-process startup is slow and variable on CI and
+	// can easily exceed Mocha's default 2 s timeout, so spawning tests opt into a
+	// larger timeout. Mirrors taskresume/hook-factory/user-prompt-submit tests.
+	const WINDOWS_HOOK_TEST_TIMEOUT_MS = 15000
+
 	const writeHookScript = async (hookPath: string, nodeScript: string): Promise<void> => {
 		await writeHookScriptForPlatform(hookPath, nodeScript)
 	}
@@ -29,7 +35,11 @@ describe("TaskCancel Hook", () => {
 	})
 
 	describe("Hook Input Format", () => {
-		it("should receive task metadata with completionStatus", async () => {
+		it("should receive task metadata with completionStatus", async function () {
+			if (process.platform === "win32") {
+				this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
+			}
+
 			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskCancel")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
@@ -61,7 +71,11 @@ console.log(JSON.stringify({
 			// Note: contextModification is ignored for TaskCancel hooks
 		})
 
-		it("should handle 'abandoned' completion status", async () => {
+		it("should handle 'abandoned' completion status", async function () {
+			if (process.platform === "win32") {
+				this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
+			}
+
 			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskCancel")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
@@ -96,7 +110,11 @@ console.log(JSON.stringify({
 			// Note: contextModification is ignored for TaskCancel hooks
 		})
 
-		it("should receive all common hook input fields", async () => {
+		it("should receive all common hook input fields", async function () {
+			if (process.platform === "win32") {
+				this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
+			}
+
 			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskCancel")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
@@ -136,7 +154,11 @@ console.log(JSON.stringify({
 	})
 
 	describe("Fire-and-Forget Behavior", () => {
-		it("should ignore contextModification regardless of content", async () => {
+		it("should ignore contextModification regardless of content", async function () {
+			if (process.platform === "win32") {
+				this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
+			}
+
 			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskCancel")
 			const hookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({
@@ -192,7 +214,11 @@ console.log(JSON.stringify({
 			// The contextModification value is different but behavior is identical (fire-and-forget)
 		})
 
-		it("should succeed regardless of hook return value", async () => {
+		it("should succeed regardless of hook return value", async function () {
+			if (process.platform === "win32") {
+				this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
+			}
+
 			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskCancel")
 			const hookScript = `#!/usr/bin/env node
 // Note: contextModification is ignored for TaskCancel hooks
@@ -222,7 +248,11 @@ console.log(JSON.stringify({
 			result.cancel.should.be.false()
 		})
 
-		it("should return error message when hook returns cancel: true", async () => {
+		it("should return error message when hook returns cancel: true", async function () {
+			if (process.platform === "win32") {
+				this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
+			}
+
 			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskCancel")
 			const hookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({
@@ -254,7 +284,11 @@ console.log(JSON.stringify({
 			result.errorMessage?.should.equal("Hook tried to block cancellation")
 		})
 
-		it("should execute without errors for cleanup purposes", async () => {
+		it("should execute without errors for cleanup purposes", async function () {
+			if (process.platform === "win32") {
+				this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
+			}
+
 			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskCancel")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
@@ -288,7 +322,11 @@ console.log(JSON.stringify({
 	})
 
 	describe("Error Handling", () => {
-		it("should surface hook errors to the user", async () => {
+		it("should surface hook errors to the user", async function () {
+			if (process.platform === "win32") {
+				this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
+			}
+
 			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskCancel")
 			const hookScript = `#!/usr/bin/env node
 console.error("Hook execution error");
@@ -317,7 +355,11 @@ process.exit(1);`
 			}
 		})
 
-		it("should handle malformed JSON output from hook", async () => {
+		it("should handle malformed JSON output from hook", async function () {
+			if (process.platform === "win32") {
+				this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
+			}
+
 			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskCancel")
 			const hookScript = `#!/usr/bin/env node
 console.log("not valid json")`
@@ -359,7 +401,11 @@ console.log("not valid json")`
 			stubHookDirs(sandbox, [globalHooksDir, workspaceHooksDir])
 		})
 
-		it("should execute both global and workspace TaskCancel hooks", async () => {
+		it("should execute both global and workspace TaskCancel hooks", async function () {
+			if (process.platform === "win32") {
+				this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
+			}
+
 			// Create global hook
 			const globalHookPath = path.join(globalHooksDir, "TaskCancel")
 			const globalHookScript = `#!/usr/bin/env node
@@ -399,7 +445,11 @@ console.log(JSON.stringify({
 			// Both hooks executed successfully
 		})
 
-		it("should execute both hooks with different completion statuses", async () => {
+		it("should execute both hooks with different completion statuses", async function () {
+			if (process.platform === "win32") {
+				this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
+			}
+
 			const globalHookPath = path.join(globalHooksDir, "TaskCancel")
 			const globalHookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
@@ -441,7 +491,11 @@ console.log(JSON.stringify({
 	})
 
 	describe("No Hook Behavior", () => {
-		it("should succeed when no hook exists", async () => {
+		it("should succeed when no hook exists", async function () {
+			if (process.platform === "win32") {
+				this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
+			}
+
 			const factory = new HookFactory()
 			const runner = await factory.create("TaskCancel")
 
@@ -461,7 +515,11 @@ console.log(JSON.stringify({
 	})
 
 	describe("Fixture-Based Tests", () => {
-		it("should handle cancel: true with no error message", async () => {
+		it("should handle cancel: true with no error message", async function () {
+			if (process.platform === "win32") {
+				this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
+			}
+
 			await loadFixture("hooks/taskcancel/false-no-error", getEnv().tempDir)
 
 			const factory = new HookFactory()
@@ -484,7 +542,11 @@ console.log(JSON.stringify({
 			// Cancellation still proceeds (fire-and-forget)
 		})
 
-		it("should handle cancel: true with error message", async () => {
+		it("should handle cancel: true with error message", async function () {
+			if (process.platform === "win32") {
+				this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
+			}
+
 			await loadFixture("hooks/taskcancel/false-with-error", getEnv().tempDir)
 
 			const factory = new HookFactory()
@@ -507,7 +569,11 @@ console.log(JSON.stringify({
 			// Cancellation still proceeds (fire-and-forget)
 		})
 
-		it("should handle cancel: false with no error message", async () => {
+		it("should handle cancel: false with no error message", async function () {
+			if (process.platform === "win32") {
+				this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
+			}
+
 			await loadFixture("hooks/taskcancel/true-no-error", getEnv().tempDir)
 
 			const factory = new HookFactory()
@@ -529,7 +595,11 @@ console.log(JSON.stringify({
 			// Normal success case - no errors to surface
 		})
 
-		it("should handle cancel: false with error message", async () => {
+		it("should handle cancel: false with error message", async function () {
+			if (process.platform === "win32") {
+				this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
+			}
+
 			await loadFixture("hooks/taskcancel/true-with-error", getEnv().tempDir)
 
 			const factory = new HookFactory()
@@ -553,7 +623,11 @@ console.log(JSON.stringify({
 			// Cancellation still proceeds (fire-and-forget)
 		})
 
-		it("should handle hook that exits with non-zero status code", async () => {
+		it("should handle hook that exits with non-zero status code", async function () {
+			if (process.platform === "win32") {
+				this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
+			}
+
 			await loadFixture("hooks/taskcancel/error", getEnv().tempDir)
 
 			const factory = new HookFactory()

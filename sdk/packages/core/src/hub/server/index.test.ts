@@ -20,6 +20,12 @@ import {
 	startHubWebSocketServer,
 } from "../server";
 
+// The first test that boots the hub server pays a one-time cold-start cost
+// (loading the native `node:sqlite` module used by the schedule runtime plus the
+// first server bind and discovery-file write). On Windows CI this can exceed
+// Vitest's default 5 s timeout, so give the startup test extra headroom.
+const HUB_SERVER_COLD_START_TIMEOUT_MS = 30_000;
+
 async function reservePort(): Promise<number> {
 	return await new Promise((resolve, reject) => {
 		const server = createNetServer();
@@ -84,37 +90,43 @@ describe("hub server startup", () => {
 		servers.clear();
 	});
 
-	it("starts on the requested port instead of drifting to a random port", async () => {
-		const owner = createInMemoryHubOwnerContext("hub-server-test-fixed-port");
-		const port = await reservePort();
-		await writeHubDiscovery(owner.discoveryPath, {
-			hubId: "stale-hub",
-			protocolVersion: "v1",
-			authToken: "stale-token",
-			host: "127.0.0.1",
-			port: port + 1,
-			url: `ws://127.0.0.1:${port + 1}/hub`,
-			startedAt: new Date(0).toISOString(),
-			updatedAt: new Date(0).toISOString(),
-		});
+	it(
+		"starts on the requested port instead of drifting to a random port",
+		async () => {
+			const owner = createInMemoryHubOwnerContext("hub-server-test-fixed-port");
+			const port = await reservePort();
+			await writeHubDiscovery(owner.discoveryPath, {
+				hubId: "stale-hub",
+				protocolVersion: "v1",
+				authToken: "stale-token",
+				host: "127.0.0.1",
+				port: port + 1,
+				url: `ws://127.0.0.1:${port + 1}/hub`,
+				startedAt: new Date(0).toISOString(),
+				updatedAt: new Date(0).toISOString(),
+			});
 
-		const result = await ensureHubWebSocketServer({
-			owner,
-			host: "127.0.0.1",
-			port,
-			pathname: "/hub",
-			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
-		});
-		expect(result.url).toBe(`ws://127.0.0.1:${port}/hub`);
-		expect(result.action).toBe("started");
-		const server = requireServer(result.server);
-		servers.add(server);
+			const result = await ensureHubWebSocketServer({
+				owner,
+				host: "127.0.0.1",
+				port,
+				pathname: "/hub",
+				runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+			});
+			expect(result.url).toBe(`ws://127.0.0.1:${port}/hub`);
+			expect(result.action).toBe("started");
+			const server = requireServer(result.server);
+			servers.add(server);
 
-		await expect(readHubDiscovery(owner.discoveryPath)).resolves.toMatchObject({
-			port,
-			url: `ws://127.0.0.1:${port}/hub`,
-		});
-	});
+			await expect(
+				readHubDiscovery(owner.discoveryPath),
+			).resolves.toMatchObject({
+				port,
+				url: `ws://127.0.0.1:${port}/hub`,
+			});
+		},
+		HUB_SERVER_COLD_START_TIMEOUT_MS,
+	);
 
 	it("fails when the requested port is already occupied", async () => {
 		const owner = createInMemoryHubOwnerContext("hub-server-test-port-busy");
