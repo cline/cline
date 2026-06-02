@@ -62,7 +62,6 @@ import type {
 	ConnectIo,
 	ConnectStopResult,
 } from "../types";
-import { escapeRegExp } from "../utils/regex";
 import {
 	getConnectorFirstContactMessage,
 	getConnectorSystemPrompt,
@@ -158,6 +157,10 @@ function normalizeSlackLookupName(value: string | undefined): string {
 		.replace(/^@+/, "")
 		.replace(/\s+/g, " ")
 		.toLowerCase();
+}
+
+function escapeRegExp(value: string): string {
+	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function normalizeSlackMessageEventChannelType<T>(event: T): T {
