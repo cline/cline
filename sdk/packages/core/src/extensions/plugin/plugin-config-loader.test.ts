@@ -237,6 +237,35 @@ describe("plugin-config-loader", () => {
 		}
 	});
 
+	it("does not resolve ancestor skills from unrelated package roots", async () => {
+		const root = await mkdtemp(join(tmpdir(), "core-plugin-config-loader-"));
+		try {
+			const pluginSrcDir = join(root, "packages", "myplugin", "src");
+			const rootSkillDir = join(root, "skills", "private-root-skill");
+			await mkdir(pluginSrcDir, { recursive: true });
+			await mkdir(rootSkillDir, { recursive: true });
+			await writeFile(
+				join(root, "package.json"),
+				JSON.stringify({
+					name: "monorepo-root",
+					private: true,
+				}),
+				"utf8",
+			);
+			const pluginPath = join(pluginSrcDir, "index.ts");
+			await writeFile(pluginPath, "export default {}", "utf8");
+			await writeFile(
+				join(rootSkillDir, "SKILL.md"),
+				"---\nname: private-root-skill\n---\nPrivate root skill.",
+				"utf8",
+			);
+
+			expect(resolvePluginSkillDirectoriesFromPaths([pluginPath])).toEqual([]);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	it("resolves bundled skill directories from installed plugin wrappers", async () => {
 		const home = await mkdtemp(
 			join(tmpdir(), "core-plugin-config-loader-home-"),

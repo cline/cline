@@ -1,4 +1,4 @@
-import { existsSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import type {
 	AgentConfig,
@@ -88,10 +88,59 @@ function resolveConfiguredPluginModulePathsBestEffort(
 	return resolvedPaths;
 }
 
-function isInstalledPackageDirectory(path: string): boolean {
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null;
+}
+
+function readDeclaredPluginEntryPaths(packageRoot: string): string[] {
+	try {
+		const parsed = JSON.parse(
+			readFileSync(join(packageRoot, PACKAGE_JSON_FILE_NAME), "utf8"),
+		) as unknown;
+		if (!isRecord(parsed) || !isRecord(parsed.cline)) {
+			return [];
+		}
+		const entries = parsed.cline.plugins;
+		if (!Array.isArray(entries)) {
+			return [];
+		}
+		const paths: string[] = [];
+		for (const entry of entries) {
+			if (typeof entry === "string") {
+				paths.push(entry);
+				continue;
+			}
+			if (!isRecord(entry) || !Array.isArray(entry.paths)) {
+				continue;
+			}
+			for (const path of entry.paths) {
+				if (typeof path === "string") {
+					paths.push(path);
+				}
+			}
+		}
+		return paths;
+	} catch {
+		return [];
+	}
+}
+
+function packageDeclaresPluginEntry(
+	packageRoot: string,
+	entryPath: string,
+): boolean {
+	const normalizedEntryPath = resolve(entryPath);
+	return readDeclaredPluginEntryPaths(packageRoot).some(
+		(declaredPath) =>
+			resolve(packageRoot, declaredPath) === normalizedEntryPath,
+	);
+}
+
+function isInstalledPackageDirectory(path: string, entryPath: string): boolean {
 	return (
 		basename(path) === INSTALLED_PACKAGE_DIRECTORY_NAME &&
-		existsSync(join(dirname(path), PACKAGE_JSON_FILE_NAME))
+		existsSync(join(dirname(path), PACKAGE_JSON_FILE_NAME)) &&
+		packageDeclaresPluginEntry(dirname(path), entryPath)
 	);
 }
 
@@ -101,11 +150,18 @@ function collectPluginSkillRootCandidates(entryPath: string): string[] {
 	let current = dirname(normalizedEntryPath);
 
 	while (true) {
-		if (isInstalledPackageDirectory(current)) {
+		if (isInstalledPackageDirectory(current, normalizedEntryPath)) {
 			candidates.push(current);
+			break;
 		}
 		if (existsSync(join(current, PACKAGE_JSON_FILE_NAME))) {
-			candidates.push(current);
+			// Do not keep walking after the first package boundary. A monorepo
+			// plugin entry can live under packages/foo/src/index.ts with no local
+			// package.json; climbing to the workspace root would expose unrelated
+			// root skills/. Only package manifests that declare this entry own skills.
+			if (packageDeclaresPluginEntry(current, normalizedEntryPath)) {
+				candidates.push(current);
+			}
 			break;
 		}
 
@@ -116,7 +172,6 @@ function collectPluginSkillRootCandidates(entryPath: string): string[] {
 		current = parent;
 	}
 
-	candidates.push(dirname(normalizedEntryPath));
 	return dedupePaths(candidates);
 }
 
