@@ -1,7 +1,7 @@
 import {
-  createServer,
-  type IncomingMessage,
-  type ServerResponse,
+	createServer,
+	type IncomingMessage,
+	type ServerResponse,
 } from "node:http";
 import { Agent, createTool } from "@cline/sdk";
 import { z } from "zod";
@@ -1580,9 +1580,9 @@ async function githubFetch(url: string, init: RequestInit = {}) {
 	headers.set("X-GitHub-Api-Version", "2022-11-28");
 	if (GITHUB_TOKEN) headers.set("Authorization", `Bearer ${GITHUB_TOKEN}`);
 
-  if(!url.startsWith("https://api.github.com/")) {
-    throw new HttpError(400, "Invalid GitHub API URL");
-  }
+	if (!url.startsWith("https://api.github.com/")) {
+		throw new HttpError(400, "Invalid GitHub API URL");
+	}
 
 	const response = await fetch(url, { ...init, headers });
 	if (!response.ok) {
