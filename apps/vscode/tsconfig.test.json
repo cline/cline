@@ -25,6 +25,7 @@
 	},
 	"include": [
 		"src/**/*.test.ts",
+		"src/test/fixtures/**/*.ts",
 		"src/types/**/*.d.ts"
 	],
 	"exclude": [
