@@ -24,6 +24,12 @@ export type SandboxedPluginSetupContext = Pick<
 export interface PluginSandboxOptions extends PluginTargeting {
 	pluginPaths: string[];
 	exportName?: string;
+	/**
+	 * Max wall time for plugin module imports. Defaults to 4000 ms; falls back
+	 * to the `CLINE_PLUGIN_IMPORT_TIMEOUT_MS` env var when this option is not
+	 * set, allowing slower hosts (Windows cold-start, CI without warm caches)
+	 * to raise the ceiling without touching code.
+	 */
 	importTimeoutMs?: number;
 	hookTimeoutMs?: number;
 	contributionTimeoutMs?: number;
@@ -212,8 +218,25 @@ const BOOTSTRAP = resolveBootstrap();
 function withTimeoutFallback(
 	timeoutMs: number | undefined,
 	fallback: number,
+	envVarName?: string,
 ): number {
-	return typeof timeoutMs === "number" && timeoutMs > 0 ? timeoutMs : fallback;
+	if (typeof timeoutMs === "number" && timeoutMs > 0) {
+		return timeoutMs;
+	}
+	if (envVarName) {
+		const raw = process.env[envVarName];
+		if (raw) {
+			// Number() is stricter than parseInt: it rejects values with
+			// trailing non-numeric characters (e.g. "4000ms" -> NaN) so a
+			// malformed env value falls back to the default instead of
+			// silently consuming its numeric prefix.
+			const parsed = Number(raw);
+			if (Number.isInteger(parsed) && parsed > 0) {
+				return parsed;
+			}
+		}
+	}
+	return fallback;
 }
 
 export async function loadSandboxedPlugins(
@@ -232,7 +255,11 @@ export async function loadSandboxedPlugins(
 			: { bootstrapScript: BOOTSTRAP.script }),
 		onEvent: options.onEvent,
 	});
-	const importTimeoutMs = withTimeoutFallback(options.importTimeoutMs, 4000);
+	const importTimeoutMs = withTimeoutFallback(
+		options.importTimeoutMs,
+		4000,
+		"CLINE_PLUGIN_IMPORT_TIMEOUT_MS",
+	);
 	const hookTimeoutMs = withTimeoutFallback(options.hookTimeoutMs, 3000);
 	const contributionTimeoutMs = withTimeoutFallback(
 		options.contributionTimeoutMs,
