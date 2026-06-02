@@ -6,6 +6,7 @@
 				"../packages/agents/src/*",
 				"../packages/agents/src/*/index.ts"
 			],
+			"@cline/cline-hub": ["./cline-hub/src/server.ts"],
 			"@cline/core": ["../packages/core/src/index.ts"],
 			"@cline/core/hub/daemon-entry": [
 				"../packages/core/src/hub/daemon/entry.ts"
