@@ -74,7 +74,7 @@ describe("slash command registry", () => {
 		);
 	});
 
-	it("keeps skills and workflows activatable without showing them in autocomplete", () => {
+	it("surfaces skills and workflows in autocomplete and the skills picker", () => {
 		const registry = buildSlashCommandRegistry({
 			workflowSlashCommands: [
 				{
@@ -118,7 +118,7 @@ describe("slash command registry", () => {
 		});
 		expect(
 			getVisibleUserSlashCommands(registry).map((cmd) => cmd.name),
-		).toEqual([]);
+		).toEqual(["review", "release"]);
 		expect(
 			getInvokableUserSlashCommands(registry).map((cmd) => cmd.name),
 		).toEqual(["review", "release"]);
@@ -126,14 +126,17 @@ describe("slash command registry", () => {
 		expect(review).toMatchObject({
 			source: "skill",
 			execution: "user-command",
-			visible: false,
-			selectable: false,
+			visible: true,
+			selectable: true,
 		});
+		expect(review ? formatSlashCommandAutocompleteValue(review) : "").toBe(
+			"/review ",
+		);
 		expect(resolveSlashCommand(registry, "release")).toMatchObject({
 			source: "workflow",
 			execution: "user-command",
-			visible: false,
-			selectable: false,
+			visible: true,
+			selectable: true,
 		});
 	});
 
