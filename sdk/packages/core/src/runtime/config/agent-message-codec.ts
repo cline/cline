@@ -16,6 +16,7 @@ import type {
 
 export function messageToAgentMessages(
 	message: MessageWithMetadata,
+	toolNameById: Map<string, string> = new Map(),
 ): AgentMessage[] {
 	const blocks = normalizeContentBlocks(message.content);
 	const out: AgentMessage[] = [];
@@ -58,6 +59,9 @@ export function messageToAgentMessages(
 	}
 
 	for (const block of blocks) {
+		if (block.type === "tool_use") {
+			rememberToolName(toolNameById, block);
+		}
 		if (block.type !== "tool_result") {
 			nonToolBlocks.push(block);
 			continue;
@@ -66,7 +70,7 @@ export function messageToAgentMessages(
 		out.push({
 			id: `${baseId}_tool_${block.tool_use_id}`,
 			role: "tool",
-			content: [toolResultContentToAgentPart(block)],
+			content: [toolResultContentToAgentPart(block, toolNameById)],
 			createdAt: message.ts ?? Date.now(),
 			metadata: message.metadata,
 		});
@@ -79,7 +83,10 @@ export function messageToAgentMessages(
 export function messagesToAgentMessages(
 	messages: readonly MessageWithMetadata[],
 ): AgentMessage[] {
-	return messages.flatMap(messageToAgentMessages);
+	const toolNameById = new Map<string, string>();
+	return messages.flatMap((message) =>
+		messageToAgentMessages(message, toolNameById),
+	);
 }
 
 export function agentMessageToMessageWithMetadata(
@@ -174,7 +181,6 @@ function contentBlockToAgentPart(block: ContentBlock): AgentMessagePart {
 				metadata: block.signature
 					? {
 							signature: block.signature,
-							thoughtSignature: block.signature,
 						}
 					: undefined,
 			};
@@ -185,14 +191,26 @@ function contentBlockToAgentPart(block: ContentBlock): AgentMessagePart {
 
 function toolResultContentToAgentPart(
 	block: ToolResultContent,
+	toolNameById: Map<string, string> = new Map(),
 ): AgentMessagePart {
+	const legacyBlock = block as ToolResultContent & { name?: string };
 	return {
 		type: "tool-result",
 		toolCallId: block.tool_use_id,
-		toolName: block.name,
+		toolName: legacyBlock.name ?? toolNameById.get(block.tool_use_id) ?? "tool",
 		output: block.content,
 		isError: block.is_error,
 	};
+}
+
+function rememberToolName(
+	toolNameById: Map<string, string>,
+	block: ToolUseContent,
+): void {
+	toolNameById.set(block.id, block.name);
+	if (typeof block.call_id === "string") {
+		toolNameById.set(block.call_id, block.name);
+	}
 }
 
 function agentPartToContentBlock(

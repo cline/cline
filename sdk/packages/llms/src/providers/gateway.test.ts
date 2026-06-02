@@ -1623,80 +1623,99 @@ describe("sdk-gateway", () => {
 			}),
 		);
 
+		const toolCallEvent = events.find(
+			(event): event is Extract<AgentModelEvent, { type: "tool-call-delta" }> =>
+				event.type === "tool-call-delta",
+		);
+		expect(toolCallEvent).toBeDefined();
+
 		streamTextSpy.mockReset();
-		streamTextSpy.mockReturnValueOnce({
-			fullStream: makeStreamParts([
-				{ type: "text-delta", textDelta: "done" },
-				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
-			]),
-		});
 
-		await collect(
-			await gateway.stream({
-				providerId: "vertex",
-				modelId: "gemini-3-flash-preview",
-				messages: [
-					{
-						id: "assistant_1",
-						role: "assistant",
-						content: [
-							{
-								type: "tool-call",
-								toolCallId: "call_1",
-								toolName: "editor",
-								input: { path: "/tmp/out.txt" },
-								metadata: {
-									signature: "sig_1",
-								},
-							},
-						],
-						createdAt: Date.now(),
-					},
-					{
-						id: "tool_1",
-						role: "tool",
-						content: [
-							{
-								type: "tool-result",
-								toolCallId: "call_1",
-								toolName: "editor",
-								output: { ok: true },
-							},
-						],
-						createdAt: Date.now(),
-					},
-				],
-				tools: [
-					{
-						name: "editor",
-						description: "Edits files",
-						inputSchema: { type: "object" },
-					},
-				],
-			}),
-		);
+		const replayCases = [
+			{
+				name: "fresh event metadata",
+				metadata: toolCallEvent?.metadata,
+			},
+			{
+				name: "persisted history metadata",
+				metadata: { signature: "sig_1" },
+			},
+		];
 
-		expect(streamTextSpy).toHaveBeenCalledWith(
-			expect.objectContaining({
-				messages: expect.arrayContaining([
-					expect.objectContaining({
-						role: "assistant",
-						content: [
-							expect.objectContaining({
-								type: "tool-call",
-								toolCallId: "call_1",
-								toolName: "editor",
-								providerOptions: {
-									google: {
-										thoughtSignature: "sig_1",
-									},
-								},
-							}),
-						],
-					}),
+		for (const replayCase of replayCases) {
+			streamTextSpy.mockReset();
+			streamTextSpy.mockReturnValueOnce({
+				fullStream: makeStreamParts([
+					{ type: "text-delta", textDelta: `done ${replayCase.name}` },
+					{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
 				]),
-			}),
-		);
+			});
+
+			await collect(
+				await gateway.stream({
+					providerId: "vertex",
+					modelId: "gemini-3-flash-preview",
+					messages: [
+						{
+							id: `assistant_${replayCase.name}`,
+							role: "assistant",
+							content: [
+								{
+									type: "tool-call",
+									toolCallId: "call_1",
+									toolName: "editor",
+									input: { path: "/tmp/out.txt" },
+									metadata: replayCase.metadata,
+								},
+							],
+							createdAt: Date.now(),
+						},
+						{
+							id: `tool_${replayCase.name}`,
+							role: "tool",
+							content: [
+								{
+									type: "tool-result",
+									toolCallId: "call_1",
+									toolName: "editor",
+									output: { ok: true },
+								},
+							],
+							createdAt: Date.now(),
+						},
+					],
+					tools: [
+						{
+							name: "editor",
+							description: "Edits files",
+							inputSchema: { type: "object" },
+						},
+					],
+				}),
+			);
+
+			expect(streamTextSpy).toHaveBeenCalledWith(
+				expect.objectContaining({
+					messages: expect.arrayContaining([
+						expect.objectContaining({
+							role: "assistant",
+							content: [
+								expect.objectContaining({
+									type: "tool-call",
+									toolCallId: "call_1",
+									toolName: "editor",
+									providerOptions: {
+										google: {
+											thoughtSignature: "sig_1",
+										},
+									},
+								}),
+							],
+						}),
+					]),
+				}),
+			);
+		}
 	});
 
 	it("does not pass extra tools to providers that disable external tool execution", async () => {

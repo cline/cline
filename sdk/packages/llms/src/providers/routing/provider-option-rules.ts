@@ -135,24 +135,20 @@ function isGeminiFlashModel(input: ProviderOptionMatchInput): boolean {
 	return (
 		/(^|[/\s])gemini-(?:\d(?:\.\d)?-)?flash(?:-lite|-image)?([-\s]|$)/.test(
 			descriptor,
-		) ||
-		descriptor.includes("gemini-flash") ||
-		descriptor.includes("gemini-flash-latest")
+		) || descriptor.includes("gemini-flash")
 	);
 }
 
 function supportsGeminiThinking(input: ProviderOptionMatchInput): boolean {
+	const descriptor = getGeminiModelDescriptor(input);
 	return (
-		input.context.model.capabilities?.includes("reasoning") === true ||
 		isGemini3Model(input) ||
-		/(^|[/\s])gemini-2\.5([-\s]|$)/.test(getGeminiModelDescriptor(input)) ||
-		getGeminiModelDescriptor(input).includes("gemini-flash-latest")
+		/(^|[/\s])gemini-2\.5([-\s]|$)/.test(descriptor) ||
+		descriptor.includes("gemini-flash-latest")
 	);
 }
 
-function buildGeminiThinkingConfig(
-	input: ProviderOptionBuildInput,
-):
+function buildGeminiThinkingConfig(input: ProviderOptionBuildInput):
 	| {
 			thinkingLevel?: "minimal" | "low" | "medium" | "high";
 			thinkingBudget?: number;

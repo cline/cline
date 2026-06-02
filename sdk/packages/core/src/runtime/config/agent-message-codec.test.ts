@@ -107,8 +107,47 @@ describe("agent message codec", () => {
 			toolName: "editor",
 			metadata: {
 				signature: "sig_4",
-				thoughtSignature: "sig_4",
 			},
 		});
+	});
+
+	it("restores legacy tool result names from prior tool calls", () => {
+		const messages = messagesToAgentMessages([
+			{
+				id: "assistant_1",
+				role: "assistant",
+				ts: 1,
+				content: [
+					{
+						type: "tool_use",
+						id: "toolu_5",
+						name: "editor",
+						input: { path: "/tmp/out.txt" },
+					},
+				],
+			},
+			{
+				id: "tool_result_1",
+				role: "user",
+				ts: 2,
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "toolu_5",
+						content: "ok",
+					} as never,
+				],
+			},
+		]);
+
+		expect(messages[1]?.content).toEqual([
+			{
+				type: "tool-result",
+				toolCallId: "toolu_5",
+				toolName: "editor",
+				output: "ok",
+				isError: undefined,
+			},
+		]);
 	});
 });

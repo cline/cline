@@ -1480,6 +1480,32 @@ describe("composeAiSdkProviderOptions: provider-specific overlays", () => {
 		expect(result.google).toBeUndefined();
 	});
 
+	it("keeps Vertex Claude reasoning on the Anthropic-compatible route", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "vertex",
+				modelId: "claude-sonnet-4-5",
+				reasoning: { enabled: true, effort: "high" },
+			}),
+			makeContext({
+				providerId: "vertex",
+				modelId: "claude-sonnet-4-5",
+				family: "claude-sonnet",
+				capabilities: ["text", "reasoning"],
+			}),
+		);
+
+		expect(result.vertex).toEqual(
+			expect.objectContaining({
+				reasoning: { enabled: true, max_tokens: 1024 },
+			}),
+		);
+		expect(result.vertex).not.toHaveProperty("thinkingConfig");
+		expect(result.vertex).not.toHaveProperty("effort");
+		expect(result.vertex).not.toHaveProperty("reasoningEffort");
+		expect(result.vertex).not.toHaveProperty("reasoningSummary");
+	});
+
 	it("maps disabled Vertex thinking to minimal thinkingConfig", () => {
 		const result = composeAiSdkProviderOptions(
 			makeRequest({
