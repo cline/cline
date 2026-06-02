@@ -13,6 +13,7 @@ import {
 	getNextCliCompactionMode,
 } from "../../utils/compaction-mode";
 import type { CliCompactionMode, Config } from "../../utils/types";
+import { getMcpManagerEntryStatus } from "../components/dialogs/mcp-manager-dialog";
 import { resolveModelDisplayName } from "../components/status-bar";
 import { getModeAccent, palette } from "../palette";
 import {
@@ -436,7 +437,13 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 						enabled: item.enabled,
 						description: item.description,
 						item,
-						rightLabel: getPluginLoadErrorLabel(item),
+						rightLabel:
+							activeTab === "mcp"
+								? getMcpManagerEntryStatus({
+										description: item.description,
+										lastError: item.loadError,
+									})
+								: getPluginLoadErrorLabel(item),
 					});
 				}
 				if (activeTab === "plugins" && pluginToolsLoading) {
