@@ -259,7 +259,7 @@ for (const item of targets) {
 	// Copy plugin sandbox bootstrap if it exists
 	const bootstrapSrc = join(
 		rootDir,
-		"packages/core/dist/extensions/plugin-sandbox-bootstrap.js",
+		"sdk/packages/core/dist/extensions/plugin-sandbox-bootstrap.js",
 	);
 	if (existsSync(bootstrapSrc)) {
 		const bootstrapDir = join(cliDir, `dist/${dirName}/extensions`);
