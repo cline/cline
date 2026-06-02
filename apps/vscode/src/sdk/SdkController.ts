@@ -15,16 +15,12 @@ import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@shared/ClineAccount"
 import { mentionRegexGlobal } from "@shared/context-mentions"
 import type { ClineApiReqInfo, ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
-import type { McpMarketplaceCatalog, McpMarketplaceItem } from "@shared/mcp"
 import { DeleteAllTaskHistoryCount, type GetTaskHistoryRequest, TaskHistoryArray, TaskResponse } from "@shared/proto/cline/task"
 import type { Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
-import axios from "axios"
-import { ClineEnv } from "@/config"
-import { sendMcpMarketplaceCatalogEvent } from "@/core/controller/mcp/subscribeToMcpMarketplaceCatalog"
 import { parseMentions } from "@/core/mentions"
-import { ensureMcpServersDirectoryExists, writeMcpMarketplaceCatalogToCache } from "@/core/storage/disk"
+import { ensureMcpServersDirectoryExists } from "@/core/storage/disk"
 import { refreshSdkRemoteConfig } from "@/core/storage/remote-config/sdk-refresh"
 import { clearRemoteConfig } from "@/core/storage/remote-config/utils"
 import { StateManager } from "@/core/storage/StateManager"
@@ -38,7 +34,6 @@ import { ClineError } from "@/services/error/ClineError"
 import { McpHub } from "@/services/mcp/McpHub"
 import { telemetryService } from "@/services/telemetry"
 import type { ClineExtensionContext } from "@/shared/cline"
-import { getAxiosSettings } from "@/shared/net"
 import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { arePathsEqual, getDesktopDir } from "@/utils/path"
@@ -1083,53 +1078,6 @@ export class Controller {
 			await this.postStateToWebview()
 		} catch (error) {
 			Logger.error("Failed to complete MCP OAuth:", error)
-		}
-	}
-
-	// ---- MCP marketplace ----
-
-	private async fetchMcpMarketplaceFromApi(): Promise<McpMarketplaceCatalog> {
-		const response = await axios.get(`${ClineEnv.config().mcpBaseUrl}/marketplace`, {
-			headers: {
-				"Content-Type": "application/json",
-				"User-Agent": "cline-vscode-extension",
-			},
-			...getAxiosSettings(),
-		})
-
-		if (!response.data) {
-			throw new Error("Invalid response from MCP marketplace API")
-		}
-
-		const allowedMCPServers = this.stateManager.getRemoteConfigSettings().allowedMCPServers
-
-		let items: McpMarketplaceItem[] = (response.data || []).map((item: McpMarketplaceItem) => ({
-			...item,
-			githubStars: item.githubStars ?? 0,
-			downloadCount: item.downloadCount ?? 0,
-			tags: item.tags ?? [],
-		}))
-
-		if (allowedMCPServers) {
-			const allowedIds = new Set(allowedMCPServers.map((server) => server.id))
-			items = items.filter((item) => allowedIds.has(item.mcpId))
-		}
-
-		const catalog: McpMarketplaceCatalog = { items }
-		await writeMcpMarketplaceCatalogToCache(catalog)
-		return catalog
-	}
-
-	async refreshMcpMarketplace(sendCatalogEvent: boolean): Promise<McpMarketplaceCatalog | undefined> {
-		try {
-			const catalog = await this.fetchMcpMarketplaceFromApi()
-			if (catalog && sendCatalogEvent) {
-				await sendMcpMarketplaceCatalogEvent(catalog)
-			}
-			return catalog
-		} catch (error) {
-			Logger.error("Failed to refresh MCP marketplace:", error)
-			return undefined
 		}
 	}
 
