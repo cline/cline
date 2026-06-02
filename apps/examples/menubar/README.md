@@ -37,7 +37,7 @@ Rust Tauri App (apps/examples/menubar/src-tauri/src/main.rs)
 
 ### Dev Commands
 
-From `sdk/apps/examples/menubar/`:
+From `apps/examples/menubar/`:
 
 - `bun run dev:ui` - run only the Hub Monitor UI at `http://127.0.0.1:3466/` with preview data
 - `bun run dev` - run the full Tauri app with the real hub sidecar

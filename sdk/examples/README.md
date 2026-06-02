@@ -149,16 +149,16 @@ Current SDK layering:
 
 **Building integrations?**
 - Review [`./cron/`](./cron) for automation and event-driven workflows
-- Explore [`desktop-app/`](../apps/examples/desktop-app), [`vscode/`](../apps/examples/vscode), and [`menubar/`](../apps/examples/menubar) for app integration patterns
+- Explore [`desktop-app/`](../../apps/examples/desktop-app), [`vscode/`](../../apps/examples/vscode), and [`menubar/`](../../apps/examples/menubar) for app integration patterns
 
 **Controlling agent behavior?**
 - Explore [`./hooks/`](./hooks) to intercept and modify tool execution, log actions, or enforce policies
 
 ## 📖 Documentation
 
-- [Cline SDK README](../sdk/packages/README.md)
+- [Cline SDK README](../packages/README.md)
 - [Architecture Guide](../ARCHITECTURE.md)
-- [Individual Package Docs](../sdk/packages/)
+- [Individual Package Docs](../packages/)
 
 ## 🛠️ Requirements
 

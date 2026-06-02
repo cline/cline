@@ -94,7 +94,7 @@ export class WebviewAssets {
 			});
 		}
 		return createTextResponse(
-			"Cline Hub webview is not built. Run `bun run build:webview` from sdk/apps/cline-hub.",
+			"Cline Hub webview is not built. Run `bun run build:webview` from apps/cline-hub.",
 			503,
 		);
 	}

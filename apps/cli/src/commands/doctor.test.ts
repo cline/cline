@@ -115,8 +115,8 @@ describe("runDoctorCommand", () => {
 				return {
 					status: 0,
 					stdout: [
-						"50174 /Users/example/.bun/bin/bun /Users/example/dev/sdk/apps/cli/src/index.ts hub start --cwd /workspace",
-						"50190 /Users/example/.bun/bin/bun /Users/example/dev/sdk/apps/cli/src/index.ts hey",
+						"50174 /Users/example/.bun/bin/bun /Users/example/dev/apps/cli/src/index.ts hub start --cwd /workspace",
+						"50190 /Users/example/.bun/bin/bun /Users/example/dev/apps/cli/src/index.ts hey",
 					].join("\n"),
 				};
 			}
@@ -266,7 +266,7 @@ describe("runDoctorCommand", () => {
 				return {
 					status: 0,
 					stdout:
-						"60123 /Users/example/dev/sdk/apps/examples/desktop-app/src-tauri/bin/code-sidecar\n",
+						"60123 /Users/example/dev/apps/examples/desktop-app/src-tauri/bin/code-sidecar\n",
 				};
 			}
 			return { status: 1, stdout: "" };
