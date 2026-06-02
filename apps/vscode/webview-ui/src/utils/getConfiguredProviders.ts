@@ -201,7 +201,12 @@ export function getConfiguredProviders(
 	}
 
 	// LM Studio - local provider, check base URL OR model configured
-	if (apiConfiguration.lmStudioBaseUrl || apiConfiguration.planModeLmStudioModelId || apiConfiguration.actModeLmStudioModelId) {
+	if (
+		apiConfiguration.lmStudioBaseUrl ||
+		apiConfiguration.lmStudioApiKey ||
+		apiConfiguration.planModeLmStudioModelId ||
+		apiConfiguration.actModeLmStudioModelId
+	) {
 		configured.push("lmstudio")
 	}
 

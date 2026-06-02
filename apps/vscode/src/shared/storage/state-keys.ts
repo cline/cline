@@ -316,6 +316,7 @@ const SECRETS_KEYS = [
 	"geminiApiKey",
 	"openAiNativeApiKey",
 	"ollamaApiKey",
+	"lmStudioApiKey",
 	"deepSeekApiKey",
 	"requestyApiKey",
 	"togetherApiKey",
