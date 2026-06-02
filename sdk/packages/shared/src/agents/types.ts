@@ -56,6 +56,39 @@ export type AgentEvent =
 
 export type AgentContentType = "text" | "reasoning" | "tool";
 
+export const SDK_ERROR_CODES = {
+	ClineAccountAuthRequired: "cline_account_auth_required",
+} as const;
+
+export type SdkErrorCode =
+	(typeof SDK_ERROR_CODES)[keyof typeof SDK_ERROR_CODES];
+
+export type SdkCodedError = Error & { code: SdkErrorCode };
+
+export function isSdkErrorCode(value: unknown): value is SdkErrorCode {
+	return (
+		typeof value === "string" &&
+		(Object.values(SDK_ERROR_CODES) as readonly string[]).includes(value)
+	);
+}
+
+export function createSdkCodedError(
+	code: SdkErrorCode,
+	message: string,
+): SdkCodedError {
+	const error = new Error(message) as SdkCodedError;
+	error.code = code;
+	return error;
+}
+
+export function getSdkErrorCode(error: unknown): SdkErrorCode | undefined {
+	if (typeof error !== "object" || error === null || !("code" in error)) {
+		return undefined;
+	}
+	const code = error.code;
+	return isSdkErrorCode(code) ? code : undefined;
+}
+
 export interface AgentEventMetadata {
 	/** Current ID */
 	agentId?: string;
@@ -182,6 +215,8 @@ export interface AgentErrorEvent extends AgentEventMetadata {
 	type: "error";
 	/** The error that occurred */
 	error: Error;
+	/** Stable error code for client-side handling */
+	errorCode?: SdkErrorCode;
 	/** Whether the error is recoverable */
 	recoverable: boolean;
 	/** Current iteration when error occurred */

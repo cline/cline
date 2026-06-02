@@ -21,6 +21,7 @@ import type {
 	AgentToolCallPart,
 	AgentUsage,
 } from "@cline/shared";
+import { createSdkCodedError, SDK_ERROR_CODES } from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	RuntimeEventAdapter,
@@ -711,6 +712,26 @@ describe("RuntimeEventAdapter — run lifecycle", () => {
 		expect(out[0]).toEqual({
 			type: "error",
 			error: err,
+			recoverable: false,
+			iteration: 4,
+		});
+	});
+
+	it("maps run-failed coded errors", () => {
+		const err = createSdkCodedError(
+			SDK_ERROR_CODES.ClineAccountAuthRequired,
+			"auth required",
+		);
+		const out = adapter.translate({
+			type: "run-failed",
+			snapshot: makeSnapshot({ iteration: 4 }),
+			error: err,
+		});
+
+		expect(out[0]).toMatchObject({
+			type: "error",
+			error: err,
+			errorCode: SDK_ERROR_CODES.ClineAccountAuthRequired,
 			recoverable: false,
 			iteration: 4,
 		});

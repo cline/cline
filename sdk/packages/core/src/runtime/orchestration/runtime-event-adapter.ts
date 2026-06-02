@@ -61,6 +61,7 @@ import type {
 	AgentUsage,
 	LegacyAgentUsage,
 } from "@cline/shared";
+import { getSdkErrorCode } from "@cline/shared";
 
 // =============================================================================
 // Helpers
@@ -234,15 +235,18 @@ export class RuntimeEventAdapter {
 				];
 			case "run-finished":
 				return this.translateRunFinished(event.result);
-			case "run-failed":
+			case "run-failed": {
+				const errorCode = getSdkErrorCode(event.error);
 				return [
 					{
 						type: "error",
 						error: event.error,
+						...(errorCode ? { errorCode } : {}),
 						recoverable: false,
 						iteration: event.snapshot.iteration,
 					},
 				];
+			}
 			default: {
 				const _exhaustive: never = event;
 				return _exhaustive;

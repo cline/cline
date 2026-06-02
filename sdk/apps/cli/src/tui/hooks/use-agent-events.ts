@@ -1,4 +1,4 @@
-import type { AgentEvent, TeamEvent } from "@cline/core";
+import { type AgentEvent, SDK_ERROR_CODES, type TeamEvent } from "@cline/core";
 import { useCallback, useRef } from "react";
 import type {
 	PendingPromptSnapshot,
@@ -28,6 +28,11 @@ interface AgentEventDeps {
 	onTurnErrorReported: TuiProps["onTurnErrorReported"];
 	verbose: boolean;
 }
+
+const CLINE_ACCOUNT_AUTH_ERROR = {
+	text: "Sign in to your Cline account.",
+	help: "Run /account to sign in again, then retry your message.",
+} as const;
 
 export function useAgentEventHandlers(deps: AgentEventDeps) {
 	const {
@@ -171,7 +176,11 @@ export function useAgentEventHandlers(deps: AgentEventDeps) {
 					turnErrorReportedRef.current = true;
 					onTurnErrorReported(true);
 					if (!event.recoverable || verbose) {
-						appendEntry({ kind: "error", text: event.error.message });
+						appendEntry(
+							event.errorCode === SDK_ERROR_CODES.ClineAccountAuthRequired
+								? { kind: "error", ...CLINE_ACCOUNT_AUTH_ERROR }
+								: { kind: "error", text: event.error.message },
+						);
 					}
 					break;
 				case "notice":

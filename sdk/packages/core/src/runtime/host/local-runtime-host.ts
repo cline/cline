@@ -7,10 +7,12 @@ import {
 	type AgentEvent,
 	type AgentResult,
 	captureSdkError,
+	createSdkCodedError,
 	createSessionId,
 	type ITelemetryService,
 	isLikelyAuthError,
 	normalizeUserInput,
+	SDK_ERROR_CODES,
 } from "@cline/shared";
 import { setHomeDirIfUnset } from "@cline/shared/storage";
 import { createContextCompactionPrepareTurn } from "../../extensions/context/compaction";
@@ -1553,6 +1555,12 @@ export class LocalRuntimeHost implements RuntimeHost {
 			});
 		} catch (error) {
 			if (error instanceof OAuthReauthRequiredError) {
+				if (error.providerId === "cline") {
+					throw createSdkCodedError(
+						SDK_ERROR_CODES.ClineAccountAuthRequired,
+						"Cline account authentication requires sign in.",
+					);
+				}
 				throw new Error(`${error.providerId} requires re-authentication.`);
 			}
 			throw error;

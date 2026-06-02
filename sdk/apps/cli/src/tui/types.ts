@@ -41,7 +41,7 @@ export type ChatEntry =
 				error?: string;
 			};
 	  }
-	| { kind: "error"; text: string }
+	| { kind: "error"; text: string; help?: string }
 	| { kind: "status"; text: string }
 	| { kind: "team"; text: string }
 	| { kind: "user_submitted"; text: string; delivery?: "queue" | "steer" }

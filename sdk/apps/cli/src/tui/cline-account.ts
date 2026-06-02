@@ -4,9 +4,11 @@ import {
 	type ClineAccountOrganizationBalance,
 	ClineAccountService,
 	type ClineAccountUser,
+	createSdkCodedError,
 	getValidClineCredentials,
 	type ProviderSettings,
 	ProviderSettingsManager,
+	SDK_ERROR_CODES,
 } from "@cline/core";
 import { getClineEnvironmentConfig } from "@cline/shared";
 import { formatCreditBalance, normalizeCreditBalance } from "../utils/output";
@@ -30,11 +32,10 @@ export function formatClineCredits(value: number): string {
 	return formatCreditBalance(normalizeCreditBalance(value));
 }
 
-export function isClineAccountAuthErrorMessage(message: string): boolean {
-	const normalized = message.trim().toLowerCase();
-	return (
-		normalized === "no cline account auth token found" ||
-		normalized.includes("requires re-authentication")
+function createClineAccountAuthError(): Error {
+	return createSdkCodedError(
+		SDK_ERROR_CODES.ClineAccountAuthRequired,
+		"Cline account authentication requires sign in.",
 	);
 }
 
@@ -100,9 +101,7 @@ async function resolveValidClineAccountAuthToken(input: {
 			{ apiBaseUrl: input.apiBaseUrl },
 		);
 		if (!credentials) {
-			throw new Error(
-				"Cline account requires re-authentication. Run cline auth cline.",
-			);
+			throw createClineAccountAuthError();
 		}
 		const nextAccessToken = toProviderApiKey("cline", credentials);
 		if (
@@ -167,7 +166,7 @@ export async function loadClineAccountSnapshot(input: {
 }): Promise<ClineAccountSnapshot> {
 	const service = await createClineAccountService(input);
 	if (!service) {
-		throw new Error("No Cline account auth token found");
+		throw createClineAccountAuthError();
 	}
 
 	const user = await service.fetchMe();
@@ -202,7 +201,7 @@ export async function switchClineAccount(input: {
 }): Promise<void> {
 	const service = await createClineAccountService(input);
 	if (!service) {
-		throw new Error("No Cline account auth token found");
+		throw createClineAccountAuthError();
 	}
 	await service.switchAccount(input.organizationId);
 }

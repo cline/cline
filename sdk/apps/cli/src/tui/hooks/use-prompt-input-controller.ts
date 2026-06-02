@@ -1,3 +1,4 @@
+import { getSdkErrorCode, SDK_ERROR_CODES } from "@cline/core";
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { shouldShowCliUsageCost } from "../../utils/usage-cost-display";
 import type { SlashCommandRegistry } from "../commands/slash-command-registry";
@@ -26,6 +27,11 @@ interface PastedImage {
 	marker: string;
 	dataUrl: string;
 }
+
+const CLINE_ACCOUNT_AUTH_ERROR = {
+	text: "Sign in to your Cline account.",
+	help: "Run /account to sign in again, then retry your message.",
+} as const;
 
 export function usePromptInputController(input: {
 	autocomplete: ReturnType<typeof useAutocomplete>;
@@ -365,9 +371,15 @@ export function usePromptInputController(input: {
 				}
 			} catch (error) {
 				if (!turnErrorReportedRef.current) {
+					const message =
+						error instanceof Error ? error.message : String(error);
+					const accountAuthError =
+						getSdkErrorCode(error) === SDK_ERROR_CODES.ClineAccountAuthRequired
+							? CLINE_ACCOUNT_AUTH_ERROR
+							: undefined;
 					session.appendEntry({
 						kind: "error",
-						text: error instanceof Error ? error.message : String(error),
+						...(accountAuthError ?? { text: message }),
 					});
 				}
 			} finally {
