@@ -17,6 +17,7 @@ import { handleDesktopCommand } from "./server/desktop-commands";
 import { createJsonResponse, WebviewAssets } from "./server/http";
 import {
 	attachHub,
+	detachHub,
 	restartHub,
 	syncHubClientsAndSessions,
 	syncHubHealth,
@@ -48,13 +49,14 @@ export interface ClineHubDashboardServer {
 	bindHost: string;
 	inviteRequired: boolean;
 	hubUrl: string | undefined;
-	stop: () => void;
+	stop: () => Promise<void>;
 }
 
 export async function startClineHubDashboardServer(): Promise<ClineHubDashboardServer> {
 	const ctx = new HubContext();
 	const assets = new WebviewAssets(webviewDistDir);
 	const syncClientsAndSessions = () => syncHubClientsAndSessions(ctx);
+	let stopped = false;
 
 	function isAuthorizedBrowserRequest(url: URL): boolean {
 		if (!roomSecret) return true;
@@ -217,9 +219,15 @@ export async function startClineHubDashboardServer(): Promise<ClineHubDashboardS
 		bindHost: host,
 		inviteRequired: Boolean(roomSecret),
 		hubUrl: ctx.hubUrl,
-		stop: () => {
+		stop: async () => {
+			if (stopped) return;
+			stopped = true;
 			clearInterval(healthInterval);
-			server.stop(true);
+			try {
+				server.stop(true);
+			} finally {
+				await detachHub(ctx);
+			}
 		},
 	};
 }
