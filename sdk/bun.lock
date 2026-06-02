@@ -39,6 +39,7 @@
         "chat": "^4.23.0",
         "commander": "^14.0.3",
         "marked": "^15.0.12",
+        "nanoid": "^5.1.7",
         "open": "^10.2.0",
         "opentui-spinner": "^0.0.6",
         "pino": "^10.3.1",
