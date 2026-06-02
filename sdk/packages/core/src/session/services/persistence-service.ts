@@ -39,6 +39,9 @@ export type { PersistedSessionUpdateInput, SessionPersistenceAdapter };
 
 const OCC_MAX_RETRIES = 4;
 const DEFAULT_SESSION_CLEANUP_INTERVAL_MS = 60_000;
+const DEFAULT_SESSION_CLEANUP_LIMIT = 2000;
+const SESSION_LIST_PAGE_SIZE = 500;
+const MAX_SESSION_LIST_SCAN_ROWS = 10_000;
 
 export interface BackgroundSessionCleanupOptions {
 	intervalMs?: number;
@@ -50,6 +53,8 @@ export class UnifiedSessionPersistenceService {
 	private readonly teamChildren: TeamChildSessionManager;
 	private readonly logger: BasicLogger | undefined;
 	private missingArtifactCleanupPromise: Promise<number> | undefined;
+	private missingArtifactCleanupLimit = 0;
+	private pendingMissingArtifactCleanupLimit = 0;
 	private static readonly STALE_REASON = "failed_external_process_exit";
 	private static readonly STALE_SOURCE = "stale_session_reconciler";
 	private static readonly TEAM_HEARTBEAT_LOG_INTERVAL_MS = 30_000;
@@ -528,34 +533,74 @@ export class UnifiedSessionPersistenceService {
 		const requestedLimit = Math.max(1, Math.floor(limit));
 		const rows = await this.adapter.listSessions({ limit: requestedLimit });
 		let pruned = 0;
+		const prunedRootSessionIds = new Set<string>();
 		for (const row of rows) {
+			if (
+				row.isSubagent &&
+				row.parentSessionId &&
+				prunedRootSessionIds.has(row.parentSessionId)
+			) {
+				continue;
+			}
 			if (this.hasPersistedArtifacts(row)) {
 				continue;
 			}
 			const result = await this.deleteSession(row.sessionId);
 			if (result.deleted) {
 				pruned++;
+				if (!row.isSubagent) {
+					prunedRootSessionIds.add(row.sessionId);
+				}
 			}
 		}
 		return pruned;
 	}
 
 	async reconcileMissingArtifactSessions(limit = 2000): Promise<number> {
+		const requestedLimit = Math.max(1, Math.floor(limit));
 		if (this.missingArtifactCleanupPromise) {
-			return await this.missingArtifactCleanupPromise;
+			if (requestedLimit <= this.missingArtifactCleanupLimit) {
+				return await this.missingArtifactCleanupPromise;
+			}
+			this.pendingMissingArtifactCleanupLimit = Math.max(
+				this.pendingMissingArtifactCleanupLimit,
+				requestedLimit,
+			);
+			await this.missingArtifactCleanupPromise;
+			return await this.reconcileMissingArtifactSessions(requestedLimit);
 		}
-		const cleanup = this.pruneMissingArtifactSessions(limit);
+		this.pendingMissingArtifactCleanupLimit = 0;
+		const cleanup = this.pruneMissingArtifactSessions(requestedLimit);
 		this.missingArtifactCleanupPromise = cleanup;
+		this.missingArtifactCleanupLimit = requestedLimit;
 		try {
-			return await cleanup;
+			return await this.missingArtifactCleanupPromise;
 		} finally {
 			if (this.missingArtifactCleanupPromise === cleanup) {
 				this.missingArtifactCleanupPromise = undefined;
+				this.missingArtifactCleanupLimit = 0;
+				const pendingLimit = this.pendingMissingArtifactCleanupLimit;
+				this.pendingMissingArtifactCleanupLimit = 0;
+				if (pendingLimit > requestedLimit) {
+					this.scheduleMissingArtifactCleanup(pendingLimit);
+				}
 			}
 		}
 	}
 
 	private scheduleMissingArtifactCleanup(limit = 2000): void {
+		const timer = setTimeout(() => {
+			void this.reconcileMissingArtifactSessions(limit).catch((error) => {
+				this.logger?.log("Session artifact cleanup failed", {
+					severity: "warn",
+					error,
+				});
+			});
+		}, 0);
+		timer.unref?.();
+	}
+
+	private runScheduledMissingArtifactCleanup(limit = 2000): void {
 		void this.reconcileMissingArtifactSessions(limit).catch((error) => {
 			this.logger?.log("Session artifact cleanup failed", {
 				severity: "warn",
@@ -567,42 +612,86 @@ export class UnifiedSessionPersistenceService {
 	startBackgroundSessionCleanup(
 		options: BackgroundSessionCleanupOptions = {},
 	): () => void {
-		const limit = Math.max(1, Math.floor(options.limit ?? 2000));
+		const limit = Math.max(
+			1,
+			Math.floor(options.limit ?? DEFAULT_SESSION_CLEANUP_LIMIT),
+		);
 		const intervalMs = Math.max(
 			1_000,
 			Math.floor(options.intervalMs ?? DEFAULT_SESSION_CLEANUP_INTERVAL_MS),
 		);
 		this.scheduleMissingArtifactCleanup(limit);
 		const interval = setInterval(() => {
-			this.scheduleMissingArtifactCleanup(limit);
+			this.runScheduledMissingArtifactCleanup(limit);
 		}, intervalMs);
 		interval.unref?.();
 		return () => clearInterval(interval);
 	}
 
+	private withResolvedHistoryMetadata(row: SessionRow): SessionRow {
+		const meta = sanitizeMetadata(row.metadata ?? undefined);
+		const manifest = this.manifestStore.readSessionManifest(row.sessionId);
+		const manifestTitle = normalizeTitle(
+			typeof manifest?.metadata?.title === "string"
+				? (manifest.metadata.title as string)
+				: undefined,
+		);
+		const resolved = manifestTitle
+			? { ...(meta ?? {}), title: manifestTitle }
+			: meta;
+		return { ...row, metadata: resolved };
+	}
+
+	private async listRowsWithPersistedArtifacts(
+		requestedLimit: number,
+	): Promise<SessionRow[]> {
+		const rows: SessionRow[] = [];
+		const pageSize = Math.max(
+			requestedLimit,
+			Math.min(SESSION_LIST_PAGE_SIZE, MAX_SESSION_LIST_SCAN_ROWS),
+		);
+		const maxScanRows = Math.max(
+			DEFAULT_SESSION_CLEANUP_LIMIT,
+			Math.min(MAX_SESSION_LIST_SCAN_ROWS, requestedLimit * 10),
+		);
+		let offset = 0;
+		while (rows.length < requestedLimit && offset < maxScanRows) {
+			const batchLimit = Math.min(pageSize, maxScanRows - offset);
+			const batch = await this.adapter.listSessions({
+				limit: batchLimit,
+				offset,
+			});
+			if (batch.length === 0) {
+				break;
+			}
+			for (const row of batch) {
+				if (this.hasPersistedArtifacts(row)) {
+					rows.push(row);
+					if (rows.length >= requestedLimit) {
+						break;
+					}
+				}
+			}
+			if (batch.length < batchLimit) {
+				break;
+			}
+			offset += batch.length;
+		}
+		return rows;
+	}
+
 	async listSessions(limit = 200): Promise<SessionRow[]> {
 		const requestedLimit = Math.max(1, Math.floor(limit));
-		const scanLimit = Math.min(requestedLimit * 5, 2000);
-		this.scheduleMissingArtifactCleanup(scanLimit);
-		await this.reconcileDeadSessions(scanLimit);
+		const cleanupLimit = Math.max(
+			DEFAULT_SESSION_CLEANUP_LIMIT,
+			Math.min(MAX_SESSION_LIST_SCAN_ROWS, requestedLimit * 10),
+		);
+		const deadSessionScanLimit = Math.min(requestedLimit * 5, 2000);
+		this.scheduleMissingArtifactCleanup(cleanupLimit);
+		await this.reconcileDeadSessions(deadSessionScanLimit);
 
-		const rows = await this.adapter.listSessions({ limit: scanLimit });
-		return rows
-			.filter((row) => this.hasPersistedArtifacts(row))
-			.slice(0, requestedLimit)
-			.map((row) => {
-				const meta = sanitizeMetadata(row.metadata ?? undefined);
-				const manifest = this.manifestStore.readSessionManifest(row.sessionId);
-				const manifestTitle = normalizeTitle(
-					typeof manifest?.metadata?.title === "string"
-						? (manifest.metadata.title as string)
-						: undefined,
-				);
-				const resolved = manifestTitle
-					? { ...(meta ?? {}), title: manifestTitle }
-					: meta;
-				return { ...row, metadata: resolved };
-			});
+		const rows = await this.listRowsWithPersistedArtifacts(requestedLimit);
+		return rows.map((row) => this.withResolvedHistoryMetadata(row));
 	}
 
 	async reconcileDeadSessions(limit = 2000): Promise<number> {

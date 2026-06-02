@@ -123,6 +123,7 @@ class FileSessionPersistenceAdapter implements SessionPersistenceAdapter {
 
 	async listSessions(options: {
 		limit: number;
+		offset?: number;
 		parentSessionId?: string;
 		status?: string;
 	}): Promise<SessionRow[]> {
@@ -136,7 +137,10 @@ class FileSessionPersistenceAdapter implements SessionPersistenceAdapter {
 				options.status !== undefined ? row.status === options.status : true,
 			)
 			.sort((a, b) => b.startedAt.localeCompare(a.startedAt))
-			.slice(0, options.limit);
+			.slice(
+				Math.max(0, Math.floor(options.offset ?? 0)),
+				Math.max(0, Math.floor(options.offset ?? 0)) + options.limit,
+			);
 	}
 
 	async updateSession(

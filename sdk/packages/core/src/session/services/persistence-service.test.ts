@@ -206,6 +206,59 @@ describe("UnifiedSessionPersistenceService", () => {
 		expect(Object.values(index.sessions)).toEqual([]);
 	});
 
+	it("continues scanning after stale rows to return older valid sessions", async () => {
+		const sessionsDir = mkdtempSync(
+			join(tmpdir(), "stale-session-window-file-"),
+		);
+		tempDirs.push(sessionsDir);
+
+		const service = new FileSessionService(sessionsDir);
+		for (let index = 0; index < 11; index += 1) {
+			const sessionId = `removed-window-session-${index}`;
+			await service.createRootSessionWithArtifacts({
+				sessionId,
+				source: SessionSource.CLI,
+				pid: process.pid,
+				interactive: false,
+				provider: "mock-provider",
+				model: "mock-model",
+				cwd: "/tmp/project",
+				workspaceRoot: "/tmp/project",
+				enableTools: true,
+				enableSpawn: false,
+				enableTeams: false,
+				prompt: `removed ${index}`,
+				startedAt: `2026-01-02T00:00:${String(index).padStart(2, "0")}.000Z`,
+			});
+			rmSync(join(sessionsDir, sessionId), { recursive: true, force: true });
+		}
+
+		for (let index = 0; index < 2; index += 1) {
+			await service.createRootSessionWithArtifacts({
+				sessionId: `valid-window-session-${index}`,
+				source: SessionSource.CLI,
+				pid: process.pid,
+				interactive: false,
+				provider: "mock-provider",
+				model: "mock-model",
+				cwd: "/tmp/project",
+				workspaceRoot: "/tmp/project",
+				enableTools: true,
+				enableSpawn: false,
+				enableTeams: false,
+				prompt: `valid ${index}`,
+				startedAt: `2026-01-01T00:00:${String(index).padStart(2, "0")}.000Z`,
+			});
+		}
+
+		const rows = await service.listSessions(2);
+
+		expect(rows.map((row) => row.sessionId)).toEqual([
+			"valid-window-session-1",
+			"valid-window-session-0",
+		]);
+	});
+
 	sqliteIt(
 		"persists teammate task metadata in the file envelope and usage on messages",
 		async () => {
