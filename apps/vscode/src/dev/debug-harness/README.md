@@ -124,32 +124,47 @@ curl localhost:19229/api -d '{"method":"ui.screenshot"}'
 ### Testing MCP OAuth
 
 MCP servers that require OAuth use a different flow: the browser redirects
-to a `vscode://` URI handled by the extension's URI handler.
+to a `vscode://` URI handled by the extension's URI handler. The auth provider
+(e.g. Linear) decides the `code`; for end-to-end testing, pair this with the
+local MCP OAuth test server (`npm run dev:mcp-oauth-test-server`, see
+`src/dev/mcp-oauth-test-server/README.md`), which mints real codes/tokens.
 
 ```bash
 # 1. Trigger MCP OAuth (e.g., click "Authenticate" button for a server)
 # 2. Check captured URLs for the authorization URL
 curl localhost:19229/api -d '{"method":"oauth.captured_urls"}'
+#    The authorize URL contains redirect_uri=vscode://saoudrizwan.claude-dev/mcp-auth/callback/HASH
 
-# 3. The MCP OAuth URL will have redirect_uri=vscode://saoudrizwan.claude-dev/mcp-auth/callback/HASH
-#    Build the callback URI and inject it via ext.evaluate:
+# 3. Get a real authorization code from the auth server, e.g. by following the
+#    captured authorize URL (the test server auto-approves and 302s to the
+#    vscode:// callback carrying ?code=...&state=...):
+curl -s -D - -o /dev/null "<captured-authorize-url>" | grep -i '^location:'
+
+# 4. DELIVER the vscode:// callback to the extension. VSCode only routes real
+#    vscode:// URIs to the registered handler, which the harness can't
+#    synthesize — and the extension host is ESM, so you can't require() the
+#    handler module. Instead, call the __clineHandleUri hook (see below):
 curl localhost:19229/api -d '{
   "method": "ext.evaluate",
   "params": {
-    "expression": "require(\"./src/services/uri/SharedUriHandler\").SharedUriHandler.handleUri(\"vscode://saoudrizwan.claude-dev/mcp-auth/callback/HASH?code=TEST_CODE&state=SAVED_STATE\")"
+    "awaitPromise": true,
+    "expression": "globalThis.__clineHandleUri(\"vscode://saoudrizwan.claude-dev/mcp-auth/callback/HASH?code=REAL_CODE&state=SAVED_STATE\")"
   }
 }'
 
-# 4. Or use the convenience method:
-curl localhost:19229/api -d '{
-  "method": "oauth.simulate_callback",
-  "params": {
-    "path": "/mcp-auth/callback/HASH",
-    "code": "TEST_CODE",
-    "state": "SAVED_STATE"
-  }
-}'
+# 5. Verify tokens were stored
+curl localhost:19229/api -d '{"method":"oauth.read_stored_token"}'
 ```
+
+> **`globalThis.__clineHandleUri(url)` — debug-only URI delivery hook.**
+> Registered in `src/extension.ts` during activation, **only** when
+> `CLINE_CAPTURE_BROWSER` is set (which the harness always sets), so it never
+> ships in production. It calls the same `SharedUriHandler.handleUri(url)` that
+> VSCode's real `registerUriHandler` invokes, returning a `Promise<boolean>`
+> (pass `awaitPromise: true`). Use it for any `vscode://` callback — MCP,
+> OpenRouter, `/auth`, etc. `oauth.simulate_callback` only *builds* the URI; this
+> hook actually *delivers* it.
+
 
 ### Testing Provider OAuth (OpenRouter, etc.)
 
@@ -315,8 +330,15 @@ Call `connect_webview` first after the sidebar is open (only needed for breakpoi
 |--------|--------|-------------|
 | `oauth.captured_urls` | `{clear?}` | Get URLs the debugee tried to open in a browser |
 | `oauth.read_stored_token` | | Check auth token presence in debugee's secrets.json |
-| `oauth.simulate_callback` | `{path, code?, state?, provider?, token?}` | Build a vscode:// callback URI for MCP/provider OAuth |
+| `oauth.simulate_callback` | `{path, code?, state?, provider?, token?}` | Build a vscode:// callback URI for MCP/provider OAuth (does NOT deliver it) |
 | `oauth.read_captured_urls_file` | | Read on-disk JSONL log of captured URLs |
+
+To actually **deliver** a `vscode://` callback to the extension, call the
+debug-only hook via `ext.evaluate` (with `awaitPromise: true`):
+`globalThis.__clineHandleUri("vscode://saoudrizwan.claude-dev/...?code=...&state=...")`.
+It invokes the same `SharedUriHandler.handleUri` as VSCode's real URI handler
+and is registered only when `CLINE_CAPTURE_BROWSER` is set (never in prod). See
+"Testing MCP OAuth" above.
 
 ### Combined
 
