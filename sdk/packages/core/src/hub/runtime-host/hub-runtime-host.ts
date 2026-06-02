@@ -1067,6 +1067,7 @@ export class HubRuntimeHost implements RuntimeHost {
 							}
 						: undefined,
 				delivery: input.delivery,
+				connection: input.connection,
 				timeoutMs: input.timeoutMs,
 			},
 			input.sessionId,

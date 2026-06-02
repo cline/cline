@@ -287,9 +287,9 @@ export class AcpAgent implements Agent {
 		}
 		session.currentModelId = params.modelId;
 		if (session.sessionManager && session.activeSessionId) {
-			await session.sessionManager.updateSessionModel?.(
+			await session.sessionManager.updateSessionConnection?.(
 				session.activeSessionId,
-				params.modelId,
+				{ modelId: params.modelId },
 			);
 		}
 		return {};
@@ -342,9 +342,9 @@ export class AcpAgent implements Agent {
 			case "model": {
 				session.currentModelId = value;
 				if (session.sessionManager && session.activeSessionId) {
-					await session.sessionManager.updateSessionModel?.(
+					await session.sessionManager.updateSessionConnection?.(
 						session.activeSessionId,
-						value,
+						{ modelId: value },
 					);
 				}
 				break;

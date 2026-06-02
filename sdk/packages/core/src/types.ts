@@ -87,6 +87,8 @@ export type {
 	RuntimeHostMode,
 	SendSessionInput,
 	SessionAccumulatedUsage,
+	SessionConnectionRuntimeService,
+	SessionConnectionUpdate,
 	SessionUsageSummary,
 	StartSessionInput,
 	StartSessionResult,

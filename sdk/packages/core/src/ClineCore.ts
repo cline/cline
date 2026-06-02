@@ -37,7 +37,7 @@ import type {
 	PendingPromptsServiceApi,
 	RuntimeHost,
 	RuntimeHostSubscribeOptions,
-	SessionModelRuntimeService,
+	SessionConnectionRuntimeService,
 	SessionUsageRuntimeService,
 	StartSessionInput,
 	StartSessionResult,
@@ -546,21 +546,23 @@ export class ClineCore {
 		return this.host.subscribe(listener, options);
 	}
 	/**
-	 * Updates the AI model used by an active session.
+	 * Updates the AI connection used by an active session.
 	 *
-	 * Switches the session to use a different AI model while maintaining the session state
-	 * and message history. This allows you to continue a conversation with a different model.
+	 * Switches provider/model credentials and reasoning settings while maintaining
+	 * the session state and message history. This allows you to continue a
+	 * conversation with a different connection.
 	 *
 	 * @example
 	 * ```ts
-	 * // Switch to a different model mid-session
-	 * await cline.updateSessionModel(sessionId, "claude-opus-4-1");
+	 * await cline.updateSessionConnection(sessionId, {
+	 *   providerId: "anthropic",
+	 *   modelId: "claude-opus-4-1",
+	 * });
 	 * ```
 	 */
-	updateSessionModel: SessionModelRuntimeService["updateSessionModel"] = (
-		...args
-	) => {
-		const service = this.host as RuntimeHostServiceExtensions;
-		return service.updateSessionModel?.(...args) ?? Promise.resolve();
-	};
+	updateSessionConnection: SessionConnectionRuntimeService["updateSessionConnection"] =
+		(...args) => {
+			const service = this.host as RuntimeHostServiceExtensions;
+			return service.updateSessionConnection?.(...args) ?? Promise.resolve();
+		};
 }

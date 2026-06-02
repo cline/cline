@@ -64,6 +64,52 @@ function parseRunTimeoutMs(
 	return undefined;
 }
 
+function parseConnectionUpdate(
+	payload: Record<string, unknown>,
+): SendSessionInput["connection"] | undefined {
+	const raw = payload.connection;
+	if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+		return undefined;
+	}
+	const input = raw as Record<string, unknown>;
+	const connection: NonNullable<SendSessionInput["connection"]> = {};
+	for (const key of ["providerId", "modelId", "apiKey", "baseUrl"] as const) {
+		if (typeof input[key] === "string") connection[key] = input[key];
+	}
+	if (
+		input.reasoningEffort === "low" ||
+		input.reasoningEffort === "medium" ||
+		input.reasoningEffort === "high" ||
+		input.reasoningEffort === "xhigh"
+	) {
+		connection.reasoningEffort = input.reasoningEffort;
+	}
+	if (
+		input.headers &&
+		typeof input.headers === "object" &&
+		!Array.isArray(input.headers)
+	) {
+		const headers = Object.fromEntries(
+			Object.entries(input.headers).filter(
+				(entry): entry is [string, string] => typeof entry[1] === "string",
+			),
+		);
+		if (Object.keys(headers).length > 0) {
+			connection.headers = headers;
+		}
+	}
+	if (input.providerConfig !== undefined) {
+		connection.providerConfig = input.providerConfig;
+	}
+	if (typeof input.thinking === "boolean") {
+		connection.thinking = input.thinking;
+	}
+	if (typeof input.thinkingBudgetTokens === "number") {
+		connection.thinkingBudgetTokens = input.thinkingBudgetTokens;
+	}
+	return Object.keys(connection).length > 0 ? connection : undefined;
+}
+
 async function runTurnWithRuntimeHealth(
 	ctx: HubTransportContext,
 	envelope: HubCommandEnvelope,
@@ -211,6 +257,7 @@ export async function handleSessionInput(
 					? (attachments.userImages as string[])
 					: undefined,
 				userFiles,
+				connection: parseConnectionUpdate(payload),
 				timeoutMs,
 			},
 			timeoutMs,

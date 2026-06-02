@@ -174,7 +174,7 @@ function deriveOpenAICodexAccountId(
 	return undefined;
 }
 
-function buildProviderConfig(
+export function buildProviderConfig(
 	config: CoreSessionConfig,
 	sessionId: string,
 	providerSettingsManager: ProviderSettingsManager,
