@@ -32,6 +32,7 @@
         "@chat-adapter/telegram": "^4.23.0",
         "@chat-adapter/whatsapp": "^4.23.0",
         "@clack/prompts": "^1.2.0",
+        "@cline/cline-hub": "workspace:*",
         "@gramio/format": "^0.7.0",
         "@opentui-ui/dialog": "^0.1.2",
         "@opentui/core": "0.1.102",
