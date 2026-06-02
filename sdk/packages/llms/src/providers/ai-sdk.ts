@@ -140,7 +140,9 @@ function toAiSdkMessages(
 			if (part.type === "tool-call") {
 				const metadata = part.metadata as Record<string, unknown> | undefined;
 				const thoughtSignature =
-					metadata?.thoughtSignature ?? metadata?.signature;
+					metadata?.thoughtSignature ??
+					metadata?.signature ??
+					metadata?.thought_signature;
 				content.push({
 					type: "tool-call",
 					toolCallId: part.toolCallId,
@@ -592,6 +594,9 @@ function extractGoogleThoughtMetadata(
 	if (typeof part.thoughtSignature === "string") {
 		metadata.thoughtSignature = part.thoughtSignature;
 	}
+	if (typeof part.thought_signature === "string") {
+		metadata.thought_signature = part.thought_signature;
+	}
 
 	const providerMetadata =
 		part.providerMetadata && typeof part.providerMetadata === "object"
@@ -614,6 +619,12 @@ function extractGoogleThoughtMetadata(
 	) {
 		metadata.thoughtSignature =
 			googleMetadata?.thoughtSignature ?? vertexMetadata?.thoughtSignature;
+	}
+	if (
+		typeof metadata.thought_signature !== "string" &&
+		typeof googleMetadata?.thought_signature === "string"
+	) {
+		metadata.thought_signature = googleMetadata.thought_signature;
 	}
 
 	return Object.keys(metadata).length > 0 ? metadata : undefined;
