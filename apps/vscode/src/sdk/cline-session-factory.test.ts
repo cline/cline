@@ -4,8 +4,8 @@ import path from "node:path"
 import type { CoreSessionConfig } from "@cline/core"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import {
-	buildSessionConfig,
 	buildResumeSessionInput,
+	buildSessionConfig,
 	buildStartSessionInput,
 	createHistoryItemFromSession,
 	getDefaultModelIdForProvider,
@@ -32,7 +32,7 @@ const mocks = vi.hoisted(() => {
 				actModeApiModelId: "claude-sonnet-4-6",
 				apiKey: "test-key",
 			})),
-			getGlobalSettingsKey: vi.fn((key: string) => {
+			getGlobalSettingsKey: vi.fn((key: string): boolean | undefined => {
 				if (key === "subagentsEnabled" || key === "useAutoCondense") {
 					return false
 				}
