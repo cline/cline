@@ -245,10 +245,12 @@ export async function runCli(): Promise<void> {
 	const pluginInstallCmd = pluginCmd
 		.command("install")
 		.alias("i")
-		.description("Install a Cline Plugin from npm, git, URL, or a local path")
+		.description(
+			"Install a Cline Plugin from an official keyword, npm, git, URL, or a local path",
+		)
 		.argument(
 			"<source>",
-			"npm package, git URL, plugin file URL, or local plugin path",
+			"official keyword, npm package, git URL, plugin file URL, or local plugin path",
 		)
 		.option("--npm", "Treat source as an npm package")
 		.option("--git", "Treat source as a git repository")

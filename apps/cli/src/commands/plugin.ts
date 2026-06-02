@@ -25,6 +25,7 @@ export interface PluginInstallOptions {
 	cwd?: string;
 	force?: boolean;
 	npmCommand?: string;
+	officialPluginsRepo?: string;
 	io?: PluginInstallIo;
 }
 
@@ -60,6 +61,10 @@ type ParsedPluginSource =
 	| {
 			type: "local";
 			path: string;
+	  }
+	| {
+			type: "official";
+			slug: string;
 	  };
 
 type PluginInstallSourceType = "npm" | "git" | "local" | "remote";
@@ -77,6 +82,8 @@ interface PluginPackageManifest {
 
 const INSTALLS_DIRECTORY_NAME = "_installed";
 const PACKAGE_DIRECTORY_NAME = "package";
+const OFFICIAL_PLUGINS_REPO = "https://github.com/cline/plugins.git";
+const OFFICIAL_PLUGINS_REPO_ENV = "CLINE_OFFICIAL_PLUGINS_REPO";
 const REMOTE_PLUGIN_FETCH_TIMEOUT_MS = 30_000;
 const REMOTE_PLUGIN_MAX_BYTES = 10 * 1024 * 1024;
 const HOST_PROVIDED_SDK_PREFIX = "@cline/";
@@ -119,6 +126,18 @@ function sanitizeSegment(value: string): string {
 		.replace(/^-+|-+$/g, "")
 		.slice(0, 80);
 	return sanitized || "plugin";
+}
+
+export function isOfficialPluginSlug(source: string): boolean {
+	return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(source.trim());
+}
+
+function resolveOfficialPluginsRepo(override: string | undefined): string {
+	return (
+		override?.trim() ||
+		process.env[OFFICIAL_PLUGINS_REPO_ENV]?.trim() ||
+		OFFICIAL_PLUGINS_REPO
+	);
 }
 
 function parseNpmSpec(spec: string): { name: string } {
@@ -371,6 +390,9 @@ export function parsePluginSource(
 	if (git) {
 		return git;
 	}
+	if (isOfficialPluginSlug(trimmed)) {
+		return { type: "official", slug: trimmed };
+	}
 	if (looksLikeHostnamePath(trimmed)) {
 		throw new Error(
 			`Unrecognized plugin source "${source}". Use --git for hostname-style repositories or pass an explicit local path such as ./github.com/owner/repo.`,
@@ -415,6 +437,14 @@ function getInstallPath(
 			`${sanitizeSegment(parsed.filename)}-${hashSource(sourceKey)}`,
 		);
 	}
+	if (parsed.type === "official") {
+		return join(
+			pluginRoot,
+			INSTALLS_DIRECTORY_NAME,
+			"official",
+			`${sanitizeSegment(parsed.slug)}-${hashSource(sourceKey)}`,
+		);
+	}
 	return join(
 		pluginRoot,
 		INSTALLS_DIRECTORY_NAME,
@@ -423,7 +453,11 @@ function getInstallPath(
 	);
 }
 
-function getInstallSourceKey(parsed: ParsedPluginSource, cwd: string): string {
+function getInstallSourceKey(
+	parsed: ParsedPluginSource,
+	cwd: string,
+	officialPluginsRepo: string,
+): string {
 	if (parsed.type === "npm") {
 		return `npm:${parsed.spec}`;
 	}
@@ -432,6 +466,9 @@ function getInstallSourceKey(parsed: ParsedPluginSource, cwd: string): string {
 	}
 	if (parsed.type === "remote") {
 		return `remote:${parsed.url}`;
+	}
+	if (parsed.type === "official") {
+		return `official:${officialPluginsRepo}#plugins/${parsed.slug}`;
 	}
 	return `local:${resolve(cwd, resolveHomePath(parsed.path))}`;
 }
@@ -732,6 +769,40 @@ async function installGitPackage(
 	return packageRoot;
 }
 
+async function installOfficialPlugin(
+	parsed: Extract<ParsedPluginSource, { type: "official" }>,
+	stagingRoot: string,
+	npmCommand: string,
+	officialPluginsRepo: string,
+): Promise<string> {
+	const repoRoot = join(stagingRoot, "repo");
+	await runCommand("git", [
+		"clone",
+		"--filter=blob:none",
+		officialPluginsRepo,
+		repoRoot,
+	]);
+
+	const sourceRoot = join(repoRoot, "plugins", parsed.slug);
+	if (!existsSync(sourceRoot) || !statSync(sourceRoot).isDirectory()) {
+		throw new Error(
+			`Official Cline plugin "${parsed.slug}" was not found at plugins/${parsed.slug} in ${officialPluginsRepo}`,
+		);
+	}
+
+	const packageRoot = join(stagingRoot, PACKAGE_DIRECTORY_NAME);
+	await cp(sourceRoot, packageRoot, {
+		recursive: true,
+		filter: (sourcePath) => {
+			const name = basename(sourcePath);
+			return name !== ".git" && name !== "node_modules";
+		},
+	});
+	rmSync(repoRoot, { recursive: true, force: true });
+	await installPackageDependencies(packageRoot, npmCommand);
+	return packageRoot;
+}
+
 function remotePluginSizeLimitError(url: string): Error {
 	return new Error(
 		`Remote plugin file from ${url} exceeds the ${REMOTE_PLUGIN_MAX_BYTES} byte limit`,
@@ -913,7 +984,10 @@ export async function installPlugin(
 	const explicitCwd = options.cwd?.trim();
 	const cwd = explicitCwd ? resolve(explicitCwd) : process.cwd();
 	const pluginRoot = getPluginRoot(explicitCwd ? cwd : undefined);
-	const sourceKey = getInstallSourceKey(parsed, cwd);
+	const officialPluginsRepo = resolveOfficialPluginsRepo(
+		options.officialPluginsRepo,
+	);
+	const sourceKey = getInstallSourceKey(parsed, cwd, officialPluginsRepo);
 	const installPath = getInstallPath(pluginRoot, parsed, sourceKey);
 	const stagingParent = join(pluginRoot, INSTALLS_DIRECTORY_NAME, ".tmp");
 	const stagingRoot = join(
@@ -933,6 +1007,13 @@ export async function installPlugin(
 			packageRoot = await installNpmPackage(parsed, stagingRoot, npmCommand);
 		} else if (parsed.type === "git") {
 			packageRoot = await installGitPackage(parsed, stagingRoot, npmCommand);
+		} else if (parsed.type === "official") {
+			packageRoot = await installOfficialPlugin(
+				parsed,
+				stagingRoot,
+				npmCommand,
+				officialPluginsRepo,
+			);
 		} else if (parsed.type === "remote") {
 			packageRoot = await installRemoteFile(parsed, stagingRoot);
 		} else {

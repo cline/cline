@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import {
 	existsSync,
 	mkdtempSync,
@@ -17,6 +18,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	installPlugin,
+	isOfficialPluginSlug,
 	parsePluginSource,
 	runPluginInstallCommand,
 } from "./plugin";
@@ -46,6 +48,29 @@ describe("plugin install command", () => {
 		setHomeDir(home);
 		setClineDir(process.env.CLINE_DIR);
 	});
+
+	function runGitCommand(cwd: string, args: string[]): void {
+		execFileSync("git", args, { cwd, stdio: "ignore" });
+	}
+
+	async function createOfficialPluginsRepo(
+		plugins: Record<string, Record<string, string>>,
+	): Promise<string> {
+		const repo = mkdtempSync(join(root, "official-plugins-"));
+		for (const [slug, files] of Object.entries(plugins)) {
+			const pluginRoot = join(repo, "plugins", slug);
+			await mkdir(pluginRoot, { recursive: true });
+			for (const [filename, content] of Object.entries(files)) {
+				await writeFile(join(pluginRoot, filename), content, "utf8");
+			}
+		}
+		runGitCommand(repo, ["init"]);
+		runGitCommand(repo, ["config", "user.email", "test@example.com"]);
+		runGitCommand(repo, ["config", "user.name", "Cline Test"]);
+		runGitCommand(repo, ["add", "."]);
+		runGitCommand(repo, ["commit", "-m", "seed plugins"]);
+		return repo;
+	}
 
 	afterEach(() => {
 		vi.useRealTimers();
@@ -82,6 +107,20 @@ describe("plugin install command", () => {
 			repo: "https://github.com/acme/plugin",
 			host: "github.com",
 			path: "acme/plugin",
+		});
+	});
+
+	it("parses bare kebab-case sources as official plugin slugs", () => {
+		expect(isOfficialPluginSlug("web-search")).toBe(true);
+		expect(isOfficialPluginSlug("WebSearch")).toBe(false);
+		expect(parsePluginSource("web-search")).toEqual({
+			type: "official",
+			slug: "web-search",
+		});
+		expect(parsePluginSource("web-search", "npm")).toEqual({
+			type: "npm",
+			spec: "web-search",
+			name: "web-search",
 		});
 	});
 
@@ -167,6 +206,125 @@ describe("plugin install command", () => {
 		expect(
 			discoverPluginModulePaths(join(workspace, ".cline", "plugins")),
 		).toEqual(result.entryPaths);
+	});
+
+	it("installs an official plugin slug from the configured collection repo", async () => {
+		const officialPluginsRepo = await createOfficialPluginsRepo({
+			"web-search": {
+				"index.ts":
+					"export default { name: 'official-web-search', manifest: { capabilities: ['tools'] } };",
+			},
+			"other-plugin": {
+				"index.ts":
+					"export default { name: 'other-plugin', manifest: { capabilities: ['tools'] } };",
+			},
+		});
+
+		const result = await installPlugin({
+			source: "web-search",
+			cwd: workspace,
+			officialPluginsRepo,
+		});
+
+		expect(result.installPath).toContain(
+			join(workspace, ".cline", "plugins", "_installed", "official"),
+		);
+		expect(result.entryPaths).toHaveLength(1);
+		expect(readFileSync(result.entryPaths[0] ?? "", "utf8")).toContain(
+			"official-web-search",
+		);
+		expect(existsSync(join(result.installPath, "repo"))).toBe(false);
+		expect(
+			existsSync(join(result.installPath, "package", "other-plugin")),
+		).toBe(false);
+		expect(
+			discoverPluginModulePaths(join(workspace, ".cline", "plugins")),
+		).toEqual(result.entryPaths);
+	});
+
+	it("installs an official package plugin and runs package dependency install", async () => {
+		const officialPluginsRepo = await createOfficialPluginsRepo({
+			"package-plugin": {
+				"package.json": JSON.stringify(
+					{
+						name: "package-plugin",
+						type: "module",
+						cline: {
+							plugins: [{ paths: ["./index.ts"] }],
+						},
+						dependencies: {
+							yaml: "^2.8.1",
+						},
+					},
+					null,
+					2,
+				),
+				"index.ts":
+					"export default { name: 'package-plugin', manifest: { capabilities: ['tools'] } };",
+			},
+		});
+		const npmLogPath = join(root, "official-npm-install.log");
+		const npmCommandPath = join(root, "official-fake-npm.sh");
+		writeFileSync(
+			npmCommandPath,
+			`#!/bin/sh\nprintf '%s\\n' "$PWD $*" >> "${npmLogPath}"\nexit 0\n`,
+			{ encoding: "utf8", mode: 0o755 },
+		);
+
+		const result = await installPlugin({
+			source: "package-plugin",
+			cwd: workspace,
+			officialPluginsRepo,
+			npmCommand: npmCommandPath,
+		});
+
+		const npmLog = readFileSync(npmLogPath, "utf8");
+		expect(npmLog).toContain("package install --omit=dev --omit=peer");
+		expect(result.entryPaths).toHaveLength(1);
+		expect(readFileSync(result.entryPaths[0] ?? "", "utf8")).toContain(
+			"package-plugin",
+		);
+	});
+
+	it("reports a clear error when an official plugin slug is missing", async () => {
+		const officialPluginsRepo = await createOfficialPluginsRepo({
+			"known-plugin": {
+				"index.ts":
+					"export default { name: 'known-plugin', manifest: { capabilities: ['tools'] } };",
+			},
+		});
+
+		await expect(
+			installPlugin({
+				source: "missing-plugin",
+				cwd: workspace,
+				officialPluginsRepo,
+			}),
+		).rejects.toThrow(
+			/Official Cline plugin "missing-plugin" was not found at plugins\/missing-plugin/,
+		);
+	});
+
+	it("keeps explicit relative paths as local plugin installs", async () => {
+		const localPluginRoot = join(workspace, "web-search");
+		await mkdir(localPluginRoot, { recursive: true });
+		await writeFile(
+			join(localPluginRoot, "index.ts"),
+			"export default { name: 'local-web-search', manifest: { capabilities: ['tools'] } };",
+			"utf8",
+		);
+
+		const result = await installPlugin({
+			source: "./web-search",
+			cwd: workspace,
+		});
+
+		expect(result.installPath).toContain(
+			join(workspace, ".cline", "plugins", "_installed", "local"),
+		);
+		expect(readFileSync(result.entryPaths[0] ?? "", "utf8")).toContain(
+			"local-web-search",
+		);
 	});
 
 	it("times out stalled remote plugin downloads", async () => {
@@ -455,6 +613,40 @@ describe("plugin install command", () => {
 			expect(code).toBe(0);
 			const parsed = JSON.parse(stdout.join("")) as { installPath: string };
 			expect(parsed.installPath).toContain(join(home, ".cline", "plugins"));
+		} finally {
+			process.stdout.write = originalWrite;
+		}
+	});
+
+	it("prints JSON output for official plugin installs", async () => {
+		const officialPluginsRepo = await createOfficialPluginsRepo({
+			"json-plugin": {
+				"index.ts":
+					"export default { name: 'json-plugin', manifest: { capabilities: ['tools'] } };",
+			},
+		});
+		const stdout: string[] = [];
+		const originalWrite = process.stdout.write;
+		process.stdout.write = ((chunk: string | Uint8Array) => {
+			stdout.push(String(chunk));
+			return true;
+		}) as typeof process.stdout.write;
+		try {
+			const code = await runPluginInstallCommand({
+				source: "json-plugin",
+				cwd: workspace,
+				officialPluginsRepo,
+				json: true,
+				io: {
+					writeln: () => {},
+					writeErr: () => {},
+				},
+			});
+			expect(code).toBe(0);
+			const parsed = JSON.parse(stdout.join("")) as { installPath: string };
+			expect(parsed.installPath).toContain(
+				join(workspace, ".cline", "plugins", "_installed", "official"),
+			);
 		} finally {
 			process.stdout.write = originalWrite;
 		}
