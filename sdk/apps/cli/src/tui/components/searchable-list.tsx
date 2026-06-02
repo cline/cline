@@ -89,7 +89,12 @@ export function buildSearchableListRows(
 				label: item.section,
 			});
 		}
-		rows.push({ kind: "item", key: item.key, item, itemIndex });
+		rows.push({
+			kind: "item",
+			key: `item-${itemIndex}-${item.key}`,
+			item,
+			itemIndex,
+		});
 		previousSection = item.section;
 	}
 	return rows;
@@ -284,7 +289,7 @@ export function SearchableList(props: {
 						const isSel = row.itemIndex === safeSelected;
 						return (
 							<box
-								key={item.key}
+								key={row.key}
 								paddingX={1}
 								flexDirection="row"
 								gap={1}
