@@ -93,5 +93,16 @@ export function buildSdkProviderConfig(
  * existing callers continue to work unchanged.
  */
 export function buildApiHandler(configuration: ApiConfiguration, mode: Mode, options?: BuildApiHandlerOptions): ApiHandler {
-	return createHandler(buildSdkProviderConfig(configuration, mode, options))
+	const providerConfig = buildSdkProviderConfig(configuration, mode, options)
+	const handler = createHandler(providerConfig)
+	const getModel = handler.getModel.bind(handler)
+
+	handler.getModel = () => {
+		return {
+			...getModel(),
+			providerId: providerConfig.providerId,
+		}
+	}
+
+	return handler
 }
