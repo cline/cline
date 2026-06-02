@@ -19,7 +19,6 @@ import {
 	formatRunCommandQuery,
 	getEditorSizeError,
 	getReadFileRangeError,
-	normalizeReadFileRequests,
 	normalizeRunCommandsInput,
 	TimeoutError,
 	withTimeout,
@@ -34,8 +33,10 @@ import {
 	EditFileInputSchema,
 	type FetchWebContentInput,
 	FetchWebContentInputSchema,
+	type ReadFileRequest,
 	type ReadFilesInput,
 	ReadFilesInputSchema,
+	ReadFilesInputUnionSchema,
 	type RunCommandsInput,
 	RunCommandsInputSchema,
 	RunCommandsInputUnionSchema,
@@ -129,7 +130,33 @@ export function createReadFilesTool(
 		retryable: true,
 		maxRetries: 1,
 		execute: async (input, context) => {
-			const requests = normalizeReadFileRequests(input);
+			const validate = validateWithZod(ReadFilesInputUnionSchema, input);
+			let requests: ReadFileRequest[];
+			if (typeof validate === "string") {
+				requests = [{ path: validate }];
+			} else if (Array.isArray(validate)) {
+				requests = validate.map((value) =>
+					typeof value === "string" ? { path: value } : value,
+				);
+			} else if ("files" in validate) {
+				requests = Array.isArray(validate.files)
+					? validate.files
+					: [validate.files];
+			} else if ("file_paths" in validate) {
+				const filePaths = Array.isArray(validate.file_paths)
+					? validate.file_paths
+					: [validate.file_paths];
+				requests = filePaths.map((path) => ({ path }));
+			} else if ("paths" in validate) {
+				const paths = Array.isArray(validate.paths)
+					? validate.paths
+					: [validate.paths];
+				requests = paths.map((path) =>
+					typeof path === "string" ? { path } : path,
+				);
+			} else {
+				requests = [validate];
+			}
 
 			return Promise.all(
 				requests.map(async (request): Promise<ToolOperationResult> => {

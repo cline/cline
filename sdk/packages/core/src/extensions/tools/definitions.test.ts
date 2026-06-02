@@ -770,7 +770,7 @@ describe("default run_commands tool", () => {
 });
 
 describe("default read_files tool", () => {
-	it("normalizes ranged file requests and passes them to the executor", async () => {
+	it("validates ranged file requests and passes them to the executor", async () => {
 		const execute = vi.fn(async () => "selected lines");
 		const tool = createReadFilesTool(execute);
 
@@ -812,7 +812,7 @@ describe("default read_files tool", () => {
 		);
 	});
 
-	it("keeps legacy string inputs reading full file content", async () => {
+	it("accepts string union inputs reading full file content", async () => {
 		const execute = vi.fn(async () => "full file");
 		const tool = createReadFilesTool(execute);
 
@@ -869,6 +869,21 @@ describe("default read_files tool", () => {
 			{ path: "/tmp/c.ts" },
 			expect.objectContaining({ iteration: 2 }),
 		);
+	});
+
+	it("rejects invalid union inputs before calling the executor", async () => {
+		const execute = vi.fn(async () => "should not run");
+		const tool = createReadFilesTool(execute);
+
+		await expect(
+			tool.execute({ paths: ["/tmp/a.ts", 42] } as never, {
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			}),
+		).rejects.toThrow();
+
+		expect(execute).not.toHaveBeenCalled();
 	});
 
 	it("treats null line bounds as full-file boundaries", async () => {
