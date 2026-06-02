@@ -110,9 +110,14 @@ describe("plugin install command", () => {
 		});
 	});
 
-	it("parses bare kebab-case sources as official plugin slugs", () => {
+	it("parses bare official keywords as official plugin slugs", () => {
+		expect(isOfficialPluginSlug("clickhouse")).toBe(true);
 		expect(isOfficialPluginSlug("web-search")).toBe(true);
 		expect(isOfficialPluginSlug("WebSearch")).toBe(false);
+		expect(parsePluginSource("clickhouse")).toEqual({
+			type: "official",
+			slug: "clickhouse",
+		});
 		expect(parsePluginSource("web-search")).toEqual({
 			type: "official",
 			slug: "web-search",

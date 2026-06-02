@@ -779,6 +779,9 @@ async function installOfficialPlugin(
 	await runCommand("git", [
 		"clone",
 		"--filter=blob:none",
+		"--depth",
+		"1",
+		"--",
 		officialPluginsRepo,
 		repoRoot,
 	]);
