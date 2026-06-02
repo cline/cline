@@ -154,6 +154,8 @@ Slack runs in webhook mode. You need a Slack app, a bot token, a signing secret,
 
 Each Slack thread maps to an agent session. In channels, start with an app mention such as `@Cline run the tests`. After the bot replies in a thread, continue in that thread; you do not need to mention the bot on every reply. In DMs, send a normal message to the app.
 
+When you ask the agent to mention someone, use the person's Slack display name or username, such as `@Jane Doe` or `@jane`. The connector resolves unique names to Slack user mentions before sending the reply.
+
 Connector commands are sent as chat messages, for example `@Cline /help` in a channel thread or `/help` in a DM. Common commands:
 
 - `/help` or `/start` - show connector help

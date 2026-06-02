@@ -408,9 +408,7 @@ describe("handleConnectorUserTurn", () => {
 			reusedLogMessage: "reused",
 		});
 
-		expect(posts).toEqual([
-			expect.stringContaining("threadId=thread-1"),
-		]);
+		expect(posts).toEqual([expect.stringContaining("threadId=thread-1")]);
 		expect(runtime.sendRuntimeSession).not.toHaveBeenCalled();
 	});
 
@@ -1485,6 +1483,7 @@ describe("handleConnectorUserTurn", () => {
 		});
 		const stopRuntimeSession = vi.fn(async () => ({ applied: true }));
 		const deleteSession = vi.fn(async () => ({ deleted: true }));
+		const onReplyFailed = vi.fn(async () => undefined);
 
 		await handleConnectorUserTurn({
 			thread: thread as never,
@@ -1513,6 +1512,7 @@ describe("handleConnectorUserTurn", () => {
 			getSessionMetadata: () => ({}),
 			reusedLogMessage: "reused",
 			startedLogMessage: "started",
+			onReplyFailed,
 		});
 
 		expect(sendRuntimeSession).toHaveBeenNthCalledWith(
@@ -1530,8 +1530,89 @@ describe("handleConnectorUserTurn", () => {
 		expect(startRuntimeSession).toHaveBeenCalledTimes(1);
 		expect(stopRuntimeSession).toHaveBeenCalledWith("stale-session");
 		expect(deleteSession).toHaveBeenCalledWith("stale-session", true);
+		expect(onReplyFailed).not.toHaveBeenCalled();
 		expect(posts.at(-1)).toBe("fresh reply");
 		expect(getState().sessionId).toBe("fresh-session");
+	});
+
+	it("reports reply failure only after stale-session recovery retry fails", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
+		tempDirs.push(dir);
+		const bindingsPath = join(dir, "threads.json");
+		const { thread } = createThread({
+			sessionId: "stale-session",
+			enableTools: false,
+			autoApproveTools: false,
+			cwd: "/tmp/work",
+			workspaceRoot: "/tmp/work",
+			participantKey: "slack:team:T123:user:U123",
+			participantLabel: "alice",
+		});
+		const startRuntimeSession = vi.fn(async () => ({
+			sessionId: "fresh-session",
+		}));
+		const sendRuntimeSession = vi.fn(async (sessionId: string) => {
+			if (sessionId === "stale-session") {
+				throw Object.assign(new Error("session not found: stale-session"), {
+					code: RUNTIME_SESSION_NOT_FOUND_ERROR_CODE,
+				});
+			}
+			throw new Error("retry failed");
+		});
+		const stopRuntimeSession = vi.fn(async () => ({ applied: true }));
+		const deleteSession = vi.fn(async () => ({ deleted: true }));
+		const onReplyFailed = vi.fn(async () => undefined);
+
+		await expect(
+			handleConnectorUserTurn({
+				thread: thread as never,
+				text: "hello",
+				client: {
+					startRuntimeSession,
+					updateSession: vi.fn(async () => undefined),
+					sendRuntimeSession,
+					stopRuntimeSession,
+					deleteSession,
+					streamEvents: vi.fn(() => () => undefined),
+				} as never,
+				pendingApprovals: new Map(),
+				baseStartRequest: baseStartRequest() as never,
+				explicitSystemPrompt: undefined,
+				clientId: "client-1",
+				logger: {
+					core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+				} as never,
+				transport: "slack",
+				botUserName: "ClineAdapterBot",
+				requestStop: vi.fn(),
+				bindingsPath,
+				systemRules: "rules",
+				errorLabel: "Slack",
+				getSessionMetadata: () => ({}),
+				reusedLogMessage: "reused",
+				startedLogMessage: "started",
+				onReplyFailed,
+			}),
+		).rejects.toThrow("retry failed");
+
+		expect(sendRuntimeSession).toHaveBeenNthCalledWith(
+			1,
+			"stale-session",
+			expect.anything(),
+			{ timeoutMs: null },
+		);
+		expect(sendRuntimeSession).toHaveBeenNthCalledWith(
+			2,
+			"fresh-session",
+			expect.anything(),
+			{ timeoutMs: null },
+		);
+		expect(onReplyFailed).toHaveBeenCalledTimes(1);
+		expect(onReplyFailed).toHaveBeenCalledWith({
+			sessionId: "fresh-session",
+			threadId: "thread-1",
+			error: expect.objectContaining({ message: "retry failed" }),
+		});
 	});
 
 	it("uses the replacement session for empty-runtime fallback after stale-session recovery", async () => {

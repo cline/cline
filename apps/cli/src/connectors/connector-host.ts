@@ -383,11 +383,7 @@ export async function handleConnectorUserTurn<
 	const commandAddressedToBot =
 		input.addressedToBot ||
 		isConnectorCommandAddressedToThisBot(resolvedInput, input.botUserName);
-	if (
-		isConnectorCommand &&
-		!input.thread.isDM &&
-		!commandAddressedToBot
-	) {
+	if (isConnectorCommand && !input.thread.isDM && !commandAddressedToBot) {
 		input.logger.core.log("Unaddressed connector chat command ignored", {
 			transport: input.transport,
 			threadId: input.thread.id,
@@ -1000,6 +996,16 @@ export async function handleConnectorUserTurn<
 				await input.postFinalReply?.({ thread: input.thread, text });
 			}
 		: undefined;
+	const notifyReplyFailed = async (
+		sessionId: string,
+		error: unknown,
+	): Promise<void> => {
+		await input.onReplyFailed?.({
+			sessionId,
+			threadId: input.thread.id,
+			error: error instanceof Error ? error : new Error(String(error)),
+		});
+	};
 	const postRuntimeReply = async (
 		targetSessionId: string,
 		targetRequest: ChatRunTurnRequest,
@@ -1051,13 +1057,6 @@ export async function handleConnectorUserTurn<
 						iterations: result.iterations,
 					});
 				},
-				onFailed: async (error) => {
-					await input.onReplyFailed?.({
-						sessionId: targetSessionId,
-						threadId: input.thread.id,
-						error,
-					});
-				},
 			}),
 			postFinalReply,
 			resolveFallbackText,
@@ -1072,6 +1071,7 @@ export async function handleConnectorUserTurn<
 				activeSessionId !== staleSessionId ||
 				!isConnectorRuntimeSessionMissingError(error, activeSessionId)
 			) {
+				await notifyReplyFailed(activeSessionId, error);
 				throw error;
 			}
 			input.logger.core.log(
@@ -1083,46 +1083,55 @@ export async function handleConnectorUserTurn<
 					sessionId: activeSessionId,
 				},
 			);
-			await clearSession({
-				thread: input.thread,
-				client: input.client,
-				bindingsPath: input.bindingsPath,
-				baseStartRequest: input.baseStartRequest,
-				errorLabel: input.errorLabel,
-			});
-			const retryState = await loadThreadState(
-				input.thread,
-				input.bindingsPath,
-				input.baseStartRequest,
-			);
-			const retryStartRequest = buildThreadStartRequest(
-				input.baseStartRequest,
-				applyForcedToolDisable(retryState, input.forceDisableTools),
-			);
-			activeSessionId = await getOrCreateSessionId({
-				thread: input.thread,
-				client: input.client,
-				startRequest: retryStartRequest,
-				logger: input.logger,
-				clientId: input.clientId,
-				transport: input.transport,
-				bindingsPath: input.bindingsPath,
-				errorLabel: input.errorLabel,
-				hookCommand: input.hookCommand,
-				hookBotUserName: input.botUserName,
-				sessionMetadata: input.getSessionMetadata(
+			try {
+				await clearSession({
+					thread: input.thread,
+					client: input.client,
+					bindingsPath: input.bindingsPath,
+					baseStartRequest: input.baseStartRequest,
+					errorLabel: input.errorLabel,
+				});
+				const retryState = await loadThreadState(
 					input.thread,
-					input.clientId,
-					retryState,
-				),
-				reusedLogMessage: input.reusedLogMessage,
-				startedLogMessage: input.startedLogMessage,
-			});
-			input.activeTurns?.set(turnKey, { sessionId: activeSessionId });
-			await postRuntimeReply(activeSessionId, {
-				...request,
-				config: retryStartRequest,
-			});
+					input.bindingsPath,
+					input.baseStartRequest,
+				);
+				const retryStartRequest = buildThreadStartRequest(
+					input.baseStartRequest,
+					applyForcedToolDisable(retryState, input.forceDisableTools),
+				);
+				activeSessionId = await getOrCreateSessionId({
+					thread: input.thread,
+					client: input.client,
+					startRequest: retryStartRequest,
+					logger: input.logger,
+					clientId: input.clientId,
+					transport: input.transport,
+					bindingsPath: input.bindingsPath,
+					errorLabel: input.errorLabel,
+					hookCommand: input.hookCommand,
+					hookBotUserName: input.botUserName,
+					sessionMetadata: input.getSessionMetadata(
+						input.thread,
+						input.clientId,
+						retryState,
+					),
+					reusedLogMessage: input.reusedLogMessage,
+					startedLogMessage: input.startedLogMessage,
+				});
+				input.activeTurns?.set(turnKey, {
+					sessionId: activeSessionId,
+					threadId: input.thread.id,
+					participantKey: retryState.participantKey,
+				});
+				await postRuntimeReply(activeSessionId, {
+					...request,
+					config: retryStartRequest,
+				});
+			} catch (retryError) {
+				await notifyReplyFailed(activeSessionId, retryError);
+				throw retryError;
+			}
 		}
 	} finally {
 		input.pendingApprovals.delete(input.thread.id);

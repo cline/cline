@@ -71,13 +71,36 @@ import {
 
 const SLACK_SYSTEM_RULES = getConnectorSystemRules(
 	"Slack",
-	"You can respond to user messages in threads and DMs, and you can use tools according to user's requests and your capabilities.",
+	[
+		"You can respond to user messages in threads and DMs, and you can use tools according to user's requests and your capabilities.",
+		"When asked to mention a Slack user or bot by name, write the mention as @display-name or @username. The connector resolves unique Slack names to Slack mention IDs before sending. Do not ask the user for a Slack ID unless the name cannot be resolved.",
+	].join("\n"),
 );
 
 const SLACK_FIRST_CONTACT_MESSAGE = getConnectorFirstContactMessage();
 
 type SlackThreadState = ConnectorThreadState & {
 	teamId?: string;
+};
+type SlackUserProfile = {
+	display_name?: string;
+	display_name_normalized?: string;
+	real_name?: string;
+	real_name_normalized?: string;
+};
+type SlackUser = {
+	id?: string;
+	name?: string;
+	real_name?: string;
+	deleted?: boolean;
+	profile?: SlackUserProfile;
+};
+type SlackUsersListResponse = {
+	ok?: boolean;
+	members?: SlackUser[];
+	response_metadata?: {
+		next_cursor?: string;
+	};
 };
 
 function truncateText(value: string, maxLength = 160): string {
@@ -127,6 +150,14 @@ function firstRecord(value: unknown): Record<string, unknown> | undefined {
 
 function readString(value: unknown): string | undefined {
 	return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function normalizeSlackLookupName(value: string | undefined): string {
+	return (value ?? "")
+		.trim()
+		.replace(/^@+/, "")
+		.replace(/\s+/g, " ")
+		.toLowerCase();
 }
 
 function normalizeSlackMessageEventChannelType<T>(event: T): T {
@@ -180,6 +211,12 @@ function buildSlackParticipantKey(teamId: string, userId: string): string {
 	return `slack:team:${teamId}:user:${userId}`;
 }
 
+function resolveSlackParticipantUserId(
+	participantKey: string | undefined,
+): string | undefined {
+	return participantKey?.match(/^slack:team:[^:]+:user:([^:]+)$/)?.[1];
+}
+
 function resolveSlackParticipant(
 	rawMessage: unknown,
 	teamId?: string,
@@ -218,6 +255,171 @@ function extractSlackTeamId(raw: unknown): string | undefined {
 				? record.team
 				: undefined;
 	return value?.trim() || undefined;
+}
+
+function slackUserNames(user: SlackUser): string[] {
+	const profile = user.profile ?? {};
+	const names = [
+		user.name,
+		user.real_name,
+		profile.display_name,
+		profile.display_name_normalized,
+		profile.real_name,
+		profile.real_name_normalized,
+	];
+	return [
+		...new Set(
+			names
+				.map((name) => name?.trim())
+				.filter((name): name is string => Boolean(name)),
+		),
+	];
+}
+
+function buildSlackMentionNameIndex(
+	users: SlackUser[],
+): Map<string, { ids: Set<string>; names: Set<string> }> {
+	const index = new Map<string, { ids: Set<string>; names: Set<string> }>();
+	for (const user of users) {
+		const id = user.id?.trim();
+		if (!id || user.deleted) {
+			continue;
+		}
+		for (const name of slackUserNames(user)) {
+			const normalizedName = normalizeSlackLookupName(name);
+			if (!normalizedName || /^[UW][A-Z0-9]+$/i.test(normalizedName)) {
+				continue;
+			}
+			const entry = index.get(normalizedName) ?? {
+				ids: new Set<string>(),
+				names: new Set<string>(),
+			};
+			entry.ids.add(id);
+			entry.names.add(name);
+			index.set(normalizedName, entry);
+		}
+	}
+	return index;
+}
+
+function pickSlackMentionForName(input: {
+	index: Map<string, { ids: Set<string>; names: Set<string> }>;
+	name: string;
+	preferredUserIds?: string[];
+}): string | undefined {
+	const entry = input.index.get(normalizeSlackLookupName(input.name));
+	if (!entry) {
+		return undefined;
+	}
+	const ids = [...entry.ids];
+	if (ids.length === 1) {
+		return `<@${ids[0]}>`;
+	}
+	const preferredIds = new Set(input.preferredUserIds ?? []);
+	const preferred = ids.filter((id) => preferredIds.has(id));
+	return preferred.length === 1 ? `<@${preferred[0]}>` : undefined;
+}
+
+function hasPotentialSlackOutboundMention(text: string): boolean {
+	return /(^|[\s([{])@[A-Za-z0-9_.-]/.test(text);
+}
+
+function resolveSlackOutboundMentionText(input: {
+	text: string;
+	users: SlackUser[];
+	preferredUserIds?: string[];
+}): string {
+	if (!hasPotentialSlackOutboundMention(input.text)) {
+		return input.text;
+	}
+	const index = buildSlackMentionNameIndex(input.users);
+	const candidates = [...index.entries()]
+		.map(([normalizedName, entry]) => ({
+			normalizedName,
+			names: [...entry.names].sort((a, b) => b.length - a.length),
+		}))
+		.sort((a, b) => b.normalizedName.length - a.normalizedName.length);
+	let resolved = input.text;
+	for (const candidate of candidates) {
+		const mention = pickSlackMentionForName({
+			index,
+			name: candidate.normalizedName,
+			preferredUserIds: input.preferredUserIds,
+		});
+		if (!mention) {
+			continue;
+		}
+		const pattern = new RegExp(
+			`(^|[\\s([{])@(?:${candidate.names.map(escapeRegExp).join("|")})(?=$|[\\s,.;:!?}\\])])`,
+			"gi",
+		);
+		resolved = resolved.replace(pattern, (_full, prefix: string) => {
+			return `${prefix}${mention}`;
+		});
+	}
+	return resolved;
+}
+
+async function fetchSlackUsers(input: {
+	slack: Pick<SlackAdapter, "webClient">;
+}): Promise<SlackUser[]> {
+	const users: SlackUser[] = [];
+	let cursor: string | undefined;
+	do {
+		const result = (await input.slack.webClient.users.list({
+			limit: 200,
+			...(cursor ? { cursor } : {}),
+		})) as SlackUsersListResponse;
+		if (result.ok === false) {
+			break;
+		}
+		users.push(...(Array.isArray(result.members) ? result.members : []));
+		cursor = result.response_metadata?.next_cursor?.trim() || undefined;
+	} while (cursor);
+	return users;
+}
+
+async function resolveSlackOutboundMentions(input: {
+	slack: Pick<SlackAdapter, "webClient">;
+	text: string;
+	preferredUserIds?: string[];
+	logger?: CliLoggerAdapter;
+}): Promise<string> {
+	if (!hasPotentialSlackOutboundMention(input.text)) {
+		return input.text;
+	}
+	let users: SlackUser[];
+	try {
+		users = await fetchSlackUsers({ slack: input.slack });
+	} catch (error) {
+		input.logger?.core.log("Slack mention resolution skipped", {
+			severity: "warn",
+			transport: "slack",
+			error: error instanceof Error ? error.message : String(error),
+		});
+		return input.text;
+	}
+	return resolveSlackOutboundMentionText({
+		text: input.text,
+		users,
+		preferredUserIds: input.preferredUserIds,
+	});
+}
+
+async function postSlackResolvedText(input: {
+	slack: Pick<SlackAdapter, "webClient">;
+	thread: Thread<SlackThreadState>;
+	text: string;
+	preferredUserIds?: string[];
+	logger?: CliLoggerAdapter;
+}): Promise<void> {
+	const resolvedText = await resolveSlackOutboundMentions({
+		slack: input.slack,
+		text: input.text,
+		preferredUserIds: input.preferredUserIds,
+		logger: input.logger,
+	});
+	await input.thread.post(resolvedText);
 }
 
 async function withSlackBindingBotToken<T>(input: {
@@ -813,6 +1015,22 @@ class SlackConnector extends ConnectorBase<
 								}),
 								reusedLogMessage: "Slack thread reusing RPC session",
 								startedLogMessage: "Slack thread started RPC session",
+								postFinalReply: async ({
+									thread: replyThread,
+									text: replyText,
+								}) => {
+									await postSlackResolvedText({
+										slack,
+										thread: replyThread,
+										text: replyText,
+										preferredUserIds: [
+											resolveSlackParticipantUserId(
+												currentState.participantKey,
+											),
+										].filter((id): id is string => Boolean(id)),
+										logger: loggerAdapter,
+									});
+								},
 								onMessageReceived: async (details) => {
 									await dispatchConnectorHook(
 										options.hookCommand,
@@ -1136,10 +1354,14 @@ function parseSlackOptionsForTest(rawArgs: string[]): ConnectSlackOptions {
 export const __test__ = {
 	parseSlackOptionsForTest,
 	buildSlackParticipantKey,
+	resolveSlackParticipantUserId,
 	resolveSlackParticipant,
 	normalizeSlackMessageEventChannelType,
 	stripLeadingSlackMention,
 	resolveSlackTurnText,
+	resolveSlackOutboundMentionText,
+	resolveSlackOutboundMentions,
+	postSlackResolvedText,
 	withSlackTeamBotToken,
 	isSlackInvalidThreadTsError,
 	findBindingForThread: (

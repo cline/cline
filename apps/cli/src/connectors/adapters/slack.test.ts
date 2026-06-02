@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { __test__ } from "./slack";
 
 describe("slack binding lookup", () => {
@@ -206,6 +206,108 @@ describe("slack binding lookup", () => {
 				botUserId: "U123",
 			}),
 		).toBe("@Other User /help");
+	});
+
+	it("resolves outbound Slack display names to user mention ids", () => {
+		expect(
+			__test__.resolveSlackOutboundMentionText({
+				text: "@Ara can you check this?",
+				users: [
+					{
+						id: "U08LK8A7YTC",
+						name: "ara",
+						profile: { display_name: "Ara" },
+					},
+				],
+			}),
+		).toBe("<@U08LK8A7YTC> can you check this?");
+	});
+
+	it("resolves outbound multi-word Slack display names", () => {
+		expect(
+			__test__.resolveSlackOutboundMentionText({
+				text: "@Cline CLI Test can you take a look?",
+				users: [
+					{
+						id: "U0B4S0ZUVM2",
+						name: "cline-cli-test",
+						profile: { display_name: "Cline CLI Test" },
+					},
+				],
+			}),
+		).toBe("<@U0B4S0ZUVM2> can you take a look?");
+	});
+
+	it("leaves ambiguous outbound Slack names unresolved unless a preferred user matches", () => {
+		const users = [
+			{
+				id: "U111",
+				name: "alice-one",
+				profile: { display_name: "Alice" },
+			},
+			{
+				id: "U222",
+				name: "alice-two",
+				profile: { display_name: "Alice" },
+			},
+		];
+
+		expect(
+			__test__.resolveSlackOutboundMentionText({
+				text: "@Alice please check this.",
+				users,
+			}),
+		).toBe("@Alice please check this.");
+		expect(
+			__test__.resolveSlackOutboundMentionText({
+				text: "@Alice please check this.",
+				users,
+				preferredUserIds: ["U222"],
+			}),
+		).toBe("<@U222> please check this.");
+	});
+
+	it("skips Slack user lookup when text has no resolvable outbound mention", async () => {
+		const usersList = vi.fn(async () => ({ ok: true, members: [] }));
+
+		await expect(
+			__test__.resolveSlackOutboundMentions({
+				slack: { webClient: { users: { list: usersList } } } as never,
+				text: "Ping <@U123> or email test@example.com.",
+			}),
+		).resolves.toBe("Ping <@U123> or email test@example.com.");
+		expect(usersList).not.toHaveBeenCalled();
+	});
+
+	it("posts final Slack replies through the thread after resolving mentions", async () => {
+		const usersList = vi.fn(async () => ({
+			ok: true,
+			members: [
+				{
+					id: "U08LK8A7YTC",
+					name: "ara",
+					profile: { display_name: "Ara" },
+				},
+			],
+		}));
+		const fallbackPost = vi.fn(async () => undefined);
+
+		await __test__.postSlackResolvedText({
+			slack: {
+				webClient: {
+					users: { list: usersList },
+				},
+			} as never,
+			thread: {
+				id: "slack:C123:111.222",
+				post: fallbackPost,
+			} as never,
+			text: "@Ara shipped the fix.",
+		});
+
+		expect(fallbackPost).toHaveBeenCalledWith(
+			"<@U08LK8A7YTC> shipped the fix.",
+		);
 	});
 
 	it("routes Slack posts through the installation bot token for a team", async () => {
