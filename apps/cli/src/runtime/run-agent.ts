@@ -288,7 +288,6 @@ export async function runAgent(
 			userFiles: userFiles.length > 0 ? userFiles : undefined,
 			interactive: false,
 			localRuntime: {
-				userInstructionService,
 				onTeamRestored: () => emitTeamRestored(config),
 			},
 		});
