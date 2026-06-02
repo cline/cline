@@ -29,10 +29,15 @@ vi.mock("@shared/proto/cline/common", () => ({
 	StringRequest: { create: (x: unknown) => x },
 }))
 
-// useExtensionState supplies turnState (+ backgroundCommandRunning) to the hook.
+// useExtensionState supplies turnState (+ backgroundCommandRunning + hasUsableProvider) to the hook.
 let mockTurnState: TurnState | undefined
+let mockHasUsableProvider = true
 vi.mock("@/context/ExtensionStateContext", () => ({
-	useExtensionState: () => ({ backgroundCommandRunning: false, turnState: mockTurnState }),
+	useExtensionState: () => ({
+		backgroundCommandRunning: false,
+		turnState: mockTurnState,
+		hasUsableProvider: mockHasUsableProvider,
+	}),
 }))
 
 import type { ChatState } from "../types/chatTypes"
@@ -83,6 +88,7 @@ describe("useMessageHandlers — send routing", () => {
 		newTask.mockClear()
 		askResponse.mockClear()
 		mockTurnState = undefined
+		mockHasUsableProvider = true
 	})
 
 	it("after a completed turn (no clineAsk), Enter continues the conversation via askResponse — NOT newTask", async () => {
@@ -121,6 +127,32 @@ describe("useMessageHandlers — send routing", () => {
 		})
 
 		expect(newTask).toHaveBeenCalledTimes(1)
+		expect(askResponse).not.toHaveBeenCalled()
+	})
+
+	it("blocks a NEW task when there is no usable provider (gate)", async () => {
+		mockHasUsableProvider = false
+		mockTurnState = { phase: "idle", seq: 1 }
+		const { result } = renderHook(() => useMessageHandlers([], makeChatState([])))
+
+		await act(async () => {
+			await result.current.handleSendMessage("should be blocked", [], [])
+		})
+
+		expect(newTask).not.toHaveBeenCalled()
+		expect(askResponse).not.toHaveBeenCalled()
+	})
+
+	it("blocks a follow-up when there is no usable provider (gate)", async () => {
+		mockHasUsableProvider = false
+		mockTurnState = { phase: "completed", seq: 7 }
+		const { result } = renderHook(() => useMessageHandlers(completedConversation, makeChatState(completedConversation)))
+
+		await act(async () => {
+			await result.current.handleSendMessage("should be blocked", [], [])
+		})
+
+		expect(newTask).not.toHaveBeenCalled()
 		expect(askResponse).not.toHaveBeenCalled()
 	})
 })

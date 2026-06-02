@@ -38,6 +38,13 @@ export const COMMAND_CANCEL_TOKEN = "__cline_command_cancel__"
 export interface ExtensionState {
 	isNewUser: boolean
 	welcomeViewCompleted: boolean
+	/**
+	 * Whether the active mode has a usable provider (a valid Cline account auth
+	 * OR a BYOK API key OR a configured keyless provider). When false, the
+	 * webview gates message submission in ChatView and shows an inline
+	 * "sign in or add a key" prompt. Computed by hasUsableProviderForActiveMode().
+	 */
+	hasUsableProvider: boolean
 	onboardingModels: OnboardingModelGroup | undefined
 	apiConfiguration?: ApiConfiguration
 	autoApprovalSettings: AutoApprovalSettings
