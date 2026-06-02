@@ -16,7 +16,8 @@ export type AiSdkProviderOptionsTarget =
 	| "claude-code"
 	| "openai-codex"
 	| "opencode"
-	| "dify";
+	| "dify"
+	| "sapaicore";
 
 export type ProviderOptionSuppression = {
 	genericThinking?: boolean;
@@ -29,7 +30,6 @@ export type ProviderOptionMatchInput = {
 	context: GatewayProviderContext;
 	providerOptionsKey: string;
 	target: AiSdkProviderOptionsTarget;
-	modelFamily?: string;
 	isAnthropicCompatibleModelId: boolean;
 	anthropicReasoningPolicyKind?: AnthropicReasoningRequestPolicy["kind"];
 };
@@ -84,6 +84,8 @@ export function inferProviderOptionsTarget(
 			return "opencode";
 		case "dify":
 			return "dify";
+		case "sapaicore":
+			return "sapaicore";
 		default:
 			return "openai-compatible";
 	}

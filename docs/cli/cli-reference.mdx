@@ -1,0 +1,305 @@
+---
+title: "CLI Reference"
+description: "Complete command reference for Cline CLI including all commands, flags, and configuration options."
+---
+
+```bash
+cline --help           # Show all commands
+cline <command> --help # Show help for a specific command
+```
+
+## Synopsis
+
+```bash
+cline [options] [command] [prompt]
+```
+
+## Help Menu (Source of Truth)
+
+```text
+Usage: cline [options] [command] [prompt]
+
+Cline CLI - AI coding assistant in your terminal
+
+Arguments:
+  prompt                       Your prompt. Default to start in act mode with auto-approve enabled.
+
+Options:
+  -V, --version                Output the version number
+  -p, --plan                   Run in plan mode
+  --json                       Output messages as JSON instead of styled text
+  --auto-approve <boolean>     Set tool auto-approval for all tools (default: true)
+  -t, --timeout <seconds>      Optional timeout in seconds (default: 0 for no timeout)
+  -m, --model <model-id>       Model to use for the session with the selected provider
+  -v, --verbose                Show verbose output
+  -c, --cwd <path>             Working directory
+  --config <path>              Configuration directory (default: ~/.cline/data/settings)
+  --data-dir <path>            Use isolated local state at this directory path (default: ~/.cline)
+  --thinking <level>           Set reasoning effort level between none|low|medium|high|xhigh (default: medium)
+  --retries <count>            Maximum consecutive mistakes (retries) before halting
+  --hooks-dir <path>           Directory path to additional hooks for runtime hook injection (default: ~/.cline/hooks)
+  --acp                        Run in Agent Client Protocol (ACP) mode for editor integration
+  -i, --tui                    Open the terminal user interface (TUI) for interactive sessions
+  --id <session-id>            Resume an existing session by ID
+  -k, --key <api-key>          API key override for this run
+  -P, --provider <id>          Provider id (default: cline)
+  -s, --system <system-prompt> Override the default system prompt
+  -z, --zen                    Start a session that runs in the background hub
+  -h, --help                   display help for command
+
+Commands:
+  auth [options] [provider]    Authenticate a provider and configure what model is used
+  config [options]             Show current configuration
+  connect [options] [adapter]  Connect to an editor or IDE adapter
+  mcp                          Manage MCP servers
+  dev                          Developer tools and utilities
+  doctor                       Diagnose and fix configuration issues
+  history|h [options]          List session history or manage saved sessions
+  hook                         Handle a hook payload from stdin
+  plugin                       Manage Cline Plugins
+  schedule                     Manage scheduled tasks
+  hub                          Manage the local hub daemon
+  update [options]             Check for updates and install if available
+  version                      Show Cline CLI version number
+  kanban                       Launch the kanban app and exit
+```
+
+## Global Options
+
+| Option | Description |
+|--------|-------------|
+| `-V, --version` | Output the version number |
+| `-p, --plan` | Run in plan mode |
+| `--json` | Output messages as JSON instead of styled text |
+| `--auto-approve <boolean>` | Set tool auto-approval for all tools (default: `true`) |
+| `-t, --timeout <seconds>` | Optional timeout in seconds (default: `0` for no timeout) |
+| `-m, --model <model-id>` | Model to use for the session with the selected provider |
+| `-v, --verbose` | Show verbose output |
+| `-c, --cwd <path>` | Working directory |
+| `--config <path>` | Configuration directory (default: `~/.cline/data/settings`) |
+| `--data-dir <path>` | Use isolated local state at this directory path (default: `~/.cline`) |
+| `--thinking <level>` | Set reasoning effort: `none\|low\|medium\|high\|xhigh` (default `medium`) |
+| `--retries <count>` | Maximum consecutive mistakes (retries) before halting |
+| `--hooks-dir <path>` | Directory path to additional hooks for runtime hook injection (default: `~/.cline/hooks`) |
+| `--acp` | Run in Agent Client Protocol (ACP) mode for editor integration |
+| `-i, --tui` | Open the terminal user interface (TUI) for interactive sessions |
+| `--id <session-id>` | Resume an existing session by ID |
+| `-k, --key <api-key>` | API key override for this run |
+| `-P, --provider <id>` | Provider id (default: `cline`) |
+| `-s, --system <system-prompt>` | Override the default system prompt |
+| `-z, --zen` | Start a session that runs in the background hub |
+| `-h, --help` | Display help for command |
+
+## Commands
+
+### `cline` (default)
+
+Start a task or enter interactive mode.
+
+```bash
+cline
+cline "your prompt here"
+cline "Run tests and fix failures"
+echo "prompt" | cline
+```
+
+### `auth [options] [provider]`
+
+Configure authentication with an AI provider.
+
+```bash
+cline auth
+```
+
+### `config [options]`
+
+Show current configuration.
+
+```bash
+cline config
+```
+
+### `connect [options] [adapter]`
+
+Connect to messaging platforms. See [Connectors](/cli/connectors).
+
+```bash
+cline connect
+cline connect [adapter]
+```
+
+### `mcp`
+
+Manage MCP servers. See [MCP](/mcp/mcp-overview).
+
+```bash
+cline mcp
+```
+
+### `dev`
+
+Developer tools and utilities.
+
+```bash
+cline dev
+```
+
+### `doctor`
+
+Diagnose and fix configuration issues.
+
+```bash
+cline doctor
+```
+
+### `history|h [options]`
+
+List session history or manage saved sessions.
+
+```bash
+cline history
+cline h
+```
+
+### `hook`
+
+Handle a hook payload from stdin.
+
+```bash
+cat payload.json | cline hook
+```
+
+### `plugin`
+
+Manage Cline plugins. Install plugins from file URLs, npm, git repositories, or local paths. See [Plugins](/customization/plugins) for full details and the plugin manifest format.
+
+```bash
+cline plugin install <source>  # Install a plugin
+cline plugin i <source>        # Shorthand alias
+```
+
+| Option | Description |
+|--------|-------------|
+| `--npm` | Treat source as an npm package |
+| `--git` | Treat source as a git repository |
+| `--force` | Replace an existing install for the same source |
+| `--json` | Output result as JSON |
+| `--cwd <path>` | Install to `<path>/.cline/plugins` instead of the global directory |
+
+Try it with the [TypeScript Navigation Plugin](https://github.com/cline/typescript-lsp-plugin):
+
+```bash
+cline plugin install https://github.com/cline/typescript-lsp-plugin.git
+```
+
+### `schedule`
+
+Manage scheduled agents. See [Scheduling](/cli/scheduling).
+
+```bash
+cline schedule
+```
+
+### `hub`
+
+Manage the local hub daemon.
+
+```bash
+cline hub
+```
+
+### `update [options]`
+
+Check for updates and install if available.
+
+```bash
+cline update
+```
+
+### `version`
+
+Show Cline CLI version number.
+
+```bash
+cline version
+cline -V
+```
+
+### `kanban`
+
+Launch the kanban app and exit.
+
+```bash
+cline kanban
+```
+
+## Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `CLINE_DATA_DIR` | Custom configuration directory (replaces `~/.cline/data/`) |
+| `CLINE_HUB_ADDRESS` | Override hub address (default: `127.0.0.1:25463`) |
+| `CLINE_SESSION_BACKEND_MODE` | Force backend mode (`local`, `hub`, `remote`, `auto`) |
+| `CLINE_SANDBOX_DATA_DIR` | Sandbox session storage directory |
+| `CLINE_SANDBOX` | Enable sandbox mode |
+| `CLINE_HOOKS_DIR` | Additional hooks directory |
+| `CLINE_BUILD_ENV` | Set to `development` for debug features |
+| `CLINE_DEBUG_PORT_BASE` | Base port for Node.js inspector |
+| `CLINE_COMMAND_PERMISSIONS` | JSON policy restricting shell commands (see below) |
+
+### CLINE_COMMAND_PERMISSIONS
+
+Restrict which shell commands the agent can execute:
+
+```bash
+export CLINE_COMMAND_PERMISSIONS='{"allow": ["npm *", "git *"], "deny": ["rm -rf *", "sudo *"]}'
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `allow` | `string[]` | Glob patterns for allowed commands. If set, only matching commands are permitted. |
+| `deny` | `string[]` | Glob patterns for denied commands. Deny rules always take precedence. |
+| `allowRedirects` | `boolean` | Whether to allow shell redirects (`>`, `>>`, `<`). Default: `false`. |
+
+## JSON Output Format
+
+When using `--json`, each message is a JSON object on its own line:
+
+```json
+{"type": "say", "text": "I'll create the file now.", "ts": 1760501486669, "say": "text"}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `type` | `"ask"` or `"say"` | Message category |
+| `text` | `string` | Message content |
+| `ts` | `number` | Unix timestamp in milliseconds |
+| `say` | `string` | Subtype when `type` is `"say"` |
+| `ask` | `string` | Subtype when `type` is `"ask"` |
+| `reasoning` | `string` | Model reasoning (if available) |
+| `partial` | `boolean` | `true` while streaming |
+
+## Configuration Files
+
+```
+~/.cline/
+  data/
+    settings/
+      providers.json             # API keys and provider config
+      rules/                     # Global rules
+      skills/                    # Global skills
+    teams/                       # Team state
+    sessions/                    # Session database (SQLite)
+    logs/
+      hub-daemon.log             # Hub logs
+  plugins/                       # Global plugins
+    _installed/                  # Managed by `cline plugin install`
+
+.cline/                          # Project root
+  rules/                         # Project rules
+  skills/                        # Project skills
+  hooks/                         # Lifecycle hooks
+  plugins/                       # Project plugins
+  mcp.json                       # MCP server config
+  agents.yaml                    # Agent definitions
+```

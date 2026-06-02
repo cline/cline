@@ -41,6 +41,14 @@ const expectedPlatformPackages = [
 	"@cline/cli-windows-x64",
 ] as const;
 
+const hostSdkPackages = [
+	{ name: "@cline/sdk", directory: "sdk" },
+	{ name: "@cline/core", directory: "core" },
+	{ name: "@cline/agents", directory: "agents" },
+	{ name: "@cline/llms", directory: "llms" },
+	{ name: "@cline/shared", directory: "shared" },
+] as const;
+
 interface PlatformPackageManifest {
 	name: string;
 	version: string;
@@ -68,6 +76,26 @@ function isPlatformPackageManifest(
 	);
 }
 
+function readPackageVersion(name: string, packageJsonPath: string): string {
+	const pkg: unknown = JSON.parse(readFileSync(packageJsonPath, "utf-8"));
+	if (!isRecord(pkg) || pkg.name !== name || typeof pkg.version !== "string") {
+		console.error(`Invalid package manifest for ${name}: ${packageJsonPath}`);
+		process.exit(1);
+	}
+	return pkg.version;
+}
+
+function buildHostSdkDependencies(): Record<string, string> {
+	const dependencies: Record<string, string> = {};
+	for (const pkg of hostSdkPackages) {
+		dependencies[pkg.name] = readPackageVersion(
+			pkg.name,
+			join(cliDir, "../../packages", pkg.directory, "package.json"),
+		);
+	}
+	return dependencies;
+}
+
 function removePackedTarballs(dir: string): void {
 	for (const entry of readdirSync(dir)) {
 		if (entry.endsWith(".tgz")) {
@@ -89,6 +117,28 @@ async function npmPackageVersionExists(
 		},
 	);
 	return result.exitCode === 0;
+}
+
+async function verifyPublishedDependencies(
+	dependencies: Record<string, string>,
+): Promise<void> {
+	const missingDependencies: string[] = [];
+	for (const [name, version] of Object.entries(dependencies).sort()) {
+		if (!(await npmPackageVersionExists(name, version))) {
+			missingDependencies.push(`${name}@${version}`);
+		}
+	}
+
+	if (missingDependencies.length === 0) {
+		return;
+	}
+
+	console.error("Wrapper package dependencies are not published:");
+	for (const dependency of missingDependencies) {
+		console.error(`  ${dependency}`);
+	}
+	console.error("Publish the SDK packages before publishing the CLI wrapper.");
+	process.exit(1);
 }
 
 async function publishPackage(input: {
@@ -175,6 +225,7 @@ if (sourceVersion !== version) {
 }
 const sourceRepository =
 	"repository" in sourcePkgRecord ? sourcePkgRecord.repository : undefined;
+const hostSdkDependencies = buildHostSdkDependencies();
 
 console.log(`Publishing ${wrapperPackageName} v${version}`);
 console.log(`  Tag: ${npmTag}`);
@@ -182,6 +233,10 @@ console.log(`  Dry run: ${dryRun}`);
 console.log(`  Platform packages: ${Object.keys(binaries).length}`);
 for (const name of Object.keys(binaries)) {
 	console.log(`    ${name}`);
+}
+
+if (!dryRun) {
+	await verifyPublishedDependencies(hostSdkDependencies);
 }
 
 // Step 1: Publish platform-specific packages (in parallel)
@@ -217,6 +272,20 @@ if (existsSync(licenseFrom)) {
 	await $`cp ${licenseFrom} ${join(mainPkgDir, "LICENSE")}`;
 }
 
+// Copy README.md so the npm registry listing has the same landing page
+// as the repo. The published wrapper package is generated fresh in
+// dist/cli/ each release, so the source README is not picked up
+// automatically.
+const readmeFrom = join(cliDir, "README.md");
+if (existsSync(readmeFrom)) {
+	await $`cp ${readmeFrom} ${join(mainPkgDir, "README.md")}`;
+} else {
+	console.error(
+		`Missing ${readmeFrom}. The CLI README must exist before publishing.`,
+	);
+	process.exit(1);
+}
+
 const mainPkg: unknown = JSON.parse(
 	readFileSync(join(cliDir, "package.json"), "utf-8"),
 );
@@ -230,11 +299,25 @@ const license =
 	"license" in mainPkgRecord && typeof mainPkgRecord.license === "string"
 		? mainPkgRecord.license
 		: undefined;
+const keywords =
+	"keywords" in mainPkgRecord && isStringArray(mainPkgRecord.keywords)
+		? mainPkgRecord.keywords
+		: undefined;
+const author = "author" in mainPkgRecord ? mainPkgRecord.author : undefined;
+const homepage =
+	"homepage" in mainPkgRecord && typeof mainPkgRecord.homepage === "string"
+		? mainPkgRecord.homepage
+		: undefined;
+const bugs = "bugs" in mainPkgRecord ? mainPkgRecord.bugs : undefined;
 const wrapperPackageJson = {
 	name: wrapperPackageName,
 	version,
 	description: description || "Cline CLI",
 	license: license || "Apache-2.0",
+	...(keywords ? { keywords } : {}),
+	...(author ? { author } : {}),
+	...(homepage ? { homepage } : {}),
+	...(bugs ? { bugs } : {}),
 	...(sourceRepository ? { repository: sourceRepository } : {}),
 	bin: {
 		cline: "./bin/cline",
@@ -242,6 +325,7 @@ const wrapperPackageJson = {
 	scripts: {
 		postinstall: "node ./postinstall.mjs || true",
 	},
+	dependencies: hostSdkDependencies,
 	optionalDependencies: binaries,
 };
 

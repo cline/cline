@@ -1,296 +1,139 @@
 ---
 title: "Installing Cline"
-description: "Get Cline up and running in your favorite IDE or terminal with these simple installation steps"
+description: "Choose your installation path: IDE Extension, CLI, SDK, or Kanban"
 ---
 
-## Before You Begin
+## Choose Your Install Path
 
-1. **Create your account** at [app.cline.bot](https://app.cline.bot/login) for access to multiple AI models, seamless setup without managing API keys, and occasional free inferencing.
+- [IDE Extension](#ide-extension) — VS Code, Cursor, JetBrains, Windsurf, VSCodium, Antigravity
+- [CLI](#cli) — terminal workflows
+- [Kanban](#kanban) (preview) — easily manage through multiple agents through a kanban board
+- [SDK](#sdk) — build with `@cline/sdk`
 
-2. **Choose your platform**: VS Code, Cursor, Antigravity, JetBrains IDEs, CLI (macOS/Linux preview), Zed, Neovim, VSCodium, or Windsurf.
+## IDE Extension
 
-## Installation Instructions
+Use this if you want Cline inside your editor UI.
 
 <Tabs>
-  <Tab title="VS Code/Cursor/Antigravity">
+  <Tab title="VS Code / Cursor / Windsurf / VSCodium / Antigravity">
     <Steps>
-      <Step title="Open VS Code, Cursor, or Antigravity">
-        Launch the editor on your computer.
-      </Step>
-      <Step title="Open Extensions">
-        Press `Ctrl/Cmd + Shift + X` or click the Extensions icon in the Activity Bar.
-      </Step>
-      <Step title="Search for Cline">
-        Type "Cline" in the search bar.
-      </Step>
-      <Step title="Install">
-        Click the **Install** button on the Cline extension.
-      </Step>
-      <Step title="Access Cline">
-        Click the Cline icon in the Activity Bar, or open Command Palette (`Ctrl/Cmd + Shift + P`) and type "Cline: Open In New Tab".
-      </Step>
-    </Steps>
-
-    <Tip>
-    If VS Code shows "Running extensions might..." dialog, click **Allow**. If you don't see the Cline icon, restart VS Code.
-    </Tip>
-  </Tab>
-  <Tab title="JetBrains IDEs">
-    <Note>
-    Cline for JetBrains works almost identically to VS Code, with all core features: diff editing, tools, multiple API providers, MCP servers, Cline rules/workflows, and more.
-    </Note>
-
-    <Steps>
-      <Step title="Open your JetBrains IDE">
-        Launch IntelliJ IDEA, PyCharm, WebStorm, or any JetBrains IDE.
-      </Step>
-      <Step title="Open Settings">
-        Press `Ctrl+Alt+S` (Windows/Linux) or `Cmd+,` (macOS).
-      </Step>
-      <Step title="Navigate to Plugins">
-        Go to **Plugins** → **Marketplace** tab.
-      </Step>
-      <Step title="Install Cline">
-        Search for "Cline" and click **Install**.
-      </Step>
-      <Step title="Restart IDE">
-        Restart your IDE to complete the installation.
-      </Step>
-    </Steps>
-
-    Find Cline in **View** → **Tool Windows** → **Cline** (usually on the right side).
-
-    <AccordionGroup>
-      <Accordion title="Alternative Installation Methods">
-        **Browser Install:**
-        1. Go to the [JetBrains Marketplace](https://plugins.jetbrains.com/plugin/28247-cline)
-        2. Click **Install to IDE**
-        3. Confirm in your IDE and restart
-
-        **Manual Install:**
-        1. Download from the [marketplace page](https://plugins.jetbrains.com/plugin/28247-cline)
-        2. Go to **Settings** → **Plugins** → gear icon → **Install Plugin from Disk**
-        3. Select the downloaded `.zip` file and restart
-      </Accordion>
-
-      <Accordion title="Terminal Integration Difference">
-        JetBrains shows terminal output differently than VS Code. In VS Code, output streams directly to chat. In JetBrains, output appears in collapsible "Command Output" sections.
-        
-        Commands execute successfully in both. Expand the section to see results in JetBrains.
-      </Accordion>
-    </AccordionGroup>
-  </Tab>
-  <Tab title="CLI">
-    <Warning>
-    **Preview Release**: Cline CLI is currently in preview and only available for macOS and Linux. Windows support is coming soon.
-    </Warning>
-
-    Cline CLI runs AI coding agents directly in your terminal. Use it for automated code reviews in CI/CD, multi-instance development, or shell workflow integration.
-
-    <Steps>
-      <Step title="Install Node.js 20+">
-        Check your version with `node --version`. If needed, visit [nodejs.org](https://nodejs.org) or use nvm.
-      </Step>
-      <Step title="Install Cline CLI">
-        Run `npm install -g cline` in your terminal.
-      </Step>
-      <Step title="Authenticate">
-        Run `cline auth` to sign in and configure your AI model provider.
-      </Step>
-      <Step title="Run Cline">
-        Run `cline` to start an interactive session, or `cline "Your task here"` for headless execution.
-      </Step>
-    </Steps>
-
-    <Tip>
-    Want to learn more? See the [Cline CLI documentation](/cline-cli/getting-started) for advanced usage patterns like multi-instance development and CI/CD integration.
-    </Tip>
-  </Tab>
-  <Tab title="Zed/Neovim (ACP via CLI)">
-    <Note>
-    **ACP (Agent Client Protocol)** lets you run Cline in any ACP-compatible editor via the CLI. This gives you full access to Cline's capabilities—including Skills, Hooks, and MCP integrations—in your preferred editor.
-    </Note>
-
-    <Steps>
-      <Step title="Install Node.js 20+">
-        Check your version with `node --version`. If needed, visit [nodejs.org](https://nodejs.org) or use nvm.
-      </Step>
-      <Step title="Install Cline CLI">
-        ```bash
-        npm install -g cline
-        ```
-      </Step>
-      <Step title="Authenticate">
-        ```bash
-        cline auth
-        ```
-      </Step>
-      <Step title="Configure your editor">
-        <Tabs>
-          <Tab title="Zed">
-            Open Zed settings (`Cmd/Ctrl + ,`) and add Cline to your `settings.json`:
-            ```json
-            {
-              "agent_servers": {
-                "Cline": {
-                  "type": "custom",
-                  "command": "cline",
-                  "args": ["--acp"],
-                  "env": {}
-                }
-              }
-            }
-            ```
-            Then open the AI assistant panel, select **Cline** from the agent dropdown, and start coding.
-          </Tab>
-          <Tab title="Neovim (agentic.nvim)">
-            Install [agentic.nvim](https://github.com/carlos-algms/agentic.nvim) using lazy.nvim:
-            ```lua
-            {
-              "carlos-algms/agentic.nvim",
-              opts = {
-                provider = "cline-acp",
-                acp_providers = {
-                  ["cline-acp"] = {
-                    command = "cline",
-                    args = {"--acp"},
-                  },
-                },
-              },
-              keys = {
-                {"<C-\\>", function() require("agentic").toggle() end, mode={"n","v","i"}, desc="Toggle Cline Chat"},
-              },
-            }
-            ```
-            Press `<C-\>` to toggle the Cline chat panel.
-          </Tab>
-          <Tab title="Neovim (avante.nvim)">
-            Follow the [avante.nvim documentation](https://github.com/yetone/avante.nvim) for configuring external ACP agents and point it to `cline --acp`.
-          </Tab>
-        </Tabs>
-      </Step>
-    </Steps>
-
-    <Tip>
-    For full details on ACP editor integrations—including JetBrains ACP setup and troubleshooting—see the [ACP Editor Integrations](/cline-cli/acp-editor-integrations) guide.
-    </Tip>
-  </Tab>
-  <Tab title="VSCodium/Windsurf">
-    <Note>
-    These editors use the **Open VSX Registry** instead of the VS Code Marketplace, but the installation process is nearly identical.
-    </Note>
-
-    <Steps>
-      <Step title="Open your editor">
-        Launch VSCodium, Windsurf, or another Open VSX-compatible editor.
-      </Step>
       <Step title="Open Extensions">
         Press `Ctrl/Cmd + Shift + X`.
       </Step>
       <Step title="Search for Cline">
-        Type "Cline" in the search bar.
+        Type `Cline`.
       </Step>
       <Step title="Install">
-        Select "Cline" by saoudrizwan and click **Install**.
+        Click **Install** on the Cline extension.
       </Step>
-      <Step title="Reload">
-        Reload your editor if prompted.
+      <Step title="Open Cline">
+        Use the Cline activity bar icon, or run `Cline: Open In New Tab` from Command Palette.
+      </Step>
+      <Step title="Authorize with Cline">
+        After installing the extension, complete provider setup in Cline settings.
+
+        [Authorize with Cline](/getting-started/authorizing-with-cline)
       </Step>
     </Steps>
 
-    Look for the Cline icon in your Activity Bar or use the Command Palette.
+    <Note>
+    Windsurf and VSCodium use Open VSX. The install flow is the same.
+    </Note>
+  </Tab>
+
+  <Tab title="JetBrains">
+    <Steps>
+      <Step title="Open Plugins Marketplace">
+        **Settings** → **Plugins** → **Marketplace**.
+      </Step>
+      <Step title="Install Cline">
+        Search `Cline`, click **Install**, then restart the IDE.
+      </Step>
+      <Step title="Open Cline">
+        **View** → **Tool Windows** → **Cline**.
+      </Step>
+      <Step title="Authorize with Cline">
+        After installing the extension, complete provider setup in Cline settings.
+
+        [Authorize with Cline](/getting-started/authorizing-with-cline)
+      </Step>
+    </Steps>
+
+    Alternative: install from the [JetBrains Marketplace](https://plugins.jetbrains.com/plugin/28247-cline).
   </Tab>
 </Tabs>
 
-## Sign In & Start Building
+## CLI
 
-<Note>
-**CLI users:** If you installed via CLI, you already authenticated during setup with `cline auth`. You're ready to go!
-</Note>
+Use this if you want Cline in terminal workflows (interactive + automation).
 
-1. **Open Cline** in your editor:
-   - **VS Code/Cursor/Antigravity/VSCodium/Windsurf:** Click the Cline icon in the Activity Bar
-   - **JetBrains:** Go to **View** → **Tool Windows** → **Cline**
+<Steps>
+  <Step title="Install Node.js">
+    Install Node.js 20+ (22 recommended).
+  </Step>
+  <Step title="Install CLI">
+    ```bash
+    npm install -g cline
+    ```
+  </Step>
+  <Step title="Authenticate">
+    ```bash
+    cline auth
+    ```
+  </Step>
+  <Step title="Run Cline">
+    ```bash
+    cline
+    # or
+    cline "your task"
+    ```
+  </Step>
+</Steps>
 
-2. **Sign in** by clicking the **Sign Up** button in the Cline interface. You'll be redirected to [app.cline.bot](https://app.cline.bot) to authenticate.
+More details: [CLI Installation & Setup](/usage/cli-overview)
 
-   <Tip>
-     Learn more about [authorizing with Cline](/getting-started/authorizing-with-cline), including how OAuth authentication works, using API keys with other providers, and troubleshooting auth issues.
-   </Tip>
+## Kanban
 
-3. **Start building!** After signing in, you'll automatically return to your editor-Cline is ready to help.
+Use this if you want task-board workflows with agent execution.
 
-## Setting Up Cline in the Right Sidebar
+<Steps>
+  <Step title="Install Node.js">
+    Install Node.js 18+.
+  </Step>
+  <Step title="Launch Kanban">
+    ```bash
+    npx kanban
+    ```
+  </Step>
+</Steps>
 
-For the best coding experience, we recommend moving Cline to the right sidebar. This keeps your project files visible on the left while you chat with Cline on the right, giving you full visibility of your codebase as Cline works.
+More details: [Kanban](/usage/kanban)
 
-<Tabs>
-  <Tab title="VS Code">
-    <Steps>
-      <Step title="Align Extension View">
-        Make sure your extension view is aligned vertically to the left.
-      </Step>
-      <Step title="Open Right Side View">
-        Click the button that opens the right side panel (typically used for GitHub Copilot chat), or use `Option + Cmd/Ctrl + B`.
-      </Step>
-      <Step title="Drag Cline Icon">
-        Drag the Cline icon over to the nav panel at the top of that right view.
-      </Step>
-    </Steps>
+## SDK
 
-    <Frame>
-      <img
-        src="https://storage.googleapis.com/cline_public_images/vscode_right_view.gif"
-        alt="VS Code Right Sidebar Setup"
-      />
-    </Frame>
-  </Tab>
-  <Tab title="Cursor">
-    <Steps>
-      <Step title="Set Vertical Activity Bar">
-        Cursor uses a horizontal activity bar by default. To switch to vertical:
-        1. Open Command Palette (`Cmd/Ctrl + Shift + P`)
-        2. Search for "Preferences: Open Settings (UI)"
-        3. Search for `workbench.activityBar.orientation`
-        4. Set the value to `vertical`
-        5. Restart Cursor
-      </Step>
-      <Step title="Open the AI Pane">
-        Click the Cursor cube icon (AI Pane) to open the right side view panel.
-      </Step>
-      <Step title="Drag Cline to the AI Pane">
-        Drag the Cline icon directly into the AI Pane sidebar.
-      </Step>
-    </Steps>
+Use this if you are building your own app/agent on top of Cline.
 
-    <Frame>
-      <img
-        src="https://storage.googleapis.com/cline_public_images/Cursor-sidebar.gif"
-        alt="Cursor Right Sidebar Setup"
-      />
-    </Frame>
-  </Tab>
-</Tabs>
+<Steps>
+  <Step title="Create project">
+    ```bash
+    mkdir my-agent && cd my-agent
+    npm init -y
+    ```
+  </Step>
+  <Step title="Install SDK">
+    ```bash
+    npm install @cline/sdk
+    ```
+  </Step>
+  <Step title="Build and run">
+    Browse SDK examples to run your first agent.
+  </Step>
+</Steps>
 
-## Troubleshooting
+Start here: [SDK Examples](/sdk/examples)
 
-### Can't Find Cline in the Marketplace
-
-Sometimes Cline doesn't show up in search results if you're looking in the wrong tab or using an incompatible IDE version. Make sure you're searching in the **Marketplace** tab (not Installed), try searching for "Cline AI" instead, and verify your IDE is up to date. If installation fails, restart your IDE and check your internet connection.
-
-### Cline Icon Not Appearing After Install
-
-The most common fix is a full restart-close your IDE completely (File → Exit) and reopen it. In VS Code/Cursor/VSCodium, you can also open the Command Palette (`Ctrl/Cmd + Shift + P`) and type "Cline: Open In New Tab". In JetBrains, check **View** → **Tool Windows** → **Cline**. If it's still missing, verify the plugin is enabled in your Extensions/Plugins settings.
-
-### CLI: Node.js or Permission Errors
-
-Cline CLI requires Node.js 20 or higher. Run `node --version` to check-if you need to upgrade, use nvm (`nvm install 22 && nvm use 22`) or download from [nodejs.org](https://nodejs.org). For permission errors on `npm install -g`, either prefix with `sudo` on macOS/Linux or configure npm to use a user-owned directory for global packages.
-
-### Plugin Installed But Not Working
-
-If Cline appears installed but doesn't respond, try disabling and re-enabling the extension in your IDE's settings. Check the Developer Console (VS Code: Help → Toggle Developer Tools) or Event Log (JetBrains) for error messages. Also ensure you're using a supported IDE version and close any resource-intensive extensions that might interfere.
 
 ## Need Help?
 
-- Join our [Discord community](https://discord.gg/cline) for support, tips, and discussions.
-- [Read the docs](/getting-started/authorizing-with-cline) to explore model selection guides and advanced features.
+- [Troubleshooting](/troubleshooting/networking-and-proxies)
+- [Discord community](https://discord.gg/cline)

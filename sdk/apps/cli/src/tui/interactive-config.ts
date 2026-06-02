@@ -1,22 +1,37 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { basename, dirname, extname, join, resolve } from "node:path";
+import {
+	basename,
+	dirname,
+	extname,
+	isAbsolute,
+	join,
+	relative,
+	resolve,
+} from "node:path";
 import {
 	type BuiltinToolAvailabilityContext,
 	discoverPluginModulePaths,
 	hasMcpSettingsFile,
 	listHookConfigFiles,
-	listPluginTools,
+	listPluginToolsWithDiagnostics,
+	type McpServerRegistration,
+	type PluginInitializationFailure,
 	type RuleConfig,
 	readGlobalSettings,
 	resolveAgentConfigSearchPaths,
 	resolveDefaultMcpSettingsPath,
 	resolveMcpServerRegistrations,
 	resolvePluginConfigSearchPaths,
+	resolvePluginSkillDirectoriesFromPaths,
 	type SkillConfig,
 	type UserInstructionConfigService,
 	type WorkflowConfig,
 } from "@cline/core";
 import { getToolCatalog } from "../runtime/tools";
+import {
+	type InteractiveSlashCommand,
+	listInteractiveSlashCommands,
+} from "./interactive-welcome";
 
 export type InteractiveConfigTab =
 	| "general"
@@ -49,6 +64,9 @@ export interface InteractiveConfigItem {
 	toolNames?: string[];
 	configKind?: "tool" | "plugin";
 	pluginName?: string;
+	pluginPath?: string;
+	loadError?: string;
+	loadErrorPhase?: PluginInitializationFailure["phase"];
 	source:
 		| "global"
 		| "workspace"
@@ -67,6 +85,11 @@ export interface InteractiveConfigData {
 	plugins: InteractiveConfigItem[];
 	mcp: InteractiveConfigItem[];
 	tools: InteractiveConfigItem[];
+	workflowSlashCommands: InteractiveSlashCommand[];
+}
+
+export interface LoadInteractiveConfigDataOptions {
+	includePluginTools?: boolean;
 }
 
 export function isToggleableInteractiveConfigItem(
@@ -122,6 +145,33 @@ function toSorted<T extends InteractiveConfigItem>(items: T[]): T[] {
 		}
 		return a.name.localeCompare(b.name);
 	});
+}
+
+function getMcpAuthLabel(registration: McpServerRegistration): string {
+	if (registration.transport.type === "stdio") {
+		return "local";
+	}
+	if (registration.oauth?.lastError) {
+		return "oauth error";
+	}
+	const accessToken = registration.oauth?.tokens?.access_token;
+	if (typeof accessToken === "string" && accessToken.trim().length > 0) {
+		return "oauth authorized";
+	}
+	if (registration.oauth && Object.keys(registration.oauth).length > 0) {
+		return "oauth pending";
+	}
+	if (
+		registration.transport.headers &&
+		Object.keys(registration.transport.headers).length > 0
+	) {
+		return "static headers";
+	}
+	return "no auth";
+}
+
+function getMcpDescription(registration: McpServerRegistration): string {
+	return `${registration.transport.type}, ${getMcpAuthLabel(registration)}`;
 }
 
 function loadAgentConfigItems(workspaceRoot: string): InteractiveConfigItem[] {
@@ -212,11 +262,92 @@ function getPluginDisplayName(filePath: string): string {
 	return basename(filePath, extname(filePath));
 }
 
+function isPathWithin(parentPath: string, childPath: string): boolean {
+	const relativePath = relative(resolve(parentPath), resolve(childPath));
+	return (
+		relativePath === "" ||
+		(!relativePath.startsWith("..") && !isAbsolute(relativePath))
+	);
+}
+
+type PluginSkillOwner = {
+	directory: string;
+	pluginName: string;
+	pluginPath: string;
+	source: "global-plugin" | "workspace-plugin";
+};
+
+function buildPluginSkillOwners(
+	plugins: readonly InteractiveConfigItem[],
+): PluginSkillOwner[] {
+	const owners: PluginSkillOwner[] = [];
+	for (const plugin of plugins) {
+		if (
+			plugin.kind !== "plugin" ||
+			(plugin.source !== "workspace-plugin" &&
+				plugin.source !== "global-plugin")
+		) {
+			continue;
+		}
+		for (const directory of resolvePluginSkillDirectoriesFromPaths([
+			plugin.path,
+		])) {
+			owners.push({
+				directory,
+				pluginName: plugin.name,
+				pluginPath: plugin.path,
+				source: plugin.source,
+			});
+		}
+	}
+	return owners.sort(
+		(left, right) => right.directory.length - left.directory.length,
+	);
+}
+
+function findPluginSkillOwner(
+	filePath: string,
+	owners: readonly PluginSkillOwner[],
+): PluginSkillOwner | undefined {
+	return owners.find((owner) => isPathWithin(owner.directory, filePath));
+}
+
+function formatPluginFailure(failure: PluginInitializationFailure): string {
+	return `${failure.phase === "setup" ? "setup failed" : "load failed"}: ${failure.message}`;
+}
+
+export function applyPluginFailures(
+	plugins: InteractiveConfigItem[],
+	failures: readonly PluginInitializationFailure[],
+): void {
+	const pluginsByPath = new Map(plugins.map((plugin) => [plugin.path, plugin]));
+	const failuresByPath = new Map<string, PluginInitializationFailure[]>();
+	for (const failure of failures) {
+		const failuresForPath = failuresByPath.get(failure.pluginPath) ?? [];
+		failuresForPath.push(failure);
+		failuresByPath.set(failure.pluginPath, failuresForPath);
+	}
+	for (const [pluginPath, failuresForPath] of failuresByPath) {
+		const plugin = pluginsByPath.get(pluginPath);
+		if (!plugin) {
+			continue;
+		}
+		const namedFailure = failuresForPath.find((failure) => failure.pluginName);
+		if (namedFailure?.pluginName) {
+			plugin.name = namedFailure.pluginName;
+		}
+		plugin.loadError = failuresForPath.map(formatPluginFailure).join("\n");
+		plugin.loadErrorPhase =
+			failuresForPath.length === 1 ? failuresForPath[0]?.phase : undefined;
+	}
+}
+
 export async function loadInteractiveConfigData(input: {
 	userInstructionService?: UserInstructionConfigService;
 	cwd: string;
 	workspaceRoot: string;
 	availabilityContext?: BuiltinToolAvailabilityContext;
+	includePluginTools?: boolean;
 }): Promise<InteractiveConfigData> {
 	const workflows: InteractiveConfigItem[] = [];
 	const rules: InteractiveConfigItem[] = [];
@@ -226,51 +357,9 @@ export async function loadInteractiveConfigData(input: {
 	const plugins: InteractiveConfigItem[] = [];
 	const mcp: InteractiveConfigItem[] = [];
 	const tools: InteractiveConfigItem[] = [];
-
-	if (input.userInstructionService) {
-		for (const record of input.userInstructionService.listRecords<WorkflowConfig>(
-			"workflow",
-		)) {
-			const workflow = record.item;
-			workflows.push({
-				id: record.id,
-				name: workflow.name,
-				path: record.filePath,
-				enabled: workflow.disabled !== true,
-				kind: "workflow",
-				source: detectSource(record.filePath, input.workspaceRoot),
-				description: workflow.instructions,
-			});
-		}
-		for (const record of input.userInstructionService.listRecords<RuleConfig>(
-			"rule",
-		)) {
-			const rule = record.item;
-			rules.push({
-				id: record.id,
-				name: rule.name,
-				path: record.filePath,
-				enabled: rule.disabled !== true,
-				kind: "rule",
-				source: detectSource(record.filePath, input.workspaceRoot),
-				description: rule.instructions,
-			});
-		}
-		for (const record of input.userInstructionService.listRecords<SkillConfig>(
-			"skill",
-		)) {
-			const skill = record.item;
-			skills.push({
-				id: record.id,
-				name: skill.name,
-				path: record.filePath,
-				enabled: skill.disabled !== true,
-				kind: "skill",
-				source: detectSource(record.filePath, input.workspaceRoot),
-				description: skill.description,
-			});
-		}
-	}
+	const workflowSlashCommands = listInteractiveSlashCommands(
+		input.userInstructionService,
+	);
 
 	for (const hook of listHookConfigFiles(input.cwd)) {
 		hooks.push({
@@ -308,6 +397,61 @@ export async function loadInteractiveConfigData(input: {
 		}
 	}
 
+	const pluginSkillOwners = buildPluginSkillOwners(plugins);
+
+	if (input.userInstructionService) {
+		for (const record of input.userInstructionService.listRecords<WorkflowConfig>(
+			"workflow",
+		)) {
+			const workflow = record.item;
+			workflows.push({
+				id: record.id,
+				name: workflow.name,
+				path: record.filePath,
+				enabled: workflow.disabled !== true,
+				kind: "workflow",
+				source: detectSource(record.filePath, input.workspaceRoot),
+				description: workflow.instructions,
+			});
+		}
+		for (const record of input.userInstructionService.listRecords<RuleConfig>(
+			"rule",
+		)) {
+			const rule = record.item;
+			rules.push({
+				id: record.id,
+				name: rule.name,
+				path: record.filePath,
+				enabled: rule.disabled !== true,
+				kind: "rule",
+				source: detectSource(record.filePath, input.workspaceRoot),
+				description: rule.instructions,
+			});
+		}
+		for (const record of input.userInstructionService.listRecords<SkillConfig>(
+			"skill",
+		)) {
+			const skill = record.item;
+			const pluginOwner = findPluginSkillOwner(
+				record.filePath,
+				pluginSkillOwners,
+			);
+			skills.push({
+				id: record.id,
+				name: skill.name,
+				path: record.filePath,
+				enabled: skill.disabled !== true,
+				kind: "skill",
+				source:
+					pluginOwner?.source ??
+					detectSource(record.filePath, input.workspaceRoot),
+				description: skill.description,
+				pluginName: pluginOwner?.pluginName,
+				pluginPath: pluginOwner?.pluginPath,
+			});
+		}
+	}
+
 	const mcpSettingsPath = resolveDefaultMcpSettingsPath();
 	if (hasMcpSettingsFile({ filePath: mcpSettingsPath })) {
 		try {
@@ -321,7 +465,8 @@ export async function loadInteractiveConfigData(input: {
 					enabled: registration.disabled !== true,
 					kind: "mcp",
 					source: detectSource(mcpSettingsPath, input.workspaceRoot),
-					description: registration.transport.type,
+					description: getMcpDescription(registration),
+					loadError: registration.oauth?.lastError,
 				});
 			}
 		} catch {
@@ -349,29 +494,33 @@ export async function loadInteractiveConfigData(input: {
 			description: tool.description,
 		})),
 	);
-	try {
-		for (const pluginTool of await listPluginTools({
-			workspacePath: input.workspaceRoot,
-			cwd: input.cwd,
-			providerId: input.availabilityContext?.providerId,
-			modelId: input.availabilityContext?.modelId,
-		})) {
-			tools.push({
-				id: `${pluginTool.pluginName}:${pluginTool.name}:${pluginTool.path}`,
-				name: pluginTool.name,
-				path: pluginTool.path,
-				enabled: pluginTool.enabled,
-				enabledState: pluginTool.enabled ? "enabled" : "disabled",
-				kind: "tool" as const,
-				toolNames: [pluginTool.name],
-				configKind: "tool",
-				pluginName: pluginTool.pluginName,
-				source: pluginTool.source,
-				description: pluginTool.description,
+	if (input.includePluginTools !== false) {
+		try {
+			const pluginToolResult = await listPluginToolsWithDiagnostics({
+				workspacePath: input.workspaceRoot,
+				cwd: input.cwd,
+				providerId: input.availabilityContext?.providerId,
+				modelId: input.availabilityContext?.modelId,
 			});
+			applyPluginFailures(plugins, pluginToolResult.failures);
+			for (const pluginTool of pluginToolResult.tools) {
+				tools.push({
+					id: `${pluginTool.pluginName}:${pluginTool.name}:${pluginTool.path}`,
+					name: pluginTool.name,
+					path: pluginTool.path,
+					enabled: pluginTool.enabled,
+					enabledState: pluginTool.enabled ? "enabled" : "disabled",
+					kind: "tool" as const,
+					toolNames: [pluginTool.name],
+					configKind: "tool",
+					pluginName: pluginTool.pluginName,
+					source: pluginTool.source,
+					description: pluginTool.description,
+				});
+			}
+		} catch {
+			// Best effort: built-in tools and instruction config should still render.
 		}
-	} catch {
-		// Best effort: built-in tools and instruction config should still render.
 	}
 
 	return {
@@ -383,5 +532,6 @@ export async function loadInteractiveConfigData(input: {
 		plugins: toSorted(plugins.filter((item) => existsSync(item.path))),
 		mcp: toSorted(mcp.filter((item) => existsSync(item.path))),
 		tools: toSorted(tools),
+		workflowSlashCommands,
 	};
 }

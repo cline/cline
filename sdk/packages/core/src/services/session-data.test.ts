@@ -2,6 +2,7 @@ import type { MessageWithMetadata } from "@cline/llms";
 import type { AgentResult } from "@cline/shared";
 import { describe, expect, it } from "vitest";
 import { withLatestAssistantTurnMetadata } from "./session-data";
+import { summarizeUsageFromMessages } from "./usage";
 
 type LegacyStoredMessage = MessageWithMetadata & {
 	providerId?: string;
@@ -101,7 +102,14 @@ describe("withLatestAssistantTurnMetadata", () => {
 				},
 				{
 					role: "user",
-					content: [{ type: "tool_result", tool_use_id: "1", content: "ok" }],
+					content: [
+						{
+							type: "tool_result",
+							tool_use_id: "1",
+							name: "spawn",
+							content: "ok",
+						},
+					],
 				},
 				{
 					role: "assistant",
@@ -172,7 +180,14 @@ describe("withLatestAssistantTurnMetadata", () => {
 				},
 				{
 					role: "user",
-					content: [{ type: "tool_result", tool_use_id: "1", content: "done" }],
+					content: [
+						{
+							type: "tool_result",
+							tool_use_id: "1",
+							name: "bash",
+							content: "done",
+						},
+					],
 				},
 				{
 					role: "assistant",
@@ -217,6 +232,76 @@ describe("withLatestAssistantTurnMetadata", () => {
 				cacheWriteTokens: 8,
 				cost: 0.09,
 			},
+		});
+	});
+
+	it("does not attach aggregate usage to an empty terminal assistant when per-turn metrics already exist", () => {
+		const persisted = withLatestAssistantTurnMetadata(
+			[
+				{ role: "user", content: "do something" },
+				{
+					role: "assistant",
+					content: [{ type: "tool_use", id: "1", name: "bash", input: {} }],
+					metrics: {
+						inputTokens: 10,
+						outputTokens: 3,
+						cacheReadTokens: 2,
+						cacheWriteTokens: 1,
+						cost: 1,
+					},
+				},
+				{
+					role: "user",
+					content: [
+						{
+							type: "tool_result",
+							tool_use_id: "1",
+							name: "bash",
+							content: "done",
+						},
+					],
+				},
+				{
+					role: "assistant",
+					content: [{ type: "text", text: "partial answer" }],
+					metrics: {
+						inputTokens: 20,
+						outputTokens: 7,
+						cacheReadTokens: 4,
+						cacheWriteTokens: 2,
+						cost: 2,
+					},
+				},
+				{ role: "assistant", content: [] },
+			] as MessageWithMetadata[],
+			createResult({
+				usage: {
+					inputTokens: 30,
+					outputTokens: 10,
+					cacheReadTokens: 6,
+					cacheWriteTokens: 3,
+					totalCost: 3,
+				},
+			}),
+			[],
+		);
+
+		expect(persisted[4]).toMatchObject({
+			role: "assistant",
+			content: [],
+			modelInfo: {
+				id: "claude-sonnet-4-6",
+				provider: "anthropic",
+				family: "claude-sonnet-4",
+			},
+		});
+		expect(persisted[4]).not.toHaveProperty("metrics");
+		expect(summarizeUsageFromMessages(persisted)).toEqual({
+			inputTokens: 30,
+			outputTokens: 10,
+			cacheReadTokens: 6,
+			cacheWriteTokens: 3,
+			totalCost: 3,
 		});
 	});
 });

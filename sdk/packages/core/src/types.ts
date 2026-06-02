@@ -23,6 +23,7 @@ export {
 	resolveAgentPluginPaths,
 	resolveAndLoadAgentPlugins,
 	resolvePluginConfigSearchPaths,
+	resolvePluginSkillDirectoriesFromPaths,
 } from "./extensions";
 export type {
 	CreateInstructionWatcherOptions,
@@ -120,8 +121,14 @@ export {
 	toggleDisabledTool,
 	writeGlobalSettings,
 } from "./services/global-settings";
-export type { PluginToolSummary } from "./services/plugin-tools";
-export { listPluginTools } from "./services/plugin-tools";
+export type {
+	ListPluginToolsResult,
+	PluginToolSummary,
+} from "./services/plugin-tools";
+export {
+	listPluginTools,
+	listPluginToolsWithDiagnostics,
+} from "./services/plugin-tools";
 export type {
 	WorkspaceManager,
 	WorkspaceManagerEvent,

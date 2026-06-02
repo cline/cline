@@ -20,7 +20,7 @@ The skill should guide the user through one release preparation flow, then offer
 - Nightly release version: `X.Y.Z-nightly.TIMESTAMP`.
 - Release prep includes approved release notes, a version bump, and an `apps/cli/CHANGELOG.md` update.
 - Publish paths:
-  - GitHub workflow: `.github/workflows/publish-cli.yaml`.
+  - GitHub workflow: `.github/workflows/cli-publish.yml`.
   - Local publish helper: `bun release cli`.
 - npm dist-tags and git tags are separate. `--tag latest` and `--tag nightly` are npm registry channels. `cli-vX.Y.Z` is a git tag for source history and GitHub releases.
 - The GitHub main release workflow runs from `main`, requires an existing `cli-vX.Y.Z` tag, checks out that tag, and publishes from it.
@@ -46,7 +46,7 @@ Find the latest CLI tag. If there is no `cli-v*` tag, use the first relevant CLI
 2. Collect release commits.
 
 ```sh
-git log <last-cli-tag>..HEAD --oneline --no-merges -- apps/cli packages scripts .github/workflows/publish-cli.yaml
+git log <last-cli-tag>..HEAD --oneline --no-merges -- apps/cli packages scripts .github/workflows/cli-publish.yml
 ```
 
 If the release includes broader SDK changes that affect the CLI, also inspect commits outside `apps/cli`.
@@ -67,7 +67,7 @@ Ask whether this should be patch, minor, major, or an explicit version. Do not g
 
 Update `apps/cli/package.json` to the approved version.
 
-Prepend a section to `apps/cli/CHANGELOG.md` for the approved version using the approved release notes.
+Prepend a section to `apps/cli/CHANGELOG.md` for the approved version using the approved release notes. Use the header format `## X.Y.Z` with no date. The publish workflow extracts the top section of the changelog by matching `^## [0-9]` and pastes it verbatim into the GitHub release body and the Slack release announcement, so the section content is the release notes that get shipped.
 
 6. Verify before committing.
 
@@ -91,6 +91,8 @@ If the user wants full release confidence before tagging, run:
 bun run test
 bun --cwd apps/cli run build:platforms
 ```
+
+Known local-only test failure: `src/commands/distribution-package.test.ts > rejects direct source package packing by default` will fail on machines that have `ignore-scripts=true` in `~/.npmrc` (set by the npm supply-chain hardening guide). Bun reads npm's `ignore-scripts` from `~/.npmrc`, so `bun pm pack --dry-run` skips the source-publish `prepack` guard and exits 0, which the test reads as a failure. CI does not set `ignore-scripts`, so the test passes there. Confirm by running `bun pm pack --dry-run` directly: with `~/.npmrc` in place it exits 0 with no guard output; with `~/.npmrc` moved aside it exits 1 and prints the guard message. This is not a release blocker by itself, but it does mean the local-publish path (`bun release cli`) will also bypass the source-publish guard on this machine; prefer the GitHub Actions publish path on machines with `ignore-scripts=true` set globally, or temporarily unset it (`npm config delete ignore-scripts` or `mv ~/.npmrc ~/.npmrc.bak`) for the duration of a local publish.
 
 7. Commit release changes.
 
@@ -126,20 +128,20 @@ Ask the user which path to use:
 For GitHub main release:
 
 ```sh
-gh workflow run publish-cli.yaml -f publish_target=main -f git_tag=cli-vX.Y.Z -f confirm_publish=publish
-gh run list --workflow=publish-cli.yaml --limit=1 --json url,status,conclusion,createdAt --jq '.[0]'
+gh workflow run cli-publish.yml -f publish_target=main -f git_tag=cli-vX.Y.Z -f confirm_publish=publish
+gh run list --workflow=cli-publish.yml --limit=1 --json url,status,conclusion,createdAt --jq '.[0]'
 ```
 
 For GitHub nightly release:
 
 ```sh
-gh workflow run publish-cli.yaml -f publish_target=nightly
+gh workflow run cli-publish.yml -f publish_target=nightly
 ```
 
 For forced GitHub nightly release:
 
 ```sh
-gh workflow run publish-cli.yaml -f publish_target=nightly -f force_nightly_publish=true
+gh workflow run cli-publish.yml -f publish_target=nightly -f force_nightly_publish=true
 ```
 
 For local publish:

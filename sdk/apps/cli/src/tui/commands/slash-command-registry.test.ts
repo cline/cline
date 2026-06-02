@@ -74,7 +74,7 @@ describe("slash command registry", () => {
 		);
 	});
 
-	it("keeps skills and workflows activatable without showing them in autocomplete", () => {
+	it("surfaces skills and workflows in autocomplete and the skills picker", () => {
 		const registry = buildSlashCommandRegistry({
 			workflowSlashCommands: [
 				{
@@ -118,7 +118,7 @@ describe("slash command registry", () => {
 		});
 		expect(
 			getVisibleUserSlashCommands(registry).map((cmd) => cmd.name),
-		).toEqual([]);
+		).toEqual(["review", "release"]);
 		expect(
 			getInvokableUserSlashCommands(registry).map((cmd) => cmd.name),
 		).toEqual(["review", "release"]);
@@ -126,14 +126,17 @@ describe("slash command registry", () => {
 		expect(review).toMatchObject({
 			source: "skill",
 			execution: "user-command",
-			visible: false,
-			selectable: false,
+			visible: true,
+			selectable: true,
 		});
+		expect(review ? formatSlashCommandAutocompleteValue(review) : "").toBe(
+			"/review ",
+		);
 		expect(resolveSlashCommand(registry, "release")).toMatchObject({
 			source: "workflow",
 			execution: "user-command",
-			visible: false,
-			selectable: false,
+			visible: true,
+			selectable: true,
 		});
 	});
 
@@ -164,6 +167,32 @@ describe("slash command registry", () => {
 			'<user_command slash="review">Review carefully</user_command> this file',
 		);
 		expect(expandUserCommandPrompt("/settings", registry)).toBe("/settings");
+	});
+
+	it("does not expand commands omitted from a refreshed user-command registry", () => {
+		const staleRegistry = buildSlashCommandRegistry({
+			workflowSlashCommands: [
+				{
+					name: "find-skills",
+					instructions: "Find installable skills.",
+					description: "Find skills",
+					kind: "skill",
+				},
+			],
+		});
+		const refreshedRegistry = buildSlashCommandRegistry({
+			workflowSlashCommands: [],
+		});
+
+		expect(
+			expandUserCommandPrompt("/find-skills what can u do?", staleRegistry),
+		).toContain("<user_command");
+		expect(
+			resolveSlashCommand(refreshedRegistry, "find-skills"),
+		).toBeUndefined();
+		expect(
+			expandUserCommandPrompt("/find-skills what can u do?", refreshedRegistry),
+		).toBe("/find-skills what can u do?");
 	});
 
 	it("hides fork from autocomplete until a session has messages", () => {
@@ -200,6 +229,28 @@ describe("slash command registry", () => {
 				(command) => command.name,
 			),
 		).toContain("skills");
+	});
+
+	it("exposes plugins as a local settings shortcut", () => {
+		const registry = buildSlashCommandRegistry({});
+		const commandNames = getVisibleSystemSlashCommands(registry).map(
+			(command) => command.name,
+		);
+
+		expect(resolveSlashCommand(registry, "plugins")).toMatchObject({
+			source: "tui",
+			execution: "local",
+			description: "Manage plugins",
+			visible: true,
+			selectable: true,
+		});
+		expect(commandNames).toContain("plugins");
+		expect(commandNames.indexOf("plugins")).toBeGreaterThan(
+			commandNames.indexOf("mcp"),
+		);
+		expect(commandNames.indexOf("plugins")).toBeLessThan(
+			commandNames.indexOf("skills"),
+		);
 	});
 
 	it("keeps config as a hidden alias for settings", () => {

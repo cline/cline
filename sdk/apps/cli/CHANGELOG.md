@@ -1,17 +1,140 @@
 # Cline CLI Changelog
 
-## 3.0.0 (2026-05-11)
+## 3.0.15
 
-- Publish the SDK CLI as `cline` for the public package handoff
-- Keep platform-specific binaries under `@cline/cli-*` and resolve them from the `cline` wrapper package
+- Add Cline Hub, a web app for monitoring connected clients, viewing and driving sessions, streaming assistant output, and restarting the local hub, with local, LAN, and tunnel usage gated by a room secret.
+- Support global AGENTS rules so agent rules can be applied across all sessions, not just per-project.
+- Let plugins contribute static or dynamic rule content when installed in the sandbox.
+- Bind Discord sessions to individual message authors so different Discord users no longer share chat state in a thread.
+- Support participant mute targets in Discord: resolve `/mute` and `/unmute` from user mentions or raw user IDs to mute a specific participant in a thread.
+- Make OAuth URLs clickable in the TUI.
+- Refresh the bundled model catalog, adding Claude Opus 4.8, Moonshot Kimi K2.6, and Qwen3.7 Max (with cache support).
+- Discover SDK skill directories that are symlinked, including handling circular symlinks.
+- Steer active connector sessions across turn keys by matching on session ID, so replies continue the existing session instead of starting a duplicate.
+- Stop the Discord connector after repeated identical errors (per thread, within a time window) to prevent error messages from flooding a channel.
+- Fix Discord connector registration and reply fallback handling.
+- Fix SAP AI Core to use the AI SDK community provider.
+- Log ACP output as diagnostics instead of errors so normal output no longer appears as errors.
 
-## 0.0.13 (2026-05-07)
+## 3.0.14
+
+- Fix OTEL telemetry variable bundling so telemetry is correctly enabled in compiled CLI builds: guard against environments where `process.env` is undefined and remove optional chaining so bundlers can inline the values at build time.
+
+## 3.0.13
+
+- Show a loading dialog while resuming a session from history so the TUI no longer appears frozen during the load.
+- Speed up the `/clear` command by deferring new session creation until you send the next prompt, so clearing no longer blocks on spinning up an empty session.
+
+## 3.0.12
+
+- Show a loading dialog while the config screen switches provider or model so the transition no longer looks frozen.
+- Render the ask question tool prompt inline with the conversation so the question and suggested answers stay attached to the assistant turn that asked them, instead of appearing in a separate modal.
+- Allow manual `cline update` runs to install the latest published version immediately, bypassing the release age gate that delays automatic updates.
+- Refresh the bundled SDK to 0.0.42, updating the model catalog.
+
+## 3.0.11
+
+- Fix a regression in the ChatGPT OAuth provider where requests failed with `max_output_tokens not supported`, by restoring the full output token budget instead of applying an implicit cap.
+- Hide the `Space toggle` hint in the config footer when the highlighted row is not toggleable (rules, agents, hooks).
+- Authenticate Vertex Gemini through Google auth when `gcp.projectId` is configured, and surface the full Vertex model list instead of only Claude models.
+- Include tool names in tool result content blocks so message logs and session history consistently track which tool produced each result.
+
+## 3.0.10
+
+- Install plugins from `file://` URLs in addition to npm and git sources.
+- Show Ollama API key note in TUI settings so users know when to provide an API key.
+- Keep interactive sessions alive when idle or awaiting approval instead of treating them as ended, and stop reading message files for every session when `hydrate: false`.
+- Add Poolside as a provider.
+- Add Gemini 3.5 Flash to the Gemini provider model list.
+- Auto-detect Telegram bot username from the bot token so the Telegram connector no longer requires it to be configured separately.
+- Notify connectors when a scheduled execution fails, not just when it succeeds.
+- Bake OTEL telemetry variables into the CLI at build time so telemetry works in nightly and production builds.
+- Preserve model output token limits from the SDK model catalog so context window math matches the upstream provider.
+- Soften the visual treatment of rejected tool calls in the TUI.
+- Hide the skills tool from the system prompt when skills are disabled, and refresh slash commands after toggling a skill.
+- Restore AWS Bedrock profile-based auth during legacy config migration so profiles set via `awsAuthentication: "profile"` are preserved without `awsUseProfile`.
+- Cache global settings reads keyed by file mtime so repeated reads skip the JSON parse and zod validation on the hot path.
+
+## 3.0.9
+
+- Speed up CLI startup with plugins by loading sandboxed plugins concurrently and caching plugin tool descriptors per plugin, provider, and model.
+- Speed up plugin and tool config toggles by updating the TUI optimistically and persisting changes without reloading the full config or reimporting plugins.
+- Restore fuzzy ranking for the @-mention file picker so the most relevant files appear first.
+- Keep the interactive CLI session alive after cancelling a task instead of tearing the session down.
+- Accept dash-prefixed prompts when passed after `--`, so prompts starting with `-` are no longer parsed as flags.
+- Recover from hub abort cleanup failures so a cancel that hits an error no longer crashes the runtime host.
+- Route GLM thinking through provider metadata so thinking-enabled GLM models behave correctly through the gateway.
+
+## 3.0.8
+
+- Use Telegram numeric participant ids so renamed users stay linked to the same participant in the Telegram connector.
+- Keep failed plugins visible in the config UI with their load/setup phase and error details so broken plugin definitions are easier to diagnose.
+- Move the Create Session Fork shortcut from Opt+F to Opt+R so terminal word-right navigation works again.
+- Fix AWS Bedrock region and profile detection in the CLI onboarding, and surface bearer-token and additional Bedrock config fields in the provider config screens.
+- Fix inflated token usage counts caused by AgentRuntime.execute() not resetting usage between calls, which the local runtime host was then double-counting on top of the session baseline.
+
+## 3.0.7
+
+- Skip the ChatGPT OAuth model refresh on session startup so the CLI launches without the extra network round-trip.
+- Align the ChatGPT OAuth model catalog with the Codex provider list so the available models match the subscription tier.
+
+## 3.0.6
+
+- Fix ChatGPT provider model list to include the codex variants and the gpt-5.2, gpt-5.4, and gpt-5.4-mini subscription models.
+
+## 3.0.5
+
+- Show plugin-provided tools and slash commands in the CLI settings dialog by hydrating them through the sandbox.
+- Preserve hydrated plugin tools and config reload options when toggling settings, so they no longer disappear after a toggle.
+
+## 3.0.4
+
+- Improve light theme TUI colors so chat, status bar, tool output, and syntax highlighting render with better contrast on light terminals.
+- Fix plugin tools failing in the production npm build by bundling the SDK deps plugins import at runtime.
+
+## 3.0.3
+
+- Add `--worktree` flag that auto-creates a fresh git worktree under `~/.cline/worktrees/` and runs the task there. Works with `--taskId` and `--continue` so you can resume a task in an isolated worktree to try a different approach.
+- Show session status in the CLI history view and refresh status rows in place while the standalone history TUI is open.
+- Restore the OpenAI compatible provider in the auth flow and preserve stored model metadata when configuring or migrating OpenAI-compatible providers.
+- Fix dropped macOS screenshots when pasting them into the TUI or asking the agent to read them: paths containing U+202F (narrow no-break space) and other Unicode variants now resolve to the real file instead of failing with ENOENT.
+- Accept bearer token auth for AWS Bedrock and map AWS profiles correctly when configuring the Bedrock gateway.
+- Honor `--thinking none` for Ollama models that ship with reasoning enabled by default.
+- Recover from detached hub event errors instead of crashing the session.
+- Refine the shared system prompt with clearer guidance on tool output formatting, unsupported file reads, long-running shell commands, and final verification before completing a task.
+
+## 3.0.2
+
+- Fix token count display showing inflated numbers in the TUI.
+
+## 3.0.1
+
+- Fix CLI release cleanup scripts so they work correctly on Windows.
+- Fix the kanban migration notice wording in the TUI.
+
+## 3.0.0
+
+Introducing our new Cline CLI built on our new SDK and comes with a snappy new TUI.
+
+Install:
+
+```sh
+npm install -g cline
+```
+
+For nightly builds:
+
+```sh
+npm install -g cline@nightly
+```
+
+## 0.0.13
 
 - Detect prompt-cache support from cache write pricing so providers with write-only caching are represented correctly in the model catalog
 - Dual-publish `@clinebot/cli` mirror wrapper so existing users who installed via `npm i -g @clinebot/cli` continue receiving updates
 - Fix response truncation for OpenAI Codex model responses
 
-## 0.0.12 (2026-05-06)
+## 0.0.12
 
 - Fix markdown rendering in the published binary: headers, inline code, blockquotes, bold, italic, and lists now render with proper syntax highlighting (tables were the only element working before)
 - Add keyboard shortcuts for scrolling through the chat transcript (Page Up/Down, Home/End)
@@ -22,7 +145,7 @@
 - Hide ChatGPT subscription provider usage costs
 - Handle file index prewarm timeouts gracefully instead of hanging
 
-## 0.0.11 (2026-05-06)
+## 0.0.11
 
 - Add `/skills` slash command for browsing and toggling available skills interactively
 - System prompts from AI SDK are now passed via the dedicated `system` option instead of being embedded in message history
@@ -35,7 +158,7 @@
 - Fix stray log output appearing over the TUI when the log file fallback wrote directly to the stderr file descriptor, bypassing the TUI's stdio capture
 - Refresh the built-in model catalog with the latest available models and pricing
 
-## 0.0.10 (2026-05-04)
+## 0.0.10
 
 - Improve local provider onboarding: setting up Ollama, LM Studio, or other local providers now prompts for the endpoint URL directly, supports typing a model ID manually when the provider returns no models, and correctly discovers models from your saved endpoint
 - Ctrl+C no longer cancels a running turn -- it now clears the input field or exits the CLI, matching standard terminal behavior. Use Escape to cancel a running turn instead
@@ -52,12 +175,12 @@
 - Login now uses device auth exclusively
 - Fix chat input and chat view text losing its indent on wrapped lines
 
-## 0.0.9 (2026-05-03)
+## 0.0.9
 
 - Fix stray text appearing over the TUI when background operations (like hub restart messages) write directly to stdout/stderr during interactive sessions
 - Fix hub connection recovery: when a newer CLI instance restarts the shared hub daemon, already-running CLI sessions now automatically reconnect to the new hub endpoint instead of failing with transport errors
 
-## 0.0.8 (2026-05-03)
+## 0.0.8
 
 - Fix crash when pressing Escape to cancel a running turn
 - Add plugin and SDK tool toggles to the settings panel
@@ -73,7 +196,7 @@
 - Clean up CLI program description and compact slash command descriptions
 - Clean up CLI flags
 
-## 0.0.7 (2026-04-30)
+## 0.0.7
 
 - Fix graceful recovery when the model returns malformed tool call inputs, preventing crashes mid-conversation
 - Add settings toggles for core skills (enable/disable individual skills from the settings panel)
@@ -90,13 +213,13 @@
 - Fix hub tool capabilities being routed to the wrong session
 - Revert loading extension-created sessions from history (was causing issues)
 
-## 0.0.6 (2026-04-29)
+## 0.0.6
 
 - Add checkpoint restore: press Esc twice or type `/undo` to rewind to a previous checkpoint, with options to restore chat only or chat + workspace
 - Fix clipboard: fall back to system clipboard (pbcopy, PowerShell, wl-copy, xclip) when OSC 52 fails, fixing copy for longer text selections
 - Fix prompt focus: restore focus to the prompt input after dialogs close, preventing the input from becoming unresponsive after using `/settings`
 
-## 0.0.5 (2026-04-28)
+## 0.0.5
 
 - The input field has been completely redesigned -- the old bordered box is replaced with a clean chevron-prompt style that adapts its background color to any terminal theme using perceptual OKLAB color math. Light terminals are fully supported now.
 - Pasting 5+ lines into the input shows a compact preview marker instead of flooding the textarea. The full content is still submitted.
@@ -110,11 +233,11 @@
 - `providers.json` (which stores API keys and OAuth tokens) is now written with 0600 permissions, preventing other processes on the machine from reading it.
 - Models that emit `command` or `cmd` instead of `commands` (or `paths` instead of `path`) no longer fail. Common aliases are normalized before execution.
 
-## 0.0.4 (2026-04-28)
+## 0.0.4
 
 - Fix compiled binary spawning infinite hub daemon recursion loop
 
-## 0.0.3 (2026-04-28)
+## 0.0.3
 
 - Rewritten TUI from Ink to OpenTUI with streaming markdown, syntax-highlighted diffs, scrollable chat, and mouse support
 - Dialog system for model picker, tool approval, settings browser, session history, and onboarding

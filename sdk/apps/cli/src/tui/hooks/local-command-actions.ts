@@ -1,9 +1,10 @@
 import type { LocalSlashCommandInvocation } from "../utils/skill-command-input";
+import type { OpenConfigOptions } from "./use-config-panel";
 
 export interface LocalSlashCommandActionInput {
 	name: string;
 	openAccount: () => void;
-	openConfig: () => void;
+	openConfig: (options?: OpenConfigOptions) => void;
 	openMcpManager: () => Promise<boolean>;
 	openModelSelector: () => void;
 	openSkills: (invocation?: LocalSlashCommandInvocation) => void;
@@ -23,6 +24,10 @@ export function runLocalSlashCommandAction(
 	const normalized = input.name;
 	if (normalized === "config" || normalized === "settings") {
 		input.openConfig();
+		return true;
+	}
+	if (normalized === "plugins") {
+		input.openConfig({ initialTab: "plugins" });
 		return true;
 	}
 	if (normalized === "skills") {

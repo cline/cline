@@ -5,12 +5,19 @@ import { useCallback, useMemo } from "react";
 import type {
 	InteractiveConfigData,
 	InteractiveConfigItem,
+	InteractiveConfigTab,
+	LoadInteractiveConfigDataOptions,
 } from "../../tui/interactive-config";
 import type { CliCompactionMode, Config } from "../../utils/types";
 import { ExtDetailContent } from "../components/dialogs/config-dialogs";
+import { withLoadingDialog } from "../components/dialogs/loading-dialog";
 import { ConfigPanelContent } from "../views/config-view";
 import type { ConfigAction } from "../views/config-view-helpers";
 import type { OpenModelSelectorOptions } from "./use-model-selector";
+
+export interface OpenConfigOptions {
+	initialTab?: InteractiveConfigTab;
+}
 
 export function useConfigPanel(opts: {
 	dialog: DialogActions;
@@ -21,9 +28,12 @@ export function useConfigPanel(opts: {
 	toggleAutoApprove: () => void;
 	setCompactionMode: (mode: CliCompactionMode) => void;
 	termHeight: number;
-	loadConfigData: () => Promise<InteractiveConfigData>;
+	loadConfigData: (
+		options?: LoadInteractiveConfigDataOptions,
+	) => Promise<InteractiveConfigData>;
 	onToggleConfigItem?: (
 		item: InteractiveConfigItem,
+		options?: LoadInteractiveConfigDataOptions,
 	) => Promise<InteractiveConfigData | undefined>;
 	openModelSelector: (options?: OpenModelSelectorOptions) => Promise<void>;
 	openMcpManager: (options?: { refocus?: boolean }) => Promise<boolean>;
@@ -39,73 +49,91 @@ export function useConfigPanel(opts: {
 			plugins: [] as InteractiveConfigItem[],
 			mcp: [] as InteractiveConfigItem[],
 			tools: [] as InteractiveConfigItem[],
+			workflowSlashCommands: [],
 		}),
 		[],
 	);
 
-	const openConfig = useCallback(async () => {
-		let keepOpen = true;
-		while (keepOpen) {
-			const [data, providerInfo] = await Promise.all([
-				opts.loadConfigData().catch(() => emptyConfigData),
-				Llms.getProvider(opts.config.providerId).catch(() => undefined),
-			]);
-			const providerDisplayName = providerInfo?.name ?? opts.config.providerId;
-			const action = await opts.dialog.choice<ConfigAction>({
-				size: "large",
-				style: { maxHeight: opts.termHeight - 2 },
-				closeOnEscape: false,
-				content: (ctx: ChoiceContext<ConfigAction>) => (
-					<ConfigPanelContent
-						{...ctx}
-						config={opts.config}
-						configData={data}
-						providerDisplayName={providerDisplayName}
-						currentMode={opts.sessionUiMode}
-						currentCompactionMode={opts.compactionMode}
-						onToggleConfigItem={opts.onToggleConfigItem}
-						onToggleMode={opts.toggleMode}
-						onToggleAutoApprove={opts.toggleAutoApprove}
-						onSetCompactionMode={opts.setCompactionMode}
-					/>
-				),
-			});
-
-			if (!action) {
-				keepOpen = false;
-				continue;
-			}
-
-			if (action.kind === "open-provider") {
-				await opts.openModelSelector({
-					startWithProviderChange: true,
-					onCancel: () => {},
-				});
-			} else if (action.kind === "open-model") {
-				await opts.openModelSelector({ onCancel: () => {} });
-			} else if (action.kind === "toggle-item") {
-				await opts.onToggleConfigItem?.(action.item);
-			} else if (action.kind === "ext-detail") {
-				await opts.dialog.choice<void>({
+	const openConfig = useCallback(
+		async (options: OpenConfigOptions = {}) => {
+			let keepOpen = true;
+			let activeTab = options.initialTab;
+			while (keepOpen) {
+				const [data, providerInfo] = await withLoadingDialog(
+					opts.dialog,
+					"Loading settings...",
+					async () =>
+						await Promise.all([
+							opts
+								.loadConfigData({ includePluginTools: false })
+								.catch(() => emptyConfigData),
+							Llms.getProvider(opts.config.providerId).catch(() => undefined),
+						]),
+				);
+				const providerDisplayName =
+					providerInfo?.name ?? opts.config.providerId;
+				const action = await opts.dialog.choice<ConfigAction>({
+					size: "large",
 					style: { maxHeight: opts.termHeight - 2 },
 					closeOnEscape: false,
-					content: (ctx: ChoiceContext<void>) => (
-						<ExtDetailContent
+					content: (ctx: ChoiceContext<ConfigAction>) => (
+						<ConfigPanelContent
 							{...ctx}
-							item={action.item}
+							config={opts.config}
+							configData={data}
+							loadConfigData={opts.loadConfigData}
+							providerDisplayName={providerDisplayName}
+							currentMode={opts.sessionUiMode}
+							currentCompactionMode={opts.compactionMode}
+							initialTab={activeTab}
+							onActiveTabChange={(tab) => {
+								activeTab = tab;
+							}}
 							onToggleConfigItem={opts.onToggleConfigItem}
+							onToggleMode={opts.toggleMode}
+							onToggleAutoApprove={opts.toggleAutoApprove}
+							onSetCompactionMode={opts.setCompactionMode}
 						/>
 					),
 				});
-			} else if (action.kind === "open-mcp") {
-				const changed = await opts.openMcpManager({ refocus: false });
-				if (changed) {
+
+				if (!action) {
 					keepOpen = false;
+					continue;
+				}
+
+				if (action.kind === "open-provider") {
+					await opts.openModelSelector({
+						startWithProviderChange: true,
+						onCancel: () => {},
+					});
+				} else if (action.kind === "open-model") {
+					await opts.openModelSelector({ onCancel: () => {} });
+				} else if (action.kind === "toggle-item") {
+					await opts.onToggleConfigItem?.(action.item);
+				} else if (action.kind === "ext-detail") {
+					await opts.dialog.choice<void>({
+						style: { maxHeight: opts.termHeight - 2 },
+						closeOnEscape: false,
+						content: (ctx: ChoiceContext<void>) => (
+							<ExtDetailContent
+								{...ctx}
+								item={action.item}
+								onToggleConfigItem={opts.onToggleConfigItem}
+							/>
+						),
+					});
+				} else if (action.kind === "open-mcp") {
+					const changed = await opts.openMcpManager({ refocus: false });
+					if (changed) {
+						keepOpen = false;
+					}
 				}
 			}
-		}
-		opts.refocusTextarea();
-	}, [opts, emptyConfigData]);
+			opts.refocusTextarea();
+		},
+		[opts, emptyConfigData],
+	);
 
 	return openConfig;
 }

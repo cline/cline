@@ -1,5 +1,6 @@
 import { createInterface } from "node:readline";
 import {
+	BUILT_IN_PROVIDER,
 	createOAuthClientCallbacks,
 	ensureCustomProvidersLoaded,
 	listLocalProviders,
@@ -194,8 +195,8 @@ async function ensureQuickSetupInputValid(
 	}
 	if (
 		input.baseurl?.trim() &&
-		normalizedProvider !== "openai" &&
-		normalizedProvider !== "openai-native"
+		normalizedProvider !== BUILT_IN_PROVIDER.OPENAI_COMPATIBLE &&
+		normalizedProvider !== BUILT_IN_PROVIDER.OPENAI_NATIVE
 	) {
 		return "base URL is only supported for OpenAI and OpenAI-compatible providers";
 	}

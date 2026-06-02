@@ -40,6 +40,7 @@ const providerSettingsMocks = vi.hoisted(() => ({
 }));
 const sessionMocks = vi.hoisted(() => ({
 	deleteSession: vi.fn(),
+	getSessionRow: vi.fn(),
 	listSessions: vi.fn(async () => []),
 	updateSession: vi.fn(),
 }));
@@ -51,6 +52,9 @@ const promptMocks = vi.hoisted(() => ({
 }));
 const kanbanMocks = vi.hoisted(() => ({
 	launchKanban: vi.fn(),
+}));
+const dashboardMocks = vi.hoisted(() => ({
+	runDashboardCommand: vi.fn(),
 }));
 const migrationNoticeMocks = vi.hoisted(() => ({
 	getClineCliMigrationNotice: vi.fn<() => CliMigrationNotice | undefined>(
@@ -68,6 +72,9 @@ const runtimeMocks = vi.hoisted(() => ({
 		mockState.runAgentCalls += 1;
 	}),
 	runInteractive: vi.fn(),
+}));
+const worktreeMocks = vi.hoisted(() => ({
+	createTaskWorktree: vi.fn(),
 }));
 const historyMocks = vi.hoisted(() => ({
 	runHistoryList: vi.fn<() => Promise<number | string>>(async () => 0),
@@ -131,6 +138,7 @@ vi.mock("./runtime/run-interactive", () => {
 	};
 });
 vi.mock("./utils/session", () => sessionMocks);
+vi.mock("./session/session", () => sessionMocks);
 vi.mock("@cline/core", () => {
 	return {
 		resolveProviderConfig: llmMocks.resolveProviderConfig,
@@ -160,12 +168,14 @@ vi.mock("./runtime/prompt", () => ({
 	resolveSystemPrompt: promptMocks.resolveSystemPrompt,
 }));
 vi.mock("./commands/kanban", () => kanbanMocks);
+vi.mock("./commands/dashboard", () => dashboardMocks);
 vi.mock("./kanban-migration/notice", () => migrationNoticeMocks);
 vi.mock("./commands/update", () => updateMocks);
 vi.mock("./commands/history", () => historyMocks);
 vi.mock("./logging/adapter", () => loggingMocks);
 vi.mock("./utils/hub-runtime", () => hubRuntimeMocks);
 vi.mock("./utils/telemetry", () => telemetryMocks);
+vi.mock("./utils/worktree", () => worktreeMocks);
 
 describe("runCli lightweight command dispatch", () => {
 	afterEach(() => {
@@ -185,11 +195,23 @@ describe("runCli lightweight command dispatch", () => {
 		historyMocks.runHistoryExport.mockResolvedValue(0);
 		historyMocks.runHistoryUpdate.mockReset();
 		historyMocks.runHistoryUpdate.mockResolvedValue(0);
+		sessionMocks.getSessionRow.mockReset();
+		sessionMocks.getSessionRow.mockResolvedValue({
+			sessionId: "sess_123",
+		});
 		runtimeMocks.runAgent.mockReset();
 		runtimeMocks.runAgent.mockImplementation(async () => {
 			mockState.runAgentCalls += 1;
 		});
 		runtimeMocks.runInteractive.mockReset();
+		worktreeMocks.createTaskWorktree.mockReset();
+		worktreeMocks.createTaskWorktree.mockResolvedValue({
+			success: true,
+			message: "Worktree created",
+			path: "/tmp/cline-worktree",
+			taskId: "task-1",
+			repoRoot: "/tmp/source",
+		});
 		hubRuntimeMocks.ensureCliHubServer.mockReset();
 		hubRuntimeMocks.ensureCliHubServer.mockResolvedValue({
 			url: "ws://127.0.0.1:25463",
@@ -217,6 +239,8 @@ describe("runCli lightweight command dispatch", () => {
 		providerSettingsMocks.saveProviderSettings.mockReset();
 		kanbanMocks.launchKanban.mockReset();
 		kanbanMocks.launchKanban.mockResolvedValue(0);
+		dashboardMocks.runDashboardCommand.mockReset();
+		dashboardMocks.runDashboardCommand.mockResolvedValue(0);
 		migrationNoticeMocks.getClineCliMigrationNotice.mockReset();
 		migrationNoticeMocks.getClineCliMigrationNotice.mockReturnValue(undefined);
 		migrationNoticeMocks.markClineCliMigrationNoticeShown.mockReset();
@@ -368,6 +392,121 @@ describe("runCli lightweight command dispatch", () => {
 		expect(runtimeMocks.runAgent).toHaveBeenCalledTimes(1);
 		expect(mockState.runAgentImports).toBe(1);
 		expect(mockState.runInteractiveImports).toBe(0);
+	});
+
+	it("creates a worktree and runs prompt sessions from it", async () => {
+		forcePromptModeInput();
+		process.argv = ["bun", "src/index.ts", "--worktree", "hello"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(worktreeMocks.createTaskWorktree).toHaveBeenCalledWith({
+			cwd: process.cwd(),
+		});
+		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
+			"hello",
+			expect.objectContaining({
+				cwd: "/tmp/cline-worktree",
+				workspaceRoot: "/tmp/cline-worktree",
+			}),
+			expect.anything(),
+		);
+	});
+
+	it("creates a worktree for default interactive mode", async () => {
+		Object.defineProperty(process.stdout, "isTTY", {
+			value: true,
+			configurable: true,
+		});
+		process.argv = ["bun", "src/index.ts", "--worktree"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(worktreeMocks.createTaskWorktree).toHaveBeenCalledWith({
+			cwd: process.cwd(),
+		});
+		expect(runtimeMocks.runAgent).not.toHaveBeenCalled();
+		expect(runtimeMocks.runInteractive).toHaveBeenCalledWith(
+			expect.objectContaining({
+				cwd: "/tmp/cline-worktree",
+				workspaceRoot: "/tmp/cline-worktree",
+			}),
+			expect.anything(),
+			undefined,
+			expect.objectContaining({
+				initialPrompt: undefined,
+			}),
+		);
+	});
+
+	it("rejects interactive --worktree when no terminal is attached", async () => {
+		Object.defineProperty(process.stdin, "isTTY", {
+			value: false,
+			configurable: true,
+		});
+		Object.defineProperty(process.stdout, "isTTY", {
+			value: false,
+			configurable: true,
+		});
+		process.argv = ["bun", "src/index.ts", "--worktree"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(process.exitCode).toBe(1);
+		expect(worktreeMocks.createTaskWorktree).not.toHaveBeenCalled();
+	});
+
+	it("allows --worktree with piped stdin", async () => {
+		Object.defineProperty(process.stdin, "isTTY", {
+			value: false,
+			configurable: true,
+		});
+		Object.defineProperty(process.stdout, "isTTY", {
+			value: false,
+			configurable: true,
+		});
+		vi.mocked(fstatSync).mockReturnValue({
+			isFIFO: () => true,
+			isFile: () => false,
+		} as unknown as ReturnType<typeof fstatSync>);
+		vi.spyOn(process.stdin, Symbol.asyncIterator).mockImplementation(
+			async function* (): AsyncGenerator<Buffer, undefined> {
+				yield Buffer.from("from pipe");
+				return undefined;
+			},
+		);
+		process.argv = ["bun", "src/index.ts", "--worktree"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(worktreeMocks.createTaskWorktree).toHaveBeenCalledWith({
+			cwd: process.cwd(),
+		});
+		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
+			"from pipe",
+			expect.objectContaining({
+				cwd: "/tmp/cline-worktree",
+				workspaceRoot: "/tmp/cline-worktree",
+			}),
+			expect.anything(),
+		);
+	});
+
+	it("validates resumed sessions before creating a worktree", async () => {
+		sessionMocks.getSessionRow.mockResolvedValueOnce(undefined);
+		process.argv = ["bun", "src/index.ts", "--worktree", "--id", "missing"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(process.exitCode).toBe(1);
+		expect(sessionMocks.getSessionRow).toHaveBeenCalledWith("missing");
+		expect(worktreeMocks.createTaskWorktree).not.toHaveBeenCalled();
+		expect(runtimeMocks.runInteractive).not.toHaveBeenCalled();
 	});
 
 	it("does not force chat view for default interactive mode", async () => {
@@ -524,6 +663,27 @@ describe("runCli lightweight command dispatch", () => {
 		expect(runtimeMocks.runInteractive).not.toHaveBeenCalled();
 	});
 
+	it("treats dash-prefixed positional text after -- as a prompt", async () => {
+		forcePromptModeInput();
+		process.argv = [
+			"bun",
+			"src/index.ts",
+			"--",
+			"- You are given a PyTorch state dictionary.",
+		];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(runtimeMocks.runAgent).toHaveBeenCalledTimes(1);
+		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
+			"- You are given a PyTorch state dictionary.",
+			expect.any(Object),
+			expect.anything(),
+		);
+		expect(runtimeMocks.runInteractive).not.toHaveBeenCalled();
+	});
+
 	it("applies --auto-approve as a runtime policy without changing the config default", async () => {
 		process.argv = ["bun", "src/index.ts", "--auto-approve", "false"];
 
@@ -650,6 +810,31 @@ describe("runCli lightweight command dispatch", () => {
 
 		await expect(runCli()).resolves.toBeUndefined();
 		expect(kanbanMocks.launchKanban).toHaveBeenCalledTimes(1);
+		expect(mockState.runAgentImports).toBe(0);
+		expect(mockState.runInteractiveImports).toBe(0);
+		expect(process.exitCode).toBe(0);
+	});
+
+	it("runs dashboard before loading runtime modules", async () => {
+		process.argv = [
+			"bun",
+			"src/index.ts",
+			"dashboard",
+			"--port",
+			"9090",
+			"--no-open",
+		];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(dashboardMocks.runDashboardCommand).toHaveBeenCalledWith(
+			expect.objectContaining({
+				port: "9090",
+				openBrowser: false,
+				io: expect.any(Object),
+			}),
+		);
 		expect(mockState.runAgentImports).toBe(0);
 		expect(mockState.runInteractiveImports).toBe(0);
 		expect(process.exitCode).toBe(0);

@@ -100,6 +100,7 @@ function toolResultMessage(
 			{
 				type: "tool_result",
 				tool_use_id: id,
+				name: "read_files",
 				content,
 			},
 		],
@@ -161,6 +162,7 @@ describe("createContextCompactionPrepareTurn", () => {
 				{
 					type: "tool_result",
 					tool_use_id: "tool-1",
+					name: "tool",
 					content: longToolOutput,
 				},
 			],
@@ -171,6 +173,7 @@ describe("createContextCompactionPrepareTurn", () => {
 				{
 					type: "tool_result",
 					tool_use_id: "tool-1",
+					name: "tool",
 					content: [{ type: "text", text: longToolOutput }],
 				},
 			],
@@ -211,6 +214,7 @@ describe("createContextCompactionPrepareTurn", () => {
 							{
 								type: "tool_result",
 								tool_use_id: "tool-custom",
+								name: "tool",
 								content: [{ type: "text", text: longToolOutput }],
 							},
 						],
@@ -453,6 +457,7 @@ describe("createContextCompactionPrepareTurn", () => {
 						{
 							type: "tool_result",
 							tool_use_id: "tool-1",
+							name: "tool",
 							content: "file contents",
 						},
 					],
@@ -480,6 +485,7 @@ describe("createContextCompactionPrepareTurn", () => {
 						{
 							type: "tool_result",
 							tool_use_id: "tool-1",
+							name: "tool",
 							content: "file contents",
 						},
 					],
@@ -585,6 +591,7 @@ describe("createContextCompactionPrepareTurn", () => {
 						{
 							type: "tool_result",
 							tool_use_id: "tool-large",
+							name: "tool",
 							content: [{ type: "text", text: longToolOutput }],
 						},
 					],
@@ -612,6 +619,7 @@ describe("createContextCompactionPrepareTurn", () => {
 						{
 							type: "tool_result",
 							tool_use_id: "tool-large",
+							name: "tool",
 							content: [{ type: "text", text: longToolOutput }],
 						},
 					],
@@ -700,6 +708,7 @@ describe("createContextCompactionPrepareTurn", () => {
 					{
 						type: "tool_result" as const,
 						tool_use_id: "tool-pair",
+						name: "tool",
 						content: heavyToolOutput,
 					},
 				],
@@ -860,6 +869,7 @@ describe("createContextCompactionPrepareTurn", () => {
 						{
 							type: "tool_result",
 							tool_use_id: "tool-1",
+							name: "tool",
 							content: "tool output that should be removed",
 						},
 					],
@@ -908,6 +918,7 @@ describe("createContextCompactionPrepareTurn", () => {
 						{
 							type: "tool_result",
 							tool_use_id: "tool-1",
+							name: "tool",
 							content: "tool output that should be removed",
 						},
 					],
@@ -1101,6 +1112,7 @@ describe("createContextCompactionPrepareTurn", () => {
 					{
 						type: "tool_result",
 						tool_use_id: "tool-large",
+						name: "tool",
 						content: [{ type: "text", text: largeToolResult }],
 					},
 				],
@@ -1375,6 +1387,7 @@ describe("createContextCompactionPrepareTurn", () => {
 						{
 							type: "tool_result",
 							tool_use_id: "tool-1",
+							name: "tool",
 							content: "x".repeat(1000),
 						},
 					],
@@ -1388,6 +1401,7 @@ describe("createContextCompactionPrepareTurn", () => {
 						{
 							type: "tool_result",
 							tool_use_id: "tool-1",
+							name: "tool",
 							content: "x".repeat(100),
 						},
 					],
@@ -1402,5 +1416,314 @@ describe("createContextCompactionPrepareTurn", () => {
 
 		expect(createHandlerMock).not.toHaveBeenCalled();
 		expect(result).toBeUndefined();
+	});
+
+	// ------------------------------------------------------------------
+	// Telemetry coverage — task.compaction_executed / task.compaction_skipped
+	// ------------------------------------------------------------------
+
+	it("emits task.compaction_executed telemetry after a successful basic compaction", async () => {
+		const captureCalls: Array<{
+			event: string;
+			properties?: Record<string, unknown>;
+		}> = [];
+		const telemetry = {
+			capture: (call: {
+				event: string;
+				properties?: Record<string, unknown>;
+			}) => captureCalls.push(call),
+			captureRequired: () => {},
+			setDistinctId: () => {},
+			updateCommonProperties: () => {},
+			identify: () => {},
+		} as unknown as Parameters<
+			typeof createContextCompactionPrepareTurn
+		>[0]["telemetry"];
+
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "anthropic",
+			modelId: "mock-model",
+			providerConfig: {
+				providerId: "anthropic",
+				modelId: "mock-model",
+			} as LlmsProviders.ProviderConfig,
+			compaction: {
+				enabled: true,
+				strategy: "basic",
+				reserveTokens: 1,
+			},
+			telemetry,
+			sessionId: "ulid-test-1",
+		});
+
+		const filler = "x".repeat(200);
+		const messages: LlmsProviders.Message[] = [
+			{ role: "user", content: "Original task" },
+			{ role: "assistant", content: `Old answer ${filler}` },
+			{ role: "user", content: `Older user followup ${filler}` },
+			{ role: "assistant", content: `Older assistant ${filler}` },
+			{ role: "user", content: "Latest user question" },
+		];
+
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "",
+			tools: [],
+			messages,
+			apiMessages: messages,
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: { id: "mock-model", maxInputTokens: 100 },
+			},
+		});
+
+		expect(result?.messages).toBeDefined();
+		const executed = captureCalls.find(
+			(call) => call.event === "task.compaction_executed",
+		);
+		expect(executed).toBeDefined();
+		const props = executed?.properties as Record<string, unknown>;
+		expect(props.strategy).toBe("basic");
+		expect(props.mode).toBe("auto");
+		expect(props.ulid).toBe("ulid-test-1");
+		expect(props.provider).toBe("anthropic");
+		expect(props.modelId).toBe("mock-model");
+		expect(props.agentId).toBe("agent-1");
+		expect(props.conversationId).toBe("conv-1");
+		expect(typeof props.durationMs).toBe("number");
+		expect(typeof props.tokensBefore).toBe("number");
+		expect(typeof props.tokensAfter).toBe("number");
+		expect(props.messagesBefore).toBe(messages.length);
+		expect(typeof props.messagesAfter).toBe("number");
+		expect(props.tokensSaved).toBe(
+			(props.tokensBefore as number) - (props.tokensAfter as number),
+		);
+	});
+
+	it("marks strategy as 'custom' when a user-supplied compact callback is used", async () => {
+		const captureCalls: Array<{
+			event: string;
+			properties?: Record<string, unknown>;
+		}> = [];
+		const telemetry = {
+			capture: (call: {
+				event: string;
+				properties?: Record<string, unknown>;
+			}) => captureCalls.push(call),
+			captureRequired: () => {},
+			setDistinctId: () => {},
+			updateCommonProperties: () => {},
+			identify: () => {},
+		} as unknown as Parameters<
+			typeof createContextCompactionPrepareTurn
+		>[0]["telemetry"];
+
+		const customCompact = vi.fn(async () => ({
+			messages: [
+				{ role: "user", content: "trimmed" },
+			] as LlmsProviders.Message[],
+		}));
+
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "anthropic",
+			modelId: "mock-model",
+			providerConfig: {
+				providerId: "anthropic",
+				modelId: "mock-model",
+			} as LlmsProviders.ProviderConfig,
+			compaction: {
+				enabled: true,
+				strategy: "basic", // ignored when `compact` is provided
+				reserveTokens: 1,
+				compact: customCompact,
+			},
+			telemetry,
+		});
+
+		const messages: LlmsProviders.Message[] = [
+			{ role: "user", content: "Original task" },
+			{ role: "assistant", content: "x".repeat(500) },
+			{ role: "user", content: "Latest" },
+		];
+
+		await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 2,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "",
+			tools: [],
+			messages,
+			apiMessages: messages,
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: { id: "mock-model", maxInputTokens: 100 },
+			},
+		});
+
+		expect(customCompact).toHaveBeenCalledTimes(1);
+		const executed = captureCalls.find(
+			(call) => call.event === "task.compaction_executed",
+		);
+		expect(executed).toBeDefined();
+		expect((executed?.properties as Record<string, unknown>).strategy).toBe(
+			"custom",
+		);
+	});
+
+	it("emits task.compaction_skipped when the strategy returns undefined", async () => {
+		const captureCalls: Array<{
+			event: string;
+			properties?: Record<string, unknown>;
+		}> = [];
+		const telemetry = {
+			capture: (call: {
+				event: string;
+				properties?: Record<string, unknown>;
+			}) => captureCalls.push(call),
+			captureRequired: () => {},
+			setDistinctId: () => {},
+			updateCommonProperties: () => {},
+			identify: () => {},
+		} as unknown as Parameters<
+			typeof createContextCompactionPrepareTurn
+		>[0]["telemetry"];
+
+		// Force the trigger to fire (small budget vs large transcript) but
+		// supply a `compact` callback that intentionally returns undefined
+		// so the wrapper records a skip.
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "anthropic",
+			modelId: "mock-model",
+			providerConfig: {
+				providerId: "anthropic",
+				modelId: "mock-model",
+			} as LlmsProviders.ProviderConfig,
+			compaction: {
+				enabled: true,
+				strategy: "basic",
+				reserveTokens: 1,
+				compact: async () => undefined,
+			},
+			telemetry,
+			sessionId: "ulid-test-skip",
+		});
+
+		const messages: LlmsProviders.Message[] = [
+			{ role: "user", content: "Original task" },
+			{ role: "assistant", content: "x".repeat(500) },
+			{ role: "user", content: "Latest" },
+		];
+
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 3,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "",
+			tools: [],
+			messages,
+			apiMessages: messages,
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: { id: "mock-model", maxInputTokens: 100 },
+			},
+		});
+
+		expect(result).toBeUndefined();
+		const skipped = captureCalls.find(
+			(call) => call.event === "task.compaction_skipped",
+		);
+		expect(skipped).toBeDefined();
+		const props = skipped?.properties as Record<string, unknown>;
+		expect(props.strategy).toBe("custom");
+		expect(props.mode).toBe("auto");
+		expect(props.reason).toBe("no_result");
+		expect(props.ulid).toBe("ulid-test-skip");
+		expect(typeof props.durationMs).toBe("number");
+		expect(
+			captureCalls.find((call) => call.event === "task.compaction_executed"),
+		).toBeUndefined();
+	});
+
+	it("tags telemetry mode as 'manual' when prepareTurn is run with mode: manual", async () => {
+		const captureCalls: Array<{
+			event: string;
+			properties?: Record<string, unknown>;
+		}> = [];
+		const telemetry = {
+			capture: (call: {
+				event: string;
+				properties?: Record<string, unknown>;
+			}) => captureCalls.push(call),
+			captureRequired: () => {},
+			setDistinctId: () => {},
+			updateCommonProperties: () => {},
+			identify: () => {},
+		} as unknown as Parameters<
+			typeof createContextCompactionPrepareTurn
+		>[0]["telemetry"];
+
+		const prepareTurn = createContextCompactionPrepareTurn(
+			{
+				providerId: "anthropic",
+				modelId: "mock-model",
+				providerConfig: {
+					providerId: "anthropic",
+					modelId: "mock-model",
+				} as LlmsProviders.ProviderConfig,
+				compaction: {
+					enabled: true,
+					strategy: "basic",
+					reserveTokens: 1,
+				},
+				telemetry,
+			},
+			{ mode: "manual" },
+		);
+
+		const messages: LlmsProviders.Message[] = [
+			{ role: "user", content: "Original task" },
+			{ role: "assistant", content: "x".repeat(500) },
+			{ role: "user", content: "Older followup" },
+			{ role: "assistant", content: "x".repeat(500) },
+			{ role: "user", content: "Latest" },
+		];
+
+		await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 4,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "",
+			tools: [],
+			messages,
+			apiMessages: messages,
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: { id: "mock-model", maxInputTokens: 100_000 },
+			},
+		});
+
+		const compactionEvent = captureCalls.find(
+			(call) =>
+				call.event === "task.compaction_executed" ||
+				call.event === "task.compaction_skipped",
+		);
+		expect(compactionEvent).toBeDefined();
+		expect((compactionEvent?.properties as Record<string, unknown>).mode).toBe(
+			"manual",
+		);
 	});
 });

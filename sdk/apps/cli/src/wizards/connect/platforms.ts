@@ -56,22 +56,13 @@ export const PLATFORMS: PlatformDef[] = [
 		hint: "Easiest to set up. No public URL needed.",
 		fields: [
 			{
-				flag: "-m",
-				label: "Bot username",
-				placeholder: "my_cline_bot",
-				required: true,
-				help: [
-					"Open Telegram and start a chat with @BotFather",
-					"Send /newbot and follow the prompts",
-					"The username must end in 'bot'",
-				],
-			},
-			{
 				flag: "-k",
 				label: "Bot token",
 				placeholder: "7123456789:AAH...",
 				required: true,
 				help: [
+					"Open Telegram and start a chat with @BotFather",
+					"Send /newbot and follow the prompts",
 					"BotFather gives you this after creating the bot",
 					"It looks like 7123456789:AAHxxx...",
 				],
@@ -193,7 +184,10 @@ export const PLATFORMS: PlatformDef[] = [
 				label: "Public base URL",
 				placeholder: "https://example.com",
 				required: true,
-				help: ["Set this as the Interactions Endpoint URL"],
+				help: [
+					"Base URL for the connector",
+					"For Discord, set the Interactions Endpoint URL to <base-url>/api/webhooks/discord",
+				],
 			},
 		],
 	},

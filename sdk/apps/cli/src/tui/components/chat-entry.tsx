@@ -7,9 +7,11 @@ import {
 	getDefaultForeground,
 	getModeInputBackground,
 	palette,
+	type TerminalTheme,
 } from "../palette";
 import type { ChatEntry } from "../types";
 import { getSyntaxStyle } from "../utils/syntax-style";
+import { isWarningToolError } from "../utils/tool-errors";
 import {
 	parseApplyPatchInput,
 	parseAskQuestionInput,
@@ -211,6 +213,7 @@ function ToolCallView(props: {
 		defaultFg,
 	} = props;
 	const failed = result?.error != null;
+	const warningFailure = isWarningToolError(result?.error);
 	const params = formatToolParams(toolName, props.rawInput, inputSummary);
 
 	return (
@@ -219,6 +222,8 @@ function ToolCallView(props: {
 				<box width={2}>
 					{streaming ? (
 						<spinner name="dots" color="gray" />
+					) : warningFailure ? (
+						<text fg="yellow">!</text>
 					) : failed ? (
 						<text fg="red">x</text>
 					) : (
@@ -251,8 +256,12 @@ function ToolCallView(props: {
 	);
 }
 
-export function ChatEntryView(props: { entry: ChatEntry; accent?: string }) {
-	const { entry, accent = palette.act } = props;
+export function ChatEntryView(props: {
+	entry: ChatEntry;
+	accent?: string;
+	terminalTheme: TerminalTheme;
+}) {
+	const { entry, accent = palette.act, terminalTheme } = props;
 	const terminalBg = useTerminalBackground();
 	const defaultFg = getDefaultForeground(terminalBg);
 	const userMsgBg = getModeInputBackground(
@@ -316,7 +325,7 @@ export function ChatEntryView(props: { entry: ChatEntry; accent?: string }) {
 					<box flexGrow={1}>
 						<markdown
 							content={content}
-							syntaxStyle={getSyntaxStyle()}
+							syntaxStyle={getSyntaxStyle(terminalTheme)}
 							streaming={entry.streaming}
 							fg={defaultFg}
 						/>

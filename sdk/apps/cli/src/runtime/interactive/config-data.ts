@@ -1,11 +1,13 @@
 import {
 	createCoreSettingsService,
 	setDisabledPlugin,
+	setDisabledTools,
 	type UserInstructionConfigService,
 } from "@cline/core";
 import {
 	type InteractiveConfigData,
 	type InteractiveConfigItem,
+	type LoadInteractiveConfigDataOptions,
 	loadInteractiveConfigData,
 } from "../../tui/interactive-config";
 import type { Config } from "../../utils/types";
@@ -23,16 +25,20 @@ export function createInteractiveConfigDataLoader(input: {
 		enableSpawnAgent: input.config.enableSpawnAgent,
 		enableAgentTeams: input.config.enableAgentTeams,
 	});
-	const loadConfigData = async (): Promise<InteractiveConfigData> =>
+	const loadConfigData = async (
+		options: LoadInteractiveConfigDataOptions = {},
+	): Promise<InteractiveConfigData> =>
 		await loadInteractiveConfigData({
 			userInstructionService: input.userInstructionService,
 			cwd: input.config.cwd,
 			workspaceRoot: workspaceRoot(),
 			availabilityContext: availabilityContext(),
+			includePluginTools: options.includePluginTools,
 		});
 
 	const onToggleConfigItem = async (
 		item: InteractiveConfigItem,
+		options: LoadInteractiveConfigDataOptions = {},
 	): Promise<InteractiveConfigData | undefined> => {
 		const settings = createCoreSettingsService();
 		if (item.kind === "skill" && typeof item.enabled === "boolean") {
@@ -47,12 +53,12 @@ export function createInteractiveConfigDataLoader(input: {
 				userInstructionService: input.userInstructionService,
 				availabilityContext: availabilityContext(),
 			});
-			return await loadConfigData();
+			return await loadConfigData(options);
 		}
 
 		if (item.kind === "plugin" && typeof item.enabled === "boolean") {
 			setDisabledPlugin(item.path, item.enabled);
-			return await loadConfigData();
+			return undefined;
 		}
 
 		if (item.kind === "mcp" && typeof item.enabled === "boolean") {
@@ -66,7 +72,7 @@ export function createInteractiveConfigDataLoader(input: {
 				workspaceRoot: workspaceRoot(),
 				availabilityContext: availabilityContext(),
 			});
-			return await loadConfigData();
+			return await loadConfigData(options);
 		}
 
 		if (
@@ -82,18 +88,22 @@ export function createInteractiveConfigDataLoader(input: {
 				? item.toolNames
 				: [item.name];
 		const toolNames = [...new Set(rawToolNames.filter(Boolean))];
+		if (typeof item.enabled === "boolean") {
+			setDisabledTools(toolNames, item.enabled);
+			return undefined;
+		}
+
 		for (const name of toolNames) {
 			await settings.toggle({
 				type: "tools",
 				name,
-				enabled: typeof item.enabled === "boolean" ? !item.enabled : undefined,
 				cwd: input.config.cwd,
 				workspaceRoot: workspaceRoot(),
 				userInstructionService: input.userInstructionService,
 				availabilityContext: availabilityContext(),
 			});
 		}
-		return await loadConfigData();
+		return undefined;
 	};
 
 	return {

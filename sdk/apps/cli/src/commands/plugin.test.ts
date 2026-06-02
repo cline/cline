@@ -14,12 +14,16 @@ import {
 	setClineDir,
 	setHomeDir,
 } from "@cline/shared/storage";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	installPlugin,
 	parsePluginSource,
 	runPluginInstallCommand,
 } from "./plugin";
+
+type FetchCall = (
+	...args: Parameters<typeof fetch>
+) => ReturnType<typeof fetch>;
 
 describe("plugin install command", () => {
 	let root = "";
@@ -44,6 +48,8 @@ describe("plugin install command", () => {
 	});
 
 	afterEach(() => {
+		vi.useRealTimers();
+		vi.unstubAllGlobals();
 		if (originalHome === undefined) {
 			delete process.env.HOME;
 		} else {
@@ -85,6 +91,36 @@ describe("plugin install command", () => {
 		);
 	});
 
+	it("parses GitHub plugin file URLs as remote sources", () => {
+		expect(
+			parsePluginSource(
+				"https://github.com/cline/cline/blob/main/sdk/examples/plugins/weather-metrics.ts",
+			),
+		).toEqual({
+			type: "remote",
+			url: "https://raw.githubusercontent.com/cline/cline/main/sdk/examples/plugins/weather-metrics.ts",
+			filename: "weather-metrics.ts",
+		});
+	});
+
+	it("parses raw plugin file URLs as remote sources", () => {
+		expect(
+			parsePluginSource(
+				"https://raw.githubusercontent.com/cline/cline/main/sdk/examples/plugins/weather-metrics.ts",
+			),
+		).toEqual({
+			type: "remote",
+			url: "https://raw.githubusercontent.com/cline/cline/main/sdk/examples/plugins/weather-metrics.ts",
+			filename: "weather-metrics.ts",
+		});
+	});
+
+	it("rejects HTTP plugin file URLs", () => {
+		expect(() =>
+			parsePluginSource("http://example.com/plugins/weather-metrics.ts"),
+		).toThrow(/must use https/);
+	});
+
 	it("installs a local plugin file into the global plugin root", async () => {
 		const source = join(root, "weather.ts");
 		writeFileSync(
@@ -102,6 +138,98 @@ describe("plugin install command", () => {
 			join(home, ".cline", "plugins"),
 		);
 		expect(discovered).toEqual(result.entryPaths);
+	});
+
+	it("installs a remote plugin file into the workspace plugin root", async () => {
+		const source =
+			"https://github.com/acme/plugins/blob/main/weather-metrics.ts";
+		const fetchMock = vi.fn<FetchCall>(async (input) => {
+			expect(String(input)).toBe(
+				"https://raw.githubusercontent.com/acme/plugins/main/weather-metrics.ts",
+			);
+			return new Response(
+				"export default { name: 'remote-weather', manifest: { capabilities: ['tools'] } };",
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const result = await installPlugin({ source, cwd: workspace });
+
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(result.installPath).toContain(
+			join(workspace, ".cline", "plugins", "_installed", "remote"),
+		);
+		expect(result.entryPaths).toHaveLength(1);
+		expect(existsSync(result.entryPaths[0] ?? "")).toBe(true);
+		expect(readFileSync(result.entryPaths[0] ?? "", "utf8")).toContain(
+			"remote-weather",
+		);
+		expect(
+			discoverPluginModulePaths(join(workspace, ".cline", "plugins")),
+		).toEqual(result.entryPaths);
+	});
+
+	it("times out stalled remote plugin downloads", async () => {
+		vi.useFakeTimers();
+		const source =
+			"https://github.com/acme/plugins/blob/main/weather-metrics.ts";
+		const fetchMock = vi.fn<FetchCall>((_input, init) => {
+			return new Promise<Response>((_resolve, reject) => {
+				init?.signal?.addEventListener("abort", () => {
+					const error = new Error("Aborted");
+					error.name = "AbortError";
+					reject(error);
+				});
+			});
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const install = installPlugin({ source, cwd: workspace });
+		const rejection = expect(install).rejects.toThrow(/Timed out downloading/);
+		await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+		await vi.advanceTimersByTimeAsync(30_000);
+
+		await rejection;
+	});
+
+	it("rejects remote plugin files with oversized content length", async () => {
+		const source =
+			"https://github.com/acme/plugins/blob/main/weather-metrics.ts";
+		const fetchMock = vi.fn<FetchCall>(async () => {
+			return new Response(
+				"export default { name: 'remote-weather', manifest: { capabilities: ['tools'] } };",
+				{
+					headers: {
+						"content-length": String(10 * 1024 * 1024 + 1),
+					},
+				},
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		await expect(installPlugin({ source, cwd: workspace })).rejects.toThrow(
+			/exceeds the 10485760 byte limit/,
+		);
+	});
+
+	it("rejects remote plugin files that stream past the size limit", async () => {
+		const source =
+			"https://github.com/acme/plugins/blob/main/weather-metrics.ts";
+		const fetchMock = vi.fn<FetchCall>(async () => {
+			return new Response(
+				new ReadableStream<Uint8Array>({
+					start(controller) {
+						controller.enqueue(new Uint8Array(10 * 1024 * 1024 + 1));
+						controller.close();
+					},
+				}),
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		await expect(installPlugin({ source, cwd: workspace })).rejects.toThrow(
+			/exceeds the 10485760 byte limit/,
+		);
 	});
 
 	it("installs into cwd plugin root when cwd is provided", async () => {
@@ -130,6 +258,7 @@ describe("plugin install command", () => {
 					},
 					peerDependencies: {
 						"@cline/shared": "*",
+						bun: ">=1.0.0",
 					},
 					peerDependenciesMeta: {
 						"@cline/shared": {
@@ -176,12 +305,12 @@ describe("plugin install command", () => {
 			peerDependenciesMeta?: Record<string, unknown>;
 		};
 		expect(packageManifest.dependencies).toEqual({ yaml: "^2.8.1" });
-		expect(packageManifest.peerDependencies).toBeUndefined();
+		expect(packageManifest.peerDependencies).toEqual({ bun: ">=1.0.0" });
 		expect(packageManifest.peerDependenciesMeta).toBeUndefined();
 		const npmLog = readFileSync(npmLogPath, "utf8");
 		expect(npmLog).toContain(`${join(".tmp")}/`);
 		expect(npmLog).toContain(
-			"package install --omit=dev --no-audit --no-fund --package-lock=false",
+			"package install --omit=dev --omit=peer --legacy-peer-deps --no-audit --no-fund --package-lock=false",
 		);
 		expect(existsSync(join(result.installPath, "package", ".git"))).toBe(false);
 		expect(
@@ -228,6 +357,7 @@ describe("plugin install command", () => {
 		const npmLog = readFileSync(npmLogPath, "utf8");
 		expect(npmLog).toContain("install published-plugin@1.0.0");
 		expect(npmLog).toContain("--omit=peer");
+		expect(npmLog).toContain("--legacy-peer-deps");
 		expect(
 			existsSync(
 				join(result.installPath, "package", "node_modules", "@cline", "core"),

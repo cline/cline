@@ -34,7 +34,7 @@ export type WhatsAppConnectorState = {
 
 export type ConnectTelegramOptions = {
 	botToken: string;
-	botUsername: string;
+	botUsername?: string;
 	cwd: string;
 	model?: string;
 	provider?: string;
@@ -50,6 +50,7 @@ export type ConnectTelegramOptions = {
 
 export type TelegramConnectorState = {
 	botUsername: string;
+	botId?: string;
 	pid: number;
 	rpcAddress: string;
 	startedAt: string;
@@ -93,6 +94,8 @@ export type ConnectDiscordOptions = {
 	applicationId: string;
 	botToken: string;
 	publicKey: string;
+	ownerUserId?: string;
+	allowBotAuthors: boolean;
 	mentionRoleIds?: string[];
 	cwd: string;
 	model?: string;

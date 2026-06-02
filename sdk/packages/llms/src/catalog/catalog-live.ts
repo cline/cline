@@ -86,7 +86,7 @@ function toCapabilities(model: ModelsDevModel): ModelInfo["capabilities"] {
 	) {
 		capabilities.push("prompt-cache");
 	}
-	return capabilities;
+	return Array.from(new Set(capabilities));
 }
 
 function toStatus(status: string | undefined): ModelInfo["status"] {
@@ -114,20 +114,16 @@ export function resolveMaxInputTokens(
 
 function toModelInfo(modelId: string, model: ModelsDevModel): ModelInfo {
 	// If context or output limits are missing, default to DEFAULT_MAX_INPUT_TOKENS and DEFAULT_MAX_TOKENS respectively.
-	// If context and max are the same value, assume max tokens should be 5% of that value to avoid overallocation.
 	const maxInputTokens = resolveMaxInputTokens(model.limit);
 	const outputToken = model.limit?.output ?? DEFAULT_MAX_TOKENS;
 	const rawContextLimit = model.limit?.context;
-	const discountContextLimit = rawContextLimit ?? DEFAULT_MAX_INPUT_TOKENS;
-	const discounted =
-		discountContextLimit === outputToken ? outputToken * 0.05 : outputToken;
 
 	return {
 		id: modelId,
 		name: model.name || modelId,
 		contextWindow: rawContextLimit,
 		maxInputTokens,
-		maxTokens: Math.floor(discounted),
+		maxTokens: Math.floor(outputToken),
 		capabilities: toCapabilities(model),
 		pricing: {
 			input: model.cost?.input ?? 0,

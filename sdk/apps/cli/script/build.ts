@@ -1,6 +1,14 @@
 #!/usr/bin/env bun
 
-import { existsSync, mkdirSync, readFileSync, realpathSync } from "node:fs";
+import {
+	cpSync,
+	existsSync,
+	mkdirSync,
+	readdirSync,
+	readFileSync,
+	realpathSync,
+	statSync,
+} from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { $ } from "bun";
 import {
@@ -12,6 +20,30 @@ import {
 const cliDir = resolve(import.meta.dir, "..");
 const rootDir = resolve(cliDir, "../..");
 process.chdir(cliDir);
+
+// Telemetry / OTEL environment variables that should be baked into the
+// compiled binary at build time. Mirrors the list of secrets injected by the
+// `cli-publish` GitHub Actions workflow. These are inlined via Bun's `define`
+// so the CLI ships with the production telemetry configuration without
+// requiring the end user to set any env vars.
+const BUILD_TIME_INLINED_ENV_VARS = [
+	"TELEMETRY_SERVICE_API_KEY",
+	"ERROR_SERVICE_API_KEY",
+	"OTEL_TELEMETRY_ENABLED",
+	"OTEL_LOGS_EXPORTER",
+	"OTEL_METRICS_EXPORTER",
+	"OTEL_EXPORTER_OTLP_PROTOCOL",
+	"OTEL_EXPORTER_OTLP_ENDPOINT",
+	"OTEL_EXPORTER_OTLP_HEADERS",
+] as const;
+
+function buildInlinedEnvDefines(): Record<string, string> {
+	const defines: Record<string, string> = {};
+	for (const name of BUILD_TIME_INLINED_ENV_VARS) {
+		defines[`process.env.${name}`] = JSON.stringify(process.env[name] ?? "");
+	}
+	return defines;
+}
 
 const pkg = JSON.parse(readFileSync(join(cliDir, "package.json"), "utf-8"));
 const version: string = pkg.version;
@@ -71,6 +103,48 @@ if (!buildOptions.skipSdkBuild) {
 	await $`bun -F @cline/cli build`.cwd(rootDir);
 }
 
+const hubWebviewSource = join(cliDir, "../cline-hub/src/webview");
+const hubWebviewDist = join(cliDir, "../cline-hub/dist/webview");
+const hubWebviewIndex = join(hubWebviewDist, "index.html");
+
+function newestFileMtimeMs(dir: string): number {
+	let newest = 0;
+	for (const entry of readdirSync(dir, { withFileTypes: true })) {
+		if (
+			entry.name === "node_modules" ||
+			entry.name === "dist" ||
+			entry.name === ".turbo"
+		) {
+			continue;
+		}
+		const path = join(dir, entry.name);
+		if (entry.isDirectory()) {
+			newest = Math.max(newest, newestFileMtimeMs(path));
+		} else if (entry.isFile()) {
+			newest = Math.max(newest, statSync(path).mtimeMs);
+		}
+	}
+	return newest;
+}
+
+function shouldBuildHubWebview(): boolean {
+	if (!existsSync(hubWebviewIndex)) {
+		return true;
+	}
+	try {
+		return (
+			newestFileMtimeMs(hubWebviewSource) > statSync(hubWebviewIndex).mtimeMs
+		);
+	} catch {
+		return true;
+	}
+}
+
+if (shouldBuildHubWebview()) {
+	console.log("Building Cline Hub webview...");
+	await $`bun -F @cline/cline-hub build:webview`.cwd(rootDir);
+}
+
 const binaries: Record<string, string> = {};
 
 function findOpenTuiParserWorker(): string {
@@ -128,6 +202,9 @@ async function buildCompiledBinary(input: {
 		external: ["@anthropic-ai/vertex-sdk"],
 		define: {
 			OTUI_TREE_SITTER_WORKER_PATH: bunfsRoot + parserWorkerPath,
+			// Inline telemetry/OTEL env vars at build time so the compiled
+			// binary ships with production telemetry configuration baked in.
+			...buildInlinedEnvDefines(),
 		},
 		throw: false,
 	});
@@ -189,6 +266,14 @@ for (const item of targets) {
 		mkdirSync(bootstrapDir, { recursive: true });
 		const content = readFileSync(bootstrapSrc);
 		await Bun.write(join(bootstrapDir, "plugin-sandbox-bootstrap.js"), content);
+	}
+
+	if (existsSync(hubWebviewDist)) {
+		const hubWebviewDest = join(cliDir, `dist/${dirName}/cline-hub/webview`);
+		mkdirSync(join(cliDir, `dist/${dirName}/cline-hub`), {
+			recursive: true,
+		});
+		cpSync(hubWebviewDist, hubWebviewDest, { recursive: true });
 	}
 
 	// Generate platform package.json

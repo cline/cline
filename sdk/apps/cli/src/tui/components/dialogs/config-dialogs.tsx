@@ -4,6 +4,7 @@ import { useState } from "react";
 import type {
 	InteractiveConfigData,
 	InteractiveConfigItem,
+	LoadInteractiveConfigDataOptions,
 } from "../../interactive-config";
 import { palette } from "../../palette";
 import {
@@ -18,6 +19,7 @@ export function ExtDetailContent(
 		item: InteractiveConfigItem;
 		onToggleConfigItem?: (
 			item: InteractiveConfigItem,
+			options?: LoadInteractiveConfigDataOptions,
 		) => Promise<InteractiveConfigData | undefined>;
 	},
 ) {
@@ -31,23 +33,35 @@ export function ExtDetailContent(
 		) {
 			return;
 		}
+		const previousItem = item;
 		setToggleError(undefined);
+		if (typeof item.enabled === "boolean") {
+			setItem({ ...item, enabled: !item.enabled });
+		}
 		try {
-			const nextData = await props.onToggleConfigItem(item);
-			const nextItem = [
-				...(nextData?.workflows ?? []),
-				...(nextData?.rules ?? []),
-				...(nextData?.skills ?? []),
-				...(nextData?.hooks ?? []),
-				...(nextData?.agents ?? []),
-				...(nextData?.plugins ?? []),
-				...(nextData?.mcp ?? []),
-				...(nextData?.tools ?? []),
-			].find(
-				(candidate) => candidate.id === item.id && candidate.path === item.path,
-			);
-			setItem(nextItem ?? { ...item, enabled: !item.enabled });
+			const nextData = await props.onToggleConfigItem(item, {
+				includePluginTools: false,
+			});
+			if (nextData) {
+				const nextItem = [
+					...nextData.workflows,
+					...nextData.rules,
+					...nextData.skills,
+					...nextData.hooks,
+					...nextData.agents,
+					...nextData.plugins,
+					...nextData.mcp,
+					...nextData.tools,
+				].find(
+					(candidate) =>
+						candidate.id === item.id && candidate.path === item.path,
+				);
+				if (nextItem) {
+					setItem(nextItem);
+				}
+			}
 		} catch (error) {
+			setItem(previousItem);
 			const message = error instanceof Error ? error.message : String(error);
 			setToggleError(`Failed to update ${item.name}: ${message}`);
 		}

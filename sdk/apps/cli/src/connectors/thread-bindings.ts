@@ -14,10 +14,15 @@ export type ConnectorThreadState = {
 };
 
 export type ConnectorThreadBinding<TState extends ConnectorThreadState> = {
+	kind?: "participant" | "thread" | "thread-participant-mute";
 	channelId: string;
 	isDM: boolean;
 	participantKey?: string;
 	participantLabel?: string;
+	threadMutedAt?: string;
+	mutedParticipantKey?: string;
+	mutedParticipantLabel?: string;
+	participantMutedAt?: string;
 	serializedThread: string;
 	sessionId?: string;
 	state?: TState;
@@ -41,6 +46,11 @@ export type ConnectorBindingThreadIdentity = Pick<
 	participantKey?: string;
 };
 
+export type ConnectorMuteTarget = {
+	participantKey: string;
+	participantLabel?: string;
+};
+
 function normalizeParticipantKey(
 	value: string | undefined,
 ): string | undefined {
@@ -61,6 +71,64 @@ function readSerializedThreadIdentity(
 		return parsed && typeof parsed === "object" ? parsed : undefined;
 	} catch {
 		return undefined;
+	}
+}
+
+function resolveThreadControlKey(
+	thread: ConnectorBindingThreadIdentity,
+): string {
+	return `thread:${thread.id}`;
+}
+
+function resolveParticipantMuteControlKey(
+	thread: ConnectorBindingThreadIdentity,
+	participantKey: string | undefined,
+): string | undefined {
+	const normalized = normalizeParticipantKey(participantKey);
+	return normalized
+		? `thread:${thread.id}:participant:${normalized}`
+		: undefined;
+}
+
+function isControlBinding(
+	binding: ConnectorThreadBinding<ConnectorThreadState> | undefined,
+): boolean {
+	return (
+		binding?.kind === "thread" || binding?.kind === "thread-participant-mute"
+	);
+}
+
+function clearSerializedThreadSessionId(serializedThread: string | undefined): {
+	serializedThread: string | undefined;
+	updated: boolean;
+} {
+	if (!serializedThread?.trim()) {
+		return { serializedThread, updated: false };
+	}
+	try {
+		const parsed = JSON.parse(serializedThread) as unknown;
+		if (!parsed || typeof parsed !== "object") {
+			return { serializedThread, updated: false };
+		}
+		const record = parsed as Record<string, unknown>;
+		let updated = false;
+		if ("sessionId" in record) {
+			delete record.sessionId;
+			updated = true;
+		}
+		if (record.state && typeof record.state === "object") {
+			const state = record.state as Record<string, unknown>;
+			if ("sessionId" in state) {
+				delete state.sessionId;
+				updated = true;
+			}
+		}
+		return {
+			serializedThread: updated ? JSON.stringify(parsed) : serializedThread,
+			updated,
+		};
+	} catch {
+		return { serializedThread, updated: false };
 	}
 }
 
@@ -98,14 +166,21 @@ export function findBindingForThread<TState extends ConnectorThreadState>(
 		const exactThreadParticipantKey = normalizeParticipantKey(
 			exactThread?.participantKey ?? exactThread?.state?.participantKey,
 		);
-		if (exactThread && exactThreadParticipantKey === participantKey) {
+		if (
+			exactThread &&
+			!isControlBinding(exactThread) &&
+			exactThreadParticipantKey === participantKey
+		) {
 			return { key: thread.id, binding: exactThread };
 		}
 		const exactParticipant = bindings[participantKey];
-		if (exactParticipant) {
+		if (exactParticipant && !isControlBinding(exactParticipant)) {
 			return { key: participantKey, binding: exactParticipant };
 		}
 		for (const [key, binding] of Object.entries(bindings)) {
+			if (isControlBinding(binding)) {
+				continue;
+			}
 			const bindingParticipantKey = normalizeParticipantKey(
 				binding.participantKey ?? binding.state?.participantKey,
 			);
@@ -116,10 +191,13 @@ export function findBindingForThread<TState extends ConnectorThreadState>(
 		return undefined;
 	}
 	const exact = bindings[thread.id];
-	if (exact) {
+	if (exact && !isControlBinding(exact)) {
 		return { key: thread.id, binding: exact };
 	}
 	for (const [key, binding] of Object.entries(bindings)) {
+		if (isControlBinding(binding)) {
+			continue;
+		}
 		if (
 			binding.channelId === thread.channelId &&
 			binding.isDM === thread.isDM
@@ -205,6 +283,9 @@ export function persistThreadBinding<TState extends ConnectorThreadState>(
 		state,
 	);
 	for (const [key, binding] of Object.entries(bindings)) {
+		if (isControlBinding(binding)) {
+			continue;
+		}
 		const bindingParticipantKey = normalizeParticipantKey(
 			binding.participantKey ?? binding.state?.participantKey,
 		);
@@ -223,6 +304,7 @@ export function persistThreadBinding<TState extends ConnectorThreadState>(
 		}
 	}
 	bindings[bindingKey] = {
+		kind: "participant",
 		channelId: thread.channelId,
 		isDM: thread.isDM,
 		participantKey,
@@ -233,6 +315,139 @@ export function persistThreadBinding<TState extends ConnectorThreadState>(
 		updatedAt: new Date().toISOString(),
 	};
 	writeBindings(path, bindings);
+}
+
+export function isThreadMuted<TState extends ConnectorThreadState>(
+	path: string,
+	thread: ConnectorBindingThreadIdentity,
+): boolean {
+	const bindings = readBindings<TState>(path);
+	return isThreadMutedInBindings(bindings, thread);
+}
+
+export function isThreadMutedInBindings<TState extends ConnectorThreadState>(
+	bindings: ConnectorBindingStore<TState>,
+	thread: ConnectorBindingThreadIdentity,
+): boolean {
+	const binding = bindings[resolveThreadControlKey(thread)];
+	return Boolean(binding?.threadMutedAt);
+}
+
+export function isParticipantMuted<TState extends ConnectorThreadState>(
+	path: string,
+	thread: ConnectorBindingThreadIdentity,
+	participantKey: string | undefined,
+): boolean {
+	const key = resolveParticipantMuteControlKey(thread, participantKey);
+	if (!key) {
+		return false;
+	}
+	const bindings = readBindings<TState>(path);
+	return isParticipantMutedInBindings(bindings, thread, participantKey);
+}
+
+export function isParticipantMutedInBindings<
+	TState extends ConnectorThreadState,
+>(
+	bindings: ConnectorBindingStore<TState>,
+	thread: ConnectorBindingThreadIdentity,
+	participantKey: string | undefined,
+): boolean {
+	const key = resolveParticipantMuteControlKey(thread, participantKey);
+	if (!key) {
+		return false;
+	}
+	const binding = bindings[key];
+	return Boolean(binding?.participantMutedAt);
+}
+
+export function findMutedParticipantsForThread<
+	TState extends ConnectorThreadState,
+>(
+	bindings: ConnectorBindingStore<TState>,
+	thread: ConnectorBindingThreadIdentity,
+): ConnectorMuteTarget[] {
+	const prefix = `thread:${thread.id}:participant:`;
+	return Object.entries(bindings)
+		.filter(
+			([key, binding]) =>
+				key.startsWith(prefix) &&
+				binding.kind === "thread-participant-mute" &&
+				Boolean(binding.participantMutedAt) &&
+				Boolean(normalizeParticipantKey(binding.mutedParticipantKey)),
+		)
+		.map(([, binding]) => ({
+			participantKey:
+				normalizeParticipantKey(binding.mutedParticipantKey) ?? "",
+			participantLabel: binding.mutedParticipantLabel,
+		}))
+		.filter((target) => target.participantKey.length > 0);
+}
+
+export function setThreadMuted<TState extends ConnectorThreadState>(
+	path: string,
+	thread: Thread<TState>,
+	muted: boolean,
+	errorLabel: string,
+): string | undefined {
+	const bindings = readBindings<TState>(path);
+	const key = resolveThreadControlKey(thread as ConnectorBindingThreadIdentity);
+	if (!muted) {
+		if (bindings[key]) {
+			delete bindings[key];
+			writeBindings(path, bindings);
+		}
+		return undefined;
+	}
+	const mutedAt = new Date().toISOString();
+	bindings[key] = {
+		kind: "thread",
+		channelId: thread.channelId,
+		isDM: thread.isDM,
+		threadMutedAt: mutedAt,
+		serializedThread: serializeThread(thread, errorLabel),
+		updatedAt: mutedAt,
+	};
+	writeBindings(path, bindings);
+	return mutedAt;
+}
+
+export function setParticipantMuted<TState extends ConnectorThreadState>(
+	path: string,
+	thread: Thread<TState>,
+	target: ConnectorMuteTarget,
+	muted: boolean,
+	errorLabel: string,
+): string | undefined {
+	const normalized = normalizeParticipantKey(target.participantKey);
+	const key = resolveParticipantMuteControlKey(
+		thread as ConnectorBindingThreadIdentity,
+		normalized,
+	);
+	if (!normalized || !key) {
+		return undefined;
+	}
+	const bindings = readBindings<TState>(path);
+	if (!muted) {
+		if (bindings[key]) {
+			delete bindings[key];
+			writeBindings(path, bindings);
+		}
+		return undefined;
+	}
+	const mutedAt = new Date().toISOString();
+	bindings[key] = {
+		kind: "thread-participant-mute",
+		channelId: thread.channelId,
+		isDM: thread.isDM,
+		mutedParticipantKey: normalized,
+		mutedParticipantLabel: target.participantLabel?.trim() || undefined,
+		participantMutedAt: mutedAt,
+		serializedThread: serializeThread(thread, errorLabel),
+		updatedAt: mutedAt,
+	};
+	writeBindings(path, bindings);
+	return mutedAt;
 }
 
 export function mergeThreadState<TState extends ConnectorThreadState>(
@@ -334,11 +549,17 @@ export function clearBindingSessionIds<TState extends ConnectorThreadState>(
 	const bindings = readBindings<TState>(path);
 	let updated = false;
 	for (const binding of Object.values(bindings)) {
-		if (binding.sessionId || binding.state?.sessionId) {
-			binding.sessionId = undefined;
-			if (binding.state) {
-				binding.state.sessionId = undefined;
-			}
+		if ("sessionId" in binding) {
+			delete binding.sessionId;
+			updated = true;
+		}
+		if (binding.state && "sessionId" in binding.state) {
+			delete binding.state.sessionId;
+			updated = true;
+		}
+		const serialized = clearSerializedThreadSessionId(binding.serializedThread);
+		if (serialized.updated) {
+			binding.serializedThread = serialized.serializedThread ?? "";
 			updated = true;
 		}
 	}

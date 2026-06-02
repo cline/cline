@@ -30,6 +30,18 @@ function resolveCliAgentConfigSearchPaths(cwd: string): string[] {
 	return [join(cwd, ".cline", "agents"), join(clineDir, "agents")];
 }
 
+function createConfigUserInstructionService(cwd: string) {
+	return createUserInstructionConfigService({
+		skills: {
+			workspacePath: cwd,
+			includePluginSkills: true,
+			cwd,
+		},
+		rules: { workspacePath: cwd },
+		workflows: { workspacePath: cwd },
+	});
+}
+
 async function runWorkflowsConfigCommand(
 	cwd: string,
 	outputMode: CliOutputMode,
@@ -39,11 +51,7 @@ async function runWorkflowsConfigCommand(
 		string,
 		{ id: string; name: string; instructions: string; path: string }
 	>();
-	const service = createUserInstructionConfigService({
-		skills: { workspacePath: cwd },
-		rules: { workspacePath: cwd },
-		workflows: { workspacePath: cwd },
-	});
+	const service = createConfigUserInstructionService(cwd);
 	try {
 		await service.start();
 		for (const record of service.listRecords<WorkflowConfig>("workflow")) {
@@ -90,11 +98,7 @@ async function runRulesConfigCommand(
 		string,
 		{ name: string; instructions: string; path: string }
 	>();
-	const service = createUserInstructionConfigService({
-		skills: { workspacePath: cwd },
-		rules: { workspacePath: cwd },
-		workflows: { workspacePath: cwd },
-	});
+	const service = createConfigUserInstructionService(cwd);
 	try {
 		await service.start();
 		for (const record of service.listRecords<RuleConfig>("rule")) {
@@ -142,11 +146,7 @@ async function runSkillsConfigCommand(
 			path: string;
 		}
 	>();
-	const service = createUserInstructionConfigService({
-		skills: { workspacePath: cwd },
-		rules: { workspacePath: cwd },
-		workflows: { workspacePath: cwd },
-	});
+	const service = createConfigUserInstructionService(cwd);
 	try {
 		await service.start();
 		for (const record of service.listRecords<SkillConfig>("skill")) {
@@ -420,11 +420,7 @@ async function runToolsConfigCommand(
 async function loadInteractiveConfigDataForCommand(
 	cwd: string,
 ): Promise<Awaited<ReturnType<typeof loadInteractiveConfigData>>> {
-	const userInstructionService = createUserInstructionConfigService({
-		skills: { workspacePath: cwd },
-		rules: { workspacePath: cwd },
-		workflows: { workspacePath: cwd },
-	});
+	const userInstructionService = createConfigUserInstructionService(cwd);
 	try {
 		await userInstructionService.start();
 		return await loadInteractiveConfigData({

@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import type { AgentConfig, AgentTool, ITelemetryService } from "@cline/shared";
 import { resolveGlobalSettingsPath } from "@cline/shared/storage";
@@ -63,16 +63,69 @@ function defaultGlobalSettings(): GlobalSettings {
 	return GlobalSettingsSchema.parse({});
 }
 
-export function readGlobalSettings(): GlobalSettings {
-	const filePath = resolveGlobalSettingsPath();
-	let parsed: unknown;
+interface CachedSettings {
+	path: string;
+	mtimeMs: number;
+	size: number;
+	value: GlobalSettings;
+}
+
+let settingsCache: CachedSettings | undefined;
+
+function invalidateSettingsCache(): void {
+	settingsCache = undefined;
+}
+
+function freezeSettings(value: GlobalSettings): GlobalSettings {
+	if (value.disabledTools) {
+		Object.freeze(value.disabledTools);
+	}
+	if (value.disabledPlugins) {
+		Object.freeze(value.disabledPlugins);
+	}
+	return Object.freeze(value);
+}
+
+function loadSettingsFromDisk(filePath: string): GlobalSettings {
+	let raw: string;
 	try {
-		parsed = JSON.parse(readFileSync(filePath, "utf8"));
+		raw = readFileSync(filePath, "utf8");
 	} catch {
 		return defaultGlobalSettings();
 	}
-	const result = GlobalSettingsSchema.safeParse(parsed);
-	return result.success ? result.data : defaultGlobalSettings();
+	try {
+		const result = GlobalSettingsSchema.safeParse(JSON.parse(raw));
+		return result.success ? result.data : defaultGlobalSettings();
+	} catch {
+		return defaultGlobalSettings();
+	}
+}
+
+function getCachedSettings(): CachedSettings {
+	const filePath = resolveGlobalSettingsPath();
+	const stats = statSync(filePath, { throwIfNoEntry: false });
+	const mtimeMs = stats?.mtimeMs ?? 0;
+	const size = stats?.size ?? 0;
+
+	const cached = settingsCache;
+	if (
+		cached &&
+		cached.path === filePath &&
+		cached.mtimeMs === mtimeMs &&
+		cached.size === size
+	) {
+		return cached;
+	}
+
+	const value = freezeSettings(
+		stats ? loadSettingsFromDisk(filePath) : defaultGlobalSettings(),
+	);
+	settingsCache = { path: filePath, mtimeMs, size, value };
+	return settingsCache;
+}
+
+export function readGlobalSettings(): GlobalSettings {
+	return getCachedSettings().value;
 }
 
 export function writeGlobalSettings(
@@ -87,6 +140,7 @@ export function writeGlobalSettings(
 		captureTelemetryOptOut(options.telemetry);
 	}
 	writeFileSync(filePath, `${JSON.stringify(normalized, null, 2)}\n`, "utf8");
+	invalidateSettingsCache();
 }
 
 export function isTelemetryOptedOutGlobally(): boolean {
@@ -125,17 +179,16 @@ export function isToolDisabledGlobally(toolName: string): boolean {
 }
 
 export function toggleDisabledTool(toolName: string): boolean {
-	const disabled = resolveDisabledToolNames();
 	const settings = readGlobalSettings();
-	if (disabled.has(toolName)) {
+	const disabled = new Set(settings.disabledTools ?? []);
+	const wasDisabled = disabled.has(toolName);
+	if (wasDisabled) {
 		disabled.delete(toolName);
-		writeGlobalSettings({ ...settings, disabledTools: [...disabled] });
-		return false;
+	} else {
+		disabled.add(toolName);
 	}
-
-	disabled.add(toolName);
 	writeGlobalSettings({ ...settings, disabledTools: [...disabled] });
-	return true;
+	return !wasDisabled;
 }
 
 export function setDisabledTools(

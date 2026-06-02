@@ -121,6 +121,10 @@ export interface CronRunnerOptions {
 	store: SqliteCronStore;
 	materializer: CronMaterializer;
 	runtimeHandlers: HubScheduleRuntimeHandlers;
+	eventPublisher?: (
+		eventType: string,
+		payload: Record<string, unknown>,
+	) => void;
 	/** Default runtime workspace for the hub/daemon process. */
 	workspaceRoot: string;
 	/** Cron spec source/report location. Defaults to global `~/.cline/cron`. */
@@ -339,6 +343,11 @@ export class CronRunner {
 				reportPath,
 				claimToken: claim.claimToken,
 			});
+			this.publishScheduleExecutionEvent(
+				"schedule.execution.completed",
+				spec,
+				run.runId,
+			);
 			this.store.updateSpecLastRunAt(spec.specId, nowIso());
 		} catch (err) {
 			const isTimeout = err instanceof TimeoutError;
@@ -365,6 +374,11 @@ export class CronRunner {
 				error: message,
 				claimToken: claim.claimToken,
 			});
+			this.publishScheduleExecutionEvent(
+				"schedule.execution.failed",
+				spec,
+				run.runId,
+			);
 		} finally {
 			releaseLeaseHeartbeat?.();
 			if (sessionId) {
@@ -377,6 +391,42 @@ export class CronRunner {
 			this.activeRuns.delete(run.runId);
 			this.limiter.release(spec.specId, run.runId);
 		}
+	}
+
+	private publishScheduleExecutionEvent(
+		eventType: "schedule.execution.completed" | "schedule.execution.failed",
+		spec: CronSpecRecord,
+		runId: string,
+	): void {
+		if (spec.source !== "hub-schedule" || !this.options.eventPublisher) {
+			return;
+		}
+		const run = this.store.getRun(runId);
+		if (!run) {
+			return;
+		}
+		const status =
+			run.status === "done"
+				? "success"
+				: run.status === "cancelled"
+					? "aborted"
+					: run.status === "running"
+						? "running"
+						: run.status === "queued"
+							? "pending"
+							: "failed";
+		this.options.eventPublisher(eventType, {
+			scheduleId: spec.externalId,
+			executionId: run.runId,
+			sessionId: run.sessionId,
+			triggeredAt: new Date(run.scheduledFor ?? run.createdAt).getTime(),
+			startedAt: run.startedAt ? new Date(run.startedAt).getTime() : undefined,
+			endedAt: run.completedAt
+				? new Date(run.completedAt).getTime()
+				: undefined,
+			status,
+			errorMessage: run.error,
+		});
 	}
 
 	private buildPrompt(

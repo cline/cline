@@ -6,10 +6,13 @@
 
 import {
 	type AgentTool,
+	type AgentToolContext,
 	createTool,
 	validateWithZod,
 	zodToJsonSchema,
 } from "@cline/shared";
+import { captureRunCommandsTimeout } from "../../services/telemetry/core-events";
+import { getToolContextTelemetry } from "../../services/telemetry/tool-context";
 import {
 	formatError,
 	formatReadFileQuery,
@@ -18,6 +21,7 @@ import {
 	getReadFileRangeError,
 	normalizeReadFileRequests,
 	normalizeRunCommandsInput,
+	TimeoutError,
 	withTimeout,
 } from "./helpers";
 import {
@@ -64,6 +68,41 @@ import type {
 // Helper Functions
 // =============================================================================
 
+function getStringMetadata(
+	context: AgentToolContext,
+	key: string,
+): string | undefined {
+	const value = context.metadata?.[key];
+	return typeof value === "string" ? value : undefined;
+}
+
+function captureRunCommandsTimeoutFromContext(
+	context: AgentToolContext,
+	properties: {
+		effectiveTimeoutMs: number;
+		timeoutSource: "default_setting" | "configured_setting";
+		commandCount: number;
+		durationMs: number;
+	},
+): void {
+	captureRunCommandsTimeout(getToolContextTelemetry(context.metadata), {
+		tool_name: "run_commands",
+		effective_timeout_ms: properties.effectiveTimeoutMs,
+		timeout_source: properties.timeoutSource,
+		command_count: properties.commandCount,
+		duration_ms: properties.durationMs,
+		ulid: context.sessionId,
+		mode: getStringMetadata(context, "mode"),
+		source: getStringMetadata(context, "source"),
+		session_id: context.sessionId,
+		agent_id: context.agentId,
+		conversation_id: context.conversationId,
+		run_id: context.runId,
+		iteration: context.iteration,
+		tool_call_id: context.toolCallId,
+	});
+}
+
 // =============================================================================
 // AgentTool Factory Functions
 // =============================================================================
@@ -83,7 +122,8 @@ export function createReadFilesTool(
 		name: "read_files",
 		description:
 			"Read the full content of text or image files at the provided absolute paths, or return only an inclusive one-based line range when start_line/end_line are provided. " +
-			"Returns file contents or error messages for each path.",
+			"Binary files that are not image and large files are not supported. " +
+			"Returns file contents or error messages for each path. ",
 		inputSchema: zodToJsonSchema(ReadFilesInputSchema),
 		timeoutMs: timeoutMs * 2, // Account for multiple files
 		retryable: true,
@@ -203,6 +243,10 @@ export function createBashTool(
 	config: Pick<DefaultToolsConfig, "cwd" | "bashTimeoutMs"> = {},
 ): AgentTool<RunCommandsInput, ToolOperationResult[]> {
 	const timeoutMs = config.bashTimeoutMs ?? 30000;
+	const timeoutSource =
+		config.bashTimeoutMs === undefined
+			? "default_setting"
+			: "configured_setting";
 	const cwd = config.cwd ?? process.cwd();
 
 	return createTool<RunCommandsInput, ToolOperationResult[]>({
@@ -210,7 +254,8 @@ export function createBashTool(
 		description:
 			"Run shell commands from the root of the workspace. " +
 			"Use for listing files, checking git status, running builds, executing tests, etc. " +
-			"Commands should be properly shell-escaped.",
+			"Commands should be properly shell-escaped and targeted to avoid error or timeout. " +
+			"For long-running commands, run them in background and redirect output to a tmp file that you can read from later.",
 		inputSchema: zodToJsonSchema(RunCommandsInputSchema),
 		timeoutMs: timeoutMs * 2,
 		retryable: false, // Shell commands often have side effects
@@ -234,6 +279,7 @@ export function createBashTool(
 
 			return Promise.all(
 				commands.map(async (command: string): Promise<ToolOperationResult> => {
+					const startedAt = Date.now();
 					try {
 						const output = await withTimeout(
 							executor(command, cwd, context),
@@ -246,6 +292,14 @@ export function createBashTool(
 							success: true,
 						};
 					} catch (error) {
+						if (error instanceof TimeoutError) {
+							captureRunCommandsTimeoutFromContext(context, {
+								effectiveTimeoutMs: error.timeoutMs,
+								timeoutSource,
+								commandCount: commands.length,
+								durationMs: Date.now() - startedAt,
+							});
+						}
 						const msg = formatError(error);
 						return {
 							query: command,
@@ -270,6 +324,10 @@ export function createWindowsShellTool(
 	config: Pick<DefaultToolsConfig, "cwd" | "bashTimeoutMs"> = {},
 ): AgentTool<StructuredCommandInput, ToolOperationResult[]> {
 	const timeoutMs = config.bashTimeoutMs ?? 30000;
+	const timeoutSource =
+		config.bashTimeoutMs === undefined
+			? "default_setting"
+			: "configured_setting";
 	const cwd = config.cwd ?? process.cwd();
 
 	return createTool<StructuredCommandInput, ToolOperationResult[]>({
@@ -287,6 +345,7 @@ export function createWindowsShellTool(
 
 			return Promise.all(
 				commands.map(async (command): Promise<ToolOperationResult> => {
+					const startedAt = Date.now();
 					try {
 						const output = await withTimeout(
 							executor(command, cwd, context),
@@ -299,6 +358,14 @@ export function createWindowsShellTool(
 							success: true,
 						};
 					} catch (error) {
+						if (error instanceof TimeoutError) {
+							captureRunCommandsTimeoutFromContext(context, {
+								effectiveTimeoutMs: error.timeoutMs,
+								timeoutSource,
+								commandCount: commands.length,
+								durationMs: Date.now() - startedAt,
+							});
+						}
 						const msg = formatError(error);
 						return {
 							query: formatRunCommandQuery(command),
@@ -613,6 +680,7 @@ export function createSubmitAndExitTool(
 			"Submit the final answer and exit the conversation. " +
 			"For example, submit a summary of the investigation and confirm the issue is resolved. " +
 			"You should only submit once all necessary steps are completed. " +
+			"Make sure to verify your output matches the expected format, data types, and file locations specified. " +
 			"Provide a summary of the investigation and confirm the issue is resolved.",
 		inputSchema: zodToJsonSchema(SubmitInputSchema),
 		lifecycle: {

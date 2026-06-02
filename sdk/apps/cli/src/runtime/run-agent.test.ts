@@ -174,6 +174,17 @@ describe("runAgent", () => {
 				prompt: "prompt",
 			}),
 		);
+		const startInput = sessionManagerMocks.start.mock.calls[0]?.[0] as
+			| { localRuntime?: Record<string, unknown> }
+			| undefined;
+		expect(startInput?.localRuntime).toEqual(
+			expect.objectContaining({
+				onTeamRestored: expect.any(Function),
+			}),
+		);
+		expect(startInput?.localRuntime).not.toHaveProperty(
+			"userInstructionService",
+		);
 	});
 
 	it("registers CLI capability factory through the CLI core facade", async () => {

@@ -20,6 +20,7 @@ import type { ClineAccountSnapshot } from "./cline-account";
 import type {
 	InteractiveConfigData,
 	InteractiveConfigItem,
+	LoadInteractiveConfigDataOptions,
 } from "./interactive-config";
 import type { InteractiveSlashCommand } from "./interactive-welcome";
 
@@ -102,6 +103,19 @@ export interface PendingPromptMutationResult {
 
 export type AppView = "onboarding" | "home" | "chat";
 
+export type RuntimeToolInteraction =
+	| {
+			id: number;
+			kind: "tool_approval";
+			request: ToolApprovalRequest;
+	  }
+	| {
+			id: number;
+			kind: "ask_question";
+			question: string;
+			options: string[];
+	  };
+
 export interface TuiProps {
 	config: Config;
 	initialView?: "chat" | "config";
@@ -116,9 +130,12 @@ export interface TuiProps {
 	loadWelcomeLine?: () => Promise<string | undefined>;
 	loadClineAccount: () => Promise<ClineAccountSnapshot>;
 	switchClineAccount: (organizationId?: string | null) => Promise<void>;
-	loadConfigData: () => Promise<InteractiveConfigData>;
+	loadConfigData: (
+		options?: LoadInteractiveConfigDataOptions,
+	) => Promise<InteractiveConfigData>;
 	onToggleConfigItem?: (
 		item: InteractiveConfigItem,
+		options?: LoadInteractiveConfigDataOptions,
 	) => Promise<InteractiveConfigData | undefined>;
 	subscribeToEvents: (handlers: {
 		onAgentEvent: (event: AgentEvent) => void;
@@ -145,6 +162,7 @@ export interface TuiProps {
 	onCompactionModeChange: (mode: CliCompactionMode) => Promise<void>;
 	onModelChange: () => Promise<void>;
 	onModeChange: (mode: AgentMode) => Promise<void>;
+	onNewSession: () => Promise<void>;
 	onSessionRestart: () => Promise<void>;
 	onAccountChange: () => Promise<void>;
 	onResumeSession: (sessionId: string) => Promise<ResumedSessionResult>;

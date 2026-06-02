@@ -67,6 +67,38 @@ describe("createConnectorRuntimeTurnStream", () => {
 		});
 	});
 
+	it("treats queued runtime turns as non-error completion", async () => {
+		const log = vi.fn();
+		const client = {
+			streamEvents: (_request: unknown, _callbacks: StreamHandlers) => {
+				return () => {};
+			},
+			sendRuntimeSession: vi.fn(async () => ({})),
+		};
+
+		const chunks: string[] = [];
+		for await (const chunk of createConnectorRuntimeTurnStream({
+			client: client as never,
+			sessionId: "session-1",
+			request: { config: {} as never, prompt: "hi" },
+			clientId: "client-1",
+			logger: { core: { log } } as unknown as CliLoggerAdapter,
+			transport: "discord",
+			conversationId: "thread-1",
+		})) {
+			chunks.push(chunk);
+		}
+
+		expect(chunks).toEqual([]);
+		expect(log).toHaveBeenCalledWith(
+			"Connector runtime turn queued",
+			expect.objectContaining({
+				transport: "discord",
+				sessionId: "session-1",
+			}),
+		);
+	});
+
 	it("surfaces normalized runtime failed errors", async () => {
 		let handlers: StreamHandlers | undefined;
 

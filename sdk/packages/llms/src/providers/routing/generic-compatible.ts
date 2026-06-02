@@ -4,11 +4,15 @@ import type {
 } from "@cline/shared";
 import {
 	buildAnthropicCompatibleReasoningOptions,
-	isAnthropicCompatibleModel,
 	resolveAnthropicReasoningRequestPolicy,
-	resolveModelFamily,
-	shouldUseAnthropicPromptCache,
+	resolveReasoningRoute,
+	shouldApplyPromptCache,
 } from "./anthropic-compatible";
+import {
+	isAnthropicCompatibleModel,
+	isQwenModel,
+	resolveModelFamily,
+} from "../model-facts";
 import type {
 	AiSdkProviderOptionsTarget,
 	ProviderOptionSuppression,
@@ -37,14 +41,32 @@ function buildCompatibleThinkingOptions(options: {
 		return {};
 	}
 
+	const family = resolveModelFamily(context);
+	const anthropicPolicy = resolveAnthropicReasoningRequestPolicy(
+		request,
+		context,
+	);
+	const hasAnthropicReasoningRoute =
+		resolveReasoningRoute(request, context) !== undefined;
+	const hasPromptCacheRoute = shouldApplyPromptCache(request, context);
 	const isAnthropicCompatible = isAnthropicCompatibleModel({
 		modelId: request.modelId,
-		family: resolveModelFamily(context),
+		family,
 	});
-	const anthropicPolicy = isAnthropicCompatible
-		? resolveAnthropicReasoningRequestPolicy(request, context)
-		: undefined;
-	if (anthropicPolicy && anthropicPolicy.kind !== "anthropic-adaptive") {
+	const isQwen = isQwenModel({
+		modelId: request.modelId,
+		family,
+	});
+	if (
+		!hasAnthropicReasoningRoute &&
+		(hasPromptCacheRoute || isQwen || isAnthropicCompatible)
+	) {
+		return {};
+	}
+	if (
+		hasAnthropicReasoningRoute &&
+		anthropicPolicy.kind !== "anthropic-adaptive"
+	) {
 		return {};
 	}
 	return { thinking: { type: "adaptive" } };
@@ -52,7 +74,8 @@ function buildCompatibleThinkingOptions(options: {
 
 function buildCompatibleEffortOptions(options: {
 	reasoning: GatewayStreamRequest["reasoning"];
-	isAnthropicCompatibleModelId: boolean;
+	usesAnthropicReasoningRoute: boolean;
+	suppressEffortOptions: boolean;
 	suppressions: ProviderOptionSuppression;
 	anthropicReasoningPolicyKind?: ReturnType<
 		typeof resolveAnthropicReasoningRequestPolicy
@@ -62,12 +85,13 @@ function buildCompatibleEffortOptions(options: {
 	if (
 		options.suppressions.genericEffort ||
 		!effort ||
-		options.reasoning?.enabled === false
+		options.reasoning?.enabled === false ||
+		options.suppressEffortOptions
 	) {
 		return {};
 	}
 	const allowEffort =
-		!options.isAnthropicCompatibleModelId ||
+		!options.usesAnthropicReasoningRoute ||
 		options.anthropicReasoningPolicyKind === "anthropic-adaptive";
 	if (!allowEffort) {
 		return {};
@@ -75,7 +99,7 @@ function buildCompatibleEffortOptions(options: {
 	return {
 		effort,
 		reasoningEffort: effort,
-		...(options.isAnthropicCompatibleModelId
+		...(options.usesAnthropicReasoningRoute
 			? {}
 			: { reasoningSummary: "auto" }),
 	};
@@ -84,33 +108,41 @@ function buildCompatibleEffortOptions(options: {
 export function buildCompatibleProviderOptions(options: {
 	request: GatewayStreamRequest;
 	context: GatewayProviderContext;
-	isAnthropicCompatibleModelId: boolean;
 	target: AiSdkProviderOptionsTarget;
 	suppressions: ProviderOptionSuppression;
 }): Record<string, unknown> {
-	const {
+	const { request, context, target, suppressions } = options;
+	const family = resolveModelFamily(context);
+	const anthropicReasoningPolicy = resolveAnthropicReasoningRequestPolicy(
 		request,
 		context,
-		isAnthropicCompatibleModelId,
-		target,
-		suppressions,
-	} = options;
-	const anthropicReasoningPolicy = isAnthropicCompatibleModelId
-		? resolveAnthropicReasoningRequestPolicy(request, context)
-		: undefined;
+	);
+	const usesAnthropicReasoningRoute =
+		resolveReasoningRoute(request, context) !== undefined;
+	const hasPromptCacheRoute = shouldApplyPromptCache(request, context);
+	const isAnthropicCompatible = isAnthropicCompatibleModel({
+		modelId: request.modelId,
+		family,
+	});
+	const isQwen = isQwenModel({
+		modelId: request.modelId,
+		family,
+	});
+	const suppressCompatibleReasoningOptions =
+		!usesAnthropicReasoningRoute &&
+		(hasPromptCacheRoute || isQwen || isAnthropicCompatible);
 	const reasoning = buildAnthropicCompatibleReasoningOptions(request, context);
-	const promptCache = shouldUseAnthropicPromptCache(request, context)
-		? createEphemeralCacheControl()
-		: {};
+	const promptCache = hasPromptCacheRoute ? createEphemeralCacheControl() : {};
 
 	return {
 		...(target === "openai-compatible" ? { strictJsonSchema: false } : {}),
 		...buildCompatibleThinkingOptions({ request, context, suppressions }),
 		...buildCompatibleEffortOptions({
 			reasoning: request.reasoning,
-			isAnthropicCompatibleModelId,
+			usesAnthropicReasoningRoute,
+			suppressEffortOptions: suppressCompatibleReasoningOptions,
 			suppressions,
-			anthropicReasoningPolicyKind: anthropicReasoningPolicy?.kind,
+			anthropicReasoningPolicyKind: anthropicReasoningPolicy.kind,
 		}),
 		...(reasoning ? { reasoning } : {}),
 		...promptCache,

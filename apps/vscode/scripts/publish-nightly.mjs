@@ -1,0 +1,608 @@
+#!/usr/bin/env node
+
+/**
+ * Nightly publish script for VS Code extension
+ * Converts package.json to testing version, packages, publishes, and restores
+ *
+ * This script:
+ * 1. Backs up the original package.json
+ * 2. Updates package.json with:
+ *    - New version (major.minor.timestamp format)
+ *    - Changes name to "cline-nightly"
+ *    - Changes displayName to "Cline (Nightly)"
+ * 3. Packages the extension as a .vsix file
+ * 4. Publishes to VS Code Marketplace (if VSCE_PAT is set)
+ * 5. Publishes to OpenVSX Registry (if OVSX_PAT is set)
+ * 6. Restores the original package.json
+ *
+ * Channels:
+ *   By default, the extension is published to the RELEASE channel of
+ *   `cline-nightly` (this is what the scheduled daily nightly workflow
+ *   uses). Pass --pre-release to instead publish to the pre-release
+ *   channel of `cline-nightly` (used for manual publishes from feature
+ *   branches that need tester opt-in via "Switch to Pre-Release Version").
+ *
+ *   Note on version ordering: because VS Code serves pre-release users
+ *   whichever version is highest across *both* channels, the pre-release
+ *   build only stays selected while its version number is greater than
+ *   the latest release nightly. Since both channels use
+ *   `major.minor.<unix-timestamp>`, the most recently published build
+ *   wins. When this script is used for a manual pre-release publish, the
+ *   scheduled release nightly workflow will eventually publish a newer
+ *   timestamp and pull pre-release users forward onto release — which is
+ *   the desired behavior once an experimental branch is abandoned, but
+ *   means ongoing previews require re-publishing from the branch at
+ *   least as often as the scheduled release nightly runs.
+ *
+ * Usage:
+ *   npm run publish:marketplace:nightly                    # release channel
+ *   npm run publish:marketplace:nightly -- --pre-release   # pre-release channel
+ *   npm run publish:marketplace:nightly -- --dry-run       # package only
+ *
+ * Environment variables:
+ *   VSCE_PAT  - Personal Access Token for VS Code Marketplace
+ *   OVSX_PAT  - Personal Access Token for OpenVSX Registry
+ *
+ * Dependencies:
+ *   - vsce (VS Code Extension Manager)
+ *   - ovsx (OpenVSX CLI)
+ */
+
+import { execFileSync, execSync } from "node:child_process"
+import fs from "node:fs"
+import path from "node:path"
+import { fileURLToPath } from "node:url"
+import { restore as restoreMarketplaceReadme, swapIn as swapInMarketplaceReadme } from "./marketplace-readme.mjs"
+
+// Get __dirname equivalent in ES modules
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+
+// ANSI color codes for console output
+const colors = {
+	reset: "\x1b[0m",
+	red: "\x1b[31m",
+	green: "\x1b[32m",
+	yellow: "\x1b[33m",
+}
+
+// Logging utilities
+const log = {
+	info: (msg) => console.log(`${colors.green}[INFO]${colors.reset} ${msg}`),
+	warn: (msg) => console.log(`${colors.yellow}[WARN]${colors.reset} ${msg}`),
+	error: (msg) => console.error(`${colors.red}[ERROR]${colors.reset} ${msg}`),
+}
+
+// Configuration
+const config = {
+	// The name and display name for the nightly version
+	nightlyName: "cline-nightly",
+	originalName: "claude-dev",
+	nightlyDisplayName: "Cline (Nightly)",
+	projectRoot: path.join(__dirname, ".."),
+	get packageJsonPath() {
+		return path.join(this.projectRoot, "package.json")
+	},
+	get packageBackupPath() {
+		return path.join(this.projectRoot, "package.json.backup")
+	},
+	get distDir() {
+		return path.join(this.projectRoot, "dist")
+	},
+	get vsixPath() {
+		return path.join(this.distDir, "cline-nightly.vsix")
+	},
+	get nodeModulesPath() {
+		return path.join(this.projectRoot, "node_modules")
+	},
+	get originalWorkspaceLinkPath() {
+		return path.join(this.nodeModulesPath, this.originalName)
+	},
+	get nightlyWorkspaceLinkPath() {
+		return path.join(this.nodeModulesPath, this.nightlyName)
+	},
+}
+
+// Utility class for managing the publish process
+class NightlyPublisher {
+	constructor() {
+		this.originalPackageJson = null
+		this.hasBackup = false
+		this.didRenameWorkspaceLink = false
+		this.didCreateNightlyWorkspaceLink = false
+		this.didSwapMarketplaceReadme = false
+	}
+
+	/**
+	 * Resolve symlink target to an absolute path.
+	 */
+	resolveSymlinkTarget(linkPath) {
+		const target = fs.readlinkSync(linkPath)
+		return path.resolve(path.dirname(linkPath), target)
+	}
+
+	/**
+	 * Validate that a path is the expected workspace self-link to project root.
+	 */
+	isExpectedWorkspaceSelfLink(linkPath) {
+		try {
+			if (!fs.lstatSync(linkPath).isSymbolicLink()) {
+				return false
+			}
+
+			return this.resolveSymlinkTarget(linkPath) === path.resolve(config.projectRoot)
+		} catch {
+			return false
+		}
+	}
+
+	/**
+	 * Check if required dependencies are installed
+	 */
+	checkDependencies() {
+		const dependencies = [
+			{ name: "vsce", check: "vsce --version" },
+			{ name: "npx", check: "npx --version" },
+		]
+
+		const missing = []
+
+		for (const dep of dependencies) {
+			try {
+				execSync(dep.check, { stdio: "ignore" })
+			} catch {
+				missing.push(dep.name)
+			}
+		}
+
+		if (missing.length > 0) {
+			throw new Error(
+				`Missing required dependencies: ${missing.join(", ")}. Please install them before running this script.`,
+			)
+		}
+
+		log.info("All dependencies are installed")
+	}
+
+	/**
+	 * Check if a command exists
+	 */
+	commandExists(command) {
+		try {
+			execSync(`which ${command}`, { stdio: "ignore" })
+			return true
+		} catch {
+			return false
+		}
+	}
+
+	/**
+	 * Create backup of package.json
+	 */
+	backupPackageJson() {
+		if (!fs.existsSync(config.packageJsonPath)) {
+			throw new Error(`package.json not found at ${config.packageJsonPath}`)
+		}
+
+		log.info("Backing up original package.json")
+		this.originalPackageJson = fs.readFileSync(config.packageJsonPath, "utf-8")
+		fs.writeFileSync(config.packageBackupPath, this.originalPackageJson)
+		this.hasBackup = true
+	}
+
+	/**
+	 * Restore original package.json
+	 */
+	restorePackageJson() {
+		if (this.hasBackup && fs.existsSync(config.packageBackupPath)) {
+			log.info("Restoring original package.json")
+			fs.writeFileSync(config.packageJsonPath, this.originalPackageJson)
+			fs.unlinkSync(config.packageBackupPath)
+			this.hasBackup = false
+		}
+	}
+
+	/**
+	 * Keep workspace self-link consistent with package name during nightly packaging.
+	 *
+	 * The repo root is a workspace package ("."). When npm installs dependencies,
+	 * it creates a self-link at node_modules/<package-name>. Nightly packaging
+	 * changes package.json name from "claude-dev" to "cline-nightly". If we don't
+	 * align this link, vsce's dependency detection (`npm list --production`) fails
+	 * with ELSPROBLEMS (missing cline-nightly + extraneous claude-dev).
+	 */
+	reconcileWorkspaceSelfLinkForNightly() {
+		const originalPath = config.originalWorkspaceLinkPath
+		const nightlyPath = config.nightlyWorkspaceLinkPath
+
+		if (!fs.existsSync(config.nodeModulesPath)) {
+			log.warn("node_modules not found, skipping workspace self-link reconciliation")
+			return
+		}
+
+		if (fs.existsSync(nightlyPath)) {
+			if (!this.isExpectedWorkspaceSelfLink(nightlyPath)) {
+				throw new Error(
+					`Refusing to continue: unexpected path at ${nightlyPath}. Expected a workspace symlink to ${config.projectRoot}`,
+				)
+			}
+
+			log.info("Nightly workspace self-link already exists")
+			return
+		}
+
+		if (fs.existsSync(originalPath)) {
+			if (!this.isExpectedWorkspaceSelfLink(originalPath)) {
+				throw new Error(
+					`Refusing to continue: unexpected path at ${originalPath}. Expected a workspace symlink to ${config.projectRoot}`,
+				)
+			}
+
+			log.info(`Renaming workspace self-link: ${config.originalName} -> ${config.nightlyName}`)
+			fs.renameSync(originalPath, nightlyPath)
+			this.didRenameWorkspaceLink = true
+			return
+		}
+
+		// In some environments npm may not have created the workspace self-link yet.
+		// Create it explicitly so `npm list --production` can resolve the renamed
+		// package name during vsce dependency detection.
+		log.warn("Original workspace self-link not found, creating nightly workspace self-link")
+		fs.symlinkSync(config.projectRoot, nightlyPath, "dir")
+
+		if (!this.isExpectedWorkspaceSelfLink(nightlyPath)) {
+			throw new Error(`Failed to create expected workspace symlink at ${nightlyPath}`)
+		}
+
+		this.didCreateNightlyWorkspaceLink = true
+	}
+
+	/**
+	 * Restore workspace self-link after packaging.
+	 */
+	restoreWorkspaceSelfLink() {
+		if (!this.didRenameWorkspaceLink && !this.didCreateNightlyWorkspaceLink) {
+			return
+		}
+
+		const originalPath = config.originalWorkspaceLinkPath
+		const nightlyPath = config.nightlyWorkspaceLinkPath
+
+		if (fs.existsSync(nightlyPath) && !fs.existsSync(originalPath)) {
+			if (this.didRenameWorkspaceLink) {
+				if (!this.isExpectedWorkspaceSelfLink(nightlyPath)) {
+					throw new Error(
+						`Refusing to restore: unexpected path at ${nightlyPath}. Expected a workspace symlink to ${config.projectRoot}`,
+					)
+				}
+
+				log.info(`Restoring workspace self-link: ${config.nightlyName} -> ${config.originalName}`)
+				fs.renameSync(nightlyPath, originalPath)
+			} else if (this.didCreateNightlyWorkspaceLink) {
+				if (!this.isExpectedWorkspaceSelfLink(nightlyPath)) {
+					throw new Error(
+						`Refusing to remove: unexpected path at ${nightlyPath}. Expected a workspace symlink to ${config.projectRoot}`,
+					)
+				}
+
+				log.info(`Removing temporary workspace self-link: ${config.nightlyName}`)
+				fs.unlinkSync(nightlyPath)
+			}
+		}
+
+		this.didRenameWorkspaceLink = false
+		this.didCreateNightlyWorkspaceLink = false
+	}
+
+	/**
+	 * Swap README.marketplace.md into README.md so the .vsix is packaged with
+	 * the marketplace-flavored README. vsce reads README.md from disk at
+	 * `vsce package` time and there's no flag to redirect it.
+	 */
+	swapMarketplaceReadme() {
+		const result = swapInMarketplaceReadme()
+		this.didSwapMarketplaceReadme = !result.skipped
+		if (this.didSwapMarketplaceReadme) {
+			log.info("Swapped README.marketplace.md into README.md for packaging")
+		}
+	}
+
+	/**
+	 * Restore README.md if this publisher performed the swap.
+	 */
+	restoreMarketplaceReadme() {
+		if (!this.didSwapMarketplaceReadme) {
+			return
+		}
+		try {
+			restoreMarketplaceReadme()
+			log.info("Restored original README.md")
+		} catch (error) {
+			log.error(`Failed to restore README.md: ${error.message}`)
+		}
+		this.didSwapMarketplaceReadme = false
+	}
+
+	/**
+	 * Generate new version with timestamp
+	 * Format: major.minor.timestamp
+	 */
+	generateVersion(currentVersion) {
+		// Extract major.minor from current version (e.g., "3.27.1" -> "3.27")
+		const versionParts = currentVersion.split(".")
+		if (versionParts.length < 2) {
+			throw new Error(`Invalid version format: ${currentVersion}`)
+		}
+
+		const major = versionParts[0]
+		const minor = versionParts[1]
+		const timestamp = Math.floor(Date.now() / 1000)
+
+		return `${major}.${minor}.${timestamp}`
+	}
+
+	/**
+	 * Update package.json with nightly configuration
+	 */
+	updatePackageJson() {
+		// Replace any occurrences cline. or claude-dev with nightly name
+		const rawContent = fs.readFileSync(config.packageJsonPath, "utf-8")
+		const content = rawContent.replaceAll("claude-dev", config.nightlyName).replaceAll('"cline.', `"${config.nightlyName}.`)
+
+		const pkg = JSON.parse(content)
+		const currentVersion = pkg.version
+
+		if (!currentVersion) {
+			throw new Error("Could not read version from package.json")
+		}
+
+		log.info(`Current version: ${currentVersion}`)
+
+		const newVersion = this.generateVersion(currentVersion)
+		log.info(`New version: ${newVersion}`)
+
+		// Update package.json fields
+		pkg.version = newVersion
+		pkg.name = config.nightlyName
+		pkg.displayName = config.nightlyDisplayName
+		pkg.contributes.viewsContainers.activitybar.title = config.nightlyDisplayName
+
+		// Save updated package.json
+		log.info("Updating package.json for nightly build")
+		fs.writeFileSync(config.packageJsonPath, JSON.stringify(pkg, null, "\t"))
+
+		return newVersion
+	}
+
+	/**
+	 * Package the extension
+	 */
+	packageExtension(isPreRelease = false) {
+		// Ensure dist directory exists
+		if (!fs.existsSync(config.distDir)) {
+			fs.mkdirSync(config.distDir, { recursive: true })
+		}
+
+		log.info(`Packaging extension${isPreRelease ? " (pre-release)" : ""}`)
+
+		const args = [
+			"package",
+			...(isPreRelease ? ["--pre-release"] : []),
+			"--no-update-package-json",
+			"--no-git-tag-version",
+			"--allow-package-secrets",
+			"sendgrid",
+			"--out",
+			config.vsixPath,
+		]
+
+		try {
+			execFileSync("vsce", args, {
+				stdio: "inherit",
+				cwd: config.projectRoot,
+			})
+			log.info(`Package created: ${config.vsixPath}`)
+		} catch (error) {
+			throw new Error(`Failed to package extension: ${error.message}`)
+		}
+	}
+
+	/**
+	 * Publish to VS Code Marketplace
+	 */
+	publishToVSCodeMarketplace(isPreRelease = false) {
+		const token = process.env.VSCE_PAT
+
+		if (!token) {
+			log.warn("VSCE_PAT not set, skipping VS Code Marketplace publish")
+			return false
+		}
+
+		log.info(`Publishing to VS Code Marketplace${isPreRelease ? " (pre-release channel)" : ""}`)
+
+		const args = [
+			"publish",
+			...(isPreRelease ? ["--pre-release"] : []),
+			"--no-git-tag-version",
+			"--packagePath",
+			config.vsixPath,
+		]
+
+		try {
+			execFileSync("vsce", args, {
+				env: { ...process.env, VSCE_PAT: token },
+				stdio: "inherit",
+				cwd: config.projectRoot,
+			})
+			log.info("Successfully published to VS Code Marketplace")
+			return true
+		} catch (error) {
+			throw new Error(`Failed to publish to VS Code Marketplace: ${error.message}`)
+		}
+	}
+
+	/**
+	 * Publish to OpenVSX Registry
+	 */
+	publishToOpenVSX(isPreRelease = false) {
+		const token = process.env.OVSX_PAT
+
+		if (!token) {
+			log.warn("OVSX_PAT not set, skipping OpenVSX Registry publish")
+			return false
+		}
+
+		log.info(`Publishing to OpenVSX Registry${isPreRelease ? " (pre-release channel)" : ""}`)
+
+		const args = [
+			"ovsx",
+			"publish",
+			...(isPreRelease ? ["--pre-release"] : []),
+			"--packagePath",
+			config.vsixPath,
+			"--pat",
+			token,
+		]
+
+		try {
+			execFileSync("npx", args, {
+				stdio: "inherit",
+				cwd: config.projectRoot,
+			})
+			log.info("Successfully published to OpenVSX Registry")
+			return true
+		} catch (error) {
+			throw new Error(`Failed to publish to OpenVSX Registry: ${error.message}`)
+		}
+	}
+
+	/**
+	 * Main execution flow
+	 */
+	async run({ isDryRun = false, isPreRelease = false } = {}) {
+		try {
+			const channelLabel = isPreRelease ? " (pre-release channel)" : " (release channel)"
+			log.info(`Starting nightly publish process${channelLabel}${isDryRun ? " (dry run)" : ""}`)
+
+			// Step 1: Check dependencies
+			this.checkDependencies()
+
+			// Step 2: Backup package.json
+			this.backupPackageJson()
+
+			// Step 3: Update package.json
+			const newVersion = this.updatePackageJson()
+
+			// Step 3.5: Keep npm workspace self-link aligned with nightly package name
+			this.reconcileWorkspaceSelfLinkForNightly()
+
+			// Step 3.6: Swap in marketplace README before packaging
+			this.swapMarketplaceReadme()
+
+			// Step 4: Package extension
+			this.packageExtension(isPreRelease)
+
+			// Step 5: Publish to marketplaces (skip if dry run)
+			let vsCodePublished = false
+			let openVSXPublished = false
+
+			if (isDryRun) {
+				log.info("Dry run mode: Skipping marketplace publishing")
+			} else {
+				vsCodePublished = this.publishToVSCodeMarketplace(isPreRelease)
+				openVSXPublished = this.publishToOpenVSX(isPreRelease)
+			}
+
+			// Summary
+			log.info(`Nightly publish process completed successfully${isDryRun ? " (dry run)" : ""}`)
+			log.info(`Package created for v${newVersion}: ${config.vsixPath}`)
+
+			if (!isDryRun && !vsCodePublished && !openVSXPublished) {
+				log.warn("Extension was packaged but not published to any marketplace")
+				log.warn("Set VSCE_PAT and/or OVSX_PAT environment variables to enable publishing")
+			}
+		} catch (error) {
+			log.error(`Publish failed: ${error.message}`)
+			process.exit(1)
+		} finally {
+			// Always restore workspace link first
+			this.restoreWorkspaceSelfLink()
+
+			// Always restore package.json
+			this.restorePackageJson()
+
+			// Always restore README.md
+			this.restoreMarketplaceReadme()
+		}
+	}
+}
+
+// Handle cleanup on process exit
+const publisher = new NightlyPublisher()
+
+process.on("exit", () => {
+	publisher.restoreWorkspaceSelfLink()
+	publisher.restorePackageJson()
+	publisher.restoreMarketplaceReadme()
+})
+
+process.on("SIGINT", () => {
+	log.info("\nInterrupted, cleaning up...")
+	publisher.restoreWorkspaceSelfLink()
+	publisher.restorePackageJson()
+	publisher.restoreMarketplaceReadme()
+	process.exit(130)
+})
+
+process.on("SIGTERM", () => {
+	log.info("\nTerminated, cleaning up...")
+	publisher.restoreWorkspaceSelfLink()
+	publisher.restorePackageJson()
+	publisher.restoreMarketplaceReadme()
+	process.exit(143)
+})
+
+// Parse command line arguments
+const args = process.argv.slice(2)
+const isDryRun = args.includes("--dry-run") || args.includes("-n")
+const isPreRelease = args.includes("--pre-release")
+const knownFlags = ["--dry-run", "-n", "--pre-release", "--help", "-h"]
+const unknownArgs = args.filter((a) => !knownFlags.includes(a))
+if (unknownArgs.length > 0) {
+	log.error(`Unknown argument(s): ${unknownArgs.join(", ")}. Run with --help for usage.`)
+	process.exit(1)
+}
+const showHelp = args.includes("--help") || args.includes("-h")
+
+if (showHelp) {
+	console.log(`
+Nightly publish script for VS Code extension
+
+Usage:
+  npm run publish:marketplace:nightly [options]
+
+Options:
+  --pre-release    Publish to the pre-release channel of cline-nightly.
+                   Default is the release channel (used by the scheduled
+                   nightly workflow).
+  --dry-run, -n    Run without actually publishing (package only)
+  --help, -h       Show this help message
+
+Environment variables:
+  VSCE_PAT         Personal Access Token for VS Code Marketplace
+  OVSX_PAT         Personal Access Token for OpenVSX Registry
+
+Examples:
+  npm run publish:marketplace:nightly                      # Release channel publish
+  npm run publish:marketplace:nightly -- --pre-release     # Pre-release channel publish
+  npm run publish:marketplace:nightly -- --dry-run         # Package only
+  VSCE_PAT="token" npm run publish:marketplace:nightly     # Publish to VS Code only
+`)
+	process.exit(0)
+}
+
+// Run the publisher
+publisher.run({ isDryRun, isPreRelease }).catch((error) => {
+	log.error(error.message)
+	process.exit(1)
+})

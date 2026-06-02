@@ -74,8 +74,16 @@ export function createInteractiveSessionRuntime(input: {
 	let shutdownRequested = false;
 	let activeSessionId = "";
 	let abortRequested = false;
+	// A reset can happen while an earlier manager.start() is still in flight.
+	// Bump this before resets and restarts so stale starts cannot become active.
+	let sessionStartGeneration = 0;
 
-	const initialResumeSessionId = input.resumeSessionId?.trim() || undefined;
+	let pendingResumeSessionId = input.resumeSessionId?.trim() || undefined;
+
+	const clearActiveSession = (): void => {
+		activeSessionId = "";
+		setActiveCliSession(undefined);
+	};
 
 	const applyStartedSession = (started: StartedSession): void => {
 		setActiveCliSession({
@@ -155,6 +163,7 @@ export function createInteractiveSessionRuntime(input: {
 		initial: Message[] = [],
 		sessionMetadata?: Record<string, unknown>,
 	): Promise<void> => {
+		const generation = sessionStartGeneration;
 		const manager = await ensureSessionManager();
 		const started = await manager.start({
 			source: SessionSource.CLI,
@@ -164,10 +173,13 @@ export function createInteractiveSessionRuntime(input: {
 			initialMessages: initial,
 			...(sessionMetadata ? { sessionMetadata } : {}),
 			localRuntime: {
-				userInstructionService: input.userInstructionService,
 				onTeamRestored: () => {},
 			},
 		});
+		if (generation !== sessionStartGeneration) {
+			await manager.stop(started.sessionId).catch(() => {});
+			return;
+		}
 		applyStartedSession(started);
 	};
 
@@ -175,6 +187,7 @@ export function createInteractiveSessionRuntime(input: {
 		resumeId: string,
 		initial: Message[] | undefined,
 	): Promise<void> => {
+		const generation = sessionStartGeneration;
 		const manager = await ensureSessionManager();
 		const started = await manager.start({
 			source: SessionSource.CLI,
@@ -186,28 +199,38 @@ export function createInteractiveSessionRuntime(input: {
 			interactive: true,
 			initialMessages: initial,
 			localRuntime: {
-				userInstructionService: input.userInstructionService,
 				onTeamRestored: () => {},
 			},
 		});
+		if (generation !== sessionStartGeneration) {
+			await manager.stop(started.sessionId).catch(() => {});
+			return;
+		}
 		applyStartedSession(started);
 	};
 
 	const ensureReady = async (): Promise<void> => {
+		if (activeSessionId) {
+			return;
+		}
 		if (startupPromise) {
 			return await startupPromise;
 		}
 		startupPromise = (async () => {
 			const manager = await ensureSessionManager();
+			const resumeSessionId = pendingResumeSessionId;
 			const initialMessages = await loadInteractiveResumeMessages(
 				manager,
-				input.resumeSessionId,
+				resumeSessionId,
 			);
 			if (shutdownRequested) {
 				return;
 			}
-			if (initialResumeSessionId) {
-				await startResumedSession(initialResumeSessionId, initialMessages);
+			if (resumeSessionId) {
+				await startResumedSession(resumeSessionId, initialMessages);
+				if (pendingResumeSessionId === resumeSessionId) {
+					pendingResumeSessionId = undefined;
+				}
 			} else {
 				await startFreshSession(initialMessages);
 			}
@@ -226,8 +249,9 @@ export function createInteractiveSessionRuntime(input: {
 	};
 
 	const stopCurrentSession = async (): Promise<void> => {
-		if (sessionManager && activeSessionId) {
-			await sessionManager.stop(activeSessionId);
+		const sessionId = activeSessionId;
+		if (sessionManager && sessionId) {
+			await sessionManager.stop(sessionId);
 		}
 	};
 
@@ -262,7 +286,12 @@ export function createInteractiveSessionRuntime(input: {
 		messages: Message[],
 		sessionMetadata?: Record<string, unknown>,
 	): Promise<void> => {
+		sessionStartGeneration += 1;
+		pendingResumeSessionId = undefined;
+		startupPromise = undefined;
+		startupError = undefined;
 		await stopCurrentSession();
+		clearActiveSession();
 		await startFreshSession(messages, sessionMetadata);
 	};
 
@@ -273,6 +302,19 @@ export function createInteractiveSessionRuntime(input: {
 
 	const restartEmpty = async (): Promise<void> => {
 		await restartWithMessages([]);
+	};
+
+	const resetForNewSession = async (): Promise<void> => {
+		sessionStartGeneration += 1;
+		pendingResumeSessionId = undefined;
+		startupPromise = undefined;
+		startupError = undefined;
+		const manager = sessionManager;
+		const sessionId = activeSessionId;
+		clearActiveSession();
+		if (manager && sessionId) {
+			await manager.stop(sessionId);
+		}
 	};
 
 	const applyMode = async (mode: "plan" | "act"): Promise<void> => {
@@ -453,7 +495,6 @@ export function createInteractiveSessionRuntime(input: {
 				toolPolicies: input.config.toolPolicies,
 				interactive: true,
 				localRuntime: {
-					userInstructionService: input.userInstructionService,
 					onTeamRestored: () => {},
 				},
 			},
@@ -537,6 +578,7 @@ export function createInteractiveSessionRuntime(input: {
 		getAccumulatedUsage,
 		readCurrentMessages,
 		restartEmpty,
+		resetForNewSession,
 		restartWithMessages,
 		restartWithCurrentMessages,
 		resumeSession,

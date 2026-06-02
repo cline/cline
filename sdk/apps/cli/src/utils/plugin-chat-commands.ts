@@ -18,8 +18,9 @@ export interface PluginSlashCommand {
 
 export interface WorkspaceChatCommandHostResult {
 	host: ChatCommandHost;
-	/** Plugin-registered commands surfaced as slash commands for TUI autocomplete. */
+	// Plugin-registered commands surfaced as slash commands for TUI autocomplete.
 	pluginSlashCommands: PluginSlashCommand[];
+	shutdown?: () => Promise<void>;
 }
 
 function normalizeCommandName(name: string): string {
@@ -62,7 +63,6 @@ export async function createWorkspaceChatCommandHost(input: {
 		loaded = await resolveAndLoadAgentPlugins({
 			cwd: input.cwd,
 			workspacePath: workspaceRoot,
-			mode: "in_process",
 		});
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
@@ -72,6 +72,9 @@ export async function createWorkspaceChatCommandHost(input: {
 		return { host: chatCommandHost, pluginSlashCommands: [] };
 	}
 	if (!loaded.extensions.length) {
+		await loaded.shutdown?.().catch(() => {
+			// Best effort cleanup when no command-capable plugins were loaded.
+		});
 		return { host: chatCommandHost, pluginSlashCommands: [] };
 	}
 
@@ -89,6 +92,9 @@ export async function createWorkspaceChatCommandHost(input: {
 		input.logger?.log(
 			`plugin command registry initialization failed; continuing without plugin commands (${message})`,
 		);
+		await loaded.shutdown?.().catch(() => {
+			// Best effort cleanup after failed command discovery.
+		});
 		return { host: chatCommandHost, pluginSlashCommands: [] };
 	}
 
@@ -108,5 +114,5 @@ export async function createWorkspaceChatCommandHost(input: {
 			});
 		}
 	}
-	return { host, pluginSlashCommands };
+	return { host, pluginSlashCommands, shutdown: loaded.shutdown };
 }

@@ -42,6 +42,7 @@ function makeRuntime(): InteractiveChatCommandRuntime {
 	return {
 		forkCurrentSession: vi.fn(async () => undefined),
 		getActiveSessionId: vi.fn(() => "session-1"),
+		resetForNewSession: vi.fn(async () => {}),
 		restartEmpty: vi.fn(async () => {}),
 	};
 }
@@ -99,6 +100,34 @@ describe("runInteractiveChatCommand", () => {
 		expect(config.enableAgentTeams).toBe(true);
 		expect(config.teamName).toBeTruthy();
 		expect(runtime.restartEmpty).toHaveBeenCalledOnce();
+	});
+
+	it("resets slash new without eagerly restarting the runtime", async () => {
+		const config = makeConfig();
+		const runtime = makeRuntime();
+
+		const result = await runInteractiveChatCommand({
+			prompt: "/new",
+			enabled: true,
+			config,
+			host: chatCommandHost,
+			chatCommandState: makeState(config),
+			autoApproveAllRef: { current: false },
+			setInteractiveAutoApprove: () => {},
+			sessionRuntime: runtime,
+			stop: () => {},
+		});
+
+		expect(result).toEqual({
+			handled: true,
+			turnResult: {
+				usage: { inputTokens: 0, outputTokens: 0 },
+				iterations: 0,
+				commandOutput: "Started a fresh session.",
+			},
+		});
+		expect(runtime.resetForNewSession).toHaveBeenCalledOnce();
+		expect(runtime.restartEmpty).not.toHaveBeenCalled();
 	});
 
 	it("applies chat command state updates and returns command output", async () => {

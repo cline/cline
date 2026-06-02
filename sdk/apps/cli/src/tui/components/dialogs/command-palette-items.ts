@@ -4,6 +4,7 @@ export type CommandPaletteAction =
 	| "change-provider"
 	| "account"
 	| "mcp"
+	| "plugins"
 	| "compact"
 	| "skills"
 	| "fork"
@@ -64,6 +65,13 @@ const ACTION_ITEMS: Array<{
 		keywords: ["mcp", "server", "tool", "toggle"],
 	},
 	{
+		action: "plugins",
+		label: "Manage Plugins",
+		shortcut: "Opt+G",
+		description: "Open plugin settings",
+		keywords: ["plugins", "extensions", "settings"],
+	},
+	{
 		action: "account",
 		label: "Open Account",
 		shortcut: "Opt+A",
@@ -87,7 +95,7 @@ const ACTION_ITEMS: Array<{
 	{
 		action: "fork",
 		label: "Create Session Fork",
-		shortcut: "Opt+F",
+		shortcut: "Opt+R",
 		description: "Branch the current conversation into a new session",
 		keywords: ["fork", "session", "branch"],
 		requiresFork: true,

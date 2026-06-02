@@ -6,6 +6,7 @@ import type { SlashCommandRegistry } from "../commands/slash-command-registry";
 import { resolveSlashCommand } from "../commands/slash-command-registry";
 import { ForkConfirmContent } from "../components/dialogs/fork-confirm";
 import { HelpDialogContent } from "../components/dialogs/help-dialog";
+import { withLoadingDialog } from "../components/dialogs/loading-dialog";
 import { useSession } from "../contexts/session-context";
 import type { AppView, TuiProps } from "../types";
 import { formatCompactionStatus } from "../utils/compaction-status";
@@ -13,12 +14,13 @@ import { hydrateSessionMessages } from "../utils/hydrate-messages";
 import type { LocalSlashCommandInvocation } from "../utils/skill-command-input";
 import { HistoryDialogContent } from "../views/history-view";
 import { runLocalSlashCommandAction } from "./local-command-actions";
+import type { OpenConfigOptions } from "./use-config-panel";
 
 export function useLocalCommandActions(input: {
 	slashCommandRegistry: SlashCommandRegistry;
 	canForkSession: boolean;
 	openAccount: () => void;
-	openConfig: () => void;
+	openConfig: (options?: OpenConfigOptions) => void;
 	openMcpManager: () => Promise<boolean>;
 	openModelSelector: () => void;
 	openSkills: (invocation?: LocalSlashCommandInvocation) => void;
@@ -62,28 +64,30 @@ export function useLocalCommandActions(input: {
 		});
 		if (sessionId) {
 			try {
-				const result = await onResumeSession(sessionId);
-				const { messages } = result;
-				const entries = hydrateSessionMessages(messages);
-				if (entries.length === 0) {
-					session.appendEntry({
-						kind: "error",
-						text: `Session ${sessionId} has no messages to resume.`,
-					});
-				} else {
-					session.clearEntries();
-					for (const entry of entries) {
-						session.appendEntry(entry);
+				await withLoadingDialog(dialog, "Loading session...", async () => {
+					const result = await onResumeSession(sessionId);
+					const { messages } = result;
+					const entries = hydrateSessionMessages(messages);
+					if (entries.length === 0) {
+						session.appendEntry({
+							kind: "error",
+							text: `Session ${sessionId} has no messages to resume.`,
+						});
+					} else {
+						session.clearEntries();
+						for (const entry of entries) {
+							session.appendEntry(entry);
+						}
+						if (typeof result.currentContextSize === "number") {
+							session.setLastTotalTokens(result.currentContextSize);
+						}
+						if (typeof result.totalCost === "number") {
+							session.setLastTotalCost(result.totalCost);
+						}
+						session.setHasSubmitted(true);
+						setAppView("chat");
 					}
-					if (typeof result.currentContextSize === "number") {
-						session.setLastTotalTokens(result.currentContextSize);
-					}
-					if (typeof result.totalCost === "number") {
-						session.setLastTotalCost(result.totalCost);
-					}
-					session.setHasSubmitted(true);
-					setAppView("chat");
-				}
+				});
 			} catch (error) {
 				session.appendEntry({
 					kind: "error",

@@ -2,30 +2,32 @@ import type {
 	GatewayProviderContext,
 	GatewayStreamRequest,
 } from "@cline/shared";
+import { isAnthropicCompatibleModel, resolveModelFamily } from "../model-facts";
 import {
 	buildAnthropicProviderOptions,
-	isAnthropicCompatibleModel,
 	resolveAnthropicReasoningRequestPolicy,
-	resolveModelFamily,
 } from "./anthropic-compatible";
 import { buildCompatibleProviderOptions } from "./generic-compatible";
 import {
 	buildProviderOptionRulePatches,
 	matchProviderOptionRules,
 	PROVIDER_OPTION_RULES,
-	resolveProviderOptionMatchInput,
 	resolveProviderOptionSuppressions,
 } from "./provider-option-rules";
 import {
 	type AiSdkProviderOptionsTarget,
 	inferProviderOptionsTarget,
+	type ProviderOptionMatchInput,
 } from "./provider-options-types";
 import { type ProviderOptionsPatch, toProviderOptionsKey } from "./utils";
 
 export type { AiSdkProviderOptionsTarget } from "./provider-options-types";
 export type { ProviderOptionsPatch } from "./utils";
 
-/** Merge patches in order. Later patches override earlier ones per bucket key. */
+/**
+ * Merge patches in order. Later patches override earlier ones per bucket key;
+ * nested object values are replaced, not deep-merged.
+ */
 export function mergeProviderOptionPatches(
 	patches: ReadonlyArray<ProviderOptionsPatch | undefined>,
 ): Record<string, unknown> {
@@ -57,6 +59,15 @@ function buildBaseProviderOptionsPatch(
  * The rule table in `provider-option-rules.ts` is the behavior matrix for
  * special providers and model families. Keep the composer boring: build shared
  * buckets once, then merge ordered rule patches.
+ *
+ * Routing ownership boundary:
+ * - Gateway model capabilities say what a model can do, such as reasoning.
+ * - Model metadata records stable known-model facts, such as
+ *   `reasoningDefaultOn`.
+ * - Provider metadata records stable provider policy, such as prompt caching.
+ * - Provider-option rules encode abstract request intent into provider wire
+ *   formats, such as `reasoning.exclude`, `thinking.type`, or
+ *   `reasoningEffort`.
  */
 export function composeAiSdkProviderOptions(
 	request: GatewayStreamRequest,
@@ -74,14 +85,14 @@ export function composeAiSdkProviderOptions(
 	const anthropicReasoningPolicy = isAnthropicCompatibleModelId
 		? resolveAnthropicReasoningRequestPolicy(request, context)
 		: undefined;
-	const matchInput = resolveProviderOptionMatchInput({
+	const matchInput: ProviderOptionMatchInput = {
 		request,
 		context,
 		providerOptionsKey,
 		target,
 		isAnthropicCompatibleModelId,
 		anthropicReasoningPolicyKind: anthropicReasoningPolicy?.kind,
-	});
+	};
 	const matchedRules = matchProviderOptionRules(
 		PROVIDER_OPTION_RULES,
 		matchInput,
@@ -90,7 +101,6 @@ export function composeAiSdkProviderOptions(
 	const compatibleOptions = buildCompatibleProviderOptions({
 		request,
 		context,
-		isAnthropicCompatibleModelId,
 		target,
 		suppressions,
 	});

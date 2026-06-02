@@ -18,9 +18,6 @@
 </table>
 </div>
 
-> **⚠️ Disclaimer:** This repo is currently still under active development. We will move this repo to be under the `cline/cline` repository soon. We currently do not accept public contributions given the early stage.
-
-
 The Cline SDK is a TypeScript framework for building AI agents that can edit files, run shell commands, browse the web, call APIs, and use any custom tool you give them. It's the same engine that powers [Cline](https://github.com/cline/cline), packaged as a library you can embed in your own applications.
 
 ```typescript
@@ -44,6 +41,16 @@ That's it. The agent streams its response, calls tools if you give it any, and r
 ```bash
 npm install @cline/sdk
 ```
+
+## SDK Skill
+
+If you use a coding agent (Claude Code, Codex, Cline, etc.), install the [Cline SDK skill](https://github.com/cline/sdk-skill) to give your agent context on the SDK's APIs and best practices to help you build with the Cline SDK.
+
+```bash
+npx skills add cline/sdk-skill
+```
+
+Prompt it to scaffold agents, create custom tools, wire up plugins, configure providers, and more.
 
 ## What You Can Build
 
@@ -227,7 +234,7 @@ cline "Refactor the auth module to use JWT"
 cline schedule create "PR summary" --cron "0 9 * * MON-FRI" --prompt "Summarize open PRs"
 
 # Connect a Telegram bot created with @BotFather
-cline connect telegram -m my_bot -k "$TELEGRAM_BOT_TOKEN"
+cline connect telegram -k "$TELEGRAM_BOT_TOKEN"
 # Then send /help or /start to the bot in Telegram
 ```
 

@@ -167,6 +167,16 @@ export function writeln(text = ""): void {
 	write(`${text}\n`);
 }
 
+export function writeDiagnostic(text: string): void {
+	try {
+		process.stderr.write(`${text}\n`);
+	} catch (error) {
+		if (!isBrokenPipeError(error)) {
+			throw error;
+		}
+	}
+}
+
 export function prepareTerminalForPostTuiOutput(): void {
 	if (currentOutputMode === "json" || !process.stdout.isTTY) {
 		return;

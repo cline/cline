@@ -16,6 +16,7 @@ import {
 	isProviderConfigured,
 } from "../../utils/provider-auth";
 import type { Config } from "../../utils/types";
+import { withLoadingDialog } from "../components/dialogs/loading-dialog";
 import {
 	CodexCliStatusContent,
 	type ExistingProviderAction,
@@ -32,6 +33,7 @@ import {
 import {
 	buildModelOptions,
 	CHANGE_PROVIDER_ACTION,
+	ModelIdInputContent,
 	type ModelOption,
 	ModelSelectorContent,
 	type ThinkingLevel,
@@ -72,6 +74,10 @@ function clearReasoningConfig(config: Config): void {
 	config.reasoningEffort = undefined;
 }
 
+function usesModelIdInput(providerId: string): boolean {
+	return providerId === "openai-compatible";
+}
+
 async function runProviderChange(
 	dialog: DialogActions,
 	config: Config,
@@ -86,8 +92,12 @@ async function runProviderChange(
 	});
 	if (!newProviderId) return false;
 
-	const displayName = await getProviderDisplayName(newProviderId);
 	const manager = new ProviderSettingsManager();
+	const displayName = await withLoadingDialog(
+		dialog,
+		"Loading provider...",
+		async () => await getProviderDisplayName(newProviderId),
+	);
 	const existingSettings = manager.getProviderSettings(newProviderId);
 
 	let needsAuth = true;
@@ -148,40 +158,48 @@ async function runProviderChange(
 		}
 		if (!saved) return false;
 	}
-	await refreshProviderModelsFromSource(manager, newProviderId).catch(() => {});
-	const newSettings = manager.getProviderSettings(newProviderId);
-	const newApiKey =
-		getPersistedProviderApiKey(newProviderId, newSettings) ?? "";
+	await withLoadingDialog(
+		dialog,
+		`Loading ${displayName} models...`,
+		async () => {
+			await refreshProviderModelsFromSource(manager, newProviderId).catch(
+				() => {},
+			);
+			const newSettings = manager.getProviderSettings(newProviderId);
+			const newApiKey =
+				getPersistedProviderApiKey(newProviderId, newSettings) ?? "";
 
-	manager.saveProviderSettings(
-		{
-			...(newSettings ?? {}),
-			provider: newProviderId,
+			manager.saveProviderSettings(
+				{
+					...(newSettings ?? {}),
+					provider: newProviderId,
+				},
+				{ setLastUsed: true },
+			);
+
+			config.providerId = newProviderId;
+			config.apiKey = newApiKey;
+
+			const resolved = await resolveProviderConfig(
+				newProviderId,
+				{
+					loadLatestOnInit: true,
+					loadPrivateOnAuth: true,
+					failOnError: false,
+				},
+				manager.getProviderConfig(newProviderId, { includeKnownModels: false }),
+			);
+			config.knownModels = resolved?.knownModels;
+			const modelIds = Object.keys(resolved?.knownModels ?? {});
+			if (newSettings?.model) {
+				config.modelId = newSettings.model;
+			} else if (modelIds[0]) {
+				config.modelId = modelIds[0];
+			}
+
+			await onModelChange();
 		},
-		{ setLastUsed: true },
 	);
-
-	config.providerId = newProviderId;
-	config.apiKey = newApiKey;
-
-	const resolved = await resolveProviderConfig(
-		newProviderId,
-		{
-			loadLatestOnInit: true,
-			loadPrivateOnAuth: true,
-			failOnError: false,
-		},
-		manager.getProviderConfig(newProviderId, { includeKnownModels: false }),
-	);
-	config.knownModels = resolved?.knownModels;
-	const modelIds = Object.keys(resolved?.knownModels ?? {});
-	if (newSettings?.model) {
-		config.modelId = newSettings.model;
-	} else if (modelIds[0]) {
-		config.modelId = modelIds[0];
-	}
-
-	await onModelChange();
 	return true;
 }
 
@@ -204,116 +222,153 @@ export function useModelSelector(opts: {
 				refocusTextarea();
 			};
 
-			await refreshCurrentProviderModels(config);
 			let modelOptions = buildModelOptions(
 				config.knownModels as Record<string, Llms.ModelInfo>,
 			);
-			let providerDisplayName = await getProviderDisplayName(config.providerId);
+			let providerDisplayName = config.providerId;
 
-			if (options?.startWithProviderChange) {
+			const refreshProviderContext = async () => {
+				modelOptions = buildModelOptions(
+					config.knownModels as Record<string, Llms.ModelInfo>,
+				);
+				providerDisplayName = await getProviderDisplayName(config.providerId);
+			};
+
+			if (!options?.startWithProviderChange) {
+				await withLoadingDialog(dialog, "Loading models...", async () => {
+					await refreshCurrentProviderModels(config);
+					await refreshProviderContext();
+				});
+			}
+
+			const changeProvider = async (): Promise<boolean> => {
 				const changed = await runProviderChange(
 					dialog,
 					config,
 					termHeight,
 					onModelChange,
 				);
+				if (changed) {
+					await withLoadingDialog(dialog, "Loading models...", async () => {
+						await refreshProviderContext();
+					});
+				}
+				return changed;
+			};
+
+			if (options?.startWithProviderChange) {
+				const changed = await changeProvider();
 				if (!changed) {
 					await handleCancel();
 					return;
 				}
-				modelOptions = buildModelOptions(
-					config.knownModels as Record<string, Llms.ModelInfo>,
-				);
-				providerDisplayName = await getProviderDisplayName(config.providerId);
 			}
 
 			let pickingModel = true;
 
-			while (config.providerId === "cline" && pickingModel) {
-				const clineResult = await dialog.choice<string>({
-					style: { maxHeight: termHeight - 2 },
-					content: (ctx: ChoiceContext<string>) => (
-						<ClineModelSelectorDialogContent
-							{...ctx}
-							currentModel={config.modelId}
-							currentProviderName={providerDisplayName}
-							knownModels={config.knownModels as Record<string, unknown>}
-							loadEntries={async () =>
-								buildClineModelEntries(await fetchClineRecommendedModels())
-							}
-						/>
-					),
-				});
-				if (!clineResult) {
-					await handleCancel();
-					return;
-				}
-				if (clineResult === CHANGE_PROVIDER_ACTION) {
-					await runProviderChange(dialog, config, termHeight, onModelChange);
-					providerDisplayName = await getProviderDisplayName(config.providerId);
-					modelOptions = buildModelOptions(
-						config.knownModels as Record<string, Llms.ModelInfo>,
-					);
-					continue;
-				}
-				if (clineResult === BROWSE_ALL_ACTION) {
-					const browseResult = await dialog.choice<string>({
+			while (pickingModel) {
+				if (usesModelIdInput(config.providerId)) {
+					const modelId = await dialog.choice<string>({
 						style: { maxHeight: termHeight - 2 },
 						content: (ctx: ChoiceContext<string>) => (
-							<ModelSelectorContent
+							<ModelIdInputContent
 								{...ctx}
 								currentModel={config.modelId}
 								currentProviderName={providerDisplayName}
-								models={modelOptions}
 							/>
 						),
 					});
-					if (!browseResult) continue;
-					if (browseResult === CHANGE_PROVIDER_ACTION) {
-						await runProviderChange(dialog, config, termHeight, onModelChange);
-						providerDisplayName = await getProviderDisplayName(
-							config.providerId,
-						);
-						modelOptions = buildModelOptions(
-							config.knownModels as Record<string, Llms.ModelInfo>,
-						);
+					if (!modelId) {
+						await handleCancel();
+						return;
+					}
+					if (modelId === CHANGE_PROVIDER_ACTION) {
+						await changeProvider();
 						continue;
 					}
-					config.modelId = browseResult;
-					const browseModel = modelOptions.find(
-						(m: ModelOption) => m.key === browseResult,
-					);
-					if (browseModel?.supportsReasoning) {
-						const lvl: ThinkingLevel = config.reasoningEffort
-							? (config.reasoningEffort as ThinkingLevel)
-							: config.thinking
-								? "medium"
-								: "none";
-						const pick = await dialog.choice<ThinkingLevel>({
+					config.modelId = modelId;
+					clearReasoningConfig(config);
+					pickingModel = false;
+					continue;
+				}
+
+				if (config.providerId === "cline") {
+					const clineResult = await dialog.choice<string>({
+						style: { maxHeight: termHeight - 2 },
+						content: (ctx: ChoiceContext<string>) => (
+							<ClineModelSelectorDialogContent
+								{...ctx}
+								currentModel={config.modelId}
+								currentProviderName={providerDisplayName}
+								knownModels={config.knownModels as Record<string, unknown>}
+								loadEntries={async () =>
+									buildClineModelEntries(await fetchClineRecommendedModels())
+								}
+							/>
+						),
+					});
+					if (!clineResult) {
+						await handleCancel();
+						return;
+					}
+					if (clineResult === CHANGE_PROVIDER_ACTION) {
+						await changeProvider();
+						continue;
+					}
+					if (clineResult === BROWSE_ALL_ACTION) {
+						const browseResult = await dialog.choice<string>({
 							style: { maxHeight: termHeight - 2 },
-							content: (ctx: ChoiceContext<ThinkingLevel>) => (
-								<ThinkingLevelContent
+							content: (ctx: ChoiceContext<string>) => (
+								<ModelSelectorContent
 									{...ctx}
-									modelName={browseModel.name}
-									currentLevel={lvl}
+									currentModel={config.modelId}
+									currentProviderName={providerDisplayName}
+									models={modelOptions}
 								/>
 							),
 						});
-						if (pick !== undefined) {
-							if (pick === "none") {
-								config.thinking = false;
-								config.reasoningEffort = undefined;
-							} else {
-								config.thinking = true;
-								config.reasoningEffort = pick;
+						if (!browseResult) continue;
+						if (browseResult === CHANGE_PROVIDER_ACTION) {
+							await changeProvider();
+							continue;
+						}
+						config.modelId = browseResult;
+						const browseModel = modelOptions.find(
+							(m: ModelOption) => m.key === browseResult,
+						);
+						if (browseModel?.supportsReasoning) {
+							const lvl: ThinkingLevel = config.reasoningEffort
+								? (config.reasoningEffort as ThinkingLevel)
+								: config.thinking
+									? "medium"
+									: "none";
+							const pick = await dialog.choice<ThinkingLevel>({
+								style: { maxHeight: termHeight - 2 },
+								content: (ctx: ChoiceContext<ThinkingLevel>) => (
+									<ThinkingLevelContent
+										{...ctx}
+										modelName={browseModel.name}
+										currentLevel={lvl}
+									/>
+								),
+							});
+							if (pick !== undefined) {
+								if (pick === "none") {
+									config.thinking = false;
+									config.reasoningEffort = undefined;
+								} else {
+									config.thinking = true;
+									config.reasoningEffort = pick;
+								}
 							}
 						}
+						if (!browseModel?.supportsReasoning) {
+							clearReasoningConfig(config);
+						}
+						pickingModel = false;
+						continue;
 					}
-					if (!browseModel?.supportsReasoning) {
-						clearReasoningConfig(config);
-					}
-					pickingModel = false;
-				} else {
+
 					config.modelId = clineResult;
 					const selectedModel = modelOptions.find(
 						(m: ModelOption) => m.key === clineResult,
@@ -348,10 +403,9 @@ export function useModelSelector(opts: {
 						clearReasoningConfig(config);
 					}
 					pickingModel = false;
+					continue;
 				}
-			}
 
-			while (pickingModel) {
 				const selectedKey = await dialog.choice<string>({
 					style: { maxHeight: termHeight - 2 },
 					content: (ctx: ChoiceContext<string>) => (
@@ -369,20 +423,7 @@ export function useModelSelector(opts: {
 				}
 
 				if (selectedKey === CHANGE_PROVIDER_ACTION) {
-					const changed = await runProviderChange(
-						dialog,
-						config,
-						termHeight,
-						onModelChange,
-					);
-					if (changed) {
-						providerDisplayName = await getProviderDisplayName(
-							config.providerId,
-						);
-						modelOptions = buildModelOptions(
-							config.knownModels as Record<string, Llms.ModelInfo>,
-						);
-					}
+					await changeProvider();
 					continue;
 				}
 
@@ -428,7 +469,9 @@ export function useModelSelector(opts: {
 				pickingModel = false;
 			}
 
-			await onModelChange();
+			await withLoadingDialog(dialog, "Applying model...", async () => {
+				await onModelChange();
+			});
 			refocusTextarea();
 		},
 		[dialog, config, termHeight, onModelChange, refocusTextarea],

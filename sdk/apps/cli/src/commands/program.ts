@@ -76,6 +76,10 @@ export function addRootOptions(cmd: Command): Command {
 				"--hooks-dir <path>",
 				"Directory path to additional hooks for runtime hook injection (default: ~/.cline/hooks)",
 			)
+			.option(
+				"--worktree",
+				"Auto-create a detached git worktree under ~/.cline/worktrees/ and run the task there",
+			)
 			.option("--update", "Check for updates and install if available")
 			.option("--kanban", "Run the kanban app")
 			.option("-v, --verbose", "Show verbose output")
@@ -217,6 +221,7 @@ export function commanderToParsedArgs(program: Command): ParsedArgs {
 	if (opts.dataDir !== undefined) result.dataDir = opts.dataDir;
 	if (opts.config !== undefined) result.configDir = opts.config;
 	if (opts.hooksDir !== undefined) result.hooksDir = opts.hooksDir;
+	if (opts.worktree !== undefined) result.worktree = !!opts.worktree;
 	if (opts.cwd !== undefined) result.cwd = opts.cwd;
 	if (opts.teamName !== undefined) result.teamName = opts.teamName;
 	if (opts.system !== undefined) result.systemPrompt = opts.system;
@@ -227,7 +232,7 @@ export function commanderToParsedArgs(program: Command): ParsedArgs {
 	if (opts.id !== undefined) result.id = opts.id;
 
 	// Positional args → prompt
-	const positional = program.args.filter((a) => !a.startsWith("-"));
+	const positional = program.args;
 	if (positional.length > 0) {
 		result.prompt = positional.join(" ");
 	}

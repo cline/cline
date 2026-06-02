@@ -61,22 +61,66 @@ describe("built-in provider metadata", () => {
 		});
 	});
 
-	it("enriches OpenAI Codex fallback models from the generated OpenAI catalog", async () => {
-		const models = await getModelsForProvider("openai-codex");
+	it("derives ChatGPT subscription models from the generated OpenAI catalog", async () => {
+		const chatGptModels = await getModelsForProvider("openai-codex");
+		const openAiModels = await getModelsForProvider("openai-native");
+		const modelIds = Object.keys(chatGptModels);
 
-		expect(models["gpt-5.4"]).toEqual(
+		expect(modelIds).toEqual(
+			expect.arrayContaining([
+				"gpt-5.5",
+				"gpt-5.5-pro",
+				"gpt-5.2",
+				"gpt-5.3-codex",
+				"gpt-5.3-codex-spark",
+				"gpt-5.4",
+				"gpt-5.4-mini",
+			]),
+		);
+		expect(modelIds).not.toContain("gpt-5.1-codex-max");
+		expect(modelIds).not.toContain("gpt-5.2-codex");
+		expect(modelIds).not.toContain("gpt-5.4-nano");
+		expect(modelIds).not.toContain("o3");
+		expect(chatGptModels["gpt-5.5"]).toEqual(
+			expect.objectContaining({
+				...openAiModels["gpt-5.5"],
+				maxInputTokens: 272_000,
+				contextWindow: 400_000,
+			}),
+		);
+		expect(chatGptModels["gpt-5.4"]).toEqual(
 			expect.objectContaining({
 				name: "GPT-5.4",
 				maxInputTokens: expect.any(Number),
 				contextWindow: expect.any(Number),
 			}),
 		);
-		expect(models["gpt-5.3-codex"]).toEqual(
+		expect(chatGptModels["gpt-5.3-codex"]).toEqual(
 			expect.objectContaining({
 				name: "GPT-5.3 Codex",
 				maxInputTokens: expect.any(Number),
 				contextWindow: expect.any(Number),
 			}),
 		);
+	});
+
+	it("routes native Z.AI providers through GLM thinking metadata", async () => {
+		for (const providerId of ["zai", "zai-coding-plan"] as const) {
+			await expect(getProvider(providerId)).resolves.toMatchObject({
+				metadata: {
+					routing: {
+						reasoning: {
+							format: "glm-thinking",
+						},
+					},
+				},
+			});
+
+			const models = Object.values(await getModelsForProvider(providerId));
+			expect(models.length).toBeGreaterThan(0);
+			for (const model of models) {
+				expect(model.family?.startsWith("glm")).toBe(true);
+			}
+		}
 	});
 });

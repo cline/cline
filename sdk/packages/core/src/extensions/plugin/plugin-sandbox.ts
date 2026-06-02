@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import type {
 	AgentConfig,
 	AgentExtensionAutomationEventType,
+	AgentExtensionRule,
 	AgentRuntimeHooks,
 	AgentTool,
 	Message,
@@ -23,6 +24,12 @@ export type SandboxedPluginSetupContext = Pick<
 export interface PluginSandboxOptions extends PluginTargeting {
 	pluginPaths: string[];
 	exportName?: string;
+	/**
+	 * Max wall time for plugin module imports. Defaults to 4000 ms; falls back
+	 * to the `CLINE_PLUGIN_IMPORT_TIMEOUT_MS` env var when this option is not
+	 * set, allowing slower hosts (Windows cold-start, CI without warm caches)
+	 * to raise the ceiling without touching code.
+	 */
 	importTimeoutMs?: number;
 	hookTimeoutMs?: number;
 	contributionTimeoutMs?: number;
@@ -48,6 +55,10 @@ export interface PluginSandboxOptions extends PluginTargeting {
 
 type AgentExtension = NonNullable<AgentConfig["extensions"]>[number];
 type AgentExtensionApi = Parameters<NonNullable<AgentExtension["setup"]>>[0];
+type SandboxedAgentExtension = AgentExtension & {
+	/** Internal metadata used by settings surfaces that need source paths. */
+	__clinePluginPath?: string;
+};
 
 type SandboxedContributionDescriptor = {
 	id: string;
@@ -57,6 +68,13 @@ type SandboxedContributionDescriptor = {
 	timeoutMs?: number;
 	retryable?: boolean;
 	metadata?: Record<string, unknown>;
+};
+
+type SandboxedRuleDescriptor = Omit<AgentExtensionRule, "id" | "content"> & {
+	id: string;
+	ruleId: string;
+	content?: string;
+	hasContentHandler?: boolean;
 };
 
 type SandboxedAutomationEventTypeDescriptor =
@@ -73,6 +91,7 @@ type SandboxedPluginDescriptor = {
 	contributions: {
 		tools: SandboxedContributionDescriptor[];
 		commands: SandboxedContributionDescriptor[];
+		rules: SandboxedRuleDescriptor[];
 		messageBuilders: SandboxedContributionDescriptor[];
 		providers: SandboxedContributionDescriptor[];
 		automationEventTypes: SandboxedAutomationEventTypeDescriptor[];
@@ -93,6 +112,7 @@ function normalizeDescriptor(
 		contributions: {
 			tools: descriptor.contributions?.tools ?? [],
 			commands: descriptor.contributions?.commands ?? [],
+			rules: descriptor.contributions?.rules ?? [],
 			messageBuilders: descriptor.contributions?.messageBuilders ?? [],
 			providers: descriptor.contributions?.providers ?? [],
 			automationEventTypes:
@@ -106,6 +126,45 @@ function normalizeDescriptor(
 function isUnknownPluginIdError(error: unknown): boolean {
 	const message = error instanceof Error ? error.message : String(error);
 	return message.includes("Unknown sandbox plugin id:");
+}
+
+function getPlatformPackageName(): string {
+	const platform = process.platform === "win32" ? "windows" : process.platform;
+	return `@cline/cli-${platform}-${process.arch}`;
+}
+
+function resolveBootstrapFromWrapper(): string | undefined {
+	const wrapperPath = process.env.CLINE_WRAPPER_PATH?.trim();
+	if (!wrapperPath) {
+		return undefined;
+	}
+	try {
+		const requireFromWrapper = createRequire(wrapperPath);
+		const packageJsonPath = requireFromWrapper.resolve(
+			`${getPlatformPackageName()}/package.json`,
+		);
+		const candidate = join(
+			dirname(packageJsonPath),
+			"extensions",
+			"plugin-sandbox-bootstrap.js",
+		);
+		return existsSync(candidate) ? candidate : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+function resolveBootstrapFromExecutable(): string | undefined {
+	const execPath = process.execPath?.trim();
+	if (!execPath) {
+		return undefined;
+	}
+	const candidate = join(
+		dirname(dirname(execPath)),
+		"extensions",
+		"plugin-sandbox-bootstrap.js",
+	);
+	return existsSync(candidate) ? candidate : undefined;
 }
 
 /**
@@ -127,8 +186,12 @@ function resolveBootstrap(): { file: string } | { script: string } {
 		join(dir, "plugin-sandbox-bootstrap.js"),
 		join(dir, "extensions", "plugin-sandbox-bootstrap.js"),
 		join(dir, "agents", "plugin-sandbox-bootstrap.js"),
+		resolveBootstrapFromWrapper(),
+		resolveBootstrapFromExecutable(),
 	];
-	for (const candidate of candidates) {
+	for (const candidate of candidates.filter(
+		(candidate): candidate is string => typeof candidate === "string",
+	)) {
 		if (existsSync(candidate)) return { file: candidate };
 	}
 	const tsPath = join(dir, "plugin-sandbox-bootstrap.ts");
@@ -155,8 +218,25 @@ const BOOTSTRAP = resolveBootstrap();
 function withTimeoutFallback(
 	timeoutMs: number | undefined,
 	fallback: number,
+	envVarName?: string,
 ): number {
-	return typeof timeoutMs === "number" && timeoutMs > 0 ? timeoutMs : fallback;
+	if (typeof timeoutMs === "number" && timeoutMs > 0) {
+		return timeoutMs;
+	}
+	if (envVarName) {
+		const raw = process.env[envVarName];
+		if (raw) {
+			// Number() is stricter than parseInt: it rejects values with
+			// trailing non-numeric characters (e.g. "4000ms" -> NaN) so a
+			// malformed env value falls back to the default instead of
+			// silently consuming its numeric prefix.
+			const parsed = Number(raw);
+			if (Number.isInteger(parsed) && parsed > 0) {
+				return parsed;
+			}
+		}
+	}
+	return fallback;
 }
 
 export async function loadSandboxedPlugins(
@@ -164,6 +244,7 @@ export async function loadSandboxedPlugins(
 ): Promise<
 	{
 		extensions: AgentConfig["extensions"];
+		pluginPaths: string[];
 		shutdown: () => Promise<void>;
 	} & PluginLoadDiagnostics
 > {
@@ -174,7 +255,11 @@ export async function loadSandboxedPlugins(
 			: { bootstrapScript: BOOTSTRAP.script }),
 		onEvent: options.onEvent,
 	});
-	const importTimeoutMs = withTimeoutFallback(options.importTimeoutMs, 4000);
+	const importTimeoutMs = withTimeoutFallback(
+		options.importTimeoutMs,
+		4000,
+		"CLINE_PLUGIN_IMPORT_TIMEOUT_MS",
+	);
 	const hookTimeoutMs = withTimeoutFallback(options.hookTimeoutMs, 3000);
 	const contributionTimeoutMs = withTimeoutFallback(
 		options.contributionTimeoutMs,
@@ -222,8 +307,9 @@ export async function loadSandboxedPlugins(
 
 	const extensions: NonNullable<AgentConfig["extensions"]> = descriptors.map(
 		(descriptor) => {
-			const extension: AgentExtension = {
+			const extension: SandboxedAgentExtension = {
 				name: descriptor.name,
+				__clinePluginPath: descriptor.pluginPath,
 				manifest: descriptor.manifest,
 				setup: (api: AgentExtensionApi) => {
 					registerTools(
@@ -234,6 +320,13 @@ export async function loadSandboxedPlugins(
 						reinitialize,
 					);
 					registerCommands(
+						api,
+						sandbox,
+						descriptor,
+						contributionTimeoutMs,
+						reinitialize,
+					);
+					registerRules(
 						api,
 						sandbox,
 						descriptor,
@@ -265,6 +358,7 @@ export async function loadSandboxedPlugins(
 	return {
 		extensions,
 		failures: initialized.failures,
+		pluginPaths: descriptors.map((descriptor) => descriptor.pluginPath),
 		shutdown: async () => {
 			await sandbox.shutdown();
 		},
@@ -365,6 +459,49 @@ function registerCommands(
 					);
 				}
 			},
+		});
+	}
+}
+
+function registerRules(
+	api: AgentExtensionApi,
+	sandbox: SubprocessSandbox,
+	descriptor: SandboxedPluginDescriptor,
+	timeoutMs: number,
+	reinitialize: () => Promise<void>,
+): void {
+	for (const rule of descriptor.contributions?.rules ?? []) {
+		api.registerRule({
+			id: rule.ruleId,
+			source: rule.source,
+			content:
+				rule.hasContentHandler === true
+					? async () => {
+							try {
+								return await sandbox.call<string>(
+									"resolveRuleContent",
+									{
+										pluginId: descriptor.pluginId,
+										contributionId: rule.id,
+									},
+									{ timeoutMs },
+								);
+							} catch (error) {
+								if (!isUnknownPluginIdError(error)) {
+									throw error;
+								}
+								await reinitialize();
+								return await sandbox.call<string>(
+									"resolveRuleContent",
+									{
+										pluginId: descriptor.pluginId,
+										contributionId: rule.id,
+									},
+									{ timeoutMs },
+								);
+							}
+						}
+					: (rule.content ?? ""),
 		});
 	}
 }

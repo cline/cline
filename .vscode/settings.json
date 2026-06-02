@@ -1,5 +1,6 @@
 // Place your settings in this file to overwrite default and user settings.
 {
+	"files.insertFinalNewline": true,
 	"files.exclude": {
 		"out": false, // set this to true to hide the "out" folder with the compiled JS files
 		"dist": false // set this to true to hide the "dist" folder with the compiled JS files
@@ -16,7 +17,7 @@
 	// Protobuf settings
 	"protoc": {
 		"options": [
-			"--proto_path=proto"
+			"--proto_path=apps/vscode/proto"
 		]
 	},
 	// Enable Lint and format using Biome

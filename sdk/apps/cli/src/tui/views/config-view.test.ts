@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { InteractiveConfigItem } from "../../tui/interactive-config";
 import {
+	canToggleConfigFooterRow,
 	getAdjacentConfigTab,
 	getConfigFooterText,
 	getConfigItemDisplayName,
@@ -34,6 +35,12 @@ describe("config view helpers", () => {
 		expect(isToggleableConfigItem(createItem({ kind: "workflow" }))).toBe(
 			false,
 		);
+	});
+
+	it("does not treat rule, agent, or hook rows as toggleable", () => {
+		expect(isToggleableConfigItem(createItem({ kind: "rule" }))).toBe(false);
+		expect(isToggleableConfigItem(createItem({ kind: "agent" }))).toBe(false);
+		expect(isToggleableConfigItem(createItem({ kind: "hook" }))).toBe(false);
 	});
 
 	it("keeps plugin tool rows toggleable", () => {
@@ -75,8 +82,38 @@ describe("config view helpers", () => {
 		});
 	});
 
-	it("mentions Space toggle in the footer", () => {
-		expect(getConfigFooterText()).toContain("Space toggle");
+	it("mentions Space toggle in the footer for toggleable rows", () => {
+		expect(getConfigFooterText({ canToggle: true })).toContain("Space toggle");
+	});
+
+	it("omits Space toggle in the footer for non-toggleable rows", () => {
+		expect(getConfigFooterText({ canToggle: false })).not.toContain(
+			"Space toggle",
+		);
+		expect(getConfigFooterText()).not.toContain("Space toggle");
+	});
+
+	it("derives footer toggle affordance from selected row behavior", () => {
+		const skill = createItem({ kind: "skill" });
+		const hook = createItem({ kind: "hook" });
+
+		expect(canToggleConfigFooterRow({ kind: "provider" })).toBe(false);
+		expect(canToggleConfigFooterRow({ kind: "toggle" })).toBe(true);
+		expect(
+			canToggleConfigFooterRow({
+				kind: "ext",
+				enabled: skill.enabled,
+				item: skill,
+			}),
+		).toBe(true);
+		expect(
+			canToggleConfigFooterRow({
+				kind: "ext",
+				enabled: hook.enabled,
+				item: hook,
+			}),
+		).toBe(false);
+		expect(canToggleConfigFooterRow({ kind: "mcp-manager" })).toBe(false);
 	});
 
 	it("supports restoring and advancing the active settings tab", () => {
@@ -109,7 +146,7 @@ describe("config view helpers", () => {
 		expect(
 			isInlineConfigAction(resolveConfigItemSelectAction(builtinTool)),
 		).toBe(true);
-		expect(getConfigFooterText()).not.toContain("details");
+		expect(getConfigFooterText({ canToggle: true })).not.toContain("details");
 	});
 
 	it("returns item names without decoration", () => {

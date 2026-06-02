@@ -1,0 +1,160 @@
+---
+title: "Plugins Overview"
+sidebarTitle: "Plugins"
+description: "Learn what plugins are, their benefits, and how they extend agent behavior."
+---
+
+Plugins are packages of reusable agent capabilities. They let you bundle tools, lifecycle hooks, commands, and configuration into a single module that can be shared across projects or published for others to use.
+
+## Benefits of Plugins
+
+| Benefit | Description |
+|---------|-------------|
+| **Modularity** | Encapsulate related tools and hooks in a single unit. No more scattered logic. |
+| **Reusability** | Share plugins across agents, projects, or teams. Publish to npm or distribute via git. |
+| **Packaging** | Bundle tools, hooks, commands, message builders, and providers together. |
+| **Observability** | Hook into every stage of the agent lifecycle — run start/end, model calls, tool calls, errors. |
+| **Composability** | Combine multiple plugins in a single agent. Each plugin handles its own domain. |
+
+## Extension Glossary
+
+| Extension point | What it does |
+|-----------------|--------------|
+| **Tool** | Lets the model call an action (query a DB, call an API, etc.) |
+| **Command** | Register slash commands to allow actions to be manually triggered |
+| **Hook** | Runs lifecycle logic or policy checks at specific stages |
+| **Rules** | Prompts that steer the agent and will be included in every session |
+| **Events** | Register external events that will trigger agent actions |
+| **Plugin** | Packages tools, hooks, commands, rules, and automation events together |
+
+| If you need to... | Use a... |
+|-------------------|----------|
+| Allow the model to query a database, call an API, run a domain action | **Tool** |
+| Register a user triggered action (slash command) | **Command** |
+| Log runs, collect metrics, enforce policy | **Hook** handler |
+| Block dangerous tool calls | **Hook** or approval policy |
+| Provide consistent guidance to the model via prompts | **Rule** |
+| Trigger agent action on an external event (new PR, Slack message, etc) | **Event** |
+| Bundle several tools into a reusable module | **Plugin** |
+
+## What is a Plugin?
+
+A plugin is an `AgentPlugin` — an object that implements the SDK's extension interface. It can register tools, hook into agent lifecycle events, and provide configuration defaults.
+
+```typescript
+import { type AgentPlugin } from "@cline/sdk"
+
+const myPlugin: AgentPlugin = {
+  name: "my-plugin",
+  manifest: {
+    capabilities: ["tools", "hooks"],
+  },
+  setup(api, ctx) {
+    // Register tools, commands, providers via api.registerTool(), etc.
+  },
+  hooks: {
+    beforeTool(context) {
+      // Observe or audit tool calls before they execute
+    },
+    afterRun(context) {
+      // Log metrics, cleanup, notify after a run completes
+    },
+  },
+}
+```
+
+Hooks are defined inside the `hooks` object, not directly on the extension. The available lifecycle hooks are `beforeRun`, `afterRun`, `beforeModel`, `afterModel`, `beforeTool`, `afterTool`, and `onEvent`.
+
+
+## Next Steps
+
+Register with `ClineCore`:
+
+```typescript
+await cline.start({
+  prompt: "Analyze customer records",
+  config: {
+    // ...model/runtime config
+    extensions: [databasePlugin],
+  },
+})
+```
+
+## File-Based Plugins
+
+`ClineCore` supports plugin module paths via `pluginPaths` in session config:
+
+```typescript
+await cline.start({
+  prompt: "Analyze this project",
+  config: {
+    // ...model/runtime config
+    pluginPaths: ["/absolute/path/to/plugin.ts"],
+  },
+})
+```
+
+Plugin files export an `AgentPlugin`.
+
+## Installing Plugins via CLI
+
+Plugins can also be installed from file URLs, npm, git, or local paths using `cline plugin install`. See [Plugins](/customization/plugins) for install commands, the manifest format, and directory layout.
+
+## Hook Stages
+
+Hook stages include:
+
+```txt
+input
+runtime_event
+session_start
+run_start
+iteration_start
+turn_start
+before_agent_start
+tool_call_before
+tool_call_after
+turn_end
+stop_error
+iteration_end
+run_end
+session_shutdown
+error
+```
+
+Common stages:
+
+| Stage | Use for |
+|-------|---------|
+| `before_agent_start` | Inject context or modify prompt/messages |
+| `run_start` | Logging, timers, rate limits |
+| `tool_call_before` | Audit or block tool calls |
+| `tool_call_after` | Log results, trigger side effects |
+| `run_end` | Metrics, notifications, cleanup |
+| `error` | Error reporting |
+
+## Hook Policies
+
+Hook policies control execution behavior:
+
+| Field | Meaning |
+|-------|---------|
+| `mode` | `"blocking"` or `"async"` |
+| `timeoutMs` | Hook timeout |
+| `retries` | Retry count |
+| `retryDelayMs` | Delay between retries |
+| `failureMode` | `"fail_open"` or `"fail_closed"` |
+| `maxConcurrency` | Concurrent hook executions |
+| `queueLimit` | Queue size before dropping |
+
+Use `fail_closed` for policy-enforcement hooks where bypassing the hook is unsafe.
+
+## Build a Plugin
+
+For a step-by-step plugin tutorial, see [Writing Plugins](/sdk/guides/writing-plugins).
+
+## SDK Examples
+
+The [SDK repository](https://github.com/cline/cline/tree/main/sdk) includes ready-to-run plugin examples under [`examples/plugins/`](https://github.com/cline/cline/tree/main/sdk/examples/plugins), including tool registration, lifecycle metrics, notifications, custom compaction, policy guards, web search, background jobs, TypeScript LSP tools, and multi-agent teams.
+
+See [Plugin Examples](/sdk/plugin-examples) for the full list and usage commands.

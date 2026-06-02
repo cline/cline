@@ -419,10 +419,10 @@ async function main() {
 		console.error("ERROR: cline CLI not found in PATH")
 		console.error("")
 		console.error("For local development:")
-		console.error("  cd cli && npm install && npm run build && npm link")
+		console.error("  Install cline from npm or link the SDK CLI from sdk/apps/cli")
 		console.error("")
 		console.error("For CI:")
-		console.error("  Ensure CLI build and 'npm link' steps completed")
+		console.error("  Ensure a cline binary is available on PATH")
 		process.exit(1)
 	}
 

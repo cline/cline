@@ -2,6 +2,13 @@ import { describe, expect, it } from "vitest";
 import { PLATFORMS } from "./platforms";
 
 describe("connect wizard platform security fields", () => {
+	it("does not ask Telegram users to re-enter the bot username", () => {
+		const telegram = PLATFORMS.find((platform) => platform.id === "telegram");
+
+		expect(telegram?.fields.map((field) => field.label)).toEqual(["Bot token"]);
+		expect(telegram?.fields.map((field) => field.flag)).toEqual(["-k"]);
+	});
+
 	it("rejects unsafe Telegram and Slack access restriction identifiers", () => {
 		const telegram = PLATFORMS.find((platform) => platform.id === "telegram");
 		const slack = PLATFORMS.find((platform) => platform.id === "slack");

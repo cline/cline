@@ -38,7 +38,10 @@ import {
 	normalizeProviderId,
 } from "./utils/provider-auth";
 import { rewriteTeamPrompt, TEAM_COMMAND_USAGE } from "./utils/team-command";
-import { captureCliExtensionActivated } from "./utils/telemetry";
+import {
+	captureCliExtensionActivated,
+	getCliTelemetryService,
+} from "./utils/telemetry";
 import type { Config } from "./utils/types";
 import { runConnectWizard } from "./wizards/connect";
 import { runMcpWizard } from "./wizards/mcp";
@@ -242,8 +245,11 @@ export async function runCli(): Promise<void> {
 	const pluginInstallCmd = pluginCmd
 		.command("install")
 		.alias("i")
-		.description("Install a Cline Plugin from npm, git, or a local path")
-		.argument("<source>", "npm package, git URL, or local plugin path")
+		.description("Install a Cline Plugin from npm, git, URL, or a local path")
+		.argument(
+			"<source>",
+			"npm package, git URL, plugin file URL, or local plugin path",
+		)
 		.option("--npm", "Treat source as an npm package")
 		.option("--git", "Treat source as a git repository")
 		.option("--force", "Replace an existing install for the same source")
@@ -506,6 +512,36 @@ export async function runCli(): Promise<void> {
 			await hubCmd.parseAsync(cmd.args, { from: "user" });
 		});
 
+	const dashboardCmd = program
+		.command("dashboard")
+		.description("Start the Cline Hub dashboard and open it in a browser")
+		.option("-c, --cwd <path>", "Workspace root", process.cwd())
+		.option("--host <host>", "Dashboard bind host")
+		.option("--port <port>", "Dashboard HTTP/WebSocket port")
+		.option("--public-url <url>", "Public dashboard URL")
+		.option("--room-secret <secret>", "Invite secret for browser access")
+		.option("--no-open", "Start the dashboard without opening a browser")
+		.action(async () => {
+			const opts = dashboardCmd.opts<{
+				cwd?: string;
+				host?: string;
+				port?: string;
+				publicUrl?: string;
+				roomSecret?: string;
+				open?: boolean;
+			}>();
+			const { runDashboardCommand } = await import("./commands/dashboard");
+			ctx.exitCode = await runDashboardCommand({
+				cwd: opts.cwd,
+				host: opts.host,
+				port: opts.port,
+				publicUrl: opts.publicUrl,
+				roomSecret: opts.roomSecret,
+				openBrowser: opts.open !== false,
+				io,
+			});
+		});
+
 	const updateCmd = program
 		.command("update")
 		.description("Check for updates and install if available")
@@ -595,18 +631,6 @@ export async function runCli(): Promise<void> {
 
 	// Default flow: no subcommand matched, or fall-through from config/history.
 	let args = commanderToParsedArgs(program);
-	const cwd = args.cwd ?? process.cwd();
-	const workspaceRoot = resolveWorkspaceRoot(cwd);
-	// Sandbox mode is enabled implicitly whenever --data-dir is provided, or
-	// when CLINE_SANDBOX=1 is set in the environment (in which case the data
-	// dir falls back to $CLINE_SANDBOX_DATA_DIR or /tmp/cline-sandbox).
-	const sandboxEnabled =
-		!!args.dataDir || process.env.CLINE_SANDBOX?.trim() === "1";
-	const sandboxDataDir = configureSandboxEnvironment({
-		enabled: sandboxEnabled,
-		cwd,
-		explicitDir: args.dataDir,
-	});
 
 	let resumeSessionId: string | undefined = ctx.resumeSessionId;
 	if (resumeSessionId) {
@@ -704,6 +728,54 @@ export async function runCli(): Promise<void> {
 		return;
 	}
 
+	if (args.worktree) {
+		if (
+			!args.prompt &&
+			!resumeSessionId &&
+			!stdinHasPipedInput() &&
+			(!process.stdin.isTTY || !process.stdout.isTTY)
+		) {
+			writeErr("--worktree without a prompt requires an interactive terminal.");
+			process.exitCode = 1;
+			return;
+		}
+		if (resumeSessionId) {
+			const { getSessionRow } = await import("./session/session");
+			const session = await getSessionRow(resumeSessionId);
+			if (!session) {
+				writeErr(`Session not found: ${resumeSessionId}`);
+				process.exitCode = 1;
+				return;
+			}
+		}
+		const { createTaskWorktree } = await import("./utils/worktree");
+		const sourceCwd = args.cwd ?? process.cwd();
+		const result = await createTaskWorktree({ cwd: sourceCwd });
+		if (!result.success || !result.path) {
+			writeErr(`--worktree failed: ${result.message}`);
+			process.exitCode = 1;
+			return;
+		}
+		writeln(`Created worktree at ${result.path}`);
+		args = {
+			...args,
+			cwd: result.path,
+		};
+	}
+
+	const cwd = args.cwd ?? process.cwd();
+	const workspaceRoot = resolveWorkspaceRoot(cwd);
+	// Sandbox mode is enabled implicitly whenever --data-dir is provided, or
+	// when CLINE_SANDBOX=1 is set in the environment (in which case the data
+	// dir falls back to $CLINE_SANDBOX_DATA_DIR or /tmp/cline-sandbox).
+	const sandboxEnabled =
+		!!args.dataDir || process.env.CLINE_SANDBOX?.trim() === "1";
+	const sandboxDataDir = configureSandboxEnvironment({
+		enabled: sandboxEnabled,
+		cwd,
+		explicitDir: args.dataDir,
+	});
+
 	// Keep command-style subcommands on a narrow path. Runtime-only imports pull
 	// in provider resolution, config services, and session startup wiring that
 	// should only load when the CLI is actually starting an agent session.
@@ -716,7 +788,11 @@ export async function runCli(): Promise<void> {
 	} = await loadCliRuntimeModules();
 
 	const userInstructionService = createUserInstructionConfigService({
-		skills: { workspacePath: workspaceRoot },
+		skills: {
+			workspacePath: workspaceRoot,
+			includePluginSkills: true,
+			cwd,
+		},
 		rules: { workspacePath: workspaceRoot },
 		workflows: { workspacePath: workspaceRoot },
 	});
@@ -856,6 +932,7 @@ export async function runCli(): Promise<void> {
 			mode: args.mode,
 			logger: loggerAdapter.core,
 			loggerConfig: loggerAdapter.runtimeConfig,
+			telemetry: getCliTelemetryService(loggerAdapter.core),
 			defaultToolAutoApprove,
 			toolPolicies,
 			enableSpawnAgent: !isYoloMode,

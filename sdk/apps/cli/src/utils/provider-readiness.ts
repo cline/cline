@@ -18,13 +18,17 @@ function hasAwsCredentials(settings: ProviderSettings): boolean {
 	if (!aws) {
 		return false;
 	}
-	if (aws.authentication === "iam") {
+	if (aws.authentication === "iam" || aws.authentication === "profile") {
 		return true;
 	}
 	if (hasText(aws.profile)) {
 		return true;
 	}
 	return hasText(aws.accessKey) && hasText(aws.secretKey);
+}
+
+function hasAwsRegion(settings: ProviderSettings): boolean {
+	return hasText(settings.aws?.region ?? settings.region);
 }
 
 function hasGcpCredentials(settings: ProviderSettings): boolean {
@@ -41,7 +45,8 @@ function hasSapCredentials(settings: ProviderSettings): boolean {
 	return (
 		hasText(sap?.clientId) &&
 		hasText(sap?.clientSecret) &&
-		hasText(sap?.tokenUrl)
+		hasText(sap?.tokenUrl) &&
+		hasText(settings.baseUrl)
 	);
 }
 
@@ -57,6 +62,16 @@ export function isProviderSettingsUsable(
 	if (normalizeProviderId(settings.provider) !== normalizedProviderId) {
 		return false;
 	}
+	if (normalizedProviderId === "bedrock") {
+		return (
+			(Boolean(getPersistedProviderApiKey(normalizedProviderId, settings)) ||
+				hasAwsCredentials(settings)) &&
+			hasAwsRegion(settings)
+		);
+	}
+	if (normalizedProviderId === "sapaicore") {
+		return hasSapCredentials(settings);
+	}
 	if (getPersistedProviderApiKey(normalizedProviderId, settings)) {
 		return true;
 	}
@@ -67,17 +82,11 @@ export function isProviderSettingsUsable(
 	if (fields.authMethod === "local") {
 		return true;
 	}
-	if (normalizedProviderId === "bedrock") {
-		return hasAwsCredentials(settings);
-	}
 	if (normalizedProviderId === "vertex") {
 		return hasGcpCredentials(settings);
 	}
 	if (normalizedProviderId === "azure") {
 		return hasAzureCredentials(settings);
-	}
-	if (normalizedProviderId === "sapaicore") {
-		return hasSapCredentials(settings);
 	}
 	if (!fields.fields.baseUrl) {
 		return false;

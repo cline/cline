@@ -1,12 +1,16 @@
 import {
-	buildGatewayReasoningOptions,
-	resolveModelFamily,
-} from "./anthropic-compatible";
+	isDeepSeekFamily,
+	isGlmModel,
+	isKimiK26Family as isKimiK26FamilyFact,
+	isMoonshotKimiModelIdFallback,
+	modelReasoningDefaultsOn,
+	providerReasoningRouteMatches,
+} from "../model-facts";
+import { buildGatewayReasoningOptions } from "./anthropic-compatible";
 import { buildOpenAINativeProviderOptions } from "./generic-compatible";
 import {
-	buildGlmThinkingProviderOptionsPatch,
-	isGlmModel,
-	isNativeZaiProvider,
+	buildNativeGlmThinkingProviderOptionsPatch,
+	buildRoutedGlmReasoningProviderOptionsPatch,
 } from "./glm-thinking";
 import type {
 	MatchedProviderOptionRule,
@@ -22,20 +26,52 @@ import {
 	type ProviderOptionsPatch,
 } from "./utils";
 
-function isOpenRouterProvider(input: ProviderOptionMatchInput): boolean {
-	return input.request.providerId === "openrouter";
-}
-
 function isKimiK26Family(input: ProviderOptionMatchInput): boolean {
-	return input.modelFamily?.trim().toLowerCase() === "kimi-k2.6";
+	return isKimiK26FamilyFact(input.context);
 }
 
 function isMoonshotKimiModel(input: ProviderOptionMatchInput): boolean {
-	return input.request.modelId.toLowerCase().includes("moonshotai/kimi-");
+	return isMoonshotKimiModelIdFallback(input.request);
 }
 
-function isDeepSeekFamily(input: ProviderOptionMatchInput): boolean {
-	return !!input.modelFamily?.trim().toLowerCase().includes("deepseek");
+function isDeepSeekModelOrProviderDefault(
+	input: ProviderOptionMatchInput,
+): boolean {
+	return (
+		isDeepSeekFamily(input.context) || input.request.providerId === "deepseek"
+	);
+}
+
+function isOllamaReasoningDefaultOnDisable(
+	input: ProviderOptionMatchInput,
+): boolean {
+	return (
+		input.request.providerId === "ollama" &&
+		input.request.reasoning?.enabled === false &&
+		modelReasoningDefaultsOn({
+			request: input.request,
+			context: input.context,
+		})
+	);
+}
+
+function usesGlmThinkingProviderRouting(
+	input: ProviderOptionMatchInput,
+): boolean {
+	return providerReasoningRouteMatches(
+		"glm-thinking",
+		input.request,
+		input.context,
+	);
+}
+
+function hasGlmThinkingProviderRouting(
+	input: ProviderOptionMatchInput,
+): boolean {
+	return (
+		input.context.provider.metadata?.routing?.reasoning?.format ===
+		"glm-thinking"
+	);
 }
 
 function resolveFamilyThinkingType(
@@ -160,7 +196,7 @@ const openRouterReasoningRule: ProviderOptionRule = {
 	phase: "provider-reasoning",
 	description:
 		"OpenRouter expects reasoning controls under its first-class reasoning object.",
-	applies: isOpenRouterProvider,
+	applies: (input) => input.request.providerId === "openrouter",
 	suppresses: { genericThinking: true, genericEffort: true },
 	build: (input) =>
 		buildReasoningPatchForProvider(
@@ -210,7 +246,8 @@ const kimiK26ThinkingRule: ProviderOptionRule = {
 	phase: "model-family",
 	description:
 		"Kimi K2.6 uses thinking.type and defaults to enabled when reasoning is unset.",
-	applies: (input) => isKimiK26Family(input) && !isOpenRouterProvider(input),
+	applies: (input) =>
+		isKimiK26Family(input) && input.request.providerId !== "openrouter",
 	suppresses: { genericThinking: true },
 	build: (input) => {
 		const thinkingType = resolveFamilyThinkingType(input, "enabled");
@@ -230,8 +267,9 @@ const deepSeekThinkingRule: ProviderOptionRule = {
 	description:
 		"DeepSeek models use thinking.type only for explicit reasoning enabled/disabled.",
 	applies: (input) =>
-		!isOpenRouterProvider(input) &&
-		(isDeepSeekFamily(input) || input.request.providerId === "deepseek"),
+		input.request.providerId !== "openrouter" &&
+		isDeepSeekModelOrProviderDefault(input) &&
+		!isOllamaReasoningDefaultOnDisable(input),
 	suppresses: { genericThinking: true },
 	build: (input) => {
 		const thinkingType = resolveFamilyThinkingType(input, undefined);
@@ -245,31 +283,50 @@ const deepSeekThinkingRule: ProviderOptionRule = {
 	},
 };
 
-const nativeZaiNonGlmSuppressionRule: ProviderOptionRule = {
-	id: "provider.zai.non-glm.suppress-generic-thinking",
+const ollamaReasoningDefaultOnDisableRule: ProviderOptionRule = {
+	id: "provider.ollama.reasoning-default-on.disable-none",
+	phase: "provider-reasoning",
+	description:
+		"Ollama models whose reasoning defaults on need reasoningEffort=none when request reasoning is disabled.",
+	applies: isOllamaReasoningDefaultOnDisable,
+	build: (input) => {
+		const bucketOptions = {
+			reasoningEffort: "none",
+			reasoning: { effort: "none" },
+		};
+		return {
+			...buildProviderAndAliasPatch({
+				providerId: input.request.providerId,
+				providerOptionsKey: input.providerOptionsKey,
+				bucketOptions,
+			}),
+			openaiCompatible: bucketOptions,
+		};
+	},
+};
+
+const nonGlmProviderRoutingSuppressionRule: ProviderOptionRule = {
+	id: "provider.routing.glm-thinking.non-glm.suppress-generic-thinking",
 	phase: "provider",
 	description:
-		"Native Z.AI non-GLM models should not inherit adaptive OpenAI-compatible thinking.",
+		"Providers with GLM thinking routing should not apply generic adaptive thinking to non-GLM models.",
 	applies: (input) =>
-		isNativeZaiProvider(input.request.providerId) &&
+		hasGlmThinkingProviderRouting(input) &&
 		input.request.reasoning?.enabled !== undefined &&
-		!isGlmModel(input.request, input.context),
+		!usesGlmThinkingProviderRouting(input),
 	suppresses: { genericThinking: true },
 	build: () => undefined,
 };
 
 const nativeZaiGlmThinkingRule: ProviderOptionRule = {
-	id: "family.glm.native-zai-thinking",
+	id: "provider.routing.glm-thinking",
 	phase: "model-overlay",
-	description: "Native Z.AI GLM models use thinking.type.",
-	applies: (input) =>
-		isNativeZaiProvider(input.request.providerId) &&
-		isGlmModel(input.request, input.context),
+	description: "Providers routed to the GLM thinking format use thinking.type.",
+	applies: usesGlmThinkingProviderRouting,
 	suppresses: { genericThinking: true },
 	build: (input) =>
-		buildGlmThinkingProviderOptionsPatch(
+		buildNativeGlmThinkingProviderOptionsPatch(
 			input.request,
-			input.context,
 			input.providerOptionsKey,
 		),
 };
@@ -280,21 +337,25 @@ const routedGlmReasoningRule: ProviderOptionRule = {
 	description:
 		"Routed GLM models use the generic reasoning include/exclude shape, not thinking.type.",
 	applies: (input) =>
-		!isNativeZaiProvider(input.request.providerId) &&
+		!usesGlmThinkingProviderRouting(input) &&
 		isGlmModel(input.request, input.context),
 	suppresses: { genericThinking: true },
 	build: (input) =>
-		buildGlmThinkingProviderOptionsPatch(
+		buildRoutedGlmReasoningProviderOptionsPatch(
 			input.request,
 			input.context,
 			input.providerOptionsKey,
-			{ includeProviderBuckets: !isOpenRouterProvider(input) },
+			{
+				includeProviderBuckets: input.request.providerId !== "openrouter",
+			},
 		),
 };
 
 /**
  * The table is the provider/family behavior matrix. Adding a new exception
  * should mean adding a named rule here, not adding a branch in the composer.
+ * Keep model/provider fact detection in `providers/model-facts.ts`; see
+ * `sdk/packages/llms/AGENTS.md` for the sources-of-truth boundary.
  */
 export const PROVIDER_OPTION_RULES: ReadonlyArray<ProviderOptionRule> = [
 	directAnthropicProviderRule,
@@ -308,7 +369,8 @@ export const PROVIDER_OPTION_RULES: ReadonlyArray<ProviderOptionRule> = [
 	clineReasoningDisabledThinkingRule,
 	kimiK26ThinkingRule,
 	deepSeekThinkingRule,
-	nativeZaiNonGlmSuppressionRule,
+	ollamaReasoningDefaultOnDisableRule,
+	nonGlmProviderRoutingSuppressionRule,
 	nativeZaiGlmThinkingRule,
 	routedGlmReasoningRule,
 ];
@@ -349,18 +411,4 @@ export function buildProviderOptionRulePatches(
 	input: ProviderOptionBuildInput,
 ): Array<ProviderOptionsPatch | undefined> {
 	return matchedRules.map(({ rule }) => rule.build(input));
-}
-
-export function resolveProviderOptionMatchInput(options: {
-	request: ProviderOptionMatchInput["request"];
-	context: ProviderOptionMatchInput["context"];
-	providerOptionsKey: string;
-	target: ProviderOptionMatchInput["target"];
-	isAnthropicCompatibleModelId: boolean;
-	anthropicReasoningPolicyKind?: ProviderOptionMatchInput["anthropicReasoningPolicyKind"];
-}): ProviderOptionMatchInput {
-	return {
-		...options,
-		modelFamily: resolveModelFamily(options.context),
-	};
 }

@@ -455,11 +455,14 @@ class WhatsAppConnector extends ConnectorBase<
 		});
 		const statePath = this.resolveConnectorStatePath(instanceKey);
 		const bindingsPath = this.resolveBindingsPath(instanceKey);
-		this.removeStaleState(
+		const staleState = this.removeStaleState(
 			statePath,
 			(path) => this.readConnectorState(path),
 			(state) => state.pid,
 		);
+		if (staleState) {
+			clearBindingSessionIds<WhatsAppThreadState>(bindingsPath);
+		}
 		if (
 			await this.maybeRunInBackground({
 				rawArgs,
@@ -786,7 +789,10 @@ class WhatsAppConnector extends ConnectorBase<
 						requestStop("rpc_server_shutting_down");
 						return;
 					}
-					if (event.eventType !== "schedule.execution.completed") {
+					if (
+						event.eventType !== "schedule.execution.completed" &&
+						event.eventType !== "schedule.execution.failed"
+					) {
 						return;
 					}
 					const scheduleId =
@@ -839,6 +845,7 @@ class WhatsAppConnector extends ConnectorBase<
 		io.writeln(`[whatsapp] configure WhatsApp webhook URL: ${endpointUrl}`);
 
 		await stopPromise;
+		clearBindingSessionIds<WhatsAppThreadState>(bindingsPath);
 		stopTaskUpdateStream();
 		stopEventStream();
 		await server.close();

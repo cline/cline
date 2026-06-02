@@ -2,7 +2,7 @@ import type { HubEventEnvelope } from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { RuntimeHost } from "../../../runtime/host/runtime-host";
 import { buildHubEvent, type HubTransportContext } from "./context";
-import { handleSessionInput } from "./run-handlers";
+import { handleRunAbort, handleSessionInput } from "./run-handlers";
 
 function createContext(
 	overrides: Partial<RuntimeHost> = {},
@@ -159,5 +159,28 @@ describe("run handlers", () => {
 
 		resolveRun?.(undefined);
 		await expect(promise).resolves.toMatchObject({ ok: true });
+	});
+
+	it("treats abort as applied when the runtime abort hook rejects", async () => {
+		const abort = vi.fn().mockRejectedValue(new Error("Run aborted"));
+		const ctx = createContext({ abort });
+
+		const reply = await handleRunAbort(ctx, {
+			version: "v1",
+			command: "run.abort",
+			requestId: "req-abort",
+			clientId: "client-1",
+			sessionId: "session-1",
+			payload: {
+				sessionId: "session-1",
+				reason: "user cancelled",
+			},
+		});
+
+		expect(reply).toMatchObject({
+			ok: true,
+			payload: { applied: true },
+		});
+		expect(abort).toHaveBeenCalledWith("session-1", "user cancelled");
 	});
 });

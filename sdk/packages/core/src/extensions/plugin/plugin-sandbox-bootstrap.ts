@@ -40,6 +40,12 @@ interface PluginCommand {
 	handler?: (input: string) => Promise<string>;
 }
 
+interface PluginRule {
+	id: string;
+	content: string | (() => string | Promise<string>);
+	source?: string;
+}
+
 interface PluginMessageBuilder {
 	name: string;
 	build: (message: unknown[]) => unknown[]; // Message[]
@@ -64,6 +70,7 @@ interface PluginAutomationEventType {
 interface PluginApi {
 	registerTool(tool: PluginTool): void;
 	registerCommand(command: PluginCommand): void;
+	registerRule(rule: PluginRule): void;
 	registerMessageBuilder(builder: PluginMessageBuilder): void;
 	registerProvider(provider: PluginProvider): void;
 	registerAutomationEventType(eventType: PluginAutomationEventType): void;
@@ -103,6 +110,14 @@ interface ContributionDescriptor {
 	metadata?: Record<string, unknown>;
 }
 
+interface RuleContributionDescriptor {
+	id: string;
+	ruleId: string;
+	content?: string;
+	source?: string;
+	hasContentHandler?: boolean;
+}
+
 interface AutomationEventTypeDescriptor {
 	id: string;
 	eventType: string;
@@ -123,6 +138,7 @@ interface PluginDescriptor {
 	contributions: {
 		tools: ContributionDescriptor[];
 		commands: ContributionDescriptor[];
+		rules: RuleContributionDescriptor[];
 		messageBuilders: ContributionDescriptor[];
 		providers: ContributionDescriptor[];
 		automationEventTypes: AutomationEventTypeDescriptor[];
@@ -158,9 +174,24 @@ interface PluginState {
 	handlers: {
 		tools: Map<string, PluginTool["execute"]>;
 		commands: Map<string, NonNullable<PluginCommand["handler"]>>;
+		rules: Map<string, () => string | Promise<string>>;
 		messageBuilders: Map<string, PluginMessageBuilder["build"]>;
 	};
 }
+
+type LoadedPluginResult =
+	| {
+			type: "loaded";
+			descriptor: PluginDescriptor;
+			state: PluginState;
+	  }
+	| {
+			type: "skipped";
+	  }
+	| {
+			type: "failure";
+			failure: PluginInitializationFailure;
+	  };
 
 function isObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null;
@@ -366,6 +397,172 @@ function getPlugin(pluginId: string): PluginState {
 	return state;
 }
 
+async function loadPluginDescriptor(args: {
+	pluginPath: string;
+	pluginId: string;
+	exportName: string;
+	targeting: PluginTargeting;
+	setupCtxBase: Pick<
+		PluginSetupCtx,
+		"session" | "client" | "user" | "workspaceInfo"
+	>;
+	loggerEnabled?: boolean;
+}): Promise<LoadedPluginResult> {
+	let plugin: PluginModule | undefined;
+	try {
+		const moduleExports = await importPluginModule(args.pluginPath);
+		plugin = (moduleExports.default ??
+			moduleExports[args.exportName]) as unknown as PluginModule;
+		assertValidPluginModule(plugin, args.pluginPath);
+		plugin.manifest = normalizePluginManifest(plugin.manifest);
+		if (!matchesPluginManifestTargeting(plugin.manifest, args.targeting)) {
+			return { type: "skipped" };
+		}
+
+		const contributions: PluginDescriptor["contributions"] = {
+			tools: [],
+			commands: [],
+			rules: [],
+			messageBuilders: [],
+			providers: [],
+			automationEventTypes: [],
+			shortcuts: [],
+			flags: [],
+		};
+		const handlers: PluginState["handlers"] = {
+			tools: new Map(),
+			commands: new Map(),
+			rules: new Map(),
+			messageBuilders: new Map(),
+		};
+
+		const api: PluginApi = {
+			registerTool: (tool) => {
+				const id = makeId(args.pluginId, "tool");
+				handlers.tools.set(id, tool.execute);
+				contributions.tools.push({
+					id,
+					name: tool.name,
+					description: tool.description,
+					inputSchema: tool.inputSchema,
+					timeoutMs: tool.timeoutMs,
+					retryable: tool.retryable,
+				});
+			},
+			registerCommand: (command) => {
+				const id = makeId(args.pluginId, "command");
+				if (typeof command.handler === "function") {
+					handlers.commands.set(id, command.handler);
+				}
+				contributions.commands.push({
+					id,
+					name: command.name,
+					description: command.description,
+				});
+			},
+			registerRule: (rule) => {
+				const id = makeId(args.pluginId, "rule");
+				if (typeof rule.content === "function") {
+					handlers.rules.set(id, rule.content);
+					contributions.rules.push({
+						id,
+						ruleId: rule.id,
+						source: rule.source,
+						hasContentHandler: true,
+					});
+					return;
+				}
+				contributions.rules.push({
+					id,
+					ruleId: rule.id,
+					content: rule.content,
+					source: rule.source,
+				});
+			},
+			registerMessageBuilder: (builder) => {
+				const id = makeId(args.pluginId, "builder");
+				handlers.messageBuilders.set(id, builder.build);
+				contributions.messageBuilders.push({ id, name: builder.name });
+			},
+			registerProvider: (provider) => {
+				contributions.providers.push({
+					id: makeId(args.pluginId, "provider"),
+					name: provider.name,
+					description: provider.description,
+					metadata: sanitizeObject(provider.metadata),
+				});
+			},
+			registerAutomationEventType: (eventType) => {
+				contributions.automationEventTypes.push({
+					id: makeId(args.pluginId, "automation_event"),
+					...normalizeAutomationEventType(eventType),
+				});
+			},
+		};
+
+		if (typeof plugin.setup === "function") {
+			try {
+				const setupCtx = {
+					...args.setupCtxBase,
+					...(args.loggerEnabled
+						? { logger: createPluginLogger(plugin.name) }
+						: {}),
+					...(plugin.manifest.capabilities.includes("automationEvents")
+						? {
+								automation: {
+									ingestEvent: (event: AutomationEventEnvelope) => {
+										emitEvent("automation_event", event);
+									},
+								},
+							}
+						: {}),
+				};
+				assertValidPluginSetupCtx(setupCtx);
+				await plugin.setup(api, setupCtx);
+			} catch (error) {
+				return {
+					type: "failure",
+					failure: {
+						pluginPath: args.pluginPath,
+						pluginName: plugin.name,
+						phase: "setup",
+						message: error instanceof Error ? error.message : String(error),
+						stack: error instanceof Error ? error.stack : undefined,
+					},
+				};
+			}
+		}
+
+		return {
+			type: "loaded",
+			state: { plugin, handlers },
+			descriptor: {
+				pluginId: args.pluginId,
+				pluginPath: args.pluginPath,
+				name: plugin.name,
+				manifest: plugin.manifest,
+				hooks: plugin.hooks
+					? Object.entries(plugin.hooks)
+							.filter(([, hook]) => typeof hook === "function")
+							.map(([name]) => name)
+					: undefined,
+				contributions,
+			},
+		};
+	} catch (error) {
+		return {
+			type: "failure",
+			failure: {
+				pluginPath: args.pluginPath,
+				pluginName: plugin?.name,
+				phase: "load",
+				message: error instanceof Error ? error.message : String(error),
+				stack: error instanceof Error ? error.stack : undefined,
+			},
+		};
+	}
+}
+
 // ---------------------------------------------------------------------------
 // RPC methods
 // ---------------------------------------------------------------------------
@@ -415,159 +612,62 @@ async function initialize(args: {
 		providerId: args.providerId,
 		modelId: args.modelId,
 	};
+	const setupCtxBase = {
+		session: args.session,
+		client: args.client,
+		user: args.user,
+		workspaceInfo: args.workspaceInfo,
+	};
 
-	for (const pluginPath of args.pluginPaths || []) {
-		let plugin: PluginModule | undefined;
-		try {
-			const moduleExports = await importPluginModule(pluginPath);
-			plugin = (moduleExports.default ??
-				moduleExports[exportName]) as unknown as PluginModule;
-			assertValidPluginModule(plugin, pluginPath);
-			plugin.manifest = normalizePluginManifest(plugin.manifest);
-			if (!matchesPluginManifestTargeting(plugin.manifest, targeting)) {
-				continue;
-			}
-
+	const loadResults = await Promise.all(
+		(args.pluginPaths || []).map((pluginPath) => {
 			const pluginId = `plugin_${++pluginCounter}`;
-			const contributions: PluginDescriptor["contributions"] = {
-				tools: [],
-				commands: [],
-				messageBuilders: [],
-				providers: [],
-				automationEventTypes: [],
-				shortcuts: [],
-				flags: [],
-			};
-			const handlers: PluginState["handlers"] = {
-				tools: new Map(),
-				commands: new Map(),
-				messageBuilders: new Map(),
-			};
-
-			const api: PluginApi = {
-				registerTool: (tool) => {
-					const id = makeId(pluginId, "tool");
-					handlers.tools.set(id, tool.execute);
-					contributions.tools.push({
-						id,
-						name: tool.name,
-						description: tool.description,
-						inputSchema: tool.inputSchema,
-						timeoutMs: tool.timeoutMs,
-						retryable: tool.retryable,
-					});
-				},
-				registerCommand: (command) => {
-					const id = makeId(pluginId, "command");
-					if (typeof command.handler === "function") {
-						handlers.commands.set(id, command.handler);
-					}
-					contributions.commands.push({
-						id,
-						name: command.name,
-						description: command.description,
-					});
-				},
-				registerMessageBuilder: (builder) => {
-					const id = makeId(pluginId, "builder");
-					handlers.messageBuilders.set(id, builder.build);
-					contributions.messageBuilders.push({ id, name: builder.name });
-				},
-				registerProvider: (provider) => {
-					contributions.providers.push({
-						id: makeId(pluginId, "provider"),
-						name: provider.name,
-						description: provider.description,
-						metadata: sanitizeObject(provider.metadata),
-					});
-				},
-				registerAutomationEventType: (eventType) => {
-					contributions.automationEventTypes.push({
-						id: makeId(pluginId, "automation_event"),
-						...normalizeAutomationEventType(eventType),
-					});
-				},
-			};
-
-			if (typeof plugin.setup === "function") {
-				try {
-					const setupCtx = {
-						session: args.session,
-						client: args.client,
-						user: args.user,
-						workspaceInfo: args.workspaceInfo,
-						...(args.loggerEnabled
-							? { logger: createPluginLogger(plugin.name) }
-							: {}),
-						...(plugin.manifest.capabilities.includes("automationEvents")
-							? {
-									automation: {
-										ingestEvent: (event: AutomationEventEnvelope) => {
-											emitEvent("automation_event", event);
-										},
-									},
-								}
-							: {}),
-					};
-					assertValidPluginSetupCtx(setupCtx);
-					await plugin.setup(api, setupCtx);
-				} catch (error) {
-					failures.push({
-						pluginPath,
-						pluginName: plugin.name,
-						phase: "setup",
-						message: error instanceof Error ? error.message : String(error),
-						stack: error instanceof Error ? error.stack : undefined,
-					});
-					continue;
-				}
-			}
-
-			const previousIndex = pluginIndexByName.get(plugin.name);
-			if (previousIndex !== undefined) {
-				const previous = descriptors[previousIndex];
-				if (!previous) {
-					pluginIndexByName.delete(plugin.name);
-				} else {
-					warnings.push({
-						type: "duplicate_plugin_override",
-						pluginName: plugin.name,
-						pluginPath,
-						overriddenPluginPath: previous.pluginPath,
-						message: `Plugin "${plugin.name}" from ${pluginPath} overrides ${previous.pluginPath}`,
-					});
-					pluginState.delete(previous.pluginId);
-					descriptors.splice(previousIndex, 1);
-					pluginIndexByName.clear();
-					for (const [index, descriptor] of descriptors.entries()) {
-						pluginIndexByName.set(descriptor.name, index);
-					}
-				}
-			}
-
-			pluginState.set(pluginId, { plugin, handlers });
-			pluginIndexByName.set(plugin.name, descriptors.length);
-			descriptors.push({
+			return loadPluginDescriptor({
+				pluginPath,
 				pluginId,
-				pluginPath,
-				name: plugin.name,
-				manifest: plugin.manifest,
-				hooks: plugin.hooks
-					? Object.entries(plugin.hooks)
-							.filter(([, hook]) => typeof hook === "function")
-							.map(([name]) => name)
-					: undefined,
-				contributions,
+				exportName,
+				targeting,
+				setupCtxBase,
+				loggerEnabled: args.loggerEnabled,
 			});
-		} catch (error) {
-			failures.push({
-				pluginPath,
-				pluginName: plugin?.name,
-				phase: "load",
-				message: error instanceof Error ? error.message : String(error),
-				stack: error instanceof Error ? error.stack : undefined,
-			});
+		}),
+	);
+
+	for (const result of loadResults) {
+		if (result.type === "skipped") {
+			continue;
 		}
+		if (result.type === "failure") {
+			failures.push(result.failure);
+			continue;
+		}
+
+		const { descriptor, state } = result;
+		const previousIndex = pluginIndexByName.get(descriptor.name);
+		if (previousIndex !== undefined) {
+			const previous = descriptors[previousIndex];
+			if (!previous) {
+				pluginIndexByName.delete(descriptor.name);
+			} else {
+				warnings.push({
+					type: "duplicate_plugin_override",
+					pluginName: descriptor.name,
+					pluginPath: descriptor.pluginPath,
+					overriddenPluginPath: previous.pluginPath,
+					message: `Plugin "${descriptor.name}" from ${descriptor.pluginPath} overrides ${previous.pluginPath}`,
+				});
+				pluginState.delete(previous.pluginId);
+				descriptors.splice(previousIndex, 1);
+				pluginIndexByName.clear();
+				for (const [index, descriptor] of descriptors.entries()) {
+					pluginIndexByName.set(descriptor.name, index);
+				}
+			}
+		}
+
+		pluginState.set(descriptor.pluginId, state);
+		pluginIndexByName.set(descriptor.name, descriptors.length);
+		descriptors.push(descriptor);
 	}
 
 	return { plugins: descriptors, failures, warnings };
@@ -628,6 +728,18 @@ async function buildMessages(args: {
 	return await handler(args.messages);
 }
 
+async function resolveRuleContent(args: {
+	pluginId: string;
+	contributionId: string;
+}): Promise<string> {
+	const state = getPlugin(args.pluginId);
+	const handler = state.handlers.rules.get(args.contributionId);
+	if (typeof handler !== "function") {
+		return "";
+	}
+	return await handler();
+}
+
 // ---------------------------------------------------------------------------
 // Message dispatch
 // ---------------------------------------------------------------------------
@@ -638,6 +750,7 @@ const methods: Record<string, (args: never) => Promise<unknown>> = {
 	executeTool,
 	executeCommand,
 	buildMessages,
+	resolveRuleContent,
 };
 
 process.on(

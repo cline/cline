@@ -1,7 +1,9 @@
 import { useState } from "react";
-import { palette } from "../palette";
+import { useTerminalTheme } from "../hooks/use-terminal-background";
+import { diffPalettes, palette, type TerminalTheme } from "../palette";
 import { makeUnifiedDiff } from "../utils/diff";
 import { getSyntaxStyle } from "../utils/syntax-style";
+import { getToolErrorPresentation } from "../utils/tool-errors";
 import {
 	detectLanguage,
 	extractFullOutputText,
@@ -43,7 +45,7 @@ function isEditTool(toolName: string): boolean {
 	);
 }
 
-function BashOutput(props: { fullText: string }) {
+function BashOutput(props: { fullText: string; theme: TerminalTheme }) {
 	const [expanded, setExpanded] = useState(false);
 	const { fullText } = props;
 	const trimmed = fullText.trimEnd();
@@ -83,7 +85,7 @@ function BashOutput(props: { fullText: string }) {
 				<code
 					content={fullText}
 					filetype="bash"
-					syntaxStyle={getSyntaxStyle()}
+					syntaxStyle={getSyntaxStyle(props.theme)}
 					selectable
 				/>
 			</box>
@@ -131,7 +133,11 @@ function DiffStats(props: {
 	);
 }
 
-function EditOutput(props: { rawInput?: unknown; outputSummary: string }) {
+function EditOutput(props: {
+	rawInput?: unknown;
+	outputSummary: string;
+	theme: TerminalTheme;
+}) {
 	const [expanded, setExpanded] = useState(true);
 	const editorInfo = parseEditorInput(props.rawInput);
 
@@ -150,6 +156,7 @@ function EditOutput(props: { rawInput?: unknown; outputSummary: string }) {
 	const language = detectLanguage(editorInfo.path);
 	const addedLines = newText.split("\n").length;
 	const removedLines = oldText ? oldText.split("\n").length : 0;
+	const diffPalette = diffPalettes[props.theme];
 
 	return (
 		<box
@@ -168,9 +175,15 @@ function EditOutput(props: { rawInput?: unknown; outputSummary: string }) {
 						diff={makeUnifiedDiff(oldText, newText, editorInfo.path)}
 						view="unified"
 						filetype={language ?? "text"}
+						syntaxStyle={getSyntaxStyle(props.theme)}
 						showLineNumbers
-						addedLineNumberBg="#1a4d1a"
-						removedLineNumberBg="#4d1a1a"
+						addedBg={diffPalette.addedBg}
+						removedBg={diffPalette.removedBg}
+						addedLineNumberBg={diffPalette.addedLineNumberBg}
+						removedLineNumberBg={diffPalette.removedLineNumberBg}
+						addedSignColor={diffPalette.addedSignColor}
+						removedSignColor={diffPalette.removedSignColor}
+						lineNumberFg={diffPalette.lineNumberFg}
 					/>
 				</box>
 			)}
@@ -181,6 +194,7 @@ function EditOutput(props: { rawInput?: unknown; outputSummary: string }) {
 function ApplyPatchOutput(props: {
 	rawInput?: unknown;
 	outputSummary: string;
+	theme: TerminalTheme;
 }) {
 	const [expanded, setExpanded] = useState(true);
 	const info = parseApplyPatchInput(props.rawInput);
@@ -197,6 +211,7 @@ function ApplyPatchOutput(props: {
 
 	const fileLabel = info.files.map((f) => shortenPath(f, 40)).join(", ");
 	const language = detectLanguage(info.files[0] ?? "");
+	const diffPalette = diffPalettes[props.theme];
 
 	return (
 		<box
@@ -215,9 +230,15 @@ function ApplyPatchOutput(props: {
 						diff={info.diff}
 						view="unified"
 						filetype={language ?? "text"}
+						syntaxStyle={getSyntaxStyle(props.theme)}
 						showLineNumbers
-						addedLineNumberBg="#1a4d1a"
-						removedLineNumberBg="#4d1a1a"
+						addedBg={diffPalette.addedBg}
+						removedBg={diffPalette.removedBg}
+						addedLineNumberBg={diffPalette.addedLineNumberBg}
+						removedLineNumberBg={diffPalette.removedLineNumberBg}
+						addedSignColor={diffPalette.addedSignColor}
+						removedSignColor={diffPalette.removedSignColor}
+						lineNumberFg={diffPalette.lineNumberFg}
 					/>
 				</box>
 			)}
@@ -271,13 +292,30 @@ function GenericOutput(props: { outputSummary: string; fullText?: string }) {
 
 export function ToolOutput(props: ToolOutputProps) {
 	const { toolName, outputSummary, rawOutput, rawInput, error } = props;
+	const terminalTheme = useTerminalTheme();
+	const [errorExpanded, setErrorExpanded] = useState(false);
 
 	if (error) {
+		const presentation = getToolErrorPresentation(error);
+		const isWarning = presentation.severity === "warning";
+		const showDetail =
+			errorExpanded && presentation.detail !== presentation.summary.trim();
 		return (
-			<box paddingLeft={2}>
-				<text fg="red" selectable>
-					{"  "} Error: {error}
+			<box
+				flexDirection="column"
+				paddingLeft={2}
+				onMouseDown={() => setErrorExpanded(!errorExpanded)}
+			>
+				<text fg={isWarning ? "yellow" : "red"} selectable>
+					{"  "} {isWarning ? "!" : "Error:"} {presentation.summary}
 				</text>
+				{showDetail && (
+					<box paddingLeft={3}>
+						<text fg="gray" selectable>
+							{presentation.detail}
+						</text>
+					</box>
+				)}
 			</box>
 		);
 	}
@@ -300,7 +338,9 @@ export function ToolOutput(props: ToolOutputProps) {
 	}
 
 	if (isBashTool(toolName)) {
-		return <BashOutput fullText={fullText || outputSummary} />;
+		return (
+			<BashOutput fullText={fullText || outputSummary} theme={terminalTheme} />
+		);
 	}
 
 	if (isReadTool(toolName)) {
@@ -311,12 +351,22 @@ export function ToolOutput(props: ToolOutputProps) {
 
 	if (toolName === "apply_patch") {
 		return (
-			<ApplyPatchOutput rawInput={rawInput} outputSummary={outputSummary} />
+			<ApplyPatchOutput
+				rawInput={rawInput}
+				outputSummary={outputSummary}
+				theme={terminalTheme}
+			/>
 		);
 	}
 
 	if (isEditTool(toolName)) {
-		return <EditOutput rawInput={rawInput} outputSummary={outputSummary} />;
+		return (
+			<EditOutput
+				rawInput={rawInput}
+				outputSummary={outputSummary}
+				theme={terminalTheme}
+			/>
+		);
 	}
 
 	return <GenericOutput outputSummary={outputSummary} fullText={fullText} />;

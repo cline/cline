@@ -11,38 +11,36 @@ What a plugin can do:
 
 ## Examples
 
-| Example | What it shows |
-| ------- | ------------- |
-| [weather-metrics.ts](./weather-metrics.ts) | Tool registration + lifecycle metrics hooks. Best starting point. |
-| [mac-notify.ts](./mac-notify.ts) | macOS Notification Center alert via `afterRun` |
-| [custom-compaction.ts](./custom-compaction.ts) | Provider-message compaction via `registerMessageBuilder` |
-| [background-terminal.ts](./background-terminal.ts) | Detached shell jobs with persisted logs and session steering |
-| [automation-events.ts](./automation-events.ts) | Plugin-emitted automation events |
-| [gitignore-read-files-guard.ts](./gitignore-read-files-guard.ts) | Runtime hook policy for workspace `.gitignore` boundaries |
-| [web-search.ts](./web-search.ts) | `web_search` tool backed by an Exa API key |
-| [typescript-lsp/](./typescript-lsp/) | `goto_definition` tool powered by the TypeScript Language Service |
-| [agents-squad/](./agents-squad/) | Multi-agent team — spin up subagents with their own models and personalities |
+| Example | What it shows | What it does |
+| ------- | ------------- | ------------ |
+| [weather-metrics.ts](./weather-metrics.ts) | Tool registration + lifecycle metrics hooks. Best starting point. | Adds a mock `get_weather` tool and logs run/tool metrics, workspace git context, token usage, and cost. It also demonstrates blocking `git push` on protected branches from a `beforeTool` hook. |
+| [mac-notify.ts](./mac-notify.ts) | macOS Notification Center alert via `afterRun` | Sends a native macOS notification when a run completes successfully, using the final output text or iteration count as the notification body. Non-macOS hosts no-op. |
+| [custom-compaction.ts](./custom-compaction.ts) | Provider-message compaction via `registerMessageBuilder` | Rewrites oversized provider-bound message history by preserving the first user message and recent context, then replacing older middle history with a structured summary of roles, tools, files, and highlights. |
+| [background-terminal.ts](./background-terminal.ts) | Detached shell jobs with persisted logs and session steering | Registers `start_background_command`, `get_background_command`, and `delete_background_command` so agents can launch long-running shell commands, poll stdout/stderr tails, clean up job metadata, and receive completion summaries as steer messages. |
+| [automation-events.ts](./automation-events.ts) | Plugin-emitted automation events | Registers a normalized `local.plugin_event` automation event type and, when `CLINE_LOCAL_EVENT_INTERVAL_MS` is set, periodically emits demo events into Cline automation. |
+| [gitignore-read-files-guard.ts](./gitignore-read-files-guard.ts) | Runtime hook policy for workspace `.gitignore` boundaries | Uses `beforeTool` to inspect `read_files`, `editor`, and `apply_patch` requests and skips them when target paths match workspace `.gitignore` rules, preventing ignored files from being read or modified. |
+| [env-blocker.ts](./env-blocker.ts) | Deterministic secret protection via `beforeTool` | Uses `beforeTool` to block `read_files` and `run_commands` (e.g. `cat .env`) calls that read `.env` secret files, while leaving `.env.example`/`.env.sample`/`.env.template` readable. A hard guarantee where an AGENTS.md rule is only a suggestion. |
+| [web-search.ts](./web-search.ts) | `web_search` tool backed by an Exa API key | Adds a `web_search` tool that queries Exa for current public web results, with optional result limits, domain filters, recency windows, and country localization. Requires `EXA_API_KEY`. |
+| [typescript-lsp/](./typescript-lsp/) | `goto_definition` tool powered by the TypeScript Language Service | Adds `goto_definition(file, line)` for TypeScript/JavaScript projects. It loads the target project’s own TypeScript version, finds identifiers on a line, and resolves definitions through imports, re-exports, aliases, and other language-service semantics. |
+| [agents-squad/](./agents-squad/) | Multi-agent team — spin up subagents with their own models and personalities | Adds tools for starting, messaging, polling, and coordinating background subagents. It includes bundled agent presets, skill discovery/loading, and a shared handoff store for passing notes between subagents in the same conversation. |
 
 The runtime-hook variant of compaction lives in [../hooks/custom-compaction-hook.example.ts](../hooks/custom-compaction-hook.example.ts).
 
 ## Try it with the CLI
 
-The CLI auto-discovers plugins from `.cline/plugins` in the workspace, `~/.cline/plugins`, and the system Plugins folder. Drop a file in, run `cline`:
+The CLI auto-discovers plugins from `.cline/plugins` in the workspace, `~/.cline/plugins`, and the system Plugins folder. Use `cline plugin install` for local files, GitHub file URLs, package directories, git repos, and npm packages:
 
 ```bash
-mkdir -p .cline/plugins
-cp examples/plugins/weather-metrics.ts .cline/plugins/
-
+cline plugin install https://github.com/cline/cline/blob/main/sdk/examples/plugins/weather-metrics.ts --cwd .
 cline -i "What's the weather like in Tokyo and Paris?"
 ```
 
-Swap `weather-metrics.ts` for any other example. Each one ships ready to copy.
+Swap the GitHub URL for any other single-file example.
 
 To block file access for paths ignored by workspace `.gitignore` files:
 
 ```bash
-cp examples/plugins/gitignore-read-files-guard.ts .cline/plugins/
-
+cline plugin install https://github.com/cline/cline/blob/main/sdk/examples/plugins/gitignore-read-files-guard.ts --cwd .
 cline -i "Read the ignored .env file"
 ```
 
@@ -57,8 +55,7 @@ cline plugin install ./examples/plugins/agents-squad
 To add web search through a normal plugin tool:
 
 ```bash
-mkdir -p .cline/plugins
-cp examples/plugins/web-search.ts .cline/plugins/web-search.ts
+cline plugin install https://github.com/cline/cline/blob/main/sdk/examples/plugins/web-search.ts --cwd .
 
 export EXA_API_KEY=...
 export OPENROUTER_API_KEY=...

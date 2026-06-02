@@ -67,6 +67,8 @@ export interface ToolResultContent {
 	type: "tool_result";
 	/** ID of the tool call this is responding to */
 	tool_use_id: string;
+	/** Name of the tool that generated this result */
+	name: string;
 	/** Result content (can be text or error) */
 	content: string | Array<TextContent | ImageContent | FileContent>;
 	/** Whether this result represents an error */

@@ -18,6 +18,7 @@ describe("command palette", () => {
 
 		expect(labels).toContain("Change Provider");
 		expect(labels).toContain("Manage MCP Servers");
+		expect(labels).toContain("Manage Plugins");
 		expect(labels).toContain("Compact Context");
 		expect(labels).not.toContain("/settings");
 		expect(labels).not.toContain("Toggle Plan/Act Mode");
@@ -71,6 +72,9 @@ describe("command palette", () => {
 		expect(filterCommandPaletteItems(items, "mcp")[0]?.label).toBe(
 			"Manage MCP Servers",
 		);
+		expect(filterCommandPaletteItems(items, "plugins")[0]?.label).toBe(
+			"Manage Plugins",
+		);
 		expect(filterCommandPaletteItems(items, "opt m")[0]?.label).toBe(
 			"Change Model",
 		);
@@ -113,5 +117,28 @@ describe("command palette", () => {
 				shift: false,
 			})?.label,
 		).toBe("Open Help");
+	});
+
+	it("keeps option right available for word navigation", () => {
+		const items = buildCommandPaletteItems({
+			canForkSession: true,
+		});
+
+		expect(
+			findCommandPaletteShortcut(items, {
+				name: "f",
+				meta: false,
+				option: true,
+				shift: false,
+			}),
+		).toBeUndefined();
+		expect(
+			findCommandPaletteShortcut(items, {
+				name: "r",
+				meta: false,
+				option: true,
+				shift: false,
+			})?.label,
+		).toBe("Create Session Fork");
 	});
 });

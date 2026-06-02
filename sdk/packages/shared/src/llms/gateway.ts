@@ -4,7 +4,7 @@ import type {
 	AgentToolDefinition,
 } from "../agent";
 import type { BasicLogger } from "../logging/logger";
-import type { ProviderCapability } from "../rpc/runtime";
+import type { ProviderCapability, ProviderConfigField } from "../rpc/runtime";
 import type { ITelemetryService } from "../services/telemetry";
 
 export type JsonValue =
@@ -27,17 +27,48 @@ export type GatewayModelCapability =
 	| "text"
 	| "tools"
 	| "reasoning"
+	| "prompt-cache"
 	| "images"
 	| "audio"
 	| "structured-output";
 
 export type GatewayPromptCacheStrategy = "anthropic-automatic";
 export type GatewayUsageCostDisplay = "show" | "hide";
+export type GatewayPromptCacheFormat = "anthropic-cache-control";
+export type GatewayReasoningFormat = "anthropic-thinking" | "glm-thinking";
+export type GatewayModelRoute =
+	| { matcher: "anthropic-compatible" }
+	| {
+			matcher: "model-family";
+			family: string;
+			requiredCapability?: GatewayModelCapability;
+	  }
+	| {
+			matcher: "model-id";
+			modelId: string;
+			requiredCapability?: GatewayModelCapability;
+	  };
+export interface GatewayProviderRouting {
+	promptCache?: {
+		format: GatewayPromptCacheFormat;
+		routes: GatewayModelRoute[];
+	};
+	reasoning?: {
+		format: GatewayReasoningFormat;
+		routes: GatewayModelRoute[];
+	};
+}
 
 export interface GatewayProviderMetadata {
 	promptCacheStrategy?: GatewayPromptCacheStrategy;
 	usageCostDisplay?: GatewayUsageCostDisplay;
-	[key: string]: JsonValue | undefined;
+	routing?: GatewayProviderRouting;
+	configFields?: readonly ProviderConfigField[];
+	[key: string]:
+		| JsonValue
+		| GatewayProviderRouting
+		| readonly ProviderConfigField[]
+		| undefined;
 }
 
 export interface GatewayModelDefinition {
