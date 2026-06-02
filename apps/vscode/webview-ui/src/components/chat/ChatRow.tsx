@@ -1,4 +1,3 @@
-import { COMMAND_OUTPUT_STRING } from "@shared/combineCommandSequences"
 import {
 	ClineApiReqInfo,
 	ClineAskQuestion,
@@ -65,6 +64,7 @@ import SearchResultsDisplay from "./SearchResultsDisplay"
 import SubagentStatusRow from "./SubagentStatusRow"
 import { ThinkingRow } from "./ThinkingRow"
 import UserMessage from "./UserMessage"
+import { getCommandRowState } from "./commandRowState"
 
 const HEADER_CLASSNAMES = "flex items-center gap-2.5 mb-3"
 
@@ -216,14 +216,8 @@ export const ChatRowContent = memo(
 
 		const type = message.type === "ask" ? message.ask : message.say
 
-		const isCommandMessage = type === "command"
-		// Check if command has output to determine if it's actually executing
-		const commandHasOutput = message.text?.includes(COMMAND_OUTPUT_STRING) ?? false
-		// A command is executing if it has output but hasn't completed yet
-		const isCommandExecuting = isCommandMessage && !message.commandCompleted && commandHasOutput
-		// A command is pending if it hasn't started (no output) and hasn't completed
-		const isCommandPending = isCommandMessage && isLast && !message.commandCompleted && !commandHasOutput
-		const isCommandCompleted = isCommandMessage && message.commandCompleted === true
+		const { isCommandMessage, isCommandCompleted, isCommandExecuting, isCommandPending, title: commandTitle } =
+			getCommandRowState(message, isLast, isRequestInProgress)
 
 		const isMcpServerResponding = isLast && lastModifiedMessage?.say === "mcp_server_request_started"
 
@@ -324,8 +318,8 @@ export const ChatRowContent = memo(
 					]
 				case "command":
 					return [
-						<TerminalIcon className="text-foreground size-2" />,
-						<span className="font-bold text-foreground">Cline wants to execute this command:</span>,
+						isCommandExecuting ? <ProgressIndicator /> : <TerminalIcon className="text-foreground size-2" />,
+						<span className="font-bold text-foreground">{commandTitle}</span>,
 					]
 				case "use_mcp_server":
 					const mcpServerUse = JSON.parse(message.text || "{}") as ClineAskUseMcpServer
@@ -366,6 +360,7 @@ export const ChatRowContent = memo(
 			apiRequestFailedMessage,
 			isCommandExecuting,
 			isCommandPending,
+			isCommandCompleted,
 			apiReqCancelReason,
 			isMcpServerResponding,
 			message.text,
