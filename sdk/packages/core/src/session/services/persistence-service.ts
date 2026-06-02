@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { dirname } from "node:path";
 import type * as LlmsProviders from "@cline/llms";
 import type { AgentResult, BasicLogger } from "@cline/shared";
@@ -37,10 +38,18 @@ import { TeamChildSessionManager } from "../team";
 export type { PersistedSessionUpdateInput, SessionPersistenceAdapter };
 
 const OCC_MAX_RETRIES = 4;
+const DEFAULT_SESSION_CLEANUP_INTERVAL_MS = 60_000;
+
+export interface BackgroundSessionCleanupOptions {
+	intervalMs?: number;
+	limit?: number;
+}
 
 export class UnifiedSessionPersistenceService {
 	private readonly manifestStore: SessionManifestStore;
 	private readonly teamChildren: TeamChildSessionManager;
+	private readonly logger: BasicLogger | undefined;
+	private missingArtifactCleanupPromise: Promise<number> | undefined;
 	private static readonly STALE_REASON = "failed_external_process_exit";
 	private static readonly STALE_SOURCE = "stale_session_reconciler";
 	private static readonly TEAM_HEARTBEAT_LOG_INTERVAL_MS = 30_000;
@@ -64,6 +73,7 @@ export class UnifiedSessionPersistenceService {
 				this.toPersistedMessages(messages, result, previousMessages),
 			UnifiedSessionPersistenceService.TEAM_HEARTBEAT_LOG_INTERVAL_MS,
 		);
+		this.logger = options.logger;
 	}
 
 	private toPersistedMessages(
@@ -421,6 +431,7 @@ export class UnifiedSessionPersistenceService {
 	): Promise<SessionRow | undefined> {
 		if (
 			isNonTerminalSessionStatus(row.status) === false ||
+			!this.hasPersistedArtifacts(row) ||
 			this.isPidAlive(row.pid)
 		) {
 			return row;
@@ -487,25 +498,111 @@ export class UnifiedSessionPersistenceService {
 		return await this.adapter.getSession(row.sessionId);
 	}
 
+	private hasPersistedArtifacts(row: SessionRow): boolean {
+		const messagesPath =
+			typeof row.messagesPath === "string" && row.messagesPath.trim().length > 0
+				? row.messagesPath
+				: undefined;
+
+		if (row.isSubagent) {
+			return messagesPath ? existsSync(messagesPath) : false;
+		}
+
+		const sessionDir = this.manifestStore.artifacts.sessionArtifactsDir(
+			row.sessionId,
+		);
+		if (!existsSync(sessionDir)) {
+			return false;
+		}
+
+		const manifestPath = this.manifestStore.artifacts.sessionManifestPath(
+			row.sessionId,
+			false,
+		);
+		return (
+			existsSync(manifestPath) || !!(messagesPath && existsSync(messagesPath))
+		);
+	}
+
+	private async pruneMissingArtifactSessions(limit = 2000): Promise<number> {
+		const requestedLimit = Math.max(1, Math.floor(limit));
+		const rows = await this.adapter.listSessions({ limit: requestedLimit });
+		let pruned = 0;
+		for (const row of rows) {
+			if (this.hasPersistedArtifacts(row)) {
+				continue;
+			}
+			const result = await this.deleteSession(row.sessionId);
+			if (result.deleted) {
+				pruned++;
+			}
+		}
+		return pruned;
+	}
+
+	async reconcileMissingArtifactSessions(limit = 2000): Promise<number> {
+		if (this.missingArtifactCleanupPromise) {
+			return await this.missingArtifactCleanupPromise;
+		}
+		const cleanup = this.pruneMissingArtifactSessions(limit);
+		this.missingArtifactCleanupPromise = cleanup;
+		try {
+			return await cleanup;
+		} finally {
+			if (this.missingArtifactCleanupPromise === cleanup) {
+				this.missingArtifactCleanupPromise = undefined;
+			}
+		}
+	}
+
+	private scheduleMissingArtifactCleanup(limit = 2000): void {
+		void this.reconcileMissingArtifactSessions(limit).catch((error) => {
+			this.logger?.log("Session artifact cleanup failed", {
+				severity: "warn",
+				error,
+			});
+		});
+	}
+
+	startBackgroundSessionCleanup(
+		options: BackgroundSessionCleanupOptions = {},
+	): () => void {
+		const limit = Math.max(1, Math.floor(options.limit ?? 2000));
+		const intervalMs = Math.max(
+			1_000,
+			Math.floor(options.intervalMs ?? DEFAULT_SESSION_CLEANUP_INTERVAL_MS),
+		);
+		this.scheduleMissingArtifactCleanup(limit);
+		const interval = setInterval(() => {
+			this.scheduleMissingArtifactCleanup(limit);
+		}, intervalMs);
+		interval.unref?.();
+		return () => clearInterval(interval);
+	}
+
 	async listSessions(limit = 200): Promise<SessionRow[]> {
 		const requestedLimit = Math.max(1, Math.floor(limit));
 		const scanLimit = Math.min(requestedLimit * 5, 2000);
+		this.scheduleMissingArtifactCleanup(scanLimit);
 		await this.reconcileDeadSessions(scanLimit);
 
 		const rows = await this.adapter.listSessions({ limit: scanLimit });
-		return rows.slice(0, requestedLimit).map((row) => {
-			const meta = sanitizeMetadata(row.metadata ?? undefined);
-			const manifest = this.manifestStore.readSessionManifest(row.sessionId);
-			const manifestTitle = normalizeTitle(
-				typeof manifest?.metadata?.title === "string"
-					? (manifest.metadata.title as string)
-					: undefined,
-			);
-			const resolved = manifestTitle
-				? { ...(meta ?? {}), title: manifestTitle }
-				: meta;
-			return { ...row, metadata: resolved };
-		});
+		return rows
+			.filter((row) => this.hasPersistedArtifacts(row))
+			.slice(0, requestedLimit)
+			.map((row) => {
+				const meta = sanitizeMetadata(row.metadata ?? undefined);
+				const manifest = this.manifestStore.readSessionManifest(row.sessionId);
+				const manifestTitle = normalizeTitle(
+					typeof manifest?.metadata?.title === "string"
+						? (manifest.metadata.title as string)
+						: undefined,
+				);
+				const resolved = manifestTitle
+					? { ...(meta ?? {}), title: manifestTitle }
+					: meta;
+				return { ...row, metadata: resolved };
+			});
 	}
 
 	async reconcileDeadSessions(limit = 2000): Promise<number> {

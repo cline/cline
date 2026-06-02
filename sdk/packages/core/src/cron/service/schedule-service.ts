@@ -56,6 +56,7 @@ export interface HubScheduleRuntimeHandlers {
 	}>;
 	abortSession(sessionId: string): Promise<{ applied: boolean }>;
 	stopSession(sessionId: string): Promise<{ applied: boolean }>;
+	dispose?: () => Promise<void> | void;
 }
 
 export interface ActiveScheduledExecution {

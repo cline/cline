@@ -213,10 +213,9 @@ class FileSessionPersistenceAdapter implements SessionPersistenceAdapter {
 	async deleteSession(sessionId: string, cascade: boolean): Promise<boolean> {
 		const index = this.readIndex();
 		const existing = index.sessions[sessionId];
-		if (!existing) {
-			return false;
+		if (existing) {
+			delete index.sessions[sessionId];
 		}
-		delete index.sessions[sessionId];
 		if (cascade) {
 			for (const row of Object.values(index.sessions)) {
 				if (row.parentSessionId === sessionId) {
@@ -225,7 +224,7 @@ class FileSessionPersistenceAdapter implements SessionPersistenceAdapter {
 			}
 		}
 		this.writeIndex(index);
-		return true;
+		return !!existing;
 	}
 
 	async enqueueSpawnRequest(input: {
