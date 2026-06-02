@@ -503,30 +503,46 @@ export class UnifiedSessionPersistenceService {
 		return await this.adapter.getSession(row.sessionId);
 	}
 
-	private hasPersistedArtifacts(row: SessionRow): boolean {
-		const messagesPath =
-			typeof row.messagesPath === "string" && row.messagesPath.trim().length > 0
-				? row.messagesPath
-				: undefined;
+	private normalizeArtifactPath(
+		path: string | null | undefined,
+	): string | undefined {
+		return typeof path === "string" && path.trim().length > 0
+			? path
+			: undefined;
+	}
 
-		if (row.isSubagent) {
-			return messagesPath ? existsSync(messagesPath) : false;
-		}
-
-		const sessionDir = this.manifestStore.artifacts.sessionArtifactsDir(
-			row.sessionId,
-		);
+	private hasRootArtifacts(sessionId: string, messagesPath?: string): boolean {
+		const sessionDir =
+			this.manifestStore.artifacts.sessionArtifactsDir(sessionId);
 		if (!existsSync(sessionDir)) {
 			return false;
 		}
 
 		const manifestPath = this.manifestStore.artifacts.sessionManifestPath(
-			row.sessionId,
+			sessionId,
 			false,
 		);
 		return (
 			existsSync(manifestPath) || !!(messagesPath && existsSync(messagesPath))
 		);
+	}
+
+	private hasPersistedArtifacts(row: SessionRow): boolean {
+		const messagesPath = this.normalizeArtifactPath(row.messagesPath);
+
+		if (row.isSubagent) {
+			if (messagesPath) {
+				return existsSync(messagesPath);
+			}
+			const parentSessionId = this.normalizeArtifactPath(row.parentSessionId);
+			return parentSessionId ? this.hasRootArtifacts(parentSessionId) : false;
+		}
+
+		return this.hasRootArtifacts(row.sessionId, messagesPath);
+	}
+
+	private isLiveNonTerminalSession(row: SessionRow): boolean {
+		return isNonTerminalSessionStatus(row.status) && this.isPidAlive(row.pid);
 	}
 
 	private async pruneMissingArtifactSessions(limit = 2000): Promise<number> {
@@ -541,6 +557,19 @@ export class UnifiedSessionPersistenceService {
 				prunedRootSessionIds.has(row.parentSessionId)
 			) {
 				continue;
+			}
+			if (this.isLiveNonTerminalSession(row)) {
+				continue;
+			}
+			if (
+				row.isSubagent &&
+				!this.normalizeArtifactPath(row.messagesPath) &&
+				row.parentSessionId
+			) {
+				const parent = await this.adapter.getSession(row.parentSessionId);
+				if (parent && this.isLiveNonTerminalSession(parent)) {
+					continue;
+				}
 			}
 			if (this.hasPersistedArtifacts(row)) {
 				continue;
