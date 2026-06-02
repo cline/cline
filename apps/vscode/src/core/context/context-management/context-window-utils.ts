@@ -7,7 +7,10 @@ import { ApiHandler } from "@core/api"
  * @returns An object containing the raw context window size and the effective max allowed size
  */
 export function getContextWindowInfo(api: ApiHandler) {
-	const contextWindow = api.getModel().info.contextWindow || 128_000
+	const model = api.getModel()
+	const contextWindow = model.info.contextWindow || 128_000
+	const isOpenAiCodexOAuth = model.providerId === "openai-codex"
+	const defaultMaxAllowedSize = Math.max(contextWindow - 40_000, contextWindow * 0.8)
 
 	let maxAllowedSize: number
 	switch (contextWindow) {
@@ -20,8 +23,12 @@ export function getContextWindowInfo(api: ApiHandler) {
 		case 200_000: // claude models
 			maxAllowedSize = contextWindow - 40_000
 			break
+		case 400_000:
+			// OpenAI Codex OAuth has a 272K input cap inside the 400K total context window.
+			maxAllowedSize = isOpenAiCodexOAuth ? 272_000 - 40_000 : defaultMaxAllowedSize
+			break
 		default:
-			maxAllowedSize = Math.max(contextWindow - 40_000, contextWindow * 0.8) // for deepseek, 80% of 64k meant only ~10k buffer which was too small and resulted in users getting context window errors.
+			maxAllowedSize = defaultMaxAllowedSize // for deepseek, 80% of 64k meant only ~10k buffer which was too small and resulted in users getting context window errors.
 	}
 
 	return { contextWindow, maxAllowedSize }
