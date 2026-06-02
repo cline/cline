@@ -5141,7 +5141,7 @@ export const qwenCodeDefaultModelId: QwenCodeModelId = "qwen3-coder-plus"
 // https://www.minimax.io/platform/document/text_api_intro
 // https://www.minimax.io/platform/document/pricing
 export type MinimaxModelId = keyof typeof minimaxModels
-export const minimaxDefaultModelId: MinimaxModelId = "MiniMax-M2.7"
+export const minimaxDefaultModelId: MinimaxModelId = "MiniMax-M3"
 export const minimaxModels = {
 	"MiniMax-M3": {
 		maxTokens: 32_000,
@@ -5194,58 +5194,6 @@ export const minimaxModels = {
 		cacheWritesPrice: 0.375,
 		cacheReadsPrice: 0.06,
 		description: "High-speed version of M2.7 for low-latency scenarios",
-	},
-	"MiniMax-M2.5": {
-		maxTokens: 128_000,
-		contextWindow: 192_000,
-		supportsImages: false,
-		supportsPromptCache: true,
-		supportsReasoning: true,
-		inputPrice: 0.3,
-		outputPrice: 1.2,
-		cacheWritesPrice: 0.375,
-		cacheReadsPrice: 0.03,
-	},
-	"MiniMax-M2.5-highspeed": {
-		maxTokens: 128_000,
-		contextWindow: 192_000,
-		supportsImages: false,
-		supportsPromptCache: true,
-		supportsReasoning: true,
-		inputPrice: 0.6,
-		outputPrice: 2.4,
-		cacheWritesPrice: 0.375,
-		cacheReadsPrice: 0.03,
-	},
-	"MiniMax-M2.1": {
-		maxTokens: 128_000,
-		contextWindow: 192_000,
-		supportsImages: false,
-		supportsPromptCache: true,
-		inputPrice: 0.3,
-		outputPrice: 1.2,
-		cacheWritesPrice: 0.375,
-		cacheReadsPrice: 0.03,
-	},
-	"MiniMax-M2.1-lightning": {
-		maxTokens: 128_000,
-		contextWindow: 192_000,
-		supportsImages: false,
-		supportsPromptCache: true,
-		inputPrice: 0.6,
-		outputPrice: 2.4,
-		cacheWritesPrice: 0.375,
-		cacheReadsPrice: 0.03,
-	},
-	"MiniMax-M2": {
-		maxTokens: 128_000,
-		contextWindow: 192_000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0.3,
-		outputPrice: 1.2,
-		cacheWritesPrice: 0,
-		cacheReadsPrice: 0,
 	},
 } as const satisfies Record<string, ModelInfo>
 
