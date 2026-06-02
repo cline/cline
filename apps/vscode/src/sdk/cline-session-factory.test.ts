@@ -298,9 +298,10 @@ describe("buildSessionConfig", () => {
 	})
 
 	it("lets task useAutoCondense override the global setting", async () => {
+		let globalUseAutoCondense = true
 		mocks.stateManager.getGlobalSettingsKey.mockImplementation((key: string) => {
 			if (key === "useAutoCondense") {
-				return true
+				return globalUseAutoCondense
 			}
 			if (key === "subagentsEnabled") {
 				return false
@@ -308,10 +309,14 @@ describe("buildSessionConfig", () => {
 			return undefined
 		})
 
+		// Task `false` overrides global `true`.
 		const disabledConfig = await buildSessionConfig({
 			cwd: "/tmp/workspace",
 			taskSettings: { useAutoCondense: false },
 		})
+
+		// Task `true` overrides global `false`.
+		globalUseAutoCondense = false
 		const enabledConfig = await buildSessionConfig({
 			cwd: "/tmp/workspace",
 			taskSettings: { useAutoCondense: true },
