@@ -1,7 +1,6 @@
 import type { ITelemetryService } from "@cline/shared";
 
-export const CLINE_INTERNAL_TELEMETRY_METADATA_KEY =
-	"__clineInternalTelemetry";
+export const CLINE_INTERNAL_TELEMETRY_METADATA_KEY = "__clineInternalTelemetry";
 
 export function getToolContextTelemetry(
 	metadata: Record<string, unknown> | undefined,

@@ -149,7 +149,7 @@ Current SDK layering:
 
 **Building integrations?**
 - Review [`./cron/`](./cron) for automation and event-driven workflows
-- Explore [`desktop-app/`](../apps/examples/desktop-app), [`vscode/`](../apps/examples/vscode), and [`menubar/`](../apps/examples/menubar) for app integration patterns
+- Explore [`desktop-app/`](../../apps/examples/desktop-app), [`vscode/`](../../apps/examples/vscode), and [`menubar/`](../../apps/examples/menubar) for app integration patterns
 
 **Controlling agent behavior?**
 - Explore [`./hooks/`](./hooks) to intercept and modify tool execution, log actions, or enforce policies
