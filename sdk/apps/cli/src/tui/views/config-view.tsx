@@ -143,7 +143,7 @@ function groupToolItems(
 ): Array<[string, InteractiveConfigItem[]]> {
 	const groups = new Map<string, InteractiveConfigItem[]>();
 	for (const item of items) {
-		const groupKey = `${item.source}:${item.path}:${item.pluginName}`;
+		const groupKey = `${item.source}:${item.pluginPath ?? item.path}:${item.pluginName}`;
 		const group = groups.get(groupKey) ?? [];
 		group.push(item);
 		groups.set(groupKey, group);
@@ -207,6 +207,25 @@ function appendToolGroupRows(
 	}
 }
 
+function appendExtRows(
+	rows: ConfigRow[],
+	items: InteractiveConfigItem[],
+	indent?: number,
+): void {
+	for (const item of sortBySourceThenName(items)) {
+		rows.push({
+			kind: "ext",
+			name: item.name,
+			path: item.path,
+			source: item.source,
+			enabled: item.enabled,
+			description: item.description,
+			item,
+			indent,
+		});
+	}
+}
+
 function appendToolRows(
 	rows: ConfigRow[],
 	items: InteractiveConfigItem[],
@@ -216,17 +235,7 @@ function appendToolRows(
 	);
 	if (builtinTools.length > 0) {
 		rows.push({ kind: "head", label: "Built-in" });
-		for (const item of builtinTools) {
-			rows.push({
-				kind: "ext",
-				name: item.name,
-				path: item.path,
-				source: item.source,
-				enabled: item.enabled,
-				description: item.description,
-				item,
-			});
-		}
+		appendExtRows(rows, builtinTools);
 	}
 
 	const pluginGroups = groupToolItems(items.filter((item) => item.pluginName));
@@ -237,6 +246,36 @@ function appendToolRows(
 			pluginGroups,
 			getSharedToolNames(items.filter((item) => item.pluginName)),
 		);
+	}
+}
+
+function appendSkillRows(
+	rows: ConfigRow[],
+	items: InteractiveConfigItem[],
+): void {
+	const detectedItems = items.filter((item) => !item.pluginName);
+	if (detectedItems.length > 0) {
+		rows.push({ kind: "head", label: "Detected" });
+		appendExtRows(rows, detectedItems);
+	}
+
+	const pluginItems = items.filter((item) => item.pluginName);
+	const pluginGroups = groupToolItems(pluginItems);
+	if (pluginGroups.length > 0) {
+		rows.push({ kind: "head", label: "Plugins" });
+		for (const [, groupItems] of pluginGroups) {
+			const first = groupItems[0];
+			const enabledCount = groupItems.filter(
+				(item) => item.enabled !== false,
+			).length;
+			rows.push({
+				kind: "tool-group",
+				label: first?.pluginName ?? "plugin",
+				rightLabel: `${enabledCount}/${groupItems.length} skills enabled`,
+				indent: 2,
+			});
+			appendExtRows(rows, groupItems, 4);
+		}
 	}
 }
 
@@ -427,6 +466,8 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 						text: pluginToolsError,
 					});
 				}
+			} else if (activeTab === "skills") {
+				appendSkillRows(r, activeItems);
 			} else {
 				for (const item of activeItems) {
 					r.push({

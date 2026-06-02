@@ -1,5 +1,13 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { basename, dirname, extname, join, resolve } from "node:path";
+import {
+	basename,
+	dirname,
+	extname,
+	isAbsolute,
+	join,
+	relative,
+	resolve,
+} from "node:path";
 import {
 	type BuiltinToolAvailabilityContext,
 	discoverPluginModulePaths,
@@ -14,6 +22,7 @@ import {
 	resolveDefaultMcpSettingsPath,
 	resolveMcpServerRegistrations,
 	resolvePluginConfigSearchPaths,
+	resolvePluginSkillDirectoriesFromPaths,
 	type SkillConfig,
 	type UserInstructionConfigService,
 	type WorkflowConfig,
@@ -55,6 +64,7 @@ export interface InteractiveConfigItem {
 	toolNames?: string[];
 	configKind?: "tool" | "plugin";
 	pluginName?: string;
+	pluginPath?: string;
 	loadError?: string;
 	loadErrorPhase?: PluginInitializationFailure["phase"];
 	source:
@@ -252,6 +262,56 @@ function getPluginDisplayName(filePath: string): string {
 	return basename(filePath, extname(filePath));
 }
 
+function isPathWithin(parentPath: string, childPath: string): boolean {
+	const relativePath = relative(resolve(parentPath), resolve(childPath));
+	return (
+		relativePath === "" ||
+		(!relativePath.startsWith("..") && !isAbsolute(relativePath))
+	);
+}
+
+type PluginSkillOwner = {
+	directory: string;
+	pluginName: string;
+	pluginPath: string;
+	source: "global-plugin" | "workspace-plugin";
+};
+
+function buildPluginSkillOwners(
+	plugins: readonly InteractiveConfigItem[],
+): PluginSkillOwner[] {
+	const owners: PluginSkillOwner[] = [];
+	for (const plugin of plugins) {
+		if (
+			plugin.kind !== "plugin" ||
+			(plugin.source !== "workspace-plugin" &&
+				plugin.source !== "global-plugin")
+		) {
+			continue;
+		}
+		for (const directory of resolvePluginSkillDirectoriesFromPaths([
+			plugin.path,
+		])) {
+			owners.push({
+				directory,
+				pluginName: plugin.name,
+				pluginPath: plugin.path,
+				source: plugin.source,
+			});
+		}
+	}
+	return owners.sort(
+		(left, right) => right.directory.length - left.directory.length,
+	);
+}
+
+function findPluginSkillOwner(
+	filePath: string,
+	owners: readonly PluginSkillOwner[],
+): PluginSkillOwner | undefined {
+	return owners.find((owner) => isPathWithin(owner.directory, filePath));
+}
+
 function formatPluginFailure(failure: PluginInitializationFailure): string {
 	return `${failure.phase === "setup" ? "setup failed" : "load failed"}: ${failure.message}`;
 }
@@ -301,51 +361,6 @@ export async function loadInteractiveConfigData(input: {
 		input.userInstructionService,
 	);
 
-	if (input.userInstructionService) {
-		for (const record of input.userInstructionService.listRecords<WorkflowConfig>(
-			"workflow",
-		)) {
-			const workflow = record.item;
-			workflows.push({
-				id: record.id,
-				name: workflow.name,
-				path: record.filePath,
-				enabled: workflow.disabled !== true,
-				kind: "workflow",
-				source: detectSource(record.filePath, input.workspaceRoot),
-				description: workflow.instructions,
-			});
-		}
-		for (const record of input.userInstructionService.listRecords<RuleConfig>(
-			"rule",
-		)) {
-			const rule = record.item;
-			rules.push({
-				id: record.id,
-				name: rule.name,
-				path: record.filePath,
-				enabled: rule.disabled !== true,
-				kind: "rule",
-				source: detectSource(record.filePath, input.workspaceRoot),
-				description: rule.instructions,
-			});
-		}
-		for (const record of input.userInstructionService.listRecords<SkillConfig>(
-			"skill",
-		)) {
-			const skill = record.item;
-			skills.push({
-				id: record.id,
-				name: skill.name,
-				path: record.filePath,
-				enabled: skill.disabled !== true,
-				kind: "skill",
-				source: detectSource(record.filePath, input.workspaceRoot),
-				description: skill.description,
-			});
-		}
-	}
-
 	for (const hook of listHookConfigFiles(input.cwd)) {
 		hooks.push({
 			id: hook.path,
@@ -379,6 +394,61 @@ export async function loadInteractiveConfigData(input: {
 			}
 		} catch {
 			// Best effort: skip unreadable plugin roots.
+		}
+	}
+
+	const pluginSkillOwners = buildPluginSkillOwners(plugins);
+
+	if (input.userInstructionService) {
+		for (const record of input.userInstructionService.listRecords<WorkflowConfig>(
+			"workflow",
+		)) {
+			const workflow = record.item;
+			workflows.push({
+				id: record.id,
+				name: workflow.name,
+				path: record.filePath,
+				enabled: workflow.disabled !== true,
+				kind: "workflow",
+				source: detectSource(record.filePath, input.workspaceRoot),
+				description: workflow.instructions,
+			});
+		}
+		for (const record of input.userInstructionService.listRecords<RuleConfig>(
+			"rule",
+		)) {
+			const rule = record.item;
+			rules.push({
+				id: record.id,
+				name: rule.name,
+				path: record.filePath,
+				enabled: rule.disabled !== true,
+				kind: "rule",
+				source: detectSource(record.filePath, input.workspaceRoot),
+				description: rule.instructions,
+			});
+		}
+		for (const record of input.userInstructionService.listRecords<SkillConfig>(
+			"skill",
+		)) {
+			const skill = record.item;
+			const pluginOwner = findPluginSkillOwner(
+				record.filePath,
+				pluginSkillOwners,
+			);
+			skills.push({
+				id: record.id,
+				name: skill.name,
+				path: record.filePath,
+				enabled: skill.disabled !== true,
+				kind: "skill",
+				source:
+					pluginOwner?.source ??
+					detectSource(record.filePath, input.workspaceRoot),
+				description: skill.description,
+				pluginName: pluginOwner?.pluginName,
+				pluginPath: pluginOwner?.pluginPath,
+			});
 		}
 	}
 
