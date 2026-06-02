@@ -221,6 +221,7 @@ export async function loadSandboxedPlugins(
 ): Promise<
 	{
 		extensions: AgentConfig["extensions"];
+		pluginPaths: string[];
 		shutdown: () => Promise<void>;
 	} & PluginLoadDiagnostics
 > {
@@ -330,6 +331,7 @@ export async function loadSandboxedPlugins(
 	return {
 		extensions,
 		failures: initialized.failures,
+		pluginPaths: descriptors.map((descriptor) => descriptor.pluginPath),
 		shutdown: async () => {
 			await sandbox.shutdown();
 		},

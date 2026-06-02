@@ -60,6 +60,34 @@ function dedupePaths(paths: Iterable<string>): string[] {
 	return deduped;
 }
 
+function mergePluginPaths(paths: Iterable<string>): string[] {
+	const deduped = dedupePaths(paths);
+	return filterDisabledPluginPaths(deduped);
+}
+
+function resolveDiscoveredPluginPaths(
+	workspacePath: string | undefined,
+): string[] {
+	return resolvePluginConfigSearchPaths(workspacePath)
+		.flatMap((directoryPath) => discoverPluginModulePaths(directoryPath))
+		.filter((path) => existsSync(path));
+}
+
+function resolveConfiguredPluginModulePathsBestEffort(
+	pluginPaths: ReadonlyArray<string>,
+	cwd: string,
+): string[] {
+	const resolvedPaths: string[] = [];
+	for (const pluginPath of pluginPaths) {
+		try {
+			resolvedPaths.push(
+				...resolveConfiguredPluginModulePaths([pluginPath], cwd),
+			);
+		} catch {}
+	}
+	return resolvedPaths;
+}
+
 function isInstalledPackageDirectory(path: string): boolean {
 	return (
 		basename(path) === INSTALLED_PACKAGE_DIRECTORY_NAME &&
@@ -96,33 +124,37 @@ export function resolveAgentPluginPaths(
 	options: ResolveAgentPluginPathsOptions = {},
 ): string[] {
 	const cwd = options.cwd ?? process.cwd();
-	const discoveredFromSearchPaths = resolvePluginConfigSearchPaths(
+	const discoveredFromSearchPaths = resolveDiscoveredPluginPaths(
 		options.workspacePath,
-	)
-		.flatMap((directoryPath) => discoverPluginModulePaths(directoryPath))
-		.filter((path) => existsSync(path));
+	);
 	const configuredPaths = resolveConfiguredPluginModulePaths(
 		options.pluginPaths ?? [],
 		cwd,
 	);
 
-	const deduped: string[] = [];
-	const seen = new Set<string>();
-	for (const path of [...configuredPaths, ...discoveredFromSearchPaths]) {
-		if (seen.has(path)) {
-			continue;
-		}
-		seen.add(path);
-		deduped.push(path);
-	}
-	return filterDisabledPluginPaths(deduped);
+	return mergePluginPaths([...configuredPaths, ...discoveredFromSearchPaths]);
 }
 
-export function resolveAgentPluginSkillDirectories(
+function resolveAgentPluginPathsBestEffort(
 	options: ResolveAgentPluginPathsOptions = {},
 ): string[] {
+	const cwd = options.cwd ?? process.cwd();
+	const discoveredFromSearchPaths = resolveDiscoveredPluginPaths(
+		options.workspacePath,
+	);
+	const configuredPaths = resolveConfiguredPluginModulePathsBestEffort(
+		options.pluginPaths ?? [],
+		cwd,
+	);
+
+	return mergePluginPaths([...configuredPaths, ...discoveredFromSearchPaths]);
+}
+
+export function resolvePluginSkillDirectoriesFromPaths(
+	pluginPaths: ReadonlyArray<string>,
+): string[] {
 	const directories: string[] = [];
-	for (const pluginPath of resolveAgentPluginPaths(options)) {
+	for (const pluginPath of pluginPaths) {
 		for (const root of collectPluginSkillRootCandidates(pluginPath)) {
 			const skillDirectory = join(root, SKILLS_CONFIG_DIRECTORY_NAME);
 			if (isDirectory(skillDirectory)) {
@@ -131,6 +163,14 @@ export function resolveAgentPluginSkillDirectories(
 		}
 	}
 	return dedupePaths(directories);
+}
+
+export function resolveAgentPluginSkillDirectories(
+	options: ResolveAgentPluginPathsOptions = {},
+): string[] {
+	return resolvePluginSkillDirectoriesFromPaths(
+		resolveAgentPluginPathsBestEffort(options),
+	);
 }
 
 export interface ResolveAndLoadAgentPluginsOptions
@@ -161,12 +201,13 @@ export async function resolveAndLoadAgentPlugins(
 ): Promise<
 	{
 		extensions: AgentPlugin[];
+		pluginPaths: string[];
 		shutdown?: () => Promise<void>;
 	} & PluginLoadDiagnostics
 > {
 	const paths = resolveAgentPluginPaths(options);
 	if (paths.length === 0) {
-		return { extensions: [], failures: [], warnings: [] };
+		return { extensions: [], failures: [], warnings: [], pluginPaths: [] };
 	}
 
 	if (options.mode === "in_process") {
@@ -186,6 +227,7 @@ export async function resolveAndLoadAgentPlugins(
 		return {
 			extensions: report.plugins,
 			failures: report.failures,
+			pluginPaths: report.pluginPaths,
 			warnings: report.warnings,
 		};
 	}
@@ -210,6 +252,7 @@ export async function resolveAndLoadAgentPlugins(
 		extensions: sandboxed.extensions ?? [],
 		shutdown: sandboxed.shutdown,
 		failures: sandboxed.failures,
+		pluginPaths: sandboxed.pluginPaths,
 		warnings: sandboxed.warnings,
 	};
 }

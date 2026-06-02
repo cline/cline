@@ -84,6 +84,7 @@ export interface CreateSkillsConfigDefinitionOptions {
 	directories?: ReadonlyArray<string>;
 	workspacePath?: string;
 	includePluginSkills?: boolean;
+	pluginSkillDirectories?: ReadonlyArray<string>;
 	pluginPaths?: ReadonlyArray<string>;
 	cwd?: string;
 }
@@ -137,7 +138,9 @@ function resolveSkillDirectories(
 		...(options?.directories ??
 			resolveSkillsConfigSearchPaths(options?.workspacePath)),
 	];
-	if (options?.includePluginSkills) {
+	if (options?.pluginSkillDirectories) {
+		directories.push(...options.pluginSkillDirectories);
+	} else if (options?.includePluginSkills) {
 		directories.push(
 			...resolveAgentPluginSkillDirectories({
 				pluginPaths: options.pluginPaths,

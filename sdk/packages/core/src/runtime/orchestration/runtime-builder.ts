@@ -333,6 +333,9 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					? {
 							workspacePath: config.cwd,
 							includePluginSkills: pluginsEnabled,
+							pluginSkillDirectories: pluginsEnabled
+								? input.pluginSkillDirectories
+								: undefined,
 							pluginPaths: config.pluginPaths,
 							cwd: config.cwd,
 						}

@@ -9,6 +9,7 @@ import {
 	resolveAgentPluginSkillDirectories,
 	resolveAndLoadAgentPlugins,
 	resolvePluginConfigSearchPaths,
+	resolvePluginSkillDirectoriesFromPaths,
 } from "./plugin-config-loader";
 
 describe("plugin-config-loader", () => {
@@ -151,6 +152,86 @@ describe("plugin-config-loader", () => {
 			});
 
 			expect(resolved).toEqual([join(pluginDir, "skills")]);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	it("skips missing configured plugin paths while resolving bundled skill directories", async () => {
+		const root = await mkdtemp(join(tmpdir(), "core-plugin-config-loader-"));
+		try {
+			process.env.HOME = root;
+			setHomeDir(root);
+			const pluginDir = join(root, "plugin-package");
+			const srcDir = join(pluginDir, "src");
+			const skillDir = join(pluginDir, "skills", "review");
+			await mkdir(srcDir, { recursive: true });
+			await mkdir(skillDir, { recursive: true });
+			await writeFile(
+				join(pluginDir, "package.json"),
+				JSON.stringify({
+					name: "plugin-package",
+					private: true,
+					cline: {
+						plugins: [
+							{
+								paths: ["./src/index.ts"],
+								capabilities: ["tools"],
+							},
+						],
+					},
+				}),
+				"utf8",
+			);
+			await writeFile(join(srcDir, "index.ts"), "export default {}", "utf8");
+			await writeFile(
+				join(skillDir, "SKILL.md"),
+				"---\nname: review\n---\nReview skill.",
+				"utf8",
+			);
+
+			const resolved = resolveAgentPluginSkillDirectories({
+				pluginPaths: ["./missing-plugin", "./plugin-package"],
+				cwd: root,
+				workspacePath: join(root, "workspace"),
+			});
+
+			expect(resolved).toEqual([join(pluginDir, "skills")]);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	it("resolves bundled skill directories from active plugin paths", async () => {
+		const root = await mkdtemp(join(tmpdir(), "core-plugin-config-loader-"));
+		try {
+			const pluginDir = join(root, "plugin-package");
+			const srcDir = join(pluginDir, "src");
+			const skillDir = join(pluginDir, "skills", "review");
+			await mkdir(srcDir, { recursive: true });
+			await mkdir(skillDir, { recursive: true });
+			await writeFile(
+				join(pluginDir, "package.json"),
+				JSON.stringify({
+					name: "plugin-package",
+					private: true,
+					cline: {
+						plugins: [{ paths: ["./src/index.ts"] }],
+					},
+				}),
+				"utf8",
+			);
+			const pluginPath = join(srcDir, "index.ts");
+			await writeFile(pluginPath, "export default {}", "utf8");
+			await writeFile(
+				join(skillDir, "SKILL.md"),
+				"---\nname: review\n---\nReview skill.",
+				"utf8",
+			);
+
+			expect(resolvePluginSkillDirectoriesFromPaths([pluginPath])).toEqual([
+				join(pluginDir, "skills"),
+			]);
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}
@@ -310,9 +391,59 @@ describe("plugin-config-loader", () => {
 			);
 			expect(testPlugins).toHaveLength(1);
 			expect(testPlugins[0]?.manifest.capabilities).toEqual(["commands"]);
+			expect(loaded.pluginPaths).toEqual([second]);
 			expect(loaded.failures).toHaveLength(1);
 			expect(loaded.warnings).toHaveLength(1);
 			expect(loaded.warnings[0]?.overriddenPluginPath).toBe(first);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	it("reports only provider and model compatible active plugin paths", async () => {
+		const root = await mkdtemp(join(tmpdir(), "core-plugin-config-loader-"));
+		try {
+			process.env.HOME = root;
+			setHomeDir(root);
+			const compatible = join(root, "compatible.js");
+			const incompatible = join(root, "incompatible.js");
+			await writeFile(
+				compatible,
+				`export default {
+	name: 'compatible-plugin',
+	manifest: {
+		capabilities: ['tools'],
+		providerIds: ['cline'],
+		modelIds: ['anthropic/claude-haiku-4.5']
+	}
+};`,
+				"utf8",
+			);
+			await writeFile(
+				incompatible,
+				`export default {
+	name: 'incompatible-plugin',
+	manifest: {
+		capabilities: ['tools'],
+		providerIds: ['openai'],
+		modelIds: ['gpt-5.4']
+	}
+};`,
+				"utf8",
+			);
+
+			const loaded = await resolveAndLoadAgentPlugins({
+				mode: "in_process",
+				pluginPaths: [compatible, incompatible],
+				cwd: root,
+				providerId: "cline",
+				modelId: "anthropic/claude-haiku-4.5",
+			});
+
+			expect(loaded.extensions.map((plugin) => plugin.name)).toEqual([
+				"compatible-plugin",
+			]);
+			expect(loaded.pluginPaths).toEqual([compatible]);
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}

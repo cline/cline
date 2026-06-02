@@ -606,6 +606,64 @@ Use the review plugin guidance.`,
 		await runtime.shutdown("test");
 	});
 
+	it("uses explicit plugin skill directories instead of rediscovering plugins", async () => {
+		const cwd = mkdtempSync(
+			join(tmpdir(), "runtime-builder-active-plugin-skills-"),
+		);
+		process.env.HOME = cwd;
+		setHomeDir(cwd);
+		const pluginDir = join(cwd, ".cline", "plugins", "review-plugin");
+		const skillRoot = join(pluginDir, "skills");
+		const skillDir = join(skillRoot, "review");
+		mkdirSync(skillDir, { recursive: true });
+		writeFileSync(
+			join(pluginDir, "package.json"),
+			JSON.stringify({
+				name: "review-plugin",
+				private: true,
+				cline: {
+					plugins: [{ paths: ["./index.ts"] }],
+				},
+			}),
+			"utf8",
+		);
+		writeFileSync(join(pluginDir, "index.ts"), "export default {}", "utf8");
+		writeFileSync(
+			join(skillDir, "SKILL.md"),
+			`---
+name: review
+description: Review code
+---
+Use the review plugin guidance.`,
+			"utf8",
+		);
+
+		const inactiveRuntime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({ cwd }),
+			pluginSkillDirectories: [],
+		});
+		const inactiveExtensionTools = await collectExtensionTools(
+			inactiveRuntime.extensions,
+		);
+		expect(inactiveExtensionTools.map((tool) => tool.name)).not.toContain(
+			"skills",
+		);
+		await inactiveRuntime.shutdown("test");
+
+		const activeRuntime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({ cwd }),
+			pluginSkillDirectories: [skillRoot],
+		});
+		const activeExtensionTools = await collectExtensionTools(
+			activeRuntime.extensions,
+		);
+		const skillsTool = activeExtensionTools.find(
+			(tool) => tool.name === "skills",
+		);
+		expect(skillsTool).toBeDefined();
+		await activeRuntime.shutdown("test");
+	});
+
 	it("does not include bundled plugin skills when plugins are disabled", async () => {
 		const cwd = mkdtempSync(
 			join(tmpdir(), "runtime-builder-plugin-skills-disabled-"),
