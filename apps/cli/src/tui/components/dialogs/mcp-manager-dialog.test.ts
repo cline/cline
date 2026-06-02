@@ -3,7 +3,11 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { getMcpManagerFooterText, toggleMcpServer } from "./mcp-manager-dialog";
+import {
+	getMcpManagerEntryStatus,
+	getMcpManagerFooterText,
+	toggleMcpServer,
+} from "./mcp-manager-dialog";
 
 interface SetMcpServerDisabledOptions {
 	filePath?: string;
@@ -124,5 +128,19 @@ describe("mcp manager dialog helpers", () => {
 		);
 		expect(getMcpManagerFooterText(true)).not.toContain("delete");
 		expect(getMcpManagerFooterText(false)).toBe("Esc to go back");
+	});
+
+	it("shows OAuth errors before general MCP status", () => {
+		expect(
+			getMcpManagerEntryStatus({
+				description: "streamableHttp, oauth authorized",
+			}),
+		).toBe("streamableHttp, oauth authorized");
+		expect(
+			getMcpManagerEntryStatus({
+				description: "streamableHttp, oauth authorized",
+				lastError: "OAuth authorization failed",
+			}),
+		).toBe("oauth error");
 	});
 });

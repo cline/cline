@@ -11,6 +11,8 @@ export interface McpEntry {
 	name: string;
 	path: string;
 	enabled?: boolean;
+	description?: string;
+	lastError?: string;
 }
 
 export type McpServerToggleResult =
@@ -25,6 +27,12 @@ export function getMcpManagerFooterText(hasServers: boolean): string {
 	return hasServers
 		? "Space toggle selected, Esc to go back"
 		: "Esc to go back";
+}
+
+export function getMcpManagerEntryStatus(
+	server: Pick<McpEntry, "description" | "lastError">,
+): string {
+	return server.lastError ? "oauth error" : (server.description ?? "");
 }
 
 export function toggleMcpServer(server: McpEntry): McpServerToggleResult {
@@ -62,6 +70,7 @@ export function McpManagerContent(
 
 	const settingsPath = servers[0]?.path ?? resolveDefaultMcpSettingsPath();
 	const itemCount = servers.length;
+	const selectedServer = servers[selected];
 
 	useDialogKeyboard((key) => {
 		if (key.name === "escape") {
@@ -123,19 +132,30 @@ export function McpManagerContent(
 							typeof srv.enabled === "boolean" ? srv.enabled : true;
 						const enabledIcon =
 							typeof srv.enabled === "boolean" ? (enabled ? "● " : "○ ") : "";
-						const rowColor =
-							enabled && typeof srv.enabled === "boolean"
-								? palette.success
-								: isSel
-									? "cyan"
-									: "gray";
+						const status = getMcpManagerEntryStatus(srv);
+						let rowColor = isSel ? "cyan" : "gray";
+						if (enabled && typeof srv.enabled === "boolean") {
+							rowColor = palette.success;
+						}
+						if (srv.lastError) {
+							rowColor = palette.error;
+						}
 						return (
-							<box key={srv.name} flexDirection="row">
+							<box
+								key={srv.name}
+								flexDirection="row"
+								justifyContent="space-between"
+							>
 								<text fg={rowColor}>
 									{isSel ? "\u25b8 " : "  "}
 									{enabledIcon}
 									{srv.name}
 								</text>
+								{status && (
+									<text fg={srv.lastError ? palette.error : "gray"}>
+										{status}
+									</text>
+								)}
 							</box>
 						);
 					})}
@@ -152,6 +172,16 @@ export function McpManagerContent(
 				<text fg={palette.error} marginTop={1}>
 					{error}
 				</text>
+			)}
+
+			{selectedServer?.lastError && (
+				<box flexDirection="column" marginTop={1}>
+					<text fg={palette.error}>OAuth error</text>
+					<text fg={palette.error}>{selectedServer.lastError}</text>
+					<text fg="gray">
+						Run cline mcp and choose Authorize OAuth to retry.
+					</text>
+				</box>
 			)}
 
 			<text fg="gray" marginTop={1}>
