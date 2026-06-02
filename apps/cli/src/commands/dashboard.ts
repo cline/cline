@@ -81,11 +81,11 @@ function resolveDefaultWebviewDistDir(): string | undefined {
 	const moduleDir = dirname(fileURLToPath(import.meta.url));
 	const candidates = [
 		...resolveInstalledPlatformPackageWebviewCandidates(),
-		// Source checkout: sdk/apps/cli/src/commands/dashboard.ts
+		// Source checkout: apps/cli/src/commands/dashboard.ts
 		join(moduleDir, "../../../cline-hub/dist/webview"),
-		// Node bundle: sdk/apps/cli/dist/index.js
+		// Node bundle: apps/cli/dist/index.js
 		join(moduleDir, "cline-hub/webview"),
-		// Compiled platform package: sdk/apps/cli/dist/<platform>/bin/cline
+		// Compiled platform package: apps/cli/dist/<platform>/bin/cline
 		join(dirname(process.execPath), "../cline-hub/webview"),
 	];
 
