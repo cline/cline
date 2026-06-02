@@ -165,7 +165,6 @@ function entryFromRuntimeCommand(
 		command.kind === "skill" || command.kind === "workflow"
 			? "user-command"
 			: "runtime";
-	const visible = execution !== "user-command";
 	return {
 		name,
 		description: command.description ?? "",
@@ -173,8 +172,8 @@ function entryFromRuntimeCommand(
 		source,
 		kind: command.kind,
 		execution,
-		visible,
-		selectable: visible,
+		visible: true,
+		selectable: true,
 	};
 }
 
