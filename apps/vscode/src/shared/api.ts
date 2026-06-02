@@ -5195,8 +5195,21 @@ export const qwenCodeDefaultModelId: QwenCodeModelId = "qwen3-coder-plus"
 // https://www.minimax.io/platform/document/text_api_intro
 // https://www.minimax.io/platform/document/pricing
 export type MinimaxModelId = keyof typeof minimaxModels
-export const minimaxDefaultModelId: MinimaxModelId = "MiniMax-M2.7"
+export const minimaxDefaultModelId: MinimaxModelId = "MiniMax-M3"
 export const minimaxModels = {
+	"MiniMax-M3": {
+		maxTokens: 128_000,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		inputPrice: 0.6,
+		outputPrice: 2.4,
+		cacheWritesPrice: 0, // M3 does not charge for cache writes per official pricing
+		cacheReadsPrice: 0.12,
+		description:
+			"Latest M-series flagship model for agentic reasoning, tool use, coding, and long-context tasks. Supports 1M context window, image and video input.",
+	},
 	"MiniMax-M2.7": {
 		maxTokens: 128_000,
 		contextWindow: 192_000,
