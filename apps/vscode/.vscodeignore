@@ -28,7 +28,6 @@ eslint-rules/**
 
 # sdk (separate monorepo with its own build/release pipeline)
 sdk/**
-apps/**
 
 # Source-of-truth for the marketplace README (the .vsix only ever sees the
 # README.md that scripts/marketplace-readme.mjs swaps into place). The backup
