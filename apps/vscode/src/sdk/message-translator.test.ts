@@ -161,6 +161,69 @@ describe("translateSessionEvent — chunk events", () => {
 // ---------------------------------------------------------------------------
 
 describe("translateSessionEvent — agent_event content_start", () => {
+	it("reuses the approved tool prompt row for the matching tool lifecycle", () => {
+		const state = new MessageTranslatorState()
+		const approvedMessageTs = 42
+		state.recordApprovedToolMessageTs("approved-call", approvedMessageTs)
+
+		const startResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "editor",
+						toolCallId: "approved-call",
+						input: {
+							path: "/src/app.ts",
+							old_text: "return false",
+							new_text: "return true",
+						},
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		expect(startResult.messages).toHaveLength(1)
+		expect(startResult.messages[0]).toMatchObject({
+			ts: approvedMessageTs,
+			type: "say",
+			say: "tool",
+			partial: true,
+		})
+
+		const endResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "editor",
+						toolCallId: "approved-call",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		expect(endResult.messages).toHaveLength(1)
+		expect(endResult.messages[0]).toMatchObject({
+			ts: approvedMessageTs,
+			type: "say",
+			say: "tool",
+			partial: false,
+		})
+		expect(JSON.parse(endResult.messages[0].text ?? "{}")).toMatchObject({
+			tool: "editedExistingFile",
+			path: "/src/app.ts",
+		})
+	})
+
 	it("translates text content_start to partial text message", () => {
 		const state = new MessageTranslatorState()
 		const event: CoreSessionEvent = {

@@ -17,10 +17,12 @@ describe("SdkInteractionCoordinator", () => {
 		const messages = new SdkMessageCoordinator({ getTask: () => task })
 		const listener = vi.fn()
 		const postStateToWebview = vi.fn().mockResolvedValue(undefined)
+		const recordApprovedToolMessage = vi.fn()
 		const coordinator = new SdkInteractionCoordinator({
 			messages,
 			getSessionId: () => "session-123",
 			postStateToWebview,
+			recordApprovedToolMessage,
 		})
 		messages.onSessionEvent(listener)
 
@@ -43,15 +45,18 @@ describe("SdkInteractionCoordinator", () => {
 		expect(listener).toHaveBeenCalledOnce()
 
 		expect(coordinator.resolvePendingToolApproval(undefined, "yesButtonClicked")).toBe(true)
+		expect(recordApprovedToolMessage).toHaveBeenCalledWith("tool-call", clineMessages[0].ts)
 		await expect(approvalPromise).resolves.toEqual({ approved: true })
 	})
 
 	it("resolves denied tool approval with the user reason", async () => {
 		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const recordApprovedToolMessage = vi.fn()
 		const coordinator = new SdkInteractionCoordinator({
 			messages: new SdkMessageCoordinator({ getTask: () => task }),
 			getSessionId: () => "session-123",
 			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+			recordApprovedToolMessage,
 		})
 
 		const approvalPromise = coordinator.handleRequestToolApproval({
@@ -69,6 +74,7 @@ describe("SdkInteractionCoordinator", () => {
 		expect(clineMessages[0]).toMatchObject({ type: "ask", ask: "command", text: "npm test" })
 
 		expect(coordinator.resolvePendingToolApproval("too risky", "noButtonClicked")).toBe(true)
+		expect(recordApprovedToolMessage).not.toHaveBeenCalled()
 		await expect(approvalPromise).resolves.toEqual({ approved: false, reason: "too risky" })
 	})
 

@@ -121,6 +121,8 @@ export class MessageTranslatorState {
 	private streamingToolInput: unknown | undefined
 	/** Stored tool name from content_start — used at content_end for consistency */
 	private streamingToolName: string | undefined
+	/** Approved tool-call ids mapped to the approval row that should be updated in place. */
+	private approvedToolMessageTsByCallId = new Map<string, number>()
 	/**
 	 * Process-wide id/seq/epoch authority. Shared with the interaction coordinator and history
 	 * rendering so that message ids never collide across generators. See message-id-minter.ts.
@@ -190,6 +192,28 @@ export class MessageTranslatorState {
 	setStreamingToolContext(toolName: string, input: unknown): void {
 		this.streamingToolName = toolName
 		this.streamingToolInput = input
+	}
+
+	/** Remember the approval prompt row for a tool call after the user approves it. */
+	recordApprovedToolMessageTs(toolCallId: string, messageTs: number): void {
+		this.approvedToolMessageTsByCallId.set(toolCallId, messageTs)
+	}
+
+	/** Reuse and remove a previously-approved prompt row for the matching tool event. */
+	consumeApprovedToolMessageTs(toolCallId: string | undefined): number | undefined {
+		if (!toolCallId) {
+			return undefined
+		}
+		const messageTs = this.approvedToolMessageTsByCallId.get(toolCallId)
+		if (messageTs !== undefined) {
+			this.approvedToolMessageTsByCallId.delete(toolCallId)
+		}
+		return messageTs
+	}
+
+	/** Force the active tool stream to update a known row instead of minting a new row. */
+	setStreamingToolTs(ts: number): void {
+		this.streamingToolTs = ts
 	}
 
 	/** Get the stored tool input (from content_start) */
@@ -282,6 +306,11 @@ export class MessageTranslatorState {
 			this.spawnAgentPromptsTs = this.nextTs()
 		}
 		return this.spawnAgentPromptsTs
+	}
+
+	/** Force the aggregated spawn-agent prompt row to update a known approval row. */
+	setSpawnAgentPromptsTs(ts: number): void {
+		this.spawnAgentPromptsTs = ts
 	}
 
 	/** Get or create the stable timestamp for subagent status messages */
@@ -841,6 +870,10 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 					// Store tool context so content_end can use it
 					// (content_end doesn't carry the input)
 					state.setStreamingToolContext(toolName, input)
+					const approvedToolMessageTs = state.consumeApprovedToolMessageTs(event.toolCallId)
+					if (approvedToolMessageTs !== undefined) {
+						state.setStreamingToolTs(approvedToolMessageTs)
+					}
 
 					// ask_question (and ask_followup_question) is NOT a visual tool row: the
 					// SdkInteractionCoordinator services it and emits the proper ask:"followup"
@@ -890,6 +923,9 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 						const taskPrompt = getStringField(parsedInput, "task") ?? ""
 						const callId = event.toolCallId ?? `spawn-${state.nextTs()}`
 						state.addSpawnAgent(callId, taskPrompt)
+						if (approvedToolMessageTs !== undefined) {
+							state.setSpawnAgentPromptsTs(approvedToolMessageTs)
+						}
 
 						// Emit the combined prompts list (replaces itself on each new spawn_agent)
 						const allPrompts = state.getSpawnAgentItems().map((e) => e.prompt)
