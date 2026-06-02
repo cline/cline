@@ -139,9 +139,12 @@ export function createReadFilesTool(
 					typeof value === "string" ? { path: value } : value,
 				);
 			} else if ("files" in validate) {
-				requests = Array.isArray(validate.files)
+				const files = Array.isArray(validate.files)
 					? validate.files
 					: [validate.files];
+				requests = files.map((file) =>
+					typeof file === "string" ? { path: file } : file,
+				);
 			} else if ("file_paths" in validate) {
 				const filePaths = Array.isArray(validate.file_paths)
 					? validate.file_paths

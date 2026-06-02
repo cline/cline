@@ -871,6 +871,43 @@ describe("default read_files tool", () => {
 		);
 	});
 
+	it("accepts files aliases with string paths from model-generated read requests", async () => {
+		const execute = vi.fn(
+			async (request: { path: string }) => `content:${request.path}`,
+		);
+		const tool = createReadFilesTool(execute);
+
+		await tool.execute(
+			{ files: ["/tmp/a.ts", { path: "/tmp/b.ts", end_line: 4 }] } as never,
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+		await tool.execute({ files: "/tmp/c.ts" } as never, {
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			iteration: 2,
+		});
+
+		expect(execute).toHaveBeenNthCalledWith(
+			1,
+			{ path: "/tmp/a.ts" },
+			expect.objectContaining({ iteration: 1 }),
+		);
+		expect(execute).toHaveBeenNthCalledWith(
+			2,
+			{ path: "/tmp/b.ts", end_line: 4 },
+			expect.objectContaining({ iteration: 1 }),
+		);
+		expect(execute).toHaveBeenNthCalledWith(
+			3,
+			{ path: "/tmp/c.ts" },
+			expect.objectContaining({ iteration: 2 }),
+		);
+	});
+
 	it("rejects invalid union inputs before calling the executor", async () => {
 		const execute = vi.fn(async () => "should not run");
 		const tool = createReadFilesTool(execute);
