@@ -230,6 +230,7 @@ export async function handleConnectorUserTurn<
 	logger: CliLoggerAdapter;
 	transport: string;
 	botUserName?: string;
+	addressedToBot?: boolean;
 	ownerParticipantKeys?: string[];
 	requestStop: (reason: string) => void;
 	bindingsPath: string;
@@ -379,10 +380,13 @@ export async function handleConnectorUserTurn<
 		input.botUserName,
 	);
 	const isConnectorCommand = commandName !== undefined;
+	const commandAddressedToBot =
+		input.addressedToBot ||
+		isConnectorCommandAddressedToThisBot(resolvedInput, input.botUserName);
 	if (
 		isConnectorCommand &&
 		!input.thread.isDM &&
-		!isConnectorCommandAddressedToThisBot(resolvedInput, input.botUserName)
+		!commandAddressedToBot
 	) {
 		input.logger.core.log("Unaddressed connector chat command ignored", {
 			transport: input.transport,
@@ -510,7 +514,7 @@ export async function handleConnectorUserTurn<
 		await maybeHandleChatCommand(resolvedInput, {
 			enabled: true,
 			botUserName: input.botUserName,
-			requireBotMention: !input.thread.isDM,
+			requireBotMention: !input.thread.isDM && !commandAddressedToBot,
 			host: input.chatCommandHost,
 			getState: async () => {
 				const current = await loadThreadState(

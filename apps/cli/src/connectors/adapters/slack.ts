@@ -758,6 +758,7 @@ class SlackConnector extends ConnectorBase<
 		const handleTurn = async (
 			thread: Thread<SlackThreadState>,
 			text: string,
+			addressedToBot: boolean,
 		) => {
 			const currentState = await loadThreadState(
 				thread,
@@ -784,6 +785,7 @@ class SlackConnector extends ConnectorBase<
 								logger: loggerAdapter,
 								transport: "slack",
 								botUserName: options.userName,
+								addressedToBot,
 								requestStop,
 								bindingsPath,
 								hookCommand: options.hookCommand,
@@ -908,7 +910,7 @@ class SlackConnector extends ConnectorBase<
 			) {
 				return;
 			}
-			await handleTurn(thread, text);
+			await handleTurn(thread, text, true);
 		});
 
 		bot.onSubscribedMessage(async (thread, message) => {
@@ -936,7 +938,7 @@ class SlackConnector extends ConnectorBase<
 			) {
 				return;
 			}
-			await handleTurn(thread, text);
+			await handleTurn(thread, text, message.isMention === true);
 		});
 
 		bot.onSlashCommand(async (event) => {
@@ -961,7 +963,7 @@ class SlackConnector extends ConnectorBase<
 				rawMessage: event.raw,
 				errorLabel: "Slack",
 			});
-			await handleTurn(thread, commandText);
+			await handleTurn(thread, commandText, true);
 		});
 
 		await bot.initialize();

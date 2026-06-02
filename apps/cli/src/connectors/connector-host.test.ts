@@ -369,6 +369,51 @@ describe("handleConnectorUserTurn", () => {
 		);
 	});
 
+	it("allows transport-addressed connector slash commands after mention stripping", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
+		tempDirs.push(dir);
+		const bindingsPath = join(dir, "threads.json");
+		const { thread, posts } = createThread(
+			{
+				enableTools: true,
+				autoApproveTools: false,
+				cwd: "/tmp/work",
+				workspaceRoot: "/tmp/work",
+				participantKey: "slack:team:T123:user:U123",
+				participantLabel: "U123",
+			},
+			false,
+		);
+		const runtime = createRuntimeClient("unused");
+
+		await handleConnectorUserTurn({
+			thread: thread as never,
+			text: "/whereami",
+			addressedToBot: true,
+			client: runtime.client as never,
+			pendingApprovals: new Map(),
+			baseStartRequest: baseStartRequest({ enableTools: true }) as never,
+			explicitSystemPrompt: undefined,
+			clientId: "client-1",
+			logger: {
+				core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+			} as never,
+			transport: "slack",
+			botUserName: "cline-slack-retest",
+			requestStop: vi.fn(),
+			bindingsPath,
+			systemRules: "rules",
+			errorLabel: "Slack",
+			getSessionMetadata: () => ({}),
+			reusedLogMessage: "reused",
+		});
+
+		expect(posts).toEqual([
+			expect.stringContaining("threadId=thread-1"),
+		]);
+		expect(runtime.sendRuntimeSession).not.toHaveBeenCalled();
+	});
+
 	it("denies non-owner connector slash commands", async () => {
 		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
 		tempDirs.push(dir);
