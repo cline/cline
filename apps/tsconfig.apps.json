@@ -1,29 +1,30 @@
 {
 	"compilerOptions": {
 		"paths": {
-			"@cline/agents": ["../packages/agents/src/index.ts"],
+			"@cline/agents": ["../sdk/packages/agents/src/index.ts"],
 			"@cline/agents/*": [
-				"../packages/agents/src/*",
-				"../packages/agents/src/*/index.ts"
+				"../sdk/packages/agents/src/*",
+				"../sdk/packages/agents/src/*/index.ts"
 			],
-			"@cline/core": ["../packages/core/src/index.ts"],
+			"@cline/cline-hub": ["./cline-hub/src/server.ts"],
+			"@cline/core": ["../sdk/packages/core/src/index.ts"],
 			"@cline/core/hub/daemon-entry": [
-				"../packages/core/src/hub/daemon/entry.ts"
+				"../sdk/packages/core/src/hub/daemon/entry.ts"
 			],
 			"@cline/core/*": [
-				"../packages/core/src/*",
-				"../packages/core/src/*/index.ts"
+				"../sdk/packages/core/src/*",
+				"../sdk/packages/core/src/*/index.ts"
 			],
 			"@cline/core/telemetry": [
-				"../packages/core/src/services/telemetry/index.ts"
+				"../sdk/packages/core/src/services/telemetry/index.ts"
 			],
-			"@cline/llms": ["../packages/llms/src/index.ts"],
-			"@cline/shared": ["../packages/shared/src/index.ts"],
-			"@cline/shared/storage": ["../packages/shared/src/storage/index.ts"],
-			"@cline/shared/db": ["../packages/shared/src/db/index.ts"],
+			"@cline/llms": ["../sdk/packages/llms/src/index.ts"],
+			"@cline/shared": ["../sdk/packages/shared/src/index.ts"],
+			"@cline/shared/storage": ["../sdk/packages/shared/src/storage/index.ts"],
+			"@cline/shared/db": ["../sdk/packages/shared/src/db/index.ts"],
 			"@cline/shared/*": [
-				"../packages/shared/src/*",
-				"../packages/shared/src/*/index.ts"
+				"../sdk/packages/shared/src/*",
+				"../sdk/packages/shared/src/*/index.ts"
 			]
 		}
 	}

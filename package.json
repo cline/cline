@@ -3,10 +3,10 @@
     "private": true,
     "workspaces": [
         "sdk/packages/*",
-        "sdk/apps/*",
-        "sdk/apps/cline-hub/src/webview",
-        "sdk/apps/examples/*",
-        "sdk/apps/examples/vscode/src/webview",
+        "apps/*",
+        "apps/cline-hub/src/webview",
+        "apps/examples/*",
+        "apps/examples/vscode/src/webview",
         "sdk/examples",
         "sdk/examples/plugins/*"
     ],

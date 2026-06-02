@@ -10,6 +10,7 @@ import {
 	getDefaultShell,
 	getShellArgs,
 } from "@cline/shared";
+import { TimeoutError } from "../helpers";
 import type { BashExecutor } from "../types";
 
 /**
@@ -108,7 +109,10 @@ function spawnAndCollect(
 		};
 
 		const timeout = setTimeout(
-			() => killAndReject(new Error(`Command timed out after ${timeoutMs}ms`)),
+			() =>
+				killAndReject(
+					new TimeoutError(`Command timed out after ${timeoutMs}ms`, timeoutMs),
+				),
 			timeoutMs,
 		);
 

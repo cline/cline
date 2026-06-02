@@ -69,6 +69,8 @@ apps/examples/*/src-tauri/bin
 # Tauri UI test snapshots
 apps/*/src/tests/.tui-test
 apps/*/src/tests/tui-traces
+apps/vscode/webview-ui/src/**/*.js
+apps/vscode/webview-ui/src/**/*.js.map
 
 
 # SDK Session files / User data

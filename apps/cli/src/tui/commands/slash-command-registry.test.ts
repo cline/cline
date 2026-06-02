@@ -228,6 +228,28 @@ describe("slash command registry", () => {
 		).toContain("skills");
 	});
 
+	it("exposes plugins as a local settings shortcut", () => {
+		const registry = buildSlashCommandRegistry({});
+		const commandNames = getVisibleSystemSlashCommands(registry).map(
+			(command) => command.name,
+		);
+
+		expect(resolveSlashCommand(registry, "plugins")).toMatchObject({
+			source: "tui",
+			execution: "local",
+			description: "Manage plugins",
+			visible: true,
+			selectable: true,
+		});
+		expect(commandNames).toContain("plugins");
+		expect(commandNames.indexOf("plugins")).toBeGreaterThan(
+			commandNames.indexOf("mcp"),
+		);
+		expect(commandNames.indexOf("plugins")).toBeLessThan(
+			commandNames.indexOf("skills"),
+		);
+	});
+
 	it("keeps config as a hidden alias for settings", () => {
 		const registry = buildSlashCommandRegistry({ canFork: true });
 

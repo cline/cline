@@ -156,9 +156,9 @@ Current SDK layering:
 
 ## 📖 Documentation
 
-- [Cline SDK README](../packages/README.md)
+- [Cline SDK README](../sdk/packages/README.md)
 - [Architecture Guide](../ARCHITECTURE.md)
-- [Individual Package Docs](../packages/)
+- [Individual Package Docs](../sdk/packages/)
 
 ## 🛠️ Requirements
 

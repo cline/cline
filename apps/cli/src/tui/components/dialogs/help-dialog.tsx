@@ -134,6 +134,12 @@ const HELP_ROWS: HelpRow[] = [
 	},
 	{
 		kind: "entry",
+		id: "c-plugins",
+		key: "/plugins",
+		desc: "Open plugin settings",
+	},
+	{
+		kind: "entry",
 		id: "c-account",
 		key: "/account",
 		desc: "View Cline account and switch account",

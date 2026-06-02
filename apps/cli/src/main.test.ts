@@ -53,6 +53,9 @@ const promptMocks = vi.hoisted(() => ({
 const kanbanMocks = vi.hoisted(() => ({
 	launchKanban: vi.fn(),
 }));
+const dashboardMocks = vi.hoisted(() => ({
+	runDashboardCommand: vi.fn(),
+}));
 const migrationNoticeMocks = vi.hoisted(() => ({
 	getClineCliMigrationNotice: vi.fn<() => CliMigrationNotice | undefined>(
 		() => undefined,
@@ -165,6 +168,7 @@ vi.mock("./runtime/prompt", () => ({
 	resolveSystemPrompt: promptMocks.resolveSystemPrompt,
 }));
 vi.mock("./commands/kanban", () => kanbanMocks);
+vi.mock("./commands/dashboard", () => dashboardMocks);
 vi.mock("./kanban-migration/notice", () => migrationNoticeMocks);
 vi.mock("./commands/update", () => updateMocks);
 vi.mock("./commands/history", () => historyMocks);
@@ -231,6 +235,8 @@ describe("runCli lightweight command dispatch", () => {
 		providerSettingsMocks.saveProviderSettings.mockReset();
 		kanbanMocks.launchKanban.mockReset();
 		kanbanMocks.launchKanban.mockResolvedValue(0);
+		dashboardMocks.runDashboardCommand.mockReset();
+		dashboardMocks.runDashboardCommand.mockResolvedValue(0);
 		migrationNoticeMocks.getClineCliMigrationNotice.mockReset();
 		migrationNoticeMocks.getClineCliMigrationNotice.mockReturnValue(undefined);
 		migrationNoticeMocks.markClineCliMigrationNoticeShown.mockReset();
@@ -781,6 +787,31 @@ describe("runCli lightweight command dispatch", () => {
 
 		await expect(runCli()).resolves.toBeUndefined();
 		expect(kanbanMocks.launchKanban).toHaveBeenCalledTimes(1);
+		expect(mockState.runAgentImports).toBe(0);
+		expect(mockState.runInteractiveImports).toBe(0);
+		expect(process.exitCode).toBe(0);
+	});
+
+	it("runs dashboard before loading runtime modules", async () => {
+		process.argv = [
+			"bun",
+			"src/index.ts",
+			"dashboard",
+			"--port",
+			"9090",
+			"--no-open",
+		];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(dashboardMocks.runDashboardCommand).toHaveBeenCalledWith(
+			expect.objectContaining({
+				port: "9090",
+				openBrowser: false,
+				io: expect.any(Object),
+			}),
+		);
 		expect(mockState.runAgentImports).toBe(0);
 		expect(mockState.runInteractiveImports).toBe(0);
 		expect(process.exitCode).toBe(0);

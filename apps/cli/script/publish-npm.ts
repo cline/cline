@@ -90,7 +90,7 @@ function buildHostSdkDependencies(): Record<string, string> {
 	for (const pkg of hostSdkPackages) {
 		dependencies[pkg.name] = readPackageVersion(
 			pkg.name,
-			join(cliDir, "../../packages", pkg.directory, "package.json"),
+			join(cliDir, "../../sdk/packages", pkg.directory, "package.json"),
 		);
 	}
 	return dependencies;

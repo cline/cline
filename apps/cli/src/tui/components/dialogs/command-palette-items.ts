@@ -4,6 +4,7 @@ export type CommandPaletteAction =
 	| "change-provider"
 	| "account"
 	| "mcp"
+	| "plugins"
 	| "compact"
 	| "skills"
 	| "fork"
@@ -62,6 +63,13 @@ const ACTION_ITEMS: Array<{
 		shortcut: "Opt+C",
 		description: "Enable, disable, or inspect MCP servers",
 		keywords: ["mcp", "server", "tool", "toggle"],
+	},
+	{
+		action: "plugins",
+		label: "Manage Plugins",
+		shortcut: "Opt+G",
+		description: "Open plugin settings",
+		keywords: ["plugins", "extensions", "settings"],
 	},
 	{
 		action: "account",
