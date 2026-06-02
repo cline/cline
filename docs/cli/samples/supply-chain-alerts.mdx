@@ -55,16 +55,11 @@ Read the announcement: [Perplexity is open-sourcing Bumblebee](https://www.perpl
 - A Telegram account.
 - An AI provider key, or a Cline account.
 
-## 1. Install and authenticate the Cline CLI
+## 1. Install the Cline CLI
 
 ```bash
 npm install -g cline
-```
-
-Authenticate a provider. Swap in whichever you use:
-
-```bash
-cline auth --provider anthropic --apikey "$ANTHROPIC_API_KEY" --modelid claude-sonnet-4-6
+cline # run once to configure inference provider and model
 ```
 
 ## 2. Clone and build Bumblebee
@@ -129,11 +124,7 @@ Scan profiles control where Bumblebee looks. `baseline` checks standard global t
   </Step>
 
   <Step title="Open the chat">
-    In Telegram, search for your bot's username and send it any message (for example `/whereami`). This creates the thread binding that delivery needs. Then enable auto-approval so the scheduled scan can run commands without waiting:
-
-    ```text
-    /yolo on
-    ```
+    In Telegram, search for your bot's username and send it any message (for example `/whereami`). This creates the thread binding that delivery needs.
   </Step>
 </Steps>
 
@@ -150,28 +141,32 @@ Replace `12345` with your user ID.
 
 ## 5. Schedule the scan
 
-The simplest way to wire up delivery is to create the schedule from the Telegram chat itself. Schedules created this way automatically target that thread, so results come straight back to you.
+There are two ways to create the scheduled scan. Both run the same agent and deliver the result to Telegram, so pick whichever you prefer.
 
-Send this to your bot (one message):
+### Option A: From the Telegram chat
+
+Creating the schedule from the chat automatically targets that thread for delivery, so results come straight back to you. Send this to your bot as a single message:
 
 ```text
 /schedule create "supply-chain-watch" --cron "0 8 * * *" --prompt "Pull the latest Bumblebee catalogs and scan this machine for compromised packages. Run: git pull --quiet && go build -o bumblebee ./cmd/bumblebee && ./bumblebee scan --profile deep --root $HOME --exposure-catalog ./threat_intel/ --findings-only. Read the NDJSON output. If any line has record_type set to finding, reply starting with '🚨 COMPROMISE DETECTED' and list each package name, version, ecosystem, and source_file. If there are no findings, reply with exactly '✅ Clean: no compromised packages found.'"
 ```
 
-That schedules a daily scan at 8am. The bot replies with the new schedule id.
+The bot replies with the new schedule, including its id.
 
-<Note>
-Prefer to manage schedules from the terminal? Create the schedule with delivery flags, and the running Telegram connector delivers the result to its chat:
+### Option B: From your terminal
+
+Create the schedule with the Cline CLI on the same machine and pass the delivery method explicitly. The running Telegram connector delivers the result to its chat:
 
 ```bash
 cline schedule create "supply-chain-watch" \
   --cron "0 8 * * *" \
   --workspace ~/tools/bumblebee \
-  --prompt "Pull the latest Bumblebee catalogs and scan this machine ..." \
   --delivery-adapter telegram \
-  --delivery-bot <bot-username>
+  --delivery-bot <bot-username> \
+  --prompt "Pull the latest Bumblebee catalogs and scan this machine for compromised packages. Run: git pull --quiet && go build -o bumblebee ./cmd/bumblebee && ./bumblebee scan --profile deep --root \$HOME --exposure-catalog ./threat_intel/ --findings-only. Read the NDJSON output. If any line has record_type set to finding, reply starting with '🚨 COMPROMISE DETECTED' and list each package name, version, ecosystem, and source_file. If there are no findings, reply with exactly '✅ Clean: no compromised packages found.'"
 ```
-</Note>
+
+Either way, this schedules a daily scan at 8am.
 
 ## Why the green check matters
 
@@ -182,13 +177,21 @@ Scheduled delivery always sends the run's final reply, so the prompt is written 
 
 ## Test it
 
-Trigger the schedule immediately instead of waiting for 8am. From Telegram:
+Trigger the scan now instead of waiting for 8am.
 
-```text
-/schedule trigger <schedule-id>
+First find your schedule id. The create step returns it (the Telegram bot's reply shows `id=...`), or list your schedules at any time:
+
+```bash
+cline schedule list
 ```
 
-Or from the terminal: `cline schedule trigger <schedule-id>`. Within a few seconds you should get the result in your chat.
+Then trigger it with that id. From the terminal:
+
+```bash
+cline schedule trigger <schedule-id>
+```
+
+Or from Telegram: `/schedule trigger <schedule-id>`. Within a few seconds you should get the result in your chat.
 
 To see a real alert, add a package and version that matches a catalog entry to a throwaway project's lockfile and run the scan against it. Bumblebee reports the match, and the agent texts you the red alert.
 
