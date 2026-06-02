@@ -1,7 +1,7 @@
 import { ClineDefaultTool, getToolUseNames } from "@shared/tools"
 import { nanoid } from "nanoid"
-import type { AssistantMessageContent, TextStreamContent, ToolParamName, ToolUse } from "."
-import { toolParamNames } from "."
+import type { AssistantMessageContent, TextStreamContent, ToolUse } from "."
+import { type ToolParamName, toolParamNames } from "./tool-param-names"
 
 interface ParsedJsonTool {
 	name: string

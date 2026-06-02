@@ -1,6 +1,9 @@
 import { ClineDefaultTool } from "@shared/tools"
+import type { ToolParamName } from "./tool-param-names"
 
 export type AssistantMessageContent = TextStreamContent | ToolUse | ReasoningStreamContent
+
+export { toolParamNames, type ToolParamName } from "./tool-param-names"
 
 export { parseAssistantMessageV2 } from "./parse-assistant-message"
 
@@ -9,56 +12,6 @@ export interface TextStreamContent {
 	content: string
 	partial: boolean
 }
-
-export const toolParamNames = [
-	"command",
-	"requires_approval",
-	"path",
-	"absolutePath",
-	"content",
-	"diff",
-	"regex",
-	"file_pattern",
-	"recursive",
-	"action",
-	"url",
-	"coordinate",
-	"text",
-	"query",
-	"allowed_domains",
-	"blocked_domains",
-	"prompt",
-	"server_name",
-	"tool_name",
-	"arguments",
-	"uri",
-	"question",
-	"options",
-	"response",
-	"result",
-	"context",
-	"title",
-	"what_happened",
-	"steps_to_reproduce",
-	"api_request_output",
-	"additional_context",
-	"needs_more_exploration",
-	"task_progress",
-	"timeout",
-	"input",
-	"from_ref",
-	"to_ref",
-	"skill_name",
-	"prompt_1",
-	"prompt_2",
-	"prompt_3",
-	"prompt_4",
-	"prompt_5",
-	"start_line",
-	"end_line",
-] as const
-
-export type ToolParamName = (typeof toolParamNames)[number]
 
 export interface ToolUse {
 	type: "tool_use"
