@@ -2,8 +2,9 @@ import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import type { CoreSessionConfig } from "@cline/core"
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import {
+	buildSessionConfig,
 	buildResumeSessionInput,
 	buildStartSessionInput,
 	createHistoryItemFromSession,
@@ -14,6 +15,56 @@ import {
 	updateHistoryItem,
 } from "./cline-session-factory"
 
+const mocks = vi.hoisted(() => {
+	const providerSettingsManager = {
+		getLastUsedProviderSettings: vi.fn(() => undefined),
+		getProviderSettings: vi.fn(() => undefined),
+		saveProviderSettings: vi.fn(),
+	}
+
+	return {
+		getDistinctId: vi.fn(() => "test-distinct-id"),
+		getProviderSettingsManager: vi.fn(() => providerSettingsManager),
+		providerSettingsManager,
+		stateManager: {
+			getApiConfiguration: vi.fn(() => ({
+				actModeApiProvider: "anthropic",
+				actModeApiModelId: "claude-sonnet-4-6",
+				apiKey: "test-key",
+			})),
+			getGlobalSettingsKey: vi.fn((key: string) => {
+				if (key === "subagentsEnabled" || key === "useAutoCondense") {
+					return false
+				}
+				return undefined
+			}),
+		},
+	}
+})
+
+vi.mock("@/core/storage/StateManager", () => ({
+	StateManager: {
+		get: () => mocks.stateManager,
+	},
+}))
+
+vi.mock("@/services/logging/distinctId", () => ({
+	getDistinctId: mocks.getDistinctId,
+}))
+
+vi.mock("./provider-migration", () => ({
+	getProviderSettingsManager: mocks.getProviderSettingsManager,
+}))
+
+vi.mock("@shared/services/Logger", () => ({
+	Logger: {
+		debug: vi.fn(),
+		log: vi.fn(),
+		warn: vi.fn(),
+		error: vi.fn(),
+	},
+}))
+
 // ---------------------------------------------------------------------------
 // Test helpers
 // ---------------------------------------------------------------------------
@@ -22,6 +73,20 @@ let tempDir: string
 
 beforeEach(() => {
 	tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "cline-session-factory-"))
+	vi.clearAllMocks()
+	mocks.stateManager.getApiConfiguration.mockReturnValue({
+		actModeApiProvider: "anthropic",
+		actModeApiModelId: "claude-sonnet-4-6",
+		apiKey: "test-key",
+	})
+	mocks.stateManager.getGlobalSettingsKey.mockImplementation((key: string) => {
+		if (key === "subagentsEnabled" || key === "useAutoCondense") {
+			return false
+		}
+		return undefined
+	})
+	mocks.providerSettingsManager.getLastUsedProviderSettings.mockReturnValue(undefined)
+	mocks.providerSettingsManager.getProviderSettings.mockReturnValue(undefined)
 })
 
 afterEach(() => {
@@ -199,6 +264,64 @@ describe("normalizeProviderReasoningSettings", () => {
 		const result = normalizeProviderReasoningSettings({ effort: "medium" })
 
 		expect(result).toEqual({ reasoningEffort: "medium" })
+	})
+})
+
+// ---------------------------------------------------------------------------
+// buildSessionConfig
+// ---------------------------------------------------------------------------
+
+describe("buildSessionConfig", () => {
+	it("enables basic SDK compaction when global useAutoCondense is true", async () => {
+		mocks.stateManager.getGlobalSettingsKey.mockImplementation((key: string) => {
+			if (key === "useAutoCondense") {
+				return true
+			}
+			if (key === "subagentsEnabled") {
+				return false
+			}
+			return undefined
+		})
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.compaction).toEqual({
+			enabled: true,
+			strategy: "basic",
+		})
+	})
+
+	it("does not enable SDK compaction when global useAutoCondense is false", async () => {
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.compaction).toBeUndefined()
+	})
+
+	it("lets task useAutoCondense override the global setting", async () => {
+		mocks.stateManager.getGlobalSettingsKey.mockImplementation((key: string) => {
+			if (key === "useAutoCondense") {
+				return true
+			}
+			if (key === "subagentsEnabled") {
+				return false
+			}
+			return undefined
+		})
+
+		const disabledConfig = await buildSessionConfig({
+			cwd: "/tmp/workspace",
+			taskSettings: { useAutoCondense: false },
+		})
+		const enabledConfig = await buildSessionConfig({
+			cwd: "/tmp/workspace",
+			taskSettings: { useAutoCondense: true },
+		})
+
+		expect(disabledConfig.compaction).toBeUndefined()
+		expect(enabledConfig.compaction).toEqual({
+			enabled: true,
+			strategy: "basic",
+		})
 	})
 })
 
