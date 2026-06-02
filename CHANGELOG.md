@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.87.0]
+
+### Added
+
+- Add MiniMax M3 model support.
+
+### Fixed
+
+- Update VS Code extension dependencies to resolve security issues in `@xmldom/xmldom`, `basic-ftp`, `axios`, `undici`, and other direct/transitive packages.
+
 ## [3.86.2]
 
 ### Fixed
