@@ -42,9 +42,8 @@ describe("McpConfigurationView", () => {
 		mocks.remoteConfigSettings = {}
 	})
 
-	it("removes the marketplace tab while keeping remote servers available when marketplace policy is disabled", async () => {
+	it("never renders the marketplace tab while keeping remote servers available", async () => {
 		mocks.remoteConfigSettings = {
-			mcpMarketplaceEnabled: false,
 			blockPersonalRemoteMCPServers: false,
 		}
 
@@ -60,7 +59,6 @@ describe("McpConfigurationView", () => {
 
 	it("hides remote servers only when personal remote MCP servers are blocked", () => {
 		mocks.remoteConfigSettings = {
-			mcpMarketplaceEnabled: true,
 			blockPersonalRemoteMCPServers: true,
 		}
 
