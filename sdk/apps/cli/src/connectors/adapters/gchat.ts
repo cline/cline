@@ -539,10 +539,11 @@ class GoogleChatConnector extends ConnectorBase<
 		});
 		await userInstructionService.start().catch(() => undefined);
 		const commandCwd = startRequest.cwd || process.cwd();
-		const { host: chatCommandHost } = await createWorkspaceChatCommandHost({
-			cwd: commandCwd,
-			workspaceRoot: startRequest.workspaceRoot || commandCwd,
-		});
+		const { host: chatCommandHost, shutdown: shutdownPluginChatCommands } =
+			await createWorkspaceChatCommandHost({
+				cwd: commandCwd,
+				workspaceRoot: startRequest.workspaceRoot || commandCwd,
+			});
 		const { url: rpcAddress, authToken: rpcAuthToken } =
 			await ensureCliHubServer(
 				startRequest.workspaceRoot || startRequest.cwd || process.cwd(),
@@ -823,6 +824,7 @@ class GoogleChatConnector extends ConnectorBase<
 		stopTaskUpdateStream();
 		stopEventStream();
 		await server.close();
+		await shutdownPluginChatCommands().catch(() => undefined);
 		userInstructionService.stop();
 		client.close();
 		this.removeStateFile(statePath);
