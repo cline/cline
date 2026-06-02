@@ -173,7 +173,6 @@ export function createInteractiveSessionRuntime(input: {
 			initialMessages: initial,
 			...(sessionMetadata ? { sessionMetadata } : {}),
 			localRuntime: {
-				userInstructionService: input.userInstructionService,
 				onTeamRestored: () => {},
 			},
 		});
@@ -200,7 +199,6 @@ export function createInteractiveSessionRuntime(input: {
 			interactive: true,
 			initialMessages: initial,
 			localRuntime: {
-				userInstructionService: input.userInstructionService,
 				onTeamRestored: () => {},
 			},
 		});
@@ -497,7 +495,6 @@ export function createInteractiveSessionRuntime(input: {
 				toolPolicies: input.config.toolPolicies,
 				interactive: true,
 				localRuntime: {
-					userInstructionService: input.userInstructionService,
 					onTeamRestored: () => {},
 				},
 			},

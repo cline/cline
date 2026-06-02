@@ -52,6 +52,7 @@ export interface RuntimeBuilderInput {
 	createSpawnTool?: () => AgentTool;
 	onTeamRestored?: () => void;
 	userInstructionService?: UserInstructionConfigService;
+	pluginSkillDirectories?: ReadonlyArray<string>;
 	configExtensions?: RuntimeConfigExtensionKind[];
 	toolExecutors?: Partial<ToolExecutors>;
 	workspaceManager?: WorkspaceManager;
