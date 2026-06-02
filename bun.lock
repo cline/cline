@@ -17,9 +17,9 @@
         "typescript": "^5.9.3",
       },
     },
-    "apps/cli": {
+    "sdk/apps/cli": {
       "name": "@cline/cli",
-      "version": "3.0.14",
+      "version": "3.0.15",
       "bin": {
         "cline": "src/index.ts",
       },
@@ -32,6 +32,7 @@
         "@chat-adapter/telegram": "^4.23.0",
         "@chat-adapter/whatsapp": "^4.23.0",
         "@clack/prompts": "^1.2.0",
+        "@cline/cline-hub": "workspace:*",
         "@gramio/format": "^0.7.0",
         "@opentui-ui/dialog": "^0.1.2",
         "@opentui/core": "0.1.102",
@@ -56,7 +57,7 @@
         "@types/react": "19.2.14",
       },
     },
-    "apps/cline-hub": {
+    "sdk/apps/cline-hub": {
       "name": "@cline/cline-hub",
       "version": "0.0.0",
       "dependencies": {
@@ -65,7 +66,7 @@
         "@cline/shared": "workspace:*",
       },
     },
-    "apps/cline-hub/src/webview": {
+    "sdk/apps/cline-hub/src/webview": {
       "name": "@cline/cline-hub-webview",
       "version": "0.0.0",
       "dependencies": {
@@ -122,7 +123,7 @@
         "vite": "^8.0.0",
       },
     },
-    "apps/examples/cli-agent": {
+    "sdk/apps/examples/cli-agent": {
       "name": "@cline/example-cli-agent",
       "version": "0.0.0",
       "dependencies": {
@@ -133,7 +134,7 @@
         "typescript": "^5.9.3",
       },
     },
-    "apps/examples/cline-core-cli-agent": {
+    "sdk/apps/examples/cline-core-cli-agent": {
       "name": "@cline/example-cline-core-cli-agent",
       "version": "0.0.0",
       "dependencies": {
@@ -143,7 +144,7 @@
         "typescript": "^5.9.3",
       },
     },
-    "apps/examples/code-review-bot": {
+    "sdk/apps/examples/code-review-bot": {
       "name": "@cline/example-code-review-bot",
       "version": "0.0.0",
       "dependencies": {
@@ -154,7 +155,7 @@
         "typescript": "^5.9.3",
       },
     },
-    "apps/examples/desktop-app": {
+    "sdk/apps/examples/desktop-app": {
       "name": "@cline/code",
       "version": "0.0.0",
       "dependencies": {
@@ -229,7 +230,7 @@
         "typescript": "5.7.3",
       },
     },
-    "apps/examples/menubar": {
+    "sdk/apps/examples/menubar": {
       "name": "@cline/menubar",
       "version": "0.1.0",
       "dependencies": {
@@ -243,7 +244,7 @@
         "typescript": "^5.9.3",
       },
     },
-    "apps/examples/multi-agent": {
+    "sdk/apps/examples/multi-agent": {
       "name": "@cline/example-multi-agent",
       "version": "0.0.0",
       "dependencies": {
@@ -253,7 +254,7 @@
         "typescript": "^5.9.3",
       },
     },
-    "apps/examples/quickstart": {
+    "sdk/apps/examples/quickstart": {
       "name": "@cline/example-quickstart",
       "version": "0.0.0",
       "dependencies": {
@@ -263,7 +264,7 @@
         "typescript": "^5.9.3",
       },
     },
-    "apps/examples/vscode": {
+    "sdk/apps/examples/vscode": {
       "name": "@cline/vscode",
       "version": "0.0.0",
       "dependencies": {
@@ -279,7 +280,7 @@
         "typescript": "^5.9.3",
       },
     },
-    "apps/examples/vscode/src/webview": {
+    "sdk/apps/examples/vscode/src/webview": {
       "name": "webview",
       "version": "0.0.0",
       "dependencies": {
@@ -336,7 +337,7 @@
         "vite": "^8.0.0",
       },
     },
-    "examples": {
+    "sdk/examples": {
       "name": "examples",
       "dependencies": {
         "@cline/core": "workspace:*",
@@ -348,7 +349,7 @@
         "typescript": "^5",
       },
     },
-    "examples/plugins/agents-squad": {
+    "sdk/examples/plugins/agents-squad": {
       "name": "cline-agent-squad-plugin",
       "version": "0.1.0",
       "dependencies": {
@@ -362,7 +363,7 @@
         "@cline/core",
       ],
     },
-    "packages/agents": {
+    "sdk/packages/agents": {
       "name": "@cline/agents",
       "version": "0.0.42",
       "dependencies": {
@@ -371,7 +372,7 @@
         "nanoid": "^5.1.7",
       },
     },
-    "packages/core": {
+    "sdk/packages/core": {
       "name": "@cline/core",
       "version": "0.0.42",
       "dependencies": {
@@ -402,7 +403,7 @@
         "@types/ws": "^8.18.1",
       },
     },
-    "packages/llms": {
+    "sdk/packages/llms": {
       "name": "@cline/llms",
       "version": "0.0.42",
       "dependencies": {
@@ -436,14 +437,14 @@
         "@aws-sdk/client-bedrock-runtime",
       ],
     },
-    "packages/sdk": {
+    "sdk/packages/sdk": {
       "name": "@cline/sdk",
       "version": "0.0.42",
       "dependencies": {
         "@cline/core": "workspace:*",
       },
     },
-    "packages/shared": {
+    "sdk/packages/shared": {
       "name": "@cline/shared",
       "version": "0.0.42",
       "dependencies": {
@@ -653,37 +654,37 @@
 
     "@clack/prompts": ["@clack/prompts@1.5.0", "", { "dependencies": { "@clack/core": "1.4.0", "fast-string-width": "^3.0.2", "fast-wrap-ansi": "^0.2.0", "sisteransi": "^1.0.5" } }, "sha512-wKh+wTjmrUoUdkZg8KpJO5X+p9PWV+KE9mePseq9UYWkukgTKsGS47RRL2HstwVcvDQH+PenrPJWII8+MfiiyA=="],
 
-    "@cline/agents": ["@cline/agents@workspace:packages/agents"],
+    "@cline/agents": ["@cline/agents@workspace:sdk/packages/agents"],
 
-    "@cline/cli": ["@cline/cli@workspace:apps/cli"],
+    "@cline/cli": ["@cline/cli@workspace:sdk/apps/cli"],
 
-    "@cline/cline-hub": ["@cline/cline-hub@workspace:apps/cline-hub"],
+    "@cline/cline-hub": ["@cline/cline-hub@workspace:sdk/apps/cline-hub"],
 
-    "@cline/cline-hub-webview": ["@cline/cline-hub-webview@workspace:apps/cline-hub/src/webview"],
+    "@cline/cline-hub-webview": ["@cline/cline-hub-webview@workspace:sdk/apps/cline-hub/src/webview"],
 
-    "@cline/code": ["@cline/code@workspace:apps/examples/desktop-app"],
+    "@cline/code": ["@cline/code@workspace:sdk/apps/examples/desktop-app"],
 
-    "@cline/core": ["@cline/core@workspace:packages/core"],
+    "@cline/core": ["@cline/core@workspace:sdk/packages/core"],
 
-    "@cline/example-cli-agent": ["@cline/example-cli-agent@workspace:apps/examples/cli-agent"],
+    "@cline/example-cli-agent": ["@cline/example-cli-agent@workspace:sdk/apps/examples/cli-agent"],
 
-    "@cline/example-cline-core-cli-agent": ["@cline/example-cline-core-cli-agent@workspace:apps/examples/cline-core-cli-agent"],
+    "@cline/example-cline-core-cli-agent": ["@cline/example-cline-core-cli-agent@workspace:sdk/apps/examples/cline-core-cli-agent"],
 
-    "@cline/example-code-review-bot": ["@cline/example-code-review-bot@workspace:apps/examples/code-review-bot"],
+    "@cline/example-code-review-bot": ["@cline/example-code-review-bot@workspace:sdk/apps/examples/code-review-bot"],
 
-    "@cline/example-multi-agent": ["@cline/example-multi-agent@workspace:apps/examples/multi-agent"],
+    "@cline/example-multi-agent": ["@cline/example-multi-agent@workspace:sdk/apps/examples/multi-agent"],
 
-    "@cline/example-quickstart": ["@cline/example-quickstart@workspace:apps/examples/quickstart"],
+    "@cline/example-quickstart": ["@cline/example-quickstart@workspace:sdk/apps/examples/quickstart"],
 
-    "@cline/llms": ["@cline/llms@workspace:packages/llms"],
+    "@cline/llms": ["@cline/llms@workspace:sdk/packages/llms"],
 
-    "@cline/menubar": ["@cline/menubar@workspace:apps/examples/menubar"],
+    "@cline/menubar": ["@cline/menubar@workspace:sdk/apps/examples/menubar"],
 
-    "@cline/sdk": ["@cline/sdk@workspace:packages/sdk"],
+    "@cline/sdk": ["@cline/sdk@workspace:sdk/packages/sdk"],
 
-    "@cline/shared": ["@cline/shared@workspace:packages/shared"],
+    "@cline/shared": ["@cline/shared@workspace:sdk/packages/shared"],
 
-    "@cline/vscode": ["@cline/vscode@workspace:apps/examples/vscode"],
+    "@cline/vscode": ["@cline/vscode@workspace:sdk/apps/examples/vscode"],
 
     "@colors/colors": ["@colors/colors@1.6.0", "", {}, "sha512-Ir+AOibqzrIsL6ajt3Rz3LskB7OiMVHqltZmspbW/TJuTVuyOMirVqAkjfY6JISiLHgyNqicAC8AyHHGzNd/dA=="],
 
@@ -1795,7 +1796,7 @@
 
     "client-only": ["client-only@0.0.1", "", {}, "sha512-IV3Ou0jSMzZrd3pZ48nLkT9DA7Ag1pnPzaiQhpW7c3RbcqqzvzzVu+L8gfqMp/8IM2MQtSiqaCxrrcfu8I8rMA=="],
 
-    "cline-agent-squad-plugin": ["cline-agent-squad-plugin@workspace:examples/plugins/agents-squad"],
+    "cline-agent-squad-plugin": ["cline-agent-squad-plugin@workspace:sdk/examples/plugins/agents-squad"],
 
     "cliui": ["cliui@8.0.1", "", { "dependencies": { "string-width": "^4.2.0", "strip-ansi": "^6.0.1", "wrap-ansi": "^7.0.0" } }, "sha512-BSeNnyus75C4//NQ9gQt1/csTXyo/8Sb+afLAkzAptFuMsod9HFokGNudZpi/oQV73hnVK+sR+5PVRMd+Dr7YQ=="],
 
@@ -2075,7 +2076,7 @@
 
     "eventsource-parser": ["eventsource-parser@3.1.0", "", {}, "sha512-kJezFj9YFAMLeORyi7aCLxLbD5/qWMQnoMVlVPyHIll7lgRJCc3JVln9Vgl9nwQi0YkMnhdGTMNn7CkRRAptMg=="],
 
-    "examples": ["examples@workspace:examples"],
+    "examples": ["examples@workspace:sdk/examples"],
 
     "execa": ["execa@9.6.1", "", { "dependencies": { "@sindresorhus/merge-streams": "^4.0.0", "cross-spawn": "^7.0.6", "figures": "^6.1.0", "get-stream": "^9.0.0", "human-signals": "^8.0.1", "is-plain-obj": "^4.1.0", "is-stream": "^4.0.1", "npm-run-path": "^6.0.0", "pretty-ms": "^9.2.0", "signal-exit": "^4.1.0", "strip-final-newline": "^4.0.0", "yoctocolors": "^2.1.1" } }, "sha512-9Be3ZoN4LmYR90tUoVu2te2BsbzHfhJyfEiAVfz7N5/zv+jduIfLrV2xdQXOHbaD6KgpGdO9PRPM1Y4Q9QkPkA=="],
 
@@ -3199,7 +3200,7 @@
 
     "web-tree-sitter": ["web-tree-sitter@0.25.10", "", { "peerDependencies": { "@types/emscripten": "^1.40.0" }, "optionalPeers": ["@types/emscripten"] }, "sha512-Y09sF44/13XvgVKgO2cNDw5rGk6s26MgoZPXLESvMXeefBf7i6/73eFurre0IsTW6E14Y0ArIzhUMmjoc7xyzA=="],
 
-    "webview": ["webview@workspace:apps/examples/vscode/src/webview"],
+    "webview": ["webview@workspace:sdk/apps/examples/vscode/src/webview"],
 
     "which": ["which@4.0.0", "", { "dependencies": { "isexe": "^3.1.1" }, "bin": { "node-which": "bin/which.js" } }, "sha512-GlaYyEb07DPxYCKhKzplCWBJtvxZcZMrL+4UkrTSJHHPyZU4mYYTv3qaOe77H7EODLSSopAUFAc6W8U4yqvscg=="],
 

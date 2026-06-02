@@ -13,6 +13,7 @@ import {
 	getNextCliCompactionMode,
 } from "../../utils/compaction-mode";
 import type { CliCompactionMode, Config } from "../../utils/types";
+import { getMcpManagerEntryStatus } from "../components/dialogs/mcp-manager-dialog";
 import { resolveModelDisplayName } from "../components/status-bar";
 import { getModeAccent, palette } from "../palette";
 import {
@@ -27,6 +28,7 @@ import {
 	resolveActiveConfigItems,
 	resolveConfigItemSelectAction,
 	resolveConfigItemToggleAction,
+	resolveInitialConfigTab,
 	toTabLabel,
 } from "./config-view-helpers";
 
@@ -125,6 +127,8 @@ export interface ConfigPanelProps extends ChoiceContext<ConfigAction> {
 	providerDisplayName: string;
 	currentMode: string;
 	currentCompactionMode: CliCompactionMode;
+	initialTab?: InteractiveConfigTab;
+	onActiveTabChange?: (tab: InteractiveConfigTab) => void;
 	onToggleConfigItem?: (
 		item: InteractiveConfigItem,
 		options?: LoadInteractiveConfigDataOptions,
@@ -305,7 +309,14 @@ function getPluginLoadErrorLabel(
 }
 
 export function ConfigPanelContent(props: ConfigPanelProps) {
-	const { resolve, dismiss, dialogId, config, loadConfigData } = props;
+	const {
+		resolve,
+		dismiss,
+		dialogId,
+		config,
+		loadConfigData,
+		onActiveTabChange,
+	} = props;
 	const { height } = useTerminalDimensions();
 
 	const [mode, setMode] = useState(props.currentMode);
@@ -316,7 +327,9 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 	const [compactionMode, setCompactionMode] = useState(
 		props.currentCompactionMode,
 	);
-	const [activeTab, setActiveTab] = useState<InteractiveConfigTab>("general");
+	const [activeTab, setActiveTab] = useState<InteractiveConfigTab>(() =>
+		resolveInitialConfigTab(props.initialTab),
+	);
 	const [configData, setConfigData] = useState(props.configData);
 	const [pluginToolsLoaded, setPluginToolsLoaded] = useState(
 		props.configData.tools.some((item) => item.pluginName),
@@ -330,6 +343,10 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 	const [navPos, setNavPos] = useState(0);
 
 	const displayName = resolveModelDisplayName(config);
+
+	useEffect(() => {
+		onActiveTabChange?.(activeTab);
+	}, [activeTab, onActiveTabChange]);
 
 	useEffect(() => {
 		if (
@@ -420,7 +437,13 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 						enabled: item.enabled,
 						description: item.description,
 						item,
-						rightLabel: getPluginLoadErrorLabel(item),
+						rightLabel:
+							activeTab === "mcp"
+								? getMcpManagerEntryStatus({
+										description: item.description,
+										lastError: item.loadError,
+									})
+								: getPluginLoadErrorLabel(item),
 					});
 				}
 				if (activeTab === "plugins" && pluginToolsLoading) {

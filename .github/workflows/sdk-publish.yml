@@ -26,7 +26,7 @@ on:
 
 defaults:
   run:
-    working-directory: sdk
+    working-directory: .
 
 jobs:
   test:
@@ -148,7 +148,7 @@ jobs:
         env:
           CHANNEL: ${{ steps.channel.outputs.channel }}
         run: |
-          BASE_VERSION=$(node -p "require('./packages/llms/package.json').version")
+          BASE_VERSION=$(node -p "require('./sdk/packages/llms/package.json').version")
 
           if [ "$CHANNEL" = "nightly" ]; then
             TIMESTAMP=$(date +%s)
@@ -166,11 +166,11 @@ jobs:
         if: steps.check_commits.outputs.skip != 'true'
         env:
           VERSION: ${{ steps.version.outputs.version }}
-        run: bun scripts/version.ts "$VERSION"
+        run: bun sdk/scripts/version.ts "$VERSION"
 
       - name: Verify publishability
         if: steps.check_commits.outputs.skip != 'true'
-        run: bun scripts/check-publish.ts
+        run: bun sdk/scripts/check-publish.ts
 
       - name: Prepare package tarball directory
         if: steps.check_commits.outputs.skip != 'true'
@@ -187,7 +187,7 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           echo "Publishing @cline/shared@${VERSION} with tag '${CHANNEL}'..."
-          cd packages/shared
+          cd sdk/packages/shared
           TARBALL=$(bun pm pack --destination "$RUNNER_TEMP/sdk-npm-packs" --quiet)
           npm publish "$RUNNER_TEMP/sdk-npm-packs/$(basename "$TARBALL")" --tag "$CHANNEL" --access public
 
@@ -199,7 +199,7 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           echo "Publishing @cline/llms@${VERSION} with tag '${CHANNEL}'..."
-          cd packages/llms
+          cd sdk/packages/llms
           TARBALL=$(bun pm pack --destination "$RUNNER_TEMP/sdk-npm-packs" --quiet)
           npm publish "$RUNNER_TEMP/sdk-npm-packs/$(basename "$TARBALL")" --tag "$CHANNEL" --access public
 
@@ -211,7 +211,7 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           echo "Publishing @cline/agents@${VERSION} with tag '${CHANNEL}'..."
-          cd packages/agents
+          cd sdk/packages/agents
           TARBALL=$(bun pm pack --destination "$RUNNER_TEMP/sdk-npm-packs" --quiet)
           npm publish "$RUNNER_TEMP/sdk-npm-packs/$(basename "$TARBALL")" --tag "$CHANNEL" --access public
 
@@ -223,7 +223,7 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           echo "Publishing @cline/core@${VERSION} with tag '${CHANNEL}'..."
-          cd packages/core
+          cd sdk/packages/core
           TARBALL=$(bun pm pack --destination "$RUNNER_TEMP/sdk-npm-packs" --quiet)
           npm publish "$RUNNER_TEMP/sdk-npm-packs/$(basename "$TARBALL")" --tag "$CHANNEL" --access public
 
@@ -235,7 +235,7 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           echo "Publishing @cline/sdk@${VERSION} with tag '${CHANNEL}'..."
-          cd packages/sdk
+          cd sdk/packages/sdk
           TARBALL=$(bun pm pack --destination "$RUNNER_TEMP/sdk-npm-packs" --quiet)
           npm publish "$RUNNER_TEMP/sdk-npm-packs/$(basename "$TARBALL")" --tag "$CHANNEL" --access public
 

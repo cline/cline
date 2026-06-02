@@ -5197,6 +5197,34 @@ export const qwenCodeDefaultModelId: QwenCodeModelId = "qwen3-coder-plus"
 export type MinimaxModelId = keyof typeof minimaxModels
 export const minimaxDefaultModelId: MinimaxModelId = "MiniMax-M2.7"
 export const minimaxModels = {
+	"MiniMax-M3": {
+		maxTokens: 32_000,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		inputPrice: 0.6,
+		outputPrice: 2.4,
+		cacheWritesPrice: 0.6,
+		cacheReadsPrice: 0.12,
+		tiers: [
+			{
+				contextWindow: 512_000,
+				inputPrice: 0.6,
+				outputPrice: 2.4,
+				cacheWritesPrice: 0.6,
+				cacheReadsPrice: 0.12,
+			},
+			{
+				contextWindow: Number.MAX_SAFE_INTEGER,
+				inputPrice: 1.2,
+				outputPrice: 4.8,
+				cacheWritesPrice: 1.2,
+				cacheReadsPrice: 0.24,
+			},
+		],
+		description: "Latest M-series model for coding, agentic reasoning, tool use, and long-context multimodal tasks",
+	},
 	"MiniMax-M2.7": {
 		maxTokens: 128_000,
 		contextWindow: 192_000,

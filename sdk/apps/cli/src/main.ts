@@ -512,6 +512,36 @@ export async function runCli(): Promise<void> {
 			await hubCmd.parseAsync(cmd.args, { from: "user" });
 		});
 
+	const dashboardCmd = program
+		.command("dashboard")
+		.description("Start the Cline Hub dashboard and open it in a browser")
+		.option("-c, --cwd <path>", "Workspace root", process.cwd())
+		.option("--host <host>", "Dashboard bind host")
+		.option("--port <port>", "Dashboard HTTP/WebSocket port")
+		.option("--public-url <url>", "Public dashboard URL")
+		.option("--room-secret <secret>", "Invite secret for browser access")
+		.option("--no-open", "Start the dashboard without opening a browser")
+		.action(async () => {
+			const opts = dashboardCmd.opts<{
+				cwd?: string;
+				host?: string;
+				port?: string;
+				publicUrl?: string;
+				roomSecret?: string;
+				open?: boolean;
+			}>();
+			const { runDashboardCommand } = await import("./commands/dashboard");
+			ctx.exitCode = await runDashboardCommand({
+				cwd: opts.cwd,
+				host: opts.host,
+				port: opts.port,
+				publicUrl: opts.publicUrl,
+				roomSecret: opts.roomSecret,
+				openBrowser: opts.open !== false,
+				io,
+			});
+		});
+
 	const updateCmd = program
 		.command("update")
 		.description("Check for updates and install if available")

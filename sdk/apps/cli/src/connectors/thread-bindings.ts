@@ -98,9 +98,10 @@ function isControlBinding(
 	);
 }
 
-function clearSerializedThreadSessionId(
-	serializedThread: string | undefined,
-): { serializedThread: string | undefined; updated: boolean } {
+function clearSerializedThreadSessionId(serializedThread: string | undefined): {
+	serializedThread: string | undefined;
+	updated: boolean;
+} {
 	if (!serializedThread?.trim()) {
 		return { serializedThread, updated: false };
 	}
