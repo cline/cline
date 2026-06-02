@@ -17,8 +17,8 @@ function defineProcessEnv(name: string): string {
 const sourcemap = Bun.env.CLINE_SOURCEMAPS === "1" ? "linked" : "none";
 const rootDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(rootDir, "../../");
-const hubWebviewSourcePath = join(rootDir, "/apps/cline-hub/src/webview");
-const hubWebviewDistPath = join(rootDir, "/apps/cline-hub/dist/webview");
+const hubWebviewSourcePath = join(repoRoot, "apps/cline-hub/src/webview");
+const hubWebviewDistPath = join(repoRoot, "apps/cline-hub/dist/webview");
 const hubWebviewIndexPath = join(hubWebviewDistPath, "index.html");
 const cliHubWebviewDistPath = join(rootDir, "dist/cline-hub/webview");
 
@@ -118,7 +118,7 @@ if (result.logs.length > 0) {
 
 const coreBootstrapPath = join(
 	rootDir,
-	"../../packages/core/dist/extensions/plugin-sandbox-bootstrap.js",
+	"../../sdk/packages/core/dist/extensions/plugin-sandbox-bootstrap.js",
 );
 const cliBootstrapPath = join(
 	rootDir,
