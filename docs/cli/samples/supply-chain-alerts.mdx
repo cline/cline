@@ -161,7 +161,7 @@ Send this to your bot (one message):
 That schedules a daily scan at 8am. The bot replies with the new schedule id.
 
 <Note>
-Prefer to manage schedules from the terminal? Send `/whereami` in Telegram to get the thread id, then create the schedule with explicit delivery flags:
+Prefer to manage schedules from the terminal? Create the schedule with delivery flags, and the running Telegram connector delivers the result to its chat:
 
 ```bash
 cline schedule create "supply-chain-watch" \
@@ -169,8 +169,7 @@ cline schedule create "supply-chain-watch" \
   --workspace ~/tools/bumblebee \
   --prompt "Pull the latest Bumblebee catalogs and scan this machine ..." \
   --delivery-adapter telegram \
-  --delivery-bot <bot-username> \
-  --delivery-thread telegram:<chat-id>
+  --delivery-bot <bot-username>
 ```
 </Note>
 
