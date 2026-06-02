@@ -70,6 +70,18 @@ jobs:
             - name: Checkout code
               uses: actions/checkout@v4
 
+            # Enable Windows Developer Mode so non-admin processes (like bun) can
+            # create symlinks. The hosted windows-latest runner does NOT enable
+            # this by default (see actions/runner-images#14084), which causes
+            # `bun install` to fail with ENOENT when materializing the
+            # `../apps/*` workspace symlinks (bun#23960).
+            - name: Enable Developer Mode (Windows)
+              if: runner.os == 'Windows'
+              shell: pwsh
+              working-directory: .
+              run: |
+                  reg add "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock" /t REG_DWORD /f /v "AllowDevelopmentWithoutDevLicense" /d "1"
+
             - name: Setup Bun
               uses: oven-sh/setup-bun@v2
               with:
