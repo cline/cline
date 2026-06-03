@@ -3,6 +3,7 @@ import {
 	setDisabledPlugin,
 	setDisabledTools,
 	type UserInstructionConfigService,
+	uninstallPlugin,
 } from "@cline/core";
 import {
 	type InteractiveConfigData,
@@ -35,6 +36,18 @@ export function createInteractiveConfigDataLoader(input: {
 			availabilityContext: availabilityContext(),
 			includePluginTools: options.includePluginTools,
 		});
+
+	const refreshUserInstructionConfigs = async (): Promise<void> => {
+		const service = input.userInstructionService;
+		if (!service) {
+			return;
+		}
+		await Promise.all([
+			service.refreshType("workflow"),
+			service.refreshType("rule"),
+			service.refreshType("skill"),
+		]);
+	};
 
 	const onToggleConfigItem = async (
 		item: InteractiveConfigItem,
@@ -106,8 +119,26 @@ export function createInteractiveConfigDataLoader(input: {
 		return undefined;
 	};
 
+	const onDeleteConfigItem = async (
+		item: InteractiveConfigItem,
+		options: LoadInteractiveConfigDataOptions = {},
+	): Promise<InteractiveConfigData | undefined> => {
+		if (item.kind !== "plugin") {
+			return undefined;
+		}
+		await uninstallPlugin({
+			path: item.path,
+			name: item.name,
+			cwd: input.config.cwd,
+			workspaceRoot: workspaceRoot(),
+		});
+		await refreshUserInstructionConfigs();
+		return await loadConfigData(options);
+	};
+
 	return {
 		loadConfigData,
 		onToggleConfigItem,
+		onDeleteConfigItem,
 	};
 }

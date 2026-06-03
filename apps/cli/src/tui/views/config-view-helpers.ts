@@ -9,6 +9,7 @@ export type ConfigAction =
 	| { kind: "open-provider" }
 	| { kind: "open-model" }
 	| { kind: "toggle-item"; item: InteractiveConfigItem }
+	| { kind: "delete-item"; item: InteractiveConfigItem }
 	| {
 			kind: "ext-detail";
 			item: InteractiveConfigItem;
@@ -130,6 +131,10 @@ export function isToggleableConfigItem(item: InteractiveConfigItem): boolean {
 	return isToggleableInteractiveConfigItem(item);
 }
 
+export function isDeletableConfigItem(item: InteractiveConfigItem): boolean {
+	return item.kind === "plugin";
+}
+
 export function resolveConfigItemSelectAction(
 	item: InteractiveConfigItem,
 ): ConfigAction {
@@ -154,6 +159,15 @@ export function resolveConfigItemToggleAction(
 		return undefined;
 	}
 	return { kind: "toggle-item", item };
+}
+
+export function resolveConfigItemDeleteAction(
+	item: InteractiveConfigItem,
+): ConfigAction | undefined {
+	if (!isDeletableConfigItem(item)) {
+		return undefined;
+	}
+	return { kind: "delete-item", item };
 }
 
 export function isInlineConfigAction(
@@ -183,14 +197,33 @@ export function canToggleConfigFooterRow(
 	);
 }
 
+export function canDeleteConfigFooterRow(
+	row:
+		| { kind: "ext"; item: InteractiveConfigItem }
+		| { kind: string }
+		| undefined,
+): boolean {
+	return (
+		row?.kind === "ext" && "item" in row && isDeletableConfigItem(row.item)
+	);
+}
+
 export function getConfigFooterText({
 	canToggle = false,
+	canDelete = false,
 }: {
 	canToggle?: boolean;
+	canDelete?: boolean;
 } = {}): string {
-	return canToggle
-		? "←/→ switch tabs, ↑/↓ navigate, Tab/Enter select, Space toggle, Esc close"
-		: "←/→ switch tabs, ↑/↓ navigate, Tab/Enter select, Esc close";
+	const actions = ["←/→ switch tabs", "↑/↓ navigate", "Tab/Enter select"];
+	if (canToggle) {
+		actions.push("Space toggle");
+	}
+	if (canDelete) {
+		actions.push("D delete");
+	}
+	actions.push("Esc close");
+	return actions.join(", ");
 }
 
 export function getConfigItemDisplayName(name: string): string {
