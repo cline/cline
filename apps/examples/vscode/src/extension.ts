@@ -297,6 +297,40 @@ async function listGitHubCopilotModels(): Promise<WebviewProviderModel[]> {
 		.sort((a, b) => a.name.localeCompare(b.name));
 }
 
+function getRegisteredGatewayProvider(
+	providerId: string,
+): GatewayProviderRegistration | undefined {
+	return Llms.getRegisteredGatewayProviders().find(
+		(provider) => provider.manifest.id === providerId,
+	);
+}
+
+function listGatewayProviderModels(
+	registration: GatewayProviderRegistration,
+): WebviewProviderModel[] {
+	const manifestModels =
+		registration.manifest.models.length > 0
+			? registration.manifest.models
+			: [
+					{
+						id: registration.manifest.defaultModelId,
+						name: registration.manifest.defaultModelId,
+						providerId: registration.manifest.id,
+						capabilities: registration.manifest.capabilities?.includes("tools")
+							? (["text", "tools"] as const)
+							: (["text"] as const),
+					},
+				];
+	return manifestModels
+		.map((model) => ({
+			id: model.id,
+			name: model.name ?? model.id,
+			supportsReasoning: model.capabilities?.includes("reasoning"),
+			supportsThinking: model.capabilities?.includes("reasoning"),
+		}))
+		.sort((a, b) => a.name.localeCompare(b.name));
+}
+
 function toVsCodeLanguageModelMessage(
 	message: AgentMessage,
 ): vscode.LanguageModelChatMessage {
@@ -1136,18 +1170,29 @@ class CoreChatWebviewController implements vscode.Disposable {
 
 	private async loadProviders(preferredProvider?: string): Promise<void> {
 		const state = this.providerSettingsManager.read();
-		const ids = Llms.getProviderIds().sort((a, b) => a.localeCompare(b));
+		const gatewayProviders = Llms.getRegisteredGatewayProviders();
+		const gatewayProvidersById = new Map(
+			gatewayProviders.map((provider) => [provider.manifest.id, provider]),
+		);
+		const ids = Array.from(
+			new Set([
+				...Llms.getProviderIds(),
+				...gatewayProviders.map((provider) => provider.manifest.id),
+			]),
+		).sort((a, b) => a.localeCompare(b));
 		const providers: ProviderListItem[] = (
 			await Promise.all(
 				ids.map(async (id) => {
 					const info = await Llms.getProvider(id);
+					const gatewayProvider = gatewayProvidersById.get(id);
 					return {
 						id,
-						name: info?.name ?? id,
+						name: info?.name ?? gatewayProvider?.manifest.name ?? id,
 						enabled:
-							id === GITHUB_COPILOT_PROVIDER_ID ||
+							gatewayProvidersById.has(id) ||
 							Boolean(state.providers[id]?.settings),
-						defaultModelId: info?.defaultModelId,
+						defaultModelId:
+							info?.defaultModelId ?? gatewayProvider?.manifest.defaultModelId,
 					};
 				}),
 			)
@@ -1166,9 +1211,18 @@ class CoreChatWebviewController implements vscode.Disposable {
 	private async loadModels(providerId: string): Promise<void> {
 		const provider = providerId.trim();
 		if (!provider) return;
+		const gatewayProvider = getRegisteredGatewayProvider(provider);
 		if (provider === GITHUB_COPILOT_PROVIDER_ID) {
 			const models = await listGitHubCopilotModels();
 			await this.post({ type: "models", providerId: provider, models });
+			return;
+		}
+		if (gatewayProvider) {
+			await this.post({
+				type: "models",
+				providerId: provider,
+				models: listGatewayProviderModels(gatewayProvider),
+			});
 			return;
 		}
 		const modelMap = (await Llms.getModelsForProvider(provider)) as Record<
