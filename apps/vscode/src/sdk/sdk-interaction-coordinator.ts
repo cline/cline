@@ -102,14 +102,23 @@ export class SdkInteractionCoordinator {
 		const pendingMessage = this.pendingToolApprovalMessage
 		this.pendingToolApprovalResolve = undefined
 		this.pendingToolApprovalMessage = undefined
+
+		if (responseType === "messageResponse") {
+			Logger.log("[SdkController] Rejecting pending tool approval from user message and routing message as follow-up")
+			this.options.setTurnPhase?.("streaming")
+			resolve({ approved: false, reason: "User denied the tool execution" })
+			// The approval was resolved, but the chat message still needs normal follow-up routing.
+			return false
+		}
+
 		const approved = responseType === "yesButtonClicked"
 		Logger.log(`[SdkController] Resolving pending tool approval: approved=${approved} (responseType=${responseType})`)
 		if (approved && pendingMessage) {
 			this.options.recordApprovedToolMessage?.(pendingMessage.toolCallId, pendingMessage.messageTs)
 		}
 
-		// Approved or rejected, the agent resumes its turn — back to streaming. (On rejection
-		// the agent receives the denial and continues; the SDK drives the next phase.)
+		// Approved or rejected by approval controls, the agent resumes its turn and returns to streaming.
+		// On rejection the agent receives the denial and continues; the SDK drives the next phase.
 		this.options.setTurnPhase?.("streaming")
 		resolve({
 			approved,

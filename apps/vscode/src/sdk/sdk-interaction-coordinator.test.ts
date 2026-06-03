@@ -127,6 +127,32 @@ describe("SdkInteractionCoordinator", () => {
 		await expect(approvalPromise).resolves.toEqual({ approved: false, reason: "too risky" })
 	})
 
+	it("routes message responses as follow-ups instead of tool denial text", async () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const setTurnPhase = vi.fn()
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+			setTurnPhase,
+		})
+
+		const approvalPromise = coordinator.handleRequestToolApproval({
+			agentId: "agent",
+			conversationId: "conversation",
+			iteration: 1,
+			toolCallId: "tool-call",
+			toolName: "fetch_web_content",
+			input: { requests: [{ url: "https://example.com", prompt: "read it" }] },
+			policy: { autoApprove: false },
+		})
+		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
+
+		expect(coordinator.resolvePendingToolApproval("just give me an answer", "messageResponse")).toBe(false)
+		await expect(approvalPromise).resolves.toEqual({ approved: false, reason: "User denied the tool execution" })
+		expect(setTurnPhase).toHaveBeenLastCalledWith("streaming")
+	})
+
 	it("auto-approves without emitting UI when the live settings allow the tool", async () => {
 		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
 		const postStateToWebview = vi.fn().mockResolvedValue(undefined)
