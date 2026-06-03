@@ -154,4 +154,28 @@ describe("createAgentModelFromApiHandler", () => {
 			error: "boom",
 		});
 	});
+
+	it("does not emit a second finish when the handler throws after a done chunk", async () => {
+		// done -> finish, then the handler throws while flushing.
+		const handler = fakeHandler([{ type: "done", success: true, id: "x" }], {
+			throwAfter: 1,
+		});
+		const model = createAgentModelFromApiHandler(handler);
+		const events = await collect(model.stream(baseRequest));
+		const finishes = events.filter((e) => e.type === "finish");
+		expect(finishes).toHaveLength(1);
+		expect(finishes[0]).toMatchObject({ type: "finish", reason: "stop" });
+	});
+
+	it("resolves the handler lazily from an async factory on stream", async () => {
+		const handler = fakeHandler([{ type: "text", text: "lazy", id: "x" }]);
+		const factory = vi.fn(async () => handler);
+		const model = createAgentModelFromApiHandler(factory);
+
+		// Not built until the stream is consumed.
+		expect(factory).not.toHaveBeenCalled();
+		const events = await collect(model.stream(baseRequest));
+		expect(factory).toHaveBeenCalledTimes(1);
+		expect(events[0]).toEqual({ type: "text-delta", text: "lazy" });
+	});
 });

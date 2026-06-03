@@ -9,7 +9,7 @@ const gatewayMock = vi.hoisted(() => {
 		// Registry helpers used by createAgentModelFromConfig. Default to "no
 		// registered handler" so existing tests exercise the gateway path.
 		hasRegisteredHandler: vi.fn(() => false),
-		createHandler: vi.fn(),
+		createHandlerAsync: vi.fn(),
 	};
 });
 
@@ -17,7 +17,7 @@ vi.mock("@cline/llms", () => ({
 	createGateway: gatewayMock.createGateway,
 	MODEL_COLLECTIONS_BY_PROVIDER_ID: {},
 	hasRegisteredHandler: gatewayMock.hasRegisteredHandler,
-	createHandler: gatewayMock.createHandler,
+	createHandlerAsync: gatewayMock.createHandlerAsync,
 	normalizeProviderId: (id: string) => id,
 }));
 
@@ -30,7 +30,7 @@ describe("createAgentModelFromConfig", () => {
 		}));
 		gatewayMock.hasRegisteredHandler.mockReset();
 		gatewayMock.hasRegisteredHandler.mockReturnValue(false);
-		gatewayMock.createHandler.mockReset();
+		gatewayMock.createHandlerAsync.mockReset();
 	});
 
 	it("forwards effective telemetry into the gateway", async () => {
@@ -243,7 +243,7 @@ describe("createAgentModelFromConfig", () => {
 		);
 	});
 
-	it("uses a registered handler (adapter) instead of the gateway when one exists", async () => {
+	it("uses a registered handler (adapter) instead of the gateway, building it lazily", async () => {
 		const { createAgentModelFromConfig } = await import("./handler-factory");
 
 		// Pretend a host handler is registered for this provider.
@@ -256,7 +256,8 @@ describe("createAgentModelFromConfig", () => {
 				/* no chunks for this assertion */
 			},
 		};
-		gatewayMock.createHandler.mockReturnValue(apiHandler);
+		// createHandlerAsync resolves both sync- and async-registered handlers.
+		gatewayMock.createHandlerAsync.mockResolvedValue(apiHandler);
 
 		const result = createAgentModelFromConfig(
 			{
@@ -269,9 +270,19 @@ describe("createAgentModelFromConfig", () => {
 			undefined,
 		);
 
-		// Built via the registry, not the gateway, and exposes the AgentModel surface.
-		expect(gatewayMock.createHandler).toHaveBeenCalledTimes(1);
+		// The gateway is not used, and the AgentModel surface is exposed.
 		expect(gatewayMock.createGateway).not.toHaveBeenCalled();
 		expect(typeof result.stream).toBe("function");
+
+		// The handler is resolved lazily — only once the stream is consumed.
+		expect(gatewayMock.createHandlerAsync).not.toHaveBeenCalled();
+		for await (const _ of await result.stream({
+			systemPrompt: "",
+			messages: [],
+			tools: [],
+		})) {
+			// drain
+		}
+		expect(gatewayMock.createHandlerAsync).toHaveBeenCalledTimes(1);
 	});
 });

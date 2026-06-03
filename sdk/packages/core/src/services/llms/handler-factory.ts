@@ -1,6 +1,6 @@
 import {
 	createGateway,
-	createHandler,
+	createHandlerAsync,
 	hasRegisteredHandler,
 	MODEL_COLLECTIONS_BY_PROVIDER_ID,
 	normalizeProviderId,
@@ -155,15 +155,18 @@ export function createAgentModelFromConfig(
 
 	// Host-registered custom handlers (e.g. VS Code LM, which needs the host's
 	// `vscode.lm` API) are not part of the gateway. When a handler is registered
-	// for this provider, build it via the registry and adapt the `ApiHandler`
-	// surface onto the `AgentModel` contract the runtime expects.
+	// for this provider, adapt its `ApiHandler` surface onto the `AgentModel`
+	// contract the runtime expects. The handler is built lazily (via
+	// `createHandlerAsync`) on the first stream so that providers registered
+	// with `registerAsyncHandler` resolve correctly.
 	if (
 		hasRegisteredHandler(
 			normalizeProviderId(normalizedProviderConfig.providerId),
 		)
 	) {
-		const handler = createHandler(normalizedProviderConfig);
-		return createAgentModelFromApiHandler(handler);
+		return createAgentModelFromApiHandler(() =>
+			createHandlerAsync(normalizedProviderConfig),
+		);
 	}
 
 	return createGateway({

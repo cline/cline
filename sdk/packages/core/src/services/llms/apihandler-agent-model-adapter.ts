@@ -78,13 +78,24 @@ function toAgentModelEvents(chunk: ApiStreamChunk): AgentModelEvent[] {
 }
 
 /**
+ * Resolves the `ApiHandler` to delegate to. A function is supported (and may be
+ * async) so handler construction can be deferred to the first `stream` call —
+ * which is required for providers registered via `registerAsyncHandler`.
+ */
+export type ApiHandlerSource =
+	| ApiHandler
+	| (() => ApiHandler | Promise<ApiHandler>);
+
+/**
  * Build an `AgentModel` that delegates to a registered `ApiHandler`.
  */
 export function createAgentModelFromApiHandler(
-	handler: ApiHandler,
+	source: ApiHandlerSource,
 ): AgentModel {
 	return {
 		async *stream(request: AgentModelRequest): AsyncGenerator<AgentModelEvent> {
+			const handler = typeof source === "function" ? await source() : source;
+
 			// Forward the abort signal so cancellation reaches the handler.
 			handler.setAbortSignal?.(request.signal);
 
@@ -113,11 +124,13 @@ export function createAgentModelFromApiHandler(
 					yield { type: "finish", reason: "stop" };
 				}
 			} catch (error) {
-				yield {
-					type: "finish",
-					reason: request.signal?.aborted ? "aborted" : "error",
-					error: error instanceof Error ? error.message : String(error),
-				};
+				if (!sawFinish) {
+					yield {
+						type: "finish",
+						reason: request.signal?.aborted ? "aborted" : "error",
+						error: error instanceof Error ? error.message : String(error),
+					};
+				}
 			}
 		},
 	};
