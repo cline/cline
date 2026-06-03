@@ -1,4 +1,4 @@
-import { openRouterDefaultModelId } from "@shared/api"
+import { openAiModelInfoSafeDefaults, openRouterDefaultModelId } from "@shared/api"
 import { StringRequest } from "@shared/proto/cline/common"
 import type { Mode } from "@shared/storage/types"
 import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
@@ -10,6 +10,7 @@ import { useMount } from "react-use"
 import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useDynamicProviderSelection } from "@/hooks/useDynamicProviderSelection"
+import { useProviderConfig } from "@/hooks/useProviderConfig"
 import { StateServiceClient } from "@/services/grpc-client"
 import { highlight } from "../history/HistoryView"
 import { ModelInfoView } from "./common/ModelInfoView"
@@ -47,6 +48,7 @@ export interface OpenRouterModelPickerProps {
 
 const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, currentMode, showProviderRouting }) => {
 	const { handleModeFieldsChange, handleFieldChange } = useApiConfigurationHandlers()
+	const { commitSelection } = useProviderConfig("openrouter")
 	const { apiConfiguration, favoritedModelIds, openRouterModels, refreshOpenRouterModels } = useExtensionState()
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 	const [searchTerm, setSearchTerm] = useState(modeFields.openRouterModelId || openRouterDefaultModelId)
@@ -61,6 +63,8 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 
 		setSearchTerm(newModelId)
 
+		const modelInfo = openRouterModels[newModelId] ?? { ...openAiModelInfoSafeDefaults, name: newModelId }
+
 		handleModeFieldsChange(
 			{
 				openRouterModelId: { plan: "planModeOpenRouterModelId", act: "actModeOpenRouterModelId" },
@@ -68,9 +72,13 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 			},
 			{
 				openRouterModelId: newModelId,
-				openRouterModelInfo: openRouterModels[newModelId],
+				openRouterModelInfo: modelInfo,
 			},
 			currentMode,
+		)
+
+		void commitSelection(currentMode, { providerId: "openrouter", modelId: newModelId, modelInfo }).catch((err) =>
+			console.error("Failed to commit OpenRouter model selection:", err),
 		)
 	}
 
