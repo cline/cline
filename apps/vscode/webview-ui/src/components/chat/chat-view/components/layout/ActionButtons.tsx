@@ -2,7 +2,7 @@ import type { ClineMessage } from "@shared/ExtensionMessage"
 import type { Mode } from "@shared/storage/types"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import type React from "react"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { VirtuosoHandle } from "react-virtuoso"
 import { useExtensionState } from "../../../../../context/ExtensionStateContext"
 import { ButtonActionType, getButtonConfigFromState } from "../../shared/buttonConfig"
@@ -35,7 +35,14 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 }) => {
 	const { inputValue, selectedImages, selectedFiles, setSendingDisabled } = chatState
 	const { turnState } = useExtensionState()
-	const [isProcessing, setIsProcessing] = useState(false)
+
+	// Tracks the ask the user last acted on. Clicking a footer button latches this so the
+	// buttons disable immediately (and survive the trailing bookkeeping re-renders before the
+	// backend advances the turn). It is a ref, not state, so it can be compared against the
+	// current ask during render without scheduling an extra update.
+	const processedAskRef = useRef<string | undefined>(undefined)
+	// Forces a re-render when the latch flips; the counter value itself is unused.
+	const [, bumpRender] = useState(0)
 
 	// Memoize last messages to avoid unnecessary recalculations
 	const [lastMessage, secondLastMessage] = useMemo(() => {
@@ -51,10 +58,24 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 		return getButtonConfigFromState(messages, turnState, mode)
 	}, [messages, turnState, mode])
 
-	// Single effect to handle all configuration updates
+	// Identity of the ask that currently owns the footer buttons. The button config objects are
+	// shared singletons (e.g. BUTTON_CONFIGS.tool_approve), so two consecutive identical asks
+	// (approve → approve) return the same reference. The anchored turn timestamp (or the last
+	// message) changes on every new ask, making it the reliable signal that a fresh decision is
+	// due even when the config object is identical. Folding the config's button text in also
+	// covers a same-anchor transition between different button sets.
+	const askIdentity = `${turnState?.anchorTs ?? lastMessage?.ts ?? ""}:${buttonConfig.primaryText ?? ""}:${buttonConfig.secondaryText ?? ""}`
+
+	// The buttons are "processing" only while the user's click is being handled for the current
+	// ask. Because the latch is keyed on the ask identity, a new ask (even one reusing the same
+	// shared config object) is never seen as already-processed, so its buttons are interactive
+	// again.
+	const isProcessing = processedAskRef.current === askIdentity
+
+	// Mirror the config's sending-disabled flag into chat state whenever the active button set
+	// changes.
 	useEffect(() => {
 		setSendingDisabled(buttonConfig.sendingDisabled)
-		setIsProcessing(false)
 	}, [buttonConfig, setSendingDisabled])
 
 	// Clear input when transitioning from command_output to api_req
@@ -69,17 +90,23 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 
 	const handleActionClick = useCallback(
 		(action: ButtonActionType, text?: string, images?: string[], files?: string[]) => {
-			if (isProcessing) {
+			if (processedAskRef.current === askIdentity) {
 				return
 			}
-			setIsProcessing(true)
+			// Latch this ask as processed and force a render so the buttons disable immediately.
+			processedAskRef.current = askIdentity
+			bumpRender((n) => n + 1)
 
 			void messageHandlers.executeButtonAction(action, text, images, files).catch(() => {
-				// Reset processing state on errors to avoid getting stuck.
-				setIsProcessing(false)
+				// Re-enable on error so the user is not stuck; a later ask would clear the latch
+				// on its own, but failures keep the same ask.
+				if (processedAskRef.current === askIdentity) {
+					processedAskRef.current = undefined
+					bumpRender((n) => n + 1)
+				}
 			})
 		},
-		[messageHandlers, isProcessing],
+		[messageHandlers, askIdentity],
 	)
 
 	// Keyboard event handler
