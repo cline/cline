@@ -129,14 +129,14 @@ jobs:
                       playwright-browsers-${{ runner.os }}-
 
             - name: Install extension dependencies
-              working-directory: apps/vscode
-              run: npm ci
+              working-directory: ${{ github.workspace }}
+              run: npm --prefix apps/vscode ci
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Install webview-ui dependencies
-              working-directory: apps/vscode/webview-ui
-              run: npm ci
+              working-directory: ${{ github.workspace }}
+              run: npm --prefix apps/vscode/webview-ui ci
 
             - name: Install vsce
               run: npm install -g @vscode/vsce

@@ -92,14 +92,14 @@ jobs:
                       apps/vscode/webview-ui/package-lock.json
 
             - name: Install extension dependencies
-              working-directory: apps/vscode
-              run: npm ci
+              working-directory: ${{ github.workspace }}
+              run: npm --prefix apps/vscode ci
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Install webview-ui dependencies
-              working-directory: apps/vscode/webview-ui
-              run: npm ci
+              working-directory: ${{ github.workspace }}
+              run: npm --prefix apps/vscode/webview-ui ci
 
             - name: Run Quality Checks (Parallel)
               run: npm run ci:check-all
@@ -133,14 +133,14 @@ jobs:
                       apps/vscode/webview-ui/package-lock.json
 
             - name: Install extension dependencies
-              working-directory: apps/vscode
-              run: npm ci
+              working-directory: ${{ github.workspace }}
+              run: npm --prefix apps/vscode ci
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Install webview-ui dependencies
-              working-directory: apps/vscode/webview-ui
-              run: npm ci
+              working-directory: ${{ github.workspace }}
+              run: npm --prefix apps/vscode/webview-ui ci
 
             - name: Set up NPM on Windows
               if: runner.os == 'Windows'
@@ -234,14 +234,14 @@ jobs:
                       apps/vscode/testing-platform/package-lock.json
 
             - name: Install extension dependencies
-              working-directory: apps/vscode
-              run: npm ci
+              working-directory: ${{ github.workspace }}
+              run: npm --prefix apps/vscode ci
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Install webview-ui dependencies
-              working-directory: apps/vscode/webview-ui
-              run: npm ci
+              working-directory: ${{ github.workspace }}
+              run: npm --prefix apps/vscode/webview-ui ci
 
             - name: Download ripgrep binaries
               run: npm run download-ripgrep
@@ -250,8 +250,8 @@ jobs:
               run: npm run compile-standalone
 
             - name: Install testing platform dependencies
-              working-directory: apps/vscode/testing-platform
-              run: npm ci
+              working-directory: ${{ github.workspace }}
+              run: npm --prefix apps/vscode/testing-platform ci
 
             - name: Running testing platform integration spec tests
               timeout-minutes: 7
