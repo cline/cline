@@ -8,5 +8,117 @@
 				"noStaticElementInteractions": "warn"
 			}
 		}
-	}
+	},
+	"overrides": [
+		{
+			"includes": ["vscode/**"],
+			"formatter": {
+				"enabled": true,
+				"indentStyle": "tab",
+				"indentWidth": 4,
+				"lineWidth": 130,
+				"lineEnding": "lf",
+				"formatWithErrors": true
+			},
+			"javascript": {
+				"formatter": {
+					"semicolons": "asNeeded",
+					"arrowParentheses": "always",
+					"bracketSameLine": true,
+					"bracketSpacing": true,
+					"jsxQuoteStyle": "double",
+					"quoteProperties": "asNeeded",
+					"trailingCommas": "all"
+				}
+			},
+			"json": {
+				"formatter": {
+					"trailingCommas": "none",
+					"expand": "always"
+				}
+			},
+			"linter": {
+				"enabled": true,
+				"domains": {
+					"react": "recommended"
+				},
+				"rules": {
+					"recommended": true,
+					"correctness": {
+						"useExhaustiveDependencies": "info",
+						"noUndeclaredVariables": "off",
+						"noEmptyPattern": "info",
+						"useJsxKeyInIterable": "off",
+						"noInnerDeclarations": "off",
+						"useHookAtTopLevel": "info",
+						"useYield": "info",
+						"noConstructorReturn": "off",
+						"noInvalidPositionAtImportRule": "off",
+						"noSwitchDeclarations": "off",
+						"noUnusedImports": "error"
+					},
+					"a11y": "info",
+					"style": {
+						"useNodejsImportProtocol": "off",
+						"useImportType": "off",
+						"useBlockStatements": "off",
+						"useNamingConvention": "off",
+						"useThrowOnlyError": "info",
+						"useConsistentArrayType": "off",
+						"noParameterAssign": "off",
+						"useAsConstAssertion": "off",
+						"useDefaultParameterLast": "off",
+						"noNonNullAssertion": "info",
+						"useEnumInitializers": "off",
+						"useSelfClosingElements": "info",
+						"useSingleVarDeclarator": "off",
+						"useNumberNamespace": "info",
+						"noInferrableTypes": "info",
+						"useTemplate": "info",
+						"noUselessElse": "info"
+					},
+					"suspicious": {
+						"noDoubleEquals": "warn",
+						"noImplicitAnyLet": "info",
+						"noThenProperty": "off",
+						"noAsyncPromiseExecutor": "info",
+						"noImportAssign": "off",
+						"noExplicitAny": "info",
+						"noControlCharactersInRegex": "warn",
+						"noShadowRestrictedNames": "off",
+						"noArrayIndexKey": "info",
+						"noAssignInExpressions": "info",
+						"useIterableCallbackReturn": "info"
+					},
+					"complexity": {
+						"noUselessConstructor": "info",
+						"useOptionalChain": "info",
+						"noBannedTypes": "warn",
+						"useLiteralKeys": "info",
+						"noUselessCatch": "info",
+						"noUselessSwitchCase": "info",
+						"noStaticOnlyClass": "info"
+					},
+					"security": {
+						"noDangerouslySetInnerHtml": "info"
+					}
+				}
+			},
+			"css": {
+				"parser": {
+					"tailwindDirectives": true
+				}
+			},
+			"assist": {
+				"enabled": true,
+				"actions": {
+					"source": {
+						"organizeImports": "on",
+						"useSortedAttributes": "on"
+					}
+				}
+			},
+			"plugins": ["vscode/src/dev/grit/process-env.grit"]
+		}
+	]
 }

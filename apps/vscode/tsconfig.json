@@ -21,6 +21,12 @@
 		"sourceMap": true,
 		"strict": true,
 		"target": "es2022",
+		"types": [
+			"node",
+			"vscode",
+			"mocha",
+			"should"
+		],
 		"useDefineForClassFields": true,
 		"useUnknownInCatchVariables": false,
 		"paths": {

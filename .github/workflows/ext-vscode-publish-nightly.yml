@@ -31,9 +31,8 @@ jobs:
     if: github.repository == 'cline/cline' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dpc/sdk-migration-simpler-login')
     runs-on: ubuntu-latest
     environment: PublishNightly
-    # The VS Code extension's package.json and lockfiles live under apps/vscode/
-    # (the repo root has no package.json). Mirror ext-vscode-test.yml so install
-    # and publish steps run in the correct workspace.
+    # Publish commands run from the VS Code extension package. Dependency install
+    # is done from the monorepo root because the repo is Bun workspace-managed.
     defaults:
       run:
         working-directory: apps/vscode
@@ -56,16 +55,26 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          # Keep publish environment aligned with test workflow/tooling lockfile expectations.
+          # Keep publish environment aligned with test workflow/tooling expectations.
           # Newer LTS (Node 24 / npm 11) can make `npm list` fail with ELSPROBLEMS during vsce packaging.
           node-version: 22
           cache: 'npm'
-          cache-dependency-path: |
-            apps/vscode/package-lock.json
-            apps/vscode/webview-ui/package-lock.json
+          cache-dependency-path: apps/vscode/webview-ui/package-lock.json
 
-      - name: Install root dependencies
-        run: npm ci --include=optional
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.13
+
+      - name: Install workspace dependencies
+        working-directory: ${{ github.workspace }}
+        run: bun install --frozen-lockfile
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build SDK packages
+        working-directory: ${{ github.workspace }}
+        run: bun run build:sdk
 
       - name: Install webview-ui dependencies
         run: cd webview-ui && npm ci --include=optional
