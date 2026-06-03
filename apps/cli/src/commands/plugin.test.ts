@@ -21,6 +21,7 @@ import {
 	isOfficialPluginSlug,
 	parsePluginSource,
 	runPluginInstallCommand,
+	runPluginUninstallCommand,
 } from "./plugin";
 
 type FetchCall = (
@@ -591,6 +592,54 @@ describe("plugin install command", () => {
 		expect(
 			readFileSync(join(first.installPath, "package", "index.ts"), "utf8"),
 		).toContain("installed-v1");
+	});
+
+	it("uninstalls a package plugin by package name", async () => {
+		const source = join(root, "uninstall-package");
+		const npmCommandPath = join(root, "fake-npm.sh");
+		await mkdir(source, { recursive: true });
+		await writeFile(
+			join(source, "package.json"),
+			JSON.stringify(
+				{
+					name: "cli-uninstall-plugin",
+					cline: {
+						plugins: [{ paths: ["./index.ts"], capabilities: ["tools"] }],
+					},
+				},
+				null,
+				2,
+			),
+			"utf8",
+		);
+		await writeFile(
+			join(source, "index.ts"),
+			"export default { name: 'cli-uninstall-plugin', manifest: { capabilities: ['tools'] } };",
+			"utf8",
+		);
+		writeFileSync(npmCommandPath, "#!/bin/sh\nexit 0\n", {
+			encoding: "utf8",
+			mode: 0o755,
+		});
+
+		const installed = await installPlugin({
+			source,
+			npmCommand: npmCommandPath,
+		});
+		const output: string[] = [];
+		const code = await runPluginUninstallCommand({
+			name: "cli-uninstall-plugin",
+			io: {
+				writeln: (text = "") => output.push(text),
+				writeErr: (text) => output.push(text),
+			},
+		});
+
+		expect(code).toBe(0);
+		expect(existsSync(installed.installPath)).toBe(false);
+		expect(output.join("\n")).toContain(
+			"Uninstalled plugin cli-uninstall-plugin",
+		);
 	});
 
 	it("prints JSON output for command callers", async () => {

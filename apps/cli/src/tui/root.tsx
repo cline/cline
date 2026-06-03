@@ -207,6 +207,19 @@ function App(props: TuiProps) {
 			return data;
 		};
 	}, [propsOnToggleConfigItem]);
+	const propsOnDeleteConfigItem = props.onDeleteConfigItem;
+	const onDeleteConfigItem = useMemo<TuiProps["onDeleteConfigItem"]>(() => {
+		if (!propsOnDeleteConfigItem) {
+			return undefined;
+		}
+		return async (item, options) => {
+			const data = await propsOnDeleteConfigItem(item, options);
+			if (data) {
+				setWorkflowSlashCommands(data.workflowSlashCommands);
+			}
+			return data;
+		};
+	}, [propsOnDeleteConfigItem]);
 
 	const openConfig = useConfigPanel({
 		dialog,
@@ -219,6 +232,7 @@ function App(props: TuiProps) {
 		termHeight,
 		loadConfigData: props.loadConfigData,
 		onToggleConfigItem,
+		onDeleteConfigItem,
 		openModelSelector,
 		openMcpManager,
 		refocusTextarea: () => refocusTextareaRef.current(),

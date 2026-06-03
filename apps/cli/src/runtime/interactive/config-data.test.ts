@@ -455,6 +455,112 @@ Find installable skills.`,
 		).toBe(true);
 	});
 
+	it("deletes a package-backed plugin and refreshes bundled slash commands", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "cli-config-data-"));
+		tempRoots.push(tempRoot);
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = join(
+			tempRoot,
+			"global-settings.json",
+		);
+		const packageDir = join(tempRoot, ".cline", "plugins", "delete-plugin");
+		const pluginPath = join(packageDir, "index.ts");
+		const skillPath = join(packageDir, "skills", "erase", "SKILL.md");
+		await mkdir(join(packageDir, "skills", "erase"), { recursive: true });
+		await writeFile(
+			join(packageDir, "package.json"),
+			JSON.stringify(
+				{
+					name: "delete-plugin",
+					cline: {
+						plugins: [{ paths: ["./index.ts"] }],
+					},
+				},
+				null,
+				2,
+			),
+		);
+		await writeFile(pluginPath, "export default {};\n");
+		await writeFile(
+			skillPath,
+			`---
+name: erase
+---
+Erase stale plugin commands.`,
+		);
+		await writeFile(
+			process.env.CLINE_GLOBAL_SETTINGS_PATH,
+			JSON.stringify({ disabledPlugins: [pluginPath] }, null, 2),
+		);
+		const refreshCalls: string[] = [];
+		let refreshed = false;
+		const userInstructionService = {
+			async refreshType(type: string) {
+				refreshCalls.push(type);
+				refreshed = true;
+			},
+			listRuntimeCommands() {
+				return refreshed
+					? []
+					: [
+							{
+								name: "erase",
+								instructions: "Erase stale plugin commands.",
+								description: "Erase",
+								kind: "skill",
+							},
+						];
+			},
+			listRecords(type: string) {
+				if (type !== "skill") {
+					return [];
+				}
+				return [
+					{
+						id: "erase",
+						type: "skill",
+						filePath: skillPath,
+						item: {
+							name: "erase",
+							disabled: false,
+							description: "Erase",
+							instructions: "Erase stale plugin commands.",
+							frontmatter: {},
+						},
+					},
+				];
+			},
+		} as unknown as UserInstructionConfigService;
+		const loader = createInteractiveConfigDataLoader({
+			config: createConfig(tempRoot),
+			userInstructionService,
+		});
+		const data = await loader.loadConfigData({ includePluginTools: false });
+		const plugin = data.plugins.find((item) => item.path === pluginPath);
+		if (!plugin) {
+			throw new Error("Expected package plugin to be listed");
+		}
+
+		const nextData = await loader.onDeleteConfigItem(plugin, {
+			includePluginTools: false,
+		});
+		const settings = JSON.parse(
+			await readFile(process.env.CLINE_GLOBAL_SETTINGS_PATH, "utf8"),
+		) as { disabledPlugins?: string[] };
+
+		await expect(readFile(pluginPath, "utf8")).rejects.toThrow();
+		await expect(readFile(skillPath, "utf8")).rejects.toThrow();
+		expect(settings.disabledPlugins).toBeUndefined();
+		expect(refreshCalls).toEqual(
+			expect.arrayContaining(["workflow", "rule", "skill"]),
+		);
+		expect(nextData?.plugins.some((item) => item.path === pluginPath)).toBe(
+			false,
+		);
+		expect(
+			nextData?.workflowSlashCommands.map((command) => command.name),
+		).not.toContain("erase");
+	});
+
 	it("uses the package name for package-backed plugin entries", async () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "cli-config-data-"));
 		tempRoots.push(tempRoot);
