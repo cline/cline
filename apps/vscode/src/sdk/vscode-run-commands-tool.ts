@@ -5,8 +5,8 @@
  * It supports two execution modes, switchable dynamically per invocation:
  *
  *   - **Foreground (vscodeTerminal):** Uses VscodeTerminalManager for visible
- *     VS Code terminals with shell integration, no hard timeout, real-time
- *     output streaming via onChange, and "Proceed While Running" support.
+ *     VS Code terminals with shell integration and no hard timeout. Output is
+ *     surfaced to the chat when the command completes, not incrementally.
  *
  *   - **Background (backgroundExec):** Delegates to the SDK's createBashExecutor()
  *     for headless child_process.spawn execution with a configurable timeout.
@@ -102,7 +102,6 @@ async function executeForeground(
 	cwd: string,
 	terminalManager: ITerminalManager,
 	abortSignal?: AbortSignal,
-	onChange?: (update: unknown) => void,
 ): Promise<CommandResult> {
 	try {
 		const terminalInfo = await terminalManager.getOrCreateTerminal(cwd)
@@ -114,12 +113,10 @@ async function executeForeground(
 		let completed = false
 		let continued = false
 
-		// Stream output lines via onChange for real-time UI updates
+		// Accumulate output lines to return the full output once the command completes.
+		// The chat shows command output at completion, not incrementally.
 		process.on("line", (line: string) => {
 			outputLines.push(line)
-			if (onChange) {
-				onChange({ type: "output", line })
-			}
 		})
 
 		process.once("completed", () => {
@@ -239,7 +236,7 @@ export function createVscodeRunCommandsTool(options: VscodeRunCommandsToolOption
 		timeoutMs: 3_600_000, // 1 hour metadata hint; not enforced externally
 		retryable: false,
 		maxRetries: 0,
-		execute: async (input: unknown, context: AgentToolContext, onChange?: (update: unknown) => void) => {
+		execute: async (input: unknown, context: AgentToolContext) => {
 			const commands = parseCommands(input)
 			if (commands.length === 0) {
 				return [{ query: "(empty)", result: "", error: "No commands provided", success: false }]
@@ -276,7 +273,7 @@ export function createVscodeRunCommandsTool(options: VscodeRunCommandsToolOption
 			// Execute commands sequentially in foreground (terminal reuse)
 			const results: CommandResult[] = []
 			for (const cmd of commands) {
-				const result = await executeForeground(cmd, cwd, terminalManager, context.signal, onChange)
+				const result = await executeForeground(cmd, cwd, terminalManager, context.signal)
 				results.push(result)
 				// If aborted, stop executing remaining commands
 				if (context.signal?.aborted) {
