@@ -1,0 +1,114 @@
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useExtensionState } from "@/context/ExtensionStateContext";
+import { useDynamicProviderSelection } from "@/hooks/useDynamicProviderSelection";
+import { useProviderConfig } from "@/hooks/useProviderConfig";
+import { useProviderModels } from "@/hooks/useProviderModels";
+import ClineModelPicker from "./ClineModelPicker";
+
+const mocks = vi.hoisted(() => ({
+	commitSelection: vi.fn(async () => undefined),
+	writeProviderConfig: vi.fn(async () => undefined),
+	updateApiConfigurationProto: vi.fn(async () => undefined),
+	makeUnaryRequest: vi.fn(async () => ({
+		recommended: [
+			{
+				id: "cline-next",
+				description: "Next Cline model",
+				tags: ["recommended"],
+			},
+		],
+		free: [],
+	})),
+	toggleFavoriteModel: vi.fn(async () => undefined),
+}));
+
+vi.mock("@/context/ExtensionStateContext", () => ({
+	useExtensionState: vi.fn(),
+}));
+
+vi.mock("@/hooks/useDynamicProviderSelection", () => ({
+	useDynamicProviderSelection: vi.fn(),
+}));
+
+vi.mock("@/hooks/useProviderModels", () => ({
+	useProviderModels: vi.fn(),
+}));
+
+vi.mock("@/hooks/useProviderConfig", () => ({
+	useProviderConfig: vi.fn(),
+}));
+
+vi.mock("@/services/grpc-client", () => ({
+	ModelsServiceClient: {
+		makeUnaryRequest: mocks.makeUnaryRequest,
+		updateApiConfigurationProto: mocks.updateApiConfigurationProto,
+	},
+	StateServiceClient: {
+		toggleFavoriteModel: mocks.toggleFavoriteModel,
+	},
+}));
+
+describe("ClineModelPicker", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+
+		vi.mocked(useExtensionState).mockReturnValue({
+			apiConfiguration: {
+				actModeClineModelId: "cline-default",
+				actModeClineModelInfo: {
+					name: "Cline Default",
+					supportsPromptCache: true,
+				},
+			},
+			favoritedModelIds: [],
+			planActSeparateModelsSetting: true,
+		} as ReturnType<typeof useExtensionState>);
+
+		vi.mocked(useProviderModels).mockReturnValue({
+			models: {
+				"cline-default": { name: "Cline Default", supportsPromptCache: true },
+				"cline-next": {
+					name: "Cline Next",
+					supportsPromptCache: true,
+					contextWindow: 128_000,
+				},
+			},
+			defaultModelId: "cline-default",
+			isLoading: false,
+			isStale: false,
+			error: undefined,
+			refresh: vi.fn(),
+			fingerprint: "fingerprint",
+		});
+
+		vi.mocked(useProviderConfig).mockReturnValue({
+			config: undefined,
+			write: mocks.writeProviderConfig,
+			commitSelection: mocks.commitSelection,
+		});
+
+		vi.mocked(useDynamicProviderSelection).mockReturnValue({
+			selectedModelId: "cline-default",
+			selectedModelInfo: { name: "Cline Default", supportsPromptCache: true },
+			hideUsageCost: false,
+		});
+	});
+
+	it("commits Cline model selections through provider config so providers.json is updated", async () => {
+		render(<ClineModelPicker currentMode="act" />);
+
+		fireEvent.click(await screen.findByText("cline-next"));
+
+		await waitFor(() => expect(mocks.commitSelection).toHaveBeenCalledTimes(1));
+		expect(mocks.commitSelection).toHaveBeenCalledWith("act", {
+			providerId: "cline",
+			modelId: "cline-next",
+			modelInfo: {
+				name: "Cline Next",
+				supportsPromptCache: true,
+				contextWindow: 128_000,
+			},
+		});
+	});
+});
