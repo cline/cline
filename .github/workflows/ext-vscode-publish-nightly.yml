@@ -31,6 +31,9 @@ jobs:
     if: github.repository == 'cline/cline' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dpc/sdk-migration-simpler-login')
     runs-on: ubuntu-latest
     environment: PublishNightly
+    defaults:
+      run:
+        working-directory: apps/vscode
 
     steps:
       - name: Checkout selected branch
@@ -55,9 +58,11 @@ jobs:
           node-version: 22
 
       - name: Install extension dependencies
+        working-directory: apps/vscode
         run: npm ci --include=optional
 
       - name: Install webview-ui dependencies
+        working-directory: apps/vscode/webview-ui
         run: npm ci --include=optional
 
       - name: Install Publishing Tools
