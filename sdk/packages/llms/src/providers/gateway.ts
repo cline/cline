@@ -15,6 +15,7 @@ import type {
 import { estimateTokens } from "@cline/shared";
 import { toAsyncIterable } from "./async";
 import { BUILTIN_PROVIDER_REGISTRATIONS } from "./builtins-runtime";
+import { getRegisteredGatewayProviders } from "./gateway-provider-registry";
 import { GatewayRegistry } from "./registry";
 
 export type * from "@cline/shared";
@@ -220,6 +221,10 @@ export class DefaultGateway implements Gateway {
 		}
 
 		for (const provider of config.providers ?? []) {
+			this.registry.registerProvider(provider);
+		}
+
+		for (const provider of getRegisteredGatewayProviders()) {
 			this.registry.registerProvider(provider);
 		}
 

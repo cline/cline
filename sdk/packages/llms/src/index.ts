@@ -54,10 +54,14 @@ export {
 	BUILT_IN_PROVIDER_IDS,
 	createHandler,
 	createHandlerAsync,
+	getRegisteredGatewayProviders,
 	isBuiltInProviderId,
 	normalizeProviderId,
 	registerAsyncHandler,
+	registerGatewayProvider,
 	registerHandler,
+	resetGatewayProviderRegistry,
+	unregisterGatewayProvider,
 } from "./providers";
 export {
 	type ProviderUsageCostDisplay,

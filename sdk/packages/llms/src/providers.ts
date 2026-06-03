@@ -32,6 +32,12 @@ export {
 	registerAsyncHandler,
 	registerHandler,
 } from "./providers/factory-registry";
+export {
+	getRegisteredGatewayProviders,
+	registerGatewayProvider,
+	resetGatewayProviderRegistry,
+	unregisterGatewayProvider,
+} from "./providers/gateway-provider-registry";
 export type {
 	ApiStreamChunk,
 	ContentBlock,

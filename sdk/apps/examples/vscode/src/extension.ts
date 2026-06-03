@@ -21,10 +21,16 @@ import {
 	type ToolPolicy,
 } from "@cline/core";
 import {
+	type AgentMessage,
+	type AgentMessagePart,
+	type AgentModelEvent,
 	type AgentTool,
 	buildClineSystemPrompt,
 	createClineTelemetryServiceConfig,
 	createClineTelemetryServiceMetadata,
+	type GatewayProviderContext,
+	type GatewayProviderRegistration,
+	type GatewayStreamRequest,
 } from "@cline/shared";
 import * as vscode from "vscode";
 import { displayName, version } from "../package.json";
@@ -34,6 +40,7 @@ import type {
 	WebviewChatMessage,
 	WebviewInboundMessage,
 	WebviewOutboundMessage,
+	WebviewProviderModel,
 	WebviewSessionSummary,
 } from "./webview-protocol";
 
@@ -44,6 +51,9 @@ const HUB_POLL_INTERVAL_MS = 200;
 const TERMINAL_SHELL_INTEGRATION_TIMEOUT_MS = 5_000;
 const TERMINAL_EXECUTION_TIMEOUT_MS = 120_000;
 const TERMINAL_OUTPUT_LIMIT = 1_000_000;
+const GITHUB_COPILOT_PROVIDER_ID = "github-copilot";
+const GITHUB_COPILOT_AUTO_MODEL_ID = "copilot-auto";
+const VSCODE_EXTENSION_HUB_OWNER_LABEL = `vscode-extension:${process.pid}`;
 const REFRESH_SESSION_EVENTS = new Set([
 	"session.created",
 	"session.updated",
@@ -58,9 +68,11 @@ const REFRESH_SESSION_EVENTS = new Set([
 let extensionTelemetryHandle:
 	| ReturnType<typeof createVscodeTelemetry>
 	| undefined;
+let githubCopilotProviderRegistered = false;
 
 export function activate(context: vscode.ExtensionContext): void {
 	const outputChannel = vscode.window.createOutputChannel("Cline");
+	registerGitHubCopilotProvider();
 	extensionTelemetryHandle = createVscodeTelemetry({
 		extensionVersion: version,
 		clineType: displayName,
@@ -225,6 +237,256 @@ function parseSessionTimestamp(value: unknown): number | undefined {
 
 function wait(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function estimateTokenCount(text: string): number {
+	return Math.ceil(text.length / 4);
+}
+
+function stringifyAgentPart(part: AgentMessagePart): string {
+	switch (part.type) {
+		case "text":
+			return part.text;
+		case "reasoning":
+			return part.text;
+		case "file":
+			return `<file path="${part.path}">\n${part.content}\n</file>`;
+		case "image":
+			return "[Image attachment omitted: VS Code Language Model API text request]";
+		case "tool-call":
+			return JSON.stringify({
+				type: "tool_call",
+				id: part.toolCallId,
+				name: part.toolName,
+				input: part.input,
+			});
+		case "tool-result":
+			return stringifyContent(part.output);
+	}
+}
+
+function stringifyAgentMessage(message: AgentMessage): string {
+	return message.content.map((part) => stringifyAgentPart(part)).join("");
+}
+
+async function listGitHubCopilotModels(): Promise<WebviewProviderModel[]> {
+	const models = await vscode.lm.selectChatModels({ vendor: "copilot" });
+	if (!models.length) {
+		return [
+			{
+				id: GITHUB_COPILOT_AUTO_MODEL_ID,
+				name: "Copilot Auto",
+				supportsThinking: false,
+				supportsReasoning: false,
+			},
+		];
+	}
+	return models
+		.map((model) => ({
+			id: model.id || GITHUB_COPILOT_AUTO_MODEL_ID,
+			name: model.name || model.id || "Copilot Auto",
+			supportsThinking: false,
+			supportsReasoning: false,
+		}))
+		.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function toVsCodeLanguageModelMessage(
+	message: AgentMessage,
+): vscode.LanguageModelChatMessage {
+	if (message.role === "assistant") {
+		const content: Array<
+			vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart
+		> = [];
+		for (const part of message.content) {
+			if (part.type === "tool-call") {
+				content.push(
+					new vscode.LanguageModelToolCallPart(
+						part.toolCallId,
+						part.toolName,
+						(part.input && typeof part.input === "object"
+							? part.input
+							: { input: part.input }) as object,
+					),
+				);
+				continue;
+			}
+			if (part.type !== "tool-result") {
+				content.push(
+					new vscode.LanguageModelTextPart(stringifyAgentPart(part)),
+				);
+			}
+		}
+		return vscode.LanguageModelChatMessage.Assistant(content);
+	}
+
+	const content: Array<
+		vscode.LanguageModelTextPart | vscode.LanguageModelToolResultPart
+	> = [];
+	for (const part of message.content) {
+		if (part.type === "tool-result") {
+			content.push(
+				new vscode.LanguageModelToolResultPart(part.toolCallId, [
+					new vscode.LanguageModelTextPart(stringifyContent(part.output)),
+				]),
+			);
+			continue;
+		}
+		if (part.type !== "tool-call") {
+			content.push(new vscode.LanguageModelTextPart(stringifyAgentPart(part)));
+		}
+	}
+	return vscode.LanguageModelChatMessage.User(content);
+}
+
+async function selectGitHubCopilotModel(
+	modelId: string,
+): Promise<vscode.LanguageModelChat> {
+	const selector =
+		modelId && modelId !== GITHUB_COPILOT_AUTO_MODEL_ID
+			? { vendor: "copilot", id: modelId }
+			: { vendor: "copilot" };
+	const models = await vscode.lm.selectChatModels(selector);
+	const model = models[0];
+	if (!model) {
+		throw new Error(
+			"GitHub Copilot chat models are not available. Install or enable GitHub Copilot Chat, then sign in.",
+		);
+	}
+	return model;
+}
+
+async function* streamGitHubCopilotRequest(
+	request: GatewayStreamRequest,
+	context: GatewayProviderContext,
+): AsyncIterable<AgentModelEvent> {
+	const model = await selectGitHubCopilotModel(request.modelId);
+	const tokenSource = new vscode.CancellationTokenSource();
+	const abortListener = () => tokenSource.cancel();
+	request.signal?.addEventListener("abort", abortListener, { once: true });
+
+	const messages = [
+		vscode.LanguageModelChatMessage.Assistant(request.systemPrompt ?? ""),
+		...request.messages.map((message) => toVsCodeLanguageModelMessage(message)),
+	];
+	const inputTokens = estimateTokenCount(
+		[
+			request.systemPrompt ?? "",
+			...request.messages.map((message) => stringifyAgentMessage(message)),
+			JSON.stringify(request.tools ?? []),
+		].join("\n"),
+	);
+	let outputText = "";
+
+	try {
+		const response = await model.sendRequest(
+			messages,
+			{
+				justification: `Cline would like to use '${model.name}' from GitHub Copilot.`,
+				tools: request.tools?.map((tool) => ({
+					name: tool.name,
+					description: tool.description,
+					inputSchema: tool.inputSchema,
+				})),
+				toolMode: request.tools?.length
+					? vscode.LanguageModelChatToolMode.Auto
+					: undefined,
+			},
+			tokenSource.token,
+		);
+
+		for await (const chunk of response.stream) {
+			if (chunk instanceof vscode.LanguageModelTextPart) {
+				outputText += chunk.value;
+				yield { type: "text-delta", text: chunk.value };
+				continue;
+			}
+			if (chunk instanceof vscode.LanguageModelToolCallPart) {
+				yield {
+					type: "tool-call-delta",
+					toolCallId: chunk.callId,
+					toolName: chunk.name,
+					input: chunk.input,
+				};
+			}
+		}
+
+		yield {
+			type: "usage",
+			usage: {
+				inputTokens,
+				outputTokens: estimateTokenCount(outputText),
+				cacheReadTokens: 0,
+				cacheWriteTokens: 0,
+				totalCost: 0,
+			},
+		};
+		yield { type: "finish", reason: "stop" };
+	} catch (error) {
+		context.logger?.log("GitHub Copilot provider request failed", {
+			severity: "error",
+			error: error instanceof Error ? error.message : String(error),
+		});
+		if (error instanceof vscode.CancellationError) {
+			yield { type: "finish", reason: "aborted" };
+			return;
+		}
+		yield {
+			type: "finish",
+			reason: "error",
+			error: error instanceof Error ? error.message : String(error),
+		};
+	} finally {
+		request.signal?.removeEventListener("abort", abortListener);
+		tokenSource.dispose();
+	}
+}
+
+function registerGitHubCopilotProvider(): void {
+	if (githubCopilotProviderRegistered) return;
+	githubCopilotProviderRegistered = true;
+
+	const registration: GatewayProviderRegistration = {
+		manifest: {
+			id: GITHUB_COPILOT_PROVIDER_ID,
+			name: "GitHub Copilot",
+			description: "GitHub Copilot through VS Code's Language Model API.",
+			defaultModelId: GITHUB_COPILOT_AUTO_MODEL_ID,
+			env: ["node"],
+			capabilities: ["tools"],
+			models: [
+				{
+					id: GITHUB_COPILOT_AUTO_MODEL_ID,
+					name: "Copilot Auto",
+					providerId: GITHUB_COPILOT_PROVIDER_ID,
+					capabilities: ["text", "tools"],
+				},
+			],
+		},
+		createProvider: () => ({
+			stream: streamGitHubCopilotRequest,
+		}),
+	};
+
+	Llms.registerProvider({
+		provider: {
+			id: GITHUB_COPILOT_PROVIDER_ID,
+			name: "GitHub Copilot",
+			description: "GitHub Copilot through VS Code's Language Model API.",
+			defaultModelId: GITHUB_COPILOT_AUTO_MODEL_ID,
+			client: "custom",
+			source: "system",
+			capabilities: ["tools"],
+		},
+		models: {
+			[GITHUB_COPILOT_AUTO_MODEL_ID]: {
+				id: GITHUB_COPILOT_AUTO_MODEL_ID,
+				name: "Copilot Auto",
+				capabilities: ["streaming", "tools"],
+			},
+		},
+	});
+	Llms.registerGatewayProvider(registration);
 }
 
 function readTerminalCommandInput(input: unknown): {
@@ -698,7 +960,11 @@ class CoreChatWebviewController implements vscode.Disposable {
 	}
 
 	private async discoverOrStartHub(): Promise<HubResolution | undefined> {
-		const owner = resolveSharedHubOwnerContext();
+		// VS Code LM providers must execute inside the extension host because
+		// `vscode.lm` is not available to detached hub daemon processes.
+		const owner = resolveSharedHubOwnerContext(
+			VSCODE_EXTENSION_HUB_OWNER_LABEL,
+		);
 
 		if (this.hubUrl) {
 			const healthy = await probeHubServer(this.hubUrl);
@@ -857,7 +1123,9 @@ class CoreChatWebviewController implements vscode.Disposable {
 					return {
 						id,
 						name: info?.name ?? id,
-						enabled: Boolean(state.providers[id]?.settings),
+						enabled:
+							id === GITHUB_COPILOT_PROVIDER_ID ||
+							Boolean(state.providers[id]?.settings),
 						defaultModelId: info?.defaultModelId,
 					};
 				}),
@@ -877,6 +1145,11 @@ class CoreChatWebviewController implements vscode.Disposable {
 	private async loadModels(providerId: string): Promise<void> {
 		const provider = providerId.trim();
 		if (!provider) return;
+		if (provider === GITHUB_COPILOT_PROVIDER_ID) {
+			const models = await listGitHubCopilotModels();
+			await this.post({ type: "models", providerId: provider, models });
+			return;
+		}
 		const modelMap = (await Llms.getModelsForProvider(provider)) as Record<
 			string,
 			LlmModelInfo
