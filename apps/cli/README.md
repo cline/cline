@@ -195,12 +195,12 @@ In chat surfaces, connector slash commands include `/help`, `/start`, `/new`, `/
 Schedule agents on cron-like intervals or external events.
 
 ```sh
+# If --provider or --model are omitted, schedules use your last configured
+# provider/model selection, then fall back to cline/openai/gpt-5.3-codex.
 cline schedule create "Daily code review" \
   --cron "0 9 * * MON-FRI" \
   --prompt "Review PRs opened yesterday and summarize issues." \
   --workspace /path/to/repo \
-  --provider cline \
-  --model openai/gpt-5.3-codex \
   --timeout 3600 \
   --tags automation,review
 

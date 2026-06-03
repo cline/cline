@@ -17,7 +17,12 @@ import {
 	resolveAddress,
 	toPositiveInt,
 } from "./common";
+import { resolveScheduleModelSelection } from "./model-selection";
 import type { CommandIo, ScheduleActionWrapper } from "./types";
+
+function stringValue(value: unknown): string | undefined {
+	return typeof value === "string" ? value : undefined;
+}
 
 function resolveImportedModelSelection(parsed: Record<string, unknown>): {
 	provider: string;
@@ -29,19 +34,16 @@ function resolveImportedModelSelection(parsed: Record<string, unknown>): {
 		!Array.isArray(parsed.modelSelection)
 			? (parsed.modelSelection as Record<string, unknown>)
 			: undefined;
-	const provider = String(
-		modelSelection?.providerId ??
-			parsed.providerId ??
-			parsed.provider ??
-			"cline",
-	).trim();
-	const model = String(
-		modelSelection?.modelId ??
-			parsed.modelId ??
-			parsed.model ??
-			"openai/gpt-5.3-codex",
-	).trim();
-	return { provider, model };
+	return resolveScheduleModelSelection({
+		provider:
+			stringValue(modelSelection?.providerId) ??
+			stringValue(parsed.providerId) ??
+			stringValue(parsed.provider),
+		model:
+			stringValue(modelSelection?.modelId) ??
+			stringValue(parsed.modelId) ??
+			stringValue(parsed.model),
+	});
 }
 
 export function registerScheduleExportCommand(

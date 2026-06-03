@@ -45,9 +45,6 @@ test-results
 
 /.github/act
 /pkg
-.secrets
-
-*.tsbuildinfo
 
 # Smoke test results (generated)
 evals/smoke-tests/results/
@@ -69,13 +66,11 @@ apps/examples/*/src-tauri/bin
 # Tauri UI test snapshots
 apps/*/src/tests/.tui-test
 apps/*/src/tests/tui-traces
-apps/vscode/webview-ui/src/**/*.js
-apps/vscode/webview-ui/src/**/*.js.map
-
 
 # SDK Session files / User data
 .cline/data
 .cline/tmp
+.cline/enterprise
 *.db
 *.db-shm
 *.db-wal
