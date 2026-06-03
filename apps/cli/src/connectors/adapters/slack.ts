@@ -46,6 +46,7 @@ import {
 import { FileStateAdapter } from "../stores/file-state";
 import { startConnectorTaskUpdateRelay } from "../task-updates";
 import {
+	type ConnectorBindingScope,
 	type ConnectorBindingStore,
 	type ConnectorThreadBinding,
 	type ConnectorThreadState,
@@ -100,6 +101,10 @@ type SlackUsersListResponse = {
 	response_metadata?: {
 		next_cursor?: string;
 	};
+};
+type SlackUsersInfoResponse = {
+	ok?: boolean;
+	user?: SlackUser;
 };
 
 function truncateText(value: string, maxLength = 160): string {
@@ -246,6 +251,37 @@ function resolveSlackParticipant(
 	};
 }
 
+function slackUserDisplayLabel(
+	user: SlackUser | undefined,
+): string | undefined {
+	if (!user) {
+		return undefined;
+	}
+	const profile = user.profile ?? {};
+	return (
+		profile.display_name_normalized?.trim() ||
+		profile.display_name?.trim() ||
+		profile.real_name_normalized?.trim() ||
+		profile.real_name?.trim() ||
+		user.real_name?.trim() ||
+		user.name?.trim() ||
+		user.id?.trim()
+	);
+}
+
+async function fetchSlackUserLabel(input: {
+	slack: Pick<SlackAdapter, "webClient">;
+	userId: string;
+}): Promise<string | undefined> {
+	const result = (await input.slack.webClient.users.info({
+		user: input.userId,
+	})) as SlackUsersInfoResponse;
+	if (result.ok === false) {
+		return undefined;
+	}
+	return slackUserDisplayLabel(result.user);
+}
+
 function extractSlackTeamId(raw: unknown): string | undefined {
 	if (!raw || typeof raw !== "object") {
 		return undefined;
@@ -258,6 +294,41 @@ function extractSlackTeamId(raw: unknown): string | undefined {
 				? record.team
 				: undefined;
 	return value?.trim() || undefined;
+}
+
+function resolveSlackBindingScope(
+	thread: Pick<Thread<SlackThreadState>, "isDM">,
+): ConnectorBindingScope {
+	return thread.isDM ? "participant" : "thread";
+}
+
+function formatSlackRuntimeText(input: {
+	text: string;
+	thread: Thread<SlackThreadState>;
+	state: SlackThreadState;
+	addressedToBot: boolean;
+}): string {
+	const authorId = resolveSlackParticipantUserId(input.state.participantKey);
+	return [
+		"<slack_message_context>",
+		...(input.state.teamId ? [`teamId: ${input.state.teamId}`] : []),
+		`threadId: ${input.thread.id}`,
+		`channelId: ${input.thread.channelId}`,
+		`isDM: ${input.thread.isDM ? "true" : "false"}`,
+		...(authorId
+			? [`authorId: ${authorId}`, `authorMention: <@${authorId}>`]
+			: []),
+		...(input.state.participantLabel
+			? [`authorLabel: ${input.state.participantLabel}`]
+			: []),
+		...(input.state.participantKey
+			? [`participantKey: ${input.state.participantKey}`]
+			: []),
+		`isDirectMention: ${input.addressedToBot ? "true" : "false"}`,
+		"</slack_message_context>",
+		"",
+		input.text,
+	].join("\n");
 }
 
 function slackUserNames(user: SlackUser): string[] {
@@ -493,24 +564,52 @@ function clearSlackBinding(
 }
 
 async function persistSlackThreadContext(input: {
+	slack: SlackAdapter;
 	thread: Thread<SlackThreadState>;
 	bindingsPath: string;
 	baseStartRequest: ChatStartSessionRequest;
 	rawMessage: unknown;
 	errorLabel: string;
+	logger?: CliLoggerAdapter;
 }): Promise<void> {
 	const teamId = extractSlackTeamId(input.rawMessage);
-	const participant = resolveSlackParticipant(input.rawMessage, teamId);
+	let participant = resolveSlackParticipant(input.rawMessage, teamId);
 	if (!teamId) {
 		return;
+	}
+	const bindingScope = resolveSlackBindingScope(input.thread);
+	const userId = resolveSlackParticipantUserId(participant?.key);
+	if (participant && userId) {
+		try {
+			const profileLabel = await withSlackTeamBotToken({
+				slack: input.slack,
+				teamId,
+				work: () =>
+					fetchSlackUserLabel({
+						slack: input.slack,
+						userId,
+					}),
+			});
+			if (profileLabel) {
+				participant = { ...participant, label: profileLabel };
+			}
+		} catch (error) {
+			input.logger?.core.log("Slack participant label lookup skipped", {
+				severity: "warn",
+				transport: "slack",
+				error: error instanceof Error ? error.message : String(error),
+			});
+		}
 	}
 	const currentState = await loadThreadState(
 		input.thread,
 		input.bindingsPath,
 		input.baseStartRequest,
+		bindingScope,
 	);
 	if (
 		currentState.teamId === teamId &&
+		currentState.bindingScope === bindingScope &&
 		currentState.participantKey === participant?.key &&
 		currentState.participantLabel === participant?.label
 	) {
@@ -522,6 +621,7 @@ async function persistSlackThreadContext(input: {
 		{
 			...currentState,
 			teamId: teamId ?? currentState.teamId,
+			bindingScope,
 			participantKey: participant?.key ?? currentState.participantKey,
 			participantLabel: participant?.label ?? currentState.participantLabel,
 		},
@@ -969,8 +1069,12 @@ class SlackConnector extends ConnectorBase<
 				thread,
 				bindingsPath,
 				startRequest,
+				resolveSlackBindingScope(thread),
 			);
-			const queueKey = currentState.participantKey || thread.id;
+			const queueKey =
+				currentState.bindingScope === "thread"
+					? thread.id
+					: currentState.participantKey || thread.id;
 			const runTurn = async () => {
 				try {
 					await withSlackTeamBotToken({
@@ -980,6 +1084,12 @@ class SlackConnector extends ConnectorBase<
 							handleConnectorUserTurn({
 								thread,
 								text,
+								runtimeText: formatSlackRuntimeText({
+									text,
+									thread,
+									state: currentState,
+									addressedToBot,
+								}),
 								client,
 								pendingApprovals,
 								baseStartRequest: startRequest,
@@ -1113,11 +1223,13 @@ class SlackConnector extends ConnectorBase<
 			});
 			await thread.subscribe();
 			await persistSlackThreadContext({
+				slack,
 				thread,
 				bindingsPath,
 				baseStartRequest: startRequest,
 				rawMessage: message.raw,
 				errorLabel: "Slack",
+				logger: loggerAdapter,
 			});
 			if (
 				await maybeHandleConnectorApprovalReply({
@@ -1141,11 +1253,13 @@ class SlackConnector extends ConnectorBase<
 				botUserId: slack.botUserId,
 			});
 			await persistSlackThreadContext({
+				slack,
 				thread,
 				bindingsPath,
 				baseStartRequest: startRequest,
 				rawMessage: message.raw,
 				errorLabel: "Slack",
+				logger: loggerAdapter,
 			});
 			if (
 				await maybeHandleConnectorApprovalReply({
@@ -1178,11 +1292,13 @@ class SlackConnector extends ConnectorBase<
 			});
 			await thread.subscribe();
 			await persistSlackThreadContext({
+				slack,
 				thread,
 				bindingsPath,
 				baseStartRequest: startRequest,
 				rawMessage: event.raw,
 				errorLabel: "Slack",
+				logger: loggerAdapter,
 			});
 			await handleTurn(thread, commandText, true);
 		});
@@ -1359,6 +1475,7 @@ export const __test__ = {
 	buildSlackParticipantKey,
 	resolveSlackParticipantUserId,
 	resolveSlackParticipant,
+	formatSlackRuntimeText,
 	normalizeSlackMessageEventChannelType,
 	stripLeadingSlackMention,
 	resolveSlackTurnText,
@@ -1371,6 +1488,7 @@ export const __test__ = {
 		bindings: ConnectorBindingStore<SlackThreadState>,
 		thread: Pick<Thread<SlackThreadState>, "id" | "channelId" | "isDM"> & {
 			participantKey?: string;
+			bindingScope?: ConnectorBindingScope;
 		},
 	) => findBindingForThread(bindings, thread),
 };

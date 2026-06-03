@@ -80,10 +80,10 @@ describe("slack binding lookup", () => {
 		expect(result?.binding.sessionId).toBe("sess-2");
 	});
 
-	it("reuses a binding by participant key across different threads", () => {
+	it("does not reuse a thread-scoped binding by participant key across Slack channel threads", () => {
 		const result = __test__.findBindingForThread(
 			{
-				[participantKey]: {
+				"slack:C123:111.222": {
 					channelId: "slack:C123",
 					isDM: false,
 					participantKey,
@@ -93,6 +93,7 @@ describe("slack binding lookup", () => {
 					state: {
 						sessionId: "sess-1",
 						teamId: "T123",
+						bindingScope: "thread",
 						participantKey,
 						participantLabel: "alice",
 					},
@@ -104,6 +105,39 @@ describe("slack binding lookup", () => {
 				channelId: "slack:C999",
 				isDM: false,
 				participantKey,
+				bindingScope: "thread",
+			},
+		);
+
+		expect(result).toBeUndefined();
+	});
+
+	it("can still reuse participant-scoped bindings for Slack DMs", () => {
+		const result = __test__.findBindingForThread(
+			{
+				[participantKey]: {
+					channelId: "slack:D123",
+					isDM: true,
+					participantKey,
+					participantLabel: "alice",
+					serializedThread: "{}",
+					sessionId: "sess-1",
+					state: {
+						sessionId: "sess-1",
+						teamId: "T123",
+						bindingScope: "participant",
+						participantKey,
+						participantLabel: "alice",
+					},
+					updatedAt: "2026-03-17T00:00:00.000Z",
+				},
+			},
+			{
+				id: "slack:D123",
+				channelId: "slack:D123",
+				isDM: true,
+				participantKey,
+				bindingScope: "participant",
 			},
 		);
 
@@ -206,6 +240,42 @@ describe("slack binding lookup", () => {
 				botUserId: "U123",
 			}),
 		).toBe("@Other User /help");
+	});
+
+	it("adds Slack author context to runtime text", () => {
+		expect(
+			__test__.formatSlackRuntimeText({
+				text: "What's Ara's first question?",
+				thread: {
+					id: "slack:C123:111.222",
+					channelId: "slack:C123",
+					isDM: false,
+				} as never,
+				state: {
+					teamId: "T123",
+					bindingScope: "thread",
+					participantKey: "slack:team:T123:user:U08LK8A7YTC",
+					participantLabel: "Ara",
+				},
+				addressedToBot: false,
+			}),
+		).toBe(
+			[
+				"<slack_message_context>",
+				"teamId: T123",
+				"threadId: slack:C123:111.222",
+				"channelId: slack:C123",
+				"isDM: false",
+				"authorId: U08LK8A7YTC",
+				"authorMention: <@U08LK8A7YTC>",
+				"authorLabel: Ara",
+				"participantKey: slack:team:T123:user:U08LK8A7YTC",
+				"isDirectMention: false",
+				"</slack_message_context>",
+				"",
+				"What's Ara's first question?",
+			].join("\n"),
+		);
 	});
 
 	it("resolves outbound Slack display names to user mention ids", () => {
