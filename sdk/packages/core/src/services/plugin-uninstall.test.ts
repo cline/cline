@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, rmSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -124,6 +124,30 @@ describe("plugin uninstall service", () => {
 
 		expect(result.installPath).toBe(pluginPath);
 		expect(existsSync(pluginPath)).toBe(false);
+	});
+
+	it("keeps disabled plugin settings if file deletion fails", async () => {
+		const pluginRoot = join(home, ".cline", "plugins");
+		const pluginPath = join(pluginRoot, "locked-plugin.ts");
+		await mkdir(pluginRoot, { recursive: true });
+		await writeFile(
+			pluginPath,
+			"export default { name: 'locked', manifest: { capabilities: ['tools'] } };",
+			"utf8",
+		);
+		writeGlobalSettings({ disabledPlugins: [pluginPath] });
+		chmodSync(pluginRoot, 0o555);
+
+		try {
+			await expect(uninstallPlugin({ path: pluginPath })).rejects.toThrow();
+			expect(existsSync(pluginPath)).toBe(true);
+			expect(readGlobalSettings()).toEqual({
+				disabledPlugins: [pluginPath],
+				telemetryOptOut: false,
+			});
+		} finally {
+			chmodSync(pluginRoot, 0o755);
+		}
 	});
 
 	it("reports unmatched names clearly", async () => {

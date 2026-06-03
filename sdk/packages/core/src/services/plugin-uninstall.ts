@@ -407,11 +407,11 @@ export async function uninstallPlugin(
 			`Plugin install path does not exist: ${candidate.installPath}`,
 		);
 	}
-	cleanupDisabledPluginPaths(candidate);
 	rmSync(candidate.installPath, {
 		recursive: stats.isDirectory(),
 		force: true,
 	});
+	cleanupDisabledPluginPaths(candidate);
 	if (candidate.installed) {
 		cleanupEmptyInstallParents(candidate.installPath);
 	}
