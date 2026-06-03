@@ -399,7 +399,7 @@ export class AgentRuntime {
 						? undefined
 						: String(reason);
 		this.state.lastError = message ?? "Run aborted";
-		this.abortController.abort(new Error(this.state.lastError));
+		this.abortController.abort();
 	}
 
 	subscribe(listener: AgentEventListener): () => void {

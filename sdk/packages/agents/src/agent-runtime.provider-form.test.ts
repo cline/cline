@@ -83,13 +83,21 @@ describe("AgentRuntime (provider-form config + Agent alias)", () => {
 	});
 
 	it("forwards abort() to the active AgentRuntime", async () => {
+		let abortReason: unknown;
 		const model = new ScriptedModel([
 			async function* (request) {
 				yield { type: "text-delta", text: "partial" };
 				await new Promise<void>((resolve) => {
-					request.signal?.addEventListener("abort", () => resolve(), {
-						once: true,
-					});
+					request.signal?.addEventListener(
+						"abort",
+						() => {
+							abortReason = request.signal?.reason;
+							resolve();
+						},
+						{
+							once: true,
+						},
+					);
 				});
 				yield { type: "finish", reason: "aborted" };
 			},
@@ -113,6 +121,7 @@ describe("AgentRuntime (provider-form config + Agent alias)", () => {
 		await expect(runPromise).resolves.toMatchObject({
 			status: "aborted",
 		});
+		expect(abortReason).not.toEqual(new Error("user cancelled"));
 	});
 
 	it("createAgent() and new Agent() both return an AgentRuntime instance", () => {
