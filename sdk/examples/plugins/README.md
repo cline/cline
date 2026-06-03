@@ -76,7 +76,6 @@ inference.
 
 ```bash
 ANTHROPIC_API_KEY=sk-... bun run examples/plugins/weather-metrics.ts
-OPENROUTER_API_KEY=sk-or-... bun run examples/plugins/openrouter-provider.ts
 ```
 
 ## Anatomy of a plugin
