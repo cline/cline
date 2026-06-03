@@ -3,24 +3,68 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const gatewayMock = vi.hoisted(() => {
 	const createAgentModel = vi.fn();
+	const resolveGatewayProviderRegistrationSync = vi.fn();
 	return {
 		createAgentModel,
 		createGateway: vi.fn(() => ({ createAgentModel })),
+		resolveGatewayProviderRegistrationSync,
 	};
 });
 
 vi.mock("@cline/llms", () => ({
 	createGateway: gatewayMock.createGateway,
 	MODEL_COLLECTIONS_BY_PROVIDER_ID: {},
+	resolveGatewayProviderRegistrationSync:
+		gatewayMock.resolveGatewayProviderRegistrationSync,
 }));
 
 describe("createAgentModelFromConfig", () => {
 	beforeEach(() => {
 		gatewayMock.createAgentModel.mockReset();
 		gatewayMock.createGateway.mockClear();
+		gatewayMock.resolveGatewayProviderRegistrationSync.mockReset();
 		gatewayMock.createGateway.mockImplementation(() => ({
 			createAgentModel: gatewayMock.createAgentModel,
 		}));
+	});
+
+	it("registers catalog-backed providers with the gateway", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+		const registration = {
+			manifest: {
+				id: "plugin-provider",
+				name: "Plugin Provider",
+				defaultModelId: "plugin-model",
+				models: [
+					{
+						id: "plugin-model",
+						name: "Plugin Model",
+						providerId: "plugin-provider",
+					},
+				],
+			},
+			createProvider: vi.fn(),
+		};
+		gatewayMock.resolveGatewayProviderRegistrationSync.mockReturnValue(
+			registration,
+		);
+
+		createAgentModelFromConfig(
+			{
+				providerId: "plugin-provider",
+				modelId: "plugin-model",
+				apiKey: "key",
+				systemPrompt: "",
+				tools: [],
+			},
+			undefined,
+		);
+
+		expect(gatewayMock.createGateway).toHaveBeenCalledWith(
+			expect.objectContaining({
+				providers: [registration],
+			}),
+		);
 	});
 
 	it("forwards effective telemetry into the gateway", async () => {

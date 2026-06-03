@@ -72,10 +72,28 @@ inspect a specific page. `EXA_API_KEY` only authenticates the search backend;
 the CLI still needs a normal model provider key or saved provider auth for
 inference.
 
+## Add a custom model provider
+
+[`openrouter-provider.ts`](./openrouter-provider.ts) registers a model provider
+from a plugin, so the agent can run inference against an endpoint Cline does not
+ship with. It points at OpenRouter under a distinct id (`openrouter-plugin`) so
+it does not collide with the built-in `openrouter` provider.
+
+```bash
+cline plugin install https://github.com/cline/cline/blob/main/sdk/examples/plugins/openrouter-provider.ts --cwd .
+
+export OPENROUTER_API_KEY=sk-or-...
+cline -P openrouter-plugin -m anthropic/claude-sonnet-4.6 "Say hello and name your model."
+```
+
+To add another OpenAI-compatible endpoint, change the base URL, API key env var,
+and model catalog at the top of the file.
+
 ## Run a demo directly
 
 ```bash
 ANTHROPIC_API_KEY=sk-... bun run examples/plugins/weather-metrics.ts
+OPENROUTER_API_KEY=sk-or-... bun run examples/plugins/openrouter-provider.ts
 ```
 
 ## Anatomy of a plugin

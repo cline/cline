@@ -168,7 +168,7 @@ function resolveFactory(
 	}
 }
 
-async function resolveProviderRegistration(
+export async function resolveGatewayProviderRegistration(
 	config: ProviderConfig,
 ): Promise<GatewayProviderRegistration | undefined> {
 	const providerId = normalizeProviderId(config.providerId);
@@ -234,7 +234,7 @@ async function resolveProviderRegistration(
 	};
 }
 
-function resolveProviderRegistrationSync(
+export function resolveGatewayProviderRegistrationSync(
 	config: ProviderConfig,
 ): GatewayProviderRegistration | undefined {
 	const providerId = normalizeProviderId(config.providerId);
@@ -588,7 +588,7 @@ class GatewayApiHandler implements ApiHandler {
 			logger: this.config.logger ?? this.config.extensionContext?.logger,
 			telemetry: this.config.extensionContext?.telemetry,
 		});
-		const registration = resolveProviderRegistrationSync(this.config);
+		const registration = resolveGatewayProviderRegistrationSync(this.config);
 		if (registration) {
 			gateway.registerProvider(registration);
 		}
@@ -639,7 +639,7 @@ export async function createGatewayApiHandlerAsync(
 		logger: config.logger ?? config.extensionContext?.logger,
 		telemetry: config.extensionContext?.telemetry,
 	});
-	const registration = await resolveProviderRegistration(config);
+	const registration = await resolveGatewayProviderRegistration(config);
 	if (registration) {
 		gateway.registerProvider(registration);
 	}

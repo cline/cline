@@ -16,17 +16,18 @@
  *
  * How it works:
  *   - `Llms.registerProvider(collection)` adds the provider and its models to
- *     the gateway catalog. With `protocol: "openai-chat"` and
- *     `client: "openai-compatible"`, the gateway builds an OpenAI-compatible
- *     handler from the `baseUrl` and resolves the API key from the session
- *     config or the `env` var declared on the provider.
+ *     the host process catalog. With `protocol: "openai-chat"` and `client:
+ *     "openai-compatible"`, the gateway builds an OpenAI-compatible handler
+ *     from the `baseUrl` and resolves the API key from the session config or
+ *     the `env` var declared on the provider.
  *   - `api.registerProvider(...)` declares the contribution on the plugin
- *     (required by the `providers` capability) so hosts can advertise it.
+ *     (required by the `providers` capability) so hosts can advertise it. The
+ *     same collection is included in metadata so sandboxed plugin hosts can
+ *     replay it into their own process.
  *
  * CLI usage:
  *   cline plugin install https://github.com/cline/cline/blob/main/sdk/examples/plugins/openrouter-provider.ts --cwd .
  *   export OPENROUTER_API_KEY=sk-or-...
- *   cline auth --provider openrouter-plugin --apikey "$OPENROUTER_API_KEY" --modelid anthropic/claude-sonnet-4.6
  *   cline -P openrouter-plugin -m anthropic/claude-sonnet-4.6 "Say hello and name your model."
  *
  * Direct demo usage:
@@ -132,14 +133,16 @@ const plugin: AgentPlugin = {
 	},
 
 	setup(api, ctx) {
+		const collection = buildCollection();
 		// 1. Register the provider + models with the gateway catalog. This is what
 		//    makes inference actually work. The gateway can now resolve
 		//    `openrouter-plugin` and its models and build a handler for them.
-		Llms.registerProvider(buildCollection());
+		Llms.registerProvider(collection);
 
 		// 2. Declare the contribution on the plugin. Required by the "providers"
 		//    capability; lets hosts advertise the provider in pickers and surface
-		//    its metadata.
+		//    its metadata. Sandboxed plugin hosts replay `clineModelCollection`
+		//    into the host process catalog.
 		api.registerProvider({
 			name: PROVIDER_ID,
 			description: `${PROVIDER_NAME}: OpenAI-compatible endpoint at ${BASE_URL}`,
@@ -148,6 +151,7 @@ const plugin: AgentPlugin = {
 				apiKeyEnv: API_KEY_ENV,
 				defaultModelId: DEFAULT_MODEL_ID,
 				modelIds: Object.keys(MODELS),
+				clineModelCollection: collection,
 			},
 		});
 
