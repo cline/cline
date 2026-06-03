@@ -4,6 +4,7 @@ import { MessageTranslatorState, translateSessionEvent } from "./message-transla
 import { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import { createTaskProxy } from "./task-proxy"
+import { DEFAULT_TOOL_APPROVAL_DENIAL_REASON, USER_MESSAGE_TOOL_APPROVAL_DENIAL_REASON } from "./tool-approval-denial"
 
 vi.mock("./webview-grpc-bridge", () => ({
 	pushMessageToWebview: vi.fn().mockResolvedValue(undefined),
@@ -101,11 +102,13 @@ describe("SdkInteractionCoordinator", () => {
 	it("resolves denied tool approval with the user reason", async () => {
 		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
 		const recordApprovedToolMessage = vi.fn()
+		const recordDeniedToolApproval = vi.fn()
 		const coordinator = new SdkInteractionCoordinator({
 			messages: new SdkMessageCoordinator({ getTask: () => task }),
 			getSessionId: () => "session-123",
 			postStateToWebview: vi.fn().mockResolvedValue(undefined),
 			recordApprovedToolMessage,
+			recordDeniedToolApproval,
 		})
 
 		const approvalPromise = coordinator.handleRequestToolApproval({
@@ -124,7 +127,77 @@ describe("SdkInteractionCoordinator", () => {
 
 		expect(coordinator.resolvePendingToolApproval("too risky", "noButtonClicked")).toBe(true)
 		expect(recordApprovedToolMessage).not.toHaveBeenCalled()
+		expect(recordDeniedToolApproval).toHaveBeenCalledWith("tool-call", "execute_command", "too risky")
 		await expect(approvalPromise).resolves.toEqual({ approved: false, reason: "too risky" })
+	})
+
+	it("routes message responses as follow-ups instead of tool denial text", async () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const setTurnPhase = vi.fn()
+		const recordDeniedToolApproval = vi.fn()
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+			setTurnPhase,
+			recordDeniedToolApproval,
+		})
+
+		const approvalPromise = coordinator.handleRequestToolApproval({
+			agentId: "agent",
+			conversationId: "conversation",
+			iteration: 1,
+			toolCallId: "tool-call",
+			toolName: "fetch_web_content",
+			input: { requests: [{ url: "https://example.com", prompt: "read it" }] },
+			policy: { autoApprove: false },
+		})
+		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
+
+		expect(coordinator.resolvePendingToolApproval("just give me an answer", "messageResponse")).toBe(false)
+		await expect(approvalPromise).resolves.toEqual({
+			approved: false,
+			reason: USER_MESSAGE_TOOL_APPROVAL_DENIAL_REASON,
+		})
+		expect(recordDeniedToolApproval).toHaveBeenCalledWith(
+			"tool-call",
+			"fetch_web_content",
+			USER_MESSAGE_TOOL_APPROVAL_DENIAL_REASON,
+		)
+		expect(setTurnPhase).toHaveBeenLastCalledWith("streaming")
+	})
+
+	it("records generic no-button approval denials for UI suppression", async () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const recordDeniedToolApproval = vi.fn()
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+			recordDeniedToolApproval,
+		})
+
+		const approvalPromise = coordinator.handleRequestToolApproval({
+			agentId: "agent",
+			conversationId: "conversation",
+			iteration: 1,
+			toolCallId: "tool-call",
+			toolName: "fetch_web_content",
+			input: { requests: [{ url: "https://example.com", prompt: "read it" }] },
+			policy: { autoApprove: false },
+		})
+		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
+
+		expect(coordinator.resolvePendingToolApproval(undefined, "noButtonClicked")).toBe(true)
+		await expect(approvalPromise).resolves.toEqual({
+			approved: false,
+			reason: DEFAULT_TOOL_APPROVAL_DENIAL_REASON,
+		})
+		expect(recordDeniedToolApproval).toHaveBeenCalledWith(
+			"tool-call",
+			"fetch_web_content",
+			DEFAULT_TOOL_APPROVAL_DENIAL_REASON,
+		)
 	})
 
 	it("auto-approves without emitting UI when the live settings allow the tool", async () => {

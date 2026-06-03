@@ -42,6 +42,7 @@ import type {
 } from "@shared/ExtensionMessage"
 import { Logger } from "@shared/services/Logger"
 import { MessageIdMinter } from "./message-id-minter"
+import { isDeniedToolApprovalMistake, isKnownToolApprovalDenial } from "./tool-approval-denial"
 
 // ---------------------------------------------------------------------------
 // Translation result
@@ -123,6 +124,8 @@ export class MessageTranslatorState {
 	private streamingToolName: string | undefined
 	/** Approved tool-call ids mapped to the approval row that should be updated in place. */
 	private approvedToolMessageTsByCallId = new Map<string, number>()
+	/** Tool calls rejected by the user; they should not render as red tool failures. */
+	private deniedToolApprovalsByCallId = new Map<string, { toolName: string; reason: string }>()
 	/**
 	 * Process-wide id/seq/epoch authority. Shared with the interaction coordinator and history
 	 * rendering so that message ids never collide across generators. See message-id-minter.ts.
@@ -202,6 +205,30 @@ export class MessageTranslatorState {
 	/** Clear approved prompt rows that no longer have a live tool event to consume them. */
 	clearApprovedToolMessageTs(): void {
 		this.approvedToolMessageTsByCallId.clear()
+	}
+
+	recordDeniedToolApproval(toolCallId: string, toolName: string, reason: string): void {
+		this.deniedToolApprovalsByCallId.set(toolCallId, { toolName, reason })
+	}
+
+	isToolApprovalDenied(toolCallId: string | undefined): boolean {
+		return toolCallId !== undefined && this.deniedToolApprovalsByCallId.has(toolCallId)
+	}
+
+	/**
+	 * Returns true when the given toolCallId was previously denied and its events should be
+	 * suppressed. This intentionally does not remove the entry because the denial must persist
+	 * past content_end so the follow-on error event can also be suppressed.
+	 */
+	checkDeniedToolApproval(toolCallId: string | undefined): boolean {
+		if (toolCallId === undefined || !this.deniedToolApprovalsByCallId.has(toolCallId)) {
+			return false
+		}
+		return true
+	}
+
+	isSuppressedToolApprovalDenial(value: unknown): boolean {
+		return isDeniedToolApprovalMistake(value, this.deniedToolApprovalsByCallId.values())
 	}
 
 	/** Reuse and remove a previously-approved prompt row for the matching tool event. */
@@ -369,6 +396,7 @@ export class MessageTranslatorState {
 		this.streamingToolInput = undefined
 		this.streamingToolName = undefined
 		this.clearApprovedToolMessageTs()
+		this.deniedToolApprovalsByCallId.clear()
 		this.clearSpawnAgents()
 	}
 
@@ -873,6 +901,10 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 					const toolName = event.toolName ?? "unknown"
 					const input = event.input
 
+					if (state.isToolApprovalDenied(event.toolCallId)) {
+						break
+					}
+
 					// Store tool context so content_end can use it
 					// (content_end doesn't carry the input)
 					state.setStreamingToolContext(toolName, input)
@@ -1050,6 +1082,11 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 				}
 				case "tool": {
 					const toolName = event.toolName ?? "unknown"
+
+					if (state.checkDeniedToolApproval(event.toolCallId) || isKnownToolApprovalDenial(event.error)) {
+						state.clearStreamingTool()
+						break
+					}
 
 					// ask_question is serviced by the interaction coordinator (see content_start);
 					// it produces no transcript row of its own, so its content_end is a no-op.
@@ -1332,6 +1369,10 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 		}
 
 		case "error": {
+			if (state.isSuppressedToolApprovalDenial(event.error)) {
+				break
+			}
+
 			// Serialize the error message for the webview's ErrorRow to parse.
 			// The webview uses ClineError.parse() on the `api_req_failed` text to
 			// detect special error types (insufficient credits, spend limit, auth,
@@ -1441,7 +1482,7 @@ export function translateSessionEvent(event: CoreSessionEvent, state: MessageTra
 			if (agentEvent.type === "done") {
 				result.turnComplete = true
 			}
-			if (agentEvent.type === "error") {
+			if (agentEvent.type === "error" && !state.isSuppressedToolApprovalDenial(agentEvent.error)) {
 				result.turnComplete = true
 			}
 
@@ -1449,9 +1490,13 @@ export function translateSessionEvent(event: CoreSessionEvent, state: MessageTra
 			// A content_end event with contentType "tool" signals a completed
 			// tool call — if event.error is set, the tool failed.
 			if (agentEvent.type === "content_end" && agentEvent.contentType === "tool") {
-				if (agentEvent.error) {
+				if (
+					agentEvent.error &&
+					!isKnownToolApprovalDenial(agentEvent.error) &&
+					!state.isToolApprovalDenied(agentEvent.toolCallId)
+				) {
 					result.toolError = true
-				} else {
+				} else if (!agentEvent.error) {
 					result.toolSuccess = true
 				}
 			}

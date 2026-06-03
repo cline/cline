@@ -83,6 +83,34 @@ describe("SdkFollowupCoordinator", () => {
 		)
 	})
 
+	it("queues a message response after a pending tool approval is rejected", async () => {
+		const activeSession = makeActiveSession({ isRunning: true })
+		const { coordinator, options } = makeCoordinator({ activeSession })
+		options.interactions.resolvePendingToolApproval.mockReturnValue(false)
+
+		await coordinator.askResponse("just give me an answer", undefined, undefined, "messageResponse")
+
+		expect(options.interactions.resolvePendingToolApproval).toHaveBeenCalledWith("just give me an answer", "messageResponse")
+		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
+			[
+				expect.objectContaining({
+					type: "say",
+					say: "user_feedback",
+					text: "just give me an answer",
+				}),
+			],
+			{ type: "status", payload: { sessionId: "session-123", status: "running" } },
+		)
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
+			activeSession.sdkHost,
+			"session-123",
+			"resolved: just give me an answer",
+			undefined,
+			undefined,
+			"queue",
+		)
+	})
+
 	it("resumes a displayed task before sending a follow-up when there is no live session", async () => {
 		const task = makeTask("task-1")
 		const historyItem = {
