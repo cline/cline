@@ -58,8 +58,10 @@ export type TelegramConnectorState = {
 
 export type ConnectSlackOptions = {
 	userName: string;
+	connectionMode: "webhook" | "socket";
 	botToken?: string;
 	signingSecret?: string;
+	appToken?: string;
 	clientId?: string;
 	clientSecret?: string;
 	encryptionKey?: string;
@@ -82,10 +84,11 @@ export type ConnectSlackOptions = {
 
 export type SlackConnectorState = {
 	userName: string;
+	connectionMode?: "webhook" | "socket";
 	pid: number;
 	rpcAddress: string;
-	port: number;
-	baseUrl: string;
+	port?: number;
+	baseUrl?: string;
 	startedAt: string;
 };
 

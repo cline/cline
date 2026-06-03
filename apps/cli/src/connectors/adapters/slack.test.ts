@@ -4,6 +4,15 @@ import { __test__ } from "./slack";
 describe("slack binding lookup", () => {
 	const participantKey = __test__.buildSlackParticipantKey("T123", "U123");
 
+	it("parses Slack connection modes", () => {
+		expect(__test__.parseSlackConnectionMode(undefined)).toBe("webhook");
+		expect(__test__.parseSlackConnectionMode("socket")).toBe("socket");
+		expect(__test__.parseSlackConnectionMode(" WEBHOOK ")).toBe("webhook");
+		expect(() => __test__.parseSlackConnectionMode("polling")).toThrow(
+			/invalid Slack connection mode/,
+		);
+	});
+
 	it("falls back to channel identity when a restarted connector gets a new thread id", () => {
 		const result = __test__.findBindingForThread(
 			{

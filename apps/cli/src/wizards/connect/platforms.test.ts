@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PLATFORMS } from "./platforms";
+import { PLATFORMS, shouldIncludeField } from "./platforms";
 
 describe("connect wizard platform security fields", () => {
 	it("does not ask Telegram users to re-enter the bot username", () => {
@@ -29,5 +29,35 @@ describe("connect wizard platform security fields", () => {
 		expect(slackTeam?.validate?.("T01;bad")).toContain("Slack workspace");
 		expect(slackUser?.validate?.("U01ABC123")).toBeUndefined();
 		expect(slackUser?.validate?.("U01$(bad)")).toContain("Slack member");
+	});
+
+	it("asks Slack users for mode-specific setup fields", () => {
+		const slack = PLATFORMS.find((platform) => platform.id === "slack");
+		const fields = slack?.fields ?? [];
+		const webhookValues = { "--connection": "webhook" };
+		const socketValues = { "--connection": "socket" };
+
+		expect(fields.map((field) => field.flag)).toEqual([
+			"--connection",
+			"--bot-token",
+			"--signing-secret",
+			"--app-token",
+			"--base-url",
+		]);
+		expect(
+			fields
+				.filter((field) => shouldIncludeField(field, webhookValues))
+				.map((field) => field.flag),
+		).toEqual([
+			"--connection",
+			"--bot-token",
+			"--signing-secret",
+			"--base-url",
+		]);
+		expect(
+			fields
+				.filter((field) => shouldIncludeField(field, socketValues))
+				.map((field) => field.flag),
+		).toEqual(["--connection", "--bot-token", "--app-token"]);
 	});
 });

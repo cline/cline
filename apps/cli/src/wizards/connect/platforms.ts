@@ -1,7 +1,7 @@
 export interface PlatformDef {
 	id: string;
 	name: string;
-	type: "polling" | "webhook";
+	type: "polling" | "webhook" | "hybrid";
 	hint: string;
 	fields: FieldDef[];
 	security?: SecurityDef;
@@ -13,7 +13,16 @@ export interface FieldDef {
 	placeholder?: string;
 	required?: boolean;
 	help?: string[];
+	initialValue?: string;
+	options?: Array<{ value: string; label: string; hint?: string }>;
+	includeWhen?: FieldCondition;
 }
+
+export type FieldCondition = {
+	flag: string;
+	equals?: string;
+	notEquals?: string;
+};
 
 export interface SecurityFieldDef {
 	key: string;
@@ -28,6 +37,24 @@ export interface SecurityDef {
 	prompt: string;
 	fields: SecurityFieldDef[];
 	buildHookCommand: (values: Record<string, string>) => string;
+}
+
+export function shouldIncludeField(
+	field: FieldDef,
+	values: Record<string, string>,
+): boolean {
+	const condition = field.includeWhen;
+	if (!condition) {
+		return true;
+	}
+	const value = values[condition.flag] ?? "";
+	if (condition.equals !== undefined && value !== condition.equals) {
+		return false;
+	}
+	if (condition.notEquals !== undefined && value === condition.notEquals) {
+		return false;
+	}
+	return true;
 }
 
 function validateTelegramUserId(value: string): string | undefined {
@@ -91,9 +118,27 @@ export const PLATFORMS: PlatformDef[] = [
 	{
 		id: "slack",
 		name: "Slack",
-		type: "webhook",
-		hint: "Requires a Slack app and public URL.",
+		type: "hybrid",
+		hint: "Supports webhook or socket mode.",
 		fields: [
+			{
+				flag: "--connection",
+				label: "Connection mode",
+				required: true,
+				initialValue: "webhook",
+				options: [
+					{
+						value: "webhook",
+						label: "Webhook",
+						hint: "requires a public URL",
+					},
+					{
+						value: "socket",
+						label: "Socket",
+						hint: "no public URL",
+					},
+				],
+			},
 			{
 				flag: "--bot-token",
 				label: "Bot token",
@@ -110,6 +155,18 @@ export const PLATFORMS: PlatformDef[] = [
 				label: "Signing secret",
 				required: true,
 				help: ["Found in your app's Basic Information page"],
+				includeWhen: { flag: "--connection", notEquals: "socket" },
+			},
+			{
+				flag: "--app-token",
+				label: "App-level token",
+				placeholder: "xapp-...",
+				required: true,
+				help: [
+					"Enable Socket Mode in the Slack app",
+					"Generate an app-level token with the connections:write scope",
+				],
+				includeWhen: { flag: "--connection", equals: "socket" },
 			},
 			{
 				flag: "--base-url",
@@ -120,6 +177,7 @@ export const PLATFORMS: PlatformDef[] = [
 					"Your publicly accessible URL for webhook callbacks",
 					"Use ngrok or similar for local development",
 				],
+				includeWhen: { flag: "--connection", notEquals: "socket" },
 			},
 		],
 		security: {

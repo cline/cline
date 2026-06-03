@@ -212,8 +212,12 @@ cline schedule create "PR summary" \
 Chat with your agent from any messaging platform: Telegram, Slack, Discord, Google Chat, WhatsApp, and Linear. Each conversation thread maps to an agent session with full context. Set up access control to restrict who can interact with your agent.
 
 ```bash
+# Connect to Telegram
 cline connect telegram -k $BOT_TOKEN
-cline connect slack --token $SLACK_TOKEN --signing-secret $SECRET --base-url $URL
+# Connect to Slack through webhook
+cline connect slack --bot-token $SLACK_TOKEN --signing-secret $SECRET --base-url $URL
+# Connect to Slack using socket mode
+cline connect slack --connection socket --bot-token $SLACK_TOKEN --app-token $SLACK_APP_TOKEN
 ```
 
 ## Headless CLI for CI/CD

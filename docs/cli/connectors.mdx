@@ -22,7 +22,7 @@ cline connect
 | Platform | Direct Command | Required Credentials |
 |----------|---------------|---------------------|
 | Telegram | `cline connect telegram` | Bot token |
-| Slack | `cline connect slack` | Bot token, signing secret, base URL |
+| Slack | `cline connect slack` | Bot token plus webhook signing secret/base URL or socket app token |
 | Discord | `cline connect discord` | Application ID, bot token, public key, base URL |
 | Google Chat | `cline connect gchat` | Service account credentials JSON, base URL |
 | WhatsApp | `cline connect whatsapp` | Phone number ID, access token, app secret, verify token, base URL |
@@ -75,13 +75,30 @@ The `--hook-command` receives each incoming message with sender info via stdin. 
 
 ## Slack
 
-Requires a bot token, signing secret, and public base URL.
+Slack supports webhook mode and socket mode. Each Slack thread maps to an agent session, so the agent maintains conversation context within a thread.
+
+Webhook mode requires a bot token, signing secret, and public base URL:
 
 ```bash
-cline connect slack --token <BOT-TOKEN> --signing-secret <SECRET> --base-url <URL>
+cline connect slack \
+  --connection webhook \
+  --bot-token <BOT-TOKEN> \
+  --signing-secret <SECRET> \
+  --base-url <URL>
 ```
 
-Each Slack thread maps to an agent session, so the agent maintains conversation context within a thread.
+Configure the Slack app's event subscription and interactivity request URLs to `<URL>/api/webhooks/slack`.
+
+Socket mode requires a bot token and an app-level token with the `connections:write` scope:
+
+```bash
+cline connect slack \
+  --connection socket \
+  --bot-token <BOT-TOKEN> \
+  --app-token <APP-LEVEL-TOKEN>
+```
+
+Enable Socket Mode in the Slack app. Socket mode does not need a public request URL and is single-workspace only.
 
 ## Discord
 
@@ -257,7 +274,7 @@ Multiple connectors can run simultaneously. They all share the same hub:
 cline connect telegram -k $TELEGRAM_TOKEN
 
 # Terminal 2
-cline connect slack --token $SLACK_TOKEN --signing-secret $SECRET --base-url $URL
+cline connect slack --bot-token $SLACK_TOKEN --signing-secret $SECRET --base-url $URL
 ```
 
 Connectors require the hub. Start it with `cline hub start` if it doesn't auto-start.
