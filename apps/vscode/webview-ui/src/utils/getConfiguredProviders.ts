@@ -1,6 +1,7 @@
 import type { ApiConfiguration, ApiProvider } from "@shared/api"
 import PROVIDERS from "@shared/providers/providers.json"
 import type { RemoteConfigFields } from "@shared/storage/state-keys"
+import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
 
 /**
  * Returns a list of API providers that are configured (have required credentials/settings)
@@ -215,8 +216,11 @@ export function getConfiguredProviders(
 		configured.push("litellm")
 	}
 
-	// VSCode LM - always potentially available
-	configured.push("vscode-lm")
+	// VSCode LM - VS Code only (the vscode.lm API does not exist on other hosts
+	// such as JetBrains). Potentially available there whenever models are installed.
+	if (PLATFORM_CONFIG.type === PlatformType.VSCODE) {
+		configured.push("vscode-lm")
+	}
 
 	// Claude Code - requires path
 	if (apiConfiguration.claudeCodePath) {
