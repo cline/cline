@@ -6,12 +6,19 @@ const gatewayMock = vi.hoisted(() => {
 	return {
 		createAgentModel,
 		createGateway: vi.fn(() => ({ createAgentModel })),
+		// Registry helpers used by createAgentModelFromConfig. Default to "no
+		// registered handler" so existing tests exercise the gateway path.
+		hasRegisteredHandler: vi.fn(() => false),
+		createHandler: vi.fn(),
 	};
 });
 
 vi.mock("@cline/llms", () => ({
 	createGateway: gatewayMock.createGateway,
 	MODEL_COLLECTIONS_BY_PROVIDER_ID: {},
+	hasRegisteredHandler: gatewayMock.hasRegisteredHandler,
+	createHandler: gatewayMock.createHandler,
+	normalizeProviderId: (id: string) => id,
 }));
 
 describe("createAgentModelFromConfig", () => {
@@ -21,6 +28,9 @@ describe("createAgentModelFromConfig", () => {
 		gatewayMock.createGateway.mockImplementation(() => ({
 			createAgentModel: gatewayMock.createAgentModel,
 		}));
+		gatewayMock.hasRegisteredHandler.mockReset();
+		gatewayMock.hasRegisteredHandler.mockReturnValue(false);
+		gatewayMock.createHandler.mockReset();
 	});
 
 	it("forwards effective telemetry into the gateway", async () => {
@@ -231,5 +241,37 @@ describe("createAgentModelFromConfig", () => {
 				],
 			}),
 		);
+	});
+
+	it("uses a registered handler (adapter) instead of the gateway when one exists", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+
+		// Pretend a host handler is registered for this provider.
+		gatewayMock.hasRegisteredHandler.mockReturnValue(true);
+		const apiHandler = {
+			getMessages: () => [],
+			getModel: () => ({ id: "vscode-lm", info: { id: "vscode-lm" } }),
+			// eslint-disable-next-line require-yield
+			async *createMessage() {
+				/* no chunks for this assertion */
+			},
+		};
+		gatewayMock.createHandler.mockReturnValue(apiHandler);
+
+		const result = createAgentModelFromConfig(
+			{
+				providerId: "vscode-lm",
+				modelId: "copilot/claude-sonnet",
+				apiKey: "",
+				systemPrompt: "",
+				tools: [],
+			},
+			undefined,
+		);
+
+		// Built via the registry, not the gateway, and exposes the AgentModel surface.
+		expect(gatewayMock.createHandler).toHaveBeenCalledTimes(1);
+		expect(gatewayMock.createGateway).not.toHaveBeenCalled();
+		expect(typeof result.stream).toBe("function");
 	});
 });
