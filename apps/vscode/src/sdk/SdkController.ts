@@ -234,6 +234,8 @@ export class Controller {
 			// asks, ask_question, user_feedback) never collide with translator-minted ids.
 			getMinter: () => this.messageTranslatorState.getMinter(),
 			setTurnPhase: (phase, anchorTs) => this.turnStateTracker.set(phase, anchorTs),
+			recordApprovedToolMessage: (toolCallId, messageTs) =>
+				this.messageTranslatorState.recordApprovedToolMessageTs(toolCallId, messageTs),
 			shouldAutoApproveTool: (request) => {
 				const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
 				return autoApprovalSettings ? isToolAutoApproved(request.toolName, autoApprovalSettings, this.mcpHub) : false
@@ -369,7 +371,10 @@ export class Controller {
 			// Bump the epoch synchronously before abort so straggler events from the cancelled
 			// turn carry the old epoch and are dropped by the webview. The resumable phase is set
 			// in SdkController.cancelTask before this runs.
-			raiseCancelFence: () => this.messageTranslatorState.getMinter().bumpEpoch(),
+			raiseCancelFence: () => {
+				this.messageTranslatorState.clearApprovedToolMessageTs()
+				this.messageTranslatorState.getMinter().bumpEpoch()
+			},
 			postStateToWebview: () => this.postStateToWebview(),
 		})
 		this.taskStart = new SdkTaskStartCoordinator({
