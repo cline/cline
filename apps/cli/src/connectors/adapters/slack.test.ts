@@ -26,6 +26,8 @@ describe("slack binding lookup", () => {
 			"xoxb-token",
 			"--signing-secret",
 			"secret",
+			"--app-token",
+			"xapp-ignored",
 			"--base-url",
 			"https://example.test",
 		]);
@@ -33,6 +35,7 @@ describe("slack binding lookup", () => {
 		expect(options.connectionMode).toBe("webhook");
 		expect(options.baseUrl).toBe("https://example.test");
 		expect(options.signingSecret).toBe("secret");
+		expect(options.appToken).toBeUndefined();
 	});
 
 	it("uses socket mode when Slack args omit a base URL", () => {

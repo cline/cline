@@ -397,7 +397,7 @@ class SlackConnector extends ConnectorBase<
 	protected override createCommand(): Command {
 		return super
 			.createCommand()
-			.usage("[--base-url <PUBLIC_BASE_URL>] [options]")
+			.usage("--base-url <PUBLIC_BASE_URL> [options]")
 			.option("--user-name <name>", "Slack bot username label")
 			.option(
 				"--bot-token <token>",
@@ -483,26 +483,23 @@ class SlackConnector extends ConnectorBase<
 		const port = Number.isFinite(parsedPort) ? parsedPort : 8787;
 		const baseUrl = opts.baseUrl?.trim() || process.env.BASE_URL?.trim();
 		const connectionMode = inferSlackConnectionMode(baseUrl);
-		if (
-			connectionMode === "socket" &&
-			(opts.clientId?.trim() || opts.clientSecret?.trim())
-		) {
+		const isSocketMode = connectionMode === "socket";
+		if (isSocketMode && (opts.clientId?.trim() || opts.clientSecret?.trim())) {
 			throw new Error(
 				"Slack socket mode does not support --client-id or --client-secret",
 			);
 		}
 		const botToken =
 			opts.botToken?.trim() || process.env.SLACK_BOT_TOKEN?.trim();
-		const appToken =
-			connectionMode === "socket"
-				? opts.appToken?.trim() || process.env.SLACK_APP_TOKEN?.trim()
-				: opts.appToken?.trim();
-		if (connectionMode === "socket" && !appToken) {
+		const appToken = isSocketMode
+			? opts.appToken?.trim() || process.env.SLACK_APP_TOKEN?.trim()
+			: undefined;
+		if (isSocketMode && !appToken) {
 			throw new Error(
 				"Slack socket mode requires --app-token or SLACK_APP_TOKEN",
 			);
 		}
-		if (connectionMode === "socket" && !botToken) {
+		if (isSocketMode && !botToken) {
 			throw new Error(
 				"Slack socket mode requires --bot-token or SLACK_BOT_TOKEN",
 			);
