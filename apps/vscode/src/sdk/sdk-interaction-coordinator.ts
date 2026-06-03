@@ -4,6 +4,7 @@ import { Logger } from "@/shared/services/Logger"
 import { MessageIdMinter } from "./message-id-minter"
 import { buildToolApprovalAskMessage } from "./message-translator"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
+import { DEFAULT_TOOL_APPROVAL_DENIAL_REASON, USER_MESSAGE_TOOL_APPROVAL_DENIAL_REASON } from "./tool-approval-denial"
 
 export interface ToolApprovalRequest {
 	agentId: string
@@ -21,6 +22,7 @@ export interface SdkInteractionCoordinatorOptions {
 	postStateToWebview: () => Promise<void>
 	shouldAutoApproveTool?: (request: ToolApprovalRequest) => boolean
 	recordApprovedToolMessage?: (toolCallId: string, messageTs: number) => void
+	recordDeniedToolApproval?: (toolCallId: string, toolName: string, reason: string) => void
 	/**
 	 * The process-wide id/seq/epoch authority, shared with the message translator. Optional so
 	 * existing tests that don't need cross-generator id uniqueness keep working; when omitted a
@@ -42,6 +44,7 @@ export class SdkInteractionCoordinator {
 		| {
 				toolCallId: string
 				messageTs: number
+				toolName: string
 		  }
 		| undefined
 
@@ -64,7 +67,11 @@ export class SdkInteractionCoordinator {
 
 		return new Promise<{ approved: boolean; reason?: string }>((resolve) => {
 			this.pendingToolApprovalResolve = resolve
-			this.pendingToolApprovalMessage = { toolCallId: request.toolCallId, messageTs: toolAskMessage.ts }
+			this.pendingToolApprovalMessage = {
+				toolCallId: request.toolCallId,
+				messageTs: toolAskMessage.ts,
+				toolName: request.toolName,
+			}
 		})
 	}
 
@@ -102,18 +109,38 @@ export class SdkInteractionCoordinator {
 		const pendingMessage = this.pendingToolApprovalMessage
 		this.pendingToolApprovalResolve = undefined
 		this.pendingToolApprovalMessage = undefined
+
+		if (responseType === "messageResponse") {
+			Logger.log("[SdkController] Rejecting pending tool approval from user message and routing message as follow-up")
+			this.options.setTurnPhase?.("streaming")
+			if (pendingMessage) {
+				this.options.recordDeniedToolApproval?.(
+					pendingMessage.toolCallId,
+					pendingMessage.toolName,
+					USER_MESSAGE_TOOL_APPROVAL_DENIAL_REASON,
+				)
+			}
+			resolve({ approved: false, reason: USER_MESSAGE_TOOL_APPROVAL_DENIAL_REASON })
+			// The approval was resolved, but the chat message still needs normal follow-up routing.
+			return false
+		}
+
 		const approved = responseType === "yesButtonClicked"
 		Logger.log(`[SdkController] Resolving pending tool approval: approved=${approved} (responseType=${responseType})`)
 		if (approved && pendingMessage) {
 			this.options.recordApprovedToolMessage?.(pendingMessage.toolCallId, pendingMessage.messageTs)
 		}
 
-		// Approved or rejected, the agent resumes its turn — back to streaming. (On rejection
-		// the agent receives the denial and continues; the SDK drives the next phase.)
+		// Approved or rejected by approval controls, the agent resumes its turn and returns to streaming.
+		// On rejection the agent receives the denial and continues; the SDK drives the next phase.
 		this.options.setTurnPhase?.("streaming")
+		const denialReason = prompt || DEFAULT_TOOL_APPROVAL_DENIAL_REASON
+		if (!approved && pendingMessage) {
+			this.options.recordDeniedToolApproval?.(pendingMessage.toolCallId, pendingMessage.toolName, denialReason)
+		}
 		resolve({
 			approved,
-			...(approved ? {} : { reason: prompt || "User denied the tool execution" }),
+			...(approved ? {} : { reason: denialReason }),
 		})
 		return true
 	}
