@@ -90,6 +90,15 @@ describe("MessageTranslatorState", () => {
 		expect(newToolTs).toBeGreaterThan(toolTs)
 	})
 
+	it("reset clears stale approved tool prompt rows", () => {
+		const state = new MessageTranslatorState()
+		state.recordApprovedToolMessageTs("approved-call", 42)
+
+		state.reset()
+
+		expect(state.consumeApprovedToolMessageTs("approved-call")).toBeUndefined()
+	})
+
 	it("reset() (per-iteration) does NOT clear attemptCompletionSeen — it is turn-scoped", () => {
 		// The agent can call the completion tool in one iteration and the loop then emits another
 		// `iteration_start` → state.reset() before the turn's `done` event. The completion signal
@@ -222,6 +231,173 @@ describe("translateSessionEvent — agent_event content_start", () => {
 			tool: "editedExistingFile",
 			path: "/src/app.ts",
 		})
+	})
+
+	it("reuses the approved command prompt row for the matching command lifecycle", () => {
+		const state = new MessageTranslatorState()
+		const approvedMessageTs = state.nextTs()
+		state.recordApprovedToolMessageTs("command-call", approvedMessageTs)
+
+		const startResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "execute_command",
+						toolCallId: "command-call",
+						input: { command: "npm test" },
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		expect(startResult.messages[0]).toMatchObject({
+			ts: approvedMessageTs,
+			type: "say",
+			say: "command",
+			partial: true,
+		})
+
+		const endResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "execute_command",
+						toolCallId: "command-call",
+						output: [{ result: "passed", success: true }],
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		expect(endResult.messages[0]).toMatchObject({
+			ts: approvedMessageTs,
+			type: "say",
+			say: "command",
+			partial: false,
+			commandCompleted: true,
+		})
+	})
+
+	it("reuses the approved MCP prompt row for the matching MCP tool lifecycle", () => {
+		const state = new MessageTranslatorState()
+		const approvedMessageTs = state.nextTs()
+		state.recordApprovedToolMessageTs("mcp-call", approvedMessageTs)
+
+		const startResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "notion__notion-get-users",
+						toolCallId: "mcp-call",
+						input: { user_id: "self" },
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		expect(startResult.messages[0]).toMatchObject({
+			ts: approvedMessageTs,
+			type: "say",
+			say: "use_mcp_server",
+			partial: true,
+		})
+
+		const endResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "notion__notion-get-users",
+						toolCallId: "mcp-call",
+						output: "ok",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		expect(endResult.messages[0]).toMatchObject({
+			ts: approvedMessageTs,
+			type: "say",
+			say: "use_mcp_server",
+			partial: false,
+		})
+	})
+
+	it("consumes an approved prompt row only once", () => {
+		const state = new MessageTranslatorState()
+		const approvedMessageTs = state.nextTs()
+		state.recordApprovedToolMessageTs("approved-call", approvedMessageTs)
+
+		const firstStart = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "editor",
+						toolCallId: "approved-call",
+						input: { path: "/src/app.ts", old_text: "a", new_text: "b" },
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "editor",
+						toolCallId: "approved-call",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		const secondStart = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "editor",
+						toolCallId: "approved-call",
+						input: { path: "/src/app.ts", old_text: "b", new_text: "c" },
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		expect(firstStart.messages[0].ts).toBe(approvedMessageTs)
+		expect(secondStart.messages[0].ts).not.toBe(approvedMessageTs)
 	})
 
 	it("translates text content_start to partial text message", () => {

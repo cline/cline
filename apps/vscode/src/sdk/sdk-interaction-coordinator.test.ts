@@ -1,4 +1,6 @@
+import type { AgentEvent } from "@cline/shared"
 import { describe, expect, it, vi } from "vitest"
+import { MessageTranslatorState, translateSessionEvent } from "./message-translator"
 import { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import { createTaskProxy } from "./task-proxy"
@@ -49,6 +51,53 @@ describe("SdkInteractionCoordinator", () => {
 		await expect(approvalPromise).resolves.toEqual({ approved: true })
 	})
 
+	it("records the real approval row timestamp that the translator reuses", async () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const messages = new SdkMessageCoordinator({ getTask: () => task })
+		const state = new MessageTranslatorState()
+		const coordinator = new SdkInteractionCoordinator({
+			messages,
+			getSessionId: () => "session-123",
+			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+			getMinter: () => state.getMinter(),
+			recordApprovedToolMessage: (toolCallId, messageTs) => state.recordApprovedToolMessageTs(toolCallId, messageTs),
+		})
+
+		const approvalPromise = coordinator.handleRequestToolApproval({
+			agentId: "agent",
+			conversationId: "conversation",
+			iteration: 1,
+			toolCallId: "tool-call",
+			toolName: "editor",
+			input: { path: "calculator.py", old_text: "# comment", new_text: "" },
+			policy: { autoApprove: false },
+		})
+		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
+		const approvalTs = task.messageStateHandler.getClineMessages()[0].ts
+
+		expect(coordinator.resolvePendingToolApproval(undefined, "yesButtonClicked")).toBe(true)
+		await expect(approvalPromise).resolves.toEqual({ approved: true })
+
+		const result = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "session-123",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "editor",
+						toolCallId: "tool-call",
+						input: { path: "calculator.py", old_text: "# comment", new_text: "" },
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		expect(result.messages[0]).toMatchObject({ ts: approvalTs, type: "say", say: "tool", partial: true })
+	})
+
 	it("resolves denied tool approval with the user reason", async () => {
 		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
 		const recordApprovedToolMessage = vi.fn()
@@ -81,11 +130,13 @@ describe("SdkInteractionCoordinator", () => {
 	it("auto-approves without emitting UI when the live settings allow the tool", async () => {
 		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
 		const postStateToWebview = vi.fn().mockResolvedValue(undefined)
+		const recordApprovedToolMessage = vi.fn()
 		const coordinator = new SdkInteractionCoordinator({
 			messages: new SdkMessageCoordinator({ getTask: () => task }),
 			getSessionId: () => "session-123",
 			postStateToWebview,
 			shouldAutoApproveTool: () => true,
+			recordApprovedToolMessage,
 		})
 
 		await expect(
@@ -102,16 +153,19 @@ describe("SdkInteractionCoordinator", () => {
 
 		expect(task.messageStateHandler.getClineMessages()).toHaveLength(0)
 		expect(postStateToWebview).not.toHaveBeenCalled()
+		expect(recordApprovedToolMessage).not.toHaveBeenCalled()
 	})
 
 	it("auto-approves without emitting UI when the SDK policy already allows the tool", async () => {
 		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
 		const postStateToWebview = vi.fn().mockResolvedValue(undefined)
+		const recordApprovedToolMessage = vi.fn()
 		const coordinator = new SdkInteractionCoordinator({
 			messages: new SdkMessageCoordinator({ getTask: () => task }),
 			getSessionId: () => "session-123",
 			postStateToWebview,
 			shouldAutoApproveTool: () => false,
+			recordApprovedToolMessage,
 		})
 
 		await expect(
@@ -128,6 +182,7 @@ describe("SdkInteractionCoordinator", () => {
 
 		expect(task.messageStateHandler.getClineMessages()).toHaveLength(0)
 		expect(postStateToWebview).not.toHaveBeenCalled()
+		expect(recordApprovedToolMessage).not.toHaveBeenCalled()
 	})
 
 	it("emits an MCP approval ask with server, tool, and arguments", async () => {

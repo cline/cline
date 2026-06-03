@@ -199,6 +199,11 @@ export class MessageTranslatorState {
 		this.approvedToolMessageTsByCallId.set(toolCallId, messageTs)
 	}
 
+	/** Clear approved prompt rows that no longer have a live tool event to consume them. */
+	clearApprovedToolMessageTs(): void {
+		this.approvedToolMessageTsByCallId.clear()
+	}
+
 	/** Reuse and remove a previously-approved prompt row for the matching tool event. */
 	consumeApprovedToolMessageTs(toolCallId: string | undefined): number | undefined {
 		if (!toolCallId) {
@@ -363,6 +368,7 @@ export class MessageTranslatorState {
 		this.streamingToolTs = undefined
 		this.streamingToolInput = undefined
 		this.streamingToolName = undefined
+		this.clearApprovedToolMessageTs()
 		this.clearSpawnAgents()
 	}
 
