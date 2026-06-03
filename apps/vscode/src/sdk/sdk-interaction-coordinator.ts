@@ -20,6 +20,7 @@ export interface SdkInteractionCoordinatorOptions {
 	getSessionId: () => string
 	postStateToWebview: () => Promise<void>
 	shouldAutoApproveTool?: (request: ToolApprovalRequest) => boolean
+	recordApprovedToolMessage?: (toolCallId: string, messageTs: number) => void
 	/**
 	 * The process-wide id/seq/epoch authority, shared with the message translator. Optional so
 	 * existing tests that don't need cross-generator id uniqueness keep working; when omitted a
@@ -37,6 +38,12 @@ export interface SdkInteractionCoordinatorOptions {
 export class SdkInteractionCoordinator {
 	private pendingAskResolve: ((answer: string) => void) | undefined
 	private pendingToolApprovalResolve: ((result: { approved: boolean; reason?: string }) => void) | undefined
+	private pendingToolApprovalMessage:
+		| {
+				toolCallId: string
+				messageTs: number
+		  }
+		| undefined
 
 	constructor(private readonly options: SdkInteractionCoordinatorOptions) {}
 
@@ -57,6 +64,7 @@ export class SdkInteractionCoordinator {
 
 		return new Promise<{ approved: boolean; reason?: string }>((resolve) => {
 			this.pendingToolApprovalResolve = resolve
+			this.pendingToolApprovalMessage = { toolCallId: request.toolCallId, messageTs: toolAskMessage.ts }
 		})
 	}
 
@@ -91,9 +99,14 @@ export class SdkInteractionCoordinator {
 		}
 
 		const resolve = this.pendingToolApprovalResolve
+		const pendingMessage = this.pendingToolApprovalMessage
 		this.pendingToolApprovalResolve = undefined
+		this.pendingToolApprovalMessage = undefined
 		const approved = responseType === "yesButtonClicked"
 		Logger.log(`[SdkController] Resolving pending tool approval: approved=${approved} (responseType=${responseType})`)
+		if (approved && pendingMessage) {
+			this.options.recordApprovedToolMessage?.(pendingMessage.toolCallId, pendingMessage.messageTs)
+		}
 
 		// Approved or rejected, the agent resumes its turn — back to streaming. (On rejection
 		// the agent receives the denial and continues; the SDK drives the next phase.)
@@ -137,6 +150,7 @@ export class SdkInteractionCoordinator {
 
 	clearPending(reason: string): void {
 		this.pendingAskResolve = undefined
+		this.pendingToolApprovalMessage = undefined
 		if (this.pendingToolApprovalResolve) {
 			this.pendingToolApprovalResolve({ approved: false, reason })
 			this.pendingToolApprovalResolve = undefined
