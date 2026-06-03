@@ -313,9 +313,18 @@ describe("LocalRuntimeHost", () => {
 			telemetry,
 		});
 
-		await expect(
-			manager.runTurn({ sessionId: "missing-session", prompt: "hi" }),
-		).rejects.toThrow("session not found: missing-session");
+		let thrown: unknown;
+		try {
+			await manager.runTurn({ sessionId: "missing-session", prompt: "hi" });
+		} catch (error) {
+			thrown = error;
+		}
+
+		expect(thrown).toBeInstanceOf(Error);
+		expect(thrown).toMatchObject({
+			code: "session_not_found",
+			message: "session not found: missing-session",
+		});
 
 		expect(adapter.emit).toHaveBeenCalledWith(
 			"sdk.error",
@@ -4963,7 +4972,7 @@ describe("LocalRuntimeHost", () => {
 				}),
 			};
 			const agent = {
-				// No `submit_and_exit` in toolCalls — represents a non-interactive
+				// No `submit_and_exit` in toolCalls - represents a non-interactive
 				// run that finished cleanly without invoking the completion tool.
 				run: vi.fn().mockResolvedValue(createResult({ toolCalls: [] })),
 				continue: vi.fn(),
@@ -5071,7 +5080,7 @@ describe("LocalRuntimeHost", () => {
 					shutdown: vi.fn(),
 				}),
 			};
-			// Non-interactive: executeAgentTurn → finalizeSingleRun → shutdownSession,
+			// Non-interactive: executeAgentTurn to finalizeSingleRun to shutdownSession,
 			// all in the same `startSession(...)` call. We must see exactly one emission.
 			const agent = {
 				run: vi.fn().mockResolvedValue(

@@ -161,6 +161,38 @@ describe("run handlers", () => {
 		await expect(promise).resolves.toMatchObject({ ok: true });
 	});
 
+	it("returns typed session_not_found errors without publishing run.failed", async () => {
+		const missingSessionError = Object.assign(
+			new Error("session not found: session-1"),
+			{ code: "session_not_found" as const },
+		);
+		const ctx = createContext({
+			runTurn: vi.fn().mockRejectedValue(missingSessionError),
+		});
+
+		const reply = await handleSessionInput(ctx, {
+			version: "v1",
+			command: "run.start",
+			requestId: "req-missing-session",
+			sessionId: "session-1",
+			payload: { sessionId: "session-1", prompt: "go" },
+		});
+
+		expect(reply).toMatchObject({
+			ok: false,
+			error: {
+				code: "session_not_found",
+				message: "session not found: session-1",
+			},
+		});
+		expect(ctx.events).not.toContainEqual(
+			expect.objectContaining({
+				event: "run.failed",
+				sessionId: "session-1",
+			}),
+		);
+	});
+
 	it("treats abort as applied when the runtime abort hook rejects", async () => {
 		const abort = vi.fn().mockRejectedValue(new Error("Run aborted"));
 		const ctx = createContext({ abort });

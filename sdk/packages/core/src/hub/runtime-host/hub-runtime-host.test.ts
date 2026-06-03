@@ -10,6 +10,17 @@ const getClientIdMock = vi.hoisted(() => vi.fn(() => "client-1"));
 const restartLocalHubIfIdleAfterStartupTimeoutMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../client", () => ({
+	HubCommandError: class HubCommandError extends Error {
+		readonly command: string;
+		readonly code: string | undefined;
+
+		constructor(command: string, code: string | undefined, message: string) {
+			super(message);
+			this.name = "HubCommandError";
+			this.command = command;
+			this.code = code;
+		}
+	},
 	NodeHubClient: class {
 		private readonly url: string;
 
@@ -49,6 +60,31 @@ function createConfig() {
 		enableTools: true,
 		enableSpawnAgent: true,
 		enableAgentTeams: true,
+	};
+}
+
+function createRunResult(text = "Hey!") {
+	return {
+		text,
+		usage: {
+			inputTokens: 1,
+			outputTokens: 1,
+			cacheReadTokens: 0,
+			cacheWriteTokens: 0,
+			totalCost: 0,
+		},
+		messages: [],
+		toolCalls: [],
+		iterations: 1,
+		finishReason: "completed" as const,
+		model: {
+			id: "anthropic/claude-haiku-4.5",
+			provider: "cline",
+			info: {},
+		},
+		startedAt: new Date("2026-04-21T00:00:00.000Z"),
+		endedAt: new Date("2026-04-21T00:00:01.000Z"),
+		durationMs: 1000,
 	};
 }
 
@@ -181,28 +217,7 @@ describe("HubRuntimeHost", () => {
 
 	it("starts runs only through send", async () => {
 		subscribeMock.mockReturnValue(() => {});
-		const result = {
-			text: "Hey!",
-			usage: {
-				inputTokens: 1,
-				outputTokens: 1,
-				cacheReadTokens: 0,
-				cacheWriteTokens: 0,
-				totalCost: 0,
-			},
-			messages: [],
-			toolCalls: [],
-			iterations: 1,
-			finishReason: "completed",
-			model: {
-				id: "anthropic/claude-haiku-4.5",
-				provider: "cline",
-				info: {},
-			},
-			startedAt: new Date("2026-04-21T00:00:00.000Z"),
-			endedAt: new Date("2026-04-21T00:00:01.000Z"),
-			durationMs: 1000,
-		};
+		const result = createRunResult();
 		commandMock.mockResolvedValue({ ok: true, payload: { result } });
 
 		const { HubRuntimeHost } = await import("./hub-runtime-host");
@@ -231,6 +246,89 @@ describe("HubRuntimeHost", () => {
 			{ timeoutMs: null },
 		);
 		expect(sent).toEqual(result);
+	});
+
+	it("recreates a missing hub session with the same id and retries the turn", async () => {
+		subscribeMock.mockReturnValue(() => {});
+		const { HubCommandError } = await import("../client");
+		const result = createRunResult("Recovered");
+		let createAttempts = 0;
+		let runAttempts = 0;
+		commandMock.mockImplementation((command: string) => {
+			if (command === "session.create") {
+				createAttempts += 1;
+				return Promise.resolve({
+					payload: {
+						session: {
+							sessionId: "sess-1",
+							status: "running",
+							createdAt: Date.now(),
+							updatedAt: Date.now(),
+							workspaceRoot: "/tmp/project",
+							cwd: "/tmp/project",
+						},
+					},
+				});
+			}
+			if (command === "session.messages") {
+				return Promise.resolve({ payload: { messages: [] } });
+			}
+			if (command === "run.start") {
+				runAttempts += 1;
+				if (runAttempts === 1) {
+					return Promise.reject(
+						new HubCommandError(
+							"run.start",
+							"session_not_found",
+							"session not found: sess-1",
+						),
+					);
+				}
+				return Promise.resolve({ payload: { result } });
+			}
+			return Promise.resolve({ payload: {} });
+		});
+		const askQuestion = vi.fn(
+			async (
+				_question: string,
+				_options: string[],
+				_context: AgentToolContext,
+			) => "Use the SDK",
+		);
+
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+		const started = await host.startSession({
+			config: createConfig(),
+			source: SessionSource.CLI,
+			interactive: true,
+			capabilities: { toolExecutors: { askQuestion } },
+		});
+
+		const sent = await host.runTurn({
+			sessionId: started.sessionId,
+			prompt: "Hey",
+			mode: "act",
+		});
+
+		const createCalls = commandMock.mock.calls.filter(
+			(call) => call[0] === "session.create",
+		);
+		expect(sent).toEqual(result);
+		expect(createAttempts).toBe(2);
+		expect(runAttempts).toBe(2);
+		expect(createCalls[1]?.[1]).toMatchObject({
+			sessionConfig: expect.objectContaining({ sessionId: "sess-1" }),
+			runtimeOptions: {
+				clientContributions: [
+					{
+						kind: "toolExecutor",
+						executor: "askQuestion",
+						capabilityName: "tool_executor.askQuestion",
+					},
+				],
+			},
+		});
 	});
 
 	it("projects canonical hub snapshots from replies and lifecycle events", async () => {
