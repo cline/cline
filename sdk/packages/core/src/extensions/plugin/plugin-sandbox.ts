@@ -2,25 +2,16 @@ import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-	ModelInfoSchema,
-	ProviderCapabilitySchema,
-	ProviderClientSchema,
-	ProviderProtocolSchema,
-	type AgentConfig,
-	type AgentExtensionAutomationEventType,
-	type AgentExtensionRule,
-	type AgentRuntimeHooks,
-	type AgentTool,
-	type Message,
-	type PluginSetupContext,
-	type WorkspaceInfo,
+import type {
+	AgentConfig,
+	AgentExtensionAutomationEventType,
+	AgentExtensionRule,
+	AgentRuntimeHooks,
+	AgentTool,
+	Message,
+	PluginSetupContext,
+	WorkspaceInfo,
 } from "@cline/shared";
-import {
-	registerProvider as registerLlmsProvider,
-	type ModelCollection,
-} from "@cline/llms";
-import { z } from "zod";
 import { SubprocessSandbox } from "../../runtime/tools/subprocess-sandbox";
 import type { PluginLoadDiagnostics } from "./plugin-load-report";
 import type { PluginTargeting } from "./plugin-targeting";
@@ -520,7 +511,6 @@ function registerSimpleContributions(
 	descriptor: SandboxedPluginDescriptor,
 ): void {
 	for (const pd of descriptor.contributions?.providers ?? []) {
-		registerProviderCollectionFromMetadata(pd.metadata);
 		api.registerProvider({
 			name: pd.name,
 			description: pd.description,
@@ -540,63 +530,6 @@ function registerSimpleContributions(
 			metadata: eventType.metadata,
 		});
 	}
-}
-
-function registerProviderCollectionFromMetadata(
-	metadata: Record<string, unknown> | undefined,
-): void {
-	const candidate = metadata?.clineModelCollection ?? metadata?.collection;
-	if (candidate === undefined) {
-		return;
-	}
-	const collection = normalizeModelCollection(candidate);
-	if (!collection) {
-		return;
-	}
-	registerLlmsProvider(collection);
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-const ProviderSourceSchema = z.enum(["system", "file", "discovery"]);
-
-const ProviderCollectionSchema = z.object({
-	provider: z.object({
-		id: z.string(),
-		name: z.string(),
-		description: z.string().optional(),
-		protocol: ProviderProtocolSchema.optional(),
-		baseUrl: z.string().optional(),
-		modelsSourceUrl: z.string().optional(),
-		defaultModelId: z.string(),
-		capabilities: z.array(ProviderCapabilitySchema).optional(),
-		env: z.array(z.string()).optional(),
-		client: ProviderClientSchema,
-		source: ProviderSourceSchema.default("file"),
-		metadata: z.record(z.string(), z.unknown()).optional(),
-	}),
-	models: z.record(z.string(), ModelInfoSchema),
-});
-
-function normalizeModelCollection(
-	value: unknown,
-): ModelCollection | undefined {
-	if (!isRecord(value) || !isRecord(value.provider) || !isRecord(value.models)) {
-		return undefined;
-	}
-	const models = Object.fromEntries(
-		Object.entries(value.models).map(([modelId, model]) => [
-			modelId,
-			isRecord(model) ? { id: modelId, ...model } : model,
-		]),
-	);
-	const result = ProviderCollectionSchema.safeParse({
-		...value,
-		models,
-	});
-	return result.success ? result.data : undefined;
 }
 
 function registerMessageBuilders(

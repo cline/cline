@@ -14,7 +14,6 @@ export type {
 	ProviderInfo,
 	ProviderProtocol,
 } from "./catalog/types";
-export { ModelCollectionSchema } from "./catalog/types";
 export {
 	getAllProviders,
 	getModelsForProvider,

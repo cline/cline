@@ -20,7 +20,6 @@ export {
 	registerProvider,
 	resetRegistry,
 	unregisterProvider,
-	ModelCollectionSchema,
 } from "./models";
 export {
 	type ProviderUsageCostDisplay,

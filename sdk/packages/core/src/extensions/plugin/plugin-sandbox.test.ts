@@ -9,7 +9,6 @@ import type {
 	AgentToolContext,
 	Message,
 } from "@cline/shared";
-import * as Llms from "@cline/llms";
 import {
 	afterAll,
 	beforeAll,
@@ -775,72 +774,6 @@ describe("plugin-sandbox", () => {
 			iteration: 1,
 		} as AgentToolContext);
 		expect(result).toEqual({ echoed: "ok" });
-	});
-
-	it("replays provider model collections into the host catalog", async () => {
-		const providerId = "sandbox-provider-catalog";
-		const pluginPath = join(dir, "plugin-provider-catalog.mjs");
-		Llms.unregisterProvider(providerId);
-		await writeFile(
-			pluginPath,
-			[
-				"const providerId = 'sandbox-provider-catalog';",
-				"export default {",
-				"  name: 'sandbox-provider-catalog',",
-				"  manifest: { capabilities: ['providers'], providerIds: [providerId] },",
-				"  setup(api) {",
-				"    api.registerProvider({",
-				"      name: providerId,",
-				"      metadata: {",
-				"        clineModelCollection: {",
-				"          provider: {",
-				"            id: providerId,",
-				"            name: 'Sandbox Provider Catalog',",
-				"            defaultModelId: 'sandbox-model',",
-				"            client: 'openai-compatible',",
-				"            protocol: 'openai-chat',",
-				"            baseUrl: 'https://sandbox-provider.invalid/v1',",
-				"            env: ['SANDBOX_PROVIDER_API_KEY'],",
-				"            source: 'file',",
-				"          },",
-				"          models: {",
-				"            'sandbox-model': {",
-				"              id: 'sandbox-model',",
-				"              name: 'Sandbox Model',",
-				"              capabilities: ['tools', 'streaming'],",
-				"            },",
-				"          },",
-				"        },",
-				"      },",
-				"    });",
-				"  },",
-				"};",
-			].join("\n"),
-			"utf8",
-		);
-
-		const sandboxed = await loadSandboxedPlugins({
-			pluginPaths: [pluginPath],
-			providerId,
-			importTimeoutMs: 30_000,
-		});
-
-		try {
-			expect(Llms.getProviderCollectionSync(providerId)).toBeUndefined();
-			const extension = sandboxed.extensions?.[0];
-			const { api } = createApiCapture();
-			await extension?.setup?.(api, {});
-			const collection = Llms.getProviderCollectionSync(providerId);
-			expect(collection?.provider.baseUrl).toBe(
-				"https://sandbox-provider.invalid/v1",
-			);
-			expect(collection?.models["sandbox-model"]?.name).toBe(
-				"Sandbox Model",
-			);
-		} finally {
-			Llms.unregisterProvider(providerId);
-			await sandboxed.shutdown();
-		}
 	});
 
 	it("loads sandbox plugins matching manifest providerIds and modelIds", async () => {

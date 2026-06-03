@@ -2,9 +2,7 @@
  * Custom Model Provider Plugin Example
  *
  * Shows how a plugin can register a brand-new model provider so the agent can
- * run inference against it, no changes to Cline itself required. The same
- * plugin works in the CLI, VS Code, JetBrains, and any host built on the Core
- * SDK.
+ * run inference against it, no changes to Cline itself required.
  *
  * This example registers an OpenAI-compatible provider pointed at OpenRouter.
  * OpenRouter ships as a built-in provider in Cline already, so this example
@@ -16,25 +14,15 @@
  *
  * How it works:
  *   - `Llms.registerProvider(collection)` adds the provider and its models to
- *     the host process catalog. With `protocol: "openai-chat"` and `client:
- *     "openai-compatible"`, the gateway builds an OpenAI-compatible handler
- *     from the `baseUrl` and resolves the API key from the session config or
- *     the `env` var declared on the provider.
+ *     the gateway catalog. With `protocol: "openai-chat"` and
+ *     `client: "openai-compatible"`, the gateway builds an OpenAI-compatible
+ *     handler from the `baseUrl` and resolves the API key from the session
+ *     config or the `env` var declared on the provider.
  *   - `api.registerProvider(...)` declares the contribution on the plugin
- *     (required by the `providers` capability) so hosts can advertise it. The
- *     same collection is included in metadata so sandboxed plugin hosts can
- *     replay it into their own process.
- *
- * CLI usage:
- *   cline plugin install https://github.com/cline/cline/blob/main/sdk/examples/plugins/openrouter-provider.ts --cwd .
- *   export OPENROUTER_API_KEY=sk-or-...
- *   cline -P openrouter-plugin -m anthropic/claude-sonnet-4.6 "Say hello and name your model."
- *
- * Direct demo usage:
- *   OPENROUTER_API_KEY=sk-or-... bun run examples/plugins/openrouter-provider.ts
+ *     (required by the `providers` capability) so hosts can advertise it.
  */
 
-import { type AgentPlugin, ClineCore, Llms } from "@cline/core";
+import { type AgentPlugin, Llms } from "@cline/core";
 
 // ---------------------------------------------------------------------------
 // Provider definition
@@ -133,16 +121,14 @@ const plugin: AgentPlugin = {
 	},
 
 	setup(api, ctx) {
-		const collection = buildCollection();
 		// 1. Register the provider + models with the gateway catalog. This is what
 		//    makes inference actually work. The gateway can now resolve
 		//    `openrouter-plugin` and its models and build a handler for them.
-		Llms.registerProvider(collection);
+		Llms.registerProvider(buildCollection());
 
 		// 2. Declare the contribution on the plugin. Required by the "providers"
 		//    capability; lets hosts advertise the provider in pickers and surface
-		//    its metadata. Sandboxed plugin hosts replay `clineModelCollection`
-		//    into the host process catalog.
+		//    its metadata.
 		api.registerProvider({
 			name: PROVIDER_ID,
 			description: `${PROVIDER_NAME}: OpenAI-compatible endpoint at ${BASE_URL}`,
@@ -151,7 +137,6 @@ const plugin: AgentPlugin = {
 				apiKeyEnv: API_KEY_ENV,
 				defaultModelId: DEFAULT_MODEL_ID,
 				modelIds: Object.keys(MODELS),
-				clineModelCollection: collection,
 			},
 		});
 
@@ -161,48 +146,5 @@ const plugin: AgentPlugin = {
 	},
 };
 
-// ---------------------------------------------------------------------------
-// Direct demo: boot a real ClineCore session that uses the registered provider.
-// ---------------------------------------------------------------------------
-
-async function runDemo(): Promise<void> {
-	const apiKey = process.env[API_KEY_ENV];
-	if (!apiKey) {
-		console.error(
-			`Set ${API_KEY_ENV} to run this demo, e.g. ${API_KEY_ENV}=sk-or-... bun run examples/plugins/openrouter-provider.ts`,
-		);
-		process.exit(1);
-	}
-
-	const host = await ClineCore.create({ backendMode: "local" });
-	try {
-		const result = await host.start({
-			config: {
-				providerId: PROVIDER_ID,
-				modelId: DEFAULT_MODEL_ID,
-				apiKey,
-				cwd: process.cwd(),
-				enableTools: false,
-				enableSpawnAgent: false,
-				enableAgentTeams: false,
-				systemPrompt: "You are a helpful assistant.",
-				extensions: [plugin],
-				extensionContext: {
-					workspace: { rootPath: process.cwd(), cwd: process.cwd() },
-				},
-			},
-			prompt: "In one sentence, say hello and name the model you are.",
-			interactive: false,
-		});
-		console.log(`\n${result.result?.text ?? "(no output)"}\n`);
-	} finally {
-		await host.dispose();
-	}
-}
-
-if (import.meta.main) {
-	await runDemo();
-}
-
-export { plugin, buildCollection, runDemo };
+export { plugin, buildCollection };
 export default plugin;

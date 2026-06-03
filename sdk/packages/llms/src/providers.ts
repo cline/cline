@@ -32,10 +32,6 @@ export {
 	registerAsyncHandler,
 	registerHandler,
 } from "./providers/factory-registry";
-export {
-	resolveGatewayProviderRegistration,
-	resolveGatewayProviderRegistrationSync,
-} from "./providers/compat";
 export type {
 	ApiStreamChunk,
 	ContentBlock,

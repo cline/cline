@@ -1,8 +1,4 @@
-import {
-	createGateway,
-	MODEL_COLLECTIONS_BY_PROVIDER_ID,
-	resolveGatewayProviderRegistrationSync,
-} from "@cline/llms";
+import { createGateway, MODEL_COLLECTIONS_BY_PROVIDER_ID } from "@cline/llms";
 import type {
 	AgentConfig,
 	AgentModel,
@@ -149,11 +145,7 @@ export function createAgentModelFromConfig(
 		logger,
 		extensionContext: config.extensionContext,
 	};
-	const providerRegistration = resolveGatewayProviderRegistrationSync(
-		normalizedProviderConfig,
-	);
 	return createGateway({
-		providers: providerRegistration ? [providerRegistration] : undefined,
 		providerConfigs: [
 			{
 				providerId: normalizedProviderConfig.providerId,

@@ -25,7 +25,6 @@ export {
 	resetRegistry,
 	sortModelsByReleaseDate,
 	unregisterProvider,
-	ModelCollectionSchema,
 } from "./models";
 export type {
 	ApiHandler,
@@ -59,8 +58,6 @@ export {
 	normalizeProviderId,
 	registerAsyncHandler,
 	registerHandler,
-	resolveGatewayProviderRegistration,
-	resolveGatewayProviderRegistrationSync,
 } from "./providers";
 export {
 	type ProviderUsageCostDisplay,
