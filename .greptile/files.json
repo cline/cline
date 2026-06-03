@@ -1,19 +1,19 @@
 {
 	"files": [
 		{
-			"path": "apps/packages/core/src/services/telemetry/core-events.ts",
+			"path": "sdk/packages/core/src/services/telemetry/core-events.ts",
 			"description": "Single source of truth for all telemetry event names (CORE_TELEMETRY_EVENTS) and their typed capture helper functions. Every PR touching telemetry must be evaluated against this catalog. New events must be defined here first."
 		},
 		{
-			"path": "apps/packages/shared/src/services/telemetry.ts",
+			"path": "sdk/packages/shared/src/services/telemetry.ts",
 			"description": "ITelemetryService interface definition. Defines the contract all telemetry implementations must satisfy (capture, captureRequired, recordCounter, recordHistogram, recordGauge, flush, dispose)."
 		},
 		{
-			"path": "apps/packages/core/src/services/telemetry/TelemetryService.ts",
+			"path": "sdk/packages/core/src/services/telemetry/TelemetryService.ts",
 			"description": "Reference implementation of ITelemetryService used by all hosts. Multi-adapter fan-out service that forwards events to OpenTelemetry."
 		},
 		{
-			"path": "apps/packages/core/src/services/telemetry/OpenTelemetryProvider.ts",
+			"path": "sdk/packages/core/src/services/telemetry/OpenTelemetryProvider.ts",
 			"description": "OpenTelemetry-backed provider that wires logs/metrics/traces exporters. Contains createConfiguredTelemetryService and createConfiguredTelemetryHandle, the canonical factories every host should use."
 		},
 		{
