@@ -383,4 +383,47 @@ describe("TelemetryService metrics", () => {
 		assert.strictEqual(entry.attributes.extension_version, "test")
 		assert.strictEqual(entry.attributes.platform, "test-platform")
 	})
+
+	it("captureLegacyTaskMigration emits event and migration metrics", () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider)
+
+		service.captureLegacyTaskMigration({
+			taskId: "legacy-task",
+			outcome: "success",
+			reason: "migrated",
+			durationMs: 250,
+			legacyApiHistoryLength: 3,
+			convertedMessageCount: 2,
+			hasFavorite: true,
+			hasCost: true,
+			hasTokenUsage: true,
+			hasCwd: true,
+		})
+
+		const event = provider.logs.find((entry) => entry.event === "task.legacy_task_migration")
+		assert.ok(event)
+		assert.strictEqual(event?.properties?.ulid, "legacy-task")
+		assert.strictEqual(event?.properties?.outcome, "success")
+		assert.strictEqual(event?.properties?.legacyApiHistoryLength, 3)
+
+		assert.deepStrictEqual(
+			provider.counters.map((entry) => entry.name),
+			[
+				TelemetryService.METRICS.MIGRATION.LEGACY_TASK_ATTEMPTS_TOTAL,
+				TelemetryService.METRICS.MIGRATION.LEGACY_TASK_SUCCESS_TOTAL,
+			],
+		)
+		assert.deepStrictEqual(
+			provider.histograms.map((entry) => entry.name),
+			[
+				TelemetryService.METRICS.MIGRATION.LEGACY_TASK_DURATION_SECONDS,
+				TelemetryService.METRICS.MIGRATION.LEGACY_TASK_LEGACY_MESSAGES_COUNT,
+				TelemetryService.METRICS.MIGRATION.LEGACY_TASK_CONVERTED_MESSAGES_COUNT,
+			],
+		)
+		assert.strictEqual(provider.histograms[0].value, 0.25)
+		assert.strictEqual(provider.histograms[0].attributes.migration_type, "legacy_task_to_sdk_session")
+		assert.strictEqual(provider.histograms[0].attributes.reason, "migrated")
+	})
 })
