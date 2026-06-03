@@ -43,7 +43,7 @@
 			]
 		}
 	},
-	"include": ["**/*.ts", "**/*.tsx", "**/bun.mts"],
+	"include": ["**/*.ts", "**/*.tsx", "**/bun.mts", "../vitest.workspace.ts"],
 	"exclude": [
 		"node_modules",
 		"**/dist/**",

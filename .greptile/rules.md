@@ -10,9 +10,9 @@ The SDK uses OpenTelemetry (OTEL) as its sole telemetry transport. Events flow t
 ```
 core-events.ts (event catalog + typed helpers)
        ↓
-ITelemetryService (packages/shared)             ← interface contract
+ITelemetryService (sdk/packages/shared)             ← interface contract
        ↓
-TelemetryService (packages/core)                ← multi-adapter fan-out
+TelemetryService (sdk/packages/core)                ← multi-adapter fan-out
        ↓
 OpenTelemetryAdapter → OpenTelemetryProvider    ← OTLP transport
        ↓
@@ -24,7 +24,7 @@ parallel-but-independent stacks; this `.greptile/` config covers only the SDK.
 
 ## The Single Source of Truth
 
-`packages/core/src/services/telemetry/core-events.ts` is the single source of truth for all
+`sdk/packages/core/src/services/telemetry/core-events.ts` is the single source of truth for all
 event names. It exports:
 
 - `CORE_TELEMETRY_EVENTS` — a frozen const object grouped by family
@@ -60,8 +60,8 @@ Emission ownership:
   emitter in `prepareLocalRuntimeBootstrap`. Hosts must NOT re-emit these.
 - `workspace.path_resolved`: emitted from default tool executors **only when**
   `WorkspaceManager` exposes more than one root.
-- `task.*`: emitted by core session lifecycle code in `packages/core/src/cline-core/` and
-  `packages/core/src/runtime/`. Hosts must not duplicate this emission.
+- `task.*`: emitted by core session lifecycle code in `sdk/packages/core/src/cline-core/` and
+  `sdk/packages/core/src/runtime/`. Hosts must not duplicate this emission.
 
 ## `task.completed` Semantics
 
@@ -105,7 +105,7 @@ forwarding, hub-backed sessions silently drop their lifecycle telemetry.
 
 ## Auth Lifecycle Completeness
 
-Every authentication provider in `packages/core/src/auth/` must emit all four auth lifecycle
+Every authentication provider in `sdk/packages/core/src/auth/` must emit all four auth lifecycle
 events using the typed helpers:
 
 | Phase | Helper | Where it fires |
@@ -115,7 +115,7 @@ events using the typed helpers:
 | Token error | `captureAuthFailed(provider, errorMessage)` | In the catch block |
 | Token invalidation | `captureAuthLoggedOut(provider, reason)` | On invalid_grant or explicit logout |
 
-Cross-reference `packages/core/src/auth/cline.ts` and `packages/core/src/auth/codex.ts` as
+Cross-reference `sdk/packages/core/src/auth/cline.ts` and `sdk/packages/core/src/auth/codex.ts` as
 canonical examples of all four phases.
 
 ## Single Telemetry Service Per Host
