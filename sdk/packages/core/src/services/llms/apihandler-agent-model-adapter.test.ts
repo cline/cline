@@ -215,4 +215,15 @@ describe("createAgentModelFromApiHandler", () => {
 		expect(factory).toHaveBeenCalledTimes(1);
 		expect(events[0]).toEqual({ type: "text-delta", text: "lazy" });
 	});
+
+	it("converts a rejecting handler factory into a finish(error) event", async () => {
+		const factory = vi.fn(async () => {
+			throw new Error("no vscode.lm");
+		});
+		const model = createAgentModelFromApiHandler(factory);
+		const events = await collect(model.stream(baseRequest));
+		expect(events).toEqual([
+			{ type: "finish", reason: "error", error: "no vscode.lm" },
+		]);
+	});
 });

@@ -116,21 +116,24 @@ export function createAgentModelFromApiHandler(
 ): AgentModel {
 	return {
 		async *stream(request: AgentModelRequest): AsyncGenerator<AgentModelEvent> {
-			const handler = typeof source === "function" ? await source() : source;
-
-			// Forward the abort signal so cancellation reaches the handler.
-			handler.setAbortSignal?.(request.signal);
-
-			const messages = agentMessagesToMessages(request.messages);
-			const tools = request.tools.map((tool) => ({
-				name: tool.name,
-				description: tool.description,
-				inputSchema: tool.inputSchema,
-			}));
-
 			let sawFinish = false;
 			let sawToolCall = false;
 			try {
+				// Resolving the handler (e.g. `createHandlerAsync`) can reject — for
+				// instance when the host API is unavailable at stream time — so it
+				// happens inside the try block to be reported as a terminal finish.
+				const handler = typeof source === "function" ? await source() : source;
+
+				// Forward the abort signal so cancellation reaches the handler.
+				handler.setAbortSignal?.(request.signal);
+
+				const messages = agentMessagesToMessages(request.messages);
+				const tools = request.tools.map((tool) => ({
+					name: tool.name,
+					description: tool.description,
+					inputSchema: tool.inputSchema,
+				}));
+
 				for await (const chunk of handler.createMessage(
 					request.systemPrompt ?? "",
 					messages,
