@@ -952,7 +952,7 @@ export const BUILTIN_SPECS: BuiltinSpec[] = [
 		defaultModelId: "MiniMax-M2.5",
 		apiKeyEnv: ["MINIMAX_API_KEY"],
 		modelsProviderId: "minimax",
-		defaults: { baseUrl: "https://api.minimax.io/anthropic" },
+		defaults: { baseUrl: "https://api.minimax.io/anthropic/v1" },
 		metadata: ANTHROPIC_ROUTING_METADATA,
 	},
 	{
