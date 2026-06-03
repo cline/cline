@@ -2,6 +2,27 @@ import { describe, expect, it, vi } from "vitest";
 import { createContributionRegistry } from "./contribution-registry";
 
 describe("ContributionRegistry automation event contributions", () => {
+	it("accepts skills-only plugins without setup contributions", async () => {
+		const registry = createContributionRegistry({
+			extensions: [
+				{
+					name: "skill-pack",
+					manifest: { capabilities: ["skills"] },
+				},
+			],
+		});
+
+		await expect(registry.initialize()).resolves.toBeUndefined();
+		expect(registry.getRegistrySnapshot()).toMatchObject({
+			tools: [],
+			commands: [],
+			rules: [],
+			messageBuilder: [],
+			providers: [],
+			automationEventTypes: [],
+		});
+	});
+
 	it("registers automation event types declared by plugins", async () => {
 		const registry = createContributionRegistry({
 			extensions: [
