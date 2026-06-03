@@ -114,7 +114,44 @@ describe("createAgentModelFromApiHandler", () => {
 			inputText: undefined,
 			input: { path: "a.ts" },
 		});
-		expect(events.at(-1)).toEqual({ type: "finish", reason: "stop" });
+		// A turn that ends with tool calls terminates as tool-calls, not stop.
+		expect(events.at(-1)).toEqual({ type: "finish", reason: "tool-calls" });
+	});
+
+	it("preserves the thought signature on reasoning and tool-call events", async () => {
+		const handler = fakeHandler([
+			{ type: "reasoning", reasoning: "think", signature: "sig-r", id: "x" },
+			{
+				type: "tool_calls",
+				id: "x",
+				signature: "sig-t",
+				tool_call: { call_id: "c1", function: { name: "edit", arguments: {} } },
+			},
+		]);
+		const model = createAgentModelFromApiHandler(handler);
+		const events = await collect(model.stream(baseRequest));
+
+		const reasoning = events.find((e) => e.type === "reasoning-delta");
+		expect(reasoning?.metadata).toMatchObject({ thoughtSignature: "sig-r" });
+		const toolCall = events.find((e) => e.type === "tool-call-delta");
+		expect(toolCall?.metadata).toMatchObject({ thoughtSignature: "sig-t" });
+	});
+
+	it("maps a done chunk with a max-output-tokens incompleteReason to max-tokens", async () => {
+		const handler = fakeHandler([
+			{
+				type: "done",
+				success: true,
+				incompleteReason: "max_output_tokens",
+				id: "x",
+			},
+		]);
+		const model = createAgentModelFromApiHandler(handler);
+		const events = await collect(model.stream(baseRequest));
+		expect(events.at(-1)).toMatchObject({
+			type: "finish",
+			reason: "max-tokens",
+		});
 	});
 
 	it("does not append a finish when the handler emits a done chunk", async () => {

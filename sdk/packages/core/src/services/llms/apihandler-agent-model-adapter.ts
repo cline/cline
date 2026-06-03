@@ -17,21 +17,26 @@ import type { ApiHandler, ApiStreamChunk } from "@cline/llms";
 import type {
 	AgentModel,
 	AgentModelEvent,
+	AgentModelFinishReason,
 	AgentModelRequest,
 } from "@cline/shared";
 import { agentMessagesToMessages } from "../../runtime/config/agent-message-codec";
+
+type ApiStreamDoneChunk = Extract<ApiStreamChunk, { type: "done" }>;
 
 function toAgentModelEvents(chunk: ApiStreamChunk): AgentModelEvent[] {
 	switch (chunk.type) {
 		case "text":
 			return [{ type: "text-delta", text: chunk.text }];
 		case "reasoning":
+			// Thought signatures are read as `metadata.thoughtSignature` by
+			// downstream adapters (see ai-sdk format), so surface it there.
 			return [
 				{
 					type: "reasoning-delta",
 					text: chunk.reasoning,
 					metadata: chunk.signature
-						? { signature: chunk.signature, details: chunk.details }
+						? { thoughtSignature: chunk.signature, details: chunk.details }
 						: { details: chunk.details },
 				},
 			];
@@ -45,6 +50,10 @@ function toAgentModelEvents(chunk: ApiStreamChunk): AgentModelEvent[] {
 					toolName: fn.name,
 					inputText: typeof args === "string" ? args : undefined,
 					input: typeof args === "string" ? undefined : args,
+					// Preserve the thought signature so it isn't dropped downstream.
+					...(chunk.signature
+						? { metadata: { thoughtSignature: chunk.signature } }
+						: {}),
 				},
 			];
 		}
@@ -68,13 +77,26 @@ function toAgentModelEvents(chunk: ApiStreamChunk): AgentModelEvent[] {
 			return [
 				{
 					type: "finish",
-					reason: chunk.success === false ? "error" : "stop",
+					reason: doneFinishReason(chunk),
 					error: chunk.error,
 				},
 			];
 		default:
 			return [];
 	}
+}
+
+function doneFinishReason(chunk: ApiStreamDoneChunk): AgentModelFinishReason {
+	if (chunk.success === false) {
+		return "error";
+	}
+	if (
+		chunk.incompleteReason === "max_output_tokens" ||
+		chunk.incompleteReason === "max-tokens"
+	) {
+		return "max-tokens";
+	}
+	return "stop";
 }
 
 /**
@@ -107,6 +129,7 @@ export function createAgentModelFromApiHandler(
 			}));
 
 			let sawFinish = false;
+			let sawToolCall = false;
 			try {
 				for await (const chunk of handler.createMessage(
 					request.systemPrompt ?? "",
@@ -116,12 +139,19 @@ export function createAgentModelFromApiHandler(
 					for (const event of toAgentModelEvents(chunk)) {
 						if (event.type === "finish") {
 							sawFinish = true;
+						} else if (event.type === "tool-call-delta") {
+							sawToolCall = true;
 						}
 						yield event;
 					}
 				}
 				if (!sawFinish) {
-					yield { type: "finish", reason: "stop" };
+					// Terminating with tool calls is a tool-calls turn (matching the
+					// gateway/AI-SDK adapters); otherwise a normal stop.
+					yield {
+						type: "finish",
+						reason: sawToolCall ? "tool-calls" : "stop",
+					};
 				}
 			} catch (error) {
 				if (!sawFinish) {
