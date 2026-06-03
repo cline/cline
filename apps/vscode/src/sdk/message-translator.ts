@@ -872,11 +872,15 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 					// because the webview renders commands differently
 					if (toolName === "run_commands" || toolName === "execute_command") {
 						const commandText = extractCommandText(input)
+						// ChatRow treats a command row as "executing" while the COMMAND_OUTPUT_STRING
+						// marker is present in the text (and the row isn't yet completed). Include the
+						// marker on the running row so it reflects the executing state. content_end
+						// rebuilds the full text (command + marker + output) and sets commandCompleted.
 						messages.push({
 							ts: state.getStreamingToolTs(),
 							type: "say",
 							say: "command",
-							text: commandText,
+							text: `${commandText}\n${COMMAND_OUTPUT_STRING}`,
 							partial: true,
 						})
 						break

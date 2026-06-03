@@ -1622,7 +1622,8 @@ describe("translateSessionEvent — run_commands bare array/string input (ENG-18
 		expect(result.messages).toHaveLength(1)
 		const msg = result.messages[0]
 		expect(msg.say).toBe("command")
-		expect(msg.text).toBe("biome check --write src/")
+		// The running command row carries the "Output:" marker so ChatRow renders it as executing.
+		expect(msg.text).toBe("biome check --write src/\nOutput:")
 		expect(msg.partial).toBe(true)
 	})
 
@@ -1642,7 +1643,8 @@ describe("translateSessionEvent — run_commands bare array/string input (ENG-18
 			},
 		}
 		const result = translateSessionEvent(event, state)
-		expect(result.messages[0].text).toBe("npm install && npm run build")
+		// The running command row carries the "Output:" marker so ChatRow renders it as executing.
+		expect(result.messages[0].text).toBe("npm install && npm run build\nOutput:")
 	})
 
 	it("content_start with bare string input shows command text", () => {
@@ -1662,7 +1664,8 @@ describe("translateSessionEvent — run_commands bare array/string input (ENG-18
 		}
 		const result = translateSessionEvent(event, state)
 		expect(result.messages[0].say).toBe("command")
-		expect(result.messages[0].text).toBe("ls -la")
+		// The running command row carries the "Output:" marker so ChatRow renders it as executing.
+		expect(result.messages[0].text).toBe("ls -la\nOutput:")
 	})
 
 	it("content_end preserves bare array input from content_start", () => {
@@ -1765,7 +1768,8 @@ describe("translateSessionEvent — run_commands bare array/string input (ENG-18
 			},
 		}
 		const result = translateSessionEvent(event, state)
-		expect(result.messages[0].text).toBe("npm test")
+		// The running command row carries the "Output:" marker so ChatRow renders it as executing.
+		expect(result.messages[0].text).toBe("npm test\nOutput:")
 	})
 })
 
