@@ -1,6 +1,11 @@
 import * as p from "@clack/prompts";
 import { runConnectAdapter } from "../../commands/connect";
-import { PLATFORMS, type PlatformDef, type SecurityDef } from "./platforms";
+import {
+	PLATFORMS,
+	type PlatformDef,
+	type SecurityDef,
+	shouldIncludeField,
+} from "./platforms";
 
 function isCancel(value: unknown): value is symbol {
 	return p.isCancel(value);
@@ -10,6 +15,7 @@ const SENSITIVE_FLAGS = new Set([
 	"-k",
 	"--access-token",
 	"--api-key",
+	"--app-token",
 	"--app-secret",
 	"--bot-token",
 	"--credentials-json",
@@ -33,28 +39,40 @@ function redactCommandArgs(args: string[]): string {
 
 async function collectFields(platform: PlatformDef): Promise<string[] | null> {
 	const args: string[] = [];
+	const values: Record<string, string> = {};
 
 	for (const field of platform.fields) {
+		if (!shouldIncludeField(field, values)) {
+			continue;
+		}
 		if (field.help) {
 			for (const line of field.help) {
 				p.log.info(line);
 			}
 		}
 
-		const value = await p.text({
-			message: field.label,
-			placeholder: field.placeholder,
-			validate: field.required
-				? (v) => {
-						if (!v?.trim()) return `${field.label} is required`;
-						return undefined;
-					}
-				: undefined,
-		});
+		const value = field.options
+			? await p.select({
+					message: field.label,
+					options: field.options,
+					initialValue: field.initialValue,
+				})
+			: await p.text({
+					message: field.label,
+					placeholder: field.placeholder,
+					defaultValue: field.initialValue,
+					validate: field.required
+						? (v) => {
+								if (!v?.trim()) return `${field.label} is required`;
+								return undefined;
+							}
+						: undefined,
+				});
 
 		if (isCancel(value)) return null;
 
 		const trimmed = (value as string).trim();
+		values[field.flag] = trimmed;
 		if (trimmed) {
 			args.push(field.flag, trimmed);
 		}
