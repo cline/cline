@@ -18,6 +18,7 @@ import { resolveModelDisplayName } from "../components/status-bar";
 import { getModeAccent, palette } from "../palette";
 import {
 	type ConfigAction,
+	canDeleteConfigFooterRow,
 	canToggleConfigFooterRow,
 	getAdjacentConfigTab,
 	getConfigFooterText,
@@ -26,6 +27,7 @@ import {
 	isInlineConfigAction,
 	isToggleableConfigItem,
 	resolveActiveConfigItems,
+	resolveConfigItemDeleteAction,
 	resolveConfigItemSelectAction,
 	resolveConfigItemToggleAction,
 	resolveInitialConfigTab,
@@ -130,6 +132,10 @@ export interface ConfigPanelProps extends ChoiceContext<ConfigAction> {
 	initialTab?: InteractiveConfigTab;
 	onActiveTabChange?: (tab: InteractiveConfigTab) => void;
 	onToggleConfigItem?: (
+		item: InteractiveConfigItem,
+		options?: LoadInteractiveConfigDataOptions,
+	) => Promise<InteractiveConfigData | undefined>;
+	onDeleteConfigItem?: (
 		item: InteractiveConfigItem,
 		options?: LoadInteractiveConfigDataOptions,
 	) => Promise<InteractiveConfigData | undefined>;
@@ -518,6 +524,9 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 	const selectedRowIdx = navIndices[clampedNavPos] ?? 0;
 	const selectedRow = rows[selectedRowIdx];
 	const canToggleSelectedRow = canToggleConfigFooterRow(selectedRow);
+	const canDeleteSelectedRow = Boolean(
+		props.onDeleteConfigItem && canDeleteConfigFooterRow(selectedRow),
+	);
 
 	const setNavPosition = (nextNavPos: number) => {
 		setNavPos(nextNavPos);
@@ -618,6 +627,20 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 		}
 	};
 
+	const handleDeleteSelected = () => {
+		if (!props.onDeleteConfigItem) {
+			return;
+		}
+		const row = rows[selectedRowIdx];
+		if (!row || row.kind !== "ext") {
+			return;
+		}
+		const action = resolveConfigItemDeleteAction(row.item);
+		if (action) {
+			resolve(action);
+		}
+	};
+
 	useDialogKeyboard((key) => {
 		if (key.name === "escape") {
 			dismiss();
@@ -646,6 +669,16 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 		}
 		if (key.name === "space") {
 			handleToggleSelected();
+			return;
+		}
+		if (
+			key.name === "d" &&
+			!key.ctrl &&
+			!key.meta &&
+			!key.option &&
+			!key.shift
+		) {
+			handleDeleteSelected();
 			return;
 		}
 		if (key.name === "return" || key.name === "tab") {
@@ -844,7 +877,10 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 				<em>
 					{togglingItemId
 						? "Applying settings"
-						: getConfigFooterText({ canToggle: canToggleSelectedRow })}
+						: getConfigFooterText({
+								canToggle: canToggleSelectedRow,
+								canDelete: canDeleteSelectedRow,
+							})}
 				</em>
 			</text>
 		</box>

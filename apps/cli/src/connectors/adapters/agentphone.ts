@@ -250,7 +250,7 @@ function verifyAgentPhoneWebhookSignature(input: {
 }): boolean {
 	const secret = input.secret?.trim();
 	if (!secret) {
-		return true;
+		return false;
 	}
 	const signature = input.signature?.trim();
 	const actualHex = signature?.startsWith("sha256=")
@@ -283,6 +283,15 @@ function isMessageWebhookPayload(
 	return (
 		readString(payload?.event) === "agent.message" &&
 		(channel === "sms" || channel === "mms" || channel === "imessage")
+	);
+}
+
+function isAgentPhoneVoiceMessagePayload(
+	payload: Record<string, unknown> | undefined,
+): boolean {
+	return (
+		isVoiceWebhookPayload(payload) &&
+		readString(payload?.event) === "agent.message"
 	);
 }
 
@@ -338,10 +347,7 @@ function resolveAgentPhoneMessageTurnPayload(
 function resolveAgentPhoneVoiceTurnPayload(
 	payload: Record<string, unknown> | undefined,
 ): AgentPhoneVoiceTurnPayload | undefined {
-	if (
-		!isVoiceWebhookPayload(payload) ||
-		readString(payload?.event) !== "agent.message"
-	) {
+	if (!isAgentPhoneVoiceMessagePayload(payload)) {
 		return undefined;
 	}
 	const data = asRecord(payload?.data);
@@ -1320,6 +1326,11 @@ class AgentPhoneConnector extends ConnectorBase<
 							writeWebhookDebug({ phase: "responded", payload, response });
 							return response;
 						}
+						if (!isAgentPhoneVoiceMessagePayload(payload)) {
+							const response = Response.json({ ok: true });
+							writeWebhookDebug({ phase: "responded", payload, response });
+							return response;
+						}
 						const voiceTurn = resolveAgentPhoneVoiceTurnPayload(payload);
 						if (!voiceTurn) {
 							const response = Response.json({
@@ -1534,6 +1545,7 @@ export const __test__ = {
 		resolveAgentPhoneParticipant(rawMessage),
 	resolveAgentPhoneMessageTurnPayload,
 	resolveAgentPhoneVoiceTurnPayload,
+	isAgentPhoneVoiceMessagePayload,
 	verifyAgentPhoneWebhookSignature,
 	normalizeAgentPhoneWebhookResponse,
 	formatAgentPhoneRequestError,

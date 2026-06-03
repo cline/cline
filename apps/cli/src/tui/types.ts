@@ -137,6 +137,10 @@ export interface TuiProps {
 		item: InteractiveConfigItem,
 		options?: LoadInteractiveConfigDataOptions,
 	) => Promise<InteractiveConfigData | undefined>;
+	onDeleteConfigItem?: (
+		item: InteractiveConfigItem,
+		options?: LoadInteractiveConfigDataOptions,
+	) => Promise<InteractiveConfigData | undefined>;
 	subscribeToEvents: (handlers: {
 		onAgentEvent: (event: AgentEvent) => void;
 		onTeamEvent: (event: TeamEvent) => void;

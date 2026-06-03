@@ -385,6 +385,23 @@ describe("agentPhoneConnector", () => {
 		});
 	});
 
+	it("classifies voice lifecycle webhooks separately from voice message turns", () => {
+		expect(
+			__test__.isAgentPhoneVoiceMessagePayload({
+				event: "agent.call.started",
+				channel: "voice",
+				data: {},
+			}),
+		).toBe(false);
+		expect(
+			__test__.resolveAgentPhoneVoiceTurnPayload({
+				event: "agent.call.started",
+				channel: "voice",
+				data: {},
+			}),
+		).toBeUndefined();
+	});
+
 	it("verifies AgentPhone webhook signatures against the raw body", () => {
 		const rawBody = JSON.stringify({ event: "agent.message" });
 		const secret = "whsec_test";
@@ -404,6 +421,16 @@ describe("agentPhoneConnector", () => {
 				rawBody,
 				secret,
 				signature: "sha256=bad",
+			}),
+		).toBe(false);
+	});
+
+	it("rejects AgentPhone webhook signatures when no secret is configured", () => {
+		expect(
+			__test__.verifyAgentPhoneWebhookSignature({
+				rawBody: JSON.stringify({ event: "agent.message" }),
+				secret: undefined,
+				signature: "sha256=abcd",
 			}),
 		).toBe(false);
 	});

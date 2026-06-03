@@ -31,6 +31,7 @@ export type ActiveConnectorRecord = {
 	phoneNumberType?: string;
 	port?: number;
 	baseUrl?: string;
+	connectionMode?: string;
 };
 
 function listConnectorStatePaths(
@@ -73,6 +74,8 @@ const connectorFieldExtractors: Record<
 	startedAt: (p) => (typeof p.startedAt === "string" ? p.startedAt : undefined),
 	port: (p) => (typeof p.port === "number" ? p.port : undefined),
 	baseUrl: (p) => (typeof p.baseUrl === "string" ? p.baseUrl : undefined),
+	connectionMode: (p) =>
+		typeof p.connectionMode === "string" ? p.connectionMode : undefined,
 	userName: (p) => (typeof p.userName === "string" ? p.userName : undefined),
 	agentPhoneNumber: (p) =>
 		typeof p.agentPhoneNumber === "string" ? p.agentPhoneNumber : undefined,
@@ -97,7 +100,16 @@ const connectorConfigs: Record<
 > = {
 	agentphone: {
 		required: ["userName", "agentId"],
-		optional: ["startedAt", "port", "baseUrl"],
+		optional: [
+			"startedAt",
+			"port",
+			"baseUrl",
+			"agentPhoneNumber",
+			"phoneNumberId",
+			"phoneNumberCountry",
+			"phoneNumberStatus",
+			"phoneNumberType",
+		],
 	},
 	discord: {
 		required: ["userName", "applicationId"],
@@ -109,7 +121,10 @@ const connectorConfigs: Record<
 		required: ["userName"],
 		optional: ["startedAt", "port", "baseUrl"],
 	},
-	slack: { required: ["userName"], optional: ["startedAt", "port", "baseUrl"] },
+	slack: {
+		required: ["userName"],
+		optional: ["startedAt", "connectionMode", "port", "baseUrl"],
+	},
 	whatsapp: {
 		required: ["userName"],
 		optional: ["startedAt", "phoneNumberId", "port", "baseUrl"],

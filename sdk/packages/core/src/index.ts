@@ -436,6 +436,11 @@ export {
 	listPluginTools,
 	listPluginToolsWithDiagnostics,
 } from "./services/plugin-tools";
+export type {
+	PluginUninstallOptions,
+	PluginUninstallResult,
+} from "./services/plugin-uninstall";
+export { uninstallPlugin } from "./services/plugin-uninstall";
 export {
 	addLocalProvider,
 	type DeleteLocalProviderRequest,

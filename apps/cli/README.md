@@ -177,6 +177,9 @@ cline connect telegram -k 123456:ABCDEF...
 # Slack (webhook mode)
 cline connect slack --bot-token $SLACK_BOT_TOKEN --signing-secret $SLACK_SIGNING_SECRET --base-url https://your-domain.com
 
+# Slack (socket mode)
+cline connect slack --bot-token $SLACK_BOT_TOKEN --app-token $SLACK_APP_TOKEN
+
 # Google Chat (webhook mode)
 cline connect gchat --base-url https://your-domain.com
 

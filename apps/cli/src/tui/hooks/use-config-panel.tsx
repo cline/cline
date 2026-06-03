@@ -9,7 +9,11 @@ import type {
 	LoadInteractiveConfigDataOptions,
 } from "../../tui/interactive-config";
 import type { CliCompactionMode, Config } from "../../utils/types";
-import { ExtDetailContent } from "../components/dialogs/config-dialogs";
+import {
+	ConfigErrorContent,
+	DeleteConfigItemConfirmContent,
+	ExtDetailContent,
+} from "../components/dialogs/config-dialogs";
 import { withLoadingDialog } from "../components/dialogs/loading-dialog";
 import { ConfigPanelContent } from "../views/config-view";
 import type { ConfigAction } from "../views/config-view-helpers";
@@ -32,6 +36,10 @@ export function useConfigPanel(opts: {
 		options?: LoadInteractiveConfigDataOptions,
 	) => Promise<InteractiveConfigData>;
 	onToggleConfigItem?: (
+		item: InteractiveConfigItem,
+		options?: LoadInteractiveConfigDataOptions,
+	) => Promise<InteractiveConfigData | undefined>;
+	onDeleteConfigItem?: (
 		item: InteractiveConfigItem,
 		options?: LoadInteractiveConfigDataOptions,
 	) => Promise<InteractiveConfigData | undefined>;
@@ -90,6 +98,7 @@ export function useConfigPanel(opts: {
 								activeTab = tab;
 							}}
 							onToggleConfigItem={opts.onToggleConfigItem}
+							onDeleteConfigItem={opts.onDeleteConfigItem}
 							onToggleMode={opts.toggleMode}
 							onToggleAutoApprove={opts.toggleAutoApprove}
 							onSetCompactionMode={opts.setCompactionMode}
@@ -111,6 +120,38 @@ export function useConfigPanel(opts: {
 					await opts.openModelSelector({ onCancel: () => {} });
 				} else if (action.kind === "toggle-item") {
 					await opts.onToggleConfigItem?.(action.item);
+				} else if (action.kind === "delete-item") {
+					const confirmed = await opts.dialog.choice<boolean>({
+						closeOnEscape: true,
+						content: (ctx: ChoiceContext<boolean>) => (
+							<DeleteConfigItemConfirmContent {...ctx} item={action.item} />
+						),
+					});
+					if (confirmed && opts.onDeleteConfigItem) {
+						try {
+							await withLoadingDialog(
+								opts.dialog,
+								`Deleting ${action.item.name}...`,
+								async () =>
+									await opts.onDeleteConfigItem?.(action.item, {
+										includePluginTools: false,
+									}),
+							);
+						} catch (error) {
+							await opts.dialog.choice<void>({
+								closeOnEscape: true,
+								content: (ctx: ChoiceContext<void>) => (
+									<ConfigErrorContent
+										{...ctx}
+										title="Plugin delete failed"
+										message={
+											error instanceof Error ? error.message : String(error)
+										}
+									/>
+								),
+							});
+						}
+					}
 				} else if (action.kind === "ext-detail") {
 					await opts.dialog.choice<void>({
 						style: { maxHeight: opts.termHeight - 2 },

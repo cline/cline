@@ -284,6 +284,30 @@ export async function runCli(): Promise<void> {
 				io,
 			});
 		});
+	const pluginUninstallCmd = pluginCmd
+		.command("uninstall")
+		.alias("remove")
+		.alias("rm")
+		.description("Uninstall a Cline Plugin by name or path")
+		.argument("<name>", "plugin package name, installed slug, or plugin path")
+		.option("--json", "Output as JSON")
+		.option(
+			"--cwd <path>",
+			"Search <path>/.cline/plugins before global plugins",
+		)
+		.action(async (name: string) => {
+			const opts = pluginUninstallCmd.opts<{
+				json?: boolean;
+				cwd?: string;
+			}>();
+			const { runPluginUninstallCommand } = await import("./commands/plugin");
+			ctx.exitCode = await runPluginUninstallCommand({
+				name,
+				cwd: opts.cwd,
+				json: opts.json === true || program.opts().json === true,
+				io,
+			});
+		});
 	const connectCmd = program
 		.command("connect")
 		.description("Connect to an external channel")

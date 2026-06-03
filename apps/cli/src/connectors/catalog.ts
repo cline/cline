@@ -24,7 +24,7 @@ export const CONNECTOR_CATALOG: ConnectorCatalogEntry[] = [
 	},
 	{
 		name: "slack",
-		description: "Slack webhook bridge backed by RPC runtime sessions",
+		description: "Slack webhook/socket bridge backed by RPC runtime sessions",
 	},
 	{
 		name: "telegram",

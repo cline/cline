@@ -1,5 +1,16 @@
 # Cline CLI Changelog
 
+## 3.0.16
+
+- Install official Cline plugins by slug off the new github.com/cline/plugins collection.
+- Uninstall plugins using `cline plugin uninstall <plugin>` or in the TUI.
+- Plugins can now bundle skills, and plugin skills are grouped together in settings.
+- Add Slack socket mode support.
+- Allow a custom base URL for Anthropic vendor-type providers.
+- Fix OAuth token migration for users signed in through the old extension.
+- Use a union schema for read-files tool input validation.
+- Add a `CLINE_PLUGIN_IMPORT_TIMEOUT_MS` env override to control the plugin import timeout.
+
 ## 3.0.15
 
 - Add Cline Hub, a web app for monitoring connected clients, viewing and driving sessions, streaming assistant output, and restarting the local hub, with local, LAN, and tunnel usage gated by a room secret.

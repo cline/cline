@@ -134,6 +134,13 @@ export type WebviewConnectorField = {
 	placeholder?: string;
 	required?: boolean;
 	help?: string[];
+	initialValue?: string;
+	options?: Array<{ value: string; label: string; hint?: string }>;
+	includeWhen?: {
+		flag: string;
+		equals?: string;
+		notEquals?: string;
+	};
 };
 
 export type WebviewConnectorSecurityField = {
@@ -147,7 +154,7 @@ export type WebviewConnectorSecurityField = {
 export type WebviewConnectorChannel = {
 	id: string;
 	name: string;
-	type: "polling" | "webhook";
+	type: "polling" | "webhook" | "hybrid";
 	hint: string;
 	fields: WebviewConnectorField[];
 	security?: {
@@ -173,6 +180,7 @@ export type WebviewActiveConnector = {
 	phoneNumberType?: string;
 	port?: number;
 	baseUrl?: string;
+	connectionMode?: string;
 };
 
 export type WebviewConnectorChannelsResponse = {

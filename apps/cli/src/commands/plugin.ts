@@ -13,6 +13,7 @@ import {
 import { cp, mkdir, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
+import { type PluginUninstallOptions, uninstallPlugin } from "@cline/core";
 import {
 	isPluginModulePath,
 	resolveClineDir,
@@ -1057,6 +1058,25 @@ export async function runPluginInstallCommand(
 		}
 		options.io?.writeln(`Installed plugin from ${result.source}`);
 		options.io?.writeln(`  Path: ${result.installPath}`);
+		return 0;
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		options.io?.writeErr(message);
+		return 1;
+	}
+}
+
+export async function runPluginUninstallCommand(
+	options: PluginUninstallOptions & { json?: boolean; io?: PluginInstallIo },
+): Promise<number> {
+	try {
+		const result = await uninstallPlugin(options);
+		if (options.json) {
+			process.stdout.write(JSON.stringify(result));
+			return 0;
+		}
+		options.io?.writeln(`Uninstalled plugin ${result.name}`);
+		options.io?.writeln(`  Removed: ${result.installPath}`);
 		return 0;
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
