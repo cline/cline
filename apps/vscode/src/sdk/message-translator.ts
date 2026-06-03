@@ -215,7 +215,12 @@ export class MessageTranslatorState {
 		return toolCallId !== undefined && this.deniedToolApprovalsByCallId.has(toolCallId)
 	}
 
-	consumeDeniedToolApproval(toolCallId: string | undefined): boolean {
+	/**
+	 * Returns true when the given toolCallId was previously denied and its events should be
+	 * suppressed. This intentionally does not remove the entry because the denial must persist
+	 * past content_end so the follow-on error event can also be suppressed.
+	 */
+	checkDeniedToolApproval(toolCallId: string | undefined): boolean {
 		if (toolCallId === undefined || !this.deniedToolApprovalsByCallId.has(toolCallId)) {
 			return false
 		}
@@ -1078,7 +1083,7 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 				case "tool": {
 					const toolName = event.toolName ?? "unknown"
 
-					if (state.consumeDeniedToolApproval(event.toolCallId) || isKnownToolApprovalDenial(event.error)) {
+					if (state.checkDeniedToolApproval(event.toolCallId) || isKnownToolApprovalDenial(event.error)) {
 						state.clearStreamingTool()
 						break
 					}
