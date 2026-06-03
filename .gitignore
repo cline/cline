@@ -45,9 +45,6 @@ test-results
 
 /.github/act
 /pkg
-.secrets
-
-*.tsbuildinfo
 
 # Smoke test results (generated)
 evals/smoke-tests/results/
@@ -60,6 +57,15 @@ tests/**/cache
 # Backup created by scripts/marketplace-readme.mjs while publishing.
 # Should never be committed: only exists if a publish aborts mid-swap.
 .README.github.bak
+
+# Tauri generated code
+apps/*/src-tauri/gen
+apps/*/src-tauri/bin
+apps/examples/*/src-tauri/gen
+apps/examples/*/src-tauri/bin
+# Tauri UI test snapshots
+apps/*/src/tests/.tui-test
+apps/*/src/tests/tui-traces
 
 # SDK Session files / User data
 .cline/data
