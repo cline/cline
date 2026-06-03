@@ -21,6 +21,7 @@ What a plugin can do:
 | [gitignore-read-files-guard.ts](./gitignore-read-files-guard.ts) | Runtime hook policy for workspace `.gitignore` boundaries | Uses `beforeTool` to inspect `read_files`, `editor`, and `apply_patch` requests and skips them when target paths match workspace `.gitignore` rules, preventing ignored files from being read or modified. |
 | [env-blocker.ts](./env-blocker.ts) | Deterministic secret protection via `beforeTool` | Uses `beforeTool` to block `read_files` and `run_commands` (e.g. `cat .env`) calls that read `.env` secret files, while leaving `.env.example`/`.env.sample`/`.env.template` readable. A hard guarantee where an AGENTS.md rule is only a suggestion. |
 | [web-search.ts](./web-search.ts) | `web_search` tool backed by an Exa API key | Adds a `web_search` tool that queries Exa for current public web results, with optional result limits, domain filters, recency windows, and country localization. Requires `EXA_API_KEY`. |
+| [openrouter-provider.ts](./openrouter-provider.ts) | Custom model provider via `registerProvider` | Registers an OpenAI-compatible model provider (pointed at OpenRouter) plus its model catalog so the agent can run inference against it. Swap the base URL, API key env var, and models to add any OpenAI-compatible endpoint Cline does not bundle. Requires `OPENROUTER_API_KEY`. |
 | [typescript-lsp/](./typescript-lsp/) | `goto_definition` tool powered by the TypeScript Language Service | Adds `goto_definition(file, line)` for TypeScript/JavaScript projects. It loads the target project’s own TypeScript version, finds identifiers on a line, and resolves definitions through imports, re-exports, aliases, and other language-service semantics. |
 | [agents-squad/](./agents-squad/) | Multi-agent team — spin up subagents with their own models and personalities | Adds tools for starting, messaging, polling, and coordinating background subagents. It includes bundled agent presets, skill discovery/loading, and a shared handoff store for passing notes between subagents in the same conversation. |
 
@@ -71,10 +72,38 @@ inspect a specific page. `EXA_API_KEY` only authenticates the search backend;
 the CLI still needs a normal model provider key or saved provider auth for
 inference.
 
+## Add a custom model provider
+
+[`openrouter-provider.ts`](./openrouter-provider.ts) registers a whole model
+provider from a plugin, so the agent can run inference against an endpoint Cline
+does not ship with. It uses two calls in `setup()`:
+
+- `Llms.registerProvider(collection)` adds the provider and its models to the
+  gateway catalog. With `protocol: "openai-chat"` and `client:
+  "openai-compatible"`, the gateway builds an OpenAI-compatible handler from the
+  `baseUrl` and resolves the API key from the session config or the provider's
+  declared `env` var. This is what makes inference work.
+- `api.registerProvider(...)` declares the contribution on the plugin, which the
+  `providers` capability requires and which lets hosts advertise the provider.
+
+The example points at OpenRouter under a distinct id (`openrouter-plugin`) so it
+does not collide with the built-in `openrouter` provider. To add a different
+OpenAI-compatible endpoint, change the base URL, the API key env var, and the
+model catalog at the top of the file.
+
+```bash
+cline plugin install https://github.com/cline/cline/blob/main/sdk/examples/plugins/openrouter-provider.ts --cwd .
+
+export OPENROUTER_API_KEY=sk-or-...
+cline auth --provider openrouter-plugin --apikey "$OPENROUTER_API_KEY" --modelid anthropic/claude-sonnet-4.6
+cline -P openrouter-plugin -m anthropic/claude-sonnet-4.6 "Say hello and name your model."
+```
+
 ## Run a demo directly
 
 ```bash
 ANTHROPIC_API_KEY=sk-... bun run examples/plugins/weather-metrics.ts
+OPENROUTER_API_KEY=sk-or-... bun run examples/plugins/openrouter-provider.ts
 ```
 
 ## Anatomy of a plugin
