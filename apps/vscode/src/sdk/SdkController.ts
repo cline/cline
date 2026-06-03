@@ -300,6 +300,10 @@ export class Controller {
 					toolCallId,
 					messageTs,
 				),
+			recordUserMessageToolApprovalDenial: (toolCallId) =>
+				this.messageTranslatorState.recordUserMessageToolApprovalDenial(
+					toolCallId,
+				),
 			shouldAutoApproveTool: (request) => {
 				const autoApprovalSettings = this.stateManager.getGlobalSettingsKey(
 					"autoApprovalSettings",

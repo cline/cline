@@ -4,6 +4,7 @@ import { MessageTranslatorState, translateSessionEvent } from "./message-transla
 import { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import { createTaskProxy } from "./task-proxy"
+import { USER_MESSAGE_TOOL_APPROVAL_DENIAL_REASON } from "./tool-approval-denial"
 
 vi.mock("./webview-grpc-bridge", () => ({
 	pushMessageToWebview: vi.fn().mockResolvedValue(undefined),
@@ -130,11 +131,13 @@ describe("SdkInteractionCoordinator", () => {
 	it("routes message responses as follow-ups instead of tool denial text", async () => {
 		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
 		const setTurnPhase = vi.fn()
+		const recordUserMessageToolApprovalDenial = vi.fn()
 		const coordinator = new SdkInteractionCoordinator({
 			messages: new SdkMessageCoordinator({ getTask: () => task }),
 			getSessionId: () => "session-123",
 			postStateToWebview: vi.fn().mockResolvedValue(undefined),
 			setTurnPhase,
+			recordUserMessageToolApprovalDenial,
 		})
 
 		const approvalPromise = coordinator.handleRequestToolApproval({
@@ -149,7 +152,11 @@ describe("SdkInteractionCoordinator", () => {
 		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
 
 		expect(coordinator.resolvePendingToolApproval("just give me an answer", "messageResponse")).toBe(false)
-		await expect(approvalPromise).resolves.toEqual({ approved: false, reason: "User denied the tool execution" })
+		await expect(approvalPromise).resolves.toEqual({
+			approved: false,
+			reason: USER_MESSAGE_TOOL_APPROVAL_DENIAL_REASON,
+		})
+		expect(recordUserMessageToolApprovalDenial).toHaveBeenCalledWith("tool-call")
 		expect(setTurnPhase).toHaveBeenLastCalledWith("streaming")
 	})
 

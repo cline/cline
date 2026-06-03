@@ -4,6 +4,7 @@ import { Logger } from "@/shared/services/Logger"
 import { MessageIdMinter } from "./message-id-minter"
 import { buildToolApprovalAskMessage } from "./message-translator"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
+import { USER_MESSAGE_TOOL_APPROVAL_DENIAL_REASON } from "./tool-approval-denial"
 
 export interface ToolApprovalRequest {
 	agentId: string
@@ -21,6 +22,7 @@ export interface SdkInteractionCoordinatorOptions {
 	postStateToWebview: () => Promise<void>
 	shouldAutoApproveTool?: (request: ToolApprovalRequest) => boolean
 	recordApprovedToolMessage?: (toolCallId: string, messageTs: number) => void
+	recordUserMessageToolApprovalDenial?: (toolCallId: string) => void
 	/**
 	 * The process-wide id/seq/epoch authority, shared with the message translator. Optional so
 	 * existing tests that don't need cross-generator id uniqueness keep working; when omitted a
@@ -106,7 +108,10 @@ export class SdkInteractionCoordinator {
 		if (responseType === "messageResponse") {
 			Logger.log("[SdkController] Rejecting pending tool approval from user message and routing message as follow-up")
 			this.options.setTurnPhase?.("streaming")
-			resolve({ approved: false, reason: "User denied the tool execution" })
+			if (pendingMessage) {
+				this.options.recordUserMessageToolApprovalDenial?.(pendingMessage.toolCallId)
+			}
+			resolve({ approved: false, reason: USER_MESSAGE_TOOL_APPROVAL_DENIAL_REASON })
 			// The approval was resolved, but the chat message still needs normal follow-up routing.
 			return false
 		}
