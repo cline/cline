@@ -345,7 +345,7 @@
     },
     "apps/vscode": {
       "name": "claude-dev",
-      "version": "3.86.2",
+      "version": "3.87.0",
       "dependencies": {
         "@anthropic-ai/sdk": "^0.37.0",
         "@anthropic-ai/vertex-sdk": "^0.6.4",
