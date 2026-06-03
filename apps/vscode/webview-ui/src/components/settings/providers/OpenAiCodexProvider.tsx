@@ -1,20 +1,22 @@
-import { Mode } from "@shared/storage/types"
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { useStaticProviderSelection } from "@/hooks/useStaticProviderSelection"
-import { AccountServiceClient } from "@/services/grpc-client"
-import { ModelInfoView } from "../common/ModelInfoView"
-import { ModelSelector } from "../common/ModelSelector"
-import ReasoningEffortSelector from "../ReasoningEffortSelector"
-import { supportsReasoningEffortForModelId } from "../utils/providerUtils"
-import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { openAiModelInfoSafeDefaults } from "@shared/api";
+import { fromProtobufModelInfo } from "@shared/proto-conversions/models/typeConversion";
+import type { Mode } from "@shared/storage/types";
+import { VSCodeButton } from "@vscode/webview-ui-toolkit/react";
+import { useExtensionState } from "@/context/ExtensionStateContext";
+import { useProviderConfig } from "@/hooks/useProviderConfig";
+import { useStaticProviderSelection } from "@/hooks/useStaticProviderSelection";
+import { AccountServiceClient } from "@/services/grpc-client";
+import { ModelInfoView } from "../common/ModelInfoView";
+import { ModelSelector } from "../common/ModelSelector";
+import ReasoningEffortSelector from "../ReasoningEffortSelector";
+import { supportsReasoningEffortForModelId } from "../utils/providerUtils";
 
-const OPENAI_CODEX_PROVIDER_ID = "openai-codex"
+const OPENAI_CODEX_PROVIDER_ID = "openai-codex";
 
 interface OpenAiCodexProviderProps {
-	showModelOptions: boolean
-	isPopup?: boolean
-	currentMode: Mode
+	showModelOptions: boolean;
+	isPopup?: boolean;
+	currentMode: Mode;
 }
 
 /**
@@ -28,39 +30,89 @@ interface OpenAiCodexProviderProps {
  * provider, and the `hideUsageCost` flag is not hard-coded — it is
  * derived from the SDK's `ProviderInfo.metadata.usageCostDisplay`.
  */
-export const OpenAiCodexProvider = ({ showModelOptions, isPopup, currentMode }: OpenAiCodexProviderProps) => {
-	const { apiConfiguration, openAiCodexIsAuthenticated } = useExtensionState()
-	const { handleModeFieldChange } = useApiConfigurationHandlers()
-	const { models, selectedModelId, selectedModelInfo, hideUsageCost } = useStaticProviderSelection(
+export const OpenAiCodexProvider = ({
+	showModelOptions,
+	isPopup,
+	currentMode,
+}: OpenAiCodexProviderProps) => {
+	const { apiConfiguration, openAiCodexIsAuthenticated } = useExtensionState();
+	const { config, commitSelection } = useProviderConfig(
+		OPENAI_CODEX_PROVIDER_ID,
+	);
+	const {
+		models,
+		defaultModelId,
+		selectedModelId: legacySelectedModelId,
+		selectedModelInfo: legacySelectedModelInfo,
+		hideUsageCost,
+	} = useStaticProviderSelection(
 		OPENAI_CODEX_PROVIDER_ID,
 		apiConfiguration,
 		currentMode,
-	)
+	);
+	const committedSelection =
+		currentMode === "plan" ? config?.planSelection : config?.actSelection;
+	const selectedModelId = committedSelection?.modelId ?? legacySelectedModelId;
+	const selectedModelInfo = committedSelection?.modelInfo
+		? fromProtobufModelInfo(committedSelection.modelInfo)
+		: legacySelectedModelInfo;
 
-	const showReasoningEffort = supportsReasoningEffortForModelId(selectedModelId, true)
+	const showReasoningEffort = supportsReasoningEffortForModelId(
+		selectedModelId,
+		true,
+	);
+
+	const handleModelChange = (modelId: string) => {
+		if (!modelId) {
+			return;
+		}
+
+		const fallbackModelId = defaultModelId || Object.keys(models)[0] || modelId;
+		const modelInfo =
+			models[modelId] ??
+			models[fallbackModelId] ??
+			selectedModelInfo ??
+			openAiModelInfoSafeDefaults;
+
+		void commitSelection(currentMode, {
+			providerId: OPENAI_CODEX_PROVIDER_ID,
+			modelId,
+			modelInfo,
+		}).catch((err) =>
+			console.error("Failed to commit OpenAI Codex model selection:", err),
+		);
+	};
 
 	const handleSignIn = async () => {
 		try {
-			await AccountServiceClient.openAiCodexSignIn({})
+			await AccountServiceClient.openAiCodexSignIn({});
 		} catch (error) {
-			console.error("Failed to sign in to OpenAI Codex:", error)
+			console.error("Failed to sign in to OpenAI Codex:", error);
 		}
-	}
+	};
 
 	const handleSignOut = async () => {
 		try {
-			await AccountServiceClient.openAiCodexSignOut({})
+			await AccountServiceClient.openAiCodexSignOut({});
 		} catch (error) {
-			console.error("Failed to sign out of OpenAI Codex:", error)
+			console.error("Failed to sign out of OpenAI Codex:", error);
 		}
-	}
+	};
 
 	return (
 		<div>
 			<div style={{ marginBottom: "15px" }}>
 				{openAiCodexIsAuthenticated ? (
-					<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-						<span style={{ color: "var(--vscode-descriptionForeground)" }}>Signed in to OpenAI Codex</span>
+					<div
+						style={{
+							display: "flex",
+							justifyContent: "space-between",
+							alignItems: "center",
+						}}
+					>
+						<span style={{ color: "var(--vscode-descriptionForeground)" }}>
+							Signed in to OpenAI Codex
+						</span>
 						<VSCodeButton appearance="secondary" onClick={handleSignOut}>
 							Sign Out
 						</VSCodeButton>
@@ -72,10 +124,14 @@ export const OpenAiCodexProvider = ({ showModelOptions, isPopup, currentMode }: 
 								fontSize: "12px",
 								color: "var(--vscode-descriptionForeground)",
 								marginBottom: "10px",
-							}}>
-							Sign in with your ChatGPT Plus or Pro subscription to use GPT-5 models without an API key.
+							}}
+						>
+							Sign in with your ChatGPT Plus or Pro subscription to use GPT-5
+							models without an API key.
 						</p>
-						<VSCodeButton onClick={handleSignIn}>Sign in to OpenAI Codex</VSCodeButton>
+						<VSCodeButton onClick={handleSignIn}>
+							Sign in to OpenAI Codex
+						</VSCodeButton>
 					</div>
 				)}
 			</div>
@@ -85,16 +141,16 @@ export const OpenAiCodexProvider = ({ showModelOptions, isPopup, currentMode }: 
 					<ModelSelector
 						label="Model"
 						models={models}
-						onChange={(e: any) =>
-							handleModeFieldChange(
-								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
-								e.target.value,
-								currentMode,
+						onChange={(event: Event) =>
+							handleModelChange(
+								(event.target as HTMLSelectElement | null)?.value ?? "",
 							)
 						}
 						selectedModelId={selectedModelId}
 					/>
-					{showReasoningEffort && <ReasoningEffortSelector currentMode={currentMode} />}
+					{showReasoningEffort && (
+						<ReasoningEffortSelector currentMode={currentMode} />
+					)}
 
 					<ModelInfoView
 						hideUsageCost={hideUsageCost}
@@ -105,5 +161,5 @@ export const OpenAiCodexProvider = ({ showModelOptions, isPopup, currentMode }: 
 				</>
 			)}
 		</div>
-	)
-}
+	);
+};
