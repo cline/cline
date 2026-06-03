@@ -27,11 +27,11 @@ import { type AgentPlugin, Llms } from "@cline/core";
 // ---------------------------------------------------------------------------
 // Provider definition
 //
-// Change these four things to point at any OpenAI-compatible endpoint.
+// Change these constants to point at any OpenAI-compatible endpoint.
 // ---------------------------------------------------------------------------
 
-/** Provider id used to select this provider (`cline -P <id>`). Kept distinct
- * from the built-in `openrouter` so the two do not collide. */
+// Provider id exposed by this plugin. Kept distinct from the built-in
+// `openrouter` so the two do not collide.
 const PROVIDER_ID = "openrouter-plugin";
 const PROVIDER_NAME = "OpenRouter (plugin)";
 const BASE_URL = "https://openrouter.ai/api/v1";
@@ -73,14 +73,6 @@ const MODELS: Record<string, Llms.ModelInfo> = {
 		capabilities: ["tools", "streaming", "reasoning", "images"],
 		pricing: { input: 1.25, output: 10 },
 	},
-	"deepseek/deepseek-chat": {
-		id: "deepseek/deepseek-chat",
-		name: "DeepSeek V3",
-		contextWindow: 64_000,
-		maxTokens: 8_192,
-		capabilities: ["tools", "streaming"],
-		pricing: { input: 0.28, output: 0.88 },
-	},
 };
 
 function buildCollection(): Llms.ModelCollection {
@@ -98,6 +90,8 @@ function buildCollection(): Llms.ModelCollection {
 		// env is the API key env var the gateway falls back to when the session
 		// config does not carry an explicit key.
 		env: [API_KEY_ENV],
+		// Provider capabilities use the provider-level schema. Image support is
+		// represented as "vision" here and as "images" on individual models.
 		capabilities: ["tools", "streaming", "prompt-cache", "reasoning", "vision"],
 		// "file" marks this as a user-added provider rather than a built-in
 		// ("system"), which affects trust-level prompts in some hosts.
