@@ -27,6 +27,24 @@ function normalizedModelId(
 	return normalizeRoutingValue(request.modelId) ?? "";
 }
 
+function isProviderBaseOrigin(
+	context: GatewayProviderContext,
+	origin: string,
+): boolean {
+	const baseUrl = normalizeRoutingValue(
+		context.config.baseUrl ?? context.provider.api,
+	)?.replace(/\/+$/, "");
+	if (!baseUrl) {
+		return false;
+	}
+
+	try {
+		return new URL(baseUrl).origin.toLowerCase() === origin;
+	} catch {
+		return baseUrl === origin || baseUrl.startsWith(`${origin}/`);
+	}
+}
+
 function isAnthropicLineageValue(value: string | undefined): boolean {
 	const normalized = normalizeRoutingValue(value);
 	return normalized
@@ -194,6 +212,22 @@ export function isOllamaQwen3ModelIdFallback(
 	return (
 		request.providerId === "ollama" &&
 		normalizedModelId(request).includes("qwen3")
+	);
+}
+
+export function isCerebrasProvider(
+	request: Pick<GatewayStreamRequest, "providerId">,
+	context: GatewayProviderContext,
+): boolean {
+	const providerIds = [
+		request.providerId,
+		context.config.providerId,
+		context.provider.id,
+	].map((id) => id.toLowerCase());
+
+	return (
+		providerIds.includes("cerebras") ||
+		isProviderBaseOrigin(context, "https://api.cerebras.ai")
 	);
 }
 
