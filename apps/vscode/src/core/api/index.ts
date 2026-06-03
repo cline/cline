@@ -149,6 +149,7 @@ function createHandlerForProvider(
 				openAiModelId: mode === "plan" ? options.planModeOpenAiModelId : options.actModeOpenAiModelId,
 				openAiModelInfo: mode === "plan" ? options.planModeOpenAiModelInfo : options.actModeOpenAiModelInfo,
 				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
+				ulid: options.ulid,
 			})
 		case "ollama":
 			return new OllamaHandler({

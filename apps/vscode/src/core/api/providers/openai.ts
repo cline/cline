@@ -22,6 +22,7 @@ interface OpenAiHandlerOptions extends CommonApiHandlerOptions {
 	openAiModelId?: string
 	openAiModelInfo?: OpenAiCompatibleModelInfo
 	reasoningEffort?: string
+	ulid?: string
 }
 
 export class OpenAiHandler implements ApiHandler {
@@ -141,6 +142,7 @@ export class OpenAiHandler implements ApiHandler {
 			reasoning_effort: reasoningEffort,
 			stream: true,
 			stream_options: { include_usage: true },
+			...(this.options.ulid && { prompt_cache_key: `cline-${this.options.ulid}` }), // https://developers.openai.com/api/docs/guides/prompt-caching
 			...getOpenAIToolParams(tools),
 		})
 
