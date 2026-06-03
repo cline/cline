@@ -54,11 +54,11 @@ jobs:
           # Newer LTS (Node 24 / npm 11) can make `npm list` fail with ELSPROBLEMS during vsce packaging.
           node-version: 22
 
-      - name: Install root dependencies
+      - name: Install extension dependencies
         run: npm ci --include=optional
 
       - name: Install webview-ui dependencies
-        run: cd webview-ui && npm ci --include=optional
+        run: npm ci --include=optional
 
       - name: Install Publishing Tools
         run: npm install -g @vscode/vsce ovsx

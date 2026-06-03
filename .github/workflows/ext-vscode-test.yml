@@ -91,13 +91,15 @@ jobs:
                       apps/vscode/package-lock.json
                       apps/vscode/webview-ui/package-lock.json
 
-            - name: Install root dependencies
+            - name: Install extension dependencies
+              working-directory: apps/vscode
               run: npm ci
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Install webview-ui dependencies
-              run: cd webview-ui && npm ci
+              working-directory: apps/vscode/webview-ui
+              run: npm ci
 
             - name: Run Quality Checks (Parallel)
               run: npm run ci:check-all
@@ -130,13 +132,15 @@ jobs:
                       apps/vscode/package-lock.json
                       apps/vscode/webview-ui/package-lock.json
 
-            - name: Install root dependencies
+            - name: Install extension dependencies
+              working-directory: apps/vscode
               run: npm ci
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Install webview-ui dependencies
-              run: cd webview-ui && npm ci
+              working-directory: apps/vscode/webview-ui
+              run: npm ci
 
             - name: Set up NPM on Windows
               if: runner.os == 'Windows'
@@ -229,13 +233,15 @@ jobs:
                       apps/vscode/webview-ui/package-lock.json
                       apps/vscode/testing-platform/package-lock.json
 
-            - name: Install root dependencies
+            - name: Install extension dependencies
+              working-directory: apps/vscode
               run: npm ci
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Install webview-ui dependencies
-              run: cd webview-ui && npm ci
+              working-directory: apps/vscode/webview-ui
+              run: npm ci
 
             - name: Download ripgrep binaries
               run: npm run download-ripgrep
@@ -244,7 +250,8 @@ jobs:
               run: npm run compile-standalone
 
             - name: Install testing platform dependencies
-              run: cd testing-platform && npm ci
+              working-directory: apps/vscode/testing-platform
+              run: npm ci
 
             - name: Running testing platform integration spec tests
               timeout-minutes: 7
