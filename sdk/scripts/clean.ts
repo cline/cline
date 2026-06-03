@@ -20,7 +20,7 @@ type RootPackageJson = {
 
 const TARGETS = ["dist", "node_modules"] as const;
 
-const root = path.join(import.meta.dir, "..");
+const root = path.join(import.meta.dir, "..", "..");
 
 async function readWorkspaceGlobs(): Promise<string[]> {
 	const raw = await readFile(path.join(root, "package.json"), "utf8");

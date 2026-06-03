@@ -33,7 +33,7 @@ permissions:
 
 defaults:
   run:
-    working-directory: sdk
+    working-directory: .
 
 jobs:
   publish-main:
@@ -102,7 +102,7 @@ jobs:
           fi
 
           VERSION="${TAG#cli-v}"
-          PACKAGE_VERSION=$(node -p "require('./apps/cli/package.json').version")
+          PACKAGE_VERSION=$(node -p "require('./sdk/apps/cli/package.json').version")
 
           if [ "$PACKAGE_VERSION" != "$VERSION" ]; then
             echo "sdk/apps/cli/package.json version ${PACKAGE_VERSION} does not match ${TAG}"
@@ -172,7 +172,7 @@ jobs:
           )
 
           for package_name in "${EXPECTED[@]}"; do
-            dir="apps/cli/dist/${package_name#@cline/}"
+            dir="sdk/apps/cli/dist/${package_name#@cline/}"
             if [ ! -f "$dir/package.json" ]; then
               echo "Missing package manifest: $dir/package.json"
               exit 1
@@ -207,8 +207,8 @@ jobs:
       - name: Get Changelog Entry
         id: changelog
         run: |
-          # Grab content between the first "## " header and the next one in apps/cli/CHANGELOG.md
-          CONTENT=$(awk '/^## [0-9]/{if(found) exit; found=1; next} found{print}' apps/cli/CHANGELOG.md)
+          # Grab content between the first "## " header and the next one in sdk/apps/cli/CHANGELOG.md
+          CONTENT=$(awk '/^## [0-9]/{if(found) exit; found=1; next} found{print}' sdk/apps/cli/CHANGELOG.md)
           echo "content<<EOF" >> $GITHUB_OUTPUT
           echo "$CONTENT" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
@@ -349,7 +349,7 @@ jobs:
         if: steps.check_commits.outputs.skip != 'true'
         id: version
         run: |
-          BASE_VERSION=$(node -p "require('./apps/cli/package.json').version")
+          BASE_VERSION=$(node -p "require('./sdk/apps/cli/package.json').version")
           TIMESTAMP=$(date +%s)
           VERSION="${BASE_VERSION}-nightly.${TIMESTAMP}"
 
@@ -365,12 +365,12 @@ jobs:
         run: |
           node -e '
             const fs = require("node:fs");
-            const path = "apps/cli/package.json";
+            const path = "sdk/apps/cli/package.json";
             const pkg = JSON.parse(fs.readFileSync(path, "utf8"));
             pkg.version = process.env.VERSION;
             fs.writeFileSync(path, `${JSON.stringify(pkg, null, "\t")}\n`);
           '
-          cat apps/cli/package.json | grep '"version"'
+          cat sdk/apps/cli/package.json | grep '"version"'
 
       - name: Build platform binaries
         if: steps.check_commits.outputs.skip != 'true'
@@ -401,7 +401,7 @@ jobs:
           )
 
           for package_name in "${EXPECTED[@]}"; do
-            dir="apps/cli/dist/${package_name#@cline/}"
+            dir="sdk/apps/cli/dist/${package_name#@cline/}"
             if [ ! -f "$dir/package.json" ]; then
               echo "Missing package manifest: $dir/package.json"
               exit 1

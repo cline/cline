@@ -4,6 +4,9 @@
 	"private": true,
 	"description": "Browser dashboard for the Cline hub: live clients, sessions, streaming chat, and hub restart.",
 	"type": "module",
+	"exports": {
+		".": "./src/server.ts"
+	},
 	"scripts": {
 		"build:webview": "bun run --cwd src/webview build",
 		"dev": "bun run src/dev.ts",

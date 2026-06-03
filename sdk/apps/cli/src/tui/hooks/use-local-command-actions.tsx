@@ -14,12 +14,13 @@ import { hydrateSessionMessages } from "../utils/hydrate-messages";
 import type { LocalSlashCommandInvocation } from "../utils/skill-command-input";
 import { HistoryDialogContent } from "../views/history-view";
 import { runLocalSlashCommandAction } from "./local-command-actions";
+import type { OpenConfigOptions } from "./use-config-panel";
 
 export function useLocalCommandActions(input: {
 	slashCommandRegistry: SlashCommandRegistry;
 	canForkSession: boolean;
 	openAccount: () => void;
-	openConfig: () => void;
+	openConfig: (options?: OpenConfigOptions) => void;
 	openMcpManager: () => Promise<boolean>;
 	openModelSelector: () => void;
 	openSkills: (invocation?: LocalSlashCommandInvocation) => void;
