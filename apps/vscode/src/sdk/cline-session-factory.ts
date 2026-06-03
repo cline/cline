@@ -17,6 +17,7 @@ import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, type LanguageDisplay } from 
 import { Logger } from "@shared/services/Logger"
 import type { Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
+import { stringifyVsCodeLmModelSelector } from "@shared/vsCodeSelectorUtils"
 import { StateManager } from "@/core/storage/StateManager"
 import { ExtensionRegistryInfo } from "@/registry"
 import { getDistinctId } from "@/services/logging/distinctId"
@@ -328,6 +329,16 @@ export function resolveApiKey(providerId: string, config: ApiConfiguration): str
  * Uses mode-specific model ID fields when available, falls back to generic fields.
  */
 export function resolveModelId(providerId: string, mode: Mode, config: ApiConfiguration): string | undefined {
+	// VS Code LM has no plain model-id field: the selected model is stored as a
+	// structured LanguageModelChatSelector ({vendor, family, ...}) in
+	// plan/actModeVsCodeLmModelSelector. The SDK ProviderConfig only carries a
+	// string modelId, so we stringify the selector to "vendor/family[/version/id]"
+	// and the VS Code LM handler parses it back. See sdk/vscode-lm/vscode-lm-handler.ts.
+	if (providerId === "vscode-lm") {
+		const selector = mode === "plan" ? config.planModeVsCodeLmModelSelector : config.actModeVsCodeLmModelSelector
+		return selector ? stringifyVsCodeLmModelSelector(selector) || undefined : undefined
+	}
+
 	// Check provider-specific mode model ID fields.
 	// If the provider has a dedicated field, do not fall back to generic
 	// *ModeApiModelId. Those generic slots may contain a stale model from a
