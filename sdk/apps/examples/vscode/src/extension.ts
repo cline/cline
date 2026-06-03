@@ -28,6 +28,7 @@ import {
 	buildClineSystemPrompt,
 	createClineTelemetryServiceConfig,
 	createClineTelemetryServiceMetadata,
+	estimateTokens,
 	type GatewayProviderContext,
 	type GatewayProviderRegistration,
 	type GatewayStreamRequest,
@@ -239,10 +240,6 @@ function wait(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function estimateTokenCount(text: string): number {
-	return Math.ceil(text.length / 4);
-}
-
 function stringifyAgentPart(part: AgentMessagePart): string {
 	switch (part.type) {
 		case "text":
@@ -267,6 +264,15 @@ function stringifyAgentPart(part: AgentMessagePart): string {
 
 function stringifyAgentMessage(message: AgentMessage): string {
 	return message.content.map((part) => stringifyAgentPart(part)).join("");
+}
+
+function toVsCodeSystemMessage(
+	systemPrompt: string | undefined,
+): vscode.LanguageModelChatMessage[] {
+	const trimmed = systemPrompt?.trim();
+	return trimmed
+		? [vscode.LanguageModelChatMessage.User(`[System]\n${trimmed}`)]
+		: [];
 }
 
 async function listGitHubCopilotModels(): Promise<WebviewProviderModel[]> {
@@ -366,17 +372,26 @@ async function* streamGitHubCopilotRequest(
 	request.signal?.addEventListener("abort", abortListener, { once: true });
 
 	const messages = [
-		vscode.LanguageModelChatMessage.Assistant(request.systemPrompt ?? ""),
+		...toVsCodeSystemMessage(request.systemPrompt),
 		...request.messages.map((message) => toVsCodeLanguageModelMessage(message)),
 	];
-	const inputTokens = estimateTokenCount(
-		[
-			request.systemPrompt ?? "",
-			...request.messages.map((message) => stringifyAgentMessage(message)),
-			JSON.stringify(request.tools ?? []),
-		].join("\n"),
-	);
-	let outputText = "";
+	const inputTokenSource = [
+		request.systemPrompt ?? "",
+		...request.messages.map((message) => stringifyAgentMessage(message)),
+		JSON.stringify(request.tools ?? []),
+	].join("\n");
+	const inputTokens = estimateTokens(inputTokenSource.length);
+	let outputChars = 0;
+	let sawToolCall = false;
+
+	const recordOutputChars = (value: unknown): void => {
+		outputChars += stringifyContent(value).length;
+	};
+
+	const finishReason = (): AgentModelEvent => ({
+		type: "finish",
+		reason: sawToolCall ? "tool-calls" : "stop",
+	});
 
 	try {
 		const response = await model.sendRequest(
@@ -397,11 +412,17 @@ async function* streamGitHubCopilotRequest(
 
 		for await (const chunk of response.stream) {
 			if (chunk instanceof vscode.LanguageModelTextPart) {
-				outputText += chunk.value;
+				outputChars += chunk.value.length;
 				yield { type: "text-delta", text: chunk.value };
 				continue;
 			}
 			if (chunk instanceof vscode.LanguageModelToolCallPart) {
+				sawToolCall = true;
+				recordOutputChars({
+					callId: chunk.callId,
+					name: chunk.name,
+					input: chunk.input,
+				});
 				yield {
 					type: "tool-call-delta",
 					toolCallId: chunk.callId,
@@ -415,13 +436,13 @@ async function* streamGitHubCopilotRequest(
 			type: "usage",
 			usage: {
 				inputTokens,
-				outputTokens: estimateTokenCount(outputText),
+				outputTokens: outputChars > 0 ? estimateTokens(outputChars) : 0,
 				cacheReadTokens: 0,
 				cacheWriteTokens: 0,
 				totalCost: 0,
 			},
 		};
-		yield { type: "finish", reason: "stop" };
+		yield finishReason();
 	} catch (error) {
 		context.logger?.log("GitHub Copilot provider request failed", {
 			severity: "error",
