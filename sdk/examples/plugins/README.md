@@ -72,33 +72,6 @@ inspect a specific page. `EXA_API_KEY` only authenticates the search backend;
 the CLI still needs a normal model provider key or saved provider auth for
 inference.
 
-## Add a custom model provider
-
-[`openrouter-provider.ts`](./openrouter-provider.ts) registers a whole model
-provider from a plugin, so the agent can run inference against an endpoint Cline
-does not ship with. It uses two calls in `setup()`:
-
-- `Llms.registerProvider(collection)` adds the provider and its models to the
-  gateway catalog. With `protocol: "openai-chat"` and `client:
-  "openai-compatible"`, the gateway builds an OpenAI-compatible handler from the
-  `baseUrl` and resolves the API key from the session config or the provider's
-  declared `env` var. This is what makes inference work.
-- `api.registerProvider(...)` declares the contribution on the plugin, which the
-  `providers` capability requires and which lets hosts advertise the provider.
-
-The example points at OpenRouter under a distinct id (`openrouter-plugin`) so it
-does not collide with the built-in `openrouter` provider. To add a different
-OpenAI-compatible endpoint, change the base URL, the API key env var, and the
-model catalog at the top of the file.
-
-```bash
-cline plugin install https://github.com/cline/cline/blob/main/sdk/examples/plugins/openrouter-provider.ts --cwd .
-
-export OPENROUTER_API_KEY=sk-or-...
-cline auth --provider openrouter-plugin --apikey "$OPENROUTER_API_KEY" --modelid anthropic/claude-sonnet-4.6
-cline -P openrouter-plugin -m anthropic/claude-sonnet-4.6 "Say hello and name your model."
-```
-
 ## Run a demo directly
 
 ```bash
