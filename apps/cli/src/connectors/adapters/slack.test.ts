@@ -180,6 +180,82 @@ describe("slack binding lookup", () => {
 		});
 	});
 
+	it("prefers resolved Slack message author names for participant labels", () => {
+		expect(
+			__test__.resolveSlackParticipant(
+				{ team_id: "T123", user: "U123" },
+				"T123",
+				{
+					userId: "U123",
+					userName: "alice",
+					fullName: "Alice Example",
+				},
+			),
+		).toEqual({
+			key: "slack:team:T123:user:U123",
+			label: "Alice Example",
+		});
+	});
+
+	it("adds Slack author context to runtime turns", () => {
+		const text = __test__.formatSlackRuntimeText(
+			"please check this",
+			{
+				key: "slack:team:T123:user:U123",
+				label: "Alice Example",
+			},
+			{
+				isDirectMention: true,
+				isSubscribedThreadMessage: true,
+			},
+		);
+
+		expect(text).toContain("<slack_message_context>");
+		expect(text).toContain("authorId: U123");
+		expect(text).toContain("authorLabel: Alice Example");
+		expect(text).toContain("participantKey: slack:team:T123:user:U123");
+		expect(text).toContain("isDirectMention: true");
+		expect(text).toContain("isSubscribedThreadMessage: true");
+		expect(text.endsWith("please check this")).toBe(true);
+	});
+
+	it("detects only Slack messages addressed to the bot", () => {
+		expect(
+			__test__.isSlackMessageAddressedToBot(
+				{ text: "plain thread reply", isMention: false },
+				"cline-slack",
+			),
+		).toBe(false);
+		expect(
+			__test__.isSlackMessageAddressedToBot(
+				{ text: "@cline-slack please check", isMention: false },
+				"cline-slack",
+			),
+		).toBe(true);
+		expect(
+			__test__.isSlackMessageAddressedToBot(
+				{ text: "Slack SDK marked this", isMention: true },
+				"cline-slack",
+			),
+		).toBe(true);
+		expect(
+			__test__.isSlackMessageAddressedToBot(
+				{ text: "@U999 yes", isMention: false },
+				"cline-slack",
+				"U999",
+			),
+		).toBe(true);
+	});
+
+	it("strips Slack bot mentions before parsing addressed control replies", () => {
+		expect(
+			__test__.stripSlackBotMention("@cline-slack yes", "cline-slack"),
+		).toBe("yes");
+		expect(
+			__test__.stripSlackBotMention("@U999 approve", "cline-slack", "U999"),
+		).toBe("approve");
+	});
+
 	it("normalizes direct-message channels even when Slack omits im channel_type", () => {
 		expect(
 			__test__.normalizeSlackMessageEventChannelType({
