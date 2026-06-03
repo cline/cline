@@ -398,7 +398,7 @@
 		"clean:all": "npm run clean:build && npm run clean:deps",
 		"compile-tests": "node ./scripts/build-tests.js",
 		"watch-tests": "tsc -p . -w --outDir out",
-		"check-types": "npm run protos && npx tsc --noEmit && cd webview-ui && npx tsc --noEmit",
+		"check-types": "npm run protos && tsc --noEmit && cd webview-ui && tsc --noEmit",
 		"lint": "biome lint --config-path ./biome.jsonc --no-errors-on-unmatched --files-ignore-unknown=true --diagnostic-level=error && npm run lint:proto",
 		"lint:proto": "bash ./scripts/proto-lint.sh",
 		"format": "biome format --config-path ./biome.jsonc --changed --since main --no-errors-on-unmatched --files-ignore-unknown=true --diagnostic-level=error",
