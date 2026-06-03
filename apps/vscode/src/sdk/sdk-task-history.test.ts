@@ -2,6 +2,7 @@ import type { SessionHistoryRecord } from "@cline/core"
 import type { HistoryItem } from "@shared/HistoryItem"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { McpHub } from "@/services/mcp/McpHub"
+import type { TelemetryService } from "@/services/telemetry/TelemetryService"
 import { sdkMessagesToClineMessages } from "./message-translator"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import { SdkTaskHistory, sessionHistoryRecordToHistoryItem } from "./sdk-task-history"
@@ -26,6 +27,11 @@ vi.mock("@/utils/fs", () => ({
 	fileExistsAtPath: vi.fn(() => Promise.resolve(false)),
 }))
 
+const legacyStateReaderMock = vi.hoisted(() => ({
+	taskHistory: [] as HistoryItem[],
+	apiConversationHistory: [] as unknown[],
+}))
+
 vi.mock("@/shared/services/Logger", () => ({
 	Logger: {
 		error: vi.fn(),
@@ -34,8 +40,20 @@ vi.mock("@/shared/services/Logger", () => ({
 	},
 }))
 
+vi.mock("./legacy-state-reader", () => ({
+	readTaskHistory: vi.fn(() => legacyStateReaderMock.taskHistory),
+	readApiConversationHistory: vi.fn(() => legacyStateReaderMock.apiConversationHistory),
+}))
+
+vi.mock("./cline-session-factory", async (importOriginal) => ({
+	...(await importOriginal<typeof import("./cline-session-factory")>()),
+	buildSessionConfig: vi.fn(async ({ cwd, workspaceRoot, mode }) => ({ cwd, workspaceRoot, mode })),
+}))
+
 describe("SdkTaskHistory", () => {
 	beforeEach(() => {
+		legacyStateReaderMock.taskHistory = []
+		legacyStateReaderMock.apiConversationHistory = []
 		vi.clearAllMocks()
 	})
 
@@ -213,6 +231,74 @@ describe("SdkTaskHistory", () => {
 		expect(deleteSession).toHaveBeenCalledWith("task-1")
 	})
 
+	it("emits telemetry when migrating a legacy task to an SDK session", async () => {
+		vi.spyOn(Date, "now").mockReturnValue(123_456)
+		legacyStateReaderMock.taskHistory = [
+			makeHistoryItem("legacy-task", {
+				task: "legacy prompt",
+				isFavorited: true,
+				tokensIn: 10,
+				tokensOut: 20,
+				totalCost: 0.03,
+				cwdOnTaskInitialization: "/legacy/repo",
+			}),
+		]
+		legacyStateReaderMock.apiConversationHistory = [
+			{ role: "user", content: "legacy prompt" },
+			{ role: "assistant", content: "legacy answer" },
+		]
+		const telemetry = makeTelemetry()
+		const { history, startSession } = makeHistory([], telemetry)
+
+		await history.getClineMessages("legacy-task")
+
+		expect(startSession).toHaveBeenCalledWith(
+			expect.objectContaining({
+				config: expect.objectContaining({ sessionId: "legacy-task", cwd: "/legacy/repo" }),
+				initialMessages: expect.arrayContaining([
+					expect.objectContaining({ role: "user" }),
+					expect.objectContaining({ role: "assistant" }),
+				]),
+				sessionMetadata: expect.objectContaining({
+					migratedFromLegacyTask: true,
+					title: "legacy prompt",
+					isFavorited: true,
+				}),
+			}),
+		)
+		expect(telemetry.captureLegacyTaskMigration).toHaveBeenCalledWith(
+			expect.objectContaining({
+				taskId: "legacy-task",
+				outcome: "success",
+				reason: "migrated",
+				legacyApiHistoryLength: 2,
+				convertedMessageCount: 2,
+				hasFavorite: true,
+				hasCost: true,
+				hasTokenUsage: true,
+				hasCwd: true,
+			}),
+		)
+	})
+
+	it("emits backlog telemetry when legacy tasks are still pending migration", async () => {
+		legacyStateReaderMock.taskHistory = [makeHistoryItem("legacy-task", { task: "legacy prompt" })]
+		const telemetry = makeTelemetry()
+		const { history } = makeHistory(
+			[makeSessionRecord("sdk-task"), makeSessionRecord("migrated", { metadata: { migratedFromLegacyTask: true } })],
+			telemetry,
+		)
+
+		await history.listHistory({ hydrate: false })
+
+		expect(telemetry.captureLegacyTaskMigrationBacklog).toHaveBeenCalledWith({
+			pendingLegacyTaskCount: 1,
+			migratedSdkTaskCount: 1,
+			visibleSdkTaskCount: 2,
+			visibleTaskCount: 3,
+		})
+	})
+
 	it("updates usage for an existing SDK task", async () => {
 		vi.spyOn(Date, "now").mockReturnValue(123_456)
 		const { history, updateSession } = makeHistory([
@@ -277,7 +363,15 @@ function makeSessionRecord(id: string, overrides: Partial<SessionHistoryRecord> 
 	}
 }
 
-function makeHistory(records: SessionHistoryRecord[]) {
+function makeTelemetry(): TelemetryService {
+	return {
+		safeCapture: vi.fn((fn: () => void) => fn()),
+		captureLegacyTaskMigration: vi.fn(),
+		captureLegacyTaskMigrationBacklog: vi.fn(),
+	} as unknown as TelemetryService
+}
+
+function makeHistory(records: SessionHistoryRecord[], telemetry?: TelemetryService) {
 	let currentRecords = records
 	const updateSession = vi.fn(
 		async (
@@ -299,10 +393,15 @@ function makeHistory(records: SessionHistoryRecord[]) {
 	const getSession = vi.fn(async (sessionId: string) => currentRecords.find((record) => record.sessionId === sessionId))
 	const listHistory = vi.fn(async () => currentRecords)
 	const readMessages = vi.fn(async () => [])
+	const startSession = vi.fn(async (input: { config: { sessionId?: string } }) => {
+		currentRecords = [makeSessionRecord(input.config.sessionId ?? "started"), ...currentRecords]
+		return { sessionId: input.config.sessionId }
+	})
 	const host = {
 		get: getSession,
 		listHistory,
 		readMessages,
+		start: startSession,
 		update: updateSession,
 		delete: deleteSession,
 	} as unknown as VscodeSessionHost
@@ -312,7 +411,8 @@ function makeHistory(records: SessionHistoryRecord[]) {
 	const history = new SdkTaskHistory({
 		mcpHub: {} as McpHub,
 		sessions,
+		telemetry,
 	})
 
-	return { history, getSession, listHistory, updateSession, deleteSession }
+	return { history, getSession, listHistory, updateSession, deleteSession, startSession }
 }
