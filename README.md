@@ -217,7 +217,7 @@ cline connect telegram -k $BOT_TOKEN
 # Connect to Slack through webhook
 cline connect slack --bot-token $SLACK_TOKEN --signing-secret $SECRET --base-url $URL
 # Connect to Slack using socket mode
-cline connect slack --connection socket --bot-token $SLACK_TOKEN --app-token $SLACK_APP_TOKEN
+cline connect slack --bot-token $SLACK_TOKEN --app-token $SLACK_APP_TOKEN
 ```
 
 ## Headless CLI for CI/CD

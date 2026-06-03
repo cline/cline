@@ -119,26 +119,8 @@ export const PLATFORMS: PlatformDef[] = [
 		id: "slack",
 		name: "Slack",
 		type: "hybrid",
-		hint: "Supports webhook or socket mode.",
+		hint: "Public URL for webhook mode; leave blank for socket mode.",
 		fields: [
-			{
-				flag: "--connection",
-				label: "Connection mode",
-				required: true,
-				initialValue: "webhook",
-				options: [
-					{
-						value: "webhook",
-						label: "Webhook",
-						hint: "requires a public URL",
-					},
-					{
-						value: "socket",
-						label: "Socket",
-						hint: "no public URL",
-					},
-				],
-			},
 			{
 				flag: "--bot-token",
 				label: "Bot token",
@@ -151,11 +133,20 @@ export const PLATFORMS: PlatformDef[] = [
 				],
 			},
 			{
+				flag: "--base-url",
+				label: "Public base URL",
+				placeholder: "leave blank for socket mode",
+				help: [
+					"Enter a publicly accessible URL for webhook mode",
+					"Leave blank to use Slack socket mode instead",
+				],
+			},
+			{
 				flag: "--signing-secret",
 				label: "Signing secret",
 				required: true,
 				help: ["Found in your app's Basic Information page"],
-				includeWhen: { flag: "--connection", notEquals: "socket" },
+				includeWhen: { flag: "--base-url", notEquals: "" },
 			},
 			{
 				flag: "--app-token",
@@ -166,18 +157,7 @@ export const PLATFORMS: PlatformDef[] = [
 					"Enable Socket Mode in the Slack app",
 					"Generate an app-level token with the connections:write scope",
 				],
-				includeWhen: { flag: "--connection", equals: "socket" },
-			},
-			{
-				flag: "--base-url",
-				label: "Public base URL",
-				placeholder: "https://example.com",
-				required: true,
-				help: [
-					"Your publicly accessible URL for webhook callbacks",
-					"Use ngrok or similar for local development",
-				],
-				includeWhen: { flag: "--connection", notEquals: "socket" },
+				includeWhen: { flag: "--base-url", equals: "" },
 			},
 		],
 		security: {

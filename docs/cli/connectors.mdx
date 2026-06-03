@@ -81,7 +81,6 @@ Webhook mode requires a bot token, signing secret, and public base URL:
 
 ```bash
 cline connect slack \
-  --connection webhook \
   --bot-token <BOT-TOKEN> \
   --signing-secret <SECRET> \
   --base-url <URL>
@@ -93,7 +92,6 @@ Socket mode requires a bot token and an app-level token with the `connections:wr
 
 ```bash
 cline connect slack \
-  --connection socket \
   --bot-token <BOT-TOKEN> \
   --app-token <APP-LEVEL-TOKEN>
 ```

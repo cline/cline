@@ -81,16 +81,10 @@ type SlackThreadState = ConnectorThreadState & {
 
 type SlackConnectionMode = ConnectSlackOptions["connectionMode"];
 
-function parseSlackConnectionMode(
-	value: string | undefined,
+function inferSlackConnectionMode(
+	baseUrl: string | undefined,
 ): SlackConnectionMode {
-	const mode = value?.trim().toLowerCase() || "webhook";
-	if (mode !== "webhook" && mode !== "socket") {
-		throw new Error(
-			`invalid Slack connection mode "${mode}" (expected "webhook" or "socket")`,
-		);
-	}
-	return mode;
+	return baseUrl?.trim() ? "webhook" : "socket";
 }
 
 function truncateText(value: string, maxLength = 160): string {
@@ -403,9 +397,8 @@ class SlackConnector extends ConnectorBase<
 	protected override createCommand(): Command {
 		return super
 			.createCommand()
-			.usage("[--connection webhook|socket] [options]")
+			.usage("[--base-url <PUBLIC_BASE_URL>] [options]")
 			.option("--user-name <name>", "Slack bot username label")
-			.option("--connection <webhook|socket>", "Slack connection mode")
 			.option(
 				"--bot-token <token>",
 				"Slack bot token for single-workspace mode",
@@ -452,7 +445,6 @@ class SlackConnector extends ConnectorBase<
 					"Environment:",
 					"  SLACK_BOT_TOKEN             Single-workspace bot token",
 					"  SLACK_SIGNING_SECRET        Slack signing secret",
-					"  SLACK_CONNECTION            Connection mode (webhook or socket)",
 					"  SLACK_APP_TOKEN             App-level token for socket mode",
 					"  SLACK_CLIENT_ID             OAuth client id",
 					"  SLACK_CLIENT_SECRET         OAuth client secret",
@@ -476,7 +468,6 @@ class SlackConnector extends ConnectorBase<
 			provider?: string;
 			apiKey?: string;
 			system?: string;
-			connection?: string;
 			mode?: string;
 			interactive?: boolean;
 			enableTools?: boolean;
@@ -490,9 +481,8 @@ class SlackConnector extends ConnectorBase<
 			this.parseOptionalInteger(opts.port, "port") ??
 			Number.parseInt(process.env.PORT ?? "8787", 10);
 		const port = Number.isFinite(parsedPort) ? parsedPort : 8787;
-		const connectionMode = parseSlackConnectionMode(
-			opts.connection || process.env.SLACK_CONNECTION,
-		);
+		const baseUrl = opts.baseUrl?.trim() || process.env.BASE_URL?.trim();
+		const connectionMode = inferSlackConnectionMode(baseUrl);
 		if (
 			connectionMode === "socket" &&
 			(opts.clientId?.trim() || opts.clientSecret?.trim())
@@ -560,10 +550,7 @@ class SlackConnector extends ConnectorBase<
 				process.env.CLINE_CONNECT_HOOK_COMMAND?.trim(),
 			port,
 			host: opts.host?.trim() || process.env.HOST?.trim() || "0.0.0.0",
-			baseUrl:
-				opts.baseUrl?.trim() ||
-				process.env.BASE_URL?.trim() ||
-				`http://127.0.0.1:${port}`,
+			baseUrl,
 		};
 	}
 
@@ -1016,52 +1003,63 @@ class SlackConnector extends ConnectorBase<
 				},
 			});
 
-		const webhookUrl = `${options.baseUrl.replace(/\/$/, "")}/api/webhooks/slack`;
-		const oauthCallbackUrl = `${options.baseUrl.replace(/\/$/, "")}/api/oauth/slack/callback`;
+		let webhookUrl: string | undefined;
+		let oauthCallbackUrl: string | undefined;
 		const server =
 			options.connectionMode === "webhook"
-				? await startConnectorWebhookServer({
-						host: options.host,
-						port: options.port,
-						routes: {
-							"/api/webhooks/slack": async (request) =>
-								bot.webhooks.slack(request),
-							"/api/oauth/slack/callback": async (request) => {
-								try {
-									const result = await slack.handleOAuthCallback(request);
-									return new Response(
-										`Slack installation stored for team ${result.teamId}. You can return to Slack.`,
-									);
-								} catch (error) {
-									const message =
-										error instanceof Error ? error.message : String(error);
-									loggerAdapter.core.log("Slack OAuth callback failed", {
-										severity: "warn",
-										transport: "slack",
-										error: message,
-									});
-									return new Response(`Slack OAuth error: ${message}`, {
-										status: 500,
-									});
-								}
+				? await (async () => {
+						const baseUrl = options.baseUrl?.trim();
+						if (!baseUrl) {
+							throw new Error(
+								"Slack webhook mode requires --base-url or BASE_URL",
+							);
+						}
+						webhookUrl = `${baseUrl.replace(/\/$/, "")}/api/webhooks/slack`;
+						oauthCallbackUrl = `${baseUrl.replace(/\/$/, "")}/api/oauth/slack/callback`;
+						return startConnectorWebhookServer({
+							host: options.host,
+							port: options.port,
+							routes: {
+								"/api/webhooks/slack": async (request) =>
+									bot.webhooks.slack(request),
+								"/api/oauth/slack/callback": async (request) => {
+									try {
+										const result = await slack.handleOAuthCallback(request);
+										return new Response(
+											`Slack installation stored for team ${result.teamId}. You can return to Slack.`,
+										);
+									} catch (error) {
+										const message =
+											error instanceof Error ? error.message : String(error);
+										loggerAdapter.core.log("Slack OAuth callback failed", {
+											severity: "warn",
+											transport: "slack",
+											error: message,
+										});
+										return new Response(`Slack OAuth error: ${message}`, {
+											status: 500,
+										});
+									}
+								},
+								"/health": () => new Response("ok"),
+								"/": () =>
+									new Response(
+										[
+											"Slack connector is running.",
+											"Connection mode: webhook",
+											`Webhook URL: ${webhookUrl}`,
+											`OAuth callback URL: ${oauthCallbackUrl}`,
+											options.botToken?.trim()
+												? "Auth mode: single workspace"
+												: options.clientId?.trim() &&
+														options.clientSecret?.trim()
+													? "Auth mode: multi-workspace OAuth"
+													: "Auth mode: incomplete (set bot token or OAuth credentials)",
+										].join("\n"),
+									),
 							},
-							"/health": () => new Response("ok"),
-							"/": () =>
-								new Response(
-									[
-										"Slack connector is running.",
-										"Connection mode: webhook",
-										`Webhook URL: ${webhookUrl}`,
-										`OAuth callback URL: ${oauthCallbackUrl}`,
-										options.botToken?.trim()
-											? "Auth mode: single workspace"
-											: options.clientId?.trim() && options.clientSecret?.trim()
-												? "Auth mode: multi-workspace OAuth"
-												: "Auth mode: incomplete (set bot token or OAuth credentials)",
-									].join("\n"),
-								),
-						},
-					})
+						});
+					})()
 				: undefined;
 
 		const stopEventStream = client.streamEvents(
@@ -1151,7 +1149,7 @@ class SlackConnector extends ConnectorBase<
 export const slackConnector: ConnectCommandDefinition = new SlackConnector();
 
 export const __test__ = {
-	parseSlackConnectionMode,
+	inferSlackConnectionMode,
 	buildSlackParticipantKey,
 	resolveSlackParticipant,
 	normalizeSlackMessageEventChannelType,

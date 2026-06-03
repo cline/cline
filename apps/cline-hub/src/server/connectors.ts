@@ -112,9 +112,9 @@ function buildConnectorStartArgs(args?: Record<string, unknown>): string[] {
 	const values = asRecord(args?.values) ?? {};
 	const fieldValues: Record<string, string> = {};
 	for (const field of platform.fields) {
-		const explicitValue = asString(values[field.flag]);
-		if (explicitValue) {
-			fieldValues[field.flag] = explicitValue;
+		const rawValue = values[field.flag];
+		if (typeof rawValue === "string") {
+			fieldValues[field.flag] = rawValue.trim();
 		} else if (field.initialValue) {
 			fieldValues[field.flag] = field.initialValue;
 		}

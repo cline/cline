@@ -79,7 +79,7 @@ export type ConnectSlackOptions = {
 	hookCommand?: string;
 	port: number;
 	host: string;
-	baseUrl: string;
+	baseUrl?: string;
 };
 
 export type SlackConnectorState = {

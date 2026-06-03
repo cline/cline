@@ -34,30 +34,24 @@ describe("connect wizard platform security fields", () => {
 	it("asks Slack users for mode-specific setup fields", () => {
 		const slack = PLATFORMS.find((platform) => platform.id === "slack");
 		const fields = slack?.fields ?? [];
-		const webhookValues = { "--connection": "webhook" };
-		const socketValues = { "--connection": "socket" };
+		const webhookValues = { "--base-url": "https://example.test" };
+		const socketValues = { "--base-url": "" };
 
 		expect(fields.map((field) => field.flag)).toEqual([
-			"--connection",
 			"--bot-token",
+			"--base-url",
 			"--signing-secret",
 			"--app-token",
-			"--base-url",
 		]);
 		expect(
 			fields
 				.filter((field) => shouldIncludeField(field, webhookValues))
 				.map((field) => field.flag),
-		).toEqual([
-			"--connection",
-			"--bot-token",
-			"--signing-secret",
-			"--base-url",
-		]);
+		).toEqual(["--bot-token", "--base-url", "--signing-secret"]);
 		expect(
 			fields
 				.filter((field) => shouldIncludeField(field, socketValues))
 				.map((field) => field.flag),
-		).toEqual(["--connection", "--bot-token", "--app-token"]);
+		).toEqual(["--bot-token", "--base-url", "--app-token"]);
 	});
 });
