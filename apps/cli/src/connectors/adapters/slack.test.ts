@@ -1,8 +1,12 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { __test__ } from "./slack";
 
 describe("slack binding lookup", () => {
 	const participantKey = __test__.buildSlackParticipantKey("T123", "U123");
+
+	beforeEach(() => {
+		__test__.clearSlackApiCaches();
+	});
 
 	it("accepts the documented --token alias for the bot token", () => {
 		expect(
@@ -278,6 +282,63 @@ describe("slack binding lookup", () => {
 		);
 	});
 
+	it("reuses cached Slack participant labels instead of calling users.info on every message", async () => {
+		const usersInfo = vi.fn(async () => ({
+			ok: true,
+			user: {
+				id: "U08LK8A7YTC",
+				profile: { display_name: "Ara" },
+			},
+		}));
+		const participant = {
+			key: __test__.buildSlackParticipantKey("T123", "U08LK8A7YTC"),
+			label: "U08LK8A7YTC",
+		};
+		const slack = {
+			webClient: { users: { info: usersInfo } },
+			getInstallation: vi.fn(async () => undefined),
+			withBotToken: vi.fn(async (_token: string, work: () => unknown) =>
+				work(),
+			),
+		} as never;
+
+		await expect(
+			__test__.resolveSlackParticipantLabel({
+				slack,
+				teamId: "T123",
+				participant,
+				currentState: {},
+			}),
+		).resolves.toEqual({ ...participant, label: "Ara" });
+		expect(usersInfo).toHaveBeenCalledTimes(1);
+
+		await expect(
+			__test__.resolveSlackParticipantLabel({
+				slack,
+				teamId: "T123",
+				participant: { ...participant, label: "ara" },
+				currentState: {
+					participantKey: participant.key,
+					participantLabel: "Ara",
+				},
+			}),
+		).resolves.toEqual({ ...participant, label: "Ara" });
+		expect(usersInfo).toHaveBeenCalledTimes(1);
+
+		await expect(
+			__test__.resolveSlackParticipantLabel({
+				slack,
+				teamId: "T123",
+				participant,
+				currentState: {
+					participantKey: __test__.buildSlackParticipantKey("T123", "UOTHER"),
+					participantLabel: "Other",
+				},
+			}),
+		).resolves.toEqual({ ...participant, label: "Ara" });
+		expect(usersInfo).toHaveBeenCalledTimes(1);
+	});
+
 	it("resolves outbound Slack display names to user mention ids", () => {
 		expect(
 			__test__.resolveSlackOutboundMentionText({
@@ -344,9 +405,53 @@ describe("slack binding lookup", () => {
 			__test__.resolveSlackOutboundMentions({
 				slack: { webClient: { users: { list: usersList } } } as never,
 				text: "Ping <@U123> or email test@example.com.",
+				teamId: "T123",
 			}),
 		).resolves.toBe("Ping <@U123> or email test@example.com.");
 		expect(usersList).not.toHaveBeenCalled();
+	});
+
+	it("caches Slack member lists for repeated outbound mention resolution", async () => {
+		const usersList = vi.fn(async () => ({
+			ok: true,
+			members: [
+				{
+					id: "U08LK8A7YTC",
+					name: "ara",
+					profile: { display_name: "Ara" },
+				},
+			],
+		}));
+		const slack = {
+			webClient: {
+				users: { list: usersList },
+			},
+		} as never;
+
+		await expect(
+			__test__.resolveSlackOutboundMentions({
+				slack,
+				teamId: "T123",
+				text: "@Ara shipped the fix.",
+			}),
+		).resolves.toBe("<@U08LK8A7YTC> shipped the fix.");
+		await expect(
+			__test__.resolveSlackOutboundMentions({
+				slack,
+				teamId: "T123",
+				text: "@Ara can review this too.",
+			}),
+		).resolves.toBe("<@U08LK8A7YTC> can review this too.");
+		expect(usersList).toHaveBeenCalledTimes(1);
+
+		await expect(
+			__test__.resolveSlackOutboundMentions({
+				slack,
+				teamId: "T456",
+				text: "@Ara should still resolve in another team.",
+			}),
+		).resolves.toBe("<@U08LK8A7YTC> should still resolve in another team.");
+		expect(usersList).toHaveBeenCalledTimes(2);
 	});
 
 	it("posts final Slack replies through the thread after resolving mentions", async () => {
@@ -373,6 +478,7 @@ describe("slack binding lookup", () => {
 				post: fallbackPost,
 			} as never,
 			text: "@Ara shipped the fix.",
+			teamId: "T123",
 		});
 
 		expect(fallbackPost).toHaveBeenCalledWith(

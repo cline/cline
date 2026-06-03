@@ -97,6 +97,7 @@ type SlackUser = {
 };
 type SlackUsersListResponse = {
 	ok?: boolean;
+	error?: string;
 	members?: SlackUser[];
 	response_metadata?: {
 		next_cursor?: string;
@@ -104,8 +105,24 @@ type SlackUsersListResponse = {
 };
 type SlackUsersInfoResponse = {
 	ok?: boolean;
+	error?: string;
 	user?: SlackUser;
 };
+
+const SLACK_API_CACHE_TTL_MS = 10 * 60 * 1000;
+
+type SlackCacheEntry<T> = {
+	value: T;
+	expiresAt: number;
+};
+
+const slackUserLabelCache = new Map<string, SlackCacheEntry<string>>();
+const pendingSlackUserLabelFetches = new Map<
+	string,
+	Promise<string | undefined>
+>();
+const slackUsersCache = new Map<string, SlackCacheEntry<SlackUser[]>>();
+const pendingSlackUsersFetches = new Map<string, Promise<SlackUser[]>>();
 
 function truncateText(value: string, maxLength = 160): string {
 	return truncateConnectorText(value, maxLength);
@@ -162,6 +179,46 @@ function normalizeSlackLookupName(value: string | undefined): string {
 		.replace(/^@+/, "")
 		.replace(/\s+/g, " ")
 		.toLowerCase();
+}
+
+function slackTeamCacheKey(teamId: string | undefined): string {
+	return teamId?.trim() || "default";
+}
+
+function slackUserLabelCacheKey(teamId: string, userId: string): string {
+	return `${slackTeamCacheKey(teamId)}:${userId.trim()}`;
+}
+
+function readSlackCache<T>(
+	cache: Map<string, SlackCacheEntry<T>>,
+	key: string,
+	now = Date.now(),
+): T | undefined {
+	const entry = cache.get(key);
+	if (!entry) {
+		return undefined;
+	}
+	if (entry.expiresAt <= now) {
+		cache.delete(key);
+		return undefined;
+	}
+	return entry.value;
+}
+
+function writeSlackCache<T>(
+	cache: Map<string, SlackCacheEntry<T>>,
+	key: string,
+	value: T,
+	now = Date.now(),
+): void {
+	cache.set(key, { value, expiresAt: now + SLACK_API_CACHE_TTL_MS });
+}
+
+function clearSlackApiCaches(): void {
+	slackUserLabelCache.clear();
+	pendingSlackUserLabelFetches.clear();
+	slackUsersCache.clear();
+	pendingSlackUsersFetches.clear();
 }
 
 function escapeRegExp(value: string): string {
@@ -277,9 +334,94 @@ async function fetchSlackUserLabel(input: {
 		user: input.userId,
 	})) as SlackUsersInfoResponse;
 	if (result.ok === false) {
-		return undefined;
+		throw new Error(result.error ?? "Slack users.info returned ok=false");
 	}
 	return slackUserDisplayLabel(result.user);
+}
+
+async function fetchCachedSlackUserLabel(input: {
+	slack: Pick<SlackAdapter, "webClient" | "getInstallation" | "withBotToken">;
+	teamId: string;
+	userId: string;
+}): Promise<string | undefined> {
+	const key = slackUserLabelCacheKey(input.teamId, input.userId);
+	const cached = readSlackCache(slackUserLabelCache, key);
+	if (cached) {
+		return cached;
+	}
+	const pending = pendingSlackUserLabelFetches.get(key);
+	if (pending) {
+		return pending;
+	}
+	const fetch = withSlackTeamBotToken({
+		slack: input.slack,
+		teamId: input.teamId,
+		work: () =>
+			fetchSlackUserLabel({
+				slack: input.slack,
+				userId: input.userId,
+			}),
+	}).then((label) => {
+		if (label) {
+			writeSlackCache(slackUserLabelCache, key, label);
+		}
+		return label;
+	});
+	pendingSlackUserLabelFetches.set(key, fetch);
+	try {
+		return await fetch;
+	} finally {
+		pendingSlackUserLabelFetches.delete(key);
+	}
+}
+
+async function resolveSlackParticipantLabel(input: {
+	slack: Pick<SlackAdapter, "webClient" | "getInstallation" | "withBotToken">;
+	teamId: string;
+	participant: { key: string; label?: string } | undefined;
+	currentState: SlackThreadState;
+	logger?: CliLoggerAdapter;
+}): Promise<{ key: string; label?: string } | undefined> {
+	if (!input.participant) {
+		return undefined;
+	}
+	const userId = resolveSlackParticipantUserId(input.participant.key);
+	if (!userId) {
+		return input.participant;
+	}
+	const currentLabel =
+		input.currentState.participantKey === input.participant.key
+			? input.currentState.participantLabel?.trim()
+			: undefined;
+	const rawLabel = input.participant.label?.trim();
+	const rawLabelMatchesCurrent =
+		rawLabel &&
+		currentLabel &&
+		normalizeSlackLookupName(rawLabel) ===
+			normalizeSlackLookupName(currentLabel);
+	if (
+		currentLabel &&
+		(!rawLabel || rawLabel === userId || rawLabelMatchesCurrent)
+	) {
+		return { ...input.participant, label: currentLabel };
+	}
+	try {
+		const profileLabel = await fetchCachedSlackUserLabel({
+			slack: input.slack,
+			teamId: input.teamId,
+			userId,
+		});
+		if (profileLabel) {
+			return { ...input.participant, label: profileLabel };
+		}
+	} catch (error) {
+		input.logger?.core.log("Slack participant label lookup skipped", {
+			severity: "warn",
+			transport: "slack",
+			error: error instanceof Error ? error.message : String(error),
+		});
+	}
+	return input.participant;
 }
 
 function extractSlackTeamId(raw: unknown): string | undefined {
@@ -445,7 +587,7 @@ async function fetchSlackUsers(input: {
 			...(cursor ? { cursor } : {}),
 		})) as SlackUsersListResponse;
 		if (result.ok === false) {
-			break;
+			throw new Error(result.error ?? "Slack users.list returned ok=false");
 		}
 		users.push(...(Array.isArray(result.members) ? result.members : []));
 		cursor = result.response_metadata?.next_cursor?.trim() || undefined;
@@ -453,9 +595,35 @@ async function fetchSlackUsers(input: {
 	return users;
 }
 
+async function fetchCachedSlackUsers(input: {
+	slack: Pick<SlackAdapter, "webClient">;
+	teamId?: string;
+}): Promise<SlackUser[]> {
+	const key = slackTeamCacheKey(input.teamId);
+	const cached = readSlackCache(slackUsersCache, key);
+	if (cached) {
+		return cached;
+	}
+	const pending = pendingSlackUsersFetches.get(key);
+	if (pending) {
+		return pending;
+	}
+	const fetch = fetchSlackUsers({ slack: input.slack }).then((users) => {
+		writeSlackCache(slackUsersCache, key, users);
+		return users;
+	});
+	pendingSlackUsersFetches.set(key, fetch);
+	try {
+		return await fetch;
+	} finally {
+		pendingSlackUsersFetches.delete(key);
+	}
+}
+
 async function resolveSlackOutboundMentions(input: {
 	slack: Pick<SlackAdapter, "webClient">;
 	text: string;
+	teamId?: string;
 	preferredUserIds?: string[];
 	logger?: CliLoggerAdapter;
 }): Promise<string> {
@@ -464,7 +632,10 @@ async function resolveSlackOutboundMentions(input: {
 	}
 	let users: SlackUser[];
 	try {
-		users = await fetchSlackUsers({ slack: input.slack });
+		users = await fetchCachedSlackUsers({
+			slack: input.slack,
+			teamId: input.teamId,
+		});
 	} catch (error) {
 		input.logger?.core.log("Slack mention resolution skipped", {
 			severity: "warn",
@@ -484,12 +655,14 @@ async function postSlackResolvedText(input: {
 	slack: Pick<SlackAdapter, "webClient">;
 	thread: Thread<SlackThreadState>;
 	text: string;
+	teamId?: string;
 	preferredUserIds?: string[];
 	logger?: CliLoggerAdapter;
 }): Promise<void> {
 	const resolvedText = await resolveSlackOutboundMentions({
 		slack: input.slack,
 		text: input.text,
+		teamId: input.teamId,
 		preferredUserIds: input.preferredUserIds,
 		logger: input.logger,
 	});
@@ -578,35 +751,19 @@ async function persistSlackThreadContext(input: {
 		return;
 	}
 	const bindingScope = resolveSlackBindingScope(input.thread);
-	const userId = resolveSlackParticipantUserId(participant?.key);
-	if (participant && userId) {
-		try {
-			const profileLabel = await withSlackTeamBotToken({
-				slack: input.slack,
-				teamId,
-				work: () =>
-					fetchSlackUserLabel({
-						slack: input.slack,
-						userId,
-					}),
-			});
-			if (profileLabel) {
-				participant = { ...participant, label: profileLabel };
-			}
-		} catch (error) {
-			input.logger?.core.log("Slack participant label lookup skipped", {
-				severity: "warn",
-				transport: "slack",
-				error: error instanceof Error ? error.message : String(error),
-			});
-		}
-	}
 	const currentState = await loadThreadState(
 		input.thread,
 		input.bindingsPath,
 		input.baseStartRequest,
 		bindingScope,
 	);
+	participant = await resolveSlackParticipantLabel({
+		slack: input.slack,
+		teamId,
+		participant,
+		currentState,
+		logger: input.logger,
+	});
 	if (
 		currentState.teamId === teamId &&
 		currentState.bindingScope === bindingScope &&
@@ -1136,6 +1293,7 @@ class SlackConnector extends ConnectorBase<
 										slack,
 										thread: replyThread,
 										text: replyText,
+										teamId: currentState.teamId,
 										preferredUserIds: [
 											resolveSlackParticipantUserId(
 												currentState.participantKey,
@@ -1475,6 +1633,7 @@ export const __test__ = {
 	buildSlackParticipantKey,
 	resolveSlackParticipantUserId,
 	resolveSlackParticipant,
+	resolveSlackParticipantLabel,
 	formatSlackRuntimeText,
 	normalizeSlackMessageEventChannelType,
 	stripLeadingSlackMention,
@@ -1482,6 +1641,7 @@ export const __test__ = {
 	resolveSlackOutboundMentionText,
 	resolveSlackOutboundMentions,
 	postSlackResolvedText,
+	clearSlackApiCaches,
 	withSlackTeamBotToken,
 	isSlackInvalidThreadTsError,
 	findBindingForThread: (
