@@ -1,6 +1,6 @@
 "use client";
 
-import { Circle, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Circle, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
 	AlertDialog,
@@ -70,10 +70,15 @@ type ActiveConnector = {
 	pid: number;
 	hubUrl: string;
 	startedAt?: string;
+	agentId?: string;
 	applicationId?: string;
 	botUsername?: string;
 	userName?: string;
+	agentPhoneNumber?: string;
 	phoneNumberId?: string;
+	phoneNumberCountry?: string;
+	phoneNumberStatus?: string;
+	phoneNumberType?: string;
 	port?: number;
 	baseUrl?: string;
 };
@@ -90,6 +95,8 @@ type ConnectorFormState = {
 	securityValues: Record<string, string>;
 };
 
+type ConnectorFormMode = "add" | "edit";
+
 function connectorName(
 	connector: ActiveConnector,
 	channels: ConnectorChannel[],
@@ -104,6 +111,9 @@ function connectorIdentity(connector: ActiveConnector): string {
 	if (connector.botUsername) {
 		return `@${connector.botUsername}`;
 	}
+	if (connector.agentPhoneNumber) {
+		return connector.agentPhoneNumber;
+	}
 	if (connector.userName) {
 		return connector.userName;
 	}
@@ -111,6 +121,30 @@ function connectorIdentity(connector: ActiveConnector): string {
 		return connector.applicationId;
 	}
 	return `pid ${connector.pid}`;
+}
+
+function connectorDetailBadges(connector: ActiveConnector): string[] {
+	return [
+		connector.agentId ? `agent=${connector.agentId}` : undefined,
+		connector.applicationId ? `app=${connector.applicationId}` : undefined,
+		connector.agentPhoneNumber
+			? `phone=${connector.agentPhoneNumber}`
+			: undefined,
+		connector.phoneNumberType ? `type=${connector.phoneNumberType}` : undefined,
+		connector.phoneNumberStatus
+			? `status=${connector.phoneNumberStatus}`
+			: undefined,
+		connector.phoneNumberId ? `numberId=${connector.phoneNumberId}` : undefined,
+		connector.port ? `port=${connector.port}` : undefined,
+		`pid=${connector.pid}`,
+	].filter((detail): detail is string => Boolean(detail));
+}
+
+function connectorWebhookUrl(connector: ActiveConnector): string | undefined {
+	if (!connector.baseUrl || connector.type === "telegram") {
+		return undefined;
+	}
+	return `${connector.baseUrl.replace(/\/$/, "")}/api/webhooks/${connector.type}`;
 }
 
 function formatDateTime(value?: string): string {
@@ -151,6 +185,50 @@ function createFormState(channels: ConnectorChannel[]): ConnectorFormState {
 	};
 }
 
+function connectorFieldValue(
+	connector: ActiveConnector,
+	flag: string,
+): string | undefined {
+	if (flag === "--agent-id") {
+		return connector.agentId;
+	}
+	if (flag === "--application-id") {
+		return connector.applicationId;
+	}
+	if (flag === "--phone-number-id") {
+		return connector.phoneNumberId;
+	}
+	if (flag === "--base-url") {
+		return connector.baseUrl;
+	}
+	if (flag === "--user-name") {
+		return connector.userName;
+	}
+	if (flag === "--bot-username") {
+		return connector.botUsername;
+	}
+	return undefined;
+}
+
+function createEditFormState(
+	connector: ActiveConnector,
+	channel: ConnectorChannel,
+): ConnectorFormState {
+	const values: Record<string, string> = {};
+	for (const field of channel.fields) {
+		const value = connectorFieldValue(connector, field.flag);
+		if (value) {
+			values[field.flag] = value;
+		}
+	}
+	return {
+		channelId: channel.id,
+		values,
+		securityEnabled: false,
+		securityValues: {},
+	};
+}
+
 export function ChannelsContent() {
 	const [channels, setChannels] = useState<ConnectorChannel[]>([]);
 	const [activeConnectors, setActiveConnectors] = useState<ActiveConnector[]>(
@@ -160,6 +238,8 @@ export function ChannelsContent() {
 	const [busyChannel, setBusyChannel] = useState<string | null>(null);
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
 	const [dialogOpen, setDialogOpen] = useState(false);
+	const [formMode, setFormMode] = useState<ConnectorFormMode>("add");
+	const [editTarget, setEditTarget] = useState<ActiveConnector | null>(null);
 	const [formState, setFormState] = useState<ConnectorFormState>({
 		channelId: "",
 		values: {},
@@ -208,7 +288,22 @@ export function ChannelsContent() {
 	}, [refreshChannels]);
 
 	const openAddDialog = () => {
+		setFormMode("add");
+		setEditTarget(null);
 		setFormState(createFormState(channels));
+		setFormError(null);
+		setDialogOpen(true);
+	};
+
+	const openEditDialog = (connector: ActiveConnector) => {
+		const channel = channels.find((entry) => entry.id === connector.type);
+		if (!channel) {
+			setErrorMessage(`Unknown connector channel: ${connector.type}`);
+			return;
+		}
+		setFormMode("edit");
+		setEditTarget(connector);
+		setFormState(createEditFormState(connector, channel));
 		setFormError(null);
 		setDialogOpen(true);
 	};
@@ -227,7 +322,7 @@ export function ChannelsContent() {
 		}));
 	};
 
-	const startConnector = async () => {
+	const saveConnector = async () => {
 		if (!selectedChannel) {
 			setFormError("Choose a channel");
 			return;
@@ -251,9 +346,12 @@ export function ChannelsContent() {
 		setErrorMessage(null);
 		try {
 			const response = await desktopClient.invoke<ConnectorChannelsResponse>(
-				"start_connector_channel",
+				formMode === "edit"
+					? "update_connector_channel"
+					: "start_connector_channel",
 				{
 					channel: selectedChannel.id,
+					connectorId: editTarget?.id,
 					values: formState.values,
 					security: {
 						enabled: formState.securityEnabled,
@@ -263,6 +361,8 @@ export function ChannelsContent() {
 			);
 			applyResponse(response);
 			setDialogOpen(false);
+			setEditTarget(null);
+			setFormMode("add");
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			setFormError(message);
@@ -356,21 +456,34 @@ export function ChannelsContent() {
 											</span>
 										</div>
 										<div className="mt-2 flex flex-wrap gap-1.5 text-[11px] text-muted-foreground">
-											<span className="rounded-md border bg-background px-1.5 py-0.5">
-												pid={connector.pid}
-											</span>
+											{connectorDetailBadges(connector).map((detail) => (
+												<span
+													className="rounded-md border bg-background px-1.5 py-0.5"
+													key={detail}
+												>
+													{detail}
+												</span>
+											))}
 											<span
 												className="max-w-full break-all rounded-md border bg-background px-1.5 py-0.5"
 												title={connector.hubUrl}
 											>
-												{connector.hubUrl}
+												hub={connector.hubUrl}
 											</span>
 											{connector.baseUrl ? (
 												<span
 													className="max-w-full break-all rounded-md border bg-background px-1.5 py-0.5"
 													title={connector.baseUrl}
 												>
-													{connector.baseUrl}
+													base={connector.baseUrl}
+												</span>
+											) : null}
+											{connectorWebhookUrl(connector) ? (
+												<span
+													className="max-w-full break-all rounded-md border bg-background px-1.5 py-0.5"
+													title={connectorWebhookUrl(connector)}
+												>
+													webhook={connectorWebhookUrl(connector)}
 												</span>
 											) : null}
 											<span className="rounded-md border bg-background px-1.5 py-0.5">
@@ -378,16 +491,26 @@ export function ChannelsContent() {
 											</span>
 										</div>
 									</div>
-									<Button
-										disabled={busyChannel === connector.type}
-										onClick={() => setRemoveTarget(connector)}
-										size="sm"
-										type="button"
-										variant="outline"
-									>
-										<Trash2 className="size-4" />
-										Remove...
-									</Button>
+									<div className="flex items-center gap-2">
+										<Button
+											disabled={busyChannel === connector.type}
+											onClick={() => openEditDialog(connector)}
+											size="sm"
+											type="button"
+											variant="outline"
+										>
+											<Pencil className="size-4" />
+										</Button>
+										<Button
+											disabled={busyChannel === connector.type}
+											onClick={() => setRemoveTarget(connector)}
+											size="sm"
+											type="button"
+											variant="outline"
+										>
+											<Trash2 className="size-4" />
+										</Button>
+									</div>
 								</div>
 							))
 						)}
@@ -395,18 +518,32 @@ export function ChannelsContent() {
 				</section>
 			</div>
 
-			<Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+			<Dialog
+				open={dialogOpen}
+				onOpenChange={(open: boolean) => {
+					setDialogOpen(open);
+					if (!open) {
+						setEditTarget(null);
+						setFormMode("add");
+					}
+				}}
+			>
 				<DialogContent className="max-h-[86vh] overflow-y-auto sm:max-w-xl">
 					<DialogHeader>
-						<DialogTitle>Add Channel</DialogTitle>
+						<DialogTitle>
+							{formMode === "edit" ? "Edit Channel" : "Add Channel"}
+						</DialogTitle>
 						<DialogDescription>
-							Start a connector channel for Cline Hub.
+							{formMode === "edit"
+								? "Update this connector channel and restart it with the new settings."
+								: "Start a connector channel for Cline Hub."}
 						</DialogDescription>
 					</DialogHeader>
 					<div className="grid gap-4 py-2">
 						<div className="grid gap-2">
 							<Label>Channel</Label>
 							<Select
+								disabled={formMode === "edit"}
 								onValueChange={(value) => {
 									if (!value) {
 										return;
@@ -432,6 +569,13 @@ export function ChannelsContent() {
 								</SelectContent>
 							</Select>
 						</div>
+
+						{formMode === "edit" ? (
+							<div className="rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+								Stored runtime fields are prefilled. Secret fields are not read
+								back from the running connector, so re-enter them before saving.
+							</div>
+						) : null}
 
 						{selectedChannel?.fields.map((field) => (
 							<div className="grid gap-2" key={field.flag}>
@@ -460,6 +604,13 @@ export function ChannelsContent() {
 										value={formState.values[field.flag] ?? ""}
 									/>
 								)}
+								{field.help?.length ? (
+									<div className="grid gap-1 text-xs text-muted-foreground">
+										{field.help.map((line) => (
+											<p key={line}>{line}</p>
+										))}
+									</div>
+								) : null}
 							</div>
 						))}
 
@@ -492,6 +643,13 @@ export function ChannelsContent() {
 													type={isSecretField(field) ? "password" : "text"}
 													value={formState.securityValues[field.key] ?? ""}
 												/>
+												{field.help?.length ? (
+													<div className="grid gap-1 text-xs text-muted-foreground">
+														{field.help.map((line) => (
+															<p key={line}>{line}</p>
+														))}
+													</div>
+												) : null}
 											</div>
 										))
 									: null}
@@ -515,10 +673,16 @@ export function ChannelsContent() {
 						</Button>
 						<Button
 							disabled={busyChannel !== null || !selectedChannel}
-							onClick={() => void startConnector()}
+							onClick={() => void saveConnector()}
 							type="button"
 						>
-							{busyChannel ? "Starting..." : "Add Channel"}
+							{busyChannel
+								? formMode === "edit"
+									? "Saving..."
+									: "Starting..."
+								: formMode === "edit"
+									? "Save Changes"
+									: "Add Channel"}
 						</Button>
 					</DialogFooter>
 				</DialogContent>

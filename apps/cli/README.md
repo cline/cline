@@ -165,9 +165,12 @@ cline auth --provider openai-native --apikey sk-... --modelid gpt-5 --baseurl ht
 
 ### Connectors
 
-Bridge a chat surface into RPC-backed Cline sessions. Each conversation thread maps to a session with full context. Supported platforms: Telegram, Slack, Google Chat, WhatsApp, and Linear.
+Bridge a chat surface into RPC-backed Cline sessions. Each conversation thread maps to a session with full context. Supported platforms: AgentPhone, Telegram, Slack, Google Chat, WhatsApp, and Linear. AgentPhone startup verifies the API key with `/v1/numbers` and stores the active phone number assigned to the agent.
 
 ```sh
+# AgentPhone (webhook mode)
+cline connect agentphone --api-key $AGENTPHONE_API_KEY --agent-id $AGENTPHONE_AGENT_ID --webhook-secret $AGENTPHONE_WEBHOOK_SECRET --base-url https://your-domain.com
+
 # Telegram (polling mode)
 cline connect telegram -k 123456:ABCDEF...
 

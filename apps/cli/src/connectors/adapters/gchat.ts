@@ -8,7 +8,7 @@ import type {
 	ConnectGoogleChatOptions,
 	GoogleChatConnectorState,
 } from "@cline/shared";
-import { Chat, ConsoleLogger, type Thread } from "chat";
+import { type Adapter, Chat, ConsoleLogger, type Thread } from "chat";
 import type { Command } from "commander";
 import type { CliLoggerAdapter } from "../../logging/adapter";
 import { createCliLoggerAdapter } from "../../logging/adapter";
@@ -514,7 +514,7 @@ class GoogleChatConnector extends ConnectorBase<
 		);
 		const bot = new Chat({
 			userName: options.userName,
-			adapters: { gchat },
+			adapters: { gchat: gchat as unknown as Adapter },
 			state: new InMemoryStateAdapter(),
 			logger,
 			fallbackStreamingPlaceholderText: null,

@@ -13,6 +13,15 @@ const connectorDescriptions = new Map(
 
 const registry = new Map<string, ConnectorRegistryEntry>([
 	[
+		"agentphone",
+		{
+			name: "agentphone",
+			description: connectorDescriptions.get("agentphone") ?? "AgentPhone",
+			load: async () =>
+				(await import("./adapters/agentphone")).agentPhoneConnector,
+		},
+	],
+	[
 		"discord",
 		{
 			name: "discord",

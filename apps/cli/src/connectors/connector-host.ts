@@ -85,6 +85,28 @@ async function editConnectorText(
 	return await message.edit(connectorTextPayload(transport, text));
 }
 
+function createCapturedConnectorMessage(
+	onEdit: (text: string) => Promise<SentMessage>,
+): SentMessage {
+	const message = {
+		edit: async (text: string) => onEdit(text),
+		delete: async () => undefined,
+		addReaction: async () => undefined,
+		removeReaction: async () => undefined,
+	} as unknown as SentMessage;
+	return message;
+}
+
+async function captureConnectorText(
+	sink: (text: string) => Promise<void>,
+	text: string,
+): Promise<SentMessage> {
+	await sink(text);
+	return createCapturedConnectorMessage((nextText) =>
+		captureConnectorText(sink, nextText),
+	);
+}
+
 function buildAttachments(input: {
 	userImages: string[];
 	userFiles: string[];
@@ -259,6 +281,7 @@ export async function handleConnectorUserTurn<
 		baseStartRequest: ChatStartSessionRequest,
 		thread: Thread<TState>,
 	) => Promise<string> | string;
+	replyTextSink?: (text: string) => Promise<void>;
 	postFinalReply?: (input: {
 		thread: Thread<TState>;
 		text: string;
@@ -282,6 +305,17 @@ export async function handleConnectorUserTurn<
 		return;
 	}
 	const runtimeInput = input.runtimeText?.trim() || resolvedInput;
+	const postText = async (text: string): Promise<SentMessage> =>
+		input.replyTextSink
+			? captureConnectorText(input.replyTextSink, text)
+			: postConnectorText(input.thread, input.transport, text);
+	const editText = async (
+		message: SentMessage,
+		text: string,
+	): Promise<SentMessage> =>
+		input.replyTextSink
+			? captureConnectorText(input.replyTextSink, text)
+			: editConnectorText(message, input.transport, text);
 
 	const initialState = await loadThreadState(
 		input.thread,
@@ -326,7 +360,7 @@ export async function handleConnectorUserTurn<
 		const denialMessage =
 			authorization.message?.trim() ||
 			"You are not authorized to use this bot.";
-		await postConnectorText(input.thread, input.transport, denialMessage);
+		await postText(denialMessage);
 		await dispatchConnectorHook(
 			input.hookCommand,
 			{
@@ -385,11 +419,7 @@ export async function handleConnectorUserTurn<
 			input.ownerParticipantKeys,
 		)
 	) {
-		await postConnectorText(
-			input.thread,
-			input.transport,
-			"Only the connector owner can use slash commands.",
-		);
+		await postText("Only the connector owner can use slash commands.");
 		input.logger.core.log("Non-owner connector chat command denied", {
 			transport: input.transport,
 			threadId: input.thread.id,
@@ -439,11 +469,7 @@ export async function handleConnectorUserTurn<
 			: input.firstContactMessage;
 	let initialStateChanged = false;
 	if (!initialState.welcomeSentAt && firstContactMessage?.trim()) {
-		await postConnectorText(
-			input.thread,
-			input.transport,
-			firstContactMessage.trim(),
-		);
+		await postText(firstContactMessage.trim());
 		initialState.welcomeSentAt = new Date().toISOString();
 		initialStateChanged = true;
 	}
@@ -482,11 +508,7 @@ export async function handleConnectorUserTurn<
 	const toolLockCommand = commandName?.match(/^\/(tools|yolo)$/i);
 	if (input.forceDisableTools && toolLockCommand) {
 		const settingName = toolLockCommand[1]?.toLowerCase();
-		await postConnectorText(
-			input.thread,
-			input.transport,
-			`${settingName}=off (disabled by connector startup)`,
-		);
+		await postText(`${settingName}=off (disabled by connector startup)`);
 		return;
 	}
 
@@ -578,7 +600,7 @@ export async function handleConnectorUserTurn<
 				);
 			},
 			reply: async (message) => {
-				await postConnectorText(input.thread, input.transport, message);
+				await postText(message);
 			},
 			reset: async () => {
 				await clearSession({
@@ -612,19 +634,11 @@ export async function handleConnectorUserTurn<
 			abort: async () => {
 				const activeTurn = input.activeTurns?.get(turnKey);
 				if (!activeTurn?.sessionId?.trim()) {
-					await postConnectorText(
-						input.thread,
-						input.transport,
-						"No active task to abort.",
-					);
+					await postText("No active task to abort.");
 					return;
 				}
 				await input.client.abortRuntimeSession(activeTurn.sessionId);
-				await postConnectorText(
-					input.thread,
-					input.transport,
-					"Aborting current task.",
-				);
+				await postText("Aborting current task.");
 			},
 			mute: async (commandInput: MuteCommandInput) => {
 				const target = commandInput.target?.trim()
@@ -931,11 +945,7 @@ export async function handleConnectorUserTurn<
 			},
 			{ timeoutMs: null },
 		);
-		await postConnectorText(
-			input.thread,
-			input.transport,
-			"Steering current task.",
-		);
+		await postText("Steering current task.");
 		return;
 	}
 	const sessionId = await getOrCreateSessionId({
@@ -997,26 +1007,14 @@ export async function handleConnectorUserTurn<
 				conversationId: input.thread.id,
 				onToolStatus: async (message) => {
 					if (toolStatusMessage) {
-						toolStatusMessage = await editConnectorText(
-							toolStatusMessage,
-							input.transport,
-							message,
-						);
+						toolStatusMessage = await editText(toolStatusMessage, message);
 						return;
 					}
-					toolStatusMessage = await postConnectorText(
-						input.thread,
-						input.transport,
-						message,
-					);
+					toolStatusMessage = await postText(message);
 				},
 				onApprovalRequested: async (approval) => {
 					input.pendingApprovals.set(input.thread.id, approval);
-					await postConnectorText(
-						input.thread,
-						input.transport,
-						formatConnectorApprovalPrompt(approval),
-					);
+					await postText(formatConnectorApprovalPrompt(approval));
 				},
 				onCompleted: async (result) => {
 					await input.onReplyCompleted?.({

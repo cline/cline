@@ -8,7 +8,7 @@ import type {
 	ConnectWhatsAppOptions,
 	WhatsAppConnectorState,
 } from "@cline/shared";
-import { Chat, ConsoleLogger, type Thread } from "chat";
+import { type Adapter, Chat, ConsoleLogger, type Thread } from "chat";
 import type { Command } from "commander";
 import type { CliLoggerAdapter } from "../../logging/adapter";
 import { createCliLoggerAdapter } from "../../logging/adapter";
@@ -513,7 +513,7 @@ class WhatsAppConnector extends ConnectorBase<
 		const whatsapp = createWhatsAppAdapter(whatsappConfig);
 		const bot = new Chat({
 			userName: options.userName,
-			adapters: { whatsapp },
+			adapters: { whatsapp: whatsapp as unknown as Adapter },
 			state: new InMemoryStateAdapter(),
 			logger,
 			fallbackStreamingPlaceholderText: null,

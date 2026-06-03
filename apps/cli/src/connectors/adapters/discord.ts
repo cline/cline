@@ -11,7 +11,13 @@ import type {
 	ConnectDiscordOptions,
 	DiscordConnectorState,
 } from "@cline/shared";
-import { Chat, ConsoleLogger, type Thread, ThreadImpl } from "chat";
+import {
+	type Adapter,
+	Chat,
+	ConsoleLogger,
+	type Thread,
+	ThreadImpl,
+} from "chat";
 import type { Command } from "commander";
 import { createCliLoggerAdapter } from "../../logging/adapter";
 import {
@@ -1040,7 +1046,7 @@ class DiscordConnector extends ConnectorBase<
 		}) as DiscordAdapter;
 		const bot = new Chat({
 			userName: options.userName,
-			adapters: { discord },
+			adapters: { discord: discord as unknown as Adapter },
 			state: new InMemoryStateAdapter(),
 			logger,
 			fallbackStreamingPlaceholderText: null,

@@ -20,10 +20,15 @@ export type ActiveConnectorRecord = {
 	pid: number;
 	hubUrl: string;
 	startedAt?: string;
+	agentId?: string;
 	applicationId?: string;
 	botUsername?: string;
 	userName?: string;
+	agentPhoneNumber?: string;
 	phoneNumberId?: string;
+	phoneNumberCountry?: string;
+	phoneNumberStatus?: string;
+	phoneNumberType?: string;
 	port?: number;
 	baseUrl?: string;
 };
@@ -69,18 +74,31 @@ const connectorFieldExtractors: Record<
 	port: (p) => (typeof p.port === "number" ? p.port : undefined),
 	baseUrl: (p) => (typeof p.baseUrl === "string" ? p.baseUrl : undefined),
 	userName: (p) => (typeof p.userName === "string" ? p.userName : undefined),
+	agentPhoneNumber: (p) =>
+		typeof p.agentPhoneNumber === "string" ? p.agentPhoneNumber : undefined,
 	botUsername: (p) =>
 		typeof p.botUsername === "string" ? p.botUsername : undefined,
 	applicationId: (p) =>
 		typeof p.applicationId === "string" ? p.applicationId : undefined,
+	agentId: (p) => (typeof p.agentId === "string" ? p.agentId : undefined),
 	phoneNumberId: (p) =>
 		typeof p.phoneNumberId === "string" ? p.phoneNumberId : undefined,
+	phoneNumberCountry: (p) =>
+		typeof p.phoneNumberCountry === "string" ? p.phoneNumberCountry : undefined,
+	phoneNumberStatus: (p) =>
+		typeof p.phoneNumberStatus === "string" ? p.phoneNumberStatus : undefined,
+	phoneNumberType: (p) =>
+		typeof p.phoneNumberType === "string" ? p.phoneNumberType : undefined,
 };
 
 const connectorConfigs: Record<
 	string,
 	{ required: ConnectorFieldKey[]; optional: ConnectorFieldKey[] }
 > = {
+	agentphone: {
+		required: ["userName", "agentId"],
+		optional: ["startedAt", "port", "baseUrl"],
+	},
 	discord: {
 		required: ["userName", "applicationId"],
 		optional: ["startedAt", "port", "baseUrl"],
@@ -163,6 +181,7 @@ function readActiveConnectorRecord(
 
 export function listActiveConnectors(): ActiveConnectorRecord[] {
 	const connectorTypes: ActiveConnectorRecord["type"][] = [
+		"agentphone",
 		"discord",
 		"telegram",
 		"gchat",

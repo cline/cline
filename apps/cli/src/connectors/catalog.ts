@@ -5,6 +5,11 @@ export type ConnectorCatalogEntry = {
 
 export const CONNECTOR_CATALOG: ConnectorCatalogEntry[] = [
 	{
+		name: "agentphone",
+		description:
+			"AgentPhone SMS, MMS, iMessage, and voice webhook bridge backed by RPC runtime sessions",
+	},
+	{
 		name: "discord",
 		description:
 			"Discord interactions and gateway bridge backed by RPC runtime sessions",
