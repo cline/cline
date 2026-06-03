@@ -31,6 +31,16 @@ describe("connect wizard platform security fields", () => {
 		expect(slackUser?.validate?.("U01$(bad)")).toContain("Slack member");
 	});
 
+	it("uses the Telegram allowed user ID flag for wizard security", () => {
+		const telegram = PLATFORMS.find((platform) => platform.id === "telegram");
+
+		const args = telegram?.security?.buildArgs({
+			userId: "123456",
+		});
+
+		expect(args).toEqual(["--allowed-user-id", "123456"]);
+	});
+
 	it("asks Slack users for mode-specific setup fields", () => {
 		const slack = PLATFORMS.find((platform) => platform.id === "slack");
 		const fields = slack?.fields ?? [];

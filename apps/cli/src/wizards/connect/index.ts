@@ -121,9 +121,9 @@ async function collectSecurity(
 		values[field.key] = (value as string).trim();
 	}
 
-	const hookCmd = security.buildHookCommand(values);
+	const args = security.buildArgs(values);
 	p.log.success("Access restriction enabled");
-	return ["--hook-command", hookCmd];
+	return args;
 }
 
 export async function runConnectWizard(): Promise<number> {

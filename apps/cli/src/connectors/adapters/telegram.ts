@@ -89,6 +89,20 @@ function readTelegramBotId(botToken: string): string | undefined {
 	return /^\d+$/.test(botId) ? botId : undefined;
 }
 
+function normalizeAllowedTelegramUserId(value: string): string {
+	const userId = value.trim();
+	if (!/^\d+$/.test(userId)) {
+		throw new Error(
+			"connect telegram --allowed-user-id must contain digits only",
+		);
+	}
+	return userId;
+}
+
+function buildTelegramAllowedUserHookCommand(userId: string): string {
+	return `jq -r ".payload.actor.participantKey" | grep -qx "telegram:id:${userId}" && echo '{"action":"allow"}' || echo '{"action":"deny","message":"unauthorized","reason":"not_on_allowlist"}'`;
+}
+
 function describeTelegramGetMeFailure(
 	response: Response,
 	body: string,
@@ -419,6 +433,10 @@ class TelegramConnector extends ConnectorBase<
 			.option("-i, --interactive", "Keep connector in foreground")
 			.option("--no-tools", "Disable tools for Telegram sessions")
 			.option(
+				"--allowed-user-id <id>",
+				"Only allow this Telegram user ID to use the bot",
+			)
+			.option(
 				"--hook-command <command>",
 				"Run a shell command for connector events",
 			)
@@ -434,6 +452,7 @@ class TelegramConnector extends ConnectorBase<
 					"Notes:",
 					"  - Without -i, the connector is launched in the background.",
 					"  - Tools are enabled by default for Telegram sessions.",
+					"  - Use --allowed-user-id or `cline connect` to restrict Telegram access.",
 					"  - Bot username is discovered from the Telegram bot token when omitted.",
 					"  - Provider/model default to the CLI's last-used provider settings.",
 				].join("\n"),
@@ -454,6 +473,7 @@ class TelegramConnector extends ConnectorBase<
 			tools?: boolean;
 			rpcAddress?: string;
 			hookCommand?: string;
+			allowedUserId?: string;
 		}>();
 		const botUsername =
 			normalizeTelegramBotUsername(opts.botUsername ?? "") ||
@@ -464,6 +484,13 @@ class TelegramConnector extends ConnectorBase<
 			opts.botToken?.trim() || process.env.TELEGRAM_BOT_TOKEN?.trim();
 		if (!botToken) {
 			throw new Error("connect telegram requires -k/--bot-token <token>");
+		}
+		const hookCommand = opts.hookCommand?.trim();
+		const allowedUserId = opts.allowedUserId?.trim();
+		if (hookCommand && allowedUserId) {
+			throw new Error(
+				"connect telegram accepts either --allowed-user-id or --hook-command, not both",
+			);
 		}
 		return {
 			botToken,
@@ -480,9 +507,11 @@ class TelegramConnector extends ConnectorBase<
 				opts.rpcAddress?.trim() ||
 				process.env.CLINE_RPC_ADDRESS?.trim() ||
 				resolveDefaultCliRpcAddress(),
-			hookCommand:
-				opts.hookCommand?.trim() ||
-				process.env.CLINE_CONNECT_HOOK_COMMAND?.trim(),
+			hookCommand: allowedUserId
+				? buildTelegramAllowedUserHookCommand(
+						normalizeAllowedTelegramUserId(allowedUserId),
+					)
+				: hookCommand || process.env.CLINE_CONNECT_HOOK_COMMAND?.trim(),
 		};
 	}
 
