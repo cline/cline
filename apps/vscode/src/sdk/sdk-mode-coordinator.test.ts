@@ -1,7 +1,10 @@
-import type { ClineMessage } from "@shared/ExtensionMessage"
-import { beforeEach, describe, expect, it, vi } from "vitest"
-import type { StateManager } from "@/core/storage/StateManager"
-import { SdkModeCoordinator, type SdkModeCoordinatorOptions } from "./sdk-mode-coordinator"
+import type { ClineMessage } from "@shared/ExtensionMessage";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { StateManager } from "@/core/storage/StateManager";
+import {
+	SdkModeCoordinator,
+	type SdkModeCoordinatorOptions,
+} from "./sdk-mode-coordinator";
 
 vi.mock("@/shared/services/Logger", () => ({
 	Logger: {
@@ -10,122 +13,139 @@ vi.mock("@/shared/services/Logger", () => ({
 		log: vi.fn(),
 		warn: vi.fn(),
 	},
-}))
+}));
 
 vi.mock("@core/storage/disk", () => ({
 	saveClineMessages: vi.fn().mockResolvedValue(undefined),
-}))
+}));
 
 describe("SdkModeCoordinator", () => {
 	beforeEach(() => {
-		vi.clearAllMocks()
-	})
+		vi.clearAllMocks();
+	});
 
 	it("applies a queued switch_to_act_mode change", async () => {
-		const activeSession = makeActiveSession()
-		const { coordinator, state, options } = makeCoordinator({ activeSession })
+		const activeSession = makeActiveSession();
+		const { coordinator, state, options } = makeCoordinator({ activeSession });
 
-		coordinator.queueSwitchToActMode()
-		expect(coordinator.hasPendingModeChange()).toBe(true)
+		coordinator.queueSwitchToActMode();
+		expect(coordinator.hasPendingModeChange()).toBe(true);
 
-		await coordinator.applyPendingModeChange()
+		await coordinator.applyPendingModeChange();
 
-		expect(coordinator.hasPendingModeChange()).toBe(false)
-		expect(state.mode).toBe("act")
-		expect(options.sessions.setRunning).toHaveBeenCalledWith(true)
-		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
-			expect.objectContaining({ send: expect.any(Function) }),
-			"new-session",
-			"The user approved switching to act mode. Continue with the approved plan now.",
-		)
-		expect(options.postStateToWebview).toHaveBeenCalledOnce()
-	})
+		expect(coordinator.hasPendingModeChange()).toBe(false);
+		expect(state.mode).toBe("act");
+		expect(options.sessions.setRunning).not.toHaveBeenCalledWith(true);
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled();
+		expect(options.postStateToWebview).toHaveBeenCalledOnce();
+	});
 
 	it("preserves pending input by returning false when toggling mode without an active session", async () => {
-		const { coordinator, state, options } = makeCoordinator({ mode: "act" })
+		const { coordinator, state, options } = makeCoordinator({ mode: "act" });
 
-		await expect(coordinator.togglePlanActMode("plan")).resolves.toBe(false)
+		await expect(coordinator.togglePlanActMode("plan")).resolves.toBe(false);
 
-		expect(state.mode).toBe("plan")
-		expect(options.postStateToWebview).toHaveBeenCalledOnce()
-	})
+		expect(state.mode).toBe("plan");
+		expect(options.postStateToWebview).toHaveBeenCalledOnce();
+	});
 
 	it("returns false without side effects when toggling to the current mode", async () => {
-		const { coordinator, options } = makeCoordinator({ mode: "plan" })
+		const { coordinator, options } = makeCoordinator({ mode: "plan" });
 
-		await expect(coordinator.togglePlanActMode("plan")).resolves.toBe(false)
+		await expect(coordinator.togglePlanActMode("plan")).resolves.toBe(false);
 
-		expect(options.stateManager.setGlobalState).not.toHaveBeenCalled()
-		expect(options.postStateToWebview).not.toHaveBeenCalled()
-	})
+		expect(options.stateManager.setGlobalState).not.toHaveBeenCalled();
+		expect(options.postStateToWebview).not.toHaveBeenCalled();
+	});
 
 	it("rebuilds an active session for the new mode while preserving the session id", async () => {
-		const activeSession = makeActiveSession()
-		const task = makeTask("old-session")
-		const { coordinator, options } = makeCoordinator({ activeSession, task })
+		const activeSession = makeActiveSession();
+		const task = makeTask("old-session");
+		const { coordinator, options } = makeCoordinator({ activeSession, task });
 
-		await coordinator.rebuildSessionForMode("plan")
+		await coordinator.rebuildSessionForMode("plan");
 
-		expect(options.loadInitialMessages).toHaveBeenCalledWith(activeSession.sdkHost, "old-session")
-		expect(options.sessionConfigBuilder.build).toHaveBeenCalledWith({ cwd: "/workspace", mode: "plan" })
-		expect(options.buildStartSessionInput).toHaveBeenCalledWith(expect.objectContaining({ sessionId: "old-session" }), {
+		expect(options.loadInitialMessages).toHaveBeenCalledWith(
+			activeSession.sdkHost,
+			"old-session",
+		);
+		expect(options.sessionConfigBuilder.build).toHaveBeenCalledWith({
 			cwd: "/workspace",
 			mode: "plan",
-		})
+		});
+		expect(options.buildStartSessionInput).toHaveBeenCalledWith(
+			expect.objectContaining({ sessionId: "old-session" }),
+			{
+				cwd: "/workspace",
+				mode: "plan",
+			},
+		);
 		expect(options.sessions.replaceActiveSession).toHaveBeenCalledWith({
 			startInput: { prompt: "start" },
 			initialMessages: [{ role: "user", content: "hello" }],
 			disposeReason: "modeChange",
-		})
-		expect(task.taskId).toBe("new-session")
-		expect(options.resetMessageTranslator).toHaveBeenCalledOnce()
-		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
-		expect(options.postStateToWebview).toHaveBeenCalledOnce()
-	})
+		});
+		expect(task.taskId).toBe("new-session");
+		expect(options.resetMessageTranslator).toHaveBeenCalledOnce();
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled();
+		expect(options.postStateToWebview).toHaveBeenCalledOnce();
+	});
 
-	it("auto-continues with the canned act-mode prompt when togglePlanActMode switches plan -> act on an active session", async () => {
-		const activeSession = makeActiveSession()
-		const task = makeTask("old-session")
-		const { coordinator, options, state } = makeCoordinator({ activeSession, task, mode: "plan" })
+	it("does not auto-continue when togglePlanActMode switches plan -> act on an active session", async () => {
+		const activeSession = makeActiveSession();
+		const task = makeTask("old-session");
+		const { coordinator, options, state } = makeCoordinator({
+			activeSession,
+			task,
+			mode: "plan",
+		});
 
-		await expect(coordinator.togglePlanActMode("act")).resolves.toBe(false)
+		await expect(coordinator.togglePlanActMode("act")).resolves.toBe(false);
 
-		expect(state.mode).toBe("act")
-		expect(options.sessions.setRunning).toHaveBeenCalledWith(true)
-		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
-			expect.objectContaining({ send: expect.any(Function) }),
-			"new-session",
-			"The user approved switching to act mode. Continue with the approved plan now.",
-		)
-	})
+		expect(state.mode).toBe("act");
+		expect(options.sessions.setRunning).not.toHaveBeenCalledWith(true);
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled();
+	});
 
-	it("auto-continues with the user-supplied chatContent message when provided on plan -> act toggle", async () => {
-		const activeSession = makeActiveSession()
-		const task = makeTask("old-session")
-		const { coordinator, options } = makeCoordinator({ activeSession, task, mode: "plan" })
+	it("preserves user-supplied chatContent instead of submitting it during plan -> act toggle", async () => {
+		const activeSession = makeActiveSession();
+		const task = makeTask("old-session");
+		const { coordinator, options } = makeCoordinator({
+			activeSession,
+			task,
+			mode: "plan",
+		});
 
-		await coordinator.togglePlanActMode("act", { message: "  go ahead and implement step 1  ", images: [], files: [] })
+		await coordinator.togglePlanActMode("act", {
+			message: "  go ahead and implement step 1  ",
+			images: [],
+			files: [],
+		});
 
-		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
-			expect.objectContaining({ send: expect.any(Function) }),
-			"new-session",
-			"go ahead and implement step 1",
-		)
-	})
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled();
+	});
 
 	it("does not auto-continue on act -> plan toggle even when an active session exists", async () => {
-		const activeSession = makeActiveSession()
-		const task = makeTask("old-session")
-		const { coordinator, options, state } = makeCoordinator({ activeSession, task, mode: "act" })
+		const activeSession = makeActiveSession();
+		const task = makeTask("old-session");
+		const { coordinator, options, state } = makeCoordinator({
+			activeSession,
+			task,
+			mode: "act",
+		});
 
-		await coordinator.togglePlanActMode("plan", { message: "draft message", images: [], files: [] })
+		await coordinator.togglePlanActMode("plan", {
+			message: "draft message",
+			images: [],
+			files: [],
+		});
 
-		expect(state.mode).toBe("plan")
-		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
-	})
+		expect(state.mode).toBe("plan");
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled();
+	});
 
 	it("emits an auth error and skips replacement when the target cline provider has no token", async () => {
-		const activeSession = makeActiveSession()
+		const activeSession = makeActiveSession();
 		const { coordinator, options } = makeCoordinator({
 			activeSession,
 			config: {
@@ -133,45 +153,53 @@ describe("SdkModeCoordinator", () => {
 				modelId: "cline-model",
 				apiKey: undefined,
 			},
-		})
+		});
 
-		await coordinator.rebuildSessionForMode("act")
+		await coordinator.rebuildSessionForMode("act");
 
-		expect(options.emitClineAuthError).toHaveBeenCalledOnce()
-		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
-		expect(options.postStateToWebview).toHaveBeenCalledOnce()
-	})
+		expect(options.emitClineAuthError).toHaveBeenCalledOnce();
+		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled();
+		expect(options.postStateToWebview).toHaveBeenCalledOnce();
+	});
 
 	it("cancels and finalizes a running turn before rebuilding for mode change", async () => {
-		const activeSession = makeActiveSession({ isRunning: true })
-		const task = makeTask("old-session", [{ ts: 1, type: "say", say: "text", text: "partial", partial: true }])
-		const { coordinator, options } = makeCoordinator({ activeSession, task })
+		const activeSession = makeActiveSession({ isRunning: true });
+		const task = makeTask("old-session", [
+			{ ts: 1, type: "say", say: "text", text: "partial", partial: true },
+		]);
+		const { coordinator, options } = makeCoordinator({ activeSession, task });
 
-		await coordinator.rebuildSessionForMode("act")
+		await coordinator.rebuildSessionForMode("act");
 
-		expect(options.interactions.clearPending).toHaveBeenCalledWith("Mode changed")
-		expect(options.messages.cancelPendingSave).toHaveBeenCalledOnce()
-		expect(activeSession.sdkHost.abort).toHaveBeenCalledWith("old-session")
-		expect(options.sessions.setRunning).toHaveBeenCalledWith(false)
-		expect(options.messages.finalizeMessagesForSave).toHaveBeenCalledWith(task.messageStateHandler.getClineMessages())
-		expect(options.messages.appendMessages).toHaveBeenCalledWith([{ ts: 1, type: "say", say: "text", text: "done" }])
-	})
-})
+		expect(options.interactions.clearPending).toHaveBeenCalledWith(
+			"Mode changed",
+		);
+		expect(options.messages.cancelPendingSave).toHaveBeenCalledOnce();
+		expect(activeSession.sdkHost.abort).toHaveBeenCalledWith("old-session");
+		expect(options.sessions.setRunning).toHaveBeenCalledWith(false);
+		expect(options.messages.finalizeMessagesForSave).toHaveBeenCalledWith(
+			task.messageStateHandler.getClineMessages(),
+		);
+		expect(options.messages.appendMessages).toHaveBeenCalledWith([
+			{ ts: 1, type: "say", say: "text", text: "done" },
+		]);
+	});
+});
 
 function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
-	const state = { mode: input.mode ?? "plan" }
-	const activeSession = input.activeSession
+	const state = { mode: input.mode ?? "plan" };
+	const activeSession = input.activeSession;
 	const config = {
 		providerId: "anthropic",
 		modelId: "claude",
 		apiKey: "key",
 		...input.config,
-	}
+	};
 	const options = {
 		stateManager: {
 			getGlobalSettingsKey: vi.fn((key: string) => state[key as "mode"]),
 			setGlobalState: vi.fn(async (key: string, value: string) => {
-				state[key as "mode"] = value as "act" | "plan"
+				state[key as "mode"] = value as "act" | "plan";
 			}),
 		} as unknown as StateManager,
 		sessions: {
@@ -190,62 +218,70 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 			appendAndEmit: vi.fn(),
 			appendMessages: vi.fn(),
 			cancelPendingSave: vi.fn(),
-			finalizeMessagesForSave: vi.fn(() => [{ ts: 1, type: "say", say: "text", text: "done" }]),
+			finalizeMessagesForSave: vi.fn(() => [
+				{ ts: 1, type: "say", say: "text", text: "done" },
+			]),
 		},
 		sessionConfigBuilder: {
 			build: vi.fn().mockResolvedValue(config),
 		},
 		getTask: vi.fn(() => input.task),
 		getWorkspaceRoot: vi.fn().mockResolvedValue("/workspace"),
-		loadInitialMessages: vi.fn().mockResolvedValue([{ role: "user", content: "hello" }]),
+		loadInitialMessages: vi
+			.fn()
+			.mockResolvedValue([{ role: "user", content: "hello" }]),
 		buildStartSessionInput: vi.fn(() => ({ prompt: "start" })),
 		emitClineAuthError: vi.fn(),
 		resetMessageTranslator: vi.fn(),
 		postStateToWebview: vi.fn().mockResolvedValue(undefined),
 	} as unknown as SdkModeCoordinatorOptions & {
 		stateManager: StateManager & {
-			getGlobalSettingsKey: ReturnType<typeof vi.fn>
-			setGlobalState: ReturnType<typeof vi.fn>
-		}
+			getGlobalSettingsKey: ReturnType<typeof vi.fn>;
+			setGlobalState: ReturnType<typeof vi.fn>;
+		};
 		sessions: SdkModeCoordinatorOptions["sessions"] & {
-			getActiveSession: ReturnType<typeof vi.fn>
-			fireAndForgetSend: ReturnType<typeof vi.fn>
-			replaceActiveSession: ReturnType<typeof vi.fn>
-			setRunning: ReturnType<typeof vi.fn>
-		}
-		interactions: SdkModeCoordinatorOptions["interactions"] & { clearPending: ReturnType<typeof vi.fn> }
+			getActiveSession: ReturnType<typeof vi.fn>;
+			fireAndForgetSend: ReturnType<typeof vi.fn>;
+			replaceActiveSession: ReturnType<typeof vi.fn>;
+			setRunning: ReturnType<typeof vi.fn>;
+		};
+		interactions: SdkModeCoordinatorOptions["interactions"] & {
+			clearPending: ReturnType<typeof vi.fn>;
+		};
 		messages: SdkModeCoordinatorOptions["messages"] & {
-			appendAndEmit: ReturnType<typeof vi.fn>
-			appendMessages: ReturnType<typeof vi.fn>
-			cancelPendingSave: ReturnType<typeof vi.fn>
-			finalizeMessagesForSave: ReturnType<typeof vi.fn>
-		}
-		sessionConfigBuilder: SdkModeCoordinatorOptions["sessionConfigBuilder"] & { build: ReturnType<typeof vi.fn> }
-		getTask: ReturnType<typeof vi.fn>
-		getWorkspaceRoot: ReturnType<typeof vi.fn>
-		loadInitialMessages: ReturnType<typeof vi.fn>
-		buildStartSessionInput: ReturnType<typeof vi.fn>
-		emitClineAuthError: ReturnType<typeof vi.fn>
-		resetMessageTranslator: ReturnType<typeof vi.fn>
-		postStateToWebview: ReturnType<typeof vi.fn>
-	}
+			appendAndEmit: ReturnType<typeof vi.fn>;
+			appendMessages: ReturnType<typeof vi.fn>;
+			cancelPendingSave: ReturnType<typeof vi.fn>;
+			finalizeMessagesForSave: ReturnType<typeof vi.fn>;
+		};
+		sessionConfigBuilder: SdkModeCoordinatorOptions["sessionConfigBuilder"] & {
+			build: ReturnType<typeof vi.fn>;
+		};
+		getTask: ReturnType<typeof vi.fn>;
+		getWorkspaceRoot: ReturnType<typeof vi.fn>;
+		loadInitialMessages: ReturnType<typeof vi.fn>;
+		buildStartSessionInput: ReturnType<typeof vi.fn>;
+		emitClineAuthError: ReturnType<typeof vi.fn>;
+		resetMessageTranslator: ReturnType<typeof vi.fn>;
+		postStateToWebview: ReturnType<typeof vi.fn>;
+	};
 
 	return {
 		coordinator: new SdkModeCoordinator(options),
 		options,
 		state,
-	}
+	};
 }
 
 interface MakeCoordinatorInput {
-	mode: "act" | "plan"
-	activeSession: ReturnType<typeof makeActiveSession>
+	mode: "act" | "plan";
+	activeSession: ReturnType<typeof makeActiveSession>;
 	config: {
-		providerId: string
-		modelId: string
-		apiKey: string | undefined
-	}
-	task: ReturnType<typeof makeTask>
+		providerId: string;
+		modelId: string;
+		apiKey: string | undefined;
+	};
+	task: ReturnType<typeof makeTask>;
 }
 
 function makeActiveSession(input: { isRunning?: boolean } = {}) {
@@ -260,7 +296,7 @@ function makeActiveSession(input: { isRunning?: boolean } = {}) {
 		unsubscribe: vi.fn(),
 		startResult: { sessionId: "old-session" },
 		isRunning: input.isRunning ?? false,
-	}
+	};
 }
 
 function makeTask(taskId: string, messages: Array<Partial<ClineMessage>> = []) {
@@ -269,5 +305,8 @@ function makeTask(taskId: string, messages: Array<Partial<ClineMessage>> = []) {
 		messageStateHandler: {
 			getClineMessages: vi.fn(() => messages as ClineMessage[]),
 		},
-	} as unknown as { taskId: string; messageStateHandler: { getClineMessages: () => ClineMessage[] } }
+	} as unknown as {
+		taskId: string;
+		messageStateHandler: { getClineMessages: () => ClineMessage[] };
+	};
 }
