@@ -39,6 +39,7 @@ import type {
 	StartSessionInput,
 	StartSessionResult,
 } from "../../runtime/host/runtime-host";
+import { isSessionNotFoundError } from "../../runtime/host/runtime-host";
 import { RuntimeHostEventBus } from "../../runtime/host/runtime-host-support";
 import {
 	type SessionManifest,
@@ -1183,11 +1184,15 @@ export class HubRuntimeHost implements RuntimeHost {
 	}
 
 	async getSession(sessionId: string): Promise<SessionRecord | undefined> {
-		const reply = await this.client.command(
-			"session.get",
-			undefined,
-			sessionId,
-		);
+		let reply: Awaited<ReturnType<NodeHubClient["command"]>>;
+		try {
+			reply = await this.client.command("session.get", undefined, sessionId);
+		} catch (error) {
+			if (isSessionNotFoundError(error)) {
+				return undefined;
+			}
+			throw error;
+		}
 		return sessionRecordFromPayload(reply.payload);
 	}
 

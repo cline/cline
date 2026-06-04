@@ -385,7 +385,12 @@ export type {
 	StartSessionInput,
 	StartSessionResult,
 } from "./runtime/host/runtime-host";
-export { splitCoreSessionConfig } from "./runtime/host/runtime-host";
+export {
+	isSessionNotFoundError,
+	SESSION_NOT_FOUND_ERROR_CODE,
+	SessionNotFoundError,
+	splitCoreSessionConfig,
+} from "./runtime/host/runtime-host";
 export {
 	createTeamName,
 	DefaultRuntimeBuilder,
