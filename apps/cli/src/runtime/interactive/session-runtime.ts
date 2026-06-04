@@ -602,6 +602,7 @@ export function createInteractiveSessionRuntime(input: {
 			let exitSummary: InteractiveExitSummary | undefined;
 			try {
 				await startupPromise?.catch(() => {});
+				await missingSessionRecoveryPromise?.catch(() => {});
 			} finally {
 				unsubscribeAgent();
 				unsubscribePendingPrompts();

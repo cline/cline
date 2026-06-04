@@ -140,6 +140,16 @@ function makeTurnResult() {
 	};
 }
 
+function deferred<T>() {
+	let resolve!: (value: T) => void;
+	let reject!: (error?: unknown) => void;
+	const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+		resolve = resolvePromise;
+		reject = rejectPromise;
+	});
+	return { promise, resolve, reject };
+}
+
 function makeRuntime(
 	manager: ReturnType<typeof makeManager>,
 	options: { resumeSessionId?: string } = {},
@@ -286,5 +296,45 @@ describe("createInteractiveSessionRuntime", () => {
 			expect.objectContaining({ sessionId: "session-2" }),
 		);
 		expect(runtime.getActiveSessionId()).toBe("session-2");
+	});
+
+	it("waits for missing-session recovery before cleanup disposes the manager", async () => {
+		const manager = makeManager();
+		const recoveryRead = deferred<Message[]>();
+		manager.readMessages
+			.mockImplementationOnce(() => recoveryRead.promise)
+			.mockResolvedValue([]);
+		manager.get.mockResolvedValue(undefined);
+		manager.getAccumulatedUsage.mockResolvedValue(undefined);
+		manager.send.mockRejectedValueOnce(new SessionNotFoundError("session-1"));
+		const runtime = makeRuntime(manager);
+
+		await runtime.ensureReady();
+		const sendPromise = runtime
+			.sendCurrentTurn({
+				prompt: "second hi",
+				mode: "act",
+			})
+			.catch((error) => error);
+		await vi.waitFor(() => {
+			expect(manager.readMessages).toHaveBeenCalledWith("session-1");
+		});
+
+		let cleanupSettled = false;
+		const cleanupPromise = runtime.cleanup().finally(() => {
+			cleanupSettled = true;
+		});
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		expect(cleanupSettled).toBe(false);
+		expect(manager.get).not.toHaveBeenCalled();
+		expect(manager.dispose).not.toHaveBeenCalled();
+
+		recoveryRead.resolve([]);
+		await cleanupPromise;
+		const sendError = await sendPromise;
+
+		expect(sendError).toBeInstanceOf(SessionNotFoundError);
+		expect(manager.dispose).toHaveBeenCalledWith("cli_interactive_shutdown");
 	});
 });
