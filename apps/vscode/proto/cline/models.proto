@@ -209,7 +209,7 @@ message CommittedModelSelection {
 
 message ProviderReasoningPatch {
   optional bool enabled = 1;
-  optional string effort = 2;   // "none" | "low" | "medium" | "high" | "xhigh"
+  optional string effort = 2; // "none" | "low" | "medium" | "high" | "xhigh"
   optional int32 budget_tokens = 3;
 }
 
