@@ -105,6 +105,29 @@ describe("telegramConnector", () => {
 		).toThrow("either --allowed-user-id or --hook-command");
 	});
 
+	it("rejects mixing --allowed-user-id with the hook command env var", () => {
+		const originalHookCommand = process.env.CLINE_CONNECT_HOOK_COMMAND;
+		process.env.CLINE_CONNECT_HOOK_COMMAND = "echo noop";
+		try {
+			expect(() =>
+				parseTelegramArgs([
+					"--bot-token",
+					"123:test",
+					"--cwd",
+					"/tmp/work",
+					"--allowed-user-id",
+					"1201547643",
+				]),
+			).toThrow("either --allowed-user-id or --hook-command");
+		} finally {
+			if (originalHookCommand === undefined) {
+				delete process.env.CLINE_CONNECT_HOOK_COMMAND;
+			} else {
+				process.env.CLINE_CONNECT_HOOK_COMMAND = originalHookCommand;
+			}
+		}
+	});
+
 	it("does not require the bot username", () => {
 		const options = parseTelegramArgs([
 			"--bot-token",

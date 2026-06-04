@@ -485,7 +485,9 @@ class TelegramConnector extends ConnectorBase<
 		if (!botToken) {
 			throw new Error("connect telegram requires -k/--bot-token <token>");
 		}
-		const hookCommand = opts.hookCommand?.trim();
+		const hookCommand =
+			opts.hookCommand?.trim() ||
+			process.env.CLINE_CONNECT_HOOK_COMMAND?.trim();
 		const allowedUserId = opts.allowedUserId?.trim();
 		if (hookCommand && allowedUserId) {
 			throw new Error(
@@ -511,7 +513,7 @@ class TelegramConnector extends ConnectorBase<
 				? buildTelegramAllowedUserHookCommand(
 						normalizeAllowedTelegramUserId(allowedUserId),
 					)
-				: hookCommand || process.env.CLINE_CONNECT_HOOK_COMMAND?.trim(),
+				: hookCommand,
 		};
 	}
 

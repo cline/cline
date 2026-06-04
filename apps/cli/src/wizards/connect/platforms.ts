@@ -187,7 +187,7 @@ export const PLATFORMS: PlatformDef[] = [
 			],
 			buildArgs: ({ teamId, userId }) => [
 				"--hook-command",
-				`jq -r ".payload.actor.participantKey" | grep -q "slack:team:${teamId}:user:${userId}" && echo '{"action":"allow"}' || echo '{"action":"deny"}'`,
+				`jq -r ".payload.actor.participantKey" | grep -qx "slack:team:${teamId}:user:${userId}" && echo '{"action":"allow"}' || echo '{"action":"deny"}'`,
 			],
 		},
 	},

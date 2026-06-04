@@ -41,6 +41,20 @@ describe("connect wizard platform security fields", () => {
 		expect(args).toEqual(["--allowed-user-id", "123456"]);
 	});
 
+	it("builds an exact-match Slack authorization hook", () => {
+		const slack = PLATFORMS.find((platform) => platform.id === "slack");
+
+		const args = slack?.security?.buildArgs({
+			teamId: "T01ABC123",
+			userId: "U01ABC123",
+		});
+
+		expect(args).toEqual([
+			"--hook-command",
+			`jq -r ".payload.actor.participantKey" | grep -qx "slack:team:T01ABC123:user:U01ABC123" && echo '{"action":"allow"}' || echo '{"action":"deny"}'`,
+		]);
+	});
+
 	it("asks Slack users for mode-specific setup fields", () => {
 		const slack = PLATFORMS.find((platform) => platform.id === "slack");
 		const fields = slack?.fields ?? [];
