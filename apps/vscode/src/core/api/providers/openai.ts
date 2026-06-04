@@ -1,11 +1,11 @@
+import { buildExternalBasicHeaders } from "@/services/EnvUtils"
+import { ClineStorageMessage } from "@/shared/messages/content"
+import { createOpenAIClient, fetch } from "@/shared/net"
 import { DefaultAzureCredential, getBearerTokenProvider } from "@azure/identity"
 import { azureOpenAiDefaultApiVersion, ModelInfo, OpenAiCompatibleModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
 import { normalizeOpenaiReasoningEffort } from "@shared/storage/types"
 import OpenAI, { AzureOpenAI } from "openai"
 import type { ChatCompletionReasoningEffort, ChatCompletionTool } from "openai/resources/chat/completions"
-import { buildExternalBasicHeaders } from "@/services/EnvUtils"
-import { ClineStorageMessage } from "@/shared/messages/content"
-import { createOpenAIClient, fetch } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
@@ -142,7 +142,8 @@ export class OpenAiHandler implements ApiHandler {
 			reasoning_effort: reasoningEffort,
 			stream: true,
 			stream_options: { include_usage: true },
-			...(this.options.ulid && { prompt_cache_key: `cline-${this.options.ulid}` }), // https://developers.openai.com/api/docs/guides/prompt-caching
+			// https://developers.openai.com/api/docs/guides/prompt-caching
+			...(this.options.ulid && { prompt_cache_key: `cline-${this.options.ulid}` }),
 			...getOpenAIToolParams(tools),
 		})
 
