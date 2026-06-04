@@ -126,7 +126,7 @@ export function getInstallationInfo(currentVersion: string): InstallationInfo {
 			return {
 				packageManager: PackageManager.NPM,
 				packageName: DEFAULT_PACKAGE_NAME,
-				updateCommand: `npm install -g ${DEFAULT_PACKAGE_NAME}@${tag}`,
+				updateCommand: `npm update -g ${DEFAULT_PACKAGE_NAME}`,
 			};
 		}
 	} catch {
@@ -341,18 +341,25 @@ export function autoUpdateOnStartup(): void {
 	if (process.env.IS_DEV === "true") return;
 	if (process.env.CLINE_NO_AUTO_UPDATE === "1") return;
 
-	const { packageName, updateCommand } = getInstallationInfo(version);
+	const { packageName, packageManager, updateCommand } =
+		getInstallationInfo(version);
 	if (!updateCommand) return;
 
 	void (async () => {
 		try {
 			const latest = await getLatestVersion(packageName, version);
 			if (!latest || compareVersions(version, latest) >= 0) return;
-			const child = spawn(updateCommand, {
+			const autoUpdateCommand = withMinimumReleaseAgeBypass(
+				updateCommand,
+				packageManager,
+			);
+			const child = spawn(autoUpdateCommand.command, {
 				shell: true,
 				detached: true,
 				stdio: "ignore",
-				env: process.env,
+				env: autoUpdateCommand.env
+					? { ...process.env, ...autoUpdateCommand.env }
+					: process.env,
 			});
 			const exitCode = await waitForProcessExit(child);
 			if (exitCode === 0) {

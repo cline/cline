@@ -45,7 +45,7 @@ describe("getInstallationInfo", () => {
 		expect(getInstallationInfo("1.2.3")).toEqual({
 			packageManager: PackageManager.NPM,
 			packageName: "cline",
-			updateCommand: "npm install -g cline@latest",
+			updateCommand: "npm update -g cline",
 		});
 	});
 
@@ -57,7 +57,7 @@ describe("getInstallationInfo", () => {
 		expect(getInstallationInfo("1.2.3-nightly.456")).toEqual({
 			packageManager: PackageManager.NPM,
 			packageName: "cline",
-			updateCommand: "npm install -g cline@nightly",
+			updateCommand: "npm update -g cline",
 		});
 	});
 
@@ -75,11 +75,9 @@ describe("getInstallationInfo", () => {
 describe("withMinimumReleaseAgeBypass", () => {
 	it("adds the package-manager-specific cooldown bypass", () => {
 		expect(
-			withMinimumReleaseAgeBypass(
-				"npm install -g cline@latest",
-				PackageManager.NPM,
-			).command,
-		).toBe("npm install -g cline@latest --min-release-age=0");
+			withMinimumReleaseAgeBypass("npm update -g cline", PackageManager.NPM)
+				.command,
+		).toBe("npm update -g cline --min-release-age=0");
 		expect(
 			withMinimumReleaseAgeBypass("bun add -g cline@latest", PackageManager.BUN)
 				.command,
