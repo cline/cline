@@ -5,7 +5,7 @@ import type {
 	ToolApprovalRequest,
 	ToolApprovalResult,
 } from "@cline/core";
-import type { AgentTool } from "@cline/shared";
+import type { AgentTool, Message } from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatCommandState } from "../../utils/chat-commands";
 import type { Config } from "../../utils/types";
@@ -112,7 +112,7 @@ function makeManager() {
 		abort: vi.fn(),
 		dispose: vi.fn(),
 		get: vi.fn(),
-		readMessages: vi.fn(async () => []),
+		readMessages: vi.fn(async (): Promise<Message[]> => []),
 		readTranscript: vi.fn(),
 		ingestHookEvent: vi.fn(),
 		subscribe: vi.fn(),
@@ -121,6 +121,21 @@ function makeManager() {
 			update: vi.fn(),
 		},
 		restore: vi.fn(),
+	};
+}
+
+function makeTurnResult() {
+	return {
+		text: "ok",
+		usage: { inputTokens: 0, outputTokens: 0 },
+		messages: [],
+		toolCalls: [],
+		iterations: 1,
+		finishReason: "completed" as const,
+		model: { id: "openai/gpt-5.3-codex", provider: "cline" },
+		startedAt: new Date("2026-01-01T00:00:00.000Z"),
+		endedAt: new Date("2026-01-01T00:00:00.100Z"),
+		durationMs: 100,
 	};
 }
 
@@ -229,6 +244,46 @@ describe("createInteractiveSessionRuntime", () => {
 
 		expect(manager.stop).toHaveBeenCalledWith("session-1");
 		expect(manager.start).toHaveBeenCalledTimes(2);
+		expect(runtime.getActiveSessionId()).toBe("session-2");
+	});
+
+	it("recovers and retries when the active interactive session disappeared", async () => {
+		const manager = makeManager();
+		const messages = [
+			{
+				role: "user" as const,
+				content: [{ type: "text" as const, text: "hi" }],
+			},
+		];
+		manager.readMessages.mockResolvedValue(messages);
+		manager.send
+			.mockRejectedValueOnce(new Error("session not found: session-1"))
+			.mockResolvedValueOnce(makeTurnResult());
+		const runtime = makeRuntime(manager);
+
+		await runtime.ensureReady();
+		const result = await runtime.sendCurrentTurn({
+			prompt: "second hi",
+			mode: "act",
+		});
+
+		expect(result?.finishReason).toBe("completed");
+		expect(manager.readMessages).toHaveBeenCalledWith("session-1");
+		expect(manager.start).toHaveBeenCalledTimes(2);
+		expect(manager.start).toHaveBeenNthCalledWith(
+			2,
+			expect.objectContaining({
+				initialMessages: messages,
+			}),
+		);
+		expect(manager.send).toHaveBeenNthCalledWith(
+			1,
+			expect.objectContaining({ sessionId: "session-1" }),
+		);
+		expect(manager.send).toHaveBeenNthCalledWith(
+			2,
+			expect.objectContaining({ sessionId: "session-2" }),
+		);
 		expect(runtime.getActiveSessionId()).toBe("session-2");
 	});
 });

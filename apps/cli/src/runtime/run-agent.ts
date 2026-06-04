@@ -228,11 +228,11 @@ export async function runAgent(
 			process.off("SIGINT", handleSigint);
 			process.off("SIGTERM", handleSigterm);
 			unsubscribe();
+			await runtimeHooks.shutdown().catch(() => {});
 			if (activeSessionId) {
 				await sessionManager.stop(activeSessionId).catch(() => {});
 			}
 			await sessionManager.dispose("cli_run_shutdown").catch(() => {});
-			await runtimeHooks.shutdown().catch(() => {});
 			setActiveRuntimeAbort(undefined);
 		})();
 		return cleanupDone;

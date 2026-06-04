@@ -215,4 +215,21 @@ describe("createRuntimeHooks", () => {
 		expect(outputMocks.write).toHaveBeenCalledWith("\n[hook:prompt_submit]\n");
 		expect(eventMocks.closeInlineStreamIfNeeded).toHaveBeenCalledTimes(2);
 	});
+
+	it("does not dispatch hooks after shutdown", async () => {
+		const dispatchHookEvent = vi.fn().mockResolvedValue(undefined);
+		const runtimeHooks = createRuntimeHooks({
+			yolo: false,
+			cwd: "/workspace",
+			workspaceRoot: "/workspace",
+			verbose: true,
+			dispatchHookEvent,
+		});
+
+		await runtimeHooks.shutdown();
+		await emitRunStartAndPrompt(runtimeHooks.hooks!);
+
+		expect(dispatchHookEvent).not.toHaveBeenCalled();
+		expect(outputMocks.write).not.toHaveBeenCalled();
+	});
 });
