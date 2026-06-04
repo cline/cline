@@ -60,9 +60,9 @@ If it prints commits, sanity-check the diff (ignore entries that are only the pr
 
 All SDK packages share one version, read from `sdk/packages/llms/package.json`. Ask whether this is patch, minor, major, or an explicit version. Patch is the default. Do not guess if the user has not made it clear.
 
-3. Update the SDK changelog.
+3. Draft the SDK release notes and update the changelog.
 
-In `sdk/packages/llms/CHANGELOG.md`, rename the top `## Next Release` heading to `## <version>`. This is the only SDK package changelog and it is maintained by hand; the `sdk-publish.yml` workflow does not read it.
+Draft user-facing notes from the SDK commits found in step 1, translating commit messages into user-facing language (same approach as the CLI release notes below). Prepend a new `## <version>` section with those notes to the top of `sdk/CHANGELOG.md`, using the header format `## <version>` with no date — the same flat, newest-on-top format as `apps/cli/CHANGELOG.md`. This is the SDK changelog (all SDK packages share one version) and it is maintained by hand; the `sdk-publish.yml` workflow does not read it.
 
 4. Bump versions and regenerate.
 
