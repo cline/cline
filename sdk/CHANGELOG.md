@@ -1,8 +1,4 @@
-# Changelog
-
-## Next Release
-
-- SAP AI Core uses AI SDK community provider @jerome-benoit/sap-ai-provider https://ai-sdk.dev/providers/community-providers/sap-ai
+# Cline SDK Changelog
 
 ## 0.0.42
 
