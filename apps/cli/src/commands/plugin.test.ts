@@ -239,6 +239,10 @@ describe("plugin install command", () => {
 		expect(readFileSync(result.entryPaths[0] ?? "", "utf8")).toContain(
 			"official-web-search",
 		);
+		const wrapperManifest = JSON.parse(
+			readFileSync(join(result.installPath, "package.json"), "utf8"),
+		) as { name?: string };
+		expect(wrapperManifest.name).toBe("web-search");
 		expect(existsSync(join(result.installPath, "repo"))).toBe(false);
 		expect(
 			existsSync(join(result.installPath, "package", "other-plugin")),
@@ -328,6 +332,10 @@ describe("plugin install command", () => {
 		expect(result.installPath).toContain(
 			join(workspace, ".cline", "plugins", "_installed", "local"),
 		);
+		const wrapperManifest = JSON.parse(
+			readFileSync(join(result.installPath, "package.json"), "utf8"),
+		) as { name?: string };
+		expect(wrapperManifest.name).toBe("web-search");
 		expect(readFileSync(result.entryPaths[0] ?? "", "utf8")).toContain(
 			"local-web-search",
 		);
@@ -456,7 +464,8 @@ describe("plugin install command", () => {
 
 		const wrapperManifest = JSON.parse(
 			readFileSync(join(result.installPath, "package.json"), "utf8"),
-		) as { cline?: { plugins?: Array<{ paths?: string[] }> } };
+		) as { name?: string; cline?: { plugins?: Array<{ paths?: string[] }> } };
+		expect(wrapperManifest.name).toBe("plugin-package");
 		expect(wrapperManifest.cline?.plugins?.[0]?.paths).toHaveLength(1);
 		expect(wrapperManifest.cline?.plugins?.[0]?.paths?.[0]).toContain(
 			"package/index.ts",
