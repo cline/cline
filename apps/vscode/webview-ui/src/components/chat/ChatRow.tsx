@@ -158,7 +158,6 @@ export const ChatRowContent = memo(
 			showFeatureTips,
 		} = useExtensionState()
 		const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
-		const [explainChangesDisabled, setExplainChangesDisabled] = useState(false)
 		const [quoteButtonState, setQuoteButtonState] = useState<QuoteButtonState>({
 			visible: false,
 			top: 0,
@@ -235,7 +234,6 @@ export const ChatRowContent = memo(
 		useEffect(() => {
 			return onRelinquishControl(() => {
 				setSeeNewChangesDisabled(false)
-				setExplainChangesDisabled(false)
 			})
 		}, [onRelinquishControl])
 
@@ -1025,13 +1023,11 @@ export const ChatRowContent = memo(
 
 						return (
 							<CompletionOutputRow
-								explainChangesDisabled={explainChangesDisabled}
 								handleQuoteClick={handleQuoteClick}
 								headClassNames={HEADER_CLASSNAMES}
 								messageTs={message.ts}
 								quoteButtonState={quoteButtonState}
 								seeNewChangesDisabled={seeNewChangesDisabled}
-								setExplainChangesDisabled={setExplainChangesDisabled}
 								setSeeNewChangesDisabled={setSeeNewChangesDisabled}
 								showActionRow={message.partial !== true && hasChanges}
 								text={text || ""}
@@ -1172,13 +1168,11 @@ export const ChatRowContent = memo(
 							const text = hasChanges ? message.text.slice(0, -COMPLETION_RESULT_CHANGES_FLAG.length) : message.text
 							return (
 								<CompletionOutputRow
-									explainChangesDisabled={explainChangesDisabled}
 									handleQuoteClick={handleQuoteClick}
 									headClassNames={HEADER_CLASSNAMES}
 									messageTs={message.ts}
 									quoteButtonState={quoteButtonState}
 									seeNewChangesDisabled={seeNewChangesDisabled}
-									setExplainChangesDisabled={setExplainChangesDisabled}
 									setSeeNewChangesDisabled={setSeeNewChangesDisabled}
 									showActionRow={message.partial !== true && hasChanges}
 									text={text || ""}
