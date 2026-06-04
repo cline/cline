@@ -126,7 +126,7 @@ export function getInstallationInfo(currentVersion: string): InstallationInfo {
 			return {
 				packageManager: PackageManager.NPM,
 				packageName: DEFAULT_PACKAGE_NAME,
-				updateCommand: `npm update -g ${DEFAULT_PACKAGE_NAME}`,
+				updateCommand: `npm update -g ${DEFAULT_PACKAGE_NAME} --tag ${tag}`,
 			};
 		}
 	} catch {
