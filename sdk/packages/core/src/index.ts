@@ -40,7 +40,6 @@ export type {
 	ListProvidersActionRequest,
 	Message,
 	MessageWithMetadata,
-	OAuthProviderId,
 	ProviderActionRequest,
 	ProviderCatalogResponse,
 	ProviderListItem,
@@ -139,6 +138,22 @@ export {
 	loginOcaOAuth,
 	refreshOcaToken,
 } from "./auth/oca";
+export {
+	formatProviderOAuthApiKey,
+	getPersistedProviderApiKey,
+	getProviderAuthHandler,
+	getProviderAuthStorageId,
+	getProviderOAuthCredentialsFromSettings,
+	isOAuthProvider,
+	loginAndSaveProviderOAuthCredentials,
+	type ProviderAuthHandler,
+	type ProviderAuthLoginInput,
+	type ProviderAuthRefreshInput,
+	type ProviderAuthSaveCredentialsInput,
+	type ProviderOAuthCredentials,
+	resolveProviderApiKeyFromSettings,
+	saveProviderOAuthCredentials,
+} from "./auth/provider-auth-registry";
 export type {
 	LocalOAuthServer,
 	LocalOAuthServerOptions,
@@ -453,6 +468,7 @@ export {
 	ensureCustomProvidersLoaded,
 	getLocalProviderModels,
 	listLocalProviders,
+	loginAndSaveLocalProviderOAuthCredentials,
 	loginLocalProvider,
 	normalizeOAuthProvider,
 	refreshProviderModelsFromSource,

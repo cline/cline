@@ -1,20 +1,21 @@
 import * as LlmsModels from "@cline/llms";
-import {
-	type AddProviderActionRequest,
-	getClineEnvironmentConfig,
-	type ITelemetryService,
-	type OAuthProviderId,
-	type ProviderCapability,
-	type ProviderConfigField,
-	type ProviderConfigFieldPrimitive,
-	type ProviderListItem,
-	type ProviderModel,
-	type SaveProviderSettingsActionRequest,
+import type {
+	AddProviderActionRequest,
+	ITelemetryService,
+	ProviderCapability,
+	ProviderConfigField,
+	ProviderConfigFieldPrimitive,
+	ProviderListItem,
+	ProviderModel,
+	SaveProviderSettingsActionRequest,
 } from "@cline/shared";
 import { createOAuthClientCallbacks } from "../../auth/client";
-import { loginClineOAuth } from "../../auth/cline";
-import { loginOpenAICodex } from "../../auth/codex";
-import { loginOcaOAuth } from "../../auth/oca";
+import {
+	getProviderAuthHandler,
+	loginAndSaveProviderOAuthCredentials,
+	type ProviderOAuthCredentials,
+	saveProviderOAuthCredentials,
+} from "../../auth/provider-auth-registry";
 import { resolveProviderConfig } from "../../services/llms/provider-defaults";
 import type {
 	ModelInfo,
@@ -849,39 +850,23 @@ export async function refreshProviderModelsFromSource(
 	return { providerId: id, refreshed: true, modelsCount: result.modelsCount };
 }
 
-export function normalizeOAuthProvider(provider: string): OAuthProviderId {
+export function normalizeOAuthProvider(provider: string): string {
 	const normalized = provider.trim().toLowerCase();
-	if (normalized === "codex" || normalized === "openai-codex")
-		return "openai-codex";
-	if (normalized === "cline" || normalized === "oca") return normalized;
-	throw new Error(
-		`provider "${provider}" does not support OAuth login (supported: cline, oca, openai-codex)`,
-	);
-}
-
-function toProviderApiKey(
-	providerId: OAuthProviderId,
-	credentials: { access: string },
-): string {
-	if (providerId === "cline") {
-		return credentials.access.startsWith("workos:")
-			? credentials.access
-			: `workos:${credentials.access}`;
-	}
-	return credentials.access;
+	const handler = getProviderAuthHandler(normalized);
+	if (handler) return handler.providerId;
+	throw new Error(`provider "${provider}" does not support OAuth login`);
 }
 
 export async function loginLocalProvider(
-	providerId: OAuthProviderId,
+	providerId: string,
 	existing: ProviderSettings | undefined,
 	openUrl: (url: string) => void,
 	telemetry?: ITelemetryService,
-): Promise<{
-	access: string;
-	refresh: string;
-	expires: number;
-	accountId?: string;
-}> {
+): Promise<ProviderOAuthCredentials> {
+	const handler = getProviderAuthHandler(providerId);
+	if (!handler) {
+		throw new Error(`provider "${providerId}" does not support OAuth login`);
+	}
 	const callbacks = createOAuthClientCallbacks({
 		onPrompt: async (prompt) => prompt.defaultValue ?? "",
 		openUrl,
@@ -889,55 +874,40 @@ export async function loginLocalProvider(
 			throw error instanceof Error ? error : new Error(String(error));
 		},
 	});
-
-	if (providerId === "cline") {
-		return loginClineOAuth({
-			apiBaseUrl:
-				existing?.baseUrl?.trim() || getClineEnvironmentConfig().apiBaseUrl,
-			useWorkOSDeviceAuth: true,
-			callbacks,
-			telemetry,
-		});
-	}
-	if (providerId === "oca")
-		return loginOcaOAuth({ mode: existing?.oca?.mode, callbacks, telemetry });
-	return loginOpenAICodex({
-		onAuth: callbacks.onAuth,
-		onPrompt: callbacks.onPrompt,
-		onProgress: callbacks.onProgress,
-		onManualCodeInput: callbacks.onManualCodeInput,
-		telemetry,
-	});
+	return handler.login({ settings: existing, callbacks, telemetry });
 }
 
 export function saveLocalProviderOAuthCredentials(
 	manager: ProviderSettingsManager,
-	providerId: OAuthProviderId,
+	providerId: string,
 	existing: ProviderSettings | undefined,
-	credentials: {
-		access: string;
-		refresh: string;
-		expires: number;
-		accountId?: string;
-	},
+	credentials: ProviderOAuthCredentials,
 ): ProviderSettings {
-	const auth = {
-		...(existing?.auth ?? {}),
-		accessToken: toProviderApiKey(providerId, credentials),
-		refreshToken: credentials.refresh,
-		accountId: credentials.accountId,
-		expiresAt: credentials.expires,
-	} as ProviderSettings["auth"] & { expiresAt?: number };
+	return saveProviderOAuthCredentials({
+		manager,
+		providerId,
+		settings: existing,
+		credentials,
+	});
+}
 
-	const merged: ProviderSettings = {
-		...(existing ?? {
-			provider: providerId as ProviderSettings["provider"],
-		}),
-		provider: providerId as ProviderSettings["provider"],
-		auth,
-	};
-	manager.saveProviderSettings(merged, { tokenSource: "oauth" });
-	return merged;
+export async function loginAndSaveLocalProviderOAuthCredentials(
+	manager: ProviderSettingsManager,
+	providerId: string,
+	openUrl: (url: string) => void,
+	telemetry?: ITelemetryService,
+): Promise<ProviderSettings> {
+	const callbacks = createOAuthClientCallbacks({
+		onPrompt: async (prompt) => prompt.defaultValue ?? "",
+		openUrl,
+		onOpenUrlError: ({ error }) => {
+			throw error instanceof Error ? error : new Error(String(error));
+		},
+	});
+	return loginAndSaveProviderOAuthCredentials(manager, providerId, {
+		callbacks,
+		telemetry,
+	});
 }
 
 export function resolveLocalClineAuthToken(

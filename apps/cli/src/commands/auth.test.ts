@@ -2,7 +2,11 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import type { ProviderSettingsManager } from "@cline/core";
 import { describe, expect, it, vi } from "vitest";
-import { getPersistedProviderApiKey, saveOAuthProviderSettings } from "./auth";
+import {
+	getPersistedProviderApiKey,
+	normalizeAuthProviderId,
+	saveOAuthProviderSettings,
+} from "./auth";
 
 describe("saveOAuthProviderSettings", () => {
 	it("preserves existing manual apiKey while updating OAuth tokens", () => {
@@ -64,6 +68,12 @@ describe("getPersistedProviderApiKey", () => {
 				},
 			}),
 		).toBe("workos:oauth-access");
+	});
+});
+
+describe("normalizeAuthProviderId", () => {
+	it("keeps CLI-only codex shorthand in CLI parsing", () => {
+		expect(normalizeAuthProviderId("codex")).toBe("openai-codex");
 	});
 });
 

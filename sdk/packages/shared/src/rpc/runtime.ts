@@ -208,8 +208,6 @@ export interface ProviderModelsResponse {
 	models: ProviderModel[];
 }
 
-import type { OAuthProviderId } from "../types/auth";
-
 export const ProviderCapabilitySchema = z.enum([
 	"reasoning",
 	"prompt-cache",
@@ -424,6 +422,6 @@ export type ProviderActionRequest =
 	| ClineAccountActionRequest;
 
 export interface ProviderOAuthLoginResponse {
-	provider: OAuthProviderId;
+	provider: string;
 	accessToken: string;
 }
