@@ -5,8 +5,10 @@ import { StandaloneTerminalManager } from "../standalone/StandaloneTerminalManag
 
 // Two profiles that exist with distinct shell paths on the current platform.
 // getAvailableTerminalProfiles() only exposes bash/zsh on macOS & Linux and
-// powershell/cmd on Windows, so the pair has to be chosen per platform.
-const [PROFILE_A, PROFILE_B] = process.platform === "win32" ? ["powershell-7", "cmd"] : ["bash", "zsh"]
+// powershell/cmd on Windows, so the pair has to be chosen per platform. On
+// Windows we use the always-present built-in Windows PowerShell rather than
+// PowerShell 7, which may not be installed on the runner.
+const [PROFILE_A, PROFILE_B] = process.platform === "win32" ? ["powershell-legacy", "cmd"] : ["bash", "zsh"]
 
 describe("StandaloneTerminalManager terminal profile", () => {
 	it("creates terminals using the configured terminal profile's shell", async () => {
