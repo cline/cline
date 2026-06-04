@@ -5,6 +5,7 @@ import type {
 	ToolApprovalRequest,
 	ToolApprovalResult,
 } from "@cline/core";
+import { SessionNotFoundError } from "@cline/core";
 import type { AgentTool, Message } from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatCommandState } from "../../utils/chat-commands";
@@ -257,7 +258,7 @@ describe("createInteractiveSessionRuntime", () => {
 		];
 		manager.readMessages.mockResolvedValue(messages);
 		manager.send
-			.mockRejectedValueOnce(new Error("session not found: session-1"))
+			.mockRejectedValueOnce(new SessionNotFoundError("session-1"))
 			.mockResolvedValueOnce(makeTurnResult());
 		const runtime = makeRuntime(manager);
 

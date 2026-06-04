@@ -1,6 +1,7 @@
 import {
 	type AgentEvent,
 	type CheckpointEntry,
+	isSessionNotFoundError,
 	type PendingPromptMutationResult,
 	type ProviderSettingsManager,
 	readSessionCheckpointHistory,
@@ -47,22 +48,6 @@ type CurrentTurnResult = Awaited<ReturnType<CliCore["send"]>>;
 type AskQuestionRef = {
 	current: ((question: string, options: string[]) => Promise<string>) | null;
 };
-
-function isMissingSessionError(error: unknown): boolean {
-	const message =
-		error instanceof Error
-			? error.message
-			: typeof error === "string"
-				? error
-				: "";
-	const normalized = message.trim().toLowerCase();
-	return (
-		normalized.includes("session_not_found") ||
-		normalized.includes("session not found") ||
-		normalized.includes("unknown session:") ||
-		/^session .+ was not found\.$/.test(normalized)
-	);
-}
 
 export function createInteractiveSessionRuntime(input: {
 	config: Config;
@@ -392,7 +377,7 @@ export function createInteractiveSessionRuntime(input: {
 			if (
 				abortRequested ||
 				shutdownRequested ||
-				!isMissingSessionError(error)
+				!isSessionNotFoundError(error)
 			) {
 				throw error;
 			}
