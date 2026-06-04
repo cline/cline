@@ -322,6 +322,18 @@ export async function runInteractive(
 		}
 		return data;
 	};
+	const onDeleteConfigItem = async (
+		item: InteractiveConfigItem,
+		options: LoadInteractiveConfigDataOptions = {},
+	): Promise<
+		Awaited<ReturnType<typeof configDataLoader.onDeleteConfigItem>>
+	> => {
+		const data = await configDataLoader.onDeleteConfigItem(item, options);
+		if (data && shouldRefreshInteractiveSessionForConfigItem(item)) {
+			await refreshInteractiveSessionPolicies();
+		}
+		return data;
+	};
 	const toQueuedPromptItem = (prompt: {
 		id: string;
 		prompt: string;
@@ -397,6 +409,7 @@ export async function runInteractive(
 			}),
 		loadConfigData: configDataLoader.loadConfigData,
 		onToggleConfigItem,
+		onDeleteConfigItem,
 		subscribeToEvents: ({
 			onAgentEvent: onAgent,
 			onTeamEvent: onTeam,

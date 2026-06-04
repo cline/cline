@@ -1,7 +1,7 @@
 export interface PlatformDef {
 	id: string;
 	name: string;
-	type: "polling" | "webhook";
+	type: "polling" | "webhook" | "hybrid";
 	hint: string;
 	fields: FieldDef[];
 	security?: SecurityDef;
@@ -13,7 +13,16 @@ export interface FieldDef {
 	placeholder?: string;
 	required?: boolean;
 	help?: string[];
+	initialValue?: string;
+	options?: Array<{ value: string; label: string; hint?: string }>;
+	includeWhen?: FieldCondition;
 }
+
+export type FieldCondition = {
+	flag: string;
+	equals?: string;
+	notEquals?: string;
+};
 
 export interface SecurityFieldDef {
 	key: string;
@@ -27,7 +36,25 @@ export interface SecurityFieldDef {
 export interface SecurityDef {
 	prompt: string;
 	fields: SecurityFieldDef[];
-	buildHookCommand: (values: Record<string, string>) => string;
+	buildArgs: (values: Record<string, string>) => string[];
+}
+
+export function shouldIncludeField(
+	field: FieldDef,
+	values: Record<string, string>,
+): boolean {
+	const condition = field.includeWhen;
+	if (!condition) {
+		return true;
+	}
+	const value = values[condition.flag] ?? "";
+	if (condition.equals !== undefined && value !== condition.equals) {
+		return false;
+	}
+	if (condition.notEquals !== undefined && value === condition.notEquals) {
+		return false;
+	}
+	return true;
 }
 
 function validateTelegramUserId(value: string): string | undefined {
@@ -84,15 +111,14 @@ export const PLATFORMS: PlatformDef[] = [
 					validate: validateTelegramUserId,
 				},
 			],
-			buildHookCommand: ({ userId }) =>
-				`jq -r ".payload.actor.participantKey" | grep -q "telegram:id:${userId}" && echo '{"action":"allow"}' || echo '{"action":"deny"}'`,
+			buildArgs: ({ userId }) => ["--allowed-user-id", userId ?? ""],
 		},
 	},
 	{
 		id: "slack",
 		name: "Slack",
-		type: "webhook",
-		hint: "Requires a Slack app and public URL.",
+		type: "hybrid",
+		hint: "Public URL for webhook mode; leave blank for socket mode.",
 		fields: [
 			{
 				flag: "--bot-token",
@@ -106,20 +132,31 @@ export const PLATFORMS: PlatformDef[] = [
 				],
 			},
 			{
+				flag: "--base-url",
+				label: "Public base URL",
+				placeholder: "leave blank for socket mode",
+				help: [
+					"Enter a publicly accessible URL for webhook mode",
+					"Leave blank to use Slack socket mode instead",
+				],
+			},
+			{
 				flag: "--signing-secret",
 				label: "Signing secret",
 				required: true,
 				help: ["Found in your app's Basic Information page"],
+				includeWhen: { flag: "--base-url", notEquals: "" },
 			},
 			{
-				flag: "--base-url",
-				label: "Public base URL",
-				placeholder: "https://example.com",
+				flag: "--app-token",
+				label: "App-level token",
+				placeholder: "xapp-...",
 				required: true,
 				help: [
-					"Your publicly accessible URL for webhook callbacks",
-					"Use ngrok or similar for local development",
+					"Enable Socket Mode in the Slack app",
+					"Generate an app-level token with the connections:write scope",
 				],
+				includeWhen: { flag: "--base-url", equals: "" },
 			},
 		],
 		security: {
@@ -148,8 +185,10 @@ export const PLATFORMS: PlatformDef[] = [
 					validate: validateSlackUserId,
 				},
 			],
-			buildHookCommand: ({ teamId, userId }) =>
-				`jq -r ".payload.actor.participantKey" | grep -q "slack:team:${teamId}:user:${userId}" && echo '{"action":"allow"}' || echo '{"action":"deny"}'`,
+			buildArgs: ({ teamId, userId }) => [
+				"--hook-command",
+				`jq -r ".payload.actor.participantKey" | grep -qx "slack:team:${teamId}:user:${userId}" && echo '{"action":"allow"}' || echo '{"action":"deny"}'`,
+			],
 		},
 	},
 	{

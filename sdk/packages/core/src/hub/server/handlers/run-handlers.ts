@@ -5,7 +5,11 @@ import type {
 	HubReplyEnvelope,
 } from "@cline/shared";
 import { parseHookEventPayload } from "../../../hooks";
-import type { SendSessionInput } from "../../../runtime/host/runtime-host";
+import {
+	isSessionNotFoundError,
+	SESSION_NOT_FOUND_ERROR_CODE,
+	type SendSessionInput,
+} from "../../../runtime/host/runtime-host";
 import { logHubMessage } from "../hub-server-logging";
 import { cancelPendingApprovals } from "./approval-handlers";
 import { cancelPendingCapabilityRequests } from "./capability-handlers";
@@ -33,6 +37,18 @@ function errorMessageForResult(result: AgentResult): string | undefined {
 	}
 	const text = result.text.trim();
 	return text || undefined;
+}
+
+function sessionNotFoundReply(
+	envelope: HubCommandEnvelope,
+	sessionId: string,
+	error?: unknown,
+): HubReplyEnvelope {
+	const message =
+		error instanceof Error && error.message.trim()
+			? error.message
+			: `Unknown session: ${sessionId}`;
+	return errorReply(envelope, SESSION_NOT_FOUND_ERROR_CODE, message);
 }
 
 function parseTurnMode(mode?: unknown): AgentMode | undefined {
@@ -221,6 +237,9 @@ export async function handleSessionInput(
 			"run.start.reply"
 		) {
 			ctx.suppressNextTerminalEventBySession.delete(sessionId);
+		}
+		if (isSessionNotFoundError(error)) {
+			return sessionNotFoundReply(envelope, sessionId, error);
 		}
 		ctx.publish(
 			ctx.buildEvent(

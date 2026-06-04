@@ -110,6 +110,7 @@ import type {
 	StartSessionInput,
 	StartSessionResult,
 } from "./runtime-host";
+import { SessionNotFoundError } from "./runtime-host";
 import {
 	cloneAccumulatedUsage,
 	RuntimeHostEventBus,
@@ -1573,7 +1574,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private getSessionOrThrow(sessionId: string): ActiveSession {
 		const session = this.sessions.get(sessionId);
 		if (!session) {
-			const error = new Error(`session not found: ${sessionId}`);
+			const error = new SessionNotFoundError(sessionId);
 			captureSdkError(this.defaultTelemetry, {
 				component: "core",
 				operation: "session.active_lookup",

@@ -1,8 +1,66 @@
+import type { ConnectSlackOptions } from "@cline/shared";
 import { describe, expect, it } from "vitest";
-import { __test__ } from "./slack";
+import { __test__, slackConnector } from "./slack";
+
+const parseSlackArgs = (rawArgs: string[]): ConnectSlackOptions =>
+	(
+		slackConnector as unknown as {
+			parseArgs(rawArgs: string[]): ConnectSlackOptions;
+		}
+	).parseArgs(rawArgs);
 
 describe("slack binding lookup", () => {
 	const participantKey = __test__.buildSlackParticipantKey("T123", "U123");
+
+	it("infers Slack webhook mode from a base URL", () => {
+		expect(__test__.inferSlackConnectionMode("https://example.test")).toBe(
+			"webhook",
+		);
+		expect(__test__.inferSlackConnectionMode("  ")).toBe("socket");
+		expect(__test__.inferSlackConnectionMode(undefined)).toBe("socket");
+	});
+
+	it("uses webhook mode when Slack args include a base URL", () => {
+		const options = parseSlackArgs([
+			"--bot-token",
+			"xoxb-token",
+			"--signing-secret",
+			"secret",
+			"--app-token",
+			"xapp-ignored",
+			"--base-url",
+			"https://example.test",
+		]);
+
+		expect(options.connectionMode).toBe("webhook");
+		expect(options.baseUrl).toBe("https://example.test");
+		expect(options.signingSecret).toBe("secret");
+		expect(options.appToken).toBeUndefined();
+	});
+
+	it("uses socket mode when Slack args omit a base URL", () => {
+		const previousBaseUrl = process.env.BASE_URL;
+		delete process.env.BASE_URL;
+		let options: ConnectSlackOptions;
+		try {
+			options = parseSlackArgs([
+				"--bot-token",
+				"xoxb-token",
+				"--app-token",
+				"xapp-token",
+			]);
+		} finally {
+			if (previousBaseUrl === undefined) {
+				delete process.env.BASE_URL;
+			} else {
+				process.env.BASE_URL = previousBaseUrl;
+			}
+		}
+
+		expect(options.connectionMode).toBe("socket");
+		expect(options.baseUrl).toBeUndefined();
+		expect(options.appToken).toBe("xapp-token");
+	});
 
 	it("falls back to channel identity when a restarted connector gets a new thread id", () => {
 		const result = __test__.findBindingForThread(

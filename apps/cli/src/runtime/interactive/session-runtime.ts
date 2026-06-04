@@ -1,6 +1,7 @@
 import {
 	type AgentEvent,
 	type CheckpointEntry,
+	isSessionNotFoundError,
 	type PendingPromptMutationResult,
 	type ProviderSettingsManager,
 	readSessionCheckpointHistory,
@@ -74,6 +75,7 @@ export function createInteractiveSessionRuntime(input: {
 	let shutdownRequested = false;
 	let activeSessionId = "";
 	let abortRequested = false;
+	let missingSessionRecoveryPromise: Promise<void> | undefined;
 	// A reset can happen while an earlier manager.start() is still in flight.
 	// Bump this before resets and restarts so stale starts cannot become active.
 	let sessionStartGeneration = 0;
@@ -248,6 +250,37 @@ export function createInteractiveSessionRuntime(input: {
 		return (await sessionManager.readMessages(activeSessionId)) ?? [];
 	};
 
+	const recoverMissingActiveSession = async (error: unknown): Promise<void> => {
+		if (missingSessionRecoveryPromise) {
+			return await missingSessionRecoveryPromise;
+		}
+		missingSessionRecoveryPromise = (async () => {
+			const manager = sessionManager;
+			const missingSessionId = activeSessionId;
+			if (!manager || !missingSessionId || shutdownRequested) {
+				return;
+			}
+			const messages = await manager
+				.readMessages(missingSessionId)
+				.catch(() => []);
+			input.config.logger?.log("Recovering missing interactive session", {
+				sessionId: missingSessionId,
+				messageCount: messages.length,
+				error,
+				severity: "warn",
+			});
+			sessionStartGeneration += 1;
+			pendingResumeSessionId = undefined;
+			startupPromise = undefined;
+			startupError = undefined;
+			clearActiveSession();
+			await startFreshSession(messages);
+		})().finally(() => {
+			missingSessionRecoveryPromise = undefined;
+		});
+		return await missingSessionRecoveryPromise;
+	};
+
 	const stopCurrentSession = async (): Promise<void> => {
 		const sessionId = activeSessionId;
 		if (sessionManager && sessionId) {
@@ -334,10 +367,29 @@ export function createInteractiveSessionRuntime(input: {
 				? startupError
 				: new Error("interactive session manager is unavailable");
 		}
-		return await sessionManager.send({
-			sessionId: activeSessionId,
-			...turnInput,
-		});
+		const manager = sessionManager;
+		try {
+			return await manager.send({
+				sessionId: activeSessionId,
+				...turnInput,
+			});
+		} catch (error) {
+			if (
+				abortRequested ||
+				shutdownRequested ||
+				!isSessionNotFoundError(error)
+			) {
+				throw error;
+			}
+			await recoverMissingActiveSession(error);
+			if (!activeSessionId || abortRequested || shutdownRequested) {
+				throw error;
+			}
+			return await manager.send({
+				sessionId: activeSessionId,
+				...turnInput,
+			});
+		}
 	};
 
 	const updatePendingPrompt = async (input: {
@@ -550,20 +602,20 @@ export function createInteractiveSessionRuntime(input: {
 			let exitSummary: InteractiveExitSummary | undefined;
 			try {
 				await startupPromise?.catch(() => {});
+				await missingSessionRecoveryPromise?.catch(() => {});
 			} finally {
 				unsubscribeAgent();
 				unsubscribePendingPrompts();
 			}
 			try {
 				exitSummary = await getExitSummary();
+				// Mark hooks shut down before session disposal so late abort/stop
+				// emissions cannot dispatch over a closing hub transport.
+				await runtimeHooks?.shutdown();
 				await stopCurrentSession();
 			} finally {
-				try {
-					if (sessionManager) {
-						await sessionManager.dispose("cli_interactive_shutdown");
-					}
-				} finally {
-					await runtimeHooks?.shutdown();
+				if (sessionManager) {
+					await sessionManager.dispose("cli_interactive_shutdown");
 				}
 			}
 			return exitSummary;

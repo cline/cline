@@ -217,6 +217,24 @@ class ControlledStopError extends Error {
 	}
 }
 
+export class AgentRuntimeAbortError extends Error {
+	readonly reason?: unknown;
+
+	constructor(reason?: unknown) {
+		const message =
+			typeof reason === "string"
+				? reason
+				: reason instanceof Error
+					? reason.message
+					: reason === undefined
+						? "Run aborted"
+						: String(reason);
+		super(message);
+		this.name = "AgentRuntimeAbortError";
+		this.reason = reason;
+	}
+}
+
 const DEFAULT_USAGE: AgentUsage = {
 	inputTokens: 0,
 	outputTokens: 0,
@@ -390,16 +408,12 @@ export class AgentRuntime {
 		if (!this.abortController) {
 			return;
 		}
-		const message =
-			typeof reason === "string"
+		const abortError =
+			reason instanceof AgentRuntimeAbortError
 				? reason
-				: reason instanceof Error
-					? reason.message
-					: reason === undefined
-						? undefined
-						: String(reason);
-		this.state.lastError = message ?? "Run aborted";
-		this.abortController.abort(new Error(this.state.lastError));
+				: new AgentRuntimeAbortError(reason);
+		this.state.lastError = abortError.message;
+		this.abortController.abort(abortError);
 	}
 
 	subscribe(listener: AgentEventListener): () => void {

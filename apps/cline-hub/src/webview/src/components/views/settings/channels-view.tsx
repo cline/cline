@@ -42,6 +42,13 @@ type ConnectorField = {
 	placeholder?: string;
 	required?: boolean;
 	help?: string[];
+	initialValue?: string;
+	options?: Array<{ value: string; label: string; hint?: string }>;
+	includeWhen?: {
+		flag: string;
+		equals?: string;
+		notEquals?: string;
+	};
 };
 
 type ConnectorSecurityField = {
@@ -55,7 +62,7 @@ type ConnectorSecurityField = {
 type ConnectorChannel = {
 	id: string;
 	name: string;
-	type: "polling" | "webhook";
+	type: "polling" | "webhook" | "hybrid";
 	hint: string;
 	fields: ConnectorField[];
 	security?: {
@@ -76,6 +83,7 @@ type ActiveConnector = {
 	phoneNumberId?: string;
 	port?: number;
 	baseUrl?: string;
+	connectionMode?: string;
 };
 
 type ConnectorChannelsResponse = {
@@ -142,10 +150,41 @@ function isMultilineField(field: ConnectorField): boolean {
 	return label.includes("json") || field.flag.includes("credentials");
 }
 
+function shouldIncludeField(
+	field: ConnectorField,
+	values: Record<string, string>,
+): boolean {
+	const condition = field.includeWhen;
+	if (!condition) {
+		return true;
+	}
+	const value = values[condition.flag] ?? "";
+	if (condition.equals !== undefined && value !== condition.equals) {
+		return false;
+	}
+	if (condition.notEquals !== undefined && value === condition.notEquals) {
+		return false;
+	}
+	return true;
+}
+
+function initialValuesForChannel(
+	channel?: ConnectorChannel,
+): Record<string, string> {
+	const values: Record<string, string> = {};
+	for (const field of channel?.fields ?? []) {
+		if (field.initialValue) {
+			values[field.flag] = field.initialValue;
+		}
+	}
+	return values;
+}
+
 function createFormState(channels: ConnectorChannel[]): ConnectorFormState {
+	const channel = channels[0];
 	return {
-		channelId: channels[0]?.id ?? "",
-		values: {},
+		channelId: channel?.id ?? "",
+		values: initialValuesForChannel(channel),
 		securityEnabled: false,
 		securityValues: {},
 	};
@@ -175,6 +214,15 @@ export function ChannelsContent() {
 		() => channels.find((channel) => channel.id === formState.channelId),
 		[channels, formState.channelId],
 	);
+	const visibleFields = useMemo(() => {
+		const values = {
+			...initialValuesForChannel(selectedChannel),
+			...formState.values,
+		};
+		return (selectedChannel?.fields ?? []).filter((field) =>
+			shouldIncludeField(field, values),
+		);
+	}, [selectedChannel, formState.values]);
 
 	const applyResponse = useCallback((response: ConnectorChannelsResponse) => {
 		setChannels(response.available);
@@ -233,6 +281,9 @@ export function ChannelsContent() {
 			return;
 		}
 		for (const field of selectedChannel.fields) {
+			if (!visibleFields.includes(field)) {
+				continue;
+			}
 			if (field.required && !formState.values[field.flag]?.trim()) {
 				setFormError(`${field.label} is required`);
 				return;
@@ -376,6 +427,11 @@ export function ChannelsContent() {
 											<span className="rounded-md border bg-background px-1.5 py-0.5">
 												{formatDateTime(connector.startedAt)}
 											</span>
+											{connector.connectionMode ? (
+												<span className="rounded-md border bg-background px-1.5 py-0.5">
+													{connector.connectionMode}
+												</span>
+											) : null}
 										</div>
 									</div>
 									<Button
@@ -413,7 +469,9 @@ export function ChannelsContent() {
 									}
 									setFormState({
 										channelId: value,
-										values: {},
+										values: initialValuesForChannel(
+											channels.find((channel) => channel.id === value),
+										),
 										securityEnabled: false,
 										securityValues: {},
 									});
@@ -433,7 +491,7 @@ export function ChannelsContent() {
 							</Select>
 						</div>
 
-						{selectedChannel?.fields.map((field) => (
+						{visibleFields.map((field) => (
 							<div className="grid gap-2" key={field.flag}>
 								<Label>
 									{field.label}
@@ -441,7 +499,29 @@ export function ChannelsContent() {
 										<span className="text-destructive"> *</span>
 									) : null}
 								</Label>
-								{isMultilineField(field) ? (
+								{field.options ? (
+									<Select
+										onValueChange={(value) => {
+											if (value) {
+												updateFieldValue(field.flag, value);
+											}
+										}}
+										value={
+											formState.values[field.flag] ?? field.initialValue ?? ""
+										}
+									>
+										<SelectTrigger>
+											<SelectValue placeholder={field.placeholder} />
+										</SelectTrigger>
+										<SelectContent>
+											{field.options.map((option) => (
+												<SelectItem key={option.value} value={option.value}>
+													{option.label}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+								) : isMultilineField(field) ? (
 									<Textarea
 										onChange={(event) =>
 											updateFieldValue(field.flag, event.target.value)
