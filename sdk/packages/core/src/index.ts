@@ -385,7 +385,12 @@ export type {
 	StartSessionInput,
 	StartSessionResult,
 } from "./runtime/host/runtime-host";
-export { splitCoreSessionConfig } from "./runtime/host/runtime-host";
+export {
+	isSessionNotFoundError,
+	SESSION_NOT_FOUND_ERROR_CODE,
+	SessionNotFoundError,
+	splitCoreSessionConfig,
+} from "./runtime/host/runtime-host";
 export {
 	createTeamName,
 	DefaultRuntimeBuilder,
@@ -401,11 +406,6 @@ export {
 	isRuleEnabled,
 	mergeRulesForSystemPrompt,
 } from "./runtime/safety/rules";
-export {
-	isRuntimeSessionNotFoundError,
-	RUNTIME_SESSION_NOT_FOUND_ERROR_CODE,
-	RuntimeSessionNotFoundError,
-} from "./runtime/session-errors";
 export {
 	type SandboxCallOptions,
 	SubprocessSandbox,
@@ -441,6 +441,11 @@ export {
 	listPluginTools,
 	listPluginToolsWithDiagnostics,
 } from "./services/plugin-tools";
+export type {
+	PluginUninstallOptions,
+	PluginUninstallResult,
+} from "./services/plugin-uninstall";
+export { uninstallPlugin } from "./services/plugin-uninstall";
 export {
 	addLocalProvider,
 	type DeleteLocalProviderRequest,

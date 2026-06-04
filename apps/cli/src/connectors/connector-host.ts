@@ -4,7 +4,7 @@ import {
 	type ChatRunTurnRequest,
 	type ChatStartSessionRequest,
 	type HubSessionClient,
-	isRuntimeSessionNotFoundError,
+	isSessionNotFoundError,
 	type UserInstructionConfigService,
 } from "@cline/core";
 import type { SentMessage, Thread } from "chat";
@@ -90,8 +90,11 @@ function isConnectorRuntimeSessionMissingError(
 	error: unknown,
 	sessionId: string,
 ): boolean {
-	if (isRuntimeSessionNotFoundError(error, sessionId)) {
-		return true;
+	if (isSessionNotFoundError(error)) {
+		const missingSessionId = (error as { sessionId?: unknown }).sessionId;
+		return (
+			typeof missingSessionId !== "string" || missingSessionId === sessionId
+		);
 	}
 	// Some chat delivery adapters consume async iterables internally and rethrow
 	// plain Errors, which drops the structured HubCommandError code.

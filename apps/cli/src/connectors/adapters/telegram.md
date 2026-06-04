@@ -76,7 +76,15 @@ cline connect telegram -k "$TELEGRAM_BOT_TOKEN" --no-tools
 
 When the connector starts with `--no-tools`, chat commands such as `/tools on` and `/yolo on` cannot re-enable tools for that connector run.
 
-For participant restrictions, run the interactive connector wizard with `cline connect` or pass a `--hook-command` that returns `{"action":"deny"}` for unauthorized `session.authorize` events. If no hook is configured, messages are allowed.
+For participant restrictions, run the interactive connector wizard with `cline connect`. The Telegram wizard asks whether to restrict access, points you to `@userinfobot`, and configures your numeric Telegram user ID.
+
+You can also pass the user ID directly:
+
+```bash
+cline connect telegram -k "$TELEGRAM_BOT_TOKEN" --allowed-user-id 12345
+```
+
+You can also pass a manual `--hook-command` that returns `{"action":"deny"}` for unauthorized `session.authorize` events. If neither access option is configured, messages are allowed.
 
 ## Message Delivery
 

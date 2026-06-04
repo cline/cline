@@ -1,5 +1,14 @@
+import type { ConnectSlackOptions } from "@cline/shared";
+import { type Message, ThreadImpl } from "chat";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { __test__ } from "./slack";
+import { __test__, slackConnector } from "./slack";
+
+const parseSlackArgs = (rawArgs: string[]): ConnectSlackOptions =>
+	(
+		slackConnector as unknown as {
+			parseArgs(rawArgs: string[]): ConnectSlackOptions;
+		}
+	).parseArgs(rawArgs);
 
 describe("slack binding lookup", () => {
 	const participantKey = __test__.buildSlackParticipantKey("T123", "U123");
@@ -19,6 +28,56 @@ describe("slack binding lookup", () => {
 				"http://127.0.0.1:8787",
 			]).botToken,
 		).toBe("xoxb-documented-token");
+	});
+
+	it("infers Slack webhook mode from a base URL", () => {
+		expect(__test__.inferSlackConnectionMode("https://example.test")).toBe(
+			"webhook",
+		);
+		expect(__test__.inferSlackConnectionMode("  ")).toBe("socket");
+		expect(__test__.inferSlackConnectionMode(undefined)).toBe("socket");
+	});
+
+	it("uses webhook mode when Slack args include a base URL", () => {
+		const options = parseSlackArgs([
+			"--bot-token",
+			"xoxb-token",
+			"--signing-secret",
+			"secret",
+			"--app-token",
+			"xapp-ignored",
+			"--base-url",
+			"https://example.test",
+		]);
+
+		expect(options.connectionMode).toBe("webhook");
+		expect(options.baseUrl).toBe("https://example.test");
+		expect(options.signingSecret).toBe("secret");
+		expect(options.appToken).toBeUndefined();
+	});
+
+	it("uses socket mode when Slack args omit a base URL", () => {
+		const previousBaseUrl = process.env.BASE_URL;
+		delete process.env.BASE_URL;
+		let options: ConnectSlackOptions;
+		try {
+			options = parseSlackArgs([
+				"--bot-token",
+				"xoxb-token",
+				"--app-token",
+				"xapp-token",
+			]);
+		} finally {
+			if (previousBaseUrl === undefined) {
+				delete process.env.BASE_URL;
+			} else {
+				process.env.BASE_URL = previousBaseUrl;
+			}
+		}
+
+		expect(options.connectionMode).toBe("socket");
+		expect(options.baseUrl).toBeUndefined();
+		expect(options.appToken).toBe("xapp-token");
 	});
 
 	it("falls back to channel identity when a restarted connector gets a new thread id", () => {
@@ -483,6 +542,105 @@ describe("slack binding lookup", () => {
 
 		expect(fallbackPost).toHaveBeenCalledWith(
 			"<@U08LK8A7YTC> shipped the fix.",
+		);
+	});
+
+	it("normalizes top-level channel mentions to the original Slack post thread", () => {
+		const original = new ThreadImpl({
+			adapterName: "slack",
+			channelId: "slack:C123",
+			id: "slack:C123:",
+			isDM: false,
+		});
+		const message = {
+			raw: {
+				channel: "C123",
+				text: "<@U999> help",
+				ts: "1710000000.123456",
+				type: "app_mention",
+				user: "U123",
+			},
+		} as Message;
+
+		const normalized = __test__.resolveSlackChannelMentionThread(
+			original,
+			message,
+		);
+
+		expect(normalized.id).toBe("slack:C123:1710000000.123456");
+		expect(normalized.channelId).toBe("slack:C123");
+		expect(normalized.isDM).toBe(false);
+	});
+
+	it("uses Slack thread_ts instead of reply ts for in-thread mentions", () => {
+		const original = new ThreadImpl({
+			adapterName: "slack",
+			channelId: "slack:C123",
+			id: "slack:C123:1710000001.654321",
+			isDM: false,
+		});
+		const message = {
+			raw: {
+				channel: "C123",
+				text: "<@U999> follow up",
+				thread_ts: "1710000000.123456",
+				ts: "1710000001.654321",
+				type: "app_mention",
+				user: "U123",
+			},
+		} as Message;
+
+		const normalized = __test__.resolveSlackChannelMentionThread(
+			original,
+			message,
+		);
+
+		expect(normalized.id).toBe("slack:C123:1710000000.123456");
+		expect(normalized.channelId).toBe("slack:C123");
+		expect(normalized.isDM).toBe(false);
+	});
+
+	it("keeps Slack mention threads that already target the original post", () => {
+		const original = new ThreadImpl({
+			adapterName: "slack",
+			channelId: "slack:C123",
+			id: "slack:C123:1710000000.123456",
+			isDM: false,
+		});
+		const message = {
+			raw: {
+				channel: "C123",
+				text: "<@U999> help",
+				ts: "1710000000.123456",
+				type: "app_mention",
+				user: "U123",
+			},
+		} as Message;
+
+		expect(__test__.resolveSlackChannelMentionThread(original, message)).toBe(
+			original,
+		);
+	});
+
+	it("does not rewrite Slack DM mention threads", () => {
+		const original = new ThreadImpl({
+			adapterName: "slack",
+			channelId: "slack:D123",
+			id: "slack:D123:",
+			isDM: true,
+		});
+		const message = {
+			raw: {
+				channel: "D123",
+				text: "help",
+				ts: "1710000000.123456",
+				type: "message",
+				user: "U123",
+			},
+		} as Message;
+
+		expect(__test__.resolveSlackChannelMentionThread(original, message)).toBe(
+			original,
 		);
 	});
 

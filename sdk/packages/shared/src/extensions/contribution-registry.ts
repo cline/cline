@@ -135,6 +135,7 @@ const ExtensionCapabilityOptions = [
 	"tools",
 	"commands",
 	"rules",
+	"skills",
 	"messageBuilders",
 	"providers",
 	"automationEvents",

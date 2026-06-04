@@ -1,8 +1,9 @@
 import type { AgentToolContext, HubEventEnvelope } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
-import type {
-	StartSessionInput,
-	StartSessionResult,
+import {
+	SessionNotFoundError,
+	type StartSessionInput,
+	type StartSessionResult,
 } from "../../runtime/host/runtime-host";
 import { createLocalHubScheduleRuntimeHandlers } from "../daemon/runtime-handlers";
 import { HubServerTransport } from "../server";
@@ -849,6 +850,58 @@ describe("HubServerTransport boundaries", () => {
 				}),
 			]),
 		);
+	});
+
+	it("returns session_not_found when a run starts against a stale active session", async () => {
+		const runTurn = vi
+			.fn()
+			.mockRejectedValue(new SessionNotFoundError("stale-session"));
+		const transport = createTransport({
+			sessionHost: {
+				runTurn,
+				getSession: vi.fn().mockResolvedValue({
+					sessionId: "stale-session",
+					source: "cli",
+					pid: 123,
+					startedAt: new Date(0).toISOString(),
+					status: "running",
+					interactive: true,
+					provider: "cline",
+					model: "test-model",
+					cwd: "/tmp/project",
+					workspaceRoot: "/tmp/project",
+					enableTools: true,
+					enableSpawn: true,
+					enableTeams: false,
+					updatedAt: new Date(0).toISOString(),
+				}),
+			},
+		});
+		const events: HubEventEnvelope[] = [];
+		transport.subscribe("client-1", (event) => events.push(event));
+
+		const reply = await transport.handleCommand({
+			version: "v1",
+			requestId: "req-stale-run",
+			command: "run.start",
+			clientId: "client-1",
+			sessionId: "stale-session",
+			payload: { prompt: "continue" },
+		});
+
+		expect(runTurn).toHaveBeenCalledWith(
+			expect.objectContaining({ sessionId: "stale-session" }),
+		);
+		expect(reply).toMatchObject({
+			version: "v1",
+			requestId: "req-stale-run",
+			ok: false,
+			error: {
+				code: "session_not_found",
+				message: "session not found: stale-session",
+			},
+		});
+		expect(events.some((event) => event.event === "run.failed")).toBe(false);
 	});
 
 	it("forwards run file attachment paths to the session host", async () => {

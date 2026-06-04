@@ -5,7 +5,8 @@ import type {
 	ToolApprovalRequest,
 	ToolApprovalResult,
 } from "@cline/core";
-import type { AgentTool } from "@cline/shared";
+import { SessionNotFoundError } from "@cline/core";
+import type { AgentTool, Message } from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatCommandState } from "../../utils/chat-commands";
 import type { Config } from "../../utils/types";
@@ -112,7 +113,7 @@ function makeManager() {
 		abort: vi.fn(),
 		dispose: vi.fn(),
 		get: vi.fn(),
-		readMessages: vi.fn(async () => []),
+		readMessages: vi.fn(async (): Promise<Message[]> => []),
 		readTranscript: vi.fn(),
 		ingestHookEvent: vi.fn(),
 		subscribe: vi.fn(),
@@ -122,6 +123,31 @@ function makeManager() {
 		},
 		restore: vi.fn(),
 	};
+}
+
+function makeTurnResult() {
+	return {
+		text: "ok",
+		usage: { inputTokens: 0, outputTokens: 0 },
+		messages: [],
+		toolCalls: [],
+		iterations: 1,
+		finishReason: "completed" as const,
+		model: { id: "openai/gpt-5.3-codex", provider: "cline" },
+		startedAt: new Date("2026-01-01T00:00:00.000Z"),
+		endedAt: new Date("2026-01-01T00:00:00.100Z"),
+		durationMs: 100,
+	};
+}
+
+function deferred<T>() {
+	let resolve!: (value: T) => void;
+	let reject!: (error?: unknown) => void;
+	const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+		resolve = resolvePromise;
+		reject = rejectPromise;
+	});
+	return { promise, resolve, reject };
 }
 
 function makeRuntime(
@@ -230,5 +256,85 @@ describe("createInteractiveSessionRuntime", () => {
 		expect(manager.stop).toHaveBeenCalledWith("session-1");
 		expect(manager.start).toHaveBeenCalledTimes(2);
 		expect(runtime.getActiveSessionId()).toBe("session-2");
+	});
+
+	it("recovers and retries when the active interactive session disappeared", async () => {
+		const manager = makeManager();
+		const messages = [
+			{
+				role: "user" as const,
+				content: [{ type: "text" as const, text: "hi" }],
+			},
+		];
+		manager.readMessages.mockResolvedValue(messages);
+		manager.send
+			.mockRejectedValueOnce(new SessionNotFoundError("session-1"))
+			.mockResolvedValueOnce(makeTurnResult());
+		const runtime = makeRuntime(manager);
+
+		await runtime.ensureReady();
+		const result = await runtime.sendCurrentTurn({
+			prompt: "second hi",
+			mode: "act",
+		});
+
+		expect(result?.finishReason).toBe("completed");
+		expect(manager.readMessages).toHaveBeenCalledWith("session-1");
+		expect(manager.start).toHaveBeenCalledTimes(2);
+		expect(manager.start).toHaveBeenNthCalledWith(
+			2,
+			expect.objectContaining({
+				initialMessages: messages,
+			}),
+		);
+		expect(manager.send).toHaveBeenNthCalledWith(
+			1,
+			expect.objectContaining({ sessionId: "session-1" }),
+		);
+		expect(manager.send).toHaveBeenNthCalledWith(
+			2,
+			expect.objectContaining({ sessionId: "session-2" }),
+		);
+		expect(runtime.getActiveSessionId()).toBe("session-2");
+	});
+
+	it("waits for missing-session recovery before cleanup disposes the manager", async () => {
+		const manager = makeManager();
+		const recoveryRead = deferred<Message[]>();
+		manager.readMessages
+			.mockImplementationOnce(() => recoveryRead.promise)
+			.mockResolvedValue([]);
+		manager.get.mockResolvedValue(undefined);
+		manager.getAccumulatedUsage.mockResolvedValue(undefined);
+		manager.send.mockRejectedValueOnce(new SessionNotFoundError("session-1"));
+		const runtime = makeRuntime(manager);
+
+		await runtime.ensureReady();
+		const sendPromise = runtime
+			.sendCurrentTurn({
+				prompt: "second hi",
+				mode: "act",
+			})
+			.catch((error) => error);
+		await vi.waitFor(() => {
+			expect(manager.readMessages).toHaveBeenCalledWith("session-1");
+		});
+
+		let cleanupSettled = false;
+		const cleanupPromise = runtime.cleanup().finally(() => {
+			cleanupSettled = true;
+		});
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		expect(cleanupSettled).toBe(false);
+		expect(manager.get).not.toHaveBeenCalled();
+		expect(manager.dispose).not.toHaveBeenCalled();
+
+		recoveryRead.resolve([]);
+		await cleanupPromise;
+		const sendError = await sendPromise;
+
+		expect(sendError).toBeInstanceOf(SessionNotFoundError);
+		expect(manager.dispose).toHaveBeenCalledWith("cli_interactive_shutdown");
 	});
 });

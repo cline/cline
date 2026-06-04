@@ -234,6 +234,8 @@ export function useRootKeyboard(input: {
 				const abortStarted = input.onAbort();
 				if (abortStarted) {
 					session.setAbortRequested(true);
+					session.setIsStreaming(false);
+					session.closeInlineStream();
 				}
 			} else if (selectedQueuedPromptId) {
 				queuedSelection.select(null);

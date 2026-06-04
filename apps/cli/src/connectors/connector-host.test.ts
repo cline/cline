@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { RUNTIME_SESSION_NOT_FOUND_ERROR_CODE } from "@cline/core";
+import { SESSION_NOT_FOUND_ERROR_CODE } from "@cline/core";
 import type { SentMessage } from "chat";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { handleConnectorUserTurn } from "./connector-host";
@@ -1444,7 +1444,7 @@ describe("handleConnectorUserTurn", () => {
 			label: "structured runtime error",
 			createError: () =>
 				Object.assign(new Error("session not found: stale-session"), {
-					code: RUNTIME_SESSION_NOT_FOUND_ERROR_CODE,
+					code: SESSION_NOT_FOUND_ERROR_CODE,
 				}),
 		},
 		{
@@ -1554,7 +1554,7 @@ describe("handleConnectorUserTurn", () => {
 		const sendRuntimeSession = vi.fn(async (sessionId: string) => {
 			if (sessionId === "stale-session") {
 				throw Object.assign(new Error("session not found: stale-session"), {
-					code: RUNTIME_SESSION_NOT_FOUND_ERROR_CODE,
+					code: SESSION_NOT_FOUND_ERROR_CODE,
 				});
 			}
 			throw new Error("retry failed");
@@ -1634,7 +1634,7 @@ describe("handleConnectorUserTurn", () => {
 		const sendRuntimeSession = vi.fn(async (sessionId: string) => {
 			if (sessionId === "stale-session") {
 				throw Object.assign(new Error("session not found: stale-session"), {
-					code: RUNTIME_SESSION_NOT_FOUND_ERROR_CODE,
+					code: SESSION_NOT_FOUND_ERROR_CODE,
 				});
 			}
 			return {

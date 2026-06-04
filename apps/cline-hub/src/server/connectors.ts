@@ -2,7 +2,10 @@ import { spawn } from "node:child_process";
 import process from "node:process";
 import { listConnectorCatalog } from "../../../cli/src/connectors/catalog";
 import { listActiveConnectors } from "../../../cli/src/connectors/status";
-import { PLATFORMS } from "../../../cli/src/wizards/connect/platforms";
+import {
+	PLATFORMS,
+	shouldIncludeField,
+} from "../../../cli/src/wizards/connect/platforms";
 import type {
 	WebviewConnectorChannel,
 	WebviewConnectorChannelsResponse,
@@ -27,6 +30,9 @@ export function connectorChannelsPayload(): WebviewConnectorChannelsResponse {
 			placeholder: field.placeholder,
 			required: field.required,
 			help: field.help,
+			initialValue: field.initialValue,
+			options: field.options,
+			includeWhen: field.includeWhen,
 		})),
 		security: platform.security
 			? {
@@ -104,9 +110,21 @@ function buildConnectorStartArgs(args?: Record<string, unknown>): string[] {
 		throw new Error(`connector channel is not available: ${channel}`);
 	}
 	const values = asRecord(args?.values) ?? {};
+	const fieldValues: Record<string, string> = {};
+	for (const field of platform.fields) {
+		const rawValue = values[field.flag];
+		if (typeof rawValue === "string") {
+			fieldValues[field.flag] = rawValue.trim();
+		} else if (field.initialValue) {
+			fieldValues[field.flag] = field.initialValue;
+		}
+	}
 	const cliArgs = [channel];
 	for (const field of platform.fields) {
-		const value = asString(values[field.flag]);
+		if (!shouldIncludeField(field, fieldValues)) {
+			continue;
+		}
+		const value = fieldValues[field.flag];
 		if (!value) {
 			if (field.required) throw new Error(`${field.label} is required`);
 			continue;
@@ -124,10 +142,7 @@ function buildConnectorStartArgs(args?: Record<string, unknown>): string[] {
 			if (validationError) throw new Error(validationError);
 			hookValues[field.key] = value;
 		}
-		cliArgs.push(
-			"--hook-command",
-			platform.security.buildHookCommand(hookValues),
-		);
+		cliArgs.push(...platform.security.buildArgs(hookValues));
 	}
 	return cliArgs;
 }
