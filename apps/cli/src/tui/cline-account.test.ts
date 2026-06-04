@@ -32,6 +32,28 @@ vi.mock("@cline/core", () => {
 				coreMocks.saveProviderSettings(settings, options);
 			}
 		},
+		formatProviderOAuthApiKey: (
+			providerId: string,
+			credentials: { access: string },
+		) =>
+			providerId === "cline" && !credentials.access.startsWith("workos:")
+				? `workos:${credentials.access}`
+				: credentials.access,
+		getPersistedProviderApiKey: (
+			_providerId: string,
+			settings?: {
+				auth?: { accessToken?: string; apiKey?: string };
+				apiKey?: string;
+			},
+		) =>
+			settings?.auth?.accessToken?.trim() ||
+			settings?.apiKey?.trim() ||
+			settings?.auth?.apiKey?.trim() ||
+			undefined,
+		isOAuthProvider: (providerId: string) =>
+			providerId === "cline" ||
+			providerId === "oca" ||
+			providerId === "openai-codex",
 		getValidClineCredentials: coreMocks.getValidClineCredentials,
 	};
 });
