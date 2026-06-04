@@ -651,10 +651,6 @@
 			"destination": "/core-workflows/using-commands#smol"
 		},
 		{
-			"source": "/features/slash-commands/explain-changes",
-			"destination": "/core-workflows/using-commands#explain-changes"
-		},
-		{
 			"source": "/features/slash-commands/new-rule",
 			"destination": "/core-workflows/using-commands#newrule"
 		},

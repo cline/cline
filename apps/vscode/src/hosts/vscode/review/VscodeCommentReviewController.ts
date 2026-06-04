@@ -1,5 +1,5 @@
 import * as vscode from "vscode"
-import { CommentReviewController, type OnReplyCallback, type ReviewComment } from "@/integrations/editor/CommentReviewController"
+import { CommentReviewController, type ReviewComment } from "@/integrations/editor/CommentReviewController"
 import { Logger } from "@/shared/services/Logger"
 import { DIFF_VIEW_URI_SCHEME } from "../VscodeDiffViewProvider"
 
@@ -26,13 +26,6 @@ export class VscodeCommentReviewController extends CommentReviewController imple
 		super()
 		// Create the comment controller
 		this.commentController = vscode.comments.createCommentController("cline-ai-review", "Cline AI Review")
-	}
-
-	/**
-	 * Set the callback for handling user replies
-	 */
-	setOnReplyCallback(_callback: OnReplyCallback): void {
-		// Replies are disabled for generated review comments.
 	}
 
 	/**
