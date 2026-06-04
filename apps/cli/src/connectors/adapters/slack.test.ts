@@ -243,6 +243,34 @@ describe("slack binding lookup", () => {
 		expect(normalized.isDM).toBe(false);
 	});
 
+	it("uses Slack thread_ts instead of reply ts for in-thread mentions", () => {
+		const original = new ThreadImpl({
+			adapterName: "slack",
+			channelId: "slack:C123",
+			id: "slack:C123:1710000001.654321",
+			isDM: false,
+		});
+		const message = {
+			raw: {
+				channel: "C123",
+				text: "<@U999> follow up",
+				thread_ts: "1710000000.123456",
+				ts: "1710000001.654321",
+				type: "app_mention",
+				user: "U123",
+			},
+		} as Message;
+
+		const normalized = __test__.resolveSlackChannelMentionThread(
+			original,
+			message,
+		);
+
+		expect(normalized.id).toBe("slack:C123:1710000000.123456");
+		expect(normalized.channelId).toBe("slack:C123");
+		expect(normalized.isDM).toBe(false);
+	});
+
 	it("keeps Slack mention threads that already target the original post", () => {
 		const original = new ThreadImpl({
 			adapterName: "slack",

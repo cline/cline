@@ -200,15 +200,8 @@ function extractSlackMessageRecord(
 	return asRecord(record?.event) ?? asRecord(record?.message) ?? record;
 }
 
-function extractSlackChannelFromThreadId(threadId: string): string | undefined {
-	const parts = threadId.split(":");
-	return parts[0] === "slack" ? readString(parts[1]) : undefined;
-}
-
-function extractSlackChannelFromChannelId(
-	channelId: string,
-): string | undefined {
-	const parts = channelId.split(":");
+function extractSlackChannelFromId(id: string): string | undefined {
+	const parts = id.split(":");
 	return parts[0] === "slack" ? readString(parts[1]) : undefined;
 }
 
@@ -226,8 +219,8 @@ function resolveSlackChannelMentionThread(
 	}
 	const channel =
 		readString(event?.channel) ??
-		extractSlackChannelFromThreadId(thread.id) ??
-		extractSlackChannelFromChannelId(thread.channelId);
+		extractSlackChannelFromId(thread.id) ??
+		extractSlackChannelFromId(thread.channelId);
 	if (!channel) {
 		return thread;
 	}
