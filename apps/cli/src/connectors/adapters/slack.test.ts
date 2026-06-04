@@ -1,4 +1,5 @@
 import type { ConnectSlackOptions } from "@cline/shared";
+import { type Message, ThreadImpl } from "chat";
 import { describe, expect, it } from "vitest";
 import { __test__, slackConnector } from "./slack";
 
@@ -212,6 +213,77 @@ describe("slack binding lookup", () => {
 		};
 		expect(__test__.normalizeSlackMessageEventChannelType(channelEvent)).toBe(
 			channelEvent,
+		);
+	});
+
+	it("normalizes top-level channel mentions to the original Slack post thread", () => {
+		const original = new ThreadImpl({
+			adapterName: "slack",
+			channelId: "slack:C123",
+			id: "slack:C123:",
+			isDM: false,
+		});
+		const message = {
+			raw: {
+				channel: "C123",
+				text: "<@U999> help",
+				ts: "1710000000.123456",
+				type: "app_mention",
+				user: "U123",
+			},
+		} as Message;
+
+		const normalized = __test__.resolveSlackChannelMentionThread(
+			original,
+			message,
+		);
+
+		expect(normalized.id).toBe("slack:C123:1710000000.123456");
+		expect(normalized.channelId).toBe("slack:C123");
+		expect(normalized.isDM).toBe(false);
+	});
+
+	it("keeps Slack mention threads that already target the original post", () => {
+		const original = new ThreadImpl({
+			adapterName: "slack",
+			channelId: "slack:C123",
+			id: "slack:C123:1710000000.123456",
+			isDM: false,
+		});
+		const message = {
+			raw: {
+				channel: "C123",
+				text: "<@U999> help",
+				ts: "1710000000.123456",
+				type: "app_mention",
+				user: "U123",
+			},
+		} as Message;
+
+		expect(__test__.resolveSlackChannelMentionThread(original, message)).toBe(
+			original,
+		);
+	});
+
+	it("does not rewrite Slack DM mention threads", () => {
+		const original = new ThreadImpl({
+			adapterName: "slack",
+			channelId: "slack:D123",
+			id: "slack:D123:",
+			isDM: true,
+		});
+		const message = {
+			raw: {
+				channel: "D123",
+				text: "help",
+				ts: "1710000000.123456",
+				type: "message",
+				user: "U123",
+			},
+		} as Message;
+
+		expect(__test__.resolveSlackChannelMentionThread(original, message)).toBe(
+			original,
 		);
 	});
 
