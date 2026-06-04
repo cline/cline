@@ -1,13 +1,9 @@
+import { ClineDefaultTool } from "@shared/tools"
 import { expect } from "chai"
 import { describe, it } from "mocha"
-import { ClineDefaultTool } from "@shared/tools"
 import type { ToolUse } from ".."
 import { parseAssistantMessageV2 } from "../parse-assistant-message"
-import {
-	findJsonToolSpans,
-	mergeJsonToolUsesFallback,
-	stripJsonToolPayloadsFromDisplayText,
-} from "../parse-json-tool-use"
+import { findJsonToolSpans, mergeJsonToolUsesFallback, stripJsonToolPayloadsFromDisplayText } from "../parse-json-tool-use"
 
 function toolUses(blocks: ReturnType<typeof parseAssistantMessageV2>): ToolUse[] {
 	return blocks.filter((block): block is ToolUse => block.type === "tool_use")
@@ -44,7 +40,8 @@ describe("parseAssistantMessageV2 JSON fallback", () => {
 	})
 
 	it("parses OpenAI function wrapper shape with stringified arguments", () => {
-		const message = '{"function":{"name":"execute_command","arguments":"{\\"command\\":\\"npm test\\",\\"requires_approval\\":false}"}}'
+		const message =
+			'{"function":{"name":"execute_command","arguments":"{\\"command\\":\\"npm test\\",\\"requires_approval\\":false}"}}'
 
 		const tools = toolUses(parseAssistantMessageV2(message))
 
@@ -170,6 +167,25 @@ describe("stripJsonToolPayloadsFromDisplayText", () => {
 		const text = 'Example: {"foo": "bar"} is not a tool call.'
 
 		expect(stripJsonToolPayloadsFromDisplayText(text)).to.equal(text)
+	})
+
+	it("removes standalone task_progress JSON from display text", () => {
+		const json = '{"task_progress": "- [x] Read hello_test.py\\n- [ ] Write file"}'
+		const text = `Editing now.\n${json}`
+
+		expect(stripJsonToolPayloadsFromDisplayText(text)).to.equal("Editing now.")
+	})
+
+	it("removes trailing incomplete task_progress JSON during streaming", () => {
+		const text = 'Updating checklist {"task_progress": "- [x] done'
+
+		expect(stripJsonToolPayloadsFromDisplayText(text)).to.equal("Updating checklist")
+	})
+
+	it("removes task_progress XML blocks from display text", () => {
+		const text = "Done.<task_progress>\n- [x] a\n</task_progress>"
+
+		expect(stripJsonToolPayloadsFromDisplayText(text)).to.equal("Done.")
 	})
 })
 

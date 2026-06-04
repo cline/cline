@@ -41,10 +41,7 @@ function parseArgsField(field: unknown): Record<string, unknown> {
 	return {}
 }
 
-function normalizeFunctionShape(
-	fn: Record<string, unknown>,
-	allowedNames: Set<string>,
-): ParsedJsonTool | undefined {
+function normalizeFunctionShape(fn: Record<string, unknown>, allowedNames: Set<string>): ParsedJsonTool | undefined {
 	const name = typeof fn.name === "string" ? fn.name : undefined
 	if (!name || !allowedNames.has(name)) {
 		return undefined
@@ -234,17 +231,110 @@ export function findJsonToolSpans(message: string): JsonToolSpan[] {
 	return spans
 }
 
-const PARTIAL_JSON_TOOL_OPENERS = ['{"tool_calls"', '{"function"', '{"name"'] as const
+interface JsonDisplaySpan {
+	start: number
+	end: number
+}
 
 /**
- * Strips trailing incomplete JSON that looks like a streaming tool payload (no closing `}` yet).
- * Uses tool-shaped openers (not last `{`) so nested `arguments:{` does not confuse the cut point.
+ * Local models sometimes emit focus-chain updates as a standalone JSON object
+ * `{"task_progress":"..."}` instead of (or outside) a normal tool payload.
  */
-function stripTrailingPartialJsonToolPayload(text: string): string {
+function tryParseTaskProgressOnlySpan(text: string, start: number): JsonDisplaySpan | undefined {
+	const end = findBalancedJsonEnd(text, start)
+	if (end === undefined) {
+		return undefined
+	}
+
+	let parsed: unknown
+	try {
+		parsed = JSON.parse(text.slice(start, end))
+	} catch {
+		return undefined
+	}
+
+	if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+		return undefined
+	}
+
+	const record = parsed as Record<string, unknown>
+	if (typeof record.task_progress !== "string") {
+		return undefined
+	}
+
+	// Valid tool payloads are removed by findJsonToolSpans (includes embedded task_progress).
+	if (extractToolsFromJsonValue(parsed, getAllowedToolNames()).length > 0) {
+		return undefined
+	}
+
+	return { start, end }
+}
+
+export function findTaskProgressJsonSpans(message: string): JsonDisplaySpan[] {
+	const spans: JsonDisplaySpan[] = []
+	let i = 0
+
+	while (i < message.length) {
+		if (message[i] === "{") {
+			const span = tryParseTaskProgressOnlySpan(message, i)
+			if (span) {
+				spans.push(span)
+				i = span.end
+				continue
+			}
+		}
+		i++
+	}
+
+	return spans
+}
+
+function mergeNonOverlappingSpans(spans: JsonDisplaySpan[]): JsonDisplaySpan[] {
+	if (spans.length === 0) {
+		return []
+	}
+	const sorted = [...spans].sort((a, b) => a.start - b.start || a.end - b.end)
+	const merged: JsonDisplaySpan[] = []
+	for (const span of sorted) {
+		const last = merged[merged.length - 1]
+		if (last && span.start < last.end) {
+			continue
+		}
+		merged.push(span)
+	}
+	return merged
+}
+
+function removeJsonSpansFromText(text: string, spans: JsonDisplaySpan[]): string {
+	if (spans.length === 0) {
+		return text
+	}
+	let assembled = ""
+	let cursor = 0
+	for (const span of spans) {
+		assembled += text.slice(cursor, span.start)
+		cursor = span.end
+	}
+	assembled += text.slice(cursor)
+	return assembled
+}
+
+const PARTIAL_JSON_DISPLAY_OPENERS = [
+	'{"tool_calls"',
+	'{"function"',
+	'{"name"',
+	'{"task_progress"',
+] as const
+
+/**
+ * Strips trailing incomplete JSON that looks like a streaming tool or task_progress payload.
+ * Uses shaped openers (not last `{`) so nested `arguments:{` does not confuse the cut point.
+ */
+function stripTrailingPartialJsonDisplayPayload(text: string): string {
 	const trimmedEnd = text.trimEnd()
 	let cutIndex = -1
 
-	for (const opener of PARTIAL_JSON_TOOL_OPENERS) {
+	for (const opener of PARTIAL_JSON_DISPLAY_OPENERS) {
 		const idx = trimmedEnd.lastIndexOf(opener)
 		if (idx === -1) {
 			continue
@@ -266,7 +356,7 @@ function stripTrailingPartialJsonToolPayload(text: string): string {
 }
 
 /**
- * Removes JSON tool-call payloads from assistant text before it is shown in the chat UI.
+ * Removes JSON tool-call and task_progress payloads from assistant text before chat display.
  * Mirrors XML/function_calls cleanup in Task.presentAssistantMessage: parsing may already
  * have produced tool_use blocks, but streaming can still have pushed raw JSON as text first.
  */
@@ -275,20 +365,13 @@ export function stripJsonToolPayloadsFromDisplayText(text: string): string {
 		return text
 	}
 
-	const spans = findJsonToolSpans(text)
-	let result = text
-	if (spans.length > 0) {
-		let assembled = ""
-		let cursor = 0
-		for (const span of spans) {
-			assembled += text.slice(cursor, span.start)
-			cursor = span.end
-		}
-		assembled += text.slice(cursor)
-		result = assembled
-	}
+	const toolSpans = findJsonToolSpans(text).map((span) => ({ start: span.start, end: span.end }))
+	const displaySpans = mergeNonOverlappingSpans([...toolSpans, ...findTaskProgressJsonSpans(text)])
+	let result = removeJsonSpansFromText(text, displaySpans)
 
-	return stripTrailingPartialJsonToolPayload(result)
+	result = result.replace(/<task_progress>[\s\S]*?<\/task_progress>/g, "")
+
+	return stripTrailingPartialJsonDisplayPayload(result).trimEnd()
 }
 
 function buildToolUseBlock(tool: ParsedJsonTool): ToolUse {
@@ -319,10 +402,7 @@ function pushTextBlock(blocks: AssistantMessageContent[], content: string, parti
  * raw assistant message and emit the same `ToolUse` structures the XML path would have produced.
  * XML results are returned unchanged when any tool_use is already present.
  */
-export function mergeJsonToolUsesFallback(
-	message: string,
-	xmlBlocks: AssistantMessageContent[],
-): AssistantMessageContent[] {
+export function mergeJsonToolUsesFallback(message: string, xmlBlocks: AssistantMessageContent[]): AssistantMessageContent[] {
 	if (xmlBlocks.some((block) => block.type === "tool_use")) {
 		return xmlBlocks
 	}
