@@ -49,6 +49,7 @@ export interface ProviderAuthHandler {
 	): Promise<ProviderOAuthCredentials | null>;
 	saveCredentials(input: ProviderAuthSaveCredentialsInput): ProviderSettings;
 	isConfigured(settings: ProviderSettings | undefined): boolean;
+	normalizeStoredAccessToken?(accessToken: string): string;
 }
 
 function formatClineApiKey(accessToken: string): string {
@@ -192,6 +193,7 @@ function createOAuthHandler(input: {
 		isConfigured(settings) {
 			return !!settings?.auth?.accessToken;
 		},
+		normalizeStoredAccessToken: input.normalizeStoredAccessToken,
 	};
 }
 
@@ -306,8 +308,7 @@ export function getProviderOAuthCredentialsFromSettings(
 	const handler = getProviderAuthHandler(providerId);
 	if (!handler) return null;
 	return createCredentialsFromSettings(settings, {
-		normalizeAccessToken:
-			providerId === "cline" ? stripClineApiKeyPrefix : undefined,
+		normalizeAccessToken: handler.normalizeStoredAccessToken,
 	});
 }
 
