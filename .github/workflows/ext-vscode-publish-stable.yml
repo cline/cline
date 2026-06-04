@@ -114,11 +114,13 @@ jobs:
               with:
                   node-version: 22
 
-            - name: Install root dependencies
-              run: npm install --include=optional
+            - name: Install extension dependencies
+              working-directory: ${{ github.workspace }}
+              run: npm --prefix apps/vscode install --include=optional
 
             - name: Install webview-ui dependencies
-              run: cd webview-ui && npm install --include=optional
+              working-directory: ${{ github.workspace }}
+              run: npm --prefix apps/vscode/webview-ui install --include=optional
 
             - name: Install Publishing Tools
               run: npm install -g @vscode/vsce ovsx

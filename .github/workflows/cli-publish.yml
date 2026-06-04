@@ -33,7 +33,7 @@ permissions:
 
 defaults:
   run:
-    working-directory: sdk
+    working-directory: .
 
 jobs:
   publish-main:
@@ -105,12 +105,12 @@ jobs:
           PACKAGE_VERSION=$(node -p "require('./apps/cli/package.json').version")
 
           if [ "$PACKAGE_VERSION" != "$VERSION" ]; then
-            echo "sdk/apps/cli/package.json version ${PACKAGE_VERSION} does not match ${TAG}"
+            echo "apps/cli/package.json version ${PACKAGE_VERSION} does not match ${TAG}"
             exit 1
           fi
 
           if ! printf "%s\n" "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
-            echo "sdk/apps/cli/package.json has invalid version: ${VERSION}"
+            echo "apps/cli/package.json has invalid version: ${VERSION}"
             exit 1
           fi
 
@@ -147,7 +147,7 @@ jobs:
 
       - name: Build platform binaries
         run: bun script/build.ts --install-native-variants --skip-sdk-build
-        working-directory: sdk/apps/cli
+        working-directory: apps/cli
         env:
           TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
           ERROR_SERVICE_API_KEY: ${{ secrets.ERROR_SERVICE_API_KEY }}
@@ -194,7 +194,7 @@ jobs:
         env:
           NPM_CONFIG_PROVENANCE: "true"
         run: bun script/publish-npm.ts --tag latest
-        working-directory: sdk/apps/cli
+        working-directory: apps/cli
 
       - name: Get Previous CLI Tag
         id: prev_tag
@@ -375,7 +375,7 @@ jobs:
       - name: Build platform binaries
         if: steps.check_commits.outputs.skip != 'true'
         run: bun script/build.ts --install-native-variants --skip-sdk-build
-        working-directory: sdk/apps/cli
+        working-directory: apps/cli
         env:
           TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
           ERROR_SERVICE_API_KEY: ${{ secrets.ERROR_SERVICE_API_KEY }}
@@ -424,7 +424,7 @@ jobs:
         env:
           NPM_CONFIG_PROVENANCE: "true"
         run: bun script/publish-npm.ts --tag nightly
-        working-directory: sdk/apps/cli
+        working-directory: apps/cli
 
       - name: Summary
         if: steps.check_commits.outputs.skip != 'true'

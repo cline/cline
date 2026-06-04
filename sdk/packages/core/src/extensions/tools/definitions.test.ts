@@ -1,10 +1,17 @@
+import type { ITelemetryService } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
+	CLINE_INTERNAL_TELEMETRY_METADATA_KEY,
+	getToolContextTelemetry,
+} from "../../services/telemetry/tool-context";
+import {
+	createBashTool,
 	createDefaultTools,
 	createReadFilesTool,
 	createSkillsTool,
 	createWindowsShellTool,
 } from "./definitions";
+import { TimeoutError } from "./helpers";
 import { INPUT_ARG_CHAR_LIMIT } from "./schemas";
 import type { SkillsExecutorWithMetadata } from "./types";
 
@@ -409,6 +416,41 @@ describe("default apply_patch tool", () => {
 });
 
 describe("default run_commands tool", () => {
+	function createTelemetryStub(): ITelemetryService {
+		return {
+			capture: vi.fn(),
+			captureRequired: vi.fn(),
+			setDistinctId: vi.fn(),
+			setMetadata: vi.fn(),
+			updateMetadata: vi.fn(),
+			setCommonProperties: vi.fn(),
+			updateCommonProperties: vi.fn(),
+			isEnabled: vi.fn(() => true),
+			recordCounter: vi.fn(),
+			recordHistogram: vi.fn(),
+			recordGauge: vi.fn(),
+			flush: vi.fn(async () => {}),
+			dispose: vi.fn(async () => {}),
+		};
+	}
+
+	function capturedTimeoutEvents(telemetry: ITelemetryService) {
+		return (telemetry.capture as ReturnType<typeof vi.fn>).mock.calls
+			.map((call) => call[0])
+			.filter((event) => event.event === "sdk.tool_timeout");
+	}
+
+	it("reads telemetry from the internal metadata key", () => {
+		const telemetry = createTelemetryStub();
+
+		expect(
+			getToolContextTelemetry({
+				telemetry: "user-defined-label",
+				[CLINE_INTERNAL_TELEMETRY_METADATA_KEY]: telemetry,
+			}),
+		).toBe(telemetry);
+	});
+
 	it("accepts object input with commands as a single string", async () => {
 		const execute = vi.fn(async (command: string | { command: string }) =>
 			typeof command === "string" ? `ran:${command}` : `ran:${command.command}`,
@@ -551,10 +593,184 @@ describe("default run_commands tool", () => {
 			}),
 		);
 	});
+
+	it("emits timeout telemetry without leaking raw command data", async () => {
+		const execute = vi.fn(
+			async (): Promise<string> =>
+				await new Promise((resolve) => setTimeout(() => resolve("ok"), 20)),
+		);
+		const tool = createWindowsShellTool(execute, { bashTimeoutMs: 5 });
+		const telemetry = createTelemetryStub();
+
+		const result = await tool.execute(
+			{
+				commands: [
+					{
+						command: process.execPath,
+						args: ["-e", "console.log('secret-token')"],
+					},
+					"pwd",
+				],
+			} as never,
+			{
+				sessionId: "session-1",
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				runId: "run-1",
+				iteration: 1,
+				toolCallId: "tool-call-1",
+				metadata: {
+					[CLINE_INTERNAL_TELEMETRY_METADATA_KEY]: telemetry,
+					mode: "act",
+					source: "sdk-test",
+				},
+			},
+		);
+
+		expect(result).toEqual([
+			expect.objectContaining({ success: false }),
+			expect.objectContaining({ success: false }),
+		]);
+		const timeoutCalls = capturedTimeoutEvents(telemetry);
+		expect(timeoutCalls).toHaveLength(2);
+		for (const call of timeoutCalls) {
+			expect(call.properties).toMatchObject({
+				tool_name: "run_commands",
+				effective_timeout_ms: 5,
+				timeout_source: "configured_setting",
+				command_count: 2,
+				ulid: "session-1",
+				mode: "act",
+				source: "sdk-test",
+				session_id: "session-1",
+				agent_id: "agent-1",
+				conversation_id: "conv-1",
+				run_id: "run-1",
+				iteration: 1,
+				tool_call_id: "tool-call-1",
+			});
+			expect(typeof call.properties.duration_ms).toBe("number");
+			const payload = JSON.stringify(call.properties);
+			expect(payload).not.toContain("secret-token");
+			expect(payload).not.toContain("pwd");
+			expect(payload).not.toContain("stdout");
+			expect(payload).not.toContain("stderr");
+			expect(payload).not.toContain("env");
+			expect(call.properties).not.toHaveProperty("command");
+			expect(call.properties).not.toHaveProperty("commands");
+		}
+	});
+
+	it("emits timeout telemetry for executor TimeoutError only", async () => {
+		const telemetry = createTelemetryStub();
+		const executorTimeout = vi.fn(async () => {
+			throw new TimeoutError("Command timed out after 5000ms", 5000);
+		});
+		const plainFailure = vi.fn(async () => {
+			throw new Error("Command timed out after 5000ms");
+		});
+
+		await createWindowsShellTool(executorTimeout, {
+			bashTimeoutMs: 5000,
+		}).execute({ commands: ["echo timeout"] } as never, {
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			iteration: 1,
+			metadata: { [CLINE_INTERNAL_TELEMETRY_METADATA_KEY]: telemetry },
+		});
+		await createWindowsShellTool(plainFailure, { bashTimeoutMs: 5000 }).execute(
+			{ commands: ["echo not-timeout"] } as never,
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 2,
+				metadata: { [CLINE_INTERNAL_TELEMETRY_METADATA_KEY]: telemetry },
+			},
+		);
+
+		const timeoutCalls = capturedTimeoutEvents(telemetry);
+		expect(timeoutCalls).toHaveLength(1);
+		expect(timeoutCalls[0]?.properties).toMatchObject({
+			effective_timeout_ms: 5000,
+			timeout_source: "configured_setting",
+			command_count: 1,
+		});
+	});
+
+	it("emits timeout telemetry on the default bash tool path", async () => {
+		const telemetry = createTelemetryStub();
+		const execute = vi.fn(
+			async (): Promise<string> =>
+				await new Promise((resolve) => setTimeout(() => resolve("ok"), 20)),
+		);
+		const tool = createBashTool(execute, { bashTimeoutMs: 5 });
+
+		const result = await tool.execute(
+			{ commands: ["echo secret-token", "pwd"] },
+			{
+				sessionId: "session-1",
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				runId: "run-1",
+				iteration: 1,
+				toolCallId: "tool-call-1",
+				metadata: {
+					[CLINE_INTERNAL_TELEMETRY_METADATA_KEY]: telemetry,
+					mode: "act",
+					source: "sdk-test",
+				},
+			},
+		);
+
+		expect(result).toEqual([
+			expect.objectContaining({ success: false }),
+			expect.objectContaining({ success: false }),
+		]);
+		const timeoutCalls = capturedTimeoutEvents(telemetry);
+		expect(timeoutCalls).toHaveLength(2);
+		for (const call of timeoutCalls) {
+			expect(call.properties).toMatchObject({
+				tool_name: "run_commands",
+				effective_timeout_ms: 5,
+				timeout_source: "configured_setting",
+				command_count: 2,
+				ulid: "session-1",
+				mode: "act",
+				source: "sdk-test",
+				session_id: "session-1",
+				agent_id: "agent-1",
+				conversation_id: "conv-1",
+				run_id: "run-1",
+				iteration: 1,
+				tool_call_id: "tool-call-1",
+			});
+			expect(typeof call.properties.duration_ms).toBe("number");
+			const payload = JSON.stringify(call.properties);
+			expect(payload).not.toContain("secret-token");
+			expect(payload).not.toContain("pwd");
+			expect(call.properties).not.toHaveProperty("command");
+			expect(call.properties).not.toHaveProperty("commands");
+		}
+	});
+
+	it("does not emit timeout telemetry for normal command success", async () => {
+		const execute = vi.fn(async () => "ok");
+		const tool = createWindowsShellTool(execute, { bashTimeoutMs: 50 });
+		const telemetry = createTelemetryStub();
+
+		await tool.execute({ commands: ["echo hi"] } as never, {
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			iteration: 1,
+			metadata: { [CLINE_INTERNAL_TELEMETRY_METADATA_KEY]: telemetry },
+		});
+
+		expect(capturedTimeoutEvents(telemetry)).toEqual([]);
+	});
 });
 
 describe("default read_files tool", () => {
-	it("normalizes ranged file requests and passes them to the executor", async () => {
+	it("validates ranged file requests and passes them to the executor", async () => {
 		const execute = vi.fn(async () => "selected lines");
 		const tool = createReadFilesTool(execute);
 
@@ -596,7 +812,7 @@ describe("default read_files tool", () => {
 		);
 	});
 
-	it("keeps legacy string inputs reading full file content", async () => {
+	it("accepts string union inputs reading full file content", async () => {
 		const execute = vi.fn(async () => "full file");
 		const tool = createReadFilesTool(execute);
 
@@ -653,6 +869,58 @@ describe("default read_files tool", () => {
 			{ path: "/tmp/c.ts" },
 			expect.objectContaining({ iteration: 2 }),
 		);
+	});
+
+	it("accepts files aliases with string paths from model-generated read requests", async () => {
+		const execute = vi.fn(
+			async (request: { path: string }) => `content:${request.path}`,
+		);
+		const tool = createReadFilesTool(execute);
+
+		await tool.execute(
+			{ files: ["/tmp/a.ts", { path: "/tmp/b.ts", end_line: 4 }] } as never,
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+		await tool.execute({ files: "/tmp/c.ts" } as never, {
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			iteration: 2,
+		});
+
+		expect(execute).toHaveBeenNthCalledWith(
+			1,
+			{ path: "/tmp/a.ts" },
+			expect.objectContaining({ iteration: 1 }),
+		);
+		expect(execute).toHaveBeenNthCalledWith(
+			2,
+			{ path: "/tmp/b.ts", end_line: 4 },
+			expect.objectContaining({ iteration: 1 }),
+		);
+		expect(execute).toHaveBeenNthCalledWith(
+			3,
+			{ path: "/tmp/c.ts" },
+			expect.objectContaining({ iteration: 2 }),
+		);
+	});
+
+	it("rejects invalid union inputs before calling the executor", async () => {
+		const execute = vi.fn(async () => "should not run");
+		const tool = createReadFilesTool(execute);
+
+		await expect(
+			tool.execute({ paths: ["/tmp/a.ts", 42] } as never, {
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			}),
+		).rejects.toThrow();
+
+		expect(execute).not.toHaveBeenCalled();
 	});
 
 	it("treats null line bounds as full-file boundaries", async () => {

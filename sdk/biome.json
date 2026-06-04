@@ -126,7 +126,7 @@
 			}
 		},
 		{
-			"includes": ["apps/cli/src/tui/**"],
+			"includes": ["../apps/cli/src/tui/**"],
 			"linter": {
 				"rules": {
 					"a11y": {

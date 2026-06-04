@@ -4000,33 +4000,6 @@ export const xaiModels = {
 export type SambanovaModelId = keyof typeof sambanovaModels
 export const sambanovaDefaultModelId: SambanovaModelId = "Meta-Llama-3.3-70B-Instruct"
 export const sambanovaModels = {
-	"DeepSeek-R1-0528": {
-		maxTokens: 7168,
-		contextWindow: 131072,
-		supportsImages: false,
-		supportsPromptCache: false,
-		temperature: 0.6,
-		inputPrice: 5.0,
-		outputPrice: 7.0,
-	},
-	"DeepSeek-R1-Distill-Llama-70B": {
-		maxTokens: 4096,
-		contextWindow: 131072,
-		supportsImages: false,
-		supportsPromptCache: false,
-		temperature: 0.6,
-		inputPrice: 0.7,
-		outputPrice: 1.4,
-	},
-	"DeepSeek-V3-0324": {
-		maxTokens: 7168,
-		contextWindow: 131072,
-		supportsImages: false,
-		supportsPromptCache: false,
-		temperature: 0.3,
-		inputPrice: 3.0,
-		outputPrice: 4.5,
-	},
 	"DeepSeek-V3.1": {
 		maxTokens: 7168,
 		contextWindow: 131072,
@@ -4036,9 +4009,9 @@ export const sambanovaModels = {
 		inputPrice: 3.0,
 		outputPrice: 4.5,
 	},
-	"DeepSeek-V3.1-Terminus": {
+	"DeepSeek-V3.2": {
 		maxTokens: 7168,
-		contextWindow: 131072,
+		contextWindow: 32768,
 		supportsImages: false,
 		supportsPromptCache: false,
 		temperature: 0.6,
@@ -4054,15 +4027,6 @@ export const sambanovaModels = {
 		inputPrice: 0.63,
 		outputPrice: 1.8,
 	},
-	"Meta-Llama-3.1-8B-Instruct": {
-		maxTokens: 4096,
-		contextWindow: 16384,
-		supportsImages: false,
-		supportsPromptCache: false,
-		temperature: 0.6,
-		inputPrice: 0.1,
-		outputPrice: 0.2,
-	},
 	"Meta-Llama-3.3-70B-Instruct": {
 		maxTokens: 3072,
 		contextWindow: 131072,
@@ -4072,32 +4036,14 @@ export const sambanovaModels = {
 		inputPrice: 0.6,
 		outputPrice: 1.2,
 	},
-	"MiniMax-M2.5": {
-		maxTokens: 16384,
-		contextWindow: 163840,
+	"MiniMax-M2.7": {
+		maxTokens: 196608,
+		contextWindow: 196608,
 		supportsImages: false,
 		supportsPromptCache: false,
 		temperature: 1.0,
-		inputPrice: 0.3,
-		outputPrice: 1.2,
-	},
-	"Qwen3-235B": {
-		maxTokens: 4096,
-		contextWindow: 65536,
-		supportsImages: false,
-		supportsPromptCache: false,
-		temperature: 0.7,
-		inputPrice: 0.4,
-		outputPrice: 0.8,
-	},
-	"Qwen3-32B": {
-		maxTokens: 4096,
-		contextWindow: 32768,
-		supportsImages: false,
-		supportsPromptCache: false,
-		temperature: 0.6,
-		inputPrice: 0.4,
-		outputPrice: 0.8,
+		inputPrice: 0.6,
+		outputPrice: 2.4,
 	},
 } as const satisfies Record<string, ModelInfo>
 
@@ -5197,6 +5143,34 @@ export const qwenCodeDefaultModelId: QwenCodeModelId = "qwen3-coder-plus"
 export type MinimaxModelId = keyof typeof minimaxModels
 export const minimaxDefaultModelId: MinimaxModelId = "MiniMax-M2.7"
 export const minimaxModels = {
+	"MiniMax-M3": {
+		maxTokens: 32_000,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		inputPrice: 0.6,
+		outputPrice: 2.4,
+		cacheWritesPrice: 0.6,
+		cacheReadsPrice: 0.12,
+		tiers: [
+			{
+				contextWindow: 512_000,
+				inputPrice: 0.6,
+				outputPrice: 2.4,
+				cacheWritesPrice: 0.6,
+				cacheReadsPrice: 0.12,
+			},
+			{
+				contextWindow: Number.MAX_SAFE_INTEGER,
+				inputPrice: 1.2,
+				outputPrice: 4.8,
+				cacheWritesPrice: 1.2,
+				cacheReadsPrice: 0.24,
+			},
+		],
+		description: "Latest M-series model for coding, agentic reasoning, tool use, and long-context multimodal tasks",
+	},
 	"MiniMax-M2.7": {
 		maxTokens: 128_000,
 		contextWindow: 192_000,

@@ -11,7 +11,10 @@ import type {
 } from "@cline/shared";
 import { hasRuntimeConfigExtension } from "@cline/shared";
 import { decodeJwtPayload } from "../auth/utils";
-import { resolveAndLoadAgentPlugins } from "../extensions/plugin/plugin-config-loader";
+import {
+	resolveAndLoadAgentPlugins,
+	resolvePluginSkillDirectoriesFromPaths,
+} from "../extensions/plugin/plugin-config-loader";
 import type {
 	PluginInitializationFailure,
 	PluginInitializationWarning,
@@ -383,6 +386,9 @@ export async function prepareLocalRuntimeBootstrap(
 			filterExtensionToolRegistrations(loadedPlugins?.extensions),
 		),
 	);
+	const pluginSkillDirectories = hasConfigExtension(configExtensions, "plugins")
+		? resolvePluginSkillDirectoriesFromPaths(loadedPlugins?.pluginPaths ?? [])
+		: undefined;
 	const baseConfig: CoreSessionConfig = {
 		...input.config,
 		...(localConfig ?? {}),
@@ -453,6 +459,7 @@ export async function prepareLocalRuntimeBootstrap(
 			createSpawnTool,
 			onTeamRestored: onTeamRestored,
 			userInstructionService: userInstructionService,
+			pluginSkillDirectories,
 			configExtensions: configExtensions,
 			toolExecutors: effectiveToolExecutors,
 			workspaceManager,

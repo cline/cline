@@ -1,4 +1,10 @@
-import { createGateway, MODEL_COLLECTIONS_BY_PROVIDER_ID } from "@cline/llms";
+import {
+	createGateway,
+	createHandlerAsync,
+	hasRegisteredHandler,
+	MODEL_COLLECTIONS_BY_PROVIDER_ID,
+	normalizeProviderId,
+} from "@cline/llms";
 import type {
 	AgentConfig,
 	AgentModel,
@@ -7,6 +13,7 @@ import type {
 	ITelemetryService,
 	ModelInfo,
 } from "@cline/shared";
+import { createAgentModelFromApiHandler } from "./apihandler-agent-model-adapter";
 import type { ProviderConfig } from "./provider-settings";
 
 function compactOptions(
@@ -145,6 +152,23 @@ export function createAgentModelFromConfig(
 		logger,
 		extensionContext: config.extensionContext,
 	};
+
+	// Host-registered custom handlers (e.g. VS Code LM, which needs the host's
+	// `vscode.lm` API) are not part of the gateway. When a handler is registered
+	// for this provider, adapt its `ApiHandler` surface onto the `AgentModel`
+	// contract the runtime expects. The handler is built lazily (via
+	// `createHandlerAsync`) on the first stream so that providers registered
+	// with `registerAsyncHandler` resolve correctly.
+	if (
+		hasRegisteredHandler(
+			normalizeProviderId(normalizedProviderConfig.providerId),
+		)
+	) {
+		return createAgentModelFromApiHandler(() =>
+			createHandlerAsync(normalizedProviderConfig),
+		);
+	}
+
 	return createGateway({
 		providerConfigs: [
 			{

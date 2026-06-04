@@ -446,6 +446,39 @@ describe("plugin-sandbox", () => {
 		}
 	});
 
+	it("respects CLINE_PLUGIN_IMPORT_TIMEOUT_MS env var when options.importTimeoutMs is unset", async () => {
+		const envDir = await mkdtemp(
+			join(tmpdir(), "core-plugin-sandbox-import-env-"),
+		);
+		try {
+			const pluginPath = join(envDir, "plugin-import-hang.mjs");
+			// Top-level await that never resolves — module import never
+			// completes, so the initialize call must hit the timeout.
+			await writeFile(
+				pluginPath,
+				[
+					"await new Promise(() => {});",
+					"export default {",
+					"  name: 'sandbox-import-hang',",
+					"  manifest: { capabilities: ['tools'] },",
+					"};",
+				].join("\n"),
+				"utf8",
+			);
+
+			// Set env override well below the 4000 ms hardcoded default.
+			// If the env var isn't read, this test would block for ~4 s and
+			// the per-test timeout (3000 ms below) would fail it.
+			vi.stubEnv("CLINE_PLUGIN_IMPORT_TIMEOUT_MS", "150");
+			await expect(
+				loadSandboxedPlugins({ pluginPaths: [pluginPath] }),
+			).rejects.toThrow(/timed out/i);
+		} finally {
+			vi.unstubAllEnvs();
+			await rm(envDir, { recursive: true, force: true });
+		}
+	}, 3000);
+
 	it("forwards sandbox plugin events to the host", async () => {
 		const extension = sharedExtensions.get("sandbox-events");
 		const { tools, api } = createApiCapture();

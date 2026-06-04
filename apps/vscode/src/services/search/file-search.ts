@@ -155,8 +155,7 @@ async function resolveRipgrepPath(): Promise<string> {
 
 async function findSystemRipgrep(): Promise<string> {
 	const fallback = process.platform === "win32" ? "rg.exe" : "rg"
-	const candidates =
-		process.platform === "win32" ? [] : ["/usr/bin/rg", "/opt/homebrew/bin/rg", "/usr/local/bin/rg"]
+	const candidates = process.platform === "win32" ? [] : ["/usr/bin/rg", "/opt/homebrew/bin/rg", "/usr/local/bin/rg"]
 
 	for (const candidate of candidates) {
 		try {

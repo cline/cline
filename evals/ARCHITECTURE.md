@@ -235,7 +235,7 @@ npx tsx evals/smoke-tests/run-smoke-tests.ts --trials 1
 
 ### Re-enabling CI
 
-The old workflow built the legacy CLI from `cli/`. Re-enable it only after replacing that build step with the SDK CLI under `sdk/apps/cli`.
+The old workflow built the legacy CLI from `cli/`. Re-enable it only after replacing that build step with the SDK CLI under `apps/cli`.
 
 ## Contract Tests (Layer 1)
 
