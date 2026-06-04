@@ -133,6 +133,41 @@ describe("ErrorRow", () => {
 			).toBeInTheDocument();
 		});
 
+		it("does not show Cline credits CTA for non-Cline balance errors without a provider URL", async () => {
+			const mockClineError = {
+				message: "Not enough credits available",
+				providerId: "zai",
+				isErrorType: vi.fn((type) => type === "balance"),
+				_error: {
+					code: "insufficient_credits",
+					providerId: "zai",
+					details: {
+						current_balance: 0,
+						message: "Not enough credits available",
+					},
+				},
+			};
+
+			const { ClineError } = await import(
+				"../../../../src/services/error/ClineError"
+			);
+			vi.mocked(ClineError.parse).mockReturnValue(mockClineError as any);
+
+			render(
+				<ErrorRow
+					apiRequestFailedMessage="Insufficient credits error"
+					errorType="error"
+					message={mockMessage}
+				/>,
+			);
+
+			expect(
+				screen.queryByTestId("credit-limit-error"),
+			).not.toBeInTheDocument();
+			expect(screen.getByText(/\[zai\]/)).toBeInTheDocument();
+		});
+>>>>>>> 69976c2a2 (fix zai insufficient credits issue)
+
 		it("renders rate limit error with request ID", async () => {
 			const mockClineError = {
 				message: "Rate limit exceeded",
