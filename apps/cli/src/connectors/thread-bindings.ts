@@ -1,6 +1,8 @@
 import type { SerializedThread, Thread } from "chat";
 import { readJsonFile, writeJsonFile } from "./common";
 
+export type ConnectorBindingScope = "thread" | "participant";
+
 export type ConnectorThreadState = {
 	sessionId?: string;
 	enableTools?: boolean;
@@ -8,6 +10,7 @@ export type ConnectorThreadState = {
 	cwd?: string;
 	workspaceRoot?: string;
 	systemPrompt?: string;
+	bindingScope?: ConnectorBindingScope;
 	participantKey?: string;
 	participantLabel?: string;
 	welcomeSentAt?: string;
@@ -44,6 +47,7 @@ export type ConnectorBindingThreadIdentity = Pick<
 	"id" | "channelId" | "isDM"
 > & {
 	participantKey?: string;
+	bindingScope?: ConnectorBindingScope;
 };
 
 export type ConnectorMuteTarget = {
@@ -56,6 +60,12 @@ function normalizeParticipantKey(
 ): string | undefined {
 	const trimmed = value?.trim();
 	return trimmed ? trimmed : undefined;
+}
+
+function normalizeBindingScope(
+	value: ConnectorBindingScope | undefined,
+): ConnectorBindingScope | undefined {
+	return value === "thread" || value === "participant" ? value : undefined;
 }
 
 function readSerializedThreadIdentity(
@@ -136,6 +146,12 @@ export function resolveThreadBindingKey(
 	thread: ConnectorBindingThreadIdentity,
 	state?: ConnectorThreadState | null,
 ): string {
+	if (
+		normalizeBindingScope(state?.bindingScope ?? thread.bindingScope) ===
+		"thread"
+	) {
+		return thread.id;
+	}
 	return (
 		normalizeParticipantKey(state?.participantKey ?? thread.participantKey) ??
 		thread.id
@@ -161,6 +177,12 @@ export function findBindingForThread<TState extends ConnectorThreadState>(
 	thread: ConnectorBindingThreadIdentity,
 ): { binding: ConnectorThreadBinding<TState>; key: string } | undefined {
 	const participantKey = normalizeParticipantKey(thread.participantKey);
+	if (normalizeBindingScope(thread.bindingScope) === "thread") {
+		const exact = bindings[thread.id];
+		return exact && !isControlBinding(exact)
+			? { key: thread.id, binding: exact }
+			: undefined;
+	}
 	if (participantKey) {
 		const exactThread = bindings[thread.id];
 		const exactThreadParticipantKey = normalizeParticipantKey(
@@ -213,6 +235,7 @@ export function readBindingForThread<TState extends ConnectorThreadState>(
 	thread: Thread<TState>,
 	errorLabel: string,
 	participantKey?: string,
+	bindingScope?: ConnectorBindingScope,
 ): ConnectorThreadBinding<TState> | undefined {
 	const bindings = readBindings<TState>(path);
 	const threadIdentity: ConnectorBindingThreadIdentity = {
@@ -220,34 +243,45 @@ export function readBindingForThread<TState extends ConnectorThreadState>(
 		channelId: thread.channelId,
 		isDM: thread.isDM,
 		participantKey,
+		bindingScope,
 	};
 	const match = findBindingForThread(bindings, threadIdentity);
 	if (!match) {
 		return undefined;
 	}
-	const targetKey = resolveThreadBindingKey(
-		threadIdentity,
-		match.binding.state,
-	);
+	const targetKey = resolveThreadBindingKey(threadIdentity, {
+		...(match.binding.state ?? {}),
+		...(bindingScope ? { bindingScope } : {}),
+	});
 	const normalizedParticipantKey = normalizeParticipantKey(participantKey);
+	const normalizedBindingScope = normalizeBindingScope(bindingScope);
 	const storedThread = readSerializedThreadIdentity(
 		match.binding.serializedThread,
 	);
 	const storedParticipantKey = normalizeParticipantKey(
 		match.binding.participantKey ?? match.binding.state?.participantKey,
 	);
+	const storedBindingScope = normalizeBindingScope(
+		match.binding.state?.bindingScope,
+	);
 	const needsRefresh =
 		match.key !== targetKey ||
 		storedThread?.id !== thread.id ||
 		storedThread?.channelId !== thread.channelId ||
 		storedThread?.isDM !== thread.isDM ||
-		storedParticipantKey !== normalizedParticipantKey;
+		storedParticipantKey !== normalizedParticipantKey ||
+		(normalizedBindingScope !== undefined &&
+			storedBindingScope !== normalizedBindingScope);
 	if (needsRefresh) {
 		bindings[targetKey] = {
 			...match.binding,
 			channelId: thread.channelId,
 			isDM: thread.isDM,
 			participantKey: normalizedParticipantKey ?? match.binding.participantKey,
+			state: {
+				...(match.binding.state ?? ({} as TState)),
+				...(bindingScope ? { bindingScope } : {}),
+			},
 			serializedThread: serializeThread(thread, errorLabel),
 			updatedAt: new Date().toISOString(),
 		};
@@ -278,6 +312,7 @@ export function persistThreadBinding<TState extends ConnectorThreadState>(
 ): void {
 	const bindings = readBindings<TState>(path);
 	const participantKey = normalizeParticipantKey(state.participantKey);
+	const bindingScope = normalizeBindingScope(state.bindingScope);
 	const bindingKey = resolveThreadBindingKey(
 		thread as ConnectorBindingThreadIdentity,
 		state,
@@ -289,6 +324,13 @@ export function persistThreadBinding<TState extends ConnectorThreadState>(
 		const bindingParticipantKey = normalizeParticipantKey(
 			binding.participantKey ?? binding.state?.participantKey,
 		);
+		const storedThread = readSerializedThreadIdentity(binding.serializedThread);
+		if (bindingScope === "thread") {
+			if (key !== bindingKey && storedThread?.id === thread.id) {
+				delete bindings[key];
+			}
+			continue;
+		}
 		const matchesParticipant =
 			participantKey && bindingParticipantKey === participantKey;
 		const matchesLegacyKey = participantKey && key === thread.id;
@@ -476,6 +518,10 @@ export function mergeThreadState<TState extends ConnectorThreadState>(
 			threadState?.systemPrompt ||
 			bindingState?.systemPrompt ||
 			base.systemPrompt,
+		bindingScope:
+			threadState?.bindingScope ||
+			bindingState?.bindingScope ||
+			base.bindingScope,
 		participantKey:
 			threadState?.participantKey ||
 			bindingState?.participantKey ||
@@ -495,15 +541,27 @@ export async function loadThreadState<TState extends ConnectorThreadState>(
 	thread: Thread<TState>,
 	bindingsPath: string,
 	base: ConnectorThreadState,
+	bindingScope?: ConnectorBindingScope,
 ): Promise<TState> {
 	const threadState = await thread.state;
+	const resolvedBindingScope = threadState?.bindingScope ?? bindingScope;
 	const binding = readBindingForThread<TState>(
 		bindingsPath,
 		thread,
 		"Connector",
 		threadState?.participantKey,
+		resolvedBindingScope,
 	);
-	return mergeThreadState(threadState, binding?.state, base);
+	return mergeThreadState(
+		resolvedBindingScope
+			? ({
+					...(threadState ?? {}),
+					bindingScope: resolvedBindingScope,
+				} as TState)
+			: threadState,
+		binding?.state,
+		base,
+	);
 }
 
 export function findBindingForParticipantKey<

@@ -157,6 +157,71 @@ describe("slack binding lookup", () => {
 		expect(result?.binding.sessionId).toBe("sess-1");
 	});
 
+	it("does not reuse a thread-scoped binding by participant key across Slack channel threads", () => {
+		const result = __test__.findBindingForThread(
+			{
+				"slack:C123:111.222": {
+					channelId: "slack:C123",
+					isDM: false,
+					participantKey,
+					participantLabel: "alice",
+					serializedThread: "{}",
+					sessionId: "sess-1",
+					state: {
+						sessionId: "sess-1",
+						teamId: "T123",
+						bindingScope: "thread",
+						participantKey,
+						participantLabel: "alice",
+					},
+					updatedAt: "2026-03-17T00:00:00.000Z",
+				},
+			},
+			{
+				id: "slack:C999:333.444",
+				channelId: "slack:C999",
+				isDM: false,
+				participantKey,
+				bindingScope: "thread",
+			},
+		);
+
+		expect(result).toBeUndefined();
+	});
+
+	it("can still reuse participant-scoped bindings for Slack DMs", () => {
+		const result = __test__.findBindingForThread(
+			{
+				[participantKey]: {
+					channelId: "slack:D123",
+					isDM: true,
+					participantKey,
+					participantLabel: "alice",
+					serializedThread: "{}",
+					sessionId: "sess-1",
+					state: {
+						sessionId: "sess-1",
+						teamId: "T123",
+						bindingScope: "participant",
+						participantKey,
+						participantLabel: "alice",
+					},
+					updatedAt: "2026-03-17T00:00:00.000Z",
+				},
+			},
+			{
+				id: "slack:D123",
+				channelId: "slack:D123",
+				isDM: true,
+				participantKey,
+				bindingScope: "participant",
+			},
+		);
+
+		expect(result?.key).toBe(participantKey);
+		expect(result?.binding.sessionId).toBe("sess-1");
+	});
+
 	it("builds Slack participant keys with a team scope", () => {
 		expect(__test__.buildSlackParticipantKey("T123", "U123")).toBe(
 			"slack:team:T123:user:U123",
@@ -313,6 +378,31 @@ describe("slack binding lookup", () => {
 		expect(__test__.resolveSlackChannelMentionThread(original, message)).toBe(
 			original,
 		);
+	});
+
+	it("strips a leading raw Slack app mention before command handling", () => {
+		expect(
+			__test__.resolveSlackTurnText({
+				text: "@Cline CLI Test /help",
+				raw: { text: "<@U123> /help" },
+				addressedToBot: true,
+			}),
+		).toBe("/help");
+		expect(
+			__test__.resolveSlackTurnText({
+				text: "@Other User /help",
+				raw: { text: "<@U999> /help" },
+				botUserId: "U123",
+				addressedToBot: true,
+			}),
+		).toBe("@Other User /help");
+		expect(
+			__test__.resolveSlackTurnText({
+				text: "hello <@U123> /help",
+				raw: { text: "hello <@U123> /help" },
+				addressedToBot: true,
+			}),
+		).toBe("hello <@U123> /help");
 	});
 
 	it("routes Slack posts through the installation bot token for a team", async () => {

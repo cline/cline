@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { SessionNotFoundError } from "@cline/core";
 import type { SentMessage } from "chat";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { handleConnectorUserTurn } from "./connector-host";
@@ -23,6 +24,7 @@ type TestState = {
 	cwd?: string;
 	workspaceRoot?: string;
 	systemPrompt?: string;
+	bindingScope?: "thread" | "participant";
 	participantKey?: string;
 	participantLabel?: string;
 	welcomeSentAt?: string;
@@ -298,6 +300,49 @@ describe("handleConnectorUserTurn", () => {
 		expect(posts).toEqual([]);
 		expect(getState().sessionId).toBe("session-1");
 		expect(runtime.client.abortRuntimeSession).not.toHaveBeenCalled();
+		expect(runtime.sendRuntimeSession).not.toHaveBeenCalled();
+	});
+
+	it("allows transport-addressed connector slash commands after mention stripping", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
+		tempDirs.push(dir);
+		const bindingsPath = join(dir, "threads.json");
+		const { thread, posts } = createThread(
+			{
+				enableTools: true,
+				autoApproveTools: false,
+				cwd: "/tmp/work",
+				workspaceRoot: "/tmp/work",
+				participantKey: "slack:team:T123:user:U123",
+				participantLabel: "U123",
+			},
+			false,
+		);
+		const runtime = createRuntimeClient("unused");
+
+		await handleConnectorUserTurn({
+			thread: thread as never,
+			text: "/whereami",
+			addressedToBot: true,
+			client: runtime.client as never,
+			pendingApprovals: new Map(),
+			baseStartRequest: baseStartRequest({ enableTools: true }) as never,
+			explicitSystemPrompt: undefined,
+			clientId: "client-1",
+			logger: {
+				core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+			} as never,
+			transport: "slack",
+			botUserName: "cline-slack-retest",
+			requestStop: vi.fn(),
+			bindingsPath,
+			systemRules: "rules",
+			errorLabel: "Slack",
+			getSessionMetadata: () => ({}),
+			reusedLogMessage: "reused",
+		});
+
+		expect(messageText(posts.at(-1))).toContain("threadId=thread-1");
 		expect(runtime.sendRuntimeSession).not.toHaveBeenCalled();
 	});
 
@@ -1333,6 +1378,185 @@ describe("handleConnectorUserTurn", () => {
 		expect(resolveFallbackText).toHaveBeenCalledTimes(1);
 		expect(runtime.readMessages).not.toHaveBeenCalled();
 		expect(posts).not.toContain("Previous reply.");
+	});
+
+	it("replaces stale persisted sessions when the runtime no longer has them", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
+		tempDirs.push(dir);
+		const bindingsPath = join(dir, "threads.json");
+		const { thread, posts, getState } = createThread({
+			sessionId: "stale-session",
+			enableTools: false,
+			autoApproveTools: false,
+			cwd: "/tmp/work",
+			workspaceRoot: "/tmp/work",
+			participantKey: "slack:team:T123:user:U123",
+			participantLabel: "alice",
+		});
+		const startRuntimeSession = vi.fn(async () => ({
+			sessionId: "fresh-session",
+		}));
+		const sendRuntimeSession = vi.fn(async (sessionId: string) => {
+			if (sessionId === "stale-session") {
+				throw new SessionNotFoundError("stale-session");
+			}
+			return {
+				result: {
+					text: "fresh reply",
+					finishReason: "stop",
+					iterations: 1,
+				},
+			};
+		});
+		const stopRuntimeSession = vi.fn(async () => ({ applied: true }));
+		const deleteSession = vi.fn(async () => ({ deleted: true }));
+		const onReplyFailed = vi.fn(async () => undefined);
+
+		await handleConnectorUserTurn({
+			thread: thread as never,
+			text: "hello",
+			client: {
+				startRuntimeSession,
+				updateSession: vi.fn(async () => undefined),
+				sendRuntimeSession,
+				stopRuntimeSession,
+				deleteSession,
+				abortRuntimeSession: vi.fn(async () => undefined),
+				streamEvents: vi.fn(() => () => undefined),
+			} as never,
+			pendingApprovals: new Map(),
+			baseStartRequest: baseStartRequest() as never,
+			explicitSystemPrompt: undefined,
+			clientId: "client-1",
+			logger: {
+				core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+			} as never,
+			transport: "telegram",
+			botUserName: "ClineAdapterBot",
+			requestStop: vi.fn(),
+			bindingsPath,
+			systemRules: "rules",
+			errorLabel: "Slack",
+			getSessionMetadata: () => ({}),
+			reusedLogMessage: "reused",
+			startedLogMessage: "started",
+			onReplyFailed,
+		});
+
+		expect(sendRuntimeSession).toHaveBeenNthCalledWith(
+			1,
+			"stale-session",
+			expect.anything(),
+			{ timeoutMs: null },
+		);
+		expect(sendRuntimeSession).toHaveBeenNthCalledWith(
+			2,
+			"fresh-session",
+			expect.anything(),
+			{ timeoutMs: null },
+		);
+		expect(startRuntimeSession).toHaveBeenCalledTimes(1);
+		expect(stopRuntimeSession).toHaveBeenCalledWith("stale-session");
+		expect(deleteSession).toHaveBeenCalledWith("stale-session", true);
+		expect(onReplyFailed).not.toHaveBeenCalled();
+		expect(posts.at(-1)).toEqual({ raw: "fresh reply" });
+		expect(getState().sessionId).toBe("fresh-session");
+	});
+
+	it("uses the replacement session for empty-runtime fallback after stale-session recovery", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
+		tempDirs.push(dir);
+		const bindingsPath = join(dir, "threads.json");
+		const { thread, posts, getState } = createThread({
+			sessionId: "stale-session",
+			enableTools: true,
+			autoApproveTools: true,
+			cwd: "/tmp/work",
+			workspaceRoot: "/tmp/work",
+			participantKey: "discord:user:U123",
+			participantLabel: "alice",
+		});
+		const startRuntimeSession = vi.fn(async () => ({
+			sessionId: "fresh-session",
+		}));
+		const sendRuntimeSession = vi.fn(async (sessionId: string) => {
+			if (sessionId === "stale-session") {
+				throw new Error("session not found: stale-session");
+			}
+			return {
+				result: {
+					text: "",
+					finishReason: "stop",
+					iterations: 1,
+				},
+			};
+		});
+		const stopRuntimeSession = vi.fn(async () => ({ applied: true }));
+		const deleteSession = vi.fn(async () => ({ deleted: true }));
+		const createEmptyRuntimeReplyResolver = vi.fn(
+			async ({ sessionId }: { sessionId: string }) =>
+				async () =>
+					sessionId === "fresh-session" ? "fresh fallback reply" : undefined,
+		);
+
+		await handleConnectorUserTurn({
+			thread: thread as never,
+			text: "hello",
+			client: {
+				startRuntimeSession,
+				updateSession: vi.fn(async () => undefined),
+				sendRuntimeSession,
+				stopRuntimeSession,
+				deleteSession,
+				abortRuntimeSession: vi.fn(async () => undefined),
+				streamEvents: vi.fn(() => () => undefined),
+			} as never,
+			pendingApprovals: new Map(),
+			baseStartRequest: baseStartRequest({
+				enableTools: true,
+				autoApproveTools: true,
+			}) as never,
+			explicitSystemPrompt: undefined,
+			clientId: "client-1",
+			logger: {
+				core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+			} as never,
+			transport: "discord",
+			botUserName: "ClineAdapterBot",
+			requestStop: vi.fn(),
+			bindingsPath,
+			systemRules: "rules",
+			errorLabel: "Discord",
+			getSessionMetadata: () => ({}),
+			reusedLogMessage: "reused",
+			startedLogMessage: "started",
+			createEmptyRuntimeReplyResolver: createEmptyRuntimeReplyResolver as never,
+		});
+
+		expect(createEmptyRuntimeReplyResolver).toHaveBeenNthCalledWith(
+			1,
+			expect.objectContaining({ sessionId: "stale-session" }),
+		);
+		expect(createEmptyRuntimeReplyResolver).toHaveBeenNthCalledWith(
+			2,
+			expect.objectContaining({ sessionId: "fresh-session" }),
+		);
+		expect(sendRuntimeSession).toHaveBeenNthCalledWith(
+			1,
+			"stale-session",
+			expect.anything(),
+			{ timeoutMs: null },
+		);
+		expect(sendRuntimeSession).toHaveBeenNthCalledWith(
+			2,
+			"fresh-session",
+			expect.anything(),
+			{ timeoutMs: null },
+		);
+		expect(stopRuntimeSession).toHaveBeenCalledWith("stale-session");
+		expect(deleteSession).toHaveBeenCalledWith("stale-session", true);
+		expect(posts.at(-1)).toBe("fresh fallback reply");
+		expect(getState().sessionId).toBe("fresh-session");
 	});
 
 	it("keeps Telegram empty-stream behavior from reading session history", async () => {

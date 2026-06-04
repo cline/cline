@@ -47,6 +47,7 @@ import {
 import { FileStateAdapter } from "../stores/file-state";
 import { startConnectorTaskUpdateRelay } from "../task-updates";
 import {
+	type ConnectorBindingScope,
 	type ConnectorBindingStore,
 	type ConnectorThreadBinding,
 	type ConnectorThreadState,
@@ -137,6 +138,10 @@ function readString(value: unknown): string | undefined {
 	return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
+function escapeRegExp(value: string): string {
+	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function normalizeSlackMessageEventChannelType<T>(event: T): T {
 	const record = asRecord(event);
 	const channel = readString(record?.channel);
@@ -147,6 +152,56 @@ function normalizeSlackMessageEventChannelType<T>(event: T): T {
 		...record,
 		channel_type: "im",
 	} as T;
+}
+
+function readRawSlackMessageText(rawMessage: unknown): string | undefined {
+	const raw = asRecord(rawMessage);
+	return (
+		readString(raw?.text) ||
+		readString(asRecord(raw?.event)?.text) ||
+		readString(asRecord(raw?.message)?.text)
+	);
+}
+
+function stripLeadingSlackMention(input: {
+	text: string;
+	botUserId?: string;
+	addressedToBot?: boolean;
+}): string {
+	const trimmed = input.text.trim();
+	const botId = input.botUserId?.trim();
+	if (botId) {
+		return trimmed
+			.replace(
+				new RegExp(`^<@${escapeRegExp(botId)}(?:\\|[^>]+)?>\\s*`, "i"),
+				"",
+			)
+			.trim();
+	}
+	if (!input.addressedToBot) {
+		return trimmed;
+	}
+	return trimmed.replace(/^<@[A-Z0-9]+(?:\|[^>]+)?>\s*/i, "").trim();
+}
+
+function resolveSlackTurnText(input: {
+	text: string;
+	raw: unknown;
+	botUserId?: string;
+	addressedToBot?: boolean;
+}): string {
+	const rawText = readRawSlackMessageText(input.raw);
+	if (rawText) {
+		const strippedRaw = stripLeadingSlackMention({
+			text: rawText,
+			botUserId: input.botUserId,
+			addressedToBot: input.addressedToBot,
+		});
+		if (strippedRaw !== rawText.trim()) {
+			return strippedRaw;
+		}
+	}
+	return stripLeadingSlackMention(input);
 }
 
 function buildSlackParticipantKey(teamId: string, userId: string): string {
@@ -177,6 +232,12 @@ function resolveSlackParticipant(
 		key: buildSlackParticipantKey(teamId.trim(), user),
 		label,
 	};
+}
+
+function resolveSlackBindingScope(
+	thread: Pick<Thread<SlackThreadState>, "isDM">,
+): ConnectorBindingScope {
+	return thread.isDM ? "participant" : "thread";
 }
 
 function extractSlackTeamId(raw: unknown): string | undefined {
@@ -326,9 +387,11 @@ async function persistSlackThreadContext(input: {
 		input.thread,
 		input.bindingsPath,
 		input.baseStartRequest,
+		resolveSlackBindingScope(input.thread),
 	);
 	if (
 		currentState.teamId === teamId &&
+		currentState.bindingScope === resolveSlackBindingScope(input.thread) &&
 		currentState.participantKey === participant?.key &&
 		currentState.participantLabel === participant?.label
 	) {
@@ -340,6 +403,7 @@ async function persistSlackThreadContext(input: {
 		{
 			...currentState,
 			teamId: teamId ?? currentState.teamId,
+			bindingScope: resolveSlackBindingScope(input.thread),
 			participantKey: participant?.key ?? currentState.participantKey,
 			participantLabel: participant?.label ?? currentState.participantLabel,
 		},
@@ -820,13 +884,19 @@ class SlackConnector extends ConnectorBase<
 		const handleTurn = async (
 			thread: Thread<SlackThreadState>,
 			text: string,
+			addressedToBot: boolean,
 		) => {
+			const bindingScope = resolveSlackBindingScope(thread);
 			const currentState = await loadThreadState(
 				thread,
 				bindingsPath,
 				startRequest,
+				bindingScope,
 			);
-			const queueKey = currentState.participantKey || thread.id;
+			const queueKey =
+				currentState.bindingScope === "thread"
+					? thread.id
+					: currentState.participantKey || thread.id;
 			const runTurn = async () => {
 				try {
 					await withSlackTeamBotToken({
@@ -846,6 +916,7 @@ class SlackConnector extends ConnectorBase<
 								logger: loggerAdapter,
 								transport: "slack",
 								botUserName: options.userName,
+								addressedToBot,
 								requestStop,
 								bindingsPath,
 								hookCommand: options.hookCommand,
@@ -946,6 +1017,12 @@ class SlackConnector extends ConnectorBase<
 
 		bot.onNewMention(async (thread, message) => {
 			const mentionThread = resolveSlackChannelMentionThread(thread, message);
+			const text = resolveSlackTurnText({
+				text: message.text,
+				raw: message.raw,
+				botUserId: (slack as { botUserId?: string }).botUserId,
+				addressedToBot: true,
+			});
 			await mentionThread.subscribe();
 			await persistSlackThreadContext({
 				thread: mentionThread,
@@ -957,7 +1034,7 @@ class SlackConnector extends ConnectorBase<
 			if (
 				await maybeHandleConnectorApprovalReply({
 					thread: mentionThread,
-					text: message.text,
+					text,
 					client,
 					clientId,
 					pendingApprovals,
@@ -966,10 +1043,17 @@ class SlackConnector extends ConnectorBase<
 			) {
 				return;
 			}
-			await handleTurn(mentionThread, message.text);
+			await handleTurn(mentionThread, text, true);
 		});
 
 		bot.onSubscribedMessage(async (thread, message) => {
+			const addressedToBot = message.isMention === true;
+			const text = resolveSlackTurnText({
+				text: message.text,
+				raw: message.raw,
+				botUserId: (slack as { botUserId?: string }).botUserId,
+				addressedToBot,
+			});
 			await persistSlackThreadContext({
 				thread,
 				bindingsPath,
@@ -980,7 +1064,7 @@ class SlackConnector extends ConnectorBase<
 			if (
 				await maybeHandleConnectorApprovalReply({
 					thread,
-					text: message.text,
+					text,
 					client,
 					clientId,
 					pendingApprovals,
@@ -989,7 +1073,7 @@ class SlackConnector extends ConnectorBase<
 			) {
 				return;
 			}
-			await handleTurn(thread, message.text);
+			await handleTurn(thread, text, addressedToBot);
 		});
 
 		bot.onSlashCommand(async (event) => {
@@ -1014,7 +1098,7 @@ class SlackConnector extends ConnectorBase<
 				rawMessage: event.raw,
 				errorLabel: "Slack",
 			});
-			await handleTurn(thread, commandText);
+			await handleTurn(thread, commandText, true);
 		});
 
 		await bot.initialize();
@@ -1202,13 +1286,17 @@ export const __test__ = {
 	buildSlackParticipantKey,
 	resolveSlackParticipant,
 	normalizeSlackMessageEventChannelType,
+	stripLeadingSlackMention,
+	resolveSlackTurnText,
 	resolveSlackChannelMentionThread,
+	resolveSlackBindingScope,
 	withSlackTeamBotToken,
 	isSlackInvalidThreadTsError,
 	findBindingForThread: (
 		bindings: ConnectorBindingStore<SlackThreadState>,
 		thread: Pick<Thread<SlackThreadState>, "id" | "channelId" | "isDM"> & {
 			participantKey?: string;
+			bindingScope?: ConnectorBindingScope;
 		},
 	) => findBindingForThread(bindings, thread),
 };

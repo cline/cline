@@ -1,10 +1,11 @@
 import { readFileSync } from "node:fs";
 import { basename } from "node:path";
-import type {
-	ChatRunTurnRequest,
-	ChatStartSessionRequest,
-	HubSessionClient,
-	UserInstructionConfigService,
+import {
+	type ChatRunTurnRequest,
+	type ChatStartSessionRequest,
+	type HubSessionClient,
+	isSessionNotFoundError,
+	type UserInstructionConfigService,
 } from "@cline/core";
 import type { SentMessage, Thread } from "chat";
 import type { CliLoggerAdapter } from "../logging/adapter";
@@ -83,6 +84,20 @@ async function editConnectorText(
 	text: string,
 ): Promise<SentMessage> {
 	return await message.edit(connectorTextPayload(transport, text));
+}
+
+function isConnectorRuntimeSessionMissingError(
+	error: unknown,
+	sessionId: string,
+): boolean {
+	if (isSessionNotFoundError(error)) {
+		const errorSessionId = (error as { sessionId?: unknown }).sessionId;
+		return typeof errorSessionId !== "string" || errorSessionId === sessionId;
+	}
+	return (
+		error instanceof Error &&
+		error.message === `session not found: ${sessionId}`
+	);
 }
 
 function buildAttachments(input: {
@@ -214,6 +229,7 @@ export async function handleConnectorUserTurn<
 	logger: CliLoggerAdapter;
 	transport: string;
 	botUserName?: string;
+	addressedToBot?: boolean;
 	ownerParticipantKeys?: string[];
 	requestStop: (reason: string) => void;
 	bindingsPath: string;
@@ -363,11 +379,10 @@ export async function handleConnectorUserTurn<
 		input.botUserName,
 	);
 	const isConnectorCommand = commandName !== undefined;
-	if (
-		isConnectorCommand &&
-		!input.thread.isDM &&
-		!isConnectorCommandAddressedToThisBot(resolvedInput, input.botUserName)
-	) {
+	const commandAddressedToBot =
+		input.addressedToBot ||
+		isConnectorCommandAddressedToThisBot(resolvedInput, input.botUserName);
+	if (isConnectorCommand && !input.thread.isDM && !commandAddressedToBot) {
 		input.logger.core.log("Unaddressed connector chat command ignored", {
 			transport: input.transport,
 			threadId: input.thread.id,
@@ -494,7 +509,7 @@ export async function handleConnectorUserTurn<
 		await maybeHandleChatCommand(resolvedInput, {
 			enabled: true,
 			botUserName: input.botUserName,
-			requireBotMention: !input.thread.isDM,
+			requireBotMention: !input.thread.isDM && !commandAddressedToBot,
 			host: input.chatCommandHost,
 			getState: async () => {
 				const current = await loadThreadState(
@@ -966,13 +981,10 @@ export async function handleConnectorUserTurn<
 		prompt,
 		attachments: buildAttachments({ userImages, userFiles }),
 	};
-	const resolveFallbackText = await input.createEmptyRuntimeReplyResolver?.({
-		client: input.client,
-		sessionId,
-	});
 
+	let activeSessionId = sessionId;
 	input.activeTurns?.set(turnKey, {
-		sessionId,
+		sessionId: activeSessionId,
 		threadId: input.thread.id,
 		participantKey: currentState.participantKey,
 	});
@@ -983,14 +995,31 @@ export async function handleConnectorUserTurn<
 				await input.postFinalReply?.({ thread: input.thread, text });
 			}
 		: undefined;
-	try {
+	const notifyReplyFailed = async (
+		targetSessionId: string,
+		error: unknown,
+	): Promise<void> => {
+		await input.onReplyFailed?.({
+			sessionId: targetSessionId,
+			threadId: input.thread.id,
+			error: error instanceof Error ? error : new Error(String(error)),
+		});
+	};
+	const postRuntimeReply = async (
+		targetSessionId: string,
+		targetRequest: ChatRunTurnRequest,
+	): Promise<void> => {
+		const resolveFallbackText = await input.createEmptyRuntimeReplyResolver?.({
+			client: input.client,
+			sessionId: targetSessionId,
+		});
 		await postConnectorRuntimeReply(
 			input.thread,
 			input.transport,
 			createConnectorRuntimeTurnStream({
 				client: input.client,
-				sessionId,
-				request,
+				sessionId: targetSessionId,
+				request: targetRequest,
 				clientId: input.clientId,
 				logger: input.logger,
 				transport: input.transport,
@@ -1020,24 +1049,89 @@ export async function handleConnectorUserTurn<
 				},
 				onCompleted: async (result) => {
 					await input.onReplyCompleted?.({
-						sessionId,
+						sessionId: targetSessionId,
 						threadId: input.thread.id,
 						text: result.text,
 						finishReason: result.finishReason,
 						iterations: result.iterations,
 					});
 				},
-				onFailed: async (error) => {
-					await input.onReplyFailed?.({
-						sessionId,
-						threadId: input.thread.id,
-						error,
-					});
-				},
 			}),
 			postFinalReply,
 			resolveFallbackText,
 		);
+	};
+	try {
+		try {
+			await postRuntimeReply(activeSessionId, request);
+		} catch (error) {
+			const staleSessionId = currentState.sessionId?.trim();
+			if (
+				activeSessionId !== staleSessionId ||
+				!isConnectorRuntimeSessionMissingError(error, activeSessionId)
+			) {
+				await notifyReplyFailed(activeSessionId, error);
+				throw error;
+			}
+			input.logger.core.log(
+				"Connector runtime session missing; starting replacement session",
+				{
+					severity: "warn",
+					transport: input.transport,
+					threadId: input.thread.id,
+					sessionId: activeSessionId,
+				},
+			);
+			try {
+				await clearSession({
+					thread: input.thread,
+					client: input.client,
+					bindingsPath: input.bindingsPath,
+					baseStartRequest: input.baseStartRequest,
+					errorLabel: input.errorLabel,
+				});
+				const retryState = await loadThreadState(
+					input.thread,
+					input.bindingsPath,
+					input.baseStartRequest,
+				);
+				const retryStartRequest = buildThreadStartRequest(
+					input.baseStartRequest,
+					applyForcedToolDisable(retryState, input.forceDisableTools),
+				);
+				activeSessionId = await getOrCreateSessionId({
+					thread: input.thread,
+					client: input.client,
+					startRequest: retryStartRequest,
+					logger: input.logger,
+					clientId: input.clientId,
+					transport: input.transport,
+					bindingsPath: input.bindingsPath,
+					errorLabel: input.errorLabel,
+					hookCommand: input.hookCommand,
+					hookBotUserName: input.botUserName,
+					sessionMetadata: input.getSessionMetadata(
+						input.thread,
+						input.clientId,
+						retryState,
+					),
+					reusedLogMessage: input.reusedLogMessage,
+					startedLogMessage: input.startedLogMessage,
+				});
+				input.activeTurns?.set(turnKey, {
+					sessionId: activeSessionId,
+					threadId: input.thread.id,
+					participantKey: retryState.participantKey,
+				});
+				await postRuntimeReply(activeSessionId, {
+					...request,
+					config: retryStartRequest,
+				});
+			} catch (retryError) {
+				await notifyReplyFailed(activeSessionId, retryError);
+				throw retryError;
+			}
+		}
 	} finally {
 		input.pendingApprovals.delete(input.thread.id);
 		input.activeTurns?.delete(turnKey);
@@ -1051,7 +1145,7 @@ export async function handleConnectorUserTurn<
 		input.bindingsPath,
 		{
 			...currentState,
-			sessionId,
+			sessionId: activeSessionId,
 		},
 		input.errorLabel,
 	);
