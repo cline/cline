@@ -35,6 +35,8 @@ export interface ProviderAuthSaveCredentialsInput {
 	manager: ProviderSettingsManager;
 	settings?: ProviderSettings;
 	credentials: ProviderOAuthCredentials;
+	setLastUsed?: boolean;
+	save?: boolean;
 }
 
 export interface ProviderAuthHandler {
@@ -323,13 +325,10 @@ export function saveProviderOAuthCredentials(input: {
 			`Provider "${input.providerId}" does not support OAuth credentials`,
 		);
 	}
-	return saveOAuthCredentials({
+	return handler.saveCredentials({
 		manager: input.manager,
-		storageProviderId: handler.storageProviderId,
 		settings: input.settings,
 		credentials: input.credentials,
-		formatAccessToken:
-			input.providerId === "cline" ? formatClineApiKey : undefined,
 		setLastUsed: input.setLastUsed,
 		save: input.save,
 	});
