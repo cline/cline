@@ -1,7 +1,12 @@
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import { ApiHandler, ApiProviderInfo, buildApiHandler } from "@core/api"
 import { ApiStream } from "@core/api/transform/stream"
-import { AssistantMessageContent, parseAssistantMessageV2, ToolUse } from "@core/assistant-message"
+import {
+	AssistantMessageContent,
+	parseAssistantMessageV2,
+	stripJsonToolPayloadsFromDisplayText,
+	ToolUse,
+} from "@core/assistant-message"
 import { ContextManager } from "@core/context/context-management/ContextManager"
 import { checkContextWindowExceededError } from "@core/context/context-management/context-error-handling"
 import { getContextWindowInfo } from "@core/context/context-management/context-window-utils"
@@ -2260,6 +2265,9 @@ export class Task {
 					// New claude models tend to output <function_calls> tags which we don't want to show in the chat
 					content = content.replace(/<function_calls>\s?/g, "")
 					content = content.replace(/\s?<\/function_calls>/g, "")
+
+					// Local / OpenAI-style models may emit JSON tool payloads in text; hide once recognized as tool calls
+					content = stripJsonToolPayloadsFromDisplayText(content)
 
 					// Remove partial XML tag at the very end of the content (for tool use and thinking tags)
 					// (prevents scrollview from jumping when tags are automatically removed)

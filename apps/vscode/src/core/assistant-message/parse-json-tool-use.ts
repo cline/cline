@@ -234,6 +234,63 @@ export function findJsonToolSpans(message: string): JsonToolSpan[] {
 	return spans
 }
 
+const PARTIAL_JSON_TOOL_OPENERS = ['{"tool_calls"', '{"function"', '{"name"'] as const
+
+/**
+ * Strips trailing incomplete JSON that looks like a streaming tool payload (no closing `}` yet).
+ * Uses tool-shaped openers (not last `{`) so nested `arguments:{` does not confuse the cut point.
+ */
+function stripTrailingPartialJsonToolPayload(text: string): string {
+	const trimmedEnd = text.trimEnd()
+	let cutIndex = -1
+
+	for (const opener of PARTIAL_JSON_TOOL_OPENERS) {
+		const idx = trimmedEnd.lastIndexOf(opener)
+		if (idx === -1) {
+			continue
+		}
+		if (findBalancedJsonEnd(trimmedEnd, idx) !== undefined) {
+			continue
+		}
+		if (idx > cutIndex) {
+			cutIndex = idx
+		}
+	}
+
+	if (cutIndex === -1) {
+		return text
+	}
+
+	const trimOffset = text.length - trimmedEnd.length
+	return text.slice(0, trimOffset + cutIndex).trimEnd()
+}
+
+/**
+ * Removes JSON tool-call payloads from assistant text before it is shown in the chat UI.
+ * Mirrors XML/function_calls cleanup in Task.presentAssistantMessage: parsing may already
+ * have produced tool_use blocks, but streaming can still have pushed raw JSON as text first.
+ */
+export function stripJsonToolPayloadsFromDisplayText(text: string): string {
+	if (!text) {
+		return text
+	}
+
+	const spans = findJsonToolSpans(text)
+	let result = text
+	if (spans.length > 0) {
+		let assembled = ""
+		let cursor = 0
+		for (const span of spans) {
+			assembled += text.slice(cursor, span.start)
+			cursor = span.end
+		}
+		assembled += text.slice(cursor)
+		result = assembled
+	}
+
+	return stripTrailingPartialJsonToolPayload(result)
+}
+
 function buildToolUseBlock(tool: ParsedJsonTool): ToolUse {
 	return {
 		type: "tool_use",

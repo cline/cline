@@ -3,7 +3,11 @@ import { describe, it } from "mocha"
 import { ClineDefaultTool } from "@shared/tools"
 import type { ToolUse } from ".."
 import { parseAssistantMessageV2 } from "../parse-assistant-message"
-import { findJsonToolSpans, mergeJsonToolUsesFallback } from "../parse-json-tool-use"
+import {
+	findJsonToolSpans,
+	mergeJsonToolUsesFallback,
+	stripJsonToolPayloadsFromDisplayText,
+} from "../parse-json-tool-use"
 
 function toolUses(blocks: ReturnType<typeof parseAssistantMessageV2>): ToolUse[] {
 	return blocks.filter((block): block is ToolUse => block.type === "tool_use")
@@ -145,6 +149,27 @@ describe("parseAssistantMessageV2 JSON fallback", () => {
 		expect(merged).to.equal(xmlBlocks)
 		expect(toolUses(merged)).to.have.length(1)
 		expect(toolUses(merged)[0].params.path).to.equal("partial.ts")
+	})
+})
+
+describe("stripJsonToolPayloadsFromDisplayText", () => {
+	it("removes a complete JSON tool object from display text", () => {
+		const json = '{"name":"read_file","arguments":{"path":"hello_test.py"}}'
+		const text = `I will read the file.\n${json}\nThanks.`
+
+		expect(stripJsonToolPayloadsFromDisplayText(text)).to.equal("I will read the file.\n\nThanks.")
+	})
+
+	it("removes trailing incomplete JSON during streaming", () => {
+		const text = 'Working on it {"name":"read_file","arguments":{"path":"hello_test.py"'
+
+		expect(stripJsonToolPayloadsFromDisplayText(text)).to.equal("Working on it")
+	})
+
+	it("leaves non-tool JSON prose unchanged", () => {
+		const text = 'Example: {"foo": "bar"} is not a tool call.'
+
+		expect(stripJsonToolPayloadsFromDisplayText(text)).to.equal(text)
 	})
 })
 

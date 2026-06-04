@@ -6,6 +6,7 @@ export type AssistantMessageContent = TextStreamContent | ToolUse | ReasoningStr
 export { toolParamNames, type ToolParamName } from "./tool-param-names"
 
 export { parseAssistantMessageV2 } from "./parse-assistant-message"
+export { stripJsonToolPayloadsFromDisplayText } from "./parse-json-tool-use"
 
 export interface TextStreamContent {
 	type: "text"
