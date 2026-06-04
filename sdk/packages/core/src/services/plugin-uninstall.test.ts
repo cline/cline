@@ -1,11 +1,21 @@
-import { chmodSync, existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setClineDir, setHomeDir } from "@cline/shared/storage";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { readGlobalSettings, writeGlobalSettings } from "./global-settings";
 import { uninstallPlugin } from "./plugin-uninstall";
+
+const fsMocks = vi.hoisted(() => ({
+	rmSync: vi.fn<typeof import("node:fs").rmSync>(),
+}));
+
+vi.mock("node:fs", async () => {
+	const actual = await vi.importActual<typeof import("node:fs")>("node:fs");
+	fsMocks.rmSync.mockImplementation(actual.rmSync);
+	return { ...actual, rmSync: fsMocks.rmSync };
+});
 
 describe("plugin uninstall service", () => {
 	let root = "";
@@ -136,18 +146,18 @@ describe("plugin uninstall service", () => {
 			"utf8",
 		);
 		writeGlobalSettings({ disabledPlugins: [pluginPath] });
-		chmodSync(pluginRoot, 0o555);
+		fsMocks.rmSync.mockImplementationOnce(() => {
+			throw new Error("mock deletion failure");
+		});
 
-		try {
-			await expect(uninstallPlugin({ path: pluginPath })).rejects.toThrow();
-			expect(existsSync(pluginPath)).toBe(true);
-			expect(readGlobalSettings()).toEqual({
-				disabledPlugins: [pluginPath],
-				telemetryOptOut: false,
-			});
-		} finally {
-			chmodSync(pluginRoot, 0o755);
-		}
+		await expect(uninstallPlugin({ path: pluginPath })).rejects.toThrow(
+			"mock deletion failure",
+		);
+		expect(existsSync(pluginPath)).toBe(true);
+		expect(readGlobalSettings()).toEqual({
+			disabledPlugins: [pluginPath],
+			telemetryOptOut: false,
+		});
 	});
 
 	it("reports unmatched names clearly", async () => {
