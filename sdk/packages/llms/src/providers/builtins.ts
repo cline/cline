@@ -28,6 +28,8 @@ export const DEFAULT_INTERNAL_OCA_BASE_URL =
 	"https://code-internal.aiservice.us-chicago-1.oci.oraclecloud.com/20250206/app/litellm";
 export const DEFAULT_EXTERNAL_OCA_BASE_URL =
 	"https://code.aiservice.us-chicago-1.oci.oraclecloud.com/20250206/app/litellm";
+const CLINE_DEFAULT_MODEL_ID = "anthropic/claude-sonnet-4.6";
+const CLINE_PASS_PROVIDER_ID = "cline-pass";
 const OPENAI_CODEX_DEFAULT_MODEL_ID = "gpt-5.4";
 
 export type ProviderFamily =
@@ -273,6 +275,10 @@ function generatedModels(providerId: string): Record<string, ModelInfo> {
 	return cloneModels(getGeneratedModelsForProvider(providerId));
 }
 
+function firstGeneratedModelId(providerId: string): string {
+	return Object.keys(generatedModels(providerId))[0];
+}
+
 function pickAnthropicModel(match: (id: string) => boolean): ModelInfo {
 	const entry = Object.entries(generatedModels("anthropic")).find(([id]) =>
 		match(id),
@@ -428,6 +434,51 @@ function inferClient(spec: BuiltinSpec): ProviderClient {
 	}
 }
 
+function createClineLikeSpec(
+	input: Pick<BuiltinSpec, "id" | "name" | "defaultModelId"> &
+		Partial<
+			Pick<
+				BuiltinSpec,
+				"description" | "popular" | "modelsProviderId" | "modelsFactory"
+			>
+		>,
+): BuiltinSpec {
+	return {
+		id: input.id,
+		name: input.name,
+		description: input.description ?? "Cline API endpoint",
+		family: "openai-compatible",
+		popular: input.popular,
+		capabilities: ["reasoning", "prompt-cache", "tools", "oauth"],
+		modelsProviderId: input.modelsProviderId,
+		modelsFactory: input.modelsFactory,
+		defaultModelId: input.defaultModelId,
+		apiKeyEnv: ["CLINE_API_KEY"],
+		defaults: {
+			get baseUrl(): string {
+				return `${getClineEnvironmentConfig().apiBaseUrl}/api/v1`;
+			},
+		},
+		metadata: ANTHROPIC_AND_QWEN_CACHE_ROUTING_METADATA,
+	};
+}
+
+const cline = createClineLikeSpec({
+	id: "cline",
+	name: "Cline",
+	popular: 1,
+	modelsProviderId: "openrouter",
+	defaultModelId: CLINE_DEFAULT_MODEL_ID,
+});
+
+const clinePass = createClineLikeSpec({
+	id: CLINE_PASS_PROVIDER_ID,
+	name: "Cline Pass",
+	description: "Cline API endpoint with Cline Pass models",
+	modelsProviderId: CLINE_PASS_PROVIDER_ID,
+	defaultModelId: firstGeneratedModelId(CLINE_PASS_PROVIDER_ID),
+});
+
 const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 	{
 		id: "openai-compatible",
@@ -440,23 +491,8 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		apiKeyEnv: ["OPENAI_API_KEY"],
 		defaults: { baseUrl: "https://api.openai.com/v1" },
 	},
-	{
-		id: "cline",
-		name: "Cline",
-		description: "Cline API endpoint",
-		family: "openai-compatible",
-		popular: 1,
-		capabilities: ["reasoning", "prompt-cache", "tools", "oauth"],
-		modelsProviderId: "openrouter",
-		defaultModelId: "anthropic/claude-sonnet-4.6",
-		apiKeyEnv: ["CLINE_API_KEY"],
-		defaults: {
-			get baseUrl(): string {
-				return `${getClineEnvironmentConfig().apiBaseUrl}/api/v1`;
-			},
-		},
-		metadata: ANTHROPIC_AND_QWEN_CACHE_ROUTING_METADATA,
-	},
+	cline,
+	clinePass,
 	{
 		id: "deepseek",
 		name: "DeepSeek",

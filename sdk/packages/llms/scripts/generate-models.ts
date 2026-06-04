@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ModelInfo } from "@cline/shared";
+import { fetchClineRecommendedProviderModels } from "../src/catalog/catalog-cline-recommended";
 import { loadModelsDevProviderModels } from "./models/generate-models-dev";
 
 const OUTPUT_FILE = "src/catalog/catalog.generated.ts";
@@ -46,6 +47,9 @@ async function generate(): Promise<void> {
 	try {
 		const modelsDev = await loadModelsDevProviderModels();
 		Object.assign(providerModels, modelsDev);
+
+		const clineRecommended = await fetchClineRecommendedProviderModels();
+		Object.assign(providerModels, clineRecommended);
 	} catch (error) {
 		loadError =
 			error instanceof Error ? error : new Error(String(error ?? "unknown"));
