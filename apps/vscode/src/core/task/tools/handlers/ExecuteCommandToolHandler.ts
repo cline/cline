@@ -113,17 +113,14 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 
 		config.taskState.consecutiveMistakeCount = 0
 
+		command = applyModelContentFixes(command, config.api.getModel().id)
+
 		// Handling of timeout while in yolo mode or background exec mode
 		timeoutSeconds = resolveCommandTimeoutSeconds(
 			command,
 			timeoutParam,
 			config.yoloModeToggled || config.vscodeTerminalExecutionMode === "backgroundExec",
 		)
-
-		// Pre-process command for certain models
-		if (config.api.getModel().id.includes("gemini")) {
-			command = applyModelContentFixes(command)
-		}
 
 		// Handle multi-workspace command execution
 		let executionDir: string = config.cwd
