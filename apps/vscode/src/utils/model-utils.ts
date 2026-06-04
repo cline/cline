@@ -186,7 +186,7 @@ function isDeepSeek32ModelFamily(id: string): boolean {
 
 export function isDeepSeekNativeModelFamily(id: string): boolean {
 	const modelId = normalize(id)
-	return modelId.includes("deepseek-chat") || modelId.includes("deepseek-reasoner")
+	return modelId.includes("deepseek-chat") || modelId.includes("deepseek-reasoner") || modelId.includes("deepseek-v4")
 }
 
 export function isPoolsideModelFamily(id: string): boolean {
