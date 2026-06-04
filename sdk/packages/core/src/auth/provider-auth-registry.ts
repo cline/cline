@@ -49,10 +49,6 @@ export interface ProviderAuthHandler {
 	isConfigured(settings: ProviderSettings | undefined): boolean;
 }
 
-function hasText(value: string | undefined): value is string {
-	return typeof value === "string" && value.trim().length > 0;
-}
-
 function formatClineApiKey(accessToken: string): string {
 	const token = accessToken.trim();
 	return token.toLowerCase().startsWith(WORKOS_TOKEN_PREFIX)
@@ -192,7 +188,7 @@ function createOAuthHandler(input: {
 			});
 		},
 		isConfigured(settings) {
-			return hasText(settings?.auth?.accessToken);
+			return !!settings?.auth?.accessToken;
 		},
 	};
 }

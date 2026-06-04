@@ -882,12 +882,14 @@ export function saveLocalProviderOAuthCredentials(
 	providerId: string,
 	existing: ProviderSettings | undefined,
 	credentials: ProviderOAuthCredentials,
+	options?: { setLastUsed?: boolean },
 ): ProviderSettings {
 	return saveProviderOAuthCredentials({
 		manager,
 		providerId,
 		settings: existing,
 		credentials,
+		setLastUsed: options?.setLastUsed,
 	});
 }
 

@@ -116,7 +116,6 @@ export {
 } from "./auth/client";
 export {
 	completeClineDeviceAuth,
-	createClineOAuthProvider,
 	getValidClineCredentials,
 	loginClineOAuth,
 	refreshClineToken,
