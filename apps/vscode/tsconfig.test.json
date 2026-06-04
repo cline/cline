@@ -8,18 +8,8 @@
 	"compilerOptions": {
 		"module": "commonjs",
 		"moduleResolution": "node",
-		"types": [
-			"node",
-			"mocha",
-			"should",
-			"vscode",
-			"chai"
-		],
-		"typeRoots": [
-			"./node_modules/@types",
-			"./src/types",
-			"./src/test/types"
-		],
+		"types": ["node", "mocha", "should", "vscode", "chai"],
+		"typeRoots": ["./node_modules/@types", "./src/types", "./src/test/types"],
 		"outDir": "out",
 		"rootDir": "."
 	},
@@ -31,6 +21,13 @@
 	"exclude": [
 		"src/test/**/*.js",
 		"src/**/__tests__/*",
-		"src/test/e2e/**/*.test.ts"
+		"src/test/e2e/**/*.test.ts",
+		// The src/sdk suites are vitest-native (run via `npm run test:vitest`),
+		// not the VS Code/mocha integration runner (see .vscode-test.mjs, which
+		// only globs core/test/utils/shared/integrations/hosts/services). Some of
+		// them use top-level `await import(...)` after `vi.mock(...)`, which is
+		// invalid under this config's CommonJS `module` setting (TS1378). Exclude
+		// them so the integration test compile doesn't choke on vitest-only files.
+		"src/sdk/**/*.test.ts"
 	]
 }
