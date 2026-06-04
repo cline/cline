@@ -252,6 +252,18 @@ replaced
 		}
 	})
 
+	it("does not append a trailing newline when replacing the final line of a file without one", async () => {
+		const original = "line1\nline2"
+		const diff = ["------- SEARCH", "line2", "=======", "updated line2", "+++++++ REPLACE"].join("\n")
+		const expected = "line1\nupdated line2"
+
+		const result1 = await cnfc(diff, original, true)
+		const result2 = await cnfc2(diff, original, true)
+
+		expect(result1.newContent).to.equal(expected)
+		expect(result2).to.equal(expected)
+	})
+
 	it("should handle missing final REPLACE marker when isFinal is true", async () => {
 		const original = "line1\nline2\nline3"
 		const diff = `------- SEARCH
