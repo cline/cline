@@ -122,6 +122,7 @@ describe("AgentRuntime (provider-form config + Agent alias)", () => {
 			status: "aborted",
 		});
 		expect(agent.snapshot().lastError).toBe("user cancelled");
+		expect(abortReason).toBeDefined();
 		expect(abortReason).toMatchObject({ name: "AbortError" });
 	});
 
