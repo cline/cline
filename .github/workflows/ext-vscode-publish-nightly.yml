@@ -31,6 +31,9 @@ jobs:
     if: github.repository == 'cline/cline' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dpc/sdk-migration-simpler-login')
     runs-on: ubuntu-latest
     environment: PublishNightly
+    defaults:
+      run:
+        working-directory: apps/vscode
 
     steps:
       - name: Checkout selected branch
@@ -54,11 +57,13 @@ jobs:
           # Newer LTS (Node 24 / npm 11) can make `npm list` fail with ELSPROBLEMS during vsce packaging.
           node-version: 22
 
-      - name: Install root dependencies
-        run: npm ci --include=optional
+      - name: Install extension dependencies
+        working-directory: ${{ github.workspace }}
+        run: npm --prefix apps/vscode ci --include=optional
 
       - name: Install webview-ui dependencies
-        run: cd webview-ui && npm ci --include=optional
+        working-directory: ${{ github.workspace }}
+        run: npm --prefix apps/vscode/webview-ui ci --include=optional
 
       - name: Install Publishing Tools
         run: npm install -g @vscode/vsce ovsx

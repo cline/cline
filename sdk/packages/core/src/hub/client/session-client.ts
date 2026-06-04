@@ -8,6 +8,7 @@ import type {
 	TeamProgressProjectionEvent,
 } from "@cline/shared";
 import type { CheckpointEntry } from "../../hooks/checkpoint-hooks";
+import { isSessionNotFoundError } from "../../runtime/host/runtime-host";
 import { NodeHubClient } from "../client";
 
 type ScheduleClientRecord = Record<string, unknown> & {
@@ -414,11 +415,15 @@ export class HubSessionClient {
 
 	async getSession(sessionId: string): Promise<HubSessionRow | undefined> {
 		await this.ensureMetadataApplied();
-		const reply = await this.client.command(
-			"session.get",
-			undefined,
-			sessionId,
-		);
+		let reply: Awaited<ReturnType<NodeHubClient["command"]>>;
+		try {
+			reply = await this.client.command("session.get", undefined, sessionId);
+		} catch (error) {
+			if (isSessionNotFoundError(error)) {
+				return undefined;
+			}
+			throw error;
+		}
 		return extractSessionRow(reply.payload);
 	}
 

@@ -29,6 +29,10 @@ import {
 } from "./providers/types";
 
 export {
+	getRegisteredHandler,
+	getRegisteredHandlerAsync,
+	hasRegisteredHandler,
+	isRegisteredHandlerAsync,
 	registerAsyncHandler,
 	registerHandler,
 } from "./providers/factory-registry";

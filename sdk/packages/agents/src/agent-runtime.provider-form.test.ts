@@ -6,7 +6,7 @@ import type {
 	AgentRuntimeEvent,
 } from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { AgentRuntime } from "./agent-runtime";
+import { AgentRuntime, AgentRuntimeAbortError } from "./agent-runtime";
 import { Agent, createAgent } from "./index";
 
 const { createAgentModel, createGateway } = vi.hoisted(() => {
@@ -83,13 +83,19 @@ describe("AgentRuntime (provider-form config + Agent alias)", () => {
 	});
 
 	it("forwards abort() to the active AgentRuntime", async () => {
+		let abortReason: unknown;
 		const model = new ScriptedModel([
 			async function* (request) {
 				yield { type: "text-delta", text: "partial" };
 				await new Promise<void>((resolve) => {
-					request.signal?.addEventListener("abort", () => resolve(), {
-						once: true,
-					});
+					request.signal?.addEventListener(
+						"abort",
+						() => {
+							abortReason = request.signal?.reason;
+							resolve();
+						},
+						{ once: true },
+					);
 				});
 				yield { type: "finish", reason: "aborted" };
 			},
@@ -113,6 +119,12 @@ describe("AgentRuntime (provider-form config + Agent alias)", () => {
 		await expect(runPromise).resolves.toMatchObject({
 			status: "aborted",
 		});
+		expect(abortReason).toBeInstanceOf(AgentRuntimeAbortError);
+		if (!(abortReason instanceof AgentRuntimeAbortError)) {
+			throw new Error("expected agent runtime abort reason");
+		}
+		expect(abortReason.message).toBe("user cancelled");
+		expect(abortReason.reason).toBe("user cancelled");
 	});
 
 	it("createAgent() and new Agent() both return an AgentRuntime instance", () => {

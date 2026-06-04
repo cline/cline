@@ -128,13 +128,15 @@ jobs:
                   restore-keys: |
                       playwright-browsers-${{ runner.os }}-
 
-            - name: Install root dependencies
-              run: npm ci
+            - name: Install extension dependencies
+              working-directory: ${{ github.workspace }}
+              run: npm --prefix apps/vscode ci
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Install webview-ui dependencies
-              run: cd webview-ui && npm ci
+              working-directory: ${{ github.workspace }}
+              run: npm --prefix apps/vscode/webview-ui ci
 
             - name: Install vsce
               run: npm install -g @vscode/vsce

@@ -4,6 +4,7 @@ export {
 	resolveAgentPluginPaths,
 	resolveAndLoadAgentPlugins,
 	resolvePluginConfigSearchPaths,
+	resolvePluginSkillDirectoriesFromPaths,
 } from "./plugin/plugin-config-loader";
 export type {
 	PluginInitializationFailure,

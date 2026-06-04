@@ -3,10 +3,11 @@
     "private": true,
     "workspaces": [
         "sdk/packages/*",
-        "sdk/apps/*",
-        "sdk/apps/cline-hub/src/webview",
-        "sdk/apps/examples/*",
-        "sdk/apps/examples/vscode/src/webview",
+        "apps/*",
+        "!apps/vscode",
+        "apps/cline-hub/src/webview",
+        "apps/examples/*",
+        "apps/examples/vscode/src/webview",
         "sdk/examples",
         "sdk/examples/plugins/*"
     ],
@@ -14,29 +15,33 @@
         "prepare": "husky",
         "build": "bun run clean && bun install && bun run build:sdk && bun -F @cline/cli build",
         "build:sdk": "bun --production -F './sdk/packages/*' build",
-        "build:apps": "bun -F './sdk/apps/**' --production build",
+        "build:apps": "bun -F './apps/**' --production build",
         "build:models": "bun -F @cline/llms generate:models && bun format --write",
         "dev": "bun --conditions=development run build:sdk && bun run cli && bun run cli hub stop",
-        "cli": "bun --conditions=development --cwd sdk/apps/cli dev",
+        "cli": "bun --conditions=development --cwd apps/cli dev",
         "code": "bun --conditions=development -F @cline/code dev",
         "clean": "bun run sdk/scripts/clean.ts",
         "types": "bun --parallel -F '*' typecheck",
-        "test": "bun --parallel -F './sdk/packages/**' -F './sdk/apps/cli' test",
+        "test": "bun --parallel -F './sdk/packages/**' -F @cline/cli test",
         "test:unit": "bash -lc 'set -euo pipefail; bun -F @cline/agents test & p1=$!; bun -F @cline/llms test & p2=$!; bun -F @cline/core test:unit & p3=$!; bun -F @cline/cli test:unit & p4=$!; wait $p1; wait $p2; wait $p3; wait $p4'",
         "test:e2e": "bun -F @cline/core test:e2e && bun -F @cline/cli test:e2e",
         "test:e2e:interactive": "bun -F @cline/cli test:e2e:interactive",
         "verify:routines": "zsh -lc 'cd sdk/packages/core && bunx vitest run src/cron/schedule-service.test.ts --config vitest.config.ts'",
         "verify:workos-device-auth": "bun sdk/scripts/verify-workos-device-auth.ts",
         "biome": "bunx --bun @biomejs/biome",
-        "format": "bun biome format sdk/",
-        "lint": "bun biome lint sdk/",
-        "fix": "bun biome check --write --unsafe --diagnostic-level=error sdk/",
-        "check": "bun biome check --diagnostic-level=error sdk/ && bun run build:sdk && bun run -F @cline/cli build && bun --parallel -F './sdk/packages/**' -F @cline/cli typecheck && bun sdk/scripts/check-publish.ts",
+        "format": "bun biome format sdk/ apps/cli/ apps/cline-hub/ apps/examples/",
+        "lint": "bun biome lint sdk/ apps/cli/ apps/cline-hub/ apps/examples/",
+        "fix": "bun biome check --write --unsafe --diagnostic-level=error sdk/ apps/cli/ apps/cline-hub/ apps/examples/",
+        "check": "bun biome check --diagnostic-level=error sdk/ apps/cli/ apps/cline-hub/ apps/examples/ && bun run build:sdk && bun run -F @cline/cli build && bun --parallel -F './sdk/packages/**' -F @cline/cli typecheck && bun sdk/scripts/check-publish.ts",
         "version": "bun run types && bun sdk/scripts/version.ts",
         "release": "bun sdk/scripts/release.ts"
     },
     "lint-staged": {
         "sdk/**": [
+            "sh -c 'bun run types'",
+            "bun biome check --no-errors-on-unmatched --files-ignore-unknown=true"
+        ],
+        "apps/{cli,cline-hub,examples}/**": [
             "sh -c 'bun run types'",
             "bun biome check --no-errors-on-unmatched --files-ignore-unknown=true"
         ]
