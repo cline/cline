@@ -1,8 +1,10 @@
+import path from "node:path"
 import type { ClineCoreListHistoryOptions, SessionHistoryRecord } from "@cline/core"
 import type { Message as SdkMessage } from "@cline/llms"
 import { type ContentBlock, formatDisplayUserInput, type MessageWithMetadata } from "@cline/shared"
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
+import getFolderSize from "get-folder-size"
 import type { McpHub } from "@/services/mcp/McpHub"
 import type { TelemetryService } from "@/services/telemetry/TelemetryService"
 import { Logger } from "@/shared/services/Logger"
@@ -232,7 +234,8 @@ function legacyApiHistoryToSdkMessages(apiHistory: unknown[], historyItem: Histo
 
 export function sessionHistoryRecordToHistoryItem(item: SessionHistoryRecord): HistoryItem {
 	const metadata = item.metadata
-	return {
+	const size = metadataNumber(metadata, "size")
+	const historyItem: HistoryItem = {
 		id: item.sessionId,
 		ts: dateStringToTimestamp(item.updatedAt ?? item.endedAt ?? item.startedAt),
 		task: formatDisplayUserInput(metadataString(metadata, "title") ?? item.prompt ?? ""),
@@ -241,11 +244,14 @@ export function sessionHistoryRecordToHistoryItem(item: SessionHistoryRecord): H
 		cacheWrites: metadataNumber(metadata, "cacheWrites") ?? 0,
 		cacheReads: metadataNumber(metadata, "cacheReads") ?? 0,
 		totalCost: metadataNumber(metadata, "totalCost") ?? 0,
-		size: metadataNumber(metadata, "size") ?? 0,
 		isFavorited: metadataBoolean(metadata, "isFavorited") ?? metadataBoolean(metadata, "is_favorited") ?? false,
 		modelId: item.model || metadataString(metadata, "modelId") || "",
 		cwdOnTaskInitialization: item.cwd ?? item.workspaceRoot,
 	}
+	if (size !== undefined) {
+		historyItem.size = size
+	}
+	return historyItem
 }
 
 export class SdkTaskHistory {
@@ -591,11 +597,14 @@ export class SdkTaskHistory {
 	private async updateSession(sessionId: string, item: HistoryItem): Promise<void> {
 		await this.withHistoryHost(async (host) => {
 			const existing = await host.get(sessionId)
+			const resolvedSize = await this.resolveTaskSize(item, existing as SessionHistoryRecord | undefined, {
+				refreshArtifactSize: true,
+			})
 			const metadata = {
 				...(existing?.metadata ?? {}),
 				title: item.task,
 				isFavorited: item.isFavorited ?? false,
-				size: item.size ?? 0,
+				size: resolvedSize ?? 0,
 				totalCost: item.totalCost ?? 0,
 				tokensIn: item.tokensIn ?? 0,
 				tokensOut: item.tokensOut ?? 0,
@@ -624,9 +633,22 @@ export class SdkTaskHistory {
 	}
 
 	async findHistoryItem(taskId: string): Promise<HistoryItem | undefined> {
-		const sdkRecord = await this.withHistoryHost((host) => host.get(taskId))
-		if (sdkRecord && sdkRecord.isSubagent !== true) {
-			return sessionHistoryRecordToHistoryItem(sdkRecord as SessionHistoryRecord)
+		const sdkHistoryItem = await this.withHistoryHost(async (host) => {
+			const sdkRecord = await host.get(taskId)
+			if (!sdkRecord || sdkRecord.isSubagent === true) {
+				return undefined
+			}
+
+			const historyItem = sessionHistoryRecordToHistoryItem(sdkRecord as SessionHistoryRecord)
+			const resolvedSize = await this.resolveTaskSize(historyItem, sdkRecord as SessionHistoryRecord)
+			if (resolvedSize !== undefined) {
+				historyItem.size = resolvedSize
+			}
+			await this.persistResolvedTaskSize(host, sdkRecord as SessionHistoryRecord, resolvedSize)
+			return historyItem
+		})
+		if (sdkHistoryItem) {
+			return sdkHistoryItem
 		}
 
 		const legacyItem = this.findLegacyTask(taskId)?.item
@@ -693,5 +715,72 @@ export class SdkTaskHistory {
 		historyItem.ts = Date.now()
 
 		await this.updateTaskHistoryItem(historyItem)
+	}
+
+	private async resolveTaskSize(
+		item: HistoryItem,
+		record?: SessionHistoryRecord,
+		options: { refreshArtifactSize?: boolean } = {},
+	): Promise<number | undefined> {
+		let attemptedArtifactSize = false
+
+		if (options.refreshArtifactSize) {
+			const artifactSize = record ? await this.getSessionArtifactSize(record) : undefined
+			attemptedArtifactSize = true
+			if (artifactSize !== undefined) {
+				return artifactSize
+			}
+		}
+
+		if (typeof item.size === "number" && Number.isFinite(item.size) && item.size >= 0) {
+			return item.size
+		}
+
+		const metadataSize = metadataNumber(record?.metadata, "size")
+		if (metadataSize !== undefined && metadataSize >= 0) {
+			return metadataSize
+		}
+
+		const artifactSize = record && !attemptedArtifactSize ? await this.getSessionArtifactSize(record) : undefined
+		if (artifactSize !== undefined) {
+			return artifactSize
+		}
+
+		return undefined
+	}
+
+	private async getSessionArtifactSize(record: SessionHistoryRecord): Promise<number | undefined> {
+		const messagesPath = typeof record.messagesPath === "string" ? record.messagesPath.trim() : ""
+		if (!messagesPath) {
+			return undefined
+		}
+
+		try {
+			const size = await getFolderSize.loose(path.dirname(messagesPath), {
+				bigint: false,
+			})
+			return Number.isFinite(size) ? size : undefined
+		} catch (error) {
+			Logger.warn(`[SdkTaskHistory] Failed to calculate SDK session size: ${record.sessionId}`, error)
+			return undefined
+		}
+	}
+
+	private async persistResolvedTaskSize(
+		host: VscodeSessionHost,
+		record: SessionHistoryRecord,
+		size: number | undefined,
+	): Promise<void> {
+		if (size === undefined || !Number.isFinite(size) || size < 0 || metadataNumber(record.metadata, "size") === size) {
+			return
+		}
+
+		await host.update(record.sessionId, {
+			metadata: {
+				...(record.metadata ?? {}),
+				size,
+			},
+		})
+		this.invalidateMetadataHistoryCache()
 	}
 }

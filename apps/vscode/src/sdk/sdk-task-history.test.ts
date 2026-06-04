@@ -1,5 +1,6 @@
 import type { SessionHistoryRecord } from "@cline/core"
 import type { HistoryItem } from "@shared/HistoryItem"
+import getFolderSize from "get-folder-size"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { McpHub } from "@/services/mcp/McpHub"
 import type { TelemetryService } from "@/services/telemetry/TelemetryService"
@@ -53,13 +54,18 @@ vi.mock("./legacy-state-reader", () => ({
 	),
 }))
 
-vi.mock("./cline-session-factory", async (importOriginal) => ({
-	...(await importOriginal<typeof import("./cline-session-factory")>()),
+vi.mock("./cline-session-factory", () => ({
 	buildSessionConfig: vi.fn(async ({ cwd, workspaceRoot, mode }) => ({
 		cwd,
 		workspaceRoot,
 		mode,
 	})),
+}))
+
+vi.mock("get-folder-size", () => ({
+	default: {
+		loose: vi.fn(),
+	},
 }))
 
 describe("SdkTaskHistory", () => {
@@ -69,6 +75,7 @@ describe("SdkTaskHistory", () => {
 		legacyStateReaderMock.apiConversationHistory = []
 		legacyStateReaderMock.apiConversationHistoryByDataDir.clear()
 		vi.clearAllMocks()
+		vi.mocked(getFolderSize.loose).mockReset()
 	})
 
 	afterEach(() => {
@@ -222,6 +229,71 @@ describe("SdkTaskHistory", () => {
 		})
 	})
 
+	it("backfills SDK task size from the session artifact directory", async () => {
+		vi.mocked(getFolderSize.loose).mockResolvedValue(4096 as never)
+		const { history, updateSession } = makeHistory([
+			makeSessionRecord("task-1", {
+				metadata: { title: "Build feature" },
+				messagesPath: "/tmp/cline/sessions/task-1/task-1.messages.json",
+			}),
+		])
+
+		await expect(history.findHistoryItem("task-1")).resolves.toMatchObject({
+			id: "task-1",
+			size: 4096,
+		})
+
+		expect(getFolderSize.loose).toHaveBeenCalledWith("/tmp/cline/sessions/task-1", { bigint: false })
+		expect(updateSession).toHaveBeenCalledWith(
+			"task-1",
+			expect.objectContaining({
+				metadata: expect.objectContaining({
+					title: "Build feature",
+					size: 4096,
+				}),
+			}),
+		)
+	})
+
+	it("caches zero-byte SDK task size from the session artifact directory", async () => {
+		vi.mocked(getFolderSize.loose).mockResolvedValue(0 as never)
+		const { history, updateSession } = makeHistory([
+			makeSessionRecord("task-1", {
+				messagesPath: "/tmp/cline/sessions/task-1/task-1.messages.json",
+			}),
+		])
+
+		await expect(history.findHistoryItem("task-1")).resolves.toMatchObject({
+			id: "task-1",
+			size: 0,
+		})
+		await expect(history.findHistoryItem("task-1")).resolves.toMatchObject({
+			id: "task-1",
+			size: 0,
+		})
+
+		expect(getFolderSize.loose).toHaveBeenCalledTimes(1)
+		expect(updateSession).toHaveBeenCalledTimes(1)
+		expect(updateSession).toHaveBeenCalledWith(
+			"task-1",
+			expect.objectContaining({
+				metadata: expect.objectContaining({ size: 0 }),
+			}),
+		)
+	})
+
+	it("keeps existing SDK task size metadata without measuring artifacts", async () => {
+		const { history, updateSession } = makeHistory([makeSessionRecord("task-1", { metadata: { size: 2048 } })])
+
+		await expect(history.findHistoryItem("task-1")).resolves.toMatchObject({
+			id: "task-1",
+			size: 2048,
+		})
+
+		expect(getFolderSize.loose).not.toHaveBeenCalled()
+		expect(updateSession).not.toHaveBeenCalled()
+	})
+
 	it("returns undefined when a task is missing from SDK history", async () => {
 		const { history } = makeHistory([])
 
@@ -254,6 +326,43 @@ describe("SdkTaskHistory", () => {
 					tokensIn: 5,
 					totalCost: 0.02,
 				}),
+			}),
+		)
+	})
+
+	it("refreshes SDK task size from artifacts when updating history", async () => {
+		vi.mocked(getFolderSize.loose).mockResolvedValue(8192 as never)
+		const existing = makeSessionRecord("task-1", {
+			metadata: { size: 1024 },
+			messagesPath: "/tmp/cline/sessions/task-1/task-1.messages.json",
+		})
+		const { history, updateSession } = makeHistory([existing])
+
+		await history.updateTaskHistoryItem(makeHistoryItem("task-1", { size: 1024 }))
+
+		expect(getFolderSize.loose).toHaveBeenCalledWith("/tmp/cline/sessions/task-1", { bigint: false })
+		expect(updateSession).toHaveBeenCalledWith(
+			"task-1",
+			expect.objectContaining({
+				metadata: expect.objectContaining({ size: 8192 }),
+			}),
+		)
+	})
+
+	it("does not retry artifact size when refresh cannot read artifacts", async () => {
+		vi.mocked(getFolderSize.loose).mockRejectedValue(new Error("unreadable"))
+		const existing = makeSessionRecord("task-1", {
+			messagesPath: "/tmp/cline/sessions/task-1/task-1.messages.json",
+		})
+		const { history, updateSession } = makeHistory([existing])
+
+		await history.updateTaskHistoryItem(makeHistoryItem("task-1"))
+
+		expect(getFolderSize.loose).toHaveBeenCalledTimes(1)
+		expect(updateSession).toHaveBeenCalledWith(
+			"task-1",
+			expect.objectContaining({
+				metadata: expect.objectContaining({ size: 0 }),
 			}),
 		)
 	})
