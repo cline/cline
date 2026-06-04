@@ -1332,7 +1332,7 @@ export class AgentRuntime {
 
 	private normalizeAbortError(): Error {
 		const reason = this.abortController?.signal.reason;
-		if (reason instanceof Error) {
+		if (reason instanceof Error && reason.name !== "AbortError") {
 			return reason;
 		}
 		if (typeof reason === "string") {

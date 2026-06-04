@@ -121,7 +121,8 @@ describe("AgentRuntime (provider-form config + Agent alias)", () => {
 		await expect(runPromise).resolves.toMatchObject({
 			status: "aborted",
 		});
-		expect(abortReason).not.toEqual(new Error("user cancelled"));
+		expect(agent.snapshot().lastError).toBe("user cancelled");
+		expect(abortReason).toMatchObject({ name: "AbortError" });
 	});
 
 	it("createAgent() and new Agent() both return an AgentRuntime instance", () => {
