@@ -9,12 +9,13 @@ Use this skill when the user asks to release the CLI, publish `cline`, bump the 
 
 The CLI is npm-only. Do not add alternate distribution or signing steps.
 
-> Working directory: this skill lives in the SDK sub-monorepo. Run `cd sdk` (from the repo root) before any of the shell commands below. Paths in commands and instructions (e.g. `apps/cli/package.json`, `bun release cli`) are written relative to `sdk/`.
+> Working directory: run every command below from the repository root. Paths and scripts (e.g. `apps/cli/package.json`, `sdk/packages/`, `bun release cli`, `bun run version`) are written relative to the repo root.
 
 The skill should guide the user through one release preparation flow, then offer the publish path options. The two normal publish paths are GitHub Actions and local publishing from an authenticated machine.
 
 ## Release contract
 
+- SDK prerequisite: the CLI depends on the SDK via `workspace:*` (`@cline/core`, `@cline/shared`, and friends). If the SDK changed since its last release, release the SDK first and wait for it to finish publishing before releasing the CLI. See "Step 0: Release the SDK first if it changed" below.
 - Version source: `apps/cli/package.json`.
 - Main release tag: `cli-vX.Y.Z`, where `X.Y.Z` matches `apps/cli/package.json`.
 - Nightly release version: `X.Y.Z-nightly.TIMESTAMP`.
@@ -30,7 +31,92 @@ The skill should guide the user through one release preparation flow, then offer
 - Always ask before pushing commits or tags.
 - Do not amend commits unless explicitly requested.
 
+## Step 0: Release the SDK first if it changed
+
+Do this before anything else in the Workflow below.
+
+The CLI builds and ships against the SDK source in the monorepo (`workspace:*` for `@cline/core`, `@cline/shared`, and the rest), so a CLI release always contains the latest SDK code whether or not the SDK was released. The build and tests use that source too, not anything from npm. Releasing the SDK alongside the CLI is still worth doing for two reasons:
+
+- Hub freshness. The hub daemon lives in `@cline/core` and stamps a `buildId` that defaults to the `@cline/core` package version (`resolveHubBuildId` in `sdk/packages/core/src/hub/discovery/index.ts`). A running hub is only retired and respawned when that `buildId` changes (`isCompatibleHubRecord` / `retireIncompatibleHub` in `sdk/packages/core/src/hub/daemon/index.ts`). So if the SDK code changed but the version did not, a user who upgrades the CLI keeps talking to their already-running hub, which is still executing the old SDK code. Bumping the SDK version makes the new CLI's `buildId` differ, so the stale hub is detected as incompatible and respawned with the fresh code.
+- Release hygiene. We want regular SDK releases; cutting one whenever we cut a CLI release keeps the published SDK in step with what the CLI ships.
+
+So when the SDK has changed, release it first (which bumps the `@cline/core` version), then cut the CLI release on top of that bump. Leave the CLI's SDK dependency as `workspace:*` — the fix is to release the SDK, not to pin the CLI.
+
+1. Check for unreleased SDK changes.
+
+```sh
+git fetch origin --tags
+git tag --list 'sdk/sdk/v*' 'sdk-v*' --sort=-v:refname | head -1
+git log <last-sdk-tag>..origin/main --oneline --no-merges -- sdk/packages
+```
+
+`sdk/<pkg>/v*` tags are created by the `sdk-publish.yml` workflow; `sdk-v*` tags are created by the local `bun release sdk` helper. Use whichever is newest as the baseline.
+
+If `git log` prints no commits, the SDK is already up to date. Skip the rest of Step 0 and continue with the Workflow below.
+
+If it prints commits, sanity-check the diff (ignore entries that are only the previous version-bump commit's lockfile or generated files), then release the SDK.
+
+2. Decide the SDK version bump.
+
+All SDK packages share one version, read from `sdk/packages/llms/package.json`. Ask whether this is patch, minor, major, or an explicit version. Patch is the default. Do not guess if the user has not made it clear.
+
+3. Update the SDK changelog.
+
+In `sdk/packages/llms/CHANGELOG.md`, rename the top `## Next Release` heading to `## <version>`. This is the only SDK package changelog and it is maintained by hand; the `sdk-publish.yml` workflow does not read it.
+
+4. Bump versions and regenerate.
+
+```sh
+bun run version <version>
+```
+
+This bumps every SDK `package.json` to the new version, regenerates the lockfile and the generated model catalog, formats, and builds. Review the result.
+
+5. Commit and push the bump to `main`.
+
+The `sdk-publish.yml` workflow publishes the version that is committed on `main` and tags that commit, so the bump must land on `main` before the workflow runs.
+
+```sh
+git add -A
+git commit -m "chore(sdk): release v<version>"
+```
+
+Ask before pushing:
+
+```sh
+git push origin HEAD
+```
+
+6. Trigger the SDK publish workflow on the `latest` channel.
+
+```sh
+gh workflow run sdk-publish.yml -f channel=latest -f confirm_publish=publish
+gh run list --workflow=sdk-publish.yml --limit=1 --json databaseId,url,status,createdAt --jq '.[0]'
+```
+
+The workflow runs the SDK tests, publishes `@cline/shared`, `@cline/llms`, `@cline/agents`, `@cline/core`, and `@cline/sdk` to npm with the `latest` dist-tag in dependency order, and pushes `sdk/<pkg>/v<version>` git tags.
+
+7. Wait for the SDK workflow to succeed before starting the CLI release.
+
+```sh
+gh run watch <run-id> --exit-status
+```
+
+Do not start the CLI release until this run has finished successfully. The CLI does not install the SDK from npm, but cutting the CLI release on top of a clean, completed SDK release keeps the two in step: the CLI release commit then sits on top of the `@cline/core` version bump, so the shipped CLI carries the new version that forces a running hub to respawn with the new code, and you are not building a CLI release on top of an SDK release that failed midway.
+
+After the SDK release succeeds, pull `main` so the CLI release is prepared on top of the SDK version bump:
+
+```sh
+git checkout main && git pull --ff-only
+```
+
+Then continue with the Workflow below.
+
+For a local SDK publish from an authenticated machine instead of the workflow, `bun release sdk <version>` exists, but prefer the `sdk-publish.yml` workflow for normal releases so the CLI release can gate on a single GitHub Actions run.
+
 ## Workflow
+
+Complete Step 0 first. Only proceed once the SDK is released (or you confirmed no SDK release was needed).
 
 1. Gather context.
 
@@ -46,10 +132,10 @@ Find the latest CLI tag. If there is no `cli-v*` tag, use the first relevant CLI
 2. Collect release commits.
 
 ```sh
-git log <last-cli-tag>..HEAD --oneline --no-merges -- apps/cli packages scripts .github/workflows/cli-publish.yml
+git log <last-cli-tag>..HEAD --oneline --no-merges -- apps/cli sdk/packages sdk/scripts .github/workflows/cli-publish.yml
 ```
 
-If the release includes broader SDK changes that affect the CLI, also inspect commits outside `apps/cli`.
+The `sdk/packages` commits matter here even though the SDK was released separately in Step 0: the CLI bundles the SDK, so SDK changes ship in this CLI release too. Read those commits and fold anything user-relevant to the CLI into the release notes (provider/model updates, behavior changes, fixes the CLI inherits). Skip SDK changes that are purely internal or have no CLI-visible effect.
 
 3. Draft user-facing release notes.
 
