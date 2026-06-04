@@ -282,6 +282,33 @@ describe("SdkTaskHistory", () => {
 		)
 	})
 
+it("caches zero-byte SDK task size from the session artifact directory", async () => {
+		vi.mocked(getFolderSize.loose).mockResolvedValue(0 as never)
+		const { history, updateSession } = makeHistory([
+			makeSessionRecord("task-1", {
+				messagesPath: "/tmp/cline/sessions/task-1/task-1.messages.json",
+			}),
+		])
+
+		await expect(history.findHistoryItem("task-1")).resolves.toMatchObject({
+			id: "task-1",
+			size: 0,
+		})
+		await expect(history.findHistoryItem("task-1")).resolves.toMatchObject({
+			id: "task-1",
+			size: 0,
+		})
+
+		expect(getFolderSize.loose).toHaveBeenCalledTimes(1)
+		expect(updateSession).toHaveBeenCalledTimes(1)
+		expect(updateSession).toHaveBeenCalledWith(
+			"task-1",
+			expect.objectContaining({
+				metadata: expect.objectContaining({ size: 0 }),
+			}),
+		)
+	})
+
 	it("keeps existing SDK task size metadata without measuring artifacts", async () => {
 		const { history, updateSession } = makeHistory([makeSessionRecord("task-1", { metadata: { size: 2048 } })])
 
@@ -345,6 +372,24 @@ describe("SdkTaskHistory", () => {
 			"task-1",
 			expect.objectContaining({
 				metadata: expect.objectContaining({ size: 8192 }),
+			}),
+		)
+	})
+
+	it("does not retry artifact size when refresh cannot read artifacts", async () => {
+		vi.mocked(getFolderSize.loose).mockRejectedValue(new Error("unreadable"))
+		const existing = makeSessionRecord("task-1", {
+			messagesPath: "/tmp/cline/sessions/task-1/task-1.messages.json",
+		})
+		const { history, updateSession } = makeHistory([existing])
+
+		await history.updateTaskHistoryItem(makeHistoryItem("task-1"))
+
+		expect(getFolderSize.loose).toHaveBeenCalledTimes(1)
+		expect(updateSession).toHaveBeenCalledWith(
+			"task-1",
+			expect.objectContaining({
+				metadata: expect.objectContaining({ size: 0 }),
 			}),
 		)
 	})
