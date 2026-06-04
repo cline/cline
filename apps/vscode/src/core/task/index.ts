@@ -2017,21 +2017,78 @@ export class Task {
 			// saves task history item which we use to keep track of conversation history deleted range
 		}
 
+		const apiRequestCheckpointBase = {
+			ulid: this.ulid,
+			taskId: this.taskId,
+			provider: providerInfo.providerId,
+			model: providerInfo.model.id,
+			mode: providerInfo.mode,
+			apiRequestCount: this.taskState.apiRequestCount,
+			isNativeToolCall: this.useNativeToolCalls,
+		}
+		const apiRequestStartTime = performance.now()
+
+		telemetryService.captureApiRequestCheckpoint({
+			...apiRequestCheckpointBase,
+			stage: "create_message_start",
+			requestId: this.getApiRequestIdSafe(),
+		})
+
 		// Response API requires native tool calls to be enabled
 		const stream = this.api.createMessage(systemPrompt, contextManagementMetadata.truncatedConversationHistory, tools)
+
+		telemetryService.captureApiRequestCheckpoint({
+			...apiRequestCheckpointBase,
+			stage: "stream_created",
+			requestId: this.getApiRequestIdSafe(),
+			durationMs: Math.round(performance.now() - apiRequestStartTime),
+		})
 
 		const iterator = stream[Symbol.asyncIterator]()
 
 		try {
 			// awaiting first chunk to see if it will throw an error
 			this.taskState.isWaitingForFirstChunk = true
+
+			telemetryService.captureApiRequestCheckpoint({
+				...apiRequestCheckpointBase,
+				stage: "first_chunk_wait_start",
+				requestId: this.getApiRequestIdSafe(),
+				durationMs: Math.round(performance.now() - apiRequestStartTime),
+			})
+
 			const firstChunk = await iterator.next()
+			const firstChunkType =
+				firstChunk.value && typeof firstChunk.value === "object" && "type" in firstChunk.value
+					? String((firstChunk.value as { type?: unknown }).type)
+					: undefined
+
+			telemetryService.captureApiRequestCheckpoint({
+				...apiRequestCheckpointBase,
+				stage: "first_chunk_received",
+				requestId: this.getApiRequestIdSafe(),
+				durationMs: Math.round(performance.now() - apiRequestStartTime),
+				firstChunkType,
+			})
+
 			yield firstChunk.value
 			this.taskState.isWaitingForFirstChunk = false
 		} catch (error) {
 			const isContextWindowExceededError = checkContextWindowExceededError(error)
 			const { model, providerId } = this.getCurrentProviderInfo()
 			const clineError = ErrorService.get().toClineError(error, model.id, providerId)
+			const errorType = ClineError.getErrorType(clineError)
+
+			telemetryService.captureApiRequestCheckpoint({
+				...apiRequestCheckpointBase,
+				stage: "first_chunk_error",
+				requestId: clineError._error.request_id ?? this.getApiRequestIdSafe(),
+				durationMs: Math.round(performance.now() - apiRequestStartTime),
+				errorType,
+				errorStatus: clineError._error.status,
+				errorCode: clineError._error.code,
+				errorMessage: clineError.message,
+			})
 
 			// Capture provider failure telemetry using clineError
 			ErrorService.get().logMessage(clineError.message)

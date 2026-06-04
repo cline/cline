@@ -264,6 +264,8 @@ export class TelemetryService {
 			GEMINI_API_PERFORMANCE: "task.gemini_api_performance",
 			// Tracks when API providers return errors
 			PROVIDER_API_ERROR: "task.provider_api_error",
+			// Tracks client-side API request progress before provider output exists
+			API_REQUEST_CHECKPOINT: "task.api_request_checkpoint",
 			// Tracks when users enable the focus chain feature
 			FOCUS_CHAIN_ENABLED: "task.focus_chain_enabled",
 			// Tracks when users disable the focus chain feature
@@ -1398,6 +1400,36 @@ export class TelemetryService {
 		}
 		const errorCount = this.incrementTaskCounter(this.taskErrorCounts, args.ulid)
 		this.recordHistogram(TelemetryService.METRICS.ERRORS.PER_TASK, errorCount, errorAttributes)
+	}
+
+	/**
+	 * Records client-side API request progress for diagnosing pre-first-token failures.
+	 */
+	public captureApiRequestCheckpoint(args: {
+		ulid: string
+		taskId: string
+		stage: string
+		provider?: string
+		model?: string
+		mode?: Mode
+		requestId?: string
+		apiRequestCount?: number
+		durationMs?: number
+		firstChunkType?: string
+		errorType?: string
+		errorStatus?: number
+		errorCode?: string
+		errorMessage?: string
+		isNativeToolCall?: boolean
+	}) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.API_REQUEST_CHECKPOINT,
+			properties: {
+				...args,
+				errorMessage: args.errorMessage?.substring(0, MAX_ERROR_MESSAGE_LENGTH),
+				timestamp: new Date().toISOString(),
+			},
+		})
 	}
 
 	/**
