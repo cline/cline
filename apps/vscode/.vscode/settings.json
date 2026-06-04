@@ -1,0 +1,8 @@
+{
+    // prettier 配置
+    "prettier.semi": false,
+    "prettier.tabWidth": 4,
+    "prettier.singleQuote": false,
+    "prettier.endOfLine": "lf",
+    "prettier.printWidth": 130,
+}
