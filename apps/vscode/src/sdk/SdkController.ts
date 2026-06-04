@@ -267,7 +267,9 @@ export class Controller {
 		this.accountService = ClineAccountService.getInstance();
 
 		// Initialize message translator state
-		this.messageTranslatorState = new MessageTranslatorState();
+		this.messageTranslatorState = new MessageTranslatorState(undefined, () =>
+			this.getActiveProviderId(),
+		);
 		// Authoritative UI-mode tracker, sharing the one id/seq/epoch authority.
 		this.turnStateTracker = new TurnStateTracker(
 			this.messageTranslatorState.getMinter(),
@@ -768,21 +770,26 @@ export class Controller {
 	}
 
 	/**
-	 * Check if the active API provider is 'cline' (for current mode).
+	 * Get the active API provider for the current mode.
 	 */
-	private isClineProviderActive(): boolean {
+	private getActiveProviderId(): string | undefined {
 		try {
 			const apiConfig = this.stateManager.getApiConfiguration();
 			const modeValue = this.stateManager.getGlobalSettingsKey("mode");
 			const mode = modeValue === "plan" ? "plan" : "act";
-			const provider =
-				mode === "plan"
-					? apiConfig.planModeApiProvider
-					: apiConfig.actModeApiProvider;
-			return provider === "cline";
+			return mode === "plan"
+				? apiConfig.planModeApiProvider
+				: apiConfig.actModeApiProvider;
 		} catch {
-			return false;
+			return undefined;
 		}
+	}
+
+	/**
+	 * Check if the active API provider is 'cline' (for current mode).
+	 */
+	private isClineProviderActive(): boolean {
+		return this.getActiveProviderId() === "cline";
 	}
 
 	/**
