@@ -62,6 +62,72 @@ describe("telegramConnector", () => {
 		expect(options.enableTools).toBe(true);
 	});
 
+	it("builds an authorization hook from --allowed-user-id", () => {
+		const options = parseTelegramArgs([
+			"--bot-token",
+			"123:test",
+			"--cwd",
+			"/tmp/work",
+			"--allowed-user-id",
+			"1201547643",
+		]);
+
+		expect(options.hookCommand).toBe(
+			`jq -r ".payload.actor.participantKey" | grep -qx "telegram:id:1201547643" && echo '{"action":"allow"}' || echo '{"action":"deny","message":"unauthorized","reason":"not_on_allowlist"}'`,
+		);
+	});
+
+	it("rejects unsafe --allowed-user-id values", () => {
+		expect(() =>
+			parseTelegramArgs([
+				"--bot-token",
+				"123:test",
+				"--cwd",
+				"/tmp/work",
+				"--allowed-user-id",
+				"123; rm -rf /",
+			]),
+		).toThrow("digits only");
+	});
+
+	it("rejects mixing --allowed-user-id with --hook-command", () => {
+		expect(() =>
+			parseTelegramArgs([
+				"--bot-token",
+				"123:test",
+				"--cwd",
+				"/tmp/work",
+				"--allowed-user-id",
+				"1201547643",
+				"--hook-command",
+				"echo noop",
+			]),
+		).toThrow("either --allowed-user-id or --hook-command");
+	});
+
+	it("rejects mixing --allowed-user-id with the hook command env var", () => {
+		const originalHookCommand = process.env.CLINE_CONNECT_HOOK_COMMAND;
+		process.env.CLINE_CONNECT_HOOK_COMMAND = "echo noop";
+		try {
+			expect(() =>
+				parseTelegramArgs([
+					"--bot-token",
+					"123:test",
+					"--cwd",
+					"/tmp/work",
+					"--allowed-user-id",
+					"1201547643",
+				]),
+			).toThrow("either --allowed-user-id or --hook-command");
+		} finally {
+			if (originalHookCommand === undefined) {
+				delete process.env.CLINE_CONNECT_HOOK_COMMAND;
+			} else {
+				process.env.CLINE_CONNECT_HOOK_COMMAND = originalHookCommand;
+			}
+		}
+	});
+
 	it("does not require the bot username", () => {
 		const options = parseTelegramArgs([
 			"--bot-token",

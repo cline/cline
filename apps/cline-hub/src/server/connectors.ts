@@ -142,10 +142,7 @@ function buildConnectorStartArgs(args?: Record<string, unknown>): string[] {
 			if (validationError) throw new Error(validationError);
 			hookValues[field.key] = value;
 		}
-		cliArgs.push(
-			"--hook-command",
-			platform.security.buildHookCommand(hookValues),
-		);
+		cliArgs.push(...platform.security.buildArgs(hookValues));
 	}
 	return cliArgs;
 }

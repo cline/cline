@@ -36,7 +36,7 @@ export interface SecurityFieldDef {
 export interface SecurityDef {
 	prompt: string;
 	fields: SecurityFieldDef[];
-	buildHookCommand: (values: Record<string, string>) => string;
+	buildArgs: (values: Record<string, string>) => string[];
 }
 
 export function shouldIncludeField(
@@ -111,8 +111,7 @@ export const PLATFORMS: PlatformDef[] = [
 					validate: validateTelegramUserId,
 				},
 			],
-			buildHookCommand: ({ userId }) =>
-				`jq -r ".payload.actor.participantKey" | grep -q "telegram:id:${userId}" && echo '{"action":"allow"}' || echo '{"action":"deny"}'`,
+			buildArgs: ({ userId }) => ["--allowed-user-id", userId ?? ""],
 		},
 	},
 	{
@@ -186,8 +185,10 @@ export const PLATFORMS: PlatformDef[] = [
 					validate: validateSlackUserId,
 				},
 			],
-			buildHookCommand: ({ teamId, userId }) =>
-				`jq -r ".payload.actor.participantKey" | grep -q "slack:team:${teamId}:user:${userId}" && echo '{"action":"allow"}' || echo '{"action":"deny"}'`,
+			buildArgs: ({ teamId, userId }) => [
+				"--hook-command",
+				`jq -r ".payload.actor.participantKey" | grep -qx "slack:team:${teamId}:user:${userId}" && echo '{"action":"allow"}' || echo '{"action":"deny"}'`,
+			],
 		},
 	},
 	{
