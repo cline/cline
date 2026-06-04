@@ -5111,8 +5111,8 @@ export const fireworksModels = {
 		description: "MiniMax M2.7 is tuned for strong real-world performance across coding, agent-driven, and workflow-heavy tasks.",
 	},
 	"accounts/fireworks/models/qwen3p6-plus": {
-		maxTokens: 8192,
-		contextWindow: 128000,
+		maxTokens: 65536,
+		contextWindow: 262144,
 		supportsImages: true,
 		supportsPromptCache: true,
 		inputPrice: 0.5,
