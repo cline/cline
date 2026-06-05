@@ -32,6 +32,8 @@ service TaskService {
   rpc getTaskHistory(GetTaskHistoryRequest) returns (TaskHistoryArray);
   // Sends a response to a previous ask operation
   rpc askResponse(AskResponseRequest) returns (Empty);
+  // Edits a previous user message, truncates following conversation, and regenerates
+  rpc editMessageAndRegenerate(EditMessageAndRegenerateRequest) returns (Empty);
   // Records task feedback (thumbs up/down)
   rpc taskFeedback(StringRequest) returns (Empty);
   // Shows task completion changes diff in a view
@@ -112,6 +114,16 @@ message AskResponseRequest {
   string text = 3;
   repeated string images = 4;
   repeated string files = 5;
+}
+
+// Request for editing a past user message and regenerating the conversation after it
+message EditMessageAndRegenerateRequest {
+  Metadata metadata = 1;
+  int64 message_ts = 2;
+  string text = 3;
+  repeated string images = 4;
+  repeated string files = 5;
+  bool restore_workspace = 6;
 }
 
 // Request for executing a quick win task
