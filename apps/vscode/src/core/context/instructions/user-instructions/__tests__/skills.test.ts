@@ -12,7 +12,14 @@ import * as sinon from "sinon"
 import * as skillDirectories from "@/core/storage/skill-directories"
 import { Logger } from "@/shared/services/Logger"
 import * as fsUtils from "@/utils/fs"
-import { discoverSkills, getAvailableSkills, getSkillContent, parseRemoteSkillEntries } from "../skills"
+import {
+	discoverSkills,
+	getAvailableSkills,
+	getSkillContent,
+	parseRemoteSkillEntries,
+	setSkillDisabledInFrontmatter,
+	updateSkillMarkdownDisabledState,
+} from "../skills"
 
 describe("Skills Utility Functions", () => {
 	let sandbox: sinon.SinonSandbox
@@ -656,3 +663,90 @@ description: Test
 		})
 	})
 })
+
+describe("updateSkillMarkdownDisabledState", () => {
+	it("adds disabled: true when disabling a skill with existing frontmatter", () => {
+		const input = ["---", "name: my-skill", "description: A skill", "---", "Body here"].join("\n")
+		const output = updateSkillMarkdownDisabledState(input, false)
+		expect(output).to.contain("disabled: true")
+		expect(output).to.contain("name: my-skill")
+		expect(output).to.contain("Body here")
+	})
+
+	it("removes disabled flag when enabling a previously-disabled skill", () => {
+		const input = ["---", "name: my-skill", "description: A skill", "disabled: true", "---", "Body"].join("\n")
+		const output = updateSkillMarkdownDisabledState(input, true)
+		expect(output).to.not.contain("disabled")
+		expect(output).to.contain("name: my-skill")
+		expect(output).to.contain("Body")
+	})
+
+	it("also clears a stale enabled: false when enabling", () => {
+		const input = ["---", "name: my-skill", "enabled: false", "---", "Body"].join("\n")
+		const output = updateSkillMarkdownDisabledState(input, true)
+		expect(output).to.not.contain("enabled: false")
+	})
+
+	it("drops the frontmatter block entirely when enabling leaves it empty", () => {
+		const input = ["---", "disabled: true", "---", "Body only"].join("\n")
+		const output = updateSkillMarkdownDisabledState(input, true)
+		expect(output).to.equal("Body only")
+	})
+
+	it("returns content unchanged when enabling a doc with no frontmatter", () => {
+		const input = "Just body, no frontmatter"
+		expect(updateSkillMarkdownDisabledState(input, true)).to.equal(input)
+	})
+
+	it("is idempotent: disabling an already-disabled skill keeps disabled: true once", () => {
+		const input = ["---", "name: s", "disabled: true", "---", "B"].join("\n")
+		const output = updateSkillMarkdownDisabledState(input, false)
+		expect(output.match(/disabled: true/g)).to.have.lengthOf(1)
+	})
+})
+
+describe("setSkillDisabledInFrontmatter", () => {
+	let sandbox: sinon.SinonSandbox
+	let readFileStub: sinon.SinonStub
+	let writeFileStub: sinon.SinonStub
+
+	beforeEach(() => {
+		sandbox = sinon.createSandbox()
+		sandbox.stub(Logger, "warn")
+		readFileStub = sandbox.stub(fs.promises, "readFile")
+		writeFileStub = sandbox.stub(fs.promises, "writeFile").resolves()
+	})
+
+	afterEach(() => sandbox.restore())
+
+	it("writes disabled: true to the SKILL.md when disabling a disk skill", async () => {
+		const skillPath = path.join("/home", "user", ".cline", "skills", "s", "SKILL.md")
+		readFileStub.withArgs(skillPath, "utf-8").resolves(["---", "name: s", "description: d", "---", "Body"].join("\n"))
+
+		const ok = await setSkillDisabledInFrontmatter(skillPath, false)
+
+		expect(ok).to.be.true
+		sinon.assert.calledOnce(writeFileStub)
+		const written = writeFileStub.getCall(0).args[1] as string
+		expect(written).to.contain("disabled: true")
+	})
+
+	it("does not write for remote skills (no backing file)", async () => {
+		const ok = await setSkillDisabledInFrontmatter("remote:Some Skill", false)
+		expect(ok).to.be.false
+		sinon.assert.notCalled(readFileStub)
+		sinon.assert.notCalled(writeFileStub)
+	})
+
+	it("skips the write when content is unchanged", async () => {
+		const skillPath = path.join("/home", "user", ".cline", "skills", "s", "SKILL.md")
+		// Already disabled; disabling again yields identical content.
+		readFileStub.withArgs(skillPath, "utf-8").resolves(["---", "name: s", "disabled: true", "---", "B"].join("\n"))
+
+		const ok = await setSkillDisabledInFrontmatter(skillPath, false)
+
+		expect(ok).to.be.true
+		sinon.assert.notCalled(writeFileStub)
+	})
+})
+
