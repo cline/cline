@@ -11,25 +11,9 @@ import { ModelAutocomplete } from "../common/ModelAutocomplete"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { LockIcon, RemotelyConfiguredInputWrapper } from "../common/RemotelyConfiguredInputWrapper"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
+import { getSavedApiKeyMask, sanitizeMaskedApiKeyInput } from "../utils/apiKeyMasking"
 
 const LITELLM_PROVIDER_ID = "litellm"
-const SAVED_API_KEY_MASK_CHARACTER = "•"
-
-function maskedKey(apiKeyLength: number | undefined): string {
-	return SAVED_API_KEY_MASK_CHARACTER.repeat(Math.max(0, apiKeyLength ?? 0))
-}
-
-function sanitizeApiKeyInput(value: string, savedMask: string): string | undefined {
-	if (!savedMask || !value.includes(SAVED_API_KEY_MASK_CHARACTER)) {
-		return value
-	}
-
-	if (value === savedMask) {
-		return undefined
-	}
-
-	return value.split(SAVED_API_KEY_MASK_CHARACTER).join("")
-}
 
 function customModelInfo(modelId: string): ModelInfo {
 	return {
@@ -56,7 +40,7 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 	const selectedModelInfo = committedSelection?.modelInfo
 		? fromProtobufModelInfo(committedSelection.modelInfo)
 		: (models[selectedModelId] ?? (selectedModelId ? customModelInfo(selectedModelId) : openAiModelInfoSafeDefaults))
-	const savedApiKeyMask = maskedKey(config?.apiKeyLength)
+	const savedApiKeyMask = getSavedApiKeyMask(config?.apiKeyLength)
 
 	const handleModelChange = (newModelId: string, modelInfo: ModelInfo | undefined) => {
 		void commitSelection(currentMode, {
@@ -83,7 +67,7 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 			return
 		}
 
-		const apiKey = sanitizeApiKeyInput(value, savedApiKeyMask)
+		const apiKey = sanitizeMaskedApiKeyInput(value, savedApiKeyMask)
 
 		if (apiKey === undefined) {
 			return
