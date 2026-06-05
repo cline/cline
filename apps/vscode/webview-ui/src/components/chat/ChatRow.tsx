@@ -13,7 +13,6 @@ import { Mode } from "@shared/storage/types"
 import deepEqual from "fast-deep-equal"
 import {
 	BellIcon,
-	CheckIcon,
 	ChevronDownIcon,
 	ChevronRightIcon,
 	CircleXIcon,
