@@ -25,10 +25,10 @@ export class OpenAiStreamUsageTracker {
 
 		return {
 			type: "usage",
-			inputTokens: this.lastUsage.prompt_tokens || 0,
-			outputTokens: this.lastUsage.completion_tokens || 0,
-			cacheReadTokens: this.lastUsage.prompt_tokens_details?.cached_tokens || 0,
-			cacheWriteTokens: this.lastUsage.prompt_cache_miss_tokens || 0,
+			inputTokens: this.lastUsage.prompt_tokens ?? 0,
+			outputTokens: this.lastUsage.completion_tokens ?? 0,
+			cacheReadTokens: this.lastUsage.prompt_tokens_details?.cached_tokens ?? 0,
+			cacheWriteTokens: this.lastUsage.prompt_cache_miss_tokens ?? 0,
 		}
 	}
 }
