@@ -20,7 +20,7 @@ export class VscodeCommentReviewController extends CommentReviewController imple
 
 	/** The currently streaming comment thread */
 	private streamingThread: vscode.CommentThread | null = null
-	private streamingContent: string = ""
+	private streamingContent = ""
 
 	constructor() {
 		super()
@@ -91,7 +91,7 @@ export class VscodeCommentReviewController extends CommentReviewController imple
 		endLine: number,
 		relativePath?: string,
 		fileContent?: string,
-		revealComment: boolean = false,
+		revealComment = false,
 	): void {
 		// Use virtual diff URI if relativePath and fileContent are provided
 		let uri: vscode.Uri

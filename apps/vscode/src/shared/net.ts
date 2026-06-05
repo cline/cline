@@ -93,17 +93,11 @@
  * ```
  */
 
-import {
-	EnvHttpProxyAgent,
-	setGlobalDispatcher,
-	fetch as undiciFetch,
-} from "undici";
+import { EnvHttpProxyAgent, setGlobalDispatcher, fetch as undiciFetch } from "undici"
 
-type FetchFunction = (
-	...args: Parameters<typeof globalThis.fetch>
-) => ReturnType<typeof globalThis.fetch>;
+type FetchFunction = (...args: Parameters<typeof globalThis.fetch>) => ReturnType<typeof globalThis.fetch>
 
-let mockFetch: FetchFunction | undefined;
+let mockFetch: FetchFunction | undefined
 
 /**
  * Platform-configured fetch that respects proxy settings.
@@ -118,23 +112,20 @@ let mockFetch: FetchFunction | undefined;
 export const fetch: typeof globalThis.fetch = (() => {
 	// Note: Don't use Logger here; it may not be initialized.
 
-	let baseFetch: typeof globalThis.fetch = globalThis.fetch;
+	let baseFetch: typeof globalThis.fetch = globalThis.fetch
 	// Note: See esbuild.mjs, process.env.IS_STANDALONE is statically rewritten
 	// to "true" or "false" (as strings) in the JetBrains/CLI build.
 	// We must use explicit string comparison because "false" is truthy in JS.
 	if (process.env.IS_STANDALONE === "true") {
 		// Configure undici with ProxyAgent
-		const agent = new EnvHttpProxyAgent({});
-		setGlobalDispatcher(agent);
-		baseFetch = undiciFetch as any as typeof globalThis.fetch;
+		const agent = new EnvHttpProxyAgent({})
+		setGlobalDispatcher(agent)
+		baseFetch = undiciFetch as any as typeof globalThis.fetch
 	}
 
-	return ((
-		input: string | URL | Request,
-		init?: RequestInit,
-	): Promise<Response> =>
-		(mockFetch || baseFetch)(input, init)) as typeof globalThis.fetch;
-})();
+	return ((input: string | URL | Request, init?: RequestInit): Promise<Response> =>
+		(mockFetch || baseFetch)(input, init)) as typeof globalThis.fetch
+})()
 
 /**
  * Mocks `fetch` for testing and calls `callback`. Then restores `fetch`. If the
@@ -144,25 +135,22 @@ export const fetch: typeof globalThis.fetch = (() => {
  * @param callback `fetch` will be mocked for the duration of `callback()`.
  * @returns the result of `callback()`.
  */
-export function mockFetchForTesting<T>(
-	theFetch: FetchFunction,
-	callback: () => T,
-): T {
-	const originalMockFetch = mockFetch;
-	mockFetch = theFetch;
-	let willResetSync = true;
+export function mockFetchForTesting<T>(theFetch: FetchFunction, callback: () => T): T {
+	const originalMockFetch = mockFetch
+	mockFetch = theFetch
+	let willResetSync = true
 	try {
-		const result = callback();
+		const result = callback()
 		if (result instanceof Promise) {
-			willResetSync = false;
+			willResetSync = false
 			return result.finally(() => {
-				mockFetch = originalMockFetch;
-			}) as typeof result;
+				mockFetch = originalMockFetch
+			}) as typeof result
 		}
-		return result;
+		return result
 	} finally {
 		if (willResetSync) {
-			mockFetch = originalMockFetch;
+			mockFetch = originalMockFetch
 		}
 	}
 }
@@ -184,15 +172,15 @@ export function mockFetchForTesting<T>(
  * ```
  */
 export function getAxiosSettings(): {
-	adapter?: any;
-	fetch?: typeof globalThis.fetch;
-	maxBodyLength?: number;
-	maxContentLength?: number;
+	adapter?: any
+	fetch?: typeof globalThis.fetch
+	maxBodyLength?: number
+	maxContentLength?: number
 } {
 	return {
 		adapter: "fetch" as any,
 		fetch, // Use our configured fetch
 		maxBodyLength: Number.POSITIVE_INFINITY,
 		maxContentLength: Number.POSITIVE_INFINITY,
-	};
+	}
 }

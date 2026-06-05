@@ -8,8 +8,18 @@
 	"compilerOptions": {
 		"module": "commonjs",
 		"moduleResolution": "node",
-		"types": ["node", "mocha", "should", "vscode", "chai"],
-		"typeRoots": ["./node_modules/@types", "./src/types", "./src/test/types"],
+		"types": [
+			"node",
+			"mocha",
+			"should",
+			"vscode",
+			"chai"
+		],
+		"typeRoots": [
+			"./node_modules/@types",
+			"./src/types",
+			"./src/test/types"
+		],
 		"outDir": "out",
 		"rootDir": "."
 	},
