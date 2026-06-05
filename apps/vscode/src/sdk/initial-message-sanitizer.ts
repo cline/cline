@@ -1,84 +1,68 @@
-type GenericContentBlock = Record<string, unknown>;
+type GenericContentBlock = Record<string, unknown>
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
+	return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
 function toBlocks(content: unknown): GenericContentBlock[] {
 	if (Array.isArray(content)) {
-		return content.filter(isRecord);
+		return content.filter(isRecord)
 	}
 	if (typeof content === "string") {
-		return [{ type: "text", text: content }];
+		return [{ type: "text", text: content }]
 	}
-	return [];
+	return []
 }
 
 interface ToolUseReference {
-	id: string;
-	name?: string;
+	id: string
+	name?: string
 }
 
 function getToolUses(content: unknown): ToolUseReference[] {
 	if (!Array.isArray(content)) {
-		return [];
+		return []
 	}
 
-	const toolUses: ToolUseReference[] = [];
+	const toolUses: ToolUseReference[] = []
 	for (const block of content) {
 		if (!isRecord(block)) {
-			continue;
+			continue
 		}
 		if (block.type === "tool_use" && typeof block.id === "string") {
 			toolUses.push({
 				id: block.id,
-				name:
-					typeof block.name === "string" && block.name.length > 0
-						? block.name
-						: undefined,
-			});
+				name: typeof block.name === "string" && block.name.length > 0 ? block.name : undefined,
+			})
 		}
 	}
-	return toolUses;
+	return toolUses
 }
 
-function isToolResultForId(
-	block: GenericContentBlock,
-	toolUseId: string,
-): boolean {
-	return block.type === "tool_result" && block.tool_use_id === toolUseId;
+function isToolResultForId(block: GenericContentBlock, toolUseId: string): boolean {
+	return block.type === "tool_result" && block.tool_use_id === toolUseId
 }
 
-const MIGRATION_MISSING_TOOL_RESULT_TEXT =
-	"[migration] Tool result missing in legacy conversation history.";
+const MIGRATION_MISSING_TOOL_RESULT_TEXT = "[migration] Tool result missing in legacy conversation history."
 
-function createMissingToolResult(
-	toolUseId: string,
-	toolName?: string,
-): GenericContentBlock {
+function createMissingToolResult(toolUseId: string, toolName?: string): GenericContentBlock {
 	return {
 		type: "tool_result",
 		tool_use_id: toolUseId,
 		...(toolName ? { name: toolName } : {}),
 		content: MIGRATION_MISSING_TOOL_RESULT_TEXT,
-	};
+	}
 }
 
-function withToolResultName(
-	block: GenericContentBlock,
-	toolName?: string,
-): GenericContentBlock {
+function withToolResultName(block: GenericContentBlock, toolName?: string): GenericContentBlock {
 	if (!toolName || typeof block.name === "string") {
-		return block;
+		return block
 	}
-	return { ...block, name: toolName };
+	return { ...block, name: toolName }
 }
 
 function isMigrationPlaceholderToolResult(block: GenericContentBlock): boolean {
-	return (
-		block.type === "tool_result" &&
-		block.content === MIGRATION_MISSING_TOOL_RESULT_TEXT
-	);
+	return block.type === "tool_result" && block.content === MIGRATION_MISSING_TOOL_RESULT_TEXT
 }
 
 /**
@@ -89,74 +73,62 @@ function isMigrationPlaceholderToolResult(block: GenericContentBlock): boolean {
  * conversations (especially interrupted turns) can miss these blocks, causing
  * "Tool result is missing for tool call ..." errors on resume.
  */
-export function sanitizeInitialMessagesForSessionStart(
-	messages: unknown[],
-): unknown[] {
+export function sanitizeInitialMessagesForSessionStart(messages: unknown[]): unknown[] {
 	if (messages.length === 0) {
-		return messages;
+		return messages
 	}
 
-	const sanitized = [...messages];
-	let changed = false;
+	const sanitized = [...messages]
+	let changed = false
 
 	for (let i = 0; i < sanitized.length; i++) {
-		const assistantMessage = sanitized[i];
+		const assistantMessage = sanitized[i]
 		if (!isRecord(assistantMessage) || assistantMessage.role !== "assistant") {
-			continue;
+			continue
 		}
 
-		const toolUses = getToolUses(assistantMessage.content);
+		const toolUses = getToolUses(assistantMessage.content)
 		if (toolUses.length === 0) {
-			continue;
+			continue
 		}
-		const toolUseIds = toolUses.map((toolUse) => toolUse.id);
-		const toolUseNames = new Map(
-			toolUses.map((toolUse) => [toolUse.id, toolUse.name]),
-		);
+		const toolUseIds = toolUses.map((toolUse) => toolUse.id)
+		const toolUseNames = new Map(toolUses.map((toolUse) => [toolUse.id, toolUse.name]))
 
-		const next = sanitized[i + 1];
+		const next = sanitized[i + 1]
 		if (!isRecord(next) || next.role !== "user") {
 			// Insert a synthetic user message with placeholder tool results so
 			// the message stream remains valid for SDK parsing.
 			sanitized.splice(i + 1, 0, {
 				role: "user",
-				content: toolUses.map((toolUse) =>
-					createMissingToolResult(toolUse.id, toolUse.name),
-				),
-			});
-			changed = true;
-			i += 1;
-			continue;
+				content: toolUses.map((toolUse) => createMissingToolResult(toolUse.id, toolUse.name)),
+			})
+			changed = true
+			i += 1
+			continue
 		}
 
 		// Collect tool_result blocks from ALL consecutive user messages after
 		// the assistant.  The SDK persists each parallel tool result as a
 		// separate user message, so we must scan beyond just `i + 1`.
-		const toolUseIdSet = new Set(toolUseIds);
-		const matchingToolResults = new Map<string, GenericContentBlock>();
-		const otherBlocks: GenericContentBlock[] = [];
-		let userSpan = 0; // how many consecutive user messages we consumed
+		const toolUseIdSet = new Set(toolUseIds)
+		const matchingToolResults = new Map<string, GenericContentBlock>()
+		const otherBlocks: GenericContentBlock[] = []
+		let userSpan = 0 // how many consecutive user messages we consumed
 
 		for (let j = i + 1; j < sanitized.length; j++) {
-			const msg = sanitized[j];
+			const msg = sanitized[j]
 			if (!isRecord(msg) || msg.role !== "user") {
-				break;
+				break
 			}
 
-			const blocks = toBlocks(msg.content);
+			const blocks = toBlocks(msg.content)
 			for (const block of blocks) {
-				let matched = false;
+				let matched = false
 				for (const toolUseId of toolUseIds) {
-					if (
-						!matchingToolResults.has(toolUseId) &&
-						isToolResultForId(block, toolUseId)
-					) {
-						matchingToolResults.set(
-							toolUseId,
-							withToolResultName(block, toolUseNames.get(toolUseId)),
-						);
-						matched = true;
-						break;
+					if (!matchingToolResults.has(toolUseId) && isToolResultForId(block, toolUseId)) {
+						matchingToolResults.set(toolUseId, withToolResultName(block, toolUseNames.get(toolUseId)))
+						matched = true
+						break
 					}
 				}
 				if (!matched) {
@@ -169,64 +141,52 @@ export function sanitizeInitialMessagesForSessionStart(
 					) {
 						// Duplicate tool_result for an ID we already matched — skip it
 					} else {
-						otherBlocks.push(block);
+						otherBlocks.push(block)
 					}
 				}
 			}
-			userSpan++;
+			userSpan++
 		}
 
-		const missingToolResultIds = toolUseIds.filter(
-			(toolUseId) => !matchingToolResults.has(toolUseId),
-		);
+		const missingToolResultIds = toolUseIds.filter((toolUseId) => !matchingToolResults.has(toolUseId))
 		const orderedToolResults = toolUseIds.map(
-			(toolUseId) =>
-				matchingToolResults.get(toolUseId) ??
-				createMissingToolResult(toolUseId, toolUseNames.get(toolUseId)),
-		);
+			(toolUseId) => matchingToolResults.get(toolUseId) ?? createMissingToolResult(toolUseId, toolUseNames.get(toolUseId)),
+		)
 
 		// If we had to synthesize missing tool_result blocks (or are carrying the
 		// migration placeholder from a previous resume attempt), keep the immediate
 		// response message strictly tool_result-only for maximum provider compatibility.
 		// Move any existing non-tool-result content into a follow-up user message.
-		const hasMigrationPlaceholder = orderedToolResults.some(
-			isMigrationPlaceholderToolResult,
-		);
-		if (
-			missingToolResultIds.length > 0 ||
-			hasMigrationPlaceholder ||
-			userSpan > 1
-		) {
+		const hasMigrationPlaceholder = orderedToolResults.some(isMigrationPlaceholderToolResult)
+		if (missingToolResultIds.length > 0 || hasMigrationPlaceholder || userSpan > 1) {
 			// Replace the span of user messages with a single consolidated message
 			sanitized.splice(i + 1, userSpan, {
 				...next,
 				content: orderedToolResults,
-			});
+			})
 			if (otherBlocks.length > 0) {
 				sanitized.splice(i + 2, 0, {
 					role: "user",
 					content: otherBlocks,
-				});
-				i += 1;
+				})
+				i += 1
 			}
-			changed = true;
-			continue;
+			changed = true
+			continue
 		}
 
-		const newContent = [...orderedToolResults, ...otherBlocks];
-		const originalBlocks = toBlocks(next.content);
-		const differsInLength = newContent.length !== originalBlocks.length;
-		const differsInOrder =
-			!differsInLength &&
-			newContent.some((block, index) => block !== originalBlocks[index]);
+		const newContent = [...orderedToolResults, ...otherBlocks]
+		const originalBlocks = toBlocks(next.content)
+		const differsInLength = newContent.length !== originalBlocks.length
+		const differsInOrder = !differsInLength && newContent.some((block, index) => block !== originalBlocks[index])
 		if (differsInLength || differsInOrder) {
 			sanitized[i + 1] = {
 				...next,
 				content: newContent,
-			};
-			changed = true;
+			}
+			changed = true
 		}
 	}
 
-	return changed ? sanitized : messages;
+	return changed ? sanitized : messages
 }

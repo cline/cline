@@ -17,6 +17,8 @@ export enum FeatureFlag {
 	EXTENSION_CLINE_MODELS_ENDPOINT = "extension_cline_models_endpoint",
 	// Enables Cline Pass provider/model list exposure.
 	CLINE_PASS = "ext-cline-pass",
+	// Rollout flag for fetching recommended Cline models from the upstream endpoint.
+	CLINE_RECOMMENDED_MODELS_UPSTREAM = "cline_recommended_models_upstream",
 	// Use the websocket mode for OpenAI native Responses API format
 	OPENAI_RESPONSES_WEBSOCKET_MODE = "openai-responses-websocket-mode",
 }
@@ -30,6 +32,7 @@ export const FeatureFlagDefaultValue: Partial<Record<FeatureFlag, FeatureFlagPay
 	[FeatureFlag.REMOTE_WELCOME_BANNERS]: process.env.E2E_TEST === "true" || process.env.IS_DEV === "true",
 	[FeatureFlag.EXTENSION_CLINE_MODELS_ENDPOINT]: false,
 	[FeatureFlag.CLINE_PASS]: false,
+	[FeatureFlag.CLINE_RECOMMENDED_MODELS_UPSTREAM]: false,
 	[FeatureFlag.OPENAI_RESPONSES_WEBSOCKET_MODE]: false,
 }
 

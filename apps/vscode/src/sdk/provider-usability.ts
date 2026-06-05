@@ -9,14 +9,14 @@
 // ollama/lmstudio/vscode-lm) are usable once a model is configured, even
 // without an API key.
 
-import { getProviderConfigFields } from "@cline/core";
-import type { ApiConfiguration } from "@shared/api";
-import { Logger } from "@shared/services/Logger";
-import type { Mode } from "@shared/storage/types";
-import { StateManager } from "@/core/storage/StateManager";
-import { resolveApiKey, resolveModelId } from "./cline-session-factory";
-import { toSdkProviderId } from "./model-catalog/sdk-provider-id";
-import { getProviderSettingsManager } from "./provider-migration";
+import { getProviderConfigFields } from "@cline/core"
+import type { ApiConfiguration } from "@shared/api"
+import { Logger } from "@shared/services/Logger"
+import type { Mode } from "@shared/storage/types"
+import { StateManager } from "@/core/storage/StateManager"
+import { resolveApiKey, resolveModelId } from "./cline-session-factory"
+import { toSdkProviderId } from "./model-catalog/sdk-provider-id"
+import { getProviderSettingsManager } from "./provider-migration"
 
 /**
  * Local-inference providers that the legacy ApiConfiguration path treats as
@@ -27,11 +27,7 @@ import { getProviderSettingsManager } from "./provider-migration";
  * listed here explicitly. `vscode-lm` is a VSCode-host provider that is not in
  * the SDK builtin catalog at all.
  */
-const KEYLESS_LOCAL_PROVIDERS = new Set<string>([
-	"ollama",
-	"lmstudio",
-	"vscode-lm",
-]);
+const KEYLESS_LOCAL_PROVIDERS = new Set<string>(["ollama", "lmstudio", "vscode-lm"])
 
 /**
  * Whether a provider can be usable WITHOUT an API key, on the strength of a
@@ -56,36 +52,28 @@ const KEYLESS_LOCAL_PROVIDERS = new Set<string>([
  */
 function getProviderAuthMethod(providerId: string): string | undefined {
 	try {
-		return getProviderConfigFields(toSdkProviderId(providerId)).authMethod;
+		return getProviderConfigFields(toSdkProviderId(providerId)).authMethod
 	} catch {
-		return undefined;
+		return undefined
 	}
 }
 
 function isKeylessViaModelProvider(providerId: string): boolean {
 	if (KEYLESS_LOCAL_PROVIDERS.has(providerId)) {
-		return true;
+		return true
 	}
-	return getProviderAuthMethod(providerId) === "local";
+	return getProviderAuthMethod(providerId) === "local"
 }
 
 function hasProviderSettingsAuthCredential(providerId: string): boolean {
 	try {
-		const settings =
-			getProviderSettingsManager().getProviderSettings(providerId);
+		const settings = getProviderSettingsManager().getProviderSettings(providerId)
 		const auth =
-			settings && typeof settings === "object"
-				? (settings as { auth?: { accessToken?: unknown } }).auth
-				: undefined;
-		return (
-			typeof auth?.accessToken === "string" &&
-			auth.accessToken.trim().length > 0
-		);
+			settings && typeof settings === "object" ? (settings as { auth?: { accessToken?: unknown } }).auth : undefined
+		return typeof auth?.accessToken === "string" && auth.accessToken.trim().length > 0
 	} catch {
-		Logger.warn(
-			`[ProviderUsability] Failed to read provider settings auth credentials for provider ${providerId}`,
-		);
-		return false;
+		Logger.warn(`[ProviderUsability] Failed to read provider settings auth credentials for provider ${providerId}`)
+		return false
 	}
 }
 
@@ -95,25 +83,19 @@ function hasProviderSettingsAuthCredential(providerId: string): boolean {
  * Decoupled from the StateManager singleton so it can be unit-tested with a
  * plain ApiConfiguration + mode.
  */
-export function hasUsableProvider(
-	apiConfig: ApiConfiguration,
-	mode: Mode,
-): boolean {
-	const providerId =
-		mode === "plan"
-			? apiConfig.planModeApiProvider
-			: apiConfig.actModeApiProvider;
+export function hasUsableProvider(apiConfig: ApiConfiguration, mode: Mode): boolean {
+	const providerId = mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider
 
 	// No provider selected for the active mode -> cannot chat.
 	if (!providerId) {
-		return false;
+		return false
 	}
 
 	// A resolvable credential (BYOK key, Bedrock key, or OAuth token)
 	// means we can build a session and chat.
-	const apiKey = resolveApiKey(providerId, apiConfig);
+	const apiKey = resolveApiKey(providerId, apiConfig)
 	if (typeof apiKey === "string" && apiKey.trim().length > 0) {
-		return true;
+		return true
 	}
 
 	// OAuth-backed providers such as OpenAI Codex store subscription credentials
@@ -121,17 +103,17 @@ export function hasUsableProvider(
 	// project that token into ApiConfiguration, so resolve the auth envelope
 	// directly through the shared provider settings store.
 	if (hasProviderSettingsAuthCredential(providerId)) {
-		return true;
+		return true
 	}
 
 	// Keyless local/local-auth providers are usable once a model is
 	// configured for the mode (no API key required).
 	if (isKeylessViaModelProvider(providerId)) {
-		const modelId = resolveModelId(providerId, mode, apiConfig);
-		return typeof modelId === "string" && modelId.trim().length > 0;
+		const modelId = resolveModelId(providerId, mode, apiConfig)
+		return typeof modelId === "string" && modelId.trim().length > 0
 	}
 
-	return false;
+	return false
 }
 
 /**
@@ -141,16 +123,13 @@ export function hasUsableProvider(
  */
 export function hasUsableProviderForActiveMode(): boolean {
 	try {
-		const stateManager = StateManager.get();
-		const apiConfig = stateManager.getApiConfiguration();
-		const mode: Mode = stateManager.getGlobalSettingsKey("mode") ?? "act";
-		return hasUsableProvider(apiConfig, mode);
+		const stateManager = StateManager.get()
+		const apiConfig = stateManager.getApiConfiguration()
+		const mode: Mode = stateManager.getGlobalSettingsKey("mode") ?? "act"
+		return hasUsableProvider(apiConfig, mode)
 	} catch (error) {
-		Logger.warn(
-			"[ProviderUsability] Failed to compute usable provider:",
-			error,
-		);
+		Logger.warn("[ProviderUsability] Failed to compute usable provider:", error)
 		// Fail open: do not gate the UI on an internal read error.
-		return true;
+		return true
 	}
 }
