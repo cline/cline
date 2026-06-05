@@ -1,10 +1,10 @@
 import { openAiModelInfoSafeDefaults } from "@shared/api"
-import { fromProtobufModelInfo } from "@shared/proto-conversions/models/typeConversion"
 import { Mode } from "@shared/storage/types"
 import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useProviderConfig } from "@/hooks/useProviderConfig"
+import { useProviderModelSelection } from "@/hooks/useProviderModelSelection"
 import { useStaticProviderSelection } from "@/hooks/useStaticProviderSelection"
 import { DROPDOWN_Z_INDEX } from "../ApiOptions"
 import { ApiKeyField } from "../common/ApiKeyField"
@@ -51,11 +51,13 @@ export const XaiProvider = ({ showModelOptions, isPopup, currentMode }: XaiProvi
 		selectedModelInfo: legacySelectedModelInfo,
 		hideUsageCost,
 	} = useStaticProviderSelection(PROVIDER_ID, apiConfiguration, currentMode)
-	const committedSelection = currentMode === "plan" ? config?.planSelection : config?.actSelection
-	const selectedModelId = committedSelection?.modelId ?? legacySelectedModelId
-	const selectedModelInfo = committedSelection?.modelInfo
-		? fromProtobufModelInfo(committedSelection.modelInfo)
-		: legacySelectedModelInfo
+	const { selectedModelId, selectedModelInfo, commitModelSelection } = useProviderModelSelection(PROVIDER_ID, currentMode, {
+		models,
+		defaultModelId: legacySelectedModelId,
+		config,
+		commitSelection,
+		fallbackModelInfo: legacySelectedModelInfo,
+	})
 
 	// Local state for reasoning effort toggle
 	const [reasoningEffortSelected, setReasoningEffortSelected] = useState(!!modeFields.reasoningEffort)
@@ -73,8 +75,7 @@ export const XaiProvider = ({ showModelOptions, isPopup, currentMode }: XaiProvi
 		const fallbackModelId = defaultModelId || Object.keys(models)[0] || modelId
 		const modelInfo = models[modelId] ?? models[fallbackModelId] ?? selectedModelInfo ?? openAiModelInfoSafeDefaults
 
-		void commitSelection(currentMode, {
-			providerId: PROVIDER_ID,
+		void commitModelSelection({
 			modelId,
 			modelInfo,
 		}).catch((err) => console.error("Failed to commit X AI model selection:", err))
