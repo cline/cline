@@ -294,6 +294,74 @@ describe("LocalRuntimeHost", () => {
 		);
 	});
 
+	it("resolves OAuth credentials before creating the agent", async () => {
+		const sessionId = "sess-oauth-bootstrap";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest.json",
+				messagesPath: "/tmp/messages.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({ tools: [], shutdown: vi.fn() }),
+		};
+		const agent = {
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const createAgent = vi.fn(() => agent as never);
+		const oauthTokenManager = {
+			resolveProviderApiKey: vi.fn().mockResolvedValue({
+				providerId: "cline-pass",
+				apiKey: "workos:resolved-token",
+				refreshed: false,
+			}),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent,
+			oauthTokenManager: oauthTokenManager as never,
+		});
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({
+					sessionId,
+					providerId: "cline-pass",
+					modelId: "cline-pass/glm-5.1",
+					apiKey: undefined,
+				}),
+				prompt: "hello",
+			}),
+		);
+
+		expect(oauthTokenManager.resolveProviderApiKey).toHaveBeenCalledWith({
+			providerId: "cline-pass",
+		});
+		expect(createAgent).toHaveBeenCalledWith(
+			expect.objectContaining({
+				providerId: "cline-pass",
+				apiKey: "workos:resolved-token",
+			}),
+		);
+	});
+
 	it("captures active session lookup misses as handled telemetry", async () => {
 		const adapter = {
 			name: "test",

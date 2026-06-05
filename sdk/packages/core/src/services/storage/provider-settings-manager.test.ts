@@ -51,6 +51,60 @@ describe("ProviderSettingsManager", () => {
 		expect(reloaded.read().providers.anthropic?.tokenSource).toBe("manual");
 	});
 
+	it("resolves auth storage settings for providers registered with a storage provider id", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-provider-settings-"),
+		);
+		tempDirs.push(tempDir);
+		const filePath = path.join(tempDir, "provider-settings.json");
+		const manager = new ProviderSettingsManager({ filePath });
+
+		manager.saveProviderSettings(
+			{
+				provider: "cline",
+				model: "anthropic/claude-sonnet-4.6",
+				baseUrl: "https://api.example.test",
+				auth: {
+					accessToken: "workos:shared-token",
+					refreshToken: "shared-refresh",
+				},
+			},
+			{ setLastUsed: false, tokenSource: "oauth" },
+		);
+
+		expect(manager.getProviderSettings("cline-pass")).toEqual({
+			provider: "cline-pass",
+			baseUrl: "https://api.example.test",
+			auth: {
+				accessToken: "workos:shared-token",
+				refreshToken: "shared-refresh",
+			},
+		});
+		expect(manager.getProviderConfig("cline-pass")).toMatchObject({
+			providerId: "cline-pass",
+			apiKey: "workos:shared-token",
+			baseUrl: "https://api.example.test",
+		});
+
+		manager.saveProviderSettings(
+			{
+				provider: "cline-pass",
+				model: "cline-pass/glm-5.1",
+			},
+			{ setLastUsed: true },
+		);
+
+		expect(manager.getProviderSettings("cline-pass")).toEqual({
+			provider: "cline-pass",
+			model: "cline-pass/glm-5.1",
+			baseUrl: "https://api.example.test",
+			auth: {
+				accessToken: "workos:shared-token",
+				refreshToken: "shared-refresh",
+			},
+		});
+	});
+
 	it("migrates legacy provider settings during manager construction", () => {
 		const tempDir = mkdtempSync(
 			path.join(os.tmpdir(), "core-provider-settings-"),

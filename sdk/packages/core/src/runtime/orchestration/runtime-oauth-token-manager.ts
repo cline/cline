@@ -71,39 +71,48 @@ export class RuntimeOAuthTokenManager {
 		if (!handler) {
 			return null;
 		}
-		return this.resolveWithSingleFlight(handler.providerId, input.forceRefresh);
+		return this.resolveWithSingleFlight(
+			handler.providerId,
+			handler.storageProviderId,
+			input.forceRefresh,
+		);
 	}
 
 	private async resolveWithSingleFlight(
 		providerId: ManagedOAuthProviderId,
+		storageProviderId: ManagedOAuthProviderId,
 		forceRefresh = false,
 	): Promise<RuntimeOAuthResolution | null> {
-		const currentInFlight = this.refreshInFlight.get(providerId);
+		const currentInFlight = this.refreshInFlight.get(storageProviderId);
 		if (currentInFlight) {
 			return currentInFlight;
 		}
-		const pending = this.resolveProviderApiKeyInternal(providerId, forceRefresh)
+		const pending = this.resolveProviderApiKeyInternal(
+			providerId,
+			storageProviderId,
+			forceRefresh,
+		)
 			.catch((error) => {
 				throw error;
 			})
 			.finally(() => {
-				this.refreshInFlight.delete(providerId);
+				this.refreshInFlight.delete(storageProviderId);
 			});
-		this.refreshInFlight.set(providerId, pending);
+		this.refreshInFlight.set(storageProviderId, pending);
 		return pending;
 	}
 
 	private async resolveProviderApiKeyInternal(
 		providerId: ManagedOAuthProviderId,
+		storageProviderId: ManagedOAuthProviderId,
 		forceRefresh: boolean,
 	): Promise<RuntimeOAuthResolution | null> {
 		const handler = getProviderAuthHandler(providerId);
 		if (!handler) {
 			return null;
 		}
-		const settings = this.providerSettingsManager.getProviderSettings(
-			handler.storageProviderId,
-		);
+		const settings =
+			this.providerSettingsManager.getProviderSettings(storageProviderId);
 		if (!settings) {
 			return null;
 		}
