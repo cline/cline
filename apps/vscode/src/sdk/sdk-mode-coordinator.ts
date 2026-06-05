@@ -101,10 +101,7 @@ export class SdkModeCoordinator {
 		return false;
 	}
 
-	async rebuildSessionForMode(
-		newMode: Mode,
-		options: { autoContinue?: boolean; continuationPrompt?: string } = {},
-	): Promise<void> {
+	async rebuildSessionForMode(newMode: Mode): Promise<void> {
 		this.options.stateManager.setGlobalState("mode", newMode);
 
 		const activeSession = this.options.sessions.getActiveSession();
@@ -171,16 +168,6 @@ export class SdkModeCoordinator {
 			}
 
 			this.options.resetMessageTranslator();
-			if (options.autoContinue) {
-				const prompt =
-					options.continuationPrompt ?? ACT_MODE_CONTINUATION_PROMPT;
-				this.options.sessions.setRunning(true);
-				this.options.sessions.fireAndForgetSend(
-					sdkHost,
-					startResult.sessionId,
-					prompt,
-				);
-			}
 			await this.options.postStateToWebview();
 
 			Logger.log(
