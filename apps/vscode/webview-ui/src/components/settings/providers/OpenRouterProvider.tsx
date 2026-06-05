@@ -8,8 +8,8 @@ import { AccountServiceClient } from "@/services/grpc-client"
 import { useOpenRouterKeyInfo } from "../../ui/hooks/useOpenRouterKeyInfo"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import OpenRouterModelPicker from "../OpenRouterModelPicker"
-import { getSavedApiKeyMask, sanitizeMaskedApiKeyInput } from "../utils/apiKeyMasking"
 import { formatPrice } from "../utils/pricingUtils"
+import { useProviderApiKeyField } from "../utils/useProviderApiKeyField"
 
 /**
  * Component to display OpenRouter balance information
@@ -63,29 +63,23 @@ export const OpenRouterProvider = ({ showModelOptions, isPopup, currentMode }: O
 	const { apiConfiguration } = useExtensionState()
 	const { config, write } = useProviderConfig("openrouter")
 	const [openRouterApiKey, setOpenRouterApiKey] = useState(apiConfiguration?.openRouterApiKey || "")
-	const savedApiKeyMask = getSavedApiKeyMask(config?.apiKeyLength)
+	const { savedApiKeyMask, handleApiKeyChange } = useProviderApiKeyField({
+		apiKeyLength: config?.apiKeyLength,
+		onApiKeyChange: setOpenRouterApiKey,
+		providerName: "OpenRouter",
+		write,
+	})
 
 	useEffect(() => {
 		setOpenRouterApiKey(apiConfiguration?.openRouterApiKey || "")
 	}, [apiConfiguration?.openRouterApiKey])
-
-	const handleApiKeyChanged = (value: string) => {
-		const apiKey = sanitizeMaskedApiKeyInput(value, savedApiKeyMask)
-
-		if (apiKey === undefined) {
-			return
-		}
-
-		setOpenRouterApiKey(apiKey)
-		void write({ apiKey }).catch((err) => console.error("Failed to update OpenRouter API key:", err))
-	}
 
 	return (
 		<div>
 			<div>
 				<DebouncedTextField
 					initialValue={savedApiKeyMask}
-					onChange={handleApiKeyChanged}
+					onChange={handleApiKeyChange}
 					placeholder="Enter API Key..."
 					style={{ width: "100%" }}
 					type="password">
