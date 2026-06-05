@@ -1,4 +1,4 @@
-import type { ModelInfo } from "@shared/api"
+import { type ModelInfo, openAiModelInfoSafeDefaults } from "@shared/api"
 import type { OnboardingModel, OnboardingModelGroup, OpenRouterModelInfo } from "@shared/proto/index.cline"
 import { AlertCircleIcon, CircleCheckIcon, CircleIcon, ListIcon, LoaderCircleIcon, ZapIcon } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Item, ItemContent, ItemDescription, ItemHeader, ItemMedia, ItemTitle } from "@/components/ui/item"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useProviderConfig } from "@/hooks/useProviderConfig"
+import { useProviderModels } from "@/hooks/useProviderModels"
 import { cn } from "@/lib/utils"
 import { AccountServiceClient, StateServiceClient } from "@/services/grpc-client"
 import ApiConfigurationSection from "../settings/sections/ApiConfigurationSection"
@@ -268,6 +270,8 @@ const OnboardingStepContent = ({
 const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: OnboardingModelGroup }) => {
 	const { handleFieldsChange } = useApiConfigurationHandlers()
 	const { openRouterModels, hideSettings, hideAccount, setShowWelcome } = useExtensionState()
+	const { models: clineModels } = useProviderModels("cline")
+	const { commitSelection } = useProviderConfig("cline")
 	const loginAttemptIdRef = useRef(0)
 	const loginLoadingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -279,6 +283,9 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 	const [searchTerm, setSearchTerm] = useState("")
 
 	const models = useMemo(() => getClineUIOnboardingGroups(onboardingModels), [onboardingModels])
+	const onboardingModelById = useMemo(() => {
+		return new Map(onboardingModels.models.map((model) => [model.id, model]))
+	}, [onboardingModels])
 
 	useEffect(() => {
 		setSearchTerm("")
@@ -318,11 +325,30 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 		async (updateModelId: boolean, step: number) => {
 			const modelSelected = (updateModelId && selectedModelId) || undefined
 			if (modelSelected) {
+				const selectedModelInfo = clineModels[selectedModelId] ??
+					onboardingModelById.get(selectedModelId)?.info ?? {
+						...openAiModelInfoSafeDefaults,
+						name: selectedModelId,
+					}
+
+				await Promise.all([
+					commitSelection("plan", {
+						providerId: "cline",
+						modelId: selectedModelId,
+						modelInfo: selectedModelInfo,
+					}),
+					commitSelection("act", {
+						providerId: "cline",
+						modelId: selectedModelId,
+						modelInfo: selectedModelInfo,
+					}),
+				])
+
 				await handleFieldsChange({
-					planModeOpenRouterModelId: selectedModelId,
-					actModeOpenRouterModelId: selectedModelId,
-					planModeOpenRouterModelInfo: openRouterModels[selectedModelId],
-					actModeOpenRouterModelInfo: openRouterModels[selectedModelId],
+					planModeClineModelId: selectedModelId,
+					actModeClineModelId: selectedModelId,
+					planModeClineModelInfo: selectedModelInfo,
+					actModeClineModelInfo: selectedModelInfo,
 					planModeApiProvider: "cline",
 					actModeApiProvider: "cline",
 				})
@@ -335,7 +361,16 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 			const action = "onboarding_completed"
 			StateServiceClient.captureOnboardingProgress({ step, modelSelected, action, completed: true })
 		},
-		[hideAccount, hideSettings, handleFieldsChange, selectedModelId, openRouterModels, setShowWelcome],
+		[
+			hideAccount,
+			hideSettings,
+			handleFieldsChange,
+			selectedModelId,
+			clineModels,
+			onboardingModelById,
+			commitSelection,
+			setShowWelcome,
+		],
 	)
 
 	const loginAndFinishOnboarding = useCallback(
@@ -425,7 +460,7 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 
 				<div className="flex-1 w-full flex max-w-lg overflow-y-auto min-h-0">
 					<OnboardingStepContent
-						models={openRouterModels}
+						models={Object.keys(clineModels).length > 0 ? clineModels : openRouterModels}
 						onboardingModels={models}
 						onSelectModel={onModelClick}
 						onSelectUserType={onUserTypeClick}
