@@ -14,14 +14,10 @@ const CUSTOM_PROVIDER_SETTINGS_IDS = new Set([
 	"claude-code",
 	"cline",
 	"dify",
-	"doubao",
 	"hicap",
-	"huawei-cloud-maas",
 	"litellm",
 	"lmstudio",
-	"mistral",
 	"moonshot",
-	"nousResearch",
 	"oca",
 	"ollama",
 	"openai",
@@ -34,7 +30,6 @@ const CUSTOM_PROVIDER_SETTINGS_IDS = new Set([
 	"sapaicore",
 	"vertex",
 	"vscode-lm",
-	"wandb",
 	"xai",
 	"zai",
 ])
@@ -45,6 +40,9 @@ const GENERIC_PROVIDER_PRESENTATION_OVERRIDES: Record<string, GenericProviderPre
 	},
 	deepseek: {
 		signupUrl: "https://www.deepseek.com/",
+	},
+	doubao: {
+		signupUrl: "https://console.volcengine.com/home",
 	},
 	fireworks: {
 		signupUrl: "https://fireworks.ai/",
@@ -61,6 +59,9 @@ const GENERIC_PROVIDER_PRESENTATION_OVERRIDES: Record<string, GenericProviderPre
 	huggingface: {
 		signupUrl: "https://huggingface.co/settings/tokens",
 	},
+	"huawei-cloud-maas": {
+		signupUrl: "https://support.huaweicloud.com/intl/zh-cn/usermanual-maas/maas_01_0001.html",
+	},
 	minimax: {
 		signupUrl: "https://www.minimax.io/platform/user-center/basic-information/interface-key",
 		baseUrlField: {
@@ -68,9 +69,13 @@ const GENERIC_PROVIDER_PRESENTATION_OVERRIDES: Record<string, GenericProviderPre
 			placeholder: "https://api.minimax.io/anthropic",
 		},
 	},
+	mistral: {
+		signupUrl: "https://console.mistral.ai/codestral",
+	},
 	nebius: {
 		signupUrl: "https://auth.tokenfactory.nebius.com/ui/login",
 	},
+	nousResearch: {},
 	sambanova: {
 		signupUrl: "https://docs.sambanova.ai/cloud/docs/get-started/overview",
 	},
@@ -84,6 +89,9 @@ const GENERIC_PROVIDER_PRESENTATION_OVERRIDES: Record<string, GenericProviderPre
 	},
 	"vercel-ai-gateway": {
 		signupUrl: "https://vercel.com/d?to=%2F%5Bteam%5D%2F%7E%2Fai",
+	},
+	wandb: {
+		signupUrl: "https://wandb.ai",
 	},
 }
 
@@ -123,9 +131,14 @@ export function getGenericProviderSettings(
 
 const FALLBACK_GENERIC_PROVIDER_NAMES = {
 	deepseek: "DeepSeek",
+	doubao: "Doubao",
 	gemini: "Gemini",
+	"huawei-cloud-maas": "Huawei Cloud MaaS",
 	minimax: "MiniMax",
+	mistral: "Mistral",
+	nousResearch: "NousResearch",
 	together: "Together",
+	wandb: "W&B",
 } as const
 
 export function getFallbackGenericProviderSettings(providerId: string): GenericProviderSettingsConfig | undefined {
