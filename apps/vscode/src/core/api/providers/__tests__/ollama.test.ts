@@ -2,9 +2,27 @@ import { afterEach, before, beforeEach, describe, it } from "mocha"
 import "should"
 import { ApiHandlerOptions } from "@shared/api"
 import axios from "axios"
+import { Ollama } from "ollama"
+import type { ChatCompletionTool } from "openai/resources/chat/completions"
 import sinon from "sinon"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { OllamaHandler } from "../ollama"
+
+type TestableOllamaHandler = {
+	ensureClient: () => Ollama
+}
+
+type TestOllamaClient = Omit<Ollama, "show"> & {
+	show: sinon.SinonStub
+}
+
+const createEmptyChatStream = () =>
+	({
+		[Symbol.asyncIterator]: async function* () {},
+	}) as unknown as Awaited<ReturnType<Ollama["chat"]>>
+
+const getTestClient = (handler: OllamaHandler): TestOllamaClient =>
+	(handler as unknown as TestableOllamaHandler).ensureClient() as unknown as TestOllamaClient
 
 describe("OllamaHandler", () => {
 	let ollamaAvailable = false
@@ -40,6 +58,78 @@ describe("OllamaHandler", () => {
 	})
 
 	describe("createMessage", () => {
+		const tools: ChatCompletionTool[] = [
+			{
+				type: "function",
+				function: {
+					name: "read_file",
+					description: "Read a file from disk",
+					parameters: {
+						type: "object",
+						properties: {
+							path: { type: "string" },
+						},
+						required: ["path"],
+					},
+				},
+			},
+		]
+
+		it("should omit tools for Ollama models that do not advertise tool support", async () => {
+			const testHandler = new OllamaHandler({
+				ollamaModelId: "llama2:latest",
+				ollamaBaseUrl: "http://localhost:11434",
+			})
+			const client = getTestClient(testHandler)
+			client.show = sinon.stub().resolves({
+				capabilities: ["completion"],
+			})
+			const chatStub = sinon.stub(client, "chat").resolves(createEmptyChatStream())
+
+			for await (const _ of testHandler.createMessage("You are a helpful assistant.", [], tools)) {
+			}
+
+			chatStub.calledOnce.should.be.true()
+			chatStub.firstCall.args[0].should.not.have.property("tools")
+		})
+
+		it("should send tools for Ollama models that advertise tool support", async () => {
+			const testHandler = new OllamaHandler({
+				ollamaModelId: "qwen3:latest",
+				ollamaBaseUrl: "http://localhost:11434",
+			})
+			const client = getTestClient(testHandler)
+			const showStub = sinon.stub().resolves({
+				capabilities: ["completion", "tools"],
+			})
+			client.show = showStub
+			const chatStub = sinon.stub(client, "chat").resolves(createEmptyChatStream())
+
+			for await (const _ of testHandler.createMessage("You are a helpful assistant.", [], tools)) {
+			}
+
+			showStub.calledOnce.should.be.true()
+			showStub.firstCall.args[0].should.deepEqual({ model: "qwen3:latest" })
+			chatStub.calledOnce.should.be.true()
+			chatStub.firstCall.args[0].should.have.property("tools", tools)
+		})
+
+		it("should omit tools when Ollama model capabilities cannot be read", async () => {
+			const testHandler = new OllamaHandler({
+				ollamaModelId: "llama2:latest",
+				ollamaBaseUrl: "http://localhost:11434",
+			})
+			const client = getTestClient(testHandler)
+			client.show = sinon.stub().rejects(new Error("Ollama is unavailable"))
+			const chatStub = sinon.stub(client, "chat").resolves(createEmptyChatStream())
+
+			for await (const _ of testHandler.createMessage("You are a helpful assistant.", [], tools)) {
+			}
+
+			chatStub.calledOnce.should.be.true()
+			chatStub.firstCall.args[0].should.not.have.property("tools")
+		})
+
 		it("should handle successful responses", async function () {
 			if (!ollamaAvailable) {
 				this.skip()
