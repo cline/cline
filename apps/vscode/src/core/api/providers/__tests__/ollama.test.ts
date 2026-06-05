@@ -21,6 +21,16 @@ const createEmptyChatStream = () =>
 		[Symbol.asyncIterator]: async function* () {},
 	}) as unknown as Awaited<ReturnType<Ollama["chat"]>>
 
+const createDeferred = <T>() => {
+	let resolve!: (value: T) => void
+	let reject!: (reason?: unknown) => void
+	const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+		resolve = resolvePromise
+		reject = rejectPromise
+	})
+	return { promise, resolve, reject }
+}
+
 const getTestClient = (handler: OllamaHandler): TestOllamaClient =>
 	(handler as unknown as TestableOllamaHandler).ensureClient() as unknown as TestOllamaClient
 
@@ -121,6 +131,31 @@ describe("OllamaHandler", () => {
 			} finally {
 				clock = sinon.useFakeTimers()
 			}
+		})
+
+		it("should share concurrent Ollama model capability lookups", async () => {
+			const testHandler = new OllamaHandler({
+				ollamaModelId: "qwen3:latest",
+				ollamaBaseUrl: "http://localhost:11434",
+			})
+			const client = getTestClient(testHandler)
+			const showResult = createDeferred<{ capabilities: string[] }>()
+			const showStub = sinon.stub().returns(showResult.promise)
+			client.show = showStub
+			const chatStub = sinon.stub(client, "chat").resolves(createEmptyChatStream())
+
+			const firstMessage = testHandler.createMessage("You are a helpful assistant.", [], tools).next()
+			const secondMessage = testHandler.createMessage("You are a helpful assistant.", [], tools).next()
+
+			showStub.calledOnce.should.be.true()
+
+			showResult.resolve({ capabilities: ["completion", "tools"] })
+			await Promise.all([firstMessage, secondMessage])
+
+			showStub.calledOnce.should.be.true()
+			chatStub.calledTwice.should.be.true()
+			chatStub.firstCall.args[0].should.have.property("tools", tools)
+			chatStub.secondCall.args[0].should.have.property("tools", tools)
 		})
 
 		it("should send tools for Ollama models that advertise tool support", async () => {

@@ -25,6 +25,7 @@ export class OllamaHandler implements ApiHandler {
 	private options: OllamaHandlerOptions
 	private client: Ollama | undefined
 	private supportsTools: boolean | undefined
+	private supportsToolsPromise: Promise<boolean> | undefined
 
 	constructor(options: OllamaHandlerOptions) {
 		const ollamaApiOptionsCtxNum = (options.ollamaApiOptionsCtxNum ?? DEFAULT_CONTEXT_WINDOW).toString()
@@ -69,9 +70,7 @@ export class OllamaHandler implements ApiHandler {
 				setTimeout(() => reject(new Error(`Ollama request timed out after ${timeoutMs / 1000} seconds`)), timeoutMs)
 			})
 
-			const modelSupportsTools = tools?.length
-				? await Promise.race([this.selectedModelSupportsTools(), timeoutPromise])
-				: false
+			const modelSupportsTools = tools?.length ? await this.selectedModelSupportsTools(timeoutPromise) : false
 
 			const request: ChatRequest & { stream: true } = {
 				model: this.getModel().id,
@@ -167,14 +166,44 @@ export class OllamaHandler implements ApiHandler {
 		this.client?.abort()
 	}
 
-	private async selectedModelSupportsTools(): Promise<boolean> {
+	private async selectedModelSupportsTools(timeoutPromise: Promise<never>): Promise<boolean> {
 		if (this.supportsTools !== undefined) {
 			return this.supportsTools
 		}
 
-		const supportsTools = await this.fetchSelectedModelSupportsTools()
-		this.supportsTools = supportsTools
-		return supportsTools
+		const supportsToolsPromise = this.getOrCreateSupportsToolsPromise()
+
+		try {
+			return await Promise.race([supportsToolsPromise, timeoutPromise])
+		} catch (error) {
+			if (this.supportsToolsPromise === supportsToolsPromise) {
+				this.supportsToolsPromise = undefined
+			}
+			throw error
+		}
+	}
+
+	private getOrCreateSupportsToolsPromise(): Promise<boolean> {
+		if (this.supportsToolsPromise) {
+			return this.supportsToolsPromise
+		}
+
+		const supportsToolsPromise = this.fetchSelectedModelSupportsTools()
+		this.supportsToolsPromise = supportsToolsPromise
+
+		void supportsToolsPromise
+			.then((supportsTools) => {
+				if (this.supportsToolsPromise === supportsToolsPromise) {
+					this.supportsTools = supportsTools
+				}
+			})
+			.finally(() => {
+				if (this.supportsToolsPromise === supportsToolsPromise) {
+					this.supportsToolsPromise = undefined
+				}
+			})
+
+		return supportsToolsPromise
 	}
 
 	private async fetchSelectedModelSupportsTools(): Promise<boolean> {
