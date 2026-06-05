@@ -129,6 +129,7 @@
 			"!!**/playwright",
 			"!!**/.vscode-test",
 			"!!**/test-results",
+			"!!**/coverage",
 			"!!**/node_modules",
 			"!!**/webview-ui/build",
 			"!!**/generated",
