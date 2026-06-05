@@ -153,6 +153,65 @@ describe("runDoctorCommand", () => {
 		);
 	});
 
+	it("reports unmanaged connector processes for every registered connector", async () => {
+		const cwd = "/workspace";
+		mockReadHubDiscovery.mockResolvedValue(undefined);
+		mockProbeHubServer.mockResolvedValue(undefined);
+		mockSpawnSync.mockImplementation((command: string, args?: string[]) => {
+			if (
+				command === "pgrep" &&
+				Array.isArray(args) &&
+				args[0] === "-fal" &&
+				args[1] === "connect"
+			) {
+				return {
+					status: 0,
+					stdout: [
+						"61001 cline connect slack --bot-token xoxb-secret --signing-secret=super-signature -i",
+						"61002 cline connect discord --bot-token discord-secret -i",
+						"61003 cline connect gchat --service-account-key /tmp/gchat-key.json -i",
+						"61004 cline connect linear --api-key lin-secret -i",
+						"61005 cline connect telegram --bot-token telegram-secret -i",
+						"61006 cline connect whatsapp --access-token whatsapp-secret -i",
+						"61007 cline something-else connect nope",
+					].join("\n"),
+				};
+			}
+			return { status: 1, stdout: "" };
+		});
+
+		const output: string[] = [];
+		const code = await runDoctorCommand(
+			{ cwd, json: true },
+			{
+				writeln: (text) => {
+					output.push(text ?? "");
+				},
+				writeErr: () => {},
+			},
+		);
+
+		expect(code).toBe(0);
+		expect(output).toHaveLength(1);
+		const status = JSON.parse(output[0] || "");
+		expect(
+			status.unmanagedConnectorProcesses.map(
+				(record: { type: string }) => record.type,
+			),
+		).toEqual(["discord", "gchat", "linear", "slack", "telegram", "whatsapp"]);
+		expect(
+			status.unmanagedConnectorProcesses.map(
+				(record: { pid: number }) => record.pid,
+			),
+		).toEqual([61002, 61003, 61004, 61001, 61005, 61006]);
+		expect(JSON.stringify(status.unmanagedConnectorProcesses)).not.toContain(
+			"xoxb-secret",
+		);
+		expect(JSON.stringify(status.unmanagedConnectorProcesses)).not.toContain(
+			"super-signature",
+		);
+	});
+
 	it("doctor --fix clears wedged hub startup artifacts when no server is actually running", async () => {
 		const cwd = mkdtempSync(path.join(os.tmpdir(), "doctor-hub-fix-"));
 		tempDirs.push(cwd);
@@ -250,6 +309,50 @@ describe("runDoctorCommand", () => {
 				connectorSessions: 5,
 			},
 		});
+	});
+
+	it("doctor --fix kills unmanaged connector processes discovered from process args", async () => {
+		const cwd = "/workspace";
+		mockReadHubDiscovery.mockResolvedValue(undefined);
+		mockProbeHubServer.mockResolvedValue(undefined);
+		mockSpawnSync.mockImplementation((command: string, args?: string[]) => {
+			if (
+				command === "pgrep" &&
+				Array.isArray(args) &&
+				args[0] === "-fal" &&
+				args[1] === "connect"
+			) {
+				return {
+					status: 0,
+					stdout: "62001 cline connect slack --bot-token xoxb-secret -i\n",
+				};
+			}
+			return { status: 1, stdout: "" };
+		});
+		const killSpy = vi.spyOn(process, "kill").mockImplementation(() => true);
+
+		const output: string[] = [];
+		const code = await runDoctorCommand(
+			{ cwd, json: true, fix: true },
+			{
+				writeln: (text) => {
+					output.push(text ?? "");
+				},
+				writeErr: () => {},
+			},
+		);
+
+		expect(code).toBe(0);
+		expect(killSpy).toHaveBeenCalledWith(62001, "SIGKILL");
+		expect(JSON.parse(output[0] || "")).toMatchObject({
+			before: {
+				unmanagedConnectorProcesses: [{ pid: 62001, type: "slack" }],
+			},
+			killed: {
+				unmanagedConnectorProcesses: 1,
+			},
+		});
+		killSpy.mockRestore();
 	});
 
 	it("doctor --fix kills stale code sidecar processes", async () => {

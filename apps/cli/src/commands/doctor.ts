@@ -13,6 +13,7 @@ import {
 import { formatUptime } from "@cline/shared";
 import { Command } from "commander";
 import open from "open";
+import { listConnectorCatalog } from "../connectors/catalog";
 import { isProcessRunning } from "../connectors/common";
 import {
 	type ActiveConnectorRecord,
@@ -46,6 +47,12 @@ type SpawnedProcessRecord = {
 	detached?: boolean;
 };
 
+type UnmanagedConnectorProcessRecord = {
+	pid: number;
+	type: string;
+	command: string;
+};
+
 type DoctorStatus = {
 	cwd: string;
 	hubUrl?: string;
@@ -58,6 +65,7 @@ type DoctorStatus = {
 	staleCliPids: number[];
 	staleSidecarPids: number[];
 	activeConnectors: ActiveConnectorRecord[];
+	unmanagedConnectorProcesses: UnmanagedConnectorProcessRecord[];
 	recentSpawnedProcesses: SpawnedProcessRecord[];
 };
 
@@ -146,6 +154,56 @@ function listStaleCliPids(): number[] {
 			(record) => !/(?:^|\s)(?:hub|rpc|connect)(?:\s|$)/.test(record.command),
 		)
 		.map((record) => record.pid);
+}
+
+function escapeRegExp(value: string): string {
+	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function redactSensitiveProcessArgs(command: string): string {
+	return command.replace(
+		/(--[^\s=]*(?:token|secret|password|key)[^\s=]*)(?:=|\s+)(?:"[^"]*"|'[^']*'|[^\s]+)/gi,
+		"$1 [REDACTED]",
+	);
+}
+
+function listUnmanagedConnectorProcesses(
+	activeConnectors: ActiveConnectorRecord[],
+): UnmanagedConnectorProcessRecord[] {
+	const connectorNames = listConnectorCatalog().map((connector) =>
+		connector.name.toLowerCase(),
+	);
+	if (connectorNames.length === 0) {
+		return [];
+	}
+	const connectorPattern = connectorNames.map(escapeRegExp).join("|");
+	const connectCommandPattern = new RegExp(
+		`(?:^|\\s)connect\\s+(${connectorPattern})(?:\\s|$)`,
+		"i",
+	);
+	const activePids = new Set(activeConnectors.map((record) => record.pid));
+	const records = new Map<number, UnmanagedConnectorProcessRecord>();
+	for (const record of listMatchingProcesses("connect")) {
+		if (activePids.has(record.pid)) {
+			continue;
+		}
+		const match = record.command.match(connectCommandPattern);
+		const type = match?.[1]?.toLowerCase();
+		if (!type) {
+			continue;
+		}
+		records.set(record.pid, {
+			pid: record.pid,
+			type,
+			command: redactSensitiveProcessArgs(record.command),
+		});
+	}
+	return [...records.values()].sort((a, b) => {
+		if (a.type !== b.type) {
+			return a.type.localeCompare(b.type);
+		}
+		return a.pid - b.pid;
+	});
 }
 
 function listStaleSidecarPids(): number[] {
@@ -299,6 +357,7 @@ async function collectDoctorStatus(cwd: string): Promise<DoctorStatus> {
 		: undefined;
 	const current = health ?? discovery;
 	const hubUptime = formatHubUptimeFromStartedAt(health?.startedAt);
+	const activeConnectors = listActiveConnectors();
 	return {
 		cwd,
 		hubUrl: current?.url,
@@ -310,7 +369,9 @@ async function collectDoctorStatus(cwd: string): Promise<DoctorStatus> {
 		hubStartupLocks: listHubStartupLocks(cwd),
 		staleCliPids: listStaleCliPids(),
 		staleSidecarPids: listStaleSidecarPids(),
-		activeConnectors: listActiveConnectors(),
+		activeConnectors,
+		unmanagedConnectorProcesses:
+			listUnmanagedConnectorProcesses(activeConnectors),
 		recentSpawnedProcesses: readRecentSpawnedProcesses(),
 	};
 }
@@ -353,6 +414,12 @@ function formatActiveConnector(record: ActiveConnectorRecord): string {
 		record.startedAt ? `started=${record.startedAt}` : undefined,
 	].filter(Boolean);
 	return pieces.join(" | ");
+}
+
+function formatUnmanagedConnectorProcess(
+	record: UnmanagedConnectorProcessRecord,
+): string {
+	return [record.type, `pid=${record.pid}`, record.command].join(" | ");
 }
 
 function killPids(pids: number[]): number {
@@ -404,6 +471,17 @@ export async function runDoctorCommand(
 				writeln(`- ${c.dim}${formatActiveConnector(record)}${c.reset}`);
 			}
 		}
+		if (before.unmanagedConnectorProcesses.length > 0) {
+			writeln("unmanaged connector processes:");
+			for (const record of before.unmanagedConnectorProcesses) {
+				writeln(
+					`- ${c.dim}${formatUnmanagedConnectorProcess(record)}${c.reset}`,
+				);
+			}
+			io.writeln(
+				"\nThese connector-looking processes do not have valid connector state files. Run `cline doctor fix` to stop them.",
+			);
+		}
 		if (verbose && before.recentSpawnedProcesses.length > 0) {
 			writeln("recent spawned processes:");
 			for (const record of before.recentSpawnedProcesses) {
@@ -441,6 +519,15 @@ export async function runDoctorCommand(
 			!staleCliTargets.includes(pid),
 	);
 	const killedSidecars = killPids(staleSidecarTargets);
+	const unmanagedConnectorTargets = before.unmanagedConnectorProcesses
+		.map((record) => record.pid)
+		.filter(
+			(pid) =>
+				!refreshedAfterGracefulStop.listeningPids.includes(pid) &&
+				!staleCliTargets.includes(pid) &&
+				!staleSidecarTargets.includes(pid),
+		);
+	const killedUnmanagedConnectors = killPids(unmanagedConnectorTargets);
 	const stoppedConnectors = await stopAllConnectors({
 		writeln: () => {},
 		writeErr: () => {},
@@ -461,6 +548,7 @@ export async function runDoctorCommand(
 					hubListeners: killedHub,
 					cliProcesses: killedCli,
 					sidecarProcesses: killedSidecars,
+					unmanagedConnectorProcesses: killedUnmanagedConnectors,
 					connectorProcesses: stoppedConnectors.stoppedProcesses,
 					connectorSessions: stoppedConnectors.stoppedSessions,
 					hubStartupLocks: clearedArtifacts.startupLocks,
@@ -473,6 +561,9 @@ export async function runDoctorCommand(
 	writeln(`killed hub listeners ${c.dim}${killedHub}${c.reset}`);
 	writeln(`killed cli processes ${c.dim}${killedCli}${c.reset}`);
 	writeln(`killed sidecar processes ${c.dim}${killedSidecars}${c.reset}`);
+	writeln(
+		`killed unmanaged connector processes ${c.dim}${killedUnmanagedConnectors}${c.reset}`,
+	);
 	writeln(
 		`stopped connector processes ${c.dim}${stoppedConnectors.stoppedProcesses}${c.reset}`,
 	);
@@ -495,6 +586,12 @@ export async function runDoctorCommand(
 	);
 	writeln(formatPidList("remaining cli processes", after.staleCliPids));
 	writeln(formatPidList("remaining sidecar processes", after.staleSidecarPids));
+	writeln(
+		formatPidList(
+			"remaining unmanaged connector processes",
+			after.unmanagedConnectorProcesses.map((record) => record.pid),
+		),
+	);
 	return 0;
 }
 
