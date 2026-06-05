@@ -7,25 +7,8 @@ import { useProviderModels } from "@/hooks/useProviderModels"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
 import { ModelInfoView } from "../common/ModelInfoView"
+import { getSavedApiKeyMask, sanitizeMaskedApiKeyInput } from "../utils/apiKeyMasking"
 import { type ModelPickerSelection, ModelPickerWithManualEntry } from "./ModelPickerWithManualEntry"
-
-const SAVED_API_KEY_MASK_CHARACTER = "•"
-
-function maskedKey(apiKeyLength: number | undefined): string {
-	return SAVED_API_KEY_MASK_CHARACTER.repeat(Math.max(0, apiKeyLength ?? 0))
-}
-
-function sanitizeApiKeyInput(value: string, savedMask: string): string | undefined {
-	if (!savedMask || !value.includes(SAVED_API_KEY_MASK_CHARACTER)) {
-		return value
-	}
-
-	if (value === savedMask) {
-		return undefined
-	}
-
-	return value.split(SAVED_API_KEY_MASK_CHARACTER).join("")
-}
 
 export interface GenericProviderBaseUrlFieldConfig {
 	label?: string
@@ -83,10 +66,10 @@ export const GenericProviderSettings = ({
 		)
 	}
 
-	const savedApiKeyMask = maskedKey(config?.apiKeyLength)
+	const savedApiKeyMask = getSavedApiKeyMask(config?.apiKeyLength)
 
 	const handleApiKeyChanged = (value: string) => {
-		const apiKey = sanitizeApiKeyInput(value, savedApiKeyMask)
+		const apiKey = sanitizeMaskedApiKeyInput(value, savedApiKeyMask)
 
 		if (apiKey === undefined) {
 			return
