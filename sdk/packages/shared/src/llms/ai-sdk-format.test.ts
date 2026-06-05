@@ -38,6 +38,42 @@ describe("formatMessagesForAiSdk", () => {
 		]);
 	});
 
+	it("replaces empty string user and assistant messages with explicit error text", () => {
+		const messages = formatMessagesForAiSdk(undefined, [
+			{ role: "user", content: "" },
+			{ role: "assistant", content: "   \n\t  " },
+			{ role: "user", content: [{ type: "text", text: "continue" }] },
+		]);
+
+		expect(messages).toEqual([
+			{
+				role: "user",
+				content: [{ type: "text", text: "ERROR: EMPTY CONTENT" }],
+			},
+			{
+				role: "assistant",
+				content: [{ type: "text", text: "ERROR: EMPTY CONTENT" }],
+			},
+			{
+				role: "user",
+				content: [{ type: "text", text: "continue" }],
+			},
+		]);
+	});
+
+	it("replaces empty content arrays with explicit error text", () => {
+		const messages = formatMessagesForAiSdk(undefined, [
+			{ role: "assistant", content: [] },
+		]);
+
+		expect(messages).toEqual([
+			{
+				role: "assistant",
+				content: [{ type: "text", text: "ERROR: EMPTY CONTENT" }],
+			},
+		]);
+	});
+
 	it("preserves providerOptions on text parts", () => {
 		const messages = formatMessagesForAiSdk(undefined, [
 			{

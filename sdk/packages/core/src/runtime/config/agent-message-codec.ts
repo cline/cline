@@ -14,6 +14,8 @@ import type {
 	ToolUseContent,
 } from "@cline/shared";
 
+const EMPTY_CONTENT_TEXT = "ERROR: EMPTY CONTENT";
+
 export function messageToAgentMessages(
 	message: MessageWithMetadata,
 ): AgentMessage[] {
@@ -48,7 +50,7 @@ export function messageToAgentMessages(
 		out.push({
 			id: baseId,
 			role: message.role,
-			content: [],
+			content: [{ type: "text", text: EMPTY_CONTENT_TEXT }],
 			createdAt: message.ts ?? Date.now(),
 			metadata: message.metadata,
 			modelInfo: message.modelInfo,

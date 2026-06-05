@@ -2,6 +2,45 @@ import { describe, expect, it } from "vitest";
 import { messageToAgentMessages } from "./agent-message-codec";
 
 describe("agent message codec", () => {
+	it("replaces empty persisted messages with an explicit error text part", () => {
+		expect(
+			messageToAgentMessages({
+				id: "empty",
+				role: "assistant",
+				ts: 1,
+				content: [],
+			}),
+		).toEqual([
+			{
+				id: "empty",
+				role: "assistant",
+				content: [{ type: "text", text: "ERROR: EMPTY CONTENT" }],
+				createdAt: 1,
+				metadata: undefined,
+				modelInfo: undefined,
+				metrics: undefined,
+			},
+		]);
+		expect(
+			messageToAgentMessages({
+				id: "blank",
+				role: "user",
+				ts: 1,
+				content: "",
+			}),
+		).toEqual([
+			{
+				id: "blank",
+				role: "user",
+				content: [{ type: "text", text: "ERROR: EMPTY CONTENT" }],
+				createdAt: 1,
+				metadata: undefined,
+				modelInfo: undefined,
+				metrics: undefined,
+			},
+		]);
+	});
+
 	it("preserves mixed tool result and user text order", () => {
 		const messages = messageToAgentMessages({
 			id: "msg_mixed",

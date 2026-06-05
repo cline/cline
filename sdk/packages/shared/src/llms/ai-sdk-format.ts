@@ -61,6 +61,8 @@ export interface AiSdkFormatterMessage {
 	content: string | AiSdkFormatterPart[];
 }
 
+const EMPTY_CONTENT_TEXT = "ERROR: EMPTY CONTENT";
+
 export type AiSdkMessagePart = Record<string, unknown>;
 export type AiSdkMessage = {
 	role: "system" | "user" | "assistant" | "tool";
@@ -290,6 +292,13 @@ export function formatMessagesForAiSdk(
 		const contentParts = message.content;
 
 		if (typeof contentParts === "string") {
+			if (contentParts.trim().length === 0) {
+				result.push({
+					role: message.role,
+					content: [{ type: "text", text: EMPTY_CONTENT_TEXT }],
+				});
+				continue;
+			}
 			result.push({
 				role: message.role,
 				content: sanitizeSurrogates(contentParts),
@@ -299,6 +308,14 @@ export function formatMessagesForAiSdk(
 
 		const messageParts: AiSdkMessagePart[] = [];
 		const toolResultParts: AiSdkMessagePart[] = [];
+		if (contentParts.length === 0) {
+			result.push({
+				role: message.role,
+				content: [{ type: "text", text: EMPTY_CONTENT_TEXT }],
+			});
+			continue;
+		}
+
 		for (const part of contentParts) {
 			switch (part.type) {
 				case "text":
