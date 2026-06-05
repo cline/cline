@@ -3,7 +3,12 @@ import type {
 	GatewayResolvedProviderConfig,
 } from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createAnthropicProviderModule } from "./anthropic";
+import {
+	ANTHROPIC_COMPUTER_USE_BETA_2024,
+	ANTHROPIC_COMPUTER_USE_BETA_2025,
+	createAnthropicProviderModule,
+	withComputerUseBetaHeader,
+} from "./anthropic";
 
 const createAnthropicMock = vi.hoisted(() => vi.fn());
 const anthropicModelMock = vi.hoisted(() =>
@@ -40,6 +45,78 @@ describe("createAnthropicProviderModule", () => {
 			}),
 		);
 		expect(anthropicModelMock).toHaveBeenCalledWith("MiniMax-M2.5");
+	});
+
+	it("always attaches the computer-use beta header (prototype hack)", async () => {
+		await createAnthropicProviderModule(
+			config({ apiKey: "k", baseUrl: "https://api.anthropic.com" }),
+			context("anthropic"),
+		);
+
+		const passed = createAnthropicMock.mock.calls[0]?.[0] as {
+			headers?: Record<string, string>;
+		};
+		expect(passed.headers?.["anthropic-beta"]).toBe(
+			ANTHROPIC_COMPUTER_USE_BETA_2025,
+		);
+	});
+
+	it("preserves and merges a caller-supplied anthropic-beta header", async () => {
+		await createAnthropicProviderModule(
+			config({
+				apiKey: "k",
+				headers: { "anthropic-beta": "context-1m-2025-08-07" },
+			}),
+			context("anthropic"),
+		);
+
+		const passed = createAnthropicMock.mock.calls[0]?.[0] as {
+			headers?: Record<string, string>;
+		};
+		expect(passed.headers?.["anthropic-beta"]).toBe(
+			`context-1m-2025-08-07,${ANTHROPIC_COMPUTER_USE_BETA_2025}`,
+		);
+	});
+});
+
+describe("withComputerUseBetaHeader", () => {
+	it("adds the 2025 beta when no headers are present", () => {
+		expect(withComputerUseBetaHeader(undefined)).toEqual({
+			"anthropic-beta": ANTHROPIC_COMPUTER_USE_BETA_2025,
+		});
+	});
+
+	it("supports the 2024 beta variant", () => {
+		expect(
+			withComputerUseBetaHeader(undefined, ANTHROPIC_COMPUTER_USE_BETA_2024),
+		).toEqual({ "anthropic-beta": ANTHROPIC_COMPUTER_USE_BETA_2024 });
+	});
+
+	it("does not duplicate an already-present beta value", () => {
+		expect(
+			withComputerUseBetaHeader({
+				"anthropic-beta": ANTHROPIC_COMPUTER_USE_BETA_2025,
+			}),
+		).toEqual({ "anthropic-beta": ANTHROPIC_COMPUTER_USE_BETA_2025 });
+	});
+
+	it("merges with a differently-cased existing header without duplicating", () => {
+		const result = withComputerUseBetaHeader({
+			"Anthropic-Beta": "context-1m-2025-08-07",
+		});
+		expect(result["anthropic-beta"]).toBe(
+			`context-1m-2025-08-07,${ANTHROPIC_COMPUTER_USE_BETA_2025}`,
+		);
+		expect(result).not.toHaveProperty("Anthropic-Beta");
+	});
+
+	it("keeps other headers untouched", () => {
+		expect(
+			withComputerUseBetaHeader({ "x-custom": "1" }),
+		).toEqual({
+			"x-custom": "1",
+			"anthropic-beta": ANTHROPIC_COMPUTER_USE_BETA_2025,
+		});
 	});
 });
 
