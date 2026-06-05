@@ -298,6 +298,12 @@ class DebugHarness {
 	private webCdpSession: CDPSession | null = null // Playwright CDP session fallback
 	private screenshotCounter = 0
 	private extSourceMap: SourceMapJSON | null = null
+	// In attach/connect mode the extension runs from a DIFFERENT path than the
+	// harness host (e.g. a Maestro container mounts the checkout at
+	// /workspace/cline). Breakpoints must be set against the file:// URL the
+	// debuggee actually loaded, not the harness's local dist path. When set,
+	// this overrides the local `file://${PROJECT_ROOT}/dist/extension.js`.
+	private extDistUrl: string | null = null
 	private clineDir: string = DEFAULT_CLINE_DIR // The CLINE_DIR used for the debugee
 
 	// Pause waiters - resolved when any debuggee hits a breakpoint
@@ -431,9 +437,79 @@ class DebugHarness {
 		}
 	}
 
-	private async connectExtensionCdp(): Promise<void> {
-		log("Connecting to extension host inspector...")
-		const wsUrl = await this.waitForInspector(EXT_INSPECT_PORT, 30000)
+	/**
+	 * Connect to an ALREADY-RUNNING VS Code's extension host inspector instead
+	 * of launching VS Code ourselves. This is the "build outside, debug inside"
+	 * mode: build the extension on the host, launch VS Code (e.g. inside a
+	 * Maestro container) with `--inspect-extensions=<port> --extensionDevelopmentPath=...`,
+	 * then point this harness at the (possibly forwarded) inspector host:port.
+	 *
+	 * Only the extension-host CDP channel is wired here — no Playwright/Electron.
+	 * UI is driven separately (e.g. via Maestro screenshot/click), so all
+	 * `ext.*` methods (breakpoints, evaluate, stepping, pause) work unchanged.
+	 *
+	 * params:
+	 *   host  — inspector host reachable from the harness (default 127.0.0.1)
+	 *   port  — inspector port (the value passed to --inspect-extensions)
+	 *   distPath — path to the built extension.js whose sourcemap to load for
+	 *              source-level breakpoints. Defaults to this project's dist.
+	 */
+	async connect(params: {
+		host?: string
+		port: number
+		distPath?: string
+		/**
+		 * The file:// URL (or path) of the extension.js as loaded by the REMOTE
+		 * debuggee — e.g. inside a Maestro container the checkout is mounted at
+		 * /workspace/cline, so this is
+		 * `/workspace/cline/apps/vscode/dist/extension.js`. Breakpoints are set
+		 * against this URL. Defaults to the harness's local dist path (correct
+		 * only when the debuggee runs from the same paths as the harness).
+		 */
+		remoteDist?: string
+	}): Promise<any> {
+		const host = params.host || "127.0.0.1"
+		const port = params.port
+		if (!port) throw new Error("connect requires a 'port' (the --inspect-extensions value)")
+
+		// Resolve the remote dist URL used for breakpoints (path translation).
+		if (params.remoteDist) {
+			this.extDistUrl = params.remoteDist.startsWith("file://")
+				? params.remoteDist
+				: `file://${params.remoteDist}`
+		}
+
+		// Load the extension sourcemap so ext.set_breakpoint can resolve
+		// src/*.ts lines to the bundled extension.js. The bundle path is local
+		// to the harness host (the same checkout we built and mounted).
+		const extJs = params.distPath || path.join(PROJECT_ROOT, "dist", "extension.js")
+		const mapFile = extJs + ".map"
+		if (fs.existsSync(mapFile)) {
+			try {
+				this.extSourceMap = JSON.parse(fs.readFileSync(mapFile, "utf-8"))
+				log(`Loaded extension sourcemap (${this.extSourceMap!.sources.length} source files)`)
+			} catch (e: any) {
+				log(`Warning: could not load sourcemap: ${e.message}`)
+			}
+		} else {
+			log(`Warning: no sourcemap at ${mapFile}; breakpoints must use ext.set_breakpoint_raw`)
+		}
+
+		await this.connectExtensionCdp(host, port)
+
+		return {
+			status: "connected",
+			mode: "attach",
+			inspector: `${host}:${port}`,
+			extCdpConnected: this.extCdp.connected,
+			sourcemapLoaded: !!this.extSourceMap,
+			note: "Extension-host debugging is live. Drive the UI via Maestro (screenshot/click); use ext.* methods for breakpoints/evaluate/stepping.",
+		}
+	}
+
+	private async connectExtensionCdp(inspectorHost = "127.0.0.1", inspectorPort = EXT_INSPECT_PORT): Promise<void> {
+		log(`Connecting to extension host inspector at ${inspectorHost}:${inspectorPort}...`)
+		const wsUrl = await this.waitForInspector(inspectorPort, 30000, inspectorHost)
 		await this.extCdp.connect(wsUrl)
 		await this.extCdp.enableDebugger()
 
@@ -473,19 +549,28 @@ class DebugHarness {
 		}
 	}
 
-	private async waitForInspector(port: number, timeout: number): Promise<string> {
+	private async waitForInspector(port: number, timeout: number, host = "127.0.0.1"): Promise<string> {
 		const start = Date.now()
 		while (Date.now() - start < timeout) {
 			try {
-				const res = await fetch(`http://127.0.0.1:${port}/json`)
+				const res = await fetch(`http://${host}:${port}/json`)
 				const targets: any[] = (await res.json()) as any[]
 				for (const t of targets) {
-					if (t.webSocketDebuggerUrl) return t.webSocketDebuggerUrl
+					if (t.webSocketDebuggerUrl) {
+						// The inspector reports a ws URL bound to its own loopback
+						// (e.g. ws://127.0.0.1:9229/<id>). When connecting through a
+						// forwarded/published port (e.g. a Maestro container), rewrite
+						// the host:port to the one we actually reached it on.
+						return (t.webSocketDebuggerUrl as string).replace(
+							/^ws:\/\/[^/]+\//,
+							`ws://${host}:${port}/`,
+						)
+					}
 				}
 			} catch {}
 			await sleep(500)
 		}
-		throw new Error(`Inspector not available on port ${port} after ${timeout}ms`)
+		throw new Error(`Inspector not available on ${host}:${port} after ${timeout}ms`)
 	}
 
 	private async findSidebar(forceRefresh = false): Promise<Frame | null> {
@@ -557,7 +642,9 @@ class DebugHarness {
 				const pos = resolveSourceMapPosition(this.extSourceMap, candidate, params.line)
 				if (pos) {
 					log(`Sourcemap resolved: ${params.file}:${params.line} → dist/extension.js:${pos.line}:${pos.column}`)
-					const bundledUrl = `file://${path.join(PROJECT_ROOT, "dist", "extension.js")}`
+					// In attach/connect mode the debuggee loaded extension.js from a
+					// different path (e.g. the container mount), so use that URL.
+					const bundledUrl = this.extDistUrl || `file://${path.join(PROJECT_ROOT, "dist", "extension.js")}`
 					const result = await this.extCdp.send("Debugger.setBreakpointByUrl", {
 						url: bundledUrl,
 						lineNumber: pos.line - 1,
@@ -1316,6 +1403,8 @@ class DebugHarness {
 			// Lifecycle
 			case "launch":
 				return this.launch(params)
+			case "connect":
+				return this.connect(params)
 			case "shutdown":
 				return this.shutdown()
 			case "status":
