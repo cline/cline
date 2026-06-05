@@ -13,6 +13,12 @@ vi.mock("../providers/GenericProviderSettings", () => ({
 	GenericProviderSettings: vi.fn((props) => <div data-testid="generic-provider-settings">{props.providerName}</div>),
 }))
 
+const mockProviderListings = (
+	providers: Array<{ id: string; name: string; protocol: string; allowsCustomModelIds: boolean }>,
+) => {
+	vi.mocked(useProviderListings).mockReturnValue({ providers, isLoading: false, error: undefined, refresh: vi.fn() })
+}
+
 vi.mock("../../../context/ExtensionStateContext", async (importOriginal) => {
 	const actual = await importOriginal()
 	return {
@@ -152,6 +158,7 @@ describe("ApiOptions Component", () => {
 		//@ts-expect-error - vscode is not defined in the global namespace in test environment
 		global.vscode = { postMessage: mockPostMessage }
 
+		mockProviderListings([{ id: "fireworks", name: "Fireworks", protocol: "openai-chat", allowsCustomModelIds: false }])
 		mockExtensionState({
 			planModeApiProvider: "fireworks",
 			actModeApiProvider: "fireworks",
@@ -163,25 +170,13 @@ describe("ApiOptions Component", () => {
 		})
 	})
 
-	it("renders Fireworks API Key input", () => {
+	it("renders Fireworks generic provider settings", () => {
 		render(
 			<ExtensionStateContextProvider>
 				<ApiOptions currentMode="plan" showModelOptions={true} />
 			</ExtensionStateContextProvider>,
 		)
-		const apiKeyInput = screen.getByPlaceholderText("Enter API Key...")
-		expect(apiKeyInput).toBeInTheDocument()
-	})
-
-	it("renders Fireworks Model Select", () => {
-		render(
-			<ExtensionStateContextProvider>
-				<ApiOptions currentMode="plan" showModelOptions={true} />
-			</ExtensionStateContextProvider>,
-		)
-		const modelIdSelect = screen.getByLabelText("Model")
-		expect(modelIdSelect).toBeInTheDocument()
-		expect(modelIdSelect).toHaveValue("accounts/fireworks/models/kimi-k2p6")
+		expect(screen.getByTestId("generic-provider-settings")).toHaveTextContent("Fireworks")
 	})
 })
 
@@ -240,6 +235,7 @@ describe("ApiOptions Component", () => {
 		//@ts-expect-error - vscode is not defined in the global namespace in test environment
 		global.vscode = { postMessage: mockPostMessage }
 
+		mockProviderListings([{ id: "nebius", name: "Nebius", protocol: "openai-chat", allowsCustomModelIds: false }])
 		mockExtensionState({
 			planModeApiProvider: "nebius",
 			actModeApiProvider: "nebius",
@@ -247,24 +243,12 @@ describe("ApiOptions Component", () => {
 		})
 	})
 
-	it("renders Nebius API Key input", () => {
+	it("renders Nebius generic provider settings", () => {
 		render(
 			<ExtensionStateContextProvider>
 				<ApiOptions currentMode="plan" showModelOptions={true} />
 			</ExtensionStateContextProvider>,
 		)
-		const apiKeyInput = screen.getByPlaceholderText("Enter API Key...")
-		expect(apiKeyInput).toBeInTheDocument()
-	})
-
-	it("renders Nebius Model ID select with a default model", () => {
-		render(
-			<ExtensionStateContextProvider>
-				<ApiOptions currentMode="plan" showModelOptions={true} />
-			</ExtensionStateContextProvider>,
-		)
-		const modelIdSelect = screen.getByLabelText("Model")
-		expect(modelIdSelect).toBeInTheDocument()
-		expect(modelIdSelect).toHaveValue("Qwen/Qwen2.5-32B-Instruct-fast")
+		expect(screen.getByTestId("generic-provider-settings")).toHaveTextContent("Nebius")
 	})
 })
