@@ -12,6 +12,7 @@ import { convertToOpenAiMessages } from "../transform/openai-format"
 import { convertToR1Format } from "../transform/r1-format"
 import { ApiStream } from "../transform/stream"
 import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
+import { OpenAiStreamUsageTracker } from "./utils/openai-stream-usage"
 
 interface OpenAiHandlerOptions extends CommonApiHandlerOptions {
 	openAiApiKey?: string
@@ -145,6 +146,7 @@ export class OpenAiHandler implements ApiHandler {
 		})
 
 		const toolCallProcessor = new ToolCallProcessor()
+		const usageTracker = new OpenAiStreamUsageTracker()
 
 		for await (const chunk of stream) {
 			const delta = chunk.choices?.[0]?.delta
@@ -167,15 +169,13 @@ export class OpenAiHandler implements ApiHandler {
 			}
 
 			if (chunk.usage) {
-				yield {
-					type: "usage",
-					inputTokens: chunk.usage.prompt_tokens || 0,
-					outputTokens: chunk.usage.completion_tokens || 0,
-					cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
-					// @ts-expect-error-next-line
-					cacheWriteTokens: chunk.usage.prompt_cache_miss_tokens || 0,
-				}
+				usageTracker.record(chunk.usage)
 			}
+		}
+
+		const usageChunk = usageTracker.getUsageChunk()
+		if (usageChunk) {
+			yield usageChunk
 		}
 	}
 
