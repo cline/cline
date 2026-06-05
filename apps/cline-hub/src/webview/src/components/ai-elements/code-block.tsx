@@ -10,13 +10,9 @@ import {
 	useRef,
 	useState,
 } from "react";
-import type {
-	BundledLanguage,
-	BundledTheme,
-	HighlighterGeneric,
-	ThemedToken,
-} from "shiki";
-import { createHighlighter } from "shiki";
+import type { HighlighterCore, ThemedToken } from "shiki/core";
+import { createHighlighterCore } from "shiki/core";
+import { createJavaScriptRegexEngine } from "shiki/engine/javascript";
 import { Button } from "@/components/ui/button";
 import {
 	Select,
@@ -108,9 +104,11 @@ const LineSpan = ({
 // Types
 type CodeBlockProps = HTMLAttributes<HTMLDivElement> & {
 	code: string;
-	language: BundledLanguage;
+	language: SupportedCodeLanguage;
 	showLineNumbers?: boolean;
 };
+
+type SupportedCodeLanguage = "json" | "typescript";
 
 interface TokenizedCode {
 	tokens: ThemedToken[][];
@@ -128,10 +126,7 @@ const CodeBlockContext = createContext<CodeBlockContextType>({
 });
 
 // Highlighter cache (singleton per language)
-const highlighterCache = new Map<
-	string,
-	Promise<HighlighterGeneric<BundledLanguage, BundledTheme>>
->();
+const highlighterCache = new Map<string, Promise<HighlighterCore>>();
 
 // Token cache
 const tokensCache = new Map<string, TokenizedCode>();
@@ -139,23 +134,31 @@ const tokensCache = new Map<string, TokenizedCode>();
 // Subscribers for async token updates
 const subscribers = new Map<string, Set<(result: TokenizedCode) => void>>();
 
-const getTokensCacheKey = (code: string, language: BundledLanguage) => {
+const getTokensCacheKey = (code: string, language: SupportedCodeLanguage) => {
 	const start = code.slice(0, 100);
 	const end = code.length > 100 ? code.slice(-100) : "";
 	return `${language}:${code.length}:${start}:${end}`;
 };
 
 const getHighlighter = (
-	language: BundledLanguage,
-): Promise<HighlighterGeneric<BundledLanguage, BundledTheme>> => {
+	language: SupportedCodeLanguage,
+): Promise<HighlighterCore> => {
 	const cached = highlighterCache.get(language);
 	if (cached) {
 		return cached;
 	}
 
-	const highlighterPromise = createHighlighter({
-		langs: [language],
-		themes: ["github-light", "github-dark"],
+	const highlighterPromise = createHighlighterCore({
+		engine: createJavaScriptRegexEngine(),
+		langs: [
+			language === "typescript"
+				? () => import("shiki/dist/langs/typescript.mjs")
+				: () => import("shiki/dist/langs/json.mjs"),
+		],
+		themes: [
+			() => import("shiki/dist/themes/github-light.mjs"),
+			() => import("shiki/dist/themes/github-dark.mjs"),
+		],
 	});
 
 	highlighterCache.set(language, highlighterPromise);
@@ -181,7 +184,7 @@ const createRawTokens = (code: string): TokenizedCode => ({
 // Synchronous highlight with callback for async results
 export const highlightCode = (
 	code: string,
-	language: BundledLanguage,
+	language: SupportedCodeLanguage,
 	// oxlint-disable-next-line eslint-plugin-promise(prefer-await-to-callbacks)
 	callback?: (result: TokenizedCode) => void,
 ): TokenizedCode | null => {
@@ -376,7 +379,7 @@ export const CodeBlockContent = ({
 	showLineNumbers = false,
 }: {
 	code: string;
-	language: BundledLanguage;
+	language: SupportedCodeLanguage;
 	showLineNumbers?: boolean;
 }) => {
 	// Memoized raw tokens for immediate display

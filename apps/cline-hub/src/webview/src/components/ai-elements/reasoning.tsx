@@ -1,48 +1,20 @@
 "use client";
 
 import { useControllableState } from "@radix-ui/react-use-controllable-state";
-import { cjk } from "@streamdown/cjk";
-import { code } from "@streamdown/code";
-import { math } from "@streamdown/math";
-import { mermaid } from "@streamdown/mermaid";
 import { BrainIcon, ChevronDownIcon } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
-import {
-	createContext,
-	memo,
-	useCallback,
-	useContext,
-	useEffect,
-	useMemo,
-	useRef,
-	useState,
-} from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Streamdown } from "streamdown";
 import {
 	Collapsible,
 	CollapsibleContent,
 	CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { streamdownPlugins } from "@/lib/streamdown-plugins";
 import { cn } from "@/lib/utils";
 
+import { ReasoningContext, useReasoning } from "./reasoning-context";
 import { Shimmer } from "./shimmer";
-
-interface ReasoningContextValue {
-	isStreaming: boolean;
-	isOpen: boolean;
-	setIsOpen: (open: boolean) => void;
-	duration: number | undefined;
-}
-
-const ReasoningContext = createContext<ReasoningContextValue | null>(null);
-
-export const useReasoning = () => {
-	const context = useContext(ReasoningContext);
-	if (!context) {
-		throw new Error("Reasoning components must be used within Reasoning");
-	}
-	return context;
-};
 
 export type ReasoningProps = ComponentProps<typeof Collapsible> & {
 	isStreaming?: boolean;
@@ -203,8 +175,6 @@ export type ReasoningContentProps = ComponentProps<
 > & {
 	children: string;
 };
-
-const streamdownPlugins = { cjk, code, math, mermaid };
 
 export const ReasoningContent = memo(
 	({ className, children, ...props }: ReasoningContentProps) => (
