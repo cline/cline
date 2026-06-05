@@ -109,7 +109,9 @@ export class CommandExecutor {
 		// Select the appropriate terminal manager
 		const useStandalone = options?.useBackgroundExecution || this.terminalExecutionMode === "backgroundExec"
 		const manager = useStandalone ? this.standaloneManager : this.terminalManager
-		Logger.info(`Executing command in ${useStandalone ? "standalone" : "VSCode"} terminal: ${command}`)
+		Logger.info(
+			`Executing command in ${useStandalone ? "standalone" : "VSCode"} terminal (mode=${this.terminalExecutionMode}, managerCtor=${manager?.constructor?.name}): ${command}`,
+		)
 
 		// Get terminal and run command
 		const terminalInfo = await manager.getOrCreateTerminal(this.cwd)

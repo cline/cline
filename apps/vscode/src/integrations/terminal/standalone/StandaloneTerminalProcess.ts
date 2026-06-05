@@ -11,6 +11,7 @@
 import { telemetryService } from "@services/telemetry"
 import { ChildProcess, spawn } from "child_process"
 import { EventEmitter } from "events"
+import { Logger } from "@/shared/services/Logger"
 import { terminateProcessTree } from "@/utils/process-termination"
 
 import {
@@ -22,6 +23,7 @@ import {
 	TRUNCATE_KEEP_LINES,
 } from "../constants"
 import type { ITerminal, ITerminalProcess, TerminalCompletionDetails, TerminalProcessEvents } from "../types"
+import { getShellArgs } from "./shellArgs"
 
 /**
  * Manages the execution of a command in a standalone terminal environment.
@@ -85,7 +87,9 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 		const cwd = (terminal as any)._cwd || process.cwd()
 
 		// Prepare command for execution
-		const shellArgs = this.getShellArgs(shell, command)
+		const shellArgs = getShellArgs(shell, command)
+
+		Logger.debug(`[StandaloneTerminalProcess] spawning ${shell} in ${cwd}`)
 
 		try {
 			// Create shell options
@@ -116,16 +120,24 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 			if (shell.toLowerCase().includes("cmd")) {
 				shellOptions.shell = true
 
-				// Spawn the process with special handling for "cmd.exe"
-				this.childProcess = spawn("cmd.exe", shellArgs, shellOptions)
+				// windowsHide keeps a console-less parent from popping a window for
+				// the child (see the non-cmd branch); no-op on non-Windows.
+				this.childProcess = spawn("cmd.exe", shellArgs, { ...shellOptions, windowsHide: true })
 			} else {
-				// Spawn the process with detached: true to create a process group
-				// This allows us to kill the entire process tree when terminating
+				// On Windows, detached:true without windowsHide:true allocates a new
+				// console for the child when the parent (cline-core launched by the
+				// IDE) has none, routing the child's stdio to that console instead
+				// of our pipes. Drop detached on win32 (tree-kill handles cleanup)
+				// and force windowsHide so the child stays attached to our pipes.
+				// windowsHide is a no-op on non-Windows platforms.
 				this.childProcess = spawn(shell, shellArgs, {
 					...shellOptions,
-					detached: true,
+					detached: process.platform !== "win32",
+					windowsHide: true,
 				})
 			}
+
+			Logger.debug(`[StandaloneTerminalProcess] spawned pid=${this.childProcess.pid ?? "<none>"}`)
 
 			// Track process state
 			let didEmitEmptyLine = false
@@ -152,6 +164,9 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 
 			// Handle process completion
 			this.childProcess.on("close", (code: number | null, signal: NodeJS.Signals | null) => {
+				Logger.info(
+					`[StandaloneTerminalProcess] close: code=${code} signal=${signal} fullOutputLen=${this.fullOutput.length}`,
+				)
 				this.exitCode = code
 				this.signal = signal
 				this.isCompleted = true
@@ -173,6 +188,7 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 
 			// Handle process errors (spawn failures)
 			this.childProcess.on("error", (error: Error) => {
+				Logger.error(`[StandaloneTerminalProcess] child error: ${error?.message ?? error}`)
 				// Track terminal execution error telemetry
 				// method: "child_process_error" already indicates spawn failure
 				telemetryService.captureTerminalExecution(false, "standalone", "child_process_error")
@@ -183,6 +199,7 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 			;(terminal as any)._process = this.childProcess
 			;(terminal as any)._processId = this.childProcess.pid
 		} catch (error) {
+			Logger.error(`[StandaloneTerminalProcess] spawn threw synchronously: ${(error as Error)?.message ?? String(error)}`)
 			this.emit("error", error)
 		}
 	}
@@ -316,23 +333,6 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 			return process.env.COMSPEC || "cmd.exe"
 		}
 		return process.env.SHELL || "/bin/bash"
-	}
-
-	/**
-	 * Get shell arguments for executing a command.
-	 * @param shell The shell path
-	 * @param command The command to execute
-	 * @returns Array of shell arguments
-	 */
-	private getShellArgs(shell: string, command: string): string[] {
-		if (process.platform === "win32") {
-			if (shell.toLowerCase().includes("powershell") || shell.toLowerCase().includes("pwsh")) {
-				return ["-Command", command]
-			}
-			return ["/c", command]
-		}
-		// Use -l for login shell, -c for command
-		return ["-l", "-c", command]
 	}
 
 	/**

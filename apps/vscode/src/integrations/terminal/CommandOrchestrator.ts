@@ -644,6 +644,10 @@ export async function orchestrateCommandExecution(
 				? `Command terminated by signal ${signal}.`
 				: "Command executed."
 
+		Logger.debug(
+			`[CommandOrchestrator] resolved completed: exitCode=${exitCode} signal=${signal} lineCount=${totalLineCount} bytes=${totalOutputBytes} terminalType=${terminalType}`,
+		)
+
 		return {
 			userRejected: false,
 			result: `${statusMessage}${result.length > 0 ? `\nOutput:\n${result}` : ""}${logFileMsg}`,
