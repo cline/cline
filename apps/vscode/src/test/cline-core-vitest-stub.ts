@@ -187,6 +187,25 @@ export interface ClineRecommendedModelsData {
 	free: ClineRecommendedModel[]
 }
 
+export const FALLBACK_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsData = {
+	recommended: [
+		{
+			id: "anthropic/claude-sonnet-4.6",
+			name: "Claude Sonnet 4.6",
+			description: "Strong coding and agent performance",
+			tags: ["NEW"],
+		},
+	],
+	free: [
+		{
+			id: "z-ai/glm-5",
+			name: "GLM 5",
+			description: "Remote free",
+			tags: [],
+		},
+	],
+}
+
 export async function fetchClineRecommendedModels(_options?: {
 	baseUrl?: string
 	fetchImpl?: typeof fetch
