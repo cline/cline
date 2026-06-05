@@ -1,8 +1,7 @@
-import { openAiModelInfoSafeDefaults } from "@shared/api"
-import { fromProtobufModelInfo } from "@shared/proto-conversions/models/typeConversion"
 import { Mode } from "@shared/storage/types"
 import { type ProviderId } from "@/context/ExtensionStateContext"
 import { useProviderConfig } from "@/hooks/useProviderConfig"
+import { useProviderModelSelection } from "@/hooks/useProviderModelSelection"
 import { useProviderModels } from "@/hooks/useProviderModels"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
@@ -44,24 +43,15 @@ export const GenericProviderSettings = ({
 }: GenericProviderSettingsProps) => {
 	const { models, defaultModelId, isLoading, isStale, error } = useProviderModels(providerId)
 	const { config, write, commitSelection } = useProviderConfig(providerId)
-	const committedSelection = currentMode === "plan" ? config?.planSelection : config?.actSelection
-	const fallbackModelId = defaultModelId || Object.keys(models)[0] || ""
-
-	const selectedModel: ModelPickerSelection =
-		committedSelection?.modelInfo !== undefined
-			? {
-					providerId,
-					modelId: committedSelection.modelId,
-					modelInfo: fromProtobufModelInfo(committedSelection.modelInfo),
-				}
-			: {
-					providerId,
-					modelId: fallbackModelId,
-					modelInfo: models[fallbackModelId] ?? openAiModelInfoSafeDefaults,
-				}
+	const { selectedModel, commitModelSelection } = useProviderModelSelection(providerId, currentMode, {
+		models,
+		defaultModelId,
+		config,
+		commitSelection,
+	})
 
 	const handleModelSelect = (selection: ModelPickerSelection) => {
-		void commitSelection(currentMode, selection).catch((err) =>
+		void commitModelSelection(selection).catch((err) =>
 			console.error(`Failed to commit ${providerName} model selection:`, err),
 		)
 	}
