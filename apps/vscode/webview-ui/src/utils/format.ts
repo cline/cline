@@ -13,6 +13,19 @@ export function formatLargeNumber(num: number): string {
 	return num.toString()
 }
 
+export function formatContextWindow(contextWindow?: number): string {
+	if (!contextWindow || contextWindow <= 0) {
+		return "N/A"
+	}
+
+	return new Intl.NumberFormat("en", {
+		notation: "compact",
+		maximumFractionDigits: contextWindow >= 1_000_000 ? 1 : 0,
+	})
+		.format(contextWindow)
+		.toUpperCase()
+}
+
 // Helper to format cents as dollars with 2 decimal places
 export function formatDollars(cents?: number): string {
 	if (cents === undefined) {

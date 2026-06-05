@@ -73,8 +73,8 @@ describe("refreshClineRecommendedModels", () => {
 		sandbox.stub(fs, "writeFile").resolves()
 		const axiosGetStub = sandbox.stub(axios, "get").resolves({
 			data: {
-				recommended: [{ id: "google/gemini-3.1-pro-preview", description: "Remote recommended", tags: ["NEW"] }],
-				free: [{ id: "minimax/minimax-m2.5", description: "Remote free", tags: ["FREE"] }],
+				recommended: [{ id: "anthropic/claude-sonnet-4.6", description: "Remote recommended" }],
+				free: [{ id: "z-ai/glm-5", description: "Remote free", tags: ["FREE"] }],
 			},
 		})
 
@@ -83,5 +83,64 @@ describe("refreshClineRecommendedModels", () => {
 
 		expect(axiosGetStub.calledOnce).to.equal(true)
 		expect(secondResult).to.deep.equal(firstResult)
+		expect(secondResult).to.deep.equal({
+			recommended: [
+				{
+					id: "anthropic/claude-sonnet-4.6",
+					name: "anthropic/claude-sonnet-4.6",
+					description: "Remote recommended",
+					tags: [],
+				},
+			],
+			free: [
+				{
+					id: "z-ai/glm-5",
+					name: "z-ai/glm-5",
+					description: "Remote free",
+					tags: ["FREE"],
+				},
+			],
+		})
+	})
+
+	it("loads recommended models from disk cache when upstream fetch fails", async () => {
+		sandbox.stub(ClineEnv, "config").returns({
+			environment: Environment.production,
+			appBaseUrl: "https://app.cline-mock.bot",
+			apiBaseUrl: "https://api.cline-mock.bot",
+			mcpBaseUrl: "https://api.cline-mock.bot/v1/mcp",
+		})
+		sandbox.stub(disk, "ensureCacheDirectoryExists").resolves("/tmp")
+		sandbox.stub(axios, "get").rejects(new Error("network unavailable"))
+		sandbox.stub(fs, "access").resolves()
+		sandbox.stub(fs, "readFile").resolves(
+			JSON.stringify({
+				recommended: [
+					{ id: "google/gemini-3.1-pro-preview", name: "Gemini Pro", description: "Cached recommended", tags: ["NEW"] },
+				],
+				free: [{ id: "minimax/minimax-m2.5", name: "MiniMax", description: "Cached free", tags: ["FREE"] }],
+			}),
+		)
+
+		const result = await refreshClineRecommendedModels()
+
+		expect(result).to.deep.equal({
+			recommended: [
+				{
+					id: "google/gemini-3.1-pro-preview",
+					name: "Gemini Pro",
+					description: "Cached recommended",
+					tags: ["NEW"],
+				},
+			],
+			free: [
+				{
+					id: "minimax/minimax-m2.5",
+					name: "MiniMax",
+					description: "Cached free",
+					tags: ["FREE"],
+				},
+			],
+		})
 	})
 })

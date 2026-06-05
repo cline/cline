@@ -1,5 +1,4 @@
 import { CLAUDE_SONNET_1M_SUFFIX, openRouterDefaultModelId } from "@shared/api"
-import { CLINE_RECOMMENDED_MODELS_FALLBACK } from "@shared/cline/recommended-models"
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import { type ClineRecommendedModel, ClineRecommendedModelsResponse } from "@shared/proto/cline/models"
 import type { Mode } from "@shared/storage/types"
@@ -84,14 +83,6 @@ function toFeaturedModelCardEntry(
 	}
 }
 
-const RECOMMENDED_MODELS_FALLBACK: FeaturedModelCardEntry[] = CLINE_RECOMMENDED_MODELS_FALLBACK.recommended
-	.map((model) => toFeaturedModelCardEntry(model, "RECOMMENDED"))
-	.filter((model): model is FeaturedModelCardEntry => model !== null)
-
-const FREE_MODELS_FALLBACK: FeaturedModelCardEntry[] = CLINE_RECOMMENDED_MODELS_FALLBACK.free
-	.map((model) => toFeaturedModelCardEntry(model, "FREE"))
-	.filter((model): model is FeaturedModelCardEntry => model !== null)
-
 const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMode, showProviderRouting, initialTab }) => {
 	const { handleModeFieldsChange, handleFieldChange } = useApiConfigurationHandlers()
 	const { apiConfiguration, favoritedModelIds, clineModels, refreshClineModels } = useExtensionState()
@@ -102,8 +93,7 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 	const [clineRecommendedModels, setClineRecommendedModels] = useState<FeaturedModelCardEntry[]>([])
 	const [clineFreeModels, setClineFreeModels] = useState<FeaturedModelCardEntry[]>([])
 	const freeClineModelIds = useMemo(() => {
-		const freeModelIds =
-			clineFreeModels.length > 0 ? clineFreeModels.map((model) => model.id) : FREE_MODELS_FALLBACK.map((model) => model.id)
+		const freeModelIds = clineFreeModels.map((model) => model.id)
 		return [...new Set(freeModelIds)]
 	}, [clineFreeModels])
 	const freeClineModelIdSet = useMemo(
@@ -111,11 +101,9 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 		[freeClineModelIds],
 	)
 	const [activeTab, setActiveTab] = useState<"recommended" | "free">(initialTab ?? "recommended")
-	const recommendedModels = useMemo(
-		() => (clineRecommendedModels.length > 0 ? clineRecommendedModels : RECOMMENDED_MODELS_FALLBACK),
-		[clineRecommendedModels],
-	)
-	const freeModels = useMemo(() => (clineFreeModels.length > 0 ? clineFreeModels : FREE_MODELS_FALLBACK), [clineFreeModels])
+	const recommendedModels = clineRecommendedModels
+	const freeModels = clineFreeModels
+	const [hasLoadedClineRecommendedModels, setHasLoadedClineRecommendedModels] = useState(false)
 	const hasSuccessfulClineRecommendedModelsFetchRef = useRef(false)
 	const isFetchingClineRecommendedModelsRef = useRef(false)
 	const clineRecommendedModelsRetryTimeoutRef = useRef<number | null>(null)
@@ -136,7 +124,11 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 				.filter((model): model is FeaturedModelCardEntry => model !== null)
 			setClineRecommendedModels(recommended)
 			setClineFreeModels(free)
-			return true
+			const hasModels = recommended.length > 0 || free.length > 0
+			if (hasModels) {
+				setHasLoadedClineRecommendedModels(true)
+			}
+			return hasModels
 		} catch (error) {
 			console.error("Failed to refresh Cline recommended models:", error)
 			return false
@@ -188,9 +180,12 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 		if (initialTab) {
 			return
 		}
+		if (!hasLoadedClineRecommendedModels) {
+			return
+		}
 		const currentModelId = modeFields.clineModelId || openRouterDefaultModelId
 		setActiveTab(freeClineModelIdSet.has(normalizeModelId(currentModelId)) ? "free" : "recommended")
-	}, [modeFields.clineModelId, freeClineModelIdSet, initialTab])
+	}, [hasLoadedClineRecommendedModels, modeFields.clineModelId, freeClineModelIdSet, initialTab])
 	const dropdownRef = useRef<HTMLDivElement>(null)
 	const itemRefs = useRef<(HTMLDivElement | null)[]>([])
 	const dropdownListRef = useRef<HTMLDivElement>(null)

@@ -10,6 +10,7 @@ import { Item, ItemContent, ItemDescription, ItemHeader, ItemMedia, ItemTitle } 
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
 import { AccountServiceClient, StateServiceClient } from "@/services/grpc-client"
+import { formatContextWindow } from "@/utils/format"
 import ApiConfigurationSection from "../settings/sections/ApiConfigurationSection"
 import { useApiConfigurationHandlers } from "../settings/utils/useApiConfigurationHandlers"
 import WelcomeView from "../welcome/WelcomeView"
@@ -97,7 +98,9 @@ const ModelSelection = ({
 									<div className="inline-flex gap-1 [&_svg]:stroke-foreground [&_svg]:size-3 items-center text-sm">
 										<ListIcon />
 										<span>Context: </span>
-										<span className="text-foreground/70">{(model?.info.contextWindow || 0) / 1000}k</span>
+										<span className="text-foreground/70">
+											{formatContextWindow(model.info.contextWindow)}
+										</span>
 									</div>
 									<Badge>{getPriceRange(model.info)}</Badge>
 								</div>
@@ -281,9 +284,8 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 	useEffect(() => {
 		setSearchTerm("")
 		const userGroup = userType === NEW_USER_TYPE.POWER ? NEW_USER_TYPE.POWER : NEW_USER_TYPE.FREE
-		const modelGroup = models[userGroup][0]
-		const userGroupInitModel = modelGroup.models[0]
-		setSelectedModelId(userGroupInitModel.id)
+		const userGroupInitModel = models[userGroup][0]?.models[0]
+		setSelectedModelId(userGroupInitModel?.id ?? "")
 	}, [userType, models])
 
 	const onUserTypeClick = useCallback((userType: NEW_USER_TYPE) => {

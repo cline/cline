@@ -9,7 +9,6 @@ import { ClineAccountService } from "@/services/account/ClineAccountService"
 import { AuthService } from "@/services/auth/AuthService"
 import { buildClineExtraHeaders } from "@/services/EnvUtils"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@/shared/ClineAccount"
-import { CLINE_RECOMMENDED_MODELS_FALLBACK } from "@/shared/cline/recommended-models"
 import type { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch, getAxiosSettings } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
@@ -37,8 +36,6 @@ function normalizeModelId(modelId: string): string {
 	return modelId.trim().toLowerCase()
 }
 
-const CLINE_FREE_MODEL_IDS = new Set(CLINE_RECOMMENDED_MODELS_FALLBACK.free.map((model) => normalizeModelId(model.id)))
-
 function getCacheReadTokens(usage: any): number {
 	return usage?.prompt_tokens_details?.cached_tokens || usage?.cache_read_input_tokens || 0
 }
@@ -46,6 +43,8 @@ function getCacheReadTokens(usage: any): number {
 function getCacheWriteTokens(usage: any): number {
 	return usage?.prompt_tokens_details?.cache_write_tokens || usage?.cache_creation_input_tokens || 0
 }
+
+type FreeModelIdSet = Set<string> | null
 
 export class ClineHandler implements ApiHandler {
 	private options: ClineHandlerOptions
@@ -64,18 +63,28 @@ export class ClineHandler implements ApiHandler {
 		this._authService = AuthService.getInstance()
 	}
 
-	private async getFreeModelIdSet(): Promise<Set<string>> {
+	private async getFreeModelIdSet(): Promise<FreeModelIdSet> {
 		try {
 			const models = await refreshClineRecommendedModels()
 			const freeModelIds = models.free.map((model) => normalizeModelId(model.id)).filter((modelId) => modelId.length > 0)
 			if (freeModelIds.length > 0) {
 				return new Set(freeModelIds)
 			}
+			Logger.warn("Cline free model list unavailable; falling back to selected model pricing metadata")
 		} catch (error) {
 			Logger.error("Error resolving Cline free model IDs from recommended models:", error)
 		}
 
-		return CLINE_FREE_MODEL_IDS
+		return null
+	}
+
+	private isFreeModel(modelId: string, freeModelIds: FreeModelIdSet): boolean {
+		if (freeModelIds) {
+			return freeModelIds.has(normalizeModelId(modelId))
+		}
+
+		const modelInfo = this.getModel().info
+		return modelInfo.inputPrice === 0 && modelInfo.outputPrice === 0
 	}
 
 	private async ensureClient(): Promise<OpenAI> {
@@ -237,7 +246,7 @@ export class ClineHandler implements ApiHandler {
 					// @ts-expect-error-next-line
 					let totalCost = (chunk.usage.cost || 0) + (chunk.usage.cost_details?.upstream_inference_cost || 0)
 					const modelId = this.getModel().id
-					const isFreeModel = freeModelIds.has(normalizeModelId(modelId))
+					const isFreeModel = this.isFreeModel(modelId, freeModelIds)
 					const cacheReadTokens = getCacheReadTokens(chunk.usage)
 					const cacheWriteTokens = getCacheWriteTokens(chunk.usage)
 
@@ -271,10 +280,10 @@ export class ClineHandler implements ApiHandler {
 		}
 	}
 
-	async getApiStreamUsage(freeModelIds?: Set<string>): Promise<ApiStreamUsageChunk | undefined> {
+	async getApiStreamUsage(freeModelIds?: FreeModelIdSet): Promise<ApiStreamUsageChunk | undefined> {
 		if (this.lastGenerationId) {
 			try {
-				const resolvedFreeModelIds = freeModelIds || (await this.getFreeModelIdSet())
+				const resolvedFreeModelIds = freeModelIds === undefined ? await this.getFreeModelIdSet() : freeModelIds
 				const clineAccountAuthToken = await this._authService.getAuthToken()
 				if (!clineAccountAuthToken) {
 					throw new Error(CLINE_ACCOUNT_AUTH_ERROR_MESSAGE)
@@ -294,7 +303,7 @@ export class ClineHandler implements ApiHandler {
 				const generation = response.data
 				let totalCost = generation?.total_cost || 0
 				const modelId = this.getModel().id
-				const isFreeModel = resolvedFreeModelIds.has(normalizeModelId(modelId))
+				const isFreeModel = this.isFreeModel(modelId, resolvedFreeModelIds)
 
 				if (isFreeModel) {
 					totalCost = 0

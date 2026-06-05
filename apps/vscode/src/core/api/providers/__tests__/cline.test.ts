@@ -110,6 +110,54 @@ describe("ClineHandler", () => {
 		])
 	})
 
+	it("should use selected model pricing metadata when free model IDs are unavailable", async () => {
+		const handler = createHandler({})
+		const fakeClient = {
+			chat: {
+				completions: {
+					create: sinon.stub().resolves(
+						createAsyncIterable([
+							{
+								choices: [{}],
+								usage: {
+									prompt_tokens: 10,
+									completion_tokens: 5,
+									cost: 1.25,
+								},
+							},
+						]),
+					),
+				},
+			},
+		}
+		sinon.stub(handler as any, "ensureClient").resolves(fakeClient as any)
+		sinon.stub(handler as any, "getFreeModelIdSet").resolves(null)
+		sinon.stub(handler, "getModel").returns({
+			id: "free/model",
+			info: {
+				...openRouterDefaultModelInfo,
+				inputPrice: 0,
+				outputPrice: 0,
+			},
+		})
+
+		const chunks: any[] = []
+		for await (const chunk of handler.createMessage("system", [{ role: "user", content: "hi" }])) {
+			chunks.push(chunk)
+		}
+
+		chunks.should.deepEqual([
+			{
+				type: "usage",
+				cacheWriteTokens: 0,
+				cacheReadTokens: 0,
+				inputTokens: 10,
+				outputTokens: 5,
+				totalCost: 0,
+			},
+		])
+	})
+
 	it("should forward enableParallelToolCalling to OpenRouter payload", async () => {
 		const handler = createHandler({ enableParallelToolCalling: true })
 		const createStub = sinon.stub().resolves(createAsyncIterable([]))

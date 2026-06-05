@@ -2,6 +2,7 @@ import { geminiModels, ModelInfo } from "@shared/api"
 import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useState } from "react"
 import styled from "styled-components"
+import { formatContextWindow } from "@/utils/format"
 import { ModelDescriptionMarkdown } from "../ModelDescriptionMarkdown"
 import { formatPrice, hasThinkingBudget, supportsBrowserUse, supportsImages, supportsPromptCache } from "../utils/pricingUtils"
 
@@ -112,19 +113,6 @@ const formatCompactPrice = (price: number | undefined): string => {
 }
 
 /**
- * Format context window for compact display (e.g., "200K")
- */
-const formatCompactContext = (contextWindow: number | undefined): string => {
-	if (!contextWindow) {
-		return "N/A"
-	}
-	if (contextWindow >= 1_000_000) {
-		return `${(contextWindow / 1_000_000).toFixed(contextWindow % 1_000_000 === 0 ? 0 : 1)}M`
-	}
-	return `${Math.round(contextWindow / 1000)}K`
-}
-
-/**
  * Returns an array of formatted tier strings
  */
 const formatTiers = (
@@ -212,7 +200,7 @@ export const ModelInfoView = ({
 				{modelInfo.contextWindow !== undefined && modelInfo.contextWindow > 0 && (
 					<InfoItem>
 						<InfoLabel>Context: </InfoLabel>
-						<InfoValue>{formatCompactContext(modelInfo.contextWindow)}</InfoValue>
+						<InfoValue>{formatContextWindow(modelInfo.contextWindow)}</InfoValue>
 					</InfoItem>
 				)}
 				{modelInfo.inputPrice !== undefined && (

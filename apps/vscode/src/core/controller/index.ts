@@ -54,7 +54,7 @@ import { clearRemoteConfig } from "../storage/remote-config/utils"
 import { type PersistenceErrorEvent, StateManager } from "../storage/StateManager"
 import { Task } from "../task"
 import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
-import { getClineOnboardingModels } from "./models/getClineOnboardingModels"
+import { getCachedClineOnboardingModels, getClineOnboardingModels } from "./models/getClineOnboardingModels"
 import { appendClineStealthModels } from "./models/refreshOpenRouterModels"
 import { checkCliInstallation } from "./state/checkCliInstallation"
 import { sendStateUpdate } from "./state/subscribeToState"
@@ -85,6 +85,7 @@ export class Controller {
 
 	// Timer for periodic remote config fetching
 	private remoteConfigTimer?: NodeJS.Timeout
+	private onboardingModelsRefreshPromise?: Promise<void>
 
 	// Public getter for workspace manager with lazy initialization - To get workspaces when task isn't initialized (Used by file mentions)
 	async ensureWorkspaceManager(): Promise<WorkspaceRootManager | undefined> {
@@ -842,9 +843,23 @@ export class Controller {
 		await sendStateUpdate(state)
 	}
 
+	private refreshOnboardingModelsInBackground() {
+		if (this.onboardingModelsRefreshPromise) {
+			return
+		}
+
+		this.onboardingModelsRefreshPromise = getClineOnboardingModels(this)
+			.then(() => this.postStateToWebview())
+			.catch((error) => {
+				Logger.error("Error refreshing onboarding models:", error)
+			})
+			.finally(() => {
+				this.onboardingModelsRefreshPromise = undefined
+			})
+	}
+
 	async getStateToPostToWebview(): Promise<ExtensionState> {
 		// Get API configuration from cache for immediate access
-		const onboardingModels = getClineOnboardingModels()
 		const apiConfiguration = this.stateManager.getApiConfiguration()
 		const lastShownAnnouncementId = this.stateManager.getGlobalStateKey("lastShownAnnouncementId")
 		const taskHistory = this.stateManager.getGlobalStateKey("taskHistory")
@@ -876,6 +891,10 @@ export class Controller {
 		const isNewUser = this.stateManager.getGlobalStateKey("isNewUser")
 		// Can be undefined but is set to either true or false by the migration that runs on extension launch in extension.ts
 		const welcomeViewCompleted = !!this.stateManager.getGlobalStateKey("welcomeViewCompleted")
+		const onboardingModels = welcomeViewCompleted ? undefined : getCachedClineOnboardingModels()
+		if (!welcomeViewCompleted && !onboardingModels) {
+			this.refreshOnboardingModelsInBackground()
+		}
 
 		const customPrompt = this.stateManager.getGlobalSettingsKey("customPrompt")
 		const mcpResponsesCollapsed = this.stateManager.getGlobalStateKey("mcpResponsesCollapsed")
