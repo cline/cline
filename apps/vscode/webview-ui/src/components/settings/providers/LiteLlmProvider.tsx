@@ -1,10 +1,10 @@
 import { ModelInfo, openAiModelInfoSafeDefaults } from "@shared/api"
-import { fromProtobufModelInfo } from "@shared/proto-conversions/models/typeConversion"
 import { Mode } from "@shared/storage/types"
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { RefreshCwIcon } from "lucide-react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useProviderConfig } from "@/hooks/useProviderConfig"
+import { useProviderModelSelection } from "@/hooks/useProviderModelSelection"
 import { useProviderModels } from "@/hooks/useProviderModels"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelAutocomplete } from "../common/ModelAutocomplete"
@@ -35,11 +35,17 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 	const { remoteConfigSettings } = useExtensionState()
 	const { models, defaultModelId, isLoading, isStale, error, refresh } = useProviderModels(LITELLM_PROVIDER_ID)
 	const { config, write, commitSelection } = useProviderConfig(LITELLM_PROVIDER_ID)
-	const committedSelection = currentMode === "plan" ? config?.planSelection : config?.actSelection
-	const selectedModelId = committedSelection?.modelId ?? defaultModelId ?? Object.keys(models)[0] ?? ""
-	const selectedModelInfo = committedSelection?.modelInfo
-		? fromProtobufModelInfo(committedSelection.modelInfo)
-		: (models[selectedModelId] ?? (selectedModelId ? customModelInfo(selectedModelId) : openAiModelInfoSafeDefaults))
+	const { selectedModelId, selectedModelInfo, commitModelSelection } = useProviderModelSelection(
+		LITELLM_PROVIDER_ID,
+		currentMode,
+		{
+			models,
+			defaultModelId,
+			config,
+			commitSelection,
+			customModelInfo,
+		},
+	)
 	const { savedApiKeyMask, handleApiKeyChange } = useProviderApiKeyField({
 		apiKeyLength: config?.apiKeyLength,
 		canWrite: config !== undefined,
@@ -48,8 +54,7 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 	})
 
 	const handleModelChange = (newModelId: string, modelInfo: ModelInfo | undefined) => {
-		void commitSelection(currentMode, {
-			providerId: LITELLM_PROVIDER_ID,
+		void commitModelSelection({
 			modelId: newModelId,
 			modelInfo: modelInfo ?? customModelInfo(newModelId),
 		}).catch((err) => console.error("Failed to commit LiteLLM model selection:", err))
