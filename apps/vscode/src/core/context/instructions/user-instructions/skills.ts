@@ -26,9 +26,17 @@ import { parseYamlFrontmatter } from "./frontmatter"
  * frontmatter (nothing to clear).
  */
 export function updateSkillMarkdownDisabledState(content: string, enabled: boolean): string {
-	const { data, body, hadFrontmatter } = parseYamlFrontmatter(content)
+	const { data, body, hadFrontmatter, parseError } = parseYamlFrontmatter(content)
 
 	if (!hadFrontmatter && enabled) {
+		return content
+	}
+
+	// parseYamlFrontmatter fails open on malformed YAML: it returns data={} and
+	// body=<full original content> (frontmatter block included). Serializing here
+	// would prepend a second `---` block and corrupt the file, so leave it
+	// untouched and let the user fix the frontmatter.
+	if (parseError) {
 		return content
 	}
 

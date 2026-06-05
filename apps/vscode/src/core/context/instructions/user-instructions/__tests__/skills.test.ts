@@ -703,6 +703,22 @@ describe("updateSkillMarkdownDisabledState", () => {
 		const output = updateSkillMarkdownDisabledState(input, false)
 		expect(output.match(/disabled: true/g)).to.have.lengthOf(1)
 	})
+
+	it("leaves malformed-frontmatter files untouched when disabling (no double header)", () => {
+		// Invalid YAML in the frontmatter block: parseYamlFrontmatter fails open
+		// and returns the full original document as the body. Disabling must not
+		// prepend a second `---` block and corrupt the file.
+		const input = ["---", "name: s", "description: : : bad", "  - nope", "---", "Body"].join("\n")
+		const output = updateSkillMarkdownDisabledState(input, false)
+		expect(output).to.equal(input)
+		// Exactly one frontmatter opener, not two.
+		expect(output.match(/^---$/gm)).to.have.lengthOf(2)
+	})
+
+	it("leaves malformed-frontmatter files untouched when enabling", () => {
+		const input = ["---", "name: s", "description: : : bad", "  - nope", "---", "Body"].join("\n")
+		expect(updateSkillMarkdownDisabledState(input, true)).to.equal(input)
+	})
 })
 
 describe("setSkillDisabledInFrontmatter", () => {
