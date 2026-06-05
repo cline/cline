@@ -185,12 +185,15 @@ describe("OllamaHandler", () => {
 				ollamaBaseUrl: "http://localhost:11434",
 			})
 			const client = getTestClient(testHandler)
-			client.show = sinon.stub().rejects(new Error("Ollama is unavailable"))
+			const showStub = sinon.stub().rejects(new Error("Ollama is unavailable"))
+			client.show = showStub
 			const chatStub = sinon.stub(client, "chat").resolves(createEmptyChatStream())
 
 			for await (const _ of testHandler.createMessage("You are a helpful assistant.", [], tools)) {
 			}
 
+			showStub.calledOnce.should.be.true()
+			showStub.firstCall.args[0].should.deepEqual({ model: "llama2:latest" })
 			chatStub.calledOnce.should.be.true()
 			chatStub.firstCall.args[0].should.not.have.property("tools")
 		})
