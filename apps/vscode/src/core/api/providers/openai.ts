@@ -133,6 +133,66 @@ export class OpenAiHandler implements ApiHandler {
 			reasoningEffort = requestedEffort === "none" ? undefined : (requestedEffort as ChatCompletionReasoningEffort)
 		}
 
+		// Some providers/models do not support streaming. When supportsStreaming is
+		// explicitly false, fall back to a standard (non-streaming) completion so
+		// the request does not fail outright.
+		if (this.options.openAiModelInfo?.supportsStreaming === false) {
+			const response = await client.chat.completions.create({
+				model: modelId,
+				messages: openAiMessages,
+				temperature,
+				max_tokens: maxTokens,
+				reasoning_effort: reasoningEffort,
+				...getOpenAIToolParams(tools),
+			})
+
+			const message = response.choices?.[0]?.message
+			if (message?.content) {
+				yield {
+					type: "text",
+					text: message.content,
+				}
+			}
+
+			if (message && "reasoning_content" in message && message.reasoning_content) {
+				yield {
+					type: "reasoning",
+					reasoning: (message.reasoning_content as string | undefined) || "",
+				}
+			}
+
+			if (message?.tool_calls?.length) {
+				for (const toolCall of message.tool_calls) {
+					if (toolCall.type === "function") {
+						yield {
+							type: "tool_calls",
+							tool_call: {
+								call_id: toolCall.id,
+								function: {
+									id: toolCall.id,
+									name: toolCall.function.name,
+									arguments: toolCall.function.arguments,
+								},
+							},
+						}
+					}
+				}
+			}
+
+			if (response.usage) {
+				yield {
+					type: "usage",
+					inputTokens: response.usage.prompt_tokens || 0,
+					outputTokens: response.usage.completion_tokens || 0,
+					cacheReadTokens: response.usage.prompt_tokens_details?.cached_tokens || 0,
+					// @ts-expect-error-next-line
+					cacheWriteTokens: response.usage.prompt_cache_miss_tokens || 0,
+				}
+			}
+
+			return
+		}
+
 		const stream = await client.chat.completions.create({
 			model: modelId,
 			messages: openAiMessages,
