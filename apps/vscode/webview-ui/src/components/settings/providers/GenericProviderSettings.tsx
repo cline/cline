@@ -7,7 +7,7 @@ import { useProviderModels } from "@/hooks/useProviderModels"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
 import { ModelInfoView } from "../common/ModelInfoView"
-import { getSavedApiKeyMask, sanitizeMaskedApiKeyInput } from "../utils/apiKeyMasking"
+import { useProviderApiKeyField } from "../utils/useProviderApiKeyField"
 import { type ModelPickerSelection, ModelPickerWithManualEntry } from "./ModelPickerWithManualEntry"
 
 export interface GenericProviderBaseUrlFieldConfig {
@@ -66,17 +66,11 @@ export const GenericProviderSettings = ({
 		)
 	}
 
-	const savedApiKeyMask = getSavedApiKeyMask(config?.apiKeyLength)
-
-	const handleApiKeyChanged = (value: string) => {
-		const apiKey = sanitizeMaskedApiKeyInput(value, savedApiKeyMask)
-
-		if (apiKey === undefined) {
-			return
-		}
-
-		void write({ apiKey }).catch((err) => console.error(`Failed to update ${providerName} API key:`, err))
-	}
+	const { savedApiKeyMask, handleApiKeyChange } = useProviderApiKeyField({
+		apiKeyLength: config?.apiKeyLength,
+		providerName,
+		write,
+	})
 	const handleBaseUrlChange = (value: string) => {
 		void write({ baseUrl: value }).catch((err) => console.error(`Failed to update ${providerName} base URL:`, err))
 	}
@@ -85,7 +79,7 @@ export const GenericProviderSettings = ({
 		<div>
 			<ApiKeyField
 				initialValue={savedApiKeyMask}
-				onChange={handleApiKeyChanged}
+				onChange={handleApiKeyChange}
 				placeholder="Enter API Key..."
 				providerName={providerName}
 				signupUrl={signupUrl}

@@ -8,6 +8,7 @@ import { useStaticProviderSelection } from "@/hooks/useStaticProviderSelection"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { DropdownContainer, ModelSelector } from "../common/ModelSelector"
+import { useProviderApiKeyField } from "../utils/useProviderApiKeyField"
 
 const PROVIDER_ID = "zai"
 
@@ -55,13 +56,14 @@ export const ZAiProvider = ({ showModelOptions, isPopup, currentMode }: ZAiProvi
 		? fromProtobufModelInfo(committedSelection.modelInfo)
 		: legacySelectedModelInfo
 	const selectedEntrypoint = config?.apiLine || apiConfiguration?.zaiApiLine || "international"
+	const { savedApiKeyMask, handleApiKeyChange } = useProviderApiKeyField({
+		apiKeyLength: config?.apiKeyLength,
+		providerName: "Z AI",
+		write,
+	})
 
 	const handleApiLineChange = (value: string) => {
 		void write({ apiLine: value }).catch((err) => console.error("Failed to update Z AI entrypoint:", err))
-	}
-
-	const handleApiKeyChange = (apiKey: string) => {
-		void write({ apiKey }).catch((err) => console.error("Failed to update Z AI API key:", err))
 	}
 
 	const handleModelChange = (modelId: string) => {
@@ -107,7 +109,7 @@ export const ZAiProvider = ({ showModelOptions, isPopup, currentMode }: ZAiProvi
 				. Otherwise, choose api.z.ai.
 			</p>
 			<ApiKeyField
-				initialValue={apiConfiguration?.zaiApiKey || ""}
+				initialValue={savedApiKeyMask || apiConfiguration?.zaiApiKey || ""}
 				onChange={handleApiKeyChange}
 				providerName="Z AI"
 				signupUrl={
