@@ -653,6 +653,12 @@ export class McpHub {
 				Logger.error(`[MCP Debug] Error setting notification handlers for ${name}:`, error)
 			}
 
+			// Capture server-level instructions from the MCP initialize response
+			const serverInstructions = connection.client.getInstructions?.()
+			if (serverInstructions) {
+				connection.server.instructions = serverInstructions
+			}
+
 			// Initial fetch of tools, resources, and prompts
 			connection.server.tools = await this.fetchToolsList(name)
 			connection.server.resources = await this.fetchResourcesList(name)

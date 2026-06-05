@@ -50,6 +50,15 @@ async function getMcpServers(servers: McpServer[], variant: PromptVariant, conte
 	})
 }
 
+/**
+ * MCP server instructions are server-controlled, untrusted text. Neutralize markdown
+ * ATX headings so a malicious or compromised server cannot inject synthetic sections
+ * (e.g. "### Available Tools") into the system prompt alongside the real ones.
+ */
+function sanitizeMcpServerInstructions(instructions: string): string {
+	return instructions.replace(/^[ \t]*#{1,6}[ \t]+/gm, "")
+}
+
 function formatMcpServersList(servers: McpServer[]): string {
 	return servers
 		.filter((server) => server.status === "connected")
@@ -77,7 +86,10 @@ function formatMcpServersList(servers: McpServer[]): string {
 				?.map((prompt) => {
 					const argsStr = prompt.arguments?.length
 						? `\n    Arguments: ${prompt.arguments
-								.map((arg) => `${arg.name}${arg.required ? " (required)" : ""}${arg.description ? `: ${arg.description}` : ""}`)
+								.map(
+									(arg) =>
+										`${arg.name}${arg.required ? " (required)" : ""}${arg.description ? `: ${arg.description}` : ""}`,
+								)
 								.join(", ")}`
 						: ""
 					const title = prompt.title ? ` (${prompt.title})` : ""
@@ -91,6 +103,9 @@ function formatMcpServersList(servers: McpServer[]): string {
 				`## ${server.name}` +
 				(config.command
 					? ` (\`${config.command}${config.args && Array.isArray(config.args) ? ` ${config.args.join(" ")}` : ""}\`)`
+					: "") +
+				(server.instructions
+					? `\n\n### Server Instructions\n${sanitizeMcpServerInstructions(server.instructions)}`
 					: "") +
 				(tools ? `\n\n### Available Tools\n${tools}` : "") +
 				(templates ? `\n\n### Resource Templates\n${templates}` : "") +

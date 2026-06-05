@@ -22,6 +22,12 @@ export type McpServer = {
 	uid?: string
 	oauthRequired?: boolean
 	oauthAuthStatus?: McpOAuthAuthStatus
+	/**
+	 * Server-level instructions from the MCP initialize response.
+	 * These are provided by the server to guide how it should be used.
+	 * @see https://modelcontextprotocol.io/specification/2025-03-26/basic/lifecycle
+	 */
+	instructions?: string
 }
 
 export type McpOAuthAuthStatus = "authenticated" | "unauthenticated" | "pending"
