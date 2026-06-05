@@ -37,6 +37,37 @@ function getAskQuestionBodyHeight(shellMaxHeight: number): number {
 	return Math.max(1, shellMaxHeight - 4);
 }
 
+function addWrappedWidth(input: {
+	rows: number;
+	lineWidth: number;
+	width: number;
+	maxWidth: number;
+}): { rows: number; lineWidth: number } {
+	if (input.width <= 0) {
+		return { rows: input.rows, lineWidth: input.lineWidth };
+	}
+
+	let rows = input.rows;
+	let remainingWidth = input.width;
+	let lineWidth = input.lineWidth;
+
+	if (lineWidth > 0) {
+		const availableWidth = input.maxWidth - lineWidth;
+		if (remainingWidth <= availableWidth) {
+			return { rows, lineWidth: lineWidth + remainingWidth };
+		}
+
+		remainingWidth -= Math.max(0, availableWidth);
+		rows += 1;
+		lineWidth = 0;
+	}
+
+	rows += Math.max(0, Math.ceil(remainingWidth / input.maxWidth) - 1);
+	lineWidth = remainingWidth % input.maxWidth || input.maxWidth;
+
+	return { rows, lineWidth };
+}
+
 function countWrappedRows(text: string, width: number): number {
 	const safeWidth = Math.max(1, width);
 	const paragraphs = text.split("\n");
@@ -45,24 +76,29 @@ function countWrappedRows(text: string, width: number): number {
 	for (const paragraph of paragraphs) {
 		rows += 1;
 		let lineWidth = 0;
-		const words = paragraph.trim().split(/\s+/).filter(Boolean);
+		const tokens = paragraph.match(/\s+|\S+/g) ?? [];
 
-		for (const word of words) {
-			const wordWidth = Bun.stringWidth(word);
-			if (lineWidth === 0) {
-				rows += Math.max(0, Math.ceil(wordWidth / safeWidth) - 1);
-				lineWidth = wordWidth % safeWidth || safeWidth;
-				continue;
+		for (const token of tokens) {
+			const tokenWidth = Bun.stringWidth(token);
+			const isWhitespace = /^\s+$/.test(token);
+
+			if (
+				!isWhitespace &&
+				lineWidth > 0 &&
+				lineWidth + tokenWidth > safeWidth
+			) {
+				rows += 1;
+				lineWidth = 0;
 			}
 
-			if (lineWidth + 1 + wordWidth <= safeWidth) {
-				lineWidth += 1 + wordWidth;
-				continue;
-			}
-
-			rows += 1;
-			rows += Math.max(0, Math.ceil(wordWidth / safeWidth) - 1);
-			lineWidth = wordWidth % safeWidth || safeWidth;
+			const next = addWrappedWidth({
+				rows,
+				lineWidth,
+				width: tokenWidth,
+				maxWidth: safeWidth,
+			});
+			rows = next.rows;
+			lineWidth = next.lineWidth;
 		}
 	}
 
@@ -97,6 +133,7 @@ function Shell(
 	> & {
 		title: string;
 		maxHeight?: number;
+		overflow?: "hidden";
 		children: React.ReactNode;
 	},
 ) {
@@ -108,7 +145,7 @@ function Shell(
 			flexDirection="column"
 			width="100%"
 			maxHeight={maxHeight}
-			overflow="hidden"
+			overflow={props.overflow}
 			backgroundColor={props.inputBackground}
 			paddingX={1}
 			paddingY={1}
@@ -285,12 +322,22 @@ function AskQuestionResponse(
 
 	useEffect(() => {
 		const choiceId = getAskQuestionChoiceId(interactionId, selected);
+		let canceled = false;
 		const scrollSelectedChoiceIntoView = () => {
+			if (canceled) {
+				return;
+			}
+
 			scrollRef.current?.scrollChildIntoView(choiceId);
 		};
 
 		scrollSelectedChoiceIntoView();
 		queueMicrotask(scrollSelectedChoiceIntoView);
+		const timeout = setTimeout(scrollSelectedChoiceIntoView, 0);
+		return () => {
+			canceled = true;
+			clearTimeout(timeout);
+		};
 	}, [interactionId, selected]);
 
 	useKeyboard((key) => {
@@ -363,6 +410,7 @@ function AskQuestionResponse(
 			inputBackground={props.inputBackground}
 			inputForeground={props.inputForeground}
 			maxHeight={shellMaxHeight}
+			overflow="hidden"
 		>
 			<scrollbox
 				ref={scrollRef}
