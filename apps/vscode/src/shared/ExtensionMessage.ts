@@ -237,7 +237,6 @@ export type ClineSay =
 	| "command_permission_denied"
 	| "checkpoint_created"
 	| "load_mcp_documentation"
-	| "generate_explanation"
 	| "info" // Added for general informational messages like retry status
 	| "task_progress"
 	| "hook_status"
@@ -317,14 +316,6 @@ export interface ClineSayBrowserAction {
 	action: BrowserAction
 	coordinate?: string
 	text?: string
-}
-
-export interface ClineSayGenerateExplanation {
-	title: string
-	fromRef: string
-	toRef: string
-	status: "generating" | "complete" | "error"
-	error?: string
 }
 
 export type SubagentExecutionStatus = "pending" | "running" | "completed" | "failed"
