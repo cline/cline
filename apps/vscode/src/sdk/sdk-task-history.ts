@@ -234,8 +234,7 @@ function legacyApiHistoryToSdkMessages(apiHistory: unknown[], historyItem: Histo
 
 export function sessionHistoryRecordToHistoryItem(item: SessionHistoryRecord): HistoryItem {
 	const metadata = item.metadata
-	const size = metadataNumber(metadata, "size")
-	const historyItem: HistoryItem = {
+	return {
 		id: item.sessionId,
 		ts: dateStringToTimestamp(item.updatedAt ?? item.endedAt ?? item.startedAt),
 		task: formatDisplayUserInput(metadataString(metadata, "title") ?? item.prompt ?? ""),
@@ -244,14 +243,11 @@ export function sessionHistoryRecordToHistoryItem(item: SessionHistoryRecord): H
 		cacheWrites: metadataNumber(metadata, "cacheWrites") ?? 0,
 		cacheReads: metadataNumber(metadata, "cacheReads") ?? 0,
 		totalCost: metadataNumber(metadata, "totalCost") ?? 0,
+		size: metadataNumber(metadata, "size"),
 		isFavorited: metadataBoolean(metadata, "isFavorited") ?? metadataBoolean(metadata, "is_favorited") ?? false,
 		modelId: item.model || metadataString(metadata, "modelId") || "",
 		cwdOnTaskInitialization: item.cwd ?? item.workspaceRoot,
 	}
-	if (size !== undefined) {
-		historyItem.size = size
-	}
-	return historyItem
 }
 
 export class SdkTaskHistory {
@@ -597,20 +593,19 @@ export class SdkTaskHistory {
 	private async updateSession(sessionId: string, item: HistoryItem): Promise<void> {
 		await this.withHistoryHost(async (host) => {
 			const existing = await host.get(sessionId)
-			const resolvedSize = await this.resolveTaskSize(item, existing as SessionHistoryRecord | undefined, {
-				refreshArtifactSize: true,
-			})
-			const metadata = {
+			const metadata: Record<string, unknown> = {
 				...(existing?.metadata ?? {}),
 				title: item.task,
 				isFavorited: item.isFavorited ?? false,
-				size: resolvedSize ?? 0,
 				totalCost: item.totalCost ?? 0,
 				tokensIn: item.tokensIn ?? 0,
 				tokensOut: item.tokensOut ?? 0,
 				cacheWrites: item.cacheWrites ?? 0,
 				cacheReads: item.cacheReads ?? 0,
 				modelId: item.modelId ?? existing?.model ?? "",
+			}
+			if (item.size !== undefined) {
+				metadata.size = item.size
 			}
 			await host.update(sessionId, {
 				prompt: item.task,
@@ -640,11 +635,7 @@ export class SdkTaskHistory {
 			}
 
 			const historyItem = sessionHistoryRecordToHistoryItem(sdkRecord as SessionHistoryRecord)
-			const resolvedSize = await this.resolveTaskSize(historyItem, sdkRecord as SessionHistoryRecord)
-			if (resolvedSize !== undefined) {
-				historyItem.size = resolvedSize
-			}
-			await this.persistResolvedTaskSize(host, sdkRecord as SessionHistoryRecord, resolvedSize)
+			historyItem.size = await this.getCachedTaskSize(host, sdkRecord as SessionHistoryRecord)
 			return historyItem
 		})
 		if (sdkHistoryItem) {
@@ -717,32 +708,16 @@ export class SdkTaskHistory {
 		await this.updateTaskHistoryItem(historyItem)
 	}
 
-	private async resolveTaskSize(
-		item: HistoryItem,
-		record?: SessionHistoryRecord,
-		options: { refreshArtifactSize?: boolean } = {},
-	): Promise<number | undefined> {
-		let attemptedArtifactSize = false
-
-		if (options.refreshArtifactSize) {
-			const artifactSize = record ? await this.getSessionArtifactSize(record) : undefined
-			attemptedArtifactSize = true
-			if (artifactSize !== undefined) {
-				return artifactSize
-			}
+	private async getCachedTaskSize(host: VscodeSessionHost, record: SessionHistoryRecord): Promise<number | undefined> {
+		// metadata.size is a display cache: fill it when absent, and let explicit item.size updates replace it.
+		const cachedSize = metadataNumber(record.metadata, "size")
+		if (cachedSize !== undefined && cachedSize >= 0) {
+			return cachedSize
 		}
 
-		if (typeof item.size === "number" && Number.isFinite(item.size) && item.size >= 0) {
-			return item.size
-		}
-
-		const metadataSize = metadataNumber(record?.metadata, "size")
-		if (metadataSize !== undefined && metadataSize >= 0) {
-			return metadataSize
-		}
-
-		const artifactSize = record && !attemptedArtifactSize ? await this.getSessionArtifactSize(record) : undefined
+		const artifactSize = await this.getSessionArtifactSize(record)
 		if (artifactSize !== undefined) {
+			await this.cacheTaskSize(host, record, artifactSize)
 			return artifactSize
 		}
 
@@ -766,12 +741,8 @@ export class SdkTaskHistory {
 		}
 	}
 
-	private async persistResolvedTaskSize(
-		host: VscodeSessionHost,
-		record: SessionHistoryRecord,
-		size: number | undefined,
-	): Promise<void> {
-		if (size === undefined || !Number.isFinite(size) || size < 0 || metadataNumber(record.metadata, "size") === size) {
+	private async cacheTaskSize(host: VscodeSessionHost, record: SessionHistoryRecord, size: number): Promise<void> {
+		if (!Number.isFinite(size) || size < 0 || metadataNumber(record.metadata, "size") === size) {
 			return
 		}
 
