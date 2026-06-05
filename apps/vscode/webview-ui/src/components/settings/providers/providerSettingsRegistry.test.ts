@@ -55,12 +55,21 @@ describe("providerSettingsRegistry", () => {
 		const migratedProviders = [
 			["baseten", "Baseten", "https://app.baseten.co/settings/api_keys"],
 			["cerebras", "Cerebras", "https://cloud.cerebras.ai/"],
+			["doubao", "Doubao", "https://console.volcengine.com/home"],
 			["fireworks", "Fireworks", "https://fireworks.ai/"],
 			["groq", "Groq", "https://console.groq.com/keys"],
+			[
+				"huawei-cloud-maas",
+				"Huawei Cloud MaaS",
+				"https://support.huaweicloud.com/intl/zh-cn/usermanual-maas/maas_01_0001.html",
+			],
 			["huggingface", "Hugging Face", "https://huggingface.co/settings/tokens"],
+			["mistral", "Mistral", "https://console.mistral.ai/codestral"],
 			["nebius", "Nebius", "https://auth.tokenfactory.nebius.com/ui/login"],
+			["nousResearch", "NousResearch", undefined],
 			["sambanova", "SambaNova", "https://docs.sambanova.ai/cloud/docs/get-started/overview"],
 			["vercel-ai-gateway", "Vercel AI Gateway", "https://vercel.com/d?to=%2F%5Bteam%5D%2F%7E%2Fai"],
+			["wandb", "W&B", "https://wandb.ai"],
 		] as const
 
 		for (const [providerId, providerName, signupUrl] of migratedProviders) {
