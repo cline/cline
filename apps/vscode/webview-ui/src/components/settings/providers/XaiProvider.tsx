@@ -10,27 +10,11 @@ import { DROPDOWN_Z_INDEX } from "../ApiOptions"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { DropdownContainer, ModelSelector } from "../common/ModelSelector"
+import { getSavedApiKeyMask, sanitizeMaskedApiKeyInput } from "../utils/apiKeyMasking"
 import { getModeSpecificFields } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 const PROVIDER_ID = "xai"
-const SAVED_API_KEY_MASK_CHARACTER = "•"
-
-function maskedKey(apiKeyLength: number | undefined): string {
-	return SAVED_API_KEY_MASK_CHARACTER.repeat(Math.max(0, apiKeyLength ?? 0))
-}
-
-function sanitizeApiKeyInput(value: string, savedMask: string): string | undefined {
-	if (!savedMask || !value.includes(SAVED_API_KEY_MASK_CHARACTER)) {
-		return value
-	}
-
-	if (value === savedMask) {
-		return undefined
-	}
-
-	return value.split(SAVED_API_KEY_MASK_CHARACTER).join("")
-}
 
 // VSCodeDropdown's onChange supplies `Event | React.FormEvent<HTMLElement>`,
 // so accept the same union here. We only read `target.value`, which is present
@@ -75,10 +59,10 @@ export const XaiProvider = ({ showModelOptions, isPopup, currentMode }: XaiProvi
 
 	// Local state for reasoning effort toggle
 	const [reasoningEffortSelected, setReasoningEffortSelected] = useState(!!modeFields.reasoningEffort)
-	const savedApiKeyMask = maskedKey(config?.apiKeyLength)
+	const savedApiKeyMask = getSavedApiKeyMask(config?.apiKeyLength)
 
 	const handleApiKeyChange = (value: string) => {
-		const apiKey = sanitizeApiKeyInput(value, savedApiKeyMask)
+		const apiKey = sanitizeMaskedApiKeyInput(value, savedApiKeyMask)
 
 		if (apiKey === undefined) {
 			return

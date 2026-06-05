@@ -8,6 +8,7 @@ import { AccountServiceClient } from "@/services/grpc-client"
 import { useOpenRouterKeyInfo } from "../../ui/hooks/useOpenRouterKeyInfo"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import OpenRouterModelPicker from "../OpenRouterModelPicker"
+import { getSavedApiKeyMask, sanitizeMaskedApiKeyInput } from "../utils/apiKeyMasking"
 import { formatPrice } from "../utils/pricingUtils"
 
 /**
@@ -46,24 +47,6 @@ const OpenRouterBalanceDisplay = ({ apiKey }: { apiKey: string }) => {
 	)
 }
 
-const SAVED_API_KEY_MASK_CHARACTER = "•"
-
-function maskedKey(apiKeyLength: number | undefined): string {
-	return SAVED_API_KEY_MASK_CHARACTER.repeat(Math.max(0, apiKeyLength ?? 0))
-}
-
-function sanitizeApiKeyInput(value: string, savedMask: string): string | undefined {
-	if (!savedMask || !value.includes(SAVED_API_KEY_MASK_CHARACTER)) {
-		return value
-	}
-
-	if (value === savedMask) {
-		return undefined
-	}
-
-	return value.split(SAVED_API_KEY_MASK_CHARACTER).join("")
-}
-
 /**
  * Props for the OpenRouterProvider component
  */
@@ -80,14 +63,14 @@ export const OpenRouterProvider = ({ showModelOptions, isPopup, currentMode }: O
 	const { apiConfiguration } = useExtensionState()
 	const { config, write } = useProviderConfig("openrouter")
 	const [openRouterApiKey, setOpenRouterApiKey] = useState(apiConfiguration?.openRouterApiKey || "")
-	const savedApiKeyMask = maskedKey(config?.apiKeyLength)
+	const savedApiKeyMask = getSavedApiKeyMask(config?.apiKeyLength)
 
 	useEffect(() => {
 		setOpenRouterApiKey(apiConfiguration?.openRouterApiKey || "")
 	}, [apiConfiguration?.openRouterApiKey])
 
 	const handleApiKeyChanged = (value: string) => {
-		const apiKey = sanitizeApiKeyInput(value, savedApiKeyMask)
+		const apiKey = sanitizeMaskedApiKeyInput(value, savedApiKeyMask)
 
 		if (apiKey === undefined) {
 			return
