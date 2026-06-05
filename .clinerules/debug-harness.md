@@ -104,6 +104,61 @@ below; just wrap each `curl localhost:19229/api ...` in a `maestro_exec` call.
 > redirects it to `/tmp/maestro-exec-<uuid>.log` inside the container; `cat` it
 > via another `maestro_exec` if the harness seems unhealthy.
 
+### Connect mode: build outside, debug inside (recommended for containers)
+
+Running the harness *itself* inside the container (the `npx tsx server.ts` path
+above) requires a Node toolchain + `tsx` + Playwright/Electron in the container.
+The base Maestro image does not ship Node, so that path needs extra setup. The
+robust alternative is **connect mode**: the heavy harness/Playwright stays on the
+host; only VS Code runs in the container, and the harness attaches to its
+extension-host inspector over CDP.
+
+```
+host: harness (Playwright stays unused) ──CDP/WebSocket──▶ ext-host inspector
+container: /usr/share/code/code  (Electron provides Node; no Node install needed)
+           --extensionDevelopmentPath=/workspace/cline/apps/vscode
+           --inspect-extensions=<port>
+UI driven separately via maestro_screenshot / maestro_click.
+```
+
+Steps:
+
+```jsonc
+// 1. Build the extension ON THE HOST into the bind mount (host has the toolchain):
+//    cd apps/vscode && IS_DEV=true node esbuild.mjs   → dist/extension.js
+
+// 2. Launch VS Code in the container with the ext-host inspector + dev path:
+maestro_exec {
+  "session_id": "<id>", "gui": true, "background": true,
+  "cmd": "/usr/share/code/code --no-sandbox --disable-gpu /workspace/cline \
+          --inspect-extensions=9229 \
+          --extensionDevelopmentPath=/workspace/cline/apps/vscode \
+          --user-data-dir /home/maestro/.vscode-dbg"
+}
+
+// 3. Open the Cline sidebar so the extension activates and its scripts load,
+//    then point the host harness at the inspector:
+//    curl localhost:19229/api -d '{"method":"connect","params":{"port":9229,
+//      "distUrl":"/workspace/cline/apps/vscode/dist/extension.js"}}'
+```
+
+Hard-won gotchas (these cost real time — heed them):
+
+- **`--inspect-extensions` takes a BARE port** (e.g. `9229`). The `host:port`
+  form (`0.0.0.0:9229`) is ignored and the inspector never opens a listener.
+- **The ext-host inspector binds `127.0.0.1` only.** A Docker `-p` host map can't
+  reach a loopback listener. Either talk to it from *inside* the container
+  (`maestro_exec curl 127.0.0.1:<port>`, same netns) or bind it to a port the
+  daemon already publishes (the bridge range, typically `9001–9016`).
+- **The extension must activate before its scripts appear** on the inspector —
+  open the Cline sidebar first. Don't pass `--disable-extensions`.
+- **Electron is the in-container Node runtime.** VS Code's bundled Electron runs
+  the extension host, so no separate Node/`tsx` install is required for connect
+  mode (it is required for the in-container `npx tsx server.ts` path).
+- **`distUrl` must be the path the debuggee loaded** (e.g.
+  `/workspace/cline/apps/vscode/dist/extension.js`), not the host path, so source
+  breakpoints resolve against the right `file://` URL.
+
 ## Data Isolation
 
 The debugee runs with `CLINE_DIR=~/.cline2` by default, separate from your real `~/.cline`.
