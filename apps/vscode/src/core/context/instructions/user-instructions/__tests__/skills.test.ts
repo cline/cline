@@ -12,6 +12,7 @@ import * as sinon from "sinon"
 import * as skillDirectories from "@/core/storage/skill-directories"
 import { Logger } from "@/shared/services/Logger"
 import * as fsUtils from "@/utils/fs"
+import { parseYamlFrontmatter } from "../frontmatter"
 import {
 	discoverSkills,
 	getAvailableSkills,
@@ -704,20 +705,33 @@ describe("updateSkillMarkdownDisabledState", () => {
 		expect(output.match(/disabled: true/g)).to.have.lengthOf(1)
 	})
 
+	// Frontmatter block whose YAML is genuinely invalid (asserted below). The
+	// `---` markers are well-formed so parseYamlFrontmatter detects frontmatter
+	// and then fails to parse it, exercising the parseError branch.
+	const MALFORMED_FRONTMATTER = ["---", "name: s", "description: : : bad", "  - nope", "---", "Body"].join("\n")
+
+	it("uses a fixture whose frontmatter YAML is actually invalid", () => {
+		// Guards the two tests below from rotting into false positives: if this
+		// fixture ever became valid YAML, updateSkillMarkdownDisabledState would
+		// take a different (rewriting) path and the "untouched" assertions could
+		// pass for the wrong reason.
+		const parsed = parseYamlFrontmatter(MALFORMED_FRONTMATTER)
+		expect(parsed.hadFrontmatter).to.be.true
+		expect(parsed.parseError, "fixture frontmatter should be invalid YAML").to.be.a("string")
+	})
+
 	it("leaves malformed-frontmatter files untouched when disabling (no double header)", () => {
-		// Invalid YAML in the frontmatter block: parseYamlFrontmatter fails open
-		// and returns the full original document as the body. Disabling must not
-		// prepend a second `---` block and corrupt the file.
-		const input = ["---", "name: s", "description: : : bad", "  - nope", "---", "Body"].join("\n")
-		const output = updateSkillMarkdownDisabledState(input, false)
-		expect(output).to.equal(input)
-		// Exactly one frontmatter opener, not two.
+		// parseYamlFrontmatter fails open and returns the full original document
+		// as the body. Disabling must not prepend a second `---` block and corrupt
+		// the file.
+		const output = updateSkillMarkdownDisabledState(MALFORMED_FRONTMATTER, false)
+		expect(output).to.equal(MALFORMED_FRONTMATTER)
+		// Exactly one frontmatter opener/closer pair, not two.
 		expect(output.match(/^---$/gm)).to.have.lengthOf(2)
 	})
 
 	it("leaves malformed-frontmatter files untouched when enabling", () => {
-		const input = ["---", "name: s", "description: : : bad", "  - nope", "---", "Body"].join("\n")
-		expect(updateSkillMarkdownDisabledState(input, true)).to.equal(input)
+		expect(updateSkillMarkdownDisabledState(MALFORMED_FRONTMATTER, true)).to.equal(MALFORMED_FRONTMATTER)
 	})
 })
 
