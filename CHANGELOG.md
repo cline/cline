@@ -1,5 +1,20 @@
 # Changelog
 
+## [3.88.0]
+
+### Added
+
+- Add the latest Fireworks AI serverless models and update the default Fireworks model to Kimi K2.6.
+
+### Fixed
+
+- Fix MCP server delete/add flows so settings writes do not cause the MCP server list to be emptied by the file watcher.
+- Remove stale Fireworks AI models and correct Fireworks model metadata and cache pricing.
+
+### Changed
+
+- Always use the upstream Cline recommended models endpoint instead of gating it behind a feature flag.
+
 ## [3.87.0]
 
 ### Added
