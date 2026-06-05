@@ -81,16 +81,46 @@ describe("OllamaHandler", () => {
 				ollamaBaseUrl: "http://localhost:11434",
 			})
 			const client = getTestClient(testHandler)
-			client.show = sinon.stub().resolves({
+			const showStub = sinon.stub().resolves({
 				capabilities: ["completion"],
 			})
+			client.show = showStub
 			const chatStub = sinon.stub(client, "chat").resolves(createEmptyChatStream())
 
 			for await (const _ of testHandler.createMessage("You are a helpful assistant.", [], tools)) {
 			}
 
+			showStub.calledOnce.should.be.true()
+			showStub.firstCall.args[0].should.deepEqual({ model: "llama2:latest" })
 			chatStub.calledOnce.should.be.true()
 			chatStub.firstCall.args[0].should.not.have.property("tools")
+		})
+
+		it("should apply the request timeout while reading Ollama model capabilities", async function () {
+			this.timeout(6000)
+			clock.restore()
+			const testHandler = new OllamaHandler({
+				ollamaModelId: "llama2:latest",
+				ollamaBaseUrl: "http://localhost:11434",
+				requestTimeoutMs: 10,
+			})
+			const client = getTestClient(testHandler)
+			const showStub = sinon.stub().returns(new Promise(() => {}))
+			client.show = showStub
+			const chatStub = sinon.stub(client, "chat").resolves(createEmptyChatStream())
+
+			try {
+				await testHandler.createMessage("You are a helpful assistant.", [], tools).next()
+				throw new Error("Expected request to time out")
+			} catch (error) {
+				;(error instanceof Error ? error.message : String(error)).should.equal(
+					"Ollama request timed out after 0.01 seconds",
+				)
+				showStub.callCount.should.equal(3)
+				chatStub.notCalled.should.be.true()
+			} finally {
+				clock = sinon.useFakeTimers()
+			}
 		})
 
 		it("should send tools for Ollama models that advertise tool support", async () => {

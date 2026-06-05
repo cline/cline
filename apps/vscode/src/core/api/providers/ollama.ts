@@ -24,7 +24,7 @@ const DEFAULT_CONTEXT_WINDOW = 32768
 export class OllamaHandler implements ApiHandler {
 	private options: OllamaHandlerOptions
 	private client: Ollama | undefined
-	private supportsToolsPromise: Promise<boolean> | undefined
+	private supportsTools: boolean | undefined
 
 	constructor(options: OllamaHandlerOptions) {
 		const ollamaApiOptionsCtxNum = (options.ollamaApiOptionsCtxNum ?? DEFAULT_CONTEXT_WINDOW).toString()
@@ -69,6 +69,10 @@ export class OllamaHandler implements ApiHandler {
 				setTimeout(() => reject(new Error(`Ollama request timed out after ${timeoutMs / 1000} seconds`)), timeoutMs)
 			})
 
+			const modelSupportsTools = tools?.length
+				? await Promise.race([this.selectedModelSupportsTools(), timeoutPromise])
+				: false
+
 			const request: ChatRequest & { stream: true } = {
 				model: this.getModel().id,
 				messages: ollamaMessages,
@@ -78,7 +82,7 @@ export class OllamaHandler implements ApiHandler {
 				},
 			}
 
-			if (tools?.length && (await this.selectedModelSupportsTools())) {
+			if (tools?.length && modelSupportsTools) {
 				request.tools = tools as unknown as Tool[]
 			}
 
@@ -164,8 +168,13 @@ export class OllamaHandler implements ApiHandler {
 	}
 
 	private async selectedModelSupportsTools(): Promise<boolean> {
-		this.supportsToolsPromise ??= this.fetchSelectedModelSupportsTools()
-		return this.supportsToolsPromise
+		if (this.supportsTools !== undefined) {
+			return this.supportsTools
+		}
+
+		const supportsTools = await this.fetchSelectedModelSupportsTools()
+		this.supportsTools = supportsTools
+		return supportsTools
 	}
 
 	private async fetchSelectedModelSupportsTools(): Promise<boolean> {
