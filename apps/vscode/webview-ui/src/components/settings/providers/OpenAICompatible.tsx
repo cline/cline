@@ -15,27 +15,10 @@ import { BaseUrlField } from "../common/BaseUrlField"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import ReasoningEffortSelector from "../ReasoningEffortSelector"
+import { getSavedApiKeyMask, sanitizeMaskedApiKeyInput } from "../utils/apiKeyMasking"
 import { parsePrice } from "../utils/pricingUtils"
 import { getModeSpecificFields, supportsReasoningEffortForModelId } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-
-const SAVED_API_KEY_MASK_CHARACTER = "•"
-
-function maskedKey(apiKeyLength: number | undefined): string {
-	return SAVED_API_KEY_MASK_CHARACTER.repeat(Math.max(0, apiKeyLength ?? 0))
-}
-
-function sanitizeApiKeyInput(value: string, savedMask: string): string | undefined {
-	if (!savedMask || !value.includes(SAVED_API_KEY_MASK_CHARACTER)) {
-		return value
-	}
-
-	if (value === savedMask) {
-		return undefined
-	}
-
-	return value.split(SAVED_API_KEY_MASK_CHARACTER).join("")
-}
 
 /**
  * Props for the OpenAICompatibleProvider component
@@ -57,7 +40,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 	const [modelConfigurationSelected, setModelConfigurationSelected] = useState(false)
 	const latestOpenAiBaseUrlRef = useRef(config?.baseUrl || "")
 	const latestOpenAiApiKeyRef = useRef(apiConfiguration?.openAiApiKey || "")
-	const savedApiKeyMask = maskedKey(config?.apiKeyLength)
+	const savedApiKeyMask = getSavedApiKeyMask(config?.apiKeyLength)
 
 	useEffect(() => {
 		latestOpenAiBaseUrlRef.current = config?.baseUrl || ""
@@ -175,7 +158,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 						return
 					}
 
-					const apiKey = sanitizeApiKeyInput(value, savedApiKeyMask)
+					const apiKey = sanitizeMaskedApiKeyInput(value, savedApiKeyMask)
 
 					if (apiKey === undefined) {
 						return
