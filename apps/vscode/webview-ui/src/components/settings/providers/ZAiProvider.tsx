@@ -30,7 +30,10 @@ export const ZAiProvider = ({ showModelOptions, isPopup, currentMode }: ZAiProvi
 
 	// Determine which models to use based on API line selection
 	const zaiModels = useMemo(
-		() => (apiConfiguration?.zaiApiLine === "china" ? mainlandZAiModels : internationalZAiModels),
+		() =>
+			apiConfiguration?.zaiApiLine === "china" || apiConfiguration?.zaiApiLine === "coding-china"
+				? mainlandZAiModels
+				: internationalZAiModels,
 		[apiConfiguration?.zaiApiLine],
 	)
 
@@ -48,8 +51,10 @@ export const ZAiProvider = ({ showModelOptions, isPopup, currentMode }: ZAiProvi
 						position: "relative",
 					}}
 					value={apiConfiguration?.zaiApiLine || "international"}>
-					<VSCodeOption value="international">api.z.ai</VSCodeOption>
-					<VSCodeOption value="china">open.bigmodel.cn</VSCodeOption>
+					<VSCodeOption value="international">api.z.ai (Standard)</VSCodeOption>
+					<VSCodeOption value="china">open.bigmodel.cn (Standard)</VSCodeOption>
+					<VSCodeOption value="coding-international">api.z.ai (Coding Plan)</VSCodeOption>
+					<VSCodeOption value="coding-china">open.bigmodel.cn (Coding Plan)</VSCodeOption>
 				</VSCodeDropdown>
 			</DropdownContainer>
 			<p
@@ -58,15 +63,15 @@ export const ZAiProvider = ({ showModelOptions, isPopup, currentMode }: ZAiProvi
 					marginTop: 3,
 					color: "var(--vscode-descriptionForeground)",
 				}}>
-				Please select the appropriate API entrypoint based on your location. If you are in China, choose open.bigmodel.cn
-				. Otherwise, choose api.z.ai.
+				Select your API entrypoint. Choose a "Coding Plan" option if you have a GLM Coding Plan subscription; otherwise
+				choose "Standard".
 			</p>
 			<ApiKeyField
 				initialValue={apiConfiguration?.zaiApiKey || ""}
 				onChange={(value) => handleFieldChange("zaiApiKey", value)}
 				providerName="Z AI"
 				signupUrl={
-					apiConfiguration?.zaiApiLine === "china"
+					apiConfiguration?.zaiApiLine === "china" || apiConfiguration?.zaiApiLine === "coding-china"
 						? "https://open.bigmodel.cn/console/overview"
 						: "https://z.ai/manage-apikey/apikey-list"
 				}

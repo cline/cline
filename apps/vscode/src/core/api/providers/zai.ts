@@ -32,7 +32,20 @@ export class ZAiHandler implements ApiHandler {
 	}
 
 	private useChinaApi(): boolean {
-		return this.options.zaiApiLine === "china"
+		return this.options.zaiApiLine === "china" || this.options.zaiApiLine === "coding-china"
+	}
+
+	private getBaseUrl(): string {
+		switch (this.options.zaiApiLine) {
+			case "china":
+				return "https://open.bigmodel.cn/api/paas/v4"
+			case "coding-international":
+				return "https://api.z.ai/api/coding/paas/v4"
+			case "coding-china":
+				return "https://open.bigmodel.cn/api/coding/paas/v4"
+			default:
+				return "https://api.z.ai/api/paas/v4"
+		}
 	}
 
 	private ensureClient(): OpenAI {
@@ -42,7 +55,7 @@ export class ZAiHandler implements ApiHandler {
 			}
 			try {
 				this.client = createOpenAIClient({
-					baseURL: this.useChinaApi() ? "https://open.bigmodel.cn/api/paas/v4" : "https://api.z.ai/api/paas/v4",
+					baseURL: this.getBaseUrl(),
 					apiKey: this.options.zaiApiKey,
 					defaultHeaders: {
 						"HTTP-Referer": "https://cline.bot",

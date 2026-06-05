@@ -135,7 +135,9 @@ export function getModelsForProvider(
 		case "huawei-cloud-maas":
 			return huaweiCloudMaasModels
 		case "zai":
-			return apiConfiguration?.zaiApiLine === "china" ? mainlandZAiModels : internationalZAiModels
+			return apiConfiguration?.zaiApiLine === "china" || apiConfiguration?.zaiApiLine === "coding-china"
+				? mainlandZAiModels
+				: internationalZAiModels
 		case "fireworks":
 			return fireworksModels
 		case "minimax":
@@ -455,9 +457,14 @@ export function normalizeApiConfiguration(
 				selectedModelInfo: vercelModelInfo || openRouterDefaultModelInfo,
 			}
 		case "zai":
-			const zaiModels = apiConfiguration?.zaiApiLine === "china" ? mainlandZAiModels : internationalZAiModels
+			const zaiModels =
+				apiConfiguration?.zaiApiLine === "china" || apiConfiguration?.zaiApiLine === "coding-china"
+					? mainlandZAiModels
+					: internationalZAiModels
 			const zaiDefaultId =
-				apiConfiguration?.zaiApiLine === "china" ? mainlandZAiDefaultModelId : internationalZAiDefaultModelId
+				apiConfiguration?.zaiApiLine === "china" || apiConfiguration?.zaiApiLine === "coding-china"
+					? mainlandZAiDefaultModelId
+					: internationalZAiDefaultModelId
 			return getProviderData(zaiModels, zaiDefaultId)
 		case "fireworks":
 			const fireworksModelId =
