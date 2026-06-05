@@ -1,4 +1,4 @@
-import { buildModelInfoNameMap, type ModelInfo, resolveClinePassModelInfo } from "@shared/api"
+import { buildModelInfoNameMap, type ModelInfo, openAiModelInfoSafeDefaults, resolveClinePassModelInfo } from "@shared/api"
 import type { OnboardingModel, OnboardingModelGroup, OpenRouterModelInfo } from "@shared/proto/index.cline"
 import { AlertCircleIcon, CircleCheckIcon, CircleIcon, ListIcon, LoaderCircleIcon, ZapIcon } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
@@ -10,6 +10,8 @@ import { Item, ItemContent, ItemDescription, ItemHeader, ItemMedia, ItemTitle } 
 import { CLINE_PASS_FEATURE_FLAG } from "@/constants/featureFlags"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useHasFeatureFlag } from "@/hooks/useFeatureFlag"
+import { useProviderConfig } from "@/hooks/useProviderConfig"
+import { useProviderModels } from "@/hooks/useProviderModels"
 import { cn } from "@/lib/utils"
 import { AccountServiceClient, StateServiceClient } from "@/services/grpc-client"
 import { setPendingClinePassSubscribe } from "./clinePassSubscribe"
@@ -303,6 +305,8 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 	const { openRouterModels, hideSettings, hideAccount, setShowWelcome } = useExtensionState()
 	const isClinePassEnabled = useHasFeatureFlag(CLINE_PASS_FEATURE_FLAG)
 	const userTypeSelections = useMemo(() => getUserTypeSelections(isClinePassEnabled), [isClinePassEnabled])
+	const { models: clineModels } = useProviderModels("cline")
+	const { commitSelection } = useProviderConfig("cline")
 	const loginAttemptIdRef = useRef(0)
 	const loginLoadingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -317,6 +321,9 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 	// ClinePass model IDs (e.g. "cline-pass/glm-5.1") aren't keyed in openRouterModels,
 	// so resolve their info via the slug-based lookup used by ClinePassProvider.
 	const openRouterModelsByName = useMemo(() => buildModelInfoNameMap(openRouterModels), [openRouterModels])
+	const onboardingModelById = useMemo(() => {
+		return new Map(onboardingModels.models.map((model) => [model.id, model]))
+	}, [onboardingModels])
 
 	useEffect(() => {
 		setSearchTerm("")
@@ -373,11 +380,30 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 						actModeApiProvider: "cline-pass",
 					})
 				} else if (userType !== NEW_USER_TYPE.CLINE_PASS) {
+					const selectedModelInfo = clineModels[selectedModelId] ??
+						onboardingModelById.get(selectedModelId)?.info ?? {
+							...openAiModelInfoSafeDefaults,
+							name: selectedModelId,
+						}
+
+					await Promise.all([
+						commitSelection("plan", {
+							providerId: "cline",
+							modelId: selectedModelId,
+							modelInfo: selectedModelInfo,
+						}),
+						commitSelection("act", {
+							providerId: "cline",
+							modelId: selectedModelId,
+							modelInfo: selectedModelInfo,
+						}),
+					])
+
 					await handleFieldsChange({
-						planModeOpenRouterModelId: selectedModelId,
-						actModeOpenRouterModelId: selectedModelId,
-						planModeOpenRouterModelInfo: openRouterModels[selectedModelId],
-						actModeOpenRouterModelInfo: openRouterModels[selectedModelId],
+						planModeClineModelId: selectedModelId,
+						actModeClineModelId: selectedModelId,
+						planModeClineModelInfo: selectedModelInfo,
+						actModeClineModelInfo: selectedModelInfo,
 						planModeApiProvider: "cline",
 						actModeApiProvider: "cline",
 					})
@@ -395,7 +421,19 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 			const action = "onboarding_completed"
 			StateServiceClient.captureOnboardingProgress({ step, modelSelected, action, completed: true })
 		},
-		[hideAccount, hideSettings, handleFieldsChange, selectedModelId, openRouterModels, openRouterModelsByName, setShowWelcome, userType],
+		[
+			hideAccount,
+			hideSettings,
+			handleFieldsChange,
+			selectedModelId,
+			openRouterModels,
+			openRouterModelsByName,
+			clineModels,
+			onboardingModelById,
+			commitSelection,
+			setShowWelcome,
+			userType,
+		],
 	)
 
 	const loginAndFinishOnboarding = useCallback(
@@ -491,7 +529,7 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 
 				<div className="flex-1 w-full flex max-w-lg overflow-y-auto min-h-0">
 					<OnboardingStepContent
-						models={openRouterModels}
+						models={Object.keys(clineModels).length > 0 ? clineModels : openRouterModels}
 						onboardingModels={models}
 						onSelectModel={onModelClick}
 						onSelectUserType={onUserTypeClick}
