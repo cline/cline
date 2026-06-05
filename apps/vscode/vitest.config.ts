@@ -1,5 +1,5 @@
-import path from "node:path";
-import { defineConfig } from "vitest/config";
+import path from "node:path"
+import { defineConfig } from "vitest/config"
 
 // Vitest config for the VSCode extension's SDK-adapter and model-catalog
 // unit tests. (The bulk of the extension's unit tests still run under mocha
@@ -25,18 +25,9 @@ export default defineConfig({
 	},
 	resolve: {
 		alias: {
-			"@cline/core": path.resolve(
-				__dirname,
-				"src/test/cline-core-vitest-stub.ts",
-			),
-			"@cline/llms": path.resolve(
-				__dirname,
-				"node_modules/@cline/llms/dist/index.js",
-			),
-			"@cline/shared": path.resolve(
-				__dirname,
-				"node_modules/@cline/shared/dist/index.js",
-			),
+			"@cline/core": path.resolve(__dirname, "src/test/cline-core-vitest-stub.ts"),
+			"@cline/llms": path.resolve(__dirname, "node_modules/@cline/llms/dist/index.js"),
+			"@cline/shared": path.resolve(__dirname, "node_modules/@cline/shared/dist/index.js"),
 			vscode: path.resolve(__dirname, "src/test/vscode-vitest-stub.ts"),
 			"@": path.resolve(__dirname, "src"),
 			"@api": path.resolve(__dirname, "src/core/api"),
@@ -45,18 +36,12 @@ export default defineConfig({
 			"@hosts": path.resolve(__dirname, "src/hosts"),
 			"@integrations": path.resolve(__dirname, "src/integrations"),
 			"@services": path.resolve(__dirname, "src/services"),
-			"@shared/proto/cline/common": path.resolve(
-				__dirname,
-				"src/shared/proto/cline/common.ts",
-			),
-			"@shared/proto/cline/models": path.resolve(
-				__dirname,
-				"src/shared/proto/cline/models.ts",
-			),
+			"@shared/proto/cline/common": path.resolve(__dirname, "src/shared/proto/cline/common.ts"),
+			"@shared/proto/cline/models": path.resolve(__dirname, "src/shared/proto/cline/models.ts"),
 			"@shared/proto": path.resolve(__dirname, "src/shared/proto"),
 			"@shared": path.resolve(__dirname, "src/shared"),
 			"@utils": path.resolve(__dirname, "src/utils"),
 			"@packages": path.resolve(__dirname, "src/packages"),
 		},
 	},
-});
+})
