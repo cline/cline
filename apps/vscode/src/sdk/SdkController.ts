@@ -91,6 +91,38 @@ function metadataString(metadata: SessionHistoryRecord["metadata"] | undefined, 
 	return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined
 }
 
+type SdkUserMessage = {
+	role?: unknown
+	content?: unknown
+}
+
+function extractSdkUserText(message: SdkUserMessage): string {
+	const { content } = message
+	if (typeof content === "string") {
+		return content.trim()
+	}
+	if (!Array.isArray(content)) {
+		return ""
+	}
+	return content
+		.map((block) => {
+			if (!block || typeof block !== "object") {
+				return ""
+			}
+			const typed = block as { type?: unknown; text?: unknown; content?: unknown }
+			if (typed.type === "text" && typeof typed.text === "string") {
+				return typed.text.trim()
+			}
+			if (typed.type === "file" && typeof typed.content === "string") {
+				return typed.content.trim()
+			}
+			return ""
+		})
+		.filter(Boolean)
+		.join("\n")
+		.trim()
+}
+
 function dateStringToTimestamp(value: string | null | undefined): number {
 	if (!value) {
 		return 0
@@ -855,6 +887,126 @@ export class Controller {
 		await this.followups.askResponse(prompt, images, files, this.task?.taskState?.askResponse)
 	}
 
+	async editMessageAndRegenerate(input: {
+		messageTs: number
+		text: string
+		images?: string[]
+		files?: string[]
+		restoreWorkspace?: boolean
+	}): Promise<void> {
+		const editedText = input.text.trim()
+		if (!editedText && (input.images?.length ?? 0) === 0 && (input.files?.length ?? 0) === 0) {
+			throw new Error("Edited message cannot be empty")
+		}
+
+		const activeSession = this.sessions.getActiveSession()
+		const currentTask = this.task
+		if (!currentTask) {
+			throw new Error("No active task to edit")
+		}
+
+		const clineMessages = currentTask.messageStateHandler.getClineMessages()
+		const targetIndex = clineMessages.findIndex((message) => message.ts === input.messageTs)
+		if (targetIndex === -1) {
+			throw new Error("Message to edit was not found")
+		}
+		const targetMessage = clineMessages[targetIndex]
+		if (targetMessage.type !== "say" || (targetMessage.say !== "task" && targetMessage.say !== "user_feedback")) {
+			throw new Error("Only user messages can be edited")
+		}
+
+		if (input.restoreWorkspace) {
+			HostProvider.window.showMessage({
+				type: ShowMessageType.INFORMATION,
+				message: "Workspace restore is not available for edited-message regeneration yet. Regenerating chat only.",
+			})
+		}
+
+		const userOrdinal = clineMessages
+			.slice(0, targetIndex + 1)
+			.filter((message) => message.type === "say" && (message.say === "task" || message.say === "user_feedback")).length
+
+		let sdkMessages: SdkUserMessage[]
+		if (activeSession) {
+			sdkMessages = (await activeSession.sdkHost.readMessages(activeSession.sessionId)) as SdkUserMessage[]
+		} else {
+			const tempHost = await VscodeSessionHost.create({ mcpHub: this.mcpHub })
+			try {
+				sdkMessages = (await tempHost.readMessages(currentTask.taskId)) as SdkUserMessage[]
+			} finally {
+				await tempHost.dispose("editMessageAndRegenerate.readMessages")
+			}
+		}
+		let seenUsers = 0
+		const sdkTargetIndex = sdkMessages.findIndex((message) => {
+			if (message.role !== "user" || !extractSdkUserText(message)) {
+				return false
+			}
+			seenUsers += 1
+			return seenUsers === userOrdinal
+		})
+		if (sdkTargetIndex === -1) {
+			throw new Error("Could not map edited message to persisted conversation history")
+		}
+
+		const initialMessages = sdkMessages.slice(0, sdkTargetIndex) as Parameters<
+			VscodeSessionHost["start"]
+		>[0]["initialMessages"]
+		const firstUserMessage = sdkMessages.find((message) => message.role === "user" && extractSdkUserText(message))
+		const historyTitle =
+			userOrdinal === 1 ? editedText : extractSdkUserText(firstUserMessage ?? {}) || clineMessages[0]?.text || editedText
+		const cwd = await this.getWorkspaceRoot()
+		const mode = this.stateManager.getGlobalSettingsKey("mode") === "plan" ? "plan" : "act"
+		const config = await this.sessionConfigBuilder.build({ cwd, mode, prompt: historyTitle })
+		if (config.providerId === "cline" && !config.apiKey) {
+			this.emitClineAuthError(editedText)
+			return
+		}
+
+		this.turnStateTracker.set("streaming")
+		this.messageTranslatorState.clearTurnOutcome()
+		this.resetMessageTranslatorAndFence()
+
+		const startInput = {
+			...buildStartSessionInput(config, { prompt: historyTitle, cwd, mode }),
+			initialMessages,
+			sessionMetadata: {
+				title: historyTitle,
+				modelId: config.modelId,
+			},
+		}
+		const { startResult, sdkHost } = await this.sessions.startNewSession(startInput)
+		const task = createTaskProxy(
+			startResult.sessionId,
+			(text?: string, images?: string[], files?: string[]) => this.askResponse(text, images, files),
+			() => this.cancelTask(),
+		)
+		this.task = task
+
+		const newHistoryItem = createHistoryItemFromSession(startResult.sessionId, historyTitle, config.modelId, cwd)
+		await this.taskHistory.updateTaskHistoryItem(newHistoryItem)
+
+		const visibleMessages = clineMessages.slice(0, targetIndex)
+		if (visibleMessages.length > 0) {
+			task.messageStateHandler.addMessages(visibleMessages)
+		}
+		task.messageStateHandler.addMessages([
+			{
+				ts: Date.now(),
+				type: "say",
+				say: userOrdinal === 1 ? "task" : "user_feedback",
+				text: editedText,
+				images: input.images,
+				files: input.files,
+				partial: false,
+			},
+		])
+		await this.postStateToWebview()
+
+		const resolvedPrompt = await this.resolveContextMentions(editedText)
+		this.sessions.fireAndForgetSend(sdkHost, startResult.sessionId, resolvedPrompt, input.images, input.files)
+	}
+
 	/**
 	 * Show a task from history by loading its messages.
 	 * This does NOT start inference — it just loads the task for viewing.
@@ -1092,7 +1244,29 @@ export class Controller {
 			}
 		})
 
-		return TaskHistoryArray.create({ tasks, hasMore })
+		if (offset === 0 && !favoritesOnly && this.task?.taskId && !tasks.some((task) => task.id === this.task?.taskId)) {
+			const taskMessage = this.task.messageStateHandler
+				.getClineMessages()
+				.find((message) => message.type === "say" && message.say === "task" && message.text)
+			const matchesSearch = !searchQuery || taskMessage?.text?.toLowerCase().includes(searchQuery.toLowerCase())
+			if (taskMessage?.text && matchesSearch) {
+				tasks.unshift({
+					id: this.task.taskId,
+					task: formatDisplayUserInput(taskMessage.text),
+					ts: taskMessage.ts || Date.now(),
+					isFavorited: false,
+					size: 0,
+					totalCost: 0,
+					tokensIn: 0,
+					tokensOut: 0,
+					cacheWrites: 0,
+					cacheReads: 0,
+					modelId: this.task.api?.getModel?.().id ?? "",
+				})
+			}
+		}
+
+		return TaskHistoryArray.create({ tasks: tasks.slice(0, limit), hasMore })
 	}
 
 	async exportTaskWithId(id: string): Promise<void> {
