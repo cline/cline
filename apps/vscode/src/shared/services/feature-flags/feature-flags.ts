@@ -26,7 +26,7 @@ export const FeatureFlagDefaultValue: Partial<Record<FeatureFlag, FeatureFlagPay
 	[FeatureFlag.REMOTE_BANNERS]: process.env.E2E_TEST === "true" || process.env.IS_DEV === "true",
 	[FeatureFlag.EXTENSION_REMOTE_BANNERS_TTL]: 24 * 60 * 60 * 1000,
 	[FeatureFlag.REMOTE_WELCOME_BANNERS]: process.env.E2E_TEST === "true" || process.env.IS_DEV === "true",
-	[FeatureFlag.EXTENSION_CLINE_MODELS_ENDPOINT]: false,
+	[FeatureFlag.EXTENSION_CLINE_MODELS_ENDPOINT]: process.env.E2E_TEST === "true",
 	[FeatureFlag.OPENAI_RESPONSES_WEBSOCKET_MODE]: false,
 }
 

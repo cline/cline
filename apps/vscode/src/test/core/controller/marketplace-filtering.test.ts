@@ -272,8 +272,15 @@ describe("Controller Marketplace Filtering", () => {
 
 			await controller.refreshMcpMarketplace(false)
 
-			sinon.assert.calledOnce(axiosGetStub)
-			const callArgs = axiosGetStub.firstCall.args
+			const marketplaceCall = axiosGetStub
+				.getCalls()
+				.find((call) => call.args[0] === `${ClineEnv.config().mcpBaseUrl}/marketplace`)
+
+			;(marketplaceCall !== undefined).should.be.true()
+			if (!marketplaceCall) {
+				throw new Error("Expected marketplace API request")
+			}
+			const callArgs = marketplaceCall.args
 			callArgs[0].should.equal(`${ClineEnv.config().mcpBaseUrl}/marketplace`)
 		})
 
