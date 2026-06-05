@@ -1,5 +1,5 @@
 import { TooltipContent, TooltipTrigger } from "@radix-ui/react-tooltip"
-import { azureOpenAiDefaultApiVersion, openAiModelInfoSafeDefaults } from "@shared/api"
+import { azureOpenAiDefaultApiVersion, type ModelInfo, openAiModelInfoSafeDefaults } from "@shared/api"
 import { OpenAiModelsRequest } from "@shared/proto/cline/models"
 import { Mode } from "@shared/storage/types"
 import { VSCodeButton, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
@@ -38,8 +38,13 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 	const { config, write, commitSelection } = useProviderConfig("openai")
 
 	const [modelConfigurationSelected, setModelConfigurationSelected] = useState(false)
+	const [isCustomOpenAiModelEntryVisible, setIsCustomOpenAiModelEntryVisible] = useState(false)
+	const [availableOpenAiModels, setAvailableOpenAiModels] = useState<string[]>([])
+	const [isRefreshingOpenAiModels, setIsRefreshingOpenAiModels] = useState(false)
+	const [openAiModelsError, setOpenAiModelsError] = useState<string | undefined>(undefined)
 	const latestOpenAiBaseUrlRef = useRef(config?.baseUrl || "")
 	const latestOpenAiApiKeyRef = useRef(apiConfiguration?.openAiApiKey || "")
+	const openAiModelsRequestRef = useRef(0)
 
 	useEffect(() => {
 		latestOpenAiBaseUrlRef.current = config?.baseUrl || ""
@@ -97,24 +102,77 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 		}
 	}, [])
 
-	const debouncedRefreshOpenAiModels = useCallback((baseUrl?: string, apiKey?: string) => {
-		if (debounceTimerRef.current) {
-			clearTimeout(debounceTimerRef.current)
+	const refreshOpenAiModels = useCallback(async (baseUrl?: string, apiKey?: string) => {
+		const trimmedBaseUrl = baseUrl?.trim()
+		const requestId = openAiModelsRequestRef.current + 1
+		openAiModelsRequestRef.current = requestId
+
+		if (!trimmedBaseUrl) {
+			setAvailableOpenAiModels([])
+			setOpenAiModelsError(undefined)
+			setIsRefreshingOpenAiModels(false)
+			return
 		}
 
-		if (baseUrl && apiKey) {
-			debounceTimerRef.current = setTimeout(() => {
-				ModelsServiceClient.refreshOpenAiModels(
-					OpenAiModelsRequest.create({
-						baseUrl,
-						apiKey,
-					}),
-				).catch((error) => {
-					console.error("Failed to refresh OpenAI models:", error)
-				})
-			}, 500)
+		setIsRefreshingOpenAiModels(true)
+		setOpenAiModelsError(undefined)
+
+		try {
+			const response = await ModelsServiceClient.refreshOpenAiModels(
+				OpenAiModelsRequest.create({
+					baseUrl: trimmedBaseUrl,
+					apiKey,
+				}),
+			)
+
+			if (openAiModelsRequestRef.current === requestId) {
+				setAvailableOpenAiModels(response.values)
+			}
+		} catch (error) {
+			console.error("Failed to refresh OpenAI models:", error)
+			if (openAiModelsRequestRef.current === requestId) {
+				setAvailableOpenAiModels([])
+				setOpenAiModelsError(error instanceof Error ? error.message : String(error))
+			}
+		} finally {
+			if (openAiModelsRequestRef.current === requestId) {
+				setIsRefreshingOpenAiModels(false)
+			}
 		}
 	}, [])
+
+	const debouncedRefreshOpenAiModels = useCallback(
+		(baseUrl?: string, apiKey?: string) => {
+			if (debounceTimerRef.current) {
+				clearTimeout(debounceTimerRef.current)
+			}
+
+			debounceTimerRef.current = setTimeout(() => {
+				void refreshOpenAiModels(baseUrl, apiKey)
+			}, 500)
+		},
+		[refreshOpenAiModels],
+	)
+
+	useEffect(() => {
+		void refreshOpenAiModels(config?.baseUrl, latestOpenAiApiKeyRef.current)
+	}, [config?.baseUrl, refreshOpenAiModels])
+
+	const toOpenAiModelInfo = useCallback(
+		(modelId: string): ModelInfo => ({
+			...openAiModelInfoSafeDefaults,
+			name: modelId,
+		}),
+		[],
+	)
+
+	const handleOpenAiModelSelection = useCallback(
+		(modelId: string, modelInfo = toOpenAiModelInfo(modelId)) => {
+			handleModeFieldChange({ plan: "planModeOpenAiModelId", act: "actModeOpenAiModelId" }, modelId, currentMode)
+			commitOpenAiSelection(modelId, modelInfo)
+		},
+		[commitOpenAiSelection, currentMode, handleModeFieldChange, toOpenAiModelInfo],
+	)
 
 	const { savedApiKeyMask, handleApiKeyChange } = useProviderApiKeyField({
 		apiKeyLength: config?.apiKeyLength,
@@ -163,16 +221,59 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 
 			<ApiKeyField initialValue={savedApiKeyMask} onChange={handleApiKeyChange} providerName="OpenAI Compatible" />
 
-			<DebouncedTextField
-				initialValue={selectedModelId || ""}
-				onChange={(value) => {
-					handleModeFieldChange({ plan: "planModeOpenAiModelId", act: "actModeOpenAiModelId" }, value, currentMode)
-					commitOpenAiSelection(value)
-				}}
-				placeholder={"Enter Model ID..."}
-				style={{ width: "100%", marginBottom: 10 }}>
-				<span style={{ fontWeight: 500 }}>Model ID</span>
-			</DebouncedTextField>
+			{isRefreshingOpenAiModels && <div role="status">Loading models…</div>}
+			{openAiModelsError && <div role="alert">{openAiModelsError}</div>}
+			{availableOpenAiModels.length > 0 ? (
+				<div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 10 }}>
+					<label htmlFor="openai-compatible-model-picker">
+						<span style={{ fontWeight: 500 }}>Model ID</span>
+					</label>
+					<select
+						aria-label="Model ID"
+						id="openai-compatible-model-picker"
+						onChange={(event) => {
+							const modelId = event.target.value
+							if (modelId === "__custom__") {
+								setIsCustomOpenAiModelEntryVisible(true)
+								return
+							}
+
+							setIsCustomOpenAiModelEntryVisible(false)
+							handleOpenAiModelSelection(modelId)
+						}}
+						style={{ width: "100%" }}
+						value={selectedModelId && availableOpenAiModels.includes(selectedModelId) ? selectedModelId : ""}>
+						{selectedModelId && !availableOpenAiModels.includes(selectedModelId) && (
+							<option value="">{selectedModelId} (not in current list)</option>
+						)}
+						{availableOpenAiModels.map((modelId) => (
+							<option key={modelId} value={modelId}>
+								{modelId}
+							</option>
+						))}
+						<option value="__custom__">Use custom model ID…</option>
+					</select>
+
+					{(isCustomOpenAiModelEntryVisible ||
+						(selectedModelId && !availableOpenAiModels.includes(selectedModelId))) && (
+						<DebouncedTextField
+							initialValue={selectedModelId || ""}
+							onChange={(value) => handleOpenAiModelSelection(value)}
+							placeholder={"Enter Model ID..."}
+							style={{ width: "100%" }}>
+							<span style={{ fontWeight: 500 }}>Custom Model ID</span>
+						</DebouncedTextField>
+					)}
+				</div>
+			) : (
+				<DebouncedTextField
+					initialValue={selectedModelId || ""}
+					onChange={(value) => handleOpenAiModelSelection(value)}
+					placeholder={"Enter Model ID..."}
+					style={{ width: "100%", marginBottom: 10 }}>
+					<span style={{ fontWeight: 500 }}>Model ID</span>
+				</DebouncedTextField>
+			)}
 
 			{/* OpenAI Compatible Custom Headers */}
 			{(() => {
