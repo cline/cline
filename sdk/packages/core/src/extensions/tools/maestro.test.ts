@@ -52,13 +52,14 @@ function getTool(tools: ReturnType<typeof createMaestroTools>, name: string) {
 const ctx = () => ({ agentId: "test", iteration: 0 }) as any;
 
 describe("createMaestroTools", () => {
-	it("returns the full set of nine maestro tools", () => {
+	it("returns the full set of maestro tools", () => {
 		const tools = createMaestroTools({ daemonUrl });
 		const names = tools.map((t) => t.name);
 		expect(names).toEqual([
 			"maestro_list_sessions",
 			"maestro_create_session",
 			"maestro_destroy_session",
+			"maestro_exec",
 			"maestro_screenshot",
 			"maestro_click",
 			"maestro_type",
@@ -333,6 +334,167 @@ describe("maestro_zoom", () => {
 		]);
 	});
 });
+
+describe("maestro_create_session container_id", () => {
+	it("forwards container_id so the session attaches to an existing container", async () => {
+		const { fetchMock, calls } = makeFetchMock({
+			"POST /sessions": { session_id: "s-on-mounted" },
+		});
+		const tool = getTool(
+			createMaestroTools({ daemonUrl, fetch: fetchMock }),
+			"maestro_create_session",
+		);
+		await tool.execute(
+			{ label: "cline debug", container_id: "maestro-cline" },
+			ctx(),
+		);
+		expect(calls[0].body).toEqual({
+			label: "cline debug",
+			container_id: "maestro-cline",
+		});
+	});
+
+	it("forwards mounts for a fresh container (multi-workspace)", async () => {
+		const { fetchMock, calls } = makeFetchMock({
+			"POST /sessions": { session_id: "s-mounted" },
+		});
+		const tool = getTool(
+			createMaestroTools({ daemonUrl, fetch: fetchMock }),
+			"maestro_create_session",
+		);
+		await tool.execute(
+			{
+				label: "cline2",
+				mounts: ["/Users/me/clients/cline/cline2:/workspace/cline"],
+			},
+			ctx(),
+		);
+		expect(calls[0].body).toEqual({
+			label: "cline2",
+			mounts: ["/Users/me/clients/cline/cline2:/workspace/cline"],
+		});
+	});
+
+	it("omits mounts when empty or not supplied", async () => {
+		const { fetchMock, calls } = makeFetchMock({
+			"POST /sessions": { session_id: "s" },
+		});
+		const tool = getTool(
+			createMaestroTools({ daemonUrl, fetch: fetchMock }),
+			"maestro_create_session",
+		);
+		await tool.execute({ label: "x", mounts: [] }, ctx());
+		expect(calls[0].body).toEqual({ label: "x" });
+		expect(calls[0].body).not.toHaveProperty("mounts");
+	});
+
+	it("omits container_id when not supplied", async () => {
+		const { fetchMock, calls } = makeFetchMock({
+			"POST /sessions": { session_id: "fresh" },
+		});
+		const tool = getTool(
+			createMaestroTools({ daemonUrl, fetch: fetchMock }),
+			"maestro_create_session",
+		);
+		await tool.execute({ label: "x" }, ctx());
+		expect(calls[0].body).toEqual({ label: "x" });
+		expect(calls[0].body).not.toHaveProperty("container_id");
+	});
+});
+
+describe("maestro_exec", () => {
+	it("POSTs cmd to /sessions/:id/exec and returns the exec result", async () => {
+		const { fetchMock, calls } = makeFetchMock({
+			"POST /sessions/sess-1/exec": {
+				session_id: "sess-1",
+				container_id: "maestro-cline",
+				display: ":1",
+				cwd: "/workspace/cline/apps/vscode",
+				background: false,
+				stdout: "ok\n",
+				stderr: "",
+				combined: "ok\n",
+				exit_code: 0,
+			},
+		});
+		const tool = getTool(
+			createMaestroTools({ daemonUrl, fetch: fetchMock }),
+			"maestro_exec",
+		);
+		const result = (await tool.execute(
+			{
+				session_id: "sess-1",
+				cmd: "echo ok",
+				cwd: "/workspace/cline/apps/vscode",
+			},
+			ctx(),
+		)) as { exit_code: number; stdout: string };
+		expect(calls[0].method).toBe("POST");
+		expect(calls[0].url).toBe(`${daemonUrl}/sessions/sess-1/exec`);
+		expect(calls[0].body).toEqual({
+			cmd: "echo ok",
+			cwd: "/workspace/cline/apps/vscode",
+		});
+		expect(result.exit_code).toBe(0);
+		expect(result.stdout).toBe("ok\n");
+	});
+
+	it("only includes optional fields that were provided", async () => {
+		const { fetchMock, calls } = makeFetchMock({
+			"POST /sessions/sess-1/exec": { exit_code: 0 },
+		});
+		const tool = getTool(
+			createMaestroTools({ daemonUrl, fetch: fetchMock }),
+			"maestro_exec",
+		);
+		await tool.execute({ session_id: "sess-1", cmd: "true" }, ctx());
+		// No cwd/gui/background/tty/env supplied → body carries only cmd.
+		expect(calls[0].body).toEqual({ cmd: "true" });
+	});
+
+	it("forwards background, gui, tty and env when set (e.g. launching the debug harness)", async () => {
+		const { fetchMock, calls } = makeFetchMock({
+			"POST /sessions/sess-1/exec": { background: true },
+		});
+		const tool = getTool(
+			createMaestroTools({ daemonUrl, fetch: fetchMock }),
+			"maestro_exec",
+		);
+		await tool.execute(
+			{
+				session_id: "sess-1",
+				cmd: "npx tsx src/dev/debug-harness/server.ts --skip-build --auto-launch",
+				cwd: "/workspace/cline/apps/vscode",
+				gui: true,
+				background: true,
+				tty: false,
+				env: ["FOO=bar"],
+			},
+			ctx(),
+		);
+		expect(calls[0].body).toEqual({
+			cmd: "npx tsx src/dev/debug-harness/server.ts --skip-build --auto-launch",
+			cwd: "/workspace/cline/apps/vscode",
+			gui: true,
+			background: true,
+			tty: false,
+			env: ["FOO=bar"],
+		});
+	});
+
+	it("url-encodes the session id in the exec path", async () => {
+		const { fetchMock, calls } = makeFetchMock({
+			"POST /sessions/a%2Fb/exec": { exit_code: 0 },
+		});
+		const tool = getTool(
+			createMaestroTools({ daemonUrl, fetch: fetchMock }),
+			"maestro_exec",
+		);
+		await tool.execute({ session_id: "a/b", cmd: "true" }, ctx());
+		expect(calls[0].url).toBe(`${daemonUrl}/sessions/a%2Fb/exec`);
+	});
+});
+
 
 describe("error handling", () => {
 	it("surfaces HTTP error responses as thrown errors", async () => {

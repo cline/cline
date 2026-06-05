@@ -10,6 +10,7 @@
  *   POST   {daemonUrl}/sessions          { container_id?, label? }
  *   DELETE {daemonUrl}/sessions/:id
  *   POST   {daemonUrl}/sessions/:id/action  { action, ...args }
+ *   POST   {daemonUrl}/sessions/:id/exec    { cmd, cwd?, gui?, background?, tty?, env? }
  *
  * Why schema'd tools (e.g. maestro_click), not the Anthropic `computer_20250124`
  * beta tool?
@@ -82,6 +83,7 @@ export function createMaestroTools(
 		createMaestroListSessionsTool(client),
 		createMaestroCreateSessionTool(client),
 		createMaestroDestroySessionTool(client),
+		createMaestroExecTool(client),
 		createMaestroScreenshotTool(client),
 		createMaestroClickTool(client),
 		createMaestroTypeTool(client),
@@ -253,17 +255,46 @@ function createMaestroCreateSessionTool(client: MaestroClient): AgentTool {
 					type: "string",
 					description: "Optional human-readable label for the new session.",
 				},
+				container_id: {
+					type: "string",
+					description:
+						"Optional existing Docker container name/id to create the session " +
+						"in. Use this to attach a session to a container that already has " +
+						"your workspace bind-mounted (e.g. the one the daemon was started " +
+						"with). When omitted, the daemon starts a fresh container from its " +
+						"configured image.",
+				},
+				mounts: {
+					type: "array",
+					items: { type: "string" },
+					description:
+						"Optional Docker bind mounts for a NEW container, each in " +
+						"'/host/path:/container/path[:ro]' form. Only applied when the " +
+						"daemon starts a fresh container (i.e. when container_id is omitted); " +
+						"ignored when attaching to an existing container_id. Lets one daemon " +
+						"serve multiple workspaces by mounting a different host checkout per " +
+						"session. When omitted, the daemon falls back to its global --mount " +
+						"args (which may be none, in which case the container has no mounts).",
+				},
 			},
 			required: [],
 			additionalProperties: false,
 		},
 		execute: async (input, context) => {
+			const { label, container_id, mounts } = input as {
+				label?: string;
+				container_id?: string;
+				mounts?: string[];
+			};
 			const body: Record<string, unknown> = {};
-			if (
-				typeof (input as { label?: unknown }).label === "string" &&
-				(input as { label?: string }).label
-			) {
-				body.label = (input as { label: string }).label;
+			if (typeof label === "string" && label) {
+				body.label = label;
+			}
+			if (typeof container_id === "string" && container_id) {
+				body.container_id = container_id;
+			}
+			if (Array.isArray(mounts) && mounts.length > 0) {
+				body.mounts = mounts;
 			}
 			return client.post("/sessions", body, context.signal);
 		},
@@ -294,6 +325,88 @@ function createMaestroDestroySessionTool(client: MaestroClient): AgentTool {
 		},
 	}) as AgentTool;
 }
+function createMaestroExecTool(client: MaestroClient): AgentTool {
+	return createTool({
+		name: "maestro_exec",
+		description:
+			"Run a shell command inside the Docker container backing a Maestro " +
+			"session, and return its stdout/stderr/exit code. The command runs via " +
+			"`bash -lc`. DISPLAY is set to the session's X display by default (gui), " +
+			"so GUI apps launched here appear in that session's desktop. Use this to " +
+			"build/test code in a bind-mounted workspace and to launch long-running " +
+			"servers (e.g. the Cline VS Code debug harness) with background:true. " +
+			"Address everything by session_id — the daemon resolves the container " +
+			"and display for you.",
+		inputSchema: {
+			type: "object",
+			properties: {
+				session_id: { type: "string", description: SESSION_ID_DESC },
+				cmd: {
+					type: "string",
+					description:
+						"Shell command to run (passed to `bash -lc`). " +
+						"Example: 'npm run protos && IS_DEV=true node esbuild.mjs'.",
+				},
+				cwd: {
+					type: "string",
+					description:
+						"Working directory inside the container, e.g. " +
+						"'/workspace/cline/apps/vscode'.",
+				},
+				gui: {
+					type: "boolean",
+					description:
+						"Set DISPLAY=:N for this session so GUI apps target its desktop. " +
+						"Defaults to true.",
+				},
+				background: {
+					type: "boolean",
+					description:
+						"Run detached via `nohup ... &` and return immediately with no " +
+						"exit code. Use for GUI apps and long-running servers (e.g. the " +
+						"debug harness). Defaults to false.",
+				},
+				tty: {
+					type: "boolean",
+					description:
+						"Allocate a TTY for the exec. Keep false for clean structured " +
+						"stdout/stderr. Defaults to false.",
+				},
+				env: {
+					type: "array",
+					items: { type: "string" },
+					description: "Extra environment variables in 'KEY=value' form.",
+				},
+			},
+			required: ["session_id", "cmd"],
+			additionalProperties: false,
+		},
+		execute: async (input, context) => {
+			const { session_id, cmd, cwd, gui, background, tty, env } = input as {
+				session_id: string;
+				cmd: string;
+				cwd?: string;
+				gui?: boolean;
+				background?: boolean;
+				tty?: boolean;
+				env?: string[];
+			};
+			const body: Record<string, unknown> = { cmd };
+			if (typeof cwd === "string" && cwd) body.cwd = cwd;
+			if (typeof gui === "boolean") body.gui = gui;
+			if (typeof background === "boolean") body.background = background;
+			if (typeof tty === "boolean") body.tty = tty;
+			if (Array.isArray(env) && env.length > 0) body.env = env;
+			return client.post(
+				`/sessions/${encodeURIComponent(session_id)}/exec`,
+				body,
+				context.signal,
+			);
+		},
+	}) as AgentTool;
+}
+
+
 
 function createMaestroScreenshotTool(client: MaestroClient): AgentTool {
 	return createTool({

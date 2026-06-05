@@ -1,3 +1,4 @@
+import { execSync } from "node:child_process"
 import fs from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
@@ -66,6 +67,53 @@ const aliasResolverPlugin = {
 			})
 		})
 	},
+}
+
+// PROTOTYPE HACK (maestro / computer-use branch — NOT for main):
+// Vendor selected @cline/* SDK packages from the local source tree instead of
+// the published npm tarball, so branch-local edits (e.g. the Anthropic
+// computer-use beta header in @cline/llms) get bundled into the extension.
+// apps/vscode is intentionally outside the npm workspace and depends on a
+// *published* @cline/llms, so node_modules/@cline/llms is a prebuilt copy that
+// does NOT contain our edits. This plugin redirects bare imports of the listed
+// packages to the freshly-built dist in sdk/packages/<pkg>/dist, which the
+// prebuild guard (ensureVendoredSdkBuilt) ensures exists.
+const sdkPackagesRoot = path.resolve(__dirname, "../../sdk/packages")
+const vendoredSdkPackages = ["llms"]
+const vendoredSdkResolverPlugin = {
+	name: "vendored-sdk-resolver",
+	setup(build) {
+		for (const pkg of vendoredSdkPackages) {
+			const distDir = path.join(sdkPackagesRoot, pkg, "dist")
+			const exactFilter = new RegExp("^@cline/" + pkg + "$")
+			const subpathFilter = new RegExp("^@cline/" + pkg + "/(.+)$")
+			build.onResolve({ filter: exactFilter }, () => ({
+				path: path.join(distDir, "index.js"),
+			}))
+			build.onResolve({ filter: subpathFilter }, (args) => {
+				const subpath = args.path.slice(("@cline/" + pkg + "/").length)
+				const candidate = path.join(distDir, subpath + ".js")
+				if (fs.existsSync(candidate)) {
+					return { path: candidate }
+				}
+				return { path: path.join(distDir, subpath, "index.js") }
+			})
+		}
+	},
+}
+
+// Build the vendored SDK packages once if their dist is missing, so a fresh
+// clone of this branch "just works" without a manual SDK build step.
+function ensureVendoredSdkBuilt() {
+	for (const pkg of vendoredSdkPackages) {
+		const pkgDir = path.join(sdkPackagesRoot, pkg)
+		const distIndex = path.join(pkgDir, "dist", "index.js")
+		if (fs.existsSync(distIndex)) {
+			continue
+		}
+		console.log("[vendored-sdk] building @cline/" + pkg + " from source...")
+		execSync("npm run build", { cwd: pkgDir, stdio: "inherit" })
+	}
 }
 
 const esbuildProblemMatcherPlugin = {
@@ -138,6 +186,9 @@ const baseConfig = {
 	define: buildEnvVars,
 	tsconfig: path.resolve(__dirname, "tsconfig.json"),
 	plugins: [
+		// vendoredSdkResolverPlugin must run before aliasResolverPlugin so that
+		// @cline/llms resolves to the in-tree build (PROTOTYPE HACK).
+		vendoredSdkResolverPlugin,
 		aliasResolverPlugin,
 		/* add to the end of plugins array */
 		esbuildProblemMatcherPlugin,
@@ -175,10 +226,11 @@ const e2eBuildConfig = {
 	outfile: `${destDir}/e2e-build.mjs`,
 	external: ["@vscode/test-electron", "execa"],
 	sourcemap: false,
-	plugins: [aliasResolverPlugin, esbuildProblemMatcherPlugin],
+	plugins: [vendoredSdkResolverPlugin, aliasResolverPlugin, esbuildProblemMatcherPlugin],
 }
 
 async function main() {
+	ensureVendoredSdkBuilt()
 	const config = standalone ? standaloneConfig : e2eBuild ? e2eBuildConfig : extensionConfig
 	const extensionCtx = await esbuild.context(config)
 	if (watch) {
