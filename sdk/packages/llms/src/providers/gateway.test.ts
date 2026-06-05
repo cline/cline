@@ -1601,6 +1601,90 @@ describe("sdk-gateway", () => {
 		);
 	});
 
+	it("omits runtime tools when provider requires explicit model tool capability and the model lacks it", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "ollama",
+					defaultModelId: "llama3:latest",
+					models: [{ id: "llama3:latest", name: "llama3:latest" }],
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "ollama",
+				modelId: "llama3:latest",
+				messages: baseMessages,
+				tools: [
+					{
+						name: "run_commands",
+						description: "Runs shell commands",
+						inputSchema: { type: "object" },
+					},
+				],
+			}),
+		);
+
+		expect(streamTextSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				tools: undefined,
+			}),
+		);
+	});
+
+	it("passes runtime tools when provider requires explicit model tool capability and the model has it", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "ollama",
+					defaultModelId: "qwen2.5-coder:latest",
+					models: [
+						{
+							id: "qwen2.5-coder:latest",
+							name: "qwen2.5-coder:latest",
+							capabilities: ["tools"],
+						},
+					],
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "ollama",
+				modelId: "qwen2.5-coder:latest",
+				messages: baseMessages,
+				tools: [
+					{
+						name: "run_commands",
+						description: "Runs shell commands",
+						inputSchema: { type: "object" },
+					},
+				],
+			}),
+		);
+
+		expect(streamTextSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				tools: expect.objectContaining({ run_commands: expect.anything() }),
+			}),
+		);
+	});
+
 	it("tags tool call events with provider metadata for providers that disable external tool execution", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([

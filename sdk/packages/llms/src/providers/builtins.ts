@@ -781,6 +781,7 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		apiKeyEnv: ["OLLAMA_API_KEY"],
 		defaults: { baseUrl: "http://localhost:11434/v1" },
 		modelsSourceUrl: "http://localhost:11434/api/tags",
+		metadata: { requiresExplicitModelToolsCapability: true },
 	},
 	{
 		id: "lmstudio",

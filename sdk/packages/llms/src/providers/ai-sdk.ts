@@ -229,6 +229,30 @@ function providerDisablesExternalToolExecution(
 	return context.provider.capabilities?.includes("provider-tools") ?? false;
 }
 
+function modelExplicitlySupportsRuntimeTools(
+	context: GatewayProviderContext,
+): boolean {
+	return context.model.capabilities?.includes("tools") ?? false;
+}
+
+function providerRequiresExplicitModelToolsCapability(
+	context: GatewayProviderContext,
+): boolean {
+	return (
+		context.provider.metadata?.requiresExplicitModelToolsCapability === true
+	);
+}
+
+function shouldSendRuntimeTools(context: GatewayProviderContext): boolean {
+	if (providerDisablesExternalToolExecution(context)) {
+		return false;
+	}
+	if (providerRequiresExplicitModelToolsCapability(context)) {
+		return modelExplicitlySupportsRuntimeTools(context);
+	}
+	return true;
+}
+
 function mergeToolCallMetadata(
 	current: unknown,
 	patch: Record<string, unknown>,
@@ -879,9 +903,9 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 				const langfuse = await ensureGatewayLangfuseTelemetry(
 					config.providerId,
 				);
-				const tools = providerDisablesExternalToolExecution(context)
-					? undefined
-					: toAiSdkTools(request);
+				const tools = shouldSendRuntimeTools(context)
+					? toAiSdkTools(request)
+					: undefined;
 				const systemPrompt = resolveAiSdkSystemPrompt(request);
 				const useSystemOption =
 					typeof systemPrompt === "string" && systemPrompt.trim().length > 0;

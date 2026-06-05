@@ -598,6 +598,45 @@ describe("addLocalProvider – capabilities", () => {
 		expect(models[0].supportsReasoning).toBeFalsy();
 	});
 
+	it("preserves per-model capabilities fetched from a models source", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn().mockResolvedValue({
+				ok: true,
+				json: async () => ({
+					models: [
+						{ name: "llama3:latest", capabilities: ["completion"] },
+						{
+							name: "qwen2.5-coder:latest",
+							capabilities: ["completion", "tools"],
+						},
+					],
+				}),
+			}),
+		);
+
+		await addLocalProvider(manager, {
+			providerId: "ollama-capability-provider",
+			name: "Ollama Capabilities",
+			baseUrl: "http://localhost:11434/v1",
+			modelsSourceUrl: "http://localhost:11434/api/tags",
+		});
+
+		const modelsState = await readModelsFile(
+			resolveModelsRegistryPath(manager),
+		);
+		expect(
+			modelsState.providers["ollama-capability-provider"]?.models?.[
+				"llama3:latest"
+			]?.capabilities,
+		).toBeUndefined();
+		expect(
+			modelsState.providers["ollama-capability-provider"]?.models?.[
+				"qwen2.5-coder:latest"
+			]?.capabilities,
+		).toEqual(["tools"]);
+	});
+
 	it("merges LiteLLM private models into the provider model listing when auth is configured", async () => {
 		manager.saveProviderSettings(
 			{

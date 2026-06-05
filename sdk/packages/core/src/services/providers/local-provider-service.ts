@@ -3,6 +3,7 @@ import {
 	type AddProviderActionRequest,
 	getClineEnvironmentConfig,
 	type ITelemetryService,
+	type ModelCapability,
 	type OAuthProviderId,
 	type ProviderCapability,
 	type ProviderConfigField,
@@ -32,8 +33,9 @@ import {
 	writeModelsFile,
 } from "./local-provider-registry";
 import {
-	fetchModelIdsFromSource,
+	fetchModelsFromSource,
 	resolveModelsSourceUrl,
+	type SourceModel,
 } from "./model-source";
 
 export { ensureCustomProvidersLoaded } from "./local-provider-registry";
@@ -279,18 +281,36 @@ function normalizeHeaders(
 	return entries.length > 0 ? Object.fromEntries(entries) : undefined;
 }
 
+function toModelCapabilities(
+	capabilities: ProviderCapability[] | undefined,
+): ModelCapability[] | undefined {
+	if (!capabilities?.length) return undefined;
+	const next = new Set<ModelCapability>();
+	if (capabilities.includes("streaming")) next.add("streaming");
+	if (capabilities.includes("tools")) next.add("tools");
+	if (capabilities.includes("reasoning")) next.add("reasoning");
+	if (capabilities.includes("prompt-cache")) next.add("prompt-cache");
+	if (capabilities.includes("vision")) {
+		next.add("images");
+		next.add("files");
+	}
+	return next.size > 0 ? [...next] : undefined;
+}
+
 function buildProviderModels(
-	modelIds: string[],
+	models: SourceModel[],
 	capabilities: ProviderCapability[] | undefined,
 ) {
 	const supportsVision = capabilities?.includes("vision") ?? false;
 	const supportsReasoning = capabilities?.includes("reasoning") ?? false;
+	const fallbackCapabilities = toModelCapabilities(capabilities);
 	return Object.fromEntries(
-		modelIds.map((id) => [
-			id,
+		models.map((model) => [
+			model.id,
 			{
-				id,
-				name: id,
+				id: model.id,
+				name: model.id,
+				capabilities: model.capabilities ?? fallbackCapabilities,
 				supportsVision,
 				supportsAttachments: supportsVision,
 				supportsReasoning,
@@ -299,20 +319,27 @@ function buildProviderModels(
 	);
 }
 
-async function resolveModelIds(params: {
+async function resolveModels(params: {
 	providerId: string;
 	explicitModels?: string[];
 	modelsSourceUrl?: string;
-	fallbackModelIds?: string[];
+	fallbackModels?: SourceModel[];
 	shouldRecompute: boolean;
-}): Promise<string[]> {
+}): Promise<SourceModel[]> {
 	if (!params.shouldRecompute) {
-		return params.fallbackModelIds ?? [];
+		return params.fallbackModels ?? [];
+	}
+	const modelMap = new Map<string, SourceModel>();
+	for (const id of params.explicitModels ?? []) {
+		modelMap.set(id, { id });
 	}
 	const fetchedModels = params.modelsSourceUrl
-		? await fetchModelIdsFromSource(params.modelsSourceUrl, params.providerId)
+		? await fetchModelsFromSource(params.modelsSourceUrl, params.providerId)
 		: [];
-	return [...new Set([...(params.explicitModels ?? []), ...fetchedModels])];
+	for (const model of fetchedModels) {
+		modelMap.set(model.id, model);
+	}
+	return [...modelMap.values()];
 }
 
 function removeProviderFromSettingsState(
@@ -382,12 +409,13 @@ export async function addLocalProvider(
 
 	const typedModels = uniqueTrimmed(request.models);
 	const sourceUrl = request.modelsSourceUrl?.trim();
-	const modelIds = await resolveModelIds({
+	const models = await resolveModels({
 		providerId,
 		explicitModels: typedModels,
 		modelsSourceUrl: sourceUrl,
 		shouldRecompute: true,
 	});
+	const modelIds = models.map((model) => model.id);
 	if (modelIds.length === 0) {
 		throw new Error(
 			"at least one model is required (manual or via modelsSourceUrl)",
@@ -432,7 +460,7 @@ export async function addLocalProvider(
 			capabilities,
 			modelsSourceUrl: sourceUrl,
 		},
-		models: buildProviderModels(modelIds, capabilities),
+		models: buildProviderModels(models, capabilities),
 	};
 	await writeModelsFile(modelsPath, modelsState);
 	registerCustomProvider(providerId, modelsState.providers[providerId]);
@@ -487,7 +515,10 @@ export async function updateLocalProvider(
 				capabilities: existingSettings.capabilities,
 			},
 			models: seedModelId
-				? buildProviderModels([seedModelId], existingSettings.capabilities)
+				? buildProviderModels(
+						[{ id: seedModelId }],
+						existingSettings.capabilities,
+					)
 				: {},
 		};
 	}
@@ -527,16 +558,20 @@ export async function updateLocalProvider(
 	const shouldRecomputeModels =
 		request.models !== undefined ||
 		(request.modelsSourceUrl !== undefined && !!nextModelsSourceUrl);
-	const existingModelIds = Object.keys(existingEntry.models ?? {})
-		.map((id) => id.trim())
-		.filter(Boolean);
-	const modelIds = await resolveModelIds({
+	const existingModels = Object.entries(existingEntry.models ?? {})
+		.map(([modelKey, model]) => ({
+			id: model.id?.trim() || modelKey.trim(),
+			capabilities: model.capabilities,
+		}))
+		.filter((model) => model.id.length > 0);
+	const models = await resolveModels({
 		providerId,
 		explicitModels,
 		modelsSourceUrl: nextModelsSourceUrl,
-		fallbackModelIds: existingModelIds,
+		fallbackModels: existingModels,
 		shouldRecompute: shouldRecomputeModels,
 	});
+	const modelIds = models.map((model) => model.id);
 	if (modelIds.length === 0) {
 		throw new Error(
 			"at least one model is required (manual or via modelsSourceUrl)",
@@ -593,7 +628,7 @@ export async function updateLocalProvider(
 			capabilities,
 			modelsSourceUrl: nextModelsSourceUrl,
 		},
-		models: buildProviderModels(modelIds, capabilities),
+		models: buildProviderModels(models, capabilities),
 	};
 	await writeModelsFile(modelsPath, modelsState);
 	registerCustomProvider(providerId, modelsState.providers[providerId]);

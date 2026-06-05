@@ -1,26 +1,64 @@
-function parseModelIdList(input: unknown): string[] {
+import { type ModelCapability, ModelCapabilitySchema } from "@cline/shared";
+
+export interface SourceModel {
+	id: string;
+	capabilities?: ModelCapability[];
+}
+
+function toModelCapability(value: unknown): ModelCapability | undefined {
+	if (typeof value !== "string") return undefined;
+	const normalized =
+		value === "structured-output" ? "structured_output" : value;
+	const parsed = ModelCapabilitySchema.safeParse(normalized);
+	return parsed.success ? parsed.data : undefined;
+}
+
+function parseCapabilities(input: unknown): ModelCapability[] | undefined {
+	if (!Array.isArray(input)) return undefined;
+	const capabilities = [
+		...new Set(
+			input
+				.map(toModelCapability)
+				.filter((value): value is ModelCapability => value !== undefined),
+		),
+	];
+	return capabilities.length > 0 ? capabilities : undefined;
+}
+
+function parseModelList(input: unknown): SourceModel[] {
 	if (!Array.isArray(input)) return [];
 	return input
-		.map((item) => {
-			if (typeof item === "string") return item.trim();
+		.map((item): SourceModel | undefined => {
+			if (typeof item === "string") {
+				const id = item.trim();
+				return id ? { id } : undefined;
+			}
 			if (item && typeof item === "object") {
-				const entry = item as { id?: unknown; name?: unknown; model?: unknown };
+				const entry = item as {
+					id?: unknown;
+					name?: unknown;
+					model?: unknown;
+					capabilities?: unknown;
+				};
 				for (const value of [entry.id, entry.name, entry.model]) {
 					if (typeof value === "string" && value.trim()) {
-						return value.trim();
+						return {
+							id: value.trim(),
+							capabilities: parseCapabilities(entry.capabilities),
+						};
 					}
 				}
 			}
-			return "";
+			return undefined;
 		})
-		.filter((id) => id.length > 0);
+		.filter((model): model is SourceModel => model !== undefined);
 }
 
-export function extractModelIdsFromPayload(
+export function extractModelsFromPayload(
 	payload: unknown,
 	providerId: string,
-): string[] {
-	const rootArray = parseModelIdList(payload);
+): SourceModel[] {
+	const rootArray = parseModelList(payload);
 	if (rootArray.length > 0) return rootArray;
 	if (!payload || typeof payload !== "object") return [];
 
@@ -30,7 +68,7 @@ export function extractModelIdsFromPayload(
 		providers?: Record<string, unknown>;
 	};
 
-	const direct = parseModelIdList(data.data ?? data.models);
+	const direct = parseModelList(data.data ?? data.models);
 	if (direct.length > 0) return direct;
 
 	if (
@@ -39,32 +77,48 @@ export function extractModelIdsFromPayload(
 		!Array.isArray(data.models)
 	) {
 		const keys = Object.keys(data.models).filter((k) => k.trim().length > 0);
-		if (keys.length > 0) return keys;
+		if (keys.length > 0) return keys.map((id) => ({ id }));
 	}
 
 	const scoped = data.providers?.[providerId];
 	if (scoped && typeof scoped === "object") {
 		const nested = scoped as { models?: unknown };
-		const list = parseModelIdList(nested.models ?? scoped);
+		const list = parseModelList(nested.models ?? scoped);
 		if (list.length > 0) return list;
 	}
 
 	return [];
 }
 
-export async function fetchModelIdsFromSource(
+export function extractModelIdsFromPayload(
+	payload: unknown,
+	providerId: string,
+): string[] {
+	return extractModelsFromPayload(payload, providerId).map((model) => model.id);
+}
+
+export async function fetchModelsFromSource(
 	url: string,
 	providerId: string,
-): Promise<string[]> {
+): Promise<SourceModel[]> {
 	const response = await fetch(url, { method: "GET" });
 	if (!response.ok) {
 		throw new Error(
 			`failed to fetch models from ${url}: HTTP ${response.status}`,
 		);
 	}
-	return extractModelIdsFromPayload(
+	return extractModelsFromPayload(
 		(await response.json()) as unknown,
 		providerId,
+	);
+}
+
+export async function fetchModelIdsFromSource(
+	url: string,
+	providerId: string,
+): Promise<string[]> {
+	return (await fetchModelsFromSource(url, providerId)).map(
+		(model) => model.id,
 	);
 }
 
