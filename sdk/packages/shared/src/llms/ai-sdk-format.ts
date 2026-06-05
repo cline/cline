@@ -61,7 +61,7 @@ export interface AiSdkFormatterMessage {
 	content: string | AiSdkFormatterPart[];
 }
 
-const EMPTY_CONTENT_TEXT = "ERROR: EMPTY CONTENT";
+export const EMPTY_CONTENT_TEXT = "ERROR: EMPTY CONTENT";
 
 export type AiSdkMessagePart = Record<string, unknown>;
 export type AiSdkMessage = {

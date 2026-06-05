@@ -13,8 +13,7 @@ import type {
 	ToolResultContent,
 	ToolUseContent,
 } from "@cline/shared";
-
-const EMPTY_CONTENT_TEXT = "ERROR: EMPTY CONTENT";
+import { EMPTY_CONTENT_TEXT } from "@cline/shared";
 
 export function messageToAgentMessages(
 	message: MessageWithMetadata,
@@ -135,7 +134,7 @@ export function agentMessagesToMessages(
 
 function normalizeContentBlocks(content: Message["content"]): ContentBlock[] {
 	if (typeof content === "string") {
-		return content.length > 0
+		return content.trim().length > 0
 			? [{ type: "text", text: content } as TextContent]
 			: [];
 	}

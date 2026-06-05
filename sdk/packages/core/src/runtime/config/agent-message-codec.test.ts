@@ -1,3 +1,4 @@
+import { EMPTY_CONTENT_TEXT } from "@cline/shared";
 import { describe, expect, it } from "vitest";
 import { messageToAgentMessages } from "./agent-message-codec";
 
@@ -14,7 +15,7 @@ describe("agent message codec", () => {
 			{
 				id: "empty",
 				role: "assistant",
-				content: [{ type: "text", text: "ERROR: EMPTY CONTENT" }],
+				content: [{ type: "text", text: EMPTY_CONTENT_TEXT }],
 				createdAt: 1,
 				metadata: undefined,
 				modelInfo: undefined,
@@ -32,7 +33,25 @@ describe("agent message codec", () => {
 			{
 				id: "blank",
 				role: "user",
-				content: [{ type: "text", text: "ERROR: EMPTY CONTENT" }],
+				content: [{ type: "text", text: EMPTY_CONTENT_TEXT }],
+				createdAt: 1,
+				metadata: undefined,
+				modelInfo: undefined,
+				metrics: undefined,
+			},
+		]);
+		expect(
+			messageToAgentMessages({
+				id: "whitespace",
+				role: "assistant",
+				ts: 1,
+				content: "   \n\t  ",
+			}),
+		).toEqual([
+			{
+				id: "whitespace",
+				role: "assistant",
+				content: [{ type: "text", text: EMPTY_CONTENT_TEXT }],
 				createdAt: 1,
 				metadata: undefined,
 				modelInfo: undefined,
