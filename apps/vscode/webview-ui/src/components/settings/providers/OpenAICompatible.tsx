@@ -15,10 +15,10 @@ import { BaseUrlField } from "../common/BaseUrlField"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import ReasoningEffortSelector from "../ReasoningEffortSelector"
-import { getSavedApiKeyMask, sanitizeMaskedApiKeyInput } from "../utils/apiKeyMasking"
 import { parsePrice } from "../utils/pricingUtils"
 import { getModeSpecificFields, supportsReasoningEffortForModelId } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { useProviderApiKeyField } from "../utils/useProviderApiKeyField"
 
 /**
  * Props for the OpenAICompatibleProvider component
@@ -40,7 +40,6 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 	const [modelConfigurationSelected, setModelConfigurationSelected] = useState(false)
 	const latestOpenAiBaseUrlRef = useRef(config?.baseUrl || "")
 	const latestOpenAiApiKeyRef = useRef(apiConfiguration?.openAiApiKey || "")
-	const savedApiKeyMask = getSavedApiKeyMask(config?.apiKeyLength)
 
 	useEffect(() => {
 		latestOpenAiBaseUrlRef.current = config?.baseUrl || ""
@@ -117,6 +116,17 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 		}
 	}, [])
 
+	const { savedApiKeyMask, handleApiKeyChange } = useProviderApiKeyField({
+		apiKeyLength: config?.apiKeyLength,
+		canWrite: config !== undefined,
+		onApiKeyChange: (apiKey) => {
+			latestOpenAiApiKeyRef.current = apiKey
+			debouncedRefreshOpenAiModels(latestOpenAiBaseUrlRef.current, apiKey)
+		},
+		providerName: "OpenAI Compatible",
+		write,
+	})
+
 	return (
 		<div>
 			<Tooltip>
@@ -151,25 +161,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 				</TooltipContent>
 			</Tooltip>
 
-			<ApiKeyField
-				initialValue={savedApiKeyMask}
-				onChange={(value) => {
-					if (!config) {
-						return
-					}
-
-					const apiKey = sanitizeMaskedApiKeyInput(value, savedApiKeyMask)
-
-					if (apiKey === undefined) {
-						return
-					}
-
-					latestOpenAiApiKeyRef.current = apiKey
-					void write({ apiKey }).catch((error) => handleProviderConfigWriteError("API key", error))
-					debouncedRefreshOpenAiModels(latestOpenAiBaseUrlRef.current, apiKey)
-				}}
-				providerName="OpenAI Compatible"
-			/>
+			<ApiKeyField initialValue={savedApiKeyMask} onChange={handleApiKeyChange} providerName="OpenAI Compatible" />
 
 			<DebouncedTextField
 				initialValue={selectedModelId || ""}

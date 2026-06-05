@@ -10,9 +10,9 @@ import { DROPDOWN_Z_INDEX } from "../ApiOptions"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { DropdownContainer, ModelSelector } from "../common/ModelSelector"
-import { getSavedApiKeyMask, sanitizeMaskedApiKeyInput } from "../utils/apiKeyMasking"
 import { getModeSpecificFields } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { useProviderApiKeyField } from "../utils/useProviderApiKeyField"
 
 const PROVIDER_ID = "xai"
 
@@ -59,17 +59,11 @@ export const XaiProvider = ({ showModelOptions, isPopup, currentMode }: XaiProvi
 
 	// Local state for reasoning effort toggle
 	const [reasoningEffortSelected, setReasoningEffortSelected] = useState(!!modeFields.reasoningEffort)
-	const savedApiKeyMask = getSavedApiKeyMask(config?.apiKeyLength)
-
-	const handleApiKeyChange = (value: string) => {
-		const apiKey = sanitizeMaskedApiKeyInput(value, savedApiKeyMask)
-
-		if (apiKey === undefined) {
-			return
-		}
-
-		void write({ apiKey }).catch((err) => console.error("Failed to update X AI API key:", err))
-	}
+	const { savedApiKeyMask, handleApiKeyChange } = useProviderApiKeyField({
+		apiKeyLength: config?.apiKeyLength,
+		providerName: "X AI",
+		write,
+	})
 
 	const handleModelChange = (modelId: string) => {
 		if (!modelId) {

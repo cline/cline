@@ -11,7 +11,7 @@ import { ModelAutocomplete } from "../common/ModelAutocomplete"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { LockIcon, RemotelyConfiguredInputWrapper } from "../common/RemotelyConfiguredInputWrapper"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
-import { getSavedApiKeyMask, sanitizeMaskedApiKeyInput } from "../utils/apiKeyMasking"
+import { useProviderApiKeyField } from "../utils/useProviderApiKeyField"
 
 const LITELLM_PROVIDER_ID = "litellm"
 
@@ -40,7 +40,12 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 	const selectedModelInfo = committedSelection?.modelInfo
 		? fromProtobufModelInfo(committedSelection.modelInfo)
 		: (models[selectedModelId] ?? (selectedModelId ? customModelInfo(selectedModelId) : openAiModelInfoSafeDefaults))
-	const savedApiKeyMask = getSavedApiKeyMask(config?.apiKeyLength)
+	const { savedApiKeyMask, handleApiKeyChange } = useProviderApiKeyField({
+		apiKeyLength: config?.apiKeyLength,
+		canWrite: config !== undefined,
+		providerName: "LiteLLM",
+		write,
+	})
 
 	const handleModelChange = (newModelId: string, modelInfo: ModelInfo | undefined) => {
 		void commitSelection(currentMode, {
@@ -60,20 +65,6 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 		}
 
 		void write({ baseUrl: value }).catch((err) => console.error("Failed to update LiteLLM base URL:", err))
-	}
-
-	const handleApiKeyChange = (value: string) => {
-		if (!config) {
-			return
-		}
-
-		const apiKey = sanitizeMaskedApiKeyInput(value, savedApiKeyMask)
-
-		if (apiKey === undefined) {
-			return
-		}
-
-		void write({ apiKey }).catch((err) => console.error("Failed to update LiteLLM API key:", err))
 	}
 
 	return (
