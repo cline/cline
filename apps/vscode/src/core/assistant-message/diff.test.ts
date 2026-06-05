@@ -264,6 +264,30 @@ replaced
 		expect(result2).to.equal(expected)
 	})
 
+	it("preserves an intentionally added trailing newline at EOF", async () => {
+		const original = "line1\nline2"
+		const diff = ["------- SEARCH", "line2", "=======", "updated line2", "", "+++++++ REPLACE"].join("\n")
+		const expected = "line1\nupdated line2\n"
+
+		const result1 = await cnfc(diff, original, true)
+		const result2 = await cnfc2(diff, original, true)
+
+		expect(result1.newContent).to.equal(expected)
+		expect(result2).to.equal(expected)
+	})
+
+	it("preserves an intentionally blank final replacement line", async () => {
+		const original = "line1\nline2"
+		const diff = ["------- SEARCH", "line2", "=======", "", "", "+++++++ REPLACE"].join("\n")
+		const expected = "line1\n\n"
+
+		const result1 = await cnfc(diff, original, true)
+		const result2 = await cnfc2(diff, original, true)
+
+		expect(result1.newContent).to.equal(expected)
+		expect(result2).to.equal(expected)
+	})
+
 	it("should handle missing final REPLACE marker when isFinal is true", async () => {
 		const original = "line1\nline2\nline3"
 		const diff = `------- SEARCH
