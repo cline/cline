@@ -197,7 +197,11 @@ function normalizeReplacementContentForMatchedRange(
 	originalContent: string,
 	searchEndIndex: number,
 ): string {
-	if (shouldTrimSyntheticReplacementNewline(originalContent, searchEndIndex) && replacementContent.endsWith("\n")) {
+	if (
+		shouldTrimSyntheticReplacementNewline(originalContent, searchEndIndex) &&
+		replacementContent.length > 1 &&
+		replacementContent.endsWith("\n")
+	) {
 		return replacementContent.slice(0, -1)
 	}
 
@@ -652,6 +656,7 @@ class NewFileContentConstructor {
 			if (
 				shouldTrimSyntheticReplacementNewline(this.originalContent, this.searchEndIndex) &&
 				this.result.length > this.currentReplaceStartIndex &&
+				this.result.length - this.currentReplaceStartIndex > 1 &&
 				this.result.endsWith("\n")
 			) {
 				this.result = this.result.slice(0, -1)

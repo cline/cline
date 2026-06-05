@@ -276,6 +276,18 @@ replaced
 		expect(result2).to.equal(expected)
 	})
 
+	it("preserves a single blank replacement for an entire file without a trailing newline", async () => {
+		const original = "line1"
+		const diff = ["------- SEARCH", "line1", "=======", "", "+++++++ REPLACE"].join("\n")
+		const expected = "\n"
+
+		const result1 = await cnfc(diff, original, true)
+		const result2 = await cnfc2(diff, original, true)
+
+		expect(result1.newContent).to.equal(expected)
+		expect(result2).to.equal(expected)
+	})
+
 	it("preserves an intentionally blank final replacement line", async () => {
 		const original = "line1\nline2"
 		const diff = ["------- SEARCH", "line2", "=======", "", "", "+++++++ REPLACE"].join("\n")
