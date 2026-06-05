@@ -9,7 +9,7 @@ import { createOpenAIClient, fetch } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
-import { convertToR1Format } from "../transform/r1-format"
+import { addReasoningContent, convertToR1Format } from "../transform/r1-format"
 import { ApiStream } from "../transform/stream"
 import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
 
@@ -98,6 +98,7 @@ export class OpenAiHandler implements ApiHandler {
 		const client = this.ensureClient()
 		const modelId = this.options.openAiModelId ?? ""
 		const isDeepseekReasoner = modelId.includes("deepseek-reasoner")
+		const isDeepSeekV4 = modelId.includes("deepseek-v4")
 		const isR1FormatRequired = this.options.openAiModelInfo?.isR1FormatRequired ?? false
 		const isReasoningModelFamily =
 			["o1", "o3", "o4", "gpt-5"].some((prefix) => modelId.includes(prefix)) && !modelId.includes("chat")
@@ -124,6 +125,18 @@ export class OpenAiHandler implements ApiHandler {
 
 		if (isDeepseekReasoner || isR1FormatRequired) {
 			openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
+		}
+
+		if (isDeepSeekV4) {
+			// DeepSeek V4 thinking models (v4-pro, v4-flash) use reasoning_content
+			// and do not support temperature. Adapt the OpenAI-compatible path
+			// to match the native DeepSeek handler behaviour.
+			const convertedMessages = convertToOpenAiMessages(messages)
+			openAiMessages = [
+				{ role: "system", content: systemPrompt },
+				...addReasoningContent(convertedMessages, messages),
+			]
+			temperature = undefined
 		}
 
 		if (isReasoningModelFamily) {
