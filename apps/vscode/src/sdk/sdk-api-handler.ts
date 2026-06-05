@@ -3,7 +3,7 @@
 // Builds an SDK ApiHandler (from `@cline/llms`) directly from the extension's
 // legacy ApiConfiguration. This is the single inference path: the main task
 // loop runs through ClineCore (see cline-session-factory.ts), and standalone
-// utility callers (commit message generation, explain-changes) use the handler
+// utility callers (commit message generation) use the handler
 // returned here. Both share the same provider/model/key/baseUrl resolution so
 // there is no second source of truth.
 
@@ -18,7 +18,7 @@ import { toSdkProviderId } from "./model-catalog/sdk-provider-id"
 export interface BuildApiHandlerOptions {
 	/**
 	 * Disable extended thinking/reasoning for this handler. Standalone utility
-	 * calls (commit message generation, explain-changes) want fast, cheap,
+	 * calls (commit message generation) want fast, cheap,
 	 * deterministic completions and don't benefit from reasoning. When true we
 	 * send `thinking: false` and omit both effort and budget so providers like
 	 * OpenRouter don't receive a reasoning config at all.
