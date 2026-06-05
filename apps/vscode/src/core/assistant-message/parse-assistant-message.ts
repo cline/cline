@@ -1,4 +1,5 @@
 import { ClineDefaultTool, getToolUseNames } from "@shared/tools"
+import { fixModelHtmlEscaping } from "@utils/string"
 import { nanoid } from "nanoid"
 import { AssistantMessageContent, TextStreamContent, ToolParamName, ToolUse, toolParamNames } from "." // Assuming types are defined in index.ts or a similar file
 
@@ -66,7 +67,7 @@ export function parseAssistantMessageV2(assistantMessage: string): AssistantMess
 						currentCharIndex - closeTag.length + 1, // End before the closing tag
 					)
 					.trim()
-				currentToolUse.params[currentParamName] = value
+				currentToolUse.params[currentParamName] = normalizeToolParam(currentToolUse.name, currentParamName, value)
 				currentParamName = undefined // Go back to parsing tool content
 				// We don't continue loop here, need to check for tool close or other params at index i
 			} else {
@@ -213,9 +214,10 @@ export function parseAssistantMessageV2(assistantMessage: string): AssistantMess
 
 	// Finalize any open parameter within an open tool use
 	if (currentToolUse && currentParamName) {
-		currentToolUse.params[currentParamName] = assistantMessage
+		const value = assistantMessage
 			.slice(currentParamValueStart) // From param start to end of string
 			.trim()
+		currentToolUse.params[currentParamName] = normalizeToolParam(currentToolUse.name, currentParamName, value)
 		// Tool use remains partial
 	}
 
@@ -237,4 +239,12 @@ export function parseAssistantMessageV2(assistantMessage: string): AssistantMess
 	}
 
 	return contentBlocks
+}
+
+function normalizeToolParam(toolName: ClineDefaultTool, paramName: ToolParamName, value: string): string {
+	if (toolName === ClineDefaultTool.BASH && paramName === "command") {
+		return fixModelHtmlEscaping(value)
+	}
+
+	return value
 }
