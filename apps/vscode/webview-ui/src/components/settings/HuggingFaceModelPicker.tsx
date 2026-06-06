@@ -14,7 +14,7 @@ import { ModelInfoView } from "./common/ModelInfoView"
 import { getModeSpecificFields } from "./utils/providerUtils"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
-export interface HuggingFaceModelPickerProps {
+interface HuggingFaceModelPickerProps {
 	isPopup?: boolean
 	currentMode: Mode
 }

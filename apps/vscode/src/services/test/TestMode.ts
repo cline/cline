@@ -18,7 +18,7 @@ let isTestMode = false
  * Sets the test mode state
  * @param value Whether test mode is enabled
  */
-export function setTestMode(value: boolean): void {
+function setTestMode(value: boolean): void {
 	isTestMode = value
 }
 
@@ -26,7 +26,7 @@ export function setTestMode(value: boolean): void {
  * Checks if the extension is running in test mode
  * @returns True if in test mode, false otherwise
  */
-export function isInTestMode(): boolean {
+function isInTestMode(): boolean {
 	return isTestMode
 }
 

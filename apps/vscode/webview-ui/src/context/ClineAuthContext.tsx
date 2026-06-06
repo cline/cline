@@ -52,7 +52,7 @@ export const ClineAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 	// Handle auth status update events
 	useEffect(() => {
 		const cancelSubscription = AccountServiceClient.subscribeToAuthStatusUpdate(EmptyRequest.create(), {
-			onResponse: async (response) => {
+			onResponse: async (response: any) => {
 				setUser((oldUser) => {
 					if (!response?.user?.uid) {
 						return null

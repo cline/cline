@@ -30,7 +30,7 @@ import { McpServiceClient, ModelsServiceClient, StateServiceClient, UiServiceCli
 
 export type ProviderId = string
 
-export interface ProviderModelsState {
+interface ProviderModelsState {
 	providerId: ProviderId
 	models: Record<string, ModelInfo>
 	defaultModelId: string
@@ -430,7 +430,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	useEffect(() => {
 		// Set up state subscription
 		stateSubscriptionRef.current = StateServiceClient.subscribeToState(EmptyRequest.create({}), {
-			onResponse: (response) => {
+			onResponse: (response: any) => {
 				if (response.stateJson) {
 					try {
 						const stateData = JSON.parse(response.stateJson) as ExtensionState
@@ -485,7 +485,7 @@ export const ExtensionStateContextProvider: React.FC<{
 				}
 				console.log('[DEBUG] ended "got subscribed state"')
 			},
-			onError: (error) => {
+			onError: (error: any) => {
 				console.error("Error in state subscription:", error)
 			},
 			onComplete: () => {
@@ -501,7 +501,7 @@ export const ExtensionStateContextProvider: React.FC<{
 					console.log("[DEBUG] Received mcpButtonClicked event from gRPC stream")
 					navigateToMcp()
 				},
-				onError: (error) => {
+				onError: (error: any) => {
 					console.error("Error in mcpButtonClicked subscription:", error)
 				},
 				onComplete: () => {
@@ -519,7 +519,7 @@ export const ExtensionStateContextProvider: React.FC<{
 					console.log("[DEBUG] Received history button clicked event from gRPC stream")
 					navigateToHistory()
 				},
-				onError: (error) => {
+				onError: (error: any) => {
 					console.error("Error in history button clicked subscription:", error)
 				},
 				onComplete: () => {
@@ -537,7 +537,7 @@ export const ExtensionStateContextProvider: React.FC<{
 					console.log("[DEBUG] Received chat button clicked event from gRPC stream")
 					navigateToChat()
 				},
-				onError: (error) => {
+				onError: (error: any) => {
 					console.error("Error in chat button subscription:", error)
 				},
 				onComplete: () => {},
@@ -546,13 +546,13 @@ export const ExtensionStateContextProvider: React.FC<{
 
 		// Subscribe to MCP servers updates
 		mcpServersSubscriptionRef.current = McpServiceClient.subscribeToMcpServers(EmptyRequest.create(), {
-			onResponse: (response) => {
+			onResponse: (response: any) => {
 				console.log("[DEBUG] Received MCP servers update from gRPC stream")
 				if (response.mcpServers) {
 					setMcpServers(convertProtoMcpServersToMcpServers(response.mcpServers))
 				}
 			},
-			onError: (error) => {
+			onError: (error: any) => {
 				console.error("Error in MCP servers subscription:", error)
 			},
 			onComplete: () => {
@@ -566,7 +566,7 @@ export const ExtensionStateContextProvider: React.FC<{
 				// When settings button is clicked, navigate to settings
 				navigateToSettings()
 			},
-			onError: (error) => {
+			onError: (error: any) => {
 				console.error("Error in settings button clicked subscription:", error)
 			},
 			onComplete: () => {
@@ -582,7 +582,7 @@ export const ExtensionStateContextProvider: React.FC<{
 					// When worktrees button is clicked, navigate to worktrees
 					navigateToWorktrees()
 				},
-				onError: (error) => {
+				onError: (error: any) => {
 					console.error("Error in worktrees button clicked subscription:", error)
 				},
 				onComplete: () => {
@@ -593,7 +593,7 @@ export const ExtensionStateContextProvider: React.FC<{
 
 		// Subscribe to partial message events
 		partialMessageUnsubscribeRef.current = UiServiceClient.subscribeToPartialMessage(EmptyRequest.create({}), {
-			onResponse: (protoMessage) => {
+			onResponse: (protoMessage: any) => {
 				try {
 					// Validate critical fields
 					if (!protoMessage.ts || protoMessage.ts <= 0) {
@@ -619,7 +619,7 @@ export const ExtensionStateContextProvider: React.FC<{
 					console.error("Failed to process partial message:", error, protoMessage)
 				}
 			},
-			onError: (error) => {
+			onError: (error: any) => {
 				console.error("Error in partialMessage subscription:", error)
 			},
 			onComplete: () => {
@@ -629,11 +629,11 @@ export const ExtensionStateContextProvider: React.FC<{
 
 		// Subscribe to MCP marketplace catalog updates
 		mcpMarketplaceUnsubscribeRef.current = McpServiceClient.subscribeToMcpMarketplaceCatalog(EmptyRequest.create({}), {
-			onResponse: (catalog) => {
+			onResponse: (catalog: any) => {
 				console.log("[DEBUG] Received MCP marketplace catalog update from gRPC stream")
 				setMcpMarketplaceCatalog(catalog)
 			},
-			onError: (error) => {
+			onError: (error: any) => {
 				console.error("Error in MCP marketplace catalog subscription:", error)
 			},
 			onComplete: () => {
@@ -650,7 +650,7 @@ export const ExtensionStateContextProvider: React.FC<{
 					...models,
 				})
 			},
-			onError: (error) => {
+			onError: (error: any) => {
 				console.error("Error in OpenRouter models subscription:", error)
 			},
 			onComplete: () => {
@@ -664,7 +664,7 @@ export const ExtensionStateContextProvider: React.FC<{
 				const models = fromProtobufModels(response.models)
 				setLiteLlmModels(models)
 			},
-			onError: (error) => {
+			onError: (error: any) => {
 				console.error("Error in LiteLLM models subscription:", error)
 			},
 			onComplete: () => {
@@ -688,7 +688,7 @@ export const ExtensionStateContextProvider: React.FC<{
 				console.log("[DEBUG] Received account button clicked event from gRPC stream")
 				navigateToAccount()
 			},
-			onError: (error) => {
+			onError: (error: any) => {
 				console.error("Error in account button clicked subscription:", error)
 			},
 			onComplete: () => {
@@ -713,7 +713,7 @@ export const ExtensionStateContextProvider: React.FC<{
 					callback()
 				})
 			},
-			onError: (error) => {
+			onError: (error: any) => {
 				console.error("Error in relinquishControl subscription:", error)
 			},
 			onComplete: () => {},

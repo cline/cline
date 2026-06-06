@@ -23,7 +23,7 @@ import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { getModeSpecificFields } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
-export const SUPPORTED_BEDROCK_THINKING_MODELS = [
+const SUPPORTED_BEDROCK_THINKING_MODELS = [
 	"anthropic.claude-sonnet-4-6",
 	"anthropic.claude-3-7-sonnet-20250219-v1:0",
 	"anthropic.claude-sonnet-4-20250514-v1:0",
