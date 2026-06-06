@@ -30,7 +30,7 @@ import { McpServiceClient, ModelsServiceClient, StateServiceClient, UiServiceCli
 
 export type ProviderId = string
 
-export interface ProviderModelsState {
+interface ProviderModelsState {
 	providerId: ProviderId
 	models: Record<string, ModelInfo>
 	defaultModelId: string

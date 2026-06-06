@@ -462,5 +462,3 @@ export const OcaProvider = ({ isPopup, currentMode }: OcaProviderProps) => {
 		</div>
 	)
 }
-
-export default OcaProvider

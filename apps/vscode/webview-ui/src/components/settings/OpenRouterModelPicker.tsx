@@ -40,7 +40,7 @@ const StarIcon = ({ isFavorite, onClick }: { isFavorite: boolean; onClick: (e: R
 	)
 }
 
-export interface OpenRouterModelPickerProps {
+interface OpenRouterModelPickerProps {
 	isPopup?: boolean
 	currentMode: Mode
 	showProviderRouting?: boolean

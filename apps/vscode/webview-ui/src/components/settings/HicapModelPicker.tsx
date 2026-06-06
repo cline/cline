@@ -10,7 +10,7 @@ import { highlight } from "../history/HistoryView"
 import { getModeSpecificFields } from "./utils/providerUtils"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
-export const HICAP_MODEL_PICKER_Z_INDEX = 1_000
+const HICAP_MODEL_PICKER_Z_INDEX = 1_000
 
 // Star icon for favorites
 const StarIcon = ({ isFavorite, onClick }: { isFavorite: boolean; onClick: (e: React.MouseEvent) => void }) => {
@@ -23,7 +23,7 @@ const StarIcon = ({ isFavorite, onClick }: { isFavorite: boolean; onClick: (e: R
 	)
 }
 
-export interface HicapModelPickerProps {
+interface HicapModelPickerProps {
 	isPopup?: boolean
 	currentMode: Mode
 }

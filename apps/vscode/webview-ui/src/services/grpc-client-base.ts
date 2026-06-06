@@ -8,7 +8,7 @@
 import { v4 as uuidv4 } from "uuid"
 import { PLATFORM_CONFIG } from "../config/platform.config"
 
-export interface Callbacks<TResponse> {
+interface Callbacks<TResponse> {
 	onResponse: (response: TResponse) => void
 	onError: (error: Error) => void
 	onComplete: () => void

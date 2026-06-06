@@ -317,7 +317,7 @@ const CLINE_STEALTH_MODELS: Record<string, ModelInfo> = {
 	},
 }
 
-export function appendClineStealthModels(currentModels: Record<string, ModelInfo>): Record<string, ModelInfo> {
+function appendClineStealthModels(currentModels: Record<string, ModelInfo>): Record<string, ModelInfo> {
 	// Create a shallow clone of the current models to avoid mutating the original object
 	const cloned = { ...currentModels }
 	for (const [modelId, modelInfo] of Object.entries(CLINE_STEALTH_MODELS)) {

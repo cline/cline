@@ -36,7 +36,7 @@ export async function validateWorkspacePath(workspacePath: string): Promise<void
  * Cleans up any existing Git repository in the specified workspace path
  * @param workspacePath The workspace path to clean up
  */
-export async function cleanupPreviousGit(workspacePath: string): Promise<void> {
+async function cleanupPreviousGit(workspacePath: string): Promise<void> {
 	const gitDir = path.join(workspacePath, ".git")
 
 	try {

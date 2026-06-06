@@ -8,7 +8,7 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useProviderModels } from "@/hooks/useProviderModels"
 import { ModelsServiceClient } from "@/services/grpc-client"
 
-export type OnboardingModelsStatus = "loading" | "success" | "empty"
+type OnboardingModelsStatus = "loading" | "success" | "empty"
 
 export interface UseOnboardingModelsResult {
 	status: OnboardingModelsStatus

@@ -15,7 +15,7 @@ import { ModelInfoView } from "./common/ModelInfoView"
 import { getModeSpecificFields } from "./utils/providerUtils"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
-export interface GroqModelPickerProps {
+interface GroqModelPickerProps {
 	isPopup?: boolean
 	currentMode: Mode
 }
@@ -281,6 +281,6 @@ const GroqModelPicker: React.FC<GroqModelPickerProps> = ({ isPopup, currentMode 
 	)
 }
 
-export const GROQ_MODEL_PICKER_Z_INDEX = 1_000
+const GROQ_MODEL_PICKER_Z_INDEX = 1_000
 
 export default GroqModelPicker
