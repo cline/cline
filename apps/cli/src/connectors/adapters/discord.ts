@@ -50,10 +50,9 @@ import {
 	type ConnectorMuteTarget,
 	type ConnectorThreadState,
 	clearBindingSessionIds,
-	findBindingForParticipantKey,
+	findBindingForDeliveryTarget,
 	findBindingForThread,
 	loadThreadState,
-	mergeThreadState,
 	persistMergedThreadState,
 	readBindings,
 } from "../thread-bindings";
@@ -564,43 +563,15 @@ async function postDiscordResolvedText(input: {
 	});
 }
 
-function resolveParticipantState(input: {
-	bindingsPath: string;
-	baseStartRequest: ChatStartSessionRequest;
+function resolveCurrentStateWithParticipant(input: {
+	currentState: DiscordThreadState;
 	participant: DiscordParticipant;
 }): DiscordThreadState {
-	const existing = findBindingForParticipantKey(
-		readBindings<DiscordThreadState>(input.bindingsPath),
-		input.participant.key,
-	)?.binding.state;
 	return {
-		...mergeThreadState<DiscordThreadState>(
-			undefined,
-			existing,
-			input.baseStartRequest,
-		),
+		...input.currentState,
 		participantKey: input.participant.key,
 		participantLabel: input.participant.label,
 	};
-}
-
-function resolveCurrentStateWithParticipant(input: {
-	currentState: DiscordThreadState;
-	bindingsPath: string;
-	baseStartRequest: ChatStartSessionRequest;
-	participant: DiscordParticipant;
-}): DiscordThreadState {
-	if (input.currentState.participantKey === input.participant.key) {
-		return {
-			...input.currentState,
-			participantLabel: input.participant.label,
-		};
-	}
-	return resolveParticipantState({
-		bindingsPath: input.bindingsPath,
-		baseStartRequest: input.baseStartRequest,
-		participant: input.participant,
-	});
 }
 
 async function persistDiscordThreadContext(input: {
@@ -624,8 +595,6 @@ async function persistDiscordThreadContext(input: {
 	);
 	const nextState = resolveCurrentStateWithParticipant({
 		currentState,
-		bindingsPath: input.bindingsPath,
-		baseStartRequest: input.baseStartRequest,
 		participant,
 	});
 	if (
@@ -669,20 +638,20 @@ async function deliverScheduledResult(input: {
 	const threadId =
 		typeof delivery.threadId === "string" ? delivery.threadId.trim() : "";
 	const bindingKey =
-		typeof delivery.bindingKey === "string"
-			? delivery.bindingKey.trim()
-			: typeof delivery.participantKey === "string"
-				? delivery.participantKey.trim()
-				: "";
-	if (!threadId && !bindingKey) {
+		typeof delivery.bindingKey === "string" ? delivery.bindingKey.trim() : "";
+	const participantKey =
+		typeof delivery.participantKey === "string"
+			? delivery.participantKey.trim()
+			: "";
+	if (!threadId && !bindingKey && !participantKey) {
 		return;
 	}
 	const bindings = readBindings<DiscordThreadState>(input.bindingsPath);
-	const match = bindingKey
-		? findBindingForParticipantKey(bindings, bindingKey)
-		: threadId
-			? { key: threadId, binding: bindings[threadId] }
-			: undefined;
+	const match = findBindingForDeliveryTarget(bindings, {
+		bindingKey,
+		threadId,
+		participantKey,
+	});
 	const binding = match?.binding;
 	if (!binding?.serializedThread) {
 		return;
@@ -1133,9 +1102,7 @@ class DiscordConnector extends ConnectorBase<
 				isSubscribedThreadMessage?: boolean;
 			},
 		) => {
-			const queueKey =
-				(await loadThreadState(thread, bindingsPath, startRequest))
-					.participantKey || thread.id;
+			const queueKey = thread.id;
 			const runTurn = async () => {
 				try {
 					await handleConnectorUserTurn({

@@ -159,36 +159,57 @@ export async function getOrCreateSessionId<
 	);
 	const existing = threadState.sessionId?.trim();
 	if (existing) {
+		const existingSession = await input.client.getSession(existing);
+		if (existingSession) {
+			await persistMergedThreadState(
+				input.thread,
+				input.bindingsPath,
+				{
+					...threadState,
+					sessionId: existing,
+				},
+				input.errorLabel,
+			);
+			input.logger.core.log(input.reusedLogMessage, {
+				transport: input.transport,
+				threadId: input.thread.id,
+				sessionId: existing,
+			});
+			await dispatchConnectorHook(
+				input.hookCommand,
+				{
+					adapter: input.transport,
+					botUserName: input.hookBotUserName,
+					event: "session.reused",
+					payload: {
+						threadId: input.thread.id,
+						channelId: input.thread.channelId,
+						sessionId: existing,
+					},
+					ts: new Date().toISOString(),
+				},
+				input.logger,
+			);
+			return existing;
+		}
 		await persistMergedThreadState(
 			input.thread,
 			input.bindingsPath,
 			{
 				...threadState,
-				sessionId: existing,
+				sessionId: undefined,
 			},
 			input.errorLabel,
 		);
-		input.logger.core.log(input.reusedLogMessage, {
-			transport: input.transport,
-			threadId: input.thread.id,
-			sessionId: existing,
-		});
-		await dispatchConnectorHook(
-			input.hookCommand,
+		input.logger.core.log(
+			"Connector thread session missing; starting a new session",
 			{
-				adapter: input.transport,
-				botUserName: input.hookBotUserName,
-				event: "session.reused",
-				payload: {
-					threadId: input.thread.id,
-					channelId: input.thread.channelId,
-					sessionId: existing,
-				},
-				ts: new Date().toISOString(),
+				severity: "warn",
+				transport: input.transport,
+				threadId: input.thread.id,
+				sessionId: existing,
 			},
-			input.logger,
 		);
-		return existing;
 	}
 
 	const started = await input.client.startRuntimeSession(input.startRequest);

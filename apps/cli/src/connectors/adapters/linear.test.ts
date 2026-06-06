@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { __test__ } from "./linear";
 
 describe("linear binding lookup", () => {
-	it("falls back to channel identity when a restarted connector gets a new thread id", () => {
+	it("does not fall back to channel identity for a different issue thread id", () => {
 		const result = __test__.findBindingForThread(
 			{
 				legacy_thread_id: {
@@ -21,17 +21,7 @@ describe("linear binding lookup", () => {
 			},
 		);
 
-		expect(result).toEqual({
-			key: "legacy_thread_id",
-			binding: {
-				channelId: "linear:issue:ISS-123",
-				isDM: false,
-				serializedThread: "{}",
-				sessionId: "sess-1",
-				state: { sessionId: "sess-1", cwd: "/tmp/work" },
-				updatedAt: "2026-03-17T00:00:00.000Z",
-			},
-		});
+		expect(result).toBeUndefined();
 	});
 
 	it("prefers an exact thread id match over a channel fallback", () => {
@@ -65,7 +55,7 @@ describe("linear binding lookup", () => {
 		expect(result?.binding.sessionId).toBe("sess-2");
 	});
 
-	it("reuses a binding by participant key across different issue threads", () => {
+	it("does not reuse a binding by participant key across different issue threads", () => {
 		const result = __test__.findBindingForThread(
 			{
 				"linear:user:user_123": {
@@ -91,7 +81,6 @@ describe("linear binding lookup", () => {
 			},
 		);
 
-		expect(result?.key).toBe("linear:user:user_123");
-		expect(result?.binding.sessionId).toBe("sess-1");
+		expect(result).toBeUndefined();
 	});
 });
