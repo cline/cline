@@ -53,6 +53,11 @@ type UnmanagedConnectorProcessRecord = {
 	command: string;
 };
 
+type HubDaemonProcessRecord = {
+	pid: number;
+	command: string;
+};
+
 type DoctorStatus = {
 	cwd: string;
 	hubUrl?: string;
@@ -61,6 +66,7 @@ type DoctorStatus = {
 	hubStartedAt?: string;
 	hubUptime?: string;
 	listeningPids: number[];
+	orphanedHubDaemonProcesses: HubDaemonProcessRecord[];
 	hubStartupLocks: StartupArtifact[];
 	staleCliPids: number[];
 	staleSidecarPids: number[];
@@ -154,6 +160,39 @@ function listStaleCliPids(): number[] {
 			(record) => !/(?:^|\s)(?:hub|rpc|connect)(?:\s|$)/.test(record.command),
 		)
 		.map((record) => record.pid);
+}
+
+function listHubDaemonProcesses(): ProcessRecord[] {
+	const patterns = ["cline-hub-daemon", "/hub/daemon/entry.ts"];
+	const records = new Map<number, ProcessRecord>();
+	for (const pattern of patterns) {
+		for (const record of listMatchingProcesses(pattern)) {
+			records.set(record.pid, record);
+		}
+	}
+	return [...records.values()].sort((a, b) => a.pid - b.pid);
+}
+
+function listOrphanedHubDaemonProcesses(options: {
+	hubHealthy: boolean;
+	hubPid?: number;
+	listeningPids: number[];
+}): HubDaemonProcessRecord[] {
+	const protectedPids = new Set<number>();
+	if (options.hubHealthy) {
+		if (options.hubPid) {
+			protectedPids.add(options.hubPid);
+		}
+		for (const pid of options.listeningPids) {
+			protectedPids.add(pid);
+		}
+	}
+	return listHubDaemonProcesses()
+		.filter((record) => !protectedPids.has(record.pid))
+		.map((record) => ({
+			pid: record.pid,
+			command: redactSensitiveProcessArgs(record.command),
+		}));
 }
 
 function redactSensitiveProcessArgs(command: string): string {
@@ -413,14 +452,22 @@ async function collectDoctorStatus(cwd: string): Promise<DoctorStatus> {
 	const current = health ?? discovery;
 	const hubUptime = formatHubUptimeFromStartedAt(health?.startedAt);
 	const activeConnectors = listActiveConnectors();
+	const listeningPids = listListeningPids(current?.port);
+	const hubHealthy = !!health?.url;
+	const hubPid = current?.pid;
 	return {
 		cwd,
 		hubUrl: current?.url,
-		hubHealthy: !!health?.url,
-		hubPid: current?.pid,
+		hubHealthy,
+		hubPid,
 		hubStartedAt: health?.startedAt,
 		hubUptime,
-		listeningPids: listListeningPids(current?.port),
+		listeningPids,
+		orphanedHubDaemonProcesses: listOrphanedHubDaemonProcesses({
+			hubHealthy,
+			hubPid,
+			listeningPids,
+		}),
 		hubStartupLocks: listHubStartupLocks(cwd),
 		staleCliPids: listStaleCliPids(),
 		staleSidecarPids: listStaleSidecarPids(),
@@ -477,6 +524,10 @@ function formatUnmanagedConnectorProcess(
 	return [record.type, `pid=${record.pid}`, record.command].join(" | ");
 }
 
+function formatHubDaemonProcess(record: HubDaemonProcessRecord): string {
+	return [`pid=${record.pid}`, record.command].join(" | ");
+}
+
 function killPids(pids: number[]): number {
 	let killed = 0;
 	for (const pid of pids) {
@@ -510,6 +561,14 @@ export async function runDoctorCommand(
 		);
 		writeln(`hub uptime ${c.dim}${before.hubUptime ?? "n/a"}${c.reset}`);
 		writeln(formatPidList("hub listeners", before.listeningPids));
+		if (before.orphanedHubDaemonProcesses.length === 0) {
+			writeln(`orphaned hub daemons ${c.dim}0${c.reset}`);
+		} else {
+			writeln("orphaned hub daemons:");
+			for (const record of before.orphanedHubDaemonProcesses) {
+				writeln(`- ${c.dim}${formatHubDaemonProcess(record)}${c.reset}`);
+			}
+		}
 		writeln(
 			formatPidList(
 				"hub startup locks",
@@ -545,11 +604,12 @@ export async function runDoctorCommand(
 		}
 		if (
 			before.listeningPids.length > 0 ||
+			before.orphanedHubDaemonProcesses.length > 0 ||
 			before.staleCliPids.length > 0 ||
 			before.staleSidecarPids.length > 0
 		) {
 			io.writeln(
-				"\nRun `cline doctor fix` to kill all stale local processes, including stale sidecars.",
+				"\nRun `cline doctor fix` to kill all stale local processes, including stale hubs.",
 			);
 		}
 		return 0;
@@ -564,8 +624,21 @@ export async function runDoctorCommand(
 	const killedHub = gracefullyStoppedHub
 		? 0
 		: killPids(refreshedAfterGracefulStop.listeningPids);
+	const orphanedHubDaemonTargets = [
+		...before.orphanedHubDaemonProcesses,
+		...refreshedAfterGracefulStop.orphanedHubDaemonProcesses,
+	]
+		.map((record) => record.pid)
+		.filter(
+			(pid, index, pids) =>
+				pids.indexOf(pid) === index &&
+				!refreshedAfterGracefulStop.listeningPids.includes(pid),
+		);
+	const killedOrphanedHubDaemons = killPids(orphanedHubDaemonTargets);
 	const staleCliTargets = before.staleCliPids.filter(
-		(pid) => !refreshedAfterGracefulStop.listeningPids.includes(pid),
+		(pid) =>
+			!refreshedAfterGracefulStop.listeningPids.includes(pid) &&
+			!orphanedHubDaemonTargets.includes(pid),
 	);
 	const killedCli = killPids(staleCliTargets);
 	const staleSidecarTargets = before.staleSidecarPids.filter(
@@ -601,6 +674,7 @@ export async function runDoctorCommand(
 				after,
 				killed: {
 					hubListeners: killedHub,
+					orphanedHubDaemons: killedOrphanedHubDaemons,
 					cliProcesses: killedCli,
 					sidecarProcesses: killedSidecars,
 					unmanagedConnectorProcesses: killedUnmanagedConnectors,
@@ -614,6 +688,9 @@ export async function runDoctorCommand(
 		return 0;
 	}
 	writeln(`killed hub listeners ${c.dim}${killedHub}${c.reset}`);
+	writeln(
+		`killed orphaned hub daemons ${c.dim}${killedOrphanedHubDaemons}${c.reset}`,
+	);
 	writeln(`killed cli processes ${c.dim}${killedCli}${c.reset}`);
 	writeln(`killed sidecar processes ${c.dim}${killedSidecars}${c.reset}`);
 	writeln(
@@ -633,6 +710,12 @@ export async function runDoctorCommand(
 	);
 	writeln(`hub healthy after fix: ${after.hubHealthy ? "yes" : "no"}`);
 	writeln(formatPidList("remaining hub listeners", after.listeningPids));
+	writeln(
+		formatPidList(
+			"remaining orphaned hub daemons",
+			after.orphanedHubDaemonProcesses.map((record) => record.pid),
+		),
+	);
 	writeln(
 		formatPidList(
 			"remaining hub startup locks",

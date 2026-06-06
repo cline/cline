@@ -101,23 +101,17 @@ describe("ensureDetachedHubServer", () => {
 		}
 	});
 
-	it("lets the daemon bind port 0 when the configured endpoint is occupied", async () => {
-		readHubDiscovery.mockResolvedValue(undefined);
-		probeHubServer
-			.mockResolvedValueOnce({
-				url: "ws://127.0.0.1:25463/hub",
-				buildId: "current-build",
-			})
-			.mockResolvedValueOnce({
-				url: "ws://127.0.0.1:5555/hub",
-				buildId: "current-build",
-			});
-		verifyHubConnection.mockResolvedValueOnce(true);
+	it("starts the daemon on the resolved default hub port", async () => {
 		readHubDiscovery.mockResolvedValueOnce(undefined).mockResolvedValueOnce({
-			url: "ws://127.0.0.1:5555/hub",
+			url: "ws://127.0.0.1:25463/hub",
 			buildId: "current-build",
 			authToken: "new-token",
 		});
+		probeHubServer.mockResolvedValueOnce(undefined).mockResolvedValueOnce({
+			url: "ws://127.0.0.1:25463/hub",
+			buildId: "current-build",
+		});
+		verifyHubConnection.mockResolvedValueOnce(true);
 
 		const { ensureDetachedHubServer } = await import(".");
 		const result = await ensureDetachedHubServer("/workspace");
@@ -129,12 +123,12 @@ describe("ensureDetachedHubServer", () => {
 			| undefined;
 
 		expect(result).toEqual({
-			url: "ws://127.0.0.1:5555/hub",
+			url: "ws://127.0.0.1:25463/hub",
 			authToken: "new-token",
 		});
 		expect(spawn).toHaveBeenCalledOnce();
 		expect(spawnArgs).toContain("--port");
-		expect(spawnArgs).toContain("0");
+		expect(spawnArgs).toContain("25463");
 		expect(spawnOptions?.env?.[CLINE_RUN_AS_HUB_DAEMON_ENV]).toBe("1");
 	});
 
