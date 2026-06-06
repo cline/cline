@@ -92,6 +92,11 @@ function createRuntimeClient(
 ) {
 	const startRuntimeSession = vi.fn(async () => ({ sessionId: "session-1" }));
 	const updateSession = vi.fn(async () => undefined);
+	const getSession = vi.fn(
+		async (sessionId: string): Promise<{ sessionId: string } | undefined> => ({
+			sessionId,
+		}),
+	);
 	const abortRuntimeSession = vi.fn(async () => undefined);
 	const deleteSession = vi.fn(async () => undefined);
 	const sendRuntimeSession = vi.fn(async () => ({
@@ -106,6 +111,7 @@ function createRuntimeClient(
 		client: {
 			startRuntimeSession,
 			updateSession,
+			getSession,
 			abortRuntimeSession,
 			stopRuntimeSession: abortRuntimeSession,
 			deleteSession,
@@ -115,6 +121,7 @@ function createRuntimeClient(
 		},
 		startRuntimeSession,
 		updateSession,
+		getSession,
 		sendRuntimeSession,
 		readMessages,
 	};
@@ -593,7 +600,8 @@ describe("handleConnectorUserTurn", () => {
 				metadata: expect.objectContaining({
 					delivery: expect.objectContaining({
 						adapter: "telegram",
-						bindingKey: "telegram:user:alice",
+						bindingKey: "thread-1",
+						participantKey: "telegram:user:alice",
 					}),
 				}),
 			}),
@@ -627,7 +635,8 @@ describe("handleConnectorUserTurn", () => {
 				metadata: {
 					delivery: {
 						adapter: "telegram",
-						bindingKey: "telegram:user:alice",
+						bindingKey: "thread-1",
+						participantKey: "telegram:user:alice",
 						threadId: "thread-1",
 					},
 				},
@@ -640,7 +649,8 @@ describe("handleConnectorUserTurn", () => {
 				metadata: {
 					delivery: {
 						adapter: "telegram",
-						bindingKey: "telegram:user:bob",
+						bindingKey: "thread-2",
+						participantKey: "telegram:user:bob",
 						threadId: "thread-2",
 					},
 				},
@@ -699,7 +709,8 @@ describe("handleConnectorUserTurn", () => {
 					delivery: expect.objectContaining({
 						adapter: "telegram",
 						threadId: "thread-1",
-						bindingKey: "telegram:user:alice",
+						bindingKey: "thread-1",
+						participantKey: "telegram:user:alice",
 						userName: "ClineAdapterBot",
 					}),
 				}),
@@ -1442,7 +1453,7 @@ describe("handleConnectorUserTurn", () => {
 		});
 		const runtime = createRuntimeClient("unused");
 		const activeTurns = new Map([
-			["other-turn-key", { sessionId: "session-1" }],
+			["other-turn-key", { sessionId: "session-1", threadId: "thread-1" }],
 		]);
 
 		await handleConnectorUserTurn({
@@ -1477,5 +1488,106 @@ describe("handleConnectorUserTurn", () => {
 			{ timeoutMs: null },
 		);
 		expect(posts.at(-1)).toEqual({ raw: "Steering current task." });
+	});
+
+	it("starts a normal turn when the active session is in a different thread", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
+		tempDirs.push(dir);
+		const bindingsPath = join(dir, "threads.json");
+		const { thread, posts } = createThread({
+			enableTools: true,
+			autoApproveTools: true,
+			cwd: "/tmp/work",
+			workspaceRoot: "/tmp/work",
+			welcomeSentAt: new Date().toISOString(),
+		});
+		const runtime = createRuntimeClient("normal reply");
+		const activeTurns = new Map([
+			["other-thread", { sessionId: "session-1", threadId: "other-thread" }],
+		]);
+
+		await handleConnectorUserTurn({
+			thread: thread as never,
+			text: "start work in this thread",
+			client: runtime.client as never,
+			pendingApprovals: new Map(),
+			baseStartRequest: baseStartRequest() as never,
+			explicitSystemPrompt: undefined,
+			clientId: "client-1",
+			logger: {
+				core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+			} as never,
+			transport: "telegram",
+			botUserName: "ClineAdapterBot",
+			requestStop: vi.fn(),
+			bindingsPath,
+			systemRules: "rules",
+			errorLabel: "Telegram",
+			getSessionMetadata: () => ({}),
+			reusedLogMessage: "reused",
+			activeTurns,
+			turnKey: "thread-1",
+		});
+
+		expect(runtime.startRuntimeSession).toHaveBeenCalled();
+		expect(runtime.sendRuntimeSession).toHaveBeenCalledWith(
+			"session-1",
+			expect.not.objectContaining({
+				delivery: "steer",
+			}),
+			{ timeoutMs: null },
+		);
+		expect(posts.at(-1)).toEqual({ raw: "normal reply" });
+	});
+
+	it("starts a fresh session when persisted thread session is missing from the hub", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
+		tempDirs.push(dir);
+		const bindingsPath = join(dir, "threads.json");
+		const { thread, posts, getState } = createThread({
+			sessionId: "stale-session",
+			enableTools: true,
+			autoApproveTools: true,
+			cwd: "/tmp/work",
+			workspaceRoot: "/tmp/work",
+			welcomeSentAt: new Date().toISOString(),
+		});
+		const runtime = createRuntimeClient("fresh reply");
+		runtime.getSession.mockResolvedValueOnce(undefined);
+
+		await handleConnectorUserTurn({
+			thread: thread as never,
+			text: "continue after hub restart",
+			client: runtime.client as never,
+			pendingApprovals: new Map(),
+			baseStartRequest: baseStartRequest() as never,
+			explicitSystemPrompt: undefined,
+			clientId: "client-1",
+			logger: {
+				core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+			} as never,
+			transport: "telegram",
+			botUserName: "ClineAdapterBot",
+			requestStop: vi.fn(),
+			bindingsPath,
+			systemRules: "rules",
+			errorLabel: "Telegram",
+			getSessionMetadata: () => ({}),
+			reusedLogMessage: "reused",
+			startedLogMessage: "started",
+			turnKey: "thread-1",
+		});
+
+		expect(runtime.getSession).toHaveBeenCalledWith("stale-session");
+		expect(runtime.startRuntimeSession).toHaveBeenCalled();
+		expect(runtime.sendRuntimeSession).toHaveBeenCalledWith(
+			"session-1",
+			expect.not.objectContaining({
+				delivery: "steer",
+			}),
+			{ timeoutMs: null },
+		);
+		expect(getState().sessionId).toBe("session-1");
+		expect(posts.at(-1)).toEqual({ raw: "fresh reply" });
 	});
 });

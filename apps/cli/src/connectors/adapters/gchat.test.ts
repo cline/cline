@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { __test__ } from "./gchat";
 
 describe("gchat binding lookup", () => {
-	it("falls back to channel identity when a restarted connector gets a new thread id", () => {
+	it("does not fall back to channel identity for a different space thread id", () => {
 		const result = __test__.findBindingForThread(
 			{
 				legacy_thread_id: {
@@ -21,17 +21,7 @@ describe("gchat binding lookup", () => {
 			},
 		);
 
-		expect(result).toEqual({
-			key: "legacy_thread_id",
-			binding: {
-				channelId: "space-123",
-				isDM: false,
-				serializedThread: "{}",
-				sessionId: "sess-1",
-				state: { sessionId: "sess-1", cwd: "/tmp/work" },
-				updatedAt: "2026-03-17T00:00:00.000Z",
-			},
-		});
+		expect(result).toBeUndefined();
 	});
 
 	it("prefers an exact thread id match over a channel fallback", () => {
@@ -65,7 +55,7 @@ describe("gchat binding lookup", () => {
 		expect(result?.binding.sessionId).toBe("sess-2");
 	});
 
-	it("reuses a binding by participant key across different spaces", () => {
+	it("does not reuse a binding by participant key across different spaces", () => {
 		const result = __test__.findBindingForThread(
 			{
 				"gchat:email:alice@example.com": {
@@ -91,7 +81,6 @@ describe("gchat binding lookup", () => {
 			},
 		);
 
-		expect(result?.key).toBe("gchat:email:alice@example.com");
-		expect(result?.binding.sessionId).toBe("sess-1");
+		expect(result).toBeUndefined();
 	});
 });
