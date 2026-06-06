@@ -52,16 +52,16 @@ afterEach(() => {
 });
 
 describe("thread binding refresh", () => {
-	it("refreshes the serialized thread immediately when channel fallback rebinds a thread id", () => {
+	it("refreshes the serialized thread immediately when DM channel fallback rebinds a thread id", () => {
 		const path = createBindingsPath();
 		writeBindings<TestState>(path, {
 			legacy_thread_id: {
 				channelId: "slack:C123",
-				isDM: false,
+				isDM: true,
 				serializedThread: JSON.stringify({
 					id: "legacy_thread_id",
 					channelId: "slack:C123",
-					isDM: false,
+					isDM: true,
 				}),
 				sessionId: "sess-1",
 				state: { sessionId: "sess-1", teamId: "T123" },
@@ -74,7 +74,7 @@ describe("thread binding refresh", () => {
 			createThread({
 				id: "new_thread_id",
 				channelId: "slack:C123",
-				isDM: false,
+				isDM: true,
 			}),
 			"Slack",
 		);
@@ -85,7 +85,7 @@ describe("thread binding refresh", () => {
 		expect(bindings.new_thread_id?.serializedThread).toContain("new_thread_id");
 	});
 
-	it("refreshes the serialized thread when a participant-key binding matches a new thread id", () => {
+	it("does not rebind a different thread by participant key", () => {
 		const path = createBindingsPath();
 		const participantKey = "slack:team:T123:user:U123";
 		writeBindings<TestState>(path, {
@@ -119,10 +119,10 @@ describe("thread binding refresh", () => {
 			participantKey,
 		);
 
-		expect(binding?.serializedThread).toContain("new_thread_id");
+		expect(binding).toBeUndefined();
 		expect(
 			readBindings<TestState>(path)[participantKey]?.serializedThread,
-		).toContain("new_thread_id");
+		).toContain("legacy_thread_id");
 	});
 
 	it("stores mute state at thread scope instead of participant scope", () => {

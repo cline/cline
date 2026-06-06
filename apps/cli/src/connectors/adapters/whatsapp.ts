@@ -597,9 +597,7 @@ class WhatsAppConnector extends ConnectorBase<
 			thread: Thread<WhatsAppThreadState>,
 			text: string,
 		) => {
-			const queueKey =
-				(await loadThreadState(thread, bindingsPath, startRequest))
-					.participantKey || thread.id;
+			const queueKey = thread.id;
 			const runTurn = async () => {
 				try {
 					await handleConnectorUserTurn({

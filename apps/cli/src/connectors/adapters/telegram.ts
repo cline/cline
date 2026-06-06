@@ -788,9 +788,7 @@ class TelegramConnector extends ConnectorBase<
 			thread: Thread<TelegramThreadState>,
 			text: string,
 		) => {
-			const queueKey =
-				(await loadThreadState(thread, bindingsPath, startRequest))
-					.participantKey || thread.id;
+			const queueKey = thread.id;
 			const runTurn = async () => {
 				try {
 					await handleConnectorUserTurn({

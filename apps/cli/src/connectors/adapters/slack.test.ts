@@ -63,12 +63,12 @@ describe("slack binding lookup", () => {
 		expect(options.appToken).toBe("xapp-token");
 	});
 
-	it("falls back to channel identity when a restarted connector gets a new thread id", () => {
+	it("falls back to DM channel identity when a restarted connector gets a new thread id", () => {
 		const result = __test__.findBindingForThread(
 			{
 				legacy_thread_id: {
 					channelId: "slack:C123",
-					isDM: false,
+					isDM: true,
 					serializedThread: "{}",
 					sessionId: "sess-1",
 					state: { sessionId: "sess-1", cwd: "/tmp/work", teamId: "T123" },
@@ -78,7 +78,7 @@ describe("slack binding lookup", () => {
 			{
 				id: "new_thread_id",
 				channelId: "slack:C123",
-				isDM: false,
+				isDM: true,
 			},
 		);
 
@@ -86,7 +86,7 @@ describe("slack binding lookup", () => {
 			key: "legacy_thread_id",
 			binding: {
 				channelId: "slack:C123",
-				isDM: false,
+				isDM: true,
 				serializedThread: "{}",
 				sessionId: "sess-1",
 				state: { sessionId: "sess-1", cwd: "/tmp/work", teamId: "T123" },
@@ -126,7 +126,7 @@ describe("slack binding lookup", () => {
 		expect(result?.binding.sessionId).toBe("sess-2");
 	});
 
-	it("reuses a binding by participant key across different threads", () => {
+	it("does not reuse a binding by participant key across different threads", () => {
 		const result = __test__.findBindingForThread(
 			{
 				[participantKey]: {
@@ -153,8 +153,7 @@ describe("slack binding lookup", () => {
 			},
 		);
 
-		expect(result?.key).toBe(participantKey);
-		expect(result?.binding.sessionId).toBe("sess-1");
+		expect(result).toBeUndefined();
 	});
 
 	it("builds Slack participant keys with a team scope", () => {

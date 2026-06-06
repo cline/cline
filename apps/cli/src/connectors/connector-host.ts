@@ -749,9 +749,7 @@ export async function handleConnectorUserTurn<
 					`channelId=${input.thread.channelId}`,
 					`deliveryAdapter=${input.transport}`,
 					`deliveryThread=${input.thread.id}`,
-					...(effectiveCurrent.participantKey
-						? [`deliveryBindingKey=${effectiveCurrent.participantKey}`]
-						: []),
+					`deliveryBindingKey=${input.thread.id}`,
 					`deliveryChannel=${input.thread.channelId}`,
 					...(input.botUserName
 						? [`deliveryUserName=${input.botUserName}`]
@@ -789,11 +787,9 @@ export async function handleConnectorUserTurn<
 						delivery: {
 							adapter: input.transport,
 							threadId: input.thread.id,
+							bindingKey: input.thread.id,
 							...(current.participantKey
-								? {
-										bindingKey: current.participantKey,
-										participantKey: current.participantKey,
-									}
+								? { participantKey: current.participantKey }
 								: {}),
 							...(current.participantLabel
 								? { participantLabel: current.participantLabel }
@@ -832,11 +828,6 @@ export async function handleConnectorUserTurn<
 					].join("\n");
 				},
 				list: async () => {
-					const current = await loadThreadState(
-						input.thread,
-						input.bindingsPath,
-						input.baseStartRequest,
-					);
 					const schedules = await input.client.listSchedules({ limit: 200 });
 					const matching = schedules.filter((schedule) => {
 						const delivery = schedule.metadata?.delivery;
@@ -846,17 +837,9 @@ export async function handleConnectorUserTurn<
 							!Array.isArray(delivery)
 								? (delivery as Record<string, unknown>)
 								: undefined;
-						const deliveryBindingKey =
-							typeof deliveryRecord?.bindingKey === "string"
-								? deliveryRecord.bindingKey
-								: typeof deliveryRecord?.participantKey === "string"
-									? deliveryRecord.participantKey
-									: undefined;
 						return (
 							deliveryRecord?.adapter === input.transport &&
-							(current.participantKey
-								? deliveryBindingKey === current.participantKey
-								: deliveryRecord.threadId === input.thread.id)
+							deliveryRecord.threadId === input.thread.id
 						);
 					});
 					if (matching.length === 0) {
@@ -913,7 +896,9 @@ export async function handleConnectorUserTurn<
 		input.activeTurns?.get(turnKey) ??
 		(input.activeTurns && currentState.sessionId?.trim()
 			? Array.from(input.activeTurns.values()).find(
-					(turn) => turn.sessionId === currentState.sessionId?.trim(),
+					(turn) =>
+						turn.sessionId === currentState.sessionId?.trim() &&
+						turn.threadId === input.thread.id,
 				)
 			: undefined);
 	if (activeTurn?.sessionId?.trim()) {

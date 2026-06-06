@@ -826,7 +826,7 @@ class SlackConnector extends ConnectorBase<
 				bindingsPath,
 				startRequest,
 			);
-			const queueKey = currentState.participantKey || thread.id;
+			const queueKey = thread.id;
 			const runTurn = async () => {
 				try {
 					await withSlackTeamBotToken({

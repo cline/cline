@@ -625,9 +625,7 @@ class LinearConnector extends ConnectorBase<
 			thread: Thread<LinearThreadState>,
 			text: string,
 		) => {
-			const queueKey =
-				(await loadThreadState(thread, bindingsPath, startRequest))
-					.participantKey || thread.id;
+			const queueKey = thread.id;
 			const runTurn = async () => {
 				try {
 					await handleConnectorUserTurn({
