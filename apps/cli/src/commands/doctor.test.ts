@@ -174,6 +174,8 @@ describe("runDoctorCommand", () => {
 						"61005 cline connect telegram --bot-token telegram-secret -i",
 						"61006 cline connect whatsapp --access-token whatsapp-secret -i",
 						"61007 cline something-else connect nope",
+						"61008 /usr/bin/some-tool connect slack --bot-token unrelated-secret",
+						"61009 node ./connect slack-proxy.js --bot-token unrelated-secret",
 					].join("\n"),
 				};
 			}
@@ -210,6 +212,11 @@ describe("runDoctorCommand", () => {
 		expect(JSON.stringify(status.unmanagedConnectorProcesses)).not.toContain(
 			"super-signature",
 		);
+		expect(
+			status.unmanagedConnectorProcesses.find(
+				(record: { pid: number }) => record.pid === 61001,
+			)?.command,
+		).toContain("--signing-secret=[REDACTED]");
 	});
 
 	it("doctor --fix clears wedged hub startup artifacts when no server is actually running", async () => {
@@ -324,7 +331,10 @@ describe("runDoctorCommand", () => {
 			) {
 				return {
 					status: 0,
-					stdout: "62001 cline connect slack --bot-token xoxb-secret -i\n",
+					stdout: [
+						"62001 cline connect slack --bot-token xoxb-secret -i",
+						"62002 /usr/bin/some-tool connect slack --bot-token unrelated-secret",
+					].join("\n"),
 				};
 			}
 			return { status: 1, stdout: "" };
@@ -344,6 +354,7 @@ describe("runDoctorCommand", () => {
 
 		expect(code).toBe(0);
 		expect(killSpy).toHaveBeenCalledWith(62001, "SIGKILL");
+		expect(killSpy).not.toHaveBeenCalledWith(62002, "SIGKILL");
 		expect(JSON.parse(output[0] || "")).toMatchObject({
 			before: {
 				unmanagedConnectorProcesses: [{ pid: 62001, type: "slack" }],

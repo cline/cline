@@ -156,39 +156,94 @@ function listStaleCliPids(): number[] {
 		.map((record) => record.pid);
 }
 
-function escapeRegExp(value: string): string {
-	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 function redactSensitiveProcessArgs(command: string): string {
 	return command.replace(
-		/(--[^\s=]*(?:token|secret|password|key)[^\s=]*)(?:=|\s+)(?:"[^"]*"|'[^']*'|[^\s]+)/gi,
-		"$1 [REDACTED]",
+		/(--[^\s=]*(?:token|secret|password|key)[^\s=]*)(=|\s+)(?:"[^"]*"|'[^']*'|[^\s]+)/gi,
+		"$1$2[REDACTED]",
 	);
+}
+
+function processCommandTokens(command: string): string[] {
+	return command
+		.split(/\s+/)
+		.map((token) => token.trim().replace(/^["']|["']$/g, ""))
+		.filter(Boolean);
+}
+
+function tokenBasename(token: string): string {
+	const normalized = token.replace(/\\/g, "/");
+	return normalized.slice(normalized.lastIndexOf("/") + 1);
+}
+
+function isRuntimeLauncherToken(token: string): boolean {
+	const basename = tokenBasename(token).toLowerCase();
+	return basename === "bun" || basename === "node" || basename === "env";
+}
+
+function isClineCliEntrypointToken(token: string): boolean {
+	const normalized = token.replace(/\\/g, "/");
+	const basename = tokenBasename(normalized).toLowerCase();
+	return (
+		basename === "cline" ||
+		normalized.includes("/apps/cli/src/index.ts") ||
+		normalized.includes("/apps/cli/dist/index.js") ||
+		normalized.includes("/dist/cline")
+	);
+}
+
+function isClineCliPrefix(tokens: string[], connectIndex: number): boolean {
+	const entrypointIndex = connectIndex - 1;
+	if (entrypointIndex < 0) {
+		return false;
+	}
+	if (!isClineCliEntrypointToken(tokens[entrypointIndex] ?? "")) {
+		return false;
+	}
+	if (entrypointIndex === 0) {
+		return true;
+	}
+	const launcher = tokens[0];
+	if (!launcher || !isRuntimeLauncherToken(launcher)) {
+		return false;
+	}
+	return tokens
+		.slice(1, entrypointIndex)
+		.every((token) => token.startsWith("-"));
+}
+
+function parseClineConnectorProcessType(
+	command: string,
+	connectorNames: Set<string>,
+): string | undefined {
+	const tokens = processCommandTokens(command);
+	for (let index = 0; index < tokens.length - 1; index += 1) {
+		if (tokens[index] !== "connect" || !isClineCliPrefix(tokens, index)) {
+			continue;
+		}
+		const type = tokens[index + 1]?.toLowerCase();
+		if (type && connectorNames.has(type)) {
+			return type;
+		}
+	}
+	return undefined;
 }
 
 function listUnmanagedConnectorProcesses(
 	activeConnectors: ActiveConnectorRecord[],
 ): UnmanagedConnectorProcessRecord[] {
-	const connectorNames = listConnectorCatalog().map((connector) =>
-		connector.name.toLowerCase(),
+	const connectorNames = new Set(
+		listConnectorCatalog().map((connector) => connector.name.toLowerCase()),
 	);
-	if (connectorNames.length === 0) {
+	if (connectorNames.size === 0) {
 		return [];
 	}
-	const connectorPattern = connectorNames.map(escapeRegExp).join("|");
-	const connectCommandPattern = new RegExp(
-		`(?:^|\\s)connect\\s+(${connectorPattern})(?:\\s|$)`,
-		"i",
-	);
 	const activePids = new Set(activeConnectors.map((record) => record.pid));
 	const records = new Map<number, UnmanagedConnectorProcessRecord>();
 	for (const record of listMatchingProcesses("connect")) {
 		if (activePids.has(record.pid)) {
 			continue;
 		}
-		const match = record.command.match(connectCommandPattern);
-		const type = match?.[1]?.toLowerCase();
+		const type = parseClineConnectorProcessType(record.command, connectorNames);
 		if (!type) {
 			continue;
 		}

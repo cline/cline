@@ -15,7 +15,6 @@ import { createCliLoggerAdapter } from "../../logging/adapter";
 import {
 	ensureCliHubServer,
 	parseHubEndpointOverride,
-	resolveDefaultCliRpcAddress,
 } from "../../utils/hub-runtime";
 import { createWorkspaceChatCommandHost } from "../../utils/plugin-chat-commands";
 import { ConnectorBase } from "../base";
@@ -440,11 +439,7 @@ class TelegramConnector extends ConnectorBase<
 				"--hook-command <command>",
 				"Run a shell command for connector events",
 			)
-			.option(
-				"--rpc-address <host:port>",
-				"RPC address",
-				process.env.CLINE_RPC_ADDRESS?.trim() || resolveDefaultCliRpcAddress(),
-			)
+			.option("--rpc-address <host:port>", "RPC address")
 			.addHelpText(
 				"after",
 				[
@@ -506,9 +501,7 @@ class TelegramConnector extends ConnectorBase<
 			interactive: Boolean(opts.interactive),
 			enableTools: opts.tools !== false,
 			rpcAddress:
-				opts.rpcAddress?.trim() ||
-				process.env.CLINE_RPC_ADDRESS?.trim() ||
-				resolveDefaultCliRpcAddress(),
+				opts.rpcAddress?.trim() || process.env.CLINE_RPC_ADDRESS?.trim(),
 			hookCommand: allowedUserId
 				? buildTelegramAllowedUserHookCommand(
 						normalizeAllowedTelegramUserId(allowedUserId),
