@@ -4,9 +4,9 @@ import React, { memo, useEffect, useMemo } from "react"
 import { useProviderModels } from "@/hooks/useProviderModels"
 import { DropdownContainer } from "./common/ModelSelector"
 
-export const SAP_AI_CORE_MODEL_PICKER_Z_INDEX = 1_000
+const SAP_AI_CORE_MODEL_PICKER_Z_INDEX = 1_000
 
-export interface SapAiCoreModelPickerProps {
+interface SapAiCoreModelPickerProps {
 	sapAiCoreModelDeployments: SapAiCoreModelDeployment[]
 	selectedModelId: string
 	selectedDeploymentId?: string

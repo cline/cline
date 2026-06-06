@@ -9,7 +9,7 @@ import { ModelInfoView } from "../common/ModelInfoView"
 import { useProviderApiKeyField } from "../utils/useProviderApiKeyField"
 import { type ModelPickerSelection, ModelPickerWithManualEntry } from "./ModelPickerWithManualEntry"
 
-export interface GenericProviderBaseUrlFieldConfig {
+interface GenericProviderBaseUrlFieldConfig {
 	label?: string
 	placeholder?: string
 }

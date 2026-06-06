@@ -8,7 +8,7 @@ import { ModelInfoView } from "../common/ModelInfoView"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
-export interface OcaModelPickerProps {
+interface OcaModelPickerProps {
 	apiConfiguration: ApiConfiguration | undefined
 	isPopup?: boolean
 	currentMode: Mode

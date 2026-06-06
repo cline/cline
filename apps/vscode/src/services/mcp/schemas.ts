@@ -2,7 +2,7 @@ import { DEFAULT_MCP_TIMEOUT_SECONDS, MIN_MCP_TIMEOUT_SECONDS } from "@shared/mc
 import { z } from "zod"
 import { TYPE_ERROR_MESSAGE } from "./constants"
 
-export const AutoApproveSchema = z.array(z.string()).default([])
+const AutoApproveSchema = z.array(z.string()).default([])
 
 export const BaseConfigSchema = z.object({
 	autoApprove: AutoApproveSchema.optional(),

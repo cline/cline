@@ -14,7 +14,7 @@ import { getTaskTimestamp } from "./utils"
 /**
  * Result of a backfill operation for a single task.
  */
-export interface BackfillTaskResult {
+interface BackfillTaskResult {
 	taskId: string
 	success: boolean
 	filesQueued: string[]
@@ -56,7 +56,7 @@ async function listTaskIds(_before?: string, _after?: string): Promise<string[]>
  *
  * @param taskId Task identifier
  */
-export async function backfillTask(taskId: string): Promise<BackfillTaskResult> {
+async function backfillTask(taskId: string): Promise<BackfillTaskResult> {
 	const result: BackfillTaskResult = {
 		taskId,
 		success: false,

@@ -194,5 +194,3 @@ export const BrowserSettingsMenu = () => {
 		</div>
 	)
 }
-
-export default BrowserSettingsMenu

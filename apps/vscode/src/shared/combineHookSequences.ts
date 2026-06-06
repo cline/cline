@@ -371,4 +371,4 @@ export function combineHookSequences(messages: ClineMessage[]): ClineMessage[] {
 	return reordered
 }
 
-export const HOOK_OUTPUT_STRING = "__HOOK_OUTPUT__"
+const HOOK_OUTPUT_STRING = "__HOOK_OUTPUT__"

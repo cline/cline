@@ -1,4 +1,4 @@
-export const SAVED_API_KEY_MASK_CHARACTER = "•"
+const SAVED_API_KEY_MASK_CHARACTER = "•"
 
 export function getSavedApiKeyMask(apiKeyLength: number | undefined): string {
 	return SAVED_API_KEY_MASK_CHARACTER.repeat(Math.max(0, apiKeyLength ?? 0))

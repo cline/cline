@@ -31,47 +31,47 @@ export function resolveDataDir(override?: string): string {
 }
 
 /** Path to globalState.json */
-export function globalStatePath(dataDir?: string): string {
+function globalStatePath(dataDir?: string): string {
 	return path.join(resolveDataDir(dataDir), "globalState.json")
 }
 
 /** Path to secrets.json */
-export function secretsPath(dataDir?: string): string {
+function secretsPath(dataDir?: string): string {
 	return path.join(resolveDataDir(dataDir), "secrets.json")
 }
 
 /** Path to taskHistory.json (stored in state/ subdirectory) */
-export function taskHistoryPath(dataDir?: string): string {
+function taskHistoryPath(dataDir?: string): string {
 	return path.join(resolveDataDir(dataDir), "state", "taskHistory.json")
 }
 
 /** Path to MCP settings file */
-export function mcpSettingsPath(dataDir?: string): string {
+function mcpSettingsPath(dataDir?: string): string {
 	return path.join(resolveDataDir(dataDir), "settings", "cline_mcp_settings.json")
 }
 
 /** Path to a task directory */
-export function taskDirPath(taskId: string, dataDir?: string): string {
+function taskDirPath(taskId: string, dataDir?: string): string {
 	return path.join(resolveDataDir(dataDir), "tasks", taskId)
 }
 
 /** Path to api_conversation_history.json for a task */
-export function apiConversationHistoryPath(taskId: string, dataDir?: string): string {
+function apiConversationHistoryPath(taskId: string, dataDir?: string): string {
 	return path.join(taskDirPath(taskId, dataDir), "api_conversation_history.json")
 }
 
 /** Path to ui_messages.json for a task */
-export function uiMessagesPath(taskId: string, dataDir?: string): string {
+function uiMessagesPath(taskId: string, dataDir?: string): string {
 	return path.join(taskDirPath(taskId, dataDir), "ui_messages.json")
 }
 
 /** Path to context_history.json for a task */
-export function contextHistoryPath(taskId: string, dataDir?: string): string {
+function contextHistoryPath(taskId: string, dataDir?: string): string {
 	return path.join(taskDirPath(taskId, dataDir), "context_history.json")
 }
 
 /** Path to task_metadata.json for a task */
-export function taskMetadataPath(taskId: string, dataDir?: string): string {
+function taskMetadataPath(taskId: string, dataDir?: string): string {
 	return path.join(taskDirPath(taskId, dataDir), "task_metadata.json")
 }
 

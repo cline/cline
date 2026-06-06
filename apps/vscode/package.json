@@ -363,6 +363,10 @@
 		"check-types": "npm run protos && npx tsc --noEmit && cd webview-ui && npx tsc --noEmit",
 		"lint": "biome lint --config-path ./biome.jsonc --no-errors-on-unmatched --files-ignore-unknown=true --diagnostic-level=error && npm run lint:proto",
 		"lint:proto": "bash ./scripts/proto-lint.sh",
+		"analyze:unused": "npx --yes knip --config knip.json --include files,exports,types,enumMembers,duplicates",
+		"analyze:unused:prod": "npx --yes knip --config knip.json --production --include files,exports,types,enumMembers,dependencies",
+		"analyze:unused:fix-exports": "node scripts/remove-unused-exports.mjs --apply",
+		"analyze:unused:fix-exports:dry": "node scripts/remove-unused-exports.mjs",
 		"format": "biome format --config-path ./biome.jsonc --changed --since main --no-errors-on-unmatched --files-ignore-unknown=true --diagnostic-level=error --semicolons=as-needed",
 		"format:fix": "biome check --config-path ./biome.jsonc --changed --since main --no-errors-on-unmatched --files-ignore-unknown=true --write --semicolons=as-needed",
 		"fix:all": "biome check --config-path ./biome.jsonc --no-errors-on-unmatched --files-ignore-unknown=true --write --diagnostic-level=error --unsafe --semicolons=as-needed",
@@ -401,7 +405,7 @@
 	"lint-staged": {
 		"src/shared/storage/state-keys.ts": [
 			"node scripts/generate-state-proto.mjs",
-			"git add proto/cline/state.proto"
+			"git add apps/vscode/proto/cline/state.proto"
 		],
 		"*": [
 			"biome check --write --staged --no-errors-on-unmatched --files-ignore-unknown=true --semicolons=as-needed"

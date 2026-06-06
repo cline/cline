@@ -33,7 +33,7 @@ interface QwenProviderProps {
 }
 
 // Turns enum into an array of values for dropdown options
-export const qwenApiOptions: QwenApiRegions[] = Object.values(QwenApiRegions)
+const qwenApiOptions: QwenApiRegions[] = Object.values(QwenApiRegions)
 
 /**
  * The Alibaba Qwen provider configuration component
