@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
 	type ConnectorThreadState,
 	clearBindingSessionIds,
+	findBindingForDeliveryTarget,
 	isParticipantMuted,
 	isThreadMuted,
 	readBindingForThread,
@@ -123,6 +124,65 @@ describe("thread binding refresh", () => {
 		expect(
 			readBindings<TestState>(path)[participantKey]?.serializedThread,
 		).toContain("legacy_thread_id");
+	});
+
+	it("resolves schedule delivery targets by exact binding key before participant metadata", () => {
+		const path = createBindingsPath();
+		writeBindings<TestState>(path, {
+			"slack:C123:111.222": {
+				kind: "conversation",
+				channelId: "slack:C123",
+				isDM: false,
+				participantKey: "slack:team:T123:user:U123",
+				serializedThread: "{}",
+				sessionId: "sess-thread",
+				state: {
+					sessionId: "sess-thread",
+					participantKey: "slack:team:T123:user:U123",
+				},
+				updatedAt: "2026-03-17T00:00:00.000Z",
+			},
+		});
+
+		const match = findBindingForDeliveryTarget<TestState>(
+			readBindings<TestState>(path),
+			{
+				bindingKey: "slack:C123:111.222",
+				threadId: "slack:C123:111.222",
+				participantKey: "slack:team:T123:user:U123",
+			},
+		);
+
+		expect(match?.key).toBe("slack:C123:111.222");
+		expect(match?.binding.sessionId).toBe("sess-thread");
+	});
+
+	it("resolves schedule delivery targets by participant key when no exact thread binding exists", () => {
+		const path = createBindingsPath();
+		writeBindings<TestState>(path, {
+			"slack:team:T123:user:U123": {
+				channelId: "slack:C123",
+				isDM: true,
+				participantKey: "slack:team:T123:user:U123",
+				serializedThread: "{}",
+				sessionId: "sess-participant",
+				state: {
+					sessionId: "sess-participant",
+					participantKey: "slack:team:T123:user:U123",
+				},
+				updatedAt: "2026-03-17T00:00:00.000Z",
+			},
+		});
+
+		const match = findBindingForDeliveryTarget<TestState>(
+			readBindings<TestState>(path),
+			{
+				participantKey: "slack:team:T123:user:U123",
+			},
+		);
+
+		expect(match?.key).toBe("slack:team:T123:user:U123");
+		expect(match?.binding.sessionId).toBe("sess-participant");
 	});
 
 	it("stores mute state at thread scope instead of participant scope", () => {

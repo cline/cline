@@ -480,6 +480,37 @@ export function findBindingForParticipantKey<
 	return undefined;
 }
 
+export function findBindingForDeliveryTarget<
+	TState extends ConnectorThreadState,
+>(
+	bindings: ConnectorBindingStore<TState>,
+	input: {
+		bindingKey?: string;
+		threadId?: string;
+		participantKey?: string;
+	},
+): { binding: ConnectorThreadBinding<TState>; key: string } | undefined {
+	const bindingKey = normalizeParticipantKey(input.bindingKey);
+	if (bindingKey) {
+		const exact = bindings[bindingKey];
+		if (exact && !isControlBinding(exact)) {
+			return { key: bindingKey, binding: exact };
+		}
+		const participantMatch = findBindingForParticipantKey(bindings, bindingKey);
+		if (participantMatch) {
+			return participantMatch;
+		}
+	}
+	const threadId = input.threadId?.trim();
+	if (threadId) {
+		const exact = bindings[threadId];
+		if (exact && !isControlBinding(exact)) {
+			return { key: threadId, binding: exact };
+		}
+	}
+	return findBindingForParticipantKey(bindings, input.participantKey);
+}
+
 export async function persistMergedThreadState<
 	TState extends ConnectorThreadState,
 >(
