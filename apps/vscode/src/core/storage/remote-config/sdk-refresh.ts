@@ -20,7 +20,7 @@ async function ensureGlobalRemoteConfigWorkspacePath(): Promise<string> {
 	return workspacePath
 }
 
-export async function getRemoteConfigWorkspacePath(workspacePath?: string): Promise<string> {
+async function getRemoteConfigWorkspacePath(workspacePath?: string): Promise<string> {
 	const trimmed = workspacePath?.trim()
 	if (trimmed) {
 		return trimmed

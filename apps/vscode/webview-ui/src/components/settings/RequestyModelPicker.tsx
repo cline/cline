@@ -16,7 +16,7 @@ import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
 import { getModeSpecificFields } from "./utils/providerUtils"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
-export interface RequestyModelPickerProps {
+interface RequestyModelPickerProps {
 	isPopup?: boolean
 	baseUrl?: string
 	currentMode: Mode
@@ -281,7 +281,7 @@ const DropdownWrapper = styled.div`
   width: 100%;
 `
 
-export const REQUESTY_MODEL_PICKER_Z_INDEX = 1_000
+const REQUESTY_MODEL_PICKER_Z_INDEX = 1_000
 
 const DropdownList = styled.div`
   position: absolute;

@@ -2,7 +2,7 @@ import { FALLBACK_CLINE_RECOMMENDED_MODELS, fetchClineRecommendedModels } from "
 import { ClineEnv } from "@/config"
 import { fetch } from "@/shared/net"
 
-export interface ClineRecommendedModelData {
+interface ClineRecommendedModelData {
 	id: string
 	name: string
 	description: string

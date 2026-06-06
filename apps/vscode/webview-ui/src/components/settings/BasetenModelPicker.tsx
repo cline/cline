@@ -10,7 +10,7 @@ import { ModelInfoView } from "./common/ModelInfoView"
 import { getModeSpecificFields } from "./utils/providerUtils"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
-export interface BasetenModelPickerProps {
+interface BasetenModelPickerProps {
 	isPopup?: boolean
 	currentMode: Mode
 }
@@ -276,6 +276,6 @@ const BasetenModelPicker: React.FC<BasetenModelPickerProps> = ({ isPopup, curren
 	)
 }
 
-export const BASETEN_MODEL_PICKER_Z_INDEX = 1_000
+const BASETEN_MODEL_PICKER_Z_INDEX = 1_000
 
 export default BasetenModelPicker
