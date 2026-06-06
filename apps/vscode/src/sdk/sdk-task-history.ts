@@ -14,16 +14,6 @@ import { sdkMessagesToClineMessages } from "./message-translator"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import type { VscodeSessionHost } from "./vscode-session-host"
 
-export interface TaskWithId {
-	historyItem: HistoryItem
-	taskDirPath: string
-	apiConversationHistoryFilePath: string
-	uiMessagesFilePath: string
-	contextHistoryFilePath: string
-	taskMetadataFilePath: string
-	apiConversationHistory: unknown[]
-}
-
 export interface TaskUsage {
 	tokensIn: number
 	tokensOut: number

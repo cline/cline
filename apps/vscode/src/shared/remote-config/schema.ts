@@ -14,7 +14,7 @@
 import { z } from "zod"
 
 // OpenAI Compatible model schema with per-model settings
-export const OpenAiCompatibleModelSchema = z.object({
+const OpenAiCompatibleModelSchema = z.object({
 	id: z.string(), // The model ID is required
 	temperature: z.number().optional(),
 	isR1FormatRequired: z.boolean().optional(),
@@ -37,13 +37,13 @@ export const OpenAiCompatibleSchema = z.object({
 })
 
 // AWS Bedrock model schema with per-model settings
-export const AwsBedrockModelSchema = z.object({
+const AwsBedrockModelSchema = z.object({
 	id: z.string(), // The model ID is required
 	thinkingBudgetTokens: z.number().optional(),
 })
 
 // AWS Bedrock custom model schema (separate from regular models)
-export const AwsBedrockCustomModelSchema = z.object({
+const AwsBedrockCustomModelSchema = z.object({
 	name: z.string(), // The model name is required
 	baseModelId: z.string(), // The base model ID is required
 	thinkingBudgetTokens: z.number().optional(),
@@ -64,7 +64,7 @@ export const AwsBedrockSettingsSchema = z.object({
 })
 
 // Cline Provider model schema with per-model settings
-export const ClineModelSchema = z.object({
+const ClineModelSchema = z.object({
 	id: z.string(), // The model ID is required
 })
 
@@ -75,36 +75,36 @@ export const ClineSettingsSchema = z.object({
 })
 
 // Vertex Provider model schema with per-model settings
-export const VertexModelSchema = z.object({
+const VertexModelSchema = z.object({
 	id: z.string(), // The model ID is required
 	thinkingBudgetTokens: z.number().optional(),
 })
 
 // GCP Vertex Provider specific settings
-export const VertexSettingsSchema = z.object({
+const VertexSettingsSchema = z.object({
 	// A list of the allowed models with their settings
 	models: z.array(VertexModelSchema).optional(),
 	vertexProjectId: z.string().optional(),
 	vertexRegion: z.string().optional(),
 })
 
-export const LiteLLMModelSchema = z.object({
+const LiteLLMModelSchema = z.object({
 	id: z.string(),
 	thinkingBudgetTokens: z.number().optional(),
 	promptCachingEnabled: z.boolean().optional(),
 })
 
-export const LiteLLMSchema = z.object({
+const LiteLLMSchema = z.object({
 	models: z.array(LiteLLMModelSchema).optional(),
 	baseUrl: z.string().optional(),
 })
 
-export const AnthropicModelSchema = z.object({
+const AnthropicModelSchema = z.object({
 	id: z.string(),
 	thinkingBudgetTokens: z.number().optional(),
 })
 
-export const AnthropicSchema = z.object({
+const AnthropicSchema = z.object({
 	models: z.array(AnthropicModelSchema).optional(),
 	baseUrl: z.string().optional(),
 })
@@ -120,12 +120,12 @@ const ProviderSettingsSchema = z.object({
 	Anthropic: AnthropicSchema.optional(),
 })
 
-export const AllowedMCPServerSchema = z.object({
+const AllowedMCPServerSchema = z.object({
 	// The ID of the MCP is the URL for their github repo.
 	id: z.string(),
 })
 
-export const RemoteMCPServerSchema = z.object({
+const RemoteMCPServerSchema = z.object({
 	// The name of the MCP server
 	name: z.string(),
 	// The URL of the MCP server
@@ -137,7 +137,7 @@ export const RemoteMCPServerSchema = z.object({
 })
 
 // Settings for a global cline rules or workflow file.
-export const GlobalInstructionsFileSchema = z.object({
+const GlobalInstructionsFileSchema = z.object({
 	// When this is enabled, the user cannot turn off this rule or workflow.
 	alwaysEnabled: z.boolean(),
 	// The name of the rules or workflow file.
@@ -232,30 +232,30 @@ export const APIKeySchema = z.record(z.string(), z.string())
 
 // Type inference from schemas
 export type RemoteConfig = z.infer<typeof RemoteConfigSchema>
-export type MCPServer = z.infer<typeof AllowedMCPServerSchema>
+type MCPServer = z.infer<typeof AllowedMCPServerSchema>
 export type RemoteMCPServer = z.infer<typeof RemoteMCPServerSchema>
 export type GlobalInstructionsFile = z.infer<typeof GlobalInstructionsFileSchema>
 
-export type ProviderSettings = z.infer<typeof ProviderSettingsSchema>
+type ProviderSettings = z.infer<typeof ProviderSettingsSchema>
 
-export type OpenAiCompatible = z.infer<typeof OpenAiCompatibleSchema>
-export type OpenAiCompatibleModel = z.infer<typeof OpenAiCompatibleModelSchema>
+type OpenAiCompatible = z.infer<typeof OpenAiCompatibleSchema>
+type OpenAiCompatibleModel = z.infer<typeof OpenAiCompatibleModelSchema>
 
-export type AwsBedrockSettings = z.infer<typeof AwsBedrockSettingsSchema>
-export type AwsBedrockModel = z.infer<typeof AwsBedrockModelSchema>
-export type AwsBedrockCustomModel = z.infer<typeof AwsBedrockCustomModelSchema>
+type AwsBedrockSettings = z.infer<typeof AwsBedrockSettingsSchema>
+type AwsBedrockModel = z.infer<typeof AwsBedrockModelSchema>
+type AwsBedrockCustomModel = z.infer<typeof AwsBedrockCustomModelSchema>
 
-export type VertexSettings = z.infer<typeof VertexSettingsSchema>
-export type VertexModel = z.infer<typeof VertexModelSchema>
+type VertexSettings = z.infer<typeof VertexSettingsSchema>
+type VertexModel = z.infer<typeof VertexModelSchema>
 
-export type LiteLLMSettings = z.infer<typeof LiteLLMSchema>
-export type LiteLLMModel = z.infer<typeof LiteLLMModelSchema>
+type LiteLLMSettings = z.infer<typeof LiteLLMSchema>
+type LiteLLMModel = z.infer<typeof LiteLLMModelSchema>
 
-export type AnthropicSettings = z.infer<typeof AnthropicSchema>
-export type AnthropicModel = z.infer<typeof AnthropicModelSchema>
+type AnthropicSettings = z.infer<typeof AnthropicSchema>
+type AnthropicModel = z.infer<typeof AnthropicModelSchema>
 
 export type APIKeySettings = z.infer<typeof APIKeySchema>
 
-export type EnterpriseTelemetry = z.infer<typeof EnterpriseTelemetrySchema>
-export type PromptUploading = z.infer<typeof PromptUploadingSchema>
+type EnterpriseTelemetry = z.infer<typeof EnterpriseTelemetrySchema>
+type PromptUploading = z.infer<typeof PromptUploadingSchema>
 export type S3AccessKeySettings = z.infer<typeof S3AccessKeySettingsSchema>

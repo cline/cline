@@ -3,7 +3,6 @@ import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "../../shared/ClineAccount"
 
 export enum ClineErrorType {
 	Auth = "auth",
-	Network = "network",
 	RateLimit = "rateLimit",
 	Balance = "balance",
 	SpendLimit = "spendLimit",
@@ -180,17 +179,7 @@ export class ClineError extends Error {
 	}
 }
 
-export class AuthNetworkError extends Error {
-	constructor(
-		message: string,
-		override readonly cause?: Error,
-	) {
-		super(message)
-		this.name = ClineErrorType.Network
-	}
-}
-
-export class AuthInvalidTokenError extends Error {
+class AuthInvalidTokenError extends Error {
 	constructor(message: string) {
 		super(message)
 		this.name = ClineErrorType.Auth

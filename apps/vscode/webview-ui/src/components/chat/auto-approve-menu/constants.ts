@@ -53,10 +53,3 @@ export const ACTION_METADATA: ActionMetadata[] = [
 		icon: "codicon-server",
 	},
 ]
-
-export const NOTIFICATIONS_SETTING: ActionMetadata = {
-	id: "enableNotifications",
-	label: "Enable notifications",
-	shortName: "Notifications",
-	icon: "codicon-bell",
-}

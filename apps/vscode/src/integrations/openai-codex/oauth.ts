@@ -16,7 +16,7 @@ import { Logger } from "@/shared/services/Logger"
  * - Fixed callback port: 1455
  * - Codex-specific params: codex_cli_simplified_flow=true, originator=cline
  */
-export const OPENAI_CODEX_OAUTH_CONFIG = {
+const OPENAI_CODEX_OAUTH_CONFIG = {
 	authorizationEndpoint: "https://auth.openai.com/oauth/authorize",
 	tokenEndpoint: "https://auth.openai.com/oauth/token",
 	clientId: "app_EMoamEEZ73f0CkXaXp7hrann",
@@ -24,9 +24,6 @@ export const OPENAI_CODEX_OAUTH_CONFIG = {
 	scopes: "openid profile email offline_access",
 	callbackPort: 1455,
 } as const
-
-// Token storage key - must match the key in SECRETS_KEYS (state-keys.ts)
-const OPENAI_CODEX_CREDENTIALS_KEY = "openai-codex-oauth-credentials"
 
 type ProviderSettingsManager = {
 	getProviderSettings(providerId: string):
@@ -78,7 +75,7 @@ const openAiCodexCredentialsSchema = z.object({
 	accountId: z.string().optional(),
 })
 
-export type OpenAiCodexCredentials = z.infer<typeof openAiCodexCredentialsSchema>
+type OpenAiCodexCredentials = z.infer<typeof openAiCodexCredentialsSchema>
 
 function providerSettingsToCredentials(
 	settings: NonNullable<ReturnType<ProviderSettingsManager["getProviderSettings"]>>,
@@ -287,7 +284,7 @@ function parseOAuthErrorDetails(errorText: string): { errorCode?: string; errorM
  * Generates a cryptographically random PKCE code verifier
  * Must be 43-128 characters long using unreserved characters
  */
-export function generateCodeVerifier(): string {
+function generateCodeVerifier(): string {
 	const buffer = crypto.randomBytes(32)
 	return buffer.toString("base64url")
 }
@@ -295,7 +292,7 @@ export function generateCodeVerifier(): string {
 /**
  * Generates the PKCE code challenge from the verifier using S256 method
  */
-export function generateCodeChallenge(verifier: string): string {
+function generateCodeChallenge(verifier: string): string {
 	const hash = crypto.createHash("sha256").update(verifier).digest()
 	return hash.toString("base64url")
 }
@@ -303,7 +300,7 @@ export function generateCodeChallenge(verifier: string): string {
 /**
  * Generates a random state parameter for CSRF protection
  */
-export function generateState(): string {
+function generateState(): string {
 	return crypto.randomBytes(16).toString("hex")
 }
 
@@ -311,7 +308,7 @@ export function generateState(): string {
  * Builds the authorization URL for OpenAI Codex OAuth flow
  * Includes Codex-specific parameters per the implementation guide
  */
-export function buildAuthorizationUrl(codeChallenge: string, state: string): string {
+function buildAuthorizationUrl(codeChallenge: string, state: string): string {
 	const params = new URLSearchParams({
 		client_id: OPENAI_CODEX_OAUTH_CONFIG.clientId,
 		redirect_uri: OPENAI_CODEX_OAUTH_CONFIG.redirectUri,
@@ -333,7 +330,7 @@ export function buildAuthorizationUrl(codeChallenge: string, state: string): str
  * Important: Uses application/x-www-form-urlencoded (not JSON)
  * Important: state must NOT be included in token exchange body
  */
-export async function exchangeCodeForTokens(code: string, codeVerifier: string): Promise<OpenAiCodexCredentials> {
+async function exchangeCodeForTokens(code: string, codeVerifier: string): Promise<OpenAiCodexCredentials> {
 	// Per the implementation guide: use application/x-www-form-urlencoded
 	// and do NOT include state in the body (OpenAI returns error if included)
 	const body = new URLSearchParams({
@@ -388,7 +385,7 @@ export async function exchangeCodeForTokens(code: string, codeVerifier: string):
  * Refreshes the access token using the refresh token
  * Uses application/x-www-form-urlencoded (not JSON)
  */
-export async function refreshAccessToken(credentials: OpenAiCodexCredentials): Promise<OpenAiCodexCredentials> {
+async function refreshAccessToken(credentials: OpenAiCodexCredentials): Promise<OpenAiCodexCredentials> {
 	const body = new URLSearchParams({
 		grant_type: "refresh_token",
 		client_id: OPENAI_CODEX_OAUTH_CONFIG.clientId,
@@ -441,7 +438,7 @@ export async function refreshAccessToken(credentials: OpenAiCodexCredentials): P
  * Checks if the credentials are expired (with 5 minute buffer)
  * Per the implementation guide: expires is in milliseconds since epoch
  */
-export function isTokenExpired(credentials: OpenAiCodexCredentials): boolean {
+function isTokenExpired(credentials: OpenAiCodexCredentials): boolean {
 	const bufferMs = 5 * 60 * 1000 // 5 minutes buffer
 	return Date.now() >= credentials.expires - bufferMs
 }
@@ -449,7 +446,7 @@ export function isTokenExpired(credentials: OpenAiCodexCredentials): boolean {
 /**
  * OpenAiCodexOAuthManager - Handles OAuth flow and token management
  */
-export class OpenAiCodexOAuthManager {
+class OpenAiCodexOAuthManager {
 	private credentials: OpenAiCodexCredentials | null = null
 	private refreshPromise: Promise<OpenAiCodexCredentials> | null = null
 	private pendingAuth: {

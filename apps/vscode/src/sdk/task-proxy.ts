@@ -54,7 +54,7 @@ export interface MessageStateHandlerEvents {
  * Change event for message updates.
  * Mirrors ClineMessageChange from src/core/task/message-state.ts.
  */
-export interface ClineMessageChange {
+interface ClineMessageChange {
 	type: "add" | "update" | "set" | "delete"
 	/** The full array after the change */
 	messages: ClineMessage[]
@@ -117,7 +117,7 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
  * The `api` property is settable — updateSettings() replaces it when the
  * user switches models/providers.
  */
-export interface TaskProxyApi {
+interface TaskProxyApi {
 	getModel: () => { id: string }
 }
 
@@ -126,7 +126,7 @@ export interface TaskProxyApi {
  * The updateSettings handler calls setDefaultTerminalProfile() which
  * returns { closedCount, busyTerminals }. This stub safely no-ops.
  */
-export interface TaskProxyTerminalManager {
+interface TaskProxyTerminalManager {
 	setDefaultTerminalProfile: (profileId: string) => { closedCount: number; busyTerminals: never[] }
 	setShellIntegrationTimeout: (timeout: number) => void
 	setTerminalReuseEnabled: (enabled: boolean) => void
@@ -137,7 +137,7 @@ export interface TaskProxyTerminalManager {
  * Task state tracking — mirrors the subset of classic TaskState
  * that handlers reference.
  */
-export interface TaskProxyState {
+interface TaskProxyState {
 	askResponse?: ClineAskResponse
 	autoRetryAttempts?: number
 	/** Checkpoint manager initialized flag (stub — checkpoints removed) */

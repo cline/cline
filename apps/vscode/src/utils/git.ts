@@ -307,6 +307,6 @@ function truncateOutput(content: string): string {
  * @param dirPath - The directory path to check
  * @returns True if it's a Git repository
  */
-export async function isGitRepository(dirPath: string): Promise<boolean> {
+async function isGitRepository(dirPath: string): Promise<boolean> {
 	return await checkGitRepo(dirPath)
 }

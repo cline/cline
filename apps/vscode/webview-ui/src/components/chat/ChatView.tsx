@@ -47,7 +47,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		version,
 		clineMessages: messages,
 		taskHistory,
-		apiConfiguration,
 		telemetrySetting,
 		mode,
 		userInfo,
@@ -228,13 +227,13 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		const cleanup = UiServiceClient.subscribeToShowWebview(
 			{},
 			{
-				onResponse: (event) => {
+				onResponse: (event: any) => {
 					// Only focus if not hidden and preserveEditorFocus is false
 					if (!isHidden && !event.preserveEditorFocus) {
 						textAreaRef.current?.focus()
 					}
 				},
-				onError: (error) => {
+				onError: (error: any) => {
 					console.error("Error in showWebview subscription:", error)
 				},
 				onComplete: () => {
@@ -251,7 +250,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		const cleanup = UiServiceClient.subscribeToAddToInput(
 			{},
 			{
-				onResponse: (event) => {
+				onResponse: (event: any) => {
 					if (event.value) {
 						setInputValue((prevValue) => {
 							const newText = event.value
@@ -268,7 +267,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						}, 0)
 					}
 				},
-				onError: (error) => {
+				onError: (error: any) => {
 					console.error("Error in addToInput subscription:", error)
 				},
 				onComplete: () => {

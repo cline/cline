@@ -7,11 +7,8 @@ import "./codeblock-parser.css"
 
 export const CODE_BLOCK_BG_COLOR = "var(--vscode-editor-background, --vscode-sideBar-background, rgb(30 30 30))"
 
-export const TERMINAL_CODE_BLOCK_BG_COLOR = "var(--vscode-editor-background, --vscode-sideBar-background, rgb(30 30 30))"
-
 // Theme-aware background colors for expanded/collapsed states
 export const CHAT_ROW_EXPANDED_BG_COLOR = "var(--vscode-editor-background)"
-export const CHAT_ROW_COLLAPSED_BG_COLOR = "var(--vscode-sideBar-background)"
 
 /*
 overflowX: auto + inner div with padding results in an issue where the top/left/bottom padding renders but the right padding inside does not count as overflow as the width of the element is not exceeded. Once the inner div is outside the boundaries of the parent it counts as overflow.

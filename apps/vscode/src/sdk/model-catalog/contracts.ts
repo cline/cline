@@ -106,7 +106,7 @@ export interface EffectiveProviderConfig {
  * Empty patches are allowed and are no-ops. A field present with value
  * `null` means "clear this field"; an absent field means "leave unchanged."
  */
-export interface ProviderReasoningPatch {
+interface ProviderReasoningPatch {
 	readonly enabled?: boolean
 	readonly effort?: string // "none" | "low" | "medium" | "high" | "xhigh"
 	readonly budgetTokens?: number
@@ -230,7 +230,7 @@ export interface ProviderListing {
  * Source of a model-list result. Observability counterpart to the cache
  * record. Logged but not used for control flow.
  */
-export type CatalogSource = "sdk-dynamic" | "sdk-bundled" | "extension-dynamic" | "legacy-static" | "host-adapter"
+type CatalogSource = "sdk-dynamic" | "sdk-bundled" | "extension-dynamic" | "legacy-static" | "host-adapter"
 
 /**
  * Structured error from `resolveModels`. Carries enough information to
