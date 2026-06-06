@@ -138,7 +138,7 @@ describe("ApiOptions Component", () => {
 		)
 		const modelIdSelect = screen.getByLabelText("Model")
 		expect(modelIdSelect).toBeInTheDocument()
-		expect(modelIdSelect).toHaveValue("accounts/fireworks/models/kimi-k2p5")
+		expect(modelIdSelect).toHaveValue("accounts/fireworks/models/kimi-k2p6")
 	})
 })
 

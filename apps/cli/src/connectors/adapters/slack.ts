@@ -9,6 +9,7 @@ import {
 	type Adapter,
 	Chat,
 	ConsoleLogger,
+	type Message,
 	type Thread,
 	ThreadImpl,
 } from "chat";
@@ -190,6 +191,56 @@ function extractSlackTeamId(raw: unknown): string | undefined {
 				? record.team
 				: undefined;
 	return value?.trim() || undefined;
+}
+
+function extractSlackMessageRecord(
+	raw: unknown,
+): Record<string, unknown> | undefined {
+	const record = asRecord(raw);
+	return asRecord(record?.event) ?? asRecord(record?.message) ?? record;
+}
+
+function extractSlackChannelFromId(id: string): string | undefined {
+	const parts = id.split(":");
+	return parts[0] === "slack" ? readString(parts[1]) : undefined;
+}
+
+function resolveSlackChannelMentionThread(
+	thread: Thread<SlackThreadState>,
+	message: Message,
+): Thread<SlackThreadState> {
+	if (thread.isDM) {
+		return thread;
+	}
+	const event = extractSlackMessageRecord(message.raw);
+	const threadTs = readString(event?.thread_ts) ?? readString(event?.ts);
+	if (!threadTs) {
+		return thread;
+	}
+	const channel =
+		readString(event?.channel) ??
+		extractSlackChannelFromId(thread.id) ??
+		extractSlackChannelFromId(thread.channelId);
+	if (!channel) {
+		return thread;
+	}
+	const threadId = `slack:${channel}:${threadTs}`;
+	const channelId = `slack:${channel}`;
+	if (thread.id === threadId && thread.channelId === channelId) {
+		return thread;
+	}
+	return new ThreadImpl<SlackThreadState>({
+		adapterName: "slack",
+		channelId,
+		channelVisibility: thread.channelVisibility,
+		currentMessage: message,
+		fallbackStreamingPlaceholderText: null,
+		id: threadId,
+		initialMessage: message,
+		isDM: false,
+		isSubscribedContext: false,
+		streamingUpdateIntervalMs: 500,
+	});
 }
 
 async function withSlackBindingBotToken<T>(input: {
@@ -894,9 +945,10 @@ class SlackConnector extends ConnectorBase<
 		};
 
 		bot.onNewMention(async (thread, message) => {
-			await thread.subscribe();
+			const mentionThread = resolveSlackChannelMentionThread(thread, message);
+			await mentionThread.subscribe();
 			await persistSlackThreadContext({
-				thread,
+				thread: mentionThread,
 				bindingsPath,
 				baseStartRequest: startRequest,
 				rawMessage: message.raw,
@@ -904,7 +956,7 @@ class SlackConnector extends ConnectorBase<
 			});
 			if (
 				await maybeHandleConnectorApprovalReply({
-					thread,
+					thread: mentionThread,
 					text: message.text,
 					client,
 					clientId,
@@ -914,7 +966,7 @@ class SlackConnector extends ConnectorBase<
 			) {
 				return;
 			}
-			await handleTurn(thread, message.text);
+			await handleTurn(mentionThread, message.text);
 		});
 
 		bot.onSubscribedMessage(async (thread, message) => {
@@ -1150,6 +1202,7 @@ export const __test__ = {
 	buildSlackParticipantKey,
 	resolveSlackParticipant,
 	normalizeSlackMessageEventChannelType,
+	resolveSlackChannelMentionThread,
 	withSlackTeamBotToken,
 	isSlackInvalidThreadTsError,
 	findBindingForThread: (

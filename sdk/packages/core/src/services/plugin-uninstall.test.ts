@@ -126,29 +126,34 @@ describe("plugin uninstall service", () => {
 		expect(existsSync(pluginPath)).toBe(false);
 	});
 
-	it("keeps disabled plugin settings if file deletion fails", async () => {
-		const pluginRoot = join(home, ".cline", "plugins");
-		const pluginPath = join(pluginRoot, "locked-plugin.ts");
-		await mkdir(pluginRoot, { recursive: true });
-		await writeFile(
-			pluginPath,
-			"export default { name: 'locked', manifest: { capabilities: ['tools'] } };",
-			"utf8",
-		);
-		writeGlobalSettings({ disabledPlugins: [pluginPath] });
-		chmodSync(pluginRoot, 0o555);
+	// chmod-based deletion failure cannot be simulated on Windows, where read-only
+	// directory permissions do not prevent removing files inside them.
+	it.skipIf(process.platform === "win32")(
+		"keeps disabled plugin settings if file deletion fails",
+		async () => {
+			const pluginRoot = join(home, ".cline", "plugins");
+			const pluginPath = join(pluginRoot, "locked-plugin.ts");
+			await mkdir(pluginRoot, { recursive: true });
+			await writeFile(
+				pluginPath,
+				"export default { name: 'locked', manifest: { capabilities: ['tools'] } };",
+				"utf8",
+			);
+			writeGlobalSettings({ disabledPlugins: [pluginPath] });
+			chmodSync(pluginRoot, 0o555);
 
-		try {
-			await expect(uninstallPlugin({ path: pluginPath })).rejects.toThrow();
-			expect(existsSync(pluginPath)).toBe(true);
-			expect(readGlobalSettings()).toEqual({
-				disabledPlugins: [pluginPath],
-				telemetryOptOut: false,
-			});
-		} finally {
-			chmodSync(pluginRoot, 0o755);
-		}
-	});
+			try {
+				await expect(uninstallPlugin({ path: pluginPath })).rejects.toThrow();
+				expect(existsSync(pluginPath)).toBe(true);
+				expect(readGlobalSettings()).toEqual({
+					disabledPlugins: [pluginPath],
+					telemetryOptOut: false,
+				});
+			} finally {
+				chmodSync(pluginRoot, 0o755);
+			}
+		},
+	);
 
 	it("reports unmatched names clearly", async () => {
 		await expect(uninstallPlugin({ name: "missing-plugin" })).rejects.toThrow(
