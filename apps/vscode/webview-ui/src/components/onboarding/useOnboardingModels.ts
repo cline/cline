@@ -11,7 +11,7 @@ import { useProviderModels } from "@/hooks/useProviderModels"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { getRecommendedModelsData, type RecommendedModelsData } from "./data-models"
 
-export type OnboardingModelsStatus = "loading" | "success" | "empty"
+type OnboardingModelsStatus = "loading" | "success" | "empty"
 
 export interface UseOnboardingModelsResult {
 	status: OnboardingModelsStatus

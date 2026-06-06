@@ -9,7 +9,7 @@ import { z } from "zod"
 import { buildSubagentToolName } from "./SubagentToolName"
 
 /** Default Directory for agent configurations: ~/Documents/Cline/Agents */
-export const AGENTS_CONFIG_DIRECTORY_NAME = "Agents"
+const AGENTS_CONFIG_DIRECTORY_NAME = "Agents"
 const SUBAGENT_DYNAMIC_TOOL_NAMESPACE = "subagent"
 
 const AgentBaseConfigSchema = z.object({
@@ -77,7 +77,7 @@ function parseSkills(skills: string | string[] | undefined): string[] | undefine
 	return Array.from(new Set(rawSkills.map(normalizeSkillName)))
 }
 
-export function parseAgentConfigFromYaml(content: string): AgentBaseConfig {
+function parseAgentConfigFromYaml(content: string): AgentBaseConfig {
 	const { data, body, hadFrontmatter, parseError } = parseYamlFrontmatter(content)
 	if (parseError) {
 		throw new Error(`Failed to parse YAML frontmatter: ${parseError}`)
@@ -102,7 +102,7 @@ export function parseAgentConfigFromYaml(content: string): AgentBaseConfig {
 	}) as AgentBaseConfig
 }
 
-export function getAgentsConfigPath(homeDir = os.homedir()): string {
+function getAgentsConfigPath(homeDir = os.homedir()): string {
 	return path.join(homeDir, "Documents", "Cline", AGENTS_CONFIG_DIRECTORY_NAME)
 }
 
@@ -114,7 +114,7 @@ function isYamlFile(filePath: string): boolean {
 	return /\.(yaml|yml)$/i.test(filePath)
 }
 
-export async function readAgentConfigsFromDisk(homeDir = os.homedir()): Promise<Map<string, AgentBaseConfig>> {
+async function readAgentConfigsFromDisk(homeDir = os.homedir()): Promise<Map<string, AgentBaseConfig>> {
 	const agentsDirectoryPath = getAgentsConfigPath(homeDir)
 	const configs = new Map<string, AgentBaseConfig>()
 

@@ -14,7 +14,6 @@ import { StandaloneTerminalManager } from "@/integrations/terminal"
 import { Logger } from "@/shared/services/Logger"
 import { createStorageContext } from "@/shared/storage/storage-context"
 import { HOSTBRIDGE_PORT, waitForHostBridgeReady } from "./hostbridge-client"
-import { setLockManager } from "./lock-manager"
 import { startMemoryMonitoring, stopMemoryMonitoring } from "./memory-monitor"
 import { PROTOBUS_PORT, startProtobusService } from "./protobus-service"
 import { log } from "./utils"
@@ -83,9 +82,6 @@ async function main() {
 			dbPath,
 			instanceAddress: protobusAddress,
 		})
-
-		// Make lock manager available to other modules
-		setLockManager(globalLockManager)
 
 		await globalLockManager.registerInstance({
 			hostAddress,

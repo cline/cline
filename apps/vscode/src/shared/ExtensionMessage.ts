@@ -273,43 +273,8 @@ export interface ClineSayTool {
 	readLineEnd?: number
 }
 
-export interface ClineSayHook {
-	hookName: string // Name of the hook (e.g., "PreToolUse", "PostToolUse")
-	toolName?: string // Tool name if applicable (for PreToolUse/PostToolUse)
-	status: "running" | "completed" | "failed" | "cancelled" // Execution status
-	exitCode?: number // Exit code when completed
-	hasJsonResponse?: boolean // Whether a JSON response was parsed
-	// Pending tool information (only present during PreToolUse "running" status)
-	pendingToolInfo?: {
-		tool: string // Tool name (e.g., "write_to_file", "execute_command")
-		path?: string // File path for file operations
-		command?: string // Command for execute_command
-		content?: string // Content preview (first 200 chars)
-		diff?: string // Diff preview (first 200 chars)
-		regex?: string // Regex pattern for search_files
-		url?: string // URL for web_fetch or browser_action
-		mcpTool?: string // MCP tool name
-		mcpServer?: string // MCP server name
-		resourceUri?: string // MCP resource URI
-	}
-	// Structured error information (only present when status is "failed")
-	error?: {
-		type: "timeout" | "validation" | "execution" | "cancellation" // Type of error
-		message: string // User-friendly error message
-		details?: string // Technical details for expansion
-		scriptPath?: string // Path to the hook script
-	}
-}
-
-export type HookOutputStreamMeta = {
-	/** Which hook configuration the script originated from (global vs workspace). */
-	source: "global" | "workspace"
-	/** Full path to the hook script that emitted the output. */
-	scriptPath: string
-}
-
 // must keep in sync with system prompt
-export const browserActions = ["launch", "click", "type", "scroll_down", "scroll_up", "close"] as const
+const browserActions = ["launch", "click", "type", "scroll_down", "scroll_up", "close"] as const
 export type BrowserAction = (typeof browserActions)[number]
 
 export interface ClineSayBrowserAction {
@@ -382,10 +347,6 @@ export interface ClineAskQuestion {
 	selected?: string
 }
 
-export interface ClineAskNewTask {
-	context: string
-}
-
 export interface ClineApiReqInfo {
 	request?: string
 	tokensIn?: number
@@ -412,6 +373,6 @@ export interface ClineSubagentUsageInfo {
 	cost: number
 }
 
-export type ClineApiReqCancelReason = "streaming_failed" | "user_cancelled" | "retries_exhausted"
+type ClineApiReqCancelReason = "streaming_failed" | "user_cancelled" | "retries_exhausted"
 
 export const COMPLETION_RESULT_CHANGES_FLAG = "HAS_CHANGES"

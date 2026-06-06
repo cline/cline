@@ -10,6 +10,8 @@ import { HostProvider } from "@/hosts/host-provider"
 import { SearchWorkspaceItemsRequest_SearchItemType, SearchWorkspaceItemsResponse } from "@/shared/proto/host/workspace"
 import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
 
+void fileSearch.getSpawnFunction
+
 describe("File Search", () => {
 	let sandbox: sinon.SinonSandbox
 	let spawnStub: sinon.SinonStub

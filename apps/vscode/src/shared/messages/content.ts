@@ -25,42 +25,30 @@ export const REASONING_DETAILS_PROVIDERS = ["cline", "openrouter"];
  * This ensures backward compatibility where the messages were stored in Anthropic format with additional
  * fields unknown to Anthropic SDK.
  */
-export interface ClineTextContentBlock
-	extends Anthropic.TextBlockParam,
-		ClineSharedMessageParam {
+export interface ClineTextContentBlock extends Anthropic.TextBlockParam, ClineSharedMessageParam {
 	// reasoning_details only exists for providers listed in REASONING_DETAILS_PROVIDERS
 	reasoning_details?: ClineReasoningDetailParam[];
 	// Thought Signature associates with Gemini
 	signature?: string;
 }
 
-export interface ClineImageContentBlock
-	extends Anthropic.ImageBlockParam,
-		ClineSharedMessageParam {}
+export interface ClineImageContentBlock extends Anthropic.ImageBlockParam, ClineSharedMessageParam {}
 
-export interface ClineDocumentContentBlock
-	extends Anthropic.DocumentBlockParam,
-		ClineSharedMessageParam {}
+export interface ClineDocumentContentBlock extends Anthropic.DocumentBlockParam, ClineSharedMessageParam {}
 
-export interface ClineUserToolResultContentBlock
-	extends Anthropic.ToolResultBlockParam,
-		ClineSharedMessageParam {}
+export interface ClineUserToolResultContentBlock extends Anthropic.ToolResultBlockParam, ClineSharedMessageParam {}
 
 /**
  * Assistant only content types
  */
-export interface ClineAssistantToolUseBlock
-	extends Anthropic.ToolUseBlockParam,
-		ClineSharedMessageParam {
+export interface ClineAssistantToolUseBlock extends Anthropic.ToolUseBlockParam, ClineSharedMessageParam {
 	// reasoning_details only exists for providers listed in REASONING_DETAILS_PROVIDERS
 	reasoning_details?: unknown[] | ClineReasoningDetailParam[];
 	// Thought Signature associates with Gemini
 	signature?: string;
 }
 
-export interface ClineAssistantThinkingBlock
-	extends Anthropic.ThinkingBlock,
-		ClineSharedMessageParam {
+export interface ClineAssistantThinkingBlock extends Anthropic.ThinkingBlock, ClineSharedMessageParam {
 	// The summary items returned by OpenAI response API
 	// The reasoning details that will be moved to the text block when finalized
 	summary?: unknown[] | ClineReasoningDetailParam[];
@@ -136,9 +124,7 @@ export function convertClineStorageToAnthropicMessage(
 	}
 
 	// Removes thinking block that has no signature (invalid thinking block that's incompatible with Anthropic API)
-	const filteredContent = content.filter(
-		(b) => b.type !== "thinking" || !!b.signature,
-	);
+	const filteredContent = content.filter((b) => b.type !== "thinking" || !!b.signature);
 
 	// Handle array content - strip Cline-specific fields for non-reasoning_details providers
 	const shouldCleanContent = !REASONING_DETAILS_PROVIDERS.includes(provider);
@@ -155,9 +141,7 @@ export function convertClineStorageToAnthropicMessage(
  * narrows to the base64 variant for the transform layer. URL sources are not produced by Cline,
  * so they degrade to empty values rather than throwing.
  */
-export function getBase64ImageSource(
-	source: Anthropic.ImageBlockParam["source"],
-): { mediaType: string; data: string } {
+export function getBase64ImageSource(source: Anthropic.ImageBlockParam["source"]): { mediaType: string; data: string } {
 	if (source.type === "base64") {
 		return { mediaType: source.media_type, data: source.data };
 	}
@@ -167,9 +151,7 @@ export function getBase64ImageSource(
 /**
  * Builds a base64 data URL from an image block's source. See getBase64ImageSource.
  */
-export function getImageDataUrl(
-	source: Anthropic.ImageBlockParam["source"],
-): string {
+export function getImageDataUrl(source: Anthropic.ImageBlockParam["source"]): string {
 	const { mediaType, data } = getBase64ImageSource(source);
 	return `data:${mediaType};base64,${data}`;
 }

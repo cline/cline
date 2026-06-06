@@ -412,8 +412,8 @@ export const GlobalStateAndSettingKeys = Array.from(GlobalStateAndSettingsKeySet
 export const GLOBAL_STATE_DEFAULTS = extractDefaults(GLOBAL_STATE_FIELDS)
 export const SETTINGS_DEFAULTS = extractDefaults(SETTINGS_FIELDS)
 export const SETTINGS_TRANSFORMS = extractTransforms(SETTINGS_FIELDS)
-export const ASYNC_PROPERTIES = extractMetadata({ ...GLOBAL_STATE_FIELDS, ...SETTINGS_FIELDS }, "isAsync")
-export const COMPUTED_PROPERTIES = extractMetadata({ ...GLOBAL_STATE_FIELDS, ...SETTINGS_FIELDS }, "isComputed")
+const ASYNC_PROPERTIES = extractMetadata({ ...GLOBAL_STATE_FIELDS, ...SETTINGS_FIELDS }, "isAsync")
+const COMPUTED_PROPERTIES = extractMetadata({ ...GLOBAL_STATE_FIELDS, ...SETTINGS_FIELDS }, "isComputed")
 
 // ============================================================================
 // HELPER FUNCTIONS

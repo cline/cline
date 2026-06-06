@@ -46,7 +46,7 @@ const StarIcon = ({ isFavorite, onClick }: { isFavorite: boolean; onClick: (e: R
 	)
 }
 
-export interface ClineModelPickerProps {
+interface ClineModelPickerProps {
 	isPopup?: boolean
 	currentMode: Mode
 	showProviderRouting?: boolean

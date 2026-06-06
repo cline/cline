@@ -2,7 +2,7 @@ import { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/index"
 import { FunctionDeclaration as GoogleTool } from "@google/genai"
 import { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 
-export type ClineTool = OpenAITool | AnthropicTool | GoogleTool
+type ClineTool = OpenAITool | AnthropicTool | GoogleTool
 
 // Define available tool ids
 export enum ClineDefaultTool {
@@ -34,33 +34,8 @@ export enum ClineDefaultTool {
 	USE_SUBAGENTS = "use_subagents",
 }
 
-// Array of all tool names for compatibility
-// Automatically generated from the enum values
-export const toolUseNames = Object.values(ClineDefaultTool) as ClineDefaultTool[]
-
 const dynamicToolUseNamesByNamespace = new Map<string, Set<string>>()
 
 export function setDynamicToolUseNames(namespace: string, names: string[]): void {
 	dynamicToolUseNamesByNamespace.set(namespace, new Set(names.map((name) => name.trim()).filter(Boolean)))
 }
-
-export function getToolUseNames(): string[] {
-	const defaults = [...toolUseNames]
-	const dynamic = Array.from(dynamicToolUseNamesByNamespace.values()).flatMap((set) => Array.from(set))
-	return Array.from(new Set([...defaults, ...dynamic]))
-}
-
-// Tools that are safe to run in parallel with the initial checkpoint commit
-// These are tools that do not modify the workspace state
-export const READ_ONLY_TOOLS = [
-	ClineDefaultTool.LIST_FILES,
-	ClineDefaultTool.FILE_READ,
-	ClineDefaultTool.SEARCH,
-	ClineDefaultTool.LIST_CODE_DEF,
-	ClineDefaultTool.BROWSER,
-	ClineDefaultTool.ASK,
-	ClineDefaultTool.WEB_SEARCH,
-	ClineDefaultTool.WEB_FETCH,
-	ClineDefaultTool.USE_SKILL,
-	ClineDefaultTool.USE_SUBAGENTS,
-] as const

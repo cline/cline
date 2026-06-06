@@ -1,4 +1,4 @@
-export interface RetryWithBackoffOptions {
+interface RetryWithBackoffOptions {
 	maxAttempts?: number
 	baseDelayMs?: number
 	maxDelayMs?: number
