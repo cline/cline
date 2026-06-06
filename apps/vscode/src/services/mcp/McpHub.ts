@@ -688,7 +688,7 @@ export class McpHub {
 			}
 
 			const response = await connection.client.request({ method: "tools/list" }, ListToolsResultSchema, {
-				timeout: DEFAULT_REQUEST_TIMEOUT_MS,
+				timeout: this.getTimeoutForServer(connection),
 			})
 
 			// Get autoApprove settings
@@ -720,7 +720,7 @@ export class McpHub {
 			}
 
 			const response = await connection.client.request({ method: "resources/list" }, ListResourcesResultSchema, {
-				timeout: DEFAULT_REQUEST_TIMEOUT_MS,
+				timeout: this.getTimeoutForServer(connection),
 			})
 			return response?.resources || []
 		} catch (_error) {
@@ -742,7 +742,7 @@ export class McpHub {
 				{ method: "resources/templates/list" },
 				ListResourceTemplatesResultSchema,
 				{
-					timeout: DEFAULT_REQUEST_TIMEOUT_MS,
+					timeout: this.getTimeoutForServer(connection),
 				},
 			)
 
@@ -763,7 +763,7 @@ export class McpHub {
 			}
 
 			const response = await connection.client.request({ method: "prompts/list" }, ListPromptsResultSchema, {
-				timeout: DEFAULT_REQUEST_TIMEOUT_MS,
+				timeout: this.getTimeoutForServer(connection),
 			})
 
 			return (response?.prompts || []).map((prompt) => ({
@@ -1217,7 +1217,7 @@ export class McpHub {
 			},
 			GetPromptResultSchema,
 			{
-				timeout: DEFAULT_REQUEST_TIMEOUT_MS,
+				timeout: this.getTimeoutForServer(connection),
 			},
 		)
 
@@ -1228,6 +1228,18 @@ export class McpHub {
 				content: msg.content as McpPromptResponse["messages"][0]["content"],
 			})),
 		}
+	}
+
+	private getTimeoutForServer(connection: McpConnection, defaultTimeoutMs: number = DEFAULT_REQUEST_TIMEOUT_MS): number {
+		try {
+			const config = JSON.parse(connection.server.config)
+			if (config.timeout !== undefined && typeof config.timeout === "number") {
+				return secondsToMs(config.timeout)
+			}
+		} catch (error) {
+			Logger.error(`Failed to parse timeout configuration for server ${connection.server.name}: ${error}`)
+		}
+		return defaultTimeoutMs
 	}
 
 	async callTool(
@@ -1247,15 +1259,7 @@ export class McpHub {
 			throw new Error(`Server "${serverName}" is disabled and cannot be used`)
 		}
 
-		let timeout = secondsToMs(DEFAULT_MCP_TIMEOUT_SECONDS) // sdk expects ms
-
-		try {
-			const config = JSON.parse(connection.server.config)
-			const parsedConfig = ServerConfigSchema.parse(config)
-			timeout = secondsToMs(parsedConfig.timeout)
-		} catch (error) {
-			Logger.error(`Failed to parse timeout configuration for server ${serverName}: ${error}`)
-		}
+		const timeout = this.getTimeoutForServer(connection, secondsToMs(DEFAULT_MCP_TIMEOUT_SECONDS))
 
 		this.telemetryService.captureMcpToolCall(
 			ulid,
