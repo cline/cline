@@ -120,5 +120,3 @@ export function ModelPickerWithManualEntry({
 		</div>
 	)
 }
-
-export default ModelPickerWithManualEntry

@@ -1,8 +1,3 @@
-export interface NavigatorUAData {
-	platform: string
-	brands: { brand: string; version: string }[]
-}
-
 export const unknown = "Unknown"
 
 const platforms = {
@@ -26,18 +21,19 @@ export const detectOS = (platform: string) => {
 export const detectMetaKeyChar = (platform: string) => {
 	if (platform.match(platforms.mac)) {
 		return "CMD"
-	} else if (platform.match(platforms.windows)) {
-		return "Win"
-	} else if (platform.match(platforms.linux)) {
-		return "Alt"
-	} else {
-		return "CMD"
 	}
+	if (platform.match(platforms.windows)) {
+		return "Win"
+	}
+	if (platform.match(platforms.linux)) {
+		return "Alt"
+	}
+	return "CMD"
 }
 
 const userAgent = navigator?.userAgent || ""
 
-export const isChrome = userAgent.indexOf("Chrome") >= 0
+const isChrome = userAgent.indexOf("Chrome") >= 0
 
 export const isSafari = !isChrome && userAgent.indexOf("Safari") >= 0
 

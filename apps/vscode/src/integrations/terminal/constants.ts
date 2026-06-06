@@ -82,10 +82,10 @@ export const BACKGROUND_COMMAND_TIMEOUT_MS = 10 * 60 * 1000
 // Used to detect if a command is compiling/building
 
 /** Markers that indicate compilation is starting */
-export const COMPILING_MARKERS = ["compiling", "building", "bundling", "transpiling", "generating", "starting"]
+const COMPILING_MARKERS = ["compiling", "building", "bundling", "transpiling", "generating", "starting"]
 
 /** Markers that indicate compilation is done (nullify extended timeout) */
-export const COMPILING_NULLIFIERS = [
+const COMPILING_NULLIFIERS = [
 	"compiled",
 	"success",
 	"finish",

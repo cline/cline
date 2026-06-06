@@ -13,7 +13,7 @@ interface TerminalSettingsSectionProps {
 	renderSectionHeader: (tabId: string) => JSX.Element | null
 }
 
-export const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = ({ renderSectionHeader }) => {
+const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = ({ renderSectionHeader }) => {
 	const {
 		shellIntegrationTimeout,
 		terminalReuseEnabled,
@@ -33,7 +33,7 @@ export const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = (
 
 		setInputValue(value)
 
-		const seconds = parseFloat(value)
+		const seconds = Number.parseFloat(value)
 		if (Number.isNaN(seconds) || seconds <= 0) {
 			setInputError("Please enter a positive number")
 			return

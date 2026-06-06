@@ -1,7 +1,7 @@
 // Map providers to their specific model ID keys
 
 import { getProviderCollectionSync } from "@cline/llms"
-import { Secrets, SettingsKey } from "@shared/storage/state-keys"
+import { SettingsKey } from "@shared/storage/state-keys"
 import { toSdkProviderId } from "@/sdk/model-catalog/sdk-provider-id"
 import { toLegacyApiProvider } from "@/shared/model-catalog/provider-helpers"
 import { type ApiProvider, liteLlmDefaultModelId, openRouterDefaultModelId, requestyDefaultModelId } from "../api"
@@ -26,46 +26,6 @@ const ProviderKeyMap: Partial<Record<ApiProvider, string>> = {
 	hicap: "HicapModelId",
 	nousResearch: "NousResearchModelId",
 	"vercel-ai-gateway": "VercelAiGatewayModelId",
-} as const
-
-export const ProviderToApiKeyMap: Partial<Record<ApiProvider, keyof Secrets | (keyof Secrets)[]>> = {
-	cline: ["clineApiKey", "clineAccountId"],
-	anthropic: "apiKey",
-	openrouter: "openRouterApiKey",
-	bedrock: ["awsAccessKey", "awsBedrockApiKey"],
-	openai: "openAiApiKey",
-	gemini: "geminiApiKey",
-	"openai-native": "openAiNativeApiKey",
-	ollama: "ollamaApiKey",
-	requesty: "requestyApiKey",
-	together: "togetherApiKey",
-	deepseek: "deepSeekApiKey",
-	qwen: "qwenApiKey",
-	"qwen-code": "qwenApiKey",
-	doubao: "doubaoApiKey",
-	mistral: "mistralApiKey",
-	litellm: "liteLlmApiKey",
-	moonshot: "moonshotApiKey",
-	nebius: "nebiusApiKey",
-	fireworks: "fireworksApiKey",
-	asksage: "asksageApiKey",
-	xai: "xaiApiKey",
-	sambanova: "sambanovaApiKey",
-	cerebras: "cerebrasApiKey",
-	groq: "groqApiKey",
-	huggingface: "huggingFaceApiKey",
-	"huawei-cloud-maas": "huaweiCloudMaasApiKey",
-	dify: "difyApiKey",
-	baseten: "basetenApiKey",
-	"vercel-ai-gateway": "vercelAiGatewayApiKey",
-	zai: "zaiApiKey",
-	oca: "ocaApiKey",
-	aihubmix: "aihubmixApiKey",
-	minimax: "minimaxApiKey",
-	hicap: "hicapApiKey",
-	nousResearch: "nousResearchApiKey",
-	sapaicore: ["sapAiCoreClientId", "sapAiCoreClientSecret"],
-	wandb: "wandbApiKey",
 } as const
 
 /**

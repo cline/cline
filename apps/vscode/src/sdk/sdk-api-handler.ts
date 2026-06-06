@@ -40,11 +40,7 @@ export interface BuildApiHandlerOptions {
  * BOTH. We therefore send at most one — preferring an explicit thinking budget
  * over effort — or none when reasoning is disabled.
  */
-export function buildSdkProviderConfig(
-	configuration: ApiConfiguration,
-	mode: Mode,
-	options?: BuildApiHandlerOptions,
-): ProviderConfig {
+function buildSdkProviderConfig(configuration: ApiConfiguration, mode: Mode, options?: BuildApiHandlerOptions): ProviderConfig {
 	const providerId = (mode === "plan" ? configuration.planModeApiProvider : configuration.actModeApiProvider) ?? "cline"
 
 	const apiKey = resolveApiKey(providerId, configuration)

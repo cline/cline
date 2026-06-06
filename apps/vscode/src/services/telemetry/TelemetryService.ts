@@ -46,7 +46,6 @@ export type TerminalOutputMethod = VscodeOutputMethod | StandaloneOutputMethod
 export enum TerminalOutputFailureReason {
 	TIMEOUT = "timeout",
 	NO_SHELL_INTEGRATION = "no_shell_integration",
-	CLIPBOARD_FAILED = "clipboard_failed",
 }
 
 /**
@@ -54,7 +53,6 @@ export enum TerminalOutputFailureReason {
  */
 export enum TerminalUserInterventionAction {
 	PROCESS_WHILE_RUNNING = "process_while_running",
-	MANUAL_PASTE = "manual_paste",
 	CANCELLED = "cancelled",
 }
 
@@ -64,7 +62,6 @@ export enum TerminalUserInterventionAction {
 export enum TerminalHangStage {
 	WAITING_FOR_COMPLETION = "waiting_for_completion",
 	BUFFER_STUCK = "buffer_stuck",
-	STREAM_TIMEOUT = "stream_timeout",
 }
 
 export type TelemetryMetadata = {

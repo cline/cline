@@ -6,7 +6,7 @@ type SectionHeaderProps = HTMLAttributes<HTMLDivElement> & {
 	description?: string
 }
 
-export const SectionHeader = ({ description, children, className, ...props }: SectionHeaderProps) => {
+const SectionHeader = ({ description, children, className, ...props }: SectionHeaderProps) => {
 	return (
 		<div className={cn("text-foreground px-5 py-3", className)} {...props}>
 			<h2 className="m-0 text-base">{children}</h2>

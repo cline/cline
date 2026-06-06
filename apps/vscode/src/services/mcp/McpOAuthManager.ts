@@ -20,7 +20,7 @@ import { shouldStartNewOAuthFlow } from "./mcpOAuthFlow"
  * "Authenticate"; 10 minutes leaves room to create an account, while still
  * guaranteeing a stale flow eventually expires so the system makes progress.
  */
-export const MCP_OAUTH_STATE_EXPIRY_MS = 10 * 60 * 1000 // 10 minutes
+const MCP_OAUTH_STATE_EXPIRY_MS = 10 * 60 * 1000 // 10 minutes
 
 /**
  * Structure for all OAuth data stored in the single mcpOAuthSecrets JSON

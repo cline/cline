@@ -12,7 +12,7 @@ import { evaluateRuleConditionals, RuleEvaluationContext } from "./rule-conditio
 /**
  * Recursively traverses directory and finds all files, including checking for optional whitelisted file extension
  */
-export async function readDirectoryRecursive(
+async function readDirectoryRecursive(
 	directoryPath: string,
 	allowedFileExtension: string,
 	excludedPaths: string[][] = [],
@@ -145,11 +145,11 @@ export function combineRuleToggles(toggles1: ClineRulesToggles, toggles2: ClineR
 /**
  * Read the content of rules files
  */
-export const getRuleFilesTotalContent = async (rulesFilePaths: string[], basePath: string, toggles: ClineRulesToggles) => {
+const getRuleFilesTotalContent = async (rulesFilePaths: string[], basePath: string, toggles: ClineRulesToggles) => {
 	return (await getRuleFilesTotalContentWithMetadata(rulesFilePaths, basePath, toggles)).content
 }
 
-export type ActivatedConditionalRule = {
+type ActivatedConditionalRule = {
 	name: string
 	matchedConditions: Record<string, string[]>
 }
@@ -171,7 +171,7 @@ export type RuleLoadResult = {
  * Result type for rule loading functions that return formatted instructions.
  * Used by getGlobalClineRules and getLocalClineRules.
  */
-export type RuleLoadResultWithInstructions = {
+type RuleLoadResultWithInstructions = {
 	instructions?: string
 	activatedConditionalRules: ActivatedConditionalRule[]
 }
@@ -231,7 +231,7 @@ export const getRuleFilesTotalContentWithMetadata = async (
 	}
 }
 
-export function getRemoteRulesTotalContentWithMetadata(
+function getRemoteRulesTotalContentWithMetadata(
 	remoteRules: GlobalInstructionsFile[],
 	remoteToggles: ClineRulesToggles,
 	opts?: { evaluationContext?: RuleEvaluationContext },
@@ -275,7 +275,7 @@ export function getRemoteRulesTotalContentWithMetadata(
  * Doesn't do anything if the dir already exists or doesn't exist
  * Returns whether there are any uncaught errors
  */
-export async function ensureLocalClineDirExists(clinerulePath: string, defaultRuleFilename: string): Promise<boolean> {
+async function ensureLocalClineDirExists(clinerulePath: string, defaultRuleFilename: string): Promise<boolean> {
 	try {
 		const exists = await fileExistsAtPath(clinerulePath)
 
