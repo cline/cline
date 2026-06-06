@@ -2,10 +2,21 @@
  * Utility functions for message filtering, grouping, and manipulation
  */
 
-import { combineApiRequests } from "@shared/combineApiRequests"
-import { combineCommandSequences } from "@shared/combineCommandSequences"
-import type { ClineMessage, ClineSayBrowserAction, ClineSayTool } from "@shared/ExtensionMessage"
-import { FileIcon, FolderOpenDotIcon, FolderOpenIcon, SearchIcon, ShapesIcon, WrenchIcon } from "lucide-react"
+import { combineApiRequests } from "@shared/combineApiRequests";
+import { combineCommandSequences } from "@shared/combineCommandSequences";
+import type {
+	ClineMessage,
+	ClineSayBrowserAction,
+	ClineSayTool,
+} from "@shared/ExtensionMessage";
+import {
+	FileIcon,
+	FolderOpenDotIcon,
+	FolderOpenIcon,
+	SearchIcon,
+	ShapesIcon,
+	WrenchIcon,
+} from "lucide-react";
 
 /**
  * Low-stakes tool types that should be grouped together
@@ -16,58 +27,69 @@ const LOW_STAKES_TOOLS = new Set([
 	"listFilesRecursive",
 	"listCodeDefinitionNames",
 	"searchFiles",
-])
+]);
 
 /**
  * Check if a tool message is a low-stakes tool
  */
 export function isLowStakesTool(message: ClineMessage): boolean {
 	if (message.say !== "tool" && message.ask !== "tool") {
-		return false
+		return false;
 	}
 	try {
-		const tool = JSON.parse(message.text || "{}") as ClineSayTool
-		return LOW_STAKES_TOOLS.has(tool.tool)
+		const tool = JSON.parse(message.text || "{}") as ClineSayTool;
+		return LOW_STAKES_TOOLS.has(tool.tool);
 	} catch {
-		return false
+		return false;
 	}
 }
 
 /**
  * Check if a message group is a tool group (array with _isToolGroup marker)
  */
-export function isToolGroup(item: ClineMessage | ClineMessage[]): item is ClineMessage[] & { _isToolGroup: true } {
-	return Array.isArray(item) && (item as any)._isToolGroup === true
+export function isToolGroup(
+	item: ClineMessage | ClineMessage[],
+): item is ClineMessage[] & { _isToolGroup: true } {
+	return Array.isArray(item) && (item as any)._isToolGroup === true;
 }
 
 /**
  * Combine API requests and command sequences in messages
  */
 export function processMessages(messages: ClineMessage[]): ClineMessage[] {
-	return combineApiRequests(combineCommandSequences(messages))
+	return combineApiRequests(combineCommandSequences(messages));
 }
 
 /**
  * Filter messages that should be visible in the chat
  */
-export function filterVisibleMessages(messages: ClineMessage[]): ClineMessage[] {
+export function filterVisibleMessages(
+	messages: ClineMessage[],
+): ClineMessage[] {
 	return messages.filter((message, index, arr) => {
 		switch (message.ask) {
 			case "completion_result":
 				// don't show a chat row for a completion_result ask without text. This specific type of message only occurs if cline wants to execute a command as part of its completion result, in which case we interject the completion_result tool with the execute_command tool.
 				if (message.text === "") {
-					return false
+					return false;
 				}
-				break
+				break;
 			case "api_req_failed": // this message is used to update the latest api_req_started that the request failed
 			case "resume_task":
 			case "resume_completed_task":
-				return false
+				return false;
 			case "use_subagents":
-				if (arr.slice(index + 1).some((candidate) => candidate.type === "say" && candidate.say === "subagent")) {
-					return false
+				if (
+					arr
+						.slice(index + 1)
+						.some(
+							(candidate) =>
+								candidate.type === "say" && candidate.say === "subagent",
+						)
+				) {
+					return false;
 				}
-				break
+				break;
 		}
 		switch (message.say) {
 			case "api_req_finished": // combineApiRequests removes this from modifiedMessages anyways
@@ -75,38 +97,48 @@ export function filterVisibleMessages(messages: ClineMessage[]): ClineMessage[] 
 			case "deleted_api_reqs": // aggregated api_req metrics from deleted messages
 			case "subagent_usage": // aggregated subagent usage metrics for task-level accounting
 			case "task_progress": // task progress messages are displayed in TaskHeader, not in main chat
-				return false
+				return false;
 			// NOTE: reasoning passes through to be included in tool groups
 			case "api_req_started": {
 				// api_req_started rows only render visible content for errors/cancels.
 				// Reasoning has its own standalone ChatRows. Everything else renders
 				// as invisible padding. Filter out unless there's an error.
 				try {
-					const info = JSON.parse(message.text || "{}")
+					const info = JSON.parse(message.text || "{}");
 					if (info.cancelReason || info.streamingFailedMessage) {
-						break // keep - has error content
+						break; // keep - has error content
 					}
 				} catch {
-					break // keep on parse error to be safe
+					break; // keep on parse error to be safe
 				}
-				return false
+				return false;
 			}
 			case "text":
 				// Sometimes cline returns an empty text message, we don't want to render these. (We also use a say text for user messages, so in case they just sent images we still render that)
-				if ((message.text ?? "") === "" && (message.images?.length ?? 0) === 0) {
-					return false
+				if (
+					(message.text ?? "") === "" &&
+					(message.images?.length ?? 0) === 0
+				) {
+					return false;
 				}
-				break
+				break;
 			case "mcp_server_request_started":
-				return false
+				return false;
 			case "use_subagents":
-				if (arr.slice(index + 1).some((candidate) => candidate.type === "say" && candidate.say === "subagent")) {
-					return false
+				if (
+					arr
+						.slice(index + 1)
+						.some(
+							(candidate) =>
+								candidate.type === "say" && candidate.say === "subagent",
+						)
+				) {
+					return false;
 				}
-				break
+				break;
 		}
-		return true
-	})
+		return true;
+	});
 }
 
 /**
@@ -114,7 +146,7 @@ export function filterVisibleMessages(messages: ClineMessage[]): ClineMessage[] 
  */
 export function isBrowserSessionMessage(message: ClineMessage): boolean {
 	if (message.type === "ask") {
-		return ["browser_action_launch"].includes(message.ask!)
+		return ["browser_action_launch"].includes(message.ask!);
 	}
 	if (message.type === "say") {
 		return [
@@ -126,90 +158,104 @@ export function isBrowserSessionMessage(message: ClineMessage): boolean {
 			"checkpoint_created",
 			"reasoning",
 			"error_retry",
-		].includes(message.say!)
+		].includes(message.say!);
 	}
-	return false
+	return false;
 }
 
 /**
  * Group messages, combining browser session messages into arrays
  */
-export function groupMessages(visibleMessages: ClineMessage[]): (ClineMessage | ClineMessage[])[] {
-	const result: (ClineMessage | ClineMessage[])[] = []
-	let currentGroup: ClineMessage[] = []
-	let isInBrowserSession = false
+export function groupMessages(
+	visibleMessages: ClineMessage[],
+): (ClineMessage | ClineMessage[])[] {
+	const result: (ClineMessage | ClineMessage[])[] = [];
+	let currentGroup: ClineMessage[] = [];
+	let isInBrowserSession = false;
 
 	const endBrowserSession = () => {
 		if (currentGroup.length > 0) {
-			result.push([...currentGroup])
-			currentGroup = []
-			isInBrowserSession = false
+			result.push([...currentGroup]);
+			currentGroup = [];
+			isInBrowserSession = false;
 		}
-	}
+	};
 
 	for (const message of visibleMessages) {
-		if (message.ask === "browser_action_launch" || message.say === "browser_action_launch") {
+		if (
+			message.ask === "browser_action_launch" ||
+			message.say === "browser_action_launch"
+		) {
 			// complete existing browser session if any
-			endBrowserSession()
+			endBrowserSession();
 			// start new
-			isInBrowserSession = true
-			currentGroup.push(message)
+			isInBrowserSession = true;
+			currentGroup.push(message);
 		} else if (isInBrowserSession) {
 			// end session if api_req_started is cancelled
 			if (message.say === "api_req_started") {
 				// get last api_req_started in currentGroup to check if it's cancelled
-				const lastApiReqStarted = [...currentGroup].reverse().find((m) => m.say === "api_req_started")
+				const lastApiReqStarted = [...currentGroup]
+					.reverse()
+					.find((m) => m.say === "api_req_started");
 				if (lastApiReqStarted?.text != null) {
-					const info = JSON.parse(lastApiReqStarted.text)
-					const isCancelled = info.cancelReason != null
+					const info = JSON.parse(lastApiReqStarted.text);
+					const isCancelled = info.cancelReason != null;
 					if (isCancelled) {
-						endBrowserSession()
-						result.push(message)
-						continue
+						endBrowserSession();
+						result.push(message);
+						continue;
 					}
 				}
 			}
 
 			if (isBrowserSessionMessage(message)) {
-				currentGroup.push(message)
+				currentGroup.push(message);
 
 				// Check if this is a close action
 				if (message.say === "browser_action") {
-					const browserAction = JSON.parse(message.text || "{}") as ClineSayBrowserAction
+					const browserAction = JSON.parse(
+						message.text || "{}",
+					) as ClineSayBrowserAction;
 					if (browserAction.action === "close") {
-						endBrowserSession()
+						endBrowserSession();
 					}
 				}
 			} else {
 				// complete existing browser session if any
-				endBrowserSession()
-				result.push(message)
+				endBrowserSession();
+				result.push(message);
 			}
 		} else {
-			result.push(message)
+			result.push(message);
 		}
 	}
 
 	// Handle case where browser session is the last group
 	if (currentGroup.length > 0) {
-		result.push([...currentGroup])
+		result.push([...currentGroup]);
 	}
 
-	return result
+	return result;
 }
 
 /**
  * Get the task message from the messages array
  */
-export function getTaskMessage(messages: ClineMessage[]): ClineMessage | undefined {
-	return messages.at(0)
+export function getTaskMessage(
+	messages: ClineMessage[],
+): ClineMessage | undefined {
+	return messages.at(0);
 }
 
 /**
  * Check if we should show the scroll to bottom button
  */
-export function shouldShowScrollButton(disableAutoScroll: boolean, isAtBottom: boolean): boolean {
-	return disableAutoScroll && !isAtBottom
+export function shouldShowScrollButton(
+	disableAutoScroll: boolean,
+	isAtBottom: boolean,
+): boolean {
+	return disableAutoScroll && !isAtBottom;
 }
 
 /**
@@ -220,35 +266,44 @@ export function findReasoningForApiReq(
 	apiReqTs: number,
 	allMessages: ClineMessage[],
 ): { reasoning: string | undefined; responseStarted: boolean } {
-	const apiReqIndex = allMessages.findIndex((m) => m.ts === apiReqTs && m.say === "api_req_started")
+	const apiReqIndex = allMessages.findIndex(
+		(m) => m.ts === apiReqTs && m.say === "api_req_started",
+	);
 	if (apiReqIndex === -1) {
-		return { reasoning: undefined, responseStarted: false }
+		return { reasoning: undefined, responseStarted: false };
 	}
 
 	// Collect reasoning and check if response content has started
-	const reasoningParts: string[] = []
-	let responseStarted = false
+	const reasoningParts: string[] = [];
+	let responseStarted = false;
 
 	for (let i = apiReqIndex + 1; i < allMessages.length; i++) {
-		const msg = allMessages[i]
+		const msg = allMessages[i];
 		// Stop at next api_req_started
 		if (msg.say === "api_req_started") {
-			break
+			break;
 		}
 		// Collect reasoning content
 		if (msg.say === "reasoning" && msg.text) {
-			reasoningParts.push(msg.text)
+			reasoningParts.push(msg.text);
 		}
 		// Check if non-reasoning response content has started (text, tool calls, etc.)
-		if (msg.say === "text" || msg.say === "tool" || msg.ask === "tool" || msg.ask === "command" || msg.say === "command") {
-			responseStarted = true
+		if (
+			msg.say === "text" ||
+			msg.say === "tool" ||
+			msg.ask === "tool" ||
+			msg.ask === "command" ||
+			msg.say === "command"
+		) {
+			responseStarted = true;
 		}
 	}
 
 	return {
-		reasoning: reasoningParts.length > 0 ? reasoningParts.join("\n\n") : undefined,
+		reasoning:
+			reasoningParts.length > 0 ? reasoningParts.join("\n\n") : undefined,
 		responseStarted,
-	}
+	};
 }
 
 /**
@@ -260,27 +315,29 @@ export function findApiReqInfoForCheckpoint(
 	checkpointTs: number,
 	allMessages: ClineMessage[],
 ): { cost: number | undefined; request: string | undefined } {
-	const checkpointIndex = allMessages.findIndex((m) => m.ts === checkpointTs && m.say === "checkpoint_created")
+	const checkpointIndex = allMessages.findIndex(
+		(m) => m.ts === checkpointTs && m.say === "checkpoint_created",
+	);
 	if (checkpointIndex === -1) {
-		return { cost: undefined, request: undefined }
+		return { cost: undefined, request: undefined };
 	}
 
 	// Look backwards for the most recent api_req_started
 	for (let i = checkpointIndex - 1; i >= 0; i--) {
-		const msg = allMessages[i]
+		const msg = allMessages[i];
 		if (msg.say === "api_req_started" && msg.text) {
 			try {
-				const info = JSON.parse(msg.text)
+				const info = JSON.parse(msg.text);
 				return {
 					cost: info.cost,
 					request: info.request,
-				}
+				};
 			} catch {
-				return { cost: undefined, request: undefined }
+				return { cost: undefined, request: undefined };
 			}
 		}
 	}
-	return { cost: undefined, request: undefined }
+	return { cost: undefined, request: undefined };
 }
 
 /**
@@ -288,33 +345,36 @@ export function findApiReqInfoForCheckpoint(
  * A checkpoint is absorbed if it's PRECEDED by low-stakes tools (meaning we're in a tool group).
  * A checkpoint is displayed if it's preceded by non-tool content (meaning no active tool group).
  */
-function isDisplayedCheckpoint(checkpointIndex: number, allMessages: ClineMessage[]): boolean {
+function isDisplayedCheckpoint(
+	checkpointIndex: number,
+	allMessages: ClineMessage[],
+): boolean {
 	// Look BACKWARDS to see if we're in a tool group
 	// A checkpoint is absorbed if the previous meaningful content was a low-stakes tool
 	for (let i = checkpointIndex - 1; i >= 0; i--) {
-		const msg = allMessages[i]
+		const msg = allMessages[i];
 
 		// Skip api_req messages - they don't affect tool group status
 		if (msg.say === "api_req_started" || msg.say === "api_req_finished") {
-			continue
+			continue;
 		}
 
 		// Skip reasoning messages
 		if (msg.say === "reasoning") {
-			continue
+			continue;
 		}
 
 		// Skip other checkpoints - they don't end tool groups
 		if (msg.say === "checkpoint_created") {
-			continue
+			continue;
 		}
 
 		// If preceded by a low-stakes tool, this checkpoint is in the tool group (absorbed)
 		if (msg.say === "tool" || msg.ask === "tool") {
 			try {
-				const tool = JSON.parse(msg.text || "{}") as ClineSayTool
+				const tool = JSON.parse(msg.text || "{}") as ClineSayTool;
 				if (LOW_STAKES_TOOLS.has(tool.tool)) {
-					return false // absorbed into tool group
+					return false; // absorbed into tool group
 				}
 			} catch {
 				// Can't parse, treat as displayed
@@ -322,11 +382,11 @@ function isDisplayedCheckpoint(checkpointIndex: number, allMessages: ClineMessag
 		}
 
 		// Any other content before this checkpoint ends the tool group, so this is displayed
-		return true
+		return true;
 	}
 
 	// Start of messages - checkpoint is displayed (no preceding tool group)
-	return true
+	return true;
 }
 
 /**
@@ -335,35 +395,43 @@ function isDisplayedCheckpoint(checkpointIndex: number, allMessages: ClineMessag
  * Sums all api_req_started costs in between.
  * Returns undefined if the segment is incomplete (no next displayed checkpoint yet).
  */
-export function findNextSegmentCost(checkpointTs: number, allMessages: ClineMessage[]): number | undefined {
-	const checkpointIndex = allMessages.findIndex((m) => m.ts === checkpointTs && m.say === "checkpoint_created")
+export function findNextSegmentCost(
+	checkpointTs: number,
+	allMessages: ClineMessage[],
+): number | undefined {
+	const checkpointIndex = allMessages.findIndex(
+		(m) => m.ts === checkpointTs && m.say === "checkpoint_created",
+	);
 	if (checkpointIndex === -1) {
-		return undefined
+		return undefined;
 	}
 	// Find the next DISPLAYED checkpoint (skip absorbed ones)
-	let nextDisplayedCheckpointIndex = -1
+	let nextDisplayedCheckpointIndex = -1;
 	for (let i = checkpointIndex + 1; i < allMessages.length; i++) {
 		if (allMessages[i].say === "checkpoint_created") {
 			if (isDisplayedCheckpoint(i, allMessages)) {
-				nextDisplayedCheckpointIndex = i
-				break
+				nextDisplayedCheckpointIndex = i;
+				break;
 			}
 			// Otherwise continue looking for next displayed checkpoint
 		}
 	}
 
 	// If no next displayed checkpoint, sum to end of messages (in-progress segment)
-	const endIndex = nextDisplayedCheckpointIndex === -1 ? allMessages.length : nextDisplayedCheckpointIndex
+	const endIndex =
+		nextDisplayedCheckpointIndex === -1
+			? allMessages.length
+			: nextDisplayedCheckpointIndex;
 
 	// Sum all api_req_started costs between this checkpoint and the end
-	let totalCost = 0
+	let totalCost = 0;
 	for (let i = checkpointIndex + 1; i < endIndex; i++) {
-		const msg = allMessages[i]
+		const msg = allMessages[i];
 		if (msg.say === "api_req_started" && msg.text) {
 			try {
-				const info = JSON.parse(msg.text)
+				const info = JSON.parse(msg.text);
 				if (typeof info.cost === "number") {
-					totalCost += info.cost
+					totalCost += info.cost;
 				}
 			} catch {
 				// ignore parse errors
@@ -371,34 +439,37 @@ export function findNextSegmentCost(checkpointTs: number, allMessages: ClineMess
 		}
 	}
 
-	return totalCost > 0 ? totalCost : undefined
+	return totalCost > 0 ? totalCost : undefined;
 }
 
 /**
  * Check if a text message's associated API request is still in progress.
  * Returns true if there's no cost yet on the parent api_req_started.
  */
-export function isTextMessagePendingToolCall(textTs: number, allMessages: ClineMessage[]): boolean {
+export function isTextMessagePendingToolCall(
+	textTs: number,
+	allMessages: ClineMessage[],
+): boolean {
 	// Find the api_req_started that precedes this text message
-	const textIndex = allMessages.findIndex((m) => m.ts === textTs)
+	const textIndex = allMessages.findIndex((m) => m.ts === textTs);
 	if (textIndex === -1) {
-		return false
+		return false;
 	}
 
 	// Look backwards for the most recent api_req_started
 	for (let i = textIndex - 1; i >= 0; i--) {
-		const msg = allMessages[i]
+		const msg = allMessages[i];
 		if (msg.say === "api_req_started" && msg.text) {
 			try {
-				const info = JSON.parse(msg.text)
+				const info = JSON.parse(msg.text);
 				// If no cost, the request is still in progress
-				return info.cost == null
+				return info.cost == null;
 			} catch {
-				return false
+				return false;
 			}
 		}
 	}
-	return false
+	return false;
 }
 
 /**
@@ -414,44 +485,49 @@ export function isTextMessagePendingToolCall(textTs: number, allMessages: ClineM
  * This mirrors the ChatRow currentActivities logic - we only hide tools that are
  * actively being shown in the loading state, not older tool groups.
  */
-export function isToolGroupInFlight(toolGroupMessages: ClineMessage[], allMessages: ClineMessage[]): boolean {
+export function isToolGroupInFlight(
+	toolGroupMessages: ClineMessage[],
+	allMessages: ClineMessage[],
+): boolean {
 	if (toolGroupMessages.length === 0) {
-		return false
+		return false;
 	}
 
 	// Step 1: Find the MOST RECENT api_req_started overall (search backwards)
-	let mostRecentApiReq: ClineMessage | null = null
-	let mostRecentApiReqIndex = -1
+	let mostRecentApiReq: ClineMessage | null = null;
+	let mostRecentApiReqIndex = -1;
 	for (let i = allMessages.length - 1; i >= 0; i--) {
 		if (allMessages[i].say === "api_req_started") {
-			mostRecentApiReq = allMessages[i]
-			mostRecentApiReqIndex = i
-			break
+			mostRecentApiReq = allMessages[i];
+			mostRecentApiReqIndex = i;
+			break;
 		}
 	}
 
 	if (!mostRecentApiReq?.text) {
-		return false
+		return false;
 	}
 
 	// Step 2: Determine if most recent api_req is complete (has cost) or incomplete (no cost)
-	let mostRecentHasCost = false
+	let mostRecentHasCost = false;
 	try {
-		const info = JSON.parse(mostRecentApiReq.text)
-		mostRecentHasCost = info.cost != null
+		const info = JSON.parse(mostRecentApiReq.text);
+		mostRecentHasCost = info.cost != null;
 	} catch {
-		return false
+		return false;
 	}
 
 	// Find the last tool in this group
-	const lastTool = [...toolGroupMessages].reverse().find((m) => isLowStakesTool(m))
+	const lastTool = [...toolGroupMessages]
+		.reverse()
+		.find((m) => isLowStakesTool(m));
 	if (!lastTool) {
-		return false
+		return false;
 	}
 
-	const toolIndex = allMessages.findIndex((m) => m.ts === lastTool.ts)
+	const toolIndex = allMessages.findIndex((m) => m.ts === lastTool.ts);
 	if (toolIndex === -1) {
-		return false
+		return false;
 	}
 
 	// Step 3: Determine if tool group is in-flight
@@ -460,15 +536,15 @@ export function isToolGroupInFlight(toolGroupMessages: ClineMessage[], allMessag
 		// Tool group is in-flight if it's between prev completed and current incomplete
 
 		// Find the previous COMPLETED api_req
-		let prevCompletedApiReqIndex = -1
+		let prevCompletedApiReqIndex = -1;
 		for (let i = mostRecentApiReqIndex - 1; i >= 0; i--) {
-			const msg = allMessages[i]
+			const msg = allMessages[i];
 			if (msg.say === "api_req_started" && msg.text) {
 				try {
-					const prevInfo = JSON.parse(msg.text)
+					const prevInfo = JSON.parse(msg.text);
 					if (prevInfo.cost != null) {
-						prevCompletedApiReqIndex = i
-						break
+						prevCompletedApiReqIndex = i;
+						break;
 					}
 				} catch {
 					/* continue searching */
@@ -478,15 +554,17 @@ export function isToolGroupInFlight(toolGroupMessages: ClineMessage[], allMessag
 
 		// If no previous completed api_req, there's no "current activities" range
 		if (prevCompletedApiReqIndex === -1) {
-			return false
+			return false;
 		}
 
 		// Tool group is in-flight if AFTER prevCompleted AND BEFORE current
-		return toolIndex > prevCompletedApiReqIndex && toolIndex < mostRecentApiReqIndex
+		return (
+			toolIndex > prevCompletedApiReqIndex && toolIndex < mostRecentApiReqIndex
+		);
 	}
 	// CASE B: Most recent api_req is COMPLETE (has cost)
 	// Tool group is in-flight if it appears AFTER this completed api_req (just arrived)
-	return toolIndex > mostRecentApiReqIndex
+	return toolIndex > mostRecentApiReqIndex;
 }
 
 /**
@@ -500,40 +578,43 @@ export function isToolGroupInFlight(toolGroupMessages: ClineMessage[], allMessag
  * - (Case A) Tools between a previous completed api_req and the current incomplete api_req
  * - (Case B) Tools after the most recent api_req overall (either because it's complete, or no loading state is active yet)
  */
-export function getToolsNotInCurrentActivities(toolGroupMessages: ClineMessage[], allMessages: ClineMessage[]): ClineMessage[] {
+export function getToolsNotInCurrentActivities(
+	toolGroupMessages: ClineMessage[],
+	allMessages: ClineMessage[],
+): ClineMessage[] {
 	// Build a Map of timestamp -> index for O(1) lookups instead of O(n) findIndex calls
-	const tsToIndex = new Map<number, number>()
+	const tsToIndex = new Map<number, number>();
 	for (let i = 0; i < allMessages.length; i++) {
-		tsToIndex.set(allMessages[i].ts, i)
+		tsToIndex.set(allMessages[i].ts, i);
 	}
 
 	// Step 1: Find the MOST RECENT api_req_started overall (search backwards)
-	let mostRecentApiReqIndex = -1
-	let mostRecentApiReq: ClineMessage | null = null
+	let mostRecentApiReqIndex = -1;
+	let mostRecentApiReq: ClineMessage | null = null;
 	for (let i = allMessages.length - 1; i >= 0; i--) {
 		if (allMessages[i].say === "api_req_started") {
-			mostRecentApiReqIndex = i
-			mostRecentApiReq = allMessages[i]
-			break
+			mostRecentApiReqIndex = i;
+			mostRecentApiReq = allMessages[i];
+			break;
 		}
 	}
 
 	if (mostRecentApiReqIndex === -1) {
 		// No api_req at all - show all tools
-		return toolGroupMessages
+		return toolGroupMessages;
 	}
 
 	if (!mostRecentApiReq?.text) {
-		return toolGroupMessages
+		return toolGroupMessages;
 	}
 
 	// Step 2: Determine if most recent api_req is complete (has cost) or incomplete (no cost)
-	let mostRecentHasCost = false
+	let mostRecentHasCost = false;
 	try {
-		const info = JSON.parse(mostRecentApiReq.text)
-		mostRecentHasCost = info.cost != null
+		const info = JSON.parse(mostRecentApiReq.text);
+		mostRecentHasCost = info.cost != null;
 	} catch {
-		return toolGroupMessages
+		return toolGroupMessages;
 	}
 
 	// Step 3: Determine which tools are "in current activities"
@@ -542,15 +623,15 @@ export function getToolsNotInCurrentActivities(toolGroupMessages: ClineMessage[]
 		// Tools are in-flight if they're between prev completed api_req and current incomplete one
 
 		// Find the previous COMPLETED api_req
-		let prevCompletedApiReqIndex = -1
+		let prevCompletedApiReqIndex = -1;
 		for (let i = mostRecentApiReqIndex - 1; i >= 0; i--) {
-			const msg = allMessages[i]
+			const msg = allMessages[i];
 			if (msg.say === "api_req_started" && msg.text) {
 				try {
-					const prevInfo = JSON.parse(msg.text)
+					const prevInfo = JSON.parse(msg.text);
 					if (prevInfo.cost != null) {
-						prevCompletedApiReqIndex = i
-						break
+						prevCompletedApiReqIndex = i;
+						break;
 					}
 				} catch {
 					/* continue searching */
@@ -560,32 +641,34 @@ export function getToolsNotInCurrentActivities(toolGroupMessages: ClineMessage[]
 
 		if (prevCompletedApiReqIndex === -1) {
 			// No previous completed api_req, so no tools are in the "current activities" range
-			return toolGroupMessages
+			return toolGroupMessages;
 		}
 
 		// Filter out tools in the range (prevCompleted, current)
 		return toolGroupMessages.filter((msg) => {
 			// Keep non-low-stakes tools
 			if (!isLowStakesTool(msg)) {
-				return true
+				return true;
 			}
 
 			// Filter out only tools awaiting approval (ask === 'tool')
 			// Completed tools (say === 'tool') should still be shown
 			if (msg.ask === "tool") {
-				const toolIndex = tsToIndex.get(msg.ts)
+				const toolIndex = tsToIndex.get(msg.ts);
 				if (toolIndex === undefined) {
-					return true
+					return true;
 				}
 				// Tool is in "current activities" range if AFTER prevCompleted AND BEFORE current
-				const isInCurrentActivitiesRange = toolIndex > prevCompletedApiReqIndex && toolIndex < mostRecentApiReqIndex
+				const isInCurrentActivitiesRange =
+					toolIndex > prevCompletedApiReqIndex &&
+					toolIndex < mostRecentApiReqIndex;
 				// Filter out if in current activities range
-				return !isInCurrentActivitiesRange
+				return !isInCurrentActivitiesRange;
 			}
 
 			// Keep completed tools (say === 'tool')
-			return true
-		})
+			return true;
+		});
 	}
 	// CASE B: Most recent api_req is COMPLETE (has cost)
 	// Tools that appear AFTER this completed api_req are "in flight" (just arrived)
@@ -594,25 +677,25 @@ export function getToolsNotInCurrentActivities(toolGroupMessages: ClineMessage[]
 	return toolGroupMessages.filter((msg) => {
 		// Keep non-low-stakes tools
 		if (!isLowStakesTool(msg)) {
-			return true
+			return true;
 		}
 
 		// Filter out only tools awaiting approval (ask === 'tool')
 		// Completed tools (say === 'tool') should still be shown
 		if (msg.ask === "tool") {
-			const toolIndex = tsToIndex.get(msg.ts)
+			const toolIndex = tsToIndex.get(msg.ts);
 			if (toolIndex === undefined) {
-				return true
+				return true;
 			}
 			// Tool is in "current activities" if it appears AFTER the most recent api_req
-			const isInCurrentActivitiesRange = toolIndex > mostRecentApiReqIndex
+			const isInCurrentActivitiesRange = toolIndex > mostRecentApiReqIndex;
 			// Filter out if in current activities range
-			return !isInCurrentActivitiesRange
+			return !isInCurrentActivitiesRange;
 		}
 
 		// Keep completed tools (say === 'tool')
-		return true
-	})
+		return true;
+	});
 }
 
 /**
@@ -626,50 +709,60 @@ export function getToolsNotInCurrentActivities(toolGroupMessages: ClineMessage[]
  * grouped messages. It is used at render time to avoid transient UI frames where
  * `api_req_started` briefly appears before grouping absorbs it.
  */
-export function isApiReqAbsorbable(apiReqTs: number, allMessages: ClineMessage[]): boolean {
-	const apiReqIndex = allMessages.findIndex((m) => m.ts === apiReqTs && m.say === "api_req_started")
+export function isApiReqAbsorbable(
+	apiReqTs: number,
+	allMessages: ClineMessage[],
+): boolean {
+	const apiReqIndex = allMessages.findIndex(
+		(m) => m.ts === apiReqTs && m.say === "api_req_started",
+	);
 	if (apiReqIndex === -1) {
-		return false
+		return false;
 	}
 
-	let hasLowStakesTool = false
-	let hasReasoning = false
+	let hasLowStakesTool = false;
+	let hasReasoning = false;
 	for (let i = apiReqIndex + 1; i < allMessages.length; i++) {
-		const msg = allMessages[i]
+		const msg = allMessages[i];
 		if (msg.say === "api_req_started") {
-			break
+			break;
 		}
 
 		// Reasoning - mark it but don't absorb if present
 		if (msg.say === "reasoning") {
-			hasReasoning = true
-			continue
+			hasReasoning = true;
+			continue;
 		}
 
 		// Checkpoints do not affect absorbability
 		if (msg.say === "checkpoint_created") {
-			continue
+			continue;
 		}
 
 		// Text is allowed (we still want to absorb api_req into the tool group)
 		if (msg.say === "text") {
-			continue
+			continue;
 		}
 
 		// Low-stakes tools mark absorbability
 		if (isLowStakesTool(msg)) {
-			hasLowStakesTool = true
-			continue
+			hasLowStakesTool = true;
+			continue;
 		}
 
 		// Any other tool/command is considered high-stakes; do not absorb
-		if (msg.say === "tool" || msg.ask === "tool" || msg.say === "command" || msg.ask === "command") {
-			return false
+		if (
+			msg.say === "tool" ||
+			msg.ask === "tool" ||
+			msg.say === "command" ||
+			msg.ask === "command"
+		) {
+			return false;
 		}
 	}
 
 	// Don't absorb if there's reasoning - we want to show "Thoughts >"
-	return hasLowStakesTool && !hasReasoning
+	return hasLowStakesTool && !hasReasoning;
 }
 
 /**
@@ -678,45 +771,53 @@ export function isApiReqAbsorbable(apiReqTs: number, allMessages: ClineMessage[]
  * If so, it should be absorbed into the tool group rather than rendered separately.
  * The key is: no HIGH-stakes tools (write, edit, command, etc.) AND no reasoning
  */
-function isApiReqFollowedOnlyByLowStakesTools(index: number, messages: (ClineMessage | ClineMessage[])[]): boolean {
-	let hasLowStakesTool = false
-	let hasReasoning = false
+function isApiReqFollowedOnlyByLowStakesTools(
+	index: number,
+	messages: (ClineMessage | ClineMessage[])[],
+): boolean {
+	let hasLowStakesTool = false;
+	let hasReasoning = false;
 	for (let i = index + 1; i < messages.length; i++) {
-		const item = messages[i]
+		const item = messages[i];
 		if (Array.isArray(item)) {
 			// Browser session - this ends the low-stakes run
-			break
+			break;
 		}
-		const msg = item
+		const msg = item;
 		// Another api_req_started - stop checking
 		if (msg.say === "api_req_started") {
-			break
+			break;
 		}
 		// Reasoning - mark it but don't absorb if present
 		if (msg.say === "reasoning") {
-			hasReasoning = true
-			continue
+			hasReasoning = true;
+			continue;
 		}
 		// Low-stakes tool - mark it
 		if (isLowStakesTool(msg)) {
-			hasLowStakesTool = true
-			continue
+			hasLowStakesTool = true;
+			continue;
 		}
 		// Checkpoint is OK
 		if (msg.say === "checkpoint_created") {
-			continue
+			continue;
 		}
 		// Text is OK - it will render separately, but we still absorb api_req
 		if (msg.say === "text") {
-			continue
+			continue;
 		}
 		// High-stakes tool (write, edit, command, etc.) - don't absorb
-		if (msg.say === "tool" || msg.ask === "tool" || msg.ask === "command" || msg.say === "command") {
-			return false
+		if (
+			msg.say === "tool" ||
+			msg.ask === "tool" ||
+			msg.ask === "command" ||
+			msg.say === "command"
+		) {
+			return false;
 		}
 	}
 	// Don't absorb if there's reasoning - we want to show "Thoughts >"
-	return hasLowStakesTool && !hasReasoning
+	return hasLowStakesTool && !hasReasoning;
 }
 
 /**
@@ -726,143 +827,150 @@ function isApiReqFollowedOnlyByLowStakesTools(index: number, messages: (ClineMes
  * Only creates tool groups when there's at least one actual tool - reasoning-only groups are dropped.
  * Should be called after groupMessages.
  */
-export function groupLowStakesTools(groupedMessages: (ClineMessage | ClineMessage[])[]): (ClineMessage | ClineMessage[])[] {
-	const result: (ClineMessage | ClineMessage[])[] = []
-	let toolGroup: ClineMessage[] = []
-	let pendingReasoning: ClineMessage[] = []
-	let pendingApiReq: ClineMessage[] = []
-	let hasTools = false
-	const pendingTools: ClineMessage[] = []
+export function groupLowStakesTools(
+	groupedMessages: (ClineMessage | ClineMessage[])[],
+): (ClineMessage | ClineMessage[])[] {
+	const result: (ClineMessage | ClineMessage[])[] = [];
+	let toolGroup: ClineMessage[] = [];
+	let pendingReasoning: ClineMessage[] = [];
+	let pendingApiReq: ClineMessage[] = [];
+	let hasTools = false;
+	const pendingTools: ClineMessage[] = [];
 
 	const flushPending = () => {
-		pendingApiReq.forEach((m) => result.push(m))
-		pendingReasoning.forEach((m) => result.push(m))
-		pendingApiReq = []
-		pendingReasoning = []
-	}
+		pendingApiReq.forEach((m) => result.push(m));
+		pendingReasoning.forEach((m) => result.push(m));
+		pendingApiReq = [];
+		pendingReasoning = [];
+	};
 
 	const commitToolGroup = () => {
 		if (toolGroup.length > 0 && hasTools) {
-			const group = toolGroup as ClineMessage[] & { _isToolGroup: boolean }
-			group._isToolGroup = true
-			result.push(group)
-			pendingReasoning = []
-			pendingApiReq = []
+			const group = toolGroup as ClineMessage[] & { _isToolGroup: boolean };
+			group._isToolGroup = true;
+			result.push(group);
+			pendingReasoning = [];
+			pendingApiReq = [];
 		}
-		toolGroup = []
-		hasTools = false
-	}
+		toolGroup = [];
+		hasTools = false;
+	};
 
 	const absorbPending = () => {
 		if (pendingApiReq.length > 0) {
-			toolGroup.push(...pendingApiReq)
-			pendingApiReq = []
+			toolGroup.push(...pendingApiReq);
+			pendingApiReq = [];
 		}
-	}
+	};
 
 	for (let i = 0; i < groupedMessages.length; i++) {
-		const item = groupedMessages[i]
+		const item = groupedMessages[i];
 
 		// Browser session group - commit current work and pass through
 		if (Array.isArray(item)) {
-			commitToolGroup()
-			flushPending()
-			result.push(item)
-			continue
+			commitToolGroup();
+			flushPending();
+			result.push(item);
+			continue;
 		}
 
-		const message = item
-		const messageType = message.say
-		const isLast = i === groupedMessages.length - 1
+		const message = item;
+		const messageType = message.say;
+		const isLast = i === groupedMessages.length - 1;
 
 		// Low-stakes tool - absorb pending and add to group
 		if (isLowStakesTool(message)) {
 			// Keep reasoning visible as its own row when it happens before a tool group.
 			// If we absorb it into the group, ToolGroupRenderer hides it entirely.
 			if (!hasTools && pendingReasoning.length > 0) {
-				flushPending()
+				flushPending();
 			}
-			absorbPending()
-			hasTools = true
-			toolGroup.push(message)
+			absorbPending();
+			hasTools = true;
+			toolGroup.push(message);
 			// If the streaming has stopped and the last message is still an ask,
 			// this means the tool requires user approval - show the old tool block UI.
 			if (message.type === "ask" && !message.partial && isLast) {
-				pendingTools.push(message)
+				pendingTools.push(message);
 			}
-			continue
+			continue;
 		}
 
 		// Reasoning - add to group if active, otherwise queue
 		if (messageType === "reasoning") {
 			if (hasTools) {
-				toolGroup.push(message)
+				toolGroup.push(message);
 			} else {
-				pendingReasoning.push(message)
+				pendingReasoning.push(message);
 			}
-			continue
+			continue;
 		}
 
 		// API request - absorb if followed by low-stakes tools, otherwise render
 		if (messageType === "api_req_started") {
 			if (isApiReqFollowedOnlyByLowStakesTools(i, groupedMessages)) {
-				absorbPending()
-				pendingApiReq.push(message)
+				absorbPending();
+				pendingApiReq.push(message);
 			} else {
-				commitToolGroup()
-				flushPending()
-				result.push(message)
+				commitToolGroup();
+				flushPending();
+				result.push(message);
 			}
-			continue
+			continue;
 		}
 
 		// Checkpoint - absorb into active tool group
 		if (messageType === "checkpoint_created" && hasTools) {
-			toolGroup.push(message)
-			continue
+			toolGroup.push(message);
+			continue;
 		}
 
-		// Text - once a tool group is active, ignore additional text so it
-		// doesn't continue mutating the text row rendered above the group.
+		// Text - once a tool group is active, commit the group and render the
+		// new text block below it. We must not simply drop the text, because it
+		// may contain meaningful content (e.g. a code review written just before
+		// attempt_completion). See https://github.com/cline/cline/issues/9719.
 		if (messageType === "text") {
 			if (hasTools) {
-				continue
+				commitToolGroup();
+				flushPending();
+				result.push(message);
+				continue;
 			}
-			flushPending()
-			result.push(message)
-			continue
+			flushPending();
+			result.push(message);
+			continue;
 		}
 
 		// Everything else - commit group, flush pending, and render
-		commitToolGroup()
-		flushPending()
-		result.push(message)
+		commitToolGroup();
+		flushPending();
+		result.push(message);
 	}
 
 	// Finalize any remaining work
-	commitToolGroup()
-	flushPending()
+	commitToolGroup();
+	flushPending();
 
 	if (pendingTools.length > 0) {
-		result.push(...pendingTools)
+		result.push(...pendingTools);
 	}
 
-	return result
+	return result;
 }
 
 export function getIconByToolName(toolName: string) {
 	switch (toolName) {
 		case "readFile":
-			return FileIcon
+			return FileIcon;
 		case "listFilesTopLevel":
-			return FolderOpenIcon
+			return FolderOpenIcon;
 		case "listFilesRecursive":
-			return FolderOpenDotIcon
+			return FolderOpenDotIcon;
 		case "searchFiles":
-			return SearchIcon
+			return SearchIcon;
 		case "listCodeDefinitionNames":
-			return ShapesIcon
+			return ShapesIcon;
 		default:
-			return WrenchIcon
+			return WrenchIcon;
 	}
 }
