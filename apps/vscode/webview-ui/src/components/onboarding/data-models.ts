@@ -73,22 +73,6 @@ export function getPriceRange(modelInfo: OpenRouterModelInfo): string {
 	return "$$"
 }
 
-export function getOverviewLabel(overview: number): string {
-	if (overview >= 95) {
-		return "Top Performer"
-	}
-	if (overview >= 80) {
-		return "Great"
-	}
-	if (overview >= 60) {
-		return "Good"
-	}
-	if (overview >= 50) {
-		return "Average"
-	}
-	return "Below Average"
-}
-
 export function getCapabilities(modelInfo: OpenRouterModelInfo): string[] {
 	const capabilities = new Set<string>()
 	if (modelInfo.supportsImages) {

@@ -8,7 +8,7 @@ import { Controller } from "../index"
 const activePartialMessageSubscriptions = new Set<StreamingResponseHandler<ClineMessage>>()
 
 // Keep track of callback-based subscriptions (for CLI and other non-gRPC consumers)
-export type PartialMessageCallback = (message: ClineMessage) => void
+type PartialMessageCallback = (message: ClineMessage) => void
 const callbackSubscriptions = new Set<PartialMessageCallback>()
 
 /**
@@ -35,18 +35,6 @@ export async function subscribeToPartialMessage(
 	// Register the cleanup function with the request registry if we have a requestId
 	if (requestId) {
 		getRequestRegistry().registerRequest(requestId, cleanup, { type: "partial_message_subscription" }, responseStream)
-	}
-}
-
-/**
- * Register a callback to receive partial message events (for CLI and non-gRPC consumers)
- * @param callback The callback function to receive messages
- * @returns A function to unsubscribe
- */
-export function registerPartialMessageCallback(callback: PartialMessageCallback): () => void {
-	callbackSubscriptions.add(callback)
-	return () => {
-		callbackSubscriptions.delete(callback)
 	}
 }
 

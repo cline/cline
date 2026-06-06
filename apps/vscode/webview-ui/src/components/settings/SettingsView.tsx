@@ -58,7 +58,7 @@ interface SettingsTab {
 	}) => boolean;
 }
 
-export const SETTINGS_TABS: SettingsTab[] = [
+const SETTINGS_TABS: SettingsTab[] = [
 	{
 		id: "api-config",
 		name: "API Configuration",

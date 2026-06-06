@@ -1,15 +1,14 @@
 // Map providers to their specific model ID keys
 
 import { getProviderCollectionSync } from "@cline/llms"
-import { Secrets, SettingsKey } from "@shared/storage/state-keys"
+import { SettingsKey } from "@shared/storage/state-keys"
 import { toSdkProviderId } from "@/sdk/model-catalog/sdk-provider-id"
 import { toLegacyApiProvider } from "@/shared/model-catalog/provider-helpers"
-import { type ApiProvider, clinePassDefaultModelId, liteLlmDefaultModelId, openRouterDefaultModelId, requestyDefaultModelId } from "../api"
+import { type ApiProvider, liteLlmDefaultModelId, openRouterDefaultModelId, requestyDefaultModelId } from "../api"
 
 const ProviderKeyMap: Partial<Record<ApiProvider, string>> = {
 	openrouter: "OpenRouterModelId",
 	cline: "ClineModelId",
-	"cline-pass": "ClinePassModelId",
 	openai: "OpenAiModelId",
 	ollama: "OllamaModelId",
 	lmstudio: "LmStudioModelId",
@@ -29,47 +28,6 @@ const ProviderKeyMap: Partial<Record<ApiProvider, string>> = {
 	"vercel-ai-gateway": "VercelAiGatewayModelId",
 } as const
 
-export const ProviderToApiKeyMap: Partial<Record<ApiProvider, keyof Secrets | (keyof Secrets)[]>> = {
-	cline: ["clineApiKey", "clineAccountId"],
-	"cline-pass": ["clineApiKey", "clineAccountId"],
-	anthropic: "apiKey",
-	openrouter: "openRouterApiKey",
-	bedrock: ["awsAccessKey", "awsBedrockApiKey"],
-	openai: "openAiApiKey",
-	gemini: "geminiApiKey",
-	"openai-native": "openAiNativeApiKey",
-	ollama: "ollamaApiKey",
-	requesty: "requestyApiKey",
-	together: "togetherApiKey",
-	deepseek: "deepSeekApiKey",
-	qwen: "qwenApiKey",
-	"qwen-code": "qwenApiKey",
-	doubao: "doubaoApiKey",
-	mistral: "mistralApiKey",
-	litellm: "liteLlmApiKey",
-	moonshot: "moonshotApiKey",
-	nebius: "nebiusApiKey",
-	fireworks: "fireworksApiKey",
-	asksage: "asksageApiKey",
-	xai: "xaiApiKey",
-	sambanova: "sambanovaApiKey",
-	cerebras: "cerebrasApiKey",
-	groq: "groqApiKey",
-	huggingface: "huggingFaceApiKey",
-	"huawei-cloud-maas": "huaweiCloudMaasApiKey",
-	dify: "difyApiKey",
-	baseten: "basetenApiKey",
-	"vercel-ai-gateway": "vercelAiGatewayApiKey",
-	zai: "zaiApiKey",
-	oca: "ocaApiKey",
-	aihubmix: "aihubmixApiKey",
-	minimax: "minimaxApiKey",
-	hicap: "hicapApiKey",
-	nousResearch: "nousResearchApiKey",
-	sapaicore: ["sapAiCoreClientId", "sapAiCoreClientSecret"],
-	wandb: "wandbApiKey",
-} as const
-
 /**
  * Provider ids whose "default model" is not the SDK-declared catalog
  * default but a stored-on-`ApiConfiguration` slot belonging to another
@@ -84,7 +42,6 @@ export const ProviderToApiKeyMap: Partial<Record<ApiProvider, keyof Secrets | (k
 const NON_SDK_PROVIDER_DEFAULTS: Partial<Record<ApiProvider, string>> = {
 	openrouter: openRouterDefaultModelId,
 	cline: openRouterDefaultModelId,
-	"cline-pass": clinePassDefaultModelId,
 	together: openRouterDefaultModelId,
 	aihubmix: openRouterDefaultModelId,
 	"vercel-ai-gateway": openRouterDefaultModelId,

@@ -27,7 +27,7 @@ interface MessageRendererProps {
  * Specialized component for rendering different message types
  * Handles browser sessions, regular messages, and checkpoint logic
  */
-export const MessageRenderer: React.FC<MessageRendererProps> = ({
+const MessageRenderer: React.FC<MessageRendererProps> = ({
 	index,
 	messageOrGroup,
 	groupedMessages,

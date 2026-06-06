@@ -1,4 +1,4 @@
-import { askSageDefaultURL, type ModelInfo } from "@shared/api"
+import { type ModelInfo } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 import { useEffect, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -17,6 +17,8 @@ interface AskSageProviderProps {
 	isPopup?: boolean
 	currentMode: Mode
 }
+
+const askSageDefaultURL = "https://api.asksage.ai/server"
 
 /**
  * The AskSage provider configuration component.

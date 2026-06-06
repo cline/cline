@@ -1,7 +1,7 @@
 import React from "react"
 import styled from "styled-components"
 
-export interface FeaturedModelCardProps {
+interface FeaturedModelCardProps {
 	modelId: string
 	description: string
 	onClick: () => void
