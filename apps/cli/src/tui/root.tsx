@@ -1,9 +1,4 @@
-import {
-	getCurrentContextSize,
-	readGlobalSettings,
-	setAutoUpdateEnabledGlobally,
-	summarizeUsageFromMessages,
-} from "@cline/core";
+import { getCurrentContextSize, summarizeUsageFromMessages } from "@cline/core";
 import type { Message } from "@cline/shared";
 import { formatDisplayUserInput, truncateStr } from "@cline/shared";
 import type { KeyEvent } from "@opentui/core";
@@ -94,9 +89,6 @@ function App(props: TuiProps) {
 	const [toast, setToast] = useState<ToastState | null>(null);
 	const [workflowSlashCommands, setWorkflowSlashCommands] = useState(
 		props.workflowSlashCommands,
-	);
-	const [autoUpdateEnabled, setAutoUpdateEnabled] = useState(
-		() => readGlobalSettings().autoUpdateEnabled,
 	);
 	const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const checkpointRestoreInFlightRef = useRef(false);
@@ -236,14 +228,6 @@ function App(props: TuiProps) {
 		compactionMode: session.compactionMode,
 		toggleMode,
 		toggleAutoApprove: () => session.toggleAutoApprove(),
-		autoUpdateEnabled,
-		toggleAutoUpdate: () => {
-			setAutoUpdateEnabled((previous) => {
-				const next = !previous;
-				setAutoUpdateEnabledGlobally(next);
-				return next;
-			});
-		},
 		setCompactionMode: session.setCompactionMode,
 		termHeight,
 		loadConfigData: props.loadConfigData,

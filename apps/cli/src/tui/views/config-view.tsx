@@ -1,3 +1,4 @@
+import { readGlobalSettings, setAutoUpdateEnabledGlobally } from "@cline/core";
 import { useTerminalDimensions } from "@opentui/react";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
@@ -141,8 +142,6 @@ export interface ConfigPanelProps extends ChoiceContext<ConfigAction> {
 	) => Promise<InteractiveConfigData | undefined>;
 	onToggleMode: () => void;
 	onToggleAutoApprove: () => void;
-	autoUpdateEnabled: boolean;
-	onToggleAutoUpdate: () => void;
 	onSetCompactionMode: (mode: CliCompactionMode) => void;
 }
 
@@ -371,7 +370,7 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 		config.toolPolicies["*"]?.autoApprove !== false,
 	);
 	const [autoUpdateEnabled, setAutoUpdateEnabled] = useState(
-		props.autoUpdateEnabled,
+		() => readGlobalSettings().autoUpdateEnabled,
 	);
 	const [verbose, setVerbose] = useState(config.verbose);
 	const [compactionMode, setCompactionMode] = useState(
@@ -591,8 +590,11 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 						props.onToggleAutoApprove();
 						break;
 					case "auto-update":
-						setAutoUpdateEnabled((previous) => !previous);
-						props.onToggleAutoUpdate();
+						setAutoUpdateEnabled((previous) => {
+							const next = !previous;
+							setAutoUpdateEnabledGlobally(next);
+							return next;
+						});
 						break;
 					case "compaction": {
 						const nextMode = getNextCliCompactionMode(compactionMode);

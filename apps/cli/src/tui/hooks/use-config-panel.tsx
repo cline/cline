@@ -30,8 +30,6 @@ export function useConfigPanel(opts: {
 	compactionMode: CliCompactionMode;
 	toggleMode: () => void;
 	toggleAutoApprove: () => void;
-	autoUpdateEnabled: boolean;
-	toggleAutoUpdate: () => void;
 	setCompactionMode: (mode: CliCompactionMode) => void;
 	termHeight: number;
 	loadConfigData: (
@@ -103,8 +101,6 @@ export function useConfigPanel(opts: {
 							onDeleteConfigItem={opts.onDeleteConfigItem}
 							onToggleMode={opts.toggleMode}
 							onToggleAutoApprove={opts.toggleAutoApprove}
-							autoUpdateEnabled={opts.autoUpdateEnabled}
-							onToggleAutoUpdate={opts.toggleAutoUpdate}
 							onSetCompactionMode={opts.setCompactionMode}
 						/>
 					),
