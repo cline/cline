@@ -140,12 +140,10 @@ Adding a new key to global state requires updates in multiple places. Missing an
 
 Required steps:
 1. Type definition in `src/shared/storage/state-keys.ts` - Add to `GlobalState` or `Settings` interface
-2. Read from globalState in `src/core/storage/utils/state-helpers.ts`:
-   - Add `const myKey = context.globalState.get<GlobalStateAndSettings["myKey"]>("myKey")` in `readGlobalStateFromDisk()`
-   - Add to the return object: `myKey: myKey ?? defaultValue,`
-3. StateManager handles read/write via `setGlobalState()`/`getGlobalStateKey()` after initialization
+2. Add any default value or transform in `src/shared/storage/state-keys.ts` if the key needs one
+3. Read and write the value through `StateManager` (`setGlobalState()` / `getGlobalStateKey()`) after initialization
 
-Common mistake: Adding only the return value without the `context.globalState.get()` call. This compiles but the value is always `undefined` on load.
+Persistent state is file-backed through `StateManager`; do not add new runtime reads or writes against VS Code `ExtensionContext` storage. That storage is only a legacy migration source.
 
 Settings plumbing gotcha: if a key is user-toggleable from settings, wire both controller update paths:
 - `src/core/controller/state/updateSettings.ts` for webview `updateSetting(...)`
@@ -159,22 +157,20 @@ Webview toggle gotcha: settings changes must also round-trip back in state paylo
 If this round-trip wiring is missing, the backend value can update but the toggle in webview appears stuck or reverts.
 
 ## StateManager Cache vs Direct globalState Access
-StateManager uses an in-memory cache populated during `StateManager.initialize(context)` in `common.ts`. For most state, use `controller.stateManager.setGlobalState()`/`getGlobalStateKey()`.
+StateManager uses an in-memory cache populated during `StateManager.initialize()` from file-backed storage. For most state, use `controller.stateManager.setGlobalState()`/`getGlobalStateKey()`.
 
-Exception: State needed immediately at extension startup (before cache is ready)
+Exception: host migration code may read legacy VS Code storage before file-backed storage is initialized.
 
-When Window A sets state and immediately opens Window B, the new window's StateManager cache is populated from `context.globalState` during initialization. If you need to read state in Window B right at startup (e.g., in `common.ts` during `initialize()`), read directly from `context.globalState.get()` instead of StateManager's cache.
-
-Example pattern (see `lastShownAnnouncementId` and `worktreeAutoOpenPath`):
+Example pattern:
 ```typescript
 // Writing (normal pattern)
 controller.stateManager.setGlobalState("myKey", value)
 
-// Reading at startup in common.ts (bypass cache)
-const value = context.globalState.get<string>("myKey")
+// Reading after initialization
+const value = controller.stateManager.getGlobalStateKey("myKey")
 ```
 
-This is only needed for cross-window state read during the brief startup window before StateManager cache is fully usable. Normal state access after initialization should use StateManager.
+Use `context.globalState` only in VS Code migration code that copies legacy ExtensionContext values into the shared file-backed stores.
 
 ## ChatRow Cancelled/Interrupted States
 When a ChatRow displays a loading/in-progress state (spinner), you must handle what happens when the task is cancelled. This is non-obvious because cancellation doesn't update the message content—you have to infer it from context.

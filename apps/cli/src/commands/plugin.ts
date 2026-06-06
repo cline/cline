@@ -12,7 +12,15 @@ import {
 } from "node:fs";
 import { cp, mkdir, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { basename, dirname, join, relative, resolve, sep } from "node:path";
+import {
+	basename,
+	dirname,
+	extname,
+	join,
+	relative,
+	resolve,
+	sep,
+} from "node:path";
 import { type PluginUninstallOptions, uninstallPlugin } from "@cline/core";
 import {
 	isPluginModulePath,
@@ -469,6 +477,25 @@ function getInstallSourceKey(
 	return `local:${resolve(cwd, resolveHomePath(parsed.path))}`;
 }
 
+function getWrapperPackageName(
+	parsed: ParsedPluginSource,
+	cwd: string,
+): string {
+	if (parsed.type === "npm") {
+		return parsed.name;
+	}
+	if (parsed.type === "git") {
+		return sanitizeSegment(basename(parsed.path));
+	}
+	if (parsed.type === "remote") {
+		return sanitizeSegment(basename(parsed.filename, extname(parsed.filename)));
+	}
+	if (parsed.type === "official") {
+		return parsed.slug;
+	}
+	return sanitizeSegment(basename(resolve(cwd, resolveHomePath(parsed.path))));
+}
+
 async function runCommand(
 	command: string,
 	args: string[],
@@ -665,6 +692,7 @@ function toWrapperEntryPaths(
 async function writeWrapperManifest(
 	wrapperRoot: string,
 	packageRoot: string,
+	packageName: string,
 ): Promise<string[]> {
 	const entryPaths = toWrapperEntryPaths(wrapperRoot, packageRoot);
 	await writeFile(
@@ -672,7 +700,7 @@ async function writeWrapperManifest(
 		JSON.stringify(
 			{
 				...WRAPPER_PACKAGE_JSON,
-				name: `cline-installed-plugin-${hashSource(wrapperRoot)}`,
+				name: packageName,
 				cline: {
 					plugins: [{ paths: entryPaths }],
 				},
@@ -988,6 +1016,7 @@ export async function installPlugin(
 	);
 	const sourceKey = getInstallSourceKey(parsed, cwd, officialPluginsRepo);
 	const installPath = getInstallPath(pluginRoot, parsed, sourceKey);
+	const wrapperPackageName = getWrapperPackageName(parsed, cwd);
 	const stagingParent = join(pluginRoot, INSTALLS_DIRECTORY_NAME, ".tmp");
 	const stagingRoot = join(
 		stagingParent,
@@ -1030,7 +1059,11 @@ export async function installPlugin(
 				? collectPluginEntries(stagingRoot).map(
 						(entry) => `./${toPosixPath(relative(stagingRoot, entry))}`,
 					)
-				: await writeWrapperManifest(stagingRoot, packageRoot);
+				: await writeWrapperManifest(
+						stagingRoot,
+						packageRoot,
+						wrapperPackageName,
+					);
 		if (entryPaths.length === 0) {
 			throw new Error(`No plugin entry files found for ${source}`);
 		}

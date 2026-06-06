@@ -493,7 +493,7 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		name: "Fireworks AI",
 		description: "High-performance inference platform",
 		family: "openai-compatible",
-		defaultModelId: "accounts/fireworks/models/minimax-m2p5",
+		defaultModelId: "accounts/fireworks/models/kimi-k2p6",
 		apiKeyEnv: ["FIREWORKS_API_KEY"],
 		defaults: { baseUrl: "https://api.fireworks.ai/inference/v1" },
 	},

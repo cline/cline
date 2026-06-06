@@ -1,5 +1,20 @@
 # Cline CLI Changelog
 
+## 3.0.20
+
+- Installed plugin wrappers are now named from their source (npm package name, git repo, remote filename, official slug, or local directory) instead of an opaque hash, making installed plugins easier to identify.
+
+## 3.0.19
+
+- Fixed CLI auto-update to use `npm update` so updates apply reliably, while preserving the installed release channel (e.g. nightly).
+
+## 3.0.18
+
+- Fix Slack channel mentions so replies post in the original message's thread.
+- Fix the abort indicator to clear immediately when a task is cancelled.
+- Sync the Fireworks AI model registry and refresh the bundled model catalog with current platform offerings.
+- Bump the bundled SDK to v0.0.43, which forces a running Cline Hub to restart so it picks up the latest SDK code.
+
 ## 3.0.17
 
 - Fix a regression introduced in 3.0.15 where the interactive CLI could get stuck after stopping and restarting Cline Hub and then pressing Escape to cancel a request. The CLI now detects stale or missing sessions, recovers any pending messages, and starts a fresh session instead of failing with "session not found".

@@ -2,6 +2,8 @@ export const E2E_REGISTERED_MOCK_ENDPOINTS = {
 	"/api/v1": {
 		GET: [
 			"/generation",
+			"/ai/cline/models",
+			"/ai/cline/recommended-models",
 			"/organizations/{orgId}/balance",
 			"/organizations/{orgId}/members/{memberId}/usages",
 			"/organizations/{orgId}/api-keys",
@@ -80,3 +82,65 @@ export const E2E_MOCK_API_RESPONSES = {
 	REPLACE_REQUEST: replace_in_file,
 	EDIT_REQUEST: edit_request,
 }
+
+export const E2E_MOCK_CLINE_RECOMMENDED_MODELS = {
+	free: [
+		{
+			id: "z-ai/glm-5",
+			name: "z-ai/glm-5",
+			description: "Free model for e2e onboarding",
+			tags: [],
+		},
+	],
+	recommended: [
+		{
+			id: "anthropic/claude-sonnet-4.6",
+			name: "anthropic/claude-sonnet-4.6",
+			description: "Recommended model for e2e onboarding",
+			tags: ["BEST"],
+		},
+	],
+}
+
+export const E2E_MOCK_CLINE_MODELS = [
+	{
+		id: "z-ai/glm-5",
+		name: "z-ai/glm-5",
+		description: "Free model for e2e onboarding",
+		context_length: 131_072,
+		top_provider: {
+			max_completion_tokens: 8_192,
+			context_length: 131_072,
+			is_moderated: false,
+		},
+		architecture: {
+			modality: "text->text",
+		},
+		pricing: {
+			prompt: "0",
+			completion: "0",
+		},
+		supported_parameters: [],
+	},
+	{
+		id: "anthropic/claude-sonnet-4.6",
+		name: "anthropic/claude-sonnet-4.6",
+		description: "Recommended model for e2e onboarding",
+		context_length: 200_000,
+		top_provider: {
+			max_completion_tokens: 64_000,
+			context_length: 200_000,
+			is_moderated: false,
+		},
+		architecture: {
+			modality: "text->text",
+		},
+		pricing: {
+			prompt: "0.000003",
+			completion: "0.000015",
+			input_cache_read: "0.0000003",
+			input_cache_write: "0.00000375",
+		},
+		supported_parameters: ["include_reasoning"],
+	},
+]
