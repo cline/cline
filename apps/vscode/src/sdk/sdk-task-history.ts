@@ -1,8 +1,10 @@
+import path from "node:path"
 import type { ClineCoreListHistoryOptions, SessionHistoryRecord } from "@cline/core"
 import type { Message as SdkMessage } from "@cline/llms"
 import { type ContentBlock, formatDisplayUserInput, type MessageWithMetadata } from "@cline/shared"
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
+import getFolderSize from "get-folder-size"
 import type { McpHub } from "@/services/mcp/McpHub"
 import type { TelemetryService } from "@/services/telemetry/TelemetryService"
 import { Logger } from "@/shared/services/Logger"
@@ -231,7 +233,7 @@ export function sessionHistoryRecordToHistoryItem(item: SessionHistoryRecord): H
 		cacheWrites: metadataNumber(metadata, "cacheWrites") ?? 0,
 		cacheReads: metadataNumber(metadata, "cacheReads") ?? 0,
 		totalCost: metadataNumber(metadata, "totalCost") ?? 0,
-		size: metadataNumber(metadata, "size") ?? 0,
+		size: metadataNumber(metadata, "size"),
 		isFavorited: metadataBoolean(metadata, "isFavorited") ?? metadataBoolean(metadata, "is_favorited") ?? false,
 		modelId: item.model || metadataString(metadata, "modelId") || "",
 		cwdOnTaskInitialization: item.cwd ?? item.workspaceRoot,
@@ -581,17 +583,19 @@ export class SdkTaskHistory {
 	private async updateSession(sessionId: string, item: HistoryItem): Promise<void> {
 		await this.withHistoryHost(async (host) => {
 			const existing = await host.get(sessionId)
-			const metadata = {
+			const metadata: Record<string, unknown> = {
 				...(existing?.metadata ?? {}),
 				title: item.task,
 				isFavorited: item.isFavorited ?? false,
-				size: item.size ?? 0,
 				totalCost: item.totalCost ?? 0,
 				tokensIn: item.tokensIn ?? 0,
 				tokensOut: item.tokensOut ?? 0,
 				cacheWrites: item.cacheWrites ?? 0,
 				cacheReads: item.cacheReads ?? 0,
 				modelId: item.modelId ?? existing?.model ?? "",
+			}
+			if (item.size !== undefined) {
+				metadata.size = item.size
 			}
 			await host.update(sessionId, {
 				prompt: item.task,
@@ -614,9 +618,18 @@ export class SdkTaskHistory {
 	}
 
 	async findHistoryItem(taskId: string): Promise<HistoryItem | undefined> {
-		const sdkRecord = await this.withHistoryHost((host) => host.get(taskId))
-		if (sdkRecord && sdkRecord.isSubagent !== true) {
-			return sessionHistoryRecordToHistoryItem(sdkRecord as SessionHistoryRecord)
+		const sdkHistoryItem = await this.withHistoryHost(async (host) => {
+			const sdkRecord = await host.get(taskId)
+			if (!sdkRecord || sdkRecord.isSubagent === true) {
+				return undefined
+			}
+
+			const historyItem = sessionHistoryRecordToHistoryItem(sdkRecord as SessionHistoryRecord)
+			historyItem.size = await this.getCachedTaskSize(host, sdkRecord as SessionHistoryRecord)
+			return historyItem
+		})
+		if (sdkHistoryItem) {
+			return sdkHistoryItem
 		}
 
 		const legacyItem = this.findLegacyTask(taskId)?.item
@@ -683,5 +696,52 @@ export class SdkTaskHistory {
 		historyItem.ts = Date.now()
 
 		await this.updateTaskHistoryItem(historyItem)
+	}
+
+	private async getCachedTaskSize(host: VscodeSessionHost, record: SessionHistoryRecord): Promise<number | undefined> {
+		// metadata.size is a display cache: fill it when absent, and let explicit item.size updates replace it.
+		const cachedSize = metadataNumber(record.metadata, "size")
+		if (cachedSize !== undefined && cachedSize >= 0) {
+			return cachedSize
+		}
+
+		const artifactSize = await this.getSessionArtifactSize(record)
+		if (artifactSize !== undefined) {
+			await this.cacheTaskSize(host, record, artifactSize)
+			return artifactSize
+		}
+
+		return undefined
+	}
+
+	private async getSessionArtifactSize(record: SessionHistoryRecord): Promise<number | undefined> {
+		const messagesPath = typeof record.messagesPath === "string" ? record.messagesPath.trim() : ""
+		if (!messagesPath) {
+			return undefined
+		}
+
+		try {
+			const size = await getFolderSize.loose(path.dirname(messagesPath), {
+				bigint: false,
+			})
+			return Number.isFinite(size) ? size : undefined
+		} catch (error) {
+			Logger.warn(`[SdkTaskHistory] Failed to calculate SDK session size: ${record.sessionId}`, error)
+			return undefined
+		}
+	}
+
+	private async cacheTaskSize(host: VscodeSessionHost, record: SessionHistoryRecord, size: number): Promise<void> {
+		if (!Number.isFinite(size) || size < 0 || metadataNumber(record.metadata, "size") === size) {
+			return
+		}
+
+		await host.update(record.sessionId, {
+			metadata: {
+				...(record.metadata ?? {}),
+				size,
+			},
+		})
+		this.invalidateMetadataHistoryCache()
 	}
 }
