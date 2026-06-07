@@ -5,7 +5,6 @@ import { useInterval } from "react-use"
 import UseCustomPromptCheckbox from "@/components/settings/UseCustomPromptCheckbox"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
-import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { DropdownContainer } from "../common/ModelSelector"
@@ -102,13 +101,19 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 				placeholder="Default: http://localhost:1234"
 			/>
 
-			<ApiKeyField
-				helpText="Optional API key for authenticated LM Studio servers. Leave empty for local servers without authentication."
-				initialValue={apiConfiguration?.lmStudioApiKey || ""}
-				onChange={(value) => handleFieldChange("lmStudioApiKey", value)}
-				placeholder="Enter API Key (optional)..."
-				providerName="LM Studio"
-			/>
+			<div>
+				<DebouncedTextField
+					initialValue={apiConfiguration?.lmStudioApiKey || ""}
+					onChange={(value) => handleFieldChange("lmStudioApiKey", value)}
+					placeholder="Enter API Key (optional)..."
+					style={{ width: "100%" }}
+					type="password">
+					<span style={{ fontWeight: 500 }}>LM Studio API Key</span>
+				</DebouncedTextField>
+				<p style={{ fontSize: "12px", marginTop: 3, color: "var(--vscode-descriptionForeground)" }}>
+					Optional API key for authenticated LM Studio servers. Leave empty for local servers without authentication.
+				</p>
+			</div>
 
 			<div className="font-semibold">Model</div>
 			{lmStudioModels.length > 0 ? (
