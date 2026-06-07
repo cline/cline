@@ -19,6 +19,7 @@ import {
 	readHubDiscovery,
 	resolveHubBuildId,
 } from "../discovery";
+import type { HubEndpointOverrides } from "../discovery/defaults";
 import { resolveSharedHubOwnerContext } from "../discovery/workspace";
 
 type PendingReply = {
@@ -51,6 +52,15 @@ function getWebSocketCtor(): WebSocketCtor {
 		);
 	}
 	return ctor;
+}
+
+function resolveManagedDetachedHubSpawnEndpoint():
+	| HubEndpointOverrides
+	| undefined {
+	if (process.env.CLINE_HUB_PORT?.trim()) {
+		return undefined;
+	}
+	return { port: 0 };
 }
 
 function decodeSocketData(data: unknown): string {
@@ -1005,7 +1015,17 @@ export async function ensureCompatibleLocalHubUrl(
 		return undefined;
 	}
 	const owner = resolveSharedHubOwnerContext();
-	await spawnDetachedHubServerWithRetry(options.workspaceRoot ?? process.cwd());
+	const spawnEndpoint = resolveManagedDetachedHubSpawnEndpoint();
+	if (spawnEndpoint) {
+		await spawnDetachedHubServerWithRetry(
+			options.workspaceRoot ?? process.cwd(),
+			spawnEndpoint,
+		);
+	} else {
+		await spawnDetachedHubServerWithRetry(
+			options.workspaceRoot ?? process.cwd(),
+		);
+	}
 	return await waitForCompatibleHubUrl(owner);
 }
 
