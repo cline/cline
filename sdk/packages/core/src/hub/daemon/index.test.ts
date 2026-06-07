@@ -101,16 +101,21 @@ describe("ensureDetachedHubServer", () => {
 		}
 	});
 
-	it("starts the daemon on the resolved default hub port", async () => {
+	it("lets the daemon bind port 0 when the default endpoint is occupied", async () => {
 		readHubDiscovery.mockResolvedValueOnce(undefined).mockResolvedValueOnce({
-			url: "ws://127.0.0.1:25463/hub",
+			url: "ws://127.0.0.1:5555/hub",
 			buildId: "current-build",
 			authToken: "new-token",
 		});
-		probeHubServer.mockResolvedValueOnce(undefined).mockResolvedValueOnce({
-			url: "ws://127.0.0.1:25463/hub",
-			buildId: "current-build",
-		});
+		probeHubServer
+			.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				buildId: "current-build",
+			})
+			.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:5555/hub",
+				buildId: "current-build",
+			});
 		verifyHubConnection.mockResolvedValueOnce(true);
 
 		const { ensureDetachedHubServer } = await import(".");
@@ -123,13 +128,40 @@ describe("ensureDetachedHubServer", () => {
 			| undefined;
 
 		expect(result).toEqual({
-			url: "ws://127.0.0.1:25463/hub",
+			url: "ws://127.0.0.1:5555/hub",
 			authToken: "new-token",
 		});
 		expect(spawn).toHaveBeenCalledOnce();
 		expect(spawnArgs).toContain("--port");
-		expect(spawnArgs).toContain("25463");
+		expect(spawnArgs).toContain("0");
 		expect(spawnOptions?.env?.[CLINE_RUN_AS_HUB_DAEMON_ENV]).toBe("1");
+	});
+
+	it("keeps an explicit detached hub port fixed", async () => {
+		readHubDiscovery.mockResolvedValueOnce(undefined).mockResolvedValueOnce({
+			url: "ws://127.0.0.1:31000/hub",
+			buildId: "current-build",
+			authToken: "new-token",
+		});
+		probeHubServer.mockResolvedValueOnce(undefined).mockResolvedValueOnce({
+			url: "ws://127.0.0.1:31000/hub",
+			buildId: "current-build",
+		});
+		verifyHubConnection.mockResolvedValueOnce(true);
+
+		const { ensureDetachedHubServer } = await import(".");
+		const result = await ensureDetachedHubServer("/workspace", { port: 31000 });
+		const spawnCalls = (spawn as unknown as { mock: { calls: unknown[][] } })
+			.mock.calls;
+		const spawnArgs = spawnCalls[0]?.[1] as string[] | undefined;
+
+		expect(result).toEqual({
+			url: "ws://127.0.0.1:31000/hub",
+			authToken: "new-token",
+		});
+		expect(spawn).toHaveBeenCalledOnce();
+		expect(spawnArgs).toContain("--port");
+		expect(spawnArgs).toContain("31000");
 	});
 
 	it("retries a transient ETXTBSY spawn failure while starting the detached daemon", async () => {
