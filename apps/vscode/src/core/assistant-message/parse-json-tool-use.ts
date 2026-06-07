@@ -206,7 +206,9 @@ export function findJsonToolSpans(message: string): JsonToolSpan[] {
 		if (ch === "`" && message.startsWith("```", i)) {
 			const fenceEnd = message.indexOf("```", i + 3)
 			if (fenceEnd === -1) {
-				break
+				// Unclosed fence during streaming — skip opener and keep scanning for bare JSON.
+				i += 3
+				continue
 			}
 			const headerEnd = message.indexOf("\n", i + 3)
 			const contentStart = headerEnd === -1 || headerEnd > fenceEnd ? i + 3 : headerEnd + 1

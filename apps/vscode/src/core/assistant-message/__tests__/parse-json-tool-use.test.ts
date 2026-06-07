@@ -85,6 +85,16 @@ describe("parseAssistantMessageV2 JSON fallback", () => {
 		expect(textContent).to.not.include("```")
 	})
 
+	it("parses tool JSON when the opening markdown fence is not closed yet", () => {
+		const message = '```json\n{"name":"read_file","arguments":{"path":"unclosed-fence.ts"}}'
+
+		const tools = toolUses(parseAssistantMessageV2(message))
+
+		expect(tools).to.have.length(1)
+		expect(tools[0].name).to.equal("read_file")
+		expect(tools[0].params.path).to.equal("unclosed-fence.ts")
+	})
+
 	it("does not treat nested tool-shaped JSON inside a larger object as a tool call", () => {
 		const message = '{"example":{"name":"read_file","arguments":{"path":"nested.ts"}}}'
 
@@ -218,6 +228,17 @@ describe("stripJsonToolPayloadsFromDisplayText", () => {
 describe("findJsonToolSpans", () => {
 	it("returns no spans for prose without JSON tools", () => {
 		expect(findJsonToolSpans("Hello, no tools here.")).to.deep.equal([])
+	})
+
+	it("continues scanning after an unclosed markdown fence", () => {
+		const message =
+			'```json\n{"name":"read_file","arguments":{"path":"a.ts"}}\n{"name":"list_files","arguments":{"path":"src"}}'
+
+		const spans = findJsonToolSpans(message)
+
+		expect(spans).to.have.length(2)
+		expect(spans[0].tools[0].name).to.equal("read_file")
+		expect(spans[1].tools[0].name).to.equal("list_files")
 	})
 
 	it("finds span boundaries for a complete object", () => {
