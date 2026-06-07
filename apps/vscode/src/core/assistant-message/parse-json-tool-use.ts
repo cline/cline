@@ -207,8 +207,8 @@ export function findJsonToolSpans(message: string): JsonToolSpan[] {
 				if (innerSpan) {
 					spans.push({
 						tools: innerSpan.tools,
-						start: contentStart,
-						end: fenceEnd,
+						start: i,
+						end: fenceEnd + 3,
 					})
 				}
 			}
@@ -351,8 +351,7 @@ function stripTrailingPartialJsonDisplayPayload(text: string): string {
 		return text
 	}
 
-	const trimOffset = text.length - trimmedEnd.length
-	return text.slice(0, trimOffset + cutIndex).trimEnd()
+	return text.slice(0, cutIndex).trimEnd()
 }
 
 /**

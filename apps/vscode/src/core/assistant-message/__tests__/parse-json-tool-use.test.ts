@@ -73,11 +73,16 @@ describe("parseAssistantMessageV2 JSON fallback", () => {
 \`\`\`
 `
 
-		const tools = toolUses(parseAssistantMessageV2(message))
+		const blocks = parseAssistantMessageV2(message)
+		const tools = toolUses(blocks)
 
 		expect(tools).to.have.length(1)
 		expect(tools[0].params.path).to.equal("bar.ts")
 		expect(tools[0].params.content).to.equal("hello")
+
+		const textBlocks = blocks.filter((b) => b.type === "text")
+		const textContent = textBlocks.map((b) => (b.type === "text" ? b.content : "")).join("")
+		expect(textContent).to.not.include("```")
 	})
 
 	it("ignores invalid tool names and leaves content as text", () => {
@@ -150,6 +155,12 @@ describe("parseAssistantMessageV2 JSON fallback", () => {
 })
 
 describe("stripJsonToolPayloadsFromDisplayText", () => {
+	it("removes fenced JSON tool blocks including fence markers from display text", () => {
+		const text = `Here is the call:\n\`\`\`json\n{"name":"read_file","arguments":{"path":"a.ts"}}\n\`\`\``
+
+		expect(stripJsonToolPayloadsFromDisplayText(text)).to.equal("Here is the call:")
+	})
+
 	it("removes a complete JSON tool object from display text", () => {
 		const json = '{"name":"read_file","arguments":{"path":"hello_test.py"}}'
 		const text = `I will read the file.\n${json}\nThanks.`
@@ -159,6 +170,12 @@ describe("stripJsonToolPayloadsFromDisplayText", () => {
 
 	it("removes trailing incomplete JSON during streaming", () => {
 		const text = 'Working on it {"name":"read_file","arguments":{"path":"hello_test.py"'
+
+		expect(stripJsonToolPayloadsFromDisplayText(text)).to.equal("Working on it")
+	})
+
+	it("removes trailing incomplete JSON when text ends with whitespace", () => {
+		const text = 'Working on it {"name":"read_file","arguments":{"path":"hello_test.py"\n'
 
 		expect(stripJsonToolPayloadsFromDisplayText(text)).to.equal("Working on it")
 	})
