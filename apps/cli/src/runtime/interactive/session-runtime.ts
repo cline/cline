@@ -83,11 +83,21 @@ export function createInteractiveSessionRuntime(input: {
 	let pendingResumeSessionId = input.resumeSessionId?.trim() || undefined;
 
 	const clearActiveSession = (): void => {
+		unsubscribeAgent();
+		unsubscribeAgent = () => {};
 		activeSessionId = "";
 		setActiveCliSession(undefined);
 	};
 
 	const applyStartedSession = (started: StartedSession): void => {
+		if (sessionManager) {
+			unsubscribeAgent();
+			unsubscribeAgent = subscribeToAgentEvents(
+				sessionManager,
+				input.onAgentEvent,
+				{ sessionId: started.sessionId },
+			);
+		}
 		setActiveCliSession({
 			manifest: started.manifest,
 		});
@@ -140,7 +150,6 @@ export function createInteractiveSessionRuntime(input: {
 				await manager.ingestHookEvent(payload);
 			},
 		});
-		unsubscribeAgent = subscribeToAgentEvents(manager, input.onAgentEvent);
 		unsubscribePendingPrompts = subscribeToPendingPromptEvents(manager, {
 			onPendingPrompts: input.onPendingPrompts,
 			onPendingPromptSubmitted: input.onPendingPromptSubmitted,

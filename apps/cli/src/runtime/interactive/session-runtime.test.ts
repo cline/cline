@@ -16,11 +16,15 @@ const {
 	mockCreateRuntimeHooks,
 	mockLoadInteractiveResumeMessages,
 	mockSetActiveCliSession,
+	mockSubscribeToAgentEvents,
+	mockSubscribeToPendingPromptEvents,
 } = vi.hoisted(() => ({
 	mockCreateCliCore: vi.fn(),
 	mockCreateRuntimeHooks: vi.fn(),
 	mockLoadInteractiveResumeMessages: vi.fn(),
 	mockSetActiveCliSession: vi.fn(),
+	mockSubscribeToAgentEvents: vi.fn(() => vi.fn()),
+	mockSubscribeToPendingPromptEvents: vi.fn(() => vi.fn()),
 }));
 
 vi.mock("../../session/session", () => ({
@@ -48,8 +52,8 @@ vi.mock("../active-runtime", () => ({
 }));
 
 vi.mock("../session-events", () => ({
-	subscribeToAgentEvents: vi.fn(() => vi.fn()),
-	subscribeToPendingPromptEvents: vi.fn(() => vi.fn()),
+	subscribeToAgentEvents: mockSubscribeToAgentEvents,
+	subscribeToPendingPromptEvents: mockSubscribeToPendingPromptEvents,
 }));
 
 import { createInteractiveSessionRuntime } from "./session-runtime";
@@ -203,6 +207,19 @@ describe("createInteractiveSessionRuntime", () => {
 
 		expect(manager.start).toHaveBeenCalledTimes(2);
 		expect(runtime.getActiveSessionId()).toBe("session-2");
+	});
+
+	it("subscribes agent events to the active interactive session only", async () => {
+		const manager = makeManager();
+		const runtime = makeRuntime(manager);
+
+		await runtime.ensureReady();
+
+		expect(mockSubscribeToAgentEvents).toHaveBeenCalledWith(
+			manager,
+			expect.any(Function),
+			{ sessionId: "session-1" },
+		);
 	});
 
 	it("starts fresh after resetting an initially resumed session", async () => {
