@@ -46,7 +46,7 @@ import {
 	type ConnectorBindingStore,
 	type ConnectorThreadState,
 	clearBindingSessionIds,
-	findBindingForParticipantKey,
+	findBindingForDeliveryTarget,
 	findBindingForThread,
 	loadThreadState,
 	persistMergedThreadState,
@@ -191,20 +191,20 @@ async function deliverScheduledResult(input: {
 	const threadId =
 		typeof delivery.threadId === "string" ? delivery.threadId.trim() : "";
 	const bindingKey =
-		typeof delivery.bindingKey === "string"
-			? delivery.bindingKey.trim()
-			: typeof delivery.participantKey === "string"
-				? delivery.participantKey.trim()
-				: "";
-	if (!threadId && !bindingKey) {
+		typeof delivery.bindingKey === "string" ? delivery.bindingKey.trim() : "";
+	const participantKey =
+		typeof delivery.participantKey === "string"
+			? delivery.participantKey.trim()
+			: "";
+	if (!threadId && !bindingKey && !participantKey) {
 		return;
 	}
 	const bindings = readBindings<GoogleChatThreadState>(input.bindingsPath);
-	const match = bindingKey
-		? findBindingForParticipantKey(bindings, bindingKey)
-		: threadId
-			? { key: threadId, binding: bindings[threadId] }
-			: undefined;
+	const match = findBindingForDeliveryTarget(bindings, {
+		bindingKey,
+		threadId,
+		participantKey,
+	});
 	const binding = match?.binding;
 	if (!binding?.serializedThread) {
 		return;
@@ -590,9 +590,7 @@ class GoogleChatConnector extends ConnectorBase<
 			thread: Thread<GoogleChatThreadState>,
 			text: string,
 		) => {
-			const queueKey =
-				(await loadThreadState(thread, bindingsPath, startRequest))
-					.participantKey || thread.id;
+			const queueKey = thread.id;
 			const runTurn = async () => {
 				try {
 					await handleConnectorUserTurn({
