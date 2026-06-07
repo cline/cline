@@ -1234,7 +1234,7 @@ export class McpHub {
 		try {
 			const config = JSON.parse(connection.server.config)
 			if (config.timeout !== undefined && typeof config.timeout === "number") {
-				return secondsToMs(config.timeout)
+				return secondsToMs(Math.max(config.timeout, MIN_MCP_TIMEOUT_SECONDS))
 			}
 		} catch (error) {
 			Logger.error(`Failed to parse timeout configuration for server ${connection.server.name}: ${error}`)
