@@ -127,25 +127,18 @@ export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: Ollam
 
 			<span className="font-semibold">Thinking mode</span>
 			<VSCodeDropdown
+				id="ollama-provider-thinking"
 				value={String(apiConfiguration?.ollamaThinking ?? "")}
 				onChange={(e: any) => {
-					const lookup: Record<string, boolean | "high" | "medium" | "low" | undefined> = {
-						"":       undefined,
-						"true":   true,
-						"false":  false,
-						"high":   "high",
-						"medium": "medium",
-						"low":    "low",
-					}
-					handleFieldChange("ollamaThinking", lookup[e.target.value] ?? undefined)
+					handleFieldChange("ollamaThinking", e.target.value)
 				}}
 				style={{ width: "100%" }}>
-				<VSCodeOption value="">Default (unset)</VSCodeOption>
-				<VSCodeOption value="true">Enabled</VSCodeOption>
-				<VSCodeOption value="false">Disabled</VSCodeOption>
-				<VSCodeOption value="high">High (for gpt-oss)</VSCodeOption>
-				<VSCodeOption value="medium">Medium (for gpt-oss)</VSCodeOption>
-				<VSCodeOption value="low">Low (for gpt-oss)</VSCodeOption>
+				<VSCodeOption key="" value="">Default (unset)</VSCodeOption>
+				<VSCodeOption key="true" value="true">Enabled</VSCodeOption>
+				<VSCodeOption key="false" value="false">Disabled</VSCodeOption>
+				<VSCodeOption key="high" value="high">High (for gpt-oss)</VSCodeOption>
+				<VSCodeOption key="medium" value="medium">Medium (for gpt-oss)</VSCodeOption>
+				<VSCodeOption key="low" value="low">Low (for gpt-oss)</VSCodeOption>
 			</VSCodeDropdown>
 
 			<p
@@ -154,7 +147,7 @@ export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: Ollam
 					marginTop: "5px",
 					color: "var(--vscode-descriptionForeground)",
 				}}>
-				Thinking mode of the selected Model
+				Thinking mode of the selected model
 			</p>
 
 			<UseCustomPromptCheckbox providerId="ollama" />

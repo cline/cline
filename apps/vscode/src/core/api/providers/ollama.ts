@@ -16,7 +16,7 @@ interface OllamaHandlerOptions extends CommonApiHandlerOptions {
 	ollamaApiKey?: string
 	ollamaModelId?: string
 	ollamaApiOptionsCtxNum?: string
-	ollamaThinking?: boolean | 'high' | 'medium' | 'low' | undefined
+	ollamaThinking?: string
 	requestTimeoutMs?: number
 }
 
@@ -69,12 +69,21 @@ export class OllamaHandler implements ApiHandler {
 				setTimeout(() => reject(new Error(`Ollama request timed out after ${timeoutMs / 1000} seconds`)), timeoutMs)
 			})
 
+			const lookup: Record<string, boolean | "high" | "medium" | "low" | undefined> = {
+				"":       undefined,
+				"true":   true,
+				"false":  false,
+				"high":   "high",
+				"medium": "medium",
+				"low":    "low",
+			}
+
 			// Create the actual API request promise
 			const apiPromise = client.chat({
 				model: this.getModel().id,
 				messages: ollamaMessages,
 				stream: true,
-				...(this.options.ollamaThinking !== undefined && { think: this.options.ollamaThinking }),
+				...(this.options.ollamaThinking !== undefined && { think: lookup[this.options.ollamaThinking] }),
 				options: {
 					num_ctx: Number(this.options.ollamaApiOptionsCtxNum),
 				},
