@@ -8,6 +8,7 @@ import type {
 	TeamProgressProjectionEvent,
 } from "@cline/shared";
 import type { CheckpointEntry } from "../../hooks/checkpoint-hooks";
+import { isSessionNotFoundError } from "../../runtime/host/runtime-host";
 import { NodeHubClient } from "../client";
 
 type ScheduleClientRecord = Record<string, unknown> & {
@@ -135,6 +136,13 @@ function normalizeFailedRunPayload(
 	return cloned;
 }
 
+function payloadSessionId(
+	payload: Record<string, unknown> | undefined,
+): string | undefined {
+	const value = payload?.sessionId;
+	return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
 function extractCheckpoint(
 	payload: Record<string, unknown> | undefined,
 ): CheckpointEntry {
@@ -158,6 +166,22 @@ function extractCheckpoint(
 }
 
 function mapHubEvent(event: HubEventEnvelope): HubStreamEvent | undefined {
+	const payload = cloneRecord(event.payload);
+	if (event.event === "schedule.execution_completed") {
+		return {
+			sessionId: event.sessionId?.trim() || payloadSessionId(payload) || "",
+			eventType: "schedule.execution.completed",
+			payload,
+		};
+	}
+	if (event.event === "schedule.execution_failed") {
+		return {
+			sessionId: event.sessionId?.trim() || payloadSessionId(payload) || "",
+			eventType: "schedule.execution.failed",
+			payload,
+		};
+	}
+
 	const sessionId = event.sessionId?.trim();
 	if (!sessionId) {
 		return undefined;
@@ -167,49 +191,49 @@ function mapHubEvent(event: HubEventEnvelope): HubStreamEvent | undefined {
 			return {
 				sessionId,
 				eventType: "runtime.chat.iteration_start",
-				payload: cloneRecord(event.payload),
+				payload,
 			};
 		case "iteration.finished":
 			return {
 				sessionId,
 				eventType: "runtime.chat.iteration_end",
-				payload: cloneRecord(event.payload),
+				payload,
 			};
 		case "assistant.delta":
 			return {
 				sessionId,
 				eventType: "runtime.chat.text_delta",
-				payload: cloneRecord(event.payload),
+				payload,
 			};
 		case "usage.updated":
 			return {
 				sessionId,
 				eventType: "runtime.chat.usage",
-				payload: cloneRecord(event.payload),
+				payload,
 			};
 		case "tool.started":
 			return {
 				sessionId,
 				eventType: "runtime.chat.tool_call_start",
-				payload: cloneRecord(event.payload),
+				payload,
 			};
 		case "tool.finished":
 			return {
 				sessionId,
 				eventType: "runtime.chat.tool_call_end",
-				payload: cloneRecord(event.payload),
+				payload,
 			};
 		case "approval.requested":
 			return {
 				sessionId,
 				eventType: "approval.requested",
-				payload: cloneRecord(event.payload),
+				payload,
 			};
 		case "run.aborted":
 			return {
 				sessionId,
 				eventType: "runtime.chat.aborted",
-				payload: cloneRecord(event.payload),
+				payload,
 			};
 		case "run.failed":
 			return {
@@ -221,7 +245,7 @@ function mapHubEvent(event: HubEventEnvelope): HubStreamEvent | undefined {
 			return {
 				sessionId,
 				eventType: "runtime.chat.completed",
-				payload: cloneRecord(event.payload),
+				payload,
 			};
 		default:
 			return undefined;
@@ -391,11 +415,15 @@ export class HubSessionClient {
 
 	async getSession(sessionId: string): Promise<HubSessionRow | undefined> {
 		await this.ensureMetadataApplied();
-		const reply = await this.client.command(
-			"session.get",
-			undefined,
-			sessionId,
-		);
+		let reply: Awaited<ReturnType<NodeHubClient["command"]>>;
+		try {
+			reply = await this.client.command("session.get", undefined, sessionId);
+		} catch (error) {
+			if (isSessionNotFoundError(error)) {
+				return undefined;
+			}
+			throw error;
+		}
 		return extractSessionRow(reply.payload);
 	}
 

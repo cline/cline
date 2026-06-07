@@ -36,24 +36,24 @@ jobs:
               with:
                   filters: |
                       e2e:
-                          - 'src/**'
-                          - 'webview-ui/**'
-                          - 'proto/**'
-                          - 'tests/**'
-                          - 'scripts/**'
-                          - 'standalone/**'
-                          - 'assets/**'
-                          - 'walkthrough/**'
-                          - 'package.json'
-                          - 'package-lock.json'
-                          - 'buf.yaml'
-                          - 'tsconfig*.json'
-                          - 'biome.jsonc'
-                          - 'esbuild.mjs'
-                          - '.mocharc.json'
-                          - '.vscode-test.mjs'
-                          - '.vscodeignore'
-                          - 'playwright*.ts'
+                          - 'apps/vscode/src/**'
+                          - 'apps/vscode/webview-ui/**'
+                          - 'apps/vscode/proto/**'
+                          - 'apps/vscode/tests/**'
+                          - 'apps/vscode/scripts/**'
+                          - 'apps/vscode/standalone/**'
+                          - 'apps/vscode/assets/**'
+                          - 'apps/vscode/walkthrough/**'
+                          - 'apps/vscode/package.json'
+                          - 'apps/vscode/package-lock.json'
+                          - 'apps/vscode/buf.yaml'
+                          - 'apps/vscode/tsconfig*.json'
+                          - 'apps/vscode/biome.jsonc'
+                          - 'apps/vscode/esbuild.mjs'
+                          - 'apps/vscode/.mocharc.json'
+                          - 'apps/vscode/.vscode-test.mjs'
+                          - 'apps/vscode/.vscodeignore'
+                          - 'apps/vscode/playwright*.ts'
                           - '.github/workflows/ext-vscode-test-e2e.yml'
 
     matrix_prep:
@@ -79,6 +79,9 @@ jobs:
         permissions:
             id-token: write
             contents: read
+        defaults:
+            run:
+                working-directory: apps/vscode
         steps:
             - uses: actions/checkout@v4
             - name: Setup Node.js environment
@@ -91,24 +94,24 @@ jobs:
               uses: actions/cache@v4
               id: root-cache
               with:
-                  path: node_modules
-                  key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
+                  path: apps/vscode/node_modules
+                  key: ${{ runner.os }}-npm-${{ hashFiles('apps/vscode/package-lock.json') }}
 
             # Cache webview-ui dependencies - only reuse if package-lock.json exactly matches
             - name: Cache webview-ui dependencies
               uses: actions/cache@v4
               id: webview-cache
               with:
-                  path: webview-ui/node_modules
-                  key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
+                  path: apps/vscode/webview-ui/node_modules
+                  key: ${{ runner.os }}-npm-webview-${{ hashFiles('apps/vscode/webview-ui/package-lock.json') }}
 
             # Cache VS Code installation
             - name: Cache VS Code
               uses: actions/cache@v4
               id: vscode-cache
               with:
-                  path: .vscode-test
-                  key: vscode-${{ runner.os }}-stable-${{ hashFiles('.vscode-test.mjs', 'package.json') }}
+                  path: apps/vscode/.vscode-test
+                  key: vscode-${{ runner.os }}-stable-${{ hashFiles('apps/vscode/.vscode-test.mjs', 'apps/vscode/package.json') }}
                   restore-keys: |
                       vscode-${{ runner.os }}-stable-
 
@@ -121,17 +124,19 @@ jobs:
                       ~/.cache/ms-playwright
                       ~/Library/Caches/ms-playwright
                       ~/AppData/Local/ms-playwright
-                  key: playwright-browsers-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+                  key: playwright-browsers-${{ runner.os }}-${{ hashFiles('apps/vscode/package-lock.json') }}
                   restore-keys: |
                       playwright-browsers-${{ runner.os }}-
 
-            - name: Install root dependencies
-              run: npm ci
+            - name: Install extension dependencies
+              working-directory: ${{ github.workspace }}
+              run: npm --prefix apps/vscode ci
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Install webview-ui dependencies
-              run: cd webview-ui && npm ci
+              working-directory: ${{ github.workspace }}
+              run: npm --prefix apps/vscode/webview-ui ci
 
             - name: Install vsce
               run: npm install -g @vscode/vsce

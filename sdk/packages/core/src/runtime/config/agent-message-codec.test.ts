@@ -11,6 +11,7 @@ describe("agent message codec", () => {
 				{
 					type: "tool_result",
 					tool_use_id: "toolu_1",
+					name: "run_commands",
 					content: "tool output",
 				},
 				{
@@ -25,7 +26,7 @@ describe("agent message codec", () => {
 			{
 				type: "tool-result",
 				toolCallId: "toolu_1",
-				toolName: "",
+				toolName: "run_commands",
 				output: "tool output",
 				isError: undefined,
 			},
@@ -51,6 +52,7 @@ describe("agent message codec", () => {
 				{
 					type: "tool_result",
 					tool_use_id: "toolu_2",
+					name: "read_files",
 					content: "tool output",
 				},
 			],
@@ -62,6 +64,7 @@ describe("agent message codec", () => {
 			expect.objectContaining({
 				type: "tool-result",
 				toolCallId: "toolu_2",
+				toolName: "read_files",
 			}),
 		]);
 	});

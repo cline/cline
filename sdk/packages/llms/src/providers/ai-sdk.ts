@@ -857,6 +857,12 @@ async function createProviderModule(
 			const { createDifyProviderModule } = await import("./vendors/community");
 			return createDifyProviderModule(config);
 		}
+		case "sapaicore": {
+			const { createSapAiCoreProviderModule } = await import(
+				"./vendors/community"
+			);
+			return createSapAiCoreProviderModule(config);
+		}
 	}
 }
 
@@ -888,7 +894,9 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					...(useSystemOption ? { system: systemPrompt } : {}),
 					tools: tools as never,
 					temperature: request.temperature,
-					maxOutputTokens: request.maxTokens,
+					...(request.maxTokens !== undefined
+						? { maxOutputTokens: request.maxTokens }
+						: {}),
 					abortSignal: request.signal,
 					experimental_telemetry: {
 						isEnabled: langfuse,
@@ -992,3 +1000,4 @@ export const createClaudeCodeProvider = createAiSdkProvider("claude-code");
 export const createOpenAICodexProvider = createAiSdkProvider("openai-codex");
 export const createOpenCodeProvider = createAiSdkProvider("opencode");
 export const createDifyProvider = createAiSdkProvider("dify");
+export const createSapAiCoreProvider = createAiSdkProvider("sapaicore");

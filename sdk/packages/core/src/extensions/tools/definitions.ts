@@ -6,18 +6,21 @@
 
 import {
 	type AgentTool,
+	type AgentToolContext,
 	createTool,
 	validateWithZod,
 	zodToJsonSchema,
 } from "@cline/shared";
+import { captureRunCommandsTimeout } from "../../services/telemetry/core-events";
+import { getToolContextTelemetry } from "../../services/telemetry/tool-context";
 import {
 	formatError,
 	formatReadFileQuery,
 	formatRunCommandQuery,
 	getEditorSizeError,
 	getReadFileRangeError,
-	normalizeReadFileRequests,
 	normalizeRunCommandsInput,
+	TimeoutError,
 	withTimeout,
 } from "./helpers";
 import {
@@ -30,8 +33,10 @@ import {
 	EditFileInputSchema,
 	type FetchWebContentInput,
 	FetchWebContentInputSchema,
+	type ReadFileRequest,
 	type ReadFilesInput,
 	ReadFilesInputSchema,
+	ReadFilesInputUnionSchema,
 	type RunCommandsInput,
 	RunCommandsInputSchema,
 	RunCommandsInputUnionSchema,
@@ -64,6 +69,41 @@ import type {
 // Helper Functions
 // =============================================================================
 
+function getStringMetadata(
+	context: AgentToolContext,
+	key: string,
+): string | undefined {
+	const value = context.metadata?.[key];
+	return typeof value === "string" ? value : undefined;
+}
+
+function captureRunCommandsTimeoutFromContext(
+	context: AgentToolContext,
+	properties: {
+		effectiveTimeoutMs: number;
+		timeoutSource: "default_setting" | "configured_setting";
+		commandCount: number;
+		durationMs: number;
+	},
+): void {
+	captureRunCommandsTimeout(getToolContextTelemetry(context.metadata), {
+		tool_name: "run_commands",
+		effective_timeout_ms: properties.effectiveTimeoutMs,
+		timeout_source: properties.timeoutSource,
+		command_count: properties.commandCount,
+		duration_ms: properties.durationMs,
+		ulid: context.sessionId,
+		mode: getStringMetadata(context, "mode"),
+		source: getStringMetadata(context, "source"),
+		session_id: context.sessionId,
+		agent_id: context.agentId,
+		conversation_id: context.conversationId,
+		run_id: context.runId,
+		iteration: context.iteration,
+		tool_call_id: context.toolCallId,
+	});
+}
+
 // =============================================================================
 // AgentTool Factory Functions
 // =============================================================================
@@ -90,7 +130,36 @@ export function createReadFilesTool(
 		retryable: true,
 		maxRetries: 1,
 		execute: async (input, context) => {
-			const requests = normalizeReadFileRequests(input);
+			const validate = validateWithZod(ReadFilesInputUnionSchema, input);
+			let requests: ReadFileRequest[];
+			if (typeof validate === "string") {
+				requests = [{ path: validate }];
+			} else if (Array.isArray(validate)) {
+				requests = validate.map((value) =>
+					typeof value === "string" ? { path: value } : value,
+				);
+			} else if ("files" in validate) {
+				const files = Array.isArray(validate.files)
+					? validate.files
+					: [validate.files];
+				requests = files.map((file) =>
+					typeof file === "string" ? { path: file } : file,
+				);
+			} else if ("file_paths" in validate) {
+				const filePaths = Array.isArray(validate.file_paths)
+					? validate.file_paths
+					: [validate.file_paths];
+				requests = filePaths.map((path) => ({ path }));
+			} else if ("paths" in validate) {
+				const paths = Array.isArray(validate.paths)
+					? validate.paths
+					: [validate.paths];
+				requests = paths.map((path) =>
+					typeof path === "string" ? { path } : path,
+				);
+			} else {
+				requests = [validate];
+			}
 
 			return Promise.all(
 				requests.map(async (request): Promise<ToolOperationResult> => {
@@ -204,6 +273,10 @@ export function createBashTool(
 	config: Pick<DefaultToolsConfig, "cwd" | "bashTimeoutMs"> = {},
 ): AgentTool<RunCommandsInput, ToolOperationResult[]> {
 	const timeoutMs = config.bashTimeoutMs ?? 30000;
+	const timeoutSource =
+		config.bashTimeoutMs === undefined
+			? "default_setting"
+			: "configured_setting";
 	const cwd = config.cwd ?? process.cwd();
 
 	return createTool<RunCommandsInput, ToolOperationResult[]>({
@@ -236,6 +309,7 @@ export function createBashTool(
 
 			return Promise.all(
 				commands.map(async (command: string): Promise<ToolOperationResult> => {
+					const startedAt = Date.now();
 					try {
 						const output = await withTimeout(
 							executor(command, cwd, context),
@@ -248,6 +322,14 @@ export function createBashTool(
 							success: true,
 						};
 					} catch (error) {
+						if (error instanceof TimeoutError) {
+							captureRunCommandsTimeoutFromContext(context, {
+								effectiveTimeoutMs: error.timeoutMs,
+								timeoutSource,
+								commandCount: commands.length,
+								durationMs: Date.now() - startedAt,
+							});
+						}
 						const msg = formatError(error);
 						return {
 							query: command,
@@ -272,6 +354,10 @@ export function createWindowsShellTool(
 	config: Pick<DefaultToolsConfig, "cwd" | "bashTimeoutMs"> = {},
 ): AgentTool<StructuredCommandInput, ToolOperationResult[]> {
 	const timeoutMs = config.bashTimeoutMs ?? 30000;
+	const timeoutSource =
+		config.bashTimeoutMs === undefined
+			? "default_setting"
+			: "configured_setting";
 	const cwd = config.cwd ?? process.cwd();
 
 	return createTool<StructuredCommandInput, ToolOperationResult[]>({
@@ -289,6 +375,7 @@ export function createWindowsShellTool(
 
 			return Promise.all(
 				commands.map(async (command): Promise<ToolOperationResult> => {
+					const startedAt = Date.now();
 					try {
 						const output = await withTimeout(
 							executor(command, cwd, context),
@@ -301,6 +388,14 @@ export function createWindowsShellTool(
 							success: true,
 						};
 					} catch (error) {
+						if (error instanceof TimeoutError) {
+							captureRunCommandsTimeoutFromContext(context, {
+								effectiveTimeoutMs: error.timeoutMs,
+								timeoutSource,
+								commandCount: commands.length,
+								durationMs: Date.now() - startedAt,
+							});
+						}
 						const msg = formatError(error);
 						return {
 							query: formatRunCommandQuery(command),

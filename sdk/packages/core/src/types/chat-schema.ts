@@ -22,6 +22,7 @@ export const ChatSessionStatusSchema = z.enum([
 	"idle",
 	"starting",
 	"running",
+	"pending",
 	"stopping",
 	"completed",
 	"cancelled",

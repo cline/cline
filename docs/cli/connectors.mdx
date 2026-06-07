@@ -21,8 +21,8 @@ cline connect
 
 | Platform | Direct Command | Required Credentials |
 |----------|---------------|---------------------|
-| Telegram | `cline connect telegram` | Bot username, bot token |
-| Slack | `cline connect slack` | Bot token, signing secret, base URL |
+| Telegram | `cline connect telegram` | Bot token |
+| Slack | `cline connect slack` | Bot token plus webhook signing secret/base URL or socket app token |
 | Discord | `cline connect discord` | Application ID, bot token, public key, base URL |
 | Google Chat | `cline connect gchat` | Service account credentials JSON, base URL |
 | WhatsApp | `cline connect whatsapp` | Phone number ID, access token, app secret, verify token, base URL |
@@ -41,8 +41,10 @@ cline connect
 
   <Step title="Start the connector">
     ```bash
-    cline connect telegram -m <BOT-USERNAME> -k <BOT-TOKEN>
+    cline connect telegram -k <BOT-TOKEN>
     ```
+
+    The connector discovers the bot username from the token. Use `--bot-username` only if you need to override it.
   </Step>
 
   <Step title="Chat with your bot">
@@ -52,41 +54,169 @@ cline connect
 
 ### Security
 
-By default, anyone who finds your bot can message it and it will execute tasks on your machine. Lock it down with the `--hook-command` flag.
+By default, anyone who finds your bot can message it and it will execute tasks on your machine. The `cline connect` wizard asks whether to restrict Telegram access and can configure this for you.
 
 <Steps>
   <Step title="Get your Telegram user ID">
-    Message [@userinfobot](https://t.me/userinfobot) on Telegram. It replies with your user ID immediately.
+    Message [@userinfobot](https://t.me/userinfobot) on Telegram. It replies with your numeric user ID immediately.
   </Step>
 
-  <Step title="Start with access control">
-    Replace `12345` with your actual Telegram user ID:
+  <Step title="Use the wizard">
+    ```bash
+    cline connect
+    ```
+
+    Choose Telegram, enter the bot token, answer yes to access restriction, then enter your user ID.
+  </Step>
+
+  <Step title="Or pass the flag manually">
+    Replace `12345` with your Telegram user ID:
 
     ```bash
-    cline connect telegram -m <BOT-USERNAME> -k <BOT-TOKEN> \
-      --hook-command 'jq -r ".payload.actor.participantKey" | grep -q "telegram:id:12345" && echo "{\"action\":\"allow\"}" || echo "{\"action\":\"deny\",\"message\":\"unauthorized\"}"'
+    cline connect telegram -k <BOT-TOKEN> \
+      --allowed-user-id 12345
     ```
   </Step>
 </Steps>
 
-The `--hook-command` receives each incoming message with sender info via stdin. Your script returns `{"action": "allow"}` or `{"action": "deny", "message": "reason"}`. Without `--hook-command`, everything is auto-approved.
+Use `--hook-command` only when you need custom access logic. The hook receives each incoming message with sender info via stdin. Your script returns `{"action": "allow"}` or `{"action": "deny", "message": "reason"}`. Without `--allowed-user-id` or `--hook-command`, everything is auto-approved, so restrict Telegram bots that can reach a running Cline instance.
 
 ## Slack
 
-Requires a bot token, signing secret, and public base URL.
+Slack supports webhook mode and socket mode. Each Slack thread maps to an agent session, so the agent maintains conversation context within a thread.
+
+Webhook mode requires a bot token, signing secret, and public base URL:
 
 ```bash
-cline connect slack --token <BOT-TOKEN> --signing-secret <SECRET> --base-url <URL>
+cline connect slack \
+  --bot-token <BOT-TOKEN> \
+  --signing-secret <SECRET> \
+  --base-url <URL>
 ```
 
-Each Slack thread maps to an agent session, so the agent maintains conversation context within a thread.
+Configure the Slack app's event subscription and interactivity request URLs to `<URL>/api/webhooks/slack`.
+
+Socket mode requires a bot token and an app-level token with the `connections:write` scope:
+
+```bash
+cline connect slack \
+  --bot-token <BOT-TOKEN> \
+  --app-token <APP-LEVEL-TOKEN>
+```
+
+Enable Socket Mode in the Slack app. Socket mode does not need a public request URL and is single-workspace only.
 
 ## Discord
 
-Requires an application ID, bot token, public key, and public base URL.
+Requires a Discord application ID, bot token, public key, and public base URL.
+The connector listens for Discord interactions at `/api/webhooks/discord` and
+also starts a Discord gateway listener for mentions, replies, reactions, and DMs.
+
+<Steps>
+  <Step title="Create a Discord application and bot">
+    Open [Discord Developer Portal](https://discord.com/developers/applications)
+    and create an application.
+
+    1. In **General Information**, copy the **Application ID** and **Public Key**.
+    2. In **Bot**, create a bot if one does not exist, then reset and copy the bot token.
+    3. Enable **Message Content Intent** if you want normal messages, replies, and DMs to include text content.
+  </Step>
+
+  <Step title="Expose a public base URL">
+    For local development, use a tunnel such as ngrok:
+
+    ```bash
+    ngrok http 8788
+    ```
+
+    Copy the HTTPS forwarding URL. This is your connector base URL, for example
+    `https://1234-5678.ngrok-free.app`.
+  </Step>
+
+  <Step title="Start the connector">
+    ```bash
+    cline connect discord \
+      --application-id <ID> \
+      --bot-token <TOKEN> \
+      --public-key <KEY> \
+      --base-url <URL> \
+      --port 8788 \
+      --cwd /path/to/repo \
+      --enable-tools
+    ```
+
+    `--app-id` is an alias for `--application-id`, and `--token` is an alias for
+    `--bot-token`.
+
+    `--enable-tools` allows the agent to inspect files, run commands, edit code,
+    and prepare PRs from Discord. Omit it if the bot should only chat.
+  </Step>
+
+  <Step title="Configure the Discord interactions endpoint">
+    In the Discord Developer Portal, set **Interactions Endpoint URL** to:
+
+    ```text
+    <base-url>/api/webhooks/discord
+    ```
+
+    For example:
+
+    ```text
+    https://1234-5678.ngrok-free.app/api/webhooks/discord
+    ```
+
+    You can verify the connector is reachable with:
+
+    ```bash
+    curl <base-url>/health
+    ```
+  </Step>
+
+  <Step title="Invite the bot to a test server">
+    In **OAuth2 > URL Generator**, select the `bot` and
+    `applications.commands` scopes, then give the bot permission to send
+    messages and read message history. Open the generated URL and install the bot
+    into your test server.
+  </Step>
+
+  <Step title="Chat with the bot">
+    Mention the bot in a server channel, reply in a bot-created thread, or DM the
+    bot. Each Discord conversation keeps its own agent session and context.
+  </Step>
+</Steps>
+
+### Discord Command Reference
+
+Send these commands in Discord:
+
+| Command | Description |
+|---------|-------------|
+| `/help` or `/start` | Show connector help |
+| `/new` or `/clear` | Start a fresh session for this Discord conversation |
+| `/whereami` | Show thread, channel, DM state, `cwd`, `workspaceRoot`, tools, and yolo state |
+| `/tools [on\|off\|toggle]` | View or change whether repo/file/shell tools are allowed |
+| `/yolo [on\|off\|toggle]` | View or change automatic tool approval |
+| `/cwd [path]` | View or change the working directory for this conversation |
+| `/schedule create/list/trigger/delete` | Manage scheduled workflows targeting this conversation |
+| `/abort` | Stop the current task |
+| `/exit` | Stop the connector |
+
+Normal messages are treated as agent tasks. If a task is already running, normal
+messages steer the active task.
+
+### Discord Security
+
+By default, anyone who can reach the bot can ask it to run tasks. Restrict access
+with `--hook-command`. The hook receives the Discord user as a participant key
+such as `discord:user:123456789`.
 
 ```bash
-cline connect discord --app-id <ID> --token <TOKEN> --public-key <KEY> --base-url <URL>
+cline connect discord \
+  --application-id <ID> \
+  --bot-token <TOKEN> \
+  --public-key <KEY> \
+  --base-url <URL> \
+  --hook-command 'jq -r ".payload.actor.participantKey" | grep -q "discord:user:123456789" && echo "{\"action\":\"allow\"}" || echo "{\"action\":\"deny\",\"message\":\"unauthorized\"}"'
 ```
 
 ## Google Chat
@@ -147,10 +277,10 @@ Multiple connectors can run simultaneously. They all share the same hub:
 
 ```bash
 # Terminal 1
-cline connect telegram -m my_bot -k $TELEGRAM_TOKEN
+cline connect telegram -k $TELEGRAM_TOKEN
 
 # Terminal 2
-cline connect slack --token $SLACK_TOKEN --signing-secret $SECRET --base-url $URL
+cline connect slack --bot-token $SLACK_TOKEN --signing-secret $SECRET --base-url $URL
 ```
 
 Connectors require the hub. Start it with `cline hub start` if it doesn't auto-start.

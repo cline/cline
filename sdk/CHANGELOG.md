@@ -1,0 +1,25 @@
+# Cline SDK Changelog
+
+## 0.0.43
+
+- Added the Cline Hub web app for managing and monitoring agent sessions
+- Added plugin uninstall support
+- Added skills bundled with plugins, including grouping plugin skills in settings and rule contributions from sandboxed plugins
+- Added support for global AGENTS rules
+- Added Slack socket mode support and bound Discord sessions to individual message authors
+- Synced the Fireworks AI model registry and updated the model catalog to current platform offerings
+- Routed custom registered handlers through the agent runtime
+- Added a CLINE_PLUGIN_IMPORT_TIMEOUT_MS environment override for plugin import timeouts
+- Allowed a baseUrl field for Anthropic vendor-type providers
+- Fixed SAP AI Core to use the AI SDK community provider
+- Fixed the hub daemon to stay alive on runtime abort
+- Fixed read-files tool input validation to use a union schema
+- Fixed discovery of symlinked SDK skill directories
+- Improved Cline provider migration
+- Fixed OTEL variable bundling
+- Added telemetry for run_commands timeouts
+
+## 0.0.42
+
+- Supports Bedrock bearer API keys, direct IAM credentials, AWS profiles, and the default AWS SDK credential chain
+- Routes Z.AI GLM thinking through provider metadata while preserving generic thinking suppression for non-GLM Z.AI custom models

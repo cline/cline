@@ -8,6 +8,7 @@ import {
 	resolveAgentsConfigDirPath,
 	resolveClineDataDir,
 	resolveDbDataDir,
+	resolveGlobalAgentsRulesPath,
 	resolveGlobalSettingsPath,
 	resolveHooksConfigSearchPaths,
 	resolveMcpSettingsPath,
@@ -153,6 +154,7 @@ describe("storage path resolution", () => {
 
 		expect(resolveRulesConfigSearchPaths()).toEqual(
 			expect.arrayContaining([
+				resolveGlobalAgentsRulesPath(),
 				join("/tmp/home", ".cline", RULES_CONFIG_DIRECTORY_NAME),
 			]),
 		);

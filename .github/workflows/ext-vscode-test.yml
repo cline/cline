@@ -36,38 +36,38 @@ jobs:
               with:
                   filters: |
                       vscode:
-                          - 'src/**'
-                          - 'webview-ui/**'
-                          - 'proto/**'
-                          - 'tests/**'
-                          - 'scripts/**'
-                          - 'standalone/**'
-                          - 'assets/**'
-                          - 'walkthrough/**'
-                          - 'package.json'
-                          - 'package-lock.json'
-                          - 'buf.yaml'
-                          - 'tsconfig*.json'
-                          - 'biome.jsonc'
-                          - 'esbuild.mjs'
-                          - '.mocharc.json'
-                          - '.nycrc*.json'
-                          - '.vscode-test.mjs'
-                          - 'test-setup.js'
+                          - 'apps/vscode/src/**'
+                          - 'apps/vscode/webview-ui/**'
+                          - 'apps/vscode/proto/**'
+                          - 'apps/vscode/tests/**'
+                          - 'apps/vscode/scripts/**'
+                          - 'apps/vscode/standalone/**'
+                          - 'apps/vscode/assets/**'
+                          - 'apps/vscode/walkthrough/**'
+                          - 'apps/vscode/package.json'
+                          - 'apps/vscode/package-lock.json'
+                          - 'apps/vscode/buf.yaml'
+                          - 'apps/vscode/tsconfig*.json'
+                          - 'apps/vscode/biome.jsonc'
+                          - 'apps/vscode/esbuild.mjs'
+                          - 'apps/vscode/.mocharc.json'
+                          - 'apps/vscode/.nycrc*.json'
+                          - 'apps/vscode/.vscode-test.mjs'
+                          - 'apps/vscode/test-setup.js'
                           - '.github/workflows/ext-vscode-test.yml'
                       testing_platform:
-                          - 'src/**'
-                          - 'proto/**'
-                          - 'standalone/**'
-                          - 'testing-platform/**'
-                          - 'tests/specs/**'
-                          - 'package.json'
-                          - 'package-lock.json'
-                          - 'buf.yaml'
-                          - 'tsconfig*.json'
-                          - 'esbuild.mjs'
-                          - '.vscodeignore'
-                          - 'scripts/**'
+                          - 'apps/vscode/src/**'
+                          - 'apps/vscode/proto/**'
+                          - 'apps/vscode/standalone/**'
+                          - 'apps/vscode/testing-platform/**'
+                          - 'apps/vscode/tests/specs/**'
+                          - 'apps/vscode/package.json'
+                          - 'apps/vscode/package-lock.json'
+                          - 'apps/vscode/buf.yaml'
+                          - 'apps/vscode/tsconfig*.json'
+                          - 'apps/vscode/esbuild.mjs'
+                          - 'apps/vscode/.vscodeignore'
+                          - 'apps/vscode/scripts/**'
                           - '.github/workflows/ext-vscode-test.yml'
 
     quality-checks:
@@ -75,6 +75,9 @@ jobs:
         if: needs.detect-changes.outputs.vscode == 'true' || needs.detect-changes.outputs.testing_platform == 'true'
         runs-on: ubuntu-latest
         name: Quality Checks
+        defaults:
+          run:
+            working-directory: apps/vscode
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
@@ -85,16 +88,18 @@ jobs:
                   node-version: 22
                   cache: 'npm'
                   cache-dependency-path: |
-                      package-lock.json
-                      webview-ui/package-lock.json
+                      apps/vscode/package-lock.json
+                      apps/vscode/webview-ui/package-lock.json
 
-            - name: Install root dependencies
-              run: npm ci
+            - name: Install extension dependencies
+              working-directory: ${{ github.workspace }}
+              run: npm --prefix apps/vscode ci
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Install webview-ui dependencies
-              run: cd webview-ui && npm ci
+              working-directory: ${{ github.workspace }}
+              run: npm --prefix apps/vscode/webview-ui ci
 
             - name: Run Quality Checks (Parallel)
               run: npm run ci:check-all
@@ -113,6 +118,7 @@ jobs:
         defaults:
             run:
                 shell: bash
+                working-directory: apps/vscode
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
@@ -123,19 +129,22 @@ jobs:
                   node-version: 22
                   cache: 'npm'
                   cache-dependency-path: |
-                      package-lock.json
-                      webview-ui/package-lock.json
+                      apps/vscode/package-lock.json
+                      apps/vscode/webview-ui/package-lock.json
 
-            - name: Install root dependencies
-              run: npm ci
+            - name: Install extension dependencies
+              working-directory: ${{ github.workspace }}
+              run: npm --prefix apps/vscode ci
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Install webview-ui dependencies
-              run: cd webview-ui && npm ci
+              working-directory: ${{ github.workspace }}
+              run: npm --prefix apps/vscode/webview-ui ci
 
             - name: Set up NPM on Windows
               if: runner.os == 'Windows'
+              working-directory: ${{ github.workspace }}
               run: |
                   npm config set script-shell "C:\\Program Files\\Git\\bin\\bash.exe"
 
@@ -201,13 +210,16 @@ jobs:
               with:
                   name: pr-coverage-reports
                   path: |
-                      coverage-unit/lcov.info
-                      webview-ui/coverage/lcov.info
+                      apps/vscode/coverage-unit/lcov.info
+                      apps/vscode/webview-ui/coverage/lcov.info
 
     test-platform-integration:
         needs: [detect-changes, quality-checks]
         if: needs.detect-changes.outputs.testing_platform == 'true'
         runs-on: ubuntu-latest
+        defaults:
+          run:
+            working-directory: apps/vscode
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
@@ -218,17 +230,19 @@ jobs:
                   node-version: 22
                   cache: 'npm'
                   cache-dependency-path: |
-                      package-lock.json
-                      webview-ui/package-lock.json
-                      testing-platform/package-lock.json
+                      apps/vscode/package-lock.json
+                      apps/vscode/webview-ui/package-lock.json
+                      apps/vscode/testing-platform/package-lock.json
 
-            - name: Install root dependencies
-              run: npm ci
+            - name: Install extension dependencies
+              working-directory: ${{ github.workspace }}
+              run: npm --prefix apps/vscode ci
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Install webview-ui dependencies
-              run: cd webview-ui && npm ci
+              working-directory: ${{ github.workspace }}
+              run: npm --prefix apps/vscode/webview-ui ci
 
             - name: Download ripgrep binaries
               run: npm run download-ripgrep
@@ -237,7 +251,8 @@ jobs:
               run: npm run compile-standalone
 
             - name: Install testing platform dependencies
-              run: cd testing-platform && npm ci
+              working-directory: ${{ github.workspace }}
+              run: npm --prefix apps/vscode/testing-platform ci
 
             - name: Running testing platform integration spec tests
               timeout-minutes: 7
@@ -247,7 +262,7 @@ jobs:
               uses: actions/upload-artifact@v4
               with:
                 name: test-platform-integration-core-coverage
-                path: coverage/**/lcov.info
+                path: apps/vscode/coverage/**/lcov.info
 
     # Keep the required "test" check as a tiny aggregate gate instead of the conditional
     # VS Code matrix. GitHub treats conditionally skipped jobs as successful required
@@ -309,7 +324,7 @@ jobs:
               uses: actions/download-artifact@v4
               with:
                   name: pr-coverage-reports
-                  path: .
+                  path: apps/vscode
 
             - name: Upload core unit tests coverage to Qlty
               if: needs.detect-changes.outputs.vscode == 'true'
@@ -318,7 +333,7 @@ jobs:
                   token: ${{ secrets.QLTY_COVERAGE_TOKEN }}
                   # we can merge multiple files if necessary
                   files: |
-                    coverage-unit/lcov.info
+                    apps/vscode/coverage-unit/lcov.info
                   tag: unit:core
 
             - name: Upload webview-ui unit tests coverage to Qlty
@@ -328,7 +343,7 @@ jobs:
                   token: ${{ secrets.QLTY_COVERAGE_TOKEN }}
                   # we can merge multiple files if necessary
                   files: |
-                    webview-ui/coverage/lcov.info
+                    apps/vscode/webview-ui/coverage/lcov.info
                   tag: unit:webview-ui
                   add-prefix: webview-ui/
 
@@ -339,12 +354,12 @@ jobs:
               id: download-integration-coverage
               with:
                 name: test-platform-integration-core-coverage
-                path: integration-core-coverage-reports
+                path: apps/vscode/integration-core-coverage-reports
 
             - name: Upload core integration tests coverage to Qlty
               if: needs.detect-changes.outputs.testing_platform == 'true' && steps.download-integration-coverage.outcome == 'success'
               uses: qltysh/qlty-action/coverage@v2
               with:
                 token: ${{ secrets.QLTY_COVERAGE_TOKEN }}
-                files: integration-core-coverage-reports/**/lcov.info
+                files: apps/vscode/integration-core-coverage-reports/**/lcov.info
                 tag: integration:core

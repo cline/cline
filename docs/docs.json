@@ -115,7 +115,8 @@
 											"cli/samples/github-issue-rca",
 											"cli/samples/github-integration",
 											"cli/samples/github-pr-review",
-											"cli/samples/model-orchestration"
+											"cli/samples/model-orchestration",
+											"cli/samples/supply-chain-alerts"
 										]
 									},
 									"cli/acp-editor-integrations"
@@ -369,6 +370,10 @@
 		},
 		{
 			"source": "/getting-started/installing-cline-jetbrains",
+			"destination": "/getting-started/installing-cline"
+		},
+		{
+			"source": "/getting-started/for-new-coders",
 			"destination": "/getting-started/installing-cline"
 		},
 		{

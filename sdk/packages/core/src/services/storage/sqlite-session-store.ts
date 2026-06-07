@@ -11,7 +11,10 @@ import {
 	toBoolInt,
 } from "@cline/shared/db";
 import { resolveDbDataDir } from "@cline/shared/storage";
-import type { SessionStatus } from "../../types/common";
+import {
+	isNonTerminalSessionStatus,
+	type SessionStatus,
+} from "../../types/common";
 import type { SessionRecord } from "../../types/sessions";
 import type { SessionStore } from "../../types/storage";
 
@@ -178,11 +181,10 @@ export class SqliteSessionStore implements SessionStore {
 		this.update({
 			sessionId,
 			status,
-			endedAt: status === "running" ? null : nowIso(),
-			exitCode:
-				status === "running"
-					? null
-					: (exitCode ?? (status === "failed" ? 1 : 0)),
+			endedAt: isNonTerminalSessionStatus(status) ? null : nowIso(),
+			exitCode: isNonTerminalSessionStatus(status)
+				? null
+				: (exitCode ?? (status === "failed" ? 1 : 0)),
 		});
 	}
 

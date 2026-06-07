@@ -24,8 +24,7 @@ import {
  * into the current session when the command exits.
  *
  * CLI usage:
- *   mkdir -p .cline/plugins
- *   cp examples/plugins/background-terminal.ts .cline/plugins/background-terminal.ts
+ *   cline plugin install https://github.com/cline/cline/blob/main/sdk/examples/plugins/background-terminal.ts --cwd .
  *   cline -i "Start the dev server in the background and keep working"
  */
 

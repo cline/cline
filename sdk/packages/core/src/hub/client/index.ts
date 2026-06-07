@@ -7,6 +7,10 @@ import {
 	type HubTransportFrame,
 	resolveHubCommandTimeoutMs,
 } from "@cline/shared";
+import {
+	SESSION_NOT_FOUND_ERROR_CODE,
+	SessionNotFoundError,
+} from "../../runtime/host/runtime-host";
 import { spawnDetachedHubServerWithRetry } from "../daemon";
 import {
 	clearHubDiscovery,
@@ -537,6 +541,14 @@ export class NodeHubClient {
 		}
 		const resolved = await reply;
 		if (!resolved.ok) {
+			if (resolved.error?.code === SESSION_NOT_FOUND_ERROR_CODE) {
+				const targetSessionId =
+					sessionId ??
+					(typeof payload?.sessionId === "string"
+						? payload.sessionId
+						: undefined);
+				throw new SessionNotFoundError(targetSessionId, resolved.error.message);
+			}
 			throw new HubCommandError(
 				command,
 				resolved.error?.code,
@@ -914,7 +926,11 @@ function hasActiveHubSessions(payload: unknown): boolean {
 			status?: unknown;
 			participants?: unknown;
 		};
-		if (record.status === "running" || record.status === "idle") {
+		if (
+			record.status === "running" ||
+			record.status === "idle" ||
+			record.status === "pending"
+		) {
 			return true;
 		}
 		return Array.isArray(record.participants) && record.participants.length > 0;

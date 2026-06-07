@@ -211,10 +211,19 @@ export function resolveLegacyClineAuth(
 		if (!data) {
 			return undefined;
 		}
+		const expiresAt =
+			typeof data.expiresAt === "number" && Number.isFinite(data.expiresAt)
+				? // Classic VS Code auth stored expiresAt in seconds; providers.json uses
+					// milliseconds. Preserve millisecond-looking values for compatibility
+					// with tests/older migration attempts.
+					data.expiresAt < 10_000_000_000
+					? data.expiresAt * 1000
+					: data.expiresAt
+				: undefined;
 		return {
 			accessToken: data.idToken,
 			refreshToken: data.refreshToken,
-			expiresAt: data.expiresAt,
+			expiresAt,
 			accountId: data.userInfo?.id,
 		};
 	} catch {
@@ -460,7 +469,6 @@ function buildLegacyProviderSettings(
 		aihubmix: legacySecrets.aihubmixApiKey,
 		nousResearch: legacySecrets.nousResearchApiKey,
 		oca: legacySecrets.ocaApiKey,
-		sapaicore: legacySecrets.sapAiCoreClientId,
 	};
 
 	const providerSpecific: Partial<ProviderSettings> = {};
@@ -673,7 +681,27 @@ function collectCandidateProviderIds(
 		candidates.add("vertex");
 	}
 	if (trimNonEmpty(legacySecrets.clineApiKey)) candidates.add("cline");
+	const legacyClineAuth = resolveLegacyClineAuth(
+		trimNonEmpty(legacySecrets["cline:clineAccountId"]),
+	);
+	if (
+		legacyClineAuth?.accessToken ||
+		legacyClineAuth?.refreshToken ||
+		legacyClineAuth?.accountId
+	) {
+		candidates.add("cline");
+	}
 	if (trimNonEmpty(legacySecrets.ocaApiKey)) candidates.add("oca");
+	if (
+		trimNonEmpty(legacySecrets.sapAiCoreClientId) ||
+		trimNonEmpty(legacySecrets.sapAiCoreClientSecret) ||
+		trimNonEmpty(legacyGlobalState.sapAiCoreTokenUrl) ||
+		trimNonEmpty(legacyGlobalState.sapAiCoreBaseUrl) ||
+		trimNonEmpty(legacyGlobalState.sapAiResourceGroup) ||
+		legacyGlobalState.sapAiCoreUseOrchestrationMode !== undefined
+	) {
+		candidates.add("sapaicore");
+	}
 	return candidates;
 }
 

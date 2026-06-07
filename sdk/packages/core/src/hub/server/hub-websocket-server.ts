@@ -3,6 +3,7 @@ import http from "node:http";
 import net from "node:net";
 import { URL } from "node:url";
 import { WebSocketServer } from "ws";
+import corePackage from "../../../package.json";
 import { rememberRecoverableLocalHubUrl, verifyHubConnection } from "../client";
 import {
 	clearHubDiscovery,
@@ -244,6 +245,7 @@ export async function startHubWebSocketServer(
 	const startedAt = new Date().toISOString();
 	const versionPayload = {
 		protocolVersion: "v1",
+		coreVersion: corePackage.version,
 		buildId,
 		pid: process.pid,
 		startedAt,
@@ -448,6 +450,7 @@ export async function startHubWebSocketServer(
 	await writeHubDiscovery(owner.discoveryPath, {
 		hubId: transport.getHubId(),
 		protocolVersion: "v1",
+		coreVersion: corePackage.version,
 		buildId,
 		authToken,
 		host,

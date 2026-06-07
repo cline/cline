@@ -11,8 +11,7 @@
  * so provider-safe normalization and hard truncation remain the final pass.
  *
  * CLI usage:
- *   mkdir -p .cline/plugins
- *   cp examples/plugins/custom-compaction.ts .cline/plugins/custom-compaction.ts
+ *   cline plugin install https://github.com/cline/cline/blob/main/sdk/examples/plugins/custom-compaction.ts --cwd .
  *   cline -i "Search the codebase for dispatcher usage, then summarize it"
  */
 

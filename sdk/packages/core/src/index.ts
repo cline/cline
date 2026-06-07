@@ -197,6 +197,7 @@ export {
 	resolveAgentPluginPaths,
 	resolveAndLoadAgentPlugins,
 	resolvePluginConfigSearchPaths,
+	resolvePluginSkillDirectoriesFromPaths,
 } from "./extensions";
 export type {
 	AvailableRuntimeCommand,
@@ -384,7 +385,12 @@ export type {
 	StartSessionInput,
 	StartSessionResult,
 } from "./runtime/host/runtime-host";
-export { splitCoreSessionConfig } from "./runtime/host/runtime-host";
+export {
+	isSessionNotFoundError,
+	SESSION_NOT_FOUND_ERROR_CODE,
+	SessionNotFoundError,
+	splitCoreSessionConfig,
+} from "./runtime/host/runtime-host";
 export {
 	createTeamName,
 	DefaultRuntimeBuilder,
@@ -435,19 +441,20 @@ export {
 	listPluginTools,
 	listPluginToolsWithDiagnostics,
 } from "./services/plugin-tools";
+export type {
+	PluginUninstallOptions,
+	PluginUninstallResult,
+} from "./services/plugin-uninstall";
+export { uninstallPlugin } from "./services/plugin-uninstall";
 export {
 	addLocalProvider,
 	type DeleteLocalProviderRequest,
 	deleteLocalProvider,
 	ensureCustomProvidersLoaded,
 	getLocalProviderModels,
-	getProviderConfigFields,
 	listLocalProviders,
 	loginLocalProvider,
 	normalizeOAuthProvider,
-	type ProviderConfigFieldKey,
-	type ProviderConfigFieldRequirement,
-	type ProviderConfigFields,
 	refreshProviderModelsFromSource,
 	resolveLocalClineAuthToken,
 	saveLocalProviderOAuthCredentials,
@@ -455,6 +462,12 @@ export {
 	type UpdateLocalProviderRequest,
 	updateLocalProvider,
 } from "./services/providers/local-provider-service";
+export {
+	getProviderConfigFields,
+	type ProviderConfigFieldKey,
+	type ProviderConfigFieldRequirement,
+	type ProviderConfigFields,
+} from "./services/providers/provider-config-fields";
 export {
 	type MigrateLegacyProviderSettingsOptions,
 	type MigrateLegacyProviderSettingsResult,

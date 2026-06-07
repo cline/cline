@@ -3,9 +3,10 @@ import {
 	type AddProviderActionRequest,
 	getClineEnvironmentConfig,
 	type ITelemetryService,
-	isOAuthProviderId,
 	type OAuthProviderId,
 	type ProviderCapability,
+	type ProviderConfigField,
+	type ProviderConfigFieldPrimitive,
 	type ProviderListItem,
 	type ProviderModel,
 	type SaveProviderSettingsActionRequest,
@@ -162,6 +163,111 @@ function getPopularRank(metadata: Record<string, unknown> | undefined): number {
 	return typeof value === "number" && Number.isFinite(value)
 		? value
 		: Number.MAX_SAFE_INTEGER;
+}
+
+function isProviderConfigField(input: unknown): input is ProviderConfigField {
+	if (!input || typeof input !== "object") return false;
+	const field = input as Record<string, unknown>;
+	return (
+		typeof field.path === "string" &&
+		field.path.trim().length > 0 &&
+		typeof field.label === "string" &&
+		field.label.trim().length > 0 &&
+		["text", "password", "url", "number", "select", "boolean"].includes(
+			String(field.type),
+		)
+	);
+}
+
+function readProviderConfigFields(
+	metadata: Record<string, unknown> | undefined,
+): ProviderConfigField[] | undefined {
+	const fields = metadata?.configFields;
+	if (!Array.isArray(fields)) {
+		return undefined;
+	}
+	return fields.filter(isProviderConfigField);
+}
+
+const API_KEY_CONFIG_FIELD: ProviderConfigField = {
+	path: "apiKey",
+	label: "API Key",
+	type: "password",
+	placeholder: "Enter API key...",
+	description: "API key issued by the provider.",
+	secret: true,
+};
+
+const BASE_URL_CONFIG_FIELD: ProviderConfigField = {
+	path: "baseUrl",
+	label: "Base URL",
+	type: "url",
+	placeholder: "https://...",
+	description: "Base endpoint used for provider requests.",
+};
+
+function fallbackProviderConfigFields(
+	info: Awaited<ReturnType<typeof LlmsModels.getProvider>>,
+): ProviderConfigField[] {
+	if (!info) {
+		return [API_KEY_CONFIG_FIELD];
+	}
+	if (info.source !== "system") {
+		return info.baseUrl
+			? [API_KEY_CONFIG_FIELD, BASE_URL_CONFIG_FIELD]
+			: [API_KEY_CONFIG_FIELD];
+	}
+	const fields: ProviderConfigField[] = [];
+	if (info.env?.length) {
+		fields.push(API_KEY_CONFIG_FIELD);
+	}
+	if (info.baseUrl) {
+		fields.push(BASE_URL_CONFIG_FIELD);
+	}
+	return fields;
+}
+
+function getPathValue(input: unknown, path: string): unknown {
+	return path.split(".").reduce<unknown>((current, segment) => {
+		if (!current || typeof current !== "object") return undefined;
+		return (current as Record<string, unknown>)[segment];
+	}, input);
+}
+
+function toConfigPrimitive(
+	value: unknown,
+): ProviderConfigFieldPrimitive | undefined {
+	if (
+		typeof value === "string" ||
+		typeof value === "number" ||
+		typeof value === "boolean" ||
+		value === null
+	) {
+		return value;
+	}
+	return undefined;
+}
+
+function resolveConfigValues(
+	fields: readonly ProviderConfigField[] | undefined,
+	settings: ProviderSettings | undefined,
+	info: { baseUrl?: string } | undefined,
+): Record<string, ProviderConfigFieldPrimitive> | undefined {
+	if (!fields?.length) return undefined;
+
+	const values: Record<string, ProviderConfigFieldPrimitive> = {};
+	for (const field of fields) {
+		const persistedValue = toConfigPrimitive(
+			field.path === "baseUrl" && settings?.baseUrl === undefined
+				? info?.baseUrl
+				: getPathValue(settings, field.path),
+		);
+		const value = persistedValue ?? field.defaultValue;
+		if (value !== undefined) {
+			values[field.path] = value;
+		}
+	}
+	return values;
 }
 
 function normalizeHeaders(
@@ -550,6 +656,9 @@ export async function listLocalProviders(
 					info?.capabilities,
 					persistedSettings?.capabilities,
 				);
+				const configFields =
+					readProviderConfigFields(info?.metadata) ??
+					fallbackProviderConfigFields(info);
 				return {
 					provider: {
 						id,
@@ -572,6 +681,12 @@ export async function listLocalProviders(
 						authDescription: "This provider uses API keys for authentication.",
 						baseUrlDescription:
 							"The base endpoint to use for provider requests.",
+						configFields,
+						configValues: resolveConfigValues(
+							configFields,
+							persistedSettings,
+							info,
+						),
 						modelList,
 					},
 					rank: getPopularRank(info?.metadata),
@@ -599,6 +714,39 @@ export async function getLocalProviderModels(
 	const modelMap = await resolveProviderModelMap(id, config);
 	const models = toSortedProviderModels(modelMap);
 	return { providerId: id, models };
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+	return value != null && typeof value === "object" && !Array.isArray(value);
+}
+
+function applySettingsObjectPatch(
+	current: unknown,
+	patch: unknown,
+): Record<string, unknown> | undefined {
+	if (!isPlainObject(patch)) {
+		return isPlainObject(current) ? { ...current } : undefined;
+	}
+
+	const next = isPlainObject(current) ? { ...current } : {};
+	for (const [key, value] of Object.entries(patch)) {
+		if (value == null || value === "") {
+			delete next[key];
+			continue;
+		}
+		if (isPlainObject(value)) {
+			const merged = applySettingsObjectPatch(next[key], value);
+			if (merged && Object.keys(merged).length > 0) {
+				next[key] = merged;
+			} else {
+				delete next[key];
+			}
+			continue;
+		}
+		next[key] = value;
+	}
+
+	return Object.keys(next).length > 0 ? next : undefined;
 }
 
 export function saveLocalProviderSettings(
@@ -656,12 +804,9 @@ export function saveLocalProviderSettings(
 		"oca",
 	] as const) {
 		if (Object.hasOwn(request, key) && request[key] != null) {
-			next[key] = {
-				...(typeof next[key] === "object" && next[key] != null
-					? (next[key] as object)
-					: {}),
-				...(request[key] as object),
-			};
+			const merged = applySettingsObjectPatch(next[key], request[key]);
+			if (merged) next[key] = merged;
+			else delete next[key];
 		}
 	}
 
@@ -800,113 +945,4 @@ export function resolveLocalClineAuthToken(
 ): string | undefined {
 	const token = settings?.auth?.accessToken?.trim() || settings?.apiKey?.trim();
 	return token && token.length > 0 ? token : undefined;
-}
-
-// --- Provider configuration fields (UI projection) -------------------------
-
-export type ProviderConfigFieldKey =
-	| "apiKey"
-	| "baseUrl"
-	| "awsRegion"
-	| "awsProfile";
-
-export interface ProviderConfigFieldRequirement {
-	defaultValue?: string;
-	label?: string;
-	placeholder?: string;
-	optional?: boolean;
-}
-
-export interface ProviderConfigFields {
-	providerId: string;
-	authMethod: "api-key" | "oauth" | "local";
-	fields: Partial<
-		Record<ProviderConfigFieldKey, ProviderConfigFieldRequirement>
-	>;
-	/** Optional description shown above the fields (e.g. AWS region auto-fill hint). */
-	description?: string;
-}
-
-const EDITABLE_BASE_URL_PROVIDER_IDS = new Set([
-	"ollama",
-	"lmstudio",
-	"litellm",
-	"openai-compatible",
-]);
-
-function shouldExposeBaseUrlField(
-	providerId: string,
-	collection: LlmsModels.ModelCollection | undefined,
-): boolean {
-	if (!collection?.provider.baseUrl) return false;
-	if (collection.provider.source !== "system") return true;
-	return EDITABLE_BASE_URL_PROVIDER_IDS.has(providerId);
-}
-
-/**
- * Project a provider into the inputs a configure-dialog should render.
- *
- * No fields are marked "required". `llms` no longer pre-flights credentials,
- * so a missing API key surfaces as the provider's own auth error rather than
- * a synthetic SDK failure. UIs may still require fields client-side if they
- * want, but the runtime does not.
- *
- * - OAuth providers (`cline`, `oca`, `openai-codex`) return `authMethod:
- *   "oauth"` with no fields; the configure UI should route to the OAuth
- *   login flow instead.
- * - Local auth providers return `authMethod: "local"` with no fields. The
- *   configure UI should show provider-specific local readiness instead.
- * - All other providers return `apiKey`. Built-in local/proxy-style providers
- *   with user-supplied endpoints, plus user-added providers with saved
- *   endpoints, also return a pre-filled `baseUrl` field.
- *
- * Returns the same fallback shape for unknown providers (single `apiKey`
- * input, no default base URL) so callers can render a reasonable configure
- * dialog without per-id branches.
- */
-export function getProviderConfigFields(
-	providerId: string,
-): ProviderConfigFields {
-	const id = LlmsModels.normalizeProviderId(providerId);
-	if (isOAuthProviderId(id)) {
-		return { providerId: id, authMethod: "oauth", fields: {} };
-	}
-
-	const collection = LlmsModels.MODEL_COLLECTIONS_BY_PROVIDER_ID[id];
-	if (collection?.provider.capabilities?.includes("local-auth")) {
-		return { providerId: id, authMethod: "local", fields: {} };
-	}
-
-	if (id === "bedrock") {
-		return {
-			providerId: id,
-			authMethod: "api-key",
-			description:
-				"AWS region is required for Bedrock. It can be auto-filled from AWS_REGION, AWS_DEFAULT_REGION, or ~/.aws/config.",
-			fields: {
-				awsRegion: {
-					label: "AWS Region",
-					placeholder: "us-east-1",
-				},
-				apiKey: {
-					label: "AWS Bedrock API Key (optional)",
-					placeholder: "Leave blank to use AWS profile/default chain",
-					optional: true,
-				},
-				awsProfile: {
-					label: "AWS Profile Name (optional)",
-					placeholder: "default",
-					optional: true,
-				},
-			},
-		};
-	}
-
-	const defaultBaseUrl = collection?.provider.baseUrl;
-	const fields: ProviderConfigFields["fields"] = { apiKey: {} };
-	if (shouldExposeBaseUrlField(id, collection)) {
-		fields.baseUrl = { defaultValue: defaultBaseUrl };
-	}
-
-	return { providerId: id, authMethod: "api-key", fields };
 }

@@ -19,7 +19,9 @@ What a plugin can do:
 | [background-terminal.ts](./background-terminal.ts) | Detached shell jobs with persisted logs and session steering | Registers `start_background_command`, `get_background_command`, and `delete_background_command` so agents can launch long-running shell commands, poll stdout/stderr tails, clean up job metadata, and receive completion summaries as steer messages. |
 | [automation-events.ts](./automation-events.ts) | Plugin-emitted automation events | Registers a normalized `local.plugin_event` automation event type and, when `CLINE_LOCAL_EVENT_INTERVAL_MS` is set, periodically emits demo events into Cline automation. |
 | [gitignore-read-files-guard.ts](./gitignore-read-files-guard.ts) | Runtime hook policy for workspace `.gitignore` boundaries | Uses `beforeTool` to inspect `read_files`, `editor`, and `apply_patch` requests and skips them when target paths match workspace `.gitignore` rules, preventing ignored files from being read or modified. |
+| [env-blocker.ts](./env-blocker.ts) | Deterministic secret protection via `beforeTool` | Uses `beforeTool` to block `read_files` and `run_commands` (e.g. `cat .env`) calls that read `.env` secret files, while leaving `.env.example`/`.env.sample`/`.env.template` readable. A hard guarantee where an AGENTS.md rule is only a suggestion. |
 | [web-search.ts](./web-search.ts) | `web_search` tool backed by an Exa API key | Adds a `web_search` tool that queries Exa for current public web results, with optional result limits, domain filters, recency windows, and country localization. Requires `EXA_API_KEY`. |
+| [openrouter-provider.ts](./openrouter-provider.ts) | Custom model provider via `registerProvider` | Registers an OpenAI-compatible model provider (pointed at OpenRouter) plus its model catalog so the agent can run inference against it. Swap the base URL, API key env var, and models to add any OpenAI-compatible endpoint Cline does not bundle. Requires `OPENROUTER_API_KEY`. |
 | [typescript-lsp/](./typescript-lsp/) | `goto_definition` tool powered by the TypeScript Language Service | Adds `goto_definition(file, line)` for TypeScript/JavaScript projects. It loads the target project’s own TypeScript version, finds identifiers on a line, and resolves definitions through imports, re-exports, aliases, and other language-service semantics. |
 | [agents-squad/](./agents-squad/) | Multi-agent team — spin up subagents with their own models and personalities | Adds tools for starting, messaging, polling, and coordinating background subagents. It includes bundled agent presets, skill discovery/loading, and a shared handoff store for passing notes between subagents in the same conversation. |
 
@@ -27,22 +29,19 @@ The runtime-hook variant of compaction lives in [../hooks/custom-compaction-hook
 
 ## Try it with the CLI
 
-The CLI auto-discovers plugins from `.cline/plugins` in the workspace, `~/.cline/plugins`, and the system Plugins folder. Drop a file in, run `cline`:
+The CLI auto-discovers plugins from `.cline/plugins` in the workspace, `~/.cline/plugins`, and the system Plugins folder. Use `cline plugin install` for local files, GitHub file URLs, package directories, git repos, and npm packages:
 
 ```bash
-mkdir -p .cline/plugins
-cp examples/plugins/weather-metrics.ts .cline/plugins/
-
+cline plugin install https://github.com/cline/cline/blob/main/sdk/examples/plugins/weather-metrics.ts --cwd .
 cline -i "What's the weather like in Tokyo and Paris?"
 ```
 
-Swap `weather-metrics.ts` for any other example. Each one ships ready to copy.
+Swap the GitHub URL for any other single-file example.
 
 To block file access for paths ignored by workspace `.gitignore` files:
 
 ```bash
-cp examples/plugins/gitignore-read-files-guard.ts .cline/plugins/
-
+cline plugin install https://github.com/cline/cline/blob/main/sdk/examples/plugins/gitignore-read-files-guard.ts --cwd .
 cline -i "Read the ignored .env file"
 ```
 
@@ -57,8 +56,7 @@ cline plugin install ./examples/plugins/agents-squad
 To add web search through a normal plugin tool:
 
 ```bash
-mkdir -p .cline/plugins
-cp examples/plugins/web-search.ts .cline/plugins/web-search.ts
+cline plugin install https://github.com/cline/cline/blob/main/sdk/examples/plugins/web-search.ts --cwd .
 
 export EXA_API_KEY=...
 export OPENROUTER_API_KEY=...
@@ -136,6 +134,8 @@ Declare what the plugin uses in `manifest.capabilities`. Each one unlocks one pa
 | ------------------ | --------------- |
 | `tools`            | `api.registerTool()` |
 | `commands`         | `api.registerCommand()` |
+| `rules`            | `api.registerRule()` |
+| `skills`           | bundled skills discovered from the plugin package |
 | `providers`        | `api.registerProvider()` |
 | `messageBuilders`  | `api.registerMessageBuilder()` |
 | `automationEvents` | `api.registerAutomationEventType()` and `ctx.automation?.ingestEvent()` |

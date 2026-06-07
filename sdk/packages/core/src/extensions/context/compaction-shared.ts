@@ -2,6 +2,7 @@ import type { ToolResultContent } from "@cline/llms";
 import { estimateTokens, type MessageWithMetadata } from "@cline/shared";
 
 export { estimateTokens };
+
 import type {
 	CoreCompactionContext,
 	CoreCompactionSummarizerConfig,

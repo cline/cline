@@ -68,7 +68,10 @@ export interface ActiveScheduledExecution {
 
 export interface HubScheduleServiceOptions {
 	runtimeHandlers: HubScheduleRuntimeHandlers;
-	eventPublisher?: (eventType: string, payload: unknown) => void;
+	eventPublisher?: (
+		eventType: string,
+		payload: Record<string, unknown>,
+	) => void;
 	logger?: BasicLogger;
 	dbPath?: string;
 	pollIntervalMs?: number;
@@ -204,6 +207,7 @@ export class HubScheduleService {
 			store: this.store,
 			materializer: this.materializer,
 			runtimeHandlers: options.runtimeHandlers,
+			eventPublisher: options.eventPublisher,
 			workspaceRoot: "",
 			logger: options.logger,
 			pollIntervalMs: options.pollIntervalMs,
@@ -294,6 +298,15 @@ export class HubScheduleService {
 		await this.runner.tick();
 		const completed = this.store.getRun(run.runId) ?? run;
 		return runToExecution(completed, scheduleId);
+	}
+
+	public triggerScheduleNowDetached(
+		scheduleId: string,
+	): ScheduleExecutionRecord | undefined {
+		const run = this.store.enqueueHubScheduleRun(scheduleId, "manual");
+		if (!run) return undefined;
+		void this.runner.tick().catch(() => undefined);
+		return runToExecution(run, scheduleId);
 	}
 
 	public listScheduleExecutions(

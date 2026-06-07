@@ -14,7 +14,6 @@ import {
 	addLocalProvider,
 	deleteLocalProvider,
 	getLocalProviderModels,
-	getProviderConfigFields,
 	listLocalProviders,
 	normalizeOAuthProvider,
 	refreshProviderModelsFromSource,
@@ -786,6 +785,23 @@ describe("saveLocalProviderSettings", () => {
 		expect(auth?.refreshToken).toBe("ref1");
 	});
 
+	it("merges and clears nested provider config fields", () => {
+		saveLocalProviderSettings(manager, {
+			providerId: "test-provider",
+			enabled: true,
+			gcp: { projectId: "project-a", region: "us-central1" },
+		});
+		saveLocalProviderSettings(manager, {
+			providerId: "test-provider",
+			enabled: true,
+			gcp: { projectId: "" },
+		});
+
+		const settings = manager.getProviderSettings("test-provider");
+		expect(settings?.gcp?.projectId).toBeUndefined();
+		expect(settings?.gcp?.region).toBe("us-central1");
+	});
+
 	it("passes through scalar fields like maxTokens and timeout", () => {
 		saveLocalProviderSettings(manager, {
 			providerId: "test-provider",
@@ -1136,6 +1152,31 @@ describe("listLocalProviders", () => {
 		).toBe(true);
 	});
 
+	it("exposes provider-specific config fields for Vertex", async () => {
+		manager.saveProviderSettings(
+			{
+				provider: "vertex",
+				gcp: { projectId: "gcp-project", region: "us-west1" },
+				model: "claude-sonnet-4-6@default",
+			},
+			{ setLastUsed: false },
+		);
+
+		const { providers } = await listLocalProviders(manager);
+		const vertex = providers.find((provider) => provider.id === "vertex");
+
+		expect(vertex?.configFields?.map((field) => field.path)).toEqual([
+			"gcp.projectId",
+			"gcp.region",
+			"apiKey",
+		]);
+		expect(vertex?.configValues?.["gcp.projectId"]).toBe("gcp-project");
+		expect(vertex?.configValues?.["gcp.region"]).toBe("us-west1");
+		expect(
+			vertex?.configFields?.some((field) => field.path === "baseUrl"),
+		).toBe(false);
+	});
+
 	it("uses the same built-in model list for cline as openrouter", async () => {
 		manager.saveProviderSettings(
 			{
@@ -1272,114 +1313,6 @@ describe("resolveLocalClineAuthToken", () => {
 		expect(
 			resolveLocalClineAuthToken({ provider: "cline" as never }),
 		).toBeUndefined();
-	});
-});
-
-describe("getProviderConfigFields", () => {
-	it("returns api-key auth with only apiKey for cloud providers", () => {
-		const result = getProviderConfigFields("anthropic");
-		expect(result.providerId).toBe("anthropic");
-		expect(result.authMethod).toBe("api-key");
-		expect(result.fields.apiKey).toEqual({});
-		expect(result.fields.baseUrl).toBeUndefined();
-	});
-
-	it("returns api-key auth with apiKey + baseUrl for ollama", () => {
-		const result = getProviderConfigFields("ollama");
-		expect(result.authMethod).toBe("api-key");
-		expect(result.fields.apiKey).toEqual({});
-		expect(result.fields.baseUrl?.defaultValue).toBe(
-			"http://localhost:11434/v1",
-		);
-	});
-
-	it("returns api-key auth with apiKey + baseUrl for LM Studio", () => {
-		const result = getProviderConfigFields("lmstudio");
-		expect(result.authMethod).toBe("api-key");
-		expect(result.fields.apiKey).toEqual({});
-		expect(result.fields.baseUrl?.defaultValue).toBe(
-			"http://localhost:1234/v1",
-		);
-	});
-
-	it("returns api-key auth with apiKey + baseUrl for LiteLLM", () => {
-		const result = getProviderConfigFields("litellm");
-		expect(result.authMethod).toBe("api-key");
-		expect(result.fields.apiKey).toEqual({});
-		expect(result.fields.baseUrl?.defaultValue).toBe(
-			"http://localhost:4000/v1",
-		);
-	});
-
-	it("returns api-key auth with apiKey + baseUrl for user-added providers", () => {
-		registerCustomProvider("internal-router", {
-			provider: {
-				name: "Internal Router",
-				baseUrl: "https://llm.internal.example/v1",
-				defaultModelId: "alpha",
-				protocol: "openai-responses",
-			},
-			models: {
-				alpha: { name: "Alpha" },
-			},
-		});
-
-		const result = getProviderConfigFields("internal-router");
-		expect(result.authMethod).toBe("api-key");
-		expect(result.fields.apiKey).toEqual({});
-		expect(result.fields.baseUrl?.defaultValue).toBe(
-			"https://llm.internal.example/v1",
-		);
-	});
-
-	it("returns oauth auth with no fields for cline", () => {
-		const result = getProviderConfigFields("cline");
-		expect(result.authMethod).toBe("oauth");
-		expect(result.fields).toEqual({});
-	});
-
-	it("returns oauth auth with no fields for openai-codex", () => {
-		const result = getProviderConfigFields("openai-codex");
-		expect(result.authMethod).toBe("oauth");
-		expect(result.fields).toEqual({});
-	});
-
-	it("returns local auth with no fields for openai-codex-cli", () => {
-		const result = getProviderConfigFields("openai-codex-cli");
-		expect(result.authMethod).toBe("local");
-		expect(result.fields).toEqual({});
-	});
-
-	it("returns api-key auth with apiKey + baseUrl for OpenAI Compatible", () => {
-		const result = getProviderConfigFields("openai-compatible");
-		expect(result.providerId).toBe("openai-compatible");
-		expect(result.authMethod).toBe("api-key");
-		expect(result.fields.apiKey).toEqual({});
-		expect(result.fields.baseUrl?.defaultValue).toBe(
-			"https://api.openai.com/v1",
-		);
-	});
-
-	it("returns api-key auth with awsRegion, apiKey, and awsProfile for bedrock", () => {
-		const result = getProviderConfigFields("bedrock");
-		expect(result.providerId).toBe("bedrock");
-		expect(result.authMethod).toBe("api-key");
-		expect(result.description).toMatch(/AWS region/i);
-		expect(Object.keys(result.fields)).toEqual([
-			"awsRegion",
-			"apiKey",
-			"awsProfile",
-		]);
-		expect(result.fields.awsRegion?.label).toBe("AWS Region");
-		expect(result.fields.awsRegion?.placeholder).toBe("us-east-1");
-		expect(result.fields.apiKey?.optional).toBe(true);
-		expect(result.fields.awsProfile?.optional).toBe(true);
-	});
-
-	it("falls back to a single api-key field for unknown providers", () => {
-		const result = getProviderConfigFields("not-a-real-provider");
-		expect(result.authMethod).toBe("api-key");
-		expect(result.fields).toEqual({ apiKey: {} });
 	});
 });
 

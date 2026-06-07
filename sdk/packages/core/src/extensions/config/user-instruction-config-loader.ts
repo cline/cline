@@ -1,7 +1,9 @@
 import { readdir, readFile, stat } from "node:fs/promises";
-import { basename, dirname, extname, join } from "node:path";
+import { basename, dirname, extname, join, resolve } from "node:path";
 import {
+	AGENTS_RULES_FILE_NAME,
 	RULES_CONFIG_DIRECTORY_NAME,
+	resolveGlobalAgentsRulesPath,
 	resolveRulesConfigSearchPaths as resolveRulesConfigSearchPathsFromShared,
 	resolveSkillsConfigSearchPaths as resolveSkillsConfigSearchPathsFromShared,
 	resolveWorkflowsConfigSearchPaths as resolveWorkflowsConfigSearchPathsFromShared,
@@ -9,9 +11,11 @@ import {
 	WORKFLOWS_CONFIG_DIRECTORY_NAME,
 } from "@cline/shared/storage";
 import YAML from "yaml";
+import { resolveAgentPluginSkillDirectories } from "../plugin/plugin-config-loader";
 import {
 	type UnifiedConfigDefinition,
 	type UnifiedConfigFileCandidate,
+	type UnifiedConfigFileContext,
 	UnifiedConfigFileWatcher,
 	type UnifiedConfigWatcherEvent,
 } from "./unified-config-file-watcher";
@@ -79,6 +83,10 @@ export interface CreateInstructionWatcherOptions {
 export interface CreateSkillsConfigDefinitionOptions {
 	directories?: ReadonlyArray<string>;
 	workspacePath?: string;
+	includePluginSkills?: boolean;
+	pluginSkillDirectories?: ReadonlyArray<string>;
+	pluginPaths?: ReadonlyArray<string>;
+	cwd?: string;
 }
 
 export interface CreateRulesConfigDefinitionOptions {
@@ -100,12 +108,48 @@ function isIgnorableDirectoryError(error: unknown): boolean {
 	return (
 		nodeError?.code === "ENOENT" ||
 		nodeError?.code === "EACCES" ||
-		nodeError?.code === "EPERM"
+		nodeError?.code === "EPERM" ||
+		nodeError?.code === "ELOOP"
 	);
 }
 
 function isMarkdownFile(fileName: string): boolean {
 	return MARKDOWN_EXTENSIONS.has(extname(fileName).toLowerCase());
+}
+
+function dedupeDirectoryPaths(directories: ReadonlyArray<string>): string[] {
+	const deduped: string[] = [];
+	const seen = new Set<string>();
+	for (const directory of directories) {
+		const normalized = resolve(directory);
+		if (seen.has(normalized)) {
+			continue;
+		}
+		seen.add(normalized);
+		deduped.push(directory);
+	}
+	return deduped;
+}
+
+function resolveSkillDirectories(
+	options?: CreateSkillsConfigDefinitionOptions,
+): string[] {
+	const directories = [
+		...(options?.directories ??
+			resolveSkillsConfigSearchPaths(options?.workspacePath)),
+	];
+	if (options?.pluginSkillDirectories) {
+		directories.push(...options.pluginSkillDirectories);
+	} else if (options?.includePluginSkills) {
+		directories.push(
+			...resolveAgentPluginSkillDirectories({
+				pluginPaths: options.pluginPaths,
+				workspacePath: options.workspacePath,
+				cwd: options.cwd ?? options.workspacePath,
+			}),
+		);
+	}
+	return dedupeDirectoryPaths(directories);
 }
 
 async function discoverManagedPluginRoots(
@@ -206,6 +250,29 @@ function parseBooleanField(
 		throw new Error(`Frontmatter field '${fieldName}' must be a boolean.`);
 	}
 	return value;
+}
+
+function resolveRuleFallbackName(
+	context: UnifiedConfigFileContext<"rule">,
+	workspacePath?: string,
+): string {
+	const fileName = basename(context.filePath);
+	if (fileName.toLowerCase() !== AGENTS_RULES_FILE_NAME.toLowerCase()) {
+		return basename(context.filePath, extname(context.filePath));
+	}
+
+	if (
+		workspacePath &&
+		resolve(context.filePath) === resolve(workspacePath, AGENTS_RULES_FILE_NAME)
+	) {
+		return "Workspace AGENTS.md";
+	}
+
+	if (resolve(context.filePath) === resolve(resolveGlobalAgentsRulesPath())) {
+		return "Global AGENTS.md";
+	}
+
+	return basename(context.filePath, extname(context.filePath));
 }
 
 export function parseSkillConfigFromMarkdown(
@@ -334,11 +401,23 @@ async function discoverSkillFiles(
 				});
 				continue;
 			}
-			if (entry.isDirectory()) {
+			const entryPath = join(directoryPath, entry.name);
+			const isDirectory =
+				entry.isDirectory() ||
+				(entry.isSymbolicLink() &&
+					(await stat(entryPath)
+						.then((entryStat) => entryStat.isDirectory())
+						.catch((error) => {
+							if (isIgnorableDirectoryError(error)) {
+								return false;
+							}
+							throw error;
+						})));
+			if (isDirectory) {
 				candidates.push({
-					directoryPath: join(directoryPath, entry.name),
+					directoryPath: entryPath,
 					fileName: SKILL_FILE_NAME,
-					filePath: join(directoryPath, entry.name, SKILL_FILE_NAME),
+					filePath: join(entryPath, SKILL_FILE_NAME),
 				});
 			}
 		}
@@ -441,16 +520,16 @@ async function discoverManagedWorkflowFiles(
 export function createSkillsConfigDefinition(
 	options?: CreateSkillsConfigDefinitionOptions,
 ): UnifiedConfigDefinition<"skill", SkillConfig> {
-	const directories =
-		options?.directories ??
-		resolveSkillsConfigSearchPaths(options?.workspacePath);
+	const directories = resolveSkillDirectories(options);
 	const managedRoot = options?.workspacePath
 		? join(options.workspacePath, ".cline")
 		: undefined;
 
 	return {
 		type: "skill",
-		directories: managedRoot ? [...directories, managedRoot] : directories,
+		directories: managedRoot
+			? dedupeDirectoryPaths([...directories, managedRoot])
+			: directories,
 		discoverFiles: discoverSkillFiles,
 		includeFile: (fileName) => fileName === SKILL_FILE_NAME,
 		parseFile: (context) =>
@@ -483,7 +562,7 @@ export function createRulesConfigDefinition(
 		parseFile: (context) =>
 			parseRuleConfigFromMarkdown(
 				context.content,
-				basename(context.filePath, extname(context.filePath)),
+				resolveRuleFallbackName(context, options?.workspacePath),
 			),
 		resolveId: (rule) => normalizeName(rule.name),
 	};

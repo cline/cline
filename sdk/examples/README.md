@@ -4,7 +4,7 @@ Learn how to build with the Cline SDK through practical, runnable examples.
 
 ## 📁 Plugin, Hook, and Automation Examples
 
-Plugins extend the CLI and SDK with custom capabilities. Install them in `~/.cline/plugins/`:
+Plugins extend the CLI and SDK with custom capabilities. Install local files, GitHub file URLs, package directories, git repos, and npm packages with `cline plugin install`:
 
 ### [`./plugins/`](./plugins/)
 
@@ -22,8 +22,7 @@ Examples include:
 - `background-terminal.ts` - Background shell jobs with logging
 
 ```bash
-mkdir -p ~/.cline/plugins
-cp examples/plugins/weather-metrics.ts ~/.cline/plugins/weather-metrics.ts
+cline plugin install https://github.com/cline/cline/blob/main/sdk/examples/plugins/weather-metrics.ts
 cline -i "What's the weather like in Tokyo and Paris?"
 ```
 
@@ -37,7 +36,7 @@ TypeScript LSP plugin that gives the agent a `goto_definition` tool powered by t
 - Zero extra dependencies -- resolves `typescript` from the target project
 
 ```bash
-cp examples/plugins/typescript-lsp/index.ts ~/.cline/plugins/typescript-lsp.ts
+cline plugin install https://github.com/cline/cline/blob/main/sdk/examples/plugins/typescript-lsp/index.ts
 cline -i "Find where createTool is defined"
 ```
 
@@ -59,8 +58,7 @@ Skills available:
 - API design, code review, debugging, documentation, migration, refactoring, test generation
 
 ```bash
-mkdir -p ~/.cline/plugins
-cp examples/plugins/agents-squad/index.ts ~/.cline/plugins/portable-subagents.ts
+cline plugin install ./examples/plugins/agents-squad
 cline -i "Use subagents to inspect this repository and report back."
 ```
 
@@ -151,7 +149,7 @@ Current SDK layering:
 
 **Building integrations?**
 - Review [`./cron/`](./cron) for automation and event-driven workflows
-- Explore [`desktop-app/`](../apps/examples/desktop-app), [`vscode/`](../apps/examples/vscode), and [`menubar/`](../apps/examples/menubar) for app integration patterns
+- Explore [`desktop-app/`](../../apps/examples/desktop-app), [`vscode/`](../../apps/examples/vscode), and [`menubar/`](../../apps/examples/menubar) for app integration patterns
 
 **Controlling agent behavior?**
 - Explore [`./hooks/`](./hooks) to intercept and modify tool execution, log actions, or enforce policies

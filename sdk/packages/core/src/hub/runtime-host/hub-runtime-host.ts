@@ -39,6 +39,7 @@ import type {
 	StartSessionInput,
 	StartSessionResult,
 } from "../../runtime/host/runtime-host";
+import { isSessionNotFoundError } from "../../runtime/host/runtime-host";
 import { RuntimeHostEventBus } from "../../runtime/host/runtime-host-support";
 import {
 	type SessionManifest,
@@ -54,7 +55,11 @@ import type {
 	CoreSettingsSnapshot,
 	CoreSettingsToggleInput,
 } from "../../settings";
-import { SessionSource, type SessionStatus } from "../../types/common";
+import {
+	isNonTerminalSessionStatus,
+	SessionSource,
+	type SessionStatus,
+} from "../../types/common";
 import type {
 	CoreSessionEvent,
 	SessionPendingPrompt,
@@ -1179,11 +1184,15 @@ export class HubRuntimeHost implements RuntimeHost {
 	}
 
 	async getSession(sessionId: string): Promise<SessionRecord | undefined> {
-		const reply = await this.client.command(
-			"session.get",
-			undefined,
-			sessionId,
-		);
+		let reply: Awaited<ReturnType<NodeHubClient["command"]>>;
+		try {
+			reply = await this.client.command("session.get", undefined, sessionId);
+		} catch (error) {
+			if (isSessionNotFoundError(error)) {
+				return undefined;
+			}
+			throw error;
+		}
 		return sessionRecordFromPayload(reply.payload);
 	}
 
@@ -1691,7 +1700,10 @@ export class HubRuntimeHost implements RuntimeHost {
 						reason,
 					},
 				});
-				if (snapshot?.interactive === true && snapshot.status === "running") {
+				if (
+					snapshot?.interactive === true &&
+					isNonTerminalSessionStatus(snapshot.status)
+				) {
 					return;
 				}
 				this.events.emit({

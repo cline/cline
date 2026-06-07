@@ -3,7 +3,6 @@ import {
 	type EditFileInput,
 	INPUT_ARG_CHAR_LIMIT,
 	type ReadFileRequest,
-	ReadFilesInputUnionSchema,
 	type StructuredCommandInput,
 	StructuredCommandsInputUnionSchema,
 } from "./schemas";
@@ -36,6 +35,16 @@ export function getEditorSizeError(input: EditFileInput): string | null {
 /**
  * Create a timeout-wrapped promise
  */
+export class TimeoutError extends Error {
+	readonly timeoutMs: number;
+
+	constructor(message: string, timeoutMs: number) {
+		super(message);
+		this.name = "TimeoutError";
+		this.timeoutMs = timeoutMs;
+	}
+}
+
 export function withTimeout<T>(
 	promise: Promise<T>,
 	ms: number,
@@ -44,46 +53,9 @@ export function withTimeout<T>(
 	return Promise.race([
 		promise,
 		new Promise<never>((_, reject) => {
-			setTimeout(() => reject(new Error(message)), ms);
+			setTimeout(() => reject(new TimeoutError(message, ms)), ms);
 		}),
 	]);
-}
-
-export function normalizeReadFileRequests(input: unknown): ReadFileRequest[] {
-	const validate = validateWithZod(ReadFilesInputUnionSchema, input);
-
-	if (typeof validate === "string") {
-		return [{ path: validate }];
-	}
-
-	if (Array.isArray(validate)) {
-		return validate.map((value) =>
-			typeof value === "string" ? { path: value } : value,
-		);
-	}
-
-	if ("files" in validate) {
-		const files = Array.isArray(validate.files)
-			? validate.files
-			: [validate.files];
-		return files;
-	}
-
-	if ("file_paths" in validate) {
-		const filePaths = Array.isArray(validate.file_paths)
-			? validate.file_paths
-			: [validate.file_paths];
-		return filePaths.map((filePath) => ({ path: filePath }));
-	}
-
-	if ("paths" in validate) {
-		const paths = Array.isArray(validate.paths)
-			? validate.paths
-			: [validate.paths];
-		return paths.map((path) => (typeof path === "string" ? { path } : path));
-	}
-
-	return [validate];
 }
 
 export function formatReadFileQuery(request: ReadFileRequest): string {

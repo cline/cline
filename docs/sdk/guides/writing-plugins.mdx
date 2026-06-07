@@ -251,12 +251,21 @@ await cline.start({
 
 ## Distributing via CLI Install
 
-To make your plugin installable with `cline plugin install`, add a `cline` field to your `package.json` that declares entry points. Dependencies under the `@cline/` scope are provided by the host runtime. The installer automatically strips these from the plugin's dependency list before running `npm install`, so declare any `@cline/*` package your plugin imports as an optional peer dependency:
+Single-file plugins can be installed directly from a file URL:
+
+```bash
+cline plugin install https://github.com/your-org/your-repo/blob/main/plugins/github-plugin.ts
+```
+
+Single-file plugins can only import Node builtins and `@cline/*`. As soon as you need an npm dependency (`zod`, an HTTP client, etc.) you must ship as a package: a directory with a `package.json` that declares a `cline` field for entry points and your runtime `dependencies`. Dependencies under the `@cline/` scope are provided by the host runtime -- the installer strips these and runs `npm install` for the rest, so declare any `@cline/*` package you import as an optional peer dependency:
 
 ```json
 {
   "cline": {
     "plugins": [{ "paths": ["./github-plugin.ts"], "capabilities": ["tools", "hooks"] }]
+  },
+  "dependencies": {
+    "@octokit/rest": "^21.0.0"
   },
   "peerDependencies": {
     "@cline/sdk": "*"
@@ -269,11 +278,26 @@ To make your plugin installable with `cline plugin install`, add a `cline` field
 }
 ```
 
-Users can then install from git, npm, or a local path:
+Users can also install package plugins from git, npm, or a local path:
 
 ```bash
 cline plugin install https://github.com/your-org/cline-github-plugin.git
 ```
+
+## Bundling Skills
+
+Package plugins can include skills by adding a top-level `skills/` directory next to `package.json`:
+
+```txt
+cline-github-plugin/
+  package.json
+  github-plugin.ts
+  skills/
+    triage/
+      SKILL.md
+```
+
+Each bundled skill follows the same directory format as any other [Cline skill](/customization/skills). When the plugin is installed or loaded through `pluginPaths`, Cline discovers those skills automatically.
 
 See [Plugins](/customization/plugins) for the full manifest format, directory layout, and the [typescript-lsp-plugin](https://github.com/cline/typescript-lsp-plugin) for a complete working example.
 

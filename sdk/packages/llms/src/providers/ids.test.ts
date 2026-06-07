@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { createOpenAICompatibleProvider, createOpenAIProvider } from "./ai-sdk";
+import {
+	createOpenAICompatibleProvider,
+	createOpenAIProvider,
+	createSapAiCoreProvider,
+} from "./ai-sdk";
 import { BUILTIN_PROVIDER_REGISTRATIONS } from "./builtins-runtime";
 import { createGateway } from "./gateway";
 import { BUILT_IN_PROVIDER_IDS, normalizeProviderId } from "./ids";
@@ -81,6 +85,28 @@ describe("provider-ids", () => {
 		);
 	});
 
+	it("registers Poolside as an OpenAI-compatible built-in provider", async () => {
+		expect(BUILT_IN_PROVIDER_IDS).toContain("poolside");
+
+		await expect(getProvider("poolside")).resolves.toMatchObject({
+			id: "poolside",
+			name: "Poolside",
+			baseUrl: "https://inference.poolside.ai/v1",
+			defaultModelId: "poolside/laguna-m.1",
+			client: "openai-compatible",
+		});
+		await expect(getModelsForProvider("poolside")).resolves.toHaveProperty(
+			"poolside/laguna-m.1",
+		);
+
+		const registration = BUILTIN_PROVIDER_REGISTRATIONS.find(
+			(item) => item.manifest.id === "poolside",
+		);
+		await expect(registration?.loadProvider?.()).resolves.toMatchObject({
+			createProvider: createOpenAICompatibleProvider,
+		});
+	});
+
 	it("routes Responses API built-ins through the OpenAI provider factory", async () => {
 		for (const providerId of ["litellm", "v0"]) {
 			const provider = await getProvider(providerId);
@@ -97,5 +123,21 @@ describe("provider-ids", () => {
 				createProvider: createOpenAIProvider,
 			});
 		}
+	});
+
+	it("routes SAP AI Core through the SAP AI SDK provider factory", async () => {
+		await expect(getProvider("sapaicore")).resolves.toMatchObject({
+			id: "sapaicore",
+			name: "SAP AI Core",
+			client: "ai-sdk-community",
+			defaultModelId: "anthropic--claude-3.5-sonnet",
+		});
+
+		const registration = BUILTIN_PROVIDER_REGISTRATIONS.find(
+			(item) => item.manifest.id === "sapaicore",
+		);
+		await expect(registration?.loadProvider?.()).resolves.toMatchObject({
+			createProvider: createSapAiCoreProvider,
+		});
 	});
 });
