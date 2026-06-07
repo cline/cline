@@ -240,7 +240,7 @@ interface JsonDisplaySpan {
  * Local models sometimes emit focus-chain updates as a standalone JSON object
  * `{"task_progress":"..."}` instead of (or outside) a normal tool payload.
  */
-function tryParseTaskProgressOnlySpan(text: string, start: number): JsonDisplaySpan | undefined {
+function tryParseTaskProgressOnlySpan(text: string, start: number, allowedNames: Set<string>): JsonDisplaySpan | undefined {
 	const end = findBalancedJsonEnd(text, start)
 	if (end === undefined) {
 		return undefined
@@ -263,7 +263,7 @@ function tryParseTaskProgressOnlySpan(text: string, start: number): JsonDisplayS
 	}
 
 	// Valid tool payloads are removed by findJsonToolSpans (includes embedded task_progress).
-	if (extractToolsFromJsonValue(parsed, getAllowedToolNames()).length > 0) {
+	if (extractToolsFromJsonValue(parsed, allowedNames).length > 0) {
 		return undefined
 	}
 
@@ -271,12 +271,13 @@ function tryParseTaskProgressOnlySpan(text: string, start: number): JsonDisplayS
 }
 
 export function findTaskProgressJsonSpans(message: string): JsonDisplaySpan[] {
+	const allowedNames = getAllowedToolNames()
 	const spans: JsonDisplaySpan[] = []
 	let i = 0
 
 	while (i < message.length) {
 		if (message[i] === "{") {
-			const span = tryParseTaskProgressOnlySpan(message, i)
+			const span = tryParseTaskProgressOnlySpan(message, i, allowedNames)
 			if (span) {
 				spans.push(span)
 				i = span.end
