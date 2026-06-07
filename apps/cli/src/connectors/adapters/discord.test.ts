@@ -228,7 +228,7 @@ describe("discordConnector", () => {
 		});
 	});
 
-	it("switches Discord thread state to the incoming participant without reusing the previous participant session", async () => {
+	it("updates Discord participant metadata without changing the thread session", async () => {
 		const dir = await mkdtemp(join(tmpdir(), "discord-participants-"));
 		const bindingsPath = join(dir, "threads.json");
 		const thread = createThread({
@@ -278,11 +278,13 @@ describe("discordConnector", () => {
 			errorLabel: "Discord",
 		});
 
-		const bob =
-			readBindings<TestDiscordState>(bindingsPath)["discord:user:bob"];
-		expect(bob?.state?.participantKey).toBe("discord:user:bob");
-		expect(bob?.state?.participantLabel).toBe("Bob");
-		expect(bob?.state?.sessionId).toBeUndefined();
+		const binding =
+			readBindings<TestDiscordState>(bindingsPath)[
+				"discord:guild:channel:thread"
+			];
+		expect(binding?.state?.participantKey).toBe("discord:user:bob");
+		expect(binding?.state?.participantLabel).toBe("Bob");
+		expect(binding?.state?.sessionId).toBe("session-alice");
 		expect(
 			readBindings<TestDiscordState>(bindingsPath)["discord:user:alice"]?.state
 				?.sessionId,

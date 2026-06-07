@@ -363,7 +363,7 @@ describe("telegram binding lookup", () => {
 		expect(result?.binding.sessionId).toBe("sess-2");
 	});
 
-	it("reuses a binding by participant key across different chats", () => {
+	it("does not reuse a binding by participant key across different chats", () => {
 		const result = __test__.findBindingForThread(
 			{
 				"telegram:user:alice": {
@@ -389,7 +389,6 @@ describe("telegram binding lookup", () => {
 			},
 		);
 
-		expect(result?.key).toBe("telegram:user:alice");
-		expect(result?.binding.sessionId).toBe("sess-1");
+		expect(result).toBeUndefined();
 	});
 });

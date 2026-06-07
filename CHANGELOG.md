@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.88.1]
+
+### Added
+
+- Add a debug section in settings for Cline testers.
+
+### Fixed
+
+- Include the walkthrough markdown files in the VS Code extension package so the first-run walkthrough steps load correctly.
+
 ## [3.88.0]
 
 ### Added
