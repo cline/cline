@@ -173,6 +173,38 @@ describe("parseAssistantMessageV2 JSON fallback", () => {
 	})
 })
 
+describe("mergeJsonToolUsesFallback partial flags", () => {
+	const readFileJson = '{"name":"read_file","arguments":{"path":"a.ts"}}'
+
+	it("marks trailing text after the last tool span as partial", () => {
+		const merged = mergeJsonToolUsesFallback(`${readFileJson}suffix`, [])
+
+		const textBlocks = merged.filter((b) => b.type === "text")
+		expect(textBlocks).to.have.length(1)
+		expect(textBlocks[0].content).to.equal("suffix")
+		expect(textBlocks[0].partial).to.equal(true)
+	})
+
+	it("marks pre-tool text as complete and trailing text as partial", () => {
+		const merged = mergeJsonToolUsesFallback(`prefix${readFileJson}suffix`, [])
+
+		const textBlocks = merged.filter((b) => b.type === "text")
+		expect(textBlocks).to.have.length(2)
+		expect(textBlocks[0].content).to.equal("prefix")
+		expect(textBlocks[0].partial).to.equal(false)
+		expect(textBlocks[1].content).to.equal("suffix")
+		expect(textBlocks[1].partial).to.equal(true)
+	})
+
+	it("leaves tool-only messages with a complete tool_use block", () => {
+		const merged = mergeJsonToolUsesFallback(readFileJson, [])
+
+		expect(merged).to.have.length(1)
+		expect(merged[0].type).to.equal("tool_use")
+		expect(merged[0].partial).to.equal(false)
+	})
+})
+
 describe("stripJsonToolPayloadsFromDisplayText", () => {
 	it("removes fenced JSON tool blocks including fence markers from display text", () => {
 		const text = `Here is the call:\n\`\`\`json\n{"name":"read_file","arguments":{"path":"a.ts"}}\n\`\`\``

@@ -439,7 +439,7 @@ export function mergeJsonToolUsesFallback(message: string, xmlBlocks: AssistantM
 		cursor = span.end
 	}
 
-	pushTextBlock(merged, message.slice(cursor), false)
+	pushTextBlock(merged, message.slice(cursor), true)
 
 	return merged.length > 0 ? merged : xmlBlocks
 }
