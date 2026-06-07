@@ -65,7 +65,7 @@ describe("whatsapp binding lookup", () => {
 		expect(result?.binding.sessionId).toBe("sess-2");
 	});
 
-	it("reuses a binding by participant key across different threads", () => {
+	it("does not reuse a binding by participant key across different threads", () => {
 		const result = __test__.findBindingForThread(
 			{
 				"whatsapp:user:15551234567": {
@@ -91,7 +91,6 @@ describe("whatsapp binding lookup", () => {
 			},
 		);
 
-		expect(result?.key).toBe("whatsapp:user:15551234567");
-		expect(result?.binding.sessionId).toBe("sess-1");
+		expect(result).toBeUndefined();
 	});
 });
