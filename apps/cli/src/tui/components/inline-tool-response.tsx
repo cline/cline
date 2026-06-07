@@ -1,5 +1,6 @@
+import type { ScrollBoxRenderable } from "@opentui/core";
 import { useKeyboard, useTerminalDimensions } from "@opentui/react";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { palette } from "../palette";
 import type { RuntimeToolInteraction } from "../types";
 import { formatApprovalParams } from "./dialogs/tool-approval";
@@ -22,23 +23,129 @@ function keyToText(name: string): string {
 	return name === "space" ? " " : name;
 }
 
+function getToolShellMaxHeight(terminalHeight: number): number {
+	return Math.max(7, Math.min(14, Math.floor(terminalHeight * 0.38)));
+}
+
+function getAskQuestionShellMaxHeight(terminalHeight: number): number {
+	const preferredHeight = Math.max(11, Math.floor(terminalHeight * 0.58));
+	const availableHeight = Math.max(7, terminalHeight - 3);
+	return Math.min(18, preferredHeight, availableHeight);
+}
+
+function getAskQuestionBodyHeight(shellMaxHeight: number): number {
+	return Math.max(1, shellMaxHeight - 4);
+}
+
+function addWrappedWidth(input: {
+	rows: number;
+	lineWidth: number;
+	width: number;
+	maxWidth: number;
+}): { rows: number; lineWidth: number } {
+	if (input.width <= 0) {
+		return { rows: input.rows, lineWidth: input.lineWidth };
+	}
+
+	let rows = input.rows;
+	let remainingWidth = input.width;
+	let lineWidth = input.lineWidth;
+
+	if (lineWidth > 0) {
+		const availableWidth = input.maxWidth - lineWidth;
+		if (remainingWidth <= availableWidth) {
+			return { rows, lineWidth: lineWidth + remainingWidth };
+		}
+
+		remainingWidth -= Math.max(0, availableWidth);
+		rows += 1;
+		lineWidth = 0;
+	}
+
+	rows += Math.max(0, Math.ceil(remainingWidth / input.maxWidth) - 1);
+	lineWidth = remainingWidth % input.maxWidth || input.maxWidth;
+
+	return { rows, lineWidth };
+}
+
+function countWrappedRows(text: string, width: number): number {
+	const safeWidth = Math.max(1, width);
+	const paragraphs = text.split("\n");
+	let rows = 0;
+
+	for (const paragraph of paragraphs) {
+		rows += 1;
+		let lineWidth = 0;
+		const tokens = paragraph.match(/\s+|\S+/g) ?? [];
+
+		for (const token of tokens) {
+			const tokenWidth = Bun.stringWidth(token);
+			const isWhitespace = /^\s+$/.test(token);
+
+			if (
+				!isWhitespace &&
+				lineWidth > 0 &&
+				lineWidth + tokenWidth > safeWidth
+			) {
+				rows += 1;
+				lineWidth = 0;
+			}
+
+			const next = addWrappedWidth({
+				rows,
+				lineWidth,
+				width: tokenWidth,
+				maxWidth: safeWidth,
+			});
+			rows = next.rows;
+			lineWidth = next.lineWidth;
+		}
+	}
+
+	return rows;
+}
+
+function getAskQuestionContentHeight(input: {
+	terminalWidth: number;
+	question: string;
+	options: string[];
+	customText: string;
+}): number {
+	const questionWidth = Math.max(1, input.terminalWidth - 3);
+	const optionTextWidth = Math.max(1, input.terminalWidth - 7);
+	const questionRows = countWrappedRows(input.question, questionWidth);
+	const optionRows = input.options.reduce(
+		(rows, option) => rows + countWrappedRows(option, optionTextWidth),
+		0,
+	);
+	const customRows = countWrappedRows(input.customText, optionTextWidth);
+	return questionRows + 1 + optionRows + customRows;
+}
+
+function getAskQuestionChoiceId(interactionId: number, index: number): string {
+	return `ask-question-${interactionId.toString()}-choice-${index.toString()}`;
+}
+
 function Shell(
 	props: Pick<
 		InlineToolResponseProps,
 		"accent" | "inputBackground" | "inputForeground"
 	> & {
 		title: string;
+		maxHeight?: number;
+		overflow?: "hidden";
 		children: React.ReactNode;
 	},
 ) {
 	const { height } = useTerminalDimensions();
-	const maxHeight = Math.max(7, Math.min(14, Math.floor(height * 0.38)));
+	const maxHeight = props.maxHeight ?? getToolShellMaxHeight(height);
 
 	return (
 		<box
 			flexDirection="column"
 			width="100%"
 			maxHeight={maxHeight}
+			overflow={props.overflow}
 			backgroundColor={props.inputBackground}
 			paddingX={1}
 			paddingY={1}
@@ -59,6 +166,7 @@ function ChoiceButton(props: {
 	onPress: () => void;
 }) {
 	return (
+		// biome-ignore lint/a11y/noStaticElementInteractions: OpenTUI boxes handle terminal mouse input.
 		<box
 			paddingX={1}
 			backgroundColor={props.selected ? palette.selection : undefined}
@@ -155,9 +263,11 @@ function AskQuestionResponse(
 	},
 ) {
 	const { interaction } = props;
+	const { height, width } = useTerminalDimensions();
 	const [selected, setSelected] = useState(0);
 	const [customValue, setCustomValue] = useState("");
 	const [customEmptyAttempted, setCustomEmptyAttempted] = useState(false);
+	const scrollRef = useRef<ScrollBoxRenderable | null>(null);
 	const selectedRef = useRef(0);
 	const customValueRef = useRef("");
 	const interactionId = interaction.id;
@@ -165,6 +275,24 @@ function AskQuestionResponse(
 	const customIndex = interaction.options.length;
 	const isTyping = selected === customIndex;
 	const totalChoices = interaction.options.length + 1;
+	const shellMaxHeight = getAskQuestionShellMaxHeight(height);
+	const maxBodyHeight = getAskQuestionBodyHeight(shellMaxHeight);
+	const customText = isTyping
+		? customValue
+			? `${customValue}|`
+			: customEmptyAttempted
+				? "Type a response first..."
+				: "Type a response..."
+		: "Type a response...";
+	const bodyHeight = Math.min(
+		maxBodyHeight,
+		getAskQuestionContentHeight({
+			terminalWidth: width,
+			question: interaction.question,
+			options: interaction.options,
+			customText,
+		}),
+	);
 
 	const selectIndex = useCallback(
 		(index: number) => {
@@ -191,6 +319,26 @@ function AskQuestionResponse(
 		},
 		[interactionId, onResolveAskQuestion],
 	);
+
+	useEffect(() => {
+		const choiceId = getAskQuestionChoiceId(interactionId, selected);
+		let canceled = false;
+		const scrollSelectedChoiceIntoView = () => {
+			if (canceled) {
+				return;
+			}
+
+			scrollRef.current?.scrollChildIntoView(choiceId);
+		};
+
+		scrollSelectedChoiceIntoView();
+		queueMicrotask(scrollSelectedChoiceIntoView);
+		const timeout = setTimeout(scrollSelectedChoiceIntoView, 0);
+		return () => {
+			canceled = true;
+			clearTimeout(timeout);
+		};
+	}, [interactionId, selected]);
 
 	useKeyboard((key) => {
 		const typing = selectedRef.current === customIndex;
@@ -261,64 +409,91 @@ function AskQuestionResponse(
 			accent={props.accent}
 			inputBackground={props.inputBackground}
 			inputForeground={props.inputForeground}
+			maxHeight={shellMaxHeight}
+			overflow="hidden"
 		>
-			<text fg={props.inputForeground} selectable>
-				{interaction.question}
-			</text>
+			<scrollbox
+				ref={scrollRef}
+				height={bodyHeight}
+				width="100%"
+				scrollY
+				scrollX={false}
+				viewportOptions={{ overflow: "hidden" }}
+				contentOptions={{ flexDirection: "column" }}
+			>
+				<box flexDirection="column" gap={1} flexShrink={0} width="100%">
+					<text fg={props.inputForeground} selectable flexShrink={0}>
+						{interaction.question}
+					</text>
 
-			<box flexDirection="column">
-				{interaction.options.map((option, index) => {
-					const optionSelected = !isTyping && selected === index;
-					return (
+					<box flexDirection="column" flexShrink={0} width="100%">
+						{interaction.options.map((option, index) => {
+							const optionSelected = !isTyping && selected === index;
+							return (
+								// biome-ignore lint/a11y/noStaticElementInteractions: OpenTUI boxes handle terminal mouse input.
+								<box
+									id={getAskQuestionChoiceId(interactionId, index)}
+									key={`${index.toString()}:${option}`}
+									paddingX={1}
+									flexDirection="row"
+									gap={1}
+									flexShrink={0}
+									width="100%"
+									backgroundColor={
+										optionSelected ? palette.selection : undefined
+									}
+									onMouseDown={() => resolveAnswer(option)}
+								>
+									<text
+										fg={optionSelected ? palette.textOnSelection : "gray"}
+										flexShrink={0}
+									>
+										{optionSelected ? ">" : " "}
+									</text>
+									<text
+										fg={
+											optionSelected
+												? palette.textOnSelection
+												: props.inputForeground
+										}
+										flexGrow={1}
+										flexShrink={1}
+									>
+										{option}
+									</text>
+								</box>
+							);
+						})}
+						{/* biome-ignore lint/a11y/noStaticElementInteractions: OpenTUI boxes handle terminal mouse input. */}
 						<box
-							key={`${index.toString()}:${option}`}
+							id={getAskQuestionChoiceId(interactionId, customIndex)}
 							paddingX={1}
 							flexDirection="row"
 							gap={1}
-							backgroundColor={optionSelected ? palette.selection : undefined}
-							onMouseDown={() => resolveAnswer(option)}
+							flexShrink={0}
+							width="100%"
+							backgroundColor={isTyping ? palette.selection : undefined}
+							onMouseDown={() => selectIndex(customIndex)}
 						>
 							<text
-								fg={optionSelected ? palette.textOnSelection : "gray"}
+								fg={isTyping ? palette.textOnSelection : "gray"}
 								flexShrink={0}
 							>
-								{optionSelected ? ">" : " "}
+								{isTyping ? ">" : " "}
 							</text>
-							<text
-								fg={
-									optionSelected
-										? palette.textOnSelection
-										: props.inputForeground
-								}
-							>
-								{option}
-							</text>
+							{isTyping ? (
+								<text fg={palette.textOnSelection} flexGrow={1} flexShrink={1}>
+									{customText}
+								</text>
+							) : (
+								<text fg={props.inputPlaceholder} flexGrow={1} flexShrink={1}>
+									Type a response...
+								</text>
+							)}
 						</box>
-					);
-				})}
-				<box
-					paddingX={1}
-					flexDirection="row"
-					gap={1}
-					backgroundColor={isTyping ? palette.selection : undefined}
-					onMouseDown={() => selectIndex(customIndex)}
-				>
-					<text fg={isTyping ? palette.textOnSelection : "gray"} flexShrink={0}>
-						{isTyping ? ">" : " "}
-					</text>
-					{isTyping ? (
-						<text fg={palette.textOnSelection} flexGrow={1}>
-							{customValue
-								? `${customValue}|`
-								: customEmptyAttempted
-									? "Type a response first..."
-									: "Type a response..."}
-						</text>
-					) : (
-						<text fg={props.inputPlaceholder}>Type a response...</text>
-					)}
+					</box>
 				</box>
-			</box>
+			</scrollbox>
 		</Shell>
 	);
 }
