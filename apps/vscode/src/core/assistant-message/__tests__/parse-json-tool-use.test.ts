@@ -85,6 +85,15 @@ describe("parseAssistantMessageV2 JSON fallback", () => {
 		expect(textContent).to.not.include("```")
 	})
 
+	it("does not treat nested tool-shaped JSON inside a larger object as a tool call", () => {
+		const message = '{"example":{"name":"read_file","arguments":{"path":"nested.ts"}}}'
+
+		const blocks = parseAssistantMessageV2(message)
+
+		expect(toolUses(blocks)).to.have.length(0)
+		expect(findJsonToolSpans(message)).to.deep.equal([])
+	})
+
 	it("ignores invalid tool names and leaves content as text", () => {
 		const message = '{"name":"not_a_real_cline_tool","arguments":{"path":"x"}}'
 

@@ -181,6 +181,15 @@ function tryParseJsonToolSpan(text: string, start: number, allowedNames: Set<str
 	return { tools, start, end }
 }
 
+/** Advance past a complete `{...}` object, or by one character if the object is incomplete (streaming). */
+function nextIndexAfterJsonObject(text: string, start: number): number {
+	if (text[start] !== "{") {
+		return start + 1
+	}
+	const end = findBalancedJsonEnd(text, start)
+	return end ?? start + 1
+}
+
 /**
  * Scans `message` for complete JSON objects that encode tool calls (Qwen / OpenAI-style).
  * Incomplete objects at EOF are skipped so streaming partial JSON remains plain text.
@@ -223,6 +232,9 @@ export function findJsonToolSpans(message: string): JsonToolSpan[] {
 				i = span.end
 				continue
 			}
+			// Complete non-tool JSON: skip the whole object so nested tool-shaped values are not matched.
+			i = nextIndexAfterJsonObject(message, i)
+			continue
 		}
 
 		i++
@@ -283,6 +295,8 @@ export function findTaskProgressJsonSpans(message: string): JsonDisplaySpan[] {
 				i = span.end
 				continue
 			}
+			i = nextIndexAfterJsonObject(message, i)
+			continue
 		}
 		i++
 	}
