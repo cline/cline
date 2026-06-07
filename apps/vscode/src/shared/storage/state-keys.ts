@@ -117,6 +117,7 @@ const API_HANDLER_SETTINGS_FIELDS = {
 	openAiBaseUrl: { default: undefined as string | undefined },
 	ollamaBaseUrl: { default: undefined as string | undefined },
 	ollamaApiOptionsCtxNum: { default: undefined as string | undefined },
+	ollamaThinking: { default: undefined as boolean | undefined },
 	lmStudioBaseUrl: { default: undefined as string | undefined },
 	lmStudioMaxTokens: { default: undefined as string | undefined },
 	geminiBaseUrl: { default: undefined as string | undefined },

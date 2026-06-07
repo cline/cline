@@ -16,6 +16,7 @@ interface OllamaHandlerOptions extends CommonApiHandlerOptions {
 	ollamaApiKey?: string
 	ollamaModelId?: string
 	ollamaApiOptionsCtxNum?: string
+	ollamaThinking?: boolean
 	requestTimeoutMs?: number
 }
 
@@ -73,6 +74,7 @@ export class OllamaHandler implements ApiHandler {
 				model: this.getModel().id,
 				messages: ollamaMessages,
 				stream: true,
+				think: this.options.ollamaThinking ?? true,
 				options: {
 					num_ctx: Number(this.options.ollamaApiOptionsCtxNum),
 				},

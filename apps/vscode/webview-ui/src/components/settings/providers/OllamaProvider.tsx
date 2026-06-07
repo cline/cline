@@ -1,6 +1,6 @@
 import { StringRequest } from "@shared/proto/cline/common"
 import { Mode } from "@shared/storage/types"
-import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeCheckbox, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useEffect, useState } from "react"
 import { useInterval } from "react-use"
 import UseCustomPromptCheckbox from "@/components/settings/UseCustomPromptCheckbox"
@@ -124,6 +124,12 @@ export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: Ollam
 					</p>
 				</>
 			)}
+
+			<VSCodeCheckbox
+				checked={apiConfiguration?.ollamaThinking ?? true}
+				onChange={(e: any) => handleFieldChange("ollamaThinking", e.target.checked)}>
+				<span className="font-semibold">Enable thinking</span>
+			</VSCodeCheckbox>
 
 			<UseCustomPromptCheckbox providerId="ollama" />
 

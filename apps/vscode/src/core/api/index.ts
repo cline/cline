@@ -157,6 +157,7 @@ function createHandlerForProvider(
 				ollamaApiKey: options.ollamaApiKey,
 				ollamaModelId: mode === "plan" ? options.planModeOllamaModelId : options.actModeOllamaModelId,
 				ollamaApiOptionsCtxNum: options.ollamaApiOptionsCtxNum,
+				ollamaThinking: options.ollamaThinking,
 				requestTimeoutMs: options.requestTimeoutMs,
 			})
 		case "lmstudio":
