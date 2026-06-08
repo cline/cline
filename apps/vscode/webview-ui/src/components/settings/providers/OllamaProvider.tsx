@@ -1,17 +1,20 @@
+import { openAiModelInfoSafeDefaults } from "@shared/api"
 import { StringRequest } from "@shared/proto/cline/common"
 import { Mode } from "@shared/storage/types"
 import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useInterval } from "react-use"
 import UseCustomPromptCheckbox from "@/components/settings/UseCustomPromptCheckbox"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useProviderConfig } from "@/hooks/useProviderConfig"
+import { useProviderModelSelection } from "@/hooks/useProviderModelSelection"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import OllamaModelPicker from "../OllamaModelPicker"
-import { getModeSpecificFields } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { useProviderApiKeyField } from "../utils/useProviderApiKeyField"
 
 /**
  * Props for the OllamaProvider component
@@ -27,18 +30,49 @@ interface OllamaProviderProps {
  */
 export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: OllamaProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
-
-	const { ollamaModelId } = getModeSpecificFields(apiConfiguration, currentMode)
+	const { handleFieldChange } = useApiConfigurationHandlers()
+	const { config, write, commitSelection } = useProviderConfig("ollama")
 
 	const [ollamaModels, setOllamaModels] = useState<string[]>([])
+
+	const ollamaBaseUrl = config?.baseUrl ?? apiConfiguration?.ollamaBaseUrl
+	const ollamaModelInfo = useMemo(() => {
+		const contextWindow = Number.parseInt(apiConfiguration?.ollamaApiOptionsCtxNum || "", 10)
+		return {
+			...openAiModelInfoSafeDefaults,
+			...(Number.isFinite(contextWindow) && contextWindow > 0 ? { contextWindow } : {}),
+		}
+	}, [apiConfiguration?.ollamaApiOptionsCtxNum])
+	const ollamaModelInfoById = useMemo(
+		() => Object.fromEntries(ollamaModels.map((modelId) => [modelId, { ...ollamaModelInfo, name: modelId }])),
+		[ollamaModelInfo, ollamaModels],
+	)
+	const { selectedModel, commitModelSelection } = useProviderModelSelection("ollama", currentMode, {
+		models: ollamaModelInfoById,
+		config,
+		commitSelection,
+		fallbackModelInfo: ollamaModelInfo,
+		customModelInfo: (modelId) => ({ ...ollamaModelInfo, name: modelId }),
+	})
+	const { savedApiKeyMask, handleApiKeyChange } = useProviderApiKeyField({
+		apiKeyLength: config?.apiKeyLength,
+		providerName: "Ollama",
+		write,
+	})
+
+	const handleBaseUrlChange = useCallback(
+		(value: string) => {
+			void write({ baseUrl: value }).catch((error) => console.error("Failed to update Ollama base URL:", error))
+		},
+		[write],
+	)
 
 	// Poll ollama models
 	const requestOllamaModels = useCallback(async () => {
 		try {
 			const response = await ModelsServiceClient.getOllamaModels(
 				StringRequest.create({
-					value: apiConfiguration?.ollamaBaseUrl || "",
+					value: ollamaBaseUrl || "",
 				}),
 			)
 			if (response && response.values) {
@@ -48,7 +82,7 @@ export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: Ollam
 			console.error("Failed to fetch Ollama models:", error)
 			setOllamaModels([])
 		}
-	}, [apiConfiguration?.ollamaBaseUrl])
+	}, [ollamaBaseUrl])
 
 	useEffect(() => {
 		requestOllamaModels()
@@ -59,17 +93,17 @@ export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: Ollam
 	return (
 		<div className="flex flex-col gap-2">
 			<BaseUrlField
-				initialValue={apiConfiguration?.ollamaBaseUrl}
+				initialValue={ollamaBaseUrl}
 				label="Use custom base URL"
-				onChange={(value) => handleFieldChange("ollamaBaseUrl", value)}
+				onChange={handleBaseUrlChange}
 				placeholder="Default: http://localhost:11434"
 			/>
 
-			{apiConfiguration?.ollamaBaseUrl && (
+			{ollamaBaseUrl && (
 				<ApiKeyField
 					helpText="Optional API key for authenticated Ollama instances or cloud services. Leave empty for local installations."
-					initialValue={apiConfiguration?.ollamaApiKey || ""}
-					onChange={(value) => handleFieldChange("ollamaApiKey", value)}
+					initialValue={savedApiKeyMask}
+					onChange={handleApiKeyChange}
 					placeholder="Enter API Key (optional)..."
 					providerName="Ollama"
 				/>
@@ -82,10 +116,17 @@ export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: Ollam
 			<OllamaModelPicker
 				ollamaModels={ollamaModels}
 				onModelChange={(modelId) => {
-					handleModeFieldChange({ plan: "planModeOllamaModelId", act: "actModeOllamaModelId" }, modelId, currentMode)
+					const trimmedModelId = modelId.trim()
+					if (!trimmedModelId) {
+						return
+					}
+					void commitModelSelection({
+						modelId: trimmedModelId,
+						modelInfo: { ...ollamaModelInfo, name: trimmedModelId },
+					}).catch((error) => console.error("Failed to update Ollama model selection:", error))
 				}}
 				placeholder={ollamaModels.length > 0 ? "Search and select a model..." : "e.g. llama3.1"}
-				selectedModelId={ollamaModelId || ""}
+				selectedModelId={selectedModel.modelId || ""}
 			/>
 
 			{/* Show status message based on model availability */}
@@ -98,7 +139,21 @@ export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: Ollam
 
 			<DebouncedTextField
 				initialValue={apiConfiguration?.ollamaApiOptionsCtxNum || "32768"}
-				onChange={(v) => handleFieldChange("ollamaApiOptionsCtxNum", v || undefined)}
+				onChange={(v) => {
+					handleFieldChange("ollamaApiOptionsCtxNum", v || undefined)
+
+					const contextWindow = Number.parseInt(v, 10)
+					if (selectedModel.modelId) {
+						void commitModelSelection({
+							modelId: selectedModel.modelId,
+							modelInfo: {
+								...openAiModelInfoSafeDefaults,
+								name: selectedModel.modelId,
+								...(Number.isFinite(contextWindow) && contextWindow > 0 ? { contextWindow } : {}),
+							},
+						}).catch((error) => console.error("Failed to update Ollama context window:", error))
+					}
+				}}
 				placeholder={"e.g. 32768"}
 				style={{ width: "100%" }}>
 				<span className="font-semibold">Model Context Window</span>
