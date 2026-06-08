@@ -14,6 +14,8 @@ import { toProviderApiKey } from "../utils/provider-auth";
 import type { Config } from "../utils/types";
 
 const WORKOS_TOKEN_PREFIX = "workos:";
+export const CLINE_CREDITS_DASHBOARD_URL =
+	"https://app.cline.bot/dashboard/account?tab=credits";
 
 type ClineAccountConfig = Pick<Config, "apiKey" | "providerId">;
 
@@ -30,11 +32,21 @@ export function formatClineCredits(value: number): string {
 	return formatCreditBalance(normalizeCreditBalance(value));
 }
 
+// FIXME: These message checks are temporary until structured error types are
+// passed through to the CLI instead of plain error strings.
 export function isClineAccountAuthErrorMessage(message: string): boolean {
 	const normalized = message.trim().toLowerCase();
 	return (
 		normalized === "no cline account auth token found" ||
 		normalized.includes("requires re-authentication")
+	);
+}
+
+export function isClineAccountCreditsErrorMessage(message: string): boolean {
+	const normalized = message.trim().toLowerCase();
+	return (
+		normalized.includes("insufficient balance") &&
+		normalized.includes("cline credits balance")
 	);
 }
 
