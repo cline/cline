@@ -58,6 +58,9 @@ export class MinimaxHandler implements ApiHandler {
 
 		const budget_tokens = this.options.thinkingBudgetTokens || 0
 		const reasoningOn = (model.info.supportsReasoning ?? false) && budget_tokens !== 0
+		// MiniMax-M3 is Anthropic-compatible and uses adaptive thinking (the model
+		// self-scales how much it thinks) instead of a fixed token budget.
+		const isAdaptiveThinking = model.id.toLowerCase().includes("minimax-m3")
 
 		// MiniMax M2 uses Anthropic API format
 		const stream: AnthropicStream<Anthropic.RawMessageStreamEvent> = await client.messages.create({
@@ -67,7 +70,11 @@ export class MinimaxHandler implements ApiHandler {
 			messages,
 			stream: true,
 			tools: nativeToolsOn ? (tools as AnthropicTool[]) : undefined,
-			thinking: reasoningOn ? { type: "enabled", budget_tokens: budget_tokens } : undefined,
+			thinking: !reasoningOn
+				? undefined
+				: isAdaptiveThinking
+					? ({ type: "adaptive" } as any)
+					: { type: "enabled", budget_tokens: budget_tokens },
 			// "Thinking isn't compatible with temperature, top_p, or top_k modifications"
 			temperature: reasoningOn ? undefined : 1.0, // MiniMax recommends 1.0, range is (0.0, 1.0]
 			// NOTE: Forcing tool use when tools are provided will result in error when thinking is also enabled.
