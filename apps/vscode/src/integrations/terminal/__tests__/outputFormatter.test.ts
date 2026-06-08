@@ -18,6 +18,12 @@ describe("formatTerminalOutput", () => {
 		assert.equal(result.match(/Frame \d+ spheres=/g)?.length, 10)
 	})
 
+	it("handles a one-line output limit without tail lines", () => {
+		const result = formatTerminalOutput(["first", "second", "third"], 1)
+
+		assert.equal(result, "first\n... (output truncated) ...")
+	})
+
 	it("caps a single oversized terminal line", () => {
 		const result = formatTerminalOutput([`start ${"x".repeat(10_000)} end`], 10)
 
@@ -25,6 +31,14 @@ describe("formatTerminalOutput", () => {
 		assert.ok(result.length <= 4_096)
 		assert.ok(result.startsWith("start "))
 		assert.ok(result.endsWith(" end"))
+	})
+
+	it("strictly caps oversized terminal lines across omitted-count digit boundaries", () => {
+		for (const extraChars of [9, 10, 99, 100, 999, 1_000]) {
+			const result = formatTerminalOutput(["x".repeat(4_096 + extraChars)], 10)
+
+			assert.ok(result.length <= 4_096, `expected ${result.length} <= 4096 for ${extraChars} extra chars`)
+		}
 	})
 
 	it("caps total command output after line truncation", () => {

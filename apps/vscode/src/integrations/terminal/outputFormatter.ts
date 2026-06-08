@@ -6,20 +6,19 @@ function truncateMiddle(text: string, maxChars: number, reason: string): string 
 		return text
 	}
 
-	let omitted = 0
-	let headChars = 0
-	let tailChars = 0
-	let marker = ""
+	const markerFor = (omitted: number) => `\n... (${reason}, ${omitted} chars omitted) ...\n`
+	const maxMarker = markerFor(text.length)
 
-	for (let i = 0; i < 3; i++) {
-		marker = `\n... (${reason}, ${omitted} chars omitted) ...\n`
-		const remainingChars = Math.max(0, maxChars - marker.length)
-		headChars = Math.ceil(remainingChars / 2)
-		tailChars = Math.floor(remainingChars / 2)
-		omitted = text.length - headChars - tailChars
+	if (maxMarker.length >= maxChars) {
+		return text.slice(0, maxChars)
 	}
 
-	marker = `\n... (${reason}, ${omitted} chars omitted) ...\n`
+	const remainingChars = maxChars - maxMarker.length
+	const headChars = Math.ceil(remainingChars / 2)
+	const tailChars = Math.floor(remainingChars / 2)
+	const omitted = text.length - headChars - tailChars
+	const marker = markerFor(omitted)
+
 	return `${text.slice(0, headChars)}${marker}${tailChars > 0 ? text.slice(-tailChars) : ""}`
 }
 
