@@ -96,6 +96,24 @@ function sanitizeExtras(extras: Readonly<Record<string, unknown>> | undefined): 
 	return result as Readonly<Record<string, unknown>>
 }
 
+function sanitizeAws(config: EffectiveProviderConfig["aws"]): Readonly<Record<string, unknown>> | null {
+	if (!config) {
+		return null
+	}
+	return {
+		accessKey: shortSecretHash(config.accessKey),
+		secretKey: shortSecretHash(config.secretKey),
+		sessionToken: shortSecretHash(config.sessionToken),
+		authentication: config.authentication ?? null,
+		profile: config.profile ?? null,
+		usePromptCache: config.usePromptCache ?? null,
+		endpoint: config.endpoint ?? null,
+		customModelBaseId: config.customModelBaseId ?? null,
+		useCrossRegionInference: config.useCrossRegionInference ?? null,
+		useGlobalInference: config.useGlobalInference ?? null,
+	}
+}
+
 /**
  * Canonical JSON serialization with deterministic key ordering at every
  * object depth. Arrays preserve order because array order is meaningful.
@@ -140,6 +158,7 @@ export function computeConfigFingerprint(providerId: ProviderId, config: Effecti
 		apiLine: config.apiLine ?? null,
 		headers: sanitizeHeaders(config.headers),
 		region: config.region ?? null,
+		aws: sanitizeAws(config.aws),
 		extras: sanitizeExtras(config.extras),
 		auth: {
 			accountId: config.auth?.accountId ?? null,
