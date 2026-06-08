@@ -21,7 +21,7 @@ import { stringifyVsCodeLmModelSelector } from "@shared/vsCodeSelectorUtils"
 import { StateManager } from "@/core/storage/StateManager"
 import { ExtensionRegistryInfo } from "@/registry"
 import { getDistinctId } from "@/services/logging/distinctId"
-import { type BedrockProviderConfig, buildBedrockProviderConfig, buildBedrockProviderSettings } from "./bedrock-config"
+import { type BedrockProviderConfig, buildBedrockProviderConfig } from "./bedrock-config"
 import { buildAgentHooks } from "./hooks-adapter"
 import { readTaskHistory, resolveDataDir } from "./legacy-state-reader"
 import { toSdkProviderId } from "./model-catalog/sdk-provider-id"
@@ -470,22 +470,6 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 			// providers.json).
 			if (providerId === "bedrock") {
 				bedrockProviderConfig = buildBedrockProviderConfig(apiConfig, mode)
-
-				// The main chat path's gateway config is built by core from the
-				// providers.json `stored` entry (`{ ...stored, ... }`), and the
-				// session's providerConfig does NOT override the gateway's AWS
-				// region/auth. A stale providers.json Bedrock entry (e.g. a legacy
-				// migration with region "us-east-1" + SigV4 keys) would otherwise
-				// win and send requests to the wrong region. Persist the
-				// StateManager-derived settings so `stored` is authoritative.
-				try {
-					getProviderSettingsManager(resolveDataDir()).saveProviderSettings(
-						buildBedrockProviderSettings(apiConfig, modelId ?? "", mode),
-						{ setLastUsed: false },
-					)
-				} catch (error) {
-					Logger.warn("[SessionFactory] Failed to persist Bedrock provider settings:", error)
-				}
 			}
 
 			Logger.log(
