@@ -114,6 +114,9 @@ function filterToolsForConfiguredAgent(
 	const allowedToolNames = new Set(
 		agent.tools.map(resolveConfiguredAgentToolName),
 	);
+	if (agent.skills !== undefined) {
+		allowedToolNames.add(DefaultToolNames.SKILLS);
+	}
 	return tools.filter((tool) => allowedToolNames.has(tool.name));
 }
 
@@ -350,8 +353,18 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		const tools: AgentTool[] = [];
 		const effectiveTeamName = config.teamName?.trim() || createTeamName();
 		const teamStoreKey = config.sessionId?.trim() || effectiveTeamName;
+		const configuredAgents = normalized.enableSpawnAgent
+			? loadConfiguredAgentConfigs({
+					workspaceRoot: config.workspaceRoot ?? config.cwd,
+				})
+			: { configs: [], errors: [] };
+		const configuredAgentsNeedSkills = configuredAgents.configs.some(
+			(agent) => agent.skills !== undefined,
+		);
 		const rulesEnabled = hasConfigExtension(configExtensions, "rules");
-		const skillsEnabled = hasConfigExtension(configExtensions, "skills");
+		const skillsEnabled =
+			hasConfigExtension(configExtensions, "skills") ||
+			configuredAgentsNeedSkills;
 		const workflowsEnabled = hasConfigExtension(configExtensions, "workflows");
 		const pluginsEnabled = hasConfigExtension(configExtensions, "plugins");
 		const userInstructionsEnabled =
@@ -362,6 +375,12 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		);
 		let userInstructionService = sharedUserInstructionService;
 		let mcpShutdown: (() => Promise<void>) | undefined;
+
+		for (const error of configuredAgents.errors) {
+			(logger ?? config.logger)?.log?.(
+				`[agents] Failed to load agent config at ${error.path}: ${error.error.message}`,
+			);
+		}
 
 		if (!userInstructionService && userInstructionsEnabled) {
 			userInstructionService = createUserInstructionConfigService({
@@ -470,14 +489,6 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			workspaceMetadata: config.workspaceMetadata,
 		});
 		if (normalized.enableSpawnAgent) {
-			const configuredAgents = loadConfiguredAgentConfigs({
-				workspaceRoot: config.workspaceRoot ?? config.cwd,
-			});
-			for (const error of configuredAgents.errors) {
-				(logger ?? config.logger)?.log?.(
-					`[agents] Failed to load agent config at ${error.path}: ${error.error.message}`,
-				);
-			}
 			if (configuredAgents.configs.length > 0) {
 				tools.push(
 					...filterAvailableTools(
@@ -494,7 +505,11 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 												agent.modelId ?? config.modelId,
 												config.toolRoutingRules,
 												config.toolPolicies,
-												undefined,
+												agent.skills !== undefined && userInstructionService
+													? userInstructionService.createSkillsExecutor(
+															agent.skills,
+														)
+													: undefined,
 												toolExecutors,
 											),
 											agent,

@@ -1,4 +1,5 @@
 import type { AgentExtension } from "@cline/shared";
+import type { SkillsExecutorWithMetadata } from "../tools";
 import {
 	type AvailableRuntimeCommand,
 	listAvailableRuntimeCommandsFromWatcher,
@@ -14,6 +15,7 @@ import {
 import {
 	type CreateUserInstructionPluginOptions,
 	createUserInstructionPlugin,
+	createUserInstructionSkillsExecutor,
 	getConfiguredSkillsFromWatcher,
 } from "./user-instruction-plugin";
 
@@ -39,6 +41,9 @@ export interface UserInstructionConfigService {
 	listRuntimeCommands(): AvailableRuntimeCommand[];
 	resolveRuntimeSlashCommand(input: string): string;
 	hasConfiguredSkills(allowedSkillNames?: ReadonlyArray<string>): boolean;
+	createSkillsExecutor(
+		allowedSkillNames?: ReadonlyArray<string>,
+	): SkillsExecutorWithMetadata;
 	createExtension(
 		options: Omit<
 			CreateUserInstructionPluginOptions,
@@ -104,6 +109,16 @@ class DefaultUserInstructionConfigService
 	hasConfiguredSkills(allowedSkillNames?: ReadonlyArray<string>): boolean {
 		return getConfiguredSkillsFromWatcher(this.watcher, allowedSkillNames).some(
 			(skill) => !skill.disabled,
+		);
+	}
+
+	createSkillsExecutor(
+		allowedSkillNames?: ReadonlyArray<string>,
+	): SkillsExecutorWithMetadata {
+		return createUserInstructionSkillsExecutor(
+			this.watcher,
+			(this.ready ?? Promise.resolve()).catch(() => {}),
+			allowedSkillNames,
 		);
 	}
 

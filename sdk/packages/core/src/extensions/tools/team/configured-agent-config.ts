@@ -40,11 +40,48 @@ function splitFrontmatter(content: string): {
 	frontmatter: string;
 	body: string;
 } {
-	const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
-	if (!match) {
+	const firstLineMatch = content.match(/^(---)[^\S\r\n]*(?:\r?\n|$)/);
+	if (!firstLineMatch) {
 		throw new Error("Missing YAML frontmatter block in agent config file.");
 	}
-	return { frontmatter: match[1], body: match[2] };
+
+	const frontmatterStart = firstLineMatch[0].length;
+	const delimiterPattern = /^---[^\S\r\n]*(?:\r?\n|$)/gm;
+	delimiterPattern.lastIndex = frontmatterStart;
+	let lastValid:
+		| {
+				frontmatter: string;
+				body: string;
+		  }
+		| undefined;
+	let candidate = delimiterPattern.exec(content);
+	while (candidate !== null) {
+		const frontmatter = content.slice(frontmatterStart, candidate.index);
+		try {
+			const parsedYaml = YAML.parse(frontmatter);
+			if (
+				!parsedYaml ||
+				typeof parsedYaml !== "object" ||
+				Array.isArray(parsedYaml)
+			) {
+				continue;
+			}
+			ConfiguredAgentFrontmatterSchema.parse(parsedYaml);
+			const body = content.slice(candidate.index + candidate[0].length);
+			lastValid = { frontmatter, body };
+		} catch {
+			// Keep scanning: this delimiter may be literal content inside YAML.
+		}
+		candidate = delimiterPattern.exec(content);
+	}
+
+	if (lastValid) {
+		return lastValid;
+	}
+
+	throw new Error(
+		"Missing closing YAML frontmatter delimiter in agent config file.",
+	);
 }
 
 function parseStringList(

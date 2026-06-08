@@ -185,6 +185,8 @@ export function createConfiguredAgentTools(
 						},
 					};
 				},
+				timeoutMs: 300000,
+				retryable: false,
 			});
 			return tool as unknown as AgentTool;
 		},
