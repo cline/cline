@@ -85,20 +85,20 @@ function hasProviderSettingsAuthCredential(providerId: string): boolean {
  * buildBedrockProviderConfig).
  */
 function hasUsableBedrockAuth(apiConfig: ApiConfiguration): boolean {
-	const authentication = resolveBedrockAuthentication(apiConfig);
+	const authentication = resolveBedrockAuthentication(apiConfig)
 	switch (authentication) {
 		case "apikey":
 		case "api-key": {
-			const apiKey = apiConfig.awsBedrockApiKey;
-			return typeof apiKey === "string" && apiKey.trim().length > 0;
+			const apiKey = apiConfig.awsBedrockApiKey
+			return typeof apiKey === "string" && apiKey.trim().length > 0
 		}
 		// profile / iam: SigV4, a profile, or the default credential chain;
 		// all resolve at request time, so treat as usable.
 		case "profile":
 		case "iam":
-			return true;
+			return true
 		default:
-			return false;
+			return false
 	}
 }
 
@@ -119,7 +119,7 @@ export function hasUsableProvider(apiConfig: ApiConfiguration, mode: Mode): bool
 	// resolveApiKey() only covers Bedrock's API-key auth; handle its other
 	// auth modes before the generic key check below.
 	if (providerId === "bedrock") {
-		return hasUsableBedrockAuth(apiConfig);
+		return hasUsableBedrockAuth(apiConfig)
 	}
 
 	// A resolvable credential (BYOK key, Bedrock key, or OAuth token)
