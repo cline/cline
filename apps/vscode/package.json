@@ -1,6 +1,6 @@
 {
 	"name": "claude-dev",
-	"displayName": "Cline",
+	"displayName": "Cline-Fork",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
 	"version": "3.88.1",
 	"icon": "assets/icons/icon.png",
@@ -43,7 +43,8 @@
 		"onLanguage",
 		"onUri",
 		"onStartupFinished",
-		"workspaceContains:evals.env"
+		"workspaceContains:evals.env",
+		"onCommand:clineFork.showDevInfo"
 	],
 	"main": "./dist/extension.js",
 	"contributes": {
@@ -241,6 +242,11 @@
 				"title": "Add to Cline Chat",
 				"category": "Cline",
 				"icon": "$(link-external)"
+			},
+			{
+				"command": "clineFork.showDevInfo",
+				"title": "Cline-Fork: Show Dev Info",
+				"category": "Cline-Fork"
 			}
 		],
 		"keybindings": [
