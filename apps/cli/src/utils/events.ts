@@ -1,4 +1,8 @@
 import type { AgentEvent, TeamEvent } from "@cline/core";
+import {
+	formatClineCreditsBalanceErrorMessage,
+	isClineCreditsBalanceErrorMessage,
+} from "./cline-credits-error";
 import { formatToolInput, formatToolOutput, truncate } from "./helpers";
 import {
 	c,
@@ -176,7 +180,11 @@ export function handleEvent(event: AgentEvent, config: Config): void {
 		case "error":
 			closeInlineStreamIfNeeded();
 			if (!event.recoverable || config.verbose) {
-				writeErr(event.error.message);
+				writeErr(
+					isClineCreditsBalanceErrorMessage(event.error.message)
+						? formatClineCreditsBalanceErrorMessage()
+						: event.error.message,
+				);
 			}
 			break;
 		case "notice":
