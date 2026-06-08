@@ -89,7 +89,7 @@
 					{
 						"id": "mcp",
 						"title": "Extend with Powerful Tools (MCP)",
-						"description": "Connect to databases, APIs, or discover new capabilities in the MCP Marketplace.",
+						"description": "Connect to databases, APIs, and other external tools through MCP.",
 						"media": {
 							"markdown": "walkthrough/step4.md"
 						}
