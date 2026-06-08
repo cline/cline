@@ -12,6 +12,7 @@ interface ApiKeyFieldProps {
 	signupUrl?: string
 	placeholder?: string
 	helpText?: string
+	label?: string
 }
 
 /**
@@ -24,6 +25,7 @@ export const ApiKeyField = ({
 	signupUrl,
 	placeholder = "Enter API Key...",
 	helpText,
+	label = `${providerName} API Key`,
 }: ApiKeyFieldProps) => {
 	const [localValue, setLocalValue] = useState(initialValue)
 	const isFocusedRef = useRef(false)
@@ -67,7 +69,7 @@ export const ApiKeyField = ({
 				style={{ width: "100%" }}
 				type="password"
 				value={localValue}>
-				<span style={{ fontWeight: 500 }}>{providerName} API Key</span>
+				<span style={{ fontWeight: 500 }}>{label}</span>
 			</VSCodeTextField>
 			<p
 				style={{

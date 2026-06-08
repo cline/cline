@@ -1,7 +1,7 @@
 import type { ApiConfiguration } from "@shared/api"
 import { StateManager } from "@/core/storage/StateManager"
 import { getProviderSettingsManager } from "../provider-migration"
-import type { EffectiveProviderConfig, ProviderId } from "./contracts"
+import type { AwsProviderConfig, EffectiveProviderConfig, ProviderId } from "./contracts"
 
 type AuthConfig = NonNullable<EffectiveProviderConfig["auth"]>
 type ExtrasConfig = NonNullable<EffectiveProviderConfig["extras"]>
@@ -15,6 +15,7 @@ type ProviderSettingsLike = {
 	readonly apiLine?: string
 	readonly headers?: Readonly<Record<string, string>>
 	readonly region?: string
+	readonly aws?: AwsProviderConfig
 	readonly auth?: AuthConfig
 	readonly extras?: ExtrasConfig
 }
@@ -100,8 +101,6 @@ const extrasFields: Partial<Record<string, Partial<Record<string, keyof ApiConfi
 		awsBedrockEndpoint: "awsBedrockEndpoint",
 		awsBedrockUsePromptCache: "awsBedrockUsePromptCache",
 		awsProfile: "awsProfile",
-		awsUseCrossRegionInference: "awsUseCrossRegionInference",
-		awsUseGlobalInference: "awsUseGlobalInference",
 		awsUseProfile: "awsUseProfile",
 	},
 	sapaicore: {
@@ -148,6 +147,32 @@ function readAuth(record: Record<string, unknown>): AuthConfig | undefined {
 	return accessToken || refreshToken || accountId ? { accessToken, refreshToken, accountId } : undefined
 }
 
+function readBoolean(record: Record<string, unknown>, key: string): boolean | undefined {
+	const value = record[key]
+	return typeof value === "boolean" ? value : undefined
+}
+
+function readAws(record: Record<string, unknown>): AwsProviderConfig | undefined {
+	const aws = record.aws
+	if (!isPlainRecord(aws)) {
+		return undefined
+	}
+
+	const result: AwsProviderConfig = {
+		accessKey: readString(aws, "accessKey"),
+		secretKey: readString(aws, "secretKey"),
+		sessionToken: readString(aws, "sessionToken"),
+		authentication: readString(aws, "authentication"),
+		profile: readString(aws, "profile"),
+		usePromptCache: readBoolean(aws, "usePromptCache"),
+		endpoint: readString(aws, "endpoint"),
+		customModelBaseId: readString(aws, "customModelBaseId"),
+		useCrossRegionInference: readBoolean(aws, "useCrossRegionInference") ?? readBoolean(record, "useCrossRegionInference"),
+		useGlobalInference: readBoolean(aws, "useGlobalInference") ?? readBoolean(record, "useGlobalInference"),
+	}
+	return Object.values(result).some((value) => value !== undefined) ? result : undefined
+}
+
 function readProviderSettings(providerId: ProviderId): ConfigParts {
 	try {
 		const settings: unknown = getProviderSettingsManager().getProviderSettings(providerId)
@@ -161,6 +186,7 @@ function readProviderSettings(providerId: ProviderId): ConfigParts {
 			apiLine: readString(settings, "apiLine"),
 			headers: readHeaders(settings, "headers"),
 			region: readString(settings, "region"),
+			aws: readAws(settings),
 			auth: readAuth(settings),
 			extras: isPlainRecord(settings.extras) ? settings.extras : undefined,
 		} satisfies ProviderSettingsLike
@@ -217,6 +243,30 @@ function readStateAuth(provider: string, config: ApiConfiguration): AuthConfig |
 	return accessToken || accountId ? { accessToken, accountId } : undefined
 }
 
+function readStateBoolean(config: ApiConfiguration, field: keyof ApiConfiguration): boolean | undefined {
+	const value = config[field]
+	return typeof value === "boolean" ? value : undefined
+}
+
+function readStateAws(provider: string, config: ApiConfiguration): AwsProviderConfig | undefined {
+	if (provider !== "bedrock") {
+		return undefined
+	}
+
+	const aws: AwsProviderConfig = {
+		accessKey: readStringFromConfig(config, "awsAccessKey"),
+		secretKey: readStringFromConfig(config, "awsSecretKey"),
+		sessionToken: readStringFromConfig(config, "awsSessionToken"),
+		authentication: readStringFromConfig(config, "awsAuthentication"),
+		profile: readStringFromConfig(config, "awsProfile"),
+		usePromptCache: readStateBoolean(config, "awsBedrockUsePromptCache"),
+		endpoint: readStringFromConfig(config, "awsBedrockEndpoint"),
+		useCrossRegionInference: readStateBoolean(config, "awsUseCrossRegionInference"),
+		useGlobalInference: readStateBoolean(config, "awsUseGlobalInference"),
+	}
+	return Object.values(aws).some((value) => value !== undefined) ? aws : undefined
+}
+
 function readStateConfig(providerId: ProviderId, config: ApiConfiguration): ConfigParts {
 	const provider = providerId.toString()
 	return {
@@ -225,12 +275,23 @@ function readStateConfig(providerId: ProviderId, config: ApiConfiguration): Conf
 		apiLine: readStringFromConfig(config, apiLineFields[provider]),
 		headers: readHeadersFromConfig(config, headerFields[provider]),
 		region: readStringFromConfig(config, regionFields[provider]),
+		aws: readStateAws(provider, config),
 		auth: readStateAuth(provider, config),
 		extras: readStateExtras(provider, config),
 	}
 }
 
 function mergeExtras(first: ExtrasConfig | undefined, second: ExtrasConfig | undefined): ExtrasConfig | undefined {
+	if (!first) {
+		return second
+	}
+	if (!second) {
+		return first
+	}
+	return { ...first, ...second }
+}
+
+function mergeAws(first: AwsProviderConfig | undefined, second: AwsProviderConfig | undefined): AwsProviderConfig | undefined {
 	if (!first) {
 		return second
 	}
@@ -265,6 +326,9 @@ export function buildEffectiveProviderConfig(providerId: ProviderId): EffectiveP
 	assignIfDefined(merged, "apiLine", stateConfig.apiLine ?? providerSettings.apiLine)
 	assignIfDefined(merged, "headers", stateConfig.headers ?? providerSettings.headers)
 	assignIfDefined(merged, "region", stateConfig.region ?? providerSettings.region)
+	// Bedrock is migrated to providers.json. Keep legacy StateManager AWS fields
+	// as a fallback for old installs, but let providers.json win when both exist.
+	assignIfDefined(merged, "aws", mergeAws(stateConfig.aws, providerSettings.aws))
 	assignIfDefined(merged, "auth", stateConfig.auth ?? providerSettings.auth)
 	assignIfDefined(merged, "extras", mergeExtras(providerSettings.extras, stateConfig.extras))
 

@@ -187,6 +187,22 @@ message ResolveModelInfoResponse {
   string source = 4;
 }
 
+message AwsProviderConfig {
+  optional string authentication = 1;
+  optional string profile = 2;
+  optional string access_key = 3;
+  int64 access_key_length = 4;
+  optional string secret_key = 5;
+  int64 secret_key_length = 6;
+  optional string session_token = 7;
+  int64 session_token_length = 8;
+  optional string endpoint = 9;
+  optional bool use_prompt_cache = 10;
+  optional string custom_model_base_id = 11;
+  optional bool use_cross_region_inference = 12;
+  optional bool use_global_inference = 13;
+}
+
 message ProviderConfigResponse {
   string provider_id = 1;
   optional string base_url = 2;
@@ -199,6 +215,7 @@ message ProviderConfigResponse {
   optional string account_id = 9;
   optional CommittedModelSelection plan_selection = 10;
   optional CommittedModelSelection act_selection = 11;
+  optional AwsProviderConfig aws = 12;
 }
 
 message CommittedModelSelection {
@@ -224,6 +241,7 @@ message WriteProviderConfigPatch {
   optional string account_id = 8;
   optional ProviderReasoningPatch reasoning = 9;
   optional bool clear_headers = 10;
+  optional AwsProviderConfig aws = 11;
 }
 
 message WriteProviderConfigRequest {
