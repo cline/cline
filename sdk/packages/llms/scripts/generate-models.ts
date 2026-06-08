@@ -47,10 +47,15 @@ async function generate(): Promise<void> {
 	try {
 		const modelsDev = await loadModelsDevProviderModels();
 		Object.assign(providerModels, modelsDev);
+	} catch (error) {
+		loadError =
+			error instanceof Error ? error : new Error(String(error ?? "unknown"));
+	}
 
+	try {
 		const clineRecommended = await fetchClineRecommendedProviderModels(
 			fetch,
-			modelsDev.openrouter || {},
+			providerModels.openrouter || {},
 		);
 		Object.assign(providerModels, clineRecommended);
 	} catch (error) {
