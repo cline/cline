@@ -20,15 +20,15 @@ import { toSdkProviderId } from "./model-catalog/sdk-provider-id"
 import { getProviderSettingsManager } from "./provider-migration"
 
 /**
- * Local-inference providers that the legacy ApiConfiguration path treats as
- * keyless: they run against a local/self-hosted endpoint and need no API key,
- * only a selected model (and optionally a base URL). The SDK catalog models
- * ollama/lmstudio as "api-key" providers (they accept an optional key), so the
- * catalog's authMethod alone does not classify them as keyless — they are
- * listed here explicitly. `vscode-lm` is a VSCode-host provider that is not in
- * the SDK builtin catalog at all.
+ * Local/external-auth providers that the legacy ApiConfiguration path treats as
+ * keyless: they need no API key in Cline, only a selected model (and optionally
+ * a base URL). The SDK catalog models ollama/lmstudio as "api-key" providers
+ * because they accept an optional key; Claude Code authenticates through the
+ * local Claude CLI; and `vscode-lm` is a VSCode-host provider that is not in
+ * the SDK builtin catalog at all. List them here when the catalog auth method
+ * cannot classify them as keyless.
  */
-const KEYLESS_LOCAL_PROVIDERS = new Set<string>(["ollama", "lmstudio", "vscode-lm"])
+const KEYLESS_LOCAL_PROVIDERS = new Set<string>(["ollama", "lmstudio", "vscode-lm", "claude-code"])
 
 /**
  * Whether a provider can be usable WITHOUT an API key, on the strength of a
@@ -66,16 +66,29 @@ function isKeylessViaModelProvider(providerId: string): boolean {
 	return getProviderAuthMethod(providerId) === "local"
 }
 
-function hasProviderSettingsAuthCredential(providerId: string): boolean {
+function readProviderSettings(providerId: string): unknown {
 	try {
-		const settings = getProviderSettingsManager().getProviderSettings(providerId)
-		const auth =
-			settings && typeof settings === "object" ? (settings as { auth?: { accessToken?: unknown } }).auth : undefined
-		return typeof auth?.accessToken === "string" && auth.accessToken.trim().length > 0
+		return getProviderSettingsManager().getProviderSettings(providerId)
 	} catch {
-		Logger.warn(`[ProviderUsability] Failed to read provider settings auth credentials for provider ${providerId}`)
-		return false
+		Logger.warn(`[ProviderUsability] Failed to read provider settings for provider ${providerId}`)
+		return undefined
 	}
+}
+
+function hasProviderSettingsAuthCredential(providerId: string): boolean {
+	const settings = readProviderSettings(providerId)
+	const auth = settings && typeof settings === "object" ? (settings as { auth?: { accessToken?: unknown } }).auth : undefined
+	return typeof auth?.accessToken === "string" && auth.accessToken.trim().length > 0
+}
+
+function readProviderSettingsModelId(providerId: string): string | undefined {
+	const settings = readProviderSettings(providerId)
+	const model = settings && typeof settings === "object" ? (settings as { model?: unknown }).model : undefined
+	return typeof model === "string" && model.trim().length > 0 ? model.trim() : undefined
+}
+
+function resolveConfiguredModelId(providerId: string, mode: Mode, apiConfig: ApiConfiguration): string | undefined {
+	return resolveModelId(providerId, mode, apiConfig) ?? readProviderSettingsModelId(providerId)
 }
 
 /**
@@ -140,7 +153,7 @@ export function hasUsableProvider(apiConfig: ApiConfiguration, mode: Mode): bool
 	// Keyless local/local-auth providers are usable once a model is
 	// configured for the mode (no API key required).
 	if (isKeylessViaModelProvider(providerId)) {
-		const modelId = resolveModelId(providerId, mode, apiConfig)
+		const modelId = resolveConfiguredModelId(providerId, mode, apiConfig)
 		return typeof modelId === "string" && modelId.trim().length > 0
 	}
 
