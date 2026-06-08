@@ -6,7 +6,7 @@ import type {
 	GatewayProviderFactory,
 	GatewayResolvedProviderConfig,
 	GatewayStreamRequest,
-	ProviderErrorInfo,
+	SdkProviderErrorInfo,
 } from "@cline/shared";
 import {
 	type AiSdkFormatterMessage,
@@ -55,7 +55,7 @@ interface AiSdkProviderErrorInput {
 interface AiSdkProviderAdapterOptions {
 	resolveErrorInfo?: (
 		input: AiSdkProviderErrorInput,
-	) => ProviderErrorInfo | undefined;
+	) => SdkProviderErrorInfo | undefined;
 }
 
 interface CapturedAiSdkError {
@@ -71,7 +71,7 @@ function resolveAiSdkProviderError(input: {
 	options: AiSdkProviderAdapterOptions;
 }): {
 	message: string;
-	errorInfo?: ProviderErrorInfo;
+	errorInfo?: SdkProviderErrorInfo;
 } {
 	const rawError = input.capturedError?.error ?? input.error;
 	const message = input.capturedError?.message ?? extractErrorMessage(rawError);
@@ -676,7 +676,7 @@ async function* emitAiSdkEvents(
 	const emittedToolCallIds = new Set<string>();
 	let finishReason: unknown;
 	let streamError: string | undefined;
-	let streamErrorInfo: ProviderErrorInfo | undefined;
+	let streamErrorInfo: SdkProviderErrorInfo | undefined;
 	let finishUsage: unknown;
 	let finishProviderMetadata: unknown;
 

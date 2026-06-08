@@ -1,7 +1,7 @@
 // @jsxImportSource @opentui/react
 import {
 	type ClineAccountOrganization,
-	getErrorInfo,
+	getSdkErrorInfo,
 	isClineAccountAuthRequiredErrorInfo,
 } from "@cline/core";
 import type { ChoiceContext } from "@opentui-ui/dialog";
@@ -260,7 +260,7 @@ export function AccountDialogContent(
 			const message = error instanceof Error ? error.message : String(error);
 			if (generation.current === currentGeneration) {
 				const authRequired = isClineAccountAuthRequiredErrorInfo(
-					getErrorInfo(error),
+					getSdkErrorInfo(error),
 				);
 				setState({
 					status: authRequired ? "unauthenticated" : "error",

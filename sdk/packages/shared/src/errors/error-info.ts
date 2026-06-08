@@ -1,4 +1,4 @@
-export interface ProviderErrorInfo {
+export interface SdkProviderErrorInfo {
 	kind: "provider";
 	providerId: string;
 	modelId?: string;
@@ -9,7 +9,7 @@ export interface ProviderErrorInfo {
 	details?: Record<string, unknown>;
 }
 
-export interface AuthErrorInfo {
+export interface SdkAuthErrorInfo {
 	kind: "auth";
 	providerId: string;
 	message: string;
@@ -17,9 +17,9 @@ export interface AuthErrorInfo {
 	details?: Record<string, unknown>;
 }
 
-export type AgentErrorInfo = ProviderErrorInfo | AuthErrorInfo;
+export type SdkErrorInfo = SdkProviderErrorInfo | SdkAuthErrorInfo;
 
-export type ErrorWithInfo = Error & { errorInfo: AgentErrorInfo };
+export type ErrorWithSdkInfo = Error & { errorInfo: SdkErrorInfo };
 
 export const CLINE_INSUFFICIENT_CREDITS_CODE = "insufficient_credits";
 export const CLINE_ACCOUNT_AUTH_REQUIRED_CODE = "cline_account_auth_required";
@@ -28,9 +28,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 	return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
 
-export function isProviderErrorInfo(
+export function isSdkProviderErrorInfo(
 	value: unknown,
-): value is ProviderErrorInfo {
+): value is SdkProviderErrorInfo {
 	if (!isRecord(value)) {
 		return false;
 	}
@@ -41,7 +41,7 @@ export function isProviderErrorInfo(
 	);
 }
 
-export function isAuthErrorInfo(value: unknown): value is AuthErrorInfo {
+export function isSdkAuthErrorInfo(value: unknown): value is SdkAuthErrorInfo {
 	if (!isRecord(value)) {
 		return false;
 	}
@@ -53,18 +53,18 @@ export function isAuthErrorInfo(value: unknown): value is AuthErrorInfo {
 	);
 }
 
-export function isAgentErrorInfo(value: unknown): value is AgentErrorInfo {
-	return isProviderErrorInfo(value) || isAuthErrorInfo(value);
+export function isSdkErrorInfo(value: unknown): value is SdkErrorInfo {
+	return isSdkProviderErrorInfo(value) || isSdkAuthErrorInfo(value);
 }
 
 export function isClineInsufficientCreditsErrorInfo(
 	value: unknown,
-): value is ProviderErrorInfo & {
+): value is SdkProviderErrorInfo & {
 	providerId: "cline";
 	code: typeof CLINE_INSUFFICIENT_CREDITS_CODE;
 } {
 	return (
-		isProviderErrorInfo(value) &&
+		isSdkProviderErrorInfo(value) &&
 		value.providerId === "cline" &&
 		value.code === CLINE_INSUFFICIENT_CREDITS_CODE
 	);
@@ -72,37 +72,37 @@ export function isClineInsufficientCreditsErrorInfo(
 
 export function isClineAccountAuthRequiredErrorInfo(
 	value: unknown,
-): value is AuthErrorInfo & {
+): value is SdkAuthErrorInfo & {
 	providerId: "cline";
 	code: typeof CLINE_ACCOUNT_AUTH_REQUIRED_CODE;
 } {
 	return (
-		isAuthErrorInfo(value) &&
+		isSdkAuthErrorInfo(value) &&
 		value.providerId === "cline" &&
 		value.code === CLINE_ACCOUNT_AUTH_REQUIRED_CODE
 	);
 }
 
-export function getErrorInfo(error: unknown): AgentErrorInfo | undefined {
+export function getSdkErrorInfo(error: unknown): SdkErrorInfo | undefined {
 	if (!isRecord(error)) {
 		return undefined;
 	}
-	return isAgentErrorInfo(error.errorInfo) ? error.errorInfo : undefined;
+	return isSdkErrorInfo(error.errorInfo) ? error.errorInfo : undefined;
 }
 
-export function createErrorWithInfo(
-	errorInfo: AgentErrorInfo,
+export function createErrorWithSdkInfo(
+	errorInfo: SdkErrorInfo,
 	message = errorInfo.message,
-): ErrorWithInfo {
-	const error = new Error(message) as ErrorWithInfo;
+): ErrorWithSdkInfo {
+	const error = new Error(message) as ErrorWithSdkInfo;
 	error.errorInfo = errorInfo;
 	return error;
 }
 
 export function createClineAccountAuthRequiredError(
 	message = "Cline account authentication requires sign in.",
-): ErrorWithInfo {
-	return createErrorWithInfo({
+): ErrorWithSdkInfo {
+	return createErrorWithSdkInfo({
 		kind: "auth",
 		providerId: "cline",
 		code: CLINE_ACCOUNT_AUTH_REQUIRED_CODE,

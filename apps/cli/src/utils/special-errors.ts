@@ -1,9 +1,9 @@
 import {
-	type AgentErrorInfo,
 	getClineEnvironmentConfig,
 	isClineAccountAuthRequiredErrorInfo,
 	isClineInsufficientCreditsErrorInfo,
-	type ProviderErrorInfo,
+	type SdkErrorInfo,
+	type SdkProviderErrorInfo,
 } from "@cline/shared";
 import { formatCreditBalance } from "./output";
 
@@ -27,7 +27,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function getDetailsValue(
-	errorInfo: ProviderErrorInfo,
+	errorInfo: SdkProviderErrorInfo,
 	...keys: string[]
 ): unknown {
 	const details = errorInfo.details;
@@ -43,7 +43,7 @@ function getDetailsValue(
 }
 
 function getDetailsString(
-	errorInfo: ProviderErrorInfo,
+	errorInfo: SdkProviderErrorInfo,
 	...keys: string[]
 ): string | undefined {
 	const value = getDetailsValue(errorInfo, ...keys);
@@ -53,7 +53,7 @@ function getDetailsString(
 }
 
 function getDetailsNumber(
-	errorInfo: ProviderErrorInfo,
+	errorInfo: SdkProviderErrorInfo,
 	...keys: string[]
 ): number | undefined {
 	const value = getDetailsValue(errorInfo, ...keys);
@@ -79,7 +79,7 @@ function isHttpUrl(value: string): boolean {
 	}
 }
 
-function resolveClineCreditsUrl(errorInfo: ProviderErrorInfo): string {
+function resolveClineCreditsUrl(errorInfo: SdkProviderErrorInfo): string {
 	const detailUrl = getDetailsString(
 		errorInfo,
 		"buy_credits_url",
@@ -95,7 +95,7 @@ function resolveClineCreditsUrl(errorInfo: ProviderErrorInfo): string {
 }
 
 function resolveClineCreditsDisplay(
-	errorInfo: AgentErrorInfo,
+	errorInfo: SdkErrorInfo,
 ): SpecialErrorDisplay | undefined {
 	if (!isClineInsufficientCreditsErrorInfo(errorInfo)) {
 		return undefined;
@@ -124,7 +124,7 @@ function resolveClineCreditsDisplay(
 }
 
 function resolveClineAccountAuthDisplay(
-	errorInfo: AgentErrorInfo,
+	errorInfo: SdkErrorInfo,
 ): SpecialErrorDisplay | undefined {
 	if (!isClineAccountAuthRequiredErrorInfo(errorInfo)) {
 		return undefined;
@@ -138,7 +138,7 @@ function resolveClineAccountAuthDisplay(
 }
 
 export function resolveSpecialErrorDisplay(
-	errorInfo: AgentErrorInfo | undefined,
+	errorInfo: SdkErrorInfo | undefined,
 ): SpecialErrorDisplay | undefined {
 	if (!errorInfo) {
 		return undefined;
@@ -152,7 +152,7 @@ export function resolveSpecialErrorDisplay(
 }
 
 export function formatSpecialErrorText(
-	errorInfo: AgentErrorInfo | undefined,
+	errorInfo: SdkErrorInfo | undefined,
 ): string | undefined {
 	const display = resolveSpecialErrorDisplay(errorInfo);
 	if (!display) {

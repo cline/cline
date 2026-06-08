@@ -1,7 +1,7 @@
 import type {
 	GatewayProviderContext,
 	GatewayStreamRequest,
-	ProviderErrorInfo,
+	SdkProviderErrorInfo,
 } from "@cline/shared";
 
 interface ResolveClineProviderErrorInfoInput {
@@ -249,7 +249,7 @@ function buildDetails(
 
 export function resolveClineProviderErrorInfo(
 	input: ResolveClineProviderErrorInfoInput,
-): ProviderErrorInfo | undefined {
+): SdkProviderErrorInfo | undefined {
 	const records: Record<string, unknown>[] = [];
 	collectStructuredRecords(input.error, records, new WeakSet());
 	const codeRecord = findCodeRecord(records);

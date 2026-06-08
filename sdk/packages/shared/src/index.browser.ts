@@ -19,22 +19,22 @@ export {
 export type * from "./connectors/options";
 export type { AutomationEventEnvelope } from "./cron";
 export type {
-	AgentErrorInfo,
-	AuthErrorInfo,
-	ErrorWithInfo,
-	ProviderErrorInfo,
+	ErrorWithSdkInfo,
+	SdkAuthErrorInfo,
+	SdkErrorInfo,
+	SdkProviderErrorInfo,
 } from "./errors/error-info";
 export {
 	CLINE_ACCOUNT_AUTH_REQUIRED_CODE,
 	CLINE_INSUFFICIENT_CREDITS_CODE,
 	createClineAccountAuthRequiredError,
-	createErrorWithInfo,
-	getErrorInfo,
-	isAgentErrorInfo,
-	isAuthErrorInfo,
+	createErrorWithSdkInfo,
+	getSdkErrorInfo,
 	isClineAccountAuthRequiredErrorInfo,
 	isClineInsufficientCreditsErrorInfo,
-	isProviderErrorInfo,
+	isSdkAuthErrorInfo,
+	isSdkErrorInfo,
+	isSdkProviderErrorInfo,
 } from "./errors/error-info";
 export type {
 	ClientContext,

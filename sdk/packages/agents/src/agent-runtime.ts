@@ -3,7 +3,6 @@ import type {
 	AgentAfterToolResult,
 	AgentBeforeModelResult,
 	AgentBeforeToolResult,
-	AgentErrorInfo,
 	AgentMessage,
 	AgentMessagePart,
 	AgentModel,
@@ -20,11 +19,16 @@ import type {
 	AgentToolResult,
 	AgentUsage,
 	AgentRuntimeConfig as BaseAgentRuntimeConfig,
+	SdkErrorInfo,
 	TelemetryProperties,
 	ToolApprovalResult,
 	ToolPolicy,
 } from "@cline/shared";
-import { captureSdkError, estimateTokens, getErrorInfo } from "@cline/shared";
+import {
+	captureSdkError,
+	estimateTokens,
+	getSdkErrorInfo,
+} from "@cline/shared";
 import { nanoid } from "nanoid";
 
 // Local `createUID` helper. The clinee source imports this from
@@ -381,7 +385,7 @@ export class AgentRuntime {
 		pendingToolCalls: [] as string[],
 		usage: cloneUsage(DEFAULT_USAGE),
 		lastError: undefined as string | undefined,
-		lastErrorInfo: undefined as AgentErrorInfo | undefined,
+		lastErrorInfo: undefined as SdkErrorInfo | undefined,
 	};
 	private initialization?: Promise<void>;
 	private abortController?: AbortController;
@@ -695,7 +699,7 @@ export class AgentRuntime {
 			this.state.lastError = normalized.message;
 			const errorInfo =
 				status === "failed"
-					? (this.state.lastErrorInfo ?? getErrorInfo(normalized))
+					? (this.state.lastErrorInfo ?? getSdkErrorInfo(normalized))
 					: undefined;
 			const result: AgentRunResult = {
 				agentId: this.state.agentId,
