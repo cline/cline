@@ -182,7 +182,7 @@ describe("hasUsableProvider", () => {
 			actModeApiProvider: "bedrock",
 			awsAuthentication: "apikey",
 			// awsBedrockApiKey undefined
-		};
+		}
 		expect(hasUsableProvider(config, "act")).toBe(false)
 	})
 
