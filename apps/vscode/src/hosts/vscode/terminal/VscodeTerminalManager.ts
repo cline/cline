@@ -2,6 +2,7 @@ import { arePathsEqual } from "@utils/path"
 import { getShellForProfile } from "@utils/shell"
 import pWaitFor from "p-wait-for"
 import * as vscode from "vscode"
+import { formatTerminalOutput } from "@/integrations/terminal/outputFormatter"
 import {
 	TerminalInfo as ITerminalInfo,
 	ITerminalManager,
@@ -365,13 +366,7 @@ export class VscodeTerminalManager implements ITerminalManager {
 
 	public processOutput(outputLines: string[], overrideLimit?: number): string {
 		const limit = overrideLimit !== undefined ? overrideLimit : this.terminalOutputLineLimit
-		if (outputLines.length > limit) {
-			const halfLimit = Math.floor(limit / 2)
-			const start = outputLines.slice(0, halfLimit)
-			const end = outputLines.slice(outputLines.length - halfLimit)
-			return `${start.join("\n")}\n... (output truncated) ...\n${end.join("\n")}`.trim()
-		}
-		return outputLines.join("\n").trim()
+		return formatTerminalOutput(outputLines, limit)
 	}
 
 	setDefaultTerminalProfile(profileId: string): { closedCount: number; busyTerminals: TerminalInfo[] } {

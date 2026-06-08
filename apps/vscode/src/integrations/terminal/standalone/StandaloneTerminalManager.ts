@@ -15,6 +15,7 @@
 import { ClineTempManager } from "@services/temp"
 import * as fs from "fs"
 import { BACKGROUND_COMMAND_TIMEOUT_MS, DEFAULT_TERMINAL_OUTPUT_LINE_LIMIT } from "../constants"
+import { formatTerminalOutput } from "../outputFormatter"
 import type { BackgroundCommand, ITerminalManager, TerminalInfo, TerminalProcessResultPromise } from "../types"
 import { StandaloneTerminalProcess } from "./StandaloneTerminalProcess"
 import { StandaloneTerminalRegistry } from "./StandaloneTerminalRegistry"
@@ -224,13 +225,7 @@ export class StandaloneTerminalManager implements ITerminalManager {
 	 */
 	processOutput(outputLines: string[], overrideLimit?: number): string {
 		const limit = overrideLimit !== undefined ? overrideLimit : this.terminalOutputLineLimit
-		if (outputLines.length > limit) {
-			const halfLimit = Math.floor(limit / 2)
-			const start = outputLines.slice(0, halfLimit)
-			const end = outputLines.slice(outputLines.length - halfLimit)
-			return `${start.join("\n")}\n... (output truncated) ...\n${end.join("\n")}`.trim()
-		}
-		return outputLines.join("\n").trim()
+		return formatTerminalOutput(outputLines, limit)
 	}
 
 	/**
