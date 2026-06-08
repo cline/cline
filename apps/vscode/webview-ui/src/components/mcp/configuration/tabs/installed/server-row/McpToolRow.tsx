@@ -50,7 +50,7 @@ const McpToolRow = ({ tool, serverName }: McpToolRowProps) => {
 					<span className="codicon codicon-symbol-method" style={{ marginRight: "6px", flexShrink: 0 }}></span>
 					<span style={{ fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis" }}>{tool.name}</span>
 				</div>
-				{serverName && autoApprovalSettings.actions.useMcp && (
+				{serverName && !autoApprovalSettings.actions.useMcp && (
 					<VSCodeCheckbox
 						checked={tool.autoApprove ?? false}
 						data-tool={tool.name}

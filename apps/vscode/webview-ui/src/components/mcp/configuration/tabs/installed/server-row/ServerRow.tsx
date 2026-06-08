@@ -323,7 +323,7 @@ const ServerRow = ({
 							<VSCodePanelView id="tools-view">
 								{server.tools && server.tools.length > 0 ? (
 									<div className="flex flex-col gap-2 w-full pt-2">
-										{server.name && autoApprovalSettings.actions.useMcp && (
+										{server.name && !autoApprovalSettings.actions.useMcp && (
 											<VSCodeCheckbox
 												checked={server.tools.every((tool) => tool.autoApprove)}
 												className="mb-1 text-xs"
