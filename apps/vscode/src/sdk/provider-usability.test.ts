@@ -156,6 +156,112 @@ describe("hasUsableProvider", () => {
 		}
 		expect(hasUsableProvider(config, "act")).toBe(true)
 	})
+
+	// Bedrock has four auth modes; only the API-key one goes through
+	// resolveApiKey(), so the gate must recognize the other three too.
+	it("treats bedrock as usable with an explicit Bedrock API key", () => {
+		const config: ApiConfiguration = {
+			actModeApiProvider: "bedrock",
+			awsAuthentication: "apikey",
+			awsBedrockApiKey: "bedrock-bearer-token",
+		}
+		expect(hasUsableProvider(config, "act")).toBe(true)
+	})
+
+	it("treats bedrock as NOT usable when api-key auth is selected but the key is blank", () => {
+		const config: ApiConfiguration = {
+			actModeApiProvider: "bedrock",
+			awsAuthentication: "apikey",
+			awsBedrockApiKey: "   ",
+		}
+		expect(hasUsableProvider(config, "act")).toBe(false)
+	})
+
+	it("treats bedrock as NOT usable when api-key auth is selected but no key is set", () => {
+		const config: ApiConfiguration = {
+			actModeApiProvider: "bedrock",
+			awsAuthentication: "apikey",
+			// awsBedrockApiKey undefined
+		};
+		expect(hasUsableProvider(config, "act")).toBe(false)
+	})
+
+	it("treats bedrock as usable with AWS SigV4 access keys (credentials auth)", () => {
+		const config: ApiConfiguration = {
+			actModeApiProvider: "bedrock",
+			awsAuthentication: "credentials",
+			awsRegion: "us-east-1",
+			awsAccessKey: "AKIAEXAMPLE",
+			awsSecretKey: "secret",
+		}
+		expect(hasUsableProvider(config, "act")).toBe(true)
+	})
+
+	it("treats bedrock as usable with an explicit IAM authentication selection", () => {
+		const config: ApiConfiguration = {
+			actModeApiProvider: "bedrock",
+			awsAuthentication: "iam",
+			awsRegion: "us-east-1",
+		}
+		expect(hasUsableProvider(config, "act")).toBe(true)
+	})
+
+	it("treats bedrock as usable with a named AWS profile", () => {
+		const config: ApiConfiguration = {
+			actModeApiProvider: "bedrock",
+			awsAuthentication: "profile",
+			awsProfile: "bedrock-dev",
+		}
+		expect(hasUsableProvider(config, "act")).toBe(true)
+	})
+
+	it("treats bedrock as usable when only an AWS profile is configured (no explicit auth)", () => {
+		// awsProfile alone is inferred as profile auth.
+		const config: ApiConfiguration = {
+			actModeApiProvider: "bedrock",
+			awsProfile: "default",
+		}
+		expect(hasUsableProvider(config, "act")).toBe(true)
+	})
+
+	it("treats bedrock as usable when awsUseProfile is set without an explicit profile name", () => {
+		const config: ApiConfiguration = {
+			actModeApiProvider: "bedrock",
+			awsUseProfile: true,
+		}
+		expect(hasUsableProvider(config, "act")).toBe(true)
+	})
+
+	it("treats a bare bedrock config as usable via the default AWS credential chain", () => {
+		// No keys/profile is inferred as iam, deferring to the credential chain.
+		const config: ApiConfiguration = {
+			actModeApiProvider: "bedrock",
+		}
+		expect(hasUsableProvider(config, "act")).toBe(true)
+	})
+
+	it("does not let bedrock auth leak into the plan-mode provider when act is bedrock", () => {
+		const config: ApiConfiguration = {
+			actModeApiProvider: "bedrock",
+			awsAuthentication: "credentials",
+			awsAccessKey: "AKIAEXAMPLE",
+			awsSecretKey: "secret",
+			planModeApiProvider: "openrouter",
+			// no openRouterApiKey -> plan is not usable
+		}
+		expect(hasUsableProvider(config, "act")).toBe(true)
+		expect(hasUsableProvider(config, "plan")).toBe(false)
+	})
+
+	it("treats bedrock as usable in plan mode via the plan-mode provider", () => {
+		const config: ApiConfiguration = {
+			planModeApiProvider: "bedrock",
+			awsAuthentication: "credentials",
+			awsAccessKey: "AKIAEXAMPLE",
+			awsSecretKey: "secret",
+		}
+		expect(hasUsableProvider(config, "plan")).toBe(true)
+	})
 })
 
 describe("hasUsableProviderForActiveMode", () => {
