@@ -98,18 +98,6 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 			this.disposables,
 		)
 
-		// Listen for configuration changes
-		vscode.workspace.onDidChangeConfiguration(
-			async (e) => {
-				if (e && e.affectsConfiguration("cline.mcpMarketplace.enabled")) {
-					// Update state when marketplace tab setting changes
-					await this.controller.postStateToWebview()
-				}
-			},
-			null,
-			this.disposables,
-		)
-
 		// if the extension is starting a new session, clear previous task state
 		this.controller.clearTask()
 
