@@ -441,12 +441,13 @@ See [DISTRIBUTION.md](./DISTRIBUTION.md) for details on how the CLI is packaged.
 
 ### Connector runtime behavior
 
-- Telegram final assistant replies are sent through Telegram entity payloads with raw-text fallback; Google Chat and WhatsApp use the shared connector runtime formatting path.
+- Telegram final assistant replies are sent through Telegram entity payloads with raw-text fallback; AgentPhone, Google Chat, and WhatsApp use the shared connector runtime formatting path.
 - Assistant text streams incrementally into chat surfaces that use the shared runtime streaming path; Telegram sends final assistant replies after the turn completes.
 - Tool activity is summarized as compact start/error messages with short argument previews.
 - Required tool approvals are posted back into the chat thread and accept `Y` / `N` replies.
 - Google Chat serves its webhook at `/api/webhooks/gchat`; configure the Google Chat App URL as `<base-url>/api/webhooks/gchat`.
 - Webhook-based connectors are hosted through a shared CLI `node:http` server helper rather than `Bun.serve`.
+- AgentPhone verifies startup with `/v1/numbers`, stores the active number assigned to the agent, and serves its webhook at `/api/webhooks/agentphone`; configure the AgentPhone webhook URL as `<base-url>/api/webhooks/agentphone`.
 - WhatsApp serves its webhook at `/api/webhooks/whatsapp`; configure the Meta callback URL as `<base-url>/api/webhooks/whatsapp`.
 
 ## Logging adapter

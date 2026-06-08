@@ -169,10 +169,15 @@ export type WebviewActiveConnector = {
 	pid: number;
 	hubUrl: string;
 	startedAt?: string;
+	agentId?: string;
 	applicationId?: string;
 	botUsername?: string;
 	userName?: string;
+	agentPhoneNumber?: string;
 	phoneNumberId?: string;
+	phoneNumberCountry?: string;
+	phoneNumberStatus?: string;
+	phoneNumberType?: string;
 	port?: number;
 	baseUrl?: string;
 	connectionMode?: string;

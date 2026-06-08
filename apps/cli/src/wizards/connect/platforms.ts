@@ -75,7 +75,72 @@ function validateSlackUserId(value: string): string | undefined {
 		: "Slack member ID must start with U or W and contain uppercase letters or digits only";
 }
 
+function validateAgentPhoneParticipant(value: string): string | undefined {
+	return /^[+@._a-zA-Z0-9-]+$/.test(value)
+		? undefined
+		: "AgentPhone participant must contain only letters, digits, +, @, ., _, or -";
+}
+
 export const PLATFORMS: PlatformDef[] = [
+	{
+		id: "agentphone",
+		name: "AgentPhone",
+		type: "webhook",
+		hint: "SMS, MMS, iMessage, and voice call transcripts.",
+		fields: [
+			{
+				flag: "--api-key",
+				label: "API key",
+				required: true,
+				help: ["Create or copy an AgentPhone API key"],
+			},
+			{
+				flag: "--agent-id",
+				label: "Agent ID",
+				placeholder: "The AgentPhone agent ID to send messages from.",
+				required: true,
+				help: ["The AgentPhone agent ID to send messages from."],
+			},
+			{
+				flag: "--base-url",
+				label: "Cline Webhook URL",
+				placeholder: "https://example.com",
+				required: true,
+				help: [
+					"Your publicly accessible URL for webhook callbacks from Cline",
+					"Set the Agent Webhook in AgentPhone's Agents setting to <base-url>/api/webhooks/agentphone",
+					"Use the returned Signing Secret to configure the --webhook-secret field below",
+				],
+			},
+			{
+				flag: "--webhook-secret",
+				label: "Webhook signing secret",
+				required: true,
+				help: [
+					"The signing secret associated with the AgentPhone's Agent Webhook",
+				],
+			},
+		],
+		security: {
+			prompt: "Restrict which AgentPhone sender can interact with the bot?",
+			fields: [
+				{
+					key: "participant",
+					label: "Allowed phone or email",
+					placeholder: "+15551234567",
+					help: [
+						"Use the sender phone number or iMessage email address",
+						"The value is matched against agentphone:user:<value>",
+					],
+					requiredMessage:
+						"Phone number or email is required to restrict access",
+					validate: validateAgentPhoneParticipant,
+				},
+			],
+			buildHookCommand: ({ participant }) =>
+				`jq -r ".payload.actor.participantKey" | grep -F -q "agentphone:user:${participant}" && echo '{"action":"allow"}' || echo '{"action":"deny"}'`,
+		},
+	},
 	{
 		id: "telegram",
 		name: "Telegram",

@@ -166,6 +166,45 @@ export async function startConnectorChannel(
 	return connectorChannelsPayload();
 }
 
+export async function updateConnectorChannel(
+	args?: Record<string, unknown>,
+): Promise<WebviewConnectorChannelsResponse> {
+	const cliArgs = buildConnectorStartArgs(args);
+	const channel = cliArgs[0] ?? "";
+	const stopResult = await runCliConnectCommand([channel, "--stop"]);
+	if (stopResult.code !== 0) {
+		throw new Error(
+			(
+				stopResult.stderr.trim() ||
+				stopResult.stdout.trim() ||
+				"connector stop failed"
+			)
+				.trim()
+				.slice(0, 2_000),
+		);
+	}
+	await waitForConnectorState(
+		() =>
+			!listActiveConnectors().some((connector) => connector.type === channel),
+	);
+	const startResult = await runCliConnectCommand(cliArgs);
+	if (startResult.code !== 0) {
+		throw new Error(
+			(
+				startResult.stderr.trim() ||
+				startResult.stdout.trim() ||
+				"connector update failed"
+			)
+				.trim()
+				.slice(0, 2_000),
+		);
+	}
+	await waitForConnectorState(() =>
+		listActiveConnectors().some((connector) => connector.type === channel),
+	);
+	return connectorChannelsPayload();
+}
+
 export async function stopConnectorChannel(
 	args?: Record<string, unknown>,
 ): Promise<WebviewConnectorChannelsResponse> {

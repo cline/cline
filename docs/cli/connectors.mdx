@@ -1,7 +1,7 @@
 ---
 title: "Connectors"
 sidebarTitle: "Connectors"
-description: "Connect the CLI to Telegram, Slack, Discord, Google Chat, WhatsApp, etc."
+description: "Connect the CLI to AgentPhone, Telegram, Slack, Discord, Google Chat, WhatsApp, etc."
 ---
 <Warning>
   This feature currently only applies to Cline CLI.
@@ -21,6 +21,7 @@ cline connect
 
 | Platform | Direct Command | Required Credentials |
 |----------|---------------|---------------------|
+| AgentPhone | `cline connect agentphone` | API key, agent ID, webhook signing secret, base URL |
 | Telegram | `cline connect telegram` | Bot token |
 | Slack | `cline connect slack` | Bot token plus webhook signing secret/base URL or socket app token |
 | Discord | `cline connect discord` | Application ID, bot token, public key, base URL |
@@ -80,6 +81,41 @@ By default, anyone who finds your bot can message it and it will execute tasks o
 </Steps>
 
 Use `--hook-command` only when you need custom access logic. The hook receives each incoming message with sender info via stdin. Your script returns `{"action": "allow"}` or `{"action": "deny", "message": "reason"}`. Without `--allowed-user-id` or `--hook-command`, everything is auto-approved, so restrict Telegram bots that can reach a running Cline instance.
+
+## AgentPhone
+
+Requires an AgentPhone API key, agent ID, webhook signing secret, and public base URL. Startup verifies the API key by calling AgentPhone's `/v1/numbers` endpoint and stores the active phone number assigned to the agent.
+
+```bash
+cline connect agentphone \
+  --api-key <KEY> \
+  --agent-id <AGENT-ID> \
+  --webhook-secret <SECRET> \
+  --base-url <URL>
+```
+
+AgentPhone handles SMS, MMS, iMessage, and completed voice call transcripts through one webhook.
+Configure the webhook URL in AgentPhone as:
+
+```text
+<base-url>/api/webhooks/agentphone
+```
+
+Inbound messages and completed voice call transcripts map to Cline sessions by sender identity, so the same phone number or iMessage address continues the same agent session.
+For live voice webhook requests, the connector returns a JSON spoken acknowledgment immediately; Cline processes the transcript event after the call ends.
+
+### AgentPhone Security
+
+By default, anyone who can message your AgentPhone number can ask it to run tasks. Restrict access with `--hook-command`. The hook receives participant keys such as `agentphone:user:+15551234567`.
+
+```bash
+cline connect agentphone \
+  --api-key <KEY> \
+  --agent-id <AGENT-ID> \
+  --webhook-secret <SECRET> \
+  --base-url <URL> \
+  --hook-command 'jq -r ".payload.actor.participantKey" | grep -F -q "agentphone:user:+15551234567" && echo "{\"action\":\"allow\"}" || echo "{\"action\":\"deny\",\"message\":\"unauthorized\"}"'
+```
 
 ## Slack
 

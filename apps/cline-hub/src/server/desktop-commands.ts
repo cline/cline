@@ -26,6 +26,7 @@ import {
 	connectorChannelsPayload,
 	startConnectorChannel,
 	stopConnectorChannel,
+	updateConnectorChannel,
 } from "./connectors";
 import { providerSettingsManager, workspaceRoot } from "./deps";
 import {
@@ -173,6 +174,11 @@ export async function handleDesktopCommand(
 	}
 	if (command === "stop_connector_channel") {
 		const response = await stopConnectorChannel(args);
+		broadcastHubState(ctx);
+		return response;
+	}
+	if (command === "update_connector_channel") {
+		const response = await updateConnectorChannel(args);
 		broadcastHubState(ctx);
 		return response;
 	}

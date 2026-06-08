@@ -68,6 +68,7 @@
 	},
 	"dependencies": {
 		"@agentclientprotocol/sdk": "^0.16.1",
+		"@agentphone/chat-sdk-adapter": "^0.1.0",
 		"@chat-adapter/discord": "^4.23.0",
 		"@chat-adapter/gchat": "^4.23.0",
 		"@chat-adapter/linear": "^4.23.0",
@@ -80,10 +81,11 @@
 		"@opentui-ui/dialog": "^0.1.2",
 		"@opentui/core": "0.1.102",
 		"@opentui/react": "0.1.102",
-		"chat": "^4.23.0",
+		"chat": "^4.30.0",
 		"commander": "^14.0.3",
 		"fzf": "^0.5.2",
 		"marked": "^15.0.12",
+		"nanoid": "^5.1.7",
 		"open": "^10.2.0",
 		"opentui-spinner": "^0.0.6",
 		"pino": "^10.3.1",
@@ -91,7 +93,6 @@
 		"react-devtools-core": "^7.0.1",
 		"react-reconciler": "0.32.0",
 		"yaml": "^2.8.2",
-		"nanoid": "^5.1.7",
 		"zod": "^4.1.11"
 	},
 	"devDependencies": {

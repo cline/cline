@@ -210,6 +210,9 @@ function connectorLabel(connector: WebviewActiveConnector): string {
 	if (connector.botUsername) {
 		return `@${connector.botUsername}`;
 	}
+	if (connector.agentPhoneNumber) {
+		return connector.agentPhoneNumber;
+	}
 	if (connector.userName) {
 		return connector.userName;
 	}
@@ -217,6 +220,17 @@ function connectorLabel(connector: WebviewActiveConnector): string {
 		return connector.applicationId;
 	}
 	return shortId(connector.id);
+}
+
+function connectorDetails(connector: WebviewActiveConnector): string {
+	return [
+		connectorLabel(connector),
+		connector.agentId ? `agent=${connector.agentId}` : undefined,
+		connector.phoneNumberType ? `type=${connector.phoneNumberType}` : undefined,
+		`pid=${connector.pid}`,
+	]
+		.filter((detail): detail is string => Boolean(detail))
+		.join(" | ");
 }
 
 function sessionRunDetails(session: WebviewSessionSummary): string[] {
@@ -534,7 +548,7 @@ function HomeView({
 									className="block truncate text-[11px] text-muted-foreground"
 									title={connector.hubUrl}
 								>
-									{connectorLabel(connector)} | pid={connector.pid}
+									{connectorDetails(connector)}
 								</span>
 							</div>
 							<span

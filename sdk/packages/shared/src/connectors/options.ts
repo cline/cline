@@ -32,6 +32,44 @@ export type WhatsAppConnectorState = {
 	startedAt: string;
 };
 
+export type ConnectAgentPhoneOptions = {
+	userName?: string;
+	apiKey: string;
+	agentId: string;
+	webhookSecret?: string;
+	apiUrl?: string;
+	cwd: string;
+	model?: string;
+	provider?: string;
+	apiProviderKey?: string;
+	systemPrompt?: string;
+	mode: "act" | "plan";
+	interactive: boolean;
+	maxIterations?: number;
+	enableTools: boolean;
+	rpcAddress: string;
+	hookCommand?: string;
+	port: number;
+	host: string;
+	baseUrl: string;
+};
+
+export type AgentPhoneConnectorState = {
+	instanceKey: string;
+	userName: string;
+	agentId: string;
+	agentPhoneNumber: string;
+	phoneNumberId: string;
+	phoneNumberCountry?: string;
+	phoneNumberStatus?: string;
+	phoneNumberType?: string;
+	pid: number;
+	rpcAddress: string;
+	port: number;
+	baseUrl: string;
+	startedAt: string;
+};
+
 export type ConnectTelegramOptions = {
 	botToken: string;
 	botUsername?: string;
