@@ -1,8 +1,8 @@
 import type { AgentEvent, TeamEvent } from "@cline/core";
 import {
-	formatClineCreditsBalanceErrorMessage,
+	CLINE_CREDITS_DASHBOARD_URL,
 	isClineCreditsBalanceErrorMessage,
-} from "./cline-credits-error";
+} from "../tui/cline-account";
 import { formatToolInput, formatToolOutput, truncate } from "./helpers";
 import {
 	c,
@@ -180,11 +180,17 @@ export function handleEvent(event: AgentEvent, config: Config): void {
 		case "error":
 			closeInlineStreamIfNeeded();
 			if (!event.recoverable || config.verbose) {
-				writeErr(
-					isClineCreditsBalanceErrorMessage(event.error.message)
-						? formatClineCreditsBalanceErrorMessage()
-						: event.error.message,
-				);
+				if (isClineCreditsBalanceErrorMessage(event.error.message)) {
+					writeErr(
+						[
+							"Cline Credits depleted",
+							"You have run out of Cline credits. Add credits in the dashboard to continue.",
+							`Dashboard: ${CLINE_CREDITS_DASHBOARD_URL}`,
+						].join("\n"),
+					);
+				} else {
+					writeErr(event.error.message);
+				}
 			}
 			break;
 		case "notice":

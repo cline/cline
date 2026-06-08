@@ -5,7 +5,7 @@ import "opentui-spinner/react";
 import {
 	CLINE_CREDITS_DASHBOARD_URL,
 	isClineCreditsBalanceErrorMessage,
-} from "../../utils/cline-credits-error";
+} from "../cline-account";
 import { useTerminalBackground } from "../hooks/use-terminal-background";
 import {
 	getDefaultForeground,
