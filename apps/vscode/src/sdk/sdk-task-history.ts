@@ -10,7 +10,7 @@ import type { TelemetryService } from "@/services/telemetry/TelemetryService"
 import { Logger } from "@/shared/services/Logger"
 import { buildSessionConfig } from "./cline-session-factory"
 import { sanitizeInitialMessagesForSessionStart } from "./initial-message-sanitizer"
-import { readApiConversationHistory, readTaskHistory } from "./legacy-state-reader"
+import { deleteLegacyTask, readApiConversationHistory, readTaskHistory } from "./legacy-state-reader"
 import type { MessageIdMinter } from "./message-id-minter"
 import { sdkMessagesToClineMessages } from "./message-translator"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
@@ -611,9 +611,13 @@ export class SdkTaskHistory {
 	}
 
 	private async deleteSession(sessionId: string): Promise<void> {
+		const legacyTask = this.findLegacyTask(sessionId)
 		await this.withHistoryHost(async (host) => {
 			await host.delete(sessionId)
 		})
+		if (legacyTask) {
+			deleteLegacyTask(sessionId, legacyTask.dataDir)
+		}
 		this.invalidateMetadataHistoryCache()
 	}
 
