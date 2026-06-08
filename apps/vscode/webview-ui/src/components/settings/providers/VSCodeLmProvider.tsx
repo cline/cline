@@ -1,3 +1,4 @@
+import { openAiModelInfoSafeDefaults } from "@shared/api"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import type { Mode } from "@shared/storage/types"
 import { parseVsCodeLmModelSelector, stringifyVsCodeLmModelSelector } from "@shared/vsCodeSelectorUtils"
@@ -6,6 +7,7 @@ import { useCallback, useEffect, useState } from "react"
 import { useInterval } from "react-use"
 import type * as vscodemodels from "vscode"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useProviderConfig } from "@/hooks/useProviderConfig"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { DROPDOWN_Z_INDEX, DropdownContainer } from "../ApiOptions"
 import { getModeSpecificFields } from "../utils/providerUtils"
@@ -19,8 +21,13 @@ export const VSCodeLmProvider = ({ currentMode }: VSCodeLmProviderProps) => {
 	const [vsCodeLmModels, setVsCodeLmModels] = useState<vscodemodels.LanguageModelChatSelector[]>([])
 	const { apiConfiguration } = useExtensionState()
 	const { handleModeFieldChange } = useApiConfigurationHandlers()
+	const { config, commitSelection } = useProviderConfig("vscode-lm")
 
 	const { vsCodeLmModelSelector } = getModeSpecificFields(apiConfiguration, currentMode)
+	const committedSelection = currentMode === "plan" ? config?.planSelection : config?.actSelection
+	const selectedModelId = vsCodeLmModelSelector
+		? stringifyVsCodeLmModelSelector(vsCodeLmModelSelector)
+		: (committedSelection?.modelId ?? "")
 
 	// Poll VS Code LM models
 	const requestVsCodeLmModels = useCallback(async () => {
@@ -41,6 +48,31 @@ export const VSCodeLmProvider = ({ currentMode }: VSCodeLmProviderProps) => {
 
 	useInterval(requestVsCodeLmModels, 2000)
 
+	const handleModelSelect = (modelId: string) => {
+		if (!modelId) {
+			return
+		}
+
+		const selector = parseVsCodeLmModelSelector(modelId)
+		void handleModeFieldChange(
+			{
+				plan: "planModeVsCodeLmModelSelector",
+				act: "actModeVsCodeLmModelSelector",
+			},
+			selector,
+			currentMode,
+		).catch((err) => console.error("Failed to update VS Code LM selector:", err))
+
+		void commitSelection(currentMode, {
+			providerId: "vscode-lm",
+			modelId,
+			modelInfo: {
+				...openAiModelInfoSafeDefaults,
+				name: [selector.vendor, selector.family].filter(Boolean).join(" - ") || modelId,
+			},
+		}).catch((err) => console.error("Failed to commit VS Code LM model selection:", err))
+	}
+
 	return (
 		<div>
 			<DropdownContainer className="dropdown-container" zIndex={DROPDOWN_Z_INDEX - 2}>
@@ -50,23 +82,9 @@ export const VSCodeLmProvider = ({ currentMode }: VSCodeLmProviderProps) => {
 				{vsCodeLmModels.length > 0 ? (
 					<VSCodeDropdown
 						id="vscode-lm-model"
-						onChange={(e) => {
-							const value = (e.target as HTMLInputElement).value
-							if (!value) {
-								return
-							}
-
-							handleModeFieldChange(
-								{
-									plan: "planModeVsCodeLmModelSelector",
-									act: "actModeVsCodeLmModelSelector",
-								},
-								parseVsCodeLmModelSelector(value),
-								currentMode,
-							)
-						}}
+						onChange={(e) => handleModelSelect((e.target as HTMLInputElement).value)}
 						style={{ width: "100%" }}
-						value={vsCodeLmModelSelector ? stringifyVsCodeLmModelSelector(vsCodeLmModelSelector) : ""}>
+						value={selectedModelId}>
 						<VSCodeOption value="">Select a model...</VSCodeOption>
 						{vsCodeLmModels.map((model) => {
 							const value = stringifyVsCodeLmModelSelector(model)
