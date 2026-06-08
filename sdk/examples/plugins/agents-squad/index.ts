@@ -11,7 +11,6 @@ import {
 	type AgentPlugin,
 	type AgentTool,
 	type AgentToolContext,
-	type BasicLogger,
 	ClineCore,
 	createTool,
 } from "@cline/core";
@@ -316,18 +315,6 @@ function emitSteer(sessionId: string | undefined, prompt: string): void {
 	}
 }
 
-function logPluginError(
-	logger: BasicLogger | undefined,
-	message: string,
-	metadata: Record<string, unknown>,
-): void {
-	if (logger?.error) {
-		logger.error(message, metadata);
-		return;
-	}
-	logger?.log(message, { ...metadata, severity: "error" });
-}
-
 async function getSessionManager(): Promise<SessionManager> {
 	sessionManagerPromise ??= ClineCore.create({
 		backendMode: resolveSubagentBackendMode(DEFAULT_BACKEND_MODE),
@@ -387,7 +374,6 @@ async function runSubagentTurn(
 	subagent: RunningSubagent,
 	message: string,
 	steer: boolean,
-	logger?: BasicLogger,
 ): Promise<void> {
 	try {
 		const mgr = await getSessionManager();
@@ -406,12 +392,6 @@ async function runSubagentTurn(
 		subagent.status = "failed";
 		subagent.error = err instanceof Error ? err.message : String(err);
 		subagent.completedAt = Date.now();
-		logPluginError(logger, "Subagent run failed", {
-			error: err,
-			sessionId: subagent.sessionId,
-			toolName: "portable-subagents",
-			label: subagent.name,
-		});
 	}
 	if (steer) emitSteer(subagent.parentSessionId, steerPrompt(subagent));
 }
@@ -611,7 +591,6 @@ const plugin: AgentPlugin = {
 							subagent,
 							input.task,
 							input.notifyParent !== false,
-							logger,
 						);
 
 						return {
@@ -701,7 +680,6 @@ const plugin: AgentPlugin = {
 							subagent,
 							input.prompt,
 							input.notifyParent !== false,
-							logger,
 						);
 						return {
 							status: "started",

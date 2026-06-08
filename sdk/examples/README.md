@@ -27,7 +27,7 @@ cline -i "What's the weather like in Tokyo and Paris?"
 ```
 
 Plugin setup receives a host logger through the second `setup` argument. Use
-`ctx.logger` for plugin diagnostics:
+`ctx.logger` for setup-time diagnostics and logs emitted during tool calls:
 
 ```ts
 setup(api, ctx) {
@@ -48,6 +48,11 @@ setup(api, ctx) {
   }
 }
 ```
+
+`ctx.logger` is session-scoped. For detached work that can outlive the session,
+such as background processes, persist status to plugin-owned storage or report
+completion through the host event channel instead of calling the captured logger
+from long-lived callbacks.
 
 ### [`./plugins/typescript-lsp/`](./plugins/typescript-lsp)
 
@@ -70,7 +75,7 @@ cline -i "Find where createTool is defined"
 - Export a reusable plugin module for `.cline/plugins`
 - Start background subagents from the main session
 - Load bundled or custom agent presets and skills
-- Log setup, subagent starts, follow-ups, and async subagent failures through `ctx.logger`
+- Log setup, subagent starts, and follow-ups through `ctx.logger`
 
 Includes pre-configured agents:
 - **Anvil** - Build and compile
