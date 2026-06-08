@@ -14,6 +14,7 @@ import type { ApiConfiguration } from "@shared/api"
 import { Logger } from "@shared/services/Logger"
 import type { Mode } from "@shared/storage/types"
 import { StateManager } from "@/core/storage/StateManager"
+import { resolveBedrockAuthentication } from "./bedrock-config"
 import { resolveApiKey, resolveModelId } from "./cline-session-factory"
 import { toSdkProviderId } from "./model-catalog/sdk-provider-id"
 import { getProviderSettingsManager } from "./provider-migration"
@@ -78,6 +79,30 @@ function hasProviderSettingsAuthCredential(providerId: string): boolean {
 }
 
 /**
+ * Whether the Bedrock provider has usable auth. resolveApiKey() only sees the
+ * Bedrock API key; profile / SigV4 / default-chain auth also build a working
+ * session, so classify per resolved auth mode (kept in sync with
+ * buildBedrockProviderConfig).
+ */
+function hasUsableBedrockAuth(apiConfig: ApiConfiguration): boolean {
+	const authentication = resolveBedrockAuthentication(apiConfig);
+	switch (authentication) {
+		case "apikey":
+		case "api-key": {
+			const apiKey = apiConfig.awsBedrockApiKey;
+			return typeof apiKey === "string" && apiKey.trim().length > 0;
+		}
+		// profile / iam: SigV4, a profile, or the default credential chain;
+		// all resolve at request time, so treat as usable.
+		case "profile":
+		case "iam":
+			return true;
+		default:
+			return false;
+	}
+}
+
+/**
  * Compute whether the active mode's provider has a usable credential/config.
  *
  * Decoupled from the StateManager singleton so it can be unit-tested with a
@@ -89,6 +114,12 @@ export function hasUsableProvider(apiConfig: ApiConfiguration, mode: Mode): bool
 	// No provider selected for the active mode -> cannot chat.
 	if (!providerId) {
 		return false
+	}
+
+	// resolveApiKey() only covers Bedrock's API-key auth; handle its other
+	// auth modes before the generic key check below.
+	if (providerId === "bedrock") {
+		return hasUsableBedrockAuth(apiConfig);
 	}
 
 	// A resolvable credential (BYOK key, Bedrock key, or OAuth token)
