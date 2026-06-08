@@ -3,10 +3,12 @@ import type {
 	AgentModel,
 	AgentModelEvent,
 	AgentModelRequest,
+	AgentRuntimeEvent,
 	AgentRuntimePlugin,
 	AgentTool,
 	ITelemetryService,
 } from "@cline/shared";
+import { createClineAccountAuthRequiredError } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import { AgentRuntime } from "./index";
 
@@ -1343,6 +1345,67 @@ describe("AgentRuntime", () => {
 		expect(events).toContain("run-failed");
 		expect(logger.error).toHaveBeenCalled();
 		expect(telemetry.capture).toHaveBeenCalled();
+	});
+
+	it("propagates provider error info through failed runs", async () => {
+		const errorInfo = {
+			kind: "provider" as const,
+			providerId: "cline",
+			modelId: "openai/gpt-5.4",
+			message: "Not enough credits available",
+			code: "insufficient_credits",
+			status: 402,
+			details: { current_balance: -0 },
+		};
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "finish",
+					reason: "error",
+					error: "Not enough credits available",
+					errorInfo,
+				},
+			],
+		]);
+		const runtime = new AgentRuntime({ model });
+		const events: AgentRuntimeEvent[] = [];
+		runtime.subscribe((event) => {
+			events.push(event);
+		});
+
+		const result = await runtime.run("Fail");
+
+		expect(result.status).toBe("failed");
+		expect(result.errorInfo).toEqual(errorInfo);
+		const failed = events.find(
+			(event): event is Extract<AgentRuntimeEvent, { type: "run-failed" }> =>
+				event.type === "run-failed",
+		);
+		expect(failed?.errorInfo).toEqual(errorInfo);
+	});
+
+	it("propagates structured error info from thrown errors", async () => {
+		const authError = createClineAccountAuthRequiredError();
+		const model = new ScriptedModel([
+			() => {
+				throw authError;
+			},
+		]);
+		const runtime = new AgentRuntime({ model });
+		const events: AgentRuntimeEvent[] = [];
+		runtime.subscribe((event) => {
+			events.push(event);
+		});
+
+		const result = await runtime.run("Fail");
+
+		expect(result.status).toBe("failed");
+		expect(result.errorInfo).toEqual(authError.errorInfo);
+		const failed = events.find(
+			(event): event is Extract<AgentRuntimeEvent, { type: "run-failed" }> =>
+				event.type === "run-failed",
+		);
+		expect(failed?.errorInfo).toEqual(authError.errorInfo);
 	});
 
 	it("propagates agent identity including role through snapshots and plugin setup", async () => {

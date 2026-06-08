@@ -5,8 +5,10 @@ import {
 	emitJsonLine,
 	getCurrentOutputMode,
 	write,
+	writeDiagnostic,
 	writeErr,
 } from "./output";
+import { formatSpecialErrorText } from "./special-errors";
 import type { Config } from "./types";
 
 // =============================================================================
@@ -176,7 +178,12 @@ export function handleEvent(event: AgentEvent, config: Config): void {
 		case "error":
 			closeInlineStreamIfNeeded();
 			if (!event.recoverable || config.verbose) {
-				writeErr(event.error.message);
+				const specialErrorText = formatSpecialErrorText(event.errorInfo);
+				if (specialErrorText) {
+					writeDiagnostic(specialErrorText);
+				} else {
+					writeErr(event.error.message);
+				}
 			}
 			break;
 		case "notice":

@@ -12,6 +12,7 @@
 
 import { z } from "zod";
 import type { AgentRuntimeHooks, AgentTool } from "../agent";
+import type { AgentErrorInfo } from "../errors/error-info";
 import type { ExtensionContext } from "../extensions/context";
 import type {
 	AgentExtensionApi,
@@ -186,6 +187,8 @@ export interface AgentErrorEvent extends AgentEventMetadata {
 	recoverable: boolean;
 	/** Current iteration when error occurred */
 	iteration: number;
+	// Structured error metadata, when available
+	errorInfo?: AgentErrorInfo;
 }
 
 export interface ConsecutiveMistakeLimitContext {

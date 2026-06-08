@@ -881,6 +881,69 @@ describe("sdk-gateway", () => {
 		});
 	});
 
+	it("attaches Cline provider error info for insufficient credits", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{
+					type: "error",
+					error: {
+						status: 402,
+						headers: { "x-request-id": "req_credits" },
+						responseBody: JSON.stringify({
+							error: JSON.stringify({
+								code: "insufficient_credits",
+								current_balance: -0,
+								message: "Not enough credits available",
+								buy_credits_url:
+									"https://app.cline.bot/dashboard/account?tab=credits",
+							}),
+						}),
+					},
+				},
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "cline",
+					apiKey: "cline-key",
+				},
+			],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "cline",
+				modelId: "openai/gpt-5.4",
+				messages: baseMessages,
+			}),
+		);
+
+		const finish = events.find(
+			(event): event is Extract<AgentModelEvent, { type: "finish" }> =>
+				event.type === "finish",
+		);
+		expect(finish).toMatchObject({
+			type: "finish",
+			reason: "error",
+			errorInfo: {
+				kind: "provider",
+				providerId: "cline",
+				modelId: "openai/gpt-5.4",
+				message: "Not enough credits available",
+				code: "insufficient_credits",
+				status: 402,
+				requestId: "req_credits",
+				details: expect.objectContaining({
+					current_balance: 0,
+					buy_credits_url:
+						"https://app.cline.bot/dashboard/account?tab=credits",
+				}),
+			},
+		});
+	});
+
 	it("preserves explicit zero cost instead of falling back to catalog pricing", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([

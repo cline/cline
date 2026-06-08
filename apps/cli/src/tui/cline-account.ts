@@ -4,6 +4,7 @@ import {
 	type ClineAccountOrganizationBalance,
 	ClineAccountService,
 	type ClineAccountUser,
+	createClineAccountAuthRequiredError,
 	getValidClineCredentials,
 	type ProviderSettings,
 	ProviderSettingsManager,
@@ -14,8 +15,6 @@ import { toProviderApiKey } from "../utils/provider-auth";
 import type { Config } from "../utils/types";
 
 const WORKOS_TOKEN_PREFIX = "workos:";
-export const CLINE_CREDITS_DASHBOARD_URL =
-	"https://app.cline.bot/dashboard/account?tab=credits";
 
 type ClineAccountConfig = Pick<Config, "apiKey" | "providerId">;
 
@@ -30,24 +29,6 @@ export interface ClineAccountSnapshot {
 
 export function formatClineCredits(value: number): string {
 	return formatCreditBalance(normalizeCreditBalance(value));
-}
-
-// FIXME: These message checks are temporary until structured error types are
-// passed through to the CLI instead of plain error strings.
-export function isClineAccountAuthErrorMessage(message: string): boolean {
-	const normalized = message.trim().toLowerCase();
-	return (
-		normalized === "no cline account auth token found" ||
-		normalized.includes("requires re-authentication")
-	);
-}
-
-export function isClineAccountCreditsErrorMessage(message: string): boolean {
-	const normalized = message.trim().toLowerCase();
-	return (
-		normalized.includes("insufficient balance") &&
-		normalized.includes("cline credits balance")
-	);
 }
 
 function resolveAccountApiBaseUrl(input: {
@@ -112,9 +93,7 @@ async function resolveValidClineAccountAuthToken(input: {
 			{ apiBaseUrl: input.apiBaseUrl },
 		);
 		if (!credentials) {
-			throw new Error(
-				"Cline account requires re-authentication. Run cline auth cline.",
-			);
+			throw createClineAccountAuthRequiredError();
 		}
 		const nextAccessToken = toProviderApiKey("cline", credentials);
 		if (
@@ -179,7 +158,7 @@ export async function loadClineAccountSnapshot(input: {
 }): Promise<ClineAccountSnapshot> {
 	const service = await createClineAccountService(input);
 	if (!service) {
-		throw new Error("No Cline account auth token found");
+		throw createClineAccountAuthRequiredError();
 	}
 
 	const user = await service.fetchMe();
@@ -214,7 +193,7 @@ export async function switchClineAccount(input: {
 }): Promise<void> {
 	const service = await createClineAccountService(input);
 	if (!service) {
-		throw new Error("No Cline account auth token found");
+		throw createClineAccountAuthRequiredError();
 	}
 	await service.switchAccount(input.organizationId);
 }

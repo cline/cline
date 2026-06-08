@@ -19,6 +19,24 @@ export {
 export type * from "./connectors/options";
 export type { AutomationEventEnvelope } from "./cron";
 export type {
+	AgentErrorInfo,
+	AuthErrorInfo,
+	ErrorWithInfo,
+	ProviderErrorInfo,
+} from "./errors/error-info";
+export {
+	CLINE_ACCOUNT_AUTH_REQUIRED_CODE,
+	CLINE_INSUFFICIENT_CREDITS_CODE,
+	createClineAccountAuthRequiredError,
+	createErrorWithInfo,
+	getErrorInfo,
+	isAgentErrorInfo,
+	isAuthErrorInfo,
+	isClineAccountAuthRequiredErrorInfo,
+	isClineInsufficientCreditsErrorInfo,
+	isProviderErrorInfo,
+} from "./errors/error-info";
+export type {
 	ClientContext,
 	ClientName,
 	ExtensionContext,

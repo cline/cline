@@ -1,3 +1,4 @@
+import { getErrorInfo } from "@cline/shared";
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { shouldShowCliUsageCost } from "../../utils/usage-cost-display";
 import type { SlashCommandRegistry } from "../commands/slash-command-registry";
@@ -368,6 +369,7 @@ export function usePromptInputController(input: {
 					session.appendEntry({
 						kind: "error",
 						text: error instanceof Error ? error.message : String(error),
+						errorInfo: getErrorInfo(error),
 					});
 				}
 			} finally {

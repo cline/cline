@@ -715,6 +715,32 @@ describe("RuntimeEventAdapter — run lifecycle", () => {
 			iteration: 4,
 		});
 	});
+
+	it("propagates provider error info on run-failed events", () => {
+		const err = new Error("Not enough credits available");
+		const errorInfo = {
+			kind: "provider" as const,
+			providerId: "cline",
+			modelId: "openai/gpt-5.4",
+			message: "Not enough credits available",
+			code: "insufficient_credits",
+			status: 402,
+			details: { current_balance: -0 },
+		};
+		const out = adapter.translate({
+			type: "run-failed",
+			snapshot: makeSnapshot({ iteration: 4 }),
+			error: err,
+			errorInfo,
+		});
+		expect(out[0]).toEqual({
+			type: "error",
+			error: err,
+			recoverable: false,
+			iteration: 4,
+			errorInfo,
+		});
+	});
 });
 
 // ---------------------------------------------------------------------------

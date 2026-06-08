@@ -21,6 +21,7 @@ export type {
 	AgentAfterToolResult,
 	AgentBeforeModelResult,
 	AgentBeforeToolResult,
+	AgentErrorInfo,
 	AgentMessage,
 	AgentMessagePart,
 	AgentModel,
@@ -37,10 +38,25 @@ export type {
 	AgentToolDefinition,
 	AgentToolResult,
 	AgentUsage,
+	AuthErrorInfo,
+	ErrorWithInfo,
+	ProviderErrorInfo,
 	ToolApprovalResult,
 	ToolPolicy,
 } from "@cline/shared";
-export { createTool } from "@cline/shared";
+export {
+	CLINE_ACCOUNT_AUTH_REQUIRED_CODE,
+	CLINE_INSUFFICIENT_CREDITS_CODE,
+	createClineAccountAuthRequiredError,
+	createErrorWithInfo,
+	createTool,
+	getErrorInfo,
+	isAgentErrorInfo,
+	isAuthErrorInfo,
+	isClineAccountAuthRequiredErrorInfo,
+	isClineInsufficientCreditsErrorInfo,
+	isProviderErrorInfo,
+} from "@cline/shared";
 export type {
 	AgentEventListener,
 	AgentRunInput,

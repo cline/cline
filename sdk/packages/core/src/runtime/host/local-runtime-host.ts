@@ -7,6 +7,7 @@ import {
 	type AgentEvent,
 	type AgentResult,
 	captureSdkError,
+	createClineAccountAuthRequiredError,
 	createSessionId,
 	type ITelemetryService,
 	isLikelyAuthError,
@@ -1554,6 +1555,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 			});
 		} catch (error) {
 			if (error instanceof OAuthReauthRequiredError) {
+				if (error.providerId === "cline") {
+					throw createClineAccountAuthRequiredError();
+				}
 				throw new Error(`${error.providerId} requires re-authentication.`);
 			}
 			throw error;

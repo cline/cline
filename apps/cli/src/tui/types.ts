@@ -5,6 +5,7 @@ import type {
 	TeamEvent,
 } from "@cline/core";
 import type {
+	AgentErrorInfo,
 	Message,
 	ToolApprovalRequest,
 	ToolApprovalResult,
@@ -41,7 +42,7 @@ export type ChatEntry =
 				error?: string;
 			};
 	  }
-	| { kind: "error"; text: string }
+	| { kind: "error"; text: string; errorInfo?: AgentErrorInfo }
 	| { kind: "status"; text: string }
 	| { kind: "team"; text: string }
 	| { kind: "user_submitted"; text: string; delivery?: "queue" | "steer" }

@@ -24,6 +24,25 @@ vi.mock("@cline/core", () => {
 				coreMocks.serviceOptions.push(options);
 			}
 		},
+		createClineAccountAuthRequiredError: () => {
+			const error = new Error(
+				"Cline account authentication requires sign in.",
+			) as Error & {
+				errorInfo: {
+					kind: "auth";
+					providerId: "cline";
+					code: "cline_account_auth_required";
+					message: string;
+				};
+			};
+			error.errorInfo = {
+				kind: "auth",
+				providerId: "cline",
+				code: "cline_account_auth_required",
+				message: error.message,
+			};
+			return error;
+		},
 		ProviderSettingsManager: class {
 			getProviderSettings(providerId: string) {
 				return coreMocks.getProviderSettings(providerId);
@@ -129,8 +148,12 @@ describe("createClineAccountService", () => {
 
 		await expect(
 			createClineAccountService({ config: makeConfig() }),
-		).rejects.toThrow(
-			"Cline account requires re-authentication. Run cline auth cline.",
-		);
+		).rejects.toMatchObject({
+			errorInfo: {
+				kind: "auth",
+				providerId: "cline",
+				code: "cline_account_auth_required",
+			},
+		});
 	});
 });
