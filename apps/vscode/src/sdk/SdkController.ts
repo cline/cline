@@ -48,6 +48,7 @@ import { buildStartSessionInput, createHistoryItemFromSession } from "./cline-se
 import { MessageTranslatorState, reshapeErrorForWebview } from "./message-translator"
 import { createProviderCatalog } from "./model-catalog/catalog"
 import type { Disposable, ProviderCatalog, ProviderConfigChange, ProviderConfigStore } from "./model-catalog/contracts"
+import { parseProviderId } from "./model-catalog/provider-id"
 import { createProviderConfigStore } from "./model-catalog/store"
 import { SdkFollowupCoordinator } from "./sdk-followup-coordinator"
 import { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
@@ -1135,18 +1136,33 @@ export class Controller {
 
 	// ---- Provider auth callbacks ----
 
+	private persistProviderApiKeyFromState(provider: string): void {
+		const providerId = parseProviderId(provider)
+		const apiKey = this.providerConfigStore.read(providerId).apiKey
+
+		if (!apiKey) {
+			Logger.warn(`[SdkController] No API key found after ${provider} auth callback`)
+			return
+		}
+
+		this.providerConfigStore.write(providerId, { apiKey })
+	}
+
 	async handleOpenRouterCallback(code: string): Promise<void> {
 		await this.authService.handleOpenRouterCallback(code)
+		this.persistProviderApiKeyFromState("openrouter")
 		await this.postStateToWebview()
 	}
 
 	async handleRequestyCallback(code: string): Promise<void> {
 		await this.authService.handleRequestyCallback(code)
+		this.persistProviderApiKeyFromState("requesty")
 		await this.postStateToWebview()
 	}
 
 	async handleHicapCallback(code: string): Promise<void> {
 		await this.authService.handleHicapCallback(code)
+		this.persistProviderApiKeyFromState("hicap")
 		await this.postStateToWebview()
 	}
 
