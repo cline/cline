@@ -14,7 +14,7 @@ export const GENERATED_PROVIDER_MODELS: {
 	version: number;
 	providers: Record<string, Record<string, ModelInfo>>;
 } = {
-	version: 1780926416077,
+	version: 1780937522893,
 	providers: {
 		aihubmix: {
 			"glm-5v-turbo": {
@@ -3529,33 +3529,15 @@ export const GENERATED_PROVIDER_MODELS: {
 				releaseDate: "2025-08-05",
 				family: "gpt-oss",
 			},
-			"llama3.1-8b": {
-				id: "llama3.1-8b",
-				name: "Llama 3.1 8B",
-				contextWindow: 32000,
-				maxInputTokens: 32000,
-				maxTokens: 8000,
-				capabilities: ["tools", "temperature"],
-				pricing: {
-					input: 0.1,
-					output: 0.1,
-					cacheRead: 0,
-					cacheWrite: 0,
-				},
-				releaseDate: "2025-01-01",
-				family: "llama",
-			},
 		},
 		"cline-pass": {
-			"cline-pass/cline-pass/glm-5.1": {
-				id: "cline-pass/cline-pass/glm-5.1",
-				name: "zai/glm-5.1",
-				contextWindow: 202800,
-				maxInputTokens: 202800,
-				maxTokens: 64000,
+			"cline-pass/glm-5.1": {
+				id: "cline-pass/glm-5.1",
+				name: "cline-pass/glm-5.1",
+				contextWindow: 202752,
+				maxInputTokens: 202752,
+				maxTokens: 131072,
 				capabilities: [
-					"images",
-					"files",
 					"tools",
 					"reasoning",
 					"structured_output",
@@ -3563,12 +3545,12 @@ export const GENERATED_PROVIDER_MODELS: {
 					"prompt-cache",
 				],
 				pricing: {
-					input: 1.4,
-					output: 4.4,
-					cacheRead: 0.26,
+					input: 0.98,
+					output: 3.08,
+					cacheRead: 0.182,
 					cacheWrite: 0,
 				},
-				releaseDate: "2026-04-07",
+				releaseDate: "2026-03-27",
 				family: "glm",
 				description: "",
 			},
@@ -11800,9 +11782,9 @@ export const GENERATED_PROVIDER_MODELS: {
 			"~moonshotai/kimi-latest": {
 				id: "~moonshotai/kimi-latest",
 				name: "MoonshotAI Kimi Latest",
-				contextWindow: 262144,
-				maxInputTokens: 262144,
-				maxTokens: 262144,
+				contextWindow: 262142,
+				maxInputTokens: 262142,
+				maxTokens: 262142,
 				capabilities: [
 					"images",
 					"tools",
@@ -11812,9 +11794,9 @@ export const GENERATED_PROVIDER_MODELS: {
 					"prompt-cache",
 				],
 				pricing: {
-					input: 0.684,
-					output: 3.42,
-					cacheRead: 0.144,
+					input: 0.68,
+					output: 3.41,
+					cacheRead: 0.34,
 					cacheWrite: 0,
 				},
 				releaseDate: "2026-04-27",
@@ -12135,9 +12117,9 @@ export const GENERATED_PROVIDER_MODELS: {
 			"moonshotai/kimi-k2.6": {
 				id: "moonshotai/kimi-k2.6",
 				name: "Kimi K2.6",
-				contextWindow: 262144,
-				maxInputTokens: 262144,
-				maxTokens: 262144,
+				contextWindow: 262142,
+				maxInputTokens: 262142,
+				maxTokens: 262142,
 				capabilities: [
 					"images",
 					"tools",
@@ -12147,9 +12129,9 @@ export const GENERATED_PROVIDER_MODELS: {
 					"prompt-cache",
 				],
 				pricing: {
-					input: 0.684,
-					output: 3.42,
-					cacheRead: 0.144,
+					input: 0.68,
+					output: 3.41,
+					cacheRead: 0.34,
 					cacheWrite: 0,
 				},
 				releaseDate: "2026-04-21",
@@ -13593,22 +13575,6 @@ export const GENERATED_PROVIDER_MODELS: {
 				},
 				releaseDate: "2025-12-10",
 				family: "gpt-codex",
-			},
-			"nex-agi/deepseek-v3.1-nex-n1": {
-				id: "nex-agi/deepseek-v3.1-nex-n1",
-				name: "DeepSeek V3.1 Nex N1",
-				contextWindow: 131072,
-				maxInputTokens: 131072,
-				maxTokens: 163840,
-				capabilities: ["tools", "structured_output", "temperature"],
-				pricing: {
-					input: 0.135,
-					output: 0.5,
-					cacheRead: 0,
-					cacheWrite: 0,
-				},
-				releaseDate: "2025-12-08",
-				family: "deepseek",
 			},
 			"relace/relace-search": {
 				id: "relace/relace-search",

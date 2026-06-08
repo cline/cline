@@ -39,7 +39,9 @@ function findORModelCapabilities(
 		return CLINE_PASS_MODEL_DEFAULTS;
 	}
 
-	return openRouterModels[entry.name] || CLINE_PASS_MODEL_DEFAULTS;
+	const modelSlug = entry.id.split("/").at(-1) ?? entry.id;
+
+	return openRouterModels[modelSlug] || CLINE_PASS_MODEL_DEFAULTS;
 }
 
 // Cline-Pass models have only the model name (and not the lab),
@@ -50,12 +52,9 @@ function buildModelsNameMap(
 	const nameMap: Record<string, ModelInfo> = {};
 
 	for (const model of Object.values(openrouterModels)) {
-		const parts = model.name?.split("/");
-		const shortName = parts?.at(-1);
+		const modelSlugWithoutProvider = model.id.split("/").at(-1) ?? model.id;
 
-		if (model.name) {
-			nameMap[shortName || model.name] = model;
-		}
+		nameMap[modelSlugWithoutProvider] = model;
 	}
 
 	return nameMap;

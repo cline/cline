@@ -50,7 +50,7 @@ async function generate(): Promise<void> {
 
 		const clineRecommended = await fetchClineRecommendedProviderModels(
 			fetch,
-			modelsDev["vercel-ai-gateway"] || {},
+			modelsDev.openrouter || {},
 		);
 		Object.assign(providerModels, clineRecommended);
 	} catch (error) {
