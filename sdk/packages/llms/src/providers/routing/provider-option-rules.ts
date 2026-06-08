@@ -1,10 +1,14 @@
 import {
 	isDeepSeekFamily,
+	isGemini3Model,
+	isGeminiFlashModel,
+	isGeminiProModel,
 	isGlmModel,
 	isKimiK26Family as isKimiK26FamilyFact,
 	isMoonshotKimiModelIdFallback,
 	modelReasoningDefaultsOn,
 	providerReasoningRouteMatches,
+	supportsGeminiThinking,
 } from "../model-facts";
 import { buildGatewayReasoningOptions } from "./anthropic-compatible";
 import { buildOpenAINativeProviderOptions } from "./generic-compatible";
@@ -107,46 +111,6 @@ const GEMINI_25_THINKING_BUDGET_BY_EFFORT = {
 	medium: 8_192,
 	high: 24_576,
 } as const;
-
-function getGeminiModelDescriptor(input: ProviderOptionMatchInput): string {
-	return [
-		input.request.modelId,
-		input.context.model.id,
-		input.context.model.name,
-		input.context.model.metadata?.family,
-	]
-		.filter(Boolean)
-		.join(" ")
-		.toLowerCase();
-}
-
-function isGemini3Model(input: ProviderOptionMatchInput): boolean {
-	return /(^|[/\s])gemini-3([.-]|$)/.test(getGeminiModelDescriptor(input));
-}
-
-function isGeminiProModel(input: ProviderOptionMatchInput): boolean {
-	return /(^|[/\s])gemini-2\.5-pro([-\s]|$)/.test(
-		getGeminiModelDescriptor(input),
-	);
-}
-
-function isGeminiFlashModel(input: ProviderOptionMatchInput): boolean {
-	const descriptor = getGeminiModelDescriptor(input);
-	return (
-		/(^|[/\s])gemini-(?:\d(?:\.\d)?-)?flash(?:-lite|-image)?([-\s]|$)/.test(
-			descriptor,
-		) || descriptor.includes("gemini-flash")
-	);
-}
-
-function supportsGeminiThinking(input: ProviderOptionMatchInput): boolean {
-	const descriptor = getGeminiModelDescriptor(input);
-	return (
-		isGemini3Model(input) ||
-		/(^|[/\s])gemini-2\.5([-\s]|$)/.test(descriptor) ||
-		descriptor.includes("gemini-flash-latest")
-	);
-}
 
 function buildGeminiThinkingConfig(input: ProviderOptionBuildInput):
 	| {
