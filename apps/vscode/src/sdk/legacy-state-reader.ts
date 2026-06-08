@@ -154,6 +154,29 @@ export function readTaskHistory(dataDir?: string): HistoryItem[] {
 	return readJsonFile<HistoryItem[]>(taskHistoryPath(dataDir), [])
 }
 
+/**
+ * Delete a legacy task from taskHistory.json and remove its task artifact directory.
+ * Returns true when the task existed in legacy history.
+ */
+export function deleteLegacyTask(taskId: string, dataDir?: string): boolean {
+	const historyPath = taskHistoryPath(dataDir)
+	const history = readTaskHistory(dataDir)
+	const filteredHistory = history.filter((item) => item.id !== taskId)
+	const existed = filteredHistory.length !== history.length
+
+	try {
+		if (existed) {
+			fs.mkdirSync(path.dirname(historyPath), { recursive: true })
+			fs.writeFileSync(historyPath, JSON.stringify(filteredHistory, null, 2), "utf-8")
+		}
+		fs.rmSync(taskDirPath(taskId, dataDir), { recursive: true, force: true })
+	} catch (error) {
+		Logger.warn(`[LegacyStateReader] Failed to delete legacy task ${taskId}:`, error)
+	}
+
+	return existed
+}
+
 // ---------------------------------------------------------------------------
 // Per-task data
 // ---------------------------------------------------------------------------
