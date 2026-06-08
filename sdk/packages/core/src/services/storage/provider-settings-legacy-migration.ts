@@ -42,7 +42,7 @@ interface LegacyGlobalState {
 	openAiHeaders?: Record<string, string>;
 	requestTimeoutMs?: number;
 	awsRegion?: string;
-	awsAuthentication?: "iam" | "api-key" | "apikey" | "profile";
+	awsAuthentication?: "credentials" | "iam" | "api-key" | "apikey" | "profile";
 	awsUseProfile?: boolean;
 	awsProfile?: string;
 	awsUseCrossRegionInference?: boolean;
@@ -234,6 +234,12 @@ export function resolveLegacyClineAuth(
 function trimNonEmpty(value: string | undefined): string | undefined {
 	const trimmed = value?.trim();
 	return trimmed ? trimmed : undefined;
+}
+
+function normalizeLegacyBedrockAuthentication(
+	authentication: LegacyGlobalState["awsAuthentication"],
+): "iam" | "api-key" | "apikey" | "profile" | undefined {
+	return authentication === "credentials" ? "iam" : authentication;
 }
 
 function readJsonObject<T extends object>(filePath: string): T | undefined {
@@ -498,15 +504,18 @@ function buildLegacyProviderSettings(
 		providerSpecific.headers = legacyGlobalState.openAiHeaders;
 	}
 	if (providerId === "bedrock") {
+		const bedrockAuthentication = normalizeLegacyBedrockAuthentication(
+			legacyGlobalState.awsAuthentication,
+		);
 		const useBedrockProfile =
-			legacyGlobalState.awsAuthentication === "profile" ||
+			bedrockAuthentication === "profile" ||
 			legacyGlobalState.awsUseProfile === true;
 		providerSpecific.aws = {
 			accessKey: trimNonEmpty(legacySecrets.awsAccessKey),
 			secretKey: trimNonEmpty(legacySecrets.awsSecretKey),
 			sessionToken: trimNonEmpty(legacySecrets.awsSessionToken),
 			region: trimNonEmpty(legacyGlobalState.awsRegion),
-			authentication: legacyGlobalState.awsAuthentication,
+			authentication: bedrockAuthentication,
 			profile: useBedrockProfile
 				? trimNonEmpty(legacyGlobalState.awsProfile)
 				: undefined,

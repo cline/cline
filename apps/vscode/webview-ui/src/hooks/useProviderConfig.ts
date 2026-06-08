@@ -1,5 +1,6 @@
 import { StringRequest } from "@shared/proto/cline/common"
 import {
+	type AwsProviderConfig,
 	CommitModelSelectionRequest,
 	type ProviderConfigResponse,
 	WriteProviderConfigPatch,
@@ -11,8 +12,9 @@ import type { ProviderId } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import type { ModelInfo } from "../../../src/shared/api"
 
-export type ProviderConfigWritePatch = Partial<Omit<WriteProviderConfigPatch, "headers">> & {
+export type ProviderConfigWritePatch = Partial<Omit<WriteProviderConfigPatch, "headers" | "aws">> & {
 	headers?: Record<string, string>
+	aws?: Partial<AwsProviderConfig>
 }
 
 export interface ProviderModelSelection {
