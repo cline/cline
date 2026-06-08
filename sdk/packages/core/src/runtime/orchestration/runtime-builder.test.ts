@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -56,11 +56,15 @@ async function collectExtensionTools(
 describe("DefaultRuntimeBuilder", () => {
 	const previousHome = process.env.HOME;
 	const previousGlobalSettingsPath = process.env.CLINE_GLOBAL_SETTINGS_PATH;
+	const tempDirs: string[] = [];
 
 	afterEach(() => {
 		process.env.HOME = previousHome;
 		setHomeDir(previousHome ?? "~");
 		process.env.CLINE_GLOBAL_SETTINGS_PATH = previousGlobalSettingsPath;
+		for (const dir of tempDirs.splice(0)) {
+			rmSync(dir, { recursive: true, force: true });
+		}
 	});
 
 	it("includes builtin tools when enabled", async () => {
@@ -86,6 +90,46 @@ describe("DefaultRuntimeBuilder", () => {
 		});
 
 		expect(runtime.logger).toBe(logger);
+	});
+
+	it("loads configured agent files as named subagent tools", async () => {
+		const tempHome = mkdtempSync(join(tmpdir(), "cline-agent-home-"));
+		const workspaceRoot = mkdtempSync(join(tmpdir(), "cline-agent-workspace-"));
+		tempDirs.push(tempHome, workspaceRoot);
+		setHomeDir(tempHome);
+
+		const globalAgentsDir = join(tempHome, ".cline", "agents");
+		mkdirSync(globalAgentsDir, { recursive: true });
+		writeFileSync(
+			join(globalAgentsDir, "code-reviewer.yml"),
+			`---
+name: code-reviewer
+description: Reviews code for quality and best practices
+tools: execute_command, read_file
+modelId: anthropic/claude-sonnet-4.6
+---
+You are a code reviewer.`,
+			"utf8",
+		);
+
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({
+				cwd: workspaceRoot,
+				workspaceRoot,
+				enableSpawnAgent: true,
+				enableAgentTeams: false,
+			}),
+			createSpawnTool: makeSpawnTool,
+		});
+
+		const configuredAgentTool = runtime.tools.find(
+			(tool) => tool.name === "subagent_code_reviewer",
+		);
+		expect(configuredAgentTool).toBeDefined();
+		expect(configuredAgentTool?.description).toContain(
+			'Use the "code-reviewer" subagent',
+		);
+		expect(runtime.tools.map((tool) => tool.name)).toContain("spawn_agent");
 	});
 
 	it("forwards telemetry for downstream runtime consumers", async () => {

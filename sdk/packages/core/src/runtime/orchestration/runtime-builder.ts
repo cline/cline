@@ -29,9 +29,12 @@ import {
 import {
 	AgentTeamsRuntime,
 	bootstrapAgentTeams,
+	createConfiguredAgentTools,
 	createDelegatedAgentConfigProvider,
 	type TeamEvent,
 } from "../../extensions/tools/team";
+import type { ConfiguredAgentConfig } from "../../extensions/tools/team/configured-agent-config";
+import { loadConfiguredAgentConfigs } from "../../extensions/tools/team/configured-agent-config";
 import {
 	filterDisabledTools,
 	resolveDisabledToolNames,
@@ -79,6 +82,39 @@ function filterAvailableTools(
 	toolPolicies: CoreSessionConfig["toolPolicies"],
 ): AgentTool[] {
 	return filterDisabledTools(filterToolsByPolicies(tools, toolPolicies));
+}
+
+const CONFIGURED_AGENT_TOOL_NAME_ALIASES: Record<string, string> = {
+	apply_diff: DefaultToolNames.EDITOR,
+	attempt_completion: DefaultToolNames.SUBMIT_AND_EXIT,
+	bash: DefaultToolNames.RUN_COMMANDS,
+	execute_command: DefaultToolNames.RUN_COMMANDS,
+	list_code_definition_names: DefaultToolNames.SEARCH_CODEBASE,
+	list_files: DefaultToolNames.RUN_COMMANDS,
+	read_file: DefaultToolNames.READ_FILES,
+	replace_in_file: DefaultToolNames.EDITOR,
+	search_files: DefaultToolNames.SEARCH_CODEBASE,
+	use_skill: DefaultToolNames.SKILLS,
+	write_to_file: DefaultToolNames.EDITOR,
+};
+
+function resolveConfiguredAgentToolName(toolName: string): string {
+	const normalized = toolName.trim();
+	return CONFIGURED_AGENT_TOOL_NAME_ALIASES[normalized] ?? normalized;
+}
+
+function filterToolsForConfiguredAgent(
+	tools: AgentTool[],
+	agent: ConfiguredAgentConfig,
+): AgentTool[] {
+	if (agent.tools === undefined) {
+		return tools;
+	}
+
+	const allowedToolNames = new Set(
+		agent.tools.map(resolveConfiguredAgentToolName),
+	);
+	return tools.filter((tool) => allowedToolNames.has(tool.name));
 }
 
 export function createTeamName(): string {
@@ -433,6 +469,45 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			telemetry: input.telemetry ?? config.telemetry,
 			workspaceMetadata: config.workspaceMetadata,
 		});
+		if (normalized.enableSpawnAgent) {
+			const configuredAgents = loadConfiguredAgentConfigs({
+				workspaceRoot: config.workspaceRoot ?? config.cwd,
+			});
+			for (const error of configuredAgents.errors) {
+				(logger ?? config.logger)?.log?.(
+					`[agents] Failed to load agent config at ${error.path}: ${error.error.message}`,
+				);
+			}
+			if (configuredAgents.configs.length > 0) {
+				tools.push(
+					...filterAvailableTools(
+						createConfiguredAgentTools({
+							configProvider: delegatedAgentConfigProvider,
+							agents: configuredAgents.configs,
+							createSubAgentTools: (agent) =>
+								normalized.enableTools
+									? filterToolsForConfiguredAgent(
+											createBuiltinToolsList(
+												config.cwd,
+												agent.providerId ?? config.providerId,
+												normalized.mode,
+												agent.modelId ?? config.modelId,
+												config.toolRoutingRules,
+												config.toolPolicies,
+												undefined,
+												toolExecutors,
+											),
+											agent,
+										)
+									: [],
+							hookErrorMode: config.hookErrorMode,
+							toolPolicies: config.toolPolicies,
+						}),
+						config.toolPolicies,
+					),
+				);
+			}
+		}
 		if (!this.teamRuntimeEntries.has(registryKey)) {
 			this.teamRuntimeEntries.set(registryKey, {
 				delegatedAgentConfigProvider,
