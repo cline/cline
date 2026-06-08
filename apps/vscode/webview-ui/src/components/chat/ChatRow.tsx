@@ -43,7 +43,7 @@ import McpToolRow from "@/components/mcp/configuration/tabs/installed/server-row
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
 import { FileServiceClient, UiServiceClient } from "@/services/grpc-client"
-import { findMatchingResourceOrTemplate, getMcpServerDisplayName } from "@/utils/mcp"
+import { findMatchingResourceOrTemplate } from "@/utils/mcp"
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
 import { CommandOutputContent, CommandOutputRow } from "./CommandOutputRow"
 import { CompletionOutputRow } from "./CompletionOutputRow"
@@ -147,7 +147,6 @@ export const ChatRowContent = memo(
 		const {
 			backgroundEditEnabled,
 			mcpServers,
-			mcpMarketplaceCatalog,
 			onRelinquishControl,
 			vscodeTerminalExecutionMode,
 			clineMessages,
@@ -331,10 +330,7 @@ export const ChatRowContent = memo(
 						),
 						<span className="ph-no-capture font-bold text-foreground break-words">
 							Cline wants to {mcpServerUse.type === "use_mcp_tool" ? "use a tool" : "access a resource"} on the{" "}
-							<code className="break-all">
-								{getMcpServerDisplayName(mcpServerUse.serverName, mcpMarketplaceCatalog)}
-							</code>{" "}
-							MCP server:
+							<code className="break-all">{mcpServerUse.serverName}</code> MCP server:
 						</span>,
 					]
 				case "completion_result":
