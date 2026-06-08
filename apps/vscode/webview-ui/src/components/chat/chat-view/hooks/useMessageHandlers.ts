@@ -33,8 +33,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			// auth AND no BYOK key). This is a defense-in-depth guard so the Enter
 			// key cannot bypass the disabled input/send button in InputSection.
 			if (!hasUsableProvider) {
-				console.log("[ChatView] handleSendMessage blocked: no usable provider (sign in or add an API key)")
-				return
+				console.log("[ChatView] handleSendMessage error: no usable provider (sign in or set up a provider)")
 			}
 
 			let messageToSend = text.trim()
