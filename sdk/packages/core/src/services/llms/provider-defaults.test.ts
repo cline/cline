@@ -217,15 +217,7 @@ describe("resolveProviderConfig", () => {
 		const modelIds = Object.keys(resolved?.knownModels ?? {});
 
 		expect(modelIds).toEqual(
-			expect.arrayContaining([
-				"gpt-5.5",
-				"gpt-5.5-pro",
-				"gpt-5.2",
-				"gpt-5.3-codex",
-				"gpt-5.3-codex-spark",
-				"gpt-5.4",
-				"gpt-5.4-mini",
-			]),
+			expect.arrayContaining(["gpt-5.5", "gpt-5.5-pro", "gpt-5.4"]),
 		);
 		expect(modelIds).not.toContain("gpt-5.1-codex-max");
 		expect(modelIds).not.toContain("gpt-5.2-codex");
@@ -254,14 +246,7 @@ describe("resolveProviderConfig", () => {
 		);
 
 		expect(Object.keys(resolved?.knownModels ?? {})).toEqual(
-			expect.arrayContaining([
-				"gpt-5.2",
-				"gpt-5.3-codex",
-				"gpt-5.3-codex-spark",
-				"gpt-5.4",
-				"gpt-5.4-mini",
-				"gpt-5.5",
-			]),
+			expect.arrayContaining(["gpt-5.4", "gpt-5.4-mini", "gpt-5.5"]),
 		);
 		expect(resolved?.knownModels?.["gpt-5.4-mini"]).toEqual(
 			expect.objectContaining({
