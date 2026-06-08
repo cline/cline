@@ -214,5 +214,9 @@ describe("GenericProviderSettings", () => {
 		fireEvent.input(baseUrlInput, { target: { value: "https://new.example" } })
 
 		await waitFor(() => expect(write).toHaveBeenCalledWith({ baseUrl: "https://new.example" }))
+
+		fireEvent.click(screen.getByText("Use custom base URL"))
+
+		expect(write).toHaveBeenCalledWith({ baseUrl: "" })
 	})
 })
