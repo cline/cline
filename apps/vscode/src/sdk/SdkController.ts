@@ -4,11 +4,18 @@
 // Controller but delegates session lifecycle (initTask, askResponse,
 // cancelTask, …) to the Cline SDK (@cline/core) and bridges SDK events to
 // the webview's gRPC streams.
+import { existsSync } from "node:fs"
 import * as fs from "node:fs/promises"
 import * as os from "node:os"
 import * as path from "node:path"
-import type { PreparedRemoteConfigCoreIntegration, SessionHistoryRecord } from "@cline/core"
+import {
+	type PreparedRemoteConfigCoreIntegration,
+	readGlobalSettings,
+	type SessionHistoryRecord,
+	setTelemetryOptOutGlobally,
+} from "@cline/core"
 import { formatDisplayUserInput, type RemoteConfig, type RemoteConfigBundle } from "@cline/shared"
+import { resolveGlobalSettingsPath } from "@cline/shared/storage"
 import type { ModelInfo } from "@shared/api"
 import type { ChatContent } from "@shared/ChatContent"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@shared/ClineAccount"
@@ -85,6 +92,39 @@ function metadataBoolean(metadata: SessionHistoryRecord["metadata"] | undefined,
 function metadataString(metadata: SessionHistoryRecord["metadata"] | undefined, key: string): string | undefined {
 	const value = metadata?.[key]
 	return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined
+}
+
+function telemetrySettingFromSharedGlobalSettings(): TelemetrySetting {
+	return readGlobalSettings().telemetryOptOut ? "disabled" : "enabled"
+}
+
+function syncTelemetrySettingFromSharedGlobalSettings(stateManager: StateManager): void {
+	try {
+		const sharedSettingsPath = resolveGlobalSettingsPath()
+		if (!existsSync(sharedSettingsPath)) {
+			const legacyTelemetrySetting = stateManager.getGlobalSettingsKey("telemetrySetting")
+			if (
+				legacyTelemetrySetting === "disabled" ||
+				legacyTelemetrySetting === "enabled" ||
+				legacyTelemetrySetting === "unset"
+			) {
+				// One-time migration from the legacy VS Code globalState.json field into
+				// the CLI/shared global settings file. Do not emit opt-out telemetry for
+				// migration; this is not a new explicit user action.
+				setTelemetryOptOutGlobally(legacyTelemetrySetting === "disabled")
+			}
+		}
+
+		const telemetrySetting = telemetrySettingFromSharedGlobalSettings()
+		const remoteTelemetrySetting = stateManager.getRemoteConfigSettings().telemetrySetting
+		if (remoteTelemetrySetting === undefined && stateManager.getGlobalSettingsKey("telemetrySetting") !== telemetrySetting) {
+			// Keep the legacy in-memory state mirrored so existing VS Code telemetry
+			// providers that still read StateManager observe the shared setting.
+			stateManager.setGlobalState("telemetrySetting", telemetrySetting)
+		}
+	} catch (error) {
+		Logger.warn(`[SdkController] Failed to sync shared telemetry setting: ${error}`)
+	}
 }
 
 type SdkUserMessage = {
@@ -207,6 +247,7 @@ export class Controller {
 	constructor(readonly context: ClineExtensionContext) {
 		// StateManager must be initialized before creating the Controller
 		this.stateManager = StateManager.get()
+		syncTelemetrySettingFromSharedGlobalSettings(this.stateManager)
 		this.sdkTelemetry = createVscodeSdkTelemetryHandle()
 		this.providerConfigStore = createProviderConfigStore()
 		this.providerCatalog = createProviderCatalog(this.providerConfigStore)
@@ -1042,6 +1083,8 @@ export class Controller {
 	// ---- Telemetry ----
 
 	async updateTelemetrySetting(telemetrySetting: TelemetrySetting): Promise<void> {
+		setTelemetryOptOutGlobally(telemetrySetting === "disabled", { telemetry: this.sdkTelemetry.telemetry })
+		// Mirror to StateManager for existing VS Code services during the transition.
 		this.stateManager.setGlobalState("telemetrySetting", telemetrySetting)
 		await this.postStateToWebview()
 	}
@@ -1367,6 +1410,7 @@ export class Controller {
 		// Build the base ExtensionState from StateManager, then layer the SDK's
 		// task history on top.
 		try {
+			syncTelemetrySettingFromSharedGlobalSettings(this.stateManager)
 			const { getStateToPostToWebview: buildBaseState } = await import("@core/controller/state/getStateToPostToWebview")
 			const state = await buildBaseState({
 				task: this.task,
