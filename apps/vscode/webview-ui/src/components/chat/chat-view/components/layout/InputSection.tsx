@@ -40,7 +40,7 @@ const NoUsableProviderPrompt: React.FC = () => {
 		<div
 			className="rounded border border-(--vscode-inputValidation-warningBorder) bg-(--vscode-inputValidation-warningBackground) px-3 py-2.5 text-(--vscode-foreground) mx-3.5"
 			data-testid="no-usable-provider-prompt">
-			<p className="m-0 mb-2 text-xs leading-snug">Sign in to Cline or add an API key to start chatting.</p>
+			<p className="m-0 mb-2 text-xs leading-snug">Sign in to Cline or set up a provider.</p>
 			<div className="flex gap-2">
 				<VSCodeButton appearance="primary" data-testid="no-usable-provider-sign-in" onClick={handleSignIn}>
 					Sign in
@@ -49,7 +49,7 @@ const NoUsableProviderPrompt: React.FC = () => {
 					appearance="secondary"
 					data-testid="no-usable-provider-add-key"
 					onClick={() => navigateToSettings()}>
-					Add API key
+					Set up provider
 				</VSCodeButton>
 			</div>
 		</div>
@@ -116,7 +116,7 @@ export const InputSection: React.FC<InputSectionProps> = ({
 				selectedImages={selectedImages}
 				// OR the auth/usability gate into the turn-state send lock so the
 				// textarea + send button disable when there is no usable provider.
-				sendingDisabled={sendingDisabled || inputGated}
+				sendingDisabled={sendingDisabled}
 				setInputValue={setInputValue}
 				setSelectedFiles={setSelectedFiles}
 				setSelectedImages={setSelectedImages}
