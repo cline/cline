@@ -915,7 +915,8 @@ export class AgentRuntime {
 					if (event.error) {
 						this.state.lastError = event.error;
 					}
-					this.state.lastErrorInfo = event.errorInfo;
+					this.state.lastErrorInfo =
+						event.reason === "error" ? event.errorInfo : undefined;
 					break;
 				}
 			}

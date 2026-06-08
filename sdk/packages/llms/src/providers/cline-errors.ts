@@ -187,23 +187,59 @@ function findCodeRecord(records: readonly Record<string, unknown>[]):
 	return undefined;
 }
 
+const DETAIL_IDENTITY_KEYS = new Set([
+	"code",
+	"error_code",
+	"errorCode",
+	"status",
+	"statusCode",
+	"status_code",
+	"request_id",
+	"requestId",
+	"message",
+	"detail",
+]);
+
+const DETAIL_STRUCTURAL_KEYS = new Set([
+	"error",
+	"errors",
+	"data",
+	"body",
+	"response",
+	"responseBody",
+	"cause",
+	"headers",
+]);
+
+function shouldSkipDetailKey(key: string): boolean {
+	return DETAIL_IDENTITY_KEYS.has(key) || DETAIL_STRUCTURAL_KEYS.has(key);
+}
+
+function copyNestedDetails(
+	value: unknown,
+	target: Record<string, unknown>,
+): void {
+	if (!isRecord(value)) {
+		return;
+	}
+	for (const [key, nestedValue] of Object.entries(value)) {
+		if (key === "details" || shouldSkipDetailKey(key)) {
+			continue;
+		}
+		target[key] = nestedValue;
+	}
+}
+
 function buildDetails(
 	record: Record<string, unknown>,
 ): Record<string, unknown> {
 	const details: Record<string, unknown> = {};
 	for (const [key, value] of Object.entries(record)) {
-		if (
-			key === "code" ||
-			key === "error_code" ||
-			key === "errorCode" ||
-			key === "status" ||
-			key === "statusCode" ||
-			key === "status_code" ||
-			key === "request_id" ||
-			key === "requestId" ||
-			key === "message" ||
-			key === "detail"
-		) {
+		if (key === "details") {
+			copyNestedDetails(value, details);
+			continue;
+		}
+		if (shouldSkipDetailKey(key)) {
 			continue;
 		}
 		details[key] = value;

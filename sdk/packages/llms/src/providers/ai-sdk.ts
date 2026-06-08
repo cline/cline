@@ -63,6 +63,30 @@ interface CapturedAiSdkError {
 	message?: string;
 }
 
+function resolveAiSdkProviderError(input: {
+	error: unknown;
+	capturedError?: CapturedAiSdkError;
+	request: GatewayStreamRequest;
+	context: GatewayProviderContext;
+	options: AiSdkProviderAdapterOptions;
+}): {
+	message: string;
+	errorInfo?: ProviderErrorInfo;
+} {
+	const rawError = input.capturedError?.error ?? input.error;
+	const message = input.capturedError?.message ?? extractErrorMessage(rawError);
+	const errorInfo = input.options.resolveErrorInfo?.({
+		error: rawError,
+		message,
+		request: input.request,
+		context: input.context,
+	});
+	return {
+		message,
+		...(errorInfo ? { errorInfo } : {}),
+	};
+}
+
 function buildCachedAiSdkMessages(
 	request: GatewayStreamRequest,
 	context: GatewayProviderContext,
@@ -657,15 +681,17 @@ async function* emitAiSdkEvents(
 	let finishProviderMetadata: unknown;
 
 	const resolveStreamError = (error: unknown): string => {
-		const rawError = capturedError?.error ?? error;
-		const message = capturedError?.message ?? extractErrorMessage(rawError);
-		streamErrorInfo = options.resolveErrorInfo?.({
-			error: rawError,
-			message,
+		const resolved = resolveAiSdkProviderError({
+			error,
+			capturedError,
 			request,
 			context,
+			options,
 		});
-		return message;
+		if (!streamErrorInfo) {
+			streamErrorInfo = resolved.errorInfo;
+		}
+		return resolved.message;
 	};
 
 	try {
@@ -989,14 +1015,14 @@ export function createAiSdkProvider(
 				suppressDanglingStreamPromises(stream);
 				// Prefer the real provider error captured in onError over the generic
 				// NoOutputGeneratedError that the AI SDK throws when 0 steps are recorded.
-				const rawError = capturedError.error ?? error;
-				const msg = capturedError.message ?? extractErrorMessage(rawError);
-				const errorInfo = options.resolveErrorInfo?.({
-					error: rawError,
-					message: msg,
+				const resolvedError = resolveAiSdkProviderError({
+					error,
+					capturedError,
 					request,
 					context,
+					options,
 				});
+				const msg = resolvedError.message;
 				if (log?.error) {
 					log.error("[ai-sdk] provider error", {
 						providerId: request.providerId,
@@ -1025,7 +1051,9 @@ export function createAiSdkProvider(
 					type: "finish",
 					reason: "error",
 					error: msg,
-					...(errorInfo ? { errorInfo } : {}),
+					...(resolvedError.errorInfo
+						? { errorInfo: resolvedError.errorInfo }
+						: {}),
 				};
 			}
 		},

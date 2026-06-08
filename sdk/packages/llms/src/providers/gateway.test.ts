@@ -892,10 +892,14 @@ describe("sdk-gateway", () => {
 						responseBody: JSON.stringify({
 							error: JSON.stringify({
 								code: "insufficient_credits",
-								current_balance: -0,
 								message: "Not enough credits available",
-								buy_credits_url:
-									"https://app.cline.bot/dashboard/account?tab=credits",
+								error: { duplicate: true },
+								responseBody: { duplicate: true },
+								details: {
+									current_balance: -0,
+									buy_credits_url:
+										"https://app.cline.bot/dashboard/account?tab=credits",
+								},
 							}),
 						}),
 					},
@@ -942,6 +946,13 @@ describe("sdk-gateway", () => {
 				}),
 			},
 		});
+		if (!finish?.errorInfo || finish.errorInfo.kind !== "provider") {
+			throw new Error("Expected Cline provider error info");
+		}
+		const details = finish.errorInfo.details ?? {};
+		expect(details).not.toHaveProperty("error");
+		expect(details).not.toHaveProperty("responseBody");
+		expect(details).not.toHaveProperty("details");
 	});
 
 	it("preserves explicit zero cost instead of falling back to catalog pricing", async () => {
