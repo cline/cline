@@ -16,10 +16,12 @@ import type {
 	ProviderId,
 } from "./contracts"
 import { buildEffectiveProviderConfig } from "./effective-config"
+import { applyHostModelInfoOverrides } from "./host-overrides"
 import { toSdkProviderId } from "./sdk-provider-id"
+import { adaptSdkModelInfo } from "./shape-adapter"
 
 type ProviderSettingsRecord = Record<string, unknown>
-type ProviderSettingsPatchKey = "apiKey" | "baseUrl" | "apiLine" | "headers" | "region" | "auth" | "extras"
+type ProviderSettingsPatchKey = "apiKey" | "baseUrl" | "apiLine" | "headers" | "region" | "auth" | "extras" | "aws"
 
 type ModelInfoKeys = {
 	readonly plan: keyof ApiConfiguration & SettingsKey
@@ -85,6 +87,7 @@ const providerConfigStateKeys: Record<ProviderSettingsPatchKey, Partial<Record<s
 	region: { bedrock: "awsRegion", vertex: "vertexRegion" },
 	auth: {},
 	extras: {},
+	aws: {},
 }
 
 const modelInfoKeysByProvider: Partial<Record<string, ModelInfoKeys>> = {
@@ -135,6 +138,11 @@ function patchValue<T>(value: T | null | undefined): T | undefined {
 	return value === null ? undefined : value
 }
 
+function patchStringValue(value: string | null | undefined): string | undefined {
+	const patched = patchValue(value)
+	return patched === "" ? undefined : patched
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value)
 }
@@ -165,10 +173,24 @@ function readKnownModelInfoForProvider(providerId: ProviderId, modelId: string):
 	if (isModelInfo(generatedModelInfo)) {
 		return generatedModelInfo
 	}
+	if (generatedModelInfo) {
+		try {
+			return applyHostModelInfoOverrides(providerId, modelId, adaptSdkModelInfo(generatedModelInfo))
+		} catch {
+			return undefined
+		}
+	}
 
 	const collectionModelInfo = MODEL_COLLECTIONS_BY_PROVIDER_ID[sdkProviderId]?.models[modelId]
 	if (isModelInfo(collectionModelInfo)) {
 		return collectionModelInfo
+	}
+	if (collectionModelInfo) {
+		try {
+			return applyHostModelInfoOverrides(providerId, modelId, adaptSdkModelInfo(collectionModelInfo))
+		} catch {
+			return undefined
+		}
 	}
 
 	return undefined
@@ -210,6 +232,34 @@ function writeStateFields(providerId: ProviderId, patch: ProviderConfigPatch): v
 		}
 	}
 
+	if (provider === "bedrock" && "aws" in patch) {
+		const aws = patch.aws
+		if (aws === null || aws === undefined) {
+			writeStateKey("awsAccessKey", undefined)
+			writeStateKey("awsSecretKey", undefined)
+			writeStateKey("awsSessionToken", undefined)
+			writeStateKey("awsAuthentication", undefined)
+			writeStateKey("awsProfile", undefined)
+			writeStateKey("awsBedrockUsePromptCache", undefined)
+			writeStateKey("awsBedrockEndpoint", undefined)
+		} else {
+			if ("accessKey" in aws) writeStateKey("awsAccessKey", patchStringValue(aws.accessKey))
+			if ("secretKey" in aws) writeStateKey("awsSecretKey", patchStringValue(aws.secretKey))
+			if ("sessionToken" in aws) writeStateKey("awsSessionToken", patchStringValue(aws.sessionToken))
+			if ("authentication" in aws) writeStateKey("awsAuthentication", patchStringValue(aws.authentication))
+			if ("profile" in aws) writeStateKey("awsProfile", patchStringValue(aws.profile))
+			if ("usePromptCache" in aws) writeStateKey("awsBedrockUsePromptCache", aws.usePromptCache)
+			if ("endpoint" in aws) writeStateKey("awsBedrockEndpoint", patchStringValue(aws.endpoint))
+			if ("customModelBaseId" in aws) {
+				const customModelBaseId = patchStringValue(aws.customModelBaseId)
+				writeStateKey("planModeAwsBedrockCustomModelBaseId", customModelBaseId)
+				writeStateKey("actModeAwsBedrockCustomModelBaseId", customModelBaseId)
+			}
+			if ("useCrossRegionInference" in aws) writeStateKey("awsUseCrossRegionInference", aws.useCrossRegionInference)
+			if ("useGlobalInference" in aws) writeStateKey("awsUseGlobalInference", aws.useGlobalInference)
+		}
+	}
+
 	if (provider === "cline" && "auth" in patch) {
 		writeStateKey("clineApiKey", patch.auth?.accessToken)
 		writeStateKey("clineAccountId", patch.auth?.accountId)
@@ -237,6 +287,24 @@ function writeProviderSettingsFields(providerId: ProviderId, patch: ProviderConf
 			} else {
 				next[key] = value
 			}
+		}
+	}
+
+	if ("aws" in patch) {
+		const awsPatch = patch.aws
+		if (awsPatch === null || awsPatch === undefined) {
+			delete next.aws
+		} else {
+			const existingAws = isRecord(next.aws) ? next.aws : {}
+			const nextAws: ProviderSettingsRecord = { ...existingAws }
+			for (const [key, value] of Object.entries(awsPatch)) {
+				if (typeof value === "string" && value.length === 0) {
+					delete nextAws[key]
+				} else {
+					nextAws[key] = value
+				}
+			}
+			next.aws = nextAws
 		}
 	}
 

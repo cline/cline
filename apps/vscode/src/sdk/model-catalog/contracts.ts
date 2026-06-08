@@ -71,6 +71,19 @@ export type Fingerprint = string & { readonly [FingerprintBrand]: void }
  * Mode-dependent selection (modelId, modelInfo) is *not* part of this
  * type. Use `ProviderConfigStore.readSelection(providerId, mode)`.
  */
+export interface AwsProviderConfig {
+	readonly accessKey?: string
+	readonly secretKey?: string
+	readonly sessionToken?: string
+	readonly authentication?: "iam" | "api-key" | "apikey" | "profile" | string
+	readonly profile?: string
+	readonly usePromptCache?: boolean
+	readonly endpoint?: string
+	readonly customModelBaseId?: string
+	readonly useCrossRegionInference?: boolean
+	readonly useGlobalInference?: boolean
+}
+
 export interface EffectiveProviderConfig {
 	readonly providerId: ProviderId
 	readonly apiKey?: string
@@ -78,6 +91,7 @@ export interface EffectiveProviderConfig {
 	readonly apiLine?: string
 	readonly headers?: Readonly<Record<string, string>>
 	readonly region?: string
+	readonly aws?: AwsProviderConfig
 	/**
 	 * OAuth-style auth bundle (e.g. cline provider's WorkOS token).
 	 * Compatible with `apiKey`; some providers populate both.
@@ -118,6 +132,7 @@ export interface ProviderConfigPatch {
 	readonly apiLine?: string | null
 	readonly headers?: Readonly<Record<string, string>> | null
 	readonly region?: string | null
+	readonly aws?: AwsProviderConfig | null
 	readonly auth?: {
 		readonly accessToken?: string
 		readonly refreshToken?: string
