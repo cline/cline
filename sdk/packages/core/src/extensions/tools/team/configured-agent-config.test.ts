@@ -35,4 +35,17 @@ More prompt`);
 
 		expect(config.systemPrompt).toBe("Prompt body\n---\nMore prompt");
 	});
+
+	it.each([
+		["empty", ""],
+		["comment-only", "# comment"],
+		["scalar", "code-reviewer"],
+	])("rejects %s frontmatter candidates without hanging", (_name, yaml) => {
+		expect(() =>
+			parseConfiguredAgentConfig(`---
+${yaml}
+---
+You are a code reviewer.`),
+		).toThrow("Missing closing YAML frontmatter delimiter");
+	});
 });

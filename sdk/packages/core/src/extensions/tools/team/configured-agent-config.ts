@@ -54,9 +54,12 @@ function splitFrontmatter(content: string): {
 				body: string;
 		  }
 		| undefined;
-	let candidate = delimiterPattern.exec(content);
-	while (candidate !== null) {
-		const frontmatter = content.slice(frontmatterStart, candidate.index);
+	const candidates = Array.from(content.matchAll(delimiterPattern)).filter(
+		(candidate) => candidate.index >= frontmatterStart,
+	);
+	for (const candidate of candidates) {
+		const delimiterStart = candidate.index;
+		const frontmatter = content.slice(frontmatterStart, delimiterStart);
 		try {
 			const parsedYaml = YAML.parse(frontmatter);
 			if (
@@ -67,12 +70,11 @@ function splitFrontmatter(content: string): {
 				continue;
 			}
 			ConfiguredAgentFrontmatterSchema.parse(parsedYaml);
-			const body = content.slice(candidate.index + candidate[0].length);
+			const body = content.slice(delimiterStart + candidate[0].length);
 			lastValid = { frontmatter, body };
 		} catch {
 			// Keep scanning: this delimiter may be literal content inside YAML.
 		}
-		candidate = delimiterPattern.exec(content);
 	}
 
 	if (lastValid) {
