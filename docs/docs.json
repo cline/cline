@@ -298,7 +298,7 @@
 								"group": "Control Other Cline Features",
 								"pages": [
 									"enterprise-solutions/configuration/infrastructure-configuration/control-other-cline-features/yolo-mode",
-									"enterprise-solutions/configuration/infrastructure-configuration/control-other-cline-features/mcp-marketplace"
+									"enterprise-solutions/configuration/infrastructure-configuration/control-other-cline-features/mcp-server-controls"
 								]
 							},
 							{
@@ -362,6 +362,10 @@
 		}
 	],
 	"redirects": [
+		{
+			"source": "/enterprise-solutions/configuration/infrastructure-configuration/control-other-cline-features/mcp-marketplace",
+			"destination": "/enterprise-solutions/configuration/infrastructure-configuration/control-other-cline-features/mcp-server-controls"
+		},
 		{
 			"source": "/usage/cli",
 			"destination": "/usage/cli-overview"

@@ -376,7 +376,7 @@ export class McpHub {
 			} else {
 				// Enterprise restrictions apply
 
-				// If marketplace is explicitly disabled by enterprise config, block all local servers
+				// If the legacy marketplace policy is explicitly disabled by enterprise config, block all local servers
 				if (remoteConfig.mcpMarketplaceEnabled === false) {
 					return
 				}
@@ -390,7 +390,7 @@ export class McpHub {
 					}
 				}
 
-				// If marketplace is enabled with no allowlist, all local servers are allowed
+				// If local MCP servers are enabled with no allowlist, all local servers are allowed
 			}
 		}
 
