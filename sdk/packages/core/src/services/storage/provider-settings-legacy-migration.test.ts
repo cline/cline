@@ -403,6 +403,47 @@ describe("migrateLegacyProviderSettings", () => {
 		expect(manager.read().providers.bedrock?.tokenSource).toBe("migration");
 	});
 
+	it("normalizes legacy Bedrock credentials auth to SDK iam auth", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-legacy-provider-"),
+		);
+		tempDirs.push(tempDir);
+		const providersPath = path.join(tempDir, "provider-settings.json");
+		const manager = new ProviderSettingsManager({ filePath: providersPath });
+
+		writeFileSync(
+			path.join(tempDir, "globalState.json"),
+			JSON.stringify(
+				{
+					mode: "act",
+					actModeApiProvider: "bedrock",
+					actModeApiModelId: "anthropic.claude-haiku-4-5-20251001-v1:0",
+					awsRegion: "us-east-1",
+					awsAuthentication: "credentials",
+				},
+				null,
+				2,
+			),
+		);
+		writeFileSync(
+			path.join(tempDir, "secrets.json"),
+			JSON.stringify({ awsAccessKey: "access", awsSecretKey: "secret" }),
+		);
+
+		const result = migrateLegacyProviderSettings({
+			providerSettingsManager: manager,
+			dataDir: tempDir,
+		});
+
+		expect(result).toMatchObject({ migrated: true, providerCount: 1 });
+		expect(manager.getProviderSettings("bedrock")?.aws).toMatchObject({
+			authentication: "iam",
+			accessKey: "access",
+			secretKey: "secret",
+			region: "us-east-1",
+		});
+	});
+
 	it("migrates legacy SAP AI Core credentials into SAP provider settings", () => {
 		const tempDir = mkdtempSync(
 			path.join(os.tmpdir(), "core-legacy-provider-"),
