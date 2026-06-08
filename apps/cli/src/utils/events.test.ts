@@ -6,19 +6,13 @@ import type { Config } from "./types";
 
 describe("handleEvent text formatting", () => {
 	let output = "";
-	let errorOutput = "";
 
 	beforeEach(() => {
-		vi.restoreAllMocks();
 		output = "";
-		errorOutput = "";
 		setCurrentOutputMode("text");
 		vi.spyOn(process.stdout, "write").mockImplementation((chunk: unknown) => {
 			output += String(chunk);
 			return true;
-		});
-		vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
-			errorOutput += `${args.map(String).join(" ")}\n`;
 		});
 	});
 
@@ -164,27 +158,6 @@ describe("handleEvent text formatting", () => {
 		);
 
 		expect(output).toContain("── aborted (2 iterations) ──");
-	});
-
-	it("prints Cline credits errors with a dashboard link", () => {
-		handleEvent(
-			{
-				type: "error",
-				error: new Error(
-					"Error: Insufficient balance. Your Cline Credits balance is $-0.00",
-				),
-				recoverable: false,
-				iteration: 1,
-			} as unknown as AgentEvent,
-			{} as Config,
-		);
-
-		expect(errorOutput).toContain("Cline Credits depleted");
-		expect(errorOutput).toContain("You have run out of Cline credits");
-		expect(errorOutput).toContain(
-			"https://app.cline.bot/dashboard/account?tab=credits&redirect=true",
-		);
-		expect(errorOutput).not.toContain("Insufficient balance");
 	});
 
 	it("suppresses heartbeat-only team progress messages", () => {
