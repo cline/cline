@@ -238,6 +238,25 @@ describe("createProviderConfigStore", () => {
 		})
 	})
 
+	it("persists Claude Code model selections to providers.json", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("claude-code")
+		const selection = { providerId, modelId: "haiku", modelInfo: modelInfoA }
+
+		store.commitSelection(providerId, "act", selection)
+
+		expect(mocks.getSavedProviderSettings("claude-code")).toMatchObject({
+			provider: "claude-code",
+			model: "haiku",
+			contextWindow: 128_000,
+			maxTokens: 8_192,
+		})
+		expect(mocks.getSaveProviderSettingsMock()).toHaveBeenCalledWith(expect.objectContaining({ model: "haiku" }), {
+			setLastUsed: false,
+		})
+	})
+
 	it("subscribers fire synchronously and multiple writes emit events in order", async () => {
 		const { createProviderConfigStore } = await import("./store")
 		const store = createProviderConfigStore()
