@@ -1,6 +1,9 @@
+import { openAiModelInfoSafeDefaults } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { useStaticProviderSelection } from "@/hooks/useStaticProviderSelection"
+import { useProviderConfig } from "@/hooks/useProviderConfig"
+import { useProviderModelSelection } from "@/hooks/useProviderModelSelection"
+import { useProviderModels } from "@/hooks/useProviderModels"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { ModelSelector } from "../common/ModelSelector"
@@ -35,14 +38,31 @@ interface ClaudeCodeProviderProps {
  */
 export const ClaudeCodeProvider = ({ showModelOptions, isPopup, currentMode }: ClaudeCodeProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
+	const { handleFieldChange } = useApiConfigurationHandlers()
+	const providerId = "claude-code"
+	const { models, defaultModelId } = useProviderModels(providerId)
+	const { config, commitSelection } = useProviderConfig(providerId)
+	const { selectedModelId, selectedModelInfo, commitModelSelection } = useProviderModelSelection(providerId, currentMode, {
+		models,
+		defaultModelId,
+		config,
+		commitSelection,
+	})
 
-	// Get the normalized configuration
-	const { models, selectedModelId, selectedModelInfo, hideUsageCost } = useStaticProviderSelection(
-		"claude-code",
-		apiConfiguration,
-		currentMode,
-	)
+	const handleModelSelect = (event: {
+		target?: { value?: unknown }
+		currentTarget?: { value?: unknown }
+		detail?: { value?: unknown }
+	}) => {
+		const modelId = event.target?.value ?? event.currentTarget?.value ?? event.detail?.value
+		if (typeof modelId !== "string" || modelId.length === 0) {
+			return
+		}
+		void commitModelSelection({
+			modelId,
+			modelInfo: models[modelId] ?? selectedModelInfo ?? openAiModelInfoSafeDefaults,
+		}).catch((err) => console.error("Failed to commit Claude Code model selection:", err))
+	}
 
 	return (
 		<div>
@@ -66,18 +86,7 @@ export const ClaudeCodeProvider = ({ showModelOptions, isPopup, currentMode }: C
 
 			{showModelOptions && (
 				<>
-					<ModelSelector
-						label="Model"
-						models={models}
-						onChange={(e: any) =>
-							handleModeFieldChange(
-								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
-								e.target.value,
-								currentMode,
-							)
-						}
-						selectedModelId={selectedModelId}
-					/>
+					<ModelSelector label="Model" models={models} onChange={handleModelSelect} selectedModelId={selectedModelId} />
 
 					{(selectedModelId === "sonnet" || selectedModelId === "opus") && (
 						<p
@@ -95,12 +104,7 @@ export const ClaudeCodeProvider = ({ showModelOptions, isPopup, currentMode }: C
 						<ThinkingBudgetSlider currentMode={currentMode} maxBudget={selectedModelInfo.thinkingConfig?.maxBudget} />
 					)}
 
-					<ModelInfoView
-						hideUsageCost={hideUsageCost}
-						isPopup={isPopup}
-						modelInfo={selectedModelInfo}
-						selectedModelId={selectedModelId}
-					/>
+					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
 				</>
 			)}
 		</div>
