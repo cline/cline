@@ -186,7 +186,7 @@ export class ProviderSettingsManager {
 		if (!providerId) {
 			return undefined;
 		}
-		return state.providers[providerId]?.settings;
+		return this.resolveProviderSettings(state, providerId);
 	}
 
 	getProviderConfig(
