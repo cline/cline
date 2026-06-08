@@ -35,7 +35,7 @@ function findORModelCapabilities(
 	entry: ClineRecommendedModelEntry,
 	openRouterModels: Record<string, ModelInfo>,
 ): ModelCapabilities {
-	if (!openRouterModels || !entry.name) {
+	if (!openRouterModels) {
 		return CLINE_PASS_MODEL_DEFAULTS;
 	}
 
