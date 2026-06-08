@@ -42,18 +42,23 @@ function findORModelCapabilities(
 	return openRouterModels[entry.name] || CLINE_PASS_MODEL_DEFAULTS;
 }
 
-function normalizeClinePassModel(
-	entry: ClineRecommendedModelEntry,
-	openRouterModels: Record<string, ModelInfo>,
-): ModelInfo {
-	const capabilities = findORModelCapabilities(entry, openRouterModels);
+// Cline-Pass models have only the model name (and not the lab),
+// so we need to look-up using glm-5.1 instead of zai/glm-5.1
+function buildModelsNameMap(
+	openrouterModels: Record<string, ModelInfo>,
+): Record<string, ModelInfo> {
+	const nameMap: Record<string, ModelInfo> = {};
 
-	return {
-		...capabilities,
-		id: entry.id,
-		name: entry.name,
-		description: entry.description,
-	};
+	for (const model of Object.values(openrouterModels)) {
+		const parts = model.name?.split("/");
+		const shortName = parts?.at(-1);
+
+		if (model.name) {
+			nameMap[shortName || model.name] = model;
+		}
+	}
+
+	return nameMap;
 }
 
 export function normalizeClineRecommendedProviderModels(
@@ -66,9 +71,17 @@ export function normalizeClineRecommendedProviderModels(
 	}
 
 	const models: Record<string, ModelInfo> = {};
+	const openRouterModelsByName = buildModelsNameMap(openRouterModels);
 
 	clinePass.forEach((entry) => {
-		models[entry.id] = normalizeClinePassModel(entry, openRouterModels);
+		const capabilities = findORModelCapabilities(entry, openRouterModelsByName);
+
+		models[entry.id] = {
+			...capabilities,
+			id: entry.id,
+			name: entry.name,
+			description: entry.description,
+		};
 	});
 
 	if (Object.keys(models).length === 0) {
