@@ -1,6 +1,9 @@
+import { openAiModelInfoSafeDefaults } from "@shared/api"
 import type { Mode } from "@shared/storage/types"
 import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useProviderConfig } from "@/hooks/useProviderConfig"
+import { useProviderModelSelection } from "@/hooks/useProviderModelSelection"
 import { useStaticProviderSelection } from "@/hooks/useStaticProviderSelection"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
@@ -10,9 +13,11 @@ import { RemotelyConfiguredInputWrapper } from "../common/RemotelyConfiguredInpu
 import ReasoningEffortSelector from "../ReasoningEffortSelector"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { getModeSpecificFields } from "../utils/providerUtils"
-import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { useProviderApiKeyField } from "../utils/useProviderApiKeyField"
 
 // Anthropic models that support thinking/reasoning mode
+const PROVIDER_ID = "anthropic"
+
 export const SUPPORTED_ANTHROPIC_THINKING_MODELS = [
 	"claude-sonnet-4-6",
 	"claude-3-7-sonnet-20250219",
@@ -37,24 +42,61 @@ interface AnthropicProviderProps {
  */
 export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: AnthropicProviderProps) => {
 	const { apiConfiguration, remoteConfigSettings } = useExtensionState()
-	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
+	const { config, write, commitSelection } = useProviderConfig(PROVIDER_ID)
 
 	// Get the normalized configuration
-	const { models, selectedModelId, selectedModelInfo, hideUsageCost } = useStaticProviderSelection(
-		"anthropic",
-		apiConfiguration,
-		currentMode,
-	)
+	const {
+		models,
+		defaultModelId,
+		selectedModelId: legacySelectedModelId,
+		selectedModelInfo: legacySelectedModelInfo,
+		hideUsageCost,
+	} = useStaticProviderSelection(PROVIDER_ID, apiConfiguration, currentMode)
+	const { selectedModelId, selectedModelInfo, commitModelSelection } = useProviderModelSelection(PROVIDER_ID, currentMode, {
+		models,
+		defaultModelId: defaultModelId || legacySelectedModelId,
+		config,
+		commitSelection,
+		fallbackModelInfo: legacySelectedModelInfo,
+	})
+	const { savedApiKeyMask, handleApiKeyChange } = useProviderApiKeyField({
+		apiKeyLength: config?.apiKeyLength,
+		providerName: "Anthropic",
+		write,
+	})
 	const isAdaptiveThinkingModel = isClaudeOpusAdaptiveThinkingModel(selectedModelId)
 	const adaptiveThinkingDefaultEffort =
 		resolveClaudeOpusAdaptiveThinking(modeFields.reasoningEffort, modeFields.thinkingBudgetTokens).effort ?? "none"
 
+	const handleBaseUrlChange = (value: string) => {
+		void write({ baseUrl: value }).catch((err) => console.error("Failed to update Anthropic base URL:", err))
+	}
+
+	const handleModelChange = (modelId: string) => {
+		if (!modelId) {
+			return
+		}
+
+		const fallbackModelId = defaultModelId || Object.keys(models)[0] || modelId
+		const modelInfo = models[modelId] ?? models[fallbackModelId] ?? selectedModelInfo ?? openAiModelInfoSafeDefaults
+
+		void commitModelSelection({ modelId, modelInfo }).catch((err) =>
+			console.error("Failed to commit Anthropic model selection:", err),
+		)
+	}
+
+	const handleAdaptiveThinkingChange = (effort: string) => {
+		void write({ reasoning: { enabled: effort !== "none", effort } }).catch((err) =>
+			console.error("Failed to update Anthropic adaptive thinking:", err),
+		)
+	}
+
 	return (
 		<div>
 			<ApiKeyField
-				initialValue={apiConfiguration?.apiKey || ""}
-				onChange={(value) => handleFieldChange("apiKey", value)}
+				initialValue={savedApiKeyMask}
+				onChange={handleApiKeyChange}
 				providerName="Anthropic"
 				signupUrl="https://console.anthropic.com/settings/keys"
 			/>
@@ -62,9 +104,9 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 			<RemotelyConfiguredInputWrapper hidden={remoteConfigSettings?.anthropicBaseUrl === undefined}>
 				<BaseUrlField
 					disabled={!!remoteConfigSettings?.anthropicBaseUrl}
-					initialValue={apiConfiguration?.anthropicBaseUrl}
+					initialValue={config?.baseUrl}
 					label="Use custom base URL"
-					onChange={(value) => handleFieldChange("anthropicBaseUrl", value)}
+					onChange={handleBaseUrlChange}
 					placeholder="Default: https://api.anthropic.com"
 					showLockIcon={!!remoteConfigSettings?.anthropicBaseUrl}
 				/>
@@ -75,13 +117,7 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 					<ModelSelector
 						label="Model"
 						models={models}
-						onChange={(e) =>
-							handleModeFieldChange(
-								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
-								e.target.value,
-								currentMode,
-							)
-						}
+						onChange={(e) => handleModelChange(e.target.value)}
 						selectedModelId={selectedModelId}
 					/>
 
@@ -92,6 +128,7 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 							defaultEffort={adaptiveThinkingDefaultEffort}
 							description="Use None to disable adaptive thinking. Higher effort increases response detail and token usage."
 							label="Adaptive Thinking"
+							onEffortChange={handleAdaptiveThinkingChange}
 						/>
 					) : SUPPORTED_ANTHROPIC_THINKING_MODELS.includes(selectedModelId) ? (
 						<ThinkingBudgetSlider currentMode={currentMode} maxBudget={selectedModelInfo.thinkingConfig?.maxBudget} />
