@@ -63,8 +63,9 @@ export const OpenRouterProvider = ({ showModelOptions, isPopup, currentMode }: O
 	const { apiConfiguration } = useExtensionState()
 	const { config, write } = useProviderConfig("openrouter")
 	const [openRouterApiKey, setOpenRouterApiKey] = useState(apiConfiguration?.openRouterApiKey || "")
+	const apiKeyLength = config?.apiKeyLength || apiConfiguration?.openRouterApiKey?.length
 	const { savedApiKeyMask, handleApiKeyChange } = useProviderApiKeyField({
-		apiKeyLength: config?.apiKeyLength,
+		apiKeyLength,
 		onApiKeyChange: setOpenRouterApiKey,
 		providerName: "OpenRouter",
 		write,
