@@ -18,7 +18,6 @@ import {
 import {
 	createBuiltinTools,
 	DEFAULT_MODEL_TOOL_ROUTING_RULES,
-	DefaultToolNames,
 	resolveToolPresetName,
 	resolveToolRoutingConfig,
 	type SkillsExecutorWithMetadata,
@@ -29,12 +28,12 @@ import {
 import {
 	AgentTeamsRuntime,
 	bootstrapAgentTeams,
-	createConfiguredAgentTools,
 	createDelegatedAgentConfigProvider,
 	type TeamEvent,
 } from "../../extensions/tools/team";
 import type { ConfiguredAgentConfig } from "../../extensions/tools/team/configured-agent-config";
 import { loadConfiguredAgentConfigs } from "../../extensions/tools/team/configured-agent-config";
+import { createConfiguredAgentTools } from "../../extensions/tools/team/configured-agent-tool";
 import {
 	filterDisabledTools,
 	resolveDisabledToolNames,
@@ -85,21 +84,21 @@ function filterAvailableTools(
 }
 
 const CONFIGURED_AGENT_TOOL_NAME_ALIASES: Record<string, string> = {
-	apply_diff: DefaultToolNames.EDITOR,
-	attempt_completion: DefaultToolNames.SUBMIT_AND_EXIT,
-	bash: DefaultToolNames.RUN_COMMANDS,
-	execute_command: DefaultToolNames.RUN_COMMANDS,
-	list_code_definition_names: DefaultToolNames.SEARCH_CODEBASE,
-	list_files: DefaultToolNames.RUN_COMMANDS,
-	read_file: DefaultToolNames.READ_FILES,
-	replace_in_file: DefaultToolNames.EDITOR,
-	search_files: DefaultToolNames.SEARCH_CODEBASE,
-	use_skill: DefaultToolNames.SKILLS,
-	write_to_file: DefaultToolNames.EDITOR,
+	apply_diff: "editor",
+	attempt_completion: "submit_and_exit",
+	bash: "run_commands",
+	execute_command: "run_commands",
+	list_code_definition_names: "search_codebase",
+	list_files: "run_commands",
+	read_file: "read_files",
+	replace_in_file: "editor",
+	search_files: "search_codebase",
+	use_skill: "skills",
+	write_to_file: "editor",
 };
 
 function resolveConfiguredAgentToolName(toolName: string): string {
-	const normalized = toolName.trim();
+	const normalized = toolName.trim().toLowerCase();
 	return CONFIGURED_AGENT_TOOL_NAME_ALIASES[normalized] ?? normalized;
 }
 
@@ -115,7 +114,7 @@ function filterToolsForConfiguredAgent(
 		agent.tools.map(resolveConfiguredAgentToolName),
 	);
 	if (agent.skills !== undefined) {
-		allowedToolNames.add(DefaultToolNames.SKILLS);
+		allowedToolNames.add("skills");
 	}
 	return tools.filter((tool) => allowedToolNames.has(tool.name));
 }
@@ -647,7 +646,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		const finalTools = filterAvailableTools(tools, config.toolPolicies);
 		const requiresCompletionTool = finalTools.some(
 			(tool) =>
-				tool.name === DefaultToolNames.SUBMIT_AND_EXIT &&
+				tool.name === "submit_and_exit" &&
 				tool.lifecycle?.completesRun === true,
 		);
 		const teamCompletionGuard = normalized.enableAgentTeams

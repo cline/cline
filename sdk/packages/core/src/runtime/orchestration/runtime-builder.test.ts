@@ -105,7 +105,7 @@ describe("DefaultRuntimeBuilder", () => {
 			`---
 name: code-reviewer
 description: Reviews code for quality and best practices
-tools: execute_command, read_file
+tools: Execute_Command, Read_File
 modelId: anthropic/claude-sonnet-4.6
 ---
 You are a code reviewer.`,
