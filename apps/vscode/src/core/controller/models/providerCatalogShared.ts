@@ -12,6 +12,7 @@ import type {
 } from "@/sdk/model-catalog/contracts"
 import { parseProviderId } from "@/sdk/model-catalog/provider-id"
 import {
+	AwsProviderConfig,
 	CatalogErrorInfo,
 	CommitModelSelectionRequest,
 	CommittedModelSelection,
@@ -101,6 +102,44 @@ function toCommittedModelSelectionProto(selection: ModelSelection | undefined): 
 	})
 }
 
+function toRedactedAwsProviderConfigProto(aws: EffectiveProviderConfig["aws"]): AwsProviderConfig | undefined {
+	if (!aws) {
+		return undefined
+	}
+	return AwsProviderConfig.create({
+		authentication: aws.authentication,
+		profile: aws.profile,
+		accessKeyLength: aws.accessKey?.length ?? 0,
+		secretKeyLength: aws.secretKey?.length ?? 0,
+		sessionTokenLength: aws.sessionToken?.length ?? 0,
+		endpoint: aws.endpoint,
+		usePromptCache: aws.usePromptCache,
+		customModelBaseId: aws.customModelBaseId,
+		useCrossRegionInference: aws.useCrossRegionInference,
+		useGlobalInference: aws.useGlobalInference,
+	})
+}
+
+function toAwsProviderConfigPatch(protoPatch: WriteProviderConfigPatch): ProviderConfigPatch["aws"] {
+	if (!protoPatch.aws) {
+		return undefined
+	}
+	return {
+		...(protoPatch.aws.accessKey !== undefined ? { accessKey: protoPatch.aws.accessKey } : {}),
+		...(protoPatch.aws.secretKey !== undefined ? { secretKey: protoPatch.aws.secretKey } : {}),
+		...(protoPatch.aws.sessionToken !== undefined ? { sessionToken: protoPatch.aws.sessionToken } : {}),
+		...(protoPatch.aws.authentication !== undefined ? { authentication: protoPatch.aws.authentication } : {}),
+		...(protoPatch.aws.profile !== undefined ? { profile: protoPatch.aws.profile } : {}),
+		...(protoPatch.aws.usePromptCache !== undefined ? { usePromptCache: protoPatch.aws.usePromptCache } : {}),
+		...(protoPatch.aws.endpoint !== undefined ? { endpoint: protoPatch.aws.endpoint } : {}),
+		...(protoPatch.aws.customModelBaseId !== undefined ? { customModelBaseId: protoPatch.aws.customModelBaseId } : {}),
+		...(protoPatch.aws.useCrossRegionInference !== undefined
+			? { useCrossRegionInference: protoPatch.aws.useCrossRegionInference }
+			: {}),
+		...(protoPatch.aws.useGlobalInference !== undefined ? { useGlobalInference: protoPatch.aws.useGlobalInference } : {}),
+	}
+}
+
 export function toProviderModelsResponse(
 	providerId: ProviderId,
 	requestId: string,
@@ -135,6 +174,7 @@ export function toRedactedProviderConfigResponse(
 		accountId: config.auth?.accountId,
 		planSelection: toCommittedModelSelectionProto(store?.readSelection(config.providerId, "plan")),
 		actSelection: toCommittedModelSelectionProto(store?.readSelection(config.providerId, "act")),
+		aws: toRedactedAwsProviderConfigProto(config.aws),
 	})
 }
 
@@ -152,6 +192,7 @@ export function toProviderConfigPatch(protoPatch: WriteProviderConfigPatch | und
 				: {}),
 		...(protoPatch.region !== undefined ? { region: protoPatch.region } : {}),
 		...(protoPatch.apiLine !== undefined ? { apiLine: protoPatch.apiLine } : {}),
+		...(protoPatch.aws !== undefined ? { aws: toAwsProviderConfigPatch(protoPatch) } : {}),
 		...(protoPatch.accessToken !== undefined || protoPatch.refreshToken !== undefined || protoPatch.accountId !== undefined
 			? {
 					auth: {
