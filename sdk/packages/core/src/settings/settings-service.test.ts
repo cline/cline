@@ -287,6 +287,7 @@ Use this skill.`,
 				await readFile(process.env.CLINE_GLOBAL_SETTINGS_PATH, "utf8"),
 			),
 		).toEqual({
+			autoUpdateEnabled: true,
 			disabledTools: ["plugin-tool"],
 			telemetryOptOut: false,
 		});
@@ -297,6 +298,6 @@ Use this skill.`,
 			JSON.parse(
 				await readFile(process.env.CLINE_GLOBAL_SETTINGS_PATH, "utf8"),
 			),
-		).toEqual({ telemetryOptOut: false });
+		).toEqual({ autoUpdateEnabled: true, telemetryOptOut: false });
 	});
 });

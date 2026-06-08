@@ -43,6 +43,7 @@ export type SettingsSection = (typeof navCategories)[number];
 type Theme = "dark" | "light";
 type GlobalSettingsResponse = {
 	telemetryOptOut: boolean;
+	autoUpdateEnabled: boolean;
 };
 
 const PROVIDER_CATALOG_CACHE_TTL_MS = 60_000;
@@ -525,20 +526,29 @@ function GeneralSettingsContent({
 	const [telemetryLoading, setTelemetryLoading] = useState(true);
 	const [telemetrySaving, setTelemetrySaving] = useState(false);
 	const [telemetryError, setTelemetryError] = useState<string | null>(null);
+	const [autoUpdateEnabled, setAutoUpdateEnabled] = useState(true);
+	const [autoUpdateLoading, setAutoUpdateLoading] = useState(true);
+	const [autoUpdateSaving, setAutoUpdateSaving] = useState(false);
+	const [autoUpdateError, setAutoUpdateError] = useState<string | null>(null);
 
 	const loadGlobalSettings = useCallback(async () => {
 		setTelemetryLoading(true);
 		setTelemetryError(null);
+		setAutoUpdateLoading(true);
+		setAutoUpdateError(null);
 		try {
 			const settings = await desktopClient.invoke<GlobalSettingsResponse>(
 				"get_global_settings",
 			);
 			setTelemetryOptOut(settings.telemetryOptOut);
+			setAutoUpdateEnabled(settings.autoUpdateEnabled);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			setTelemetryError(message);
+			setAutoUpdateError(message);
 		} finally {
 			setTelemetryLoading(false);
+			setAutoUpdateLoading(false);
 		}
 	}, []);
 
@@ -568,6 +578,28 @@ function GeneralSettingsContent({
 			setTelemetryError(message);
 		} finally {
 			setTelemetrySaving(false);
+		}
+	};
+
+	const updateAutoUpdateEnabled = async (nextValue: boolean) => {
+		const previousValue = autoUpdateEnabled;
+		setAutoUpdateEnabled(nextValue);
+		setAutoUpdateSaving(true);
+		setAutoUpdateError(null);
+		try {
+			const settings = await desktopClient.invoke<GlobalSettingsResponse>(
+				"set_auto_update_enabled",
+				{
+					auto_update_enabled: nextValue,
+				},
+			);
+			setAutoUpdateEnabled(settings.autoUpdateEnabled);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			setAutoUpdateEnabled(previousValue);
+			setAutoUpdateError(message);
+		} finally {
+			setAutoUpdateSaving(false);
 		}
 	};
 
@@ -603,6 +635,29 @@ function GeneralSettingsContent({
 								Light
 							</Button>
 						</div>
+					</div>
+				</section>
+				<section className="mt-4 rounded-lg border border-border p-5">
+					<div className="flex items-center justify-between gap-5 max-[720px]:flex-col max-[720px]:items-stretch">
+						<div>
+							<p className="text-sm font-medium text-foreground">Auto update</p>
+							<p className="mt-1 text-xs text-muted-foreground">
+								Automatically install CLI updates on startup.
+							</p>
+							{autoUpdateError ? (
+								<p className="mt-2 text-xs text-destructive">
+									Failed to update auto update setting: {autoUpdateError}
+								</p>
+							) : null}
+						</div>
+						<Switch
+							aria-label="Auto update"
+							checked={autoUpdateEnabled}
+							disabled={autoUpdateLoading || autoUpdateSaving}
+							onCheckedChange={(checked) =>
+								void updateAutoUpdateEnabled(checked)
+							}
+						/>
 					</div>
 				</section>
 				<section className="mt-4 rounded-lg border border-border p-5">

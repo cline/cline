@@ -106,6 +106,7 @@ describe("plugin uninstall service", () => {
 		expect(result.installPath).toBe(installPath);
 		expect(existsSync(installPath)).toBe(false);
 		expect(readGlobalSettings()).toEqual({
+			autoUpdateEnabled: true,
 			disabledPlugins: ["/tmp/other-plugin.ts"],
 			telemetryOptOut: false,
 		});
@@ -146,6 +147,7 @@ describe("plugin uninstall service", () => {
 				await expect(uninstallPlugin({ path: pluginPath })).rejects.toThrow();
 				expect(existsSync(pluginPath)).toBe(true);
 				expect(readGlobalSettings()).toEqual({
+					autoUpdateEnabled: true,
 					disabledPlugins: [pluginPath],
 					telemetryOptOut: false,
 				});
