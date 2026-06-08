@@ -326,7 +326,6 @@ describe("LocalRuntimeHost", () => {
 		const createAgent = vi.fn(() => agent as never);
 		const oauthTokenManager = {
 			resolveProviderApiKey: vi.fn().mockResolvedValue({
-				providerId: "cline-pass",
 				apiKey: "workos:resolved-token",
 				refreshed: false,
 			}),
@@ -4080,7 +4079,6 @@ describe("LocalRuntimeHost", () => {
 			runtimeBuilder,
 			oauthTokenManager: {
 				resolveProviderApiKey: vi.fn().mockResolvedValue({
-					providerId: "openai-codex",
 					apiKey: "oauth-access-new",
 					refreshed: true,
 				}),
@@ -4477,7 +4475,6 @@ describe("LocalRuntimeHost", () => {
 			.fn()
 			.mockResolvedValueOnce(null)
 			.mockResolvedValueOnce({
-				providerId: "openai-codex",
 				apiKey: "oauth-access-new",
 				refreshed: true,
 			});
