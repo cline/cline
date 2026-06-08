@@ -228,7 +228,8 @@ function writeStateFields(providerId: ProviderId, patch: ProviderConfigPatch): v
 		}
 		const stateKey = providerConfigStateKeys[key][provider]
 		if (stateKey) {
-			writeStateKey(stateKey, patchValue(patch[key]))
+			const value = typeof patch[key] === "string" ? patchStringValue(patch[key]) : patchValue(patch[key])
+			writeStateKey(stateKey, value)
 		}
 	}
 
@@ -281,7 +282,7 @@ function writeProviderSettingsFields(providerId: ProviderId, patch: ProviderConf
 
 	for (const key of ["apiKey", "baseUrl", "apiLine", "headers", "region", "auth", "extras"] as const) {
 		if (key in patch) {
-			const value = patchValue(patch[key])
+			const value = typeof patch[key] === "string" ? patchStringValue(patch[key]) : patchValue(patch[key])
 			if (value === undefined) {
 				delete next[key]
 			} else {
