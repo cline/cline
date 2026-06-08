@@ -217,6 +217,18 @@ export function isGlmModel(
 	return family.includes("glm") || normalizedModelId(request).includes("glm");
 }
 
+export function isMiniMaxM3Model(
+	request: Pick<GatewayStreamRequest, "modelId">,
+	context: GatewayProviderContext,
+): boolean {
+	const modelId = normalizedModelId(request);
+	const family = normalizedFamily(context);
+	const isM3ModelId =
+		modelId === "minimax-m3" || modelId.endsWith("/minimax-m3");
+
+	return isM3ModelId || (family === "minimax-m3" && !modelId);
+}
+
 export function isKimiK26Family(context: GatewayProviderContext): boolean {
 	return normalizedFamily(context) === "kimi-k2.6";
 }
