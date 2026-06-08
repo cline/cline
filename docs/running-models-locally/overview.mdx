@@ -1,14 +1,14 @@
 ---
 title: "Local models"
 sidebarTitle: "Local models"
-description: "Run Cline with local models using Ollama or LM Studio."
+description: "Run Cline with local models using Ollama, LM Studio, or QVAC."
 ---
 
 Run Cline with local inference on your machine.
 
 ## Quick Start
 
-1. Install a local runtime (**Ollama** or **LM Studio**)
+1. Install a local runtime (**Ollama**, **LM Studio**, or **QVAC**)
 2. Start the local server
 3. In Cline Settings, select the matching provider
 4. Select a local model
@@ -80,6 +80,51 @@ Run Cline with local inference on your machine.
     - Ensure LM Studio server is running
     - Ensure a model is loaded
     - If connection fails, verify `http://localhost:1234`
+  </Tab>
+
+  <Tab title="QVAC">
+    [QVAC](https://qvac.com) is an open-source runtime for local-first, peer-to-peer AI. It exposes an OpenAI-compatible HTTP server, so you connect to it through Cline's **OpenAI Compatible** provider.
+
+    ### 1) Install
+    ```bash
+    npm i -g @qvac/cli
+    ```
+
+    ### 2) Define a model
+    Create a `qvac.config.json` that maps a serve alias to a model:
+    ```json
+    {
+      "serve": {
+        "models": {
+          "gpt-oss-20b": {
+            "model": "GPT_OSS_20B_INST_Q4_K_M",
+            "preload": true,
+            "config": { "ctx_size": 32768 }
+          }
+        }
+      }
+    }
+    ```
+    Set `ctx_size` explicitly — the default of `1024` is too small for agent prompts. For reasoning-tuned models (e.g. Qwen3), also set `reasoning_budget: 0`.
+
+    ### 3) Start the server
+    ```bash
+    qvac serve openai
+    ```
+    This starts an OpenAI-compatible REST API on port `11434` by default. Pass `--port <port>` to change it (useful if Ollama is already using `11434`).
+
+    ### 4) Configure Cline
+    1. Open Cline Settings
+    2. API Provider: **OpenAI Compatible**
+    3. Base URL: `http://127.0.0.1:11434/v1`
+    4. API Key: any non-empty string (QVAC does not validate it, but the field is required)
+    5. Model ID: the serve alias from `qvac.config.json` (e.g. `gpt-oss-20b`)
+
+    ### 5) Troubleshooting
+    - Make sure `qvac serve openai` is running before sending prompts
+    - Ensure the Model ID exactly matches a serve alias in `qvac.config.json`
+    - Local tool-calling quality depends on the model — use a larger, agent-tuned model such as `gpt-oss-20b` for reliable tool use
+    - If connection fails, verify the Base URL and port (`http://127.0.0.1:11434/v1`)
   </Tab>
 </Tabs>
 
