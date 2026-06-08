@@ -13,6 +13,7 @@ import type {
 	ToolResultContent,
 	ToolUseContent,
 } from "@cline/shared";
+import { EMPTY_CONTENT_TEXT } from "@cline/shared";
 
 export function messageToAgentMessages(
 	message: MessageWithMetadata,
@@ -48,7 +49,7 @@ export function messageToAgentMessages(
 		out.push({
 			id: baseId,
 			role: message.role,
-			content: [],
+			content: [{ type: "text", text: EMPTY_CONTENT_TEXT }],
 			createdAt: message.ts ?? Date.now(),
 			metadata: message.metadata,
 			modelInfo: message.modelInfo,
@@ -133,7 +134,7 @@ export function agentMessagesToMessages(
 
 function normalizeContentBlocks(content: Message["content"]): ContentBlock[] {
 	if (typeof content === "string") {
-		return content.length > 0
+		return content.trim().length > 0
 			? [{ type: "text", text: content } as TextContent]
 			: [];
 	}
