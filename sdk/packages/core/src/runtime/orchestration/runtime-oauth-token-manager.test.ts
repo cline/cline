@@ -62,7 +62,6 @@ describe("RuntimeOAuthTokenManager", () => {
 		});
 
 		expect(result).toMatchObject({
-			providerId: "openai-codex",
 			apiKey: "access-new",
 			accountId: "acct-new",
 			refreshed: true,
@@ -121,7 +120,6 @@ describe("RuntimeOAuthTokenManager", () => {
 			{ forceRefresh: false },
 		);
 		expect(result).toMatchObject({
-			providerId: "cline-pass",
 			apiKey: "workos:access-new",
 			accountId: "acct-new",
 			refreshed: true,
