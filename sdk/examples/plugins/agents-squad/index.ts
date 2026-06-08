@@ -11,6 +11,7 @@ import {
 	type AgentPlugin,
 	type AgentTool,
 	type AgentToolContext,
+	type BasicLogger,
 	ClineCore,
 	createTool,
 } from "@cline/core";
@@ -315,6 +316,18 @@ function emitSteer(sessionId: string | undefined, prompt: string): void {
 	}
 }
 
+function logPluginError(
+	logger: BasicLogger | undefined,
+	message: string,
+	metadata: Record<string, unknown>,
+): void {
+	if (logger?.error) {
+		logger.error(message, metadata);
+		return;
+	}
+	logger?.log(message, { ...metadata, severity: "error" });
+}
+
 async function getSessionManager(): Promise<SessionManager> {
 	sessionManagerPromise ??= ClineCore.create({
 		backendMode: resolveSubagentBackendMode(DEFAULT_BACKEND_MODE),
@@ -374,6 +387,7 @@ async function runSubagentTurn(
 	subagent: RunningSubagent,
 	message: string,
 	steer: boolean,
+	logger?: BasicLogger,
 ): Promise<void> {
 	try {
 		const mgr = await getSessionManager();
@@ -392,6 +406,12 @@ async function runSubagentTurn(
 		subagent.status = "failed";
 		subagent.error = err instanceof Error ? err.message : String(err);
 		subagent.completedAt = Date.now();
+		logPluginError(logger, "Subagent run failed", {
+			error: err,
+			sessionId: subagent.sessionId,
+			toolName: "portable-subagents",
+			label: subagent.name,
+		});
 	}
 	if (steer) emitSteer(subagent.parentSessionId, steerPrompt(subagent));
 }
@@ -506,7 +526,15 @@ const plugin: AgentPlugin = {
 	name: "portable-subagents",
 	manifest: { capabilities: ["tools"] },
 
-	setup(api) {
+	setup(api, ctx) {
+		const logger = ctx.logger;
+		logger?.log("portable-subagents plugin setup", {
+			sessionId: ctx.session?.sessionId,
+			defaultPreset: DEFAULT_AGENT_PRESET,
+			backendMode: DEFAULT_BACKEND_MODE,
+			workspaceRoot: ctx.workspaceInfo?.rootPath,
+		});
+
 		// -- start_subagent: Start a new subagent session --
 		api.registerTool(
 			toRegisteredTool(
@@ -571,10 +599,19 @@ const plugin: AgentPlugin = {
 							status: "running",
 						};
 						subagents.set(sessionId, subagent);
+						logger?.log("Started subagent", {
+							sessionId,
+							toolName: "start_subagent",
+							label: input.label,
+							preset: def?.name ?? input.preset,
+							providerId,
+							modelId,
+						});
 						void runSubagentTurn(
 							subagent,
 							input.task,
 							input.notifyParent !== false,
+							logger,
 						);
 
 						return {
@@ -655,10 +692,16 @@ const plugin: AgentPlugin = {
 						subagent.error = undefined;
 						subagents.set(subagent.sessionId, subagent);
 
+						logger?.log("Queued subagent follow-up", {
+							sessionId: subagent.sessionId,
+							toolName: "message_subagent",
+							label: subagent.name,
+						});
 						void runSubagentTurn(
 							subagent,
 							input.prompt,
 							input.notifyParent !== false,
+							logger,
 						);
 						return {
 							status: "started",

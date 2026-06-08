@@ -13,6 +13,7 @@ import { join, resolve } from "node:path";
 import {
 	type AgentPlugin,
 	type AgentToolContext,
+	type BasicLogger,
 	createTool,
 } from "@cline/core";
 
@@ -174,12 +175,25 @@ function emitSteer(sessionId: string | undefined, prompt: string) {
 	});
 }
 
+function logPluginError(
+	logger: BasicLogger | undefined,
+	message: string,
+	metadata: Record<string, unknown>,
+): void {
+	if (logger?.error) {
+		logger.error(message, metadata);
+		return;
+	}
+	logger?.log(message, { ...metadata, severity: "error" });
+}
+
 function startCommand(
 	command: string,
 	cwd: string,
 	shell: string,
 	notifyParent: boolean,
 	sessionId: string | undefined,
+	logger?: BasicLogger,
 ) {
 	ensureJobsDir();
 	const jobId = randomUUID();
@@ -210,6 +224,14 @@ function startCommand(
 		metaPath: metaPath(jobId),
 	};
 	writeJob(record);
+	logger?.log("Started background command", {
+		sessionId,
+		toolName: "start_background_command",
+		jobId,
+		cwd,
+		shell,
+		pid: child.pid,
+	});
 
 	child.stdout?.on("data", (chunk) => {
 		appendFileSync(outPath, chunk);
@@ -228,6 +250,14 @@ function startCommand(
 		};
 		appendFileSync(errPath, `${error.message}\n`);
 		writeJob(updated);
+		logPluginError(logger, "Background command failed to start", {
+			error,
+			sessionId: updated.sessionId,
+			toolName: "start_background_command",
+			jobId,
+			cwd: updated.cwd,
+			shell: updated.shell,
+		});
 		if (updated.notifyParent) {
 			emitSteer(updated.sessionId, formatCompletionMessage(updated));
 		}
@@ -242,6 +272,22 @@ function startCommand(
 			signal,
 		};
 		writeJob(updated);
+		if (updated.status === "completed") {
+			logger?.debug("Background command completed", {
+				sessionId: updated.sessionId,
+				toolName: "start_background_command",
+				jobId,
+				exitCode: code,
+			});
+		} else {
+			logPluginError(logger, "Background command exited with failure", {
+				sessionId: updated.sessionId,
+				toolName: "start_background_command",
+				jobId,
+				exitCode: code,
+				signal,
+			});
+		}
 		if (updated.notifyParent) {
 			emitSteer(updated.sessionId, formatCompletionMessage(updated));
 		}
@@ -266,6 +312,11 @@ const plugin: AgentPlugin = {
 			workspaceContext?.rootPath?.trim() ||
 			sessionDefaultCwd;
 		setupSessionId = ctx.session?.sessionId?.trim() || undefined;
+		ctx.logger?.log("background-terminal plugin setup", {
+			sessionId: setupSessionId,
+			defaultCwd: sessionDefaultCwd,
+			jobsDir: JOBS_DIR,
+		});
 
 		api.registerTool(
 			createTool<unknown, Record<string, unknown>>({
@@ -310,6 +361,7 @@ const plugin: AgentPlugin = {
 						shell,
 						notifyParent,
 						resolveToolSessionId(context),
+						ctx.logger,
 					);
 
 					return {

@@ -19,11 +19,34 @@ Examples include:
 - `mac-notify.ts` - macOS Notification Center alerts
 - `custom-compaction.ts` - Custom context compaction
 - `automation-events.ts` - Plugin event emission
-- `background-terminal.ts` - Background shell jobs with logging
+- `background-terminal.ts` - Background shell jobs with setup and job logging
 
 ```bash
 cline plugin install https://github.com/cline/cline/blob/main/sdk/examples/plugins/weather-metrics.ts
 cline -i "What's the weather like in Tokyo and Paris?"
+```
+
+Plugin setup receives a host logger through the second `setup` argument. Use
+`ctx.logger` for plugin diagnostics:
+
+```ts
+setup(api, ctx) {
+  ctx.logger?.log("my-plugin setup", {
+    sessionId: ctx.session?.sessionId,
+    workspaceRoot: ctx.workspaceInfo?.rootPath,
+  });
+
+  try {
+    // Register tools or perform plugin setup work.
+  } catch (error) {
+    if (ctx.logger?.error) {
+      ctx.logger.error("my-plugin setup failed", { error });
+    } else {
+      ctx.logger?.log("my-plugin setup failed", { error, severity: "error" });
+    }
+    throw error;
+  }
+}
 ```
 
 ### [`./plugins/typescript-lsp/`](./plugins/typescript-lsp)
@@ -47,6 +70,7 @@ cline -i "Find where createTool is defined"
 - Export a reusable plugin module for `.cline/plugins`
 - Start background subagents from the main session
 - Load bundled or custom agent presets and skills
+- Log setup, subagent starts, follow-ups, and async subagent failures through `ctx.logger`
 
 Includes pre-configured agents:
 - **Anvil** - Build and compile
