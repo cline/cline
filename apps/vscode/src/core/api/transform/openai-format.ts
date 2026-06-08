@@ -11,9 +11,38 @@ import {
 	ClineUserToolResultContentBlock,
 } from "@/shared/messages/content"
 import { Logger } from "@/shared/services/Logger"
+import { sanitizeTextForModelInput } from "@/utils/string"
 
 // OpenAI API has a maximum tool call ID length of 40 characters
 const MAX_TOOL_CALL_ID_LENGTH = 40
+
+function appendReasoningDetails(reasoningDetails: any[], details: unknown): void {
+	if (!details) {
+		return
+	}
+	if (Array.isArray(details)) {
+		reasoningDetails.push(...details)
+	} else {
+		reasoningDetails.push(details)
+	}
+}
+
+function extractReasoningText(details: unknown): string {
+	if (!Array.isArray(details)) {
+		return ""
+	}
+
+	return details
+		.map((detail) => {
+			const text = detail && typeof detail === "object" && "text" in detail ? (detail as { text?: unknown }).text : undefined
+			if (typeof text === "string") {
+				return sanitizeTextForModelInput(text)
+			}
+			return ""
+		})
+		.filter((text) => text.trim().length > 0)
+		.join("\n")
+}
 
 /**
  * Determines if a given tool ID follows the OpenAI Responses API format for tool calls.
@@ -74,7 +103,7 @@ export function convertToOpenAiMessages(
 		if (typeof anthropicMessage.content === "string") {
 			openAiMessages.push({
 				role: anthropicMessage.role,
-				content: anthropicMessage.content,
+				content: sanitizeTextForModelInput(anthropicMessage.content),
 			})
 		} else {
 			// image_url.url is base64 encoded image data
@@ -108,7 +137,7 @@ export function convertToOpenAiMessages(
 					let content: string
 
 					if (typeof toolMessage.content === "string") {
-						content = toolMessage.content
+						content = sanitizeTextForModelInput(toolMessage.content)
 					} else if (Array.isArray(toolMessage.content)) {
 						content =
 							toolMessage.content
@@ -117,7 +146,7 @@ export function convertToOpenAiMessages(
 										toolResultImages.push(part)
 										return "(see following user message for image)"
 									}
-									return part.text
+									return sanitizeTextForModelInput(part.text)
 								})
 								.join("\n") ?? ""
 					} else {
@@ -162,59 +191,59 @@ export function convertToOpenAiMessages(
 									},
 								}
 							}
-							return { type: "text", text: part.text }
+							return { type: "text", text: sanitizeTextForModelInput(part.text) }
 						}),
 					})
 				}
 			} else if (anthropicMessage.role === "assistant") {
-				const { nonToolMessages, toolMessages } = anthropicMessage.content.reduce<{
-					nonToolMessages: (
-						| ClineTextContentBlock
-						| ClineImageContentBlock
-						| ClineAssistantThinkingBlock
-						| ClineAssistantRedactedThinkingBlock
-					)[]
+				const { nonToolMessages, toolMessages, thinkingMessages, redactedThinkingMessages } = anthropicMessage.content.reduce<{
+					nonToolMessages: (ClineTextContentBlock | ClineImageContentBlock)[]
 					toolMessages: ClineAssistantToolUseBlock[]
+					thinkingMessages: ClineAssistantThinkingBlock[]
+					redactedThinkingMessages: ClineAssistantRedactedThinkingBlock[]
 				}>(
 					(acc, part) => {
 						if (part.type === "tool_use") {
 							acc.toolMessages.push(part)
+						} else if (part.type === "thinking") {
+							acc.thinkingMessages.push(part)
+						} else if (part.type === "redacted_thinking") {
+							acc.redactedThinkingMessages.push(part)
 						} else if (part.type === "text" || part.type === "image") {
 							acc.nonToolMessages.push(part)
 						} // assistant cannot send tool_result messages
 						return acc
 					},
-					{ nonToolMessages: [], toolMessages: [] },
+					{ nonToolMessages: [], toolMessages: [], thinkingMessages: [], redactedThinkingMessages: [] },
 				)
 
 				// Process non-tool messages
 				let content: string | undefined
 				const reasoningDetails: any[] = []
-				const thinkingBlock = []
 				if (nonToolMessages.length > 0) {
 					nonToolMessages.forEach((part) => {
 						const anyPart = part as any
 						if (part.type === "text" && anyPart.reasoning_details) {
-							if (Array.isArray(anyPart.reasoning_details)) {
-								reasoningDetails.push(...anyPart.reasoning_details)
-							} else {
-								reasoningDetails.push(anyPart.reasoning_details)
-							}
-						}
-						if (part.type === "thinking" && part.thinking) {
-							// Reasoning details should have been moved to the text block
-							thinkingBlock.push(part)
+							appendReasoningDetails(reasoningDetails, anyPart.reasoning_details)
 						}
 					})
 					content = nonToolMessages
 						.map((part) => {
 							if (part.type === "text" && part.text) {
-								return part.text
+								return sanitizeTextForModelInput(part.text)
 							}
 							return ""
 						})
 						.join("\n")
 				}
+				const thinkingContent = thinkingMessages
+					.map((part) => {
+						appendReasoningDetails(reasoningDetails, part.summary)
+						const thinkingText = sanitizeTextForModelInput(part.thinking || "")
+						return thinkingText.trim().length > 0 ? thinkingText : extractReasoningText(part.summary)
+					})
+					.filter((text) => text.trim().length > 0)
+					.join("\n")
 
 				// Process tool use messages
 				const tool_calls: OpenAI.Chat.ChatCompletionMessageToolCall[] = toolMessages.map((toolMessage) => {
@@ -254,7 +283,13 @@ export function convertToOpenAiMessages(
 				// Set content to blank when tool_calls are present but content has no text, per OpenAI API spec
 				const hasToolCalls = tool_calls.length > 0
 				const hasMeaningfulContent = content !== undefined && content.trim() !== ""
-				const finalContent = hasMeaningfulContent ? content : hasToolCalls ? null : undefined
+				const fallbackThinkingContent =
+					thinkingContent.trim().length > 0
+						? thinkingContent
+						: redactedThinkingMessages.length > 0
+							? "[redacted reasoning]"
+							: undefined
+				const finalContent = hasMeaningfulContent ? content : hasToolCalls ? null : fallbackThinkingContent
 
 				const consolidatedReasoningDetails =
 					reasoningDetails.length > 0 ? consolidateReasoningDetails(reasoningDetails as any) : []
@@ -330,7 +365,7 @@ function consolidateReasoningDetails(reasoningDetails: ReasoningDetail[]): Reaso
 
 		for (const detail of details) {
 			if (detail.text) {
-				concatenatedText += detail.text
+				concatenatedText += sanitizeTextForModelInput(detail.text)
 			}
 			// Keep the signature from the last item that has one
 			if (detail.signature) {

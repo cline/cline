@@ -1,6 +1,6 @@
 import { describe, it } from "mocha"
 import "should"
-import { fixModelHtmlEscaping, removeInvalidChars } from "./string"
+import { fixModelHtmlEscaping, removeInvalidChars, sanitizeTextForModelInput } from "./string"
 
 describe("fixModelHtmlEscaping", () => {
 	it("should convert &gt; to >", () => {
@@ -53,5 +53,19 @@ describe("removeInvalidChars", () => {
 
 	it("should return unchanged string when no replacement characters are present", () => {
 		removeInvalidChars("normal string").should.equal("normal string")
+	})
+})
+
+describe("sanitizeTextForModelInput", () => {
+	it("should remove ANSI escapes and unsafe control characters", () => {
+		const text = "\u001b[31mred\u001b[0m\x00chunk\x07\x7f"
+
+		sanitizeTextForModelInput(text).should.equal("redchunk")
+	})
+
+	it("should preserve normal whitespace", () => {
+		const text = "line 1\nline 2\tcolumn\rreturn"
+
+		sanitizeTextForModelInput(text).should.equal(text)
 	})
 })

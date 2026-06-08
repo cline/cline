@@ -1,6 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { ClineAssistantThinkingBlock, ClineStorageMessage } from "@/shared/messages/content"
+import { sanitizeTextForModelInput } from "@/utils/string"
 
 /**
  * DeepSeek Reasoner message format with reasoning_content support.
@@ -81,7 +82,13 @@ export function convertToR1Format(messages: Anthropic.Messages.MessageParam[]): 
 
 			message.content.forEach((part) => {
 				if (part.type === "text") {
-					textParts.push(part.text)
+					textParts.push(sanitizeTextForModelInput(part.text))
+				}
+				if (message.role === "assistant" && part.type === "thinking") {
+					const thinkingText = sanitizeTextForModelInput(part.thinking || "")
+					if (thinkingText.trim().length > 0) {
+						textParts.push(thinkingText)
+					}
 				}
 				if (part.type === "image") {
 					hasImages = true
@@ -103,7 +110,7 @@ export function convertToR1Format(messages: Anthropic.Messages.MessageParam[]): 
 				messageContent = textParts.join("\n")
 			}
 		} else {
-			messageContent = message.content
+			messageContent = sanitizeTextForModelInput(message.content)
 		}
 
 		// If the last message has the same role, merge the content
