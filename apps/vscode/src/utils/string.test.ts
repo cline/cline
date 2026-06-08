@@ -63,6 +63,12 @@ describe("sanitizeTextForModelInput", () => {
 		sanitizeTextForModelInput(text).should.equal("redchunk")
 	})
 
+	it("should remove OSC terminal escapes while preserving visible text", () => {
+		const text = "\u001b]8;;https://example.com\x07link text\u001b]8;;\x07 and \u001b]0;title\x07content"
+
+		sanitizeTextForModelInput(text).should.equal("link text and content")
+	})
+
 	it("should preserve normal whitespace", () => {
 		const text = "line 1\nline 2\tcolumn\rreturn"
 

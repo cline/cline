@@ -29,12 +29,13 @@ export class ToolResultUtils {
 			const resultText = sanitizedContent || "(tool did not return anything)"
 
 			// Try to get description from coordinator first, otherwise use the provided function
-			const description = coordinator
+			const rawDescription = coordinator
 				? (() => {
 						const handler = coordinator.getHandler(block.name)
 						return handler ? handler.getDescription(block) : toolDescription(block)
 					})()
 				: toolDescription(block)
+			const description = sanitizeTextForModelInput(rawDescription)
 
 			// Get tool_use_id from map using call_id, or use "cline" as fallback for backward compatibility
 			const toolUseId = toolUseIdMap?.get(block.call_id || "") || "cline"
@@ -82,14 +83,12 @@ export class ToolResultUtils {
 	}
 
 	private static createToolResultBlock(content: ToolResponse, id?: string, call_id?: string) {
-		const sanitizedContent = ToolResultUtils.sanitizeToolResponseContent(content)
-
 		// If id is "cline", we treat it as a plain text result for backward compatibility
 		// as we cannot find any existing tool call that matches this id.
 		if (id === "cline" || !id) {
 			return {
 				type: "text",
-				text: typeof sanitizedContent === "string" ? sanitizedContent : JSON.stringify(sanitizedContent, null, 2),
+				text: typeof content === "string" ? content : JSON.stringify(content, null, 2),
 			}
 		}
 
@@ -100,7 +99,7 @@ export class ToolResultUtils {
 			type: "tool_result",
 			tool_use_id: id,
 			call_id: call_id,
-			content: sanitizedContent,
+			content,
 		}
 	}
 
@@ -129,13 +128,14 @@ export class ToolResultUtils {
 			: "The user provided additional content:"
 
 		const content = formatResponse.toolResult(feedbackText, images, hasMeaningfulFileContent ? fileContentString : undefined)
-		if (typeof content === "string") {
+		const sanitizedContent = ToolResultUtils.sanitizeToolResponseContent(content)
+		if (typeof sanitizedContent === "string") {
 			userMessageContent.push({
 				type: "text",
-				text: sanitizeTextForModelInput(content),
+				text: sanitizedContent,
 			})
 		} else {
-			userMessageContent.push(...(ToolResultUtils.sanitizeToolResponseContent(content) as typeof content))
+			userMessageContent.push(...sanitizedContent)
 		}
 	}
 

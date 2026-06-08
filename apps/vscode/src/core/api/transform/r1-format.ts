@@ -10,6 +10,20 @@ export type DeepSeekReasonerMessage = OpenAI.Chat.ChatCompletionMessageParam & {
 	reasoning_content?: string
 }
 
+function extractReasoningText(details: unknown): string {
+	if (!Array.isArray(details)) {
+		return ""
+	}
+
+	return details
+		.map((detail) => {
+			const text = detail && typeof detail === "object" && "text" in detail ? (detail as { text?: unknown }).text : undefined
+			return typeof text === "string" ? sanitizeTextForModelInput(text) : ""
+		})
+		.filter((text) => text.trim().length > 0)
+		.join("\n")
+}
+
 /**
  * Adds reasoning_content to OpenAI messages for DeepSeek Reasoner.
  * Per DeepSeek API: reasoning_content should be passed back during tool calling in the same turn,
@@ -86,8 +100,12 @@ export function convertToR1Format(messages: Anthropic.Messages.MessageParam[]): 
 				}
 				if (message.role === "assistant" && part.type === "thinking") {
 					const thinkingText = sanitizeTextForModelInput(part.thinking || "")
-					if (thinkingText.trim().length > 0) {
-						textParts.push(thinkingText)
+					const reasoningText =
+						thinkingText.trim().length > 0
+							? thinkingText
+							: extractReasoningText((part as ClineAssistantThinkingBlock).summary)
+					if (reasoningText.trim().length > 0) {
+						textParts.push(reasoningText)
 					}
 				}
 				if (part.type === "image") {

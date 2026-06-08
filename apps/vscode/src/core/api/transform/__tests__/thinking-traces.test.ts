@@ -198,6 +198,37 @@ describe("Thinking Trace Preservation", () => {
 			assistantMsg.role.should.equal("assistant")
 			assistantMsg.content.should.equal("DATA chunks are sequential.")
 		})
+
+		it("should fall back to summary text for empty thinking blocks", () => {
+			const messages: ClineStorageMessage[] = [
+				{
+					role: "assistant",
+					content: [
+						{
+							type: "thinking",
+							thinking: "",
+							signature: "",
+							summary: [
+								{
+									type: "reasoning.text",
+									text: "Reasoning captured in summary.",
+									signature: "sig",
+									format: "anthropic-claude-v1",
+									index: 0,
+								},
+							],
+						} as ClineAssistantThinkingBlock,
+					],
+				},
+			]
+
+			const result = convertToR1Format(messages)
+
+			result.should.have.length(1)
+			const assistantMsg = result[0] as any
+			assistantMsg.role.should.equal("assistant")
+			assistantMsg.content.should.equal("Reasoning captured in summary.")
+		})
 	})
 
 	describe("sanitizeGeminiMessages", () => {
