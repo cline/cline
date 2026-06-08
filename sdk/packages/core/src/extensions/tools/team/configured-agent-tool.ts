@@ -51,12 +51,27 @@ export interface ConfiguredAgentToolConfig {
 }
 
 function sanitizeAgentName(name: string): string {
-	return name
-		.trim()
-		.toLowerCase()
-		.replace(/[^a-z0-9_]+/g, "_")
-		.replace(/_+/g, "_")
-		.replace(/^_+|_+$/g, "");
+	let result = "";
+	let lastWasUnderscore = true;
+
+	for (const char of name.trim().toLowerCase()) {
+		const code = char.charCodeAt(0);
+		const isAllowed =
+			(code >= 97 && code <= 122) || (code >= 48 && code <= 57) || char === "_";
+
+		if (!isAllowed || char === "_") {
+			if (!lastWasUnderscore) {
+				result += "_";
+				lastWasUnderscore = true;
+			}
+			continue;
+		}
+
+		result += char;
+		lastWasUnderscore = false;
+	}
+
+	return lastWasUnderscore ? result.slice(0, -1) : result;
 }
 
 function hashString(value: string): string {
