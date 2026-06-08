@@ -101,6 +101,19 @@ describe("createProviderConfigStore", () => {
 		expect(secondRead).not.toBe(firstRead)
 	})
 
+	it("clears string fields from providers.json when they are written as empty strings", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		mocks.setProviderSettings({ gemini: { provider: "gemini", apiKey: "existing-key", baseUrl: "https://custom.example" } })
+		mocks.setApiConfiguration({ geminiApiKey: "existing-key", geminiBaseUrl: "https://custom.example" })
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("gemini")
+
+		store.write(providerId, { baseUrl: "" })
+
+		expect(mocks.getSavedProviderSettings("gemini")).toEqual({ provider: "gemini", apiKey: "existing-key" })
+		expect(store.read(providerId).baseUrl).toBeUndefined()
+	})
+
 	it("round-trips commitSelection then readSelection for provider-specific model info", async () => {
 		const { createProviderConfigStore } = await import("./store")
 		const store = createProviderConfigStore()
