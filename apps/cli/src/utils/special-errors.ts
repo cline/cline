@@ -1,4 +1,5 @@
 import {
+	CLINE_ACCOUNT_AUTH_REQUIRED_CODE,
 	getClineEnvironmentConfig,
 	isClineAccountAuthRequiredErrorInfo,
 	isClineInsufficientCreditsErrorInfo,
@@ -126,7 +127,12 @@ function resolveClineCreditsDisplay(
 function resolveClineAccountAuthDisplay(
 	errorInfo: SdkErrorInfo,
 ): SpecialErrorDisplay | undefined {
-	if (!isClineAccountAuthRequiredErrorInfo(errorInfo)) {
+	const isAuthRequired =
+		isClineAccountAuthRequiredErrorInfo(errorInfo) ||
+		(errorInfo.kind === "provider" &&
+			errorInfo.providerId === "cline" &&
+			errorInfo.code === CLINE_ACCOUNT_AUTH_REQUIRED_CODE);
+	if (!isAuthRequired) {
 		return undefined;
 	}
 	return {
@@ -145,7 +151,10 @@ export function resolveSpecialErrorDisplay(
 	}
 	switch (errorInfo.kind) {
 		case "provider":
-			return resolveClineCreditsDisplay(errorInfo);
+			return (
+				resolveClineCreditsDisplay(errorInfo) ??
+				resolveClineAccountAuthDisplay(errorInfo)
+			);
 		case "auth":
 			return resolveClineAccountAuthDisplay(errorInfo);
 	}
