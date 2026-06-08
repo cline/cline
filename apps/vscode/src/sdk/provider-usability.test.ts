@@ -134,6 +134,26 @@ describe("hasUsableProvider", () => {
 		expect(hasUsableProvider(config, "act")).toBe(false)
 	})
 
+	it("treats Claude Code as usable through local Claude CLI auth when a model is configured", () => {
+		mocks.providerSettingsManager.getProviderSettings.mockReturnValue(undefined)
+		const config: ApiConfiguration = {
+			actModeApiProvider: "claude-code",
+			actModeApiModelId: "sonnet",
+		}
+		expect(hasUsableProvider(config, "act")).toBe(true)
+	})
+
+	it("treats Claude Code as usable when its model is stored in providers.json", () => {
+		mocks.providerSettingsManager.getProviderSettings.mockReturnValue({
+			provider: "claude-code",
+			model: "haiku",
+		})
+		const config: ApiConfiguration = {
+			actModeApiProvider: "claude-code",
+		}
+		expect(hasUsableProvider(config, "act")).toBe(true)
+	})
+
 	it("treats ollama (keyless local) as usable when a model is configured, without a key", () => {
 		const config: ApiConfiguration = {
 			actModeApiProvider: "ollama",
