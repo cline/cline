@@ -4,7 +4,7 @@ import getFolderSize from "get-folder-size"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { McpHub } from "@/services/mcp/McpHub"
 import type { TelemetryService } from "@/services/telemetry/TelemetryService"
-import { readApiConversationHistory, readTaskHistory } from "./legacy-state-reader"
+import { deleteLegacyTask, readApiConversationHistory, readTaskHistory } from "./legacy-state-reader"
 import { sdkMessagesToClineMessages } from "./message-translator"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import { SdkTaskHistory, sessionHistoryRecordToHistoryItem } from "./sdk-task-history"
@@ -48,6 +48,16 @@ vi.mock("./legacy-state-reader", () => ({
 	readTaskHistory: vi.fn(
 		(dataDir?: string) => legacyStateReaderMock.taskHistoryByDataDir.get(dataDir) ?? legacyStateReaderMock.taskHistory,
 	),
+	deleteLegacyTask: vi.fn((taskId: string, dataDir?: string) => {
+		const history = legacyStateReaderMock.taskHistoryByDataDir.get(dataDir) ?? legacyStateReaderMock.taskHistory
+		const filteredHistory = history.filter((item) => item.id !== taskId)
+		if (legacyStateReaderMock.taskHistoryByDataDir.has(dataDir)) {
+			legacyStateReaderMock.taskHistoryByDataDir.set(dataDir, filteredHistory)
+		} else {
+			legacyStateReaderMock.taskHistory = filteredHistory
+		}
+		return filteredHistory.length !== history.length
+	}),
 	readApiConversationHistory: vi.fn(
 		(_taskId: string, dataDir?: string) =>
 			legacyStateReaderMock.apiConversationHistoryByDataDir.get(dataDir) ?? legacyStateReaderMock.apiConversationHistory,
@@ -369,6 +379,18 @@ describe("SdkTaskHistory", () => {
 		await history.deleteTaskFromState("task-1")
 
 		expect(deleteSession).toHaveBeenCalledWith("task-1")
+		expect(deleteLegacyTask).not.toHaveBeenCalled()
+	})
+
+	it("deletes legacy task records when deleting history", async () => {
+		legacyStateReaderMock.taskHistory = [makeHistoryItem("legacy-task", { task: "legacy prompt" })]
+		const { history, deleteSession } = makeHistory([])
+
+		const result = await history.deleteTaskFromState("legacy-task")
+
+		expect(deleteSession).toHaveBeenCalledWith("legacy-task")
+		expect(deleteLegacyTask).toHaveBeenCalledWith("legacy-task", undefined)
+		expect(result.some((item) => item.id === "legacy-task")).toBe(false)
 	})
 
 	it("emits telemetry when migrating a legacy task to an SDK session", async () => {
