@@ -280,7 +280,9 @@ function ClineCreditsErrorView(props: { defaultFg?: string }) {
 				<box flexDirection="row">
 					<text fg="gray">Dashboard: </text>
 					<text fg="cyan" selectable>
-						{CLINE_CREDITS_DASHBOARD_URL}
+						<a href={CLINE_CREDITS_DASHBOARD_URL}>
+							{CLINE_CREDITS_DASHBOARD_URL}
+						</a>
 					</text>
 				</box>
 			</box>
