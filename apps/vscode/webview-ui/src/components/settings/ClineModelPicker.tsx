@@ -2,6 +2,7 @@ import { openAiModelInfoSafeDefaults } from "@shared/api"
 import { CLINE_RECOMMENDED_MODELS_FALLBACK } from "@shared/cline/recommended-models"
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import { type ClineRecommendedModel, ClineRecommendedModelsResponse } from "@shared/proto/cline/models"
+import { fromProtobufModelInfo } from "@shared/proto-conversions/models/typeConversion"
 import type { Mode } from "@shared/storage/types"
 import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
@@ -95,10 +96,17 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 	const { handleModeFieldsChange, handleFieldChange } = useApiConfigurationHandlers()
 	const { apiConfiguration, favoritedModelIds } = useExtensionState()
 	const { models: catalogClineModels, defaultModelId: clineDefaultModelId } = useProviderModels("cline")
-	const { write: writeProviderConfig, commitSelection } = useProviderConfig("cline")
+	const { config, write: writeProviderConfig, commitSelection } = useProviderConfig("cline")
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 	const effectiveClineModels = catalogClineModels
-	const currentClineModelId = modeFields.clineModelId || clineDefaultModelId || Object.keys(effectiveClineModels ?? {})[0] || ""
+	const committedSelection = currentMode === "plan" ? config?.planSelection : config?.actSelection
+	const committedModelInfo = committedSelection?.modelInfo ? fromProtobufModelInfo(committedSelection.modelInfo) : undefined
+	const currentClineModelId =
+		committedSelection?.modelId ||
+		modeFields.clineModelId ||
+		clineDefaultModelId ||
+		Object.keys(effectiveClineModels ?? {})[0] ||
+		""
 	const [searchTerm, setSearchTerm] = useState(currentClineModelId)
 	const searchTermEditedByUserRef = useRef(false)
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
@@ -244,7 +252,10 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 					...selected,
 					selectedModelId: currentClineModelId,
 					selectedModelInfo:
-						modeFields.clineModelInfo || effectiveClineModels?.[currentClineModelId] || selected.selectedModelInfo,
+						committedModelInfo ||
+						modeFields.clineModelInfo ||
+						effectiveClineModels?.[currentClineModelId] ||
+						selected.selectedModelInfo,
 				}
 			: selected
 		if (freeClineModelIdSet.has(normalizeModelId(selectedWithCatalogDefault.selectedModelId))) {
@@ -263,6 +274,7 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 	}, [
 		baseSelection.selectedModelId,
 		baseSelection.selectedModelInfo,
+		committedModelInfo,
 		currentClineModelId,
 		effectiveClineModels,
 		freeClineModelIdSet,
@@ -457,6 +469,7 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 				<DropdownWrapper ref={dropdownRef}>
 					<VSCodeTextField
 						id="model-search"
+						key={currentClineModelId}
 						onBlur={() => {
 							if (searchTermEditedByUserRef.current && searchTerm !== selectedModelId) {
 								handleModelChange(searchTerm)
