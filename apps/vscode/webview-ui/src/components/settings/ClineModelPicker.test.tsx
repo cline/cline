@@ -1,3 +1,4 @@
+import { toProtobufModelInfo } from "@shared/proto-conversions/models/typeConversion"
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -110,5 +111,33 @@ describe("ClineModelPicker", () => {
 				contextWindow: 128_000,
 			},
 		})
+	})
+
+	it("hydrates the selected Cline model from provider config when legacy settings are empty", () => {
+		vi.mocked(useExtensionState).mockReturnValue({
+			apiConfiguration: {},
+			favoritedModelIds: [],
+			planActSeparateModelsSetting: true,
+		} as ReturnType<typeof useExtensionState>)
+		vi.mocked(useProviderConfig).mockReturnValue({
+			config: {
+				providerId: "cline",
+				actSelection: {
+					providerId: "cline",
+					modelId: "cline-next",
+					modelInfo: toProtobufModelInfo({
+						name: "Cline Next",
+						supportsPromptCache: true,
+						contextWindow: 128_000,
+					}),
+				},
+			},
+			write: mocks.writeProviderConfig,
+			commitSelection: mocks.commitSelection,
+		})
+
+		render(<ClineModelPicker currentMode="act" />)
+
+		expect(screen.getByRole("combobox")).toHaveValue("cline-next")
 	})
 })
