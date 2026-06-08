@@ -32,6 +32,8 @@ export function formatClineCredits(value: number): string {
 	return formatCreditBalance(normalizeCreditBalance(value));
 }
 
+// FIXME: These message checks are temporary until structured error types are
+// passed through to the CLI instead of plain error strings.
 export function isClineAccountAuthErrorMessage(message: string): boolean {
 	const normalized = message.trim().toLowerCase();
 	return (
