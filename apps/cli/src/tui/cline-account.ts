@@ -15,7 +15,7 @@ import type { Config } from "../utils/types";
 
 const WORKOS_TOKEN_PREFIX = "workos:";
 export const CLINE_CREDITS_DASHBOARD_URL =
-	"https://app.cline.bot/dashboard/account?tab=credits&redirect=true";
+	"https://app.cline.bot/dashboard/account?tab=credits";
 
 type ClineAccountConfig = Pick<Config, "apiKey" | "providerId">;
 
