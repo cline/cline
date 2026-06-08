@@ -40,7 +40,7 @@ export function isClineAccountAuthErrorMessage(message: string): boolean {
 	);
 }
 
-export function isClineCreditsBalanceErrorMessage(message: string): boolean {
+export function isClineAccountCreditsErrorMessage(message: string): boolean {
 	const normalized = message.trim().toLowerCase();
 	return (
 		normalized.includes("insufficient balance") &&

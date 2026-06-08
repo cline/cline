@@ -4,7 +4,7 @@ import { useState } from "react";
 import "opentui-spinner/react";
 import {
 	CLINE_CREDITS_DASHBOARD_URL,
-	isClineCreditsBalanceErrorMessage,
+	isClineAccountCreditsErrorMessage,
 } from "../cline-account";
 import { useTerminalBackground } from "../hooks/use-terminal-background";
 import {
@@ -383,7 +383,7 @@ export function ChatEntryView(props: {
 			);
 
 		case "error":
-			if (isClineCreditsBalanceErrorMessage(entry.text)) {
+			if (isClineAccountCreditsErrorMessage(entry.text)) {
 				return <ClineCreditsErrorView defaultFg={defaultFg} />;
 			}
 			return (
