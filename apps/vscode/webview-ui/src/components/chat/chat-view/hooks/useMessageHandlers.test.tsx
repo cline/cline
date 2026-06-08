@@ -130,29 +130,33 @@ describe("useMessageHandlers — send routing", () => {
 		expect(askResponse).not.toHaveBeenCalled()
 	})
 
-	it("blocks a NEW task when there is no usable provider (gate)", async () => {
+	it("still starts a NEW task when there is no usable provider", async () => {
 		mockHasUsableProvider = false
 		mockTurnState = { phase: "idle", seq: 1 }
 		const { result } = renderHook(() => useMessageHandlers([], makeChatState([])))
 
 		await act(async () => {
-			await result.current.handleSendMessage("should be blocked", [], [])
+			await result.current.handleSendMessage("should be sent", [], [])
 		})
 
-		expect(newTask).not.toHaveBeenCalled()
+		expect(newTask).toHaveBeenCalledTimes(1)
+		expect(newTask).toHaveBeenCalledWith(expect.objectContaining({ text: "should be sent", images: [], files: [] }))
 		expect(askResponse).not.toHaveBeenCalled()
 	})
 
-	it("blocks a follow-up when there is no usable provider (gate)", async () => {
+	it("still sends a follow-up when there is no usable provider", async () => {
 		mockHasUsableProvider = false
 		mockTurnState = { phase: "completed", seq: 7 }
 		const { result } = renderHook(() => useMessageHandlers(completedConversation, makeChatState(completedConversation)))
 
 		await act(async () => {
-			await result.current.handleSendMessage("should be blocked", [], [])
+			await result.current.handleSendMessage("should be sent", [], [])
 		})
 
 		expect(newTask).not.toHaveBeenCalled()
-		expect(askResponse).not.toHaveBeenCalled()
+		expect(askResponse).toHaveBeenCalledTimes(1)
+		expect(askResponse).toHaveBeenCalledWith(
+			expect.objectContaining({ responseType: "messageResponse", text: "should be sent" }),
+		)
 	})
 })
