@@ -48,7 +48,10 @@ async function generate(): Promise<void> {
 		const modelsDev = await loadModelsDevProviderModels();
 		Object.assign(providerModels, modelsDev);
 
-		const clineRecommended = await fetchClineRecommendedProviderModels();
+		const clineRecommended = await fetchClineRecommendedProviderModels(
+			fetch,
+			modelsDev["vercel-ai-gateway"] || {},
+		);
 		Object.assign(providerModels, clineRecommended);
 	} catch (error) {
 		loadError =

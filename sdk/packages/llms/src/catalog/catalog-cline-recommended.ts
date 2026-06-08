@@ -11,6 +11,11 @@ export interface ClineRecommendedModelsPayload {
 	clinePass?: ClineRecommendedModelEntry[];
 }
 
+type ModelCapabilities = Pick<
+	ModelInfo,
+	"contextWindow" | "maxInputTokens" | "maxTokens" | "capabilities" | "pricing"
+>;
+
 const CLINE_PASS_PROVIDER_ID = "cline-pass";
 
 const CLINE_PASS_MODEL_DEFAULTS = {
@@ -24,33 +29,47 @@ const CLINE_PASS_MODEL_DEFAULTS = {
 		cacheRead: 0,
 		cacheWrite: 0,
 	},
-} as const satisfies Pick<
-	ModelInfo,
-	"contextWindow" | "maxInputTokens" | "maxTokens" | "capabilities" | "pricing"
->;
+} as const satisfies ModelCapabilities;
 
-function normalizeClinePassModel(entry: ClineRecommendedModelEntry): ModelInfo {
+function findORModelCapabilities(
+	entry: ClineRecommendedModelEntry,
+	openRouterModels: Record<string, ModelInfo>,
+): ModelCapabilities {
+	if (!openRouterModels || !entry.name) {
+		return CLINE_PASS_MODEL_DEFAULTS;
+	}
+
+	return openRouterModels[entry.name] || CLINE_PASS_MODEL_DEFAULTS;
+}
+
+function normalizeClinePassModel(
+	entry: ClineRecommendedModelEntry,
+	openRouterModels: Record<string, ModelInfo>,
+): ModelInfo {
+	const capabilities = findORModelCapabilities(entry, openRouterModels);
+
 	return {
-		...CLINE_PASS_MODEL_DEFAULTS,
+		...capabilities,
 		id: entry.id,
-		name: entry.name || entry.id,
+		name: entry.name,
 		description: entry.description,
 	};
 }
 
 export function normalizeClineRecommendedProviderModels(
 	payload: ClineRecommendedModelsPayload,
+	openRouterModels: Record<string, ModelInfo>,
 ): Record<string, Record<string, ModelInfo>> {
 	const clinePass = payload.clinePass ?? [];
 	if (clinePass.length === 0) {
 		return {};
 	}
 
-	const models = Object.fromEntries(
-		clinePass
-			.filter((entry) => entry.id.trim().length > 0)
-			.map((entry) => [entry.id, normalizeClinePassModel(entry)]),
-	);
+	const models: Record<string, ModelInfo> = {};
+
+	clinePass.forEach((entry) => {
+		models[entry.id] = normalizeClinePassModel(entry, openRouterModels);
+	});
 
 	if (Object.keys(models).length === 0) {
 		return {};
@@ -61,6 +80,7 @@ export function normalizeClineRecommendedProviderModels(
 
 export async function fetchClineRecommendedProviderModels(
 	fetcher: typeof fetch = fetch,
+	openRouterModels: Record<string, ModelInfo>,
 ): Promise<Record<string, Record<string, ModelInfo>>> {
 	const url = `${getClineEnvironmentConfig().apiBaseUrl}/api/v1/ai/cline/recommended-models`;
 	const response = await fetcher(url);
@@ -71,5 +91,5 @@ export async function fetchClineRecommendedProviderModels(
 	}
 
 	const payload = (await response.json()) as ClineRecommendedModelsPayload;
-	return normalizeClineRecommendedProviderModels(payload);
+	return normalizeClineRecommendedProviderModels(payload, openRouterModels);
 }

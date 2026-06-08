@@ -70,13 +70,11 @@ describe("cline-pass builtin spec", () => {
 		expect(models).toHaveProperty(provider?.defaultModelId ?? "");
 		expect(Object.keys(models).length).toBeGreaterThan(0);
 		for (const model of Object.values(models)) {
-			expect(model).toMatchObject({
-				contextWindow: 128_000,
-				maxInputTokens: 128_000,
-				maxTokens: 8_192,
-				capabilities: ["tools", "reasoning", "temperature"],
-				pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-			});
+			expect(model.contextWindow).toBeGreaterThan(0);
+			expect(model.maxInputTokens).toBeGreaterThan(0);
+			expect(model.maxTokens).toBeGreaterThan(0);
+			expect(model.capabilities).toEqual(expect.arrayContaining(["tools"]));
+			expect(model.pricing).toBeDefined();
 		}
 	});
 });
