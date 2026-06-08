@@ -1,10 +1,14 @@
 import {
 	isDeepSeekFamily,
+	isGemini3Model,
+	isGeminiFlashModel,
+	isGeminiProModel,
 	isGlmModel,
 	isKimiK26Family as isKimiK26FamilyFact,
 	isMoonshotKimiModelIdFallback,
 	modelReasoningDefaultsOn,
 	providerReasoningRouteMatches,
+	supportsGeminiThinking,
 } from "../model-facts";
 import { buildGatewayReasoningOptions } from "./anthropic-compatible";
 import { buildOpenAINativeProviderOptions } from "./generic-compatible";
@@ -100,6 +104,64 @@ function buildReasoningPatchForProvider(
 		providerOptionsKey: input.providerOptionsKey,
 		bucketOptions: { reasoning },
 	});
+}
+
+const GEMINI_25_THINKING_BUDGET_BY_EFFORT = {
+	low: 1_024,
+	medium: 8_192,
+	high: 24_576,
+} as const;
+
+function buildGeminiThinkingConfig(input: ProviderOptionBuildInput):
+	| {
+			thinkingLevel?: "minimal" | "low" | "medium" | "high";
+			thinkingBudget?: number;
+			includeThoughts: boolean;
+	  }
+	| undefined {
+	const reasoning = input.request.reasoning;
+	if (!reasoning) {
+		return undefined;
+	}
+
+	if (isGemini3Model(input)) {
+		if (reasoning.enabled === false) {
+			return {
+				thinkingLevel: isGeminiFlashModel(input) ? "minimal" : "low",
+				includeThoughts: false,
+			};
+		}
+		if (!reasoning.effort) {
+			return undefined;
+		}
+		return {
+			thinkingLevel: reasoning.effort,
+			includeThoughts: true,
+		};
+	}
+
+	if (reasoning.enabled === false) {
+		return {
+			thinkingBudget: isGeminiProModel(input) ? 128 : 0,
+			includeThoughts: false,
+		};
+	}
+
+	if (typeof reasoning.budgetTokens === "number") {
+		return {
+			thinkingBudget: reasoning.budgetTokens,
+			includeThoughts: true,
+		};
+	}
+
+	if (!reasoning.effort) {
+		return undefined;
+	}
+
+	return {
+		thinkingBudget: GEMINI_25_THINKING_BUDGET_BY_EFFORT[reasoning.effort],
+		includeThoughts: true,
+	};
 }
 
 const directAnthropicProviderRule: ProviderOptionRule = {
@@ -208,19 +270,29 @@ const openRouterReasoningRule: ProviderOptionRule = {
 const geminiThinkingRule: ProviderOptionRule = {
 	id: "provider.google-gemini.thinking-config",
 	phase: "provider",
-	description: "Google/Gemini maps reasoning effort to google.thinkingConfig.",
+	description: "Google/Gemini/Vertex maps reasoning to thinkingConfig.",
+	suppresses: { genericThinking: true, genericEffort: true },
 	applies: (input) =>
 		(input.request.providerId === "google" ||
-			input.request.providerId === "gemini") &&
-		!!input.request.reasoning?.effort,
-	build: (input) => ({
-		google: {
-			thinkingConfig: {
-				thinkingLevel: input.request.reasoning?.effort,
-				includeThoughts: true,
+			input.request.providerId === "gemini" ||
+			input.request.providerId === "vertex") &&
+		supportsGeminiThinking(input) &&
+		(!!input.request.reasoning?.effort ||
+			typeof input.request.reasoning?.budgetTokens === "number" ||
+			input.request.reasoning?.enabled === false),
+	build: (input) => {
+		const providerOptionsName =
+			input.request.providerId === "vertex" ? "vertex" : "google";
+		const thinkingConfig = buildGeminiThinkingConfig(input);
+		if (!thinkingConfig) {
+			return undefined;
+		}
+		return {
+			[providerOptionsName]: {
+				thinkingConfig,
 			},
-		},
-	}),
+		};
+	},
 };
 
 const clineReasoningDisabledThinkingRule: ProviderOptionRule = {
