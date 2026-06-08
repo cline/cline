@@ -1,6 +1,6 @@
 import { describe, it } from "mocha"
 import "should"
-import { fixModelHtmlEscaping, removeInvalidChars, sanitizeTextForModelInput } from "./string"
+import { extractReasoningText, fixModelHtmlEscaping, removeInvalidChars, sanitizeTextForModelInput } from "./string"
 
 describe("fixModelHtmlEscaping", () => {
 	it("should convert &gt; to >", () => {
@@ -73,5 +73,21 @@ describe("sanitizeTextForModelInput", () => {
 		const text = "line 1\nline 2\tcolumn\rreturn"
 
 		sanitizeTextForModelInput(text).should.equal(text)
+	})
+})
+
+describe("extractReasoningText", () => {
+	it("should sanitize and join text reasoning details", () => {
+		const details = [
+			{ type: "reasoning.text", text: "\u001b[31mfirst\u001b[0m" },
+			{ type: "reasoning.encrypted", data: "ignored" },
+			{ type: "reasoning.text", text: "second\x00" },
+		]
+
+		extractReasoningText(details).should.equal("first\nsecond")
+	})
+
+	it("should ignore non-array reasoning details", () => {
+		extractReasoningText({ text: "ignored" }).should.equal("")
 	})
 })

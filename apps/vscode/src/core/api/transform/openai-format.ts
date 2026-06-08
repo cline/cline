@@ -11,7 +11,7 @@ import {
 	ClineUserToolResultContentBlock,
 } from "@/shared/messages/content"
 import { Logger } from "@/shared/services/Logger"
-import { sanitizeTextForModelInput } from "@/utils/string"
+import { extractReasoningText, sanitizeTextForModelInput } from "@/utils/string"
 
 // OpenAI API has a maximum tool call ID length of 40 characters
 const MAX_TOOL_CALL_ID_LENGTH = 40
@@ -25,23 +25,6 @@ function appendReasoningDetails(reasoningDetails: any[], details: unknown): void
 	} else {
 		reasoningDetails.push(details)
 	}
-}
-
-function extractReasoningText(details: unknown): string {
-	if (!Array.isArray(details)) {
-		return ""
-	}
-
-	return details
-		.map((detail) => {
-			const text = detail && typeof detail === "object" && "text" in detail ? (detail as { text?: unknown }).text : undefined
-			if (typeof text === "string") {
-				return sanitizeTextForModelInput(text)
-			}
-			return ""
-		})
-		.filter((text) => text.trim().length > 0)
-		.join("\n")
 }
 
 /**
@@ -196,26 +179,27 @@ export function convertToOpenAiMessages(
 					})
 				}
 			} else if (anthropicMessage.role === "assistant") {
-				const { nonToolMessages, toolMessages, thinkingMessages, redactedThinkingMessages } = anthropicMessage.content.reduce<{
-					nonToolMessages: (ClineTextContentBlock | ClineImageContentBlock)[]
-					toolMessages: ClineAssistantToolUseBlock[]
-					thinkingMessages: ClineAssistantThinkingBlock[]
-					redactedThinkingMessages: ClineAssistantRedactedThinkingBlock[]
-				}>(
-					(acc, part) => {
-						if (part.type === "tool_use") {
-							acc.toolMessages.push(part)
-						} else if (part.type === "thinking") {
-							acc.thinkingMessages.push(part)
-						} else if (part.type === "redacted_thinking") {
-							acc.redactedThinkingMessages.push(part)
-						} else if (part.type === "text" || part.type === "image") {
-							acc.nonToolMessages.push(part)
-						} // assistant cannot send tool_result messages
-						return acc
-					},
-					{ nonToolMessages: [], toolMessages: [], thinkingMessages: [], redactedThinkingMessages: [] },
-				)
+				const { nonToolMessages, toolMessages, thinkingMessages, redactedThinkingMessages } =
+					anthropicMessage.content.reduce<{
+						nonToolMessages: (ClineTextContentBlock | ClineImageContentBlock)[]
+						toolMessages: ClineAssistantToolUseBlock[]
+						thinkingMessages: ClineAssistantThinkingBlock[]
+						redactedThinkingMessages: ClineAssistantRedactedThinkingBlock[]
+					}>(
+						(acc, part) => {
+							if (part.type === "tool_use") {
+								acc.toolMessages.push(part)
+							} else if (part.type === "thinking") {
+								acc.thinkingMessages.push(part)
+							} else if (part.type === "redacted_thinking") {
+								acc.redactedThinkingMessages.push(part)
+							} else if (part.type === "text" || part.type === "image") {
+								acc.nonToolMessages.push(part)
+							} // assistant cannot send tool_result messages
+							return acc
+						},
+						{ nonToolMessages: [], toolMessages: [], thinkingMessages: [], redactedThinkingMessages: [] },
+					)
 
 				// Process non-tool messages
 				let content: string | undefined

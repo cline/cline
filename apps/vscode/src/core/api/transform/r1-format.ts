@@ -1,27 +1,13 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { ClineAssistantThinkingBlock, ClineStorageMessage } from "@/shared/messages/content"
-import { sanitizeTextForModelInput } from "@/utils/string"
+import { extractReasoningText, sanitizeTextForModelInput } from "@/utils/string"
 
 /**
  * DeepSeek Reasoner message format with reasoning_content support.
  */
 export type DeepSeekReasonerMessage = OpenAI.Chat.ChatCompletionMessageParam & {
 	reasoning_content?: string
-}
-
-function extractReasoningText(details: unknown): string {
-	if (!Array.isArray(details)) {
-		return ""
-	}
-
-	return details
-		.map((detail) => {
-			const text = detail && typeof detail === "object" && "text" in detail ? (detail as { text?: unknown }).text : undefined
-			return typeof text === "string" ? sanitizeTextForModelInput(text) : ""
-		})
-		.filter((text) => text.trim().length > 0)
-		.join("\n")
 }
 
 /**

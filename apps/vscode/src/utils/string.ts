@@ -37,3 +37,18 @@ const ANSI_ESCAPE_PATTERN = new RegExp(
 export function sanitizeTextForModelInput(text: string): string {
 	return text.replace(ANSI_ESCAPE_PATTERN, "").replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "")
 }
+
+export function extractReasoningText(details: unknown): string {
+	if (!Array.isArray(details)) {
+		return ""
+	}
+
+	return details
+		.map((detail) => {
+			const text =
+				detail && typeof detail === "object" && "text" in detail ? (detail as { text?: unknown }).text : undefined
+			return typeof text === "string" ? sanitizeTextForModelInput(text) : ""
+		})
+		.filter((text) => text.trim().length > 0)
+		.join("\n")
+}
