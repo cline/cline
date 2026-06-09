@@ -9,6 +9,70 @@ import { resolveApiKey } from "../http";
 import { splitToolImagesMiddleware } from "../middleware/split-tool-images";
 import type { ProviderFactoryResult } from "./types";
 
+type FetchInput = Parameters<typeof fetch>[0];
+type FetchWithOptionalPreconnect = typeof fetch & {
+	preconnect?: (...args: unknown[]) => unknown;
+};
+
+function readAzureApiVersion(
+	config: GatewayResolvedProviderConfig,
+): string | undefined {
+	const apiVersion = config.options?.apiVersion;
+	if (typeof apiVersion !== "string") {
+		return undefined;
+	}
+	const trimmed = apiVersion.trim();
+	return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function shouldAddAzureApiVersion(url: URL): boolean {
+	return (
+		url.pathname.startsWith("/openai/deployments/") &&
+		!url.searchParams.has("api-version")
+	);
+}
+
+function withAzureApiVersion(
+	input: FetchInput,
+	apiVersion: string,
+): FetchInput {
+	let url: URL;
+	try {
+		url = new URL(input instanceof Request ? input.url : input.toString());
+	} catch {
+		return input;
+	}
+	if (!shouldAddAzureApiVersion(url)) {
+		return input;
+	}
+	url.searchParams.set("api-version", apiVersion);
+	if (input instanceof Request) {
+		return new Request(url.toString(), input);
+	}
+	return (typeof input === "string" ? url.toString() : url) as FetchInput;
+}
+
+function createAzureApiVersionFetch(
+	config: GatewayResolvedProviderConfig,
+): typeof fetch | undefined {
+	const apiVersion = readAzureApiVersion(config);
+	if (!apiVersion) {
+		return config.fetch;
+	}
+	const baseFetch = config.fetch ?? globalThis.fetch;
+	if (!baseFetch) {
+		return config.fetch;
+	}
+	const azureFetch = ((input, init) =>
+		baseFetch(withAzureApiVersion(input, apiVersion), init)) as typeof fetch;
+	const baseFetchWithPreconnect = baseFetch as FetchWithOptionalPreconnect;
+	(azureFetch as FetchWithOptionalPreconnect).preconnect =
+		typeof baseFetchWithPreconnect.preconnect === "function"
+			? baseFetchWithPreconnect.preconnect.bind(baseFetch)
+			: () => undefined;
+	return azureFetch;
+}
+
 export async function createOpenAICompatibleProviderModule(
 	config: GatewayResolvedProviderConfig,
 	context: GatewayProviderContext,
@@ -18,12 +82,13 @@ export async function createOpenAICompatibleProviderModule(
 	// authoritative error and is surfaced to the user as-is. This keeps
 	// `llms` unopinionated about which providers do or don't need a key.
 	const apiKey = await resolveApiKey(config);
+	const fetch = createAzureApiVersionFetch(config);
 	const provider = createOpenAICompatible({
 		name: context.provider.id,
 		apiKey,
 		...(config.baseUrl ? { baseURL: config.baseUrl } : {}),
 		...(config.headers ? { headers: config.headers } : {}),
-		...(config.fetch ? { fetch: config.fetch } : {}),
+		...(fetch ? { fetch } : {}),
 		includeUsage: true,
 	} as never);
 	return {

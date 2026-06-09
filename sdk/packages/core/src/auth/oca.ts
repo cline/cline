@@ -12,8 +12,6 @@ import { startLocalOAuthServer } from "./server";
 import type {
 	OAuthCredentials,
 	OAuthLoginCallbacks,
-	OAuthProviderInterface,
-	OcaClientMetadata,
 	OcaMode,
 	OcaOAuthConfig,
 	OcaOAuthProviderOptions,
@@ -524,65 +522,4 @@ export async function getValidOcaCredentials(
 		}
 		return null;
 	}
-}
-
-export function createOcaOAuthProvider(
-	options: OcaOAuthProviderOptions = {},
-): OAuthProviderInterface {
-	return {
-		id: "oca",
-		name: "Oracle Code Assist",
-		usesCallbackServer: true,
-		async login(callbacks) {
-			return loginOcaOAuth({ ...options, callbacks });
-		},
-		async refreshToken(credentials) {
-			return refreshOcaToken(credentials, options);
-		},
-		getApiKey(credentials) {
-			return credentials.access;
-		},
-	};
-}
-
-export async function generateOcaOpcRequestId(
-	taskId: string,
-	token: string,
-): Promise<string> {
-	const encoder = new TextEncoder();
-	const hash8 = async (value: string): Promise<string> => {
-		const digest = await crypto.subtle.digest("SHA-256", encoder.encode(value));
-		return Array.from(new Uint8Array(digest).slice(0, 4), (byte) =>
-			byte.toString(16).padStart(2, "0"),
-		).join("");
-	};
-
-	const [tokenHex, taskHex] = await Promise.all([hash8(token), hash8(taskId)]);
-	const timestampHex = Math.floor(Date.now() / 1000)
-		.toString(16)
-		.padStart(8, "0");
-	const randomPart = new Uint32Array(1);
-	crypto.getRandomValues(randomPart);
-	const randomHex = (randomPart[0] ?? 0).toString(16).padStart(8, "0");
-	return tokenHex + taskHex + timestampHex + randomHex;
-}
-
-export async function createOcaRequestHeaders(input: {
-	accessToken: string;
-	taskId: string;
-	metadata?: OcaClientMetadata;
-}): Promise<Record<string, string>> {
-	const opcRequestId = await generateOcaOpcRequestId(
-		input.taskId,
-		input.accessToken,
-	);
-	return {
-		Authorization: `Bearer ${input.accessToken}`,
-		"Content-Type": "application/json",
-		client: input.metadata?.client ?? "Cline",
-		"client-version": input.metadata?.clientVersion ?? "unknown",
-		"client-ide": input.metadata?.clientIde ?? "unknown",
-		"client-ide-version": input.metadata?.clientIdeVersion ?? "unknown",
-		[OCI_HEADER_OPC_REQUEST_ID]: opcRequestId,
-	};
 }

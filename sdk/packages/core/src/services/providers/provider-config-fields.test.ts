@@ -84,14 +84,35 @@ describe("getProviderConfigFields", () => {
 		expect(result.fields).toEqual({});
 	});
 
-	it("returns api-key auth with apiKey + baseUrl for OpenAI Compatible", () => {
+	it("returns api-key auth with apiKey, baseUrl, and Azure API version for OpenAI Compatible", () => {
 		const result = getProviderConfigFields("openai-compatible");
 		expect(result.providerId).toBe("openai-compatible");
 		expect(result.authMethod).toBe("api-key");
+		expect(result.description).toMatch(/Azure AI Foundry/i);
 		expect(result.fields.apiKey).toEqual({});
 		expect(result.fields.baseUrl?.defaultValue).toBe(
 			"https://api.openai.com/v1",
 		);
+		expect(result.fields.azureApiVersion).toMatchObject({
+			label: "Azure API Version (optional)",
+			placeholder: "2025-01-01-preview",
+			optional: true,
+		});
+	});
+
+	it("returns Vertex GCP config fields with optional API key", () => {
+		const result = getProviderConfigFields("vertex");
+		expect(result.providerId).toBe("vertex");
+		expect(result.authMethod).toBe("api-key");
+		expect(result.description).toMatch(/Application Default Credentials/i);
+		expect(Object.keys(result.fields)).toEqual([
+			"gcpProjectId",
+			"gcpRegion",
+			"apiKey",
+		]);
+		expect(result.fields.gcpProjectId?.label).toBe("Google Cloud Project ID");
+		expect(result.fields.gcpRegion?.defaultValue).toBe("us-central1");
+		expect(result.fields.apiKey?.optional).toBe(true);
 	});
 
 	it("returns api-key auth with awsRegion, apiKey, and awsProfile for bedrock", () => {

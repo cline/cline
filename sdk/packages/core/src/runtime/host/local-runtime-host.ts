@@ -13,6 +13,7 @@ import {
 	normalizeUserInput,
 } from "@cline/shared";
 import { setHomeDirIfUnset } from "@cline/shared/storage";
+import { isOAuthProvider } from "../../auth/provider-auth-registry";
 import { createContextCompactionPrepareTurn } from "../../extensions/context/compaction";
 import type { ToolExecutors } from "../../extensions/tools";
 import { DefaultToolNames } from "../../extensions/tools";
@@ -1544,7 +1545,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 		try {
 			return await run();
 		} catch (error) {
-			if (!isLikelyAuthError(error, session.config.providerId)) {
+			if (
+				!isOAuthProvider(session.config.providerId) ||
+				!isLikelyAuthError(error)
+			) {
 				throw error;
 			}
 			await this.syncOAuthCredentials(session, { forceRefresh: true });
