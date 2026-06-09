@@ -393,6 +393,53 @@ describe("createGatewayApiHandler.createMessage", () => {
 		expect(call).not.toHaveProperty("maxOutputTokens");
 	});
 
+	it.each([
+		false,
+		true,
+	])("does not send GLM reasoning controls to generic openai-compatible providers when thinking=%s", async (thinking) => {
+		streamTextSpy.mockReturnValue({
+			fullStream: (async function* () {
+				yield { type: "finish", finishReason: "stop" };
+			})(),
+			usage: Promise.resolve({ inputTokens: 1, outputTokens: 1 }),
+		});
+
+		const handler = createGatewayApiHandler({
+			providerId: "openai-compatible",
+			clientType: "openai-compatible",
+			modelId: "zai-org/GLM-5.1",
+			apiKey: "test-key",
+			thinking,
+			modelInfo: {
+				id: "zai-org/GLM-5.1",
+				name: "GLM 5.1",
+				capabilities: ["streaming", "reasoning"],
+			},
+		});
+
+		for await (const _chunk of handler.createMessage("", [
+			{ role: "user", content: "Hello" },
+		])) {
+			// Drain the stream so the provider request is executed.
+		}
+
+		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+			| { providerOptions?: Record<string, Record<string, unknown>> }
+			| undefined;
+		expect(call?.providerOptions?.openaiCompatible).not.toHaveProperty(
+			"reasoning",
+		);
+		expect(call?.providerOptions?.openaiCompatible).not.toHaveProperty(
+			"thinking",
+		);
+		expect(call?.providerOptions?.["openai-compatible"]).not.toHaveProperty(
+			"reasoning",
+		);
+		expect(call?.providerOptions?.["openai-compatible"]).not.toHaveProperty(
+			"thinking",
+		);
+	});
+
 	it("caps configured maxOutputTokens with the catalog model output limit", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: (async function* () {
