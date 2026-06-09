@@ -18,7 +18,7 @@ interface HubCommandIo {
 async function stopHubServer(_workspaceRoot: string): Promise<boolean> {
 	const owner = resolveCliHubOwnerContext();
 	const discovery = await readHubDiscovery(owner.discoveryPath);
-	if (await stopLocalHubServerGracefully()) {
+	if (await stopLocalHubServerGracefully(owner)) {
 		await clearHubDiscovery(owner.discoveryPath);
 		return true;
 	}

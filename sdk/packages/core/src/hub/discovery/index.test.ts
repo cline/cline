@@ -90,6 +90,30 @@ describe("hub discovery", () => {
 		await expect(readHubDiscovery(discoveryPath)).resolves.toBeUndefined();
 	});
 
+	it("rejects discovery records without an auth token", async () => {
+		snapshot = captureEnv();
+		delete process.env.CLINE_HUB_DISCOVERY_PATH;
+		process.env.CLINE_DATA_DIR = "/tmp/cline-data";
+
+		const discoveryPath = resolveHubOwnerContext("missing-auth").discoveryPath;
+		await mkdir(dirname(discoveryPath), { recursive: true });
+		await writeFile(
+			discoveryPath,
+			`${JSON.stringify({
+				hubId: "hub_123",
+				protocolVersion: "v1",
+				host: "127.0.0.1",
+				port: 25463,
+				url: "ws://127.0.0.1:25463/hub",
+				startedAt: new Date().toISOString(),
+				updatedAt: new Date().toISOString(),
+			})}\n`,
+			"utf8",
+		);
+
+		await expect(readHubDiscovery(discoveryPath)).resolves.toBeUndefined();
+	});
+
 	it("returns only public health fields for unauthenticated probes", async () => {
 		const fetchMock = async () =>
 			({

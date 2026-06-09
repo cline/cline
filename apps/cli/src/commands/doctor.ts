@@ -458,7 +458,9 @@ export async function runDoctorCommand(
 	}
 
 	const gracefullyStoppedHub = before.hubHealthy
-		? await stopLocalHubServerGracefully().catch(() => false)
+		? await stopLocalHubServerGracefully(resolveCliHubOwnerContext()).catch(
+				() => false,
+			)
 		: false;
 	const refreshedAfterGracefulStop = gracefullyStoppedHub
 		? await collectDoctorStatus(opts.cwd)

@@ -17,7 +17,6 @@ import {
 import {
 	clearHubDiscovery,
 	createHubServerUrl,
-	type HubServerDiscoveryRecord,
 	type HubServerProbeRecord,
 	probeHubServer,
 	readHubDiscovery,
@@ -96,7 +95,7 @@ async function waitForHubToRetire(
 }
 
 async function retireDiscoveredHub(
-	record: Pick<HubServerDiscoveryRecord, "url" | "authToken" | "pid">,
+	record: { url: string; authToken?: string; pid?: number },
 	discoveryPath: string,
 ): Promise<boolean> {
 	await requestHubShutdown(record.url, record.authToken).catch(() => false);

@@ -19,7 +19,7 @@ export interface HubServerDiscoveryRecord {
 	capabilities?: readonly string[];
 	coreVersion?: string;
 	buildId?: string;
-	authToken?: string;
+	authToken: string;
 	host: string;
 	port: number;
 	url: string;

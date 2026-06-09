@@ -1034,8 +1034,9 @@ export async function requestHubShutdown(
 	return response.ok;
 }
 
-export async function stopLocalHubServerGracefully(): Promise<boolean> {
-	const owner = resolveProductionHubOwnerContext();
+export async function stopLocalHubServerGracefully(
+	owner: HubOwnerContext = resolveProductionHubOwnerContext(),
+): Promise<boolean> {
 	const discovery = await readHubDiscovery(owner.discoveryPath);
 	if (!discovery?.url) {
 		return false;

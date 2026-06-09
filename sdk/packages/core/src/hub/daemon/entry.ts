@@ -70,6 +70,7 @@ async function main(): Promise<void> {
 				? resolveProductionHubOwnerContext()
 				: resolveSharedHubOwnerContext(),
 		runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+		cronOptions: { workspaceRoot: options.cwd },
 	});
 
 	const shutdown = async (): Promise<void> => {
