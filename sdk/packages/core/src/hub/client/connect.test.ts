@@ -65,8 +65,12 @@ describe("resolveHubUrl", () => {
 
 		await expect(resolveHubUrl()).resolves.toBe("ws://127.0.0.1:25466/hub");
 
-		expect(readHubDiscovery.mock.calls[0]?.[0]).toContain("/locks/hub/owners/");
-		expect(readHubDiscovery.mock.calls[0]?.[0]).not.toBe(
+		const discoveryPath = readHubDiscovery.mock.calls[0]?.[0].replaceAll(
+			"\\",
+			"/",
+		);
+		expect(discoveryPath).toContain("/locks/hub/owners/");
+		expect(discoveryPath).not.toBe(
 			"/tmp/cline-connect-test-data/locks/hub/production.json",
 		);
 	});
