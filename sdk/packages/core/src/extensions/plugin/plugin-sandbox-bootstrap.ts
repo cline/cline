@@ -12,6 +12,7 @@
 
 import {
 	type AutomationEventEnvelope,
+	assertToolInputSchemaPortable,
 	normalizePluginManifest,
 	type PluginManifest,
 } from "@cline/shared";
@@ -415,6 +416,7 @@ async function loadPluginDescriptor(args: {
 			moduleExports[args.exportName]) as unknown as PluginModule;
 		assertValidPluginModule(plugin, args.pluginPath);
 		plugin.manifest = normalizePluginManifest(plugin.manifest);
+		const pluginName = plugin.name;
 		if (!matchesPluginManifestTargeting(plugin.manifest, args.targeting)) {
 			return { type: "skipped" };
 		}
@@ -438,6 +440,10 @@ async function loadPluginDescriptor(args: {
 
 		const api: PluginApi = {
 			registerTool: (tool) => {
+				assertToolInputSchemaPortable(tool.inputSchema, {
+					extensionName: pluginName,
+					toolName: tool.name,
+				});
 				const id = makeId(args.pluginId, "tool");
 				handlers.tools.set(id, tool.execute);
 				contributions.tools.push({

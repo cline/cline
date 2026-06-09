@@ -154,3 +154,38 @@ describe("ContributionRegistry automation event contributions", () => {
 		);
 	});
 });
+
+describe("ContributionRegistry tool contributions", () => {
+	it("rejects raw plugin tool schemas with regex lookaround patterns", async () => {
+		const registry = createContributionRegistry({
+			extensions: [
+				{
+					name: "raw-tool-plugin",
+					manifest: { capabilities: ["tools"] },
+					setup(api) {
+						api.registerTool({
+							name: "save_handoff",
+							description: "Save a handoff file",
+							inputSchema: {
+								type: "object",
+								properties: {
+									path: {
+										type: "string",
+										pattern:
+											"^(?!\\/)(?!.*(?:^|\\/)\\.\\.(?:\\/|$))[A-Za-z0-9._/-]+$",
+									},
+								},
+								required: ["path"],
+							},
+							execute: async () => ({ ok: true }),
+						});
+					},
+				},
+			],
+		});
+
+		await expect(registry.initialize()).rejects.toThrow(
+			/raw-tool-plugin\.save_handoff.*\$\.properties\.path\.pattern.*lookaround/i,
+		);
+	});
+});

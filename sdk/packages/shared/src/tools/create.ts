@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { AgentTool, AgentToolContext } from "../agent";
 import { zodToJsonSchema } from "../parse/zod";
+import { assertToolInputSchemaPortable } from "./schema-compat";
 
 function normalizeToolInputSchema(
 	inputSchema: Record<string, unknown>,
@@ -116,6 +117,7 @@ export function createTool<TInput, TOutput>(config: {
 			? zodToJsonSchema(config.inputSchema)
 			: config.inputSchema,
 	);
+	assertToolInputSchemaPortable(inputSchema, { toolName: config.name });
 
 	return {
 		name: config.name,
