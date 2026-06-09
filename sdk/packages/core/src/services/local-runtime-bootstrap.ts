@@ -5,6 +5,8 @@ import type {
 	AgentTool,
 	ExtensionContext,
 	ITelemetryService,
+	ModelCapability,
+	ModelInfo,
 	RuntimeConfigExtensionKind,
 	ToolApprovalRequest,
 	ToolApprovalResult,
@@ -179,6 +181,74 @@ function deriveOpenAICodexAccountId(
 	return undefined;
 }
 
+const MODEL_CAPABILITIES_BY_PROVIDER_CAPABILITY: Partial<
+	Record<
+		NonNullable<ProviderSettings["capabilities"]>[number],
+		ModelCapability[]
+	>
+> = {
+	streaming: ["streaming"],
+	tools: ["tools"],
+	reasoning: ["reasoning"],
+	"prompt-cache": ["prompt-cache"],
+	vision: ["images", "files"],
+	"computer-use": ["computer-use"],
+};
+
+function toModelCapabilities(
+	capabilities: ProviderSettings["capabilities"],
+): ModelCapability[] | undefined {
+	if (!capabilities || capabilities.length === 0) {
+		return undefined;
+	}
+	const mapped = new Set<ModelCapability>();
+	for (const capability of capabilities) {
+		for (const modelCapability of MODEL_CAPABILITIES_BY_PROVIDER_CAPABILITY[
+			capability
+		] ?? []) {
+			mapped.add(modelCapability);
+		}
+	}
+	return mapped.size > 0 ? [...mapped] : undefined;
+}
+
+/**
+ * Stored provider settings can carry user-supplied model metadata
+ * (contextWindow, maxTokens, capabilities) for models absent from every
+ * catalog, e.g. a custom model id on the OpenAI-compatible provider. The
+ * runtime resolves model behaviour (compaction thresholds, image support,
+ * output-token caps) from `knownModels` entries, so without an entry for the
+ * configured model those settings would be silently ignored.
+ */
+function buildStoredModelInfoOverride(
+	stored: ProviderSettings | undefined,
+	modelId: string | undefined,
+	knownModels: ProviderConfig["knownModels"],
+): ModelInfo | undefined {
+	if (!stored || !modelId) {
+		return undefined;
+	}
+	const capabilities = toModelCapabilities(stored.capabilities);
+	if (
+		stored.contextWindow === undefined &&
+		stored.maxTokens === undefined &&
+		!capabilities
+	) {
+		return undefined;
+	}
+	const existing = knownModels?.[modelId];
+	return {
+		...(existing ?? {}),
+		id: modelId,
+		name: existing?.name ?? modelId,
+		...(stored.contextWindow !== undefined
+			? { contextWindow: stored.contextWindow }
+			: {}),
+		...(stored.maxTokens !== undefined ? { maxTokens: stored.maxTokens } : {}),
+		...(capabilities ? { capabilities } : {}),
+	};
+}
+
 function buildProviderConfig(
 	config: CoreSessionConfig,
 	sessionId: string,
@@ -224,6 +294,17 @@ function buildProviderConfig(
 	};
 	if (config.knownModels) {
 		providerConfig.knownModels = config.knownModels;
+	}
+	const modelInfoOverride = buildStoredModelInfoOverride(
+		stored,
+		providerConfig.modelId,
+		providerConfig.knownModels,
+	);
+	if (modelInfoOverride) {
+		providerConfig.knownModels = {
+			...(providerConfig.knownModels ?? {}),
+			[modelInfoOverride.id]: modelInfoOverride,
+		};
 	}
 	if (config.extensionContext) {
 		providerConfig.extensionContext = config.extensionContext;

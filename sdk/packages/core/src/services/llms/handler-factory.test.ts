@@ -167,6 +167,57 @@ describe("createAgentModelFromConfig", () => {
 		});
 	});
 
+	it("falls back to providerConfig maxOutputTokens when maxTokensPerTurn is unset", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+
+		createAgentModelFromConfig(
+			{
+				providerId: "openai-compatible",
+				modelId: "my-custom-model",
+				apiKey: "test-key",
+				systemPrompt: "",
+				tools: [],
+				providerConfig: {
+					providerId: "openai-compatible",
+					modelId: "my-custom-model",
+					maxOutputTokens: 8_192,
+				},
+			} satisfies AgentConfig,
+			undefined,
+		);
+
+		expect(gatewayMock.createAgentModel).toHaveBeenLastCalledWith(
+			{ providerId: "openai-compatible", modelId: "my-custom-model" },
+			{ maxTokens: 8_192 },
+		);
+	});
+
+	it("prefers maxTokensPerTurn over providerConfig maxOutputTokens", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+
+		createAgentModelFromConfig(
+			{
+				providerId: "openai-compatible",
+				modelId: "my-custom-model",
+				apiKey: "test-key",
+				systemPrompt: "",
+				tools: [],
+				maxTokensPerTurn: 4_096,
+				providerConfig: {
+					providerId: "openai-compatible",
+					modelId: "my-custom-model",
+					maxOutputTokens: 8_192,
+				},
+			} satisfies AgentConfig,
+			undefined,
+		);
+
+		expect(gatewayMock.createAgentModel).toHaveBeenLastCalledWith(
+			{ providerId: "openai-compatible", modelId: "my-custom-model" },
+			{ maxTokens: 4_096 },
+		);
+	});
+
 	it("forwards Bedrock AWS settings as gateway provider options", async () => {
 		const { createAgentModelFromConfig } = await import("./handler-factory");
 

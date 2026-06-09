@@ -392,6 +392,82 @@ describe("prepareLocalRuntimeBootstrap", () => {
 		expect(bootstrap.providerConfig.fetch).toBeUndefined();
 	});
 
+	it("synthesizes a knownModels entry from stored model metadata overrides", async () => {
+		const { prepareLocalRuntimeBootstrap } = await import(
+			"./local-runtime-bootstrap"
+		);
+
+		const input = createStartInput();
+		input.config.providerId = "openai-compatible";
+		input.config.modelId = "my-custom-model";
+
+		const bootstrap = await prepareLocalRuntimeBootstrap({
+			input,
+			sessionId: "sess-model-overrides",
+			providerSettingsManager: createProviderSettingsManager({
+				provider: "openai-compatible",
+				model: "my-custom-model",
+				baseUrl: "https://llm.example.com/v1",
+				contextWindow: 128_000,
+				maxTokens: 8_192,
+				capabilities: ["vision", "tools"],
+			}) as never,
+			defaultTelemetry: undefined,
+			defaultToolPolicies: undefined,
+			onPluginEvent: () => {},
+			onTeamEvent: () => {},
+			createSpawnTool,
+			readSessionMetadata: async () => undefined,
+			writeSessionMetadata: async () => {},
+		});
+
+		expect(
+			bootstrap.providerConfig.knownModels?.["my-custom-model"],
+		).toMatchObject({
+			id: "my-custom-model",
+			contextWindow: 128_000,
+			maxTokens: 8_192,
+		});
+		expect(
+			bootstrap.providerConfig.knownModels?.["my-custom-model"]?.capabilities,
+		).toEqual(expect.arrayContaining(["images", "files", "tools"]));
+	});
+
+	it("does not synthesize a knownModels entry without stored model metadata", async () => {
+		const { prepareLocalRuntimeBootstrap } = await import(
+			"./local-runtime-bootstrap"
+		);
+
+		const input = createStartInput();
+		input.config.providerId = "openai-compatible";
+		input.config.modelId = "my-custom-model";
+
+		const bootstrap = await prepareLocalRuntimeBootstrap({
+			input,
+			sessionId: "sess-no-model-overrides",
+			providerSettingsManager: createProviderSettingsManager({
+				provider: "openai-compatible",
+				model: "my-custom-model",
+				baseUrl: "https://llm.example.com/v1",
+				headers: { "x-team": "infra" },
+			}) as never,
+			defaultTelemetry: undefined,
+			defaultToolPolicies: undefined,
+			onPluginEvent: () => {},
+			onTeamEvent: () => {},
+			createSpawnTool,
+			readSessionMetadata: async () => undefined,
+			writeSessionMetadata: async () => {},
+		});
+
+		expect(
+			bootstrap.providerConfig.knownModels?.["my-custom-model"],
+		).toBeUndefined();
+		expect(bootstrap.providerConfig.headers).toMatchObject({
+			"x-team": "infra",
+		});
+	});
+
 	it("adds Codex backend headers for openai-codex from stored OAuth settings", async () => {
 		const { prepareLocalRuntimeBootstrap } = await import(
 			"./local-runtime-bootstrap"
