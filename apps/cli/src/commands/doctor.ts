@@ -7,10 +7,11 @@ import {
 	probeHubServer,
 	readHubDiscovery,
 	resolveClineDataDir,
+	resolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext,
 	stopLocalHubServerGracefully,
 } from "@cline/core";
-import { formatUptime } from "@cline/shared";
+import { formatUptime, resolveClineBuildEnv } from "@cline/shared";
 import { Command } from "commander";
 import open from "open";
 import { isProcessRunning } from "../connectors/common";
@@ -54,6 +55,7 @@ type DoctorStatus = {
 	hubStartedAt?: string;
 	hubUptime?: string;
 	listeningPids: number[];
+	staleHubPids: number[];
 	hubStartupLocks: StartupArtifact[];
 	staleCliPids: number[];
 	staleSidecarPids: number[];
@@ -148,6 +150,25 @@ function listStaleCliPids(): number[] {
 		.map((record) => record.pid);
 }
 
+function listStaleHubPids(currentHubPids: number[]): number[] {
+	const current = new Set(currentHubPids.filter((pid) => pid > 0));
+	const patterns = [
+		"/sdk/packages/core/src/hub/daemon/entry.ts",
+		"/sdk/packages/core/dist/hub/daemon/entry.js",
+		"--cline-hub-daemon",
+	];
+	const records = new Map<number, ProcessRecord>();
+	for (const pattern of patterns) {
+		for (const record of listMatchingProcesses(pattern)) {
+			if (current.has(record.pid) || /\bpgrep\s+-fal\b/.test(record.command)) {
+				continue;
+			}
+			records.set(record.pid, record);
+		}
+	}
+	return [...records.values()].map((record) => record.pid);
+}
+
 function listStaleSidecarPids(): number[] {
 	const patterns = [
 		"/apps/examples/desktop-app/sidecar/index.ts",
@@ -235,7 +256,7 @@ function readStartupArtifact(path: string): StartupArtifact | undefined {
 }
 
 function listHubStartupLocks(_cwd: string): StartupArtifact[] {
-	const owner = resolveSharedHubOwnerContext();
+	const owner = resolveCliHubOwnerContext();
 	const ownerPath = join(`${owner.discoveryPath}.lock`, "owner.json");
 	if (!existsSync(ownerPath)) {
 		return [];
@@ -259,7 +280,7 @@ async function clearHubStartupArtifacts(
 	_cwd: string,
 	options?: { clearDiscovery?: boolean },
 ): Promise<{ startupLocks: number; discovery: number }> {
-	const owner = resolveSharedHubOwnerContext();
+	const owner = resolveCliHubOwnerContext();
 	const startupLocks = listHubStartupLocks(_cwd);
 	let clearedStartupLocks = 0;
 	for (const artifact of startupLocks) {
@@ -291,14 +312,25 @@ function formatHubUptimeFromStartedAt(
 	return formatUptime(Date.now() - timestamp);
 }
 
+function resolveCliHubOwnerContext() {
+	return resolveClineBuildEnv() === "production"
+		? resolveProductionHubOwnerContext()
+		: resolveSharedHubOwnerContext();
+}
+
 async function collectDoctorStatus(cwd: string): Promise<DoctorStatus> {
-	const owner = resolveSharedHubOwnerContext();
+	const owner = resolveCliHubOwnerContext();
 	const discovery = await readHubDiscovery(owner.discoveryPath);
 	const health = discovery?.url
-		? await probeHubServer(discovery.url)
+		? await probeHubServer(discovery.url, { authToken: discovery.authToken })
 		: undefined;
 	const current = health ?? discovery;
 	const hubUptime = formatHubUptimeFromStartedAt(health?.startedAt);
+	const listeningPids = listListeningPids(current?.port);
+	const currentHubPids = [
+		...(current?.pid ? [current.pid] : []),
+		...listeningPids,
+	];
 	return {
 		cwd,
 		hubUrl: current?.url,
@@ -306,7 +338,8 @@ async function collectDoctorStatus(cwd: string): Promise<DoctorStatus> {
 		hubPid: current?.pid,
 		hubStartedAt: health?.startedAt,
 		hubUptime,
-		listeningPids: listListeningPids(current?.port),
+		listeningPids,
+		staleHubPids: listStaleHubPids(currentHubPids),
 		hubStartupLocks: listHubStartupLocks(cwd),
 		staleCliPids: listStaleCliPids(),
 		staleSidecarPids: listStaleSidecarPids(),
@@ -388,6 +421,7 @@ export async function runDoctorCommand(
 		);
 		writeln(`hub uptime ${c.dim}${before.hubUptime ?? "n/a"}${c.reset}`);
 		writeln(formatPidList("hub listeners", before.listeningPids));
+		writeln(formatPidList("stale hub daemons", before.staleHubPids));
 		writeln(
 			formatPidList(
 				"hub startup locks",
@@ -412,6 +446,7 @@ export async function runDoctorCommand(
 		}
 		if (
 			before.listeningPids.length > 0 ||
+			before.staleHubPids.length > 0 ||
 			before.staleCliPids.length > 0 ||
 			before.staleSidecarPids.length > 0
 		) {
@@ -431,13 +466,20 @@ export async function runDoctorCommand(
 	const killedHub = gracefullyStoppedHub
 		? 0
 		: killPids(refreshedAfterGracefulStop.listeningPids);
-	const staleCliTargets = before.staleCliPids.filter(
+	const staleHubTargets = before.staleHubPids.filter(
 		(pid) => !refreshedAfterGracefulStop.listeningPids.includes(pid),
+	);
+	const killedStaleHubs = killPids(staleHubTargets);
+	const staleCliTargets = before.staleCliPids.filter(
+		(pid) =>
+			!refreshedAfterGracefulStop.listeningPids.includes(pid) &&
+			!staleHubTargets.includes(pid),
 	);
 	const killedCli = killPids(staleCliTargets);
 	const staleSidecarTargets = before.staleSidecarPids.filter(
 		(pid) =>
 			!refreshedAfterGracefulStop.listeningPids.includes(pid) &&
+			!staleHubTargets.includes(pid) &&
 			!staleCliTargets.includes(pid),
 	);
 	const killedSidecars = killPids(staleSidecarTargets);
@@ -459,6 +501,7 @@ export async function runDoctorCommand(
 				after,
 				killed: {
 					hubListeners: killedHub,
+					staleHubDaemons: killedStaleHubs,
 					cliProcesses: killedCli,
 					sidecarProcesses: killedSidecars,
 					connectorProcesses: stoppedConnectors.stoppedProcesses,
@@ -471,6 +514,7 @@ export async function runDoctorCommand(
 		return 0;
 	}
 	writeln(`killed hub listeners ${c.dim}${killedHub}${c.reset}`);
+	writeln(`killed stale hub daemons ${c.dim}${killedStaleHubs}${c.reset}`);
 	writeln(`killed cli processes ${c.dim}${killedCli}${c.reset}`);
 	writeln(`killed sidecar processes ${c.dim}${killedSidecars}${c.reset}`);
 	writeln(
@@ -487,6 +531,7 @@ export async function runDoctorCommand(
 	);
 	writeln(`hub healthy after fix: ${after.hubHealthy ? "yes" : "no"}`);
 	writeln(formatPidList("remaining hub listeners", after.listeningPids));
+	writeln(formatPidList("remaining stale hub daemons", after.staleHubPids));
 	writeln(
 		formatPidList(
 			"remaining hub startup locks",

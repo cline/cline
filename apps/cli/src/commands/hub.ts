@@ -3,10 +3,11 @@ import {
 	ensureDetachedHubServer,
 	probeHubServer,
 	readHubDiscovery,
+	resolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext,
 	stopLocalHubServerGracefully,
 } from "@cline/core";
-import { formatUptime } from "@cline/shared";
+import { formatUptime, resolveClineBuildEnv } from "@cline/shared";
 import { Command } from "commander";
 
 interface HubCommandIo {
@@ -15,7 +16,7 @@ interface HubCommandIo {
 }
 
 async function stopHubServer(_workspaceRoot: string): Promise<boolean> {
-	const owner = resolveSharedHubOwnerContext();
+	const owner = resolveCliHubOwnerContext();
 	const discovery = await readHubDiscovery(owner.discoveryPath);
 	if (await stopLocalHubServerGracefully()) {
 		await clearHubDiscovery(owner.discoveryPath);
@@ -44,6 +45,12 @@ function formatHubUptimeFromStartedAt(
 		return undefined;
 	}
 	return formatUptime(Date.now() - timestamp);
+}
+
+function resolveCliHubOwnerContext() {
+	return resolveClineBuildEnv() === "production"
+		? resolveProductionHubOwnerContext()
+		: resolveSharedHubOwnerContext();
 }
 
 export function createHubCommand(
@@ -112,10 +119,12 @@ export function createHubCommand(
 
 	hub.command("status").action(
 		action(async () => {
-			const owner = resolveSharedHubOwnerContext();
+			const owner = resolveCliHubOwnerContext();
 			const discovery = await readHubDiscovery(owner.discoveryPath);
 			const health = discovery?.url
-				? await probeHubServer(discovery.url)
+				? await probeHubServer(discovery.url, {
+						authToken: discovery.authToken,
+					})
 				: undefined;
 			const uptime = formatHubUptimeFromStartedAt(health?.startedAt);
 			io.writeln(

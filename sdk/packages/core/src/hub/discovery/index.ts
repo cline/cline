@@ -14,9 +14,12 @@ const HUB_STARTUP_LOCK_POLL_MS = 100;
 export interface HubServerDiscoveryRecord {
 	hubId: string;
 	protocolVersion: string;
+	minClientProtocolVersion?: string;
+	maxClientProtocolVersion?: string;
+	capabilities?: readonly string[];
 	coreVersion?: string;
 	buildId?: string;
-	authToken: string;
+	authToken?: string;
 	host: string;
 	port: number;
 	url: string;
@@ -135,6 +138,20 @@ export async function readHubDiscovery(
 		return {
 			hubId: parsed.hubId,
 			protocolVersion: parsed.protocolVersion,
+			minClientProtocolVersion:
+				typeof parsed.minClientProtocolVersion === "string"
+					? parsed.minClientProtocolVersion
+					: undefined,
+			maxClientProtocolVersion:
+				typeof parsed.maxClientProtocolVersion === "string"
+					? parsed.maxClientProtocolVersion
+					: undefined,
+			capabilities: Array.isArray(parsed.capabilities)
+				? parsed.capabilities.filter(
+						(capability): capability is string =>
+							typeof capability === "string",
+					)
+				: undefined,
 			coreVersion:
 				typeof parsed.coreVersion === "string" ? parsed.coreVersion : undefined,
 			buildId: typeof parsed.buildId === "string" ? parsed.buildId : undefined,
@@ -225,9 +242,17 @@ export async function withHubStartupLock<T>(
 
 export async function probeHubServer(
 	url: string,
+	options?: { authToken?: string },
 ): Promise<HubServerDiscoveryRecord | undefined> {
 	try {
-		const response = await fetch(toHubHealthUrl(url));
+		const response = await fetch(
+			options?.authToken ? toHubStatusUrl(url) : toHubHealthUrl(url),
+			{
+				headers: options?.authToken
+					? { authorization: `Bearer ${options.authToken}` }
+					: undefined,
+			},
+		);
 		if (!response.ok) {
 			return undefined;
 		}
@@ -250,6 +275,12 @@ export function toHubHealthUrl(wsUrl: string): string {
 	parsed.protocol = parsed.protocol === "wss:" ? "https:" : "http:";
 	parsed.pathname = "/health";
 	parsed.search = "";
+	return parsed.toString();
+}
+
+export function toHubStatusUrl(wsUrl: string): string {
+	const parsed = new URL(toHubHealthUrl(wsUrl));
+	parsed.pathname = "/status";
 	return parsed.toString();
 }
 

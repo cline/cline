@@ -1,5 +1,9 @@
+import { resolveClineBuildEnv } from "@cline/shared";
 import { resolveHubEndpointOptions } from "../discovery/defaults";
-import { resolveSharedHubOwnerContext } from "../discovery/workspace";
+import {
+	resolveProductionHubOwnerContext,
+	resolveSharedHubOwnerContext,
+} from "../discovery/workspace";
 import {
 	type EnsuredHubWebSocketServerResult,
 	type EnsureHubWebSocketServerOptions,
@@ -18,6 +22,12 @@ export interface StartHubServerOptions
 export interface EnsureHubServerOptions
 	extends Omit<EnsureHubWebSocketServerOptions, "owner"> {}
 
+function resolveDefaultHubOwnerContext() {
+	return resolveClineBuildEnv() === "production"
+		? resolveProductionHubOwnerContext()
+		: resolveSharedHubOwnerContext();
+}
+
 /**
  * Start a hub WebSocket server bound to the process-local shared owner
  * context. Callers that need a custom owner should invoke
@@ -34,7 +44,7 @@ export async function startHubServer(
 	return await startHubWebSocketServer({
 		...options,
 		...endpoint,
-		owner: resolveSharedHubOwnerContext(),
+		owner: resolveDefaultHubOwnerContext(),
 	});
 }
 
@@ -45,8 +55,6 @@ export async function startHubServer(
 export async function ensureHubServer(
 	options: EnsureHubServerOptions,
 ): Promise<EnsureHubServerResult> {
-	const hasExplicitPort =
-		options.port !== undefined || !!process.env.CLINE_HUB_PORT?.trim();
 	const endpoint = resolveHubEndpointOptions({
 		host: options.host,
 		port: options.port,
@@ -55,7 +63,7 @@ export async function ensureHubServer(
 	return await ensureHubWebSocketServer({
 		...options,
 		...endpoint,
-		allowPortFallback: options.allowPortFallback ?? !hasExplicitPort,
-		owner: resolveSharedHubOwnerContext(),
+		allowPortFallback: options.allowPortFallback,
+		owner: resolveDefaultHubOwnerContext(),
 	});
 }

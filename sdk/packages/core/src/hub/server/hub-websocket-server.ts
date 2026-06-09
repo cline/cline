@@ -2,6 +2,12 @@ import { timingSafeEqual } from "node:crypto";
 import http from "node:http";
 import net from "node:net";
 import { URL } from "node:url";
+import {
+	CURRENT_HUB_PROTOCOL_VERSION,
+	isHubProtocolCompatible,
+	MAX_CLIENT_HUB_PROTOCOL_VERSION,
+	MIN_CLIENT_HUB_PROTOCOL_VERSION,
+} from "@cline/shared";
 import { WebSocketServer } from "ws";
 import corePackage from "../../../package.json";
 import { rememberRecoverableLocalHubUrl, verifyHubConnection } from "../client";
@@ -244,7 +250,22 @@ export async function startHubWebSocketServer(
 	const cleanup = new Set<() => void>();
 	const startedAt = new Date().toISOString();
 	const versionPayload = {
-		protocolVersion: "v1",
+		protocolVersion: CURRENT_HUB_PROTOCOL_VERSION,
+		minClientProtocolVersion: MIN_CLIENT_HUB_PROTOCOL_VERSION,
+		maxClientProtocolVersion: MAX_CLIENT_HUB_PROTOCOL_VERSION,
+		capabilities: [
+			"client.register",
+			"client.list",
+			"session.create",
+			"session.list",
+			"session.get",
+			"session.run",
+			"session.abort",
+			"schedule.create",
+			"schedule.list",
+			"settings.get",
+			"settings.set",
+		],
 		coreVersion: corePackage.version,
 		buildId,
 		pid: process.pid,
@@ -301,9 +322,35 @@ export async function startHubWebSocketServer(
 	const server = http.createServer((req, res) => {
 		if ((req.url ?? "/") === "/health") {
 			const body = JSON.stringify({
+				ok: true,
+				protocolVersion: versionPayload.protocolVersion,
+				minClientProtocolVersion: versionPayload.minClientProtocolVersion,
+				maxClientProtocolVersion: versionPayload.maxClientProtocolVersion,
+				coreVersion: versionPayload.coreVersion,
+				host,
+				port,
+				url,
+			});
+			res.statusCode = 200;
+			res.setHeader("content-type", "application/json");
+			res.end(body);
+			return;
+		}
+		if ((req.url ?? "/") === "/status") {
+			if (
+				!isValidHubAuthToken(
+					readBearerToken(req.headers.authorization),
+					authToken,
+				)
+			) {
+				res.statusCode = 401;
+				res.end("Unauthorized");
+				return;
+			}
+			const body = JSON.stringify({
 				hubId: transport.getHubId(),
 				...versionPayload,
-				authToken: "",
+				authToken,
 				host,
 				port,
 				url,
@@ -449,7 +496,10 @@ export async function startHubWebSocketServer(
 
 	await writeHubDiscovery(owner.discoveryPath, {
 		hubId: transport.getHubId(),
-		protocolVersion: "v1",
+		protocolVersion: CURRENT_HUB_PROTOCOL_VERSION,
+		minClientProtocolVersion: MIN_CLIENT_HUB_PROTOCOL_VERSION,
+		maxClientProtocolVersion: MAX_CLIENT_HUB_PROTOCOL_VERSION,
+		capabilities: [...versionPayload.capabilities],
 		coreVersion: corePackage.version,
 		buildId,
 		authToken,
@@ -511,9 +561,12 @@ export async function ensureHubWebSocketServer(
 			discovered?.url &&
 			(discovered.url === expectedUrl || options.allowPortFallback === true);
 		if (canReuseDiscovered) {
-			const healthy = await probeHubServer(discovered.url);
+			const healthy = await probeHubServer(discovered.url, {
+				authToken: discovered.authToken,
+			});
 			if (
 				healthy?.url &&
+				isHubProtocolCompatible(healthy).compatible &&
 				(await verifyHubConnection(healthy.url, {
 					authToken: discovered.authToken,
 				}))
@@ -527,7 +580,7 @@ export async function ensureHubWebSocketServer(
 		}
 
 		const expected = await probeHubServer(expectedUrl);
-		if (expected?.url || discovered?.url) {
+		if (!expected?.url && discovered?.url) {
 			await clearHubDiscovery(owner.discoveryPath);
 		}
 

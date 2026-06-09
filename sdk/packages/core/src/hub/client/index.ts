@@ -5,6 +5,7 @@ import {
 	type HubEventEnvelope,
 	type HubReplyEnvelope,
 	type HubTransportFrame,
+	isHubProtocolCompatible,
 	resolveHubCommandTimeoutMs,
 } from "@cline/shared";
 import {
@@ -17,9 +18,8 @@ import {
 	type HubOwnerContext,
 	probeHubServer,
 	readHubDiscovery,
-	resolveHubBuildId,
 } from "../discovery";
-import { resolveSharedHubOwnerContext } from "../discovery/workspace";
+import { resolveProductionHubOwnerContext } from "../discovery/workspace";
 
 type PendingReply = {
 	resolve: (reply: HubReplyEnvelope) => void;
@@ -821,7 +821,7 @@ type HubProbeResult =
 			url: string;
 	  }
 	| {
-			status: "unreachable" | "build_mismatch";
+			status: "unreachable" | "protocol_mismatch";
 			url: string;
 	  };
 
@@ -835,18 +835,18 @@ async function probeCompatibleHubUrl(
 	},
 ): Promise<HubProbeResult> {
 	const normalized = normalizeHubWebSocketUrl(url);
-	const record = await probeHubServer(normalized);
+	const record = await probeHubServer(normalized, {
+		authToken: options?.authToken,
+	});
 	if (!record) {
 		return {
 			status: "unreachable",
 			url: normalized,
 		};
 	}
-	const buildId = resolveHubBuildId();
-	const recordBuildId = record.buildId?.trim();
-	if (!recordBuildId || recordBuildId !== buildId) {
+	if (!isHubProtocolCompatible(record).compatible) {
 		return {
-			status: "build_mismatch",
+			status: "protocol_mismatch",
 			url: normalized,
 		};
 	}
@@ -973,16 +973,18 @@ export async function resolveCompatibleLocalHubUrl(
 		return compatible.status === "compatible" ? compatible.url : undefined;
 	}
 
-	const owner = resolveSharedHubOwnerContext();
+	const owner = resolveProductionHubOwnerContext();
 	const record = await readHubDiscovery(owner.discoveryPath);
 	if (!record?.url) {
 		return undefined;
 	}
-	const compatible = await probeCompatibleHubUrl(record.url);
+	const compatible = await probeCompatibleHubUrl(record.url, {
+		authToken: record.authToken,
+	});
 	if (compatible.status === "compatible") {
 		return rememberRecoverableLocalHubUrl(compatible.url, record.authToken);
 	}
-	if (compatible.status === "build_mismatch") {
+	if (compatible.status === "protocol_mismatch") {
 		await clearHubDiscovery(owner.discoveryPath).catch(() => undefined);
 	}
 	return undefined;
@@ -1004,7 +1006,7 @@ export async function ensureCompatibleLocalHubUrl(
 	if (options.endpoint?.trim()) {
 		return undefined;
 	}
-	const owner = resolveSharedHubOwnerContext();
+	const owner = resolveProductionHubOwnerContext();
 	await spawnDetachedHubServerWithRetry(options.workspaceRoot ?? process.cwd());
 	return await waitForCompatibleHubUrl(owner);
 }
@@ -1033,7 +1035,7 @@ export async function requestHubShutdown(
 }
 
 export async function stopLocalHubServerGracefully(): Promise<boolean> {
-	const owner = resolveSharedHubOwnerContext();
+	const owner = resolveProductionHubOwnerContext();
 	const discovery = await readHubDiscovery(owner.discoveryPath);
 	if (!discovery?.url) {
 		return false;
@@ -1060,7 +1062,7 @@ export async function restartLocalHubIfIdleAfterStartupTimeout(options: {
 	if (!isRecoverableLocalHubUrl(options.url)) {
 		return undefined;
 	}
-	const owner = resolveSharedHubOwnerContext();
+	const owner = resolveProductionHubOwnerContext();
 	const discovery = await readHubDiscovery(owner.discoveryPath);
 	if (!discovery?.url || !sameNormalizedHubUrl(discovery.url, options.url)) {
 		return undefined;

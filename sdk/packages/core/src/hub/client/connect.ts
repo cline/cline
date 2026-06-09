@@ -8,7 +8,7 @@ import {
 	type HubEndpointOverrides,
 	resolveHubEndpointOptions,
 } from "../discovery/defaults";
-import { resolveSharedHubOwnerContext } from "../discovery/workspace";
+import { resolveProductionHubOwnerContext } from "../discovery/workspace";
 
 export interface HubConnection {
 	send(envelope: HubCommandEnvelope): Promise<HubReplyEnvelope>;
@@ -74,7 +74,7 @@ async function resolveHubUrlAuthToken(url: URL): Promise<string | undefined> {
 	if (queryToken) {
 		return queryToken;
 	}
-	const owner = resolveSharedHubOwnerContext();
+	const owner = resolveProductionHubOwnerContext();
 	const discovery = await readHubDiscovery(owner.discoveryPath);
 	if (discovery?.url && sameHubEndpoint(url.toString(), discovery.url)) {
 		return discovery.authToken;
@@ -87,7 +87,7 @@ export async function resolveHubUrl(
 ): Promise<string> {
 	const endpoint = resolveHubEndpointOptions(overrides);
 	if (!hasExplicitEndpoint(overrides)) {
-		const owner = resolveSharedHubOwnerContext();
+		const owner = resolveProductionHubOwnerContext();
 		const discovery = await readHubDiscovery(owner.discoveryPath);
 		if (discovery?.url) {
 			return discovery.url;

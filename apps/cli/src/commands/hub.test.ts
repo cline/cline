@@ -5,6 +5,7 @@ const {
 	mockEnsureDetachedHubServer,
 	mockProbeHubServer,
 	mockReadHubDiscovery,
+	mockResolveProductionHubOwnerContext,
 	mockResolveSharedHubOwnerContext,
 	mockStopLocalHubServerGracefully,
 } = vi.hoisted(() => ({
@@ -12,6 +13,10 @@ const {
 	mockEnsureDetachedHubServer: vi.fn(),
 	mockProbeHubServer: vi.fn(),
 	mockReadHubDiscovery: vi.fn(),
+	mockResolveProductionHubOwnerContext: vi.fn(() => ({
+		ownerId: "hub-production",
+		discoveryPath: "/tmp/cline-data/locks/hub/production.json",
+	})),
 	mockResolveSharedHubOwnerContext: vi.fn(() => ({
 		ownerId: "hub-owner",
 		discoveryPath: "/tmp/cline-data/locks/hub/owners/hub-owner.json",
@@ -24,6 +29,7 @@ vi.mock("@cline/core", () => ({
 	ensureDetachedHubServer: mockEnsureDetachedHubServer,
 	probeHubServer: mockProbeHubServer,
 	readHubDiscovery: mockReadHubDiscovery,
+	resolveProductionHubOwnerContext: mockResolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext: mockResolveSharedHubOwnerContext,
 	stopLocalHubServerGracefully: mockStopLocalHubServerGracefully,
 }));

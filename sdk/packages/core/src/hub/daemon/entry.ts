@@ -1,8 +1,11 @@
 import { AgentRuntimeAbortError } from "@cline/agents";
-import { initVcr } from "@cline/shared";
+import { initVcr, resolveClineBuildEnv } from "@cline/shared";
 import { createLocalHubScheduleRuntimeHandlers } from "../daemon/runtime-handlers";
 import { resolveHubEndpointOptions } from "../discovery/defaults";
-import { resolveSharedHubOwnerContext } from "../discovery/workspace";
+import {
+	resolveProductionHubOwnerContext,
+	resolveSharedHubOwnerContext,
+} from "../discovery/workspace";
 import { startHubWebSocketServer } from "../server";
 
 initVcr(process.env.CLINE_VCR);
@@ -62,9 +65,11 @@ async function main(): Promise<void> {
 		host: endpoint.host,
 		port: endpoint.port,
 		pathname: endpoint.pathname,
-		owner: resolveSharedHubOwnerContext(),
+		owner:
+			resolveClineBuildEnv() === "production"
+				? resolveProductionHubOwnerContext()
+				: resolveSharedHubOwnerContext(),
 		runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
-		cronOptions: { workspaceRoot: options.cwd },
 	});
 
 	const shutdown = async (): Promise<void> => {

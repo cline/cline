@@ -8,7 +8,7 @@ import {
 	Llms,
 	ProviderSettingsManager,
 	stopLocalHubServerGracefully,
-	toHubHealthUrl,
+	toHubStatusUrl,
 } from "@cline/core";
 import type { HubUINotifyPayload, SessionRecord } from "@cline/shared";
 
@@ -460,7 +460,11 @@ async function main(): Promise<void> {
 
 	const syncHealthState = async (): Promise<void> => {
 		try {
-			const response = await fetch(toHubHealthUrl(hubUrl));
+			const response = await fetch(toHubStatusUrl(hubUrl), {
+				headers: hubAuthToken
+					? { authorization: `Bearer ${hubAuthToken}` }
+					: undefined,
+			});
 			if (!response.ok) {
 				return;
 			}
