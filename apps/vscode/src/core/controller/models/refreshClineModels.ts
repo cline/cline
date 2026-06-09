@@ -11,8 +11,10 @@ import { StateManager } from "@/core/storage/StateManager"
 import { featureFlagsService } from "@/services/feature-flags"
 import {
 	ANTHROPIC_MAX_THINKING_BUDGET,
+	CLAUDE_FABLE_1M_TIERS,
 	CLAUDE_OPUS_1M_TIERS,
 	CLAUDE_SONNET_1M_TIERS,
+	openRouterClaudeFable51mModelId,
 	openRouterClaudeOpus461mModelId,
 	openRouterClaudeOpus471mModelId,
 	openRouterClaudeOpus481mModelId,
@@ -78,7 +80,7 @@ interface ClineRawModelInfo {
 		input_cache_write?: string
 	} | null
 	supports_global_endpoint?: boolean | null
-	tiers?: any[] | null
+	tiers?: ModelInfo["tiers"] | null
 	supported_parameters?: ClineSupportedParams[] | null
 }
 
@@ -138,7 +140,7 @@ async function fetchAndCacheClineModels(): Promise<Record<string, ModelInfo>> {
 	let models: Record<string, ModelInfo> = {}
 	try {
 		const rawModels = await fetchRawClineModels()
-		const parsePrice = (price: any) => {
+		const parsePrice = (price: unknown) => {
 			if (price === undefined || price === null || price === "") {
 				return undefined
 			}
@@ -203,6 +205,14 @@ async function fetchAndCacheClineModels(): Promise<Record<string, ModelInfo>> {
 					modelInfo.supportsPromptCache = true
 					modelInfo.cacheWritesPrice = 6.25
 					modelInfo.cacheReadsPrice = 0.5
+					break
+				case "anthropic/claude-fable-5":
+					modelInfo.contextWindow = 200_000
+					modelInfo.supportsPromptCache = true
+					modelInfo.inputPrice = 10
+					modelInfo.outputPrice = 50
+					modelInfo.cacheWritesPrice = 12.5
+					modelInfo.cacheReadsPrice = 1
 					break
 				case "anthropic/claude-opus-4.5":
 					modelInfo.supportsPromptCache = true
@@ -298,6 +308,12 @@ async function fetchAndCacheClineModels(): Promise<Record<string, ModelInfo>> {
 				if (rawModel.id === "anthropic/claude-opus-4.8") {
 					models[openRouterClaudeOpus481mModelId] = claudeOpus1mModelInfo
 				}
+			}
+			if (rawModel.id === "anthropic/claude-fable-5") {
+				const claudeFable1mModelInfo = cloneDeep(modelInfo)
+				claudeFable1mModelInfo.contextWindow = 1_000_000
+				claudeFable1mModelInfo.tiers = CLAUDE_FABLE_1M_TIERS
+				models[openRouterClaudeFable51mModelId] = claudeFable1mModelInfo
 			}
 		}
 		if (Object.keys(models).length === 0) {
