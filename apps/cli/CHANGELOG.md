@@ -1,5 +1,10 @@
 # Cline CLI Changelog
 
+## 3.0.22
+
+- Added support for the Claude Fable 5 model
+- Fixed MiniMax M3 thinking controls so they route correctly across gateways
+
 ## 3.0.21
 
 - Added a global auto-update setting that controls automatic updates on CLI startup
