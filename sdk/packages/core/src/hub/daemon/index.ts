@@ -18,6 +18,7 @@ import {
 	clearHubDiscovery,
 	createHubServerUrl,
 	type HubServerDiscoveryRecord,
+	type HubServerProbeRecord,
 	probeHubServer,
 	readHubDiscovery,
 	resolveClineDataDir,
@@ -64,14 +65,14 @@ function resolveDefaultHubOwnerContext() {
 		: resolveSharedHubOwnerContext();
 }
 
-function isCompatibleHubRecord(record: HubServerDiscoveryRecord): boolean {
+function isCompatibleHubRecord(record: HubServerProbeRecord): boolean {
 	return isHubProtocolCompatible(record).compatible;
 }
 
 async function safeProbeHubServer(
 	url: string,
 	authToken?: string,
-): Promise<HubServerDiscoveryRecord | undefined> {
+): Promise<HubServerProbeRecord | undefined> {
 	try {
 		return await probeHubServer(url, { authToken });
 	} catch {
@@ -94,13 +95,10 @@ async function waitForHubToRetire(
 	return false;
 }
 
-async function retireIncompatibleHub(
-	record: HubServerDiscoveryRecord,
+async function retireDiscoveredHub(
+	record: Pick<HubServerDiscoveryRecord, "url" | "authToken" | "pid">,
 	discoveryPath: string,
 ): Promise<void> {
-	if (isCompatibleHubRecord(record)) {
-		return;
-	}
 	await requestHubShutdown(record.url, record.authToken).catch(() => false);
 	if (record.pid) {
 		try {
@@ -111,6 +109,16 @@ async function retireIncompatibleHub(
 	}
 	await waitForHubToRetire(record.url, HUB_RETIRE_TIMEOUT_MS);
 	await clearHubDiscovery(discoveryPath).catch(() => undefined);
+}
+
+async function retireIncompatibleHub(
+	record: HubServerProbeRecord,
+	discoveryPath: string,
+): Promise<void> {
+	if (isCompatibleHubRecord(record)) {
+		return;
+	}
+	await retireDiscoveredHub(record, discoveryPath);
 }
 
 function resolveDaemonEntryPath(): string {
@@ -225,26 +233,30 @@ export function prewarmDetachedHubServer(
 	void readHubDiscovery(owner.discoveryPath)
 		.then(async (discovered) => {
 			if (discovered?.url) {
-				const healthy = await safeProbeHubServer(
-					discovered.url,
-					discovered.authToken,
-				);
-				if (
-					healthy?.url &&
-					isCompatibleHubRecord(healthy) &&
-					(await verifyHubConnection(healthy.url, {
-						authToken: discovered.authToken,
-					}))
-				) {
-					return;
-				}
-				if (healthy?.url) {
-					await retireIncompatibleHub(
-						{ ...healthy, authToken: discovered.authToken },
-						owner.discoveryPath,
-					);
+				if (!discovered.authToken) {
+					await retireDiscoveredHub(discovered, owner.discoveryPath);
 				} else {
-					await clearHubDiscovery(owner.discoveryPath).catch(() => undefined);
+					const healthy = await safeProbeHubServer(
+						discovered.url,
+						discovered.authToken,
+					);
+					if (
+						healthy?.url &&
+						isCompatibleHubRecord(healthy) &&
+						(await verifyHubConnection(healthy.url, {
+							authToken: discovered.authToken,
+						}))
+					) {
+						return;
+					}
+					if (healthy?.url) {
+						await retireIncompatibleHub(
+							{ ...healthy, authToken: discovered.authToken },
+							owner.discoveryPath,
+						);
+					} else {
+						await clearHubDiscovery(owner.discoveryPath).catch(() => undefined);
+					}
 				}
 			}
 			const expected = await safeProbeHubServer(expectedUrl);
@@ -301,10 +313,12 @@ export async function ensureDetachedHubServer(
 		return result;
 	};
 	const discovered = await readHubDiscovery(owner.discoveryPath);
+	let retiredUnusableDiscovery = false;
 	if (discovered?.url) {
 		const discoveredAuthToken = discovered.authToken;
 		if (!discoveredAuthToken) {
-			await clearHubDiscovery(owner.discoveryPath).catch(() => undefined);
+			retiredUnusableDiscovery = true;
+			await retireDiscoveredHub(discovered, owner.discoveryPath);
 		} else {
 			const healthy = await safeProbeHubServer(
 				discovered.url,
@@ -335,8 +349,11 @@ export async function ensureDetachedHubServer(
 	const expected = await safeProbeHubServer(expectedUrl);
 	if (expected?.url) {
 		if (isCompatibleHubRecord(expected)) {
+			const upgradeHint = retiredUnusableDiscovery
+				? " This can happen immediately after upgrading from a build that wrote an empty hub auth token; run 'cline doctor fix' to stop the old daemon and repair local hub discovery."
+				: "";
 			throw new Error(
-				`A compatible Cline Hub is already running at ${expectedUrl}, but its discovery record is missing or unreadable. Run 'cline doctor fix' to repair local hub discovery.`,
+				`A compatible Cline Hub is already running at ${expectedUrl}, but its discovery record is missing or unreadable. Run 'cline doctor fix' to repair local hub discovery.${upgradeHint}`,
 			);
 		}
 		await retireIncompatibleHub(

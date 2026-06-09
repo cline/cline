@@ -6,8 +6,10 @@ import {
 	probeHubServer,
 	readHubDiscovery,
 	resolveProductionHubOwnerContext,
+	resolveSharedHubOwnerContext,
 	stopLocalHubServerGracefully,
 } from "@cline/core";
+import { resolveClineBuildEnv } from "@cline/shared";
 import { version } from "../../package.json";
 import { ensureCliHubServer } from "../utils/hub-runtime";
 import { c, writeErr, writeln } from "../utils/output";
@@ -269,6 +271,12 @@ export function getPreferredKanbanInstaller(
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
+export function resolveCliHubOwnerContext() {
+	return resolveClineBuildEnv() === "production"
+		? resolveProductionHubOwnerContext()
+		: resolveSharedHubOwnerContext();
+}
+
 async function waitForHubToStop(
 	url: string,
 	authToken: string | undefined,
@@ -291,7 +299,7 @@ async function waitForHubToStop(
  * clears stale discovery, then re-ensures a fresh instance is spawned.
  */
 async function restartHubServerIfRunning(): Promise<void> {
-	const owner = resolveProductionHubOwnerContext();
+	const owner = resolveCliHubOwnerContext();
 	const discovery = await readHubDiscovery(owner.discoveryPath).catch(
 		() => undefined,
 	);
