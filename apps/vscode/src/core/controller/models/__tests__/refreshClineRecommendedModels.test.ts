@@ -5,9 +5,6 @@ import fs from "fs/promises"
 import { afterEach, beforeEach, describe, it } from "mocha"
 import sinon from "sinon"
 import { ClineEnv, Environment } from "@/config"
-import { getFeatureFlagsService } from "@/services/feature-flags"
-import { CLINE_RECOMMENDED_MODELS_FALLBACK } from "@/shared/cline/recommended-models"
-import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
 import { Logger } from "@/shared/services/Logger"
 import { refreshClineRecommendedModels, resetClineRecommendedModelsCacheForTests } from "../refreshClineRecommendedModels"
 
@@ -26,20 +23,7 @@ describe("refreshClineRecommendedModels", () => {
 		sandbox.restore()
 	})
 
-	it("returns hardcoded models and skips upstream fetch when rollout flag is off", async () => {
-		sandbox.stub(getFeatureFlagsService(), "getBooleanFlagEnabled").returns(false)
-		const axiosGetStub = sandbox.stub(axios, "get")
-
-		const result = await refreshClineRecommendedModels()
-
-		expect(result).to.deep.equal(CLINE_RECOMMENDED_MODELS_FALLBACK)
-		expect(axiosGetStub.called).to.equal(false)
-	})
-
-	it("fetches from upstream when rollout flag is on", async () => {
-		sandbox.stub(getFeatureFlagsService(), "getBooleanFlagEnabled").callsFake((flag) => {
-			return flag === FeatureFlag.CLINE_RECOMMENDED_MODELS_UPSTREAM
-		})
+	it("fetches from upstream", async () => {
 		sandbox.stub(ClineEnv, "config").returns({
 			environment: Environment.production,
 			appBaseUrl: "https://app.cline-mock.bot",
@@ -78,10 +62,7 @@ describe("refreshClineRecommendedModels", () => {
 		})
 	})
 
-	it("uses hardcoded models when rollout flag is turned off after upstream cache is populated", async () => {
-		const flagStub = sandbox.stub(getFeatureFlagsService(), "getBooleanFlagEnabled")
-		flagStub.onFirstCall().returns(true)
-		flagStub.onSecondCall().returns(false)
+	it("uses the in-memory cache after upstream cache is populated", async () => {
 		sandbox.stub(ClineEnv, "config").returns({
 			environment: Environment.production,
 			appBaseUrl: "https://app.cline-mock.bot",
@@ -101,7 +82,6 @@ describe("refreshClineRecommendedModels", () => {
 		const secondResult = await refreshClineRecommendedModels()
 
 		expect(axiosGetStub.calledOnce).to.equal(true)
-		expect(firstResult).to.not.deep.equal(CLINE_RECOMMENDED_MODELS_FALLBACK)
-		expect(secondResult).to.deep.equal(CLINE_RECOMMENDED_MODELS_FALLBACK)
+		expect(secondResult).to.deep.equal(firstResult)
 	})
 })

@@ -1416,7 +1416,7 @@ describe("composeAiSdkProviderOptions: provider-specific overlays", () => {
 		expect(result.openaiCodex).not.toHaveProperty("truncation");
 	});
 
-	it("emits the gemini google.thinkingConfig only when reasoning effort is set", () => {
+	it("emits Gemini 2.5 google.thinkingConfig budget only when reasoning effort is set", () => {
 		const withEffort = composeAiSdkProviderOptions(
 			makeRequest({
 				providerId: "gemini",
@@ -1426,7 +1426,7 @@ describe("composeAiSdkProviderOptions: provider-specific overlays", () => {
 			makeContext({ providerId: "gemini", modelId: "gemini-2.5-flash" }),
 		);
 		expect(withEffort.google).toEqual({
-			thinkingConfig: { thinkingLevel: "medium", includeThoughts: true },
+			thinkingConfig: { thinkingBudget: 8192, includeThoughts: true },
 		});
 
 		const withoutEffort = composeAiSdkProviderOptions(
@@ -1447,11 +1447,168 @@ describe("composeAiSdkProviderOptions: provider-specific overlays", () => {
 		);
 
 		expect(result.google).toEqual({
-			thinkingConfig: { thinkingLevel: "high", includeThoughts: true },
+			thinkingConfig: { thinkingBudget: 24576, includeThoughts: true },
 		});
 		expect(result.google).not.toHaveProperty("thinking");
 		expect(result.google).not.toHaveProperty("effort");
 		expect(result.google).not.toHaveProperty("reasoningEffort");
 		expect(result.google).not.toHaveProperty("reasoningSummary");
+	});
+
+	it("emits Gemini thinkingConfig in the vertex bucket for Vertex providers", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "vertex",
+				modelId: "gemini-3-flash-preview",
+				reasoning: { enabled: true, effort: "high" },
+			}),
+			makeContext({
+				providerId: "vertex",
+				modelId: "gemini-3-flash-preview",
+			}),
+		);
+
+		expect(result.vertex).toEqual(
+			expect.objectContaining({
+				thinkingConfig: { thinkingLevel: "high", includeThoughts: true },
+			}),
+		);
+		expect(result.vertex).not.toHaveProperty("thinking");
+		expect(result.vertex).not.toHaveProperty("effort");
+		expect(result.vertex).not.toHaveProperty("reasoningEffort");
+		expect(result.vertex).not.toHaveProperty("reasoningSummary");
+		expect(result.google).toBeUndefined();
+	});
+
+	it("keeps Vertex Claude reasoning on the Anthropic-compatible route", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "vertex",
+				modelId: "claude-sonnet-4-5",
+				reasoning: { enabled: true, effort: "high" },
+			}),
+			makeContext({
+				providerId: "vertex",
+				modelId: "claude-sonnet-4-5",
+				family: "claude-sonnet",
+				capabilities: ["text", "reasoning"],
+			}),
+		);
+
+		expect(result.vertex).toEqual(
+			expect.objectContaining({
+				reasoning: { enabled: true, max_tokens: 1024 },
+			}),
+		);
+		expect(result.vertex).not.toHaveProperty("thinkingConfig");
+		expect(result.vertex).not.toHaveProperty("effort");
+		expect(result.vertex).not.toHaveProperty("reasoningEffort");
+		expect(result.vertex).not.toHaveProperty("reasoningSummary");
+	});
+
+	it("maps disabled Vertex thinking to minimal thinkingConfig", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "vertex",
+				modelId: "gemini-3-flash-preview",
+				reasoning: { enabled: false },
+			}),
+			makeContext({
+				providerId: "vertex",
+				modelId: "gemini-3-flash-preview",
+			}),
+		);
+
+		expect(result.vertex).toEqual(
+			expect.objectContaining({
+				thinkingConfig: { thinkingLevel: "minimal", includeThoughts: false },
+			}),
+		);
+		expect(result.vertex).not.toHaveProperty("thinking");
+		expect(result.vertex).not.toHaveProperty("effort");
+		expect(result.vertex).not.toHaveProperty("reasoningEffort");
+		expect(result.vertex).not.toHaveProperty("reasoningSummary");
+		expect(result.google).toBeUndefined();
+	});
+
+	it("maps Vertex Gemini Flash Latest disabled thinking to a zero thinking budget", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "vertex",
+				modelId: "gemini-flash-latest",
+				reasoning: { enabled: false },
+			}),
+			makeContext({
+				providerId: "vertex",
+				modelId: "gemini-flash-latest",
+				family: "gemini-flash",
+				capabilities: ["reasoning"],
+			}),
+		);
+
+		expect(result.vertex).toEqual(
+			expect.objectContaining({
+				thinkingConfig: { thinkingBudget: 0, includeThoughts: false },
+			}),
+		);
+		expect(result.vertex).not.toHaveProperty("thinking");
+		expect(result.vertex).not.toHaveProperty("effort");
+		expect(result.vertex).not.toHaveProperty("reasoningEffort");
+		expect(result.vertex).not.toHaveProperty("reasoningSummary");
+		expect(result.google).toBeUndefined();
+	});
+
+	it("maps Vertex Gemini Flash Latest effort to a Gemini 2.5 thinking budget", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "vertex",
+				modelId: "gemini-flash-latest",
+				reasoning: { enabled: true, effort: "high" },
+			}),
+			makeContext({
+				providerId: "vertex",
+				modelId: "gemini-flash-latest",
+				family: "gemini-flash",
+				capabilities: ["reasoning"],
+			}),
+		);
+
+		expect(result.vertex).toEqual(
+			expect.objectContaining({
+				thinkingConfig: { thinkingBudget: 24576, includeThoughts: true },
+			}),
+		);
+		expect(result.vertex).not.toHaveProperty("thinking");
+		expect(result.vertex).not.toHaveProperty("effort");
+		expect(result.vertex).not.toHaveProperty("reasoningEffort");
+		expect(result.vertex).not.toHaveProperty("reasoningSummary");
+		expect(result.google).toBeUndefined();
+	});
+
+	it("keeps disabled Vertex Gemini 2.5 Pro on a valid minimum thinking budget", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "vertex",
+				modelId: "gemini-2.5-pro",
+				reasoning: { enabled: false },
+			}),
+			makeContext({
+				providerId: "vertex",
+				modelId: "gemini-2.5-pro",
+				family: "gemini-pro",
+				capabilities: ["reasoning"],
+			}),
+		);
+
+		expect(result.vertex).toEqual(
+			expect.objectContaining({
+				thinkingConfig: { thinkingBudget: 128, includeThoughts: false },
+			}),
+		);
+		expect(result.vertex).not.toHaveProperty("thinking");
+		expect(result.vertex).not.toHaveProperty("effort");
+		expect(result.vertex).not.toHaveProperty("reasoningEffort");
+		expect(result.vertex).not.toHaveProperty("reasoningSummary");
+		expect(result.google).toBeUndefined();
 	});
 });

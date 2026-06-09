@@ -27,6 +27,21 @@ function normalizedModelId(
 	return normalizeRoutingValue(request.modelId) ?? "";
 }
 
+function geminiModelDescriptor(input: {
+	request: Pick<GatewayStreamRequest, "modelId">;
+	context: GatewayProviderContext;
+}): string {
+	return [
+		input.request.modelId,
+		input.context.model.id,
+		input.context.model.name,
+		input.context.model.metadata?.family,
+	]
+		.filter(Boolean)
+		.join(" ")
+		.toLowerCase();
+}
+
 function isAnthropicLineageValue(value: string | undefined): boolean {
 	const normalized = normalizeRoutingValue(value);
 	return normalized
@@ -85,6 +100,44 @@ export function isQwenModel(options: {
 	}
 
 	return isQwenLineageValue(options.modelId);
+}
+
+export function isGemini3Model(input: {
+	request: Pick<GatewayStreamRequest, "modelId">;
+	context: GatewayProviderContext;
+}): boolean {
+	return /(^|[/\s])gemini-3([.-]|$)/.test(geminiModelDescriptor(input));
+}
+
+export function isGeminiProModel(input: {
+	request: Pick<GatewayStreamRequest, "modelId">;
+	context: GatewayProviderContext;
+}): boolean {
+	return /(^|[/\s])gemini-2\.5-pro([-\s]|$)/.test(geminiModelDescriptor(input));
+}
+
+export function isGeminiFlashModel(input: {
+	request: Pick<GatewayStreamRequest, "modelId">;
+	context: GatewayProviderContext;
+}): boolean {
+	const descriptor = geminiModelDescriptor(input);
+	return (
+		/(^|[/\s])gemini-(?:\d(?:\.\d)?-)?flash(?:-lite|-image)?([-\s]|$)/.test(
+			descriptor,
+		) || descriptor.includes("gemini-flash")
+	);
+}
+
+export function supportsGeminiThinking(input: {
+	request: Pick<GatewayStreamRequest, "modelId">;
+	context: GatewayProviderContext;
+}): boolean {
+	const descriptor = geminiModelDescriptor(input);
+	return (
+		isGemini3Model(input) ||
+		/(^|[/\s])gemini-2\.5([-\s]|$)/.test(descriptor) ||
+		descriptor.includes("gemini-flash-latest")
+	);
 }
 
 function modelFamilyMatches(

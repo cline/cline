@@ -1,5 +1,12 @@
 # Cline SDK Changelog
 
+## 0.0.44
+
+- Added support for Vertex AI Application Default Credentials (ADC) with tool use
+- Added a global auto-update setting for CLI startup updates
+- Fixed empty message content replay for Bedrock
+- Cleaned up the OpenAI Codex model list
+
 ## 0.0.43
 
 - Added the Cline Hub web app for managing and monitoring agent sessions

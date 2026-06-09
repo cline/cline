@@ -2,6 +2,7 @@ import { type ChildProcess, spawn } from "node:child_process";
 import { realpathSync } from "node:fs";
 import {
 	clearHubDiscovery,
+	isAutoUpdateEnabledGlobally,
 	probeHubServer,
 	readHubDiscovery,
 	resolveSharedHubOwnerContext,
@@ -340,6 +341,7 @@ async function restartHubServerIfRunning(): Promise<void> {
 export function autoUpdateOnStartup(): void {
 	if (process.env.IS_DEV === "true") return;
 	if (process.env.CLINE_NO_AUTO_UPDATE === "1") return;
+	if (!isAutoUpdateEnabledGlobally()) return;
 
 	const { packageName, packageManager, updateCommand } =
 		getInstallationInfo(version);

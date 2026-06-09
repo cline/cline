@@ -2,7 +2,12 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { Socket } from "node:net"
 import { v4 as uuidv4 } from "uuid"
 import type { BalanceResponse, OrganizationBalanceResponse, UserResponse } from "../../../../shared/ClineAccount"
-import { E2E_MOCK_API_RESPONSES, E2E_REGISTERED_MOCK_ENDPOINTS } from "./api"
+import {
+	E2E_MOCK_API_RESPONSES,
+	E2E_MOCK_CLINE_MODELS,
+	E2E_MOCK_CLINE_RECOMMENDED_MODELS,
+	E2E_REGISTERED_MOCK_ENDPOINTS,
+} from "./api"
 import { ClineDataMock } from "./data"
 
 const E2E_API_SERVER_PORT = 7777
@@ -166,7 +171,11 @@ export class ClineApiServerMock {
 
 			// Authentication middleware
 			const authHeader = req.headers.authorization
-			const isAuthRequired = !path.startsWith("/.test/") && path !== "/health" && path !== "/api/v1/auth/token"
+			const isPublicApiRoute =
+				path === "/api/v1/auth/token" ||
+				path === "/api/v1/ai/cline/models" ||
+				path === "/api/v1/ai/cline/recommended-models"
+			const isAuthRequired = !path.startsWith("/.test/") && path !== "/health" && !isPublicApiRoute
 
 			if (isAuthRequired && (!authHeader || !authHeader.startsWith("Bearer "))) {
 				return sendApiError("Unauthorized", 401)
@@ -215,6 +224,14 @@ export class ClineApiServerMock {
 
 				// API v1 endpoints
 				if (baseRoute === "/api/v1") {
+					if (endpoint === "/ai/cline/recommended-models" && method === "GET") {
+						return sendJson(E2E_MOCK_CLINE_RECOMMENDED_MODELS)
+					}
+
+					if (endpoint === "/ai/cline/models" && method === "GET") {
+						return sendJson({ data: E2E_MOCK_CLINE_MODELS })
+					}
+
 					// User endpoints
 					if (endpoint === "/users/me" && method === "GET") {
 						const currentUser = controller.currentUser

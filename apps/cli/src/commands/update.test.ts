@@ -1,8 +1,10 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+	autoUpdateOnStartup,
+	checkForUpdates,
 	getInstallationInfo,
 	PackageManager,
 	withMinimumReleaseAgeBypass,
@@ -10,6 +12,9 @@ import {
 
 const originalArgv = [...process.argv];
 const originalWrapperPath = process.env.CLINE_WRAPPER_PATH;
+const originalGlobalSettingsPath = process.env.CLINE_GLOBAL_SETTINGS_PATH;
+const originalIsDev = process.env.IS_DEV;
+const originalNoAutoUpdate = process.env.CLINE_NO_AUTO_UPDATE;
 const tempDirs: string[] = [];
 
 function createFile(path: string): string {
@@ -32,6 +37,22 @@ describe("getInstallationInfo", () => {
 		} else {
 			process.env.CLINE_WRAPPER_PATH = originalWrapperPath;
 		}
+		if (originalGlobalSettingsPath === undefined) {
+			delete process.env.CLINE_GLOBAL_SETTINGS_PATH;
+		} else {
+			process.env.CLINE_GLOBAL_SETTINGS_PATH = originalGlobalSettingsPath;
+		}
+		if (originalIsDev === undefined) {
+			delete process.env.IS_DEV;
+		} else {
+			process.env.IS_DEV = originalIsDev;
+		}
+		if (originalNoAutoUpdate === undefined) {
+			delete process.env.CLINE_NO_AUTO_UPDATE;
+		} else {
+			process.env.CLINE_NO_AUTO_UPDATE = originalNoAutoUpdate;
+		}
+		vi.restoreAllMocks();
 		for (const dir of tempDirs.splice(0)) {
 			rmSync(dir, { recursive: true, force: true });
 		}
@@ -69,6 +90,66 @@ describe("getInstallationInfo", () => {
 			packageManager: PackageManager.UNKNOWN,
 			packageName: "cline",
 		});
+	});
+});
+
+describe("auto update settings", () => {
+	afterEach(() => {
+		process.argv = [...originalArgv];
+		if (originalWrapperPath === undefined) {
+			delete process.env.CLINE_WRAPPER_PATH;
+		} else {
+			process.env.CLINE_WRAPPER_PATH = originalWrapperPath;
+		}
+		if (originalGlobalSettingsPath === undefined) {
+			delete process.env.CLINE_GLOBAL_SETTINGS_PATH;
+		} else {
+			process.env.CLINE_GLOBAL_SETTINGS_PATH = originalGlobalSettingsPath;
+		}
+		if (originalIsDev === undefined) {
+			delete process.env.IS_DEV;
+		} else {
+			process.env.IS_DEV = originalIsDev;
+		}
+		if (originalNoAutoUpdate === undefined) {
+			delete process.env.CLINE_NO_AUTO_UPDATE;
+		} else {
+			process.env.CLINE_NO_AUTO_UPDATE = originalNoAutoUpdate;
+		}
+		vi.restoreAllMocks();
+		for (const dir of tempDirs.splice(0)) {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
+	it("skips startup auto update when disabled globally", () => {
+		const settingsPath = createTempFile("data/global-settings.json");
+		writeFileSync(settingsPath, JSON.stringify({ autoUpdateEnabled: false }));
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
+		delete process.env.IS_DEV;
+		delete process.env.CLINE_NO_AUTO_UPDATE;
+		const fetchSpy = vi
+			.spyOn(globalThis, "fetch")
+			.mockRejectedValue(new Error("should not fetch"));
+
+		autoUpdateOnStartup();
+
+		expect(fetchSpy).not.toHaveBeenCalled();
+	});
+
+	it("still lets manual update checks run when startup auto update is disabled", async () => {
+		const settingsPath = createTempFile("data/global-settings.json");
+		writeFileSync(settingsPath, JSON.stringify({ autoUpdateEnabled: false }));
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
+		delete process.env.CLINE_NO_AUTO_UPDATE;
+		const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+			ok: true,
+			json: async () => ({ version: "0.0.0" }),
+		} as Response);
+
+		await checkForUpdates({ includeKanban: false });
+
+		expect(fetchSpy).toHaveBeenCalled();
 	});
 });
 
