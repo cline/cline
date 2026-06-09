@@ -13,6 +13,7 @@ const SUPPORTED_CLAUDE_CODE_THINKING_MODELS = [
 	...SUPPORTED_ANTHROPIC_THINKING_MODELS,
 	"sonnet",
 	"sonnet[1m]",
+	"claude-fable-5[1m]",
 	"claude-opus-4-8[1m]",
 	"claude-opus-4-7[1m]",
 	"claude-sonnet-4-6[1m]",
