@@ -1,6 +1,7 @@
 import {
 	completeClineDeviceAuth,
 	getProviderConfigFields,
+	isOAuthProvider,
 	listLocalProviders,
 	loginLocalProvider,
 	type ProviderConfigFieldKey,
@@ -21,7 +22,6 @@ import {
 	checkCodexCliInstalled,
 	isOpenAICodexCliProvider,
 } from "../../../utils/codex-cli";
-import { isOAuthProvider } from "../../../utils/provider-auth";
 import { palette } from "../../palette";
 import {
 	getDefaultAwsRegion,
@@ -671,7 +671,7 @@ export function OAuthLoginContent(
 						if (!isActiveAuthAttempt(attempt)) return;
 						saveLocalProviderOAuthCredentials(
 							manager,
-							providerId as "cline" | "oca" | "openai-codex",
+							providerId,
 							existing,
 							credentials,
 						);
@@ -705,30 +705,24 @@ export function OAuthLoginContent(
 		const manager = new ProviderSettingsManager();
 		const existing = manager.getProviderSettings(providerId);
 
-		loginLocalProvider(
-			providerId as "cline" | "oca" | "openai-codex",
-			existing,
-			(url: string) => {
-				setAuthUrl(url);
-				setStatus("Waiting for authentication in browser...");
-				try {
-					void open(url, { wait: false }).catch(() => {
-						setStatus(
-							"Could not open browser automatically. Open the URL below.",
-						);
-					});
-				} catch {
+		loginLocalProvider(providerId, existing, (url: string) => {
+			setAuthUrl(url);
+			setStatus("Waiting for authentication in browser...");
+			try {
+				void open(url, { wait: false }).catch(() => {
 					setStatus(
 						"Could not open browser automatically. Open the URL below.",
 					);
-				}
-			},
-		)
+				});
+			} catch {
+				setStatus("Could not open browser automatically. Open the URL below.");
+			}
+		})
 			.then((credentials) => {
 				if (!isActiveAuthAttempt(attempt)) return;
 				saveLocalProviderOAuthCredentials(
 					manager,
-					providerId as "cline" | "oca" | "openai-codex",
+					providerId,
 					existing,
 					credentials,
 				);

@@ -1,5 +1,5 @@
 import * as LlmsModels from "@cline/llms";
-import { isOAuthProviderId } from "@cline/shared";
+import { isOAuthProvider } from "../../auth/provider-auth-registry";
 
 export type ProviderConfigFieldKey =
 	| "apiKey"
@@ -186,7 +186,7 @@ export function getProviderConfigFields(
 	providerId: string,
 ): ProviderConfigFields {
 	const id = LlmsModels.normalizeProviderId(providerId);
-	if (isOAuthProviderId(id)) {
+	if (isOAuthProvider(id)) {
 		return { providerId: id, authMethod: "oauth", fields: {} };
 	}
 
