@@ -4,18 +4,11 @@
 // Controller but delegates session lifecycle (initTask, askResponse,
 // cancelTask, …) to the Cline SDK (@cline/core) and bridges SDK events to
 // the webview's gRPC streams.
-import { existsSync } from "node:fs"
 import * as fs from "node:fs/promises"
 import * as os from "node:os"
 import * as path from "node:path"
-import {
-	type PreparedRemoteConfigCoreIntegration,
-	readGlobalSettings,
-	type SessionHistoryRecord,
-	setTelemetryOptOutGlobally,
-} from "@cline/core"
+import { type PreparedRemoteConfigCoreIntegration, type SessionHistoryRecord, setTelemetryOptOutGlobally } from "@cline/core"
 import { formatDisplayUserInput, type RemoteConfig, type RemoteConfigBundle } from "@cline/shared"
-import { resolveGlobalSettingsPath } from "@cline/shared/storage"
 import type { ModelInfo } from "@shared/api"
 import type { ChatContent } from "@shared/ChatContent"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@shared/ClineAccount"
@@ -67,6 +60,7 @@ import { SdkTaskStartCoordinator } from "./sdk-task-start-coordinator"
 import { createVscodeSdkTelemetryHandle, type VscodeSdkTelemetryHandle } from "./sdk-telemetry"
 import { isToolAutoApproved } from "./sdk-tool-policies"
 import { createTaskProxy, type TaskProxy } from "./task-proxy"
+import { syncTelemetrySettingFromSharedGlobalSettings } from "./telemetry-settings-sync"
 import { TurnStateTracker } from "./turn-state-tracker"
 import { VscodeSessionHost } from "./vscode-session-host"
 import { WebviewGrpcBridge } from "./webview-grpc-bridge"
@@ -92,39 +86,6 @@ function metadataBoolean(metadata: SessionHistoryRecord["metadata"] | undefined,
 function metadataString(metadata: SessionHistoryRecord["metadata"] | undefined, key: string): string | undefined {
 	const value = metadata?.[key]
 	return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined
-}
-
-function telemetrySettingFromSharedGlobalSettings(): TelemetrySetting {
-	return readGlobalSettings().telemetryOptOut ? "disabled" : "enabled"
-}
-
-function syncTelemetrySettingFromSharedGlobalSettings(stateManager: StateManager): void {
-	try {
-		const sharedSettingsPath = resolveGlobalSettingsPath()
-		if (!existsSync(sharedSettingsPath)) {
-			const legacyTelemetrySetting = stateManager.getGlobalSettingsKey("telemetrySetting")
-			if (
-				legacyTelemetrySetting === "disabled" ||
-				legacyTelemetrySetting === "enabled" ||
-				legacyTelemetrySetting === "unset"
-			) {
-				// One-time migration from the legacy VS Code globalState.json field into
-				// the CLI/shared global settings file. Do not emit opt-out telemetry for
-				// migration; this is not a new explicit user action.
-				setTelemetryOptOutGlobally(legacyTelemetrySetting === "disabled")
-			}
-		}
-
-		const telemetrySetting = telemetrySettingFromSharedGlobalSettings()
-		const remoteTelemetrySetting = stateManager.getRemoteConfigSettings().telemetrySetting
-		if (remoteTelemetrySetting === undefined && stateManager.getGlobalSettingsKey("telemetrySetting") !== telemetrySetting) {
-			// Keep the legacy in-memory state mirrored so existing VS Code telemetry
-			// providers that still read StateManager observe the shared setting.
-			stateManager.setGlobalState("telemetrySetting", telemetrySetting)
-		}
-	} catch (error) {
-		Logger.warn(`[SdkController] Failed to sync shared telemetry setting: ${error}`)
-	}
 }
 
 type SdkUserMessage = {
