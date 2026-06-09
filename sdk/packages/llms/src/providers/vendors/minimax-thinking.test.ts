@@ -6,6 +6,20 @@ import {
 } from "./minimax-thinking";
 
 describe("MiniMax thinking shim", () => {
+	it("preserves fetch preconnect when the runtime exposes it", () => {
+		const preconnect = vi.fn();
+		const baseFetch = Object.assign(vi.fn(async () => new Response("{}")), {
+			preconnect,
+		}) as unknown as typeof fetch;
+
+		const wrappedFetch = createMiniMaxThinkingFetch(baseFetch) as typeof fetch & {
+			preconnect?: (url: string) => void;
+		};
+		wrappedFetch.preconnect?.("https://api.minimax.io");
+
+		expect(preconnect).toHaveBeenCalledWith("https://api.minimax.io");
+	});
+
 	it("marks MiniMax requests whose provider options disable thinking", async () => {
 		const result = await miniMaxThinkingDisabledMiddleware.transformParams?.({
 			type: "stream",

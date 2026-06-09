@@ -6,6 +6,10 @@ import type {
 export const MINIMAX_THINKING_DISABLED_HEADER =
 	"x-cline-minimax-thinking-disabled";
 
+type FetchWithOptionalPreconnect = typeof fetch & {
+	preconnect?: (...args: unknown[]) => unknown;
+};
+
 function getMiniMaxThinkingType(providerOptions: unknown): string | undefined {
 	const options =
 		providerOptions && typeof providerOptions === "object"
@@ -59,7 +63,7 @@ function writeBody(body: unknown): string {
 }
 
 export function createMiniMaxThinkingFetch(baseFetch: typeof fetch = fetch) {
-	return async (
+	const wrappedFetch = (async (
 		input: Parameters<typeof fetch>[0],
 		init?: Parameters<typeof fetch>[1],
 	) => {
@@ -89,5 +93,12 @@ export function createMiniMaxThinkingFetch(baseFetch: typeof fetch = fetch) {
 			headers,
 			body: nextBody,
 		});
-	};
+	}) as typeof fetch;
+	const sourceFetch = baseFetch as FetchWithOptionalPreconnect;
+	(wrappedFetch as FetchWithOptionalPreconnect).preconnect =
+		typeof sourceFetch.preconnect === "function"
+			? sourceFetch.preconnect.bind(baseFetch)
+			: () => {};
+
+	return wrappedFetch;
 }
