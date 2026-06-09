@@ -27,6 +27,7 @@ import {
 	getDefaultAwsRegion,
 	type ProviderConfigValues,
 	resolveProviderConfigAwsRegion,
+	resolveProviderConfigAzure,
 	resolveProviderConfigGcp,
 	resolveProviderConfigSap,
 	updateProviderConfigValue,
@@ -316,6 +317,7 @@ export function UseExistingOrReconfigureContent(
 const DEFAULT_FIELD_LABELS: Partial<Record<ProviderConfigFieldKey, string>> = {
 	apiKey: "API key",
 	baseUrl: "Base URL",
+	azureApiVersion: "Azure API Version",
 	awsRegion: "AWS Region",
 	awsProfile: "AWS Profile Name",
 	gcpProjectId: "Google Cloud Project ID",
@@ -332,6 +334,7 @@ const DEFAULT_FIELD_PLACEHOLDERS: Partial<
 > = {
 	apiKey: "sk-...",
 	baseUrl: "",
+	azureApiVersion: "2025-01-01-preview",
 	awsRegion: "us-east-1",
 	awsProfile: "default",
 	gcpProjectId: "my-gcp-project",
@@ -349,6 +352,7 @@ const FIELD_ORDER: ProviderConfigFieldKey[] = [
 	"gcpProjectId",
 	"gcpRegion",
 	"baseUrl",
+	"azureApiVersion",
 	"apiKey",
 	"awsProfile",
 	"sapClientId",
@@ -405,6 +409,10 @@ export function ProviderConfigInputContent(
 				config.fields.baseUrl?.defaultValue ??
 				"";
 		}
+		if (config.fields.azureApiVersion) {
+			initial.azureApiVersion =
+				existingSettings?.azure?.apiVersion?.trim() ?? "";
+		}
 		if (config.fields.awsRegion) {
 			const ep = existingSettings?.aws?.profile?.trim() ?? "";
 			initial.awsRegion =
@@ -444,6 +452,7 @@ export function ProviderConfigInputContent(
 	const submit = () => {
 		const apiKey = values.apiKey?.trim();
 		const awsProfile = values.awsProfile?.trim();
+		const hasAzureFields = config.fields.azureApiVersion;
 		const hasAwsFields = config.fields.awsRegion || config.fields.awsProfile;
 		const hasGcpFields = config.fields.gcpProjectId || config.fields.gcpRegion;
 		const hasSapFields =
@@ -456,6 +465,7 @@ export function ProviderConfigInputContent(
 			providerId,
 			apiKey: config.fields.apiKey ? apiKey : undefined,
 			baseUrl: config.fields.baseUrl ? values.baseUrl?.trim() : undefined,
+			azure: hasAzureFields ? resolveProviderConfigAzure(values) : undefined,
 			aws: hasAwsFields
 				? {
 						region: resolveProviderConfigAwsRegion(values),

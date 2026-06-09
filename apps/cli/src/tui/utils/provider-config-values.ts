@@ -56,6 +56,12 @@ export function resolveProviderConfigSap(values: ProviderConfigValues):
 		: undefined;
 }
 
+export function resolveProviderConfigAzure(values: ProviderConfigValues): {
+	apiVersion?: string;
+} {
+	return { apiVersion: values.azureApiVersion?.trim() ?? "" };
+}
+
 export function updateProviderConfigValue(
 	previous: ProviderConfigValues,
 	field: ProviderConfigFieldKey,

@@ -4,6 +4,7 @@ import { isOAuthProvider } from "../../auth/provider-auth-registry";
 export type ProviderConfigFieldKey =
 	| "apiKey"
 	| "baseUrl"
+	| "azureApiVersion"
 	| "awsRegion"
 	| "awsProfile"
 	| "gcpProjectId"
@@ -35,6 +36,7 @@ export interface ProviderConfigFields {
 const FIELD_KEYS: ProviderConfigFieldKey[] = [
 	"apiKey",
 	"baseUrl",
+	"azureApiVersion",
 	"awsRegion",
 	"awsProfile",
 	"gcpProjectId",
@@ -57,6 +59,18 @@ interface ProviderConfigFieldMetadata {
 const PROVIDER_CONFIG_FIELD_METADATA: Partial<
 	Record<string, ProviderConfigFieldMetadata>
 > = {
+	"openai-compatible": {
+		description:
+			"For Azure AI Foundry deployments, use a Base URL ending at /openai/deployments/<deployment> and set the Azure API version.",
+		fields: {
+			azureApiVersion: {
+				label: "Azure API Version (optional)",
+				placeholder: "2025-01-01-preview",
+				note: "Required for Azure AI Foundry deployment URLs.",
+				optional: true,
+			},
+		},
+	},
 	vertex: {
 		mode: "replace",
 		description:

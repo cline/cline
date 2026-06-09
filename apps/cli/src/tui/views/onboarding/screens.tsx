@@ -222,6 +222,7 @@ import type {
 const DEFAULT_FIELD_LABELS: Partial<Record<ProviderConfigFieldKey, string>> = {
 	apiKey: "API key",
 	baseUrl: "Base URL",
+	azureApiVersion: "Azure API Version",
 	awsRegion: "AWS Region",
 	awsProfile: "AWS Profile Name",
 	sapClientId: "Client ID",
@@ -236,6 +237,7 @@ const DEFAULT_FIELD_PLACEHOLDERS: Partial<
 > = {
 	apiKey: "Paste your API key here...",
 	baseUrl: "",
+	azureApiVersion: "2025-01-01-preview",
 	awsRegion: "us-east-1",
 	awsProfile: "default",
 	sapClientId: "sb-...|xsuaa_std!b...",

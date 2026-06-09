@@ -243,6 +243,75 @@ describe("createAgentModelFromConfig", () => {
 		);
 	});
 
+	it("forwards Azure settings as OpenAI-compatible gateway provider options", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+
+		createAgentModelFromConfig(
+			{
+				providerId: "openai-compatible",
+				modelId: "gpt-4.1",
+				systemPrompt: "",
+				tools: [],
+				providerConfig: {
+					providerId: "openai-compatible",
+					modelId: "gpt-4.1",
+					azure: {
+						apiVersion: "2025-01-01-preview",
+						useIdentity: false,
+					},
+				},
+			},
+			undefined,
+		);
+
+		expect(gatewayMock.createGateway).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				providerConfigs: [
+					expect.objectContaining({
+						providerId: "openai-compatible",
+						options: expect.objectContaining({
+							apiVersion: "2025-01-01-preview",
+							useIdentity: false,
+						}),
+					}),
+				],
+			}),
+		);
+	});
+
+	it("does not forward Azure settings for non-OpenAI-compatible providers", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+
+		createAgentModelFromConfig(
+			{
+				providerId: "anthropic",
+				modelId: "claude-3-5-sonnet",
+				systemPrompt: "",
+				tools: [],
+				providerConfig: {
+					providerId: "anthropic",
+					modelId: "claude-3-5-sonnet",
+					azure: {
+						apiVersion: "2025-01-01-preview",
+						useIdentity: false,
+					},
+				},
+			},
+			undefined,
+		);
+
+		expect(gatewayMock.createGateway).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				providerConfigs: [
+					expect.objectContaining({
+						providerId: "anthropic",
+						options: undefined,
+					}),
+				],
+			}),
+		);
+	});
+
 	it("uses a registered handler (adapter) instead of the gateway, building it lazily", async () => {
 		const { createAgentModelFromConfig } = await import("./handler-factory");
 
