@@ -5,6 +5,9 @@ export type ProviderConfigFieldKey =
 	| "apiKey"
 	| "baseUrl"
 	| "azureApiVersion"
+	| "headers"
+	| "contextWindow"
+	| "maxOutputTokens"
 	| "awsRegion"
 	| "awsProfile"
 	| "gcpProjectId"
@@ -37,6 +40,9 @@ const FIELD_KEYS: ProviderConfigFieldKey[] = [
 	"apiKey",
 	"baseUrl",
 	"azureApiVersion",
+	"headers",
+	"contextWindow",
+	"maxOutputTokens",
 	"awsRegion",
 	"awsProfile",
 	"gcpProjectId",
@@ -117,6 +123,25 @@ const PROVIDER_CONFIG_FIELD_METADATA: Partial<
 		fields: {
 			apiKey: {
 				note: "Keep empty if no API key for local inference.",
+			},
+		},
+	},
+	"openai-compatible": {
+		fields: {
+			headers: {
+				label: "Custom Headers (optional)",
+				placeholder: "X-Header=value, X-Other=value",
+				optional: true,
+			},
+			contextWindow: {
+				label: "Context Window (optional)",
+				placeholder: "e.g. 128000",
+				optional: true,
+			},
+			maxOutputTokens: {
+				label: "Max Output Tokens (optional)",
+				placeholder: "e.g. 8192",
+				optional: true,
 			},
 		},
 	},

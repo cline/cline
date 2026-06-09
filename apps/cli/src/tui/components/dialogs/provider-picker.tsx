@@ -24,11 +24,14 @@ import {
 } from "../../../utils/codex-cli";
 import { palette } from "../../palette";
 import {
+	formatProviderConfigHeaders,
 	getDefaultAwsRegion,
 	type ProviderConfigValues,
 	resolveProviderConfigAwsRegion,
 	resolveProviderConfigAzure,
 	resolveProviderConfigGcp,
+	resolveProviderConfigHeadersPatch,
+	resolveProviderConfigPositiveInteger,
 	resolveProviderConfigSap,
 	updateProviderConfigValue,
 } from "../../utils/provider-config-values";
@@ -318,6 +321,9 @@ const DEFAULT_FIELD_LABELS: Partial<Record<ProviderConfigFieldKey, string>> = {
 	apiKey: "API key",
 	baseUrl: "Base URL",
 	azureApiVersion: "Azure API Version",
+	headers: "Custom Headers",
+	contextWindow: "Context Window",
+	maxOutputTokens: "Max Output Tokens",
 	awsRegion: "AWS Region",
 	awsProfile: "AWS Profile Name",
 	gcpProjectId: "Google Cloud Project ID",
@@ -335,6 +341,9 @@ const DEFAULT_FIELD_PLACEHOLDERS: Partial<
 	apiKey: "sk-...",
 	baseUrl: "",
 	azureApiVersion: "2025-01-01-preview",
+	headers: "X-Header=value, X-Other=value",
+	contextWindow: "",
+	maxOutputTokens: "",
 	awsRegion: "us-east-1",
 	awsProfile: "default",
 	gcpProjectId: "my-gcp-project",
@@ -354,6 +363,9 @@ const FIELD_ORDER: ProviderConfigFieldKey[] = [
 	"baseUrl",
 	"azureApiVersion",
 	"apiKey",
+	"headers",
+	"contextWindow",
+	"maxOutputTokens",
 	"awsProfile",
 	"sapClientId",
 	"sapClientSecret",
@@ -427,6 +439,18 @@ export function ProviderConfigInputContent(
 				"us-central1";
 		if (config.fields.apiKey)
 			initial.apiKey = existingSettings?.apiKey?.trim() ?? "";
+		if (config.fields.headers)
+			initial.headers = formatProviderConfigHeaders(existingSettings?.headers);
+		if (config.fields.contextWindow)
+			initial.contextWindow =
+				existingSettings?.contextWindow !== undefined
+					? String(existingSettings.contextWindow)
+					: "";
+		if (config.fields.maxOutputTokens)
+			initial.maxOutputTokens =
+				existingSettings?.maxTokens !== undefined
+					? String(existingSettings.maxTokens)
+					: "";
 		if (config.fields.awsProfile)
 			initial.awsProfile = existingSettings?.aws?.profile?.trim() ?? "";
 		if (config.fields.sapClientId)
@@ -466,6 +490,28 @@ export function ProviderConfigInputContent(
 			apiKey: config.fields.apiKey ? apiKey : undefined,
 			baseUrl: config.fields.baseUrl ? values.baseUrl?.trim() : undefined,
 			azure: hasAzureFields ? resolveProviderConfigAzure(values) : undefined,
+			...(config.fields.headers
+				? {
+						headers: resolveProviderConfigHeadersPatch(
+							values.headers,
+							existingSettings?.headers,
+						),
+					}
+				: {}),
+			...(config.fields.contextWindow
+				? {
+						contextWindow: resolveProviderConfigPositiveInteger(
+							values.contextWindow,
+						),
+					}
+				: {}),
+			...(config.fields.maxOutputTokens
+				? {
+						maxTokens: resolveProviderConfigPositiveInteger(
+							values.maxOutputTokens,
+						),
+					}
+				: {}),
 			aws: hasAwsFields
 				? {
 						region: resolveProviderConfigAwsRegion(values),

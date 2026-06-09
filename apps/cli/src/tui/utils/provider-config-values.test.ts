@@ -3,10 +3,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+	formatProviderConfigHeaders,
 	getDefaultAwsRegion,
+	parseProviderConfigHeaders,
 	resolveProviderConfigAwsRegion,
 	resolveProviderConfigAzure,
 	resolveProviderConfigGcp,
+	resolveProviderConfigHeadersPatch,
+	resolveProviderConfigPositiveInteger,
 	resolveProviderConfigSap,
 	updateProviderConfigValue,
 } from "./provider-config-values";
@@ -116,5 +120,51 @@ describe("provider config values", () => {
 		).toEqual({
 			apiVersion: "",
 		});
+	});
+
+	it("round-trips headers through format and parse", () => {
+		const headers = {
+			"X-Org": "abc",
+			Authorization: "Bearer a=b",
+		};
+		const formatted = formatProviderConfigHeaders(headers);
+		expect(formatted).toBe("X-Org=abc, Authorization=Bearer a=b");
+		expect(parseProviderConfigHeaders(formatted)).toEqual(headers);
+	});
+
+	it("parses headers leniently, dropping malformed entries", () => {
+		expect(
+			parseProviderConfigHeaders("X-Org=abc, broken, =nokey, X-Other = v "),
+		).toEqual({
+			"X-Org": "abc",
+			"X-Other": "v",
+		});
+		expect(parseProviderConfigHeaders("")).toEqual({});
+		expect(parseProviderConfigHeaders(undefined)).toEqual({});
+	});
+
+	it("builds a headers patch that deletes removed entries", () => {
+		expect(
+			resolveProviderConfigHeadersPatch("X-Org=abc", {
+				"X-Org": "old",
+				"X-Removed": "gone",
+			}),
+		).toEqual({
+			"X-Org": "abc",
+			"X-Removed": "",
+		});
+		expect(resolveProviderConfigHeadersPatch("", undefined)).toBeUndefined();
+		expect(resolveProviderConfigHeadersPatch("", { "X-Org": "old" })).toEqual({
+			"X-Org": "",
+		});
+	});
+
+	it("parses optional numeric fields, clearing blank or invalid input", () => {
+		expect(resolveProviderConfigPositiveInteger("128000")).toBe(128_000);
+		expect(resolveProviderConfigPositiveInteger(" 8192 ")).toBe(8_192);
+		expect(resolveProviderConfigPositiveInteger("")).toBeUndefined();
+		expect(resolveProviderConfigPositiveInteger(undefined)).toBeUndefined();
+		expect(resolveProviderConfigPositiveInteger("abc")).toBeUndefined();
+		expect(resolveProviderConfigPositiveInteger("-5")).toBeUndefined();
 	});
 });

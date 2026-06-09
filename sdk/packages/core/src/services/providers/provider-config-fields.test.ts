@@ -115,6 +115,21 @@ describe("getProviderConfigFields", () => {
 		expect(result.fields.apiKey?.optional).toBe(true);
 	});
 
+	it("exposes optional headers and model configuration fields for OpenAI Compatible", () => {
+		const result = getProviderConfigFields("openai-compatible");
+		expect(result.fields.headers?.optional).toBe(true);
+		expect(result.fields.headers?.label).toMatch(/custom headers/i);
+		expect(result.fields.contextWindow?.optional).toBe(true);
+		expect(result.fields.maxOutputTokens?.optional).toBe(true);
+	});
+
+	it("does not expose headers or model configuration fields for other providers", () => {
+		const anthropic = getProviderConfigFields("anthropic");
+		expect(anthropic.fields.headers).toBeUndefined();
+		expect(anthropic.fields.contextWindow).toBeUndefined();
+		expect(anthropic.fields.maxOutputTokens).toBeUndefined();
+	});
+
 	it("returns api-key auth with awsRegion, apiKey, and awsProfile for bedrock", () => {
 		const result = getProviderConfigFields("bedrock");
 		expect(result.providerId).toBe("bedrock");

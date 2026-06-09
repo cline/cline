@@ -29,10 +29,13 @@ import {
 } from "../../components/searchable-list";
 import { palette } from "../../palette";
 import {
+	formatProviderConfigHeaders,
 	getDefaultAwsRegion,
 	type ProviderConfigValues,
 	resolveProviderConfigAwsRegion,
 	resolveProviderConfigAzure,
+	resolveProviderConfigHeadersPatch,
+	resolveProviderConfigPositiveInteger,
 	resolveProviderConfigSap,
 	updateProviderConfigValue,
 } from "../../utils/provider-config-values";
@@ -395,6 +398,19 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 			if (config.fields.apiKey) {
 				initialValues.apiKey = existing?.apiKey?.trim() ?? "";
 			}
+			if (config.fields.headers) {
+				initialValues.headers = formatProviderConfigHeaders(existing?.headers);
+			}
+			if (config.fields.contextWindow) {
+				initialValues.contextWindow =
+					existing?.contextWindow !== undefined
+						? String(existing.contextWindow)
+						: "";
+			}
+			if (config.fields.maxOutputTokens) {
+				initialValues.maxOutputTokens =
+					existing?.maxTokens !== undefined ? String(existing.maxTokens) : "";
+			}
 			if (config.fields.awsProfile) {
 				initialValues.awsProfile = existing?.aws?.profile?.trim() ?? "";
 			}
@@ -458,11 +474,35 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 			byoFields.sapResourceGroup ||
 			byoFields.sapDeploymentId;
 
+		const existingSettings =
+			providerSettingsManager.getProviderSettings(activeProviderId);
 		saveLocalProviderSettings(providerSettingsManager, {
 			providerId: activeProviderId,
 			apiKey: byoFields.apiKey ? apiKey : undefined,
 			baseUrl: byoFields.baseUrl ? byoValues.baseUrl?.trim() : undefined,
 			azure: hasAzureFields ? resolveProviderConfigAzure(byoValues) : undefined,
+			...(byoFields.headers
+				? {
+						headers: resolveProviderConfigHeadersPatch(
+							byoValues.headers,
+							existingSettings?.headers,
+						),
+					}
+				: {}),
+			...(byoFields.contextWindow
+				? {
+						contextWindow: resolveProviderConfigPositiveInteger(
+							byoValues.contextWindow,
+						),
+					}
+				: {}),
+			...(byoFields.maxOutputTokens
+				? {
+						maxTokens: resolveProviderConfigPositiveInteger(
+							byoValues.maxOutputTokens,
+						),
+					}
+				: {}),
 			aws: hasAwsFields
 				? {
 						region: resolveProviderConfigAwsRegion(byoValues),

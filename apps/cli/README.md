@@ -161,6 +161,12 @@ cline --json "Summarize this repository"
 # Quick provider setup
 cline auth --provider anthropic --apikey sk-... --modelid claude-sonnet-4-6
 cline auth --provider openai-native --apikey sk-... --modelid gpt-5 --baseurl https://api.example.com/v1
+
+# OpenAI-compatible endpoint with custom headers and model configuration
+cline auth --provider openai-compatible --apikey sk-... --modelid my-model \
+  --baseurl https://llm.example.com/v1 \
+  --header "X-Org=abc" --header "Authorization-Extra=token" \
+  --context-window 128000 --max-output-tokens 8192 --no-supports-images
 ```
 
 ### Connectors
