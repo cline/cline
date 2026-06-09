@@ -349,6 +349,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		const onTeamEvent = input.onTeamEvent ?? (() => {});
 		const normalized = normalizeConfig(config);
 		const workspaceConfigRoot = config.workspaceRoot ?? config.cwd;
+		const effectiveToolPolicies = input.toolPolicies ?? config.toolPolicies;
 		const globallyDisabledToolNames = resolveDisabledToolNames();
 		const tools: AgentTool[] = [];
 		const effectiveTeamName = config.teamName?.trim() || createTeamName();
@@ -418,7 +419,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 				mode: normalized.mode,
 				modelId: config.modelId,
 				toolRoutingRules: config.toolRoutingRules,
-				toolPolicies: config.toolPolicies,
+				toolPolicies: effectiveToolPolicies,
 				toolExecutors,
 			});
 
@@ -444,7 +445,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					normalized.mode,
 					config.modelId,
 					config.toolRoutingRules,
-					config.toolPolicies,
+					effectiveToolPolicies,
 					undefined,
 					toolExecutors,
 				),
@@ -507,7 +508,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 												normalized.mode,
 												agent.modelId ?? config.modelId,
 												config.toolRoutingRules,
-												config.toolPolicies,
+												effectiveToolPolicies,
 												agent.skills !== undefined &&
 													userInstructionService?.createSkillsExecutor
 													? userInstructionService.createSkillsExecutor(
@@ -520,13 +521,13 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 										)
 									: [],
 							hookErrorMode: config.hookErrorMode,
-							toolPolicies: config.toolPolicies,
+							toolPolicies: effectiveToolPolicies,
 							requestToolApproval: input.requestToolApproval,
 							onSubAgentEvent: input.onSubAgentEvent,
 							onSubAgentStart: input.onSubAgentStart,
 							onSubAgentEnd: input.onSubAgentEnd,
 						}),
-						config.toolPolicies,
+						effectiveToolPolicies,
 					),
 				);
 			}
@@ -616,7 +617,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 									normalized.mode,
 									config.modelId,
 									config.toolRoutingRules,
-									config.toolPolicies,
+									effectiveToolPolicies,
 									undefined,
 									toolExecutors,
 								)
@@ -652,7 +653,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			ensureTeamRuntime();
 		}
 
-		const finalTools = filterAvailableTools(tools, config.toolPolicies);
+		const finalTools = filterAvailableTools(tools, effectiveToolPolicies);
 		const requiresCompletionTool = finalTools.some(
 			(tool) =>
 				tool.name === "submit_and_exit" &&

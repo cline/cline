@@ -63,6 +63,7 @@ export interface RuntimeBuilderInput {
 	pluginSkillDirectories?: ReadonlyArray<string>;
 	configExtensions?: RuntimeConfigExtensionKind[];
 	toolExecutors?: Partial<ToolExecutors>;
+	toolPolicies?: CoreSessionConfig["toolPolicies"];
 	workspaceManager?: WorkspaceManager;
 	logger?: BasicLogger;
 	telemetry?: ITelemetryService;

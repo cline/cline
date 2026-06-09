@@ -477,6 +477,7 @@ export async function prepareLocalRuntimeBootstrap(
 			pluginSkillDirectories,
 			configExtensions: configExtensions,
 			toolExecutors: effectiveToolExecutors,
+			toolPolicies,
 			workspaceManager,
 			logger: config.logger,
 			telemetry: config.telemetry,

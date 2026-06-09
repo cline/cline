@@ -149,9 +149,14 @@ Write a concise commit message.`,
 		const onSubAgentEvent = vi.fn();
 		const onSubAgentStart = vi.fn();
 		const onSubAgentEnd = vi.fn();
+		const effectiveToolPolicies = {
+			"*": { autoApprove: false },
+			read_files: { enabled: false },
+		};
 		const runtime = await new DefaultRuntimeBuilder().build({
 			config: makeBaseConfig({ cwd, workspaceRoot }),
 			configExtensions: [],
+			toolPolicies: effectiveToolPolicies,
 			requestToolApproval,
 			onSubAgentEvent,
 			onSubAgentStart,
@@ -222,10 +227,10 @@ Write a concise commit message.`,
 				maxIterations: 3,
 				parentAgentId: "parent-agent",
 				requestToolApproval,
+				toolPolicies: effectiveToolPolicies,
 			}),
 		);
 		expect(delegatedConfig?.tools.map((tool) => tool.name).sort()).toEqual([
-			"read_files",
 			"run_commands",
 			"skills",
 		]);
