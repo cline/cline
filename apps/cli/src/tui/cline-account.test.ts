@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Config } from "../utils/types";
 
 const coreMocks = vi.hoisted(() => {
@@ -9,13 +9,14 @@ const coreMocks = vi.hoisted(() => {
 	return {
 		getProviderSettings: vi.fn(),
 		saveProviderSettings: vi.fn(),
-		getValidClineCredentials: vi.fn(),
 		serviceOptions,
 	};
 });
 
-vi.mock("@cline/core", () => {
+vi.mock("@cline/core", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@cline/core")>();
 	return {
+		...actual,
 		ClineAccountService: class {
 			constructor(options: {
 				apiBaseUrl: string;
@@ -32,7 +33,6 @@ vi.mock("@cline/core", () => {
 				coreMocks.saveProviderSettings(settings, options);
 			}
 		},
-		getValidClineCredentials: coreMocks.getValidClineCredentials,
 	};
 });
 
@@ -59,15 +59,51 @@ function makeConfig(overrides: Partial<Config> = {}): Config {
 	} as unknown as Config;
 }
 
+function mockFetchJson(body: unknown, status = 200): void {
+	vi.stubGlobal(
+		"fetch",
+		vi.fn(
+			async () =>
+				new Response(JSON.stringify(body), {
+					status,
+					headers: { "Content-Type": "application/json" },
+				}),
+		) as unknown as typeof fetch,
+	);
+}
+
 describe("createClineAccountService", () => {
 	beforeEach(() => {
+		vi.restoreAllMocks();
+		vi.unstubAllGlobals();
 		coreMocks.getProviderSettings.mockReset();
 		coreMocks.saveProviderSettings.mockReset();
-		coreMocks.getValidClineCredentials.mockReset();
 		coreMocks.serviceOptions.length = 0;
 	});
 
+	afterEach(() => {
+		vi.restoreAllMocks();
+		vi.unstubAllGlobals();
+	});
+
 	it("refreshes persisted Cline OAuth credentials before creating the account service", async () => {
+		vi.spyOn(Date, "now").mockReturnValue(100_000);
+		mockFetchJson({
+			success: true,
+			data: {
+				accessToken: "new-access",
+				refreshToken: "new-refresh",
+				tokenType: "Bearer",
+				expiresAt: "2096-10-02T07:06:40.000Z",
+				userInfo: {
+					subject: "sub-new",
+					email: "new@example.com",
+					name: "New User",
+					clineUserId: "acct-new",
+					accounts: [],
+				},
+			},
+		});
 		coreMocks.getProviderSettings.mockReturnValue({
 			provider: "cline",
 			auth: {
@@ -77,26 +113,12 @@ describe("createClineAccountService", () => {
 				expiresAt: 1,
 			},
 		});
-		coreMocks.getValidClineCredentials.mockResolvedValue({
-			access: "new-access",
-			refresh: "new-refresh",
-			expires: 4_000_000_000_000,
-			accountId: "acct-new",
-		});
 
 		const { createClineAccountService } = await import("./cline-account");
 		const service = await createClineAccountService({ config: makeConfig() });
 
 		expect(service).toBeDefined();
-		expect(coreMocks.getValidClineCredentials).toHaveBeenCalledWith(
-			{
-				access: "old-access",
-				refresh: "refresh-token",
-				expires: 1,
-				accountId: "acct-old",
-			},
-			{ apiBaseUrl: "https://api.cline.bot" },
-		);
+		expect(globalThis.fetch).toHaveBeenCalled();
 		expect(coreMocks.saveProviderSettings).toHaveBeenCalledWith(
 			expect.objectContaining({
 				provider: "cline",
@@ -115,6 +137,14 @@ describe("createClineAccountService", () => {
 	});
 
 	it("asks the user to re-authenticate when Cline OAuth credentials cannot refresh", async () => {
+		vi.spyOn(Date, "now").mockReturnValue(100_000);
+		mockFetchJson(
+			{
+				error: "invalid_grant",
+				error_description: "refresh expired",
+			},
+			401,
+		);
 		coreMocks.getProviderSettings.mockReturnValue({
 			provider: "cline",
 			auth: {
@@ -123,7 +153,6 @@ describe("createClineAccountService", () => {
 				expiresAt: 1,
 			},
 		});
-		coreMocks.getValidClineCredentials.mockResolvedValue(null);
 
 		const { createClineAccountService } = await import("./cline-account");
 
