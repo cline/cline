@@ -7,10 +7,10 @@ body:
       value: |
         **Important:** All bug reports must be reproducible using Claude Sonnet 4.5. Cline uses complex prompts so less capable models may not work as expected.
   - type: dropdown
-    id: plugin-type
+    id: cline-surface
     attributes:
-      label: Plugin Type
-      description: Which plugin are you reporting a bug for?
+      label: Cline Surface
+      description: Which Cline surface are you reporting a bug for?
       options:
         - VSCode Extension
         - JetBrains Plugin
@@ -57,6 +57,18 @@ body:
       label: Provider/Model
       description: What provider and model were you using when the issue occurred?
       placeholder: 'e.g., cline:anthropic/claude-sonnet-4.5, gemini:gemini-2.5-pro-exp-03-25'
+    validations:
+      required: false
+  - type: textarea
+    id: ide-diagnostics
+    attributes:
+      label: IDE / CLI Diagnostics
+      description: |
+        Paste the "About" diagnostics for your Cline surface. This captures the IDE build, runtime, and host details we need.
+        - VSCode Extension: open `Help → About` (Windows/Linux) or `Code → About Visual Studio Code` (macOS), then copy the info.
+        - JetBrains Plugin: open `Help → About` (Windows/Linux) or `<IDE name> → About` (macOS), then click `Copy` to grab build, runtime, OS, memory, and cores.
+        - CLI: there is no About dialog. Run `cline --version` and paste the output.
+      placeholder: Paste the copied About info or `cline --version` output here.
     validations:
       required: false
   - type: textarea
