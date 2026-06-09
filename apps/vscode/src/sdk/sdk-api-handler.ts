@@ -12,7 +12,7 @@ import type { ApiConfiguration } from "@shared/api"
 import type { Mode } from "@shared/storage/types"
 import { fetch } from "@/shared/net"
 import { buildBedrockProviderConfig } from "./bedrock-config"
-import { resolveApiKey, resolveBaseUrl, resolveModelId } from "./cline-session-factory"
+import { resolveApiKey, resolveBaseUrl, resolveModelId, resolveVertexProviderConfig } from "./cline-session-factory"
 import { toSdkProviderId } from "./model-catalog/sdk-provider-id"
 
 export interface BuildApiHandlerOptions {
@@ -51,11 +51,14 @@ function buildSdkProviderConfig(configuration: ApiConfiguration, mode: Mode, opt
 		mode === "plan" ? configuration.planModeThinkingBudgetTokens : configuration.actModeThinkingBudgetTokens
 	const reasoningEffort = mode === "plan" ? configuration.planModeReasoningEffort : configuration.actModeReasoningEffort
 
+	const vertexProviderConfig = providerId === "vertex" ? resolveVertexProviderConfig(configuration) : undefined
+
 	const base: ProviderConfig = {
 		providerId: toSdkProviderId(providerId),
 		modelId: modelId ?? "",
 		apiKey: apiKey ?? "",
 		baseUrl,
+		...(vertexProviderConfig ?? {}),
 		// Use the proxy-aware fetch so gateway providers respect corporate proxy
 		// configuration (see .clinerules/network.md).
 		fetch,
