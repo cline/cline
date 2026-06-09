@@ -4,7 +4,8 @@ import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import type React from "react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { VirtuosoHandle } from "react-virtuoso"
-import { ButtonActionType, getButtonConfig } from "../../shared/buttonConfig"
+import { useExtensionState } from "../../../../../context/ExtensionStateContext"
+import { ButtonActionType, getButtonConfigFromState } from "../../shared/buttonConfig"
 import type { ChatState, MessageHandlers } from "../../types/chatTypes"
 
 interface ActionButtonsProps {
@@ -33,6 +34,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 	scrollBehavior,
 }) => {
 	const { inputValue, selectedImages, selectedFiles, setSendingDisabled } = chatState
+	const { turnState } = useExtensionState()
 	const [isProcessing, setIsProcessing] = useState(false)
 
 	// Memoize last messages to avoid unnecessary recalculations
@@ -41,10 +43,13 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 		return len > 0 ? [messages[len - 1], messages[len - 2]] : [undefined, undefined]
 	}, [messages])
 
-	// Memoize button configuration to avoid recalculation on every render
+	// Button configuration is driven by the authoritative backend TurnState when present (SDK
+	// path); otherwise it falls back to the legacy tail-walking heuristic. This makes the footer
+	// buttons immune to trailing bookkeeping messages and never disagree with the thinking
+	// indicator (RC1).
 	const buttonConfig = useMemo(() => {
-		return lastMessage ? getButtonConfig(lastMessage, mode) : { sendingDisabled: false, enableButtons: false }
-	}, [lastMessage, mode])
+		return getButtonConfigFromState(messages, turnState, mode)
+	}, [messages, turnState, mode])
 
 	// Single effect to handle all configuration updates
 	useEffect(() => {
@@ -105,8 +110,10 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 	const isStreaming = task.partial === true
 	const canInteract = enableButtons && !isProcessing
 
-	// Early return for scroll button to avoid unnecessary computation
-	if (showScrollToBottom || !hasButtons) {
+	// Early return for scroll button to avoid unnecessary computation.
+	// Action buttons must take priority over the scroll button; otherwise an
+	// approval ask can be visible while the footer only shows “scroll to bottom”.
+	if (!hasButtons) {
 		const handleScrollToBottom = () => {
 			scrollToBottomSmooth()
 			disableAutoScrollRef.current = false

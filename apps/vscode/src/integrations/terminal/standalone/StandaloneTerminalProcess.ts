@@ -99,6 +99,10 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 				stdio: ["ignore", "pipe", "pipe"], // Disable STDIN to prevent interactivity
 				env: {
 					...process.env,
+					// Set SHELL to match the shell we're actually spawning, not
+					// whatever the parent process inherited. This ensures child
+					// processes and scripts that inspect $SHELL see the correct value.
+					SHELL: shell,
 					TERM: "xterm-256color",
 					PAGER: "cat", // Prevent less from being used, reducing interactivity
 					EDITOR: process.env.EDITOR || "cat", // Set EDITOR if not already set

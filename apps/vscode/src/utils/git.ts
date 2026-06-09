@@ -199,14 +199,16 @@ export async function getGitDiff(cwd: string, stagedOnly = false): Promise<strin
 		}
 
 		let diff = ""
+		// `git diff --staged` is valid even before the first commit (it diffs the
+		// index against the empty tree), so it must NOT be gated on having a HEAD.
+		// This is the common case for the very first commit of a new repo.
 		let command = "git --no-pager diff --staged --diff-filter=d"
-		if (await checkGitRepoHasCommits(cwd)) {
-			// Only run git diff if there are commits
-			const { stdout: staged } = await execAsync(command, { cwd })
-			diff = staged.trim()
-		}
+		const { stdout: staged } = await execAsync(command, { cwd })
+		diff = staged.trim()
 
-		if (!stagedOnly && !diff) {
+		// The unstaged fallback compares against HEAD, which only exists once the
+		// repo has at least one commit. Skip it in a commit-less repo.
+		if (!stagedOnly && !diff && (await checkGitRepoHasCommits(cwd))) {
 			command = "git --no-pager diff HEAD --diff-filter=d"
 			const { stdout: unstaged } = await execAsync(command, { cwd })
 			diff = unstaged.trim()

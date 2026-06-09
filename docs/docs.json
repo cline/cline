@@ -117,8 +117,7 @@
 											"cli/samples/model-orchestration",
 											"cli/samples/supply-chain-alerts"
 										]
-									},
-									"cli/acp-editor-integrations"
+									}
 								]
 							},
 							{

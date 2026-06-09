@@ -12,7 +12,7 @@ import type { ChatState, MessageHandlers } from "../types/chatTypes"
  * Handles sending messages, button clicks, and task management
  */
 export function useMessageHandlers(messages: ClineMessage[], chatState: ChatState): MessageHandlers {
-	const { backgroundCommandRunning } = useExtensionState()
+	const { backgroundCommandRunning, turnState, hasUsableProvider } = useExtensionState()
 	const {
 		setInputValue,
 		activeQuote,
@@ -29,6 +29,14 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 	// Handle sending a message
 	const handleSendMessage = useCallback(
 		async (text: string, images: string[], files: string[]) => {
+			// Gate: block submission when there is no usable provider (no Cline
+			// auth AND no BYOK key). This is a defense-in-depth guard so the Enter
+			// key cannot bypass the disabled input/send button in InputSection.
+			if (!hasUsableProvider) {
+				console.log("[ChatView] handleSendMessage blocked: no usable provider (sign in or add an API key)")
+				return
+			}
+
 			let messageToSend = text.trim()
 			const hasContent = messageToSend || images.length > 0 || files.length > 0
 
@@ -96,14 +104,27 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 						}
 					}
 				} else if (messages.length > 0) {
-					// No clineAsk set - check if task is actively running
-					// If so, allow interrupting it with feedback
+					// No clineAsk set, but there is an existing conversation. Route this to the
+					// active session as a follow-up when either:
+					//
+					//   1. The authoritative turnState says the conversation is continuable —
+					//      phases "completed" / "awaiting_followup" (the agent finished or is
+					//      waiting for the user) or "streaming" (interrupt with feedback). The SDK
+					//      does not emit a trailing ask:"completion_result", so clineAsk is
+					//      undefined even when the user can keep talking; turnState is the source
+					//      of truth.
+					//   2. Legacy fallback (no turnState): the task looks actively running from the
+					//      message tail.
 					const lastMessage = messages[messages.length - 1]
 					const isTaskRunning =
 						lastMessage.partial === true || (lastMessage.type === "say" && lastMessage.say === "api_req_started")
+					const turnAllowsFollowup =
+						turnState?.phase === "completed" ||
+						turnState?.phase === "awaiting_followup" ||
+						turnState?.phase === "streaming"
 
-					if (isTaskRunning) {
-						// Task is running - send message as interruption/feedback
+					if (turnAllowsFollowup || isTaskRunning) {
+						// Continue the conversation / interrupt with feedback.
 						await TaskServiceClient.askResponse(
 							AskResponseRequest.create({
 								responseType: "messageResponse",
@@ -133,8 +154,10 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			}
 		},
 		[
-			messages.length,
+			messages,
 			clineAsk,
+			turnState,
+			hasUsableProvider,
 			activeQuote,
 			setInputValue,
 			setActiveQuote,

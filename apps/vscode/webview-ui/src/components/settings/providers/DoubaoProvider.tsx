@@ -1,10 +1,9 @@
-import { doubaoModels } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useStaticProviderSelection } from "@/hooks/useStaticProviderSelection"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { ModelSelector } from "../common/ModelSelector"
-import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 /**
@@ -24,7 +23,11 @@ export const DoubaoProvider = ({ showModelOptions, isPopup, currentMode }: Douba
 	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
 	// Get the normalized configuration
-	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
+	const { models, selectedModelId, selectedModelInfo, hideUsageCost } = useStaticProviderSelection(
+		"doubao",
+		apiConfiguration,
+		currentMode,
+	)
 
 	return (
 		<div>
@@ -39,7 +42,7 @@ export const DoubaoProvider = ({ showModelOptions, isPopup, currentMode }: Douba
 				<>
 					<ModelSelector
 						label="Model"
-						models={doubaoModels}
+						models={models}
 						onChange={(e: any) =>
 							handleModeFieldChange(
 								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
@@ -50,7 +53,12 @@ export const DoubaoProvider = ({ showModelOptions, isPopup, currentMode }: Douba
 						selectedModelId={selectedModelId}
 					/>
 
-					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
+					<ModelInfoView
+						hideUsageCost={hideUsageCost}
+						isPopup={isPopup}
+						modelInfo={selectedModelInfo}
+						selectedModelId={selectedModelId}
+					/>
 				</>
 			)}
 		</div>

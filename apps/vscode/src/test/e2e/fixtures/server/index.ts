@@ -171,11 +171,11 @@ export class ClineApiServerMock {
 
 			// Authentication middleware
 			const authHeader = req.headers.authorization
-			const isPublicApiRoute =
-				path === "/api/v1/auth/token" ||
-				path === "/api/v1/ai/cline/models" ||
-				path === "/api/v1/ai/cline/recommended-models"
-			const isAuthRequired = !path.startsWith("/.test/") && path !== "/health" && !isPublicApiRoute
+			const isAuthRequired =
+				!path.startsWith("/.test/") &&
+				path !== "/health" &&
+				path !== "/api/v1/auth/token" &&
+				path !== "/api/v1/auth/register"
 
 			if (isAuthRequired && (!authHeader || !authHeader.startsWith("Bearer "))) {
 				return sendApiError("Unauthorized", 401)
@@ -186,7 +186,8 @@ export class ClineApiServerMock {
 			// Authenticate the token and set current user
 			if (isAuthRequired && authToken) {
 				log(`Authenticating token: ${authToken}`)
-				const user = ClineApiServerMock.globalSharedServer!.API_USER.getUserByToken(authToken)
+				const normalizedAuthToken = authToken.replace(/^workos:/i, "")
+				const user = ClineApiServerMock.globalSharedServer!.API_USER.getUserByToken(normalizedAuthToken)
 				if (!user) {
 					return sendApiError("Invalid token", 401)
 				}
@@ -332,11 +333,43 @@ export class ClineApiServerMock {
 						return sendApiResponse("Account switched successfully")
 					}
 
+					// Auth token registration endpoint used by WorkOS device auth.
+					if (endpoint === "/auth/register" && method === "POST") {
+						const body = await readBody()
+						const parsed = JSON.parse(body)
+						const { accessToken, refreshToken } = parsed
+
+						if (!accessToken || !refreshToken) {
+							return sendApiError("Invalid request", 400)
+						}
+
+						const user = controller.API_USER.getUserByToken(accessToken)
+						if (!user) {
+							return sendApiError("Invalid WorkOS token", 400)
+						}
+
+						return sendApiResponse({
+							accessToken: accessToken + "_access",
+							refreshToken,
+							tokenType: "Bearer",
+							expiresAt: new Date(Date.now() + 3600 * 1000).toISOString(),
+							userInfo: {
+								subject: user.id,
+								email: user.email,
+								name: user.displayName,
+								clineUserId: user.id,
+								accounts: null,
+								organizations: user.organizations,
+							},
+						})
+					}
+
 					// Auth token exchange endpoint
 					if (endpoint === "/auth/token" && method === "POST") {
 						const body = await readBody()
 						const parsed = JSON.parse(body)
-						const { code, grantType } = parsed
+						const { code } = parsed
+						const grantType = parsed.grantType ?? parsed.grant_type
 
 						if (grantType !== "authorization_code" || !code) {
 							return sendApiError("Invalid request", 400)

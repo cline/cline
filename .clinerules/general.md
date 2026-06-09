@@ -13,10 +13,54 @@ This file is the secret sauce for working effectively in this codebase. It captu
 **What NOT to add:** Stuff you can figure out from reading a few files, obvious patterns, or standard practices. This file should be high-signal, not comprehensive.
 
 ## Miscellaneous
+- Avoid provider-specific string matching / hardcoded provider branches when fixing provider/config plumbing. Prefer provider metadata, shared catalog/defaults, explicit protocol/client capabilities, or centralized normalization utilities that apply by data shape rather than `providerId === "..."`. If a provider exception seems necessary, stop and explain why instead of adding ad-hoc string matching.
 - This is a VS Code extension—check `package.json` for available scripts before trying to verify builds (e.g., `npm run compile`, not `npm run build`).
 - When creating PRs, contributors should not create changelog-entry files. Maintainers handle release versioning and changelog curation during the release process.
 - When adding new feature flags, see this PR as a reference https://github.com/cline/cline/pull/7566
 - Additional instructions about making requests: @.clinerules/network.md
+
+## Searching the Codebase — Avoiding Build Output
+
+Several directories contain build output or generated code that produces
+noisy or unusable results with `search_files` / `grep`:
+
+| Directory | What it is | Why it's a problem |
+|-----------|-----------|-------------------|
+| `out/` | esbuild bundle output | Mirrors `src/` structure as minified JS — every search gets duplicate hits on single-line files |
+| `dist/` | Packaged extension | Entire extension bundled into one minified `extension.js` (~1 long line) |
+| `dist-standalone/` | Standalone build output | Same minification issue |
+| `src/generated/` | Generated protobuf code | Auto-generated from `proto/`; not the source of truth |
+| `src/shared/proto/` | Generated proto type defs | Auto-generated from `proto/`; not the source of truth |
+| `node_modules/` | Dependencies | Huge, not project source |
+
+### How to skip build output
+
+**`search_files`** — Point at `src/` (not the project root) and use `file_pattern`:
+```
+search_files(path="src/core", regex="myFunction", file_pattern="*.ts")
+```
+The `file_pattern` parameter is the most effective filter — e.g. `"*.ts"`,
+`"*.tsx"`, `"*.proto"`.
+
+**`grep` directly** — Exclude build dirs and restrict to source extensions:
+```bash
+grep -rn "myFunction" src/ --include="*.ts" --exclude-dir={out,dist,node_modules,generated}
+```
+
+### When you must search minified files
+
+Sometimes you need to verify what got bundled (e.g., checking if a change
+made it into the build). Minified files are typically one long line, so
+normal `grep` shows the entire file as context. Use these approaches:
+
+- **`grep -oP`** to extract just the match with limited surrounding context:
+  ```bash
+  grep -oP '.{0,40}myFunction.{0,40}' dist/extension.js
+  ```
+- **`read_file`** on files in `out/src/` — these have source maps and are
+  more readable than `dist/extension.js` (which is the fully bundled output).
+- **Source maps** — `out/src/*.js.map` and `dist/extension.js.map` can be
+  used to trace minified output back to original source locations.
 
 ## gRPC/Protobuf Communication
 The extension and webview communicate via gRPC-like protocol over VS Code message passing.
@@ -47,93 +91,6 @@ The extension and webview communicate via gRPC-like protocol over VS Code messag
 - `src/shared/proto-conversions/cline-message.ts` - Added mapping for new say type
 - `src/core/controller/task/explainChanges.ts` - Handler implementation
 - `webview-ui/src/components/chat/ChatRow.tsx` - UI rendering
-
-## Adding a New API Provider
-When adding a new provider (e.g., "openai-codex"), you must update the proto conversion layer in THREE places or the provider will silently reset to Anthropic:
-
-1. `proto/cline/models.proto` - Add to the `ApiProvider` enum (e.g., `OPENAI_CODEX = 40;`)
-2. `convertApiProviderToProto()` in `src/shared/proto-conversions/models/api-configuration-conversion.ts` - Add case mapping string to proto enum
-3. `convertProtoToApiProvider()` in the same file - Add case mapping proto enum back to string
-
-**Why this matters:** Without these, the provider string hits the `default` case and returns `ANTHROPIC`. The webview, provider list, and handler all work fine, but the state silently resets when it round-trips through proto serialization. No error is thrown.
-
-**Other files to update when adding a provider:**
-- `src/shared/api.ts` - Add to `ApiProvider` union type, define models
-- `src/shared/providers/providers.json` - Add to provider list for dropdown
-- `src/core/api/index.ts` - Register handler in `createHandlerForProvider()`
-- `webview-ui/src/components/settings/utils/providerUtils.ts` - Add cases in `getModelsForProvider()` and `normalizeApiConfiguration()`
-- `webview-ui/src/utils/validate.ts` - Add validation case
-- `webview-ui/src/components/settings/ApiOptions.tsx` - Render provider component
-
-## Responses API Providers (OpenAI Codex, OpenAI Native)
-Providers using OpenAI's Responses API require native tool calling. XML tools don't work with the Responses API.
-
-**Symptoms of broken native tool calling:**
-- Tools get called multiple times (e.g., `ask_followup_question` asks the same question twice)
-- Tool arguments get duplicated or malformed
-- The model responds but tools aren't recognized
-
-**Root causes to check:**
-1. **Provider missing from `isNextGenModelProvider()`** in `src/utils/model-utils.ts`. The native variant matchers (e.g., `native-gpt-5/config.ts`) call this function. If your provider isn't in the list, the matcher returns false and falls back to XML tools.
-
-2. **Model missing `apiFormat: ApiFormat.OPENAI_RESPONSES`** in its model info (`src/shared/api.ts`). This property signals that the model requires native tool calling. The task runner in `src/core/task/index.ts` checks this and forces `enableNativeToolCalls: true` regardless of user settings.
-
-**When adding a new Responses API provider:**
-1. Add provider to `isNextGenModelProvider()` list in `src/utils/model-utils.ts`
-2. Set `apiFormat: ApiFormat.OPENAI_RESPONSES` on all models that use the Responses API
-3. The variant matcher and task runner will handle the rest automatically
-
-## Adding Tools to System Prompt
-This is tricky—multiple prompt variants and configs. **Always search for existing similar tools first and follow their pattern.** Look at the full chain from prompt definition → variant configs → handler → UI before implementing.
-
-1. **Add to `ClineDefaultTool` enum** in `src/shared/tools.ts`
-2. **Tool definition** in `src/core/prompts/system-prompt/tools/` (create file like `generate_explanation.ts`)
-   - Define variants for each `ModelFamily` (generic, next-gen, xs, etc.)
-   - Export variants array (e.g., `export const my_tool_variants = [GENERIC, NATIVE_NEXT_GEN, XS]`)
-   - **Fallback behavior**: If a variant isn't defined for a model family, `ClineToolSet.getToolByNameWithFallback()` automatically falls back to GENERIC. So you only need to export `[GENERIC]` unless the tool needs model-specific behavior.
-3. **Register in `src/core/prompts/system-prompt/tools/init.ts`** - Import and spread into `allToolVariants`
-4. **Add to variant configs** - Each model family has its own config in `src/core/prompts/system-prompt/variants/*/config.ts`. Add your tool's enum to the `.tools()` list:
-   - `generic/config.ts`, `next-gen/config.ts`, `gpt-5/config.ts`, `native-gpt-5/config.ts`, `native-gpt-5-1/config.ts`, `native-next-gen/config.ts`, `gemini-3/config.ts`, `glm/config.ts`, `hermes/config.ts`, `xs/config.ts`
-   - **Important**: If you add to a variant's config, make sure the tool spec exports a variant for that ModelFamily (or relies on GENERIC fallback)
-5. **Create handler** in `src/core/task/tools/handlers/`
-6. **Wire up in `ToolExecutor.ts`** if needed for execution flow
-7. **Add to tool parsing** in `src/core/assistant-message/index.ts` if needed
-8. **If tool has UI feedback**: add `ClineSay` enum in proto, update `src/shared/ExtensionMessage.ts`, update `src/shared/proto-conversions/cline-message.ts`, update `webview-ui/src/components/chat/ChatRow.tsx`
-
-## Modifying System Prompt
-**Read these first:** `src/core/prompts/system-prompt/README.md`, `tools/README.md`, `__tests__/README.md`
-
-System prompt is modular: **components** (reusable sections) + **variants** (model-specific configs) + **templates** (with `{{PLACEHOLDER}}` resolution).
-
-**Key directories:**
-- `components/` - Shared sections: `rules.ts`, `capabilities.ts`, `editing_files.ts`, etc.
-- `variants/` - Model-specific: `generic/`, `next-gen/`, `xs/`, `gpt-5/`, `gemini-3/`, `hermes/`, `glm/`, etc.
-- `templates/` - Template engine and placeholder definitions
-
-**Variant tiers (ask user which to modify):**
-- **Next-gen** (Claude 4, GPT-5, Gemini 2.5): `next-gen/`, `native-next-gen/`, `native-gpt-5/`, `native-gpt-5-1/`, `gemini-3/`, `gpt-5/`
-- **Standard** (default fallback): `generic/`
-- **Local/small models**: `xs/`, `hermes/`, `glm/`
-
-**How overrides work:** Variants can override components via `componentOverrides` in their `config.ts`, or provide a custom template in `template.ts` (e.g., `next-gen/template.ts` exports `rules_template`). If no override, the shared component from `components/` is used.
-
-**Example: Adding a rule to RULES section**
-1. Check if variant overrides rules: look for `rules_template` in `variants/*/template.ts` or `componentOverrides.RULES` in `config.ts`
-2. If shared: modify `components/rules.ts`
-3. If overridden: modify that variant's template
-4. XS variant is special—has heavily condensed inline content in `template.ts`
-
-**After any changes, regenerate snapshots:**
-```bash
-UPDATE_SNAPSHOTS=true npm run test:unit
-```
-Snapshots live in `__tests__/__snapshots__/`. Tests validate across model families and context variations (browser, MCP, focus chain).
-
-## Modifying Default Slash Commands
-Three places need updates:
-- `src/core/slash-commands/index.ts` - Command definitions
-- `src/core/prompts/commands.ts` - System prompt integration
-- `webview-ui/src/utils/slash-commands.ts` - Webview autocomplete
 
 ## Adding New Global State Keys
 Adding a new key to global state requires updates in multiple places. Missing any step causes silent failures.
@@ -199,3 +156,48 @@ const isGenerating = explanationInfo.status === "generating" && !wasCancelled
 **See also:** `BrowserSessionRow.tsx` uses similar pattern with `isLastApiReqInterrupted` and `isLastMessageResume`.
 
 **Backend side:** When streaming is cancelled, clean up properly (close tabs, clear comments, etc.) by checking `taskState.abort` after the streaming function returns.
+
+## Debug Harness: clear inherited VSCode/Electron env vars before launching
+
+The debug harness (`apps/vscode/src/dev/debug-harness/server.ts`) launches a child
+VSCode via Playwright's `_electron.launch({ env: { ...process.env, ... } })`. If you
+run the harness from a process that was itself spawned by VSCode (e.g. the Cline
+extension host, an integrated terminal, or an agent running inside VSCode), the
+parent's VSCode/Electron env vars leak into the child and break the launch.
+
+The fatal one is **`ELECTRON_RUN_AS_NODE=1`**: it makes the child VSCode binary run
+as plain Node, so it rejects every VSCode CLI flag. Symptom:
+
+```
+.../Visual Studio Code.app/Contents/MacOS/Code: bad option: --extensionDevelopmentPath=...
+Error: Process failed to launch!   (Playwright _electron.launch)
+```
+
+This is NOT the macOS Playwright flakiness mentioned in the harness README — it's
+env inheritance. Fix: strip the inherited vars before starting the harness:
+
+```bash
+env -u ELECTRON_RUN_AS_NODE -u ELECTRON_NO_ATTACH_CONSOLE \
+    -u VSCODE_CLI -u VSCODE_CODE_CACHE_PATH -u VSCODE_CRASH_REPORTER_PROCESS_TYPE \
+    -u VSCODE_CWD -u VSCODE_ESM_ENTRYPOINT -u VSCODE_HANDLES_UNCAUGHT_ERRORS \
+    -u VSCODE_IPC_HOOK -u VSCODE_NLS_CONFIG -u VSCODE_PID -u VSCODE_L10N_BUNDLE_LOCATION \
+    npx tsx src/dev/debug-harness/server.ts --auto-launch --skip-build
+```
+
+Check your own env with `env | grep -iE 'electron|vscode_'` first; `ELECTRON_RUN_AS_NODE=1`
+present means you must scrub before launching.
+
+Other harness notes confirmed in practice:
+- The extension host is **ESM** (`VSCODE_ESM_ENTRYPOINT`), so `ext.evaluate` has no
+  `require` and module-internal functions aren't reachable as globals. To inspect
+  internal builders (e.g. `buildBedrockProviderConfig`), set a breakpoint with
+  `ext.set_breakpoint` and read locals via `ext.evaluate` with the paused `callFrameId`
+  — don't try to `require()` the bundle.
+- `web.evaluate` wraps the expression as a single returned expression; multi-statement
+  snippets must be an IIFE `(() => { ...; return x; })()`, otherwise you get
+  `SyntaxError: Unexpected token ';'`.
+- Webview settings inputs are `vscode-text-field` web components with debounced React
+  onChange. Setting `.value` + dispatching events via `web.evaluate` is unreliable for
+  some fields; focus the inner shadow `input` then use real keystrokes (`ui.type` +
+  `ui.press Tab`, or click the dropdown option) to make the value persist.
+

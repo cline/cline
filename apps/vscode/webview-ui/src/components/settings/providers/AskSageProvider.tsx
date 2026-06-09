@@ -1,12 +1,12 @@
-import { askSageDefaultURL, askSageModels, ModelInfo } from "@shared/api"
+import { askSageDefaultURL, type ModelInfo } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 import { useEffect, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useStaticProviderSelection } from "@/hooks/useStaticProviderSelection"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { ModelSelector } from "../common/ModelSelector"
-import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 /**
@@ -19,15 +19,22 @@ interface AskSageProviderProps {
 }
 
 /**
- * The AskSage provider configuration component
+ * The AskSage provider configuration component.
+ *
+ * Model catalog is sourced from the `@cline/llms` SDK over gRPC, then
+ * filtered by the per-instance `/get-models` endpoint to reflect what the
+ * specific AskSage deployment actually exposes. If the API call fails or
+ * returns nothing, we fall back to the full SDK list.
  */
 export const AskSageProvider = ({ showModelOptions, isPopup, currentMode }: AskSageProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
-	const [availableModels, setAvailableModels] = useState<Record<string, ModelInfo>>(askSageModels)
-
-	// Get the normalized configuration
-	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
+	const { models, selectedModelId, selectedModelInfo, hideUsageCost } = useStaticProviderSelection(
+		"asksage",
+		apiConfiguration,
+		currentMode,
+	)
+	const [availableModels, setAvailableModels] = useState<Record<string, ModelInfo>>(models)
 
 	useEffect(() => {
 		const fetchModels = async () => {
@@ -36,8 +43,8 @@ export const AskSageProvider = ({ showModelOptions, isPopup, currentMode }: AskS
 				const response = await fetch(`${apiUrl}/get-models`)
 
 				if (!response.ok) {
-					console.error("Failed to fetch AskSage models, falling back to default list.")
-					setAvailableModels(askSageModels)
+					console.error("Failed to fetch AskSage models, falling back to SDK list.")
+					setAvailableModels(models)
 					return
 				}
 
@@ -45,7 +52,7 @@ export const AskSageProvider = ({ showModelOptions, isPopup, currentMode }: AskS
 				const modelIds = data.response as string[]
 
 				if (Array.isArray(modelIds) && modelIds.length > 0) {
-					const filteredModels = Object.entries(askSageModels)
+					const filteredModels = Object.entries(models)
 						.filter(([id]) => modelIds.includes(id))
 						.reduce(
 							(acc, [id, info]) => {
@@ -54,18 +61,18 @@ export const AskSageProvider = ({ showModelOptions, isPopup, currentMode }: AskS
 							},
 							{} as Record<string, ModelInfo>,
 						)
-					setAvailableModels(Object.keys(filteredModels).length > 0 ? filteredModels : askSageModels)
+					setAvailableModels(Object.keys(filteredModels).length > 0 ? filteredModels : models)
 				} else {
-					setAvailableModels(askSageModels)
+					setAvailableModels(models)
 				}
 			} catch (error) {
 				console.error("Error fetching AskSage models:", error)
-				setAvailableModels(askSageModels)
+				setAvailableModels(models)
 			}
 		}
 
 		fetchModels()
-	}, [apiConfiguration?.asksageApiUrl])
+	}, [apiConfiguration?.asksageApiUrl, models])
 
 	return (
 		<div>
@@ -100,7 +107,12 @@ export const AskSageProvider = ({ showModelOptions, isPopup, currentMode }: AskS
 						selectedModelId={selectedModelId}
 					/>
 
-					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
+					<ModelInfoView
+						hideUsageCost={hideUsageCost}
+						isPopup={isPopup}
+						modelInfo={selectedModelInfo}
+						selectedModelId={selectedModelId}
+					/>
 				</>
 			)}
 		</div>
