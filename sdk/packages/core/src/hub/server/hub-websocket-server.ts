@@ -206,10 +206,13 @@ function isAddressInUseError(error: unknown): boolean {
 export function shouldClearStaleHubDiscovery(
 	discovered: HubServerDiscoveryRecord | undefined,
 	expected: HubServerProbeRecord | undefined,
+	discoveredVerified: boolean,
 ): boolean {
 	return (
 		!!discovered?.url &&
-		(!expected?.url || !isHubProtocolCompatible(expected).compatible)
+		(!expected?.url ||
+			!isHubProtocolCompatible(expected).compatible ||
+			!discoveredVerified)
 	);
 }
 
@@ -568,6 +571,7 @@ export async function ensureHubWebSocketServer(
 
 	return await withHubStartupLock(owner.discoveryPath, async () => {
 		const discovered = await readHubDiscovery(owner.discoveryPath);
+		let discoveredVerified = false;
 		const canReuseDiscovered =
 			discovered?.url &&
 			(discovered.url === expectedUrl || options.allowPortFallback === true);
@@ -582,6 +586,7 @@ export async function ensureHubWebSocketServer(
 					authToken: discovered.authToken,
 				}))
 			) {
+				discoveredVerified = true;
 				return rememberIfManaged({
 					url: healthy.url,
 					authToken: discovered.authToken,
@@ -591,7 +596,9 @@ export async function ensureHubWebSocketServer(
 		}
 
 		const expected = await probeHubServer(expectedUrl);
-		if (shouldClearStaleHubDiscovery(discovered, expected)) {
+		if (
+			shouldClearStaleHubDiscovery(discovered, expected, discoveredVerified)
+		) {
 			await clearHubDiscovery(owner.discoveryPath);
 		}
 

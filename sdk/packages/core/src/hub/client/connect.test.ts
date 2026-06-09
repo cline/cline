@@ -46,6 +46,31 @@ describe("resolveHubUrl", () => {
 		await expect(resolveHubUrl()).resolves.toBe("ws://127.0.0.1:25463/hub");
 	});
 
+	it("uses the shared discovery owner in development builds", async () => {
+		delete process.env.CLINE_HUB_DISCOVERY_PATH;
+		process.env.CLINE_DATA_DIR = "/tmp/cline-connect-test-data";
+		process.env.CLINE_BUILD_ENV = "development";
+		const readHubDiscovery = vi
+			.spyOn(await import("../discovery"), "readHubDiscovery")
+			.mockResolvedValue({
+				hubId: "hub-test",
+				protocolVersion: "v1",
+				authToken: "test-token",
+				host: "127.0.0.1",
+				port: 25466,
+				url: "ws://127.0.0.1:25466/hub",
+				startedAt: new Date(0).toISOString(),
+				updatedAt: new Date(0).toISOString(),
+			});
+
+		await expect(resolveHubUrl()).resolves.toBe("ws://127.0.0.1:25466/hub");
+
+		expect(readHubDiscovery.mock.calls[0]?.[0]).toContain("/locks/hub/owners/");
+		expect(readHubDiscovery.mock.calls[0]?.[0]).not.toBe(
+			"/tmp/cline-connect-test-data/locks/hub/production.json",
+		);
+	});
+
 	it("falls back to the default endpoint when no discovery file exists", async () => {
 		process.env.CLINE_HUB_DISCOVERY_PATH = "/tmp/missing-hub-discovery.json";
 		vi.spyOn(
