@@ -3,9 +3,9 @@ import type React from "react";
 import { useState } from "react";
 import "opentui-spinner/react";
 import {
-	CLINE_CREDITS_DASHBOARD_URL,
-	isClineAccountCreditsErrorMessage,
-} from "../cline-account";
+	resolveSpecialErrorDisplay,
+	type SpecialErrorDisplay,
+} from "../../utils/special-errors";
 import { useTerminalBackground } from "../hooks/use-terminal-background";
 import {
 	getDefaultForeground,
@@ -260,8 +260,12 @@ function ToolCallView(props: {
 	);
 }
 
-function ClineCreditsErrorView(props: { defaultFg?: string }) {
-	return (
+function SpecialErrorBlock(props: {
+	display: SpecialErrorDisplay;
+	defaultFg?: string;
+}) {
+	const { display, defaultFg } = props;
+	const renderShell = (children: React.ReactNode) => (
 		<box flexDirection="row">
 			<text fg="red" content="* " />
 			<box
@@ -271,23 +275,68 @@ function ClineCreditsErrorView(props: { defaultFg?: string }) {
 				borderColor="red"
 				paddingX={1}
 			>
-				<text fg="red">Cline Credits depleted</text>
-				<text
-					fg={props.defaultFg}
-					selectable
-					content="You have run out of Cline credits. Add credits in the dashboard to continue."
-				/>
-				<box flexDirection="row">
-					<text fg="gray">Dashboard: </text>
-					<text fg="cyan" selectable>
-						<a href={CLINE_CREDITS_DASHBOARD_URL}>
-							{CLINE_CREDITS_DASHBOARD_URL}
-						</a>
-					</text>
-				</box>
+				{children}
 			</box>
 		</box>
 	);
+	switch (display.kind) {
+		case "cline_credits_depleted":
+			return renderShell(
+				<>
+					<text fg="red">{display.title}</text>
+					<text fg={defaultFg} selectable>
+						{display.message}
+					</text>
+					{display.balanceText && (
+						<text fg="gray" selectable>
+							Current balance: {display.balanceText}
+						</text>
+					)}
+					<box flexDirection="row">
+						<text fg="gray">Dashboard: </text>
+						<text fg="cyan" selectable>
+							<a href={display.url}>{display.url}</a>
+						</text>
+					</box>
+				</>,
+			);
+		case "cline_account_auth_required":
+			return renderShell(
+				<>
+					<text fg="red">{display.title}</text>
+					<text fg={defaultFg} selectable>
+						{display.message}
+					</text>
+					<box flexDirection="row">
+						<text fg="gray">Open </text>
+						<text fg="cyan" selectable>
+							{display.command}
+						</text>
+						<text fg="gray"> to sign in, then retry.</text>
+					</box>
+				</>,
+			);
+	}
+}
+
+function GenericErrorBlock(props: { text: string }) {
+	return (
+		<box flexDirection="row">
+			<text fg="red" content="* " />
+			<text fg="red" selectable content={`Error: ${props.text}`} />
+		</box>
+	);
+}
+
+function ErrorBlock(props: {
+	entry: Extract<ChatEntry, { kind: "error" }>;
+	defaultFg?: string;
+}) {
+	const display = resolveSpecialErrorDisplay(props.entry.errorInfo);
+	if (!display) {
+		return <GenericErrorBlock text={props.entry.text} />;
+	}
+	return <SpecialErrorBlock display={display} defaultFg={props.defaultFg} />;
 }
 
 export function ChatEntryView(props: {
@@ -384,16 +433,9 @@ export function ChatEntryView(props: {
 				/>
 			);
 
-		case "error":
-			if (isClineAccountCreditsErrorMessage(entry.text)) {
-				return <ClineCreditsErrorView defaultFg={defaultFg} />;
-			}
-			return (
-				<box flexDirection="row">
-					<text fg="red" content="* " />
-					<text fg="red" selectable content={`Error: ${entry.text}`} />
-				</box>
-			);
+		case "error": {
+			return <ErrorBlock entry={entry} defaultFg={defaultFg} />;
+		}
 
 		case "status":
 			return (

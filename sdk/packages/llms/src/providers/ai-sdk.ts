@@ -6,6 +6,7 @@ import type {
 	GatewayProviderFactory,
 	GatewayResolvedProviderConfig,
 	GatewayStreamRequest,
+	SdkProviderErrorInfo,
 } from "@cline/shared";
 import {
 	type AiSdkFormatterMessage,
@@ -43,6 +44,48 @@ interface GatewayNormalizedUsage {
 	totalCost?: number;
 }
 type ProviderModuleKind = AiSdkProviderOptionsTarget;
+
+interface AiSdkProviderErrorInput {
+	error: unknown;
+	message: string;
+	request: GatewayStreamRequest;
+	context: GatewayProviderContext;
+}
+
+interface AiSdkProviderAdapterOptions {
+	resolveErrorInfo?: (
+		input: AiSdkProviderErrorInput,
+	) => SdkProviderErrorInfo | undefined;
+}
+
+interface CapturedAiSdkError {
+	error?: unknown;
+	message?: string;
+}
+
+function resolveAiSdkProviderError(input: {
+	error: unknown;
+	capturedError?: CapturedAiSdkError;
+	request: GatewayStreamRequest;
+	context: GatewayProviderContext;
+	options: AiSdkProviderAdapterOptions;
+}): {
+	message: string;
+	errorInfo?: SdkProviderErrorInfo;
+} {
+	const rawError = input.capturedError?.error ?? input.error;
+	const message = input.capturedError?.message ?? extractErrorMessage(rawError);
+	const errorInfo = input.options.resolveErrorInfo?.({
+		error: rawError,
+		message,
+		request: input.request,
+		context: input.context,
+	});
+	return {
+		message,
+		...(errorInfo ? { errorInfo } : {}),
+	};
+}
 
 function buildCachedAiSdkMessages(
 	request: GatewayStreamRequest,
@@ -635,14 +678,30 @@ async function* emitAiSdkEvents(
 	request: GatewayStreamRequest,
 	context: GatewayProviderContext,
 	pricingValue?: unknown,
-	capturedError?: { current: string | undefined },
+	capturedError?: CapturedAiSdkError,
+	options: AiSdkProviderAdapterOptions = {},
 ): AsyncIterable<AgentModelEvent> {
 	let sawToolCalls = false;
 	const emittedToolCallIds = new Set<string>();
 	let finishReason: unknown;
 	let streamError: string | undefined;
+	let streamErrorInfo: SdkProviderErrorInfo | undefined;
 	let finishUsage: unknown;
 	let finishProviderMetadata: unknown;
+
+	const resolveStreamError = (error: unknown): string => {
+		const resolved = resolveAiSdkProviderError({
+			error,
+			capturedError,
+			request,
+			context,
+			options,
+		});
+		if (!streamErrorInfo) {
+			streamErrorInfo = resolved.errorInfo;
+		}
+		return resolved.message;
+	};
 
 	try {
 		if (stream.fullStream) {
@@ -749,8 +808,7 @@ async function* emitAiSdkEvents(
 				}
 
 				if (part.type === "error") {
-					streamError =
-						capturedError?.current ?? extractErrorMessage(part.error);
+					streamError = resolveStreamError(part.error);
 					break;
 				}
 
@@ -767,7 +825,7 @@ async function* emitAiSdkEvents(
 	} catch (error) {
 		// Prefer the real provider error from onError over the generic
 		// NoOutputGeneratedError the AI SDK throws when 0 steps are recorded.
-		streamError = capturedError?.current ?? extractErrorMessage(error);
+		streamError = resolveStreamError(error);
 	}
 
 	// Prefer stream.usage (has raw cost data) over finish part usage.
@@ -782,7 +840,7 @@ async function* emitAiSdkEvents(
 			usageToEmit = await stream.usage;
 		} catch (error) {
 			if (!streamError) {
-				streamError = capturedError?.current ?? extractErrorMessage(error);
+				streamError = resolveStreamError(error);
 			}
 			usageToEmit = finishUsage;
 			metadataToUse = finishProviderMetadata;
@@ -803,6 +861,7 @@ async function* emitAiSdkEvents(
 		type: "finish",
 		reason: streamError ? "error" : mapFinishReason(finishReason, sawToolCalls),
 		error: streamError,
+		...(streamErrorInfo ? { errorInfo: streamErrorInfo } : {}),
 	};
 }
 
@@ -875,14 +934,15 @@ async function createProviderModule(
 	}
 }
 
-function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
+export function createAiSdkProvider(
+	kind: ProviderModuleKind,
+	options: AiSdkProviderAdapterOptions = {},
+): GatewayProviderFactory {
 	return async (config) => ({
 		async *stream(request, context) {
 			const log = context.logger;
 			let stream: AiSdkStreamResult | undefined;
-			const capturedError: { current: string | undefined } = {
-				current: undefined,
-			};
+			const capturedError: CapturedAiSdkError = {};
 			try {
 				const provider = await createProviderModule(kind, config, context);
 				const langfuse = await ensureGatewayLangfuseTelemetry(
@@ -917,7 +977,8 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					) as never,
 					onError: ({ error: streamError }) => {
 						const msg = extractErrorMessage(streamError);
-						capturedError.current = msg;
+						capturedError.error = streamError;
+						capturedError.message = msg;
 						if (log?.error) {
 							log.error("[ai-sdk] stream error", {
 								providerId: request.providerId,
@@ -957,12 +1018,20 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					context,
 					context.model.metadata?.pricing,
 					capturedError,
+					options,
 				);
 			} catch (error) {
 				suppressDanglingStreamPromises(stream);
 				// Prefer the real provider error captured in onError over the generic
 				// NoOutputGeneratedError that the AI SDK throws when 0 steps are recorded.
-				const msg = capturedError.current ?? extractErrorMessage(error);
+				const resolvedError = resolveAiSdkProviderError({
+					error,
+					capturedError,
+					request,
+					context,
+					options,
+				});
+				const msg = resolvedError.message;
 				if (log?.error) {
 					log.error("[ai-sdk] provider error", {
 						providerId: request.providerId,
@@ -991,6 +1060,9 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					type: "finish",
 					reason: "error",
 					error: msg,
+					...(resolvedError.errorInfo
+						? { errorInfo: resolvedError.errorInfo }
+						: {}),
 				};
 			}
 		},

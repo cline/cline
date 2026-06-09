@@ -37,10 +37,26 @@ export type {
 	AgentToolDefinition,
 	AgentToolResult,
 	AgentUsage,
+	ErrorWithSdkInfo,
+	SdkAuthErrorInfo,
+	SdkErrorInfo,
+	SdkProviderErrorInfo,
 	ToolApprovalResult,
 	ToolPolicy,
 } from "@cline/shared";
-export { createTool } from "@cline/shared";
+export {
+	CLINE_ACCOUNT_AUTH_REQUIRED_CODE,
+	CLINE_INSUFFICIENT_CREDITS_CODE,
+	createClineAccountAuthRequiredError,
+	createErrorWithSdkInfo,
+	createTool,
+	getSdkErrorInfo,
+	isClineAccountAuthRequiredErrorInfo,
+	isClineInsufficientCreditsErrorInfo,
+	isSdkAuthErrorInfo,
+	isSdkErrorInfo,
+	isSdkProviderErrorInfo,
+} from "@cline/shared";
 export type {
 	AgentEventListener,
 	AgentRunInput,

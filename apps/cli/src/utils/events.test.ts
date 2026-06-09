@@ -6,12 +6,19 @@ import type { Config } from "./types";
 
 describe("handleEvent text formatting", () => {
 	let output = "";
+	let errorOutput = "";
 
 	beforeEach(() => {
+		vi.restoreAllMocks();
 		output = "";
+		errorOutput = "";
 		setCurrentOutputMode("text");
 		vi.spyOn(process.stdout, "write").mockImplementation((chunk: unknown) => {
 			output += String(chunk);
+			return true;
+		});
+		vi.spyOn(process.stderr, "write").mockImplementation((chunk: unknown) => {
+			errorOutput += String(chunk);
 			return true;
 		});
 	});
@@ -158,6 +165,122 @@ describe("handleEvent text formatting", () => {
 		);
 
 		expect(output).toContain("── aborted (2 iterations) ──");
+	});
+
+	it("prints Cline insufficient credits errors with a dashboard link", () => {
+		handleEvent(
+			{
+				type: "error",
+				error: new Error("Error: Insufficient balance"),
+				recoverable: false,
+				iteration: 1,
+				errorInfo: {
+					kind: "provider",
+					providerId: "cline",
+					modelId: "openai/gpt-5.4",
+					message: "Not enough credits available",
+					code: "insufficient_credits",
+					status: 402,
+					details: {
+						current_balance: -0,
+						buy_credits_url:
+							"https://app.cline.bot/dashboard/account?tab=credits",
+					},
+				},
+			} as unknown as AgentEvent,
+			{} as Config,
+		);
+
+		expect(errorOutput).toContain("Cline Credits depleted");
+		expect(errorOutput).toContain("You have run out of Cline credits");
+		expect(errorOutput).toContain("Current balance: $0.00");
+		expect(errorOutput).toContain(
+			"https://app.cline.bot/dashboard/account?tab=credits",
+		);
+		expect(errorOutput).not.toContain("Insufficient balance");
+	});
+
+	it("prints Cline account auth errors with an account command", () => {
+		handleEvent(
+			{
+				type: "error",
+				error: new Error("Cline account authentication requires sign in."),
+				recoverable: false,
+				iteration: 1,
+				errorInfo: {
+					kind: "auth",
+					providerId: "cline",
+					code: "cline_account_auth_required",
+					message: "Cline account authentication requires sign in.",
+				},
+			} as unknown as AgentEvent,
+			{} as Config,
+		);
+
+		expect(errorOutput).toContain("Cline account sign-in required");
+		expect(errorOutput).toContain("Sign in to your Cline account to continue");
+		expect(errorOutput).toContain("Open /account to sign in");
+		expect(errorOutput).not.toContain("authentication requires sign in.");
+	});
+
+	it("prints provider-stream Cline account auth errors with an account command", () => {
+		handleEvent(
+			{
+				type: "error",
+				error: new Error("Unauthorized"),
+				recoverable: false,
+				iteration: 1,
+				errorInfo: {
+					kind: "provider",
+					providerId: "cline",
+					modelId: "openai/gpt-5.4",
+					code: "cline_account_auth_required",
+					status: 401,
+					message: "Cline account authentication requires sign in.",
+				},
+			} as unknown as AgentEvent,
+			{} as Config,
+		);
+
+		expect(errorOutput).toContain("Cline account sign-in required");
+		expect(errorOutput).toContain("Sign in to your Cline account to continue");
+		expect(errorOutput).toContain("Open /account to sign in");
+		expect(errorOutput).not.toContain("Unauthorized");
+	});
+
+	it("emits special errors as structured agent events in JSON mode", () => {
+		setCurrentOutputMode("json");
+		handleEvent(
+			{
+				type: "error",
+				error: new Error("Error: Insufficient balance"),
+				recoverable: false,
+				iteration: 1,
+				errorInfo: {
+					kind: "provider",
+					providerId: "cline",
+					modelId: "openai/gpt-5.4",
+					message: "Not enough credits available",
+					code: "insufficient_credits",
+					status: 402,
+				},
+			} as unknown as AgentEvent,
+			{} as Config,
+		);
+
+		expect(errorOutput).toBe("");
+		const record: unknown = JSON.parse(output);
+		expect(record).toMatchObject({
+			type: "agent_event",
+			event: {
+				type: "error",
+				errorInfo: {
+					kind: "provider",
+					providerId: "cline",
+					code: "insufficient_credits",
+				},
+			},
+		});
 	});
 
 	it("suppresses heartbeat-only team progress messages", () => {

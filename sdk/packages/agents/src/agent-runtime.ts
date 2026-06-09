@@ -19,11 +19,16 @@ import type {
 	AgentToolResult,
 	AgentUsage,
 	AgentRuntimeConfig as BaseAgentRuntimeConfig,
+	SdkErrorInfo,
 	TelemetryProperties,
 	ToolApprovalResult,
 	ToolPolicy,
 } from "@cline/shared";
-import { captureSdkError, estimateTokens } from "@cline/shared";
+import {
+	captureSdkError,
+	estimateTokens,
+	getSdkErrorInfo,
+} from "@cline/shared";
 import { nanoid } from "nanoid";
 
 // Local `createUID` helper. The clinee source imports this from
@@ -380,6 +385,7 @@ export class AgentRuntime {
 		pendingToolCalls: [] as string[],
 		usage: cloneUsage(DEFAULT_USAGE),
 		lastError: undefined as string | undefined,
+		lastErrorInfo: undefined as SdkErrorInfo | undefined,
 	};
 	private initialization?: Promise<void>;
 	private abortController?: AbortController;
@@ -442,6 +448,7 @@ export class AgentRuntime {
 		this.state.pendingToolCalls = [];
 		this.state.usage = cloneUsage(DEFAULT_USAGE);
 		this.state.lastError = undefined;
+		this.state.lastErrorInfo = undefined;
 		this.state.messages = cloneMessages(messages);
 		this.config = {
 			...this.config,
@@ -551,6 +558,7 @@ export class AgentRuntime {
 		this.state.iteration = 0;
 		this.state.pendingToolCalls = [];
 		this.state.lastError = undefined;
+		this.state.lastErrorInfo = undefined;
 		this.state.usage = cloneUsage(DEFAULT_USAGE);
 
 		try {
@@ -689,6 +697,10 @@ export class AgentRuntime {
 					: "failed";
 			this.state.status = status;
 			this.state.lastError = normalized.message;
+			const errorInfo =
+				status === "failed"
+					? (this.state.lastErrorInfo ?? getSdkErrorInfo(normalized))
+					: undefined;
 			const result: AgentRunResult = {
 				agentId: this.state.agentId,
 				agentRole: this.state.agentRole,
@@ -699,6 +711,7 @@ export class AgentRuntime {
 				messages: cloneMessages(this.state.messages),
 				usage: cloneUsage(this.state.usage),
 				error: status === "failed" ? normalized : undefined,
+				...(errorInfo ? { errorInfo } : {}),
 			};
 			await this.callAfterRunHooks(result);
 			if (status === "failed") {
@@ -706,6 +719,7 @@ export class AgentRuntime {
 					type: "run-failed",
 					snapshot: this.snapshot(),
 					error: normalized,
+					...(errorInfo ? { errorInfo } : {}),
 				});
 			} else {
 				await this.emit({
@@ -905,6 +919,8 @@ export class AgentRuntime {
 					if (event.error) {
 						this.state.lastError = event.error;
 					}
+					this.state.lastErrorInfo =
+						event.reason === "error" ? event.errorInfo : undefined;
 					break;
 				}
 			}

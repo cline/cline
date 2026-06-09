@@ -241,6 +241,7 @@ export class RuntimeEventAdapter {
 						error: event.error,
 						recoverable: false,
 						iteration: event.snapshot.iteration,
+						...(event.errorInfo ? { errorInfo: event.errorInfo } : {}),
 					},
 				];
 			default: {

@@ -171,7 +171,11 @@ export function useAgentEventHandlers(deps: AgentEventDeps) {
 					turnErrorReportedRef.current = true;
 					onTurnErrorReported(true);
 					if (!event.recoverable || verbose) {
-						appendEntry({ kind: "error", text: event.error.message });
+						appendEntry({
+							kind: "error",
+							text: event.error.message,
+							errorInfo: event.errorInfo,
+						});
 					}
 					break;
 				case "notice":

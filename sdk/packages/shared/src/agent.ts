@@ -5,6 +5,7 @@
  *
  */
 
+import type { SdkErrorInfo, SdkProviderErrorInfo } from "./errors/error-info";
 import type { ModelInfo } from "./llms/model-info";
 import type {
 	ToolApprovalRequest,
@@ -252,6 +253,7 @@ export type AgentModelEvent =
 			type: "finish";
 			reason: AgentModelFinishReason;
 			error?: string;
+			errorInfo?: SdkProviderErrorInfo;
 	  };
 
 export interface AgentModel {
@@ -542,6 +544,7 @@ export type AgentRuntimeEvent =
 			type: "run-failed";
 			snapshot: AgentRuntimeStateSnapshot;
 			error: Error;
+			errorInfo?: SdkErrorInfo;
 	  };
 
 // =============================================================================
@@ -558,4 +561,5 @@ export interface AgentRunResult {
 	messages: readonly AgentMessage[];
 	usage: AgentUsage;
 	error?: Error;
+	errorInfo?: SdkErrorInfo;
 }
