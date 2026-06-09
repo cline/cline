@@ -620,6 +620,11 @@ export class Controller {
 	 * concurrent callers cannot create two competing watchers.
 	 */
 	private ensureUserInstructionService(workspaceRoot: string): Promise<UserInstructionConfigService> {
+		// dispose() may have run during an awaited gap in the caller. Don't
+		// resurrect a watcher the dispose path will never stop again.
+		if (this.isDisposed) {
+			return Promise.reject(new Error("Controller disposed"))
+		}
 		if (this.userInstructionService && this.userInstructionServiceRoot === workspaceRoot) {
 			return this.userInstructionService
 		}
@@ -708,7 +713,7 @@ export class Controller {
 			const urlContentFetcher = new UrlContentFetcher()
 			const workspaceManager = await this.ensureWorkspaceManager()
 			const resolved = await parseMentions(withCommands, cwd, urlContentFetcher, undefined, workspaceManager)
-			Logger.log(`[SdkController] Resolved context mentions (${text.length} → ${resolved.length} chars)`)
+			Logger.log(`[SdkController] Resolved context mentions (${withCommands.length} → ${resolved.length} chars)`)
 			return resolved
 		} catch (error) {
 			Logger.error("[SdkController] Failed to resolve context mentions, using raw text:", error)
