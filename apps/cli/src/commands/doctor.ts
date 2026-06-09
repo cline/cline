@@ -15,6 +15,7 @@ import { formatUptime, resolveClineBuildEnv } from "@cline/shared";
 import { Command } from "commander";
 import open from "open";
 import { isProcessRunning } from "../connectors/common";
+import { stopConnectorsForHubs } from "../connectors/restart";
 import {
 	type ActiveConnectorRecord,
 	listActiveConnectors,
@@ -466,6 +467,10 @@ export async function runDoctorCommand(
 	const killedHub = gracefullyStoppedHub
 		? 0
 		: killPids(refreshedAfterGracefulStop.listeningPids);
+	const restartAwareStoppedConnectors = await stopConnectorsForHubs(
+		before.activeConnectors.map((record) => record.hubUrl),
+		{ writeln: () => {}, writeErr: () => {} },
+	);
 	const staleHubTargets = before.staleHubPids.filter(
 		(pid) => !refreshedAfterGracefulStop.listeningPids.includes(pid),
 	);
@@ -504,7 +509,12 @@ export async function runDoctorCommand(
 					staleHubDaemons: killedStaleHubs,
 					cliProcesses: killedCli,
 					sidecarProcesses: killedSidecars,
-					connectorProcesses: stoppedConnectors.stoppedProcesses,
+					connectorProcesses:
+						stoppedConnectors.stoppedProcesses +
+						restartAwareStoppedConnectors.stoppedProcesses,
+					connectorProcessesQueuedForRestart:
+						restartAwareStoppedConnectors.stoppedProcesses,
+					connectorRestartsQueued: restartAwareStoppedConnectors.queuedRestarts,
 					connectorSessions: stoppedConnectors.stoppedSessions,
 					hubStartupLocks: clearedArtifacts.startupLocks,
 					hubDiscovery: clearedArtifacts.discovery,
@@ -518,7 +528,10 @@ export async function runDoctorCommand(
 	writeln(`killed cli processes ${c.dim}${killedCli}${c.reset}`);
 	writeln(`killed sidecar processes ${c.dim}${killedSidecars}${c.reset}`);
 	writeln(
-		`stopped connector processes ${c.dim}${stoppedConnectors.stoppedProcesses}${c.reset}`,
+		`stopped connector processes ${c.dim}${stoppedConnectors.stoppedProcesses + restartAwareStoppedConnectors.stoppedProcesses}${c.reset}`,
+	);
+	writeln(
+		`queued connector restarts ${c.dim}${restartAwareStoppedConnectors.queuedRestarts}${c.reset}`,
 	);
 	writeln(
 		`stopped connector sessions ${c.dim}${stoppedConnectors.stoppedSessions}${c.reset}`,

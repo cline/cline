@@ -20,6 +20,7 @@ const {
 	mockProbeHubServer,
 	mockClearHubDiscovery,
 	mockStopLocalHubServerGracefully,
+	mockStopConnectorsForHubs,
 	mockEnsureFileExists,
 	mockStopAllConnectors,
 } = vi.hoisted(() => ({
@@ -48,6 +49,10 @@ const {
 	mockProbeHubServer: vi.fn(),
 	mockClearHubDiscovery: vi.fn(),
 	mockStopLocalHubServerGracefully: vi.fn(async () => false),
+	mockStopConnectorsForHubs: vi.fn(async () => ({
+		stoppedProcesses: 0,
+		queuedRestarts: 0,
+	})),
 	mockEnsureFileExists: vi.fn(),
 	mockStopAllConnectors: vi.fn(async () => ({
 		stoppedProcesses: 0,
@@ -75,6 +80,10 @@ vi.mock("../connectors/common", () => ({
 	isProcessRunning: vi.fn(() => false),
 }));
 
+vi.mock("../connectors/restart", () => ({
+	stopConnectorsForHubs: mockStopConnectorsForHubs,
+}));
+
 vi.mock("./connect", () => ({
 	stopAllConnectors: mockStopAllConnectors,
 }));
@@ -97,6 +106,10 @@ describe("runDoctorCommand", () => {
 			),
 		});
 		mockStopLocalHubServerGracefully.mockResolvedValue(false);
+		mockStopConnectorsForHubs.mockResolvedValue({
+			stoppedProcesses: 0,
+			queuedRestarts: 0,
+		});
 		mockStopAllConnectors.mockResolvedValue({
 			stoppedProcesses: 0,
 			stoppedSessions: 0,
@@ -270,6 +283,113 @@ describe("runDoctorCommand", () => {
 				connectorSessions: 5,
 			},
 		});
+	});
+
+	it("doctor --fix queues active connectors for restart when killing hubs", async () => {
+		const cwd = "/workspace";
+		mockReadHubDiscovery.mockResolvedValue({
+			url: "ws://127.0.0.1:25466/hub",
+			port: 25466,
+			pid: 70001,
+		});
+		mockProbeHubServer.mockResolvedValue({
+			url: "ws://127.0.0.1:25466/hub",
+			port: 25466,
+			pid: 70001,
+		});
+		mockStopLocalHubServerGracefully.mockResolvedValue(true);
+		mockStopConnectorsForHubs.mockResolvedValue({
+			stoppedProcesses: 1,
+			queuedRestarts: 1,
+		});
+		mockSpawnSync.mockReturnValue({ status: 1, stdout: "" });
+
+		const output: string[] = [];
+		const code = await runDoctorCommand(
+			{ cwd, json: true, fix: true },
+			{
+				writeln: (text) => {
+					output.push(text ?? "");
+				},
+				writeErr: () => {},
+			},
+		);
+
+		expect(code).toBe(0);
+		expect(mockStopConnectorsForHubs).toHaveBeenCalledWith(
+			expect.any(Array),
+			expect.any(Object),
+		);
+		expect(JSON.parse(output[0] || "")).toMatchObject({
+			killed: {
+				connectorProcesses: 1,
+				connectorProcessesQueuedForRestart: 1,
+				connectorRestartsQueued: 1,
+			},
+		});
+	});
+
+	it("doctor --fix kills stale random-port hub daemons", async () => {
+		const cwd = "/workspace";
+		mockReadHubDiscovery.mockResolvedValue({
+			url: "ws://127.0.0.1:25466/hub",
+			port: 25466,
+			pid: 70001,
+		});
+		mockProbeHubServer.mockResolvedValue({
+			url: "ws://127.0.0.1:25466/hub",
+			port: 25466,
+			pid: 70001,
+		});
+		mockStopLocalHubServerGracefully.mockResolvedValue(true);
+		mockSpawnSync.mockImplementation((command: string, args?: string[]) => {
+			if (command === "lsof") {
+				return {
+					status: 0,
+					stdout: "70001\n",
+				};
+			}
+			if (
+				command === "pgrep" &&
+				Array.isArray(args) &&
+				args[0] === "-fal" &&
+				args[1] === "/sdk/packages/core/src/hub/daemon/entry.ts"
+			) {
+				return {
+					status: 0,
+					stdout: [
+						"70001 /Users/example/.bun/bin/bun /repo/sdk/packages/core/src/hub/daemon/entry.ts --cwd /workspace --host 127.0.0.1 --port 25466 --pathname /hub",
+						"70002 /Users/example/.bun/bin/bun /repo/sdk/packages/core/src/hub/daemon/entry.ts --cwd /workspace --host 127.0.0.1 --port 0 --pathname /hub",
+					].join("\n"),
+				};
+			}
+			return { status: 1, stdout: "" };
+		});
+		const killSpy = vi.spyOn(process, "kill").mockImplementation(() => true);
+
+		const output: string[] = [];
+		const code = await runDoctorCommand(
+			{ cwd, json: true, fix: true },
+			{
+				writeln: (text) => {
+					output.push(text ?? "");
+				},
+				writeErr: () => {},
+			},
+		);
+
+		expect(code).toBe(0);
+		expect(killSpy).toHaveBeenCalledWith(70002, "SIGKILL");
+		expect(killSpy).not.toHaveBeenCalledWith(70001, "SIGKILL");
+		expect(JSON.parse(output[0] || "")).toMatchObject({
+			before: {
+				staleHubPids: [70002],
+			},
+			killed: {
+				staleHubDaemons: 1,
+			},
+		});
+		killSpy.mockRestore();
 	});
 
 	it("doctor --fix kills stale code sidecar processes", async () => {

@@ -8,6 +8,11 @@ export type ConnectStopResult = {
 	stoppedSessions: number;
 };
 
+export type ConnectorRestartSpec = {
+	connector: string;
+	args: string[];
+};
+
 export interface ConnectCommandDefinition {
 	name: string;
 	description: string;

@@ -15,6 +15,8 @@ import { createCliLoggerAdapter } from "../logging/adapter";
 import { logSpawnedProcess } from "../logging/process";
 import { resolveCliLaunchSpec } from "../utils/internal-launch";
 
+export const CLINE_CONNECTOR_RESTART_SPEC_ENV = "CLINE_CONNECTOR_RESTART_SPEC";
+
 export function parseBooleanFlag(rawArgs: string[], flag: string): boolean {
 	return rawArgs.includes(flag);
 }
@@ -183,6 +185,8 @@ export function spawnDetachedConnector(
 	}
 	const detachedLogFd = tryOpenDetachedLogFd(options?.logPath);
 	try {
+		const connectorName =
+			commandPrefixArgs[0] === "connect" ? commandPrefixArgs[1] : undefined;
 		const child = spawn(command.launcher, command.childArgs, {
 			cwd: process.cwd(),
 			detached: true,
@@ -193,6 +197,14 @@ export function spawnDetachedConnector(
 			env: {
 				...withResolvedClineBuildEnv(process.env),
 				[childEnvKey]: "1",
+				...(connectorName
+					? {
+							[CLINE_CONNECTOR_RESTART_SPEC_ENV]: JSON.stringify({
+								connector: connectorName,
+								args: rawArgs,
+							}),
+						}
+					: {}),
 			},
 		});
 		logSpawnedProcess({

@@ -9,6 +9,10 @@ import {
 	stopLocalHubServerGracefully,
 } from "@cline/core";
 import { version } from "../../package.json";
+import {
+	restartQueuedConnectorsForHub,
+	stopConnectorsForHubs,
+} from "../connectors/restart";
 import { ensureCliHubServer } from "../utils/hub-runtime";
 import { c, writeErr, writeln } from "../utils/output";
 import {
@@ -305,6 +309,10 @@ async function restartHubServerIfRunning(): Promise<void> {
 
 	const pid = discovery?.pid;
 	writeln(`${c.dim}[hub] restarting server…${c.reset}`);
+	await stopConnectorsForHubs([health.url], {
+		writeln: () => {},
+		writeErr: () => {},
+	});
 
 	let stopped = await stopLocalHubServerGracefully().catch(() => false);
 	if (!stopped && pid) {
@@ -329,7 +337,11 @@ async function restartHubServerIfRunning(): Promise<void> {
 
 	// Re-ensure a fresh hub instance is spawned.
 	try {
-		await ensureCliHubServer(process.cwd()); // return value intentionally unused here
+		const hub = await ensureCliHubServer(process.cwd());
+		await restartQueuedConnectorsForHub(hub.url, {
+			writeln: () => {},
+			writeErr: () => {},
+		});
 		writeln(`${c.green}✓${c.reset} ${c.dim}[hub] server restarted${c.reset}`);
 	} catch (err) {
 		writeErr(

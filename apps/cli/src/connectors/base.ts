@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { resolveClineDataDir } from "@cline/core";
 import { Command, CommanderError } from "commander";
 import {
+	CLINE_CONNECTOR_RESTART_SPEC_ENV,
 	isProcessRunning,
 	readJsonFile,
 	removeFile,
@@ -13,6 +14,7 @@ import {
 import type {
 	ConnectCommandDefinition,
 	ConnectIo,
+	ConnectorRestartSpec,
 	ConnectStopResult,
 } from "./types";
 
@@ -113,11 +115,44 @@ export abstract class ConnectorBase<Options, State>
 	}
 
 	protected writeStateFile(statePath: string, state: unknown): void {
+		const restart = this.readRestartSpecFromEnv();
+		if (
+			restart &&
+			state &&
+			typeof state === "object" &&
+			!Array.isArray(state)
+		) {
+			writeJsonFile(statePath, {
+				...(state as Record<string, unknown>),
+				restart,
+			});
+			return;
+		}
 		writeJsonFile(statePath, state);
 	}
 
 	protected removeStateFile(statePath: string): void {
 		removeFile(statePath);
+	}
+
+	private readRestartSpecFromEnv(): ConnectorRestartSpec | undefined {
+		const raw = process.env[CLINE_CONNECTOR_RESTART_SPEC_ENV]?.trim();
+		if (!raw) {
+			return undefined;
+		}
+		try {
+			const parsed = JSON.parse(raw) as Partial<ConnectorRestartSpec>;
+			if (
+				parsed.connector === this.name &&
+				Array.isArray(parsed.args) &&
+				parsed.args.every((arg) => typeof arg === "string")
+			) {
+				return { connector: parsed.connector, args: parsed.args };
+			}
+		} catch {
+			// Ignore malformed restart metadata from the environment.
+		}
+		return undefined;
 	}
 
 	protected removeStaleState(

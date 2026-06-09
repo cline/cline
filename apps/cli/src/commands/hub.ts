@@ -9,18 +9,36 @@ import {
 } from "@cline/core";
 import { formatUptime, resolveClineBuildEnv } from "@cline/shared";
 import { Command } from "commander";
+import {
+	restartQueuedConnectorsForHub,
+	stopConnectorsForHubs,
+} from "../connectors/restart";
 
 interface HubCommandIo {
 	writeln: (text?: string) => void;
 	writeErr: (text: string) => void;
 }
 
-async function stopHubServer(_workspaceRoot: string): Promise<boolean> {
+async function stopHubServer(
+	_workspaceRoot: string,
+	io: HubCommandIo,
+): Promise<{
+	stopped: boolean;
+	stoppedConnectorProcesses: number;
+	queuedConnectorRestarts: number;
+}> {
 	const owner = resolveCliHubOwnerContext();
 	const discovery = await readHubDiscovery(owner.discoveryPath);
+	const stoppedConnectors = discovery?.url
+		? await stopConnectorsForHubs([discovery.url], io)
+		: { stoppedProcesses: 0, queuedRestarts: 0 };
 	if (await stopLocalHubServerGracefully()) {
 		await clearHubDiscovery(owner.discoveryPath);
-		return true;
+		return {
+			stopped: true,
+			stoppedConnectorProcesses: stoppedConnectors.stoppedProcesses,
+			queuedConnectorRestarts: stoppedConnectors.queuedRestarts,
+		};
 	}
 	const pid = discovery?.pid;
 	if (pid) {
@@ -31,7 +49,11 @@ async function stopHubServer(_workspaceRoot: string): Promise<boolean> {
 		}
 	}
 	await clearHubDiscovery(owner.discoveryPath);
-	return !!pid;
+	return {
+		stopped: !!pid,
+		stoppedConnectorProcesses: stoppedConnectors.stoppedProcesses,
+		queuedConnectorRestarts: stoppedConnectors.queuedRestarts,
+	};
 }
 
 function formatHubUptimeFromStartedAt(
@@ -96,6 +118,7 @@ export function createHubCommand(
 				port: opts.port,
 				pathname: opts.pathname,
 			});
+			await restartQueuedConnectorsForHub(url, io);
 			io.writeln(url);
 		}),
 	);
@@ -113,6 +136,7 @@ export function createHubCommand(
 				port: opts.port,
 				pathname: opts.pathname,
 			});
+			await restartQueuedConnectorsForHub(url, io);
 			io.writeln(url);
 		}),
 	);
@@ -142,8 +166,7 @@ export function createHubCommand(
 	hub.command("stop").action(
 		action(async () => {
 			const opts = hub.opts<{ cwd: string }>();
-			const stopped = await stopHubServer(opts.cwd);
-			io.writeln(JSON.stringify({ stopped }));
+			io.writeln(JSON.stringify(await stopHubServer(opts.cwd, io)));
 		}),
 	);
 
