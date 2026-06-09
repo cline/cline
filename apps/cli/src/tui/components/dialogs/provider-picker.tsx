@@ -27,6 +27,7 @@ import {
 	getDefaultAwsRegion,
 	type ProviderConfigValues,
 	resolveProviderConfigAwsRegion,
+	resolveProviderConfigGcp,
 	resolveProviderConfigSap,
 	updateProviderConfigValue,
 } from "../../utils/provider-config-values";
@@ -317,6 +318,8 @@ const DEFAULT_FIELD_LABELS: Partial<Record<ProviderConfigFieldKey, string>> = {
 	baseUrl: "Base URL",
 	awsRegion: "AWS Region",
 	awsProfile: "AWS Profile Name",
+	gcpProjectId: "Google Cloud Project ID",
+	gcpRegion: "Google Cloud Region",
 	sapClientId: "Client ID",
 	sapClientSecret: "Client Secret",
 	sapTokenUrl: "Token URL",
@@ -331,6 +334,8 @@ const DEFAULT_FIELD_PLACEHOLDERS: Partial<
 	baseUrl: "",
 	awsRegion: "us-east-1",
 	awsProfile: "default",
+	gcpProjectId: "my-gcp-project",
+	gcpRegion: "us-central1",
 	sapClientId: "sb-...|xsuaa_std!b...",
 	sapClientSecret: "SAP AI Core client secret",
 	sapTokenUrl: "https://<subdomain>.authentication.sap.hana.ondemand.com",
@@ -341,6 +346,8 @@ const DEFAULT_FIELD_PLACEHOLDERS: Partial<
 /** Render order for cycling focus with Tab. */
 const FIELD_ORDER: ProviderConfigFieldKey[] = [
 	"awsRegion",
+	"gcpProjectId",
+	"gcpRegion",
 	"baseUrl",
 	"apiKey",
 	"awsProfile",
@@ -403,6 +410,13 @@ export function ProviderConfigInputContent(
 			initial.awsRegion =
 				existingSettings?.aws?.region?.trim() || getDefaultAwsRegion(ep);
 		}
+		if (config.fields.gcpProjectId)
+			initial.gcpProjectId = existingSettings?.gcp?.projectId?.trim() ?? "";
+		if (config.fields.gcpRegion)
+			initial.gcpRegion =
+				existingSettings?.gcp?.region?.trim() ??
+				config.fields.gcpRegion.defaultValue ??
+				"us-central1";
 		if (config.fields.apiKey)
 			initial.apiKey = existingSettings?.apiKey?.trim() ?? "";
 		if (config.fields.awsProfile)
@@ -431,6 +445,7 @@ export function ProviderConfigInputContent(
 		const apiKey = values.apiKey?.trim();
 		const awsProfile = values.awsProfile?.trim();
 		const hasAwsFields = config.fields.awsRegion || config.fields.awsProfile;
+		const hasGcpFields = config.fields.gcpProjectId || config.fields.gcpRegion;
 		const hasSapFields =
 			config.fields.sapClientId ||
 			config.fields.sapClientSecret ||
@@ -448,6 +463,7 @@ export function ProviderConfigInputContent(
 						profile: apiKey ? undefined : awsProfile || undefined,
 					}
 				: undefined,
+			gcp: hasGcpFields ? resolveProviderConfigGcp(values) : undefined,
 			sap: hasSapFields ? resolveProviderConfigSap(values) : undefined,
 		});
 		resolve(true);

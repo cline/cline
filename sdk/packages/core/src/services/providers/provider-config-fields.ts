@@ -6,6 +6,8 @@ export type ProviderConfigFieldKey =
 	| "baseUrl"
 	| "awsRegion"
 	| "awsProfile"
+	| "gcpProjectId"
+	| "gcpRegion"
 	| "sapClientId"
 	| "sapClientSecret"
 	| "sapTokenUrl"
@@ -35,6 +37,8 @@ const FIELD_KEYS: ProviderConfigFieldKey[] = [
 	"baseUrl",
 	"awsRegion",
 	"awsProfile",
+	"gcpProjectId",
+	"gcpRegion",
 	"sapClientId",
 	"sapClientSecret",
 	"sapTokenUrl",
@@ -53,6 +57,27 @@ interface ProviderConfigFieldMetadata {
 const PROVIDER_CONFIG_FIELD_METADATA: Partial<
 	Record<string, ProviderConfigFieldMetadata>
 > = {
+	vertex: {
+		mode: "replace",
+		description:
+			"Vertex AI can use Google Cloud Application Default Credentials with a project/region. An API key is optional for supported Gemini models.",
+		fields: {
+			gcpProjectId: {
+				label: "Google Cloud Project ID",
+				placeholder: "my-gcp-project",
+			},
+			gcpRegion: {
+				label: "Google Cloud Region",
+				placeholder: "us-central1",
+				defaultValue: "us-central1",
+			},
+			apiKey: {
+				label: "API Key (optional)",
+				placeholder: "Leave blank to use Google Cloud credentials",
+				optional: true,
+			},
+		},
+	},
 	bedrock: {
 		mode: "replace",
 		description:

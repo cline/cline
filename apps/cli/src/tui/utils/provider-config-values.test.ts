@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
 	getDefaultAwsRegion,
 	resolveProviderConfigAwsRegion,
+	resolveProviderConfigGcp,
 	resolveProviderConfigSap,
 	updateProviderConfigValue,
 } from "./provider-config-values";
@@ -64,6 +65,16 @@ describe("provider config values", () => {
 				awsRegion: "",
 			}),
 		).toBe("us-west-2");
+	});
+
+	it("resolves Vertex GCP field values into GCP settings", () => {
+		expect(resolveProviderConfigGcp({ gcpRegion: "us-central1" })).toBeUndefined();
+		expect(
+			resolveProviderConfigGcp({
+				gcpProjectId: " project ",
+				gcpRegion: " europe-west4 ",
+			}),
+		).toEqual({ projectId: "project", region: "europe-west4" });
 	});
 
 	it("resolves SAP AI Core field values into SAP settings", () => {

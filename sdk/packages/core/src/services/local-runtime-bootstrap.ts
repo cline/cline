@@ -189,6 +189,7 @@ function buildProviderConfig(
 					...(stored?.modelCatalog ?? {}),
 				}
 			: undefined;
+	const sessionProviderConfig = config.providerConfig?.providerId === config.providerId ? config.providerConfig : undefined;
 	const settings: ProviderSettings = {
 		...(stored ?? {}),
 		provider: config.providerId,
@@ -209,7 +210,10 @@ function buildProviderConfig(
 		reasoning: resolveReasoningSettings(config, stored?.reasoning),
 		modelCatalog,
 	};
-	const providerConfig = toProviderConfig(settings);
+	const providerConfig: ProviderConfig = {
+		...toProviderConfig(settings),
+		...(sessionProviderConfig ?? {}),
+	};
 	if (config.knownModels) {
 		providerConfig.knownModels = config.knownModels;
 	}
