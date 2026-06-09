@@ -1,13 +1,15 @@
-import { openAiCodexModels } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useStaticProviderSelection } from "@/hooks/useStaticProviderSelection"
 import { AccountServiceClient } from "@/services/grpc-client"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { ModelSelector } from "../common/ModelSelector"
 import ReasoningEffortSelector from "../ReasoningEffortSelector"
-import { normalizeApiConfiguration, supportsReasoningEffortForModelId } from "../utils/providerUtils"
+import { supportsReasoningEffortForModelId } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+
+const OPENAI_CODEX_PROVIDER_ID = "openai-codex"
 
 interface OpenAiCodexProviderProps {
 	showModelOptions: boolean
@@ -18,12 +20,23 @@ interface OpenAiCodexProviderProps {
 /**
  * OpenAI Codex (ChatGPT Plus/Pro) provider configuration component.
  * Uses OAuth authentication instead of API keys.
+ *
+ * Model list, default model id, and the "hide per-token cost" UI hint all
+ * come from the extension over gRPC (`ResolveProviderModels` /
+ * `ListProviders`), which in turn sources them from the `@cline/llms` SDK.
+ * The webview imports no static model data from `@shared/api` for this
+ * provider, and the `hideUsageCost` flag is not hard-coded — it is
+ * derived from the SDK's `ProviderInfo.metadata.usageCostDisplay`.
  */
 export const OpenAiCodexProvider = ({ showModelOptions, isPopup, currentMode }: OpenAiCodexProviderProps) => {
 	const { apiConfiguration, openAiCodexIsAuthenticated } = useExtensionState()
 	const { handleModeFieldChange } = useApiConfigurationHandlers()
+	const { models, selectedModelId, selectedModelInfo, hideUsageCost } = useStaticProviderSelection(
+		OPENAI_CODEX_PROVIDER_ID,
+		apiConfiguration,
+		currentMode,
+	)
 
-	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 	const showReasoningEffort = supportsReasoningEffortForModelId(selectedModelId, true)
 
 	const handleSignIn = async () => {
@@ -71,7 +84,7 @@ export const OpenAiCodexProvider = ({ showModelOptions, isPopup, currentMode }: 
 				<>
 					<ModelSelector
 						label="Model"
-						models={openAiCodexModels}
+						models={models}
 						onChange={(e: any) =>
 							handleModeFieldChange(
 								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
@@ -83,7 +96,12 @@ export const OpenAiCodexProvider = ({ showModelOptions, isPopup, currentMode }: 
 					/>
 					{showReasoningEffort && <ReasoningEffortSelector currentMode={currentMode} />}
 
-					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
+					<ModelInfoView
+						hideUsageCost={hideUsageCost}
+						isPopup={isPopup}
+						modelInfo={selectedModelInfo}
+						selectedModelId={selectedModelId}
+					/>
 				</>
 			)}
 		</div>

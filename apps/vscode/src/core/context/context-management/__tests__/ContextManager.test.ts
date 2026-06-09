@@ -3,10 +3,10 @@ import { ClineMessage } from "@shared/ExtensionMessage"
 import { expect } from "chai"
 import { ContextManager } from "../ContextManager"
 
-// Minimal mock for ApiHandler — only getModel().info.contextWindow is used by shouldCompactContextWindow
-function createMockApi(contextWindow: number) {
+// Minimal mock for ApiHandler — only getModel() fields are used by shouldCompactContextWindow
+function createMockApi(contextWindow: number, providerId?: string) {
 	return {
-		getModel: () => ({ id: "test-model", info: { contextWindow } }),
+		getModel: () => ({ id: "test-model", info: { contextWindow }, providerId }),
 	} as any
 }
 
@@ -490,6 +490,22 @@ describe("ContextManager", () => {
 
 			const result = contextManager.shouldCompactContextWindow(clineMessages, api, 0, 1.0)
 			expect(result).to.equal(true)
+		})
+
+		it("compacts OpenAI Codex OAuth 400K models before their 272K input cap", () => {
+			const api = createMockApi(400_000, "openai-codex")
+			const clineMessages: ClineMessage[] = [createApiReqMessage({ tokensIn: 250_000 })]
+
+			const result = contextManager.shouldCompactContextWindow(clineMessages, api, 0, 0.75)
+			expect(result).to.equal(true)
+		})
+
+		it("keeps the normal threshold for non-Codex 400K models", () => {
+			const api = createMockApi(400_000, "openai-native")
+			const clineMessages: ClineMessage[] = [createApiReqMessage({ tokensIn: 250_000 })]
+
+			const result = contextManager.shouldCompactContextWindow(clineMessages, api, 0, 0.75)
+			expect(result).to.equal(false)
 		})
 	})
 })

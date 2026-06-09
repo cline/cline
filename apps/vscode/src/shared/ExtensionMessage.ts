@@ -9,7 +9,6 @@ import { BrowserSettings } from "./BrowserSettings"
 import { ClineFeatureSetting } from "./ClineFeatureSetting"
 import { BannerCardData } from "./cline/banner"
 import { ClineRulesToggles } from "./cline-rules"
-import { FocusChainSettings } from "./FocusChainSettings"
 import { HistoryItem } from "./HistoryItem"
 import { McpDisplayMode } from "./McpDisplayMode"
 import { ClineMessageModelInfo } from "./messages"
@@ -39,6 +38,13 @@ export const COMMAND_CANCEL_TOKEN = "__cline_command_cancel__"
 export interface ExtensionState {
 	isNewUser: boolean
 	welcomeViewCompleted: boolean
+	/**
+	 * Whether the active mode has a usable provider (a valid Cline account auth
+	 * OR a BYOK API key OR a configured keyless provider). When false, the
+	 * webview gates message submission in ChatView and shows an inline
+	 * "sign in or add a key" prompt. Computed by hasUsableProviderForActiveMode().
+	 */
+	hasUsableProvider: boolean
 	onboardingModels: OnboardingModelGroup | undefined
 	apiConfiguration?: ApiConfiguration
 	autoApprovalSettings: AutoApprovalSettings
@@ -48,8 +54,25 @@ export interface ExtensionState {
 	mode: Mode
 	checkpointManagerErrorMessage?: string
 	clineMessages: ClineMessage[]
+	/**
+	 * The single authoritative UI mode for the current turn, owned by the extension. The webview
+	 * renders the footer/buttons/thinking indicator from this, NOT from the tail of clineMessages.
+	 * Optional for classic/legacy (absent => webview falls back to legacy tail heuristics).
+	 */
+	turnState?: TurnState
+	/**
+	 * Monotonic version of this state snapshot. The webview applies a snapshot only if its
+	 * stateVersion is newer than the last applied, so stale/out-of-order state pushes are
+	 * ignored. Stamped by the extension. Optional for classic/legacy.
+	 */
+	stateVersion?: number
+	/**
+	 * Conversation/replica fence for this snapshot (see ClineMessage.epoch). A snapshot with a
+	 * newer epoch replaces the webview transcript; an older one is dropped; an equal one merges.
+	 * Optional for classic/legacy.
+	 */
+	epoch?: number
 	currentTaskItem?: HistoryItem
-	currentFocusChainChecklist?: string | null
 	mcpMarketplaceEnabled?: boolean
 	mcpDisplayMode: McpDisplayMode
 	planActSeparateModelsSetting: boolean
@@ -81,13 +104,11 @@ export interface ExtensionState {
 	remoteWorkflowToggles?: ClineRulesToggles
 	localAgentsRulesToggles: ClineRulesToggles
 	mcpResponsesCollapsed?: boolean
-	strictPlanModeEnabled?: boolean
 	yoloModeToggled?: boolean
 	useAutoCondense?: boolean
 	subagentsEnabled?: boolean
 	clineWebToolsEnabled?: ClineFeatureSetting
 	worktreesEnabled?: ClineFeatureSetting
-	focusChainSettings: FocusChainSettings
 	customPrompt?: string
 	favoritedModelIds: string[]
 	// NEW: Add workspace information
@@ -108,11 +129,31 @@ export interface ExtensionState {
 	backgroundEditEnabled?: boolean
 	optOutOfRemoteConfig?: boolean
 	doubleCheckCompletionEnabled?: boolean
-	lazyTeammateModeEnabled?: boolean
 	showFeatureTips?: boolean
 	banners?: BannerCardData[]
 	welcomeBanners?: BannerCardData[]
 	openAiCodexIsAuthenticated?: boolean
+}
+
+/**
+ * The authoritative UI mode for the current agent turn, owned by the extension. The webview reads
+ * this instead of inferring mode from the tail of clineMessages.
+ */
+export type TurnPhase =
+	| "idle" // no active turn; input enabled, no buttons
+	| "streaming" // model producing content / tool running; Thinking + Cancel
+	| "awaiting_approval" // a tool/command/mcp/subagent approval is pending
+	| "awaiting_followup" // ask_question / plan_mode_respond / done-without-completion
+	| "completed" // attempt_completion done; Start New Task
+	| "error" // api_req_failed / fatal; Retry / recovery
+	| "resumable" // task cancelled / interrupted; Resume Task
+
+export interface TurnState {
+	phase: TurnPhase
+	/** ts of the ClineMessage this phase is "about" (e.g. the pending approval/ask). */
+	anchorTs?: number
+	/** Monotonic; the webview keeps the highest-seq TurnState and ignores older ones. */
+	seq: number
 }
 
 export interface ClineMessage {
@@ -125,6 +166,18 @@ export interface ClineMessage {
 	images?: string[]
 	files?: string[]
 	partial?: boolean
+	/**
+	 * Freshness counter for convergent-replica merging on the webview side. Monotonically
+	 * increasing per process; a higher `seq` means a newer copy of the SAME `ts` (identity).
+	 * Stamped by the extension as the message flows to the webview. Optional for classic/legacy.
+	 */
+	seq?: number
+	/**
+	 * Conversation/replica fence. Messages from an older epoch (a previous task or a previous
+	 * render of the same task) are dropped by the webview. Stamped by the extension. Optional
+	 * for classic/legacy.
+	 */
+	epoch?: number
 	commandCompleted?: boolean
 	lastCheckpointHash?: string
 	isCheckpointCheckedOut?: boolean

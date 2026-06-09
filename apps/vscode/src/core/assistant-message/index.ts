@@ -2,8 +2,6 @@ import { ClineDefaultTool } from "@shared/tools"
 
 export type AssistantMessageContent = TextStreamContent | ToolUse | ReasoningStreamContent
 
-export { parseAssistantMessageV2 } from "./parse-assistant-message"
-
 export interface TextStreamContent {
 	type: "text"
 	content: string

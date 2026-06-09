@@ -31,6 +31,9 @@ jobs:
     if: github.repository == 'cline/cline' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dpc/sdk-migration-simpler-login')
     runs-on: ubuntu-latest
     environment: PublishNightly
+    # The VS Code extension's package.json and lockfiles live under apps/vscode/
+    # (the repo root has no package.json). Mirror ext-vscode-test.yml so install
+    # and publish steps run in the correct workspace.
     defaults:
       run:
         working-directory: apps/vscode
@@ -56,6 +59,10 @@ jobs:
           # Keep publish environment aligned with test workflow/tooling lockfile expectations.
           # Newer LTS (Node 24 / npm 11) can make `npm list` fail with ELSPROBLEMS during vsce packaging.
           node-version: 22
+          cache: 'npm'
+          cache-dependency-path: |
+            apps/vscode/package-lock.json
+            apps/vscode/webview-ui/package-lock.json
 
       - name: Install extension dependencies
         working-directory: ${{ github.workspace }}

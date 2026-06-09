@@ -18,7 +18,11 @@ import { jsonSchema, streamText } from "ai";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import { extractErrorMessage } from "./format";
-import { isAnthropicCompatibleModel, resolveModelFamily } from "./model-facts";
+import {
+	isAnthropicCompatibleModel,
+	isCerebrasProvider,
+	resolveModelFamily,
+} from "./model-facts";
 import {
 	applyPromptCacheToLastTextPart,
 	shouldApplyPromptCache,
@@ -49,9 +53,9 @@ function buildCachedAiSdkMessages(
 	context: GatewayProviderContext,
 	systemPrompt?: string,
 ) {
-	const aiMessages = toAiSdkMessages(request.messages, systemPrompt) as Array<
-		Record<string, unknown>
-	>;
+	const aiMessages = toAiSdkMessages(request.messages, systemPrompt, {
+		includeReasoning: shouldIncludeReasoningHistory(request, context),
+	}) as Array<Record<string, unknown>>;
 	const includeAnthropic = isAnthropicCompatibleModel({
 		modelId: request.modelId,
 		family: resolveModelFamily(context),
@@ -71,6 +75,13 @@ function buildCachedAiSdkMessages(
 	return aiMessages;
 }
 
+function shouldIncludeReasoningHistory(
+	request: GatewayStreamRequest,
+	context: GatewayProviderContext,
+): boolean {
+	return !isCerebrasProvider(request, context);
+}
+
 async function ensureGatewayLangfuseTelemetry(
 	providerId: string,
 ): Promise<boolean> {
@@ -85,11 +96,14 @@ async function ensureGatewayLangfuseTelemetry(
 function toAiSdkMessages(
 	messages: readonly AgentMessage[],
 	systemPrompt?: string,
+	options?: { includeReasoning?: boolean },
 ) {
+	const includeReasoning = options?.includeReasoning ?? true;
 	const normalizedMessages: AiSdkFormatterMessage[] = [];
 
 	for (const message of messages) {
 		const content: AiSdkFormatterPart[] = [];
+		let skippedReasoning = false;
 		for (const part of message.content) {
 			if (part.type === "text") {
 				content.push({ type: "text", text: sanitizeSurrogates(part.text) });
@@ -97,6 +111,10 @@ function toAiSdkMessages(
 			}
 
 			if (part.type === "reasoning") {
+				if (!includeReasoning) {
+					skippedReasoning = true;
+					continue;
+				}
 				const metadata = part.metadata as Record<string, unknown> | undefined;
 				const signature = metadata?.signature;
 				const redactedData = metadata?.redactedData;
@@ -172,6 +190,8 @@ function toAiSdkMessages(
 
 		if (content.length > 0) {
 			normalizedMessages.push({ role: message.role, content });
+		} else if (!includeReasoning && skippedReasoning) {
+			continue;
 		} else if (message.role === "user" || message.role === "assistant") {
 			normalizedMessages.push({ role: message.role, content: "" });
 		}
@@ -899,7 +919,12 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					model: provider.model(context.model.id) as never,
 					messages: (shouldApplyPromptCache(request, context)
 						? buildCachedAiSdkMessages(request, context, messagesSystemPrompt)
-						: toAiSdkMessages(request.messages, messagesSystemPrompt)) as never,
+						: toAiSdkMessages(request.messages, messagesSystemPrompt, {
+								includeReasoning: shouldIncludeReasoningHistory(
+									request,
+									context,
+								),
+							})) as never,
 					...(useSystemOption ? { system: systemPrompt } : {}),
 					tools: tools as never,
 					temperature: request.temperature,

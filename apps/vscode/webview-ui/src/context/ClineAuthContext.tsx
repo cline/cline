@@ -105,23 +105,34 @@ export const useClineAuth = () => {
 
 export const useClineSignIn = () => {
 	const [isLoading, setIsLoading] = useState(false)
+	const [authStatusMessage, setAuthStatusMessage] = useState<string | null>(null)
 
 	const handleSignIn = useCallback(() => {
 		try {
 			setIsLoading(true)
+			setAuthStatusMessage(null)
 
 			AccountServiceClient.accountLoginClicked(EmptyRequest.create())
-				.catch((err) => console.error("Failed to get login URL:", err))
+				.then((response) => {
+					setAuthStatusMessage(response.value || "Complete sign-in in your browser.")
+				})
+				.catch((err) => {
+					console.error("Failed to start login:", err)
+					setAuthStatusMessage("Unable to start sign-in. Please try again.")
+				})
 				.finally(() => {
 					setIsLoading(false)
 				})
 		} catch (error) {
 			console.error("Error signing in:", error)
+			setAuthStatusMessage("Unable to start sign-in. Please try again.")
+			setIsLoading(false)
 		}
 	}, [])
 
 	return {
 		isLoginLoading: isLoading,
+		authStatusMessage,
 		handleSignIn,
 	}
 }

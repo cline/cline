@@ -1,17 +1,9 @@
 import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
 import { EventEmitter } from "events"
-import getFolderSize from "get-folder-size"
 import Mutex from "p-mutex"
-import { findLastIndex } from "@/shared/array"
-import { combineApiRequests } from "@/shared/combineApiRequests"
-import { combineCommandSequences } from "@/shared/combineCommandSequences"
 import { ClineMessage } from "@/shared/ExtensionMessage"
-import { getApiMetrics } from "@/shared/getApiMetrics"
 import { HistoryItem } from "@/shared/HistoryItem"
 import { ClineStorageMessage } from "@/shared/messages/content"
-import { Logger } from "@/shared/services/Logger"
-import { getCwd, getDesktopDir } from "@/utils/path"
-import { ensureTaskDirectoryExists, saveApiConversationHistory, saveClineMessages } from "../storage/disk"
 import { TaskState } from "./TaskState"
 
 // Event types for clineMessages changes
@@ -48,11 +40,7 @@ interface MessageStateHandlerParams {
 export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents> {
 	private apiConversationHistory: ClineStorageMessage[] = []
 	private clineMessages: ClineMessage[] = []
-	private taskIsFavorited: boolean
-	private checkpointTracker: CheckpointTracker | undefined
-	private updateTaskHistory: (historyItem: HistoryItem) => Promise<HistoryItem[]>
 	private taskId: string
-	private ulid: string
 	private taskState: TaskState
 
 	// Mutex to prevent concurrent state modifications (RC-4)
@@ -64,10 +52,7 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 	constructor(params: MessageStateHandlerParams) {
 		super()
 		this.taskId = params.taskId
-		this.ulid = params.ulid
 		this.taskState = params.taskState
-		this.taskIsFavorited = params.taskIsFavorited ?? false
-		this.updateTaskHistory = params.updateTaskHistory
 	}
 
 	/**
@@ -77,9 +62,7 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 		this.emit("clineMessagesChanged", change)
 	}
 
-	setCheckpointTracker(tracker: CheckpointTracker | undefined) {
-		this.checkpointTracker = tracker
-	}
+	setCheckpointTracker(_tracker: CheckpointTracker | undefined) {}
 
 	/**
 	 * Execute function with exclusive lock on message state
@@ -113,73 +96,15 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 	}
 
 	/**
-	 * Internal method to save messages and update history (without mutex protection)
-	 * This is used by methods that already hold the stateMutex lock
-	 * Should NOT be called directly - use saveClineMessagesAndUpdateHistory() instead
-	 */
-	private async saveClineMessagesAndUpdateHistoryInternal(): Promise<void> {
-		try {
-			await saveClineMessages(this.taskId, this.clineMessages)
-
-			// combined as they are in ChatView
-			const apiMetrics = getApiMetrics(combineApiRequests(combineCommandSequences(this.clineMessages.slice(1))))
-			const taskMessage = this.clineMessages[0] // first message is always the task say
-			const lastRelevantMessage =
-				this.clineMessages[
-					findLastIndex(
-						this.clineMessages,
-						(message) => !(message.ask === "resume_task" || message.ask === "resume_completed_task"),
-					)
-				]
-			const lastModelInfo = [...this.apiConversationHistory].reverse().find((msg) => msg.modelInfo !== undefined)
-			const taskDir = await ensureTaskDirectoryExists(this.taskId)
-			let taskDirSize = 0
-			try {
-				// getFolderSize.loose silently ignores errors
-				// returns # of bytes, size/1000/1000 = MB
-				taskDirSize = await getFolderSize.loose(taskDir)
-			} catch (error) {
-				Logger.error("Failed to get task directory size:", taskDir, error)
-			}
-			const cwd = await getCwd(getDesktopDir())
-			await this.updateTaskHistory({
-				id: this.taskId,
-				ulid: this.ulid,
-				ts: lastRelevantMessage.ts,
-				task: taskMessage.text ?? "",
-				tokensIn: apiMetrics.totalTokensIn,
-				tokensOut: apiMetrics.totalTokensOut,
-				cacheWrites: apiMetrics.totalCacheWrites,
-				cacheReads: apiMetrics.totalCacheReads,
-				totalCost: apiMetrics.totalCost,
-				size: taskDirSize,
-				shadowGitConfigWorkTree: await this.checkpointTracker?.getShadowGitConfigWorkTree(),
-				cwdOnTaskInitialization: cwd,
-				conversationHistoryDeletedRange: this.taskState.conversationHistoryDeletedRange,
-				isFavorited: this.taskIsFavorited,
-				checkpointManagerErrorMessage: this.taskState.checkpointManagerErrorMessage,
-				modelId: lastModelInfo?.modelInfo?.modelId,
-			})
-		} catch (error) {
-			Logger.error("Failed to save cline messages:", error)
-		}
-	}
-
-	/**
 	 * Save cline messages and update task history (public API with mutex protection)
 	 * This is the main entry point for saving message state from external callers
 	 */
-	async saveClineMessagesAndUpdateHistory(): Promise<void> {
-		return await this.withStateLock(async () => {
-			await this.saveClineMessagesAndUpdateHistoryInternal()
-		})
-	}
+	async saveClineMessagesAndUpdateHistory(): Promise<void> {}
 
 	async addToApiConversationHistory(message: ClineStorageMessage) {
 		// Protect with mutex to prevent concurrent modifications from corrupting data (RC-4)
 		return await this.withStateLock(async () => {
 			this.apiConversationHistory.push(message)
-			await saveApiConversationHistory(this.taskId, this.apiConversationHistory)
 		})
 	}
 
@@ -187,7 +112,6 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 		// Protect with mutex to prevent concurrent modifications from corrupting data (RC-4)
 		return await this.withStateLock(async () => {
 			this.apiConversationHistory = newHistory
-			await saveApiConversationHistory(this.taskId, this.apiConversationHistory)
 		})
 	}
 
@@ -211,7 +135,6 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 				index,
 				message,
 			})
-			await this.saveClineMessagesAndUpdateHistoryInternal()
 		})
 	}
 
@@ -228,7 +151,6 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 				messages: this.clineMessages,
 				previousMessages,
 			})
-			await this.saveClineMessagesAndUpdateHistoryInternal()
 		})
 	}
 
@@ -257,7 +179,6 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 			})
 
 			// Save changes and update history
-			await this.saveClineMessagesAndUpdateHistoryInternal()
 		})
 	}
 
@@ -285,7 +206,6 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 			})
 
 			// Save changes and update history
-			await this.saveClineMessagesAndUpdateHistoryInternal()
 		})
 	}
 }

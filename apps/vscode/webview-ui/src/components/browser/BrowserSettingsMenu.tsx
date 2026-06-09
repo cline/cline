@@ -11,7 +11,7 @@ interface ConnectionInfo {
 }
 
 export const BrowserSettingsMenu = () => {
-	const { browserSettings, navigateToSettings } = useExtensionState()
+	const { browserSettings } = useExtensionState()
 	const containerRef = useRef<HTMLDivElement>(null)
 	const [showInfoPopover, setShowInfoPopover] = useState(false)
 	const [connectionInfo, setConnectionInfo] = useState<ConnectionInfo>({
@@ -62,10 +62,6 @@ export const BrowserSettingsMenu = () => {
 		}
 	}, [showInfoPopover])
 
-	const openBrowserSettings = () => {
-		navigateToSettings("browser")
-	}
-
 	const toggleInfoPopover = () => {
 		setShowInfoPopover(!showInfoPopover)
 
@@ -92,20 +88,19 @@ export const BrowserSettingsMenu = () => {
 	const getIconClass = () => {
 		if (connectionInfo.isRemote) {
 			return "codicon-remote"
-		} else {
-			return connectionInfo.isConnected ? "codicon-vm-running" : "codicon-info"
 		}
+		return connectionInfo.isConnected ? "codicon-vm-running" : "codicon-info"
 	}
 
 	// Determine icon color based on connection state
 	const getIconColor = () => {
 		if (connectionInfo.isRemote) {
 			return connectionInfo.isConnected ? "var(--vscode-charts-blue)" : "var(--vscode-foreground)"
-		} else if (connectionInfo.isConnected) {
-			return "var(--vscode-charts-green)"
-		} else {
-			return "var(--vscode-foreground)"
 		}
+		if (connectionInfo.isConnected) {
+			return "var(--vscode-charts-green)"
+		}
+		return "var(--vscode-foreground)"
 	}
 
 	// Check connection status every second to keep icon in sync using gRPC
@@ -196,10 +191,6 @@ export const BrowserSettingsMenu = () => {
 					)}
 				</div>
 			)}
-
-			<VSCodeButton appearance="icon" onClick={openBrowserSettings}>
-				<i className="codicon codicon-settings-gear" style={{ fontSize: "14.5px" }} />
-			</VSCodeButton>
 		</div>
 	)
 }

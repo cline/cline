@@ -1,12 +1,10 @@
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
-import { findLastIndex } from "@shared/array"
 import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
 import { DEFAULT_PLATFORM, type ExtensionState } from "@shared/ExtensionMessage"
-import { DEFAULT_FOCUS_CHAIN_SETTINGS } from "@shared/FocusChainSettings"
 import { DEFAULT_MCP_DISPLAY_MODE } from "@shared/McpDisplayMode"
 import type { UserInfo } from "@shared/proto/cline/account"
 import { EmptyRequest } from "@shared/proto/cline/common"
-import type { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
+import type { OpenRouterCompatibleModelInfo, ProviderModelsResponse } from "@shared/proto/cline/models"
 import { OnboardingModelGroup, type TerminalProfile } from "@shared/proto/cline/state"
 import { convertProtoToClineMessage } from "@shared/proto-conversions/cline-message"
 import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
@@ -14,10 +12,6 @@ import { fromProtobufModels } from "@shared/proto-conversions/models/typeConvers
 import type React from "react"
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
 import {
-	basetenDefaultModelId,
-	basetenModels,
-	groqDefaultModelId,
-	groqModels,
 	type ModelInfo,
 	openRouterDefaultModelId,
 	openRouterDefaultModelInfo,
@@ -26,13 +20,33 @@ import {
 } from "../../../src/shared/api"
 import { Environment } from "../../../src/shared/config-types"
 import type { McpMarketplaceCatalog, McpServer, McpViewTab } from "../../../src/shared/mcp"
+import {
+	createReplicaState,
+	type ReplicaState,
+	applyMessage as reducerApplyMessage,
+	applyStateSnapshot as reducerApplyStateSnapshot,
+} from "../components/chat/chat-view/messageReducer"
 import { McpServiceClient, ModelsServiceClient, StateServiceClient, UiServiceClient } from "../services/grpc-client"
+
+export type ProviderId = string
+
+export interface ProviderModelsState {
+	providerId: ProviderId
+	models: Record<string, ModelInfo>
+	defaultModelId: string
+	configFingerprint: string
+	requestId: string
+	source?: string
+	fetchedAt: number
+	isLoading: boolean
+	isStale: boolean
+	error?: string
+}
 
 export interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
 	showWelcome: boolean
 	onboardingModels: OnboardingModelGroup | undefined
-	clineModels: Record<string, ModelInfo> | null
 	openRouterModels: Record<string, ModelInfo>
 	vercelAiGatewayModels: Record<string, ModelInfo>
 	hicapModels: Record<string, ModelInfo>
@@ -42,6 +56,8 @@ export interface ExtensionStateContextType extends ExtensionState {
 	groqModels: Record<string, ModelInfo>
 	basetenModels: Record<string, ModelInfo>
 	huggingFaceModels: Record<string, ModelInfo>
+	providerModelsByProvider: Partial<Record<ProviderId, ProviderModelsState>>
+	latestModelRequestIdByProvider: Partial<Record<ProviderId, string>>
 	mcpServers: McpServer[]
 	mcpMarketplaceCatalog: McpMarketplaceCatalog
 	totalTasksSize: number | null
@@ -86,9 +102,10 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setExpandTaskHeader: (value: boolean) => void
 	setShowWelcome: (value: boolean) => void
 	setOnboardingModels: (value: OnboardingModelGroup | undefined) => void
+	startProviderModelsRequest: (providerId: ProviderId, requestId: string) => void
+	applyProviderModelsResponse: (response: ProviderModelsResponse) => void
 
 	// Refresh functions
-	refreshClineModels: () => void
 	refreshOpenRouterModels: () => void
 	refreshVercelAiGatewayModels: () => void
 	refreshHicapModels: () => void
@@ -233,7 +250,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		shouldShowAnnouncement: false,
 		autoApprovalSettings: DEFAULT_AUTO_APPROVAL_SETTINGS,
 		browserSettings: DEFAULT_BROWSER_SETTINGS,
-		focusChainSettings: DEFAULT_FOCUS_CHAIN_SETTINGS,
 		preferredLanguage: "English",
 		mode: "act",
 		platform: DEFAULT_PLATFORM,
@@ -258,9 +274,11 @@ export const ExtensionStateContextProvider: React.FC<{
 		defaultTerminalProfile: "default",
 		isNewUser: false,
 		welcomeViewCompleted: false,
+		// Default false (fail-closed): the inline ChatView gate stays on until the
+		// extension pushes real state. Overwritten by the incoming state payload.
+		hasUsableProvider: false,
 		onboardingModels: undefined,
 		mcpResponsesCollapsed: false, // Default value (expanded), will be overwritten by extension state
-		strictPlanModeEnabled: false,
 		yoloModeToggled: false,
 		customPrompt: undefined,
 		useAutoCondense: false,
@@ -277,7 +295,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		lastDismissedCliBannerVersion: 0,
 		backgroundEditEnabled: false,
 		doubleCheckCompletionEnabled: false,
-		lazyTeammateModeEnabled: false,
 		showFeatureTips: true,
 		globalSkillsToggles: {},
 		localSkillsToggles: {},
@@ -297,7 +314,6 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [showWelcome, setShowWelcome] = useState(false)
 	const [onboardingModels, setOnboardingModels] = useState<OnboardingModelGroup | undefined>(undefined)
 
-	const [clineModels, setClineModels] = useState<Record<string, ModelInfo> | null>(null)
 	const [openRouterModels, setOpenRouterModels] = useState<Record<string, ModelInfo>>({
 		[openRouterDefaultModelId]: openRouterDefaultModelInfo,
 	})
@@ -311,16 +327,72 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [requestyModels, setRequestyModels] = useState<Record<string, ModelInfo>>({
 		[requestyDefaultModelId]: requestyDefaultModelInfo,
 	})
-	const [groqModelsState, setGroqModels] = useState<Record<string, ModelInfo>>({
-		[groqDefaultModelId]: groqModels[groqDefaultModelId],
-	})
-	const [basetenModelsState, setBasetenModels] = useState<Record<string, ModelInfo>>({
-		...basetenModels,
-		[basetenDefaultModelId]: basetenModels[basetenDefaultModelId],
-	})
+	// Groq and Baseten model lists start empty. The pickers populate them
+	// from two sources: the SDK catalog over gRPC (`useProviderModels`)
+	// for the curated set, and the host-side refresh RPCs
+	// (`ModelsServiceClient.refreshGroqModelsRpc`,
+	// `ModelsServiceClient.refreshBasetenModels`) for any models the
+	// live API exposes on top of the SDK catalog.
+	const [groqModelsState, setGroqModels] = useState<Record<string, ModelInfo>>({})
+	const [basetenModelsState, setBasetenModels] = useState<Record<string, ModelInfo>>({})
 	const [huggingFaceModels, setHuggingFaceModels] = useState<Record<string, ModelInfo>>({})
+	const [providerModelsByProvider, setProviderModelsByProvider] = useState<Partial<Record<ProviderId, ProviderModelsState>>>({})
+	const [latestModelRequestIdByProvider, setLatestModelRequestIdByProvider] = useState<Partial<Record<ProviderId, string>>>({})
+	const latestModelRequestIdByProviderRef = useRef<Partial<Record<ProviderId, string>>>({})
 	const [mcpServers, setMcpServers] = useState<McpServer[]>([])
 	const [mcpMarketplaceCatalog, setMcpMarketplaceCatalog] = useState<McpMarketplaceCatalog>({ items: [] })
+
+	const startProviderModelsRequest = useCallback((providerId: ProviderId, requestId: string) => {
+		latestModelRequestIdByProviderRef.current = { ...latestModelRequestIdByProviderRef.current, [providerId]: requestId }
+		setLatestModelRequestIdByProvider((prev) => ({ ...prev, [providerId]: requestId }))
+		setProviderModelsByProvider((prev) => ({
+			...prev,
+			[providerId]: {
+				...(prev[providerId] ?? {
+					providerId,
+					models: {},
+					defaultModelId: "",
+					configFingerprint: "",
+					fetchedAt: 0,
+					isStale: false,
+				}),
+				providerId,
+				requestId,
+				isLoading: true,
+				error: undefined,
+			},
+		}))
+	}, [])
+
+	const applyProviderModelsResponse = useCallback((response: ProviderModelsResponse) => {
+		setProviderModelsByProvider((prevModels) => {
+			const latestRequestId = latestModelRequestIdByProviderRef.current[response.providerId]
+			if (latestRequestId !== response.requestId) {
+				console.debug("Dropping stale provider models response", {
+					providerId: response.providerId,
+					requestId: response.requestId,
+					latestRequestId,
+				})
+				return prevModels
+			}
+
+			return {
+				...prevModels,
+				[response.providerId]: {
+					providerId: response.providerId,
+					models: response.ok ? fromProtobufModels(response.models) : {},
+					defaultModelId: response.defaultModelId ?? "",
+					configFingerprint: response.configFingerprint,
+					requestId: response.requestId,
+					source: response.source,
+					fetchedAt: response.fetchedAt,
+					isLoading: false,
+					isStale: false,
+					error: response.ok ? undefined : response.error?.message,
+				},
+			}
+		})
+	}, [])
 
 	// References to store subscription cancellation functions
 	const stateSubscriptionRef = useRef<(() => void) | null>(null)
@@ -349,6 +421,10 @@ export const ExtensionStateContextProvider: React.FC<{
 		}
 	}, [])
 	const mcpServersSubscriptionRef = useRef<(() => void) | null>(null)
+	// Convergent-replica state for clineMessages. The partial-message stream and the full state
+	// snapshots both feed this reducer so the transcript converges correctly regardless of
+	// arrival order, duplication, or loss. See messageReducer.ts.
+	const replicaRef = useRef<ReplicaState>(createReplicaState())
 
 	// Subscribe to state updates and UI events using the gRPC streaming API
 	useEffect(() => {
@@ -363,12 +439,24 @@ export const ExtensionStateContextProvider: React.FC<{
 							const incomingVersion = stateData.autoApprovalSettings?.version ?? 1
 							const currentVersion = prevState.autoApprovalSettings?.version ?? 1
 							const shouldUpdateAutoApproval = incomingVersion > currentVersion
-							// HACK: Preserve clineMessages if currentTaskItem is the same
-							if (stateData.currentTaskItem?.id === prevState.currentTaskItem?.id) {
-								stateData.clineMessages = stateData.clineMessages?.length
-									? stateData.clineMessages
-									: prevState.clineMessages
-							}
+
+							// Route the snapshot's transcript through the convergent-replica reducer:
+							// merge by ts/seq within the same epoch (never truncate), replace on a
+							// newer epoch, ignore stale/older snapshots. Unstamped (classic/legacy)
+							// state defaults to epoch 0 / version 0, which merges.
+							replicaRef.current = reducerApplyStateSnapshot(
+								replicaRef.current,
+								stateData.clineMessages ?? [],
+								stateData.epoch ?? 0,
+								stateData.stateVersion ?? 0,
+								stateData.turnState,
+							)
+							stateData.clineMessages = replicaRef.current.messages
+							// Use the seq-gated turnState from the replica, NOT the raw snapshot's, so a
+							// late/stale snapshot carrying an older phase (e.g. "idle") cannot revert a
+							// newer phase (e.g. "streaming") and hide the Cancel button. Falls back to
+							// undefined for classic/legacy state.
+							stateData.turnState = replicaRef.current.turnState
 
 							const newState = {
 								...stateData,
@@ -515,14 +603,17 @@ export const ExtensionStateContextProvider: React.FC<{
 
 					const partialMessage = convertProtoToClineMessage(protoMessage)
 					setState((prevState) => {
-						// worth noting it will never be possible for a more up-to-date message to be sent here or in normal messages post since the presentAssistantContent function uses lock
-						const lastIndex = findLastIndex(prevState.clineMessages, (msg) => msg.ts === partialMessage.ts)
-						if (lastIndex !== -1) {
-							const newClineMessages = [...prevState.clineMessages]
-							newClineMessages[lastIndex] = partialMessage
-							return { ...prevState, clineMessages: newClineMessages }
+						// Route through the convergent-replica reducer: merge by ts keeping the
+						// higher seq, fence stale epochs, never let an out-of-order or duplicate
+						// delivery corrupt the transcript. Unstamped (classic/legacy) messages
+						// default to epoch 0 and merge by ts as before.
+						const before = replicaRef.current
+						replicaRef.current = reducerApplyMessage(before, partialMessage)
+						if (replicaRef.current === before) {
+							// Stale/ignored — no change.
+							return prevState
 						}
-						return prevState
+						return { ...prevState, clineMessages: replicaRef.current.messages }
 					})
 				} catch (error) {
 					console.error("Failed to process partial message:", error, protoMessage)
@@ -724,10 +815,11 @@ export const ExtensionStateContextProvider: React.FC<{
 	const refreshBasetenModels = useCallback(() => {
 		ModelsServiceClient.refreshBasetenModelsRpc(EmptyRequest.create({}))
 			.then((response) => {
-				setBasetenModels({
-					[basetenDefaultModelId]: basetenModels[basetenDefaultModelId],
-					...fromProtobufModels(response.models),
-				})
+				// Live-fetched Baseten models. The SDK-curated catalog is
+				// pulled separately by BasetenModelPicker via
+				// `useProviderModels("baseten")` and merged on top of this
+				// dynamic slice at render time.
+				setBasetenModels(fromProtobufModels(response.models))
 			})
 			.catch((err) => console.error("Failed to refresh Baseten models:", err))
 	}, [])
@@ -764,31 +856,11 @@ export const ExtensionStateContextProvider: React.FC<{
 		refreshLiteLlmModels,
 	])
 
-	// Refresh Cline models function
-	const refreshClineModels = useCallback(() => {
-		ModelsServiceClient.refreshClineModelsRpc(EmptyRequest.create({}))
-			.then((response: OpenRouterCompatibleModelInfo) => {
-				const models = fromProtobufModels(response.models)
-				setClineModels((prev) => (Object.keys(models).length > 0 ? models : (prev ?? null)))
-			})
-			.catch((error: Error) => console.error("Failed to refresh Cline models:", error))
-	}, [])
-
-	// Auto-refresh Cline models when provider is cline
-	useEffect(() => {
-		const hasClineProvider =
-			state.apiConfiguration?.actModeApiProvider === "cline" || state.apiConfiguration?.planModeApiProvider === "cline"
-		if (hasClineProvider && clineModels === null) {
-			refreshClineModels()
-		}
-	}, [state.apiConfiguration?.actModeApiProvider, state.apiConfiguration?.planModeApiProvider, clineModels, refreshClineModels])
-
 	const contextValue: ExtensionStateContextType = {
 		...state,
 		didHydrateState,
 		showWelcome,
 		onboardingModels,
-		clineModels,
 		openRouterModels,
 		vercelAiGatewayModels,
 		hicapModels,
@@ -798,6 +870,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		groqModels: groqModelsState,
 		basetenModels: basetenModelsState,
 		huggingFaceModels,
+		providerModelsByProvider,
+		latestModelRequestIdByProvider,
 		mcpServers,
 		mcpMarketplaceCatalog,
 		totalTasksSize,
@@ -821,7 +895,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		remoteRulesToggles: state.remoteRulesToggles || {},
 		remoteWorkflowToggles: state.remoteWorkflowToggles || {},
 		enableCheckpointsSetting: state.enableCheckpointsSetting,
-		currentFocusChainChecklist: state.currentFocusChainChecklist,
 
 		// Navigation functions
 		navigateToMcp,
@@ -841,6 +914,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		setShowAnnouncement,
 		setShowWelcome,
 		setOnboardingModels,
+		startProviderModelsRequest,
+		applyProviderModelsResponse,
 		setShouldShowAnnouncement: (value) =>
 			setState((prevState) => ({
 				...prevState,
@@ -911,7 +986,6 @@ export const ExtensionStateContextProvider: React.FC<{
 			})),
 		setMcpTab,
 		setTotalTasksSize,
-		refreshClineModels,
 		refreshOpenRouterModels,
 		refreshVercelAiGatewayModels,
 		refreshHicapModels,
