@@ -135,6 +135,12 @@ function buildCases(): LiveCase[] {
 		apiKeyEnv: "MINIMAX_API_KEY",
 		reasoning: { enabled: true },
 		expectedBody: { thinking: { type: "adaptive" } },
+		unexpectedBodyKeys: [
+			"reasoning",
+			"effort",
+			"reasoningEffort",
+			"reasoningSummary",
+		],
 	});
 	addCase({
 		label: "direct MiniMax M3 reasoning disabled",
@@ -143,6 +149,12 @@ function buildCases(): LiveCase[] {
 		apiKeyEnv: "MINIMAX_API_KEY",
 		reasoning: { enabled: false },
 		expectedBody: { thinking: { type: "disabled" } },
+		unexpectedBodyKeys: [
+			"reasoning",
+			"effort",
+			"reasoningEffort",
+			"reasoningSummary",
+		],
 	});
 	addCase({
 		label: "OpenRouter MiniMax M3 reasoning enabled",

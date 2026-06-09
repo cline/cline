@@ -1400,10 +1400,15 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 				metadata: MINIMAX_THINKING_ROUTING_METADATA,
 			},
 			expect: [
-				{ bucket: "minimax", has: { thinking: { type: "disabled" } } },
+				{
+					bucket: "minimax",
+					has: { thinking: { type: "disabled" } },
+					lacks: ["reasoning", "effort", "reasoningEffort", "reasoningSummary"],
+				},
 				{
 					bucket: "openaiCompatible",
 					has: { thinking: { type: "disabled" } },
+					lacks: ["reasoning", "effort", "reasoningEffort", "reasoningSummary"],
 				},
 			],
 		},
@@ -1423,12 +1428,60 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 				{
 					bucket: "minimax",
 					has: { thinking: { type: "adaptive" } },
-					lacks: ["effort", "reasoningEffort", "reasoningSummary"],
+					lacks: ["reasoning", "effort", "reasoningEffort", "reasoningSummary"],
 				},
 				{
 					bucket: "openaiCompatible",
 					has: { thinking: { type: "adaptive" } },
-					lacks: ["effort", "reasoningEffort", "reasoningSummary"],
+					lacks: ["reasoning", "effort", "reasoningEffort", "reasoningSummary"],
+				},
+			],
+		},
+		{
+			name: "direct MiniMax M2.5 reasoning enabled -> existing generic adaptive thinking",
+			request: {
+				providerId: "minimax",
+				modelId: "MiniMax-M2.5",
+				reasoning: { enabled: true },
+			},
+			context: {
+				family: "minimax",
+				capabilities: ["reasoning"],
+				metadata: MINIMAX_THINKING_ROUTING_METADATA,
+			},
+			expect: [
+				{
+					bucket: "minimax",
+					has: { thinking: { type: "adaptive" } },
+					lacks: ["reasoning"],
+				},
+				{
+					bucket: "openaiCompatible",
+					has: { thinking: { type: "adaptive" } },
+					lacks: ["reasoning"],
+				},
+			],
+		},
+		{
+			name: "direct MiniMax M2.7 reasoning disabled -> no MiniMax M3 disabled exception",
+			request: {
+				providerId: "minimax",
+				modelId: "MiniMax-M2.7",
+				reasoning: { enabled: false },
+			},
+			context: {
+				family: "minimax",
+				capabilities: ["reasoning"],
+				metadata: MINIMAX_THINKING_ROUTING_METADATA,
+			},
+			expect: [
+				{
+					bucket: "minimax",
+					lacks: ["thinking", "reasoning", "effort", "reasoningEffort"],
+				},
+				{
+					bucket: "openaiCompatible",
+					lacks: ["thinking", "reasoning", "effort", "reasoningEffort"],
 				},
 			],
 		},
