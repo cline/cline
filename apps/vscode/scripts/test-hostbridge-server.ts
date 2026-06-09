@@ -87,6 +87,12 @@ function createMockService<T extends grpc.UntypedServiceImplementation>(serviceN
 						})
 						return
 
+					case "openExternal":
+						simulateOAuthBrowserCallback(call.request?.value || "")
+							.then(() => callback(null, {}))
+							.catch((error) => callback(error))
+						return
+
 					case "getWebviewHtml":
 						callback(null, {
 							html: "<html><body>Fake Webview</body></html>",
@@ -141,6 +147,41 @@ function createMockService<T extends grpc.UntypedServiceImplementation>(serviceN
 	}
 
 	return new Proxy({} as T, handler)
+}
+
+async function simulateOAuthBrowserCallback(urlString: string): Promise<void> {
+	let url: URL
+	try {
+		url = new URL(urlString)
+	} catch {
+		return
+	}
+
+	if (!isLoopbackHost(url.hostname) || url.pathname !== "/api/v1/auth/authorize") {
+		return
+	}
+
+	const callbackUrl = url.searchParams.get("callback_url") ?? url.searchParams.get("redirect_uri")
+	if (!callbackUrl) {
+		return
+	}
+
+	const callback = new URL(callbackUrl)
+	if (!isLoopbackHost(callback.hostname) || callback.pathname !== "/auth") {
+		return
+	}
+
+	callback.searchParams.set("code", "test-personal-token")
+	callback.searchParams.set("provider", "cline")
+
+	const response = await fetch(callback.toString())
+	if (!response.ok) {
+		throw new Error(`Mock OAuth callback failed: ${response.status} ${response.statusText}`)
+	}
+}
+
+function isLoopbackHost(hostname: string): boolean {
+	return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1"
 }
 
 if (require.main === module) {

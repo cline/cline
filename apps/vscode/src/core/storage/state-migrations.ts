@@ -1,9 +1,8 @@
 import fs from "fs/promises"
 import path from "path"
 import * as vscode from "vscode"
-import { HistoryItem } from "@/shared/HistoryItem"
 import { Logger } from "@/shared/services/Logger"
-import { ensureRulesDirectoryExists, readTaskHistoryFromState, writeTaskHistoryToState } from "./disk"
+import { ensureRulesDirectoryExists } from "./disk"
 
 export async function migrateWorkspaceToGlobalStorage(context: vscode.ExtensionContext) {
 	// Keys to migrate from workspace storage back to global storage
@@ -67,58 +66,8 @@ export async function migrateWorkspaceToGlobalStorage(context: vscode.ExtensionC
 	}
 }
 
-export async function migrateTaskHistoryToFile(context: vscode.ExtensionContext) {
-	try {
-		// Get data from old location
-		const vscodeGlobalStateTaskHistory = context.globalState.get<HistoryItem[] | undefined>("taskHistory")
-
-		// Normalize old location data to array (empty array if undefined/null/not-array)
-		const oldLocationData = Array.isArray(vscodeGlobalStateTaskHistory) ? vscodeGlobalStateTaskHistory : []
-
-		// Early return if no migration needed
-		if (oldLocationData.length === 0) {
-			Logger.log("[Storage Migration] No task history to migrate")
-			return
-		}
-
-		let finalData: HistoryItem[]
-		let migrationAction: string
-
-		const newLocationData = await readTaskHistoryFromState()
-
-		if (newLocationData.length === 0) {
-			// Move old data to new location
-			finalData = oldLocationData
-			migrationAction = "Migrated task history from old location to new location"
-		} else {
-			// Merge old data (more recent) with new data
-			finalData = [...newLocationData, ...oldLocationData]
-			migrationAction = "Merged task history from old and new locations"
-		}
-
-		// Perform migration operations sequentially - only clear old data if write succeeds
-		await writeTaskHistoryToState(finalData)
-
-		const successfullyWrittenData = await readTaskHistoryFromState()
-
-		if (!Array.isArray(successfullyWrittenData)) {
-			Logger.error("[Storage Migration] Failed to write taskHistory to file: Written data is not an array")
-			return
-		}
-
-		if (successfullyWrittenData.length !== finalData.length) {
-			Logger.error(
-				"[Storage Migration] Failed to write taskHistory to file: Written data does not match the old location data",
-			)
-			return
-		}
-
-		await context.globalState.update("taskHistory", undefined)
-
-		Logger.log(`[Storage Migration] ${migrationAction}`)
-	} catch (error) {
-		Logger.error("[Storage Migration] Failed to migrate task history to file:", error)
-	}
+export async function migrateTaskHistoryToFile(_context: vscode.ExtensionContext) {
+	// TODO migrate to sdk location
 }
 
 export async function migrateMcpMarketplaceEnableSetting(mcpMarketplaceEnabledRaw: boolean | undefined): Promise<boolean> {

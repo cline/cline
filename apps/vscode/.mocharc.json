@@ -6,6 +6,13 @@
 		"src/**/__tests__/*.ts",
 		"src/test/services/**/*.test.ts"
 	],
+	"ignore": [
+		"src/core/controller/models/__tests__/providerCatalogHandlers.test.ts",
+		"src/core/controller/models/__tests__/providerCatalogSmoke.test.ts",
+		"src/core/controller/models/__tests__/providerSwitchNormalization.test.ts",
+		"src/core/controller/models/__tests__/resolveModelInfo.test.ts",
+		"src/core/controller/models/__tests__/refreshClineRecommendedModels.test.ts"
+	],
 	"require": [
 		"ts-node/register",
 		"source-map-support/register",

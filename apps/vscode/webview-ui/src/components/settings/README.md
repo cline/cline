@@ -17,7 +17,7 @@ settings/
 │   ├── ClineProvider.tsx       # Cline configuration
 │   ├── AnthropicProvider.tsx   # Anthropic-specific configuration
 │   ├── BedrockProvider.tsx     # AWS Bedrock configuration
-│   ├── GeminiProvider.tsx      # Google Gemini configuration
+│   ├── GenericProviderSettings.tsx # Shared generic provider configuration
 │   ├── MistralProvider.tsx     # Mistral configuration
 │   ├── OllamaProvider.tsx      # Ollama configuration
 │   ├── OpenAICompatibleProvider.tsx  # OpenAI compatible API configuration
