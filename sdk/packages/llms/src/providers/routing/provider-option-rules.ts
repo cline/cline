@@ -5,6 +5,7 @@ import {
 	isGeminiProModel,
 	isGlmModel,
 	isKimiK26Family as isKimiK26FamilyFact,
+	isMiniMaxM3Model,
 	isMoonshotKimiModelIdFallback,
 	modelReasoningDefaultsOn,
 	providerReasoningRouteMatches,
@@ -16,6 +17,10 @@ import {
 	buildNativeGlmThinkingProviderOptionsPatch,
 	buildRoutedGlmReasoningProviderOptionsPatch,
 } from "./glm-thinking";
+import {
+	buildMiniMaxGatewayReasoningProviderOptionsPatch,
+	buildMiniMaxThinkingProviderOptionsPatch,
+} from "./minimax-thinking";
 import type {
 	MatchedProviderOptionRule,
 	ProviderOptionBuildInput,
@@ -44,6 +49,10 @@ function isDeepSeekModelOrProviderDefault(
 	return (
 		isDeepSeekFamily(input.context) || input.request.providerId === "deepseek"
 	);
+}
+
+function isMiniMaxM3(input: ProviderOptionMatchInput): boolean {
+	return isMiniMaxM3Model(input.request, input.context);
 }
 
 function isOllamaReasoningDefaultOnDisable(
@@ -75,6 +84,16 @@ function hasGlmThinkingProviderRouting(
 	return (
 		input.context.provider.metadata?.routing?.reasoning?.format ===
 		"glm-thinking"
+	);
+}
+
+function usesMiniMaxThinkingProviderRouting(
+	input: ProviderOptionMatchInput,
+): boolean {
+	return providerReasoningRouteMatches(
+		"minimax-thinking",
+		input.request,
+		input.context,
 	);
 }
 
@@ -267,6 +286,32 @@ const openRouterReasoningRule: ProviderOptionRule = {
 		),
 };
 
+const clineMiniMaxM3GatewayReasoningRule: ProviderOptionRule = {
+	id: "provider.cline.minimax-m3.gateway-reasoning",
+	phase: "provider-reasoning",
+	description:
+		"Cline-routed MiniMax M3 keeps the gateway reasoning shape instead of leaking generic thinking.",
+	applies: (input) =>
+		input.request.providerId === "cline" && isMiniMaxM3(input),
+	suppresses: { genericThinking: true, genericEffort: true },
+	build: () => undefined,
+};
+
+const vercelMiniMaxM3GatewayReasoningRule: ProviderOptionRule = {
+	id: "provider.vercel-ai-gateway.minimax-m3.gateway-reasoning",
+	phase: "provider-reasoning",
+	description:
+		"Vercel-routed MiniMax M3 uses the gateway reasoning include/exclude shape.",
+	applies: (input) =>
+		input.request.providerId === "vercel-ai-gateway" && isMiniMaxM3(input),
+	suppresses: { genericThinking: true, genericEffort: true },
+	build: (input) =>
+		buildMiniMaxGatewayReasoningProviderOptionsPatch(
+			input.request,
+			input.providerOptionsKey,
+		),
+};
+
 const geminiThinkingRule: ProviderOptionRule = {
 	id: "provider.google-gemini.thinking-config",
 	phase: "provider",
@@ -403,6 +448,19 @@ const nativeZaiGlmThinkingRule: ProviderOptionRule = {
 		),
 };
 
+const miniMaxThinkingRule: ProviderOptionRule = {
+	id: "provider.routing.minimax-thinking",
+	phase: "model-overlay",
+	description: "Direct MiniMax M3 uses thinking.type adaptive/disabled.",
+	applies: usesMiniMaxThinkingProviderRouting,
+	suppresses: { genericThinking: true, genericEffort: true },
+	build: (input) =>
+		buildMiniMaxThinkingProviderOptionsPatch(
+			input.request,
+			input.providerOptionsKey,
+		),
+};
+
 const routedGlmReasoningRule: ProviderOptionRule = {
 	id: "family.glm.routed-reasoning",
 	phase: "model-overlay",
@@ -437,6 +495,8 @@ export const PROVIDER_OPTION_RULES: ReadonlyArray<ProviderOptionRule> = [
 	genericProviderFanoutRule,
 	clineGatewayReasoningRule,
 	openRouterReasoningRule,
+	clineMiniMaxM3GatewayReasoningRule,
+	vercelMiniMaxM3GatewayReasoningRule,
 	geminiThinkingRule,
 	clineReasoningDisabledThinkingRule,
 	kimiK26ThinkingRule,
@@ -444,6 +504,7 @@ export const PROVIDER_OPTION_RULES: ReadonlyArray<ProviderOptionRule> = [
 	ollamaReasoningDefaultOnDisableRule,
 	nonGlmProviderRoutingSuppressionRule,
 	nativeZaiGlmThinkingRule,
+	miniMaxThinkingRule,
 	routedGlmReasoningRule,
 ];
 

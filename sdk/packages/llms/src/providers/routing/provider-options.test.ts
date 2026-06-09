@@ -4,6 +4,7 @@ import type {
 } from "@cline/shared";
 import { describe, expect, it } from "vitest";
 import { GLM_THINKING_ROUTING_METADATA } from "./glm-thinking";
+import { MINIMAX_THINKING_ROUTING_METADATA } from "./minimax-thinking";
 import {
 	composeAiSdkProviderOptions,
 	mergeProviderOptionPatches,
@@ -1225,6 +1226,263 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			expect: [
 				{ bucket: "openai-compatible", lacks: ["thinking"] },
 				{ bucket: "openaiCompatible", lacks: ["thinking"] },
+			],
+		},
+		{
+			name: "openrouter MiniMax M3 reasoning enabled -> OpenRouter reasoning shape",
+			request: {
+				providerId: "openrouter",
+				modelId: "minimax/minimax-m3",
+				reasoning: { enabled: true },
+			},
+			context: {
+				family: "minimax",
+				capabilities: ["reasoning"],
+			},
+			expect: [
+				{
+					bucket: "openrouter",
+					has: { reasoning: { enabled: true } },
+					lacks: ["thinking", "effort", "reasoningEffort"],
+				},
+				{
+					bucket: "openaiCompatible",
+					lacks: ["thinking", "reasoning", "effort", "reasoningEffort"],
+				},
+			],
+		},
+		{
+			name: "openrouter MiniMax M3 reasoning disabled -> OpenRouter reasoning.exclude",
+			request: {
+				providerId: "openrouter",
+				modelId: "minimax/minimax-m3",
+				reasoning: { enabled: false },
+			},
+			context: {
+				family: "minimax",
+				capabilities: ["reasoning"],
+			},
+			expect: [
+				{
+					bucket: "openrouter",
+					has: { reasoning: { exclude: true } },
+					lacks: ["thinking"],
+				},
+				{
+					bucket: "openaiCompatible",
+					lacks: ["thinking", "reasoning"],
+				},
+			],
+		},
+		{
+			name: "vercel MiniMax M3 reasoning enabled -> gateway reasoning shape",
+			request: {
+				providerId: "vercel-ai-gateway",
+				modelId: "minimax/minimax-m3",
+				reasoning: { enabled: true, effort: "high" },
+			},
+			context: {
+				family: "minimax",
+				capabilities: ["reasoning"],
+			},
+			expect: [
+				{
+					bucket: "vercel-ai-gateway",
+					has: { reasoning: { enabled: true } },
+					lacks: ["thinking", "effort", "reasoningEffort", "reasoningSummary"],
+				},
+				{
+					bucket: "vercelAiGateway",
+					has: { reasoning: { enabled: true } },
+					lacks: ["thinking", "effort", "reasoningEffort", "reasoningSummary"],
+				},
+			],
+		},
+		{
+			name: "vercel MiniMax M3 reasoning disabled -> gateway reasoning.exclude",
+			request: {
+				providerId: "vercel-ai-gateway",
+				modelId: "minimax/minimax-m3",
+				reasoning: { enabled: false },
+			},
+			context: {
+				family: "minimax",
+				capabilities: ["reasoning"],
+			},
+			expect: [
+				{
+					bucket: "vercel-ai-gateway",
+					has: { reasoning: { exclude: true } },
+					lacks: ["thinking"],
+				},
+				{
+					bucket: "vercelAiGateway",
+					has: { reasoning: { exclude: true } },
+					lacks: ["thinking"],
+				},
+			],
+		},
+		{
+			name: "vercel MiniMax M3 sibling id -> no MiniMax M3 gateway exception",
+			request: {
+				providerId: "vercel-ai-gateway",
+				modelId: "minimax/minimax-m3-pro",
+				reasoning: { enabled: true },
+			},
+			context: {
+				family: "minimax",
+				capabilities: ["reasoning"],
+			},
+			expect: [
+				{
+					bucket: "vercel-ai-gateway",
+					has: { thinking: { type: "adaptive" } },
+					lacks: ["reasoning"],
+				},
+			],
+		},
+		{
+			name: "cline MiniMax M3 reasoning enabled -> gateway reasoning without thinking leak",
+			request: {
+				providerId: "cline",
+				modelId: "minimax/minimax-m3",
+				reasoning: { enabled: true, effort: "high" },
+			},
+			context: {
+				family: "minimax",
+				capabilities: ["reasoning"],
+			},
+			expect: [
+				{
+					bucket: "cline",
+					has: { reasoning: { enabled: true, effort: "high" } },
+					lacks: ["thinking", "effort", "reasoningEffort", "reasoningSummary"],
+				},
+				{
+					bucket: "openaiCompatible",
+					lacks: ["thinking", "reasoning", "effort", "reasoningEffort"],
+				},
+			],
+		},
+		{
+			name: "cline MiniMax M3 reasoning disabled -> gateway reasoning disabled",
+			request: {
+				providerId: "cline",
+				modelId: "minimax/minimax-m3",
+				reasoning: { enabled: false },
+			},
+			context: {
+				family: "minimax",
+				capabilities: ["reasoning"],
+			},
+			expect: [
+				{
+					bucket: "cline",
+					has: { reasoning: { enabled: false } },
+					lacks: ["thinking"],
+				},
+				{
+					bucket: "openaiCompatible",
+					lacks: ["thinking", "reasoning"],
+				},
+			],
+		},
+		{
+			name: "direct MiniMax M3 reasoning disabled -> thinking.type=disabled",
+			request: {
+				providerId: "minimax",
+				modelId: "MiniMax-M3",
+				reasoning: { enabled: false },
+			},
+			context: {
+				family: "minimax",
+				capabilities: ["reasoning"],
+				metadata: MINIMAX_THINKING_ROUTING_METADATA,
+			},
+			expect: [
+				{
+					bucket: "minimax",
+					has: { thinking: { type: "disabled" } },
+					lacks: ["reasoning", "effort", "reasoningEffort", "reasoningSummary"],
+				},
+				{
+					bucket: "openaiCompatible",
+					has: { thinking: { type: "disabled" } },
+					lacks: ["reasoning", "effort", "reasoningEffort", "reasoningSummary"],
+				},
+			],
+		},
+		{
+			name: "direct MiniMax M3 reasoning enabled -> thinking.type=adaptive",
+			request: {
+				providerId: "minimax",
+				modelId: "MiniMax-M3",
+				reasoning: { enabled: true, effort: "high" },
+			},
+			context: {
+				family: "minimax",
+				capabilities: ["reasoning"],
+				metadata: MINIMAX_THINKING_ROUTING_METADATA,
+			},
+			expect: [
+				{
+					bucket: "minimax",
+					has: { thinking: { type: "adaptive" } },
+					lacks: ["reasoning", "effort", "reasoningEffort", "reasoningSummary"],
+				},
+				{
+					bucket: "openaiCompatible",
+					has: { thinking: { type: "adaptive" } },
+					lacks: ["reasoning", "effort", "reasoningEffort", "reasoningSummary"],
+				},
+			],
+		},
+		{
+			name: "direct MiniMax M2.5 reasoning enabled -> existing generic adaptive thinking",
+			request: {
+				providerId: "minimax",
+				modelId: "MiniMax-M2.5",
+				reasoning: { enabled: true },
+			},
+			context: {
+				family: "minimax",
+				capabilities: ["reasoning"],
+				metadata: MINIMAX_THINKING_ROUTING_METADATA,
+			},
+			expect: [
+				{
+					bucket: "minimax",
+					has: { thinking: { type: "adaptive" } },
+					lacks: ["reasoning"],
+				},
+				{
+					bucket: "openaiCompatible",
+					has: { thinking: { type: "adaptive" } },
+					lacks: ["reasoning"],
+				},
+			],
+		},
+		{
+			name: "direct MiniMax M2.7 reasoning disabled -> no MiniMax M3 disabled exception",
+			request: {
+				providerId: "minimax",
+				modelId: "MiniMax-M2.7",
+				reasoning: { enabled: false },
+			},
+			context: {
+				family: "minimax",
+				capabilities: ["reasoning"],
+				metadata: MINIMAX_THINKING_ROUTING_METADATA,
+			},
+			expect: [
+				{
+					bucket: "minimax",
+					lacks: ["thinking", "reasoning", "effort", "reasoningEffort"],
+				},
+				{
+					bucket: "openaiCompatible",
+					lacks: ["thinking", "reasoning", "effort", "reasoningEffort"],
+				},
 			],
 		},
 		// Ollama Qwen3: model behavior fact first, documented dynamic fallback second.
