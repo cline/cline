@@ -126,6 +126,51 @@ describe("built-in provider metadata", () => {
 		);
 	});
 
+	it("includes Claude Fable 5 in Anthropic, OpenRouter, Vercel AI Gateway, and Cline model lists", async () => {
+		const anthropicModels = await getModelsForProvider("anthropic");
+		const openRouterModels = await getModelsForProvider("openrouter");
+		const vercelModels = await getModelsForProvider("vercel-ai-gateway");
+		const clineModels = await getModelsForProvider("cline");
+
+		expect(anthropicModels["claude-fable-5"]).toEqual(
+			expect.objectContaining({
+				name: "Claude Fable 5",
+				contextWindow: 1_000_000,
+				maxTokens: 128_000,
+				capabilities: expect.arrayContaining([
+					"tools",
+					"reasoning",
+					"prompt-cache",
+				]),
+				pricing: expect.objectContaining({
+					input: 10,
+					output: 50,
+					cacheRead: 1,
+					cacheWrite: 12.5,
+				}),
+			}),
+		);
+		expect(openRouterModels["anthropic/claude-fable-5"]).toEqual(
+			expect.objectContaining({
+				id: "anthropic/claude-fable-5",
+				name: "Claude Fable 5",
+				contextWindow: 1_000_000,
+				maxTokens: 128_000,
+			}),
+		);
+		expect(vercelModels["anthropic/claude-fable-5"]).toEqual(
+			expect.objectContaining({
+				id: "anthropic/claude-fable-5",
+				name: "Claude Fable 5",
+				contextWindow: 1_000_000,
+			}),
+		);
+		expect(clineModels["anthropic/claude-fable-5"]).toEqual(
+			openRouterModels["anthropic/claude-fable-5"],
+		);
+		expect(clineModels["anthropic/claude-opus-4.8"]).toBeDefined();
+	});
+
 	it("routes native Z.AI providers through GLM thinking metadata", async () => {
 		for (const providerId of ["zai", "zai-coding-plan"] as const) {
 			await expect(getProvider(providerId)).resolves.toMatchObject({
@@ -144,5 +189,23 @@ describe("built-in provider metadata", () => {
 				expect(model.family?.startsWith("glm")).toBe(true);
 			}
 		}
+	});
+
+	it("routes direct MiniMax M3 through MiniMax thinking metadata", async () => {
+		await expect(getProvider("minimax")).resolves.toMatchObject({
+			metadata: {
+				routing: {
+					reasoning: {
+						format: "minimax-thinking",
+						routes: [
+							expect.objectContaining({
+								matcher: "model-id",
+								modelId: "MiniMax-M3",
+							}),
+						],
+					},
+				},
+			},
+		});
 	});
 });

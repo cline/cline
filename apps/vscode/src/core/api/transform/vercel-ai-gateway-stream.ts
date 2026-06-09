@@ -2,6 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import {
 	CLAUDE_SONNET_1M_SUFFIX,
 	ModelInfo,
+	openRouterClaudeFable51mModelId,
 	openRouterClaudeOpus461mModelId,
 	openRouterClaudeOpus471mModelId,
 	openRouterClaudeOpus481mModelId,
@@ -39,7 +40,8 @@ export async function createVercelAIGatewayStream(
 		model.id === openRouterClaudeSonnet461mModelId ||
 		model.id === openRouterClaudeOpus461mModelId ||
 		model.id === openRouterClaudeOpus471mModelId ||
-		model.id === openRouterClaudeOpus481mModelId
+		model.id === openRouterClaudeOpus481mModelId ||
+		model.id === openRouterClaudeFable51mModelId
 	if (isClaude1m) {
 		// remove the custom :1m suffix, to create the model id the API expects
 		model.id = model.id.slice(0, -CLAUDE_SONNET_1M_SUFFIX.length)

@@ -14,6 +14,7 @@ import {
 	readGlobalSettings,
 	resolveLocalClineAuthToken,
 	saveLocalProviderSettings,
+	setAutoUpdateEnabledGlobally,
 	setDisabledPlugin,
 	setDisabledTools,
 	setTelemetryOptOutGlobally,
@@ -145,6 +146,13 @@ export async function handleDesktopCommand(
 			throw new Error("telemetry_opt_out must be a boolean");
 		}
 		setTelemetryOptOutGlobally(args.telemetry_opt_out);
+		return readGlobalSettings();
+	}
+	if (command === "set_auto_update_enabled") {
+		if (typeof args?.auto_update_enabled !== "boolean") {
+			throw new Error("auto_update_enabled must be a boolean");
+		}
+		setAutoUpdateEnabledGlobally(args.auto_update_enabled);
 		return readGlobalSettings();
 	}
 	if (command === "list_connector_channels") {

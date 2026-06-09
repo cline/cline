@@ -1,7 +1,7 @@
 {
 	"name": "@cline/cli",
 	"displayName": "cline",
-	"version": "3.0.20",
+	"version": "3.0.22",
 	"description": "Autonomous coding agent CLI - capable of creating/editing files, running commands, using the browser, and more",
 	"type": "module",
 	"publishConfig": {

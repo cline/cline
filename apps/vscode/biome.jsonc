@@ -50,8 +50,8 @@
 				"useEnumInitializers": "off",
 				"useSelfClosingElements": "info",
 				"useSingleVarDeclarator": "off",
-				"useNumberNamespace": "info",
-				"noInferrableTypes": "info",
+				"useNumberNamespace": "off",
+				"noInferrableTypes": "off",
 				"useTemplate": "info",
 				"noUselessElse": "info"
 			},
