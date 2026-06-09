@@ -203,6 +203,11 @@ message AwsProviderConfig {
   optional bool use_global_inference = 13;
 }
 
+message GcpProviderConfig {
+  optional string project_id = 1;
+  optional string region = 2;
+}
+
 message ProviderConfigResponse {
   string provider_id = 1;
   optional string base_url = 2;
@@ -216,6 +221,7 @@ message ProviderConfigResponse {
   optional CommittedModelSelection plan_selection = 10;
   optional CommittedModelSelection act_selection = 11;
   optional AwsProviderConfig aws = 12;
+  optional GcpProviderConfig gcp = 13;
 }
 
 message CommittedModelSelection {
@@ -242,6 +248,7 @@ message WriteProviderConfigPatch {
   optional ProviderReasoningPatch reasoning = 9;
   optional bool clear_headers = 10;
   optional AwsProviderConfig aws = 11;
+  optional GcpProviderConfig gcp = 12;
 }
 
 message WriteProviderConfigRequest {

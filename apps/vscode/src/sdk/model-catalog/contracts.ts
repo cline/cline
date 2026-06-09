@@ -84,6 +84,11 @@ export interface AwsProviderConfig {
 	readonly useGlobalInference?: boolean
 }
 
+export interface GcpProviderConfig {
+	readonly projectId?: string
+	readonly region?: string
+}
+
 export interface EffectiveProviderConfig {
 	readonly providerId: ProviderId
 	readonly apiKey?: string
@@ -92,6 +97,7 @@ export interface EffectiveProviderConfig {
 	readonly headers?: Readonly<Record<string, string>>
 	readonly region?: string
 	readonly aws?: AwsProviderConfig
+	readonly gcp?: GcpProviderConfig
 	/**
 	 * OAuth-style auth bundle (e.g. cline provider's WorkOS token).
 	 * Compatible with `apiKey`; some providers populate both.
@@ -133,6 +139,7 @@ export interface ProviderConfigPatch {
 	readonly headers?: Readonly<Record<string, string>> | null
 	readonly region?: string | null
 	readonly aws?: AwsProviderConfig | null
+	readonly gcp?: GcpProviderConfig | null
 	readonly auth?: {
 		readonly accessToken?: string
 		readonly refreshToken?: string
