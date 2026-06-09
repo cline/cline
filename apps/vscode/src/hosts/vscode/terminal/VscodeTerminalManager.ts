@@ -1,5 +1,5 @@
 import { arePathsEqual } from "@utils/path"
-import { getShellForProfile } from "@utils/shell"
+import { getShell, getShellForProfile } from "@utils/shell"
 import pWaitFor from "p-wait-for"
 import * as vscode from "vscode"
 import {
@@ -104,6 +104,17 @@ export class VscodeTerminalManager implements ITerminalManager {
 	private terminalReuseEnabled = true
 	private terminalOutputLineLimit = 500
 	private defaultTerminalProfile = "default"
+
+	/**
+	 * Resolve a terminal's stored shellPath to an effective path.
+	 * Terminals created with the "default" profile have shellPath=undefined;
+	 * this resolves that to the actual default shell (e.g. /bin/zsh on macOS)
+	 * so we can compare apples-to-apples when deciding whether a terminal
+	 * is compatible with the current profile setting.
+	 */
+	private static effectiveShellPath(shellPath: string | undefined): string {
+		return shellPath ?? getShell()
+	}
 
 	constructor() {
 		let disposable: vscode.Disposable | undefined
@@ -236,6 +247,8 @@ export class VscodeTerminalManager implements ITerminalManager {
 		const terminals = TerminalRegistry.getAllTerminals()
 		const expectedShellPath =
 			this.defaultTerminalProfile !== "default" ? getShellForProfile(this.defaultTerminalProfile) : undefined
+		// Resolve effective shell for comparison (so "default" and "zsh" match on macOS)
+		const effectiveExpected = VscodeTerminalManager.effectiveShellPath(expectedShellPath)
 
 		// Find available terminal from our pool first (created for this task)
 		Logger.log(`[TerminalManager] Looking for terminal in cwd: ${cwd}`)
@@ -246,8 +259,8 @@ export class VscodeTerminalManager implements ITerminalManager {
 				Logger.log(`[TerminalManager] Terminal ${t.id} is busy, skipping`)
 				return false
 			}
-			// Check if shell path matches current configuration
-			if (t.shellPath !== expectedShellPath) {
+			// Check if effective shell path matches current configuration
+			if (VscodeTerminalManager.effectiveShellPath(t.shellPath) !== effectiveExpected) {
 				return false
 			}
 			const terminalCwd = t.terminal.shellIntegration?.cwd // one of cline's commands could have changed the cwd of the terminal
@@ -268,7 +281,9 @@ export class VscodeTerminalManager implements ITerminalManager {
 
 		// If no non-busy terminal in the current working dir exists and terminal reuse is enabled, try to find any non-busy terminal regardless of CWD
 		if (this.terminalReuseEnabled) {
-			const availableTerminal = terminals.find((t) => !t.busy && t.shellPath === expectedShellPath)
+			const availableTerminal = terminals.find(
+				(t) => !t.busy && VscodeTerminalManager.effectiveShellPath(t.shellPath) === effectiveExpected,
+			)
 			if (availableTerminal) {
 				// Set up promise and tracking for CWD change
 				const cwdPromise = new Promise<void>((resolve, reject) => {
@@ -374,30 +389,13 @@ export class VscodeTerminalManager implements ITerminalManager {
 		return outputLines.join("\n").trim()
 	}
 
-	setDefaultTerminalProfile(profileId: string): { closedCount: number; busyTerminals: TerminalInfo[] } {
-		// Only handle terminal change if profile actually changed
-		if (this.defaultTerminalProfile === profileId) {
-			return { closedCount: 0, busyTerminals: [] }
-		}
-
-		const _oldProfileId = this.defaultTerminalProfile
+	setDefaultTerminalProfile(profileId: string): void {
+		// Just update the profile setting. We don't close existing terminals —
+		// they stay open and are reusable if the user switches back. New
+		// terminals created by getOrCreateTerminal() will use the new profile,
+		// and existing terminals with a different effective shell are simply
+		// skipped during reuse matching.
 		this.defaultTerminalProfile = profileId
-
-		// Get the shell path for the new profile
-		const newShellPath = profileId !== "default" ? getShellForProfile(profileId) : undefined
-
-		// Handle terminal management for the profile change
-		const result = this.handleTerminalProfileChange(newShellPath)
-
-		// Update lastActive for any remaining terminals
-		const allTerminals = TerminalRegistry.getAllTerminals()
-		allTerminals.forEach((terminal) => {
-			if (terminal.shellPath !== newShellPath) {
-				TerminalRegistry.updateTerminal(terminal.id, { lastActive: Date.now() })
-			}
-		})
-
-		return result
 	}
 
 	/**
@@ -442,27 +440,6 @@ export class VscodeTerminalManager implements ITerminalManager {
 		}
 
 		return closedCount
-	}
-
-	/**
-	 * Handles terminal management when the terminal profile changes
-	 * @param newShellPath New shell path to use
-	 * @returns Object with information about closed terminals and remaining busy terminals
-	 */
-	handleTerminalProfileChange(newShellPath: string | undefined): {
-		closedCount: number
-		busyTerminals: TerminalInfo[]
-	} {
-		// Close non-busy terminals with different shell path
-		const closedCount = this.closeTerminals((terminal) => !terminal.busy && terminal.shellPath !== newShellPath, false)
-
-		// Get remaining busy terminals with different shell path
-		const busyTerminals = this.filterTerminals((terminal) => terminal.busy && terminal.shellPath !== newShellPath)
-
-		return {
-			closedCount,
-			busyTerminals,
-		}
 	}
 
 	/**

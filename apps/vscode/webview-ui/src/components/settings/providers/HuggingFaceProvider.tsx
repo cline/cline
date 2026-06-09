@@ -1,8 +1,8 @@
 import { Mode } from "@shared/storage/types"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useDynamicProviderSelection } from "@/hooks/useDynamicProviderSelection"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { HuggingFaceModelPicker } from "../HuggingFaceModelPicker"
-import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 /**
@@ -22,7 +22,7 @@ export const HuggingFaceProvider = ({ showModelOptions, isPopup, currentMode }: 
 	const { handleFieldChange } = useApiConfigurationHandlers()
 
 	// Get the normalized configuration
-	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
+	const { selectedModelId, selectedModelInfo } = useDynamicProviderSelection("huggingface", apiConfiguration, currentMode)
 
 	return (
 		<div>
