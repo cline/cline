@@ -2,10 +2,7 @@ import type {
 	GatewayProviderMetadata,
 	GatewayStreamRequest,
 } from "@cline/shared";
-import {
-	buildProviderAndAliasPatch,
-	type ProviderOptionsPatch,
-} from "./utils";
+import { buildProviderAndAliasPatch, type ProviderOptionsPatch } from "./utils";
 
 export const MINIMAX_THINKING_ROUTING_METADATA: GatewayProviderMetadata = {
 	routing: {

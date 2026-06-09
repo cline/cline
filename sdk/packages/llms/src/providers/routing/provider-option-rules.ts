@@ -291,7 +291,8 @@ const clineMiniMaxM3GatewayReasoningRule: ProviderOptionRule = {
 	phase: "provider-reasoning",
 	description:
 		"Cline-routed MiniMax M3 keeps the gateway reasoning shape instead of leaking generic thinking.",
-	applies: (input) => input.request.providerId === "cline" && isMiniMaxM3(input),
+	applies: (input) =>
+		input.request.providerId === "cline" && isMiniMaxM3(input),
 	suppresses: { genericThinking: true, genericEffort: true },
 	build: () => undefined,
 };

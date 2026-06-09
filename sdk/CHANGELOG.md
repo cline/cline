@@ -1,5 +1,10 @@
 # Cline SDK Changelog
 
+## 0.0.45
+
+- Added support for the Claude Fable 5 model
+- Fixed MiniMax M3 thinking controls so they route correctly across gateways
+
 ## 0.0.44
 
 - Added support for Vertex AI Application Default Credentials (ADC) with tool use

@@ -68,8 +68,7 @@ export function createMiniMaxThinkingFetch(baseFetch: typeof fetch = fetch) {
 		init?: Parameters<typeof fetch>[1],
 	) => {
 		const headers = new Headers(init?.headers);
-		const shouldInject =
-			headers.get(MINIMAX_THINKING_DISABLED_HEADER) === "1";
+		const shouldInject = headers.get(MINIMAX_THINKING_DISABLED_HEADER) === "1";
 		if (!shouldInject) {
 			return baseFetch(input, init);
 		}

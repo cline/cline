@@ -14,7 +14,7 @@ export const GENERATED_PROVIDER_MODELS: {
 	version: number;
 	providers: Record<string, Record<string, ModelInfo>>;
 } = {
-	version: 1781029304816,
+	version: 1781030379130,
 	providers: {
 		aihubmix: {
 			"glm-5v-turbo": {
