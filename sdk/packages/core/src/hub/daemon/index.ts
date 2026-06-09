@@ -98,7 +98,7 @@ async function waitForHubToRetire(
 async function retireDiscoveredHub(
 	record: Pick<HubServerDiscoveryRecord, "url" | "authToken" | "pid">,
 	discoveryPath: string,
-): Promise<void> {
+): Promise<boolean> {
 	await requestHubShutdown(record.url, record.authToken).catch(() => false);
 	if (record.pid) {
 		try {
@@ -107,18 +107,19 @@ async function retireDiscoveredHub(
 			// Best-effort cleanup only. A compatible hub may still start on a fallback port.
 		}
 	}
-	await waitForHubToRetire(record.url, HUB_RETIRE_TIMEOUT_MS);
+	const retired = await waitForHubToRetire(record.url, HUB_RETIRE_TIMEOUT_MS);
 	await clearHubDiscovery(discoveryPath).catch(() => undefined);
+	return retired;
 }
 
 async function retireIncompatibleHub(
 	record: HubServerProbeRecord,
 	discoveryPath: string,
-): Promise<void> {
+): Promise<boolean> {
 	if (isCompatibleHubRecord(record)) {
-		return;
+		return true;
 	}
-	await retireDiscoveredHub(record, discoveryPath);
+	return retireDiscoveredHub(record, discoveryPath);
 }
 
 function resolveDaemonEntryPath(): string {
@@ -230,11 +231,21 @@ export function prewarmDetachedHubServer(
 		resolvedEndpoint.port,
 		resolvedEndpoint.pathname,
 	);
+	const shouldUseFallbackPort =
+		endpoint.allowPortFallback === true && resolvedEndpoint.port !== 0;
 	void readHubDiscovery(owner.discoveryPath)
 		.then(async (discovered) => {
+			let retiredUnusableDiscovery = false;
 			if (discovered?.url) {
 				if (!discovered.authToken) {
-					await retireDiscoveredHub(discovered, owner.discoveryPath);
+					retiredUnusableDiscovery = true;
+					const retired = await retireDiscoveredHub(
+						discovered,
+						owner.discoveryPath,
+					);
+					if (!retired && !shouldUseFallbackPort) {
+						return;
+					}
 				} else {
 					const healthy = await safeProbeHubServer(
 						discovered.url,
@@ -262,15 +273,19 @@ export function prewarmDetachedHubServer(
 			const expected = await safeProbeHubServer(expectedUrl);
 			if (expected?.url) {
 				if (isCompatibleHubRecord(expected)) {
-					return;
+					if (!shouldUseFallbackPort || !retiredUnusableDiscovery) {
+						return;
+					}
+				} else {
+					const retiredExpected = await retireIncompatibleHub(
+						{ ...expected, authToken: undefined },
+						owner.discoveryPath,
+					);
+					if (!retiredExpected && !shouldUseFallbackPort) {
+						return;
+					}
 				}
-				await retireIncompatibleHub(
-					{ ...expected, authToken: undefined },
-					owner.discoveryPath,
-				);
 			}
-			const shouldUseFallbackPort =
-				endpoint.allowPortFallback === true && resolvedEndpoint.port !== 0;
 			const spawnEndpoint = shouldUseFallbackPort
 				? { ...resolvedEndpoint, port: 0 }
 				: resolvedEndpoint;
@@ -356,10 +371,19 @@ export async function ensureDetachedHubServer(
 				`A compatible Cline Hub is already running at ${expectedUrl}, but its discovery record is missing or unreadable. Run 'cline doctor fix' to repair local hub discovery.${upgradeHint}`,
 			);
 		}
-		await retireIncompatibleHub(
+		const retiredExpected = await retireIncompatibleHub(
 			{ ...expected, authToken: undefined },
 			owner.discoveryPath,
 		);
+		if (
+			!retiredExpected &&
+			endpointOverrides.allowPortFallback !== true &&
+			endpoint.port !== 0
+		) {
+			throw new Error(
+				`An incompatible Cline Hub is already running at ${expectedUrl} and could not be retired automatically. Run 'cline doctor fix' to stop stale hub daemons before starting a new hub.`,
+			);
+		}
 	}
 	const shouldUseFallbackPort =
 		endpointOverrides.allowPortFallback === true && endpoint.port !== 0;
@@ -390,10 +414,19 @@ export async function ensureDetachedHubServer(
 		}
 		const nextExpected = await safeProbeHubServer(expectedUrl);
 		if (nextExpected?.url && !isCompatibleHubRecord(nextExpected)) {
-			await retireIncompatibleHub(
+			const retiredExpected = await retireIncompatibleHub(
 				{ ...nextExpected, authToken: undefined },
 				owner.discoveryPath,
 			);
+			if (
+				!retiredExpected &&
+				endpointOverrides.allowPortFallback !== true &&
+				endpoint.port !== 0
+			) {
+				throw new Error(
+					`An incompatible Cline Hub is still running at ${expectedUrl} and could not be retired automatically. Run 'cline doctor fix' to stop stale hub daemons before starting a new hub.`,
+				);
+			}
 		}
 		await new Promise((resolve) => setTimeout(resolve, HUB_STARTUP_POLL_MS));
 	}
