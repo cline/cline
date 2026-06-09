@@ -96,6 +96,16 @@ function sanitizeExtras(extras: Readonly<Record<string, unknown>> | undefined): 
 	return result as Readonly<Record<string, unknown>>
 }
 
+function sanitizeGcp(config: EffectiveProviderConfig["gcp"]): Readonly<Record<string, unknown>> | null {
+	if (!config) {
+		return null
+	}
+	return {
+		projectId: config.projectId ?? null,
+		region: config.region ?? null,
+	}
+}
+
 function sanitizeAws(config: EffectiveProviderConfig["aws"]): Readonly<Record<string, unknown>> | null {
 	if (!config) {
 		return null
@@ -159,6 +169,7 @@ export function computeConfigFingerprint(providerId: ProviderId, config: Effecti
 		headers: sanitizeHeaders(config.headers),
 		region: config.region ?? null,
 		aws: sanitizeAws(config.aws),
+		gcp: sanitizeGcp(config.gcp),
 		extras: sanitizeExtras(config.extras),
 		auth: {
 			accountId: config.auth?.accountId ?? null,

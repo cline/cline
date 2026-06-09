@@ -1,7 +1,7 @@
 import type { ApiConfiguration } from "@shared/api"
 import { StateManager } from "@/core/storage/StateManager"
 import { getProviderSettingsManager } from "../provider-migration"
-import type { AwsProviderConfig, EffectiveProviderConfig, ProviderId } from "./contracts"
+import type { AwsProviderConfig, EffectiveProviderConfig, GcpProviderConfig, ProviderId } from "./contracts"
 
 type AuthConfig = NonNullable<EffectiveProviderConfig["auth"]>
 type ExtrasConfig = NonNullable<EffectiveProviderConfig["extras"]>
@@ -16,6 +16,7 @@ type ProviderSettingsLike = {
 	readonly headers?: Readonly<Record<string, string>>
 	readonly region?: string
 	readonly aws?: AwsProviderConfig
+	readonly gcp?: GcpProviderConfig
 	readonly auth?: AuthConfig
 	readonly extras?: ExtrasConfig
 }
@@ -87,6 +88,14 @@ const regionFields: Partial<Record<string, keyof ApiConfiguration>> = {
 	vertex: "vertexRegion",
 }
 
+const gcpProjectFields: Partial<Record<string, keyof ApiConfiguration>> = {
+	vertex: "vertexProjectId",
+}
+
+const gcpRegionFields: Partial<Record<string, keyof ApiConfiguration>> = {
+	vertex: "vertexRegion",
+}
+
 const headerFields: Partial<Record<string, keyof ApiConfiguration>> = {
 	openai: "openAiHeaders",
 }
@@ -152,6 +161,19 @@ function readBoolean(record: Record<string, unknown>, key: string): boolean | un
 	return typeof value === "boolean" ? value : undefined
 }
 
+function readGcp(record: Record<string, unknown>): GcpProviderConfig | undefined {
+	const gcp = record.gcp
+	if (!isPlainRecord(gcp)) {
+		return undefined
+	}
+
+	const result: GcpProviderConfig = {
+		projectId: readString(gcp, "projectId"),
+		region: readString(gcp, "region"),
+	}
+	return Object.values(result).some((value) => value !== undefined) ? result : undefined
+}
+
 function readAws(record: Record<string, unknown>): AwsProviderConfig | undefined {
 	const aws = record.aws
 	if (!isPlainRecord(aws)) {
@@ -187,6 +209,7 @@ function readProviderSettings(providerId: ProviderId): ConfigParts {
 			headers: readHeaders(settings, "headers"),
 			region: readString(settings, "region"),
 			aws: readAws(settings),
+			gcp: readGcp(settings),
 			auth: readAuth(settings),
 			extras: isPlainRecord(settings.extras) ? settings.extras : undefined,
 		} satisfies ProviderSettingsLike
@@ -248,6 +271,18 @@ function readStateBoolean(config: ApiConfiguration, field: keyof ApiConfiguratio
 	return typeof value === "boolean" ? value : undefined
 }
 
+function readStateGcp(provider: string, config: ApiConfiguration): GcpProviderConfig | undefined {
+	if (provider !== "vertex") {
+		return undefined
+	}
+
+	const gcp: GcpProviderConfig = {
+		projectId: readStringFromConfig(config, gcpProjectFields[provider]),
+		region: readStringFromConfig(config, gcpRegionFields[provider]),
+	}
+	return Object.values(gcp).some((value) => value !== undefined) ? gcp : undefined
+}
+
 function readStateAws(provider: string, config: ApiConfiguration): AwsProviderConfig | undefined {
 	if (provider !== "bedrock") {
 		return undefined
@@ -276,12 +311,23 @@ function readStateConfig(providerId: ProviderId, config: ApiConfiguration): Conf
 		headers: readHeadersFromConfig(config, headerFields[provider]),
 		region: readStringFromConfig(config, regionFields[provider]),
 		aws: readStateAws(provider, config),
+		gcp: readStateGcp(provider, config),
 		auth: readStateAuth(provider, config),
 		extras: readStateExtras(provider, config),
 	}
 }
 
 function mergeExtras(first: ExtrasConfig | undefined, second: ExtrasConfig | undefined): ExtrasConfig | undefined {
+	if (!first) {
+		return second
+	}
+	if (!second) {
+		return first
+	}
+	return { ...first, ...second }
+}
+
+function mergeGcp(first: GcpProviderConfig | undefined, second: GcpProviderConfig | undefined): GcpProviderConfig | undefined {
 	if (!first) {
 		return second
 	}
@@ -326,9 +372,10 @@ export function buildEffectiveProviderConfig(providerId: ProviderId): EffectiveP
 	assignIfDefined(merged, "apiLine", stateConfig.apiLine ?? providerSettings.apiLine)
 	assignIfDefined(merged, "headers", stateConfig.headers ?? providerSettings.headers)
 	assignIfDefined(merged, "region", stateConfig.region ?? providerSettings.region)
-	// Bedrock is migrated to providers.json. Keep legacy StateManager AWS fields
-	// as a fallback for old installs, but let providers.json win when both exist.
+	// Bedrock/Vertex are migrated to providers.json. Keep legacy StateManager cloud
+	// fields as a fallback for old installs, but let providers.json win when both exist.
 	assignIfDefined(merged, "aws", mergeAws(stateConfig.aws, providerSettings.aws))
+	assignIfDefined(merged, "gcp", mergeGcp(stateConfig.gcp, providerSettings.gcp))
 	assignIfDefined(merged, "auth", stateConfig.auth ?? providerSettings.auth)
 	assignIfDefined(merged, "extras", mergeExtras(providerSettings.extras, stateConfig.extras))
 
