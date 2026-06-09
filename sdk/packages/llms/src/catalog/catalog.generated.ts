@@ -14,7 +14,7 @@ export const GENERATED_PROVIDER_MODELS: {
 	version: number;
 	providers: Record<string, Record<string, ModelInfo>>;
 } = {
-	version: 1780978764194,
+	version: 1781029304816,
 	providers: {
 		aihubmix: {
 			"glm-5v-turbo": {
@@ -1125,6 +1125,22 @@ export const GENERATED_PROVIDER_MODELS: {
 			},
 		},
 		anthropic: {
+			"claude-fable-5": {
+				id: "claude-fable-5",
+				name: "Claude Fable 5",
+				contextWindow: 1000000,
+				maxInputTokens: 1000000,
+				maxTokens: 128000,
+				capabilities: ["images", "files", "tools", "reasoning", "prompt-cache"],
+				pricing: {
+					input: 10,
+					output: 50,
+					cacheRead: 1,
+					cacheWrite: 12.5,
+				},
+				releaseDate: "2026-06-09",
+				family: "claude-fable",
+			},
 			"claude-opus-4-8": {
 				id: "claude-opus-4-8",
 				name: "Claude Opus 4.8",
@@ -11313,6 +11329,29 @@ export const GENERATED_PROVIDER_MODELS: {
 				},
 				releaseDate: "2026-05-29",
 			},
+			"anthropic/claude-fable-5": {
+				id: "anthropic/claude-fable-5",
+				name: "Claude Fable 5",
+				contextWindow: 1000000,
+				maxInputTokens: 1000000,
+				maxTokens: 128000,
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"prompt-cache",
+				],
+				pricing: {
+					input: 10,
+					output: 50,
+					cacheRead: 1,
+					cacheWrite: 12.5,
+				},
+				releaseDate: "2026-06-09",
+				family: "claude",
+			},
 			"anthropic/claude-opus-4.8": {
 				id: "anthropic/claude-opus-4.8",
 				name: "Claude Opus 4.8",
@@ -18015,6 +18054,29 @@ export const GENERATED_PROVIDER_MODELS: {
 			},
 		},
 		"vercel-ai-gateway": {
+			"anthropic/claude-fable-5": {
+				id: "anthropic/claude-fable-5",
+				name: "Claude Fable 5",
+				contextWindow: 1000000,
+				maxInputTokens: 1000000,
+				maxTokens: 128000,
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
+				pricing: {
+					input: 10,
+					output: 50,
+					cacheRead: 1,
+					cacheWrite: 12.5,
+				},
+				releaseDate: "2026-06-09",
+				family: "claude",
+			},
 			"nvidia/nemotron-3-ultra-550b-a55b": {
 				id: "nvidia/nemotron-3-ultra-550b-a55b",
 				name: "Nemotron 3 Ultra",
