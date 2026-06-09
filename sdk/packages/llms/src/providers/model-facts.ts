@@ -113,9 +113,7 @@ export function isGeminiProModel(input: {
 	request: Pick<GatewayStreamRequest, "modelId">;
 	context: GatewayProviderContext;
 }): boolean {
-	return /(^|[/\s])gemini-2\.5-pro([-\s]|$)/.test(
-		geminiModelDescriptor(input),
-	);
+	return /(^|[/\s])gemini-2\.5-pro([-\s]|$)/.test(geminiModelDescriptor(input));
 }
 
 export function isGeminiFlashModel(input: {
