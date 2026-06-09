@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { shouldClearStaleHubDiscovery } from "./hub-websocket-server";
+import {
+	readBearerToken,
+	shouldClearStaleHubDiscovery,
+} from "./hub-websocket-server";
 
 const discovery = {
 	hubId: "hub-test",
@@ -64,5 +67,24 @@ describe("shouldClearStaleHubDiscovery", () => {
 				true,
 			),
 		).toBe(false);
+	});
+});
+
+describe("readBearerToken", () => {
+	it("reads a bearer token with case-insensitive scheme", () => {
+		expect(readBearerToken("Bearer token")).toBe("token");
+		expect(readBearerToken("bearer token")).toBe("token");
+	});
+
+	it("reads a bearer token separated by tabs without regex backtracking", () => {
+		expect(readBearerToken(`bearer\t\t${"token"}`)).toBe("token");
+		expect(readBearerToken(`bearer${"\t".repeat(10_000)}token`)).toBe("token");
+	});
+
+	it("rejects missing and malformed bearer tokens", () => {
+		expect(readBearerToken(undefined)).toBeNull();
+		expect(readBearerToken("Bearer")).toBeNull();
+		expect(readBearerToken("BearerToken")).toBeNull();
+		expect(readBearerToken("Basic token")).toBeNull();
 	});
 });

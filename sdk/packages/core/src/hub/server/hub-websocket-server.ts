@@ -224,10 +224,32 @@ function parseHeaderValue(value: string | string[] | undefined): string {
 	return Array.isArray(value) ? value.join(",") : (value ?? "");
 }
 
-function readBearerToken(value: string | string[] | undefined): string | null {
+function isAuthHeaderWhitespace(code: number): boolean {
+	return code === 0x20 || code === 0x09;
+}
+
+export function readBearerToken(
+	value: string | string[] | undefined,
+): string | null {
 	const header = parseHeaderValue(value).trim();
-	const match = /^Bearer\s+(.+)$/i.exec(header);
-	return match?.[1]?.trim() || null;
+	const bearerScheme = "bearer";
+	if (
+		header.length <= bearerScheme.length ||
+		header.slice(0, bearerScheme.length).toLowerCase() !== bearerScheme ||
+		!isAuthHeaderWhitespace(header.charCodeAt(bearerScheme.length))
+	) {
+		return null;
+	}
+
+	let tokenStart = bearerScheme.length + 1;
+	while (
+		tokenStart < header.length &&
+		isAuthHeaderWhitespace(header.charCodeAt(tokenStart))
+	) {
+		tokenStart += 1;
+	}
+
+	return header.slice(tokenStart).trim() || null;
 }
 
 function readWebSocketAuthToken(
