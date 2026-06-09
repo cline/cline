@@ -27,6 +27,12 @@ export default defineConfig({
 		alias: {
 			"@cline/core": path.resolve(__dirname, "src/test/cline-core-vitest-stub.ts"),
 			"@cline/llms": path.resolve(__dirname, "node_modules/@cline/llms/dist/index.js"),
+			// Map @cline/shared subpath exports explicitly. The bare "@cline/shared"
+			// alias below does not cover subpaths (e.g. "@cline/shared/storage"), and
+			// Vite's fallback Node resolution does not read the package `exports` map
+			// here, so subpath imports fail with "Cannot find package". Keep the more
+			// specific subpath alias(es) before the bare package alias.
+			"@cline/shared/storage": path.resolve(__dirname, "node_modules/@cline/shared/dist/storage/index.js"),
 			"@cline/shared": path.resolve(__dirname, "node_modules/@cline/shared/dist/index.js"),
 			vscode: path.resolve(__dirname, "src/test/vscode-vitest-stub.ts"),
 			"@": path.resolve(__dirname, "src"),
