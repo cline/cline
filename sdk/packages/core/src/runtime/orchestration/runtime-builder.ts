@@ -348,26 +348,27 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		} = input;
 		const onTeamEvent = input.onTeamEvent ?? (() => {});
 		const normalized = normalizeConfig(config);
+		const workspaceConfigRoot = config.workspaceRoot ?? config.cwd;
 		const globallyDisabledToolNames = resolveDisabledToolNames();
 		const tools: AgentTool[] = [];
 		const effectiveTeamName = config.teamName?.trim() || createTeamName();
 		const teamStoreKey = config.sessionId?.trim() || effectiveTeamName;
 		const configuredAgents = normalized.enableSpawnAgent
 			? loadConfiguredAgentConfigs({
-					workspaceRoot: config.workspaceRoot ?? config.cwd,
+					workspaceRoot: workspaceConfigRoot,
 				})
 			: { configs: [], errors: [] };
 		const configuredAgentsNeedSkills = configuredAgents.configs.some(
 			(agent) => agent.skills !== undefined,
 		);
 		const rulesEnabled = hasConfigExtension(configExtensions, "rules");
-		const skillsEnabled =
-			hasConfigExtension(configExtensions, "skills") ||
-			configuredAgentsNeedSkills;
+		const rootSkillsEnabled = hasConfigExtension(configExtensions, "skills");
+		const needsSkillsConfigService =
+			rootSkillsEnabled || configuredAgentsNeedSkills;
 		const workflowsEnabled = hasConfigExtension(configExtensions, "workflows");
 		const pluginsEnabled = hasConfigExtension(configExtensions, "plugins");
 		const userInstructionsEnabled =
-			rulesEnabled || skillsEnabled || workflowsEnabled;
+			rulesEnabled || rootSkillsEnabled || workflowsEnabled;
 		let teamToolsRegistered = false;
 		const userInstructionServiceProvided = Boolean(
 			sharedUserInstructionService,
@@ -381,11 +382,14 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			);
 		}
 
-		if (!userInstructionService && userInstructionsEnabled) {
+		if (
+			!userInstructionService &&
+			(userInstructionsEnabled || configuredAgentsNeedSkills)
+		) {
 			userInstructionService = createUserInstructionConfigService({
-				skills: skillsEnabled
+				skills: needsSkillsConfigService
 					? {
-							workspacePath: config.cwd,
+							workspacePath: workspaceConfigRoot,
 							includePluginSkills: pluginsEnabled,
 							pluginSkillDirectories: pluginsEnabled
 								? input.pluginSkillDirectories
@@ -393,7 +397,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 							pluginPaths: config.pluginPaths,
 							cwd: config.cwd,
 						}
-					: { workspacePath: config.cwd },
+					: { workspacePath: workspaceConfigRoot },
 				rules: { workspacePath: config.cwd },
 				workflows: { workspacePath: config.cwd },
 			});
@@ -405,7 +409,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 
 		const registerSkillsTool =
 			normalized.enableTools &&
-			skillsEnabled &&
+			rootSkillsEnabled &&
 			Boolean(userInstructionService) &&
 			userInstructionService?.hasConfiguredSkills(config.skills) === true &&
 			isSkillsToolEnabledForSession({
@@ -422,7 +426,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			userInstructionService && userInstructionsEnabled
 				? userInstructionService.createExtension({
 						includeRules: rulesEnabled,
-						includeSkills: skillsEnabled,
+						includeSkills: rootSkillsEnabled,
 						includeWorkflows: workflowsEnabled,
 						registerSkillsTool,
 						allowedSkillNames: config.skills,
@@ -504,7 +508,8 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 												agent.modelId ?? config.modelId,
 												config.toolRoutingRules,
 												config.toolPolicies,
-												agent.skills !== undefined && userInstructionService
+												agent.skills !== undefined &&
+													userInstructionService?.createSkillsExecutor
 													? userInstructionService.createSkillsExecutor(
 															agent.skills,
 														)
@@ -516,6 +521,10 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 									: [],
 							hookErrorMode: config.hookErrorMode,
 							toolPolicies: config.toolPolicies,
+							requestToolApproval: input.requestToolApproval,
+							onSubAgentEvent: input.onSubAgentEvent,
+							onSubAgentStart: input.onSubAgentStart,
+							onSubAgentEnd: input.onSubAgentEnd,
 						}),
 						config.toolPolicies,
 					),

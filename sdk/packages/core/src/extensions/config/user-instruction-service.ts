@@ -41,7 +41,7 @@ export interface UserInstructionConfigService {
 	listRuntimeCommands(): AvailableRuntimeCommand[];
 	resolveRuntimeSlashCommand(input: string): string;
 	hasConfiguredSkills(allowedSkillNames?: ReadonlyArray<string>): boolean;
-	createSkillsExecutor(
+	createSkillsExecutor?(
 		allowedSkillNames?: ReadonlyArray<string>,
 	): SkillsExecutorWithMetadata;
 	createExtension(

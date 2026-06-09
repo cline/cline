@@ -1,17 +1,22 @@
 import type {
 	AgentConfig,
+	AgentEvent,
 	AgentHooks,
 	AgentResult,
 	AgentTool,
 	BasicLogger,
 	ITelemetryService,
 	RuntimeConfigExtensionKind,
+	ToolApprovalRequest,
+	ToolApprovalResult,
 } from "@cline/shared";
 import type { UserInstructionConfigService } from "../../extensions/config";
 import type { ToolExecutors } from "../../extensions/tools";
 import type {
 	AgentTeamsRuntime,
 	DelegatedAgentConfigProvider,
+	SubAgentEndContext,
+	SubAgentStartContext,
 	TeamEvent,
 } from "../../extensions/tools/team";
 import type { WorkspaceManager } from "../../services/workspace/workspace-manager";
@@ -49,6 +54,9 @@ export interface RuntimeBuilderInput {
 	hooks?: AgentHooks;
 	extensions?: AgentConfig["extensions"];
 	onTeamEvent?: (event: TeamEvent) => void;
+	onSubAgentEvent?: (event: AgentEvent) => void;
+	onSubAgentStart?: (context: SubAgentStartContext) => void | Promise<void>;
+	onSubAgentEnd?: (context: SubAgentEndContext) => void | Promise<void>;
 	createSpawnTool?: () => AgentTool;
 	onTeamRestored?: () => void;
 	userInstructionService?: UserInstructionConfigService;
@@ -58,6 +66,9 @@ export interface RuntimeBuilderInput {
 	workspaceManager?: WorkspaceManager;
 	logger?: BasicLogger;
 	telemetry?: ITelemetryService;
+	requestToolApproval?: (
+		request: ToolApprovalRequest,
+	) => Promise<ToolApprovalResult> | ToolApprovalResult;
 }
 
 export interface RuntimeBuilder {

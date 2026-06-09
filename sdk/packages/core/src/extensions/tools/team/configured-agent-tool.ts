@@ -18,7 +18,11 @@ import {
 	type DelegatedAgentConfigProvider,
 	type DelegatedAgentRuntimeConfig,
 } from "./delegated-agent";
-import type { SpawnAgentOutput } from "./spawn-agent-tool";
+import type {
+	SpawnAgentOutput,
+	SubAgentEndContext,
+	SubAgentStartContext,
+} from "./spawn-agent-tool";
 
 const CONFIGURED_AGENT_TOOL_NAME_PREFIX = "subagent_";
 const CONFIGURED_AGENT_TOOL_NAME_MAX_LENGTH = 64;
@@ -48,6 +52,8 @@ export interface ConfiguredAgentToolConfig {
 	requestToolApproval?: (
 		request: ToolApprovalRequest,
 	) => Promise<ToolApprovalResult> | ToolApprovalResult;
+	onSubAgentStart?: (context: SubAgentStartContext) => void | Promise<void>;
+	onSubAgentEnd?: (context: SubAgentEndContext) => void | Promise<void>;
 }
 
 function sanitizeAgentName(name: string): string {
@@ -173,17 +179,70 @@ export function createConfiguredAgentTools(
 						toolPolicies: options.toolPolicies,
 						requestToolApproval: options.requestToolApproval,
 					});
-
-					const result: AgentResult = await subAgent.run(input.prompt);
-					return {
-						text: result.text,
-						iterations: result.iterations,
-						finishReason: result.finishReason,
-						usage: {
-							inputTokens: result.usage.inputTokens,
-							outputTokens: result.usage.outputTokens,
-						},
+					const subAgentId = subAgent.getAgentId();
+					const conversationId = subAgent.getConversationId();
+					const parentAgentId = context.agentId;
+					const spawnInput = {
+						systemPrompt: config.systemPrompt,
+						task: input.prompt,
 					};
+
+					if (options.onSubAgentStart) {
+						try {
+							await options.onSubAgentStart({
+								subAgentId,
+								conversationId,
+								parentAgentId,
+								input: spawnInput,
+							});
+						} catch {
+							// Best-effort observer callback.
+						}
+					}
+
+					try {
+						const result: AgentResult = await subAgent.run(input.prompt);
+						const output: SpawnAgentOutput = {
+							text: result.text,
+							iterations: result.iterations,
+							finishReason: result.finishReason,
+							usage: {
+								inputTokens: result.usage.inputTokens,
+								outputTokens: result.usage.outputTokens,
+							},
+						};
+						if (options.onSubAgentEnd) {
+							try {
+								await options.onSubAgentEnd({
+									subAgentId,
+									conversationId,
+									parentAgentId,
+									input: spawnInput,
+									result: output,
+									agentResult: result,
+								});
+							} catch {
+								// Best-effort observer callback.
+							}
+						}
+						return output;
+					} catch (error) {
+						if (options.onSubAgentEnd) {
+							try {
+								await options.onSubAgentEnd({
+									subAgentId,
+									conversationId,
+									parentAgentId,
+									input: spawnInput,
+									error:
+										error instanceof Error ? error : new Error(String(error)),
+								});
+							} catch {
+								// Best-effort observer callback.
+							}
+						}
+						throw error;
+					}
 				},
 				timeoutMs: 300000,
 				retryable: false,

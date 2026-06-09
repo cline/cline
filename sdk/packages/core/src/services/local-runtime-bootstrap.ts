@@ -1,5 +1,6 @@
 import type {
 	AgentConfig,
+	AgentEvent,
 	AgentHooks,
 	AgentTool,
 	ExtensionContext,
@@ -19,7 +20,11 @@ import type {
 	PluginInitializationFailure,
 	PluginInitializationWarning,
 } from "../extensions/plugin/plugin-load-report";
-import type { TeamEvent } from "../extensions/tools/team";
+import type {
+	SubAgentEndContext,
+	SubAgentStartContext,
+	TeamEvent,
+} from "../extensions/tools/team";
 import { createCheckpointHooks } from "../hooks/checkpoint-hooks";
 import {
 	createHookAuditHooks,
@@ -241,6 +246,11 @@ export interface PrepareLocalRuntimeBootstrapOptions {
 	defaultFetch?: typeof fetch;
 	onPluginEvent: (event: { name: string; payload?: unknown }) => void;
 	onTeamEvent: (event: TeamEvent) => void;
+	createSubAgentLifecycleCallbacks?: (config: CoreSessionConfig) => {
+		onSubAgentEvent?: (event: AgentEvent) => void;
+		onSubAgentStart?: (context: SubAgentStartContext) => void | Promise<void>;
+		onSubAgentEnd?: (context: SubAgentEndContext) => void | Promise<void>;
+	};
 	createSpawnTool: () => AgentTool;
 	readSessionMetadata: () => Promise<Record<string, unknown> | undefined>;
 	writeSessionMetadata: (
@@ -278,6 +288,7 @@ export async function prepareLocalRuntimeBootstrap(
 		defaultFetch,
 		onPluginEvent,
 		onTeamEvent,
+		createSubAgentLifecycleCallbacks,
 		createSpawnTool,
 		localRuntime,
 		readSessionMetadata,
@@ -433,6 +444,7 @@ export async function prepareLocalRuntimeBootstrap(
 	);
 	const requestToolApproval = capabilities?.requestToolApproval;
 	const effectiveToolExecutors = capabilities?.toolExecutors;
+	const subAgentLifecycleCallbacks = createSubAgentLifecycleCallbacks?.(config);
 	const workspaceManager = new InMemoryWorkspaceManager({
 		currentWorkspacePath: workspaceInfo.rootPath,
 		workspaces: {
@@ -458,6 +470,9 @@ export async function prepareLocalRuntimeBootstrap(
 			onTeamEvent,
 			createSpawnTool,
 			onTeamRestored: onTeamRestored,
+			onSubAgentEvent: subAgentLifecycleCallbacks?.onSubAgentEvent,
+			onSubAgentStart: subAgentLifecycleCallbacks?.onSubAgentStart,
+			onSubAgentEnd: subAgentLifecycleCallbacks?.onSubAgentEnd,
 			userInstructionService: userInstructionService,
 			pluginSkillDirectories,
 			configExtensions: configExtensions,
@@ -465,6 +480,7 @@ export async function prepareLocalRuntimeBootstrap(
 			workspaceManager,
 			logger: config.logger,
 			telemetry: config.telemetry,
+			requestToolApproval,
 		},
 	};
 }
