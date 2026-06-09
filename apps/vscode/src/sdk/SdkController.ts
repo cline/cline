@@ -7,7 +7,13 @@
 import * as fs from "node:fs/promises"
 import * as os from "node:os"
 import * as path from "node:path"
-import { type PreparedRemoteConfigCoreIntegration, type SessionHistoryRecord, setTelemetryOptOutGlobally } from "@cline/core"
+import {
+	createUserInstructionConfigService,
+	type PreparedRemoteConfigCoreIntegration,
+	type SessionHistoryRecord,
+	setTelemetryOptOutGlobally,
+	type UserInstructionConfigService,
+} from "@cline/core"
 import { formatDisplayUserInput, type RemoteConfig, type RemoteConfigBundle } from "@cline/shared"
 import type { ModelInfo } from "@shared/api"
 import type { ChatContent } from "@shared/ChatContent"
@@ -196,6 +202,18 @@ export class Controller {
 	// Timer for periodic remote config fetching (enterprise policy enforcement)
 	private remoteConfigTimer?: NodeJS.Timeout
 	private remoteConfigCoreIntegration?: PreparedRemoteConfigCoreIntegration
+
+	// Watches user-instruction files (workflows/skills/rules), including those
+	// materialized by remote config under `.cline/remote-config/`. Used to expand
+	// `/workflow` and `/skill` slash commands into their instruction bodies before
+	// the prompt reaches the model — the same mechanism the CLI uses in
+	// `buildUserInputMessage`. The agent loop never auto-expands commands, so this
+	// host-side expansion is required. Created lazily (memoized as a promise to be
+	// race-free under concurrent first sends) and rebuilt if the workspace root
+	// changes.
+	private userInstructionService?: Promise<UserInstructionConfigService>
+	private userInstructionServiceRoot?: string
+	private isDisposed = false
 
 	get remoteConfig(): RemoteConfig | undefined {
 		return this.remoteConfigCoreIntegration?.prepared.bundle?.remoteConfig
@@ -545,6 +563,10 @@ export class Controller {
 		await refreshSdkRemoteConfig(this, {
 			workspacePath: await this.getRemoteConfigWorkspacePath(),
 		})
+		// Remote config may have materialized new workflows/skills/rules under
+		// `.cline/remote-config/`. Refresh the watcher so slash-command expansion
+		// sees them without waiting on filesystem events.
+		await this.refreshUserInstructionWatchers()
 	}
 
 	async setRemoteConfigCoreIntegration(integration: PreparedRemoteConfigCoreIntegration | undefined): Promise<void> {
@@ -567,6 +589,12 @@ export class Controller {
 			this.remoteConfigTimer = undefined
 		}
 		await this.setRemoteConfigCoreIntegration(undefined)
+		this.isDisposed = true
+		const userInstructionServicePromise = this.userInstructionService
+		this.userInstructionService = undefined
+		if (userInstructionServicePromise) {
+			await userInstructionServicePromise.then((service) => service.stop()).catch(() => {})
+		}
 		this.messages.cancelPendingSave()
 		// Clear MCP tool list change callback before disposing McpHub
 		this.mcpHub?.clearToolListChangeCallback()
@@ -579,10 +607,84 @@ export class Controller {
 		Logger.log("[SdkController] Disposed")
 	}
 
-	// ---- Context mention resolution ----
+	// ---- Slash command + context mention resolution ----
 
 	/**
-	 * Resolve `@` context mentions in user text before sending to the SDK.
+	 * Lazily create (or rebuild on workspace-root change) the user-instruction
+	 * watcher. Pointed at the workspace root so it discovers both local config
+	 * (`.clinerules/workflows`, `.cline/workflows`, …) and remote-config files
+	 * materialized under `<root>/.cline/remote-config/{workflows,skills,rules}`.
+	 *
+	 * `workspaceRoot` is resolved by the caller so the memoization check below runs
+	 * synchronously on entry — there is no `await` before the assignment, so
+	 * concurrent callers cannot create two competing watchers.
+	 */
+	private ensureUserInstructionService(workspaceRoot: string): Promise<UserInstructionConfigService> {
+		if (this.userInstructionService && this.userInstructionServiceRoot === workspaceRoot) {
+			return this.userInstructionService
+		}
+		// Workspace root changed: stop the previous watcher once it settles.
+		const previous = this.userInstructionService
+		if (previous) {
+			previous.then((service) => service.stop()).catch(() => {})
+		}
+		this.userInstructionServiceRoot = workspaceRoot
+		this.userInstructionService = (async () => {
+			const service = createUserInstructionConfigService({
+				workflows: { workspacePath: workspaceRoot },
+				skills: { workspacePath: workspaceRoot },
+				rules: { workspacePath: workspaceRoot },
+			})
+			// start() runs the initial scan; await so the snapshot is populated
+			// before the first resolveRuntimeSlashCommand call.
+			await service.start().catch((error) => {
+				Logger.warn("[SdkController] Failed to start user instruction watcher:", error)
+			})
+			return service
+		})()
+		return this.userInstructionService
+	}
+
+	/**
+	 * Expand a leading `/workflow` or `/skill` slash command into its instruction
+	 * body. Mirrors the CLI's `buildUserInputMessage`. Returns the input unchanged
+	 * if it is not a known command or expansion fails.
+	 */
+	private async resolveSlashCommands(text: string): Promise<string> {
+		if (this.isDisposed) {
+			return text
+		}
+		try {
+			const workspaceRoot = await this.getWorkspaceRoot()
+			const service = await this.ensureUserInstructionService(workspaceRoot)
+			return service.resolveRuntimeSlashCommand(text)
+		} catch (error) {
+			Logger.warn("[SdkController] Slash command resolution failed, using raw text:", error)
+			return text
+		}
+	}
+
+	/**
+	 * Refresh the user-instruction watcher after remote config is (re)materialized
+	 * so newly written workflows/skills/rules are picked up immediately rather than
+	 * waiting on filesystem watch events.
+	 */
+	private async refreshUserInstructionWatchers(): Promise<void> {
+		const servicePromise = this.userInstructionService
+		if (!servicePromise) {
+			return
+		}
+		try {
+			const service = await servicePromise
+			await Promise.all([service.refreshType("workflow"), service.refreshType("skill"), service.refreshType("rule")])
+		} catch (error) {
+			Logger.warn("[SdkController] Failed to refresh user instruction watchers:", error)
+		}
+	}
+
+	/**
+	 * Expand slash commands, then resolve `@` context mentions in user text
+	 * before sending to the SDK.
 	 *
 	 * `parseMentions()` inlines file content (`@/path`), URL content
 	 * (`@https://...`), diagnostics (`@problems`), git state (`@git-changes`),
@@ -592,9 +694,11 @@ export class Controller {
 	 * mentions, so the LLM would otherwise never see the referenced content.
 	 */
 	private async resolveContextMentions(text: string): Promise<string> {
-		// Quick check: skip if there are no @ mentions
-		if (!mentionRegexGlobal.test(text)) {
-			return text
+		const withCommands = await this.resolveSlashCommands(text)
+
+		// Quick check: skip mention parsing if there are no @ mentions
+		if (!mentionRegexGlobal.test(withCommands)) {
+			return withCommands
 		}
 		// Reset lastIndex since RegExp.test() advances it for global regexes
 		mentionRegexGlobal.lastIndex = 0
@@ -603,12 +707,12 @@ export class Controller {
 			const cwd = await this.getWorkspaceRoot()
 			const urlContentFetcher = new UrlContentFetcher()
 			const workspaceManager = await this.ensureWorkspaceManager()
-			const resolved = await parseMentions(text, cwd, urlContentFetcher, undefined, workspaceManager)
+			const resolved = await parseMentions(withCommands, cwd, urlContentFetcher, undefined, workspaceManager)
 			Logger.log(`[SdkController] Resolved context mentions (${text.length} → ${resolved.length} chars)`)
 			return resolved
 		} catch (error) {
 			Logger.error("[SdkController] Failed to resolve context mentions, using raw text:", error)
-			return text
+			return withCommands
 		}
 	}
 
