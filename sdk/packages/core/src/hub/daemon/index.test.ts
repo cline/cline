@@ -404,6 +404,56 @@ describe("ensureDetachedHubServer", () => {
 		}
 	});
 
+	it("uses matching discovery pid and token when retiring an incompatible expected-url hub", async () => {
+		const kill = vi.spyOn(process, "kill").mockImplementation((pid, signal) => {
+			if (signal === 0) {
+				throw Object.assign(new Error("missing"), { code: "ESRCH" });
+			}
+			return true;
+		});
+		try {
+			readHubDiscovery
+				.mockResolvedValueOnce({
+					url: "ws://127.0.0.1:25463/hub",
+					authToken: "old-token",
+					pid: 12345,
+				})
+				.mockResolvedValueOnce({
+					url: "ws://127.0.0.1:25463/hub",
+					authToken: "new-token",
+				});
+			probeHubServer
+				.mockResolvedValueOnce(undefined)
+				.mockResolvedValueOnce({
+					url: "ws://127.0.0.1:25463/hub",
+					protocolVersion: "v2",
+					buildId: "future-build",
+				})
+				.mockResolvedValueOnce(undefined)
+				.mockResolvedValueOnce({
+					url: "ws://127.0.0.1:25463/hub",
+					protocolVersion: "v1",
+					buildId: "current-build",
+				});
+			verifyHubConnection.mockResolvedValueOnce(true);
+
+			const { ensureDetachedHubServer } = await import(".");
+			const result = await ensureDetachedHubServer("/workspace");
+
+			expect(result).toEqual({
+				url: "ws://127.0.0.1:25463/hub",
+				authToken: "new-token",
+			});
+			expect(requestHubShutdown).toHaveBeenCalledWith(
+				"ws://127.0.0.1:25463/hub",
+				"old-token",
+			);
+			expect(kill).toHaveBeenCalledWith(12345, "SIGTERM");
+		} finally {
+			kill.mockRestore();
+		}
+	});
+
 	it("does not reuse a healthy hub without protocol metadata", async () => {
 		const kill = vi.spyOn(process, "kill").mockImplementation(() => true);
 		try {

@@ -16,6 +16,7 @@ import {
 	createHubAuthToken,
 	createHubServerUrl,
 	type HubServerDiscoveryRecord,
+	type HubServerProbeRecord,
 	probeHubServer,
 	readHubDiscovery,
 	resolveHubBuildId,
@@ -199,6 +200,16 @@ function isAddressInUseError(error: unknown): boolean {
 		error instanceof Error &&
 		"code" in error &&
 		(error as Error & { code?: string }).code === "EADDRINUSE"
+	);
+}
+
+export function shouldClearStaleHubDiscovery(
+	discovered: HubServerDiscoveryRecord | undefined,
+	expected: HubServerProbeRecord | undefined,
+): boolean {
+	return (
+		!!discovered?.url &&
+		(!expected?.url || !isHubProtocolCompatible(expected).compatible)
 	);
 }
 
@@ -580,7 +591,7 @@ export async function ensureHubWebSocketServer(
 		}
 
 		const expected = await probeHubServer(expectedUrl);
-		if (!expected?.url && discovered?.url) {
+		if (shouldClearStaleHubDiscovery(discovered, expected)) {
 			await clearHubDiscovery(owner.discoveryPath);
 		}
 

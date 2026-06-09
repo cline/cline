@@ -68,6 +68,21 @@ function isCompatibleHubRecord(record: HubServerProbeRecord): boolean {
 	return isHubProtocolCompatible(record).compatible;
 }
 
+function withMatchingDiscoveryRetirementMetadata(
+	probe: HubServerProbeRecord,
+	discovered: { url?: string; authToken?: string; pid?: number } | undefined,
+	expectedUrl: string,
+): HubServerProbeRecord {
+	if (!discovered || discovered.url !== expectedUrl) {
+		return probe;
+	}
+	return {
+		...probe,
+		authToken: probe.authToken ?? discovered.authToken,
+		pid: probe.pid ?? discovered.pid,
+	};
+}
+
 async function safeProbeHubServer(
 	url: string,
 	authToken?: string,
@@ -362,6 +377,11 @@ export async function ensureDetachedHubServer(
 	}
 	const expected = await safeProbeHubServer(expectedUrl);
 	if (expected?.url) {
+		const expectedForRetirement = withMatchingDiscoveryRetirementMetadata(
+			expected,
+			discovered,
+			expectedUrl,
+		);
 		if (isCompatibleHubRecord(expected)) {
 			const upgradeHint = retiredUnusableDiscovery
 				? " This can happen immediately after upgrading from a build that wrote an empty hub auth token; run 'cline doctor fix' to stop the old daemon and repair local hub discovery."
@@ -371,7 +391,7 @@ export async function ensureDetachedHubServer(
 			);
 		}
 		const retiredExpected = await retireIncompatibleHub(
-			{ ...expected, authToken: undefined },
+			expectedForRetirement,
 			owner.discoveryPath,
 		);
 		if (
@@ -413,8 +433,13 @@ export async function ensureDetachedHubServer(
 		}
 		const nextExpected = await safeProbeHubServer(expectedUrl);
 		if (nextExpected?.url && !isCompatibleHubRecord(nextExpected)) {
+			const expectedForRetirement = withMatchingDiscoveryRetirementMetadata(
+				nextExpected,
+				nextDiscovery,
+				expectedUrl,
+			);
 			const retiredExpected = await retireIncompatibleHub(
-				{ ...nextExpected, authToken: undefined },
+				expectedForRetirement,
 				owner.discoveryPath,
 			);
 			if (
