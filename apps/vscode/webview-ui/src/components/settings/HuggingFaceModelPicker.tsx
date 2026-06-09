@@ -1,15 +1,17 @@
-import { huggingFaceDefaultModelId, huggingFaceModels } from "@shared/api"
+import type { ModelInfo } from "@shared/api"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { Mode } from "@shared/storage/types"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
 import React, { KeyboardEvent, useEffect, useMemo, useRef, useState } from "react"
 import { useMount } from "react-use"
+import { useDynamicProviderSelection } from "@/hooks/useDynamicProviderSelection"
+import { useProviderModels } from "@/hooks/useProviderModels"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { ModelsServiceClient } from "../../services/grpc-client"
 import { highlight } from "../history/HistoryView"
 import { ModelInfoView } from "./common/ModelInfoView"
-import { getModeSpecificFields, normalizeApiConfiguration } from "./utils/providerUtils"
+import { getModeSpecificFields } from "./utils/providerUtils"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
 export interface HuggingFaceModelPickerProps {
@@ -21,6 +23,10 @@ const HuggingFaceModelPicker: React.FC<HuggingFaceModelPickerProps> = ({ isPopup
 	const { apiConfiguration, huggingFaceModels: dynamicModels, setHuggingFaceModels } = useExtensionState()
 	const { handleModeFieldsChange } = useApiConfigurationHandlers()
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
+	// Curated HuggingFace catalog from the SDK over gRPC. The local
+	// `dynamicModels` slice (populated by `refreshHuggingFaceModels`)
+	// is merged on top so live API additions remain visible.
+	const { models: huggingFaceModels, defaultModelId: huggingFaceDefaultModelId } = useProviderModels("huggingface")
 	const [searchTerm, setSearchTerm] = useState(modeFields.huggingFaceModelId || huggingFaceDefaultModelId)
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(-1)
@@ -46,15 +52,20 @@ const HuggingFaceModelPicker: React.FC<HuggingFaceModelPickerProps> = ({ isPopup
 		setSearchTerm(newModelId)
 	}
 
-	const { selectedModelId, selectedModelInfo } = useMemo(() => {
-		return normalizeApiConfiguration(apiConfiguration, currentMode)
-	}, [apiConfiguration, currentMode])
+	const { selectedModelId, selectedModelInfo } = useDynamicProviderSelection("huggingface", apiConfiguration, currentMode)
 
 	useMount(() => {
 		ModelsServiceClient.refreshHuggingFaceModels(EmptyRequest.create({}))
 			.then((response) => {
+				// Seed with the SDK-known default (if loaded yet) so the
+				// picker always has at least one entry; then layer the
+				// live host-fetched models on top.
+				const seed: Record<string, ModelInfo> = {}
+				if (huggingFaceDefaultModelId && huggingFaceModels[huggingFaceDefaultModelId]) {
+					seed[huggingFaceDefaultModelId] = huggingFaceModels[huggingFaceDefaultModelId]
+				}
 				setHuggingFaceModels({
-					[huggingFaceDefaultModelId]: huggingFaceModels[huggingFaceDefaultModelId],
+					...seed,
 					...response.models,
 				})
 			})

@@ -1,0 +1,46 @@
+import path from "node:path"
+import { defineConfig } from "vitest/config"
+
+// Vitest config for the VSCode extension's SDK-adapter and model-catalog
+// unit tests. (The bulk of the extension's unit tests still run under mocha
+// via `test:unit`; these suites are vitest-native.)
+export default defineConfig({
+	test: {
+		include: [
+			"src/sdk/**/*.test.ts",
+			"src/core/storage/remote-config/**/*.test.ts",
+			"src/shared/model-catalog/provider-helpers.test.ts",
+			"src/core/controller/models/__tests__/providerCatalogHandlers.test.ts",
+			"src/core/controller/models/__tests__/providerSwitchNormalization.test.ts",
+			"src/core/controller/models/__tests__/resolveModelInfo.test.ts",
+			"src/core/controller/models/__tests__/providerCatalogSmoke.test.ts",
+			"src/core/controller/models/__tests__/refreshClineRecommendedModels.test.ts",
+		],
+		environment: "node",
+		// Some matched files are intentionally-empty placeholders that point to
+		// where the real suite lives (e.g. sdk-control-plane.test.ts), so an
+		// empty file should not fail the run.
+		passWithNoTests: true,
+	},
+	resolve: {
+		alias: {
+			"@cline/core": path.resolve(__dirname, "src/test/cline-core-vitest-stub.ts"),
+			"@cline/llms": path.resolve(__dirname, "node_modules/@cline/llms/dist/index.js"),
+			"@cline/shared": path.resolve(__dirname, "node_modules/@cline/shared/dist/index.js"),
+			vscode: path.resolve(__dirname, "src/test/vscode-vitest-stub.ts"),
+			"@": path.resolve(__dirname, "src"),
+			"@api": path.resolve(__dirname, "src/core/api"),
+			"@core": path.resolve(__dirname, "src/core"),
+			"@generated": path.resolve(__dirname, "src/generated"),
+			"@hosts": path.resolve(__dirname, "src/hosts"),
+			"@integrations": path.resolve(__dirname, "src/integrations"),
+			"@services": path.resolve(__dirname, "src/services"),
+			"@shared/proto/cline/common": path.resolve(__dirname, "src/shared/proto/cline/common.ts"),
+			"@shared/proto/cline/models": path.resolve(__dirname, "src/shared/proto/cline/models.ts"),
+			"@shared/proto": path.resolve(__dirname, "src/shared/proto"),
+			"@shared": path.resolve(__dirname, "src/shared"),
+			"@utils": path.resolve(__dirname, "src/utils"),
+			"@packages": path.resolve(__dirname, "src/packages"),
+		},
+	},
+})

@@ -1,4 +1,4 @@
-import { getSavedApiConversationHistory, getSavedClineMessages } from "@core/storage/disk"
+import { getSavedApiConversationHistory } from "@core/storage/disk"
 import { WebviewProvider } from "@core/webview"
 import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import { ApiProvider } from "@shared/api"
@@ -302,7 +302,7 @@ export async function createTestServer(controller: Controller): Promise<http.Ser
 						let apiConversationHistory: any[] = []
 						try {
 							if (typeof taskId === "string") {
-								messages = await getSavedClineMessages(taskId)
+								messages = []
 							}
 						} catch (error) {
 							Logger.log(`Error getting saved Cline messages: ${error}`)

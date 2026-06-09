@@ -2,21 +2,10 @@ import { ensureCacheDirectoryExists, GlobalFileNames } from "@core/storage/disk"
 import type { ModelInfo } from "@shared/api"
 import { GEMINI_FLASH_MAX_OUTPUT_TOKENS, isGeminiFlashModel } from "@utils/model-utils"
 import axios from "axios"
-import cloneDeep from "clone-deep"
 import fs from "fs/promises"
 import path from "path"
 import { StateManager } from "@/core/storage/StateManager"
-import {
-	ANTHROPIC_MAX_THINKING_BUDGET,
-	CLAUDE_OPUS_1M_TIERS,
-	CLAUDE_SONNET_1M_TIERS,
-	openRouterClaudeOpus461mModelId,
-	openRouterClaudeOpus471mModelId,
-	openRouterClaudeOpus481mModelId,
-	openRouterClaudeSonnet41mModelId,
-	openRouterClaudeSonnet451mModelId,
-	openRouterClaudeSonnet461mModelId,
-} from "@/shared/api"
+import { ANTHROPIC_MAX_THINKING_BUDGET } from "@/shared/api"
 import { getAxiosSettings } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
 import type { Controller } from ".."
@@ -86,6 +75,15 @@ let pendingRefresh: Promise<Record<string, ModelInfo>> | null = null
  * @param controller The controller instance
  * @returns Record of model ID to ModelInfo (application types)
  */
+// TODO(sdk-consolidation): Live-fetches OpenRouter's /models endpoint with rich
+// per-model pricing/capability parsing (the most elaborate of these handlers).
+// The SDK has a generic models-URL fetcher and a models.dev live catalog, but
+// the generic fetcher is ids-only and (for providers with a registered
+// modelsSourceUrl) REPLACES rather than merges the curated catalog, so a naive
+// migration would regress metadata. See the detailed note in refreshGroqModels.ts.
+// Consolidate via the SDK (rich/merged live models for all clients incl. CLI),
+// then delete this handler + RPC. (Note: the "cline" provider model list
+// piggybacks on OpenRouter ids, so migrate both together.)
 export async function refreshOpenRouterModels(controller: Controller): Promise<Record<string, ModelInfo>> {
 	// Check in-memory cache first
 	const cache = StateManager.get().getModelsCache("openRouter")
@@ -173,7 +171,6 @@ async function fetchAndCacheModels(controller: Controller): Promise<Record<strin
 						break
 					case "anthropic/claude-opus-4.6":
 					case "anthropic/claude-opus-4.7":
-					case "anthropic/claude-opus-4.8":
 						modelInfo.contextWindow = 200_000 // restrict to 200k, 1m variant created below
 						modelInfo.supportsPromptCache = true
 						modelInfo.cacheWritesPrice = 6.25
@@ -224,7 +221,8 @@ async function fetchAndCacheModels(controller: Controller): Promise<Record<strin
 						break
 					case "deepseek/deepseek-chat":
 						modelInfo.supportsPromptCache = true
-						// see api.ts/deepSeekModels for more info
+						// DeepSeek-specific OpenRouter pricing override; the native DeepSeek
+						// provider is now sourced from the SDK provider catalog.
 						modelInfo.inputPrice = 0
 						modelInfo.cacheWritesPrice = 0.14
 						modelInfo.cacheReadsPrice = 0.014
@@ -277,51 +275,6 @@ async function fetchAndCacheModels(controller: Controller): Promise<Record<strin
 				}
 
 				models[rawModel.id] = modelInfo
-
-				// add custom :1m model variant for sonnet
-				if (
-					rawModel.id === "anthropic/claude-sonnet-4" ||
-					rawModel.id === "anthropic/claude-sonnet-4.5" ||
-					rawModel.id === "anthropic/claude-4.5-sonnet" ||
-					rawModel.id === "anthropic/claude-sonnet-4.6" ||
-					rawModel.id === "anthropic/claude-4.6-sonnet"
-				) {
-					const claudeSonnet1mModelInfo = cloneDeep(modelInfo)
-					claudeSonnet1mModelInfo.contextWindow = 1_000_000 // limiting providers to those that support 1m context window
-					claudeSonnet1mModelInfo.tiers = CLAUDE_SONNET_1M_TIERS
-					// sonnet 4
-					if (rawModel.id === "anthropic/claude-sonnet-4") {
-						models[openRouterClaudeSonnet41mModelId] = claudeSonnet1mModelInfo
-					}
-					// sonnet 4.5
-					if (rawModel.id === "anthropic/claude-sonnet-4.5" || rawModel.id === "anthropic/claude-4.5-sonnet") {
-						models[openRouterClaudeSonnet451mModelId] = claudeSonnet1mModelInfo
-					}
-					// sonnet 4.6
-					if (rawModel.id === "anthropic/claude-sonnet-4.6" || rawModel.id === "anthropic/claude-4.6-sonnet") {
-						models[openRouterClaudeSonnet461mModelId] = claudeSonnet1mModelInfo
-					}
-				}
-
-				// add custom :1m model variant for opus 4.6, 4.7 and 4.8
-				if (
-					rawModel.id === "anthropic/claude-opus-4.6" ||
-					rawModel.id === "anthropic/claude-opus-4.7" ||
-					rawModel.id === "anthropic/claude-opus-4.8"
-				) {
-					const claudeOpus1mModelInfo = cloneDeep(modelInfo)
-					claudeOpus1mModelInfo.contextWindow = 1_000_000
-					claudeOpus1mModelInfo.tiers = CLAUDE_OPUS_1M_TIERS
-					if (rawModel.id === "anthropic/claude-opus-4.6") {
-						models[openRouterClaudeOpus461mModelId] = claudeOpus1mModelInfo
-					}
-					if (rawModel.id === "anthropic/claude-opus-4.7") {
-						models[openRouterClaudeOpus471mModelId] = claudeOpus1mModelInfo
-					}
-					if (rawModel.id === "anthropic/claude-opus-4.8") {
-						models[openRouterClaudeOpus481mModelId] = claudeOpus1mModelInfo
-					}
-				}
 			}
 			// Save models and cache them in memory
 			await fs.writeFile(openRouterModelsFilePath, JSON.stringify(models))

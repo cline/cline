@@ -1,3 +1,4 @@
+import { getProviderCollectionSync } from "@cline/llms"
 import { ensureCacheDirectoryExists, GlobalFileNames } from "@core/storage/disk"
 import { ModelInfo } from "@shared/api"
 import { fileExistsAtPath } from "@utils/fs"
@@ -5,11 +6,28 @@ import axios from "axios"
 import fs from "fs/promises"
 import path from "path"
 import { StateManager } from "@/core/storage/StateManager"
+import { adaptSdkModelInfo } from "@/sdk/model-catalog/shape-adapter"
 import { telemetryService } from "@/services/telemetry"
 import { getAxiosSettings } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
-import { groqModels } from "../../../shared/api"
 import { Controller } from ".."
+
+/**
+ * Groq's curated catalog from the SDK, used as the static-pricing
+ * source for live API responses and as the offline fallback when the
+ * live fetch fails.
+ */
+function getGroqSdkModels(): Record<string, ModelInfo> {
+	const collection = getProviderCollectionSync("groq")
+	if (!collection) {
+		return {}
+	}
+	const result: Record<string, ModelInfo> = {}
+	for (const [modelId, sdkInfo] of Object.entries(collection.models)) {
+		result[modelId] = adaptSdkModelInfo(sdkInfo)
+	}
+	return result
+}
 
 // Track pending refresh promise to prevent duplicate concurrent fetches
 let pendingRefresh: Promise<Record<string, ModelInfo>> | null = null
@@ -19,6 +37,21 @@ let pendingRefresh: Promise<Record<string, ModelInfo>> | null = null
  * @param controller The controller instance
  * @returns Record of model ID to ModelInfo (application types)
  */
+// TODO(sdk-consolidation): This handler live-fetches Groq's /models endpoint and
+// enriches each model with curated pricing/capabilities. The SDK HAS a generic
+// models-URL fetcher (sdk/packages/core/src/services/providers/model-source.ts
+// `fetchModelIdsFromSource` + `resolveModelsSourceUrl`), but it is NOT a drop-in
+// replacement:
+//   1. It returns model *ids only*; ids unknown to the curated catalog get
+//      placeholder ModelInfo (no real pricing/context/capabilities).
+//   2. Worse, `mergeKnownModels` treats a registered `modelsSourceUrl` as the
+//      "authoritative installed list" (Ollama/LM Studio semantics) and DISCARDS
+//      the bundled curated catalog when the live fetch returns results.
+// So simply registering `modelsSourceUrl` for Groq would regress rich model
+// metadata. Proper consolidation needs an SDK enhancement first: either a
+// merge-mode that layers live ids on top of the curated catalog, or a richer
+// per-provider fetch that parses full ModelInfo. Once the SDK supports that for
+// all clients (incl. CLI), delete this extension-only handler + its RPC.
 export async function refreshGroqModels(controller: Controller): Promise<Record<string, ModelInfo>> {
 	// Check in-memory cache first
 	const cache = StateManager.get().getModelsCache("groq")
@@ -50,11 +83,12 @@ async function fetchAndCacheModels(controller: Controller): Promise<Record<strin
 	const groqApiKey = controller.stateManager.getSecretKey("groqApiKey")
 
 	let models: Record<string, Partial<ModelInfo>> = {}
+	const sdkModels = getGroqSdkModels()
 	try {
 		if (!groqApiKey) {
-			Logger.log("No Groq API key found, using static models as fallback")
-			// Don't throw an error, just use static models
-			for (const [modelId, modelInfo] of Object.entries(groqModels)) {
+			Logger.log("No Groq API key found, using SDK catalog as fallback")
+			// Don't throw an error, just use SDK catalog.
+			for (const [modelId, modelInfo] of Object.entries(sdkModels)) {
 				models[modelId] = {
 					maxTokens: modelInfo.maxTokens,
 					contextWindow: modelInfo.contextWindow,
@@ -62,9 +96,9 @@ async function fetchAndCacheModels(controller: Controller): Promise<Record<strin
 					supportsPromptCache: modelInfo.supportsPromptCache,
 					inputPrice: modelInfo.inputPrice,
 					outputPrice: modelInfo.outputPrice,
-					cacheWritesPrice: (modelInfo as any).cacheWritesPrice || 0,
-					cacheReadsPrice: (modelInfo as any).cacheReadsPrice || 0,
-					description: modelInfo.description || `${modelId} model`,
+					cacheWritesPrice: modelInfo.cacheWritesPrice ?? 0,
+					cacheReadsPrice: modelInfo.cacheReadsPrice ?? 0,
+					description: modelInfo.description ?? `${modelId} model`,
 				}
 			}
 		} else {
@@ -96,7 +130,7 @@ async function fetchAndCacheModels(controller: Controller): Promise<Record<strin
 					}
 
 					// Check if we have static pricing information for this model
-					const staticModelInfo = groqModels[rawModel.id as keyof typeof groqModels]
+					const staticModelInfo = sdkModels[rawModel.id as keyof typeof sdkModels]
 
 					const modelInfo: Partial<ModelInfo> = {
 						maxTokens: rawModel.max_completion_tokens || staticModelInfo?.maxTokens || 8192,
@@ -153,9 +187,9 @@ async function fetchAndCacheModels(controller: Controller): Promise<Record<strin
 			Logger.log("Using cached Groq models")
 			models = cachedModels
 		} else {
-			// Fall back to static models from shared/api.ts
-			Logger.log("Using static Groq models as fallback")
-			for (const [modelId, modelInfo] of Object.entries(groqModels)) {
+			// Fall back to the SDK's curated Groq catalog.
+			Logger.log("Using SDK Groq catalog as fallback")
+			for (const [modelId, modelInfo] of Object.entries(sdkModels)) {
 				models[modelId] = {
 					maxTokens: modelInfo.maxTokens,
 					contextWindow: modelInfo.contextWindow,
@@ -163,9 +197,9 @@ async function fetchAndCacheModels(controller: Controller): Promise<Record<strin
 					supportsPromptCache: modelInfo.supportsPromptCache,
 					inputPrice: modelInfo.inputPrice,
 					outputPrice: modelInfo.outputPrice,
-					cacheWritesPrice: (modelInfo as any).cacheWritesPrice || 0,
-					cacheReadsPrice: (modelInfo as any).cacheReadsPrice || 0,
-					description: modelInfo.description || `${modelId} model`,
+					cacheWritesPrice: modelInfo.cacheWritesPrice ?? 0,
+					cacheReadsPrice: modelInfo.cacheReadsPrice ?? 0,
+					description: modelInfo.description ?? `${modelId} model`,
 				}
 			}
 		}

@@ -1,14 +1,13 @@
-import { internationalQwenModels, mainlandQwenModels, QwenApiRegions } from "@shared/api"
+import { QwenApiRegions } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
-import { useMemo } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useStaticProviderSelection } from "@/hooks/useStaticProviderSelection"
 import { DROPDOWN_Z_INDEX } from "../ApiOptions"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { DropdownContainer, ModelSelector } from "../common/ModelSelector"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
-import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 const SUPPORTED_THINKING_MODELS = [
@@ -43,13 +42,14 @@ export const QwenProvider = ({ showModelOptions, isPopup, currentMode }: QwenPro
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
-	// Get the normalized configuration
-	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
-
-	// Determine which models to use based on API line selection
-	const qwenModels = useMemo(
-		() => (apiConfiguration?.qwenApiLine === QwenApiRegions.CHINA ? mainlandQwenModels : internationalQwenModels),
-		[apiConfiguration?.qwenApiLine],
+	// Catalog and default come from the SDK via gRPC. The SDK consumes
+	// `apiLine` from the effective provider config so regional selection
+	// (china vs international) happens upstream — the webview sees a
+	// single catalog per render.
+	const { models, selectedModelId, selectedModelInfo, hideUsageCost } = useStaticProviderSelection(
+		"qwen",
+		apiConfiguration,
+		currentMode,
 	)
 
 	return (
@@ -94,7 +94,7 @@ export const QwenProvider = ({ showModelOptions, isPopup, currentMode }: QwenPro
 				<>
 					<ModelSelector
 						label="Model"
-						models={qwenModels}
+						models={models}
 						onChange={(e: any) =>
 							handleModeFieldChange(
 								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
@@ -110,7 +110,12 @@ export const QwenProvider = ({ showModelOptions, isPopup, currentMode }: QwenPro
 						<ThinkingBudgetSlider currentMode={currentMode} maxBudget={selectedModelInfo.thinkingConfig?.maxBudget} />
 					)}
 
-					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
+					<ModelInfoView
+						hideUsageCost={hideUsageCost}
+						isPopup={isPopup}
+						modelInfo={selectedModelInfo}
+						selectedModelId={selectedModelId}
+					/>
 				</>
 			)}
 		</div>
