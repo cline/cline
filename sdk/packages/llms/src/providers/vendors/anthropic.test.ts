@@ -41,6 +41,26 @@ describe("createAnthropicProviderModule", () => {
 		);
 		expect(anthropicModelMock).toHaveBeenCalledWith("MiniMax-M2.5");
 	});
+
+	it("does not wrap fetch for non-MiniMax Anthropic-compatible providers", async () => {
+		const customFetch = vi.fn<typeof fetch>();
+
+		await createAnthropicProviderModule(
+			config({
+				providerId: "anthropic",
+				apiKey: "anthropic-api-key",
+				fetch: customFetch,
+			}),
+			context("anthropic"),
+		);
+
+		expect(createAnthropicMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				name: "anthropic",
+				fetch: customFetch,
+			}),
+		);
+	});
 });
 
 function config(
@@ -65,6 +85,6 @@ function context(providerId: string): GatewayProviderContext {
 			id: "MiniMax-M2.5",
 			name: "MiniMax-M2.5",
 		},
-		config: config({}),
+		config: config({ providerId }),
 	};
 }

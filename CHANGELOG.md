@@ -1,5 +1,19 @@
 # Changelog
 
+## [3.89.0]
+
+### Added
+
+- Add Claude Fable 5 model support.
+
+### Fixed
+
+- Fix MiniMax M3 thinking controls across gateways.
+
+### Changed
+
+- Clean up the Codex model list.
+
 ## [3.88.1]
 
 ### Added

@@ -1568,6 +1568,286 @@ describe("sdk-gateway", () => {
 		);
 	});
 
+	it("preserves Vertex thought signatures on tool calls and replays them", async () => {
+		streamTextSpy.mockReturnValueOnce({
+			fullStream: makeStreamParts([
+				{
+					type: "tool-call",
+					toolCallId: "call_1",
+					toolName: "editor",
+					input: { path: "/tmp/out.txt" },
+					providerMetadata: {
+						vertex: {
+							thoughtSignature: "sig_1",
+						},
+					},
+				},
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "vertex",
+					options: {
+						project: "test-project",
+						location: "global",
+					},
+				},
+			],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "vertex",
+				modelId: "gemini-3-flash-preview",
+				messages: baseMessages,
+				tools: [
+					{
+						name: "editor",
+						description: "Edits files",
+						inputSchema: { type: "object" },
+					},
+				],
+			}),
+		);
+
+		expect(events).toContainEqual(
+			expect.objectContaining({
+				type: "tool-call-delta",
+				toolCallId: "call_1",
+				toolName: "editor",
+				metadata: expect.objectContaining({
+					thoughtSignature: "sig_1",
+				}),
+			}),
+		);
+
+		const toolCallEvent = events.find(
+			(event): event is Extract<AgentModelEvent, { type: "tool-call-delta" }> =>
+				event.type === "tool-call-delta",
+		);
+		expect(toolCallEvent).toBeDefined();
+
+		streamTextSpy.mockReset();
+
+		const replayCases = [
+			{
+				name: "fresh event metadata",
+				metadata: toolCallEvent?.metadata,
+			},
+			{
+				name: "persisted history metadata",
+				metadata: { signature: "sig_1" },
+			},
+		];
+
+		for (const replayCase of replayCases) {
+			streamTextSpy.mockReset();
+			streamTextSpy.mockReturnValueOnce({
+				fullStream: makeStreamParts([
+					{ type: "text-delta", textDelta: `done ${replayCase.name}` },
+					{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+				]),
+			});
+
+			await collect(
+				await gateway.stream({
+					providerId: "vertex",
+					modelId: "gemini-3-flash-preview",
+					messages: [
+						{
+							id: `assistant_${replayCase.name}`,
+							role: "assistant",
+							content: [
+								{
+									type: "tool-call",
+									toolCallId: "call_1",
+									toolName: "editor",
+									input: { path: "/tmp/out.txt" },
+									metadata: replayCase.metadata,
+								},
+							],
+							createdAt: Date.now(),
+						},
+						{
+							id: `tool_${replayCase.name}`,
+							role: "tool",
+							content: [
+								{
+									type: "tool-result",
+									toolCallId: "call_1",
+									toolName: "editor",
+									output: { ok: true },
+								},
+							],
+							createdAt: Date.now(),
+						},
+					],
+					tools: [
+						{
+							name: "editor",
+							description: "Edits files",
+							inputSchema: { type: "object" },
+						},
+					],
+				}),
+			);
+
+			expect(streamTextSpy).toHaveBeenCalledWith(
+				expect.objectContaining({
+					messages: expect.arrayContaining([
+						expect.objectContaining({
+							role: "assistant",
+							content: [
+								expect.objectContaining({
+									type: "tool-call",
+									toolCallId: "call_1",
+									toolName: "editor",
+									providerOptions: {
+										google: {
+											thoughtSignature: "sig_1",
+										},
+									},
+								}),
+							],
+						}),
+					]),
+				}),
+			);
+		}
+	});
+
+	it("preserves legacy Google snake_case thought signatures", async () => {
+		streamTextSpy.mockReturnValueOnce({
+			fullStream: makeStreamParts([
+				{
+					type: "tool-call",
+					toolCallId: "call_legacy",
+					toolName: "editor",
+					input: { path: "/tmp/out.txt" },
+					providerMetadata: {
+						google: {
+							thought_signature: "sig_legacy",
+						},
+					},
+				},
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "gemini",
+					apiKey: "google-key",
+				},
+			],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "gemini",
+				modelId: "gemini-2.5-flash",
+				messages: baseMessages,
+				tools: [
+					{
+						name: "editor",
+						description: "Edits files",
+						inputSchema: { type: "object" },
+					},
+				],
+			}),
+		);
+
+		expect(events).toContainEqual(
+			expect.objectContaining({
+				type: "tool-call-delta",
+				toolCallId: "call_legacy",
+				toolName: "editor",
+				metadata: expect.objectContaining({
+					thought_signature: "sig_legacy",
+				}),
+			}),
+		);
+
+		streamTextSpy.mockReset();
+		streamTextSpy.mockReturnValueOnce({
+			fullStream: makeStreamParts([
+				{ type: "text-delta", textDelta: "done" },
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "gemini",
+				modelId: "gemini-2.5-flash",
+				messages: [
+					{
+						id: "assistant_legacy",
+						role: "assistant",
+						content: [
+							{
+								type: "tool-call",
+								toolCallId: "call_legacy",
+								toolName: "editor",
+								input: { path: "/tmp/out.txt" },
+								metadata: {
+									thought_signature: "sig_legacy",
+								},
+							},
+						],
+						createdAt: Date.now(),
+					},
+					{
+						id: "tool_legacy",
+						role: "tool",
+						content: [
+							{
+								type: "tool-result",
+								toolCallId: "call_legacy",
+								toolName: "editor",
+								output: { ok: true },
+							},
+						],
+						createdAt: Date.now(),
+					},
+				],
+				tools: [
+					{
+						name: "editor",
+						description: "Edits files",
+						inputSchema: { type: "object" },
+					},
+				],
+			}),
+		);
+
+		expect(streamTextSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				messages: expect.arrayContaining([
+					expect.objectContaining({
+						role: "assistant",
+						content: [
+							expect.objectContaining({
+								type: "tool-call",
+								toolCallId: "call_legacy",
+								toolName: "editor",
+								providerOptions: {
+									google: {
+										thoughtSignature: "sig_legacy",
+									},
+								},
+							}),
+						],
+					}),
+				]),
+			}),
+		);
+	});
+
 	it("does not pass extra tools to providers that disable external tool execution", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([

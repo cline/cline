@@ -13,6 +13,7 @@ import type {
 	ToolResultContent,
 	ToolUseContent,
 } from "@cline/shared";
+import { EMPTY_CONTENT_TEXT } from "@cline/shared";
 
 export function messageToAgentMessages(
 	message: MessageWithMetadata,
@@ -48,7 +49,7 @@ export function messageToAgentMessages(
 		out.push({
 			id: baseId,
 			role: message.role,
-			content: [],
+			content: [{ type: "text", text: EMPTY_CONTENT_TEXT }],
 			createdAt: message.ts ?? Date.now(),
 			metadata: message.metadata,
 			modelInfo: message.modelInfo,
@@ -133,7 +134,7 @@ export function agentMessagesToMessages(
 
 function normalizeContentBlocks(content: Message["content"]): ContentBlock[] {
 	if (typeof content === "string") {
-		return content.length > 0
+		return content.trim().length > 0
 			? [{ type: "text", text: content } as TextContent]
 			: [];
 	}
@@ -171,7 +172,11 @@ function contentBlockToAgentPart(block: ContentBlock): AgentMessagePart {
 				toolCallId: block.id,
 				toolName: block.name,
 				input: block.input,
-				metadata: block.signature ? { signature: block.signature } : undefined,
+				metadata: block.signature
+					? {
+							signature: block.signature,
+						}
+					: undefined,
 			};
 		case "tool_result":
 			return toolResultContentToAgentPart(block);
@@ -229,15 +234,21 @@ function agentPartToContentBlock(
 				path: part.path,
 				content: part.content,
 			} satisfies FileContent;
-		case "tool-call":
+		case "tool-call": {
+			const metadata = part.metadata as
+				| {
+						signature?: string;
+						thoughtSignature?: string;
+				  }
+				| undefined;
 			return {
 				type: "tool_use",
 				id: part.toolCallId,
 				name: part.toolName,
 				input: (part.input as Record<string, unknown>) ?? {},
-				signature: (part.metadata as { signature?: string } | undefined)
-					?.signature,
+				signature: metadata?.thoughtSignature ?? metadata?.signature,
 			} satisfies ToolUseContent;
+		}
 		case "tool-result": {
 			const output = part.output;
 			const content =
