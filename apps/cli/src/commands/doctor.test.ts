@@ -19,9 +19,12 @@ const {
 	mockReadHubDiscovery,
 	mockProbeHubServer,
 	mockClearHubDiscovery,
+	mockCreateHubServerUrl,
+	mockEnsureDetachedHubServer,
 	mockStopLocalHubServerGracefully,
 	mockStopConnectorsForHubs,
 	mockEnsureFileExists,
+	mockResolveHubEndpointOptions,
 	mockStopAllConnectors,
 } = vi.hoisted(() => ({
 	mockSpawnSync: vi.fn(),
@@ -48,12 +51,22 @@ const {
 	mockReadHubDiscovery: vi.fn(),
 	mockProbeHubServer: vi.fn(),
 	mockClearHubDiscovery: vi.fn(),
+	mockCreateHubServerUrl: vi.fn(
+		(host: string, port: number, pathname: string) =>
+			`ws://${host}:${port}${pathname}`,
+	),
+	mockEnsureDetachedHubServer: vi.fn(),
 	mockStopLocalHubServerGracefully: vi.fn(async () => false),
 	mockStopConnectorsForHubs: vi.fn(async () => ({
 		stoppedProcesses: 0,
 		queuedRestarts: 0,
 	})),
 	mockEnsureFileExists: vi.fn(),
+	mockResolveHubEndpointOptions: vi.fn(() => ({
+		host: "127.0.0.1",
+		port: 25466,
+		pathname: "/hub",
+	})),
 	mockStopAllConnectors: vi.fn(async () => ({
 		stoppedProcesses: 0,
 		stoppedSessions: 0,
@@ -70,8 +83,11 @@ vi.mock("@cline/core", () => ({
 	resolveProductionHubOwnerContext: mockResolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext: mockResolveSharedHubOwnerContext,
 	clearHubDiscovery: mockClearHubDiscovery,
+	createHubServerUrl: mockCreateHubServerUrl,
+	ensureDetachedHubServer: mockEnsureDetachedHubServer,
 	probeHubServer: mockProbeHubServer,
 	readHubDiscovery: mockReadHubDiscovery,
+	resolveHubEndpointOptions: mockResolveHubEndpointOptions,
 	stopLocalHubServerGracefully: mockStopLocalHubServerGracefully,
 	ensureFileExists: mockEnsureFileExists,
 }));
@@ -299,7 +315,7 @@ describe("runDoctorCommand", () => {
 		});
 		mockStopLocalHubServerGracefully.mockResolvedValue(true);
 		mockStopConnectorsForHubs.mockResolvedValue({
-			stoppedProcesses: 1,
+			stoppedProcesses: 2,
 			queuedRestarts: 1,
 		});
 		mockSpawnSync.mockReturnValue({ status: 1, stdout: "" });
@@ -319,10 +335,11 @@ describe("runDoctorCommand", () => {
 		expect(mockStopConnectorsForHubs).toHaveBeenCalledWith(
 			expect.any(Array),
 			expect.any(Object),
+			{ targetHubUrl: "ws://127.0.0.1:25466/hub" },
 		);
 		expect(JSON.parse(output[0] || "")).toMatchObject({
 			killed: {
-				connectorProcesses: 1,
+				connectorProcesses: 2,
 				connectorProcessesQueuedForRestart: 1,
 				connectorRestartsQueued: 1,
 			},

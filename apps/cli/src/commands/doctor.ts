@@ -21,6 +21,7 @@ import {
 	listActiveConnectors,
 } from "../connectors/status";
 import { getCliBuildInfo } from "../utils/common";
+import { resolveDefaultCliHubUrl } from "../utils/hub-runtime";
 import { c, writeln } from "../utils/output";
 import { stopAllConnectors } from "./connect";
 
@@ -470,6 +471,7 @@ export async function runDoctorCommand(
 	const restartAwareStoppedConnectors = await stopConnectorsForHubs(
 		before.activeConnectors.map((record) => record.hubUrl),
 		{ writeln: () => {}, writeErr: () => {} },
+		{ targetHubUrl: resolveDefaultCliHubUrl() },
 	);
 	const staleHubTargets = before.staleHubPids.filter(
 		(pid) => !refreshedAfterGracefulStop.listeningPids.includes(pid),
@@ -513,7 +515,7 @@ export async function runDoctorCommand(
 						stoppedConnectors.stoppedProcesses +
 						restartAwareStoppedConnectors.stoppedProcesses,
 					connectorProcessesQueuedForRestart:
-						restartAwareStoppedConnectors.stoppedProcesses,
+						restartAwareStoppedConnectors.queuedRestarts,
 					connectorRestartsQueued: restartAwareStoppedConnectors.queuedRestarts,
 					connectorSessions: stoppedConnectors.stoppedSessions,
 					hubStartupLocks: clearedArtifacts.startupLocks,

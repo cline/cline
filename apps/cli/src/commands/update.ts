@@ -15,7 +15,10 @@ import {
 	restartQueuedConnectorsForHub,
 	stopConnectorsForHubs,
 } from "../connectors/restart";
-import { ensureCliHubServer } from "../utils/hub-runtime";
+import {
+	ensureCliHubServer,
+	resolveDefaultCliHubUrl,
+} from "../utils/hub-runtime";
 import { c, writeErr, writeln } from "../utils/output";
 import {
 	getInstalledKanbanVersion,
@@ -317,10 +320,16 @@ async function restartHubServerIfRunning(): Promise<void> {
 
 	const pid = discovery?.pid;
 	writeln(`${c.dim}[hub] restarting server…${c.reset}`);
-	await stopConnectorsForHubs([health.url], {
-		writeln: () => {},
-		writeErr: () => {},
-	});
+	await stopConnectorsForHubs(
+		[health.url],
+		{
+			writeln: () => {},
+			writeErr: () => {},
+		},
+		{
+			targetHubUrl: resolveDefaultCliHubUrl(),
+		},
+	);
 
 	let stopped = await stopLocalHubServerGracefully().catch(() => false);
 	if (!stopped && pid) {

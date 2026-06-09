@@ -1,9 +1,11 @@
 import {
+	createHubServerUrl,
 	type DetachedHubResolution,
 	ensureDetachedHubServer,
 	type HubEndpointOverrides,
 	resolveDefaultHubHost,
 	resolveDefaultHubPort,
+	resolveHubEndpointOptions,
 } from "@cline/core";
 
 /**
@@ -13,6 +15,11 @@ import {
  */
 export function resolveDefaultCliRpcAddress(): string {
 	return `${resolveDefaultHubHost()}:${resolveDefaultHubPort()}`;
+}
+
+export function resolveDefaultCliHubUrl(): string {
+	const endpoint = resolveHubEndpointOptions();
+	return createHubServerUrl(endpoint.host, endpoint.port, endpoint.pathname);
 }
 
 export function parseHubEndpointOverride(

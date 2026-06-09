@@ -20,9 +20,14 @@ type ConnectorStateForRestart = {
 
 type QueuedConnectorRestart = ConnectorRestartSpec & {
 	hubUrl: string;
+	targetHubUrl: string;
 	statePath: string;
 	pid: number;
 	stoppedAt: string;
+};
+
+export type StopConnectorsForHubsOptions = {
+	targetHubUrl?: string;
 };
 
 export type StopConnectorsForHubsResult = {
@@ -70,6 +75,7 @@ function readQueue(): QueuedConnectorRestart[] {
 			Array.isArray(record.args) &&
 			record.args.every((arg) => typeof arg === "string") &&
 			typeof record.hubUrl === "string" &&
+			typeof record.targetHubUrl === "string" &&
 			typeof record.statePath === "string" &&
 			typeof record.pid === "number" &&
 			typeof record.stoppedAt === "string"
@@ -91,11 +97,11 @@ function listConnectorStatePaths(): string[] {
 		return [];
 	}
 	const paths: string[] = [];
-	for (const type of readdirSync(root)) {
-		const dir = join(root, type);
-		if (!existsSync(dir)) {
+	for (const entry of readdirSync(root, { withFileTypes: true })) {
+		if (!entry.isDirectory()) {
 			continue;
 		}
+		const dir = join(root, entry.name);
 		try {
 			for (const name of readdirSync(dir)) {
 				if (name.endsWith(".json") && !name.endsWith(".threads.json")) {
@@ -148,7 +154,10 @@ function readConnectorStateForRestart(
 	};
 }
 
-function queueConnectorRestart(state: ConnectorStateForRestart): boolean {
+function queueConnectorRestart(
+	state: ConnectorStateForRestart,
+	targetHubUrl: string,
+): boolean {
 	if (!state.restart) {
 		return false;
 	}
@@ -162,6 +171,7 @@ function queueConnectorRestart(state: ConnectorStateForRestart): boolean {
 	queue.push({
 		...state.restart,
 		hubUrl: state.hubUrl,
+		targetHubUrl,
 		statePath: state.statePath,
 		pid: state.pid,
 		stoppedAt: new Date().toISOString(),
@@ -173,11 +183,15 @@ function queueConnectorRestart(state: ConnectorStateForRestart): boolean {
 export async function stopConnectorsForHubs(
 	hubUrls: string[],
 	io: ConnectIo,
+	options: StopConnectorsForHubsOptions = {},
 ): Promise<StopConnectorsForHubsResult> {
 	const targetHubUrls = new Set(hubUrls.map(normalizeHubUrl));
 	if (targetHubUrls.size === 0) {
 		return { stoppedProcesses: 0, queuedRestarts: 0 };
 	}
+	const restartTargetHubUrl = options.targetHubUrl
+		? normalizeHubUrl(options.targetHubUrl)
+		: undefined;
 	let stoppedProcesses = 0;
 	let queuedRestarts = 0;
 	for (const statePath of listConnectorStatePaths()) {
@@ -185,14 +199,23 @@ export async function stopConnectorsForHubs(
 		if (!state || !targetHubUrls.has(normalizeHubUrl(state.hubUrl))) {
 			continue;
 		}
-		if (queueConnectorRestart(state)) {
-			queuedRestarts += 1;
-		}
-		if (await terminateProcess(state.pid)) {
-			stoppedProcesses += 1;
-			io.writeln(
-				`[connect] stopped connector pid=${state.pid} hub=${state.hubUrl}`,
+		if (!(await terminateProcess(state.pid))) {
+			io.writeErr(
+				`[connect] failed to stop connector pid=${state.pid} hub=${state.hubUrl}`,
 			);
+			continue;
+		}
+		stoppedProcesses += 1;
+		io.writeln(
+			`[connect] stopped connector pid=${state.pid} hub=${state.hubUrl}`,
+		);
+		if (
+			queueConnectorRestart(
+				state,
+				restartTargetHubUrl ?? normalizeHubUrl(state.hubUrl),
+			)
+		) {
+			queuedRestarts += 1;
 		}
 		removeFile(statePath);
 	}
@@ -222,9 +245,14 @@ export async function restartQueuedConnectorsForHub(
 	if (queue.length === 0) {
 		return { restarted: 0, remaining: 0 };
 	}
+	const targetHubUrl = normalizeHubUrl(hubUrl);
 	let restarted = 0;
 	const remaining: QueuedConnectorRestart[] = [];
 	for (const entry of queue) {
+		if (normalizeHubUrl(entry.targetHubUrl) !== targetHubUrl) {
+			remaining.push(entry);
+			continue;
+		}
 		const connector = await getConnector(entry.connector);
 		if (!connector) {
 			remaining.push(entry);
