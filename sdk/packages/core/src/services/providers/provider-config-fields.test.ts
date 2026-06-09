@@ -94,6 +94,21 @@ describe("getProviderConfigFields", () => {
 		);
 	});
 
+	it("returns Vertex GCP config fields with optional API key", () => {
+		const result = getProviderConfigFields("vertex");
+		expect(result.providerId).toBe("vertex");
+		expect(result.authMethod).toBe("api-key");
+		expect(result.description).toMatch(/Application Default Credentials/i);
+		expect(Object.keys(result.fields)).toEqual([
+			"gcpProjectId",
+			"gcpRegion",
+			"apiKey",
+		]);
+		expect(result.fields.gcpProjectId?.label).toBe("Google Cloud Project ID");
+		expect(result.fields.gcpRegion?.defaultValue).toBe("us-central1");
+		expect(result.fields.apiKey?.optional).toBe(true);
+	});
+
 	it("returns api-key auth with awsRegion, apiKey, and awsProfile for bedrock", () => {
 		const result = getProviderConfigFields("bedrock");
 		expect(result.providerId).toBe("bedrock");
