@@ -84,14 +84,20 @@ describe("getProviderConfigFields", () => {
 		expect(result.fields).toEqual({});
 	});
 
-	it("returns api-key auth with apiKey + baseUrl for OpenAI Compatible", () => {
+	it("returns api-key auth with apiKey, baseUrl, and Azure API version for OpenAI Compatible", () => {
 		const result = getProviderConfigFields("openai-compatible");
 		expect(result.providerId).toBe("openai-compatible");
 		expect(result.authMethod).toBe("api-key");
+		expect(result.description).toMatch(/Azure AI Foundry/i);
 		expect(result.fields.apiKey).toEqual({});
 		expect(result.fields.baseUrl?.defaultValue).toBe(
 			"https://api.openai.com/v1",
 		);
+		expect(result.fields.azureApiVersion).toMatchObject({
+			label: "Azure API Version (optional)",
+			placeholder: "2025-01-01-preview",
+			optional: true,
+		});
 	});
 
 	it("returns Vertex GCP config fields with optional API key", () => {
