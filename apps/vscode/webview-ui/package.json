@@ -42,6 +42,7 @@
 		"fuse.js": "^7.0.0",
 		"fzf": "^0.5.2",
 		"lucide-react": "^0.511.0",
+		"magic-string": "^0.30.21",
 		"mermaid": "11.12.3",
 		"posthog-js": "^1.224.0",
 		"pretty-bytes": "^6.1.1",
@@ -92,7 +93,7 @@
 	"optionalDependencies": {
 		"@rollup/rollup-linux-arm64-gnu": "^4.40.0",
 		"@rollup/rollup-linux-x64-gnu": "^4.40.0",
-		"@rollup/rollup-win32-x64-msvc": "^4.40.0",
+		"@rollup/rollup-win32-x64-msvc": "^4.60.4",
 		"@swc/core-linux-x64-gnu": "^1.11.0",
 		"@tailwindcss/oxide-linux-x64-gnu": "^4.0.1",
 		"lightningcss-linux-x64-gnu": "^1.29.1",

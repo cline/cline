@@ -786,6 +786,159 @@ describe("sdk-gateway", () => {
 		);
 	});
 
+	it("strips reasoning history before sending Cerebras follow-up requests", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "cerebras",
+					apiKey: "cerebras-key",
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "cerebras",
+				modelId: "zai-glm-4.7",
+				messages: [
+					baseMessages[0],
+					{
+						id: "assistant_1",
+						role: "assistant",
+						content: [
+							{ type: "reasoning", text: "internal thinking" },
+							{ type: "text", text: "Hello!" },
+						],
+						createdAt: Date.now(),
+					},
+					{
+						id: "user_2",
+						role: "user",
+						content: [{ type: "text", text: "tell me more" }],
+						createdAt: Date.now(),
+					},
+				],
+			}),
+		);
+
+		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+			| { messages?: unknown }
+			| undefined;
+		expect(call?.messages).toEqual([
+			{ role: "user", content: [{ type: "text", text: "Hello" }] },
+			{ role: "assistant", content: [{ type: "text", text: "Hello!" }] },
+			{ role: "user", content: [{ type: "text", text: "tell me more" }] },
+		]);
+		expect(JSON.stringify(call?.messages)).not.toContain("reasoning");
+	});
+
+	it("omits Cerebras reasoning-only assistant history instead of sending empty assistant content", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "cerebras",
+					apiKey: "cerebras-key",
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "cerebras",
+				modelId: "zai-glm-4.7",
+				messages: [
+					baseMessages[0],
+					{
+						id: "assistant_1",
+						role: "assistant",
+						content: [{ type: "reasoning", text: "internal thinking" }],
+						createdAt: Date.now(),
+					},
+					{
+						id: "user_2",
+						role: "user",
+						content: [{ type: "text", text: "tell me more" }],
+						createdAt: Date.now(),
+					},
+				],
+			}),
+		);
+
+		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+			| { messages?: unknown }
+			| undefined;
+		expect(call?.messages).toEqual([
+			{ role: "user", content: [{ type: "text", text: "Hello" }] },
+			{ role: "user", content: [{ type: "text", text: "tell me more" }] },
+		]);
+		expect(JSON.stringify(call?.messages)).not.toContain("reasoning");
+	});
+
+	it("strips reasoning history for Cerebras base URL aliases", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "openai-compatible",
+					apiKey: "cerebras-key",
+					baseUrl: "https://api.cerebras.ai",
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openai-compatible",
+				modelId: "zai-glm-4.7",
+				messages: [
+					baseMessages[0],
+					{
+						id: "assistant_1",
+						role: "assistant",
+						content: [
+							{ type: "reasoning", text: "internal thinking" },
+							{ type: "text", text: "Hello!" },
+						],
+						createdAt: Date.now(),
+					},
+					{
+						id: "user_2",
+						role: "user",
+						content: [{ type: "text", text: "tell me more" }],
+						createdAt: Date.now(),
+					},
+				],
+			}),
+		);
+
+		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+			| { messages?: unknown }
+			| undefined;
+		expect(call?.messages).toEqual([
+			{ role: "user", content: [{ type: "text", text: "Hello" }] },
+			{ role: "assistant", content: [{ type: "text", text: "Hello!" }] },
+			{ role: "user", content: [{ type: "text", text: "tell me more" }] },
+		]);
+		expect(JSON.stringify(call?.messages)).not.toContain("reasoning");
+	});
+
 	it("reads Anthropic cache usage from provider metadata", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([

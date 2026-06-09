@@ -6,12 +6,13 @@ import {
 	fromProtobufModelInfo,
 	fromProtobufOcaModelInfo,
 	fromProtobufOpenAiCompatibleModelInfo,
-} from "@shared/proto-conversions/models/typeConversion";
-import type { OpenaiReasoningEffort } from "@shared/storage/types";
-import { buildApiHandler } from "@/core/api";
-import { Logger } from "@/shared/services/Logger";
-import type { Controller } from "../index";
-import { clearOrganizationForClinePassProviderSelection } from "./handleClinePassProviderSelection";
+} from "@shared/proto-conversions/models/typeConversion"
+import { OpenaiReasoningEffort } from "@shared/storage/types"
+import { Logger } from "@/shared/services/Logger"
+import type { Controller } from "../index"
+import { clearOrganizationForClinePassProviderSelection } from "./handleClinePassProviderSelection"
+import { normalizeProviderSwitchModel } from "./providerSwitchNormalization"
+import { createTaskApiModelShim, resolveActiveModelIdFromApiConfiguration } from "./taskApiModel"
 
 /**
  * Updates API configuration
@@ -180,22 +181,24 @@ export async function updateApiConfigurationProto(
 				| undefined,
 		};
 
-		// Update the API configuration in storage
-		controller.stateManager.setApiConfiguration(
+		const normalizedApiConfiguration = normalizeProviderSwitchModel(
+			controller.getProviderConfigStore(),
+			controller.stateManager.getApiConfiguration(),
 			convertedApiConfigurationFromProto,
-		);
+		)
+
+		// Update the API configuration in storage
+		controller.stateManager.setApiConfiguration(normalizedApiConfiguration)
 		await clearOrganizationForClinePassProviderSelection(
 			controller,
-			convertedApiConfigurationFromProto,
-		);
+			normalizedApiConfiguration,
+		)
 
 		// Update the task's API handler if there's an active task
 		if (controller.task) {
-			const currentMode = controller.stateManager.getGlobalSettingsKey("mode");
-			controller.task.api = buildApiHandler(
-				{ ...convertedApiConfigurationFromProto, ulid: controller.task.ulid },
-				currentMode,
-			);
+			const currentMode = controller.stateManager.getGlobalSettingsKey("mode")
+			const modelId = resolveActiveModelIdFromApiConfiguration(normalizedApiConfiguration, currentMode)
+			controller.task.api = createTaskApiModelShim(modelId)
 		}
 
 		// Post updated state to webview

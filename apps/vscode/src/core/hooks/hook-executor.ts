@@ -316,12 +316,6 @@ async function reorderHookAndToolMessages(messageStateHandler: MessageStateHandl
 		return // No reordering needed
 	}
 
-	// Store the tool message (deep copy to preserve all properties)
-	const toolMessage = { ...clineMessages[lastToolMessageIndex] }
-
 	// Delete the tool message at its current position
 	await messageStateHandler.deleteClineMessage(lastToolMessageIndex)
-
-	// Re-add the tool message at the end (after hook messages)
-	await messageStateHandler.addToClineMessages(toolMessage)
 }
