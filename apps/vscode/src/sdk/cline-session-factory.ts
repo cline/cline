@@ -391,6 +391,27 @@ export function normalizeSdkBaseUrl(providerId: string, baseUrl: unknown): strin
 	return trimmed
 }
 
+export function resolveVertexProviderConfig(config: ApiConfiguration): Pick<ProviderSettings, "gcp" | "region"> {
+	let providerSettingsProjectId: string | undefined
+	let providerSettingsRegion: string | undefined
+	try {
+		const settings = getProviderSettingsManager().getProviderSettings("vertex")
+		providerSettingsProjectId = settings?.gcp?.projectId?.trim() || undefined
+		providerSettingsRegion = settings?.gcp?.region?.trim() || settings?.region?.trim() || undefined
+	} catch {
+		Logger.warn("[SessionFactory] Failed to read Vertex settings from providers.json")
+	}
+
+	const region = (providerSettingsRegion ?? config.vertexRegion?.trim()) || undefined
+	return {
+		region,
+		gcp: {
+			projectId: (providerSettingsProjectId ?? config.vertexProjectId?.trim()) || undefined,
+			region,
+		},
+	}
+}
+
 export function resolveBaseUrl(providerId: string, config: ApiConfiguration): string | undefined {
 	const baseUrlMap: Record<string, keyof ApiConfiguration> = {
 		anthropic: "anthropicBaseUrl",
@@ -441,11 +462,11 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	let modelId: string | undefined
 	let apiKey: string | undefined
 	let baseUrl: string | undefined
-	// Bedrock-specific structured AWS options (region + aws auth block). The core
-	// runtime reads these from CoreSessionConfig.providerConfig; without them the
-	// SDK gateway never receives the AWS region or authentication mode and a
-	// pasted Bedrock API key is silently dropped. See bedrock-config.ts.
+	// Cloud-provider structured options. The core runtime reads these from
+	// CoreSessionConfig.providerConfig; without them the SDK gateway never receives
+	// region/project/auth fields for inference calls.
 	let bedrockProviderConfig: BedrockProviderConfig | undefined
+	let vertexProviderConfig: Pick<ProviderSettings, "gcp" | "region"> | undefined
 
 	try {
 		const stateManager = StateManager.get()
@@ -470,6 +491,10 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 			// providers.json).
 			if (providerId === "bedrock") {
 				bedrockProviderConfig = buildBedrockProviderConfig(apiConfig, mode)
+			}
+
+			if (providerId === "vertex") {
+				vertexProviderConfig = resolveVertexProviderConfig(apiConfig)
 			}
 
 			Logger.log(
@@ -560,17 +585,18 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	// extension's "openai"). Convert before handing the id to core.
 	const sdkProviderId = toSdkProviderId(providerId)
 
-	// Bedrock requires structured AWS options (region + auth mode). Core reads
+	// Cloud providers require structured options (region/project/auth). Core reads
 	// these from providerConfig in createAgentModelFromConfig, but only when its
 	// providerId/modelId match the session, so build a minimal ProviderConfig.
+	const cloudProviderConfig = bedrockProviderConfig ?? vertexProviderConfig
 	const providerConfig =
-		bedrockProviderConfig !== undefined
+		cloudProviderConfig !== undefined
 			? {
 					providerId: sdkProviderId,
 					modelId,
 					apiKey,
 					baseUrl,
-					...bedrockProviderConfig,
+					...cloudProviderConfig,
 				}
 			: undefined
 

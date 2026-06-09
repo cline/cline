@@ -177,6 +177,34 @@ describe("hasUsableProvider", () => {
 		expect(hasUsableProvider(config, "act")).toBe(true)
 	})
 
+	it("treats vertex as usable with Google Cloud project and region but no API key", () => {
+		const config: ApiConfiguration = {
+			actModeApiProvider: "vertex",
+			vertexProjectId: "my-gcp-project",
+			vertexRegion: "us-central1",
+		}
+		expect(hasUsableProvider(config, "act")).toBe(true)
+	})
+
+	it("treats vertex as usable when Google Cloud config is stored in providers.json", () => {
+		mocks.providerSettingsManager.getProviderSettings.mockReturnValue({
+			provider: "vertex",
+			gcp: { projectId: "providers-json-project", region: "europe-west4" },
+		})
+		const config: ApiConfiguration = {
+			actModeApiProvider: "vertex",
+		}
+		expect(hasUsableProvider(config, "act")).toBe(true)
+	})
+
+	it("treats vertex as NOT usable without an API key or complete Google Cloud config", () => {
+		const config: ApiConfiguration = {
+			actModeApiProvider: "vertex",
+			vertexProjectId: "my-gcp-project",
+		}
+		expect(hasUsableProvider(config, "act")).toBe(false)
+	})
+
 	// Bedrock has four auth modes; only the API-key one goes through
 	// resolveApiKey(), so the gate must recognize the other three too.
 	it("treats bedrock as usable with an explicit Bedrock API key", () => {

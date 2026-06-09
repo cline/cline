@@ -15,9 +15,10 @@ interface InputSectionProps {
 	shouldDisableFilesAndImages: boolean
 	selectFilesAndImages: () => Promise<void>
 	/**
-	 * Auth/usability gate: when true there is no usable provider (no Cline auth
-	 * AND no BYOK key), so message submission is blocked and an inline
-	 * "sign in or add a key" prompt is shown. Kept separate from
+	 * Auth/usability gate: when true there is no usable provider (no Cline auth,
+	 * no BYOK key, and no usable keyless/cloud config like Vertex ADC), so
+	 * message submission is blocked and an inline "sign in or set up provider"
+	 * prompt is shown. Kept separate from
 	 * ChatState.sendingDisabled (the turn-state send lock).
 	 */
 	inputGated?: boolean
@@ -25,7 +26,7 @@ interface InputSectionProps {
 
 /**
  * Inline prompt shown above the text area when there is no usable provider.
- * Offers signing in to Cline (primary) or opening settings to add an API key.
+ * Offers signing in to Cline (primary) or opening settings to configure a provider.
  */
 const NoUsableProviderPrompt: React.FC = () => {
 	const { navigateToSettings } = useExtensionState()

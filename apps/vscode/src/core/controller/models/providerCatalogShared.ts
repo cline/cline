@@ -16,6 +16,7 @@ import {
 	CatalogErrorInfo,
 	CommitModelSelectionRequest,
 	CommittedModelSelection,
+	GcpProviderConfig,
 	OpenRouterModelInfo,
 	ProviderConfigResponse,
 	ProviderListing as ProviderListingProto,
@@ -120,6 +121,26 @@ function toRedactedAwsProviderConfigProto(aws: EffectiveProviderConfig["aws"]): 
 	})
 }
 
+function toGcpProviderConfigPatch(protoPatch: WriteProviderConfigPatch): ProviderConfigPatch["gcp"] {
+	if (!protoPatch.gcp) {
+		return undefined
+	}
+	return {
+		...(protoPatch.gcp.projectId !== undefined ? { projectId: protoPatch.gcp.projectId } : {}),
+		...(protoPatch.gcp.region !== undefined ? { region: protoPatch.gcp.region } : {}),
+	}
+}
+
+function toRedactedGcpProviderConfigProto(gcp: EffectiveProviderConfig["gcp"]): GcpProviderConfig | undefined {
+	if (!gcp) {
+		return undefined
+	}
+	return GcpProviderConfig.create({
+		projectId: gcp.projectId,
+		region: gcp.region,
+	})
+}
+
 function toAwsProviderConfigPatch(protoPatch: WriteProviderConfigPatch): ProviderConfigPatch["aws"] {
 	if (!protoPatch.aws) {
 		return undefined
@@ -175,6 +196,7 @@ export function toRedactedProviderConfigResponse(
 		planSelection: toCommittedModelSelectionProto(store?.readSelection(config.providerId, "plan")),
 		actSelection: toCommittedModelSelectionProto(store?.readSelection(config.providerId, "act")),
 		aws: toRedactedAwsProviderConfigProto(config.aws),
+		gcp: toRedactedGcpProviderConfigProto(config.gcp),
 	})
 }
 
@@ -193,6 +215,7 @@ export function toProviderConfigPatch(protoPatch: WriteProviderConfigPatch | und
 		...(protoPatch.region !== undefined ? { region: protoPatch.region } : {}),
 		...(protoPatch.apiLine !== undefined ? { apiLine: protoPatch.apiLine } : {}),
 		...(protoPatch.aws !== undefined ? { aws: toAwsProviderConfigPatch(protoPatch) } : {}),
+		...(protoPatch.gcp !== undefined ? { gcp: toGcpProviderConfigPatch(protoPatch) } : {}),
 		...(protoPatch.accessToken !== undefined || protoPatch.refreshToken !== undefined || protoPatch.accountId !== undefined
 			? {
 					auth: {

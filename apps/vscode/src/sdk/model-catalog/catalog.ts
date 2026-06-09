@@ -168,7 +168,8 @@ function toSdkProviderConfig(config: EffectiveProviderConfig, selection: ModelSe
 		refreshToken: config.auth?.refreshToken,
 		accountId: config.auth?.accountId,
 		apiLine: config.apiLine === "china" || config.apiLine === "international" ? config.apiLine : undefined,
-		region: config.region,
+		region: config.gcp?.region ?? config.region,
+		gcp: config.gcp ? { ...config.gcp } : undefined,
 	}
 }
 

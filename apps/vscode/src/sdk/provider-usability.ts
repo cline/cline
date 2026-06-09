@@ -7,7 +7,9 @@
 // the active-mode provider, the user can chat. Keyless providers (SDK
 // "local-auth" providers and the local-inference providers
 // ollama/lmstudio/vscode-lm) are usable once a model is configured, even
-// without an API key.
+// without an API key. Vertex can also be usable without a Gemini API key when
+// Google Cloud project/region are configured and Application Default Credentials
+// are available at request time.
 
 import { getProviderConfigFields } from "@cline/core"
 import type { ApiConfiguration } from "@shared/api"
@@ -15,7 +17,7 @@ import { Logger } from "@shared/services/Logger"
 import type { Mode } from "@shared/storage/types"
 import { StateManager } from "@/core/storage/StateManager"
 import { resolveBedrockAuthentication } from "./bedrock-config"
-import { resolveApiKey, resolveModelId } from "./cline-session-factory"
+import { resolveApiKey, resolveModelId, resolveVertexProviderConfig } from "./cline-session-factory"
 import { toSdkProviderId } from "./model-catalog/sdk-provider-id"
 import { getProviderSettingsManager } from "./provider-migration"
 
@@ -97,6 +99,11 @@ function resolveConfiguredModelId(providerId: string, mode: Mode, apiConfig: Api
  * session, so classify per resolved auth mode (kept in sync with
  * buildBedrockProviderConfig).
  */
+function hasUsableVertexAuth(apiConfig: ApiConfiguration): boolean {
+	const config = resolveVertexProviderConfig(apiConfig)
+	return Boolean(config.gcp?.projectId?.trim() && (config.gcp.region?.trim() || config.region?.trim()))
+}
+
 function hasUsableBedrockAuth(apiConfig: ApiConfiguration): boolean {
 	const authentication = resolveBedrockAuthentication(apiConfig)
 	switch (authentication) {
@@ -139,6 +146,13 @@ export function hasUsableProvider(apiConfig: ApiConfiguration, mode: Mode): bool
 	// means we can build a session and chat.
 	const apiKey = resolveApiKey(providerId, apiConfig)
 	if (typeof apiKey === "string" && apiKey.trim().length > 0) {
+		return true
+	}
+
+	// Vertex Anthropic models use Google Cloud ADC rather than a Gemini API key.
+	// If project/region are configured, the actual ADC resolution happens at
+	// request time just like Bedrock's IAM/default-chain auth.
+	if (providerId === "vertex" && hasUsableVertexAuth(apiConfig)) {
 		return true
 	}
 

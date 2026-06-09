@@ -21,7 +21,7 @@ import { toSdkProviderId } from "./sdk-provider-id"
 import { adaptSdkModelInfo } from "./shape-adapter"
 
 type ProviderSettingsRecord = Record<string, unknown>
-type ProviderSettingsPatchKey = "apiKey" | "baseUrl" | "apiLine" | "headers" | "region" | "auth" | "extras" | "aws"
+type ProviderSettingsPatchKey = "apiKey" | "baseUrl" | "apiLine" | "headers" | "region" | "auth" | "extras" | "aws" | "gcp"
 
 type ModelInfoKeys = {
 	readonly plan: keyof ApiConfiguration & SettingsKey
@@ -88,6 +88,7 @@ const providerConfigStateKeys: Record<ProviderSettingsPatchKey, Partial<Record<s
 	auth: {},
 	extras: {},
 	aws: {},
+	gcp: {},
 }
 
 const modelInfoKeysByProvider: Partial<Record<string, ModelInfoKeys>> = {
@@ -233,6 +234,17 @@ function writeStateFields(providerId: ProviderId, patch: ProviderConfigPatch): v
 		}
 	}
 
+	if (provider === "vertex" && "gcp" in patch) {
+		const gcp = patch.gcp
+		if (gcp === null || gcp === undefined) {
+			writeStateKey("vertexProjectId", undefined)
+			writeStateKey("vertexRegion", undefined)
+		} else {
+			if ("projectId" in gcp) writeStateKey("vertexProjectId", patchStringValue(gcp.projectId))
+			if ("region" in gcp) writeStateKey("vertexRegion", patchStringValue(gcp.region))
+		}
+	}
+
 	if (provider === "bedrock" && "aws" in patch) {
 		const aws = patch.aws
 		if (aws === null || aws === undefined) {
@@ -287,6 +299,28 @@ function writeProviderSettingsFields(providerId: ProviderId, patch: ProviderConf
 				delete next[key]
 			} else {
 				next[key] = value
+			}
+		}
+	}
+
+	if ("gcp" in patch) {
+		const gcpPatch = patch.gcp
+		if (gcpPatch === null || gcpPatch === undefined) {
+			delete next.gcp
+		} else {
+			const existingGcp = isRecord(next.gcp) ? next.gcp : {}
+			const nextGcp: ProviderSettingsRecord = { ...existingGcp }
+			for (const [key, value] of Object.entries(gcpPatch)) {
+				if (typeof value === "string" && value.length === 0) {
+					delete nextGcp[key]
+				} else {
+					nextGcp[key] = value
+				}
+			}
+			if (Object.keys(nextGcp).length === 0) {
+				delete next.gcp
+			} else {
+				next.gcp = nextGcp
 			}
 		}
 	}
