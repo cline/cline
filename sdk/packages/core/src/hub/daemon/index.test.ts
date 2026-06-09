@@ -268,6 +268,41 @@ describe("ensureDetachedHubServer", () => {
 		}
 	});
 
+	it("prewarms on a fallback port when an empty-token hub cannot be retired", async () => {
+		vi.useFakeTimers();
+		const kill = vi.spyOn(process, "kill").mockImplementation(() => true);
+		try {
+			readHubDiscovery.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				authToken: "",
+				pid: 12345,
+			});
+			probeHubServer.mockResolvedValue({
+				url: "ws://127.0.0.1:25463/hub",
+				protocolVersion: "v1",
+				buildId: "old-build",
+			});
+
+			const { prewarmDetachedHubServer } = await import(".");
+			prewarmDetachedHubServer("/workspace", { allowPortFallback: true });
+			await vi.runAllTimersAsync();
+
+			const spawnArgs = ((spawn as unknown as { mock: { calls: unknown[][] } })
+				.mock.calls[0]?.[1] ?? []) as string[];
+			expect(requestHubShutdown).toHaveBeenCalledWith(
+				"ws://127.0.0.1:25463/hub",
+				"",
+			);
+			expect(kill).toHaveBeenCalledWith(12345, "SIGTERM");
+			expect(spawn).toHaveBeenCalledOnce();
+			expect(spawnArgs).toContain("--port");
+			expect(spawnArgs).toContain("0");
+		} finally {
+			kill.mockRestore();
+			vi.useRealTimers();
+		}
+	});
+
 	it("reuses a protocol-compatible healthy hub from a different build", async () => {
 		const kill = vi.spyOn(process, "kill").mockImplementation(() => true);
 		try {
@@ -341,6 +376,31 @@ describe("ensureDetachedHubServer", () => {
 			expect(spawn).toHaveBeenCalledOnce();
 		} finally {
 			kill.mockRestore();
+		}
+	});
+
+	it("throws a targeted error when an incompatible hub cannot be retired", async () => {
+		vi.useFakeTimers();
+		try {
+			readHubDiscovery.mockResolvedValue(undefined);
+			probeHubServer.mockResolvedValue({
+				url: "ws://127.0.0.1:25463/hub",
+				protocolVersion: "v2",
+				buildId: "future-build",
+			});
+
+			const { ensureDetachedHubServer } = await import(".");
+			const pending = expect(
+				ensureDetachedHubServer("/workspace"),
+			).rejects.toThrow(
+				"An incompatible Cline Hub is already running at ws://127.0.0.1:25463/hub and could not be retired automatically.",
+			);
+			await vi.runAllTimersAsync();
+
+			await pending;
+			expect(spawn).not.toHaveBeenCalled();
+		} finally {
+			vi.useRealTimers();
 		}
 	});
 
