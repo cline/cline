@@ -116,4 +116,22 @@ describe("built-in provider metadata", () => {
 			}
 		}
 	});
+
+	it("routes direct MiniMax M3 through MiniMax thinking metadata", async () => {
+		await expect(getProvider("minimax")).resolves.toMatchObject({
+			metadata: {
+				routing: {
+					reasoning: {
+						format: "minimax-thinking",
+						routes: [
+							expect.objectContaining({
+								matcher: "model-id",
+								modelId: "MiniMax-M3",
+							}),
+						],
+					},
+				},
+			},
+		});
+	});
 });
