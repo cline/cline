@@ -92,6 +92,39 @@ describe("createAgentModelFromConfig", () => {
 		);
 	});
 
+	it("forwards a host-provided fetch into the gateway (top-level and per-provider)", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+		const hostFetch = vi.fn() as unknown as typeof fetch;
+
+		createAgentModelFromConfig(
+			{
+				providerId: "openai-compatible",
+				modelId: "mock-model",
+				apiKey: "key",
+				systemPrompt: "",
+				tools: [],
+				providerConfig: {
+					providerId: "openai-compatible",
+					modelId: "mock-model",
+					fetch: hostFetch,
+				},
+			},
+			undefined,
+		);
+
+		expect(gatewayMock.createGateway).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				fetch: hostFetch,
+				providerConfigs: [
+					expect.objectContaining({
+						providerId: "openai-compatible",
+						fetch: hostFetch,
+					}),
+				],
+			}),
+		);
+	});
+
 	it("preserves model capabilities and metadata when configuring gateway models", async () => {
 		const { createAgentModelFromConfig } = await import("./handler-factory");
 

@@ -21,6 +21,7 @@ import { stringifyVsCodeLmModelSelector } from "@shared/vsCodeSelectorUtils"
 import { StateManager } from "@/core/storage/StateManager"
 import { ExtensionRegistryInfo } from "@/registry"
 import { getDistinctId } from "@/services/logging/distinctId"
+import { fetch } from "@/shared/net"
 import { type BedrockProviderConfig, buildBedrockProviderConfig } from "./bedrock-config"
 import { buildAgentHooks } from "./hooks-adapter"
 import { readTaskHistory, resolveDataDir } from "./legacy-state-reader"
@@ -589,20 +590,22 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	// extension's "openai"). Convert before handing the id to core.
 	const sdkProviderId = toSdkProviderId(providerId)
 
-	// Cloud providers require structured options (region/project/auth). Core reads
-	// these from providerConfig in createAgentModelFromConfig, but only when its
-	// providerId/modelId match the session, so build a minimal ProviderConfig.
+	// Always pass a providerConfig so the proxy/CA-aware fetch reaches the SDK
+	// gateway; without it the agent loop uses bare global fetch and corporate
+	// proxy/self-signed CA setups fail on JetBrains and CLI. Cloud providers
+	// additionally need structured options (region/project/auth), which core
+	// reads from providerConfig in createAgentModelFromConfig.
 	const cloudProviderConfig = bedrockProviderConfig ?? vertexProviderConfig
-	const providerConfig =
-		cloudProviderConfig !== undefined
-			? {
-					providerId: sdkProviderId,
-					modelId,
-					apiKey,
-					baseUrl,
-					...cloudProviderConfig,
-				}
-			: undefined
+	// Spread the cloud config first so the explicit fields below — notably the
+	// proxy/CA-aware fetch — can never be clobbered if those types gain matching keys.
+	const providerConfig = {
+		...(cloudProviderConfig ?? {}),
+		providerId: sdkProviderId,
+		modelId,
+		apiKey,
+		baseUrl,
+		fetch,
+	}
 
 	const config: CoreSessionConfig = {
 		providerId: sdkProviderId,
