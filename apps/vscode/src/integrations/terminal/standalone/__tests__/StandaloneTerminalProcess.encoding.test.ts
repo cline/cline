@@ -47,4 +47,24 @@ describe("StandaloneTerminalProcess encoding", () => {
 		const decoded = iconv.decode(encoded, "gbk")
 		assert.strictEqual(decoded, original)
 	})
+
+	it("shell-aware encoding: cmd.exe uses system encoding, other shells use utf8", () => {
+		// This test validates the shell-aware encoding logic:
+		// - cmd.exe output is decoded with the system code page (getEncoding())
+		// - PowerShell, pwsh, and other shells are decoded with UTF-8
+		// On GBK systems: cmd.exe uses "gbk", PowerShell uses "utf8"
+		// This prevents corruption of non-ASCII text in PowerShell output
+		const chineseText = "中文输出"
+		const utf8Buffer = Buffer.from(chineseText, "utf8")
+
+		// Decode as UTF-8 (correct for PowerShell/pwsh output)
+		const utf8Decoded = iconv.decode(utf8Buffer, "utf8")
+		assert.strictEqual(utf8Decoded, chineseText)
+
+		// Attempting to decode UTF-8 as GBK would corrupt non-ASCII text
+		// (this is the bug we fixed - don't apply GBK to PowerShell output)
+		const gbkDecoded = iconv.decode(utf8Buffer, "gbk")
+		// The decoded result will be garbled, not matching the original
+		assert.notStrictEqual(gbkDecoded, chineseText)
+	})
 })

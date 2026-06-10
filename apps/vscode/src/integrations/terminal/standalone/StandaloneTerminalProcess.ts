@@ -95,6 +95,12 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 		const shell = (terminal as any)._shellPath || this.getDefaultShell()
 		const cwd = (terminal as any)._cwd || process.cwd()
 
+		// Determine encoding based on shell type:
+		// cmd.exe uses system code page (e.g., GBK on Chinese Windows);
+		// PowerShell/pwsh and other shells default to UTF-8 output
+		const isCmdExe = shell.toLowerCase().includes("cmd")
+		const shellEncoding = isCmdExe ? getEncoding() : "utf8"
+
 		// Prepare command for execution
 		const shellArgs = this.getShellArgs(shell, command)
 
@@ -140,7 +146,7 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 
 			// Handle stdout
 			this.childProcess.stdout?.on("data", (data: Buffer) => {
-				const output = iconv.decode(data, getEncoding())
+				const output = iconv.decode(data, shellEncoding)
 				this.handleOutput(output, didEmitEmptyLine)
 				if (!didEmitEmptyLine && output) {
 					this.emit("line", "") // Signal start of output
@@ -150,7 +156,7 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 
 			// Handle stderr
 			this.childProcess.stderr?.on("data", (data: Buffer) => {
-				const output = iconv.decode(data, getEncoding())
+				const output = iconv.decode(data, shellEncoding)
 				this.handleOutput(output, didEmitEmptyLine)
 				if (!didEmitEmptyLine && output) {
 					this.emit("line", "")
