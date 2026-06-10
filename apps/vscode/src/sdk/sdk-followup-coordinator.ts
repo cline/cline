@@ -34,6 +34,14 @@ export interface SdkFollowupCoordinatorOptions {
 	emitClineAuthError: () => void
 	resetMessageTranslator: () => void
 	postStateToWebview: () => Promise<void>
+	/** Resolves once no plan/act mode rebuild is in flight. */
+	waitForPendingModeRebuild: () => Promise<void>
+	/**
+	 * Called when resuming a task fails. askResponse moved the turn phase to
+	 * streaming before delegating here, so the failure must move it to a
+	 * terminal phase or the footer stays stuck on Thinking/Cancel.
+	 */
+	onResumeFailed: () => void
 }
 
 export class SdkFollowupCoordinator {
@@ -48,9 +56,18 @@ export class SdkFollowupCoordinator {
 			return
 		}
 
-		const activeSession = this.options.sessions.getActiveSession()
+		let activeSession = this.options.sessions.getActiveSession()
 		const task = this.options.getTask()
-		if ((!activeSession || !activeSession.isRunning) && task) {
+		if (!activeSession?.isRunning && task) {
+			// A mode rebuild clears the active session while the old stop is
+			// awaited and only marks the replacement running after the
+			// continuation send. Resuming in that window would start a parallel
+			// session that the rebuild then kills, losing this message. Wait for
+			// the rebuild and re-evaluate against the rebuilt session.
+			await this.options.waitForPendingModeRebuild()
+			activeSession = this.options.sessions.getActiveSession()
+		}
+		if (!activeSession?.isRunning && task) {
 			Logger.log(`[SdkController] askResponse: No active session but task exists (${task.taskId}), resuming...`)
 			await this.tryResumeSessionFromTask(task.taskId, prompt, images, files)
 			return
@@ -109,6 +126,7 @@ export class SdkFollowupCoordinator {
 					{ type: "status", payload: { sessionId: taskId, status: "error" } },
 				)
 			}
+			this.options.onResumeFailed()
 			await this.options.postStateToWebview()
 		}
 	}
@@ -149,8 +167,13 @@ export class SdkFollowupCoordinator {
 			await this.options.taskHistory.updateTaskHistoryItem(historyItem)
 		}
 
-		if (prompt?.trim()) {
-			this.emitUserFeedback(startResult.sessionId, prompt)
+		// Echo whenever the user supplied content, including attachment-only
+		// resumes, and include the attachments in the bubble. This also keeps the
+		// visible transcript aligned with SDK history for edit/regenerate ordinal
+		// mapping: a resumption prompt carrying user attachments is counted as a
+		// visible user message, a bare resumption prompt is not.
+		if (prompt?.trim() || images?.length || files?.length) {
+			this.emitUserFeedback(startResult.sessionId, prompt, images, files)
 		}
 
 		await this.options.postStateToWebview()

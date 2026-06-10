@@ -33,6 +33,10 @@ describe("SdkSessionConfigBuilder", () => {
 		const planConfig = await builder.build({ cwd: "/workspace", mode: "plan" })
 		const switchTool = planConfig.extraTools?.find((tool) => tool.name === "switch_to_act_mode")
 		expect(switchTool).toBeDefined()
+		// Ends the run cleanly after the tool result so the loop never starts an
+		// iteration that the stop hook would abort (which surfaced in the webview
+		// as "API Request Cancelled").
+		expect(switchTool?.lifecycle?.completesRun).toBe(true)
 		expect(await switchTool?.execute({}, {} as never)).toBe(
 			"You successfully switched to act mode, proceed with the plan. You now have access to editing files and running commands. (The switch_to_act_mode tool is only available in plan mode.)",
 		)
