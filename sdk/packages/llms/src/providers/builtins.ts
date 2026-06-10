@@ -642,15 +642,15 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		defaults: { baseUrl: "https://inference-api.nousresearch.com/v1" },
 	},
 	{
-		id: "huawei-cloud-maas",
-		name: "Huawei Cloud MaaS",
-		description: "Huawei's model-as-a-service platform",
-		family: "openai-compatible",
-		defaultModelId: "DeepSeek-R1",
-		apiKeyEnv: ["HUAWEI_CLOUD_MAAS_API_KEY"],
-		defaults: {
-			baseUrl: "https://infer-modelarts.cn-southwest-2.myhuaweicloud.com/v1",
-		},
+	    id: "huawei-cloud-maas",
+	    name: "Huawei Cloud MaaS",
+	    description: "Huawei's model-as-a-service platform",
+	    family: "openai-compatible",
+	    defaultModelId: "deepseek-v3.2",
+	    apiKeyEnv: ["HUAWEI_CLOUD_MAAS_API_KEY"],
+	    defaults: {
+	        baseUrl: "https://api-ap-southeast-1.modelarts-maas.com/openai/v1",
+	    },
 	},
 	{
 		id: "qwen",
