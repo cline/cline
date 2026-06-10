@@ -404,13 +404,78 @@ describe("ensureDetachedHubServer", () => {
 		}
 	});
 
-	it("uses matching discovery pid and token when retiring an incompatible expected-url hub", async () => {
-		const kill = vi.spyOn(process, "kill").mockImplementation((pid, signal) => {
-			if (signal === 0) {
-				throw Object.assign(new Error("missing"), { code: "ESRCH" });
-			}
-			return true;
+	it("retires a legacy shared production hub before resolving the production hub", async () => {
+		const kill = vi.spyOn(process, "kill").mockImplementation(() => true);
+		try {
+			resolveSharedHubOwnerContext.mockReturnValueOnce({
+				discoveryPath: "/tmp/legacy-hub-discovery.json",
+			});
+			readHubDiscovery
+				.mockResolvedValueOnce({
+					url: "ws://127.0.0.1:39121/hub",
+					authToken: "legacy-token",
+					pid: 222,
+				})
+				.mockResolvedValueOnce(undefined)
+				.mockResolvedValueOnce({
+					url: "ws://127.0.0.1:25463/hub",
+					authToken: "new-token",
+				});
+			probeHubServer
+				.mockResolvedValueOnce(undefined)
+				.mockResolvedValueOnce(undefined)
+				.mockResolvedValueOnce({
+					url: "ws://127.0.0.1:25463/hub",
+					protocolVersion: "v1",
+					buildId: "current-build",
+				});
+			verifyHubConnection.mockResolvedValueOnce(true);
+
+			const { ensureDetachedHubServer } = await import(".");
+			const result = await ensureDetachedHubServer("/workspace");
+
+			expect(result).toEqual({
+				url: "ws://127.0.0.1:25463/hub",
+				authToken: "new-token",
+			});
+			expect(requestHubShutdown).toHaveBeenCalledWith(
+				"ws://127.0.0.1:39121/hub",
+				"legacy-token",
+			);
+			expect(kill).toHaveBeenCalledWith(222, "SIGTERM");
+			expect(clearHubDiscovery).toHaveBeenCalledWith(
+				"/tmp/legacy-hub-discovery.json",
+			);
+			expect(spawn).toHaveBeenCalledOnce();
+		} finally {
+			kill.mockRestore();
+		}
+	});
+
+	it("throws when a compatible expected hub has no discovery record", async () => {
+		readHubDiscovery.mockResolvedValue(undefined);
+		probeHubServer.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+			protocolVersion: "v1",
+			buildId: "current-build",
 		});
+
+		const { ensureDetachedHubServer } = await import(".");
+		await expect(ensureDetachedHubServer("/workspace")).rejects.toThrow(
+			"A compatible Cline Hub is already running at ws://127.0.0.1:25463/hub, but its discovery record is missing or unreadable.",
+		);
+		expect(spawn).not.toHaveBeenCalled();
+	});
+
+	it("uses matching discovery pid and token when retiring an incompatible expected-url hub", async () => {
+		const kill = vi
+			.spyOn(process, "kill")
+			.mockImplementation((_pid, signal) => {
+				if (signal === 0) {
+					throw Object.assign(new Error("missing"), { code: "ESRCH" });
+				}
+				return true;
+			});
 		try {
 			readHubDiscovery
 				.mockResolvedValueOnce({
