@@ -16,8 +16,16 @@ e2e.describe("Diff Editor", () => {
 			await sidebar.getByTestId("send-button").click()
 			await expect(inputbox).toHaveValue("")
 
-			// Back to home page with history
-			await sidebar.getByRole("button", { name: "Start New Task" }).click()
+			// Wait for the (mock) agent turn to finish before navigating away —
+			// the task is persisted to SDK session history when the turn completes,
+			// and the mock server delays this response by 500ms.
+			await expect(sidebar.getByText("mock Cline API response")).toBeVisible()
+
+			// Back to home page with history. The turn ends in "awaiting_followup"
+			// (the mock response has no attempt_completion), so the footer shows no
+			// "Start New Task" button — use the header "New Task" button instead,
+			// same as chat.test.ts.
+			await sidebar.getByRole("button", { name: "New Task", exact: true }).first().click()
 			await expect(sidebar.getByText("Recent")).toBeVisible()
 			await expect(sidebar.getByText("Hello, Cline!")).toBeVisible() // History with the previous sent message
 
