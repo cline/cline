@@ -1056,7 +1056,7 @@ export async function runCli(): Promise<void> {
 				cwd,
 				explicitSystemPrompt: args.systemPrompt,
 				providerId: provider,
-				mode: args.mode ?? "act",
+				mode: args.mode ?? persistedPrefs.mode ?? "act",
 			}),
 			execution: {
 				maxConsecutiveMistakes: args.retries ?? 3,
