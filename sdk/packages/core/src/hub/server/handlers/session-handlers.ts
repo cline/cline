@@ -32,13 +32,6 @@ import {
 
 const CAPABILITY_OWNER_METADATA_KEY = "hubCapabilityOwnerClientId";
 
-function setCapabilityOwner(
-	metadata: Record<string, unknown>,
-	clientId: string,
-): void {
-	metadata[CAPABILITY_OWNER_METADATA_KEY] = clientId;
-}
-
 function getCapabilityOwnerClientId(
 	ctx: HubTransportContext,
 	sessionId: string,
@@ -168,7 +161,6 @@ export async function handleSessionCreate(
 		cwd: typeof payload.cwd === "string" ? payload.cwd : undefined,
 		contributionCount: clientContributions.length,
 	});
-	setCapabilityOwner(metadata as Record<string, unknown>, clientId);
 	const requestedSessionId =
 		typeof sessionConfig?.sessionId === "string"
 			? sessionConfig.sessionId.trim()
@@ -426,7 +418,6 @@ export async function handleSessionRestore(
 		const clientContributions = parseHubClientContributions(
 			runtimeOptions.clientContributions,
 		);
-		setCapabilityOwner(metadata as Record<string, unknown>, clientId);
 		const requestedSessionId =
 			typeof sessionConfig?.sessionId === "string"
 				? sessionConfig.sessionId.trim()
@@ -896,7 +887,7 @@ export async function handleSessionCompactionUpdate(
 	return {
 		version: envelope.version,
 		requestId: envelope.requestId,
-		ok: updated.updated,
+		ok: true,
 		payload: {
 			updated: updated.updated,
 			session: updatedSession ?? session,

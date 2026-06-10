@@ -485,77 +485,79 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const explicitInitialCompactionState = startInput.initialCompactionState;
 		let activeSessionRef: ActiveSession | undefined;
 		const compact = createContextCompactionPrepareTurn(configWithProvider);
-		const initialCompactionState =
-			explicitInitialCompactionState ??
-			(compact ? resumedCompactionState : undefined);
-		const prepareTurn = createCompactionStateAwarePrepareTurn({
-			compact,
-			getState: () => activeSessionRef?.compactionState,
-			saveState: async (state) => {
-				const activeSession = activeSessionRef;
-				if (!activeSession) return;
-				const stateForSession = {
-					...state,
-					conversation_id: activeSession.sessionId,
-				};
-				try {
-					const result = await this.persistActiveSessionCompactionState(
-						activeSession,
-						stateForSession,
-					);
-					if (!result.updated) {
-						configWithProvider.logger?.debug?.(
-							"Skipped stale session compaction state",
-							{
-								sessionId: activeSession.sessionId,
-								sourceMessageCount: stateForSession.source_message_count,
-							},
-						);
-					}
-				} catch (error) {
-					configWithProvider.logger?.error?.(
-						"Failed to persist session compaction state",
-						{ sessionId: activeSession.sessionId, error },
-					);
-					captureSdkError(configWithProvider.telemetry, {
-						component: "core",
-						operation: "session.persist_compaction_state",
-						severity: "warn",
-						handled: true,
-						error,
-						context: {
-							sessionId: activeSession.sessionId,
-							providerId: configWithProvider.providerId,
-							modelId: configWithProvider.modelId,
-						},
-					});
-				}
-			},
-			clearState: async () => {
-				const activeSession = activeSessionRef;
-				if (!activeSession?.compactionState) return;
-				try {
-					await this.clearActiveSessionCompactionState(activeSession);
-				} catch (error) {
-					configWithProvider.logger?.error?.(
-						"Failed to delete stale session compaction state",
-						{ sessionId: activeSession.sessionId, error },
-					);
-					captureSdkError(configWithProvider.telemetry, {
-						component: "core",
-						operation: "session.delete_compaction_state",
-						severity: "warn",
-						handled: true,
-						error,
-						context: {
-							sessionId: activeSession.sessionId,
-							providerId: configWithProvider.providerId,
-							modelId: configWithProvider.modelId,
-						},
-					});
-				}
-			},
-		});
+		const initialCompactionState = compact
+			? (explicitInitialCompactionState ?? resumedCompactionState)
+			: undefined;
+		const prepareTurn = compact
+			? createCompactionStateAwarePrepareTurn({
+					compact,
+					getState: () => activeSessionRef?.compactionState,
+					saveState: async (state) => {
+						const activeSession = activeSessionRef;
+						if (!activeSession) return;
+						const stateForSession = {
+							...state,
+							conversation_id: activeSession.sessionId,
+						};
+						try {
+							const result = await this.persistActiveSessionCompactionState(
+								activeSession,
+								stateForSession,
+							);
+							if (!result.updated) {
+								configWithProvider.logger?.debug?.(
+									"Skipped stale session compaction state",
+									{
+										sessionId: activeSession.sessionId,
+										sourceMessageCount: stateForSession.source_message_count,
+									},
+								);
+							}
+						} catch (error) {
+							configWithProvider.logger?.error?.(
+								"Failed to persist session compaction state",
+								{ sessionId: activeSession.sessionId, error },
+							);
+							captureSdkError(configWithProvider.telemetry, {
+								component: "core",
+								operation: "session.persist_compaction_state",
+								severity: "warn",
+								handled: true,
+								error,
+								context: {
+									sessionId: activeSession.sessionId,
+									providerId: configWithProvider.providerId,
+									modelId: configWithProvider.modelId,
+								},
+							});
+						}
+					},
+					clearState: async () => {
+						const activeSession = activeSessionRef;
+						if (!activeSession?.compactionState) return;
+						try {
+							await this.clearActiveSessionCompactionState(activeSession);
+						} catch (error) {
+							configWithProvider.logger?.error?.(
+								"Failed to delete stale session compaction state",
+								{ sessionId: activeSession.sessionId, error },
+							);
+							captureSdkError(configWithProvider.telemetry, {
+								component: "core",
+								operation: "session.delete_compaction_state",
+								severity: "warn",
+								handled: true,
+								error,
+								context: {
+									sessionId: activeSession.sessionId,
+									providerId: configWithProvider.providerId,
+									modelId: configWithProvider.modelId,
+								},
+							});
+						}
+					},
+				})
+			: undefined;
 
 		const agentConfig = {
 			sessionId,

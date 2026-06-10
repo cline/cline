@@ -923,6 +923,47 @@ describe("HubServerTransport boundaries", () => {
 		expect(updateSessionCompactionState).not.toHaveBeenCalled();
 	});
 
+	it("allows a creator to claim ownerless compaction sidecar ownership", async () => {
+		const state = createSessionCompactionState({
+			sourceMessages: [{ role: "user", content: "source" }],
+			compactedMessages: [{ role: "user", content: "summary" }],
+			conversationId: "session-1",
+		});
+		const readSessionCompactionState = vi.fn().mockResolvedValue(state);
+		const transport = createTransport({
+			sessionHost: { readSessionCompactionState },
+		});
+		const ctx = getContext(transport);
+		ensureSessionParticipant(ctx, "session-1", "viewer-client", "participant");
+
+		expect(
+			ctx.sessionState.get("session-1")?.createdByClientId,
+		).toBeUndefined();
+
+		ensureSessionState(ctx, "session-1", "owner-client", "creator");
+
+		expect(ctx.sessionState.get("session-1")?.createdByClientId).toBe(
+			"owner-client",
+		);
+		expect(
+			ctx.sessionState.get("session-1")?.participants.has("viewer-client"),
+		).toBe(true);
+
+		const getReply = await transport.handleCommand({
+			version: "v1",
+			requestId: "req-compact-get",
+			command: "session.compaction.get",
+			clientId: "owner-client",
+			sessionId: "session-1",
+		});
+
+		expect(getReply).toMatchObject({
+			ok: true,
+			payload: { state },
+		});
+		expect(readSessionCompactionState).toHaveBeenCalledWith("session-1");
+	});
+
 	it("clears compaction sidecar ownership when the owner detaches", async () => {
 		const readSessionCompactionState = vi.fn();
 		const transport = createTransport({
@@ -1125,7 +1166,7 @@ describe("HubServerTransport boundaries", () => {
 		});
 
 		expect(reply).toMatchObject({
-			ok: false,
+			ok: true,
 			payload: { updated: false },
 		});
 		expect(events).not.toEqual(

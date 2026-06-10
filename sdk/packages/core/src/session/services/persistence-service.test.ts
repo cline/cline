@@ -700,4 +700,55 @@ describe("UnifiedSessionPersistenceService", () => {
 			expect(existsSync(join(sessionsDir, sessionId))).toBe(false);
 		},
 	);
+
+	sqliteIt(
+		"deletes a session when compaction sidecar cleanup fails",
+		async () => {
+			const dbDir = mkdtempSync(join(tmpdir(), "delete-sidecar-fail-db-"));
+			const sessionsDir = mkdtempSync(
+				join(tmpdir(), "delete-sidecar-fail-sessions-"),
+			);
+			tempDirs.push(dbDir, sessionsDir);
+
+			const store = new SqliteSessionStore({ sessionsDir: dbDir });
+			stores.push(store);
+			const service = new CoreSessionService(store, {
+				sessionArtifactsDir: sessionsDir,
+			});
+			const sessionId = "sidecar-delete-fail-session";
+			await service.createRootSessionWithArtifacts({
+				sessionId,
+				source: SessionSource.CLI,
+				pid: process.pid,
+				interactive: false,
+				provider: "anthropic",
+				model: "claude-sonnet-4-6",
+				cwd: "/tmp/project",
+				workspaceRoot: "/tmp/project",
+				enableTools: true,
+				enableSpawn: false,
+				enableTeams: false,
+				prompt: "delete me",
+				startedAt: "2026-04-10T19:00:00.000Z",
+			});
+			const manifestStore = (
+				service as unknown as {
+					manifestStore: {
+						deleteSessionCompactionState: (sessionId: string) => Promise<void>;
+					};
+				}
+			).manifestStore;
+			const deleteSidecar = vi
+				.spyOn(manifestStore, "deleteSessionCompactionState")
+				.mockRejectedValue(new Error("sidecar busy"));
+
+			const result = await service.deleteSession(sessionId);
+
+			expect(result).toEqual({ deleted: true });
+			await expect(service.listSessions(10)).resolves.not.toEqual(
+				expect.arrayContaining([expect.objectContaining({ sessionId })]),
+			);
+			expect(deleteSidecar).toHaveBeenCalledWith(sessionId);
+		},
+	);
 });
