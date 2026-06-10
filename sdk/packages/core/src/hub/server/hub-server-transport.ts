@@ -553,6 +553,9 @@ export class HubServerTransport implements NativeHubTransport {
 	private detachClientFromSessions(clientId: string): void {
 		for (const [sessionId, state] of this.sessionState.entries()) {
 			state.participants.delete(clientId);
+			if (state.createdByClientId === clientId) {
+				state.createdByClientId = undefined;
+			}
 			if (state.participants.size === 0) {
 				this.sessionState.delete(sessionId);
 			}
