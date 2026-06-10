@@ -3,9 +3,7 @@ import debounce from "debounce"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useEvent } from "react-use"
 import { ListRange, VirtuosoHandle } from "react-virtuoso"
-import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ScrollBehavior } from "../types/chatTypes"
-import { THINKING_PLACEHOLDER_TS } from "./useDisplayedMessages"
 
 // Height of the sticky user message header (padding + content)
 const STICKY_HEADER_HEIGHT = 32
@@ -278,61 +276,22 @@ export function useScrollBehavior(
 		[scrollToBottomSmooth, scrollToBottomAuto],
 	)
 
-	// Aggressive pin-to-bottom: smooth scroll immediately, then settle with instant scrolls so
-	// late layout shifts (images, markdown, syntax highlighting) cannot leave us short of the bottom.
-	const pinToBottomIfEnabled = useCallback(() => {
-		if (disableAutoScrollRef.current) {
-			return
-		}
-		scrollToBottomSmooth()
-		setTimeout(() => {
-			if (!disableAutoScrollRef.current) {
-				scrollToBottomAuto()
-			}
-		}, 40)
-		setTimeout(() => {
-			if (!disableAutoScrollRef.current) {
-				scrollToBottomAuto()
-			}
-		}, 70)
-		// dont cleanup the timers since if groupedMessages changes again it would cancel the settle scrolls.
-	}, [scrollToBottomSmooth, scrollToBottomAuto])
-
-	// ts of the last real (non-placeholder) message rendered at the tail of the list. New content
-	// can appear without changing groupedMessages.length (a tool message merged into the trailing
-	// tool group, or the thinking placeholder swapped for a real reasoning row), so the pin effect
-	// below keys on this in addition to the list length.
-	const lastTailTs = useMemo(() => {
-		for (let i = groupedMessages.length - 1; i >= 0; i--) {
-			const row = groupedMessages[i]
-			const message = Array.isArray(row) ? row.at(-1) : row
-			if (message && message.ts !== THINKING_PLACEHOLDER_TS) {
-				return message.ts
-			}
-		}
-		return undefined
-	}, [groupedMessages])
-
 	useEffect(() => {
-		pinToBottomIfEnabled()
-	}, [groupedMessages.length, lastTailTs, pinToBottomIfEnabled])
-
-	// When a new turn starts streaming (user sent a message, approved a tool, resumed a task, or
-	// switched plan -> act which auto-continues), re-engage auto scroll and pin to the bottom so
-	// the thinking indicator and incoming content are visible. In the old extension every one of
-	// these transitions was accompanied by a user send/button click that reset
-	// disableAutoScrollRef; with turnState-driven turns (e.g. plan -> act auto-continue) the
-	// transition can happen with no webview-side action, so handle it here.
-	const { turnState } = useExtensionState()
-	const prevTurnPhaseRef = useRef(turnState?.phase)
-	useEffect(() => {
-		const prevPhase = prevTurnPhaseRef.current
-		prevTurnPhaseRef.current = turnState?.phase
-		if (turnState?.phase === "streaming" && prevPhase !== "streaming") {
-			disableAutoScrollRef.current = false
-			pinToBottomIfEnabled()
+		if (!disableAutoScrollRef.current) {
+			scrollToBottomSmooth()
+			setTimeout(() => {
+				if (!disableAutoScrollRef.current) {
+					scrollToBottomAuto()
+				}
+			}, 40)
+			setTimeout(() => {
+				if (!disableAutoScrollRef.current) {
+					scrollToBottomAuto()
+				}
+			}, 70)
+			// return () => clearTimeout(timer) // dont cleanup since if visibleMessages.length changes it cancels.
 		}
-	}, [turnState?.phase, pinToBottomIfEnabled])
+	}, [groupedMessages.length, scrollToBottomSmooth, scrollToBottomAuto])
 
 	useEffect(() => {
 		if (pendingScrollToMessage !== null) {

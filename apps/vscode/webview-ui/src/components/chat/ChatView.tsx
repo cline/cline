@@ -25,7 +25,6 @@ import {
 	MessagesArea,
 	TaskSection,
 	useChatState,
-	useDisplayedGroupedMessages,
 	useMessageHandlers,
 	useScrollBehavior,
 	WelcomeSection,
@@ -306,13 +305,8 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		return groupLowStakesTools(groupMessages(visibleMessages))
 	}, [visibleMessages])
 
-	// The rows actually rendered, including the synthetic "Thinking..." placeholder row.
-	// Computed here (not inside MessagesArea) so scroll behavior reacts to the placeholder
-	// appearing/disappearing the same way it reacts to real messages.
-	const displayedGroupedMessages = useDisplayedGroupedMessages(groupedMessages, modifiedMessages)
-
 	// Use scroll behavior hook
-	const scrollBehavior = useScrollBehavior(messages, visibleMessages, displayedGroupedMessages, expandedRows, setExpandedRows)
+	const scrollBehavior = useScrollBehavior(messages, visibleMessages, groupedMessages, expandedRows, setExpandedRows)
 
 	const placeholderText = useMemo(() => {
 		const text = task ? "Type a message..." : "Type your task here..."
@@ -348,7 +342,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				{task && (
 					<MessagesArea
 						chatState={chatState}
-						groupedMessages={displayedGroupedMessages}
+						groupedMessages={groupedMessages}
 						messageHandlers={messageHandlers}
 						modifiedMessages={modifiedMessages}
 						scrollBehavior={scrollBehavior}
