@@ -130,7 +130,8 @@ describe("runDoctorCommand", () => {
 				command === "pgrep" &&
 				Array.isArray(args) &&
 				args[0] === "-fal" &&
-				args[1] === "/apps/cli/src/index.ts"
+				args[1] === "--" &&
+				args[2] === "/apps/cli/src/index.ts"
 			) {
 				return {
 					status: 0,
@@ -281,7 +282,8 @@ describe("runDoctorCommand", () => {
 				command === "pgrep" &&
 				Array.isArray(args) &&
 				args[0] === "-fal" &&
-				args[1] === "/src-tauri/bin/code-sidecar"
+				args[1] === "--" &&
+				args[2] === "/src-tauri/bin/code-sidecar"
 			) {
 				return {
 					status: 0,
