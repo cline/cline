@@ -9,17 +9,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentRuntime, AgentRuntimeAbortError } from "./agent-runtime";
 import { Agent, createAgent } from "./index";
 
-const { createAgentModel, createGateway } = vi.hoisted(() => {
+const { createAgentModel, createGateway, llmsModule } = vi.hoisted(() => {
 	const createAgentModel = vi.fn();
 	const createGateway = vi.fn(() => ({
 		createAgentModel,
 	}));
-	return { createAgentModel, createGateway };
+	const llmsModule = { createGateway };
+	return { createAgentModel, createGateway, llmsModule };
 });
 
-vi.mock("@cline/llms", () => ({
-	createGateway,
-}));
+vi.mock("@cline/llms", () => llmsModule);
 
 class ScriptedModel implements AgentModel {
 	constructor(
@@ -53,10 +52,16 @@ describe("AgentRuntime (provider-form config + Agent alias)", () => {
 	beforeEach(() => {
 		createGateway.mockClear();
 		createAgentModel.mockReset();
+		llmsModule.createGateway = createGateway;
 	});
 
-	it("constructs the runtime via the llms gateway in ESM-safe code", () => {
-		const model = new ScriptedModel([]);
+	it("constructs the runtime synchronously and resolves the llms gateway on first run", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "hello" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
 		createAgentModel.mockReturnValue(model);
 
 		const agent = new Agent({
@@ -66,6 +71,12 @@ describe("AgentRuntime (provider-form config + Agent alias)", () => {
 		});
 
 		expect(agent).toBeInstanceOf(Agent);
+		expect(createGateway).not.toHaveBeenCalled();
+
+		await expect(agent.run("hi")).resolves.toMatchObject({
+			status: "completed",
+			outputText: "hello",
+		});
 		expect(createGateway).toHaveBeenCalledWith({
 			providerConfigs: [
 				{
@@ -76,6 +87,7 @@ describe("AgentRuntime (provider-form config + Agent alias)", () => {
 					options: undefined,
 				},
 			],
+			telemetry: undefined,
 		});
 		expect(createAgentModel).toHaveBeenCalledWith({
 			providerId: "openai",
@@ -83,11 +95,16 @@ describe("AgentRuntime (provider-form config + Agent alias)", () => {
 		});
 	});
 
-	it("passes provider options through to the llms gateway", () => {
-		const model = new ScriptedModel([]);
+	it("passes provider options through to the llms gateway on first run", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "configured" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
 		createAgentModel.mockReturnValue(model);
 
-		new Agent({
+		const agent = new Agent({
 			providerId: "openai-compatible",
 			modelId: "gpt-4.1",
 			apiKey: "test-key",
@@ -95,6 +112,11 @@ describe("AgentRuntime (provider-form config + Agent alias)", () => {
 			options: { apiVersion: "2025-01-01-preview" },
 		});
 
+		expect(createGateway).not.toHaveBeenCalled();
+		await expect(agent.run("hi")).resolves.toMatchObject({
+			status: "completed",
+			outputText: "configured",
+		});
 		expect(createGateway).toHaveBeenCalledWith({
 			providerConfigs: [
 				{
@@ -106,14 +128,73 @@ describe("AgentRuntime (provider-form config + Agent alias)", () => {
 					options: { apiVersion: "2025-01-01-preview" },
 				},
 			],
+			telemetry: undefined,
 		});
+	});
+
+	it("reports a clear error when the browser llms entry lacks createGateway", async () => {
+		llmsModule.createGateway = undefined as unknown as typeof createGateway;
+		const agent = new Agent({
+			providerId: "openai-compatible",
+			modelId: "gpt-4.1",
+			apiKey: "test-key",
+		});
+
+		const result = await agent.run("hi");
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toBe(
+			"@cline/agents browser builds require a prebuilt AgentModel. Provider-id construction uses @cline/llms and is Node-only.",
+		);
+	});
+
+	it("retries initialization after restore() clears a failed init attempt", async () => {
+		llmsModule.createGateway = undefined as unknown as typeof createGateway;
+		const agent = new Agent({
+			providerId: "openai-compatible",
+			modelId: "gpt-4.1",
+			apiKey: "test-key",
+		});
+
+		await expect(agent.run("hi")).resolves.toMatchObject({
+			status: "failed",
+		});
+
+		llmsModule.createGateway = createGateway;
+		createAgentModel.mockReturnValue(
+			new ScriptedModel([
+				() => [
+					{ type: "text-delta", text: "recovered" },
+					{ type: "finish", reason: "stop" },
+				],
+			]),
+		);
+		agent.restore([
+			{
+				id: "msg_1",
+				role: "user",
+				content: [{ type: "text", text: "restored" }],
+				createdAt: 1,
+			},
+		]);
+
+		await expect(agent.run("hi again")).resolves.toMatchObject({
+			status: "completed",
+			outputText: "recovered",
+		});
+		expect(createGateway).toHaveBeenCalledTimes(1);
 	});
 
 	it("forwards abort() to the active AgentRuntime", async () => {
 		let abortReason: unknown;
+		let resolveStreamStarted!: () => void;
+		const streamStarted = new Promise<void>((resolve) => {
+			resolveStreamStarted = resolve;
+		});
 		const model = new ScriptedModel([
 			async function* (request) {
 				yield { type: "text-delta", text: "partial" };
+				resolveStreamStarted();
 				await new Promise<void>((resolve) => {
 					request.signal?.addEventListener(
 						"abort",
@@ -135,12 +216,7 @@ describe("AgentRuntime (provider-form config + Agent alias)", () => {
 		});
 
 		const runPromise = agent.run("cancel me");
-		for (let i = 0; i < 20; i += 1) {
-			if (agent.snapshot().status === "running") {
-				break;
-			}
-			await new Promise((resolve) => setTimeout(resolve, 0));
-		}
+		await streamStarted;
 		agent.abort("user cancelled");
 
 		await expect(runPromise).resolves.toMatchObject({
