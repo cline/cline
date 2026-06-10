@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from "node:crypto";
+import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
@@ -53,7 +53,8 @@ function isPidAlive(pid: number | undefined): boolean {
 }
 
 export function createHubAuthToken(): string {
-	return randomBytes(32).toString("hex");
+	const configured = process.env.CLINE_HUB_AUTH_TOKEN?.trim();
+	return configured || "";
 }
 
 function sleep(ms: number): Promise<void> {

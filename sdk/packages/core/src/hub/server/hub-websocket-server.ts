@@ -122,7 +122,11 @@ function isValidHubAuthToken(
 	candidate: string | null,
 	expected: string,
 ): boolean {
-	if (!candidate || !expected) {
+	// When auth is not configured on either side, no token is required.
+	if (!expected) {
+		return !candidate;
+	}
+	if (!candidate) {
 		return false;
 	}
 	const candidateBuffer = Buffer.from(candidate, "utf8");
