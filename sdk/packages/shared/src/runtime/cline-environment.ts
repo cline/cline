@@ -67,10 +67,8 @@ function readProcessEnv(): NodeJS.ProcessEnv {
 	return process.env;
 }
 
-export function resolveClineEnvironment(
-	options: ResolveClineEnvironmentOptions = {},
-): ClineEnvironment {
-	const env = options.env ?? readProcessEnv();
+export function resolveClineEnvironment(): ClineEnvironment {
+	const env = readProcessEnv();
 	return (
 		normalizeClineEnvironment(env[CLINE_ENVIRONMENT_OVERRIDE_ENV]) ??
 		normalizeClineEnvironment(env[CLINE_ENVIRONMENT_ENV]) ??
@@ -78,11 +76,28 @@ export function resolveClineEnvironment(
 	);
 }
 
-export function getClineEnvironmentConfig(
-	environmentOrOptions?: ClineEnvironment | ResolveClineEnvironmentOptions,
-): ClineEnvironmentConfig {
-	if (typeof environmentOrOptions === "string") {
-		return CLINE_ENVIRONMENTS[environmentOrOptions];
+function getEnvConfig(env?: ClineEnvironment) {
+	if (typeof env === "string") {
+		return CLINE_ENVIRONMENTS[env];
 	}
-	return CLINE_ENVIRONMENTS[resolveClineEnvironment(environmentOrOptions)];
+	return CLINE_ENVIRONMENTS[resolveClineEnvironment()];
+}
+
+function applyConfigOverrides(
+	config: ClineEnvironmentConfig,
+	env: NodeJS.ProcessEnv,
+): ClineEnvironmentConfig {
+	if (env.CLINE_APP_BASE_URL) {
+		config = { ...config, appBaseUrl: env.CLINE_APP_BASE_URL };
+	}
+
+	return config;
+}
+
+export function getClineEnvironmentConfig(
+	env?: ClineEnvironment,
+): ClineEnvironmentConfig {
+	const config = getEnvConfig(env);
+
+	return applyConfigOverrides(config, readProcessEnv());
 }
