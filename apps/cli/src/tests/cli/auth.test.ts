@@ -18,7 +18,11 @@ import {
 } from "../helpers/constants.js";
 import { clineEnv } from "../helpers/env.js";
 import { waitForAuthScreen } from "../helpers/page-objects/auth.js";
-import { expectExitCode, expectVisible } from "../helpers/terminal.js";
+import {
+	expectExitCode,
+	expectVisible,
+	typeAndSubmit,
+} from "../helpers/terminal.js";
 
 test.describe("cline auth (interactive screen)", () => {
 	test.use({
@@ -277,6 +281,39 @@ test.describe("cline auth --baseurl with non-OpenAI-compatible provider", () => 
 			terminal,
 			/only supported for openai|not supported|openai.compatible/i,
 		);
+	});
+});
+
+test.describe("cline auth openai-compatible config fields (interactive)", () => {
+	test.use({
+		program: { file: CLINE_BIN, args: ["auth"] },
+		...TERMINAL_WIDE,
+		env: clineEnv("unauthenticated"),
+	});
+
+	test("shows custom headers and model configuration fields", async ({
+		terminal,
+	}) => {
+		const settle = (ms = 500) =>
+			new Promise((resolve) => setTimeout(resolve, ms));
+		await waitForAuthScreen(terminal);
+		// Navigate to "Bring your own provider" (third menu entry) and open it
+		terminal.keyDown();
+		await settle();
+		terminal.keyDown();
+		await settle();
+		terminal.submit();
+		// Filter the provider list down to OpenAI Compatible and select it
+		await expectVisible(terminal, "Search providers...");
+		await settle();
+		await typeAndSubmit(terminal, "openai-compatible");
+		await expectVisible(terminal, [
+			"Base URL",
+			"API key",
+			"Custom Headers (optional)",
+			"Context Window (optional)",
+			"Max Output Tokens (optional)",
+		]);
 	});
 });
 
