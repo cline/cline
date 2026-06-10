@@ -1,6 +1,55 @@
 import { fireEvent, render, screen } from "@testing-library/react"
+import type { ChangeEventHandler, FormEventHandler, KeyboardEventHandler, ReactNode } from "react"
 import { describe, expect, it, vi } from "vitest"
 import { type ModelPickerSelection, ModelPickerWithManualEntry } from "./ModelPickerWithManualEntry"
+
+// Render the toolkit web components as native elements so value/change
+// behavior is observable in jsdom.
+vi.mock("@vscode/webview-ui-toolkit/react", () => ({
+	VSCodeDropdown: ({
+		children,
+		id,
+		onChange,
+		value,
+		"aria-label": ariaLabel,
+	}: {
+		children?: ReactNode
+		id?: string
+		onChange?: ChangeEventHandler<HTMLSelectElement>
+		value?: string
+		"aria-label"?: string
+	}) => (
+		<select aria-label={ariaLabel} id={id} onChange={onChange} value={value}>
+			{children}
+		</select>
+	),
+	VSCodeOption: ({ children, value }: { children?: ReactNode; value?: string }) => <option value={value}>{children}</option>,
+	VSCodeTextField: ({
+		children,
+		id,
+		onInput,
+		onKeyDown,
+		placeholder,
+		value,
+	}: {
+		children?: ReactNode
+		id?: string
+		onInput?: FormEventHandler<HTMLInputElement>
+		onKeyDown?: KeyboardEventHandler<HTMLInputElement>
+		placeholder?: string
+		value?: string
+	}) => (
+		<div>
+			<label htmlFor={id}>{children}</label>
+			<input id={id} onChange={onInput} onKeyDown={onKeyDown} placeholder={placeholder} value={value} />
+		</div>
+	),
+	VSCodeButton: ({ children, onClick }: { children?: ReactNode; onClick?: () => void }) => (
+		<button onClick={onClick} type="button">
+			{children}
+		</button>
+	),
+}))
 
 const selectedModel: ModelPickerSelection = {
 	providerId: "ollama",
