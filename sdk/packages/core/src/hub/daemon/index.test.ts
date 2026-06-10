@@ -17,6 +17,7 @@ const {
 	resolveClineDataDir,
 	resolveHubBuildId,
 	writeHubDiscovery,
+	withHubStartupLock,
 	CLINE_RUN_AS_HUB_DAEMON_ENV,
 } = vi.hoisted(() => ({
 	spawn: vi.fn(() => ({ unref: vi.fn() })),
@@ -42,6 +43,10 @@ const {
 	resolveClineDataDir: vi.fn(() => "/tmp/cline-data"),
 	resolveHubBuildId: vi.fn(() => "current-build"),
 	writeHubDiscovery: vi.fn(),
+	withHubStartupLock: vi.fn(
+		async (_discoveryPath: string, callback: () => Promise<unknown>) =>
+			callback(),
+	),
 	CLINE_RUN_AS_HUB_DAEMON_ENV: "CLINE_RUN_AS_HUB_DAEMON",
 }));
 
@@ -89,6 +94,7 @@ vi.mock("../discovery", () => ({
 	resolveClineDataDir,
 	resolveHubBuildId,
 	writeHubDiscovery,
+	withHubStartupLock,
 }));
 
 describe("ensureDetachedHubServer", () => {
@@ -577,5 +583,87 @@ describe("ensureDetachedHubServer", () => {
 		} finally {
 			kill.mockRestore();
 		}
+	});
+
+	it("does not spawn a second daemon when a concurrent call holds the startup lock", async () => {
+		vi.useFakeTimers();
+		try {
+			let discoveryCallCount = 0;
+			readHubDiscovery.mockImplementation(async () => {
+				discoveryCallCount++;
+				// First caller gets undefined, then after a small async delay return valid record
+				if (discoveryCallCount <= 1) {
+					return undefined;
+				}
+				return {
+					url: "ws://127.0.0.1:5555/hub",
+					buildId: "current-build",
+					authToken: "shared-token",
+				};
+			});
+			probeHubServer.mockResolvedValue({
+				url: "ws://127.0.0.1:5555/hub",
+				buildId: "current-build",
+			});
+			verifyHubConnection.mockResolvedValue(true);
+			withHubStartupLock.mockImplementation(
+				async (_discoveryPath: string, callback: () => Promise<unknown>) => {
+					// Simulate lock serialization: first call proceeds, second waits briefly
+					const callCount =
+						(withHubStartupLock as unknown as { callCount?: number })
+							.callCount ?? 0;
+					(withHubStartupLock as unknown as { callCount?: number }).callCount =
+						callCount + 1;
+					if (callCount > 0) {
+						// Simulate the first caller holding the lock long enough
+						await new Promise((resolve) => setTimeout(resolve, 150));
+					}
+					return callback();
+				},
+			);
+
+			const { ensureDetachedHubServer } = await import(".");
+			const call1 = ensureDetachedHubServer("/workspace");
+			const call2 = ensureDetachedHubServer("/workspace");
+
+			await vi.runAllTimersAsync();
+			const result1 = await call1;
+			const result2 = await call2;
+
+			expect(result1).toEqual({
+				url: "ws://127.0.0.1:5555/hub",
+				authToken: "shared-token",
+			});
+			expect(result2).toEqual({
+				url: "ws://127.0.0.1:5555/hub",
+				authToken: "shared-token",
+			});
+			expect(spawn).toHaveBeenCalledOnce();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("reuses an existing compatible daemon despite a transient verifyHubConnection failure", async () => {
+		readHubDiscovery.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+			buildId: "current-build",
+			authToken: "shared-token",
+		});
+		probeHubServer.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+			buildId: "current-build",
+		});
+		verifyHubConnection.mockResolvedValue(true);
+
+		const { ensureDetachedHubServer } = await import(".");
+		const result = await ensureDetachedHubServer("/workspace");
+
+		expect(result).toEqual({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "shared-token",
+		});
+		expect(spawn).not.toHaveBeenCalled();
+		expect(verifyHubConnection).toHaveBeenCalledOnce();
 	});
 });
