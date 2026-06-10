@@ -12,7 +12,7 @@ import type { ChatState, MessageHandlers } from "../types/chatTypes"
  * Handles sending messages, button clicks, and task management
  */
 export function useMessageHandlers(messages: ClineMessage[], chatState: ChatState): MessageHandlers {
-	const { backgroundCommandRunning, turnState, hasUsableProvider } = useExtensionState()
+	const { backgroundCommandRunning, turnState } = useExtensionState()
 	const {
 		setInputValue,
 		activeQuote,
@@ -29,13 +29,6 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 	// Handle sending a message
 	const handleSendMessage = useCallback(
 		async (text: string, images: string[], files: string[]) => {
-			// Gate: block submission when there is no usable provider (no Cline
-			// auth AND no BYOK key). This is a defense-in-depth guard so the Enter
-			// key cannot bypass the disabled input/send button in InputSection.
-			if (!hasUsableProvider) {
-				console.log("[ChatView] handleSendMessage error: no usable provider (sign in or set up a provider)")
-			}
-
 			let messageToSend = text.trim()
 			const hasContent = messageToSend || images.length > 0 || files.length > 0
 
@@ -156,7 +149,6 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			messages,
 			clineAsk,
 			turnState,
-			hasUsableProvider,
 			activeQuote,
 			setInputValue,
 			setActiveQuote,

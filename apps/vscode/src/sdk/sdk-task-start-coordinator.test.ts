@@ -61,6 +61,26 @@ describe("SdkTaskStartCoordinator", () => {
 		expect(options.sessions.startNewSession).not.toHaveBeenCalled()
 	})
 
+	it("emits a plain chat error when session start fails (e.g. provider misconfigured)", async () => {
+		const { coordinator, options } = makeCoordinator()
+		options.sessions.startNewSession.mockRejectedValue(new Error("No model configured for provider openai"))
+
+		const sessionId = await coordinator.initTask("do something")
+
+		expect(sessionId).toBeUndefined()
+		expect(options.emitClineAuthError).not.toHaveBeenCalled()
+		expect(options.messages.emitSessionEvents).toHaveBeenCalledWith(
+			[
+				expect.objectContaining({
+					type: "say",
+					say: "error",
+					text: expect.stringContaining("No model configured for provider openai"),
+				}),
+			],
+			{ type: "status", payload: { sessionId: "", status: "error" } },
+		)
+	})
+
 	it.each([true, false])("forwards task useAutoCondense=%s into SDK session config inputs", async (useAutoCondense) => {
 		const { coordinator, options } = makeCoordinator()
 		const taskSettings = { useAutoCondense }
