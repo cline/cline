@@ -46,7 +46,8 @@ export class SdkSessionConfigBuilder {
 		return createTool({
 			name: "switch_to_act_mode",
 			description:
-				"Switch from plan mode to act mode. Call this after the user has confirmed they want to proceed with the plan. Do not call this proactively or before the user has agreed.",
+				"Switch from plan mode to act mode. Switching to act mode immediately starts executing the plan, so only call this after the user has explicitly approved the plan in a message sent AFTER you presented it (e.g. 'looks good', 'go ahead', 'switch to act mode'). " +
+				"Never call this in the same turn you present a plan, never call it proactively, and never treat the original task request as approval.",
 			inputSchema: {
 				type: "object",
 				properties: {},
@@ -54,6 +55,13 @@ export class SdkSessionConfigBuilder {
 			timeoutMs: 5000,
 			retryable: false,
 			maxRetries: 0,
+			// End the run cleanly right after the tool result instead of letting the
+			// loop start another iteration that the beforeModel stop hook would abort.
+			// An aborted run leaves a dangling api_req_started spinner behind, which the
+			// webview renders as "API Request Cancelled".
+			lifecycle: {
+				completesRun: true,
+			},
 			execute: async () => {
 				const currentMode = this.options.stateManager.getGlobalSettingsKey("mode")
 				if (currentMode === "act") {

@@ -65,6 +65,12 @@ import { SdkTaskHistory, sessionHistoryRecordToHistoryItem } from "./sdk-task-hi
 import { SdkTaskStartCoordinator } from "./sdk-task-start-coordinator"
 import { createVscodeSdkTelemetryHandle, type VscodeSdkTelemetryHandle } from "./sdk-telemetry"
 import { isToolAutoApproved } from "./sdk-tool-policies"
+import {
+	extractSdkUserText,
+	findSdkUserMessageIndexByOrdinal,
+	isSyntheticSdkUserMessage,
+	type SdkUserMessage,
+} from "./sdk-user-message-mapping"
 import { createTaskProxy, type TaskProxy } from "./task-proxy"
 import { syncTelemetrySettingFromSharedGlobalSettings } from "./telemetry-settings-sync"
 import { TurnStateTracker } from "./turn-state-tracker"
@@ -92,38 +98,6 @@ function metadataBoolean(metadata: SessionHistoryRecord["metadata"] | undefined,
 function metadataString(metadata: SessionHistoryRecord["metadata"] | undefined, key: string): string | undefined {
 	const value = metadata?.[key]
 	return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined
-}
-
-type SdkUserMessage = {
-	role?: unknown
-	content?: unknown
-}
-
-function extractSdkUserText(message: SdkUserMessage): string {
-	const { content } = message
-	if (typeof content === "string") {
-		return content.trim()
-	}
-	if (!Array.isArray(content)) {
-		return ""
-	}
-	return content
-		.map((block) => {
-			if (!block || typeof block !== "object") {
-				return ""
-			}
-			const typed = block as { type?: unknown; text?: unknown; content?: unknown }
-			if (typed.type === "text" && typeof typed.text === "string") {
-				return typed.text.trim()
-			}
-			if (typed.type === "file" && typeof typed.content === "string") {
-				return typed.content.trim()
-			}
-			return ""
-		})
-		.filter(Boolean)
-		.join("\n")
-		.trim()
 }
 
 function dateStringToTimestamp(value: string | null | undefined): number {
@@ -379,6 +353,15 @@ export class Controller {
 			emitClineAuthError: () => this.emitClineAuthError(),
 			resetMessageTranslator: () => this.resetMessageTranslatorAndFence(),
 			postStateToWebview: () => this.postStateToWebview(),
+			getTurnPhase: () => this.turnStateTracker.currentPhase,
+			resolveContextMentions: (text) => this.resolveContextMentions(text),
+			onAutoContinueStarting: () => {
+				this.turnStateTracker.set("streaming")
+				this.messageTranslatorState.clearTurnOutcome()
+			},
+			onAutoContinueFailed: () => {
+				this.turnStateTracker.set("error")
+			},
 		})
 		this.mcpTools = new SdkMcpCoordinator({
 			stateManager: this.stateManager,
@@ -398,6 +381,7 @@ export class Controller {
 			messages: this.messages,
 			taskHistory: this.taskHistory,
 			sessionConfigBuilder: this.sessionConfigBuilder,
+			waitForPendingModeRebuild: () => this.mode.waitForPendingRebuild(),
 			getTask: () => this.task,
 			createTempSessionHost: () => VscodeSessionHost.create({ mcpHub: this.mcpHub }),
 			getWorkspaceRoot: () => this.getWorkspaceRoot(),
@@ -408,6 +392,9 @@ export class Controller {
 			emitClineAuthError: () => this.emitClineAuthError(),
 			resetMessageTranslator: () => this.resetMessageTranslatorAndFence(),
 			postStateToWebview: () => this.postStateToWebview(),
+			onResumeFailed: () => {
+				this.turnStateTracker.set("error")
+			},
 		})
 		this.taskControl = new SdkTaskControlCoordinator({
 			sessions: this.sessions,
@@ -1044,14 +1031,7 @@ export class Controller {
 				await tempHost.dispose("editMessageAndRegenerate.readMessages")
 			}
 		}
-		let seenUsers = 0
-		const sdkTargetIndex = sdkMessages.findIndex((message) => {
-			if (message.role !== "user" || !extractSdkUserText(message)) {
-				return false
-			}
-			seenUsers += 1
-			return seenUsers === userOrdinal
-		})
+		const sdkTargetIndex = findSdkUserMessageIndexByOrdinal(sdkMessages, userOrdinal)
 		if (sdkTargetIndex === -1) {
 			throw new Error("Could not map edited message to persisted conversation history")
 		}
@@ -1059,7 +1039,9 @@ export class Controller {
 		const initialMessages = sdkMessages.slice(0, sdkTargetIndex) as Parameters<
 			VscodeSessionHost["start"]
 		>[0]["initialMessages"]
-		const firstUserMessage = sdkMessages.find((message) => message.role === "user" && extractSdkUserText(message))
+		const firstUserMessage = sdkMessages.find(
+			(message) => message.role === "user" && !!extractSdkUserText(message) && !isSyntheticSdkUserMessage(message),
+		)
 		const historyTitle =
 			userOrdinal === 1 ? editedText : extractSdkUserText(firstUserMessage ?? {}) || clineMessages[0]?.text || editedText
 		const cwd = await this.getWorkspaceRoot()
