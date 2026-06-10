@@ -69,10 +69,8 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 			}
 			setIsProcessing(true)
 
-			void messageHandlers.executeButtonAction(action, text, images, files).then(() => {
-				setIsProcessing(false)
-			}).catch(() => {
-				// Reset processing state on errors to avoid getting stuck.
+			void messageHandlers.executeButtonAction(action, text, images, files).finally(() => {
+				// Reset processing state after action completes (success or error)
 				setIsProcessing(false)
 			})
 		},
