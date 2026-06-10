@@ -6,6 +6,7 @@ import { useProviderModels } from "@/hooks/useProviderModels"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
 import { ModelInfoView } from "../common/ModelInfoView"
+import ReasoningEffortSelector from "../ReasoningEffortSelector"
 import { useProviderApiKeyField } from "../utils/useProviderApiKeyField"
 import { type ModelPickerSelection, ModelPickerWithManualEntry } from "./ModelPickerWithManualEntry"
 
@@ -95,6 +96,20 @@ export const GenericProviderSettings = ({
 						onSelect={handleModelSelect}
 						selectedModel={selectedModel}
 					/>
+
+					{selectedModel.modelInfo.supportsReasoning === true && (
+						<ReasoningEffortSelector
+							currentMode={currentMode}
+							onEffortChange={(effort) => {
+								void write({
+									reasoning: {
+										enabled: effort !== "none",
+										effort: effort !== "none" ? effort : undefined,
+									},
+								}).catch((err) => console.error(`Failed to update ${providerName} reasoning effort:`, err))
+							}}
+						/>
+					)}
 
 					<ModelInfoView
 						isPopup={isPopup}
