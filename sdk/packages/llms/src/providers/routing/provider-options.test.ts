@@ -1102,7 +1102,7 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			expect: [{ bucket: "cline", has: { reasoning: { enabled: false } } }],
 		},
 		{
-			name: "cline Fable 5 reasoning.enabled=false uses lowest supported reasoning",
+			name: "cline Claude Fable reasoning.enabled=false uses lowest supported reasoning",
 			request: {
 				providerId: "cline",
 				modelId: "anthropic/claude-fable-5",
