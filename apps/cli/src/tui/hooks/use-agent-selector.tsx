@@ -1,3 +1,4 @@
+import { sep } from "node:path";
 import { loadConfiguredAgentConfigs } from "@cline/core";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import type { DialogActions } from "@opentui-ui/dialog/react";
@@ -25,7 +26,7 @@ function loadAgentProfileEntries(config: Config): {
 			description: profile.description,
 			systemPrompt: profile.systemPrompt,
 			source:
-				workspaceRoot && profile.path?.startsWith(workspaceRoot)
+				workspaceRoot && profile.path?.startsWith(`${workspaceRoot}${sep}`)
 					? ("workspace" as const)
 					: ("global" as const),
 		})),
