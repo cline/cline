@@ -83,7 +83,6 @@ describe("applyInteractiveModeConfig", () => {
 		const config = makeConfig();
 		config.agentProfile = {
 			name: "reviewer",
-			description: "Reviews code",
 			systemPrompt: "You are a reviewer.",
 		};
 

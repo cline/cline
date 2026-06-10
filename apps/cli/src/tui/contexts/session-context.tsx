@@ -21,7 +21,6 @@ interface SessionContextValue {
 	uiMode: AgentMode;
 	autoApproveAll: boolean;
 	compactionMode: CliCompactionMode;
-	/** Name of the active agent profile, or null for the default Cline agent */
 	activeAgentName: string | null;
 	lastTotalTokens: number;
 	lastTotalCost: number;

@@ -68,11 +68,9 @@ export interface ClineSystemPromptOptions
 	/** Per-request system prompt override */
 	overridePrompt?: string;
 	/**
-	 * Agent-profile persona: replaces the coding-agent-specific prompting of
-	 * the default system prompt (the Cline persona and its working
-	 * guidelines) while keeping the agent harness (environment block,
-	 * tool-call loop contract, rules/metadata). Ignored when `overridePrompt`
-	 * is set or in yolo mode.
+	 * Agent-profile persona: replaces the default Cline persona and its
+	 * working guidelines while keeping the agent harness. Ignored when
+	 * `overridePrompt` is set or in yolo mode.
 	 */
 	personaPrompt?: string;
 	/** Provider ID — used to gate Cline-specific metadata injection */
@@ -109,9 +107,8 @@ export function buildClineSystemPrompt(
 	}
 
 	const persona = mode === "yolo" ? undefined : personaPrompt?.trim();
-	// When a persona is provided, compose the harness with the persona slot
-	// left in place so the persona body is inserted after every other
-	// placeholder replacement; `{{...}}` sequences inside it stay literal.
+	// Keep the persona slot in place and fill it last, so `{{...}}` sequences
+	// inside a persona body stay literal.
 	const basePrompt =
 		mode === "yolo"
 			? YOLO_CLINE_SYSTEM_PROMPT

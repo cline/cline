@@ -937,8 +937,7 @@ export async function runCli(): Promise<void> {
 				return;
 			}
 			if (args.systemPrompt) {
-				// Don't keep a profile around that the explicit prompt overrides:
-				// it would resurface on plan/act toggles and mislead the status bar.
+				// Don't store an unused profile: it would resurface on plan/act toggles.
 				writeln(
 					`${c.dim}[warn] --system overrides --agent; ignoring agent profile "${requestedAgentName}"${c.reset}`,
 				);
@@ -967,9 +966,7 @@ export async function runCli(): Promise<void> {
 				}
 				activeAgentProfile = {
 					name: profile.name,
-					description: profile.description,
 					systemPrompt: profile.systemPrompt,
-					path: profile.path,
 				};
 			}
 		}

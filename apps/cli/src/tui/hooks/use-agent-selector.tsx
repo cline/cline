@@ -24,7 +24,6 @@ function loadAgentProfileEntries(config: Config): {
 			name: profile.name,
 			description: profile.description,
 			systemPrompt: profile.systemPrompt,
-			path: profile.path,
 			source:
 				workspaceRoot && profile.path?.startsWith(workspaceRoot)
 					? ("workspace" as const)
@@ -100,9 +99,7 @@ export function useAgentSelector(opts: {
 			await withLoadingDialog(dialog, "Applying agent...", async () => {
 				await onAgentProfileChange({
 					name: profile.name,
-					description: profile.description,
 					systemPrompt: profile.systemPrompt,
-					path: profile.path,
 				});
 			});
 			session.setActiveAgentName(profile.name);

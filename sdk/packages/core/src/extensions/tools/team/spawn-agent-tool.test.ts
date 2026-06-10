@@ -323,7 +323,6 @@ describe("createSpawnAgentTool", () => {
 		const constructedConfig = agentConstructorSpy.mock.calls[0]?.[0] as {
 			systemPrompt: string;
 		};
-		// The spawn prompt fills the persona slot of the harness template.
 		expect(constructedConfig.systemPrompt.startsWith(inputSystemPrompt)).toBe(
 			true,
 		);

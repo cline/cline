@@ -124,7 +124,7 @@ export interface StatusBarProps {
 		deletions: number;
 	} | null;
 	onToggleMode?: () => void;
-	/** Name of the active agent profile; hidden when the default agent is active */
+	/** Active agent profile name; the indicator is hidden when unset */
 	agentName?: string | null;
 	onOpenAgent?: () => void;
 	variant?: "home" | "chat";

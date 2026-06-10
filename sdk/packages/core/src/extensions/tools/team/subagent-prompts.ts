@@ -26,11 +26,8 @@ export function buildSubAgentSystemPrompt(
 	config: DelegatedAgentRuntimeConfig,
 ): string {
 	const trimmedPrompt = prompt.trim();
-	// The spawn prompt fills the persona slot while the agent harness
-	// (environment block, tool-call loop contract, completion instructions)
-	// is preserved. The harness is provider-agnostic; Cline-specific
-	// workspace metadata stays gated on providerId inside
-	// buildClineSystemPrompt.
+	// The spawn prompt fills the persona slot; the provider-agnostic harness
+	// (env block, tool-call loop contract) is kept for every provider.
 	return buildClineSystemPrompt({
 		ide: config.clineIdeName || "Terminal",
 		workspaceRoot: config.cwd?.trim() || "/",

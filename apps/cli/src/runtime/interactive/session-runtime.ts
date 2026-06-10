@@ -363,8 +363,7 @@ export function createInteractiveSessionRuntime(input: {
 		profile: ActiveAgentProfile | undefined,
 	): Promise<void> => {
 		input.config.agentProfile = profile;
-		// Re-running the mode config keeps the system prompt and extraTools
-		// invariants consistent while threading the new persona.
+		// Re-apply the current mode so the system prompt picks up the persona.
 		await applyInteractiveModeConfig({
 			config: input.config,
 			mode: input.config.mode === "plan" ? "plan" : "act",

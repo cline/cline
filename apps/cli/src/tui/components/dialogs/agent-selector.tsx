@@ -14,9 +14,7 @@ export const DEFAULT_AGENT_ACTION = "__default_agent__";
 export interface AgentProfileOption {
 	name: string;
 	description?: string;
-	/** Profile body used as the agent persona */
 	systemPrompt: string;
-	path?: string;
 	source: "workspace" | "global";
 }
 

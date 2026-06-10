@@ -182,12 +182,6 @@ export {
 	parseUserCommandEnvelope,
 	xmlTagsRemoval,
 } from "./prompt/format";
-export type { ComposeClineSystemPromptInput } from "./prompt/system";
-export {
-	composeClineSystemPrompt,
-	DEFAULT_CLINE_PERSONA,
-	DEFAULT_CLINE_WORKING_GUIDELINES,
-} from "./prompt/system";
 export {
 	buildRemoteConfigSessionBlobUploadMetadata,
 	clearRemoteConfigSessionBlobUpload,

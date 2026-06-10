@@ -102,8 +102,6 @@ describe("buildClineSystemPrompt", () => {
 			personaPrompt: persona,
 			rules: "Real rules here.",
 		});
-		// The persona body is untouched while the harness placeholders still
-		// resolve to their real values.
 		expect(prompt.startsWith(persona)).toBe(true);
 		expect(prompt).toContain("1. Platform: linux");
 		expect(prompt).toContain("Real rules here.");

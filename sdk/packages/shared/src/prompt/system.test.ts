@@ -76,7 +76,6 @@ describe("composeClineSystemPrompt", () => {
 		);
 		expect(prompt).toContain("{{CLINE_RULES}}");
 		expect(prompt).toContain("{{CLINE_METADATA}}");
-		// Default coding persona and working guidelines are fully replaced.
 		expect(prompt).not.toContain("You are Cline, an AI coding agent.");
 		expect(prompt).not.toContain(DEFAULT_CLINE_WORKING_GUIDELINES);
 		// The guidelines slot collapses cleanly: env block flows into the
