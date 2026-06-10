@@ -77,8 +77,12 @@ export function formatProviderConfigHeaders(
 /**
  * Parse the single-line headers field. Entries are comma separated; each
  * entry splits at its first "=" so values may themselves contain "=".
- * Entries without a key are dropped (the form is deliberately forgiving;
- * provider errors are the authoritative feedback).
+ * Commas are reserved as entry separators, so header values containing a
+ * comma (e.g. Accept=text/html, application/json) are not supported here:
+ * the text after the comma parses as a new entry and is dropped if it has
+ * no "=". Use `cline auth -H` for such values. Entries without a key are
+ * dropped (the form is deliberately forgiving; provider errors are the
+ * authoritative feedback).
  */
 export function parseProviderConfigHeaders(
 	value: string | undefined,
