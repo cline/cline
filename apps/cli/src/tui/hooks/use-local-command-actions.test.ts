@@ -13,6 +13,7 @@ function makeActions(
 		openConfig: vi.fn(),
 		openMcpManager: vi.fn(async () => false),
 		openModelSelector: vi.fn(),
+		openAgentSelector: vi.fn(),
 		openSkills: vi.fn(),
 		runCompact: vi.fn(),
 		runFork: vi.fn(),
@@ -43,6 +44,21 @@ describe("runLocalSlashCommandAction", () => {
 
 		expect(handled).toBe(true);
 		expect(openSkills).toHaveBeenCalledWith(invocation);
+	});
+
+	it("opens the agent selector with agents and the agent alias", () => {
+		for (const name of ["agents", "agent"]) {
+			const openAgentSelector = vi.fn();
+			const actions = makeActions({ openAgentSelector });
+
+			const handled = runLocalSlashCommandAction({
+				name,
+				...actions,
+			});
+
+			expect(handled).toBe(true);
+			expect(openAgentSelector).toHaveBeenCalledOnce();
+		}
 	});
 
 	it("opens settings to the plugins tab with plugins", () => {

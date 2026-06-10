@@ -17,6 +17,20 @@ export type CliReasoningEffort = NonNullable<
 >;
 export type CliCompactionMode = "agentic" | "basic" | "off";
 
+/**
+ * An agent profile from .cline/agents applied to the main Cline agent for
+ * the current session. Session-only: never persisted to settings. Only the
+ * name/description/body of a profile apply here; providerId/modelId/tools
+ * remain subagent-spawn concerns.
+ */
+export interface ActiveAgentProfile {
+	name: string;
+	description?: string;
+	/** Profile body, captured at selection time (survives file deletion mid-session) */
+	systemPrompt: string;
+	path?: string;
+}
+
 export interface Config extends Omit<CoreSessionConfig, "apiKey" | "mode"> {
 	apiKey: string;
 	knownModels?: Record<string, Llms.ModelInfo>;
@@ -30,6 +44,7 @@ export interface Config extends Omit<CoreSessionConfig, "apiKey" | "mode"> {
 	mode: CliAgentMode;
 	defaultToolAutoApprove: boolean;
 	toolPolicies: Record<string, ToolPolicy>;
+	agentProfile?: ActiveAgentProfile;
 }
 
 export interface ActiveCliSession {
@@ -96,4 +111,6 @@ export interface ParsedArgs {
 	teamName?: string;
 	defaultToolAutoApprove: boolean;
 	autoApproveOverride?: boolean;
+	/** Agent profile name from .cline/agents to apply to the main agent */
+	agent?: string;
 }

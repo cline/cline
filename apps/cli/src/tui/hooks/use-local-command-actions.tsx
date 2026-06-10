@@ -23,6 +23,7 @@ export function useLocalCommandActions(input: {
 	openConfig: (options?: OpenConfigOptions) => void;
 	openMcpManager: () => Promise<boolean>;
 	openModelSelector: () => void;
+	openAgentSelector: () => void;
 	openSkills: (invocation?: LocalSlashCommandInvocation) => void;
 	refocusTextarea: () => void;
 	setAppView: (view: AppView) => void;
@@ -43,6 +44,7 @@ export function useLocalCommandActions(input: {
 		openConfig,
 		openMcpManager,
 		openModelSelector,
+		openAgentSelector,
 		openSkills,
 		refocusTextarea,
 		setAppView,
@@ -185,6 +187,7 @@ export function useLocalCommandActions(input: {
 				openConfig,
 				openMcpManager,
 				openModelSelector,
+				openAgentSelector,
 				openSkills,
 				runCompact,
 				runFork,
@@ -205,6 +208,7 @@ export function useLocalCommandActions(input: {
 			openHelp,
 			openHistory,
 			openModelSelector,
+			openAgentSelector,
 			openSkills,
 			runCompact,
 			runFork,

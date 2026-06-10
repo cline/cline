@@ -78,4 +78,37 @@ describe("applyInteractiveModeConfig", () => {
 		expect(config.extraTools).toEqual([]);
 		expect(config.systemPrompt).toBe("system prompt for act");
 	});
+
+	it("threads the active agent profile persona across mode switches", async () => {
+		const config = makeConfig();
+		config.agentProfile = {
+			name: "reviewer",
+			description: "Reviews code",
+			systemPrompt: "You are a reviewer.",
+		};
+
+		await applyInteractiveModeConfig({
+			config,
+			mode: "plan",
+			switchToActModeTool,
+		});
+		expect(resolveSystemPrompt).toHaveBeenLastCalledWith({
+			cwd: config.cwd,
+			providerId: config.providerId,
+			mode: "plan",
+			agentPersona: "You are a reviewer.",
+		});
+
+		await applyInteractiveModeConfig({
+			config,
+			mode: "act",
+			switchToActModeTool,
+		});
+		expect(resolveSystemPrompt).toHaveBeenLastCalledWith({
+			cwd: config.cwd,
+			providerId: config.providerId,
+			mode: "act",
+			agentPersona: "You are a reviewer.",
+		});
+	});
 });

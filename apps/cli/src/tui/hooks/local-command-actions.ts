@@ -7,6 +7,7 @@ export interface LocalSlashCommandActionInput {
 	openConfig: (options?: OpenConfigOptions) => void;
 	openMcpManager: () => Promise<boolean>;
 	openModelSelector: () => void;
+	openAgentSelector: () => void;
 	openSkills: (invocation?: LocalSlashCommandInvocation) => void;
 	invocation?: LocalSlashCommandInvocation;
 	runCompact: () => void;
@@ -43,6 +44,10 @@ export function runLocalSlashCommandAction(
 	}
 	if (normalized === "model") {
 		input.openModelSelector();
+		return true;
+	}
+	if (normalized === "agents" || normalized === "agent") {
+		input.openAgentSelector();
 		return true;
 	}
 	if (normalized === "compact") {

@@ -42,7 +42,7 @@ import {
 	captureCliExtensionActivated,
 	getCliTelemetryService,
 } from "./utils/telemetry";
-import type { Config } from "./utils/types";
+import type { ActiveAgentProfile, Config } from "./utils/types";
 import { runConnectWizard } from "./wizards/connect";
 import { runMcpWizard } from "./wizards/mcp";
 import { runScheduleWizard } from "./wizards/schedule";
@@ -928,6 +928,47 @@ export async function runCli(): Promise<void> {
 			cwd,
 		});
 
+		let activeAgentProfile: ActiveAgentProfile | undefined;
+		const requestedAgentName = args.agent?.trim();
+		if (requestedAgentName) {
+			if (isYoloMode) {
+				writeErr("--agent is not supported in yolo mode");
+				process.exitCode = 1;
+				return;
+			}
+			const { loadConfiguredAgentConfigs } = await import("@cline/core");
+			const { configs, errors } = loadConfiguredAgentConfigs({ workspaceRoot });
+			const profile = configs.find(
+				(candidate) =>
+					candidate.name.trim().toLowerCase() ===
+					requestedAgentName.toLowerCase(),
+			);
+			if (!profile) {
+				const availableNames = configs.map((candidate) => candidate.name);
+				writeErr(
+					availableNames.length > 0
+						? `agent profile "${requestedAgentName}" not found (available: ${availableNames.join(", ")})`
+						: `agent profile "${requestedAgentName}" not found (no agent profiles in .cline/agents)`,
+				);
+				for (const error of errors) {
+					writeErr(`failed to load ${error.path}: ${error.error.message}`);
+				}
+				process.exitCode = 1;
+				return;
+			}
+			if (args.systemPrompt) {
+				writeln(
+					`${c.dim}[warn] both --system and --agent provided; --system overrides the agent profile prompt${c.reset}`,
+				);
+			}
+			activeAgentProfile = {
+				name: profile.name,
+				description: profile.description,
+				systemPrompt: profile.systemPrompt,
+				path: profile.path,
+			};
+		}
+
 		const config: Config = {
 			providerId: provider,
 			modelId:
@@ -942,6 +983,7 @@ export async function runCli(): Promise<void> {
 				explicitSystemPrompt: args.systemPrompt,
 				providerId: provider,
 				mode: args.mode ?? "act",
+				agentPersona: activeAgentProfile?.systemPrompt,
 			}),
 			execution: {
 				maxConsecutiveMistakes: args.retries ?? 3,
@@ -964,6 +1006,7 @@ export async function runCli(): Promise<void> {
 			telemetry: getCliTelemetryService(loggerAdapter.core),
 			defaultToolAutoApprove,
 			toolPolicies,
+			agentProfile: activeAgentProfile,
 			enableSpawnAgent: !isYoloMode,
 			enableAgentTeams: !isYoloMode,
 			enableTools: true,

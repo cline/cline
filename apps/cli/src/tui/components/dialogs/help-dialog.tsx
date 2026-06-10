@@ -122,6 +122,12 @@ const HELP_ROWS: HelpRow[] = [
 	},
 	{
 		kind: "entry",
+		id: "c-agents",
+		key: "/agents",
+		desc: "Switch agent profile",
+	},
+	{
+		kind: "entry",
 		id: "c-settings",
 		key: "/settings",
 		desc: "Open interactive config browser",

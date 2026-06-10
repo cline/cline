@@ -2,6 +2,7 @@ export type CommandPaletteAction =
 	| "settings"
 	| "change-model"
 	| "change-provider"
+	| "agents"
 	| "account"
 	| "mcp"
 	| "plugins"
@@ -56,6 +57,13 @@ const ACTION_ITEMS: Array<{
 		shortcut: "Opt+P",
 		description: "Switch provider and configure credentials",
 		keywords: ["provider", "api key", "account", "auth"],
+	},
+	{
+		action: "agents",
+		label: "Switch Agent",
+		shortcut: "Opt+T",
+		description: "Use an agent profile from .cline/agents",
+		keywords: ["agent", "agents", "profile", "persona", "subagent"],
 	},
 	{
 		action: "mcp",

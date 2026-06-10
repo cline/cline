@@ -21,7 +21,7 @@ import type {
 import { createRuntimeHooks } from "../../utils/hooks";
 import { setActiveCliSession } from "../../utils/output";
 import { loadInteractiveResumeMessages } from "../../utils/resume";
-import type { Config } from "../../utils/types";
+import type { ActiveAgentProfile, Config } from "../../utils/types";
 import { markAbortInProgress } from "../active-runtime";
 import type {
 	PendingPromptSnapshot,
@@ -359,6 +359,20 @@ export function createInteractiveSessionRuntime(input: {
 		await restartWithCurrentMessages();
 	};
 
+	const applyAgentProfile = async (
+		profile: ActiveAgentProfile | undefined,
+	): Promise<void> => {
+		input.config.agentProfile = profile;
+		// Re-running the mode config keeps the system prompt and extraTools
+		// invariants consistent while threading the new persona.
+		await applyInteractiveModeConfig({
+			config: input.config,
+			mode: input.config.mode === "plan" ? "plan" : "act",
+			switchToActModeTool: input.switchToActModeTool,
+		});
+		await restartWithCurrentMessages();
+	};
+
 	const sendCurrentTurn = async (
 		turnInput: CurrentTurnInput,
 	): Promise<CurrentTurnResult> => {
@@ -639,6 +653,7 @@ export function createInteractiveSessionRuntime(input: {
 		getCheckpointData,
 		restoreCheckpoint,
 		applyMode,
+		applyAgentProfile,
 		resetAbortRequest,
 		abortAll,
 		cleanup,

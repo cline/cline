@@ -17,6 +17,8 @@ export type LocalSlashCommandName =
 	| "plugins"
 	| "account"
 	| "model"
+	| "agents"
+	| "agent"
 	| "compact"
 	| "skills"
 	| "fork"
@@ -61,6 +63,15 @@ const TUI_LOCAL_COMMANDS: Array<{
 	{
 		name: "model",
 		description: "Switch model or provider",
+	},
+	{
+		name: "agents",
+		description: "Switch agent profile",
+	},
+	{
+		name: "agent",
+		description: "Switch agent profile",
+		visible: false,
 	},
 	{
 		name: "account",
@@ -112,6 +123,7 @@ const TUI_LOCAL_COMMANDS: Array<{
 const SYSTEM_COMMAND_ORDER = [
 	"settings",
 	"model",
+	"agents",
 	"account",
 	"mcp",
 	"plugins",

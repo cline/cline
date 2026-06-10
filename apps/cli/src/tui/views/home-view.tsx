@@ -46,6 +46,7 @@ export function HomeView(props: {
 	textareaRef?: React.MutableRefObject<TextareaHandle | null>;
 	autocomplete?: AutocompleteDropdownProps;
 	onToggleMode: () => void;
+	onOpenAgentSelector: () => void;
 }) {
 	const {
 		config,
@@ -156,6 +157,8 @@ export function HomeView(props: {
 								gitBranch={repoStatus.branch}
 								gitDiffStats={repoStatus.diffStats}
 								onToggleMode={props.onToggleMode}
+								agentName={session.activeAgentName}
+								onOpenAgent={props.onOpenAgentSelector}
 								variant="home"
 							/>
 						</box>

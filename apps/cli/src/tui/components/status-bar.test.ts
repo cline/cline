@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
 	createContextBar,
+	formatStatusBarAgentName,
 	formatStatusBarUsageText,
 	resolveContextBarFilledForeground,
 } from "./status-bar";
@@ -46,6 +47,21 @@ describe("createContextBar", () => {
 	it("uses explicit white when terminal foreground would inherit gray", () => {
 		expect(resolveContextBarFilledForeground(undefined)).toBe("#ffffff");
 		expect(resolveContextBarFilledForeground("#1a1a1a")).toBe("#1a1a1a");
+	});
+});
+
+describe("formatStatusBarAgentName", () => {
+	it("keeps short names intact", () => {
+		expect(formatStatusBarAgentName("reviewer")).toBe("reviewer");
+	});
+
+	it("truncates long names with an ellipsis", () => {
+		expect(formatStatusBarAgentName("documentation-specialist")).toBe(
+			"documentation...",
+		);
+		expect(formatStatusBarAgentName("documentation-specialist").length).toBe(
+			16,
+		);
 	});
 });
 

@@ -28,6 +28,8 @@ export async function resolveSystemPrompt(input: {
 	providerId?: string;
 	rules?: string;
 	mode?: AgentMode;
+	/** Agent profile body that replaces the persona slot of the base prompt */
+	agentPersona?: string;
 }): Promise<string> {
 	const metadata = await buildWorkspaceMetadata(input.cwd);
 	let rules = mergeRulesForSystemPrompt(undefined, input.rules);
@@ -45,6 +47,7 @@ export async function resolveSystemPrompt(input: {
 		mode: input.mode,
 		providerId: input.providerId,
 		overridePrompt: input.explicitSystemPrompt,
+		personaPrompt: input.agentPersona,
 		platform:
 			(typeof process !== "undefined" && process?.platform) || "unknown",
 	});
