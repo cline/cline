@@ -1021,25 +1021,36 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const onModeToggle = useCallback(() => {
 			void (async () => {
 				const convertedProtoMode = mode === "plan" ? PlanActMode.ACT : PlanActMode.PLAN
+				const submittedText = inputValue
+				const submittedImages = selectedImages
+				const submittedFiles = selectedFiles
 				const response = await StateServiceClient.togglePlanActModeProto(
 					TogglePlanActModeRequest.create({
 						mode: convertedProtoMode,
 						chatContent: {
-							message: inputValue.trim() ? inputValue : undefined,
-							images: selectedImages,
-							files: selectedFiles,
+							message: submittedText.trim() ? submittedText : undefined,
+							images: submittedImages,
+							files: submittedFiles,
 						},
 					}),
 				)
 				// Focus the textarea after mode toggle with slight delay
 				setTimeout(() => {
 					if (response.value) {
-						setInputValue("")
+						// The toggle consumed the composer content as the continuation
+						// message. Clear only what was submitted: the rebuild can take a
+						// moment and the user may have typed or attached new content in
+						// the meantime, which must not be wiped.
+						if ((textAreaRef.current?.value ?? "") === submittedText) {
+							setInputValue("")
+						}
+						setSelectedImages((current) => (current === submittedImages ? [] : current))
+						setSelectedFiles((current) => (current === submittedFiles ? [] : current))
 					}
 					textAreaRef.current?.focus()
 				}, 100)
 			})()
-		}, [mode, inputValue, selectedImages, selectedFiles, setInputValue])
+		}, [mode, inputValue, selectedImages, selectedFiles, setInputValue, setSelectedImages, setSelectedFiles])
 
 		useShortcut(usePlatform().togglePlanActKeys, onModeToggle, { disableTextInputs: false }) // important that we don't disable the text input here
 
