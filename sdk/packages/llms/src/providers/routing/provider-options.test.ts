@@ -1101,6 +1101,20 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			context: { family: "kimi-k2.6" },
 			expect: [{ bucket: "cline", has: { reasoning: { enabled: false } } }],
 		},
+		{
+			name: "cline Claude Fable reasoning.enabled=false uses lowest supported reasoning",
+			request: {
+				providerId: "cline",
+				modelId: "anthropic/claude-fable-5",
+				reasoning: { enabled: false },
+			},
+			expect: [
+				{
+					bucket: "cline",
+					has: { reasoning: { max_tokens: 1024 } },
+				},
+			],
+		},
 		// OpenRouter owns the reasoning object regardless of Moonshot family.
 		{
 			name: "openrouter non-K2.6 Moonshot Kimi reasoning.enabled=false -> reasoning.exclude",
