@@ -4,6 +4,7 @@ import {
 	mkdtempSync,
 	readFileSync,
 	rmSync,
+	statSync,
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -205,6 +206,48 @@ describe("connector restart queue", () => {
 			},
 		]);
 	});
+
+	it.skipIf(process.platform === "win32")(
+		"writes the restart queue owner-only",
+		async () => {
+			const dataDir = mkdtempSync(join(tmpdir(), "connector-restart-test-"));
+			tempDirs.push(dataDir);
+			mockResolveClineDataDir.mockReturnValue(dataDir);
+			const statePath = join(dataDir, "connectors", "telegram", "bot.json");
+			const queuePath = join(dataDir, "connectors", "restart-queue.json");
+			mkdirSync(join(dataDir, "connectors", "telegram"), { recursive: true });
+			writeFileSync(
+				statePath,
+				JSON.stringify({
+					pid: 12345,
+					rpcAddress: "ws://127.0.0.1:57648/hub",
+					restart: {
+						connector: "telegram",
+						args: ["--bot-token", "secret"],
+					},
+				}),
+				"utf8",
+			);
+			const alive = new Set([12345]);
+			vi.spyOn(process, "kill").mockImplementation((pid, signal) => {
+				if (signal === 0 || signal === undefined) {
+					if (alive.has(Number(pid))) {
+						return true;
+					}
+					throw Object.assign(new Error("missing"), { code: "ESRCH" });
+				}
+				alive.delete(Number(pid));
+				return true;
+			});
+
+			await stopConnectorsForHubs(["ws://127.0.0.1:57648/hub"], {
+				writeln: () => {},
+				writeErr: () => {},
+			});
+
+			expect(statSync(queuePath).mode & 0o777).toBe(0o600);
+		},
+	);
 
 	it("claims queue entries before launching connectors", async () => {
 		const dataDir = mkdtempSync(join(tmpdir(), "connector-restart-test-"));

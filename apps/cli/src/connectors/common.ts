@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import {
+	chmodSync,
 	closeSync,
 	existsSync,
 	openSync,
@@ -271,7 +272,20 @@ export function readJsonFile<T>(path: string, fallback: T): T {
 
 export function writeJsonFile(path: string, value: unknown): void {
 	ensureParentDir(path);
-	writeFileSync(path, JSON.stringify(value, null, 2), "utf8");
+	// Connector state and the restart queue persist raw CLI args, which can
+	// include secrets like bot tokens. Recreate the file owner-only, matching
+	// the discipline used for hub discovery records. The mode option only
+	// applies on create, so remove any existing file first.
+	rmSync(path, { force: true });
+	writeFileSync(path, JSON.stringify(value, null, 2), {
+		encoding: "utf8",
+		mode: 0o600,
+	});
+	try {
+		chmodSync(path, 0o600);
+	} catch {
+		// Best-effort tightening on filesystems without chmod support.
+	}
 }
 
 export function removeFile(path: string): void {
