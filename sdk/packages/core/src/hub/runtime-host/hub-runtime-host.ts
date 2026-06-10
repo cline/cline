@@ -1301,6 +1301,22 @@ export class HubRuntimeHost implements RuntimeHost {
 			{ sessionId: target, state },
 			target,
 		);
+		if (!reply.ok) {
+			captureSdkError(this.telemetry, {
+				component: "core",
+				operation: "hub.runtime_host.update_session_compaction_state",
+				error: new Error(
+					hubReplyErrorMessage(reply, "session.compaction.update"),
+				),
+				severity: "warn",
+				handled: true,
+				context: {
+					command: "session.compaction.update",
+					sessionId: target,
+					errorCode: reply.error?.code,
+				},
+			});
+		}
 		return {
 			updated: reply.ok && reply.payload?.updated === true,
 		};

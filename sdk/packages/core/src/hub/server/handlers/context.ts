@@ -183,6 +183,9 @@ export function ensureSessionState(
 		if (options.interactive !== undefined) {
 			existing.interactive = options.interactive;
 		}
+		if (role === "creator" && !existing.createdByClientId) {
+			existing.createdByClientId = clientId;
+		}
 		if (!existing.participants.has(clientId)) {
 			existing.participants.set(clientId, {
 				clientId,

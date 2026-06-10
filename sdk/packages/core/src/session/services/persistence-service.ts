@@ -568,9 +568,7 @@ export class UnifiedSessionPersistenceService {
 				children.map(async (child) => {
 					await deleteCheckpointRefs(child.cwd, child.sessionId);
 					unlinkIfExists(child.messagesPath);
-					await this.manifestStore.deleteSessionCompactionState(
-						child.sessionId,
-					);
+					await this.deleteSessionCompactionStateIfExists(child.sessionId);
 					unlinkIfExists(
 						this.manifestStore.artifacts.sessionManifestPath(
 							child.sessionId,
@@ -585,7 +583,7 @@ export class UnifiedSessionPersistenceService {
 		await deleteCheckpointRefs(row.cwd, id);
 
 		unlinkIfExists(row.messagesPath);
-		await this.manifestStore.deleteSessionCompactionState(id);
+		await this.deleteSessionCompactionStateIfExists(id);
 		unlinkIfExists(this.manifestStore.artifacts.sessionManifestPath(id, false));
 		if (row.isSubagent) {
 			this.manifestStore.artifacts.removeSessionDirIfEmpty(id);
@@ -603,5 +601,13 @@ export class UnifiedSessionPersistenceService {
 			}
 		}
 		return { deleted: true };
+	}
+
+	private async deleteSessionCompactionStateIfExists(
+		sessionId: string,
+	): Promise<void> {
+		try {
+			await this.manifestStore.deleteSessionCompactionState(sessionId);
+		} catch {}
 	}
 }
