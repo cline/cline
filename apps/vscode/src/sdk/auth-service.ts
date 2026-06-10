@@ -460,6 +460,14 @@ export class AuthService {
 			return ProtoString.create({ value: "Already authenticated" })
 		}
 
+		// E2E test mode: authenticate against the local mock API server instead
+		// of loginClineOAuth(), which opens a real browser window the tests can't
+		// interact with. Replaces classic AuthServiceMock (see origin/main
+		// src/services/auth/AuthServiceMock.ts).
+		if (process.env.E2E_TEST === "true") {
+			return this.createMockAuthRequest()
+		}
+
 		let resolveAuthMessage!: (message: string) => void
 		let rejectAuthMessage!: (error: unknown) => void
 		const authMessagePromise = new Promise<string>((resolve, reject) => {
@@ -517,6 +525,72 @@ export class AuthService {
 
 		const { String: ProtoString } = await import("@shared/proto/cline/common")
 		return ProtoString.create({ value: await authMessagePromise })
+	}
+
+	/**
+	 * E2E test login: exchange a well-known test code with the local mock API
+	 * server (src/test/e2e/fixtures/server) for tokens, with no browser
+	 * interaction. Replaces classic AuthServiceMock.createAuthRequest().
+	 */
+	private async createMockAuthRequest(): Promise<String> {
+		if (ClineEnv.config().environment !== "local") {
+			throw new Error("E2E mock auth is only available when CLINE_ENVIRONMENT=local")
+		}
+
+		const apiBaseUrl = ClineEnv.config().apiBaseUrl
+		const tokenUrl = new URL(CLINE_API_ENDPOINT.TOKEN_EXCHANGE, apiBaseUrl)
+		const response = await fetch(tokenUrl.toString(), {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				...(await buildBasicClineHeaders()),
+			},
+			body: JSON.stringify({
+				code: "test-personal-token",
+				grantType: "authorization_code",
+			}),
+		})
+		if (!response.ok) {
+			throw new Error(`Mock server authentication failed: ${response.status} ${response.statusText}`)
+		}
+		const responseJSON = await response.json()
+		const tokenData = responseJSON?.data
+		if (!responseJSON?.success || !tokenData?.accessToken) {
+			throw new Error("Invalid response from mock server")
+		}
+
+		this._clineAuthInfo = {
+			idToken: tokenData.accessToken,
+			refreshToken: tokenData.refreshToken,
+			expiresAt: new Date(tokenData.expiresAt).getTime() / 1000,
+			userInfo: {
+				id: tokenData.userInfo?.clineUserId || tokenData.userInfo?.subject || "",
+				email: tokenData.userInfo?.email || "",
+				displayName: tokenData.userInfo?.name || "",
+				createdAt: new Date().toISOString(),
+				organizations: tokenData.userInfo?.organizations ?? [],
+				appBaseUrl: ClineEnv.config().appBaseUrl,
+				subject: tokenData.userInfo?.subject,
+			},
+			provider: "cline",
+			startedAt: Date.now(),
+		}
+		this._authenticated = true
+
+		// Persist to providers.json so session config resolution
+		// (resolveApiKey) and provider-usability checks see the credentials.
+		writeClineCredentials({
+			accessToken: tokenData.accessToken,
+			refreshToken: tokenData.refreshToken,
+			expiresAt: new Date(tokenData.expiresAt).getTime(),
+			accountId: this._clineAuthInfo.userInfo.id,
+		})
+
+		await this.sendAuthStatusUpdate()
+		Logger.log(`[SdkAuthService] E2E mock login completed as ${this._clineAuthInfo.userInfo.email}`)
+
+		const { String: ProtoString } = await import("@shared/proto/cline/common")
+		return ProtoString.create({ value: apiBaseUrl })
 	}
 
 	/**
