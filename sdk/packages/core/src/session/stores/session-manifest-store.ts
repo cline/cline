@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
 	appendFileSync,
 	existsSync,
@@ -5,6 +6,7 @@ import {
 	readFileSync,
 	writeFileSync,
 } from "node:fs";
+import { mkdir, open, readFile, rename, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type * as LlmsProviders from "@cline/llms";
 import type { BasicLogger } from "@cline/shared";
@@ -21,9 +23,70 @@ import type {
 	StoredMessageWithMetadata,
 } from "../../types/session";
 import {
+	parseSessionCompactionState,
+	type SessionCompactionState,
+	SessionCompactionStateSchema,
+} from "../models/session-compaction";
+import {
 	type SessionManifest,
 	SessionManifestSchema,
 } from "../models/session-manifest";
+
+async function fsyncBestEffort(path: string): Promise<void> {
+	let handle: Awaited<ReturnType<typeof open>> | undefined;
+	try {
+		handle = await open(path, "r");
+		await handle.sync();
+	} catch {
+		// Directory fsync is not available on all platforms/filesystems.
+	} finally {
+		if (handle !== undefined) {
+			try {
+				await handle.close();
+			} catch {
+				// Best-effort durability only.
+			}
+		}
+	}
+}
+
+async function writeFileAtomic(path: string, contents: string): Promise<void> {
+	await mkdir(dirname(path), { recursive: true });
+	const tempPath = `${path}.${process.pid}.${randomUUID()}.tmp`;
+	let handle: Awaited<ReturnType<typeof open>> | undefined;
+	try {
+		handle = await open(tempPath, "w");
+		await handle.writeFile(contents, "utf8");
+		await handle.sync();
+		await handle.close();
+		handle = undefined;
+		await rename(tempPath, path);
+		await fsyncBestEffort(dirname(path));
+	} catch (error) {
+		if (handle !== undefined) {
+			try {
+				await handle.close();
+			} catch {
+				// Preserve the original write error.
+			}
+		}
+		try {
+			await rm(tempPath, { force: true });
+		} catch {
+			// Preserve the original write error.
+		}
+		throw error;
+	}
+}
+
+function isNotFoundError(error: unknown): boolean {
+	return (
+		typeof error === "object" &&
+		error !== null &&
+		"code" in error &&
+		error.code === "ENOENT"
+	);
+}
 
 export class SessionManifestStore {
 	readonly artifacts: SessionArtifacts;
@@ -133,6 +196,50 @@ export class SessionManifestStore {
 				error,
 			});
 		}
+	}
+
+	private resolveCompactionPath(sessionId: string): string {
+		const { manifest } = this.readManifestFile(sessionId);
+		return (
+			manifest?.compaction_path?.trim() ||
+			this.artifacts.sessionCompactionPath(sessionId)
+		);
+	}
+
+	async readSessionCompactionState(
+		sessionId: string,
+	): Promise<SessionCompactionState | undefined> {
+		const path = this.resolveCompactionPath(sessionId);
+		try {
+			return parseSessionCompactionState(
+				JSON.parse(await readFile(path, "utf8")) as unknown,
+			);
+		} catch (error) {
+			if (isNotFoundError(error)) {
+				return undefined;
+			}
+			this.logger?.debug("Ignoring invalid session compaction state", {
+				sessionId,
+				path,
+				error,
+				recovery:
+					"Canonical history is unchanged; deleting the sidecar is safe.",
+			});
+			return undefined;
+		}
+	}
+
+	async persistSessionCompactionState(
+		sessionId: string,
+		state: SessionCompactionState,
+	): Promise<void> {
+		const path = this.resolveCompactionPath(sessionId);
+		const payload = SessionCompactionStateSchema.parse(state);
+		await writeFileAtomic(path, `${JSON.stringify(payload, null, 2)}\n`);
+	}
+
+	async deleteSessionCompactionState(sessionId: string): Promise<void> {
+		await rm(this.resolveCompactionPath(sessionId), { force: true });
 	}
 
 	appendStaleSessionHookLog(
