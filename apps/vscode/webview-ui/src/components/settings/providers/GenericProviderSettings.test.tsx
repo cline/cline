@@ -1,5 +1,6 @@
 import { ApiFormat } from "@shared/proto/cline/models"
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import type { ChangeEventHandler, ReactNode } from "react"
 import { describe, expect, it, vi } from "vitest"
 import { useProviderConfig } from "@/hooks/useProviderConfig"
 import { useProviderModels } from "@/hooks/useProviderModels"
@@ -12,6 +13,41 @@ vi.mock("@/hooks/useProviderModels", () => ({
 vi.mock("@/hooks/useProviderConfig", () => ({
 	useProviderConfig: vi.fn(),
 }))
+
+// The reasoning effort selector reads the extension state for the current
+// mode-specific reasoning effort value.
+vi.mock("@/context/ExtensionStateContext", () => ({
+	useExtensionState: () => ({ apiConfiguration: {}, planActSeparateModelsSetting: false }),
+}))
+
+// Render the dropdown web components as native elements so value/change
+// behavior is observable in jsdom. Other toolkit components stay real.
+vi.mock("@vscode/webview-ui-toolkit/react", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@vscode/webview-ui-toolkit/react")>()
+	return {
+		...actual,
+		VSCodeDropdown: ({
+			children,
+			id,
+			onChange,
+			value,
+			"aria-label": ariaLabel,
+		}: {
+			children?: ReactNode
+			id?: string
+			onChange?: ChangeEventHandler<HTMLSelectElement>
+			value?: string
+			"aria-label"?: string
+		}) => (
+			<select aria-label={ariaLabel} id={id} onChange={onChange} value={value}>
+				{children}
+			</select>
+		),
+		VSCodeOption: ({ children, value }: { children?: ReactNode; value?: string }) => (
+			<option value={value}>{children}</option>
+		),
+	}
+})
 
 describe("GenericProviderSettings", () => {
 	it("renders catalog-backed provider settings and commits full model selections", async () => {
@@ -51,6 +87,7 @@ describe("GenericProviderSettings", () => {
 		)
 
 		expect(screen.getByLabelText("Model")).toHaveValue("deepseek-chat")
+		expect(screen.queryByText("Reasoning Effort")).not.toBeInTheDocument()
 		fireEvent.change(screen.getByLabelText("Model"), { target: { value: "deepseek-reasoner" } })
 
 		await waitFor(() => expect(commitSelection).toHaveBeenCalledTimes(1))
@@ -61,6 +98,42 @@ describe("GenericProviderSettings", () => {
 		})
 		expect(useProviderModels).toHaveBeenCalledWith("deepseek")
 		expect(useProviderConfig).toHaveBeenCalledWith("deepseek")
+	})
+
+	it("renders a reasoning effort selector when the selected model supports reasoning", () => {
+		vi.mocked(useProviderModels).mockReturnValue({
+			models: {
+				"deepseek-reasoner": {
+					name: "DeepSeek Reasoner",
+					supportsPromptCache: true,
+					contextWindow: 128_000,
+					supportsReasoning: true,
+				},
+			},
+			defaultModelId: "deepseek-reasoner",
+			isLoading: false,
+			isStale: false,
+			error: undefined,
+			refresh: vi.fn(),
+			fingerprint: "fingerprint",
+		})
+		vi.mocked(useProviderConfig).mockReturnValue({
+			config: undefined,
+			write: vi.fn(async () => undefined),
+			commitSelection: vi.fn(),
+		})
+
+		render(
+			<GenericProviderSettings
+				allowsCustomIds={false}
+				currentMode="act"
+				providerId="deepseek"
+				providerName="DeepSeek"
+				showModelOptions={true}
+			/>,
+		)
+
+		expect(screen.getByText("Reasoning Effort")).toBeInTheDocument()
 	})
 
 	it("shows saved API keys as masked and does not clear them on mount", async () => {
