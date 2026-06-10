@@ -5,6 +5,7 @@ import path from "path"
 import sinon from "sinon"
 import { setDistinctId } from "@/services/logging/distinctId"
 import { HookFactory } from "../hook-factory"
+import { HookDiscoveryCache } from "../HookDiscoveryCache"
 import { createHookTestEnv, HookTestEnv, stubHookDirs, withPlatform, writeHookScriptForPlatform } from "./test-utils"
 
 describe("Hook System", () => {
@@ -682,6 +683,66 @@ console.log(JSON.stringify({
 			})
 
 			result.contextModification?.should.equal("Global observed: true")
+		})
+	})
+
+	describe("Cache Usage", () => {
+		it("should use HookDiscoveryCache in hasHook()", async () => {
+			const hookPath = path.join(tempDir, ".clinerules", "hooks", "PreToolUse")
+			const hookScript = `#!/usr/bin/env node
+console.log(JSON.stringify({ cancel: false }))`
+			await writeHookScript(hookPath, hookScript)
+
+			// Spy on HookDiscoveryCache.getInstance().get
+			const cacheGetSpy = sinon.spy(HookDiscoveryCache.getInstance(), "get")
+
+			try {
+				const factory = new HookFactory()
+				const result = await factory.hasHook("PreToolUse")
+
+				// Should return true since hook exists
+				result.should.be.true()
+
+				// Verify cache.get() was called
+				sinon.assert.calledOnce(cacheGetSpy)
+				cacheGetSpy.firstCall.args[0].should.equal("PreToolUse")
+			} finally {
+				cacheGetSpy.restore()
+			}
+		})
+
+		it("should return false from hasHook() when no hooks exist", async () => {
+			const factory = new HookFactory()
+			const result = await factory.hasHook("PreToolUse")
+
+			// Should return false since no hook exists
+			result.should.be.false()
+		})
+
+		it("should cache hasHook() result on subsequent calls", async () => {
+			const hookPath = path.join(tempDir, ".clinerules", "hooks", "PreToolUse")
+			const hookScript = `#!/usr/bin/env node
+console.log(JSON.stringify({ cancel: false }))`
+			await writeHookScript(hookPath, hookScript)
+
+			const factory = new HookFactory()
+
+			// First call (cache miss, triggers scan)
+			const result1 = await factory.hasHook("PreToolUse")
+			result1.should.be.true()
+
+			// Get cache stats after first call
+			const cache = HookDiscoveryCache.getInstance()
+			const statsAfterFirst = cache.getStats()
+			statsAfterFirst.cacheSize.should.equal(1)
+
+			// Second call (cache hit, no scan)
+			const result2 = await factory.hasHook("PreToolUse")
+			result2.should.be.true()
+
+			// Cache size should remain 1 (same entry)
+			const statsAfterSecond = cache.getStats()
+			statsAfterSecond.cacheSize.should.equal(1)
 		})
 	})
 })
