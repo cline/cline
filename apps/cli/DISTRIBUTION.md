@@ -14,15 +14,17 @@ Bun's `--compile` flag produces a single self-contained executable that includes
 
 ## What Gets Published
 
-Publishing the CLI publishes 7 packages to npm:
+Publishing the CLI publishes 9 packages to npm:
 
 | Package | Description |
 |---|---|
 | `@cline/cli-darwin-arm64` | macOS Apple Silicon binary |
 | `@cline/cli-darwin-x64` | macOS Intel binary |
 | `@cline/cli-linux-arm64` | Linux ARM binary |
-| `@cline/cli-linux-x64` | Linux x64 binary |
-| `@cline/cli-windows-x64` | Windows x64 binary |
+| `@cline/cli-linux-x64` | Linux x64 binary (AVX2-compiled; requires Haswell or newer) |
+| `@cline/cli-linux-x64-baseline` | Linux x64 baseline binary (no-AVX2; Sandy Bridge and older) |
+| `@cline/cli-windows-x64` | Windows x64 binary (AVX2-compiled) |
+| `@cline/cli-windows-x64-baseline` | Windows x64 baseline binary (no-AVX2) |
 | `@cline/cli-windows-arm64` | Windows ARM binary |
 | `cline` | Wrapper package (pulls the right binary via `optionalDependencies`) |
 
@@ -59,7 +61,9 @@ The `cline` wrapper package contains no binary -- just the resolver script, post
     "@cline/cli-darwin-x64": "0.1.0",
     "@cline/cli-linux-arm64": "0.1.0",
     "@cline/cli-linux-x64": "0.1.0",
+    "@cline/cli-linux-x64-baseline": "0.1.0",
     "@cline/cli-windows-x64": "0.1.0",
+    "@cline/cli-windows-x64-baseline": "0.1.0",
     "@cline/cli-windows-arm64": "0.1.0"
   }
 }
@@ -145,8 +149,10 @@ npm installs cline (wrapper package)
     - @cline/cli-darwin-arm64
     - @cline/cli-darwin-x64
     - @cline/cli-linux-arm64
-    - @cline/cli-linux-x64
+    - @cline/cli-linux-x64              (standard; requires AVX2)
+    - @cline/cli-linux-x64-baseline     (no-AVX2; installed alongside standard)
     - @cline/cli-windows-x64
+    - @cline/cli-windows-x64-baseline
     - @cline/cli-windows-arm64
   |
   v
@@ -160,10 +166,12 @@ User runs: cline
   |
   v
 bin/cline (Node.js resolver) executes:
-  1. Check CLINE_BIN_PATH env var override
+  1. Check CLINE_BIN_PATH env var override (SIGILL guard included)
   2. Check cached binary at bin/.cline
   3. Walk up node_modules for the platform package
+     (baseline preferred first on no-AVX2 x64 Linux)
   4. Execute the compiled binary
+  5. SIGILL safety net: if standard binary crashes, retry with baseline
 ```
 
 ## File Layout
@@ -183,8 +191,8 @@ apps/cli/
 From `apps/cli/`:
 
 ```bash
-bun run build:platforms:single  # build only current platform
-bun run build:platforms         # build all 6 platform binaries
+bun run build:platforms:single  # build only current platform (+ baseline if x64)
+bun run build:platforms         # build all 8 platform binaries
 bun run publish:npm:dry         # preview generated npm package publishing
 ```
 
@@ -213,7 +221,7 @@ Flags:
 Orchestrates publishing all packages to npm:
 
 1. Reads built packages from `dist/`
-2. Publishes all 6 platform packages in parallel (`@cline/cli-darwin-arm64`, etc.)
+2. Publishes all 8 platform packages in parallel (`@cline/cli-darwin-arm64`, `@cline/cli-linux-x64-baseline`, etc.)
 3. Generates a clean main package (`cline`) with:
    - `bin.cline` pointing to the resolver script
    - `postinstall` running the binary caching script
@@ -259,10 +267,10 @@ During development, `bin` in package.json points to `src/index.ts` for `bun link
 When building for a different platform (e.g., compiling for Linux on a Mac), Bun needs the target platform's native binaries for `@opentui/core`. The build script handles this by pre-downloading all platform variants with `bun install --os="*" --cpu="*"`.
 
 ### Version synchronization
-All 7 packages (6 platform + 1 wrapper) must have the same version. The build script reads the version from `apps/cli/package.json`. The publish script verifies that the built package versions match each other and `apps/cli/package.json`.
+All 9 packages (8 platform + 1 wrapper) must have the same version. The build script reads the version from `apps/cli/package.json`. The publish script verifies that the built package versions match each other and `apps/cli/package.json`.
 
 ### Package naming and scoping
-Platform packages are published under the `@cline` scope. The generated wrapper package is published as `cline`, so npm trusted publishing must be configured for all 7 package names.
+Platform packages are published under the `@cline` scope. The generated wrapper package is published as `cline`, so npm trusted publishing must be configured for all 9 package names (including `@cline/cli-linux-x64-baseline` and `@cline/cli-windows-x64-baseline`).
 
 ### postinstall reliability
 The postinstall script runs in diverse environments (CI, Docker, restricted permissions, network-mounted filesystems where hard links fail). It always wraps operations in try/catch and exits 0. The resolver script is the ultimate fallback.
@@ -275,3 +283,88 @@ Compiled binaries need to be executable (`chmod 755`). The build script sets thi
 
 ### Package size
 Each compiled binary is ~30-60MB (Bun runtime + all bundled code + native addons). This is normal for compiled CLI tools. Users only download their platform's variant thanks to `optionalDependencies`.
+
+## Baseline Binaries (no-AVX2 / Legacy x64 CPUs)
+
+### Background (issue #10514)
+
+The standard Bun-compiled x64 binary requires the AVX2 instruction set extension, which is present on Intel Haswell (2013) and later. Older x64 CPUs such as Intel Sandy Bridge (Core i7-2xxx / Xeon E5-2620 v1, 2011) support AVX but **not** AVX2. Running the standard binary on such a CPU produces an immediate `SIGILL` (Illegal Instruction) crash with exit code 132.
+
+### What is published
+
+Two additional baseline packages are published alongside the standard x64 packages:
+
+| Package | Bun target | CPU requirement |
+|---|---|---|
+| `@cline/cli-linux-x64-baseline` | `bun-linux-x64-baseline` | x86-64-v2 (AVX, no AVX2) |
+| `@cline/cli-windows-x64-baseline` | `bun-windows-x64-baseline` | x86-64-v2 (AVX, no AVX2) |
+
+These are built by passing `--target=bun-linux-x64-baseline` (or `bun-windows-x64-baseline`) to `bun build --compile`. Bun embeds its own "baseline" runtime that avoids AVX2 instructions. The packages are identical to the standard packages in every other respect (same version, same `cpu: ["x64"]` field, same binary name).
+
+### How AVX2 detection works
+
+`bin/cline` detects AVX2 support at runtime before resolving the binary:
+
+1. **On Linux**: reads `/proc/cpuinfo` and tests for the `avx2` flag as a whole word. If `avx2` is absent the CPU is treated as no-AVX2.
+2. **On all other platforms**: AVX2 is assumed present. The crash has only been reported on Linux x64.
+
+When a no-AVX2 CPU is detected and `arch === "x64"`, the resolver prepends `@cline/cli-linux-x64-baseline` to the candidate list so it is tried first.
+
+### SIGILL safety net
+
+Even when AVX2 detection reports capable (e.g. `/proc/cpuinfo` unreadable, or a future case on another OS), if the chosen binary exits with signal `SIGILL` the resolver transparently re-resolves and re-runs the baseline variant if one is installed. This protects against:
+
+- Cached `.cline` binary from a prior install (the resolver skips the SIGILL net for cached binaries; users should reinstall to pick up the baseline package).
+- CPUs where `/proc/cpuinfo` did not report flags reliably.
+
+The safety net correctly handles the partial-upgrade scenario (no-AVX2 CPU, baseline package not yet installed): the standard package is tried, SIGILLs, and the resolver searches for and runs the baseline binary if it can be found. The decision is based on whether the resolved binary path contains `-baseline` — not on whether the name was a candidate — so it triggers correctly even when baseline was theoretically preferred but could not be found at resolution time.
+
+### Reproducible crash evidence (issue #10514)
+
+The following was captured on an Intel Xeon E5-2620 v1 (Sandy Bridge, 2011) host — this CPU has `avx` in `/proc/cpuinfo` but no `avx2`:
+
+```
+# Official @cline/cli-linux-x64 binary (AVX2-compiled, as shipped on npm):
+$ /path/to/node_modules/@cline/cli-linux-x64/bin/cline --version
+Illegal instruction
+$ echo $?
+132
+```
+
+Exit code 132 = 128 + SIGILL (signal 4). The binary dies immediately before executing any application code because Bun's startup routine uses AVX2 instructions absent on this CPU.
+
+```
+# Bun baseline build (x86-64-v2, no AVX2 required):
+$ /home/david/.local/bin/bun --version
+1.3.14
+$ echo $?
+0
+```
+
+The baseline runtime starts and runs normally on the same machine. This confirms that compiling with `--target=bun-linux-x64-baseline` fully resolves the crash for Sandy Bridge and equivalent CPUs.
+
+### Resolution order on a no-AVX2 x64 Linux machine
+
+```
+1. CLINE_BIN_PATH env var override (if set)
+2. bin/.cline cached binary (if exists; no SIGILL net here — reinstall to fix)
+3. node_modules/@cline/cli-linux-x64-baseline/bin/cline  ← tried first
+4. node_modules/@cline/cli-linux-x64/bin/cline           ← fallback
+5. Error: "Could not find the Cline CLI binary for your platform"
+```
+
+### Building baseline packages locally
+
+```bash
+# Build all platforms including the two baseline variants:
+bun run build:platforms
+
+# Build only the current platform (baseline if on x64 Linux/Windows):
+bun run build:platforms:single
+```
+
+The build script in `script/build.ts` includes `{ os: "linux", arch: "x64", variant: "baseline" }` and `{ os: "win32", arch: "x64", variant: "baseline" }` in `allTargets`. The `variant` field appends `-baseline` to the Bun compile target, package name, and output directory.
+
+### Version synchronization
+
+Baseline packages share the same version number as all other platform packages. All 10 packages (8 standard + 2 baseline) are included in `expectedPlatformPackages` in `script/publish-npm.ts` and must be present in `dist/` before the publish script proceeds.
