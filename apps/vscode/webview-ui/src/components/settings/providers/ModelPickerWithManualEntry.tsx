@@ -1,6 +1,6 @@
 import { type ModelInfo, openAiModelInfoSafeDefaults } from "@shared/api"
 import { VSCodeButton, VSCodeDropdown, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import type { ProviderId } from "@/context/ExtensionStateContext"
 import { DropdownContainer } from "../common/ModelSelector"
 
@@ -41,6 +41,15 @@ export function ModelPickerWithManualEntry({
 	const modelIds = Object.keys(models).sort((a, b) => a.localeCompare(b))
 	const hasModels = modelIds.length > 0
 	const selectedModelInList = selectedModel.modelId in models
+
+	// The committed selection and the model catalog both hydrate asynchronously
+	// after mount, so the lazy useState init above can capture a placeholder
+	// value. Re-sync when the committed model changes or its in-list status
+	// flips. Depend on the derived values rather than `models` itself, whose
+	// identity can change every render while the catalog is loading.
+	useEffect(() => {
+		setCustomModelId(selectedModelInList ? "" : selectedModel.modelId)
+	}, [selectedModel.modelId, selectedModelInList])
 	const showManualEntry =
 		allowsCustomIds && (isManualEntryVisible || !hasModels || isLoading || Boolean(error) || !selectedModelInList)
 

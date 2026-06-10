@@ -198,6 +198,100 @@ describe("ModelPickerWithManualEntry", () => {
 		expect(onSelect).not.toHaveBeenCalled()
 	})
 
+	it("prefills the custom field when the committed selection hydrates after mount", () => {
+		const { rerender } = render(
+			<ModelPickerWithManualEntry
+				allowsCustomIds={true}
+				error={undefined}
+				isLoading={true}
+				isStale={false}
+				models={{}}
+				onSelect={vi.fn()}
+				selectedModel={{ ...selectedModel, modelId: "" }}
+			/>,
+		)
+
+		expect(screen.getByLabelText("Custom model ID")).toHaveValue("")
+
+		rerender(
+			<ModelPickerWithManualEntry
+				allowsCustomIds={true}
+				error={undefined}
+				isLoading={false}
+				isStale={false}
+				models={models}
+				onSelect={vi.fn()}
+				selectedModel={{ ...selectedModel, modelId: "my-fast-model" }}
+			/>,
+		)
+
+		expect(screen.getByLabelText("Custom model ID")).toHaveValue("my-fast-model")
+	})
+
+	it("clears the custom field when the hydrated selection is in the catalog", () => {
+		const { rerender } = render(
+			<ModelPickerWithManualEntry
+				allowsCustomIds={true}
+				error={undefined}
+				isLoading={true}
+				isStale={false}
+				models={{}}
+				onSelect={vi.fn()}
+				selectedModel={{ ...selectedModel, modelId: "llama3" }}
+			/>,
+		)
+
+		// Lazy init captured "llama3" while the catalog was empty.
+		expect(screen.getByLabelText("Custom model ID")).toHaveValue("llama3")
+
+		rerender(
+			<ModelPickerWithManualEntry
+				allowsCustomIds={true}
+				error={undefined}
+				isLoading={false}
+				isStale={false}
+				models={models}
+				onSelect={vi.fn()}
+				selectedModel={{ ...selectedModel, modelId: "llama3" }}
+			/>,
+		)
+
+		fireEvent.change(screen.getByLabelText("Model"), { target: { value: "__custom__" } })
+		expect(screen.getByLabelText("Custom model ID")).toHaveValue("")
+	})
+
+	it("does not reset the custom field while the user is typing", () => {
+		const { rerender } = render(
+			<ModelPickerWithManualEntry
+				allowsCustomIds={true}
+				error={undefined}
+				isLoading={false}
+				isStale={false}
+				models={{}}
+				onSelect={vi.fn()}
+				selectedModel={{ ...selectedModel, modelId: "my-fast-model" }}
+			/>,
+		)
+
+		fireEvent.change(screen.getByLabelText("Custom model ID"), { target: { value: "my-fast" } })
+
+		// A re-render with a fresh models object identity (catalog still
+		// loading) must not clobber the in-progress input.
+		rerender(
+			<ModelPickerWithManualEntry
+				allowsCustomIds={true}
+				error={undefined}
+				isLoading={false}
+				isStale={false}
+				models={{}}
+				onSelect={vi.fn()}
+				selectedModel={{ ...selectedModel, modelId: "my-fast-model" }}
+			/>,
+		)
+
+		expect(screen.getByLabelText("Custom model ID")).toHaveValue("my-fast")
+	})
+
 	it("does not auto-select while model props change during refresh", () => {
 		const onSelect = vi.fn()
 		const { rerender } = render(
