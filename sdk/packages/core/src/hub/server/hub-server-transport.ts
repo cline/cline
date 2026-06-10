@@ -57,6 +57,8 @@ import {
 import { projectSessionEvent } from "./handlers/session-event-projector";
 import {
 	handleSessionAttach,
+	handleSessionCompactionGet,
+	handleSessionCompactionUpdate,
 	handleSessionCreate,
 	handleSessionDelete,
 	handleSessionDetach,
@@ -361,10 +363,14 @@ export class HubServerTransport implements NativeHubTransport {
 				return await handleSessionGet(this.ctx, envelope);
 			case "session.messages":
 				return await handleSessionMessages(this.ctx, envelope);
+			case "session.compaction.get":
+				return await handleSessionCompactionGet(this.ctx, envelope);
 			case "session.list":
 				return await handleSessionList(this.ctx, envelope);
 			case "session.update":
 				return await handleSessionUpdate(this.ctx, envelope);
+			case "session.compaction.update":
+				return await handleSessionCompactionUpdate(this.ctx, envelope);
 			case "session.pending_prompts":
 				return await handleSessionPendingPrompts(this.ctx, envelope);
 			case "session.update_pending_prompt":
