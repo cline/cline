@@ -51,6 +51,7 @@ type AuthQuickSetupInput = {
 	baseurl?: string;
 	azureApiVersion?: string;
 	headers?: Record<string, string>;
+	clearHeaders?: boolean;
 	contextWindow?: number;
 	maxOutputTokens?: number;
 	supportsImages?: boolean;
@@ -65,6 +66,7 @@ type AuthCommandInput = {
 	baseurl?: string;
 	azureApiVersion?: string;
 	header?: string[];
+	clearHeaders?: boolean;
 	contextWindow?: string;
 	maxOutputTokens?: string;
 	supportsImages?: boolean;
@@ -77,6 +79,7 @@ type ParsedAuthCommandArgs = {
 	baseurl?: string;
 	azureApiVersion?: string;
 	header?: string[];
+	clearHeaders?: boolean;
 	contextWindow?: string;
 	maxOutputTokens?: string;
 	supportsImages?: boolean;
@@ -120,7 +123,8 @@ export function createAuthCommand(): Command {
 		.option(
 			"--no-supports-images",
 			"mark the model as not supporting image input",
-		);
+		)
+		.option("--clear-headers", "remove all saved custom headers");
 	return cmd;
 }
 
@@ -139,6 +143,7 @@ export function parseAuthCommandArgs(args: string[]): ParsedAuthCommandArgs {
 		baseurl?: string;
 		azureApiVersion?: string;
 		header?: string[];
+		clearHeaders?: boolean;
 		contextWindow?: string;
 		maxOutputTokens?: string;
 		supportsImages?: boolean;
@@ -151,6 +156,7 @@ export function parseAuthCommandArgs(args: string[]): ParsedAuthCommandArgs {
 		baseurl: opts.baseurl,
 		azureApiVersion: opts.azureApiVersion,
 		header: opts.header,
+		clearHeaders: opts.clearHeaders,
 		contextWindow: opts.contextWindow,
 		maxOutputTokens: opts.maxOutputTokens,
 		supportsImages: opts.supportsImages,
@@ -247,8 +253,8 @@ async function ensureQuickSetupInputValid(
 		return "Azure API version is only supported for OpenAI-compatible providers";
 	}
 	if (
-		input.headers &&
-		Object.keys(input.headers).length > 0 &&
+		((input.headers && Object.keys(input.headers).length > 0) ||
+			input.clearHeaders) &&
 		normalizedProvider !== BUILT_IN_PROVIDER.OPENAI_COMPATIBLE &&
 		normalizedProvider !== BUILT_IN_PROVIDER.OPENAI_NATIVE
 	) {
@@ -273,6 +279,7 @@ function saveQuickAuthProviderSettings(input: {
 	baseurl?: string;
 	azureApiVersion?: string;
 	headers?: Record<string, string>;
+	clearHeaders?: boolean;
 	contextWindow?: number;
 	maxOutputTokens?: number;
 	supportsImages?: boolean;
@@ -301,8 +308,14 @@ function saveQuickAuthProviderSettings(input: {
 			apiVersion: input.azureApiVersion.trim(),
 		};
 	}
+	if (input.clearHeaders) {
+		delete nextSettings.headers;
+	}
 	if (input.headers && Object.keys(input.headers).length > 0) {
-		nextSettings.headers = input.headers;
+		nextSettings.headers = {
+			...(input.clearHeaders ? {} : (existing?.headers ?? {})),
+			...input.headers,
+		};
 	}
 	if (input.contextWindow !== undefined) {
 		nextSettings.contextWindow = input.contextWindow;
@@ -449,6 +462,7 @@ async function runQuickAuthSetup(input: AuthCommandInput): Promise<number> {
 			baseurl,
 			azureApiVersion,
 			headers,
+			clearHeaders: input.clearHeaders,
 			contextWindow: contextWindow.parsed,
 			maxOutputTokens: maxOutputTokens.parsed,
 			supportsImages: input.supportsImages,
@@ -467,6 +481,7 @@ async function runQuickAuthSetup(input: AuthCommandInput): Promise<number> {
 		baseurl,
 		azureApiVersion,
 		headers,
+		clearHeaders: input.clearHeaders,
 		contextWindow: contextWindow.parsed,
 		maxOutputTokens: maxOutputTokens.parsed,
 		supportsImages: input.supportsImages,
@@ -561,6 +576,7 @@ export async function runAuthCommand(input: AuthCommandInput): Promise<number> {
 		typeof input.baseurl === "string" ||
 		typeof input.azureApiVersion === "string" ||
 		(input.header?.length ?? 0) > 0 ||
+		input.clearHeaders === true ||
 		typeof input.contextWindow === "string" ||
 		typeof input.maxOutputTokens === "string" ||
 		typeof input.supportsImages === "boolean";

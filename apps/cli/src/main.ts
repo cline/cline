@@ -169,6 +169,7 @@ export async function runCli(): Promise<void> {
 			"--no-supports-images",
 			"Mark the model as not supporting image input",
 		)
+		.option("--clear-headers", "Remove all saved custom headers")
 		.option("--config <dir>", "configuration directory")
 		.option("-c, --cwd <path>", "Working directory")
 		.option(
@@ -184,6 +185,7 @@ export async function runCli(): Promise<void> {
 				baseurl?: string;
 				azureApiVersion?: string;
 				header?: string[];
+				clearHeaders?: boolean;
 				contextWindow?: string;
 				maxOutputTokens?: string;
 				supportsImages?: boolean;
@@ -219,6 +221,7 @@ export async function runCli(): Promise<void> {
 				baseurl: opts.baseurl,
 				azureApiVersion: opts.azureApiVersion,
 				header: opts.header,
+				clearHeaders: opts.clearHeaders,
 				contextWindow: opts.contextWindow,
 				maxOutputTokens: opts.maxOutputTokens,
 				supportsImages: opts.supportsImages,

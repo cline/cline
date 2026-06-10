@@ -167,6 +167,10 @@ cline auth --provider openai-compatible --apikey sk-... --modelid my-model \
   --baseurl https://llm.example.com/v1 \
   --header "X-Org=abc" --header "Authorization-Extra=token" \
   --context-window 128000 --max-output-tokens 8192 --no-supports-images
+
+# Update saved settings later without re-entering credentials
+cline auth -p openai-compatible -H "X-Org=new-value"
+cline auth -p openai-compatible --clear-headers
 ```
 
 ### Connectors

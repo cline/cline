@@ -284,6 +284,42 @@ test.describe("cline auth --baseurl with non-OpenAI-compatible provider", () => 
 	});
 });
 
+test.describe("cline auth -p -k -m with headers and model config flags", () => {
+	test.use({
+		program: {
+			file: CLINE_BIN,
+			args: [
+				"auth",
+				"--provider",
+				"openai-compatible",
+				"--apikey",
+				"sk-test-key-12345",
+				"--modelid",
+				"my-model",
+				"--baseurl",
+				"https://api.example.com/v1",
+				"-H",
+				"X-Org=abc",
+				"-H",
+				"Authorization-Extra=Bearer a=b",
+				"--context-window",
+				"128000",
+				"--max-output-tokens",
+				"8192",
+				"--no-supports-images",
+			],
+		},
+		...TERMINAL_WIDE,
+		env: clineEnv("unauthenticated"),
+	});
+
+	test("exits successfully with full OpenAI-compatible configuration", async ({
+		terminal,
+	}) => {
+		await expectExitCode(terminal, EXIT_CODE_SUCCESS);
+	});
+});
+
 test.describe("cline auth openai-compatible config fields (interactive)", () => {
 	test.use({
 		program: { file: CLINE_BIN, args: ["auth"] },

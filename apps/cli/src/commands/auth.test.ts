@@ -253,6 +253,77 @@ describe("runAuthCommand quick setup", () => {
 		});
 	});
 
+	it("merges new headers into existing ones", async () => {
+		const manager = createTempProviderSettingsManager();
+		manager.saveProviderSettings({
+			provider: "openai-compatible",
+			apiKey: "sk-existing",
+			model: "my-custom-model",
+			headers: { "X-Org": "abc", "X-Team": "old" },
+		});
+		const { io } = createAuthIo();
+
+		const exitCode = await runAuthCommand({
+			providerSettingsManager: manager,
+			io,
+			explicitProvider: "openai-compatible",
+			header: ["X-Team=infra"],
+		});
+
+		expect(exitCode).toBe(0);
+		expect(manager.getProviderSettings("openai-compatible")?.headers).toEqual({
+			"X-Org": "abc",
+			"X-Team": "infra",
+		});
+	});
+
+	it("removes saved headers with --clear-headers", async () => {
+		const manager = createTempProviderSettingsManager();
+		manager.saveProviderSettings({
+			provider: "openai-compatible",
+			apiKey: "sk-existing",
+			model: "my-custom-model",
+			headers: { "X-Org": "abc" },
+		});
+		const { io } = createAuthIo();
+
+		const exitCode = await runAuthCommand({
+			providerSettingsManager: manager,
+			io,
+			explicitProvider: "openai-compatible",
+			clearHeaders: true,
+		});
+
+		expect(exitCode).toBe(0);
+		expect(
+			manager.getProviderSettings("openai-compatible")?.headers,
+		).toBeUndefined();
+	});
+
+	it("replaces headers when --clear-headers is combined with --header", async () => {
+		const manager = createTempProviderSettingsManager();
+		manager.saveProviderSettings({
+			provider: "openai-compatible",
+			apiKey: "sk-existing",
+			model: "my-custom-model",
+			headers: { "X-Org": "abc", "X-Team": "old" },
+		});
+		const { io } = createAuthIo();
+
+		const exitCode = await runAuthCommand({
+			providerSettingsManager: manager,
+			io,
+			explicitProvider: "openai-compatible",
+			clearHeaders: true,
+			header: ["X-Fresh=1"],
+		});
+
+		expect(exitCode).toBe(0);
+		expect(manager.getProviderSettings("openai-compatible")?.headers).toEqual({
+			"X-Fresh": "1",
+		});
+	});
+
 	it("removes the vision capability with --no-supports-images", async () => {
 		const manager = createTempProviderSettingsManager();
 		manager.saveProviderSettings({
