@@ -8,18 +8,29 @@ import { ensureFetch, resolveApiKey } from "../http";
 import { isClaudeModelId } from "../model-facts";
 import type { ProviderFactoryResult } from "./types";
 
-function readStringOption(options: Record<string, unknown> | undefined, key: string): string | undefined {
+function readStringOption(
+	options: Record<string, unknown> | undefined,
+	key: string,
+): string | undefined {
 	const value = options?.[key];
-	return typeof value === "string" && value.trim().length > 0 ? value : undefined;
+	return typeof value === "string" && value.trim().length > 0
+		? value
+		: undefined;
 }
 
-function readNestedStringOption(options: Record<string, unknown> | undefined, objectKey: string, key: string): string | undefined {
+function readNestedStringOption(
+	options: Record<string, unknown> | undefined,
+	objectKey: string,
+	key: string,
+): string | undefined {
 	const object = options?.[objectKey];
 	if (!object || typeof object !== "object" || Array.isArray(object)) {
 		return undefined;
 	}
 	const value = (object as Record<string, unknown>)[key];
-	return typeof value === "string" && value.trim().length > 0 ? value : undefined;
+	return typeof value === "string" && value.trim().length > 0
+		? value
+		: undefined;
 }
 
 export async function createVertexProviderModule(

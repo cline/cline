@@ -194,7 +194,10 @@ function buildProviderConfig(
 					...(stored?.modelCatalog ?? {}),
 				}
 			: undefined;
-	const sessionProviderConfig = config.providerConfig?.providerId === config.providerId ? config.providerConfig : undefined;
+	const sessionProviderConfig =
+		config.providerConfig?.providerId === config.providerId
+			? config.providerConfig
+			: undefined;
 	const settings: ProviderSettings = {
 		...(stored ?? {}),
 		provider: config.providerId,
