@@ -371,7 +371,8 @@ describe("runDoctorCommand", () => {
 				command === "pgrep" &&
 				Array.isArray(args) &&
 				args[0] === "-fal" &&
-				args[1] === "/sdk/packages/core/src/hub/daemon/entry.ts"
+				args[1] === "--" &&
+				args[2] === "/sdk/packages/core/src/hub/daemon/entry.ts"
 			) {
 				return {
 					status: 0,
