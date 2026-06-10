@@ -21,7 +21,7 @@ describe("SdkModeCoordinator", () => {
 		vi.clearAllMocks()
 	})
 
-	it("applies a queued switch_to_act_mode change", async () => {
+	it("applies a queued switch_to_act_mode change and auto-continues the task", async () => {
 		const activeSession = makeActiveSession()
 		const { coordinator, state, options } = makeCoordinator({ activeSession })
 
@@ -32,8 +32,15 @@ describe("SdkModeCoordinator", () => {
 
 		expect(coordinator.hasPendingModeChange()).toBe(false)
 		expect(state.mode).toBe("act")
-		expect(options.sessions.setRunning).not.toHaveBeenCalledWith(true)
-		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
+		expect(options.sessions.setRunning).toHaveBeenCalledWith(true)
+		expect(options.onAutoContinueStarting).toHaveBeenCalledOnce()
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
+			expect.anything(),
+			"new-session",
+			"The user approved switching to act mode. Continue with the approved plan now.",
+			undefined,
+			undefined,
+		)
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()
 	})
 
@@ -82,13 +89,211 @@ describe("SdkModeCoordinator", () => {
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()
 	})
 
-	it("does not auto-continue when togglePlanActMode switches plan -> act on an active session", async () => {
+	it("auto-continues a plan -> act toggle when the agent is idle after presenting its plan", async () => {
 		const activeSession = makeActiveSession()
 		const task = makeTask("old-session")
 		const { coordinator, options, state } = makeCoordinator({
 			activeSession,
 			task,
 			mode: "plan",
+			turnPhase: "awaiting_followup",
+		})
+
+		// No typed input was consumed, so the webview should not clear it.
+		await expect(coordinator.togglePlanActMode("act")).resolves.toBe(false)
+
+		expect(state.mode).toBe("act")
+		expect(options.sessions.setRunning).toHaveBeenCalledWith(true)
+		expect(options.onAutoContinueStarting).toHaveBeenCalledOnce()
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
+			expect.anything(),
+			"new-session",
+			"The user approved switching to act mode. Continue with the approved plan now.",
+			undefined,
+			undefined,
+		)
+		// Canned prompt is not echoed as a user message.
+		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
+	})
+
+	it("submits typed chatContent as the continuation when toggling plan -> act on a presented plan", async () => {
+		const activeSession = makeActiveSession()
+		const task = makeTask("old-session")
+		const { coordinator, options } = makeCoordinator({
+			activeSession,
+			task,
+			mode: "plan",
+			turnPhase: "awaiting_followup",
+		})
+
+		// Typed input was consumed, so the webview should clear it.
+		await expect(
+			coordinator.togglePlanActMode("act", {
+				message: "  go ahead and implement step 1  ",
+				images: [],
+				files: [],
+			}),
+		).resolves.toBe(true)
+
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
+			expect.anything(),
+			"new-session",
+			"go ahead and implement step 1",
+			undefined,
+			undefined,
+		)
+		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
+			[expect.objectContaining({ say: "user_feedback", text: "go ahead and implement step 1" })],
+			expect.anything(),
+		)
+	})
+
+	it("forwards attachments alongside the typed message when auto-continuing", async () => {
+		const activeSession = makeActiveSession()
+		const task = makeTask("old-session")
+		const { coordinator, options } = makeCoordinator({
+			activeSession,
+			task,
+			mode: "plan",
+			turnPhase: "awaiting_followup",
+		})
+
+		await expect(
+			coordinator.togglePlanActMode("act", {
+				message: "use this screenshot",
+				images: ["data:image/png;base64,abc"],
+				files: ["/tmp/notes.md"],
+			}),
+		).resolves.toBe(true)
+
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
+			expect.anything(),
+			"new-session",
+			"use this screenshot",
+			["data:image/png;base64,abc"],
+			["/tmp/notes.md"],
+		)
+		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
+			[
+				expect.objectContaining({
+					say: "user_feedback",
+					text: "use this screenshot",
+					images: ["data:image/png;base64,abc"],
+					files: ["/tmp/notes.md"],
+				}),
+			],
+			expect.anything(),
+		)
+	})
+
+	it("consumes attachment-only chatContent and sends it with the canned prompt", async () => {
+		const activeSession = makeActiveSession()
+		const task = makeTask("old-session")
+		const { coordinator, options } = makeCoordinator({
+			activeSession,
+			task,
+			mode: "plan",
+			turnPhase: "awaiting_followup",
+		})
+
+		// Attachments alone count as consumed content, so the webview clears them.
+		await expect(
+			coordinator.togglePlanActMode("act", {
+				message: undefined,
+				images: ["data:image/png;base64,abc"],
+				files: [],
+			}),
+		).resolves.toBe(true)
+
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
+			expect.anything(),
+			"new-session",
+			"The user approved switching to act mode. Continue with the approved plan now.",
+			["data:image/png;base64,abc"],
+			undefined,
+		)
+		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
+			[
+				expect.objectContaining({
+					say: "user_feedback",
+					text: "",
+					images: ["data:image/png;base64,abc"],
+				}),
+			],
+			expect.anything(),
+		)
+	})
+
+	it("resets the running state and reports an error phase when the continuation send setup fails", async () => {
+		const activeSession = makeActiveSession()
+		const task = makeTask("old-session")
+		const { coordinator, options, state } = makeCoordinator({
+			activeSession,
+			task,
+			mode: "plan",
+			turnPhase: "awaiting_followup",
+		})
+		options.resolveContextMentions.mockRejectedValueOnce(new Error("mention resolution failed"))
+
+		// The send never happened, so the webview must keep the composer content.
+		await expect(
+			coordinator.togglePlanActMode("act", {
+				message: "see @/broken/path",
+				images: [],
+				files: [],
+			}),
+		).resolves.toBe(false)
+
+		expect(options.onAutoContinueStarting).toHaveBeenCalledOnce()
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
+		// The optimistic running flip is undone and the phase moves to error.
+		expect(options.sessions.setRunning).toHaveBeenLastCalledWith(false)
+		expect(options.onAutoContinueFailed).toHaveBeenCalledOnce()
+		// Mentions resolve before the echo, so the unsent message is never
+		// echoed into the transcript; only the error message is appended.
+		expect(options.messages.appendAndEmit).toHaveBeenCalledOnce()
+		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
+			[expect.objectContaining({ say: "error" })],
+			expect.anything(),
+		)
+		// The session WAS replaced with act-mode tools before the throw, so the
+		// mode setting must not roll back.
+		expect(state.mode).toBe("act")
+	})
+
+	it("does not auto-continue while a follow-up question is pending", async () => {
+		// handleAskQuestion sets the phase to awaiting_followup but blocks the
+		// turn mid-run, so the session is still flagged running.
+		const activeSession = makeActiveSession({ isRunning: true })
+		const task = makeTask("old-session")
+		const { coordinator, options, state } = makeCoordinator({
+			activeSession,
+			task,
+			mode: "plan",
+			turnPhase: "awaiting_followup",
+		})
+
+		await expect(
+			coordinator.togglePlanActMode("act", {
+				message: "use postgres",
+				images: [],
+				files: [],
+			}),
+		).resolves.toBe(false)
+
+		expect(state.mode).toBe("act")
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
+		expect(options.onAutoContinueStarting).not.toHaveBeenCalled()
+	})
+
+	it("does not auto-continue a plan -> act toggle while a turn is running", async () => {
+		const activeSession = makeActiveSession({ isRunning: true })
+		const task = makeTask("old-session")
+		const { coordinator, options, state } = makeCoordinator({
+			activeSession,
+			task,
+			mode: "plan",
+			turnPhase: "streaming",
 		})
 
 		await expect(coordinator.togglePlanActMode("act")).resolves.toBe(false)
@@ -98,31 +303,35 @@ describe("SdkModeCoordinator", () => {
 		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
 	})
 
-	it("preserves user-supplied chatContent instead of submitting it during plan -> act toggle", async () => {
+	it("preserves typed chatContent when the agent has not presented a plan", async () => {
 		const activeSession = makeActiveSession()
 		const task = makeTask("old-session")
 		const { coordinator, options } = makeCoordinator({
 			activeSession,
 			task,
 			mode: "plan",
+			turnPhase: "completed",
 		})
 
-		await coordinator.togglePlanActMode("act", {
-			message: "  go ahead and implement step 1  ",
-			images: [],
-			files: [],
-		})
+		await expect(
+			coordinator.togglePlanActMode("act", {
+				message: "  go ahead and implement step 1  ",
+				images: [],
+				files: [],
+			}),
+		).resolves.toBe(false)
 
 		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
 	})
 
-	it("does not auto-continue on act -> plan toggle even when an active session exists", async () => {
+	it("does not auto-continue on act -> plan toggle even when the agent is awaiting followup", async () => {
 		const activeSession = makeActiveSession()
 		const task = makeTask("old-session")
 		const { coordinator, options, state } = makeCoordinator({
 			activeSession,
 			task,
 			mode: "act",
+			turnPhase: "awaiting_followup",
 		})
 
 		await coordinator.togglePlanActMode("plan", {
@@ -135,9 +344,101 @@ describe("SdkModeCoordinator", () => {
 		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
 	})
 
+	it("does not mark a live continuation as failed when the post-send state post rejects", async () => {
+		const activeSession = makeActiveSession()
+		const task = makeTask("old-session")
+		const { coordinator, options } = makeCoordinator({
+			activeSession,
+			task,
+			mode: "plan",
+			turnPhase: "awaiting_followup",
+		})
+		options.postStateToWebview.mockRejectedValueOnce(new Error("webview gone"))
+
+		// The continuation was already handed to the session, so the composer
+		// content counts as consumed and the run must not be flagged as failed.
+		await expect(
+			coordinator.togglePlanActMode("act", {
+				message: "go ahead",
+				images: [],
+				files: [],
+			}),
+		).resolves.toBe(true)
+
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledOnce()
+		expect(options.sessions.setRunning).not.toHaveBeenCalledWith(false)
+		expect(options.onAutoContinueFailed).not.toHaveBeenCalled()
+		// Only the user_feedback echo was emitted, no mode-switch error message.
+		expect(options.messages.appendAndEmit).toHaveBeenCalledOnce()
+		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
+			[expect.objectContaining({ say: "user_feedback", text: "go ahead" })],
+			expect.anything(),
+		)
+	})
+
+	it("preserves composer content when the rebuild aborts on a cline auth error", async () => {
+		const activeSession = makeActiveSession()
+		const task = makeTask("old-session")
+		const { coordinator, options, state } = makeCoordinator({
+			activeSession,
+			task,
+			mode: "plan",
+			turnPhase: "awaiting_followup",
+			config: {
+				providerId: "cline",
+				modelId: "cline-model",
+				apiKey: undefined,
+			},
+		})
+
+		// The auth guard returns before the continuation is echoed or sent, so
+		// the webview must not clear the typed message or attachments.
+		await expect(
+			coordinator.togglePlanActMode("act", {
+				message: "go ahead but skip step 3",
+				images: ["data:image/png;base64,abc"],
+				files: [],
+			}),
+		).resolves.toBe(false)
+
+		expect(options.emitClineAuthError).toHaveBeenCalledOnce()
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
+		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
+		// The old plan session is still active, so the mode setting rolls back.
+		expect(state.mode).toBe("plan")
+	})
+
+	it("rolls back the mode when the rebuild fails before the session is replaced", async () => {
+		const activeSession = makeActiveSession()
+		const task = makeTask("old-session")
+		const { coordinator, options, state } = makeCoordinator({
+			activeSession,
+			task,
+			mode: "plan",
+			turnPhase: "awaiting_followup",
+		})
+		options.loadInitialMessages.mockRejectedValueOnce(new Error("disk read failed"))
+
+		await expect(
+			coordinator.togglePlanActMode("act", {
+				message: "go ahead",
+				images: [],
+				files: [],
+			}),
+		).resolves.toBe(false)
+
+		expect(state.mode).toBe("plan")
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
+		expect(options.onAutoContinueFailed).not.toHaveBeenCalled()
+		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
+			[expect.objectContaining({ say: "error" })],
+			expect.anything(),
+		)
+	})
+
 	it("emits an auth error and skips replacement when the target cline provider has no token", async () => {
 		const activeSession = makeActiveSession()
-		const { coordinator, options } = makeCoordinator({
+		const { coordinator, options, state } = makeCoordinator({
 			activeSession,
 			config: {
 				providerId: "cline",
@@ -151,6 +452,7 @@ describe("SdkModeCoordinator", () => {
 		expect(options.emitClineAuthError).toHaveBeenCalledOnce()
 		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()
+		expect(state.mode).toBe("plan")
 	})
 
 	it("cancels and finalizes a running turn before rebuilding for mode change", async () => {
@@ -213,6 +515,10 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		emitClineAuthError: vi.fn(),
 		resetMessageTranslator: vi.fn(),
 		postStateToWebview: vi.fn().mockResolvedValue(undefined),
+		getTurnPhase: vi.fn(() => input.turnPhase ?? "idle"),
+		resolveContextMentions: vi.fn(async (text: string) => text),
+		onAutoContinueStarting: vi.fn(),
+		onAutoContinueFailed: vi.fn(),
 	} as unknown as SdkModeCoordinatorOptions & {
 		stateManager: StateManager & {
 			getGlobalSettingsKey: ReturnType<typeof vi.fn>
@@ -243,6 +549,10 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		emitClineAuthError: ReturnType<typeof vi.fn>
 		resetMessageTranslator: ReturnType<typeof vi.fn>
 		postStateToWebview: ReturnType<typeof vi.fn>
+		getTurnPhase: ReturnType<typeof vi.fn>
+		resolveContextMentions: ReturnType<typeof vi.fn>
+		onAutoContinueStarting: ReturnType<typeof vi.fn>
+		onAutoContinueFailed: ReturnType<typeof vi.fn>
 	}
 
 	return {
@@ -261,6 +571,7 @@ interface MakeCoordinatorInput {
 		apiKey: string | undefined
 	}
 	task: ReturnType<typeof makeTask>
+	turnPhase: string
 }
 
 function makeActiveSession(input: { isRunning?: boolean } = {}) {
