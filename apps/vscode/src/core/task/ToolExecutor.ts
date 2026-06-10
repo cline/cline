@@ -346,7 +346,7 @@ export class ToolExecutor {
 				block.name &&
 				this.isPlanModeToolRestricted(block.name)
 			) {
-				const errorMessage = `Tool '${block.name}' is not available in PLAN MODE. This tool is restricted to ACT MODE for file modifications. To use this tool, you must switch to ACT MODE or use plan_mode_respond to provide feedback. Only use tools available for PLAN MODE when in that mode.`
+				const errorMessage = `Tool '${block.name}' is not available in PLAN MODE. This tool is restricted to ACT MODE for file modifications. To use this tool, ask the user to switch to ACT MODE or use plan_mode_respond to provide feedback. Only use tools available for PLAN MODE when in that mode.`
 				await this.removeLastPartialMessageIfExistsWithType("say", "error")
 				await this.say("error", errorMessage)
 				// Only push the final error message when the streaming is done.
