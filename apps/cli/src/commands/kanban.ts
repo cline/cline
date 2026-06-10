@@ -166,10 +166,10 @@ export function buildKanbanSpawnOptions(
 	return {
 		stdio: "inherit",
 		detached: shouldDetachKanbanProcess(platform),
-		// Prevent a console window from flashing on Windows.
-		windowsHide: true,
 		...(platform === "win32" ? { shell: true } : {}),
 		...options,
+		// Prevent a console window from flashing on Windows.
+		windowsHide: true,
 	};
 }
 
