@@ -1,8 +1,8 @@
-import { StringRequest } from "@shared/proto/cline/common"
-import { TaskResponse } from "@shared/proto/cline/task"
-import { Logger } from "@/shared/services/Logger"
-import { Controller } from ".."
-import { sendChatButtonClickedEvent } from "../ui/subscribeToChatButtonClicked"
+import { StringRequest } from "@shared/proto/cline/common";
+import { TaskResponse } from "@shared/proto/cline/task";
+import { Logger } from "@/shared/services/Logger";
+import { Controller } from "..";
+import { sendChatButtonClickedEvent } from "../ui/subscribeToChatButtonClicked";
 
 /**
  * Shows a task with the specified ID
@@ -10,21 +10,25 @@ import { sendChatButtonClickedEvent } from "../ui/subscribeToChatButtonClicked"
  * @param request The request containing the task ID
  * @returns TaskResponse with task details
  */
-export async function showTaskWithId(controller: Controller, request: StringRequest): Promise<TaskResponse> {
+export async function showTaskWithId(
+	controller: Controller,
+	request: StringRequest,
+): Promise<TaskResponse> {
 	try {
-		const id = request.value
+		const id = request.value;
 
 		// First check if task exists in global state for faster access
-		const taskHistory = controller.stateManager.getGlobalStateKey("taskHistory")
-		const historyItem = taskHistory.find((item) => item.id === id)
+		const taskHistory =
+			controller.stateManager.getGlobalStateKey("taskHistory");
+		const historyItem = taskHistory.find((item) => item.id === id);
 
 		// We need to initialize the task before returning data
 		if (historyItem) {
 			// Always initialize the task with the history item
-			await controller.initTask(undefined, undefined, undefined, historyItem)
+			await controller.initTask(undefined, undefined, undefined, historyItem);
 
 			// Send UI update to show the chat view
-			await sendChatButtonClickedEvent()
+			await sendChatButtonClickedEvent();
 
 			// Return task data for gRPC response
 			return TaskResponse.create({
@@ -38,17 +42,17 @@ export async function showTaskWithId(controller: Controller, request: StringRequ
 				tokensOut: historyItem.tokensOut || 0,
 				cacheWrites: historyItem.cacheWrites || 0,
 				cacheReads: historyItem.cacheReads || 0,
-			})
+			});
 		}
 
 		// If not in global state, fetch from storage
-		const { historyItem: fetchedItem } = await controller.getTaskWithId(id)
+		const { historyItem: fetchedItem } = await controller.getTaskWithId(id);
 
 		// Initialize the task with the fetched item
-		await controller.initTask(undefined, undefined, undefined, fetchedItem)
+		await controller.initTask(undefined, undefined, undefined, fetchedItem);
 
 		// Send UI update to show the chat view
-		await sendChatButtonClickedEvent()
+		await sendChatButtonClickedEvent();
 
 		return TaskResponse.create({
 			id: fetchedItem.id,
@@ -61,9 +65,9 @@ export async function showTaskWithId(controller: Controller, request: StringRequ
 			tokensOut: fetchedItem.tokensOut || 0,
 			cacheWrites: fetchedItem.cacheWrites || 0,
 			cacheReads: fetchedItem.cacheReads || 0,
-		})
+		});
 	} catch (error) {
-		Logger.error("Error in showTaskWithId:", error)
-		throw error
+		Logger.error("Error in showTaskWithId:", error);
+		throw error;
 	}
 }

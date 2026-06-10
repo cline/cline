@@ -1,29 +1,29 @@
-import { OpenaiReasoningEffort as ProtoOpenaiReasoningEffort } from "@shared/proto/cline/state"
+import { OpenaiReasoningEffort as ProtoOpenaiReasoningEffort } from "@shared/proto/cline/state";
 import {
 	isOpenaiReasoningEffort,
 	normalizeOpenaiReasoningEffort as normalizeOpenaiReasoningEffortString,
 	OpenaiReasoningEffort,
-} from "@/shared/storage/types"
+} from "@/shared/storage/types";
 
 export function normalizeOpenaiReasoningEffort(
 	effort: ProtoOpenaiReasoningEffort | OpenaiReasoningEffort | string,
 ): OpenaiReasoningEffort {
 	if (isOpenaiReasoningEffort(effort)) {
-		return effort
+		return effort;
 	}
 
 	if (typeof effort === "string") {
-		return normalizeOpenaiReasoningEffortString(effort)
+		return normalizeOpenaiReasoningEffortString(effort);
 	}
 
 	switch (effort) {
 		case ProtoOpenaiReasoningEffort.LOW:
-			return "low"
+			return "low";
 		case ProtoOpenaiReasoningEffort.MEDIUM:
-			return "medium"
+			return "medium";
 		case ProtoOpenaiReasoningEffort.HIGH:
-			return "high"
+			return "high";
 		default:
-			return normalizeOpenaiReasoningEffortString()
+			return normalizeOpenaiReasoningEffortString();
 	}
 }

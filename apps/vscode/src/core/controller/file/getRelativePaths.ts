@@ -1,10 +1,10 @@
-import { RelativePaths, RelativePathsRequest } from "@shared/proto/cline/file"
-import * as path from "path"
-import { URI } from "vscode-uri"
-import { Logger } from "@/shared/services/Logger"
-import { isDirectory } from "@/utils/fs"
-import { asRelativePath } from "@/utils/path"
-import { Controller } from ".."
+import { RelativePaths, RelativePathsRequest } from "@shared/proto/cline/file";
+import * as path from "path";
+import { URI } from "vscode-uri";
+import { Logger } from "@/shared/services/Logger";
+import { isDirectory } from "@/utils/fs";
+import { asRelativePath } from "@/utils/path";
+import { Controller } from "..";
 
 /**
  * Converts a list of URIs to workspace-relative paths
@@ -12,30 +12,33 @@ import { Controller } from ".."
  * @param request The request containing URIs to convert
  * @returns Response with resolved relative paths
  */
-export async function getRelativePaths(_controller: Controller, request: RelativePathsRequest): Promise<RelativePaths> {
-	const result = []
+export async function getRelativePaths(
+	_controller: Controller,
+	request: RelativePathsRequest,
+): Promise<RelativePaths> {
+	const result = [];
 	for (const uriString of request.uris) {
 		try {
-			result.push(await getRelativePath(uriString))
+			result.push(await getRelativePath(uriString));
 		} catch (error) {
-			Logger.error(`Error calculating relative path for ${uriString}:`, error)
+			Logger.error(`Error calculating relative path for ${uriString}:`, error);
 		}
 	}
-	return RelativePaths.create({ paths: result })
+	return RelativePaths.create({ paths: result });
 }
 
 async function getRelativePath(uriString: string): Promise<string> {
-	const filePath = URI.parse(uriString, true).fsPath
-	const relativePath = await asRelativePath(filePath)
+	const filePath = URI.parse(uriString, true).fsPath;
+	const relativePath = await asRelativePath(filePath);
 
 	// If the path is still absolute, it's outside the workspace
 	if (path.isAbsolute(relativePath)) {
-		throw new Error(`Dropped file ${relativePath} is outside the workspace.`)
+		throw new Error(`Dropped file ${relativePath} is outside the workspace.`);
 	}
 
-	let result = "/" + relativePath.replace(/\\/g, "/")
+	let result = "/" + relativePath.replace(/\\/g, "/");
 	if (await isDirectory(filePath)) {
-		result += "/"
+		result += "/";
 	}
-	return result
+	return result;
 }

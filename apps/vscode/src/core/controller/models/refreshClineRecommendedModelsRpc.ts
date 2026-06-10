@@ -1,13 +1,16 @@
-import { EmptyRequest } from "@shared/proto/cline/common"
-import { ClineRecommendedModel, ClineRecommendedModelsResponse } from "@shared/proto/cline/models"
-import type { Controller } from "../index"
-import { refreshClineRecommendedModels } from "./refreshClineRecommendedModels"
+import { EmptyRequest } from "@shared/proto/cline/common";
+import {
+	ClineRecommendedModel,
+	ClineRecommendedModelsResponse,
+} from "@shared/proto/cline/models";
+import type { Controller } from "../index";
+import { refreshClineRecommendedModels } from "./refreshClineRecommendedModels";
 
 export async function refreshClineRecommendedModelsRpc(
 	_controller: Controller,
 	_request: EmptyRequest,
 ): Promise<ClineRecommendedModelsResponse> {
-	const models = await refreshClineRecommendedModels()
+	const models = await refreshClineRecommendedModels();
 	return ClineRecommendedModelsResponse.create({
 		recommended: models.recommended.map((model) =>
 			ClineRecommendedModel.create({
@@ -25,5 +28,5 @@ export async function refreshClineRecommendedModelsRpc(
 				tags: model.tags,
 			}),
 		),
-	})
+	});
 }

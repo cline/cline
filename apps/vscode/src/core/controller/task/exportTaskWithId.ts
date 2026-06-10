@@ -1,6 +1,6 @@
-import { Empty, StringRequest } from "@shared/proto/cline/common"
-import { Logger } from "@/shared/services/Logger"
-import { Controller } from ".."
+import { Empty, StringRequest } from "@shared/proto/cline/common";
+import { Logger } from "@/shared/services/Logger";
+import { Controller } from "..";
 
 /**
  * Exports a task with the given ID to markdown
@@ -8,15 +8,18 @@ import { Controller } from ".."
  * @param request The request containing the task ID in the value field
  * @returns Empty response
  */
-export async function exportTaskWithId(controller: Controller, request: StringRequest): Promise<Empty> {
+export async function exportTaskWithId(
+	controller: Controller,
+	request: StringRequest,
+): Promise<Empty> {
 	try {
 		if (request.value) {
-			await controller.exportTaskWithId(request.value)
+			await controller.exportTaskWithId(request.value);
 		}
-		return Empty.create()
+		return Empty.create();
 	} catch (error) {
 		// Log the error but allow it to propagate for proper gRPC error handling
-		Logger.error(`Error exporting task with ID ${request.value}:`, error)
-		throw error
+		Logger.error(`Error exporting task with ID ${request.value}:`, error);
+		throw error;
 	}
 }

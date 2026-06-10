@@ -1,5 +1,5 @@
-import { readTextFromClipboard, writeTextToClipboard } from "@utils/env"
-import * as vscode from "vscode"
+import { readTextFromClipboard, writeTextToClipboard } from "@utils/env";
+import * as vscode from "vscode";
 
 /**
  * Gets the contents of the active terminal
@@ -7,40 +7,44 @@ import * as vscode from "vscode"
  */
 export async function getLatestTerminalOutput(): Promise<string> {
 	// Store original clipboard content to restore later
-	const originalClipboard = await readTextFromClipboard()
+	const originalClipboard = await readTextFromClipboard();
 
 	try {
 		// Select terminal content
-		await vscode.commands.executeCommand("workbench.action.terminal.selectAll")
+		await vscode.commands.executeCommand("workbench.action.terminal.selectAll");
 
 		// Copy selection to clipboard
-		await vscode.commands.executeCommand("workbench.action.terminal.copySelection")
+		await vscode.commands.executeCommand(
+			"workbench.action.terminal.copySelection",
+		);
 
 		// Clear the selection
-		await vscode.commands.executeCommand("workbench.action.terminal.clearSelection")
+		await vscode.commands.executeCommand(
+			"workbench.action.terminal.clearSelection",
+		);
 
 		// Get terminal contents from clipboard
-		let terminalContents = (await readTextFromClipboard()).trim()
+		let terminalContents = (await readTextFromClipboard()).trim();
 
 		// Check if there's actually a terminal open
 		if (terminalContents === originalClipboard) {
-			return ""
+			return "";
 		}
 
 		// Clean up command separation
-		const lines = terminalContents.split("\n")
-		const lastLine = lines.pop()?.trim()
+		const lines = terminalContents.split("\n");
+		const lastLine = lines.pop()?.trim();
 		if (lastLine) {
-			let i = lines.length - 1
+			let i = lines.length - 1;
 			while (i >= 0 && !lines[i].trim().startsWith(lastLine)) {
-				i--
+				i--;
 			}
-			terminalContents = lines.slice(Math.max(i, 0)).join("\n")
+			terminalContents = lines.slice(Math.max(i, 0)).join("\n");
 		}
 
-		return terminalContents
+		return terminalContents;
 	} finally {
 		// Restore original clipboard content
-		await writeTextToClipboard(originalClipboard)
+		await writeTextToClipboard(originalClipboard);
 	}
 }

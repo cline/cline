@@ -1,12 +1,12 @@
-import * as fs from "fs/promises"
-import * as vscode from "vscode"
-import { sanitizeCellForLLM } from "@/integrations/misc/notebook-utils"
-import { ExtensionRegistryInfo } from "@/registry"
-import { CommandContext } from "@/shared/proto/index.cline"
-import { Logger } from "@/shared/services/Logger"
-import { Controller } from "../../core/controller"
-import { WebviewProvider } from "../../core/webview"
-import { convertVscodeDiagnostics } from "./hostbridge/workspace/getDiagnostics"
+import * as fs from "fs/promises";
+import * as vscode from "vscode";
+import { sanitizeCellForLLM } from "@/integrations/misc/notebook-utils";
+import { ExtensionRegistryInfo } from "@/registry";
+import { CommandContext } from "@/shared/proto/index.cline";
+import { Logger } from "@/shared/services/Logger";
+import { Controller } from "../../core/controller";
+import { WebviewProvider } from "../../core/webview";
+import { convertVscodeDiagnostics } from "./hostbridge/workspace/getDiagnostics";
 
 /**
  * Finds the notebook cell that contains the selected text and returns its JSON representation
@@ -14,33 +14,40 @@ import { convertVscodeDiagnostics } from "./hostbridge/workspace/getDiagnostics"
  * @param notebookCell The cell index from the active notebook editor
  * @returns JSON string of the matching cell, or null if no match found
  */
-export async function findMatchingNotebookCell(filePath: string, notebookCell?: number): Promise<string | null> {
+export async function findMatchingNotebookCell(
+	filePath: string,
+	notebookCell?: number,
+): Promise<string | null> {
 	try {
 		// Read the notebook file directly
-		const notebookContent = await fs.readFile(filePath, "utf8")
-		const notebook = JSON.parse(notebookContent)
+		const notebookContent = await fs.readFile(filePath, "utf8");
+		const notebook = JSON.parse(notebookContent);
 
 		if (!notebook.cells || !Array.isArray(notebook.cells)) {
-			Logger.log("Invalid notebook structure: no cells array found")
-			return null
+			Logger.log("Invalid notebook structure: no cells array found");
+			return null;
 		}
 
-		Logger.log(`Loaded notebook with ${notebook.cells.length} cells`)
+		Logger.log(`Loaded notebook with ${notebook.cells.length} cells`);
 
-		if (typeof notebookCell === "number" && notebookCell >= 0 && notebookCell < notebook.cells.length) {
-			Logger.log(`Using provided notebook cell number ${notebookCell}`)
+		if (
+			typeof notebookCell === "number" &&
+			notebookCell >= 0 &&
+			notebookCell < notebook.cells.length
+		) {
+			Logger.log(`Using provided notebook cell number ${notebookCell}`);
 			// Get a reference to the specific cell object
-			const cellToProcess = notebook.cells[notebookCell]
+			const cellToProcess = notebook.cells[notebookCell];
 
 			// Sanitize the cell outputs (truncate images, keep text outputs)
-			return sanitizeCellForLLM(cellToProcess)
+			return sanitizeCellForLLM(cellToProcess);
 		}
 
-		Logger.log("No valid notebook cell number provided")
-		return null
+		Logger.log("No valid notebook cell number provided");
+		return null;
 	} catch (error) {
-		Logger.error("Error in findMatchingNotebookCell:", error)
-		return null
+		Logger.error("Error in findMatchingNotebookCell:", error);
+		return null;
 	}
 }
 
@@ -58,50 +65,60 @@ export async function getContextForCommand(
 		 * When true, the editor keeps focus when showing the sidebar webview.
 		 * Use this for non-interruptive flows (e.g. copy terminal output to Cline).
 		 */
-		preserveEditorFocus?: boolean
+		preserveEditorFocus?: boolean;
 	},
 ): Promise<
 	| undefined
 	| {
-			controller: Controller
-			commandContext: CommandContext
+			controller: Controller;
+			commandContext: CommandContext;
 	  }
 > {
-	const activeWebview = await showWebview(options?.preserveEditorFocus ?? false)
+	const activeWebview = await showWebview(
+		options?.preserveEditorFocus ?? false,
+	);
 	// Use the controller from the active instance
-	const controller = activeWebview.controller
+	const controller = activeWebview.controller;
 
-	const editor = vscode.window.activeTextEditor
+	const editor = vscode.window.activeTextEditor;
 	if (!editor) {
 		// Fallback for notebooks with no cells (no text editor active)
-		const activeNotebook = vscode.window.activeNotebookEditor
+		const activeNotebook = vscode.window.activeNotebookEditor;
 		if (!activeNotebook) {
-			return
+			return;
 		}
-		const filePath = activeNotebook.notebook.uri.fsPath
-		const diagnostics = convertVscodeDiagnostics(vscodeDiagnostics || [])
-		return { controller, commandContext: { selectedText: "", filePath, diagnostics, language: "" } }
+		const filePath = activeNotebook.notebook.uri.fsPath;
+		const diagnostics = convertVscodeDiagnostics(vscodeDiagnostics || []);
+		return {
+			controller,
+			commandContext: { selectedText: "", filePath, diagnostics, language: "" },
+		};
 	}
 	// Use provided range if available, otherwise use current selection
 	// (vscode command passes an argument in the first param by default, so we need to ensure it's a Range object)
-	const textRange = range instanceof vscode.Range ? range : editor.selection
-	const selectedText = editor.document.getText(textRange)
+	const textRange = range instanceof vscode.Range ? range : editor.selection;
+	const selectedText = editor.document.getText(textRange);
 
-	const filePath = editor.document.uri.fsPath
-	const language = editor.document.languageId
-	const diagnostics = convertVscodeDiagnostics(vscodeDiagnostics || [])
+	const filePath = editor.document.uri.fsPath;
+	const language = editor.document.languageId;
+	const diagnostics = convertVscodeDiagnostics(vscodeDiagnostics || []);
 	const commandContext: CommandContext = {
 		selectedText,
 		filePath,
 		diagnostics,
 		language,
-	}
+	};
 
-	return { controller, commandContext }
+	return { controller, commandContext };
 }
 
-export async function showWebview(preserveEditorFocus: boolean = true): Promise<WebviewProvider> {
-	await vscode.commands.executeCommand(ExtensionRegistryInfo.commands.FocusChatInput, preserveEditorFocus)
+export async function showWebview(
+	preserveEditorFocus: boolean = true,
+): Promise<WebviewProvider> {
+	await vscode.commands.executeCommand(
+		ExtensionRegistryInfo.commands.FocusChatInput,
+		preserveEditorFocus,
+	);
 
-	return WebviewProvider.getInstance()
+	return WebviewProvider.getInstance();
 }

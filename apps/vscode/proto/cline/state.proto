@@ -317,8 +317,8 @@ message TogglePlanActModeRequest {
 }
 
 message TogglePlanActModeResponse {
-	bool forwarded = 1;
-	string returned_message = 2;
+  bool forwarded = 1;
+  string returned_message = 2;
 }
 
 enum PlanActMode {

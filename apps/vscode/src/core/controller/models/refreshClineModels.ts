@@ -1,14 +1,20 @@
-import { ensureCacheDirectoryExists, GlobalFileNames } from "@core/storage/disk"
-import type { ModelInfo } from "@shared/api"
-import { fileExistsAtPath } from "@utils/fs"
-import { GEMINI_FLASH_MAX_OUTPUT_TOKENS, isGeminiFlashModel } from "@utils/model-utils"
-import axios from "axios"
-import cloneDeep from "clone-deep"
-import fs from "fs/promises"
-import path from "path"
-import { ClineEnv } from "@/config"
-import { StateManager } from "@/core/storage/StateManager"
-import { featureFlagsService } from "@/services/feature-flags"
+import {
+	ensureCacheDirectoryExists,
+	GlobalFileNames,
+} from "@core/storage/disk";
+import type { ModelInfo } from "@shared/api";
+import { fileExistsAtPath } from "@utils/fs";
+import {
+	GEMINI_FLASH_MAX_OUTPUT_TOKENS,
+	isGeminiFlashModel,
+} from "@utils/model-utils";
+import axios from "axios";
+import cloneDeep from "clone-deep";
+import fs from "fs/promises";
+import path from "path";
+import { ClineEnv } from "@/config";
+import { StateManager } from "@/core/storage/StateManager";
+import { featureFlagsService } from "@/services/feature-flags";
 import {
 	ANTHROPIC_MAX_THINKING_BUDGET,
 	CLAUDE_FABLE_1M_TIERS,
@@ -21,12 +27,12 @@ import {
 	openRouterClaudeSonnet41mModelId,
 	openRouterClaudeSonnet451mModelId,
 	openRouterClaudeSonnet461mModelId,
-} from "@/shared/api"
-import { getAxiosSettings } from "@/shared/net"
-import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
-import { Logger } from "@/shared/services/Logger"
-import type { Controller } from ".."
-import { refreshOpenRouterModels } from "./refreshOpenRouterModels"
+} from "@/shared/api";
+import { getAxiosSettings } from "@/shared/net";
+import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags";
+import { Logger } from "@/shared/services/Logger";
+import type { Controller } from "..";
+import { refreshOpenRouterModels } from "./refreshOpenRouterModels";
 
 type ClineSupportedParams =
 	| "frequency_penalty"
@@ -46,57 +52,60 @@ type ClineSupportedParams =
 	| "tools"
 	| "top_k"
 	| "top_logprobs"
-	| "top_p"
+	| "top_p";
 
 /**
  * The raw model information returned by the Cline API to list models
  */
 interface ClineRawModelInfo {
-	id: string
-	name: string
-	description: string | null
-	context_length: number | null
+	id: string;
+	name: string;
+	description: string | null;
+	context_length: number | null;
 	top_provider: {
-		max_completion_tokens: number | null
-		context_length: number | null
-		is_moderated: boolean | null
-	} | null
+		max_completion_tokens: number | null;
+		context_length: number | null;
+		is_moderated: boolean | null;
+	} | null;
 	architecture: {
-		modality: string | string[]
-		input_modalities?: string[]
-		output_modalities?: string[]
-		tokenizer?: string
-		instruct_type?: string
-	} | null
+		modality: string | string[];
+		input_modalities?: string[];
+		output_modalities?: string[];
+		tokenizer?: string;
+		instruct_type?: string;
+	} | null;
 	pricing: {
-		prompt: string
-		completion: string
-		request?: string
-		image?: string
-		audio?: string
-		web_search?: string
-		internal_reasoning?: string
-		input_cache_read?: string
-		input_cache_write?: string
-	} | null
-	supports_global_endpoint?: boolean | null
-	tiers?: ModelInfo["tiers"] | null
-	supported_parameters?: ClineSupportedParams[] | null
+		prompt: string;
+		completion: string;
+		request?: string;
+		image?: string;
+		audio?: string;
+		web_search?: string;
+		internal_reasoning?: string;
+		input_cache_read?: string;
+		input_cache_write?: string;
+	} | null;
+	supports_global_endpoint?: boolean | null;
+	tiers?: ModelInfo["tiers"] | null;
+	supported_parameters?: ClineSupportedParams[] | null;
 }
 
 // Track pending refresh promise to prevent duplicate concurrent fetches
-let pendingRefresh: Promise<Record<string, ModelInfo>> | null = null
+let pendingRefresh: Promise<Record<string, ModelInfo>> | null = null;
 
 async function fetchRawClineModels(): Promise<ClineRawModelInfo[]> {
-	const apiBaseUrl = ClineEnv.config().apiBaseUrl
-	const response = await axios.get(`${apiBaseUrl}/api/v1/ai/cline/models`, getAxiosSettings())
+	const apiBaseUrl = ClineEnv.config().apiBaseUrl;
+	const response = await axios.get(
+		`${apiBaseUrl}/api/v1/ai/cline/models`,
+		getAxiosSettings(),
+	);
 
 	if (!Array.isArray(response.data?.data)) {
-		throw new Error("Invalid response data when fetching Cline models")
+		throw new Error("Invalid response data when fetching Cline models");
 	}
 
-	Logger.log("Cline models source: Cline API")
-	return response.data.data as ClineRawModelInfo[]
+	Logger.log("Cline models source: Cline API");
+	return response.data.data as ClineRawModelInfo[];
 }
 
 /**
@@ -104,58 +113,68 @@ async function fetchRawClineModels(): Promise<ClineRawModelInfo[]> {
  * @param controller The controller instance
  * @returns Record of model ID to ModelInfo (application types)
  */
-export async function refreshClineModels(controller: Controller): Promise<Record<string, ModelInfo>> {
-	const shouldUseClineEndpointSource = featureFlagsService.getBooleanFlagEnabled(FeatureFlag.EXTENSION_CLINE_MODELS_ENDPOINT)
+export async function refreshClineModels(
+	controller: Controller,
+): Promise<Record<string, ModelInfo>> {
+	const shouldUseClineEndpointSource =
+		featureFlagsService.getBooleanFlagEnabled(
+			FeatureFlag.EXTENSION_CLINE_MODELS_ENDPOINT,
+		);
 	if (!shouldUseClineEndpointSource) {
-		return refreshOpenRouterModels(controller)
+		return refreshOpenRouterModels(controller);
 	}
 
 	// Check in-memory cache first
-	const cache = StateManager.get().getModelsCache("cline")
+	const cache = StateManager.get().getModelsCache("cline");
 	if (cache) {
-		return cache
+		return cache;
 	}
 
 	// If a fetch is already in progress, return the same promise
 	if (pendingRefresh) {
-		return pendingRefresh
+		return pendingRefresh;
 	}
 
 	// Start new fetch and track the promise
 	pendingRefresh = (async () => {
 		try {
-			return await fetchAndCacheClineModels()
+			return await fetchAndCacheClineModels();
 		} finally {
 			// Clear pending promise when done (success or error)
-			pendingRefresh = null
+			pendingRefresh = null;
 		}
-	})()
+	})();
 
-	return pendingRefresh
+	return pendingRefresh;
 }
 
 async function fetchAndCacheClineModels(): Promise<Record<string, ModelInfo>> {
-	const clineModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.clineModels)
+	const clineModelsFilePath = path.join(
+		await ensureCacheDirectoryExists(),
+		GlobalFileNames.clineModels,
+	);
 
-	let models: Record<string, ModelInfo> = {}
+	let models: Record<string, ModelInfo> = {};
 	try {
-		const rawModels = await fetchRawClineModels()
+		const rawModels = await fetchRawClineModels();
 		const parsePrice = (price: unknown) => {
 			if (price === undefined || price === null || price === "") {
-				return undefined
+				return undefined;
 			}
 
-			const parsedPrice = Number.parseFloat(String(price))
-			return Number.isNaN(parsedPrice) ? undefined : parsedPrice * 1_000_000
-		}
+			const parsedPrice = Number.parseFloat(String(price));
+			return Number.isNaN(parsedPrice) ? undefined : parsedPrice * 1_000_000;
+		};
 		for (const rawModel of rawModels) {
-			const supportThinking = rawModel.supported_parameters?.some((p) => p === "include_reasoning" || p === "reasoning")
+			const supportThinking = rawModel.supported_parameters?.some(
+				(p) => p === "include_reasoning" || p === "reasoning",
+			);
 
 			// Handle modality which can be a string or array
-			const modality = rawModel.architecture?.modality
+			const modality = rawModel.architecture?.modality;
 			const supportsImages = Array.isArray(modality)
 				? modality.includes("image")
-				: typeof modality === "string" && modality.includes("image")
+				: typeof modality === "string" && modality.includes("image");
 
 			const modelInfo: ModelInfo = {
 				name: rawModel.name,
@@ -170,13 +189,18 @@ async function fetchAndCacheClineModels(): Promise<Record<string, ModelInfo>> {
 				description: rawModel.description ?? "",
 				// If thinking is supported, set maxBudget with a default value as a placeholder
 				// to ensure it has a valid thinkingConfig that lets the application know thinking is supported.
-				thinkingConfig: supportThinking ? { maxBudget: ANTHROPIC_MAX_THINKING_BUDGET } : undefined,
+				thinkingConfig: supportThinking
+					? { maxBudget: ANTHROPIC_MAX_THINKING_BUDGET }
+					: undefined,
 				supportsGlobalEndpoint: rawModel.supports_global_endpoint ?? undefined,
 				tiers: rawModel.tiers ?? undefined,
-			}
+			};
 
-			if (modelInfo.cacheReadsPrice !== undefined || modelInfo.cacheWritesPrice !== undefined) {
-				modelInfo.supportsPromptCache = true
+			if (
+				modelInfo.cacheReadsPrice !== undefined ||
+				modelInfo.cacheWritesPrice !== undefined
+			) {
+				modelInfo.supportsPromptCache = true;
 			}
 
 			// Apply model-specific overrides for known models
@@ -186,87 +210,94 @@ async function fetchAndCacheClineModels(): Promise<Record<string, ModelInfo>> {
 				case "anthropic/claude-sonnet-4.5":
 				case "anthropic/claude-4.5-sonnet":
 				case "anthropic/claude-sonnet-4":
-					modelInfo.contextWindow = 200_000
-					modelInfo.supportsPromptCache = true
-					modelInfo.cacheWritesPrice = 3.75
-					modelInfo.cacheReadsPrice = 0.3
-					break
+					modelInfo.contextWindow = 200_000;
+					modelInfo.supportsPromptCache = true;
+					modelInfo.cacheWritesPrice = 3.75;
+					modelInfo.cacheReadsPrice = 0.3;
+					break;
 				case "anthropic/claude-3-7-sonnet":
 				case "anthropic/claude-3.7-sonnet":
 				case "anthropic/claude-3.5-sonnet":
-					modelInfo.supportsPromptCache = true
-					modelInfo.cacheWritesPrice = 3.75
-					modelInfo.cacheReadsPrice = 0.3
-					break
+					modelInfo.supportsPromptCache = true;
+					modelInfo.cacheWritesPrice = 3.75;
+					modelInfo.cacheReadsPrice = 0.3;
+					break;
 				case "anthropic/claude-opus-4.6":
 				case "anthropic/claude-opus-4.7":
 				case "anthropic/claude-opus-4.8":
-					modelInfo.contextWindow = 200_000
-					modelInfo.supportsPromptCache = true
-					modelInfo.cacheWritesPrice = 6.25
-					modelInfo.cacheReadsPrice = 0.5
-					break
+					modelInfo.contextWindow = 200_000;
+					modelInfo.supportsPromptCache = true;
+					modelInfo.cacheWritesPrice = 6.25;
+					modelInfo.cacheReadsPrice = 0.5;
+					break;
 				case "anthropic/claude-fable-5":
-					modelInfo.contextWindow = 200_000
-					modelInfo.supportsPromptCache = true
-					modelInfo.inputPrice = 10
-					modelInfo.outputPrice = 50
-					modelInfo.cacheWritesPrice = 12.5
-					modelInfo.cacheReadsPrice = 1
-					break
+					modelInfo.contextWindow = 200_000;
+					modelInfo.supportsPromptCache = true;
+					modelInfo.inputPrice = 10;
+					modelInfo.outputPrice = 50;
+					modelInfo.cacheWritesPrice = 12.5;
+					modelInfo.cacheReadsPrice = 1;
+					break;
 				case "anthropic/claude-opus-4.5":
-					modelInfo.supportsPromptCache = true
-					modelInfo.cacheWritesPrice = 6.25
-					modelInfo.cacheReadsPrice = 0.5
-					break
+					modelInfo.supportsPromptCache = true;
+					modelInfo.cacheWritesPrice = 6.25;
+					modelInfo.cacheReadsPrice = 0.5;
+					break;
 				case "anthropic/claude-opus-4.1":
 				case "anthropic/claude-opus-4":
-					modelInfo.supportsPromptCache = true
-					modelInfo.cacheWritesPrice = 18.75
-					modelInfo.cacheReadsPrice = 1.5
-					break
+					modelInfo.supportsPromptCache = true;
+					modelInfo.cacheWritesPrice = 18.75;
+					modelInfo.cacheReadsPrice = 1.5;
+					break;
 				case "anthropic/claude-haiku-4.5":
 				case "anthropic/claude-4.5-haiku":
 				case "anthropic/claude-3-5-haiku":
 				case "anthropic/claude-3.5-haiku":
-					modelInfo.supportsPromptCache = true
-					modelInfo.cacheWritesPrice = 1.25
-					modelInfo.cacheReadsPrice = 0.1
-					break
+					modelInfo.supportsPromptCache = true;
+					modelInfo.cacheWritesPrice = 1.25;
+					modelInfo.cacheReadsPrice = 0.1;
+					break;
 				case "deepseek/deepseek-chat":
-					modelInfo.supportsPromptCache = true
-					modelInfo.inputPrice = 0
-					modelInfo.cacheWritesPrice = 0.14
-					modelInfo.cacheReadsPrice = 0.014
-					break
+					modelInfo.supportsPromptCache = true;
+					modelInfo.inputPrice = 0;
+					modelInfo.cacheWritesPrice = 0.14;
+					modelInfo.cacheReadsPrice = 0.014;
+					break;
 				case "openai/gpt-5":
 				case "openai/gpt-5-chat":
 				case "openai/gpt-5-mini":
 				case "openai/gpt-5-nano":
-					modelInfo.maxTokens = 8_192
-					modelInfo.contextWindow = 272_000
-					break
+					modelInfo.maxTokens = 8_192;
+					modelInfo.contextWindow = 272_000;
+					break;
 				default:
 					// Check for cache pricing from the API response
-					if (rawModel.id.startsWith("openai/") || rawModel.id.startsWith("google/")) {
-						const cacheReadPrice = parsePrice(rawModel.pricing?.input_cache_read)
-						modelInfo.cacheReadsPrice = cacheReadPrice
+					if (
+						rawModel.id.startsWith("openai/") ||
+						rawModel.id.startsWith("google/")
+					) {
+						const cacheReadPrice = parsePrice(
+							rawModel.pricing?.input_cache_read,
+						);
+						modelInfo.cacheReadsPrice = cacheReadPrice;
 						if (cacheReadPrice !== undefined) {
-							modelInfo.supportsPromptCache = true
-							modelInfo.cacheWritesPrice = parsePrice(rawModel.pricing?.input_cache_write)
+							modelInfo.supportsPromptCache = true;
+							modelInfo.cacheWritesPrice = parsePrice(
+								rawModel.pricing?.input_cache_write,
+							);
 						}
 					}
-					break
+					break;
 			}
 
 			if (isGeminiFlashModel(rawModel.id)) {
 				modelInfo.maxTokens = Math.min(
 					modelInfo.maxTokens || GEMINI_FLASH_MAX_OUTPUT_TOKENS,
 					GEMINI_FLASH_MAX_OUTPUT_TOKENS,
-				)
+				);
 			}
 
-			models[rawModel.id] = modelInfo
+			models[rawModel.id] = modelInfo;
 
 			// Add custom :1m model variant for Sonnet models
 			if (
@@ -275,18 +306,21 @@ async function fetchAndCacheClineModels(): Promise<Record<string, ModelInfo>> {
 				rawModel.id === "anthropic/claude-sonnet-4.6" ||
 				rawModel.id === "anthropic/claude-4.6-sonnet"
 			) {
-				const claudeSonnet1mModelInfo = cloneDeep(modelInfo)
-				claudeSonnet1mModelInfo.contextWindow = 1_000_000
-				claudeSonnet1mModelInfo.tiers = CLAUDE_SONNET_1M_TIERS
+				const claudeSonnet1mModelInfo = cloneDeep(modelInfo);
+				claudeSonnet1mModelInfo.contextWindow = 1_000_000;
+				claudeSonnet1mModelInfo.tiers = CLAUDE_SONNET_1M_TIERS;
 
 				if (rawModel.id === "anthropic/claude-sonnet-4") {
-					models[openRouterClaudeSonnet41mModelId] = claudeSonnet1mModelInfo
+					models[openRouterClaudeSonnet41mModelId] = claudeSonnet1mModelInfo;
 				}
 				if (rawModel.id === "anthropic/claude-sonnet-4.5") {
-					models[openRouterClaudeSonnet451mModelId] = claudeSonnet1mModelInfo
+					models[openRouterClaudeSonnet451mModelId] = claudeSonnet1mModelInfo;
 				}
-				if (rawModel.id === "anthropic/claude-sonnet-4.6" || rawModel.id === "anthropic/claude-4.6-sonnet") {
-					models[openRouterClaudeSonnet461mModelId] = claudeSonnet1mModelInfo
+				if (
+					rawModel.id === "anthropic/claude-sonnet-4.6" ||
+					rawModel.id === "anthropic/claude-4.6-sonnet"
+				) {
+					models[openRouterClaudeSonnet461mModelId] = claudeSonnet1mModelInfo;
 				}
 			}
 
@@ -296,70 +330,75 @@ async function fetchAndCacheClineModels(): Promise<Record<string, ModelInfo>> {
 				rawModel.id === "anthropic/claude-opus-4.7" ||
 				rawModel.id === "anthropic/claude-opus-4.8"
 			) {
-				const claudeOpus1mModelInfo = cloneDeep(modelInfo)
-				claudeOpus1mModelInfo.contextWindow = 1_000_000
-				claudeOpus1mModelInfo.tiers = CLAUDE_OPUS_1M_TIERS
+				const claudeOpus1mModelInfo = cloneDeep(modelInfo);
+				claudeOpus1mModelInfo.contextWindow = 1_000_000;
+				claudeOpus1mModelInfo.tiers = CLAUDE_OPUS_1M_TIERS;
 				if (rawModel.id === "anthropic/claude-opus-4.6") {
-					models[openRouterClaudeOpus461mModelId] = claudeOpus1mModelInfo
+					models[openRouterClaudeOpus461mModelId] = claudeOpus1mModelInfo;
 				}
 				if (rawModel.id === "anthropic/claude-opus-4.7") {
-					models[openRouterClaudeOpus471mModelId] = claudeOpus1mModelInfo
+					models[openRouterClaudeOpus471mModelId] = claudeOpus1mModelInfo;
 				}
 				if (rawModel.id === "anthropic/claude-opus-4.8") {
-					models[openRouterClaudeOpus481mModelId] = claudeOpus1mModelInfo
+					models[openRouterClaudeOpus481mModelId] = claudeOpus1mModelInfo;
 				}
 			}
 			if (rawModel.id === "anthropic/claude-fable-5") {
-				const claudeFable1mModelInfo = cloneDeep(modelInfo)
-				claudeFable1mModelInfo.contextWindow = 1_000_000
-				claudeFable1mModelInfo.tiers = CLAUDE_FABLE_1M_TIERS
-				models[openRouterClaudeFable51mModelId] = claudeFable1mModelInfo
+				const claudeFable1mModelInfo = cloneDeep(modelInfo);
+				claudeFable1mModelInfo.contextWindow = 1_000_000;
+				claudeFable1mModelInfo.tiers = CLAUDE_FABLE_1M_TIERS;
+				models[openRouterClaudeFable51mModelId] = claudeFable1mModelInfo;
 			}
 		}
 		if (Object.keys(models).length === 0) {
-			throw new Error("No Cline models returned from API")
+			throw new Error("No Cline models returned from API");
 		}
 		// Save models and cache them in memory
-		await fs.writeFile(clineModelsFilePath, JSON.stringify(models))
-		Logger.log("Cline models fetched and saved")
+		await fs.writeFile(clineModelsFilePath, JSON.stringify(models));
+		Logger.log("Cline models fetched and saved");
 	} catch (error) {
-		Logger.error("Error fetching Cline models:", error)
+		Logger.error("Error fetching Cline models:", error);
 
 		// If we failed to fetch models, try to read cached models from disk
 		try {
-			const fileExists = await fileExistsAtPath(clineModelsFilePath)
+			const fileExists = await fileExistsAtPath(clineModelsFilePath);
 			if (fileExists) {
-				const fileContents = await fs.readFile(clineModelsFilePath, "utf8")
-				models = JSON.parse(fileContents)
-				Logger.log("Loaded Cline models from cache")
+				const fileContents = await fs.readFile(clineModelsFilePath, "utf8");
+				models = JSON.parse(fileContents);
+				Logger.log("Loaded Cline models from cache");
 			}
 		} catch (cacheError) {
-			Logger.error("Error reading Cline models from cache:", cacheError)
+			Logger.error("Error reading Cline models from cache:", cacheError);
 		}
 	}
 
 	// Avoid poisoning in-memory cache with an empty model map after transient failures.
 	if (Object.keys(models).length > 0) {
-		StateManager.get().setModelsCache("cline", models)
+		StateManager.get().setModelsCache("cline", models);
 	}
 
-	return models
+	return models;
 }
 
 /**
  * Read cached Cline models from disk
  * @returns The cached models or undefined if not found
  */
-export async function readClineModelsFromCache(): Promise<Record<string, ModelInfo> | undefined> {
+export async function readClineModelsFromCache(): Promise<
+	Record<string, ModelInfo> | undefined
+> {
 	try {
-		const clineModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.clineModels)
-		const fileExists = await fileExistsAtPath(clineModelsFilePath)
+		const clineModelsFilePath = path.join(
+			await ensureCacheDirectoryExists(),
+			GlobalFileNames.clineModels,
+		);
+		const fileExists = await fileExistsAtPath(clineModelsFilePath);
 		if (fileExists) {
-			const fileContents = await fs.readFile(clineModelsFilePath, "utf8")
-			return JSON.parse(fileContents)
+			const fileContents = await fs.readFile(clineModelsFilePath, "utf8");
+			return JSON.parse(fileContents);
 		}
 	} catch (error) {
-		Logger.error("Error reading Cline models from cache:", error)
+		Logger.error("Error reading Cline models from cache:", error);
 	}
-	return undefined
+	return undefined;
 }

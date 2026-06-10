@@ -1,25 +1,30 @@
-import { SaveDialogOptions, Uri, window } from "vscode"
-import { ShowSaveDialogRequest, ShowSaveDialogResponse } from "@/shared/proto/index.host"
+import { SaveDialogOptions, Uri, window } from "vscode";
+import {
+	ShowSaveDialogRequest,
+	ShowSaveDialogResponse,
+} from "@/shared/proto/index.host";
 
-export async function showSaveDialog(request: ShowSaveDialogRequest): Promise<ShowSaveDialogResponse> {
-	const { options } = request
+export async function showSaveDialog(
+	request: ShowSaveDialogRequest,
+): Promise<ShowSaveDialogResponse> {
+	const { options } = request;
 
-	const vscodeOptions: SaveDialogOptions = {}
+	const vscodeOptions: SaveDialogOptions = {};
 
 	if (options?.defaultPath) {
-		vscodeOptions.defaultUri = Uri.file(options.defaultPath)
+		vscodeOptions.defaultUri = Uri.file(options.defaultPath);
 	}
 
 	if (options?.filters && Object.keys(options.filters).length > 0) {
-		vscodeOptions.filters = {}
+		vscodeOptions.filters = {};
 		Object.entries(options.filters).forEach(([name, extensionList]) => {
-			vscodeOptions.filters![name] = extensionList.extensions
-		})
+			vscodeOptions.filters![name] = extensionList.extensions;
+		});
 	}
 
-	const selectedUri = await window.showSaveDialog(vscodeOptions)
+	const selectedUri = await window.showSaveDialog(vscodeOptions);
 
 	return ShowSaveDialogResponse.create({
 		selectedPath: selectedUri?.fsPath,
-	})
+	});
 }

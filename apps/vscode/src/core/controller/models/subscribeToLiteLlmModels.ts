@@ -1,11 +1,13 @@
-import { EmptyRequest } from "@shared/proto/cline/common"
-import { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
-import { Logger } from "@/shared/services/Logger"
-import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
-import { Controller } from "../index"
+import { EmptyRequest } from "@shared/proto/cline/common";
+import { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models";
+import { Logger } from "@/shared/services/Logger";
+import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler";
+import { Controller } from "../index";
 
 // Keep track of active LiteLLM models subscriptions
-const activeLiteLlmModelsSubscriptions = new Set<StreamingResponseHandler<OpenRouterCompatibleModelInfo>>()
+const activeLiteLlmModelsSubscriptions = new Set<
+	StreamingResponseHandler<OpenRouterCompatibleModelInfo>
+>();
 
 /**
  * Subscribe to LiteLLM models events
@@ -21,16 +23,21 @@ export async function subscribeToLiteLlmModels(
 	requestId?: string,
 ): Promise<void> {
 	// Add this subscription to the active subscriptions
-	activeLiteLlmModelsSubscriptions.add(responseStream)
+	activeLiteLlmModelsSubscriptions.add(responseStream);
 
 	// Register cleanup when the connection is closed
 	const cleanup = () => {
-		activeLiteLlmModelsSubscriptions.delete(responseStream)
-	}
+		activeLiteLlmModelsSubscriptions.delete(responseStream);
+	};
 
 	// Register the cleanup function with the request registry if we have a requestId
 	if (requestId) {
-		getRequestRegistry().registerRequest(requestId, cleanup, { type: "liteLlmModels_subscription" }, responseStream)
+		getRequestRegistry().registerRequest(
+			requestId,
+			cleanup,
+			{ type: "liteLlmModels_subscription" },
+			responseStream,
+		);
 	}
 }
 
@@ -38,20 +45,24 @@ export async function subscribeToLiteLlmModels(
  * Send a LiteLLM models event to all active subscribers
  * @param models The LiteLLM models to send
  */
-export async function sendLiteLlmModelsEvent(models: OpenRouterCompatibleModelInfo): Promise<void> {
+export async function sendLiteLlmModelsEvent(
+	models: OpenRouterCompatibleModelInfo,
+): Promise<void> {
 	// Send the event to all active subscribers
-	const promises = Array.from(activeLiteLlmModelsSubscriptions).map(async (responseStream) => {
-		try {
-			await responseStream(
-				models,
-				false, // Not the last message
-			)
-		} catch (error) {
-			Logger.error("Error sending LiteLLM models event:", error)
-			// Remove the subscription if there was an error
-			activeLiteLlmModelsSubscriptions.delete(responseStream)
-		}
-	})
+	const promises = Array.from(activeLiteLlmModelsSubscriptions).map(
+		async (responseStream) => {
+			try {
+				await responseStream(
+					models,
+					false, // Not the last message
+				);
+			} catch (error) {
+				Logger.error("Error sending LiteLLM models event:", error);
+				// Remove the subscription if there was an error
+				activeLiteLlmModelsSubscriptions.delete(responseStream);
+			}
+		},
+	);
 
-	await Promise.all(promises)
+	await Promise.all(promises);
 }

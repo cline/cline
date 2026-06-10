@@ -1,5 +1,5 @@
-import { Logger } from "@/shared/services/Logger"
-import { StreamingResponseHandler } from "./grpc-handler"
+import { Logger } from "@/shared/services/Logger";
+import { StreamingResponseHandler } from "./grpc-handler";
 
 /**
  * Information about a registered gRPC request
@@ -8,22 +8,22 @@ export interface RequestInfo {
 	/**
 	 * Function to clean up resources when the request is cancelled or completed
 	 */
-	cleanup: () => void
+	cleanup: () => void;
 
 	/**
 	 * Optional metadata about the request
 	 */
-	metadata?: any
+	metadata?: any;
 
 	/**
 	 * Timestamp when the request was registered
 	 */
-	timestamp: Date
+	timestamp: Date;
 
 	/**
 	 * The streaming response handler for this request
 	 */
-	responseStream?: StreamingResponseHandler<any>
+	responseStream?: StreamingResponseHandler<any>;
 }
 
 /**
@@ -34,7 +34,7 @@ export class GrpcRequestRegistry {
 	/**
 	 * Map of request IDs to request information
 	 */
-	private activeRequests = new Map<string, RequestInfo>()
+	private activeRequests = new Map<string, RequestInfo>();
 
 	/**
 	 * Register a new request with its cleanup function
@@ -54,7 +54,7 @@ export class GrpcRequestRegistry {
 			metadata,
 			timestamp: new Date(),
 			responseStream,
-		})
+		});
 	}
 
 	/**
@@ -63,17 +63,17 @@ export class GrpcRequestRegistry {
 	 * @returns True if the request was found and cancelled, false otherwise
 	 */
 	public cancelRequest(requestId: string): boolean {
-		const requestInfo = this.activeRequests.get(requestId)
+		const requestInfo = this.activeRequests.get(requestId);
 		if (!requestInfo) {
-			return false
+			return false;
 		}
 		try {
-			requestInfo.cleanup()
+			requestInfo.cleanup();
 		} catch (error) {
-			Logger.error(`Error cleaning up request ${requestId}:`, error)
+			Logger.error(`Error cleaning up request ${requestId}:`, error);
 		}
-		this.activeRequests.delete(requestId)
-		return true
+		this.activeRequests.delete(requestId);
+		return true;
 	}
 
 	/**
@@ -82,7 +82,7 @@ export class GrpcRequestRegistry {
 	 * @returns The request information, or undefined if not found
 	 */
 	public getRequestInfo(requestId: string): RequestInfo | undefined {
-		return this.activeRequests.get(requestId)
+		return this.activeRequests.get(requestId);
 	}
 
 	/**
@@ -91,7 +91,7 @@ export class GrpcRequestRegistry {
 	 * @returns True if the request exists, false otherwise
 	 */
 	public hasRequest(requestId: string): boolean {
-		return this.activeRequests.has(requestId)
+		return this.activeRequests.has(requestId);
 	}
 
 	/**
@@ -99,7 +99,7 @@ export class GrpcRequestRegistry {
 	 * @returns An array of [requestId, requestInfo] pairs
 	 */
 	public getAllRequests(): [string, RequestInfo][] {
-		return Array.from(this.activeRequests.entries())
+		return Array.from(this.activeRequests.entries());
 	}
 
 	/**
@@ -108,16 +108,16 @@ export class GrpcRequestRegistry {
 	 * @returns The number of requests that were cleaned up
 	 */
 	public cleanupStaleRequests(maxAgeMs: number): number {
-		const now = new Date()
-		let cleanedCount = 0
+		const now = new Date();
+		let cleanedCount = 0;
 
 		for (const [requestId, info] of this.activeRequests.entries()) {
 			if (now.getTime() - info.timestamp.getTime() > maxAgeMs) {
-				this.cancelRequest(requestId)
-				cleanedCount++
+				this.cancelRequest(requestId);
+				cleanedCount++;
 			}
 		}
 
-		return cleanedCount
+		return cleanedCount;
 	}
 }

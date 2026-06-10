@@ -1,8 +1,8 @@
-import { EmptyRequest } from "@shared/proto/cline/common"
-import { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
-import { toProtobufModels } from "../../../shared/proto-conversions/models/typeConversion"
-import type { Controller } from "../index"
-import { refreshClineModels } from "./refreshClineModels"
+import { EmptyRequest } from "@shared/proto/cline/common";
+import { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models";
+import { toProtobufModels } from "../../../shared/proto-conversions/models/typeConversion";
+import type { Controller } from "../index";
+import { refreshClineModels } from "./refreshClineModels";
 
 /**
  * Refreshes Cline models and returns protobuf types for gRPC
@@ -14,8 +14,8 @@ export async function refreshClineModelsRpc(
 	controller: Controller,
 	_request: EmptyRequest,
 ): Promise<OpenRouterCompatibleModelInfo> {
-	const models = await refreshClineModels(controller)
+	const models = await refreshClineModels(controller);
 	return OpenRouterCompatibleModelInfo.create({
 		models: toProtobufModels(models),
-	})
+	});
 }

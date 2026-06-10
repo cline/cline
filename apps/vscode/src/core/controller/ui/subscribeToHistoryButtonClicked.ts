@@ -1,10 +1,12 @@
-import { Empty, EmptyRequest } from "@shared/proto/cline/common"
-import { Logger } from "@/shared/services/Logger"
-import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
-import { Controller } from "../index"
+import { Empty, EmptyRequest } from "@shared/proto/cline/common";
+import { Logger } from "@/shared/services/Logger";
+import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler";
+import { Controller } from "../index";
 
 // Keep track of active history button clicked subscriptions
-const activeHistoryButtonClickedSubscriptions = new Set<StreamingResponseHandler<Empty>>()
+const activeHistoryButtonClickedSubscriptions = new Set<
+	StreamingResponseHandler<Empty>
+>();
 
 /**
  * Subscribe to history button clicked events
@@ -20,16 +22,21 @@ export async function subscribeToHistoryButtonClicked(
 	requestId?: string,
 ): Promise<void> {
 	// Add this subscription to the active subscriptions
-	activeHistoryButtonClickedSubscriptions.add(responseStream)
+	activeHistoryButtonClickedSubscriptions.add(responseStream);
 
 	// Register cleanup when the connection is closed
 	const cleanup = () => {
-		activeHistoryButtonClickedSubscriptions.delete(responseStream)
-	}
+		activeHistoryButtonClickedSubscriptions.delete(responseStream);
+	};
 
 	// Register the cleanup function with the request registry if we have a requestId
 	if (requestId) {
-		getRequestRegistry().registerRequest(requestId, cleanup, { type: "history_button_clicked_subscription" }, responseStream)
+		getRequestRegistry().registerRequest(
+			requestId,
+			cleanup,
+			{ type: "history_button_clicked_subscription" },
+			responseStream,
+		);
 	}
 }
 
@@ -38,19 +45,21 @@ export async function subscribeToHistoryButtonClicked(
  */
 export async function sendHistoryButtonClickedEvent(): Promise<void> {
 	// Send the event to all active subscribers
-	const promises = Array.from(activeHistoryButtonClickedSubscriptions).map(async (responseStream) => {
-		try {
-			const event = Empty.create({})
-			await responseStream(
-				event,
-				false, // Not the last message
-			)
-		} catch (error) {
-			Logger.error("Error sending history button clicked event:", error)
-			// Remove the subscription if there was an error
-			activeHistoryButtonClickedSubscriptions.delete(responseStream)
-		}
-	})
+	const promises = Array.from(activeHistoryButtonClickedSubscriptions).map(
+		async (responseStream) => {
+			try {
+				const event = Empty.create({});
+				await responseStream(
+					event,
+					false, // Not the last message
+				);
+			} catch (error) {
+				Logger.error("Error sending history button clicked event:", error);
+				// Remove the subscription if there was an error
+				activeHistoryButtonClickedSubscriptions.delete(responseStream);
+			}
+		},
+	);
 
-	await Promise.all(promises)
+	await Promise.all(promises);
 }

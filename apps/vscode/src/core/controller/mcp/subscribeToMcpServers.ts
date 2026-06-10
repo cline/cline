@@ -1,12 +1,14 @@
-import { EmptyRequest } from "@shared/proto/cline/common"
-import { McpServers } from "@shared/proto/cline/mcp"
-import { convertMcpServersToProtoMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
-import { Logger } from "@/shared/services/Logger"
-import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
-import { Controller } from "../index"
+import { EmptyRequest } from "@shared/proto/cline/common";
+import { McpServers } from "@shared/proto/cline/mcp";
+import { convertMcpServersToProtoMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion";
+import { Logger } from "@/shared/services/Logger";
+import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler";
+import { Controller } from "../index";
 
 // Keep track of active subscriptions
-const activeMcpServersSubscriptions = new Set<StreamingResponseHandler<McpServers>>()
+const activeMcpServersSubscriptions = new Set<
+	StreamingResponseHandler<McpServers>
+>();
 
 /**
  * Subscribe to MCP servers events
@@ -22,33 +24,38 @@ export async function subscribeToMcpServers(
 	requestId?: string,
 ): Promise<void> {
 	// Add this subscription to the active subscriptions
-	activeMcpServersSubscriptions.add(responseStream)
+	activeMcpServersSubscriptions.add(responseStream);
 
 	// Register cleanup when the connection is closed
 	const cleanup = () => {
-		activeMcpServersSubscriptions.delete(responseStream)
-	}
+		activeMcpServersSubscriptions.delete(responseStream);
+	};
 
 	// Register the cleanup function with the request registry if we have a requestId
 	if (requestId) {
-		getRequestRegistry().registerRequest(requestId, cleanup, { type: "mcpServers_subscription" }, responseStream)
+		getRequestRegistry().registerRequest(
+			requestId,
+			cleanup,
+			{ type: "mcpServers_subscription" },
+			responseStream,
+		);
 	}
 
 	// Send initial state if available
 	if (controller.mcpHub) {
-		const mcpServers = controller.mcpHub.getServers()
+		const mcpServers = controller.mcpHub.getServers();
 		if (mcpServers.length > 0) {
 			try {
 				const protoServers = McpServers.create({
 					mcpServers: convertMcpServersToProtoMcpServers(mcpServers),
-				})
+				});
 				await responseStream(
 					protoServers,
 					false, // Not the last message
-				)
+				);
 			} catch (error) {
-				Logger.error("Error sending initial MCP servers:", error)
-				activeMcpServersSubscriptions.delete(responseStream)
+				Logger.error("Error sending initial MCP servers:", error);
+				activeMcpServersSubscriptions.delete(responseStream);
 			}
 		}
 	}
@@ -58,20 +65,24 @@ export async function subscribeToMcpServers(
  * Send an MCP servers update to all active subscribers
  * @param mcpServers The MCP servers to send
  */
-export async function sendMcpServersUpdate(mcpServers: McpServers): Promise<void> {
+export async function sendMcpServersUpdate(
+	mcpServers: McpServers,
+): Promise<void> {
 	// Send the event to all active subscribers
-	const promises = Array.from(activeMcpServersSubscriptions).map(async (responseStream) => {
-		try {
-			await responseStream(
-				mcpServers,
-				false, // Not the last message
-			)
-		} catch (error) {
-			Logger.error("Error sending MCP servers update:", error)
-			// Remove the subscription if there was an error
-			activeMcpServersSubscriptions.delete(responseStream)
-		}
-	})
+	const promises = Array.from(activeMcpServersSubscriptions).map(
+		async (responseStream) => {
+			try {
+				await responseStream(
+					mcpServers,
+					false, // Not the last message
+				);
+			} catch (error) {
+				Logger.error("Error sending MCP servers update:", error);
+				// Remove the subscription if there was an error
+				activeMcpServersSubscriptions.delete(responseStream);
+			}
+		},
+	);
 
-	await Promise.all(promises)
+	await Promise.all(promises);
 }

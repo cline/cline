@@ -1,6 +1,6 @@
-import { openFile as openFileIntegration } from "@integrations/misc/open-file"
-import { Empty, EmptyRequest } from "@shared/proto/cline/common"
-import { Controller } from ".."
+import { openFile as openFileIntegration } from "@integrations/misc/open-file";
+import { Empty, EmptyRequest } from "@shared/proto/cline/common";
+import { Controller } from "..";
 
 /**
  * Opens the MCP settings file in the editor
@@ -8,10 +8,13 @@ import { Controller } from ".."
  * @param _request Empty request
  * @returns Empty response
  */
-export async function openMcpSettings(controller: Controller, _request: EmptyRequest): Promise<Empty> {
-	const mcpSettingsFilePath = await controller.mcpHub?.getMcpSettingsFilePath()
+export async function openMcpSettings(
+	controller: Controller,
+	_request: EmptyRequest,
+): Promise<Empty> {
+	const mcpSettingsFilePath = await controller.mcpHub?.getMcpSettingsFilePath();
 	if (mcpSettingsFilePath) {
-		await openFileIntegration(mcpSettingsFilePath)
+		await openFileIntegration(mcpSettingsFilePath);
 	}
-	return Empty.create()
+	return Empty.create();
 }

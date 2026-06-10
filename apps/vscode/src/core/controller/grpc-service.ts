@@ -1,11 +1,14 @@
-import { Logger } from "@/shared/services/Logger"
-import { StreamingResponseHandler } from "./grpc-handler"
-import { Controller } from "./index"
+import { Logger } from "@/shared/services/Logger";
+import { StreamingResponseHandler } from "./grpc-handler";
+import { Controller } from "./index";
 
 /**
  * Generic type for service method handlers
  */
-export type ServiceMethodHandler = (controller: Controller, message: any) => Promise<any>
+export type ServiceMethodHandler = (
+	controller: Controller,
+	message: any,
+) => Promise<any>;
 
 /**
  * Type for streaming method handlers
@@ -15,31 +18,31 @@ export type StreamingMethodHandler = (
 	message: any,
 	responseStream: StreamingResponseHandler<any>,
 	requestId?: string,
-) => Promise<void>
+) => Promise<void>;
 
 /**
  * Method metadata including streaming information
  */
 export interface MethodMetadata {
-	isStreaming: boolean
+	isStreaming: boolean;
 }
 
 /**
  * Generic service registry for gRPC services
  */
 export class ServiceRegistry {
-	private serviceName: string
-	private methodRegistry: Record<string, ServiceMethodHandler> = {}
-	private streamingMethodRegistry: Record<string, StreamingMethodHandler> = {}
-	private methodMetadata: Record<string, MethodMetadata> = {}
+	private serviceName: string;
+	private methodRegistry: Record<string, ServiceMethodHandler> = {};
+	private streamingMethodRegistry: Record<string, StreamingMethodHandler> = {};
+	private methodMetadata: Record<string, MethodMetadata> = {};
 
 	/**
 	 * Create a new service registry
 	 * @param serviceName The name of the service (used for logging)
 	 */
 	constructor(serviceName: string) {
-		Logger.log(`Registering Protobus service: ${serviceName}...`)
-		this.serviceName = serviceName
+		Logger.log(`Registering Protobus service: ${serviceName}...`);
+		this.serviceName = serviceName;
 	}
 
 	/**
@@ -48,16 +51,21 @@ export class ServiceRegistry {
 	 * @param handler The handler function for the method
 	 * @param metadata Optional metadata about the method
 	 */
-	registerMethod(methodName: string, handler: ServiceMethodHandler | StreamingMethodHandler, metadata?: MethodMetadata): void {
-		const isStreaming = metadata?.isStreaming || false
+	registerMethod(
+		methodName: string,
+		handler: ServiceMethodHandler | StreamingMethodHandler,
+		metadata?: MethodMetadata,
+	): void {
+		const isStreaming = metadata?.isStreaming || false;
 
 		if (isStreaming) {
-			this.streamingMethodRegistry[methodName] = handler as StreamingMethodHandler
+			this.streamingMethodRegistry[methodName] =
+				handler as StreamingMethodHandler;
 		} else {
-			this.methodRegistry[methodName] = handler as ServiceMethodHandler
+			this.methodRegistry[methodName] = handler as ServiceMethodHandler;
 		}
 
-		this.methodMetadata[methodName] = { isStreaming, ...metadata }
+		this.methodMetadata[methodName] = { isStreaming, ...metadata };
 	}
 
 	/**
@@ -66,7 +74,7 @@ export class ServiceRegistry {
 	 * @returns True if the method is a streaming method
 	 */
 	isStreamingMethod(method: string): boolean {
-		return this.methodMetadata[method]?.isStreaming || false
+		return this.methodMetadata[method]?.isStreaming || false;
 	}
 
 	/**
@@ -75,7 +83,7 @@ export class ServiceRegistry {
 	 * @returns The streaming method handler or undefined if not found
 	 */
 	getStreamingHandler(method: string): StreamingMethodHandler | undefined {
-		return this.streamingMethodRegistry[method]
+		return this.streamingMethodRegistry[method];
 	}
 
 	/**
@@ -85,17 +93,23 @@ export class ServiceRegistry {
 	 * @param message The request message
 	 * @returns The response message
 	 */
-	async handleRequest(controller: Controller, method: string, message: any): Promise<any> {
-		const handler = this.methodRegistry[method]
+	async handleRequest(
+		controller: Controller,
+		method: string,
+		message: any,
+	): Promise<any> {
+		const handler = this.methodRegistry[method];
 
 		if (!handler) {
 			if (this.isStreamingMethod(method)) {
-				throw new Error(`Method ${method} is a streaming method and should be handled with handleStreamingRequest`)
+				throw new Error(
+					`Method ${method} is a streaming method and should be handled with handleStreamingRequest`,
+				);
 			}
-			throw new Error(`Unknown ${this.serviceName} method: ${method}`)
+			throw new Error(`Unknown ${this.serviceName} method: ${method}`);
 		}
 
-		return handler(controller, message)
+		return handler(controller, message);
 	}
 
 	/**
@@ -113,16 +127,20 @@ export class ServiceRegistry {
 		responseStream: StreamingResponseHandler<any>,
 		requestId?: string,
 	): Promise<void> {
-		const handler = this.streamingMethodRegistry[method]
+		const handler = this.streamingMethodRegistry[method];
 
 		if (!handler) {
 			if (this.methodRegistry[method]) {
-				throw new Error(`Method ${method} is not a streaming method and should be handled with handleRequest`)
+				throw new Error(
+					`Method ${method} is not a streaming method and should be handled with handleRequest`,
+				);
 			}
-			throw new Error(`Unknown ${this.serviceName} streaming method: ${method}`)
+			throw new Error(
+				`Unknown ${this.serviceName} streaming method: ${method}`,
+			);
 		}
 
-		await handler(controller, message, responseStream, requestId)
+		await handler(controller, message, responseStream, requestId);
 	}
 }
 
@@ -132,11 +150,14 @@ export class ServiceRegistry {
  * @returns An object with register and handle functions
  */
 export function createServiceRegistry(serviceName: string) {
-	const registry = new ServiceRegistry(serviceName)
+	const registry = new ServiceRegistry(serviceName);
 
 	return {
-		registerMethod: (methodName: string, handler: ServiceMethodHandler | StreamingMethodHandler, metadata?: MethodMetadata) =>
-			registry.registerMethod(methodName, handler, metadata),
+		registerMethod: (
+			methodName: string,
+			handler: ServiceMethodHandler | StreamingMethodHandler,
+			metadata?: MethodMetadata,
+		) => registry.registerMethod(methodName, handler, metadata),
 
 		handleRequest: (controller: Controller, method: string, message: any) =>
 			registry.handleRequest(controller, method, message),
@@ -147,8 +168,15 @@ export function createServiceRegistry(serviceName: string) {
 			message: any,
 			responseStream: StreamingResponseHandler<any>,
 			requestId?: string,
-		) => registry.handleStreamingRequest(controller, method, message, responseStream, requestId),
+		) =>
+			registry.handleStreamingRequest(
+				controller,
+				method,
+				message,
+				responseStream,
+				requestId,
+			),
 
 		isStreamingMethod: (method: string) => registry.isStreamingMethod(method),
-	}
+	};
 }

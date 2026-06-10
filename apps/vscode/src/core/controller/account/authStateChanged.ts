@@ -1,6 +1,9 @@
-import { AuthState, AuthStateChangedRequest } from "@shared/proto/cline/account"
-import { Logger } from "@/shared/services/Logger"
-import type { Controller } from "../index"
+import {
+	AuthState,
+	AuthStateChangedRequest,
+} from "@shared/proto/cline/account";
+import { Logger } from "@/shared/services/Logger";
+import type { Controller } from "../index";
 
 /**
  * Handles authentication state changes from the Firebase context.
@@ -9,15 +12,18 @@ import type { Controller } from "../index"
  * @param request The auth state change request
  * @returns The updated user info
  */
-export async function authStateChanged(controller: Controller, request: AuthStateChangedRequest): Promise<AuthState> {
+export async function authStateChanged(
+	controller: Controller,
+	request: AuthStateChangedRequest,
+): Promise<AuthState> {
 	try {
 		// Store the user info directly in global state
-		controller.stateManager.setGlobalState("userInfo", request.user)
+		controller.stateManager.setGlobalState("userInfo", request.user);
 
 		// Return the same user info
-		return AuthState.create({ user: request.user })
+		return AuthState.create({ user: request.user });
 	} catch (error) {
-		Logger.error(`Failed to update auth state: ${error}`)
-		throw error
+		Logger.error(`Failed to update auth state: ${error}`);
+		throw error;
 	}
 }
