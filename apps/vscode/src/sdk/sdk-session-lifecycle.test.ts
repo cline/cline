@@ -271,7 +271,7 @@ describe("SdkSessionLifecycle", () => {
 		await lifecycle.startNewSession({} as StartInput)
 
 		const replacePromise = lifecycle.replaceActiveSession({
-			startInput: { config: {} } as unknown as StartInput,
+			startInput: { config: { sessionId: "plan-session" } } as unknown as StartInput,
 			disposeReason: "modeChange",
 		})
 		await new Promise((resolve) => setTimeout(resolve, 0))
@@ -285,6 +285,72 @@ describe("SdkSessionLifecycle", () => {
 
 		expect(start).toHaveBeenCalledTimes(2)
 		expect(result?.startResult.sessionId).toBe("plan-session")
+	})
+
+	it("waits for a fire-and-forget stop before resuming the same sessionId", async () => {
+		let resolveStop: () => void = () => {}
+		const stop = vi.fn(
+			() =>
+				new Promise<void>((resolve) => {
+					resolveStop = resolve
+				}),
+		)
+		const start = vi.fn().mockResolvedValueOnce({ sessionId: "task-1" }).mockResolvedValueOnce({ sessionId: "task-1" })
+		const sdkHost = makeSdkHost({ start, stop })
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		const lifecycle = makeLifecycle()
+		await lifecycle.startNewSession({} as StartInput)
+
+		// The follow-up resume path ends the idle session without awaiting the
+		// stop, then starts a new session reusing the taskId as the sessionId.
+		await lifecycle.endActiveSession("askResponse")
+		const resumePromise = lifecycle.startNewSession({ config: { sessionId: "task-1" } } as unknown as StartInput)
+		await new Promise((resolve) => setTimeout(resolve, 0))
+
+		expect(start).toHaveBeenCalledTimes(1)
+
+		resolveStop()
+		const result = await resumePromise
+
+		expect(start).toHaveBeenCalledTimes(2)
+		expect(result.startResult.sessionId).toBe("task-1")
+	})
+
+	it("fails a same-id start instead of racing a hung stop", async () => {
+		vi.useFakeTimers()
+		try {
+			const stop = vi.fn(() => new Promise<void>(() => {}))
+			const sdkHost = makeSdkHost({ start: vi.fn().mockResolvedValue({ sessionId: "task-1" }), stop })
+			mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+			const lifecycle = makeLifecycle()
+			await lifecycle.startNewSession({} as StartInput)
+			await lifecycle.endActiveSession("askResponse")
+
+			const resumePromise = lifecycle.startNewSession({ config: { sessionId: "task-1" } } as unknown as StartInput)
+			resumePromise.catch(() => {})
+			await vi.advanceTimersByTimeAsync(10_001)
+
+			await expect(resumePromise).rejects.toThrow("still stopping")
+			expect(sdkHost.start).toHaveBeenCalledTimes(1)
+		} finally {
+			vi.useRealTimers()
+		}
+	})
+
+	it("starts a fresh-id session without waiting for an unrelated hung stop", async () => {
+		const stop = vi.fn(() => new Promise<void>(() => {}))
+		const start = vi.fn().mockResolvedValueOnce({ sessionId: "task-1" }).mockResolvedValueOnce({ sessionId: "task-2" })
+		const sdkHost = makeSdkHost({ start, stop })
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		const lifecycle = makeLifecycle()
+		await lifecycle.startNewSession({} as StartInput)
+
+		// A brand-new task does not reuse the old sessionId, so it must not be
+		// delayed by the old session's stop.
+		const result = await lifecycle.startNewSession({ config: {} } as unknown as StartInput)
+
+		expect(result.startResult.sessionId).toBe("task-2")
+		expect(stop).toHaveBeenCalledWith("task-1")
 	})
 
 	it("replaces the active session by stopping the old session and reusing the shared host", async () => {

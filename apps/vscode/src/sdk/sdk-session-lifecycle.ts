@@ -26,11 +26,29 @@ export interface SdkSessionLifecycleOptions {
 	onSendError: (error: unknown, sessionId: string) => Promise<void> | void
 }
 
+/**
+ * How long a same-id start waits for the previous session's stop before
+ * giving up. Stops normally finish in milliseconds; one that exceeds this is
+ * hung, and starting the same id anyway would let the old session's late
+ * cleanup tear down the replacement. Failing the start keeps the
+ * stop-before-start ordering absolute, and the user can simply retry.
+ */
+const PENDING_STOP_TIMEOUT_MS = 10_000
+
 export class SdkSessionLifecycle {
 	private activeSession: ActiveSession | undefined
 	private sharedHost: SdkSessionHost | undefined
 	private sharedHostPromise: Promise<SdkSessionHost> | undefined
 	private sharedHostUnsubscribe: (() => void) | undefined
+	/**
+	 * Stops still in flight, keyed by sessionId. Mode/MCP rebuilds and
+	 * follow-up resumes reuse the sessionId of the session they replace, and
+	 * core cleanup is keyed by sessionId, so a same-id start that overlaps a
+	 * stop would be torn down by the old session's late cleanup.
+	 * startNewSession consults this map to enforce stop-before-start, the same
+	 * sequencing the CLI uses.
+	 */
+	private readonly pendingStops = new Map<string, Promise<void>>()
 
 	constructor(private readonly options: SdkSessionLifecycleOptions) {}
 
@@ -60,11 +78,15 @@ export class SdkSessionLifecycle {
 		}
 
 		this.safeUnsubscribe(activeSession, reason)
-		const stopPromise = this.stopSessionWithTimeout(activeSession.sdkHost, activeSession.sessionId, reason, options.timeoutMs)
+		const stopPromise = this.trackSessionStop(activeSession.sdkHost, activeSession.sessionId, reason)
 		if (options.awaitStop) {
-			await stopPromise
-		} else {
-			void stopPromise
+			const timeoutMs = options.timeoutMs ?? 3000
+			const stopped = await this.waitForStop(stopPromise, timeoutMs)
+			if (!stopped) {
+				Logger.warn(
+					`[SdkController] Timed out stopping SDK session ${activeSession.sessionId} after ${timeoutMs}ms (${reason})`,
+				)
+			}
 		}
 		return activeSession
 	}
@@ -84,6 +106,17 @@ export class SdkSessionLifecycle {
 	): Promise<{ startResult: StartSessionResult; sdkHost: SdkSessionHost }> {
 		if (this.activeSession) {
 			await this.endActiveSession("startNewSession")
+		}
+
+		// Same-id starts must wait for the previous session's stop to finish;
+		// see pendingStops. A fresh id cannot conflict, so it never waits.
+		const requestedSessionId = startInput.config?.sessionId?.trim()
+		const pendingStop = requestedSessionId ? this.pendingStops.get(requestedSessionId) : undefined
+		if (pendingStop) {
+			const stopped = await this.waitForStop(pendingStop, PENDING_STOP_TIMEOUT_MS)
+			if (!stopped) {
+				throw new Error(`The previous session ${requestedSessionId} is still stopping; try again in a moment.`)
+			}
 		}
 
 		const autoApprovalSettings = StateManager.get().getGlobalSettingsKey("autoApprovalSettings")
@@ -125,12 +158,9 @@ export class SdkSessionLifecycle {
 
 		const { sessionId: oldSessionId } = oldSession
 
-		// Await the old session's stop before reusing its sessionId. Core cleanup
-		// is keyed by sessionId (sessions map delete, "ended" emission, bootstrap
-		// disposal), so a stop still in flight when the same-id replacement starts
-		// would tear down the successor: the next send fails with "session not
-		// found" and the late "ended" event clobbers the successor's turn state.
-		await this.endActiveSession(options.disposeReason, { awaitStop: true })
+		// No need to await the stop here: callers reuse oldSessionId in the
+		// startInput, and startNewSession waits on the pending stop for it.
+		await this.endActiveSession(options.disposeReason)
 
 		const { startResult, sdkHost } = await this.startNewSession({
 			...options.startInput,
@@ -179,46 +209,36 @@ export class SdkSessionLifecycle {
 		this.sharedHostUnsubscribe = this.createSafeUnsubscribe(sdkHost.subscribe(this.options.onSessionEvent), "shared-host")
 	}
 
-	private async stopSessionWithTimeout(
-		sdkHost: SdkSessionHost,
-		sessionId: string,
-		reason: string,
-		timeoutMs = 3000,
-	): Promise<void> {
+	/**
+	 * Starts the session's stop and records it in pendingStops until it
+	 * settles. The returned promise never rejects.
+	 */
+	private trackSessionStop(sdkHost: SdkSessionHost, sessionId: string, reason: string): Promise<void> {
 		const startedAt = Date.now()
-		const stopResult = sdkHost.stop(sessionId).then(
-			() => ({ ok: true as const }),
-			(error) => ({ ok: false as const, error }),
-		)
-		const timeout = new Promise<"timeout">((resolve) => setTimeout(() => resolve("timeout"), timeoutMs))
-		const result = await Promise.race([stopResult, timeout])
-
-		if (result === "timeout") {
-			Logger.warn(`[SdkController] Timed out stopping SDK session ${sessionId} after ${timeoutMs}ms (${reason})`)
-			stopResult.then((finalResult) => {
-				if (finalResult.ok) {
-					Logger.log(
-						`[SdkController] SDK session ${sessionId} eventually stopped after ${Date.now() - startedAt}ms (${reason})`,
-					)
-				} else {
-					Logger.warn(
-						`[SdkController] SDK session ${sessionId} stop failed after timeout (${reason}):`,
-						finalResult.error,
-					)
+		const stopPromise = sdkHost
+			.stop(sessionId)
+			.then(() => {
+				const elapsed = Date.now() - startedAt
+				if (elapsed > 250) {
+					Logger.log(`[SdkController] SDK session ${sessionId} stopped in ${elapsed}ms (${reason})`)
 				}
 			})
-			return
-		}
+			.catch((error: unknown) => {
+				Logger.warn(`[SdkController] Failed to stop SDK session ${sessionId} (${reason}):`, error)
+			})
+			.finally(() => {
+				if (this.pendingStops.get(sessionId) === stopPromise) {
+					this.pendingStops.delete(sessionId)
+				}
+			})
+		this.pendingStops.set(sessionId, stopPromise)
+		return stopPromise
+	}
 
-		const elapsed = Date.now() - startedAt
-		if (result.ok) {
-			if (elapsed > 250) {
-				Logger.log(`[SdkController] SDK session ${sessionId} stopped in ${elapsed}ms (${reason})`)
-			}
-			return
-		}
-
-		Logger.warn(`[SdkController] Failed to stop SDK session ${sessionId} (${reason}):`, result.error)
+	private async waitForStop(stopPromise: Promise<void>, timeoutMs: number): Promise<boolean> {
+		const timeout = new Promise<"timeout">((resolve) => setTimeout(() => resolve("timeout"), timeoutMs))
+		const result = await Promise.race([stopPromise.then(() => "stopped" as const), timeout])
+		return result === "stopped"
 	}
 
 	private async getOrCreateSharedHost(): Promise<SdkSessionHost> {
