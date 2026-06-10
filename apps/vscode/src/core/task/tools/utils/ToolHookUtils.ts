@@ -92,6 +92,15 @@ export class ToolHookUtils {
 
 		// Handle cancellation from hook
 		if (preToolResult.cancel === true) {
+			// Signal that the stream has finished aborting so Controller.cancelTask's
+			// pWaitFor resolves on the correct condition rather than racing on isStreaming.
+			config.taskState.didFinishAbortingStream = true
+			// Persist conversation state before handing off to Controller — same pattern
+			// as Task.handleHookCancellation used by TaskStart/TaskResume/UserPromptSubmit.
+			await config.messageState.saveClineMessagesAndUpdateHistory()
+			await config.messageState.overwriteApiConversationHistory(
+				config.messageState.getApiConversationHistory(),
+			)
 			// Clear the active hook execution state BEFORE calling cancelTask
 			// This prevents abortTask from trying to "cancel" an already-completed hook
 			await config.callbacks.clearActiveHookExecution()
