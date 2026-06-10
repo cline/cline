@@ -113,9 +113,7 @@ export function isGeminiProModel(input: {
 	request: Pick<GatewayStreamRequest, "modelId">;
 	context: GatewayProviderContext;
 }): boolean {
-	return /(^|[/\s])gemini-2\.5-pro([-\s]|$)/.test(
-		geminiModelDescriptor(input),
-	);
+	return /(^|[/\s])gemini-2\.5-pro([-\s]|$)/.test(geminiModelDescriptor(input));
 }
 
 export function isGeminiFlashModel(input: {
@@ -215,6 +213,15 @@ export function isGlmModel(
 
 	// Dynamic provider fallback: some routed/local catalogs only provide ids.
 	return family.includes("glm") || normalizedModelId(request).includes("glm");
+}
+
+export function isMiniMaxM3Model(
+	request: Pick<GatewayStreamRequest, "modelId">,
+	_context: GatewayProviderContext,
+): boolean {
+	const modelId = normalizedModelId(request);
+
+	return modelId === "minimax-m3" || modelId === "minimax/minimax-m3";
 }
 
 export function isKimiK26Family(context: GatewayProviderContext): boolean {

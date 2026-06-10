@@ -4,6 +4,7 @@ import net from "node:net";
 import { URL } from "node:url";
 import {
 	CURRENT_HUB_PROTOCOL_VERSION,
+	HUB_CAPABILITIES,
 	isHubProtocolCompatible,
 	MAX_CLIENT_HUB_PROTOCOL_VERSION,
 	MIN_CLIENT_HUB_PROTOCOL_VERSION,
@@ -210,10 +211,32 @@ function parseHeaderValue(value: string | string[] | undefined): string {
 	return Array.isArray(value) ? value.join(",") : (value ?? "");
 }
 
-function readBearerToken(value: string | string[] | undefined): string | null {
+function isAuthHeaderWhitespace(code: number): boolean {
+	return code === 0x20 || code === 0x09;
+}
+
+export function readBearerToken(
+	value: string | string[] | undefined,
+): string | null {
 	const header = parseHeaderValue(value).trim();
-	const match = /^Bearer\s+(.+)$/i.exec(header);
-	return match?.[1]?.trim() || null;
+	const bearerScheme = "bearer";
+	if (
+		header.length <= bearerScheme.length ||
+		header.slice(0, bearerScheme.length).toLowerCase() !== bearerScheme ||
+		!isAuthHeaderWhitespace(header.charCodeAt(bearerScheme.length))
+	) {
+		return null;
+	}
+
+	let tokenStart = bearerScheme.length + 1;
+	while (
+		tokenStart < header.length &&
+		isAuthHeaderWhitespace(header.charCodeAt(tokenStart))
+	) {
+		tokenStart += 1;
+	}
+
+	return header.slice(tokenStart).trim() || null;
 }
 
 function readWebSocketAuthToken(
@@ -253,19 +276,7 @@ export async function startHubWebSocketServer(
 		protocolVersion: CURRENT_HUB_PROTOCOL_VERSION,
 		minClientProtocolVersion: MIN_CLIENT_HUB_PROTOCOL_VERSION,
 		maxClientProtocolVersion: MAX_CLIENT_HUB_PROTOCOL_VERSION,
-		capabilities: [
-			"client.register",
-			"client.list",
-			"session.create",
-			"session.list",
-			"session.get",
-			"session.run",
-			"session.abort",
-			"schedule.create",
-			"schedule.list",
-			"settings.get",
-			"settings.set",
-		],
+		capabilities: HUB_CAPABILITIES,
 		coreVersion: corePackage.version,
 		buildId,
 		pid: process.pid,
@@ -579,8 +590,9 @@ export async function ensureHubWebSocketServer(
 			}
 		}
 
-		const expected = await probeHubServer(expectedUrl);
-		if (!expected?.url && discovered?.url) {
+		// The discovered hub was not reusable (missing, mismatched, or failed
+		// verification), so its record is stale either way.
+		if (discovered?.url) {
 			await clearHubDiscovery(owner.discoveryPath);
 		}
 

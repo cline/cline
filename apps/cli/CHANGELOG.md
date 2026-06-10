@@ -1,5 +1,28 @@
 # Cline CLI Changelog
 
+## 3.0.23
+
+- Fixed Vertex AI GCP settings configuration
+- Fixed the Azure Foundry API version
+- Added support for configured agents as subagent tools
+- Centralized OAuth management into the SDK
+- Fixed an error caused by disabled reasoning on Fable 5
+
+## 3.0.22
+
+- Added support for the Claude Fable 5 model
+- Fixed MiniMax M3 thinking controls so they route correctly across gateways
+
+## 3.0.21
+
+- Added a global auto-update setting that controls automatic updates on CLI startup
+- Added a Cline credits refill link
+- Fixed scrolling for inline ask-question responses
+- Fixed connector thread session routing and stale hub session handling
+- Added support for Vertex AI Application Default Credentials (ADC) with tool use
+- Fixed empty message content replay for Bedrock
+- Cleaned up the OpenAI Codex model list
+
 ## 3.0.20
 
 - Installed plugin wrappers are now named from their source (npm package name, git repo, remote filename, official slug, or local directory) instead of an opaque hash, making installed plugins easier to identify.

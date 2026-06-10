@@ -32,7 +32,7 @@ async function stopHubServer(
 	const stoppedConnectors = discovery?.url
 		? await stopConnectorsForHubs([discovery.url], io)
 		: { stoppedProcesses: 0, queuedRestarts: 0 };
-	if (await stopLocalHubServerGracefully()) {
+	if (await stopLocalHubServerGracefully(owner)) {
 		await clearHubDiscovery(owner.discoveryPath);
 		return {
 			stopped: true,

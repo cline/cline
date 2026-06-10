@@ -331,7 +331,7 @@ async function restartHubServerIfRunning(): Promise<void> {
 		},
 	);
 
-	let stopped = await stopLocalHubServerGracefully().catch(() => false);
+	let stopped = await stopLocalHubServerGracefully(owner).catch(() => false);
 	if (!stopped && pid) {
 		try {
 			process.kill(pid, "SIGTERM");

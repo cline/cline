@@ -4,6 +4,7 @@ import type { EnsureHubServerOptions } from "./start-shared-server";
 const {
 	mockEnsureHubWebSocketServer,
 	mockResolveHubEndpointOptions,
+	mockResolveClineBuildEnv,
 	mockResolveProductionHubOwnerContext,
 	mockResolveSharedHubOwnerContext,
 	mockStartHubWebSocketServer,
@@ -20,6 +21,7 @@ const {
 			pathname: options.pathname ?? "/hub",
 		}),
 	),
+	mockResolveClineBuildEnv: vi.fn(() => "production"),
 	mockResolveProductionHubOwnerContext: vi.fn(() => ({
 		ownerId: "production",
 		discoveryPath: "/tmp/cline-data/locks/hub/production.json",
@@ -32,7 +34,7 @@ const {
 }));
 
 vi.mock("@cline/shared", () => ({
-	resolveClineBuildEnv: () => "production",
+	resolveClineBuildEnv: mockResolveClineBuildEnv,
 }));
 
 vi.mock("../discovery/defaults", () => ({
@@ -57,6 +59,8 @@ describe("ensureHubServer", () => {
 	afterEach(() => {
 		mockEnsureHubWebSocketServer.mockClear();
 		mockResolveHubEndpointOptions.mockClear();
+		mockResolveClineBuildEnv.mockClear();
+		mockResolveClineBuildEnv.mockReturnValue("production");
 		mockResolveProductionHubOwnerContext.mockClear();
 		mockResolveSharedHubOwnerContext.mockClear();
 		mockStartHubWebSocketServer.mockClear();
@@ -67,7 +71,7 @@ describe("ensureHubServer", () => {
 		}
 	});
 
-	it("allows port fallback by default when no port is explicit", async () => {
+	it("does not allow port fallback by default in production", async () => {
 		delete process.env.CLINE_HUB_PORT;
 		const { ensureHubServer } = await import("./start-shared-server");
 
@@ -76,7 +80,28 @@ describe("ensureHubServer", () => {
 		expect(mockEnsureHubWebSocketServer).toHaveBeenCalledWith(
 			expect.objectContaining({
 				port: 25463,
+				allowPortFallback: false,
+				owner: expect.objectContaining({
+					discoveryPath: "/tmp/cline-data/locks/hub/production.json",
+				}),
+			}),
+		);
+	});
+
+	it("allows port fallback by default in development when no port is explicit", async () => {
+		delete process.env.CLINE_HUB_PORT;
+		mockResolveClineBuildEnv.mockReturnValue("development");
+		const { ensureHubServer } = await import("./start-shared-server");
+
+		await ensureHubServer({ runtimeHandlers });
+
+		expect(mockEnsureHubWebSocketServer).toHaveBeenCalledWith(
+			expect.objectContaining({
+				port: 25463,
 				allowPortFallback: true,
+				owner: expect.objectContaining({
+					discoveryPath: "/tmp/cline-data/locks/hub/owners/shared.json",
+				}),
 			}),
 		);
 	});

@@ -17,7 +17,7 @@ import {
 import {
 	clearHubDiscovery,
 	createHubServerUrl,
-	type HubServerDiscoveryRecord,
+	type HubOwnerContext,
 	type HubServerProbeRecord,
 	probeHubServer,
 	readHubDiscovery,
@@ -69,6 +69,21 @@ function isCompatibleHubRecord(record: HubServerProbeRecord): boolean {
 	return isHubProtocolCompatible(record).compatible;
 }
 
+function withMatchingDiscoveryRetirementMetadata(
+	probe: HubServerProbeRecord,
+	discovered: { url?: string; authToken?: string; pid?: number } | undefined,
+	expectedUrl: string,
+): HubServerProbeRecord {
+	if (!discovered || discovered.url !== expectedUrl) {
+		return probe;
+	}
+	return {
+		...probe,
+		authToken: probe.authToken ?? discovered.authToken,
+		pid: probe.pid ?? discovered.pid,
+	};
+}
+
 async function safeProbeHubServer(
 	url: string,
 	authToken?: string,
@@ -96,7 +111,7 @@ async function waitForHubToRetire(
 }
 
 async function retireDiscoveredHub(
-	record: Pick<HubServerDiscoveryRecord, "url" | "authToken" | "pid">,
+	record: { url: string; authToken?: string; pid?: number },
 	discoveryPath: string,
 ): Promise<boolean> {
 	await requestHubShutdown(record.url, record.authToken).catch(() => false);
@@ -120,6 +135,30 @@ async function retireIncompatibleHub(
 		return true;
 	}
 	return retireDiscoveredHub(record, discoveryPath);
+}
+
+/**
+ * Pre-singleton production builds tracked the local hub under the shared
+ * owner discovery path and spawned daemons on random fallback ports. Those
+ * daemons are invisible to the production owner context, so nothing would
+ * ever reuse or stop them. Retire the recorded legacy hub (its record carries
+ * the auth token and pid needed for a graceful stop) and clear the legacy
+ * record so upgrades do not leave orphaned daemons running stale code.
+ */
+async function retireLegacySharedHub(owner: HubOwnerContext): Promise<void> {
+	if (resolveClineBuildEnv() !== "production") {
+		return;
+	}
+	const legacy = resolveSharedHubOwnerContext();
+	if (legacy.discoveryPath === owner.discoveryPath) {
+		return;
+	}
+	const record = await readHubDiscovery(legacy.discoveryPath);
+	if (record?.url) {
+		await retireDiscoveredHub(record, legacy.discoveryPath);
+	} else {
+		await clearHubDiscovery(legacy.discoveryPath).catch(() => undefined);
+	}
 }
 
 function resolveDaemonEntryPath(): string {
@@ -233,7 +272,9 @@ export function prewarmDetachedHubServer(
 	);
 	const shouldUseFallbackPort =
 		endpoint.allowPortFallback === true && resolvedEndpoint.port !== 0;
-	void readHubDiscovery(owner.discoveryPath)
+	void retireLegacySharedHub(owner)
+		.catch(() => undefined)
+		.then(() => readHubDiscovery(owner.discoveryPath))
 		.then(async (discovered) => {
 			let retiredUnusableDiscovery = false;
 			if (discovered?.url) {
@@ -327,6 +368,7 @@ export async function ensureDetachedHubServer(
 		}
 		return result;
 	};
+	await retireLegacySharedHub(owner).catch(() => undefined);
 	const discovered = await readHubDiscovery(owner.discoveryPath);
 	let retiredUnusableDiscovery = false;
 	if (discovered?.url) {
@@ -363,6 +405,11 @@ export async function ensureDetachedHubServer(
 	}
 	const expected = await safeProbeHubServer(expectedUrl);
 	if (expected?.url) {
+		const expectedForRetirement = withMatchingDiscoveryRetirementMetadata(
+			expected,
+			discovered,
+			expectedUrl,
+		);
 		if (isCompatibleHubRecord(expected)) {
 			const upgradeHint = retiredUnusableDiscovery
 				? " This can happen immediately after upgrading from a build that wrote an empty hub auth token; run 'cline doctor fix' to stop the old daemon and repair local hub discovery."
@@ -372,7 +419,7 @@ export async function ensureDetachedHubServer(
 			);
 		}
 		const retiredExpected = await retireIncompatibleHub(
-			{ ...expected, authToken: undefined },
+			expectedForRetirement,
 			owner.discoveryPath,
 		);
 		if (
@@ -414,8 +461,13 @@ export async function ensureDetachedHubServer(
 		}
 		const nextExpected = await safeProbeHubServer(expectedUrl);
 		if (nextExpected?.url && !isCompatibleHubRecord(nextExpected)) {
+			const expectedForRetirement = withMatchingDiscoveryRetirementMetadata(
+				nextExpected,
+				nextDiscovery,
+				expectedUrl,
+			);
 			const retiredExpected = await retireIncompatibleHub(
-				{ ...nextExpected, authToken: undefined },
+				expectedForRetirement,
 				owner.discoveryPath,
 			);
 			if (

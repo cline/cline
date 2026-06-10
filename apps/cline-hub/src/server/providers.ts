@@ -4,9 +4,8 @@ import {
 	getLocalProviderModels,
 	Llms,
 	listLocalProviders,
-	loginLocalProvider,
+	loginAndSaveLocalProviderOAuthCredentials,
 	normalizeOAuthProvider,
-	saveLocalProviderOAuthCredentials,
 	saveLocalProviderSettings,
 } from "@cline/core";
 import type {
@@ -134,17 +133,10 @@ export async function runProviderOAuthLogin(
 	providerId: string,
 ): Promise<void> {
 	const normalized = normalizeOAuthProvider(providerId);
-	const existing = providerSettingsManager.getProviderSettings(normalized);
-	const credentials = await loginLocalProvider(
-		normalized,
-		existing,
-		openExternalUrl,
-	);
-	const saved = saveLocalProviderOAuthCredentials(
+	const saved = await loginAndSaveLocalProviderOAuthCredentials(
 		providerSettingsManager,
 		normalized,
-		existing,
-		credentials,
+		openExternalUrl,
 	);
 	ctx.send(peer, {
 		type: "provider_oauth_login_done",

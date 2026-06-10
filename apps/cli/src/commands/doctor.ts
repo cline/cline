@@ -81,7 +81,11 @@ function listMatchingProcesses(pattern: string): ProcessRecord[] {
 	if (process.platform === "win32") {
 		return [];
 	}
-	const result = spawnSync("pgrep", ["-fal", pattern], { encoding: "utf8" });
+	// "--" stops pgrep's option parsing so patterns that start with dashes
+	// (e.g. the "--cline-hub-daemon" marker) are treated as patterns.
+	const result = spawnSync("pgrep", ["-fal", "--", pattern], {
+		encoding: "utf8",
+	});
 	if (result.status !== 0 && result.status !== 1) {
 		return [];
 	}
@@ -460,7 +464,9 @@ export async function runDoctorCommand(
 	}
 
 	const gracefullyStoppedHub = before.hubHealthy
-		? await stopLocalHubServerGracefully().catch(() => false)
+		? await stopLocalHubServerGracefully(resolveCliHubOwnerContext()).catch(
+				() => false,
+			)
 		: false;
 	const refreshedAfterGracefulStop = gracefullyStoppedHub
 		? await collectDoctorStatus(opts.cwd)

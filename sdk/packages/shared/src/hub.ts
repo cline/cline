@@ -22,6 +22,20 @@ export type HubCapabilityName =
 	| "settings.get"
 	| "settings.set";
 
+export const HUB_CAPABILITIES: readonly HubCapabilityName[] = [
+	"client.register",
+	"client.list",
+	"session.create",
+	"session.list",
+	"session.get",
+	"session.run",
+	"session.abort",
+	"schedule.create",
+	"schedule.list",
+	"settings.get",
+	"settings.set",
+];
+
 export interface HubProtocolMetadata {
 	protocolVersion: string;
 	minClientProtocolVersion?: string;

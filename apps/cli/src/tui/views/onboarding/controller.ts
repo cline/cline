@@ -32,6 +32,7 @@ import {
 	getDefaultAwsRegion,
 	type ProviderConfigValues,
 	resolveProviderConfigAwsRegion,
+	resolveProviderConfigAzure,
 	resolveProviderConfigSap,
 	updateProviderConfigValue,
 } from "../../utils/provider-config-values";
@@ -382,6 +383,10 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 					config.fields.baseUrl?.defaultValue ??
 					"";
 			}
+			if (config.fields.azureApiVersion) {
+				initialValues.azureApiVersion =
+					existing?.azure?.apiVersion?.trim() ?? "";
+			}
 			if (config.fields.awsRegion) {
 				const existingProfile = existing?.aws?.profile?.trim() ?? "";
 				initialValues.awsRegion =
@@ -444,6 +449,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		// surfaced when the model picker / first turn runs.
 		const apiKey = byoValues.apiKey?.trim();
 		const awsProfile = byoValues.awsProfile?.trim();
+		const hasAzureFields = byoFields.azureApiVersion;
 		const hasAwsFields = byoFields.awsRegion || byoFields.awsProfile;
 		const hasSapFields =
 			byoFields.sapClientId ||
@@ -456,6 +462,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 			providerId: activeProviderId,
 			apiKey: byoFields.apiKey ? apiKey : undefined,
 			baseUrl: byoFields.baseUrl ? byoValues.baseUrl?.trim() : undefined,
+			azure: hasAzureFields ? resolveProviderConfigAzure(byoValues) : undefined,
 			aws: hasAwsFields
 				? {
 						region: resolveProviderConfigAwsRegion(byoValues),

@@ -31,7 +31,7 @@ import {
 	listHookConfigFiles,
 	listLocalProviders,
 	listPluginTools,
-	loginLocalProvider,
+	loginAndSaveLocalProviderOAuthCredentials,
 	normalizeOAuthProvider,
 	ProviderSettingsManager,
 	readGlobalSettings,
@@ -40,7 +40,6 @@ import {
 	resolveSessionBackend,
 	resolveAgentConfigSearchPaths as resolveSharedAgentConfigSearchPaths,
 	SqliteSessionStore,
-	saveLocalProviderOAuthCredentials,
 	saveLocalProviderSettings,
 	sendHubCommand,
 	setDisabledPlugin,
@@ -1012,10 +1011,9 @@ export async function handleCommand(
 	if (command === "run_provider_oauth_login") {
 		const providerId = normalizeOAuthProvider(String(args?.provider ?? ""));
 		const manager = new ProviderSettingsManager();
-		const existing = manager.getProviderSettings(providerId);
-		const credentials = await loginLocalProvider(
+		const saved = await loginAndSaveLocalProviderOAuthCredentials(
+			manager,
 			providerId,
-			existing,
 			(url) => {
 				const platform = process.platform;
 				const spawned =
@@ -1032,12 +1030,6 @@ export async function handleCommand(
 								});
 				spawned.unref();
 			},
-		);
-		const saved = saveLocalProviderOAuthCredentials(
-			manager,
-			providerId,
-			existing,
-			credentials,
 		);
 		return {
 			provider: providerId,

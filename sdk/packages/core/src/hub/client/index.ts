@@ -6,6 +6,7 @@ import {
 	type HubReplyEnvelope,
 	type HubTransportFrame,
 	isHubProtocolCompatible,
+	resolveClineBuildEnv,
 	resolveHubCommandTimeoutMs,
 } from "@cline/shared";
 import {
@@ -19,7 +20,10 @@ import {
 	probeHubServer,
 	readHubDiscovery,
 } from "../discovery";
-import { resolveProductionHubOwnerContext } from "../discovery/workspace";
+import {
+	resolveProductionHubOwnerContext,
+	resolveSharedHubOwnerContext,
+} from "../discovery/workspace";
 
 type PendingReply = {
 	resolve: (reply: HubReplyEnvelope) => void;
@@ -30,6 +34,12 @@ type SubscriptionEntry = {
 	listener: (event: HubEventEnvelope) => void;
 	sessionId?: string;
 };
+
+function resolveDefaultHubOwnerContext(): HubOwnerContext {
+	return resolveClineBuildEnv() === "production"
+		? resolveProductionHubOwnerContext()
+		: resolveSharedHubOwnerContext();
+}
 
 type WebSocketLike = {
 	readyState: number;
@@ -973,7 +983,7 @@ export async function resolveCompatibleLocalHubUrl(
 		return compatible.status === "compatible" ? compatible.url : undefined;
 	}
 
-	const owner = resolveProductionHubOwnerContext();
+	const owner = resolveDefaultHubOwnerContext();
 	const record = await readHubDiscovery(owner.discoveryPath);
 	if (!record?.url) {
 		return undefined;
@@ -1006,7 +1016,7 @@ export async function ensureCompatibleLocalHubUrl(
 	if (options.endpoint?.trim()) {
 		return undefined;
 	}
-	const owner = resolveProductionHubOwnerContext();
+	const owner = resolveDefaultHubOwnerContext();
 	await spawnDetachedHubServerWithRetry(options.workspaceRoot ?? process.cwd());
 	return await waitForCompatibleHubUrl(owner);
 }
@@ -1034,8 +1044,9 @@ export async function requestHubShutdown(
 	return response.ok;
 }
 
-export async function stopLocalHubServerGracefully(): Promise<boolean> {
-	const owner = resolveProductionHubOwnerContext();
+export async function stopLocalHubServerGracefully(
+	owner: HubOwnerContext = resolveDefaultHubOwnerContext(),
+): Promise<boolean> {
 	const discovery = await readHubDiscovery(owner.discoveryPath);
 	if (!discovery?.url) {
 		return false;
@@ -1062,7 +1073,7 @@ export async function restartLocalHubIfIdleAfterStartupTimeout(options: {
 	if (!isRecoverableLocalHubUrl(options.url)) {
 		return undefined;
 	}
-	const owner = resolveProductionHubOwnerContext();
+	const owner = resolveDefaultHubOwnerContext();
 	const discovery = await readHubDiscovery(owner.discoveryPath);
 	if (!discovery?.url || !sameNormalizedHubUrl(discovery.url, options.url)) {
 		return undefined;

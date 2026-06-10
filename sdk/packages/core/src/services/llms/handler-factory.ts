@@ -25,6 +25,13 @@ function compactOptions(
 	return Object.keys(compacted).length > 0 ? compacted : undefined;
 }
 
+function usesOpenAICompatibleClient(config: ProviderConfig): boolean {
+	return (
+		config.providerId === "openai-compatible" ||
+		config.clientType === "openai-compatible"
+	);
+}
+
 function buildGatewayProviderOptions(
 	config: ProviderConfig,
 ): Record<string, unknown> | undefined {
@@ -34,6 +41,13 @@ function buildGatewayProviderOptions(
 		openRouterProviderSorting: config.openRouterProviderSorting,
 		modelCatalog: config.modelCatalog,
 	};
+
+	if (usesOpenAICompatibleClient(config)) {
+		Object.assign(options, {
+			apiVersion: config.azure?.apiVersion,
+			useIdentity: config.azure?.useIdentity,
+		});
+	}
 
 	if (config.providerId === "bedrock") {
 		Object.assign(options, {

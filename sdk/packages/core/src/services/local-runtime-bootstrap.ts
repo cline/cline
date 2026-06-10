@@ -1,5 +1,6 @@
 import type {
 	AgentConfig,
+	AgentEvent,
 	AgentHooks,
 	AgentTool,
 	ExtensionContext,
@@ -19,7 +20,11 @@ import type {
 	PluginInitializationFailure,
 	PluginInitializationWarning,
 } from "../extensions/plugin/plugin-load-report";
-import type { TeamEvent } from "../extensions/tools/team";
+import type {
+	SubAgentEndContext,
+	SubAgentStartContext,
+	TeamEvent,
+} from "../extensions/tools/team";
 import { createCheckpointHooks } from "../hooks/checkpoint-hooks";
 import {
 	createHookAuditHooks,
@@ -189,6 +194,10 @@ function buildProviderConfig(
 					...(stored?.modelCatalog ?? {}),
 				}
 			: undefined;
+	const sessionProviderConfig =
+		config.providerConfig?.providerId === config.providerId
+			? config.providerConfig
+			: undefined;
 	const settings: ProviderSettings = {
 		...(stored ?? {}),
 		provider: config.providerId,
@@ -209,7 +218,10 @@ function buildProviderConfig(
 		reasoning: resolveReasoningSettings(config, stored?.reasoning),
 		modelCatalog,
 	};
-	const providerConfig = toProviderConfig(settings);
+	const providerConfig: ProviderConfig = {
+		...toProviderConfig(settings),
+		...(sessionProviderConfig ?? {}),
+	};
 	if (config.knownModels) {
 		providerConfig.knownModels = config.knownModels;
 	}
@@ -241,6 +253,11 @@ export interface PrepareLocalRuntimeBootstrapOptions {
 	defaultFetch?: typeof fetch;
 	onPluginEvent: (event: { name: string; payload?: unknown }) => void;
 	onTeamEvent: (event: TeamEvent) => void;
+	createSubAgentLifecycleCallbacks?: (config: CoreSessionConfig) => {
+		onSubAgentEvent?: (event: AgentEvent) => void;
+		onSubAgentStart?: (context: SubAgentStartContext) => void | Promise<void>;
+		onSubAgentEnd?: (context: SubAgentEndContext) => void | Promise<void>;
+	};
 	createSpawnTool: () => AgentTool;
 	readSessionMetadata: () => Promise<Record<string, unknown> | undefined>;
 	writeSessionMetadata: (
@@ -278,6 +295,7 @@ export async function prepareLocalRuntimeBootstrap(
 		defaultFetch,
 		onPluginEvent,
 		onTeamEvent,
+		createSubAgentLifecycleCallbacks,
 		createSpawnTool,
 		localRuntime,
 		readSessionMetadata,
@@ -433,6 +451,7 @@ export async function prepareLocalRuntimeBootstrap(
 	);
 	const requestToolApproval = capabilities?.requestToolApproval;
 	const effectiveToolExecutors = capabilities?.toolExecutors;
+	const subAgentLifecycleCallbacks = createSubAgentLifecycleCallbacks?.(config);
 	const workspaceManager = new InMemoryWorkspaceManager({
 		currentWorkspacePath: workspaceInfo.rootPath,
 		workspaces: {
@@ -458,13 +477,18 @@ export async function prepareLocalRuntimeBootstrap(
 			onTeamEvent,
 			createSpawnTool,
 			onTeamRestored: onTeamRestored,
+			onSubAgentEvent: subAgentLifecycleCallbacks?.onSubAgentEvent,
+			onSubAgentStart: subAgentLifecycleCallbacks?.onSubAgentStart,
+			onSubAgentEnd: subAgentLifecycleCallbacks?.onSubAgentEnd,
 			userInstructionService: userInstructionService,
 			pluginSkillDirectories,
 			configExtensions: configExtensions,
 			toolExecutors: effectiveToolExecutors,
+			toolPolicies,
 			workspaceManager,
 			logger: config.logger,
 			telemetry: config.telemetry,
+			requestToolApproval,
 		},
 	};
 }
