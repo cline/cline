@@ -18,9 +18,12 @@ export async function readRepoStatus(cwd: string): Promise<RepoStatus> {
 	const [branchResult, diffResult] = await Promise.allSettled([
 		execFileAsync("git", ["-C", cwd, "rev-parse", "--abbrev-ref", "HEAD"], {
 			encoding: "utf8",
+			// Prevent a console window from flashing on Windows.
+			windowsHide: true,
 		}),
 		execFileAsync("git", ["-C", cwd, "diff", "--shortstat"], {
 			encoding: "utf8",
+			windowsHide: true,
 		}),
 	]);
 

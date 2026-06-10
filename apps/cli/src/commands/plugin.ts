@@ -506,6 +506,8 @@ async function runCommand(
 			cwd: options.cwd,
 			stdio: ["ignore", "ignore", "pipe"],
 			env: process.env,
+			// Prevent a console window from flashing on Windows.
+			windowsHide: true,
 		});
 		let stderr = "";
 		child.stderr.on("data", (chunk) => {
