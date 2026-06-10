@@ -3,6 +3,50 @@
 	"compilerOptions": {
 		"module": "commonjs",
 		"moduleResolution": "node",
+		// Classic "node" moduleResolution (required for the CommonJS mocha unit-test
+		// runner) does not read the `exports` subpath maps in @cline/* package
+		// manifests, so bare subpath imports like `@cline/shared/storage` fail to
+		// resolve (TS2307) even though the built declarations exist. The base
+		// tsconfig uses `Bundler` resolution and is unaffected. We re-declare the
+		// inherited `paths` (TS replaces, not merges, `paths`) and add explicit
+		// mappings to the built dist so the unit-test compile can resolve these
+		// subpaths. Mirrors the same fix in tsconfig.test.json.
+		"baseUrl": ".",
+		"paths": {
+			"@/*": [
+				"./src/*"
+			],
+			"@api/*": [
+				"./src/core/api/*"
+			],
+			"@core/*": [
+				"./src/core/*"
+			],
+			"@generated/*": [
+				"./src/generated/*"
+			],
+			"@hosts/*": [
+				"./src/hosts/*"
+			],
+			"@integrations/*": [
+				"./src/integrations/*"
+			],
+			"@packages/*": [
+				"./src/packages/*"
+			],
+			"@services/*": [
+				"./src/services/*"
+			],
+			"@shared/*": [
+				"./src/shared/*"
+			],
+			"@utils/*": [
+				"./src/utils/*"
+			],
+			"@cline/shared/*": [
+				"./node_modules/@cline/shared/dist/*"
+			]
+		},
 		"typeRoots": [
 			"./node_modules/@types",
 			"./src/types"
