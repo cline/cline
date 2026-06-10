@@ -310,10 +310,12 @@ describe("SdkInteractionCoordinator", () => {
 
 	it("clears pending tool approvals as rejected", async () => {
 		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const recordDeniedToolApproval = vi.fn()
 		const coordinator = new SdkInteractionCoordinator({
 			messages: new SdkMessageCoordinator({ getTask: () => task }),
 			getSessionId: () => "session-123",
 			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+			recordDeniedToolApproval,
 		})
 
 		const approvalPromise = coordinator.handleRequestToolApproval({
@@ -330,6 +332,74 @@ describe("SdkInteractionCoordinator", () => {
 		coordinator.clearPending("Task cancelled")
 
 		await expect(approvalPromise).resolves.toEqual({ approved: false, reason: "Task cancelled" })
+		expect(recordDeniedToolApproval).toHaveBeenCalledWith("tool-call", "read_files", "Task cancelled")
 		expect(coordinator.resolvePendingToolApproval(undefined, "yesButtonClicked")).toBe(false)
+	})
+
+	it("suppresses translator tool rows for approvals cleared by a mode change", async () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const state = new MessageTranslatorState()
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+			getMinter: () => state.getMinter(),
+			recordDeniedToolApproval: (toolCallId, toolName, reason) =>
+				state.recordDeniedToolApproval(toolCallId, toolName, reason),
+		})
+
+		const approvalPromise = coordinator.handleRequestToolApproval({
+			agentId: "agent",
+			conversationId: "conversation",
+			iteration: 1,
+			toolCallId: "tool-call",
+			toolName: "editor",
+			input: { path: "calculator.py", old_text: "# comment", new_text: "" },
+			policy: { autoApprove: false },
+		})
+		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
+
+		coordinator.clearPending("Mode changed")
+		await expect(approvalPromise).resolves.toEqual({ approved: false, reason: "Mode changed" })
+
+		// After clearPending resolves the approval as denied, the core still emits
+		// the tool's lifecycle events before the abort lands. They must not render
+		// a second tool row next to the still-visible approval ask.
+		const startResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "session-123",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "editor",
+						toolCallId: "tool-call",
+						input: { path: "calculator.py", old_text: "# comment", new_text: "" },
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		const endResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "session-123",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "editor",
+						toolCallId: "tool-call",
+						error: "Mode changed",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		expect(startResult.messages).toHaveLength(0)
+		expect(endResult.messages).toHaveLength(0)
+		expect(endResult.toolError).toBeUndefined()
 	})
 })
