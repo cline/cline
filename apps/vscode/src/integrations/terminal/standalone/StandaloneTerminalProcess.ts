@@ -11,6 +11,7 @@
 import { telemetryService } from "@services/telemetry"
 import { ChildProcess, spawn } from "child_process"
 import { EventEmitter } from "events"
+import iconv from "iconv-lite"
 import { terminateProcessTree } from "@/utils/process-termination"
 
 import {
@@ -22,6 +23,10 @@ import {
 	TRUNCATE_KEEP_LINES,
 } from "../constants"
 import type { ITerminal, ITerminalProcess, TerminalCompletionDetails, TerminalProcessEvents } from "../types"
+import { getWindowsConsoleEncoding } from "./windowsEncoding"
+
+// Cache the encoding at module load time
+const WINDOWS_CONSOLE_ENCODING = getWindowsConsoleEncoding()
 
 /**
  * Manages the execution of a command in a standalone terminal environment.
@@ -108,6 +113,11 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 				},
 			}
 
+			// On Windows with non-UTF8 code page, attempt to set CHCP to UTF8 for new commands
+			if (process.platform === "win32" && WINDOWS_CONSOLE_ENCODING !== "utf8") {
+				shellOptions.env.CHCP = "65001"
+			}
+
 			// Enable the shell option for "cmd.exe" to prevent double quotes from being over escaped
 			if (shell.toLowerCase().includes("cmd")) {
 				shellOptions.shell = true
@@ -128,7 +138,7 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 
 			// Handle stdout
 			this.childProcess.stdout?.on("data", (data: Buffer) => {
-				const output = data.toString()
+				const output = iconv.decode(data, WINDOWS_CONSOLE_ENCODING)
 				this.handleOutput(output, didEmitEmptyLine)
 				if (!didEmitEmptyLine && output) {
 					this.emit("line", "") // Signal start of output
@@ -138,7 +148,7 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 
 			// Handle stderr
 			this.childProcess.stderr?.on("data", (data: Buffer) => {
-				const output = data.toString()
+				const output = iconv.decode(data, WINDOWS_CONSOLE_ENCODING)
 				this.handleOutput(output, didEmitEmptyLine)
 				if (!didEmitEmptyLine && output) {
 					this.emit("line", "")
