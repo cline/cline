@@ -23,6 +23,27 @@
 	// Enable Lint and format using Biome
 	"biome.enabled": true,
 	"editor.defaultFormatter": "biomejs.biome",
+	// Per-language overrides are required: a language-specific defaultFormatter in
+	// USER settings (e.g. Prettier) outranks a non-language-specific WORKSPACE
+	// setting, so we must pin Biome per-language to keep the repo's formatting.
+	"[typescript]": {
+		"editor.defaultFormatter": "biomejs.biome"
+	},
+	"[typescriptreact]": {
+		"editor.defaultFormatter": "biomejs.biome"
+	},
+	"[javascript]": {
+		"editor.defaultFormatter": "biomejs.biome"
+	},
+	"[javascriptreact]": {
+		"editor.defaultFormatter": "biomejs.biome"
+	},
+	"[json]": {
+		"editor.defaultFormatter": "biomejs.biome"
+	},
+	"[jsonc]": {
+		"editor.defaultFormatter": "biomejs.biome"
+	},
 	"editor.codeActionsOnSave": {
 		"source.fixAll.biome": "explicit",
 		"source.removeUnused.biome": "always",

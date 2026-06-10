@@ -14,7 +14,8 @@
 	},
 	"exports": {
 		".": {
-			"browser": "./dist/index.js",
+			"browser": "./dist/index.browser.js",
+			"react-server": "./dist/index.browser.js",
 			"types": "./dist/index.d.ts",
 			"import": "./dist/index.js"
 		}
