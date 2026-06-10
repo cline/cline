@@ -69,6 +69,10 @@ function spawnAndCollect(
 			env: { ...process.env, ...config.env },
 			stdio: ["pipe", "pipe", "pipe"],
 			detached: !isWindows,
+			// Prevent a console window from flashing on Windows when the
+			// parent process has no console (or a different console).
+			// No-op on non-Windows platforms.
+			windowsHide: true,
 		});
 		const childPid = child.pid;
 

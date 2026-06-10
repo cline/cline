@@ -166,6 +166,8 @@ export function buildKanbanSpawnOptions(
 	return {
 		stdio: "inherit",
 		detached: shouldDetachKanbanProcess(platform),
+		// Prevent a console window from flashing on Windows.
+		windowsHide: true,
 		...(platform === "win32" ? { shell: true } : {}),
 		...options,
 	};
@@ -178,6 +180,8 @@ function buildKanbanInstallSpawnOptions(
 	return {
 		detached: false,
 		stdio: "inherit",
+		// Prevent a console window from flashing on Windows.
+		windowsHide: true,
 		...(platform === "win32" ? { shell: true } : {}),
 		...options,
 	};
@@ -203,6 +207,8 @@ export function getInstalledKanbanVersion(): string | null {
 		const result = spawnSync(getKanbanCommand(), ["--version"], {
 			encoding: "utf8",
 			shell: process.platform === "win32",
+			// Prevent a console window from flashing on Windows.
+			windowsHide: true,
 		});
 		if (result.status !== 0) {
 			return null;
