@@ -1,6 +1,55 @@
 import { fireEvent, render, screen } from "@testing-library/react"
+import type { ChangeEventHandler, FormEventHandler, KeyboardEventHandler, ReactNode } from "react"
 import { describe, expect, it, vi } from "vitest"
 import { type ModelPickerSelection, ModelPickerWithManualEntry } from "./ModelPickerWithManualEntry"
+
+// Render the toolkit web components as native elements so value/change
+// behavior is observable in jsdom.
+vi.mock("@vscode/webview-ui-toolkit/react", () => ({
+	VSCodeDropdown: ({
+		children,
+		id,
+		onChange,
+		value,
+		"aria-label": ariaLabel,
+	}: {
+		children?: ReactNode
+		id?: string
+		onChange?: ChangeEventHandler<HTMLSelectElement>
+		value?: string
+		"aria-label"?: string
+	}) => (
+		<select aria-label={ariaLabel} id={id} onChange={onChange} value={value}>
+			{children}
+		</select>
+	),
+	VSCodeOption: ({ children, value }: { children?: ReactNode; value?: string }) => <option value={value}>{children}</option>,
+	VSCodeTextField: ({
+		children,
+		id,
+		onInput,
+		onKeyDown,
+		placeholder,
+		value,
+	}: {
+		children?: ReactNode
+		id?: string
+		onInput?: FormEventHandler<HTMLInputElement>
+		onKeyDown?: KeyboardEventHandler<HTMLInputElement>
+		placeholder?: string
+		value?: string
+	}) => (
+		<div>
+			<label htmlFor={id}>{children}</label>
+			<input id={id} onChange={onInput} onKeyDown={onKeyDown} placeholder={placeholder} value={value} />
+		</div>
+	),
+	VSCodeButton: ({ children, onClick }: { children?: ReactNode; onClick?: () => void }) => (
+		<button onClick={onClick} type="button">
+			{children}
+		</button>
+	),
+}))
 
 const selectedModel: ModelPickerSelection = {
 	providerId: "ollama",
@@ -147,6 +196,100 @@ describe("ModelPickerWithManualEntry", () => {
 		expect(screen.getByText("Selected model “retired-static-model” is not in the current list.")).toBeInTheDocument()
 		expect(screen.queryByLabelText("Custom model ID")).not.toBeInTheDocument()
 		expect(onSelect).not.toHaveBeenCalled()
+	})
+
+	it("prefills the custom field when the committed selection hydrates after mount", () => {
+		const { rerender } = render(
+			<ModelPickerWithManualEntry
+				allowsCustomIds={true}
+				error={undefined}
+				isLoading={true}
+				isStale={false}
+				models={{}}
+				onSelect={vi.fn()}
+				selectedModel={{ ...selectedModel, modelId: "" }}
+			/>,
+		)
+
+		expect(screen.getByLabelText("Custom model ID")).toHaveValue("")
+
+		rerender(
+			<ModelPickerWithManualEntry
+				allowsCustomIds={true}
+				error={undefined}
+				isLoading={false}
+				isStale={false}
+				models={models}
+				onSelect={vi.fn()}
+				selectedModel={{ ...selectedModel, modelId: "my-fast-model" }}
+			/>,
+		)
+
+		expect(screen.getByLabelText("Custom model ID")).toHaveValue("my-fast-model")
+	})
+
+	it("clears the custom field when the hydrated selection is in the catalog", () => {
+		const { rerender } = render(
+			<ModelPickerWithManualEntry
+				allowsCustomIds={true}
+				error={undefined}
+				isLoading={true}
+				isStale={false}
+				models={{}}
+				onSelect={vi.fn()}
+				selectedModel={{ ...selectedModel, modelId: "llama3" }}
+			/>,
+		)
+
+		// Lazy init captured "llama3" while the catalog was empty.
+		expect(screen.getByLabelText("Custom model ID")).toHaveValue("llama3")
+
+		rerender(
+			<ModelPickerWithManualEntry
+				allowsCustomIds={true}
+				error={undefined}
+				isLoading={false}
+				isStale={false}
+				models={models}
+				onSelect={vi.fn()}
+				selectedModel={{ ...selectedModel, modelId: "llama3" }}
+			/>,
+		)
+
+		fireEvent.change(screen.getByLabelText("Model"), { target: { value: "__custom__" } })
+		expect(screen.getByLabelText("Custom model ID")).toHaveValue("")
+	})
+
+	it("does not reset the custom field while the user is typing", () => {
+		const { rerender } = render(
+			<ModelPickerWithManualEntry
+				allowsCustomIds={true}
+				error={undefined}
+				isLoading={false}
+				isStale={false}
+				models={{}}
+				onSelect={vi.fn()}
+				selectedModel={{ ...selectedModel, modelId: "my-fast-model" }}
+			/>,
+		)
+
+		fireEvent.change(screen.getByLabelText("Custom model ID"), { target: { value: "my-fast" } })
+
+		// A re-render with a fresh models object identity (catalog still
+		// loading) must not clobber the in-progress input.
+		rerender(
+			<ModelPickerWithManualEntry
+				allowsCustomIds={true}
+				error={undefined}
+				isLoading={false}
+				isStale={false}
+				models={{}}
+				onSelect={vi.fn()}
+				selectedModel={{ ...selectedModel, modelId: "my-fast-model" }}
+			/>,
+		)
+
+		expect(screen.getByLabelText("Custom model ID")).toHaveValue("my-fast")
 	})
 
 	it("does not auto-select while model props change during refresh", () => {
