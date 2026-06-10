@@ -31,6 +31,15 @@ export class SdkSessionLifecycle {
 	private sharedHost: SdkSessionHost | undefined
 	private sharedHostPromise: Promise<SdkSessionHost> | undefined
 	private sharedHostUnsubscribe: (() => void) | undefined
+	/**
+	 * Stops still in flight, keyed by sessionId. Mode/MCP rebuilds and
+	 * follow-up resumes reuse the sessionId of the session they replace, and
+	 * core cleanup is keyed by sessionId, so a same-id start that overlaps a
+	 * stop would be torn down by the old session's late cleanup.
+	 * startNewSession consults this map to enforce stop-before-start, the same
+	 * sequencing the CLI uses.
+	 */
+	private readonly pendingStops = new Map<string, Promise<void>>()
 
 	constructor(private readonly options: SdkSessionLifecycleOptions) {}
 
@@ -60,11 +69,15 @@ export class SdkSessionLifecycle {
 		}
 
 		this.safeUnsubscribe(activeSession, reason)
-		const stopPromise = this.stopSessionWithTimeout(activeSession.sdkHost, activeSession.sessionId, reason, options.timeoutMs)
+		const stopPromise = this.trackSessionStop(activeSession.sdkHost, activeSession.sessionId, reason)
 		if (options.awaitStop) {
-			await stopPromise
-		} else {
-			void stopPromise
+			const timeoutMs = options.timeoutMs ?? 3000
+			const stopped = await this.waitForStop(stopPromise, timeoutMs)
+			if (!stopped) {
+				Logger.warn(
+					`[SdkController] Timed out stopping SDK session ${activeSession.sessionId} after ${timeoutMs}ms (${reason})`,
+				)
+			}
 		}
 		return activeSession
 	}
@@ -84,6 +97,15 @@ export class SdkSessionLifecycle {
 	): Promise<{ startResult: StartSessionResult; sdkHost: SdkSessionHost }> {
 		if (this.activeSession) {
 			await this.endActiveSession("startNewSession")
+		}
+
+		// Same-id starts must wait for the previous session's stop to finish;
+		// see pendingStops. A fresh id cannot conflict, so it never waits.
+		const requestedSessionId = startInput.config?.sessionId?.trim()
+		const pendingStop = requestedSessionId ? this.pendingStops.get(requestedSessionId) : undefined
+		if (pendingStop) {
+			Logger.log(`[SdkController] Waiting for session ${requestedSessionId} to stop before restarting it`)
+			await pendingStop
 		}
 
 		const autoApprovalSettings = StateManager.get().getGlobalSettingsKey("autoApprovalSettings")
@@ -125,6 +147,8 @@ export class SdkSessionLifecycle {
 
 		const { sessionId: oldSessionId } = oldSession
 
+		// No need to await the stop here: callers reuse oldSessionId in the
+		// startInput, and startNewSession waits on the pending stop for it.
 		await this.endActiveSession(options.disposeReason)
 
 		const { startResult, sdkHost } = await this.startNewSession({
@@ -174,46 +198,43 @@ export class SdkSessionLifecycle {
 		this.sharedHostUnsubscribe = this.createSafeUnsubscribe(sdkHost.subscribe(this.options.onSessionEvent), "shared-host")
 	}
 
-	private async stopSessionWithTimeout(
-		sdkHost: SdkSessionHost,
-		sessionId: string,
-		reason: string,
-		timeoutMs = 3000,
-	): Promise<void> {
+	/**
+	 * Starts the session's stop and records it in pendingStops until it
+	 * settles. The returned promise never rejects.
+	 */
+	private trackSessionStop(sdkHost: SdkSessionHost, sessionId: string, reason: string): Promise<void> {
 		const startedAt = Date.now()
-		const stopResult = sdkHost.stop(sessionId).then(
-			() => ({ ok: true as const }),
-			(error) => ({ ok: false as const, error }),
-		)
-		const timeout = new Promise<"timeout">((resolve) => setTimeout(() => resolve("timeout"), timeoutMs))
-		const result = await Promise.race([stopResult, timeout])
-
-		if (result === "timeout") {
-			Logger.warn(`[SdkController] Timed out stopping SDK session ${sessionId} after ${timeoutMs}ms (${reason})`)
-			stopResult.then((finalResult) => {
-				if (finalResult.ok) {
-					Logger.log(
-						`[SdkController] SDK session ${sessionId} eventually stopped after ${Date.now() - startedAt}ms (${reason})`,
-					)
-				} else {
-					Logger.warn(
-						`[SdkController] SDK session ${sessionId} stop failed after timeout (${reason}):`,
-						finalResult.error,
-					)
+		const stopPromise = sdkHost
+			.stop(sessionId)
+			.then(() => {
+				const elapsed = Date.now() - startedAt
+				if (elapsed > 250) {
+					Logger.log(`[SdkController] SDK session ${sessionId} stopped in ${elapsed}ms (${reason})`)
 				}
 			})
-			return
-		}
+			.catch((error: unknown) => {
+				Logger.warn(`[SdkController] Failed to stop SDK session ${sessionId} (${reason}):`, error)
+			})
+			.finally(() => {
+				if (this.pendingStops.get(sessionId) === stopPromise) {
+					this.pendingStops.delete(sessionId)
+				}
+			})
+		this.pendingStops.set(sessionId, stopPromise)
+		return stopPromise
+	}
 
-		const elapsed = Date.now() - startedAt
-		if (result.ok) {
-			if (elapsed > 250) {
-				Logger.log(`[SdkController] SDK session ${sessionId} stopped in ${elapsed}ms (${reason})`)
-			}
-			return
+	private async waitForStop(stopPromise: Promise<void>, timeoutMs: number): Promise<boolean> {
+		let timeoutHandle: ReturnType<typeof setTimeout> | undefined
+		try {
+			const timeout = new Promise<"timeout">((resolve) => {
+				timeoutHandle = setTimeout(() => resolve("timeout"), timeoutMs)
+			})
+			const result = await Promise.race([stopPromise.then(() => "stopped" as const), timeout])
+			return result === "stopped"
+		} finally {
+			clearTimeout(timeoutHandle)
 		}
-
-		Logger.warn(`[SdkController] Failed to stop SDK session ${sessionId} (${reason}):`, result.error)
 	}
 
 	private async getOrCreateSharedHost(): Promise<SdkSessionHost> {
@@ -252,6 +273,21 @@ export class SdkSessionLifecycle {
 		files?: string[],
 		delivery?: "queue" | "steer",
 	): void {
+		// Captured by object identity, not sessionId: rebuilds (mode change) reuse
+		// the same sessionId for the replacement session, so only reference
+		// equality can tell this send's session apart from a successor. If the
+		// session was replaced by the time the send settles, the settle callbacks
+		// must not run bookkeeping against the successor (e.g. flipping a live
+		// auto-continued run to isRunning=false, which makes the event coordinator
+		// treat the new turn's completion as a cancelled-turn straggler).
+		const sessionAtSend = this.activeSession
+		const isSuperseded = (label: string): boolean => {
+			if (this.activeSession === sessionAtSend) {
+				return false
+			}
+			Logger.debug(`[SdkController] Ignoring ${label} of superseded send for session: ${sessionId}`)
+			return true
+		}
 		sdkHost
 			.send({
 				sessionId,
@@ -265,6 +301,9 @@ export class SdkSessionLifecycle {
 					Logger.log(`[SdkController] Message queued for session: ${sessionId}`)
 					return
 				}
+				if (isSuperseded("completion")) {
+					return
+				}
 				Logger.log(`[SdkController] Agent turn completed for session: ${sessionId}`)
 				this.setRunning(false)
 				await this.options.onSendComplete(sessionId)
@@ -272,6 +311,9 @@ export class SdkSessionLifecycle {
 			.catch(async (error: unknown) => {
 				if (isAbortError(error)) {
 					Logger.debug(`[SdkController] Agent turn aborted (expected): ${sessionId}`)
+					return
+				}
+				if (isSuperseded("failure")) {
 					return
 				}
 				Logger.error("[SdkController] Agent turn failed:", error)
