@@ -583,10 +583,10 @@ export function buildGatewayReasoningOptions(
 			: request.reasoning?.budgetTokens;
 	const shouldSendDisabledReasoning =
 		request.reasoning?.enabled === false &&
-		// FIXME: temporary OpenRouter compatibility patch for Claude Fable.
+		// FIXME: temporary OpenRouter compatibility patch for Fable 5.
 		// Remove once OpenRouter normalizes disabled reasoning like Vercel does,
 		// or replace with a systematic policy for models that reject it.
-		family !== "claude-fable";
+		!request.modelId.toLowerCase().includes("claude-fable-5");
 	const reasoning: Record<string, unknown> = {
 		...(request.reasoning?.enabled === true
 			? { enabled: true }

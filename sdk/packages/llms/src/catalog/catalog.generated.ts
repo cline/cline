@@ -11350,7 +11350,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					cacheWrite: 12.5,
 				},
 				releaseDate: "2026-06-09",
-				family: "claude-fable",
+				family: "claude",
 			},
 			"anthropic/claude-opus-4.8": {
 				id: "anthropic/claude-opus-4.8",
@@ -18075,7 +18075,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					cacheWrite: 12.5,
 				},
 				releaseDate: "2026-06-09",
-				family: "claude-fable",
+				family: "claude",
 			},
 			"nvidia/nemotron-3-ultra-550b-a55b": {
 				id: "nvidia/nemotron-3-ultra-550b-a55b",

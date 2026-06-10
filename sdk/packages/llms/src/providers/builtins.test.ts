@@ -119,7 +119,6 @@ describe("built-in provider metadata", () => {
 					cacheRead: 1,
 					cacheWrite: 12.5,
 				}),
-				family: "claude-fable",
 			}),
 		);
 		expect(openRouterModels["anthropic/claude-fable-5"]).toEqual(
@@ -128,7 +127,6 @@ describe("built-in provider metadata", () => {
 				name: "Claude Fable 5",
 				contextWindow: 1_000_000,
 				maxTokens: 128_000,
-				family: "claude-fable",
 			}),
 		);
 		expect(vercelModels["anthropic/claude-fable-5"]).toEqual(
@@ -136,7 +134,6 @@ describe("built-in provider metadata", () => {
 				id: "anthropic/claude-fable-5",
 				name: "Claude Fable 5",
 				contextWindow: 1_000_000,
-				family: "claude-fable",
 			}),
 		);
 		expect(clineModels["anthropic/claude-fable-5"]).toEqual(
