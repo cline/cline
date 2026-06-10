@@ -4715,73 +4715,87 @@ export const moonshotDefaultModelId = "kimi-k2-0905-preview" satisfies MoonshotM
 // Dify.ai - No model selection needed, models are configured in Dify workflows
 
 export type HuaweiCloudMaasModelId = keyof typeof huaweiCloudMaasModels
-export const huaweiCloudMaasDefaultModelId: HuaweiCloudMaasModelId = "DeepSeek-V3"
+export const huaweiCloudMaasDefaultModelId: HuaweiCloudMaasModelId = "deepseek-v3.2"
 export const huaweiCloudMaasModels = {
-	"DeepSeek-V3": {
-		maxTokens: 16_384,
-		contextWindow: 64_000,
+	"deepseek-v4-pro": {
+		maxTokens: 128_000,
+		contextWindow: 1_000_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 1.617,
+		outputPrice: 3.235,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+	},
+	"deepseek-v4-flash": {
+		maxTokens: 128_000,
+		contextWindow: 1_000_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.135,
+		outputPrice: 0.27,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+	},
+	"deepseek-v3.2": {
+		maxTokens: 32_000,
+		contextWindow: 160_000,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0.27,
-		outputPrice: 1.1,
+		outputPrice: 0.404,
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
 	},
-	"DeepSeek-R1": {
-		maxTokens: 16_384,
-		contextWindow: 64_000,
+	"deepseek-r1-0528": {
+		maxTokens: 32_000,
+		contextWindow: 128_000,
 		supportsImages: false,
 		supportsPromptCache: false,
-		inputPrice: 0.55,
-		outputPrice: 2.2,
+		inputPrice: 0.539,
+		outputPrice: 2.156,
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
-		thinkingConfig: {
-			maxBudget: 8192,
-			outputPrice: 2.2,
-		},
 	},
-	"deepseek-r1-250528": {
-		maxTokens: 16_384,
-		contextWindow: 64_000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0.55,
-		outputPrice: 2.2,
-		cacheWritesPrice: 0,
-		cacheReadsPrice: 0,
-		thinkingConfig: {
-			maxBudget: 8192,
-			outputPrice: 2.2,
-		},
-	},
-	"qwen3-235b-a22b": {
-		maxTokens: 8_192,
-		contextWindow: 32_000,
+	"deepseek-v3": {
+		maxTokens: 64_000,
+		contextWindow: 128_000,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0.27,
-		outputPrice: 1.1,
+		outputPrice: 1.078,
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
-		thinkingConfig: {
-			maxBudget: 4096,
-			outputPrice: 1.1,
-		},
 	},
-	"qwen3-32b": {
-		maxTokens: 8_192,
-		contextWindow: 32_000,
+	"deepseek-v3.1": {
+		maxTokens: 32_000,
+		contextWindow: 128_000,
 		supportsImages: false,
 		supportsPromptCache: false,
-		inputPrice: 0.27,
-		outputPrice: 1.1,
+		inputPrice: 0.539,
+		outputPrice: 1.617,
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
-		thinkingConfig: {
-			maxBudget: 4096,
-			outputPrice: 1.1,
-		},
+	},
+	"glm-5.1": {
+		maxTokens: 128_000,
+		contextWindow: 198_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.809,
+		outputPrice: 3.235,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+	},
+	"glm-5": {
+		maxTokens: 64_000,
+		contextWindow: 198_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.539,
+		outputPrice: 2.426,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
 	},
 } as const satisfies Record<string, ModelInfo>
 
