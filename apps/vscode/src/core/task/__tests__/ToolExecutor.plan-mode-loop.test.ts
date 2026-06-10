@@ -43,7 +43,7 @@ describe("Plan Mode Loop Detection", () => {
 			results.push(
 				simulateBlockedPlanModeCall(state, "write_to_file", {
 					path: "src/main.ts",
-					file_text: "// attempt " + i,
+					file_text: "// same content each call",
 				}),
 			)
 		}
