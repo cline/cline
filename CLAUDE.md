@@ -1,1 +1,0 @@
-@.clinerules/general.md

@@ -150,7 +150,11 @@ Module.prototype.require = function (id) {
 			},
 			ProviderSettingsManager,
 			resolveProviderConfig: async () => undefined,
+			getProviderConfigFields: () => [],
 			fetchClineRecommendedModels: async () => ({ recommended: [], free: [] }),
+			readGlobalSettings: () => ({ telemetryOptOut: false }),
+			setTelemetryOptOutGlobally: () => undefined,
+			prepareRemoteConfigCoreIntegration: () => undefined,
 			createDefaultExecutors: () => ({}),
 			createMcpTools: () => ({}),
 			createOAuthClientCallbacks: () => ({}),
@@ -165,6 +169,13 @@ Module.prototype.require = function (id) {
 		return {
 			buildClineSystemPrompt: () => "",
 			createTool: (tool) => tool,
+			formatDisplayUserInput: (input) => (typeof input === "string" ? input : JSON.stringify(input)),
+		}
+	}
+
+	if (id === "@cline/shared/storage") {
+		return {
+			resolveGlobalSettingsPath: () => path.join(baseUrl, ".vscode-test", "shared-global-settings.json"),
 		}
 	}
 
