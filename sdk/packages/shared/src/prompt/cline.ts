@@ -1,6 +1,10 @@
 import type { WorkspaceContext } from "../extensions/context";
 import type { WorkspaceInfo } from "../session/workspace";
-import { composeClineSystemPrompt, YOLO_CLINE_SYSTEM_PROMPT } from "./system";
+import {
+	AGENT_PERSONA_SLOT,
+	composeClineSystemPrompt,
+	YOLO_CLINE_SYSTEM_PROMPT,
+} from "./system";
 
 const WORKSPACE_CONFIGURATION_MARKER = "# Workspace Configuration";
 
@@ -64,8 +68,9 @@ export interface ClineSystemPromptOptions
 	/** Per-request system prompt override */
 	overridePrompt?: string;
 	/**
-	 * Agent-profile persona: replaces only the persona slot of the default
-	 * system prompt while keeping the agent harness (environment block,
+	 * Agent-profile persona: replaces the coding-agent-specific prompting of
+	 * the default system prompt (the Cline persona and its working
+	 * guidelines) while keeping the agent harness (environment block,
 	 * tool-call loop contract, rules/metadata). Ignored when `overridePrompt`
 	 * is set or in yolo mode.
 	 */
@@ -103,14 +108,20 @@ export function buildClineSystemPrompt(
 		return trimmed;
 	}
 
+	const persona = mode === "yolo" ? undefined : personaPrompt?.trim();
+	// When a persona is provided, compose the harness with the persona slot
+	// left in place so the persona body is inserted after every other
+	// placeholder replacement; `{{...}}` sequences inside it stay literal.
 	const basePrompt =
 		mode === "yolo"
 			? YOLO_CLINE_SYSTEM_PROMPT
-			: composeClineSystemPrompt({ persona: personaPrompt });
+			: composeClineSystemPrompt(
+					persona ? { persona: AGENT_PERSONA_SLOT } : {},
+				);
 	// Skip metadata injection when the persona already embeds a workspace
 	// configuration block (e.g. spawn prompts composed by a parent agent).
 	const includeMetadata =
-		isCline && !personaPrompt?.includes(WORKSPACE_CONFIGURATION_MARKER);
+		isCline && !persona?.includes(WORKSPACE_CONFIGURATION_MARKER);
 
 	// Replacer functions (not replacement strings) so values containing
 	// `$&`-style patterns are inserted literally.
@@ -125,5 +136,6 @@ export function buildClineSystemPrompt(
 				: "",
 		)
 		.replace("{{CLINE_RULES}}", () => rules || "")
+		.replace(AGENT_PERSONA_SLOT, () => persona ?? "")
 		.trim();
 }

@@ -90,6 +90,14 @@ describe("composeClineSystemPrompt", () => {
 		expect(prompt.startsWith(persona)).toBe(true);
 	});
 
+	it("keeps template-like tokens inside the persona literal", () => {
+		const persona = "Mention {{AGENT_GUIDELINES}} and {{AGENT_PERSONA}} as-is.";
+		const prompt = composeClineSystemPrompt({ persona });
+		expect(prompt.startsWith(persona)).toBe(true);
+		// The harness guidelines slot still collapsed cleanly.
+		expect(prompt).toContain("</env>\n\nREMEMBER, be helpful and proactive!");
+	});
+
 	it("keeps the exported default persona and guidelines in sync with the default prompt", () => {
 		expect(DEFAULT_CLINE_SYSTEM_PROMPT).toContain(DEFAULT_CLINE_PERSONA);
 		expect(DEFAULT_CLINE_SYSTEM_PROMPT).toContain(

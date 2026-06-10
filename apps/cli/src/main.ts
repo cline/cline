@@ -936,37 +936,42 @@ export async function runCli(): Promise<void> {
 				process.exitCode = 1;
 				return;
 			}
-			const { loadConfiguredAgentConfigs } = await import("@cline/core");
-			const { configs, errors } = loadConfiguredAgentConfigs({ workspaceRoot });
-			const profile = configs.find(
-				(candidate) =>
-					candidate.name.trim().toLowerCase() ===
-					requestedAgentName.toLowerCase(),
-			);
-			if (!profile) {
-				const availableNames = configs.map((candidate) => candidate.name);
-				writeErr(
-					availableNames.length > 0
-						? `agent profile "${requestedAgentName}" not found (available: ${availableNames.join(", ")})`
-						: `agent profile "${requestedAgentName}" not found (no agent profiles in .cline/agents)`,
-				);
-				for (const error of errors) {
-					writeErr(`failed to load ${error.path}: ${error.error.message}`);
-				}
-				process.exitCode = 1;
-				return;
-			}
 			if (args.systemPrompt) {
+				// Don't keep a profile around that the explicit prompt overrides:
+				// it would resurface on plan/act toggles and mislead the status bar.
 				writeln(
-					`${c.dim}[warn] both --system and --agent provided; --system overrides the agent profile prompt${c.reset}`,
+					`${c.dim}[warn] --system overrides --agent; ignoring agent profile "${requestedAgentName}"${c.reset}`,
 				);
+			} else {
+				const { loadConfiguredAgentConfigs } = await import("@cline/core");
+				const { configs, errors } = loadConfiguredAgentConfigs({
+					workspaceRoot,
+				});
+				const profile = configs.find(
+					(candidate) =>
+						candidate.name.trim().toLowerCase() ===
+						requestedAgentName.toLowerCase(),
+				);
+				if (!profile) {
+					const availableNames = configs.map((candidate) => candidate.name);
+					writeErr(
+						availableNames.length > 0
+							? `agent profile "${requestedAgentName}" not found (available: ${availableNames.join(", ")})`
+							: `agent profile "${requestedAgentName}" not found (no agent profiles in .cline/agents)`,
+					);
+					for (const error of errors) {
+						writeErr(`failed to load ${error.path}: ${error.error.message}`);
+					}
+					process.exitCode = 1;
+					return;
+				}
+				activeAgentProfile = {
+					name: profile.name,
+					description: profile.description,
+					systemPrompt: profile.systemPrompt,
+					path: profile.path,
+				};
 			}
-			activeAgentProfile = {
-				name: profile.name,
-				description: profile.description,
-				systemPrompt: profile.systemPrompt,
-				path: profile.path,
-			};
 		}
 
 		const config: Config = {

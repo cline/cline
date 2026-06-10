@@ -41,12 +41,17 @@ If user asked a simple question without any coding context, answer it directly w
 {{CLINE_RULES}}
 {{CLINE_METADATA}}`;
 
+/** The persona placeholder of the harness template. */
+export const AGENT_PERSONA_SLOT = "{{AGENT_PERSONA}}";
+
 export interface ComposeClineSystemPromptInput {
 	/**
-	 * Replaces the persona slot (the coding-agent-specific prompting) while
-	 * keeping the agent harness (environment block, tool-call loop contract,
-	 * completion instructions, rules/metadata placeholders). Used to apply an
-	 * agent profile's system prompt body to the main agent or a subagent.
+	 * Replaces the coding-agent-specific prompting (the default Cline persona
+	 * AND its working guidelines) while keeping the agent harness (environment
+	 * block, tool-call loop contract, completion instructions, rules/metadata
+	 * placeholders). A custom persona is expected to bring its own working
+	 * guidance. Used to apply an agent profile's system prompt body to the
+	 * main agent or a subagent.
 	 */
 	persona?: string;
 }
@@ -55,14 +60,12 @@ export function composeClineSystemPrompt(
 	input: ComposeClineSystemPromptInput = {},
 ): string {
 	const persona = input.persona?.trim();
-	// Replacer functions (not replacement strings) so persona content
-	// containing `$&`-style patterns is inserted literally.
-	return CLINE_SYSTEM_PROMPT_TEMPLATE.replace(
-		"{{AGENT_PERSONA}}",
-		() => persona || DEFAULT_CLINE_PERSONA,
-	).replace("{{AGENT_GUIDELINES}}", () =>
+	// Guidelines are resolved before the persona is inserted, and replacer
+	// functions (not replacement strings) are used throughout, so persona
+	// content containing `{{...}}` or `$&`-style sequences stays literal.
+	return CLINE_SYSTEM_PROMPT_TEMPLATE.replace("{{AGENT_GUIDELINES}}", () =>
 		persona ? "" : `${DEFAULT_CLINE_WORKING_GUIDELINES}\n\n`,
-	);
+	).replace(AGENT_PERSONA_SLOT, () => persona || DEFAULT_CLINE_PERSONA);
 }
 
 export const DEFAULT_CLINE_SYSTEM_PROMPT = composeClineSystemPrompt();

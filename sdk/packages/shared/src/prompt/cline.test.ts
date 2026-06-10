@@ -92,4 +92,20 @@ describe("buildClineSystemPrompt", () => {
 		});
 		expect(prompt).toContain("Use $& and $' carefully.");
 	});
+
+	it("keeps template-like tokens inside the persona literal", () => {
+		const persona =
+			"You report {{PLATFORM_NAME}} and honor {{CLINE_RULES}} verbatim.";
+		const prompt = buildClineSystemPrompt({
+			workspaceRoot: "/repo",
+			platform: "linux",
+			personaPrompt: persona,
+			rules: "Real rules here.",
+		});
+		// The persona body is untouched while the harness placeholders still
+		// resolve to their real values.
+		expect(prompt.startsWith(persona)).toBe(true);
+		expect(prompt).toContain("1. Platform: linux");
+		expect(prompt).toContain("Real rules here.");
+	});
 });
