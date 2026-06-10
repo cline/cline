@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import iconv from "iconv-lite"
 import { afterEach, beforeEach, describe, it } from "mocha"
+import { getWindowsConsoleEncoding } from "../windowsEncoding"
 
 describe("StandaloneTerminalProcess encoding", () => {
 	beforeEach(() => {
@@ -25,28 +26,19 @@ describe("StandaloneTerminalProcess encoding", () => {
 		assert.strictEqual(decoded, utf8String)
 	})
 
-	it("getWindowsConsoleEncoding returns gbk for code page 936", () => {
-		// This test validates the mapping logic
-		// We test the mapping directly since the module caches at load time
-		const codePageMap: { [key: number]: string } = {
-			936: "gbk",
-			950: "big5",
-			949: "euc-kr",
-			932: "shift_jis",
-			65001: "utf8",
-		}
-		assert.strictEqual(codePageMap[936], "gbk")
+	it("getWindowsConsoleEncoding returns a valid encoding supported by iconv-lite", () => {
+		// This test validates that the real getWindowsConsoleEncoding function
+		// returns a value that is supported by iconv-lite
+		const result = getWindowsConsoleEncoding()
+		assert.ok(iconv.encodingExists(result), `Encoding ${result} is not supported by iconv-lite`)
 	})
 
-	it("getWindowsConsoleEncoding returns utf8 for code page 65001", () => {
-		const codePageMap: { [key: number]: string } = {
-			936: "gbk",
-			950: "big5",
-			949: "euc-kr",
-			932: "shift_jis",
-			65001: "utf8",
+	it("getWindowsConsoleEncoding returns utf8 on non-Windows platforms", () => {
+		// On non-Windows systems, should always return utf8
+		const result = getWindowsConsoleEncoding()
+		if (process.platform !== "win32") {
+			assert.strictEqual(result, "utf8")
 		}
-		assert.strictEqual(codePageMap[65001], "utf8")
 	})
 
 	it("iconv-lite round-trip for GBK Chinese text", () => {

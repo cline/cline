@@ -37,7 +37,7 @@ function codePageToEncoding(codePage: string): string {
 		case "949":
 			return "euc-kr"
 		case "932":
-			return "shift-jis"
+			return "shift_jis"
 		case "65001":
 			return "utf8"
 		default:
