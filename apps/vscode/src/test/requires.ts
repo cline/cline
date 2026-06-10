@@ -146,6 +146,11 @@ Module.prototype.require = function (path: string) {
 			createTool: (tool: unknown) => tool,
 		}
 	}
+	if (path === "@cline/shared/storage") {
+		return {
+			resolveGlobalSettingsPath: () => "",
+		}
+	}
 	if (path === "@cline/llms") {
 		return loadRealClineLlms()
 	}

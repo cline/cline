@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 const { execSync } = require("child_process")
+const fs = require("fs")
+const path = require("path")
 const esbuild = require("esbuild")
 
 const watch = process.argv.includes("--watch")
@@ -52,6 +54,12 @@ async function main() {
 		await srcCtx.dispose()
 	}
 }
+
+// tsc does not delete output for source/tests that were removed or are no longer
+// part of tsconfig.test.json. The VS Code test runner globs out/src/**/*.test.js,
+// so stale compiled tests can still run unless we clear the test build output first.
+fs.rmSync(path.join(__dirname, "..", "out", "src"), { recursive: true, force: true })
+fs.rmSync(path.join(__dirname, "..", "out", "packages"), { recursive: true, force: true })
 
 execSync("tsc -p ./tsconfig.test.json --outDir out", { encoding: "utf-8" })
 
