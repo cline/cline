@@ -20,6 +20,7 @@ import { toHubSessionRecord } from "../hub-session-records";
 import { cancelPendingCapabilityRequests } from "./capability-handlers";
 import {
 	asPlainRecord,
+	ensureSessionParticipant,
 	ensureSessionState,
 	errorReply,
 	extractSessionId,
@@ -630,23 +631,29 @@ export async function handleSessionAttach(
 			"session.attach requires a session id",
 		);
 	}
-	ensureSessionState(
+	const session = await readHubSessionRecord(ctx, sessionId);
+	if (!session) {
+		return errorReply(
+			envelope,
+			"session_not_found",
+			`Unknown session: ${sessionId}`,
+		);
+	}
+	ensureSessionParticipant(
 		ctx,
 		sessionId,
 		envelope.clientId?.trim() || "hub-client",
 		"participant",
 	);
-	const session = await readHubSessionRecord(ctx, sessionId);
-	if (session) {
-		ctx.publish(ctx.buildEvent("session.attached", { session }, sessionId));
-	}
-	return session
-		? okReply(envelope, { session })
-		: errorReply(
-				envelope,
-				"session_not_found",
-				`Unknown session: ${sessionId}`,
-			);
+	const attachedSession = await readHubSessionRecord(ctx, sessionId);
+	ctx.publish(
+		ctx.buildEvent(
+			"session.attached",
+			{ session: attachedSession ?? session },
+			sessionId,
+		),
+	);
+	return okReply(envelope, { session: attachedSession ?? session });
 }
 
 export async function handleSessionDetach(
@@ -662,12 +669,11 @@ export async function handleSessionDetach(
 		);
 	}
 	const clientId = envelope.clientId?.trim() || "hub-client";
-	const ownerClientId = getCapabilityOwnerClientId(ctx, sessionId) ?? clientId;
 	const state = ctx.sessionState.get(sessionId);
 	if (state) {
 		state.participants.delete(clientId);
 		if (state.createdByClientId === clientId) {
-			state.createdByClientId = ownerClientId;
+			state.createdByClientId = undefined;
 		}
 		if (state.participants.size === 0) {
 			ctx.sessionState.delete(sessionId);
