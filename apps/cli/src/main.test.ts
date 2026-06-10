@@ -153,6 +153,7 @@ vi.mock("./session/session", () => sessionMocks);
 vi.mock("@cline/core", () => {
 	return {
 		resolveProviderConfig: llmMocks.resolveProviderConfig,
+		readGlobalSettings: vi.fn(() => ({})),
 		createTeamName: vi.fn(() => "team-test"),
 		createUserInstructionConfigService: vi.fn(() => ({
 			start: vi.fn(async () => {}),

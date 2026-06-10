@@ -131,11 +131,19 @@ export function createProgram(): Command {
 export function commanderToParsedArgs(program: Command): ParsedArgs {
 	const opts = program.opts();
 
+	const explicitMode = opts.plan
+		? "plan"
+		: opts.yolo
+			? "yolo"
+			: opts.zen
+				? "zen"
+				: undefined;
+
 	const result: ParsedArgs = {
-		verbose: !!opts.verbose,
+		verbose: opts.verbose ? true : undefined,
 		interactive: !!opts.tui,
 		outputMode: opts.json ? "json" : "text",
-		mode: opts.plan ? "plan" : opts.yolo ? "yolo" : opts.zen ? "zen" : "act",
+		mode: explicitMode,
 		sandbox: !!opts.dataDir,
 		acpMode: !!opts.acp,
 		thinking: false,

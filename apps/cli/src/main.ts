@@ -1,7 +1,7 @@
 import { fstatSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename } from "node:path";
-import type { ToolPolicy } from "@cline/core";
+import { readGlobalSettings, type ToolPolicy } from "@cline/core";
 
 import { registerDisposable } from "@cline/shared";
 import type { Command } from "commander";
@@ -1042,6 +1042,7 @@ export async function runCli(): Promise<void> {
 			cwd,
 		});
 
+		const persistedPrefs = readGlobalSettings();
 		const config: Config = {
 			providerId: provider,
 			modelId:
@@ -1061,15 +1062,17 @@ export async function runCli(): Promise<void> {
 				maxConsecutiveMistakes: args.retries ?? 3,
 			},
 			checkpoint: CLI_DEFAULT_CHECKPOINT_CONFIG,
-			compaction: buildCliCompactionConfig(args.compactionMode),
+			compaction: buildCliCompactionConfig(
+				args.compactionMode ?? persistedPrefs.compactionMode,
+			),
 			timeoutSeconds: args.timeoutSeconds,
 			sandbox: sandboxEnabled,
 			sandboxDataDir,
-			verbose: args.verbose,
+			verbose: args.verbose ?? persistedPrefs.verbose ?? false,
 			thinking: resolvedReasoning.thinking,
 			reasoningEffort: resolvedReasoning.reasoningEffort,
 			outputMode: args.outputMode,
-			mode: args.mode,
+			mode: (args.mode ?? persistedPrefs.mode ?? "act") as Config["mode"],
 			logger: loggerAdapter.core,
 			loggerConfig: loggerAdapter.runtimeConfig,
 			telemetry: getCliTelemetryService(loggerAdapter.core),

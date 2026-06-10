@@ -7,6 +7,7 @@ import {
 	GlobalSettingsSchema,
 	readGlobalSettings,
 	setAutoUpdateEnabledGlobally,
+	setCliPreferencesGlobally,
 	setDisabledPlugin,
 	setDisabledTools,
 	setTelemetryOptOutGlobally,
@@ -348,5 +349,59 @@ describe("global-settings", () => {
 				await rm(root, { recursive: true, force: true });
 			}
 		});
+	});
+
+	it("parses CLI preferences from schema", () => {
+		expect(
+			GlobalSettingsSchema.parse({
+				mode: "plan",
+				verbose: true,
+				compactionMode: "basic",
+			}),
+		).toEqual({
+			autoUpdateEnabled: true,
+			telemetryOptOut: false,
+			mode: "plan",
+			verbose: true,
+			compactionMode: "basic",
+		});
+	});
+
+	it("falls back to undefined for invalid CLI preference values", () => {
+		expect(GlobalSettingsSchema.parse({ mode: "invalid" })).toEqual({
+			autoUpdateEnabled: true,
+			telemetryOptOut: false,
+			mode: undefined,
+		});
+		expect(GlobalSettingsSchema.parse({ compactionMode: "invalid" })).toEqual({
+			autoUpdateEnabled: true,
+			telemetryOptOut: false,
+			compactionMode: undefined,
+		});
+	});
+
+	it("persists and reads back CLI preferences", async () => {
+		const root = await mkdtemp(join(tmpdir(), "core-global-settings-"));
+		try {
+			const settingsPath = join(root, "global-settings.json");
+			process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
+
+			setCliPreferencesGlobally({ mode: "plan" });
+			expect(readGlobalSettings().mode).toBe("plan");
+			expect(JSON.parse(await readFile(settingsPath, "utf8")).mode).toBe(
+				"plan",
+			);
+
+			setCliPreferencesGlobally({ verbose: true, compactionMode: "basic" });
+			expect(readGlobalSettings()).toEqual({
+				autoUpdateEnabled: true,
+				telemetryOptOut: false,
+				mode: "plan",
+				verbose: true,
+				compactionMode: "basic",
+			});
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
 	});
 });
