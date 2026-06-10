@@ -81,11 +81,12 @@ export class DeepSeekHandler implements ApiHandler {
 		const client = this.ensureClient()
 		const model = this.getModel()
 
+		const isDeepSeekReasonerModel = model.id.includes("deepseek-reasoner")
 		const isDeepSeekThinkingModel =
-			model.id.includes("deepseek-reasoner") || model.id === "deepseek-v4-flash" || model.id === "deepseek-v4-pro"
+			isDeepSeekReasonerModel || model.id === "deepseek-v4-flash" || model.id === "deepseek-v4-pro"
 
 		const convertedMessages = convertToOpenAiMessages(messages)
-		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = isDeepSeekThinkingModel
+		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = isDeepSeekReasonerModel
 			? [{ role: "system", content: systemPrompt }, ...addReasoningContent(convertedMessages, messages)]
 			: [{ role: "system", content: systemPrompt }, ...convertedMessages]
 
@@ -104,6 +105,13 @@ export class DeepSeekHandler implements ApiHandler {
 
 		for await (const chunk of stream) {
 			const delta = chunk.choices?.[0]?.delta
+			if (delta && "reasoning_content" in delta && delta.reasoning_content) {
+				yield {
+					type: "reasoning",
+					reasoning: (delta.reasoning_content as string | undefined) || "",
+				}
+			}
+
 			if (delta?.content) {
 				yield {
 					type: "text",
@@ -113,13 +121,6 @@ export class DeepSeekHandler implements ApiHandler {
 
 			if (delta?.tool_calls) {
 				yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
-			}
-
-			if (delta && "reasoning_content" in delta && delta.reasoning_content) {
-				yield {
-					type: "reasoning",
-					reasoning: (delta.reasoning_content as string | undefined) || "",
-				}
 			}
 
 			if (chunk.usage) {

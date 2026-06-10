@@ -1,4 +1,4 @@
-import { createGateway } from "@cline/llms";
+import { createGateway, type GatewayProviderSettings } from "@cline/llms";
 import type {
 	AgentAfterToolResult,
 	AgentBeforeModelResult,
@@ -64,6 +64,8 @@ export interface AgentRuntimeConfigWithProvider
 	baseUrl?: string;
 	/** Additional headers for API requests */
 	headers?: Record<string, string>;
+	/** Provider-specific gateway options */
+	options?: GatewayProviderSettings["options"];
 }
 
 /**
@@ -88,9 +90,10 @@ function resolveRuntimeConfig(
 	if (hasPrebuiltModel(config)) {
 		return config;
 	}
-	const { providerId, modelId, apiKey, baseUrl, headers, ...rest } = config;
+	const { providerId, modelId, apiKey, baseUrl, headers, options, ...rest } =
+		config;
 	const gateway = createGateway({
-		providerConfigs: [{ providerId, apiKey, baseUrl, headers }],
+		providerConfigs: [{ providerId, apiKey, baseUrl, headers, options }],
 		telemetry: rest.telemetry,
 	});
 	const model = gateway.createAgentModel({ providerId, modelId });

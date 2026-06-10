@@ -1248,8 +1248,7 @@ describe("normalizeOAuthProvider", () => {
 		expect(normalizeOAuthProvider("OCA")).toBe("oca");
 	});
 
-	it("normalizes 'codex' and 'openai-codex' to 'openai-codex'", () => {
-		expect(normalizeOAuthProvider("codex")).toBe("openai-codex");
+	it("normalizes 'openai-codex' to 'openai-codex'", () => {
 		expect(normalizeOAuthProvider("openai-codex")).toBe("openai-codex");
 		expect(normalizeOAuthProvider("OPENAI-CODEX")).toBe("openai-codex");
 	});

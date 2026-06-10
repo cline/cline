@@ -10,11 +10,7 @@ import {
 	identifyAccount,
 } from "../services/telemetry/core-events";
 import { startLocalOAuthServer } from "./server";
-import type {
-	OAuthCredentials,
-	OAuthLoginCallbacks,
-	OAuthProviderInterface,
-} from "./types";
+import type { OAuthCredentials, OAuthLoginCallbacks } from "./types";
 import {
 	isCredentialLikelyExpired,
 	parseAuthorizationInput,
@@ -700,23 +696,4 @@ export async function getValidClineCredentials(
 		}
 		return null;
 	}
-}
-
-export function createClineOAuthProvider(
-	options: ClineOAuthProviderOptions,
-): OAuthProviderInterface {
-	return {
-		id: "cline",
-		name: "Cline Account",
-		usesCallbackServer: !(options.useWorkOSDeviceAuth ?? true),
-		async login(callbacks) {
-			return loginClineOAuth({ ...options, callbacks });
-		},
-		async refreshToken(credentials) {
-			return refreshClineToken(credentials as ClineOAuthCredentials, options);
-		},
-		getApiKey(credentials) {
-			return `workos:${credentials.access}`;
-		},
-	};
 }

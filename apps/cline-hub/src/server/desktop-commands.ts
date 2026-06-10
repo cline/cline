@@ -6,14 +6,13 @@ import {
 	executeClineAccountAction,
 	getLocalProviderModels,
 	listLocalProviders,
-	loginLocalProvider,
+	loginAndSaveLocalProviderOAuthCredentials,
 	normalizeOAuthProvider,
 	type ProviderCapability,
 	type ProviderClient,
 	type ProviderProtocol,
 	readGlobalSettings,
 	resolveLocalClineAuthToken,
-	saveLocalProviderOAuthCredentials,
 	saveLocalProviderSettings,
 	setAutoUpdateEnabledGlobally,
 	setDisabledPlugin,
@@ -117,17 +116,10 @@ export async function handleDesktopCommand(
 	}
 	if (command === "run_provider_oauth_login") {
 		const providerId = normalizeOAuthProvider(String(args?.provider ?? ""));
-		const existing = providerSettingsManager.getProviderSettings(providerId);
-		const credentials = await loginLocalProvider(
-			providerId,
-			existing,
-			openExternalUrl,
-		);
-		const saved = saveLocalProviderOAuthCredentials(
+		const saved = await loginAndSaveLocalProviderOAuthCredentials(
 			providerSettingsManager,
 			providerId,
-			existing,
-			credentials,
+			openExternalUrl,
 		);
 		return {
 			provider: providerId,

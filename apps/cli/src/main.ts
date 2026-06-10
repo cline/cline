@@ -152,6 +152,7 @@ export async function runCli(): Promise<void> {
 		.option("-k, --apikey <key>", "API key")
 		.option("-m, --modelid <id>", "Model ID")
 		.option("-b, --baseurl <url>", "Base URL")
+		.option("--azure-api-version <version>", "Azure API version")
 		.option("--config <dir>", "configuration directory")
 		.option("-c, --cwd <path>", "Working directory")
 		.option(
@@ -165,6 +166,7 @@ export async function runCli(): Promise<void> {
 				apikey?: string;
 				modelid?: string;
 				baseurl?: string;
+				azureApiVersion?: string;
 				config?: string;
 				cwd?: string;
 				dataDir?: string;
@@ -195,6 +197,7 @@ export async function runCli(): Promise<void> {
 				apikey: opts.apikey,
 				modelid: opts.modelid,
 				baseurl: opts.baseurl,
+				azureApiVersion: opts.azureApiVersion,
 				io,
 			});
 		});
