@@ -541,6 +541,11 @@ export async function runDoctorCommand(
 	writeln(
 		`queued connector restarts ${c.dim}${restartAwareStoppedConnectors.queuedRestarts}${c.reset}`,
 	);
+	if (restartAwareStoppedConnectors.queuedRestarts > 0) {
+		writeln(
+			`${c.dim}queued connectors relaunch automatically the next time the hub starts (any cline command, or 'cline hub start')${c.reset}`,
+		);
+	}
 	writeln(
 		`stopped connector sessions ${c.dim}${stoppedConnectors.stoppedSessions}${c.reset}`,
 	);

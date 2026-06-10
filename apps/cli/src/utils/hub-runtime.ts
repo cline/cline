@@ -7,6 +7,7 @@ import {
 	resolveDefaultHubPort,
 	resolveHubEndpointOptions,
 } from "@cline/core";
+import { restartQueuedConnectorsForHub } from "../connectors/restart";
 
 /**
  * Build a `host:port` rpc address string that respects the current build
@@ -50,5 +51,12 @@ export async function ensureCliHubServer(
 	workspaceRoot: string,
 	endpoint: HubEndpointOverrides = {},
 ): Promise<DetachedHubResolution> {
-	return await ensureDetachedHubServer(workspaceRoot, endpoint);
+	const resolution = await ensureDetachedHubServer(workspaceRoot, endpoint);
+	// Connectors queued by hub stop/doctor/update cleanup come back as soon
+	// as any CLI path brings the hub up, not only explicit hub commands.
+	await restartQueuedConnectorsForHub(resolution.url, {
+		writeln: () => {},
+		writeErr: () => {},
+	}).catch(() => undefined);
+	return resolution;
 }

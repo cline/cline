@@ -11,10 +11,7 @@ import {
 } from "@cline/core";
 import { resolveClineBuildEnv } from "@cline/shared";
 import { version } from "../../package.json";
-import {
-	restartQueuedConnectorsForHub,
-	stopConnectorsForHubs,
-} from "../connectors/restart";
+import { stopConnectorsForHubs } from "../connectors/restart";
 import {
 	ensureCliHubServer,
 	resolveDefaultCliHubUrl,
@@ -352,13 +349,10 @@ async function restartHubServerIfRunning(): Promise<void> {
 
 	await clearHubDiscovery(owner.discoveryPath).catch(() => undefined);
 
-	// Re-ensure a fresh hub instance is spawned.
+	// Re-ensure a fresh hub instance is spawned. ensureCliHubServer also
+	// drains the connector restart queue for the new hub.
 	try {
-		const hub = await ensureCliHubServer(process.cwd());
-		await restartQueuedConnectorsForHub(hub.url, {
-			writeln: () => {},
-			writeErr: () => {},
-		});
+		await ensureCliHubServer(process.cwd());
 		writeln(`${c.green}✓${c.reset} ${c.dim}[hub] server restarted${c.reset}`);
 	} catch (err) {
 		writeErr(
