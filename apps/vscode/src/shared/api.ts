@@ -4747,7 +4747,7 @@ export const huaweiCloudMaasModels = {
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
 	},
-	"deepseek-r1-0528": {
+	"deepseek-r1-250528": {
 		maxTokens: 32_000,
 		contextWindow: 128_000,
 		supportsImages: false,
