@@ -367,4 +367,4 @@ The build script in `script/build.ts` includes `{ os: "linux", arch: "x64", vari
 
 ### Version synchronization
 
-Baseline packages share the same version number as all other platform packages. All 10 packages (8 standard + 2 baseline) are included in `expectedPlatformPackages` in `script/publish-npm.ts` and must be present in `dist/` before the publish script proceeds.
+Baseline packages share the same version number as all other platform packages. All 8 platform packages (6 standard + 2 baseline) are included in `expectedPlatformPackages` in `script/publish-npm.ts` and must be present in `dist/` before the publish script proceeds.

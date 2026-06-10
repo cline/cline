@@ -12,6 +12,10 @@
  *   (c) cpuHasAvx2 with an AVX2 cpuinfo line → true
  *   (d) cpuHasAvx2 without avx2 flag (Sandy Bridge) → false
  *   (e) cpuHasAvx2 must not match "avx" alone or "avx512" as "avx2"
+ *   (f) choosePackageName: x64+noAvx2 → baseline name
+ *   (g) choosePackageName: x64+avx2  → standard name
+ *   (h) choosePackageName: arm64     → standard regardless of hasAvx2
+ *   (i) choosePackageName: unsupported platform → null
  */
 
 import { createRequire } from "node:module";
@@ -26,8 +30,13 @@ const helpers = requireCjs(
 ) as {
 	cpuHasAvx2: (text: string) => boolean;
 	buildNames: (base: string, arch: string, hasAvx2: boolean) => string[];
+	choosePackageName: (
+		platform: string,
+		arch: string,
+		hasAvx2: boolean,
+	) => string | null;
 };
-const { cpuHasAvx2, buildNames } = helpers;
+const { cpuHasAvx2, buildNames, choosePackageName } = helpers;
 
 // ── Sample /proc/cpuinfo excerpts ─────────────────────────────────────────────
 
@@ -106,5 +115,60 @@ describe("buildNames", () => {
 			"@cline/cli-windows-x64-baseline",
 			"@cline/cli-windows-x64",
 		]);
+	});
+});
+
+// ── choosePackageName ─────────────────────────────────────────────────────────
+//
+// These tests verify the postinstall package-selection helper so we can assert
+// that a fresh install on a no-AVX2 x64 host caches the baseline package, never
+// the standard (AVX2-requiring) package.
+
+describe("choosePackageName", () => {
+	it("(f) linux x64 without AVX2 → baseline package name", () => {
+		expect(choosePackageName("linux", "x64", false)).toBe(
+			"@cline/cli-linux-x64-baseline",
+		);
+	});
+
+	it("(g) linux x64 with AVX2 → standard package name", () => {
+		expect(choosePackageName("linux", "x64", true)).toBe(
+			"@cline/cli-linux-x64",
+		);
+	});
+
+	it("(h) linux arm64 without AVX2 → standard package (baseline not applicable)", () => {
+		expect(choosePackageName("linux", "arm64", false)).toBe(
+			"@cline/cli-linux-arm64",
+		);
+	});
+
+	it("(h) linux arm64 with AVX2 → standard package", () => {
+		expect(choosePackageName("linux", "arm64", true)).toBe(
+			"@cline/cli-linux-arm64",
+		);
+	});
+
+	it("(h) darwin arm64 → standard package regardless of hasAvx2", () => {
+		expect(choosePackageName("darwin", "arm64", false)).toBe(
+			"@cline/cli-darwin-arm64",
+		);
+		expect(choosePackageName("darwin", "arm64", true)).toBe(
+			"@cline/cli-darwin-arm64",
+		);
+	});
+
+	it("darwin x64 with AVX2 → standard package", () => {
+		expect(choosePackageName("darwin", "x64", true)).toBe(
+			"@cline/cli-darwin-x64",
+		);
+	});
+
+	it("(i) win32 platform → null (Windows handled separately in postinstall)", () => {
+		expect(choosePackageName("win32", "x64", false)).toBeNull();
+	});
+
+	it("(i) unsupported platform → null", () => {
+		expect(choosePackageName("freebsd", "x64", false)).toBeNull();
 	});
 });

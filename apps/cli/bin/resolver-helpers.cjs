@@ -7,7 +7,8 @@
 // at the top level, making it impossible to require() in tests without the
 // process terminating. Extracting stateless pure helpers into this file lets
 // unit tests exercise the logic directly.
-// What: Exports cpuHasAvx2(text) and buildNames(base, arch, hasAvx2).
+// What: Exports cpuHasAvx2(text), buildNames(base, arch, hasAvx2), and
+//       choosePackageName(platform, arch, hasAvx2).
 // Test: Import this file in vitest; call the exported functions directly.
 
 /**
@@ -37,4 +38,34 @@ function buildNames(base, arch, hasAvx2) {
 	return result;
 }
 
-module.exports = { cpuHasAvx2, buildNames };
+/**
+ * Why: Factor the postinstall package-selection decision into a single pure
+ *      function so both postinstall.mjs and the resolver share identical logic
+ *      and the decision can be unit-tested without any filesystem side effects.
+ * What: Returns the single npm package name that postinstall should resolve and
+ *       cache. On x64 Linux/Windows without AVX2 this is the "-baseline" variant;
+ *       on all other platform/arch combinations it is the standard package name.
+ *       Returns null when the platform is not supported (e.g. win32 from Node
+ *       perspective — postinstall skips Windows anyway, but callers must handle
+ *       the null case).
+ * Test: choosePackageName("linux","x64",false) === "@cline/cli-linux-x64-baseline"
+ *       choosePackageName("linux","x64",true)  === "@cline/cli-linux-x64"
+ *       choosePackageName("darwin","arm64",false) === "@cline/cli-darwin-arm64"
+ */
+function choosePackageName(platform, arch, hasAvx2) {
+	const platformMap = {
+		darwin: "darwin",
+		linux: "linux",
+	};
+	const mappedPlatform = platformMap[platform];
+	if (!mappedPlatform) {
+		return null;
+	}
+	const base = `@cline/cli-${mappedPlatform}-${arch}`;
+	if (arch === "x64" && !hasAvx2) {
+		return `${base}-baseline`;
+	}
+	return base;
+}
+
+module.exports = { cpuHasAvx2, buildNames, choosePackageName };

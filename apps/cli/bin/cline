@@ -147,14 +147,34 @@ if (envPath) {
 }
 
 // 2. Check cached binary
-// Note: the cached binary is written by postinstall and is always the standard
-// (non-baseline) binary. We intentionally do NOT apply SIGILL fallback here
-// because the postinstall script already picks the correct package; if the
-// cached binary SIGILLs the user should reinstall with a newer version that
-// includes the baseline package.
+// postinstall now writes the correct variant (baseline when AVX2 is absent) so
+// the cached binary should always be runnable. As defense-in-depth, however, if
+// the cached binary exits with SIGILL (e.g. a leftover cache from a pre-fix
+// install, or a manual binary replacement), we fall through to the step-3
+// node_modules walk rather than propagating the crash. The node_modules walk
+// already prefers the baseline package on no-AVX2 hosts, so a single fallthrough
+// is sufficient and safe — the binary SIGILLs at startup before doing any work.
 const cached = path.join(scriptDir, ".cline");
 if (fs.existsSync(cached)) {
-	run(cached);
+	const cachedResult = run(cached, /* returnResult= */ true);
+	if (cachedResult.signal === "SIGILL") {
+		// Cached binary is wrong variant; fall through to node_modules walk below.
+		// (no-op: execution continues past this block)
+	} else {
+		// Propagate normal exit or non-SIGILL signal.
+		if (cachedResult.error) {
+			console.error(cachedResult.error.message);
+			process.exit(1);
+		}
+		if (typeof cachedResult.status === "number") {
+			process.exit(cachedResult.status);
+		}
+		if (cachedResult.signal) {
+			process.kill(process.pid, cachedResult.signal);
+			process.exit(128);
+		}
+		process.exit(1);
+	}
 }
 
 // 3. Detect platform and architecture
@@ -233,13 +253,32 @@ if (result.signal === "SIGILL" && arch === "x64") {
 		const baselinePackage = base + "-baseline";
 		const baselineBin = findBinaryFromNames(scriptDir, [baselinePackage]);
 		if (baselineBin) {
-			// Run the baseline binary once; this is a terminal call (no returnResult).
-			run(baselineBin);
-			// run() above exits; this line is unreachable.
+			// Run the baseline binary and inspect the result so that if the
+			// baseline itself SIGILLs (CPU below x86-64-v2) we can print the
+			// helpful #10514 message rather than silently propagating the signal.
+			const baselineResult = run(baselineBin, /* returnResult= */ true);
+			if (baselineResult.signal === "SIGILL") {
+				// Fall through to the helpful message below.
+			} else {
+				// Propagate baseline's normal exit or non-SIGILL signal.
+				if (baselineResult.error) {
+					console.error(baselineResult.error.message);
+					process.exit(1);
+				}
+				if (typeof baselineResult.status === "number") {
+					process.exit(baselineResult.status);
+				}
+				if (baselineResult.signal) {
+					process.kill(process.pid, baselineResult.signal);
+					process.exit(128);
+				}
+				process.exit(1);
+			}
 		}
 	}
 
-	// No baseline binary found (or we already ran baseline and it still SIGILLed).
+	// No baseline binary found, or both standard and baseline SIGILLed
+	// (CPU below x86-64-v2), or we already ran baseline and it still SIGILLed.
 	process.stderr.write(
 		"cline: binary crashed with SIGILL (Illegal Instruction). " +
 			"This CPU may lack AVX2. " +

@@ -52,6 +52,13 @@ function buildInlinedEnvDefines(): Record<string, string> {
 // What: Returns true when /proc/cpuinfo contains "avx2" as a whole word.
 // On non-Linux hosts (where /proc/cpuinfo doesn't exist) returns true.
 // Test: On a Sandy Bridge host (avx but no avx2), buildHostHasAvx2() returns false.
+//
+// Note: The AVX2 regex below is intentionally duplicated from
+// bin/resolver-helpers.cjs. build.ts runs under Bun and could technically
+// require() the .cjs helper, but doing so would make the build script depend
+// on a runtime artifact that may not be present in all CI environments (e.g.
+// a fresh checkout before any install step). The duplication is two lines and
+// the risk of divergence is low; keeping build.ts self-contained is simpler.
 function buildHostHasAvx2(): boolean {
 	if (osPlatform() !== "linux") {
 		return true;
