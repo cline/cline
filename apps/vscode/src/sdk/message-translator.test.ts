@@ -1113,6 +1113,89 @@ describe("translateSessionEvent — agent_event error", () => {
 		expect(parsed.code).toBe("SPEND_LIMIT_EXCEEDED")
 		expect(parsed.providerId).toBe("cline")
 	})
+
+	it("rewrites Anthropic bare 'model: <id>' 404 into an actionable message", () => {
+		const state = new MessageTranslatorState(undefined, () => "anthropic")
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: { message: "model: claude-3-haiku-20240307" },
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages).toHaveLength(2)
+
+		const failedText = result.messages[1].text!
+		expect(failedText).toContain("claude-3-haiku-20240307")
+		expect(failedText).toContain("was not found")
+		expect(failedText).toContain("API Configuration settings")
+	})
+
+	it("rewrites a 'model not found' message into an actionable message", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: { message: "The model `gpt-foo` does not exist" },
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages).toHaveLength(2)
+
+		const failedText = result.messages[1].text!
+		expect(failedText).toContain("gpt-foo")
+		expect(failedText).toContain("API Configuration settings")
+	})
+
+	it("does not rewrite an unrelated error that merely mentions a model", () => {
+		const state = new MessageTranslatorState()
+		const rawMessage = "The requested feature model is not available in your plan"
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: { message: rawMessage },
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		const failedText = result.messages[1].text!
+		expect(failedText).toBe(rawMessage)
+		expect(failedText).not.toContain("API Configuration settings")
+	})
+
+	it("leaves an auth error mentioning a model untouched", () => {
+		const state = new MessageTranslatorState()
+		const rawMessage = "Invalid API key for model gpt-4"
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: { message: rawMessage },
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		const failedText = result.messages[1].text!
+		expect(failedText).toBe(rawMessage)
+		expect(failedText).not.toContain("API Configuration settings")
+	})
 })
 
 // ---------------------------------------------------------------------------
