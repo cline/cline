@@ -147,7 +147,14 @@ export abstract class ConnectorBase<Options, State>
 				Array.isArray(parsed.args) &&
 				parsed.args.every((arg) => typeof arg === "string")
 			) {
-				return { connector: parsed.connector, args: parsed.args };
+				return {
+					connector: parsed.connector,
+					args: parsed.args,
+					cwd:
+						typeof parsed.cwd === "string" && parsed.cwd.trim()
+							? parsed.cwd
+							: undefined,
+				};
 			}
 		} catch {
 			// Ignore malformed restart metadata from the environment.

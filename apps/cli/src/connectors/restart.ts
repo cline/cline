@@ -9,7 +9,11 @@ import {
 	writeJsonFile,
 } from "./common";
 import { getConnector } from "./registry";
-import type { ConnectIo, ConnectorRestartSpec } from "./types";
+import type {
+	ConnectCommandDefinition,
+	ConnectIo,
+	ConnectorRestartSpec,
+} from "./types";
 
 type ConnectorStateForRestart = {
 	statePath: string;
@@ -82,6 +86,7 @@ function readQueue(): QueuedConnectorRestart[] {
 			typeof record.statePath === "string" &&
 			typeof record.pid === "number" &&
 			typeof record.stoppedAt === "string" &&
+			(record.cwd === undefined || typeof record.cwd === "string") &&
 			(record.attempts === undefined || typeof record.attempts === "number")
 		);
 	});
@@ -153,7 +158,14 @@ function readConnectorStateForRestart(
 			typeof restart?.connector === "string" &&
 			Array.isArray(restart.args) &&
 			restart.args.every((arg) => typeof arg === "string")
-				? { connector: restart.connector, args: restart.args }
+				? {
+						connector: restart.connector,
+						args: restart.args,
+						cwd:
+							typeof restart.cwd === "string" && restart.cwd.trim()
+								? restart.cwd
+								: undefined,
+					}
 				: undefined,
 	};
 }
@@ -226,6 +238,10 @@ export async function stopConnectorsForHubs(
 	return { stoppedProcesses, queuedRestarts };
 }
 
+function hasCwdArg(args: string[]): boolean {
+	return args.some((arg) => arg === "--cwd" || arg.startsWith("--cwd="));
+}
+
 function withHubRpcAddress(args: string[], hubUrl: string): string[] {
 	// Drains run from background contexts (hub start, doctor, update), so an
 	// interactive flag in the saved args would block the drain waiting on a
@@ -244,6 +260,26 @@ function withHubRpcAddress(args: string[], hubUrl: string): string[] {
 		}
 	}
 	return [...next, "--rpc-address", hubUrl];
+}
+
+function withRestartLaunchArgs(entry: QueuedConnectorRestart, hubUrl: string) {
+	const args = withHubRpcAddress(entry.args, hubUrl);
+	return entry.cwd && !hasCwdArg(args) ? [...args, "--cwd", entry.cwd] : args;
+}
+
+function recordFailedRestartAttempt(
+	entry: QueuedConnectorRestart,
+	failed: QueuedConnectorRestart[],
+	io: ConnectIo,
+): void {
+	const attempts = (entry.attempts ?? 0) + 1;
+	if (attempts >= MAX_RESTART_ATTEMPTS) {
+		io.writeErr(
+			`[connect] dropping queued restart for connector "${entry.connector}" after ${attempts} failed attempts`,
+		);
+		return;
+	}
+	failed.push({ ...entry, attempts });
 }
 
 // Restarting a connector re-runs its connect command, which ensures the hub
@@ -284,7 +320,13 @@ export async function restartQueuedConnectorsForHub(
 	drainInProgress = true;
 	try {
 		for (const entry of matched) {
-			const connector = await getConnector(entry.connector);
+			let connector: ConnectCommandDefinition | undefined;
+			try {
+				connector = await getConnector(entry.connector);
+			} catch {
+				recordFailedRestartAttempt(entry, failed, io);
+				continue;
+			}
 			if (!connector) {
 				io.writeErr(
 					`[connect] dropping queued restart for unknown connector "${entry.connector}"`,
@@ -292,20 +334,13 @@ export async function restartQueuedConnectorsForHub(
 				continue;
 			}
 			const exitCode = await connector
-				.run(withHubRpcAddress(entry.args, hubUrl), io)
+				.run(withRestartLaunchArgs(entry, hubUrl), io)
 				.catch(() => 1);
 			if (exitCode === 0) {
 				restarted += 1;
 				continue;
 			}
-			const attempts = (entry.attempts ?? 0) + 1;
-			if (attempts >= MAX_RESTART_ATTEMPTS) {
-				io.writeErr(
-					`[connect] dropping queued restart for connector "${entry.connector}" after ${attempts} failed attempts`,
-				);
-				continue;
-			}
-			failed.push({ ...entry, attempts });
+			recordFailedRestartAttempt(entry, failed, io);
 		}
 	} finally {
 		drainInProgress = false;

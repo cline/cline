@@ -154,6 +154,94 @@ describe("connector restart queue", () => {
 		);
 	});
 
+	it("replays queued connector cwd when restarting without an explicit cwd arg", async () => {
+		const dataDir = mkdtempSync(join(tmpdir(), "connector-restart-test-"));
+		tempDirs.push(dataDir);
+		mockResolveClineDataDir.mockReturnValue(dataDir);
+		const queuePath = join(dataDir, "connectors", "restart-queue.json");
+		mkdirSync(join(dataDir, "connectors"), { recursive: true });
+		writeFileSync(
+			queuePath,
+			JSON.stringify([
+				{
+					connector: "telegram",
+					args: ["-m", "bot"],
+					cwd: "/workspace/original",
+					hubUrl: "ws://127.0.0.1:57648/hub",
+					targetHubUrl: "ws://127.0.0.1:25466/hub",
+					statePath: join(dataDir, "connectors", "telegram", "bot.json"),
+					pid: 12345,
+					stoppedAt: new Date().toISOString(),
+				},
+			]),
+			"utf8",
+		);
+		const run = vi.fn(async () => 0);
+		mockGetConnector.mockResolvedValue({ name: "telegram", run });
+
+		const restarted = await restartQueuedConnectorsForHub(
+			"ws://127.0.0.1:25466/hub",
+			{ writeln: () => {}, writeErr: () => {} },
+		);
+
+		expect(restarted).toEqual({ restarted: 1, remaining: 0 });
+		expect(run).toHaveBeenCalledWith(
+			[
+				"-m",
+				"bot",
+				"--rpc-address",
+				"ws://127.0.0.1:25466/hub",
+				"--cwd",
+				"/workspace/original",
+			],
+			expect.any(Object),
+		);
+	});
+
+	it("keeps an explicit cwd arg when restarting queued connectors", async () => {
+		const dataDir = mkdtempSync(join(tmpdir(), "connector-restart-test-"));
+		tempDirs.push(dataDir);
+		mockResolveClineDataDir.mockReturnValue(dataDir);
+		const queuePath = join(dataDir, "connectors", "restart-queue.json");
+		mkdirSync(join(dataDir, "connectors"), { recursive: true });
+		writeFileSync(
+			queuePath,
+			JSON.stringify([
+				{
+					connector: "telegram",
+					args: ["-m", "bot", "--cwd", "/workspace/from-args"],
+					cwd: "/workspace/original",
+					hubUrl: "ws://127.0.0.1:57648/hub",
+					targetHubUrl: "ws://127.0.0.1:25466/hub",
+					statePath: join(dataDir, "connectors", "telegram", "bot.json"),
+					pid: 12345,
+					stoppedAt: new Date().toISOString(),
+				},
+			]),
+			"utf8",
+		);
+		const run = vi.fn(async () => 0);
+		mockGetConnector.mockResolvedValue({ name: "telegram", run });
+
+		const restarted = await restartQueuedConnectorsForHub(
+			"ws://127.0.0.1:25466/hub",
+			{ writeln: () => {}, writeErr: () => {} },
+		);
+
+		expect(restarted).toEqual({ restarted: 1, remaining: 0 });
+		expect(run).toHaveBeenCalledWith(
+			[
+				"-m",
+				"bot",
+				"--cwd",
+				"/workspace/from-args",
+				"--rpc-address",
+				"ws://127.0.0.1:25466/hub",
+			],
+			expect.any(Object),
+		);
+	});
+
 	it("only restarts queue entries targeted at the started hub", async () => {
 		const dataDir = mkdtempSync(join(tmpdir(), "connector-restart-test-"));
 		tempDirs.push(dataDir);
@@ -408,6 +496,40 @@ describe("connector restart queue", () => {
 			throw new Error("spawn failed");
 		});
 		mockGetConnector.mockResolvedValue({ name: "telegram", run });
+
+		const restarted = await restartQueuedConnectorsForHub(
+			"ws://127.0.0.1:25466/hub",
+			{ writeln: () => {}, writeErr: () => {} },
+		);
+
+		expect(restarted).toEqual({ restarted: 0, remaining: 1 });
+		expect(JSON.parse(readFileSync(queuePath, "utf8"))).toMatchObject([
+			{ connector: "telegram", attempts: 1 },
+		]);
+	});
+
+	it("requeues entries when connector loading throws", async () => {
+		const dataDir = mkdtempSync(join(tmpdir(), "connector-restart-test-"));
+		tempDirs.push(dataDir);
+		mockResolveClineDataDir.mockReturnValue(dataDir);
+		const queuePath = join(dataDir, "connectors", "restart-queue.json");
+		mkdirSync(join(dataDir, "connectors"), { recursive: true });
+		writeFileSync(
+			queuePath,
+			JSON.stringify([
+				{
+					connector: "telegram",
+					args: ["-m", "bot"],
+					hubUrl: "ws://127.0.0.1:57648/hub",
+					targetHubUrl: "ws://127.0.0.1:25466/hub",
+					statePath: join(dataDir, "connectors", "telegram", "bot.json"),
+					pid: 12345,
+					stoppedAt: new Date().toISOString(),
+				},
+			]),
+			"utf8",
+		);
+		mockGetConnector.mockRejectedValue(new Error("import failed"));
 
 		const restarted = await restartQueuedConnectorsForHub(
 			"ws://127.0.0.1:25466/hub",

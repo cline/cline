@@ -203,6 +203,7 @@ export function spawnDetachedConnector(
 							[CLINE_CONNECTOR_RESTART_SPEC_ENV]: JSON.stringify({
 								connector: connectorName,
 								args: rawArgs,
+								cwd: process.cwd(),
 							}),
 						}
 					: {}),

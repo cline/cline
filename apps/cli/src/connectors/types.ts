@@ -11,6 +11,7 @@ export type ConnectStopResult = {
 export type ConnectorRestartSpec = {
 	connector: string;
 	args: string[];
+	cwd?: string;
 };
 
 export interface ConnectCommandDefinition {
