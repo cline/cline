@@ -230,6 +230,22 @@ describe("SdkFollowupCoordinator", () => {
 		await coordinator.askResponse("continue")
 
 		expect(options.emitClineAuthError).toHaveBeenCalledOnce()
+		expect(options.onResumeFailed).toHaveBeenCalledOnce()
+		expect(options.postStateToWebview).toHaveBeenCalledOnce()
+	})
+
+	it("reports resume failures so the turn phase does not stay stuck in streaming", async () => {
+		const task = makeTask("task-1")
+		const { coordinator, options } = makeCoordinator({ task })
+		options.sessions.startNewSession.mockRejectedValue(new Error("session start failed"))
+
+		await coordinator.askResponse("continue")
+
+		expect(options.onResumeFailed).toHaveBeenCalledOnce()
+		expect(options.messages.emitSessionEvents).toHaveBeenCalledWith(
+			[expect.objectContaining({ say: "error", text: expect.stringContaining("session start failed") })],
+			{ type: "status", payload: { sessionId: "task-1", status: "error" } },
+		)
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()
 	})
 })
@@ -284,6 +300,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		resetMessageTranslator: vi.fn(),
 		postStateToWebview: vi.fn().mockResolvedValue(undefined),
 		waitForPendingModeRebuild: input.waitForPendingModeRebuild ?? vi.fn().mockResolvedValue(undefined),
+		onResumeFailed: vi.fn(),
 	} as unknown as SdkFollowupCoordinatorOptions & {
 		interactions: SdkFollowupCoordinatorOptions["interactions"] & {
 			resolvePendingToolApproval: ReturnType<typeof vi.fn>
@@ -314,6 +331,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		emitClineAuthError: ReturnType<typeof vi.fn>
 		resetMessageTranslator: ReturnType<typeof vi.fn>
 		postStateToWebview: ReturnType<typeof vi.fn>
+		onResumeFailed: ReturnType<typeof vi.fn>
 	}
 
 	return {

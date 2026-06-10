@@ -36,6 +36,12 @@ export interface SdkFollowupCoordinatorOptions {
 	postStateToWebview: () => Promise<void>
 	/** Resolves once no plan/act mode rebuild is in flight. */
 	waitForPendingModeRebuild: () => Promise<void>
+	/**
+	 * Called when resuming a task fails. askResponse moved the turn phase to
+	 * streaming before delegating here, so the failure must move it to a
+	 * terminal phase or the footer stays stuck on Thinking/Cancel.
+	 */
+	onResumeFailed: () => void
 }
 
 export class SdkFollowupCoordinator {
@@ -120,6 +126,7 @@ export class SdkFollowupCoordinator {
 					{ type: "status", payload: { sessionId: taskId, status: "error" } },
 				)
 			}
+			this.options.onResumeFailed()
 			await this.options.postStateToWebview()
 		}
 	}

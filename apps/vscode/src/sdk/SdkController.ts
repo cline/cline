@@ -392,6 +392,9 @@ export class Controller {
 			emitClineAuthError: () => this.emitClineAuthError(),
 			resetMessageTranslator: () => this.resetMessageTranslatorAndFence(),
 			postStateToWebview: () => this.postStateToWebview(),
+			onResumeFailed: () => {
+				this.turnStateTracker.set("error")
+			},
 		})
 		this.taskControl = new SdkTaskControlCoordinator({
 			sessions: this.sessions,
