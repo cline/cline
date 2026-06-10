@@ -463,6 +463,14 @@ export async function runDoctorCommand(
 		return 0;
 	}
 
+	// Stop and queue connectors while the hub (and the connectors themselves)
+	// are still running, matching the ordering in hub stop and update. A
+	// connector that disappears once the hub is gone can no longer be queued.
+	const restartAwareStoppedConnectors = await stopConnectorsForHubs(
+		before.activeConnectors.map((record) => record.hubUrl),
+		{ writeln: () => {}, writeErr: () => {} },
+		{ targetHubUrl: resolveDefaultCliHubUrl() },
+	);
 	const gracefullyStoppedHub = before.hubHealthy
 		? await stopLocalHubServerGracefully(resolveCliHubOwnerContext()).catch(
 				() => false,
@@ -474,11 +482,6 @@ export async function runDoctorCommand(
 	const killedHub = gracefullyStoppedHub
 		? 0
 		: killPids(refreshedAfterGracefulStop.listeningPids);
-	const restartAwareStoppedConnectors = await stopConnectorsForHubs(
-		before.activeConnectors.map((record) => record.hubUrl),
-		{ writeln: () => {}, writeErr: () => {} },
-		{ targetHubUrl: resolveDefaultCliHubUrl() },
-	);
 	const staleHubTargets = before.staleHubPids.filter(
 		(pid) => !refreshedAfterGracefulStop.listeningPids.includes(pid),
 	);
@@ -520,8 +523,6 @@ export async function runDoctorCommand(
 					connectorProcesses:
 						stoppedConnectors.stoppedProcesses +
 						restartAwareStoppedConnectors.stoppedProcesses,
-					connectorProcessesQueuedForRestart:
-						restartAwareStoppedConnectors.queuedRestarts,
 					connectorRestartsQueued: restartAwareStoppedConnectors.queuedRestarts,
 					connectorSessions: stoppedConnectors.stoppedSessions,
 					hubStartupLocks: clearedArtifacts.startupLocks,

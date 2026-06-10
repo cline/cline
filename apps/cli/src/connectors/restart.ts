@@ -227,6 +227,11 @@ export async function stopConnectorsForHubs(
 }
 
 function withHubRpcAddress(args: string[], hubUrl: string): string[] {
+	// Drains run from background contexts (hub start, doctor, update), so an
+	// interactive flag in the saved args would block the drain waiting on a
+	// terminal that does not exist. Relaunch in detached mode unconditionally;
+	// the spec normally never carries these flags since interactive runs do
+	// not persist a restart spec.
 	const next = args.filter((arg) => arg !== "-i" && arg !== "--interactive");
 	for (let index = 0; index < next.length; index += 1) {
 		if (next[index]?.startsWith("--rpc-address=")) {

@@ -338,10 +338,13 @@ describe("runDoctorCommand", () => {
 			expect.any(Object),
 			{ targetHubUrl: "ws://127.0.0.1:25466/hub" },
 		);
+		// Connectors must be stopped and queued while the hub is still up.
+		expect(mockStopConnectorsForHubs.mock.invocationCallOrder[0]).toBeLessThan(
+			mockStopLocalHubServerGracefully.mock.invocationCallOrder[0] ?? Infinity,
+		);
 		expect(JSON.parse(output[0] || "")).toMatchObject({
 			killed: {
 				connectorProcesses: 2,
-				connectorProcessesQueuedForRestart: 1,
 				connectorRestartsQueued: 1,
 			},
 		});
