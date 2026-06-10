@@ -14,6 +14,7 @@ import type {
 import { setClineDir, setHomeDir } from "@cline/shared/storage";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TelemetryService } from "../../services/telemetry/TelemetryService";
+import { createSessionCompactionState } from "../../session/models/session-compaction";
 import type { SessionManifest } from "../../session/models/session-manifest";
 import { SessionSource } from "../../types/common";
 import type { CoreSessionConfig } from "../../types/config";
@@ -4334,6 +4335,83 @@ describe("LocalRuntimeHost", () => {
 				prepareTurn: expect.any(Function),
 			}),
 		);
+	});
+
+	it("does not project compaction state when compaction is disabled", async () => {
+		const sessionId = "sess-compaction-disabled";
+		const manifest = createManifest(sessionId);
+		const initialMessages: MessageWithMetadata[] = [
+			{ role: "user", content: "canonical source" },
+		];
+		const initialCompactionState = createSessionCompactionState({
+			sourceMessages: initialMessages,
+			compactedMessages: [{ role: "user", content: "projected summary" }],
+			conversationId: sessionId,
+			updatedAt: "2026-01-01T00:00:00.000Z",
+		});
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest-compaction-disabled.json",
+				messagesPath: "/tmp/messages-compaction-disabled.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			persistSessionCompactionState: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const run = vi.fn().mockResolvedValue(createResult());
+		const createAgent = vi.fn().mockReturnValue({
+			run,
+			continue: vi.fn(),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue(sessionId),
+			restore: vi.fn(),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+			getMessages: vi.fn().mockReturnValue(initialMessages),
+			messages: initialMessages,
+		});
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder: {
+				build: vi.fn().mockReturnValue({
+					tools: [],
+					shutdown: vi.fn(),
+				}),
+			},
+			createAgent: createAgent as never,
+		});
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({
+					sessionId,
+					compaction: {
+						enabled: false,
+						strategy: "basic",
+					},
+				}),
+				initialMessages,
+				initialCompactionState,
+				interactive: true,
+			}),
+		);
+
+		const prepareTurn = createAgent.mock.calls[0]?.[0]?.prepareTurn;
+		expect(prepareTurn).toBeUndefined();
+		expect(sessionService.persistSessionCompactionState).not.toHaveBeenCalled();
+
+		await expect(
+			manager.updateSessionCompactionState(sessionId, initialCompactionState),
+		).resolves.toEqual({ updated: true });
+		expect(createAgent.mock.calls[0]?.[0]?.prepareTurn).toBeUndefined();
 	});
 
 	it("formats prompt in core and merges explicit + mention user files", async () => {
