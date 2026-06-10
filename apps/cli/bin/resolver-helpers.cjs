@@ -43,11 +43,13 @@ function buildNames(base, arch, hasAvx2) {
  *      function so both postinstall.mjs and the resolver share identical logic
  *      and the decision can be unit-tested without any filesystem side effects.
  * What: Returns the single npm package name that postinstall should resolve and
- *       cache. On x64 Linux/Windows without AVX2 this is the "-baseline" variant;
- *       on all other platform/arch combinations it is the standard package name.
+ *       cache. Returns the "-baseline" variant when arch === "x64" && !hasAvx2,
+ *       regardless of platform; otherwise returns the standard package name.
  *       Returns null when the platform is not supported (e.g. win32 from Node
  *       perspective — postinstall skips Windows anyway, but callers must handle
  *       the null case).
+ *       Note: callers on non-Linux platforms (darwin) always pass hasAvx2=true,
+ *       so the darwin/x64-baseline branch is unreachable in production.
  * Test: choosePackageName("linux","x64",false) === "@cline/cli-linux-x64-baseline"
  *       choosePackageName("linux","x64",true)  === "@cline/cli-linux-x64"
  *       choosePackageName("darwin","arm64",false) === "@cline/cli-darwin-arm64"

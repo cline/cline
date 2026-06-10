@@ -164,6 +164,15 @@ describe("choosePackageName", () => {
 		);
 	});
 
+	it("darwin x64 without AVX2 → baseline package (unreachable in production: non-Linux callers always pass hasAvx2=true)", () => {
+		// This input is unreachable in production because the postinstall caller
+		// only reads /proc/cpuinfo on Linux; non-Linux platforms pass hasAvx2=true.
+		// The test documents the pure function's behavior for this logical branch.
+		expect(choosePackageName("darwin", "x64", false)).toBe(
+			"@cline/cli-darwin-x64-baseline",
+		);
+	});
+
 	it("(i) win32 platform → null (Windows handled separately in postinstall)", () => {
 		expect(choosePackageName("win32", "x64", false)).toBeNull();
 	});
