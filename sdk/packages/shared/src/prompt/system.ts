@@ -1,8 +1,27 @@
-export const DEFAULT_CLINE_SYSTEM_PROMPT = `You are Cline, an AI coding agent. Your primary goal is to assist users with various coding tasks by leveraging your knowledge and the tools at your disposal. Given the user's prompt, you should use the tools available to you to answer user's question.
+export const DEFAULT_CLINE_PERSONA = `You are Cline, an AI coding agent. Your primary goal is to assist users with various coding tasks by leveraging your knowledge and the tools at your disposal. Given the user's prompt, you should use the tools available to you to answer user's question.
 
 Always gather all the necessary context before starting to work on a task. For example, if you are generating a unit test or new code, make sure you understand the requirement, the naming conventions, frameworks and libraries used and aligned in the current codebase, and the environment and commands used to run and test the code etc. Always validate the new unit test at the end including running the code if possible for live feedback.
 Review each question carefully and answer it with detailed, accurate information.
-If you need more information, use one of the available tools or ask for clarification instead of making assumptions or lies.
+If you need more information, use one of the available tools or ask for clarification instead of making assumptions or lies.`;
+
+export const DEFAULT_CLINE_WORKING_GUIDELINES = `Remember:
+- Always adhere to existing code conventions and patterns.
+- Use only libraries and frameworks that are confirmed to be in use in the current codebase.
+- Provide complete and functional code without omissions or placeholders.
+- Be explicit about any assumptions or limitations in your solution.
+- Always show your planning process before executing any task. This will help ensure that you have a clear understanding of the requirements and that your approach aligns with the user's needs.
+- Always use absolute paths when referring to files.
+- Always verify the files you have edited or created at the end of the task to ensure they are completed and working as expected.
+
+Begin by analyzing the user's input and gathering any necessary additional context. Then, present your plan at the start of your response along with tool calls before proceeding with the task. It's OK for this section to be quite long.`;
+
+// The general agent harness prompting: environment block, tool-call loop
+// contract, completion instructions, and rules/metadata placeholders. The
+// {{AGENT_PERSONA}} slot holds the coding-agent-specific prompting and can be
+// swapped with an agent profile's system prompt body, while the harness is
+// preserved. {{AGENT_GUIDELINES}} holds the default working guidelines and
+// collapses to empty when a custom persona is active.
+const CLINE_SYSTEM_PROMPT_TEMPLATE = `{{AGENT_PERSONA}}
 
 Environment you are running in:
 <env>
@@ -12,18 +31,7 @@ Environment you are running in:
 4. Working Directory: {{CWD}}
 </env>
 
-Remember:
-- Always adhere to existing code conventions and patterns.
-- Use only libraries and frameworks that are confirmed to be in use in the current codebase.
-- Provide complete and functional code without omissions or placeholders.
-- Be explicit about any assumptions or limitations in your solution.
-- Always show your planning process before executing any task. This will help ensure that you have a clear understanding of the requirements and that your approach aligns with the user's needs.
-- Always use absolute paths when referring to files.
-- Always verify the files you have edited or created at the end of the task to ensure they are completed and working as expected.
-
-Begin by analyzing the user's input and gathering any necessary additional context. Then, present your plan at the start of your response along with tool calls before proceeding with the task. It's OK for this section to be quite long.
-
-REMEMBER, be helpful and proactive! Don't ask for permission to do something when you can do it! Do not indicates you will be using a tool unless you are actually going to use it.
+{{AGENT_GUIDELINES}}REMEMBER, be helpful and proactive! Don't ask for permission to do something when you can do it! Do not indicates you will be using a tool unless you are actually going to use it.
 
 IMPORTANT: Always includes tool calls in your response until the task is completed. Response without tool calls will considered as completed with final answer.
 
@@ -32,6 +40,32 @@ When you have completed the task, please provide a summary of what you did and a
 If user asked a simple question without any coding context, answer it directly without using any tools.
 {{CLINE_RULES}}
 {{CLINE_METADATA}}`;
+
+export interface ComposeClineSystemPromptInput {
+	/**
+	 * Replaces the persona slot (the coding-agent-specific prompting) while
+	 * keeping the agent harness (environment block, tool-call loop contract,
+	 * completion instructions, rules/metadata placeholders). Used to apply an
+	 * agent profile's system prompt body to the main agent or a subagent.
+	 */
+	persona?: string;
+}
+
+export function composeClineSystemPrompt(
+	input: ComposeClineSystemPromptInput = {},
+): string {
+	const persona = input.persona?.trim();
+	// Replacer functions (not replacement strings) so persona content
+	// containing `$&`-style patterns is inserted literally.
+	return CLINE_SYSTEM_PROMPT_TEMPLATE.replace(
+		"{{AGENT_PERSONA}}",
+		() => persona || DEFAULT_CLINE_PERSONA,
+	).replace("{{AGENT_GUIDELINES}}", () =>
+		persona ? "" : `${DEFAULT_CLINE_WORKING_GUIDELINES}\n\n`,
+	);
+}
+
+export const DEFAULT_CLINE_SYSTEM_PROMPT = composeClineSystemPrompt();
 
 export const YOLO_CLINE_SYSTEM_PROMPT = `You are Cline, a careful and helpful coding agent that works in the background.
 You are tasked to solve an issue reported by the user who you cannot communicate with directly.

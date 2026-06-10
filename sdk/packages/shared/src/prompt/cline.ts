@@ -1,9 +1,6 @@
 import type { WorkspaceContext } from "../extensions/context";
 import type { WorkspaceInfo } from "../session/workspace";
-import {
-	DEFAULT_CLINE_SYSTEM_PROMPT,
-	YOLO_CLINE_SYSTEM_PROMPT,
-} from "./system";
+import { composeClineSystemPrompt, YOLO_CLINE_SYSTEM_PROMPT } from "./system";
 
 const WORKSPACE_CONFIGURATION_MARKER = "# Workspace Configuration";
 
@@ -66,6 +63,13 @@ export interface ClineSystemPromptOptions
 	workspaceRoot?: string;
 	/** Per-request system prompt override */
 	overridePrompt?: string;
+	/**
+	 * Agent-profile persona: replaces only the persona slot of the default
+	 * system prompt while keeping the agent harness (environment block,
+	 * tool-call loop contract, rules/metadata). Ignored when `overridePrompt`
+	 * is set or in yolo mode.
+	 */
+	personaPrompt?: string;
 	/** Provider ID — used to gate Cline-specific metadata injection */
 	providerId?: string;
 }
@@ -81,6 +85,7 @@ export function buildClineSystemPrompt(
 		metadata,
 		rules,
 		overridePrompt,
+		personaPrompt,
 		providerId,
 	} = options;
 	const workspaceRoot = options.workspaceRoot ?? options.rootPath ?? "";
@@ -99,19 +104,26 @@ export function buildClineSystemPrompt(
 	}
 
 	const basePrompt =
-		mode === "yolo" ? YOLO_CLINE_SYSTEM_PROMPT : DEFAULT_CLINE_SYSTEM_PROMPT;
+		mode === "yolo"
+			? YOLO_CLINE_SYSTEM_PROMPT
+			: composeClineSystemPrompt({ persona: personaPrompt });
+	// Skip metadata injection when the persona already embeds a workspace
+	// configuration block (e.g. spawn prompts composed by a parent agent).
+	const includeMetadata =
+		isCline && !personaPrompt?.includes(WORKSPACE_CONFIGURATION_MARKER);
 
+	// Replacer functions (not replacement strings) so values containing
+	// `$&`-style patterns are inserted literally.
 	return basePrompt
-		.replace("{{PLATFORM_NAME}}", platform)
-		.replace("{{CWD}}", workspaceRoot)
-		.replace("{{CURRENT_DATE}}", new Date().toLocaleDateString())
-		.replace("{{IDE_NAME}}", ide)
-		.replace(
-			"{{CLINE_METADATA}}",
-			isCline
+		.replace("{{PLATFORM_NAME}}", () => platform)
+		.replace("{{CWD}}", () => workspaceRoot)
+		.replace("{{CURRENT_DATE}}", () => new Date().toLocaleDateString())
+		.replace("{{IDE_NAME}}", () => ide)
+		.replace("{{CLINE_METADATA}}", () =>
+			includeMetadata
 				? buildWorkspaceMetadata(workspaceRoot, workspaceName, metadata)
 				: "",
 		)
-		.replace("{{CLINE_RULES}}", rules || "")
+		.replace("{{CLINE_RULES}}", () => rules || "")
 		.trim();
 }
