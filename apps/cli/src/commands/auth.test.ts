@@ -5,8 +5,34 @@ import { describe, expect, it, vi } from "vitest";
 import {
 	getPersistedProviderApiKey,
 	normalizeAuthProviderId,
+	parseAuthCommandArgs,
 	saveOAuthProviderSettings,
 } from "./auth";
+
+describe("parseAuthCommandArgs", () => {
+	it("parses Azure API version quick setup option", () => {
+		expect(
+			parseAuthCommandArgs([
+				"--provider",
+				"openai-compatible",
+				"--apikey",
+				"key",
+				"--modelid",
+				"gpt-4.1",
+				"--baseurl",
+				"https://example.openai.azure.com/openai/deployments/gpt-4.1",
+				"--azure-api-version",
+				"2025-01-01-preview",
+			]),
+		).toMatchObject({
+			explicitProvider: "openai-compatible",
+			apikey: "key",
+			modelid: "gpt-4.1",
+			baseurl: "https://example.openai.azure.com/openai/deployments/gpt-4.1",
+			azureApiVersion: "2025-01-01-preview",
+		});
+	});
+});
 
 describe("saveOAuthProviderSettings", () => {
 	it("preserves existing manual apiKey while updating OAuth tokens", () => {

@@ -14,7 +14,7 @@ export const GENERATED_PROVIDER_MODELS: {
 	version: number;
 	providers: Record<string, Record<string, ModelInfo>>;
 } = {
-	version: 1781030379130,
+	version: 1781051263433,
 	providers: {
 		aihubmix: {
 			"glm-5v-turbo": {
@@ -1720,6 +1720,54 @@ export const GENERATED_PROVIDER_MODELS: {
 			},
 		},
 		bedrock: {
+			"eu.anthropic.claude-fable-5": {
+				id: "eu.anthropic.claude-fable-5",
+				name: "Claude Fable 5 (EU)",
+				contextWindow: 1000000,
+				maxInputTokens: 1000000,
+				maxTokens: 128000,
+				capabilities: ["images", "tools", "reasoning", "prompt-cache"],
+				pricing: {
+					input: 11,
+					output: 55,
+					cacheRead: 1.1,
+					cacheWrite: 13.75,
+				},
+				releaseDate: "2026-06-09",
+				family: "claude-fable",
+			},
+			"global.anthropic.claude-fable-5": {
+				id: "global.anthropic.claude-fable-5",
+				name: "Claude Fable 5 (Global)",
+				contextWindow: 1000000,
+				maxInputTokens: 1000000,
+				maxTokens: 128000,
+				capabilities: ["images", "tools", "reasoning", "prompt-cache"],
+				pricing: {
+					input: 10,
+					output: 50,
+					cacheRead: 1,
+					cacheWrite: 12.5,
+				},
+				releaseDate: "2026-06-09",
+				family: "claude-fable",
+			},
+			"us.anthropic.claude-fable-5": {
+				id: "us.anthropic.claude-fable-5",
+				name: "Claude Fable 5 (US)",
+				contextWindow: 1000000,
+				maxInputTokens: 1000000,
+				maxTokens: 128000,
+				capabilities: ["images", "tools", "reasoning", "prompt-cache"],
+				pricing: {
+					input: 10,
+					output: 50,
+					cacheRead: 1,
+					cacheWrite: 12.5,
+				},
+				releaseDate: "2026-06-09",
+				family: "claude-fable",
+			},
 			"anthropic.claude-opus-4-8": {
 				id: "anthropic.claude-opus-4-8",
 				name: "Claude Opus 4.8",
@@ -22399,6 +22447,22 @@ export const GENERATED_PROVIDER_MODELS: {
 			},
 		},
 		xiaomi: {
+			"mimo-v2.5-pro-ultraspeed": {
+				id: "mimo-v2.5-pro-ultraspeed",
+				name: "MiMo-V2.5-Pro-UltraSpeed",
+				contextWindow: 1048576,
+				maxInputTokens: 1048576,
+				maxTokens: 131072,
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
+				pricing: {
+					input: 1.305,
+					output: 2.61,
+					cacheRead: 0.0108,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-06-08",
+				family: "mimo",
+			},
 			"mimo-v2.5": {
 				id: "mimo-v2.5",
 				name: "MiMo-V2.5",

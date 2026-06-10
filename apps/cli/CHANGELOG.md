@@ -1,5 +1,13 @@
 # Cline CLI Changelog
 
+## 3.0.23
+
+- Fixed Vertex AI GCP settings configuration
+- Fixed the Azure Foundry API version
+- Added support for configured agents as subagent tools
+- Centralized OAuth management into the SDK
+- Fixed an error caused by disabled reasoning on Fable 5
+
 ## 3.0.22
 
 - Added support for the Claude Fable 5 model

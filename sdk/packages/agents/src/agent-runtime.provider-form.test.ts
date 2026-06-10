@@ -73,12 +73,39 @@ describe("AgentRuntime (provider-form config + Agent alias)", () => {
 					apiKey: "test-key",
 					baseUrl: undefined,
 					headers: undefined,
+					options: undefined,
 				},
 			],
 		});
 		expect(createAgentModel).toHaveBeenCalledWith({
 			providerId: "openai",
 			modelId: "gpt-5",
+		});
+	});
+
+	it("passes provider options through to the llms gateway", () => {
+		const model = new ScriptedModel([]);
+		createAgentModel.mockReturnValue(model);
+
+		new Agent({
+			providerId: "openai-compatible",
+			modelId: "gpt-4.1",
+			apiKey: "test-key",
+			baseUrl: "https://example.openai.azure.com/openai/deployments/gpt-4.1",
+			options: { apiVersion: "2025-01-01-preview" },
+		});
+
+		expect(createGateway).toHaveBeenCalledWith({
+			providerConfigs: [
+				{
+					providerId: "openai-compatible",
+					apiKey: "test-key",
+					baseUrl:
+						"https://example.openai.azure.com/openai/deployments/gpt-4.1",
+					headers: undefined,
+					options: { apiVersion: "2025-01-01-preview" },
+				},
+			],
 		});
 	});
 
