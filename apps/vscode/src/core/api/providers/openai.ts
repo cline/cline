@@ -137,6 +137,7 @@ export class OpenAiHandler implements ApiHandler {
 			reasoningEffort = requestedEffort === "none" ? undefined : (requestedEffort as ChatCompletionReasoningEffort)
 		}
 
+		// TODO(#10985): replace with supportsTemperature field
 		if (isKimiK2OnMoonshot) {
 			temperature = 1
 		}
