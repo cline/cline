@@ -1516,6 +1516,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			exitCode,
 		);
 		if (!result.updated) return;
+		if (!this.isCurrentSession(session)) return;
 		const latestManifest =
 			(await this.invokeOptionalValue<SessionManifest>(
 				"readSessionManifest",
