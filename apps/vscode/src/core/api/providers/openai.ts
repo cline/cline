@@ -145,6 +145,7 @@ export class OpenAiHandler implements ApiHandler {
 		})
 
 		const toolCallProcessor = new ToolCallProcessor()
+		let didOutputUsage = false
 
 		for await (const chunk of stream) {
 			const delta = chunk.choices?.[0]?.delta
@@ -166,7 +167,7 @@ export class OpenAiHandler implements ApiHandler {
 				yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
 			}
 
-			if (chunk.usage) {
+			if (!didOutputUsage && chunk.usage) {
 				yield {
 					type: "usage",
 					inputTokens: chunk.usage.prompt_tokens || 0,
@@ -175,6 +176,7 @@ export class OpenAiHandler implements ApiHandler {
 					// @ts-expect-error-next-line
 					cacheWriteTokens: chunk.usage.prompt_cache_miss_tokens || 0,
 				}
+				didOutputUsage = true
 			}
 		}
 	}
