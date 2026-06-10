@@ -236,9 +236,16 @@ export class SdkSessionLifecycle {
 	}
 
 	private async waitForStop(stopPromise: Promise<void>, timeoutMs: number): Promise<boolean> {
-		const timeout = new Promise<"timeout">((resolve) => setTimeout(() => resolve("timeout"), timeoutMs))
-		const result = await Promise.race([stopPromise.then(() => "stopped" as const), timeout])
-		return result === "stopped"
+		let timeoutHandle: ReturnType<typeof setTimeout> | undefined
+		try {
+			const timeout = new Promise<"timeout">((resolve) => {
+				timeoutHandle = setTimeout(() => resolve("timeout"), timeoutMs)
+			})
+			const result = await Promise.race([stopPromise.then(() => "stopped" as const), timeout])
+			return result === "stopped"
+		} finally {
+			clearTimeout(timeoutHandle)
+		}
 	}
 
 	private async getOrCreateSharedHost(): Promise<SdkSessionHost> {
