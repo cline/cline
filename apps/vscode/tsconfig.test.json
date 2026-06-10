@@ -17,17 +17,39 @@
 		// mappings to the built dist so the test compile can resolve these subpaths.
 		"baseUrl": ".",
 		"paths": {
-			"@/*": ["./src/*"],
-			"@api/*": ["./src/core/api/*"],
-			"@core/*": ["./src/core/*"],
-			"@generated/*": ["./src/generated/*"],
-			"@hosts/*": ["./src/hosts/*"],
-			"@integrations/*": ["./src/integrations/*"],
-			"@packages/*": ["./src/packages/*"],
-			"@services/*": ["./src/services/*"],
-			"@shared/*": ["./src/shared/*"],
-			"@utils/*": ["./src/utils/*"],
-			"@cline/shared/*": ["./node_modules/@cline/shared/dist/*"]
+			"@/*": [
+				"./src/*"
+			],
+			"@api/*": [
+				"./src/core/api/*"
+			],
+			"@core/*": [
+				"./src/core/*"
+			],
+			"@generated/*": [
+				"./src/generated/*"
+			],
+			"@hosts/*": [
+				"./src/hosts/*"
+			],
+			"@integrations/*": [
+				"./src/integrations/*"
+			],
+			"@packages/*": [
+				"./src/packages/*"
+			],
+			"@services/*": [
+				"./src/services/*"
+			],
+			"@shared/*": [
+				"./src/shared/*"
+			],
+			"@utils/*": [
+				"./src/utils/*"
+			],
+			"@cline/shared/*": [
+				"./node_modules/@cline/shared/dist/*"
+			]
 		},
 		"types": [
 			"node",

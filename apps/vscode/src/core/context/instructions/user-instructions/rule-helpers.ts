@@ -1,10 +1,8 @@
-import { ensureRulesDirectoryExists, ensureWorkflowsDirectoryExists, GlobalFileNames } from "@core/storage/disk"
 import { ClineRulesToggles } from "@shared/cline-rules"
 import { GlobalInstructionsFile } from "@shared/remote-config/schema"
 import { fileExistsAtPath, isDirectory, readDirectory } from "@utils/fs"
 import fs from "fs/promises"
 import * as path from "path"
-import { Controller } from "@/core/controller"
 import { Logger } from "@/shared/services/Logger"
 import { parseYamlFrontmatter } from "./frontmatter"
 import { evaluateRuleConditionals, RuleEvaluationContext } from "./rule-conditionals"
@@ -149,9 +147,38 @@ const getRuleFilesTotalContent = async (rulesFilePaths: string[], basePath: stri
 	return (await getRuleFilesTotalContentWithMetadata(rulesFilePaths, basePath, toggles)).content
 }
 
+const LOCAL_RULE_PATHS = {
+	clineRules: ".clinerules",
+	workflows: ".clinerules/workflows",
+} as const
+
 type ActivatedConditionalRule = {
 	name: string
 	matchedConditions: Record<string, string[]>
+}
+
+type RuleFileController = {
+	stateManager: {
+		getGlobalSettingsKey(key: "globalWorkflowToggles" | "globalClineRulesToggles"): ClineRulesToggles
+		setGlobalState(key: "globalWorkflowToggles" | "globalClineRulesToggles", value: ClineRulesToggles): void
+		getWorkspaceStateKey(
+			key:
+				| "workflowToggles"
+				| "localCursorRulesToggles"
+				| "localWindsurfRulesToggles"
+				| "localAgentsRulesToggles"
+				| "localClineRulesToggles",
+		): ClineRulesToggles
+		setWorkspaceState(
+			key:
+				| "workflowToggles"
+				| "localCursorRulesToggles"
+				| "localWindsurfRulesToggles"
+				| "localAgentsRulesToggles"
+				| "localClineRulesToggles",
+			value: ClineRulesToggles,
+		): void
+	}
 }
 
 // Prefixes used to make activated conditional rule identifiers self-explanatory in the UI.
@@ -313,15 +340,19 @@ export const createRuleFile = async (isGlobal: boolean, filename: string, cwd: s
 	try {
 		let filePath: string
 		if (isGlobal) {
+			const disk = require("@core/storage/disk") as {
+				ensureWorkflowsDirectoryExists: () => Promise<string>
+				ensureRulesDirectoryExists: () => Promise<string>
+			}
 			if (type === "workflow") {
-				const globalClineWorkflowFilePath = await ensureWorkflowsDirectoryExists()
+				const globalClineWorkflowFilePath = await disk.ensureWorkflowsDirectoryExists()
 				filePath = path.join(globalClineWorkflowFilePath, filename)
 			} else {
-				const globalClineRulesFilePath = await ensureRulesDirectoryExists()
+				const globalClineRulesFilePath = await disk.ensureRulesDirectoryExists()
 				filePath = path.join(globalClineRulesFilePath, filename)
 			}
 		} else {
-			const localClineRulesFilePath = path.resolve(cwd, GlobalFileNames.clineRules)
+			const localClineRulesFilePath = path.resolve(cwd, LOCAL_RULE_PATHS.clineRules)
 
 			const hasError = await ensureLocalClineDirExists(localClineRulesFilePath, "default-rules.md")
 			if (hasError === true) {
@@ -331,7 +362,7 @@ export const createRuleFile = async (isGlobal: boolean, filename: string, cwd: s
 			await fs.mkdir(localClineRulesFilePath, { recursive: true })
 
 			if (type === "workflow") {
-				const localWorkflowsFilePath = path.resolve(cwd, GlobalFileNames.workflows)
+				const localWorkflowsFilePath = path.resolve(cwd, LOCAL_RULE_PATHS.workflows)
 
 				const hasError = await ensureLocalClineDirExists(localWorkflowsFilePath, "default-workflows.md")
 				if (hasError === true) {
@@ -365,7 +396,7 @@ export const createRuleFile = async (isGlobal: boolean, filename: string, cwd: s
  * Delete a rule file or workflow file
  */
 export async function deleteRuleFile(
-	controller: Controller,
+	controller: RuleFileController,
 	rulePath: string,
 	isGlobal: boolean,
 	type: string,

@@ -11,6 +11,8 @@ import { HostProvider } from "@/hosts/host-provider"
 import { Logger } from "@/shared/services/Logger"
 import { StateManager } from "./StateManager"
 
+export { getSkillsDirectoriesForScan, type SkillsScanDirectory } from "./skill-directories"
+
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
 	contextHistory: "context_history.json",
@@ -161,26 +163,6 @@ export async function ensureAgentSkillsDirectoryExists(options: { isGlobal: bool
 		return agentSkillsDir
 	}
 	return agentSkillsDir
-}
-
-export type SkillsScanDirectory = {
-	path: string
-	source: "project" | "global"
-}
-
-/**
- * Returns the list of skills directories to scan without creating them.
- * Order is project directories first, then global directories.
- */
-export function getSkillsDirectoriesForScan(cwd: string): SkillsScanDirectory[] {
-	return [
-		{ path: path.join(cwd, GlobalFileNames.clineruleSkillsDir), source: "project" },
-		{ path: path.join(cwd, GlobalFileNames.clineSkillsDir), source: "project" },
-		{ path: path.join(cwd, GlobalFileNames.claudeSkillsDir), source: "project" },
-		{ path: path.join(cwd, GlobalFileNames.agentsSkillsDir), source: "project" },
-		{ path: getClineSkillsDirectoryPath(), source: "global" },
-		{ path: getAgentSkillsDirectoryPath(), source: "global" },
-	]
 }
 
 export async function ensureSettingsDirectoryExists(): Promise<string> {

@@ -1,4 +1,4 @@
-import { getSkillsDirectoriesForScan } from "@core/storage/disk"
+import { getSkillsDirectoriesForScan } from "@core/storage/skill-directories"
 import type { GlobalInstructionsFile } from "@shared/remote-config/schema"
 import type { SkillContent, SkillMetadata } from "@shared/skills"
 import { fileExistsAtPath, isDirectory } from "@utils/fs"
