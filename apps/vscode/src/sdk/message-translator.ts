@@ -1876,15 +1876,35 @@ export function historyItemToSessionFields(item: {
 	}
 }
 
+const MODEL_NOT_FOUND_GUIDANCE =
+	"This model may be retired or unavailable on your account. Switch to a different model in API Configuration settings, then retry."
+
 /**
- * Reshape an SDK error into the serialized ClineError JSON format the webview
- * expects. The webview's ErrorRow uses ClineError.parse() which needs specific
- * fields (`code`, `providerId`, `details`) to detect error types and render
- * appropriate UI (e.g. "Buy Credits" button for insufficient credits).
- *
- * The SDK error's `message` may contain embedded JSON from the API response.
- * We try to extract it and produce a proper ClineError-serialized payload.
- * If parsing fails, we fall back to the raw error message.
+ * Rewrite a model-not-found error into actionable guidance, or undefined if the
+ * message is not one. The provider's HTTP status is stripped upstream, so this
+ * matches on text rather than a status code.
+ */
+function describeModelNotFoundError(rawMessage: string): string | undefined {
+	// Anthropic's 404 body collapses to a bare "model: <id>" label.
+	const bareModelLabel = rawMessage.match(/^\s*model:\s*(\S+)\s*$/i)
+	if (bareModelLabel) {
+		return `Model "${bareModelLabel[1]}" was not found. ${MODEL_NOT_FOUND_GUIDANCE}`
+	}
+
+	// Keep the not-found signal in the same clause as "model" so errors that
+	// merely mention one (plan gating, deprecated features) are left untouched.
+	const modelNotFound = /\bmodel\b[^.,;:]*\b(not[ _]?found|does not exist|no such model|unknown model)\b/i
+	if (modelNotFound.test(rawMessage)) {
+		return `${rawMessage} ${MODEL_NOT_FOUND_GUIDANCE}`
+	}
+
+	return undefined
+}
+
+/**
+ * Reshape an SDK error into the serialized ClineError JSON the webview's
+ * ErrorRow expects (`code`, `providerId`, `details`), extracting structured
+ * info from the error message when present and falling back to raw text.
  */
 export function reshapeErrorForWebview(
 	error: { message?: string; status?: number; code?: string },
@@ -1948,6 +1968,10 @@ export function reshapeErrorForWebview(
 					message: rawMessage,
 				},
 			})
+		}
+		const notFoundMessage = describeModelNotFoundError(rawMessage)
+		if (notFoundMessage) {
+			return notFoundMessage
 		}
 		return rawMessage
 	}
