@@ -206,6 +206,40 @@ new Agent({
 For richer, host-side hook orchestration (15-stage `HookEngine`,
 subprocess-backed hooks, MCP extensions), use `@cline/core`.
 
+### Request Projection with `prepareTurn`
+
+`prepareTurn` is a request projection hook. It runs during turn preparation and
+may return a different message list or system prompt for the next provider
+request:
+
+```text
+canonical transcript
+        |
+        | turn preparation
+        v
+prepareTurn
+        |
+        v
+provider request
+```
+
+Returned messages affect only the provider request for the current model call.
+They do not replace the runtime's canonical transcript, are not persisted as
+session history, and are not returned from `AgentRunResult.messages`.
+
+```text
+prepareTurn returns projected messages
+        |
+        +--> provider request: yes
+        +--> canonical transcript: no
+        +--> persisted transcript: no
+        +--> AgentRunResult.messages: no
+```
+
+This is intentionally different from a transcript rewrite. Hosts that need
+durable redaction, normalization, or policy filtering must apply that change
+before a message enters the agent's canonical transcript.
+
 ### Plugins
 
 Plugins can contribute tools and hooks at setup time:
