@@ -180,18 +180,15 @@ export class SdkInteractionCoordinator {
 		const pendingMessage = this.pendingToolApprovalMessage
 		this.pendingToolApprovalMessage = undefined
 		if (this.pendingToolApprovalResolve) {
-			const resolve = this.pendingToolApprovalResolve
-			this.pendingToolApprovalResolve = undefined
-			// Record the denial BEFORE resolving, like resolvePendingToolApproval does.
-			// Resolving unblocks the core, which emits content_start/content_end/error
-			// events for the denied tool call before the caller's abort lands; without
-			// the recorded denial the translator renders those as a fresh tool row,
-			// duplicating the still-visible approval ask (e.g. when switching plan/act
-			// with an approval pending).
+			// Record before resolving: the denial unblocks the core, which emits the
+			// tool's lifecycle events before the caller's abort lands. Unless the
+			// denial is already recorded, the translator renders those events as a
+			// second tool row next to the still-visible approval ask.
 			if (pendingMessage) {
 				this.options.recordDeniedToolApproval?.(pendingMessage.toolCallId, pendingMessage.toolName, reason)
 			}
-			resolve({ approved: false, reason })
+			this.pendingToolApprovalResolve({ approved: false, reason })
+			this.pendingToolApprovalResolve = undefined
 		}
 	}
 
