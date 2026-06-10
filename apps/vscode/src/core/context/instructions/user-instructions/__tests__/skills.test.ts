@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, it } from "mocha"
 import * as path from "path"
 import * as sinon from "sinon"
 
-import * as disk from "@/core/storage/disk"
+import * as skillDirectories from "@/core/storage/skill-directories"
 import { Logger } from "@/shared/services/Logger"
 import * as fsUtils from "@/utils/fs"
 import { discoverSkills, getAvailableSkills, getSkillContent, parseRemoteSkillEntries } from "../skills"
@@ -38,7 +38,7 @@ describe("Skills Utility Functions", () => {
 		readdirStub = sandbox.stub(fs.promises, "readdir")
 		statStub = sandbox.stub(fs.promises, "stat")
 		readFileStub = sandbox.stub(fs.promises, "readFile")
-		sandbox.stub(disk, "getSkillsDirectoriesForScan").returns([
+		sandbox.stub(skillDirectories, "getSkillsDirectoriesForScan").returns([
 			{ path: path.join(TEST_CWD, ".clinerules", "skills"), source: "project" },
 			{ path: path.join(TEST_CWD, ".cline", "skills"), source: "project" },
 			{ path: path.join(TEST_CWD, ".claude", "skills"), source: "project" },
