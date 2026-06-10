@@ -4,6 +4,7 @@ import net from "node:net";
 import { URL } from "node:url";
 import {
 	CURRENT_HUB_PROTOCOL_VERSION,
+	HUB_CAPABILITIES,
 	isHubProtocolCompatible,
 	MAX_CLIENT_HUB_PROTOCOL_VERSION,
 	MIN_CLIENT_HUB_PROTOCOL_VERSION,
@@ -16,7 +17,6 @@ import {
 	createHubAuthToken,
 	createHubServerUrl,
 	type HubServerDiscoveryRecord,
-	type HubServerProbeRecord,
 	probeHubServer,
 	readHubDiscovery,
 	resolveHubBuildId,
@@ -203,19 +203,6 @@ function isAddressInUseError(error: unknown): boolean {
 	);
 }
 
-export function shouldClearStaleHubDiscovery(
-	discovered: HubServerDiscoveryRecord | undefined,
-	expected: HubServerProbeRecord | undefined,
-	discoveredVerified: boolean,
-): boolean {
-	return (
-		!!discovered?.url &&
-		(!expected?.url ||
-			!isHubProtocolCompatible(expected).compatible ||
-			!discoveredVerified)
-	);
-}
-
 const SHARED_SERVERS = new Map<string, Promise<HubWebSocketServer>>();
 const HUB_AUTH_PROTOCOL_PREFIX = "cline-hub-auth.";
 const HUB_SOCKET_HEARTBEAT_INTERVAL_MS = 30_000;
@@ -289,19 +276,7 @@ export async function startHubWebSocketServer(
 		protocolVersion: CURRENT_HUB_PROTOCOL_VERSION,
 		minClientProtocolVersion: MIN_CLIENT_HUB_PROTOCOL_VERSION,
 		maxClientProtocolVersion: MAX_CLIENT_HUB_PROTOCOL_VERSION,
-		capabilities: [
-			"client.register",
-			"client.list",
-			"session.create",
-			"session.list",
-			"session.get",
-			"session.run",
-			"session.abort",
-			"schedule.create",
-			"schedule.list",
-			"settings.get",
-			"settings.set",
-		],
+		capabilities: HUB_CAPABILITIES,
 		coreVersion: corePackage.version,
 		buildId,
 		pid: process.pid,
@@ -593,7 +568,6 @@ export async function ensureHubWebSocketServer(
 
 	return await withHubStartupLock(owner.discoveryPath, async () => {
 		const discovered = await readHubDiscovery(owner.discoveryPath);
-		let discoveredVerified = false;
 		const canReuseDiscovered =
 			discovered?.url &&
 			(discovered.url === expectedUrl || options.allowPortFallback === true);
@@ -608,7 +582,6 @@ export async function ensureHubWebSocketServer(
 					authToken: discovered.authToken,
 				}))
 			) {
-				discoveredVerified = true;
 				return rememberIfManaged({
 					url: healthy.url,
 					authToken: discovered.authToken,
@@ -617,10 +590,9 @@ export async function ensureHubWebSocketServer(
 			}
 		}
 
-		const expected = await probeHubServer(expectedUrl);
-		if (
-			shouldClearStaleHubDiscovery(discovered, expected, discoveredVerified)
-		) {
+		// The discovered hub was not reusable (missing, mismatched, or failed
+		// verification), so its record is stale either way.
+		if (discovered?.url) {
 			await clearHubDiscovery(owner.discoveryPath);
 		}
 
