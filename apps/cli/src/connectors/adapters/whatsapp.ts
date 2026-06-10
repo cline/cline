@@ -15,7 +15,6 @@ import { createCliLoggerAdapter } from "../../logging/adapter";
 import {
 	ensureCliHubServer,
 	parseHubEndpointOverride,
-	resolveDefaultCliRpcAddress,
 } from "../../utils/hub-runtime";
 import { createWorkspaceChatCommandHost } from "../../utils/plugin-chat-commands";
 import { ConnectorBase } from "../base";
@@ -293,11 +292,7 @@ class WhatsAppConnector extends ConnectorBase<
 				"--hook-command <command>",
 				"Run a shell command for connector events",
 			)
-			.option(
-				"--rpc-address <host:port>",
-				"RPC address",
-				process.env.CLINE_RPC_ADDRESS?.trim() || resolveDefaultCliRpcAddress(),
-			)
+			.option("--rpc-address <host:port>", "RPC address")
 			.option("--host <host>", "Webhook listen host")
 			.option("--port <port>", "Webhook listen port")
 			.option("--base-url <url>", "Public base URL for webhook configuration")
@@ -365,9 +360,7 @@ class WhatsAppConnector extends ConnectorBase<
 			interactive: Boolean(opts.interactive),
 			enableTools: Boolean(opts.enableTools),
 			rpcAddress:
-				opts.rpcAddress?.trim() ||
-				process.env.CLINE_RPC_ADDRESS?.trim() ||
-				resolveDefaultCliRpcAddress(),
+				opts.rpcAddress?.trim() || process.env.CLINE_RPC_ADDRESS?.trim(),
 			hookCommand:
 				opts.hookCommand?.trim() ||
 				process.env.CLINE_CONNECT_HOOK_COMMAND?.trim(),

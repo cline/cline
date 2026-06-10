@@ -14,7 +14,7 @@ export type ConnectWhatsAppOptions = {
 	interactive: boolean;
 	maxIterations?: number;
 	enableTools: boolean;
-	rpcAddress: string;
+	rpcAddress?: string;
 	hookCommand?: string;
 	port: number;
 	host: string;
@@ -44,7 +44,7 @@ export type ConnectTelegramOptions = {
 	interactive: boolean;
 	maxIterations?: number;
 	enableTools: boolean;
-	rpcAddress: string;
+	rpcAddress?: string;
 	hookCommand?: string;
 };
 
@@ -75,7 +75,7 @@ export type ConnectSlackOptions = {
 	interactive: boolean;
 	maxIterations?: number;
 	enableTools: boolean;
-	rpcAddress: string;
+	rpcAddress?: string;
 	hookCommand?: string;
 	port: number;
 	host: string;
@@ -109,7 +109,7 @@ export type ConnectDiscordOptions = {
 	interactive: boolean;
 	maxIterations?: number;
 	enableTools: boolean;
-	rpcAddress: string;
+	rpcAddress?: string;
 	hookCommand?: string;
 	port: number;
 	host: string;
@@ -137,7 +137,7 @@ export type ConnectGoogleChatOptions = {
 	interactive: boolean;
 	maxIterations?: number;
 	enableTools: boolean;
-	rpcAddress: string;
+	rpcAddress?: string;
 	hookCommand?: string;
 	port: number;
 	host: string;
@@ -173,7 +173,7 @@ export type ConnectLinearOptions = {
 	interactive: boolean;
 	maxIterations?: number;
 	enableTools: boolean;
-	rpcAddress: string;
+	rpcAddress?: string;
 	hookCommand?: string;
 	port: number;
 	host: string;

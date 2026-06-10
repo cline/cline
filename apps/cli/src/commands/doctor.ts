@@ -13,6 +13,7 @@ import {
 import { formatUptime } from "@cline/shared";
 import { Command } from "commander";
 import open from "open";
+import { listConnectorCatalog } from "../connectors/catalog";
 import { isProcessRunning } from "../connectors/common";
 import {
 	type ActiveConnectorRecord,
@@ -46,6 +47,17 @@ type SpawnedProcessRecord = {
 	detached?: boolean;
 };
 
+type UnmanagedConnectorProcessRecord = {
+	pid: number;
+	type: string;
+	command: string;
+};
+
+type HubDaemonProcessRecord = {
+	pid: number;
+	command: string;
+};
+
 type DoctorStatus = {
 	cwd: string;
 	hubUrl?: string;
@@ -54,10 +66,12 @@ type DoctorStatus = {
 	hubStartedAt?: string;
 	hubUptime?: string;
 	listeningPids: number[];
+	orphanedHubDaemonProcesses: HubDaemonProcessRecord[];
 	hubStartupLocks: StartupArtifact[];
 	staleCliPids: number[];
 	staleSidecarPids: number[];
 	activeConnectors: ActiveConnectorRecord[];
+	unmanagedConnectorProcesses: UnmanagedConnectorProcessRecord[];
 	recentSpawnedProcesses: SpawnedProcessRecord[];
 };
 
@@ -146,6 +160,144 @@ function listStaleCliPids(): number[] {
 			(record) => !/(?:^|\s)(?:hub|rpc|connect)(?:\s|$)/.test(record.command),
 		)
 		.map((record) => record.pid);
+}
+
+function listHubDaemonProcesses(): ProcessRecord[] {
+	const patterns = ["cline-hub-daemon", "/hub/daemon/entry.ts"];
+	const records = new Map<number, ProcessRecord>();
+	for (const pattern of patterns) {
+		for (const record of listMatchingProcesses(pattern)) {
+			records.set(record.pid, record);
+		}
+	}
+	return [...records.values()].sort((a, b) => a.pid - b.pid);
+}
+
+function listOrphanedHubDaemonProcesses(options: {
+	hubHealthy: boolean;
+	hubPid?: number;
+	listeningPids: number[];
+}): HubDaemonProcessRecord[] {
+	const protectedPids = new Set<number>();
+	if (options.hubHealthy) {
+		if (options.hubPid) {
+			protectedPids.add(options.hubPid);
+		}
+		for (const pid of options.listeningPids) {
+			protectedPids.add(pid);
+		}
+	}
+	return listHubDaemonProcesses()
+		.filter((record) => !protectedPids.has(record.pid))
+		.map((record) => ({
+			pid: record.pid,
+			command: redactSensitiveProcessArgs(record.command),
+		}));
+}
+
+function redactSensitiveProcessArgs(command: string): string {
+	return command.replace(
+		/(--[^\s=]*(?:token|secret|password|key)[^\s=]*)(=|\s+)(?:"[^"]*"|'[^']*'|[^\s]+)/gi,
+		"$1$2[REDACTED]",
+	);
+}
+
+function processCommandTokens(command: string): string[] {
+	return command
+		.split(/\s+/)
+		.map((token) => token.trim().replace(/^["']|["']$/g, ""))
+		.filter(Boolean);
+}
+
+function tokenBasename(token: string): string {
+	const normalized = token.replace(/\\/g, "/");
+	return normalized.slice(normalized.lastIndexOf("/") + 1);
+}
+
+function isRuntimeLauncherToken(token: string): boolean {
+	const basename = tokenBasename(token).toLowerCase();
+	return basename === "bun" || basename === "node" || basename === "env";
+}
+
+function isClineCliEntrypointToken(token: string): boolean {
+	const normalized = token.replace(/\\/g, "/");
+	const basename = tokenBasename(normalized).toLowerCase();
+	return (
+		basename === "cline" ||
+		normalized.includes("/apps/cli/src/index.ts") ||
+		normalized.includes("/apps/cli/dist/index.js") ||
+		normalized.includes("/dist/cline")
+	);
+}
+
+function isClineCliPrefix(tokens: string[], connectIndex: number): boolean {
+	const entrypointIndex = connectIndex - 1;
+	if (entrypointIndex < 0) {
+		return false;
+	}
+	if (!isClineCliEntrypointToken(tokens[entrypointIndex] ?? "")) {
+		return false;
+	}
+	if (entrypointIndex === 0) {
+		return true;
+	}
+	const launcher = tokens[0];
+	if (!launcher || !isRuntimeLauncherToken(launcher)) {
+		return false;
+	}
+	return tokens
+		.slice(1, entrypointIndex)
+		.every((token) => token.startsWith("-"));
+}
+
+function parseClineConnectorProcessType(
+	command: string,
+	connectorNames: Set<string>,
+): string | undefined {
+	const tokens = processCommandTokens(command);
+	for (let index = 0; index < tokens.length - 1; index += 1) {
+		if (tokens[index] !== "connect" || !isClineCliPrefix(tokens, index)) {
+			continue;
+		}
+		const type = tokens[index + 1]?.toLowerCase();
+		if (type && connectorNames.has(type)) {
+			return type;
+		}
+	}
+	return undefined;
+}
+
+function listUnmanagedConnectorProcesses(
+	activeConnectors: ActiveConnectorRecord[],
+): UnmanagedConnectorProcessRecord[] {
+	const connectorNames = new Set(
+		listConnectorCatalog().map((connector) => connector.name.toLowerCase()),
+	);
+	if (connectorNames.size === 0) {
+		return [];
+	}
+	const activePids = new Set(activeConnectors.map((record) => record.pid));
+	const records = new Map<number, UnmanagedConnectorProcessRecord>();
+	for (const record of listMatchingProcesses("connect")) {
+		if (activePids.has(record.pid)) {
+			continue;
+		}
+		const type = parseClineConnectorProcessType(record.command, connectorNames);
+		if (!type) {
+			continue;
+		}
+		records.set(record.pid, {
+			pid: record.pid,
+			type,
+			command: redactSensitiveProcessArgs(record.command),
+		});
+	}
+	return [...records.values()].sort((a, b) => {
+		if (a.type !== b.type) {
+			return a.type.localeCompare(b.type);
+		}
+		return a.pid - b.pid;
+	});
 }
 
 function listStaleSidecarPids(): number[] {
@@ -299,18 +451,29 @@ async function collectDoctorStatus(cwd: string): Promise<DoctorStatus> {
 		: undefined;
 	const current = health ?? discovery;
 	const hubUptime = formatHubUptimeFromStartedAt(health?.startedAt);
+	const activeConnectors = listActiveConnectors();
+	const listeningPids = listListeningPids(current?.port);
+	const hubHealthy = !!health?.url;
+	const hubPid = current?.pid;
 	return {
 		cwd,
 		hubUrl: current?.url,
-		hubHealthy: !!health?.url,
-		hubPid: current?.pid,
+		hubHealthy,
+		hubPid,
 		hubStartedAt: health?.startedAt,
 		hubUptime,
-		listeningPids: listListeningPids(current?.port),
+		listeningPids,
+		orphanedHubDaemonProcesses: listOrphanedHubDaemonProcesses({
+			hubHealthy,
+			hubPid,
+			listeningPids,
+		}),
 		hubStartupLocks: listHubStartupLocks(cwd),
 		staleCliPids: listStaleCliPids(),
 		staleSidecarPids: listStaleSidecarPids(),
-		activeConnectors: listActiveConnectors(),
+		activeConnectors,
+		unmanagedConnectorProcesses:
+			listUnmanagedConnectorProcesses(activeConnectors),
 		recentSpawnedProcesses: readRecentSpawnedProcesses(),
 	};
 }
@@ -355,6 +518,16 @@ function formatActiveConnector(record: ActiveConnectorRecord): string {
 	return pieces.join(" | ");
 }
 
+function formatUnmanagedConnectorProcess(
+	record: UnmanagedConnectorProcessRecord,
+): string {
+	return [record.type, `pid=${record.pid}`, record.command].join(" | ");
+}
+
+function formatHubDaemonProcess(record: HubDaemonProcessRecord): string {
+	return [`pid=${record.pid}`, record.command].join(" | ");
+}
+
 function killPids(pids: number[]): number {
 	let killed = 0;
 	for (const pid of pids) {
@@ -388,6 +561,14 @@ export async function runDoctorCommand(
 		);
 		writeln(`hub uptime ${c.dim}${before.hubUptime ?? "n/a"}${c.reset}`);
 		writeln(formatPidList("hub listeners", before.listeningPids));
+		if (before.orphanedHubDaemonProcesses.length === 0) {
+			writeln(`orphaned hub daemons ${c.dim}0${c.reset}`);
+		} else {
+			writeln("orphaned hub daemons:");
+			for (const record of before.orphanedHubDaemonProcesses) {
+				writeln(`- ${c.dim}${formatHubDaemonProcess(record)}${c.reset}`);
+			}
+		}
 		writeln(
 			formatPidList(
 				"hub startup locks",
@@ -404,6 +585,17 @@ export async function runDoctorCommand(
 				writeln(`- ${c.dim}${formatActiveConnector(record)}${c.reset}`);
 			}
 		}
+		if (before.unmanagedConnectorProcesses.length > 0) {
+			writeln("unmanaged connector processes:");
+			for (const record of before.unmanagedConnectorProcesses) {
+				writeln(
+					`- ${c.dim}${formatUnmanagedConnectorProcess(record)}${c.reset}`,
+				);
+			}
+			io.writeln(
+				"\nThese connector-looking processes do not have valid connector state files. Run `cline doctor fix` to stop them.",
+			);
+		}
 		if (verbose && before.recentSpawnedProcesses.length > 0) {
 			writeln("recent spawned processes:");
 			for (const record of before.recentSpawnedProcesses) {
@@ -412,11 +604,12 @@ export async function runDoctorCommand(
 		}
 		if (
 			before.listeningPids.length > 0 ||
+			before.orphanedHubDaemonProcesses.length > 0 ||
 			before.staleCliPids.length > 0 ||
 			before.staleSidecarPids.length > 0
 		) {
 			io.writeln(
-				"\nRun `cline doctor fix` to kill all stale local processes, including stale sidecars.",
+				"\nRun `cline doctor fix` to kill all stale local processes, including stale hubs.",
 			);
 		}
 		return 0;
@@ -431,8 +624,21 @@ export async function runDoctorCommand(
 	const killedHub = gracefullyStoppedHub
 		? 0
 		: killPids(refreshedAfterGracefulStop.listeningPids);
+	const orphanedHubDaemonTargets = [
+		...before.orphanedHubDaemonProcesses,
+		...refreshedAfterGracefulStop.orphanedHubDaemonProcesses,
+	]
+		.map((record) => record.pid)
+		.filter(
+			(pid, index, pids) =>
+				pids.indexOf(pid) === index &&
+				!refreshedAfterGracefulStop.listeningPids.includes(pid),
+		);
+	const killedOrphanedHubDaemons = killPids(orphanedHubDaemonTargets);
 	const staleCliTargets = before.staleCliPids.filter(
-		(pid) => !refreshedAfterGracefulStop.listeningPids.includes(pid),
+		(pid) =>
+			!refreshedAfterGracefulStop.listeningPids.includes(pid) &&
+			!orphanedHubDaemonTargets.includes(pid),
 	);
 	const killedCli = killPids(staleCliTargets);
 	const staleSidecarTargets = before.staleSidecarPids.filter(
@@ -441,6 +647,15 @@ export async function runDoctorCommand(
 			!staleCliTargets.includes(pid),
 	);
 	const killedSidecars = killPids(staleSidecarTargets);
+	const unmanagedConnectorTargets = before.unmanagedConnectorProcesses
+		.map((record) => record.pid)
+		.filter(
+			(pid) =>
+				!refreshedAfterGracefulStop.listeningPids.includes(pid) &&
+				!staleCliTargets.includes(pid) &&
+				!staleSidecarTargets.includes(pid),
+		);
+	const killedUnmanagedConnectors = killPids(unmanagedConnectorTargets);
 	const stoppedConnectors = await stopAllConnectors({
 		writeln: () => {},
 		writeErr: () => {},
@@ -459,8 +674,10 @@ export async function runDoctorCommand(
 				after,
 				killed: {
 					hubListeners: killedHub,
+					orphanedHubDaemons: killedOrphanedHubDaemons,
 					cliProcesses: killedCli,
 					sidecarProcesses: killedSidecars,
+					unmanagedConnectorProcesses: killedUnmanagedConnectors,
 					connectorProcesses: stoppedConnectors.stoppedProcesses,
 					connectorSessions: stoppedConnectors.stoppedSessions,
 					hubStartupLocks: clearedArtifacts.startupLocks,
@@ -471,8 +688,14 @@ export async function runDoctorCommand(
 		return 0;
 	}
 	writeln(`killed hub listeners ${c.dim}${killedHub}${c.reset}`);
+	writeln(
+		`killed orphaned hub daemons ${c.dim}${killedOrphanedHubDaemons}${c.reset}`,
+	);
 	writeln(`killed cli processes ${c.dim}${killedCli}${c.reset}`);
 	writeln(`killed sidecar processes ${c.dim}${killedSidecars}${c.reset}`);
+	writeln(
+		`killed unmanaged connector processes ${c.dim}${killedUnmanagedConnectors}${c.reset}`,
+	);
 	writeln(
 		`stopped connector processes ${c.dim}${stoppedConnectors.stoppedProcesses}${c.reset}`,
 	);
@@ -489,12 +712,24 @@ export async function runDoctorCommand(
 	writeln(formatPidList("remaining hub listeners", after.listeningPids));
 	writeln(
 		formatPidList(
+			"remaining orphaned hub daemons",
+			after.orphanedHubDaemonProcesses.map((record) => record.pid),
+		),
+	);
+	writeln(
+		formatPidList(
 			"remaining hub startup locks",
 			after.hubStartupLocks.map((a) => a.pid ?? -1).filter((pid) => pid > 0),
 		),
 	);
 	writeln(formatPidList("remaining cli processes", after.staleCliPids));
 	writeln(formatPidList("remaining sidecar processes", after.staleSidecarPids));
+	writeln(
+		formatPidList(
+			"remaining unmanaged connector processes",
+			after.unmanagedConnectorProcesses.map((record) => record.pid),
+		),
+	);
 	return 0;
 }
 

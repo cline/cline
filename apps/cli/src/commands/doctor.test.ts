@@ -153,6 +153,137 @@ describe("runDoctorCommand", () => {
 		);
 	});
 
+	it("reports hub daemon processes that are not the active discovered hub", async () => {
+		const cwd = "/workspace";
+		mockReadHubDiscovery.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+			port: 25463,
+			pid: 50174,
+		});
+		mockProbeHubServer.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+			port: 25463,
+			pid: 50174,
+		});
+		mockSpawnSync.mockImplementation((command: string, args?: string[]) => {
+			if (command === "lsof") {
+				return { status: 0, stdout: "50174\n" };
+			}
+			if (
+				command === "pgrep" &&
+				Array.isArray(args) &&
+				args[0] === "-fal" &&
+				args[1] === "cline-hub-daemon"
+			) {
+				return {
+					status: 0,
+					stdout: [
+						"50174 /usr/local/bin/cline --cline-hub-daemon --cwd /workspace",
+						"50190 /usr/local/bin/cline --cline-hub-daemon --cwd /other",
+					].join("\n"),
+				};
+			}
+			if (
+				command === "pgrep" &&
+				Array.isArray(args) &&
+				args[0] === "-fal" &&
+				args[1] === "/hub/daemon/entry.ts"
+			) {
+				return {
+					status: 0,
+					stdout:
+						"50191 /Users/example/.bun/bin/bun /repo/sdk/packages/core/src/hub/daemon/entry.ts --cwd /repo",
+				};
+			}
+			return { status: 1, stdout: "" };
+		});
+
+		const output: string[] = [];
+		const code = await runDoctorCommand(
+			{ cwd, json: true },
+			{
+				writeln: (text) => {
+					output.push(text ?? "");
+				},
+				writeErr: () => {},
+			},
+		);
+
+		expect(code).toBe(0);
+		const status = JSON.parse(output[0] || "");
+		expect(
+			status.orphanedHubDaemonProcesses.map(
+				(record: { pid: number }) => record.pid,
+			),
+		).toEqual(process.platform === "win32" ? [] : [50190, 50191]);
+	});
+
+	it("reports unmanaged connector processes for every registered connector", async () => {
+		const cwd = "/workspace";
+		mockReadHubDiscovery.mockResolvedValue(undefined);
+		mockProbeHubServer.mockResolvedValue(undefined);
+		mockSpawnSync.mockImplementation((command: string, args?: string[]) => {
+			if (
+				command === "pgrep" &&
+				Array.isArray(args) &&
+				args[0] === "-fal" &&
+				args[1] === "connect"
+			) {
+				return {
+					status: 0,
+					stdout: [
+						"61001 cline connect slack --bot-token xoxb-secret --signing-secret=super-signature -i",
+						"61002 cline connect discord --bot-token discord-secret -i",
+						"61003 cline connect gchat --service-account-key /tmp/gchat-key.json -i",
+						"61004 cline connect linear --api-key lin-secret -i",
+						"61005 cline connect telegram --bot-token telegram-secret -i",
+						"61006 cline connect whatsapp --access-token whatsapp-secret -i",
+						"61007 cline something-else connect nope",
+						"61008 /usr/bin/some-tool connect slack --bot-token unrelated-secret",
+						"61009 node ./connect slack-proxy.js --bot-token unrelated-secret",
+					].join("\n"),
+				};
+			}
+			return { status: 1, stdout: "" };
+		});
+
+		const output: string[] = [];
+		const code = await runDoctorCommand(
+			{ cwd, json: true },
+			{
+				writeln: (text) => {
+					output.push(text ?? "");
+				},
+				writeErr: () => {},
+			},
+		);
+
+		expect(code).toBe(0);
+		expect(output).toHaveLength(1);
+		const status = JSON.parse(output[0] || "");
+		expect(
+			status.unmanagedConnectorProcesses.map(
+				(record: { type: string }) => record.type,
+			),
+		).toEqual(["discord", "gchat", "linear", "slack", "telegram", "whatsapp"]);
+		expect(
+			status.unmanagedConnectorProcesses.map(
+				(record: { pid: number }) => record.pid,
+			),
+		).toEqual([61002, 61003, 61004, 61001, 61005, 61006]);
+		expect(JSON.stringify(status.unmanagedConnectorProcesses)).not.toContain(
+			"xoxb-secret",
+		);
+		expect(JSON.stringify(status.unmanagedConnectorProcesses)).not.toContain(
+			"super-signature",
+		);
+		expect(
+			status.unmanagedConnectorProcesses.find(
+				(record: { pid: number }) => record.pid === 61001,
+			)?.command,
+		).toContain("--signing-secret=[REDACTED]");
+	});
+
 	it("doctor --fix clears wedged hub startup artifacts when no server is actually running", async () => {
 		const cwd = mkdtempSync(path.join(os.tmpdir(), "doctor-hub-fix-"));
 		tempDirs.push(cwd);
@@ -250,6 +381,193 @@ describe("runDoctorCommand", () => {
 				connectorSessions: 5,
 			},
 		});
+	});
+
+	it("doctor --fix kills orphaned hub daemon processes", async () => {
+		const cwd = "/workspace";
+		mockReadHubDiscovery.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+			port: 25463,
+			pid: 50174,
+		});
+		mockProbeHubServer.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+			port: 25463,
+			pid: 50174,
+		});
+		mockSpawnSync.mockImplementation((command: string, args?: string[]) => {
+			if (command === "lsof") {
+				return { status: 0, stdout: "50174\n" };
+			}
+			if (
+				command === "pgrep" &&
+				Array.isArray(args) &&
+				args[0] === "-fal" &&
+				args[1] === "cline-hub-daemon"
+			) {
+				return {
+					status: 0,
+					stdout: [
+						"50174 /usr/local/bin/cline --cline-hub-daemon --cwd /workspace",
+						"50190 /usr/local/bin/cline --cline-hub-daemon --cwd /other",
+					].join("\n"),
+				};
+			}
+			return { status: 1, stdout: "" };
+		});
+		mockStopLocalHubServerGracefully.mockResolvedValue(true);
+		const killSpy = vi.spyOn(process, "kill").mockImplementation(() => true);
+
+		const output: string[] = [];
+		const code = await runDoctorCommand(
+			{ cwd, json: true, fix: true },
+			{
+				writeln: (text) => {
+					output.push(text ?? "");
+				},
+				writeErr: () => {},
+			},
+		);
+
+		expect(code).toBe(0);
+		expect(killSpy).toHaveBeenCalledWith(50190, "SIGKILL");
+		expect(killSpy).not.toHaveBeenCalledWith(50174, "SIGKILL");
+		expect(JSON.parse(output[0] || "")).toMatchObject({
+			before: {
+				orphanedHubDaemonProcesses:
+					process.platform === "win32" ? [] : [{ pid: 50190 }],
+			},
+			killed: {
+				orphanedHubDaemons: process.platform === "win32" ? 0 : 1,
+			},
+		});
+		killSpy.mockRestore();
+	});
+
+	it("doctor --fix kills a previously active hub if it becomes orphaned after graceful stop", async () => {
+		const cwd = "/workspace";
+		let collection = 0;
+		mockReadHubDiscovery.mockImplementation(async () => {
+			collection += 1;
+			return collection === 1
+				? {
+						url: "ws://127.0.0.1:25463/hub",
+						port: 25463,
+						pid: 50174,
+					}
+				: {
+						url: "ws://127.0.0.1:25464/hub",
+						port: 25464,
+						pid: 50190,
+					};
+		});
+		mockProbeHubServer.mockImplementation(async (url: string) => {
+			return url.includes(":25463/")
+				? {
+						url: "ws://127.0.0.1:25463/hub",
+						port: 25463,
+						pid: 50174,
+					}
+				: {
+						url: "ws://127.0.0.1:25464/hub",
+						port: 25464,
+						pid: 50190,
+					};
+		});
+		mockSpawnSync.mockImplementation((command: string, args?: string[]) => {
+			if (command === "lsof") {
+				return {
+					status: 0,
+					stdout: args?.includes("-tiTCP:25463") ? "50174\n" : "50190\n",
+				};
+			}
+			if (
+				command === "pgrep" &&
+				Array.isArray(args) &&
+				args[0] === "-fal" &&
+				args[1] === "cline-hub-daemon"
+			) {
+				return {
+					status: 0,
+					stdout: [
+						"50174 /usr/local/bin/cline --cline-hub-daemon --cwd /old",
+						"50190 /usr/local/bin/cline --cline-hub-daemon --cwd /new",
+					].join("\n"),
+				};
+			}
+			return { status: 1, stdout: "" };
+		});
+		mockStopLocalHubServerGracefully.mockResolvedValue(true);
+		const killSpy = vi.spyOn(process, "kill").mockImplementation(() => true);
+
+		const output: string[] = [];
+		const code = await runDoctorCommand(
+			{ cwd, json: true, fix: true },
+			{
+				writeln: (text) => {
+					output.push(text ?? "");
+				},
+				writeErr: () => {},
+			},
+		);
+
+		expect(code).toBe(0);
+		expect(killSpy).toHaveBeenCalledWith(50174, "SIGKILL");
+		expect(killSpy).not.toHaveBeenCalledWith(50190, "SIGKILL");
+		expect(JSON.parse(output[0] || "")).toMatchObject({
+			killed: {
+				orphanedHubDaemons: process.platform === "win32" ? 0 : 1,
+			},
+		});
+		killSpy.mockRestore();
+	});
+
+	it("doctor --fix kills unmanaged connector processes discovered from process args", async () => {
+		const cwd = "/workspace";
+		mockReadHubDiscovery.mockResolvedValue(undefined);
+		mockProbeHubServer.mockResolvedValue(undefined);
+		mockSpawnSync.mockImplementation((command: string, args?: string[]) => {
+			if (
+				command === "pgrep" &&
+				Array.isArray(args) &&
+				args[0] === "-fal" &&
+				args[1] === "connect"
+			) {
+				return {
+					status: 0,
+					stdout: [
+						"62001 cline connect slack --bot-token xoxb-secret -i",
+						"62002 /usr/bin/some-tool connect slack --bot-token unrelated-secret",
+					].join("\n"),
+				};
+			}
+			return { status: 1, stdout: "" };
+		});
+		const killSpy = vi.spyOn(process, "kill").mockImplementation(() => true);
+
+		const output: string[] = [];
+		const code = await runDoctorCommand(
+			{ cwd, json: true, fix: true },
+			{
+				writeln: (text) => {
+					output.push(text ?? "");
+				},
+				writeErr: () => {},
+			},
+		);
+
+		expect(code).toBe(0);
+		expect(killSpy).toHaveBeenCalledWith(62001, "SIGKILL");
+		expect(killSpy).not.toHaveBeenCalledWith(62002, "SIGKILL");
+		expect(JSON.parse(output[0] || "")).toMatchObject({
+			before: {
+				unmanagedConnectorProcesses: [{ pid: 62001, type: "slack" }],
+			},
+			killed: {
+				unmanagedConnectorProcesses: 1,
+			},
+		});
+		killSpy.mockRestore();
 	});
 
 	it("doctor --fix kills stale code sidecar processes", async () => {

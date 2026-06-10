@@ -1,6 +1,6 @@
 import type { ConnectSlackOptions } from "@cline/shared";
 import { type Message, ThreadImpl } from "chat";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { __test__, slackConnector } from "./slack";
 
 const parseSlackArgs = (rawArgs: string[]): ConnectSlackOptions =>
@@ -9,6 +9,16 @@ const parseSlackArgs = (rawArgs: string[]): ConnectSlackOptions =>
 			parseArgs(rawArgs: string[]): ConnectSlackOptions;
 		}
 	).parseArgs(rawArgs);
+
+const originalClineRpcAddress = process.env.CLINE_RPC_ADDRESS;
+
+afterEach(() => {
+	if (originalClineRpcAddress === undefined) {
+		delete process.env.CLINE_RPC_ADDRESS;
+	} else {
+		process.env.CLINE_RPC_ADDRESS = originalClineRpcAddress;
+	}
+});
 
 describe("slack binding lookup", () => {
 	const participantKey = __test__.buildSlackParticipantKey("T123", "U123");
@@ -41,6 +51,7 @@ describe("slack binding lookup", () => {
 
 	it("uses socket mode when Slack args omit a base URL", () => {
 		const previousBaseUrl = process.env.BASE_URL;
+		delete process.env.CLINE_RPC_ADDRESS;
 		delete process.env.BASE_URL;
 		let options: ConnectSlackOptions;
 		try {
@@ -61,6 +72,28 @@ describe("slack binding lookup", () => {
 		expect(options.connectionMode).toBe("socket");
 		expect(options.baseUrl).toBeUndefined();
 		expect(options.appToken).toBe("xapp-token");
+		expect(options.rpcAddress).toBeUndefined();
+	});
+
+	it("uses an explicit RPC address only when configured", () => {
+		delete process.env.CLINE_RPC_ADDRESS;
+
+		expect(
+			parseSlackArgs([
+				"--bot-token",
+				"xoxb-token",
+				"--app-token",
+				"xapp-token",
+				"--rpc-address",
+				"127.0.0.1:4317",
+			]).rpcAddress,
+		).toBe("127.0.0.1:4317");
+
+		process.env.CLINE_RPC_ADDRESS = "127.0.0.1:4318";
+		expect(
+			parseSlackArgs(["--bot-token", "xoxb-token", "--app-token", "xapp-token"])
+				.rpcAddress,
+		).toBe("127.0.0.1:4318");
 	});
 
 	it("falls back to DM channel identity when a restarted connector gets a new thread id", () => {

@@ -1,7 +1,12 @@
+import { resolveClineBuildEnv } from "@cline/shared";
 import { normalizeWorkspacePath } from "../../services/workspace/workspace-manifest";
 import { type HubOwnerContext, resolveHubOwnerContext } from ".";
 
-const DEFAULT_SHARED_HUB_OWNER_LABEL = "shared:cline";
+const SHARED_HUB_OWNER_LABEL_PREFIX = "shared:cline";
+
+function resolveDefaultSharedHubOwnerLabel(): string {
+	return `${SHARED_HUB_OWNER_LABEL_PREFIX}:${resolveClineBuildEnv()}`;
+}
 
 export function resolveWorkspaceHubOwnerContext(
 	workspaceRoot: string,
@@ -13,7 +18,7 @@ export function resolveWorkspaceHubOwnerContext(
 }
 
 export function resolveSharedHubOwnerContext(
-	label = DEFAULT_SHARED_HUB_OWNER_LABEL,
+	label = resolveDefaultSharedHubOwnerLabel(),
 ): HubOwnerContext {
 	return resolveHubOwnerContext(label);
 }
