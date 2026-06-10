@@ -49,6 +49,16 @@ export function useAgentSelector(opts: {
 	const session = useSession();
 
 	const openAgentSelector = useCallback(async () => {
+		// Applying a profile restarts the session in place, so refuse while a
+		// turn is running instead of yanking the live stream out from under it.
+		if (session.isRunning) {
+			session.appendEntry({
+				kind: "status",
+				text: "Finish or abort the current task before switching agents.",
+			});
+			refocusTextarea();
+			return;
+		}
 		const { agents, loadErrors } = loadAgentProfileEntries(config);
 		const currentAgentName = config.agentProfile?.name ?? null;
 
