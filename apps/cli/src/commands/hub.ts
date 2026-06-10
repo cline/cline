@@ -13,6 +13,7 @@ import {
 	restartQueuedConnectorsForHub,
 	stopConnectorsForHubs,
 } from "../connectors/restart";
+import { resolveDefaultCliHubUrl } from "../utils/hub-runtime";
 
 interface HubCommandIo {
 	writeln: (text?: string) => void;
@@ -30,7 +31,9 @@ async function stopHubServer(
 	const owner = resolveCliHubOwnerContext();
 	const discovery = await readHubDiscovery(owner.discoveryPath);
 	const stoppedConnectors = discovery?.url
-		? await stopConnectorsForHubs([discovery.url], io)
+		? await stopConnectorsForHubs([discovery.url], io, {
+				targetHubUrl: resolveDefaultCliHubUrl(),
+			})
 		: { stoppedProcesses: 0, queuedRestarts: 0 };
 	if (await stopLocalHubServerGracefully(owner)) {
 		await clearHubDiscovery(owner.discoveryPath);

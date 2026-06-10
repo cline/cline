@@ -49,6 +49,10 @@ vi.mock("../connectors/restart", () => ({
 	stopConnectorsForHubs: mockStopConnectorsForHubs,
 }));
 
+vi.mock("../utils/hub-runtime", () => ({
+	resolveDefaultCliHubUrl: () => "ws://127.0.0.1:25463/hub",
+}));
+
 import { createHubCommand } from "./hub";
 
 const originalBuildEnv = process.env.CLINE_BUILD_ENV;
@@ -138,6 +142,7 @@ describe("createHubCommand", () => {
 		expect(mockStopConnectorsForHubs).toHaveBeenCalledWith(
 			["ws://127.0.0.1:25463/hub"],
 			expect.any(Object),
+			{ targetHubUrl: "ws://127.0.0.1:25463/hub" },
 		);
 		expect(JSON.parse(output.at(-1) || "")).toMatchObject({
 			stopped: true,
