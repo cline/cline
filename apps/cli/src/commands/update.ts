@@ -375,6 +375,9 @@ export function autoUpdateOnStartup(): void {
 				env: autoUpdateCommand.env
 					? { ...process.env, ...autoUpdateCommand.env }
 					: process.env,
+				// Prevent a console window from flashing on Windows; detached
+				// processes otherwise allocate a new visible console.
+				windowsHide: true,
 			});
 			const exitCode = await waitForProcessExit(child);
 			if (exitCode === 0) {

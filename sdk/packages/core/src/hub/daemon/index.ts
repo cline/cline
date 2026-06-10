@@ -229,6 +229,9 @@ export function spawnDetachedHubServer(
 			stdio: logFile ? ["ignore", logFile.fd, logFile.fd] : "ignore",
 			env: command.env,
 			cwd: command.cwd,
+			// Prevent a console window from appearing on Windows; detached
+			// processes otherwise allocate a new visible console.
+			windowsHide: true,
 		});
 		child.unref();
 	} finally {
