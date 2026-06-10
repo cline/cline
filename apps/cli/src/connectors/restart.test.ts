@@ -206,6 +206,177 @@ describe("connector restart queue", () => {
 		]);
 	});
 
+	it("claims queue entries before launching connectors", async () => {
+		const dataDir = mkdtempSync(join(tmpdir(), "connector-restart-test-"));
+		tempDirs.push(dataDir);
+		mockResolveClineDataDir.mockReturnValue(dataDir);
+		const queuePath = join(dataDir, "connectors", "restart-queue.json");
+		mkdirSync(join(dataDir, "connectors"), { recursive: true });
+		writeFileSync(
+			queuePath,
+			JSON.stringify([
+				{
+					connector: "telegram",
+					args: ["-m", "bot"],
+					hubUrl: "ws://127.0.0.1:57648/hub",
+					targetHubUrl: "ws://127.0.0.1:25466/hub",
+					statePath: join(dataDir, "connectors", "telegram", "bot.json"),
+					pid: 12345,
+					stoppedAt: new Date().toISOString(),
+				},
+			]),
+			"utf8",
+		);
+
+		let queueExistedDuringRun: boolean | undefined;
+		const run = vi.fn(async () => {
+			queueExistedDuringRun = existsSync(queuePath);
+			return 0;
+		});
+		mockGetConnector.mockResolvedValue({ name: "telegram", run });
+
+		const restarted = await restartQueuedConnectorsForHub(
+			"ws://127.0.0.1:25466/hub",
+			{ writeln: () => {}, writeErr: () => {} },
+		);
+
+		expect(restarted).toEqual({ restarted: 1, remaining: 0 });
+		expect(queueExistedDuringRun).toBe(false);
+	});
+
+	it("drops queue entries for unknown connectors", async () => {
+		const dataDir = mkdtempSync(join(tmpdir(), "connector-restart-test-"));
+		tempDirs.push(dataDir);
+		mockResolveClineDataDir.mockReturnValue(dataDir);
+		const queuePath = join(dataDir, "connectors", "restart-queue.json");
+		mkdirSync(join(dataDir, "connectors"), { recursive: true });
+		writeFileSync(
+			queuePath,
+			JSON.stringify([
+				{
+					connector: "renamed-connector",
+					args: ["-m", "bot"],
+					hubUrl: "ws://127.0.0.1:57648/hub",
+					targetHubUrl: "ws://127.0.0.1:25466/hub",
+					statePath: join(dataDir, "connectors", "telegram", "bot.json"),
+					pid: 12345,
+					stoppedAt: new Date().toISOString(),
+				},
+			]),
+			"utf8",
+		);
+		mockGetConnector.mockResolvedValue(undefined);
+		const errors: string[] = [];
+
+		const restarted = await restartQueuedConnectorsForHub(
+			"ws://127.0.0.1:25466/hub",
+			{
+				writeln: () => {},
+				writeErr: (text) => {
+					errors.push(text);
+				},
+			},
+		);
+
+		expect(restarted).toEqual({ restarted: 0, remaining: 0 });
+		expect(existsSync(queuePath)).toBe(false);
+		expect(errors).toEqual([
+			'[connect] dropping queued restart for unknown connector "renamed-connector"',
+		]);
+	});
+
+	it("requeues failed restarts with an attempt count and drops them at the cap", async () => {
+		const dataDir = mkdtempSync(join(tmpdir(), "connector-restart-test-"));
+		tempDirs.push(dataDir);
+		mockResolveClineDataDir.mockReturnValue(dataDir);
+		const queuePath = join(dataDir, "connectors", "restart-queue.json");
+		mkdirSync(join(dataDir, "connectors"), { recursive: true });
+		const entry = {
+			connector: "telegram",
+			args: ["-m", "bot"],
+			hubUrl: "ws://127.0.0.1:57648/hub",
+			targetHubUrl: "ws://127.0.0.1:25466/hub",
+			statePath: join(dataDir, "connectors", "telegram", "bot.json"),
+			pid: 12345,
+			stoppedAt: new Date().toISOString(),
+		};
+		writeFileSync(queuePath, JSON.stringify([entry]), "utf8");
+		const run = vi.fn(async () => 1);
+		mockGetConnector.mockResolvedValue({ name: "telegram", run });
+		const io = { writeln: () => {}, writeErr: () => {} };
+
+		const first = await restartQueuedConnectorsForHub(
+			"ws://127.0.0.1:25466/hub",
+			io,
+		);
+		expect(first).toEqual({ restarted: 0, remaining: 1 });
+		expect(JSON.parse(readFileSync(queuePath, "utf8"))).toMatchObject([
+			{ connector: "telegram", attempts: 1 },
+		]);
+
+		const second = await restartQueuedConnectorsForHub(
+			"ws://127.0.0.1:25466/hub",
+			io,
+		);
+		expect(second).toEqual({ restarted: 0, remaining: 1 });
+		expect(JSON.parse(readFileSync(queuePath, "utf8"))).toMatchObject([
+			{ connector: "telegram", attempts: 2 },
+		]);
+
+		const errors: string[] = [];
+		const third = await restartQueuedConnectorsForHub(
+			"ws://127.0.0.1:25466/hub",
+			{
+				writeln: () => {},
+				writeErr: (text) => {
+					errors.push(text);
+				},
+			},
+		);
+		expect(third).toEqual({ restarted: 0, remaining: 0 });
+		expect(existsSync(queuePath)).toBe(false);
+		expect(errors).toEqual([
+			'[connect] dropping queued restart for connector "telegram" after 3 failed attempts',
+		]);
+	});
+
+	it("requeues entries when the connector run throws", async () => {
+		const dataDir = mkdtempSync(join(tmpdir(), "connector-restart-test-"));
+		tempDirs.push(dataDir);
+		mockResolveClineDataDir.mockReturnValue(dataDir);
+		const queuePath = join(dataDir, "connectors", "restart-queue.json");
+		mkdirSync(join(dataDir, "connectors"), { recursive: true });
+		writeFileSync(
+			queuePath,
+			JSON.stringify([
+				{
+					connector: "telegram",
+					args: ["-m", "bot"],
+					hubUrl: "ws://127.0.0.1:57648/hub",
+					targetHubUrl: "ws://127.0.0.1:25466/hub",
+					statePath: join(dataDir, "connectors", "telegram", "bot.json"),
+					pid: 12345,
+					stoppedAt: new Date().toISOString(),
+				},
+			]),
+			"utf8",
+		);
+		const run = vi.fn(async () => {
+			throw new Error("spawn failed");
+		});
+		mockGetConnector.mockResolvedValue({ name: "telegram", run });
+
+		const restarted = await restartQueuedConnectorsForHub(
+			"ws://127.0.0.1:25466/hub",
+			{ writeln: () => {}, writeErr: () => {} },
+		);
+
+		expect(restarted).toEqual({ restarted: 0, remaining: 1 });
+		expect(JSON.parse(readFileSync(queuePath, "utf8"))).toMatchObject([
+			{ connector: "telegram", attempts: 1 },
+		]);
+	});
+
 	it("keeps state and skips restart queue when connector termination fails", async () => {
 		const dataDir = mkdtempSync(join(tmpdir(), "connector-restart-test-"));
 		tempDirs.push(dataDir);

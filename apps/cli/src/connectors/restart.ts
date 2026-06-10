@@ -24,7 +24,10 @@ type QueuedConnectorRestart = ConnectorRestartSpec & {
 	statePath: string;
 	pid: number;
 	stoppedAt: string;
+	attempts?: number;
 };
+
+const MAX_RESTART_ATTEMPTS = 3;
 
 export type StopConnectorsForHubsOptions = {
 	targetHubUrl?: string;
@@ -78,7 +81,8 @@ function readQueue(): QueuedConnectorRestart[] {
 			typeof record.targetHubUrl === "string" &&
 			typeof record.statePath === "string" &&
 			typeof record.pid === "number" &&
-			typeof record.stoppedAt === "string"
+			typeof record.stoppedAt === "string" &&
+			(record.attempts === undefined || typeof record.attempts === "number")
 		);
 	});
 }
@@ -237,37 +241,73 @@ function withHubRpcAddress(args: string[], hubUrl: string): string[] {
 	return [...next, "--rpc-address", hubUrl];
 }
 
+// Restarting a connector re-runs its connect command, which ensures the hub
+// and drains this queue again. The guard turns those nested drains into
+// no-ops so a queue entry is never picked up twice within one process.
+let drainInProgress = false;
+
 export async function restartQueuedConnectorsForHub(
 	hubUrl: string,
 	io: ConnectIo,
 ): Promise<RestartQueuedConnectorsResult> {
+	if (drainInProgress) {
+		return { restarted: 0, remaining: readQueue().length };
+	}
 	const queue = readQueue();
 	if (queue.length === 0) {
 		return { restarted: 0, remaining: 0 };
 	}
 	const targetHubUrl = normalizeHubUrl(hubUrl);
-	let restarted = 0;
+	const matched: QueuedConnectorRestart[] = [];
 	const remaining: QueuedConnectorRestart[] = [];
 	for (const entry of queue) {
-		if (normalizeHubUrl(entry.targetHubUrl) !== targetHubUrl) {
-			remaining.push(entry);
-			continue;
-		}
-		const connector = await getConnector(entry.connector);
-		if (!connector) {
-			remaining.push(entry);
-			continue;
-		}
-		const exitCode = await connector.run(
-			withHubRpcAddress(entry.args, hubUrl),
-			io,
-		);
-		if (exitCode === 0) {
-			restarted += 1;
+		if (normalizeHubUrl(entry.targetHubUrl) === targetHubUrl) {
+			matched.push(entry);
 		} else {
 			remaining.push(entry);
 		}
 	}
+	if (matched.length === 0) {
+		return { restarted: 0, remaining: remaining.length };
+	}
+	// Claim matched entries before running them so a crash mid-restart (or a
+	// concurrent drain in another process) cannot replay entries that already
+	// launched a connector.
 	writeQueue(remaining);
-	return { restarted, remaining: remaining.length };
+	let restarted = 0;
+	const failed: QueuedConnectorRestart[] = [];
+	drainInProgress = true;
+	try {
+		for (const entry of matched) {
+			const connector = await getConnector(entry.connector);
+			if (!connector) {
+				io.writeErr(
+					`[connect] dropping queued restart for unknown connector "${entry.connector}"`,
+				);
+				continue;
+			}
+			const exitCode = await connector
+				.run(withHubRpcAddress(entry.args, hubUrl), io)
+				.catch(() => 1);
+			if (exitCode === 0) {
+				restarted += 1;
+				continue;
+			}
+			const attempts = (entry.attempts ?? 0) + 1;
+			if (attempts >= MAX_RESTART_ATTEMPTS) {
+				io.writeErr(
+					`[connect] dropping queued restart for connector "${entry.connector}" after ${attempts} failed attempts`,
+				);
+				continue;
+			}
+			failed.push({ ...entry, attempts });
+		}
+	} finally {
+		drainInProgress = false;
+	}
+	if (failed.length > 0) {
+		// Re-read before appending so entries queued while restarting survive.
+		writeQueue([...readQueue(), ...failed]);
+	}
+	return { restarted, remaining: readQueue().length };
 }
