@@ -7,6 +7,7 @@ import {
 	ITerminalManager,
 	TerminalProcessResultPromise as ITerminalProcessResultPromise,
 } from "@/integrations/terminal/types"
+import { SHELL_INTEGRATION_STREAM_TIMEOUT_MS } from "@/integrations/terminal/constants"
 import { Logger } from "@/shared/services/Logger"
 import { mergePromise, VscodeTerminalProcess } from "./VscodeTerminalProcess"
 import { TerminalInfo, TerminalRegistry } from "./VscodeTerminalRegistry"
@@ -101,7 +102,7 @@ export class VscodeTerminalManager implements ITerminalManager {
 	private processes: Map<number, VscodeTerminalProcess> = new Map()
 	private disposables: vscode.Disposable[] = []
 	private shellIntegrationTimeout = 4000
-	private shellIntegrationStreamTimeout = 30000
+	private shellIntegrationStreamTimeout = SHELL_INTEGRATION_STREAM_TIMEOUT_MS
 	private terminalReuseEnabled = true
 	private terminalOutputLineLimit = 500
 	private defaultTerminalProfile = "default"

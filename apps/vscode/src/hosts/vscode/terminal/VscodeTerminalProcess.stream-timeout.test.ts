@@ -81,8 +81,8 @@ describe("VscodeTerminalProcess Stream Timeout", () => {
 			// Advance the clock past the timeout
 			await sandbox.clock.tickAsync(600)
 
-			// Wait for the promise
-			await runPromise
+			// Wait for the promise to settle
+			await runPromise.catch(() => {})
 
 			// Verify that completed and continue events were emitted
 			;(emitSpy as sinon.SinonSpy).calledWith("completed").should.be.true()
@@ -145,7 +145,7 @@ describe("VscodeTerminalProcess Stream Timeout", () => {
 			const runPromise = process.run(terminal, "test-command")
 
 			await sandbox.clock.tickAsync(400)
-			await runPromise
+			await runPromise.catch(() => {})
 
 			// Verify timeout fired
 			;(emitSpy as sinon.SinonSpy).calledWith("completed").should.be.true()
@@ -175,7 +175,7 @@ describe("VscodeTerminalProcess Stream Timeout", () => {
 			// Advance time past parameter timeout (300ms) but before instance timeout (5000ms)
 			await sandbox.clock.tickAsync(400)
 
-			await runPromise
+			await runPromise.catch(() => {})
 
 			// Verify timeout fired at the parameter value (not the instance value)
 			;(emitSpy as sinon.SinonSpy).calledWith("completed").should.be.true()
@@ -196,9 +196,11 @@ describe("VscodeTerminalProcess Stream Timeout", () => {
 
 			const emitSpy = sandbox.spy(process, "emit")
 
-			await process.run(terminal, "test-command", 100)
+			const runPromise = process.run(terminal, "test-command", 100)
 
 			await sandbox.clock.tickAsync(150)
+
+			await runPromise.catch(() => {})
 
 			// Verify that line events were emitted (at least the initial output or fallback)
 			;(emitSpy as sinon.SinonSpy).calledWith("completed").should.be.true()
@@ -233,8 +235,9 @@ describe("VscodeTerminalProcess Stream Timeout", () => {
 
 			// First run with timeout
 			const emitSpy1 = sandbox.spy(process, "emit")
-			await process.run(terminal, "stalled-command", 100)
+			const runPromise1 = process.run(terminal, "stalled-command", 100)
 			await sandbox.clock.tickAsync(150)
+			await runPromise1.catch(() => {})
 
 			;(emitSpy1 as sinon.SinonSpy).calledWith("completed").should.be.true()
 
@@ -283,7 +286,7 @@ describe("VscodeTerminalProcess Stream Timeout", () => {
 			// Then advance past timeout
 			await sandbox.clock.tickAsync(100)
 
-			await runPromise
+			await runPromise.catch(() => {})
 
 			// Should have emitted the output lines before timeout
 			;(lineEmitSpy as sinon.SinonSpy).calledWith("line", "important output").should.be.true()

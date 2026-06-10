@@ -81,7 +81,38 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 				controller.abort()
 			}, timeout)
 
-			for await (let data of stream) {
+			// Manually iterate the stream and race iter.next() against abort signal
+			const iter = stream[Symbol.asyncIterator]()
+			let done = false
+			while (!done) {
+				// Race iter.next() against the abort signal
+				let data: string
+				try {
+					const nextPromise = iter.next()
+					const abortPromise = new Promise<{ done: boolean; value: string }>((_, reject) => {
+						if (controller.signal.aborted) {
+							reject(new Error("Aborted"))
+						}
+						const handler = () => {
+							reject(new Error("Aborted"))
+						}
+						controller.signal.addEventListener("abort", handler)
+					})
+
+					const result = await Promise.race([nextPromise, abortPromise])
+					if (result.done) {
+						done = true
+						continue
+					}
+					data = result.value
+				} catch (error) {
+					// If aborted, break out of loop
+					if (streamAborted) {
+						break
+					}
+					throw error
+				}
+
 				// Check if timeout fired
 				if (streamAborted) {
 					break
