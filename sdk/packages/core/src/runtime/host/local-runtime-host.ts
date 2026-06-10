@@ -481,12 +481,20 @@ export class LocalRuntimeHost implements RuntimeHost {
 			},
 			logger: runtime.logger ?? configWithProvider.logger,
 			extensionContext: configWithProvider.extensionContext,
-			onEvent: (event: AgentEvent) =>
+			onEvent: (event: AgentEvent) => {
+				// Drop stale events from a superseded same-id session's agent:
+				// everything downstream of the bridge is keyed by sessionId and
+				// would attribute them to the live successor.
+				const liveSession = this.sessions.get(sessionId);
+				if (liveSession && liveSession.agent !== agent) {
+					return;
+				}
 				this.eventBridge.dispatchAgentEvent(
 					sessionId,
 					configWithProvider,
 					event,
-				),
+				);
+			},
 		} as AgentConfig;
 		agentConfig.hooks = {
 			...agentConfig.hooks,
@@ -495,6 +503,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 				if (event.type !== "assistant-message") return;
 				const liveSession = this.sessions.get(sessionId);
 				if (!liveSession) return;
+				// Superseded same-id session: the replacement owns persistence now.
+				if (liveSession.agent !== agent) return;
 				const messages = liveSession.agent.getMessages();
 				try {
 					await this.invoke<void>(
@@ -1418,15 +1428,17 @@ export class LocalRuntimeHost implements RuntimeHost {
 		} catch (error) {
 			recordCleanupError("plugin_sandbox_shutdown", error);
 		}
-		this.sessions.delete(session.sessionId);
-		this.emit({
-			type: "ended",
-			payload: {
-				sessionId: session.sessionId,
-				reason: input.endReason,
-				ts: Date.now(),
-			},
-		});
+		if (this.isCurrentSession(session)) {
+			this.sessions.delete(session.sessionId);
+			this.emit({
+				type: "ended",
+				payload: {
+					sessionId: session.sessionId,
+					reason: input.endReason,
+					ts: Date.now(),
+				},
+			});
+		}
 		if (cleanupErrors.length > 0 && input.status === "failed") {
 			throw cleanupErrors[0];
 		}
@@ -1476,7 +1488,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 		} catch (error) {
 			recordCleanupError("plugin_sandbox_shutdown", error);
 		}
-		this.sessions.delete(session.sessionId);
+		if (this.isCurrentSession(session)) {
+			this.sessions.delete(session.sessionId);
+		}
 		if (cleanupErrors.length > 0) {
 			throw cleanupErrors[0];
 		}
@@ -1488,6 +1502,13 @@ export class LocalRuntimeHost implements RuntimeHost {
 		exitCode?: number | null,
 	): Promise<void> {
 		if (!session.artifacts) return;
+		// Checked at entry and re-checked after every await below, since a
+		// same-id replacement can register at any of those points. KNOWN
+		// RESIDUAL: a replacement registering while the updateSessionStatus
+		// invoke is already in flight cannot be undone from this layer (needs
+		// compare-and-swap in the session service); the row self-heals on the
+		// successor's next status transition.
+		if (!this.isCurrentSession(session)) return;
 		const result = await this.invoke<{ updated: boolean; endedAt?: string }>(
 			"updateSessionStatus",
 			session.sessionId,
@@ -1500,6 +1521,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 				"readSessionManifest",
 				session.sessionId,
 			)) ?? session.artifacts.manifest;
+		if (!this.isCurrentSession(session)) return;
 		latestManifest.status = status;
 		if (isNonTerminalSessionStatus(status)) {
 			delete latestManifest.ended_at;
@@ -1520,6 +1542,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			session.artifacts.manifestPath,
 			latestManifest,
 		);
+		if (!this.isCurrentSession(session)) return;
 		this.emitStatus(session.sessionId, status);
 	}
 
@@ -1570,6 +1593,17 @@ export class LocalRuntimeHost implements RuntimeHost {
 	}
 
 	// ── Utility methods ─────────────────────────────────────────────────
+
+	/**
+	 * Whether the sessions map still points at this exact session object.
+	 * Interactive hosts can start a replacement under the same sessionId while
+	 * an older session's async cleanup is still in flight (mode rebuilds reuse
+	 * the id), so any cleanup step that writes or emits by sessionId must check
+	 * this first or it will tear down the live successor's state.
+	 */
+	private isCurrentSession(session: ActiveSession): boolean {
+		return this.sessions.get(session.sessionId) === session;
+	}
 
 	private getSessionOrThrow(sessionId: string): ActiveSession {
 		const session = this.sessions.get(sessionId);

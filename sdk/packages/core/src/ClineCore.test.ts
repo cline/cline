@@ -179,6 +179,59 @@ describe("ClineCore", () => {
 		expect(dispose).toHaveBeenCalledTimes(1);
 	});
 
+	it("does not dispose a same-id successor bootstrap when a stop resolves late", async () => {
+		let resolveStop: () => void = () => {};
+		const host = {
+			runtimeAddress: undefined,
+			startSession: vi.fn(async () => createStartResult("session-3")),
+			runTurn: vi.fn(),
+			getAccumulatedUsage: vi.fn(),
+			abort: vi.fn(),
+			stopSession: vi.fn(
+				() =>
+					new Promise<void>((resolve) => {
+						resolveStop = resolve;
+					}),
+			),
+			dispose: vi.fn(),
+			getSession: vi.fn(async () => ({ sessionId: "session-3" })),
+			listSessions: vi.fn(),
+			deleteSession: vi.fn(),
+			readSessionMessages: vi.fn(),
+			subscribe: vi.fn(() => () => {}),
+			updateSessionModel: vi.fn(),
+		};
+		createRuntimeHostMock.mockResolvedValue(host);
+
+		const disposes: Array<ReturnType<typeof vi.fn>> = [];
+		const core = await ClineCore.create({
+			prepare: async () => {
+				const dispose = vi.fn(async () => {});
+				disposes.push(dispose);
+				return {
+					applyToStartSessionInput: (input) => input,
+					dispose,
+				};
+			},
+		});
+
+		await core.start(createStartInput());
+
+		// The stop parks awaiting the host while a same-id replacement registers
+		// its own bootstrap.
+		const stopPromise = core.stop("session-3");
+		await core.start(createStartInput());
+		expect(disposes).toHaveLength(2);
+
+		resolveStop();
+		await stopPromise;
+
+		// The stopped session's orphaned bootstrap is disposed; the successor's
+		// stays alive.
+		expect(disposes[0]).toHaveBeenCalledTimes(1);
+		expect(disposes[1]).not.toHaveBeenCalled();
+	});
+
 	it("emits session.started telemetry when a new session is started", async () => {
 		const host = {
 			runtimeAddress: undefined,

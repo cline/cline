@@ -355,8 +355,19 @@ export class ClineCore {
 	 * ```
 	 */
 	stop: RuntimeHost["stopSession"] = async (sessionId) => {
+		// Capture before the await: a same-id replacement can register its own
+		// bootstrap while the stop is in flight, and disposing by id afterwards
+		// would tear down the successor's bootstrap instead of this session's.
+		const bootstrap = this.activeSessionBootstraps.get(sessionId);
 		await this.host.stopSession(sessionId);
-		await this.disposeSessionBootstrap(sessionId);
+		if (this.activeSessionBootstraps.get(sessionId) === bootstrap) {
+			await this.disposeSessionBootstrap(sessionId);
+		} else if (bootstrap) {
+			// Superseded: the map entry now belongs to the successor, but the
+			// captured bootstrap is still this session's and was orphaned by the
+			// same-id overwrite.
+			await Promise.resolve(bootstrap.dispose?.());
+		}
 	};
 	/**
 	 * Disposes the ClineCore instance and all associated resources.

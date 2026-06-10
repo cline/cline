@@ -125,7 +125,12 @@ export class SdkSessionLifecycle {
 
 		const { sessionId: oldSessionId } = oldSession
 
-		await this.endActiveSession(options.disposeReason)
+		// Await the old session's stop before reusing its sessionId. Core cleanup
+		// is keyed by sessionId (sessions map delete, "ended" emission, bootstrap
+		// disposal), so a stop still in flight when the same-id replacement starts
+		// would tear down the successor: the next send fails with "session not
+		// found" and the late "ended" event clobbers the successor's turn state.
+		await this.endActiveSession(options.disposeReason, { awaitStop: true })
 
 		const { startResult, sdkHost } = await this.startNewSession({
 			...options.startInput,
@@ -252,6 +257,21 @@ export class SdkSessionLifecycle {
 		files?: string[],
 		delivery?: "queue" | "steer",
 	): void {
+		// Captured by object identity, not sessionId: rebuilds (mode change) reuse
+		// the same sessionId for the replacement session, so only reference
+		// equality can tell this send's session apart from a successor. If the
+		// session was replaced by the time the send settles, the settle callbacks
+		// must not run bookkeeping against the successor (e.g. flipping a live
+		// auto-continued run to isRunning=false, which makes the event coordinator
+		// treat the new turn's completion as a cancelled-turn straggler).
+		const sessionAtSend = this.activeSession
+		const isSuperseded = (label: string): boolean => {
+			if (this.activeSession === sessionAtSend) {
+				return false
+			}
+			Logger.debug(`[SdkController] Ignoring ${label} of superseded send for session: ${sessionId}`)
+			return true
+		}
 		sdkHost
 			.send({
 				sessionId,
@@ -265,6 +285,9 @@ export class SdkSessionLifecycle {
 					Logger.log(`[SdkController] Message queued for session: ${sessionId}`)
 					return
 				}
+				if (isSuperseded("completion")) {
+					return
+				}
 				Logger.log(`[SdkController] Agent turn completed for session: ${sessionId}`)
 				this.setRunning(false)
 				await this.options.onSendComplete(sessionId)
@@ -272,6 +295,9 @@ export class SdkSessionLifecycle {
 			.catch(async (error: unknown) => {
 				if (isAbortError(error)) {
 					Logger.debug(`[SdkController] Agent turn aborted (expected): ${sessionId}`)
+					return
+				}
+				if (isSuperseded("failure")) {
 					return
 				}
 				Logger.error("[SdkController] Agent turn failed:", error)
