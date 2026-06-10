@@ -83,6 +83,40 @@ describe("SdkFollowupCoordinator", () => {
 		)
 	})
 
+	it("waits for an in-flight mode rebuild before deciding whether to resume a displayed task", async () => {
+		const task = makeTask("task-1")
+		const rebuiltSession = makeActiveSession({ isRunning: true })
+		let resolveRebuild: () => void = () => {}
+		const waitForPendingModeRebuild = vi.fn(
+			() =>
+				new Promise<void>((resolve) => {
+					resolveRebuild = resolve
+				}),
+		)
+		const { coordinator, options } = makeCoordinator({ task, waitForPendingModeRebuild })
+		options.sessions.getActiveSession.mockReturnValueOnce(undefined).mockReturnValue(rebuiltSession)
+
+		const sendPromise = coordinator.askResponse("sent during rebuild")
+		await new Promise((resolve) => setTimeout(resolve, 0))
+
+		expect(waitForPendingModeRebuild).toHaveBeenCalledOnce()
+		expect(options.sessions.startNewSession).not.toHaveBeenCalled()
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
+
+		resolveRebuild()
+		await sendPromise
+
+		expect(options.sessions.startNewSession).not.toHaveBeenCalled()
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
+			rebuiltSession.sdkHost,
+			"session-123",
+			"resolved: sent during rebuild",
+			undefined,
+			undefined,
+			"queue",
+		)
+	})
+
 	it("queues a message response after a pending tool approval is rejected", async () => {
 		const activeSession = makeActiveSession({ isRunning: true })
 		const { coordinator, options } = makeCoordinator({ activeSession })
@@ -151,6 +185,42 @@ describe("SdkFollowupCoordinator", () => {
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()
 	})
 
+	it("echoes attachments on an attachment-only resume", async () => {
+		const task = makeTask("task-1")
+		const historyItem = {
+			id: "task-1",
+			ts: 1,
+			task: "Original task",
+			tokensIn: 0,
+			tokensOut: 0,
+			totalCost: 0,
+			cwdOnTaskInitialization: "/task-cwd",
+		}
+		const { coordinator, options } = makeCoordinator({ task, historyItem })
+
+		await coordinator.askResponse(undefined, ["data:image/png;base64,abc"], [])
+
+		// The attachment-only resume shows a visible bubble for the attachment,
+		// keeping the transcript aligned with the SDK message that carries it.
+		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
+			[
+				expect.objectContaining({
+					say: "user_feedback",
+					text: "",
+					images: ["data:image/png;base64,abc"],
+				}),
+			],
+			expect.anything(),
+		)
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
+			expect.anything(),
+			"resumed-session",
+			expect.stringContaining("[TASK RESUMPTION]"),
+			["data:image/png;base64,abc"],
+			[],
+		)
+	})
+
 	it("emits auth errors when resume fails because the cline provider is unauthenticated", async () => {
 		const task = makeTask("task-1")
 		const { coordinator, options } = makeCoordinator({ task })
@@ -160,6 +230,22 @@ describe("SdkFollowupCoordinator", () => {
 		await coordinator.askResponse("continue")
 
 		expect(options.emitClineAuthError).toHaveBeenCalledOnce()
+		expect(options.onResumeFailed).toHaveBeenCalledOnce()
+		expect(options.postStateToWebview).toHaveBeenCalledOnce()
+	})
+
+	it("reports resume failures so the turn phase does not stay stuck in streaming", async () => {
+		const task = makeTask("task-1")
+		const { coordinator, options } = makeCoordinator({ task })
+		options.sessions.startNewSession.mockRejectedValue(new Error("session start failed"))
+
+		await coordinator.askResponse("continue")
+
+		expect(options.onResumeFailed).toHaveBeenCalledOnce()
+		expect(options.messages.emitSessionEvents).toHaveBeenCalledWith(
+			[expect.objectContaining({ say: "error", text: expect.stringContaining("session start failed") })],
+			{ type: "status", payload: { sessionId: "task-1", status: "error" } },
+		)
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()
 	})
 })
@@ -213,6 +299,8 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		emitClineAuthError: vi.fn(),
 		resetMessageTranslator: vi.fn(),
 		postStateToWebview: vi.fn().mockResolvedValue(undefined),
+		waitForPendingModeRebuild: input.waitForPendingModeRebuild ?? vi.fn().mockResolvedValue(undefined),
+		onResumeFailed: vi.fn(),
 	} as unknown as SdkFollowupCoordinatorOptions & {
 		interactions: SdkFollowupCoordinatorOptions["interactions"] & {
 			resolvePendingToolApproval: ReturnType<typeof vi.fn>
@@ -243,6 +331,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		emitClineAuthError: ReturnType<typeof vi.fn>
 		resetMessageTranslator: ReturnType<typeof vi.fn>
 		postStateToWebview: ReturnType<typeof vi.fn>
+		onResumeFailed: ReturnType<typeof vi.fn>
 	}
 
 	return {
@@ -265,6 +354,7 @@ interface MakeCoordinatorInput {
 		cwdOnTaskInitialization?: string
 	}
 	mode: "act" | "plan"
+	waitForPendingModeRebuild: () => Promise<void>
 }
 
 function makeActiveSession(input: { isRunning?: boolean } = {}) {
