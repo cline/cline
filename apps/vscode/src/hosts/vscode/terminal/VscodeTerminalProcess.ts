@@ -9,6 +9,7 @@ import {
 	MAX_UNRETRIEVED_LINES,
 	PROCESS_HOT_TIMEOUT_COMPILING,
 	PROCESS_HOT_TIMEOUT_NORMAL,
+	SHELL_INTEGRATION_STREAM_TIMEOUT_MS,
 	TRUNCATE_KEEP_LINES,
 } from "@/integrations/terminal/constants"
 import type { ITerminalProcess, TerminalCompletionDetails, TerminalProcessEvents } from "@/integrations/terminal/types"
@@ -39,10 +40,14 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 	private hotTimer: NodeJS.Timeout | null = null
 	private exitCode: number | null | undefined = undefined
 	private signal: NodeJS.Signals | null = null
+	streamTimeoutMs: number = SHELL_INTEGRATION_STREAM_TIMEOUT_MS
 
-	async run(terminal: vscode.Terminal, command: string) {
+	async run(terminal: vscode.Terminal, command: string, streamTimeoutMs?: number) {
 		this.exitCode = undefined
 		this.signal = null
+
+		// Use provided timeout or fall back to instance field or constant
+		const timeout = streamTimeoutMs ?? this.streamTimeoutMs ?? SHELL_INTEGRATION_STREAM_TIMEOUT_MS
 
 		// When command does not produce any output, we can assume the shell integration API failed and as a fallback return the current terminal contents
 		const returnCurrentTerminalContents = async () => {
@@ -66,7 +71,21 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 			let didOutputNonCommand = false
 			let didEmitEmptyLine = false
 
+			// Set up timeout to prevent indefinite stream wait
+			const controller = new AbortController()
+			let streamTimeoutHandle: NodeJS.Timeout | null = null
+			let streamAborted = false
+
+			streamTimeoutHandle = setTimeout(() => {
+				streamAborted = true
+				controller.abort()
+			}, timeout)
+
 			for await (let data of stream) {
+				// Check if timeout fired
+				if (streamAborted) {
+					break
+				}
 				// Parse shell integration completion markers when present.
 				// Sequence format: ]633;D;<exitCode>
 				const completionMatches = [...data.matchAll(/\]633;D(?:;(-?\d+))?/g)]
@@ -206,6 +225,21 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 					this.emitIfEol(data)
 					this.lastRetrievedIndex = this.fullOutput.length - this.buffer.length
 				}
+			}
+
+			// Clear timeout if stream completed normally
+			if (streamTimeoutHandle) {
+				clearTimeout(streamTimeoutHandle)
+			}
+
+			// Handle timeout case: emit fallback output if stream was aborted
+			if (streamAborted) {
+				this.emitRemainingBufferIfListening()
+				await returnCurrentTerminalContents()
+				telemetryService.captureTerminalOutputFailure(TerminalOutputFailureReason.TIMEOUT, "vscode")
+				this.emit("completed", this.getCompletionDetails())
+				this.emit("continue")
+				return
 			}
 
 			this.emitRemainingBufferIfListening()

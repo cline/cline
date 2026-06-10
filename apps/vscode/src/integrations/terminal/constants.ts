@@ -100,6 +100,14 @@ export const COMPILING_NULLIFIERS = [
 	"fail",
 ]
 
+// =============================================================================
+// Shell Integration Stream Timeout
+// =============================================================================
+// Prevents indefinite hangs when shell integration stream stalls
+
+/** Timeout for shell integration stream to prevent indefinite "Thinking..." hangs (30 seconds) */
+export const SHELL_INTEGRATION_STREAM_TIMEOUT_MS = 30_000
+
 /**
  * Check if terminal output indicates compilation/building.
  * Matches markers anywhere in the output.
