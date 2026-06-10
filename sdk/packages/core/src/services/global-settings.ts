@@ -32,6 +32,7 @@ const GlobalSettingsStringListSchema = z
 export const GlobalSettingsSchema = z
 	.object({
 		telemetryOptOut: z.boolean().default(false).catch(false),
+		autoUpdateEnabled: z.boolean().default(true).catch(true),
 		disabledTools: GlobalSettingsStringListSchema.optional(),
 		disabledPlugins: GlobalSettingsStringListSchema.optional(),
 	})
@@ -39,9 +40,11 @@ export const GlobalSettingsSchema = z
 	.transform((settings) => {
 		const normalized: {
 			telemetryOptOut: boolean;
+			autoUpdateEnabled: boolean;
 			disabledTools?: string[];
 			disabledPlugins?: string[];
 		} = {
+			autoUpdateEnabled: settings.autoUpdateEnabled,
 			telemetryOptOut: settings.telemetryOptOut,
 		};
 		if (settings.disabledTools?.length) {
@@ -155,6 +158,23 @@ export function setTelemetryOptOutGlobally(
 		{
 			...readGlobalSettings(),
 			telemetryOptOut,
+		},
+		options,
+	);
+}
+
+export function isAutoUpdateEnabledGlobally(): boolean {
+	return readGlobalSettings().autoUpdateEnabled;
+}
+
+export function setAutoUpdateEnabledGlobally(
+	autoUpdateEnabled: boolean,
+	options: WriteGlobalSettingsOptions = {},
+): void {
+	writeGlobalSettings(
+		{
+			...readGlobalSettings(),
+			autoUpdateEnabled,
 		},
 		options,
 	);

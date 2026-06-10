@@ -1,6 +1,7 @@
 import {
 	completeClineDeviceAuth,
 	type ITelemetryService,
+	isOAuthProvider,
 	loginLocalProvider,
 	type ProviderSettingsManager,
 	saveLocalProviderOAuthCredentials,
@@ -9,16 +10,12 @@ import {
 import { getClineEnvironmentConfig } from "@cline/shared";
 import open from "open";
 
-export type OnboardingOAuthProviderId = "cline" | "oca" | "openai-codex";
+export type OnboardingOAuthProviderId = string;
 
 export function isOnboardingOAuthProviderId(
 	providerId: string,
 ): providerId is OnboardingOAuthProviderId {
-	return (
-		providerId === "cline" ||
-		providerId === "oca" ||
-		providerId === "openai-codex"
-	);
+	return isOAuthProvider(providerId);
 }
 
 export function runOAuthAuthFlow(input: {

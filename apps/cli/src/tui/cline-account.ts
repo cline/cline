@@ -4,16 +4,20 @@ import {
 	type ClineAccountOrganizationBalance,
 	ClineAccountService,
 	type ClineAccountUser,
+	formatProviderOAuthApiKey,
+	getPersistedProviderApiKey,
+	getProviderOAuthCredentialsFromSettings,
 	getValidClineCredentials,
 	type ProviderSettings,
 	ProviderSettingsManager,
+	saveLocalProviderOAuthCredentials,
 } from "@cline/core";
 import { getClineEnvironmentConfig } from "@cline/shared";
 import { formatCreditBalance, normalizeCreditBalance } from "../utils/output";
-import { toProviderApiKey } from "../utils/provider-auth";
 import type { Config } from "../utils/types";
 
-const WORKOS_TOKEN_PREFIX = "workos:";
+export const CLINE_CREDITS_DASHBOARD_URL =
+	"https://app.cline.bot/dashboard/account?tab=credits";
 
 type ClineAccountConfig = Pick<Config, "apiKey" | "providerId">;
 
@@ -30,11 +34,21 @@ export function formatClineCredits(value: number): string {
 	return formatCreditBalance(normalizeCreditBalance(value));
 }
 
+// FIXME: These message checks are temporary until structured error types are
+// passed through to the CLI instead of plain error strings.
 export function isClineAccountAuthErrorMessage(message: string): boolean {
 	const normalized = message.trim().toLowerCase();
 	return (
 		normalized === "no cline account auth token found" ||
 		normalized.includes("requires re-authentication")
+	);
+}
+
+export function isClineAccountCreditsErrorMessage(message: string): boolean {
+	const normalized = message.trim().toLowerCase();
+	return (
+		normalized.includes("insufficient balance") &&
+		normalized.includes("cline credits balance")
 	);
 }
 
@@ -57,26 +71,13 @@ function resolveClineAccountAuthToken(input: {
 	config: ClineAccountConfig;
 	clineProviderSettings?: ProviderSettings;
 }): string | undefined {
-	const persistedAccessToken =
-		input.clineProviderSettings?.auth?.accessToken?.trim() || "";
 	const configApiKey =
 		input.config.providerId === "cline" ? input.config.apiKey.trim() : "";
-	const settingsApiKey =
-		input.clineProviderSettings?.apiKey?.trim() ||
-		input.clineProviderSettings?.auth?.apiKey?.trim() ||
-		"";
-
-	let authToken = persistedAccessToken || configApiKey || settingsApiKey;
-	if (authToken.toLowerCase().startsWith("workos:workos:")) {
-		authToken = authToken.slice("workos:".length);
-	}
-	return authToken || undefined;
-}
-
-function stripWorkosTokenPrefix(accessToken: string): string {
-	return accessToken.toLowerCase().startsWith(WORKOS_TOKEN_PREFIX)
-		? accessToken.slice(WORKOS_TOKEN_PREFIX.length)
-		: accessToken;
+	return (
+		getPersistedProviderApiKey("cline", input.clineProviderSettings) ||
+		configApiKey ||
+		undefined
+	);
 }
 
 async function resolveValidClineAccountAuthToken(input: {
@@ -86,43 +87,26 @@ async function resolveValidClineAccountAuthToken(input: {
 	apiBaseUrl: string;
 }): Promise<string | undefined> {
 	const settings = input.clineProviderSettings;
-	const auth = settings?.auth;
-	const accessToken = auth?.accessToken?.trim();
-	const refreshToken = auth?.refreshToken?.trim();
-	if (settings && auth && accessToken && refreshToken) {
-		const credentials = await getValidClineCredentials(
-			{
-				access: stripWorkosTokenPrefix(accessToken),
-				refresh: refreshToken,
-				expires: auth.expiresAt ?? Date.now() - 1,
-				accountId: auth.accountId,
-			},
-			{ apiBaseUrl: input.apiBaseUrl },
-		);
-		if (!credentials) {
+	const credentials = settings
+		? getProviderOAuthCredentialsFromSettings("cline", settings)
+		: null;
+	if (settings && credentials) {
+		const nextCredentials = await getValidClineCredentials(credentials, {
+			apiBaseUrl: input.apiBaseUrl,
+		});
+		if (!nextCredentials) {
 			throw new Error(
 				"Cline account requires re-authentication. Run cline auth cline.",
 			);
 		}
-		const nextAccessToken = toProviderApiKey("cline", credentials);
-		if (
-			nextAccessToken !== accessToken ||
-			credentials.refresh !== refreshToken ||
-			credentials.accountId !== auth.accountId ||
-			credentials.expires !== auth.expiresAt
-		) {
-			input.manager.saveProviderSettings(
-				{
-					...settings,
-					auth: {
-						...(settings.auth ?? {}),
-						accessToken: nextAccessToken,
-						refreshToken: credentials.refresh,
-						accountId: credentials.accountId,
-						expiresAt: credentials.expires,
-					},
-				},
-				{ setLastUsed: false, tokenSource: "oauth" },
+		const nextAccessToken = formatProviderOAuthApiKey("cline", nextCredentials);
+		if (nextCredentials !== credentials) {
+			saveLocalProviderOAuthCredentials(
+				input.manager,
+				"cline",
+				settings,
+				nextCredentials,
+				{ setLastUsed: false },
 			);
 		}
 		return nextAccessToken;

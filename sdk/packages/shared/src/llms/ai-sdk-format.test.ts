@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	EMPTY_CONTENT_TEXT,
 	formatMessagesForAiSdk,
 	sanitizeSurrogates,
 	toAiSdkToolResultOutput,
@@ -34,6 +35,42 @@ describe("formatMessagesForAiSdk", () => {
 			{
 				role: "user",
 				content: [{ type: "text", text: "hey" }],
+			},
+		]);
+	});
+
+	it("replaces empty string user and assistant messages with explicit error text", () => {
+		const messages = formatMessagesForAiSdk(undefined, [
+			{ role: "user", content: "" },
+			{ role: "assistant", content: "   \n\t  " },
+			{ role: "user", content: [{ type: "text", text: "continue" }] },
+		]);
+
+		expect(messages).toEqual([
+			{
+				role: "user",
+				content: [{ type: "text", text: EMPTY_CONTENT_TEXT }],
+			},
+			{
+				role: "assistant",
+				content: [{ type: "text", text: EMPTY_CONTENT_TEXT }],
+			},
+			{
+				role: "user",
+				content: [{ type: "text", text: "continue" }],
+			},
+		]);
+	});
+
+	it("replaces empty content arrays with explicit error text", () => {
+		const messages = formatMessagesForAiSdk(undefined, [
+			{ role: "assistant", content: [] },
+		]);
+
+		expect(messages).toEqual([
+			{
+				role: "assistant",
+				content: [{ type: "text", text: EMPTY_CONTENT_TEXT }],
 			},
 		]);
 	});

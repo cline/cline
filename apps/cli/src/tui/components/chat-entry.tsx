@@ -2,6 +2,10 @@ import { useTerminalDimensions } from "@opentui/react";
 import type React from "react";
 import { useState } from "react";
 import "opentui-spinner/react";
+import {
+	CLINE_CREDITS_DASHBOARD_URL,
+	isClineAccountCreditsErrorMessage,
+} from "../cline-account";
 import { useTerminalBackground } from "../hooks/use-terminal-background";
 import {
 	getDefaultForeground,
@@ -256,6 +260,36 @@ function ToolCallView(props: {
 	);
 }
 
+function ClineCreditsErrorView(props: { defaultFg?: string }) {
+	return (
+		<box flexDirection="row">
+			<text fg="red" content="* " />
+			<box
+				flexDirection="column"
+				border
+				borderStyle="rounded"
+				borderColor="red"
+				paddingX={1}
+			>
+				<text fg="red">Cline Credits depleted</text>
+				<text
+					fg={props.defaultFg}
+					selectable
+					content="You have run out of Cline credits. Add credits in the dashboard to continue."
+				/>
+				<box flexDirection="row">
+					<text fg="gray">Dashboard: </text>
+					<text fg="cyan" selectable>
+						<a href={CLINE_CREDITS_DASHBOARD_URL}>
+							{CLINE_CREDITS_DASHBOARD_URL}
+						</a>
+					</text>
+				</box>
+			</box>
+		</box>
+	);
+}
+
 export function ChatEntryView(props: {
 	entry: ChatEntry;
 	accent?: string;
@@ -351,6 +385,9 @@ export function ChatEntryView(props: {
 			);
 
 		case "error":
+			if (isClineAccountCreditsErrorMessage(entry.text)) {
+				return <ClineCreditsErrorView defaultFg={defaultFg} />;
+			}
 			return (
 				<box flexDirection="row">
 					<text fg="red" content="* " />

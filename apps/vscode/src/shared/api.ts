@@ -144,6 +144,22 @@ export const CLAUDE_OPUS_1M_TIERS = [
 		cacheReadsPrice: 1.0,
 	},
 ]
+export const CLAUDE_FABLE_1M_TIERS = [
+	{
+		contextWindow: 200000,
+		inputPrice: 10,
+		outputPrice: 50,
+		cacheWritesPrice: 12.5,
+		cacheReadsPrice: 1,
+	},
+	{
+		contextWindow: Number.MAX_SAFE_INTEGER,
+		inputPrice: 10,
+		outputPrice: 50,
+		cacheWritesPrice: 12.5,
+		cacheReadsPrice: 1,
+	},
+]
 
 export interface HicapCompatibleModelInfo extends ModelInfo {
 	temperature?: number
@@ -317,6 +333,29 @@ export const anthropicModels = {
 		cacheWritesPrice: 6.25,
 		cacheReadsPrice: 0.5,
 		tiers: CLAUDE_OPUS_1M_TIERS,
+	},
+	"claude-fable-5": {
+		maxTokens: 128_000,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		inputPrice: 10,
+		outputPrice: 50,
+		cacheWritesPrice: 12.5,
+		cacheReadsPrice: 1,
+	},
+	"claude-fable-5:1m": {
+		maxTokens: 128_000,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		inputPrice: 10,
+		outputPrice: 50,
+		cacheWritesPrice: 12.5,
+		cacheReadsPrice: 1,
+		tiers: CLAUDE_FABLE_1M_TIERS,
 	},
 	"claude-opus-4-7": {
 		maxTokens: 128_000,
@@ -505,6 +544,17 @@ export const claudeCodeModels = {
 		supportsImages: false,
 		supportsPromptCache: false,
 	},
+	"claude-fable-5": {
+		...anthropicModels["claude-fable-5"],
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+	},
+	"claude-fable-5[1m]": {
+		...anthropicModels["claude-fable-5:1m"],
+		supportsImages: false,
+		supportsPromptCache: false,
+	},
 	"claude-opus-4-7": {
 		...anthropicModels["claude-opus-4-7"],
 		contextWindow: 200_000,
@@ -684,6 +734,31 @@ export const bedrockModels = {
 		cacheWritesPrice: 6.25,
 		cacheReadsPrice: 0.5,
 		tiers: CLAUDE_OPUS_1M_TIERS,
+	},
+	"anthropic.claude-fable-5": {
+		maxTokens: 128_000,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		supportsGlobalEndpoint: true,
+		inputPrice: 10,
+		outputPrice: 50,
+		cacheWritesPrice: 12.5,
+		cacheReadsPrice: 1,
+	},
+	"anthropic.claude-fable-5:1m": {
+		maxTokens: 128_000,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		supportsGlobalEndpoint: true,
+		inputPrice: 10,
+		outputPrice: 50,
+		cacheWritesPrice: 12.5,
+		cacheReadsPrice: 1,
+		tiers: CLAUDE_FABLE_1M_TIERS,
 	},
 	"anthropic.claude-opus-4-7": {
 		maxTokens: 128_000,
@@ -922,6 +997,7 @@ export const openRouterClaudeSonnet461mModelId = `anthropic/claude-sonnet-4.6${C
 export const openRouterClaudeOpus461mModelId = `anthropic/claude-opus-4.6${CLAUDE_SONNET_1M_SUFFIX}`
 export const openRouterClaudeOpus471mModelId = `anthropic/claude-opus-4.7${CLAUDE_SONNET_1M_SUFFIX}`
 export const openRouterClaudeOpus481mModelId = `anthropic/claude-opus-4.8${CLAUDE_SONNET_1M_SUFFIX}`
+export const openRouterClaudeFable51mModelId = `anthropic/claude-fable-5${CLAUDE_SONNET_1M_SUFFIX}`
 export const openRouterDefaultModelInfo: ModelInfo = {
 	maxTokens: 64_000,
 	contextWindow: 200_000,
@@ -1206,6 +1282,31 @@ export const vertexModels = {
 		cacheReadsPrice: 0.5,
 		supportsReasoning: true,
 		tiers: CLAUDE_OPUS_1M_TIERS,
+	},
+	"claude-fable-5": {
+		maxTokens: 128_000,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsGlobalEndpoint: true,
+		inputPrice: 10,
+		outputPrice: 50,
+		cacheWritesPrice: 12.5,
+		cacheReadsPrice: 1,
+		supportsReasoning: true,
+	},
+	"claude-fable-5:1m": {
+		maxTokens: 128_000,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsGlobalEndpoint: true,
+		inputPrice: 10,
+		outputPrice: 50,
+		cacheWritesPrice: 12.5,
+		cacheReadsPrice: 1,
+		supportsReasoning: true,
+		tiers: CLAUDE_FABLE_1M_TIERS,
 	},
 	"claude-opus-4-7": {
 		maxTokens: 128_000,

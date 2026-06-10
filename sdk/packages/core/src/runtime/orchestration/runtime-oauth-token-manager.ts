@@ -1,102 +1,13 @@
+import type { ITelemetryService } from "@cline/shared";
 import {
-	getClineEnvironmentConfig,
-	type ITelemetryService,
-	isOAuthProviderId,
-	type OAuthProviderId,
-} from "@cline/shared";
-import {
-	type ClineOAuthCredentials,
-	getValidClineCredentials,
-} from "../../auth/cline";
-import { getValidOpenAICodexCredentials } from "../../auth/codex";
-import { getValidOcaCredentials } from "../../auth/oca";
-import { decodeJwtPayload } from "../../auth/utils";
+	getProviderAuthHandler,
+	getProviderOAuthCredentialsFromSettings,
+	saveProviderOAuthCredentials,
+} from "../../auth/provider-auth-registry";
 import { ProviderSettingsManager } from "../../services/storage/provider-settings-manager";
 import type { ProviderSettings } from "../../types/provider-settings";
 
-const WORKOS_TOKEN_PREFIX = "workos:";
-
-type ManagedOAuthProviderId = OAuthProviderId;
-
-function toStoredAccessToken(
-	providerId: ManagedOAuthProviderId,
-	accessToken: string,
-): string {
-	if (providerId === "cline") {
-		return `${WORKOS_TOKEN_PREFIX}${accessToken}`;
-	}
-	return accessToken;
-}
-
-function fromStoredAccessToken(
-	providerId: ManagedOAuthProviderId,
-	accessToken: string,
-): string {
-	if (
-		providerId === "cline" &&
-		accessToken.toLowerCase().startsWith(WORKOS_TOKEN_PREFIX)
-	) {
-		return accessToken.slice(WORKOS_TOKEN_PREFIX.length);
-	}
-	return accessToken;
-}
-
-function readExpiryFromToken(accessToken: string): number | null {
-	const payload = decodeJwtPayload(accessToken);
-	const exp = payload?.exp;
-	if (typeof exp === "number" && exp > 0) {
-		return exp * 1000;
-	}
-	return null;
-}
-
-function deriveCredentialExpiry(
-	settings: ProviderSettings,
-	normalizedAccessToken: string,
-): number {
-	const explicitExpiry = (
-		settings.auth as
-			| (ProviderSettings["auth"] & { expiresAt?: number })
-			| undefined
-	)?.expiresAt;
-	if (
-		typeof explicitExpiry === "number" &&
-		Number.isFinite(explicitExpiry) &&
-		explicitExpiry > 0
-	) {
-		return explicitExpiry;
-	}
-
-	const jwtExpiry = readExpiryFromToken(normalizedAccessToken);
-	if (jwtExpiry) {
-		return jwtExpiry;
-	}
-
-	// Unknown expiry should trigger refresh on next resolution.
-	return Date.now() - 1;
-}
-
-function toCredentials(
-	providerId: ManagedOAuthProviderId,
-	settings: ProviderSettings,
-): ClineOAuthCredentials | null {
-	const rawAccess = settings.auth?.accessToken?.trim();
-	const refreshToken = settings.auth?.refreshToken?.trim();
-	if (!rawAccess || !refreshToken) {
-		return null;
-	}
-	const access = fromStoredAccessToken(providerId, rawAccess);
-	if (!access) {
-		return null;
-	}
-
-	return {
-		access,
-		refresh: refreshToken,
-		expires: deriveCredentialExpiry(settings, access),
-		accountId: settings.auth?.accountId,
-	};
-}
+type ManagedOAuthProviderId = string;
 
 function authSettingsEqual(
 	a: ProviderSettings["auth"] | undefined,
@@ -156,10 +67,11 @@ export class RuntimeOAuthTokenManager {
 		providerId: string;
 		forceRefresh?: boolean;
 	}): Promise<RuntimeOAuthResolution | null> {
-		if (!isOAuthProviderId(input.providerId)) {
+		const handler = getProviderAuthHandler(input.providerId);
+		if (!handler) {
 			return null;
 		}
-		return this.resolveWithSingleFlight(input.providerId, input.forceRefresh);
+		return this.resolveWithSingleFlight(handler.providerId, input.forceRefresh);
 	}
 
 	private async resolveWithSingleFlight(
@@ -185,42 +97,43 @@ export class RuntimeOAuthTokenManager {
 		providerId: ManagedOAuthProviderId,
 		forceRefresh: boolean,
 	): Promise<RuntimeOAuthResolution | null> {
-		const settings =
-			this.providerSettingsManager.getProviderSettings(providerId);
+		const handler = getProviderAuthHandler(providerId);
+		if (!handler) {
+			return null;
+		}
+		const settings = this.providerSettingsManager.getProviderSettings(
+			handler.storageProviderId,
+		);
 		if (!settings) {
 			return null;
 		}
 
-		const currentCredentials = toCredentials(providerId, settings);
+		const currentCredentials = getProviderOAuthCredentialsFromSettings(
+			providerId,
+			settings,
+		);
 		if (!currentCredentials) {
 			return null;
 		}
 
-		const nextCredentials = await this.resolveCredentials(
-			providerId,
+		const nextCredentials = await handler.refresh({
 			settings,
-			currentCredentials,
+			credentials: currentCredentials,
 			forceRefresh,
-		);
+			telemetry: this.telemetry,
+		});
 		if (!nextCredentials) {
 			throw new OAuthReauthRequiredError(providerId);
 		}
 
-		const persistedAccessToken = toStoredAccessToken(
+		const nextSettings: ProviderSettings = saveProviderOAuthCredentials({
+			manager: this.providerSettingsManager,
 			providerId,
-			nextCredentials.access,
-		);
-		const nextAuth = {
-			...(settings.auth ?? {}),
-			accessToken: persistedAccessToken,
-			refreshToken: nextCredentials.refresh,
-			accountId: nextCredentials.accountId,
-		} as ProviderSettings["auth"] & { expiresAt?: number };
-		nextAuth.expiresAt = nextCredentials.expires;
-		const nextSettings: ProviderSettings = {
-			...settings,
-			auth: nextAuth,
-		};
+			settings,
+			credentials: nextCredentials,
+			setLastUsed: false,
+			save: false,
+		});
 		const wasRefreshed = !authSettingsEqual(settings.auth, nextSettings.auth);
 		if (wasRefreshed) {
 			this.providerSettingsManager.saveProviderSettings(nextSettings, {
@@ -231,39 +144,9 @@ export class RuntimeOAuthTokenManager {
 
 		return {
 			providerId,
-			apiKey: persistedAccessToken,
+			apiKey: handler.getApiKey(nextSettings) ?? nextCredentials.access,
 			accountId: nextCredentials.accountId,
 			refreshed: wasRefreshed,
 		};
-	}
-
-	private async resolveCredentials(
-		providerId: ManagedOAuthProviderId,
-		settings: ProviderSettings,
-		currentCredentials: ClineOAuthCredentials,
-		forceRefresh: boolean,
-	): Promise<ClineOAuthCredentials | null> {
-		if (providerId === "cline") {
-			return getValidClineCredentials(
-				currentCredentials,
-				{
-					apiBaseUrl:
-						settings.baseUrl?.trim() || getClineEnvironmentConfig().apiBaseUrl,
-					telemetry: this.telemetry,
-				},
-				{ forceRefresh },
-			);
-		}
-		if (providerId === "oca") {
-			return getValidOcaCredentials(
-				currentCredentials,
-				{ forceRefresh, telemetry: this.telemetry },
-				{ mode: settings.oca?.mode, telemetry: this.telemetry },
-			);
-		}
-		return getValidOpenAICodexCredentials(currentCredentials, {
-			forceRefresh,
-			telemetry: this.telemetry,
-		});
 	}
 }
