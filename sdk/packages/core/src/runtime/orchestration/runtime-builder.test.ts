@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -56,11 +56,15 @@ async function collectExtensionTools(
 describe("DefaultRuntimeBuilder", () => {
 	const previousHome = process.env.HOME;
 	const previousGlobalSettingsPath = process.env.CLINE_GLOBAL_SETTINGS_PATH;
+	const tempDirs: string[] = [];
 
 	afterEach(() => {
 		process.env.HOME = previousHome;
 		setHomeDir(previousHome ?? "~");
 		process.env.CLINE_GLOBAL_SETTINGS_PATH = previousGlobalSettingsPath;
+		for (const dir of tempDirs.splice(0)) {
+			rmSync(dir, { recursive: true, force: true });
+		}
 	});
 
 	it("includes builtin tools when enabled", async () => {
@@ -86,6 +90,100 @@ describe("DefaultRuntimeBuilder", () => {
 		});
 
 		expect(runtime.logger).toBe(logger);
+	});
+
+	it("loads configured agent files as named subagent tools", async () => {
+		const tempHome = mkdtempSync(join(tmpdir(), "cline-agent-home-"));
+		const workspaceRoot = mkdtempSync(join(tmpdir(), "cline-agent-workspace-"));
+		tempDirs.push(tempHome, workspaceRoot);
+		setHomeDir(tempHome);
+
+		const globalAgentsDir = join(tempHome, ".cline", "agents");
+		mkdirSync(globalAgentsDir, { recursive: true });
+		writeFileSync(
+			join(globalAgentsDir, "code-reviewer.yml"),
+			`---
+name: code-reviewer
+description: Reviews code for quality and best practices
+tools: Execute_Command, Read_File
+modelId: anthropic/claude-sonnet-4.6
+---
+You are a code reviewer.`,
+			"utf8",
+		);
+
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({
+				cwd: workspaceRoot,
+				workspaceRoot,
+				enableSpawnAgent: true,
+				enableAgentTeams: false,
+			}),
+			createSpawnTool: makeSpawnTool,
+		});
+
+		const configuredAgentTool = runtime.tools.find(
+			(tool) => tool.name === "subagent_code_reviewer",
+		);
+		expect(configuredAgentTool).toBeDefined();
+		expect(configuredAgentTool?.description).toContain(
+			'Use the "code-reviewer" subagent',
+		);
+		expect(runtime.tools.map((tool) => tool.name)).toContain("spawn_agent");
+	});
+
+	it("does not register root skills when only configured agents declare skills", async () => {
+		const tempHome = mkdtempSync(join(tmpdir(), "cline-agent-home-"));
+		const workspaceRoot = mkdtempSync(join(tmpdir(), "cline-agent-workspace-"));
+		const cwd = join(workspaceRoot, "packages", "app");
+		tempDirs.push(tempHome, workspaceRoot);
+		setHomeDir(tempHome);
+		mkdirSync(cwd, { recursive: true });
+
+		const agentsDir = join(workspaceRoot, ".cline", "agents");
+		const skillDir = join(workspaceRoot, ".cline", "skills", "review");
+		mkdirSync(agentsDir, { recursive: true });
+		mkdirSync(skillDir, { recursive: true });
+		writeFileSync(
+			join(agentsDir, "code-reviewer.yml"),
+			`---
+name: code-reviewer
+description: Reviews code
+tools: use_skill
+skills: review
+---
+You are a code reviewer.`,
+			"utf8",
+		);
+		writeFileSync(
+			join(skillDir, "SKILL.md"),
+			`---
+name: review
+---
+Use the review guidance.`,
+			"utf8",
+		);
+
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({
+				cwd,
+				workspaceRoot,
+				enableSpawnAgent: true,
+			}),
+			configExtensions: [],
+			createSpawnTool: makeSpawnTool,
+		});
+
+		expect(runtime.tools.map((tool) => tool.name)).toContain(
+			"subagent_code_reviewer",
+		);
+		expect(runtime.tools.map((tool) => tool.name)).not.toContain("skills");
+		expect(
+			(await collectExtensionTools(runtime.extensions)).map(
+				(tool) => tool.name,
+			),
+		).not.toContain("skills");
+		await runtime.shutdown("test");
 	});
 
 	it("forwards telemetry for downstream runtime consumers", async () => {
