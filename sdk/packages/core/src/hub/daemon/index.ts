@@ -22,7 +22,6 @@ import {
 	probeHubServer,
 	readHubDiscovery,
 	resolveClineDataDir,
-	resolveHubBuildId,
 	withHubStartupLock,
 } from "../discovery";
 import {
