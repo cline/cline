@@ -20,6 +20,15 @@ import {
 const DEFAULT_MAX_TOOL_RESULT_CHARS = 50_000;
 const DEFAULT_MAX_TOTAL_TEXT_BYTES = 6_000_000;
 const MIN_TOTAL_BUDGET_TOOL_RESULT_BYTES = 8_000;
+/**
+ * Outdated-read rewrites mutate tool results in the middle of the transcript,
+ * which invalidates provider prefix caches from that point onward. Instead of
+ * rewriting eagerly on every re-read, batch rewrites: defer them until the
+ * total reclaimable bytes across pending outdated reads crosses this
+ * threshold, then apply them all at once (one cache break amortized over a
+ * large context saving). 64KB ≈ 16K tokens. Set to 0 to rewrite eagerly.
+ */
+const DEFAULT_MIN_OUTDATED_REWRITE_BYTES = 65_536;
 const TARGET_TOOL_NAMES = new Set([
 	"read",
 	"read_files",
@@ -66,15 +75,26 @@ export class MessageBuilder {
 		string
 	>();
 	private readResultLocatorCache = new WeakMap<object, ReadLocator[]>();
+	/**
+	 * Locator keys (per tool_use_id) whose outdated-read rewrite has been
+	 * committed. Once committed, a rewrite is applied on every subsequent
+	 * build so the serialized transcript stays byte-stable (provider prefix
+	 * caches only get broken once per batch, not on every re-read).
+	 * Intentionally NOT cleared in resetIndexes: reverting a committed
+	 * rewrite would itself break the prefix again.
+	 */
+	private readonly committedOutdatedRewrites = new Map<string, Set<string>>();
 
 	constructor(
 		private readonly maxToolResultChars = DEFAULT_MAX_TOOL_RESULT_CHARS,
 		private readonly targetToolNames = TARGET_TOOL_NAMES,
 		private readonly maxTotalTextBytes = DEFAULT_MAX_TOTAL_TEXT_BYTES,
+		private readonly minOutdatedRewriteBytes = DEFAULT_MIN_OUTDATED_REWRITE_BYTES,
 	) {}
 
 	buildForApi(messages: Message[]): Message[] {
 		this.reindex(messages);
+		this.commitOutdatedRewrites(messages);
 		const repairedMessages = this.addMissingToolResults(messages);
 
 		const prepared = repairedMessages.map((message) => {
@@ -134,10 +154,11 @@ export class MessageBuilder {
 		let nextContent = block.content;
 
 		if (this.isReadTool(toolName) && block.is_error !== true) {
-			const locators = this.getReadLocators(block);
-			if (locators.length > 0) {
+			const committed = this.committedOutdatedRewrites.get(block.tool_use_id);
+			if (committed && committed.size > 0) {
+				const locators = this.getReadLocators(block);
 				const outdated = locators.filter((locator) =>
-					this.isOutdatedReadLocator(locator, block.tool_use_id),
+					committed.has(this.toReadLocatorKey(locator)),
 				);
 				if (outdated.length > 0) {
 					nextContent = this.replaceOutdatedReadContent(nextContent, outdated);
@@ -209,6 +230,87 @@ export class MessageBuilder {
 		this.indexedMessageCount = messages.length;
 		this.indexedTailRef =
 			messages.length > 0 ? messages[messages.length - 1] : undefined;
+	}
+
+	/**
+	 * Decide which outdated read results to rewrite for this build.
+	 *
+	 * Eagerly rewriting on every re-read mutates mid-transcript bytes and
+	 * invalidates the provider prefix cache from that message to the end of
+	 * the conversation. Instead, accumulate pending outdated locators and
+	 * only commit them (all at once) when the total reclaimable bytes cross
+	 * `minOutdatedRewriteBytes`. Committed rewrites are sticky so the
+	 * serialized transcript stays stable on subsequent requests.
+	 */
+	private commitOutdatedRewrites(messages: Message[]): void {
+		const pending = new Map<string, Set<string>>();
+		let pendingBytes = 0;
+
+		for (const message of messages) {
+			if (!Array.isArray(message.content)) {
+				continue;
+			}
+			for (const block of message.content) {
+				if (block.type !== "tool_result" || block.is_error === true) {
+					continue;
+				}
+				const toolName = this.toolNameByIdCache.get(block.tool_use_id);
+				if (!this.isReadTool(toolName)) {
+					continue;
+				}
+				const committed = this.committedOutdatedRewrites.get(block.tool_use_id);
+				for (const locator of this.getReadLocators(block)) {
+					const key = this.toReadLocatorKey(locator);
+					if (committed?.has(key)) {
+						continue;
+					}
+					if (!this.isOutdatedReadLocator(locator, block.tool_use_id)) {
+						continue;
+					}
+					let keys = pending.get(block.tool_use_id);
+					if (!keys) {
+						keys = new Set<string>();
+						pending.set(block.tool_use_id, keys);
+					}
+					if (!keys.has(key)) {
+						keys.add(key);
+						pendingBytes += this.toolResultContentBytes(block.content);
+					}
+				}
+			}
+		}
+
+		if (pending.size === 0 || pendingBytes < this.minOutdatedRewriteBytes) {
+			return;
+		}
+
+		for (const [toolUseId, keys] of pending) {
+			let committed = this.committedOutdatedRewrites.get(toolUseId);
+			if (!committed) {
+				committed = new Set<string>();
+				this.committedOutdatedRewrites.set(toolUseId, committed);
+			}
+			for (const key of keys) {
+				committed.add(key);
+			}
+		}
+	}
+
+	private toolResultContentBytes(
+		content: ToolResultContent["content"],
+	): number {
+		if (typeof content === "string") {
+			return utf8ByteLength(content);
+		}
+		let total = 0;
+		for (const entry of content) {
+			if (entry.type === "text") {
+				total += utf8ByteLength(entry.text);
+			} else if (entry.type === "file") {
+				total += utf8ByteLength(entry.content);
+			}
+		}
+		return total;
 	}
 
 	private addMissingToolResults(messages: Message[]): Message[] {
