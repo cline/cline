@@ -16,7 +16,7 @@ import { getToolContextTelemetry } from "../../services/telemetry/tool-context";
 import {
 	formatError,
 	formatReadFileQuery,
-	formatRunCommandQuery,
+	formatRunCommandQueryPreview,
 	getEditorSizeError,
 	getReadFileRangeError,
 	normalizeRunCommandsInput,
@@ -310,6 +310,7 @@ export function createBashTool(
 			return Promise.all(
 				commands.map(async (command: string): Promise<ToolOperationResult> => {
 					const startedAt = Date.now();
+					const query = formatRunCommandQueryPreview(command);
 					try {
 						const output = await withTimeout(
 							executor(command, cwd, context),
@@ -317,7 +318,7 @@ export function createBashTool(
 							`Command timed out after ${timeoutMs}ms`,
 						);
 						return {
-							query: command,
+							query,
 							result: output,
 							success: true,
 						};
@@ -332,7 +333,7 @@ export function createBashTool(
 						}
 						const msg = formatError(error);
 						return {
-							query: command,
+							query,
 							result: "",
 							error: `Command failed: ${msg}`,
 							success: false,
@@ -376,6 +377,7 @@ export function createWindowsShellTool(
 			return Promise.all(
 				commands.map(async (command): Promise<ToolOperationResult> => {
 					const startedAt = Date.now();
+					const query = formatRunCommandQueryPreview(command);
 					try {
 						const output = await withTimeout(
 							executor(command, cwd, context),
@@ -383,7 +385,7 @@ export function createWindowsShellTool(
 							`Command timed out after ${timeoutMs}ms`,
 						);
 						return {
-							query: formatRunCommandQuery(command),
+							query,
 							result: output,
 							success: true,
 						};
@@ -398,7 +400,7 @@ export function createWindowsShellTool(
 						}
 						const msg = formatError(error);
 						return {
-							query: formatRunCommandQuery(command),
+							query,
 							result: "",
 							error: `Command failed: ${msg}`,
 							success: false,
