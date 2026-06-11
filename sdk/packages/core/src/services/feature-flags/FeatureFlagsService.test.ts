@@ -17,8 +17,8 @@ function createProvider(
 				[TEST_PAYLOAD_FLAG]: 1234,
 			},
 		})),
-		isEnabled: vi.fn(() => true),
-		getSettings: vi.fn(() => ({ enabled: true, timeout: 1000 })),
+		enabled: true,
+		getSettings: vi.fn(() => ({ enabled: true, timeoutMs: 1000 })),
 		dispose: vi.fn(async () => {}),
 		...overrides,
 	};
@@ -66,7 +66,21 @@ describe("FeatureFlagsService", () => {
 		const service = new FeatureFlagsService({ provider });
 
 		await service.poll("user-1");
+		expect(provider.getAllFlagsAndPayloads).toHaveBeenCalledTimes(1);
+
 		await service.poll("user-1");
+
+		expect(provider.getAllFlagsAndPayloads).toHaveBeenCalledTimes(1);
+	});
+
+	it("polls only once if two calls are made simultaneously with the same user context", async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date("2026-06-10T10:00:00Z"));
+
+		const provider = createProvider();
+		const service = new FeatureFlagsService({ provider });
+
+		await Promise.all([service.poll("user-1"), service.poll("user-1")]);
 
 		expect(provider.getAllFlagsAndPayloads).toHaveBeenCalledTimes(1);
 	});

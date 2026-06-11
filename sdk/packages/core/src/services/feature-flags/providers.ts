@@ -9,12 +9,10 @@ export class NoOpFeatureFlagsProvider implements IFeatureFlagsProvider {
 		return {};
 	}
 
-	isEnabled(): boolean {
-		return false;
-	}
+	enabled = false;
 
 	getSettings(): FeatureFlagsSettings {
-		return { enabled: false, timeout: 1000 };
+		return { enabled: false, timeoutMs: 1000 };
 	}
 
 	async dispose(): Promise<void> {}

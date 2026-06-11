@@ -135,8 +135,8 @@ export class FeatureFlagsService {
 		return this.provider;
 	}
 
-	isEnabled(): boolean {
-		return this.provider.isEnabled();
+	get enabled(): boolean {
+		return this.provider.enabled;
 	}
 
 	getSettings() {

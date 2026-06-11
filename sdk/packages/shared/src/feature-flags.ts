@@ -24,11 +24,22 @@ export interface FeatureFlagsContext {
 	clientName?: string;
 }
 
+type AssertTrue<T extends true> = T;
+type Primitive = string | number | boolean | bigint | symbol | null | undefined;
+type HasNonPrimitiveFieldNames<T> = {
+	[K in keyof T]-?: Exclude<T[K], Primitive> extends never ? never : K;
+}[keyof T];
+type HasOnlyPrimitiveFields<T> =
+	HasNonPrimitiveFieldNames<T> extends never ? true : false;
+export type FeatureFlagsContextPrimitiveValued = AssertTrue<
+	HasOnlyPrimitiveFields<FeatureFlagsContext>
+>;
+
 export interface FeatureFlagsSettings {
 	/** Whether the provider is enabled. */
 	enabled: boolean;
-	/** Optional timeout for feature flag requests. */
-	timeout?: number;
+	/** Optional timeout in ms for feature flag requests. */
+	timeoutMs?: number;
 }
 
 export interface IFeatureFlagsProvider {
@@ -36,7 +47,7 @@ export interface IFeatureFlagsProvider {
 		flagKeys?: readonly string[];
 		context?: FeatureFlagsContext;
 	}): Promise<FeatureFlagsAndPayloads | undefined>;
-	isEnabled(): boolean;
+	readonly enabled: boolean;
 	getSettings(): FeatureFlagsSettings;
 	dispose(): Promise<void>;
 }
