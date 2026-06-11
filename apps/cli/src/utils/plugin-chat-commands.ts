@@ -55,6 +55,7 @@ function createPluginCommandDefinition(
 export async function createWorkspaceChatCommandHost(input: {
 	cwd: string;
 	workspaceRoot?: string;
+	disabledPluginPaths?: ReadonlyArray<string>;
 	logger?: BasicLogger;
 }): Promise<WorkspaceChatCommandHostResult> {
 	const workspaceRoot = input.workspaceRoot?.trim() || input.cwd;
@@ -63,6 +64,7 @@ export async function createWorkspaceChatCommandHost(input: {
 		loaded = await resolveAndLoadAgentPlugins({
 			cwd: input.cwd,
 			workspacePath: workspaceRoot,
+			disabledPluginPaths: input.disabledPluginPaths,
 		});
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);

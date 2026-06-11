@@ -37,6 +37,7 @@ import {
 	setActiveRuntimeAbort,
 	setActiveRuntimeCleanup,
 } from "./active-runtime";
+import { resolveAgentProfileDisabledPluginPaths } from "./agent-profile-plugins";
 import { createInteractiveApprovalController } from "./interactive/approvals";
 import { runInteractiveChatCommand } from "./interactive/chat-command-runner";
 import { createInteractiveConfigDataLoader } from "./interactive/config-data";
@@ -90,6 +91,11 @@ export async function runInteractive(
 		pluginChatCommandHostPromise ??= createWorkspaceChatCommandHost({
 			cwd: config.cwd,
 			workspaceRoot: config.workspaceRoot,
+			// Honor the active profile's plugin restriction for slash commands too.
+			disabledPluginPaths: resolveAgentProfileDisabledPluginPaths(
+				config.agentProfile,
+				config.workspaceRoot?.trim() || config.cwd,
+			),
 			logger: config.logger,
 		})
 			.then(({ host, pluginSlashCommands, shutdown }) => {
@@ -107,6 +113,19 @@ export async function runInteractive(
 				pluginChatCommandHostPromise = undefined;
 			});
 		return await pluginChatCommandHostPromise;
+	};
+	// Drops the cached plugin command host so the next use reloads it against
+	// the current plugin set (profile switches and plugin toggles change it).
+	const resetPluginChatCommandHost = async (): Promise<void> => {
+		await pluginChatCommandHostPromise?.catch(() => []);
+		const shutdown = pluginChatCommandHostShutdown;
+		pluginChatCommandHostShutdown = undefined;
+		pluginChatCommandHostLoaded = false;
+		pluginChatSlashCommands = [];
+		interactiveChatCommandHost = chatCommandHost;
+		await shutdown?.().catch(() => {
+			// Best effort cleanup for plugin command discovery sandbox.
+		});
 	};
 	const loadAdditionalSlashCommands = async (): Promise<
 		InteractiveSlashCommand[]
@@ -318,6 +337,9 @@ export async function runInteractive(
 	> => {
 		const data = await configDataLoader.onToggleConfigItem(item, options);
 		if (data && shouldRefreshInteractiveSessionForConfigItem(item)) {
+			if (item.kind === "plugin") {
+				await resetPluginChatCommandHost();
+			}
 			await refreshInteractiveSessionPolicies();
 		}
 		return data;
@@ -601,6 +623,7 @@ export async function runInteractive(
 		onAgentProfileChange: async (profile) => {
 			await sessionRuntime.ensureReady();
 			await sessionRuntime.applyAgentProfile(profile ?? undefined);
+			await resetPluginChatCommandHost();
 		},
 		onNewSession: async () => {
 			await sessionRuntime.resetForNewSession();
