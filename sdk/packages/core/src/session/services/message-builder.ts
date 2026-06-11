@@ -17,9 +17,13 @@ import {
 	type ToolResultContent,
 } from "@cline/shared";
 
-const DEFAULT_MAX_TOOL_RESULT_CHARS = 50_000;
-const DEFAULT_MAX_TOTAL_TEXT_BYTES = 6_000_000;
-const MIN_TOTAL_BUDGET_TOOL_RESULT_BYTES = 8_000;
+export const DEFAULT_MAX_TOOL_RESULT_CHARS = 8_000;
+export const DEFAULT_MAX_TOTAL_TEXT_BYTES = 1_000_000;
+const MIN_TOTAL_BUDGET_TOOL_RESULT_BYTES = 2_000;
+export const MESSAGE_BUILDER_LIMIT_ENV = {
+	maxToolResultChars: "CLINE_MESSAGE_BUILDER_MAX_TOOL_RESULT_CHARS",
+	maxTotalTextBytes: "CLINE_MESSAGE_BUILDER_MAX_TOTAL_TEXT_BYTES",
+} as const;
 const TARGET_TOOL_NAMES = new Set([
 	"read",
 	"read_files",
@@ -50,6 +54,25 @@ interface TruncationCandidate {
 	set(value: string): void;
 }
 
+export interface MessageBuilderOptions {
+	maxToolResultChars?: number;
+	targetToolNames?: ReadonlySet<string>;
+	maxTotalTextBytes?: number;
+}
+
+export function getMessageBuilderOptionsFromEnv(
+	env: Record<string, string | undefined> = process.env,
+): MessageBuilderOptions {
+	return {
+		maxToolResultChars: parsePositiveIntegerEnv(
+			env[MESSAGE_BUILDER_LIMIT_ENV.maxToolResultChars],
+		),
+		maxTotalTextBytes: parseNonNegativeIntegerEnv(
+			env[MESSAGE_BUILDER_LIMIT_ENV.maxTotalTextBytes],
+		),
+	};
+}
+
 /**
  * Builds an API-safe message copy without mutating original conversation history.
  */
@@ -67,12 +90,39 @@ export class MessageBuilder {
 		string
 	>();
 	private readResultLocatorCache = new WeakMap<object, ReadLocator[]>();
+	private readonly maxToolResultChars: number;
+	private readonly targetToolNames: ReadonlySet<string>;
+	private readonly maxTotalTextBytes: number;
 
 	constructor(
-		private readonly maxToolResultChars = DEFAULT_MAX_TOOL_RESULT_CHARS,
-		private readonly targetToolNames = TARGET_TOOL_NAMES,
-		private readonly maxTotalTextBytes = DEFAULT_MAX_TOTAL_TEXT_BYTES,
-	) {}
+		optionsOrMaxToolResultChars: MessageBuilderOptions | number = {},
+		targetToolNames: ReadonlySet<string> = TARGET_TOOL_NAMES,
+		maxTotalTextBytes = DEFAULT_MAX_TOTAL_TEXT_BYTES,
+	) {
+		if (typeof optionsOrMaxToolResultChars === "number") {
+			this.maxToolResultChars = normalizePositiveLimit(
+				optionsOrMaxToolResultChars,
+				DEFAULT_MAX_TOOL_RESULT_CHARS,
+			);
+			this.targetToolNames = targetToolNames;
+			this.maxTotalTextBytes = normalizeNonNegativeLimit(
+				maxTotalTextBytes,
+				DEFAULT_MAX_TOTAL_TEXT_BYTES,
+			);
+			return;
+		}
+
+		this.maxToolResultChars = normalizePositiveLimit(
+			optionsOrMaxToolResultChars.maxToolResultChars,
+			DEFAULT_MAX_TOOL_RESULT_CHARS,
+		);
+		this.targetToolNames =
+			optionsOrMaxToolResultChars.targetToolNames ?? TARGET_TOOL_NAMES;
+		this.maxTotalTextBytes = normalizeNonNegativeLimit(
+			optionsOrMaxToolResultChars.maxTotalTextBytes,
+			DEFAULT_MAX_TOTAL_TEXT_BYTES,
+		);
+	}
 
 	buildForApi(messages: Message[]): Message[] {
 		this.reindex(messages);
@@ -961,6 +1011,44 @@ export class MessageBuilder {
 
 function utf8ByteLength(text: string): number {
 	return Buffer.byteLength(text, "utf8");
+}
+
+function parsePositiveIntegerEnv(
+	value: string | undefined,
+): number | undefined {
+	if (value === undefined) {
+		return undefined;
+	}
+	const parsed = Number.parseInt(value, 10);
+	return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function parseNonNegativeIntegerEnv(
+	value: string | undefined,
+): number | undefined {
+	if (value === undefined) {
+		return undefined;
+	}
+	const parsed = Number.parseInt(value, 10);
+	return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
+}
+
+function normalizePositiveLimit(
+	value: number | undefined,
+	fallback: number,
+): number {
+	return typeof value === "number" && Number.isFinite(value) && value > 0
+		? Math.floor(value)
+		: fallback;
+}
+
+function normalizeNonNegativeLimit(
+	value: number | undefined,
+	fallback: number,
+): number {
+	return typeof value === "number" && Number.isFinite(value) && value >= 0
+		? Math.floor(value)
+		: fallback;
 }
 
 function truncateMiddleByChars(

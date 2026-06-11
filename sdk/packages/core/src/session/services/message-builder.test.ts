@@ -6,7 +6,12 @@ import {
 } from "@cline/shared";
 import { describe, expect, it } from "vitest";
 import { messagesToAgentMessages } from "../../runtime/config/agent-message-codec";
-import { MessageBuilder } from "./message-builder";
+import {
+	DEFAULT_MAX_TOOL_RESULT_CHARS,
+	DEFAULT_MAX_TOTAL_TEXT_BYTES,
+	getMessageBuilderOptionsFromEnv,
+	MessageBuilder,
+} from "./message-builder";
 
 describe("MessageBuilder", () => {
 	it("inserts an error tool result before a follow-up prompt when a prior tool call is missing a result", () => {
@@ -199,6 +204,107 @@ describe("MessageBuilder", () => {
 		}
 		expect(block.content.length).toBeLessThanOrEqual(100);
 		expect(block.content).toContain("...[truncated");
+	});
+
+	it("uses aggressive provider-facing defaults", () => {
+		expect(DEFAULT_MAX_TOOL_RESULT_CHARS).toBe(8_000);
+		expect(DEFAULT_MAX_TOTAL_TEXT_BYTES).toBe(1_000_000);
+	});
+
+	it("accepts named limit options for targeted provider payload tests", () => {
+		const builder = new MessageBuilder({
+			maxToolResultChars: 120,
+			targetToolNames: new Set(["run_commands"]),
+			maxTotalTextBytes: 10_000,
+		});
+		const messages: Message[] = [
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: "tool_1",
+						name: "run_commands",
+						input: { commands: ["cat big.log"] },
+					},
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "tool_1",
+						name: "run_commands",
+						content: "a".repeat(500),
+					},
+				],
+			},
+		];
+
+		const result = builder.buildForApi(messages);
+		const block = Array.isArray(result[1].content)
+			? result[1].content[0]
+			: undefined;
+
+		expect(block?.type).toBe("tool_result");
+		if (block?.type !== "tool_result") {
+			throw new Error("expected tool_result");
+		}
+		expect(typeof block.content).toBe("string");
+		if (typeof block.content !== "string") {
+			throw new Error("expected string content");
+		}
+		expect(block.content.length).toBeLessThanOrEqual(120);
+		expect(block.content).toContain("...[truncated");
+	});
+
+	it("parses message-builder limit environment overrides", () => {
+		const builder = new MessageBuilder(
+			getMessageBuilderOptionsFromEnv({
+				CLINE_MESSAGE_BUILDER_MAX_TOOL_RESULT_CHARS: "96",
+				CLINE_MESSAGE_BUILDER_MAX_TOTAL_TEXT_BYTES: "5000",
+			}),
+		);
+		const messages: Message[] = [
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: "tool_1",
+						name: "search_codebase",
+						input: { queries: ["needle"] },
+					},
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "tool_1",
+						name: "search_codebase",
+						content: "b".repeat(500),
+					},
+				],
+			},
+		];
+
+		const result = builder.buildForApi(messages);
+		const block = Array.isArray(result[1].content)
+			? result[1].content[0]
+			: undefined;
+
+		expect(block?.type).toBe("tool_result");
+		if (block?.type !== "tool_result") {
+			throw new Error("expected tool_result");
+		}
+		expect(typeof block.content).toBe("string");
+		if (typeof block.content !== "string") {
+			throw new Error("expected string content");
+		}
+		expect(block.content.length).toBeLessThanOrEqual(96);
 	});
 
 	it("applies an aggregate text budget across targeted tool results", () => {
@@ -462,6 +568,105 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
 		}
 		return 0;
 	}
+
+	function serializeForAiSdk(messages: Message[]): string {
+		const agentMessages = messagesToAgentMessages(messages);
+		const aiSdkMessages = formatMessagesForAiSdk(
+			undefined,
+			agentMessages.map(({ role, content }) => ({
+				role,
+				content,
+			})) as unknown as AiSdkFormatterMessage[],
+		);
+		return JSON.stringify(aiSdkMessages);
+	}
+
+	function firstToolOperationResult(
+		result: Message[],
+	): ToolOperationResultLike {
+		const block = Array.isArray(result[1]?.content)
+			? result[1].content[0]
+			: undefined;
+		expect(block?.type).toBe("tool_result");
+		if (block?.type !== "tool_result" || typeof block.content === "string") {
+			throw new Error("expected structured tool_result");
+		}
+		const operation = block.content[0] as unknown;
+		expect(operation).toBeTruthy();
+		return operation as ToolOperationResultLike;
+	}
+
+	it("reduces a real-shaped multi-MB run_commands result to the default cap", () => {
+		const builder = new MessageBuilder();
+		const messages: Message[] = [
+			toolUseMessage("call_1", "run_commands", {
+				commands: ["python emit_multi_mb_output.py"],
+			}),
+			structuredToolResultMessage("call_1", "run_commands", [
+				{
+					query: "python emit_multi_mb_output.py",
+					result: hugeText(2_500_000),
+					success: true,
+					duration: 4321,
+				},
+			]),
+		];
+
+		const rawSerializedLength = JSON.stringify(messages).length;
+		const result = builder.buildForApi(messages);
+		const operation = firstToolOperationResult(result);
+		const output = operation.result;
+
+		expect(rawSerializedLength).toBeGreaterThan(2_400_000);
+		expect(typeof output).toBe("string");
+		if (typeof output !== "string") {
+			throw new Error("expected string result");
+		}
+		expect(output.length).toBeLessThanOrEqual(DEFAULT_MAX_TOOL_RESULT_CHARS);
+		expect(output).toContain("...[truncated");
+		expect(output).not.toContain(MIDDLE_SENTINEL);
+		expect(output).toContain(HEAD_MARKER);
+		expect(output).toContain(TAIL_MARKER);
+		expect(sumStringBytes(operation)).toBeLessThan(
+			DEFAULT_MAX_TOOL_RESULT_CHARS + 512,
+		);
+	});
+
+	it("materially shrinks provider-formatted payloads compared with previous defaults", () => {
+		const messages: Message[] = [];
+		for (let i = 0; i < 20; i++) {
+			messages.push(
+				toolUseMessage(`call_${i}`, "run_commands", {
+					commands: [`python noisy_task_${i}.py`],
+				}),
+				structuredToolResultMessage(`call_${i}`, "run_commands", [
+					{
+						query: `python noisy_task_${i}.py`,
+						result: hugeText(300_000),
+						success: true,
+						duration: 1000 + i,
+					},
+				]),
+			);
+		}
+		const previousDefaults = new MessageBuilder({
+			maxToolResultChars: 50_000,
+			maxTotalTextBytes: 6_000_000,
+		});
+		const currentDefaults = new MessageBuilder();
+
+		const previousPayload = serializeForAiSdk(
+			previousDefaults.buildForApi(messages),
+		);
+		const currentPayload = serializeForAiSdk(
+			currentDefaults.buildForApi(messages),
+		);
+
+		expect(previousPayload.length).toBeGreaterThan(900_000);
+		expect(currentPayload.length).toBeLessThan(previousPayload.length * 0.25);
+		expect(currentPayload.length).toBeLessThan(250_000);
+		expect(currentPayload).not.toContain(MIDDLE_SENTINEL);
+	});
 
 	it("truncates a huge nested `result` string in run_commands structured output", () => {
 		const builder = new MessageBuilder();
