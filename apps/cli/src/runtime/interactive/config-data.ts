@@ -1,5 +1,6 @@
 import {
 	createCoreSettingsService,
+	setAlwaysEnabledPlugin,
 	setDisabledPlugin,
 	setDisabledTools,
 	type UserInstructionConfigService,
@@ -121,6 +122,17 @@ export function createInteractiveConfigDataLoader(input: {
 		return undefined;
 	};
 
+	const onToggleAlwaysEnabledConfigItem = async (
+		item: InteractiveConfigItem,
+		options: LoadInteractiveConfigDataOptions = {},
+	): Promise<InteractiveConfigData | undefined> => {
+		if (item.kind !== "plugin") {
+			return undefined;
+		}
+		setAlwaysEnabledPlugin(item.path, item.alwaysEnabled !== true);
+		return await loadConfigData(options);
+	};
+
 	const onDeleteConfigItem = async (
 		item: InteractiveConfigItem,
 		options: LoadInteractiveConfigDataOptions = {},
@@ -141,6 +153,7 @@ export function createInteractiveConfigDataLoader(input: {
 	return {
 		loadConfigData,
 		onToggleConfigItem,
+		onToggleAlwaysEnabledConfigItem,
 		onDeleteConfigItem,
 	};
 }

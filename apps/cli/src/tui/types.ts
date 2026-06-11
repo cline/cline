@@ -141,6 +141,10 @@ export interface TuiProps {
 		item: InteractiveConfigItem,
 		options?: LoadInteractiveConfigDataOptions,
 	) => Promise<InteractiveConfigData | undefined>;
+	onToggleAlwaysEnabledConfigItem?: (
+		item: InteractiveConfigItem,
+		options?: LoadInteractiveConfigDataOptions,
+	) => Promise<InteractiveConfigData | undefined>;
 	onDeleteConfigItem?: (
 		item: InteractiveConfigItem,
 		options?: LoadInteractiveConfigDataOptions,

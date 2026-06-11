@@ -39,6 +39,10 @@ export function useConfigPanel(opts: {
 		item: InteractiveConfigItem,
 		options?: LoadInteractiveConfigDataOptions,
 	) => Promise<InteractiveConfigData | undefined>;
+	onToggleAlwaysEnabledConfigItem?: (
+		item: InteractiveConfigItem,
+		options?: LoadInteractiveConfigDataOptions,
+	) => Promise<InteractiveConfigData | undefined>;
 	onDeleteConfigItem?: (
 		item: InteractiveConfigItem,
 		options?: LoadInteractiveConfigDataOptions,
@@ -98,6 +102,9 @@ export function useConfigPanel(opts: {
 								activeTab = tab;
 							}}
 							onToggleConfigItem={opts.onToggleConfigItem}
+							onToggleAlwaysEnabledConfigItem={
+								opts.onToggleAlwaysEnabledConfigItem
+							}
 							onDeleteConfigItem={opts.onDeleteConfigItem}
 							onToggleMode={opts.toggleMode}
 							onToggleAutoApprove={opts.toggleAutoApprove}

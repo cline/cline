@@ -344,6 +344,24 @@ export async function runInteractive(
 		}
 		return data;
 	};
+	const onToggleAlwaysEnabledConfigItem = async (
+		item: InteractiveConfigItem,
+		options: LoadInteractiveConfigDataOptions = {},
+	): Promise<
+		Awaited<ReturnType<typeof configDataLoader.onToggleAlwaysEnabledConfigItem>>
+	> => {
+		const data = await configDataLoader.onToggleAlwaysEnabledConfigItem(
+			item,
+			options,
+		);
+		// The flag only affects the live session while a profile restriction is
+		// active; without one there is nothing to restart.
+		if (data && config.agentProfile?.plugins) {
+			await resetPluginChatCommandHost();
+			await refreshInteractiveSessionPolicies();
+		}
+		return data;
+	};
 	const onDeleteConfigItem = async (
 		item: InteractiveConfigItem,
 		options: LoadInteractiveConfigDataOptions = {},
@@ -431,6 +449,7 @@ export async function runInteractive(
 			}),
 		loadConfigData: configDataLoader.loadConfigData,
 		onToggleConfigItem,
+		onToggleAlwaysEnabledConfigItem,
 		onDeleteConfigItem,
 		subscribeToEvents: ({
 			onAgentEvent: onAgent,

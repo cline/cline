@@ -241,6 +241,7 @@ function App(props: TuiProps) {
 		termHeight,
 		loadConfigData: props.loadConfigData,
 		onToggleConfigItem,
+		onToggleAlwaysEnabledConfigItem: props.onToggleAlwaysEnabledConfigItem,
 		onDeleteConfigItem,
 		openModelSelector,
 		openMcpManager,

@@ -1,8 +1,4 @@
-import {
-	readGlobalSettings,
-	setAlwaysEnabledPlugin,
-	setAutoUpdateEnabledGlobally,
-} from "@cline/core";
+import { readGlobalSettings, setAutoUpdateEnabledGlobally } from "@cline/core";
 import { useTerminalDimensions } from "@opentui/react";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
@@ -138,6 +134,10 @@ export interface ConfigPanelProps extends ChoiceContext<ConfigAction> {
 	initialTab?: InteractiveConfigTab;
 	onActiveTabChange?: (tab: InteractiveConfigTab) => void;
 	onToggleConfigItem?: (
+		item: InteractiveConfigItem,
+		options?: LoadInteractiveConfigDataOptions,
+	) => Promise<InteractiveConfigData | undefined>;
+	onToggleAlwaysEnabledConfigItem?: (
 		item: InteractiveConfigItem,
 		options?: LoadInteractiveConfigDataOptions,
 	) => Promise<InteractiveConfigData | undefined>;
@@ -537,8 +537,10 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 	const canDeleteSelectedRow = Boolean(
 		props.onDeleteConfigItem && canDeleteConfigFooterRow(selectedRow),
 	);
-	const canAlwaysEnableSelectedRow =
-		canAlwaysEnableConfigFooterRow(selectedRow);
+	const canAlwaysEnableSelectedRow = Boolean(
+		props.onToggleAlwaysEnabledConfigItem &&
+			canAlwaysEnableConfigFooterRow(selectedRow),
+	);
 
 	const setNavPosition = (nextNavPos: number) => {
 		setNavPos(nextNavPos);
@@ -642,24 +644,33 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 
 	const handleAlwaysEnableSelected = () => {
 		const row = rows[selectedRowIdx];
-		if (!row || row.kind !== "ext" || !canAlwaysEnableConfigFooterRow(row)) {
+		if (
+			!row ||
+			row.kind !== "ext" ||
+			!canAlwaysEnableConfigFooterRow(row) ||
+			!props.onToggleAlwaysEnabledConfigItem ||
+			togglingItemId
+		) {
 			return;
 		}
 		const item = row.item;
-		const nextAlwaysEnabled = !item.alwaysEnabled;
-		setAlwaysEnabledPlugin(item.path, nextAlwaysEnabled);
-		setConfigData((current) =>
-			current
-				? {
-						...current,
-						plugins: current.plugins.map((plugin) =>
-							plugin.id === item.id
-								? { ...plugin, alwaysEnabled: nextAlwaysEnabled }
-								: plugin,
-						),
-					}
-				: current,
-		);
+		void (async () => {
+			setTogglingItemId(item.id);
+			setToggleError(undefined);
+			try {
+				const nextData = await props.onToggleAlwaysEnabledConfigItem?.(item, {
+					includePluginTools: pluginToolsLoaded,
+				});
+				if (nextData) {
+					setConfigData(nextData);
+				}
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				setToggleError(`Failed to update ${item.name}: ${message}`);
+			} finally {
+				setTogglingItemId(null);
+			}
+		})();
 	};
 
 	const handleDeleteSelected = () => {
