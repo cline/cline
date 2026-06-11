@@ -586,84 +586,57 @@ describe("ensureDetachedHubServer", () => {
 	});
 
 	it("does not spawn a second daemon when a concurrent call holds the startup lock", async () => {
-		vi.useFakeTimers();
-		try {
-			let discoveryCallCount = 0;
-			readHubDiscovery.mockImplementation(async () => {
-				discoveryCallCount++;
-				// First caller gets undefined, then after a small async delay return valid record
-				if (discoveryCallCount <= 1) {
-					return undefined;
-				}
-				return {
-					url: "ws://127.0.0.1:5555/hub",
-					buildId: "current-build",
-					authToken: "shared-token",
-				};
-			});
-			probeHubServer.mockResolvedValue({
-				url: "ws://127.0.0.1:5555/hub",
-				buildId: "current-build",
-			});
-			verifyHubConnection.mockResolvedValue(true);
-			withHubStartupLock.mockImplementation(
-				async (_discoveryPath: string, callback: () => Promise<unknown>) => {
-					// Simulate lock serialization: first call proceeds, second waits briefly
-					const callCount =
-						(withHubStartupLock as unknown as { callCount?: number })
-							.callCount ?? 0;
-					(withHubStartupLock as unknown as { callCount?: number }).callCount =
-						callCount + 1;
-					if (callCount > 0) {
-						// Simulate the first caller holding the lock long enough
-						await new Promise((resolve) => setTimeout(resolve, 150));
-					}
-					return callback();
-				},
-			);
-
-			const { ensureDetachedHubServer } = await import(".");
-			const call1 = ensureDetachedHubServer("/workspace");
-			const call2 = ensureDetachedHubServer("/workspace");
-
-			await vi.runAllTimersAsync();
-			const result1 = await call1;
-			const result2 = await call2;
-
-			expect(result1).toEqual({
-				url: "ws://127.0.0.1:5555/hub",
-				authToken: "shared-token",
-			});
-			expect(result2).toEqual({
-				url: "ws://127.0.0.1:5555/hub",
-				authToken: "shared-token",
-			});
-			expect(spawn).toHaveBeenCalledOnce();
-		} finally {
-			vi.useRealTimers();
-		}
-	});
-
-	it("reuses an existing compatible daemon despite a transient verifyHubConnection failure", async () => {
-		readHubDiscovery.mockResolvedValue({
-			url: "ws://127.0.0.1:25463/hub",
-			buildId: "current-build",
-			authToken: "shared-token",
+		let discoveryCallCount = 0;
+		readHubDiscovery.mockImplementation(async () => {
+			discoveryCallCount++;
+			return discoveryCallCount === 1
+				? undefined
+				: {
+						url: "ws://127.0.0.1:5555/hub",
+						protocolVersion: "v1",
+						buildId: "current-build",
+						authToken: "shared-token",
+					};
 		});
-		probeHubServer.mockResolvedValue({
-			url: "ws://127.0.0.1:25463/hub",
-			buildId: "current-build",
+		probeHubServer.mockImplementation(async (url: string) => {
+			if (url === "ws://127.0.0.1:25463/hub") {
+				return undefined;
+			}
+			return {
+				url: "ws://127.0.0.1:5555/hub",
+				protocolVersion: "v1",
+				buildId: "current-build",
+			};
 		});
 		verifyHubConnection.mockResolvedValue(true);
+		let activeLock = Promise.resolve();
+		withHubStartupLock.mockImplementation(
+			async (_discoveryPath: string, callback: () => Promise<unknown>) => {
+				const previousLock = activeLock;
+				let releaseLock!: () => void;
+				activeLock = new Promise<void>((resolve) => {
+					releaseLock = resolve;
+				});
+				await previousLock;
+				try {
+					return await callback();
+				} finally {
+					releaseLock();
+				}
+			},
+		);
 
 		const { ensureDetachedHubServer } = await import(".");
-		const result = await ensureDetachedHubServer("/workspace");
+		const [result1, result2] = await Promise.all([
+			ensureDetachedHubServer("/workspace"),
+			ensureDetachedHubServer("/workspace"),
+		]);
 
-		expect(result).toEqual({
-			url: "ws://127.0.0.1:25463/hub",
+		expect(result1).toEqual({
+			url: "ws://127.0.0.1:5555/hub",
 			authToken: "shared-token",
 		});
-		expect(spawn).not.toHaveBeenCalled();
-		expect(verifyHubConnection).toHaveBeenCalledOnce();
+		expect(result2).toEqual(result1);
+		expect(spawn).toHaveBeenCalledOnce();
 	});
 });

@@ -3,6 +3,7 @@ import {
 	HubTransportError,
 	isHubReconnectableTransportError,
 	NodeHubClient,
+	verifyHubConnection,
 } from "../client";
 
 type SocketListener = (...args: unknown[]) => void;
@@ -144,6 +145,77 @@ class FakeWebSocket {
 	}
 }
 
+class FlakyHealthcheckWebSocket {
+	static readonly CONNECTING = 0;
+	static readonly OPEN = 1;
+	static readonly CLOSED = 3;
+	static attempts = 0;
+	static failUntil = 0;
+
+	readyState = FlakyHealthcheckWebSocket.CONNECTING;
+	private readonly listeners = new Map<string, SocketListener[]>();
+
+	constructor(_url: string) {
+		FlakyHealthcheckWebSocket.attempts++;
+		const shouldFail =
+			FlakyHealthcheckWebSocket.attempts <= FlakyHealthcheckWebSocket.failUntil;
+		queueMicrotask(() => {
+			if (shouldFail) {
+				this.readyState = FlakyHealthcheckWebSocket.CLOSED;
+				this.emit("error", new Error("connect ECONNREFUSED 127.0.0.1:25463"));
+				return;
+			}
+			this.readyState = FlakyHealthcheckWebSocket.OPEN;
+			this.emit("open");
+		});
+	}
+
+	static reset(): void {
+		FlakyHealthcheckWebSocket.attempts = 0;
+		FlakyHealthcheckWebSocket.failUntil = 0;
+	}
+
+	send(data: string): void {
+		const frame = JSON.parse(data) as {
+			kind?: string;
+			envelope?: { requestId?: string };
+		};
+		if (frame.kind === "command" && frame.envelope?.requestId) {
+			queueMicrotask(() => {
+				this.emit("message", {
+					data: JSON.stringify({
+						kind: "reply",
+						envelope: {
+							version: "v1",
+							command: "client.register",
+							requestId: frame.envelope?.requestId,
+							ok: true,
+							clientId: "hub",
+							payload: {},
+						},
+					}),
+				});
+			});
+		}
+	}
+
+	close(): void {
+		this.readyState = FlakyHealthcheckWebSocket.CLOSED;
+	}
+
+	addEventListener(type: string, listener: SocketListener): void {
+		const listeners = this.listeners.get(type) ?? [];
+		listeners.push(listener);
+		this.listeners.set(type, listeners);
+	}
+
+	private emit(type: string, ...args: unknown[]): void {
+		for (const listener of this.listeners.get(type) ?? []) {
+			listener(...args);
+		}
+	}
+}
+
 describe("NodeHubClient", () => {
 	describe("subscription re-registration", () => {
 		afterEach(() => {
@@ -254,6 +326,29 @@ describe("NodeHubClient", () => {
 			);
 
 			await client.dispose();
+		});
+	});
+
+	describe("verifyHubConnection", () => {
+		afterEach(() => {
+			FlakyHealthcheckWebSocket.reset();
+			vi.unstubAllGlobals();
+		});
+
+		it("retries connection-refused startup failures before succeeding", async () => {
+			vi.useFakeTimers();
+			FlakyHealthcheckWebSocket.failUntil = 2;
+			vi.stubGlobal("WebSocket", FlakyHealthcheckWebSocket);
+
+			try {
+				const resultPromise = verifyHubConnection("ws://127.0.0.1:25463/hub");
+				await vi.runAllTimersAsync();
+
+				await expect(resultPromise).resolves.toBe(true);
+				expect(FlakyHealthcheckWebSocket.attempts).toBe(3);
+			} finally {
+				vi.useRealTimers();
+			}
 		});
 	});
 
