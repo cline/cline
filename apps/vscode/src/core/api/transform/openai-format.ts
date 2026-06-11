@@ -6,7 +6,6 @@ import {
 	ClineAssistantThinkingBlock,
 	ClineAssistantToolUseBlock,
 	ClineImageContentBlock,
-	ClineStorageMessage,
 	ClineTextContentBlock,
 	ClineUserToolResultContentBlock,
 	getImageDataUrl,
