@@ -89,6 +89,7 @@ export function AgentSelectorContent(
 				onSearchChange={list.setSearch}
 				onItemSelect={(item) => resolve(item.key)}
 				emptyText="No agents match"
+				detailPosition="below"
 			/>
 
 			{loadErrors.length > 0 && (
