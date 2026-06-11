@@ -75,11 +75,12 @@ export class FeatureFlagsService {
 			}
 
 			this.cacheInfo.flagsPayload = values;
-
+			const nextCache = new Map<FeatureFlag, FeatureFlagPayload | undefined>();
 			for (const flag of this.getReturnedFlagKeys(values)) {
 				const payload = this.getFeatureFlag(flag);
-				this.cache.set(flag, payload ?? false);
+				nextCache.set(flag, payload ?? false);
 			}
+			this.cache = nextCache;
 		} catch (error) {
 			if (this.cacheInfo.userId !== userId) {
 				// A new poll has started with a different userId, so we should not update the cache with the results of this poll
