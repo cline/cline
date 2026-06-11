@@ -396,6 +396,11 @@ export class ClineCore {
 			await this.automationService?.dispose();
 			await this.host.dispose(...args);
 		} finally {
+			await this.featureFlags.dispose().catch((error) => {
+				this.logger?.error?.("Error disposing feature flags provider", {
+					error,
+				});
+			});
 			this.unsubscribeBootstrapCleanup();
 			const sessionIds = [...this.activeSessionBootstraps.keys()];
 			await Promise.allSettled(
