@@ -1,5 +1,5 @@
 import type { ClineMessage } from "@shared/ExtensionMessage"
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { MessageHandlers } from "../../types/chatTypes"
 import { ActionButtons } from "./ActionButtons"
@@ -36,8 +36,12 @@ describe("ActionButtons", () => {
 	}
 
 	beforeEach(() => {
-		vi.clearAllMocks()
+		vi.resetAllMocks()
 	})
+
+	const getSaveButton = () => screen.getByText("Save") as unknown as HTMLElement
+
+	const getSaveHost = () => getSaveButton().closest("vscode-button") as any
 
 	it("renders save and reject buttons for file creation", () => {
 		render(
@@ -74,9 +78,8 @@ describe("ActionButtons", () => {
 			/>,
 		)
 
-		const buttons = screen.getAllByText(/Save|Reject/)
-		const saveButton = buttons[0] as unknown as HTMLElement
-		const parentButton = saveButton.closest("vscode-button") as any
+		const saveButton = getSaveButton()
+		const parentButton = getSaveHost()
 		expect(parentButton.disabled).not.toBe(true)
 
 		fireEvent.click(saveButton)
@@ -104,9 +107,11 @@ describe("ActionButtons", () => {
 			/>,
 		)
 
-		const buttons = screen.getAllByText(/Save|Reject/)
-		const saveButton = buttons[0] as unknown as HTMLElement
-		fireEvent.click(saveButton)
+		await act(async () => {
+			fireEvent.click(getSaveButton())
+			await Promise.resolve()
+			await Promise.resolve()
+		})
 
 		// Wait for the promise chain to complete
 		await waitFor(
@@ -128,14 +133,28 @@ describe("ActionButtons", () => {
 			/>,
 		)
 
-		// Since isProcessing is set to false after .then(), buttons should be enabled
-		// We verify this by checking that another click doesn't fire multiple actions
-		fireEvent.click(saveButton)
+		await waitFor(() => {
+			expect(getSaveHost().disabled).not.toBe(true)
+		})
+
+		await act(async () => {
+			fireEvent.click(getSaveButton())
+			await Promise.resolve()
+			await Promise.resolve()
+		})
 		expect(mockMessageHandlers.executeButtonAction).toHaveBeenCalledTimes(2)
 	})
 
 	it("re-enables buttons after error in action", async () => {
-		mockMessageHandlers.executeButtonAction.mockRejectedValue(new Error("Test error"))
+		let rejectAction: ((reason?: unknown) => void) | undefined
+		mockMessageHandlers.executeButtonAction
+			.mockImplementationOnce(
+				() =>
+					new Promise((_, reject) => {
+						rejectAction = reject
+					}),
+			)
+			.mockResolvedValue(undefined)
 
 		const { rerender } = render(
 			<ActionButtons
@@ -148,17 +167,13 @@ describe("ActionButtons", () => {
 			/>,
 		)
 
-		const buttons = screen.getAllByText(/Save|Reject/)
-		const saveButton = buttons[0] as unknown as HTMLElement
-		fireEvent.click(saveButton)
-
-		// Wait for the promise chain to complete
-		await waitFor(
-			() => {
-				expect(mockMessageHandlers.executeButtonAction).toHaveBeenCalled()
-			},
-			{ timeout: 500 },
-		)
+		await act(async () => {
+			fireEvent.click(getSaveButton())
+			expect(rejectAction).toBeDefined()
+			rejectAction?.(new Error("Test error"))
+			await Promise.resolve()
+			await Promise.resolve()
+		})
 
 		// Rerender to pick up state change
 		rerender(
@@ -172,8 +187,15 @@ describe("ActionButtons", () => {
 			/>,
 		)
 
-		// Button should be enabled again after error, allowing another click
-		fireEvent.click(saveButton)
+		await waitFor(() => {
+			expect(getSaveHost().disabled).not.toBe(true)
+		})
+
+		await act(async () => {
+			fireEvent.click(getSaveButton())
+			await Promise.resolve()
+			await Promise.resolve()
+		})
 		expect(mockMessageHandlers.executeButtonAction).toHaveBeenCalledTimes(2)
 	})
 
@@ -191,11 +213,8 @@ describe("ActionButtons", () => {
 			/>,
 		)
 
-		const buttons = screen.getAllByText(/Save|Reject/)
-		const saveButton = buttons[0] as unknown as HTMLElement
-
 		// First approval
-		fireEvent.click(saveButton)
+		fireEvent.click(getSaveButton())
 		await waitFor(() => {
 			expect(mockMessageHandlers.executeButtonAction).toHaveBeenCalledTimes(1)
 		})
@@ -220,7 +239,11 @@ describe("ActionButtons", () => {
 		)
 
 		// Second approval should be possible without buttons being stuck
-		fireEvent.click(saveButton)
+		await waitFor(() => {
+			expect(getSaveHost().disabled).not.toBe(true)
+		})
+
+		fireEvent.click(getSaveButton())
 		await waitFor(() => {
 			expect(mockMessageHandlers.executeButtonAction).toHaveBeenCalledTimes(2)
 		})
@@ -245,8 +268,7 @@ describe("ActionButtons", () => {
 			/>,
 		)
 
-		const buttons = screen.getAllByText(/Save|Reject/)
-		const saveButton = buttons[0] as unknown as HTMLElement
+		const saveButton = getSaveButton()
 
 		// Rapid clicks while processing
 		fireEvent.click(saveButton)
