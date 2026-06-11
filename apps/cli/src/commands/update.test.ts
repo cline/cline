@@ -7,10 +7,14 @@ import {
 	checkForUpdates,
 	getInstallationInfo,
 	PackageManager,
+	resolveCliHubOwnerContext,
 	withMinimumReleaseAgeBypass,
 } from "./update";
 
 const originalArgv = [...process.argv];
+const originalBuildEnv = process.env.CLINE_BUILD_ENV;
+const originalDataDir = process.env.CLINE_DATA_DIR;
+const originalHubDiscoveryPath = process.env.CLINE_HUB_DISCOVERY_PATH;
 const originalWrapperPath = process.env.CLINE_WRAPPER_PATH;
 const originalGlobalSettingsPath = process.env.CLINE_GLOBAL_SETTINGS_PATH;
 const originalIsDev = process.env.IS_DEV;
@@ -32,6 +36,21 @@ function createTempFile(pathSuffix: string): string {
 describe("getInstallationInfo", () => {
 	afterEach(() => {
 		process.argv = [...originalArgv];
+		if (originalBuildEnv === undefined) {
+			delete process.env.CLINE_BUILD_ENV;
+		} else {
+			process.env.CLINE_BUILD_ENV = originalBuildEnv;
+		}
+		if (originalDataDir === undefined) {
+			delete process.env.CLINE_DATA_DIR;
+		} else {
+			process.env.CLINE_DATA_DIR = originalDataDir;
+		}
+		if (originalHubDiscoveryPath === undefined) {
+			delete process.env.CLINE_HUB_DISCOVERY_PATH;
+		} else {
+			process.env.CLINE_HUB_DISCOVERY_PATH = originalHubDiscoveryPath;
+		}
 		if (originalWrapperPath === undefined) {
 			delete process.env.CLINE_WRAPPER_PATH;
 		} else {
@@ -96,6 +115,21 @@ describe("getInstallationInfo", () => {
 describe("auto update settings", () => {
 	afterEach(() => {
 		process.argv = [...originalArgv];
+		if (originalBuildEnv === undefined) {
+			delete process.env.CLINE_BUILD_ENV;
+		} else {
+			process.env.CLINE_BUILD_ENV = originalBuildEnv;
+		}
+		if (originalDataDir === undefined) {
+			delete process.env.CLINE_DATA_DIR;
+		} else {
+			process.env.CLINE_DATA_DIR = originalDataDir;
+		}
+		if (originalHubDiscoveryPath === undefined) {
+			delete process.env.CLINE_HUB_DISCOVERY_PATH;
+		} else {
+			process.env.CLINE_HUB_DISCOVERY_PATH = originalHubDiscoveryPath;
+		}
 		if (originalWrapperPath === undefined) {
 			delete process.env.CLINE_WRAPPER_PATH;
 		} else {
@@ -150,6 +184,39 @@ describe("auto update settings", () => {
 		await checkForUpdates({ includeKanban: false });
 
 		expect(fetchSpy).toHaveBeenCalled();
+	});
+});
+
+describe("hub restart owner selection", () => {
+	afterEach(() => {
+		if (originalBuildEnv === undefined) {
+			delete process.env.CLINE_BUILD_ENV;
+		} else {
+			process.env.CLINE_BUILD_ENV = originalBuildEnv;
+		}
+		if (originalDataDir === undefined) {
+			delete process.env.CLINE_DATA_DIR;
+		} else {
+			process.env.CLINE_DATA_DIR = originalDataDir;
+		}
+		if (originalHubDiscoveryPath === undefined) {
+			delete process.env.CLINE_HUB_DISCOVERY_PATH;
+		} else {
+			process.env.CLINE_HUB_DISCOVERY_PATH = originalHubDiscoveryPath;
+		}
+	});
+
+	it("uses the shared hub owner outside production builds", () => {
+		process.env.CLINE_BUILD_ENV = "development";
+		process.env.CLINE_DATA_DIR = "/tmp/cline-update-test-data";
+		delete process.env.CLINE_HUB_DISCOVERY_PATH;
+
+		const owner = resolveCliHubOwnerContext();
+
+		expect(owner.discoveryPath).toContain("/locks/hub/owners/");
+		expect(owner.discoveryPath).not.toBe(
+			"/tmp/cline-update-test-data/locks/hub/production.json",
+		);
 	});
 });
 
