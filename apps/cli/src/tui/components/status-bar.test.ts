@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
 	createContextBar,
+	formatStatusBarAgentLabel,
 	formatStatusBarAgentName,
 	formatStatusBarUsageText,
 	resolveContextBarFilledForeground,
@@ -53,6 +54,7 @@ describe("createContextBar", () => {
 describe("formatStatusBarAgentName", () => {
 	it("keeps short names intact", () => {
 		expect(formatStatusBarAgentName("reviewer")).toBe("reviewer");
+		expect(formatStatusBarAgentName("  reviewer  ")).toBe("reviewer");
 	});
 
 	it("truncates long names with an ellipsis", () => {
@@ -62,6 +64,31 @@ describe("formatStatusBarAgentName", () => {
 		expect(formatStatusBarAgentName("documentation-specialist").length).toBe(
 			16,
 		);
+	});
+
+	it("handles very narrow limits without negative slicing", () => {
+		expect(formatStatusBarAgentName("reviewer", 3)).toBe("...");
+		expect(formatStatusBarAgentName("reviewer", 0)).toBe("");
+	});
+});
+
+describe("formatStatusBarAgentLabel", () => {
+	it("wraps the active agent name in brackets", () => {
+		expect(formatStatusBarAgentLabel("reviewer")).toBe("[reviewer]");
+	});
+
+	it("truncates inside the brackets to fit the label width", () => {
+		expect(formatStatusBarAgentLabel("documentation-specialist", 18)).toBe(
+			"[documentation...]",
+		);
+		expect(
+			formatStatusBarAgentLabel("documentation-specialist", 18)?.length,
+		).toBe(18);
+	});
+
+	it("hides blank or too-narrow labels", () => {
+		expect(formatStatusBarAgentLabel("   ")).toBeUndefined();
+		expect(formatStatusBarAgentLabel("reviewer", 4)).toBeUndefined();
 	});
 });
 
