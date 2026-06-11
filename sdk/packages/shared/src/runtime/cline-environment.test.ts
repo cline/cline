@@ -107,9 +107,9 @@ describe("getClineEnvironmentConfig", () => {
 		expect(getClineEnvironmentConfig("local")).toEqual({
 			...CLINE_ENVIRONMENTS.local,
 			apiBaseUrl: "http://127.0.0.1:3000",
+			mcpBaseUrl: "http://127.0.0.1:3000/v1/mcp",
 		});
-		expect(CLINE_ENVIRONMENTS.local.apiBaseUrl).toBe("http://localhost:3000");
-		expect(CLINE_ENVIRONMENTS.local.mcpBaseUrl).toBe("http://localhost:3000");
+		expect(CLINE_ENVIRONMENTS.local.apiBaseUrl).toBe("http://localhost:7777");
 	});
 
 	it("defaults to production when process is unavailable", () => {
