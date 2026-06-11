@@ -37,8 +37,15 @@ interface PluginTool {
 interface PluginCommand {
 	name: string;
 	description?: string;
-	handler?: (input: string) => Promise<string>;
+	handler?: (input: string) => Promise<PluginCommandResult> | PluginCommandResult;
 }
+
+type PluginCommandResult =
+	| string
+	| {
+			reply?: string;
+			submitPrompt?: string;
+	  };
 
 interface PluginRule {
 	id: string;
@@ -706,7 +713,7 @@ async function executeCommand(args: {
 	pluginId: string;
 	contributionId: string;
 	input: string;
-}): Promise<string> {
+}): Promise<PluginCommandResult> {
 	const state = getPlugin(args.pluginId);
 	const handler = state.handlers.commands.get(args.contributionId);
 	if (typeof handler !== "function") {

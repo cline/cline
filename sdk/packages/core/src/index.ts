@@ -12,6 +12,7 @@ export type {
 	AgentEvent,
 	AgentExtension as AgentPlugin, // Public-facing alias for extensions
 	AgentExtensionCommand,
+	AgentExtensionCommandResult,
 	AgentExtensionCommand as AgentPluginCommand,
 	AgentHooks,
 	AgentMode,

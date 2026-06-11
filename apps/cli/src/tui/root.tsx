@@ -252,14 +252,13 @@ function App(props: TuiProps) {
 		const shouldRestartSession = session.hasSubmitted;
 		session.clearEntries();
 		session.setHasSubmitted(false);
+		setAppView("home");
 		if (!shouldRestartSession) {
-			setAppView("home");
 			refocusTextareaRef.current();
 			return;
 		}
 		try {
 			await props.onNewSession();
-			setAppView("home");
 		} catch (error) {
 			setAppView("chat");
 			session.appendEntry({

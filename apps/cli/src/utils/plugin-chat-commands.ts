@@ -1,5 +1,6 @@
 import {
 	type AgentExtensionCommand,
+	type AgentExtensionCommandResult,
 	type BasicLogger,
 	createContributionRegistry,
 	resolveAndLoadAgentPlugins,
@@ -45,10 +46,39 @@ function createPluginCommandDefinition(
 		names: [normalizedName.toLowerCase()],
 		run: async ({ args }, context) => {
 			const result = await command.handler?.(args.join(" "));
-			if (typeof result === "string" && result.trim()) {
-				await context.reply(result);
+			const { reply, submitPrompt } = normalizeCommandResult(result);
+			if (reply) {
+				await context.reply(reply);
+			}
+			if (submitPrompt) {
+				await context.submitPrompt?.(submitPrompt);
 			}
 		},
+	};
+}
+
+function normalizeCommandResult(
+	result: AgentExtensionCommandResult | undefined,
+): { reply?: string; submitPrompt?: string } {
+	if (typeof result === "string") {
+		const reply = result.trim();
+		return reply ? { reply } : {};
+	}
+	if (!result || typeof result !== "object") {
+		return {};
+	}
+	const record = result as Record<string, unknown>;
+	const reply =
+		typeof record.reply === "string" && record.reply.trim()
+			? record.reply.trim()
+			: undefined;
+	const submitPrompt =
+		typeof record.submitPrompt === "string" && record.submitPrompt.trim()
+			? record.submitPrompt.trim()
+			: undefined;
+	return {
+		...(reply ? { reply } : {}),
+		...(submitPrompt ? { submitPrompt } : {}),
 	};
 }
 

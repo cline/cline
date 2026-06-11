@@ -8,8 +8,17 @@ import type { ClientContext, UserContext } from "./context";
 export interface AgentExtensionCommand {
 	name: string;
 	description?: string;
-	handler?: (input: string) => Promise<string> | string;
+	handler?: (
+		input: string,
+	) => Promise<AgentExtensionCommandResult> | AgentExtensionCommandResult;
 }
+
+export type AgentExtensionCommandResult =
+	| string
+	| {
+			reply?: string;
+			submitPrompt?: string;
+	  };
 
 export interface AgentExtensionRule {
 	id: string;

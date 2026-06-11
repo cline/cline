@@ -31,6 +31,7 @@ export type {
 	AgentExtensionAutomationEventType,
 	AgentExtensionCapability,
 	AgentExtensionCommand,
+	AgentExtensionCommandResult,
 	AgentExtensionHooks,
 	AgentExtensionMessageBuilder,
 	AgentExtensionProvider,
