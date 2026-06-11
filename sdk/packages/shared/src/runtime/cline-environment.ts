@@ -88,7 +88,11 @@ function applyConfigOverrides(
 	env: NodeJS.ProcessEnv,
 ): ClineEnvironmentConfig {
 	if (env.CLINE_APP_BASE_URL) {
-		config = { ...config, appBaseUrl: env.CLINE_APP_BASE_URL };
+		config = {
+			...config,
+			appBaseUrl: env.CLINE_APP_BASE_URL,
+			mcpBaseUrl: `${env.CLINE_APP_BASE_URL}/v1/mcp`,
+		};
 	}
 
 	return config;
