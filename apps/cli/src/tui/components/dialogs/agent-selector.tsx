@@ -15,6 +15,7 @@ export interface AgentProfileOption {
 	name: string;
 	description?: string;
 	systemPrompt: string;
+	plugins?: string[];
 	source: "workspace" | "global";
 }
 

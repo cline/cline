@@ -14,6 +14,7 @@ import {
 	autoUpdateOnStartup,
 	getPreferredKanbanInstaller,
 } from "./commands/update";
+import { resolveAgentProfileDisabledPluginPaths } from "./runtime/agent-profile-plugins";
 import { CLI_DEFAULT_CHECKPOINT_CONFIG } from "./runtime/defaults";
 import {
 	buildCliCompactionConfig,
@@ -967,6 +968,7 @@ export async function runCli(): Promise<void> {
 				activeAgentProfile = {
 					name: profile.name,
 					systemPrompt: profile.systemPrompt,
+					plugins: profile.plugins?.map((plugin) => plugin.name),
 				};
 			}
 		}
@@ -1009,6 +1011,10 @@ export async function runCli(): Promise<void> {
 			defaultToolAutoApprove,
 			toolPolicies,
 			agentProfile: activeAgentProfile,
+			disabledPluginPaths: resolveAgentProfileDisabledPluginPaths(
+				activeAgentProfile,
+				workspaceRoot,
+			),
 			enableSpawnAgent: !isYoloMode,
 			enableAgentTeams: !isYoloMode,
 			enableTools: true,

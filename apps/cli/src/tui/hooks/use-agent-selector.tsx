@@ -25,6 +25,7 @@ function loadAgentProfileEntries(config: Config): {
 			name: profile.name,
 			description: profile.description,
 			systemPrompt: profile.systemPrompt,
+			plugins: profile.plugins?.map((plugin) => plugin.name),
 			source:
 				workspaceRoot && profile.path?.startsWith(`${workspaceRoot}${sep}`)
 					? ("workspace" as const)
@@ -101,6 +102,7 @@ export function useAgentSelector(opts: {
 				await onAgentProfileChange({
 					name: profile.name,
 					systemPrompt: profile.systemPrompt,
+					plugins: profile.plugins,
 				});
 			});
 			session.setActiveAgentName(profile.name);
