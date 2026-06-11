@@ -395,6 +395,7 @@ export class ClineCore {
 		try {
 			await this.automationService?.dispose();
 			await this.host.dispose(...args);
+			await this.telemetry?.dispose().catch(this.logger?.error);
 		} finally {
 			this.unsubscribeBootstrapCleanup();
 			const sessionIds = [...this.activeSessionBootstraps.keys()];
