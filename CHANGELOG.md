@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.89.1]
+
+### Fixed
+
+- Restore the Anthropic provider on VS Code 1.123 and later, where the updated Node 24 runtime broke the bundled Anthropic SDK.
+- Handle the DeepSeek V4 reasoning format.
+
 ## [3.89.0]
 
 ### Added
