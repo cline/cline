@@ -27,6 +27,7 @@ const TARGET_TOOL_NAMES = new Set([
 	"search_codebase",
 	"bash",
 	"run_commands",
+	"fetch_web_content",
 ]);
 const READ_TOOL_NAMES = new Set(["read", "read_files"]);
 const OUTDATED_FILE_CONTENT = "[outdated - see the latest file content]";

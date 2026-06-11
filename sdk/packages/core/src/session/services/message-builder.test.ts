@@ -541,6 +541,32 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
 		expect(serialized).not.toContain("[outdated");
 	});
 
+	it("truncates a huge fetch_web_content structured result", () => {
+		// The web-fetch executor allows responses up to 5MB, so this tool must
+		// be covered by the truncation targets like the other bulk-output tools.
+		const builder = new MessageBuilder();
+		const messages: Message[] = [
+			toolUseMessage("call_1", "fetch_web_content", {
+				requests: [{ url: "https://example.com/huge-page" }],
+			}),
+			structuredToolResultMessage("call_1", "fetch_web_content", [
+				{
+					query: "https://example.com/huge-page",
+					result: hugeText(),
+					success: true,
+				},
+			]),
+		];
+
+		const result = builder.buildForApi(messages);
+		const serialized = JSON.stringify(result);
+
+		expect(serialized.length).toBeLessThan(120_000);
+		expect(serialized).not.toContain(MIDDLE_SENTINEL);
+		expect(serialized).toContain(HEAD_MARKER);
+		expect(serialized).toContain(TAIL_MARKER);
+	});
+
 	it("applies the aggregate text budget to nested structured strings", () => {
 		const builder = new MessageBuilder(
 			50_000,
