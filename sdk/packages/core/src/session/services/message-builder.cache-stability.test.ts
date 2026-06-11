@@ -250,6 +250,30 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 		expect(JSON.stringify(result)).not.toContain("outdated");
 	});
 
+	it("restores full content after history is rolled back past the re-read", () => {
+		const builder = new MessageBuilder();
+		const t1Only: Message[] = [
+			{ role: "user", content: "task" },
+			readToolUse("t1"),
+			readToolResult("t1", LARGE_CONTENT(1)),
+		];
+		const withReread: Message[] = [
+			...t1Only,
+			readToolUse("t2"),
+			readToolResult("t2", LARGE_CONTENT(2)),
+		];
+		// ~80KB reclaimable > threshold: rewrite commits.
+		const reqA = builder.buildForApi(withReread);
+		expect(serializedBlockAt(reqA, 2)).toContain("outdated");
+
+		// Same builder instance, history restored to before the re-read
+		// (checkpoint rollback). t1 is now the latest read of src/a.ts and
+		// must NOT stay rewritten.
+		const reqB = builder.buildForApi(t1Only);
+		expect(serializedBlockAt(reqB, 2)).not.toContain("outdated");
+		expect(serializedBlockAt(reqB, 2)).toContain("export const x = 1;");
+	});
+
 	it("rewrites eagerly when threshold is 0 (legacy behavior)", () => {
 		const builder = new MessageBuilder(undefined, undefined, undefined, 0);
 		const messages: Message[] = [

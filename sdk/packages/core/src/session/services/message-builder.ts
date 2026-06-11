@@ -77,12 +77,10 @@ export class MessageBuilder {
 	>();
 	private readResultLocatorCache = new WeakMap<object, ReadLocator[]>();
 	/**
-	 * Locator keys (per tool_use_id) whose outdated-read rewrite has been
-	 * committed. Once committed, a rewrite is applied on every subsequent
-	 * build so the serialized transcript stays byte-stable (provider prefix
-	 * caches only get broken once per batch, not on every re-read).
-	 * Intentionally NOT cleared in resetIndexes: reverting a committed
-	 * rewrite would itself break the prefix again.
+	 * Committed outdated-read rewrites (locator keys per tool_use_id),
+	 * applied on every build so the transcript stays byte-stable between
+	 * batch commits. Cleared in resetIndexes: that only fires on
+	 * non-append-only history changes, where the prefix is already broken.
 	 */
 	private readonly committedOutdatedRewrites = new Map<string, Set<string>>();
 
@@ -158,8 +156,10 @@ export class MessageBuilder {
 			const committed = this.committedOutdatedRewrites.get(block.tool_use_id);
 			if (committed && committed.size > 0) {
 				const locators = this.getReadLocators(block);
-				const outdated = locators.filter((locator) =>
-					committed.has(this.toReadLocatorKey(locator)),
+				const outdated = locators.filter(
+					(locator) =>
+						committed.has(this.toReadLocatorKey(locator)) &&
+						this.isOutdatedReadLocator(locator, block.tool_use_id),
 				);
 				if (outdated.length > 0) {
 					nextContent = this.replaceOutdatedReadContent(nextContent, outdated);
@@ -588,6 +588,7 @@ export class MessageBuilder {
 		this.readLocatorsByToolUseIdCache.clear();
 		this.latestReadToolUseByLocatorCache.clear();
 		this.latestFullContentOwnerByPathCache.clear();
+		this.committedOutdatedRewrites.clear();
 		this.readResultLocatorCache = new WeakMap<object, ReadLocator[]>();
 	}
 
