@@ -11,7 +11,7 @@ import {
 const ENV_KEYS = [
 	CLINE_ENVIRONMENT_ENV,
 	CLINE_ENVIRONMENT_OVERRIDE_ENV,
-	"CLINE_APP_BASE_URL",
+	"CLINE_API_BASE_URL",
 ] as const;
 
 const originalEnvValues = Object.fromEntries(
@@ -101,14 +101,15 @@ describe("getClineEnvironmentConfig", () => {
 		expect(getClineEnvironmentConfig()).toBe(CLINE_ENVIRONMENTS.staging);
 	});
 
-	it("applies CLINE_APP_BASE_URL without mutating the catalog config", () => {
-		process.env.CLINE_APP_BASE_URL = "http://127.0.0.1:3000";
+	it("applies CLINE_API_BASE_URL without mutating the catalog config", () => {
+		process.env.CLINE_API_BASE_URL = "http://127.0.0.1:3000";
 
 		expect(getClineEnvironmentConfig("local")).toEqual({
 			...CLINE_ENVIRONMENTS.local,
-			appBaseUrl: "http://127.0.0.1:3000",
+			apiBaseUrl: "http://127.0.0.1:3000",
 		});
-		expect(CLINE_ENVIRONMENTS.local.appBaseUrl).toBe("http://localhost:3000");
+		expect(CLINE_ENVIRONMENTS.local.apiBaseUrl).toBe("http://localhost:3000");
+		expect(CLINE_ENVIRONMENTS.local.mcpBaseUrl).toBe("http://localhost:3000");
 	});
 
 	it("defaults to production when process is unavailable", () => {
