@@ -765,12 +765,54 @@ export class MessageBuilder {
 				const next = this.truncateMiddle(entry.content);
 				return next === entry.content ? entry : { ...entry, content: next };
 			}
-			if (entry.type !== "text") {
-				return entry;
+			if (entry.type === "text") {
+				const next = this.truncateMiddle(entry.text);
+				return next === entry.text ? entry : { ...entry, text: next };
 			}
-			const next = this.truncateMiddle(entry.text);
-			return next === entry.text ? entry : { ...entry, text: next };
+			if (isStructuredToolResultEntry(entry)) {
+				return this.truncateNestedStrings(entry) as typeof entry;
+			}
+			return entry;
 		});
+	}
+
+	/**
+	 * Deep-truncates string values inside structured tool outputs (e.g.
+	 * `ToolOperationResult[]` from run_commands/read_files), which carry the
+	 * payload in untyped `{query, result, ...}` fields rather than text
+	 * blocks. Image blocks are left intact so base64 payloads survive.
+	 */
+	private truncateNestedStrings(value: unknown): unknown {
+		if (typeof value === "string") {
+			return this.truncateMiddle(value);
+		}
+		if (Array.isArray(value)) {
+			let changed = false;
+			const next = value.map((item) => {
+				const out = this.truncateNestedStrings(item);
+				if (out !== item) {
+					changed = true;
+				}
+				return out;
+			});
+			return changed ? next : value;
+		}
+		if (value !== null && typeof value === "object") {
+			if (isImageContentLike(value)) {
+				return value;
+			}
+			let changed = false;
+			const next: Record<string, unknown> = {};
+			for (const [key, item] of Object.entries(value)) {
+				const out = this.truncateNestedStrings(item);
+				if (out !== item) {
+					changed = true;
+				}
+				next[key] = out;
+			}
+			return changed ? next : value;
+		}
+		return value;
 	}
 
 	private truncateMiddle(text: string): string {
@@ -852,6 +894,8 @@ export class MessageBuilder {
 								total += utf8ByteLength(entry.text);
 							} else if (entry.type === "file") {
 								total += utf8ByteLength(entry.content);
+							} else if (isStructuredToolResultEntry(entry)) {
+								total += countNestedStringBytes(entry);
 							}
 						}
 					}
@@ -904,6 +948,8 @@ export class MessageBuilder {
 								entry.content = value;
 							},
 						});
+					} else if (isStructuredToolResultEntry(entry)) {
+						collectNestedStringCandidates(entry, candidates);
 					}
 				}
 			}
@@ -971,6 +1017,110 @@ function cloneContentBlockForMutation(block: ContentBlock): ContentBlock {
 	}
 	return {
 		...block,
-		content: block.content.map((entry) => ({ ...entry })),
+		// Structured entries can nest the payload strings arbitrarily deep, so
+		// a shallow copy would leak budget-truncation mutations back into the
+		// original conversation history.
+		content: block.content.map((entry) =>
+			isStructuredToolResultEntry(entry)
+				? (deepCloneJsonLike(entry) as typeof entry)
+				: { ...entry },
+		),
 	};
+}
+
+/**
+ * True for tool_result content entries that are not the typed text/image/file
+ * blocks — i.e. structured tool outputs such as `ToolOperationResult[]`
+ * entries that the runtime stores directly in the content array.
+ */
+function isStructuredToolResultEntry(entry: unknown): boolean {
+	if (entry === null || typeof entry !== "object") {
+		return false;
+	}
+	const type = (entry as { type?: unknown }).type;
+	return type !== "text" && type !== "image" && type !== "file";
+}
+
+function isImageContentLike(value: object): boolean {
+	return (value as { type?: unknown }).type === "image";
+}
+
+function countNestedStringBytes(value: unknown): number {
+	if (typeof value === "string") {
+		return utf8ByteLength(value);
+	}
+	if (Array.isArray(value)) {
+		let total = 0;
+		for (const item of value) {
+			total += countNestedStringBytes(item);
+		}
+		return total;
+	}
+	if (value !== null && typeof value === "object") {
+		if (isImageContentLike(value)) {
+			return 0;
+		}
+		let total = 0;
+		for (const item of Object.values(value)) {
+			total += countNestedStringBytes(item);
+		}
+		return total;
+	}
+	return 0;
+}
+
+function collectNestedStringCandidates(
+	container: unknown,
+	candidates: TruncationCandidate[],
+): void {
+	if (Array.isArray(container)) {
+		container.forEach((item, index) => {
+			if (typeof item === "string") {
+				candidates.push({
+					byteLength: utf8ByteLength(item),
+					get: () => container[index] as string,
+					set: (value) => {
+						container[index] = value;
+					},
+				});
+			} else {
+				collectNestedStringCandidates(item, candidates);
+			}
+		});
+		return;
+	}
+	if (container !== null && typeof container === "object") {
+		if (isImageContentLike(container)) {
+			return;
+		}
+		const record = container as Record<string, unknown>;
+		for (const key of Object.keys(record)) {
+			const item = record[key];
+			if (typeof item === "string") {
+				candidates.push({
+					byteLength: utf8ByteLength(item),
+					get: () => record[key] as string,
+					set: (value) => {
+						record[key] = value;
+					},
+				});
+			} else {
+				collectNestedStringCandidates(item, candidates);
+			}
+		}
+	}
+}
+
+function deepCloneJsonLike(value: unknown): unknown {
+	if (Array.isArray(value)) {
+		return value.map(deepCloneJsonLike);
+	}
+	if (value !== null && typeof value === "object") {
+		const out: Record<string, unknown> = {};
+		for (const [key, item] of Object.entries(value)) {
+			out[key] = deepCloneJsonLike(item);
+		}
+		return out;
+	}
+	return value;
 }
