@@ -39,7 +39,15 @@ export function resolveAgentProfileDisabledPluginPaths(
 			if (alwaysEnabled.has(pluginPath)) {
 				continue;
 			}
-			if (allowedNames.has(getPluginDisplayName(pluginPath).toLowerCase())) {
+			let displayName: string;
+			try {
+				displayName = getPluginDisplayName(pluginPath);
+			} catch {
+				// Unresolvable name cannot match the allowlist; disable it.
+				disabled.add(pluginPath);
+				continue;
+			}
+			if (allowedNames.has(displayName.toLowerCase())) {
 				continue;
 			}
 			disabled.add(pluginPath);

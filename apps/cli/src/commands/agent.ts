@@ -54,7 +54,14 @@ export interface AgentInstallResult {
 	source: string;
 	name: string;
 	installPath: string;
-	plugins: AgentPluginInstallPlan;
+	/** Plugin names by outcome, one consistent shape across categories. */
+	plugins: {
+		alreadyInstalled: string[];
+		installed: string[];
+		failed: string[];
+		skipped: string[];
+		manual: string[];
+	};
 }
 
 export type ParsedAgentSource =
@@ -179,12 +186,18 @@ export function planAgentPluginInstalls(
 	// Global plugin directories only: the profile installs globally, so a
 	// workspace-local plugin cannot satisfy its dependencies.
 	for (const directory of resolvePluginConfigSearchPaths(undefined)) {
+		let pluginPaths: string[] = [];
 		try {
-			for (const pluginPath of discoverPluginModulePaths(directory)) {
-				installedNames.add(getPluginDisplayName(pluginPath).toLowerCase());
-			}
+			pluginPaths = discoverPluginModulePaths(directory);
 		} catch {
 			// Best effort: skip unreadable plugin roots.
+		}
+		for (const pluginPath of pluginPaths) {
+			try {
+				installedNames.add(getPluginDisplayName(pluginPath).toLowerCase());
+			} catch {
+				// Best effort: one unreadable plugin should not hide the rest.
+			}
 		}
 	}
 	for (const ref of plugins) {
@@ -327,6 +340,12 @@ export async function runAgentInstallCommand(
 				const answer = await p.confirm({
 					message: `Install ${plan.installable.length} plugin${plan.installable.length === 1 ? "" : "s"}?`,
 				});
+				if (p.isCancel(answer)) {
+					p.cancel(
+						`Cancelled. The agent profile is installed at ${installPath}; install its plugins later with cline plugin install.`,
+					);
+					return 1;
+				}
 				confirmed = answer === true;
 			}
 			if (confirmed) {
@@ -358,11 +377,15 @@ export async function runAgentInstallCommand(
 				source: options.source.trim(),
 				name: config.name,
 				installPath,
-				plugins: plan,
+				plugins: {
+					alreadyInstalled: plan.alreadyInstalled.map((ref) => ref.name),
+					installed,
+					failed,
+					skipped,
+					manual: plan.manual.map((ref) => ref.name),
+				},
 			};
-			process.stdout.write(
-				JSON.stringify({ ...result, installed, failed, skipped }),
-			);
+			process.stdout.write(JSON.stringify(result));
 		}
 		return failed.length > 0 ? 1 : 0;
 	} catch (error) {
