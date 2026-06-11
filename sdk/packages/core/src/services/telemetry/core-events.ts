@@ -74,6 +74,9 @@ export const CORE_TELEMETRY_EVENTS = {
 		ERROR: SDK_ERROR_TELEMETRY_EVENT,
 		TOOL_TIMEOUT: "sdk.tool_timeout",
 	},
+	FEATURE_FLAGS: {
+		FLAG_CALLED: "$feature_flag_called",
+	},
 } as const;
 
 export interface RunCommandsTimeoutTelemetryProperties {

@@ -3,6 +3,7 @@ import type {
 	AgentConfig,
 	AutomationEventEnvelope,
 	BasicLogger,
+	IFeatureFlagsProvider,
 	ITelemetryService,
 } from "@cline/shared";
 import type { CronEventSuppression } from "../cron/events/cron-event-ingress";
@@ -205,6 +206,12 @@ export interface ClineCoreOptions {
 	 * If omitted, telemetry is a no-op.
 	 */
 	telemetry?: ITelemetryService;
+	/**
+	 * Feature flags provider for this ClineCore instance. Core wraps the provider
+	 * in a cached FeatureFlagsService and exposes it as `cline.featureFlags`.
+	 * If omitted, Core uses a no-op provider with default flag values.
+	 */
+	featureFlags?: IFeatureFlagsProvider;
 	/**
 	 * Optional structured logger for core-side operational diagnostics such as
 	 * runtime-host selection and fallback decisions.

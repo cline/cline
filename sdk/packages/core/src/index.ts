@@ -32,9 +32,15 @@ export type {
 	ClineAccountActionRequest,
 	ConnectorHookEvent,
 	ContentBlock,
+	FeatureFlag,
+	FeatureFlagPayload,
+	FeatureFlagsAndPayloads,
+	FeatureFlagsContext,
+	FeatureFlagsSettings,
 	FileContent,
 	GetProviderModelsActionRequest,
 	HookSessionContext,
+	IFeatureFlagsProvider,
 	ImageContent,
 	ITelemetryService,
 	ListProvidersActionRequest,
@@ -81,6 +87,8 @@ export {
 	createContributionRegistry,
 	createTool,
 	emptyWorkspaceManifest,
+	FEATURE_FLAGS,
+	FeatureFlagDefaultValue,
 	formatDisplayUserInput,
 	noopBasicLogger,
 	normalizeSdkError,
@@ -434,6 +442,11 @@ export {
 	type DesktopToolApprovalOptions,
 	requestDesktopToolApproval,
 } from "./runtime/tools/tool-approval";
+export {
+	FeatureFlagsService,
+	type FeatureFlagsServiceOptions,
+	NoOpFeatureFlagsProvider,
+} from "./services/feature-flags";
 export type { GlobalSettings } from "./services/global-settings";
 export {
 	filterDisabledPluginPaths,
