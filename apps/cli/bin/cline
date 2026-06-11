@@ -16,10 +16,9 @@
 // whether the CPU supports AVX2 by reading /proc/cpuinfo. When AVX2 is absent
 // we prefer the "@cline/cli-linux-x64-baseline" package (compiled with
 // --target=bun-linux-x64-baseline) which targets the x86-64-v2 baseline.
-// On all other platforms we conservatively assume AVX2 is present.
-// A SIGILL safety net catches cases where the installed binary still crashes
-// (e.g. forced install, cached .cline binary) and transparently re-runs the
-// baseline variant.
+// AVX2 detection is Linux-only; other platforms always use the standard binary.
+// A SIGILL safety net on Linux catches edge cases (e.g. a cached binary from
+// before this fix was installed).
 
 const childProcess = require("child_process");
 const fs = require("fs");
@@ -37,14 +36,10 @@ const childEnv = {
 	CLINE_WRAPPER_PATH: scriptPath,
 };
 
-// Why: Centralise the host-platform AVX2 probe so callers don't need to know
-// the /proc path or handle read errors.
-// What: Reads /proc/cpuinfo on Linux and delegates to cpuHasAvx2(); returns
-// true unconditionally on non-Linux (no crash observed in practice there).
-// Test: On a no-AVX2 Linux host the call returns false; on macOS it returns true.
+// Reads /proc/cpuinfo on Linux to detect AVX2 support. Returns true on non-Linux platforms (detection is Linux-only).
 function hostCpuHasAvx2() {
 	if (os.platform() !== "linux") {
-		return true; // Only Linux /proc/cpuinfo is reliable; assume capable elsewhere.
+		return true; // AVX2 detection is Linux-only; always use the standard binary on other platforms.
 	}
 	try {
 		const cpuinfo = fs.readFileSync("/proc/cpuinfo", "utf8");
@@ -54,12 +49,7 @@ function hostCpuHasAvx2() {
 	}
 }
 
-// Why: Factor out the binary search loop so the SIGILL fallback path can call
-// it with a different names array without duplicating the directory-walk logic.
-// What: Walks parent directories from startDir looking for node_modules/<name>/bin/<binary>.
-// Returns the first matching path, or undefined if none found.
-// Test: Pass a single-element names array pointing to an existing fake binary
-//       path and verify the function returns that path.
+// Walks parent directories from startDir looking for node_modules/<name>/bin/<binary>. Returns first match or undefined.
 function findBinaryFromNames(startDir, nameList) {
 	let current = startDir;
 	for (;;) {
@@ -80,21 +70,12 @@ function findBinaryFromNames(startDir, nameList) {
 	}
 }
 
-// Why: Convenience wrapper that delegates to findBinaryFromNames using the
-// module-level `names` preference list. Avoids a duplicate directory-walk loop.
-// What: Same as findBinaryFromNames(startDir, names).
-// Test: Same as findBinaryFromNames — verifying findBinary returns the same
-//       result as calling findBinaryFromNames with the global names array.
+// Convenience wrapper: calls findBinaryFromNames with the module-level `names` preference list.
 function findBinary(startDir) {
 	return findBinaryFromNames(startDir, names);
 }
 
-// Why: Centralise process execution so SIGILL handling can be added in one
-// place without duplicating the spawnSync call.
-// What: Runs target with inherited stdio; handles errors, numeric exit codes,
-//       and signals. Optionally returns the raw result for SIGILL inspection.
-// Test: Mock childProcess.spawnSync to return { signal: "SIGILL" } and verify
-//       the return value propagates to the caller when returnResult is true.
+// Runs target with inherited stdio. If returnResult is true, returns the raw spawnSync result instead of exiting.
 function run(target, returnResult) {
 	const result = childProcess.spawnSync(target, process.argv.slice(2), {
 		stdio: "inherit",
@@ -244,7 +225,7 @@ if (!resolved) {
 // re-runs the standard binary.
 const result = run(resolved, /* returnResult= */ true);
 
-if (result.signal === "SIGILL" && arch === "x64") {
+if (result.signal === "SIGILL" && arch === "x64" && platform === "linux") {
 	// Check whether what we ran was already the baseline binary.
 	const resolvedIsBaseline = resolved.includes("-baseline");
 

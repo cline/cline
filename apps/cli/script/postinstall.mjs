@@ -5,7 +5,7 @@
 // Creates a hard link (or copy fallback) from the platform-specific binary
 // to bin/.cline for fast startup on subsequent runs.
 //
-// On x64 Linux/Windows without AVX2 (e.g. Sandy Bridge / Xeon E5-2620 v1),
+// On x64 Linux without AVX2 (e.g. Sandy Bridge / Xeon E5-2620 v1),
 // the standard Bun-compiled binary requires AVX2 and will SIGILL immediately.
 // This script detects the CPU capability and caches the -baseline variant when
 // AVX2 is absent so the fast-path cached binary is always runnable.
@@ -28,11 +28,7 @@ const { cpuHasAvx2, choosePackageName } = require(
 	path.join(__dirname, "..", "bin", "resolver-helpers.cjs"),
 );
 
-// Why: Determine whether the host CPU supports AVX2 using the same probe as the
-//      runtime resolver, so postinstall and the resolver always agree on which
-//      package to use.
-// What: Reads /proc/cpuinfo on Linux; on non-Linux assumes AVX2 present.
-// Test: On a Sandy Bridge Linux host this returns false.
+// Reads /proc/cpuinfo on Linux to detect AVX2 support. Returns true on non-Linux platforms.
 function hostCpuHasAvx2() {
 	if (os.platform() !== "linux") {
 		return true; // /proc/cpuinfo is only reliable on Linux; assume capable elsewhere.

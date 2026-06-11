@@ -109,13 +109,6 @@ describe("buildNames", () => {
 			"@cline/cli-darwin-x64",
 		]);
 	});
-
-	it("windows x64 without AVX2 → baseline first, then standard", () => {
-		expect(buildNames("@cline/cli-windows-x64", "x64", false)).toEqual([
-			"@cline/cli-windows-x64-baseline",
-			"@cline/cli-windows-x64",
-		]);
-	});
 });
 
 // ── choosePackageName ─────────────────────────────────────────────────────────

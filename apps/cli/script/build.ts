@@ -46,12 +46,7 @@ function buildInlinedEnvDefines(): Record<string, string> {
 	return defines;
 }
 
-// Why: Detect AVX2 at build time so the smoke test can skip the standard x64
-// binary on no-AVX2 hosts (it would SIGILL and fail the build) and instead
-// run the baseline x64 binary when it is present.
-// What: Returns true when /proc/cpuinfo contains "avx2" as a whole word.
-// On non-Linux hosts (where /proc/cpuinfo doesn't exist) returns true.
-// Test: On a Sandy Bridge host (avx but no avx2), buildHostHasAvx2() returns false.
+// Reads /proc/cpuinfo on Linux to detect AVX2 support at build time. Returns true on non-Linux hosts.
 //
 // Note: The AVX2 regex below is intentionally duplicated from
 // bin/resolver-helpers.cjs. build.ts runs under Bun and could technically
@@ -81,10 +76,10 @@ console.log(`Building @cline/cli v${version}`);
 
 const buildOptions = parseBuildOptions(process.argv.slice(2));
 
-// "baseline" variant: compiled with bun-linux-x64-baseline / bun-windows-x64-baseline.
+// "baseline" variant: compiled with bun-linux-x64-baseline.
 // These binaries use the x86-64-v2 instruction set (no AVX2) and are required on
-// older Intel CPUs such as Sandy Bridge (issue #10514). Only x64 Linux and Windows
-// are affected; macOS does not run on non-AVX2 x64 hardware in practice.
+// older Intel CPUs such as Sandy Bridge (issue #10514). Baseline support is scoped
+// to x64 Linux; Windows and macOS detection is out of scope for this patch.
 const allTargets: {
 	os: string;
 	arch: "arm64" | "x64";
@@ -96,7 +91,6 @@ const allTargets: {
 	{ os: "darwin", arch: "arm64" },
 	{ os: "darwin", arch: "x64" },
 	{ os: "win32", arch: "x64" },
-	{ os: "win32", arch: "x64", variant: "baseline" },
 	{ os: "win32", arch: "arm64" },
 ];
 

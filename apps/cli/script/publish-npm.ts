@@ -40,7 +40,6 @@ const expectedPlatformPackages = [
 	"@cline/cli-linux-x64-baseline",
 	"@cline/cli-windows-arm64",
 	"@cline/cli-windows-x64",
-	"@cline/cli-windows-x64-baseline",
 ] as const;
 
 const hostSdkPackages = [

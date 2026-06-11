@@ -14,7 +14,7 @@ Bun's `--compile` flag produces a single self-contained executable that includes
 
 ## What Gets Published
 
-Publishing the CLI publishes 9 packages to npm:
+Publishing the CLI publishes 8 packages to npm:
 
 | Package | Description |
 |---|---|
@@ -23,8 +23,7 @@ Publishing the CLI publishes 9 packages to npm:
 | `@cline/cli-linux-arm64` | Linux ARM binary |
 | `@cline/cli-linux-x64` | Linux x64 binary (AVX2-compiled; requires Haswell or newer) |
 | `@cline/cli-linux-x64-baseline` | Linux x64 baseline binary (no-AVX2; Sandy Bridge and older) |
-| `@cline/cli-windows-x64` | Windows x64 binary (AVX2-compiled) |
-| `@cline/cli-windows-x64-baseline` | Windows x64 baseline binary (no-AVX2) |
+| `@cline/cli-windows-x64` | Windows x64 binary |
 | `@cline/cli-windows-arm64` | Windows ARM binary |
 | `cline` | Wrapper package (pulls the right binary via `optionalDependencies`) |
 
@@ -63,7 +62,6 @@ The `cline` wrapper package contains no binary -- just the resolver script, post
     "@cline/cli-linux-x64": "0.1.0",
     "@cline/cli-linux-x64-baseline": "0.1.0",
     "@cline/cli-windows-x64": "0.1.0",
-    "@cline/cli-windows-x64-baseline": "0.1.0",
     "@cline/cli-windows-arm64": "0.1.0"
   }
 }
@@ -152,7 +150,6 @@ npm installs cline (wrapper package)
     - @cline/cli-linux-x64              (standard; requires AVX2)
     - @cline/cli-linux-x64-baseline     (no-AVX2; installed alongside standard)
     - @cline/cli-windows-x64
-    - @cline/cli-windows-x64-baseline
     - @cline/cli-windows-arm64
   |
   v
@@ -221,7 +218,7 @@ Flags:
 Orchestrates publishing all packages to npm:
 
 1. Reads built packages from `dist/`
-2. Publishes all 8 platform packages in parallel (`@cline/cli-darwin-arm64`, `@cline/cli-linux-x64-baseline`, etc.)
+2. Publishes all 7 platform packages in parallel (`@cline/cli-darwin-arm64`, `@cline/cli-linux-x64-baseline`, etc.)
 3. Generates a clean main package (`cline`) with:
    - `bin.cline` pointing to the resolver script
    - `postinstall` running the binary caching script
@@ -267,10 +264,10 @@ During development, `bin` in package.json points to `src/index.ts` for `bun link
 When building for a different platform (e.g., compiling for Linux on a Mac), Bun needs the target platform's native binaries for `@opentui/core`. The build script handles this by pre-downloading all platform variants with `bun install --os="*" --cpu="*"`.
 
 ### Version synchronization
-All 9 packages (8 platform + 1 wrapper) must have the same version. The build script reads the version from `apps/cli/package.json`. The publish script verifies that the built package versions match each other and `apps/cli/package.json`.
+All 8 packages (7 platform + 1 wrapper) must have the same version. The build script reads the version from `apps/cli/package.json`. The publish script verifies that the built package versions match each other and `apps/cli/package.json`.
 
 ### Package naming and scoping
-Platform packages are published under the `@cline` scope. The generated wrapper package is published as `cline`, so npm trusted publishing must be configured for all 9 package names (including `@cline/cli-linux-x64-baseline` and `@cline/cli-windows-x64-baseline`).
+Platform packages are published under the `@cline` scope. The generated wrapper package is published as `cline`, so npm trusted publishing must be configured for all 8 package names (including `@cline/cli-linux-x64-baseline`).
 
 ### postinstall reliability
 The postinstall script runs in diverse environments (CI, Docker, restricted permissions, network-mounted filesystems where hard links fail). It always wraps operations in try/catch and exits 0. The resolver script is the ultimate fallback.
@@ -292,14 +289,13 @@ The standard Bun-compiled x64 binary requires the AVX2 instruction set extension
 
 ### What is published
 
-Two additional baseline packages are published alongside the standard x64 packages:
+One additional baseline package is published alongside the standard x64 packages:
 
 | Package | Bun target | CPU requirement |
 |---|---|---|
 | `@cline/cli-linux-x64-baseline` | `bun-linux-x64-baseline` | x86-64-v2 (AVX, no AVX2) |
-| `@cline/cli-windows-x64-baseline` | `bun-windows-x64-baseline` | x86-64-v2 (AVX, no AVX2) |
 
-These are built by passing `--target=bun-linux-x64-baseline` (or `bun-windows-x64-baseline`) to `bun build --compile`. Bun embeds its own "baseline" runtime that avoids AVX2 instructions. The packages are identical to the standard packages in every other respect (same version, same `cpu: ["x64"]` field, same binary name).
+This is built by passing `--target=bun-linux-x64-baseline` to `bun build --compile`. Bun embeds its own "baseline" runtime that avoids AVX2 instructions. The package is identical to the standard package in every other respect (same version, same `cpu: ["x64"]` field, same binary name). Windows and macOS baseline detection is out of scope for this patch.
 
 ### How AVX2 detection works
 
@@ -359,12 +355,12 @@ The baseline runtime starts and runs normally on the same machine. This confirms
 # Build all platforms including the two baseline variants:
 bun run build:platforms
 
-# Build only the current platform (baseline if on x64 Linux/Windows):
+# Build only the current platform (baseline if on x64 Linux):
 bun run build:platforms:single
 ```
 
-The build script in `script/build.ts` includes `{ os: "linux", arch: "x64", variant: "baseline" }` and `{ os: "win32", arch: "x64", variant: "baseline" }` in `allTargets`. The `variant` field appends `-baseline` to the Bun compile target, package name, and output directory.
+The build script in `script/build.ts` includes `{ os: "linux", arch: "x64", variant: "baseline" }` in `allTargets`. The `variant` field appends `-baseline` to the Bun compile target, package name, and output directory.
 
 ### Version synchronization
 
-Baseline packages share the same version number as all other platform packages. All 8 platform packages (6 standard + 2 baseline) are included in `expectedPlatformPackages` in `script/publish-npm.ts` and must be present in `dist/` before the publish script proceeds.
+The baseline package shares the same version number as all other platform packages. All 7 platform packages (6 standard + 1 Linux baseline) are included in `expectedPlatformPackages` in `script/publish-npm.ts` and must be present in `dist/` before the publish script proceeds.
