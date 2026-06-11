@@ -250,6 +250,9 @@ function App(props: TuiProps) {
 			const data = await propsOnDeleteConfigItem(item, options);
 			if (data) {
 				setWorkflowSlashCommands(data.workflowSlashCommands);
+				if (item.kind === "plugin") {
+					setPluginCommandsRefreshKey((key) => key + 1);
+				}
 			}
 			return data;
 		};

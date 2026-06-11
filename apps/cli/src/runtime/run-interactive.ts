@@ -370,6 +370,9 @@ export async function runInteractive(
 	> => {
 		const data = await configDataLoader.onDeleteConfigItem(item, options);
 		if (data && shouldRefreshInteractiveSessionForConfigItem(item)) {
+			if (item.kind === "plugin") {
+				await resetPluginChatCommandHost();
+			}
 			await refreshInteractiveSessionPolicies();
 		}
 		return data;
