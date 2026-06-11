@@ -66,7 +66,7 @@ function transformToolCallIdForNativeApi(toolId: string, provider?: ApiProvider)
  * @returns Array of OpenAI.Chat.ChatCompletionMessageParam objects
  */
 export function convertToOpenAiMessages(
-	anthropicMessages: Omit<ClineStorageMessage, "modelInfo">[],
+	anthropicMessages: Anthropic.Messages.MessageParam[],
 	provider?: ApiProvider,
 ): OpenAI.Chat.ChatCompletionMessageParam[] {
 	const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = []
@@ -422,6 +422,7 @@ export function convertToAnthropicMessage(completion: OpenAI.Chat.Completions.Ch
 			output_tokens: completion.usage?.completion_tokens || 0,
 			cache_creation_input_tokens: null,
 			cache_read_input_tokens: null,
+			server_tool_use: null,
 		},
 	}
 	try {
