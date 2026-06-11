@@ -132,6 +132,27 @@ export function convertClineStorageToAnthropicMessage(
 }
 
 /**
+ * Cline stores images as base64, so an image block's source is always a base64 source.
+ * The Anthropic SDK types the source as a Base64ImageSource | URLImageSource union, so this
+ * narrows to the base64 variant for the transform layer. URL sources are not produced by Cline,
+ * so they degrade to empty values rather than throwing.
+ */
+export function getBase64ImageSource(source: Anthropic.ImageBlockParam["source"]): { mediaType: string; data: string } {
+	if (source.type === "base64") {
+		return { mediaType: source.media_type, data: source.data }
+	}
+	return { mediaType: "", data: "" }
+}
+
+/**
+ * Builds a base64 data URL from an image block's source. See getBase64ImageSource.
+ */
+export function getImageDataUrl(source: Anthropic.ImageBlockParam["source"]): string {
+	const { mediaType, data } = getBase64ImageSource(source)
+	return `data:${mediaType};base64,${data}`
+}
+
+/**
  * Clean a content block by removing Cline-specific fields and returning only Anthropic-compatible fields
  */
 export function cleanContentBlock(block: ClineContent): Anthropic.ContentBlock {
