@@ -480,8 +480,12 @@ export class ClineApiServerMock {
 						// a `role: "tool"` message. Detect that follow-up first — the
 						// original "edit_request" user prompt is still present in the
 						// conversation history of the follow-up request, so order matters.
+						// Scoped to edit_request conversations so tool results from other
+						// (future) scenarios don't mis-route to EDIT_REQUEST_COMPLETE.
 						const hasToolResult =
-							Array.isArray(messages) && messages.some((m: { role?: string }) => m?.role === "tool")
+							body.includes("edit_request") &&
+							Array.isArray(messages) &&
+							messages.some((m: { role?: string }) => m?.role === "tool")
 
 						let responseText = E2E_MOCK_API_RESPONSES.DEFAULT
 						let includeEditorToolCall = false

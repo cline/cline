@@ -20,9 +20,11 @@ e2e.describe("Diff Editor", () => {
 			// multi-root workspaces (fixtures/workspace). The fixture file is
 			// checked into git, so restore it after the (real) edit.
 			const editedFilePath = path.join(workspaceDir, "test.ts")
-			const originalFileContent = readFileSync(editedFilePath, "utf-8")
+			let originalFileContent: string | undefined
 
 			try {
+				originalFileContent = readFileSync(editedFilePath, "utf-8")
+
 				await helper.signin(sidebar)
 
 				const inputbox = sidebar.getByTestId("chat-input")
@@ -68,7 +70,11 @@ e2e.describe("Diff Editor", () => {
 				// The edit was actually applied to the file on disk.
 				expect(readFileSync(editedFilePath, "utf-8")).toContain('export const name = "cline"')
 			} finally {
-				writeFileSync(editedFilePath, originalFileContent, "utf-8")
+				// Skip the restore when the initial read failed — there is
+				// nothing to restore and the read error is the real failure.
+				if (originalFileContent !== undefined) {
+					writeFileSync(editedFilePath, originalFileContent, "utf-8")
+				}
 			}
 		})
 	})
