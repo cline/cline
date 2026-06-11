@@ -765,12 +765,56 @@ export class MessageBuilder {
 				const next = this.truncateMiddle(entry.content);
 				return next === entry.content ? entry : { ...entry, content: next };
 			}
+			if (isStructuredToolResultEntry(entry)) {
+				return this.truncateStructuredValue(entry) as (typeof content)[number];
+			}
 			if (entry.type !== "text") {
 				return entry;
 			}
 			const next = this.truncateMiddle(entry.text);
 			return next === entry.text ? entry : { ...entry, text: next };
 		});
+	}
+
+	/**
+	 * Recursively truncates nested string fields inside structured tool
+	 * results (e.g. the `[{query, result, success}]` `ToolOperationResult`
+	 * shape from `run_commands`/`read_files`). Copy-on-write: returns the
+	 * original value when nothing changes. Image blocks are left intact so
+	 * their base64 payloads survive downstream multimodal extraction.
+	 */
+	private truncateStructuredValue(value: unknown): unknown {
+		if (typeof value === "string") {
+			return this.truncateMiddle(value);
+		}
+		if (Array.isArray(value)) {
+			let changed = false;
+			const next = value.map((item) => {
+				const out = this.truncateStructuredValue(item);
+				if (out !== item) {
+					changed = true;
+				}
+				return out;
+			});
+			return changed ? next : value;
+		}
+		if (value !== null && typeof value === "object") {
+			if (isImageBlockLike(value)) {
+				return value;
+			}
+			let changed = false;
+			const record = value as Record<string, unknown>;
+			const next: Record<string, unknown> = {};
+			for (const [key, entry] of Object.entries(record)) {
+				const out = this.truncateStructuredValue(entry);
+				if (out !== entry) {
+					changed = true;
+				}
+				next[key] = out;
+			}
+			return changed ? next : value;
+		}
+		return value;
 	}
 
 	private truncateMiddle(text: string): string {
@@ -852,6 +896,8 @@ export class MessageBuilder {
 								total += utf8ByteLength(entry.text);
 							} else if (entry.type === "file") {
 								total += utf8ByteLength(entry.content);
+							} else if (isStructuredToolResultEntry(entry)) {
+								total += countStructuredStringBytes(entry);
 							}
 						}
 					}
@@ -904,6 +950,8 @@ export class MessageBuilder {
 								entry.content = value;
 							},
 						});
+					} else if (isStructuredToolResultEntry(entry)) {
+						collectStructuredCandidates(entry, candidates);
 					}
 				}
 			}
@@ -971,6 +1019,115 @@ function cloneContentBlockForMutation(block: ContentBlock): ContentBlock {
 	}
 	return {
 		...block,
-		content: block.content.map((entry) => ({ ...entry })),
+		content: block.content.map((entry) =>
+			isStructuredToolResultEntry(entry)
+				? (cloneStructuredValue(entry) as typeof entry)
+				: { ...entry },
+		),
 	};
+}
+
+/**
+ * Tool outputs that are arrays (e.g. `ToolOperationResult[]` from
+ * `run_commands`/`read_files`) pass through the message codec as raw
+ * objects inside `tool_result.content`, not as typed `text`/`image`/`file`
+ * blocks. Anything without one of those recognized types is treated as
+ * structured data and walked recursively.
+ */
+function isStructuredToolResultEntry(entry: unknown): boolean {
+	if (entry === null || typeof entry !== "object") {
+		return false;
+	}
+	const type = (entry as Record<string, unknown>).type;
+	return type !== "text" && type !== "image" && type !== "file";
+}
+
+function isImageBlockLike(value: object): boolean {
+	const record = value as Record<string, unknown>;
+	return record.type === "image" && typeof record.data === "string";
+}
+
+function countStructuredStringBytes(value: unknown): number {
+	if (typeof value === "string") {
+		return utf8ByteLength(value);
+	}
+	if (Array.isArray(value)) {
+		let total = 0;
+		for (const item of value) {
+			total += countStructuredStringBytes(item);
+		}
+		return total;
+	}
+	if (value !== null && typeof value === "object") {
+		if (isImageBlockLike(value)) {
+			return 0;
+		}
+		let total = 0;
+		for (const entry of Object.values(value)) {
+			total += countStructuredStringBytes(entry);
+		}
+		return total;
+	}
+	return 0;
+}
+
+/** Deep-clones structured tool result data so budget truncation can mutate
+ * it in place without touching persisted conversation objects. Image blocks
+ * are kept by reference — they are never mutated. */
+function cloneStructuredValue(value: unknown): unknown {
+	if (Array.isArray(value)) {
+		return value.map((item) => cloneStructuredValue(item));
+	}
+	if (value !== null && typeof value === "object") {
+		if (isImageBlockLike(value)) {
+			return value;
+		}
+		const next: Record<string, unknown> = {};
+		for (const [key, entry] of Object.entries(value)) {
+			next[key] = cloneStructuredValue(entry);
+		}
+		return next;
+	}
+	return value;
+}
+
+function collectStructuredCandidates(
+	value: unknown,
+	candidates: TruncationCandidate[],
+): void {
+	if (Array.isArray(value)) {
+		for (let i = 0; i < value.length; i++) {
+			const item = value[i];
+			if (typeof item === "string") {
+				candidates.push({
+					byteLength: utf8ByteLength(item),
+					get: () => value[i] as string,
+					set: (next) => {
+						value[i] = next;
+					},
+				});
+			} else {
+				collectStructuredCandidates(item, candidates);
+			}
+		}
+		return;
+	}
+	if (value === null || typeof value !== "object" || isImageBlockLike(value)) {
+		return;
+	}
+	const record = value as Record<string, unknown>;
+	for (const key of Object.keys(record)) {
+		const entry = record[key];
+		if (typeof entry === "string") {
+			candidates.push({
+				byteLength: utf8ByteLength(entry),
+				get: () => record[key] as string,
+				set: (next) => {
+					record[key] = next;
+				},
+			});
+		} else {
+			collectStructuredCandidates(entry, candidates);
+		}
+	}
 }
