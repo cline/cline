@@ -434,6 +434,7 @@ export async function runInteractive(
 			attachments,
 			onCommandOutput,
 		) => {
+			let commandOutput: string | undefined;
 			try {
 				await sessionRuntime.ensureReady();
 				await waitForSubmittedMode(mode);
@@ -479,7 +480,7 @@ export async function runInteractive(
 					}
 				}
 				input = chatCommandResult.input;
-				const commandOutput = chatCommandResult.commandOutput;
+				commandOutput = chatCommandResult.commandOutput;
 				const {
 					prompt: userInput,
 					userImages,
@@ -529,6 +530,7 @@ export async function runInteractive(
 							currentContextSize: getCurrentContextSize(result.messages),
 							iterations: result.iterations,
 							finishReason: "aborted",
+							commandOutput,
 						};
 					}
 					const errorText = result.text.trim();
@@ -550,6 +552,7 @@ export async function runInteractive(
 						usage: { inputTokens: 0, outputTokens: 0 },
 						iterations: 0,
 						finishReason: "aborted",
+						commandOutput,
 					};
 				}
 				logCliError(config.logger, "Interactive turn failed", {

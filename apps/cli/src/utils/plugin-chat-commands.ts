@@ -67,14 +67,13 @@ function normalizeCommandResult(
 	if (!result || typeof result !== "object") {
 		return {};
 	}
-	const record = result as Record<string, unknown>;
 	const reply =
-		typeof record.reply === "string" && record.reply.trim()
-			? record.reply.trim()
+		typeof result.reply === "string" && result.reply.trim()
+			? result.reply.trim()
 			: undefined;
 	const submitPrompt =
-		typeof record.submitPrompt === "string" && record.submitPrompt.trim()
-			? record.submitPrompt.trim()
+		typeof result.submitPrompt === "string" && result.submitPrompt.trim()
+			? result.submitPrompt.trim()
 			: undefined;
 	return {
 		...(reply ? { reply } : {}),
