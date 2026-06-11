@@ -11,7 +11,7 @@ import axios from "axios"
 import JSON5 from "json5"
 import OpenAI from "openai"
 import { buildExternalBasicHeaders } from "@/services/EnvUtils"
-import { ClineStorageMessage } from "@/shared/messages/content"
+import { ClineStorageMessage, getBase64ImageSource } from "@/shared/messages/content"
 import { getAxiosSettings } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
@@ -302,10 +302,11 @@ namespace Gemini {
 				if (block.type === "text") {
 					parts.push({ text: block.text })
 				} else if (block.type === "image") {
+					const { mediaType, data } = getBase64ImageSource(block.source)
 					parts.push({
 						inlineData: {
-							mimeType: block.source.media_type,
-							data: block.source.data,
+							mimeType: mediaType,
+							data,
 						},
 					})
 				}

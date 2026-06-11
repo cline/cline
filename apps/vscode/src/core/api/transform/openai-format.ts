@@ -6,9 +6,9 @@ import {
 	ClineAssistantThinkingBlock,
 	ClineAssistantToolUseBlock,
 	ClineImageContentBlock,
-	ClineStorageMessage,
 	ClineTextContentBlock,
 	ClineUserToolResultContentBlock,
+	getImageDataUrl,
 } from "@/shared/messages/content"
 import { Logger } from "@/shared/services/Logger"
 
@@ -65,7 +65,7 @@ function transformToolCallIdForNativeApi(toolId: string, provider?: ApiProvider)
  * @returns Array of OpenAI.Chat.ChatCompletionMessageParam objects
  */
 export function convertToOpenAiMessages(
-	anthropicMessages: Omit<ClineStorageMessage, "modelInfo">[],
+	anthropicMessages: Anthropic.Messages.MessageParam[],
 	provider?: ApiProvider,
 ): OpenAI.Chat.ChatCompletionMessageParam[] {
 	const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = []
@@ -144,7 +144,7 @@ export function convertToOpenAiMessages(
 						role: "user",
 						content: toolResultImages.map((part) => ({
 							type: "image_url",
-							image_url: { url: `data:${part.source.media_type};base64,${part.source.data}` },
+							image_url: { url: getImageDataUrl(part.source) },
 						})),
 					})
 				}
@@ -158,7 +158,7 @@ export function convertToOpenAiMessages(
 								return {
 									type: "image_url",
 									image_url: {
-										url: `data:${part.source.media_type};base64,${part.source.data}`,
+										url: getImageDataUrl(part.source),
 									},
 								}
 							}
@@ -421,6 +421,7 @@ export function convertToAnthropicMessage(completion: OpenAI.Chat.Completions.Ch
 			output_tokens: completion.usage?.completion_tokens || 0,
 			cache_creation_input_tokens: null,
 			cache_read_input_tokens: null,
+			server_tool_use: null,
 		},
 	}
 	try {

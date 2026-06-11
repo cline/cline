@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	clearHubDiscovery,
+	probeHubServer,
 	readHubDiscovery,
 	resolveHubOwnerContext,
 	writeHubDiscovery,
@@ -87,5 +88,63 @@ describe("hub discovery", () => {
 		}
 		await clearHubDiscovery(discoveryPath);
 		await expect(readHubDiscovery(discoveryPath)).resolves.toBeUndefined();
+	});
+
+	it("rejects discovery records without an auth token", async () => {
+		snapshot = captureEnv();
+		delete process.env.CLINE_HUB_DISCOVERY_PATH;
+		process.env.CLINE_DATA_DIR = "/tmp/cline-data";
+
+		const discoveryPath = resolveHubOwnerContext("missing-auth").discoveryPath;
+		await mkdir(dirname(discoveryPath), { recursive: true });
+		await writeFile(
+			discoveryPath,
+			`${JSON.stringify({
+				hubId: "hub_123",
+				protocolVersion: "v1",
+				host: "127.0.0.1",
+				port: 25463,
+				url: "ws://127.0.0.1:25463/hub",
+				startedAt: new Date().toISOString(),
+				updatedAt: new Date().toISOString(),
+			})}\n`,
+			"utf8",
+		);
+
+		await expect(readHubDiscovery(discoveryPath)).resolves.toBeUndefined();
+	});
+
+	it("returns only public health fields for unauthenticated probes", async () => {
+		const fetchMock = async () =>
+			({
+				ok: true,
+				json: async () => ({
+					ok: true,
+					protocolVersion: "v1",
+					minClientProtocolVersion: "v1",
+					maxClientProtocolVersion: "v1",
+					coreVersion: "1.0.0",
+					host: "127.0.0.1",
+					port: 25463,
+					url: "ws://127.0.0.1:25463/hub",
+				}),
+			}) as Response;
+		const originalFetch = globalThis.fetch;
+		globalThis.fetch = fetchMock as typeof fetch;
+		try {
+			const record = await probeHubServer("ws://127.0.0.1:25463/hub");
+
+			expect(record).toMatchObject({
+				protocolVersion: "v1",
+				host: "127.0.0.1",
+				port: 25463,
+				url: "ws://127.0.0.1:25463/hub",
+			});
+			expect(record?.hubId).toBeUndefined();
+			expect(record?.startedAt).toBeUndefined();
+			expect(record?.updatedAt).toBeUndefined();
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
 	});
 });
