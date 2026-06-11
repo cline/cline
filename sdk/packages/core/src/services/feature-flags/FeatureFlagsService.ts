@@ -11,6 +11,7 @@ import {
 	type FeatureFlag,
 	FeatureFlagDefaultValue,
 } from "@cline/shared";
+import { CORE_TELEMETRY_EVENTS } from "../..";
 
 const DEFAULT_CACHE_TTL_MS = 60 * 60 * 1000;
 
@@ -53,10 +54,7 @@ export class FeatureFlagsService {
 		userId: string | null = this.context.userId ?? null,
 	): Promise<void> {
 		const timeNow = Date.now();
-		if (
-			timeNow - this.cacheInfo.updateTime < this.cacheTtlMs &&
-			this.cache.size
-		) {
+		if (timeNow - this.cacheInfo.updateTime < this.cacheTtlMs) {
 			if (this.cacheInfo.userId === userId) {
 				return;
 			}
@@ -108,7 +106,7 @@ export class FeatureFlagsService {
 
 			if (!this.cache.has(flagName) || this.cache.get(flagName) !== value) {
 				this.telemetry?.capture({
-					event: "$feature_flag_called",
+					event: CORE_TELEMETRY_EVENTS.FEATURE_FLAGS.FLAG_CALLED,
 					properties: {
 						$feature_flag: flagName,
 						$feature_flag_response: flagValue,
