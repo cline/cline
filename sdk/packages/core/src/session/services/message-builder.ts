@@ -259,6 +259,7 @@ export class MessageBuilder {
 					continue;
 				}
 				const committed = this.committedOutdatedRewrites.get(block.tool_use_id);
+				const newKeys = new Set<string>();
 				for (const locator of this.getReadLocators(block)) {
 					const key = this.toReadLocatorKey(locator);
 					if (committed?.has(key)) {
@@ -267,16 +268,25 @@ export class MessageBuilder {
 					if (!this.isOutdatedReadLocator(locator, block.tool_use_id)) {
 						continue;
 					}
-					let keys = pending.get(block.tool_use_id);
-					if (!keys) {
-						keys = new Set<string>();
-						pending.set(block.tool_use_id, keys);
-					}
-					if (!keys.has(key)) {
-						keys.add(key);
-						pendingBytes += this.toolResultContentBytes(block.content);
-					}
+					newKeys.add(key);
 				}
+				if (newKeys.size === 0) {
+					continue;
+				}
+				let keys = pending.get(block.tool_use_id);
+				if (!keys) {
+					keys = new Set<string>();
+					pending.set(block.tool_use_id, keys);
+				}
+				for (const key of newKeys) {
+					keys.add(key);
+				}
+				// Count only the bytes the rewrite will actually reclaim for the
+				// newly-outdated locators (not the whole block), once per block.
+				pendingBytes += this.estimateOutdatedReclaimBytes(
+					block.content,
+					newKeys,
+				);
 			}
 		}
 
@@ -296,18 +306,64 @@ export class MessageBuilder {
 		}
 	}
 
-	private toolResultContentBytes(
+	/**
+	 * Estimate the bytes the outdated rewrite would reclaim from a block for
+	 * the given locator keys. Attribution is per-entry where the content is
+	 * structured (parsed read results / file entries); unattributable text
+	 * falls back to its full size only when every locator in the block is
+	 * outdated (matching replaceOutdatedReadContent, which replaces whole
+	 * unparseable text entries).
+	 */
+	private estimateOutdatedReclaimBytes(
 		content: ToolResultContent["content"],
+		outdatedKeys: ReadonlySet<string>,
 	): number {
+		const allLocators = this.extractReadLocatorsFromToolResultContent(content);
+		const blockFullyOutdated =
+			allLocators.length > 0 &&
+			allLocators.every((locator) =>
+				outdatedKeys.has(this.toReadLocatorKey(locator)),
+			);
+
+		const attributeText = (text: string): number => {
+			let parsed: unknown;
+			try {
+				parsed = JSON.parse(text);
+			} catch {
+				return blockFullyOutdated || allLocators.length === 0
+					? utf8ByteLength(text)
+					: 0;
+			}
+			const entries = Array.isArray(parsed) ? parsed : [parsed];
+			let total = 0;
+			for (const entry of entries) {
+				const locator = this.extractLocatorFromResultEntry(entry);
+				if (locator && outdatedKeys.has(this.toReadLocatorKey(locator))) {
+					total += utf8ByteLength(JSON.stringify(entry));
+				}
+			}
+			return total;
+		};
+
 		if (typeof content === "string") {
-			return utf8ByteLength(content);
+			return attributeText(content);
 		}
 		let total = 0;
 		for (const entry of content) {
 			if (entry.type === "text") {
-				total += utf8ByteLength(entry.text);
+				total += attributeText(entry.text);
 			} else if (entry.type === "file") {
-				total += utf8ByteLength(entry.content);
+				if (
+					outdatedKeys.has(
+						this.toReadLocatorKey({
+							path: entry.path,
+							startLine: null,
+							endLine: null,
+						}),
+					)
+				) {
+					total += utf8ByteLength(entry.content);
+				}
 			}
 		}
 		return total;
