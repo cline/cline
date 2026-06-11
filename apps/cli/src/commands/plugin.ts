@@ -1,5 +1,3 @@
-import { spawn } from "node:child_process";
-import { createHash } from "node:crypto";
 import {
 	type Dirent,
 	existsSync,
@@ -11,7 +9,6 @@ import {
 	statSync,
 } from "node:fs";
 import { cp, mkdir, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
 import {
 	basename,
 	dirname,
@@ -27,6 +24,16 @@ import {
 	resolveClineDir,
 	resolvePluginModuleEntries,
 } from "@cline/shared/storage";
+import {
+	downloadRemoteFile,
+	hashSource,
+	isLocalPathLike,
+	isOfficialRegistrySlug,
+	normalizeRemoteSingleFileUrl,
+	resolveHomePath,
+	runCommand,
+	sanitizeSegment,
+} from "./install-utils";
 
 export interface PluginInstallOptions {
 	source: string;
@@ -109,35 +116,12 @@ const WRAPPER_PACKAGE_JSON = {
 	},
 };
 
-function resolveHomePath(value: string): string {
-	if (value === "~") {
-		return homedir();
-	}
-	if (value.startsWith("~/")) {
-		return join(homedir(), value.slice(2));
-	}
-	return value;
-}
-
 function toPosixPath(path: string): string {
 	return path.split(sep).join("/");
 }
 
-function hashSource(source: string): string {
-	return createHash("sha256").update(source).digest("hex").slice(0, 12);
-}
-
-function sanitizeSegment(value: string): string {
-	const sanitized = value
-		.replace(/^@/, "")
-		.replace(/[^a-zA-Z0-9._-]+/g, "-")
-		.replace(/^-+|-+$/g, "")
-		.slice(0, 80);
-	return sanitized || "plugin";
-}
-
 export function isOfficialPluginSlug(source: string): boolean {
-	return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(source.trim());
+	return isOfficialRegistrySlug(source);
 }
 
 function resolveOfficialPluginsRepo(override: string | undefined): string {
@@ -219,78 +203,16 @@ function splitGitRef(input: string): { repo: string; ref?: string } {
 	};
 }
 
-function decodePathSegment(value: string): string {
-	try {
-		return decodeURIComponent(value);
-	} catch {
-		return value;
-	}
-}
-
-function filenameFromUrlPath(pathname: string): string {
-	const filename = basename(decodePathSegment(pathname));
-	return filename || "plugin";
-}
-
-function isGitHubFilePath(pathname: string): boolean {
-	const parts = pathname.split("/").filter(Boolean);
-	return parts.length >= 5 && (parts[2] === "blob" || parts[2] === "raw");
-}
-
 function normalizeRemotePluginFileUrl(
 	source: string,
 ): Extract<ParsedPluginSource, { type: "remote" }> | null {
-	if (!/^https?:\/\//i.test(source)) {
-		return null;
-	}
-	let parsed: URL;
-	try {
-		parsed = new URL(source);
-	} catch {
-		return null;
-	}
-
-	const host = parsed.hostname.toLowerCase();
-	const filename = filenameFromUrlPath(parsed.pathname);
-	const isPluginFile = isPluginModulePath(filename);
-	const isGitHubFile =
-		(host === "github.com" || host === "www.github.com") &&
-		isGitHubFilePath(parsed.pathname);
-
-	if (parsed.protocol !== "https:") {
-		if (isGitHubFile || host === "raw.githubusercontent.com" || isPluginFile) {
-			throw new Error(`Remote plugin file URLs must use https: ${source}`);
-		}
-		return null;
-	}
-
-	if (host === "github.com" || host === "www.github.com") {
-		const parts = parsed.pathname.split("/").filter(Boolean);
-		if (!isGitHubFile) {
-			return null;
-		}
-		if (!isPluginFile) {
-			throw new Error(`Remote plugin file must be .js or .ts: ${source}`);
-		}
-		const rawParts = [parts[0], parts[1], ...parts.slice(3)];
-		return {
-			type: "remote",
-			url: `https://raw.githubusercontent.com/${rawParts.join("/")}`,
-			filename,
-		};
-	}
-
-	if (host === "raw.githubusercontent.com") {
-		if (!isPluginFile) {
-			throw new Error(`Remote plugin file must be .js or .ts: ${source}`);
-		}
-		return { type: "remote", url: parsed.toString(), filename };
-	}
-
-	if (!isPluginFile) {
-		return null;
-	}
-	return { type: "remote", url: parsed.toString(), filename };
+	const remote = normalizeRemoteSingleFileUrl(source, {
+		isExpectedFile: isPluginModulePath,
+		kind: "plugin",
+		extensionsLabel: ".js or .ts",
+		fallbackFilename: "plugin",
+	});
+	return remote ? { type: "remote", ...remote } : null;
 }
 
 function parseGitSource(
@@ -377,13 +299,7 @@ export function parsePluginSource(
 		const { name } = parseNpmSpec(spec);
 		return { type: "npm", spec, name };
 	}
-	const localPathLike =
-		trimmed.startsWith(".") ||
-		trimmed.startsWith("/") ||
-		trimmed === "~" ||
-		trimmed.startsWith("~/") ||
-		/^[A-Za-z]:[\\/]|^\\\\/.test(trimmed);
-	if (localPathLike) {
+	if (isLocalPathLike(trimmed)) {
 		return { type: "local", path: source };
 	}
 	const remote = normalizeRemotePluginFileUrl(trimmed);
@@ -494,39 +410,6 @@ function getWrapperPackageName(
 		return parsed.slug;
 	}
 	return sanitizeSegment(basename(resolve(cwd, resolveHomePath(parsed.path))));
-}
-
-async function runCommand(
-	command: string,
-	args: string[],
-	options: { cwd?: string } = {},
-): Promise<void> {
-	await new Promise<void>((resolvePromise, reject) => {
-		const child = spawn(command, args, {
-			cwd: options.cwd,
-			stdio: ["ignore", "ignore", "pipe"],
-			env: process.env,
-			// Prevent a console window from flashing on Windows.
-			windowsHide: true,
-		});
-		let stderr = "";
-		child.stderr.on("data", (chunk) => {
-			stderr += String(chunk);
-		});
-		child.on("error", reject);
-		child.on("close", (code) => {
-			if (code === 0) {
-				resolvePromise();
-				return;
-			}
-			const details = stderr.trim();
-			reject(
-				new Error(
-					`${command} ${args.join(" ")} failed with exit code ${code}${details ? `: ${details}` : ""}`,
-				),
-			);
-		});
-	});
 }
 
 function readPackageManifest(
@@ -832,94 +715,18 @@ async function installOfficialPlugin(
 	return packageRoot;
 }
 
-function remotePluginSizeLimitError(url: string): Error {
-	return new Error(
-		`Remote plugin file from ${url} exceeds the ${REMOTE_PLUGIN_MAX_BYTES} byte limit`,
-	);
-}
-
-function getContentLength(response: Response): number | undefined {
-	const raw = response.headers.get("content-length");
-	if (!raw) {
-		return undefined;
-	}
-	const value = Number(raw);
-	if (!Number.isFinite(value) || value < 0) {
-		return undefined;
-	}
-	return value;
-}
-
-async function readRemotePluginBody(
-	response: Response,
-	url: string,
-): Promise<Buffer> {
-	const contentLength = getContentLength(response);
-	if (contentLength !== undefined && contentLength > REMOTE_PLUGIN_MAX_BYTES) {
-		throw remotePluginSizeLimitError(url);
-	}
-
-	if (!response.body) {
-		const body = Buffer.from(await response.text(), "utf8");
-		if (body.byteLength > REMOTE_PLUGIN_MAX_BYTES) {
-			throw remotePluginSizeLimitError(url);
-		}
-		return body;
-	}
-
-	const reader = response.body.getReader();
-	const chunks: Buffer[] = [];
-	let received = 0;
-	try {
-		while (true) {
-			const { done, value } = await reader.read();
-			if (done) {
-				break;
-			}
-			const chunk = Buffer.from(value);
-			received += chunk.byteLength;
-			if (received > REMOTE_PLUGIN_MAX_BYTES) {
-				await reader.cancel().catch(() => undefined);
-				throw remotePluginSizeLimitError(url);
-			}
-			chunks.push(chunk);
-		}
-		return Buffer.concat(chunks, received);
-	} finally {
-		reader.releaseLock();
-	}
-}
-
 async function installRemoteFile(
 	parsed: Extract<ParsedPluginSource, { type: "remote" }>,
 	stagingRoot: string,
 ): Promise<string> {
-	const controller = new AbortController();
-	const timeout = setTimeout(() => {
-		controller.abort();
-	}, REMOTE_PLUGIN_FETCH_TIMEOUT_MS);
-	try {
-		const response = await fetch(parsed.url, { signal: controller.signal });
-		if (!response.ok) {
-			const suffix = response.statusText ? ` ${response.statusText}` : "";
-			throw new Error(
-				`Failed to download plugin file from ${parsed.url}: ${response.status}${suffix}`,
-			);
-		}
-		const body = await readRemotePluginBody(response, parsed.url);
-		mkdirSync(stagingRoot, { recursive: true });
-		await writeFile(join(stagingRoot, parsed.filename), body);
-		return stagingRoot;
-	} catch (error) {
-		if (error instanceof Error && error.name === "AbortError") {
-			throw new Error(
-				`Timed out downloading plugin file from ${parsed.url} after ${REMOTE_PLUGIN_FETCH_TIMEOUT_MS}ms`,
-			);
-		}
-		throw error;
-	} finally {
-		clearTimeout(timeout);
-	}
+	const body = await downloadRemoteFile(parsed.url, {
+		timeoutMs: REMOTE_PLUGIN_FETCH_TIMEOUT_MS,
+		maxBytes: REMOTE_PLUGIN_MAX_BYTES,
+		kind: "plugin",
+	});
+	mkdirSync(stagingRoot, { recursive: true });
+	await writeFile(join(stagingRoot, parsed.filename), body);
+	return stagingRoot;
 }
 
 async function installLocalPackage(
