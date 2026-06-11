@@ -72,11 +72,12 @@ export function createInteractiveConfigDataLoader(input: {
 
 		if (item.kind === "plugin" && typeof item.enabled === "boolean") {
 			setDisabledPlugin(item.path, item.enabled);
-			if (item.enabled) {
-				// Disabling clears always-on: the flag never overrides a global
-				// disable, so keeping it would only show a dead marker.
-				setAlwaysEnabledPlugin(item.path, false);
-			}
+			// Any enable/disable toggle clears always-on: the flag never
+			// overrides a global disable, so it would be a dead marker on a
+			// disabled plugin, and clearing on enable too sweeps up stale
+			// disabled-plus-always-on states. It is only set deliberately via
+			// the A action on an enabled plugin.
+			setAlwaysEnabledPlugin(item.path, false);
 			// Returning fresh data signals the runtime to restart the live
 			// session so the toggle applies immediately, matching skills/mcp.
 			return await loadConfigData({ ...options, includePluginTools: true });

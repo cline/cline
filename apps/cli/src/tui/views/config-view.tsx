@@ -907,7 +907,9 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 									{prefix}
 									{enabledIcon}
 									{getConfigItemDisplayName(row.name)}
-									{row.item.alwaysEnabled ? " *" : ""}
+									{row.item.alwaysEnabled && row.item.enabled !== false
+										? " *"
+										: ""}
 								</text>
 								<text fg="gray">{rightLabel}</text>
 							</box>

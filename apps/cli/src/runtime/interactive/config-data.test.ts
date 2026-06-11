@@ -429,7 +429,15 @@ Find installable skills.`,
 		await writeFile(pluginPath, "export default {};\n");
 		await writeFile(
 			process.env.CLINE_GLOBAL_SETTINGS_PATH,
-			JSON.stringify({ disabledPlugins: [pluginPath] }, null, 2),
+			JSON.stringify(
+				{
+					disabledPlugins: [pluginPath],
+					// Stale state: disabled and always-on at the same time.
+					alwaysEnabledPlugins: [pluginPath],
+				},
+				null,
+				2,
+			),
 		);
 		const loader = createInteractiveConfigDataLoader({
 			config: createConfig(tempRoot),
@@ -445,9 +453,11 @@ Find installable skills.`,
 		const nextData = await loader.onToggleConfigItem(plugin);
 		const settings = JSON.parse(
 			await readFile(process.env.CLINE_GLOBAL_SETTINGS_PATH, "utf8"),
-		) as { disabledPlugins?: string[] };
+		) as { disabledPlugins?: string[]; alwaysEnabledPlugins?: string[] };
 
 		expect(settings.disabledPlugins).toBeUndefined();
+		// Toggling sweeps up the stale always-on flag too.
+		expect(settings.alwaysEnabledPlugins).toBeUndefined();
 		// Plugin toggles return fresh data so the runtime restarts the session.
 		expect(
 			nextData?.plugins.find((item) => item.path === pluginPath)?.enabled,

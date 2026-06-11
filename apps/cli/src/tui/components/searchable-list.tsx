@@ -357,7 +357,9 @@ export function SearchableList(props: {
 										{labelLine}
 									</box>
 									{item.detail && (
-										<box paddingLeft={2}>
+										// maxHeight bounds pathological descriptions so wrapped
+										// items cannot grow the list past the dialog height.
+										<box paddingLeft={2} maxHeight={2} overflow="hidden">
 											<text
 												fg={isSel ? palette.textOnSelection : "gray"}
 												wrapMode="word"
