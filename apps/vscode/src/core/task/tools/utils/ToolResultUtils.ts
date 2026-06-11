@@ -4,6 +4,7 @@ import { ToolResponse } from "@core/task"
 import { processFilesIntoText } from "@/integrations/misc/extract-text"
 import { ClineAsk } from "@/shared/ExtensionMessage"
 import { Logger } from "@/shared/services/Logger"
+import { sanitizeTextForModelInput } from "@/utils/string"
 import type { ToolExecutorCoordinator } from "../ToolExecutorCoordinator"
 import { TaskConfig } from "../types/TaskConfig"
 
@@ -22,16 +23,19 @@ export class ToolResultUtils {
 		coordinator?: ToolExecutorCoordinator,
 		toolUseIdMap?: Map<string, string>,
 	): void {
-		if (typeof content === "string") {
-			const resultText = content || "(tool did not return anything)"
+		const sanitizedContent = ToolResultUtils.sanitizeToolResponseContent(content)
+
+		if (typeof sanitizedContent === "string") {
+			const resultText = sanitizedContent || "(tool did not return anything)"
 
 			// Try to get description from coordinator first, otherwise use the provided function
-			const description = coordinator
+			const rawDescription = coordinator
 				? (() => {
 						const handler = coordinator.getHandler(block.name)
 						return handler ? handler.getDescription(block) : toolDescription(block)
 					})()
 				: toolDescription(block)
+			const description = sanitizeTextForModelInput(rawDescription)
 
 			// Get tool_use_id from map using call_id, or use "cline" as fallback for backward compatibility
 			const toolUseId = toolUseIdMap?.get(block.call_id || "") || "cline"
@@ -55,12 +59,27 @@ export class ToolResultUtils {
 
 			// If using backward-compatible "cline" ID and content is an array, spread it directly
 			// instead of wrapping it (which would cause JSON.stringify in createToolResultBlock)
-			if ((toolUseId === "cline" || !toolUseId) && Array.isArray(content)) {
-				userMessageContent.push(...content)
+			if ((toolUseId === "cline" || !toolUseId) && Array.isArray(sanitizedContent)) {
+				userMessageContent.push(...sanitizedContent)
 			} else {
-				userMessageContent.push(ToolResultUtils.createToolResultBlock(content, toolUseId, block.call_id))
+				userMessageContent.push(ToolResultUtils.createToolResultBlock(sanitizedContent, toolUseId, block.call_id))
 			}
 		}
+	}
+
+	private static sanitizeToolResponseContent(content: ToolResponse): ToolResponse {
+		if (typeof content === "string") {
+			return sanitizeTextForModelInput(content)
+		}
+		if (Array.isArray(content)) {
+			return content.map((block) => {
+				if (block.type === "text") {
+					return { ...block, text: sanitizeTextForModelInput(block.text) }
+				}
+				return block
+			})
+		}
+		return content
 	}
 
 	private static createToolResultBlock(content: ToolResponse, id?: string, call_id?: string) {
@@ -80,7 +99,7 @@ export class ToolResultUtils {
 			type: "tool_result",
 			tool_use_id: id,
 			call_id: call_id,
-			content: typeof content === "string" ? content : content,
+			content,
 		}
 	}
 
@@ -109,13 +128,14 @@ export class ToolResultUtils {
 			: "The user provided additional content:"
 
 		const content = formatResponse.toolResult(feedbackText, images, hasMeaningfulFileContent ? fileContentString : undefined)
-		if (typeof content === "string") {
+		const sanitizedContent = ToolResultUtils.sanitizeToolResponseContent(content)
+		if (typeof sanitizedContent === "string") {
 			userMessageContent.push({
 				type: "text",
-				text: content,
+				text: sanitizedContent,
 			})
 		} else {
-			userMessageContent.push(...content)
+			userMessageContent.push(...sanitizedContent)
 		}
 	}
 

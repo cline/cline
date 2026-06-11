@@ -21,6 +21,7 @@ import { ClineTempManager } from "@services/temp"
 import { COMMAND_CANCEL_TOKEN } from "@shared/ExtensionMessage"
 import * as fs from "fs"
 import { Logger } from "@/shared/services/Logger"
+import { sanitizeTextForModelInput } from "@/utils/string"
 import {
 	BUFFER_STUCK_TIMEOUT_MS,
 	CHUNK_BYTE_SIZE,
@@ -230,7 +231,7 @@ export async function orchestrateCommandExecution(
 
 						// Set early return result BEFORE resuming the process
 						// This prevents the orchestrator's listener from processing new lines
-						const result = terminalManager.processOutput(outputLines)
+						const result = sanitizeTextForModelInput(terminalManager.processOutput(outputLines))
 						const logMsg = trackingResult?.logFilePath ? `Log file: ${trackingResult.logFilePath}\n` : ""
 						const outputMsg = result.length > 0 ? `Output so far:\n${result}` : ""
 
@@ -506,7 +507,7 @@ export async function orchestrateCommandExecution(
 
 						// Set early return result BEFORE resuming the process
 						// This prevents the orchestrator's listener from processing new lines
-						const result = terminalManager.processOutput(outputLines)
+						const result = sanitizeTextForModelInput(terminalManager.processOutput(outputLines))
 						const logMsg = trackingResult?.logFilePath ? `Log file: ${trackingResult.logFilePath}\n` : ""
 						const outputMsg = result.length > 0 ? `Output so far:\n${result}` : ""
 
@@ -538,7 +539,7 @@ export async function orchestrateCommandExecution(
 
 					// Process any output we captured before timeout
 					await setTimeoutPromise(50)
-					const result = terminalManager.processOutput(outputLines)
+					const result = sanitizeTextForModelInput(terminalManager.processOutput(outputLines))
 
 					return {
 						userRejected: false,
@@ -591,6 +592,7 @@ export async function orchestrateCommandExecution(
 		result = terminalManager.processOutput(outputLines)
 		resultOutputLines = outputLines
 	}
+	result = sanitizeTextForModelInput(result)
 
 	if (didCancelViaUi) {
 		return {

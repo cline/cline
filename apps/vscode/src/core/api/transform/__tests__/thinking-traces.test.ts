@@ -14,6 +14,7 @@ import "should"
 import { ClineAssistantThinkingBlock, ClineStorageMessage, ClineTextContentBlock } from "@/shared/messages/content"
 import { sanitizeAnthropicMessages } from "../anthropic-format"
 import { convertToOpenAiMessages, sanitizeGeminiMessages } from "../openai-format"
+import { convertToR1Format } from "../r1-format"
 
 describe("Thinking Trace Preservation", () => {
 	describe("convertToOpenAiMessages", () => {
@@ -74,6 +75,29 @@ describe("Thinking Trace Preservation", () => {
 			// The thinking block content should be preserved in some form
 			// (exact handling depends on implementation)
 			assistantMsg.content.should.containEql("Here's my answer.")
+		})
+
+		it("should convert thinking-only assistant history to non-empty content", () => {
+			const messages: ClineStorageMessage[] = [
+				{
+					role: "assistant",
+					content: [
+						{
+							type: "thinking",
+							thinking: "Need to inspect the WAV chunks first.",
+							signature: "",
+						} as ClineAssistantThinkingBlock,
+					],
+				},
+			]
+
+			const result = convertToOpenAiMessages(messages)
+
+			result.should.have.length(1)
+			const assistantMsg = result[0] as any
+			assistantMsg.role.should.equal("assistant")
+			assistantMsg.content.should.equal("Need to inspect the WAV chunks first.")
+			;(assistantMsg.tool_calls === undefined).should.be.true()
 		})
 
 		it("should consolidate multiple reasoning_details entries", () => {
@@ -149,6 +173,61 @@ describe("Thinking Trace Preservation", () => {
 			// Should only have the valid reasoning entry
 			assistantMsg.reasoning_details.should.have.length(1)
 			assistantMsg.reasoning_details[0].type.should.equal("reasoning.text")
+		})
+	})
+
+	describe("convertToR1Format", () => {
+		it("should preserve thinking-only assistant history as text content", () => {
+			const messages: ClineStorageMessage[] = [
+				{
+					role: "assistant",
+					content: [
+						{
+							type: "thinking",
+							thinking: "DATA chunks are sequential.",
+							signature: "",
+						} as ClineAssistantThinkingBlock,
+					],
+				},
+			]
+
+			const result = convertToR1Format(messages)
+
+			result.should.have.length(1)
+			const assistantMsg = result[0] as any
+			assistantMsg.role.should.equal("assistant")
+			assistantMsg.content.should.equal("DATA chunks are sequential.")
+		})
+
+		it("should fall back to summary text for empty thinking blocks", () => {
+			const messages: ClineStorageMessage[] = [
+				{
+					role: "assistant",
+					content: [
+						{
+							type: "thinking",
+							thinking: "",
+							signature: "",
+							summary: [
+								{
+									type: "reasoning.text",
+									text: "Reasoning captured in summary.",
+									signature: "sig",
+									format: "anthropic-claude-v1",
+									index: 0,
+								},
+							],
+						} as ClineAssistantThinkingBlock,
+					],
+				},
+			]
+
+			const result = convertToR1Format(messages)
+
+			result.should.have.length(1)
+			const assistantMsg = result[0] as any
+			assistantMsg.role.should.equal("assistant")
+			assistantMsg.content.should.equal("Reasoning captured in summary.")
 		})
 	})
 

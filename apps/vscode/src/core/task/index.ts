@@ -3100,7 +3100,12 @@ export class Task {
 			// toolUseHandler may have accumulated tool_use blocks even when useNativeToolCalls is false
 			// (e.g., from Claude Code provider when the model returns native tool_use blocks).
 			const hasAccumulatedToolCalls = toolUseHandler.getAllFinalizedToolUses().length > 0
-			const assistantHasContent = assistantMessage.length > 0 || this.useNativeToolCalls || hasAccumulatedToolCalls
+			const redactedThinkingContent = reasonsHandler.getRedactedThinking()
+			const thinkingBlock = reasonsHandler.getCurrentReasoning()
+			const hasReasoningContent =
+				!!thinkingBlock?.thinking.trim() || !!thinkingBlock?.summary?.length || redactedThinkingContent.length > 0
+			const assistantHasContent =
+				assistantMessage.length > 0 || this.useNativeToolCalls || hasAccumulatedToolCalls || hasReasoningContent
 			if (assistantHasContent) {
 				telemetryService.captureConversationTurnEvent(
 					this.ulid,
@@ -3112,9 +3117,6 @@ export class Task {
 					this.useNativeToolCalls,
 				)
 
-				const { reasonsHandler } = this.streamHandler.getHandlers()
-				const redactedThinkingContent = reasonsHandler.getRedactedThinking()
-
 				const requestId = this.streamHandler.requestId
 
 				// Build content array with thinking blocks, text (if any), and tool use blocks
@@ -3125,7 +3127,6 @@ export class Task {
 					...redactedThinkingContent,
 				]
 				// Add thinking block from the reasoning handler if available
-				const thinkingBlock = reasonsHandler.getCurrentReasoning()
 				if (thinkingBlock) {
 					assistantContent.push({ ...thinkingBlock })
 				}

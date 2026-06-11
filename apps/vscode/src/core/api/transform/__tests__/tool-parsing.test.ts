@@ -193,6 +193,26 @@ describe("Tool Call Parsing", () => {
 			msg.content.should.equal("Line 1\nLine 2")
 		})
 
+		it("should sanitize unsafe control characters from tool results", () => {
+			const messages: ClineStorageMessage[] = [
+				{
+					role: "user",
+					content: [
+						{
+							type: "tool_result",
+							tool_use_id: "tool_123",
+							content: "\u001b[31mchunk=['\x00DATA']\u001b[0m\x07",
+						} as ClineUserToolResultContentBlock,
+					],
+				},
+			]
+
+			const result = convertToOpenAiMessages(messages)
+
+			const msg = result[0] as OpenAI.Chat.ChatCompletionToolMessageParam
+			msg.content.should.equal("chunk=['DATA']")
+		})
+
 		it("should set content to null when only tool_calls present", () => {
 			const messages: ClineStorageMessage[] = [
 				{

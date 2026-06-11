@@ -1,6 +1,6 @@
 import { describe, it } from "mocha"
 import "should"
-import { fixModelHtmlEscaping, removeInvalidChars } from "./string"
+import { extractReasoningText, fixModelHtmlEscaping, removeInvalidChars, sanitizeTextForModelInput } from "./string"
 
 describe("fixModelHtmlEscaping", () => {
 	it("should convert &gt; to >", () => {
@@ -53,5 +53,41 @@ describe("removeInvalidChars", () => {
 
 	it("should return unchanged string when no replacement characters are present", () => {
 		removeInvalidChars("normal string").should.equal("normal string")
+	})
+})
+
+describe("sanitizeTextForModelInput", () => {
+	it("should remove ANSI escapes and unsafe control characters", () => {
+		const text = "\u001b[31mred\u001b[0m\x00chunk\x07\x7f"
+
+		sanitizeTextForModelInput(text).should.equal("redchunk")
+	})
+
+	it("should remove OSC terminal escapes while preserving visible text", () => {
+		const text = "\u001b]8;;https://example.com\x07link text\u001b]8;;\x07 and \u001b]0;title\x07content"
+
+		sanitizeTextForModelInput(text).should.equal("link text and content")
+	})
+
+	it("should preserve normal whitespace", () => {
+		const text = "line 1\nline 2\tcolumn\rreturn"
+
+		sanitizeTextForModelInput(text).should.equal(text)
+	})
+})
+
+describe("extractReasoningText", () => {
+	it("should sanitize and join text reasoning details", () => {
+		const details = [
+			{ type: "reasoning.text", text: "\u001b[31mfirst\u001b[0m" },
+			{ type: "reasoning.encrypted", data: "ignored" },
+			{ type: "reasoning.text", text: "second\x00" },
+		]
+
+		extractReasoningText(details).should.equal("first\nsecond")
+	})
+
+	it("should ignore non-array reasoning details", () => {
+		extractReasoningText({ text: "ignored" }).should.equal("")
 	})
 })
