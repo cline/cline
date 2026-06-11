@@ -8,7 +8,7 @@ import {
 	statSync,
 } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, extname, join, resolve } from "node:path";
 import type { PluginManifest } from "..";
 
 const DEPRECATED_CONFIG_DIR = ".clinerules";
@@ -527,6 +527,38 @@ export function discoverPluginModulePaths(directoryPath: string): string[] {
 		}
 	}
 	return discovered.sort((a, b) => a.localeCompare(b));
+}
+
+/**
+ * Human-facing plugin name for an entry file path: the nearest package.json
+ * name (walking up a few directories, covering install wrappers), else the
+ * filename without extension. This is the name shown in /settings and the
+ * name agent profiles reference in their plugins list.
+ */
+export function getPluginDisplayName(filePath: string): string {
+	let current = dirname(filePath);
+	for (let depth = 0; depth < 4; depth++) {
+		const packageJsonPath = join(current, PLUGIN_PACKAGE_JSON_FILE_NAME);
+		if (existsSync(packageJsonPath)) {
+			try {
+				const packageJson = JSON.parse(
+					readFileSync(packageJsonPath, "utf8"),
+				) as { name?: unknown };
+				if (typeof packageJson.name === "string" && packageJson.name.trim()) {
+					return packageJson.name.trim();
+				}
+			} catch {
+				// Unreadable manifest: fall back to the filename below.
+			}
+			break;
+		}
+		const parent = resolve(current, "..");
+		if (parent === current) {
+			break;
+		}
+		current = parent;
+	}
+	return basename(filePath, extname(filePath));
 }
 
 export function resolveConfiguredPluginModulePaths(

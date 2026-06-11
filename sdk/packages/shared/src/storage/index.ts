@@ -8,6 +8,7 @@ export {
 	ensureFileExists,
 	ensureHookLogDir,
 	ensureParentDir,
+	getPluginDisplayName,
 	HOOKS_CONFIG_DIRECTORY_NAME,
 	isPluginModulePath,
 	type ResolveCronSpecsDirOptions,
