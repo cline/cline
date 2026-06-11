@@ -13,6 +13,7 @@ import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
 import { telemetryService } from "@/services/telemetry"
 import { McpMarketplaceCatalog } from "@/shared/mcp"
+import { ClineStorageMessage } from "@/shared/messages/content"
 import { Logger } from "@/shared/services/Logger"
 import { syncWorker } from "@/shared/services/worker/sync"
 import { reconstructTaskHistory } from "../commands/reconstructTaskHistory"
@@ -233,7 +234,7 @@ export async function getMcpSettingsFilePath(settingsDirectoryPath: string): Pro
 	return mcpSettingsFilePath
 }
 
-export async function getSavedApiConversationHistory(taskId: string): Promise<Anthropic.MessageParam[]> {
+export async function getSavedApiConversationHistory(taskId: string): Promise<ClineStorageMessage[]> {
 	const filePath = path.join(await ensureTaskDirectoryExists(taskId), GlobalFileNames.apiConversationHistory)
 	const fileExists = await fileExistsAtPath(filePath)
 	if (fileExists) {
