@@ -1,9 +1,17 @@
-import type { ITelemetryService } from "@cline/shared";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import type {
+	ITelemetryService,
+	Message,
+	ToolResultContent,
+} from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
 	CLINE_INTERNAL_TELEMETRY_METADATA_KEY,
 	getToolContextTelemetry,
 } from "../../services/telemetry/tool-context";
+import { MessageBuilder } from "../../session/services/message-builder";
 import {
 	createBashTool,
 	createDefaultTools,
@@ -13,7 +21,7 @@ import {
 } from "./definitions";
 import { RUN_COMMAND_QUERY_PREVIEW_LIMIT, TimeoutError } from "./helpers";
 import { INPUT_ARG_CHAR_LIMIT } from "./schemas";
-import type { SkillsExecutorWithMetadata } from "./types";
+import type { SkillsExecutorWithMetadata, ToolOperationResult } from "./types";
 
 function createMockSkillsExecutor(
 	fn: (...args: unknown[]) => Promise<string> = async () => "ok",
@@ -22,6 +30,36 @@ function createMockSkillsExecutor(
 	const executor = fn as SkillsExecutorWithMetadata;
 	executor.configuredSkills = configuredSkills;
 	return executor;
+}
+
+function messagesForToolResult(
+	name: string,
+	operations: ToolOperationResult[],
+): Message[] {
+	return [
+		{
+			role: "assistant",
+			content: [
+				{
+					type: "tool_use",
+					id: "call_1",
+					name,
+					input: { commands: ["cat big.log"] },
+				},
+			],
+		},
+		{
+			role: "user",
+			content: [
+				{
+					type: "tool_result",
+					tool_use_id: "call_1",
+					name,
+					content: operations as unknown as ToolResultContent["content"],
+				},
+			],
+		},
+	];
 }
 
 describe("default skills tool", () => {
@@ -696,6 +734,124 @@ describe("default run_commands tool", () => {
 		expect(result[0].query).toContain("command truncated");
 	});
 
+	it("caps huge command output, artifacts the full output, and keeps transcript/API payloads compact", async () => {
+		const artifactDir = mkdtempSync(join(tmpdir(), "core-tool-output-"));
+		try {
+			const hugeOutput = [
+				"COMMAND_HEAD",
+				"x".repeat(20_000),
+				"MIDDLE_SENTINEL_SHOULD_NOT_BE_INLINE",
+				"y".repeat(20_000),
+				"COMMAND_TAIL",
+			].join("\n");
+			const execute = vi.fn(async () => hugeOutput);
+			const tool = createBashTool(execute, {
+				runCommandOutputMaxChars: 700,
+				toolOutputArtifactDirectory: artifactDir,
+			});
+
+			const result = (await tool.execute(
+				{ commands: ["cat big.log"] },
+				{
+					sessionId: "session-1",
+					agentId: "agent-1",
+					conversationId: "conv-1",
+					iteration: 1,
+					toolCallId: "tool-call-1",
+				},
+			)) as ToolOperationResult[];
+			const operation = result[0];
+			if (!operation) {
+				throw new Error("expected operation result");
+			}
+
+			expect(operation.success).toBe(true);
+			expect(operation.truncated).toBe(true);
+			expect(operation.omittedChars).toBeGreaterThan(35_000);
+			expect(operation.omittedBytes).toBeGreaterThan(35_000);
+			expect(operation.fullOutputPath).toContain(artifactDir);
+			expect(String(operation.result).length).toBeLessThan(900);
+			expect(operation.result).toContain("COMMAND_HEAD");
+			expect(operation.result).toContain("COMMAND_TAIL");
+			expect(operation.result).toContain("omitted");
+			expect(operation.result).toContain("full output saved");
+			expect(operation.result).not.toContain(
+				"MIDDLE_SENTINEL_SHOULD_NOT_BE_INLINE",
+			);
+			if (!operation.fullOutputPath) {
+				throw new Error("expected full output artifact path");
+			}
+			expect(existsSync(operation.fullOutputPath)).toBe(true);
+			expect(readFileSync(operation.fullOutputPath, "utf8")).toBe(hugeOutput);
+
+			const persistedTranscript = JSON.stringify(
+				messagesForToolResult("run_commands", result),
+			);
+			expect(persistedTranscript.length).toBeLessThan(2_500);
+			expect(persistedTranscript).not.toContain(
+				"MIDDLE_SENTINEL_SHOULD_NOT_BE_INLINE",
+			);
+
+			const providerMessages = new MessageBuilder().buildForApi(
+				messagesForToolResult("run_commands", result),
+			);
+			const providerPayload = JSON.stringify(providerMessages);
+			expect(providerPayload.length).toBeLessThan(2_500);
+			expect(providerPayload).not.toContain(
+				"MIDDLE_SENTINEL_SHOULD_NOT_BE_INLINE",
+			);
+		} finally {
+			rmSync(artifactDir, { recursive: true, force: true });
+		}
+	});
+
+	it("normalizes CR-heavy command progress logs and keeps the useful tail", async () => {
+		const artifactDir = mkdtempSync(join(tmpdir(), "core-tool-cr-output-"));
+		try {
+			const progressOutput = `${Array.from(
+				{ length: 1_000 },
+				(_, index) => `Downloading ${index}/999`,
+			).join("\r")}\ncomplete\n`;
+			const execute = vi.fn(async () => progressOutput);
+			const tool = createBashTool(execute, {
+				runCommandOutputMaxChars: 400,
+				toolOutputArtifactDirectory: artifactDir,
+			});
+
+			const result = (await tool.execute(
+				{ commands: ["download-model"] },
+				{
+					sessionId: "session-1",
+					agentId: "agent-1",
+					conversationId: "conv-1",
+					iteration: 1,
+					toolCallId: "tool-call-1",
+				},
+			)) as ToolOperationResult[];
+			const operation = result[0];
+			if (!operation) {
+				throw new Error("expected operation result");
+			}
+
+			expect(operation.success).toBe(true);
+			expect(operation.truncated).toBe(true);
+			expect(operation.normalizedCarriageReturns).toBe(true);
+			expect(operation.fullOutputPath).toContain(artifactDir);
+			expect(String(operation.result).length).toBeLessThan(500);
+			expect(operation.result).toContain("Downloading 999/999");
+			expect(operation.result).toContain("complete");
+			expect(operation.result).not.toContain("Downloading 0/999");
+			if (!operation.fullOutputPath) {
+				throw new Error("expected full output artifact path");
+			}
+			expect(readFileSync(operation.fullOutputPath, "utf8")).toBe(
+				progressOutput,
+			);
+		} finally {
+			rmSync(artifactDir, { recursive: true, force: true });
+		}
+	});
+
 	it("emits timeout telemetry without leaking raw command data", async () => {
 		const execute = vi.fn(
 			async (): Promise<string> =>
@@ -1008,6 +1164,97 @@ describe("default read_files tool", () => {
 			{ path: "/tmp/c.ts" },
 			expect.objectContaining({ iteration: 2 }),
 		);
+	});
+
+	it("caps huge unranged file reads before they enter transcript/provider payloads", async () => {
+		const hugeFile = [
+			"FILE_HEAD",
+			"a".repeat(20_000),
+			"FILE_MIDDLE_SENTINEL_SHOULD_NOT_BE_INLINE",
+			"b".repeat(20_000),
+			"FILE_TAIL",
+		].join("\n");
+		const execute = vi.fn(async () => hugeFile);
+		const tool = createReadFilesTool(execute, {
+			readFileOutputMaxChars: 700,
+		});
+
+		const result = (await tool.execute(
+			{ files: [{ path: "/tmp/huge.txt" }] },
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		)) as ToolOperationResult[];
+		const operation = result[0];
+		if (!operation) {
+			throw new Error("expected operation result");
+		}
+
+		expect(operation.success).toBe(true);
+		expect(operation.truncated).toBe(true);
+		expect(operation.omittedChars).toBeGreaterThan(35_000);
+		expect(operation.fullOutputPath).toBeUndefined();
+		expect(String(operation.result).length).toBeLessThan(900);
+		expect(operation.result).toContain("FILE_HEAD");
+		expect(operation.result).toContain("FILE_TAIL");
+		expect(operation.result).toContain("start_line/end_line");
+		expect(operation.result).not.toContain(
+			"FILE_MIDDLE_SENTINEL_SHOULD_NOT_BE_INLINE",
+		);
+
+		const persistedTranscript = JSON.stringify(
+			messagesForToolResult("read_files", result),
+		);
+		expect(persistedTranscript.length).toBeLessThan(2_000);
+		expect(persistedTranscript).not.toContain(
+			"FILE_MIDDLE_SENTINEL_SHOULD_NOT_BE_INLINE",
+		);
+
+		const providerMessages = new MessageBuilder().buildForApi(
+			messagesForToolResult("read_files", result),
+		);
+		const providerPayload = JSON.stringify(providerMessages);
+		expect(providerPayload.length).toBeLessThan(2_000);
+		expect(providerPayload).not.toContain(
+			"FILE_MIDDLE_SENTINEL_SHOULD_NOT_BE_INLINE",
+		);
+	});
+
+	it("does not cap explicitly ranged file reads", async () => {
+		const rangedContent = [
+			"RANGED_HEAD",
+			"r".repeat(2_000),
+			"RANGED_TAIL",
+		].join("\n");
+		const execute = vi.fn(async () => rangedContent);
+		const tool = createReadFilesTool(execute, {
+			readFileOutputMaxChars: 100,
+		});
+
+		const result = (await tool.execute(
+			{
+				files: [
+					{
+						path: "/tmp/ranged.txt",
+						start_line: 10,
+						end_line: 20,
+					},
+				],
+			},
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		)) as ToolOperationResult[];
+
+		expect(result[0]).toEqual({
+			query: "/tmp/ranged.txt:10-20",
+			result: rangedContent,
+			success: true,
+		});
 	});
 
 	it("rejects invalid union inputs before calling the executor", async () => {
