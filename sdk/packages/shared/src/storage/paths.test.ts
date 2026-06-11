@@ -1,8 +1,11 @@
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	AGENT_CONFIG_DIRECTORY_NAME,
 	CLINE_MCP_SETTINGS_FILE_NAME,
+	getPluginDisplayName,
 	HOOKS_CONFIG_DIRECTORY_NAME,
 	RULES_CONFIG_DIRECTORY_NAME,
 	resolveAgentsConfigDirPath,
@@ -176,5 +179,68 @@ describe("storage path resolution", () => {
 			join("/tmp/home", ".cline", "workflows"),
 			join(workspacePath, ".cline", "workflows"),
 		]);
+	});
+});
+
+describe("getPluginDisplayName", () => {
+	it("uses the manifest in the entry's immediate parent directory", async () => {
+		const root = await mkdtemp(join(tmpdir(), "shared-plugin-name-"));
+		try {
+			const pluginDir = join(root, "my-plugin");
+			await mkdir(pluginDir, { recursive: true });
+			await writeFile(
+				join(pluginDir, "package.json"),
+				JSON.stringify({ name: "my-plugin" }),
+				"utf8",
+			);
+			const entryPath = join(pluginDir, "index.ts");
+			await writeFile(entryPath, "export default {}", "utf8");
+
+			expect(getPluginDisplayName(entryPath)).toBe("my-plugin");
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	it("uses an ancestor manifest only when it declares the entry", async () => {
+		const root = await mkdtemp(join(tmpdir(), "shared-plugin-name-"));
+		try {
+			const installRoot = join(root, "wrapper");
+			const packageRoot = join(installRoot, "package");
+			await mkdir(packageRoot, { recursive: true });
+			await writeFile(
+				join(installRoot, "package.json"),
+				JSON.stringify({
+					name: "branch-protector",
+					cline: { plugins: [{ paths: ["./package/index.ts"] }] },
+				}),
+				"utf8",
+			);
+			const entryPath = join(packageRoot, "index.ts");
+			await writeFile(entryPath, "export default {}", "utf8");
+
+			expect(getPluginDisplayName(entryPath)).toBe("branch-protector");
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	it("ignores unrelated ancestor manifests and falls back to the filename", async () => {
+		const root = await mkdtemp(join(tmpdir(), "shared-plugin-name-"));
+		try {
+			await writeFile(
+				join(root, "package.json"),
+				JSON.stringify({ name: "unrelated-repo" }),
+				"utf8",
+			);
+			const pluginsDir = join(root, ".cline", "plugins");
+			await mkdir(pluginsDir, { recursive: true });
+			const entryPath = join(pluginsDir, "my-tool.ts");
+			await writeFile(entryPath, "export default {}", "utf8");
+
+			expect(getPluginDisplayName(entryPath)).toBe("my-tool");
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
 	});
 });

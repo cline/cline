@@ -529,17 +529,40 @@ export function discoverPluginModulePaths(directoryPath: string): string[] {
 	return discovered.sort((a, b) => a.localeCompare(b));
 }
 
+function packageManifestDeclaresEntry(
+	packageRoot: string,
+	entryPath: string,
+): boolean {
+	const manifest = readPluginPackageManifest(
+		join(packageRoot, PLUGIN_PACKAGE_JSON_FILE_NAME),
+	);
+	const normalizedEntryPath = resolve(entryPath);
+	return getManifestPluginEntries(manifest).some(
+		(declared) => resolve(packageRoot, declared) === normalizedEntryPath,
+	);
+}
+
 /**
- * Human-facing plugin name for an entry file path: the nearest package.json
- * name (walking up a few directories, covering install wrappers), else the
- * filename without extension. This is the name shown in /settings and the
- * name agent profiles reference in their plugins list.
+ * Human-facing plugin name for an entry file path: the name from the
+ * package.json that owns the entry (its immediate parent directory, or an
+ * ancestor manifest that declares the entry in cline.plugins, covering
+ * install wrappers), else the filename without extension. A manifest that
+ * does not own the entry stops the walk so names never come from unrelated
+ * ancestor packages. This is the name shown in /settings and the name agent
+ * profiles reference in their plugins list.
  */
 export function getPluginDisplayName(filePath: string): string {
-	let current = dirname(filePath);
+	const entryDir = dirname(filePath);
+	let current = entryDir;
 	for (let depth = 0; depth < 4; depth++) {
 		const packageJsonPath = join(current, PLUGIN_PACKAGE_JSON_FILE_NAME);
 		if (existsSync(packageJsonPath)) {
+			if (
+				current !== entryDir &&
+				!packageManifestDeclaresEntry(current, filePath)
+			) {
+				break;
+			}
 			try {
 				const packageJson = JSON.parse(
 					readFileSync(packageJsonPath, "utf8"),
