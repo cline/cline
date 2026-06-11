@@ -177,8 +177,16 @@ export class SdkInteractionCoordinator {
 
 	clearPending(reason: string): void {
 		this.pendingAskResolve = undefined
+		const pendingMessage = this.pendingToolApprovalMessage
 		this.pendingToolApprovalMessage = undefined
 		if (this.pendingToolApprovalResolve) {
+			// Record before resolving: the denial unblocks the core, which emits the
+			// tool's lifecycle events before the caller's abort lands. Unless the
+			// denial is already recorded, the translator renders those events as a
+			// second tool row next to the still-visible approval ask.
+			if (pendingMessage) {
+				this.options.recordDeniedToolApproval?.(pendingMessage.toolCallId, pendingMessage.toolName, reason)
+			}
 			this.pendingToolApprovalResolve({ approved: false, reason })
 			this.pendingToolApprovalResolve = undefined
 		}
