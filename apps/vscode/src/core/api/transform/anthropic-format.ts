@@ -12,7 +12,7 @@ import { ClineStorageMessage, convertClineStorageToAnthropicMessage } from "@/sh
  * @returns Array of Anthropic-compatible messages with cache control applied
  */
 export function sanitizeAnthropicMessages(
-	clineMessages: Array<ClineStorageMessage | Anthropic.MessageParam>,
+	clineMessages: ClineStorageMessage[],
 	supportCache: boolean,
 ): Array<Anthropic.MessageParam> {
 	// The latest message will be the new user message, one before will be the assistant message from a previous request,

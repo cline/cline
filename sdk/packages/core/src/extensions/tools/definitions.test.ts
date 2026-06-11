@@ -11,7 +11,7 @@ import {
 	createSkillsTool,
 	createWindowsShellTool,
 } from "./definitions";
-import { TimeoutError } from "./helpers";
+import { RUN_COMMAND_QUERY_PREVIEW_LIMIT, TimeoutError } from "./helpers";
 import { INPUT_ARG_CHAR_LIMIT } from "./schemas";
 import type { SkillsExecutorWithMetadata } from "./types";
 
@@ -592,6 +592,108 @@ describe("default run_commands tool", () => {
 				iteration: 1,
 			}),
 		);
+	});
+
+	it("keeps short command echoes unchanged in tool results", async () => {
+		const execute = vi.fn(
+			async (command: string | { command: string }) =>
+				`ran:${typeof command === "string" ? command : command.command}`,
+		);
+		const tool = createBashTool(execute);
+
+		const result = await tool.execute(
+			{ commands: ["git status --short"] },
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		expect(result).toEqual([
+			{
+				query: "git status --short",
+				result: "ran:git status --short",
+				success: true,
+			},
+		]);
+	});
+
+	it("truncates long command echoes in tool results without affecting execution", async () => {
+		const execute = vi.fn(
+			async (command: string | { command: string }) =>
+				`ran:${typeof command === "string" ? command.length : command.command.length}`,
+		);
+		const tool = createBashTool(execute);
+		const largeSource = "x".repeat(14000);
+		const command = `cat > /app/eval.scm << 'EOF'\n${largeSource}\nEOF`;
+
+		const result = (await tool.execute(
+			{ commands: [command] },
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		)) as Array<{ query: string; result: string; success: boolean }>;
+
+		// The executor still receives the full command
+		expect(execute).toHaveBeenCalledWith(
+			command,
+			process.cwd(),
+			expect.anything(),
+		);
+		expect(result[0].success).toBe(true);
+		expect(result[0].result).toBe(`ran:${command.length}`);
+		// The provider-facing echo is bounded and self-describing
+		expect(result[0].query.length).toBeLessThan(
+			RUN_COMMAND_QUERY_PREVIEW_LIMIT + 100,
+		);
+		expect(result[0].query).toContain("cat > /app/eval.scm << 'EOF'");
+		expect(result[0].query).toContain("command truncated");
+		expect(result[0].query).toContain("full command is in the tool call input");
+	});
+
+	it("truncates long command echoes on the error path too", async () => {
+		const execute = vi.fn(async () => {
+			throw new Error("boom");
+		});
+		const tool = createBashTool(execute);
+		const command = `cat > /app/big.txt << 'EOF'\n${"y".repeat(10000)}\nEOF`;
+
+		const result = (await tool.execute(
+			{ commands: [command] },
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		)) as Array<{ query: string; success: boolean; error?: string }>;
+
+		expect(result[0].success).toBe(false);
+		expect(result[0].error).toContain("boom");
+		expect(result[0].query.length).toBeLessThan(
+			RUN_COMMAND_QUERY_PREVIEW_LIMIT + 100,
+		);
+		expect(result[0].query).toContain("command truncated");
+	});
+
+	it("truncates long command echoes for the structured windows shell tool", async () => {
+		const execute = vi.fn(async () => "ok");
+		const tool = createWindowsShellTool(execute);
+		const command = `powershell -Command "${"z".repeat(9000)}"`;
+
+		const result = (await tool.execute({ commands: [command] } as never, {
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			iteration: 1,
+		})) as Array<{ query: string; success: boolean }>;
+
+		expect(result[0].success).toBe(true);
+		expect(result[0].query.length).toBeLessThan(
+			RUN_COMMAND_QUERY_PREVIEW_LIMIT + 100,
+		);
+		expect(result[0].query).toContain("command truncated");
 	});
 
 	it("emits timeout telemetry without leaking raw command data", async () => {

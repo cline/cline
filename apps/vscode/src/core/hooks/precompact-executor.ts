@@ -192,11 +192,13 @@ export async function executePreCompactHookWithCleanup(params: PreCompactHookPar
 	let contextRawPath: string | undefined
 
 	try {
-		// Get current active context (respects previous compactions)
+		// Get current active context (respects previous compactions).
+		// getTruncatedMessages types its output as Anthropic.MessageParam[], but it slices the Cline-stored
+		// conversation history (ClineStorageMessage[]) passed in, so narrow it back here.
 		const currentContext = params.contextManager.getTruncatedMessages(
 			params.apiConversationHistory,
 			params.conversationHistoryDeletedRange,
-		)
+		) as ClineStorageMessage[]
 
 		// Write context files for hook access
 		const contextFiles = await writePreCompactContextFiles(params.taskId, currentContext)

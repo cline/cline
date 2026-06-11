@@ -2018,7 +2018,10 @@ export class Task {
 		}
 
 		// Response API requires native tool calls to be enabled
-		const stream = this.api.createMessage(systemPrompt, contextManagementMetadata.truncatedConversationHistory, tools)
+		// ContextManager types its truncated output as Anthropic.MessageParam[], but the history it slices is the
+		// Cline-stored conversation history (ClineStorageMessage[]), so narrow it back for the provider boundary.
+		const truncatedConversationHistory = contextManagementMetadata.truncatedConversationHistory as ClineStorageMessage[]
+		const stream = this.api.createMessage(systemPrompt, truncatedConversationHistory, tools)
 
 		const iterator = stream[Symbol.asyncIterator]()
 

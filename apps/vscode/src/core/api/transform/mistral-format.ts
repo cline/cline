@@ -3,6 +3,7 @@ import { AssistantMessage } from "@mistralai/mistralai/models/components/assista
 import { SystemMessage } from "@mistralai/mistralai/models/components/systemmessage"
 import { ToolMessage } from "@mistralai/mistralai/models/components/toolmessage"
 import { UserMessage } from "@mistralai/mistralai/models/components/usermessage"
+import { getImageDataUrl } from "@/shared/messages/content"
 
 export type MistralMessage =
 	| (SystemMessage & { role: "system" })
@@ -33,7 +34,7 @@ export function convertToMistralMessages(anthropicMessages: Anthropic.Messages.M
 								return {
 									type: "image_url",
 									imageUrl: {
-										url: `data:${part.source.media_type};base64,${part.source.data}`,
+										url: getImageDataUrl(part.source),
 									},
 								}
 							}
