@@ -54,6 +54,8 @@ export interface InteractiveConfigItem {
 	enabled?: boolean;
 	kind: InteractiveConfigItemKind;
 	enabledState?: "enabled" | "disabled" | "partial";
+	/** Plugins only: exempt from agent-profile plugin restrictions. */
+	alwaysEnabled?: boolean;
 	toolNames?: string[];
 	configKind?: "tool" | "plugin";
 	pluginName?: string;
@@ -307,7 +309,11 @@ export async function loadInteractiveConfigData(input: {
 
 	agents.push(...loadAgentConfigItems(input.workspaceRoot));
 
-	const disabledPlugins = new Set(readGlobalSettings().disabledPlugins ?? []);
+	const globalSettings = readGlobalSettings();
+	const disabledPlugins = new Set(globalSettings.disabledPlugins ?? []);
+	const alwaysEnabledPlugins = new Set(
+		globalSettings.alwaysEnabledPlugins ?? [],
+	);
 	const pluginDirectories = resolvePluginConfigSearchPaths(
 		input.workspaceRoot,
 	).filter((directory) => existsSync(directory));
@@ -319,6 +325,7 @@ export async function loadInteractiveConfigData(input: {
 					name: getPluginDisplayName(filePath),
 					path: filePath,
 					enabled: !disabledPlugins.has(filePath),
+					alwaysEnabled: alwaysEnabledPlugins.has(filePath),
 					kind: "plugin",
 					configKind: "plugin",
 					source: detectPluginSource(filePath, input.workspaceRoot),

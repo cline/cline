@@ -1,4 +1,8 @@
-import { readGlobalSettings, setAutoUpdateEnabledGlobally } from "@cline/core";
+import {
+	readGlobalSettings,
+	setAlwaysEnabledPlugin,
+	setAutoUpdateEnabledGlobally,
+} from "@cline/core";
 import { useTerminalDimensions } from "@opentui/react";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
@@ -19,6 +23,7 @@ import { resolveModelDisplayName } from "../components/status-bar";
 import { getModeAccent, palette } from "../palette";
 import {
 	type ConfigAction,
+	canAlwaysEnableConfigFooterRow,
 	canDeleteConfigFooterRow,
 	canToggleConfigFooterRow,
 	getAdjacentConfigTab,
@@ -532,6 +537,8 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 	const canDeleteSelectedRow = Boolean(
 		props.onDeleteConfigItem && canDeleteConfigFooterRow(selectedRow),
 	);
+	const canAlwaysEnableSelectedRow =
+		canAlwaysEnableConfigFooterRow(selectedRow);
 
 	const setNavPosition = (nextNavPos: number) => {
 		setNavPos(nextNavPos);
@@ -639,6 +646,28 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 		}
 	};
 
+	const handleAlwaysEnableSelected = () => {
+		const row = rows[selectedRowIdx];
+		if (!row || row.kind !== "ext" || !canAlwaysEnableConfigFooterRow(row)) {
+			return;
+		}
+		const item = row.item;
+		const nextAlwaysEnabled = !item.alwaysEnabled;
+		setAlwaysEnabledPlugin(item.path, nextAlwaysEnabled);
+		setConfigData((current) =>
+			current
+				? {
+						...current,
+						plugins: current.plugins.map((plugin) =>
+							plugin.id === item.id
+								? { ...plugin, alwaysEnabled: nextAlwaysEnabled }
+								: plugin,
+						),
+					}
+				: current,
+		);
+	};
+
 	const handleDeleteSelected = () => {
 		if (!props.onDeleteConfigItem) {
 			return;
@@ -691,6 +720,16 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 			!key.shift
 		) {
 			handleDeleteSelected();
+			return;
+		}
+		if (
+			key.name === "a" &&
+			!key.ctrl &&
+			!key.meta &&
+			!key.option &&
+			!key.shift
+		) {
+			handleAlwaysEnableSelected();
 			return;
 		}
 		if (key.name === "return" || key.name === "tab") {
@@ -863,6 +902,7 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 									{prefix}
 									{enabledIcon}
 									{getConfigItemDisplayName(row.name)}
+									{row.item.alwaysEnabled ? " *" : ""}
 								</text>
 								<text fg="gray">{rightLabel}</text>
 							</box>
@@ -895,6 +935,7 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 						: getConfigFooterText({
 								canToggle: canToggleSelectedRow,
 								canDelete: canDeleteSelectedRow,
+								canAlwaysEnable: canAlwaysEnableSelectedRow,
 							})}
 				</em>
 			</text>
