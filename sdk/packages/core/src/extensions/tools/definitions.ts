@@ -14,6 +14,10 @@ import {
 import { captureRunCommandsTimeout } from "../../services/telemetry/core-events";
 import { getToolContextTelemetry } from "../../services/telemetry/tool-context";
 import {
+	budgetReadFileOutput,
+	budgetRunCommandOutput,
+	DEFAULT_READ_FILE_OUTPUT_MAX_CHARS,
+	DEFAULT_RUN_COMMAND_OUTPUT_MAX_CHARS,
 	formatError,
 	formatReadFileQuery,
 	formatRunCommandQueryPreview,
@@ -115,9 +119,14 @@ function captureRunCommandsTimeoutFromContext(
  */
 export function createReadFilesTool(
 	executor: FileReadExecutor,
-	config: Pick<DefaultToolsConfig, "fileReadTimeoutMs"> = {},
+	config: Pick<
+		DefaultToolsConfig,
+		"fileReadTimeoutMs" | "readFileOutputMaxChars"
+	> = {},
 ): AgentTool<ReadFilesInput, ToolOperationResult[]> {
 	const timeoutMs = config.fileReadTimeoutMs ?? 10000;
+	const outputMaxChars =
+		config.readFileOutputMaxChars ?? DEFAULT_READ_FILE_OUTPUT_MAX_CHARS;
 
 	return createTool<ReadFilesInput, ToolOperationResult[]>({
 		name: "read_files",
@@ -179,6 +188,20 @@ export function createReadFilesTool(
 							timeoutMs,
 							`File read timed out after ${timeoutMs}ms`,
 						);
+						if (typeof content === "string") {
+							const budgeted = budgetReadFileOutput({
+								output: content,
+								maxChars: outputMaxChars,
+								isExplicitRange:
+									request.start_line != null || request.end_line != null,
+							});
+							return {
+								query: formatReadFileQuery(request),
+								result: budgeted.text,
+								success: true,
+								...budgeted.metadata,
+							};
+						}
 						return {
 							query: formatReadFileQuery(request),
 							result: content,
@@ -270,9 +293,17 @@ export function createSearchTool(
  */
 export function createBashTool(
 	executor: BashExecutor,
-	config: Pick<DefaultToolsConfig, "cwd" | "bashTimeoutMs"> = {},
+	config: Pick<
+		DefaultToolsConfig,
+		| "cwd"
+		| "bashTimeoutMs"
+		| "runCommandOutputMaxChars"
+		| "toolOutputArtifactDirectory"
+	> = {},
 ): AgentTool<RunCommandsInput, ToolOperationResult[]> {
 	const timeoutMs = config.bashTimeoutMs ?? 30000;
+	const outputMaxChars =
+		config.runCommandOutputMaxChars ?? DEFAULT_RUN_COMMAND_OUTPUT_MAX_CHARS;
 	const timeoutSource =
 		config.bashTimeoutMs === undefined
 			? "default_setting"
@@ -317,10 +348,19 @@ export function createBashTool(
 							timeoutMs,
 							`Command timed out after ${timeoutMs}ms`,
 						);
+						const budgeted = await budgetRunCommandOutput({
+							output,
+							maxChars: outputMaxChars,
+							cwd,
+							artifactDirectory: config.toolOutputArtifactDirectory,
+							sessionId: context.sessionId,
+							toolCallId: context.toolCallId,
+						});
 						return {
 							query,
-							result: output,
+							result: budgeted.text,
 							success: true,
+							...budgeted.metadata,
 						};
 					} catch (error) {
 						if (error instanceof TimeoutError) {
@@ -332,11 +372,20 @@ export function createBashTool(
 							});
 						}
 						const msg = formatError(error);
+						const budgeted = await budgetRunCommandOutput({
+							output: msg,
+							maxChars: outputMaxChars,
+							cwd,
+							artifactDirectory: config.toolOutputArtifactDirectory,
+							sessionId: context.sessionId,
+							toolCallId: context.toolCallId,
+						});
 						return {
 							query,
 							result: "",
-							error: `Command failed: ${msg}`,
+							error: `Command failed: ${budgeted.text}`,
 							success: false,
+							...budgeted.metadata,
 						};
 					}
 				}),
@@ -352,9 +401,17 @@ export function createBashTool(
  */
 export function createWindowsShellTool(
 	executor: BashExecutor,
-	config: Pick<DefaultToolsConfig, "cwd" | "bashTimeoutMs"> = {},
+	config: Pick<
+		DefaultToolsConfig,
+		| "cwd"
+		| "bashTimeoutMs"
+		| "runCommandOutputMaxChars"
+		| "toolOutputArtifactDirectory"
+	> = {},
 ): AgentTool<StructuredCommandInput, ToolOperationResult[]> {
 	const timeoutMs = config.bashTimeoutMs ?? 30000;
+	const outputMaxChars =
+		config.runCommandOutputMaxChars ?? DEFAULT_RUN_COMMAND_OUTPUT_MAX_CHARS;
 	const timeoutSource =
 		config.bashTimeoutMs === undefined
 			? "default_setting"
@@ -384,10 +441,19 @@ export function createWindowsShellTool(
 							timeoutMs,
 							`Command timed out after ${timeoutMs}ms`,
 						);
+						const budgeted = await budgetRunCommandOutput({
+							output,
+							maxChars: outputMaxChars,
+							cwd,
+							artifactDirectory: config.toolOutputArtifactDirectory,
+							sessionId: context.sessionId,
+							toolCallId: context.toolCallId,
+						});
 						return {
 							query,
-							result: output,
+							result: budgeted.text,
 							success: true,
+							...budgeted.metadata,
 						};
 					} catch (error) {
 						if (error instanceof TimeoutError) {
@@ -399,11 +465,20 @@ export function createWindowsShellTool(
 							});
 						}
 						const msg = formatError(error);
+						const budgeted = await budgetRunCommandOutput({
+							output: msg,
+							maxChars: outputMaxChars,
+							cwd,
+							artifactDirectory: config.toolOutputArtifactDirectory,
+							sessionId: context.sessionId,
+							toolCallId: context.toolCallId,
+						});
 						return {
 							query,
 							result: "",
-							error: `Command failed: ${msg}`,
+							error: `Command failed: ${budgeted.text}`,
 							success: false,
+							...budgeted.metadata,
 						};
 					}
 				}),

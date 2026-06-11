@@ -34,6 +34,16 @@ export interface ToolOperationResult {
 	success: boolean;
 	/** Duration in MS */
 	duration?: number;
+	/** Whether result/error text was compacted before entering the transcript */
+	truncated?: boolean;
+	/** Characters omitted from the original tool output */
+	omittedChars?: number;
+	/** UTF-8 bytes omitted from the original tool output */
+	omittedBytes?: number;
+	/** Path containing the full output when a large command output was artifacted */
+	fullOutputPath?: string;
+	/** Whether carriage-return progress updates were collapsed in the preview */
+	normalizedCarriageReturns?: boolean;
 }
 
 export type FileReadResultContent = string | Array<TextContent | ImageContent>;
@@ -304,10 +314,28 @@ export interface DefaultToolsConfig {
 	fileReadTimeoutMs?: number;
 
 	/**
+	 * Maximum characters of unranged read_files text to return inline
+	 * @default 40000
+	 */
+	readFileOutputMaxChars?: number;
+
+	/**
 	 * Timeout for bash command execution in milliseconds
 	 * @default 30000
 	 */
 	bashTimeoutMs?: number;
+
+	/**
+	 * Maximum characters of run_commands output to return inline
+	 * @default 20000
+	 */
+	runCommandOutputMaxChars?: number;
+
+	/**
+	 * Directory for full run_commands output artifacts
+	 * @default <cwd>/.cline/tmp/tool-outputs
+	 */
+	toolOutputArtifactDirectory?: string;
 
 	/**
 	 * Timeout for web fetch operations in milliseconds
