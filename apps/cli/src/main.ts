@@ -877,8 +877,9 @@ export async function runCli(): Promise<void> {
 		}
 
 		let knownModels: Config["knownModels"];
+		let persistedProviderConfig: Config["providerConfig"];
 		try {
-			const persistedProviderConfig = providerSettingsManager.getProviderConfig(
+			persistedProviderConfig = providerSettingsManager.getProviderConfig(
 				provider,
 				{
 					includeKnownModels: false,
@@ -936,6 +937,11 @@ export async function runCli(): Promise<void> {
 				knownModelIds[0] ??
 				"anthropic/claude-sonnet-4.6",
 			apiKey: apiKey ?? "",
+			baseUrl:
+				persistedProviderConfig?.baseUrl ?? selectedProviderSettings?.baseUrl,
+			headers:
+				persistedProviderConfig?.headers ?? selectedProviderSettings?.headers,
+			providerConfig: persistedProviderConfig,
 			knownModels,
 			systemPrompt: await resolveSystemPrompt({
 				cwd,
