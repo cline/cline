@@ -19,7 +19,11 @@ import {
 
 const DEFAULT_MAX_TOOL_RESULT_CHARS = 50_000;
 const DEFAULT_MAX_TOTAL_TEXT_BYTES = 6_000_000;
+const DEFAULT_MAX_ASSISTANT_TEXT_CHARS = 200_000;
+const DEFAULT_MAX_ASSISTANT_TOOL_MARKUP_CHARS = 12_000;
 const MIN_TOTAL_BUDGET_TOOL_RESULT_BYTES = 8_000;
+const MIN_TOTAL_BUDGET_ASSISTANT_TEXT_BYTES = 40_000;
+const REPEATED_TOOL_CALL_MARKUP_THRESHOLD = 8;
 const READ_TOOL_NAMES = new Set(["read", "read_files"]);
 const OUTDATED_FILE_CONTENT = "[outdated - see the latest file content]";
 const MISSING_TOOL_RESULT_TEXT =
@@ -28,6 +32,12 @@ const TRUNCATE_MARKER_DEFAULT = (n: number) =>
 	`\n\n...[truncated ${n} chars]...\n\n`;
 const TRUNCATE_MARKER_BUDGET = (n: number) =>
 	`\n\n...[truncated ${n} chars to fit provider request budget]...\n\n`;
+const TRUNCATE_ASSISTANT_TEXT_MARKER = (n: number) =>
+	`\n\n...[assistant text truncated: omitted ${n} chars]...\n\n`;
+const TRUNCATE_ASSISTANT_TEXT_BUDGET_MARKER = (n: number) =>
+	`\n\n...[assistant text truncated: omitted ${n} chars to fit provider request budget]...\n\n`;
+const TRUNCATE_ASSISTANT_TOOL_MARKUP_MARKER = (n: number) =>
+	`\n\n...[assistant text truncated: omitted ${n} chars due to repeated tool-call markup]...\n\n`;
 
 interface ReadLocator {
 	path: string;
@@ -37,6 +47,8 @@ interface ReadLocator {
 
 interface TruncationCandidate {
 	byteLength: number;
+	minBytes: number;
+	makeMarker: (removed: number) => string;
 	get(): string;
 	set(value: string): void;
 }
@@ -62,6 +74,8 @@ export class MessageBuilder {
 	constructor(
 		private readonly maxToolResultChars = DEFAULT_MAX_TOOL_RESULT_CHARS,
 		private readonly maxTotalTextBytes = DEFAULT_MAX_TOTAL_TEXT_BYTES,
+		private readonly maxAssistantTextChars = DEFAULT_MAX_ASSISTANT_TEXT_CHARS,
+		private readonly maxAssistantToolMarkupChars = DEFAULT_MAX_ASSISTANT_TOOL_MARKUP_CHARS,
 	) {}
 
 	buildForApi(messages: Message[]): Message[] {
@@ -74,6 +88,15 @@ export class MessageBuilder {
 					const normalized = normalizeUserInput(message.content);
 					if (normalized !== message.content) {
 						return { ...message, content: normalized };
+					}
+				}
+				if (
+					message.role === "assistant" &&
+					typeof message.content === "string"
+				) {
+					const truncated = this.truncateAssistantText(message.content);
+					if (truncated !== message.content) {
+						return { ...message, content: truncated };
 					}
 				}
 				return message;
@@ -108,6 +131,15 @@ export class MessageBuilder {
 				return { ...block, text: normalized };
 			}
 			return block;
+		}
+
+		if (
+			role === "assistant" &&
+			block.type === "text" &&
+			typeof block.text === "string"
+		) {
+			const truncated = this.truncateAssistantText(block.text);
+			return truncated === block.text ? block : { ...block, text: truncated };
 		}
 
 		if (block.type === "file") {
@@ -826,6 +858,35 @@ export class MessageBuilder {
 		);
 	}
 
+	private truncateAssistantText(text: string): string {
+		if (this.hasRepeatedToolCallMarkup(text)) {
+			return truncateMiddleByChars(
+				text,
+				this.maxAssistantToolMarkupChars,
+				TRUNCATE_ASSISTANT_TOOL_MARKUP_MARKER,
+			);
+		}
+		return truncateMiddleByChars(
+			text,
+			this.maxAssistantTextChars,
+			TRUNCATE_ASSISTANT_TEXT_MARKER,
+		);
+	}
+
+	private hasRepeatedToolCallMarkup(text: string): boolean {
+		if (text.length <= this.maxAssistantToolMarkupChars) {
+			return false;
+		}
+		let count = 0;
+		for (const _match of text.matchAll(toolCallMarkupPattern())) {
+			count += 1;
+			if (count >= REPEATED_TOOL_CALL_MARKUP_THRESHOLD) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	private truncateToTotalTextBudget(messages: Message[]): Message[] {
 		if (this.maxTotalTextBytes <= 0) {
 			return messages;
@@ -838,7 +899,7 @@ export class MessageBuilder {
 
 		const next = messages.map((message) => {
 			if (!Array.isArray(message.content)) {
-				return message;
+				return { ...message };
 			}
 			return {
 				...message,
@@ -854,18 +915,15 @@ export class MessageBuilder {
 				break;
 			}
 			const currentBytes = candidate.byteLength;
-			if (currentBytes <= MIN_TOTAL_BUDGET_TOOL_RESULT_BYTES) {
+			if (currentBytes <= candidate.minBytes) {
 				continue;
 			}
 			const overflow = totalBytes - this.maxTotalTextBytes;
-			const targetBytes = Math.max(
-				MIN_TOTAL_BUDGET_TOOL_RESULT_BYTES,
-				currentBytes - overflow,
-			);
+			const targetBytes = Math.max(candidate.minBytes, currentBytes - overflow);
 			const truncated = truncateMiddleToBytes(
 				candidate.get(),
 				targetBytes,
-				TRUNCATE_MARKER_BUDGET,
+				candidate.makeMarker,
 			);
 			candidate.set(truncated);
 			totalBytes -= currentBytes - utf8ByteLength(truncated);
@@ -919,16 +977,42 @@ export class MessageBuilder {
 	): TruncationCandidate[] {
 		const candidates: TruncationCandidate[] = [];
 		for (const message of messages) {
+			if (message.role === "assistant" && typeof message.content === "string") {
+				candidates.push({
+					byteLength: utf8ByteLength(message.content),
+					minBytes: MIN_TOTAL_BUDGET_ASSISTANT_TEXT_BYTES,
+					makeMarker: TRUNCATE_ASSISTANT_TEXT_BUDGET_MARKER,
+					get: () => message.content as string,
+					set: (value) => {
+						message.content = value;
+					},
+				});
+				continue;
+			}
 			if (!Array.isArray(message.content)) {
 				continue;
 			}
 			for (const block of message.content) {
+				if (message.role === "assistant" && block.type === "text") {
+					candidates.push({
+						byteLength: utf8ByteLength(block.text),
+						minBytes: MIN_TOTAL_BUDGET_ASSISTANT_TEXT_BYTES,
+						makeMarker: TRUNCATE_ASSISTANT_TEXT_BUDGET_MARKER,
+						get: () => block.text,
+						set: (value) => {
+							block.text = value;
+						},
+					});
+					continue;
+				}
 				if (block.type !== "tool_result") {
 					continue;
 				}
 				if (typeof block.content === "string") {
 					candidates.push({
 						byteLength: utf8ByteLength(block.content),
+						minBytes: MIN_TOTAL_BUDGET_TOOL_RESULT_BYTES,
+						makeMarker: TRUNCATE_MARKER_BUDGET,
 						get: () => block.content as string,
 						set: (value) => {
 							block.content = value;
@@ -940,6 +1024,8 @@ export class MessageBuilder {
 					if (entry.type === "text") {
 						candidates.push({
 							byteLength: utf8ByteLength(entry.text),
+							minBytes: MIN_TOTAL_BUDGET_TOOL_RESULT_BYTES,
+							makeMarker: TRUNCATE_MARKER_BUDGET,
 							get: () => entry.text,
 							set: (value) => {
 								entry.text = value;
@@ -948,6 +1034,8 @@ export class MessageBuilder {
 					} else if (entry.type === "file") {
 						candidates.push({
 							byteLength: utf8ByteLength(entry.content),
+							minBytes: MIN_TOTAL_BUDGET_TOOL_RESULT_BYTES,
+							makeMarker: TRUNCATE_MARKER_BUDGET,
 							get: () => entry.content,
 							set: (value) => {
 								entry.content = value;
@@ -961,6 +1049,14 @@ export class MessageBuilder {
 		}
 		return candidates.sort((l, r) => r.byteLength - l.byteLength);
 	}
+}
+
+function toolCallMarkupPattern(): RegExp {
+	const dsmlBar = String.raw`[\|\uFF5C]`;
+	return new RegExp(
+		String.raw`<\s*(?:${dsmlBar}\s*)?DSML\s*(?:${dsmlBar}\s*)?(?:tool_calls|invoke)\b[^>]*>|<\s*/?\s*(?:tool_calls?|tool_call|function_calls?|function_call|invoke)\b[^>]*>`,
+		"gi",
+	);
 }
 
 function utf8ByteLength(text: string): number {
@@ -1092,6 +1188,8 @@ function collectNestedStringCandidates(
 			if (typeof item === "string") {
 				candidates.push({
 					byteLength: utf8ByteLength(item),
+					minBytes: MIN_TOTAL_BUDGET_TOOL_RESULT_BYTES,
+					makeMarker: TRUNCATE_MARKER_BUDGET,
 					get: () => container[index] as string,
 					set: (value) => {
 						container[index] = value;
@@ -1113,6 +1211,8 @@ function collectNestedStringCandidates(
 			if (typeof item === "string") {
 				candidates.push({
 					byteLength: utf8ByteLength(item),
+					minBytes: MIN_TOTAL_BUDGET_TOOL_RESULT_BYTES,
+					makeMarker: TRUNCATE_MARKER_BUDGET,
 					get: () => record[key] as string,
 					set: (value) => {
 						record[key] = value;
