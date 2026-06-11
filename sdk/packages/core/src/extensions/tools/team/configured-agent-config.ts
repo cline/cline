@@ -4,21 +4,40 @@ import { resolveAgentConfigSearchPaths } from "@cline/shared/storage";
 import YAML from "yaml";
 import { z } from "zod";
 
+// A plugin entry is either a bare name (matched against installed plugins)
+// or a mapping carrying an install source consumed by `cline agent install`.
+const ConfiguredAgentPluginEntrySchema = z.union([
+	z.string(),
+	z.object({
+		name: z.string().trim().min(1),
+		install: z.string().trim().min(1).optional(),
+	}),
+]);
+
 const ConfiguredAgentFrontmatterSchema = z.object({
 	name: z.string().trim().min(1),
 	description: z.string().trim().min(1),
 	tools: z.union([z.string(), z.array(z.string())]).optional(),
 	skills: z.union([z.string(), z.array(z.string())]).optional(),
+	plugins: z
+		.union([z.string(), z.array(ConfiguredAgentPluginEntrySchema)])
+		.optional(),
 	providerId: z.string().trim().min(1).optional(),
 	modelId: z.string().trim().min(1).optional(),
 	maxIterations: z.number().int().positive().optional(),
 });
+
+export interface ConfiguredAgentPluginRef {
+	name: string;
+	install?: string;
+}
 
 export interface ConfiguredAgentConfig {
 	name: string;
 	description: string;
 	tools?: string[];
 	skills?: string[];
+	plugins?: ConfiguredAgentPluginRef[];
 	providerId?: string;
 	modelId?: string;
 	maxIterations?: number;
@@ -100,6 +119,31 @@ function parseStringList(
 	);
 }
 
+function parsePluginList(
+	value: z.infer<typeof ConfiguredAgentFrontmatterSchema>["plugins"],
+): ConfiguredAgentPluginRef[] | undefined {
+	if (value === undefined) {
+		return undefined;
+	}
+	const raw = Array.isArray(value) ? value : value.split(",");
+	const refs: ConfiguredAgentPluginRef[] = [];
+	const seen = new Set<string>();
+	for (const entry of raw) {
+		const name = (typeof entry === "string" ? entry : entry.name).trim();
+		if (!name) {
+			continue;
+		}
+		const key = name.toLowerCase();
+		if (seen.has(key)) {
+			continue;
+		}
+		seen.add(key);
+		const install = typeof entry === "string" ? undefined : entry.install;
+		refs.push(install ? { name, install } : { name });
+	}
+	return refs;
+}
+
 function normalizeAgentName(name: string): string {
 	return name.trim().toLowerCase();
 }
@@ -134,6 +178,7 @@ export function parseConfiguredAgentConfig(
 		description: parsed.description,
 		tools: parseStringList(parsed.tools),
 		skills: parseStringList(parsed.skills),
+		plugins: parsePluginList(parsed.plugins),
 		providerId: parsed.providerId,
 		modelId: parsed.modelId,
 		maxIterations: parsed.maxIterations,
