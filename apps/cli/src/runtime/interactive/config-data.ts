@@ -71,7 +71,9 @@ export function createInteractiveConfigDataLoader(input: {
 
 		if (item.kind === "plugin" && typeof item.enabled === "boolean") {
 			setDisabledPlugin(item.path, item.enabled);
-			return undefined;
+			// Returning fresh data signals the runtime to restart the live
+			// session so the toggle applies immediately, matching skills/mcp.
+			return await loadConfigData({ ...options, includePluginTools: true });
 		}
 
 		if (item.kind === "mcp" && typeof item.enabled === "boolean") {

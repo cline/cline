@@ -443,15 +443,14 @@ Find installable skills.`,
 		}
 
 		const nextData = await loader.onToggleConfigItem(plugin);
-		const refreshedData = await loader.loadConfigData();
 		const settings = JSON.parse(
 			await readFile(process.env.CLINE_GLOBAL_SETTINGS_PATH, "utf8"),
 		) as { disabledPlugins?: string[] };
 
 		expect(settings.disabledPlugins).toBeUndefined();
-		expect(nextData).toBeUndefined();
+		// Plugin toggles return fresh data so the runtime restarts the session.
 		expect(
-			refreshedData.plugins.find((item) => item.path === pluginPath)?.enabled,
+			nextData?.plugins.find((item) => item.path === pluginPath)?.enabled,
 		).toBe(true);
 	});
 
