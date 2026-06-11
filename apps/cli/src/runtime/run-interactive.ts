@@ -427,13 +427,7 @@ export async function runInteractive(
 				uiEvents.off("pending-prompt-submitted", onPendingPromptSubmitted);
 			};
 		},
-		onSubmit: async (
-			input,
-			mode,
-			delivery,
-			attachments,
-			onCommandOutput,
-		) => {
+		onSubmit: async (input, mode, delivery, attachments, onCommandOutput) => {
 			let commandOutput: string | undefined;
 			try {
 				await sessionRuntime.ensureReady();
