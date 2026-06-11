@@ -1,5 +1,5 @@
 import { ResponseInput, ResponseInputMessageContentList, ResponseReasoningItem } from "openai/resources/responses/responses"
-import { ClineStorageMessage } from "@/shared/messages/content"
+import { ClineStorageMessage, getBase64ImageSource, getImageDataUrl } from "@/shared/messages/content"
 
 /**
  * Converts an array of ClineStorageMessage objects (extension of Anthropic format) to a ResponseInput array to use with OpenAI's Responses API.
@@ -177,7 +177,7 @@ export function convertToOpenAIResponsesInput(
 						const imageItem: any = {
 							type: "message",
 							role: "assistant",
-							content: [{ type: "output_text", text: `[image:${part.source.media_type}]` }],
+							content: [{ type: "output_text", text: `[image:${getBase64ImageSource(part.source).mediaType}]` }],
 						}
 						// Set message-level id if available (though images typically don't have call_id)
 						if (part.call_id) {
@@ -218,7 +218,7 @@ export function convertToOpenAIResponsesInput(
 						messageContent.push({
 							type: "input_image",
 							detail: "auto",
-							image_url: `data:${part.source.media_type};base64,${part.source.data}`,
+							image_url: getImageDataUrl(part.source),
 						})
 						break
 					case "tool_result": {
