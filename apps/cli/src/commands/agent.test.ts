@@ -152,14 +152,11 @@ describe("agent command", () => {
 					"utf8",
 				);
 
-				const plan = planAgentPluginInstalls(
-					[
-						{ name: "Branch-Protector" },
-						{ name: "my-tool", install: "https://example.com/my-tool.ts" },
-						{ name: "mystery-plugin" },
-					],
-					undefined,
-				);
+				const plan = planAgentPluginInstalls([
+					{ name: "Branch-Protector" },
+					{ name: "my-tool", install: "https://example.com/my-tool.ts" },
+					{ name: "mystery-plugin" },
+				]);
 
 				expect(plan.alreadyInstalled).toEqual([{ name: "Branch-Protector" }]);
 				expect(plan.installable).toEqual([
@@ -174,7 +171,7 @@ describe("agent command", () => {
 		it("returns an empty plan when the profile lists no plugins", async () => {
 			const { root } = await setUpHome();
 			try {
-				expect(planAgentPluginInstalls(undefined, undefined)).toEqual({
+				expect(planAgentPluginInstalls(undefined)).toEqual({
 					alreadyInstalled: [],
 					installable: [],
 					manual: [],

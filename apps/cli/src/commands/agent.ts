@@ -22,6 +22,7 @@ import {
 	getPluginDisplayName,
 	resolveAgentsConfigDirPath,
 } from "@cline/shared/storage";
+import { resolveWorkspaceRoot } from "../utils/helpers";
 import {
 	downloadRemoteFile,
 	isLocalPathLike,
@@ -165,7 +166,6 @@ export interface AgentPluginInstallPlan {
 
 export function planAgentPluginInstalls(
 	plugins: ConfiguredAgentPluginRef[] | undefined,
-	workspaceRoot: string | undefined,
 ): AgentPluginInstallPlan {
 	const plan: AgentPluginInstallPlan = {
 		alreadyInstalled: [],
@@ -176,7 +176,9 @@ export function planAgentPluginInstalls(
 		return plan;
 	}
 	const installedNames = new Set<string>();
-	for (const directory of resolvePluginConfigSearchPaths(workspaceRoot)) {
+	// Global plugin directories only: the profile installs globally, so a
+	// workspace-local plugin cannot satisfy its dependencies.
+	for (const directory of resolvePluginConfigSearchPaths(undefined)) {
 		try {
 			for (const pluginPath of discoverPluginModulePaths(directory)) {
 				installedNames.add(getPluginDisplayName(pluginPath).toLowerCase());
@@ -295,7 +297,7 @@ export async function runAgentInstallCommand(
 			options.io?.writeln(`  Path: ${installPath}`);
 		}
 
-		const plan = planAgentPluginInstalls(config.plugins, cwd);
+		const plan = planAgentPluginInstalls(config.plugins);
 		const reportLine = (text: string) => {
 			if (wizard) {
 				p.log.info(text);
@@ -448,9 +450,9 @@ export async function runAgentListCommand(options: {
 	json?: boolean;
 	io?: AgentCommandIo;
 }): Promise<number> {
-	const workspaceRoot = options.cwd?.trim()
-		? resolve(options.cwd)
-		: process.cwd();
+	const workspaceRoot = resolveWorkspaceRoot(
+		options.cwd?.trim() ? resolve(options.cwd) : process.cwd(),
+	);
 	const { configs, errors } = loadConfiguredAgentConfigs({ workspaceRoot });
 	if (options.json) {
 		process.stdout.write(
