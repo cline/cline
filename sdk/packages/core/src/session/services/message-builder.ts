@@ -20,15 +20,6 @@ import {
 const DEFAULT_MAX_TOOL_RESULT_CHARS = 50_000;
 const DEFAULT_MAX_TOTAL_TEXT_BYTES = 6_000_000;
 const MIN_TOTAL_BUDGET_TOOL_RESULT_BYTES = 8_000;
-const TARGET_TOOL_NAMES = new Set([
-	"read",
-	"read_files",
-	"search",
-	"search_codebase",
-	"bash",
-	"run_commands",
-	"fetch_web_content",
-]);
 const READ_TOOL_NAMES = new Set(["read", "read_files"]);
 const OUTDATED_FILE_CONTENT = "[outdated - see the latest file content]";
 const MISSING_TOOL_RESULT_TEXT =
@@ -70,7 +61,6 @@ export class MessageBuilder {
 
 	constructor(
 		private readonly maxToolResultChars = DEFAULT_MAX_TOOL_RESULT_CHARS,
-		private readonly targetToolNames = TARGET_TOOL_NAMES,
 		private readonly maxTotalTextBytes = DEFAULT_MAX_TOTAL_TEXT_BYTES,
 	) {}
 
@@ -131,7 +121,7 @@ export class MessageBuilder {
 			return block;
 		}
 
-		const toolName = this.toolNameByIdCache.get(block.tool_use_id);
+		const toolName = this.resolveToolName(block);
 		let nextContent = block.content;
 
 		if (this.isReadTool(toolName) && block.is_error !== true) {
@@ -146,9 +136,10 @@ export class MessageBuilder {
 			}
 		}
 
-		if (this.shouldTruncateTool(toolName)) {
-			nextContent = this.truncateToolResultContent(nextContent);
-		}
+		// Truncation is default-on for every tool result: MCP and custom SDK
+		// tools produce payloads just as large as the built-in ones, and any
+		// allowlist gate silently exempts them.
+		nextContent = this.truncateToolResultContent(nextContent);
 
 		return nextContent === block.content
 			? block
@@ -187,7 +178,7 @@ export class MessageBuilder {
 						}
 					}
 				} else if (block.type === "tool_result") {
-					const toolName = this.toolNameByIdCache.get(block.tool_use_id);
+					const toolName = this.resolveToolName(block);
 					if (!this.isReadTool(toolName) || block.is_error === true) {
 						continue;
 					}
@@ -751,8 +742,19 @@ export class MessageBuilder {
 		return !!toolName && READ_TOOL_NAMES.has(toolName);
 	}
 
-	private shouldTruncateTool(toolName: string | undefined): boolean {
-		return !!toolName && this.targetToolNames.has(toolName);
+	/**
+	 * Tool results can outlive their paired tool_use block (compacted or
+	 * imported histories), so fall back to the name carried on the result
+	 * itself when the id lookup misses.
+	 */
+	private resolveToolName(block: ToolResultContent): string | undefined {
+		const cached = this.toolNameByIdCache.get(block.tool_use_id);
+		if (cached !== undefined) {
+			return cached;
+		}
+		return typeof block.name === "string" && block.name.length > 0
+			? block.name.toLowerCase()
+			: undefined;
 	}
 
 	private truncateToolResultContent(
@@ -799,7 +801,7 @@ export class MessageBuilder {
 			return changed ? next : value;
 		}
 		if (value !== null && typeof value === "object") {
-			if (isImageContentLike(value)) {
+			if (isBinaryContentLike(value)) {
 				return value;
 			}
 			let changed = false;
@@ -886,6 +888,12 @@ export class MessageBuilder {
 					total += utf8ByteLength(block.thinking);
 				} else if (block.type === "file") {
 					total += utf8ByteLength(block.content);
+				} else if (block.type === "tool_use") {
+					// Model-generated tool arguments ship on the wire too. They are
+					// never truncated (providers can validate or replay them), but
+					// counting them makes the budget shrink reducible content harder
+					// instead of silently overshooting the request size.
+					total += countNestedStringBytes(block.input);
 				} else if (block.type === "tool_result") {
 					if (typeof block.content === "string") {
 						total += utf8ByteLength(block.content);
@@ -916,10 +924,6 @@ export class MessageBuilder {
 			}
 			for (const block of message.content) {
 				if (block.type !== "tool_result") {
-					continue;
-				}
-				const toolName = this.toolNameByIdCache.get(block.tool_use_id);
-				if (!this.shouldTruncateTool(toolName)) {
 					continue;
 				}
 				if (typeof block.content === "string") {
@@ -1042,8 +1046,17 @@ function isStructuredToolResultEntry(entry: unknown): boolean {
 	return type !== "text" && type !== "image" && type !== "file";
 }
 
-function isImageContentLike(value: object): boolean {
-	return (value as { type?: unknown }).type === "image";
+/**
+ * Binary carrier blocks (images today; document/audio-style blocks tomorrow)
+ * must never have their payload strings truncated — a middle-cut base64
+ * string is garbage to the downstream multimodal extraction.
+ */
+function isBinaryContentLike(value: object): boolean {
+	const record = value as { type?: unknown; data?: unknown };
+	if (record.type === "image") {
+		return true;
+	}
+	return typeof record.type === "string" && typeof record.data === "string";
 }
 
 function countNestedStringBytes(value: unknown): number {
@@ -1058,7 +1071,7 @@ function countNestedStringBytes(value: unknown): number {
 		return total;
 	}
 	if (value !== null && typeof value === "object") {
-		if (isImageContentLike(value)) {
+		if (isBinaryContentLike(value)) {
 			return 0;
 		}
 		let total = 0;
@@ -1091,7 +1104,7 @@ function collectNestedStringCandidates(
 		return;
 	}
 	if (container !== null && typeof container === "object") {
-		if (isImageContentLike(container)) {
+		if (isBinaryContentLike(container)) {
 			return;
 		}
 		const record = container as Record<string, unknown>;

@@ -202,11 +202,7 @@ describe("MessageBuilder", () => {
 	});
 
 	it("applies an aggregate text budget across targeted tool results", () => {
-		const builder = new MessageBuilder(
-			50_000,
-			new Set(["search_codebase"]),
-			20_000,
-		);
+		const builder = new MessageBuilder(50_000, 20_000);
 		const messages: Message[] = [
 			{
 				role: "assistant",
@@ -270,11 +266,7 @@ describe("MessageBuilder", () => {
 	});
 
 	it("applies the aggregate budget using UTF-8 byte size", () => {
-		const builder = new MessageBuilder(
-			50_000,
-			new Set(["search_codebase"]),
-			12_000,
-		);
+		const builder = new MessageBuilder(50_000, 12_000);
 		const messages: Message[] = [
 			{
 				role: "assistant",
@@ -320,11 +312,7 @@ describe("MessageBuilder", () => {
 	});
 
 	it("does not mutate original nested tool result content when applying aggregate budget", () => {
-		const builder = new MessageBuilder(
-			50_000,
-			new Set(["search_codebase"]),
-			10_000,
-		);
+		const builder = new MessageBuilder(50_000, 10_000);
 		const originalText = "a".repeat(15_000);
 		const messages: Message[] = [
 			{
@@ -568,11 +556,7 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
 	});
 
 	it("applies the aggregate text budget to nested structured strings", () => {
-		const builder = new MessageBuilder(
-			50_000,
-			new Set(["run_commands", "read_files"]),
-			100_000,
-		);
+		const builder = new MessageBuilder(50_000, 100_000);
 		// Five results of ~40k chars each: every nested string is below the
 		// per-result limit, but the aggregate (~200k) exceeds the budget.
 		const messages: Message[] = [];
@@ -609,11 +593,7 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
 	});
 
 	it("does not mutate the original structured tool results", () => {
-		const builder = new MessageBuilder(
-			10_000,
-			new Set(["run_commands"]),
-			20_000,
-		);
+		const builder = new MessageBuilder(10_000, 20_000);
 		const messages: Message[] = [
 			toolUseMessage("call_1", "run_commands", { commands: ["cat a.log"] }),
 			structuredToolResultMessage("call_1", "run_commands", [
@@ -670,5 +650,259 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
 		expect(serialized).not.toContain(MIDDLE_SENTINEL);
 		expect(serialized).toContain(HEAD_MARKER);
 		expect(serialized).toContain(TAIL_MARKER);
+	});
+});
+
+/**
+ * Coverage for default-on truncation (no tool allowlist), tool_use input
+ * budget accounting, tool_result.name fallback, and binary block protection.
+ */
+describe("MessageBuilder default-on truncation", () => {
+	it("truncates huge results from MCP/custom tools that were never on the old allowlist", () => {
+		const builder = new MessageBuilder(100);
+		const messages: Message[] = [
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: "tool_1",
+						name: "mcp__github__get_pull_request_diff",
+						input: { pull_number: 42 },
+					},
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "tool_1",
+						name: "mcp__github__get_pull_request_diff",
+						content: "d".repeat(5_000),
+					},
+				],
+			},
+		];
+
+		const result = builder.buildForApi(messages);
+		const block = Array.isArray(result[1].content)
+			? result[1].content[0]
+			: undefined;
+		if (block?.type !== "tool_result" || typeof block.content !== "string") {
+			throw new Error("expected tool_result with string content");
+		}
+		expect(block.content.length).toBeLessThanOrEqual(100);
+		expect(block.content).toContain("...[truncated");
+	});
+
+	it("collects non-builtin tool results as aggregate budget candidates", () => {
+		const builder = new MessageBuilder(50_000, 20_000);
+		const messages: Message[] = [
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: "tool_1",
+						name: "my_custom_dump_tool",
+						input: {},
+					},
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "tool_1",
+						name: "my_custom_dump_tool",
+						content: [{ type: "text", text: "e".repeat(30_000) }],
+					},
+				],
+			},
+		];
+
+		const result = builder.buildForApi(messages);
+		const block = Array.isArray(result[1].content)
+			? result[1].content[0]
+			: undefined;
+		if (block?.type !== "tool_result" || !Array.isArray(block.content)) {
+			throw new Error("expected tool_result with array content");
+		}
+		const entry = block.content[0];
+		if (entry.type !== "text") {
+			throw new Error("expected text entry");
+		}
+		expect(Buffer.byteLength(entry.text, "utf8")).toBeLessThanOrEqual(20_000);
+		expect(entry.text).toContain("provider request budget");
+	});
+
+	it("counts tool_use input strings toward the aggregate budget", () => {
+		const builder = new MessageBuilder(50_000, 20_000);
+		const hugeInput = "f".repeat(15_000);
+		const messages: Message[] = [
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: "tool_1",
+						name: "run_commands",
+						input: { commands: [hugeInput] },
+					},
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "tool_1",
+						name: "run_commands",
+						content: "g".repeat(10_000),
+					},
+				],
+			},
+		];
+
+		const result = builder.buildForApi(messages);
+		// Result alone (10k) is under the 20k budget; only counting the 15k
+		// tool_use input pushes the total over and forces budget truncation.
+		const resultBlock = Array.isArray(result[1].content)
+			? result[1].content[0]
+			: undefined;
+		if (
+			resultBlock?.type !== "tool_result" ||
+			typeof resultBlock.content !== "string"
+		) {
+			throw new Error("expected tool_result with string content");
+		}
+		expect(resultBlock.content).toContain("provider request budget");
+
+		// The model-generated arguments themselves must never be rewritten.
+		const useBlock = Array.isArray(result[0].content)
+			? result[0].content[0]
+			: undefined;
+		if (useBlock?.type !== "tool_use") {
+			throw new Error("expected tool_use");
+		}
+		expect(useBlock.input).toEqual({ commands: [hugeInput] });
+	});
+
+	it("rewrites outdated reads on orphaned tool results via the name fallback", () => {
+		const builder = new MessageBuilder();
+		const oldRead = JSON.stringify([
+			{ path: "/tmp/a.txt", result: "OLD CONTENT" },
+		]);
+		const messages: Message[] = [
+			{
+				role: "user",
+				// Orphaned result: its tool_use was dropped (e.g. compaction), so
+				// only the name field identifies it as a read tool.
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "tool_orphan",
+						name: "read_files",
+						content: oldRead,
+					},
+				],
+			},
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: "tool_2",
+						name: "read_files",
+						input: { file_paths: ["/tmp/a.txt"] },
+					},
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "tool_2",
+						name: "read_files",
+						content: JSON.stringify([
+							{ path: "/tmp/a.txt", result: "NEW CONTENT" },
+						]),
+					},
+				],
+			},
+		];
+
+		const result = builder.buildForApi(messages);
+		const orphan = Array.isArray(result[0].content)
+			? result[0].content[0]
+			: undefined;
+		if (orphan?.type !== "tool_result") {
+			throw new Error("expected tool_result");
+		}
+		expect(JSON.stringify(orphan.content)).toContain(
+			"[outdated - see the latest file content]",
+		);
+		expect(JSON.stringify(orphan.content)).not.toContain("OLD CONTENT");
+		expect(JSON.stringify(result[2].content)).toContain("NEW CONTENT");
+	});
+
+	it("preserves non-image binary carrier blocks nested in structured results", () => {
+		const builder = new MessageBuilder(100);
+		const pdfData = "p".repeat(5_000);
+		const messages: Message[] = [
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: "tool_1",
+						name: "fetch_web_content",
+						input: { url: "https://example.com/report.pdf" },
+					},
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "tool_1",
+						name: "fetch_web_content",
+						content: [
+							{
+								query: "https://example.com/report.pdf",
+								result: [
+									{
+										type: "document",
+										data: pdfData,
+										mediaType: "application/pdf",
+									},
+									{ type: "text", text: "h".repeat(5_000) },
+								],
+								success: true,
+							},
+						] as unknown as ToolResultContent["content"],
+					},
+				],
+			},
+		];
+
+		const result = builder.buildForApi(messages);
+		const block = Array.isArray(result[1].content)
+			? result[1].content[0]
+			: undefined;
+		if (block?.type !== "tool_result" || !Array.isArray(block.content)) {
+			throw new Error("expected tool_result with array content");
+		}
+		const entry = block.content[0] as unknown as {
+			result: Array<{ type: string; data?: string; text?: string }>;
+		};
+		const doc = entry.result.find((item) => item.type === "document");
+		const text = entry.result.find((item) => item.type === "text");
+		expect(doc?.data).toBe(pdfData);
+		expect(text?.text).toContain("...[truncated");
 	});
 });
