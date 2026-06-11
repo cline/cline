@@ -1,21 +1,21 @@
-import { ModelInfo, OpenAiCodexModelId, openAiCodexDefaultModelId, openAiCodexModels } from "@shared/api"
+import { type ModelInfo, type OpenAiCodexModelId, openAiCodexDefaultModelId, openAiCodexModels } from "@shared/api"
 import { normalizeOpenaiReasoningEffort } from "@shared/storage/types"
 import OpenAI from "openai"
 import type { ChatCompletionTool } from "openai/resources/chat/completions"
 import * as os from "os"
-import { MessageEvent as UndiciMessageEvent, WebSocket as UndiciWebSocket } from "undici"
+import type { MessageEvent as UndiciMessageEvent } from "undici"
 import { v7 as uuidv7 } from "uuid"
 import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
 import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { featureFlagsService } from "@/services/feature-flags"
-import { ClineStorageMessage } from "@/shared/messages/content"
-import { fetch } from "@/shared/net"
+import type { ClineStorageMessage } from "@/shared/messages/content"
+import { type ClineWebSocket, createWebSocket, fetch } from "@/shared/net"
 import { ApiFormat } from "@/shared/proto/cline/models"
 import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
 import { Logger } from "@/shared/services/Logger"
-import { ApiHandler, CommonApiHandlerOptions } from "../"
+import type { ApiHandler, CommonApiHandlerOptions } from "../"
 import { convertToOpenAIResponsesInput } from "../transform/openai-response-format"
-import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
+import type { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
 
 /**
  * OpenAI Codex base URL for API requests
@@ -42,7 +42,7 @@ interface OpenAiCodexHandlerOptions extends CommonApiHandlerOptions {
 export class OpenAiCodexHandler implements ApiHandler {
 	private options: OpenAiCodexHandlerOptions
 	private client?: OpenAI
-	private responsesWs: UndiciWebSocket | undefined
+	private responsesWs: ClineWebSocket | undefined
 	private websocketRequestInFlight = false
 	// Session ID for the Codex API (persists for the lifetime of the handler)
 	private readonly sessionId: string
@@ -313,19 +313,17 @@ export class OpenAiCodexHandler implements ApiHandler {
 		return false
 	}
 
-	private async ensureResponsesWebsocket(accessToken: string, codexHeaders: Record<string, string>): Promise<UndiciWebSocket> {
-		if (this.responsesWs && this.responsesWs.readyState === UndiciWebSocket.OPEN) {
+	private async ensureResponsesWebsocket(accessToken: string, codexHeaders: Record<string, string>): Promise<ClineWebSocket> {
+		if (this.responsesWs && this.responsesWs.readyState === this.responsesWs.OPEN) {
 			return this.responsesWs
 		}
 
 		this.closeResponsesWebsocket()
 
-		const ws = new UndiciWebSocket(CODEX_RESPONSES_WEBSOCKET_URL, {
-			headers: {
-				Authorization: `Bearer ${accessToken}`,
-				"OpenAI-Beta": "responses_websockets=2026-02-06",
-				...codexHeaders,
-			},
+		const ws = createWebSocket(CODEX_RESPONSES_WEBSOCKET_URL, {
+			Authorization: `Bearer ${accessToken}`,
+			"OpenAI-Beta": "responses_websockets=2026-02-06",
+			...codexHeaders,
 		})
 
 		await new Promise<void>((resolve, reject) => {

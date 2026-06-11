@@ -93,9 +93,28 @@
  * ```
  */
 
-import OpenAI, { ClientOptions as OpenAIClientOptions } from "openai"
-import { EnvHttpProxyAgent, setGlobalDispatcher, fetch as undiciFetch } from "undici"
+import OpenAI, { type ClientOptions as OpenAIClientOptions } from "openai"
+import type { WebSocket as UndiciWebSocket } from "undici"
 import { buildExternalBasicHeaders } from "@/services/EnvUtils"
+
+/**
+ * IMPORTANT: undici must only ever be loaded in standalone (JetBrains/CLI)
+ * builds, and only via the lazy `require` calls below--never via a top-level
+ * value import.
+ *
+ * Merely evaluating the undici module registers its Agent at the global
+ * symbol `Symbol.for("undici.globalDispatcher.1")`, which is shared with
+ * Node's built-in fetch. When the bundled undici version differs from the
+ * undici built into the Node runtime (e.g. VS Code's Electron), built-in
+ * fetch picks up the foreign Agent and requests can fail with errors like
+ * `UND_ERR_INVALID_ARG: invalid content-length header`. This broke the
+ * Anthropic provider on VS Code 1.124 / Electron 42 / Node 24.
+ * See https://github.com/cline/cline/issues/11407
+ */
+function requireUndici(): typeof import("undici") {
+	// eslint-disable-next-line @typescript-eslint/no-require-imports
+	return require("undici")
+}
 
 let mockFetch: typeof globalThis.fetch | undefined
 
@@ -117,7 +136,9 @@ export const fetch: typeof globalThis.fetch = (() => {
 	// to "true" or "false" (as strings) in the JetBrains/CLI build.
 	// We must use explicit string comparison because "false" is truthy in JS.
 	if (process.env.IS_STANDALONE === "true") {
-		// Configure undici with ProxyAgent
+		// Configure undici with ProxyAgent. undici is loaded lazily so that
+		// the VSCode build never evaluates it (see requireUndici above).
+		const { EnvHttpProxyAgent, setGlobalDispatcher, fetch: undiciFetch } = requireUndici()
 		const agent = new EnvHttpProxyAgent({})
 		setGlobalDispatcher(agent)
 		baseFetch = undiciFetch as any as typeof globalThis.fetch
@@ -199,4 +220,36 @@ export function createOpenAIClient(options: OpenAIClientOptions): OpenAI {
 		},
 		fetch, // Use configured fetch with proxy support
 	})
+}
+
+/**
+ * WebSocket type used by `createWebSocket`. Node 22+'s global WebSocket is
+ * undici's implementation, so undici's type describes both branches below.
+ */
+export type ClineWebSocket = UndiciWebSocket
+
+/**
+ * Creates a WebSocket that supports custom request headers (a non-standard
+ * extension provided by undici's WebSocket, which is also Node's built-in
+ * WebSocket since Node 22).
+ *
+ * - **VSCode**: uses `globalThis.WebSocket`, which VS Code's extension host
+ *   patches for proxy support. We must not use the bundled undici here (see
+ *   requireUndici above).
+ * - **JetBrains, CLI**: uses the bundled undici WebSocket so the connection
+ *   goes through the EnvHttpProxyAgent global dispatcher configured above.
+ */
+export function createWebSocket(url: string, headers: Record<string, string>): ClineWebSocket {
+	if (process.env.IS_STANDALONE === "true") {
+		const { WebSocket: StandaloneWebSocket } = requireUndici()
+		return new StandaloneWebSocket(url, { headers })
+	}
+	// Note: `headers` in the init object is non-standard, but supported by
+	// Node's (undici-based) global WebSocket implementation.
+	return new (
+		globalThis.WebSocket as unknown as new (
+			url: string,
+			init: { headers: Record<string, string> },
+		) => ClineWebSocket
+	)(url, { headers })
 }

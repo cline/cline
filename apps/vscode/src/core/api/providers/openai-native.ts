@@ -1,32 +1,32 @@
 import {
-	ModelInfo,
-	OpenAiCompatibleModelInfo,
-	OpenAiNativeModelId,
+	type ModelInfo,
+	type OpenAiCompatibleModelInfo,
+	type OpenAiNativeModelId,
 	openAiNativeDefaultModelId,
 	openAiNativeModels,
 } from "@shared/api"
 import { normalizeOpenaiReasoningEffort } from "@shared/storage/types"
 import { calculateApiCostOpenAI } from "@utils/cost"
-import OpenAI from "openai"
+import type OpenAI from "openai"
 import type {
 	ChatCompletionFunctionTool,
 	ChatCompletionReasoningEffort,
 	ChatCompletionTool,
 } from "openai/resources/chat/completions"
-import { MessageEvent as UndiciMessageEvent, WebSocket as UndiciWebSocket } from "undici"
+import type { MessageEvent as UndiciMessageEvent } from "undici"
 import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { featureFlagsService } from "@/services/feature-flags"
-import { ClineStorageMessage } from "@/shared/messages/content"
-import { createOpenAIClient } from "@/shared/net"
+import type { ClineStorageMessage } from "@/shared/messages/content"
+import { type ClineWebSocket, createOpenAIClient, createWebSocket } from "@/shared/net"
 import { ApiFormat } from "@/shared/proto/cline/models"
 import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
 import { Logger } from "@/shared/services/Logger"
 import { isGPT5ModelFamily } from "@/utils/model-utils"
-import { ApiHandler, CommonApiHandlerOptions } from "../"
+import type { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { convertToOpenAIResponsesInput } from "../transform/openai-response-format"
-import { ApiStream } from "../transform/stream"
+import type { ApiStream } from "../transform/stream"
 import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
 
 interface OpenAiNativeHandlerOptions extends CommonApiHandlerOptions {
@@ -40,8 +40,8 @@ interface OpenAiNativeHandlerOptions extends CommonApiHandlerOptions {
 export class OpenAiNativeHandler implements ApiHandler {
 	private options: OpenAiNativeHandlerOptions
 	private client: OpenAI | undefined
-	private responsesWs: UndiciWebSocket | undefined
-	private responsesWsReadyPromise: Promise<UndiciWebSocket> | undefined
+	private responsesWs: ClineWebSocket | undefined
+	private responsesWsReadyPromise: Promise<ClineWebSocket> | undefined
 	private websocketRequestInFlight = false
 	private abortController?: AbortController
 
@@ -269,7 +269,9 @@ export class OpenAiNativeHandler implements ApiHandler {
 	): ApiStream {
 		const client = this.ensureClient()
 		Logger.debug(`OpenAI Responses Input (HTTP): ${JSON.stringify(params.input)}`)
-		const stream = await client.responses.create(params, { signal: this.abortController?.signal })
+		const stream = await client.responses.create(params, {
+			signal: this.abortController?.signal,
+		})
 		yield* this.processResponsesEvents(stream, modelInfo)
 	}
 
@@ -307,8 +309,8 @@ export class OpenAiNativeHandler implements ApiHandler {
 		return false
 	}
 
-	private async ensureResponsesWebsocket(): Promise<UndiciWebSocket> {
-		if (this.responsesWs && this.responsesWs.readyState === UndiciWebSocket.OPEN) {
+	private async ensureResponsesWebsocket(): Promise<ClineWebSocket> {
+		if (this.responsesWs && this.responsesWs.readyState === this.responsesWs.OPEN) {
 			return this.responsesWs
 		}
 
@@ -322,16 +324,14 @@ export class OpenAiNativeHandler implements ApiHandler {
 			throw new Error("OpenAI API key is required")
 		}
 
-		const ws = new UndiciWebSocket("wss://api.openai.com/v1/responses", {
-			headers: {
-				Authorization: `Bearer ${this.options.openAiNativeApiKey}`,
-				"OpenAI-Beta": "responses_websockets=2026-02-06",
-				...buildExternalBasicHeaders(),
-			},
+		const ws = createWebSocket("wss://api.openai.com/v1/responses", {
+			Authorization: `Bearer ${this.options.openAiNativeApiKey}`,
+			"OpenAI-Beta": "responses_websockets=2026-02-06",
+			...buildExternalBasicHeaders(),
 		})
 
 		this.responsesWs = ws
-		const readyPromise = new Promise<UndiciWebSocket>((resolve, reject) => {
+		const readyPromise = new Promise<ClineWebSocket>((resolve, reject) => {
 			const cleanup = () => {
 				ws.removeEventListener("open", handleOpen)
 				ws.removeEventListener("error", handleError)
@@ -509,7 +509,11 @@ export class OpenAiNativeHandler implements ApiHandler {
 			if (chunk.type === "response.output_item.added") {
 				const item = chunk.item
 				if (item.type === "function_call" && item.id) {
-					functionCallByItemId.set(item.id, { call_id: item.call_id, name: item.name, id: item.id })
+					functionCallByItemId.set(item.id, {
+						call_id: item.call_id,
+						name: item.name,
+						id: item.id,
+					})
 					yield {
 						type: "tool_calls",
 						id: item.id,
@@ -536,7 +540,11 @@ export class OpenAiNativeHandler implements ApiHandler {
 				const item = chunk.item
 				if (item.type === "function_call") {
 					if (item.id) {
-						functionCallByItemId.set(item.id, { call_id: item.call_id, name: item.name, id: item.id })
+						functionCallByItemId.set(item.id, {
+							call_id: item.call_id,
+							name: item.name,
+							id: item.id,
+						})
 					}
 					yield {
 						type: "tool_calls",
