@@ -23,6 +23,16 @@ const childEnv = {
 	CLINE_WRAPPER_PATH: scriptPath,
 };
 
+// Auto-discover OS trust anchors and pass them to the Bun child via
+// NODE_EXTRA_CA_CERTS. The Bun runtime does not read the OS store on its own,
+// so corporate/self-signed CAs would otherwise fail (CLINE-2353). This wrapper
+// runs on Node, which can read the full store here.
+try {
+	require("./ca-certs.cjs").configureNodeExtraCaCerts(childEnv);
+} catch {
+	// Best effort: fall back to the runtime's default trust on any failure.
+}
+
 function run(target) {
 	const result = childProcess.spawnSync(target, process.argv.slice(2), {
 		stdio: "inherit",
