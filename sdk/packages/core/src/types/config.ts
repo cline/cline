@@ -200,6 +200,12 @@ export interface CoreSessionConfig
 	extensionContext?: ExtensionContext;
 	extraTools?: AgentTool[];
 	pluginPaths?: string[];
+	/**
+	 * Session-scoped plugin disable list (absolute entry paths), unioned with
+	 * the globally disabled plugins. Used by agent profiles to restrict the
+	 * plugin set for one session without touching persisted user settings.
+	 */
+	disabledPluginPaths?: string[];
 	extensions?: AgentConfig["extensions"];
 	execution?: AgentConfig["execution"];
 	compaction?: CoreCompactionConfig;

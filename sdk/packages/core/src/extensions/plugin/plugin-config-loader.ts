@@ -36,6 +36,11 @@ export interface ResolveAgentPluginPathsOptions {
 	pluginPaths?: ReadonlyArray<string>;
 	workspacePath?: string;
 	cwd?: string;
+	/**
+	 * Session-scoped disable list (absolute entry paths), applied in addition
+	 * to the globally disabled plugins from settings.
+	 */
+	disabledPluginPaths?: ReadonlyArray<string>;
 }
 
 function isDirectory(path: string): boolean {
@@ -60,9 +65,19 @@ function dedupePaths(paths: Iterable<string>): string[] {
 	return deduped;
 }
 
-function mergePluginPaths(paths: Iterable<string>): string[] {
+function mergePluginPaths(
+	paths: Iterable<string>,
+	sessionDisabledPaths?: ReadonlyArray<string>,
+): string[] {
 	const deduped = dedupePaths(paths);
-	return filterDisabledPluginPaths(deduped);
+	const filtered = filterDisabledPluginPaths(deduped);
+	if (!sessionDisabledPaths?.length) {
+		return filtered;
+	}
+	const sessionDisabled = new Set(
+		sessionDisabledPaths.map((path) => resolve(path)),
+	);
+	return filtered.filter((path) => !sessionDisabled.has(path));
 }
 
 function resolveDiscoveredPluginPaths(
@@ -187,7 +202,10 @@ export function resolveAgentPluginPaths(
 		cwd,
 	);
 
-	return mergePluginPaths([...configuredPaths, ...discoveredFromSearchPaths]);
+	return mergePluginPaths(
+		[...configuredPaths, ...discoveredFromSearchPaths],
+		options.disabledPluginPaths,
+	);
 }
 
 function resolveAgentPluginPathsBestEffort(
@@ -202,7 +220,10 @@ function resolveAgentPluginPathsBestEffort(
 		cwd,
 	);
 
-	return mergePluginPaths([...configuredPaths, ...discoveredFromSearchPaths]);
+	return mergePluginPaths(
+		[...configuredPaths, ...discoveredFromSearchPaths],
+		options.disabledPluginPaths,
+	);
 }
 
 export function resolvePluginSkillDirectoriesFromPaths(
