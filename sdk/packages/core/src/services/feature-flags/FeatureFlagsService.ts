@@ -68,6 +68,12 @@ export class FeatureFlagsService {
 				flagKeys: FEATURE_FLAGS.length > 0 ? FEATURE_FLAGS : undefined,
 				context: { ...this.context, userId },
 			});
+
+			if (this.cacheInfo.userId !== userId) {
+				// A new poll has started with a different userId, so we should not update the cache with the results of this poll
+				return;
+			}
+
 			this.cacheInfo.flagsPayload = values;
 
 			for (const flag of this.getReturnedFlagKeys(values)) {
@@ -75,6 +81,11 @@ export class FeatureFlagsService {
 				this.cache.set(flag, payload ?? false);
 			}
 		} catch (error) {
+			if (this.cacheInfo.userId !== userId) {
+				// A new poll has started with a different userId, so we should not update the cache with the results of this poll
+				return;
+			}
+
 			this.cacheInfo = previousCacheInfo.updateTime
 				? previousCacheInfo
 				: { updateTime: 0, userId: null };
