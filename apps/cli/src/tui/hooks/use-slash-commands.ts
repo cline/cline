@@ -11,13 +11,17 @@ export function useSlashCommands(input: {
 	workflowSlashCommands: TuiProps["workflowSlashCommands"];
 	loadAdditionalSlashCommands: TuiProps["loadAdditionalSlashCommands"];
 	canFork: boolean;
+	/** Bump to re-run the loader, e.g. after the plugin set changes. */
+	refreshKey?: number;
 }) {
 	const { workflowSlashCommands, loadAdditionalSlashCommands, canFork } = input;
+	const refreshKey = input.refreshKey ?? 0;
 	const [additionalSlashCommands, setAdditionalSlashCommands] = useState<
 		TuiProps["workflowSlashCommands"] | undefined
 	>(loadAdditionalSlashCommands ? [] : undefined);
 
 	useEffect(() => {
+		void refreshKey;
 		if (!loadAdditionalSlashCommands) {
 			setAdditionalSlashCommands(undefined);
 			return;
@@ -37,7 +41,7 @@ export function useSlashCommands(input: {
 		return () => {
 			cancelled = true;
 		};
-	}, [loadAdditionalSlashCommands]);
+	}, [loadAdditionalSlashCommands, refreshKey]);
 
 	const registry = useMemo(() => {
 		return buildSlashCommandRegistry({
