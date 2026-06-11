@@ -194,6 +194,9 @@ export function spawnDetachedConnector(
 				...withResolvedClineBuildEnv(process.env),
 				[childEnvKey]: "1",
 			},
+			// Prevent a console window from appearing on Windows; detached
+			// processes otherwise allocate a new visible console.
+			windowsHide: true,
 		});
 		logSpawnedProcess({
 			component: options?.component ?? "connectors",

@@ -129,6 +129,8 @@ function checkRipgrepAvailable(): Promise<boolean> {
 	return new Promise((resolve) => {
 		const child = spawn("rg", ["--version"], {
 			stdio: ["ignore", "pipe", "pipe"],
+			// Prevent a console window from flashing on Windows.
+			windowsHide: true,
 		});
 
 		child.on("close", (code) => {
@@ -168,6 +170,8 @@ function searchWithRipgrep(
 			{
 				cwd,
 				stdio: ["ignore", "pipe", "pipe"],
+				// Prevent a console window from flashing on Windows.
+				windowsHide: true,
 			},
 		);
 

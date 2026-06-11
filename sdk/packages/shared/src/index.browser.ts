@@ -31,6 +31,7 @@ export type {
 	AgentExtensionAutomationEventType,
 	AgentExtensionCapability,
 	AgentExtensionCommand,
+	AgentExtensionCommandResult,
 	AgentExtensionHooks,
 	AgentExtensionMessageBuilder,
 	AgentExtensionProvider,
@@ -48,6 +49,16 @@ export {
 	normalizePluginManifest,
 } from "./extensions/contribution-registry";
 export { PLUGIN_FILE_EXTENSIONS } from "./extensions/plugin";
+export {
+	FEATURE_FLAGS,
+	type FeatureFlag,
+	FeatureFlagDefaultValue,
+	type FeatureFlagPayload,
+	type FeatureFlagsAndPayloads,
+	type FeatureFlagsContext,
+	type FeatureFlagsSettings,
+	type IFeatureFlagsProvider,
+} from "./feature-flags";
 export type { HookControl } from "./hooks/contracts";
 export type {
 	AgentAbortHookPayload,

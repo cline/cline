@@ -5,6 +5,77 @@ import type { RuntimeConfigExtensionKind } from "./session/runtime-config";
 
 export type HubProtocolVersion = "v1";
 
+export const CURRENT_HUB_PROTOCOL_VERSION: HubProtocolVersion = "v1";
+export const MIN_CLIENT_HUB_PROTOCOL_VERSION: HubProtocolVersion = "v1";
+export const MAX_CLIENT_HUB_PROTOCOL_VERSION: HubProtocolVersion = "v1";
+
+export type HubCapabilityName =
+	| "client.register"
+	| "client.list"
+	| "session.create"
+	| "session.list"
+	| "session.get"
+	| "session.run"
+	| "session.abort"
+	| "schedule.create"
+	| "schedule.list"
+	| "settings.get"
+	| "settings.set";
+
+export const HUB_CAPABILITIES: readonly HubCapabilityName[] = [
+	"client.register",
+	"client.list",
+	"session.create",
+	"session.list",
+	"session.get",
+	"session.run",
+	"session.abort",
+	"schedule.create",
+	"schedule.list",
+	"settings.get",
+	"settings.set",
+];
+
+export interface HubProtocolMetadata {
+	protocolVersion: string;
+	minClientProtocolVersion?: string;
+	maxClientProtocolVersion?: string;
+	capabilities?: readonly string[];
+}
+
+export type HubCompatibilityResult =
+	| { compatible: true }
+	| { compatible: false; reason: "missing_protocol" | "unsupported_protocol" };
+
+function parseHubProtocolNumber(
+	version: string | undefined,
+): number | undefined {
+	const match = /^v(\d+)$/.exec(version?.trim() ?? "");
+	if (!match) {
+		return undefined;
+	}
+	return Number.parseInt(match[1] ?? "", 10);
+}
+
+export function isHubProtocolCompatible(
+	hub: HubProtocolMetadata,
+	clientProtocolVersion: HubProtocolVersion = CURRENT_HUB_PROTOCOL_VERSION,
+): HubCompatibilityResult {
+	const hubProtocol = parseHubProtocolNumber(hub.protocolVersion);
+	const clientProtocol = parseHubProtocolNumber(clientProtocolVersion);
+	if (hubProtocol === undefined || clientProtocol === undefined) {
+		return { compatible: false, reason: "missing_protocol" };
+	}
+	const minClientProtocol =
+		parseHubProtocolNumber(hub.minClientProtocolVersion) ?? hubProtocol;
+	const maxClientProtocol =
+		parseHubProtocolNumber(hub.maxClientProtocolVersion) ?? hubProtocol;
+	return clientProtocol >= minClientProtocol &&
+		clientProtocol <= maxClientProtocol
+		? { compatible: true }
+		: { compatible: false, reason: "unsupported_protocol" };
+}
+
 export type HubActorKind = "client" | "peerHub";
 
 export type HubTransportKind =

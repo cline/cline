@@ -146,5 +146,50 @@ describe("onboarding auth telemetry forwarding", () => {
 		// emitted by completeClineDeviceAuth, so passing telemetry to the start
 		// helper would double-emit the event.
 		expect(hoisted.startClineDeviceAuth).toHaveBeenCalledWith();
+		expect(hoisted.openMock).toHaveBeenCalledWith(
+			"https://verify?user_code=uc",
+			{ wait: false },
+		);
+	});
+
+	it("falls back to displaying the device auth URL when browser open fails", async () => {
+		hoisted.openMock.mockRejectedValueOnce(new Error("no browser"));
+		hoisted.startClineDeviceAuth.mockResolvedValueOnce({
+			deviceCode: "dc",
+			userCode: "uc",
+			verificationUri: "https://verify",
+			verificationUriComplete: "https://verify?user_code=uc",
+			expiresInSeconds: 600,
+			pollIntervalSeconds: 5,
+		});
+		hoisted.completeClineDeviceAuth.mockResolvedValueOnce({
+			access: "a",
+			refresh: "r",
+			expires: 0,
+		});
+		const setStatus = vi.fn();
+
+		runDeviceCodeAuthFlow({
+			providerId: "cline",
+			providerSettingsManager: makeManager(),
+			isAborted: () => false,
+			setUserCode: vi.fn(),
+			setVerifyUrl: vi.fn(),
+			setStatus,
+			setError: vi.fn(),
+			onComplete: vi.fn(),
+		});
+
+		await Promise.resolve();
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(hoisted.openMock).toHaveBeenCalledWith(
+			"https://verify?user_code=uc",
+			{ wait: false },
+		);
+		expect(setStatus).toHaveBeenCalledWith(
+			"Could not open browser. Visit the URL below.",
+		);
 	});
 });

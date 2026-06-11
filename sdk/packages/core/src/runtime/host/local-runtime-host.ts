@@ -96,6 +96,7 @@ import {
 } from "./local/session-service-invoker";
 import {
 	createSessionSpawnTool,
+	createSessionSubAgentLifecycleCallbacks,
 	type SubAgentStartTracker,
 } from "./local/spawn-tool";
 import { loadUserFileContent } from "./local/user-files";
@@ -383,6 +384,17 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const pluginEventFallbackAutomation =
 			inputLocalConfig?.extensionContext?.automation;
 		let bootstrap!: Awaited<ReturnType<typeof prepareLocalRuntimeBootstrap>>;
+		const subAgentDeps = {
+			getSession: (sid: string) => this.sessions.get(sid),
+			subAgentStarts: this.subAgentStarts,
+			onAgentEvent: (
+				rootSessionId: string,
+				config: CoreSessionConfig,
+				event: AgentEvent,
+			) => this.eventBridge.dispatchAgentEvent(rootSessionId, config, event),
+			invokeBackendOptional: (method: string, ...args: unknown[]) =>
+				this.invokeOptional(method, ...args),
+		};
 		bootstrap = await prepareLocalRuntimeBootstrap({
 			input: startInput,
 			localRuntime: input.localRuntime,
@@ -413,17 +425,16 @@ export class LocalRuntimeHost implements RuntimeHost {
 			},
 			createSpawnTool: () =>
 				createSessionSpawnTool(
-					{
-						getSession: (sid) => this.sessions.get(sid),
-						subAgentStarts: this.subAgentStarts,
-						onAgentEvent: (rootSessionId, config, event) =>
-							this.eventBridge.dispatchAgentEvent(rootSessionId, config, event),
-						invokeBackendOptional: (method, ...args) =>
-							this.invokeOptional(method, ...args),
-					},
+					subAgentDeps,
 					bootstrap.config,
 					sessionId,
 					sessionToolExecutors,
+				),
+			createSubAgentLifecycleCallbacks: (config) =>
+				createSessionSubAgentLifecycleCallbacks(
+					subAgentDeps,
+					config,
+					sessionId,
 				),
 			readSessionMetadata: async () =>
 				(await this.getSession(sessionId))?.metadata as

@@ -193,6 +193,8 @@ function startCommand(
 		detached: true,
 		stdio: ["ignore", "pipe", "pipe"],
 		env: process.env,
+		// Prevent a console window from flashing on Windows.
+		windowsHide: true,
 	});
 
 	const record: JobRecord = {

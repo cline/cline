@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
 	type ChatCommandState,
 	chatCommandHost,
+	createChatCommandHost,
 } from "../../utils/chat-commands";
 import type { Config } from "../../utils/types";
 import {
@@ -161,5 +162,38 @@ describe("runInteractiveChatCommand", () => {
 		});
 		expect(state.autoApproveTools).toBe(true);
 		expect(setInteractiveAutoApprove).toHaveBeenCalledWith(true);
+	});
+
+	it("returns plugin command submit prompts as model input", async () => {
+		const config = makeConfig();
+		const runtime = makeRuntime();
+		const onCommandOutput = vi.fn();
+		const host = createChatCommandHost().register("command", {
+			names: ["/goal"],
+			run: async ({ args }, context) => {
+				await context.reply(`Goal guard set: ${args.join(" ")}`);
+				await context.submitPrompt?.(args.join(" "));
+			},
+		});
+
+		const result = await runInteractiveChatCommand({
+			prompt: "/goal fix tests",
+			enabled: true,
+			config,
+			host,
+			chatCommandState: makeState(config),
+			autoApproveAllRef: { current: false },
+			setInteractiveAutoApprove: () => {},
+			sessionRuntime: runtime,
+			stop: () => {},
+			onCommandOutput,
+		});
+
+		expect(result).toEqual({
+			handled: false,
+			input: "fix tests",
+			commandOutput: "Goal guard set: fix tests",
+		});
+		expect(onCommandOutput).toHaveBeenCalledWith("Goal guard set: fix tests");
 	});
 });
