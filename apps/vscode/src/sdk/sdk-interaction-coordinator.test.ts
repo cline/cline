@@ -310,10 +310,12 @@ describe("SdkInteractionCoordinator", () => {
 
 	it("clears pending tool approvals as rejected", async () => {
 		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const recordDeniedToolApproval = vi.fn()
 		const coordinator = new SdkInteractionCoordinator({
 			messages: new SdkMessageCoordinator({ getTask: () => task }),
 			getSessionId: () => "session-123",
 			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+			recordDeniedToolApproval,
 		})
 
 		const approvalPromise = coordinator.handleRequestToolApproval({
@@ -330,6 +332,7 @@ describe("SdkInteractionCoordinator", () => {
 		coordinator.clearPending("Task cancelled")
 
 		await expect(approvalPromise).resolves.toEqual({ approved: false, reason: "Task cancelled" })
+		expect(recordDeniedToolApproval).toHaveBeenCalledWith("tool-call", "read_files", "Task cancelled")
 		expect(coordinator.resolvePendingToolApproval(undefined, "yesButtonClicked")).toBe(false)
 	})
 })
