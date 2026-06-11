@@ -25,9 +25,18 @@ import {
 	validateAndReserveImageMedia,
 } from "@cline/shared";
 
-const DEFAULT_MAX_TOOL_RESULT_CHARS = 50_000;
-const DEFAULT_MAX_TOTAL_TEXT_BYTES = 6_000_000;
-const MIN_TOTAL_BUDGET_TOOL_RESULT_BYTES = 8_000;
+export const DEFAULT_MAX_TOOL_RESULT_CHARS = 8_000;
+export const DEFAULT_MAX_FILE_CONTENT_CHARS = 50_000;
+// The aggregate budget intentionally stays far above what the per-result cap
+// usually produces: budget truncation rewrites bytes mid-transcript, which
+// invalidates provider prefix caches from the first rewritten block onward,
+// so it must remain a rare overflow valve rather than the steady state.
+export const DEFAULT_MAX_TOTAL_TEXT_BYTES = 6_000_000;
+const MIN_TOTAL_BUDGET_TOOL_RESULT_BYTES = 2_000;
+export const MESSAGE_BUILDER_LIMIT_ENV = {
+	maxToolResultChars: "CLINE_MESSAGE_BUILDER_MAX_TOOL_RESULT_CHARS",
+	maxTotalTextBytes: "CLINE_MESSAGE_BUILDER_MAX_TOTAL_TEXT_BYTES",
+} as const;
 const READ_TOOL_NAMES = new Set(["read", "read_files"]);
 const OUTDATED_FILE_CONTENT = "[outdated - see the latest file content]";
 const MISSING_TOOL_RESULT_TEXT =
@@ -49,6 +58,28 @@ interface TruncationCandidate {
 	set(value: string): void;
 }
 
+export interface MessageBuilderOptions {
+	maxToolResultChars?: number;
+	maxFileContentChars?: number;
+	maxTotalTextBytes?: number;
+	mediaBudget?: MediaBudgetOptions;
+}
+
+export function getMessageBuilderOptionsFromEnv(
+	env: Record<string, string | undefined> = process.env,
+): MessageBuilderOptions {
+	// Zero and negative values are rejected (falling back to the defaults), so
+	// an env override can tune the limits but never silently disable them.
+	return {
+		maxToolResultChars: parsePositiveIntegerEnv(
+			env[MESSAGE_BUILDER_LIMIT_ENV.maxToolResultChars],
+		),
+		maxTotalTextBytes: parsePositiveIntegerEnv(
+			env[MESSAGE_BUILDER_LIMIT_ENV.maxTotalTextBytes],
+		),
+	};
+}
+
 /**
  * Builds an API-safe message copy without mutating original conversation history.
  */
@@ -66,12 +97,26 @@ export class MessageBuilder {
 		string
 	>();
 	private readResultLocatorCache = new WeakMap<object, ReadLocator[]>();
+	private readonly maxToolResultChars: number;
+	private readonly maxFileContentChars: number;
+	private readonly maxTotalTextBytes: number;
+	private readonly mediaBudget: MediaBudgetOptions;
 
-	constructor(
-		private readonly maxToolResultChars = DEFAULT_MAX_TOOL_RESULT_CHARS,
-		private readonly maxTotalTextBytes = DEFAULT_MAX_TOTAL_TEXT_BYTES,
-		private readonly mediaBudget: MediaBudgetOptions = {},
-	) {}
+	constructor(options: MessageBuilderOptions = {}) {
+		this.maxToolResultChars = normalizePositiveLimit(
+			options.maxToolResultChars,
+			DEFAULT_MAX_TOOL_RESULT_CHARS,
+		);
+		this.maxFileContentChars = normalizePositiveLimit(
+			options.maxFileContentChars,
+			DEFAULT_MAX_FILE_CONTENT_CHARS,
+		);
+		this.maxTotalTextBytes = normalizePositiveLimit(
+			options.maxTotalTextBytes,
+			DEFAULT_MAX_TOTAL_TEXT_BYTES,
+		);
+		this.mediaBudget = options.mediaBudget ?? {};
+	}
 
 	buildForApi(messages: Message[]): Message[] {
 		this.reindex(messages);
@@ -121,7 +166,14 @@ export class MessageBuilder {
 		}
 
 		if (block.type === "file") {
-			const truncated = this.truncateMiddle(block.content);
+			// Top-level file blocks are user attachments, not tool output; they
+			// get their own (looser) cap so the aggressive tool-result limit
+			// does not mutilate content the user explicitly supplied.
+			const truncated = truncateMiddleByChars(
+				block.content,
+				this.maxFileContentChars,
+				TRUNCATE_MARKER_DEFAULT,
+			);
 			return truncated === block.content
 				? block
 				: { ...block, content: truncated };
@@ -837,10 +889,6 @@ export class MessageBuilder {
 	}
 
 	private truncateToTotalTextBudget(messages: Message[]): Message[] {
-		if (this.maxTotalTextBytes <= 0) {
-			return messages;
-		}
-
 		let totalBytes = this.countMessageTextBytes(messages);
 		if (totalBytes <= this.maxTotalTextBytes) {
 			return messages;
@@ -899,10 +947,10 @@ export class MessageBuilder {
 				} else if (block.type === "file") {
 					total += utf8ByteLength(block.content);
 				} else if (block.type === "tool_use") {
-					// Model-generated tool arguments ship on the wire too. They are
-					// never truncated (providers can validate or replay them), but
-					// counting them makes the budget shrink reducible content harder
-					// instead of silently overshooting the request size.
+					// Model-generated tool arguments ship on the wire too. Counting
+					// them keeps the budget honest; if tool results alone cannot
+					// absorb the overflow, oversized argument strings are truncated
+					// as a last resort (see collectTruncationCandidates).
 					total += countNestedStringBytes(block.input);
 				} else if (block.type === "tool_result") {
 					if (typeof block.content === "string") {
@@ -927,17 +975,22 @@ export class MessageBuilder {
 	private collectTruncationCandidates(
 		messages: Message[],
 	): TruncationCandidate[] {
-		const candidates: TruncationCandidate[] = [];
+		const resultCandidates: TruncationCandidate[] = [];
+		const inputCandidates: TruncationCandidate[] = [];
 		for (const message of messages) {
 			if (!Array.isArray(message.content)) {
 				continue;
 			}
 			for (const block of message.content) {
+				if (block.type === "tool_use") {
+					collectNestedStringCandidates(block.input, inputCandidates);
+					continue;
+				}
 				if (block.type !== "tool_result") {
 					continue;
 				}
 				if (typeof block.content === "string") {
-					candidates.push({
+					resultCandidates.push({
 						byteLength: utf8ByteLength(block.content),
 						get: () => block.content as string,
 						set: (value) => {
@@ -948,7 +1001,7 @@ export class MessageBuilder {
 				}
 				for (const entry of block.content) {
 					if (entry.type === "text") {
-						candidates.push({
+						resultCandidates.push({
 							byteLength: utf8ByteLength(entry.text),
 							get: () => entry.text,
 							set: (value) => {
@@ -956,7 +1009,7 @@ export class MessageBuilder {
 							},
 						});
 					} else if (entry.type === "file") {
-						candidates.push({
+						resultCandidates.push({
 							byteLength: utf8ByteLength(entry.content),
 							get: () => entry.content,
 							set: (value) => {
@@ -964,12 +1017,18 @@ export class MessageBuilder {
 							},
 						});
 					} else if (isStructuredToolResultEntry(entry)) {
-						collectNestedStringCandidates(entry, candidates);
+						collectNestedStringCandidates(entry, resultCandidates);
 					}
 				}
 			}
 		}
-		return candidates.sort((l, r) => r.byteLength - l.byteLength);
+		// Tool results truncate first; model-generated tool_use arguments are a
+		// last resort because some providers revalidate or replay them. Both
+		// being candidates keeps the budget reclaimable no matter which side
+		// carries the overflow.
+		resultCandidates.sort((l, r) => r.byteLength - l.byteLength);
+		inputCandidates.sort((l, r) => r.byteLength - l.byteLength);
+		return [...resultCandidates, ...inputCandidates];
 	}
 
 	private applyMediaBudget(messages: Message[]): Message[] {
@@ -1124,6 +1183,25 @@ function utf8ByteLength(text: string): number {
 	return Buffer.byteLength(text, "utf8");
 }
 
+function parsePositiveIntegerEnv(
+	value: string | undefined,
+): number | undefined {
+	if (value === undefined) {
+		return undefined;
+	}
+	const parsed = Number.parseInt(value, 10);
+	return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function normalizePositiveLimit(
+	value: number | undefined,
+	fallback: number,
+): number {
+	return typeof value === "number" && Number.isFinite(value) && value > 0
+		? Math.floor(value)
+		: fallback;
+}
+
 function truncateMiddleByChars(
 	text: string,
 	maxChars: number,
@@ -1174,6 +1252,15 @@ function truncateMiddleToBytes(
 }
 
 function cloneContentBlockForMutation(block: ContentBlock): ContentBlock {
+	if (block.type === "tool_use") {
+		// Inputs are budget-truncation candidates of last resort, so they need
+		// the same deep-clone treatment as structured results: a shallow copy
+		// would leak truncation mutations back into conversation history.
+		return {
+			...block,
+			input: deepCloneJsonLike(block.input) as typeof block.input,
+		};
+	}
 	if (block.type !== "tool_result" || typeof block.content === "string") {
 		return { ...block };
 	}
