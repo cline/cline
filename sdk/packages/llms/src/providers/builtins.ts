@@ -440,7 +440,11 @@ function createClineLikeSpec(
 		Partial<
 			Pick<
 				BuiltinSpec,
-				"description" | "popular" | "modelsProviderId" | "modelsFactory"
+				| "description"
+				| "popular"
+				| "modelsProviderId"
+				| "modelsFactory"
+				| "metadata"
 			>
 		>,
 ): BuiltinSpec {
@@ -460,7 +464,10 @@ function createClineLikeSpec(
 				return `${getClineEnvironmentConfig().apiBaseUrl}/api/v1`;
 			},
 		},
-		metadata: ANTHROPIC_AND_QWEN_CACHE_ROUTING_METADATA,
+		metadata: {
+			...ANTHROPIC_AND_QWEN_CACHE_ROUTING_METADATA,
+			...input.metadata,
+		},
 	};
 }
 
@@ -479,6 +486,7 @@ const clinePass = createClineLikeSpec({
 	description: "Cline API endpoint with Cline Pass models",
 	modelsProviderId: CLINE_PASS_PROVIDER_ID,
 	defaultModelId: firstGeneratedModelId(CLINE_PASS_PROVIDER_ID),
+	metadata: { usageCostDisplay: "hide" },
 });
 
 const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
