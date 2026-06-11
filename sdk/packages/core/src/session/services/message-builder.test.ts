@@ -1,5 +1,11 @@
-import type { Message } from "@cline/shared";
+import {
+	type AiSdkFormatterMessage,
+	formatMessagesForAiSdk,
+	type Message,
+	type ToolResultContent,
+} from "@cline/shared";
 import { describe, expect, it } from "vitest";
+import { messagesToAgentMessages } from "../../runtime/config/agent-message-codec";
 import { MessageBuilder } from "./message-builder";
 
 describe("MessageBuilder", () => {
@@ -613,5 +619,272 @@ describe("MessageBuilder", () => {
 		};
 		const image = entry.result.find((item) => item.type === "image");
 		expect(image?.data).toBe(imageData);
+	});
+});
+
+/**
+ * Regression coverage for the real `ToolOperationResult[]` shape emitted by
+ * the default Cline tools (run_commands, read_files, search_codebase).
+ *
+ * The runtime stores these structured results directly as the tool_result
+ * `content` array (see `agentPartToContentBlock` in
+ * `runtime/config/agent-message-codec.ts`): the entries are plain
+ * `{query, result, success, ...}` objects with no `type` discriminator, so
+ * they bypass the text/file-entry truncation paths unless MessageBuilder
+ * handles them explicitly.
+ */
+describe("MessageBuilder with structured ToolOperationResult content", () => {
+	const MIDDLE_SENTINEL = "__MIDDLE_SENTINEL_MUST_BE_TRUNCATED__";
+	const HEAD_MARKER = "__HEAD_MARKER__";
+	const TAIL_MARKER = "__TAIL_MARKER__";
+
+	interface ToolOperationResultLike {
+		query: string;
+		result: unknown;
+		error?: string;
+		success: boolean;
+		duration?: number;
+	}
+
+	function hugeText(size = 400_000): string {
+		const fillerLength = Math.floor(
+			(size -
+				MIDDLE_SENTINEL.length -
+				HEAD_MARKER.length -
+				TAIL_MARKER.length) /
+				2,
+		);
+		const filler = "x".repeat(fillerLength);
+		return `${HEAD_MARKER}${filler}${MIDDLE_SENTINEL}${filler}${TAIL_MARKER}`;
+	}
+
+	function toolUseMessage(
+		id: string,
+		name: string,
+		input: Record<string, unknown>,
+	): Message {
+		return {
+			role: "assistant",
+			content: [{ type: "tool_use", id, name, input }],
+		};
+	}
+
+	function structuredToolResultMessage(
+		toolUseId: string,
+		name: string,
+		operations: ToolOperationResultLike[],
+	): Message {
+		return {
+			role: "user",
+			content: [
+				{
+					type: "tool_result",
+					tool_use_id: toolUseId,
+					name,
+					// The runtime casts ToolOperationResult[] straight into the
+					// content array; mirror that here.
+					content: operations as unknown as ToolResultContent["content"],
+				},
+			],
+		};
+	}
+
+	function sumStringBytes(value: unknown): number {
+		if (typeof value === "string") {
+			return Buffer.byteLength(value, "utf8");
+		}
+		if (Array.isArray(value)) {
+			return value.reduce<number>((sum, item) => sum + sumStringBytes(item), 0);
+		}
+		if (value !== null && typeof value === "object") {
+			return Object.values(value).reduce<number>(
+				(sum, item) => sum + sumStringBytes(item),
+				0,
+			);
+		}
+		return 0;
+	}
+
+	it("truncates a huge nested `result` string in run_commands structured output", () => {
+		const builder = new MessageBuilder();
+		const messages: Message[] = [
+			toolUseMessage("call_1", "run_commands", {
+				commands: ["cat big.log"],
+			}),
+			structuredToolResultMessage("call_1", "run_commands", [
+				{
+					query: "cat big.log",
+					result: hugeText(),
+					success: true,
+					duration: 1234,
+				},
+			]),
+		];
+
+		const rawSerializedLength = JSON.stringify(messages).length;
+		const result = builder.buildForApi(messages);
+		const serialized = JSON.stringify(result);
+
+		expect(rawSerializedLength).toBeGreaterThan(390_000);
+		expect(serialized.length).toBeLessThan(120_000);
+		expect(serialized).not.toContain(MIDDLE_SENTINEL);
+		// Middle truncation must preserve the head and tail of the output.
+		expect(serialized).toContain(HEAD_MARKER);
+		expect(serialized).toContain(TAIL_MARKER);
+	});
+
+	it("truncates a huge nested `query` string in run_commands structured output", () => {
+		const builder = new MessageBuilder();
+		const messages: Message[] = [
+			toolUseMessage("call_1", "run_commands", {
+				commands: ["bash -c '...giant heredoc...'"],
+			}),
+			structuredToolResultMessage("call_1", "run_commands", [
+				{
+					query: hugeText(),
+					result: "ok",
+					success: true,
+				},
+			]),
+		];
+
+		const result = builder.buildForApi(messages);
+		const serialized = JSON.stringify(result);
+
+		expect(serialized.length).toBeLessThan(120_000);
+		expect(serialized).not.toContain(MIDDLE_SENTINEL);
+		expect(serialized).toContain(HEAD_MARKER);
+		expect(serialized).toContain(TAIL_MARKER);
+	});
+
+	it("truncates a huge file payload in read_files structured output", () => {
+		const builder = new MessageBuilder();
+		const messages: Message[] = [
+			toolUseMessage("call_1", "read_files", {
+				files: [{ path: "/tmp/big.txt" }],
+			}),
+			structuredToolResultMessage("call_1", "read_files", [
+				{
+					query: "/tmp/big.txt",
+					result: hugeText(),
+					success: true,
+				},
+			]),
+		];
+
+		const result = builder.buildForApi(messages);
+		const serialized = JSON.stringify(result);
+
+		expect(serialized.length).toBeLessThan(120_000);
+		expect(serialized).not.toContain(MIDDLE_SENTINEL);
+		expect(serialized).toContain(HEAD_MARKER);
+		expect(serialized).toContain(TAIL_MARKER);
+		// The latest read of a file must not be rewritten as outdated.
+		expect(serialized).not.toContain("[outdated");
+	});
+
+	it("applies the aggregate text budget to nested structured strings", () => {
+		const builder = new MessageBuilder(
+			50_000,
+			new Set(["run_commands", "read_files"]),
+			100_000,
+		);
+		// Five results of ~40k chars each: every nested string is below the
+		// per-result limit, but the aggregate (~200k) exceeds the budget.
+		const messages: Message[] = [];
+		for (let i = 0; i < 5; i++) {
+			const name = i % 2 === 0 ? "run_commands" : "read_files";
+			messages.push(
+				toolUseMessage(`call_${i}`, name, { commands: [`cmd ${i}`] }),
+				structuredToolResultMessage(`call_${i}`, name, [
+					{
+						query: `cmd ${i}`,
+						result: `chunk_${i}_`.repeat(4_000),
+						success: true,
+					},
+				]),
+			);
+		}
+
+		const result = builder.buildForApi(messages);
+
+		let toolResultStringBytes = 0;
+		for (const message of result) {
+			if (!Array.isArray(message.content)) {
+				continue;
+			}
+			for (const block of message.content) {
+				if (block.type === "tool_result") {
+					toolResultStringBytes += sumStringBytes(block.content);
+				}
+			}
+		}
+
+		expect(toolResultStringBytes).toBeLessThanOrEqual(100_000);
+		expect(JSON.stringify(result)).toContain("provider request budget");
+	});
+
+	it("does not mutate the original structured tool results", () => {
+		const builder = new MessageBuilder(
+			10_000,
+			new Set(["run_commands"]),
+			20_000,
+		);
+		const messages: Message[] = [
+			toolUseMessage("call_1", "run_commands", { commands: ["cat a.log"] }),
+			structuredToolResultMessage("call_1", "run_commands", [
+				{
+					query: "cat a.log",
+					result: hugeText(50_000),
+					success: true,
+				},
+			]),
+			toolUseMessage("call_2", "run_commands", { commands: ["cat b.log"] }),
+			structuredToolResultMessage("call_2", "run_commands", [
+				{
+					query: "cat b.log",
+					result: hugeText(50_000),
+					success: true,
+				},
+			]),
+		];
+		const snapshot = structuredClone(messages);
+
+		const result = builder.buildForApi(messages);
+
+		expect(messages).toEqual(snapshot);
+		expect(JSON.stringify(result)).not.toContain(MIDDLE_SENTINEL);
+	});
+
+	it("keeps huge nested strings out of provider-formatted AI SDK messages", () => {
+		const builder = new MessageBuilder();
+		const messages: Message[] = [
+			toolUseMessage("call_1", "run_commands", {
+				commands: ["cat big.log"],
+			}),
+			structuredToolResultMessage("call_1", "run_commands", [
+				{
+					query: "cat big.log",
+					result: hugeText(),
+					success: true,
+				},
+			]),
+		];
+
+		const built = builder.buildForApi(messages);
+		const agentMessages = messagesToAgentMessages(built);
+		const aiSdkMessages = formatMessagesForAiSdk(
+			undefined,
+			agentMessages.map(({ role, content }) => ({
+				role,
+				content,
+			})) as unknown as AiSdkFormatterMessage[],
+		);
+		const serialized = JSON.stringify(aiSdkMessages);
+
+		expect(serialized.length).toBeLessThan(130_000);
+		expect(serialized).not.toContain(MIDDLE_SENTINEL);
+		expect(serialized).toContain(HEAD_MARKER);
+		expect(serialized).toContain(TAIL_MARKER);
 	});
 });
