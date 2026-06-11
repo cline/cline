@@ -5,6 +5,7 @@
 ### Fixed
 
 - Complete the fix for the Anthropic provider on VS Code 1.123 and later by upgrading the bundled Anthropic SDK to a release compatible with the Node 24 runtime.
+- Update the Vertex AI provider to a compatible Anthropic Vertex SDK release so it works with the upgraded Anthropic SDK.
 
 ## [3.89.1]
 
