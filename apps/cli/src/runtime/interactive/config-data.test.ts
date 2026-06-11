@@ -454,6 +454,45 @@ Find installable skills.`,
 		).toBe(true);
 	});
 
+	it("clears the always-on flag when a plugin is disabled", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "cli-config-data-"));
+		tempRoots.push(tempRoot);
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = join(
+			tempRoot,
+			"global-settings.json",
+		);
+		const pluginsDir = join(tempRoot, ".cline", "plugins");
+		await mkdir(pluginsDir, { recursive: true });
+		const pluginPath = join(pluginsDir, "workspace-plugin.js");
+		await writeFile(pluginPath, "export default {};\n");
+		await writeFile(
+			process.env.CLINE_GLOBAL_SETTINGS_PATH,
+			JSON.stringify({ alwaysEnabledPlugins: [pluginPath] }, null, 2),
+		);
+		const loader = createInteractiveConfigDataLoader({
+			config: createConfig(tempRoot),
+		});
+
+		const data = await loader.loadConfigData();
+		const plugin = data.plugins.find((item) => item.path === pluginPath);
+		expect(plugin?.enabled).toBe(true);
+		expect(plugin?.alwaysEnabled).toBe(true);
+		if (!plugin) {
+			throw new Error("Expected workspace plugin to be listed");
+		}
+
+		const nextData = await loader.onToggleConfigItem(plugin);
+		const settings = JSON.parse(
+			await readFile(process.env.CLINE_GLOBAL_SETTINGS_PATH, "utf8"),
+		) as { disabledPlugins?: string[]; alwaysEnabledPlugins?: string[] };
+
+		expect(settings.disabledPlugins).toEqual([pluginPath]);
+		expect(settings.alwaysEnabledPlugins).toBeUndefined();
+		const toggled = nextData?.plugins.find((item) => item.path === pluginPath);
+		expect(toggled?.enabled).toBe(false);
+		expect(toggled?.alwaysEnabled).toBe(false);
+	});
+
 	it("deletes a package-backed plugin and refreshes bundled slash commands", async () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "cli-config-data-"));
 		tempRoots.push(tempRoot);

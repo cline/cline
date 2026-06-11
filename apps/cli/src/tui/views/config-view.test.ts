@@ -117,9 +117,10 @@ describe("config view helpers", () => {
 		expect(canToggleConfigFooterRow({ kind: "mcp-manager" })).toBe(false);
 	});
 
-	it("offers the always-on action only for healthy plugin rows", () => {
+	it("offers the always-on action only for healthy enabled plugin rows", () => {
 		const plugin = createItem({ kind: "plugin" });
 		const brokenPlugin = createItem({ kind: "plugin", loadError: "boom" });
+		const disabledPlugin = createItem({ kind: "plugin", enabled: false });
 		const skill = createItem({ kind: "skill" });
 
 		expect(
@@ -132,6 +133,12 @@ describe("config view helpers", () => {
 			canAlwaysEnableConfigFooterRow({
 				kind: "ext",
 				item: brokenPlugin,
+			}),
+		).toBe(false);
+		expect(
+			canAlwaysEnableConfigFooterRow({
+				kind: "ext",
+				item: disabledPlugin,
 			}),
 		).toBe(false);
 		expect(

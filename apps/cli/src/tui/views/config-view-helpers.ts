@@ -214,10 +214,13 @@ export function canAlwaysEnableConfigFooterRow(
 		| { kind: string }
 		| undefined,
 ): boolean {
+	// Always-on never overrides a global disable, so the action is only
+	// offered on enabled plugin rows.
 	return (
 		row?.kind === "ext" &&
 		"item" in row &&
 		row.item.kind === "plugin" &&
+		row.item.enabled !== false &&
 		!row.item.loadError
 	);
 }
