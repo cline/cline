@@ -395,6 +395,7 @@ export class ClineCore {
 		try {
 			await this.automationService?.dispose();
 			await this.host.dispose(...args);
+			await this.featureFlags.dispose().catch(this.logger?.error);
 			await this.telemetry?.dispose().catch(this.logger?.error);
 		} finally {
 			this.unsubscribeBootstrapCleanup();
