@@ -462,6 +462,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	let modelId: string | undefined
 	let apiKey: string | undefined
 	let baseUrl: string | undefined
+	let apiConfig: ApiConfiguration | undefined
 	// Cloud-provider structured options. The core runtime reads these from
 	// CoreSessionConfig.providerConfig; without them the SDK gateway never receives
 	// region/project/auth fields for inference calls.
@@ -470,7 +471,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 
 	try {
 		const stateManager = StateManager.get()
-		const apiConfig = stateManager.getApiConfiguration()
+		apiConfig = stateManager.getApiConfiguration()
 
 		// Resolve the provider for the current mode
 		const modeProvider = mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider
@@ -531,6 +532,9 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	// session factory share one source of truth for default models.
 	providerId = providerId ?? DEFAULT_PROVIDER_ID
 	modelId = modelId ?? getDefaultModelIdForProvider(providerId) ?? getDefaultModelIdForProvider(DEFAULT_PROVIDER_ID) ?? ""
+	if (!apiKey && apiConfig) {
+		apiKey = resolveApiKey(providerId, apiConfig)
+	}
 	apiKey = apiKey ?? ""
 	const reasoningConfig = resolveProviderReasoningConfig(providerId)
 

@@ -5,7 +5,7 @@ e2e.describe("Diff Editor", () => {
 	E2E_WORKSPACE_TYPES.forEach(({ title, workspaceType }) => {
 		e2e.extend({
 			workspaceType,
-		})(title, async ({ helper, page, sidebar }) => {
+		})(title, async ({ helper, sidebar }) => {
 			await helper.signin(sidebar)
 
 			const inputbox = sidebar.getByTestId("chat-input")
@@ -37,15 +37,10 @@ e2e.describe("Diff Editor", () => {
 			// Wait for the sidebar to load the file edit request
 			await sidebar.waitForSelector('span:has-text("Cline wants to edit this file:")')
 
-			// Cline Diff Editor should open with the file name and diff
-			await expect(page.getByText("test.ts: Original ↔ Cline's")).toBeVisible()
-
-			// Diff editor should show the original and modified content
-			const diffEditor = page.locator(
-				".monaco-editor.modified-in-monaco-diff-editor > .overflow-guard > .monaco-scrollable-element.editor-scrollable > .lines-content > div:nth-child(4)",
-			)
-			await diffEditor.click()
-			await expect(diffEditor).toBeVisible()
+			// The SDK-backed path renders a pending edit approval before the user saves it.
+			await expect(sidebar.getByText(/\/test\.ts/)).toBeVisible()
+			await expect(sidebar.getByRole("button", { name: "Save" })).toBeVisible()
+			await expect(sidebar.getByRole("button", { name: "Reject" })).toBeVisible()
 		})
 	})
 })

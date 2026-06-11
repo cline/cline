@@ -272,6 +272,22 @@ describe("normalizeProviderReasoningSettings", () => {
 // ---------------------------------------------------------------------------
 
 describe("buildSessionConfig", () => {
+	it("resolves Cline OAuth credentials after defaulting to the Cline provider", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({} as any)
+		mocks.providerSettingsManager.getProviderSettings.mockReturnValue({
+			provider: "cline",
+			auth: {
+				accessToken: "workos:test-access-token",
+				refreshToken: "test-refresh-token",
+			},
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerId).toBe("cline")
+		expect(config.apiKey).toBe("workos:test-access-token")
+	})
+
 	it("enables basic SDK compaction when global useAutoCondense is true", async () => {
 		mocks.stateManager.getGlobalSettingsKey.mockImplementation((key: string) => {
 			if (key === "useAutoCondense") {
