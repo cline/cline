@@ -474,10 +474,15 @@ export class ClineApiServerMock {
 						const parsed = JSON.parse(body)
 						const { _messages, model = "claude-3-5-sonnet-20241022", stream = true } = parsed
 						let responseText = E2E_MOCK_API_RESPONSES.DEFAULT
+						const isEditRequest = body.includes("edit_request")
+						log("Chat completion mock selection:", {
+							isEditRequest,
+							isReplaceResult: body.includes("[replace_in_file for 'test.ts'] Result:"),
+						})
 						if (body.includes("[replace_in_file for 'test.ts'] Result:")) {
 							responseText = E2E_MOCK_API_RESPONSES.REPLACE_REQUEST
 						}
-						if (body.includes("edit_request")) {
+						if (isEditRequest) {
 							responseText = E2E_MOCK_API_RESPONSES.EDIT_REQUEST
 						}
 						if (body.includes("[diff.test.ts] Hello, Cline!")) {
@@ -497,6 +502,63 @@ export class ClineApiServerMock {
 							})
 
 							const randomUUID = uuidv4()
+
+							if (isEditRequest) {
+								const toolCallId = `call_${randomUUID}`
+								const toolCallChunk = {
+									id: generationId,
+									object: "chat.completion.chunk",
+									created: Math.floor(Date.now() / 1000),
+									model,
+									choices: [
+										{
+											index: 0,
+											delta: {
+												tool_calls: [
+													{
+														index: 0,
+														id: toolCallId,
+														type: "function",
+														function: {
+															name: "editor",
+															arguments: JSON.stringify({
+																path: "test.ts",
+																old_text: 'export const name = "john"',
+																new_text: 'export const name = "cline"',
+															}),
+														},
+													},
+												],
+											},
+											finish_reason: null,
+										},
+									],
+								}
+								const finalChunk = {
+									id: generationId,
+									object: "chat.completion.chunk",
+									created: Math.floor(Date.now() / 1000),
+									model,
+									choices: [
+										{
+											index: 0,
+											delta: {},
+											finish_reason: "tool_calls",
+										},
+									],
+									usage: {
+										prompt_tokens: 140,
+										completion_tokens: responseText.length,
+										total_tokens: 140 + responseText.length,
+										cost: (140 + responseText.length) * 0.00015,
+									},
+								}
+								res.write(`data: ${JSON.stringify(toolCallChunk)}\n\n`)
+								res.write(`data: ${JSON.stringify(finalChunk)}\n\n`)
+								res.write("data: [DONE]\n\n")
+								res.end()
+								return
+							}
 
 							responseText += `\n\nGenerated UUID: ${randomUUID}`
 
