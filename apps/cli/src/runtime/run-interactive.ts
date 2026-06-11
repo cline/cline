@@ -427,7 +427,14 @@ export async function runInteractive(
 				uiEvents.off("pending-prompt-submitted", onPendingPromptSubmitted);
 			};
 		},
-		onSubmit: async (input, mode, delivery, attachments) => {
+		onSubmit: async (
+			input,
+			mode,
+			delivery,
+			attachments,
+			onCommandOutput,
+		) => {
+			let commandOutput: string | undefined;
 			try {
 				await sessionRuntime.ensureReady();
 				await waitForSubmittedMode(mode);
@@ -446,6 +453,7 @@ export async function runInteractive(
 					setInteractiveAutoApprove,
 					sessionRuntime,
 					stop: () => tuiApp?.destroy(),
+					onCommandOutput,
 				});
 				if (chatCommandResult.handled) {
 					return chatCommandResult.turnResult;
@@ -465,12 +473,14 @@ export async function runInteractive(
 						setInteractiveAutoApprove,
 						sessionRuntime,
 						stop: () => tuiApp?.destroy(),
+						onCommandOutput,
 					});
 					if (chatCommandResult.handled) {
 						return chatCommandResult.turnResult;
 					}
 				}
 				input = chatCommandResult.input;
+				commandOutput = chatCommandResult.commandOutput;
 				const {
 					prompt: userInput,
 					userImages,
@@ -507,6 +517,7 @@ export async function runInteractive(
 						iterations: 0,
 						finishReason: "queued",
 						queued: delivery === "queue" || delivery === "steer",
+						commandOutput,
 					};
 				}
 				if (result.finishReason !== "completed") {
@@ -519,6 +530,7 @@ export async function runInteractive(
 							currentContextSize: getCurrentContextSize(result.messages),
 							iterations: result.iterations,
 							finishReason: "aborted",
+							commandOutput,
 						};
 					}
 					const errorText = result.text.trim();
@@ -532,6 +544,7 @@ export async function runInteractive(
 					currentContextSize: getCurrentContextSize(result.messages),
 					iterations: result.iterations,
 					finishReason: result.finishReason,
+					commandOutput,
 				};
 			} catch (error) {
 				if (isAbortInProgress()) {
@@ -539,6 +552,7 @@ export async function runInteractive(
 						usage: { inputTokens: 0, outputTokens: 0 },
 						iterations: 0,
 						finishReason: "aborted",
+						commandOutput,
 					};
 				}
 				logCliError(config.logger, "Interactive turn failed", {

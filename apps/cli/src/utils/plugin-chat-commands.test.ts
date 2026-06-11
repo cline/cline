@@ -65,4 +65,55 @@ describe("plugin chat commands", () => {
 		expect(reply).toHaveBeenCalledWith("echo:hello plugin");
 		await shutdown?.();
 	});
+
+	it("bridges plugin command submit prompts onto the chat command context", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "cli-plugin-commands-"));
+		tempRoots.push(tempRoot);
+		const pluginsDir = join(tempRoot, ".cline", "plugins");
+		await mkdir(pluginsDir, { recursive: true });
+		await writeFile(
+			join(pluginsDir, "submit.js"),
+			[
+				"export default {",
+				"  name: 'submit-plugin',",
+				"  manifest: { capabilities: ['commands'] },",
+				"  setup(api) {",
+				"    api.registerCommand({",
+				"      name: 'goal',",
+				"      description: 'Set a goal and submit it',",
+				"      handler: async (input) => ({",
+				"        reply: 'goal:' + input,",
+				"        submitPrompt: input",
+				"      })",
+				"    });",
+				"  },",
+				"};",
+			].join("\n"),
+		);
+
+		const { host, shutdown } = await createWorkspaceChatCommandHost({
+			cwd: tempRoot,
+			workspaceRoot: tempRoot,
+		});
+		const reply = vi.fn(async () => undefined);
+		const submitPrompt = vi.fn(async () => undefined);
+
+		const handled = await host.handle("/goal fix tests", {
+			enabled: true,
+			getState: async () => ({
+				enableTools: false,
+				autoApproveTools: false,
+				cwd: tempRoot,
+				workspaceRoot: tempRoot,
+			}),
+			setState: async () => undefined,
+			reply,
+			submitPrompt,
+		});
+
+		expect(handled).toBe(true);
+		expect(reply).toHaveBeenCalledWith("goal:fix tests");
+		expect(submitPrompt).toHaveBeenCalledWith("fix tests");
+		await shutdown?.();
+	});
 });
