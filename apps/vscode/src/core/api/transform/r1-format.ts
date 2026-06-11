@@ -1,6 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
-import { ClineAssistantThinkingBlock, ClineStorageMessage } from "@/shared/messages/content"
+import { ClineAssistantThinkingBlock, ClineStorageMessage, getImageDataUrl } from "@/shared/messages/content"
 
 /**
  * DeepSeek Reasoner message format with reasoning_content support.
@@ -87,7 +87,7 @@ export function convertToR1Format(messages: Anthropic.Messages.MessageParam[]): 
 					hasImages = true
 					imageParts.push({
 						type: "image_url",
-						image_url: { url: `data:${part.source.media_type};base64,${part.source.data}` },
+						image_url: { url: getImageDataUrl(part.source) },
 					})
 				}
 			})

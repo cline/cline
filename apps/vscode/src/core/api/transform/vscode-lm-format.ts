@@ -74,7 +74,7 @@ export function convertToVsCodeLmMessages(
 								: (toolMessage.content?.map((part) => {
 										if (part.type === "image") {
 											return new vscode.LanguageModelTextPart(
-												`[Image (${part.source?.type || "Unknown source-type"}): ${part.source?.media_type || "unknown media-type"} not supported by VSCode LM API]`,
+												`[Image (${part.source?.type || "Unknown source-type"}): ${(part.source?.type === "base64" && part.source.media_type) || "unknown media-type"} not supported by VSCode LM API]`,
 											)
 										}
 										return new vscode.LanguageModelTextPart(part.text)
@@ -87,7 +87,7 @@ export function convertToVsCodeLmMessages(
 					...nonToolMessages.map((part) => {
 						if (part.type === "image") {
 							return new vscode.LanguageModelTextPart(
-								`[Image (${part.source?.type || "Unknown source-type"}): ${part.source?.media_type || "unknown media-type"} not supported by VSCode LM API]`,
+								`[Image (${part.source?.type || "Unknown source-type"}): ${(part.source?.type === "base64" && part.source.media_type) || "unknown media-type"} not supported by VSCode LM API]`,
 							)
 						}
 						return new vscode.LanguageModelTextPart(part.text)
