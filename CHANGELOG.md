@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.89.2]
+
+### Fixed
+
+- Complete the fix for the Anthropic provider on VS Code 1.123 and later by upgrading the bundled Anthropic SDK to a release compatible with the Node 24 runtime.
+
 ## [3.89.1]
 
 ### Fixed
