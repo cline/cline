@@ -29,58 +29,42 @@ export const E2E_REGISTERED_MOCK_ENDPOINTS = {
 	},
 }
 
-const replace_in_file = `I successfully replaced "john" with "cline" in the test.ts file. The change has been completed and the file now contains:
+/**
+ * Structured `editor` tool call streamed in response to the `edit_request` prompt.
+ *
+ * The SDK runtime only executes structured (OpenAI-format) tool calls — unlike
+ * the classic extension, it does not parse XML-style tool syntax (e.g.
+ * `<replace_in_file>`) out of assistant text. The mock server streams this as
+ * `choices[].delta.tool_calls[]` deltas followed by `finish_reason: "tool_calls"`.
+ *
+ * The `path` is workspace-relative; the SDK editor executor resolves relative
+ * paths against the session cwd, which is the first workspace folder in both
+ * the single-root and multi-root e2e workspaces (`fixtures/workspace`).
+ */
+export const E2E_MOCK_EDITOR_TOOL_CALL = {
+	id: "call_e2e_edit_1",
+	name: "editor",
+	arguments: {
+		path: "test.ts",
+		old_text: 'export const name = "john"',
+		new_text: 'export const name = "cline"',
+	},
+}
+
+const edit_request_complete = `I successfully replaced "john" with "cline" in the test.ts file. The change has been completed and the file now contains:
 
 \`\`\`typescript
 export const name = "cline"
 \`\`\`
 
-The TypeScript errors shown in the output are unrelated to this change - they appear to be existing issues in the broader codebase related to missing type definitions and dependencies. The specific task of updating the name in test.ts has been completed successfully.
-
-<attempt_completion>
-<result>
-I have successfully replaced the name "john" with "cline" in the test.ts file. The file now exports:
-
-\`\`\`typescript
-export const name = "cline"
-\`\`\`
-
-The change has been applied and saved to the file.
-</result>
-</attempt_completion>`
-
-const edit_request = `<thinking>
-The user wants me to replace the name "john" with "cline" in the test.ts file. I can see the file content provided:
-
-\`\`\`typescript
-export const name = "john"
-\`\`\`
-
-I need to change "john" to "cline". This is a simple targeted edit, so I should use the replace_in_file tool rather than write_to_file since I'm only changing one small part of the file.
-
-I need to:
-1. Use replace_in_file to change "john" to "cline" in the test.ts file
-2. The SEARCH block should match the exact content: \`export const name = "john"\`
-3. The REPLACE block should be: \`export const name = "cline"\`
-</thinking>
-
-I'll replace "john" with "cline" in the test.ts file.
-
-<replace_in_file>
-<path>test.ts</path>
-<diff>
-------- SEARCH
-export const name = "john"
-=======
-export const name = "cline"
-+++++++ REPLACE
-</diff>
-</replace_in_file>`
+The change has been applied and saved to the file.`
 
 export const E2E_MOCK_API_RESPONSES = {
 	DEFAULT: "Hello! I'm a mock Cline API response.",
-	REPLACE_REQUEST: replace_in_file,
-	EDIT_REQUEST: edit_request,
+	/** Assistant text streamed before the structured editor tool call. */
+	EDIT_REQUEST_LEAD_IN: `I'll replace "john" with "cline" in the test.ts file.`,
+	/** Turn-ending text streamed after the SDK reports the editor tool result. */
+	EDIT_REQUEST_COMPLETE: edit_request_complete,
 }
 
 export const E2E_MOCK_CLINE_RECOMMENDED_MODELS = {

@@ -6,6 +6,7 @@ import {
 	E2E_MOCK_API_RESPONSES,
 	E2E_MOCK_CLINE_MODELS,
 	E2E_MOCK_CLINE_RECOMMENDED_MODELS,
+	E2E_MOCK_EDITOR_TOOL_CALL,
 	E2E_REGISTERED_MOCK_ENDPOINTS,
 } from "./api"
 import { ClineDataMock } from "./data"
@@ -472,18 +473,31 @@ export class ClineApiServerMock {
 
 						const body = await readBody()
 						const parsed = JSON.parse(body)
-						const { _messages, model = "claude-3-5-sonnet-20241022", stream = true } = parsed
+						const { messages, model = "claude-3-5-sonnet-20241022", stream = true } = parsed
+
+						// The SDK runtime executes structured tool calls and then sends a
+						// follow-up /chat/completions request containing the tool result as
+						// a `role: "tool"` message. Detect that follow-up first — the
+						// original "edit_request" user prompt is still present in the
+						// conversation history of the follow-up request, so order matters.
+						const hasToolResult =
+							Array.isArray(messages) && messages.some((m: { role?: string }) => m?.role === "tool")
+
 						let responseText = E2E_MOCK_API_RESPONSES.DEFAULT
-						const isEditRequest = body.includes("edit_request")
+						let includeEditorToolCall = false
 						log("Chat completion mock selection:", {
-							isEditRequest,
-							isReplaceResult: body.includes("[replace_in_file for 'test.ts'] Result:"),
+							isEditRequest: body.includes("edit_request"),
+							hasToolResult,
 						})
-						if (body.includes("[replace_in_file for 'test.ts'] Result:")) {
-							responseText = E2E_MOCK_API_RESPONSES.REPLACE_REQUEST
-						}
-						if (isEditRequest) {
-							responseText = E2E_MOCK_API_RESPONSES.EDIT_REQUEST
+						if (hasToolResult) {
+							responseText = E2E_MOCK_API_RESPONSES.EDIT_REQUEST_COMPLETE
+						} else if (body.includes("edit_request")) {
+							// Stream a structured `editor` tool call (OpenAI tool_calls
+							// deltas) after the lead-in text. The classic XML-in-prose
+							// replace_in_file response no longer works: the SDK does not
+							// parse tool syntax out of assistant text.
+							responseText = E2E_MOCK_API_RESPONSES.EDIT_REQUEST_LEAD_IN
+							includeEditorToolCall = true
 						}
 						if (body.includes("[diff.test.ts] Hello, Cline!")) {
 							// The playwright test in diff.test.ts needs the "API Request..." text
@@ -503,67 +517,43 @@ export class ClineApiServerMock {
 
 							const randomUUID = uuidv4()
 
-							if (isEditRequest) {
-								const toolCallId = `call_${randomUUID}`
-								const toolCallChunk = {
-									id: generationId,
-									object: "chat.completion.chunk",
-									created: Math.floor(Date.now() / 1000),
-									model,
-									choices: [
-										{
-											index: 0,
-											delta: {
-												tool_calls: [
-													{
-														index: 0,
-														id: toolCallId,
-														type: "function",
-														function: {
-															name: "editor",
-															arguments: JSON.stringify({
-																path: "test.ts",
-																old_text: 'export const name = "john"',
-																new_text: 'export const name = "cline"',
-															}),
-														},
-													},
-												],
-											},
-											finish_reason: null,
-										},
-									],
-								}
-								const finalChunk = {
-									id: generationId,
-									object: "chat.completion.chunk",
-									created: Math.floor(Date.now() / 1000),
-									model,
-									choices: [
-										{
-											index: 0,
-											delta: {},
-											finish_reason: "tool_calls",
-										},
-									],
-									usage: {
-										prompt_tokens: 140,
-										completion_tokens: responseText.length,
-										total_tokens: 140 + responseText.length,
-										cost: (140 + responseText.length) * 0.00015,
-									},
-								}
-								res.write(`data: ${JSON.stringify(toolCallChunk)}\n\n`)
-								res.write(`data: ${JSON.stringify(finalChunk)}\n\n`)
-								res.write("data: [DONE]\n\n")
-								res.end()
-								return
-							}
-
 							responseText += `\n\nGenerated UUID: ${randomUUID}`
 
 							const chunks = responseText.split(" ")
 							let chunkIndex = 0
+
+							// OpenAI-format streamed tool call deltas, matching what the
+							// AI SDK's openai-compatible client expects: the first delta
+							// for a tool_calls index must carry `id` + `function.name`;
+							// `function.arguments` accumulates as string fragments. Split
+							// the arguments JSON to exercise fragment reassembly.
+							const argumentsJson = JSON.stringify(E2E_MOCK_EDITOR_TOOL_CALL.arguments)
+							const argsSplitAt = Math.floor(argumentsJson.length / 2)
+							const toolCallDeltas = includeEditorToolCall
+								? [
+										[
+											{
+												index: 0,
+												id: E2E_MOCK_EDITOR_TOOL_CALL.id,
+												type: "function",
+												function: { name: E2E_MOCK_EDITOR_TOOL_CALL.name, arguments: "" },
+											},
+										],
+										[
+											{
+												index: 0,
+												function: { arguments: argumentsJson.slice(0, argsSplitAt) },
+											},
+										],
+										[
+											{
+												index: 0,
+												function: { arguments: argumentsJson.slice(argsSplitAt) },
+											},
+										],
+									]
+								: []
+							let toolCallDeltaIndex = 0
 
 							const sendChunk = () => {
 								if (chunkIndex < chunks.length) {
@@ -585,6 +575,25 @@ export class ClineApiServerMock {
 									res.write(`data: ${JSON.stringify(chunk)}\n\n`)
 									chunkIndex++
 									setTimeout(sendChunk, 10)
+								} else if (toolCallDeltaIndex < toolCallDeltas.length) {
+									const chunk = {
+										id: generationId,
+										object: "chat.completion.chunk",
+										created: Math.floor(Date.now() / 1000),
+										model,
+										choices: [
+											{
+												index: 0,
+												delta: {
+													tool_calls: toolCallDeltas[toolCallDeltaIndex],
+												},
+												finish_reason: null,
+											},
+										],
+									}
+									res.write(`data: ${JSON.stringify(chunk)}\n\n`)
+									toolCallDeltaIndex++
+									setTimeout(sendChunk, 10)
 								} else {
 									const finalChunk = {
 										id: generationId,
@@ -595,7 +604,7 @@ export class ClineApiServerMock {
 											{
 												index: 0,
 												delta: {},
-												finish_reason: "stop",
+												finish_reason: includeEditorToolCall ? "tool_calls" : "stop",
 											},
 										],
 										usage: {
