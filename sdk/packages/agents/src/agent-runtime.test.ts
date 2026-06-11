@@ -960,6 +960,47 @@ describe("AgentRuntime", () => {
 		expect(model.requests).toHaveLength(1);
 	});
 
+	it("merges beforeModel options metadata into the model request", async () => {
+		const model = new ScriptedModel([
+			(request) => {
+				expect(request.options?.metadata).toMatchObject({
+					sessionId: "session-1",
+					runId: "run-1",
+					iteration: 1,
+				});
+				return [
+					{ type: "text-delta", text: "done" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			modelOptions: { metadata: { existing: true } },
+			hooks: {
+				beforeModel: () => ({
+					options: {
+						metadata: {
+							sessionId: "session-1",
+							runId: "run-1",
+							iteration: 1,
+						},
+					},
+				}),
+			},
+		});
+
+		await runtime.run("capture metadata");
+
+		expect(model.requests).toHaveLength(1);
+		expect(model.requests[0]?.options?.metadata).toMatchObject({
+			existing: true,
+			sessionId: "session-1",
+			runId: "run-1",
+			iteration: 1,
+		});
+	});
+
 	it("preserves the existing system prompt when prepareTurn returns only messages", async () => {
 		const compactedMessage: AgentMessage = {
 			id: "msg_compacted",
