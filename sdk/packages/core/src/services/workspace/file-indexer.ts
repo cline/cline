@@ -85,6 +85,8 @@ async function listFilesWithRg(cwd: string): Promise<Set<string>> {
 		const child = spawn("rg", ["--files", "--hidden", "-g", "!.git"], {
 			cwd,
 			stdio: ["ignore", "pipe", "pipe"],
+			// Prevent a console window from flashing on Windows.
+			windowsHide: true,
 		});
 
 		let stdout = "";

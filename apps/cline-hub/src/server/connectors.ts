@@ -68,6 +68,8 @@ async function runCliConnectCommand(args: string[]): Promise<{
 				CLINE_BUILD_ENV: process.env.CLINE_BUILD_ENV ?? "development",
 			},
 			stdio: ["ignore", "pipe", "pipe"],
+			// Prevent a console window from flashing on Windows.
+			windowsHide: true,
 		},
 	);
 	let stdout = "";

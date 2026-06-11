@@ -1,5 +1,18 @@
 # Cline SDK Changelog
 
+## 0.0.46
+
+- Added support for configured agents as subagent tools
+- Centralized OAuth management into the SDK
+- Added Vertex GCP settings configuration
+- Fixed the Azure Foundry API version for the CLI
+- Fixed an error caused by disabled reasoning on Fable 5
+
+## 0.0.45
+
+- Added support for the Claude Fable 5 model
+- Fixed MiniMax M3 thinking controls so they route correctly across gateways
+
 ## 0.0.44
 
 - Added support for Vertex AI Application Default Credentials (ADC) with tool use
