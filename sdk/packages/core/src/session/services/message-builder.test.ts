@@ -372,4 +372,246 @@ describe("MessageBuilder", () => {
 			}),
 		]);
 	});
+
+	it("truncates huge nested result strings inside structured ToolOperationResult[] content", () => {
+		const builder = new MessageBuilder(100);
+		const structuredResults = [
+			{ query: "echo hi", result: "x".repeat(5_000), success: true },
+		];
+		const messages: Message[] = [
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: "tool_1",
+						name: "run_commands",
+						input: { commands: ["echo hi"] },
+					},
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "tool_1",
+						name: "run_commands",
+						content: structuredResults as never,
+					},
+				],
+			},
+		];
+
+		const result = builder.buildForApi(messages);
+		const block = Array.isArray(result[1].content)
+			? result[1].content[0]
+			: undefined;
+		if (block?.type !== "tool_result" || !Array.isArray(block.content)) {
+			throw new Error("expected tool_result with array content");
+		}
+		const entry = block.content[0] as unknown as {
+			query: string;
+			result: string;
+			success: boolean;
+		};
+		expect(entry.result.length).toBeLessThanOrEqual(100);
+		expect(entry.result).toContain("...[truncated");
+		expect(entry.query).toBe("echo hi");
+		expect(entry.success).toBe(true);
+	});
+
+	it("truncates huge nested query strings inside structured ToolOperationResult[] content", () => {
+		const builder = new MessageBuilder(100);
+		const messages: Message[] = [
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: "tool_1",
+						name: "run_commands",
+						input: {},
+					},
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "tool_1",
+						name: "run_commands",
+						content: [
+							{
+								query: `echo ${"y".repeat(5_000)}`,
+								result: "ok",
+								success: true,
+							},
+						] as never,
+					},
+				],
+			},
+		];
+
+		const result = builder.buildForApi(messages);
+		const block = Array.isArray(result[1].content)
+			? result[1].content[0]
+			: undefined;
+		if (block?.type !== "tool_result" || !Array.isArray(block.content)) {
+			throw new Error("expected tool_result with array content");
+		}
+		const entry = block.content[0] as unknown as { query: string };
+		expect(entry.query.length).toBeLessThanOrEqual(100);
+		expect(entry.query).toContain("...[truncated");
+	});
+
+	it("counts nested structured strings toward the aggregate budget and truncates them", () => {
+		const builder = new MessageBuilder(
+			50_000,
+			new Set(["run_commands"]),
+			20_000,
+		);
+		const messages: Message[] = [
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: "tool_1",
+						name: "run_commands",
+						input: {},
+					},
+					{
+						type: "tool_use",
+						id: "tool_2",
+						name: "run_commands",
+						input: {},
+					},
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "tool_1",
+						name: "run_commands",
+						content: [
+							{ query: "cmd-1", result: "a".repeat(15_000), success: true },
+						] as never,
+					},
+					{
+						type: "tool_result",
+						tool_use_id: "tool_2",
+						name: "run_commands",
+						content: [
+							{ query: "cmd-2", result: "b".repeat(15_000), success: true },
+						] as never,
+					},
+				],
+			},
+		];
+
+		const result = builder.buildForApi(messages);
+		const serialized = JSON.stringify(result[1].content);
+		expect(serialized).toContain("provider request budget");
+		expect(Buffer.byteLength(serialized, "utf8")).toBeLessThanOrEqual(25_000);
+	});
+
+	it("does not mutate original structured tool result objects", () => {
+		const builder = new MessageBuilder(100, new Set(["run_commands"]), 10_000);
+		const originalResult = "z".repeat(20_000);
+		const structured = [
+			{ query: "echo big", result: originalResult, success: true },
+		];
+		const messages: Message[] = [
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: "tool_1",
+						name: "run_commands",
+						input: {},
+					},
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "tool_1",
+						name: "run_commands",
+						content: structured as never,
+					},
+				],
+			},
+		];
+
+		const result = builder.buildForApi(messages);
+		expect(structured[0].result).toBe(originalResult);
+		expect(structured[0].query).toBe("echo big");
+		const block = Array.isArray(result[1].content)
+			? result[1].content[0]
+			: undefined;
+		if (block?.type !== "tool_result" || !Array.isArray(block.content)) {
+			throw new Error("expected tool_result with array content");
+		}
+		const entry = block.content[0] as unknown as { result: string };
+		expect(entry.result).not.toBe(originalResult);
+		expect(entry.result.length).toBeLessThanOrEqual(100);
+	});
+
+	it("leaves base64 image blocks nested in structured results intact", () => {
+		const builder = new MessageBuilder(100);
+		const imageData = "i".repeat(5_000);
+		const messages: Message[] = [
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: "tool_1",
+						name: "read_files",
+						input: { file_paths: ["/tmp/pic.png"] },
+					},
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "tool_1",
+						name: "read_files",
+						content: [
+							{
+								query: "/tmp/pic.png",
+								result: [
+									{ type: "text", text: "Successfully read image" },
+									{ type: "image", data: imageData, mediaType: "image/png" },
+								],
+								success: true,
+							},
+						] as never,
+					},
+				],
+			},
+		];
+
+		const result = builder.buildForApi(messages);
+		const block = Array.isArray(result[1].content)
+			? result[1].content[0]
+			: undefined;
+		if (block?.type !== "tool_result" || !Array.isArray(block.content)) {
+			throw new Error("expected tool_result with array content");
+		}
+		const entry = block.content[0] as unknown as {
+			result: Array<{ type: string; data?: string }>;
+		};
+		const image = entry.result.find((item) => item.type === "image");
+		expect(image?.data).toBe(imageData);
+	});
 });
