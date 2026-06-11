@@ -34,7 +34,7 @@ export const ReadFileLineRangeSchema = z
 			.nullable()
 			.optional()
 			.describe(
-				"Optional one-based ending line number to read through; use null or omit for the end of the file",
+				"Optional one-based ending line number to read through; use null or omit to read to the end of the file or the read cap, whichever comes first",
 			),
 	})
 	.describe("Optional inclusive one-based file line range");
@@ -56,7 +56,7 @@ export const ReadFilesInputSchema = z.object({
 	files: z
 		.array(ReadFileRequestSchema)
 		.describe(
-			"Array of file read requests. Omit start_line/end_line or set them to null to return the full file content boundaries; provide integers to return only that inclusive one-based line range. Prefer this tool over running terminal command to get file content for better performance and reliability.",
+			"Array of file read requests. Omit start_line/end_line or set them to null to read from the start; provide integers to return only that inclusive one-based line range. Reads are capped, so page through long files with start_line/end_line. Prefer this tool over running terminal command to get file content for better performance and reliability.",
 		),
 });
 
