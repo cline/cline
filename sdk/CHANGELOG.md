@@ -1,5 +1,13 @@
 # Cline SDK Changelog
 
+## 0.0.47
+
+- Added support for overriding the API base URL
+- Enforced a production singleton Cline Hub so only one hub daemon runs, and a stale hub is respawned after an upgrade
+- Allowed plugin chat commands to submit prompts to the agent
+- Fixed truncation of structured tool operation result strings so oversized tool output stays within limits
+- Stopped echoing the full command text in run_commands tool results
+
 ## 0.0.46
 
 - Added support for configured agents as subagent tools
