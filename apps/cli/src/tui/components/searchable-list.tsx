@@ -299,7 +299,10 @@ export function SearchableList(props: {
 								>
 									{isSel ? "\u276f" : " "}
 								</text>
-								<text fg={isSel ? palette.textOnSelection : defaultFg}>
+								<text
+									fg={isSel ? palette.textOnSelection : defaultFg}
+									flexShrink={0}
+								>
 									{item.label}
 								</text>
 								{item.detail && (
