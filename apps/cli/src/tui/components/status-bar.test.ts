@@ -73,13 +73,14 @@ describe("formatStatusBarAgentName", () => {
 });
 
 describe("formatStatusBarAgentLabel", () => {
-	it("wraps the active agent name in brackets", () => {
-		expect(formatStatusBarAgentLabel("reviewer")).toBe("[reviewer]");
+	it("returns the trimmed active agent name", () => {
+		expect(formatStatusBarAgentLabel("reviewer")).toBe("reviewer");
+		expect(formatStatusBarAgentLabel("  reviewer  ")).toBe("reviewer");
 	});
 
-	it("truncates inside the brackets to fit the label width", () => {
+	it("truncates to fit the label width", () => {
 		expect(formatStatusBarAgentLabel("documentation-specialist", 18)).toBe(
-			"[documentation...]",
+			"documentation-s...",
 		);
 		expect(
 			formatStatusBarAgentLabel("documentation-specialist", 18)?.length,
@@ -88,7 +89,7 @@ describe("formatStatusBarAgentLabel", () => {
 
 	it("hides blank or too-narrow labels", () => {
 		expect(formatStatusBarAgentLabel("   ")).toBeUndefined();
-		expect(formatStatusBarAgentLabel("reviewer", 4)).toBeUndefined();
+		expect(formatStatusBarAgentLabel("reviewer", 0)).toBeUndefined();
 	});
 });
 

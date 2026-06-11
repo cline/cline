@@ -117,8 +117,8 @@ export function formatStatusBarAgentLabel(
 	maxLen = 18,
 ): string | undefined {
 	const normalized = name.trim();
-	if (!normalized || maxLen < 5) return undefined;
-	return `[${formatStatusBarAgentName(normalized, maxLen - 2)}]`;
+	if (!normalized || maxLen <= 0) return undefined;
+	return formatStatusBarAgentName(normalized, maxLen);
 }
 
 export interface StatusBarProps {
@@ -191,7 +191,7 @@ export function StatusBar(props: StatusBarProps) {
 	const fullAgentLabel = agentName
 		? formatStatusBarAgentLabel(agentName)
 		: undefined;
-	const agentLabelWidth = fullAgentLabel ? fullAgentLabel.length + 1 : 0;
+	const agentLabelWidth = fullAgentLabel ? fullAgentLabel.length + 3 : 0;
 	const usageText = formatStatusBarUsageText({
 		totalTokens,
 		totalCost,
@@ -244,7 +244,7 @@ export function StatusBar(props: StatusBarProps) {
 			: pathPart;
 	const firstRowAgentMaxLen = Math.min(
 		18,
-		Math.max(0, avail - toggleWidth - 1),
+		Math.max(0, avail - toggleWidth - 3),
 	);
 	const agentLabel = agentName
 		? formatStatusBarAgentLabel(agentName, firstRowAgentMaxLen)
@@ -264,9 +264,12 @@ export function StatusBar(props: StatusBarProps) {
 					onMouseDown={onToggleMode}
 				>
 					{agentLabel && (
-						<box flexShrink={0} onMouseDown={onOpenAgent}>
-							<text fg={defaultFg}>{agentLabel}</text>
-						</box>
+						<>
+							<box flexShrink={0} onMouseDown={onOpenAgent}>
+								<text fg={defaultFg}>{agentLabel}</text>
+							</box>
+							<text fg="gray">|</text>
+						</>
 					)}
 					<text fg={uiMode === "plan" ? planAccent : "gray"}>
 						{uiMode === "plan" ? "●" : "○"} Plan
