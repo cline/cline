@@ -30,12 +30,11 @@ export const E2E_REGISTERED_MOCK_ENDPOINTS = {
 }
 
 /**
- * Structured `editor` tool call streamed in response to the `edit_request` prompt.
- *
- * The SDK runtime only executes structured (OpenAI-format) tool calls — unlike
- * the classic extension, it does not parse XML-style tool syntax (e.g.
- * `<replace_in_file>`) out of assistant text. The mock server streams this as
- * `choices[].delta.tool_calls[]` deltas followed by `finish_reason: "tool_calls"`.
+ * Structured `editor` tool call streamed in response to the `edit_request`
+ * prompt. The mock server streams it as OpenAI-format
+ * `choices[].delta.tool_calls[]` deltas followed by
+ * `finish_reason: "tool_calls"`, which is the only tool-call syntax the SDK
+ * runtime executes.
  *
  * The `path` is workspace-relative; the SDK editor executor resolves relative
  * paths against the session cwd, which is the first workspace folder in both

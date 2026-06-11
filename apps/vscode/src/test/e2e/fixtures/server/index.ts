@@ -496,10 +496,9 @@ export class ClineApiServerMock {
 						if (hasToolResult) {
 							responseText = E2E_MOCK_API_RESPONSES.EDIT_REQUEST_COMPLETE
 						} else if (body.includes("edit_request")) {
-							// Stream a structured `editor` tool call (OpenAI tool_calls
-							// deltas) after the lead-in text. The classic XML-in-prose
-							// replace_in_file response no longer works: the SDK does not
-							// parse tool syntax out of assistant text.
+							// Stream lead-in text followed by a structured `editor` tool
+							// call (OpenAI tool_calls deltas) — the only tool-call syntax
+							// the SDK runtime executes.
 							responseText = E2E_MOCK_API_RESPONSES.EDIT_REQUEST_LEAD_IN
 							includeEditorToolCall = true
 						}

@@ -3,13 +3,12 @@ import * as path from "node:path"
 import { expect } from "@playwright/test"
 import { E2E_WORKSPACE_TYPES, e2e } from "./utils/helpers"
 
-// NOTE ON BEHAVIORAL DIFFERENCE FROM THE CLASSIC EXTENSION:
-// Under the SDK runtime, file edits are performed by the SDK's `editor` tool
-// executor, which writes the file directly (Node fs) after the user approves
-// the tool call — it does NOT stream the edit through DiffViewProvider, so no
-// "test.ts: Original ↔ Cline's Changes" diff tab opens. This test asserts the
-// SDK edit flow instead: approval ask row → Save → file modified on disk →
-// turn-ending completion text.
+// File edits are performed by the SDK's `editor` tool executor, which writes
+// the file directly (Node fs) after the user approves the tool call — it does
+// not stream the edit through DiffViewProvider, so no diff editor tab (e.g.
+// "test.ts: Original ↔ Cline's Changes") opens. This test therefore asserts
+// the approval flow rather than a diff editor: approval ask row → Save →
+// file modified on disk → turn-ending completion text.
 e2e.describe("Diff Editor", () => {
 	E2E_WORKSPACE_TYPES.forEach(({ title, workspaceType }) => {
 		e2e.extend({
