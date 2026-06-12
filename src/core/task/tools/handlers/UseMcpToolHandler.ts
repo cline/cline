@@ -151,8 +151,12 @@ export class UseMcpToolHandler implements IFullyManagedTool {
 			// chat ↔ study and auto-set workspace_dir for file outputs.
 			// Both fields are stripped server-side before reaching any tool parameter;
 			// they never appear in tool schemas or LLM context.
+			// Users register the same server under several names (ai-hydro, aihydro-tools,
+			// aihydro, …); a strict equality check here silently disabled chat↔study binding
+			// for every alias, so match the whole ai-hydro family instead.
+			const isAiHydroServer = /^ai-?hydro([-_].*)?$/i.test(server_name)
 			let argsWithChatId = parsedArguments
-			if (server_name === "ai-hydro" && config.ulid) {
+			if (isAiHydroServer && config.ulid) {
 				// Workspace: use HostProvider abstraction (VS Code workspace folder
 				// visible in the Explorer), fall back to the task cwd.
 				let workspaceRoot: string | undefined = config.cwd

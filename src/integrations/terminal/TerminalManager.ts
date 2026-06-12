@@ -1,3 +1,4 @@
+import { TerminalHangStage, telemetryService } from "@services/telemetry"
 import { arePathsEqual } from "@utils/path"
 import { getShellForProfile } from "@utils/shell"
 import pWaitFor from "p-wait-for"
@@ -270,36 +271,71 @@ export class TerminalManager {
 				// Navigate back to the desired directory
 				const cdProcess = this.runCommand(availableTerminal, `cd "${cwd}"`)
 
-				// Wait for the cd command to complete before proceeding
-				await cdProcess
+				// A cd is effectively instantaneous, so completion detection should be too. If the
+				// terminal's shell integration has gone stale (a known VS Code failure mode after
+				// long-running or detached commands), the completion event never fires and this
+				// await would otherwise block forever — freezing the entire agent loop, since no
+				// outer timeout covers terminal acquisition (the per-command timeout only guards
+				// execution AFTER a terminal has been acquired). Bound it, and on timeout quarantine
+				// the suspect terminal and fall through to creating a fresh one.
+				const CD_COMPLETION_TIMEOUT_MS = 5_000
+				let cdTimedOut = false
+				await Promise.race([
+					cdProcess,
+					new Promise<void>((resolve) =>
+						setTimeout(() => {
+							cdTimedOut = true
+							resolve()
+						}, CD_COMPLETION_TIMEOUT_MS),
+					),
+				])
 
-				// Add a small delay to ensure terminal is ready after cd
-				await new Promise((resolve) => setTimeout(resolve, 100))
-
-				// Either resolve immediately if CWD already updated or wait for event/timeout
-				if (this.isCwdMatchingExpected(availableTerminal)) {
-					if (availableTerminal.cwdResolved) {
-						availableTerminal.cwdResolved.resolve()
+				if (cdTimedOut) {
+					console.warn(
+						`[TerminalManager] cd completion not detected within ${CD_COMPLETION_TIMEOUT_MS}ms on terminal ${availableTerminal.id} — shell integration likely stale. Quarantining terminal and creating a fresh one.`,
+					)
+					telemetryService.captureTerminalHang(TerminalHangStage.WAITING_FOR_COMPLETION)
+					// Detach our listener from the stale process and quarantine the terminal:
+					// its shell state is unknown, so it must never be reused.
+					try {
+						cdProcess.continue()
+					} catch {
+						// best-effort detach
 					}
 					availableTerminal.pendingCwdChange = undefined
 					availableTerminal.cwdResolved = undefined
+					TerminalRegistry.removeTerminal(availableTerminal.id)
+					this.terminalIds.delete(availableTerminal.id)
+					this.processes.delete(availableTerminal.id)
 				} else {
-					try {
-						// Wait with a timeout for state change event to resolve
-						await Promise.race([
-							cwdPromise,
-							new Promise<void>((_, reject) =>
-								setTimeout(() => reject(new Error(`CWD timeout: Failed to update to ${cwd}`)), 1000),
-							),
-						])
-					} catch (_err) {
-						// Clear pending state on timeout
+					// Add a small delay to ensure terminal is ready after cd
+					await new Promise((resolve) => setTimeout(resolve, 100))
+
+					// Either resolve immediately if CWD already updated or wait for event/timeout
+					if (this.isCwdMatchingExpected(availableTerminal)) {
+						if (availableTerminal.cwdResolved) {
+							availableTerminal.cwdResolved.resolve()
+						}
 						availableTerminal.pendingCwdChange = undefined
 						availableTerminal.cwdResolved = undefined
+					} else {
+						try {
+							// Wait with a timeout for state change event to resolve
+							await Promise.race([
+								cwdPromise,
+								new Promise<void>((_, reject) =>
+									setTimeout(() => reject(new Error(`CWD timeout: Failed to update to ${cwd}`)), 1000),
+								),
+							])
+						} catch (_err) {
+							// Clear pending state on timeout
+							availableTerminal.pendingCwdChange = undefined
+							availableTerminal.cwdResolved = undefined
+						}
 					}
+					this.terminalIds.add(availableTerminal.id)
+					return availableTerminal
 				}
-				this.terminalIds.add(availableTerminal.id)
-				return availableTerminal
 			}
 		}
 
