@@ -173,6 +173,13 @@ describe("ProviderSettingsManager", () => {
 			{ setLastUsed: true },
 		);
 
+		manager.saveProviderSettings(
+			{
+				provider: "cline",
+			},
+			{ setLastUsed: true },
+		);
+
 		expect(
 			manager.getLastUsedProviderSettings({ isClinePassEnabled: false }),
 		).toEqual({ provider: "cline" });
