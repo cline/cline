@@ -1,13 +1,5 @@
-import type {
-	ResponseInput,
-	ResponseInputMessageContentList,
-	ResponseReasoningItem,
-} from "openai/resources/responses/responses";
-import {
-	type ClineStorageMessage,
-	getBase64ImageSource,
-	getImageDataUrl,
-} from "@/shared/messages/content";
+import { ResponseInput, ResponseInputMessageContentList, ResponseReasoningItem } from "openai/resources/responses/responses"
+import { ClineStorageMessage, getBase64ImageSource, getImageDataUrl } from "@/shared/messages/content"
 
 /**
  * Converts an array of ClineStorageMessage objects (extension of Anthropic format) to a ResponseInput array to use with OpenAI's Responses API.
@@ -83,69 +75,56 @@ export function convertToOpenAIResponsesInput(
 	_messages: ClineStorageMessage[],
 	options?: { usePreviousResponseId?: boolean },
 ): {
-	input: ResponseInput;
-	previousResponseId?: string;
+	input: ResponseInput
+	previousResponseId?: string
 } {
 	// Chain from the latest stored Responses API assistant message when available.
 	// When chaining, only send new items after that assistant turn.
-	let previousResponseId: string | undefined;
-	let messages = _messages;
+	let previousResponseId: string | undefined
+	let messages = _messages
 	if (options?.usePreviousResponseId) {
 		for (let i = _messages.length - 1; i >= 0; i--) {
-			const msg = _messages[i];
+			const msg = _messages[i]
 			// Must be less than 24 hours old to be considered for chaining as the previous Id is only valid for 24 hours.
 			// Set to 23 hours to account for any potential delays in processing.
-			const isLessThan23HoursOld = msg.ts
-				? Date.now() - msg.ts < 23 * 60 * 60 * 1000
-				: false;
+			const isLessThan23HoursOld = msg.ts ? Date.now() - msg.ts < 23 * 60 * 60 * 1000 : false
 			if (msg.role === "assistant" && msg.id && isLessThan23HoursOld) {
-				previousResponseId = msg.id;
-				messages = _messages.slice(i + 1);
-				break;
+				previousResponseId = msg.id
+				messages = _messages.slice(i + 1)
+				break
 			}
 		}
 	}
 
-	const allItems: any[] = [];
-	const toolUseIdToCallId = new Map<string, string>();
+	const allItems: any[] = []
+	const toolUseIdToCallId = new Map<string, string>()
 
 	for (const m of messages) {
 		if (typeof m.content === "string") {
-			allItems.push({
-				role: m.role,
-				content: [{ type: "input_text", text: m.content }],
-			});
-			continue;
+			allItems.push({ role: m.role, content: [{ type: "input_text", text: m.content }] })
+			continue
 		}
 
 		if (m.role === "assistant") {
 			// For assistant messages, we must ensure reasoning items are IMMEDIATELY followed
 			// by their corresponding message or function_call. Process the entire assistant
 			// turn and ensure proper pairing.
-			const assistantItems: any[] = [];
+			const assistantItems: any[] = []
 
 			for (const part of m.content) {
 				switch (part.type) {
-					case "thinking": {
+					case "thinking":
 						// Only include reasoning item if it has actual content (thinking text or summary)
 						// Empty reasoning items cause API errors: "Item 'rs_...' of type 'reasoning' was provided without its required following item"
-						const hasThinkingContent =
-							part.thinking && part.thinking.trim().length > 0;
-						const hasSummaryContent =
-							part.summary &&
-							Array.isArray(part.summary) &&
-							part.summary.length > 0;
+						const hasThinkingContent = part.thinking && part.thinking.trim().length > 0
+						const hasSummaryContent = part.summary && Array.isArray(part.summary) && part.summary.length > 0
 
-						if (
-							part.call_id &&
-							part.call_id.length > 0 &&
-							(hasThinkingContent || hasSummaryContent)
-						) {
+						if (part.call_id && part.call_id.length > 0 && (hasThinkingContent || hasSummaryContent)) {
 							// Use summary if available, otherwise use thinking text
-							let summary: any[] = [];
+							let summary: any[] = []
 							if (hasSummaryContent) {
 								// part.summary is already in the correct format from OpenAI Responses API
-								summary = part.summary as any[];
+								summary = part.summary as any[]
 							} else if (hasThinkingContent) {
 								// Convert thinking text to summary format
 								summary = [
@@ -153,17 +132,16 @@ export function convertToOpenAIResponsesInput(
 										type: "summary_text",
 										text: part.thinking,
 									},
-								];
+								]
 							}
 
 							assistantItems.push({
 								id: part.call_id,
 								type: "reasoning",
 								summary,
-							} as ResponseReasoningItem);
+							} as ResponseReasoningItem)
 						}
-						break;
-					}
+						break
 					case "redacted_thinking":
 						// Include reasoning item with encrypted content if it has a call_id
 						// Even if data is missing, we need to maintain the reasoning-function_call pairing
@@ -172,115 +150,100 @@ export function convertToOpenAIResponsesInput(
 								id: part.call_id,
 								type: "reasoning",
 								summary: [],
-							};
+							}
 							// Only include encrypted_content if data exists
 							if (part.data) {
-								reasoningItem.encrypted_content = part.data;
+								reasoningItem.encrypted_content = part.data
 							}
-							assistantItems.push(reasoningItem as ResponseReasoningItem);
+							assistantItems.push(reasoningItem as ResponseReasoningItem)
 						}
-						break;
-					case "text": {
+						break
+					case "text":
 						// Message ID goes at the message level, not in the content
 						// The reasoning item and message can have different IDs - they just need to be adjacent
 						const messageItem: any = {
 							type: "message",
 							role: "assistant",
 							content: [{ type: "output_text", text: part.text }],
-						};
+						}
 						// Set message-level id if available
 						if (part.call_id) {
-							messageItem.id = part.call_id;
+							messageItem.id = part.call_id
 						}
-						assistantItems.push(messageItem);
-						break;
-					}
-					case "image": {
+						assistantItems.push(messageItem)
+						break
+					case "image":
 						// Message ID goes at the message level, not in the content
 						const imageItem: any = {
 							type: "message",
 							role: "assistant",
-							content: [
-								{
-									type: "output_text",
-									text: `[image:${getBase64ImageSource(part.source).mediaType}]`,
-								},
-							],
-						};
+							content: [{ type: "output_text", text: `[image:${getBase64ImageSource(part.source).mediaType}]` }],
+						}
 						// Set message-level id if available (though images typically don't have call_id)
 						if (part.call_id) {
-							imageItem.id = part.call_id;
+							imageItem.id = part.call_id
 						}
-						assistantItems.push(imageItem);
-						break;
-					}
+						assistantItems.push(imageItem)
+						break
 					case "tool_use": {
 						// Function calls use call_id, not related to reasoning item ID
-						const call_id = part.call_id || part.id;
+						const call_id = part.call_id || part.id
 						if (part.call_id) {
-							toolUseIdToCallId.set(part.id, part.call_id);
+							toolUseIdToCallId.set(part.id, part.call_id)
 						}
 						assistantItems.push({
 							type: "function_call",
 							call_id,
 							// MAX 53 characters for OpenAI Responses API tool IDs
-							id: !part.id.startsWith("fc_")
-								? `fc_${part.id.slice(0, 50)}`
-								: part.id,
+							id: !part.id.startsWith("fc_") ? `fc_${part.id.slice(0, 50)}` : part.id,
 							name: part.name,
 							arguments: JSON.stringify(part.input ?? {}),
-						});
-						break;
+						})
+						break
 					}
 				}
 			}
 
-			allItems.push(...assistantItems);
+			allItems.push(...assistantItems)
 		} else {
 			// User messages - collect all content
-			const messageContent: ResponseInputMessageContentList = [];
+			const messageContent: ResponseInputMessageContentList = []
 
 			for (const part of m.content) {
 				switch (part.type) {
 					case "text":
-						messageContent.push({ type: "input_text", text: part.text });
-						break;
+						messageContent.push({ type: "input_text", text: part.text })
+						break
 					case "image":
 						messageContent.push({
 							type: "input_image",
 							detail: "auto",
 							image_url: getImageDataUrl(part.source),
-						});
-						break;
+						})
+						break
 					case "tool_result": {
 						// Flush any pending message content before adding tool result
 						if (messageContent.length > 0) {
-							allItems.push({ role: m.role, content: [...messageContent] });
-							messageContent.length = 0;
+							allItems.push({ role: m.role, content: [...messageContent] })
+							messageContent.length = 0
 						}
-						const call_id =
-							part.call_id ||
-							toolUseIdToCallId.get(part.tool_use_id) ||
-							part.tool_use_id;
+						const call_id = part.call_id || toolUseIdToCallId.get(part.tool_use_id) || part.tool_use_id
 						allItems.push({
 							type: "function_call_output",
 							call_id,
-							output:
-								typeof part.content === "string"
-									? part.content
-									: JSON.stringify(part.content),
-						});
-						break;
+							output: typeof part.content === "string" ? part.content : JSON.stringify(part.content),
+						})
+						break
 					}
 				}
 			}
 
 			// Flush any remaining user message content
 			if (messageContent.length > 0) {
-				allItems.push({ role: m.role, content: [...messageContent] });
+				allItems.push({ role: m.role, content: [...messageContent] })
 			}
 		}
 	}
 
-	return { input: allItems, previousResponseId };
+	return { input: allItems, previousResponseId }
 }
