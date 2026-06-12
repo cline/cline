@@ -173,7 +173,7 @@ export function buildMessageModelInfo(
  */
 export function resolveToolExecution(
 	maxParallelToolCalls: number | undefined,
-): "sequential" | "parallel" | undefined {
+): "sequential" | "parallel" {
 	if (maxParallelToolCalls === undefined) {
 		return "parallel";
 	}
