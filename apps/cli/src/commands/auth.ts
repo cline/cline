@@ -22,7 +22,7 @@ import {
 	type OAuthCredentials,
 	toProviderApiKey,
 } from "../utils/provider-auth";
-import { identifyCliTelemetryAccount } from "../utils/telemetry";
+import { identifyTelemetryAccount } from "../utils/telemetry";
 
 export {
 	getPersistedProviderApiKey,
@@ -440,7 +440,7 @@ export async function runAuthProviderCommand(
 			providerId,
 			{ callbacks: createOAuthCallbacks(io) },
 		);
-		identifyCliTelemetryAccount({
+		identifyTelemetryAccount({
 			id: settings.auth?.accountId,
 			provider: providerId,
 		});

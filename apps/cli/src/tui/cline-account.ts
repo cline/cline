@@ -14,7 +14,7 @@ import {
 } from "@cline/core";
 import { getClineEnvironmentConfig } from "@cline/shared";
 import { formatCreditBalance, normalizeCreditBalance } from "../utils/output";
-import { identifyCliTelemetryAccount } from "../utils/telemetry";
+import { identifyTelemetryAccount } from "../utils/telemetry";
 import type { Config } from "../utils/types";
 
 export const CLINE_CREDITS_DASHBOARD_URL =
@@ -176,7 +176,7 @@ export async function loadClineAccountSnapshot(input: {
 		organizationName: activeOrganization?.name,
 		memberId: activeOrganization?.memberId,
 	};
-	identifyCliTelemetryAccount(accountContext, input.config.logger);
+	identifyTelemetryAccount(accountContext, input.config.logger);
 
 	return {
 		user,

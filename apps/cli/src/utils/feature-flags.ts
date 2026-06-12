@@ -70,7 +70,7 @@ export async function disposeCliFeatureFlagsService(): Promise<void> {
 	await current.dispose();
 }
 
-export async function identifyCliFeatureFlagsAccount(
+export async function identifyFeatureFlagsAccount(
 	account: { id?: string; email?: string },
 	logger?: BasicLogger,
 ): Promise<void> {

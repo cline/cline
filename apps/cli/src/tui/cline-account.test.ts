@@ -16,7 +16,7 @@ const coreMocks = vi.hoisted(() => {
 	};
 });
 const telemetryMocks = vi.hoisted(() => ({
-	identifyCliTelemetryAccount: vi.fn(),
+	identifyTelemetryAccount: vi.fn(),
 }));
 
 vi.mock("@cline/core", async (importOriginal) => {
@@ -52,7 +52,7 @@ vi.mock("@cline/core", async (importOriginal) => {
 });
 
 vi.mock("../utils/telemetry", () => ({
-	identifyCliTelemetryAccount: telemetryMocks.identifyCliTelemetryAccount,
+	identifyTelemetryAccount: telemetryMocks.identifyTelemetryAccount,
 }));
 
 function makeConfig(overrides: Partial<Config> = {}): Config {
@@ -101,7 +101,7 @@ describe("createClineAccountService", () => {
 		coreMocks.fetchBalance.mockReset();
 		coreMocks.fetchOrganizationBalance.mockReset();
 		coreMocks.serviceOptions.length = 0;
-		telemetryMocks.identifyCliTelemetryAccount.mockReset();
+		telemetryMocks.identifyTelemetryAccount.mockReset();
 	});
 
 	afterEach(() => {
@@ -197,7 +197,7 @@ describe("loadClineAccountSnapshot", () => {
 		coreMocks.fetchBalance.mockReset();
 		coreMocks.fetchOrganizationBalance.mockReset();
 		coreMocks.serviceOptions.length = 0;
-		telemetryMocks.identifyCliTelemetryAccount.mockReset();
+		telemetryMocks.identifyTelemetryAccount.mockReset();
 	});
 
 	afterEach(() => {
@@ -236,7 +236,7 @@ describe("loadClineAccountSnapshot", () => {
 
 		await loadClineAccountSnapshot({ config: makeConfig() });
 
-		expect(telemetryMocks.identifyCliTelemetryAccount).toHaveBeenCalledWith(
+		expect(telemetryMocks.identifyTelemetryAccount).toHaveBeenCalledWith(
 			{
 				id: "user-1",
 				email: "user@example.com",
