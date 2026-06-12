@@ -1,9 +1,9 @@
 import { Logger } from "@/shared/services/Logger"
 import { sanitizeInitialMessagesForSessionStart } from "./initial-message-sanitizer"
-import type { SdkSessionHost } from "./session-host"
+import type { SdkInitialMessages, SdkSessionHost } from "./session-host"
 
 export class SdkSessionHistoryLoader {
-	async loadInitialMessages(sessionHost: SdkSessionHost, taskId: string): Promise<unknown[] | undefined> {
+	async loadInitialMessages(sessionHost: SdkSessionHost, taskId: string): Promise<SdkInitialMessages | undefined> {
 		try {
 			const sdkMessages = await sessionHost.readMessages(taskId)
 			if (sdkMessages.length > 0) {
@@ -24,7 +24,7 @@ export class SdkSessionHistoryLoader {
 			const { getSavedApiConversationHistory } = await import("@core/storage/disk")
 			const apiHistory = await getSavedApiConversationHistory(taskId)
 			if (apiHistory.length > 0) {
-				const sanitizedMessages = sanitizeInitialMessagesForSessionStart(apiHistory as unknown[])
+				const sanitizedMessages = sanitizeInitialMessagesForSessionStart(apiHistory as SdkInitialMessages)
 				if (sanitizedMessages !== apiHistory) {
 					Logger.log(
 						`[SdkController] Sanitized legacy pairing in classic API history for task: ${taskId} (${apiHistory.length} → ${sanitizedMessages.length} messages)`,

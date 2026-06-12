@@ -20,7 +20,7 @@ export interface SdkProviderChangeCoordinatorOptions {
 	sessionConfigBuilder: SdkSessionConfigBuilder
 	getTask: () => TaskProxy | undefined
 	getWorkspaceRoot: () => Promise<string>
-	loadInitialMessages: (sdkHost: SdkSessionHost, sessionId: string) => Promise<unknown[] | undefined>
+	loadInitialMessages: (sdkHost: SdkSessionHost, sessionId: string) => Promise<InitialMessages>
 	buildStartSessionInput: (config: SessionConfig, input: { cwd: string; mode: Mode }) => StartInput
 	postStateToWebview: () => Promise<void>
 }
@@ -65,7 +65,11 @@ export class SdkProviderChangeCoordinator {
 		})
 	}
 
-	checkDeferredRestart(): void {
+	clearPendingRestart(): void {
+		this.restartPending = false
+	}
+
+	async checkDeferredRestart(): Promise<void> {
 		if (!this.restartPending) {
 			return
 		}
@@ -83,9 +87,7 @@ export class SdkProviderChangeCoordinator {
 			return
 		}
 
-		this.restartActiveSessionForProviderChange().catch((error) => {
-			Logger.error("[SdkController] Failed deferred provider restart:", error)
-		})
+		await this.restartActiveSessionForProviderChange()
 	}
 
 	async restartActiveSessionForProviderChange(): Promise<void> {
@@ -104,7 +106,7 @@ export class SdkProviderChangeCoordinator {
 			await operation
 		} finally {
 			this.restartInFlight = undefined
-			this.checkDeferredRestart()
+			await this.checkDeferredRestart()
 		}
 	}
 
@@ -128,7 +130,7 @@ export class SdkProviderChangeCoordinator {
 			const startInput = this.options.buildStartSessionInput(config, { cwd, mode })
 			const restartResult = await this.options.sessions.replaceActiveSession({
 				startInput,
-				initialMessages: initialMessages as InitialMessages,
+				...(initialMessages ? { initialMessages } : {}),
 				disposeReason: "providerChange",
 			})
 			if (!restartResult) {

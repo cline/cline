@@ -74,7 +74,7 @@ describe("SdkSessionEventCoordinator", () => {
 		expect(options.postStateToWebview).not.toHaveBeenCalled()
 	})
 
-	it("marks turns complete, checks deferred reloads, and applies pending mode changes", () => {
+	it("marks turns complete and lets pending mode changes replace provider restarts", async () => {
 		const activeSession = makeActiveSession()
 		const { coordinator, options, event } = makeCoordinator({
 			activeSession,
@@ -86,12 +86,33 @@ describe("SdkSessionEventCoordinator", () => {
 			},
 		})
 
-		coordinator.handleSessionEvent(event)
+		await coordinator.handleSessionEvent(event)
+
+		expect(options.sessions.setRunning).toHaveBeenCalledWith(false)
+		expect(options.mcpTools.checkDeferredRestart).toHaveBeenCalledOnce()
+		expect(options.providerChanges.clearPendingRestart).toHaveBeenCalledOnce()
+		expect(options.providerChanges.checkDeferredRestart).not.toHaveBeenCalled()
+		expect(options.mode.applyPendingModeChange).toHaveBeenCalledOnce()
+	})
+
+	it("checks deferred provider restarts when no mode change is pending", async () => {
+		const activeSession = makeActiveSession()
+		const { coordinator, options, event } = makeCoordinator({
+			activeSession,
+			translation: {
+				messages: [],
+				sessionEnded: false,
+				turnComplete: true,
+			},
+		})
+
+		await coordinator.handleSessionEvent(event)
 
 		expect(options.sessions.setRunning).toHaveBeenCalledWith(false)
 		expect(options.mcpTools.checkDeferredRestart).toHaveBeenCalledOnce()
 		expect(options.providerChanges.checkDeferredRestart).toHaveBeenCalledOnce()
-		expect(options.mode.applyPendingModeChange).toHaveBeenCalledOnce()
+		expect(options.providerChanges.clearPendingRestart).not.toHaveBeenCalled()
+		expect(options.mode.applyPendingModeChange).not.toHaveBeenCalled()
 	})
 
 	it("posts state on turn end even when the turn-complete event carries NO messages", async () => {
@@ -357,7 +378,8 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 			checkDeferredRestart: vi.fn(),
 		},
 		providerChanges: {
-			checkDeferredRestart: vi.fn(),
+			checkDeferredRestart: vi.fn().mockResolvedValue(undefined),
+			clearPendingRestart: vi.fn(),
 		},
 		mode: {
 			hasPendingModeChange: vi.fn(() => input.hasPendingModeChange ?? false),
@@ -380,6 +402,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		mcpTools: SdkSessionEventCoordinatorOptions["mcpTools"] & { checkDeferredRestart: ReturnType<typeof vi.fn> }
 		providerChanges: NonNullable<SdkSessionEventCoordinatorOptions["providerChanges"]> & {
 			checkDeferredRestart: ReturnType<typeof vi.fn>
+			clearPendingRestart: ReturnType<typeof vi.fn>
 		}
 		mode: SdkSessionEventCoordinatorOptions["mode"] & {
 			hasPendingModeChange: ReturnType<typeof vi.fn>

@@ -290,13 +290,19 @@ export class Controller {
 			},
 			onSendComplete: async () => {
 				if (this.mode.hasPendingModeChange()) {
+					this.providerChanges.clearPendingRestart()
 					try {
 						await this.mode.applyPendingModeChange()
 					} catch (err) {
 						Logger.error("[SdkController] applyPendingModeChange failed:", err)
 					}
+				} else {
+					try {
+						await this.providerChanges.checkDeferredRestart()
+					} catch (err) {
+						Logger.error("[SdkController] Failed deferred provider restart:", err)
+					}
 				}
-				this.providerChanges.checkDeferredRestart()
 
 				this.postStateToWebview().catch((err) => {
 					Logger.error("[SdkController] Failed to post state after turn:", err)

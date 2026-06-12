@@ -64,6 +64,30 @@ describe("provider auth registry", () => {
 		).toBe("workos:abc");
 	});
 
+	it("preserves non-OAuth provider key nullish fallback behavior", () => {
+		expect(
+			getPersistedProviderApiKey("anthropic", {
+				provider: "anthropic",
+				auth: { accessToken: "" },
+				apiKey: "manual-key",
+			}),
+		).toBe("");
+		expect(
+			getPersistedProviderApiKey("anthropic", {
+				provider: "anthropic",
+				auth: { accessToken: "  " },
+				apiKey: "manual-key",
+			}),
+		).toBe("  ");
+		expect(
+			getPersistedProviderApiKey("anthropic", {
+				provider: "anthropic",
+				apiKey: "",
+				auth: { apiKey: "auth-key" },
+			}),
+		).toBe("");
+	});
+
 	it("login/save stores credentials under handler storageProviderId", async () => {
 		loginClineOAuth.mockResolvedValueOnce({
 			access: "new-access",

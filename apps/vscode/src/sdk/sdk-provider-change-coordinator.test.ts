@@ -78,9 +78,22 @@ describe("SdkProviderChangeCoordinator", () => {
 		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
 
 		activeSession.isRunning = false
-		coordinator.checkDeferredRestart()
+		await coordinator.checkDeferredRestart()
 
 		await vi.waitFor(() => expect(options.sessions.replaceActiveSession).toHaveBeenCalledOnce())
+	})
+
+	it("can clear a deferred restart before the session becomes idle", async () => {
+		const activeSession = makeActiveSession({ isRunning: true })
+		const { coordinator, options } = makeCoordinator({ activeSession })
+
+		coordinator.handleApiConfigurationChanged({ actModeApiProvider: "anthropic" }, { actModeApiProvider: "deepseek" })
+		coordinator.clearPendingRestart()
+
+		activeSession.isRunning = false
+		await coordinator.checkDeferredRestart()
+
+		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
 	})
 
 	it("updates the task id when the replacement session id changes", async () => {
