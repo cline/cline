@@ -71,7 +71,7 @@ describe("createFileReadExecutor", () => {
 				{ agentId: "agent-1", conversationId: "conv-1", iteration: 1 },
 			)) as string;
 
-			expect(result).toBe(" 50 | line 50\n 51 | line 51\n 52 | line 52");
+			expect(result).toBe("50 | line 50\n51 | line 51\n52 | line 52");
 		} finally {
 			await fs.rm(dir, { recursive: true, force: true });
 		}
@@ -119,6 +119,15 @@ describe("createFileReadExecutor", () => {
 		// pagination notice survives provider-request truncation.
 		expect(result.length).toBeLessThanOrEqual(50_000);
 		expect(result).toContain("of 1500. Use start_line/end_line");
+	});
+
+	it("keeps dense output capped when total line-number width grows after capture", async () => {
+		const result = await readTempFile(
+			Array.from({ length: 10_000 }, () => "z".repeat(100)).join("\n"),
+		);
+
+		expect(result.length).toBeLessThanOrEqual(50_000);
+		expect(result).toContain("of 10000. Use start_line/end_line");
 	});
 
 	it("returns image blocks for image files when the model supports images", async () => {

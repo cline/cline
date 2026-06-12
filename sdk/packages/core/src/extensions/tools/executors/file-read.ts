@@ -73,6 +73,12 @@ async function readTextWindow(
 	let chars = 0;
 	let totalLines = 0;
 	let capped = false;
+	const maxCapturedLineNumber = Number.isFinite(requestedEndLine)
+		? Math.min(requestedEndLine, requestedStartLine + MAX_READ_LINES - 1)
+		: requestedStartLine + MAX_READ_LINES - 1;
+	const lineNumberPrefixChars = includeLineNumbers
+		? String(maxCapturedLineNumber).length + 3
+		: 0;
 
 	const stream = createReadStream(filePath, { encoding });
 	const reader = createInterface({
@@ -83,11 +89,10 @@ async function readTextWindow(
 	try {
 		for await (const rawLine of reader) {
 			totalLines += 1;
-			if (
-				totalLines < requestedStartLine ||
-				totalLines > requestedEndLine ||
-				capped
-			) {
+			if (totalLines > requestedEndLine) {
+				break;
+			}
+			if (totalLines < requestedStartLine || capped) {
 				continue;
 			}
 			if (captured.length >= MAX_READ_LINES) {
@@ -100,9 +105,6 @@ async function readTextWindow(
 				line = `${line.slice(0, MAX_LINE_CHARS)} [line truncated]`;
 			}
 
-			const lineNumberPrefixChars = includeLineNumbers
-				? String(totalLines).length + 3
-				: 0;
 			const nextChars = chars + line.length + lineNumberPrefixChars + 1;
 			if (nextChars > MAX_READ_OUTPUT_CHARS && captured.length > 0) {
 				capped = true;
@@ -117,7 +119,9 @@ async function readTextWindow(
 		stream.destroy();
 	}
 
-	const maxLineNumWidth = String(totalLines).length;
+	const maxLineNumWidth = String(
+		captured[captured.length - 1]?.lineNumber ?? totalLines,
+	).length;
 	const body = captured
 		.map(({ lineNumber, text }) =>
 			includeLineNumbers
