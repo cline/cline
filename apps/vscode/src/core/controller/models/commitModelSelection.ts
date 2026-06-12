@@ -17,6 +17,9 @@ export async function commitModelSelection(
 	const providerId = parseProviderIdRequest(request.providerId)
 	const mode = parseModeRequest(request.mode)
 	const selection = toModelSelection(request, providerId)
+	const previousApiConfiguration = hasProviderCatalogStateController(controller)
+		? controller.stateManager.getApiConfiguration?.()
+		: undefined
 	controller.getProviderConfigStore().commitSelection(providerId, mode, selection)
 
 	if (hasProviderCatalogStateController(controller)) {
@@ -24,6 +27,10 @@ export async function commitModelSelection(
 			[`${mode}ModeApiProvider`]: providerId,
 			[getProviderModelIdKey(toLegacyApiProvider(providerId.toString()), mode)]: selection.modelId,
 		})
+		const nextApiConfiguration = controller.stateManager.getApiConfiguration?.()
+		if (previousApiConfiguration && nextApiConfiguration) {
+			controller.handleApiConfigurationChanged?.(previousApiConfiguration, nextApiConfiguration)
+		}
 	}
 
 	return Empty.create()
