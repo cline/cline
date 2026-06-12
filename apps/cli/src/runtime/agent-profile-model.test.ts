@@ -177,6 +177,59 @@ describe("applyAgentProfileModelSelection", () => {
 		expect(config.modelId).toBe("anthropic/claude-sonnet-4.6");
 	});
 
+	it("does not leak a model-only profile's model past the revert when no model is persisted", async () => {
+		const root = await mkdtemp(join(tmpdir(), "cli-profile-model-"));
+		tempRoots.push(root);
+		const home = join(root, "home");
+		await mkdir(home, { recursive: true });
+		process.env.HOME = home;
+		setHomeDir(home);
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = join(home, "global-settings.json");
+		// The user's provider settings carry no model selection.
+		new ProviderSettingsManager().saveProviderSettings({
+			provider: "anthropic",
+			apiKey: "anthropic-key",
+		});
+		const { Llms } = await import("@cline/core");
+		const knownModels = await Llms.getModelsForProvider("anthropic");
+		const firstKnownModelId = Object.keys(knownModels)[0];
+		const config = makeConfig({ knownModels, modelId: firstKnownModelId });
+
+		const pinned = { modelId: "anthropic/claude-haiku-4.5" };
+		await applyAgentProfileModelSelection(config, pinned);
+		expect(config.modelId).toBe("anthropic/claude-haiku-4.5");
+
+		await applyAgentProfileModelSelection(config, undefined, {
+			previousProfile: pinned,
+		});
+
+		expect(config.modelId).toBe(firstKnownModelId);
+	});
+
+	it("accepts a profile provider configured only through its environment variable", async () => {
+		await setUpProviderSettings();
+		const previousEnv = process.env.OPENROUTER_API_KEY;
+		process.env.OPENROUTER_API_KEY = "env-key";
+		try {
+			const config = makeConfig();
+
+			const result = await applyAgentProfileModelSelection(config, {
+				providerId: "openrouter",
+				modelId: "anthropic/claude-sonnet-4.6",
+			});
+
+			expect(result.warning).toBeUndefined();
+			expect(config.providerId).toBe("openrouter");
+			expect(config.modelId).toBe("anthropic/claude-sonnet-4.6");
+		} finally {
+			if (previousEnv === undefined) {
+				delete process.env.OPENROUTER_API_KEY;
+			} else {
+				process.env.OPENROUTER_API_KEY = previousEnv;
+			}
+		}
+	});
+
 	it("never writes the profile's selection into persisted provider settings", async () => {
 		await setUpProviderSettings();
 		const config = makeConfig();

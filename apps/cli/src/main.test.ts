@@ -44,6 +44,7 @@ const mockState = vi.hoisted(() => ({
 const authMocks = vi.hoisted(() => ({
 	ensureOAuthProviderApiKey: vi.fn(),
 	getPersistedProviderApiKey: vi.fn(() => undefined),
+	hasEnvProviderApiKey: vi.fn(() => false),
 	isOAuthProvider: vi.fn(() => false),
 	isProviderConfigured: vi.fn(() => true),
 	normalizeProviderId: vi.fn((providerId?: string) => providerId ?? "cline"),
@@ -264,6 +265,8 @@ describe("runCli lightweight command dispatch", () => {
 		authMocks.isOAuthProvider.mockReturnValue(false);
 		authMocks.isProviderConfigured.mockReset();
 		authMocks.isProviderConfigured.mockReturnValue(true);
+		authMocks.hasEnvProviderApiKey.mockReset();
+		authMocks.hasEnvProviderApiKey.mockReturnValue(false);
 		authMocks.normalizeProviderId.mockReset();
 		authMocks.normalizeProviderId.mockImplementation(
 			(providerId?: string) => providerId ?? "cline",

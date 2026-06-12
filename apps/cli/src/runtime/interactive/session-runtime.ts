@@ -366,6 +366,7 @@ export function createInteractiveSessionRuntime(input: {
 	const applyAgentProfile = async (
 		profile: ActiveAgentProfile | undefined,
 	): Promise<AgentProfileModelSelectionResult> => {
+		const previousProfile = input.config.agentProfile;
 		input.config.agentProfile = profile;
 		// Apply the profile's provider/model, or restore the user's persisted
 		// selection when the profile does not pin one, before the restart
@@ -373,6 +374,7 @@ export function createInteractiveSessionRuntime(input: {
 		const modelResult = await applyAgentProfileModelSelection(
 			input.config,
 			profile,
+			{ previousProfile },
 		);
 		// Re-apply the current mode so the system prompt picks up the persona.
 		await applyInteractiveModeConfig({

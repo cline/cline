@@ -1,6 +1,7 @@
 import { ProviderSettingsManager, resolveProviderConfig } from "@cline/core";
 import {
 	getPersistedProviderApiKey,
+	hasEnvProviderApiKey,
 	isProviderConfigured,
 	normalizeProviderId,
 } from "../utils/provider-auth";
@@ -21,6 +22,10 @@ export interface AgentProfileModelSelectionResult {
 export async function applyAgentProfileModelSelection(
 	config: Config,
 	profile: Pick<ActiveAgentProfile, "providerId" | "modelId"> | undefined,
+	options: {
+		/** The profile active before this switch, for revert bookkeeping. */
+		previousProfile?: Pick<ActiveAgentProfile, "providerId" | "modelId">;
+	} = {},
 ): Promise<AgentProfileModelSelectionResult> {
 	const manager = new ProviderSettingsManager();
 	const userSettings = manager.getLastUsedProviderSettings();
@@ -36,10 +41,12 @@ export async function applyAgentProfileModelSelection(
 
 	// Fail soft when the profile names a provider the user has no credentials
 	// for: keep the current provider and model, the persona still applies.
+	// Env-declared API keys count, since request paths resolve them at runtime.
 	if (
 		profile?.providerId &&
 		targetProvider !== config.providerId &&
-		!isProviderConfigured(targetProvider, targetSettings)
+		!isProviderConfigured(targetProvider, targetSettings) &&
+		!hasEnvProviderApiKey(targetProvider)
 	) {
 		return {
 			warning: `Agent profile requests provider "${targetProvider}" which is not configured; keeping ${config.providerId}. Use /model to configure it.`,
@@ -67,10 +74,18 @@ export async function applyAgentProfileModelSelection(
 	const knownModelIds = config.knownModels
 		? Object.keys(config.knownModels)
 		: [];
+	// The current modelId is only a valid fallback when it is the user's own:
+	// if the outgoing profile pinned a model and the persisted settings carry
+	// none, falling back to it would leak the profile's model past the revert.
+	const currentModelIsProfileDriven =
+		options.previousProfile?.modelId !== undefined &&
+		config.modelId === options.previousProfile.modelId;
 	config.modelId =
 		profile?.modelId ??
 		targetSettings?.model ??
-		(providerChanged ? (knownModelIds[0] ?? config.modelId) : config.modelId);
+		(providerChanged || currentModelIsProfileDriven
+			? (knownModelIds[0] ?? config.modelId)
+			: config.modelId);
 
 	if (providerChanged || config.modelId !== previousModelId) {
 		// Reasoning preferences belong to the user's persisted settings for the

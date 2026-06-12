@@ -36,6 +36,7 @@ import {
 import {
 	ensureOAuthProviderApiKey,
 	getPersistedProviderApiKey,
+	hasEnvProviderApiKey,
 	isOAuthProvider,
 	isProviderConfigured,
 	normalizeProviderId,
@@ -971,9 +972,12 @@ export async function runCli(): Promise<void> {
 		);
 		let selectedProviderSettings =
 			providerSettingsManager.getProviderSettings(provider);
+		// Env-declared API keys count as credentials: request paths resolve
+		// them at runtime even when no settings are persisted.
 		if (
 			providerFromProfile &&
-			!isProviderConfigured(provider, selectedProviderSettings)
+			!isProviderConfigured(provider, selectedProviderSettings) &&
+			!hasEnvProviderApiKey(provider)
 		) {
 			// Fail soft: keep the user's provider, the persona still applies.
 			const fallbackProvider = normalizeProviderId(
