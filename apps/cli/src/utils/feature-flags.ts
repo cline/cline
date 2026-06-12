@@ -4,6 +4,7 @@ import {
 	FeatureFlagsService,
 	type ITelemetryService,
 	NoOpFeatureFlagsProvider,
+	registerDisposable,
 	resolveCoreDistinctId,
 } from "@cline/core";
 import { PostHogFeatureFlagsProvider } from "@cline/core/services/feature-flags/posthog";
@@ -40,7 +41,6 @@ export function getCliFeatureFlagsService(options?: {
 			process.env.IS_TEST !== "true" &&
 			process.env.E2E_TEST !== "true"
 				? new PostHogFeatureFlagsProvider({
-						distinctId: ensureCliDistinctId(),
 						config: {
 							apiKey,
 							host: POSTHOG_FEATURE_FLAGS_HOST,
@@ -56,9 +56,20 @@ export function getCliFeatureFlagsService(options?: {
 			logger: options?.logger,
 			context: getCliFeatureFlagsContext(),
 		});
+		registerDisposable(disposeCliFeatureFlagsService);
 	}
 
 	return cliFeatureFlagsService;
+}
+
+export async function disposeCliFeatureFlagsService(): Promise<void> {
+	if (!cliFeatureFlagsService) {
+		return;
+	}
+
+	const current = cliFeatureFlagsService;
+	cliFeatureFlagsService = undefined;
+	await current.dispose();
 }
 
 export async function identifyCliFeatureFlagsAccount(
