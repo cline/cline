@@ -1,23 +1,36 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 // The helper ships as CommonJS in the published wrapper package, so it is
 // loaded via require rather than an ESM import.
-// eslint-disable-next-line @typescript-eslint/no-var-requires
 const caCerts = require("../../bin/ca-certs.cjs") as {
 	harvestSystemCerts: (tls?: unknown) => string[];
 	readUserBundle: (fs: unknown, p: string | null) => string | null;
+	readUserCerts: (
+		fs: unknown,
+		path: unknown,
+		value: string | null,
+		managedPath: string | null,
+	) => string[];
 	buildBundle: (input: {
 		systemCerts: string[];
-		userPem: string | null;
+		userPems?: string[];
 	}) => string;
 	configureNodeExtraCaCerts: (
 		env: Record<string, string>,
-		deps?: { tls?: unknown },
-	) => string | null;
+		deps?: { tls?: unknown; fs?: unknown },
+	) => {
+		action: string;
+		path: string | null;
+		systemCertCount: number;
+		userCertCount: number;
+	};
 };
+
+const fs = require("node:fs");
+const path = require("node:path");
 
 const certSystem =
 	"-----BEGIN CERTIFICATE-----\nSYSTEM\n-----END CERTIFICATE-----\n";
@@ -40,10 +53,9 @@ describe("ca-certs", () => {
 
 	describe("harvestSystemCerts", () => {
 		it("returns only PEM strings from the system store", () => {
-			const result = caCerts.harvestSystemCerts(
-				fakeTls([certSystem, "not-a-cert", 42]),
-			);
-			expect(result).toEqual([certSystem]);
+			expect(
+				caCerts.harvestSystemCerts(fakeTls([certSystem, "not-a-cert", 42])),
+			).toEqual([certSystem]);
 		});
 
 		it("returns [] when getCACertificates is unavailable", () => {
@@ -62,8 +74,6 @@ describe("ca-certs", () => {
 	});
 
 	describe("readUserBundle", () => {
-		const fs = require("node:fs");
-
 		it("returns PEM contents for a PEM file", () => {
 			const p = join(dir, "user.pem");
 			writeFileSync(p, certUser);
@@ -82,29 +92,67 @@ describe("ca-certs", () => {
 		});
 	});
 
+	describe("readUserCerts", () => {
+		it("reads a single PEM file path", () => {
+			const p = join(dir, "corp.pem");
+			writeFileSync(p, certUser);
+			expect(caCerts.readUserCerts(fs, path, p, null)).toEqual([certUser]);
+		});
+
+		it("splits a legacy OS-path-delimited value and reads each PEM", () => {
+			// Legacy footgun: NODE_EXTRA_CA_CERTS="a.pem;b.pem".
+			const a = join(dir, "a.pem");
+			const b = join(dir, "b.pem");
+			writeFileSync(a, certUser);
+			writeFileSync(b, certSystem);
+			expect(
+				caCerts.readUserCerts(fs, path, [a, b].join(delimiter), null),
+			).toEqual([certUser, certSystem]);
+		});
+
+		it("skips missing segments in a delimited value", () => {
+			const a = join(dir, "a.pem");
+			writeFileSync(a, certUser);
+			const value = [a, join(dir, "missing.pem")].join(delimiter);
+			expect(caCerts.readUserCerts(fs, path, value, null)).toEqual([certUser]);
+		});
+
+		it("excludes the managed bundle from user certs", () => {
+			const managed = join(dir, "cli-node-extra-ca-certs.pem");
+			writeFileSync(managed, certUser);
+			expect(caCerts.readUserCerts(fs, path, managed, managed)).toEqual([]);
+		});
+
+		it("returns [] for empty value", () => {
+			expect(caCerts.readUserCerts(fs, path, null, null)).toEqual([]);
+		});
+	});
+
 	describe("buildBundle", () => {
-		it("merges user PEM before system certs", () => {
-			const merged = caCerts.buildBundle({
-				systemCerts: [certSystem],
-				userPem: certUser,
-			});
-			expect(merged).toBe(`${certUser}\n${certSystem}`);
+		it("merges user PEMs before system certs", () => {
+			expect(
+				caCerts.buildBundle({
+					systemCerts: [certSystem],
+					userPems: [certUser],
+				}),
+			).toBe(`${certUser}\n${certSystem}`);
 		});
 
 		it("inserts a separating newline so END/BEGIN markers do not fuse", () => {
+			// certUser has no trailing newline, so this proves the boundary fix.
 			const merged = caCerts.buildBundle({
 				systemCerts: [certSystem],
-				userPem: certUser,
+				userPems: [certUser],
 			});
 			expect(merged).not.toContain(
 				"-----END CERTIFICATE----------BEGIN CERTIFICATE-----",
 			);
 		});
 
-		it("handles no user PEM", () => {
-			expect(
-				caCerts.buildBundle({ systemCerts: [certSystem], userPem: null }),
-			).toBe(certSystem);
+		it("handles no user PEMs", () => {
+			expect(caCerts.buildBundle({ systemCerts: [certSystem] })).toBe(
+				certSystem,
+			);
 		});
 	});
 
@@ -114,9 +162,10 @@ describe("ca-certs", () => {
 			const out = caCerts.configureNodeExtraCaCerts(env, {
 				tls: fakeTls([certSystem]),
 			});
-			expect(out).toBe(join(dir, "cli-node-extra-ca-certs.pem"));
-			expect(env.NODE_EXTRA_CA_CERTS).toBe(out);
-			expect(readFileSync(out as string, "utf8")).toContain("SYSTEM");
+			expect(out.action).toBe("written");
+			expect(out.path).toBe(join(dir, "cli-node-extra-ca-certs.pem"));
+			expect(env.NODE_EXTRA_CA_CERTS).toBe(out.path);
+			expect(readFileSync(out.path as string, "utf8")).toContain("SYSTEM");
 		});
 
 		it("merges a user-supplied NODE_EXTRA_CA_CERTS with system certs", () => {
@@ -126,38 +175,71 @@ describe("ca-certs", () => {
 				CLINE_DIR: dir,
 				NODE_EXTRA_CA_CERTS: userPath,
 			};
-			caCerts.configureNodeExtraCaCerts(env, { tls: fakeTls([certSystem]) });
+			const out = caCerts.configureNodeExtraCaCerts(env, {
+				tls: fakeTls([certSystem]),
+			});
+			expect(out.userCertCount).toBe(1);
 			const written = readFileSync(env.NODE_EXTRA_CA_CERTS, "utf8");
 			expect(written).toContain("USER");
 			expect(written).toContain("SYSTEM");
+		});
+
+		it("reports unchanged and skips rewrite on the second run", () => {
+			const env: Record<string, string> = { CLINE_DIR: dir };
+			expect(
+				caCerts.configureNodeExtraCaCerts(env, { tls: fakeTls([certSystem]) })
+					.action,
+			).toBe("written");
+			expect(
+				caCerts.configureNodeExtraCaCerts(env, { tls: fakeTls([certSystem]) })
+					.action,
+			).toBe("unchanged");
 		});
 
 		it("does not re-append when the user already points at the managed bundle", () => {
 			const env: Record<string, string> = { CLINE_DIR: dir };
 			const first = caCerts.configureNodeExtraCaCerts(env, {
 				tls: fakeTls([certSystem]),
-			}) as string;
-			// Second launch with NODE_EXTRA_CA_CERTS set to our own managed file.
+			}).path as string;
 			const env2: Record<string, string> = {
 				CLINE_DIR: dir,
 				NODE_EXTRA_CA_CERTS: first,
 			};
 			caCerts.configureNodeExtraCaCerts(env2, { tls: fakeTls([certSystem]) });
 			const written = readFileSync(env2.NODE_EXTRA_CA_CERTS, "utf8");
-			// Exactly one SYSTEM block, not duplicated.
 			expect(written.match(/SYSTEM/g)?.length).toBe(1);
 		});
 
-		it("leaves the env untouched when no system certs are available", () => {
+		it("no-ops when no system certs are available", () => {
 			const env: Record<string, string> = {
 				CLINE_DIR: dir,
 				NODE_EXTRA_CA_CERTS: "/user/corp.pem",
 			};
-			const out = caCerts.configureNodeExtraCaCerts(env, {
-				tls: fakeTls([]),
-			});
-			expect(out).toBeNull();
+			const out = caCerts.configureNodeExtraCaCerts(env, { tls: fakeTls([]) });
+			expect(out.action).toBe("no-system-certs");
+			expect(out.path).toBeNull();
 			expect(env.NODE_EXTRA_CA_CERTS).toBe("/user/corp.pem");
+		});
+
+		it("reports write-failed when the bundle cannot be written", () => {
+			const realFs = require("node:fs");
+			const failingFs = {
+				...realFs,
+				mkdirSync: () => {
+					throw new Error("EACCES");
+				},
+				writeFileSync: () => {
+					throw new Error("EACCES");
+				},
+			};
+			const env: Record<string, string> = { CLINE_DIR: dir };
+			const out = caCerts.configureNodeExtraCaCerts(env, {
+				tls: fakeTls([certSystem]),
+				fs: failingFs,
+			});
+			expect(out.action).toBe("write-failed");
+			expect(out.path).toBeNull();
+			expect(env.NODE_EXTRA_CA_CERTS).toBeUndefined();
 		});
 	});
 });
