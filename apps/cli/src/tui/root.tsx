@@ -13,6 +13,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MigrationNoticeContent } from "../kanban-migration/notice-dialog";
 import type { RepoStatus } from "../utils/repo-status";
 import { readRepoStatus } from "../utils/repo-status";
+import { onProviderChange } from "./cline-account";
 import type { TranscriptScrollHandle } from "./components/chat-message-list";
 import {
 	CheckpointConfirmContent,
@@ -921,7 +922,12 @@ function App(props: TuiProps) {
 					if (result.reasoningEffort !== undefined) {
 						props.config.reasoningEffort = result.reasoningEffort;
 					}
-					handleModelChange().then(() => setAppView("home"));
+					onProviderChange({
+						config: props.config,
+						providerId: result.providerId,
+					})
+						.then(handleModelChange)
+						.then(() => setAppView("home"));
 				}}
 				onExit={() => {
 					exitCline();
