@@ -22,7 +22,7 @@
  * after a real prose change has been detected.
  */
 
-import React, { useState } from "react"
+import React, { useEffect, useRef, useState } from "react"
 
 interface EditContextRibbonProps {
 	iframeRef: React.RefObject<HTMLIFrameElement | null>
@@ -66,6 +66,7 @@ const FormatBtn: React.FC<{
 	}
 	return (
 		<button
+			aria-label={title}
 			disabled={disabled}
 			onClick={handleClick}
 			onMouseEnter={() => !disabled && setHovered(true)}
@@ -128,6 +129,18 @@ export const EditContextRibbon: React.FC<EditContextRibbonProps> = ({
 }) => {
 	const canSend = pendingCount > 0
 	const canSave = hasPendingTextEdits && !isSaving
+
+	// Brief "Sent" confirmation after a batch is dispatched (the parent clears
+	// pendingCount to 0, so without this the button would silently flip back).
+	const [justSent, setJustSent] = useState(false)
+	const justSentTimer = useRef<number | undefined>(undefined)
+	useEffect(() => () => window.clearTimeout(justSentTimer.current), [])
+	const handleSendBatch = () => {
+		onSendBatch()
+		setJustSent(true)
+		window.clearTimeout(justSentTimer.current)
+		justSentTimer.current = window.setTimeout(() => setJustSent(false), 1600)
+	}
 
 	return (
 		<div
@@ -241,8 +254,8 @@ export const EditContextRibbon: React.FC<EditContextRibbonProps> = ({
 
 			{/* ── Send batch to agent ───────────────────────────────── */}
 			<button
-				disabled={!canSend}
-				onClick={onSendBatch}
+				disabled={!canSend && !justSent}
+				onClick={handleSendBatch}
 				style={{
 					display: "inline-flex",
 					alignItems: "center",
@@ -251,15 +264,17 @@ export const EditContextRibbon: React.FC<EditContextRibbonProps> = ({
 					height: 26,
 					borderRadius: 13,
 					border: "none",
-					background: canSend
-						? "linear-gradient(135deg, #00A3FF, #00DDFF)"
-						: "var(--vscode-button-secondaryBackground, rgba(125,211,252,0.10))",
-					color: canSend ? "#0a0a15" : "var(--vscode-descriptionForeground, #666)",
+					background: justSent
+						? "linear-gradient(135deg, #1f9d55, #2ecc71)"
+						: canSend
+							? "linear-gradient(135deg, #00A3FF, #00DDFF)"
+							: "var(--vscode-button-secondaryBackground, rgba(125,211,252,0.10))",
+					color: justSent ? "#0a0a15" : canSend ? "#0a0a15" : "var(--vscode-descriptionForeground, #666)",
 					fontFamily: "Poppins, system-ui, sans-serif",
 					fontSize: 11,
 					fontWeight: 700,
 					cursor: canSend ? "pointer" : "not-allowed",
-					opacity: canSend ? 1 : 0.5,
+					opacity: justSent || canSend ? 1 : 0.5,
 					transition: "all 0.15s",
 					flexShrink: 0,
 				}}
@@ -269,12 +284,17 @@ export const EditContextRibbon: React.FC<EditContextRibbonProps> = ({
 						: "Add a comment or make a change first"
 				}
 				type="button">
-				<span className="codicon codicon-send" style={{ fontSize: 12 }} />
-				{canSend ? `Send ${pendingCount} change${pendingCount === 1 ? "" : "s"} to agent` : "Nothing to send"}
+				<span className={`codicon codicon-${justSent ? "check" : "send"}`} style={{ fontSize: 12 }} />
+				{justSent
+					? "Sent"
+					: canSend
+						? `Send ${pendingCount} change${pendingCount === 1 ? "" : "s"} to agent`
+						: "Nothing to send"}
 			</button>
 
 			{/* ── Exit edit mode ────────────────────────────────────── */}
 			<button
+				aria-label={hasPendingTextEdits ? "Exit Edit Mode (unsaved changes)" : "Exit Edit Mode"}
 				onClick={onExit}
 				onMouseEnter={(e) => {
 					;(e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.08)"

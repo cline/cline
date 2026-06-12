@@ -13,6 +13,75 @@ The companion Python package (`aihydro-tools`) has its own changelog at
 
 ---
 
+## [0.2.8] — 2026-06-01
+
+### Fixed — Saved-page local assets broken (missing `<base href>` in srcdoc)
+
+HTML files loaded via srcdoc had no base URL, so every relative `./…_files/…`
+reference (CSS, images, JS) resolved to the webview build origin and 404ed — producing
+an unstyled text skeleton with broken-image placeholders. A `<base href>` is now injected
+as the **first child of `<head>`** before all bridge/diagnostic scripts, pointing at the
+artifact's parent directory WebView URI. The injection is skipped when the HTML already
+contains a `<base>` tag (author intent is preserved). Folium/Plotly previews are
+unaffected — they use absolute CDN URLs or inline data URIs.
+
+### Added — Saved live-app snapshot detection banner
+
+When a `<!-- saved from url=… -->` marker + a known live-app host
+(`google.com/maps`, `maps.googleapis.com`) is detected in srcdoc content, a dismissible
+warning banner appears above the iframe: *"This looks like a saved copy of a live web
+page — the interactive map needs the original site and can't render offline."* An
+**Open in browser** button routes through the host to open the original file in the
+system browser. The iframe still renders beneath the banner (local assets partially show
+after the base-href fix above).
+
+### Fixed — Edit-mode pending-edits badge persisted across module navigation
+
+`hasPendingTextEdits` and `pendingChangeCount` were not cleared when switching modules
+in the HTML Preview panel. Navigating away while an edit was pending left the badge
+showing stale unsaved-changes state on the new module.
+
+### Fixed — Kernel profile change had no success/error feedback
+
+The toolbar profile dropdown changed the kernel silently. The extension now listens for
+the host response and displays a brief notice bar: green "Profile changed" on success,
+red error message (with dropdown revert) on failure.
+
+### Added — Send Batch "Sent" confirmation flash
+
+The **Send N changes to agent** button in Edit Context Ribbon now flashes green with a
+"Sent ✓" label for 1.6 s after dispatch, giving clear confirmation that the batch was
+queued.
+
+### Added — Diagnostic strip overflow indicator
+
+The diagnostic strip was silently capping at 6 errors. It now appends
+`+N more…` (clickable to open the full diagnostics panel) when the error count
+exceeds the visible cap.
+
+### Added — Mark Complete spinner during auto-advance
+
+The **Mark complete** button in `CourseHeader` now shows a spinning "Saving…" state
+during the 350 ms auto-advance delay, preventing double-clicks and providing clear
+in-progress feedback.
+
+### Improved — ARIA labels on all icon-only buttons
+
+Every icon-only button and status chip in the HTML Preview panel now carries an
+`aria-label` and `title`:
+`HtmlPreviewToolbar` (rescan, zoom, export, run/run-all/restart/stop, edit, profile
+select), `EditContextRibbon` (format tools, exit), `CourseHeader` (kebab menu),
+`CollapseToggleButton`, `KernelStatusChip` (`role="status"` + `aria-label`).
+
+### Improved — Removed redundant `activeBuffer` React state
+
+`activeBuffer` state was duplicating `activeBufferRef` and forcing an extra render on
+every cross-fade swap. Pointer-events on the two double-buffer iframes are now derived
+directly from `opacityA`/`opacityB` (whichever is at opacity 1 receives
+`pointer-events: auto`); `activeBufferRef` is retained for stale-closure-safe routing.
+
+---
+
 ## [0.2.5] — 2026-05-30
 
 ### Fixed — Ghost file-ID session entries

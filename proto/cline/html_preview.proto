@@ -223,6 +223,10 @@ message LearningModuleItem {
   string course_id = 27;
   string course_title = 28;
   int32 course_order = 29;
+  // Update awareness: version recorded at install time + whether the remote
+  // catalog now advertises a newer version. Empty / false when not installed.
+  string installed_version = 30;
+  bool update_available = 31;
 }
 
 message LearningModuleCatalog {
@@ -239,6 +243,20 @@ message CourseModuleRef {
   int32 estimated_minutes = 6;
   repeated string prerequisites = 7;
   bool is_installed = 8;
+}
+
+// A linked contributor (mirrors the Research Gallery contributor model).
+message Contributor {
+  string name = 1;
+  string github = 2;
+  string orcid = 3;
+  string affiliation = 4;
+  string profile_url = 5;
+  string url = 6;
+  string website = 7;
+  string linkedin = 8;
+  string google_scholar = 9;
+  repeated string roles = 10;
 }
 
 // A course bundles an ordered sequence of modules behind a single install.
@@ -265,6 +283,20 @@ message CourseCatalogItem {
   // Progress reflected from local store (0 when not started).
   int32 modules_completed = 19;
   bool is_installed = 20;
+  // Phase 1 — update awareness.
+  string installed_version = 21;
+  bool update_available = 22;
+  // Phase 2 — social parity (recognition server, marketplace="courses").
+  int32 ai_hydro_installs = 23;
+  int32 ai_hydro_stars = 24;
+  bool starred_by_client = 25;
+  string topic = 26;
+  // Phase 3 — rich author / trust / citation metadata.
+  repeated Contributor contributors = 27;
+  string trust_level = 28;
+  string citation = 29;
+  string citation_url = 30;
+  string author_url = 31;
 }
 
 message CourseCatalog {
@@ -290,6 +322,8 @@ message InstallModuleRequest {
   string module_id = 1;
   string download_url = 2;
   string title = 3;
+  // Catalog version at install time, recorded for update awareness.
+  string version = 4;
 }
 
 message InstallModuleResponse {

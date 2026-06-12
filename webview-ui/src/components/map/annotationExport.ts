@@ -35,6 +35,7 @@ export function exportAnnotationsGeoJson(annotations: MapAnnotation[], filename 
 				notes: ann.notes,
 				ai_prompt: ann.aiPrompt,
 				tags: ann.tags.join(";"),
+				photos: ann.images.join(";"),
 				status: ann.status,
 				priority: ann.priority,
 				color: ann.color,

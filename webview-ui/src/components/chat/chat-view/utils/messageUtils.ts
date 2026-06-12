@@ -143,10 +143,3 @@ export function groupMessages(visibleMessages: AiHydroMessage[]): (AiHydroMessag
 export function getTaskMessage(messages: AiHydroMessage[]): AiHydroMessage | undefined {
 	return messages.at(0)
 }
-
-/**
- * Check if we should show the scroll to bottom button
- */
-export function shouldShowScrollButton(disableAutoScroll: boolean, isAtBottom: boolean): boolean {
-	return disableAutoScroll && !isAtBottom
-}

@@ -16,6 +16,8 @@ import { sendSettingsButtonClickedEvent } from "./core/controller/ui/subscribeTo
 import { sendSkillsButtonClickedEvent } from "./core/controller/ui/subscribeToSkillsButtonClicked"
 import { WebviewProvider } from "./core/webview"
 import { createAiHydroAPI } from "./exports"
+import { VscodeEvidenceBoardProvider } from "./hosts/vscode/VscodeEvidenceBoardProvider"
+import { VscodeExperimentTableProvider } from "./hosts/vscode/VscodeExperimentTableProvider"
 import { VscodeHtmlPreviewProvider } from "./hosts/vscode/VscodeHtmlPreviewProvider"
 import { VscodeMapPanelProvider } from "./hosts/vscode/VscodeMapPanelProvider"
 import { GeeService } from "./services/gee/GeeService"
@@ -165,6 +167,48 @@ https://github.com/microsoft/vscode-webview-ui-toolkit-samples/tree/main/framewo
 
 */
 
+// Cloud-sync mount markers. A workspace living under one of these makes every
+// file operation a potential network round-trip — slow, and a source of the
+// terminal/kernel stalls that froze the agent. We warn once per workspace.
+const CLOUD_STORAGE_MARKERS = [
+	"/Library/CloudStorage/", // macOS File Provider: Box, OneDrive, Google Drive, Dropbox
+	"/Dropbox/",
+	"/OneDrive",
+	"/Google Drive",
+	"/Box Sync/",
+]
+
+async function warnIfWorkspaceOnCloudStorage(context: vscode.ExtensionContext): Promise<void> {
+	try {
+		const folders = vscode.workspace.workspaceFolders ?? []
+		for (const folder of folders) {
+			const fsPath = folder.uri.fsPath
+			const marker = CLOUD_STORAGE_MARKERS.find((m) => fsPath.includes(m))
+			if (!marker) {
+				continue
+			}
+			const stateKey = `aihydro.cloudStorageWarned.${fsPath}`
+			if (context.globalState.get<boolean>(stateKey)) {
+				return
+			}
+			Logger.log(`Workspace on cloud storage detected (${marker}): ${fsPath}`)
+			const choice = await vscode.window.showWarningMessage(
+				"This workspace lives on a cloud-synced folder (e.g. Box/OneDrive/Dropbox). " +
+					"Every file read/write may trigger a network round-trip, which can stall terminals, " +
+					"Python kernels, and the agent. For reliable runs, work from a local on-disk path.",
+				"Don't show again",
+			)
+			if (choice === "Don't show again") {
+				await context.globalState.update(stateKey, true)
+			}
+			return
+		}
+	} catch (error) {
+		// Never let a best-effort warning break activation.
+		console.error("[CloudStorage] workspace check failed:", error)
+	}
+}
+
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export async function activate(context: vscode.ExtensionContext) {
@@ -173,6 +217,8 @@ export async function activate(context: vscode.ExtensionContext) {
 	const webview = (await initialize(context)) as VscodeWebviewProvider
 
 	Logger.log("AI-Hydro extension activated")
+
+	void warnIfWorkspaceOnCloudStorage(context)
 
 	const testModeWatchers = await initializeTestMode(webview)
 	// Initialize test mode and add disposables to context
@@ -230,6 +276,12 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Initialize HTML preview panel provider with controller
 	VscodeHtmlPreviewProvider.initialize(context, webview.controller)
 
+	// Initialize Evidence Board panel provider with controller
+	VscodeEvidenceBoardProvider.initialize(context, webview.controller)
+
+	// Initialize Experiment Table panel provider with controller
+	VscodeExperimentTableProvider.initialize(context, webview.controller)
+
 	context.subscriptions.push(
 		vscode.commands.registerCommand(commands.MapButton, async () => {
 			console.log("[DEBUG] aihydro.mapButtonClicked - opening side-by-side map panel")
@@ -249,6 +301,26 @@ export async function activate(context: vscode.ExtensionContext) {
 			console.log("[DEBUG] aihydro.htmlPreviewButtonClicked - opening side-by-side HTML preview panel")
 			telemetryService.captureButtonClick("aihydro_htmlPreviewButton", webview.controller?.task?.ulid)
 			await VscodeHtmlPreviewProvider.createOrShow()
+		}),
+	)
+
+	// Register AI-Hydro: Evidence Board command
+	// Opens the kanban claims board in a standalone side-by-side panel.
+	context.subscriptions.push(
+		vscode.commands.registerCommand(commands.EvidenceBoardButton, async () => {
+			console.log("[DEBUG] aihydro.evidenceBoardButtonClicked - opening Evidence Board panel")
+			telemetryService.captureButtonClick("aihydro_evidenceBoardButton", webview.controller?.task?.ulid)
+			await VscodeEvidenceBoardProvider.createOrShow()
+		}),
+	)
+
+	// Register AI-Hydro: Experiment Table command
+	// Opens the fleet-scale experiment table in a standalone side-by-side panel.
+	context.subscriptions.push(
+		vscode.commands.registerCommand(commands.ExperimentTableButton, async () => {
+			console.log("[DEBUG] aihydro.experimentTableButtonClicked - opening Experiment Table panel")
+			telemetryService.captureButtonClick("aihydro_experimentTableButton", webview.controller?.task?.ulid)
+			await VscodeExperimentTableProvider.createOrShow()
 		}),
 	)
 

@@ -1,11 +1,15 @@
 import type { Boolean, EmptyRequest } from "@shared/proto/cline/common"
-import { Component, type ReactNode, useEffect } from "react"
+import { Component, lazy, type ReactNode, Suspense, useEffect } from "react"
 import ChatView from "./components/chat/ChatView"
 import ConnectorsView from "./components/connectors/ConnectorsView"
+import { EvidenceBoard } from "./components/evidence-board/EvidenceBoard"
+import { ExperimentTable } from "./components/experiment-table/ExperimentTable"
 import HistoryView from "./components/history/HistoryView"
 import HtmlPreviewPanel from "./components/html_preview/HtmlPreviewPanel"
-import MapPanel from "./components/map/MapPanel"
-import MapView from "./components/map/MapView"
+
+const MapPanel = lazy(() => import("./components/map/MapPanel"))
+const MapView = lazy(() => import("./components/map/MapView"))
+
 import McpView from "./components/mcp/configuration/McpConfigurationView"
 import SettingsView from "./components/settings/SettingsView"
 import SkillsView from "./components/skills/SkillsView"
@@ -63,6 +67,16 @@ const isStandaloneMapMode = () => {
 // Check if running in standalone HTML preview mode (separate panel)
 const isStandaloneHtmlPreviewMode = () => {
 	return typeof window !== "undefined" && (window as any).AIHYDRO_HTML_PREVIEW_STANDALONE === true
+}
+
+// Check if running in standalone Evidence Board mode (separate panel)
+const isStandaloneEvidenceBoardMode = () => {
+	return typeof window !== "undefined" && (window as any).AIHYDRO_EVIDENCE_BOARD_STANDALONE === true
+}
+
+// Check if running in standalone Experiment Table mode (separate panel)
+const isStandaloneExperimentTableMode = () => {
+	return typeof window !== "undefined" && (window as any).AIHYDRO_EXPERIMENT_TABLE_STANDALONE === true
 }
 
 const AppContent = () => {
@@ -129,7 +143,11 @@ const AppContent = () => {
 			{showMcp && <McpView initialTab={mcpTab} onDone={closeMcpView} />}
 			{showConnectors && <ConnectorsView onDone={hideConnectors} />}
 			{showSkills && <SkillsView onDone={hideSkills} />}
-			{showMap && <MapPanel />}
+			{showMap && (
+				<Suspense fallback={null}>
+					<MapPanel />
+				</Suspense>
+			)}
 			{/* Do not conditionally load ChatView, it's expensive and there's state we don't want to lose (user input, disableInput, askResponse promise, etc.) */}
 			<ChatView
 				hideAnnouncement={hideAnnouncement}
@@ -147,7 +165,9 @@ const App = () => {
 		return (
 			<Providers>
 				<div className="flex h-screen w-full">
-					<MapView height={window.innerHeight} width={window.innerWidth} />
+					<Suspense fallback={null}>
+						<MapView height={window.innerHeight} width={window.innerWidth} />
+					</Suspense>
 				</div>
 			</Providers>
 		)
@@ -171,6 +191,24 @@ const App = () => {
 						<HtmlPreviewPanel />
 					</div>
 				</HtmlPreviewErrorBoundary>
+			</Providers>
+		)
+	}
+
+	// Check if in standalone Evidence Board mode and render directly with Providers
+	if (isStandaloneEvidenceBoardMode()) {
+		return (
+			<Providers>
+				<EvidenceBoard />
+			</Providers>
+		)
+	}
+
+	// Check if in standalone Experiment Table mode and render directly with Providers
+	if (isStandaloneExperimentTableMode()) {
+		return (
+			<Providers>
+				<ExperimentTable />
 			</Providers>
 		)
 	}

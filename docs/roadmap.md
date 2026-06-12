@@ -4,16 +4,16 @@ description: AI-Hydro project roadmap — current status, shipped features, and 
 
 # Roadmap
 
-!!! tip "Project Status: Beta (v0.2.5)"
+!!! tip "Project Status: Beta (v0.2.8)"
     The extension and Python backend are stable for interactive research and learning.
     New capabilities are added incrementally; breaking changes before v1.0 will be
     documented in the [Changelog](changelog.md).
 
 ---
 
-## Current Version — v0.2.5
+## Current Version — v0.2.8
 
-**Extension:** v0.2.5 · **Python backend:** aihydro-tools v1.7.0+
+**Extension:** v0.2.8 · **Python backend:** aihydro-tools v1.7.0+
 
 ### What's stable
 
@@ -28,6 +28,9 @@ description: AI-Hydro project roadmap — current status, shipped features, and 
 - Module marketplace with contributor recognition
 - HydroSession, ProjectSession, ResearcherProfile persistence
 - Plugin entry-point system (`aihydro.tools`)
+- Local "Save Page As" snapshots render with full CSS/images (`<base href>` injection)
+- Saved live-app detection banner with "Open in browser" for offline-unrenderable files
+- Full ARIA label coverage on all icon-only toolbar buttons and the kernel status chip
 
 ### Known limitations
 

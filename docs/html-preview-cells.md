@@ -137,6 +137,25 @@ host; no author action is required. The HTML Preview kebab menu exposes
 defaults) and **Copy control state** (copies the current values as JSON to the
 clipboard for sharing).
 
+## Rendering saved web pages ("Save Page As → Complete")
+
+When you open a file saved with *File → Save Page As → Web Page, Complete* (or the
+equivalent in any browser), the panel injects a `<base href="…">` tag pointing at the
+file's parent directory so that the sibling `_files/` folder (CSS, images, JS) resolves
+correctly. No author action is required.
+
+**Live web-app snapshots (e.g. Google My Maps, Mapbox editors) cannot render offline.**
+The panel detects these files by looking for the `<!-- saved from url=… -->` marker
+combined with known live-app hostnames. When detected, a dismissible banner appears
+above the iframe:
+
+> *This looks like a saved copy of a live web page (Google My Maps). The interactive
+> map needs the original site and can't render offline.*
+
+The **Open in browser** button inside the banner opens the file in the system default
+browser. The iframe still renders beneath the banner — local static assets (if any)
+will display after the base-href fix.
+
 ## Python environment
 
 Create `.aihydro/venv` with the agent, then refresh environments in the toolbar. Each artifact gets its own persistent kernel session (variables do not leak across artifacts unless `aihydro.htmlPreview.shareKernelAcrossArtifacts` is enabled).

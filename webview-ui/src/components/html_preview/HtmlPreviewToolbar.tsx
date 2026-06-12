@@ -75,6 +75,7 @@ const IconBtn: React.FC<IconBtnProps> = ({ onClick, title, disabled, danger, act
 
 	return (
 		<button
+			aria-label={title}
 			disabled={disabled}
 			onClick={onClick}
 			onMouseEnter={() => setHovered(true)}
@@ -130,6 +131,7 @@ const EditModeButton: React.FC<{
 	const [hovered, setHovered] = useState(false)
 	return (
 		<button
+			aria-label={active ? "Exit Edit Mode" : "Enter Edit Mode"}
 			onClick={onClick}
 			onMouseEnter={() => setHovered(true)}
 			onMouseLeave={() => setHovered(false)}
@@ -456,6 +458,7 @@ export const HtmlPreviewToolbar: React.FC<HtmlPreviewToolbarProps> = (props) => 
 					runAllTotal={runAllTotal}
 				/>
 				<select
+					aria-label="Python kernel environment"
 					onChange={(e) => onProfileChange(e.target.value)}
 					style={{
 						maxWidth: 130,

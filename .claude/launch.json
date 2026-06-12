@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "culvert-dashboard",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8777", "--directory", "/Users/mgalib/INDOT/Culvert/site_visit"],
+      "port": 8777
+    }
+  ]
+}

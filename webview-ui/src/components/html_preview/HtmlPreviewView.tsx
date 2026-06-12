@@ -89,6 +89,7 @@ interface FrameDiag {
 	tileImageCount: number
 	mapRects: string[]
 	errors: string[]
+	errorTotal: number
 	consoleMsgs: string[]
 	cspViolations: string[]
 	diagInstalled: boolean
@@ -175,6 +176,31 @@ function pickRenderPath(item?: HtmlPreviewItem): RenderPath {
 }
 
 const SANDBOX_ATTR = "allow-scripts allow-same-origin allow-popups allow-forms allow-modals"
+
+// Derive the webview URI of the file's *directory* by stripping the filename
+// (and query) from the file's webviewUri. Used to inject a <base href> so a
+// saved page's relative references (./foo_files/bar.css) resolve against the
+// file's real folder instead of the webview build origin. The folder is already
+// an allowed localResourceRoot host-side (ArtifactPreviewService adds each
+// artifact's parent dir), so these requests are served correctly.
+function deriveDirWebviewUri(webviewUri?: string): string | undefined {
+	if (!webviewUri) {
+		return undefined
+	}
+	try {
+		const u = new URL(webviewUri)
+		u.search = ""
+		u.hash = ""
+		const idx = u.pathname.lastIndexOf("/")
+		if (idx < 0) {
+			return undefined
+		}
+		u.pathname = u.pathname.slice(0, idx + 1) // keep trailing slash
+		return u.toString()
+	} catch {
+		return undefined
+	}
+}
 
 // Round-trips interactive control state (bindParam values) through the host's
 // moduleStateStore. Mirrors the request/response pattern in useCourseProgress.
@@ -303,7 +329,17 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 		},
 		[course, courseRoot, loadWorkspaceFile, courseProgress],
 	)
+	// Double-buffer cross-fade: two iframe slots (A and B) that alternate as active/inactive.
+	// iframeRef always points to the currently VISIBLE iframe — all existing code using
+	// iframeRef.current continues to work without changes.
+	const iframeRefA = useRef<HTMLIFrameElement | null>(null)
+	const iframeRefB = useRef<HTMLIFrameElement | null>(null)
 	const iframeRef = useRef<HTMLIFrameElement | null>(null)
+	const activeBufferRef = useRef<"A" | "B">("A")
+	const [bufferSrcDoc, setBufferSrcDoc] = useState<{ A?: string; B?: string }>({})
+	const [bufferSrc, setBufferSrc] = useState<{ A?: string; B?: string }>({})
+	const [opacityA, setOpacityA] = useState(0)
+	const [opacityB, setOpacityB] = useState(0)
 	const [diagnosticsOpen, setDiagnosticsOpen] = useState(false)
 	const [loading, setLoading] = useState(false)
 	const [error, setError] = useState<string | null>(null)
@@ -316,6 +352,9 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 	const [kernelInfo, setKernelInfo] = useState<ArtifactKernelInfoResponse | null>(null)
 	const [pythonEnvironments, setPythonEnvironments] = useState<PythonEnvironment[]>([])
 	const [activeProfileId, setActiveProfileId] = useState("")
+	const [profileNotice, setProfileNotice] = useState<{ kind: "error" | "ok"; msg: string } | null>(null)
+	// Tracks the item id whose "saved live web app" banner the user dismissed.
+	const [dismissedLiveAppItemId, setDismissedLiveAppItemId] = useState<string | null>(null)
 	const [pythonCellCount, setPythonCellCount] = useState(0)
 	const [isRunning, setIsRunning] = useState(false)
 	const [runAllCurrent, setRunAllCurrent] = useState(0)
@@ -350,6 +389,12 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 			return ""
 		}
 		const html = item.htmlContent
+		// Inject a <base href> so relative resource references in saved pages
+		// (e.g. ./page_files/style.css) resolve against the file's real folder.
+		// Skip if the document already declares a <base> (respect author intent).
+		const dirUri = deriveDirWebviewUri(item.webviewUri)
+		const hasOwnBase = /<base\s/i.test(html)
+		const baseTag = dirUri && !hasOwnBase ? `<base href="${dirUri}">` : ""
 		const artifactContext = buildArtifactContextScript(item)
 		const headCloseIdx = html.search(/<\/head\s*>/i)
 		const bodyCloseIdx = html.search(/<\/body\s*>/i)
@@ -376,6 +421,7 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 			const closeIdx = html.indexOf(">", headIdx)
 			const withDiag =
 				withHeadAssets.slice(0, closeIdx + 1) +
+				baseTag +
 				artifactContext +
 				DIAG_SCRIPT +
 				AIHYDRO_BRIDGE_CORE_SCRIPT +
@@ -394,6 +440,7 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 			return withDiag + LEAFLET_NORMALIZER_SCRIPT
 		}
 		return (
+			baseTag +
 			artifactContext +
 			DIAG_SCRIPT +
 			AIHYDRO_BRIDGE_CORE_SCRIPT +
@@ -404,8 +451,30 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 			withHeadAssets +
 			LEAFLET_NORMALIZER_SCRIPT
 		)
-	}, [renderPath, item?.htmlContent, item?.id, item?.filePath])
+	}, [renderPath, item?.htmlContent, item?.id, item?.filePath, item?.webviewUri])
 
+	// Detect a "Save Page As → Complete" dump of a live interactive web app
+	// (e.g. Google My Maps). These need the original authenticated backend, so
+	// they can never render offline — we show an informational banner instead of
+	// leaving the user staring at a broken skeleton. Conservative: require both
+	// the saved-from marker AND a known live-app host to avoid false positives on
+	// ordinary saved articles (which the <base> fix above renders fine).
+	const savedLiveApp = useMemo<string | null>(() => {
+		const html = item?.htmlContent
+		if (!html) {
+			return null
+		}
+		if (!/<!--\s*saved from url=/i.test(html)) {
+			return null
+		}
+		if (/google\.com\/maps|maps\.googleapis\.com/i.test(html)) {
+			return "Google My Maps"
+		}
+		return null
+	}, [item?.id, item?.contentHash])
+
+	// Full reset on new item (id change) or render-mode change.
+	// Clears both buffers so no stale content bleeds through.
 	useEffect(() => {
 		setError(null)
 		setLoading(renderPath !== "none")
@@ -414,7 +483,41 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 		setFrameDiag(null)
 		setPythonCellCount(0)
 		registeredCellIdsRef.current = new Set()
-	}, [item?.id, item?.contentHash, renderPath])
+		// Reset edit-state so a stale pending-edits badge doesn't carry across items.
+		setHasPendingTextEdits(false)
+		setPendingChangeCount(0)
+		setBufferSrcDoc({})
+		setBufferSrc({})
+		setOpacityA(0)
+		setOpacityB(0)
+		activeBufferRef.current = "A"
+	}, [item?.id, renderPath])
+
+	// Partial reset when only the content changes (same item, different hash).
+	// Do NOT reset loadedOnce — the cross-fade keeps the old buffer visible.
+	useEffect(() => {
+		setError(null)
+		setLoading(renderPath !== "none")
+		setFetchInfo(null)
+	}, [item?.contentHash, renderPath])
+
+	// Route new content to the INACTIVE buffer for the cross-fade.
+	// Uses activeBufferRef (not state) to avoid stale-closure re-routing on swap.
+	useEffect(() => {
+		if (renderPath === "none") {
+			return
+		}
+		const inactive = activeBufferRef.current === "A" ? "B" : "A"
+		if (renderPath === "srcdoc") {
+			// Append loadAt so manual refresh also forces a distinct srcDoc string.
+			const doc = srcdocWithDiag + (loadAt ? `<!-- reload-${loadAt} -->` : "")
+			setBufferSrcDoc((prev) => ({ ...prev, [inactive]: doc }))
+			setBufferSrc((prev) => ({ ...prev, [inactive]: undefined }))
+		} else if (item?.webviewUri) {
+			setBufferSrc((prev) => ({ ...prev, [inactive]: item.webviewUri }))
+			setBufferSrcDoc((prev) => ({ ...prev, [inactive]: undefined }))
+		}
+	}, [srcdocWithDiag, item?.webviewUri, renderPath, loadAt])
 
 	// Independently probe the URL via fetch() so we know what VS Code's
 	// resource server actually returns: status, bytes, content-type, and
@@ -452,11 +555,6 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 	}, [item?.webviewUri, loadAt])
 
 	const sandbox = SANDBOX_ATTR
-
-	const iframeKey = useMemo(
-		() => `${item?.id ?? "none"}-${item?.contentHash ?? "0"}-${loadAt}`,
-		[item?.id, item?.contentHash, loadAt],
-	)
 
 	const handleRefresh = useCallback(() => {
 		setError(null)
@@ -632,16 +730,33 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 
 	const handleProfileChange = useCallback(
 		async (profileId: string) => {
+			const previous = activeProfileId
 			try {
 				await HtmlPreviewServiceClient.setArtifactKernelProfile(SetArtifactKernelProfileRequest.create({ profileId }))
 				setActiveProfileId(profileId)
 				await refreshKernelState()
+				setProfileNotice({ kind: "ok", msg: "Kernel profile changed" })
 			} catch (err) {
 				console.error("[HtmlPreviewView] Failed to set kernel profile:", err)
+				// Revert the dropdown to the last good profile and tell the user.
+				setActiveProfileId(previous)
+				setProfileNotice({
+					kind: "error",
+					msg: `Couldn't change kernel profile: ${err instanceof Error ? err.message : String(err)}`,
+				})
 			}
 		},
-		[refreshKernelState],
+		[activeProfileId, refreshKernelState],
 	)
+
+	// Auto-dismiss the kernel profile notice.
+	useEffect(() => {
+		if (!profileNotice) {
+			return
+		}
+		const t = window.setTimeout(() => setProfileNotice(null), profileNotice.kind === "ok" ? 2000 : 6000)
+		return () => window.clearTimeout(t)
+	}, [profileNotice])
 
 	const handleProbeEnvironment = useCallback(async () => {
 		if (!item?.id) {
@@ -1022,6 +1137,7 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 					tileImageCount: 0,
 					mapRects: [],
 					errors: ["contentDocument unavailable (cross-origin fallback)"],
+					errorTotal: 1,
 					consoleMsgs: [],
 					cspViolations: [],
 					diagInstalled: false,
@@ -1059,6 +1175,7 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 				tileImageCount: doc.querySelectorAll(".leaflet-tile, img.leaflet-tile").length,
 				mapRects,
 				errors: (diag.errors || []).slice(0, 6),
+				errorTotal: (diag.errors || []).length,
 				consoleMsgs: (diag.consoleMsgs || []).slice(0, 6),
 				cspViolations: (diag.cspViolations || []).slice(0, 6),
 				diagInstalled: Boolean(diag.installed),
@@ -1076,6 +1193,7 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 				tileImageCount: 0,
 				mapRects: [],
 				errors: [`introspection threw: ${e instanceof Error ? e.message : String(e)}`],
+				errorTotal: 1,
 				consoleMsgs: [],
 				cspViolations: [],
 				diagInstalled: false,
@@ -1094,7 +1212,7 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 		height: "100%",
 		minHeight: 0,
 		minWidth: 0,
-		background: "var(--vscode-editor-background, #1e1e1e)",
+		background: "#ffffff",
 		position: "relative",
 	}
 
@@ -1186,37 +1304,111 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 					pendingCount={pendingChangeCount}
 				/>
 			)}
+			{profileNotice && (
+				<div
+					role={profileNotice.kind === "error" ? "alert" : "status"}
+					style={{
+						padding: "6px 12px",
+						fontSize: 12,
+						color:
+							profileNotice.kind === "error"
+								? "var(--vscode-inputValidation-errorForeground, #f48771)"
+								: "var(--vscode-foreground)",
+						background:
+							profileNotice.kind === "error"
+								? "var(--vscode-inputValidation-errorBackground, rgba(244,135,113,0.12))"
+								: "var(--vscode-inputValidation-infoBackground, rgba(100,150,220,0.12))",
+						borderBottom: "1px solid var(--vscode-panel-border, rgba(255,255,255,0.12))",
+					}}>
+					{profileNotice.msg}
+				</div>
+			)}
+			{savedLiveApp && dismissedLiveAppItemId !== item?.id && (
+				<div
+					role="note"
+					style={{
+						display: "flex",
+						alignItems: "flex-start",
+						gap: 10,
+						padding: "10px 12px",
+						fontSize: 12,
+						lineHeight: 1.5,
+						color: "var(--vscode-foreground)",
+						background: "var(--vscode-inputValidation-warningBackground, rgba(220,180,60,0.14))",
+						borderBottom: "1px solid var(--vscode-panel-border, rgba(255,255,255,0.12))",
+					}}>
+					<span className="codicon codicon-globe" style={{ marginTop: 2, flexShrink: 0 }} />
+					<span style={{ flex: 1 }}>
+						This looks like a saved copy of a live web page ({savedLiveApp}). The interactive map needs the original
+						site and can't render offline.
+					</span>
+					<button
+						aria-label="Open this file in your browser"
+						onClick={handleOpenInBrowser}
+						style={{
+							flexShrink: 0,
+							cursor: "pointer",
+							border: "none",
+							borderRadius: 3,
+							padding: "3px 10px",
+							fontSize: 12,
+							color: "var(--vscode-button-foreground)",
+							background: "var(--vscode-button-background)",
+						}}
+						type="button">
+						Open in browser
+					</button>
+					<button
+						aria-label="Dismiss this notice"
+						onClick={() => setDismissedLiveAppItemId(item?.id ?? null)}
+						style={{
+							flexShrink: 0,
+							cursor: "pointer",
+							border: "none",
+							background: "transparent",
+							color: "var(--vscode-foreground)",
+							opacity: 0.7,
+						}}
+						type="button">
+						<span className="codicon codicon-close" />
+					</button>
+				</div>
+			)}
 			<div style={iframeWrapperStyle}>
 				{renderPath === "none" ? (
 					<NoUriMessage item={item} />
 				) : (
 					<>
-						{loading && <LoadingOverlay />}
+						{/* Only show LoadingOverlay on the very first load (before any buffer has painted).
+						    During cross-fade swaps the old buffer stays visible, so no overlay needed. */}
+						{loading && !loadedOnce && <LoadingOverlay />}
 						{error && <ErrorOverlay message={error} onRetry={handleRefresh} />}
+						{/* Buffer A */}
 						<iframe
-							key={iframeKey}
-							ref={iframeRef}
+							ref={(el) => {
+								iframeRefA.current = el
+								if (activeBufferRef.current === "A") iframeRef.current = el
+							}}
 							sandbox={sandbox}
-							// IMPORTANT: prefer srcdoc to keep the iframe same-origin
-							// with the parent webview. Only fall back to `src` (which
-							// hits VS Code's resource subdomain) for artifacts too big
-							// to embed inline.
-							{...(renderPath === "srcdoc" ? { srcDoc: srcdocWithDiag } : { src: item.webviewUri })}
+							{...(bufferSrcDoc.A !== undefined
+								? { srcDoc: bufferSrcDoc.A }
+								: bufferSrc.A !== undefined
+									? { src: bufferSrc.A }
+									: {})}
 							onError={() => {
 								setError("Failed to load the artifact in the iframe.")
 								setLoading(false)
 							}}
 							onLoad={() => {
+								// If A is not yet the active buffer, this is the inactive buffer finishing load — swap.
+								// If A IS already active (e.g. very first load), just fade it in.
+								iframeRef.current = iframeRefA.current
+								activeBufferRef.current = "A"
+								setOpacityA(1)
+								setOpacityB(0)
 								setLoading(false)
 								setLoadedOnce(true)
-								// Bridge may post cellRegistry before this listener is attached;
-								// rescan after load so toolbar Run / Run All enable correctly.
-								if (renderPath === "srcdoc") {
-									postCommandToIframe("rescan")
-								}
-								// Capture immediately, then re-capture after a beat
-								// because external Leaflet/Plotly scripts load async
-								// and any error from them shows up a tick after onload.
+								if (renderPath === "srcdoc") postCommandToIframe("rescan")
 								captureFrameDiag()
 								window.setTimeout(captureFrameDiag, 500)
 								window.setTimeout(captureFrameDiag, 2000)
@@ -1229,7 +1421,54 @@ const HtmlPreviewView: React.FC<HtmlPreviewViewProps> = ({ item, sidePanelOpen =
 								border: "none",
 								display: "block",
 								backgroundColor: "#ffffff",
+								opacity: opacityA,
+								transition: "opacity 150ms ease",
+								pointerEvents: opacityA === 1 ? "auto" : "none",
 							}}
+							tabIndex={opacityA === 1 ? 0 : -1}
+							title={item.title || "AI-Hydro HTML Preview"}
+						/>
+						{/* Buffer B */}
+						<iframe
+							ref={(el) => {
+								iframeRefB.current = el
+								if (activeBufferRef.current === "B") iframeRef.current = el
+							}}
+							sandbox={sandbox}
+							{...(bufferSrcDoc.B !== undefined
+								? { srcDoc: bufferSrcDoc.B }
+								: bufferSrc.B !== undefined
+									? { src: bufferSrc.B }
+									: {})}
+							onError={() => {
+								setError("Failed to load the artifact in the iframe.")
+								setLoading(false)
+							}}
+							onLoad={() => {
+								iframeRef.current = iframeRefB.current
+								activeBufferRef.current = "B"
+								setOpacityA(0)
+								setOpacityB(1)
+								setLoading(false)
+								setLoadedOnce(true)
+								if (renderPath === "srcdoc") postCommandToIframe("rescan")
+								captureFrameDiag()
+								window.setTimeout(captureFrameDiag, 500)
+								window.setTimeout(captureFrameDiag, 2000)
+							}}
+							style={{
+								position: "absolute",
+								inset: 0,
+								width: "100%",
+								height: "100%",
+								border: "none",
+								display: "block",
+								backgroundColor: "#ffffff",
+								opacity: opacityB,
+								transition: "opacity 150ms ease",
+								pointerEvents: opacityB === 1 ? "auto" : "none",
+							}}
+							tabIndex={opacityB === 1 ? 0 : -1}
 							title={item.title || "AI-Hydro HTML Preview"}
 						/>
 					</>
@@ -1359,6 +1598,11 @@ const DiagnosticStrip: React.FC<{
 							}}>
 							iframe errors:{"\n"}
 							{frameDiag.errors.join("\n")}
+							{frameDiag.errorTotal > frameDiag.errors.length && (
+								<>
+									{"\n"}+{frameDiag.errorTotal - frameDiag.errors.length} more…
+								</>
+							)}
 						</span>
 					)}
 					{frameDiag.consoleMsgs.length > 0 && (
@@ -1410,7 +1654,7 @@ const LoadingOverlay: React.FC = () => {
 				alignItems: "center",
 				justifyContent: "center",
 				gap: 12,
-				background: "rgba(20,20,28,0.72)",
+				background: "rgba(255,255,255,0.85)",
 				pointerEvents: "none",
 			}}>
 			{/* Spinning ring */}
@@ -1419,7 +1663,7 @@ const LoadingOverlay: React.FC = () => {
 					width: 28,
 					height: 28,
 					borderRadius: "50%",
-					border: "2.5px solid rgba(255,255,255,0.12)",
+					border: "2.5px solid rgba(0,0,0,0.12)",
 					borderTopColor: "#00A3FF",
 					animation: "aihydro-spin 0.75s linear infinite",
 				}}
@@ -1427,7 +1671,7 @@ const LoadingOverlay: React.FC = () => {
 			<span
 				style={{
 					fontSize: 12,
-					color: "var(--vscode-descriptionForeground, #999)",
+					color: "var(--vscode-foreground, #555)",
 					letterSpacing: "0.3px",
 				}}>
 				Loading preview…

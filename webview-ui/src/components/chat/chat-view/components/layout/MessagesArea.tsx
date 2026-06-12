@@ -86,24 +86,6 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 
 	return (
 		<div className="overflow-hidden flex flex-col h-full relative">
-			{/* Floating jump-to-latest button (Claude Code style): appears whenever the user is
-			    not pinned to the bottom, overlaid on the transcript so it never displaces the
-			    approve/reject action buttons. */}
-			{!isAtBottom && groupedMessages.length > 0 && (
-				<button
-					aria-label="Scroll to latest"
-					className="absolute bottom-3 right-4 z-10 flex items-center justify-center w-8 h-8 rounded-full shadow-md smooth-transition active:scale-[0.92] cursor-pointer border-0"
-					onClick={() => {
-						scrollToBottomSmooth()
-						disableAutoScrollRef.current = false
-					}}
-					style={{
-						background: "var(--vscode-button-secondaryBackground)",
-						color: "var(--vscode-button-secondaryForeground)",
-					}}>
-					<span className="codicon codicon-chevron-down text-[14px]" />
-				</button>
-			)}
 			<div className="flex-grow flex" ref={scrollContainerRef}>
 				<Virtuoso
 					atBottomStateChange={(isAtBottom) => {

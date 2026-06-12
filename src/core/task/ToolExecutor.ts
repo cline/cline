@@ -1,3 +1,4 @@
+import * as path from "node:path"
 import { ApiHandler, ApiProviderInfo } from "@core/api"
 import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
 import { AiHydroIgnoreController } from "@core/ignore/AiHydroIgnoreController"
@@ -587,7 +588,15 @@ export class ToolExecutor {
 		// regexes, or re-reading the same file). Soft warning nudges a strategy change;
 		// hard escalation feeds the mistake-limit auto-decompose path.
 		if (!block.partial) {
-			const semanticCheck = checkSemanticLoop(this.taskState, block.name, block.params)
+			// Resolve read_file paths to absolute so different relative spellings of the
+			// same file still trip the repeated-read guard.
+			let semanticParams = block.params
+			if (block.name === "read_file" && block.params.path) {
+				const rawPath = block.params.path.trim()
+				const abs = rawPath.startsWith("/") ? rawPath : path.resolve(this.cwd, rawPath)
+				semanticParams = { ...block.params, path: abs }
+			}
+			const semanticCheck = checkSemanticLoop(this.taskState, block.name, semanticParams)
 			if (semanticCheck.softWarning) {
 				this.taskState.userMessageContent.push({
 					type: "text",

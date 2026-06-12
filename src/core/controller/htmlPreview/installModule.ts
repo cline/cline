@@ -1,31 +1,35 @@
 import type { InstallModuleRequest, InstallModuleResponse } from "@shared/proto/cline/html_preview"
 import { InstallModuleResponse as InstallModuleResponseProto } from "@shared/proto/cline/html_preview"
 import axios from "axios"
+import { createHash } from "crypto"
 import * as fs from "fs/promises"
 import * as os from "os"
 import * as path from "path"
+import type { ModuleRegistryEntry } from "@/services/htmlPreview/moduleRegistry"
 import { MarketplaceRecognitionService } from "@/services/recognition/MarketplaceRecognitionService"
 import type { Controller } from "../index"
 
 export async function installModule(controller: Controller, request: InstallModuleRequest): Promise<InstallModuleResponse> {
-	const { moduleId, downloadUrl, title } = request
+	const { moduleId, downloadUrl, title, version } = request
 	try {
 		const modulesDir = path.join(os.homedir(), ".aihydro", "modules", moduleId)
 		await fs.mkdir(modulesDir, { recursive: true })
 		const localPath = path.join(modulesDir, "module.html")
 
 		const response = await axios.get(downloadUrl, { responseType: "text", timeout: 30000 })
-		await fs.writeFile(localPath, response.data, "utf-8")
+		const html = String(response.data)
+		await fs.writeFile(localPath, html, "utf-8")
+		const sha256 = createHash("sha256").update(html).digest("hex")
 
 		// Register in installed.json
 		const registryPath = path.join(os.homedir(), ".aihydro", "modules", "installed.json")
-		let registry: Record<string, { id: string; title: string; localPath: string; installedAt: string }> = {}
+		let registry: Record<string, ModuleRegistryEntry> = {}
 		try {
 			registry = JSON.parse(await fs.readFile(registryPath, "utf-8"))
 		} catch {
 			// registry doesn't exist yet — start fresh
 		}
-		registry[moduleId] = { id: moduleId, title, localPath, installedAt: new Date().toISOString() }
+		registry[moduleId] = { id: moduleId, title, localPath, installedAt: new Date().toISOString(), version, sha256 }
 		await fs.writeFile(registryPath, JSON.stringify(registry, null, 2))
 
 		// Open in preview

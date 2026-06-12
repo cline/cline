@@ -1,6 +1,7 @@
 name = "aihydro-recognition"
 main = "src/index.ts"
 compatibility_date = "2026-05-29"
+account_id = "01a127916c74d1e57bec43e48479cdfc"
 workers_dev = true
 preview_urls = false
 

@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from "react"
 import type { CursorRasterReading } from "./mapLayerAdapters"
+import { PhotoStrip } from "./PhotoStrip"
+import { extractPhotoPaths } from "./photoPaths"
 
 export interface ClickedFeature {
 	layerId: string
@@ -139,12 +141,16 @@ const FeatureIdentifier: React.FC<FeatureIdentifierProps> = ({
 	const muted = isDark ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.55)"
 	const accentText = isDark ? "#7ec8ff" : "#0e639c"
 
+	const photoPaths = hasFeatures ? extractPhotoPaths(current.properties.photos) : []
+	const PHOTO_KEYS = new Set(["photos", "photo_count"])
 	const entries = hasFeatures
 		? Object.entries(current.properties)
-				.filter(([k]) => !k.startsWith("_"))
+				.filter(([k]) => !k.startsWith("_") && !PHOTO_KEYS.has(k))
 				.slice(0, 6)
 		: []
-	const extra = hasFeatures ? Object.entries(current.properties).filter(([k]) => !k.startsWith("_")).length - entries.length : 0
+	const extra = hasFeatures
+		? Object.entries(current.properties).filter(([k]) => !k.startsWith("_") && !PHOTO_KEYS.has(k)).length - entries.length
+		: 0
 
 	const coordLine =
 		inspectPoint &&
@@ -346,6 +352,14 @@ const FeatureIdentifier: React.FC<FeatureIdentifierProps> = ({
 						</div>
 					))}
 					{extra > 0 && <div style={{ fontSize: 9, color: muted, fontStyle: "italic" }}>+{extra} more</div>}
+					{photoPaths.length > 0 && (
+						<div style={{ marginTop: 8 }}>
+							<div style={{ fontSize: 9, color: muted, marginBottom: 4 }}>
+								{photoPaths.length} site photo{photoPaths.length > 1 ? "s" : ""}
+							</div>
+							<PhotoStrip paths={photoPaths} />
+						</div>
+					)}
 					{showActions && (
 						<div style={{ marginTop: 8 }}>
 							{onAgentDelineate && (

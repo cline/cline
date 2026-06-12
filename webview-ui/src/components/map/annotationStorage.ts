@@ -9,6 +9,8 @@
  *  - Added: `AnnotationCollection` type + CRUD helpers
  */
 
+import { extractPhotoPaths } from "./photoPaths"
+
 // ─── Storage keys ────────────────────────────────────────────────────────────
 const ANNOTATIONS_KEY = "aihydro.map.annotations.v2"
 const ANNOTATIONS_V1_KEY = "aihydro.map.annotations.v1"
@@ -43,6 +45,9 @@ export interface MapAnnotation {
 	/** Tags for filtering/search */
 	tags: string[]
 
+	/** Absolute local filesystem paths to attached site-visit photos */
+	images: string[]
+
 	/** IDs of AnnotationCollections this annotation belongs to */
 	collectionIds: string[]
 
@@ -66,6 +71,13 @@ export interface AnnotationCollection {
 // ─── Colours ─────────────────────────────────────────────────────────────────
 
 export const PRESET_COLORS = ["#ef4444", "#f97316", "#eab308", "#22c55e", "#06b6d4", "#6366f1", "#ec4899", "#ffffff"]
+
+export const STATUS_COLORS: Record<string, string> = {
+	Working: "#22c55e",
+	"Not Working": "#ef4444",
+	"Site Visit (pending)": "#eab308",
+	Unclassified: "#94a3b8",
+}
 
 export const COLLECTION_COLORS = ["#6366f1", "#06b6d4", "#22c55e", "#f97316", "#ec4899", "#eab308", "#ef4444", "#8b5cf6"]
 
@@ -97,6 +109,7 @@ function migrateV1toV2(v1: V1Annotation): MapAnnotation {
 					.map((t) => t.trim())
 					.filter(Boolean)
 			: [],
+		images: [],
 		collectionIds: [],
 		status: "open",
 		priority: null,
@@ -112,7 +125,7 @@ export function loadAnnotations(): MapAnnotation[] {
 		// Try v2 store first
 		const raw = localStorage.getItem(ANNOTATIONS_KEY)
 		if (raw) {
-			return JSON.parse(raw) as MapAnnotation[]
+			return (JSON.parse(raw) as MapAnnotation[]).map((a) => (Array.isArray(a.images) ? a : { ...a, images: [] }))
 		}
 		// Fall back to v1 and migrate
 		const rawV1 = localStorage.getItem(ANNOTATIONS_V1_KEY)
@@ -128,12 +141,15 @@ export function loadAnnotations(): MapAnnotation[] {
 	}
 }
 
-export function saveAnnotations(annotations: MapAnnotation[]): void {
+export function saveAnnotations(annotations: MapAnnotation[], collections?: AnnotationCollection[]): void {
 	try {
 		localStorage.setItem(ANNOTATIONS_KEY, JSON.stringify(annotations))
 	} catch {
 		/* ignore */
 	}
+	// Async fire-and-forget to host (collections passed for atomic save; resolved from localStorage if omitted)
+	const cols = collections ?? loadCollections()
+	void saveAnnotationsToHost(annotations, cols)
 }
 
 /** Produce a new blank annotation at a given geometry */
@@ -152,12 +168,76 @@ export function newAnnotation(
 		type,
 		geometry,
 		tags: [],
+		images: [],
 		collectionIds: [],
 		status: "open",
 		priority: null,
 		createdAt: now,
 		updatedAt: now,
 	}
+}
+
+/**
+ * Build tracker annotations from a GeoJSON layer's point features.
+ * One open annotation per point: name + category tag + any photo paths from
+ * `properties.photos`. Skips features whose name already has an annotation.
+ */
+export function seedAnnotationsFromGeoJson(
+	geojson: string,
+	existing: MapAnnotation[],
+): { created: MapAnnotation[]; skipped: number } {
+	let parsed: unknown
+	try {
+		parsed = JSON.parse(geojson)
+	} catch {
+		return { created: [], skipped: 0 }
+	}
+	const fc = parsed as {
+		features?: Array<{ geometry?: { type?: string; coordinates?: unknown }; properties?: Record<string, unknown> }>
+	}
+	const features = Array.isArray(fc?.features) ? fc.features : []
+	const taken = new Set(existing.map((a) => a.name.toLowerCase()))
+	const created: MapAnnotation[] = []
+	let skipped = 0
+	let i = existing.length
+	for (const f of features) {
+		if (f?.geometry?.type !== "Point" || !Array.isArray(f.geometry.coordinates)) {
+			continue
+		}
+		const [lon, lat] = f.geometry.coordinates as number[]
+		if (!Number.isFinite(lon) || !Number.isFinite(lat)) {
+			continue
+		}
+		const props = f.properties ?? {}
+		const name = String(props.name ?? props.Name ?? `Site ${i + 1}`)
+		if (taken.has(name.toLowerCase())) {
+			skipped++
+			continue
+		}
+		taken.add(name.toLowerCase())
+		const status = props.status ?? props.Status
+		const sediment = props.sediment_category ?? props.category ?? props.Category
+		const tags = [status, sediment].filter(Boolean).map(String)
+		const now = new Date().toISOString()
+		created.push({
+			id: `ann_seed_${Date.now()}_${i}`,
+			name,
+			notes: typeof props.address === "string" ? `Address: ${props.address}` : "",
+			aiPrompt: "",
+			color: STATUS_COLORS[String(status)] ?? PRESET_COLORS[i % PRESET_COLORS.length],
+			type: "point",
+			geometry: { type: "Point", coordinates: [lon, lat] },
+			tags,
+			images: extractPhotoPaths(props.photos),
+			collectionIds: [],
+			status: "open",
+			priority: null,
+			createdAt: now,
+			updatedAt: now,
+		})
+		i++
+	}
+	return { created, skipped }
 }
 
 // ─── Collection CRUD ──────────────────────────────────────────────────────────
@@ -177,6 +257,7 @@ export function saveCollections(collections: AnnotationCollection[]): void {
 	} catch {
 		/* ignore */
 	}
+	void saveAnnotationsToHost(loadAnnotations(), collections)
 }
 
 export function newCollection(existingCount: number): AnnotationCollection {
@@ -219,6 +300,38 @@ export function annotationCenter(ann: MapAnnotation): [number, number] {
 function csvEscape(v: unknown): string {
 	const s = String(v ?? "")
 	return s.includes(",") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s
+}
+
+/** RFC 4180-compliant CSV row parser — symmetric with csvEscape. */
+function parseCsvRow(line: string): string[] {
+	const fields: string[] = []
+	let i = 0
+	while (i <= line.length) {
+		if (line[i] === '"') {
+			// Quoted field
+			i++ // skip opening quote
+			let field = ""
+			while (i < line.length) {
+				if (line[i] === '"' && line[i + 1] === '"') {
+					field += '"'
+					i += 2
+				} else if (line[i] === '"') {
+					i++ // skip closing quote
+					break
+				} else {
+					field += line[i++]
+				}
+			}
+			fields.push(field)
+			if (line[i] === ",") i++
+		} else {
+			const start = i
+			while (i < line.length && line[i] !== ",") i++
+			fields.push(line.slice(start, i).trim())
+			if (line[i] === ",") i++
+		}
+	}
+	return fields
 }
 
 export function formatAnnotationsAsCsv(annotations: MapAnnotation[]): string {
@@ -276,7 +389,7 @@ export async function importAnnotationsCsv(file: File, existingCount = 0): Promi
 				if (lines.length < 2) {
 					return resolve([])
 				}
-				const headers = lines[0].split(",").map((h) => h.trim().toLowerCase().replace(/['"]/g, ""))
+				const headers = parseCsvRow(lines[0]).map((h) => h.toLowerCase())
 				const idxOf = (name: string) => headers.indexOf(name)
 				const iLon = idxOf("lon") >= 0 ? idxOf("lon") : idxOf("longitude")
 				const iLat = idxOf("lat") >= 0 ? idxOf("lat") : idxOf("latitude")
@@ -292,7 +405,7 @@ export async function importAnnotationsCsv(file: File, existingCount = 0): Promi
 				const results: Partial<MapAnnotation>[] = []
 				const now = new Date().toISOString()
 				for (let i = 1; i < lines.length; i++) {
-					const cols = lines[i].split(",").map((c) => c.trim().replace(/^"|"$/g, ""))
+					const cols = parseCsvRow(lines[i])
 					const lon = parseFloat(cols[iLon] ?? "")
 					const lat = parseFloat(cols[iLat] ?? "")
 					const name = cols[iName] ?? `Site ${i}`
@@ -316,6 +429,7 @@ export async function importAnnotationsCsv(file: File, existingCount = 0): Promi
 						color: PRESET_COLORS[(existingCount + i) % PRESET_COLORS.length],
 						type: "point",
 						geometry: { type: "Point", coordinates: [lon, lat] },
+						images: [],
 						collectionIds: [],
 						status: ["open", "in-progress", "reviewed", "done"].includes(status) ? status : "open",
 						priority: ["low", "medium", "high"].includes(priority as string) ? priority : null,
@@ -329,6 +443,76 @@ export async function importAnnotationsCsv(file: File, existingCount = 0): Promi
 			}
 		}
 		reader.readAsText(file)
+	})
+}
+
+// ─── Host persistence bridge (durable backup via VS Code globalState) ────────
+//
+// localStorage is the fast working copy; the extension host is the authoritative
+// backup.  On save we fire-and-forget to the host. On mount, the map component
+// calls syncAnnotationsFromHost() to restore after a cache eviction.
+
+const HOST_SAVE_TYPE = "aihydro-map-save-annotations"
+const HOST_LOAD_TYPE = "aihydro-map-load-annotations"
+const HOST_LOAD_RESULT_TYPE = "aihydro-map-load-annotations-result"
+
+/** Fire-and-forget: persist annotations + collections to the extension host. */
+export async function saveAnnotationsToHost(annotations: MapAnnotation[], collections: AnnotationCollection[]): Promise<void> {
+	try {
+		const { PLATFORM_CONFIG } = await import("../../config/platform.config")
+		PLATFORM_CONFIG.postMessage({
+			type: HOST_SAVE_TYPE,
+			annotations,
+			collections,
+		})
+	} catch {
+		/* no-op outside VS Code */
+	}
+}
+
+/** Ask the host for the saved annotation set. Returns null if unavailable or timed out. */
+export async function loadAnnotationsFromHost(): Promise<{
+	annotations: MapAnnotation[]
+	collections: AnnotationCollection[]
+} | null> {
+	return new Promise(async (resolve) => {
+		const requestId = `ann-load-${Date.now()}`
+		const timeoutId = window.setTimeout(() => {
+			window.removeEventListener("message", handler)
+			resolve(null)
+		}, 3_000)
+
+		const handler = (event: MessageEvent) => {
+			const data = event.data as {
+				type?: string
+				requestId?: string
+				ok?: boolean
+				annotations?: unknown
+				collections?: unknown
+			}
+			if (data?.type === HOST_LOAD_RESULT_TYPE && data.requestId === requestId) {
+				window.clearTimeout(timeoutId)
+				window.removeEventListener("message", handler)
+				if (data.ok) {
+					resolve({
+						annotations: (data.annotations as MapAnnotation[]) ?? [],
+						collections: (data.collections as AnnotationCollection[]) ?? [],
+					})
+				} else {
+					resolve(null)
+				}
+			}
+		}
+		window.addEventListener("message", handler)
+
+		try {
+			const { PLATFORM_CONFIG } = await import("../../config/platform.config")
+			PLATFORM_CONFIG.postMessage({ type: HOST_LOAD_TYPE, requestId })
+		} catch {
+			window.clearTimeout(timeoutId)
+			window.removeEventListener("message", handler)
+			resolve(null)
+		}
 	})
 }
 

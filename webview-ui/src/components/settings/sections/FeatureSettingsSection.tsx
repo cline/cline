@@ -28,6 +28,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		dictationSettings,
 		useAutoCondense,
 		focusChainSettings,
+		maxConsecutiveMistakes,
 		multiRootSetting,
 		hooksEnabled,
 		remoteConfigSettings,
@@ -254,6 +255,26 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							</VSCodeCheckbox>
 							<p className="toggle-description">
 								Enforces strict tool use while in plan mode, preventing file edits.
+							</p>
+						</div>
+						<div className="mt-2">
+							<label className="settings-label" htmlFor="max-consecutive-mistakes">
+								Max consecutive mistakes
+							</label>
+							<VSCodeTextField
+								className="w-20"
+								id="max-consecutive-mistakes"
+								onChange={(e: any) => {
+									const value = parseInt(e.target.value, 10)
+									if (!Number.isNaN(value) && value >= 1 && value <= 20) {
+										updateSetting("maxConsecutiveMistakes", value)
+									}
+								}}
+								value={String(maxConsecutiveMistakes ?? 3)}
+							/>
+							<p className="toggle-description">
+								Number of consecutive tool-call failures before the agent asks for help or auto-recovers (1–20).
+								Increase for weaker models; decrease for stricter oversight.
 							</p>
 						</div>
 						{

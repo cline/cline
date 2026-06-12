@@ -1627,9 +1627,6 @@ export const azureOpenAiDefaultApiVersion = "2024-08-01-preview"
 // https://api-docs.deepseek.com/quick_start/pricing
 // Catalog refreshed for the V4 series (deepseek-v4-flash / deepseek-v4-pro).
 // The legacy ``deepseek-chat`` and ``deepseek-reasoner`` identifiers are now
-// deprecated aliases that route to v4-flash's non-thinking and thinking
-// modes respectively — we keep them so existing user configurations don't
-// break, but the default points to the new explicit identifier.
 export type DeepSeekModelId = keyof typeof deepSeekModels
 export const deepSeekDefaultModelId: DeepSeekModelId = "deepseek-v4-flash"
 export const deepSeekModels = {
@@ -1659,33 +1656,6 @@ export const deepSeekModels = {
 		cacheReadsPrice: 0.003625,
 		description:
 			"DeepSeek V4 Pro — premium V4 model with thinking mode for complex reasoning, coding, and multi-step analysis. 1M-token context.",
-	},
-	"deepseek-chat": {
-		// Deprecated alias → v4-flash (non-thinking mode). Pricing mirrors
-		// v4-flash so the user sees accurate numbers in the model picker.
-		maxTokens: 384_000,
-		contextWindow: 1_000_000,
-		supportsImages: false,
-		supportsPromptCache: true,
-		inputPrice: 0,
-		outputPrice: 0.28,
-		cacheWritesPrice: 0.14,
-		cacheReadsPrice: 0.0028,
-		description:
-			"Deprecated alias — routes to deepseek-v4-flash (non-thinking mode). Prefer deepseek-v4-flash directly for new configurations.",
-	},
-	"deepseek-reasoner": {
-		// Deprecated alias → v4-flash (thinking mode). Same pricing tier.
-		maxTokens: 384_000,
-		contextWindow: 1_000_000,
-		supportsImages: false,
-		supportsPromptCache: true,
-		inputPrice: 0,
-		outputPrice: 0.28,
-		cacheWritesPrice: 0.14,
-		cacheReadsPrice: 0.0028,
-		description:
-			"Deprecated alias — routes to deepseek-v4-flash (thinking mode). Prefer deepseek-v4-flash or deepseek-v4-pro directly for new configurations.",
 	},
 } as const satisfies Record<string, ModelInfo>
 

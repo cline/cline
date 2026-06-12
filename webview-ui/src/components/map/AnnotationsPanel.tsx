@@ -16,6 +16,8 @@ import {
 } from "./annotationStorage"
 import { addToMyGallery } from "./galleryStorage"
 import { askAgentAboutAnnotation, askAgentAboutBatchAnnotations } from "./mapAgentBridge"
+import { PhotoStrip } from "./PhotoStrip"
+import { pickImages } from "./resolveFileUri"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -28,6 +30,8 @@ interface AnnotationsPanelProps {
 	visibleLayerNames?: string[]
 	/** Called after saving to My Gallery so the parent can sync React state. */
 	onSaveToGallery?: (item: import("./galleryStorage").MyGalleryItem) => void
+	/** Seed one tracker annotation per point in the active culvert layer. Returns a status message. */
+	onSeedFromLayer?: () => string
 }
 
 // ─── Status / Priority labels ─────────────────────────────────────────────────
@@ -84,6 +88,7 @@ export const AnnotationsPanel: React.FC<AnnotationsPanelProps> = ({
 	mapStyle = "dark",
 	visibleLayerNames = [],
 	onSaveToGallery,
+	onSeedFromLayer,
 }) => {
 	const isDark = mapStyle === "dark"
 	const fg = isDark ? "var(--vscode-foreground, #ddd)" : "var(--vscode-foreground, #222)"
@@ -383,6 +388,27 @@ export const AnnotationsPanel: React.FC<AnnotationsPanelProps> = ({
 					type="button">
 					⬆ Import
 				</button>
+				{onSeedFromLayer && (
+					<button
+						onClick={() => {
+							setAgentError(null)
+							const msg = onSeedFromLayer()
+							setAgentError(msg)
+						}}
+						style={{
+							fontSize: 10,
+							padding: "2px 7px",
+							background: "transparent",
+							color: fg,
+							border: `1px solid ${border}`,
+							borderRadius: 4,
+							cursor: "pointer",
+						}}
+						title="Create one tracker annotation per point in the active layer"
+						type="button">
+						⊕ Seed from layer
+					</button>
+				)}
 
 				{/* Export dropdown */}
 				<div ref={exportBtnRef} style={{ position: "relative" }}>
@@ -832,6 +858,78 @@ export const AnnotationsPanel: React.FC<AnnotationsPanelProps> = ({
 												style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }}
 												value={ann.notes}
 											/>
+										</div>
+
+										{/* Site photos */}
+										<div>
+											<label
+												style={{
+													fontSize: 9,
+													opacity: 0.55,
+													display: "block",
+													marginBottom: 3,
+													fontWeight: 600,
+													textTransform: "uppercase",
+													letterSpacing: "0.05em",
+												}}>
+												📷 Site Photos {ann.images.length > 0 ? `(${ann.images.length})` : ""}
+											</label>
+											{ann.images.length > 0 && (
+												<div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 4 }}>
+													{ann.images.map((p) => (
+														<div key={p} style={{ position: "relative" }}>
+															<PhotoStrip paths={[p]} thumbSize={48} />
+															<button
+																onClick={() =>
+																	updateAnnotation(ann.id, {
+																		images: ann.images.filter((x) => x !== p),
+																	})
+																}
+																style={{
+																	position: "absolute",
+																	top: -4,
+																	right: -4,
+																	width: 14,
+																	height: 14,
+																	borderRadius: "50%",
+																	border: "none",
+																	background: "rgba(0,0,0,0.7)",
+																	color: "#fff",
+																	fontSize: 9,
+																	lineHeight: "14px",
+																	padding: 0,
+																	cursor: "pointer",
+																}}
+																title="Remove photo"
+																type="button">
+																×
+															</button>
+														</div>
+													))}
+												</div>
+											)}
+											<button
+												onClick={async () => {
+													const picked = await pickImages()
+													if (picked.length > 0) {
+														updateAnnotation(ann.id, {
+															images: [
+																...ann.images,
+																...picked.filter((p) => !ann.images.includes(p)),
+															],
+														})
+													}
+												}}
+												style={{
+													...inputStyle,
+													width: "auto",
+													cursor: "pointer",
+													fontSize: 10,
+													padding: "3px 8px",
+												}}
+												type="button">
+												+ Add photos…
+											</button>
 										</div>
 
 										{/* AI Prompt */}

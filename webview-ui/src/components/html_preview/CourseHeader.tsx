@@ -50,18 +50,26 @@ export const CourseHeader: React.FC<CourseHeaderProps> = ({ course, currentModul
 
 	const [menuOpen, setMenuOpen] = useState(false)
 	const [confirmReset, setConfirmReset] = useState(false)
+	const [isMarkingComplete, setIsMarkingComplete] = useState(false)
 
 	const handleMarkComplete = async () => {
-		if (!currentModule) {
+		if (!currentModule || isMarkingComplete) {
 			return
 		}
 		if (isCurrentCompleted) {
 			await progress.markUncomplete(currentModule.id)
 		} else {
+			setIsMarkingComplete(true)
 			await progress.markComplete(currentModule.id)
-			// Auto-advance after a tick so the user sees the ✓ before navigating
+			// Auto-advance after a tick so the user sees the ✓ before navigating.
+			// Keep the spinner up across the delay so the click has visible feedback.
 			if (next && progress.canAccess(next)) {
-				window.setTimeout(() => onNavigate(next.id), 350)
+				window.setTimeout(() => {
+					onNavigate(next.id)
+					setIsMarkingComplete(false)
+				}, 350)
+			} else {
+				setIsMarkingComplete(false)
 			}
 		}
 	}
@@ -120,6 +128,7 @@ export const CourseHeader: React.FC<CourseHeaderProps> = ({ course, currentModul
 				</span>
 				{/* Kebab menu */}
 				<button
+					aria-label="Course options"
 					onClick={() => setMenuOpen((v) => !v)}
 					style={{
 						display: "inline-flex",
@@ -285,6 +294,7 @@ export const CourseHeader: React.FC<CourseHeaderProps> = ({ course, currentModul
 						<span style={{ marginLeft: 8, opacity: 0.85 }}>· {currentModule.title}</span>
 					</div>
 					<button
+						disabled={isMarkingComplete}
 						onClick={handleMarkComplete}
 						style={{
 							display: "inline-flex",
@@ -296,7 +306,7 @@ export const CourseHeader: React.FC<CourseHeaderProps> = ({ course, currentModul
 							border: `1px solid ${isCurrentCompleted ? "rgba(74,222,128,0.4)" : ACCENT_DIM}`,
 							borderRadius: 4,
 							color: isCurrentCompleted ? GREEN : ACCENT,
-							cursor: "pointer",
+							cursor: isMarkingComplete ? "default" : "pointer",
 							fontSize: 11,
 							fontWeight: 600,
 							fontFamily: "Poppins, system-ui, sans-serif",
@@ -312,10 +322,10 @@ export const CourseHeader: React.FC<CourseHeaderProps> = ({ course, currentModul
 						}
 						type="button">
 						<span
-							className={`codicon codicon-${isCurrentCompleted ? "check-all" : "check"}`}
+							className={`codicon codicon-${isMarkingComplete ? "loading codicon-modifier-spin" : isCurrentCompleted ? "check-all" : "check"}`}
 							style={{ fontSize: 12 }}
 						/>
-						{isCurrentCompleted ? "Completed" : "Mark complete"}
+						{isMarkingComplete ? "Saving…" : isCurrentCompleted ? "Completed" : "Mark complete"}
 					</button>
 					<NavBtn
 						blocked={next ? !progress.canAccess(next) : false}

@@ -1,0 +1,60 @@
+syntax = "proto3";
+
+package cline;
+
+option go_package = "github.com/cline/grpc-go/cline";
+option java_package = "bot.cline.proto";
+option java_multiple_files = true;
+
+import "cline/common.proto";
+
+// A single piece of evidence that backs a claim.
+message EvidenceSpanRecord {
+    string source_type = 1;  // run | paper | dataset
+    string source_id = 2;    // run_id, DOI, dataset slug
+    string metric_ref = 3;   // e.g. "key_outputs.runoff_ratio"
+    string description = 4;
+}
+
+// A scientific claim stored in the session ledger.
+message ClaimRecord {
+    string claim_id = 1;
+    string session_id = 2;
+    string statement = 3;
+    string status = 4;       // proposed | tested | supported | weakly_supported | contradicted | retracted
+    string claim_type = 5;   // empirical_result | model_performance | assumption | literature_comparison
+    string confidence = 6;   // low | medium | high (matches Python model)
+    string created_at = 7;
+    string updated_at = 8;
+    repeated EvidenceSpanRecord evidence_spans = 9;
+    repeated string limitations = 10;
+}
+
+// One claim event pushed from the MCP server via ~/.aihydro/ledger_events/.
+message ClaimUpdate {
+    ClaimRecord claim = 1;
+    string change_type = 2;  // added | updated | removed
+    int64 timestamp_ms = 3;
+}
+
+// Request for a snapshot of claims for a specific session.
+message GetLedgerStateRequest {
+    string session_id = 1;   // empty = most recently modified session
+}
+
+// Full ledger snapshot for a session.
+message LedgerStateResponse {
+    string session_id = 1;
+    repeated ClaimRecord claims = 2;
+    int64 updated_at_ms = 3;
+}
+
+// Service for claims ledger operations.
+service LedgerService {
+    // Fetch the current claims for a session (one-shot).
+    rpc getLedgerState(GetLedgerStateRequest) returns (LedgerStateResponse);
+
+    // Stream claim updates (added / updated / removed) as they arrive
+    // from the MCP server via ~/.aihydro/ledger_events/.
+    rpc subscribeToClaimUpdates(EmptyRequest) returns (stream ClaimUpdate);
+}

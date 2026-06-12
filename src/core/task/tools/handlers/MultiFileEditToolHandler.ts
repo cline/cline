@@ -95,6 +95,7 @@ export class MultiFileEditToolHandler implements IFullyManagedTool {
 
 		const results: string[] = []
 		let anySuccess = false
+		let anyAutoApproved = false
 
 		for (const section of sections) {
 			const outcome = await this.applyOneFile(config, block, section)
@@ -102,11 +103,19 @@ export class MultiFileEditToolHandler implements IFullyManagedTool {
 			if (outcome.success) {
 				anySuccess = true
 			}
+			if (outcome.autoApproved) {
+				anyAutoApproved = true
+			}
 			if (outcome.abort) {
 				// User denied this file — stop processing the rest, mirroring single-file semantics.
 				config.taskState.didRejectTool = true
 				break
 			}
+		}
+
+		// Count the whole batch as a single auto-approved request (not one per file).
+		if (anyAutoApproved && !config.yoloModeToggled) {
+			config.taskState.consecutiveAutoApprovedRequestsCount++
 		}
 
 		if (anySuccess) {
@@ -124,7 +133,7 @@ export class MultiFileEditToolHandler implements IFullyManagedTool {
 		config: TaskConfig,
 		block: ToolUse,
 		section: FileEditSection,
-	): Promise<{ success: boolean; abort: boolean; message: string }> {
+	): Promise<{ success: boolean; abort: boolean; autoApproved: boolean; message: string }> {
 		const relPath = section.path
 		const diffProvider = config.services.diffViewProvider
 
@@ -132,7 +141,12 @@ export class MultiFileEditToolHandler implements IFullyManagedTool {
 		const accessValidation = this.validator.checkAiHydroIgnorePath(relPath)
 		if (!accessValidation.ok) {
 			await config.callbacks.say("aihydroignore_error", relPath)
-			return { success: false, abort: false, message: `[${relPath}] blocked by .aihydroignore — skipped.` }
+			return {
+				success: false,
+				abort: false,
+				autoApproved: false,
+				message: `[${relPath}] blocked by .aihydroignore — skipped.`,
+			}
 		}
 
 		const pathResult = resolveWorkspacePath(config, relPath, "MultiFileEditToolHandler.applyOneFile")
@@ -166,6 +180,7 @@ export class MultiFileEditToolHandler implements IFullyManagedTool {
 				return {
 					success: false,
 					abort: false,
+					autoApproved: false,
 					message: `[${relPath}] diff did not apply: ${(error as Error)?.message}. The file was not changed.`,
 				}
 			}
@@ -183,13 +198,11 @@ export class MultiFileEditToolHandler implements IFullyManagedTool {
 			}
 			const completeMessage = JSON.stringify(sharedMessageProps)
 
+			let autoApproved = false
 			if (await config.callbacks.shouldAutoApproveToolWithPath(block.name, relPath)) {
 				await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "tool")
 				await config.callbacks.say("tool", completeMessage, undefined, undefined, false)
-				if (!config.yoloModeToggled) {
-					config.taskState.consecutiveAutoApprovedRequestsCount++
-				}
-				await setTimeoutPromise(3_500)
+				autoApproved = true
 			} else {
 				showNotificationForApprovalIfAutoApprovalEnabled(
 					`AI-Hydro wants to ${fileExists ? "edit" : "create"} ${relPath}`,
@@ -214,6 +227,7 @@ export class MultiFileEditToolHandler implements IFullyManagedTool {
 					return {
 						success: false,
 						abort: true,
+						autoApproved: false,
 						message: `[${relPath}] the user denied this edit. The file maintains its original contents.`,
 					}
 				}
@@ -243,6 +257,7 @@ export class MultiFileEditToolHandler implements IFullyManagedTool {
 			return {
 				success: true,
 				abort: false,
+				autoApproved,
 				message: `[${relPath}] edited successfully.${newProblemsMessage ? ` ${newProblemsMessage}` : ""}`,
 			}
 		} catch (error) {
@@ -251,6 +266,7 @@ export class MultiFileEditToolHandler implements IFullyManagedTool {
 			return {
 				success: false,
 				abort: false,
+				autoApproved: false,
 				message: `[${relPath}] failed to edit: ${(error as Error)?.message}`,
 			}
 		}

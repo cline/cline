@@ -20,9 +20,9 @@ describe("model-capabilities — getModelCapabilityTier", () => {
 		getModelCapabilityTier(info("deepseek-v4-flash")).should.equal("capable-open")
 	})
 
-	it("classifies deprecated deepseek aliases as capable-open", () => {
-		getModelCapabilityTier(info("deepseek-chat")).should.equal("capable-open")
-		getModelCapabilityTier(info("deepseek-reasoner")).should.equal("capable-open")
+	it("classifies non-v4 deepseek models as basic", () => {
+		getModelCapabilityTier(info("deepseek-chat")).should.equal("basic")
+		getModelCapabilityTier(info("deepseek-reasoner")).should.equal("basic")
 	})
 
 	it("classifies unknown / weak models as basic", () => {

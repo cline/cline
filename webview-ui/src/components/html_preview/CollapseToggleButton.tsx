@@ -7,6 +7,7 @@ export const CollapseToggleButton: React.FC<{
 }> = ({ expanded, onToggle, title }) => (
 	<button
 		aria-expanded={expanded}
+		aria-label={title ?? (expanded ? "Collapse toolbar" : "Expand toolbar")}
 		onClick={onToggle}
 		style={{
 			display: "flex",

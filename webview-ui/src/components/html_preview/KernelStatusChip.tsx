@@ -150,6 +150,8 @@ export const KernelStatusChip: React.FC<KernelStatusChipProps> = ({
 
 	return (
 		<span
+			aria-label={tooltip}
+			role="status"
 			style={{
 				display: "inline-flex",
 				alignItems: "center",

@@ -7,6 +7,8 @@ import rehypeHighlight, { Options } from "rehype-highlight"
 import styled from "styled-components"
 import type { Node } from "unist"
 import { visit } from "unist-util-visit"
+import { ClaimChip } from "@/components/chat/ClaimChip"
+import { LitChip, RunChip } from "@/components/chat/RunChip"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import MermaidBlock from "@/components/common/MermaidBlock"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -206,6 +208,85 @@ const remarkPreventBoldFilenames = () => {
 	}
 }
 
+// Regex matching [run:<id>#<path>], [claim:<id>], [lit:<tag>]
+const _AIHYDRO_MARKER_RE = /\[(?:run:([A-Za-z0-9._-]+)#([A-Za-z0-9._-]+)|claim:([A-Za-z0-9._-]+)|lit:([A-Za-z0-9._-]+))\]/g
+
+/**
+ * Remark plugin that strips AI-Hydro citation markers from prose and
+ * replaces them with `strong` nodes carrying data.hProperties so the
+ * rehype→React pipeline can render ClaimChip / RunChip / LitChip.
+ *
+ * Markers are NEVER shown as raw text: [run:...] → RunChip, [claim:...] → ClaimChip, [lit:...] → LitChip.
+ */
+const remarkAiHydroMarkers = () => {
+	return (tree: Node) => {
+		visit(tree, "text", (node: any, index: number | undefined, parent: any) => {
+			if (typeof index === "undefined" || !parent) return
+
+			const text: string = node.value
+			const children: any[] = []
+			let lastIndex = 0
+			let match: RegExpExecArray | null
+
+			_AIHYDRO_MARKER_RE.lastIndex = 0
+			while ((match = _AIHYDRO_MARKER_RE.exec(text)) !== null) {
+				if (match.index > lastIndex) {
+					children.push({ type: "text", value: text.slice(lastIndex, match.index) })
+				}
+
+				if (match[1] && match[2]) {
+					// [run:<id>#<path>]
+					children.push({
+						type: "strong",
+						data: {
+							hProperties: {
+								"data-chip-type": "run",
+								"data-run-id": match[1],
+								"data-json-path": match[2],
+							},
+						},
+						children: [],
+					})
+				} else if (match[3]) {
+					// [claim:<id>]
+					children.push({
+						type: "strong",
+						data: {
+							hProperties: {
+								"data-chip-type": "claim",
+								"data-claim-id": match[3],
+							},
+						},
+						children: [],
+					})
+				} else if (match[4]) {
+					// [lit:<tag>]
+					children.push({
+						type: "strong",
+						data: {
+							hProperties: {
+								"data-chip-type": "lit",
+								"data-lit-tag": match[4],
+							},
+						},
+						children: [],
+					})
+				}
+
+				lastIndex = match.index + match[0].length
+			}
+
+			if (children.length === 0) return
+
+			if (lastIndex < text.length) {
+				children.push({ type: "text", value: text.slice(lastIndex) })
+			}
+
+			parent.children.splice(index, 1, ...children)
+		})
+	}
+}
+
 const StyledMarkdown = styled.div<{ compact?: boolean }>`
 	pre {
 		background-color: ${CODE_BLOCK_BG_COLOR};
@@ -360,6 +441,7 @@ const remarkFilePathDetection = () => {
 const MarkdownBlock = memo(({ markdown, compact }: MarkdownBlockProps) => {
 	const [reactContent, setMarkdown] = useRemark({
 		remarkPlugins: [
+			remarkAiHydroMarkers,
 			remarkPreventBoldFilenames,
 			remarkUrlToLink,
 			remarkHighlightActMode,
@@ -420,7 +502,19 @@ const MarkdownBlock = memo(({ markdown, compact }: MarkdownBlockProps) => {
 
 					return <code {...props} />
 				},
-				strong: (props: ComponentProps<"strong">) => {
+				strong: (props: ComponentProps<"strong"> & { [key: string]: any }) => {
+					// AI-Hydro chip types (from remarkAiHydroMarkers plugin via data.hProperties)
+					const chipType = props["data-chip-type"]
+					if (chipType === "run") {
+						return <RunChip jsonPath={props["data-json-path"] ?? ""} runId={props["data-run-id"] ?? ""} />
+					}
+					if (chipType === "claim") {
+						return <ClaimChip claimId={props["data-claim-id"] ?? ""} />
+					}
+					if (chipType === "lit") {
+						return <LitChip tag={props["data-lit-tag"] ?? ""} />
+					}
+
 					// Check if this is an "Act Mode" strong element by looking for the keyboard shortcut
 					// Handle both string children and array of children cases
 					const childrenText = React.Children.toArray(props.children)

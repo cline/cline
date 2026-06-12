@@ -5,7 +5,6 @@ import OpenAI from "openai"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
-import { convertToR1Format } from "../transform/r1-format"
 import { ApiStream } from "../transform/stream"
 
 interface DeepSeekHandlerOptions extends CommonApiHandlerOptions {
@@ -75,16 +74,10 @@ export class DeepSeekHandler implements ApiHandler {
 		const client = this.ensureClient()
 		const model = this.getModel()
 
-		const isDeepseekReasoner = model.id.includes("deepseek-reasoner")
-
-		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
 			...convertToOpenAiMessages(messages),
 		]
-
-		if (isDeepseekReasoner) {
-			openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
-		}
 
 		const stream = await client.chat.completions.create({
 			model: model.id,
@@ -92,8 +85,7 @@ export class DeepSeekHandler implements ApiHandler {
 			messages: openAiMessages,
 			stream: true,
 			stream_options: { include_usage: true },
-			// Only set temperature for non-reasoner models
-			...(model.id === "deepseek-reasoner" ? {} : { temperature: 0 }),
+			temperature: 0,
 		})
 
 		for await (const chunk of stream) {

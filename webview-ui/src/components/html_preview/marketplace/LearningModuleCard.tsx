@@ -33,6 +33,7 @@ function formatCount(n: number): string {
 const LearningModuleCard = ({ item, setError, onRecognitionChange, courseTitle }: LearningModuleCardProps) => {
 	const [isInstalling, setIsInstalling] = useState(false)
 	const [installed, setInstalled] = useState(item.isInstalled)
+	const [updateAvailable, setUpdateAvailable] = useState(item.updateAvailable)
 	const [isStarring, setIsStarring] = useState(false)
 	const [starred, setStarred] = useState(item.starredByClient)
 	const [aiHydroInstalls, setAiHydroInstalls] = useState(item.aiHydroInstalls || 0)
@@ -41,9 +42,11 @@ const LearningModuleCard = ({ item, setError, onRecognitionChange, courseTitle }
 	const handleInstall = async (e: React.MouseEvent) => {
 		e.preventDefault()
 		e.stopPropagation()
-		if (isInstalling || installed) {
+		// Allow click when not installed, or when an update is available (re-install).
+		if (isInstalling || (installed && !updateAvailable)) {
 			return
 		}
+		const isUpdate = installed && updateAvailable
 		setIsInstalling(true)
 		setError(null)
 		try {
@@ -52,11 +55,15 @@ const LearningModuleCard = ({ item, setError, onRecognitionChange, courseTitle }
 					moduleId: item.moduleId,
 					downloadUrl: item.downloadUrl,
 					title: item.title,
+					version: item.version,
 				}),
 			)
 			if (resp.success) {
 				setInstalled(true)
-				setAiHydroInstalls((current) => current + 1)
+				setUpdateAvailable(false)
+				if (!isUpdate) {
+					setAiHydroInstalls((current) => current + 1)
+				}
 			} else {
 				setError(resp.error ?? "Install failed")
 			}
@@ -206,28 +213,50 @@ const LearningModuleCard = ({ item, setError, onRecognitionChange, courseTitle }
 						{starred ? "★" : "☆"}
 					</button>
 					<button
-						disabled={isInstalling || installed}
+						disabled={isInstalling || (installed && !updateAvailable)}
 						onClick={handleInstall}
 						style={{
 							padding: "5px 12px",
 							fontSize: 11,
 							fontWeight: 600,
-							background: installed
-								? "rgba(40,167,69,0.12)"
-								: isInstalling
-									? "rgba(0,0,0,0.12)"
-									: "var(--vscode-button-background, #0e639c)",
-							color: installed
-								? "#28a745"
-								: isInstalling
-									? "var(--vscode-descriptionForeground)"
-									: "var(--vscode-button-foreground, #fff)",
-							border: installed ? "1px solid rgba(40,167,69,0.4)" : "none",
+							background:
+								installed && updateAvailable
+									? "rgba(224, 168, 0, 0.18)"
+									: installed
+										? "rgba(40,167,69,0.12)"
+										: isInstalling
+											? "rgba(0,0,0,0.12)"
+											: "var(--vscode-button-background, #0e639c)",
+							color:
+								installed && updateAvailable
+									? "#e0a800"
+									: installed
+										? "#28a745"
+										: isInstalling
+											? "var(--vscode-descriptionForeground)"
+											: "var(--vscode-button-foreground, #fff)",
+							border:
+								installed && updateAvailable
+									? "1px solid rgba(224,168,0,0.5)"
+									: installed
+										? "1px solid rgba(40,167,69,0.4)"
+										: "none",
 							borderRadius: 4,
-							cursor: installed || isInstalling ? "default" : "pointer",
+							cursor: isInstalling || (installed && !updateAvailable) ? "default" : "pointer",
 						}}
+						title={
+							installed && updateAvailable ? `Update available (installed v${item.installedVersion})` : undefined
+						}
 						type="button">
-						{installed ? "✓ Installed" : isInstalling ? "Installing…" : "Install"}
+						{isInstalling
+							? installed && updateAvailable
+								? "Updating…"
+								: "Installing…"
+							: installed && updateAvailable
+								? "↻ Update"
+								: installed
+									? "✓ Installed"
+									: "Install"}
 					</button>
 				</div>
 			</div>

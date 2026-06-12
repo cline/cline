@@ -1,10 +1,10 @@
-import { type MapViewState } from "@deck.gl/core"
+import { type MapViewState, WebMercatorViewport } from "@deck.gl/core"
 import { TileLayer } from "@deck.gl/geo-layers"
 import { BitmapLayer, GeoJsonLayer, PathLayer, TextLayer } from "@deck.gl/layers"
 import DeckGL from "@deck.gl/react"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import type { MapLayer } from "@shared/proto/cline/map"
-import { AddMapLayerRequest, SaveRoiToWorkspaceRequest } from "@shared/proto/cline/map"
+import { AddMapLayerRequest, RemoveMapLayerRequest, SaveRoiToWorkspaceRequest } from "@shared/proto/cline/map"
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useMapContext } from "../../context/MapContext"
 import { MapServiceClient } from "../../services/grpc-client"
@@ -12,9 +12,11 @@ import AnnotationsPanel from "./AnnotationsPanel"
 import {
 	type AnnotationCollection,
 	loadAnnotations,
+	loadAnnotationsFromHost,
 	type MapAnnotation,
 	newAnnotation,
 	saveAnnotations,
+	seedAnnotationsFromGeoJson,
 } from "./annotationStorage"
 import { BASE_MAP_STYLES } from "./BaseMapSelector"
 import FeatureIdentifier, { type ClickedFeature, type MapInspectPoint } from "./FeatureIdentifier"
@@ -32,6 +34,7 @@ import {
 } from "./galleryStorage"
 import { collectFeaturesAtPoint } from "./geoInspect"
 import { fmtDist, haversineKm } from "./geoMeasureMath"
+import MapContextMenu from "./MapContextMenu"
 import MapLegend from "./MapLegend"
 import { MapToolRibbon } from "./MapToolRibbon"
 import MeasureTool, { type MeasureMode } from "./MeasureTool"
@@ -666,6 +669,20 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 	const [transects, setTransects] = useState<MapTransect[]>(() => loadTransects())
 	const [drawPurpose, setDrawPurpose] = useState<"roi" | "annotation" | "transect">("roi")
 
+	// On mount, sync annotations from the durable host backup (recovers after localStorage eviction).
+	// Only applied when localStorage appears empty to avoid overwriting live edits.
+	useEffect(() => {
+		if (loadAnnotations().length > 0) {
+			return // localStorage has data; host sync not needed
+		}
+		void loadAnnotationsFromHost().then((result) => {
+			if (result && result.annotations.length > 0) {
+				setAnnotations(result.annotations)
+				saveAnnotations(result.annotations)
+			}
+		})
+	}, [])
+
 	// Swipe Tool
 	const [swipeMode, _setSwipeMode] = useState(false)
 	const [swipeX, setSwipeX] = useState<number>(0.5)
@@ -762,6 +779,123 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 	const [agentStarting, setAgentStarting] = useState(false)
 	const [agentStatus, setAgentStatus] = useState<string | null>(null)
 	const [inspectRasterReading, setInspectRasterReading] = useState<CursorRasterReading | null>(null)
+	const [contextMenu, setContextMenu] = useState<{
+		x: number
+		y: number
+		lon: number
+		lat: number
+		features: ClickedFeature[]
+	} | null>(null)
+
+	// Stable ref for values needed in native event handlers (avoids stale closures)
+	const nativeHandlersRef = useRef({
+		measureMode: null as MeasureMode,
+		drawMode: null as VectorDrawMode,
+		viewState: null as MapViewState | null,
+		sortedLayers: [] as typeof sortedLayers,
+		visibleLayerIds: new Set<string>(),
+		annotations: [] as MapAnnotation[],
+	})
+
+	// Timestamp of last context-menu open — used to guard against the click event
+	// (from mouseup) immediately closing a menu that contextmenu (from mousedown) just opened.
+	const contextMenuOpenTimeRef = useRef<number>(0)
+
+	/** Shared logic: compute menu position + features and open the context menu */
+	const openContextMenuAt = (e: MouseEvent, container: HTMLElement) => {
+		e.preventDefault()
+		const { measureMode, drawMode, viewState, sortedLayers, visibleLayerIds } = nativeHandlersRef.current
+		if (measureMode || drawMode) return
+		if (!viewState) return
+		const rect = container.getBoundingClientRect()
+		const rawX = e.clientX - rect.left
+		const rawY = e.clientY - rect.top
+		try {
+			const vp = new WebMercatorViewport({
+				width: rect.width,
+				height: rect.height,
+				longitude: viewState.longitude,
+				latitude: viewState.latitude,
+				zoom: viewState.zoom,
+				bearing: viewState.bearing ?? 0,
+				pitch: viewState.pitch ?? 0,
+			})
+			const [lon, lat] = vp.unproject([rawX, rawY])
+			const menuW = 220
+			const menuH = 380
+			const x = Math.max(4, Math.min(rawX, rect.width - menuW - 4))
+			const y = Math.max(4, Math.min(rawY, rect.height - menuH - 4))
+			const features = collectFeaturesAtPoint(sortedLayers, visibleLayerIds, isGeoJsonLayer, lon, lat)
+			contextMenuOpenTimeRef.current = Date.now()
+			setContextMenu({ x, y, lon, lat, features })
+		} catch {
+			// viewport unproject failed (e.g. extreme pitch), skip
+		}
+	}
+
+	// Capture-phase contextmenu — fires before deck.gl can swallow it
+	useEffect(() => {
+		const container = containerRef.current
+		if (!container) return
+		const handler = (e: MouseEvent) => openContextMenuAt(e, container)
+		container.addEventListener("contextmenu", handler, true)
+		return () => container.removeEventListener("contextmenu", handler, true)
+	}, []) // register once; reads latest values via ref
+
+	// Backup: pointerdown with button=2 (right-button) for macOS touchpad two-finger
+	// tap inside Electron webviews where the contextmenu event can be swallowed.
+	// Guard: skip if contextmenu already opened the menu within the last 100 ms.
+	useEffect(() => {
+		const container = containerRef.current
+		if (!container) return
+		const handler = (e: PointerEvent) => {
+			if (e.button !== 2) return
+			if (Date.now() - contextMenuOpenTimeRef.current < 100) return // contextmenu already handled it
+			openContextMenuAt(e as unknown as MouseEvent, container)
+		}
+		container.addEventListener("pointerdown", handler, true)
+		return () => container.removeEventListener("pointerdown", handler, true)
+	}, []) // register once; reads latest values via ref
+
+	// Double-click anywhere on the map drops a location pin
+	useEffect(() => {
+		const container = containerRef.current
+		if (!container) return
+		const handler = (e: MouseEvent) => {
+			const { measureMode, drawMode, viewState, annotations } = nativeHandlersRef.current
+			if (measureMode || drawMode) return
+			if (!viewState) return
+			const rect = container.getBoundingClientRect()
+			const rawX = e.clientX - rect.left
+			const rawY = e.clientY - rect.top
+			try {
+				const vp = new WebMercatorViewport({
+					width: rect.width,
+					height: rect.height,
+					longitude: viewState.longitude,
+					latitude: viewState.latitude,
+					zoom: viewState.zoom,
+					bearing: viewState.bearing ?? 0,
+					pitch: viewState.pitch ?? 0,
+				})
+				const [lon, lat] = vp.unproject([rawX, rawY])
+				const ann = newAnnotation("point", { type: "Point", coordinates: [lon, lat] }, annotations.length)
+				const next = [...annotations, ann]
+				setAnnotations(next)
+				saveAnnotations(next)
+				setClickedFeatures([])
+				setInspectPoint(null)
+				setContextMenu(null)
+				const latStr = `${Math.abs(lat).toFixed(5)}°${lat >= 0 ? "N" : "S"}`
+				const lonStr = `${Math.abs(lon).toFixed(5)}°${lon >= 0 ? "E" : "W"}`
+				setAgentStatus(`Pin dropped at ${latStr}, ${lonStr}`)
+			} catch {
+				// ignore
+			}
+		}
+		container.addEventListener("dblclick", handler, true)
+		return () => container.removeEventListener("dblclick", handler, true)
+	}, []) // register once; reads latest values via ref
 
 	useEffect(() => {
 		reportMapEvent("selection.changed", selectedFeaturesPayload(selectedFeatures))
@@ -1331,6 +1465,12 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 
 	const handleMapClick = useCallback(
 		(info: any) => {
+			// Only dismiss the context menu on a genuine left-click, and only if the menu
+			// wasn't opened within the last 400 ms (macOS fires contextmenu on mousedown
+			// and click on mouseup — without this guard the menu flickers closed instantly).
+			if (Date.now() - contextMenuOpenTimeRef.current > 400) {
+				setContextMenu(null)
+			}
 			// If measure mode is active, feed the coordinate to the measure tool
 			// and skip feature identification entirely.
 			if ((measureMode || drawMode) && info.coordinate) {
@@ -2143,6 +2283,106 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 		}
 	}, [])
 
+	const handleAgentAsk = useCallback(
+		async (pt: MapInspectPoint, features: ClickedFeature[], userQuestion?: string) => {
+			setAgentStarting(true)
+			setAgentStatus(null)
+			setDelineateStatus(null)
+			const ctx = buildMapAgentContext(pt, features, sortedLayers, visibleLayerIds, selectedFeatures)
+			try {
+				const result = await askAgentAboutMap(ctx, userQuestion)
+				setAgentStatus(
+					result.ok
+						? "Chat opened — edit the prompt and send when ready."
+						: result.error || "Could not start agent task",
+				)
+			} catch (e) {
+				setAgentStatus(e instanceof Error ? e.message : String(e))
+			} finally {
+				setAgentStarting(false)
+			}
+		},
+		[sortedLayers, visibleLayerIds, selectedFeatures],
+	)
+
+	const handleAgentDelineate = useCallback(
+		async (pt: MapInspectPoint, features: ClickedFeature[]) => {
+			setAgentStarting(true)
+			setAgentStatus(null)
+			setDelineateStatus(null)
+			const ctx = buildMapAgentContext(pt, features, sortedLayers, visibleLayerIds, selectedFeatures)
+			try {
+				const result = await askAgentToDelineate(ctx)
+				setAgentStatus(
+					result.ok
+						? "Chat opened — agent will delineate and push to map."
+						: result.error || "Could not start agent task",
+				)
+			} catch (e) {
+				setAgentStatus(e instanceof Error ? e.message : String(e))
+			} finally {
+				setAgentStarting(false)
+			}
+		},
+		[sortedLayers, visibleLayerIds, selectedFeatures],
+	)
+
+	const handleQuickDelineate = useCallback(
+		async (pt: MapInspectPoint, features: ClickedFeature[]) => {
+			if (!isConus(pt.lat, pt.lon) && !hasMeritRiversOnMap(sortedLayers, visibleLayerIds)) {
+				setDelineateStatus(meritRiversRequiredMessage())
+				return
+			}
+			const expectedAreaKm2 = selectedMeritUpareaKm2(features)
+			if (expectedAreaKm2 && expectedAreaKm2 > QUICK_DELINEATE_MAX_MERIT_UPAREA_KM2) {
+				setDelineateStatus(
+					`Large basin (~${Math.round(expectedAreaKm2).toLocaleString()} km²). Quick raster delineation exceeds the interactive envelope; use Delineate with agent so the hybrid workflow can stage MERIT-Basins assets.`,
+				)
+				return
+			}
+			reportMapEvent("delineation.requested", { lat: pt.lat, lon: pt.lon })
+			setDelineating(true)
+			setDelineateStatus(null)
+			setAgentStatus(null)
+			try {
+				const result = await sendHydroMapCommand("delineatePoint", {
+					lat: pt.lat,
+					lon: pt.lon,
+					method: "auto",
+					expectedAreaKm2,
+				})
+				if (result.ok) {
+					const area = (result.result?.data as { area_km2?: number })?.area_km2
+					const method = (result.result?.data as { method_used?: string })?.method_used
+					setDelineateStatus(
+						area != null
+							? `Done: ${Number(area).toFixed(1)} km² (${method || "auto"})`
+							: result.message || "Watershed added to map",
+					)
+					reportMapEvent("delineation.completed", { lat: pt.lat, lon: pt.lon, area_km2: area, method_used: method })
+					handleFitExtent()
+				} else {
+					setDelineateStatus(result.error || result.message || "Delineation failed")
+				}
+			} catch (e) {
+				setDelineateStatus(e instanceof Error ? e.message : String(e))
+			} finally {
+				setDelineating(false)
+			}
+		},
+		[sortedLayers, visibleLayerIds],
+	)
+
+	// Keep native handler ref up-to-date every render
+	nativeHandlersRef.current = {
+		measureMode,
+		drawMode,
+		viewState,
+		sortedLayers,
+		visibleLayerIds,
+		annotations,
+	}
+
 	const bgColor = mapStyle === "dark" ? "#1a1a2e" : "#f0f0f0"
 
 	return (
@@ -2162,7 +2402,7 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 			}}>
 			{/* RIGHT MAP (or single map when not swiping) */}
 			<DeckGL
-				controller={true}
+				controller={{ doubleClickZoom: false }}
 				getCursor={({ isDragging }: { isDragging: boolean }) => {
 					if (isDragging) {
 						return "grabbing"
@@ -2193,7 +2433,10 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 						setToolHoverCoord(null)
 					}
 				}}
-				onViewStateChange={({ viewState }: any) => setViewState(viewState)}
+				onViewStateChange={({ viewState }: any) => {
+					setViewState(viewState)
+					setContextMenu(null)
+				}}
 				pickingRadius={8}
 				style={{ position: "absolute", inset: "0" }}
 				viewState={viewState}
@@ -2486,6 +2729,17 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 							setViewState((prev) => ({ ...prev, longitude: lon, latitude: lat, zoom: Math.max(12, prev.zoom) }))
 						}}
 						onSaveToGallery={(item) => setMyGallery((prev) => [item, ...prev.filter((i) => i.id !== item.id)])}
+						onSeedFromLayer={() => {
+							const target = layers.find((l) => visibleLayerIds.has(l.id) && isGeoJsonLayer(l) && l.geojson?.trim())
+							if (!target?.geojson) {
+								return "No visible vector layer to seed from."
+							}
+							const { created, skipped } = seedAnnotationsFromGeoJson(target.geojson, annotations)
+							if (created.length > 0) {
+								setAnnotations((prev) => [...prev, ...created])
+							}
+							return `Seeded ${created.length} from "${target.name}"${skipped ? `, skipped ${skipped} existing` : ""}.`
+						}}
 						onStartDrawing={(type) => {
 							setDrawPurpose("annotation")
 							setDrawMode(type)
@@ -2715,42 +2969,8 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 						return next
 					})
 				}}
-				onAgentAsk={async (pt) => {
-					setAgentStarting(true)
-					setAgentStatus(null)
-					setDelineateStatus(null)
-					const ctx = buildMapAgentContext(pt, clickedFeatures, sortedLayers, visibleLayerIds, selectedFeatures)
-					try {
-						const result = await askAgentAboutMap(ctx)
-						setAgentStatus(
-							result.ok
-								? "Chat opened — edit the prompt and send when ready."
-								: result.error || "Could not start agent task",
-						)
-					} catch (e) {
-						setAgentStatus(e instanceof Error ? e.message : String(e))
-					} finally {
-						setAgentStarting(false)
-					}
-				}}
-				onAgentDelineate={async (pt) => {
-					setAgentStarting(true)
-					setAgentStatus(null)
-					setDelineateStatus(null)
-					const ctx = buildMapAgentContext(pt, clickedFeatures, sortedLayers, visibleLayerIds, selectedFeatures)
-					try {
-						const result = await askAgentToDelineate(ctx)
-						setAgentStatus(
-							result.ok
-								? "Chat opened — agent will delineate and push to map."
-								: result.error || "Could not start agent task",
-						)
-					} catch (e) {
-						setAgentStatus(e instanceof Error ? e.message : String(e))
-					} finally {
-						setAgentStarting(false)
-					}
-				}}
+				onAgentAsk={(pt) => void handleAgentAsk(pt, clickedFeatures)}
+				onAgentDelineate={(pt) => void handleAgentDelineate(pt, clickedFeatures)}
 				onClearSelection={() => setSelectedFeatures([])}
 				onClose={() => {
 					setClickedFeatures([])
@@ -2759,57 +2979,76 @@ export const MapView: React.FC<MapViewProps> = ({ mapStyle = "dark" }) => {
 					setDelineateStatus(null)
 					setAgentStatus(null)
 				}}
-				onQuickDelineate={async (pt) => {
-					if (!isConus(pt.lat, pt.lon) && !hasMeritRiversOnMap(sortedLayers, visibleLayerIds)) {
-						setDelineateStatus(meritRiversRequiredMessage())
-						return
-					}
-					const expectedAreaKm2 = selectedMeritUpareaKm2(clickedFeatures)
-					if (expectedAreaKm2 && expectedAreaKm2 > QUICK_DELINEATE_MAX_MERIT_UPAREA_KM2) {
-						setDelineateStatus(
-							`Large basin (~${Math.round(expectedAreaKm2).toLocaleString()} km²). Quick raster delineation exceeds the interactive envelope; use Delineate with agent so the hybrid workflow can stage MERIT-Basins assets.`,
-						)
-						return
-					}
-					reportMapEvent("delineation.requested", { lat: pt.lat, lon: pt.lon })
-					setDelineating(true)
-					setDelineateStatus(null)
-					setAgentStatus(null)
-					try {
-						const result = await sendHydroMapCommand("delineatePoint", {
-							lat: pt.lat,
-							lon: pt.lon,
-							method: "auto",
-							expectedAreaKm2,
-						})
-						if (result.ok) {
-							const area = (result.result?.data as { area_km2?: number })?.area_km2
-							const method = (result.result?.data as { method_used?: string })?.method_used
-							setDelineateStatus(
-								area != null
-									? `Done: ${Number(area).toFixed(1)} km² (${method || "auto"})`
-									: result.message || "Watershed added to map",
-							)
-							reportMapEvent("delineation.completed", {
-								lat: pt.lat,
-								lon: pt.lon,
-								area_km2: area,
-								method_used: method,
-							})
-							handleFitExtent()
-						} else {
-							setDelineateStatus(result.error || result.message || "Delineation failed")
-						}
-					} catch (e) {
-						setDelineateStatus(e instanceof Error ? e.message : String(e))
-					} finally {
-						setDelineating(false)
-					}
-				}}
+				onQuickDelineate={(pt) => void handleQuickDelineate(pt, clickedFeatures)}
 				onSaveFeatures={saveFeaturesToWorkspace}
 				rasterReading={inspectRasterReading}
 				selectedFeatures={selectedFeatures}
 			/>
+
+			{contextMenu && (
+				<MapContextMenu
+					agentStarting={agentStarting}
+					delineating={delineating}
+					features={contextMenu.features}
+					lat={contextMenu.lat}
+					lon={contextMenu.lon}
+					mapStyle={mapStyle}
+					onAddAnnotation={() => {
+						const ann = newAnnotation(
+							"point",
+							{ type: "Point", coordinates: [contextMenu.lon, contextMenu.lat] },
+							annotations.length,
+						)
+						const next = [...annotations, ann]
+						setAnnotations(next)
+						saveAnnotations(next)
+					}}
+					onAgentDelineate={() =>
+						void handleAgentDelineate({ lon: contextMenu.lon, lat: contextMenu.lat }, contextMenu.features)
+					}
+					onAskAiHydro={(question) =>
+						void handleAgentAsk({ lon: contextMenu.lon, lat: contextMenu.lat }, contextMenu.features, question)
+					}
+					onClose={() => setContextMenu(null)}
+					onCopyCoords={() => {}}
+					onInspect={() => {
+						setClickedFeatures(contextMenu.features)
+						setInspectPoint({ lon: contextMenu.lon, lat: contextMenu.lat })
+						setInspectRasterReading(
+							sampleTopRasterAtPoint(
+								sortedLayers,
+								visibleLayerIds,
+								layerOrder,
+								contextMenu.lon,
+								contextMenu.lat,
+								rasterCache,
+							),
+						)
+					}}
+					onMeasureFrom={() => {
+						setMeasureMode("distance")
+						setTimeout(() => measureClickRef.current?.([contextMenu.lon, contextMenu.lat]), 50)
+					}}
+					onQuickDelineate={() =>
+						void handleQuickDelineate({ lon: contextMenu.lon, lat: contextMenu.lat }, contextMenu.features)
+					}
+					onRemoveLayer={
+						contextMenu.features.length > 0
+							? async () => {
+									const layerId = contextMenu.features[0].layerId
+									try {
+										await MapServiceClient.removeMapLayer(RemoveMapLayerRequest.create({ layerId }))
+									} catch (err) {
+										setAgentStatus(err instanceof Error ? err.message : "Could not remove layer")
+									}
+								}
+							: undefined
+					}
+					onSaveFeature={(format) => void saveFeaturesToWorkspace(contextMenu.features, format)}
+					x={contextMenu.x}
+					y={contextMenu.y}
+				/>
+			)}
 
 			<MapBottomBar
 				bearing={viewState.bearing}
