@@ -107,6 +107,28 @@ describe("provider-ids", () => {
 		});
 	});
 
+	it("registers LLMTR as an OpenAI-compatible built-in provider", async () => {
+		expect(BUILT_IN_PROVIDER_IDS).toContain("llmtr");
+
+		await expect(getProvider("llmtr")).resolves.toMatchObject({
+			id: "llmtr",
+			name: "LLMTR",
+			baseUrl: "https://llmtr.com/v1",
+			defaultModelId: "llmtr/sincap",
+			client: "openai-compatible",
+		});
+		const models = await getModelsForProvider("llmtr");
+		expect(models).toHaveProperty("llmtr/sincap");
+		expect(models).toHaveProperty("llmtr/trendyol-7b");
+
+		const registration = BUILTIN_PROVIDER_REGISTRATIONS.find(
+			(item) => item.manifest.id === "llmtr",
+		);
+		await expect(registration?.loadProvider?.()).resolves.toMatchObject({
+			createProvider: createOpenAICompatibleProvider,
+		});
+	});
+
 	it("routes Responses API built-ins through the OpenAI provider factory", async () => {
 		for (const providerId of ["litellm", "v0"]) {
 			const provider = await getProvider(providerId);
