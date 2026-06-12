@@ -10,6 +10,11 @@ import type { AgentToolContext } from "@cline/shared";
 import { resolveExistingFilePath } from "@cline/shared/storage";
 import type { ReadFileRequest } from "../schemas";
 import type { FileReadExecutor } from "../types";
+import {
+	MAX_LINE_CHARS,
+	MAX_READ_LINES,
+	MAX_READ_OUTPUT_CHARS,
+} from "./output-limits";
 
 const IMAGE_MEDIA_TYPES = new Map<string, string>([
 	[".gif", "image/gif"],
@@ -122,19 +127,39 @@ export function createFileReadExecutor(
 			end_line ?? allLines.length,
 			allLines.length,
 		);
-		const lines = allLines.slice(rangeStart, rangeEndExclusive);
+		const maxLineNumWidth = String(allLines.length).length;
 
-		// Optionally add line numbers - one-based indexing for better readability
-		if (includeLineNumbers) {
-			const maxLineNumWidth = String(allLines.length).length;
-			return lines
-				.map(
-					(line, i) =>
-						`${String(rangeStart + i + 1).padStart(maxLineNumWidth, " ")} | ${line}`,
-				)
-				.join("\n");
+		// Window the read: whole-file and oversized-range reads stop at the
+		// line and character caps so a single read cannot flood the
+		// conversation. The model pages through the rest with
+		// start_line/end_line. Line numbers are one-based for readability.
+		const lines: string[] = [];
+		let chars = 0;
+		let lineIndex = rangeStart;
+		while (lineIndex < rangeEndExclusive && lines.length < MAX_READ_LINES) {
+			let line = allLines[lineIndex];
+			if (line.length > MAX_LINE_CHARS) {
+				line = `${line.slice(0, MAX_LINE_CHARS)} [line truncated]`;
+			}
+			if (includeLineNumbers) {
+				line = `${String(lineIndex + 1).padStart(maxLineNumWidth, " ")} | ${line}`;
+			}
+			if (chars + line.length + 1 > MAX_READ_OUTPUT_CHARS && lines.length > 0) {
+				break;
+			}
+			lines.push(line);
+			chars += line.length + 1;
+			lineIndex += 1;
 		}
 
-		return lines.join("\n");
+		const body = lines.join("\n");
+		if (lineIndex >= rangeEndExclusive) {
+			return body;
+		}
+		return (
+			`${body}\n\n` +
+			`[Showing lines ${rangeStart + 1}-${lineIndex} of ${allLines.length}. ` +
+			"Use start_line/end_line to read other sections.]"
+		);
 	};
 }
