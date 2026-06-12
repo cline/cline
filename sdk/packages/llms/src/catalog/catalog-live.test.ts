@@ -3,6 +3,7 @@ import {
 	getGeneratedModelsForProvider,
 	getGeneratedProviderModels,
 } from "./catalog.generated-access";
+import { normalizeClineRecommendedProviderModels } from "./catalog-cline-recommended";
 import {
 	fetchModelsDevProviderModels,
 	type ModelsDevPayload,
@@ -11,6 +12,105 @@ import {
 } from "./catalog-live";
 
 describe("models-dev-catalog", () => {
+	it("normalizes Cline recommended clinePass models as a generated provider source", () => {
+		const result = normalizeClineRecommendedProviderModels(
+			{
+				clinePass: [
+					{
+						id: "base-model",
+						name: "Cline Pass Base Model",
+						description: "Included in Cline Pass",
+					},
+					{
+						id: "custom-model",
+						name: "Custom Model",
+					},
+				],
+			},
+			{
+				"base-model": {
+					id: "base-model",
+					name: "OpenRouter Base Model",
+					description: "OpenRouter description",
+					contextWindow: 200_000,
+					maxInputTokens: 180_000,
+					maxTokens: 16_384,
+					capabilities: ["tools", "reasoning", "images"],
+					pricing: { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
+					releaseDate: "2026-01-01",
+					family: "base-family",
+				},
+			},
+		);
+
+		expect(result["cline-pass"]).toEqual({
+			"base-model": {
+				id: "base-model",
+				name: "Cline Pass Base Model",
+				description: "Included in Cline Pass",
+				contextWindow: 200_000,
+				maxInputTokens: 180_000,
+				maxTokens: 16_384,
+				capabilities: ["tools", "reasoning", "images"],
+				pricing: { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
+				releaseDate: "2026-01-01",
+				family: "base-family",
+			},
+			"custom-model": {
+				id: "custom-model",
+				name: "Custom Model",
+				description: undefined,
+				contextWindow: 128_000,
+				maxInputTokens: 128_000,
+				maxTokens: 8_192,
+				capabilities: ["tools", "reasoning", "temperature"],
+				pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+			},
+		});
+	});
+
+	it("matches Cline recommended clinePass models against OpenRouter model names", () => {
+		const result = normalizeClineRecommendedProviderModels(
+			{
+				clinePass: [
+					{
+						id: "cline-pass/cline-pass/glm-5.1",
+						name: "zai/glm-5.1",
+					},
+				],
+			},
+			{
+				"z-ai/glm-5.1": {
+					id: "z-ai/glm-5.1",
+					name: "GLM 5.1",
+					contextWindow: 256_000,
+					maxInputTokens: 200_000,
+					maxTokens: 32_000,
+					capabilities: ["tools", "reasoning", "temperature"],
+					pricing: { input: 1, output: 2, cacheRead: 0, cacheWrite: 0 },
+				},
+			},
+		);
+
+		expect(
+			result["cline-pass"]?.["cline-pass/cline-pass/glm-5.1"],
+		).toMatchObject({
+			id: "cline-pass/cline-pass/glm-5.1",
+			name: "zai/glm-5.1",
+			contextWindow: 256_000,
+			maxInputTokens: 200_000,
+			maxTokens: 32_000,
+			pricing: { input: 1, output: 2, cacheRead: 0, cacheWrite: 0 },
+		});
+	});
+
+	it("returns no Cline Pass models when clinePass is empty or missing", () => {
+		expect(normalizeClineRecommendedProviderModels({}, {})).toEqual({});
+		expect(
+			normalizeClineRecommendedProviderModels({ clinePass: [] }, {}),
+		).toEqual({});
+	});
+
 	it("uses input limits as the model request context window", () => {
 		expect(
 			resolveMaxInputTokens({
