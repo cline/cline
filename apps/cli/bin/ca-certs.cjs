@@ -105,6 +105,15 @@ function buildBundle({ systemCerts, userPems }) {
 		.join("");
 }
 
+/** Counts individual PEM certificates across the given bundle strings. */
+function countCerts(pems) {
+	let count = 0;
+	for (const pem of pems) {
+		count += pem.split(PEM_MARKER).length - 1;
+	}
+	return count;
+}
+
 function readFileIfExists(fs, filePath) {
 	try {
 		return fs.readFileSync(filePath, "utf8");
@@ -115,9 +124,9 @@ function readFileIfExists(fs, filePath) {
 
 /** Atomically writes [content] to [target]; returns true on success. */
 function writeBundle(fs, dir, target, content) {
+	const tmp = `${target}.${process.pid}.${Date.now()}.tmp`;
 	try {
 		fs.mkdirSync(dir, { recursive: true });
-		const tmp = `${target}.${process.pid}.${Date.now()}.tmp`;
 		// Owner read/write: the bundle holds public CA material, not secrets,
 		// but there is no reason to make it world-writable.
 		fs.writeFileSync(tmp, content, { mode: 0o600 });
@@ -125,16 +134,17 @@ function writeBundle(fs, dir, target, content) {
 			fs.renameSync(tmp, target);
 		} catch {
 			// Windows can reject rename over a file a concurrent child holds open.
-			try {
-				fs.rmSync(target, { force: true });
-				fs.renameSync(tmp, target);
-			} catch {
-				fs.rmSync(tmp, { force: true });
-				return false;
-			}
+			fs.rmSync(target, { force: true });
+			fs.renameSync(tmp, target);
 		}
 		return true;
 	} catch {
+		// Never leave a partial temp file behind (e.g. ENOSPC mid-write).
+		try {
+			fs.rmSync(tmp, { force: true });
+		} catch {
+			// Ignore: best-effort cleanup.
+		}
 		return false;
 	}
 }
@@ -171,7 +181,7 @@ function configureNodeExtraCaCerts(env, deps = {}) {
 	const base = {
 		path: managedPath,
 		systemCertCount: systemCerts.length,
-		userCertCount: userPems.length,
+		userCertCount: countCerts(userPems),
 	};
 
 	// Skip the rewrite when the bundle is already current. Avoids per-launch I/O
@@ -199,5 +209,6 @@ module.exports = {
 	readUserBundle,
 	readUserCerts,
 	buildBundle,
+	countCerts,
 	configureNodeExtraCaCerts,
 };
