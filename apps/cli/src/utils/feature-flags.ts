@@ -10,7 +10,6 @@ import {
 import { PostHogFeatureFlagsProvider } from "@cline/core/services/feature-flags/posthog";
 
 const POSTHOG_FEATURE_FLAGS_HOST = "https://data.cline.bot";
-const POSTHOG_FEATURE_FLAGS_TIMEOUT_MS = 5000;
 
 let cliFeatureFlagsContext: FeatureFlagsContext = { clientName: "cline-cli" };
 let cliFeatureFlagsService: FeatureFlagsService | undefined;
@@ -44,7 +43,6 @@ export function getCliFeatureFlagsService(options?: {
 						config: {
 							apiKey,
 							host: POSTHOG_FEATURE_FLAGS_HOST,
-							timeoutMs: POSTHOG_FEATURE_FLAGS_TIMEOUT_MS,
 							logger: options?.logger,
 						},
 					})

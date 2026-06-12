@@ -10,7 +10,6 @@ import { PostHog } from "posthog-node";
 export interface PostHogFeatureFlagsProviderConfig {
 	apiKey: string;
 	host?: string;
-	timeoutMs?: number;
 	fetch?: typeof fetch;
 	logger?: BasicLogger;
 }
@@ -34,7 +33,6 @@ export class PostHogFeatureFlagsProvider implements IFeatureFlagsProvider {
 		this.logger = options.config.logger;
 		this.settings = {
 			enabled: true,
-			timeoutMs: options.config.timeoutMs ?? 5000,
 		};
 
 		this.client =
