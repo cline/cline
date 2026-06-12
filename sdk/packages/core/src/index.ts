@@ -515,6 +515,7 @@ export {
 	SqliteTeamStore,
 	type SqliteTeamStoreOptions,
 } from "./services/storage/team-store";
+export { resolveCoreDistinctId } from "./services/telemetry";
 export type {
 	CaptureCompactionExecutedProperties,
 	CaptureCompactionSkippedProperties,

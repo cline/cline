@@ -1,5 +1,15 @@
 # Cline CLI Changelog
 
+## 3.0.24
+
+- Plugin commands can now submit prompts to the agent
+- Added support for overriding the API base URL
+- Open the verification URL automatically when starting device authentication
+- Enforced a single shared Cline Hub, so a stale hub is respawned after an upgrade
+- Suppressed flickering console windows on Windows
+- Fixed truncation of structured tool operation result strings so oversized tool output stays within limits
+- Stopped echoing the full command text in run_commands tool results
+
 ## 3.0.23
 
 - Fixed Vertex AI GCP settings configuration
