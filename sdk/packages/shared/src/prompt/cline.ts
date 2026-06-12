@@ -1,4 +1,5 @@
 import type { WorkspaceContext } from "../extensions/context";
+import { isClineProvider } from "../providers/utils";
 import type { WorkspaceInfo } from "../session/workspace";
 import {
 	DEFAULT_CLINE_SYSTEM_PROMPT,
@@ -84,7 +85,7 @@ export function buildClineSystemPrompt(
 		providerId,
 	} = options;
 	const workspaceRoot = options.workspaceRoot ?? options.rootPath ?? "";
-	const isCline = providerId === "cline";
+	const isCline = isClineProvider(providerId || "");
 
 	if (overridePrompt?.trim()) {
 		const trimmed = overridePrompt.trim();
