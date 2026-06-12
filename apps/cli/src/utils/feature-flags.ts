@@ -7,9 +7,10 @@ import {
 	registerDisposable,
 	resolveCoreDistinctId,
 } from "@cline/core";
-import { PostHogFeatureFlagsProvider } from "@cline/core/services/feature-flags/posthog";
-
-const POSTHOG_FEATURE_FLAGS_HOST = "https://data.cline.bot";
+import {
+	buildClinePostHogClient,
+	PostHogFeatureFlagsProvider,
+} from "@cline/core/services/feature-flags/posthog";
 
 let cliFeatureFlagsContext: FeatureFlagsContext = { clientName: "cline-cli" };
 let cliFeatureFlagsService: FeatureFlagsService | undefined;
@@ -40,9 +41,8 @@ export function getCliFeatureFlagsService(options?: {
 			process.env.IS_TEST !== "true" &&
 			process.env.E2E_TEST !== "true"
 				? new PostHogFeatureFlagsProvider({
+						client: buildClinePostHogClient(apiKey),
 						config: {
-							apiKey,
-							host: POSTHOG_FEATURE_FLAGS_HOST,
 							logger: options?.logger,
 						},
 					})

@@ -5,18 +5,25 @@ import type {
 	FeatureFlagsSettings,
 	IFeatureFlagsProvider,
 } from "@cline/shared";
-import { PostHog } from "posthog-node";
+import { PostHog, type PostHogOptions } from "posthog-node";
 
 export interface PostHogFeatureFlagsProviderConfig {
-	apiKey: string;
-	host?: string;
-	fetch?: typeof fetch;
 	logger?: BasicLogger;
 }
 
 export interface PostHogFeatureFlagsProviderOptions {
 	config: PostHogFeatureFlagsProviderConfig;
-	client?: PostHog;
+	client: PostHog;
+}
+
+export function buildClinePostHogClient(
+	apiKey: string,
+	options?: PostHogOptions | undefined,
+): PostHog {
+	return new PostHog(apiKey, {
+		host: "https://data.cline.bot",
+		...options,
+	});
 }
 
 export class PostHogFeatureFlagsProvider implements IFeatureFlagsProvider {
@@ -25,9 +32,8 @@ export class PostHogFeatureFlagsProvider implements IFeatureFlagsProvider {
 	private readonly logger?: BasicLogger;
 
 	constructor(options: PostHogFeatureFlagsProviderOptions) {
-		const apiKey = options.config.apiKey.trim();
-		if (!apiKey && !options.client) {
-			throw new Error("PostHog API key is required for feature flags");
+		if (!options.client) {
+			throw new Error("PostHog client is required for feature flags");
 		}
 
 		this.logger = options.config.logger;
@@ -35,12 +41,7 @@ export class PostHogFeatureFlagsProvider implements IFeatureFlagsProvider {
 			enabled: true,
 		};
 
-		this.client =
-			options.client ??
-			new PostHog(apiKey, {
-				host: options.config.host ?? "https://data.cline.bot",
-				fetch: options.config.fetch,
-			});
+		this.client = options.client;
 	}
 
 	async getAllFlagsAndPayloads(options: {
