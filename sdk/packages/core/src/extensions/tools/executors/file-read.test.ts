@@ -59,6 +59,46 @@ describe("createFileReadExecutor", () => {
 		expect(result).toBe("2400 | line 2400\n2401 | line 2401\n2402 | line 2402");
 	});
 
+	it("reads a requested range from a text file larger than the size gate", async () => {
+		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "agents-file-read-"));
+		const filePath = path.join(dir, "large.txt");
+		await fs.writeFile(filePath, numberedLines(100), "utf-8");
+
+		try {
+			const readFile = createFileReadExecutor({ maxFileSizeBytes: 10 });
+			const result = (await readFile(
+				{ path: filePath, start_line: 50, end_line: 52 },
+				{ agentId: "agent-1", conversationId: "conv-1", iteration: 1 },
+			)) as string;
+
+			expect(result).toBe(" 50 | line 50\n 51 | line 51\n 52 | line 52");
+		} finally {
+			await fs.rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	it("returns a window for an unranged text file larger than the size gate", async () => {
+		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "agents-file-read-"));
+		const filePath = path.join(dir, "large.txt");
+		await fs.writeFile(filePath, numberedLines(2500), "utf-8");
+
+		try {
+			const readFile = createFileReadExecutor({ maxFileSizeBytes: 10 });
+			const result = (await readFile(
+				{ path: filePath },
+				{ agentId: "agent-1", conversationId: "conv-1", iteration: 1 },
+			)) as string;
+
+			expect(result).toContain("1 | line 1");
+			expect(result).toContain("2000 | line 2000");
+			expect(result).toContain(
+				"[Showing lines 1-2000 of 2500. Use start_line/end_line to read other sections.]",
+			);
+		} finally {
+			await fs.rm(dir, { recursive: true, force: true });
+		}
+	});
+
 	it("truncates very long lines", async () => {
 		const result = await readTempFile(`short\n${"y".repeat(5000)}\nend`);
 
