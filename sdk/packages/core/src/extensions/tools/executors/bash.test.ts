@@ -1,6 +1,6 @@
 import type { AgentToolContext } from "@cline/shared";
 import { describe, expect, it } from "vitest";
-import { createBashExecutor } from "./bash";
+import { CommandExitError, createBashExecutor } from "./bash";
 
 const ctx: AgentToolContext = {
 	agentId: "agent-1",
@@ -18,6 +18,33 @@ describe("createBashExecutor", () => {
 	it("rejects on non-zero exit code", async () => {
 		const bash = createBashExecutor();
 		await expect(bash("exit 1", process.cwd(), ctx)).rejects.toThrow();
+	});
+
+	it("includes stdout and exit code on non-zero exit", async () => {
+		const bash = createBashExecutor();
+		let error: unknown;
+		try {
+			await bash(
+				{
+					command: process.execPath,
+					args: [
+						"-e",
+						"process.stdout.write('failure details'); process.exit(1)",
+					],
+				},
+				process.cwd(),
+				ctx,
+			);
+		} catch (caught) {
+			error = caught;
+		}
+
+		if (!(error instanceof CommandExitError)) {
+			throw new Error("Expected CommandExitError");
+		}
+		expect(error.exitCode).toBe(1);
+		expect(error.output).toContain("[Command exited with code 1]");
+		expect(error.output).toContain("failure details");
 	});
 
 	it("includes stderr in combined output on success", async () => {
@@ -109,10 +136,11 @@ describe("createBashExecutor", () => {
 		expect(output).toBe(payload);
 	});
 
-	it("marks truncation in the error when a failing command floods stderr", async () => {
+	it("marks truncation in the captured output when a failing command floods stderr", async () => {
 		const bash = createBashExecutor({ maxOutputBytes: 20 });
-		await expect(
-			bash(
+		let error: unknown;
+		try {
+			await bash(
 				{
 					command: process.execPath,
 					args: [
@@ -122,8 +150,15 @@ describe("createBashExecutor", () => {
 				},
 				process.cwd(),
 				ctx,
-			),
-		).rejects.toThrow("output truncated");
+			);
+		} catch (caught) {
+			error = caught;
+		}
+
+		if (!(error instanceof CommandExitError)) {
+			throw new Error("Expected CommandExitError");
+		}
+		expect(error.output).toContain("output truncated");
 	});
 
 	it("keeps the tail of streamed output written in many chunks", async () => {
