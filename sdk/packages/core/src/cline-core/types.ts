@@ -21,6 +21,7 @@ import type {
 	StartSessionInput,
 	StartSessionResult,
 } from "../runtime/host/runtime-host";
+import type { FeatureFlagsService } from "../services/feature-flags";
 import type { CoreSessionConfig } from "../types/config";
 import type { SessionMessagesArtifactUploader } from "../types/session";
 
@@ -205,6 +206,11 @@ export interface ClineCoreOptions {
 	 * If omitted, telemetry is a no-op.
 	 */
 	telemetry?: ITelemetryService;
+	/**
+	 * Feature flags service for this ClineCore instance.
+	 * If omitted, Core uses a no-op provider with default flag values.
+	 */
+	featureFlags?: FeatureFlagsService;
 	/**
 	 * Optional structured logger for core-side operational diagnostics such as
 	 * runtime-host selection and fallback decisions.

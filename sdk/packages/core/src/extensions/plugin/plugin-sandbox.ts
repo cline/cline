@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type {
 	AgentConfig,
+	AgentExtensionCommandResult,
 	AgentExtensionAutomationEventType,
 	AgentExtensionRule,
 	AgentRuntimeHooks,
@@ -434,7 +435,7 @@ function registerCommands(
 			description: cd.description,
 			handler: async (input: string) => {
 				try {
-					return await sandbox.call<string>(
+					return await sandbox.call<AgentExtensionCommandResult>(
 						"executeCommand",
 						{
 							pluginId: descriptor.pluginId,
@@ -448,7 +449,7 @@ function registerCommands(
 						throw error;
 					}
 					await reinitialize();
-					return await sandbox.call<string>(
+					return await sandbox.call<AgentExtensionCommandResult>(
 						"executeCommand",
 						{
 							pluginId: descriptor.pluginId,

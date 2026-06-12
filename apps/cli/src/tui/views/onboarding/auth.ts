@@ -89,11 +89,18 @@ export function runDeviceCodeAuthFlow(input: {
 	startClineDeviceAuth()
 		.then((result) => {
 			if (input.isAborted()) return;
+			const verifyUrl =
+				result.verificationUriComplete || result.verificationUri;
 			input.setUserCode(result.userCode);
-			input.setVerifyUrl(
-				result.verificationUriComplete || result.verificationUri,
-			);
+			input.setVerifyUrl(verifyUrl);
 			input.setStatus("Enter the code at the URL below");
+			try {
+				void open(verifyUrl, { wait: false }).catch(() => {
+					input.setStatus("Could not open browser. Visit the URL below.");
+				});
+			} catch {
+				input.setStatus("Could not open browser. Visit the URL below.");
+			}
 
 			completeClineDeviceAuth({
 				deviceCode: result.deviceCode,

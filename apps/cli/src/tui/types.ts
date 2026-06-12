@@ -152,6 +152,7 @@ export interface TuiProps {
 		mode: AgentMode,
 		delivery?: "queue" | "steer",
 		attachments?: UserInputAttachments,
+		onCommandOutput?: (text: string) => void,
 	) => Promise<InteractiveTurnResult>;
 	onUpdatePendingPrompt: (input: {
 		promptId: string;

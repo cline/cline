@@ -34,7 +34,7 @@ vi.mock("./telemetry", async (importOriginal) => {
 
 import {
 	captureCliExtensionActivated,
-	identifyCliTelemetryAccount,
+	identifyTelemetryAccount,
 } from "./telemetry";
 import { resetCliExtensionActivationForTests } from "./telemetry.test-helpers";
 
@@ -93,7 +93,7 @@ describe("captureCliExtensionActivated", () => {
 	});
 });
 
-describe("identifyCliTelemetryAccount", () => {
+describe("identifyTelemetryAccount", () => {
 	beforeEach(() => {
 		hoisted.identifyAccount.mockClear();
 		hoisted.getCliTelemetryService.mockClear();
@@ -107,7 +107,7 @@ describe("identifyCliTelemetryAccount", () => {
 			memberId: "member-7",
 			provider: "cline",
 		};
-		identifyCliTelemetryAccount(account);
+		identifyTelemetryAccount(account);
 		expect(hoisted.identifyAccount).toHaveBeenCalledWith(undefined, account);
 	});
 });

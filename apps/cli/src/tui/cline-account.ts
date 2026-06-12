@@ -14,12 +14,13 @@ import {
 } from "@cline/core";
 import { getClineEnvironmentConfig } from "@cline/shared";
 import { formatCreditBalance, normalizeCreditBalance } from "../utils/output";
+import { identifyTelemetryAccount } from "../utils/telemetry";
 import type { Config } from "../utils/types";
 
 export const CLINE_CREDITS_DASHBOARD_URL =
 	"https://app.cline.bot/dashboard/account?tab=credits";
 
-type ClineAccountConfig = Pick<Config, "apiKey" | "providerId">;
+type ClineAccountConfig = Pick<Config, "apiKey" | "logger" | "providerId">;
 
 export interface ClineAccountSnapshot {
 	user: ClineAccountUser;
@@ -167,6 +168,15 @@ export async function loadClineAccountSnapshot(input: {
 	const displayedBalance = activeOrganization
 		? (organizationBalance?.balance ?? balance.balance)
 		: balance.balance;
+	const accountContext = {
+		id: user.id,
+		email: user.email,
+		provider: "cline",
+		organizationId: activeOrganization?.organizationId,
+		organizationName: activeOrganization?.name,
+		memberId: activeOrganization?.memberId,
+	};
+	identifyTelemetryAccount(accountContext, input.config.logger);
 
 	return {
 		user,

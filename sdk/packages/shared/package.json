@@ -1,6 +1,6 @@
 {
 	"name": "@cline/shared",
-	"version": "0.0.46",
+	"version": "0.0.47",
 	"description": "Shared utilities, types, and schemas for Cline packages",
 	"repository": {
 		"type": "git",

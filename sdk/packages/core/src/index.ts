@@ -13,6 +13,7 @@ export type {
 	AgentExtension as AgentPlugin, // Public-facing alias for extensions
 	AgentExtensionCommand,
 	AgentExtensionCommand as AgentPluginCommand,
+	AgentExtensionCommandResult,
 	AgentHooks,
 	AgentMode,
 	AgentResult,
@@ -32,9 +33,15 @@ export type {
 	ClineAccountActionRequest,
 	ConnectorHookEvent,
 	ContentBlock,
+	FeatureFlag,
+	FeatureFlagPayload,
+	FeatureFlagsAndPayloads,
+	FeatureFlagsContext,
+	FeatureFlagsSettings,
 	FileContent,
 	GetProviderModelsActionRequest,
 	HookSessionContext,
+	IFeatureFlagsProvider,
 	ImageContent,
 	ITelemetryService,
 	ListProvidersActionRequest,
@@ -81,6 +88,8 @@ export {
 	createContributionRegistry,
 	createTool,
 	emptyWorkspaceManifest,
+	FEATURE_FLAGS,
+	FeatureFlagDefaultValue,
 	formatDisplayUserInput,
 	noopBasicLogger,
 	normalizeSdkError,
@@ -434,6 +443,11 @@ export {
 	type DesktopToolApprovalOptions,
 	requestDesktopToolApproval,
 } from "./runtime/tools/tool-approval";
+export {
+	FeatureFlagsService,
+	type FeatureFlagsServiceOptions,
+	NoOpFeatureFlagsProvider,
+} from "./services/feature-flags";
 export type { GlobalSettings } from "./services/global-settings";
 export {
 	filterDisabledPluginPaths,
@@ -501,6 +515,7 @@ export {
 	SqliteTeamStore,
 	type SqliteTeamStoreOptions,
 } from "./services/storage/team-store";
+export { resolveCoreDistinctId } from "./services/telemetry";
 export type {
 	CaptureCompactionExecutedProperties,
 	CaptureCompactionSkippedProperties,

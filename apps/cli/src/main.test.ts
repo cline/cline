@@ -101,7 +101,7 @@ const hubRuntimeMocks = vi.hoisted(() => ({
 }));
 const telemetryMocks = vi.hoisted(() => ({
 	captureCliExtensionActivated: vi.fn(),
-	identifyCliTelemetryAccount: vi.fn(),
+	identifyTelemetryAccount: vi.fn(),
 	getCliTelemetryService: vi.fn(),
 	disposeCliTelemetryService: vi.fn(async () => {}),
 }));
@@ -246,7 +246,7 @@ describe("runCli lightweight command dispatch", () => {
 		updateMocks.getPreferredKanbanInstaller.mockReset();
 		updateMocks.getPreferredKanbanInstaller.mockReturnValue(undefined);
 		telemetryMocks.captureCliExtensionActivated.mockReset();
-		telemetryMocks.identifyCliTelemetryAccount.mockReset();
+		telemetryMocks.identifyTelemetryAccount.mockReset();
 		telemetryMocks.getCliTelemetryService.mockReset();
 		telemetryMocks.disposeCliTelemetryService.mockReset();
 		telemetryMocks.disposeCliTelemetryService.mockResolvedValue(undefined);
