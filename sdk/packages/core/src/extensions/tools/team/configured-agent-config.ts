@@ -69,6 +69,12 @@ export function resolveConfiguredAgentAllowedToolNames(
 	if (config.skills !== undefined) {
 		allowed.add("skills");
 	}
+	// Editing is one capability that model routing surfaces under two tool
+	// names; allowing either keeps the profile working on every model.
+	if (allowed.has("editor") || allowed.has("apply_patch")) {
+		allowed.add("editor");
+		allowed.add("apply_patch");
+	}
 	return allowed;
 }
 

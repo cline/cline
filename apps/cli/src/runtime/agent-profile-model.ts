@@ -1,4 +1,8 @@
-import { ProviderSettingsManager, resolveProviderConfig } from "@cline/core";
+import {
+	Llms,
+	ProviderSettingsManager,
+	resolveProviderConfig,
+} from "@cline/core";
 import {
 	getPersistedProviderApiKey,
 	hasEnvProviderApiKey,
@@ -84,7 +88,10 @@ export async function applyAgentProfileModelSelection(
 		profile?.modelId ??
 		targetSettings?.model ??
 		(providerChanged || currentModelIsProfileDriven
-			? (knownModelIds[0] ?? config.modelId)
+			? (knownModelIds[0] ??
+				Llms.getProviderCollectionSync(targetProvider)?.provider
+					.defaultModelId ??
+				config.modelId)
 			: config.modelId);
 
 	if (providerChanged || config.modelId !== previousModelId) {

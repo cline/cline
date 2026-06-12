@@ -129,9 +129,9 @@ describe("resolveConfiguredAgentAllowedToolNames", () => {
 	it("resolves legacy aliases and normalizes casing", () => {
 		expect(
 			resolveConfiguredAgentAllowedToolNames({
-				tools: ["Execute_Command", "read_file", "editor"],
+				tools: ["Execute_Command", "read_file"],
 			}),
-		).toEqual(new Set(["run_commands", "read_files", "editor"]));
+		).toEqual(new Set(["run_commands", "read_files"]));
 	});
 
 	it("implicitly allows the skills tool when skills are configured", () => {
@@ -147,5 +147,14 @@ describe("resolveConfiguredAgentAllowedToolNames", () => {
 		expect(resolveConfiguredAgentAllowedToolNames({ tools: [] })).toEqual(
 			new Set(),
 		);
+	});
+
+	it("allows both editing tool names when either routed name is listed", () => {
+		expect(
+			resolveConfiguredAgentAllowedToolNames({ tools: ["editor"] }),
+		).toEqual(new Set(["editor", "apply_patch"]));
+		expect(
+			resolveConfiguredAgentAllowedToolNames({ tools: ["apply_patch"] }),
+		).toEqual(new Set(["editor", "apply_patch"]));
 	});
 });

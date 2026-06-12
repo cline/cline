@@ -972,10 +972,14 @@ export async function runCli(): Promise<void> {
 		);
 		let selectedProviderSettings =
 			providerSettingsManager.getProviderSettings(provider);
-		// Env-declared API keys count as credentials: request paths resolve
-		// them at runtime even when no settings are persisted.
+		// Env-declared API keys count as credentials (request paths resolve
+		// them at runtime even when no settings are persisted), and so does an
+		// explicit --key: with a key in hand the profile's provider is usable,
+		// and skipping the fail-soft keeps that key from being persisted into
+		// the fallback provider's settings below.
 		if (
 			providerFromProfile &&
+			!args.key?.trim() &&
 			!isProviderConfigured(provider, selectedProviderSettings) &&
 			!hasEnvProviderApiKey(provider)
 		) {

@@ -206,6 +206,31 @@ describe("applyAgentProfileModelSelection", () => {
 		expect(config.modelId).toBe(firstKnownModelId);
 	});
 
+	it("falls back to the provider's catalog default model when nothing else is available", async () => {
+		const root = await mkdtemp(join(tmpdir(), "cli-profile-model-"));
+		tempRoots.push(root);
+		const home = join(root, "home");
+		await mkdir(home, { recursive: true });
+		process.env.HOME = home;
+		setHomeDir(home);
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = join(home, "global-settings.json");
+		// No persisted model, and the live config carries no known models.
+		new ProviderSettingsManager().saveProviderSettings({
+			provider: "anthropic",
+			apiKey: "anthropic-key",
+		});
+		const config = makeConfig({ knownModels: undefined });
+
+		const pinned = { modelId: "anthropic/claude-haiku-4.5" };
+		await applyAgentProfileModelSelection(config, pinned);
+		await applyAgentProfileModelSelection(config, undefined, {
+			previousProfile: pinned,
+		});
+
+		// Anthropic's catalog default, not the profile's pinned model.
+		expect(config.modelId).toBe("claude-sonnet-4-6");
+	});
+
 	it("accepts a profile provider configured only through its environment variable", async () => {
 		await setUpProviderSettings();
 		const previousEnv = process.env.OPENROUTER_API_KEY;

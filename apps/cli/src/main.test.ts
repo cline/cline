@@ -1152,6 +1152,50 @@ describe("runCli lightweight command dispatch", () => {
 		expect(runConfig.modelId).not.toBe("groq/some-model");
 	});
 
+	it("treats an explicit --key as credentials for the profile's provider and persists nothing", async () => {
+		agentConfigMocks.loadConfiguredAgentConfigs.mockReturnValue({
+			configs: [
+				{
+					name: "Reviewer",
+					description: "Reviews code",
+					systemPrompt: "You are a reviewer.",
+					providerId: "groq",
+					modelId: "groq/some-model",
+					path: "/repo/.cline/agents/reviewer.yaml",
+				},
+			],
+			errors: [],
+		});
+		// The provider has no stored credentials; only the --key flag supplies one.
+		authMocks.isProviderConfigured.mockReturnValue(false);
+		providerSettingsMocks.saveProviderSettings.mockClear();
+		forcePromptModeInput();
+		process.argv = [
+			"bun",
+			"src/index.ts",
+			"--agent",
+			"reviewer",
+			"--key",
+			"groq-key",
+			"hello",
+		];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
+			"hello",
+			expect.objectContaining({
+				providerId: "groq",
+				modelId: "groq/some-model",
+				apiKey: "groq-key",
+			}),
+			expect.anything(),
+		);
+		// The --key must not leak into another provider's persisted settings.
+		expect(providerSettingsMocks.saveProviderSettings).not.toHaveBeenCalled();
+	});
+
 	it("rejects --agent in yolo mode before loading profiles", async () => {
 		forcePromptModeInput();
 		process.argv = [
