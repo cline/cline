@@ -35,7 +35,7 @@ export function getCliFeatureFlagsService(options?: {
 	telemetry?: ITelemetryService;
 }): FeatureFlagsService {
 	if (!cliFeatureFlagsService) {
-		const apiKey = process.env.TELEMETRY_SERVICE_API_KEY?.trim();
+		const apiKey = process.env.TELEMETRY_SERVICE_API_KEY;
 		const provider =
 			apiKey &&
 			process.env.IS_TEST !== "true" &&
