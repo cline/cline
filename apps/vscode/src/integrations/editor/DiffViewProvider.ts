@@ -17,6 +17,7 @@ export abstract class DiffViewProvider {
 	editType?: "create" | "modify" | "delete"
 	isEditing = false
 	originalContent: string | undefined
+	protected capturedOriginalForAbort: string | undefined
 	private createdDirs: string[] = []
 	protected documentWasOpen = false
 	private preDiagnostics: FileDiagnostics[] = []
@@ -45,8 +46,10 @@ export abstract class DiffViewProvider {
 			const fileBuffer = await fs.readFile(this.absolutePath)
 			this.fileEncoding = await detectEncoding(fileBuffer)
 			this.originalContent = iconv.decode(fileBuffer, this.fileEncoding)
+			this.capturedOriginalForAbort = this.originalContent
 		} else {
 			this.originalContent = ""
+			this.capturedOriginalForAbort = ""
 			this.fileEncoding = "utf8"
 		}
 		// for new files, create any necessary directories and keep track of new directories to delete if the user denies the operation
@@ -430,12 +433,19 @@ export abstract class DiffViewProvider {
 			// revert document
 			// Apply the edit and save, since contents shouldn't have changed this won't show in local history unless of
 			// course the user made changes and saved during the edit.
-			const contents = (await this.getDocumentText()) || ""
-			const lineCount = (contents.match(/\n/g) || []).length + 1
-			await this.replaceText(this.originalContent ?? "", { startLine: 0, endLine: lineCount }, undefined)
+			const contents = await this.getDocumentText()
+			if (contents === undefined && this.isEditing && this.absolutePath && this.capturedOriginalForAbort !== undefined) {
+				// Editor is closed but we have a captured original; write directly to disk
+				await fs.writeFile(this.absolutePath, iconv.encode(this.capturedOriginalForAbort, this.fileEncoding))
+				Logger.log(`File ${this.absolutePath} has been reverted to its original content (from captured state).`)
+			} else if (contents !== undefined) {
+				// Editor is open; use normal path
+				const lineCount = (contents.match(/\n/g) || []).length + 1
+				await this.replaceText(this.originalContent ?? "", { startLine: 0, endLine: lineCount }, undefined)
 
-			await this.saveDocument()
-			Logger.log(`File ${this.absolutePath} has been reverted to its original content.`)
+				await this.saveDocument()
+				Logger.log(`File ${this.absolutePath} has been reverted to its original content.`)
+			}
 			if (this.documentWasOpen) {
 				openFile(this.absolutePath, true)
 			}
@@ -495,6 +505,7 @@ export abstract class DiffViewProvider {
 		this.preDiagnostics = []
 
 		this.originalContent = undefined
+		this.capturedOriginalForAbort = undefined
 		this.fileEncoding = "utf8"
 		this.documentWasOpen = false
 

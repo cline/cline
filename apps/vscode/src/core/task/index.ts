@@ -1798,7 +1798,7 @@ export class Task {
 		return true;
 	}
 
-	async abortTask() {
+	async abortTask(skipDiffRevert = false) {
 		try {
 			// PHASE 1: Check if TaskCancel should run BEFORE any cleanup
 			// We must capture this state now because subsequent cleanup will
@@ -1933,7 +1933,9 @@ export class Task {
 			this.fileContextTracker.dispose();
 			// need to await for when we want to make sure directories/files are reverted before
 			// re-starting the task from a checkpoint
-			await this.diffViewProvider.revertChanges();
+			if (!skipDiffRevert) {
+				await this.diffViewProvider.revertChanges();
+			}
 			// Clear the notification callback when task is aborted
 			this.mcpHub.clearNotificationCallback();
 			if (this.FocusChainManager) {
@@ -3619,7 +3621,7 @@ export class Task {
 					}
 
 					// needs to happen after the say, otherwise the say would fail
-					this.abortTask(); // if the stream failed, there's various states the task could be in (i.e. could have streamed some tools the user may have executed), so we just resort to replicating a cancel task
+					this.abortTask(true); // if the stream failed, there's various states the task could be in (i.e. could have streamed some tools the user may have executed), so we just resort to replicating a cancel task
 
 					await abortStream("streaming_failed", errorMessage);
 					await this.reinitExistingTaskFromId(this.taskId);
