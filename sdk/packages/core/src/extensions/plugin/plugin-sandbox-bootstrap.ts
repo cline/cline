@@ -37,7 +37,9 @@ interface PluginTool {
 interface PluginCommand {
 	name: string;
 	description?: string;
-	handler?: (input: string) => Promise<PluginCommandResult> | PluginCommandResult;
+	handler?: (
+		input: string,
+	) => Promise<PluginCommandResult> | PluginCommandResult;
 }
 
 // Keep this local mirror in sync with AgentExtensionCommandResult from @cline/shared.
