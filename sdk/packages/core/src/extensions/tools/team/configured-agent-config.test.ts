@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { parseConfiguredAgentConfig } from "./configured-agent-config";
+import {
+	parseConfiguredAgentConfig,
+	resolveConfiguredAgentAllowedToolNames,
+} from "./configured-agent-config";
 
 describe("configured agent config parser", () => {
 	it("parses YAML frontmatter and system prompt body", () => {
@@ -113,5 +116,36 @@ ${yaml}
 ---
 You are a code reviewer.`),
 		).toThrow("Missing closing YAML frontmatter delimiter");
+	});
+});
+
+describe("resolveConfiguredAgentAllowedToolNames", () => {
+	it("returns undefined when the config does not restrict tools", () => {
+		expect(
+			resolveConfiguredAgentAllowedToolNames({ skills: ["review-pr"] }),
+		).toBeUndefined();
+	});
+
+	it("resolves legacy aliases and normalizes casing", () => {
+		expect(
+			resolveConfiguredAgentAllowedToolNames({
+				tools: ["Execute_Command", "read_file", "editor"],
+			}),
+		).toEqual(new Set(["run_commands", "read_files", "editor"]));
+	});
+
+	it("implicitly allows the skills tool when skills are configured", () => {
+		expect(
+			resolveConfiguredAgentAllowedToolNames({
+				tools: ["read_files"],
+				skills: ["review-pr"],
+			}),
+		).toEqual(new Set(["read_files", "skills"]));
+	});
+
+	it("treats an empty tools list as allowing nothing extra", () => {
+		expect(resolveConfiguredAgentAllowedToolNames({ tools: [] })).toEqual(
+			new Set(),
+		);
 	});
 });

@@ -321,6 +321,8 @@ export {
 	type DelegatedAgentRuntimeConfig,
 	loadConfiguredAgentConfigs,
 	parseConfiguredAgentConfig,
+	resolveConfiguredAgentAllowedToolNames,
+	resolveConfiguredAgentToolName,
 	reviveTeamStateDates,
 	type SpawnTeammateOptions,
 	type SubAgentEndContext,

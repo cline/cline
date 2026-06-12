@@ -5,6 +5,8 @@ export {
 	type ConfiguredAgentReadError,
 	loadConfiguredAgentConfigs,
 	parseConfiguredAgentConfig,
+	resolveConfiguredAgentAllowedToolNames,
+	resolveConfiguredAgentToolName,
 } from "./configured-agent-config";
 export {
 	buildConfiguredAgentToolDescriptors,

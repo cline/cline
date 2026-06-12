@@ -206,6 +206,14 @@ export interface CoreSessionConfig
 	 * plugin set for one session without touching persisted user settings.
 	 */
 	disabledPluginPaths?: string[];
+	/**
+	 * Session-scoped tool disable list (builtin tool names), applied on top of
+	 * the globally disabled tools. Used by agent profiles to restrict the main
+	 * agent's builtin toolset for one session without touching persisted user
+	 * settings. Does not affect subagent or teammate toolsets, which are
+	 * governed by their own configs.
+	 */
+	disabledToolNames?: string[];
 	extensions?: AgentConfig["extensions"];
 	execution?: AgentConfig["execution"];
 	compaction?: CoreCompactionConfig;

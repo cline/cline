@@ -32,7 +32,10 @@ import {
 	type TeamEvent,
 } from "../../extensions/tools/team";
 import type { ConfiguredAgentConfig } from "../../extensions/tools/team/configured-agent-config";
-import { loadConfiguredAgentConfigs } from "../../extensions/tools/team/configured-agent-config";
+import {
+	loadConfiguredAgentConfigs,
+	resolveConfiguredAgentAllowedToolNames,
+} from "../../extensions/tools/team/configured-agent-config";
 import { createConfiguredAgentTools } from "../../extensions/tools/team/configured-agent-tool";
 import {
 	filterDisabledTools,
@@ -79,42 +82,25 @@ function filterToolsByPolicies(
 function filterAvailableTools(
 	tools: AgentTool[],
 	toolPolicies: CoreSessionConfig["toolPolicies"],
+	sessionDisabledToolNames?: ReadonlyArray<string>,
 ): AgentTool[] {
-	return filterDisabledTools(filterToolsByPolicies(tools, toolPolicies));
-}
-
-const CONFIGURED_AGENT_TOOL_NAME_ALIASES: Record<string, string> = {
-	apply_diff: "editor",
-	attempt_completion: "submit_and_exit",
-	bash: "run_commands",
-	execute_command: "run_commands",
-	list_code_definition_names: "search_codebase",
-	list_files: "run_commands",
-	read_file: "read_files",
-	replace_in_file: "editor",
-	search_files: "search_codebase",
-	use_skill: "skills",
-	write_to_file: "editor",
-};
-
-function resolveConfiguredAgentToolName(toolName: string): string {
-	const normalized = toolName.trim().toLowerCase();
-	return CONFIGURED_AGENT_TOOL_NAME_ALIASES[normalized] ?? normalized;
+	const filtered = filterDisabledTools(
+		filterToolsByPolicies(tools, toolPolicies),
+	);
+	if (!sessionDisabledToolNames?.length) {
+		return filtered;
+	}
+	const sessionDisabled = new Set(sessionDisabledToolNames);
+	return filtered.filter((tool) => !sessionDisabled.has(tool.name));
 }
 
 function filterToolsForConfiguredAgent(
 	tools: AgentTool[],
 	agent: ConfiguredAgentConfig,
 ): AgentTool[] {
-	if (agent.tools === undefined) {
+	const allowedToolNames = resolveConfiguredAgentAllowedToolNames(agent);
+	if (allowedToolNames === undefined) {
 		return tools;
-	}
-
-	const allowedToolNames = new Set(
-		agent.tools.map(resolveConfiguredAgentToolName),
-	);
-	if (agent.skills !== undefined) {
-		allowedToolNames.add("skills");
 	}
 	return tools.filter((tool) => allowedToolNames.has(tool.name));
 }
@@ -132,6 +118,7 @@ function createBuiltinToolsList(
 	toolPolicies: CoreSessionConfig["toolPolicies"],
 	skillsExecutor?: SkillsExecutorWithMetadata,
 	executorOverrides?: Partial<ToolExecutors>,
+	sessionDisabledToolNames?: ReadonlyArray<string>,
 ): AgentTool[] {
 	const preset = ToolPresets[resolveToolPresetName({ mode })];
 	const toolRoutingConfig = resolveToolRoutingConfig(
@@ -157,6 +144,7 @@ function createBuiltinToolsList(
 			},
 		}),
 		toolPolicies,
+		sessionDisabledToolNames,
 	);
 }
 
@@ -168,6 +156,7 @@ function isSkillsToolEnabledForSession(input: {
 	toolRoutingRules?: ToolRoutingRule[];
 	toolPolicies?: CoreSessionConfig["toolPolicies"];
 	toolExecutors?: Partial<ToolExecutors>;
+	disabledToolNames?: ReadonlyArray<string>;
 }): boolean {
 	return createBuiltinToolsList(
 		input.cwd,
@@ -178,6 +167,7 @@ function isSkillsToolEnabledForSession(input: {
 		input.toolPolicies,
 		SKILLS_PROBE_EXECUTOR,
 		input.toolExecutors,
+		input.disabledToolNames,
 	).some((tool) => tool.name === "skills");
 }
 
@@ -421,6 +411,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 				toolRoutingRules: config.toolRoutingRules,
 				toolPolicies: effectiveToolPolicies,
 				toolExecutors,
+				disabledToolNames: config.disabledToolNames,
 			});
 
 		const userInstructionPlugin =
@@ -448,6 +439,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					effectiveToolPolicies,
 					undefined,
 					toolExecutors,
+					config.disabledToolNames,
 				),
 			);
 			if (!normalized.disableMcpSettingsTools) {
@@ -653,7 +645,11 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			ensureTeamRuntime();
 		}
 
-		const finalTools = filterAvailableTools(tools, effectiveToolPolicies);
+		const finalTools = filterAvailableTools(
+			tools,
+			effectiveToolPolicies,
+			config.disabledToolNames,
+		);
 		const requiresCompletionTool = finalTools.some(
 			(tool) =>
 				tool.name === "submit_and_exit" &&

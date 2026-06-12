@@ -258,6 +258,60 @@ Write a concise commit message.`,
 		await runtime.shutdown("test");
 	});
 
+	it("does not apply session-disabled tools to configured subagent toolsets", async () => {
+		const { DefaultRuntimeBuilder } = await import("./runtime-builder");
+		const tempHome = mkdtempSync(join(tmpdir(), "cline-agent-home-"));
+		const workspaceRoot = mkdtempSync(join(tmpdir(), "cline-agent-session-"));
+		tempDirs.push(tempHome, workspaceRoot);
+		process.env.HOME = tempHome;
+		setHomeDir(tempHome);
+		const agentsDir = join(workspaceRoot, ".cline", "agents");
+		mkdirSync(agentsDir, { recursive: true });
+		writeFileSync(
+			join(agentsDir, "reviewer.yml"),
+			`---
+name: reviewer
+description: Reviews code
+tools: run_commands, read_files
+---
+You are a reviewer.`,
+			"utf8",
+		);
+
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({
+				cwd: workspaceRoot,
+				workspaceRoot,
+				disabledToolNames: ["run_commands"],
+			}),
+			configExtensions: [],
+		});
+
+		const mainToolNames = runtime.tools.map((tool) => tool.name);
+		expect(mainToolNames).not.toContain("run_commands");
+		expect(mainToolNames).toContain("subagent_reviewer");
+
+		const reviewer = runtime.tools.find(
+			(tool) => tool.name === "subagent_reviewer",
+		);
+		if (!reviewer) {
+			throw new Error("Expected configured reviewer tool.");
+		}
+		await reviewer.execute(
+			{ prompt: "review this change" },
+			{ agentId: "parent-agent", iteration: 1 },
+		);
+
+		const delegatedConfig = agentConstructorSpy.mock.calls.at(-1)?.[0] as
+			| AgentConfig
+			| undefined;
+		expect(delegatedConfig?.tools.map((tool) => tool.name)).toContain(
+			"run_commands",
+		);
+
+		await runtime.shutdown("test");
+	});
+
 	it("does not require custom user instruction services to implement createSkillsExecutor", async () => {
 		const { DefaultRuntimeBuilder } = await import("./runtime-builder");
 		const workspaceRoot = mkdtempSync(join(tmpdir(), "cline-agent-compat-"));
