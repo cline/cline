@@ -11,6 +11,7 @@ import { repairMcpArgumentsString } from "../ToolInputRepair"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
+import { isAiHydroServerName } from "./aiHydroServer"
 
 export class UseMcpToolHandler implements IFullyManagedTool {
 	readonly name = AiHydroDefaultTool.MCP_USE
@@ -150,13 +151,10 @@ export class UseMcpToolHandler implements IFullyManagedTool {
 			// ai-hydro MCP tool call so the Python session resolver can bind this
 			// chat ↔ study and auto-set workspace_dir for file outputs.
 			// Both fields are stripped server-side before reaching any tool parameter;
-			// they never appear in tool schemas or LLM context.
-			// Users register the same server under several names (ai-hydro, aihydro-tools,
-			// aihydro, …); a strict equality check here silently disabled chat↔study binding
-			// for every alias, so match the whole ai-hydro family instead.
-			const isAiHydroServer = /^ai-?hydro([-_].*)?$/i.test(server_name)
+			// they never appear in tool schemas or LLM context. See isAiHydroServerName
+			// for why this matches the whole server-name family, not a single literal.
 			let argsWithChatId = parsedArguments
-			if (isAiHydroServer && config.ulid) {
+			if (isAiHydroServerName(server_name) && config.ulid) {
 				// Workspace: use HostProvider abstraction (VS Code workspace folder
 				// visible in the Explorer), fall back to the task cwd.
 				let workspaceRoot: string | undefined = config.cwd

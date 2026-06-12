@@ -366,6 +366,14 @@ export const ChatRowContent = memo(
 		// A command is pending if it hasn't started (no output) and hasn't completed
 		const isCommandPending = isCommandMessage && isLast && !message.commandCompleted && !commandHasOutput
 		const isCommandCompleted = isCommandMessage && message.commandCompleted === true
+		// Within the pending state, distinguish "waiting on the user" from "approved and
+		// executing but no output yet". The harness renders an approval request as
+		// ask==="command" and an already-approved/auto-approved command as say==="command".
+		// Collapsing both into a single "Pending" badge made a terminal-acquisition hang
+		// (approved, executing, but stalled before any output) look identical to awaiting
+		// approval — a real frozen session was misdiagnosed as a permission prompt for hours.
+		const isCommandAwaitingApproval = isCommandPending && message.ask === "command"
+		const isCommandStarting = isCommandPending && message.say === "command"
 
 		const isMcpServerResponding = isLast && lastModifiedMessage?.say === "mcp_server_request_started"
 
@@ -1066,39 +1074,60 @@ export const ChatRowContent = memo(
 										flex: 1,
 										minWidth: 0,
 									}}>
-									<div
-										style={{
-											width: "8px",
-											height: "8px",
-											borderRadius: "50%",
-											backgroundColor: isCommandExecuting
-												? successColor
-												: isCommandPending
-													? "var(--vscode-editorWarning-foreground)"
-													: "var(--vscode-descriptionForeground)",
-											animation: isCommandExecuting ? "pulse 2s ease-in-out infinite" : "none",
-											flexShrink: 0,
-										}}
-									/>
-									<span
-										style={{
-											color: isCommandExecuting
-												? successColor
-												: isCommandPending
-													? "var(--vscode-editorWarning-foreground)"
-													: "var(--vscode-descriptionForeground)",
-											fontWeight: 500,
-											fontSize: "13px",
-											flexShrink: 0,
-										}}>
-										{isCommandExecuting
-											? "Running"
-											: isCommandPending
-												? "Pending"
-												: isCommandCompleted
-													? "Completed"
-													: "Not Executed"}
-									</span>
+									{(() => {
+										// Single source of truth for the command status pill: an
+										// approved-but-output-less command shows an active "Starting…"
+										// (it IS running), while an approval request shows a static
+										// "Awaiting approval" so a stalled command is never mistaken
+										// for one that is merely waiting on the user.
+										const runningColor = "var(--vscode-charts-blue)"
+										const warningColor = "var(--vscode-editorWarning-foreground)"
+										const idleColor = "var(--vscode-descriptionForeground)"
+										let statusColor = idleColor
+										let statusLabel = "Not Executed"
+										let statusPulse = false
+										if (isCommandExecuting) {
+											statusColor = successColor
+											statusLabel = "Running"
+											statusPulse = true
+										} else if (isCommandStarting) {
+											statusColor = runningColor
+											statusLabel = "Starting…"
+											statusPulse = true
+										} else if (isCommandAwaitingApproval) {
+											statusColor = warningColor
+											statusLabel = "Awaiting approval"
+										} else if (isCommandPending) {
+											statusColor = warningColor
+											statusLabel = "Pending"
+										} else if (isCommandCompleted) {
+											statusColor = idleColor
+											statusLabel = "Completed"
+										}
+										return (
+											<>
+												<div
+													style={{
+														width: "8px",
+														height: "8px",
+														borderRadius: "50%",
+														backgroundColor: statusColor,
+														animation: statusPulse ? "pulse 2s ease-in-out infinite" : "none",
+														flexShrink: 0,
+													}}
+												/>
+												<span
+													style={{
+														color: statusColor,
+														fontWeight: 500,
+														fontSize: "13px",
+														flexShrink: 0,
+													}}>
+													{statusLabel}
+												</span>
+											</>
+										)
+									})()}
 								</div>
 								<div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
 									{showCancelButton && (
