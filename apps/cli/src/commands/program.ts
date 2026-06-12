@@ -133,11 +133,13 @@ export function commanderToParsedArgs(program: Command): ParsedArgs {
 
 	const explicitMode = opts.plan
 		? "plan"
-		: opts.yolo
-			? "yolo"
-			: opts.zen
-				? "zen"
-				: undefined;
+		: opts.act
+			? "act"
+			: opts.yolo
+				? "yolo"
+				: opts.zen
+					? "zen"
+					: undefined;
 
 	const result: ParsedArgs = {
 		verbose: opts.verbose ? true : undefined,
