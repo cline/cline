@@ -2,6 +2,7 @@ import { ProviderSettingsManager, resolveProviderConfig } from "@cline/core";
 import {
 	getPersistedProviderApiKey,
 	isProviderConfigured,
+	normalizeProviderId,
 } from "../utils/provider-auth";
 import type { ActiveAgentProfile, Config } from "../utils/types";
 
@@ -24,7 +25,10 @@ export async function applyAgentProfileModelSelection(
 	const manager = new ProviderSettingsManager();
 	const userSettings = manager.getLastUsedProviderSettings();
 	const baselineProvider = userSettings?.provider ?? config.providerId;
-	const targetProvider = profile?.providerId ?? baselineProvider;
+	// Normalize frontmatter aliases the same way --agent startup does.
+	const targetProvider = profile?.providerId
+		? normalizeProviderId(profile.providerId)
+		: baselineProvider;
 	const targetSettings =
 		targetProvider === userSettings?.provider
 			? userSettings

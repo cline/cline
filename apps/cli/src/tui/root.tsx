@@ -197,8 +197,9 @@ function App(props: TuiProps) {
 		config: props.config,
 		termHeight,
 		onAgentProfileChange: async (profile) => {
-			await props.onAgentProfileChange(profile);
+			const result = await props.onAgentProfileChange(profile);
 			setPluginCommandsRefreshKey((key) => key + 1);
+			return result;
 		},
 		refocusTextarea: () => refocusTextareaRef.current(),
 	});

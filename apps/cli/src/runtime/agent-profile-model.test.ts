@@ -72,7 +72,7 @@ describe("applyAgentProfileModelSelection", () => {
 		const manager = new ProviderSettingsManager();
 		manager.saveProviderSettings(
 			{
-				provider: "openai",
+				provider: "openai-compatible",
 				model: "openai/gpt-test",
 				apiKey: "openai-key",
 				reasoning: { enabled: true, effort: "high" },
@@ -92,12 +92,12 @@ describe("applyAgentProfileModelSelection", () => {
 		const config = makeConfig();
 
 		const result = await applyAgentProfileModelSelection(config, {
-			providerId: "openai",
+			providerId: "openai-compatible",
 			modelId: "openai/gpt-custom",
 		});
 
 		expect(result.warning).toBeUndefined();
-		expect(config.providerId).toBe("openai");
+		expect(config.providerId).toBe("openai-compatible");
 		expect(config.modelId).toBe("openai/gpt-custom");
 		expect(config.apiKey).toBe("openai-key");
 		expect(config.knownModels).toMatchObject({ "mock/model-a": {} });
@@ -105,13 +105,14 @@ describe("applyAgentProfileModelSelection", () => {
 		expect(config.reasoningEffort).toBe("high");
 	});
 
-	it("falls back to the profile provider's persisted model when the profile only pins a provider", async () => {
+	it("normalizes provider aliases and falls back to that provider's persisted model", async () => {
 		await setUpProviderSettings();
 		const config = makeConfig();
 
+		// "openai" is a frontmatter alias for "openai-compatible".
 		await applyAgentProfileModelSelection(config, { providerId: "openai" });
 
-		expect(config.providerId).toBe("openai");
+		expect(config.providerId).toBe("openai-compatible");
 		expect(config.modelId).toBe("openai/gpt-test");
 	});
 
@@ -149,7 +150,7 @@ describe("applyAgentProfileModelSelection", () => {
 		const config = makeConfig();
 
 		await applyAgentProfileModelSelection(config, {
-			providerId: "openai",
+			providerId: "openai-compatible",
 			modelId: "openai/gpt-custom",
 		});
 		const result = await applyAgentProfileModelSelection(config, undefined);
@@ -167,7 +168,7 @@ describe("applyAgentProfileModelSelection", () => {
 		const config = makeConfig();
 
 		await applyAgentProfileModelSelection(config, {
-			providerId: "openai",
+			providerId: "openai-compatible",
 			modelId: "openai/gpt-custom",
 		});
 		await applyAgentProfileModelSelection(config, {});
@@ -181,13 +182,13 @@ describe("applyAgentProfileModelSelection", () => {
 		const config = makeConfig();
 
 		await applyAgentProfileModelSelection(config, {
-			providerId: "openai",
+			providerId: "openai-compatible",
 			modelId: "openai/gpt-custom",
 		});
 
 		const manager = new ProviderSettingsManager();
 		expect(manager.getLastUsedProviderSettings()?.provider).toBe("anthropic");
-		expect(manager.getProviderSettings("openai")?.model).toBe(
+		expect(manager.getProviderSettings("openai-compatible")?.model).toBe(
 			"openai/gpt-test",
 		);
 	});

@@ -38,7 +38,9 @@ export function buildInteractiveSessionConfig(input: {
 		// Same lifecycle for the profile's tools and skills restrictions. The
 		// availability context tracks the live provider/model/mode so routed
 		// tool names (editor vs apply_patch) stay accurate across /model and
-		// plan/act switches.
+		// plan/act switches. The skills allowlist scopes the agent's skills
+		// tool only: a user explicitly typing a /skill slash command is an
+		// explicit user action that wins over the profile, like /model.
 		disabledToolNames: resolveAgentProfileDisabledToolNames(
 			input.config.agentProfile,
 			{

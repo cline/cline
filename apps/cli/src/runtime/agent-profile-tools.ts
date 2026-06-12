@@ -29,7 +29,14 @@ export function resolveAgentProfileDisabledToolNames(
 	}
 	const disabled = new Set<string>();
 	for (const entry of getCoreBuiltinToolCatalog(availabilityContext)) {
-		if (allowed.has(entry.id)) {
+		// An entry is allowed by its catalog id or by any of its runtime tool
+		// names, so `tools: apply_patch` keeps the editor entry on models that
+		// route editing through apply_patch, matching the subagent filter which
+		// matches on runtime tool names.
+		const entryAllowed =
+			allowed.has(entry.id) ||
+			entry.headlessToolNames.some((name) => allowed.has(name));
+		if (entryAllowed) {
 			continue;
 		}
 		disabled.add(entry.id);

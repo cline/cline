@@ -53,4 +53,16 @@ describe("resolveAgentProfileDisabledToolNames", () => {
 			expect(disabled).not.toContain("apply_patch");
 		}
 	});
+
+	it("accepts runtime tool names like apply_patch for routed catalog entries", () => {
+		for (const modelId of ["anthropic/claude-sonnet-4.6", "openai/gpt-5.2"]) {
+			const disabled = resolveAgentProfileDisabledToolNames(
+				{ tools: ["apply_patch", "read_files"] },
+				{ providerId: modelId.split("/")[0], modelId, mode: "act" },
+			);
+			expect(disabled).toBeDefined();
+			expect(disabled).not.toContain("apply_patch");
+			expect(disabled).toContain("run_commands");
+		}
+	});
 });
