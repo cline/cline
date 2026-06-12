@@ -173,6 +173,7 @@ vi.mock("./utils/feature-flags", () => ({
 	getCliFeatureFlagsService: () => ({
 		getBooleanFlagEnabled: featureFlagMocks.getBooleanFlagEnabled,
 	}),
+	refreshCliFeatureFlagsInBackground: vi.fn(),
 }));
 vi.mock("./runtime/prompt", () => ({
 	resolveSystemPrompt: promptMocks.resolveSystemPrompt,
