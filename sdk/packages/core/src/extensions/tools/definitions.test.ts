@@ -8,6 +8,7 @@ import {
 	createBashTool,
 	createDefaultTools,
 	createReadFilesTool,
+	createSearchTool,
 	createSkillsTool,
 	createWindowsShellTool,
 } from "./definitions";
@@ -345,6 +346,57 @@ describe("default submit_and_exit tool", () => {
 				iteration: 1,
 			}),
 		);
+	});
+});
+
+describe("default search_codebase tool", () => {
+	it("treats a valid search with zero matches as success", async () => {
+		const noResults =
+			"No results found for pattern: missingSymbol\nSearched 3 files.";
+		const execute = vi.fn(async () => noResults);
+		const tool = createSearchTool(execute);
+
+		const result = await tool.execute(
+			{ queries: ["missingSymbol"] },
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		expect(result).toEqual([
+			{
+				query: "missingSymbol",
+				result: noResults,
+				success: true,
+			},
+		]);
+	});
+
+	it("treats executor errors as failures", async () => {
+		const execute = vi.fn(async () => {
+			throw new Error("bad regex");
+		});
+		const tool = createSearchTool(execute);
+
+		const result = await tool.execute(
+			{ queries: ["("] },
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		expect(result).toEqual([
+			{
+				query: "(",
+				result: "",
+				error: "Search failed: bad regex",
+				success: false,
+			},
+		]);
 	});
 });
 
