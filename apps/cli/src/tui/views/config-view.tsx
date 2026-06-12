@@ -25,6 +25,7 @@ import {
 	getConfigFooterText,
 	getConfigItemDisplayName,
 	getConfigTabs,
+	getPluginDiagnosticsLoadingText,
 	isInlineConfigAction,
 	isToggleableConfigItem,
 	resolveActiveConfigItems,
@@ -192,13 +193,16 @@ function appendToolGroupRows(
 		const enabledCount = groupItems.filter(
 			(item) => item.enabled !== false,
 		).length;
+		const nativeItems = groupItems.filter((item) => !item.mcpServerName);
+		const mcpItems = groupItems.filter((item) => item.mcpServerName);
 		rows.push({
 			kind: "tool-group",
 			label: first?.pluginName ?? "plugin",
 			rightLabel: `${enabledCount}/${groupItems.length} tools enabled`,
 			indent: 2,
 		});
-		for (const item of sortBySourceThenName(groupItems)) {
+
+		for (const item of sortBySourceThenName(nativeItems)) {
 			rows.push({
 				kind: "ext",
 				name: item.name,
@@ -210,6 +214,46 @@ function appendToolGroupRows(
 				indent: 4,
 				rightLabel: sharedToolNames.has(item.name) ? "shared tool name" : "",
 			});
+		}
+
+		if (mcpItems.length === 0) {
+			continue;
+		}
+		rows.push({
+			kind: "tool-group",
+			label: "MCP",
+			rightLabel: `${mcpItems.filter((item) => item.enabled !== false).length}/${mcpItems.length} tools enabled`,
+			indent: 4,
+		});
+		const byServer = new Map<string, InteractiveConfigItem[]>();
+		for (const item of mcpItems) {
+			const serverName = item.mcpServerName ?? "MCP server";
+			const serverItems = byServer.get(serverName) ?? [];
+			serverItems.push(item);
+			byServer.set(serverName, serverItems);
+		}
+		for (const [serverName, serverItems] of [...byServer.entries()].sort(
+			(left, right) => left[0].localeCompare(right[0]),
+		)) {
+			rows.push({
+				kind: "tool-group",
+				label: serverName,
+				rightLabel: `${serverItems.filter((item) => item.enabled !== false).length}/${serverItems.length} tools enabled`,
+				indent: 6,
+			});
+			for (const item of sortBySourceThenName(serverItems)) {
+				rows.push({
+					kind: "ext",
+					name: item.name,
+					path: item.path,
+					source: item.source,
+					enabled: item.enabled,
+					description: item.description,
+					item,
+					indent: 8,
+					rightLabel: sharedToolNames.has(item.name) ? "shared tool name" : "",
+				});
+			}
 		}
 	}
 }
@@ -245,15 +289,24 @@ function appendToolRows(
 		appendExtRows(rows, builtinTools);
 	}
 
-	const pluginGroups = groupToolItems(items.filter((item) => item.pluginName));
+	const pluginToolItems = items.filter((item) => item.pluginName);
+	const pluginGroups = groupToolItems(pluginToolItems);
 	if (pluginGroups.length > 0) {
 		rows.push({ kind: "head", label: "Plugins" });
 		appendToolGroupRows(
 			rows,
 			pluginGroups,
-			getSharedToolNames(items.filter((item) => item.pluginName)),
+			getSharedToolNames(pluginToolItems),
 		);
 	}
+}
+
+function hasPluginDiagnostics(data: InteractiveConfigData): boolean {
+	return (
+		data.pluginDiagnosticsLoaded ||
+		data.tools.some((item) => item.pluginName) ||
+		data.mcp.some((item) => item.pluginName)
+	);
 }
 
 function appendSkillRows(
@@ -305,11 +358,18 @@ function withOptimisticToggle(
 		).filter(Boolean),
 	);
 	const updateItems = (items: InteractiveConfigItem[]) =>
-		items.map((candidate) =>
-			matchesItem(candidate)
-				? { ...candidate, enabled: nextEnabled }
-				: candidate,
-		);
+		items.map((candidate) => {
+			if (matchesItem(candidate)) {
+				return { ...candidate, enabled: nextEnabled };
+			}
+			if (
+				item.kind === "plugin" &&
+				(candidate.path === item.path || candidate.pluginPath === item.path)
+			) {
+				return { ...candidate, enabled: nextEnabled };
+			}
+			return candidate;
+		});
 	const updateTools = (items: InteractiveConfigItem[]) =>
 		items.map((candidate) => {
 			if (matchesItem(candidate)) {
@@ -381,7 +441,7 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 	);
 	const [configData, setConfigData] = useState(props.configData);
 	const [pluginToolsLoaded, setPluginToolsLoaded] = useState(
-		props.configData.tools.some((item) => item.pluginName),
+		hasPluginDiagnostics(props.configData),
 	);
 	const [pluginToolsLoading, setPluginToolsLoading] = useState(false);
 	const [pluginToolsError, setPluginToolsError] = useState<
@@ -399,7 +459,9 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 
 	useEffect(() => {
 		if (
-			(activeTab !== "tools" && activeTab !== "plugins") ||
+			(activeTab !== "tools" &&
+				activeTab !== "plugins" &&
+				activeTab !== "mcp") ||
 			pluginToolsLoaded ||
 			pluginToolsError ||
 			!loadConfigData
@@ -465,10 +527,11 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 				});
 			} else if (activeTab === "tools") {
 				appendToolRows(r, activeItems);
-				if (pluginToolsLoading) {
+				const loadingText = getPluginDiagnosticsLoadingText(activeTab);
+				if (pluginToolsLoading && loadingText) {
 					r.push({
 						kind: "detail",
-						text: "Loading plugin tools...",
+						text: loadingText,
 					});
 				}
 				if (pluginToolsError) {
@@ -491,20 +554,29 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 						item,
 						rightLabel:
 							activeTab === "mcp"
-								? getMcpManagerEntryStatus({
-										description: item.description,
-										lastError: item.loadError,
-									})
+								? item.configKind === "plugin-mcp" && item.loadError
+									? getPluginLoadErrorLabel(item)
+									: getMcpManagerEntryStatus({
+											description: item.description,
+											lastError: item.loadError,
+										})
 								: getPluginLoadErrorLabel(item),
 					});
 				}
-				if (activeTab === "plugins" && pluginToolsLoading) {
+				if (
+					(activeTab === "plugins" || activeTab === "mcp") &&
+					pluginToolsLoading
+				) {
+					const loadingText = getPluginDiagnosticsLoadingText(activeTab);
 					r.push({
 						kind: "detail",
-						text: "Loading plugin diagnostics...",
+						text: loadingText ?? "Loading plugin diagnostics...",
 					});
 				}
-				if (activeTab === "plugins" && pluginToolsError) {
+				if (
+					(activeTab === "plugins" || activeTab === "mcp") &&
+					pluginToolsError
+				) {
 					r.push({
 						kind: "detail",
 						text: pluginToolsError,
@@ -549,15 +621,13 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 			});
 			if (nextData) {
 				setConfigData(nextData);
-				setPluginToolsLoaded(nextData.tools.some((tool) => tool.pluginName));
+				setPluginToolsLoaded(hasPluginDiagnostics(nextData));
 			} else if (item.kind === "plugin" && loadConfigData) {
 				const refreshedData = await loadConfigData({
 					includePluginTools: true,
 				});
 				setConfigData(refreshedData);
-				setPluginToolsLoaded(
-					refreshedData.tools.some((tool) => tool.pluginName),
-				);
+				setPluginToolsLoaded(hasPluginDiagnostics(refreshedData));
 				setPluginToolsError(undefined);
 			}
 		} catch (error) {

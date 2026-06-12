@@ -47,6 +47,14 @@ import {
 	type ToolCallRecord,
 } from "@cline/shared";
 import {
+	createDefaultMcpServerClientFactory,
+	createMcpTools,
+	InMemoryMcpManager,
+	type McpServerRegistration,
+	resolvePluginMcpServerRegistrations,
+} from "../../extensions/mcp";
+import { filterDisabledTools } from "../../services/global-settings";
+import {
 	createAgentModelFromConfig,
 	resolveKnownModelsFromConfig,
 } from "../../services/llms/handler-factory";
@@ -99,6 +107,36 @@ function mergeSystemPromptRules(
 		return `${base}\n\n${additional}`;
 	}
 	return base || additional;
+}
+
+function isToolEnabledByPolicies(
+	toolName: string,
+	toolPolicies: AgentConfig["toolPolicies"],
+): boolean {
+	const globalPolicy = toolPolicies?.["*"] ?? {};
+	const toolPolicy = toolPolicies?.[toolName] ?? {};
+	return (
+		{
+			...globalPolicy,
+			...toolPolicy,
+		}.enabled !== false
+	);
+}
+
+function filterToolsByPolicies(
+	tools: AgentTool[],
+	toolPolicies: AgentConfig["toolPolicies"],
+): AgentTool[] {
+	return tools.filter((tool) =>
+		isToolEnabledByPolicies(tool.name, toolPolicies),
+	);
+}
+
+function filterAvailableExtensionTools(
+	tools: AgentTool[],
+	toolPolicies: AgentConfig["toolPolicies"],
+): AgentTool[] {
+	return filterDisabledTools(filterToolsByPolicies(tools, toolPolicies));
 }
 
 function mergeRuntimeHooks(
@@ -199,6 +237,11 @@ function mergeRuntimeHooks(
 	};
 }
 
+interface PluginMcpToolEntry {
+	registration: McpServerRegistration;
+	tools: AgentTool[];
+}
+
 // =============================================================================
 // Public types
 // =============================================================================
@@ -280,6 +323,8 @@ export class SessionRuntime {
 		Message[]
 	>;
 	private extensionsInitialized = false;
+	private pluginMcpToolEntries: PluginMcpToolEntry[] | undefined;
+	private pluginMcpManager: InMemoryMcpManager | undefined;
 	private readonly listeners = new Set<SessionEventListener>();
 	private readonly createAgentRuntimeImpl: (
 		config: Parameters<typeof createAgentRuntime>[0],
@@ -583,6 +628,12 @@ export class SessionRuntime {
 			return;
 		}
 		this.shutdownCalled = true;
+		await this.pluginMcpManager?.dispose().catch((error) => {
+			this.logger?.log?.("[mcp] Failed to dispose plugin MCP manager", {
+				severity: "warn",
+				error: error instanceof Error ? error.message : String(error),
+			});
+		});
 	}
 
 	// -------------------------------------------------------------------
@@ -720,7 +771,24 @@ export class SessionRuntime {
 		// wins over a same-named extension tool (legacy behaviour:
 		// `validateTools` rejects duplicates; here we prefer the
 		// explicitly-declared config tool).
-		const extensionTools = this.contributionRegistry.getRegisteredTools();
+		const extensionToolsByName = new Map<string, AgentTool>();
+		for (const tool of this.contributionRegistry.getRegisteredTools()) {
+			extensionToolsByName.set(tool.name, tool);
+		}
+		for (const tool of await this.getPluginMcpTools()) {
+			if (extensionToolsByName.has(tool.name)) {
+				this.logger?.log?.(
+					`[mcp] Skipping plugin MCP tool "${tool.name}" because an extension tool with that name already exists`,
+					{ severity: "warn" },
+				);
+				continue;
+			}
+			extensionToolsByName.set(tool.name, tool);
+		}
+		const extensionTools = filterAvailableExtensionTools(
+			[...extensionToolsByName.values()],
+			this.config.toolPolicies,
+		);
 		const mergedToolsByName = new Map<string, AgentTool>();
 		for (const tool of extensionTools) {
 			mergedToolsByName.set(tool.name, tool);
@@ -850,7 +918,9 @@ export class SessionRuntime {
 			return;
 		}
 		try {
-			await this.contributionRegistry.initialize();
+			await this.contributionRegistry.initialize({
+				tolerateSetupErrors: this.config.hookErrorMode !== "throw",
+			});
 		} catch (error) {
 			if (this.config.hookErrorMode === "throw") {
 				throw error;
@@ -863,6 +933,102 @@ export class SessionRuntime {
 			});
 		}
 		this.extensionsInitialized = true;
+	}
+
+	private async getPluginMcpTools(): Promise<AgentTool[]> {
+		if (this.pluginMcpToolEntries) {
+			return this.pluginMcpToolEntries.flatMap((entry) => entry.tools);
+		}
+
+		const servers = this.contributionRegistry.getRegisteredMcpServers();
+		if (servers.length === 0) {
+			this.pluginMcpToolEntries = [];
+			return [];
+		}
+
+		const resolved = resolvePluginMcpServerRegistrations(
+			servers.map((server) => ({
+				server,
+				owner: server,
+				ownerLabel:
+					typeof server.metadata?.plugin === "string"
+						? server.metadata.plugin
+						: undefined,
+			})),
+		);
+		for (const result of resolved) {
+			if (result.loadError) {
+				this.logger?.log?.(
+					`[mcp] Skipping plugin MCP server "${result.name}": ${result.loadError}`,
+					{ severity: "warn" },
+				);
+			}
+		}
+
+		const registrations: McpServerRegistration[] = [];
+		for (const result of resolved) {
+			if (result.registration) {
+				registrations.push(result.registration);
+			}
+		}
+		if (registrations.length === 0) {
+			this.pluginMcpToolEntries = [];
+			return [];
+		}
+
+		const manager = new InMemoryMcpManager({
+			clientFactory: createDefaultMcpServerClientFactory({
+				enableOAuth: false,
+			}),
+		});
+		this.pluginMcpManager = manager;
+
+		for (const registration of registrations) {
+			await manager.registerServer(registration);
+		}
+
+		const results = await Promise.allSettled(
+			registrations.map((registration) =>
+				createMcpTools({ serverName: registration.name, provider: manager }),
+			),
+		);
+		const entries: PluginMcpToolEntry[] = [];
+		for (const [index, result] of results.entries()) {
+			const registration = registrations[index];
+			if (!registration) {
+				continue;
+			}
+			if (result.status === "fulfilled") {
+				entries.push({
+					registration,
+					tools: [...result.value],
+				});
+				continue;
+			}
+			const message =
+				result.reason instanceof Error
+					? result.reason.message
+					: String(result.reason);
+			this.logger?.log?.(
+				`[mcp] Failed to load tools from plugin MCP server "${registration.name}", skipping: ${message}`,
+				{ severity: "warn" },
+			);
+			await manager
+				.unregisterServer(registration.name)
+				.catch((unregisterError) => {
+					this.logger?.log?.(
+						`[mcp] Failed to unregister plugin MCP server "${registration.name}" after tool discovery failure: ${
+							unregisterError instanceof Error
+								? unregisterError.message
+								: String(unregisterError)
+						}`,
+						{ severity: "warn" },
+					);
+				});
+		}
+
+		this.pluginMcpToolEntries = entries;
+		return entries.flatMap((entry) => entry.tools);
 	}
 
 	private createRuntimeHooks(): Partial<AgentRuntimeHooks> {

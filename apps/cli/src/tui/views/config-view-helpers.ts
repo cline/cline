@@ -229,3 +229,18 @@ export function getConfigFooterText({
 export function getConfigItemDisplayName(name: string): string {
 	return name;
 }
+
+export function getPluginDiagnosticsLoadingText(
+	tab: InteractiveConfigTab,
+): string | undefined {
+	if (tab === "mcp") {
+		return "Loading plugin MCP servers...";
+	}
+	if (tab === "tools") {
+		return "Loading plugin tools...";
+	}
+	if (tab === "plugins") {
+		return "Loading plugin diagnostics...";
+	}
+	return undefined;
+}

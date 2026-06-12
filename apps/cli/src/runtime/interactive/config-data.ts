@@ -74,7 +74,11 @@ export function createInteractiveConfigDataLoader(input: {
 			return undefined;
 		}
 
-		if (item.kind === "mcp" && typeof item.enabled === "boolean") {
+		if (
+			item.kind === "mcp" &&
+			typeof item.enabled === "boolean" &&
+			!item.pluginName
+		) {
 			await settings.toggle({
 				type: "mcp",
 				id: item.id,

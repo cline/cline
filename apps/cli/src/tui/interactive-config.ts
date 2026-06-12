@@ -62,9 +62,10 @@ export interface InteractiveConfigItem {
 	kind: InteractiveConfigItemKind;
 	enabledState?: "enabled" | "disabled" | "partial";
 	toolNames?: string[];
-	configKind?: "tool" | "plugin";
+	configKind?: "tool" | "plugin" | "plugin-mcp";
 	pluginName?: string;
 	pluginPath?: string;
+	mcpServerName?: string;
 	loadError?: string;
 	loadErrorPhase?: PluginInitializationFailure["phase"];
 	source:
@@ -86,6 +87,7 @@ export interface InteractiveConfigData {
 	mcp: InteractiveConfigItem[];
 	tools: InteractiveConfigItem[];
 	workflowSlashCommands: InteractiveSlashCommand[];
+	pluginDiagnosticsLoaded?: boolean;
 }
 
 export interface LoadInteractiveConfigDataOptions {
@@ -93,12 +95,14 @@ export interface LoadInteractiveConfigDataOptions {
 }
 
 export function isToggleableInteractiveConfigItem(
-	item: Pick<InteractiveConfigItem, "kind" | "source">,
+	item: Pick<InteractiveConfigItem, "kind" | "source" | "pluginName">,
 ): boolean {
+	if (item.kind === "mcp") {
+		return !item.pluginName;
+	}
 	return (
 		item.kind === "skill" ||
 		item.kind === "plugin" ||
-		item.kind === "mcp" ||
 		item.source === "builtin" ||
 		item.source === "workspace-plugin" ||
 		item.source === "global-plugin"
@@ -242,9 +246,10 @@ function readPackageName(packageJsonPath: string): string | undefined {
 	}
 }
 
-function getPluginDisplayName(filePath: string): string {
+function getPluginDisplayName(filePath: string, searchRoot: string): string {
 	let current = dirname(filePath);
-	for (let depth = 0; depth < 4; depth++) {
+	const root = resolve(searchRoot);
+	while (isPathWithin(root, current)) {
 		const packageJsonPath = join(current, "package.json");
 		if (existsSync(packageJsonPath)) {
 			const packageName = readPackageName(packageJsonPath);
@@ -384,7 +389,7 @@ export async function loadInteractiveConfigData(input: {
 			for (const filePath of discoverPluginModulePaths(directory)) {
 				plugins.push({
 					id: filePath,
-					name: getPluginDisplayName(filePath),
+					name: getPluginDisplayName(filePath, directory),
 					path: filePath,
 					enabled: !disabledPlugins.has(filePath),
 					kind: "plugin",
@@ -503,6 +508,22 @@ export async function loadInteractiveConfigData(input: {
 				modelId: input.availabilityContext?.modelId,
 			});
 			applyPluginFailures(plugins, pluginToolResult.failures);
+			for (const pluginMcpServer of pluginToolResult.mcpServers) {
+				mcp.push({
+					id: `${pluginMcpServer.pluginName}:${pluginMcpServer.name}:${pluginMcpServer.path}`,
+					name: pluginMcpServer.name,
+					path: pluginMcpServer.path,
+					enabled: pluginMcpServer.enabled,
+					enabledState: pluginMcpServer.enabled ? "enabled" : "disabled",
+					kind: "mcp" as const,
+					configKind: "plugin-mcp",
+					pluginName: pluginMcpServer.pluginName,
+					pluginPath: pluginMcpServer.path,
+					source: pluginMcpServer.source,
+					description: `plugin MCP configured - ${pluginMcpServer.description ?? "server"}; disable plugin to disable server`,
+					loadError: pluginMcpServer.loadError,
+				});
+			}
 			for (const pluginTool of pluginToolResult.tools) {
 				tools.push({
 					id: `${pluginTool.pluginName}:${pluginTool.name}:${pluginTool.path}`,
@@ -514,6 +535,8 @@ export async function loadInteractiveConfigData(input: {
 					toolNames: [pluginTool.name],
 					configKind: "tool",
 					pluginName: pluginTool.pluginName,
+					pluginPath: pluginTool.path,
+					mcpServerName: pluginTool.mcpServerName,
 					source: pluginTool.source,
 					description: pluginTool.description,
 				});
@@ -533,5 +556,6 @@ export async function loadInteractiveConfigData(input: {
 		mcp: toSorted(mcp.filter((item) => existsSync(item.path))),
 		tools: toSorted(tools),
 		workflowSlashCommands,
+		pluginDiagnosticsLoaded: input.includePluginTools !== false,
 	};
 }

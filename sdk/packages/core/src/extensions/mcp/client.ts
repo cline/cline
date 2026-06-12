@@ -438,6 +438,7 @@ export interface DefaultMcpServerClientFactoryOptions {
 	clientName?: string;
 	clientVersion?: string;
 	fetch?: FetchLike;
+	enableOAuth?: boolean;
 }
 
 class SdkUrlMcpClient implements McpServerClient {
@@ -459,12 +460,16 @@ class SdkUrlMcpClient implements McpServerClient {
 			);
 		}
 
-		const authContext = createMcpOAuthProviderContext({
-			settingsPath: this.options.settingsPath,
-			serverName: this.registration.name,
-			redirectUrl:
-				this.registration.oauth?.redirectUrl ?? DEFAULT_HTTP_MCP_REDIRECT_URL,
-		});
+		const authContext =
+			this.options.enableOAuth === false
+				? undefined
+				: createMcpOAuthProviderContext({
+						settingsPath: this.options.settingsPath,
+						serverName: this.registration.name,
+						redirectUrl:
+							this.registration.oauth?.redirectUrl ??
+							DEFAULT_HTTP_MCP_REDIRECT_URL,
+					});
 		this.authContext = authContext;
 		try {
 			const client = new Client({
@@ -473,20 +478,20 @@ class SdkUrlMcpClient implements McpServerClient {
 			});
 			const transport = createMcpSdkTransport({
 				registration: this.registration,
-				oauthProvider: authContext.provider,
+				oauthProvider: authContext?.provider,
 				fetch: this.options.fetch,
 			});
 			await client.connect(transport);
-			await authContext.clearError();
+			await authContext?.clearError();
 			this.client = client;
 		} catch (error) {
 			const message =
 				error instanceof UnauthorizedError
 					? this.formatUnauthorizedMessage(
-							authContext.getLastAuthorizationUrl(),
+							authContext?.getLastAuthorizationUrl(),
 						)
 					: toErrorMessage(error);
-			await authContext.markError(message);
+			await authContext?.markError(message);
 			throw new Error(message);
 		}
 	}
@@ -554,17 +559,20 @@ class SdkUrlMcpClient implements McpServerClient {
 	private async handleOperationError(error: unknown): Promise<never> {
 		const authContext =
 			this.authContext ??
-			createMcpOAuthProviderContext({
-				settingsPath: this.options.settingsPath,
-				serverName: this.registration.name,
-				redirectUrl:
-					this.registration.oauth?.redirectUrl ?? DEFAULT_HTTP_MCP_REDIRECT_URL,
-			});
+			(this.options.enableOAuth === false
+				? undefined
+				: createMcpOAuthProviderContext({
+						settingsPath: this.options.settingsPath,
+						serverName: this.registration.name,
+						redirectUrl:
+							this.registration.oauth?.redirectUrl ??
+							DEFAULT_HTTP_MCP_REDIRECT_URL,
+					}));
 		const message =
 			error instanceof UnauthorizedError
-				? this.formatUnauthorizedMessage(authContext.getLastAuthorizationUrl())
+				? this.formatUnauthorizedMessage(authContext?.getLastAuthorizationUrl())
 				: toErrorMessage(error);
-		await authContext.markError(message);
+		await authContext?.markError(message);
 		throw new Error(message);
 	}
 }

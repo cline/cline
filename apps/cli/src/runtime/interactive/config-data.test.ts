@@ -76,6 +76,28 @@ describe("interactive config data loader", () => {
 		return pluginPath;
 	}
 
+	async function writeMcpSettingsPlugin(tempRoot: string): Promise<string> {
+		const pluginsDir = join(tempRoot, ".cline", "plugins");
+		await mkdir(pluginsDir, { recursive: true });
+		const pluginPath = join(pluginsDir, "settings-mcp-plugin.js");
+		await writeFile(
+			pluginPath,
+			[
+				"export default {",
+				"  name: 'settings-mcp-plugin',",
+				"  manifest: { capabilities: ['mcp'] },",
+				"  setup(api) {",
+				"    api.registerMcpServer({",
+				"      name: 'smoke',",
+				"      transport: { type: 'stdio', command: process.execPath, args: ['-e', 'process.exit(0)'] },",
+				"    });",
+				"  },",
+				"};",
+			].join("\n"),
+		);
+		return pluginPath;
+	}
+
 	it("toggles a skill item to the opposite enabled state and refreshes before reload", async () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "cli-config-data-"));
 		tempRoots.push(tempRoot);
@@ -307,6 +329,31 @@ Find installable skills.`,
 				(item) =>
 					item.pluginName === "settings-plugin" &&
 					item.name === "settings_plugin_tool",
+			),
+		).toBe(true);
+	});
+
+	it("loads plugin MCP servers when requested", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "cli-config-data-"));
+		tempRoots.push(tempRoot);
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = join(
+			tempRoot,
+			"global-settings.json",
+		);
+		const pluginPath = await writeMcpSettingsPlugin(tempRoot);
+		const loader = createInteractiveConfigDataLoader({
+			config: createConfig(tempRoot),
+		});
+
+		const data = await loader.loadConfigData({ includePluginTools: true });
+
+		expect(
+			data.mcp.some(
+				(item) =>
+					item.name === "smoke" &&
+					item.pluginName === "settings-mcp-plugin" &&
+					item.pluginPath === pluginPath &&
+					item.configKind === "plugin-mcp",
 			),
 		).toBe(true);
 	});

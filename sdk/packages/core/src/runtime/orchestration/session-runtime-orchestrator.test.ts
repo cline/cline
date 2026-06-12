@@ -14,6 +14,9 @@
  *  - `canStartRun` / `shutdown` guards enforce the lifecycle rules.
  */
 
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { AgentRuntime, AgentRuntimeConfig } from "@cline/agents";
 import type {
 	AgentConfig,
@@ -243,6 +246,7 @@ describe("SessionRuntime construction", () => {
 			messageBuilder: [],
 			providers: [],
 			automationEventTypes: [],
+			mcpServers: [],
 		});
 	});
 });
@@ -295,6 +299,88 @@ describe("SessionRuntime.getExtensionRegistry", () => {
 		expect(registry.commands).toHaveLength(1);
 		expect(registry.commands[0].name).toBe("ext-cmd");
 		expect(registry.automationEventTypes).toEqual([]);
+		expect(registry.mcpServers).toEqual([]);
+	});
+
+	it("exposes plugin-registered MCP server tools to the runtime", async () => {
+		const tempRoot = mkdtempSync(join(tmpdir(), "session-runtime-mcp-"));
+		const serverPath = join(tempRoot, "mock-mcp-server.js");
+		writeFileSync(
+			serverPath,
+			`let buffer = "";
+function write(payload) {
+  const body = JSON.stringify(payload);
+  process.stdout.write("Content-Length: " + Buffer.byteLength(body, "utf8") + "\\r\\n\\r\\n" + body);
+}
+function handle(message) {
+  if (message.method === "initialize") {
+    write({ jsonrpc: "2.0", id: message.id, result: { protocolVersion: "2024-11-05", capabilities: { tools: {} }, serverInfo: { name: "mock", version: "1.0.0" } } });
+    return;
+  }
+  if (message.method === "tools/list") {
+    write({ jsonrpc: "2.0", id: message.id, result: { tools: [{ name: "echo", description: "Echo tool", inputSchema: { type: "object", properties: {} } }] } });
+  }
+}
+process.stdin.on("data", (chunk) => {
+  buffer += chunk.toString("utf8");
+  while (true) {
+    const separator = buffer.indexOf("\\r\\n\\r\\n");
+    if (separator < 0) break;
+    const header = buffer.slice(0, separator);
+    const match = header.match(/Content-Length:\\s*(\\d+)/i);
+    if (!match) throw new Error("missing content length");
+    const length = Number(match[1]);
+    const start = separator + 4;
+    const end = start + length;
+    if (buffer.length < end) break;
+    const body = buffer.slice(start, end);
+    buffer = buffer.slice(end);
+    const message = JSON.parse(body);
+    if (message.method === "notifications/initialized") continue;
+    handle(message);
+  }
+});`,
+			"utf8",
+		);
+		const extension: AgentExtension = {
+			name: "mcp-ext",
+			manifest: { capabilities: ["mcp"] },
+			setup(api) {
+				api.registerMcpServer({
+					name: "plugin-mock",
+					transport: {
+						type: "stdio",
+						command: process.execPath,
+						args: [serverPath],
+					},
+				});
+			},
+		};
+		const { deps, configs } = withCapturingFakeRuntime();
+		const session = new SessionRuntime(
+			makeAgentConfig({ extensions: [extension] }),
+			deps,
+		);
+
+		try {
+			await session.run("go");
+
+			expect((configs[0]?.tools ?? []).map((tool) => tool.name)).toContain(
+				"plugin-mock__echo",
+			);
+			expect(session.getExtensionRegistry().mcpServers).toEqual([
+				expect.objectContaining({
+					name: "plugin-mock",
+					metadata: {
+						source: "plugin",
+						plugin: "mcp-ext",
+					},
+				}),
+			]);
+		} finally {
+			await session.shutdown("test");
+			rmSync(tempRoot, { recursive: true, force: true });
+		}
 	});
 
 	it("composes extension-registered rules into the runtime system prompt", async () => {
