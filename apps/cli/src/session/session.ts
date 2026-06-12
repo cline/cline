@@ -15,6 +15,7 @@ import {
 	createCliMessagesArtifactUploader,
 	prepareCliEnterpriseIntegration,
 } from "../utils/enterprise";
+import { createCliFeatureFlagsProvider } from "../utils/feature-flags";
 import { resolveWorkspaceRoot } from "../utils/helpers";
 import { getCliTelemetryService } from "../utils/telemetry";
 import type { ConversationHistory } from "./export";
@@ -54,6 +55,9 @@ export async function createCliCore(options?: {
 			: {}),
 		capabilities: options?.capabilities,
 		telemetry: getCliTelemetryService(options?.logger),
+		featureFlags: createCliFeatureFlagsProvider({
+			logger: options?.logger,
+		}),
 		logger: options?.logger,
 		toolPolicies: options?.toolPolicies,
 		messagesArtifactUploader: createCliMessagesArtifactUploader(),
