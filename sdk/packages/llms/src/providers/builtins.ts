@@ -277,7 +277,11 @@ function generatedModels(providerId: string): Record<string, ModelInfo> {
 }
 
 function firstGeneratedModelId(providerId: string): string {
-	return Object.keys(generatedModels(providerId))[0];
+	const generatedModelList = Object.keys(generatedModels(providerId));
+	if (!generatedModelList.length) {
+		return "";
+	}
+	return generatedModelList[0];
 }
 
 function pickAnthropicModel(match: (id: string) => boolean): ModelInfo {
