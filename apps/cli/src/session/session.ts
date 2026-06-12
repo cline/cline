@@ -15,7 +15,7 @@ import {
 	createCliMessagesArtifactUploader,
 	prepareCliEnterpriseIntegration,
 } from "../utils/enterprise";
-import { createCliFeatureFlagsProvider } from "../utils/feature-flags";
+import { getCliFeatureFlagsService } from "../utils/feature-flags";
 import { resolveWorkspaceRoot } from "../utils/helpers";
 import { getCliTelemetryService } from "../utils/telemetry";
 import type { ConversationHistory } from "./export";
@@ -41,6 +41,11 @@ export async function createCliCore(options?: {
 	const cwd = options?.cwd?.trim() || process.cwd();
 	const workspaceRoot =
 		options?.workspaceRoot?.trim() || resolveWorkspaceRoot(cwd);
+	const telemetry = getCliTelemetryService(options?.logger);
+	const featureFlags = getCliFeatureFlagsService({
+		logger: options?.logger,
+		telemetry,
+	});
 	const core = await ClineCore.create({
 		...(explicitBackendMode ? { backendMode: explicitBackendMode } : {}),
 		...(options?.forceLocalBackend !== true
@@ -54,15 +59,18 @@ export async function createCliCore(options?: {
 				}
 			: {}),
 		capabilities: options?.capabilities,
-		telemetry: getCliTelemetryService(options?.logger),
-		featureFlags: createCliFeatureFlagsProvider({
-			logger: options?.logger,
-		}),
+		telemetry,
+		featureFlags,
 		logger: options?.logger,
 		toolPolicies: options?.toolPolicies,
 		messagesArtifactUploader: createCliMessagesArtifactUploader(),
 		prepare: prepareCliEnterpriseIntegration,
 	});
+	try {
+		await core.featureFlags.poll();
+	} catch (error) {
+		options?.logger?.error?.("Error polling CLI feature flags", { error });
+	}
 	options?.logger?.log("CLI core runtime routing selected", {
 		backendMode: explicitBackendMode ?? "env-managed",
 		rpcAddress: core.runtimeAddress,

@@ -9,6 +9,7 @@ import {
 	TelemetryLoggerSink,
 } from "@cline/core";
 import { getCliBuildInfo } from "./common";
+import { identifyCliFeatureFlagsAccount } from "./feature-flags";
 import {
 	markActivationCaptured,
 	wasActivationCaptured,
@@ -107,6 +108,7 @@ export function identifyCliTelemetryAccount(
 	logger?: BasicLogger,
 ): void {
 	identifyAccount(getCliTelemetryService(logger), account);
+	void identifyCliFeatureFlagsAccount(account, logger);
 }
 
 /**
@@ -134,6 +136,7 @@ export function captureCliExtensionActivated(
 	const telemetry = getCliTelemetryService(logger);
 	if (account) {
 		identifyAccount(telemetry, account);
+		void identifyCliFeatureFlagsAccount(account, logger);
 	}
 	captureExtensionActivated(telemetry);
 }

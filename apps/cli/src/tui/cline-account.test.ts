@@ -9,9 +9,15 @@ const coreMocks = vi.hoisted(() => {
 	return {
 		getProviderSettings: vi.fn(),
 		saveProviderSettings: vi.fn(),
+		fetchMe: vi.fn(),
+		fetchBalance: vi.fn(),
+		fetchOrganizationBalance: vi.fn(),
 		serviceOptions,
 	};
 });
+const telemetryMocks = vi.hoisted(() => ({
+	identifyCliTelemetryAccount: vi.fn(),
+}));
 
 vi.mock("@cline/core", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("@cline/core")>();
@@ -24,6 +30,15 @@ vi.mock("@cline/core", async (importOriginal) => {
 			}) {
 				coreMocks.serviceOptions.push(options);
 			}
+			fetchMe() {
+				return coreMocks.fetchMe();
+			}
+			fetchBalance(userId?: string) {
+				return coreMocks.fetchBalance(userId);
+			}
+			fetchOrganizationBalance(organizationId: string) {
+				return coreMocks.fetchOrganizationBalance(organizationId);
+			}
 		},
 		ProviderSettingsManager: class {
 			getProviderSettings(providerId: string) {
@@ -35,6 +50,10 @@ vi.mock("@cline/core", async (importOriginal) => {
 		},
 	};
 });
+
+vi.mock("../utils/telemetry", () => ({
+	identifyCliTelemetryAccount: telemetryMocks.identifyCliTelemetryAccount,
+}));
 
 function makeConfig(overrides: Partial<Config> = {}): Config {
 	return {
@@ -78,7 +97,11 @@ describe("createClineAccountService", () => {
 		vi.unstubAllGlobals();
 		coreMocks.getProviderSettings.mockReset();
 		coreMocks.saveProviderSettings.mockReset();
+		coreMocks.fetchMe.mockReset();
+		coreMocks.fetchBalance.mockReset();
+		coreMocks.fetchOrganizationBalance.mockReset();
 		coreMocks.serviceOptions.length = 0;
+		telemetryMocks.identifyCliTelemetryAccount.mockReset();
 	});
 
 	afterEach(() => {
@@ -160,6 +183,69 @@ describe("createClineAccountService", () => {
 			createClineAccountService({ config: makeConfig() }),
 		).rejects.toThrow(
 			"Cline account requires re-authentication. Run cline auth cline.",
+		);
+	});
+});
+
+describe("loadClineAccountSnapshot", () => {
+	beforeEach(() => {
+		vi.restoreAllMocks();
+		vi.unstubAllGlobals();
+		coreMocks.getProviderSettings.mockReset();
+		coreMocks.saveProviderSettings.mockReset();
+		coreMocks.fetchMe.mockReset();
+		coreMocks.fetchBalance.mockReset();
+		coreMocks.fetchOrganizationBalance.mockReset();
+		coreMocks.serviceOptions.length = 0;
+		telemetryMocks.identifyCliTelemetryAccount.mockReset();
+	});
+
+	afterEach(() => {
+		vi.restoreAllMocks();
+		vi.unstubAllGlobals();
+	});
+
+	it("identifies the loaded Cline account for telemetry and feature flags", async () => {
+		coreMocks.getProviderSettings.mockReturnValue({
+			provider: "cline",
+			apiKey: "account-token",
+		});
+		const { loadClineAccountSnapshot } = await import("./cline-account");
+		coreMocks.fetchMe.mockResolvedValue({
+			id: "user-1",
+			email: "user@example.com",
+			displayName: "User One",
+			photoUrl: "",
+			createdAt: "",
+			updatedAt: "",
+			organizations: [
+				{
+					active: true,
+					memberId: "member-1",
+					name: "Acme",
+					organizationId: "org-1",
+					roles: ["member"],
+				},
+			],
+		});
+		coreMocks.fetchBalance.mockResolvedValue({ balance: 10, userId: "user-1" });
+		coreMocks.fetchOrganizationBalance.mockResolvedValue({
+			balance: 20,
+			organizationId: "org-1",
+		});
+
+		await loadClineAccountSnapshot({ config: makeConfig() });
+
+		expect(telemetryMocks.identifyCliTelemetryAccount).toHaveBeenCalledWith(
+			{
+				id: "user-1",
+				email: "user@example.com",
+				provider: "cline",
+				organizationId: "org-1",
+				organizationName: "Acme",
+				memberId: "member-1",
+			},
+			expect.any(Object),
 		);
 	});
 });

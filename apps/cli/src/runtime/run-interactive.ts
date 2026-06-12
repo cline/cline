@@ -427,13 +427,7 @@ export async function runInteractive(
 				uiEvents.off("pending-prompt-submitted", onPendingPromptSubmitted);
 			};
 		},
-		onSubmit: async (
-			input,
-			mode,
-			delivery,
-			attachments,
-			onCommandOutput,
-		) => {
+		onSubmit: async (input, mode, delivery, attachments, onCommandOutput) => {
 			let commandOutput: string | undefined;
 			try {
 				await sessionRuntime.ensureReady();
@@ -637,6 +631,16 @@ export async function runInteractive(
 		},
 		onAccountChange: async () => {
 			await sessionRuntime.ensureReady();
+			await loadClineAccountSnapshot({
+				config,
+				clineApiBaseUrl: options?.clineApiBaseUrl,
+			}).catch((error) => {
+				logCliError(
+					config.logger,
+					"Cline account refresh after account change failed",
+					{ error },
+				);
+			});
 			await sessionRuntime.restartWithCurrentMessages();
 		},
 		onResumeSession: async (sessionId: string) => {
