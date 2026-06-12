@@ -247,13 +247,10 @@ export function createSearchTool(
 							timeoutMs,
 							`Search timed out after ${timeoutMs}ms`,
 						);
-						// Check if results contain matches
-						const hasResults =
-							results.length > 0 && !results.includes("No results found");
 						return {
 							query,
 							result: results,
-							success: hasResults,
+							success: true,
 						};
 					} catch (error) {
 						const msg = formatError(error);
