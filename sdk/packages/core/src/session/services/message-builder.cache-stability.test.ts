@@ -262,13 +262,10 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 			readToolUse("t2"),
 			readToolResult("t2", LARGE_CONTENT(2)),
 		];
-		// ~80KB reclaimable > threshold: rewrite commits.
 		const reqA = builder.buildForApi(withReread);
 		expect(serializedBlockAt(reqA, 2)).toContain("outdated");
 
-		// Same builder instance, history restored to before the re-read
-		// (checkpoint rollback). t1 is now the latest read of src/a.ts and
-		// must NOT stay rewritten.
+		// Same builder instance, history rolled back past the re-read.
 		const reqB = builder.buildForApi(t1Only);
 		expect(serializedBlockAt(reqB, 2)).not.toContain("outdated");
 		expect(serializedBlockAt(reqB, 2)).toContain("export const x = 1;");
