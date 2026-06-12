@@ -203,6 +203,9 @@ export class FeatureFlagsService {
 					featureFlagPayloads?: unknown;
 				};
 			};
+
+			// We don't validate the userId here because we want to allow falling back to an existing cache even
+			// if the userId hasn't been resolved yet
 			if (
 				cache.version !== FEATURE_FLAGS_CACHE_FILE_VERSION ||
 				typeof cache.updatedAt !== "number" ||
