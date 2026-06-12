@@ -1,4 +1,4 @@
-import type { IFeatureFlagsProvider } from "@cline/shared";
+import { FEATURE_FLAGS, type IFeatureFlagsProvider } from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { FeatureFlagsService } from "./FeatureFlagsService";
 
@@ -41,7 +41,7 @@ describe("FeatureFlagsService", () => {
 		await service.poll("user-1");
 
 		expect(provider.getAllFlagsAndPayloads).toHaveBeenCalledWith({
-			flagKeys: undefined,
+			flagKeys: FEATURE_FLAGS.length > 0 ? FEATURE_FLAGS : undefined,
 			context: {
 				distinctId: "machine-1",
 				clientName: "unit-test",
