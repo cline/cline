@@ -75,8 +75,9 @@ describe("createFileReadExecutor", () => {
 			Array.from({ length: 1500 }, () => "z".repeat(100)).join("\n"),
 		);
 
-		// Stays under MessageBuilder's 50_000 per-string backstop so the
-		// pagination notice survives provider-request truncation.
+		// Bounded by the read window cap; the pagination notice sits at the
+		// end of the kept window, inside the tail that any downstream
+		// provider-request middle-cut preserves.
 		expect(result.length).toBeLessThanOrEqual(50_000);
 		expect(result).toContain("of 1500. Use start_line/end_line");
 	});
