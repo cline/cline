@@ -1,0 +1,194 @@
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { setHomeDir } from "@cline/shared/storage";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("@cline/core", async (importOriginal) => {
+	const original = await importOriginal<typeof import("@cline/core")>();
+	return {
+		...original,
+		resolveProviderConfig: vi.fn(async () => ({
+			knownModels: {
+				"mock/model-a": { name: "Mock Model A" },
+				"mock/model-b": { name: "Mock Model B" },
+			},
+		})),
+	};
+});
+
+import { ProviderSettingsManager, resolveProviderConfig } from "@cline/core";
+import type { Config } from "../utils/types";
+import { applyAgentProfileModelSelection } from "./agent-profile-model";
+
+function makeConfig(overrides: Partial<Config> = {}): Config {
+	return {
+		providerId: "anthropic",
+		modelId: "anthropic/claude-sonnet-4.6",
+		apiKey: "anthropic-key",
+		systemPrompt: "test",
+		cwd: process.cwd(),
+		verbose: false,
+		sandbox: false,
+		thinking: false,
+		outputMode: "text",
+		mode: "act",
+		defaultToolAutoApprove: false,
+		toolPolicies: {},
+		enableTools: true,
+		enableSpawnAgent: false,
+		enableAgentTeams: false,
+		...overrides,
+	};
+}
+
+describe("applyAgentProfileModelSelection", () => {
+	const envSnapshot = {
+		HOME: process.env.HOME,
+		CLINE_GLOBAL_SETTINGS_PATH: process.env.CLINE_GLOBAL_SETTINGS_PATH,
+	};
+	const tempRoots: string[] = [];
+
+	afterEach(async () => {
+		process.env.HOME = envSnapshot.HOME;
+		process.env.CLINE_GLOBAL_SETTINGS_PATH =
+			envSnapshot.CLINE_GLOBAL_SETTINGS_PATH;
+		setHomeDir(envSnapshot.HOME ?? "~");
+		vi.clearAllMocks();
+		for (const root of tempRoots.splice(0)) {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	async function setUpProviderSettings(): Promise<void> {
+		const root = await mkdtemp(join(tmpdir(), "cli-profile-model-"));
+		tempRoots.push(root);
+		const home = join(root, "home");
+		await mkdir(home, { recursive: true });
+		process.env.HOME = home;
+		setHomeDir(home);
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = join(home, "global-settings.json");
+
+		const manager = new ProviderSettingsManager();
+		manager.saveProviderSettings(
+			{
+				provider: "openai",
+				model: "openai/gpt-test",
+				apiKey: "openai-key",
+				reasoning: { enabled: true, effort: "high" },
+			},
+			{ setLastUsed: false },
+		);
+		// Saved last: anthropic is the user's persisted selection.
+		manager.saveProviderSettings({
+			provider: "anthropic",
+			model: "anthropic/claude-sonnet-4.6",
+			apiKey: "anthropic-key",
+		});
+	}
+
+	it("applies the profile's provider and model with its stored credentials", async () => {
+		await setUpProviderSettings();
+		const config = makeConfig();
+
+		const result = await applyAgentProfileModelSelection(config, {
+			providerId: "openai",
+			modelId: "openai/gpt-custom",
+		});
+
+		expect(result.warning).toBeUndefined();
+		expect(config.providerId).toBe("openai");
+		expect(config.modelId).toBe("openai/gpt-custom");
+		expect(config.apiKey).toBe("openai-key");
+		expect(config.knownModels).toMatchObject({ "mock/model-a": {} });
+		expect(config.thinking).toBe(true);
+		expect(config.reasoningEffort).toBe("high");
+	});
+
+	it("falls back to the profile provider's persisted model when the profile only pins a provider", async () => {
+		await setUpProviderSettings();
+		const config = makeConfig();
+
+		await applyAgentProfileModelSelection(config, { providerId: "openai" });
+
+		expect(config.providerId).toBe("openai");
+		expect(config.modelId).toBe("openai/gpt-test");
+	});
+
+	it("applies a model-only profile on the user's provider without provider resolution", async () => {
+		await setUpProviderSettings();
+		const config = makeConfig();
+
+		await applyAgentProfileModelSelection(config, {
+			modelId: "anthropic/claude-haiku-4.5",
+		});
+
+		expect(config.providerId).toBe("anthropic");
+		expect(config.modelId).toBe("anthropic/claude-haiku-4.5");
+		expect(config.apiKey).toBe("anthropic-key");
+		expect(resolveProviderConfig).not.toHaveBeenCalled();
+	});
+
+	it("warns and keeps the current selection when the profile provider is not configured", async () => {
+		await setUpProviderSettings();
+		const config = makeConfig();
+
+		const result = await applyAgentProfileModelSelection(config, {
+			providerId: "groq",
+			modelId: "groq/some-model",
+		});
+
+		expect(result.warning).toContain('"groq"');
+		expect(config.providerId).toBe("anthropic");
+		expect(config.modelId).toBe("anthropic/claude-sonnet-4.6");
+		expect(config.apiKey).toBe("anthropic-key");
+	});
+
+	it("restores the user's persisted selection when reverting to the default agent", async () => {
+		await setUpProviderSettings();
+		const config = makeConfig();
+
+		await applyAgentProfileModelSelection(config, {
+			providerId: "openai",
+			modelId: "openai/gpt-custom",
+		});
+		const result = await applyAgentProfileModelSelection(config, undefined);
+
+		expect(result.warning).toBeUndefined();
+		expect(config.providerId).toBe("anthropic");
+		expect(config.modelId).toBe("anthropic/claude-sonnet-4.6");
+		expect(config.apiKey).toBe("anthropic-key");
+		expect(config.thinking).toBe(false);
+		expect(config.reasoningEffort).toBeUndefined();
+	});
+
+	it("restores the persisted selection when switching to a profile without provider or model fields", async () => {
+		await setUpProviderSettings();
+		const config = makeConfig();
+
+		await applyAgentProfileModelSelection(config, {
+			providerId: "openai",
+			modelId: "openai/gpt-custom",
+		});
+		await applyAgentProfileModelSelection(config, {});
+
+		expect(config.providerId).toBe("anthropic");
+		expect(config.modelId).toBe("anthropic/claude-sonnet-4.6");
+	});
+
+	it("never writes the profile's selection into persisted provider settings", async () => {
+		await setUpProviderSettings();
+		const config = makeConfig();
+
+		await applyAgentProfileModelSelection(config, {
+			providerId: "openai",
+			modelId: "openai/gpt-custom",
+		});
+
+		const manager = new ProviderSettingsManager();
+		expect(manager.getLastUsedProviderSettings()?.provider).toBe("anthropic");
+		expect(manager.getProviderSettings("openai")?.model).toBe(
+			"openai/gpt-test",
+		);
+	});
+});

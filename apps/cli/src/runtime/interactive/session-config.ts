@@ -2,6 +2,7 @@ import type { TeamEvent } from "@cline/core";
 import type { ChatCommandState } from "../../utils/chat-commands";
 import type { Config } from "../../utils/types";
 import { resolveAgentProfileDisabledPluginPaths } from "../agent-profile-plugins";
+import { resolveAgentProfileDisabledToolNames } from "../agent-profile-tools";
 import {
 	CLI_DEFAULT_CHECKPOINT_CONFIG,
 	CLI_DEFAULT_LOOP_DETECTION,
@@ -34,5 +35,18 @@ export function buildInteractiveSessionConfig(input: {
 			input.config.agentProfile,
 			input.chatCommandState.workspaceRoot,
 		),
+		// Same lifecycle for the profile's tools and skills restrictions. The
+		// availability context tracks the live provider/model/mode so routed
+		// tool names (editor vs apply_patch) stay accurate across /model and
+		// plan/act switches.
+		disabledToolNames: resolveAgentProfileDisabledToolNames(
+			input.config.agentProfile,
+			{
+				mode: input.config.mode,
+				providerId: input.config.providerId,
+				modelId: input.config.modelId,
+			},
+		),
+		skills: input.config.agentProfile?.skills,
 	};
 }

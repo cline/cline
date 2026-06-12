@@ -30,6 +30,22 @@ export interface ActiveAgentProfile {
 	 * empty), only these plugins plus always-enabled ones load this session.
 	 */
 	plugins?: string[];
+	/**
+	 * Builtin tool allowlist from the profile's tools frontmatter. When present
+	 * (even empty), builtin tools outside the list are disabled this session.
+	 */
+	tools?: string[];
+	/**
+	 * Skill allowlist from the profile's skills frontmatter. When present, only
+	 * these skills are surfaced by the skills tool this session.
+	 */
+	skills?: string[];
+	/**
+	 * Provider/model from the profile's frontmatter, applied once at selection
+	 * time. A later explicit /model change wins for the rest of the session.
+	 */
+	providerId?: string;
+	modelId?: string;
 }
 
 export interface Config extends Omit<CoreSessionConfig, "apiKey" | "mode"> {

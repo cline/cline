@@ -6,6 +6,10 @@ interface MockConfiguredAgentConfig {
 	name: string;
 	description: string;
 	systemPrompt: string;
+	tools?: string[];
+	skills?: string[];
+	providerId?: string;
+	modelId?: string;
 	path?: string;
 }
 
@@ -41,6 +45,7 @@ const authMocks = vi.hoisted(() => ({
 	ensureOAuthProviderApiKey: vi.fn(),
 	getPersistedProviderApiKey: vi.fn(() => undefined),
 	isOAuthProvider: vi.fn(() => false),
+	isProviderConfigured: vi.fn(() => true),
 	normalizeProviderId: vi.fn((providerId?: string) => providerId ?? "cline"),
 	parseAuthCommandArgs: vi.fn(),
 	runAuthCommand: vi.fn(),
@@ -93,7 +98,7 @@ const updateMocks = vi.hoisted(() => ({
 	getPreferredKanbanInstaller: vi.fn(() => undefined),
 }));
 const runtimeMocks = vi.hoisted(() => ({
-	runAgent: vi.fn(async () => {
+	runAgent: vi.fn(async (..._args: unknown[]) => {
 		mockState.runAgentCalls += 1;
 	}),
 	runInteractive: vi.fn(),
@@ -164,8 +169,14 @@ vi.mock("./runtime/run-interactive", () => {
 });
 vi.mock("./utils/session", () => sessionMocks);
 vi.mock("./session/session", () => sessionMocks);
-vi.mock("@cline/core", () => {
+vi.mock("@cline/core", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@cline/core")>();
 	return {
+		// Pure helpers backing the profile tools restriction; the real
+		// implementations keep the disable-list derivation honest.
+		getCoreBuiltinToolCatalog: actual.getCoreBuiltinToolCatalog,
+		resolveConfiguredAgentAllowedToolNames:
+			actual.resolveConfiguredAgentAllowedToolNames,
 		resolveProviderConfig: llmMocks.resolveProviderConfig,
 		loadConfiguredAgentConfigs: agentConfigMocks.loadConfiguredAgentConfigs,
 		createTeamName: vi.fn(() => "team-test"),
@@ -251,6 +262,8 @@ describe("runCli lightweight command dispatch", () => {
 		authMocks.getPersistedProviderApiKey.mockReturnValue(undefined);
 		authMocks.isOAuthProvider.mockReset();
 		authMocks.isOAuthProvider.mockReturnValue(false);
+		authMocks.isProviderConfigured.mockReset();
+		authMocks.isProviderConfigured.mockReturnValue(true);
 		authMocks.normalizeProviderId.mockReset();
 		authMocks.normalizeProviderId.mockImplementation(
 			(providerId?: string) => providerId ?? "cline",
@@ -1009,6 +1022,131 @@ describe("runCli lightweight command dispatch", () => {
 		expect(process.exitCode).toBe(1);
 		expect(runtimeMocks.runAgent).not.toHaveBeenCalled();
 		expect(runtimeMocks.runInteractive).not.toHaveBeenCalled();
+	});
+
+	it("applies a profile's provider, model, tools, and skills to prompt runs", async () => {
+		agentConfigMocks.loadConfiguredAgentConfigs.mockReturnValue({
+			configs: [
+				{
+					name: "Reviewer",
+					description: "Reviews code",
+					systemPrompt: "You are a reviewer.",
+					tools: ["read_files", "search_codebase"],
+					skills: ["review-pr"],
+					providerId: "openai",
+					modelId: "openai/gpt-test",
+					path: "/repo/.cline/agents/reviewer.yaml",
+				},
+			],
+			errors: [],
+		});
+		providerSettingsMocks.saveProviderSettings.mockClear();
+		forcePromptModeInput();
+		process.argv = ["bun", "src/index.ts", "--agent", "reviewer", "hello"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
+			"hello",
+			expect.objectContaining({
+				providerId: "openai",
+				modelId: "openai/gpt-test",
+				skills: ["review-pr"],
+				disabledToolNames: expect.arrayContaining([
+					"run_commands",
+					"editor",
+					"fetch_web_content",
+					"spawn_agent",
+				]),
+			}),
+			expect.anything(),
+		);
+		const runConfig = runtimeMocks.runAgent.mock.calls.at(-1)?.[1] as {
+			disabledToolNames?: string[];
+		};
+		expect(runConfig.disabledToolNames).not.toContain("read_files");
+		expect(runConfig.disabledToolNames).not.toContain("search_codebase");
+		// Skills tool stays available because the profile lists skills.
+		expect(runConfig.disabledToolNames).not.toContain("skills");
+		// A profile-driven provider is never persisted as the user's selection.
+		expect(providerSettingsMocks.saveProviderSettings).not.toHaveBeenCalled();
+	});
+
+	it("lets explicit --provider and --model beat the profile's provider and model", async () => {
+		agentConfigMocks.loadConfiguredAgentConfigs.mockReturnValue({
+			configs: [
+				{
+					name: "Reviewer",
+					description: "Reviews code",
+					systemPrompt: "You are a reviewer.",
+					providerId: "openai",
+					modelId: "openai/gpt-test",
+					path: "/repo/.cline/agents/reviewer.yaml",
+				},
+			],
+			errors: [],
+		});
+		forcePromptModeInput();
+		process.argv = [
+			"bun",
+			"src/index.ts",
+			"--agent",
+			"reviewer",
+			"--provider",
+			"anthropic",
+			"--model",
+			"anthropic/claude-sonnet-4.6",
+			"hello",
+		];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
+			"hello",
+			expect.objectContaining({
+				providerId: "anthropic",
+				modelId: "anthropic/claude-sonnet-4.6",
+			}),
+			expect.anything(),
+		);
+	});
+
+	it("keeps the user's provider when the profile's provider is not configured", async () => {
+		agentConfigMocks.loadConfiguredAgentConfigs.mockReturnValue({
+			configs: [
+				{
+					name: "Reviewer",
+					description: "Reviews code",
+					systemPrompt: "You are a reviewer.",
+					providerId: "groq",
+					modelId: "groq/some-model",
+					path: "/repo/.cline/agents/reviewer.yaml",
+				},
+			],
+			errors: [],
+		});
+		authMocks.isProviderConfigured.mockReturnValue(false);
+		forcePromptModeInput();
+		process.argv = ["bun", "src/index.ts", "--agent", "reviewer", "hello"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
+			"hello",
+			expect.objectContaining({
+				providerId: "cline",
+				agentProfile: expect.objectContaining({ name: "Reviewer" }),
+			}),
+			expect.anything(),
+		);
+		const runConfig = runtimeMocks.runAgent.mock.calls.at(-1)?.[1] as {
+			modelId: string;
+		};
+		// The profile's model belongs to its unconfigured provider; ignore it.
+		expect(runConfig.modelId).not.toBe("groq/some-model");
 	});
 
 	it("rejects --agent in yolo mode before loading profiles", async () => {

@@ -644,8 +644,11 @@ export async function runInteractive(
 		},
 		onAgentProfileChange: async (profile) => {
 			await sessionRuntime.ensureReady();
-			await sessionRuntime.applyAgentProfile(profile ?? undefined);
+			const result = await sessionRuntime.applyAgentProfile(
+				profile ?? undefined,
+			);
 			await resetPluginChatCommandHost();
+			return result;
 		},
 		onNewSession: async () => {
 			await sessionRuntime.resetForNewSession();
