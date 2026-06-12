@@ -39,6 +39,12 @@ import {
 
 export { ensureCustomProvidersLoaded } from "./local-provider-registry";
 
+const CLINE_PASS_PROVIDER_ID = "cline-pass";
+
+export interface ListLocalProvidersOptions {
+	isClinePassEnabled?: boolean;
+}
+
 export interface UpdateLocalProviderRequest {
 	providerId: string;
 	name?: string;
@@ -639,6 +645,7 @@ export async function deleteLocalProvider(
 
 export async function listLocalProviders(
 	manager: ProviderSettingsManager,
+	options: ListLocalProvidersOptions = {},
 ): Promise<{ providers: ProviderListItem[]; settingsPath: string }> {
 	const state = manager.read();
 	const ids = LlmsModels.getProviderIds();
@@ -702,7 +709,12 @@ export async function listLocalProviders(
 			a.provider.id.localeCompare(b.provider.id)
 		);
 	});
-	const providers = providerEntries.map((entry) => entry.provider);
+	let providers = providerEntries.map((entry) => entry.provider);
+	if (options.isClinePassEnabled !== true) {
+		providers = providers.filter(
+			(provider) => provider.id !== CLINE_PASS_PROVIDER_ID,
+		);
+	}
 
 	return { providers, settingsPath: manager.getFilePath() };
 }

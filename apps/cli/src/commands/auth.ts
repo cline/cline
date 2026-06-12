@@ -4,7 +4,6 @@ import {
 	createOAuthClientCallbacks,
 	ensureCustomProvidersLoaded,
 	getProviderAuthHandler,
-	listLocalProviders,
 	loginAndSaveProviderOAuthCredentials,
 	type ProviderSettings,
 	type ProviderSettingsManager,
@@ -22,6 +21,7 @@ import {
 	type OAuthCredentials,
 	toProviderApiKey,
 } from "../utils/provider-auth";
+import { listLocalProviders } from "../utils/provider-catalog";
 import { identifyTelemetryAccount } from "../utils/telemetry";
 
 export {

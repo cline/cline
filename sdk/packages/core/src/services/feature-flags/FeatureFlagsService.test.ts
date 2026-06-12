@@ -1,3 +1,6 @@
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { FEATURE_FLAGS, type IFeatureFlagsProvider } from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { FeatureFlagsService } from "./FeatureFlagsService";
@@ -102,6 +105,72 @@ describe("FeatureFlagsService", () => {
 
 		expect(service.getBooleanFlagEnabled(TEST_BOOLEAN_FLAG)).toBe(false);
 		expect(service.getFlagPayload(TEST_PAYLOAD_FLAG)).toBeUndefined();
+	});
+
+	it("hydrates from a persistent cache file before polling", () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date("2026-06-10T10:00:00Z"));
+		const cacheFilePath = join(
+			mkdtempSync(join(tmpdir(), "cline-feature-flags-")),
+			"feature-flags.json",
+		);
+		writeFileSync(
+			cacheFilePath,
+			`${JSON.stringify({
+				version: 1,
+				updatedAt: Date.now(),
+				userId: "user-1",
+				flagsPayload: {
+					featureFlags: { [TEST_BOOLEAN_FLAG]: true },
+					featureFlagPayloads: { [TEST_PAYLOAD_FLAG]: 1234 },
+				},
+			})}\n`,
+			"utf8",
+		);
+
+		const service = new FeatureFlagsService({
+			provider: createProvider(),
+			cacheFilePath,
+			context: { userId: "user-1" },
+		});
+
+		expect(service.getBooleanFlagEnabled(TEST_BOOLEAN_FLAG)).toBe(true);
+		expect(service.getFlagPayload(TEST_PAYLOAD_FLAG)).toBe(1234);
+	});
+
+	it("writes a persistent cache file after polling", async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date("2026-06-10T10:00:00Z"));
+		const cacheFilePath = join(
+			mkdtempSync(join(tmpdir(), "cline-feature-flags-")),
+			"nested",
+			"feature-flags.json",
+		);
+		const service = new FeatureFlagsService({
+			provider: createProvider(),
+			cacheFilePath,
+		});
+
+		await service.poll("user-1");
+
+		const cache = JSON.parse(readFileSync(cacheFilePath, "utf8")) as {
+			version: number;
+			updatedAt: number;
+			userId: string | null;
+			flagsPayload?: {
+				featureFlags?: Record<string, unknown>;
+				featureFlagPayloads?: Record<string, unknown>;
+			};
+		};
+		expect(cache).toMatchObject({
+			version: 1,
+			updatedAt: Date.now(),
+			userId: "user-1",
+			flagsPayload: {
+				featureFlags: { [TEST_BOOLEAN_FLAG]: true },
+				featureFlagPayloads: { [TEST_PAYLOAD_FLAG]: 1234 },
+			},
+		});
 	});
 
 	it("disposes the provider", async () => {
