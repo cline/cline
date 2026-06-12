@@ -197,9 +197,13 @@ function createOAuthHandler(input: {
 	};
 }
 
-const providerAuthHandlers = [
-	createOAuthHandler({
-		providerId: "cline",
+function createClineAuthHandler(input: {
+	providerId: string;
+	storageProviderId?: string;
+}): ProviderAuthHandler {
+	return createOAuthHandler({
+		providerId: input.providerId,
+		storageProviderId: input.storageProviderId,
 		formatAccessToken: formatClineApiKey,
 		normalizeStoredAccessToken: stripClineApiKeyPrefix,
 		login: ({ settings, callbacks, telemetry }) =>
@@ -220,6 +224,14 @@ const providerAuthHandlers = [
 				},
 				{ forceRefresh },
 			),
+	});
+}
+
+const providerAuthHandlers = [
+	createClineAuthHandler({ providerId: "cline" }),
+	createClineAuthHandler({
+		providerId: "cline-pass",
+		storageProviderId: "cline",
 	}),
 	createOAuthHandler({
 		providerId: "oca",
