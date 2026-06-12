@@ -64,17 +64,11 @@ export class FeatureFlagsService {
 		this.persistentCacheMaxAgeMs =
 			options.persistentCacheMaxAgeMs ?? DEFAULT_PERSISTENT_CACHE_MAX_AGE_MS;
 		this.context = { ...(options.context ?? {}) };
-		this.hydrateFromPersistentCache(this.context.userId ?? null);
+		this.hydrateFromPersistentCache();
 	}
 
 	setContext(context: FeatureFlagsContext): void {
-		const previousUserId = this.context.userId ?? null;
 		this.context = { ...context };
-		const nextUserId = this.context.userId ?? null;
-		if (nextUserId !== previousUserId) {
-			const snapshot = this.readPersistentCache(nextUserId);
-			this.hydrateCache(snapshot ?? { updateTime: 0, userId: nextUserId });
-		}
 	}
 
 	hydrateCache(snapshot: FeatureFlagsCacheSnapshot): void {
@@ -134,8 +128,8 @@ export class FeatureFlagsService {
 		}
 	}
 
-	private hydrateFromPersistentCache(userId: string | null): void {
-		const snapshot = this.readPersistentCache(userId);
+	private hydrateFromPersistentCache(): void {
+		const snapshot = this.readPersistentCache();
 		if (snapshot) {
 			this.hydrateCache(snapshot);
 		}
@@ -182,9 +176,7 @@ export class FeatureFlagsService {
 		return record;
 	}
 
-	private readPersistentCache(
-		userId: string | null,
-	): FeatureFlagsCacheSnapshot | undefined {
+	private readPersistentCache(): FeatureFlagsCacheSnapshot | undefined {
 		try {
 			if (!this.cacheFilePath || !existsSync(this.cacheFilePath)) {
 				return undefined;
@@ -217,7 +209,7 @@ export class FeatureFlagsService {
 
 			return {
 				updateTime: cache.updatedAt,
-				userId: cache.userId || userId,
+				userId: cache.userId ?? null,
 				flagsPayload: {
 					featureFlags: this.readPayloadRecord(
 						cache.flagsPayload?.featureFlags,
