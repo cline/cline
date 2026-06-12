@@ -98,21 +98,15 @@ export async function spawnHistoryResume(
 			resolve(undefined);
 			return;
 		}
-		const onSigint = () => {
-			try {
-				child.kill("SIGINT");
-			} catch {}
-		};
-		const onSigterm = () => {
-			try {
-				child.kill("SIGTERM");
-			} catch {}
-		};
-		process.on("SIGINT", onSigint);
-		process.on("SIGTERM", onSigterm);
+		// The child shares this foreground process group, so terminal-generated
+		// Ctrl+C already reaches it. Keep the parent alive to reap the child
+		// without re-forwarding a second signal into the TUI teardown path.
+		const suppressParentSignal = () => {};
+		process.on("SIGINT", suppressParentSignal);
+		process.on("SIGTERM", suppressParentSignal);
 		const finish = (value: number | undefined) => {
-			process.off("SIGINT", onSigint);
-			process.off("SIGTERM", onSigterm);
+			process.off("SIGINT", suppressParentSignal);
+			process.off("SIGTERM", suppressParentSignal);
 			resolve(value);
 		};
 		child.once("error", () => finish(undefined));

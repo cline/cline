@@ -18,6 +18,8 @@ interface KeyStep {
 const INITIAL_RENDER_DELAY_SECONDS = 2.5;
 const POST_ACTION_SETTLE_SECONDS = 1.0;
 const INTERACTIVE_TEST_TIMEOUT_MS = 40_000;
+const HISTORY_PICKER_READY_DELAY_SECONDS = 8.0;
+const HISTORY_RESUME_READY_DELAY_SECONDS = 15.0;
 
 function normalizeTerminalOutput(output: string): string {
 	// biome-ignore lint/suspicious/noControlCharactersInRegex: this regex intentionally strips ANSI escape sequences
@@ -223,6 +225,16 @@ describe("cli interactive e2e", () => {
 			{ cwd: cliRoot, encoding: "utf8", env, timeout: 60_000 },
 		);
 		expect(seed.error).toBeUndefined();
+		const history = spawnSync(bunExec, [cliEntry, "history", "--json"], {
+			cwd: cliRoot,
+			encoding: "utf8",
+			env,
+			timeout: 60_000,
+		});
+		expect(history.error).toBeUndefined();
+		expect(history.status).toBe(0);
+		const historyRows = JSON.parse(history.stdout) as unknown[];
+		expect(historyRows.length).toBeGreaterThan(0);
 
 		// history picker -> Enter resumes the seeded session in the
 		// interactive TUI -> double Ctrl+C exits it. Regression guard for
@@ -232,10 +244,10 @@ describe("cli interactive e2e", () => {
 		const result = runInteractiveCli(
 			[
 				// Select the seeded session in the picker.
-				{ delaySeconds: 4.0, input: "\r" },
+				{ delaySeconds: HISTORY_PICKER_READY_DELAY_SECONDS, input: "\r" },
 				// Give the resumed TUI time to start, then double-press
 				// Ctrl+C; the harness appends the final press 0.2s later.
-				{ delaySeconds: 10.0, input: "\u0003" },
+				{ delaySeconds: HISTORY_RESUME_READY_DELAY_SECONDS, input: "\u0003" },
 			],
 			{ launchArgs: ["history"], env },
 		);
