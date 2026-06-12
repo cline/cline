@@ -304,6 +304,18 @@ export interface DefaultToolsConfig {
 	fileReadTimeoutMs?: number;
 
 	/**
+	 * Maximum image files to keep inline in one read_files result
+	 * @default 3
+	 */
+	readFilesMaxInlineImages?: number;
+
+	/**
+	 * Maximum base64 image payload bytes to keep inline in one read_files result
+	 * @default 524288
+	 */
+	readFilesMaxInlineImagePayloadBytes?: number;
+
+	/**
 	 * Timeout for bash command execution in milliseconds
 	 * @default 30000
 	 */

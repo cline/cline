@@ -11,11 +11,13 @@
 
 import {
 	type ContentBlock,
+	type ImageContent,
 	type Message,
 	normalizeUserInput,
 	type TextContent,
 	type ToolResultContent,
 } from "@cline/shared";
+import { imagePayloadByteLength } from "../../extensions/tools/executors/output-limits";
 
 const DEFAULT_MAX_TOOL_RESULT_CHARS = 50_000;
 const DEFAULT_MAX_TOTAL_TEXT_BYTES = 6_000_000;
@@ -799,7 +801,7 @@ export class MessageBuilder {
 			return changed ? next : value;
 		}
 		if (value !== null && typeof value === "object") {
-			if (isImageContentLike(value)) {
+			if (isImageContentBlock(value)) {
 				return value;
 			}
 			let changed = false;
@@ -829,7 +831,7 @@ export class MessageBuilder {
 			return messages;
 		}
 
-		let totalBytes = this.countMessageTextBytes(messages);
+		let totalBytes = this.countMessageProviderBytes(messages);
 		if (totalBytes <= this.maxTotalTextBytes) {
 			return messages;
 		}
@@ -872,7 +874,7 @@ export class MessageBuilder {
 		return next;
 	}
 
-	private countMessageTextBytes(messages: Message[]): number {
+	private countMessageProviderBytes(messages: Message[]): number {
 		let total = 0;
 		for (const message of messages) {
 			if (typeof message.content === "string") {
@@ -886,6 +888,8 @@ export class MessageBuilder {
 					total += utf8ByteLength(block.thinking);
 				} else if (block.type === "file") {
 					total += utf8ByteLength(block.content);
+				} else if (block.type === "image") {
+					total += imagePayloadByteLength(block);
 				} else if (block.type === "tool_result") {
 					if (typeof block.content === "string") {
 						total += utf8ByteLength(block.content);
@@ -895,8 +899,10 @@ export class MessageBuilder {
 								total += utf8ByteLength(entry.text);
 							} else if (entry.type === "file") {
 								total += utf8ByteLength(entry.content);
+							} else if (entry.type === "image") {
+								total += imagePayloadByteLength(entry);
 							} else if (isStructuredToolResultEntry(entry)) {
-								total += countNestedStringBytes(entry);
+								total += countNestedProviderBytes(entry);
 							}
 						}
 					}
@@ -1042,28 +1048,36 @@ function isStructuredToolResultEntry(entry: unknown): boolean {
 	return type !== "text" && type !== "image" && type !== "file";
 }
 
-function isImageContentLike(value: object): boolean {
-	return (value as { type?: unknown }).type === "image";
+function isImageContentBlock(value: unknown): value is ImageContent {
+	if (!value || typeof value !== "object") {
+		return false;
+	}
+	const record = value as Record<string, unknown>;
+	return (
+		record.type === "image" &&
+		typeof record.data === "string" &&
+		typeof record.mediaType === "string"
+	);
 }
 
-function countNestedStringBytes(value: unknown): number {
+function countNestedProviderBytes(value: unknown): number {
 	if (typeof value === "string") {
 		return utf8ByteLength(value);
 	}
 	if (Array.isArray(value)) {
 		let total = 0;
 		for (const item of value) {
-			total += countNestedStringBytes(item);
+			total += countNestedProviderBytes(item);
 		}
 		return total;
 	}
 	if (value !== null && typeof value === "object") {
-		if (isImageContentLike(value)) {
-			return 0;
+		if (isImageContentBlock(value)) {
+			return imagePayloadByteLength(value);
 		}
 		let total = 0;
 		for (const item of Object.values(value)) {
-			total += countNestedStringBytes(item);
+			total += countNestedProviderBytes(item);
 		}
 		return total;
 	}
@@ -1091,7 +1105,7 @@ function collectNestedStringCandidates(
 		return;
 	}
 	if (container !== null && typeof container === "object") {
-		if (isImageContentLike(container)) {
+		if (isImageContentBlock(container)) {
 			return;
 		}
 		const record = container as Record<string, unknown>;

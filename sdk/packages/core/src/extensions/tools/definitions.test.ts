@@ -872,6 +872,44 @@ describe("default run_commands tool", () => {
 });
 
 describe("default read_files tool", () => {
+	const oneByOnePng = Buffer.from(
+		"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+		"base64",
+	);
+
+	function paddedPngBase64(size: number): string {
+		return Buffer.concat([oneByOnePng, Buffer.alloc(size, 1)]).toString(
+			"base64",
+		);
+	}
+
+	function imageResult(data: string) {
+		return [
+			{ type: "text" as const, text: "Successfully read image" },
+			{ type: "image" as const, data, mediaType: "image/png" },
+		];
+	}
+
+	function countInlineImages(value: unknown): number {
+		if (!value || typeof value !== "object") {
+			return 0;
+		}
+		if (Array.isArray(value)) {
+			return value.reduce<number>(
+				(sum, item) => sum + countInlineImages(item),
+				0,
+			);
+		}
+		const record = value as Record<string, unknown>;
+		if (record.type === "image") {
+			return 1;
+		}
+		return Object.values(record).reduce<number>(
+			(sum, item) => sum + countInlineImages(item),
+			0,
+		);
+	}
+
 	it("validates ranged file requests and passes them to the executor", async () => {
 		const execute = vi.fn(async () => "selected lines");
 		const tool = createReadFilesTool(execute);
@@ -912,6 +950,46 @@ describe("default read_files tool", () => {
 				iteration: 1,
 			}),
 		);
+	});
+
+	it("limits inline images in one read_files result and replaces overflow with metadata", async () => {
+		const firstImage = paddedPngBase64(128);
+		const omittedImage = paddedPngBase64(256);
+		const execute = vi
+			.fn()
+			.mockResolvedValueOnce(imageResult(firstImage))
+			.mockResolvedValueOnce(imageResult(omittedImage))
+			.mockResolvedValueOnce(imageResult(omittedImage));
+		const tool = createReadFilesTool(execute, {
+			readFilesMaxInlineImages: 1,
+			readFilesMaxInlineImagePayloadBytes: 10_000,
+		});
+
+		const result = await tool.execute(
+			{
+				files: [
+					{ path: "/tmp/frame-001.png" },
+					{ path: "/tmp/frame-002.png" },
+					{ path: "/tmp/frame-003.png" },
+				],
+			},
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+				metadata: { modelSupportsImages: true },
+			},
+		);
+
+		const serialized = JSON.stringify(result);
+		expect(countInlineImages(result)).toBe(1);
+		expect(serialized).toContain(firstImage);
+		expect(serialized).not.toContain(omittedImage);
+		expect(serialized).toContain("Image omitted due to budget.");
+		expect(serialized).toContain("/tmp/frame-002.png");
+		expect(serialized).toContain("Media type: image/png");
+		expect(serialized).toContain("Byte size:");
+		expect(serialized).toContain("Dimensions: 1x1");
 	});
 
 	it("accepts string union inputs reading full file content", async () => {

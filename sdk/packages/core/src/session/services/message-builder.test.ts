@@ -416,6 +416,24 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
 		return `${HEAD_MARKER}${filler}${MIDDLE_SENTINEL}${filler}${TAIL_MARKER}`;
 	}
 
+	const oneByOnePng = Buffer.from(
+		"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+		"base64",
+	);
+
+	function paddedPngBase64(size: number, fill: number): string {
+		return Buffer.concat([oneByOnePng, Buffer.alloc(size, fill)]).toString(
+			"base64",
+		);
+	}
+
+	function imageReadResult(data: string) {
+		return [
+			{ type: "text" as const, text: "Successfully read image" },
+			{ type: "image" as const, data, mediaType: "image/png" },
+		];
+	}
+
 	function toolUseMessage(
 		id: string,
 		name: string,
@@ -670,5 +688,43 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
 		expect(serialized).not.toContain(MIDDLE_SENTINEL);
 		expect(serialized).toContain(HEAD_MARKER);
 		expect(serialized).toContain(TAIL_MARKER);
+	});
+
+	it("counts nested read_files image bytes in the aggregate provider budget", () => {
+		const inlineImage = paddedPngBase64(30_000, 1);
+		const builder = new MessageBuilder(50_000, new Set(["read_files"]), 40_000);
+		const messages: Message[] = [
+			toolUseMessage("call_1", "read_files", {
+				files: [{ path: "/tmp/frame-001.png" }],
+			}),
+			structuredToolResultMessage("call_1", "read_files", [
+				{
+					query: "/tmp/frame-001.png",
+					result: [
+						...imageReadResult(inlineImage),
+						{
+							type: "text" as const,
+							text: `ocr:${"x".repeat(20_000)}`,
+						},
+					],
+					success: true,
+				},
+			]),
+		];
+
+		const built = builder.buildForApi(messages);
+		const agentMessages = messagesToAgentMessages(built);
+		const aiSdkMessages = formatMessagesForAiSdk(
+			undefined,
+			agentMessages.map(({ role, content }) => ({
+				role,
+				content,
+			})) as unknown as AiSdkFormatterMessage[],
+		);
+		const serialized = JSON.stringify(aiSdkMessages);
+
+		expect(serialized).toContain(inlineImage);
+		expect(serialized).toContain("provider request budget");
+		expect(serialized.length).toBeLessThan(75_000);
 	});
 });

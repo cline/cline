@@ -14,6 +14,11 @@ import {
 import { captureRunCommandsTimeout } from "../../services/telemetry/core-events";
 import { getToolContextTelemetry } from "../../services/telemetry/tool-context";
 import {
+	DEFAULT_MAX_IMAGE_PAYLOAD_BYTES_PER_TOOL_RESULT,
+	DEFAULT_MAX_INLINE_IMAGES_PER_TOOL_RESULT,
+	limitReadFilesToolOperationImages,
+} from "./executors/output-limits";
+import {
 	formatError,
 	formatReadFileQuery,
 	formatRunCommandQueryPreview,
@@ -115,9 +120,20 @@ function captureRunCommandsTimeoutFromContext(
  */
 export function createReadFilesTool(
 	executor: FileReadExecutor,
-	config: Pick<DefaultToolsConfig, "fileReadTimeoutMs"> = {},
+	config: Pick<
+		DefaultToolsConfig,
+		| "fileReadTimeoutMs"
+		| "readFilesMaxInlineImages"
+		| "readFilesMaxInlineImagePayloadBytes"
+	> = {},
 ): AgentTool<ReadFilesInput, ToolOperationResult[]> {
 	const timeoutMs = config.fileReadTimeoutMs ?? 10000;
+	const maxInlineImages =
+		config.readFilesMaxInlineImages ??
+		DEFAULT_MAX_INLINE_IMAGES_PER_TOOL_RESULT;
+	const maxImagePayloadBytes =
+		config.readFilesMaxInlineImagePayloadBytes ??
+		DEFAULT_MAX_IMAGE_PAYLOAD_BYTES_PER_TOOL_RESULT;
 
 	return createTool<ReadFilesInput, ToolOperationResult[]>({
 		name: "read_files",
@@ -161,7 +177,7 @@ export function createReadFilesTool(
 				requests = [validate];
 			}
 
-			return Promise.all(
+			const results = await Promise.all(
 				requests.map(async (request): Promise<ToolOperationResult> => {
 					const rangeError = getReadFileRangeError(request);
 					if (rangeError) {
@@ -195,6 +211,10 @@ export function createReadFilesTool(
 					}
 				}),
 			);
+			return limitReadFilesToolOperationImages(results, {
+				maxInlineImages,
+				maxImagePayloadBytes,
+			});
 		},
 	});
 }
