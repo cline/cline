@@ -2404,7 +2404,7 @@ export class Task {
 				"mistake_limit_reached",
 				this.api.getModel().id.includes("claude")
 					? `This may indicate a failure in Cline's thought process or inability to use a tool properly, which can be mitigated with some user guidance (e.g. "Try breaking down the task into smaller steps").`
-					: "Cline uses complex prompts and iterative task execution that may be challenging for less capable models. For best results, it's recommended to use Claude 4.5 Sonnet for its advanced agentic coding capabilities.",
+					: "Cline hit its mistake limit while processing tool calls or model output. This may be caused by tool-call parsing issues, provider incompatibility, or task complexity. Continue only if the task state is coherent; otherwise, consider starting a fresh task.",
 			)
 			if (response === "messageResponse") {
 				// Display the user's message in the chat UI
