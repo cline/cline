@@ -14,11 +14,15 @@ import {
 import { captureRunCommandsTimeout } from "../../services/telemetry/core-events";
 import { getToolContextTelemetry } from "../../services/telemetry/tool-context";
 import {
+	applyAggregateToolResultBudget,
 	budgetReadFileOutput,
 	budgetRunCommandOutput,
 	DEFAULT_READ_FILE_OUTPUT_MAX_CHARS,
+	DEFAULT_READ_FILES_AGGREGATE_OUTPUT_MAX_CHARS,
+	DEFAULT_RUN_COMMAND_AGGREGATE_OUTPUT_MAX_CHARS,
 	DEFAULT_RUN_COMMAND_OUTPUT_MAX_CHARS,
 	formatError,
+	formatOmittedCount,
 	formatReadFileQuery,
 	formatRunCommandQueryPreview,
 	getEditorSizeError,
@@ -108,6 +112,53 @@ function captureRunCommandsTimeoutFromContext(
 	});
 }
 
+function createReadFilesAggregatePlaceholder(context: {
+	entry: ToolOperationResult;
+	omittedChars: number;
+	omittedBytes: number;
+}): ToolOperationResult {
+	const placeholder = `[omitted ${formatOmittedCount(
+		context.omittedChars,
+		context.omittedBytes,
+	)} from read_files entry: aggregate output budget exhausted. Read this path/range in a separate call or use a narrower range.]`;
+
+	return {
+		...context.entry,
+		result: context.entry.error ? "" : placeholder,
+		...(context.entry.error ? { error: placeholder } : {}),
+		success: context.entry.success,
+		truncated: true,
+		aggregateOmitted: true,
+		omittedChars: (context.entry.omittedChars ?? 0) + context.omittedChars,
+		omittedBytes: (context.entry.omittedBytes ?? 0) + context.omittedBytes,
+	};
+}
+
+function createRunCommandsAggregatePlaceholder(context: {
+	entry: ToolOperationResult;
+	omittedChars: number;
+	omittedBytes: number;
+}): ToolOperationResult {
+	const inspectHint = context.entry.fullOutputPath
+		? ` Full output saved to ${context.entry.fullOutputPath}.`
+		: " Run this command separately to inspect full output.";
+	const placeholder = `[omitted ${formatOmittedCount(
+		context.omittedChars,
+		context.omittedBytes,
+	)} from run_commands entry: aggregate output budget exhausted.${inspectHint}]`;
+
+	return {
+		...context.entry,
+		result: context.entry.error ? "" : placeholder,
+		...(context.entry.error ? { error: placeholder } : {}),
+		success: context.entry.success,
+		truncated: true,
+		aggregateOmitted: true,
+		omittedChars: (context.entry.omittedChars ?? 0) + context.omittedChars,
+		omittedBytes: (context.entry.omittedBytes ?? 0) + context.omittedBytes,
+	};
+}
+
 // =============================================================================
 // AgentTool Factory Functions
 // =============================================================================
@@ -121,12 +172,17 @@ export function createReadFilesTool(
 	executor: FileReadExecutor,
 	config: Pick<
 		DefaultToolsConfig,
-		"fileReadTimeoutMs" | "readFileOutputMaxChars"
+		| "fileReadTimeoutMs"
+		| "readFileOutputMaxChars"
+		| "readFilesAggregateOutputMaxChars"
 	> = {},
 ): AgentTool<ReadFilesInput, ToolOperationResult[]> {
 	const timeoutMs = config.fileReadTimeoutMs ?? 10000;
 	const outputMaxChars =
 		config.readFileOutputMaxChars ?? DEFAULT_READ_FILE_OUTPUT_MAX_CHARS;
+	const aggregateOutputMaxChars =
+		config.readFilesAggregateOutputMaxChars ??
+		DEFAULT_READ_FILES_AGGREGATE_OUTPUT_MAX_CHARS;
 
 	return createTool<ReadFilesInput, ToolOperationResult[]>({
 		name: "read_files",
@@ -170,7 +226,7 @@ export function createReadFilesTool(
 				requests = [validate];
 			}
 
-			return Promise.all(
+			const results = await Promise.all(
 				requests.map(async (request): Promise<ToolOperationResult> => {
 					const rangeError = getReadFileRangeError(request);
 					if (rangeError) {
@@ -218,6 +274,10 @@ export function createReadFilesTool(
 					}
 				}),
 			);
+			return applyAggregateToolResultBudget(results, {
+				maxChars: aggregateOutputMaxChars,
+				createPlaceholder: createReadFilesAggregatePlaceholder,
+			});
 		},
 	});
 }
@@ -298,12 +358,16 @@ export function createBashTool(
 		| "cwd"
 		| "bashTimeoutMs"
 		| "runCommandOutputMaxChars"
+		| "runCommandAggregateOutputMaxChars"
 		| "toolOutputArtifactDirectory"
 	> = {},
 ): AgentTool<RunCommandsInput, ToolOperationResult[]> {
 	const timeoutMs = config.bashTimeoutMs ?? 30000;
 	const outputMaxChars =
 		config.runCommandOutputMaxChars ?? DEFAULT_RUN_COMMAND_OUTPUT_MAX_CHARS;
+	const aggregateOutputMaxChars =
+		config.runCommandAggregateOutputMaxChars ??
+		DEFAULT_RUN_COMMAND_AGGREGATE_OUTPUT_MAX_CHARS;
 	const timeoutSource =
 		config.bashTimeoutMs === undefined
 			? "default_setting"
@@ -338,7 +402,7 @@ export function createBashTool(
 				commands = [validate.cmd];
 			}
 
-			return Promise.all(
+			const results = await Promise.all(
 				commands.map(async (command: string): Promise<ToolOperationResult> => {
 					const startedAt = Date.now();
 					const query = formatRunCommandQueryPreview(command);
@@ -390,6 +454,10 @@ export function createBashTool(
 					}
 				}),
 			);
+			return applyAggregateToolResultBudget(results, {
+				maxChars: aggregateOutputMaxChars,
+				createPlaceholder: createRunCommandsAggregatePlaceholder,
+			});
 		},
 	});
 }
@@ -406,12 +474,16 @@ export function createWindowsShellTool(
 		| "cwd"
 		| "bashTimeoutMs"
 		| "runCommandOutputMaxChars"
+		| "runCommandAggregateOutputMaxChars"
 		| "toolOutputArtifactDirectory"
 	> = {},
 ): AgentTool<StructuredCommandInput, ToolOperationResult[]> {
 	const timeoutMs = config.bashTimeoutMs ?? 30000;
 	const outputMaxChars =
 		config.runCommandOutputMaxChars ?? DEFAULT_RUN_COMMAND_OUTPUT_MAX_CHARS;
+	const aggregateOutputMaxChars =
+		config.runCommandAggregateOutputMaxChars ??
+		DEFAULT_RUN_COMMAND_AGGREGATE_OUTPUT_MAX_CHARS;
 	const timeoutSource =
 		config.bashTimeoutMs === undefined
 			? "default_setting"
@@ -431,7 +503,7 @@ export function createWindowsShellTool(
 		execute: async (input, context) => {
 			const commands = normalizeRunCommandsInput(input);
 
-			return Promise.all(
+			const results = await Promise.all(
 				commands.map(async (command): Promise<ToolOperationResult> => {
 					const startedAt = Date.now();
 					const query = formatRunCommandQueryPreview(command);
@@ -483,6 +555,10 @@ export function createWindowsShellTool(
 					}
 				}),
 			);
+			return applyAggregateToolResultBudget(results, {
+				maxChars: aggregateOutputMaxChars,
+				createPlaceholder: createRunCommandsAggregatePlaceholder,
+			});
 		},
 	});
 }

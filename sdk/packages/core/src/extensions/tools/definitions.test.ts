@@ -805,6 +805,83 @@ describe("default run_commands tool", () => {
 		}
 	});
 
+	it("applies an aggregate output budget across batched command results", async () => {
+		const execute = vi.fn(async (command: unknown) => {
+			const renderedCommand = String(command);
+			const index = Number(renderedCommand.match(/\d+$/u)?.[0] ?? 0);
+			const sentinel =
+				index >= 2
+					? `AGGREGATE_COMMAND_${index}_SHOULD_NOT_BE_INLINE`
+					: `command-${index}-kept`;
+			return [
+				`command-${index}-head`,
+				"x".repeat(1_800),
+				sentinel,
+				"y".repeat(1_800),
+				`command-${index}-tail`,
+			].join("\n");
+		});
+		const tool = createBashTool(execute, {
+			runCommandOutputMaxChars: 10_000,
+			runCommandAggregateOutputMaxChars: 7_000,
+		});
+		const commands = Array.from(
+			{ length: 8 },
+			(_, index) => `curl endpoint-${index}`,
+		);
+
+		const result = (await tool.execute(
+			{ commands },
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		)) as ToolOperationResult[];
+
+		expect(result).toHaveLength(8);
+		expect(result[0]?.aggregateOmitted).toBeUndefined();
+		expect(result[7]?.query).toBe("curl endpoint-7");
+		expect(result[7]?.aggregateOmitted).toBe(true);
+		expect(result[7]?.omittedChars).toBeGreaterThan(3_000);
+		expect(String(result[7]?.result)).toContain("aggregate output budget");
+		expect(String(result[7]?.result)).not.toContain(
+			"AGGREGATE_COMMAND_7_SHOULD_NOT_BE_INLINE",
+		);
+
+		const inlineOutputChars = result.reduce(
+			(total, operation) =>
+				total +
+				String(operation.result ?? "").length +
+				(operation.error?.length ?? 0),
+			0,
+		);
+		expect(inlineOutputChars).toBeLessThan(7_000);
+
+		const serializedResult = JSON.stringify(result);
+		expect(serializedResult).not.toContain(
+			"AGGREGATE_COMMAND_7_SHOULD_NOT_BE_INLINE",
+		);
+		expect(serializedResult.length).toBeLessThan(9_000);
+
+		const persistedTranscript = JSON.stringify(
+			messagesForToolResult("run_commands", result),
+		);
+		expect(persistedTranscript.length).toBeLessThan(10_000);
+		expect(persistedTranscript).not.toContain(
+			"AGGREGATE_COMMAND_7_SHOULD_NOT_BE_INLINE",
+		);
+
+		const providerMessages = new MessageBuilder().buildForApi(
+			messagesForToolResult("run_commands", result),
+		);
+		const providerPayload = JSON.stringify(providerMessages);
+		expect(providerPayload.length).toBeLessThan(10_000);
+		expect(providerPayload).not.toContain(
+			"AGGREGATE_COMMAND_7_SHOULD_NOT_BE_INLINE",
+		);
+	});
+
 	it("normalizes CR-heavy command progress logs and keeps the useful tail", async () => {
 		const artifactDir = mkdtempSync(join(tmpdir(), "core-tool-cr-output-"));
 		try {
@@ -1219,6 +1296,84 @@ describe("default read_files tool", () => {
 		expect(providerPayload.length).toBeLessThan(2_000);
 		expect(providerPayload).not.toContain(
 			"FILE_MIDDLE_SENTINEL_SHOULD_NOT_BE_INLINE",
+		);
+	});
+
+	it("applies an aggregate output budget across batched ranged file reads", async () => {
+		const execute = vi.fn(async (request) => {
+			const index = Number(request.path.match(/(\d+)\.gcode$/u)?.[1] ?? 0);
+			const sentinel =
+				index >= 2
+					? `AGGREGATE_FILE_${index}_SHOULD_NOT_BE_INLINE`
+					: `file-${index}-kept`;
+			return [
+				`range-${index}-head`,
+				"r".repeat(1_800),
+				sentinel,
+				"s".repeat(1_800),
+				`range-${index}-tail`,
+			].join("\n");
+		});
+		const tool = createReadFilesTool(execute, {
+			readFileOutputMaxChars: 100,
+			readFilesAggregateOutputMaxChars: 7_000,
+		});
+		const files = Array.from({ length: 11 }, (_, index) => ({
+			path: `/tmp/text-${index}.gcode`,
+			start_line: index * 100 + 1,
+			end_line: (index + 1) * 100,
+		}));
+
+		const result = (await tool.execute(
+			{ files },
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		)) as ToolOperationResult[];
+
+		expect(result).toHaveLength(11);
+		expect(result[0]?.aggregateOmitted).toBeUndefined();
+		expect(String(result[0]?.result)).toContain("range-0-head");
+		expect(result[10]?.query).toBe("/tmp/text-10.gcode:1001-1100");
+		expect(result[10]?.aggregateOmitted).toBe(true);
+		expect(result[10]?.omittedChars).toBeGreaterThan(3_000);
+		expect(String(result[10]?.result)).toContain("aggregate output budget");
+		expect(String(result[10]?.result)).not.toContain(
+			"AGGREGATE_FILE_10_SHOULD_NOT_BE_INLINE",
+		);
+
+		const inlineOutputChars = result.reduce(
+			(total, operation) =>
+				total +
+				String(operation.result ?? "").length +
+				(operation.error?.length ?? 0),
+			0,
+		);
+		expect(inlineOutputChars).toBeLessThan(7_000);
+
+		const serializedResult = JSON.stringify(result);
+		expect(serializedResult).not.toContain(
+			"AGGREGATE_FILE_10_SHOULD_NOT_BE_INLINE",
+		);
+		expect(serializedResult.length).toBeLessThan(10_000);
+
+		const persistedTranscript = JSON.stringify(
+			messagesForToolResult("read_files", result),
+		);
+		expect(persistedTranscript.length).toBeLessThan(11_000);
+		expect(persistedTranscript).not.toContain(
+			"AGGREGATE_FILE_10_SHOULD_NOT_BE_INLINE",
+		);
+
+		const providerMessages = new MessageBuilder().buildForApi(
+			messagesForToolResult("read_files", result),
+		);
+		const providerPayload = JSON.stringify(providerMessages);
+		expect(providerPayload.length).toBeLessThan(11_000);
+		expect(providerPayload).not.toContain(
+			"AGGREGATE_FILE_10_SHOULD_NOT_BE_INLINE",
 		);
 	});
 

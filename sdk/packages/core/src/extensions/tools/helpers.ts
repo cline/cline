@@ -10,6 +10,7 @@ import {
 	type StructuredCommandInput,
 	StructuredCommandsInputUnionSchema,
 } from "./schemas";
+import type { ToolOperationResult } from "./types";
 
 /**
  * Format an error into a string message
@@ -155,6 +156,8 @@ export function formatRunCommandQueryPreview(
 
 export const DEFAULT_RUN_COMMAND_OUTPUT_MAX_CHARS = 20_000;
 export const DEFAULT_READ_FILE_OUTPUT_MAX_CHARS = 40_000;
+export const DEFAULT_RUN_COMMAND_AGGREGATE_OUTPUT_MAX_CHARS = 40_000;
+export const DEFAULT_READ_FILES_AGGREGATE_OUTPUT_MAX_CHARS = 80_000;
 
 interface TextBudgetMetadata {
 	truncated?: true;
@@ -181,11 +184,132 @@ function byteLength(value: string): number {
 	return Buffer.byteLength(value, "utf8");
 }
 
-function formatOmittedCount(chars: number, bytes: number): string {
+export function formatOmittedCount(chars: number, bytes: number): string {
 	if (chars === bytes) {
 		return `${chars} chars`;
 	}
 	return `${chars} chars / ${bytes} bytes`;
+}
+
+interface OutputSize {
+	chars: number;
+	bytes: number;
+}
+
+function addOutputSize(left: OutputSize, right: OutputSize): OutputSize {
+	return {
+		chars: left.chars + right.chars,
+		bytes: left.bytes + right.bytes,
+	};
+}
+
+function measureInlineOutput(value: unknown): OutputSize {
+	if (typeof value === "string") {
+		return {
+			chars: value.length,
+			bytes: byteLength(value),
+		};
+	}
+
+	if (Array.isArray(value)) {
+		return value.reduce<OutputSize>(
+			(size, item) => addOutputSize(size, measureInlineOutput(item)),
+			{ chars: 0, bytes: 0 },
+		);
+	}
+
+	if (value && typeof value === "object") {
+		return Object.values(value).reduce<OutputSize>(
+			(size, item) => addOutputSize(size, measureInlineOutput(item)),
+			{ chars: 0, bytes: 0 },
+		);
+	}
+
+	return { chars: 0, bytes: 0 };
+}
+
+function measureToolOperationOutput(entry: ToolOperationResult): OutputSize {
+	return addOutputSize(measureInlineOutput(entry.result), {
+		chars: entry.error?.length ?? 0,
+		bytes: entry.error ? byteLength(entry.error) : 0,
+	});
+}
+
+function fitToolOperationOutput(
+	entry: ToolOperationResult,
+	maxChars: number,
+): ToolOperationResult {
+	if (maxChars <= 0) {
+		return {
+			...entry,
+			result: "",
+			...(entry.error ? { error: "" } : {}),
+		};
+	}
+
+	if (entry.error) {
+		return {
+			...entry,
+			result: "",
+			error: entry.error.slice(0, maxChars),
+		};
+	}
+
+	if (typeof entry.result === "string") {
+		return {
+			...entry,
+			result: entry.result.slice(0, maxChars),
+		};
+	}
+
+	return {
+		...entry,
+		result: "",
+	};
+}
+
+interface AggregateBudgetContext {
+	entry: ToolOperationResult;
+	index: number;
+	omittedChars: number;
+	omittedBytes: number;
+}
+
+export function applyAggregateToolResultBudget(
+	entries: ToolOperationResult[],
+	options: {
+		maxChars: number;
+		createPlaceholder: (context: AggregateBudgetContext) => ToolOperationResult;
+	},
+): ToolOperationResult[] {
+	const maxChars = Math.max(0, options.maxChars);
+	let remainingChars = maxChars;
+	let exhausted = false;
+
+	return entries.map((entry, index) => {
+		const outputSize = measureToolOperationOutput(entry);
+		if (!exhausted && outputSize.chars <= remainingChars) {
+			remainingChars -= outputSize.chars;
+			return entry;
+		}
+
+		exhausted = true;
+		const placeholder = options.createPlaceholder({
+			entry,
+			index,
+			omittedChars: outputSize.chars,
+			omittedBytes: outputSize.bytes,
+		});
+		const placeholderSize = measureToolOperationOutput(placeholder);
+		if (placeholderSize.chars > remainingChars) {
+			const fitted = fitToolOperationOutput(placeholder, remainingChars);
+			remainingChars = 0;
+			return fitted;
+		}
+
+		remainingChars = Math.max(0, remainingChars - placeholderSize.chars);
+		return placeholder;
+	});
 }
 
 function computeVisibleText(

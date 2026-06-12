@@ -44,6 +44,8 @@ export interface ToolOperationResult {
 	fullOutputPath?: string;
 	/** Whether carriage-return progress updates were collapsed in the preview */
 	normalizedCarriageReturns?: boolean;
+	/** Whether this entry's inline output was omitted by a tool-call aggregate budget */
+	aggregateOmitted?: boolean;
 }
 
 export type FileReadResultContent = string | Array<TextContent | ImageContent>;
@@ -320,6 +322,12 @@ export interface DefaultToolsConfig {
 	readFileOutputMaxChars?: number;
 
 	/**
+	 * Maximum aggregate inline output characters across one read_files call
+	 * @default 80000
+	 */
+	readFilesAggregateOutputMaxChars?: number;
+
+	/**
 	 * Timeout for bash command execution in milliseconds
 	 * @default 30000
 	 */
@@ -330,6 +338,12 @@ export interface DefaultToolsConfig {
 	 * @default 20000
 	 */
 	runCommandOutputMaxChars?: number;
+
+	/**
+	 * Maximum aggregate inline output characters across one run_commands call
+	 * @default 40000
+	 */
+	runCommandAggregateOutputMaxChars?: number;
 
 	/**
 	 * Directory for full run_commands output artifacts
