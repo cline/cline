@@ -79,8 +79,11 @@ export class MessageBuilder {
 	/**
 	 * Committed outdated-read rewrites (locator keys per tool_use_id),
 	 * applied on every build so the transcript stays byte-stable between
-	 * batch commits. Cleared in resetIndexes: that only fires on
-	 * non-append-only history changes, where the prefix is already broken.
+	 * batch commits. Survives resetIndexes: the runtime rebuilds fresh
+	 * Message objects per request, so identity-based reindexing cannot be
+	 * trusted to detect real history changes. Stale entries are instead
+	 * re-validated against the current index at apply time and pruned in
+	 * commitOutdatedRewrites.
 	 */
 	private readonly committedOutdatedRewrites = new Map<string, Set<string>>();
 
@@ -245,6 +248,7 @@ export class MessageBuilder {
 	 */
 	private commitOutdatedRewrites(messages: Message[]): void {
 		const pending = new Map<string, Set<string>>();
+		const seenToolUseIds = new Set<string>();
 		let pendingBytes = 0;
 
 		for (const message of messages) {
@@ -259,17 +263,31 @@ export class MessageBuilder {
 				if (!this.isReadTool(toolName)) {
 					continue;
 				}
+				seenToolUseIds.add(block.tool_use_id);
 				const committed = this.committedOutdatedRewrites.get(block.tool_use_id);
 				const newKeys = new Set<string>();
+				const validKeys = new Set<string>();
 				for (const locator of this.getReadLocators(block)) {
 					const key = this.toReadLocatorKey(locator);
-					if (committed?.has(key)) {
-						continue;
-					}
 					if (!this.isOutdatedReadLocator(locator, block.tool_use_id)) {
 						continue;
 					}
-					newKeys.add(key);
+					validKeys.add(key);
+					if (!committed?.has(key)) {
+						newKeys.add(key);
+					}
+				}
+				// Prune committed keys no longer outdated (history rollback);
+				// a no-op in append-only growth.
+				if (committed) {
+					for (const key of committed) {
+						if (!validKeys.has(key)) {
+							committed.delete(key);
+						}
+					}
+					if (committed.size === 0) {
+						this.committedOutdatedRewrites.delete(block.tool_use_id);
+					}
 				}
 				if (newKeys.size === 0) {
 					continue;
@@ -288,6 +306,12 @@ export class MessageBuilder {
 					block.content,
 					newKeys,
 				);
+			}
+		}
+
+		for (const toolUseId of this.committedOutdatedRewrites.keys()) {
+			if (!seenToolUseIds.has(toolUseId)) {
+				this.committedOutdatedRewrites.delete(toolUseId);
 			}
 		}
 
@@ -588,7 +612,6 @@ export class MessageBuilder {
 		this.readLocatorsByToolUseIdCache.clear();
 		this.latestReadToolUseByLocatorCache.clear();
 		this.latestFullContentOwnerByPathCache.clear();
-		this.committedOutdatedRewrites.clear();
 		this.readResultLocatorCache = new WeakMap<object, ReadLocator[]>();
 	}
 

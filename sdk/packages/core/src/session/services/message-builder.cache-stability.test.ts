@@ -1,6 +1,16 @@
 import type { Message } from "@cline/shared";
 import { describe, expect, it } from "vitest";
+import {
+	agentMessagesToMessages,
+	messagesToAgentMessages,
+} from "../../runtime/config/agent-message-codec";
 import { MessageBuilder } from "./message-builder";
+
+/** Mimics the runtime provider-request path, which rebuilds fresh Message
+ * objects every request via the agent-message codec. */
+function codecRoundTrip(messages: Message[]): Message[] {
+	return agentMessagesToMessages(messagesToAgentMessages(messages));
+}
 
 const SMALL_CONTENT = (v: number) => `export const x = ${v};\n`.repeat(40); // ~1KB
 const LARGE_CONTENT = (v: number) => `export const x = ${v};\n`.repeat(4_000); // ~80KB
@@ -269,6 +279,53 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 		const reqB = builder.buildForApi(t1Only);
 		expect(serializedBlockAt(reqB, 2)).not.toContain("outdated");
 		expect(serializedBlockAt(reqB, 2)).toContain("export const x = 1;");
+	});
+
+	it("keeps batching state when the runtime rebuilds fresh message objects per request", () => {
+		const builder = new MessageBuilder();
+		const history: Message[] = [
+			{ role: "user", content: "task" },
+			readToolUse("t1", "src/big.ts"),
+			readToolResult("t1", LARGE_CONTENT(1), "src/big.ts"),
+			readToolUse("t2", "src/big.ts"),
+			readToolResult("t2", LARGE_CONTENT(2), "src/big.ts"),
+		];
+		// Request A: t1 (~80KB stale) crosses the threshold and commits.
+		const reqA = builder.buildForApi(codecRoundTrip(history));
+		expect(JSON.stringify(reqA[2])).toContain("outdated");
+
+		// Request B: a ~1KB re-read makes t3 newly stale. The committed 80KB
+		// must NOT be recounted as pending, so t3 stays deferred.
+		history.push(
+			readToolUse("t3", "src/small.ts"),
+			readToolResult("t3", SMALL_CONTENT(1), "src/small.ts"),
+			readToolUse("t4", "src/small.ts"),
+			readToolResult("t4", SMALL_CONTENT(2), "src/small.ts"),
+		);
+		const reqB = builder.buildForApi(codecRoundTrip(history));
+		expect(JSON.stringify(reqB[2])).toContain("outdated"); // t1 sticky
+		expect(JSON.stringify(reqB[6])).not.toContain("outdated"); // t3 deferred
+		expect(JSON.stringify(reqB[6])).toContain("export const x = 1;");
+	});
+
+	it("restores full content after rollback even with fresh message objects", () => {
+		const builder = new MessageBuilder();
+		const t1Only: Message[] = [
+			{ role: "user", content: "task" },
+			readToolUse("t1"),
+			readToolResult("t1", LARGE_CONTENT(1)),
+		];
+		const withReread: Message[] = [
+			...t1Only,
+			readToolUse("t2"),
+			readToolResult("t2", LARGE_CONTENT(2)),
+		];
+		const reqA = builder.buildForApi(codecRoundTrip(withReread));
+		expect(JSON.stringify(reqA[2])).toContain("outdated");
+
+		const reqB = builder.buildForApi(codecRoundTrip(t1Only));
+		expect(JSON.stringify(reqB[2])).not.toContain("outdated");
+		expect(JSON.stringify(reqB[2])).toContain("export const x = 1;");
 	});
 
 	it("rewrites eagerly when threshold is 0 (legacy behavior)", () => {
