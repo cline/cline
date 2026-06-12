@@ -1,33 +1,33 @@
-import { findLastIndex } from "@shared/array"
-import type { ClineMessage } from "@shared/ExtensionMessage"
-import type { ClineStorageMessage } from "@shared/messages/content"
-import { Logger } from "@/shared/services/Logger"
-import type { ContextManager } from "../context/context-management/ContextManager"
-import type { MessageStateHandler } from "../task/message-state"
-import type { HookModelInputContext } from "./hook-factory"
+import { findLastIndex } from "@shared/array";
+import type { ClineMessage } from "@shared/ExtensionMessage";
+import type { ClineStorageMessage } from "@shared/messages/content";
+import { Logger } from "@/shared/services/Logger";
+import type { ContextManager } from "../context/context-management/ContextManager";
+import type { MessageStateHandler } from "../task/message-state";
+import type { HookModelInputContext } from "./hook-factory";
 
 /**
  * Active hook execution state
  * Represents a hook process that is currently running
  */
 export type HookExecution = {
-	hookName: string
-	toolName?: string
-	messageTs: number
-	abortController: AbortController
-}
+	hookName: string;
+	toolName?: string;
+	messageTs: number;
+	abortController: AbortController;
+};
 
 /**
  * Custom error class for hook cancellation
  * Used to signal that a hook cancelled an operation
  */
 export class HookCancellationError extends Error {
-	public readonly wasCancelled: boolean
+	public readonly wasCancelled: boolean;
 
 	constructor(wasCancelled: boolean) {
-		super("Hook cancelled the operation")
-		this.name = "HookCancellationError"
-		this.wasCancelled = wasCancelled
+		super("Hook cancelled the operation");
+		this.name = "HookCancellationError";
+		this.wasCancelled = wasCancelled;
 	}
 }
 
@@ -35,10 +35,10 @@ export class HookCancellationError extends Error {
  * Token usage information extracted from an API request message
  */
 export interface TokenUsage {
-	tokensIn: number
-	tokensOut: number
-	tokensInCache: number
-	tokensOutCache: number
+	tokensIn: number;
+	tokensOut: number;
+	tokensInCache: number;
+	tokensOutCache: number;
 }
 
 /**
@@ -46,29 +46,34 @@ export interface TokenUsage {
  * @param message The API request message to parse
  * @returns Token usage information, or zeros if parsing fails
  */
-export function extractTokenUsageFromMessage(message: ClineMessage | undefined): TokenUsage {
+export function extractTokenUsageFromMessage(
+	message: ClineMessage | undefined,
+): TokenUsage {
 	const defaultUsage: TokenUsage = {
 		tokensIn: 0,
 		tokensOut: 0,
 		tokensInCache: 0,
 		tokensOutCache: 0,
-	}
+	};
 
 	if (!message?.text) {
-		return defaultUsage
+		return defaultUsage;
 	}
 
 	try {
-		const apiReqInfo = JSON.parse(message.text)
+		const apiReqInfo = JSON.parse(message.text);
 		return {
 			tokensIn: apiReqInfo.tokensIn || 0,
 			tokensOut: apiReqInfo.tokensOut || 0,
 			tokensInCache: apiReqInfo.cacheWrites || 0,
 			tokensOutCache: apiReqInfo.cacheReads || 0,
-		}
+		};
 	} catch (error) {
-		Logger.error("[PreCompact] Failed to parse API request token usage:", error)
-		return defaultUsage
+		Logger.error(
+			"[PreCompact] Failed to parse API request token usage:",
+			error,
+		);
+		return defaultUsage;
 	}
 }
 
@@ -76,9 +81,9 @@ export function extractTokenUsageFromMessage(message: ClineMessage | undefined):
  * Context files written for hook access
  */
 export interface PreCompactContextFiles {
-	contextJsonPath: string
-	contextRawPath: string
-	hookTimestamp: number
+	contextJsonPath: string;
+	contextRawPath: string;
+	hookTimestamp: number;
 }
 
 /**
@@ -91,23 +96,32 @@ export async function writePreCompactContextFiles(
 	taskId: string,
 	currentContext: ClineStorageMessage[],
 ): Promise<PreCompactContextFiles> {
-	const { writeConversationHistoryJson, writeConversationHistoryText } = await import("../storage/disk")
+	const { writeConversationHistoryJson, writeConversationHistoryText } =
+		await import("../storage/disk");
 
 	// Generate single timestamp for both files to ensure they match
-	const hookTimestamp = Date.now()
+	const hookTimestamp = Date.now();
 
 	// Write context files for hook access
-	const contextJsonPath = await writeConversationHistoryJson(taskId, currentContext, hookTimestamp)
-	const contextRawPath = await writeConversationHistoryText(taskId, currentContext, hookTimestamp)
+	const contextJsonPath = await writeConversationHistoryJson(
+		taskId,
+		currentContext,
+		hookTimestamp,
+	);
+	const contextRawPath = await writeConversationHistoryText(
+		taskId,
+		currentContext,
+		hookTimestamp,
+	);
 
-	return { contextJsonPath, contextRawPath, hookTimestamp }
+	return { contextJsonPath, contextRawPath, hookTimestamp };
 }
 
 /**
  * Task state interface for cancellation handling
  */
 export interface TaskStateForCancellation {
-	didFinishAbortingStream: boolean
+	didFinishAbortingStream: boolean;
 }
 
 /**
@@ -117,53 +131,61 @@ export interface TaskStateForCancellation {
 export interface PreCompactHookParams {
 	// Task identification
 	/** Task identifier */
-	taskId: string
+	taskId: string;
 	/** ULID for telemetry */
-	ulid: string
+	ulid: string;
 	/** Active hook model context */
-	modelContext: HookModelInputContext
+	modelContext: HookModelInputContext;
 
 	// Conversation state
 	/** API conversation history */
-	apiConversationHistory: ClineStorageMessage[]
+	apiConversationHistory: ClineStorageMessage[];
 	/** Current deleted range (if any) */
-	conversationHistoryDeletedRange?: [number, number]
+	conversationHistoryDeletedRange?: [number, number];
 	/** Cline messages for extracting token usage */
-	clineMessages: ClineMessage[]
+	clineMessages: ClineMessage[];
 
 	// Services
 	/** Context manager for getting truncated messages */
-	contextManager: ContextManager
+	contextManager: ContextManager;
 	/** Message state handler for accessing conversation data */
-	messageStateHandler: MessageStateHandler
+	messageStateHandler: MessageStateHandler;
 
 	// Compaction metadata
 	/** Compaction strategy to report in hook data */
-	compactionStrategy: string
+	compactionStrategy: string;
 	/** Optional: Pre-calculated deleted range to report */
-	deletedRange?: [number, number]
+	deletedRange?: [number, number];
 
 	// UI callbacks
 	/** Callback to display messages */
-	say: (type: any, text?: string, images?: string[], files?: string[], partial?: boolean) => Promise<number | undefined>
+	say: (
+		type: any,
+		text?: string,
+		images?: string[],
+		files?: string[],
+		partial?: boolean,
+	) => Promise<number | undefined>;
 	/** Callback to save state and post to webview */
-	postStateToWebview: () => Promise<void>
+	postStateToWebview: () => Promise<void>;
 
 	// Hook management callbacks
 	/** Callback to set active hook execution */
-	setActiveHookExecution: (hookExecution: HookExecution | undefined) => Promise<void>
+	setActiveHookExecution: (
+		hookExecution: HookExecution | undefined,
+	) => Promise<void>;
 	/** Callback to clear active hook execution */
-	clearActiveHookExecution: () => Promise<void>
+	clearActiveHookExecution: () => Promise<void>;
 
 	// Cancellation dependencies
 	/** Task state object for setting abort flag */
-	taskState: TaskStateForCancellation
+	taskState: TaskStateForCancellation;
 	/** Callback to cancel the task */
-	cancelTask: () => Promise<void>
+	cancelTask: () => Promise<void>;
 
 	// Configuration
 	/** Whether hooks are enabled */
-	hooksEnabled: boolean
+	hooksEnabled: boolean;
 }
 
 /**
@@ -171,7 +193,7 @@ export interface PreCompactHookParams {
  */
 export interface PreCompactHookResult {
 	/** Context modification provided by the hook */
-	contextModification?: string
+	contextModification?: string;
 }
 
 /**
@@ -184,12 +206,14 @@ export interface PreCompactHookResult {
  * @throws HookCancellationError if the hook cancels the operation
  * @throws Re-throws other errors after cleanup (caller should handle gracefully)
  */
-export async function executePreCompactHookWithCleanup(params: PreCompactHookParams): Promise<PreCompactHookResult> {
-	const { executeHook } = await import("./hook-executor")
-	const { cleanupConversationHistoryFile } = await import("../storage/disk")
+export async function executePreCompactHookWithCleanup(
+	params: PreCompactHookParams,
+): Promise<PreCompactHookResult> {
+	const { executeHook } = await import("./hook-executor");
+	const { cleanupConversationHistoryFile } = await import("../storage/disk");
 
-	let contextJsonPath: string | undefined
-	let contextRawPath: string | undefined
+	let contextJsonPath: string | undefined;
+	let contextRawPath: string | undefined;
 
 	try {
 		// Get current active context (respects previous compactions).
@@ -198,25 +222,36 @@ export async function executePreCompactHookWithCleanup(params: PreCompactHookPar
 		const currentContext = params.contextManager.getTruncatedMessages(
 			params.apiConversationHistory,
 			params.conversationHistoryDeletedRange,
-		) as ClineStorageMessage[]
+		) as ClineStorageMessage[];
 
 		// Write context files for hook access
-		const contextFiles = await writePreCompactContextFiles(params.taskId, currentContext)
-		contextJsonPath = contextFiles.contextJsonPath
-		contextRawPath = contextFiles.contextRawPath
+		const contextFiles = await writePreCompactContextFiles(
+			params.taskId,
+			currentContext,
+		);
+		contextJsonPath = contextFiles.contextJsonPath;
+		contextRawPath = contextFiles.contextRawPath;
 
 		// Extract token usage from the most recent API request
-		const previousApiReqIndex = findLastIndex(params.clineMessages, (m) => m.say === "api_req_started")
-		const previousRequest = previousApiReqIndex !== -1 ? params.clineMessages[previousApiReqIndex] : undefined
-		const { tokensIn, tokensOut, tokensInCache, tokensOutCache } = extractTokenUsageFromMessage(previousRequest)
+		const previousApiReqIndex = findLastIndex(
+			params.clineMessages,
+			(m) => m.say === "api_req_started",
+		);
+		const previousRequest =
+			previousApiReqIndex !== -1
+				? params.clineMessages[previousApiReqIndex]
+				: undefined;
+		const { tokensIn, tokensOut, tokensInCache, tokensOutCache } =
+			extractTokenUsageFromMessage(previousRequest);
 
 		// Extract truncation range - use provided range or extract from conversationHistoryDeletedRange
-		let deletedRangeStart = 0
-		let deletedRangeEnd = 0
+		let deletedRangeStart = 0;
+		let deletedRangeEnd = 0;
 		if (params.deletedRange) {
-			;[deletedRangeStart, deletedRangeEnd] = params.deletedRange
+			[deletedRangeStart, deletedRangeEnd] = params.deletedRange;
 		} else if (params.conversationHistoryDeletedRange) {
-			;[deletedRangeStart, deletedRangeEnd] = params.conversationHistoryDeletedRange
+			[deletedRangeStart, deletedRangeEnd] =
+				params.conversationHistoryDeletedRange;
 		}
 
 		// Execute the hook
@@ -247,53 +282,62 @@ export async function executePreCompactHookWithCleanup(params: PreCompactHookPar
 			taskId: params.taskId,
 			hooksEnabled: params.hooksEnabled,
 			model: params.modelContext,
-		})
+		});
 
 		// Handle cancellation from hook
 		if (preCompactResult.cancel === true) {
 			// Log cancellation for debugging
-			const cancellationSource = preCompactResult.wasCancelled ? "user" : "PreCompact hook"
-			Logger.log(`[PreCompact] Context compaction cancelled by ${cancellationSource} for task ${params.taskId}`)
+			const cancellationSource = preCompactResult.wasCancelled
+				? "user"
+				: "PreCompact hook";
+			Logger.log(
+				`[PreCompact] Context compaction cancelled by ${cancellationSource} for task ${params.taskId}`,
+			);
 
 			// Internalized cancellation state management (replaces handleCancellation callback)
 			// Always save state before cancelling, regardless of cancellation source
-			params.taskState.didFinishAbortingStream = true
-			await params.messageStateHandler.saveClineMessagesAndUpdateHistory()
+			params.taskState.didFinishAbortingStream = true;
+			await params.messageStateHandler.saveClineMessagesAndUpdateHistory();
 			await params.messageStateHandler.overwriteApiConversationHistory(
 				params.messageStateHandler.getApiConversationHistory(),
-			)
-			await params.postStateToWebview()
+			);
+			await params.postStateToWebview();
 
 			// Trigger full cancellation flow
-			await params.cancelTask()
+			await params.cancelTask();
 
 			// Throw error to signal cancellation to caller
-			throw new HookCancellationError(preCompactResult.wasCancelled)
+			throw new HookCancellationError(preCompactResult.wasCancelled);
 		}
 
 		// Hook completed successfully - log if context modification provided
 		if (preCompactResult.contextModification) {
-			Logger.log(`[PreCompact] Hook provided context modification for task ${params.taskId}`)
+			Logger.log(
+				`[PreCompact] Hook provided context modification for task ${params.taskId}`,
+			);
 		}
 
 		return {
 			contextModification: preCompactResult.contextModification,
-		}
+		};
 	} catch (error) {
 		// Re-throw error for caller to handle
-		throw error
+		throw error;
 	} finally {
 		// Clean up temporary files - always executed regardless of success or error
 		// Wrap in try-catch to prevent cleanup failures from masking original errors
 		try {
 			if (contextJsonPath) {
-				await cleanupConversationHistoryFile(contextJsonPath)
+				await cleanupConversationHistoryFile(contextJsonPath);
 			}
 			if (contextRawPath) {
-				await cleanupConversationHistoryFile(contextRawPath)
+				await cleanupConversationHistoryFile(contextRawPath);
 			}
 		} catch (cleanupError) {
-			Logger.error("[PreCompact] Failed to cleanup context files:", cleanupError)
+			Logger.error(
+				"[PreCompact] Failed to cleanup context files:",
+				cleanupError,
+			);
 			// Don't throw - cleanup failure shouldn't mask original error
 		}
 	}
