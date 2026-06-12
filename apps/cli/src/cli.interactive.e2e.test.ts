@@ -51,15 +51,39 @@ function buildScriptCommand(scriptedInput: string, launchArgs: string): string {
 	return `(${scriptedInput}) | script ${quietFlag} /dev/null ${toShellSingleQuotedLiteral(bunExec)} ${launchArgs}`;
 }
 
-function runInteractiveCli(
-	steps: KeyStep[],
-	options?: { launchConfigView?: boolean },
-): CliResult {
+function createCliEnv(): NodeJS.ProcessEnv {
 	const homeDir = mkdtempSync(path.join(os.tmpdir(), "cli-int-home-"));
 	const dataDir = mkdtempSync(path.join(os.tmpdir(), "cli-int-data-"));
 	const sessionDir = mkdtempSync(path.join(os.tmpdir(), "cli-int-sessions-"));
 	const teamDir = mkdtempSync(path.join(os.tmpdir(), "cli-int-teams-"));
 	tempDirs.push(homeDir, dataDir, sessionDir, teamDir);
+
+	return {
+		...process.env,
+		HOME: homeDir,
+		CLINE_DATA_DIR: dataDir,
+		CLINE_DB_DATA_DIR: path.join(dataDir, "db"),
+		CLINE_SESSION_DATA_DIR: sessionDir,
+		CLINE_TEAM_DATA_DIR: teamDir,
+		CLINE_SESSION_BACKEND_MODE: "local",
+		CLINE_PROVIDER_SETTINGS_PATH: path.join(
+			dataDir,
+			"settings",
+			"providers.json",
+		),
+		CLINE_HOOKS_LOG_PATH: path.join(dataDir, "logs", "hooks.jsonl"),
+	};
+}
+
+function runInteractiveCli(
+	steps: KeyStep[],
+	options?: {
+		launchConfigView?: boolean;
+		launchArgs?: string[];
+		env?: NodeJS.ProcessEnv;
+	},
+): CliResult {
+	const env = options?.env ?? createCliEnv();
 
 	const scriptedInput = [
 		...steps,
@@ -80,9 +104,13 @@ function runInteractiveCli(
 		"-k",
 		"test-key",
 	];
-	const launchArgs = [
-		...(options?.launchConfigView ? [...baseArgs, "config"] : baseArgs),
-	]
+	const launchArgs = (
+		options?.launchArgs
+			? [cliEntry, ...options.launchArgs]
+			: options?.launchConfigView
+				? [...baseArgs, "config"]
+				: baseArgs
+	)
 		.map((arg) => toShellSingleQuotedLiteral(arg))
 		.join(" ");
 	const command = buildScriptCommand(scriptedInput, launchArgs);
@@ -90,21 +118,7 @@ function runInteractiveCli(
 	return spawnSync("bash", ["-lc", command], {
 		cwd: cliRoot,
 		encoding: "utf8",
-		env: {
-			...process.env,
-			HOME: homeDir,
-			CLINE_DATA_DIR: dataDir,
-			CLINE_DB_DATA_DIR: path.join(dataDir, "db"),
-			CLINE_SESSION_DATA_DIR: sessionDir,
-			CLINE_TEAM_DATA_DIR: teamDir,
-			CLINE_SESSION_BACKEND_MODE: "local",
-			CLINE_PROVIDER_SETTINGS_PATH: path.join(
-				dataDir,
-				"settings",
-				"providers.json",
-			),
-			CLINE_HOOKS_LOG_PATH: path.join(dataDir, "logs", "hooks.jsonl"),
-		},
+		env,
 		timeout: INTERACTIVE_TEST_TIMEOUT_MS,
 		maxBuffer: 10 * 1024 * 1024,
 	});
@@ -186,6 +200,52 @@ describe("cli interactive e2e", () => {
 			"Config mode: Tab tabs · ↑/↓ navigate · Esc close",
 		);
 		expect(output).toContain("/ for commands · @ for files");
+	});
+
+	it("resumes a history-picked session and survives Ctrl+C without a native crash", {
+		timeout: 120_000,
+	}, () => {
+		const env = createCliEnv();
+		// Seed one session; the invalid key makes the run fail fast while
+		// still persisting a resumable session record.
+		const seed = spawnSync(
+			bunExec,
+			[
+				cliEntry,
+				"--provider",
+				"anthropic",
+				"-m",
+				"claude-sonnet-4-6",
+				"-k",
+				"test-key",
+				"hello",
+			],
+			{ cwd: cliRoot, encoding: "utf8", env, timeout: 60_000 },
+		);
+		expect(seed.error).toBeUndefined();
+
+		// history picker -> Enter resumes the seeded session in the
+		// interactive TUI -> double Ctrl+C exits it. Regression guard for
+		// the Bun "panic(main thread): Segmentation fault" that occurred
+		// when the resumed TUI shared the picker's process (a second
+		// OpenTUI renderer in one process crashes natively on teardown).
+		const result = runInteractiveCli(
+			[
+				// Select the seeded session in the picker.
+				{ delaySeconds: 4.0, input: "\r" },
+				// Give the resumed TUI time to start, then double-press
+				// Ctrl+C; the harness appends the final press 0.2s later.
+				{ delaySeconds: 10.0, input: "\u0003" },
+			],
+			{ launchArgs: ["history"], env },
+		);
+		const output = outputOf(result);
+		// The exit summary only prints after the resumed interactive TUI ran
+		// and shut down cleanly; the history picker alone never prints it.
+		expect(output).toContain("Session Summary");
+		expect(output).not.toContain("panic(");
+		expect(output).not.toContain("Segmentation fault");
+		expect(result.status).toBe(0);
 	});
 
 	it("launches config view directly with `cline config`", () => {
