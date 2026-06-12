@@ -43,6 +43,14 @@ export const DEFAULT_PLATFORM = "unknown"
 
 export const COMMAND_CANCEL_TOKEN = "__aihydro_command_cancel__"
 
+/** The ai-hydro study (research session) a chat is bound to, for the header chip. */
+export interface BoundStudyInfo {
+	/** Session/study id, e.g. "01547700" or "swat-usgs-01547700". */
+	studyId: string
+	/** Human-readable site name, when the study file records one. */
+	siteName?: string
+}
+
 export interface ExtensionState {
 	isNewUser: boolean
 	welcomeViewCompleted: boolean
@@ -57,6 +65,13 @@ export interface ExtensionState {
 	aihydroMessages: AiHydroMessage[]
 	currentTaskItem?: HistoryItem
 	currentFocusChainChecklist?: string | null
+	/**
+	 * The ai-hydro study (session) this chat is currently bound to, if any.
+	 * Surfaced as a chip in the task header so the user always knows which
+	 * research session their conversation is operating on. Resolved from
+	 * ~/.aihydro/chat_studies.json keyed by the task ulid.
+	 */
+	boundStudy?: BoundStudyInfo
 	mcpMarketplaceEnabled?: boolean
 	mcpDisplayMode: McpDisplayMode
 	planActSeparateModelsSetting: boolean

@@ -9,6 +9,7 @@ import { detectWorkspaceRoots } from "@core/workspace/detection"
 import { FileScanner, WorkspaceGeoJsonFile } from "@core/workspace/FileScanner"
 import { setupWorkspaceManager } from "@core/workspace/setup"
 import { WorkspaceRootManager } from "@core/workspace/WorkspaceRootManager"
+import { getBoundStudy } from "@integrations/aihydro-session/boundStudy"
 import { cleanupLegacyCheckpoints } from "@integrations/checkpoints/CheckpointMigration"
 import { downloadTask } from "@integrations/misc/export-markdown"
 import { AiHydroAccountService } from "@services/account/AiHydroAccountService"
@@ -1144,6 +1145,10 @@ export class Controller {
 		const currentTaskItem = this.task?.taskId ? (taskHistory || []).find((item) => item.id === this.task?.taskId) : undefined
 		const aihydroMessages = this.task?.messageStateHandler.getAiHydroMessages() || []
 		const checkpointManagerErrorMessage = this.task?.taskState.checkpointManagerErrorMessage
+		// Resolve the ai-hydro study bound to this chat for the header chip. Keyed by
+		// the task ulid (the injected _chat_id), NOT taskId — the two differ. Recomputed
+		// on every state post, so it tracks bindings created mid-conversation.
+		const boundStudy = getBoundStudy(this.task?.ulid)
 
 		const processedTaskHistory = (taskHistory || [])
 			.filter((item) => item.ts && item.task)
@@ -1168,6 +1173,7 @@ export class Controller {
 			apiConfiguration,
 			currentTaskItem,
 			aihydroMessages,
+			boundStudy,
 			currentFocusChainChecklist: this.task?.taskState.currentFocusChainChecklist || null,
 			checkpointManagerErrorMessage,
 			autoApprovalSettings,
