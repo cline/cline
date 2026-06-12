@@ -14,6 +14,7 @@ import {
 	huggingFaceDefaultModelId,
 	internationalQwenDefaultModelId,
 	liteLlmDefaultModelId,
+	llmtrDefaultModelId,
 	minimaxDefaultModelId,
 	moonshotDefaultModelId,
 	nousResearchDefaultModelId,
@@ -66,6 +67,7 @@ export const ProviderToApiKeyMap: Partial<Record<ApiProvider, keyof Secrets | (k
 	litellm: "liteLlmApiKey",
 	moonshot: "moonshotApiKey",
 	nebius: "nebiusApiKey",
+	llmtr: "llmtrApiKey",
 	fireworks: "fireworksApiKey",
 	asksage: "asksageApiKey",
 	xai: "xaiApiKey",
@@ -116,6 +118,7 @@ const ProviderDefaultModelMap: Partial<Record<ApiProvider, string>> = {
 	qwen: internationalQwenDefaultModelId,
 	deepseek: deepSeekDefaultModelId,
 	wandb: wandbDefaultModelId,
+	llmtr: llmtrDefaultModelId,
 } as const
 
 /**

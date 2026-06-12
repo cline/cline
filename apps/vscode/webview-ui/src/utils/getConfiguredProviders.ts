@@ -106,6 +106,11 @@ export function getConfiguredProviders(
 		configured.push("nebius")
 	}
 
+	// LLMTR - requires API key
+	if (apiConfiguration.llmtrApiKey) {
+		configured.push("llmtr")
+	}
+
 	// AskSage - requires API key
 	if (apiConfiguration.asksageApiKey) {
 		configured.push("asksage")

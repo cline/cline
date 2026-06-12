@@ -125,6 +125,11 @@ export function validateApiConfiguration(currentMode: Mode, apiConfiguration?: A
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break
+			case "llmtr":
+				if (!apiConfiguration.llmtrApiKey) {
+					return "You must provide a valid API key or choose a different provider."
+				}
+				break
 			case "asksage":
 				if (!apiConfiguration.asksageApiKey) {
 					return "You must provide a valid API key or choose a different provider."
