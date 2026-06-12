@@ -152,7 +152,7 @@ export class MessageBuilder {
 			return block;
 		}
 
-		const toolName = this.toolNameByIdCache.get(block.tool_use_id);
+		const toolName = this.resolveToolName(block);
 		let nextContent = block.content;
 
 		if (this.isReadTool(toolName) && block.is_error !== true) {
@@ -211,7 +211,7 @@ export class MessageBuilder {
 						}
 					}
 				} else if (block.type === "tool_result") {
-					const toolName = this.toolNameByIdCache.get(block.tool_use_id);
+					const toolName = this.resolveToolName(block);
 					if (!this.isReadTool(toolName) || block.is_error === true) {
 						continue;
 					}
@@ -259,7 +259,7 @@ export class MessageBuilder {
 				if (block.type !== "tool_result" || block.is_error === true) {
 					continue;
 				}
-				const toolName = this.toolNameByIdCache.get(block.tool_use_id);
+				const toolName = this.resolveToolName(block);
 				if (!this.isReadTool(toolName)) {
 					continue;
 				}
@@ -373,10 +373,27 @@ export class MessageBuilder {
 		if (typeof content === "string") {
 			return attributeText(content);
 		}
+		// Stale image reads are replaced positionally (see
+		// replaceOutdatedReadContent), so count image sibling bytes the same way.
+		const outdatedKeySet = new Set(outdatedKeys);
+		let outdatedImageCount = 0;
+		for (const entry of content) {
+			if (entry.type === "text") {
+				outdatedImageCount += this.countOutdatedImageEntries(
+					entry.text,
+					outdatedKeySet,
+				);
+			}
+		}
 		let total = 0;
 		for (const entry of content) {
 			if (entry.type === "text") {
 				total += attributeText(entry.text);
+			} else if (entry.type === "image") {
+				if (outdatedImageCount > 0) {
+					outdatedImageCount -= 1;
+					total += utf8ByteLength(entry.data);
+				}
 			} else if (entry.type === "file") {
 				if (
 					outdatedKeys.has(
@@ -931,6 +948,21 @@ export class MessageBuilder {
 
 	private isReadTool(toolName: string | undefined): boolean {
 		return !!toolName && READ_TOOL_NAMES.has(toolName);
+	}
+
+	/**
+	 * Tool results can outlive their paired tool_use (compaction/rollback),
+	 * so fall back to the name on the result itself when the id lookup
+	 * misses.
+	 */
+	private resolveToolName(block: ToolResultContent): string | undefined {
+		const cached = this.toolNameByIdCache.get(block.tool_use_id);
+		if (cached !== undefined) {
+			return cached;
+		}
+		return typeof block.name === "string" && block.name.length > 0
+			? block.name.toLowerCase()
+			: undefined;
 	}
 
 	private shouldTruncateTool(toolName: string | undefined): boolean {

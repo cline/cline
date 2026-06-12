@@ -328,6 +328,72 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 		expect(JSON.stringify(reqB[2])).toContain("export const x = 1;");
 	});
 
+	it("keeps committed rewrites applied when compaction drops the paired tool_use", () => {
+		const builder = new MessageBuilder();
+		const withReread: Message[] = [
+			{ role: "user", content: "task" },
+			readToolUse("t1"),
+			readToolResult("t1", LARGE_CONTENT(1)),
+			readToolUse("t2"),
+			readToolResult("t2", LARGE_CONTENT(2)),
+		];
+		const reqA = builder.buildForApi(codecRoundTrip(withReread));
+		const rewrittenA = JSON.stringify(reqA[2]);
+		expect(rewrittenA).toContain("outdated");
+
+		// Compaction drops t1's tool_use but keeps the stale result, and the
+		// runtime delivers fresh objects so the name index rebuilds without
+		// t1. The rewrite must stay applied (via tool_result.name) so the
+		// suffix after the orphaned block is not mutated back to full content.
+		const compacted: Message[] = [
+			withReread[0],
+			{
+				role: "assistant",
+				content: [{ type: "text", text: "reading src/a.ts (t1)" }],
+			},
+			...withReread.slice(2),
+		];
+		const reqB = builder.buildForApi(codecRoundTrip(compacted));
+		expect(JSON.stringify(reqB[2])).toContain("outdated");
+		expect(JSON.stringify(reqB[2])).not.toContain("export const x = 1;");
+	});
+
+	it("counts stale image payload bytes toward the batch threshold", () => {
+		const builder = new MessageBuilder(undefined, undefined, undefined, 2_000);
+		const imageReadResult: Message = {
+			role: "user",
+			content: [
+				{
+					type: "tool_result",
+					tool_use_id: "t1",
+					name: "read_files",
+					content: [
+						{
+							type: "text",
+							text: JSON.stringify([
+								{ path: "img/shot.png", result: "Successfully read image" },
+							]),
+						},
+						{ type: "image", data: "A".repeat(4_000), mediaType: "image/png" },
+					],
+				},
+			],
+		};
+		const messages: Message[] = [
+			{ role: "user", content: "task" },
+			readToolUse("t1", "img/shot.png"),
+			imageReadResult,
+			readToolUse("t2", "img/shot.png"),
+			readToolResult("t2", SMALL_CONTENT(1), "img/shot.png"),
+		];
+		// Text marker alone is ~70 bytes — below the 2KB threshold. The 4KB
+		// base64 payload must count, committing the batch.
+		const result = builder.buildForApi(messages);
+		const block = JSON.stringify(result[2]);
+		expect(block).toContain("outdated");
+		expect(block).not.toContain("AAAA");
+	});
+
 	it("rewrites eagerly when threshold is 0 (legacy behavior)", () => {
 		const builder = new MessageBuilder(undefined, undefined, undefined, 0);
 		const messages: Message[] = [
