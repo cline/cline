@@ -18,7 +18,7 @@ export interface PostHogFeatureFlagsProviderConfig {
 export interface PostHogFeatureFlagsProviderOptions {
 	config: PostHogFeatureFlagsProviderConfig;
 	client?: PostHog;
-	distinctId?: string;
+	distinctId: string;
 }
 
 export class PostHogFeatureFlagsProvider implements IFeatureFlagsProvider {
