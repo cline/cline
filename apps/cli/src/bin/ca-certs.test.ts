@@ -18,6 +18,7 @@ const caCerts = require("../../bin/ca-certs.cjs") as {
 		systemCerts: string[];
 		userPems?: string[];
 	}) => string;
+	countCerts: (pems: string[]) => number;
 	configureNodeExtraCaCerts: (
 		env: Record<string, string>,
 		deps?: { tls?: unknown; fs?: unknown },
@@ -240,6 +241,45 @@ describe("ca-certs", () => {
 			expect(out.action).toBe("write-failed");
 			expect(out.path).toBeNull();
 			expect(env.NODE_EXTRA_CA_CERTS).toBeUndefined();
+		});
+
+		it("reuses a stale bundle when the rewrite fails", () => {
+			// First run writes the bundle normally.
+			const env: Record<string, string> = { CLINE_DIR: dir };
+			const managedPath = caCerts.configureNodeExtraCaCerts(env, {
+				tls: fakeTls([certSystem]),
+			}).path as string;
+
+			// Second run: writes fail, but the stale bundle is still readable.
+			const realFs = require("node:fs");
+			const failingFs = {
+				...realFs,
+				mkdirSync: () => {
+					throw new Error("EACCES");
+				},
+				writeFileSync: () => {
+					throw new Error("EACCES");
+				},
+			};
+			const env2: Record<string, string> = { CLINE_DIR: dir };
+			const out = caCerts.configureNodeExtraCaCerts(env2, {
+				// A different system cert forces a rewrite attempt (not "unchanged").
+				tls: fakeTls([certUser]),
+				fs: failingFs,
+			});
+
+			expect(out.action).toBe("write-failed-reused");
+			expect(env2.NODE_EXTRA_CA_CERTS).toBe(managedPath);
+		});
+	});
+
+	describe("countCerts", () => {
+		it("counts individual certificates, not files", () => {
+			// One file holding two certs must report 2, not 1.
+			const twoInOne = `${certUser}\n${certSystem}`;
+			expect(caCerts.countCerts([twoInOne])).toBe(2);
+			expect(caCerts.countCerts([certUser, certSystem])).toBe(2);
+			expect(caCerts.countCerts([])).toBe(0);
 		});
 	});
 });
