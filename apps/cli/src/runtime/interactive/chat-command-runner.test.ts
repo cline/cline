@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import {
 	type ChatCommandState,
-	createChatCommandHost,
 	chatCommandHost,
+	createChatCommandHost,
 } from "../../utils/chat-commands";
 import type { Config } from "../../utils/types";
 import {
