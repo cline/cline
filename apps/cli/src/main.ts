@@ -19,6 +19,7 @@ import {
 	buildCliCompactionConfig,
 	CLI_COMPACTION_MODE_EXPECTED_TEXT,
 } from "./utils/compaction-mode";
+import { getCliFeatureFlagsService } from "./utils/feature-flags";
 import {
 	configureSandboxEnvironment,
 	normalizeAutoApproveArgs,
@@ -837,7 +838,10 @@ export async function runCli(): Promise<void> {
 	registerDisposable(stopUserInstructionService);
 	try {
 		const lastUsedProviderSettings =
-			providerSettingsManager.getLastUsedProviderSettings();
+			providerSettingsManager.getLastUsedProviderSettings({
+				isClinePassEnabled:
+					getCliFeatureFlagsService().getBooleanFlagEnabled("ext-cline-pass"),
+			});
 		const provider = normalizeProviderId(
 			args.provider?.trim() || lastUsedProviderSettings?.provider || "cline",
 		);
