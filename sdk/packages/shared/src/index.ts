@@ -193,6 +193,7 @@ export {
 	parseUserCommandEnvelope,
 	xmlTagsRemoval,
 } from "./prompt/format";
+export { isClineProvider } from "./providers/utils";
 export {
 	buildRemoteConfigSessionBlobUploadMetadata,
 	clearRemoteConfigSessionBlobUpload,

@@ -179,6 +179,7 @@ export {
 	parseUserCommandEnvelope,
 	xmlTagsRemoval,
 } from "./prompt/format";
+export { isClineProvider } from "./providers/utils";
 export { REMOTE_URI_SCHEME } from "./remote-config/constants";
 export type {
 	AnthropicModel,

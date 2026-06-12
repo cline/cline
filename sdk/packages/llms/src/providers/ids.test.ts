@@ -85,6 +85,26 @@ describe("provider-ids", () => {
 		);
 	});
 
+	it("registers Cline Pass as a distinct Cline-compatible built-in provider", async () => {
+		expect(BUILT_IN_PROVIDER_IDS).toContain("cline-pass");
+		const models = await getModelsForProvider("cline-pass");
+		const provider = await getProvider("cline-pass");
+
+		expect(provider).toMatchObject({
+			id: "cline-pass",
+			name: "Cline Pass",
+			client: "openai-compatible",
+		});
+		expect(models).toHaveProperty(provider?.defaultModelId ?? "");
+
+		const registration = BUILTIN_PROVIDER_REGISTRATIONS.find(
+			(item) => item.manifest.id === "cline-pass",
+		);
+		await expect(registration?.loadProvider?.()).resolves.toMatchObject({
+			createProvider: createOpenAICompatibleProvider,
+		});
+	});
+
 	it("registers Poolside as an OpenAI-compatible built-in provider", async () => {
 		expect(BUILT_IN_PROVIDER_IDS).toContain("poolside");
 
