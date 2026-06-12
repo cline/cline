@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import {
 	type BasicLogger,
 	type FeatureFlagsContext,
@@ -11,9 +12,16 @@ import {
 	buildClinePostHogClient,
 	PostHogFeatureFlagsProvider,
 } from "@cline/core/services/feature-flags/posthog";
+import { resolveClineDataDir } from "@cline/shared/storage";
 
 let cliFeatureFlagsContext: FeatureFlagsContext = { clientName: "cline-cli" };
 let cliFeatureFlagsService: FeatureFlagsService | undefined;
+
+const CLI_FEATURE_FLAGS_CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+
+function resolveCliFeatureFlagsCachePath(): string {
+	return join(resolveClineDataDir(), "cache", "feature-flags.json");
+}
 
 function ensureCliDistinctId(): string {
 	const distinctId = cliFeatureFlagsContext.distinctId?.trim();
@@ -35,7 +43,7 @@ export function getCliFeatureFlagsService(options?: {
 	telemetry?: ITelemetryService;
 }): FeatureFlagsService {
 	if (!cliFeatureFlagsService) {
-		const apiKey = process.env.TELEMETRY_SERVICE_API_KEY?.trim();
+		const apiKey = process.env.TELEMETRY_SERVICE_API_KEY;
 		const provider =
 			apiKey &&
 			process.env.IS_TEST !== "true" &&
@@ -53,11 +61,20 @@ export function getCliFeatureFlagsService(options?: {
 			telemetry: options?.telemetry,
 			logger: options?.logger,
 			context: getCliFeatureFlagsContext(),
+			cacheFilePath: resolveCliFeatureFlagsCachePath(),
+			persistentCacheMaxAgeMs: CLI_FEATURE_FLAGS_CACHE_MAX_AGE_MS,
 		});
 		registerDisposable(disposeCliFeatureFlagsService);
 	}
 
 	return cliFeatureFlagsService;
+}
+
+export function refreshCliFeatureFlagsInBackground(logger?: BasicLogger): void {
+	const service = getCliFeatureFlagsService({ logger });
+	void service.poll().catch((error) => {
+		logger?.error?.("Error refreshing CLI feature flags", { error });
+	});
 }
 
 export async function disposeCliFeatureFlagsService(): Promise<void> {
