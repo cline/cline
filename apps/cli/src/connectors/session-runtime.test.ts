@@ -132,4 +132,32 @@ describe("buildConnectorStartRequest", () => {
 		expect(request.apiKey).toBe("workos:resolved-token");
 		expect(request.model).toBe("cline-pass/glm-5.1");
 	});
+
+	it("uses auth material resolved by provider settings manager", async () => {
+		mockGetLastUsedProviderSettings.mockReturnValue({ provider: "cline-pass" });
+		mockGetProviderSettings.mockReturnValue({
+			provider: "cline-pass",
+			auth: { accessToken: "workos:resolved-token" },
+		});
+		mockGetProviderCollection.mockReturnValue({
+			provider: { env: ["CLINE_API_KEY"] },
+		});
+		mockResolveSystemPrompt.mockResolvedValue("system");
+
+		const request = await buildConnectorStartRequest({
+			options: {
+				cwd: "/tmp/work",
+				mode: "act",
+				enableTools: false,
+			},
+			io: { writeln: vi.fn(), writeErr: vi.fn() },
+			loggerConfig: { enabled: false, level: "info", destination: "stdout" },
+			systemRules: "Rules",
+			defaultModel: "cline-pass/glm-5.1",
+		});
+
+		expect(request.provider).toBe("cline-pass");
+		expect(request.apiKey).toBe("workos:resolved-token");
+		expect(request.model).toBe("cline-pass/glm-5.1");
+	});
 });
