@@ -2,14 +2,14 @@
  * Build an `AgentRuntimeConfig` from an `AgentConfig` plus session-owned
  * supporting objects (model handler, tools, hooks, plugins, telemetry).
  *
- * The function is intentionally **pure**: it does not create handlers or tools
+ * The function is intentionally pure: it does not create handlers or tools
  * itself; it receives them already resolved from the caller (`SessionRuntime`)
  * and wires them into an `AgentRuntimeConfig`.
  *
- * Fields that do **not** round-trip into `AgentRuntimeConfig`
+ * Fields that do not round-trip into `AgentRuntimeConfig`
  * (e.g. `execution.maxConsecutiveMistakes`, `execution.loopDetection`) are
  * consumed by `SessionRuntime` / `MistakeTracker` /
- * `LoopDetectionTracker` — not passed through here.
+ * `LoopDetectionTracker`, not passed through here.
  */
 
 import type {
@@ -69,7 +69,7 @@ export interface CreateAgentRuntimeConfigInput {
 	/** Seed messages (usually `session.conversation.getMessages()`). */
 	readonly initialMessages?: readonly AgentMessage[];
 	/**
-	 * Override for `AgentRuntimeConfig.systemPrompt` — useful when
+	 * Override for `AgentRuntimeConfig.systemPrompt`, useful when
 	 * the caller has composed additional guidance (e.g. via
 	 * `LocalRuntimeHost.composeSystemPrompt`). Defaults to
 	 * `agentConfig.systemPrompt`.
@@ -168,14 +168,14 @@ export function buildMessageModelInfo(
 }
 
 /**
- * `"parallel"` when `maxParallelToolCalls ≥ 2`, `"sequential"` when
- * `1`, `undefined` when the caller did not specify.
+ * `"parallel"` when `maxParallelToolCalls` is unset or at least `2`,
+ * `"sequential"` when explicitly set to `1`.
  */
 export function resolveToolExecution(
 	maxParallelToolCalls: number | undefined,
 ): "sequential" | "parallel" | undefined {
 	if (maxParallelToolCalls === undefined) {
-		return undefined;
+		return "parallel";
 	}
 	return maxParallelToolCalls >= 2 ? "parallel" : "sequential";
 }

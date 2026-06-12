@@ -8,7 +8,9 @@ import {
 	createBashTool,
 	createDefaultTools,
 	createReadFilesTool,
+	createSearchTool,
 	createSkillsTool,
+	createWebFetchTool,
 	createWindowsShellTool,
 } from "./definitions";
 import { RUN_COMMAND_QUERY_PREVIEW_LIMIT, TimeoutError } from "./helpers";
@@ -23,6 +25,39 @@ function createMockSkillsExecutor(
 	executor.configuredSkills = configuredSkills;
 	return executor;
 }
+
+describe("default tool descriptions", () => {
+	it("encourages batching independent read and search work", () => {
+		const readTool = createReadFilesTool(async () => "ok");
+		const searchTool = createSearchTool(async () => "ok");
+
+		expect(readTool.description).toContain("read them together in one call");
+		expect(readTool.description).toContain(
+			"same response as other independent tool calls",
+		);
+		expect(searchTool.description).toContain("run them together in one call");
+	});
+
+	it("warns command tools to batch only independent safe commands", () => {
+		const bashTool = createBashTool(async () => "ok");
+		const windowsTool = createWindowsShellTool(async () => "ok");
+
+		expect(bashTool.description).toContain(
+			"independent and safe to run concurrently",
+		);
+		expect(windowsTool.description).toContain(
+			"independent and safe to run concurrently",
+		);
+	});
+
+	it("encourages fetching independent URLs together", () => {
+		const webFetchTool = createWebFetchTool(async () => "ok");
+
+		expect(webFetchTool.description).toContain(
+			"Fetch independent URLs together in one call",
+		);
+	});
+});
 
 describe("default skills tool", () => {
 	it("is included only when enabled with a skills executor", () => {
