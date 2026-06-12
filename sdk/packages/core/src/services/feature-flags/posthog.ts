@@ -18,14 +18,12 @@ export interface PostHogFeatureFlagsProviderConfig {
 export interface PostHogFeatureFlagsProviderOptions {
 	config: PostHogFeatureFlagsProviderConfig;
 	client?: PostHog;
-	distinctId: string;
 }
 
 export class PostHogFeatureFlagsProvider implements IFeatureFlagsProvider {
 	private readonly client: PostHog;
 	private readonly settings: FeatureFlagsSettings;
 	private readonly logger?: BasicLogger;
-	private readonly distinctId?: string;
 	private readonly isSharedClient: boolean;
 
 	constructor(options: PostHogFeatureFlagsProviderOptions) {
@@ -35,7 +33,6 @@ export class PostHogFeatureFlagsProvider implements IFeatureFlagsProvider {
 		}
 
 		this.logger = options.config.logger;
-		this.distinctId = options.distinctId;
 		this.isSharedClient = !!options.client;
 		this.settings = {
 			enabled: true,
@@ -52,7 +49,7 @@ export class PostHogFeatureFlagsProvider implements IFeatureFlagsProvider {
 
 	async getAllFlagsAndPayloads(options: {
 		flagKeys?: readonly string[];
-		context?: FeatureFlagsContext;
+		context: FeatureFlagsContext;
 	}): Promise<FeatureFlagsAndPayloads | undefined> {
 		if (!this.enabled) {
 			return undefined;
@@ -100,11 +97,6 @@ export class PostHogFeatureFlagsProvider implements IFeatureFlagsProvider {
 	}
 
 	private resolveDistinctId(context?: FeatureFlagsContext): string | undefined {
-		return (
-			context?.distinctId?.trim() ||
-			context?.userId?.trim() ||
-			this.distinctId?.trim() ||
-			undefined
-		);
+		return context?.distinctId?.trim() || context?.userId?.trim() || undefined;
 	}
 }

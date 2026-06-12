@@ -19,7 +19,6 @@ describe("PostHogFeatureFlagsProvider", () => {
 		const provider = new PostHogFeatureFlagsProvider({
 			client,
 			config: { apiKey: "test-key" },
-			distinctId: "",
 		});
 
 		const result = await provider.getAllFlagsAndPayloads({
@@ -46,7 +45,6 @@ describe("PostHogFeatureFlagsProvider", () => {
 		const provider = new PostHogFeatureFlagsProvider({
 			client,
 			config: { apiKey: "test-key", logger },
-			distinctId: "",
 		});
 
 		const result = await provider.getAllFlagsAndPayloads({
@@ -68,7 +66,6 @@ describe("PostHogFeatureFlagsProvider", () => {
 		const provider = new PostHogFeatureFlagsProvider({
 			client,
 			config: { apiKey: "test-key" },
-			distinctId: "",
 		});
 
 		await provider.dispose();

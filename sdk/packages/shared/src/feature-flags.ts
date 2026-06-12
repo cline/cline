@@ -48,7 +48,7 @@ export interface FeatureFlagsSettings {
 export interface IFeatureFlagsProvider {
 	getAllFlagsAndPayloads(options: {
 		flagKeys?: readonly string[];
-		context?: FeatureFlagsContext;
+		context: FeatureFlagsContext;
 	}): Promise<FeatureFlagsAndPayloads | undefined>;
 	readonly enabled: boolean;
 	getSettings(): FeatureFlagsSettings;
