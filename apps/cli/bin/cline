@@ -25,10 +25,27 @@ const childEnv = {
 
 // Auto-discover OS trust anchors and pass them to the Bun child via
 // NODE_EXTRA_CA_CERTS. The Bun runtime does not read the OS store on its own,
-// so corporate/self-signed CAs would otherwise fail (CLINE-2353). This wrapper
-// runs on Node, which can read the full store here.
+// so corporate/self-signed CAs would otherwise fail. This wrapper runs on
+// Node, which can read the full store here.
 try {
-	require("./ca-certs.cjs").configureNodeExtraCaCerts(childEnv);
+	const outcome = require("./ca-certs.cjs").configureNodeExtraCaCerts(childEnv);
+	const debug =
+		process.env.CLINE_DEBUG === "1" || process.env.CLINE_DEBUG === "true";
+	if (debug && outcome) {
+		if (outcome.action === "no-system-certs") {
+			console.warn(
+				"[cline] No OS trust anchors found; relying on the runtime's bundled CAs.",
+			);
+		} else if (outcome.action === "write-failed") {
+			console.warn(
+				"[cline] Could not write the managed CA bundle; relying on the runtime's bundled CAs.",
+			);
+		} else {
+			console.warn(
+				`[cline] Trust: ${outcome.systemCertCount} OS + ${outcome.userCertCount} user CAs (${outcome.action}) -> ${outcome.path}`,
+			);
+		}
+	}
 } catch {
 	// Best effort: fall back to the runtime's default trust on any failure.
 }
