@@ -168,14 +168,14 @@ export function buildMessageModelInfo(
 }
 
 /**
- * `"parallel"` when `maxParallelToolCalls` is unset or at least `2`,
- * `"sequential"` when explicitly set to `1`.
+ * `"parallel"` when `maxParallelToolCalls ≥ 2`, `"sequential"` when
+ * `1`, `undefined` when the caller did not specify.
  */
 export function resolveToolExecution(
 	maxParallelToolCalls: number | undefined,
-): "sequential" | "parallel" {
+): "sequential" | "parallel" | undefined {
 	if (maxParallelToolCalls === undefined) {
-		return "parallel";
+		return undefined;
 	}
 	return maxParallelToolCalls >= 2 ? "parallel" : "sequential";
 }

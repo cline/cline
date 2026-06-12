@@ -107,8 +107,8 @@ describe("buildMessageModelInfo", () => {
 // ---------------------------------------------------------------------------
 
 describe("resolveToolExecution", () => {
-	it("defaults to parallel when unset", () => {
-		expect(resolveToolExecution(undefined)).toBe("parallel");
+	it("returns undefined when unset", () => {
+		expect(resolveToolExecution(undefined)).toBeUndefined();
 	});
 
 	it("returns 'sequential' for 1", () => {
@@ -198,15 +198,6 @@ describe("createAgentRuntimeConfig", () => {
 			systemPrompt: "override",
 		});
 		expect(runtimeConfig.systemPrompt).toBe("override");
-	});
-
-	it("defaults runtime tool execution to parallel when maxParallelToolCalls is unset", () => {
-		const runtimeConfig = createAgentRuntimeConfig({
-			agentConfig: makeAgentConfig(),
-			agentId: "a",
-			model: nullModel,
-		});
-		expect(runtimeConfig.toolExecution).toBe("parallel");
 	});
 
 	it("populates hooks when provided", () => {
