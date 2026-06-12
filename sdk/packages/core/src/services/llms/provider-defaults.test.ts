@@ -217,6 +217,11 @@ describe("resolveProviderConfig", () => {
 				JSON.stringify({
 					data: [
 						{
+							id: "llmtr/sincap",
+							object: "model",
+							supported_operations: ["CHAT_COMPLETIONS"],
+						},
+						{
 							id: "openai/gpt-5.4",
 							object: "model",
 							supported_operations: ["CHAT_COMPLETIONS"],
@@ -256,11 +261,14 @@ describe("resolveProviderConfig", () => {
 				}),
 			}),
 		);
-		// Turkey-hosted static models stay present alongside the live catalog.
+		// The live endpoint returns bare IDs for models already in the static
+		// catalog; the richer static entries (names, context windows, pricing)
+		// must not be overwritten by the minimal live ones.
 		expect(resolved?.knownModels?.["llmtr/sincap"]).toEqual(
 			expect.objectContaining({
 				name: "Sincap",
 				contextWindow: 128_000,
+				pricing: { input: 0, output: 0 },
 			}),
 		);
 		expect(resolved?.knownModels?.["openai/gpt-5.4"]).toBeDefined();

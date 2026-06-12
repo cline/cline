@@ -520,6 +520,8 @@ async function fetchLlmtrPrivateModels(
 
 	const payload = (await response.json()) as { data?: LlmtrModelResponse[] };
 	const entries = payload?.data ?? [];
+	const staticModels =
+		Llms.MODEL_COLLECTIONS_BY_PROVIDER_ID.llmtr?.models ?? {};
 	const models: Record<string, ModelInfo> = {};
 	for (const model of entries) {
 		const id = model.id?.trim();
@@ -530,6 +532,11 @@ async function fetchLlmtrPrivateModels(
 		// are usable here.
 		const operations = model.supported_operations ?? [];
 		if (operations.length > 0 && !operations.includes("CHAT_COMPLETIONS")) {
+			continue;
+		}
+		// The live endpoint only returns bare IDs; keep the richer static
+		// entries (names, context windows, pricing) for known models.
+		if (staticModels[id]) {
 			continue;
 		}
 		models[id] = buildModelFromPrivateSource(id, { name: id });

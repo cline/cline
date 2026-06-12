@@ -30,7 +30,7 @@ export class LlmtrHandler implements ApiHandler {
 					apiKey: this.options.llmtrApiKey,
 				})
 			} catch (error) {
-				throw new Error(`Error creating LLMTR client: ${error.message}`)
+				throw new Error(`Error creating LLMTR client: ${error instanceof Error ? error.message : String(error)}`)
 			}
 		}
 		return this.client
