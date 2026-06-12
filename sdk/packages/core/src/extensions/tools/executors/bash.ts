@@ -210,30 +210,21 @@ function spawnAndCollect(
 
 			const out = stdout.snapshot();
 			const err = stderr.snapshot();
-			let output = combineOutput
-				? out.text + (err.text ? `\n[stderr]\n${err.text}` : "")
-				: out.text;
-			const dropped = out.dropped || (combineOutput && err.dropped);
-			if (dropped || output.length > maxOutputBytes) {
-				const totalChars = combineOutput
-					? out.totalChars + err.totalChars
-					: out.totalChars;
-				output = truncateMiddle(output, maxOutputBytes, totalChars);
-			}
 
 			if (code !== 0) {
 				const exitCode = code ?? 1;
-				let failureOutput =
-					out.text + (err.text ? `\n[stderr]\n${err.text}` : "");
-				if (
-					out.dropped ||
-					err.dropped ||
-					failureOutput.length > maxOutputBytes
-				) {
+				let failureOutput = combineOutput
+					? out.text + (err.text ? `\n[stderr]\n${err.text}` : "")
+					: out.text;
+				const dropped = out.dropped || (combineOutput && err.dropped);
+				const totalChars = combineOutput
+					? out.totalChars + err.totalChars
+					: out.totalChars;
+				if (dropped || failureOutput.length > maxOutputBytes) {
 					failureOutput = truncateMiddle(
 						failureOutput,
 						maxOutputBytes,
-						out.totalChars + err.totalChars,
+						totalChars,
 					);
 				}
 				const result =
@@ -242,6 +233,16 @@ function spawnAndCollect(
 						: `[Command exited with code ${exitCode}]`;
 				settle(() => reject(new CommandExitError(exitCode, result)));
 			} else {
+				let output = combineOutput
+					? out.text + (err.text ? `\n[stderr]\n${err.text}` : "")
+					: out.text;
+				const dropped = out.dropped || (combineOutput && err.dropped);
+				if (dropped || output.length > maxOutputBytes) {
+					const totalChars = combineOutput
+						? out.totalChars + err.totalChars
+						: out.totalChars;
+					output = truncateMiddle(output, maxOutputBytes, totalChars);
+				}
 				settle(() => resolve(output));
 			}
 		});

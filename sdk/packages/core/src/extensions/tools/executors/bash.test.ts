@@ -47,6 +47,33 @@ describe("createBashExecutor", () => {
 		expect(error.output).toContain("failure details");
 	});
 
+	it("excludes stderr on non-zero exit when combineOutput is false", async () => {
+		const bash = createBashExecutor({ combineOutput: false });
+		let error: unknown;
+		try {
+			await bash(
+				{
+					command: process.execPath,
+					args: [
+						"-e",
+						"process.stdout.write('visible'); process.stderr.write('hidden'); process.exit(1)",
+					],
+				},
+				process.cwd(),
+				ctx,
+			);
+		} catch (caught) {
+			error = caught;
+		}
+
+		if (!(error instanceof CommandExitError)) {
+			throw new Error("Expected CommandExitError");
+		}
+		expect(error.output).toContain("visible");
+		expect(error.output).not.toContain("[stderr]");
+		expect(error.output).not.toContain("hidden");
+	});
+
 	it("includes stderr in combined output on success", async () => {
 		const bash = createBashExecutor({ combineOutput: true });
 		const output = await bash(
