@@ -16,7 +16,6 @@ import {
 	isProviderConfigured,
 } from "../../utils/provider-auth";
 import type { Config } from "../../utils/types";
-import { onProviderChange } from "../cline-account";
 import { withLoadingDialog } from "../components/dialogs/loading-dialog";
 import {
 	CodexCliStatusContent,
@@ -180,11 +179,6 @@ async function runProviderChange(
 
 			config.providerId = newProviderId;
 			config.apiKey = newApiKey;
-			await onProviderChange({
-				config,
-				providerId: newProviderId,
-			});
-
 			const resolved = await resolveProviderConfig(
 				newProviderId,
 				{
