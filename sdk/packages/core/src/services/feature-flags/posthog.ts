@@ -24,7 +24,6 @@ export class PostHogFeatureFlagsProvider implements IFeatureFlagsProvider {
 	private readonly client: PostHog;
 	private readonly settings: FeatureFlagsSettings;
 	private readonly logger?: BasicLogger;
-	private readonly isSharedClient: boolean;
 
 	constructor(options: PostHogFeatureFlagsProviderOptions) {
 		const apiKey = options.config.apiKey.trim();
@@ -33,7 +32,6 @@ export class PostHogFeatureFlagsProvider implements IFeatureFlagsProvider {
 		}
 
 		this.logger = options.config.logger;
-		this.isSharedClient = !!options.client;
 		this.settings = {
 			enabled: true,
 			timeoutMs: options.config.timeoutMs ?? 5000,
@@ -83,10 +81,6 @@ export class PostHogFeatureFlagsProvider implements IFeatureFlagsProvider {
 	}
 
 	async dispose(): Promise<void> {
-		if (this.isSharedClient) {
-			return;
-		}
-
 		try {
 			await this.client.shutdown();
 		} catch (error) {
