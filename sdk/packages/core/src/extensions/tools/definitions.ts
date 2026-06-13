@@ -174,6 +174,7 @@ function coalesceAdjacentStringHeredocs(
 }
 
 const MAX_TOOL_HISTORY_SCOPES = 200;
+const POLLING_GUIDANCE_THRESHOLD = 3;
 const workspaceMutationRevisionByScope = new Map<string, number>();
 const previousRunCommandResultsByScope = new Map<
 	string,
@@ -185,6 +186,17 @@ const previousRunCommandResultsByScope = new Map<
 			query: string;
 			success: boolean;
 			error?: string;
+		}
+	>
+>();
+const pollingCommandCountsByScope = new Map<
+	string,
+	Map<
+		string,
+		{
+			count: number;
+			revision: number;
+			label: string;
 		}
 	>
 >();
@@ -241,6 +253,7 @@ function getScopedCommandResultMap(
 		const oldestScope = previousRunCommandResultsByScope.keys().next().value;
 		if (oldestScope) {
 			previousRunCommandResultsByScope.delete(oldestScope);
+			pollingCommandCountsByScope.delete(oldestScope);
 			workspaceMutationRevisionByScope.delete(oldestScope);
 		}
 	}
@@ -248,6 +261,20 @@ function getScopedCommandResultMap(
 	if (!commands) {
 		commands = new Map();
 		previousRunCommandResultsByScope.set(scope, commands);
+	}
+	return commands;
+}
+
+function getScopedPollingCommandMap(
+	scope: string | undefined,
+): Map<string, { count: number; revision: number; label: string }> | undefined {
+	if (!scope) {
+		return undefined;
+	}
+	let commands = pollingCommandCountsByScope.get(scope);
+	if (!commands) {
+		commands = new Map();
+		pollingCommandCountsByScope.set(scope, commands);
 	}
 	return commands;
 }
@@ -291,6 +318,114 @@ function rememberCommandResult(
 		success: result.success,
 		error: result.error,
 	});
+}
+
+function appendToolGuidance(message: string, guidance: string): string {
+	if (!message) {
+		return `Tool guidance: ${guidance}`;
+	}
+	return `${message}\n\nTool guidance: ${guidance}`;
+}
+
+function normalizePollingCommand(command: string): string {
+	return command
+		.replace(/^\s*(?:sleep\s+\d+(?:\.\d+)?\s*(?:&&|;)\s*)+/g, "")
+		.replace(/\b(tail|head)\s+-(?:[nc]\s*)?\d+\b/g, "$1 -n <n>")
+		.replace(/\bps\s+-p\s+\d+\b/g, "ps -p <pid>")
+		.replace(/\bgrep\s+\d{2,}\b/g, "grep <id>")
+		.replace(/\b\d{4,}\b/g, "<n>")
+		.replace(/\s+/g, " ")
+		.trim();
+}
+
+function getPollingCommandInfo(
+	command: string,
+): { key: string; label: string } | undefined {
+	const normalized = normalizePollingCommand(command);
+	const lower = normalized.toLowerCase();
+
+	const tailOrHeadMatch = lower.match(
+		/\b(?:tail|head)\s+(?:-n\s+<n>\s+)?([/~.$\w][^\s|;&]*)/,
+	);
+	if (tailOrHeadMatch?.[1]) {
+		return {
+			key: `log-read:${tailOrHeadMatch[1]}`,
+			label: `log reads of ${tailOrHeadMatch[1]}`,
+		};
+	}
+
+	const wcMatch = lower.match(/\bwc\s+-l\s+([/~.$\w-][^\s|;&]*)/);
+	if (wcMatch?.[1]) {
+		return {
+			key: `line-count:${wcMatch[1]}`,
+			label: `line counts of ${wcMatch[1]}`,
+		};
+	}
+
+	const statMatch = lower.match(
+		/\bstat\s+-c\s+['"]?%s['"]?\s+([/~.$\w-][^\s|;&]*)/,
+	);
+	if (statMatch?.[1]) {
+		return {
+			key: `size-check:${statMatch[1]}`,
+			label: `size checks of ${statMatch[1]}`,
+		};
+	}
+
+	const findCountMatch = lower.match(
+		/\bfind\s+([/~.$\w-][^\s|;&]*).*?\|\s*wc\s+-l/,
+	);
+	if (findCountMatch?.[1]) {
+		return {
+			key: `file-count:${findCountMatch[1]}`,
+			label: `file counts under ${findCountMatch[1]}`,
+		};
+	}
+
+	if (/\b(?:ps|pgrep)\b/.test(lower)) {
+		return {
+			key: `process-check:${normalized}`,
+			label: "process status checks",
+		};
+	}
+
+	if (/^sleep\s+\d+(?:\.\d+)?$/.test(lower)) {
+		return {
+			key: "sleep-only",
+			label: "sleep-only waits",
+		};
+	}
+
+	return undefined;
+}
+
+function getPollingGuidanceAfterCommand(
+	scope: string | undefined,
+	command: string,
+): string | undefined {
+	const pollingInfo = getPollingCommandInfo(command);
+	if (!pollingInfo) {
+		return undefined;
+	}
+	const pollingCommands = getScopedPollingCommandMap(scope);
+	if (!pollingCommands) {
+		return undefined;
+	}
+	const revision = getScopeMutationRevision(scope);
+	const previous = pollingCommands.get(pollingInfo.key);
+	const count = previous?.revision === revision ? previous.count + 1 : 1;
+	pollingCommands.set(pollingInfo.key, {
+		count,
+		revision,
+		label: pollingInfo.label,
+	});
+	if (count < POLLING_GUIDANCE_THRESHOLD) {
+		return undefined;
+	}
+	return (
+		`You have repeated ${pollingInfo.label} ${count} times without a file edit. ` +
+		"Do not keep polling in short loops; use one longer wait/read if needed, inspect the saved log/output directly, or proceed/submit if there is enough evidence."
+	);
 }
 
 function commandLikelyMutatesWorkspace(command: string): boolean {
@@ -337,9 +472,15 @@ async function executeShellCommands(
 					timeoutMs,
 					`Command timed out after ${timeoutMs}ms`,
 				);
+				const pollingGuidance =
+					typeof command === "string"
+						? getPollingGuidanceAfterCommand(scope, commandKey)
+						: undefined;
 				const result = {
 					query,
-					result: output,
+					result: pollingGuidance
+						? appendToolGuidance(output, pollingGuidance)
+						: output,
 					success: true,
 				};
 				if (commandLikelyMutatesWorkspace(commandKey)) {
@@ -357,9 +498,15 @@ async function executeShellCommands(
 					});
 				}
 				if (error instanceof CommandExitError) {
+					const pollingGuidance =
+						typeof command === "string"
+							? getPollingGuidanceAfterCommand(scope, commandKey)
+							: undefined;
 					const result = {
 						query,
-						result: error.output,
+						result: pollingGuidance
+							? appendToolGuidance(error.output, pollingGuidance)
+							: error.output,
 						error: error.message,
 						success: false,
 					};
