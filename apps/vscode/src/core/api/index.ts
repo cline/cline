@@ -1,4 +1,4 @@
-import { ApiConfiguration, ModelInfo, QwenApiRegions } from "@shared/api"
+import { ApiConfiguration, clinePassDefaultModelId, clinePassModels, ModelInfo, QwenApiRegions } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { Logger } from "@/shared/services/Logger"
@@ -257,13 +257,22 @@ function createHandlerForProvider(
 				vsCodeLmModelSelector:
 					mode === "plan" ? options.planModeVsCodeLmModelSelector : options.actModeVsCodeLmModelSelector,
 			})
-		case "cline": {
+		case "cline":
+		case "cline-pass": {
+			const configuredClineModelId = mode === "plan" ? options.planModeClineModelId : options.actModeClineModelId
+			const configuredClineModelInfo = mode === "plan" ? options.planModeClineModelInfo : options.actModeClineModelInfo
 			const clineModelId =
-				(mode === "plan" ? options.planModeClineModelId : options.actModeClineModelId) ||
-				(mode === "plan" ? options.planModeOpenRouterModelId : options.actModeOpenRouterModelId)
+				apiProvider === "cline-pass"
+					? configuredClineModelId && configuredClineModelId in clinePassModels
+						? configuredClineModelId
+						: clinePassDefaultModelId
+					: configuredClineModelId ||
+						(mode === "plan" ? options.planModeOpenRouterModelId : options.actModeOpenRouterModelId)
 			const clineModelInfo =
-				(mode === "plan" ? options.planModeClineModelInfo : options.actModeClineModelInfo) ||
-				(mode === "plan" ? options.planModeOpenRouterModelInfo : options.actModeOpenRouterModelInfo)
+				apiProvider === "cline-pass"
+					? clinePassModels[clineModelId as keyof typeof clinePassModels]
+					: configuredClineModelInfo ||
+						(mode === "plan" ? options.planModeOpenRouterModelInfo : options.actModeOpenRouterModelInfo)
 			return new ClineHandler({
 				onRetryAttempt: options.onRetryAttempt,
 				clineAccountId: options.clineAccountId,

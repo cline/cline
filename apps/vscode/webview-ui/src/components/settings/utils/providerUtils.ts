@@ -13,6 +13,8 @@ import {
 	cerebrasModels,
 	claudeCodeDefaultModelId,
 	claudeCodeModels,
+	clinePassDefaultModelId,
+	clinePassModels,
 	deepSeekDefaultModelId,
 	deepSeekModels,
 	doubaoDefaultModelId,
@@ -102,6 +104,8 @@ export function getModelsForProvider(
 			return openAiNativeModels
 		case "openai-codex":
 			return openAiCodexModels
+		case "cline-pass":
+			return clinePassModels
 		case "deepseek":
 			return deepSeekModels
 		case "qwen":
@@ -274,20 +278,29 @@ export function normalizeApiConfiguration(
 				selectedModelInfo: requestyModelInfo || requestyDefaultModelInfo,
 			}
 		case "cline":
+		case "cline-pass":
 			const fallbackOpenRouterModelId =
 				currentMode === "plan" ? apiConfiguration?.planModeOpenRouterModelId : apiConfiguration?.actModeOpenRouterModelId
 			const fallbackOpenRouterModelInfo =
 				currentMode === "plan"
 					? apiConfiguration?.planModeOpenRouterModelInfo
 					: apiConfiguration?.actModeOpenRouterModelInfo
+			const configuredClineModelId =
+				currentMode === "plan" ? apiConfiguration?.planModeClineModelId : apiConfiguration?.actModeClineModelId
 			const clineModelId =
-				(currentMode === "plan" ? apiConfiguration?.planModeClineModelId : apiConfiguration?.actModeClineModelId) ||
-				fallbackOpenRouterModelId ||
-				openRouterDefaultModelId
+				provider === "cline-pass"
+					? configuredClineModelId && configuredClineModelId in clinePassModels
+						? configuredClineModelId
+						: clinePassDefaultModelId
+					: configuredClineModelId || fallbackOpenRouterModelId || openRouterDefaultModelId
 			const clineModelInfo =
-				(currentMode === "plan" ? apiConfiguration?.planModeClineModelInfo : apiConfiguration?.actModeClineModelInfo) ||
-				fallbackOpenRouterModelInfo ||
-				openRouterDefaultModelInfo
+				provider === "cline-pass"
+					? clinePassModels[clineModelId as keyof typeof clinePassModels]
+					: (currentMode === "plan"
+							? apiConfiguration?.planModeClineModelInfo
+							: apiConfiguration?.actModeClineModelInfo) ||
+						fallbackOpenRouterModelInfo ||
+						openRouterDefaultModelInfo
 			return {
 				selectedProvider: provider,
 				selectedModelId: clineModelId,

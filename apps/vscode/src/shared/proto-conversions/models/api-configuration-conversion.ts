@@ -280,6 +280,8 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.VSCODE_LM
 		case "cline":
 			return ProtoApiProvider.CLINE
+		case "cline-pass":
+			return ProtoApiProvider.CLINE_PASS
 		case "litellm":
 			return ProtoApiProvider.LITELLM
 		case "moonshot":
@@ -372,6 +374,8 @@ export function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvid
 			return "vscode-lm"
 		case ProtoApiProvider.CLINE:
 			return "cline"
+		case ProtoApiProvider.CLINE_PASS:
+			return "cline-pass"
 		case ProtoApiProvider.LITELLM:
 			return "litellm"
 		case ProtoApiProvider.MOONSHOT:

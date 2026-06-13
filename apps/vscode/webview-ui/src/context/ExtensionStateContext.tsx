@@ -777,7 +777,10 @@ export const ExtensionStateContextProvider: React.FC<{
 	// Auto-refresh Cline models when provider is cline
 	useEffect(() => {
 		const hasClineProvider =
-			state.apiConfiguration?.actModeApiProvider === "cline" || state.apiConfiguration?.planModeApiProvider === "cline"
+			state.apiConfiguration?.actModeApiProvider === "cline" ||
+			state.apiConfiguration?.actModeApiProvider === "cline-pass" ||
+			state.apiConfiguration?.planModeApiProvider === "cline" ||
+			state.apiConfiguration?.planModeApiProvider === "cline-pass"
 		if (hasClineProvider && clineModels === null) {
 			refreshClineModels()
 		}

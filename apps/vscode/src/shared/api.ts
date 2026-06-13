@@ -22,6 +22,7 @@ export type ApiProvider =
 	| "mistral"
 	| "vscode-lm"
 	| "cline"
+	| "cline-pass"
 	| "litellm"
 	| "moonshot"
 	| "nebius"
@@ -1022,6 +1023,24 @@ export const clineDevstralModelInfo: ModelInfo = {
 	cacheWritesPrice: 0,
 	description: "A stealth model for agentic coding tasks",
 }
+
+export type ClinePassModelId = keyof typeof clinePassModels
+export const clinePassDefaultModelId = "cline-pass/glm-5.1"
+export const clinePassModels = {
+	"cline-pass/glm-5.1": {
+		name: "cline-pass/glm-5.1",
+		maxTokens: 131_072,
+		contextWindow: 202_752,
+		supportsImages: false,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		inputPrice: 0.98,
+		outputPrice: 3.08,
+		cacheReadsPrice: 0.182,
+		cacheWritesPrice: 0,
+		description: "",
+	},
+} as const satisfies Record<string, ModelInfo>
 
 export const OPENROUTER_PROVIDER_PREFERENCES: Record<string, { order: string[]; allow_fallbacks: boolean }> = {
 	// Exacto Providers

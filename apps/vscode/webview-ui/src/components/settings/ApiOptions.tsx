@@ -368,6 +368,15 @@ const ApiOptions = ({
 				/>
 			)}
 
+			{apiConfiguration && selectedProvider === "cline-pass" && (
+				<ClineProvider
+					currentMode={currentMode}
+					isPopup={isPopup}
+					showModelOptions={showModelOptions}
+					variant="cline-pass"
+				/>
+			)}
+
 			{apiConfiguration && selectedProvider === "asksage" && (
 				<AskSageProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
