@@ -78,6 +78,25 @@ export class McpHub {
 	private isUpdatingFromRemoteConfig = false
 
 	/**
+	 * Fingerprint of the connection-relevant view of the settings file the last
+	 * time the watcher processed it.
+	 *
+	 * OAuth state (codeVerifier, clientInformation, discoveryState, lastError…)
+	 * now lives IN the settings file, and the MCP SDK rewrites it on every
+	 * connection attempt — `saveCodeVerifier()` runs each time we connect an
+	 * unauthenticated server. Those writes trip the settings watcher, which would
+	 * call updateServerConnections() → connectToServer() → another
+	 * saveCodeVerifier() write → watcher fires again, livelocking (especially with
+	 * two+ unauthenticated servers, where each one's churn re-triggers the other).
+	 *
+	 * To break the loop, the watcher compares this fingerprint and skips when only
+	 * OAuth-handshake fields changed. The fingerprint intentionally INCLUDES
+	 * whether an access token is present, so a CLI/other-window authorization
+	 * (token appears) still triggers a reconnect via serverGainedOAuthTokens.
+	 */
+	private lastConnectionFingerprint?: string
+
+	/**
 	 * Map of unique keys to each connected server names
 	 */
 	private static mcpServerKeys = new Map<string, string>()
@@ -293,6 +312,19 @@ export class McpHub {
 
 			const settings = await this.readAndValidateMcpSettingsFile()
 			if (settings) {
+				// Ignore writes that only churn OAuth-handshake state. The MCP SDK
+				// rewrites codeVerifier/clientInformation on every connect attempt
+				// for unauthenticated servers; without this guard those writes would
+				// re-enter updateServerConnections() → connectToServer() → another
+				// write, livelocking (worse with multiple unauthenticated servers).
+				// A token appearing/disappearing DOES change the fingerprint, so CLI
+				// or other-window authorization still triggers a reconnect.
+				const fingerprint = this.computeConnectionFingerprint(settings.mcpServers as Record<string, McpServerConfig>)
+				if (fingerprint === this.lastConnectionFingerprint) {
+					return
+				}
+				this.lastConnectionFingerprint = fingerprint
+
 				try {
 					// Re-add any remotely configured servers that were manually removed from the file
 					const remoteServers = StateManager.get().getRemoteConfigSettings().remoteMCPServers
@@ -332,6 +364,11 @@ export class McpHub {
 	private async initializeMcpServers(): Promise<void> {
 		const settings = await this.readAndValidateMcpSettingsFile()
 		if (settings) {
+			// Seed the watcher's baseline so the first post-startup write is
+			// compared against the current connection-relevant state, not undefined.
+			this.lastConnectionFingerprint = this.computeConnectionFingerprint(
+				settings.mcpServers as Record<string, McpServerConfig>,
+			)
 			await this.updateServerConnections(settings.mcpServers)
 		}
 	}
@@ -1076,6 +1113,33 @@ export class McpHub {
 		}
 		const oauth = (newConfig as McpServerConfig & { oauth?: { tokens?: { access_token?: unknown } } }).oauth
 		return typeof oauth?.tokens?.access_token === "string" && oauth.tokens.access_token.length > 0
+	}
+
+	/**
+	 * Builds a fingerprint of only the parts of the settings file that affect
+	 * how we manage connections. Used by the settings watcher to ignore writes
+	 * that merely churn OAuth-handshake state (codeVerifier, clientInformation,
+	 * discoveryState, lastError) — which the MCP SDK rewrites on every connect
+	 * attempt and would otherwise livelock the watcher (see lastConnectionFingerprint).
+	 *
+	 * Per server it captures: the full config MINUS the oauth block, plus a
+	 * single boolean for whether a usable access token exists. The boolean is
+	 * what lets a CLI/other-window authorization (token appears or disappears)
+	 * still wake the watcher, while verifier/nonce churn does not.
+	 */
+	private computeConnectionFingerprint(mcpServers: Record<string, McpServerConfig>): string {
+		const normalized: Record<string, unknown> = {}
+		for (const name of Object.keys(mcpServers).sort()) {
+			const { oauth, ...connectionConfig } = mcpServers[name] as McpServerConfig & {
+				oauth?: { tokens?: { access_token?: unknown } }
+			}
+			const accessToken = oauth?.tokens?.access_token
+			normalized[name] = {
+				config: connectionConfig,
+				hasToken: typeof accessToken === "string" && accessToken.length > 0,
+			}
+		}
+		return JSON.stringify(normalized)
 	}
 
 	private setupFileWatcher(name: string, config: Extract<McpServerConfig, { type: "stdio" }>) {
