@@ -119,7 +119,6 @@ const API_HANDLER_SETTINGS_FIELDS = {
 	ollamaApiOptionsCtxNum: { default: undefined as string | undefined },
 	lmStudioBaseUrl: { default: undefined as string | undefined },
 	lmStudioMaxTokens: { default: undefined as string | undefined },
-	lmStudioApiKey: { default: undefined as string | undefined },
 	geminiBaseUrl: { default: undefined as string | undefined },
 	requestyBaseUrl: { default: undefined as string | undefined },
 	fireworksModelMaxCompletionTokens: { default: undefined as number | undefined },
