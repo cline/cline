@@ -6,6 +6,7 @@ import {
 } from "../../services/telemetry/tool-context";
 import {
 	createDefaultTools,
+	createEditorTool,
 	createReadFilesTool,
 	createSearchTool,
 	createShellTool,
@@ -697,6 +698,170 @@ describe("default run_commands tool", () => {
 				success: false,
 			},
 		]);
+	});
+
+	it("skips exact repeated commands in the same session", async () => {
+		const execute = vi.fn(
+			async (command: string | { command: string }) =>
+				`ran:${typeof command === "string" ? command : command.command}`,
+		);
+		const tool = createShellTool(execute);
+		const context = {
+			sessionId: "session-repeated-command",
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			iteration: 1,
+		};
+
+		await tool.execute({ commands: ["python3 --version"] }, context);
+		const result = await tool.execute(
+			{ commands: ["python3 --version"] },
+			{ ...context, iteration: 2 },
+		);
+
+		expect(result).toEqual([
+			expect.objectContaining({
+				query: "python3 --version",
+				success: true,
+			}),
+		]);
+		expect(execute).toHaveBeenCalledTimes(1);
+		expect(result[0]?.result).toContain("Skipped exact repeated command");
+		expect(result[0]?.result).not.toContain("ran:python3 --version");
+	});
+
+	it("allows an exact command rerun after a successful file edit", async () => {
+		const executeBash = vi.fn(
+			async (command: string | { command: string }) =>
+				`ran:${typeof command === "string" ? command : command.command}`,
+		);
+		const executeEdit = vi.fn(async () => "patched");
+		const bashTool = createShellTool(executeBash);
+		const editorTool = createEditorTool(executeEdit);
+		const context = {
+			sessionId: "session-repeat-after-edit",
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			iteration: 1,
+		};
+
+		await bashTool.execute({ commands: ["npm test"] }, context);
+		await editorTool.execute(
+			{
+				path: "/tmp/example.ts",
+				old_text: "before",
+				new_text: "after",
+			},
+			{ ...context, iteration: 2 },
+		);
+		const result = await bashTool.execute(
+			{ commands: ["npm test"] },
+			{ ...context, iteration: 3 },
+		);
+
+		expect(executeBash).toHaveBeenCalledTimes(2);
+		expect(result).toEqual([
+			expect.objectContaining({
+				query: "npm test",
+				result: expect.stringContaining("ran:npm test"),
+				success: true,
+			}),
+		]);
+	});
+
+	it("allows an exact command rerun after a successful shell mutation", async () => {
+		const execute = vi.fn(
+			async (command: string | { command: string }) =>
+				`ran:${typeof command === "string" ? command : command.command}`,
+		);
+		const tool = createShellTool(execute);
+		const context = {
+			sessionId: "session-repeat-after-shell-mutation",
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			iteration: 1,
+		};
+
+		await tool.execute({ commands: ["npm test"] }, context);
+		await tool.execute(
+			{ commands: ["sed -i 's/before/after/' src/example.ts"] },
+			{ ...context, iteration: 2 },
+		);
+		const result = await tool.execute(
+			{ commands: ["npm test"] },
+			{ ...context, iteration: 3 },
+		);
+
+		expect(execute).toHaveBeenCalledTimes(3);
+		expect(result).toEqual([
+			expect.objectContaining({
+				query: "npm test",
+				result: expect.stringContaining("ran:npm test"),
+				success: true,
+			}),
+		]);
+	});
+
+	it("does not treat stderr fd duplication as a workspace mutation", async () => {
+		const execute = vi.fn(
+			async (command: string | { command: string }) =>
+				`ran:${typeof command === "string" ? command : command.command}`,
+		);
+		const tool = createShellTool(execute);
+		const context = {
+			sessionId: "session-stderr-redirection-is-not-mutation",
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			iteration: 1,
+		};
+
+		await tool.execute({ commands: ["pmars -b warrior.red 2>&1"] }, context);
+		await tool.execute(
+			{ commands: ["other-check 2>&1"] },
+			{ ...context, iteration: 2 },
+		);
+		const result = await tool.execute(
+			{ commands: ["pmars -b warrior.red 2>&1"] },
+			{ ...context, iteration: 3 },
+		);
+
+		expect(execute).toHaveBeenCalledTimes(2);
+		expect(result).toEqual([
+			expect.objectContaining({
+				query: "pmars -b warrior.red 2>&1",
+				success: true,
+			}),
+		]);
+		expect(result[0]?.result).toContain("Skipped exact repeated command");
+	});
+
+	it("skips an exact repeated shell mutation command", async () => {
+		const execute = vi.fn(
+			async (command: string | { command: string }) =>
+				`ran:${typeof command === "string" ? command : command.command}`,
+		);
+		const tool = createShellTool(execute);
+		const context = {
+			sessionId: "session-repeated-shell-mutation",
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			iteration: 1,
+		};
+
+		await tool.execute({ commands: ["rm -f /app/povray-2.2.tgz"] }, context);
+		const result = await tool.execute(
+			{ commands: ["rm -f /app/povray-2.2.tgz"] },
+			{ ...context, iteration: 2 },
+		);
+
+		expect(execute).toHaveBeenCalledTimes(1);
+		expect(result).toEqual([
+			expect.objectContaining({
+				query: "rm -f /app/povray-2.2.tgz",
+				success: true,
+			}),
+		]);
+		expect(result[0]?.result).toContain("Skipped exact repeated command");
 	});
 
 	it("coalesces split heredoc command arrays before execution", async () => {
