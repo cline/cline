@@ -110,6 +110,142 @@ function captureRunCommandsTimeoutFromContext(
 	});
 }
 
+const MAX_TOOL_HISTORY_SCOPES = 200;
+const workspaceMutationRevisionByScope = new Map<string, number>();
+const previousRunCommandResultsByScope = new Map<
+	string,
+	Map<
+		string,
+		{
+			count: number;
+			revision: number;
+			query: string;
+			success: boolean;
+			error?: string;
+		}
+	>
+>();
+
+type PreviousRunCommandResult = {
+	count: number;
+	revision: number;
+	query: string;
+	success: boolean;
+	error?: string;
+};
+
+function getToolHistoryScopeKey(context: AgentToolContext): string | undefined {
+	if (context.runId) {
+		return `run:${context.runId}`;
+	}
+	if (context.sessionId) {
+		return `session:${context.sessionId}`;
+	}
+	return undefined;
+}
+
+function getScopeMutationRevision(scope: string | undefined): number {
+	if (!scope) {
+		return 0;
+	}
+	return workspaceMutationRevisionByScope.get(scope) ?? 0;
+}
+
+function bumpScopeMutationRevisionForScope(scope: string | undefined): void {
+	if (!scope) {
+		return;
+	}
+	workspaceMutationRevisionByScope.set(
+		scope,
+		getScopeMutationRevision(scope) + 1,
+	);
+}
+
+function bumpScopeMutationRevision(context: AgentToolContext): void {
+	bumpScopeMutationRevisionForScope(getToolHistoryScopeKey(context));
+}
+
+function getScopedCommandResultMap(
+	scope: string | undefined,
+): Map<string, PreviousRunCommandResult> | undefined {
+	if (!scope) {
+		return undefined;
+	}
+	if (
+		!previousRunCommandResultsByScope.has(scope) &&
+		previousRunCommandResultsByScope.size >= MAX_TOOL_HISTORY_SCOPES
+	) {
+		const oldestScope = previousRunCommandResultsByScope.keys().next().value;
+		if (oldestScope) {
+			previousRunCommandResultsByScope.delete(oldestScope);
+			workspaceMutationRevisionByScope.delete(oldestScope);
+		}
+	}
+	let commands = previousRunCommandResultsByScope.get(scope);
+	if (!commands) {
+		commands = new Map();
+		previousRunCommandResultsByScope.set(scope, commands);
+	}
+	return commands;
+}
+
+function getRepeatedCommandSkip(
+	scope: string | undefined,
+	command: string,
+): ToolOperationResult | undefined {
+	const commandResults = getScopedCommandResultMap(scope);
+	const previous = commandResults?.get(command);
+	if (!previous || previous.revision !== getScopeMutationRevision(scope)) {
+		return undefined;
+	}
+	previous.count += 1;
+	const skippedResult: ToolOperationResult = {
+		query: previous.query,
+		result:
+			`Tool guidance: Skipped exact repeated command (already run ${previous.count} times since the last file edit). ` +
+			"Reuse the previous result already in the conversation, edit files before rerunning tests, or run a different targeted command.",
+		success: previous.success,
+	};
+	if (!previous.success && previous.error) {
+		skippedResult.error = previous.error;
+	}
+	return skippedResult;
+}
+
+function rememberCommandResult(
+	scope: string | undefined,
+	command: string,
+	result: ToolOperationResult,
+): void {
+	const commandResults = getScopedCommandResultMap(scope);
+	if (!commandResults) {
+		return;
+	}
+	commandResults.set(command, {
+		count: 1,
+		revision: getScopeMutationRevision(scope),
+		query: result.query,
+		success: result.success,
+		error: result.error,
+	});
+}
+
+function commandLikelyMutatesWorkspace(command: string): boolean {
+	return (
+		/(?:^|[;&|({]\s*)(?:rm|mv|cp|mkdir|touch|chmod|chown|ln|install)\b/.test(
+			command,
+		) ||
+		/(?:^|[;&|({]\s*)(?:git\s+(?:apply|checkout|switch|restore|clean|reset))\b/.test(
+			command,
+		) ||
+		/(?:^|[;&|({]\s*)(?:sed\s+-i|perl\s+-pi)\b/.test(command) ||
+		/(?:^|[;&|({]\s*)(?:(?:npm|pnpm|yarn|bun)\s+install)\b/.test(command) ||
+		/(?:^|[;&|({]\s*)(?:tar\s+[\s\S]*\b-x|unzip)\b/.test(command) ||
+		/(?:^|[;&|({]\s*)(?:curl[\s\S]*\s-o\s|wget[\s\S]*\s-O\s)/.test(command) ||
+		/(?:^|[\s;|&({])(?:\d*)>>?\s*(?!&\d\b|\/dev\/null\b)\S/.test(command)
+	);
+}
+
 // =============================================================================
 // AgentTool Factory Functions
 // =============================================================================
@@ -298,6 +434,7 @@ export function createBashTool(
 		maxRetries: 0,
 		execute: async (input, context) => {
 			const validate = validateWithZod(RunCommandsInputUnionSchema, input);
+			const scope = getToolHistoryScopeKey(context);
 			let commands: string[];
 			if (typeof validate === "string") {
 				commands = [validate];
@@ -317,17 +454,26 @@ export function createBashTool(
 				commands.map(async (command: string): Promise<ToolOperationResult> => {
 					const startedAt = Date.now();
 					const query = formatRunCommandQueryPreview(command);
+					const skippedRepeat = getRepeatedCommandSkip(scope, command);
+					if (skippedRepeat) {
+						return skippedRepeat;
+					}
 					try {
 						const output = await withTimeout(
 							executor(command, cwd, context),
 							timeoutMs,
 							`Command timed out after ${timeoutMs}ms`,
 						);
-						return {
+						const result = {
 							query,
 							result: output,
 							success: true,
 						};
+						if (commandLikelyMutatesWorkspace(command)) {
+							bumpScopeMutationRevisionForScope(scope);
+						}
+						rememberCommandResult(scope, command, result);
+						return result;
 					} catch (error) {
 						if (error instanceof TimeoutError) {
 							captureRunCommandsTimeoutFromContext(context, {
@@ -338,20 +484,24 @@ export function createBashTool(
 							});
 						}
 						if (error instanceof CommandExitError) {
-							return {
+							const result = {
 								query,
 								result: error.output,
 								error: error.message,
 								success: false,
 							};
+							rememberCommandResult(scope, command, result);
+							return result;
 						}
 						const msg = formatError(error);
-						return {
+						const result = {
 							query,
 							result: "",
 							error: `Command failed: ${msg}`,
 							success: false,
 						};
+						rememberCommandResult(scope, command, result);
+						return result;
 					}
 				}),
 			);
@@ -559,6 +709,7 @@ export function createApplyPatchTool(
 					`apply_patch timed out after ${timeoutMs}ms`,
 				);
 
+				bumpScopeMutationRevision(context);
 				return {
 					query: "apply_patch",
 					result,
@@ -622,6 +773,7 @@ export function createEditorTool(
 					`Editor operation timed out after ${timeoutMs}ms`,
 				);
 
+				bumpScopeMutationRevision(context);
 				return {
 					query: `${operation}:${validatedInput.path}`,
 					result,
