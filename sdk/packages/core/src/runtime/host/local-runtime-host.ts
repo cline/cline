@@ -673,7 +673,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 					await this.failSession(active);
 				} catch (cleanupError) {
 					// Never let cleanup failures mask the error that actually
-					// killed the turn — that one is what callers must see.
+					// killed the turn; that one is what callers must see.
 					active.config.logger?.error?.("Session failure cleanup threw", {
 						sessionId: active.sessionId,
 						error: cleanupError,

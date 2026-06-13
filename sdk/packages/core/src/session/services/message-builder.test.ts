@@ -1391,8 +1391,11 @@ describe("MessageBuilder default-on truncation", () => {
 		expect(JSON.stringify(result[2].content)).toContain("NEW CONTENT");
 	});
 
-	it("preserves non-image binary carrier blocks nested in structured results", () => {
-		const builder = new MessageBuilder({ maxToolResultChars: 100 });
+	it("truncates unsupported document data blocks nested in structured results", () => {
+		const builder = new MessageBuilder({
+			maxToolResultChars: 100,
+			maxTotalTextBytes: 1_000,
+		});
 		const pdfData = "p".repeat(5_000);
 		const messages: Message[] = [
 			{
@@ -1444,8 +1447,94 @@ describe("MessageBuilder default-on truncation", () => {
 		};
 		const doc = entry.result.find((item) => item.type === "document");
 		const text = entry.result.find((item) => item.type === "text");
-		expect(doc?.data).toBe(pdfData);
+		expect(doc?.data).not.toBe(pdfData);
+		expect(doc?.data?.length).toBeLessThanOrEqual(100);
+		expect(doc?.data).toContain("...[truncated");
 		expect(text?.text).toContain("...[truncated");
+
+		const formattedPayload = JSON.stringify(
+			formatMessagesForAiSdk(
+				undefined,
+				messagesToAgentMessages(result).map(({ role, content }) => ({
+					role,
+					content,
+				})) as unknown as AiSdkFormatterMessage[],
+			),
+		);
+		expect(formattedPayload).not.toContain(pdfData);
+		expect(formattedPayload.length).toBeLessThan(1_000);
+	});
+
+	it("preserves nested image data that the formatter hoists natively", () => {
+		const builder = new MessageBuilder({ maxToolResultChars: 100 });
+		const imageData = "i".repeat(5_000);
+		const messages: Message[] = [
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: "tool_1",
+						name: "read_files",
+						input: { file_paths: ["/tmp/image.png"] },
+					},
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "tool_1",
+						name: "read_files",
+						content: [
+							{
+								query: "/tmp/image.png",
+								result: [
+									{ type: "text", text: "Successfully read image" },
+									{
+										type: "image",
+										data: imageData,
+										mediaType: "image/png",
+									},
+									{ type: "text", text: "h".repeat(5_000) },
+								],
+								success: true,
+							},
+						] as unknown as ToolResultContent["content"],
+					},
+				],
+			},
+		];
+
+		const result = builder.buildForApi(messages);
+		const block = Array.isArray(result[1].content)
+			? result[1].content[0]
+			: undefined;
+		if (block?.type !== "tool_result" || !Array.isArray(block.content)) {
+			throw new Error("expected tool_result with array content");
+		}
+		const entry = block.content[0] as unknown as {
+			result: Array<{ type: string; data?: string; text?: string }>;
+		};
+		const image = entry.result.find((item) => item.type === "image");
+		const longText = entry.result.find(
+			(item) => item.type === "text" && item.text?.startsWith("h"),
+		);
+		expect(image?.data).toBe(imageData);
+		expect(longText?.text).toContain("...[truncated");
+
+		const formattedPayload = JSON.stringify(
+			formatMessagesForAiSdk(
+				undefined,
+				messagesToAgentMessages(result).map(({ role, content }) => ({
+					role,
+					content,
+				})) as unknown as AiSdkFormatterMessage[],
+			),
+		);
+		expect(formattedPayload).toContain('"type":"image-data"');
+		expect(formattedPayload).toContain(imageData);
 	});
 
 	it("truncates textual {type, data} payloads that are not known binary blocks", () => {
