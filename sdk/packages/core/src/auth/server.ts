@@ -99,6 +99,16 @@ export async function startLocalOAuthServer(
 		boundPort = null;
 		if (activeServer) {
 			activeServer.close();
+			// `Server.close()` only stops accepting NEW connections; existing
+			// keep-alive sockets keep working. A browser / global-fetch connection
+			// pool keeps such a socket to the fixed callback port alive, and a
+			// subsequent request on that port can be delivered over the pooled
+			// socket to THIS (already-settled) server. So the next OAuth attempt
+			// (e.g. after the user denies then re-tries) would have its callback
+			// swallowed here — its waitForCallback() never resolves and token
+			// exchange never happens (deny -> approve saved no token). Force-drop
+			// lingering connections so no pooled socket outlives this server.
+			activeServer.closeAllConnections?.();
 			activeServer = null;
 		}
 		if (closingPort !== null && options.onClose) {
