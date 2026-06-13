@@ -1181,15 +1181,6 @@ export class Controller {
 		await this.postStateToWebview()
 	}
 
-	async handleMcpOAuthCallback(serverHash: string, code: string, state: string | null): Promise<void> {
-		try {
-			await this.mcpHub.completeOAuth(serverHash, code, state)
-			await this.postStateToWebview()
-		} catch (error) {
-			Logger.error("Failed to complete MCP OAuth:", error)
-		}
-	}
-
 	// ---- Provider auth callbacks ----
 
 	private persistProviderApiKeyFromState(provider: string): void {
