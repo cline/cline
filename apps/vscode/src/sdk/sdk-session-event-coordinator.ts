@@ -23,7 +23,7 @@ export interface SdkSessionEventCoordinatorOptions {
 	sessions: SdkSessionLifecycle
 	messages: SdkMessageCoordinator
 	mcpTools: SdkMcpCoordinator
-	providerChanges?: Pick<SdkProviderChangeCoordinator, "checkDeferredRestart" | "clearPendingRestart">
+	providerChanges?: Pick<SdkProviderChangeCoordinator, "handleTurnComplete">
 	mode: SdkModeCoordinator
 	taskHistory: SdkTaskHistory
 	getTask: () => TaskProxy | undefined
@@ -111,14 +111,13 @@ export class SdkSessionEventCoordinator {
 				this.options.sessions.setRunning(false)
 				this.options.mcpTools.checkDeferredRestart()
 
-				if (this.options.mode.hasPendingModeChange()) {
-					this.options.providerChanges?.clearPendingRestart()
+				if (this.options.providerChanges) {
+					this.options.providerChanges.handleTurnComplete(this.options.mode).catch((err) => {
+						Logger.error("[SdkController] Failed to process deferred provider restart:", err)
+					})
+				} else if (this.options.mode.hasPendingModeChange()) {
 					this.options.mode.applyPendingModeChange().catch((err) => {
 						Logger.error("[SdkController] applyPendingModeChange failed:", err)
-					})
-				} else {
-					this.options.providerChanges?.checkDeferredRestart().catch((err) => {
-						Logger.error("[SdkController] Failed deferred provider restart:", err)
 					})
 				}
 			}

@@ -28,8 +28,8 @@ export async function commitModelSelection(
 			[getProviderModelIdKey(toLegacyApiProvider(providerId.toString()), mode)]: selection.modelId,
 		})
 		const nextApiConfiguration = controller.stateManager.getApiConfiguration?.()
-		if (previousApiConfiguration && nextApiConfiguration) {
-			controller.handleApiConfigurationChanged?.(previousApiConfiguration, nextApiConfiguration)
+		if (nextApiConfiguration) {
+			controller.handleApiConfigurationChanged?.(previousApiConfiguration ?? {}, nextApiConfiguration)
 		}
 	}
 

@@ -3,6 +3,7 @@ import type { Mode } from "@shared/storage/types"
 import type { StateManager } from "@/core/storage/StateManager"
 import { Logger } from "@/shared/services/Logger"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
+import type { SdkModeCoordinator } from "./sdk-mode-coordinator"
 import type { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import type { SdkSessionHost } from "./session-host"
@@ -69,6 +70,24 @@ export class SdkProviderChangeCoordinator {
 		this.restartPending = false
 	}
 
+	async handleTurnComplete(mode: Pick<SdkModeCoordinator, "hasPendingModeChange" | "applyPendingModeChange">): Promise<void> {
+		if (mode.hasPendingModeChange()) {
+			this.clearPendingRestart()
+			try {
+				await mode.applyPendingModeChange()
+			} catch (err) {
+				Logger.error("[SdkController] applyPendingModeChange failed:", err)
+			}
+			return
+		}
+
+		try {
+			await this.checkDeferredRestart()
+		} catch (err) {
+			Logger.error("[SdkController] Failed deferred provider restart:", err)
+		}
+	}
+
 	async checkDeferredRestart(): Promise<void> {
 		if (!this.restartPending) {
 			return
@@ -99,6 +118,8 @@ export class SdkProviderChangeCoordinator {
 		const operation = this.performRestartActiveSessionForProviderChange()
 		this.restartInFlight = operation.then(
 			() => undefined,
+			// restartInFlight is only a serialization gate. The caller awaits
+			// operation below, where restart failures are reported to the user.
 			() => undefined,
 		)
 
