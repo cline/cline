@@ -68,6 +68,18 @@ interface TestServerOptions {
 	codeTtlMs: number
 	slowAuthorizeMs: number
 	verbose: boolean
+	/**
+	 * Number of independent server instances to start. When > 1, each instance
+	 * binds its own OS-assigned random port (the fixed `--port` can't be shared),
+	 * so you can add several distinct MCP servers to Cline at once and exercise
+	 * concurrent OAuth flows.
+	 */
+	instances: number
+	/**
+	 * Bind an OS-assigned random free port instead of the fixed `--port`.
+	 * Implied when `--instances` > 1. Also enabled by passing `--port 0`.
+	 */
+	randomPort: boolean
 }
 
 function parseArgs(argv: string[]): TestServerOptions {
@@ -79,6 +91,8 @@ function parseArgs(argv: string[]): TestServerOptions {
 		codeTtlMs: 10 * 60 * 1000,
 		slowAuthorizeMs: 0,
 		verbose: false,
+		instances: 1,
+		randomPort: false,
 	}
 	for (let i = 0; i < argv.length; i++) {
 		const arg = argv[i]
@@ -98,6 +112,13 @@ function parseArgs(argv: string[]): TestServerOptions {
 			case "--slow-authorize":
 				opts.slowAuthorizeMs = Number(argv[++i])
 				break
+			case "--instances":
+				opts.instances = Number(argv[++i])
+				break
+			case "--random-port":
+			case "--random-ports":
+				opts.randomPort = true
+				break
 			case "--verbose":
 			case "-v":
 				opts.verbose = true
@@ -115,6 +136,18 @@ function parseArgs(argv: string[]): TestServerOptions {
 		console.error("Cannot set both --auto-approve and --auto-deny")
 		process.exit(1)
 	}
+	if (!Number.isInteger(opts.instances) || opts.instances < 1) {
+		console.error(`--instances must be a positive integer (got ${opts.instances})`)
+		process.exit(1)
+	}
+	// `--port 0` is a conventional request for an OS-assigned random port.
+	if (opts.port === 0) {
+		opts.randomPort = true
+	}
+	// Multiple instances can't share one fixed port, so each gets a random one.
+	if (opts.instances > 1) {
+		opts.randomPort = true
+	}
 	return opts
 }
 
@@ -124,13 +157,24 @@ function printUsageAndExit(code = 0): never {
 Usage: npx tsx src/dev/mcp-oauth-test-server/server.ts [options]
 
 Options:
-  --port <n>            Port to listen on (default 7777)
+  --port <n>            Port to listen on (default 7777; 0 = OS-assigned random)
+  --random-port         Bind an OS-assigned random free port instead of --port
+  --instances <n>       Start N independent servers, each on its own random
+                        port (implies --random-port). Use to add several MCP
+                        servers to Cline at once.
   --auto-approve        Always approve authorization (no consent screen)
   --auto-deny           Always deny authorization (simulate "Deny" click)
   --code-ttl <ms>       Authorization code lifetime (default 600000)
   --slow-authorize <ms> Delay /authorize response by <ms>
   --verbose, -v         Log every request
   --help, -h            Show this help
+
+Examples:
+  # Single server on the default fixed port
+  npx tsx src/dev/mcp-oauth-test-server/server.ts --verbose
+
+  # Three servers on random ports, to test adding multiple at once
+  npx tsx src/dev/mcp-oauth-test-server/server.ts --instances 3 --verbose
 `)
 	process.exit(code)
 }
@@ -172,13 +216,26 @@ class TestServer {
 	private readonly authCodes = new Map<string, PendingAuthCode>()
 	private readonly refreshTokens = new Map<string, IssuedToken>()
 	private server: http.Server | null = null
+	/**
+	 * The port actually bound. Differs from `opts.port` when `randomPort` is
+	 * set (the OS assigns it), and is the value every absolute URL we emit
+	 * (discovery metadata, redirect targets, the /mcp resource id) must use —
+	 * otherwise the SDK's redirect_uri / resource checks fail.
+	 */
+	private boundPort = 0
 
 	constructor(opts: TestServerOptions) {
 		this.opts = opts
+		this.boundPort = opts.port
 	}
 
 	private get baseUrl(): string {
-		return `http://${this.opts.host}:${this.opts.port}`
+		return `http://${this.opts.host}:${this.boundPort}`
+	}
+
+	/** The port this server is actually listening on (resolved after start). */
+	get port(): number {
+		return this.boundPort
 	}
 
 	private log(...args: unknown[]): void {
@@ -187,21 +244,35 @@ class TestServer {
 		}
 	}
 
-	start(): void {
-		this.server = http.createServer((req, res) => {
-			this.handleRequest(req, res).catch((err) => {
-				console.error("[mcp-oauth-test] Unhandled error:", err)
-				if (!res.headersSent) {
-					this.json(res, 500, { error: "server_error", error_description: String(err) })
-				}
+	/**
+	 * Start listening. Resolves once bound, so callers can read `.port`
+	 * (important when binding an OS-assigned random port).
+	 */
+	start(): Promise<void> {
+		return new Promise((resolve, reject) => {
+			this.server = http.createServer((req, res) => {
+				this.handleRequest(req, res).catch((err) => {
+					console.error("[mcp-oauth-test] Unhandled error:", err)
+					if (!res.headersSent) {
+						this.json(res, 500, { error: "server_error", error_description: String(err) })
+					}
+				})
 			})
-		})
-		this.server.listen(this.opts.port, this.opts.host, () => {
-			console.log(`MCP OAuth Test Server listening on ${this.baseUrl}`)
-			console.log(`  MCP endpoint:   ${this.baseUrl}/mcp  (type: streamableHttp)`)
-			console.log(`  Authorize page: ${this.baseUrl}/authorize`)
-			const mode = this.opts.autoApprove ? "auto-approve" : this.opts.autoDeny ? "auto-deny" : "interactive consent"
-			console.log(`  Mode: ${mode}, code TTL: ${this.opts.codeTtlMs}ms`)
+			this.server.once("error", reject)
+			// `randomPort` → listen on 0 so the OS assigns a free port.
+			const listenPort = this.opts.randomPort ? 0 : this.opts.port
+			this.server.listen(listenPort, this.opts.host, () => {
+				const address = this.server?.address()
+				if (address && typeof address === "object") {
+					this.boundPort = address.port
+				}
+				console.log(`MCP OAuth Test Server listening on ${this.baseUrl}`)
+				console.log(`  MCP endpoint:   ${this.baseUrl}/mcp  (type: streamableHttp)`)
+				console.log(`  Authorize page: ${this.baseUrl}/authorize`)
+				const mode = this.opts.autoApprove ? "auto-approve" : this.opts.autoDeny ? "auto-deny" : "interactive consent"
+				console.log(`  Mode: ${mode}, code TTL: ${this.opts.codeTtlMs}ms`)
+				resolve()
+			})
 		})
 	}
 
@@ -627,11 +698,24 @@ export { parseArgs, TestServer, type TestServerOptions }
 const isMain = process.argv[1] && /mcp-oauth-test-server[/\\]server\.(ts|js)$/.test(process.argv[1])
 if (isMain) {
 	const opts = parseArgs(process.argv.slice(2))
-	const server = new TestServer(opts)
-	server.start()
+	const servers: TestServer[] = []
+
+	void (async () => {
+		for (let i = 0; i < opts.instances; i++) {
+			const server = new TestServer(opts)
+			await server.start()
+			servers.push(server)
+		}
+		if (opts.instances > 1) {
+			console.log(`\nStarted ${opts.instances} MCP OAuth test servers. Add each /mcp endpoint above to Cline (type: streamableHttp).`)
+		}
+	})()
+
 	process.on("SIGINT", () => {
 		console.log("\nShutting down...")
-		server.stop()
+		for (const server of servers) {
+			server.stop()
+		}
 		process.exit(0)
 	})
 }
