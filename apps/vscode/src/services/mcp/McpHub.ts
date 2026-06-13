@@ -41,7 +41,6 @@ import { fetch } from "@/shared/net"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { expandEnvironmentVariables } from "@/utils/envExpansion"
-import { getServerAuthHash } from "@/utils/mcpAuth"
 import type { TelemetryService } from "../telemetry/TelemetryService"
 import { DEFAULT_REQUEST_TIMEOUT_MS } from "./constants"
 import { McpOAuthManager } from "./McpOAuthManager"
@@ -116,7 +115,7 @@ export class McpHub {
 		this.getSettingsDirectoryPath = getSettingsDirectoryPath
 		this.clientVersion = clientVersion
 		this.telemetryService = telemetryService
-		this.mcpOAuthManager = new McpOAuthManager()
+		this.mcpOAuthManager = new McpOAuthManager(() => this.getMcpSettingsFilePath())
 		this.watchMcpSettingsFile()
 		this.initializeMcpServers()
 	}
@@ -899,8 +898,12 @@ export class McpHub {
 				} catch (error) {
 					Logger.error(`Failed to connect to new MCP server ${name}:`, error)
 				}
-			} else if (this.configsRequireRestart(JSON.parse(currentConnection.server.config), config)) {
-				// Existing server with changed connection config (excludes Cline-specific settings)
+			} else if (
+				this.configsRequireRestart(JSON.parse(currentConnection.server.config), config) ||
+				this.serverGainedOAuthTokens(currentConnection, config)
+			) {
+				// Existing server with changed connection config (excludes Cline-specific settings),
+				// or an unauthenticated server whose OAuth tokens just appeared (e.g. CLI authorized it)
 				try {
 					if (config.type === "stdio") {
 						this.setupFileWatcher(name, config)
@@ -968,8 +971,13 @@ export class McpHub {
 				} catch (error) {
 					Logger.error(`Failed to connect to new MCP server ${name}:`, error)
 				}
-			} else if (this.configsRequireRestart(JSON.parse(currentConnection.server.config), config)) {
-				// Existing server with changed connection config (excludes Cline-specific settings)
+			} else if (
+				this.configsRequireRestart(JSON.parse(currentConnection.server.config), config) ||
+				this.serverGainedOAuthTokens(currentConnection, config)
+			) {
+				// Existing server with changed connection config (excludes Cline-specific settings),
+				// or an unauthenticated server whose OAuth tokens just appeared in the settings
+				// file (e.g. the CLI or another window completed authorization for it)
 				try {
 					// Set status to "connecting" and notify webview before restart (same pattern as restartConnection)
 					currentConnection.server.status = "connecting"
@@ -1032,20 +1040,42 @@ export class McpHub {
 	 * 4. Update the schema in `src/services/mcp/schemas.ts` if needed
 	 */
 	private configsRequireRestart(oldConfig: McpServerConfig, newConfig: McpServerConfig): boolean {
-		// Exclude Cline-specific settings from comparison (add new ones here)
+		// Exclude Cline-specific settings from comparison (add new ones here).
+		// `oauth` and `metadata` are also excluded: OAuth token saves/refreshes
+		// rewrite the server's oauth block in the settings file (from this
+		// process, the CLI, or another window), and restarting the server on
+		// every token refresh would cause reconnect loops. Token pickup is
+		// handled separately (see updateServerConnections).
 		const {
 			autoApprove: _oldAutoApprove,
 			timeout: _oldTimeout,
 			remoteConfigured: _oldRemoteConfigured,
+			oauth: _oldOauth,
+			metadata: _oldMetadata,
 			...oldConnectionConfig
-		} = oldConfig
+		} = oldConfig as McpServerConfig & { oauth?: unknown; metadata?: unknown }
 		const {
 			autoApprove: _newAutoApprove,
 			timeout: _newTimeout,
 			remoteConfigured: _newRemoteConfigured,
+			oauth: _newOauth,
+			metadata: _newMetadata,
 			...newConnectionConfig
-		} = newConfig
+		} = newConfig as McpServerConfig & { oauth?: unknown; metadata?: unknown }
 		return !deepEqual(oldConnectionConfig, newConnectionConfig)
+	}
+
+	/**
+	 * True when a server that previously failed auth now has an access token in
+	 * its settings entry — i.e., the CLI or another window completed OAuth for
+	 * it. Used by the settings watcher to reconnect such servers.
+	 */
+	private serverGainedOAuthTokens(connection: McpConnection, newConfig: McpServerConfig): boolean {
+		if (connection.server.oauthAuthStatus !== "unauthenticated") {
+			return false
+		}
+		const oauth = (newConfig as McpServerConfig & { oauth?: { tokens?: { access_token?: unknown } } }).oauth
+		return typeof oauth?.tokens?.access_token === "string" && oauth.tokens.access_token.length > 0
 	}
 
 	private setupFileWatcher(name: string, config: Extract<McpServerConfig, { type: "stdio" }>) {
@@ -1776,8 +1806,18 @@ export class McpHub {
 	}
 
 	/**
-	 * Initiates OAuth flow for a server
-	 * Opens browser to authorization URL
+	 * Runs the complete OAuth flow for a server when the user clicks
+	 * "Authenticate".
+	 *
+	 * The interactive flow is HTTP-based token collection (same as the CLI):
+	 * a local loopback callback server is bound, the browser is opened to the
+	 * authorization URL, and the code is exchanged in-process with state
+	 * validated against the just-generated value. Tokens land in the shared
+	 * MCP settings file, so the CLI and other windows see them immediately.
+	 *
+	 * On success the connection is restarted so the transport picks up the
+	 * fresh tokens. There is no separate completeOAuth step anymore — the
+	 * vscode:// URI callback path is gone.
 	 */
 	async initiateOAuth(serverName: string): Promise<void> {
 		const connection = this.connections.find((conn) => conn.server.name === serverName)
@@ -1785,58 +1825,35 @@ export class McpHub {
 			throw new Error(`No connection found for server: ${serverName}`)
 		}
 
-		// Extract serverUrl from config
-		const config = JSON.parse(connection.server.config)
-		const serverUrl = config.url
-		if (!serverUrl) {
-			throw new Error(`No URL found in config for server: ${serverName}`)
-		}
-
-		// Start OAuth flow - opens the SDK-generated authorization URL in browser
-		await this.mcpOAuthManager.startOAuthFlow(serverName, serverUrl)
-	}
-
-	/**
-	 * Completes OAuth flow after callback
-	 * Validates state, calls finishAuth, and reconnects
-	 */
-	async completeOAuth(serverHash: string, code: string, state: string | null): Promise<void> {
-		// Find the connection by matching the server hash
-		const connection = this.connections.find((conn) => {
-			const config = JSON.parse(conn.server.config)
-			if (config.url) {
-				const hash = getServerAuthHash(conn.server.name, config.url)
-				return hash === serverHash
-			}
-			return false
-		})
-
-		if (!connection) {
-			throw new Error(`No connection found for server hash: ${serverHash}`)
-		}
-
-		// Validate state for CSRF protection (if provided)
-		if (state && !this.mcpOAuthManager.validateAndClearState(serverHash, state)) {
-			throw new Error("Invalid OAuth state - possible CSRF attack")
-		}
-
-		// Call finishAuth on the transport - SDK handles token exchange
-		// finishAuth is only available on SSE and StreamableHTTP transports
-		if (connection.transport instanceof SSEClientTransport || connection.transport instanceof StreamableHTTPClientTransport) {
-			await connection.transport.finishAuth(code)
-		} else {
-			throw new Error("OAuth is only supported for SSE and HTTP transports")
-		}
-
-		Logger.log(`[McpOAuth] Authentication completed for ${connection.server.name}`)
-
-		// Update server status
-		connection.server.oauthAuthStatus = "authenticated"
-		connection.server.oauthRequired = true
+		// Show "pending" in the UI while the user is off in the browser
+		connection.server.oauthAuthStatus = "pending"
 		connection.server.error = ""
+		await this.notifyWebviewOfServerChanges()
 
-		// Restart connection to complete setup with authenticated transport
-		await this.restartConnection(connection.server.name)
+		try {
+			// Blocks until tokens are exchanged and written to the settings file
+			await this.mcpOAuthManager.startOAuthFlow(serverName)
+		} catch (error) {
+			const current = this.connections.find((conn) => conn.server.name === serverName)
+			if (current) {
+				current.server.oauthAuthStatus = "unauthenticated"
+				this.appendErrorMessage(current, error instanceof Error ? error.message : String(error))
+			}
+			await this.notifyWebviewOfServerChanges()
+			throw error
+		}
+
+		Logger.log(`[McpOAuth] Authentication completed for ${serverName}`)
+
+		const authedConnection = this.connections.find((conn) => conn.server.name === serverName)
+		if (authedConnection) {
+			authedConnection.server.oauthAuthStatus = "authenticated"
+			authedConnection.server.oauthRequired = true
+			authedConnection.server.error = ""
+		}
+
+		// Restart connection so the transport authenticates with the new tokens
+		await this.restartConnection(serverName)
 	}
 
 	async dispose(): Promise<void> {

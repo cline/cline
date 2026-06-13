@@ -822,14 +822,6 @@ export class AuthService {
 		Logger.warn("[SdkAuthService] handleOcaAuthCallback called — OCA uses SDK callback server")
 	}
 
-	/**
-	 * Handle MCP OAuth callback.
-	 */
-	async handleMcpOAuthCallback(_serverHash: string, _code: string, _state: string | null): Promise<void> {
-		// MCP OAuth callbacks are not yet handled by the SDK adapter.
-		Logger.warn("[SdkAuthService] handleMcpOAuthCallback not yet implemented")
-	}
-
 	// ---- Restore auth on startup ----
 
 	/**

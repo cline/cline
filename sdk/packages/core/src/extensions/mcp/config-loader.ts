@@ -1,4 +1,11 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	readFileSync,
+	renameSync,
+	unlinkSync,
+	writeFileSync,
+} from "node:fs";
 import { dirname } from "node:path";
 import { resolveMcpSettingsPath } from "@cline/shared/storage";
 import { z } from "zod";
@@ -189,6 +196,34 @@ export function resolveDefaultMcpSettingsPath(): string {
 	return resolveMcpSettingsPath();
 }
 
+/**
+ * Atomically write the MCP settings file using temp-file + rename.
+ *
+ * Multiple processes (CLI, VSCode extension windows, JetBrains) read and write
+ * this file concurrently. A plain writeFileSync can be observed half-written by
+ * a concurrent reader (torn read), which surfaces as JSON parse errors and, in
+ * clients that treat an unreadable file as "no servers", can wipe MCP state.
+ * Rename within the same directory is atomic on POSIX and on NTFS, so readers
+ * always observe either the old or the new complete file.
+ */
+function atomicWriteSettingsFile(filePath: string, contents: string): void {
+	mkdirSync(dirname(filePath), { recursive: true });
+	const tempPath = `${filePath}.tmp.${process.pid}.${Date.now()}.${Math.random()
+		.toString(36)
+		.slice(2)}`;
+	try {
+		writeFileSync(tempPath, contents, { encoding: "utf8", flag: "wx" });
+		renameSync(tempPath, filePath);
+	} catch (error) {
+		try {
+			unlinkSync(tempPath);
+		} catch {
+			// Best-effort cleanup of the temp file.
+		}
+		throw error;
+	}
+}
+
 function readJsonObject(filePath: string): Record<string, unknown> {
 	const raw = readFileSync(filePath, "utf8");
 	let parsed: unknown;
@@ -368,8 +403,7 @@ export function setMcpServerDisabled(
 		delete next.disabled;
 	}
 	setOwnServerRecord(servers, name, next);
-	mkdirSync(dirname(filePath), { recursive: true });
-	writeFileSync(
+	atomicWriteSettingsFile(
 		filePath,
 		`${JSON.stringify({ ...settings, mcpServers: servers }, null, 2)}\n`,
 	);
@@ -407,8 +441,7 @@ export function updateMcpServerOAuthState(
 		delete server.oauth;
 	}
 
-	mkdirSync(dirname(filePath), { recursive: true });
-	writeFileSync(filePath, `${JSON.stringify(settings, null, 2)}\n`, "utf8");
+	atomicWriteSettingsFile(filePath, `${JSON.stringify(settings, null, 2)}\n`);
 	return updated ?? {};
 }
 
