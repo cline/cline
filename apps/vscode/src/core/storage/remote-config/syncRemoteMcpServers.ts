@@ -1,8 +1,27 @@
 import { getMcpSettingsFilePath } from "@core/storage/disk"
 import { RemoteMCPServer } from "@shared/remote-config/schema"
 import * as fs from "fs/promises"
+import * as path from "path"
 import type { McpHub } from "@/services/mcp/McpHub"
 import { Logger } from "@/shared/services/Logger"
+
+/**
+ * Atomically write the MCP settings file via a temp file + rename, so a
+ * concurrent reader (another window, the CLI, a watcher) never observes a
+ * torn or empty file. Used as the fallback when no McpHub is available;
+ * McpHub.writeSettingsFile does the same thing plus fingerprint bookkeeping.
+ */
+async function atomicWriteSettingsFile(settingsPath: string, contents: string): Promise<void> {
+	const tempPath = `${settingsPath}.tmp.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}`
+	await fs.mkdir(path.dirname(settingsPath), { recursive: true })
+	try {
+		await fs.writeFile(tempPath, contents, { encoding: "utf-8", flag: "wx" })
+		await fs.rename(tempPath, settingsPath)
+	} catch (error) {
+		await fs.unlink(tempPath).catch(() => {})
+		throw error
+	}
+}
 
 /**
  * Synchronizes remote MCP servers from remote config to the local MCP settings file
@@ -75,13 +94,15 @@ export async function syncRemoteMcpServersToSettings(
 			}
 		}
 
-		// Write back atomically. The McpHub settings watcher reconciles via a
-		// content fingerprint, so this write is recognized as a no-op there
-		// (and an atomic temp+rename means no reader ever sees a torn file).
+		// Write back atomically so a concurrent reader never sees a torn or empty
+		// file. McpHub.writeSettingsFile also records the connection fingerprint
+		// so its watcher treats this write as a no-op; without an McpHub we still
+		// do an equivalent atomic temp+rename.
+		const serialized = JSON.stringify(config, null, 2)
 		if (mcpHub) {
-			await mcpHub.writeSettingsFile(settingsPath, JSON.stringify(config, null, 2), config.mcpServers)
+			await mcpHub.writeSettingsFile(settingsPath, serialized, config.mcpServers)
 		} else {
-			await fs.writeFile(settingsPath, JSON.stringify(config, null, 2))
+			await atomicWriteSettingsFile(settingsPath, serialized)
 		}
 	} catch (error) {
 		Logger.error("[RemoteConfig] Failed to sync remote MCP servers:", error)
