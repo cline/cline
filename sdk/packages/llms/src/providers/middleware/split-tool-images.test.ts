@@ -9,6 +9,9 @@ import {
 } from "./split-tool-images";
 
 const PLACEHOLDER = "(see following user message for image)";
+const OMITTED_PLACEHOLDER = "[media omitted: invalid or exceeds size limit]";
+const imageData = (byteLength: number, fill = 1) =>
+	Buffer.alloc(byteLength, fill).toString("base64");
 
 describe("rewritePromptToolImages", () => {
 	it("leaves prompts without tool messages unchanged", () => {
@@ -77,7 +80,7 @@ describe("rewritePromptToolImages", () => {
 								{ type: "text", text: "Successfully read image" },
 								{
 									type: "image-data",
-									data: "BASE64IMAGEBYTES",
+									data: "QkFTRTY0SU1BR0VCWVRFUw==",
 									mediaType: "image/jpeg",
 								},
 							],
@@ -115,7 +118,7 @@ describe("rewritePromptToolImages", () => {
 			content: [
 				{
 					type: "file",
-					data: "BASE64IMAGEBYTES",
+					data: "QkFTRTY0SU1BR0VCWVRFUw==",
 					mediaType: "image/jpeg",
 				},
 			],
@@ -136,7 +139,7 @@ describe("rewritePromptToolImages", () => {
 							value: [
 								{
 									type: "file-data",
-									data: "BASE64PDFBYTES",
+									data: "QkFTRTY0UERGQllURVM=",
 									mediaType: "application/pdf",
 									filename: "spec.pdf",
 									providerOptions: {
@@ -158,7 +161,7 @@ describe("rewritePromptToolImages", () => {
 			content: [
 				{
 					type: "file",
-					data: "BASE64PDFBYTES",
+					data: "QkFTRTY0UERGQllURVM=",
 					mediaType: "application/pdf",
 					filename: "spec.pdf",
 					providerOptions: {
@@ -199,6 +202,265 @@ describe("rewritePromptToolImages", () => {
 					type: "file",
 					data: "https://example.com/cat.png",
 					mediaType: "image/*",
+				},
+			],
+		});
+	});
+
+	it("omits image-url parts that exceed the aggregate media budget", () => {
+		const prompt: LanguageModelV3Message[] = [
+			{
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						toolCallId: "call_1",
+						toolName: "read_files",
+						output: {
+							type: "content",
+							value: [
+								{ type: "image-url", url: "https://example.com/a.png" },
+								{ type: "image-url", url: "https://example.com/b.png" },
+							],
+						},
+					},
+				],
+			},
+		];
+
+		const out = rewritePromptToolImages(prompt);
+
+		expect(out.mutated).toBe(true);
+		expect(out.prompt).toHaveLength(2);
+		expect(out.prompt[1]).toEqual({
+			role: "user",
+			content: [
+				{
+					type: "file",
+					data: "https://example.com/a.png",
+					mediaType: "image/*",
+				},
+			],
+		});
+		expect(JSON.stringify(out.prompt[0])).toContain(OMITTED_PLACEHOLDER);
+		expect(JSON.stringify(out.prompt[0])).not.toContain(
+			"https://example.com/b.png",
+		);
+	});
+
+	it("omits invalid data URL image-url parts instead of splitting them", () => {
+		const prompt: LanguageModelV3Message[] = [
+			{
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						toolCallId: "call_1",
+						toolName: "read_files",
+						output: {
+							type: "content",
+							value: [
+								{
+									type: "image-url",
+									url: "data:image/png;base64,not-base64",
+								},
+							],
+						},
+					},
+				],
+			},
+		];
+
+		const out = rewritePromptToolImages(prompt);
+
+		expect(out.mutated).toBe(true);
+		expect(out.prompt).toHaveLength(1);
+		expect(JSON.stringify(out.prompt[0])).toContain(OMITTED_PLACEHOLDER);
+		expect(JSON.stringify(out.prompt[0])).not.toContain("not-base64");
+	});
+
+	it("omits unsupported uppercase data URL image-url parts before splitting", () => {
+		const prompt: LanguageModelV3Message[] = [
+			{
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						toolCallId: "call_1",
+						toolName: "read_files",
+						output: {
+							type: "content",
+							value: [
+								{
+									type: "image-url",
+									url: "DATA:image/svg+xml;base64,PHN2Zz4=",
+								},
+							],
+						},
+					},
+				],
+			},
+		];
+
+		const out = rewritePromptToolImages(prompt);
+
+		expect(out.mutated).toBe(true);
+		expect(out.prompt).toHaveLength(1);
+		expect(JSON.stringify(out.prompt[0])).toContain(OMITTED_PLACEHOLDER);
+		expect(JSON.stringify(out.prompt[0])).not.toContain("PHN2Zz4=");
+	});
+
+	it("omits file-url parts that exceed the aggregate media budget", () => {
+		const prompt: LanguageModelV3Message[] = [
+			{
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						toolCallId: "call_1",
+						toolName: "read_files",
+						output: {
+							type: "content",
+							value: [
+								{
+									type: "file-url",
+									url: "https://example.com/a.pdf",
+								},
+								{
+									type: "file-url",
+									url: "https://example.com/b.pdf",
+								},
+							],
+						},
+					},
+				],
+			},
+		];
+
+		const out = rewritePromptToolImages(prompt);
+
+		expect(out.mutated).toBe(true);
+		expect(out.prompt).toHaveLength(2);
+		expect(out.prompt[1]).toEqual({
+			role: "user",
+			content: [
+				{
+					type: "file",
+					data: "https://example.com/a.pdf",
+					mediaType: "application/octet-stream",
+				},
+			],
+		});
+		expect(JSON.stringify(out.prompt[0])).toContain(OMITTED_PLACEHOLDER);
+		expect(JSON.stringify(out.prompt[0])).not.toContain(
+			"https://example.com/b.pdf",
+		);
+	});
+
+	it("omits malformed file-url data URLs instead of splitting them", () => {
+		const prompt: LanguageModelV3Message[] = [
+			{
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						toolCallId: "call_1",
+						toolName: "read_files",
+						output: {
+							type: "content",
+							value: [
+								{
+									type: "file-url",
+									url: "data:application/pdf;base64,not-base64",
+								},
+							],
+						},
+					},
+				],
+			},
+		];
+
+		const out = rewritePromptToolImages(prompt);
+
+		expect(out.mutated).toBe(true);
+		expect(out.prompt).toHaveLength(1);
+		expect(JSON.stringify(out.prompt[0])).toContain(OMITTED_PLACEHOLDER);
+		expect(JSON.stringify(out.prompt[0])).not.toContain("not-base64");
+	});
+
+	it("omits oversized file-data parts instead of splitting them", () => {
+		const oversizedFile = "A".repeat(6 * 1024 * 1024);
+		const prompt: LanguageModelV3Message[] = [
+			{
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						toolCallId: "call_1",
+						toolName: "read_files",
+						output: {
+							type: "content",
+							value: [
+								{
+									type: "file-data",
+									data: oversizedFile,
+									mediaType: "application/pdf",
+								},
+							],
+						},
+					},
+				],
+			},
+		];
+
+		const out = rewritePromptToolImages(prompt);
+
+		expect(out.mutated).toBe(true);
+		expect(out.prompt).toHaveLength(1);
+		expect(JSON.stringify(out.prompt[0])).toContain(OMITTED_PLACEHOLDER);
+		expect(JSON.stringify(out.prompt[0])).not.toContain(oversizedFile);
+	});
+
+	it("replaces invalid image-data with a text placeholder instead of splitting it", () => {
+		const prompt: LanguageModelV3Message[] = [
+			{
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						toolCallId: "call_1",
+						toolName: "read_files",
+						output: {
+							type: "content",
+							value: [
+								{
+									type: "image-data",
+									data: "not-base64",
+									mediaType: "image/png",
+								},
+							],
+						},
+					},
+				],
+			},
+		];
+
+		const out = rewritePromptToolImages(prompt);
+
+		expect(out.mutated).toBe(true);
+		expect(out.prompt).toHaveLength(1);
+		const toolResult = (
+			out.prompt[0] as Extract<LanguageModelV3Message, { role: "tool" }>
+		).content[0];
+		if (toolResult.type !== "tool-result") {
+			throw new Error("expected tool-result");
+		}
+		expect(toolResult.output).toEqual({
+			type: "content",
+			value: [
+				{
+					type: "text",
+					text: "[media omitted: invalid or exceeds size limit]",
 				},
 			],
 		});
@@ -267,7 +529,7 @@ describe("rewritePromptToolImages", () => {
 								{ type: "text", text: "image 1" },
 								{
 									type: "image-data",
-									data: "AAA",
+									data: "QUFB",
 									mediaType: "image/jpeg",
 								},
 							],
@@ -283,7 +545,7 @@ describe("rewritePromptToolImages", () => {
 								{ type: "text", text: "image 2" },
 								{
 									type: "image-data",
-									data: "BBB",
+									data: "QkJC",
 									mediaType: "image/png",
 								},
 							],
@@ -300,10 +562,69 @@ describe("rewritePromptToolImages", () => {
 		expect(out.prompt[1]).toEqual({
 			role: "user",
 			content: [
-				{ type: "file", data: "AAA", mediaType: "image/jpeg" },
-				{ type: "file", data: "BBB", mediaType: "image/png" },
+				{ type: "file", data: "QUFB", mediaType: "image/jpeg" },
+				{ type: "file", data: "QkJC", mediaType: "image/png" },
 			],
 		});
+	});
+
+	it("omits images that exceed the aggregate media budget in the split backstop", () => {
+		const firstImage = imageData(3_600_000, 1);
+		const secondImage = imageData(3_600_000, 2);
+		const prompt: LanguageModelV3Message[] = [
+			{
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						toolCallId: "call_1",
+						toolName: "read_files",
+						output: {
+							type: "content",
+							value: [
+								{ type: "text", text: "image 1" },
+								{
+									type: "image-data",
+									data: firstImage,
+									mediaType: "image/png",
+								},
+							],
+						},
+					},
+					{
+						type: "tool-result",
+						toolCallId: "call_2",
+						toolName: "read_files",
+						output: {
+							type: "content",
+							value: [
+								{ type: "text", text: "image 2" },
+								{
+									type: "image-data",
+									data: secondImage,
+									mediaType: "image/png",
+								},
+							],
+						},
+					},
+				],
+			},
+		];
+
+		const out = rewritePromptToolImages(prompt);
+
+		expect(out.mutated).toBe(true);
+		expect(out.prompt).toHaveLength(2);
+		expect(out.prompt[1]).toEqual({
+			role: "user",
+			content: [{ type: "file", data: firstImage, mediaType: "image/png" }],
+		});
+		const toolMessage = out.prompt[0];
+		if (toolMessage.role !== "tool") {
+			throw new Error("expected tool message");
+		}
+		expect(JSON.stringify(toolMessage)).toContain(OMITTED_PLACEHOLDER);
+		expect(JSON.stringify(toolMessage)).not.toContain(secondImage);
 	});
 
 	it("handles multiple separate tool messages in the same prompt", () => {
@@ -334,7 +655,7 @@ describe("rewritePromptToolImages", () => {
 							type: "content",
 							value: [
 								{ type: "text", text: "first" },
-								{ type: "image-data", data: "AAA", mediaType: "image/jpeg" },
+								{ type: "image-data", data: "QUFB", mediaType: "image/jpeg" },
 							],
 						},
 					},
@@ -362,7 +683,7 @@ describe("rewritePromptToolImages", () => {
 							type: "content",
 							value: [
 								{ type: "text", text: "second" },
-								{ type: "image-data", data: "BBB", mediaType: "image/png" },
+								{ type: "image-data", data: "QkJC", mediaType: "image/png" },
 							],
 						},
 					},
@@ -392,7 +713,7 @@ describe("rewritePromptToolImages", () => {
 							type: "content",
 							value: [
 								{ type: "text", text: "before" },
-								{ type: "image-data", data: "AAA", mediaType: "image/jpeg" },
+								{ type: "image-data", data: "QUFB", mediaType: "image/jpeg" },
 							],
 						},
 					},
@@ -448,7 +769,7 @@ describe("splitToolImagesMiddleware", () => {
 								type: "content",
 								value: [
 									{ type: "text", text: "ok" },
-									{ type: "image-data", data: "AAA", mediaType: "image/jpeg" },
+									{ type: "image-data", data: "QUFB", mediaType: "image/jpeg" },
 								],
 							},
 						},
@@ -481,7 +802,7 @@ describe("splitToolImagesMiddleware", () => {
 							output: {
 								type: "content",
 								value: [
-									{ type: "image-data", data: "AAA", mediaType: "image/jpeg" },
+									{ type: "image-data", data: "QUFB", mediaType: "image/jpeg" },
 								],
 							},
 						},

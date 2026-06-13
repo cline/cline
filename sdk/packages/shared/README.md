@@ -45,3 +45,17 @@ outside transport wiring:
 Chat runtime payload notes:
 - `ChatStartSessionRequest` supports `initialMessages`, optional `toolPolicies`, optional `rules` for default system prompt assembly, and optional `logger` runtime config (`RuntimeLoggerConfig`) so hosts can pass serialized logger settings across transport boundaries.
 - `RuntimeLoggerConfig.bindings` lets hosts attach stable context fields (for example `clientId`, `clientType`, `clientApp`) to all runtime log records.
+
+Provider media budgeting helpers live under the shared LLM exports so provider
+request builders can enforce one media policy:
+
+- Supported image media types: PNG, JPEG, GIF, and WebP.
+- Raw base64 and matching `data:<type>;base64,...` image URLs are validated
+  before provider formatting.
+- Defaults cap a single image at 5 MiB encoded base64 and 6 MiB decoded bytes;
+  the whole provider request has an 8 MiB aggregate media budget.
+- Remote media URLs have unknown byte size at formatting time, so request
+  builders charge them against the conservative per-image cap.
+- Invalid or over-budget media is replaced with
+  `[media omitted: invalid or exceeds size limit]`; callers can inspect
+  `MediaBudgetState` counters and omission reasons when they keep that state.

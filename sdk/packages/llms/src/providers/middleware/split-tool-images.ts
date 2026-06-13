@@ -52,6 +52,15 @@ import type {
 	LanguageModelV3ToolResultOutput,
 	LanguageModelV3ToolResultPart,
 } from "@ai-sdk/provider";
+import {
+	createMediaBudgetState,
+	DEFAULT_MAX_IMAGE_DECODED_BYTES,
+	DEFAULT_MAX_IMAGE_ENCODED_BYTES,
+	IMAGE_OMITTED_PLACEHOLDER,
+	type MediaBudgetState,
+	reserveImageMediaBytes,
+	validateAndReserveImageMedia,
+} from "@cline/shared";
 
 const IMAGE_PLACEHOLDER = "(see following user message for image)";
 
@@ -162,6 +171,142 @@ interface SplitResult {
 	media: LanguageModelV3FilePart[];
 }
 
+function imageOmittedTextPart(): LanguageModelV3TextPart {
+	return {
+		type: "text",
+		text: IMAGE_OMITTED_PLACEHOLDER,
+	};
+}
+
+function isBase64Char(charCode: number): boolean {
+	return (
+		(charCode >= 65 && charCode <= 90) ||
+		(charCode >= 97 && charCode <= 122) ||
+		(charCode >= 48 && charCode <= 57) ||
+		charCode === 43 ||
+		charCode === 47
+	);
+}
+
+function isCanonicalBase64(base64: string): boolean {
+	if (base64.length === 0 || base64.length % 4 !== 0) {
+		return false;
+	}
+
+	let paddingStart = base64.length;
+	if (base64.endsWith("==")) {
+		paddingStart -= 2;
+	} else if (base64.endsWith("=")) {
+		paddingStart -= 1;
+	}
+
+	for (let i = 0; i < paddingStart; i++) {
+		if (!isBase64Char(base64.charCodeAt(i))) {
+			return false;
+		}
+	}
+	for (let i = paddingStart; i < base64.length; i++) {
+		if (base64.charCodeAt(i) !== 61) {
+			return false;
+		}
+	}
+	return true;
+}
+
+function reserveUnknownUrlMediaBudget(
+	url: string,
+	mediaState: MediaBudgetState,
+): boolean {
+	let parsed: URL;
+	try {
+		parsed = new URL(url);
+	} catch {
+		return false;
+	}
+
+	if (parsed.protocol === "data:") {
+		const commaIndex = url.indexOf(",");
+		if (commaIndex === -1) {
+			return false;
+		}
+		const metadata = url.slice("data:".length, commaIndex).toLowerCase();
+		if (!metadata.endsWith(";base64")) {
+			return false;
+		}
+		const base64 = url.slice(commaIndex + 1);
+		if (!isCanonicalBase64(base64)) {
+			return false;
+		}
+		return (
+			reserveImageMediaBytes(
+				base64.length,
+				0,
+				{
+					maxImageEncodedBytes: DEFAULT_MAX_IMAGE_ENCODED_BYTES,
+					maxImageDecodedBytes: DEFAULT_MAX_IMAGE_DECODED_BYTES,
+				},
+				mediaState,
+			) === null
+		);
+	}
+
+	if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+		return false;
+	}
+
+	// Remote URL byte size is unknown at formatting time, so charge the
+	// conservative per-image cap instead of letting URL media count as free.
+	return (
+		reserveImageMediaBytes(
+			DEFAULT_MAX_IMAGE_ENCODED_BYTES,
+			0,
+			{
+				maxImageEncodedBytes: DEFAULT_MAX_IMAGE_ENCODED_BYTES,
+				maxImageDecodedBytes: DEFAULT_MAX_IMAGE_DECODED_BYTES,
+			},
+			mediaState,
+		) === null
+	);
+}
+
+function isDataUrl(url: string): boolean {
+	try {
+		return new URL(url).protocol === "data:";
+	} catch {
+		return false;
+	}
+}
+
+function estimateMediaDataEncodedBytes(data: unknown): number {
+	if (typeof data === "string") {
+		return data.length;
+	}
+	if (data instanceof Uint8Array) {
+		return data.byteLength;
+	}
+	if (data instanceof ArrayBuffer) {
+		return data.byteLength;
+	}
+	return Number.POSITIVE_INFINITY;
+}
+
+function reserveGenericMediaDataBudget(
+	data: unknown,
+	mediaState: MediaBudgetState,
+): boolean {
+	return (
+		reserveImageMediaBytes(
+			estimateMediaDataEncodedBytes(data),
+			0,
+			{
+				maxImageEncodedBytes: DEFAULT_MAX_IMAGE_ENCODED_BYTES,
+				maxImageDecodedBytes: DEFAULT_MAX_IMAGE_DECODED_BYTES,
+			},
+			mediaState,
+		) === null
+	);
+}
+
 /**
  * Split a tool-result `output` of type `'content'` into:
  *   - a `stripped` output where every media part is replaced by a
@@ -173,31 +318,96 @@ interface SplitResult {
  */
 function splitContentOutputMedia(
 	output: LanguageModelV3ToolResultOutput,
+	mediaState: MediaBudgetState,
 ): SplitResult | null {
 	if (output.type !== "content") {
 		return null;
 	}
 	const media: LanguageModelV3FilePart[] = [];
 	const newValue: ContentOutput["value"] = [];
+	let mutated = false;
 	for (const part of output.value) {
 		if (!isMediaContentPart(part)) {
 			newValue.push(part);
 			continue;
 		}
-		const filePart = mediaPartToFilePart(part);
+		let currentPart = part;
+		if (currentPart.type === "image-data") {
+			const validation = validateAndReserveImageMedia(
+				currentPart.mediaType,
+				currentPart.data,
+				{
+					maxImageEncodedBytes: DEFAULT_MAX_IMAGE_ENCODED_BYTES,
+					maxImageDecodedBytes: DEFAULT_MAX_IMAGE_DECODED_BYTES,
+				},
+				mediaState,
+			);
+			if (!validation.ok) {
+				newValue.push({
+					type: "text",
+					text: IMAGE_OMITTED_PLACEHOLDER,
+				});
+				mutated = true;
+				continue;
+			}
+			currentPart = {
+				...currentPart,
+				data: validation.base64,
+				mediaType: validation.mediaType,
+			};
+		} else if (currentPart.type === "image-url") {
+			if (isDataUrl(currentPart.url)) {
+				const validation = validateAndReserveImageMedia(
+					undefined,
+					currentPart.url,
+					{
+						maxImageEncodedBytes: DEFAULT_MAX_IMAGE_ENCODED_BYTES,
+						maxImageDecodedBytes: DEFAULT_MAX_IMAGE_DECODED_BYTES,
+					},
+					mediaState,
+				);
+				if (!validation.ok) {
+					newValue.push(imageOmittedTextPart());
+					mutated = true;
+					continue;
+				}
+				currentPart = {
+					...currentPart,
+					url: `data:${validation.mediaType};base64,${validation.base64}`,
+				};
+			} else if (!reserveUnknownUrlMediaBudget(currentPart.url, mediaState)) {
+				newValue.push(imageOmittedTextPart());
+				mutated = true;
+				continue;
+			}
+		} else if (currentPart.type === "file-url") {
+			if (!reserveUnknownUrlMediaBudget(currentPart.url, mediaState)) {
+				newValue.push(imageOmittedTextPart());
+				mutated = true;
+				continue;
+			}
+		} else if (currentPart.type === "file-data") {
+			if (!reserveGenericMediaDataBudget(currentPart.data, mediaState)) {
+				newValue.push(imageOmittedTextPart());
+				mutated = true;
+				continue;
+			}
+		}
+		const filePart = mediaPartToFilePart(currentPart);
 		if (!filePart) {
 			// Unhandled media kind (image-file-id) — pass through unchanged.
-			newValue.push(part);
+			newValue.push(currentPart);
 			continue;
 		}
 		media.push(filePart);
+		mutated = true;
 		const placeholder: LanguageModelV3TextPart = {
 			type: "text",
 			text: IMAGE_PLACEHOLDER,
 		};
 		newValue.push(placeholder);
 	}
-	if (media.length === 0) {
+	if (!mutated) {
 		return null;
 	}
 	return {
@@ -223,6 +433,7 @@ export function rewritePromptToolImages(prompt: LanguageModelV3Message[]): {
 } {
 	const newPrompt: LanguageModelV3Message[] = [];
 	let mutated = false;
+	const mediaState = createMediaBudgetState();
 
 	for (const message of prompt) {
 		if (message.role !== "tool") {
@@ -235,11 +446,12 @@ export function rewritePromptToolImages(prompt: LanguageModelV3Message[]): {
 			if (part.type !== "tool-result") {
 				return part;
 			}
-			const split = splitContentOutputMedia(part.output);
+			const split = splitContentOutputMedia(part.output, mediaState);
 			if (!split) {
 				return part;
 			}
 			collectedMedia.push(...split.media);
+			mutated = true;
 			const newPart: LanguageModelV3ToolResultPart = {
 				...part,
 				output: split.stripped,
@@ -254,7 +466,6 @@ export function rewritePromptToolImages(prompt: LanguageModelV3Message[]): {
 				role: "user",
 				content: collectedMedia,
 			});
-			mutated = true;
 		}
 	}
 

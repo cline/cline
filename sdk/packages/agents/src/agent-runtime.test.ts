@@ -442,7 +442,7 @@ describe("AgentRuntime", () => {
 	it("preserves structured multimodal tool results for the next model request", async () => {
 		const structuredOutput = [
 			{ type: "text", text: "Successfully read image" },
-			{ type: "image", data: "BASE64DATA", mediaType: "image/jpeg" },
+			{ type: "image", data: "QkFTRTY0REFUQQ==", mediaType: "image/jpeg" },
 		];
 		const model = new ScriptedModel([
 			() => [
