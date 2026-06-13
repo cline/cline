@@ -50,6 +50,17 @@ describe("createFileReadExecutor", () => {
 		);
 	});
 
+	it("bounds line counting for unranged reads after the capture window", async () => {
+		const result = await readTempFile(numberedLines(60_000));
+
+		expect(result).toContain("1 | line 1");
+		expect(result).toContain("2000 | line 2000");
+		expect(result).not.toContain("line 2001");
+		expect(result).toContain(
+			"[Showing lines 1-2000 of 50000+ lines. Use start_line/end_line to read other sections.]",
+		);
+	});
+
 	it("honors explicit ranges beyond the default window start", async () => {
 		const result = await readTempFile(numberedLines(2500), {
 			start_line: 2400,
@@ -57,6 +68,20 @@ describe("createFileReadExecutor", () => {
 		});
 
 		expect(result).toBe("2400 | line 2400\n2401 | line 2401\n2402 | line 2402");
+	});
+
+	it("reports the requested finite end line when a range exceeds the line cap", async () => {
+		const result = await readTempFile(numberedLines(3000), {
+			start_line: 1,
+			end_line: 3000,
+		});
+
+		expect(result).toContain("1 | line 1");
+		expect(result).toContain("2000 | line 2000");
+		expect(result).not.toContain("line 2001");
+		expect(result).toContain(
+			"[Showing lines 1-2000 of 3000. Use start_line/end_line to read other sections.]",
+		);
 	});
 
 	it("reads a requested range from a text file larger than the size gate", async () => {
@@ -106,6 +131,42 @@ describe("createFileReadExecutor", () => {
 		expect(result).toContain("[line truncated]");
 		expect(result).toContain("end");
 		expect(result.length).toBeLessThan(2500);
+	});
+
+	it("does not materialize a giant single line before truncating it", async () => {
+		const result = await readTempFile("x".repeat(60_000));
+
+		expect(result).toContain("[line truncated]");
+		expect(result.length).toBeLessThan(3000);
+		expect(result).toContain(
+			"[Showing lines 1-1 of 1+ lines. Use start_line/end_line to read other sections.]",
+		);
+	});
+
+	it("rejects when the abort signal fires before reading", async () => {
+		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "agents-file-read-"));
+		const filePath = path.join(dir, "example.txt");
+		await fs.writeFile(filePath, "hello", "utf-8");
+
+		try {
+			const controller = new AbortController();
+			controller.abort(new Error("stop reading"));
+			const readFile = createFileReadExecutor();
+
+			await expect(
+				readFile(
+					{ path: filePath },
+					{
+						agentId: "agent-1",
+						conversationId: "conv-1",
+						iteration: 1,
+						signal: controller.signal,
+					},
+				),
+			).rejects.toThrow("stop reading");
+		} finally {
+			await fs.rm(dir, { recursive: true, force: true });
+		}
 	});
 
 	it("caps the returned window by characters for dense files", async () => {
