@@ -133,14 +133,24 @@ describe("createFileReadExecutor", () => {
 		expect(result.length).toBeLessThan(2500);
 	});
 
-	it("does not materialize a giant single line before truncating it", async () => {
-		const result = await readTempFile("x".repeat(60_000));
+	it("rejects very large text files instead of streaming them", async () => {
+		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "agents-file-read-"));
+		const filePath = path.join(dir, "huge.txt");
+		await fs.writeFile(filePath, "hello", "utf-8");
+		await fs.truncate(filePath, 100_000_001);
 
-		expect(result).toContain("[line truncated]");
-		expect(result.length).toBeLessThan(3000);
-		expect(result).toContain(
-			"[Showing lines 1-1 of 1+ lines. Use start_line/end_line to read other sections.]",
-		);
+		try {
+			const readFile = createFileReadExecutor();
+
+			await expect(
+				readFile(
+					{ path: filePath, start_line: 1, end_line: 1 },
+					{ agentId: "agent-1", conversationId: "conv-1", iteration: 1 },
+				),
+			).rejects.toThrow("Text file too large to stream safely");
+		} finally {
+			await fs.rm(dir, { recursive: true, force: true });
+		}
 	});
 
 	it("rejects when the abort signal fires before reading", async () => {

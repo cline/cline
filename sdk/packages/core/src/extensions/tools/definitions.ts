@@ -109,59 +109,6 @@ function captureRunCommandsTimeoutFromContext(
 	});
 }
 
-function getAbortReason(
-	signal: AbortSignal | undefined,
-	fallbackMessage: string,
-): Error {
-	if (!signal?.aborted) {
-		return new Error(fallbackMessage);
-	}
-	const { reason } = signal;
-	if (reason instanceof Error) {
-		return reason;
-	}
-	if (reason !== undefined) {
-		return new Error(String(reason));
-	}
-	return new Error(fallbackMessage);
-}
-
-async function withAbortableTimeout<T>(
-	operation: (signal: AbortSignal) => Promise<T>,
-	context: AgentToolContext,
-	timeoutMs: number,
-	timeoutMessage: string,
-): Promise<T> {
-	if (context.signal?.aborted) {
-		throw getAbortReason(context.signal, "Operation was aborted");
-	}
-
-	const controller = new AbortController();
-	const abortFromContext = () => {
-		controller.abort(getAbortReason(context.signal, "Operation was aborted"));
-	};
-	context.signal?.addEventListener("abort", abortFromContext, { once: true });
-
-	let timeout: ReturnType<typeof setTimeout> | undefined;
-	try {
-		return await Promise.race([
-			operation(controller.signal),
-			new Promise<never>((_, reject) => {
-				timeout = setTimeout(() => {
-					const error = new TimeoutError(timeoutMessage, timeoutMs);
-					controller.abort(error);
-					reject(error);
-				}, timeoutMs);
-			}),
-		]);
-	} finally {
-		if (timeout) {
-			clearTimeout(timeout);
-		}
-		context.signal?.removeEventListener("abort", abortFromContext);
-	}
-}
-
 // =============================================================================
 // AgentTool Factory Functions
 // =============================================================================
@@ -233,9 +180,8 @@ export function createReadFilesTool(
 					}
 
 					try {
-						const content = await withAbortableTimeout(
-							(signal) => executor(request, { ...context, signal }),
-							context,
+						const content = await withTimeout(
+							executor(request, context),
 							timeoutMs,
 							`File read timed out after ${timeoutMs}ms`,
 						);

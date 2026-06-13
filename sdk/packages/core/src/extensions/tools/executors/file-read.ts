@@ -7,7 +7,7 @@
 import { createReadStream } from "node:fs";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { StringDecoder } from "node:string_decoder";
+import { createInterface } from "node:readline";
 import type { AgentToolContext } from "@cline/shared";
 import { resolveExistingFilePath } from "@cline/shared/storage";
 import type { ReadFileRequest } from "../schemas";
@@ -55,8 +55,8 @@ const DEFAULT_FILE_READ_OPTIONS: Required<FileReadExecutorOptions> = {
 	includeLineNumbers: true, // Include line numbers by default
 };
 
+const MAX_TEXT_STREAM_BYTES = 100_000_000;
 const MAX_UNRANGED_LINE_SCAN = 50_000;
-const LINE_TRUNCATED_NOTICE = " [line truncated]";
 
 interface CapturedLine {
 	lineNumber: number;
@@ -96,10 +96,6 @@ async function readTextWindow(
 	let chars = 0;
 	let totalLines = 0;
 	let capped = false;
-	let pendingLine = false;
-	let currentLine = "";
-	let currentLineCharsSeen = 0;
-	let currentLineTruncated = false;
 	let approximateTotalLines = false;
 	const maxCapturedLineNumber = Number.isFinite(requestedEndLine)
 		? Math.min(requestedEndLine, requestedStartLine + MAX_READ_LINES - 1)
@@ -108,123 +104,11 @@ async function readTextWindow(
 		? String(maxCapturedLineNumber).length + 3
 		: 0;
 
-	const appendToCurrentLine = (segment: string) => {
-		if (segment.length > 0) {
-			pendingLine = true;
-			currentLineCharsSeen += segment.length;
-		}
-
-		const currentLineNumber = totalLines + 1;
-		if (
-			capped ||
-			captured.length >= MAX_READ_LINES ||
-			currentLineNumber < requestedStartLine ||
-			currentLineNumber > requestedEndLine
-		) {
-			return;
-		}
-
-		const remainingChars = MAX_LINE_CHARS - currentLine.length;
-		if (remainingChars <= 0) {
-			if (segment.length > 0) {
-				currentLineTruncated = true;
-			}
-			return;
-		}
-
-		currentLine += segment.slice(0, remainingChars);
-		if (segment.length > remainingChars) {
-			currentLineTruncated = true;
-		}
-	};
-
-	const finishCurrentLine = (): boolean => {
-		const lineNumber = totalLines + 1;
-		totalLines = lineNumber;
-
-		if (
-			lineNumber >= requestedStartLine &&
-			lineNumber <= requestedEndLine &&
-			!capped
-		) {
-			if (captured.length >= MAX_READ_LINES) {
-				capped = true;
-			} else {
-				let line = currentLine.endsWith("\r")
-					? currentLine.slice(0, -1)
-					: currentLine;
-				if (currentLineTruncated) {
-					line = `${line}${LINE_TRUNCATED_NOTICE}`;
-				}
-
-				const nextChars = chars + line.length + lineNumberPrefixChars + 1;
-				if (nextChars > MAX_READ_OUTPUT_CHARS && captured.length > 0) {
-					capped = true;
-				} else {
-					captured.push({ lineNumber, text: line });
-					chars = nextChars;
-				}
-			}
-		}
-
-		pendingLine = false;
-		currentLine = "";
-		currentLineCharsSeen = 0;
-		currentLineTruncated = false;
-
-		if (hasFiniteEndLine && lineNumber >= requestedEndLine) {
-			return true;
-		}
-
-		if (!hasFiniteEndLine && capped && lineNumber >= maxScannedLine) {
-			approximateTotalLines = true;
-			return true;
-		}
-
-		return false;
-	};
-
-	const stopAfterPartialLine = (): boolean => {
-		if (!currentLineTruncated || currentLineCharsSeen < MAX_READ_OUTPUT_CHARS) {
-			return false;
-		}
-		const currentLineNumber = totalLines + 1;
-		if (currentLineNumber < requestedStartLine) {
-			throw new Error(
-				`Line ${currentLineNumber} exceeds ${MAX_READ_OUTPUT_CHARS} characters before requested start_line ${requestedStartLine}. Read an earlier range or use a targeted command such as sed, grep, head, or tail.`,
-			);
-		}
-		if (hasFiniteEndLine && currentLineNumber < requestedEndLine) {
-			throw new Error(
-				`Line ${currentLineNumber} exceeds ${MAX_READ_OUTPUT_CHARS} characters before requested end_line ${requestedEndLine}. Read a narrower range or use a targeted command such as sed, grep, head, or tail.`,
-			);
-		}
-
-		approximateTotalLines = true;
-		finishCurrentLine();
-		return true;
-	};
-
-	const consumeText = (text: string): boolean => {
-		let offset = 0;
-		while (offset < text.length) {
-			const newlineIndex = text.indexOf("\n", offset);
-			if (newlineIndex === -1) {
-				appendToCurrentLine(text.slice(offset));
-				return stopAfterPartialLine();
-			}
-
-			appendToCurrentLine(text.slice(offset, newlineIndex));
-			if (finishCurrentLine()) {
-				return true;
-			}
-			offset = newlineIndex + 1;
-		}
-		return false;
-	};
-
-	const stream = createReadStream(filePath);
-	const decoder = new StringDecoder(encoding);
+	const stream = createReadStream(filePath, { encoding });
+	const reader = createInterface({
+		input: stream,
+		crlfDelay: Number.POSITIVE_INFINITY,
+	});
 	const abortHandler = signal
 		? () => stream.destroy(getAbortError(signal))
 		: undefined;
@@ -234,23 +118,43 @@ async function readTextWindow(
 	}
 
 	try {
-		let stopped = false;
-		for await (const chunk of stream) {
-			if (consumeText(decoder.write(chunk as Buffer))) {
-				stopped = true;
+		for await (const rawLine of reader) {
+			totalLines += 1;
+			if (totalLines > requestedEndLine) {
+				totalLines = requestedEndLine;
 				break;
 			}
-		}
-		if (!stopped && consumeText(decoder.end())) {
-			stopped = true;
-		}
-		if (!stopped && pendingLine) {
-			finishCurrentLine();
+			if (!hasFiniteEndLine && capped && totalLines >= maxScannedLine) {
+				approximateTotalLines = true;
+				break;
+			}
+			if (totalLines < requestedStartLine || capped) {
+				continue;
+			}
+			if (captured.length >= MAX_READ_LINES) {
+				capped = true;
+				continue;
+			}
+
+			let line = rawLine;
+			if (line.length > MAX_LINE_CHARS) {
+				line = `${line.slice(0, MAX_LINE_CHARS)} [line truncated]`;
+			}
+
+			const nextChars = chars + line.length + lineNumberPrefixChars + 1;
+			if (nextChars > MAX_READ_OUTPUT_CHARS && captured.length > 0) {
+				capped = true;
+				continue;
+			}
+
+			captured.push({ lineNumber: totalLines, text: line });
+			chars = nextChars;
 		}
 	} finally {
 		if (signal && abortHandler) {
 			signal.removeEventListener("abort", abortHandler);
 		}
+		reader.close();
 		stream.destroy();
 	}
 
@@ -270,12 +174,12 @@ async function readTextWindow(
 	}
 
 	const effectiveEndLine = Math.min(requestedEndLine, totalLines);
-	if (lastCapturedLine >= effectiveEndLine && !approximateTotalLines) {
+	if (lastCapturedLine >= effectiveEndLine) {
 		return body;
 	}
 	const totalLineText = approximateTotalLines
 		? `${totalLines}+ lines`
-		: totalLines;
+		: effectiveEndLine;
 
 	return (
 		`${body}\n\n` +
@@ -345,6 +249,12 @@ export function createFileReadExecutor(
 					mediaType: imageMediaType,
 				},
 			];
+		}
+
+		if (stat.size > MAX_TEXT_STREAM_BYTES) {
+			throw new Error(
+				`Text file too large to stream safely: ${stat.size} bytes (max: ${MAX_TEXT_STREAM_BYTES} bytes). Use a targeted command such as sed, grep, head, or tail to inspect specific sections.`,
+			);
 		}
 
 		return readTextWindow(
