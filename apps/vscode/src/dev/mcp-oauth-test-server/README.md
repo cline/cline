@@ -50,13 +50,29 @@ can click **Approve** or **Deny**.
 
 | Flag | Description |
 |------|-------------|
-| `--port <n>` | Port to listen on (default `7777`, env `MCP_OAUTH_TEST_PORT`) |
+| `--port <n>` | Port to listen on (default `7777`, env `MCP_OAUTH_TEST_PORT`). `0` = OS-assigned random port. |
+| `--random-port` | Bind an OS-assigned random free port instead of `--port` |
+| `--instances <n>` | Start N independent servers, each on its own random port (implies `--random-port`). Use to add several MCP servers to Cline at once. |
 | `--auto-approve` | Skip consent; always approve |
 | `--auto-deny` | Skip consent; always deny (simulate "Deny" click) |
 | `--code-ttl <ms>` | Authorization-code lifetime (default `600000`). Set small to force expiry. |
 | `--slow-authorize <ms>` | Delay `/authorize` response (simulate a slow user) |
 | `--verbose`, `-v` | Log every request |
 | `--help`, `-h` | Show help |
+
+## Adding multiple servers at once
+
+Each instance binds its own random port and prints its `/mcp` endpoint. Add
+each one to Cline as a separate StreamableHTTP server to exercise concurrent
+OAuth flows / multiple authenticated servers:
+
+```bash
+npx tsx src/dev/mcp-oauth-test-server/server.ts --instances 3 --verbose
+```
+
+Because OAuth state is keyed by **server name** in `cline_mcp_settings.json`,
+each Cline server entry gets its own independent tokens — even if two point at
+the same URL.
 
 ## Reproducing specific bugs
 
