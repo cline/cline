@@ -37,7 +37,11 @@ bun run dev:mcp-oauth-test-server -- --verbose
 bun src/dev/mcp-oauth-test-server/server.ts --verbose
 ```
 
-Then in Cline, add an MCP server (StreamableHTTP) pointing at:
+On startup the server prints a **paste-ready `mcpServers` JSON fragment** (in
+the nested `transport` shape used by `cline_mcp_settings.json`) in addition to
+the banner — merge it under `mcpServers` in
+`~/.cline/data/settings/cline_mcp_settings.json`. Or add an MCP server
+(StreamableHTTP) in Cline by hand, pointing at:
 
 ```
 http://127.0.0.1:7777/mcp
