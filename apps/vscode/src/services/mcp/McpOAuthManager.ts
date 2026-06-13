@@ -67,6 +67,17 @@ function readOAuthState(serverName: string, settingsPath: string): McpServerOAut
  * never clobbered wholesale. Failures are logged but non-fatal: a missing
  * server entry (e.g., just deleted in another window) shouldn't crash the
  * provider callbacks the MCP SDK invokes mid-connection.
+ *
+ * The underlying read-modify-write is intentionally SYNCHRONOUS. Multiple
+ * processes (CLI, JetBrains, other windows) share this file, and within this
+ * process the synchronous read+write+rename cannot be interleaved by another
+ * OAuth callback, the settings watcher, or a toggle RPC — it acts as a
+ * process-local mutex and guarantees this window never clobbers its own
+ * in-flight update. The cost is a few small, blocking file operations during
+ * an interactive auth handshake (a moment the user spends in the browser); we
+ * accept that to keep the shared-file updates conflict-free. Switching to async
+ * I/O would reintroduce the interleaving and require a Promise queue purely to
+ * recover the serialization we get here for free.
  */
 function patchOAuthState(
 	serverName: string,
