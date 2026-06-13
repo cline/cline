@@ -1,3 +1,5 @@
+import type { SdkInitialMessages } from "./session-host"
+
 type GenericContentBlock = Record<string, unknown>
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -73,6 +75,8 @@ function isMigrationPlaceholderToolResult(block: GenericContentBlock): boolean {
  * conversations (especially interrupted turns) can miss these blocks, causing
  * "Tool result is missing for tool call ..." errors on resume.
  */
+export function sanitizeInitialMessagesForSessionStart(messages: SdkInitialMessages): SdkInitialMessages
+export function sanitizeInitialMessagesForSessionStart(messages: unknown[]): unknown[]
 export function sanitizeInitialMessagesForSessionStart(messages: unknown[]): unknown[] {
 	if (messages.length === 0) {
 		return messages

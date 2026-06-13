@@ -36,6 +36,7 @@ export interface ProviderCatalogStateController extends ProviderCatalogControlle
 		setGlobalStateBatch(updates: Partial<GlobalStateAndSettings>): void
 		getApiConfiguration?(): ApiConfiguration
 	}
+	handleApiConfigurationChanged?(previous: ApiConfiguration, next: ApiConfiguration): void
 }
 
 export function hasProviderCatalogStateController(

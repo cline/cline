@@ -74,11 +74,10 @@ describe("SdkSessionEventCoordinator", () => {
 		expect(options.postStateToWebview).not.toHaveBeenCalled()
 	})
 
-	it("marks turns complete, checks deferred reloads, and applies pending mode changes", () => {
+	it("marks turns complete and delegates provider restart handling", async () => {
 		const activeSession = makeActiveSession()
 		const { coordinator, options, event } = makeCoordinator({
 			activeSession,
-			hasPendingModeChange: true,
 			translation: {
 				messages: [],
 				sessionEnded: false,
@@ -86,11 +85,11 @@ describe("SdkSessionEventCoordinator", () => {
 			},
 		})
 
-		coordinator.handleSessionEvent(event)
+		await coordinator.handleSessionEvent(event)
 
 		expect(options.sessions.setRunning).toHaveBeenCalledWith(false)
 		expect(options.mcpTools.checkDeferredRestart).toHaveBeenCalledOnce()
-		expect(options.mode.applyPendingModeChange).toHaveBeenCalledOnce()
+		expect(options.providerChanges.handleTurnComplete).toHaveBeenCalledWith(options.mode)
 	})
 
 	it("posts state on turn end even when the turn-complete event carries NO messages", async () => {
@@ -237,7 +236,10 @@ describe("SdkSessionEventCoordinator", () => {
 				postStateToWebview: vi.fn().mockResolvedValue(undefined),
 				translateSessionEvent: translateFn,
 				stateManager,
-			} as unknown as SdkSessionEventCoordinatorOptions
+			} as unknown as SdkSessionEventCoordinatorOptions & {
+				sessions: SdkSessionEventCoordinatorOptions["sessions"] & { setRunning: ReturnType<typeof vi.fn> }
+				messages: SdkSessionEventCoordinatorOptions["messages"] & { appendAndEmit: ReturnType<typeof vi.fn> }
+			}
 
 			const coordinator = new SdkSessionEventCoordinator(options)
 			const event = {
@@ -248,14 +250,14 @@ describe("SdkSessionEventCoordinator", () => {
 			// First two tool errors — should NOT trigger mistake_limit_reached
 			await coordinator.handleSessionEvent(event)
 			await coordinator.handleSessionEvent(event)
-			for (const call of (options.messages as any).appendAndEmit.mock.calls.slice(0, 2)) {
+			for (const call of options.messages.appendAndEmit.mock.calls.slice(0, 2)) {
 				const msgs = call[0] as ClineMessage[]
 				expect(msgs.some((m: ClineMessage) => m.ask === "mistake_limit_reached")).toBe(false)
 			}
 
 			// Third tool error — should trigger mistake_limit_reached
 			await coordinator.handleSessionEvent(event)
-			const thirdCallMsgs = (options.messages as any).appendAndEmit.mock.calls[2][0] as ClineMessage[]
+			const thirdCallMsgs = options.messages.appendAndEmit.mock.calls[2][0] as ClineMessage[]
 			const mistakeMsg = thirdCallMsgs.find((m: ClineMessage) => m.ask === "mistake_limit_reached")
 			expect(mistakeMsg).toBeDefined()
 			expect(mistakeMsg!.type).toBe("ask")
@@ -263,7 +265,7 @@ describe("SdkSessionEventCoordinator", () => {
 
 			// Session should be aborted and marked as not running
 			expect(abortFn).toHaveBeenCalledWith("session-123")
-			expect((options.sessions as any).setRunning).toHaveBeenCalledWith(false)
+			expect(options.sessions.setRunning).toHaveBeenCalledWith(false)
 		})
 
 		it("resets consecutive tool error count after emitting and on tool success", async () => {
@@ -303,7 +305,9 @@ describe("SdkSessionEventCoordinator", () => {
 					}
 				}),
 				stateManager,
-			} as unknown as SdkSessionEventCoordinatorOptions
+			} as unknown as SdkSessionEventCoordinatorOptions & {
+				messages: SdkSessionEventCoordinatorOptions["messages"] & { appendAndEmit: ReturnType<typeof vi.fn> }
+			}
 
 			const coordinator = new SdkSessionEventCoordinator(options)
 			const event = {
@@ -314,16 +318,16 @@ describe("SdkSessionEventCoordinator", () => {
 			// Trigger limit (2 errors)
 			await coordinator.handleSessionEvent(event)
 			await coordinator.handleSessionEvent(event)
-			const secondMsgs = (options.messages as any).appendAndEmit.mock.calls[1][0] as ClineMessage[]
+			const secondMsgs = options.messages.appendAndEmit.mock.calls[1][0] as ClineMessage[]
 			expect(secondMsgs.some((m: ClineMessage) => m.ask === "mistake_limit_reached")).toBe(true)
 
 			// Counter was reset — need 2 more errors to trigger again
 			await coordinator.handleSessionEvent(event)
-			const thirdMsgs = (options.messages as any).appendAndEmit.mock.calls[2][0] as ClineMessage[]
+			const thirdMsgs = options.messages.appendAndEmit.mock.calls[2][0] as ClineMessage[]
 			expect(thirdMsgs.some((m: ClineMessage) => m.ask === "mistake_limit_reached")).toBe(false)
 
 			await coordinator.handleSessionEvent(event)
-			const fourthMsgs = (options.messages as any).appendAndEmit.mock.calls[3][0] as ClineMessage[]
+			const fourthMsgs = options.messages.appendAndEmit.mock.calls[3][0] as ClineMessage[]
 			expect(fourthMsgs.some((m: ClineMessage) => m.ask === "mistake_limit_reached")).toBe(true)
 		})
 	})
@@ -350,6 +354,9 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		mcpTools: {
 			checkDeferredRestart: vi.fn(),
 		},
+		providerChanges: {
+			handleTurnComplete: vi.fn().mockResolvedValue(undefined),
+		},
 		mode: {
 			hasPendingModeChange: vi.fn(() => input.hasPendingModeChange ?? false),
 			applyPendingModeChange: vi.fn().mockResolvedValue(undefined),
@@ -369,6 +376,9 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		}
 		messages: SdkSessionEventCoordinatorOptions["messages"] & { appendAndEmit: ReturnType<typeof vi.fn> }
 		mcpTools: SdkSessionEventCoordinatorOptions["mcpTools"] & { checkDeferredRestart: ReturnType<typeof vi.fn> }
+		providerChanges: NonNullable<SdkSessionEventCoordinatorOptions["providerChanges"]> & {
+			handleTurnComplete: ReturnType<typeof vi.fn>
+		}
 		mode: SdkSessionEventCoordinatorOptions["mode"] & {
 			hasPendingModeChange: ReturnType<typeof vi.fn>
 			applyPendingModeChange: ReturnType<typeof vi.fn>

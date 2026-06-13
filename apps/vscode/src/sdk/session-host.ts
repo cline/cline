@@ -30,7 +30,7 @@ export interface SdkSessionHost {
 	list(limit?: number, options?: Omit<ClineCoreListHistoryOptions, "limit">): Promise<SessionHistoryRecord[]>
 	listHistory(options?: ClineCoreListHistoryOptions): Promise<SessionHistoryRecord[]>
 	delete(sessionId: string): Promise<boolean>
-	readMessages(sessionId: string): Promise<unknown[]>
+	readMessages(sessionId: string): Promise<SdkInitialMessages>
 	update(
 		sessionId: string,
 		updates: {
@@ -46,3 +46,5 @@ export interface SdkSessionHost {
 	subscribe(listener: (event: CoreSessionEvent) => void): () => void
 	updateSessionModel?(sessionId: string, modelId: string): Promise<void>
 }
+
+export type SdkInitialMessages = NonNullable<StartSessionInput["initialMessages"]>
