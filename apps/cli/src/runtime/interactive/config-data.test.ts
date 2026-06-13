@@ -98,6 +98,30 @@ describe("interactive config data loader", () => {
 		return pluginPath;
 	}
 
+	async function writeWhitespaceMcpSettingsPlugin(
+		tempRoot: string,
+	): Promise<string> {
+		const pluginsDir = join(tempRoot, ".cline", "plugins");
+		await mkdir(pluginsDir, { recursive: true });
+		const pluginPath = join(pluginsDir, "settings-whitespace-mcp-plugin.js");
+		await writeFile(
+			pluginPath,
+			[
+				"export default {",
+				"  name: 'settings-whitespace-mcp-plugin',",
+				"  manifest: { capabilities: ['mcp'] },",
+				"  setup(api) {",
+				"    api.registerMcpServer({",
+				"      name: '   ',",
+				"      transport: { type: 'stdio', command: process.execPath, args: ['-e', 'process.exit(0)'] },",
+				"    });",
+				"  },",
+				"};",
+			].join("\n"),
+		);
+		return pluginPath;
+	}
+
 	it("toggles a skill item to the opposite enabled state and refreshes before reload", async () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "cli-config-data-"));
 		tempRoots.push(tempRoot);
@@ -356,6 +380,35 @@ Find installable skills.`,
 					item.configKind === "plugin-mcp",
 			),
 		).toBe(true);
+	});
+
+	it("shows whitespace-only plugin MCP server names as empty-name errors", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "cli-config-data-"));
+		tempRoots.push(tempRoot);
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = join(
+			tempRoot,
+			"global-settings.json",
+		);
+		const pluginPath = await writeWhitespaceMcpSettingsPlugin(tempRoot);
+		const loader = createInteractiveConfigDataLoader({
+			config: createConfig(tempRoot),
+		});
+
+		const data = await loader.loadConfigData({ includePluginTools: true });
+
+		expect(
+			data.mcp.find(
+				(item) =>
+					item.pluginName === "settings-whitespace-mcp-plugin" &&
+					item.pluginPath === pluginPath,
+			),
+		).toEqual(
+			expect.objectContaining({
+				name: "",
+				configKind: "plugin-mcp",
+				loadError: "empty MCP server name",
+			}),
+		);
 	});
 
 	it("keeps failed plugins visible with their load error", async () => {

@@ -66,4 +66,39 @@ describe("plugin MCP server registration", () => {
 			"top-level env is only supported for stdio MCP transports",
 		);
 	});
+
+	it("reports missing stdio command before missing required env", () => {
+		const result = normalizePluginMcpServerRegistration({
+			name: "local",
+			transport: {
+				type: "stdio",
+				command: "",
+			},
+			env: {
+				MISSING_TOKEN: {
+					fromEnv: "CLINE_TEST_MISSING_PLUGIN_MCP_TOKEN",
+					required: true,
+				},
+			},
+		});
+
+		expect(result.registration).toBeUndefined();
+		expect(result.loadError).toBe("stdio MCP transport requires command");
+	});
+
+	it("normalizes whitespace-only server names to empty-name errors", () => {
+		const result = normalizePluginMcpServerRegistration({
+			name: "   ",
+			transport: {
+				type: "stdio",
+				command: "node",
+			},
+		});
+
+		expect(result.registration).toBeUndefined();
+		expect(result).toEqual({
+			name: "",
+			loadError: "empty MCP server name",
+		});
+	});
 });

@@ -100,7 +100,7 @@ export function normalizePluginMcpServerRegistration(
 	const name = typeof server.name === "string" ? server.name.trim() : "";
 	if (!name) {
 		return {
-			name: typeof server.name === "string" ? server.name : "",
+			name,
 			loadError: "empty MCP server name",
 		};
 	}
@@ -135,39 +135,43 @@ export function normalizePluginMcpServerRegistration(
 
 	const metadata = isRecord(server.metadata) ? server.metadata : undefined;
 	if (type === "stdio") {
+		const command = transport.command;
+		if (typeof command !== "string" || !command.trim()) {
+			return { name, loadError: "stdio MCP transport requires command" };
+		}
+		const args = transport.args;
+		if (args !== undefined && !isStringArray(args)) {
+			return { name, loadError: "stdio MCP transport args must be strings" };
+		}
+		const cwd = transport.cwd;
+		if (cwd !== undefined && typeof cwd !== "string") {
+			return { name, loadError: "stdio MCP transport cwd must be a string" };
+		}
+		const transportEnv = transport.env;
+		if (transportEnv !== undefined && !isStringRecord(transportEnv)) {
+			return { name, loadError: "stdio MCP transport env must be strings" };
+		}
+
 		const resolvedEnv = resolvePluginMcpEnv({
 			name,
 			transport: {
 				type: "stdio",
-				command: typeof transport.command === "string" ? transport.command : "",
-				args: isStringArray(transport.args) ? transport.args : undefined,
-				cwd: typeof transport.cwd === "string" ? transport.cwd : undefined,
-				env: isStringRecord(transport.env) ? transport.env : undefined,
+				command,
+				args,
+				cwd,
+				env: transportEnv,
 			},
-			env: env as AgentExtensionMcpServer["env"],
+			env,
 			metadata,
 		});
 		if (!resolvedEnv.ok) {
 			return { name, loadError: resolvedEnv.reason };
 		}
 
-		if (typeof transport.command !== "string" || !transport.command.trim()) {
-			return { name, loadError: "stdio MCP transport requires command" };
-		}
-		if (transport.args !== undefined && !isStringArray(transport.args)) {
-			return { name, loadError: "stdio MCP transport args must be strings" };
-		}
-		if (transport.cwd !== undefined && typeof transport.cwd !== "string") {
-			return { name, loadError: "stdio MCP transport cwd must be a string" };
-		}
-		if (transport.env !== undefined && !isStringRecord(transport.env)) {
-			return { name, loadError: "stdio MCP transport env must be strings" };
-		}
-
 		const resolvedTransportEnv =
-			transport.env || resolvedEnv.env
+			transportEnv || resolvedEnv.env
 				? {
-						...(isStringRecord(transport.env) ? transport.env : {}),
+						...(transportEnv ?? {}),
 						...(resolvedEnv.env ?? {}),
 					}
 				: undefined;
@@ -177,9 +181,9 @@ export function normalizePluginMcpServerRegistration(
 				name,
 				transport: {
 					type: "stdio",
-					command: transport.command,
-					args: transport.args,
-					cwd: transport.cwd,
+					command,
+					args,
+					cwd,
 					env: resolvedTransportEnv,
 				},
 				metadata,

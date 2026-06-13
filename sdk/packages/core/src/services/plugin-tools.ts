@@ -1,8 +1,8 @@
 import { isAbsolute, relative, resolve } from "node:path";
-import {
-	type AgentConfig,
-	type AgentExtensionMcpServer,
-	type AgentTool,
+import type {
+	AgentConfig,
+	AgentExtensionMcpServer,
+	AgentTool,
 } from "@cline/shared";
 import {
 	createDefaultMcpServerClientFactory,
@@ -206,9 +206,7 @@ export async function listPluginToolsWithDiagnostics(input: {
 			}
 			for (const server of contributions.mcpServers) {
 				const serverName =
-					typeof server.name === "string"
-						? server.name.trim() || server.name
-						: "";
+					typeof server.name === "string" ? server.name.trim() : "";
 				const descriptor: PluginMcpServerDescriptor = {
 					name: serverName,
 					pluginName: extension.name,
