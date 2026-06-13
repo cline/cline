@@ -159,6 +159,17 @@ export async function executeHook<Name extends keyof Hooks>(options: HookExecuti
 
 		// NoOp hooks return proto defaults; preserve the minimal legacy return shape.
 		if (result.cancel === false && result.contextModification === "" && result.errorMessage === "") {
+			// Update hook status to completed even for NoOp hooks
+			if (hookMessageTs !== undefined) {
+				await updateHookMessage(messageStateHandler, hookMessageTs, {
+					hookName,
+					...(options.toolName && { toolName: options.toolName }),
+					status: "completed",
+					exitCode: 0,
+					hasJsonResponse: false,
+					scriptPaths: hookInfo.scriptPaths,
+				})
+			}
 			return { wasCancelled: false }
 		}
 
