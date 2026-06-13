@@ -153,6 +153,14 @@ function reserveRemoteImageUrlBudget(state: MediaBudgetState): boolean {
 	);
 }
 
+function parseUrlProtocol(value: string): string | undefined {
+	try {
+		return new URL(value).protocol;
+	} catch {
+		return undefined;
+	}
+}
+
 function toImageDataPart(
 	image: AiSdkImageContentBlock,
 	state: MediaBudgetState,
@@ -219,10 +227,8 @@ function toUserImagePart(
 	}
 
 	if (typeof image.image === "string") {
-		if (
-			image.image.startsWith("http://") ||
-			image.image.startsWith("https://")
-		) {
+		const protocol = parseUrlProtocol(image.image);
+		if (protocol === "http:" || protocol === "https:") {
 			if (!reserveRemoteImageUrlBudget(state)) {
 				return imageOmittedTextPart();
 			}
@@ -232,10 +238,10 @@ function toUserImagePart(
 				mediaType: image.mediaType,
 			};
 		}
+		const isDataUrl = protocol === "data:";
 
 		const validation = validateAndReserveImageMedia(
-			image.mediaType ??
-				(image.image.startsWith("data:") ? undefined : "image/png"),
+			image.mediaType ?? (isDataUrl ? undefined : "image/png"),
 			image.image,
 			{
 				maxImageEncodedBytes: DEFAULT_MAX_IMAGE_ENCODED_BYTES,
@@ -248,17 +254,14 @@ function toUserImagePart(
 		}
 		return {
 			type: "image",
-			image: image.image.startsWith("data:")
+			image: isDataUrl
 				? `data:${validation.mediaType};base64,${validation.base64}`
 				: validation.base64,
 			mediaType: validation.mediaType,
 		};
 	}
 
-	const decodedBytes =
-		image.image instanceof ArrayBuffer
-			? image.image.byteLength
-			: image.image.byteLength;
+	const decodedBytes = image.image.byteLength;
 	const encodedBytes = imageBase64LengthForDecodedBytes(decodedBytes);
 	const mediaType = image.mediaType?.toLowerCase() ?? "image/png";
 	const supportedMediaTypes: readonly string[] = SUPPORTED_IMAGE_MEDIA_TYPES;

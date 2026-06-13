@@ -3,6 +3,7 @@ import {
 	createMediaBudgetState,
 	imageBase64DecodedByteLength,
 	imageBase64LengthForDecodedBytes,
+	isCanonicalBase64,
 	validateAndReserveImageMedia,
 	validateImageMedia,
 } from "./media";
@@ -107,5 +108,11 @@ describe("image media validation", () => {
 	it("computes decoded and encoded base64 sizes without decoding bytes", () => {
 		expect(imageBase64DecodedByteLength("QUJDRA==")).toBe(4);
 		expect(imageBase64LengthForDecodedBytes(4)).toBe(8);
+	});
+
+	it("checks canonical base64 strings without decoding bytes", () => {
+		expect(isCanonicalBase64("QUJDRA==")).toBe(true);
+		expect(isCanonicalBase64("not-base64")).toBe(false);
+		expect(isCanonicalBase64("")).toBe(false);
 	});
 });

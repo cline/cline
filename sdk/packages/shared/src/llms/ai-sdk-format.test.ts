@@ -862,6 +862,29 @@ describe("formatMessagesForAiSdk", () => {
 		]);
 	});
 
+	it("validates uppercase data URL strings without an explicit mediaType", () => {
+		const image = imageData(8);
+		const messages = formatMessagesForAiSdk(undefined, [
+			{
+				role: "user",
+				content: [{ type: "image", image: `DATA:image/jpeg;base64,${image}` }],
+			},
+		]);
+
+		expect(messages).toEqual([
+			{
+				role: "user",
+				content: [
+					{
+						type: "image",
+						image: `data:image/jpeg;base64,${image}`,
+						mediaType: "image/jpeg",
+					},
+				],
+			},
+		]);
+	});
+
 	it("charges remote URL image parts against the aggregate media budget", () => {
 		const messages = formatMessagesForAiSdk(undefined, [
 			{

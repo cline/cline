@@ -132,6 +132,8 @@ export {
 	imageBase64EncodedByteLength,
 	imageBase64LengthForDecodedBytes,
 	imageFileMaxDecodedBytesForBase64Limit,
+	isBase64Char,
+	isCanonicalBase64,
 	type MediaBudgetOptions,
 	type MediaBudgetState,
 	type ResolvedMediaBudget,

@@ -153,7 +153,7 @@ export function reserveImageMediaBytes(
 	return null;
 }
 
-function isBase64Char(charCode: number): boolean {
+export function isBase64Char(charCode: number): boolean {
 	return (
 		(charCode >= 65 && charCode <= 90) ||
 		(charCode >= 97 && charCode <= 122) ||
@@ -161,6 +161,10 @@ function isBase64Char(charCode: number): boolean {
 		charCode === 43 ||
 		charCode === 47
 	);
+}
+
+export function isCanonicalBase64(base64: string): boolean {
+	return base64.length > 0 && isCanonicalBase64Range(base64, 0, base64.length);
 }
 
 function isCanonicalBase64Range(

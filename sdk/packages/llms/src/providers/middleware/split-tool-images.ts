@@ -57,6 +57,7 @@ import {
 	DEFAULT_MAX_IMAGE_DECODED_BYTES,
 	DEFAULT_MAX_IMAGE_ENCODED_BYTES,
 	IMAGE_OMITTED_PLACEHOLDER,
+	isCanonicalBase64,
 	type MediaBudgetState,
 	reserveImageMediaBytes,
 	validateAndReserveImageMedia,
@@ -176,41 +177,6 @@ function imageOmittedTextPart(): LanguageModelV3TextPart {
 		type: "text",
 		text: IMAGE_OMITTED_PLACEHOLDER,
 	};
-}
-
-function isBase64Char(charCode: number): boolean {
-	return (
-		(charCode >= 65 && charCode <= 90) ||
-		(charCode >= 97 && charCode <= 122) ||
-		(charCode >= 48 && charCode <= 57) ||
-		charCode === 43 ||
-		charCode === 47
-	);
-}
-
-function isCanonicalBase64(base64: string): boolean {
-	if (base64.length === 0 || base64.length % 4 !== 0) {
-		return false;
-	}
-
-	let paddingStart = base64.length;
-	if (base64.endsWith("==")) {
-		paddingStart -= 2;
-	} else if (base64.endsWith("=")) {
-		paddingStart -= 1;
-	}
-
-	for (let i = 0; i < paddingStart; i++) {
-		if (!isBase64Char(base64.charCodeAt(i))) {
-			return false;
-		}
-	}
-	for (let i = paddingStart; i < base64.length; i++) {
-		if (base64.charCodeAt(i) !== 61) {
-			return false;
-		}
-	}
-	return true;
 }
 
 function reserveUnknownUrlMediaBudget(
