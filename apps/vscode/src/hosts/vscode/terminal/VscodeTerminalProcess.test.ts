@@ -2,9 +2,10 @@ import { afterEach, beforeEach, describe, it } from "mocha"
 import "should"
 import * as sinon from "sinon"
 import * as vscode from "vscode"
+import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
+import * as terminalOutputModule from "./get-latest-output"
 import { VscodeTerminalProcess } from "./VscodeTerminalProcess"
 import { TerminalRegistry } from "./VscodeTerminalRegistry"
-import * as terminalOutputModule from "./get-latest-output"
 
 declare module "vscode" {
 	// https://github.com/microsoft/vscode/blob/f0417069c62e20f3667506f4b7e53ca0004b4e3e/src/vscode-dts/vscode.d.ts#L7442
@@ -37,6 +38,7 @@ describe("TerminalProcess (Integration Tests)", () => {
 
 	beforeEach(() => {
 		sandbox = sinon.createSandbox({ useFakeTimers: true })
+		setVscodeHostProviderMock()
 		process = new VscodeTerminalProcess()
 	})
 
@@ -243,7 +245,9 @@ describe("TerminalProcess (Integration Tests)", () => {
 		;(emitSpy as sinon.SinonSpy)
 			.calledWithMatch(
 				"line",
-				sinon.match((value: unknown) => typeof value === "string" && value.includes("Here's the current terminal's content")),
+				sinon.match(
+					(value: unknown) => typeof value === "string" && value.includes("Here's the current terminal's content"),
+				),
 			)
 			.should.be.true()
 	})
