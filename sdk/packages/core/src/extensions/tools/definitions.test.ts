@@ -700,6 +700,101 @@ describe("default run_commands tool", () => {
 		]);
 	});
 
+	it("coalesces split heredoc command arrays before execution", async () => {
+		const execute = vi.fn(
+			async (command: string | { command: string }) =>
+				`ran:${typeof command === "string" ? command : command.command}`,
+		);
+		const tool = createBashTool(execute);
+
+		const result = await tool.execute(
+			{
+				commands: [
+					"cd /app && python3 << 'PYEOF'",
+					"import csv",
+					"print('ok')",
+					"PYEOF",
+				],
+			},
+			{
+				sessionId: "session-split-heredoc",
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		const expectedCommand =
+			"cd /app && python3 << 'PYEOF'\nimport csv\nprint('ok')\nPYEOF";
+		expect(execute).toHaveBeenCalledTimes(1);
+		expect(execute).toHaveBeenCalledWith(
+			expectedCommand,
+			process.cwd(),
+			expect.objectContaining({ sessionId: "session-split-heredoc" }),
+		);
+		expect(result).toEqual([
+			expect.objectContaining({
+				query: expect.stringContaining("cd /app && python3"),
+				result: `ran:${expectedCommand}`,
+				success: true,
+			}),
+		]);
+	});
+
+	it("does not coalesce independent command arrays", async () => {
+		const execute = vi.fn(
+			async (command: string | { command: string }) =>
+				`ran:${typeof command === "string" ? command : command.command}`,
+		);
+		const tool = createBashTool(execute);
+
+		const result = await tool.execute(
+			{ commands: ["pwd", "ls /app"] },
+			{
+				sessionId: "session-independent-commands",
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		expect(execute).toHaveBeenCalledTimes(2);
+		expect(result).toEqual([
+			expect.objectContaining({ query: "pwd", result: "ran:pwd" }),
+			expect.objectContaining({ query: "ls /app", result: "ran:ls /app" }),
+		]);
+	});
+
+	it("does not coalesce unterminated heredoc command arrays", async () => {
+		const execute = vi.fn(
+			async (command: string | { command: string }) =>
+				`ran:${typeof command === "string" ? command : command.command}`,
+		);
+		const tool = createBashTool(execute);
+
+		const result = await tool.execute(
+			{ commands: ["python3 << 'PYEOF'", "print('ok')"] },
+			{
+				sessionId: "session-unterminated-heredoc",
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		expect(execute).toHaveBeenCalledTimes(2);
+		expect(result).toEqual([
+			expect.objectContaining({
+				query: "python3 << 'PYEOF'",
+				result: "ran:python3 << 'PYEOF'",
+			}),
+			expect.objectContaining({
+				query: "print('ok')",
+				result: "ran:print('ok')",
+			}),
+		]);
+	});
+
 	it("truncates long command echoes in tool results without affecting execution", async () => {
 		const execute = vi.fn(
 			async (command: string | { command: string }) =>
