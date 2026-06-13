@@ -257,65 +257,80 @@ describe("auth/server startLocalOAuthServer — onClose", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Deny -> re-bind same port -> approve (regression)
+// Sequential flows on a fixed port (keep-alive socket teardown)
 // ---------------------------------------------------------------------------
 
 describe("auth/server startLocalOAuthServer — sequential flows on a fixed port", () => {
-	// Regression: deny an OAuth flow, then immediately start a second flow on the
-	// SAME fixed callback port and approve it. The browser uses keep-alive, so
-	// the first flow's response can leave a lingering socket that keeps the
-	// listening port alive after close(). If close() doesn't drop those sockets,
-	// the second server's bind appears to succeed but its callback is delivered
-	// to the first (already-settled) server, so waitForCallback() never resolves.
-	// This reproduced the "deny then approve never saves a token" bug.
-	socketIt("does not serve requests over a pooled keep-alive socket after close()", async () => {
-		const port = await getFreePort()
+	// A browser / global-fetch connection pool keeps a keep-alive socket to the
+	// callback port alive across requests. If close() left those sockets open, a
+	// later request to a re-bound port could be delivered over the pooled socket
+	// to the first (already-settled) server, and that flow's waitForCallback()
+	// would never resolve. close() must therefore drop lingering connections.
+	socketIt(
+		"does not serve requests over a pooled keep-alive socket after close()",
+		async () => {
+			const port = await getFreePort();
 
-		// A keep-alive agent models the browser / global-fetch connection pool,
-		// which keeps a socket to the fixed callback port alive across requests.
-		const agent = new http.Agent({ keepAlive: true, maxSockets: 1 })
-		const getOverAgent = (path: string) =>
-			new Promise<{ status: number } | { error: string }>((resolve) => {
-				const req = http.get({ host: "127.0.0.1", port, path, agent }, (res) => {
-					res.on("data", () => {})
-					res.on("end", () => resolve({ status: res.statusCode ?? 0 }))
-				})
-				req.on("error", (e) => resolve({ error: (e as NodeJS.ErrnoException).code ?? e.message }))
-			})
+			// A keep-alive agent models the browser / global-fetch connection pool,
+			// which keeps a socket to the fixed callback port alive across requests.
+			const agent = new http.Agent({ keepAlive: true, maxSockets: 1 });
+			const getOverAgent = (path: string) =>
+				new Promise<{ status: number } | { error: string }>((resolve) => {
+					const req = http.get(
+						{ host: "127.0.0.1", port, path, agent },
+						(res) => {
+							res.on("data", () => {});
+							res.on("end", () => resolve({ status: res.statusCode ?? 0 }));
+						},
+					);
+					req.on("error", (e) =>
+						resolve({ error: (e as NodeJS.ErrnoException).code ?? e.message }),
+					);
+				});
 
-		// First flow: deny. The 400 response leaves a pooled keep-alive socket
-		// attached to THIS server.
-		const first = await startLocalOAuthServer({ ports: [port], callbackPath: "/callback" })
-		const firstWait = first.waitForCallback()
-		expect(await getOverAgent("/callback?error=access_denied")).toMatchObject({ status: 400 })
-		expect((await firstWait)?.error).toBe("access_denied")
-		first.close()
+			// First flow: deny. The 400 response leaves a pooled keep-alive socket
+			// attached to THIS server.
+			const first = await startLocalOAuthServer({
+				ports: [port],
+				callbackPath: "/callback",
+			});
+			const firstWait = first.waitForCallback();
+			expect(await getOverAgent("/callback?error=access_denied")).toMatchObject(
+				{ status: 400 },
+			);
+			expect((await firstWait)?.error).toBe("access_denied");
+			first.close();
 
-		// A second request over the SAME agent must NOT be served by the (now
-		// closed, already-settled) first server. Without close() dropping the
-		// pooled socket, the request is delivered over it and gets a real
-		// response — which is exactly how a re-tried OAuth flow's callback was
-		// swallowed by the stale server (deny -> approve saved no token). With
-		// the fix, the socket is destroyed, so the reused connection errors
-		// instead of reaching the dead server.
-		const reused = await getOverAgent("/callback?code=abc123&state=xyz")
-		expect(reused).not.toHaveProperty("status")
-		expect(reused).toHaveProperty("error")
+			// A second request over the same agent must not be served by the closed
+			// first server. close() destroys the pooled socket, so the reused
+			// connection errors rather than reaching the (already-settled) server —
+			// which is what would otherwise swallow a subsequent flow's callback.
+			const reused = await getOverAgent("/callback?code=abc123&state=xyz");
+			expect(reused).not.toHaveProperty("status");
+			expect(reused).toHaveProperty("error");
 
-		// And a brand-new server can bind the same port and serve normally.
-		const second = await startLocalOAuthServer({ ports: [port], callbackPath: "/callback" })
-		const secondWait = second.waitForCallback()
-		expect(await get(`http://127.0.0.1:${port}/callback?code=abc123&state=xyz`)).toMatchObject({ status: 200 })
-		const secondPayload = await Promise.race([
-			secondWait,
-			new Promise<never>((_, rej) => setTimeout(() => rej(new Error("flow 2 callback hung")), 3000)),
-		])
-		expect(secondPayload?.code).toBe("abc123")
+			// And a brand-new server can bind the same port and serve normally.
+			const second = await startLocalOAuthServer({
+				ports: [port],
+				callbackPath: "/callback",
+			});
+			const secondWait = second.waitForCallback();
+			expect(
+				await get(`http://127.0.0.1:${port}/callback?code=abc123&state=xyz`),
+			).toMatchObject({ status: 200 });
+			const secondPayload = await Promise.race([
+				secondWait,
+				new Promise<never>((_, rej) =>
+					setTimeout(() => rej(new Error("flow 2 callback hung")), 3000),
+				),
+			]);
+			expect(secondPayload?.code).toBe("abc123");
 
-		second.close()
-		agent.destroy()
-	})
-})
+			second.close();
+			agent.destroy();
+		},
+	);
+});
 
 // ---------------------------------------------------------------------------
 // onListening + onClose ordering

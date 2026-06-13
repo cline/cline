@@ -197,14 +197,14 @@ export function resolveDefaultMcpSettingsPath(): string {
 }
 
 /**
- * Atomically write the MCP settings file using temp-file + rename.
+ * Atomically write the MCP settings file using a temp file + rename.
  *
  * Multiple processes (CLI, VSCode extension windows, JetBrains) read and write
  * this file concurrently. A plain writeFileSync can be observed half-written by
- * a concurrent reader (torn read), which surfaces as JSON parse errors and, in
- * clients that treat an unreadable file as "no servers", can wipe MCP state.
- * Rename within the same directory is atomic on POSIX and on NTFS, so readers
- * always observe either the old or the new complete file.
+ * a concurrent reader, surfacing as a JSON parse error or, for a client that
+ * treats an unreadable file as "no servers", silently dropping MCP state.
+ * Rename within the same directory is atomic on POSIX and on NTFS, so a reader
+ * always observes either the old or the new complete file.
  */
 function atomicWriteSettingsFile(filePath: string, contents: string): void {
 	mkdirSync(dirname(filePath), { recursive: true });

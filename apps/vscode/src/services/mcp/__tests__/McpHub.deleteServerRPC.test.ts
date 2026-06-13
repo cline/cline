@@ -93,11 +93,11 @@ describe("McpHub.deleteServerRPC", () => {
 	it("writes atomically (temp file + rename), never truncating the real file", async () => {
 		await writeSettings({ alpha: { type: "stdio", command: "a" }, beta: { type: "stdio", command: "b" } })
 
-		// A reader at any point during the operation must never observe the real
-		// settings file in a truncated/empty state — that torn read is what
-		// emptied the server list in CLINE-2097. Atomic temp+rename guarantees the
-		// real path only ever flips from the complete old file to the complete new
-		// one, so writeFile must target a DIFFERENT path than the settings file.
+		// A reader must never observe the real settings file in a truncated or
+		// empty state, since a client that reads it mid-write could conclude
+		// there are no servers. A temp-file + rename guarantees the real path only
+		// ever flips from the complete old file to the complete new one, so
+		// writeFile must target a different path than the settings file.
 		const realWriteFile = fs.writeFile.bind(fs)
 		const writeTargets: string[] = []
 		sandbox.stub(fs, "writeFile").callsFake((...args: unknown[]) => {
