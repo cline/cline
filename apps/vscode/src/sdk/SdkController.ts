@@ -15,7 +15,7 @@ import {
 	type UserInstructionConfigService,
 } from "@cline/core"
 import { formatDisplayUserInput, type RemoteConfig, type RemoteConfigBundle } from "@cline/shared"
-import type { ModelInfo } from "@shared/api"
+import type { ApiConfiguration, ModelInfo } from "@shared/api"
 import type { ChatContent } from "@shared/ChatContent"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@shared/ClineAccount"
 import { mentionRegexGlobal } from "@shared/context-mentions"
@@ -56,6 +56,7 @@ import { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import { SdkMcpCoordinator } from "./sdk-mcp-coordinator"
 import { SdkMessageCoordinator, type SessionEventListener } from "./sdk-message-coordinator"
 import { SdkModeCoordinator } from "./sdk-mode-coordinator"
+import { SdkProviderChangeCoordinator } from "./sdk-provider-change-coordinator"
 import { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
 import { SdkSessionEventCoordinator } from "./sdk-session-event-coordinator"
 import { SdkSessionHistoryLoader } from "./sdk-session-history-loader"
@@ -138,6 +139,7 @@ export class Controller {
 	private taskHistory: SdkTaskHistory
 	private mode: SdkModeCoordinator
 	private mcpTools: SdkMcpCoordinator
+	private providerChanges: SdkProviderChangeCoordinator
 	private followups: SdkFollowupCoordinator
 	private taskControl: SdkTaskControlCoordinator
 	private taskStart: SdkTaskStartCoordinator
@@ -287,13 +289,7 @@ export class Controller {
 				return this._terminalManager
 			},
 			onSendComplete: async () => {
-				if (this.mode.hasPendingModeChange()) {
-					try {
-						await this.mode.applyPendingModeChange()
-					} catch (err) {
-						Logger.error("[SdkController] applyPendingModeChange failed:", err)
-					}
-				}
+				await this.providerChanges.handleTurnComplete(this.mode)
 
 				this.postStateToWebview().catch((err) => {
 					Logger.error("[SdkController] Failed to post state after turn:", err)
@@ -374,6 +370,18 @@ export class Controller {
 			buildStartSessionInput,
 			postStateToWebview: () => this.postStateToWebview(),
 		})
+		this.providerChanges = new SdkProviderChangeCoordinator({
+			stateManager: this.stateManager,
+			sessions: this.sessions,
+			messages: this.messages,
+			sessionConfigBuilder: this.sessionConfigBuilder,
+			getTask: () => this.task,
+			getWorkspaceRoot: () => this.getWorkspaceRoot(),
+			loadInitialMessages: async (sdkHost, sessionId) =>
+				(await this.sessionHistory.loadInitialMessages(sdkHost, sessionId)) ?? [],
+			buildStartSessionInput,
+			postStateToWebview: () => this.postStateToWebview(),
+		})
 		this.followups = new SdkFollowupCoordinator({
 			stateManager: this.stateManager,
 			interactions: this.interactions,
@@ -446,6 +454,7 @@ export class Controller {
 			sessions: this.sessions,
 			messages: this.messages,
 			mcpTools: this.mcpTools,
+			providerChanges: this.providerChanges,
 			mode: this.mode,
 			taskHistory: this.taskHistory,
 			stateManager: this.stateManager,
@@ -500,6 +509,10 @@ export class Controller {
 				?.updateActiveSessionModel(event.selection.modelId)
 				.catch((error) => Logger.error("[SdkController] Failed to update active session model:", error))
 		}
+	}
+
+	handleApiConfigurationChanged(previous: ApiConfiguration, next: ApiConfiguration): void {
+		this.providerChanges.handleApiConfigurationChanged(previous, next)
 	}
 
 	private isSelectionForActiveModeProvider(event: Extract<ProviderConfigChange, { kind: "selection" }>): boolean {

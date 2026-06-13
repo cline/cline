@@ -1,3 +1,4 @@
+import type { ApiConfiguration } from "@shared/api"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import type { EffectiveProviderConfig, ProviderCatalog, ProviderConfigStore } from "@/sdk/model-catalog/contracts"
 import { computeConfigFingerprint } from "@/sdk/model-catalog/fingerprint"
@@ -7,6 +8,7 @@ import type { ProviderCatalogController } from "../providerCatalogShared"
 
 type TestStateManager = {
 	setGlobalStateBatch: ReturnType<typeof vi.fn>
+	getApiConfiguration?: ReturnType<typeof vi.fn<() => ApiConfiguration | undefined>>
 }
 
 function makeStore(config: EffectiveProviderConfig): ProviderConfigStore {
@@ -32,11 +34,13 @@ function makeController(
 	store: ProviderConfigStore,
 	catalog: ProviderCatalog,
 	stateManager?: TestStateManager,
+	handleApiConfigurationChanged?: ReturnType<typeof vi.fn<(previous: ApiConfiguration, next: ApiConfiguration) => void>>,
 ): ProviderCatalogController {
 	return {
 		getProviderConfigStore: () => store,
 		getProviderCatalog: () => catalog,
 		...(stateManager ? { stateManager } : {}),
+		...(handleApiConfigurationChanged ? { handleApiConfigurationChanged } : {}),
 	}
 }
 
@@ -237,6 +241,33 @@ describe("provider model catalog handlers", () => {
 			actModeApiProvider: "deepseek",
 			actModeApiModelId: "deepseek-v4-flash",
 		})
+	})
+
+	it("commitModelSelection reports provider changes when config is initialized", async () => {
+		const { commitModelSelection } = await import("../commitModelSelection")
+		const providerId = parseProviderId("deepseek")
+		const store = makeStore({ providerId })
+		const stateManager: TestStateManager = {
+			setGlobalStateBatch: vi.fn(),
+			getApiConfiguration: vi
+				.fn<() => ApiConfiguration | undefined>()
+				.mockReturnValueOnce(undefined)
+				.mockReturnValueOnce({ actModeApiProvider: "deepseek" }),
+		}
+		const handleApiConfigurationChanged = vi.fn<(previous: ApiConfiguration, next: ApiConfiguration) => void>()
+		const controller = makeController(store, makeCatalog(), stateManager, handleApiConfigurationChanged)
+
+		await commitModelSelection(controller, {
+			providerId: "deepseek",
+			mode: "act",
+			modelId: "deepseek-v4-flash",
+			modelInfo: OpenRouterModelInfo.create({
+				name: "DeepSeek V4 Flash",
+				apiFormat: ApiFormat.OPENAI_CHAT,
+			}),
+		})
+
+		expect(handleApiConfigurationChanged).toHaveBeenCalledWith({}, { actModeApiProvider: "deepseek" })
 	})
 
 	it("commitModelSelection rejects invalid mode", async () => {
