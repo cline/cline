@@ -238,6 +238,11 @@ class TestServer {
 		return this.boundPort
 	}
 
+	/** The MCP StreamableHTTP endpoint clients should connect to. */
+	get mcpEndpoint(): string {
+		return `${this.baseUrl}/mcp`
+	}
+
 	private log(...args: unknown[]): void {
 		if (this.opts.verbose) {
 			console.log("[mcp-oauth-test]", ...args)
@@ -691,7 +696,30 @@ function delay(ms: number): Promise<void> {
 // Entry point
 // ---------------------------------------------------------------------------
 
-export { parseArgs, TestServer, type TestServerOptions }
+export { buildSettingsFragment, parseArgs, TestServer, type TestServerOptions }
+
+/**
+ * Build a paste-ready `mcpServers` fragment for cline_mcp_settings.json from a
+ * set of running test-server endpoints.
+ *
+ * Uses the nested `transport` shape the CLI/SDK writes (and the extension also
+ * accepts), so the output can be dropped straight into the settings file. When
+ * there are multiple endpoints the names are suffixed (`oauth-test-1`, …) since
+ * OAuth state is keyed by server name — distinct names get independent tokens.
+ */
+function buildSettingsFragment(endpoints: string[]): string {
+	const mcpServers: Record<string, unknown> = {}
+	endpoints.forEach((endpoint, index) => {
+		const name = endpoints.length === 1 ? "oauth-test" : `oauth-test-${index + 1}`
+		mcpServers[name] = {
+			transport: {
+				type: "streamableHttp",
+				url: endpoint,
+			},
+		}
+	})
+	return JSON.stringify({ mcpServers }, null, 2)
+}
 
 // Only auto-start when run directly (so this module can be imported by the
 // debug harness later without spawning a server).
@@ -707,8 +735,12 @@ if (isMain) {
 			servers.push(server)
 		}
 		if (opts.instances > 1) {
-			console.log(`\nStarted ${opts.instances} MCP OAuth test servers. Add each /mcp endpoint above to Cline (type: streamableHttp).`)
+			console.log(`\nStarted ${opts.instances} MCP OAuth test servers.`)
 		}
+		// Emit a paste-ready settings fragment so you don't have to hand-write
+		// the JSON (handy with random ports / multiple instances).
+		console.log("\nPaste into ~/.cline/data/settings/cline_mcp_settings.json (merge under mcpServers):\n")
+		console.log(buildSettingsFragment(servers.map((server) => server.mcpEndpoint)))
 	})()
 
 	process.on("SIGINT", () => {
