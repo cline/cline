@@ -8,12 +8,11 @@ import sinon from "sinon"
 import { HostProvider } from "@/hosts/host-provider"
 import { McpHub } from "../McpHub"
 
-// Regression tests for McpHub.toggleServerDisabledRPC(): toggling a server off
-// then on must REBUILD the connection, not just flip an in-memory flag. A
-// disabled server's connection has no live transport/client, so previously a
-// re-enabled server stayed stuck "connecting" (yellow dot) and was never
-// advertised to the agent. Tests bypass the constructor's watcher via
-// Object.create(McpHub.prototype), matching the sibling McpHub tests.
+// Tests for McpHub.toggleServerDisabledRPC(): toggling a server off then on
+// must rebuild the connection rather than only flip an in-memory flag, since a
+// disabled server's connection is a stub with no live transport/client. Tests
+// bypass the constructor's watcher via Object.create(McpHub.prototype),
+// matching the sibling McpHub tests.
 
 type FakeConnection = {
 	server: { name: string; config: string; status: string; disabled: boolean }

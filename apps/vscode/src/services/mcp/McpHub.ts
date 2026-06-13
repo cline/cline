@@ -60,29 +60,25 @@ export class McpHub {
 	connections: McpConnection[] = []
 	isConnecting = false
 	/**
-	 * Fingerprint of the connection-relevant view of the settings file the last
-	 * time the watcher reconciled connections.
+	 * Fingerprint of the connection-relevant view of the settings file as of the
+	 * watcher's last reconciliation.
 	 *
-	 * This is the SINGLE, process-agnostic mechanism for deciding whether a
-	 * settings-file change needs action — replacing the old timer-based
-	 * `isUpdatingClineSettings`/`isUpdatingFromRemoteConfig` boolean guards.
-	 * Those guards only suppressed THIS window reacting to ITS OWN writes, did
-	 * nothing about the CLI or other windows, and were racy (a shared boolean
-	 * cleared by uncoordinated 300ms timers).
+	 * The settings-file watcher uses this single, process-agnostic check to
+	 * decide whether a file change needs action: it recomputes the fingerprint
+	 * and skips when it's unchanged. Because the fingerprint is keyed on file
+	 * CONTENT rather than on who wrote it:
+	 *   - writes that change nothing connection-relevant (e.g. OAuth
+	 *     codeVerifier/clientInformation churn during a handshake) are no-ops,
+	 *     which prevents a self-perpetuating watcher → reconnect → write loop;
+	 *   - a write from any other process (CLI, another window) that does change
+	 *     something is processed normally;
+	 *   - whether an access token is present is part of the fingerprint, so an
+	 *     authorization completed elsewhere still triggers a reconnect via
+	 *     serverGainedOAuthTokens.
 	 *
-	 * Instead, every settings write (ours, the SDK's OAuth handshake, the CLI's,
-	 * another window's) is reconciled the same way: the watcher recomputes this
-	 * content fingerprint and skips when it's unchanged. Because it's keyed on
-	 * file CONTENT, not on who wrote it:
-	 *   - our own writes that change nothing connection-relevant (e.g. OAuth
-	 *     codeVerifier/clientInformation churn) are no-ops, breaking the livelock;
-	 *   - a write from any OTHER process that does change something is processed;
-	 *   - whether an access token is present is included, so a CLI/other-window
-	 *     authorization still triggers a reconnect via serverGainedOAuthTokens.
-	 *
-	 * Paired with atomic writes (writeSettingsFile), a torn/empty read during a
-	 * concurrent write is impossible, so the worst case is a redundant reconcile,
-	 * never the empty-list data loss of CLINE-2097.
+	 * Combined with atomic writes (see writeSettingsFile), a reader can never
+	 * observe a torn/empty file mid-write, so the worst case is a redundant
+	 * reconciliation rather than dropping the server list.
 	 */
 	private lastConnectionFingerprint?: string
 
@@ -171,19 +167,16 @@ export class McpHub {
 	}
 
 	/**
-	 * Atomically write the MCP settings file (temp-file + rename).
+	 * Atomically write the MCP settings file via a temp file + rename.
 	 *
 	 * Rename is atomic on POSIX and NTFS, so any reader — this window's watcher,
 	 * another window, or the CLI — always observes either the complete old file
-	 * or the complete new file, never a half-written/empty one. This is the real
-	 * fix for CLINE-2097 (deleting one server emptied the list), which was caused
-	 * by chokidar reading a transient empty file mid-write and concluding "0
-	 * servers". It does NOT rely on suppressing our own watcher, so it holds for
-	 * any number of concurrent writers.
+	 * or the complete new file, never a half-written or empty one. This holds for
+	 * any number of concurrent writers without coordinating between them.
 	 *
-	 * The optional `servers` argument records the post-write connection
-	 * fingerprint, so the watcher's "change" event for this very write is a
-	 * recognized no-op. Pass the same `mcpServers` map that was written.
+	 * When `servers` is provided it records the post-write connection
+	 * fingerprint, so the watcher's "change" event for this write reconciles to a
+	 * no-op. Pass the same `mcpServers` map that was written.
 	 */
 	async writeSettingsFile(settingsPath: string, contents: string, servers?: Record<string, McpServerConfig>): Promise<void> {
 		const dir = path.dirname(settingsPath)
@@ -196,9 +189,6 @@ export class McpHub {
 			await fs.unlink(tempPath).catch(() => {})
 			throw error
 		}
-		// Pre-seed the fingerprint so our own write's watcher event is ignored.
-		// Any genuinely different concurrent write still has a different
-		// fingerprint and is processed normally.
 		if (servers) {
 			this.lastConnectionFingerprint = this.computeConnectionFingerprint(servers)
 		}
@@ -312,14 +302,13 @@ export class McpHub {
 		this.settingsWatcher.on("change", async () => {
 			const settings = await this.readAndValidateMcpSettingsFile()
 			if (settings) {
-				// Single, process-agnostic gate: skip when nothing connection-relevant
-				// changed. This covers BOTH our own writes (the fingerprint was
-				// pre-seeded by writeSettingsFile) and OAuth-handshake churn from the
-				// SDK (codeVerifier/clientInformation rewrites on every connect attempt
-				// for unauthenticated servers — which would otherwise livelock the
-				// watcher). A write from the CLI or another window that genuinely
-				// changes a server, or a token appearing/disappearing, produces a
-				// different fingerprint and is processed normally.
+				// Skip when nothing connection-relevant changed. This covers our own
+				// writes (writeSettingsFile pre-seeds the fingerprint) as well as
+				// OAuth-handshake churn from the SDK (codeVerifier/clientInformation
+				// rewrites on every connect attempt for unauthenticated servers). A
+				// write from the CLI or another window that genuinely changes a
+				// server, or a token appearing/disappearing, produces a different
+				// fingerprint and is processed normally.
 				const fingerprint = this.computeConnectionFingerprint(settings.mcpServers as Record<string, McpServerConfig>)
 				if (fingerprint === this.lastConnectionFingerprint) {
 					return
@@ -1084,11 +1073,11 @@ export class McpHub {
 	 */
 	private configsRequireRestart(oldConfig: McpServerConfig, newConfig: McpServerConfig): boolean {
 		// Exclude Cline-specific settings from comparison (add new ones here).
-		// `oauth` and `metadata` are also excluded: OAuth token saves/refreshes
-		// rewrite the server's oauth block in the settings file (from this
-		// process, the CLI, or another window), and restarting the server on
-		// every token refresh would cause reconnect loops. Token pickup is
-		// handled separately (see updateServerConnections).
+		// `oauth` and `metadata` are also excluded: the server's oauth block is
+		// rewritten on every token save/refresh (by this process, the CLI, or
+		// another window), and restarting on each refresh would churn the
+		// connection. Token changes are picked up separately, by
+		// serverGainedOAuthTokens in updateServerConnections.
 		const {
 			autoApprove: _oldAutoApprove,
 			timeout: _oldTimeout,
@@ -1109,9 +1098,9 @@ export class McpHub {
 	}
 
 	/**
-	 * True when a server that previously failed auth now has an access token in
-	 * its settings entry — i.e., the CLI or another window completed OAuth for
-	 * it. Used by the settings watcher to reconnect such servers.
+	 * True when an unauthenticated server's settings entry now carries an access
+	 * token — e.g. the CLI or another window completed OAuth for it. The settings
+	 * watcher uses this to reconnect the server so it picks up the credentials.
 	 */
 	private serverGainedOAuthTokens(connection: McpConnection, newConfig: McpServerConfig): boolean {
 		if (connection.server.oauthAuthStatus !== "unauthenticated") {
@@ -1123,15 +1112,15 @@ export class McpHub {
 
 	/**
 	 * Builds a fingerprint of only the parts of the settings file that affect
-	 * how we manage connections. Used by the settings watcher to ignore writes
-	 * that merely churn OAuth-handshake state (codeVerifier, clientInformation,
-	 * discoveryState, lastError) — which the MCP SDK rewrites on every connect
-	 * attempt and would otherwise livelock the watcher (see lastConnectionFingerprint).
+	 * how connections are managed (see lastConnectionFingerprint). Per server it
+	 * captures the full config minus the `oauth` block, plus a single boolean for
+	 * whether a usable access token exists.
 	 *
-	 * Per server it captures: the full config MINUS the oauth block, plus a
-	 * single boolean for whether a usable access token exists. The boolean is
-	 * what lets a CLI/other-window authorization (token appears or disappears)
-	 * still wake the watcher, while verifier/nonce churn does not.
+	 * Excluding the rest of the `oauth` block means OAuth-handshake churn
+	 * (codeVerifier, clientInformation, discoveryState, lastError), which the MCP
+	 * SDK rewrites on every connect attempt, does not change the fingerprint. The
+	 * access-token boolean is included so that an authorization completing
+	 * elsewhere (token appears or disappears) does change it.
 	 */
 	private computeConnectionFingerprint(mcpServers: Record<string, McpServerConfig>): string {
 		const normalized: Record<string, unknown> = {}
@@ -1315,19 +1304,17 @@ export class McpHub {
 				config.mcpServers as Record<string, McpServerConfig>,
 			)
 
-			// Rebuild the connection so the toggle actually takes effect: a disabled
-			// server's connection has no live transport/client, so simply flipping
-			// the flag would leave a re-enabled server stuck "connecting" and never
-			// advertised to the agent. Tearing down and reconnecting routes through
-			// connectToServer(), which either opens a real transport (enabled) or
-			// creates a disconnected stub (disabled). OAuth state is preserved
-			// (deleteConnection doesn't clear it).
+			// Rebuild the connection so the toggle takes effect. A disabled
+			// server's connection is a stub with no live transport/client, so the
+			// toggle must route through connectToServer(), which opens a real
+			// transport when enabled or creates a disconnected stub when disabled.
+			// deleteConnection preserves OAuth state.
 			const newConfig = config.mcpServers[serverName] as McpServerConfig
 			await this.deleteConnection(serverName)
 			await this.connectToServer(serverName, newConfig, "rpc")
 
-			// Notify the webview so the SDK session's tool list is refreshed to
-			// reflect the server appearing/disappearing.
+			// Refresh the SDK session's tool list to reflect the server
+			// appearing or disappearing.
 			await this.notifyWebviewOfServerChanges()
 
 			const serverOrder = Object.keys(config.mcpServers || {})
@@ -1852,15 +1839,13 @@ export class McpHub {
 	 * Runs the complete OAuth flow for a server when the user clicks
 	 * "Authenticate".
 	 *
-	 * The interactive flow is HTTP-based token collection (same as the CLI):
-	 * a local loopback callback server is bound, the browser is opened to the
-	 * authorization URL, and the code is exchanged in-process with state
-	 * validated against the just-generated value. Tokens land in the shared
-	 * MCP settings file, so the CLI and other windows see them immediately.
-	 *
-	 * On success the connection is restarted so the transport picks up the
-	 * fresh tokens. There is no separate completeOAuth step anymore — the
-	 * vscode:// URI callback path is gone.
+	 * The interactive flow is HTTP-based token collection (the same flow the CLI
+	 * uses): a local loopback callback server is bound, the browser is opened to
+	 * the authorization URL, and the code is exchanged in-process with the OAuth
+	 * state validated against the value generated for this flow. Tokens are
+	 * written to the shared MCP settings file, so the CLI and other windows see
+	 * them immediately. On success the connection is restarted so the transport
+	 * picks up the fresh tokens.
 	 */
 	async initiateOAuth(serverName: string): Promise<void> {
 		const connection = this.connections.find((conn) => conn.server.name === serverName)

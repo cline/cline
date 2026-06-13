@@ -143,15 +143,14 @@ describe("McpHub.deleteServerRPC", () => {
 	it("writes atomically (temp file + rename), never truncating the real file", async () => {
 		await writeSettings({ alpha: { type: "stdio", command: "a" }, beta: { type: "stdio", command: "b" } })
 
-		// A reader at any point during the operation must never observe the real
-		// settings file in a truncated/empty state — that torn read is what
-		// emptied the server list in CLINE-2097. settingsLock.ts writes
-		// synchronously via node:fs: it writes the new contents to a temp file,
-		// then renames that temp file onto the real settings path. So
-		// writeFileSync must only ever target a path other than the settings
-		// file, and the real path only changes via renameSync. Wrap the
-		// module-level node:fs spies (mock.module) — the write goes through
-		// node:fs, not fs/promises.
+		// A reader must never observe the real settings file in a truncated or
+		// empty state, since a client that reads it mid-write could conclude
+		// there are no servers. settingsLock.ts writes synchronously via node:fs:
+		// it writes the new contents to a temp file, then renames that temp file
+		// onto the real settings path. So writeFileSync must only ever target a
+		// path other than the settings file, and the real path only changes via
+		// renameSync. Wrap the module-level node:fs spies (mock.module) — the
+		// write goes through node:fs, not fs/promises.
 		const writeSyncTargets: string[] = []
 		writeFileSyncSpy.callsFake((...args: unknown[]) => {
 			writeSyncTargets.push(String(args[0]))

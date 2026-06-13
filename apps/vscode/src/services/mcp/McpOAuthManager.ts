@@ -1,31 +1,20 @@
-// Replaces the legacy secrets-blob OAuth storage (see origin/main McpOAuthManager).
-//
-// MCP OAuth state now lives in the SHARED MCP settings file
+// MCP OAuth state is stored in the shared MCP settings file
 // (~/.cline/data/settings/cline_mcp_settings.json) under each server's `oauth`
-// key, in exactly the format @cline/core (CLI, JetBrains) reads and writes:
+// key, in the format @cline/core (CLI, JetBrains) reads and writes:
 //
 //   { "mcpServers": { "linear": { "transport": {...}, "oauth": { "tokens": {...}, ... } } } }
 //
-// Why the old design failed (CLINE-2304 / ENG-2108):
-//  - Tokens were stored in a single `mcpOAuthSecrets` JSON blob in secrets.json,
-//    keyed by sha256(name:url). The CLI never read or wrote that blob, so CLI
-//    authorization was invisible to VSCode and vice versa.
-//  - Every provider callback did "read whole blob → mutate → write whole blob"
-//    through StateManager, whose in-memory cache never re-reads disk. With two
-//    extension windows (or CLI + extension) open, one process clobbered the
-//    other's freshly saved tokens with a stale snapshot.
-//
-// The new design:
-//  - Single source of truth: the per-server `oauth` block in the settings file.
-//  - All writes are scoped read-modify-write of ONE server's oauth key via
-//    @cline/core's updateMcpServerOAuthState (re-reads the file on every write,
-//    atomic temp+rename), so concurrent writers from other processes never
-//    clobber other servers or the whole file.
-//  - Reads are fresh from disk, so tokens authorized by the CLI or another
-//    window are picked up without restarting.
-//  - The interactive flow is HTTP-based token collection via @cline/core's
-//    authorizeMcpServerOAuth (local loopback callback server), the same flow
-//    the CLI uses. The vscode:// URI callback path is gone.
+// This shared file is the single source of truth, which keeps the extension,
+// the CLI, and multiple extension windows interoperable:
+//  - Writes are a scoped read-modify-write of ONE server's `oauth` key via
+//    @cline/core's updateMcpServerOAuthState, which re-reads the file on every
+//    write and replaces it atomically (temp + rename). Concurrent writers from
+//    other processes therefore never clobber other servers or the whole file.
+//  - Reads come fresh from disk, so a token authorized by the CLI or another
+//    window is picked up without restarting.
+//  - The interactive authorization flow is HTTP-based token collection via
+//    @cline/core's authorizeMcpServerOAuth, which binds a local loopback
+//    callback server — the same flow the CLI uses.
 
 import {
 	authorizeMcpServerOAuth,
@@ -230,8 +219,8 @@ export class McpOAuthManager {
 		if (existing) {
 			return existing
 		}
-		// Migrate any tokens stored by the previous secrets-blob implementation
-		// before the first read against the shared file.
+		// Import tokens from the legacy `mcpOAuthSecrets` store into the shared
+		// settings file before the first read, if any are present.
 		await this.migrateLegacySecrets(serverName, serverUrl)
 		const provider = new ClineOAuthClientProvider(serverName, await this.getSettingsPath())
 		this.providers.set(key, provider)
