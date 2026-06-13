@@ -75,14 +75,10 @@ export class SdkMcpCoordinator {
 
 		Logger.log(`[SdkController] Restarting session ${oldSessionId} for MCP tool changes`)
 
-		const infoMessage: ClineMessage = {
-			ts: Date.now(),
-			type: "say",
-			say: "info",
-			text: "MCP tools changed - reloading tools for this session...",
-			partial: false,
-		}
-		this.options.messages.appendAndEmit([infoMessage], {
+		// Reloading tools is a silent, behind-the-scenes operation — it should
+		// "just work" without spamming the chat. Emit only the status transition
+		// (no chat message), so toggling several servers doesn't pile up notices.
+		this.options.messages.emitSessionEvents([], {
 			type: "status",
 			payload: { sessionId: oldSessionId, status: "running" },
 		})
@@ -112,21 +108,9 @@ export class SdkMcpCoordinator {
 				)
 			}
 
-			const successMessage: ClineMessage = {
-				ts: Date.now(),
-				type: "say",
-				say: "info",
-				text: "MCP tools reloaded successfully. You can continue your conversation.",
-				partial: false,
-			}
-			const completionAsk: ClineMessage = {
-				ts: successMessage.ts + 1,
-				type: "ask",
-				ask: "completion_result",
-				text: "",
-				partial: false,
-			}
-			this.options.messages.appendAndEmit([successMessage, completionAsk], {
+			// Silently return the session to idle — no "reloaded successfully"
+			// chat message or completion banner. The reload is transparent.
+			this.options.messages.emitSessionEvents([], {
 				type: "status",
 				payload: { sessionId: startResult.sessionId, status: "idle" },
 			})

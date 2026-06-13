@@ -44,16 +44,12 @@ describe("SdkMcpCoordinator", () => {
 		coordinator.handleToolListChanged()
 
 		await vi.waitFor(() => expect(options.sessions.replaceActiveSession).toHaveBeenCalledOnce())
-		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
-			[
-				expect.objectContaining({
-					type: "say",
-					say: "info",
-					text: "MCP tools changed - reloading tools for this session...",
-				}),
-			],
-			{ type: "status", payload: { sessionId: "old-session", status: "running" } },
-		)
+		// Reloading tools is silent: only a status transition is emitted, no chat message.
+		expect(options.messages.emitSessionEvents).toHaveBeenCalledWith([], {
+			type: "status",
+			payload: { sessionId: "old-session", status: "running" },
+		})
+		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
 	})
 
 	it("rebuilds the active session with the current mode and preserved messages", async () => {
@@ -73,17 +69,13 @@ describe("SdkMcpCoordinator", () => {
 			initialMessages: [{ role: "user", content: "hello" }],
 			disposeReason: "mcpToolRestart",
 		})
-		expect(options.messages.appendAndEmit).toHaveBeenLastCalledWith(
-			[
-				expect.objectContaining({
-					type: "say",
-					say: "info",
-					text: "MCP tools reloaded successfully. You can continue your conversation.",
-				}),
-				expect.objectContaining({ type: "ask", ask: "completion_result" }),
-			],
-			{ type: "status", payload: { sessionId: "new-session", status: "idle" } },
-		)
+		// Success is silent: only a status transition back to idle, no chat
+		// message or completion banner.
+		expect(options.messages.emitSessionEvents).toHaveBeenCalledWith([], {
+			type: "status",
+			payload: { sessionId: "new-session", status: "idle" },
+		})
+		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()
 	})
 
@@ -128,6 +120,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		},
 		messages: {
 			appendAndEmit: vi.fn(),
+			emitSessionEvents: vi.fn(),
 		},
 		sessionConfigBuilder: {
 			build: vi.fn().mockResolvedValue(config),
@@ -142,7 +135,10 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 			getActiveSession: ReturnType<typeof vi.fn>
 			replaceActiveSession: ReturnType<typeof vi.fn>
 		}
-		messages: SdkMcpCoordinatorOptions["messages"] & { appendAndEmit: ReturnType<typeof vi.fn> }
+		messages: SdkMcpCoordinatorOptions["messages"] & {
+			appendAndEmit: ReturnType<typeof vi.fn>
+			emitSessionEvents: ReturnType<typeof vi.fn>
+		}
 		sessionConfigBuilder: SdkMcpCoordinatorOptions["sessionConfigBuilder"] & { build: ReturnType<typeof vi.fn> }
 		getWorkspaceRoot: ReturnType<typeof vi.fn>
 		loadInitialMessages: ReturnType<typeof vi.fn>
