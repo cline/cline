@@ -765,6 +765,89 @@ describe("default run_commands tool", () => {
 		]);
 	});
 
+	it("coalesces consecutive split heredoc command arrays independently", async () => {
+		const execute = vi.fn(
+			async (command: string | { command: string }) =>
+				`ran:${typeof command === "string" ? command : command.command}`,
+		);
+		const tool = createBashTool(execute);
+
+		const result = await tool.execute(
+			{
+				commands: [
+					"cat << 'FOO'",
+					"foo body",
+					"FOO",
+					"cat << 'BAR'",
+					"bar body",
+					"BAR",
+				],
+			},
+			{
+				sessionId: "session-consecutive-heredocs",
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		const expectedFirstCommand = "cat << 'FOO'\nfoo body\nFOO";
+		const expectedSecondCommand = "cat << 'BAR'\nbar body\nBAR";
+		expect(execute).toHaveBeenCalledTimes(2);
+		expect(execute).toHaveBeenNthCalledWith(
+			1,
+			expectedFirstCommand,
+			process.cwd(),
+			expect.objectContaining({ sessionId: "session-consecutive-heredocs" }),
+		);
+		expect(execute).toHaveBeenNthCalledWith(
+			2,
+			expectedSecondCommand,
+			process.cwd(),
+			expect.objectContaining({ sessionId: "session-consecutive-heredocs" }),
+		);
+		expect(result).toEqual([
+			expect.objectContaining({
+				query: "cat << 'FOO'\nfoo body\nFOO",
+				result: `ran:${expectedFirstCommand}`,
+			}),
+			expect.objectContaining({
+				query: "cat << 'BAR'\nbar body\nBAR",
+				result: `ran:${expectedSecondCommand}`,
+			}),
+		]);
+	});
+
+	it("does not treat here-strings as split heredocs", async () => {
+		const execute = vi.fn(
+			async (command: string | { command: string }) =>
+				`ran:${typeof command === "string" ? command : command.command}`,
+		);
+		const tool = createBashTool(execute);
+
+		const result = await tool.execute(
+			{ commands: ['wc -c <<< "hello"', "hello"] },
+			{
+				sessionId: "session-here-string",
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		expect(execute).toHaveBeenCalledTimes(2);
+		expect(result).toEqual([
+			expect.objectContaining({
+				query: 'wc -c <<< "hello"',
+				result: 'ran:wc -c <<< "hello"',
+			}),
+			expect.objectContaining({
+				query: "hello",
+				result: "ran:hello",
+			}),
+		]);
+	});
+
 	it("does not coalesce unterminated heredoc command arrays", async () => {
 		const execute = vi.fn(
 			async (command: string | { command: string }) =>

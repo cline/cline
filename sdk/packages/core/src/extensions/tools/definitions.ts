@@ -112,7 +112,7 @@ function captureRunCommandsTimeoutFromContext(
 
 function getHeredocDelimiter(command: string): string | undefined {
 	const match = command.match(
-		/<<-?\s*(?:"([^"]+)"|'([^']+)'|([A-Za-z0-9_./-]+))/,
+		/(?<![<])<<-?\s*(?:"([^"]+)"|'([^']+)'|([A-Za-z0-9_./-]+))/,
 	);
 	return match?.[1] ?? match?.[2] ?? match?.[3];
 }
