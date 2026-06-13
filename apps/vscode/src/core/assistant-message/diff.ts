@@ -133,7 +133,7 @@ function hasPartialLineMismatch(originalContent: string, searchContent: string, 
 				continue
 			}
 
-			if (searchTrimmed && originalTrimmed.includes(searchTrimmed)) {
+			if (searchTrimmed.length > 2 && originalTrimmed.includes(searchTrimmed)) {
 				sawPartialLineMatch = true
 				continue
 			}
@@ -152,7 +152,10 @@ function hasPartialLineMismatch(originalContent: string, searchContent: string, 
 
 function getSearchMismatchError(originalContent: string, searchContent: string, startIndex: number): Error {
 	const trimmedSearchContent = searchContent.trimEnd()
-	if (hasPartialLineMismatch(originalContent, searchContent, startIndex)) {
+	const hasMeaningfulPartialLineMismatch =
+		hasPartialLineMismatch(originalContent, searchContent, startIndex) ||
+		(startIndex > 0 && hasPartialLineMismatch(originalContent, searchContent, 0))
+	if (hasMeaningfulPartialLineMismatch) {
 		return new Error(
 			`The SEARCH block:\n${trimmedSearchContent}\n...only matches part of a longer line in the file. SEARCH/REPLACE blocks require an exact line or span match, including line boundaries.`,
 		)

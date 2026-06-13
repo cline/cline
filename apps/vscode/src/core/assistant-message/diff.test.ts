@@ -22,6 +22,20 @@ async function expectPartialLineMismatch(diff: string, original: string): Promis
 	}
 }
 
+async function expectGenericSearchMismatch(diff: string, original: string): Promise<void> {
+	for (const run of [cnfc, cnfc2]) {
+		try {
+			await run(diff, original, true)
+			expect.fail("Expected an error to be thrown")
+		} catch (err) {
+			expect(err).to.be.an("error")
+			const message = err instanceof Error ? err.message : String(err)
+			expect(message).to.include("does not match anything in the file")
+			expect(message).to.not.include("only matches part of a longer line")
+		}
+	}
+}
+
 describe("constructNewFileContent", () => {
 	const testCases = [
 		{
@@ -287,6 +301,36 @@ replaced
 		].join("\n")
 
 		await expectPartialLineMismatch(diff, original)
+	})
+
+	it("should report partial-line SEARCH mismatch for matches before the current scan index", async () => {
+		const original = [
+			"// Build tree spheres with CONTINUOUS time + live audio (no jerk)",
+			"middle line",
+			"exact target line",
+		].join("\n")
+
+		const diff = [
+			"------- SEARCH",
+			"exact target line",
+			"=======",
+			"exact replacement",
+			"+++++++ REPLACE",
+			"------- SEARCH",
+			"// Build tree spheres",
+			"=======",
+			"partial replacement",
+			"+++++++ REPLACE",
+		].join("\n")
+
+		await expectPartialLineMismatch(diff, original)
+	})
+
+	it("should keep very short substring matches on the generic no-match path", async () => {
+		const original = "const index = value"
+		const diff = ["------- SEARCH", "i", "=======", "replacement", "+++++++ REPLACE"].join("\n")
+
+		await expectGenericSearchMismatch(diff, original)
 	})
 
 	it("should handle missing final REPLACE marker when isFinal is true", async () => {
