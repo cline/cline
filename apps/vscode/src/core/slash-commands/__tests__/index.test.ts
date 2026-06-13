@@ -1,6 +1,7 @@
 import type { McpPromptResponse } from "@shared/mcp"
 import { expect } from "chai"
 import { formatMcpPromptResponse, McpPromptFetcher, parseSlashCommands } from "../index"
+import { reportBugToolResponse, newTaskToolResponse } from "../commands"
 
 describe("slash-commands", () => {
 	describe("formatMcpPromptResponse", () => {
@@ -140,5 +141,42 @@ describe("slash-commands", () => {
 		// Note: Tests for "unknown MCP server", "no fetcher", and "fetcher errors"
 		// are skipped because they require StateManager initialization when falling
 		// through to workflow checking. The core MCP functionality is covered above.
+	})
+
+	describe("reportBugToolResponse", () => {
+		it("should include native tool calling instruction when willUseNativeTools is true", () => {
+			const response = reportBugToolResponse(true)
+			expect(response).to.include("You MUST call the report_bug tool EVEN if it's not in your existing toolset.")
+			expect(response).to.include("<explicit_instructions type=\"report_bug\">")
+		})
+
+		it("should not include native tool calling instruction when willUseNativeTools is false", () => {
+			const response = reportBugToolResponse(false)
+			expect(response).to.not.include("You MUST call the report_bug tool EVEN")
+			expect(response).to.include("<explicit_instructions type=\"report_bug\">")
+		})
+
+		it("should contain all required report_bug fields", () => {
+			const response = reportBugToolResponse(false)
+			expect(response).to.include("title:")
+			expect(response).to.include("what_happened:")
+			expect(response).to.include("steps_to_reproduce:")
+			expect(response).to.include("api_request_output:")
+			expect(response).to.include("additional_context:")
+		})
+	})
+
+	describe("newTaskToolResponse", () => {
+		it("should include native tool calling instruction when willUseNativeTools is true", () => {
+			const response = newTaskToolResponse(true)
+			expect(response).to.include("You MUST call the new_task tool EVEN if it's not in your existing toolset.")
+			expect(response).to.include("<explicit_instructions type=\"new_task\">")
+		})
+
+		it("should not include native tool calling instruction when willUseNativeTools is false", () => {
+			const response = newTaskToolResponse(false)
+			expect(response).to.not.include("You MUST call the new_task tool EVEN")
+			expect(response).to.include("<explicit_instructions type=\"new_task\">")
+		})
 	})
 })
