@@ -119,6 +119,7 @@ const API_HANDLER_SETTINGS_FIELDS = {
 	ollamaApiOptionsCtxNum: { default: undefined as string | undefined },
 	lmStudioBaseUrl: { default: undefined as string | undefined },
 	lmStudioMaxTokens: { default: undefined as string | undefined },
+	lmStudioApiKey: { default: undefined as string | undefined },
 	geminiBaseUrl: { default: undefined as string | undefined },
 	requestyBaseUrl: { default: undefined as string | undefined },
 	fireworksModelMaxCompletionTokens: { default: undefined as number | undefined },
@@ -350,6 +351,7 @@ const SECRETS_KEYS = [
 	"mcpOAuthSecrets",
 	"openai-codex-oauth-credentials", // JSON blob containing OAuth tokens for OpenAI Codex (ChatGPT subscription)
 	"wandbApiKey",
+	"lmStudioApiKey",
 ] as const
 
 // WARNING, these are not ALL of the local state keys in practice. For example, FileContextTracker

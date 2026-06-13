@@ -199,6 +199,7 @@ message ModelsApiSecrets {
   optional string oca_refresh_token = 37;
   optional string minimax_api_key = 38;
   optional string aihubmix_api_key = 39;
+  optional string lm_studio_api_key = 40;
 }
 
 // API configuration options (non-secret settings)
@@ -248,6 +249,7 @@ message ModelsApiOptions {
   optional string aihubmix_base_url = 42;
   optional string aihubmix_app_code = 43;
   optional bool azure_identity = 44;
+  optional string lm_studio_api_key = 45;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;
