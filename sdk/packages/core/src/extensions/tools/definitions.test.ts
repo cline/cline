@@ -8,9 +8,11 @@ import {
 	createBashTool,
 	createDefaultTools,
 	createReadFilesTool,
+	createSearchTool,
 	createSkillsTool,
 	createWindowsShellTool,
 } from "./definitions";
+import { CommandExitError } from "./executors/bash";
 import { RUN_COMMAND_QUERY_PREVIEW_LIMIT, TimeoutError } from "./helpers";
 import { INPUT_ARG_CHAR_LIMIT } from "./schemas";
 import type { SkillsExecutorWithMetadata } from "./types";
@@ -348,6 +350,57 @@ describe("default submit_and_exit tool", () => {
 	});
 });
 
+describe("default search_codebase tool", () => {
+	it("treats a valid search with zero matches as success", async () => {
+		const noResults =
+			"No results found for pattern: missingSymbol\nSearched 3 files.";
+		const execute = vi.fn(async () => noResults);
+		const tool = createSearchTool(execute);
+
+		const result = await tool.execute(
+			{ queries: ["missingSymbol"] },
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		expect(result).toEqual([
+			{
+				query: "missingSymbol",
+				result: noResults,
+				success: true,
+			},
+		]);
+	});
+
+	it("treats executor errors as failures", async () => {
+		const execute = vi.fn(async () => {
+			throw new Error("bad regex");
+		});
+		const tool = createSearchTool(execute);
+
+		const result = await tool.execute(
+			{ queries: ["("] },
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		expect(result).toEqual([
+			{
+				query: "(",
+				result: "",
+				error: "Search failed: bad regex",
+				success: false,
+			},
+		]);
+	});
+});
+
 describe("default apply_patch tool", () => {
 	it("is included only when enabled with an applyPatch executor", () => {
 		const toolsWithoutExecutor = createDefaultTools({
@@ -615,6 +668,34 @@ describe("default run_commands tool", () => {
 				query: "git status --short",
 				result: "ran:git status --short",
 				success: true,
+			},
+		]);
+	});
+
+	it("returns captured output for non-zero command exits", async () => {
+		const execute = vi.fn(async () => {
+			throw new CommandExitError(
+				1,
+				"[Command exited with code 1]\nfailed assertion details",
+			);
+		});
+		const tool = createBashTool(execute);
+
+		const result = await tool.execute(
+			{ commands: ["bun test"] },
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		expect(result).toEqual([
+			{
+				query: "bun test",
+				result: "[Command exited with code 1]\nfailed assertion details",
+				error: "Command exited with code 1",
+				success: false,
 			},
 		]);
 	});

@@ -2,7 +2,6 @@ import {
 	completeClineDeviceAuth,
 	getProviderConfigFields,
 	isOAuthProvider,
-	listLocalProviders,
 	loginLocalProvider,
 	type ProviderConfigFieldKey,
 	type ProviderConfigFieldRequirement,
@@ -22,6 +21,7 @@ import {
 	checkCodexCliInstalled,
 	isOpenAICodexCliProvider,
 } from "../../../utils/codex-cli";
+import { listLocalProviders } from "../../../utils/provider-catalog";
 import { palette } from "../../palette";
 import {
 	getDefaultAwsRegion,

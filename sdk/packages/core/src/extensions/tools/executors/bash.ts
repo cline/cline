@@ -15,6 +15,16 @@ import { TimeoutError } from "../helpers";
 import type { BashExecutor } from "../types";
 import { MAX_COMMAND_OUTPUT_CHARS } from "./output-limits";
 
+export class CommandExitError extends Error {
+	constructor(
+		readonly exitCode: number,
+		readonly output: string,
+	) {
+		super(`Command exited with code ${exitCode}`);
+		this.name = "CommandExitError";
+	}
+}
+
 /**
  * Options for the bash executor
  */
@@ -200,25 +210,39 @@ function spawnAndCollect(
 
 			const out = stdout.snapshot();
 			const err = stderr.snapshot();
-			let output = combineOutput
-				? out.text + (err.text ? `\n[stderr]\n${err.text}` : "")
-				: out.text;
-			const dropped = out.dropped || (combineOutput && err.dropped);
-			if (dropped || output.length > maxOutputBytes) {
+
+			if (code !== 0) {
+				const exitCode = code ?? 1;
+				let failureOutput = combineOutput
+					? out.text + (err.text ? `\n[stderr]\n${err.text}` : "")
+					: out.text;
+				const dropped = out.dropped || (combineOutput && err.dropped);
 				const totalChars = combineOutput
 					? out.totalChars + err.totalChars
 					: out.totalChars;
-				output = truncateMiddle(output, maxOutputBytes, totalChars);
-			}
-
-			if (code !== 0) {
-				const stderrText = err.dropped
-					? truncateMiddle(err.text, maxOutputBytes, err.totalChars)
-					: err.text;
-				settle(() =>
-					reject(new Error(stderrText || `Command exited with code ${code}`)),
-				);
+				if (dropped || failureOutput.length > maxOutputBytes) {
+					failureOutput = truncateMiddle(
+						failureOutput,
+						maxOutputBytes,
+						totalChars,
+					);
+				}
+				const result =
+					failureOutput.length > 0
+						? `[Command exited with code ${exitCode}]\n${failureOutput}`
+						: `[Command exited with code ${exitCode}]`;
+				settle(() => reject(new CommandExitError(exitCode, result)));
 			} else {
+				let output = combineOutput
+					? out.text + (err.text ? `\n[stderr]\n${err.text}` : "")
+					: out.text;
+				const dropped = out.dropped || (combineOutput && err.dropped);
+				if (dropped || output.length > maxOutputBytes) {
+					const totalChars = combineOutput
+						? out.totalChars + err.totalChars
+						: out.totalChars;
+					output = truncateMiddle(output, maxOutputBytes, totalChars);
+				}
 				settle(() => resolve(output));
 			}
 		});

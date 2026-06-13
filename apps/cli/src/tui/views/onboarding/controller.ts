@@ -2,7 +2,6 @@ import {
 	captureProviderConfigured,
 	getLocalProviderModels,
 	getProviderConfigFields,
-	listLocalProviders,
 	type ProviderConfigFieldKey,
 	type ProviderConfigFields,
 	ProviderSettingsManager,
@@ -17,6 +16,7 @@ import {
 	isOpenAICodexCliProvider,
 } from "../../../utils/codex-cli";
 import { getPersistedProviderApiKey } from "../../../utils/provider-auth";
+import { listLocalProviders } from "../../../utils/provider-catalog";
 import { getCliTelemetryService } from "../../../utils/telemetry";
 import {
 	buildClineModelEntries,

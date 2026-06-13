@@ -921,6 +921,7 @@ function App(props: TuiProps) {
 					if (result.reasoningEffort !== undefined) {
 						props.config.reasoningEffort = result.reasoningEffort;
 					}
+
 					handleModelChange().then(() => setAppView("home"));
 				}}
 				onExit={() => {
