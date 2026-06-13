@@ -179,7 +179,6 @@ async function runProviderChange(
 
 			config.providerId = newProviderId;
 			config.apiKey = newApiKey;
-
 			const resolved = await resolveProviderConfig(
 				newProviderId,
 				{
