@@ -249,7 +249,6 @@ message ModelsApiOptions {
   optional string aihubmix_base_url = 42;
   optional string aihubmix_app_code = 43;
   optional bool azure_identity = 44;
-  optional string lm_studio_api_key = 45;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;
@@ -602,6 +601,7 @@ message ModelsApiConfiguration {
   optional string nous_research_api_key = 85;
   optional bool azure_identity = 86;
   optional string wandb_api_key = 87;
+  optional string lm_studio_api_key = 88;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;
