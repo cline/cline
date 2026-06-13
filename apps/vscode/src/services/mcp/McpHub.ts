@@ -1294,37 +1294,44 @@ export class McpHub {
 	// Public methods for server management
 
 	public async toggleServerDisabledRPC(serverName: string, disabled: boolean): Promise<McpServer[]> {
+		this.isConnecting = true
 		try {
 			const config = await this.readAndValidateMcpSettingsFile()
 			if (!config) {
 				throw new Error("Failed to read or validate MCP settings")
 			}
 
-			if (config.mcpServers[serverName]) {
-				config.mcpServers[serverName].disabled = disabled
-
-				const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
-				await this.writeSettingsFile(
-					settingsPath,
-					JSON.stringify(config, null, 2),
-					config.mcpServers as Record<string, McpServerConfig>,
-				)
-
-				const connection = this.connections.find((conn) => conn.server.name === serverName)
-				if (connection) {
-					connection.server.disabled = disabled
-					// When enabling a server, set status to "connecting" so UI shows yellow indicator
-					if (!disabled) {
-						connection.server.status = "connecting"
-						connection.server.error = ""
-					}
-				}
-
-				const serverOrder = Object.keys(config.mcpServers || {})
-				return this.getSortedMcpServers(serverOrder)
+			if (!config.mcpServers[serverName]) {
+				Logger.error(`Server "${serverName}" not found in MCP configuration`)
+				throw new Error(`Server "${serverName}" not found in MCP configuration`)
 			}
-			Logger.error(`Server "${serverName}" not found in MCP configuration`)
-			throw new Error(`Server "${serverName}" not found in MCP configuration`)
+
+			config.mcpServers[serverName].disabled = disabled
+
+			const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
+			await this.writeSettingsFile(
+				settingsPath,
+				JSON.stringify(config, null, 2),
+				config.mcpServers as Record<string, McpServerConfig>,
+			)
+
+			// Rebuild the connection so the toggle actually takes effect: a disabled
+			// server's connection has no live transport/client, so simply flipping
+			// the flag would leave a re-enabled server stuck "connecting" and never
+			// advertised to the agent. Tearing down and reconnecting routes through
+			// connectToServer(), which either opens a real transport (enabled) or
+			// creates a disconnected stub (disabled). OAuth state is preserved
+			// (deleteConnection doesn't clear it).
+			const newConfig = config.mcpServers[serverName] as McpServerConfig
+			await this.deleteConnection(serverName)
+			await this.connectToServer(serverName, newConfig, "rpc")
+
+			// Notify the webview so the SDK session's tool list is refreshed to
+			// reflect the server appearing/disappearing.
+			await this.notifyWebviewOfServerChanges()
+
+			const serverOrder = Object.keys(config.mcpServers || {})
+			return this.getSortedMcpServers(serverOrder)
 		} catch (error) {
 			Logger.error("Failed to update server disabled state:", error)
 			if (error instanceof Error) {
@@ -1335,6 +1342,8 @@ export class McpHub {
 				message: `Failed to update server state: ${error instanceof Error ? error.message : String(error)}`,
 			})
 			throw error
+		} finally {
+			this.isConnecting = false
 		}
 	}
 
