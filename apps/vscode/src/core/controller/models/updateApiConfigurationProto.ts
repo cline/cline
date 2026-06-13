@@ -181,9 +181,10 @@ export async function updateApiConfigurationProto(
 				| undefined,
 		};
 
+		const previousApiConfiguration = controller.stateManager.getApiConfiguration()
 		const normalizedApiConfiguration = normalizeProviderSwitchModel(
 			controller.getProviderConfigStore(),
-			controller.stateManager.getApiConfiguration(),
+			previousApiConfiguration,
 			convertedApiConfigurationFromProto,
 		)
 
@@ -200,6 +201,7 @@ export async function updateApiConfigurationProto(
 			const modelId = resolveActiveModelIdFromApiConfiguration(normalizedApiConfiguration, currentMode)
 			controller.task.api = createTaskApiModelShim(modelId)
 		}
+		controller.handleApiConfigurationChanged(previousApiConfiguration, normalizedApiConfiguration)
 
 		// Post updated state to webview
 		await controller.postStateToWebview();
