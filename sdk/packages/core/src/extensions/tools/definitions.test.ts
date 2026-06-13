@@ -741,6 +741,97 @@ describe("default run_commands tool", () => {
 		]);
 	});
 
+	it("coalesces split heredocs while preserving surrounding command order", async () => {
+		const execute = vi.fn(
+			async (command: string | { command: string }) =>
+				`ran:${typeof command === "string" ? command : command.command}`,
+		);
+		const tool = createBashTool(execute);
+
+		const result = await tool.execute(
+			{
+				commands: [
+					"pwd",
+					"python3 << 'PYEOF'",
+					"print('ok')",
+					"PYEOF",
+					"ls /app",
+				],
+			},
+			{
+				sessionId: "session-surrounding-heredoc",
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		const expectedCommand = "python3 << 'PYEOF'\nprint('ok')\nPYEOF";
+		expect(execute).toHaveBeenCalledTimes(3);
+		expect(execute).toHaveBeenNthCalledWith(
+			1,
+			"pwd",
+			process.cwd(),
+			expect.objectContaining({ sessionId: "session-surrounding-heredoc" }),
+		);
+		expect(execute).toHaveBeenNthCalledWith(
+			2,
+			expectedCommand,
+			process.cwd(),
+			expect.objectContaining({ sessionId: "session-surrounding-heredoc" }),
+		);
+		expect(execute).toHaveBeenNthCalledWith(
+			3,
+			"ls /app",
+			process.cwd(),
+			expect.objectContaining({ sessionId: "session-surrounding-heredoc" }),
+		);
+		expect(result).toEqual([
+			expect.objectContaining({ query: "pwd", result: "ran:pwd" }),
+			expect.objectContaining({
+				query: expectedCommand,
+				result: `ran:${expectedCommand}`,
+			}),
+			expect.objectContaining({ query: "ls /app", result: "ran:ls /app" }),
+		]);
+	});
+
+	it("coalesces split tab-stripping heredocs", async () => {
+		const execute = vi.fn(
+			async (command: string | { command: string }) =>
+				`ran:${typeof command === "string" ? command : command.command}`,
+		);
+		const tool = createBashTool(execute);
+
+		const result = await tool.execute(
+			{
+				commands: ["cat <<- EOF", "\tindented body", "EOF"],
+			},
+			{
+				sessionId: "session-tab-stripping-heredoc",
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		const expectedCommand = "cat <<- EOF\n\tindented body\nEOF";
+		expect(execute).toHaveBeenCalledTimes(1);
+		expect(execute).toHaveBeenCalledWith(
+			expectedCommand,
+			process.cwd(),
+			expect.objectContaining({
+				sessionId: "session-tab-stripping-heredoc",
+			}),
+		);
+		expect(result).toEqual([
+			expect.objectContaining({
+				query: expectedCommand,
+				result: `ran:${expectedCommand}`,
+			}),
+		]);
+	});
+
 	it("does not coalesce independent command arrays", async () => {
 		const execute = vi.fn(
 			async (command: string | { command: string }) =>
