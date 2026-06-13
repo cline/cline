@@ -25,6 +25,24 @@ mock.module("@/core/storage/disk", diskMock)
 mock.module("fs/promises", fsPromisesMock)
 mock.module("node:fs/promises", fsPromisesMock)
 
+// The settings write goes through settingsLock.ts, which writes the file with
+// synchronous `node:fs` (temp file + rename), not `fs/promises`. Wrap
+// writeFileSync/renameSync at the module level so a test can observe that the
+// real settings path is only ever produced by an atomic rename — never written
+// in place. Both default to the real implementation so the lock and the write
+// still hit disk.
+const actualNodeFs = await import("node:fs")
+// Capture the genuine sync writers as values BEFORE mock.module overrides
+// `node:fs`, so the pass-through spies do not recurse into themselves.
+const realWriteFileSync = actualNodeFs.writeFileSync
+const realRenameSync = actualNodeFs.renameSync
+const writeFileSyncSpy: sinon.SinonStub = sinon.stub()
+const renameSyncSpy: sinon.SinonStub = sinon.stub()
+const nodeFsNamespace = { ...actualNodeFs, writeFileSync: writeFileSyncSpy, renameSync: renameSyncSpy }
+const nodeFsMock = () => ({ ...nodeFsNamespace, default: nodeFsNamespace })
+mock.module("fs", nodeFsMock)
+mock.module("node:fs", nodeFsMock)
+
 import { McpHub } from "../McpHub"
 
 // Regression tests for McpHub.deleteServerRPC(): deleting one server must not
@@ -71,10 +89,16 @@ describe("McpHub.deleteServerRPC", () => {
 		// it to observe behavior.
 		writeFileStub.reset()
 		writeFileStub.callsFake((...args: unknown[]) => (realWriteFile as (...a: unknown[]) => Promise<void>)(...args))
+		// node:fs writeFileSync/renameSync default to the real implementation so the
+		// settings lock and atomic write still hit disk; individual tests wrap them
+		// to observe the write path.
+		writeFileSyncSpy.reset()
+		writeFileSyncSpy.callsFake((...args: unknown[]) => (realWriteFileSync as (...a: unknown[]) => void)(...args))
+		renameSyncSpy.reset()
+		renameSyncSpy.callsFake((...args: unknown[]) => (realRenameSync as (...a: unknown[]) => void)(...args))
 
 		hub = Object.create(McpHub.prototype) as McpHub
 		;(hub as any).getSettingsDirectoryPath = async () => tempDir
-		;(hub as any).isUpdatingClineSettings = false
 		;(hub as any).connections = [makeConnection("alpha"), makeConnection("beta")]
 		// clearOAuthForConnection touches the OAuth manager; stub it out.
 		sandbox.stub(hub as any, "clearOAuthForConnection").resolves()
@@ -116,32 +140,57 @@ describe("McpHub.deleteServerRPC", () => {
 		Object.keys(persisted.mcpServers).should.deepEqual(["beta"])
 	})
 
-	it("guards the write with isUpdatingClineSettings so the watcher skips its own event", async () => {
-		const clock = sandbox.useFakeTimers()
+	it("writes atomically (temp file + rename), never truncating the real file", async () => {
 		await writeSettings({ alpha: { type: "stdio", command: "a" }, beta: { type: "stdio", command: "b" } })
 
-		// Capture the flag at the moment the settings file is written. Wrap the
-		// module-level writeFile stub (mock.module) rather than sinon-stubbing the
-		// ESM `fs/promises` namespace, which bun forbids.
-		let flagDuringWrite: boolean | undefined
-		writeFileStub.callsFake((...args: unknown[]) => {
-			flagDuringWrite = (hub as any).isUpdatingClineSettings
-			return (realWriteFile as (...a: unknown[]) => Promise<void>)(...args)
+		// A reader at any point during the operation must never observe the real
+		// settings file in a truncated/empty state — that torn read is what
+		// emptied the server list in CLINE-2097. settingsLock.ts writes
+		// synchronously via node:fs: it writes the new contents to a temp file,
+		// then renames that temp file onto the real settings path. So
+		// writeFileSync must only ever target a path other than the settings
+		// file, and the real path only changes via renameSync. Wrap the
+		// module-level node:fs spies (mock.module) — the write goes through
+		// node:fs, not fs/promises.
+		const writeSyncTargets: string[] = []
+		writeFileSyncSpy.callsFake((...args: unknown[]) => {
+			writeSyncTargets.push(String(args[0]))
+			return (realWriteFileSync as (...a: unknown[]) => void)(...args)
+		})
+		const renameTargets: string[] = []
+		renameSyncSpy.callsFake((...args: unknown[]) => {
+			renameTargets.push(String(args[1]))
+			return (realRenameSync as (...a: unknown[]) => void)(...args)
 		})
 
 		await hub.deleteServerRPC("alpha")
 
-		// True during the write and still true immediately after (cleared on a timer).
-		flagDuringWrite!.should.be.true()
-		;(hub as any).isUpdatingClineSettings.should.be.true()
-
-		// The flag is cleared on a 300ms timer so external edits resume.
-		clock.tick(300)
-		;(hub as any).isUpdatingClineSettings.should.be.false()
+		// Some writeFileSync call produced the new settings, but never in place.
+		writeSyncTargets.length.should.be.greaterThan(0)
+		writeSyncTargets.every((target) => target !== settingsPath).should.be.true()
+		// The real settings path only ever appears as a rename destination.
+		renameTargets.includes(settingsPath).should.be.true()
+		// The final file is complete and correct.
+		const persisted = JSON.parse(await fs.readFile(settingsPath, "utf-8"))
+		Object.keys(persisted.mcpServers).should.deepEqual(["beta"])
 	})
 
-	it("throws and still clears the guard when the server is not found", async () => {
-		const clock = sandbox.useFakeTimers()
+	it("pre-seeds the connection fingerprint so the watcher skips its own write", async () => {
+		await writeSettings({ alpha: { type: "stdio", command: "a" }, beta: { type: "stdio", command: "b" } })
+
+		await hub.deleteServerRPC("alpha")
+
+		// After the write, lastConnectionFingerprint reflects the just-written,
+		// schema-validated content, so the watcher's "change" event for our own
+		// write is a no-op. Read the file back through the same validating reader
+		// the implementation uses so the expected fingerprint includes the schema
+		// defaults (autoApprove, timeout) the impl seeds.
+		const validated = await (hub as any).readAndValidateMcpSettingsFile()
+		const expected = (hub as any).computeConnectionFingerprint(validated.mcpServers)
+		;(hub as any).lastConnectionFingerprint.should.equal(expected)
+	})
+
+	it("throws when the server is not found", async () => {
 		await writeSettings({ beta: { type: "stdio", command: "b" } })
 
 		let threw: Error | undefined
@@ -152,8 +201,5 @@ describe("McpHub.deleteServerRPC", () => {
 		}
 		;(threw === undefined).should.be.false()
 		threw!.message.should.match(/not found in MCP configuration/)
-
-		clock.tick(300)
-		;(hub as any).isUpdatingClineSettings.should.be.false()
 	})
 })

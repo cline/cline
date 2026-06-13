@@ -75,19 +75,13 @@ export async function syncRemoteMcpServersToSettings(
 			}
 		}
 
-		// Set flag to prevent watcher from triggering
+		// Write back atomically. The McpHub settings watcher reconciles via a
+		// content fingerprint, so this write is recognized as a no-op there
+		// (and an atomic temp+rename means no reader ever sees a torn file).
 		if (mcpHub) {
-			mcpHub.setIsUpdatingFromRemoteConfig(true)
-		}
-
-		try {
-			// Write back to file
+			await mcpHub.writeSettingsFile(settingsPath, JSON.stringify(config, null, 2), config.mcpServers)
+		} else {
 			await fs.writeFile(settingsPath, JSON.stringify(config, null, 2))
-		} finally {
-			// Always clear flag, even if write fails
-			if (mcpHub) {
-				mcpHub.setIsUpdatingFromRemoteConfig(false)
-			}
 		}
 	} catch (error) {
 		Logger.error("[RemoteConfig] Failed to sync remote MCP servers:", error)

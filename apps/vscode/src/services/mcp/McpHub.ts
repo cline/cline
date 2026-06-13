@@ -33,6 +33,7 @@ import { secondsToMs } from "@utils/time"
 import chokidar, { type FSWatcher } from "chokidar"
 import deepEqual from "fast-deep-equal"
 import * as fs from "fs/promises"
+import * as path from "path"
 import { nanoid } from "nanoid"
 import ReconnectingEventSource from "reconnecting-eventsource"
 import { z } from "zod"
@@ -59,40 +60,29 @@ export class McpHub {
 	connections: McpConnection[] = []
 	isConnecting = false
 	/**
-	 * Flag to skip file watcher processing when we're updating Cline-specific settings
-	 * (autoApprove, timeout) that don't require an MCP server restart.
-	 *
-	 * The file watcher has a 100ms stabilityThreshold before firing "change" events.
-	 * When we update settings, we set this flag to true, write the file, then clear
-	 * the flag after 300ms. This ensures the flag is still true when the delayed
-	 * file watcher event fires, so we can skip redundant processing.
-	 *
-	 * Timeline:
-	 *   0ms:    flag = true, write file
-	 *   ~100ms: file watcher fires "change" → sees flag=true → skips
-	 *   300ms:  flag = false (ready for external file changes)
-	 */
-	private isUpdatingClineSettings = false
-
-	// Track when remote config is updating to prevent unnecessary watcher triggers
-	private isUpdatingFromRemoteConfig = false
-
-	/**
 	 * Fingerprint of the connection-relevant view of the settings file the last
-	 * time the watcher processed it.
+	 * time the watcher reconciled connections.
 	 *
-	 * OAuth state (codeVerifier, clientInformation, discoveryState, lastError…)
-	 * now lives IN the settings file, and the MCP SDK rewrites it on every
-	 * connection attempt — `saveCodeVerifier()` runs each time we connect an
-	 * unauthenticated server. Those writes trip the settings watcher, which would
-	 * call updateServerConnections() → connectToServer() → another
-	 * saveCodeVerifier() write → watcher fires again, livelocking (especially with
-	 * two+ unauthenticated servers, where each one's churn re-triggers the other).
+	 * This is the SINGLE, process-agnostic mechanism for deciding whether a
+	 * settings-file change needs action — replacing the old timer-based
+	 * `isUpdatingClineSettings`/`isUpdatingFromRemoteConfig` boolean guards.
+	 * Those guards only suppressed THIS window reacting to ITS OWN writes, did
+	 * nothing about the CLI or other windows, and were racy (a shared boolean
+	 * cleared by uncoordinated 300ms timers).
 	 *
-	 * To break the loop, the watcher compares this fingerprint and skips when only
-	 * OAuth-handshake fields changed. The fingerprint intentionally INCLUDES
-	 * whether an access token is present, so a CLI/other-window authorization
-	 * (token appears) still triggers a reconnect via serverGainedOAuthTokens.
+	 * Instead, every settings write (ours, the SDK's OAuth handshake, the CLI's,
+	 * another window's) is reconciled the same way: the watcher recomputes this
+	 * content fingerprint and skips when it's unchanged. Because it's keyed on
+	 * file CONTENT, not on who wrote it:
+	 *   - our own writes that change nothing connection-relevant (e.g. OAuth
+	 *     codeVerifier/clientInformation churn) are no-ops, breaking the livelock;
+	 *   - a write from any OTHER process that does change something is processed;
+	 *   - whether an access token is present is included, so a CLI/other-window
+	 *     authorization still triggers a reconnect via serverGainedOAuthTokens.
+	 *
+	 * Paired with atomic writes (writeSettingsFile), a torn/empty read during a
+	 * concurrent write is impossible, so the worst case is a redundant reconcile,
+	 * never the empty-list data loss of CLINE-2097.
 	 */
 	private lastConnectionFingerprint?: string
 
@@ -181,18 +171,37 @@ export class McpHub {
 	}
 
 	/**
-	 * Sets the flag to indicate remote config is updating
-	 * Used to prevent watcher from triggering on remote config writes
+	 * Atomically write the MCP settings file (temp-file + rename).
+	 *
+	 * Rename is atomic on POSIX and NTFS, so any reader — this window's watcher,
+	 * another window, or the CLI — always observes either the complete old file
+	 * or the complete new file, never a half-written/empty one. This is the real
+	 * fix for CLINE-2097 (deleting one server emptied the list), which was caused
+	 * by chokidar reading a transient empty file mid-write and concluding "0
+	 * servers". It does NOT rely on suppressing our own watcher, so it holds for
+	 * any number of concurrent writers.
+	 *
+	 * The optional `servers` argument records the post-write connection
+	 * fingerprint, so the watcher's "change" event for this very write is a
+	 * recognized no-op. Pass the same `mcpServers` map that was written.
 	 */
-	setIsUpdatingFromRemoteConfig(value: boolean): void {
-		this.isUpdatingFromRemoteConfig = value
-	}
-
-	/**
-	 * Gets whether remote config is currently updating
-	 */
-	getIsUpdatingFromRemoteConfig(): boolean {
-		return this.isUpdatingFromRemoteConfig
+	async writeSettingsFile(settingsPath: string, contents: string, servers?: Record<string, McpServerConfig>): Promise<void> {
+		const dir = path.dirname(settingsPath)
+		await fs.mkdir(dir, { recursive: true })
+		const tempPath = `${settingsPath}.tmp.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}`
+		try {
+			await fs.writeFile(tempPath, contents, { encoding: "utf-8", flag: "wx" })
+			await fs.rename(tempPath, settingsPath)
+		} catch (error) {
+			await fs.unlink(tempPath).catch(() => {})
+			throw error
+		}
+		// Pre-seed the fingerprint so our own write's watcher event is ignored.
+		// Any genuinely different concurrent write still has a different
+		// fingerprint and is processed normally.
+		if (servers) {
+			this.lastConnectionFingerprint = this.computeConnectionFingerprint(servers)
+		}
 	}
 
 	private async readAndValidateMcpSettingsFile(): Promise<z.infer<typeof McpSettingsSchema> | undefined> {
@@ -301,24 +310,16 @@ export class McpHub {
 		})
 
 		this.settingsWatcher.on("change", async () => {
-			// Skip if remote config is currently updating to prevent unnecessary reconnections
-			if (this.isUpdatingFromRemoteConfig) {
-				return
-			}
-			// Skip processing if we're updating Cline-specific settings (autoApprove, timeout)
-			if (this.isUpdatingClineSettings) {
-				return
-			}
-
 			const settings = await this.readAndValidateMcpSettingsFile()
 			if (settings) {
-				// Ignore writes that only churn OAuth-handshake state. The MCP SDK
-				// rewrites codeVerifier/clientInformation on every connect attempt
-				// for unauthenticated servers; without this guard those writes would
-				// re-enter updateServerConnections() → connectToServer() → another
-				// write, livelocking (worse with multiple unauthenticated servers).
-				// A token appearing/disappearing DOES change the fingerprint, so CLI
-				// or other-window authorization still triggers a reconnect.
+				// Single, process-agnostic gate: skip when nothing connection-relevant
+				// changed. This covers BOTH our own writes (the fingerprint was
+				// pre-seeded by writeSettingsFile) and OAuth-handshake churn from the
+				// SDK (codeVerifier/clientInformation rewrites on every connect attempt
+				// for unauthenticated servers — which would otherwise livelock the
+				// watcher). A write from the CLI or another window that genuinely
+				// changes a server, or a token appearing/disappearing, produces a
+				// different fingerprint and is processed normally.
 				const fingerprint = this.computeConnectionFingerprint(settings.mcpServers as Record<string, McpServerConfig>)
 				if (fingerprint === this.lastConnectionFingerprint) {
 					return
@@ -343,10 +344,14 @@ export class McpHub {
 							}
 						}
 						if (fileNeedsUpdate) {
-							this.isUpdatingFromRemoteConfig = true
 							const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
-							await fs.writeFile(settingsPath, JSON.stringify({ mcpServers: settings.mcpServers }, null, 2))
-							this.isUpdatingFromRemoteConfig = false
+							// Atomic write; pre-seeds the fingerprint so this write's own
+							// watcher event is recognized as a no-op.
+							await this.writeSettingsFile(
+								settingsPath,
+								JSON.stringify({ mcpServers: settings.mcpServers }, null, 2),
+								settings.mcpServers as Record<string, McpServerConfig>,
+							)
 						}
 					}
 					await this.updateServerConnections(settings.mcpServers)
@@ -1072,7 +1077,8 @@ export class McpHub {
 	 * ## Adding new Cline-specific settings:
 	 * When adding a new setting that doesn't require server restart:
 	 * 1. Add it to the destructuring below to exclude from comparison
-	 * 2. Add it to `isUpdatingClineSettings` flag usage in the update function
+	 * 2. Add it to computeConnectionFingerprint() if a change to it should (or
+	 *    should not) wake the settings watcher
 	 * 3. Update in-memory state (e.g., `connection.server.config`) in the update function
 	 * 4. Update the schema in `src/services/mcp/schemas.ts` if needed
 	 */
@@ -1298,7 +1304,11 @@ export class McpHub {
 				config.mcpServers[serverName].disabled = disabled
 
 				const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
-				await fs.writeFile(settingsPath, JSON.stringify(config, null, 2))
+				await this.writeSettingsFile(
+					settingsPath,
+					JSON.stringify(config, null, 2),
+					config.mcpServers as Record<string, McpServerConfig>,
+				)
 
 				const connection = this.connections.find((conn) => conn.server.name === serverName)
 				if (connection) {
@@ -1472,8 +1482,6 @@ export class McpHub {
 	 * @returns Array of updated MCP servers
 	 */
 	async toggleToolAutoApproveRPC(serverName: string, toolNames: string[], shouldAllow: boolean): Promise<McpServer[]> {
-		// Set flag to prevent file watcher from triggering during our update
-		this.isUpdatingClineSettings = true
 		try {
 			const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
 			const content = await fs.readFile(settingsPath, "utf-8")
@@ -1497,7 +1505,7 @@ export class McpHub {
 				}
 			}
 
-			await fs.writeFile(settingsPath, JSON.stringify(config, null, 2))
+			await this.writeSettingsFile(settingsPath, JSON.stringify(config, null, 2), config.mcpServers)
 
 			// Update the tools list to reflect the change
 			const connection = this.connections.find((conn) => conn.server.name === serverName)
@@ -1515,18 +1523,10 @@ export class McpHub {
 		} catch (error) {
 			Logger.error("Failed to update autoApprove settings:", error)
 			throw error // Re-throw to ensure the error is properly handled
-		} finally {
-			// Clear flag after a delay to ensure file watcher event has been processed
-			// The file watcher has a 100ms stabilityThreshold, so we wait a bit longer
-			setTimeout(() => {
-				this.isUpdatingClineSettings = false
-			}, 300)
 		}
 	}
 
 	async toggleToolAutoApprove(serverName: string, toolNames: string[], shouldAllow: boolean): Promise<void> {
-		// Set flag to prevent file watcher from triggering during our update
-		this.isUpdatingClineSettings = true
 		try {
 			const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
 			const content = await fs.readFile(settingsPath, "utf-8")
@@ -1550,7 +1550,7 @@ export class McpHub {
 				}
 			}
 
-			await fs.writeFile(settingsPath, JSON.stringify(config, null, 2))
+			await this.writeSettingsFile(settingsPath, JSON.stringify(config, null, 2), config.mcpServers)
 
 			// Update the tools list to reflect the change
 			const connection = this.connections.find((conn) => conn.server.name === serverName)
@@ -1569,17 +1569,10 @@ export class McpHub {
 				message: "Failed to update autoApprove settings",
 			})
 			throw error // Re-throw to ensure the error is properly handled
-		} finally {
-			// Clear flag after a delay to ensure file watcher event has been processed
-			setTimeout(() => {
-				this.isUpdatingClineSettings = false
-			}, 300)
 		}
 	}
 
 	public async addRemoteServer(serverName: string, serverUrl: string, transportType = "streamableHttp"): Promise<McpServer[]> {
-		// Set flag to prevent file watcher from triggering during our update
-		this.isUpdatingClineSettings = true
 		try {
 			const settings = await this.readAndValidateMcpSettingsFile()
 			if (!settings) {
@@ -1615,15 +1608,11 @@ export class McpHub {
 			// It would be fine if this was written, but we don't want to clutter up the file with internal details
 
 			// ToDo: We could benefit from input / output types reflecting the non-transformed / transformed versions
-			await fs.writeFile(
+			const serversToWrite = { ...settings.mcpServers, [serverName]: serverConfig }
+			await this.writeSettingsFile(
 				settingsPath,
-				JSON.stringify(
-					{
-						mcpServers: { ...settings.mcpServers, [serverName]: serverConfig },
-					},
-					null,
-					2,
-				),
+				JSON.stringify({ mcpServers: serversToWrite }, null, 2),
+				serversToWrite as Record<string, McpServerConfig>,
 			)
 
 			await this.updateServerConnectionsRPC(settings.mcpServers as Record<string, McpServerConfig>)
@@ -1633,11 +1622,6 @@ export class McpHub {
 		} catch (error) {
 			Logger.error("Failed to add remote MCP server:", error)
 			throw error
-		} finally {
-			// Clear flag after a delay to ensure file watcher event has been processed
-			setTimeout(() => {
-				this.isUpdatingClineSettings = false
-			}, 300)
 		}
 	}
 
@@ -1647,8 +1631,6 @@ export class McpHub {
 	 * @returns Array of remaining MCP servers
 	 */
 	public async deleteServerRPC(serverName: string): Promise<McpServer[]> {
-		// Set flag to prevent file watcher from triggering during our update
-		this.isUpdatingClineSettings = true
 		try {
 			// Clear OAuth data BEFORE removing from config (while we still have the connection/URL)
 			await this.clearOAuthForConnection(serverName)
@@ -1665,7 +1647,7 @@ export class McpHub {
 				const updatedConfig = {
 					mcpServers: config.mcpServers,
 				}
-				await fs.writeFile(settingsPath, JSON.stringify(updatedConfig, null, 2))
+				await this.writeSettingsFile(settingsPath, JSON.stringify(updatedConfig, null, 2), config.mcpServers)
 				await this.updateServerConnectionsRPC(config.mcpServers)
 
 				// Get the servers in their correct order from settings
@@ -1676,17 +1658,10 @@ export class McpHub {
 		} catch (error) {
 			Logger.error(`Failed to delete MCP server: ${error instanceof Error ? error.message : String(error)}`)
 			throw error
-		} finally {
-			// Clear flag after a delay to ensure file watcher event has been processed
-			setTimeout(() => {
-				this.isUpdatingClineSettings = false
-			}, 300)
 		}
 	}
 
 	public async updateServerTimeoutRPC(serverName: string, timeout: number): Promise<McpServer[]> {
-		// Set flag to prevent file watcher from triggering during our update
-		this.isUpdatingClineSettings = true
 		try {
 			// Validate timeout against schema
 			const setConfigResult = BaseConfigSchema.shape.timeout.safeParse(timeout)
@@ -1707,7 +1682,7 @@ export class McpHub {
 				timeout,
 			}
 
-			await fs.writeFile(settingsPath, JSON.stringify(config, null, 2))
+			await this.writeSettingsFile(settingsPath, JSON.stringify(config, null, 2), config.mcpServers)
 
 			// Update in-memory config to reflect the new timeout
 			const connection = this.connections.find((conn) => conn.server.name === serverName)
@@ -1729,11 +1704,6 @@ export class McpHub {
 				message: `Failed to update server timeout: ${error instanceof Error ? error.message : String(error)}`,
 			})
 			throw error
-		} finally {
-			// Clear flag after a delay to ensure file watcher event has been processed
-			setTimeout(() => {
-				this.isUpdatingClineSettings = false
-			}, 300)
 		}
 	}
 
