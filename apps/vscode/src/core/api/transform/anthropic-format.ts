@@ -1,5 +1,8 @@
-import { Anthropic } from "@anthropic-ai/sdk"
-import { ClineStorageMessage, convertClineStorageToAnthropicMessage } from "@/shared/messages/content"
+import type { Anthropic } from "@anthropic-ai/sdk";
+import {
+	type ClineStorageMessage,
+	convertClineStorageToAnthropicMessage,
+} from "@/shared/messages/content";
 
 /**
  * Converts Cline storage messages to Anthropic API format with optional cache control.
@@ -21,32 +24,37 @@ export function sanitizeAnthropicMessages(
 	// know the last message to retrieve from the cache for the current request.
 	const userMsgIndices = clineMessages.reduce((acc, msg, index) => {
 		if (msg.role === "user") {
-			acc.push(index)
+			acc.push(index);
 		}
-		return acc
-	}, [] as number[])
+		return acc;
+	}, [] as number[]);
 	// Set to -1 if there are no user messages so the indices are invalid
-	const indicesLength = userMsgIndices.length ?? -1
-	const lastUserMsgIndex = userMsgIndices[indicesLength - 1]
-	const secondLastMsgUserIndex = userMsgIndices[indicesLength - 2]
+	const indicesLength = userMsgIndices.length ?? -1;
+	const lastUserMsgIndex = userMsgIndices[indicesLength - 1];
+	const secondLastMsgUserIndex = userMsgIndices[indicesLength - 2];
 
 	return clineMessages.map((msg, index) => {
-		const anthropicMsg = convertClineStorageToAnthropicMessage(msg)
+		const anthropicMsg = convertClineStorageToAnthropicMessage(msg);
 
 		// Add cache control to the last two user messages
-		if (supportCache && (index === lastUserMsgIndex || index === secondLastMsgUserIndex)) {
-			return addCacheControl(anthropicMsg)
+		if (
+			supportCache &&
+			(index === lastUserMsgIndex || index === secondLastMsgUserIndex)
+		) {
+			return addCacheControl(anthropicMsg);
 		}
 
-		return anthropicMsg
-	})
+		return anthropicMsg;
+	});
 }
 
 const isThinkingBlock = (
 	block: Anthropic.ContentBlockParam,
-): block is Anthropic.Messages.ThinkingBlockParam | Anthropic.Messages.RedactedThinkingBlockParam => {
-	return block.type === "thinking" || block.type === "redacted_thinking"
-}
+): block is
+	| Anthropic.Messages.ThinkingBlockParam
+	| Anthropic.Messages.RedactedThinkingBlockParam => {
+	return block.type === "thinking" || block.type === "redacted_thinking";
+};
 
 /**
  * Adds ephemeral cache control to the last content block of a message.
@@ -55,7 +63,9 @@ const isThinkingBlock = (
  * @param message - The Anthropic message to add cache control to
  * @returns A new message with cache control added to the last content block
  */
-function addCacheControl(message: Anthropic.MessageParam): Anthropic.MessageParam {
+function addCacheControl(
+	message: Anthropic.MessageParam,
+): Anthropic.MessageParam {
 	// Convert string content to array format
 	if (typeof message.content === "string") {
 		return {
@@ -67,24 +77,24 @@ function addCacheControl(message: Anthropic.MessageParam): Anthropic.MessagePara
 					cache_control: { type: "ephemeral" },
 				} satisfies Anthropic.TextBlockParam,
 			],
-		}
+		};
 	}
 
 	// Handle array content - add cache control to the last block
-	const content = [...message.content]
-	const lastIndex = content.length - 1
+	const content = [...message.content];
+	const lastIndex = content.length - 1;
 
 	if (lastIndex >= 0) {
-		const lastBlock = content[lastIndex]
+		const lastBlock = content[lastIndex];
 
 		// Only add cache_control to block types that support it (not ThinkingBlockParam)
 		if (!isThinkingBlock(lastBlock)) {
 			content[lastIndex] = {
 				...lastBlock,
 				cache_control: { type: "ephemeral" },
-			} satisfies Anthropic.ContentBlockParam
+			} satisfies Anthropic.ContentBlockParam;
 		}
 	}
 
-	return { ...message, content }
+	return { ...message, content };
 }

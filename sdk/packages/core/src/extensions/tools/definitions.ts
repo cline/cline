@@ -13,6 +13,7 @@ import {
 } from "@cline/shared";
 import { captureRunCommandsTimeout } from "../../services/telemetry/core-events";
 import { getToolContextTelemetry } from "../../services/telemetry/tool-context";
+import { CommandExitError } from "./executors/bash";
 import {
 	MAX_COMMAND_OUTPUT_CHARS,
 	MAX_READ_LINES,
@@ -336,6 +337,14 @@ export function createBashTool(
 								durationMs: Date.now() - startedAt,
 							});
 						}
+						if (error instanceof CommandExitError) {
+							return {
+								query,
+								result: error.output,
+								error: error.message,
+								success: false,
+							};
+						}
 						const msg = formatError(error);
 						return {
 							query,
@@ -403,6 +412,14 @@ export function createWindowsShellTool(
 								commandCount: commands.length,
 								durationMs: Date.now() - startedAt,
 							});
+						}
+						if (error instanceof CommandExitError) {
+							return {
+								query,
+								result: error.output,
+								error: error.message,
+								success: false,
+							};
 						}
 						const msg = formatError(error);
 						return {

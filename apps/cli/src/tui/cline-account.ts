@@ -22,6 +22,8 @@ export const CLINE_CREDITS_DASHBOARD_URL =
 
 type ClineAccountConfig = Pick<Config, "apiKey" | "logger" | "providerId">;
 
+const CLINE_PASS_PROVIDER_ID = "cline-pass";
+
 export interface ClineAccountSnapshot {
 	user: ClineAccountUser;
 	balance: ClineAccountBalance;
@@ -199,4 +201,28 @@ export async function switchClineAccount(input: {
 		throw new Error("No Cline account auth token found");
 	}
 	await service.switchAccount(input.organizationId);
+}
+
+async function onChangeToClinePass(config: ClineAccountConfig) {
+	try {
+		await switchClineAccount({
+			config: config,
+			organizationId: null,
+		});
+	} catch (error) {
+		config.logger?.debug("Failed to switch Cline Pass to personal account", {
+			error,
+		});
+	}
+}
+
+export async function onProviderChange(input: {
+	config: ClineAccountConfig;
+	providerId: string;
+}): Promise<void> {
+	if (input.providerId === CLINE_PASS_PROVIDER_ID) {
+		return onChangeToClinePass(input.config);
+	}
+
+	return;
 }
