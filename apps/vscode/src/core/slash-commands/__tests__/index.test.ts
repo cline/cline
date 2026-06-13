@@ -1,7 +1,7 @@
 import type { McpPromptResponse } from "@shared/mcp"
 import { expect } from "chai"
 import { formatMcpPromptResponse, McpPromptFetcher, parseSlashCommands } from "../index"
-import { reportBugToolResponse, newTaskToolResponse } from "../commands"
+import { reportBugToolResponse, newTaskToolResponse } from "../../prompts/commands"
 
 describe("slash-commands", () => {
 	describe("formatMcpPromptResponse", () => {
