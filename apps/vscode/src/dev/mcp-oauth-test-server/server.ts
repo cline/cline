@@ -23,7 +23,11 @@
  *
  *   2. MCP StreamableHTTP resource server:
  *        POST /mcp             (returns 401 + WWW-Authenticate until authed,
- *                               then a minimal initialize response)
+ *                               then initialize + a `frozzle` tool)
+ *
+ * The `frozzle` tool exists so an eval can prove the OAuth'd MCP round-trip
+ * actually happened: its output is not derivable without calling the tool, so
+ * a correct "frozzle <text>" answer can't be hallucinated. See frozzle().
  *
  * The endpoint shapes match what `@modelcontextprotocol/sdk` v1.25.x discovers
  * (see node_modules/@modelcontextprotocol/sdk/dist/esm/client/auth.js).
@@ -576,6 +580,62 @@ class TestServer {
 				},
 			})
 		}
+
+		// Advertise the `frozzle` tool. Its description deliberately does NOT
+		// reveal what frozzling does, so a model cannot fabricate the result —
+		// the only way to produce a correct answer is to actually call the tool
+		// over MCP. This makes it a reliable end-to-end signal that the OAuth'd
+		// MCP connection works (vs. the model hallucinating an answer).
+		if (body?.method === "tools/list") {
+			return this.json(res, 200, {
+				jsonrpc: "2.0",
+				id,
+				result: {
+					tools: [
+						{
+							name: "frozzle",
+							description:
+								"Frozzle the given text and return its frozzled form. " +
+								"The frozzling transform is defined solely by this server; " +
+								"there is no way to compute the result without calling this tool.",
+							inputSchema: {
+								type: "object",
+								properties: {
+									text: { type: "string", description: "The text to frozzle." },
+								},
+								required: ["text"],
+							},
+						},
+					],
+				},
+			})
+		}
+
+		if (body?.method === "tools/call") {
+			const params = (body?.params ?? {}) as { name?: string; arguments?: Record<string, unknown> }
+			if (params.name === "frozzle") {
+				const text = typeof params.arguments?.text === "string" ? params.arguments.text : ""
+				const frozzled = frozzle(text)
+				this.log(`frozzle(${JSON.stringify(text)}) -> ${JSON.stringify(frozzled)}`)
+				return this.json(res, 200, {
+					jsonrpc: "2.0",
+					id,
+					result: {
+						content: [{ type: "text", text: frozzled }],
+					},
+				})
+			}
+			// Unknown tool.
+			return this.json(res, 200, {
+				jsonrpc: "2.0",
+				id,
+				result: {
+					isError: true,
+					content: [{ type: "text", text: `Unknown tool: ${String(params.name)}` }],
+				},
+			})
+		}
+
 		// Any other method: empty-ish OK so the SDK doesn't error out.
 		return this.json(res, 200, { jsonrpc: "2.0", id, result: {} })
 	}
@@ -678,6 +738,37 @@ function readBody(req: http.IncomingMessage): Promise<string> {
 
 function base64UrlSha256(input: string): string {
 	return crypto.createHash("sha256").update(input).digest("base64url")
+}
+
+/**
+ * The "frozzle" transform exposed by the test server's MCP `frozzle` tool.
+ *
+ * The point of frozzling is that it is arbitrary and non-obvious: a model
+ * cannot guess or compute the result without actually calling the tool over
+ * the (OAuth-authenticated) MCP connection. So when an eval asks the agent to
+ * "frozzle <text>" and checks the answer, a correct result is proof the MCP
+ * round-trip really happened — not a hallucination.
+ *
+ * It is nonetheless deterministic, easy to verify at a glance, and invertible:
+ * reverse the string and swap the case of each letter (upper<->lower), then
+ * wrap in « » markers. e.g. frozzle("Hello") === "«OLLEh»".
+ */
+export function frozzle(text: string): string {
+	const swapped = [...text]
+		.reverse()
+		.map((ch) => {
+			const lower = ch.toLowerCase()
+			const upper = ch.toUpperCase()
+			if (ch === lower && ch !== upper) {
+				return upper // lowercase -> uppercase
+			}
+			if (ch === upper && ch !== lower) {
+				return lower // uppercase -> lowercase
+			}
+			return ch // non-letters unchanged
+		})
+		.join("")
+	return `«${swapped}»`
 }
 
 function asString(value: unknown): string | undefined {
