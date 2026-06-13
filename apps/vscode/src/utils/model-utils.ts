@@ -27,12 +27,29 @@ export function isNextGenModelProvider(providerInfo: ApiProviderInfo): boolean {
 	].some((id) => providerId === id)
 }
 
-export function modelDoesntSupportWebp(apiHandlerModel: ApiHandlerModel): boolean {
+/**
+ * Providers that use llama.cpp or have OpenAI-compatible APIs that reject WebP images.
+ * These providers require PNG format for browser screenshots.
+ */
+const PROVIDERS_WITHOUT_WEBP_SUPPORT = new Set(["lmstudio", "ollama"])
+
+/**
+ * Determines if a model/provider combination does not support WebP image format.
+ * When WebP is not supported, browser screenshots fall back to PNG format.
+ *
+ * @param apiHandlerModel - The model information (id and ModelInfo)
+ * @param providerId - Optional provider ID to check provider-level WebP support
+ * @returns true if WebP is NOT supported (use PNG instead), false if WebP is fine
+ */
+export function modelDoesntSupportWebp(apiHandlerModel: ApiHandlerModel, providerId?: string): boolean {
 	const modelId = apiHandlerModel.id.toLowerCase()
 	// Grok doesn't support WebP via its API.
 	// GLM and Devstral models running through llama.cpp fail with WebP because
 	// llama.cpp's STB image library doesn't support the WebP format.
-	return modelId.includes("grok") || isGLMModelFamily(modelId) || isDevstralModelFamily(modelId)
+	// LM Studio and Ollama's OpenAI-compatible APIs reject WebP images.
+	const normalizedProvider = providerId?.toLowerCase()
+	const isUnsupportedProvider = normalizedProvider ? PROVIDERS_WITHOUT_WEBP_SUPPORT.has(normalizedProvider) : false
+	return modelId.includes("grok") || isGLMModelFamily(modelId) || isDevstralModelFamily(modelId) || isUnsupportedProvider
 }
 
 /**
@@ -214,6 +231,21 @@ export function isNextGenModelFamily(id: string): boolean {
 export function isLocalModel(providerInfo: ApiProviderInfo): boolean {
 	const localProviders = ["lmstudio", "ollama"]
 	return localProviders.includes(normalize(providerInfo.providerId))
+}
+
+/**
+ * Returns the recommended screenshot format ("webp" or "png") for a given model and provider.
+ * WebP provides smaller file sizes but is not supported by all providers.
+ *
+ * @param apiHandlerModel - The model information
+ * @param providerId - Optional provider ID
+ * @returns "png" if WebP is not supported, "webp" otherwise
+ */
+export function getRecommendedScreenshotFormat(
+	apiHandlerModel: ApiHandlerModel,
+	providerId?: string,
+): "webp" | "png" {
+	return modelDoesntSupportWebp(apiHandlerModel, providerId) ? "png" : "webp"
 }
 
 /**

@@ -3,6 +3,7 @@ import "should"
 import type { ApiHandlerModel, ApiProviderInfo } from "@core/api"
 import {
 	GEMINI_FLASH_MAX_OUTPUT_TOKENS,
+	getRecommendedScreenshotFormat,
 	isClaude4PlusModelFamily,
 	isGeminiFlashModel,
 	isGLMModelFamily,
@@ -229,11 +230,66 @@ describe("modelDoesntSupportWebp", () => {
 		modelDoesntSupportWebp(m("Devstral-Small-2-24B-Instruct")).should.equal(true)
 	})
 
+	it("should return true for LM Studio provider (issue #9902)", () => {
+		modelDoesntSupportWebp(m("qwen3.5-35b-a3b-uncensored"), "lmstudio").should.equal(true)
+		modelDoesntSupportWebp(m("nvidia/nemotron-3-nano"), "lmstudio").should.equal(true)
+		modelDoesntSupportWebp(m("gemma-3-27b-it"), "lmstudio").should.equal(true)
+	})
+
+	it("should return true for Ollama provider (uses llama.cpp)", () => {
+		modelDoesntSupportWebp(m("llama3.2"), "ollama").should.equal(true)
+		modelDoesntSupportWebp(m("gemma2"), "ollama").should.equal(true)
+		modelDoesntSupportWebp(m("qwen2.5-coder"), "ollama").should.equal(true)
+	})
+
 	it("should return false for models that support WebP", () => {
 		modelDoesntSupportWebp(m("claude-sonnet-4")).should.equal(false)
 		modelDoesntSupportWebp(m("gpt-5")).should.equal(false)
 		modelDoesntSupportWebp(m("gemini-2.5-flash")).should.equal(false)
 		modelDoesntSupportWebp(m("qwen2.5-vl-72b")).should.equal(false)
 		modelDoesntSupportWebp(m("llama-3.1-8b")).should.equal(false)
+	})
+
+	it("should return false for non-LM Studio providers", () => {
+		modelDoesntSupportWebp(m("qwen3.5-35b-a3b-uncensored"), "openai").should.equal(false)
+		modelDoesntSupportWebp(m("nvidia/nemotron-3-nano"), "anthropic").should.equal(false)
+	})
+
+	it("should be case-insensitive for provider ID", () => {
+		modelDoesntSupportWebp(m("any-model"), "LMSTUDIO").should.equal(true)
+		modelDoesntSupportWebp(m("any-model"), "LmStudio").should.equal(true)
+		modelDoesntSupportWebp(m("any-model"), "Ollama").should.equal(true)
+	})
+})
+
+describe("getRecommendedScreenshotFormat", () => {
+	it("should return 'png' for LM Studio provider", () => {
+		getRecommendedScreenshotFormat(m("qwen3.5-35b-a3b-uncensored"), "lmstudio").should.equal("png")
+		getRecommendedScreenshotFormat(m("gemma-3-27b-it"), "lmstudio").should.equal("png")
+	})
+
+	it("should return 'png' for Ollama provider", () => {
+		getRecommendedScreenshotFormat(m("llama3.2"), "ollama").should.equal("png")
+	})
+
+	it("should return 'png' for Grok models", () => {
+		getRecommendedScreenshotFormat(m("grok-3")).should.equal("png")
+		getRecommendedScreenshotFormat(m("x-ai/grok-3-mini")).should.equal("png")
+	})
+
+	it("should return 'png' for GLM models", () => {
+		getRecommendedScreenshotFormat(m("glm-4.6")).should.equal("png")
+		getRecommendedScreenshotFormat(m("GLM 4.6V")).should.equal("png")
+	})
+
+	it("should return 'webp' for supported providers", () => {
+		getRecommendedScreenshotFormat(m("claude-sonnet-4")).should.equal("webp")
+		getRecommendedScreenshotFormat(m("gpt-5"), "openai").should.equal("webp")
+		getRecommendedScreenshotFormat(m("gemini-2.5-flash"), "gemini").should.equal("webp")
+	})
+
+	it("should return 'webp' when no provider ID is given for non-special models", () => {
+		getRecommendedScreenshotFormat(m("qwen2.5-vl-72b")).should.equal("webp")
+		getRecommendedScreenshotFormat(m("llama-3.1-8b")).should.equal("webp")
 	})
 })
