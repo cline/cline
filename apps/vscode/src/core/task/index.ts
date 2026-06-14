@@ -3207,21 +3207,17 @@ export class Task {
 				// Save checkpoint after all tools in this response have finished executing
 				await this.checkpointManager?.saveCheckpoint()
 
-				// Only nudge when the model produced neither tool use nor any meaningful non-tool content.
+				// In plan mode, a non-empty text response is a valid outcome even without tool use.
+				// In act mode, text-only responses should still hit the corrective nudge and mistake counter
+				// so we preserve the existing loop-protection behavior.
 				const didToolUse = this.taskState.assistantMessageContent.some((block) => block.type === "tool_use")
-				const didProvideNonToolResponse = this.taskState.assistantMessageContent.some((block) => {
-					if (block.type === "tool_use") {
-						return false
-					}
+				const didProvideTextResponse = this.taskState.assistantMessageContent.some(
+					(block) => block.type === "text" && block.content.trim().length > 0,
+				)
+				const isPlanMode = this.stateManager.getGlobalSettingsKey("mode") === "plan"
+				const shouldAcceptTextOnlyResponse = isPlanMode && didProvideTextResponse
 
-					if (block.type === "text") {
-						return block.content.trim().length > 0
-					}
-
-					return true
-				})
-
-				if (!didToolUse && !didProvideNonToolResponse) {
+				if (!didToolUse && !shouldAcceptTextOnlyResponse) {
 					// normal request where tool use is required
 					this.taskState.userMessageContent.push({
 						type: "text",
