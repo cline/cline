@@ -5,6 +5,7 @@ import {
 	getToolContextTelemetry,
 } from "../../services/telemetry/tool-context";
 import {
+	createAskQuestionTool,
 	createBashTool,
 	createDefaultTools,
 	createReadFilesTool,
@@ -193,6 +194,55 @@ describe("default ask_question tool", () => {
 				iteration: 1,
 			}),
 		);
+	});
+
+	it("normalizes structured option objects to display strings", async () => {
+		const execute = vi.fn(async () => "asked");
+		const tool = createAskQuestionTool(execute);
+
+		const result = await tool.execute(
+			{
+				question: "Which approach should I take?",
+				options: [
+					{ key: "a", label: "Use the SDK", description: "Recommended" },
+					{ value: "Write custom code" },
+					"Plain string option",
+				],
+			} as never,
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		expect(result).toBe("asked");
+		expect(execute).toHaveBeenCalledWith(
+			"Which approach should I take?",
+			["Use the SDK", "Write custom code", "Plain string option"],
+			expect.objectContaining({ iteration: 1 }),
+		);
+	});
+
+	it("rejects option objects without any label-like field", async () => {
+		const execute = vi.fn(async () => "should not run");
+		const tool = createAskQuestionTool(execute);
+
+		await expect(
+			tool.execute(
+				{
+					question: "Which approach should I take?",
+					options: [{ description: "no label" }, "Option 2"],
+				} as never,
+				{
+					agentId: "agent-1",
+					conversationId: "conv-1",
+					iteration: 1,
+				},
+			),
+		).rejects.toThrow();
+
+		expect(execute).not.toHaveBeenCalled();
 	});
 
 	it("waits for ask_question answers without timing out", async () => {
