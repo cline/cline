@@ -110,6 +110,43 @@ function captureRunCommandsTimeoutFromContext(
 	});
 }
 
+function getHeredocDelimiter(command: string): string | undefined {
+	const match = command.match(
+		/(?<![<])<<-?\s*(?:"([^"]+)"|'([^']+)'|([A-Za-z0-9_./-]+))/,
+	);
+	return match?.[1] ?? match?.[2] ?? match?.[3];
+}
+
+function coalesceSplitHeredocCommands(commands: string[]): string[] {
+	const coalesced: string[] = [];
+	for (let index = 0; index < commands.length; index += 1) {
+		const command = commands[index];
+		const delimiter = getHeredocDelimiter(command);
+		if (!delimiter) {
+			coalesced.push(command);
+			continue;
+		}
+
+		const endIndex = commands.findIndex(
+			(nextCommand, nextIndex) =>
+				nextIndex > index && nextCommand.trim() === delimiter,
+		);
+		if (endIndex === -1) {
+			coalesced.push(command);
+			continue;
+		}
+
+		const parts = [command];
+		while (index < endIndex) {
+			index += 1;
+			const nextCommand = commands[index];
+			parts.push(nextCommand);
+		}
+		coalesced.push(parts.join("\n"));
+	}
+	return coalesced;
+}
+
 // =============================================================================
 // AgentTool Factory Functions
 // =============================================================================
@@ -289,7 +326,7 @@ export function createBashTool(
 		description:
 			"Run shell commands from the root of the workspace. " +
 			"Use for listing files, checking git status, running builds, executing tests, etc. " +
-			"Commands should be properly shell-escaped and targeted to avoid error or timeout. Include multiple commands when they are independent and safe to run concurrently. " +
+			"Commands should be properly shell-escaped and targeted to avoid error or timeout. Include multiple commands only when they are independent complete shell commands and safe to run concurrently; multiline scripts and heredocs must be a single command string. " +
 			`Output beyond ~${Math.round(MAX_COMMAND_OUTPUT_CHARS / 1000)}k characters is middle-truncated (start and end preserved); pipe through grep/head/tail when you need specific sections of large output. ` +
 			"For long-running commands, run them in background and redirect output to a tmp file that you can read from later.",
 		inputSchema: zodToJsonSchema(RunCommandsInputSchema),
@@ -312,6 +349,7 @@ export function createBashTool(
 			} else {
 				commands = [validate.cmd];
 			}
+			commands = coalesceSplitHeredocCommands(commands);
 
 			return Promise.all(
 				commands.map(async (command: string): Promise<ToolOperationResult> => {
