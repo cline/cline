@@ -11,6 +11,8 @@ import {
 	bedrockModels,
 	cerebrasDefaultModelId,
 	cerebrasModels,
+	chutesDefaultModelId,
+	chutesModels,
 	claudeCodeDefaultModelId,
 	claudeCodeModels,
 	clinePassDefaultModelId,
@@ -135,6 +137,8 @@ export function getModelsForProvider(
 			return nebiusModels;
 		case "wandb":
 			return wandbModels;
+		case "chutes":
+			return chutesModels;
 		case "sambanova":
 			return sambanovaModels;
 		case "cerebras":
@@ -484,6 +488,8 @@ export function normalizeApiConfiguration(
 			return getProviderData(nebiusModels, nebiusDefaultModelId);
 		case "wandb":
 			return getProviderData(wandbModels, wandbDefaultModelId);
+		case "chutes":
+			return getProviderData(chutesModels, chutesDefaultModelId);
 		case "sambanova":
 			return getProviderData(sambanovaModels, sambanovaDefaultModelId);
 		case "cerebras":
@@ -1100,6 +1106,7 @@ export async function syncModeConfigurations(
 		case "xai":
 		case "nebius":
 		case "wandb":
+		case "chutes":
 		case "sambanova":
 		case "cerebras":
 		case "sapaicore":

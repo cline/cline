@@ -6,6 +6,7 @@ import {
 	anthropicDefaultModelId,
 	basetenDefaultModelId,
 	bedrockDefaultModelId,
+	chutesDefaultModelId,
 	clinePassDefaultModelId,
 	deepSeekDefaultModelId,
 	fireworksDefaultModelId,
@@ -69,6 +70,7 @@ export const ProviderToApiKeyMap: Partial<Record<ApiProvider, keyof Secrets | (k
 	litellm: "liteLlmApiKey",
 	moonshot: "moonshotApiKey",
 	nebius: "nebiusApiKey",
+	chutes: "chutesApiKey",
 	fireworks: "fireworksApiKey",
 	asksage: "asksageApiKey",
 	xai: "xaiApiKey",
@@ -120,6 +122,7 @@ const ProviderDefaultModelMap: Partial<Record<ApiProvider, string>> = {
 	qwen: internationalQwenDefaultModelId,
 	deepseek: deepSeekDefaultModelId,
 	wandb: wandbDefaultModelId,
+	chutes: chutesDefaultModelId,
 } as const
 
 /**

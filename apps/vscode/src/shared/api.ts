@@ -45,6 +45,7 @@ export type ApiProvider =
 	| "hicap"
 	| "nousResearch"
 	| "wandb"
+	| "chutes"
 
 export const DEFAULT_API_PROVIDER = "openrouter" as ApiProvider
 
@@ -3795,6 +3796,68 @@ export const nebiusModels = {
 } as const satisfies Record<string, ModelInfo>
 export type NebiusModelId = keyof typeof nebiusModels
 export const nebiusDefaultModelId = "Qwen/Qwen2.5-32B-Instruct-fast" satisfies NebiusModelId
+
+// Chutes
+// https://chutes.ai — decentralized, OpenAI-compatible inference in TEE confidential-compute enclaves.
+// Prices are USD per million tokens, read from the live /v1/models catalog.
+export const chutesModels = {
+	"zai-org/GLM-5-TEE": {
+		maxTokens: 32_768,
+		contextWindow: 202_752,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.95,
+		outputPrice: 2.55,
+		cacheReadsPrice: 0.475,
+	},
+	"zai-org/GLM-5.1-TEE": {
+		maxTokens: 32_768,
+		contextWindow: 202_752,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 1.2,
+		outputPrice: 4,
+		cacheReadsPrice: 0.6,
+	},
+	"deepseek-ai/DeepSeek-V3.2-TEE": {
+		maxTokens: 32_768,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 1,
+		outputPrice: 1,
+		cacheReadsPrice: 0.5,
+	},
+	"moonshotai/Kimi-K2.6-TEE": {
+		maxTokens: 32_768,
+		contextWindow: 262_144,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.74,
+		outputPrice: 3.5,
+		cacheReadsPrice: 0.37,
+	},
+	"MiniMaxAI/MiniMax-M2.5-TEE": {
+		maxTokens: 32_768,
+		contextWindow: 196_608,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.15,
+		outputPrice: 1.2,
+		cacheReadsPrice: 0.075,
+	},
+	"Qwen/Qwen3.5-397B-A17B-TEE": {
+		maxTokens: 32_768,
+		contextWindow: 262_144,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.45,
+		outputPrice: 3,
+		cacheReadsPrice: 0.225,
+	},
+} as const satisfies Record<string, ModelInfo>
+export type ChutesModelId = keyof typeof chutesModels
+export const chutesDefaultModelId = "zai-org/GLM-5-TEE" satisfies ChutesModelId
 
 // W&B Inference by CoreWeave
 // https://docs.wandb.ai/inference/models

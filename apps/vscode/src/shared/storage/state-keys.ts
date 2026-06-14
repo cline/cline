@@ -335,6 +335,7 @@ const SECRETS_KEYS = [
 	"zaiApiKey",
 	"huggingFaceApiKey",
 	"nebiusApiKey",
+	"chutesApiKey",
 	"sambanovaApiKey",
 	"cerebrasApiKey",
 	"sapAiCoreClientId",
