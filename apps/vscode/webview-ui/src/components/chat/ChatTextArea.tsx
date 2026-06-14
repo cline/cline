@@ -224,6 +224,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			navigateToSettingsModelPicker,
 			mcpServers,
 		} = useExtensionState()
+
+		const { selectedModelInfo } = useMemo(() => {
+			return normalizeApiConfiguration(apiConfiguration, mode)
+		}, [apiConfiguration, mode])
+
 		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
 		const [isDraggingOver, setIsDraggingOver] = useState(false)
 		const [gitCommits, setGitCommits] = useState<GitCommit[]>([])
@@ -254,6 +259,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const unsupportedFileTimerRef = useRef<NodeJS.Timeout | null>(null)
 		const [showDimensionError, setShowDimensionError] = useState(false)
 		const dimensionErrorTimerRef = useRef<NodeJS.Timeout | null>(null)
+		const [showImageUnsupportedError, setShowImageUnsupportedError] = useState(false)
+		const imageUnsupportedTimerRef = useRef<NodeJS.Timeout | null>(null)
 
 		const [fileSearchResults, setFileSearchResults] = useState<SearchResult[]>([])
 		const [searchLoading, setSearchLoading] = useState(false)
@@ -876,52 +883,59 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					const [type, subtype] = item.type.split("/")
 					return type === "image" && acceptedTypes.includes(subtype)
 				})
-				if (!shouldDisableFilesAndImages && imageItems.length > 0) {
-					e.preventDefault()
-					const imagePromises = imageItems.map((item) => {
-						return new Promise<string | null>((resolve) => {
-							const blob = item.getAsFile()
-							if (!blob) {
-								resolve(null)
-								return
-							}
-							const reader = new FileReader()
-							reader.onloadend = async () => {
-								if (reader.error) {
-									console.error("Error reading file:", reader.error)
+				if (imageItems.length > 0) {
+					if (!selectedModelInfo.supportsImages) {
+						e.preventDefault()
+						showImageUnsupportedErrorMessage()
+						return
+					}
+					if (!shouldDisableFilesAndImages) {
+						e.preventDefault()
+						const imagePromises = imageItems.map((item) => {
+							return new Promise<string | null>((resolve) => {
+								const blob = item.getAsFile()
+								if (!blob) {
 									resolve(null)
-								} else {
-									const result = reader.result
-									if (typeof result === "string") {
-										try {
-											await getImageDimensions(result)
-											resolve(result)
-										} catch (error) {
-											console.warn((error as Error).message)
-											showDimensionErrorMessage()
+									return
+								}
+								const reader = new FileReader()
+								reader.onloadend = async () => {
+									if (reader.error) {
+										console.error("Error reading file:", reader.error)
+										resolve(null)
+									} else {
+										const result = reader.result
+										if (typeof result === "string") {
+											try {
+												await getImageDimensions(result)
+												resolve(result)
+											} catch (error) {
+												console.warn((error as Error).message)
+												showDimensionErrorMessage()
+												resolve(null)
+											}
+										} else {
 											resolve(null)
 										}
-									} else {
-										resolve(null)
 									}
 								}
-							}
-							reader.readAsDataURL(blob)
+								reader.readAsDataURL(blob)
+							})
 						})
-					})
-					const imageDataArray = await Promise.all(imagePromises)
-					const dataUrls = imageDataArray.filter((dataUrl): dataUrl is string => dataUrl !== null)
-					//.map((dataUrl) => dataUrl.split(",")[1]) // strip the mime type prefix, sharp doesn't need it
-					if (dataUrls.length > 0) {
-						const filesAndImagesLength = selectedImages.length + selectedFiles.length
-						const availableSlots = MAX_IMAGES_AND_FILES_PER_MESSAGE - filesAndImagesLength
+						const imageDataArray = await Promise.all(imagePromises)
+						const dataUrls = imageDataArray.filter((dataUrl): dataUrl is string => dataUrl !== null)
+						//.map((dataUrl) => dataUrl.split(",")[1]) // strip the mime type prefix, sharp doesn't need it
+						if (dataUrls.length > 0) {
+							const filesAndImagesLength = selectedImages.length + selectedFiles.length
+							const availableSlots = MAX_IMAGES_AND_FILES_PER_MESSAGE - filesAndImagesLength
 
-						if (availableSlots > 0) {
-							const imagesToAdd = Math.min(dataUrls.length, availableSlots)
-							setSelectedImages((prevImages) => [...prevImages, ...dataUrls.slice(0, imagesToAdd)])
+							if (availableSlots > 0) {
+								const imagesToAdd = Math.min(dataUrls.length, availableSlots)
+								setSelectedImages((prevImages) => [...prevImages, ...dataUrls.slice(0, imagesToAdd)])
+							}
+						} else {
+							console.warn("No valid images were processed")
 						}
-					} else {
-						console.warn("No valid images were processed")
 					}
 				}
 			},
@@ -934,6 +948,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				setInputValue,
 				inputValue,
 				showDimensionErrorMessage,
+				selectedModelInfo.supportsImages,
+				showImageUnsupportedErrorMessage,
 			],
 		)
 
@@ -1146,6 +1162,28 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			}, 3000)
 		}
 
+		// Function to show error message for unsupported images when the model doesn't support images
+		const showImageUnsupportedErrorMessage = useCallback(() => {
+			setShowImageUnsupportedError(true)
+
+			if (imageUnsupportedTimerRef.current) {
+				clearTimeout(imageUnsupportedTimerRef.current)
+			}
+
+			imageUnsupportedTimerRef.current = setTimeout(() => {
+				setShowImageUnsupportedError(false)
+				imageUnsupportedTimerRef.current = null
+			}, 3000)
+		}, [])
+
+		useEffect(() => {
+			return () => {
+				if (imageUnsupportedTimerRef.current) {
+					clearTimeout(imageUnsupportedTimerRef.current)
+				}
+			}
+		}, [])
+
 		const handleDragEnter = (e: React.DragEvent) => {
 			e.preventDefault()
 			setIsDraggingOver(true)
@@ -1284,6 +1322,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				return type === "image" && acceptedTypes.includes(subtype)
 			})
 
+			if (imageFiles.length > 0 && !selectedModelInfo.supportsImages) {
+				showImageUnsupportedErrorMessage()
+				return
+			}
+
 			if (shouldDisableFilesAndImages || imageFiles.length === 0) {
 				return
 			}
@@ -1380,6 +1423,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							<span className="text-error font-bold text-xs">Files other than images are currently disabled</span>
 						</div>
 					)}
+					{showImageUnsupportedError && (
+						<div className="absolute inset-2.5 bg-[rgba(var(--vscode-errorForeground-rgb),0.1)] border-2 border-error rounded-xs flex items-center justify-center z-10 pointer-events-none">
+							<span className="text-error font-bold text-xs">Selected model does not support images</span>
+						</div>
+					)}
 					{showSlashCommandsMenu && (
 						<div ref={slashCommandsMenuContainerRef}>
 							<SlashCommandMenu
@@ -1462,7 +1510,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						onPaste={handlePaste}
 						onScroll={() => updateHighlights()}
 						onSelect={updateCursorPosition}
-						placeholder={showUnsupportedFileError || showDimensionError ? "" : placeholderText}
+						placeholder={showUnsupportedFileError || showDimensionError || showImageUnsupportedError ? "" : placeholderText}
 						ref={(el) => {
 							if (typeof ref === "function") {
 								ref(el)
@@ -1501,12 +1549,12 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							flex: 1,
 							zIndex: 1,
 							outline:
-								isDraggingOver && !showUnsupportedFileError // Only show drag outline if not showing error
+								isDraggingOver && !showUnsupportedFileError && !showImageUnsupportedError // Only show drag outline if not showing error
 									? "2px dashed var(--vscode-focusBorder)"
 									: isTextAreaFocused
 										? `1px solid ${mode === "plan" ? PLAN_MODE_COLOR : "var(--vscode-focusBorder)"}`
 										: "none",
-							outlineOffset: isDraggingOver && !showUnsupportedFileError ? "1px" : "0px", // Add offset for drag-over outline
+							outlineOffset: isDraggingOver && !showUnsupportedFileError && !showImageUnsupportedError ? "1px" : "0px", // Add offset for drag-over outline
 						}}
 						value={inputValue}
 					/>
