@@ -180,7 +180,7 @@ export class ClineToolSet {
 		const toolConfigs = ClineToolSet.getEnabledToolSpecs(variant, context)
 
 		// MCP tools
-		const mcpServers = context.mcpHub?.getServers()?.filter((s) => s.disabled !== true) || []
+		const mcpServers = context.mcpHub?.getServers()?.filter((s) => s.disabled !== true && s.status === "connected") || []
 		const mcpTools = mcpServers?.flatMap((server) => mcpToolToClineToolSpec(variant.family, server))
 
 		const enabledTools = [...toolConfigs, ...mcpTools].filter(

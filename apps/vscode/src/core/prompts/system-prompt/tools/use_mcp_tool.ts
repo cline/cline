@@ -1,5 +1,6 @@
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
+import { hasEnabledMcpServers } from "../components/mcp"
 import type { ClineToolSpec } from "../spec"
 import { TASK_PROGRESS_PARAMETER } from "../types"
 
@@ -37,7 +38,7 @@ const generic: ClineToolSpec = {
 	name: "use_mcp_tool",
 	description:
 		"Request to use a tool provided by a connected MCP server. Each MCP server can provide multiple tools with different capabilities. Tools have defined input schemas that specify required and optional parameters.",
-	contextRequirements: (context) => context.mcpHub !== undefined && context.mcpHub !== null,
+	contextRequirements: hasEnabledMcpServers,
 	parameters: [
 		{
 			name: "server_name",

@@ -1,5 +1,6 @@
 import { TemplateEngine } from "../../templates/TemplateEngine"
 import type { PromptVariant, SystemPromptContext } from "../../types"
+import { hasEnabledMcpServers } from "../mcp"
 
 const FOCUS_CHAIN_EXAMPLE_BASH = `<task_progress>
 - [x] Set up project structure
@@ -122,7 +123,9 @@ return (
 </diff>
 {{FOCUS_CHAIN_EXAMPLE_EDIT}}</replace_in_file>
 
+{{MCP_TOOL_USE_EXAMPLES}}`
 
+const MCP_TOOL_USE_EXAMPLES = `
 ## Example 5: Requesting to use an MCP tool
 
 <use_mcp_tool>
@@ -161,5 +164,6 @@ export async function getToolUseExamplesSection(_variant: PromptVariant, context
 		FOCUS_CHAIN_EXAMPLE_BASH: focusChainEnabled ? FOCUS_CHAIN_EXAMPLE_BASH : "",
 		FOCUS_CHAIN_EXAMPLE_NEW_FILE: focusChainEnabled ? FOCUS_CHAIN_EXAMPLE_NEW_FILE : "",
 		FOCUS_CHAIN_EXAMPLE_EDIT: focusChainEnabled ? FOCUS_CHAIN_EXAMPLE_EDIT : "",
+		MCP_TOOL_USE_EXAMPLES: hasEnabledMcpServers(context) ? MCP_TOOL_USE_EXAMPLES : "",
 	})
 }

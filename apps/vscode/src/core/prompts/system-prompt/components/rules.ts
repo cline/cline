@@ -1,6 +1,7 @@
 import { SystemPromptSection } from "../templates/placeholders"
 import { TemplateEngine } from "../templates/TemplateEngine"
 import type { PromptVariant, SystemPromptContext } from "../types"
+import { hasEnabledMcpServers } from "./mcp"
 
 const BROWSER_RULES = `- The user may ask generic non-development tasks, such as "what\\'s the latest news" or "look up the weather in San Diego", in which case you might use the browser_action tool to complete the task if it makes sense to do so, rather than trying to create a website or using curl to answer the question. However, if an available MCP server tool or resource can be used instead, you should prefer to use it over browser_action.\n`
 
@@ -38,7 +39,7 @@ const getRulesTemplateText = (context: SystemPromptContext) => `RULES
 - When using the replace_in_file tool, if you use multiple SEARCH/REPLACE blocks, list them in the order they appear in the file. For example if you need to make changes to both line 10 and line 50, first include the SEARCH/REPLACE block for line 10, followed by the SEARCH/REPLACE block for line 50.
 - When using the replace_in_file tool, Do NOT add extra characters to the markers (e.g., ------- SEARCH> is INVALID). Do NOT forget to use the closing +++++++ REPLACE marker. Do NOT modify the marker format in any way. Malformed XML will cause complete tool failure and break the entire editing process.
 - It is critical you wait for the user's response after each tool use, in order to confirm the success of the tool use. For example, if asked to make a todo app, you would create a file, wait for the user's response it was created successfully, then create another file if needed, wait for the user's response it was created successfully, etc.{{BROWSER_WAIT_RULES}}
-- MCP operations should be used one at a time, similar to other tool usage. Wait for confirmation of success before proceeding with additional operations.`
+{{MCP_WAIT_RULES}}`
 
 export async function getRulesSection(variant: PromptVariant, context: SystemPromptContext): Promise<string> {
 	const template = variant.componentOverrides?.[SystemPromptSection.RULES]?.template || getRulesTemplateText
@@ -46,11 +47,15 @@ export async function getRulesSection(variant: PromptVariant, context: SystemPro
 	const browserRules = context.supportsBrowserUse ? BROWSER_RULES : ""
 	const browserWaitRules = context.supportsBrowserUse ? BROWSER_WAIT_RULES : ""
 	const cliRules = context.isCliEnvironment ? CLI_RULES : ""
+	const mcpWaitRules = hasEnabledMcpServers(context)
+		? "- MCP operations should be used one at a time, similar to other tool usage. Wait for confirmation of success before proceeding with additional operations."
+		: ""
 
 	return new TemplateEngine().resolve(template, context, {
 		CWD: context.cwd || process.cwd(),
 		BROWSER_RULES: browserRules,
 		BROWSER_WAIT_RULES: browserWaitRules,
 		CLI_RULES: cliRules,
+		MCP_WAIT_RULES: mcpWaitRules,
 	})
 }

@@ -215,6 +215,16 @@ describe("Prompt System Integration Tests", () => {
 		await fs.mkdir(SNAPSHOTS_DIR, { recursive: true }).catch(() => {})
 	})
 
+	const expectNoMcpExecutionAffordances = (systemPrompt: string) => {
+		expect(systemPrompt).to.not.include("## use_mcp_tool")
+		expect(systemPrompt).to.not.include("## access_mcp_resource")
+		expect(systemPrompt).to.not.include("## Example 5: Requesting to use an MCP tool")
+		expect(systemPrompt).to.not.include("<server_name>weather-server</server_name>")
+		expect(systemPrompt).to.not.include("MCP SERVERS")
+		expect(systemPrompt).to.not.include("You have access to MCP servers")
+		expect(systemPrompt).to.not.include("MCP operations should be used one at a time")
+	}
+
 	describe("Snapshot Testing", () => {
 		for (const { family, modelId, providerId } of modelTestCases) {
 			describe(`${family} Model Group`, () => {
@@ -272,6 +282,9 @@ describe("Prompt System Integration Tests", () => {
 
 							expect(systemPrompt).to.be.a("string").with.length.greaterThan(100)
 							expect(systemPrompt).to.not.include("{{TOOL_USE_SECTION}}")
+							if (contextName === "no-mcp") {
+								expectNoMcpExecutionAffordances(systemPrompt)
+							}
 
 							const snapshotName = `${providerId}_${modelId.replace(/[^a-zA-Z0-9]/g, "_")}-${contextName}.snap`
 							await assertSnapshot(snapshotName, systemPrompt)
@@ -319,6 +332,74 @@ describe("Prompt System Integration Tests", () => {
 				})
 			})
 		}
+
+		it("should not advertise MCP execution affordances when no MCP servers are configured", async function () {
+			const context: SystemPromptContext = {
+				...baseContext,
+				mcpHub: { getServers: () => [] } as unknown as McpHub,
+			}
+
+			await runPromptTest(this, context, "default", async ({ systemPrompt }) => {
+				expectNoMcpExecutionAffordances(systemPrompt)
+			})
+		})
+
+		it("should not advertise MCP execution affordances when MCP servers are disconnected", async function () {
+			const context: SystemPromptContext = {
+				...baseContext,
+				mcpHub: {
+					getServers: () => [
+						{
+							uid: "disconnected-server",
+							name: "offline-server",
+							status: "disconnected",
+							config: '{"command": "test"}',
+							tools: [{ name: "offline_tool", description: "An offline tool", inputSchema: { type: "object", properties: {} } }],
+							resources: [],
+							resourceTemplates: [],
+						},
+					],
+				} as unknown as McpHub,
+			}
+
+			await runPromptTest(this, context, "default", async ({ systemPrompt }) => {
+				expectNoMcpExecutionAffordances(systemPrompt)
+			})
+		})
+
+		it("should not expose disconnected MCP server tools as native tools", async function () {
+			const context: SystemPromptContext = {
+				...baseContext,
+				providerInfo: makeProviderInfo("gpt-5-codex", "openai"),
+				enableNativeToolCalls: true,
+				mcpHub: {
+					getServers: () => [
+						{
+							uid: "disconnected-server",
+							name: "offline-server",
+							status: "disconnected",
+							config: '{"command": "test"}',
+							tools: [{ name: "offline_tool", description: "An offline tool", inputSchema: { type: "object", properties: {} } }],
+							resources: [],
+							resourceTemplates: [],
+						},
+					],
+				} as unknown as McpHub,
+			}
+
+			await runPromptTest(this, context, "gpt-5-codex", async ({ tools }) => {
+				expect(tools).to.be.an("array").that.is.not.empty
+				const toolNames = (tools as any[]).map((tool) => {
+					if (tool?.type === "function") {
+						return tool.function?.name
+					}
+					return tool?.name
+				})
+				expect(toolNames).to.not.include("use_mcp_tool")
+				expect(toolNames).to.not.include("access_mcp_resource")
+				expect(toolNames.some((name) => String(name).includes("offline_tool"))).to.equal(false)
+			})
+		})
 	})
 
 	describe("Error Handling", () => {
