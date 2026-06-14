@@ -700,6 +700,275 @@ describe("default run_commands tool", () => {
 		]);
 	});
 
+	it("coalesces split heredoc command arrays before execution", async () => {
+		const execute = vi.fn(
+			async (command: string | { command: string }) =>
+				`ran:${typeof command === "string" ? command : command.command}`,
+		);
+		const tool = createBashTool(execute);
+
+		const result = await tool.execute(
+			{
+				commands: [
+					"cd /app && python3 << 'PYEOF'",
+					"import csv",
+					"print('ok')",
+					"PYEOF",
+				],
+			},
+			{
+				sessionId: "session-split-heredoc",
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		const expectedCommand =
+			"cd /app && python3 << 'PYEOF'\nimport csv\nprint('ok')\nPYEOF";
+		expect(execute).toHaveBeenCalledTimes(1);
+		expect(execute).toHaveBeenCalledWith(
+			expectedCommand,
+			process.cwd(),
+			expect.objectContaining({ sessionId: "session-split-heredoc" }),
+		);
+		expect(result).toEqual([
+			expect.objectContaining({
+				query: expect.stringContaining("cd /app && python3"),
+				result: `ran:${expectedCommand}`,
+				success: true,
+			}),
+		]);
+	});
+
+	it("coalesces split heredocs while preserving surrounding command order", async () => {
+		const execute = vi.fn(
+			async (command: string | { command: string }) =>
+				`ran:${typeof command === "string" ? command : command.command}`,
+		);
+		const tool = createBashTool(execute);
+
+		const result = await tool.execute(
+			{
+				commands: [
+					"pwd",
+					"python3 << 'PYEOF'",
+					"print('ok')",
+					"PYEOF",
+					"ls /app",
+				],
+			},
+			{
+				sessionId: "session-surrounding-heredoc",
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		const expectedCommand = "python3 << 'PYEOF'\nprint('ok')\nPYEOF";
+		expect(execute).toHaveBeenCalledTimes(3);
+		expect(execute).toHaveBeenNthCalledWith(
+			1,
+			"pwd",
+			process.cwd(),
+			expect.objectContaining({ sessionId: "session-surrounding-heredoc" }),
+		);
+		expect(execute).toHaveBeenNthCalledWith(
+			2,
+			expectedCommand,
+			process.cwd(),
+			expect.objectContaining({ sessionId: "session-surrounding-heredoc" }),
+		);
+		expect(execute).toHaveBeenNthCalledWith(
+			3,
+			"ls /app",
+			process.cwd(),
+			expect.objectContaining({ sessionId: "session-surrounding-heredoc" }),
+		);
+		expect(result).toEqual([
+			expect.objectContaining({ query: "pwd", result: "ran:pwd" }),
+			expect.objectContaining({
+				query: expectedCommand,
+				result: `ran:${expectedCommand}`,
+			}),
+			expect.objectContaining({ query: "ls /app", result: "ran:ls /app" }),
+		]);
+	});
+
+	it("coalesces split tab-stripping heredocs", async () => {
+		const execute = vi.fn(
+			async (command: string | { command: string }) =>
+				`ran:${typeof command === "string" ? command : command.command}`,
+		);
+		const tool = createBashTool(execute);
+
+		const result = await tool.execute(
+			{
+				commands: ["cat <<- EOF", "\tindented body", "EOF"],
+			},
+			{
+				sessionId: "session-tab-stripping-heredoc",
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		const expectedCommand = "cat <<- EOF\n\tindented body\nEOF";
+		expect(execute).toHaveBeenCalledTimes(1);
+		expect(execute).toHaveBeenCalledWith(
+			expectedCommand,
+			process.cwd(),
+			expect.objectContaining({
+				sessionId: "session-tab-stripping-heredoc",
+			}),
+		);
+		expect(result).toEqual([
+			expect.objectContaining({
+				query: expectedCommand,
+				result: `ran:${expectedCommand}`,
+			}),
+		]);
+	});
+
+	it("does not coalesce independent command arrays", async () => {
+		const execute = vi.fn(
+			async (command: string | { command: string }) =>
+				`ran:${typeof command === "string" ? command : command.command}`,
+		);
+		const tool = createBashTool(execute);
+
+		const result = await tool.execute(
+			{ commands: ["pwd", "ls /app"] },
+			{
+				sessionId: "session-independent-commands",
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		expect(execute).toHaveBeenCalledTimes(2);
+		expect(result).toEqual([
+			expect.objectContaining({ query: "pwd", result: "ran:pwd" }),
+			expect.objectContaining({ query: "ls /app", result: "ran:ls /app" }),
+		]);
+	});
+
+	it("coalesces consecutive split heredoc command arrays independently", async () => {
+		const execute = vi.fn(
+			async (command: string | { command: string }) =>
+				`ran:${typeof command === "string" ? command : command.command}`,
+		);
+		const tool = createBashTool(execute);
+
+		const result = await tool.execute(
+			{
+				commands: [
+					"cat << 'FOO'",
+					"foo body",
+					"FOO",
+					"cat << 'BAR'",
+					"bar body",
+					"BAR",
+				],
+			},
+			{
+				sessionId: "session-consecutive-heredocs",
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		const expectedFirstCommand = "cat << 'FOO'\nfoo body\nFOO";
+		const expectedSecondCommand = "cat << 'BAR'\nbar body\nBAR";
+		expect(execute).toHaveBeenCalledTimes(2);
+		expect(execute).toHaveBeenNthCalledWith(
+			1,
+			expectedFirstCommand,
+			process.cwd(),
+			expect.objectContaining({ sessionId: "session-consecutive-heredocs" }),
+		);
+		expect(execute).toHaveBeenNthCalledWith(
+			2,
+			expectedSecondCommand,
+			process.cwd(),
+			expect.objectContaining({ sessionId: "session-consecutive-heredocs" }),
+		);
+		expect(result).toEqual([
+			expect.objectContaining({
+				query: "cat << 'FOO'\nfoo body\nFOO",
+				result: `ran:${expectedFirstCommand}`,
+			}),
+			expect.objectContaining({
+				query: "cat << 'BAR'\nbar body\nBAR",
+				result: `ran:${expectedSecondCommand}`,
+			}),
+		]);
+	});
+
+	it("does not treat here-strings as split heredocs", async () => {
+		const execute = vi.fn(
+			async (command: string | { command: string }) =>
+				`ran:${typeof command === "string" ? command : command.command}`,
+		);
+		const tool = createBashTool(execute);
+
+		const result = await tool.execute(
+			{ commands: ['wc -c <<< "hello"', "hello"] },
+			{
+				sessionId: "session-here-string",
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		expect(execute).toHaveBeenCalledTimes(2);
+		expect(result).toEqual([
+			expect.objectContaining({
+				query: 'wc -c <<< "hello"',
+				result: 'ran:wc -c <<< "hello"',
+			}),
+			expect.objectContaining({
+				query: "hello",
+				result: "ran:hello",
+			}),
+		]);
+	});
+
+	it("does not coalesce unterminated heredoc command arrays", async () => {
+		const execute = vi.fn(
+			async (command: string | { command: string }) =>
+				`ran:${typeof command === "string" ? command : command.command}`,
+		);
+		const tool = createBashTool(execute);
+
+		const result = await tool.execute(
+			{ commands: ["python3 << 'PYEOF'", "print('ok')"] },
+			{
+				sessionId: "session-unterminated-heredoc",
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		expect(execute).toHaveBeenCalledTimes(2);
+		expect(result).toEqual([
+			expect.objectContaining({
+				query: "python3 << 'PYEOF'",
+				result: "ran:python3 << 'PYEOF'",
+			}),
+			expect.objectContaining({
+				query: "print('ok')",
+				result: "ran:print('ok')",
+			}),
+		]);
+	});
+
 	it("truncates long command echoes in tool results without affecting execution", async () => {
 		const execute = vi.fn(
 			async (command: string | { command: string }) =>
