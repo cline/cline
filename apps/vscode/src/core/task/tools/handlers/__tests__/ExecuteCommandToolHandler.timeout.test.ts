@@ -1,6 +1,12 @@
 import assert from "node:assert/strict"
 import { describe, it } from "mocha"
-import { isLikelyLongRunningCommand, resolveCommandTimeoutSeconds } from "../ExecuteCommandToolHandler"
+import {
+	createMalformedExecuteCommandXmlError,
+	getMalformedExecuteCommandXmlCloseTag,
+	isLikelyLongRunningCommand,
+	isMalformedExecuteCommandXml,
+	resolveCommandTimeoutSeconds,
+} from "../ExecuteCommandToolHandler"
 
 describe("ExecuteCommandToolHandler timeout policy", () => {
 	it("returns undefined when managed timeout is disabled", () => {
@@ -27,5 +33,35 @@ describe("ExecuteCommandToolHandler timeout policy", () => {
 		assert.equal(isLikelyLongRunningCommand("cargo build --release"), true)
 		assert.equal(isLikelyLongRunningCommand("docker build ."), true)
 		assert.equal(isLikelyLongRunningCommand("pytest -q"), true)
+	})
+})
+
+describe("ExecuteCommandToolHandler malformed XML detection", () => {
+	it("detects execute_command XML swallowed into the command parameter", () => {
+		const command =
+			"npm test</unexpected>\n" +
+			"<requires_approval>false</requires_approval>\n" +
+			"</execute_command>"
+
+		assert.equal(isMalformedExecuteCommandXml(command), true)
+		assert.equal(getMalformedExecuteCommandXmlCloseTag(command), "</unexpected>")
+	})
+
+	it("does not flag normal command text", () => {
+		const command = "npm test -- --reporter spec"
+
+		assert.equal(isMalformedExecuteCommandXml(command), false)
+		assert.equal(getMalformedExecuteCommandXmlCloseTag(command), undefined)
+	})
+
+	it("tells the model to fix malformed execute_command XML", () => {
+		const message = createMalformedExecuteCommandXmlError(
+			"npm test</unexpected>\n<requires_approval>false</requires_approval>",
+		)
+
+		assert.match(message, /Malformed XML in execute_command/)
+		assert.match(message, /<\/unexpected>/)
+		assert.match(message, /<\/command>/)
+		assert.match(message, /<requires_approval>false<\/requires_approval>/)
 	})
 })
