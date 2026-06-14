@@ -80,6 +80,7 @@ interface ChatTextAreaProps {
 	onSend: () => void
 	onSelectFilesAndImages: () => void
 	shouldDisableFilesAndImages: boolean
+	supportsImages: boolean
 	onHeightChange?: (height: number) => void
 	onFocusChange?: (isFocused: boolean) => void
 }
@@ -207,6 +208,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			onSend,
 			onSelectFilesAndImages,
 			shouldDisableFilesAndImages,
+			supportsImages,
 			onHeightChange,
 			onFocusChange,
 		},
@@ -225,9 +227,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			mcpServers,
 		} = useExtensionState()
 
-		const { selectedModelInfo } = useMemo(() => {
-			return normalizeApiConfiguration(apiConfiguration, mode)
-		}, [apiConfiguration, mode])
 
 		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
 		const [isDraggingOver, setIsDraggingOver] = useState(false)
@@ -906,7 +905,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					return type === "image" && acceptedTypes.includes(subtype)
 				})
 				if (imageItems.length > 0) {
-					if (!selectedModelInfo.supportsImages) {
+					if (!supportsImages) {
 						e.preventDefault()
 						showImageUnsupportedErrorMessage()
 						return
@@ -970,7 +969,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				setInputValue,
 				inputValue,
 				showDimensionErrorMessage,
-				selectedModelInfo.supportsImages,
+				supportsImages,
 				showImageUnsupportedErrorMessage,
 			],
 		)
@@ -1322,7 +1321,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				return type === "image" && acceptedTypes.includes(subtype)
 			})
 
-			if (imageFiles.length > 0 && !selectedModelInfo.supportsImages) {
+			if (imageFiles.length > 0 && !supportsImages) {
 				showImageUnsupportedErrorMessage()
 				return
 			}
