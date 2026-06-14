@@ -1,3 +1,4 @@
+import { isClineProvider } from "@cline/shared";
 import {
 	isDeepSeekFamily,
 	isGemini3Model,
@@ -264,7 +265,7 @@ const clineGatewayReasoningRule: ProviderOptionRule = {
 	id: "provider.cline.reasoning",
 	phase: "provider-reasoning",
 	description: "Cline gateway accepts the shared gateway reasoning shape.",
-	applies: (input) => input.request.providerId === "cline",
+	applies: (input) => isClineProvider(input.request.providerId),
 	build: (input) =>
 		buildReasoningPatchForProvider(
 			input,
@@ -292,7 +293,7 @@ const clineMiniMaxM3GatewayReasoningRule: ProviderOptionRule = {
 	description:
 		"Cline-routed MiniMax M3 keeps the gateway reasoning shape instead of leaking generic thinking.",
 	applies: (input) =>
-		input.request.providerId === "cline" && isMiniMaxM3(input),
+		isClineProvider(input.request.providerId) && isMiniMaxM3(input),
 	suppresses: { genericThinking: true, genericEffort: true },
 	build: () => undefined,
 };
@@ -346,7 +347,7 @@ const clineReasoningDisabledThinkingRule: ProviderOptionRule = {
 	description:
 		"Cline-routed non-Kimi-K2.6 Moonshot Kimi models use thinking.type=disabled when reasoning is disabled.",
 	applies: (input) =>
-		input.request.providerId === "cline" &&
+		isClineProvider(input.request.providerId) &&
 		isMoonshotKimiModel(input) &&
 		input.request.reasoning?.enabled === false &&
 		!isKimiK26Family(input),

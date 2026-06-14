@@ -8,6 +8,7 @@ import type { CliMigrationNotice } from "../kanban-migration/notice";
 import { logCliError } from "../logging/errors";
 import {
 	loadClineAccountSnapshot,
+	onProviderChange,
 	switchClineAccount,
 } from "../tui/cline-account";
 import type {
@@ -611,6 +612,10 @@ export async function runInteractive(
 		},
 		onModelChange: async () => {
 			await sessionRuntime.ensureReady();
+			await onProviderChange({
+				config,
+				providerId: config.providerId,
+			});
 			const existing = providerSettingsManager.getProviderSettings(
 				config.providerId,
 			) ?? {
@@ -631,6 +636,16 @@ export async function runInteractive(
 		},
 		onAccountChange: async () => {
 			await sessionRuntime.ensureReady();
+			await loadClineAccountSnapshot({
+				config,
+				clineApiBaseUrl: options?.clineApiBaseUrl,
+			}).catch((error) => {
+				logCliError(
+					config.logger,
+					"Cline account refresh after account change failed",
+					{ error },
+				);
+			});
 			await sessionRuntime.restartWithCurrentMessages();
 		},
 		onResumeSession: async (sessionId: string) => {

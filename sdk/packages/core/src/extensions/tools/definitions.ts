@@ -13,6 +13,12 @@ import {
 } from "@cline/shared";
 import { captureRunCommandsTimeout } from "../../services/telemetry/core-events";
 import { getToolContextTelemetry } from "../../services/telemetry/tool-context";
+import { CommandExitError } from "./executors/bash";
+import {
+	MAX_COMMAND_OUTPUT_CHARS,
+	MAX_READ_LINES,
+	MAX_READ_OUTPUT_CHARS,
+} from "./executors/output-limits";
 import {
 	formatError,
 	formatReadFileQuery,
@@ -122,7 +128,9 @@ export function createReadFilesTool(
 	return createTool<ReadFilesInput, ToolOperationResult[]>({
 		name: "read_files",
 		description:
-			"Read the full content of text or image files at the provided absolute paths, or return only an inclusive one-based line range when start_line/end_line are provided. " +
+			"Read the content of text or image files at the provided absolute paths, or return only an inclusive one-based line range when start_line/end_line are provided. " +
+			"When you already know multiple files you need, read them together in one call, and call this tool in the same response as other independent tool calls. " +
+			`Each read returns at most ${MAX_READ_LINES} lines / ~${Math.round(MAX_READ_OUTPUT_CHARS / 1024)}k characters; longer files report their total line count, page through them with start_line/end_line. ` +
 			"Binary files that are not image and large files are not supported. " +
 			"Returns file contents or error messages for each path. ",
 		inputSchema: zodToJsonSchema(ReadFilesInputSchema),
@@ -215,7 +223,7 @@ export function createSearchTool(
 		name: "search_codebase",
 		description:
 			"Perform regex pattern searches across the codebase. " +
-			"Supports multiple parallel searches. " +
+			"Supports multiple parallel searches. When several search patterns could be useful and do not depend on each other, run them together in one call, and call this tool in the same response as other independent tool calls. " +
 			"Use for finding code patterns, function definitions, class names, imports, etc.",
 		inputSchema: zodToJsonSchema(SearchCodebaseInputSchema),
 		timeoutMs: timeoutMs * 2,
@@ -240,13 +248,10 @@ export function createSearchTool(
 							timeoutMs,
 							`Search timed out after ${timeoutMs}ms`,
 						);
-						// Check if results contain matches
-						const hasResults =
-							results.length > 0 && !results.includes("No results found");
 						return {
 							query,
 							result: results,
-							success: hasResults,
+							success: true,
 						};
 					} catch (error) {
 						const msg = formatError(error);
@@ -284,7 +289,8 @@ export function createBashTool(
 		description:
 			"Run shell commands from the root of the workspace. " +
 			"Use for listing files, checking git status, running builds, executing tests, etc. " +
-			"Commands should be properly shell-escaped and targeted to avoid error or timeout. " +
+			"Commands should be properly shell-escaped and targeted to avoid error or timeout. Include multiple commands when they are independent and safe to run concurrently. " +
+			`Output beyond ~${Math.round(MAX_COMMAND_OUTPUT_CHARS / 1000)}k characters is middle-truncated (start and end preserved); pipe through grep/head/tail when you need specific sections of large output. ` +
 			"For long-running commands, run them in background and redirect output to a tmp file that you can read from later.",
 		inputSchema: zodToJsonSchema(RunCommandsInputSchema),
 		timeoutMs: timeoutMs * 2,
@@ -331,6 +337,14 @@ export function createBashTool(
 								durationMs: Date.now() - startedAt,
 							});
 						}
+						if (error instanceof CommandExitError) {
+							return {
+								query,
+								result: error.output,
+								error: error.message,
+								success: false,
+							};
+						}
 						const msg = formatError(error);
 						return {
 							query,
@@ -366,7 +380,8 @@ export function createWindowsShellTool(
 		description:
 			"Run shell commands from the root of the workspacein Windows environment. " +
 			"Use for listing files, checking git status, running builds, executing tests, etc. " +
-			"Prefer structured { command, args } entries for portability; plain string commands should be properly shell-escaped.",
+			`Output beyond ~${Math.round(MAX_COMMAND_OUTPUT_CHARS / 1000)}k characters is middle-truncated (start and end preserved); filter output when you need specific sections. ` +
+			"Prefer structured { command, args } entries for portability; plain string commands should be properly shell-escaped. Include multiple commands when they are independent and safe to run concurrently.",
 		inputSchema: zodToJsonSchema(StructuredCommandsInputSchema),
 		timeoutMs: timeoutMs * 2,
 		retryable: false, // Shell commands often have side effects
@@ -398,6 +413,14 @@ export function createWindowsShellTool(
 								durationMs: Date.now() - startedAt,
 							});
 						}
+						if (error instanceof CommandExitError) {
+							return {
+								query,
+								result: error.output,
+								error: error.message,
+								success: false,
+							};
+						}
 						const msg = formatError(error);
 						return {
 							query,
@@ -428,7 +451,7 @@ export function createWebFetchTool(
 		description:
 			"Fetch content from URLs and analyze them using the provided prompts. " +
 			"Use for retrieving documentation, API references, or any web content. " +
-			"Each request includes a URL and a prompt describing what information to extract.",
+			"Each request includes a URL and a prompt describing what information to extract. Fetch independent URLs together in one call, and call this tool in the same response as other independent tool calls.",
 		inputSchema: zodToJsonSchema(FetchWebContentInputSchema),
 		timeoutMs: timeoutMs * 2,
 		retryable: true,

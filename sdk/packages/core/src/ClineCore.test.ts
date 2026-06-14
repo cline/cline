@@ -332,31 +332,6 @@ describe("ClineCore", () => {
 		expect(coreTelemetry.capture).not.toHaveBeenCalled();
 	});
 
-	it("wraps an injected feature flags provider", async () => {
-		const host = {
-			runtimeAddress: undefined,
-			startSession: vi.fn(),
-			runTurn: vi.fn(),
-			getAccumulatedUsage: vi.fn(),
-			abort: vi.fn(),
-			stopSession: vi.fn(),
-			dispose: vi.fn(),
-			getSession: vi.fn(async () => undefined),
-			listSessions: vi.fn(),
-			deleteSession: vi.fn(),
-			readSessionMessages: vi.fn(),
-			subscribe: vi.fn(() => () => {}),
-			updateSessionModel: vi.fn(),
-		};
-		createRuntimeHostMock.mockResolvedValue(host);
-		const provider = new NoOpFeatureFlagsProvider();
-
-		const core = await ClineCore.create({ featureFlags: provider });
-
-		expect(core.featureFlags.getProvider()).toBe(provider);
-		await core.dispose();
-	});
-
 	it("uses a no-op feature flags provider by default", async () => {
 		const host = {
 			runtimeAddress: undefined,

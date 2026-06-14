@@ -29,7 +29,9 @@ const authMocks = vi.hoisted(() => ({
 	runAuthCommand: vi.fn(),
 }));
 const providerSettingsMocks = vi.hoisted(() => ({
-	getLastUsedProviderSettings: vi.fn<() => unknown>(() => undefined),
+	getLastUsedProviderSettings: vi.fn<(options?: unknown) => unknown>(
+		() => undefined,
+	),
 	getProviderConfig: vi.fn<(providerId: string, options?: unknown) => unknown>(
 		() => undefined,
 	),
@@ -101,9 +103,12 @@ const hubRuntimeMocks = vi.hoisted(() => ({
 }));
 const telemetryMocks = vi.hoisted(() => ({
 	captureCliExtensionActivated: vi.fn(),
-	identifyCliTelemetryAccount: vi.fn(),
+	identifyTelemetryAccount: vi.fn(),
 	getCliTelemetryService: vi.fn(),
 	disposeCliTelemetryService: vi.fn(async () => {}),
+}));
+const featureFlagMocks = vi.hoisted(() => ({
+	getBooleanFlagEnabled: vi.fn(() => false),
 }));
 
 function forcePromptModeInput() {
@@ -148,8 +153,8 @@ vi.mock("@cline/core", () => {
 			stop: vi.fn(),
 		})),
 		ProviderSettingsManager: class {
-			getLastUsedProviderSettings() {
-				return providerSettingsMocks.getLastUsedProviderSettings();
+			getLastUsedProviderSettings(options?: unknown) {
+				return providerSettingsMocks.getLastUsedProviderSettings(options);
 			}
 			getProviderSettings(providerId: string) {
 				return providerSettingsMocks.getProviderSettings(providerId);
@@ -164,6 +169,12 @@ vi.mock("@cline/core", () => {
 	};
 });
 vi.mock("./utils/provider-auth", () => authMocks);
+vi.mock("./utils/feature-flags", () => ({
+	getCliFeatureFlagsService: () => ({
+		getBooleanFlagEnabled: featureFlagMocks.getBooleanFlagEnabled,
+	}),
+	refreshCliFeatureFlagsInBackground: vi.fn(),
+}));
 vi.mock("./runtime/prompt", () => ({
 	resolveSystemPrompt: promptMocks.resolveSystemPrompt,
 }));
@@ -246,7 +257,7 @@ describe("runCli lightweight command dispatch", () => {
 		updateMocks.getPreferredKanbanInstaller.mockReset();
 		updateMocks.getPreferredKanbanInstaller.mockReturnValue(undefined);
 		telemetryMocks.captureCliExtensionActivated.mockReset();
-		telemetryMocks.identifyCliTelemetryAccount.mockReset();
+		telemetryMocks.identifyTelemetryAccount.mockReset();
 		telemetryMocks.getCliTelemetryService.mockReset();
 		telemetryMocks.disposeCliTelemetryService.mockReset();
 		telemetryMocks.disposeCliTelemetryService.mockResolvedValue(undefined);
