@@ -848,6 +848,28 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			}, 3000)
 		}, [])
 
+		// Function to show error message for unsupported images when the model doesn't support images
+		const showImageUnsupportedErrorMessage = useCallback(() => {
+			setShowImageUnsupportedError(true)
+
+			if (imageUnsupportedTimerRef.current) {
+				clearTimeout(imageUnsupportedTimerRef.current)
+			}
+
+			imageUnsupportedTimerRef.current = setTimeout(() => {
+				setShowImageUnsupportedError(false)
+				imageUnsupportedTimerRef.current = null
+			}, 3000)
+		}, [])
+
+		useEffect(() => {
+			return () => {
+				if (imageUnsupportedTimerRef.current) {
+					clearTimeout(imageUnsupportedTimerRef.current)
+				}
+			}
+		}, [])
+
 		const handlePaste = useCallback(
 			async (e: React.ClipboardEvent) => {
 				const items = e.clipboardData.items
@@ -1161,28 +1183,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				unsupportedFileTimerRef.current = null
 			}, 3000)
 		}
-
-		// Function to show error message for unsupported images when the model doesn't support images
-		const showImageUnsupportedErrorMessage = useCallback(() => {
-			setShowImageUnsupportedError(true)
-
-			if (imageUnsupportedTimerRef.current) {
-				clearTimeout(imageUnsupportedTimerRef.current)
-			}
-
-			imageUnsupportedTimerRef.current = setTimeout(() => {
-				setShowImageUnsupportedError(false)
-				imageUnsupportedTimerRef.current = null
-			}, 3000)
-		}, [])
-
-		useEffect(() => {
-			return () => {
-				if (imageUnsupportedTimerRef.current) {
-					clearTimeout(imageUnsupportedTimerRef.current)
-				}
-			}
-		}, [])
 
 		const handleDragEnter = (e: React.DragEvent) => {
 			e.preventDefault()
