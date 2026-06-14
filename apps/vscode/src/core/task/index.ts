@@ -3207,10 +3207,21 @@ export class Task {
 				// Save checkpoint after all tools in this response have finished executing
 				await this.checkpointManager?.saveCheckpoint()
 
-				// if the model did not tool use, then we need to tell it to either use a tool or attempt_completion
+				// Only nudge when the model produced neither tool use nor any meaningful non-tool content.
 				const didToolUse = this.taskState.assistantMessageContent.some((block) => block.type === "tool_use")
+				const didProvideNonToolResponse = this.taskState.assistantMessageContent.some((block) => {
+					if (block.type === "tool_use") {
+						return false
+					}
 
-				if (!didToolUse) {
+					if (block.type === "text") {
+						return block.content.trim().length > 0
+					}
+
+					return true
+				})
+
+				if (!didToolUse && !didProvideNonToolResponse) {
 					// normal request where tool use is required
 					this.taskState.userMessageContent.push({
 						type: "text",
