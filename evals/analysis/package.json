@@ -27,8 +27,8 @@
 	"devDependencies": {
 		"@types/node": "^20.0.0",
 		"@types/js-yaml": "^4.0.0",
-		"tsx": "^4.0.0",
+		"tsx": "^4.22.4",
 		"typescript": "^5.0.0",
-		"vitest": "^1.0.0"
+		"vitest": "^4.1.8"
 	}
 }
