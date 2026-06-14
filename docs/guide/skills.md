@@ -66,10 +66,11 @@ Browses the AI-Hydro Skills marketplace at `github.com/AI-Hydro/Skills`. Each ma
 
 | Skill name | Domain | What it does |
 |---|---|---|
+| `swatplus-builder` | modelling | Build, calibrate and validate SWAT+ models from a USGS gauge ID with claim governance — 13-tool MCP surface + full CLI; evidence bundle reports allowed/blocked claims per run |
 | `interactive-module-builder` | general | Create production-grade HTML learning modules with branded cells, peer-reviewed citations, and full provenance |
 | `baseflow-separation` | baseflow | Lyne-Hollick recursive filter + Eckhardt method with BFI interpretation |
 | `flood-frequency-analysis` | frequency-analysis | L-moments fitting to Bulletin 17C distributions with uncertainty bounds |
-| `watershed-characterisation` | general | End-to-end study: delineation → forcing → signatures → geomorphic → TWI |
+| `watershed-analysis-workflow` | general | End-to-end study: delineation → forcing → signatures → geomorphic → TWI |
 | `hydro-visualization` | general | Scientific figure production: FDC, hydrograph, signature scatter, TWI map |
 
 Skills are community-contributed — see [Contributing a Skill](#contributing-a-skill) to add yours.
