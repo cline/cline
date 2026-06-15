@@ -35,6 +35,7 @@ export const GlobalSettingsSchema = z
 		autoUpdateEnabled: z.boolean().default(true).catch(true),
 		disabledTools: GlobalSettingsStringListSchema.optional(),
 		disabledPlugins: GlobalSettingsStringListSchema.optional(),
+		alwaysEnabledPlugins: GlobalSettingsStringListSchema.optional(),
 	})
 	.strip()
 	.transform((settings) => {
@@ -43,6 +44,7 @@ export const GlobalSettingsSchema = z
 			autoUpdateEnabled: boolean;
 			disabledTools?: string[];
 			disabledPlugins?: string[];
+			alwaysEnabledPlugins?: string[];
 		} = {
 			autoUpdateEnabled: settings.autoUpdateEnabled,
 			telemetryOptOut: settings.telemetryOptOut,
@@ -52,6 +54,9 @@ export const GlobalSettingsSchema = z
 		}
 		if (settings.disabledPlugins?.length) {
 			normalized.disabledPlugins = settings.disabledPlugins;
+		}
+		if (settings.alwaysEnabledPlugins?.length) {
+			normalized.alwaysEnabledPlugins = settings.alwaysEnabledPlugins;
 		}
 		return normalized;
 	});
@@ -85,6 +90,9 @@ function freezeSettings(value: GlobalSettings): GlobalSettings {
 	}
 	if (value.disabledPlugins) {
 		Object.freeze(value.disabledPlugins);
+	}
+	if (value.alwaysEnabledPlugins) {
+		Object.freeze(value.alwaysEnabledPlugins);
 	}
 	return Object.freeze(value);
 }
@@ -263,6 +271,47 @@ export function setDisabledPlugin(
 		disabled.delete(path);
 	}
 	writeGlobalSettings({ ...settings, disabledPlugins: [...disabled] });
+}
+
+export function resolveAlwaysEnabledPluginPaths(
+	alwaysEnabledPluginPaths?: ReadonlyArray<string>,
+): Set<string> {
+	return new Set(
+		alwaysEnabledPluginPaths ?? readGlobalSettings().alwaysEnabledPlugins ?? [],
+	);
+}
+
+export function isPluginAlwaysEnabledGlobally(pluginPath: string): boolean {
+	return resolveAlwaysEnabledPluginPaths().has(pluginPath);
+}
+
+/**
+ * Marks a plugin as exempt from agent-profile plugin restrictions. Only
+ * consulted when a profile-driven restriction is active; a plugin the user
+ * disabled globally stays disabled regardless of this flag.
+ */
+export function setAlwaysEnabledPlugin(
+	pluginPath: string,
+	alwaysEnabledValue: boolean,
+): void {
+	const path = pluginPath.trim();
+	if (!path) {
+		return;
+	}
+
+	const settings = readGlobalSettings();
+	const alwaysEnabled = resolveAlwaysEnabledPluginPaths(
+		settings.alwaysEnabledPlugins,
+	);
+	if (alwaysEnabledValue) {
+		alwaysEnabled.add(path);
+	} else {
+		alwaysEnabled.delete(path);
+	}
+	writeGlobalSettings({
+		...settings,
+		alwaysEnabledPlugins: [...alwaysEnabled],
+	});
 }
 
 export function filterDisabledPluginPaths(

@@ -23,6 +23,72 @@ You are a code reviewer.`);
 		});
 	});
 
+	it("parses plugins entries as bare names and install mappings", () => {
+		const config = parseConfiguredAgentConfig(`---
+name: code-reviewer
+description: Reviews code
+plugins:
+  - branch-protector
+  - name: clickhouse-data-analyst
+    install: clickhouse-data-analyst
+  - name: my-tool
+    install: https://github.com/someone/repo/blob/main/plugin.ts
+---
+You are a code reviewer.`);
+
+		expect(config.plugins).toEqual([
+			{ name: "branch-protector" },
+			{ name: "clickhouse-data-analyst", install: "clickhouse-data-analyst" },
+			{
+				name: "my-tool",
+				install: "https://github.com/someone/repo/blob/main/plugin.ts",
+			},
+		]);
+	});
+
+	it("parses plugins from a comma-separated string and dedupes by name", () => {
+		const config = parseConfiguredAgentConfig(`---
+name: code-reviewer
+description: Reviews code
+plugins: branch-protector, Branch-Protector, , other-tool
+---
+You are a code reviewer.`);
+
+		expect(config.plugins).toEqual([
+			{ name: "branch-protector" },
+			{ name: "other-tool" },
+		]);
+	});
+
+	it("distinguishes an absent plugins field from an empty one", () => {
+		const absent = parseConfiguredAgentConfig(`---
+name: code-reviewer
+description: Reviews code
+---
+You are a code reviewer.`);
+		expect(absent.plugins).toBeUndefined();
+
+		const empty = parseConfiguredAgentConfig(`---
+name: code-reviewer
+description: Reviews code
+plugins: []
+---
+You are a code reviewer.`);
+		expect(empty.plugins).toEqual([]);
+	});
+
+	it("rejects plugin mappings without a name", () => {
+		expect(() =>
+			parseConfiguredAgentConfig(`---
+name: code-reviewer
+description: Reviews code
+plugins:
+  - install: https://example.com/plugin.ts
+---
+You are a code reviewer.`),
+		).toThrow();
+	});
+
 	it("does not treat delimiter lines in the body as frontmatter delimiters", () => {
 		const config = parseConfiguredAgentConfig(`---
 name: code-reviewer

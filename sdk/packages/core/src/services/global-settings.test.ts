@@ -5,7 +5,9 @@ import type { ITelemetryService } from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	GlobalSettingsSchema,
+	isPluginAlwaysEnabledGlobally,
 	readGlobalSettings,
+	setAlwaysEnabledPlugin,
 	setAutoUpdateEnabledGlobally,
 	setDisabledPlugin,
 	setDisabledTools,
@@ -145,6 +147,35 @@ describe("global-settings", () => {
 				autoUpdateEnabled: true,
 				disabledPlugins: ["/plugins/example.js"],
 				disabledTools: ["read_files"],
+				telemetryOptOut: false,
+			});
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	it("tracks always-enabled plugins independently of disabled plugins", async () => {
+		const root = await mkdtemp(join(tmpdir(), "core-global-settings-"));
+		try {
+			const settingsPath = join(root, "global-settings.json");
+			process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
+
+			setAlwaysEnabledPlugin("/plugins/example.js", true);
+			setDisabledPlugin("/plugins/other.js", true);
+
+			expect(isPluginAlwaysEnabledGlobally("/plugins/example.js")).toBe(true);
+			expect(isPluginAlwaysEnabledGlobally("/plugins/other.js")).toBe(false);
+			expect(readGlobalSettings()).toEqual({
+				autoUpdateEnabled: true,
+				alwaysEnabledPlugins: ["/plugins/example.js"],
+				disabledPlugins: ["/plugins/other.js"],
+				telemetryOptOut: false,
+			});
+
+			setAlwaysEnabledPlugin("/plugins/example.js", false);
+			expect(readGlobalSettings()).toEqual({
+				autoUpdateEnabled: true,
+				disabledPlugins: ["/plugins/other.js"],
 				telemetryOptOut: false,
 			});
 		} finally {

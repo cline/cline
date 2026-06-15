@@ -1,6 +1,7 @@
 export {
 	type ConfiguredAgentConfig,
 	type ConfiguredAgentLoadResult,
+	type ConfiguredAgentPluginRef,
 	type ConfiguredAgentReadError,
 	loadConfiguredAgentConfigs,
 	parseConfiguredAgentConfig,

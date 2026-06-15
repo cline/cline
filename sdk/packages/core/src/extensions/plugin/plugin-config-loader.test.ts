@@ -388,6 +388,37 @@ describe("plugin-config-loader", () => {
 		}
 	});
 
+	it("unions session-scoped disabled paths with globally disabled plugins", async () => {
+		const root = await mkdtemp(join(tmpdir(), "core-plugin-config-loader-"));
+		try {
+			process.env.HOME = root;
+			setHomeDir(root);
+			const keptPlugin = join(root, "kept.js");
+			const globallyDisabled = join(root, "globally-disabled.js");
+			const sessionDisabled = join(root, "session-disabled.js");
+			const settingsPath = join(root, "global-settings.json");
+			process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
+			await writeFile(keptPlugin, "export default {}", "utf8");
+			await writeFile(globallyDisabled, "export default {}", "utf8");
+			await writeFile(sessionDisabled, "export default {}", "utf8");
+			await writeFile(
+				settingsPath,
+				JSON.stringify({ disabledPlugins: [globallyDisabled] }, null, 2),
+				"utf8",
+			);
+
+			const resolved = resolveAgentPluginPaths({
+				pluginPaths: [keptPlugin, globallyDisabled, sessionDisabled],
+				cwd: root,
+				disabledPluginPaths: [sessionDisabled],
+			});
+
+			expect(resolved).toEqual([keptPlugin]);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	it("loads valid plugins while reporting failures and duplicate overrides", async () => {
 		const root = await mkdtemp(join(tmpdir(), "core-plugin-config-loader-"));
 		try {

@@ -1,6 +1,7 @@
 import type { TeamEvent } from "@cline/core";
 import type { ChatCommandState } from "../../utils/chat-commands";
 import type { Config } from "../../utils/types";
+import { resolveAgentProfileDisabledPluginPaths } from "../agent-profile-plugins";
 import {
 	CLI_DEFAULT_CHECKPOINT_CONFIG,
 	CLI_DEFAULT_LOOP_DETECTION,
@@ -27,5 +28,11 @@ export function buildInteractiveSessionConfig(input: {
 		hooks: input.runtimeHooks.hooks,
 		onTeamEvent: input.onTeamEvent,
 		onConsecutiveMistakeLimitReached: input.resolveMistakeLimitDecision,
+		// Recomputed on every session (re)start so switching profiles swaps the
+		// plugin set and reverting to the default agent clears the restriction.
+		disabledPluginPaths: resolveAgentProfileDisabledPluginPaths(
+			input.config.agentProfile,
+			input.chatCommandState.workspaceRoot,
+		),
 	};
 }

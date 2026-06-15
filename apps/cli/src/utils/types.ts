@@ -25,6 +25,11 @@ export interface ActiveAgentProfile {
 	name: string;
 	/** Profile body, captured at selection time (survives file deletion mid-session) */
 	systemPrompt: string;
+	/**
+	 * Plugin names from the profile's plugins frontmatter. When present (even
+	 * empty), only these plugins plus always-enabled ones load this session.
+	 */
+	plugins?: string[];
 }
 
 export interface Config extends Omit<CoreSessionConfig, "apiKey" | "mode"> {

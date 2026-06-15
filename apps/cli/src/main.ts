@@ -14,6 +14,7 @@ import {
 	autoUpdateOnStartup,
 	getPreferredKanbanInstaller,
 } from "./commands/update";
+import { resolveAgentProfileDisabledPluginPaths } from "./runtime/agent-profile-plugins";
 import { CLI_DEFAULT_CHECKPOINT_CONFIG } from "./runtime/defaults";
 import {
 	buildCliCompactionConfig,
@@ -307,6 +308,71 @@ export async function runCli(): Promise<void> {
 			ctx.exitCode = await runPluginUninstallCommand({
 				name,
 				cwd: opts.cwd,
+				json: opts.json === true || program.opts().json === true,
+				io,
+			});
+		});
+	const agentCmd = program
+		.command("agent")
+		.description("Manage Cline Agent profiles")
+		.action(() => {
+			agentCmd.help();
+		});
+	const agentInstallCmd = agentCmd
+		.command("install")
+		.alias("i")
+		.description(
+			"Install an agent profile from an official keyword, profile file URL, or a local path",
+		)
+		.argument(
+			"<source>",
+			"official keyword, profile .yml URL, or local profile path",
+		)
+		.option("--force", "Replace an existing profile with the same name")
+		.option("--yes", "Install profile-declared plugins without asking")
+		.option("--json", "Output as JSON")
+		.action(async (source: string) => {
+			const opts = agentInstallCmd.opts<{
+				force?: boolean;
+				yes?: boolean;
+				json?: boolean;
+			}>();
+			const { runAgentInstallCommand } = await import("./commands/agent");
+			ctx.exitCode = await runAgentInstallCommand({
+				source,
+				force: opts.force === true,
+				yes: opts.yes === true,
+				json: opts.json === true || program.opts().json === true,
+				cwd: program.opts().cwd,
+				io,
+			});
+		});
+	const agentUninstallCmd = agentCmd
+		.command("uninstall")
+		.alias("remove")
+		.alias("rm")
+		.description("Uninstall a globally installed agent profile by name")
+		.argument("<name>", "agent profile name or file name")
+		.option("--json", "Output as JSON")
+		.action(async (name: string) => {
+			const opts = agentUninstallCmd.opts<{ json?: boolean }>();
+			const { runAgentUninstallCommand } = await import("./commands/agent");
+			ctx.exitCode = await runAgentUninstallCommand({
+				name,
+				json: opts.json === true || program.opts().json === true,
+				io,
+			});
+		});
+	const agentListCmd = agentCmd
+		.command("list")
+		.alias("ls")
+		.description("List available agent profiles")
+		.option("--json", "Output as JSON")
+		.action(async () => {
+			const opts = agentListCmd.opts<{ json?: boolean }>();
+			const { runAgentListCommand } = await import("./commands/agent");
+			ctx.exitCode = await runAgentListCommand({
+				cwd: program.opts().cwd,
 				json: opts.json === true || program.opts().json === true,
 				io,
 			});
@@ -967,6 +1033,7 @@ export async function runCli(): Promise<void> {
 				activeAgentProfile = {
 					name: profile.name,
 					systemPrompt: profile.systemPrompt,
+					plugins: profile.plugins?.map((plugin) => plugin.name),
 				};
 			}
 		}
@@ -1009,6 +1076,10 @@ export async function runCli(): Promise<void> {
 			defaultToolAutoApprove,
 			toolPolicies,
 			agentProfile: activeAgentProfile,
+			disabledPluginPaths: resolveAgentProfileDisabledPluginPaths(
+				activeAgentProfile,
+				workspaceRoot,
+			),
 			enableSpawnAgent: !isYoloMode,
 			enableAgentTeams: !isYoloMode,
 			enableTools: true,

@@ -15,6 +15,7 @@ export interface AgentProfileOption {
 	name: string;
 	description?: string;
 	systemPrompt: string;
+	plugins?: string[];
 	source: "workspace" | "global";
 }
 
@@ -88,6 +89,7 @@ export function AgentSelectorContent(
 				onSearchChange={list.setSearch}
 				onItemSelect={(item) => resolve(item.key)}
 				emptyText="No agents match"
+				detailPosition="below"
 			/>
 
 			{loadErrors.length > 0 && (

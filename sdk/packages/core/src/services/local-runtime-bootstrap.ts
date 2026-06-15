@@ -370,6 +370,8 @@ export async function prepareLocalRuntimeBootstrap(
 		try {
 			loadedPlugins = await resolveAndLoadAgentPlugins({
 				pluginPaths: localConfig?.pluginPaths,
+				disabledPluginPaths:
+					localConfig?.disabledPluginPaths ?? input.config.disabledPluginPaths,
 				workspacePath,
 				cwd: input.config.cwd,
 				onEvent: onPluginEvent,

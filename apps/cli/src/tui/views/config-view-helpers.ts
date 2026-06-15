@@ -208,16 +208,38 @@ export function canDeleteConfigFooterRow(
 	);
 }
 
+export function canAlwaysEnableConfigFooterRow(
+	row:
+		| { kind: "ext"; item: InteractiveConfigItem }
+		| { kind: string }
+		| undefined,
+): boolean {
+	// Always-on never overrides a global disable, so the action is only
+	// offered on enabled plugin rows.
+	return (
+		row?.kind === "ext" &&
+		"item" in row &&
+		row.item.kind === "plugin" &&
+		row.item.enabled !== false &&
+		!row.item.loadError
+	);
+}
+
 export function getConfigFooterText({
 	canToggle = false,
 	canDelete = false,
+	canAlwaysEnable = false,
 }: {
 	canToggle?: boolean;
 	canDelete?: boolean;
+	canAlwaysEnable?: boolean;
 } = {}): string {
 	const actions = ["←/→ switch tabs", "↑/↓ navigate", "Tab/Enter select"];
 	if (canToggle) {
 		actions.push("Space toggle");
+	}
+	if (canAlwaysEnable) {
+		actions.push("A always-on (*)");
 	}
 	if (canDelete) {
 		actions.push("D delete");

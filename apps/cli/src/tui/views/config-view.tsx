@@ -19,6 +19,7 @@ import { resolveModelDisplayName } from "../components/status-bar";
 import { getModeAccent, palette } from "../palette";
 import {
 	type ConfigAction,
+	canAlwaysEnableConfigFooterRow,
 	canDeleteConfigFooterRow,
 	canToggleConfigFooterRow,
 	getAdjacentConfigTab,
@@ -133,6 +134,10 @@ export interface ConfigPanelProps extends ChoiceContext<ConfigAction> {
 	initialTab?: InteractiveConfigTab;
 	onActiveTabChange?: (tab: InteractiveConfigTab) => void;
 	onToggleConfigItem?: (
+		item: InteractiveConfigItem,
+		options?: LoadInteractiveConfigDataOptions,
+	) => Promise<InteractiveConfigData | undefined>;
+	onToggleAlwaysEnabledConfigItem?: (
 		item: InteractiveConfigItem,
 		options?: LoadInteractiveConfigDataOptions,
 	) => Promise<InteractiveConfigData | undefined>;
@@ -532,6 +537,10 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 	const canDeleteSelectedRow = Boolean(
 		props.onDeleteConfigItem && canDeleteConfigFooterRow(selectedRow),
 	);
+	const canAlwaysEnableSelectedRow = Boolean(
+		props.onToggleAlwaysEnabledConfigItem &&
+			canAlwaysEnableConfigFooterRow(selectedRow),
+	);
 
 	const setNavPosition = (nextNavPos: number) => {
 		setNavPos(nextNavPos);
@@ -550,15 +559,9 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 			if (nextData) {
 				setConfigData(nextData);
 				setPluginToolsLoaded(nextData.tools.some((tool) => tool.pluginName));
-			} else if (item.kind === "plugin" && loadConfigData) {
-				const refreshedData = await loadConfigData({
-					includePluginTools: true,
-				});
-				setConfigData(refreshedData);
-				setPluginToolsLoaded(
-					refreshedData.tools.some((tool) => tool.pluginName),
-				);
-				setPluginToolsError(undefined);
+				if (item.kind === "plugin") {
+					setPluginToolsError(undefined);
+				}
 			}
 		} catch (error) {
 			setConfigData(previousData);
@@ -639,6 +642,37 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 		}
 	};
 
+	const handleAlwaysEnableSelected = () => {
+		const row = rows[selectedRowIdx];
+		if (
+			!row ||
+			row.kind !== "ext" ||
+			!canAlwaysEnableConfigFooterRow(row) ||
+			!props.onToggleAlwaysEnabledConfigItem ||
+			togglingItemId
+		) {
+			return;
+		}
+		const item = row.item;
+		void (async () => {
+			setTogglingItemId(item.id);
+			setToggleError(undefined);
+			try {
+				const nextData = await props.onToggleAlwaysEnabledConfigItem?.(item, {
+					includePluginTools: pluginToolsLoaded,
+				});
+				if (nextData) {
+					setConfigData(nextData);
+				}
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				setToggleError(`Failed to update ${item.name}: ${message}`);
+			} finally {
+				setTogglingItemId(null);
+			}
+		})();
+	};
+
 	const handleDeleteSelected = () => {
 		if (!props.onDeleteConfigItem) {
 			return;
@@ -691,6 +725,16 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 			!key.shift
 		) {
 			handleDeleteSelected();
+			return;
+		}
+		if (
+			key.name === "a" &&
+			!key.ctrl &&
+			!key.meta &&
+			!key.option &&
+			!key.shift
+		) {
+			handleAlwaysEnableSelected();
 			return;
 		}
 		if (key.name === "return" || key.name === "tab") {
@@ -863,6 +907,9 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 									{prefix}
 									{enabledIcon}
 									{getConfigItemDisplayName(row.name)}
+									{row.item.alwaysEnabled && row.item.enabled !== false
+										? " *"
+										: ""}
 								</text>
 								<text fg="gray">{rightLabel}</text>
 							</box>
@@ -895,6 +942,7 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 						: getConfigFooterText({
 								canToggle: canToggleSelectedRow,
 								canDelete: canDeleteSelectedRow,
+								canAlwaysEnable: canAlwaysEnableSelectedRow,
 							})}
 				</em>
 			</text>

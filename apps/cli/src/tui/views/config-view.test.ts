@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { InteractiveConfigItem } from "../../tui/interactive-config";
 import {
+	canAlwaysEnableConfigFooterRow,
 	canToggleConfigFooterRow,
 	getAdjacentConfigTab,
 	getConfigFooterText,
@@ -114,6 +115,43 @@ describe("config view helpers", () => {
 			}),
 		).toBe(false);
 		expect(canToggleConfigFooterRow({ kind: "mcp-manager" })).toBe(false);
+	});
+
+	it("offers the always-on action only for healthy enabled plugin rows", () => {
+		const plugin = createItem({ kind: "plugin" });
+		const brokenPlugin = createItem({ kind: "plugin", loadError: "boom" });
+		const disabledPlugin = createItem({ kind: "plugin", enabled: false });
+		const skill = createItem({ kind: "skill" });
+
+		expect(
+			canAlwaysEnableConfigFooterRow({
+				kind: "ext",
+				item: plugin,
+			}),
+		).toBe(true);
+		expect(
+			canAlwaysEnableConfigFooterRow({
+				kind: "ext",
+				item: brokenPlugin,
+			}),
+		).toBe(false);
+		expect(
+			canAlwaysEnableConfigFooterRow({
+				kind: "ext",
+				item: disabledPlugin,
+			}),
+		).toBe(false);
+		expect(
+			canAlwaysEnableConfigFooterRow({
+				kind: "ext",
+				item: skill,
+			}),
+		).toBe(false);
+		expect(canAlwaysEnableConfigFooterRow({ kind: "toggle" })).toBe(false);
+		expect(getConfigFooterText({ canAlwaysEnable: true })).toContain(
+			"A always-on",
+		);
+		expect(getConfigFooterText()).not.toContain("A always-on");
 	});
 
 	it("supports restoring and advancing the active settings tab", () => {

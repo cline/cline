@@ -1,13 +1,5 @@
-import { existsSync, readFileSync } from "node:fs";
-import {
-	basename,
-	dirname,
-	extname,
-	isAbsolute,
-	join,
-	relative,
-	resolve,
-} from "node:path";
+import { existsSync } from "node:fs";
+import { basename, extname, isAbsolute, relative, resolve } from "node:path";
 import {
 	type BuiltinToolAvailabilityContext,
 	discoverPluginModulePaths,
@@ -27,6 +19,7 @@ import {
 	type UserInstructionConfigService,
 	type WorkflowConfig,
 } from "@cline/core";
+import { getPluginDisplayName } from "@cline/shared/storage";
 import { getToolCatalog } from "../runtime/tools";
 import {
 	type InteractiveSlashCommand,
@@ -61,6 +54,8 @@ export interface InteractiveConfigItem {
 	enabled?: boolean;
 	kind: InteractiveConfigItemKind;
 	enabledState?: "enabled" | "disabled" | "partial";
+	/** Plugins only: exempt from agent-profile plugin restrictions. */
+	alwaysEnabled?: boolean;
 	toolNames?: string[];
 	configKind?: "tool" | "plugin";
 	pluginName?: string;
@@ -201,39 +196,6 @@ function loadAgentConfigItems(workspaceRoot: string): InteractiveConfigItem[] {
 	return items;
 }
 
-function readPackageName(packageJsonPath: string): string | undefined {
-	try {
-		const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8")) as {
-			name?: unknown;
-		};
-		return typeof packageJson.name === "string" && packageJson.name.trim()
-			? packageJson.name.trim()
-			: undefined;
-	} catch {
-		return undefined;
-	}
-}
-
-function getPluginDisplayName(filePath: string): string {
-	let current = dirname(filePath);
-	for (let depth = 0; depth < 4; depth++) {
-		const packageJsonPath = join(current, "package.json");
-		if (existsSync(packageJsonPath)) {
-			const packageName = readPackageName(packageJsonPath);
-			if (packageName) {
-				return packageName;
-			}
-			break;
-		}
-		const parent = resolve(current, "..");
-		if (parent === current) {
-			break;
-		}
-		current = parent;
-	}
-	return basename(filePath, extname(filePath));
-}
-
 function isPathWithin(parentPath: string, childPath: string): boolean {
 	const relativePath = relative(resolve(parentPath), resolve(childPath));
 	return (
@@ -347,7 +309,11 @@ export async function loadInteractiveConfigData(input: {
 
 	agents.push(...loadAgentConfigItems(input.workspaceRoot));
 
-	const disabledPlugins = new Set(readGlobalSettings().disabledPlugins ?? []);
+	const globalSettings = readGlobalSettings();
+	const disabledPlugins = new Set(globalSettings.disabledPlugins ?? []);
+	const alwaysEnabledPlugins = new Set(
+		globalSettings.alwaysEnabledPlugins ?? [],
+	);
 	const pluginDirectories = resolvePluginConfigSearchPaths(
 		input.workspaceRoot,
 	).filter((directory) => existsSync(directory));
@@ -359,6 +325,7 @@ export async function loadInteractiveConfigData(input: {
 					name: getPluginDisplayName(filePath),
 					path: filePath,
 					enabled: !disabledPlugins.has(filePath),
+					alwaysEnabled: alwaysEnabledPlugins.has(filePath),
 					kind: "plugin",
 					configKind: "plugin",
 					source: detectPluginSource(filePath, input.workspaceRoot),

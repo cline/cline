@@ -219,6 +219,8 @@ export function useSearchableList(
 }
 
 const MAX_VISIBLE = 10;
+// Below-mode items take roughly two lines each, so show fewer at once.
+const MAX_VISIBLE_DETAIL_BELOW = 6;
 
 export function SearchableList(props: {
 	items: SearchableItem[];
@@ -228,6 +230,11 @@ export function SearchableList(props: {
 	onItemSelect?: (item: SearchableItem) => void;
 	emptyText?: string;
 	borderColor?: string;
+	/**
+	 * Where to render item details: truncated inline next to the label
+	 * (default), or word-wrapped in full on their own line below it.
+	 */
+	detailPosition?: "inline" | "below";
 }) {
 	const terminalBg = useTerminalBackground();
 	const defaultFg = getDefaultForeground(terminalBg);
@@ -239,11 +246,16 @@ export function SearchableList(props: {
 		onItemSelect,
 		emptyText = "No results",
 		borderColor = "gray",
+		detailPosition = "inline",
 	} = props;
 
 	const safeSelected = Math.min(selected, Math.max(0, items.length - 1));
 	const { visibleRows, aboveCount, belowCount, showAbove, showBelow } =
-		getSearchableListRowsWindow(items, safeSelected, MAX_VISIBLE);
+		getSearchableListRowsWindow(
+			items,
+			safeSelected,
+			detailPosition === "below" ? MAX_VISIBLE_DETAIL_BELOW : MAX_VISIBLE,
+		);
 
 	return (
 		<box flexDirection="column" gap={1}>
@@ -282,27 +294,21 @@ export function SearchableList(props: {
 						}
 						const item = row.item;
 						const isSel = row.itemIndex === safeSelected;
-						return (
-							<box
-								key={item.key}
-								paddingX={1}
-								flexDirection="row"
-								gap={1}
-								backgroundColor={isSel ? palette.selection : undefined}
-								onMouseDown={() => onItemSelect?.(item)}
-								overflow="hidden"
-								height={1}
-							>
+						const labelLine = (
+							<>
 								<text
 									fg={isSel ? palette.textOnSelection : "gray"}
 									flexShrink={0}
 								>
 									{isSel ? "\u276f" : " "}
 								</text>
-								<text fg={isSel ? palette.textOnSelection : defaultFg}>
+								<text
+									fg={isSel ? palette.textOnSelection : defaultFg}
+									flexShrink={0}
+								>
 									{item.label}
 								</text>
-								{item.detail && (
+								{detailPosition === "inline" && item.detail && (
 									<text
 										fg={isSel ? palette.textOnSelection : "gray"}
 										flexShrink={1}
@@ -334,6 +340,49 @@ export function SearchableList(props: {
 										{item.rightLabel}
 									</text>
 								)}
+							</>
+						);
+						if (detailPosition === "below") {
+							// One container for both lines so the selection highlight
+							// and mouse target cover the name and the description.
+							return (
+								<box
+									key={item.key}
+									paddingX={1}
+									flexDirection="column"
+									backgroundColor={isSel ? palette.selection : undefined}
+									onMouseDown={() => onItemSelect?.(item)}
+								>
+									<box flexDirection="row" gap={1} overflow="hidden" height={1}>
+										{labelLine}
+									</box>
+									{item.detail && (
+										// maxHeight bounds pathological descriptions so wrapped
+										// items cannot grow the list past the dialog height.
+										<box paddingLeft={2} maxHeight={2} overflow="hidden">
+											<text
+												fg={isSel ? palette.textOnSelection : "gray"}
+												wrapMode="word"
+											>
+												{item.detail}
+											</text>
+										</box>
+									)}
+								</box>
+							);
+						}
+						return (
+							<box
+								key={item.key}
+								paddingX={1}
+								flexDirection="row"
+								gap={1}
+								backgroundColor={isSel ? palette.selection : undefined}
+								onMouseDown={() => onItemSelect?.(item)}
+								overflow="hidden"
+								height={1}
+							>
+								{labelLine}
 							</box>
 						);
 					})}

@@ -1,5 +1,6 @@
 import {
 	createCoreSettingsService,
+	setAlwaysEnabledPlugin,
 	setDisabledPlugin,
 	setDisabledTools,
 	type UserInstructionConfigService,
@@ -71,7 +72,15 @@ export function createInteractiveConfigDataLoader(input: {
 
 		if (item.kind === "plugin" && typeof item.enabled === "boolean") {
 			setDisabledPlugin(item.path, item.enabled);
-			return undefined;
+			// Any enable/disable toggle clears always-on: the flag never
+			// overrides a global disable, so it would be a dead marker on a
+			// disabled plugin, and clearing on enable too sweeps up stale
+			// disabled-plus-always-on states. It is only set deliberately via
+			// the A action on an enabled plugin.
+			setAlwaysEnabledPlugin(item.path, false);
+			// Returning fresh data signals the runtime to restart the live
+			// session so the toggle applies immediately, matching skills/mcp.
+			return await loadConfigData({ ...options, includePluginTools: true });
 		}
 
 		if (item.kind === "mcp" && typeof item.enabled === "boolean") {
@@ -119,6 +128,17 @@ export function createInteractiveConfigDataLoader(input: {
 		return undefined;
 	};
 
+	const onToggleAlwaysEnabledConfigItem = async (
+		item: InteractiveConfigItem,
+		options: LoadInteractiveConfigDataOptions = {},
+	): Promise<InteractiveConfigData | undefined> => {
+		if (item.kind !== "plugin") {
+			return undefined;
+		}
+		setAlwaysEnabledPlugin(item.path, item.alwaysEnabled !== true);
+		return await loadConfigData(options);
+	};
+
 	const onDeleteConfigItem = async (
 		item: InteractiveConfigItem,
 		options: LoadInteractiveConfigDataOptions = {},
@@ -139,6 +159,7 @@ export function createInteractiveConfigDataLoader(input: {
 	return {
 		loadConfigData,
 		onToggleConfigItem,
+		onToggleAlwaysEnabledConfigItem,
 		onDeleteConfigItem,
 	};
 }

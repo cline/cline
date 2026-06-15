@@ -91,6 +91,9 @@ function App(props: TuiProps) {
 	const [workflowSlashCommands, setWorkflowSlashCommands] = useState(
 		props.workflowSlashCommands,
 	);
+	// Bumped after actions that can change the loaded plugin set so plugin
+	// slash command autocomplete reloads (a no-op when the host kept its cache).
+	const [pluginCommandsRefreshKey, setPluginCommandsRefreshKey] = useState(0);
 	const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const checkpointRestoreInFlightRef = useRef(false);
 
@@ -119,6 +122,7 @@ function App(props: TuiProps) {
 		workflowSlashCommands,
 		loadAdditionalSlashCommands: props.loadAdditionalSlashCommands,
 		canFork: canForkSession,
+		refreshKey: pluginCommandsRefreshKey,
 	});
 
 	const autocomplete = useAutocomplete({
@@ -192,7 +196,10 @@ function App(props: TuiProps) {
 		dialog,
 		config: props.config,
 		termHeight,
-		onAgentProfileChange: props.onAgentProfileChange,
+		onAgentProfileChange: async (profile) => {
+			await props.onAgentProfileChange(profile);
+			setPluginCommandsRefreshKey((key) => key + 1);
+		},
 		refocusTextarea: () => refocusTextareaRef.current(),
 	});
 
@@ -212,10 +219,28 @@ function App(props: TuiProps) {
 			const data = await propsOnToggleConfigItem(item, options);
 			if (data) {
 				setWorkflowSlashCommands(data.workflowSlashCommands);
+				if (item.kind === "plugin") {
+					setPluginCommandsRefreshKey((key) => key + 1);
+				}
 			}
 			return data;
 		};
 	}, [propsOnToggleConfigItem]);
+	const propsOnToggleAlwaysEnabled = props.onToggleAlwaysEnabledConfigItem;
+	const onToggleAlwaysEnabledConfigItem = useMemo<
+		TuiProps["onToggleAlwaysEnabledConfigItem"]
+	>(() => {
+		if (!propsOnToggleAlwaysEnabled) {
+			return undefined;
+		}
+		return async (item, options) => {
+			const data = await propsOnToggleAlwaysEnabled(item, options);
+			if (data) {
+				setPluginCommandsRefreshKey((key) => key + 1);
+			}
+			return data;
+		};
+	}, [propsOnToggleAlwaysEnabled]);
 	const propsOnDeleteConfigItem = props.onDeleteConfigItem;
 	const onDeleteConfigItem = useMemo<TuiProps["onDeleteConfigItem"]>(() => {
 		if (!propsOnDeleteConfigItem) {
@@ -225,6 +250,9 @@ function App(props: TuiProps) {
 			const data = await propsOnDeleteConfigItem(item, options);
 			if (data) {
 				setWorkflowSlashCommands(data.workflowSlashCommands);
+				if (item.kind === "plugin") {
+					setPluginCommandsRefreshKey((key) => key + 1);
+				}
 			}
 			return data;
 		};
@@ -241,6 +269,7 @@ function App(props: TuiProps) {
 		termHeight,
 		loadConfigData: props.loadConfigData,
 		onToggleConfigItem,
+		onToggleAlwaysEnabledConfigItem: onToggleAlwaysEnabledConfigItem,
 		onDeleteConfigItem,
 		openModelSelector,
 		openMcpManager,
