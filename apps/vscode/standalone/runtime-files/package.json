@@ -3,7 +3,7 @@
 	"version": "0.0.1",
 	"main": "cline-core.js",
 	"dependencies": {
-		"@grpc/grpc-js": "^1.13.3",
+		"@grpc/grpc-js": "^1.13.5",
 		"@grpc/reflection": "^1.0.4",
 		"better-sqlite3": "^12.4.1",
 		"grpc-health-check": "^2.0.2",
@@ -12,6 +12,6 @@
 	},
 	"overrides": {
 		"tar-fs": "^3.1.1",
-		"protobufjs": "7.5.8"
+		"protobufjs": "7.6.3"
 	}
 }
