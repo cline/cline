@@ -65,6 +65,8 @@ const myPlugin: AgentPlugin = {
 
 Hooks are defined inside the `hooks` object, not directly on the extension. The available lifecycle hooks are `beforeRun`, `afterRun`, `beforeModel`, `afterModel`, `beforeTool`, `afterTool`, and `onEvent`.
 
+`beforeRun` is the pre-inference startup gate. It runs before the first model request and before any tool execution. Return `{ stop: true, reason: "no new work, exiting" }` for a normal non-error abort, or return `appendMessages` / `replaceMessages` to hand gathered work to the agent before inference starts.
+
 
 ## Next Steps
 

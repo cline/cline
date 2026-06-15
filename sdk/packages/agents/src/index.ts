@@ -20,6 +20,7 @@
 export type {
 	AgentAfterToolResult,
 	AgentBeforeModelResult,
+	AgentBeforeRunResult,
 	AgentBeforeToolResult,
 	AgentMessage,
 	AgentMessagePart,

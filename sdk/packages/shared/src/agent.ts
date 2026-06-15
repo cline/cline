@@ -274,6 +274,24 @@ export interface AgentStopControl {
 	reason?: string;
 }
 
+export interface AgentBeforeRunResult extends AgentStopControl {
+	/**
+	 * Messages to append to the run transcript before the first model request.
+	 *
+	 * This is the pre-inference handoff channel for plugins that fetch work in
+	 * `beforeRun` (for example cron-gated inbox checks) and want the model to see
+	 * that gathered context without a separate tool call.
+	 */
+	appendMessages?: readonly AgentMessage[];
+	/**
+	 * Replace the run transcript before the first model request. Use sparingly;
+	 * `appendMessages` is preferred for normal handoff data.
+	 */
+	replaceMessages?: readonly AgentMessage[];
+	/** Override the effective system prompt for this run only. */
+	systemPrompt?: string;
+}
+
 export interface AgentBeforeModelResult {
 	stop?: boolean;
 	reason?: string;
@@ -333,7 +351,10 @@ export interface AgentRunLifecycleContext {
 export interface AgentRuntimeHooks {
 	beforeRun?: (
 		context: AgentRunLifecycleContext,
-	) => AgentStopControl | undefined | Promise<AgentStopControl | undefined>;
+	) =>
+		| AgentBeforeRunResult
+		| undefined
+		| Promise<AgentBeforeRunResult | undefined>;
 	afterRun?: (
 		context: AgentRunLifecycleContext & { result: AgentRunResult },
 	) => void | Promise<void>;
@@ -557,5 +578,7 @@ export interface AgentRunResult {
 	outputText: string;
 	messages: readonly AgentMessage[];
 	usage: AgentUsage;
+	/** Human-readable control-flow reason, most often for routine aborts. */
+	reason?: string;
 	error?: Error;
 }

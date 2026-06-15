@@ -748,6 +748,105 @@ describe("AgentRuntime", () => {
 		expect(result.outputText).toBe("done");
 	});
 
+	it("runs plugin beforeRun before any model request", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "started" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const beforeRun = vi.fn(() => {
+			expect(model.requests).toHaveLength(0);
+			return undefined;
+		});
+		const plugin: AgentRuntimePlugin = {
+			name: "prelaunch-observer",
+			setup: () => ({ hooks: { beforeRun } }),
+		};
+
+		const runtime = new AgentRuntime({ model, plugins: [plugin] });
+		const result = await runtime.run("Start");
+
+		expect(beforeRun).toHaveBeenCalledOnce();
+		expect(model.requests).toHaveLength(1);
+		expect(result.status).toBe("completed");
+	});
+
+	it("lets plugin beforeRun abort before any model request", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "should not happen" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const beforeRun = vi.fn(() => ({
+			stop: true,
+			reason: "no new work, exiting",
+		}));
+		const plugin: AgentRuntimePlugin = {
+			name: "prelaunch-gate",
+			setup: () => ({ hooks: { beforeRun } }),
+		};
+		const events: string[] = [];
+		const runtime = new AgentRuntime({ model, plugins: [plugin] });
+		runtime.subscribe((event) => events.push(event.type));
+
+		const result = await runtime.run("Start");
+
+		expect(beforeRun).toHaveBeenCalledOnce();
+		expect(model.requests).toHaveLength(0);
+		expect(result.status).toBe("aborted");
+		expect(result.error).toBeUndefined();
+		expect(result.reason).toBe("no new work, exiting");
+		expect(events).toEqual(["run-finished"]);
+	});
+
+	it("lets plugin beforeRun hand off gathered messages before first model request", async () => {
+		const handoffMessage: AgentMessage = {
+			id: "msg_handoff",
+			role: "user",
+			content: [
+				{
+					type: "text",
+					text: "Pre-launch work: process Gmail message msg_1",
+				},
+			],
+			createdAt: 1,
+		};
+		const model = new ScriptedModel([
+			(request) => {
+				expect(request.systemPrompt).toBe("handoff system");
+				expect(request.messages.at(-1)).toEqual(handoffMessage);
+				return [
+					{ type: "text-delta", text: "processed handoff" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const plugin: AgentRuntimePlugin = {
+			name: "prelaunch-handoff",
+			setup: () => ({
+				hooks: {
+					beforeRun: () => ({
+						appendMessages: [handoffMessage],
+						systemPrompt: "handoff system",
+					}),
+				},
+			}),
+		};
+
+		const runtime = new AgentRuntime({
+			model,
+			systemPrompt: "original system",
+			plugins: [plugin],
+		});
+		const result = await runtime.run("Start");
+
+		expect(model.requests).toHaveLength(1);
+		expect(result.status).toBe("completed");
+		expect(result.messages).toContainEqual(handoffMessage);
+	});
+
 	it("supports plugin-contributed tools and hooks", async () => {
 		const beforeRun = vi.fn();
 		const plugin: AgentRuntimePlugin = {

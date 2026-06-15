@@ -1,0 +1,42 @@
+{
+	"name": "@cline/example-plugin-gmail-work-to-do",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"cline": {
+		"plugins": [
+			{
+				"paths": [
+					"./src/index.ts"
+				],
+				"capabilities": [
+					"hooks"
+				]
+			}
+		]
+	},
+	"scripts": {
+		"test": "vitest run",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"googleapis": "^170.0.0"
+	},
+	"peerDependencies": {
+		"@cline/core": "*",
+		"@cline/shared": "*"
+	},
+	"peerDependenciesMeta": {
+		"@cline/core": {
+			"optional": true
+		},
+		"@cline/shared": {
+			"optional": true
+		}
+	},
+	"devDependencies": {
+		"@types/node": "^25.3.5",
+		"typescript": "^5.9.3",
+		"vitest": "^4.0.18"
+	}
+}

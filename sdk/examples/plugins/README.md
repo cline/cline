@@ -21,6 +21,7 @@ What a plugin can do:
 | [gitignore-read-files-guard.ts](./gitignore-read-files-guard.ts) | Runtime hook policy for workspace `.gitignore` boundaries | Uses `beforeTool` to inspect `read_files`, `editor`, and `apply_patch` requests and skips them when target paths match workspace `.gitignore` rules, preventing ignored files from being read or modified. |
 | [env-blocker.ts](./env-blocker.ts) | Deterministic secret protection via `beforeTool` | Uses `beforeTool` to block `read_files` and `run_commands` (e.g. `cat .env`) calls that read `.env` secret files, while leaving `.env.example`/`.env.sample`/`.env.template` readable. A hard guarantee where an AGENTS.md rule is only a suggestion. |
 | [web-search.ts](./web-search.ts) | `web_search` tool backed by an Exa API key | Adds a `web_search` tool that queries Exa for current public web results, with optional result limits, domain filters, recency windows, and country localization. Requires `EXA_API_KEY`. |
+| [gmail-work-to-do/](./gmail-work-to-do/) | Pre-inference `beforeRun` gate with durable plugin state | Checks Gmail for new matching messages before any model call. No new mail returns a normal abort (`no new mail, exiting`); new mail is handed to the agent as run context. Requires Gmail OAuth configuration and one of `GMAIL_SEARCH_QUERY`, `GMAIL_LABEL_ID`, or `GMAIL_LABEL`. |
 | [openrouter-provider.ts](./openrouter-provider.ts) | Custom model provider via `registerProvider` | Registers an OpenAI-compatible model provider (pointed at OpenRouter) plus its model catalog so the agent can run inference against it. Swap the base URL, API key env var, and models to add any OpenAI-compatible endpoint Cline does not bundle. Requires `OPENROUTER_API_KEY`. |
 | [typescript-lsp/](./typescript-lsp/) | `goto_definition` tool powered by the TypeScript Language Service | Adds `goto_definition(file, line)` for TypeScript/JavaScript projects. It loads the target project’s own TypeScript version, finds identifiers on a line, and resolves definitions through imports, re-exports, aliases, and other language-service semantics. |
 | [agents-squad/](./agents-squad/) | Multi-agent team — spin up subagents with their own models and personalities | Adds tools for starting, messaging, polling, and coordinating background subagents. It includes bundled agent presets, skill discovery/loading, and a shared handoff store for passing notes between subagents in the same conversation. |
@@ -157,7 +158,27 @@ Hooks are typed, in-process callbacks on the same hook layer as `@cline/agents`.
 | `afterTool`   | after each tool execution |
 | `onEvent`     | every `AgentRuntimeEvent` emitted by the runtime |
 
-`beforeRun` and `afterRun` wrap one `run()` / `continue()` invocation — in an interactive session, that's one user turn. `afterRun` is the right place for completion notifications, but it also fires on aborted and failed runs, so check `result.status === "completed"` if you only want successes.
+`beforeRun` and `afterRun` wrap one `run()` / `continue()` invocation — in an interactive session, that's one user turn. `beforeRun` is the earliest pre-inference hook: it runs before the first model request and before any tool execution. It can stop the run normally with `{ stop: true, reason: "no new work, exiting" }`, or hand off gathered work with `appendMessages` / `replaceMessages` so the first model request sees it. `afterRun` is the right place for completion notifications, but it also fires on aborted and failed runs, so check `result.status === "completed"` if you only want successes.
+
+```ts
+hooks: {
+  async beforeRun() {
+    const work = await pollCheaply()
+    if (work.length === 0) {
+      return { stop: true, reason: "no new work, exiting" }
+    }
+    return {
+      reason: `found ${work.length} item(s)`,
+      appendMessages: [{
+        id: `msg_work_${Date.now()}`,
+        role: "user",
+        createdAt: Date.now(),
+        content: [{ type: "text", text: JSON.stringify(work, null, 2) }],
+      }],
+    }
+  },
+}
+```
 
 ### Plugin hooks vs file hooks
 

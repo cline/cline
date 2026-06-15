@@ -22,6 +22,7 @@
 import type { AgentRuntime } from "@cline/agents";
 import { createAgentRuntime } from "@cline/agents";
 import {
+	type AgentBeforeRunResult,
 	type AgentConfig,
 	type AgentEvent,
 	type AgentExtension,
@@ -101,6 +102,25 @@ function mergeSystemPromptRules(
 	return base || additional;
 }
 
+function mergeBeforeRunResults(
+	current: AgentBeforeRunResult | undefined,
+	next: AgentBeforeRunResult,
+): AgentBeforeRunResult {
+	const appendMessages = [
+		...(current?.appendMessages ?? []),
+		...(next.appendMessages ?? []),
+	];
+	return {
+		...current,
+		...next,
+		stop: current?.stop === true || next.stop === true ? true : undefined,
+		reason: next.reason ?? current?.reason,
+		appendMessages: appendMessages.length > 0 ? appendMessages : undefined,
+		replaceMessages: next.replaceMessages ?? current?.replaceMessages,
+		systemPrompt: next.systemPrompt ?? current?.systemPrompt,
+	};
+}
+
 function mergeRuntimeHooks(
 	layers: Array<Partial<AgentRuntimeHooks> | undefined>,
 ): Partial<AgentRuntimeHooks> {
@@ -113,11 +133,14 @@ function mergeRuntimeHooks(
 
 	return {
 		beforeRun: async (ctx) => {
+			let aggregate: AgentBeforeRunResult | undefined;
 			for (const hook of hooks) {
 				const result = await hook.beforeRun?.(ctx);
-				if (result?.stop) return result;
+				if (!result) continue;
+				aggregate = mergeBeforeRunResults(aggregate, result);
+				if (result.stop) return aggregate;
 			}
-			return undefined;
+			return aggregate;
 		},
 		afterRun: async (ctx) => {
 			for (const hook of hooks) {

@@ -8,6 +8,7 @@ export * as Llms from "@cline/llms";
 // Shared contracts and path helpers re-exported for app consumers.
 export type {
 	AddProviderActionRequest,
+	AgentBeforeRunResult,
 	AgentConfig,
 	AgentEvent,
 	AgentExtension as AgentPlugin, // Public-facing alias for extensions
@@ -15,6 +16,7 @@ export type {
 	AgentExtensionCommand as AgentPluginCommand,
 	AgentExtensionCommandResult,
 	AgentHooks,
+	AgentMessage,
 	AgentMode,
 	AgentResult,
 	AgentRunResult,

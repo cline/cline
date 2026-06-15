@@ -309,6 +309,6 @@ See [Plugins](/customization/plugins) for the full manifest format, directory la
 
 3. Register all tools in `setup()`, not in lifecycle hooks. Tools must be available before the first iteration.
 
-4. Use lifecycle hooks for observation (logging, metrics, auditing), not for modifying agent behavior. If you need to modify behavior, consider using the `beforeRun` or `beforeModel` hooks to adjust the system prompt or context.
+4. Use lifecycle hooks for observation (logging, metrics, auditing), not for modifying agent behavior. If you need to modify behavior, consider using the `beforeRun` or `beforeModel` hooks to adjust the system prompt or context. `beforeRun` is the pre-inference hook: it can return `{ stop: true, reason }` to exit normally before any model call, or `appendMessages` / `replaceMessages` to hand off work gathered by a cheap startup check.
 
 5. Handle errors gracefully in hooks. A thrown error in `beforeTool` will count as a tool failure. If your hook is purely observational, catch errors internally.

@@ -2,6 +2,7 @@ import { createGateway, type GatewayProviderSettings } from "@cline/llms";
 import type {
 	AgentAfterToolResult,
 	AgentBeforeModelResult,
+	AgentBeforeRunResult,
 	AgentBeforeToolResult,
 	AgentMessage,
 	AgentMessagePart,
@@ -220,6 +221,11 @@ class ControlledStopError extends Error {
 	}
 }
 
+interface BeforeRunControl extends AgentBeforeRunResult {
+	appendMessages?: AgentMessage[];
+	replaceMessages?: AgentMessage[];
+}
+
 export class AgentRuntimeAbortError extends Error {
 	readonly reason?: unknown;
 
@@ -271,6 +277,30 @@ function cloneMessages(messages: readonly AgentMessage[]): AgentMessage[] {
 		modelInfo: message.modelInfo ? { ...message.modelInfo } : undefined,
 		metrics: message.metrics ? { ...message.metrics } : undefined,
 	}));
+}
+
+function mergeBeforeRunControl(
+	current: BeforeRunControl | undefined,
+	next: AgentBeforeRunResult | undefined,
+): BeforeRunControl | undefined {
+	if (!next) {
+		return current;
+	}
+	const appendMessages = [
+		...(current?.appendMessages ?? []),
+		...(next.appendMessages ? cloneMessages(next.appendMessages) : []),
+	];
+	return {
+		...current,
+		...next,
+		stop: current?.stop === true || next.stop === true ? true : undefined,
+		reason: next.reason ?? current?.reason,
+		appendMessages: appendMessages.length > 0 ? appendMessages : undefined,
+		replaceMessages: next.replaceMessages
+			? cloneMessages(next.replaceMessages)
+			: current?.replaceMessages,
+		systemPrompt: next.systemPrompt ?? current?.systemPrompt,
+	};
 }
 
 function usageDelta(
@@ -386,6 +416,7 @@ export class AgentRuntime {
 	};
 	private initialization?: Promise<void>;
 	private abortController?: AbortController;
+	private effectiveSystemPrompt?: string;
 
 	constructor(config: AgentRuntimeConfig) {
 		const resolved = resolveRuntimeConfig(config);
@@ -555,9 +586,11 @@ export class AgentRuntime {
 		this.state.pendingToolCalls = [];
 		this.state.lastError = undefined;
 		this.state.usage = cloneUsage(DEFAULT_USAGE);
+		this.effectiveSystemPrompt = this.config.systemPrompt;
 
 		try {
-			await this.callBeforeRunHooks();
+			const beforeRunControl = await this.callBeforeRunHooks();
+			this.applyBeforeRunControl(beforeRunControl);
 			await this.emit({ type: "run-started", snapshot: this.snapshot() });
 
 			for (const message of input ? normalizeInput(input) : []) {
@@ -568,6 +601,8 @@ export class AgentRuntime {
 					message,
 				});
 			}
+
+			this.applyBeforeRunHandoff(beforeRunControl);
 
 			const completionToolReminder = this.getCompletionToolReminderMessage();
 			if (completionToolReminder) {
@@ -701,8 +736,16 @@ export class AgentRuntime {
 				outputText: textFromMessage(this.findLastAssistantMessage()),
 				messages: cloneMessages(this.state.messages),
 				usage: cloneUsage(this.state.usage),
+				reason: isControlledStop ? normalized.message : undefined,
 				error: status === "failed" ? normalized : undefined,
 			};
+			if (isControlledStop) {
+				this.config.logger?.log?.("Agent run stopped before completion", {
+					severity: "info",
+					reason: normalized.message,
+					runId: result.runId,
+				});
+			}
 			await this.callAfterRunHooks(result);
 			if (status === "failed") {
 				await this.emit({
@@ -723,12 +766,54 @@ export class AgentRuntime {
 		}
 	}
 
-	private async callBeforeRunHooks(): Promise<void> {
+	private async callBeforeRunHooks(): Promise<BeforeRunControl | undefined> {
+		let aggregate: BeforeRunControl | undefined;
 		for (const hook of this.hooks.beforeRun) {
 			const control = (await hook({
 				snapshot: this.snapshot(),
-			})) as AgentStopControl | undefined;
-			this.applyStopControl(control);
+			})) as AgentBeforeRunResult | undefined;
+			aggregate = mergeBeforeRunControl(aggregate, control);
+			if (control?.stop) {
+				break;
+			}
+		}
+		return aggregate;
+	}
+
+	private applyBeforeRunControl(control: BeforeRunControl | undefined): void {
+		if (!control) {
+			return;
+		}
+		if (control?.systemPrompt !== undefined) {
+			this.effectiveSystemPrompt = control.systemPrompt;
+		}
+		if (!control.stop) {
+			const handoffCount =
+				(control.appendMessages?.length ?? 0) +
+				(control.replaceMessages?.length ?? 0);
+			if (handoffCount > 0 || control?.systemPrompt !== undefined) {
+				this.config.logger?.log?.("Agent beforeRun handoff accepted", {
+					severity: "info",
+					appendMessageCount: control.appendMessages?.length ?? 0,
+					replaceMessageCount: control.replaceMessages?.length ?? 0,
+					systemPromptOverridden: control.systemPrompt !== undefined,
+				});
+			}
+			return;
+		}
+		this.config.logger?.log?.("Agent beforeRun stopped run", {
+			severity: "info",
+			reason: control.reason,
+		});
+		this.applyStopControl(control);
+	}
+
+	private applyBeforeRunHandoff(control: BeforeRunControl | undefined): void {
+		if (control?.replaceMessages) {
+			this.state.messages = cloneMessages(control.replaceMessages);
+		}
+		if (control?.appendMessages) {
+			this.state.messages.push(...cloneMessages(control.appendMessages));
 		}
 	}
 
@@ -744,7 +829,7 @@ export class AgentRuntime {
 	}> {
 		const usageBeforeModel = cloneUsage(this.state.usage);
 		let request: AgentModelRequest = {
-			systemPrompt: this.config.systemPrompt,
+			systemPrompt: this.effectiveSystemPrompt ?? this.config.systemPrompt,
 			messages: cloneMessages(this.state.messages),
 			tools: [...this.tools.values()].map<AgentToolDefinition>((tool) => ({
 				name: tool.name,
@@ -1332,6 +1417,7 @@ export class AgentRuntime {
 				textFromMessage(assistantMessage ?? this.findLastAssistantMessage()),
 			messages: cloneMessages(this.state.messages),
 			usage: cloneUsage(this.state.usage),
+			reason: status === "aborted" ? this.state.lastError : undefined,
 		};
 	}
 
