@@ -5,21 +5,6 @@ import {
 	DEFAULT_CLINE_SYSTEM_PROMPT,
 } from "./system";
 
-// The working guidelines are inlined into the harness template (always on,
-// never swapped), so they are no longer exported. Pin the block here to assert
-// it survives a persona swap. The no-guessing norm is the first bullet.
-const WORKING_GUIDELINES = `Remember:
-- If you need more information, use one of the available tools or ask for clarification instead of making assumptions or lies.
-- Always adhere to existing code conventions and patterns.
-- Use only libraries and frameworks that are confirmed to be in use in the current codebase.
-- Provide complete and functional code without omissions or placeholders.
-- Be explicit about any assumptions or limitations in your solution.
-- Always show your planning process before executing any task. This will help ensure that you have a clear understanding of the requirements and that your approach aligns with the user's needs.
-- Always use absolute paths when referring to files.
-- Always verify the files you have edited or created at the end of the task to ensure they are completed and working as expected.
-
-Begin by analyzing the user's input and gathering any necessary additional context. Then, present your plan at the start of your response along with tool calls before proceeding with the task. It's OK for this section to be quite long.`;
-
 // The canonical default system prompt. Pinned as a literal (including trailing
 // whitespace) so accidental drift is caught; update deliberately when the
 // default prompt is intentionally changed.
@@ -58,6 +43,13 @@ If user asked a simple question without any coding context, answer it directly w
 {{CLINE_RULES}}
 {{CLINE_METADATA}}`;
 
+// Everything after the persona is the always-on harness (env block, working
+// guidelines, tool-call contract, completion rules, rules/metadata). Derived
+// from the default so the harness text has a single source of truth.
+const HARNESS = EXPECTED_DEFAULT_CLINE_SYSTEM_PROMPT.slice(
+	DEFAULT_CLINE_PERSONA.length,
+);
+
 describe("composeClineSystemPrompt", () => {
 	it("composes the canonical default prompt", () => {
 		expect(DEFAULT_CLINE_SYSTEM_PROMPT).toBe(
@@ -69,6 +61,8 @@ describe("composeClineSystemPrompt", () => {
 		expect(composeClineSystemPrompt({})).toBe(
 			EXPECTED_DEFAULT_CLINE_SYSTEM_PROMPT,
 		);
+		// The exported persona is the real prefix; the rest is the harness.
+		expect(DEFAULT_CLINE_SYSTEM_PROMPT).toBe(DEFAULT_CLINE_PERSONA + HARNESS);
 	});
 
 	it("treats a blank persona as the default", () => {
@@ -77,48 +71,29 @@ describe("composeClineSystemPrompt", () => {
 		);
 	});
 
-	it("swaps the persona slot while keeping the harness", () => {
+	it("swaps the persona but keeps the harness verbatim", () => {
 		const persona =
 			"You are Reviewer, a meticulous code review agent. Focus on correctness.";
-		const prompt = composeClineSystemPrompt({ persona });
+		// Only the persona changes; the entire harness tail is byte-identical.
+		expect(composeClineSystemPrompt({ persona })).toBe(persona + HARNESS);
+	});
 
-		expect(prompt.startsWith(persona)).toBe(true);
-		expect(prompt).toContain("Environment you are running in:");
-		expect(prompt).toContain("4. Working Directory: {{CWD}}");
-		expect(prompt).toContain(
-			"IMPORTANT: Always includes tool calls in your response until the task is completed.",
-		);
-		expect(prompt).toContain("{{CLINE_RULES}}");
-		expect(prompt).toContain("{{CLINE_METADATA}}");
-		expect(prompt).not.toContain("You are Cline, an AI coding agent.");
-		// "Review each question carefully" is persona, so it goes with the swap.
-		expect(prompt).not.toContain("Review each question carefully");
-		// The working guidelines (including the no-guessing norm) are harness:
-		// retained in full even when a custom persona replaces the identity.
-		expect(prompt).toContain(WORKING_GUIDELINES);
-		expect(prompt).toContain(
-			`</env>\n\n${WORKING_GUIDELINES}\n\nREMEMBER, be helpful and proactive!`,
-		);
+	it("keeps the working guidelines, incl. the no-guessing norm, in the harness", () => {
+		const norm =
+			"If you need more information, use one of the available tools or ask for clarification instead of making assumptions or lies.";
+		// The norm and the rest of the working guidelines are harness, not
+		// persona, so a profile keeps them while the identity is swapped.
+		expect(HARNESS).toContain(norm);
+		expect(DEFAULT_CLINE_PERSONA).not.toContain(norm);
 	});
 
 	it("inserts persona content literally, including replacement patterns", () => {
 		const persona = "Echo the captured group $& and $' verbatim.";
-		const prompt = composeClineSystemPrompt({ persona });
-		expect(prompt.startsWith(persona)).toBe(true);
+		expect(composeClineSystemPrompt({ persona })).toBe(persona + HARNESS);
 	});
 
 	it("keeps template-like tokens inside the persona literal", () => {
 		const persona = "Mention {{AGENT_GUIDELINES}} and {{AGENT_PERSONA}} as-is.";
-		const prompt = composeClineSystemPrompt({ persona });
-		expect(prompt.startsWith(persona)).toBe(true);
-		// The harness — working guidelines included — follows the env block.
-		expect(prompt).toContain(
-			`</env>\n\n${WORKING_GUIDELINES}\n\nREMEMBER, be helpful and proactive!`,
-		);
-	});
-
-	it("keeps the exported default persona and guidelines in sync with the default prompt", () => {
-		expect(DEFAULT_CLINE_SYSTEM_PROMPT).toContain(DEFAULT_CLINE_PERSONA);
-		expect(DEFAULT_CLINE_SYSTEM_PROMPT).toContain(WORKING_GUIDELINES);
+		expect(composeClineSystemPrompt({ persona })).toBe(persona + HARNESS);
 	});
 });
