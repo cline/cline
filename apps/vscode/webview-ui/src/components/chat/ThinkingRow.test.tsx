@@ -21,6 +21,19 @@ describe("ThinkingRow", () => {
 		expect(screen.getByText("Inspecting files...")).toBeInTheDocument()
 	})
 
+	it("preserves multiline reasoning content", () => {
+		render(
+			<ThinkingRow
+				isExpanded={true}
+				isVisible={true}
+				reasoningContent={"First step\nSecond step"}
+				showTitle={true}
+			/>,
+		)
+
+		expect(screen.getByText(/First step/)).toHaveClass("whitespace-pre-wrap")
+	})
+
 	it("calls onToggle when header is clicked", () => {
 		const onToggle = vi.fn()
 
