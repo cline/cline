@@ -13,7 +13,7 @@
  * The following components are started automatically:
  *   1. HostBridge test server
  *   2. ClineApiServerMock (mock implementation of the Cline API)
- *   3. AuthServiceMock (activated if E2E_TEST="true")
+ *   3. SDK WorkOS device-auth flow, with WorkOS fetches mocked by testing-platform-workos-fetch-mock.cjs
  *
  * Environment Variables for Customization:
  *   PROJECT_ROOT - Override project root directory (default: parent of scripts dir)
@@ -22,7 +22,7 @@
  *   PROTOBUS_PORT - gRPC server port (default: 26040)
  *   HOSTBRIDGE_PORT - HostBridge server port (default: 26041)
  *   WORKSPACE_DIR - Working directory (default: current directory)
- *   E2E_TEST - Enable E2E test mode (default: true)
+ *   E2E_TEST - Enable legacy mock auth mode (default: false)
  *   CLINE_ENVIRONMENT - Environment setting (default: local)
  *
  * Ideal for local development, testing, or lightweight E2E scenarios.
@@ -38,7 +38,7 @@ import { ClineApiServerMock } from "../src/test/e2e/fixtures/server/index"
 const PROTOBUS_PORT = process.env.PROTOBUS_PORT || "26040"
 const HOSTBRIDGE_PORT = process.env.HOSTBRIDGE_PORT || "26041"
 const WORKSPACE_DIR = process.env.WORKSPACE_DIR || process.cwd()
-const E2E_TEST = process.env.E2E_TEST || "true"
+const E2E_TEST = process.env.E2E_TEST || "false"
 const CLINE_ENVIRONMENT = process.env.CLINE_ENVIRONMENT || "local"
 const USE_C8 = process.env.USE_C8 === "true"
 
