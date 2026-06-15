@@ -23,8 +23,8 @@ describe("Provider key mapping", () => {
 		expect(getProviderModelIdKey("cline", "plan")).to.equal("planModeClineModelId")
 	})
 
-	it("uses Cline model keys for Cline Pass", () => {
-		expect(getProviderModelIdKey("cline-pass", "act")).to.equal("actModeClineModelId")
-		expect(getProviderModelIdKey("cline-pass", "plan")).to.equal("planModeClineModelId")
+	it("uses separate model keys for Cline Pass", () => {
+		expect(getProviderModelIdKey("cline-pass", "act")).to.equal("actModeClinePassModelId")
+		expect(getProviderModelIdKey("cline-pass", "plan")).to.equal("planModeClinePassModelId")
 	})
 })

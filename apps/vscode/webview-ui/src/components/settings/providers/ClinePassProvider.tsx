@@ -1,4 +1,4 @@
-import { clinePassDefaultModelId, clinePassModels, ModelInfo } from "@shared/api"
+import { clinePassDefaultModelId, clinePassModels, type ModelInfo } from "@shared/api"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { ModelsServiceClient } from "@/services/grpc-client"
@@ -15,7 +15,8 @@ export const ClinePassProvider: typeof ClineProvider = (props) => {
 				(response.clinePass ?? [])
 					.filter((model) => model.id)
 					.map((model) => {
-						const fallback = clinePassModels[model.id as keyof typeof clinePassModels]
+						const fallback =
+							clinePassModels[model.id as keyof typeof clinePassModels] ?? clinePassModels[clinePassDefaultModelId]
 						return [
 							model.id,
 							{
@@ -51,7 +52,9 @@ export const ClinePassProvider: typeof ClineProvider = (props) => {
 		<ClineModelPicker
 			{...props}
 			defaultModelId={clinePassDefaultModel}
-			models={clinePassRecommendedModels}
+			modelIdFieldPair={{ plan: "planModeClinePassModelId", act: "actModeClinePassModelId" }}
+			modelInfoFieldPair={{ plan: "planModeClinePassModelInfo", act: "actModeClinePassModelInfo" }}
+			models={clinePassModelOptions}
 			showFeaturedModels={false}
 		/>
 	)

@@ -257,22 +257,40 @@ function createHandlerForProvider(
 				vsCodeLmModelSelector:
 					mode === "plan" ? options.planModeVsCodeLmModelSelector : options.actModeVsCodeLmModelSelector,
 			})
-		case "cline":
-		case "cline-pass": {
+		case "cline": {
 			const configuredClineModelId = mode === "plan" ? options.planModeClineModelId : options.actModeClineModelId
 			const configuredClineModelInfo = mode === "plan" ? options.planModeClineModelInfo : options.actModeClineModelInfo
 			const clineModelId =
-				apiProvider === "cline-pass"
-					? configuredClineModelId || clinePassDefaultModelId
-					: configuredClineModelId ||
-						(mode === "plan" ? options.planModeOpenRouterModelId : options.actModeOpenRouterModelId)
+				configuredClineModelId || (mode === "plan" ? options.planModeOpenRouterModelId : options.actModeOpenRouterModelId)
 			const clineModelInfo =
-				apiProvider === "cline-pass"
-					? configuredClineModelInfo ||
-						clinePassModels[clineModelId as keyof typeof clinePassModels] ||
-						clinePassModels[clinePassDefaultModelId]
-					: configuredClineModelInfo ||
-						(mode === "plan" ? options.planModeOpenRouterModelInfo : options.actModeOpenRouterModelInfo)
+				configuredClineModelInfo ||
+				(mode === "plan" ? options.planModeOpenRouterModelInfo : options.actModeOpenRouterModelInfo)
+			return new ClineHandler({
+				onRetryAttempt: options.onRetryAttempt,
+				clineAccountId: options.clineAccountId,
+				clineApiKey: options.clineApiKey,
+				ulid: options.ulid,
+				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
+				thinkingBudgetTokens:
+					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
+				openRouterProviderSorting: options.openRouterProviderSorting,
+				openRouterModelId: clineModelId,
+				openRouterModelInfo: clineModelInfo,
+				enableParallelToolCalling: options.enableParallelToolCalling,
+			})
+		}
+		case "cline-pass": {
+			const configuredClinePassModelId =
+				mode === "plan" ? options.planModeClinePassModelId : options.actModeClinePassModelId
+			const configuredClinePassModelInfo =
+				mode === "plan" ? options.planModeClinePassModelInfo : options.actModeClinePassModelInfo
+			const clineModelId = configuredClinePassModelId?.startsWith("cline-pass/")
+				? configuredClinePassModelId
+				: clinePassDefaultModelId
+			const clineModelInfo =
+				configuredClinePassModelInfo ||
+				clinePassModels[clineModelId as keyof typeof clinePassModels] ||
+				clinePassModels[clinePassDefaultModelId]
 			return new ClineHandler({
 				onRetryAttempt: options.onRetryAttempt,
 				clineAccountId: options.clineAccountId,

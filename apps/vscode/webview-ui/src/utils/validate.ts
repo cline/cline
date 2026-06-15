@@ -214,7 +214,9 @@ export function validateModelId(
 				break
 			}
 			case "cline-pass": {
-				const clinePassResolvedModelId = clineModelId || clinePassDefaultModelId
+				const clinePassModelId =
+					currentMode === "plan" ? apiConfiguration.planModeClinePassModelId : apiConfiguration.actModeClinePassModelId
+				const clinePassResolvedModelId = clinePassModelId || clinePassDefaultModelId
 				if (!clinePassResolvedModelId) {
 					return "You must provide a model ID."
 				}

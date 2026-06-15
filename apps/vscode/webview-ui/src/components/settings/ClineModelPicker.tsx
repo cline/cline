@@ -1,4 +1,4 @@
-import { CLAUDE_SONNET_1M_SUFFIX, type ModelInfo } from "@shared/api"
+import { type ApiConfiguration, CLAUDE_SONNET_1M_SUFFIX, type ModelInfo } from "@shared/api"
 import { CLINE_RECOMMENDED_MODELS_FALLBACK } from "@shared/cline/recommended-models"
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import { type ClineRecommendedModel, ClineRecommendedModelsResponse } from "@shared/proto/cline/models"
@@ -53,6 +53,8 @@ export interface ClineModelPickerProps {
 	showProviderRouting?: boolean
 	initialTab?: "recommended" | "free"
 	defaultModelId?: string
+	modelIdFieldPair?: { plan: keyof ApiConfiguration; act: keyof ApiConfiguration }
+	modelInfoFieldPair?: { plan: keyof ApiConfiguration; act: keyof ApiConfiguration }
 	models?: Record<string, ModelInfo>
 	showFeaturedModels?: boolean
 }
@@ -101,6 +103,8 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({
 	showProviderRouting,
 	initialTab,
 	defaultModelId,
+	modelIdFieldPair = { plan: "planModeClineModelId", act: "actModeClineModelId" },
+	modelInfoFieldPair = { plan: "planModeClineModelInfo", act: "actModeClineModelInfo" },
 	models,
 	showFeaturedModels = true,
 }) => {
@@ -112,8 +116,19 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({
 		() => normalizeApiConfiguration(apiConfiguration, currentMode),
 		[apiConfiguration, currentMode],
 	)
+	const configuredModelId = apiConfiguration?.[modelIdFieldPair[currentMode]] as string | undefined
 	const selectedOrDefaultModelId = defaultModelId ?? normalizedSelection.selectedModelId
-	const [searchTerm, setSearchTerm] = useState(modeFields.clineModelId || selectedOrDefaultModelId)
+	const resolveModelId = useCallback(
+		(modelId?: string) => {
+			if (models && (!modelId || !(modelId in models))) {
+				return selectedOrDefaultModelId
+			}
+
+			return modelId || selectedOrDefaultModelId
+		},
+		[models, selectedOrDefaultModelId],
+	)
+	const [searchTerm, setSearchTerm] = useState(resolveModelId(configuredModelId))
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(-1)
 	const [clineRecommendedModels, setClineRecommendedModels] = useState<FeaturedModelCardEntry[]>([])
@@ -205,9 +220,9 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({
 		if (initialTab) {
 			return
 		}
-		const currentModelId = modeFields.clineModelId || selectedOrDefaultModelId
+		const currentModelId = resolveModelId(configuredModelId)
 		setActiveTab(freeClineModelIdSet.has(normalizeModelId(currentModelId)) ? "free" : "recommended")
-	}, [freeClineModelIdSet, initialTab, modeFields.clineModelId, selectedOrDefaultModelId])
+	}, [configuredModelId, freeClineModelIdSet, initialTab, resolveModelId])
 	const dropdownRef = useRef<HTMLDivElement>(null)
 	const itemRefs = useRef<(HTMLDivElement | null)[]>([])
 	const dropdownListRef = useRef<HTMLDivElement>(null)
@@ -217,8 +232,8 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({
 
 		handleModeFieldsChange(
 			{
-				clineModelId: { plan: "planModeClineModelId", act: "actModeClineModelId" },
-				clineModelInfo: { plan: "planModeClineModelInfo", act: "actModeClineModelInfo" },
+				clineModelId: modelIdFieldPair,
+				clineModelInfo: modelInfoFieldPair,
 			},
 			{
 				clineModelId: newModelId,
@@ -229,12 +244,13 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({
 	}
 
 	const { selectedModelId, selectedModelInfo } = useMemo(() => {
+		const resolvedModelId = resolveModelId(configuredModelId)
 		const selected =
-			defaultModelId && !modeFields.clineModelId
+			(defaultModelId || models) && resolvedModelId !== normalizedSelection.selectedModelId
 				? {
 						...normalizedSelection,
-						selectedModelId: defaultModelId,
-						selectedModelInfo: resolvedModels?.[defaultModelId] ?? normalizedSelection.selectedModelInfo,
+						selectedModelId: resolvedModelId,
+						selectedModelInfo: resolvedModels?.[resolvedModelId] ?? normalizedSelection.selectedModelInfo,
 					}
 				: normalizedSelection
 		if (freeClineModelIdSet.has(normalizeModelId(selected.selectedModelId))) {
@@ -250,7 +266,7 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({
 			}
 		}
 		return selected
-	}, [defaultModelId, freeClineModelIdSet, modeFields.clineModelId, normalizedSelection, resolvedModels])
+	}, [configuredModelId, defaultModelId, freeClineModelIdSet, models, normalizedSelection, resolvedModels, resolveModelId])
 
 	useMount(() => {
 		if (!models) {
@@ -264,8 +280,8 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({
 
 	// Sync external changes when the modelId changes
 	useEffect(() => {
-		setSearchTerm(modeFields.clineModelId || selectedOrDefaultModelId)
-	}, [modeFields.clineModelId, selectedOrDefaultModelId])
+		setSearchTerm(resolveModelId(configuredModelId))
+	}, [configuredModelId, resolveModelId])
 
 	useEffect(() => {
 		const handleClickOutside = (event: MouseEvent) => {

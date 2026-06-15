@@ -278,7 +278,6 @@ export function normalizeApiConfiguration(
 				selectedModelInfo: requestyModelInfo || requestyDefaultModelInfo,
 			}
 		case "cline":
-		case "cline-pass":
 			const fallbackOpenRouterModelId =
 				currentMode === "plan" ? apiConfiguration?.planModeOpenRouterModelId : apiConfiguration?.actModeOpenRouterModelId
 			const fallbackOpenRouterModelInfo =
@@ -287,26 +286,32 @@ export function normalizeApiConfiguration(
 					: apiConfiguration?.actModeOpenRouterModelInfo
 			const configuredClineModelId =
 				currentMode === "plan" ? apiConfiguration?.planModeClineModelId : apiConfiguration?.actModeClineModelId
-			const clineModelId =
-				provider === "cline-pass"
-					? configuredClineModelId || clinePassDefaultModelId
-					: configuredClineModelId || fallbackOpenRouterModelId || openRouterDefaultModelId
+			const clineModelId = configuredClineModelId || fallbackOpenRouterModelId || openRouterDefaultModelId
 			const clineModelInfo =
-				provider === "cline-pass"
-					? (currentMode === "plan"
-							? apiConfiguration?.planModeClineModelInfo
-							: apiConfiguration?.actModeClineModelInfo) ||
-						clinePassModels[clineModelId as keyof typeof clinePassModels] ||
-						clinePassModels[clinePassDefaultModelId]
-					: (currentMode === "plan"
-							? apiConfiguration?.planModeClineModelInfo
-							: apiConfiguration?.actModeClineModelInfo) ||
-						fallbackOpenRouterModelInfo ||
-						openRouterDefaultModelInfo
+				(currentMode === "plan" ? apiConfiguration?.planModeClineModelInfo : apiConfiguration?.actModeClineModelInfo) ||
+				fallbackOpenRouterModelInfo ||
+				openRouterDefaultModelInfo
 			return {
 				selectedProvider: provider,
 				selectedModelId: clineModelId,
 				selectedModelInfo: clineModelInfo,
+			}
+		case "cline-pass":
+			const configuredClinePassModelId =
+				currentMode === "plan" ? apiConfiguration?.planModeClinePassModelId : apiConfiguration?.actModeClinePassModelId
+			const clinePassModelId = configuredClinePassModelId?.startsWith("cline-pass/")
+				? configuredClinePassModelId
+				: clinePassDefaultModelId
+			const clinePassModelInfo =
+				(currentMode === "plan"
+					? apiConfiguration?.planModeClinePassModelInfo
+					: apiConfiguration?.actModeClinePassModelInfo) ||
+				clinePassModels[clinePassModelId as keyof typeof clinePassModels] ||
+				clinePassModels[clinePassDefaultModelId]
+			return {
+				selectedProvider: provider,
+				selectedModelId: clinePassModelId,
+				selectedModelInfo: clinePassModelInfo,
 			}
 		case "openai":
 			const openAiModelId =
@@ -547,6 +552,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			openAiModelId: undefined,
 			openRouterModelId: undefined,
 			clineModelId: undefined,
+			clinePassModelId: undefined,
 			groqModelId: undefined,
 			basetenModelId: undefined,
 			huggingFaceModelId: undefined,
@@ -561,6 +567,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			liteLlmModelInfo: undefined,
 			openRouterModelInfo: undefined,
 			clineModelInfo: undefined,
+			clinePassModelInfo: undefined,
 			requestyModelInfo: undefined,
 			groqModelInfo: undefined,
 			basetenModelInfo: undefined,
@@ -592,6 +599,10 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 	const clineModelInfo =
 		(mode === "plan" ? apiConfiguration.planModeClineModelInfo : apiConfiguration.actModeClineModelInfo) ||
 		openRouterModelInfo
+	const clinePassModelId =
+		mode === "plan" ? apiConfiguration.planModeClinePassModelId : apiConfiguration.actModeClinePassModelId
+	const clinePassModelInfo =
+		mode === "plan" ? apiConfiguration.planModeClinePassModelInfo : apiConfiguration.actModeClinePassModelInfo
 
 	return {
 		// Core fields
@@ -608,6 +619,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 		openAiModelId: mode === "plan" ? apiConfiguration.planModeOpenAiModelId : apiConfiguration.actModeOpenAiModelId,
 		openRouterModelId,
 		clineModelId,
+		clinePassModelId,
 		groqModelId: mode === "plan" ? apiConfiguration.planModeGroqModelId : apiConfiguration.actModeGroqModelId,
 		basetenModelId: mode === "plan" ? apiConfiguration.planModeBasetenModelId : apiConfiguration.actModeBasetenModelId,
 		huggingFaceModelId:
@@ -627,6 +639,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 		liteLlmModelInfo: mode === "plan" ? apiConfiguration.planModeLiteLlmModelInfo : apiConfiguration.actModeLiteLlmModelInfo,
 		openRouterModelInfo,
 		clineModelInfo,
+		clinePassModelInfo,
 		requestyModelInfo:
 			mode === "plan" ? apiConfiguration.planModeRequestyModelInfo : apiConfiguration.actModeRequestyModelInfo,
 		groqModelInfo: mode === "plan" ? apiConfiguration.planModeGroqModelInfo : apiConfiguration.actModeGroqModelInfo,

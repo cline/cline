@@ -29,7 +29,7 @@ import {
 const ProviderKeyMap: Partial<Record<ApiProvider, string>> = {
 	openrouter: "OpenRouterModelId",
 	cline: "ClineModelId",
-	"cline-pass": "ClineModelId",
+	"cline-pass": "ClinePassModelId",
 	openai: "OpenAiModelId",
 	ollama: "OllamaModelId",
 	lmstudio: "LmStudioModelId",
