@@ -261,9 +261,7 @@ function appendToolRows(
 
 function hasPluginDiagnostics(data: InteractiveConfigData): boolean {
 	return (
-		data.pluginDiagnosticsLoaded ||
-		data.tools.some((item) => item.pluginName) ||
-		data.mcp.some((item) => item.pluginName)
+		data.pluginDiagnosticsLoaded || data.tools.some((item) => item.pluginName)
 	);
 }
 
@@ -417,9 +415,7 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 
 	useEffect(() => {
 		if (
-			(activeTab !== "tools" &&
-				activeTab !== "plugins" &&
-				activeTab !== "mcp") ||
+			(activeTab !== "tools" && activeTab !== "plugins") ||
 			pluginToolsLoaded ||
 			pluginToolsError ||
 			!loadConfigData
@@ -526,10 +522,7 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 						text: loadingText ?? "Loading plugin diagnostics...",
 					});
 				}
-				if (
-					(activeTab === "plugins" || activeTab === "mcp") &&
-					pluginToolsError
-				) {
+				if (activeTab === "plugins" && pluginToolsError) {
 					r.push({
 						kind: "detail",
 						text: pluginToolsError,

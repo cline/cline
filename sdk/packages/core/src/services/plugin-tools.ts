@@ -1,3 +1,4 @@
+import { stat } from "node:fs/promises";
 import { isAbsolute, relative, resolve } from "node:path";
 import type { AgentConfig, AgentTool } from "@cline/shared";
 import { resolveAgentPluginPaths } from "../extensions/plugin/plugin-config-loader";
@@ -36,6 +37,59 @@ export interface ListPluginToolsResult {
 }
 
 type PluginToolDescriptor = Omit<PluginToolSummary, "enabled">;
+type PluginToolDescriptorCacheEntry = {
+	tools: PluginToolDescriptor[];
+	failures: PluginInitializationFailure[];
+	warnings: PluginInitializationWarning[];
+};
+
+const MAX_PLUGIN_TOOL_DESCRIPTOR_CACHE_ENTRIES = 32;
+const pluginToolDescriptorCache = new Map<
+	string,
+	PluginToolDescriptorCacheEntry
+>();
+
+function cachePluginToolDescriptors(
+	key: string,
+	entry: PluginToolDescriptorCacheEntry,
+): void {
+	if (
+		!pluginToolDescriptorCache.has(key) &&
+		pluginToolDescriptorCache.size >= MAX_PLUGIN_TOOL_DESCRIPTOR_CACHE_ENTRIES
+	) {
+		const oldestKey = pluginToolDescriptorCache.keys().next().value;
+		if (oldestKey) {
+			pluginToolDescriptorCache.delete(oldestKey);
+		}
+	}
+	pluginToolDescriptorCache.set(key, entry);
+}
+
+async function buildPluginToolDescriptorCacheKey(input: {
+	pluginPaths: ReadonlyArray<string>;
+	workspacePath: string;
+	cwd?: string;
+	providerId?: string;
+	modelId?: string;
+}): Promise<string> {
+	const pathStats = await Promise.all(
+		input.pluginPaths.map(async (pluginPath) => {
+			try {
+				const stats = await stat(pluginPath);
+				return `${pluginPath}:${stats.mtimeMs}:${stats.size}`;
+			} catch {
+				return `${pluginPath}:missing`;
+			}
+		}),
+	);
+	return JSON.stringify({
+		workspacePath: input.workspacePath,
+		cwd: input.cwd,
+		providerId: input.providerId,
+		modelId: input.modelId,
+		pathStats,
+	});
+}
 
 function withEnabledState(
 	tools: readonly PluginToolDescriptor[],
@@ -103,6 +157,22 @@ export async function listPluginToolsWithDiagnostics(input: {
 		return { tools: [], failures: [], warnings: [] };
 	}
 
+	const cacheKey = await buildPluginToolDescriptorCacheKey({
+		pluginPaths,
+		workspacePath: input.workspacePath,
+		cwd: input.cwd,
+		providerId: input.providerId,
+		modelId: input.modelId,
+	});
+	const cached = pluginToolDescriptorCache.get(cacheKey);
+	if (cached) {
+		return {
+			tools: withEnabledState(cached.tools, disabled),
+			failures: cached.failures,
+			warnings: cached.warnings,
+		};
+	}
+
 	const tools: PluginToolDescriptor[] = [];
 	let failures: PluginInitializationFailure[] = [];
 	let warnings: PluginInitializationWarning[] = [];
@@ -166,6 +236,11 @@ export async function listPluginToolsWithDiagnostics(input: {
 	}
 
 	const sortedTools = sortPluginToolDescriptors(tools);
+	cachePluginToolDescriptors(cacheKey, {
+		tools: sortedTools,
+		failures,
+		warnings,
+	});
 	return {
 		tools: withEnabledState(sortedTools, disabled),
 		failures,

@@ -211,6 +211,56 @@ export default {
 		expect(written.mcpServers?.["old-docs"]).toBeUndefined();
 	});
 
+	it("removes stale owned servers when a plugin no longer has setup", async () => {
+		const { pluginPath, settingsPath } = await createPlugin(`
+export default {
+  name: "repo-docs",
+  manifest: { capabilities: ["mcp"] },
+}
+`);
+		await writeFile(
+			settingsPath,
+			JSON.stringify(
+				{
+					mcpServers: {
+						"old-docs": {
+							transport: {
+								type: "streamableHttp",
+								url: "https://old.example.com/mcp",
+							},
+							metadata: {
+								source: "plugin",
+								pluginName: "repo-docs",
+								pluginPath,
+							},
+						},
+					},
+				},
+				null,
+				2,
+			),
+			"utf8",
+		);
+
+		const result = await syncPluginMcpServersToSettings({
+			pluginPaths: [pluginPath],
+			settingsPath,
+		});
+
+		expect(result.mutations).toEqual([
+			expect.objectContaining({
+				name: "old-docs",
+				pluginName: "repo-docs",
+				pluginPath,
+				action: "removed",
+			}),
+		]);
+		const written = JSON.parse(await readFile(settingsPath, "utf8")) as {
+			mcpServers?: Record<string, unknown>;
+		};
+		expect(written.mcpServers?.["old-docs"]).toBeUndefined();
+	});
+
 	it("isolates plugin setup failures while syncing other plugins", async () => {
 		const { root, settingsPath } = await createPlugin("export default {};\n");
 		const goodPluginPath = join(root, "good-plugin.mjs");

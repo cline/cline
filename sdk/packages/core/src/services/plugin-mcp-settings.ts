@@ -264,7 +264,14 @@ async function collectPluginMcpServers(
 		for (const extension of sandboxed.extensions ?? []) {
 			const pluginPath = (extension as AgentExtensionWithPath)
 				.__clinePluginPath;
-			if (!pluginPath || !extension.setup) {
+			if (!pluginPath) {
+				continue;
+			}
+			if (!extension.setup) {
+				plugins.push({
+					pluginName: extension.name,
+					pluginPath,
+				});
 				continue;
 			}
 			const mcpServers: AgentExtensionMcpServer[] = [];
