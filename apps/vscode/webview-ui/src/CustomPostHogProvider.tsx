@@ -10,8 +10,6 @@ export function CustomPostHogProvider({ children }: { children: ReactNode }) {
 	// Skip PostHog entirely in self-hosted mode or when environment is unknown (safety fallback)
 	const isSelfHostedOrUnknown = !environment || environment === "selfHosted"
 
-	// NOTE: This is a hack to stop recording webview click events temporarily.
-	// Remove this to re-enable.
 	const isTelemetryEnabled = telemetrySetting !== "disabled"
 	const [isActive, setIsActive] = useState(false)
 
