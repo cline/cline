@@ -41,7 +41,7 @@ export function CustomPostHogProvider({ children }: { children: ReactNode }) {
 		posthog.set_config({
 			before_send: (payload) => {
 				// Only filter out events if telemetry is disabled, but allow feature flag requests
-				if (!isTelemetryEnabled || payload?.event !== "$feature_flag_called") {
+				if (!isTelemetryEnabled && payload?.event !== "$feature_flag_called") {
 					return null
 				}
 
