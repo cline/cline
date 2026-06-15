@@ -17,7 +17,9 @@ export async function renderHistoryStandalone(input: {
 	});
 
 	return new Promise((resolve) => {
-		let settled = false;
+		let result: number | string = 0;
+		let resolved = false;
+		let destroyStarted = false;
 		let unmounted = false;
 		const root = createRoot(renderer);
 
@@ -29,23 +31,28 @@ export async function renderHistoryStandalone(input: {
 			root.unmount();
 		};
 
-		const settle = (value: number | string) => {
-			if (settled) {
-				return;
-			}
-			settled = true;
-			unmountRoot();
-			renderer.destroy();
-			resolve(value);
-		};
-
+		// Resolve only once teardown has finished, so callers never run while
+		// the renderer is still restoring the terminal.
 		renderer.on("destroy", () => {
 			unmountRoot();
-			if (!settled) {
-				settled = true;
-				resolve(0);
+			if (!resolved) {
+				resolved = true;
+				resolve(result);
 			}
 		});
+
+		const settle = (value: number | string) => {
+			if (destroyStarted) {
+				return;
+			}
+			destroyStarted = true;
+			result = value;
+			unmountRoot();
+			// Let OpenTUI finish parsing the current stdin batch before teardown.
+			queueMicrotask(() => {
+				renderer.destroy();
+			});
+		};
 
 		root.render(
 			React.createElement(HistoryStandaloneContent, {

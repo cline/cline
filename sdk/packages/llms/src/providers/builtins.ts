@@ -633,7 +633,7 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		defaultModelId: "MiniMaxAI/MiniMax-M2.5",
 		apiKeyEnv: ["HF_TOKEN"],
 		modelsProviderId: "huggingface",
-		defaults: { baseUrl: "https://api-inference.huggingface.co/v1" },
+		defaults: { baseUrl: "https://router.huggingface.co/v1" },
 	},
 	{
 		id: "vercel-ai-gateway",

@@ -110,6 +110,32 @@ export {
 	toAiSdkToolResultOutput,
 } from "./llms/ai-sdk-format";
 export type * from "./llms/gateway";
+export {
+	createMediaBudgetState,
+	DEFAULT_MAX_IMAGE_BASE64_BYTES,
+	DEFAULT_MAX_IMAGE_DECODED_BYTES,
+	DEFAULT_MAX_IMAGE_ENCODED_BYTES,
+	DEFAULT_MAX_TOTAL_MEDIA_BYTES,
+	IMAGE_OMITTED_PLACEHOLDER,
+	type ImageMediaLimits,
+	type ImageMediaValidationFailure,
+	type ImageMediaValidationResult,
+	type ImageMediaValidationSuccess,
+	imageBase64DecodedByteLength,
+	imageBase64EncodedByteLength,
+	imageBase64LengthForDecodedBytes,
+	imageFileMaxDecodedBytesForBase64Limit,
+	isBase64Char,
+	isCanonicalBase64,
+	type MediaBudgetOptions,
+	type MediaBudgetState,
+	type ResolvedMediaBudget,
+	reserveImageMediaBytes,
+	resolveMediaBudget,
+	SUPPORTED_IMAGE_MEDIA_TYPES,
+	validateAndReserveImageMedia,
+	validateImageMedia,
+} from "./llms/media";
 export type {
 	ContentBlock,
 	FileContent,

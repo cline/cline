@@ -416,6 +416,10 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
 		return `${HEAD_MARKER}${filler}${MIDDLE_SENTINEL}${filler}${TAIL_MARKER}`;
 	}
 
+	function imageData(byteLength: number, fill = 1): string {
+		return Buffer.alloc(byteLength, fill).toString("base64");
+	}
+
 	function toolUseMessage(
 		id: string,
 		name: string,
@@ -539,6 +543,247 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
 		expect(serialized).toContain(TAIL_MARKER);
 		// The latest read of a file must not be rewritten as outdated.
 		expect(serialized).not.toContain("[outdated");
+	});
+
+	it("omits an oversized read_files image result without corrupting base64", () => {
+		const oversizedImage = imageData(96);
+		const builder = new MessageBuilder(
+			50_000,
+			new Set(["read_files"]),
+			1_000_000,
+			{
+				maxImageEncodedBytes: 48,
+				maxImageDecodedBytes: 48,
+				maxTotalMediaBytes: 512,
+			},
+		);
+		const messages: Message[] = [
+			toolUseMessage("call_1", "read_files", {
+				files: [{ path: "/tmp/large.png" }],
+			}),
+			structuredToolResultMessage("call_1", "read_files", [
+				{
+					query: "/tmp/large.png",
+					result: [
+						"Successfully read image",
+						{
+							type: "image",
+							data: oversizedImage,
+							mediaType: "image/png",
+						},
+					],
+					success: true,
+				},
+			]),
+		];
+
+		const result = builder.buildForApi(messages);
+		const serialized = JSON.stringify(result);
+
+		expect(serialized).toContain(
+			"[media omitted: invalid or exceeds size limit]",
+		);
+		expect(serialized).not.toContain(oversizedImage);
+		expect(serialized).not.toContain("...[truncated");
+		expect(messages).toEqual([
+			messages[0],
+			structuredToolResultMessage("call_1", "read_files", [
+				{
+					query: "/tmp/large.png",
+					result: [
+						"Successfully read image",
+						{
+							type: "image",
+							data: oversizedImage,
+							mediaType: "image/png",
+						},
+					],
+					success: true,
+				},
+			]),
+		]);
+	});
+
+	it("omits oversized custom structured image results even when text truncation is not targeted", () => {
+		const oversizedImage = imageData(96);
+		const builder = new MessageBuilder(
+			50_000,
+			new Set(["read_files"]),
+			1_000_000,
+			{
+				maxImageEncodedBytes: 48,
+				maxImageDecodedBytes: 48,
+				maxTotalMediaBytes: 512,
+			},
+		);
+		const messages: Message[] = [
+			toolUseMessage("call_1", "custom_mcp_tool", {
+				path: "/tmp/large.png",
+			}),
+			structuredToolResultMessage("call_1", "custom_mcp_tool", [
+				{
+					query: "/tmp/large.png",
+					result: {
+						type: "image",
+						data: oversizedImage,
+						mediaType: "image/png",
+					},
+					success: true,
+				},
+			]),
+		];
+
+		const result = builder.buildForApi(messages);
+		const serialized = JSON.stringify(result);
+
+		expect(serialized).toContain(
+			"[media omitted: invalid or exceeds size limit]",
+		);
+		expect(serialized).not.toContain(oversizedImage);
+		expect(serialized).not.toContain("...[truncated");
+	});
+
+	it("omits malformed image-shaped objects instead of counting them as free text", () => {
+		const hiddenPayload = imageData(4096);
+		const builder = new MessageBuilder(
+			50_000,
+			new Set(["read_files"]),
+			1_000_000,
+			{
+				maxImageEncodedBytes: 128,
+				maxImageDecodedBytes: 128,
+				maxTotalMediaBytes: 128,
+			},
+		);
+		const messages: Message[] = [
+			toolUseMessage("call_1", "custom_mcp_tool", {
+				path: "/tmp/malformed.png",
+			}),
+			structuredToolResultMessage("call_1", "custom_mcp_tool", [
+				{
+					query: "/tmp/malformed.png",
+					result: {
+						type: "image",
+						data: hiddenPayload,
+					},
+					success: true,
+				},
+			]),
+		];
+
+		const result = builder.buildForApi(messages);
+		const serialized = JSON.stringify(result);
+
+		expect(serialized).toContain(
+			"[media omitted: invalid or exceeds size limit]",
+		);
+		expect(serialized).not.toContain(hiddenPayload);
+		expect(serialized).not.toContain("...[truncated");
+	});
+
+	it("keeps valid small read_files images as native provider media", () => {
+		const smallImage = imageData(16);
+		const builder = new MessageBuilder(
+			50_000,
+			new Set(["read_files"]),
+			1_000_000,
+			{
+				maxImageEncodedBytes: 128,
+				maxImageDecodedBytes: 128,
+				maxTotalMediaBytes: 128,
+			},
+		);
+		const messages: Message[] = [
+			toolUseMessage("call_1", "read_files", {
+				files: [{ path: "/tmp/small.png" }],
+			}),
+			structuredToolResultMessage("call_1", "read_files", [
+				{
+					query: "/tmp/small.png",
+					result: [
+						"Successfully read image",
+						{
+							type: "image",
+							data: smallImage,
+							mediaType: "image/png",
+						},
+					],
+					success: true,
+				},
+			]),
+		];
+
+		const built = builder.buildForApi(messages);
+		const agentMessages = messagesToAgentMessages(built);
+		const aiSdkMessages = formatMessagesForAiSdk(
+			undefined,
+			agentMessages.map(({ role, content }) => ({
+				role,
+				content,
+			})) as unknown as AiSdkFormatterMessage[],
+		);
+		const serialized = JSON.stringify(aiSdkMessages);
+
+		expect(serialized).toContain('"type":"image-data"');
+		expect(serialized).toContain(smallImage);
+		expect(serialized).not.toContain(
+			"[media omitted: invalid or exceeds size limit]",
+		);
+	});
+
+	it("applies the total media budget across otherwise valid images", () => {
+		const firstImage = imageData(16);
+		const secondImage = imageData(16, 2);
+		const builder = new MessageBuilder(
+			50_000,
+			new Set(["read_files"]),
+			1_000_000,
+			{
+				maxImageEncodedBytes: 128,
+				maxImageDecodedBytes: 128,
+				maxTotalMediaBytes: Buffer.byteLength(firstImage, "utf8"),
+			},
+		);
+		const messages: Message[] = [
+			toolUseMessage("call_1", "read_files", {
+				files: [{ path: "/tmp/a.png" }, { path: "/tmp/b.png" }],
+			}),
+			structuredToolResultMessage("call_1", "read_files", [
+				{
+					query: "/tmp/a.png",
+					result: [
+						"Successfully read image",
+						{
+							type: "image",
+							data: firstImage,
+							mediaType: "image/png",
+						},
+					],
+					success: true,
+				},
+				{
+					query: "/tmp/b.png",
+					result: [
+						"Successfully read image",
+						{
+							type: "image",
+							data: secondImage,
+							mediaType: "image/png",
+						},
+					],
+					success: true,
+				},
+			]),
+		];
+
+		const result = builder.buildForApi(messages);
+		const serialized = JSON.stringify(result);
+
+		expect(serialized).toContain(firstImage);
+		expect(serialized).not.toContain(secondImage);
+		expect(serialized).toContain(
+			"[media omitted: invalid or exceeds size limit]",
+		);
 	});
 
 	it("truncates a huge fetch_web_content structured result", () => {
