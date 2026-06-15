@@ -18,6 +18,7 @@ import {
 	MAX_COMMAND_OUTPUT_CHARS,
 	MAX_READ_LINES,
 	MAX_READ_OUTPUT_CHARS,
+	MAX_SEARCH_OUTPUT_CHARS,
 } from "./executors/output-limits";
 import {
 	formatError,
@@ -261,7 +262,8 @@ export function createSearchTool(
 		description:
 			"Perform regex pattern searches across the codebase. " +
 			"Supports multiple parallel searches. When several search patterns could be useful and do not depend on each other, run them together in one call, and call this tool in the same response as other independent tool calls. " +
-			"Use for finding code patterns, function definitions, class names, imports, etc.",
+			"Use for finding code patterns, function definitions, class names, imports, etc. " +
+			`Output beyond ~${Math.round(MAX_SEARCH_OUTPUT_CHARS / 1000)}k characters per query is middle-truncated; narrow patterns beat broad ones.`,
 		inputSchema: zodToJsonSchema(SearchCodebaseInputSchema),
 		timeoutMs: timeoutMs * 2,
 		retryable: true,
