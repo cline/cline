@@ -218,7 +218,10 @@ export function validateModelId(
 				if (!clinePassResolvedModelId) {
 					return "You must provide a model ID."
 				}
-				if (!Object.keys(clinePassModels).includes(clinePassResolvedModelId)) {
+				if (
+					!Object.keys(clinePassModels).includes(clinePassResolvedModelId) &&
+					!clinePassResolvedModelId.startsWith("cline-pass/")
+				) {
 					return "The model ID you provided is not available. Please choose a different model."
 				}
 				break

@@ -19,6 +19,7 @@ import { BasetenProvider } from "./providers/BasetenProvider"
 import { BedrockProvider } from "./providers/BedrockProvider"
 import { CerebrasProvider } from "./providers/CerebrasProvider"
 import { ClaudeCodeProvider } from "./providers/ClaudeCodeProvider"
+import { ClinePassProvider } from "./providers/ClinePassProvider"
 import { ClineProvider } from "./providers/ClineProvider"
 import { DeepSeekProvider } from "./providers/DeepSeekProvider"
 import { DifyProvider } from "./providers/DifyProvider"
@@ -369,12 +370,7 @@ const ApiOptions = ({
 			)}
 
 			{apiConfiguration && selectedProvider === "cline-pass" && (
-				<ClineProvider
-					currentMode={currentMode}
-					isPopup={isPopup}
-					showModelOptions={showModelOptions}
-					variant="cline-pass"
-				/>
+				<ClinePassProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
 			{apiConfiguration && selectedProvider === "asksage" && (

@@ -289,13 +289,15 @@ export function normalizeApiConfiguration(
 				currentMode === "plan" ? apiConfiguration?.planModeClineModelId : apiConfiguration?.actModeClineModelId
 			const clineModelId =
 				provider === "cline-pass"
-					? configuredClineModelId && configuredClineModelId in clinePassModels
-						? configuredClineModelId
-						: clinePassDefaultModelId
+					? configuredClineModelId || clinePassDefaultModelId
 					: configuredClineModelId || fallbackOpenRouterModelId || openRouterDefaultModelId
 			const clineModelInfo =
 				provider === "cline-pass"
-					? clinePassModels[clineModelId as keyof typeof clinePassModels]
+					? (currentMode === "plan"
+							? apiConfiguration?.planModeClineModelInfo
+							: apiConfiguration?.actModeClineModelInfo) ||
+						clinePassModels[clineModelId as keyof typeof clinePassModels] ||
+						clinePassModels[clinePassDefaultModelId]
 					: (currentMode === "plan"
 							? apiConfiguration?.planModeClineModelInfo
 							: apiConfiguration?.actModeClineModelInfo) ||

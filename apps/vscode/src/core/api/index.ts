@@ -263,14 +263,14 @@ function createHandlerForProvider(
 			const configuredClineModelInfo = mode === "plan" ? options.planModeClineModelInfo : options.actModeClineModelInfo
 			const clineModelId =
 				apiProvider === "cline-pass"
-					? configuredClineModelId && configuredClineModelId in clinePassModels
-						? configuredClineModelId
-						: clinePassDefaultModelId
+					? configuredClineModelId || clinePassDefaultModelId
 					: configuredClineModelId ||
 						(mode === "plan" ? options.planModeOpenRouterModelId : options.actModeOpenRouterModelId)
 			const clineModelInfo =
 				apiProvider === "cline-pass"
-					? clinePassModels[clineModelId as keyof typeof clinePassModels]
+					? configuredClineModelInfo ||
+						clinePassModels[clineModelId as keyof typeof clinePassModels] ||
+						clinePassModels[clinePassDefaultModelId]
 					: configuredClineModelInfo ||
 						(mode === "plan" ? options.planModeOpenRouterModelInfo : options.actModeOpenRouterModelInfo)
 			return new ClineHandler({

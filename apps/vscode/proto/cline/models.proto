@@ -127,6 +127,7 @@ message ClineRecommendedModel {
 message ClineRecommendedModelsResponse {
   repeated ClineRecommendedModel recommended = 1;
   repeated ClineRecommendedModel free = 2;
+  repeated ClineRecommendedModel cline_pass = 3;
 }
 
 // Request for fetching OpenAI models
