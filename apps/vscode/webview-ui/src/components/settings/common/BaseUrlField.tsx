@@ -1,5 +1,5 @@
 import { VSCodeCheckbox, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useDebouncedInput } from "../utils/useDebouncedInput"
 
 /**
@@ -28,6 +28,10 @@ export const BaseUrlField = ({
 }: BaseUrlFieldProps) => {
 	const [isEnabled, setIsEnabled] = useState(!!initialValue)
 	const [localValue, setLocalValue] = useDebouncedInput(initialValue || "", onChange)
+
+	useEffect(() => {
+		setIsEnabled(!!initialValue)
+	}, [initialValue])
 
 	const handleToggle = (e: any) => {
 		const checked = e.target.checked === true
