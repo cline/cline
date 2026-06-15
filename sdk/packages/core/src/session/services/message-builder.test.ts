@@ -918,7 +918,9 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
 	});
 
 	it("rewrites an outdated structured read_files result when the file is re-read", () => {
-		const builder = new MessageBuilder();
+		// minOutdatedRewriteBytes = 0 commits immediately; this test targets the
+		// structured-entry locator/rewrite path, not the batching threshold.
+		const builder = new MessageBuilder(undefined, undefined, undefined, undefined, 0);
 		const messages: Message[] = [
 			toolUseMessage("call_1", "read_files", {
 				files: [{ path: "/tmp/a.ts" }],

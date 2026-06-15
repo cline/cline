@@ -406,6 +406,14 @@ export class MessageBuilder {
 					outdatedImageCount -= 1;
 					total += utf8ByteLength(entry.data);
 				}
+			} else if (isStructuredToolResultEntry(entry)) {
+				// Structured ToolOperationResult[] entry ({query, result, ...}):
+				// count its bytes when its locator is outdated, matching how
+				// replaceOutdatedReadContent rewrites it.
+				const locator = this.extractLocatorFromResultEntry(entry);
+				if (locator && outdatedKeys.has(this.toReadLocatorKey(locator))) {
+					total += utf8ByteLength(JSON.stringify(entry));
+				}
 			} else if (entry.type === "file") {
 				if (
 					outdatedKeys.has(

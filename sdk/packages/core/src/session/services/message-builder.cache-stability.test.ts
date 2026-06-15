@@ -413,6 +413,43 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 		expect(block).not.toContain("AAAA");
 	});
 
+	it("counts structured ToolOperationResult bytes toward the batch threshold", () => {
+		// 2KB threshold; the stale structured read is ~4KB so it must cross it
+		// and commit. Regression for estimateOutdatedReclaimBytes ignoring
+		// structured {query, result} entries (which made batching never fire).
+		const builder = new MessageBuilder(
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			2_000,
+		);
+		const structuredResult = (id: string, body: string): Message => ({
+			role: "user",
+			content: [
+				{
+					type: "tool_result",
+					tool_use_id: id,
+					name: "read_files",
+					content: [
+						{ query: "src/a.ts", result: body, success: true },
+					] as unknown as never,
+				},
+			],
+		});
+		const messages: Message[] = [
+			{ role: "user", content: "task" },
+			readToolUse("t1", "src/a.ts"),
+			structuredResult("t1", "x".repeat(4_000)),
+			readToolUse("t2", "src/a.ts"),
+			structuredResult("t2", "fresh"),
+		];
+		const result = builder.buildForApi(messages);
+		const block = JSON.stringify(result[2]);
+		expect(block).toContain("outdated");
+		expect(block).not.toContain("xxxx");
+	});
+
 	it("rewrites eagerly when threshold is 0 (legacy behavior)", () => {
 		const builder = new MessageBuilder(
 			undefined,
