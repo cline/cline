@@ -779,4 +779,3 @@ describe("setSkillDisabledInFrontmatter", () => {
 		sinon.assert.notCalled(writeFileStub)
 	})
 })
-
