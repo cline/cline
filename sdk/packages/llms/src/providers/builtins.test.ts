@@ -90,6 +90,12 @@ describe("built-in provider metadata", () => {
 		});
 	});
 
+	it("uses the current Hugging Face router endpoint", async () => {
+		await expect(getProvider("huggingface")).resolves.toMatchObject({
+			baseUrl: "https://router.huggingface.co/v1",
+		});
+	});
+
 	it("derives ChatGPT subscription models from the generated OpenAI catalog", async () => {
 		const chatGptModels = await getModelsForProvider("openai-codex");
 		const openAiModels = await getModelsForProvider("openai-native");
