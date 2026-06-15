@@ -34,7 +34,10 @@ export function CustomPostHogProvider({ children }: { children: ReactNode }) {
 	}, [isSelfHostedOrUnknown])
 
 	useEffect(() => {
-		// The config should always be set
+		if (!isActive || !distinctId || !version) {
+			return
+		}
+
 		posthog.set_config({
 			before_send: (payload) => {
 				// Only filter out events if telemetry is disabled, but allow feature flag requests
@@ -49,10 +52,6 @@ export function CustomPostHogProvider({ children }: { children: ReactNode }) {
 				return payload
 			},
 		})
-
-		if (!isTelemetryEnabled || !isActive || !distinctId || !version) {
-			return
-		}
 
 		const optedIn = posthog.has_opted_in_capturing()
 		const optedOut = posthog.has_opted_out_capturing()
