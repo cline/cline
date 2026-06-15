@@ -495,7 +495,7 @@
 		"@cerebras/cerebras_cloud_sdk": "^1.35.0",
 		"@google-cloud/vertexai": "^1.9.3",
 		"@google/genai": "^1.30.0",
-		"@grpc/grpc-js": "^1.9.15",
+		"@grpc/grpc-js": "^1.14.4",
 		"@grpc/reflection": "^1.0.4",
 		"@mistralai/mistralai": "^1.5.0",
 		"@modelcontextprotocol/sdk": "^1.25.1",
@@ -588,7 +588,7 @@
 		"vite": "^7.1.11",
 		"js-yaml": "^4.1.1",
 		"serialize-javascript": ">=7.0.3",
-		"protobufjs": "7.5.8",
+		"protobufjs": "7.6.3",
 		"diff": "8.0.4"
 	},
 	"c8": {
