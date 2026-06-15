@@ -20,7 +20,11 @@ import { listLocalProviders } from "../../../utils/provider-catalog";
 import { getCliTelemetryService } from "../../../utils/telemetry";
 import {
 	buildClineModelEntries,
+	buildClineModelPickerDisplayRows,
 	type ClineModelPickerEntry,
+	type ClineModelPickerExpandedTiers,
+	type ClineModelTier,
+	getVisibleClineModelPickerEntries,
 	useClineRecommendedModels,
 } from "../../components/model-selector/cline-model-picker";
 import {
@@ -174,13 +178,38 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		() => (recommended.data ? buildClineModelEntries(recommended.data) : []),
 		[recommended.data],
 	);
-	const [clineModelSelected, setClineModelSelected] = useState(0);
-	const [clineModelReasoningIds, setClineModelReasoningIds] = useState<
-		Set<string>
-	>(new Set());
+	const [clineExpandedTiers, setClineExpandedTiers] =
+		useState<ClineModelPickerExpandedTiers>({
+			clinePass: false,
+			recommended: true,
+			free: true,
+		});
+	const visibleClineEntries = useMemo(
+		() => getVisibleClineModelPickerEntries(clineEntries, clineExpandedTiers),
+		[clineEntries, clineExpandedTiers],
+	);
 	const [clineKnownModels, setClineKnownModels] = useState<
 		Record<string, unknown> | undefined
 	>(undefined);
+	const clineDisplayRows = useMemo(
+		() =>
+			buildClineModelPickerDisplayRows(
+				clineEntries,
+				clineKnownModels,
+				undefined,
+				clineExpandedTiers,
+			),
+		[clineEntries, clineKnownModels, clineExpandedTiers],
+	);
+	const [clineModelSelected, setClineModelSelected] = useState(0);
+	useEffect(() => {
+		setClineModelSelected((selected) =>
+			Math.min(selected, Math.max(0, clineDisplayRows.length - 1)),
+		);
+	}, [clineDisplayRows.length]);
+	const [clineModelReasoningIds, setClineModelReasoningIds] = useState<
+		Set<string>
+	>(new Set());
 
 	useEffect(() => {
 		getLocalProviderModels("cline")
@@ -558,6 +587,24 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		[activeProviderId, clineModelReasoningIds, providerSettingsManager],
 	);
 
+	const selectClineModelEntry = useCallback(
+		(entry: ClineModelPickerEntry | undefined) => {
+			if (!entry) return;
+			if (entry.kind === "model") {
+				saveClineModelSelection(entry.model.id, entry.model.name);
+				return;
+			}
+			setStep("model_picker");
+			loadModelsForProvider(activeProviderId);
+		},
+		[activeProviderId, loadModelsForProvider, saveClineModelSelection],
+	);
+
+	const toggleClineModelTier = useCallback((tier: ClineModelTier) => {
+		setClineExpandedTiers((prev) => ({ ...prev, [tier]: !prev[tier] }));
+		setClineModelSelected(0);
+	}, []);
+
 	const saveThinkingLevel = useCallback(
 		(level: ThinkingLevel) => {
 			const existing =
@@ -614,7 +661,8 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		menuSelected,
 		providerList,
 		modelList,
-		clineEntries,
+		clineEntries: visibleClineEntries,
+		clineDisplayRows,
 		clineModelSelected,
 		thinkingSelected,
 		setStep,
@@ -645,7 +693,8 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		startDeviceCodeFlow,
 		selectProvider,
 		loadModelsForProvider,
-		saveClineModelSelection,
+		selectClineModelEntry,
+		toggleClineModelTier,
 		saveCodexCliConfig,
 		saveByoConfig,
 		saveModelSelection,
@@ -664,6 +713,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		codexCliChecking,
 		codexCliStatus,
 		clineEntries,
+		clineExpandedTiers,
 		clineKnownModels,
 		clineModelSelected,
 		deviceError,
@@ -683,6 +733,13 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 			setCustomModelId(value);
 			setCustomModelError("");
 		},
+		handleClineModelEntrySelect: (
+			_selectableIndex: number,
+			entry: ClineModelPickerEntry,
+		) => {
+			selectClineModelEntry(entry);
+		},
+		handleClineModelTierToggle: toggleClineModelTier,
 		handleModelItemSelect: selectModelItem,
 		menuSelected,
 		modelItems,

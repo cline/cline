@@ -1,7 +1,11 @@
 import type { ProviderConfigFieldKey } from "@cline/core";
 import { useKeyboard } from "@opentui/react";
 import type { Dispatch, SetStateAction } from "react";
-import type { ClineModelPickerEntry } from "../../components/model-selector/cline-model-picker";
+import type {
+	ClineModelPickerDisplayRow,
+	ClineModelPickerEntry,
+	ClineModelTier,
+} from "../../components/model-selector/cline-model-picker";
 import type { SearchableListState } from "../../components/searchable-list";
 import type { OnboardingOAuthProviderId } from "./auth";
 import { FIELD_ORDER } from "./fields";
@@ -21,6 +25,7 @@ export function useOnboardingKeyboard(input: {
 	providerList: SearchableListState;
 	modelList: SearchableListState;
 	clineEntries: ClineModelPickerEntry[];
+	clineDisplayRows: ClineModelPickerDisplayRow[];
 	clineModelSelected: number;
 	thinkingSelected: number;
 	setStep: (step: OnboardingStep) => void;
@@ -43,7 +48,8 @@ export function useOnboardingKeyboard(input: {
 	startDeviceCodeFlow: (providerId: OnboardingOAuthProviderId) => void;
 	selectProvider: (providerId: string) => void;
 	loadModelsForProvider: (providerId: string) => void;
-	saveClineModelSelection: (modelId: string, modelName: string) => void;
+	selectClineModelEntry: (entry: ClineModelPickerEntry | undefined) => void;
+	toggleClineModelTier: (tier: ClineModelTier) => void;
 	saveCodexCliConfig: () => void;
 	saveByoConfig: () => void;
 	saveModelSelection: () => void;
@@ -197,7 +203,7 @@ export function useOnboardingKeyboard(input: {
 		}
 
 		if (input.step === "cline_model") {
-			const total = input.clineEntries.length;
+			const total = input.clineDisplayRows.length;
 			if (total === 0) return;
 			if (key.name === "up" || (key.ctrl && key.name === "p")) {
 				input.setClineModelSelected((s) => (s <= 0 ? total - 1 : s - 1));
@@ -208,14 +214,13 @@ export function useOnboardingKeyboard(input: {
 				return;
 			}
 			if (key.name === "return") {
-				const entry = input.clineEntries[input.clineModelSelected];
-				if (!entry) return;
-				if (entry.kind === "model") {
-					input.saveClineModelSelection(entry.model.id, entry.model.name);
-				} else {
-					input.setStep("model_picker");
-					input.loadModelsForProvider(input.activeProviderId);
+				const row = input.clineDisplayRows[input.clineModelSelected];
+				if (!row) return;
+				if (row.kind === "header") {
+					input.toggleClineModelTier(row.tier);
+					return;
 				}
+				input.selectClineModelEntry(input.clineEntries[row.selectableIndex]);
 			}
 			return;
 		}
