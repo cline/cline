@@ -1,6 +1,5 @@
 import { StringRequest } from "@shared/proto/cline/common"
 import PROVIDERS from "@shared/providers/providers.json"
-import { FeatureFlag } from "@shared/services/feature-flags/feature-flags"
 import { Mode } from "@shared/storage/types"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
@@ -59,6 +58,8 @@ import { XaiProvider } from "./providers/XaiProvider"
 import { ZAiProvider } from "./providers/ZAiProvider"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
+const CLINE_PASS_FEATURE_FLAG = "ext-cline-pass"
+
 interface ApiOptionsProps {
 	showModelOptions: boolean
 	apiErrorMessage?: string
@@ -102,7 +103,7 @@ const ApiOptions = ({
 }: ApiOptionsProps) => {
 	// Use full context state for immediate save payload
 	const { apiConfiguration, remoteConfigSettings } = useExtensionState()
-	const isClinePassEnabled = useHasFeatureFlag(FeatureFlag.CLINE_PASS)
+	const isClinePassEnabled = useHasFeatureFlag(CLINE_PASS_FEATURE_FLAG)
 
 	const { selectedProvider } = normalizeApiConfiguration(apiConfiguration, currentMode, { isClinePassEnabled })
 
