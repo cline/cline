@@ -667,6 +667,21 @@ export async function runCli(): Promise<void> {
 
 	let resumeSessionId: string | undefined = ctx.resumeSessionId;
 	if (resumeSessionId) {
+		// The history picker already created (and tore down) an OpenTUI renderer
+		// in this process; starting the interactive TUI here would create a
+		// second one, which can crash natively during teardown. Resume in a
+		// fresh `cline --id <session-id>` child process instead.
+		const { spawnHistoryResume } = await import("./utils/history-resume");
+		const childExitCode = await spawnHistoryResume({
+			sessionId: resumeSessionId,
+			normalizedArgs,
+			remainingArgs: program.args,
+			configDir,
+		});
+		if (childExitCode !== undefined) {
+			process.exitCode = childExitCode;
+			return;
+		}
 		args = {
 			...args,
 			interactive: true,
