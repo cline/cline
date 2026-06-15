@@ -272,9 +272,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		defaultTerminalProfile: "default",
 		isNewUser: false,
 		welcomeViewCompleted: false,
-		// Default false (fail-closed): the inline ChatView gate stays on until the
-		// extension pushes real state. Overwritten by the incoming state payload.
-		hasUsableProvider: false,
 		onboardingModels: undefined,
 		mcpResponsesCollapsed: false, // Default value (expanded), will be overwritten by extension state
 		yoloModeToggled: false,
