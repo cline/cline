@@ -3,17 +3,30 @@ import {
 	composeClineSystemPrompt,
 	DEFAULT_CLINE_PERSONA,
 	DEFAULT_CLINE_SYSTEM_PROMPT,
-	DEFAULT_CLINE_WORKING_GUIDELINES,
 } from "./system";
 
-// The exact default system prompt before the persona/harness split. The
-// refactor must keep the default output byte-identical, including trailing
-// whitespace, so this is pinned as a literal rather than recomposed.
-const PRE_SPLIT_DEFAULT_CLINE_SYSTEM_PROMPT = `You are Cline, an AI coding agent. Your primary goal is to assist users with various coding tasks by leveraging your knowledge and the tools at your disposal. Given the user's prompt, you should use the tools available to you to answer user's question.
+// The working guidelines are inlined into the harness template (always on,
+// never swapped), so they are no longer exported. Pin the block here to assert
+// it survives a persona swap. The no-guessing norm is the first bullet.
+const WORKING_GUIDELINES = `Remember:
+- If you need more information, use one of the available tools or ask for clarification instead of making assumptions or lies.
+- Always adhere to existing code conventions and patterns.
+- Use only libraries and frameworks that are confirmed to be in use in the current codebase.
+- Provide complete and functional code without omissions or placeholders.
+- Be explicit about any assumptions or limitations in your solution.
+- Always show your planning process before executing any task. This will help ensure that you have a clear understanding of the requirements and that your approach aligns with the user's needs.
+- Always use absolute paths when referring to files.
+- Always verify the files you have edited or created at the end of the task to ensure they are completed and working as expected.
+
+Begin by analyzing the user's input and gathering any necessary additional context. Then, present your plan at the start of your response along with tool calls before proceeding with the task. It's OK for this section to be quite long.`;
+
+// The canonical default system prompt. Pinned as a literal (including trailing
+// whitespace) so accidental drift is caught; update deliberately when the
+// default prompt is intentionally changed.
+const EXPECTED_DEFAULT_CLINE_SYSTEM_PROMPT = `You are Cline, an AI coding agent. Your primary goal is to assist users with various coding tasks by leveraging your knowledge and the tools at your disposal. Given the user's prompt, you should use the tools available to you to answer user's question.
 
 Always gather all the necessary context before starting to work on a task. For example, if you are generating a unit test or new code, make sure you understand the requirement, the naming conventions, frameworks and libraries used and aligned in the current codebase, and the environment and commands used to run and test the code etc. Always validate the new unit test at the end including running the code if possible for live feedback.
 Review each question carefully and answer it with detailed, accurate information.
-If you need more information, use one of the available tools or ask for clarification instead of making assumptions or lies.
 
 Environment you are running in:
 <env>
@@ -24,6 +37,7 @@ Environment you are running in:
 </env>
 
 Remember:
+- If you need more information, use one of the available tools or ask for clarification instead of making assumptions or lies.
 - Always adhere to existing code conventions and patterns.
 - Use only libraries and frameworks that are confirmed to be in use in the current codebase.
 - Provide complete and functional code without omissions or placeholders.
@@ -45,21 +59,21 @@ If user asked a simple question without any coding context, answer it directly w
 {{CLINE_METADATA}}`;
 
 describe("composeClineSystemPrompt", () => {
-	it("produces a byte-identical default prompt after the persona/harness split", () => {
+	it("composes the canonical default prompt", () => {
 		expect(DEFAULT_CLINE_SYSTEM_PROMPT).toBe(
-			PRE_SPLIT_DEFAULT_CLINE_SYSTEM_PROMPT,
+			EXPECTED_DEFAULT_CLINE_SYSTEM_PROMPT,
 		);
 		expect(composeClineSystemPrompt()).toBe(
-			PRE_SPLIT_DEFAULT_CLINE_SYSTEM_PROMPT,
+			EXPECTED_DEFAULT_CLINE_SYSTEM_PROMPT,
 		);
 		expect(composeClineSystemPrompt({})).toBe(
-			PRE_SPLIT_DEFAULT_CLINE_SYSTEM_PROMPT,
+			EXPECTED_DEFAULT_CLINE_SYSTEM_PROMPT,
 		);
 	});
 
 	it("treats a blank persona as the default", () => {
 		expect(composeClineSystemPrompt({ persona: "   " })).toBe(
-			PRE_SPLIT_DEFAULT_CLINE_SYSTEM_PROMPT,
+			EXPECTED_DEFAULT_CLINE_SYSTEM_PROMPT,
 		);
 	});
 
@@ -77,10 +91,14 @@ describe("composeClineSystemPrompt", () => {
 		expect(prompt).toContain("{{CLINE_RULES}}");
 		expect(prompt).toContain("{{CLINE_METADATA}}");
 		expect(prompt).not.toContain("You are Cline, an AI coding agent.");
-		expect(prompt).not.toContain(DEFAULT_CLINE_WORKING_GUIDELINES);
-		// The guidelines slot collapses cleanly: env block flows into the
-		// harness reminders with a single blank line.
-		expect(prompt).toContain("</env>\n\nREMEMBER, be helpful and proactive!");
+		// "Review each question carefully" is persona, so it goes with the swap.
+		expect(prompt).not.toContain("Review each question carefully");
+		// The working guidelines (including the no-guessing norm) are harness:
+		// retained in full even when a custom persona replaces the identity.
+		expect(prompt).toContain(WORKING_GUIDELINES);
+		expect(prompt).toContain(
+			`</env>\n\n${WORKING_GUIDELINES}\n\nREMEMBER, be helpful and proactive!`,
+		);
 	});
 
 	it("inserts persona content literally, including replacement patterns", () => {
@@ -93,14 +111,14 @@ describe("composeClineSystemPrompt", () => {
 		const persona = "Mention {{AGENT_GUIDELINES}} and {{AGENT_PERSONA}} as-is.";
 		const prompt = composeClineSystemPrompt({ persona });
 		expect(prompt.startsWith(persona)).toBe(true);
-		// The harness guidelines slot still collapsed cleanly.
-		expect(prompt).toContain("</env>\n\nREMEMBER, be helpful and proactive!");
+		// The harness — working guidelines included — follows the env block.
+		expect(prompt).toContain(
+			`</env>\n\n${WORKING_GUIDELINES}\n\nREMEMBER, be helpful and proactive!`,
+		);
 	});
 
 	it("keeps the exported default persona and guidelines in sync with the default prompt", () => {
 		expect(DEFAULT_CLINE_SYSTEM_PROMPT).toContain(DEFAULT_CLINE_PERSONA);
-		expect(DEFAULT_CLINE_SYSTEM_PROMPT).toContain(
-			DEFAULT_CLINE_WORKING_GUIDELINES,
-		);
+		expect(DEFAULT_CLINE_SYSTEM_PROMPT).toContain(WORKING_GUIDELINES);
 	});
 });

@@ -68,9 +68,9 @@ export interface ClineSystemPromptOptions
 	/** Per-request system prompt override */
 	overridePrompt?: string;
 	/**
-	 * Agent-profile persona: replaces the default Cline persona and its
-	 * working guidelines while keeping the agent harness. Ignored when
-	 * `overridePrompt` is set or in yolo mode.
+	 * Agent-profile persona: replaces the default Cline persona (the identity
+	 * intro) while keeping the agent harness, including the working guidelines.
+	 * Ignored when `overridePrompt` is set or in yolo mode.
 	 */
 	personaPrompt?: string;
 	/** Provider ID - used to gate Cline-specific metadata injection */
