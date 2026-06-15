@@ -43,22 +43,7 @@ const QUICK_WINS_HISTORY_THRESHOLD = 3
 
 const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryView }: ChatViewProps) => {
 	const showNavbar = useShowNavbar()
-	const {
-		version,
-		clineMessages: messages,
-		taskHistory,
-		telemetrySetting,
-		mode,
-		userInfo,
-		hooksEnabled,
-		hasUsableProvider,
-	} = useExtensionState()
-	// Inline auth/usability gate (Unauth Experience #3): when there is no usable
-	// provider (no Cline auth AND no BYOK key), keep the user in ChatView but
-	// disable submit and show an inline "sign in or add a key" prompt. Kept
-	// separate from useChatState.sendingDisabled so the auth gate stays
-	// orthogonal to the turn-state-driven send lock.
-	const inputGated = !hasUsableProvider
+	const { version, clineMessages: messages, taskHistory, telemetrySetting, mode, userInfo, hooksEnabled } = useExtensionState()
 	const isProdHostedApp = userInfo?.apiBaseUrl === "https://app.cline.bot"
 	const shouldShowQuickWins = isProdHostedApp && (!taskHistory || taskHistory.length < QUICK_WINS_HISTORY_THRESHOLD)
 
@@ -367,7 +352,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				/>
 				<InputSection
 					chatState={chatState}
-					inputGated={inputGated}
 					messageHandlers={messageHandlers}
 					placeholderText={placeholderText}
 					scrollBehavior={scrollBehavior}

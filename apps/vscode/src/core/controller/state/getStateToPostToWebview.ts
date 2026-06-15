@@ -8,7 +8,6 @@ import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
 import type { ExtensionState, Platform } from "@shared/ExtensionMessage"
 import { ClineEnv } from "@/config"
 import { ExtensionRegistryInfo } from "@/registry"
-import { hasUsableProviderForActiveMode } from "@/sdk/provider-usability"
 import { BannerService } from "@/services/banner/BannerService"
 import { featureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
@@ -59,12 +58,6 @@ export async function getStateToPostToWebview(controller: {
 	const defaultTerminalProfile = stateManager.getGlobalSettingsKey("defaultTerminalProfile")
 	const isNewUser = stateManager.getGlobalStateKey("isNewUser")
 	const welcomeViewCompleted = !!stateManager.getGlobalStateKey("welcomeViewCompleted")
-
-	// Whether the active mode has a usable provider (Cline auth OR BYOK key OR
-	// configured keyless provider). Drives the inline ChatView gate that blocks
-	// message submission when no provider is usable. Computed via the same
-	// resolution path as buildSessionConfig (providers.json + ApiConfiguration).
-	const hasUsableProvider = hasUsableProviderForActiveMode()
 
 	const customPrompt = stateManager.getGlobalSettingsKey("customPrompt")
 	const mcpResponsesCollapsed = stateManager.getGlobalStateKey("mcpResponsesCollapsed")
@@ -153,7 +146,6 @@ export async function getStateToPostToWebview(controller: {
 		defaultTerminalProfile,
 		isNewUser,
 		welcomeViewCompleted,
-		hasUsableProvider,
 		onboardingModels,
 		mcpResponsesCollapsed,
 		terminalOutputLineLimit,
