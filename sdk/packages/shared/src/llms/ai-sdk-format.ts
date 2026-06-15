@@ -1,4 +1,15 @@
 import { formatFileContentBlock } from "../prompt/format";
+import {
+	createMediaBudgetState,
+	DEFAULT_MAX_IMAGE_DECODED_BYTES,
+	DEFAULT_MAX_IMAGE_ENCODED_BYTES,
+	IMAGE_OMITTED_PLACEHOLDER,
+	imageBase64LengthForDecodedBytes,
+	type MediaBudgetState,
+	reserveImageMediaBytes,
+	SUPPORTED_IMAGE_MEDIA_TYPES,
+	validateAndReserveImageMedia,
+} from "./media";
 
 /**
  * Sanitizes unpaired/lone Unicode surrogates in text content.
@@ -62,6 +73,7 @@ export interface AiSdkFormatterMessage {
 }
 
 export const EMPTY_CONTENT_TEXT = "ERROR: EMPTY CONTENT";
+const IMAGE_ATTACHED_TEXT = "[image attached]";
 
 export type AiSdkMessagePart = Record<string, unknown>;
 export type AiSdkMessage = {
@@ -73,6 +85,12 @@ type AiSdkContentBlock =
 	| { type: "text"; text: string }
 	| { type: "image"; data: string; mediaType: string };
 type AiSdkImageContentBlock = Extract<AiSdkContentBlock, { type: "image" }>;
+
+interface StripImagesResult {
+	value: unknown;
+	changed: boolean;
+	mediaChanged: boolean;
+}
 
 function pushAiSdkMessage(result: AiSdkMessage[], message: AiSdkMessage): void {
 	const previous = result[result.length - 1];
@@ -115,6 +133,160 @@ function isAiSdkContentBlockArray(
 	});
 }
 
+function imageOmittedTextPart(): { type: "text"; text: string } {
+	return { type: "text", text: IMAGE_OMITTED_PLACEHOLDER };
+}
+
+function reserveRemoteImageUrlBudget(state: MediaBudgetState): boolean {
+	// Remote URL byte size is unknown at formatting time, so charge the
+	// conservative per-image cap instead of letting URL media count as free.
+	return (
+		reserveImageMediaBytes(
+			DEFAULT_MAX_IMAGE_ENCODED_BYTES,
+			0,
+			{
+				maxImageEncodedBytes: DEFAULT_MAX_IMAGE_ENCODED_BYTES,
+				maxImageDecodedBytes: DEFAULT_MAX_IMAGE_DECODED_BYTES,
+			},
+			state,
+		) === null
+	);
+}
+
+function parseUrlProtocol(value: string): string | undefined {
+	try {
+		return new URL(value).protocol;
+	} catch {
+		return undefined;
+	}
+}
+
+function toImageDataPart(
+	image: AiSdkImageContentBlock,
+	state: MediaBudgetState,
+):
+	| { type: "image-data"; data: string; mediaType: string }
+	| {
+			type: "text";
+			text: string;
+	  } {
+	const validation = validateAndReserveImageMedia(
+		image.mediaType,
+		image.data,
+		{
+			maxImageEncodedBytes: DEFAULT_MAX_IMAGE_ENCODED_BYTES,
+			maxImageDecodedBytes: DEFAULT_MAX_IMAGE_DECODED_BYTES,
+		},
+		state,
+	);
+	if (!validation.ok) {
+		return imageOmittedTextPart();
+	}
+	return {
+		type: "image-data",
+		data: validation.base64,
+		mediaType: validation.mediaType,
+	};
+}
+
+function toUserImagePart(
+	image: Extract<AiSdkFormatterPart, { type: "image" }>,
+	state: MediaBudgetState,
+): AiSdkMessagePart {
+	if (image.image instanceof URL) {
+		if (image.image.protocol === "data:") {
+			const validation = validateAndReserveImageMedia(
+				image.mediaType,
+				image.image.href,
+				{
+					maxImageEncodedBytes: DEFAULT_MAX_IMAGE_ENCODED_BYTES,
+					maxImageDecodedBytes: DEFAULT_MAX_IMAGE_DECODED_BYTES,
+				},
+				state,
+			);
+			if (!validation.ok) {
+				return imageOmittedTextPart();
+			}
+			return {
+				type: "image",
+				image: `data:${validation.mediaType};base64,${validation.base64}`,
+				mediaType: validation.mediaType,
+			};
+		}
+		if (image.image.protocol !== "http:" && image.image.protocol !== "https:") {
+			return imageOmittedTextPart();
+		}
+		if (!reserveRemoteImageUrlBudget(state)) {
+			return imageOmittedTextPart();
+		}
+		return {
+			type: "image",
+			image: image.image,
+			mediaType: image.mediaType,
+		};
+	}
+
+	if (typeof image.image === "string") {
+		const protocol = parseUrlProtocol(image.image);
+		if (protocol === "http:" || protocol === "https:") {
+			if (!reserveRemoteImageUrlBudget(state)) {
+				return imageOmittedTextPart();
+			}
+			return {
+				type: "image",
+				image: image.image,
+				mediaType: image.mediaType,
+			};
+		}
+		const isDataUrl = protocol === "data:";
+
+		const validation = validateAndReserveImageMedia(
+			image.mediaType ?? (isDataUrl ? undefined : "image/png"),
+			image.image,
+			{
+				maxImageEncodedBytes: DEFAULT_MAX_IMAGE_ENCODED_BYTES,
+				maxImageDecodedBytes: DEFAULT_MAX_IMAGE_DECODED_BYTES,
+			},
+			state,
+		);
+		if (!validation.ok) {
+			return imageOmittedTextPart();
+		}
+		return {
+			type: "image",
+			image: isDataUrl
+				? `data:${validation.mediaType};base64,${validation.base64}`
+				: validation.base64,
+			mediaType: validation.mediaType,
+		};
+	}
+
+	const decodedBytes = image.image.byteLength;
+	const encodedBytes = imageBase64LengthForDecodedBytes(decodedBytes);
+	const mediaType = image.mediaType?.toLowerCase() ?? "image/png";
+	const supportedMediaTypes: readonly string[] = SUPPORTED_IMAGE_MEDIA_TYPES;
+	if (
+		!supportedMediaTypes.includes(mediaType) ||
+		reserveImageMediaBytes(
+			encodedBytes,
+			decodedBytes,
+			{
+				maxImageEncodedBytes: DEFAULT_MAX_IMAGE_ENCODED_BYTES,
+				maxImageDecodedBytes: DEFAULT_MAX_IMAGE_DECODED_BYTES,
+			},
+			state,
+		)
+	) {
+		return imageOmittedTextPart();
+	}
+
+	return {
+		type: "image",
+		image: image.image,
+		mediaType,
+	};
+}
+
 /**
  * Recursively walk a tool-result `output` value, removing any AI-SDK image
  * content blocks (`{type:'image', data, mediaType}`) and collecting them
@@ -128,13 +300,17 @@ function isAiSdkContentBlockArray(
 function stripImagesFromOutput(
 	value: unknown,
 	images: AiSdkImageContentBlock[],
-): unknown {
+	state: MediaBudgetState,
+	hoistImages = true,
+): StripImagesResult {
 	if (value == null || typeof value !== "object") {
-		return value;
+		return { value, changed: false, mediaChanged: false };
 	}
 
 	if (Array.isArray(value)) {
 		const out: unknown[] = [];
+		let changed = false;
+		let mediaChanged = false;
 		for (const item of value) {
 			if (item && typeof item === "object") {
 				const obj = item as Record<string, unknown>;
@@ -143,29 +319,98 @@ function stripImagesFromOutput(
 					typeof obj.data === "string" &&
 					typeof obj.mediaType === "string"
 				) {
-					images.push({
+					if (!hoistImages) {
+						out.push(IMAGE_OMITTED_PLACEHOLDER);
+						changed = true;
+						mediaChanged = true;
+						continue;
+					}
+					const image = {
 						type: "image",
 						data: obj.data,
 						mediaType: obj.mediaType,
-					});
+					} satisfies AiSdkImageContentBlock;
+					const part = toImageDataPart(image, state);
+					if (part.type === "image-data") {
+						images.push({
+							type: "image",
+							data: part.data,
+							mediaType: part.mediaType,
+						});
+					} else {
+						out.push(part.text);
+					}
+					changed = true;
+					mediaChanged = true;
+					continue;
+				}
+				if (obj.type === "image") {
+					out.push(IMAGE_OMITTED_PLACEHOLDER);
+					changed = true;
+					mediaChanged = true;
 					continue;
 				}
 				if (obj.type === "text" && typeof obj.text === "string") {
 					out.push(obj.text);
+					changed = true;
 					continue;
 				}
 			}
-			out.push(stripImagesFromOutput(item, images));
+			const stripped = stripImagesFromOutput(item, images, state, hoistImages);
+			out.push(stripped.value);
+			changed ||= stripped.changed;
+			mediaChanged ||= stripped.mediaChanged;
 		}
-		return out;
+		return { value: changed ? out : value, changed, mediaChanged };
 	}
 
 	const obj = value as Record<string, unknown>;
-	const out: Record<string, unknown> = {};
-	for (const [k, v] of Object.entries(obj)) {
-		out[k] = stripImagesFromOutput(v, images);
+	if (obj.type === "image") {
+		if (typeof obj.data === "string" && typeof obj.mediaType === "string") {
+			if (!hoistImages) {
+				return {
+					value: IMAGE_OMITTED_PLACEHOLDER,
+					changed: true,
+					mediaChanged: true,
+				};
+			}
+			const image = {
+				type: "image",
+				data: obj.data,
+				mediaType: obj.mediaType,
+			} satisfies AiSdkImageContentBlock;
+			const part = toImageDataPart(image, state);
+			if (part.type === "image-data") {
+				images.push({
+					type: "image",
+					data: part.data,
+					mediaType: part.mediaType,
+				});
+				return {
+					value: IMAGE_ATTACHED_TEXT,
+					changed: true,
+					mediaChanged: true,
+				};
+			}
+			return { value: part.text, changed: true, mediaChanged: true };
+		}
+		return {
+			value: IMAGE_OMITTED_PLACEHOLDER,
+			changed: true,
+			mediaChanged: true,
+		};
 	}
-	return out;
+
+	const out: Record<string, unknown> = {};
+	let changed = false;
+	let mediaChanged = false;
+	for (const [k, v] of Object.entries(obj)) {
+		const stripped = stripImagesFromOutput(v, images, state, hoistImages);
+		out[k] = stripped.value;
+		changed ||= stripped.changed;
+		mediaChanged ||= stripped.mediaChanged;
+	}
+	return { value: changed ? out : value, changed, mediaChanged };
 }
 
 /** Sanitize all string values deeply nested inside an arbitrary object/array. */
@@ -190,6 +435,7 @@ function sanitizeDeepStrings(value: unknown): unknown {
 export function toAiSdkToolResultOutput(
 	output: unknown,
 	isError = false,
+	mediaState: MediaBudgetState = createMediaBudgetState(),
 ): Record<string, unknown> {
 	if (typeof output === "string") {
 		return {
@@ -209,11 +455,7 @@ export function toAiSdkToolResultOutput(
 			type: "content",
 			value: output.map((block) =>
 				block.type === "image"
-					? {
-							type: "image-data",
-							data: block.data,
-							mediaType: block.mediaType,
-						}
+					? toImageDataPart(block, mediaState)
 					: { type: "text", text: sanitizeSurrogates(block.text) },
 			),
 		};
@@ -227,14 +469,19 @@ export function toAiSdkToolResultOutput(
 	// text block followed by the extracted images. Without this, the wire
 	// converter JSON-serialises the whole tree and the model receives the
 	// base64 bytes as opaque text.
-	if (!isError && output !== null && typeof output === "object") {
+	if (output !== null && typeof output === "object") {
 		const images: AiSdkImageContentBlock[] = [];
-		const stripped = stripImagesFromOutput(output, images);
-		if (images.length > 0) {
+		const stripped = stripImagesFromOutput(
+			output,
+			images,
+			mediaState,
+			!isError,
+		);
+		if (!isError && images.length > 0) {
 			const headerText =
-				typeof stripped === "string"
-					? sanitizeSurrogates(stripped)
-					: JSON.stringify(sanitizeDeepStrings(stripped));
+				typeof stripped.value === "string"
+					? sanitizeSurrogates(stripped.value)
+					: JSON.stringify(sanitizeDeepStrings(stripped.value));
 			return {
 				type: "content",
 				value: [
@@ -245,6 +492,12 @@ export function toAiSdkToolResultOutput(
 						mediaType: image.mediaType,
 					})),
 				],
+			};
+		}
+		if (stripped.mediaChanged) {
+			return {
+				type: isError ? "error-json" : "json",
+				value: sanitizeDeepStrings(stripped.value),
 			};
 		}
 	}
@@ -274,6 +527,7 @@ export function formatMessagesForAiSdk(
 ): AiSdkMessage[] {
 	const toolCallArgKey = options?.assistantToolCallArgKey ?? "input";
 	const result: AiSdkMessage[] = [];
+	const mediaState = createMediaBudgetState();
 
 	if (
 		(typeof systemContent === "string" && systemContent.trim().length > 0) ||
@@ -337,11 +591,7 @@ export function formatMessagesForAiSdk(
 					});
 					break;
 				case "image":
-					messageParts.push({
-						type: "image",
-						image: part.image,
-						mediaType: part.mediaType,
-					});
+					messageParts.push(toUserImagePart(part, mediaState));
 					break;
 				case "file":
 					messageParts.push({
@@ -370,7 +620,11 @@ export function formatMessagesForAiSdk(
 						type: "tool-result",
 						toolCallId: part.toolCallId,
 						toolName: part.toolName,
-						output: toAiSdkToolResultOutput(part.output, part.isError ?? false),
+						output: toAiSdkToolResultOutput(
+							part.output,
+							part.isError ?? false,
+							mediaState,
+						),
 					});
 					break;
 				}

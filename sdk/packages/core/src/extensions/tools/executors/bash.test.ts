@@ -1,6 +1,6 @@
 import type { AgentToolContext } from "@cline/shared";
 import { describe, expect, it } from "vitest";
-import { createBashExecutor } from "./bash";
+import { CommandExitError, createBashExecutor } from "./bash";
 
 const ctx: AgentToolContext = {
 	agentId: "agent-1",
@@ -18,6 +18,60 @@ describe("createBashExecutor", () => {
 	it("rejects on non-zero exit code", async () => {
 		const bash = createBashExecutor();
 		await expect(bash("exit 1", process.cwd(), ctx)).rejects.toThrow();
+	});
+
+	it("includes stdout and exit code on non-zero exit", async () => {
+		const bash = createBashExecutor();
+		let error: unknown;
+		try {
+			await bash(
+				{
+					command: process.execPath,
+					args: [
+						"-e",
+						"process.stdout.write('failure details'); process.exit(1)",
+					],
+				},
+				process.cwd(),
+				ctx,
+			);
+		} catch (caught) {
+			error = caught;
+		}
+
+		if (!(error instanceof CommandExitError)) {
+			throw new Error("Expected CommandExitError");
+		}
+		expect(error.exitCode).toBe(1);
+		expect(error.output).toContain("[Command exited with code 1]");
+		expect(error.output).toContain("failure details");
+	});
+
+	it("excludes stderr on non-zero exit when combineOutput is false", async () => {
+		const bash = createBashExecutor({ combineOutput: false });
+		let error: unknown;
+		try {
+			await bash(
+				{
+					command: process.execPath,
+					args: [
+						"-e",
+						"process.stdout.write('visible'); process.stderr.write('hidden'); process.exit(1)",
+					],
+				},
+				process.cwd(),
+				ctx,
+			);
+		} catch (caught) {
+			error = caught;
+		}
+
+		if (!(error instanceof CommandExitError)) {
+			throw new Error("Expected CommandExitError");
+		}
+		expect(error.output).toContain("visible");
+		expect(error.output).not.toContain("[stderr]");
+		expect(error.output).not.toContain("hidden");
 	});
 
 	it("includes stderr in combined output on success", async () => {
@@ -77,11 +131,11 @@ describe("createBashExecutor", () => {
 		expect(output.length).toBeLessThan(300);
 	});
 
-	it("keeps default-capped output under the MessageBuilder per-result backstop", async () => {
-		// MessageBuilder re-truncates tool-result strings over 50_000 chars
-		// (session/services/message-builder.ts), which would replace the
-		// executor's truncation notice with a generic marker. The default
-		// cap plus notice must stay below that.
+	it("keeps default-capped output bounded with the notice in the preserved head/tail", async () => {
+		// Provider-request building (session/services/message-builder.ts)
+		// may middle-cut long tool-result strings again with its own
+		// backstop. The executor keeps its truncation notice in the head and
+		// tail halves, so the recovery guidance survives any such cut.
 		const bash = createBashExecutor();
 		const output = await bash(
 			{
@@ -109,10 +163,11 @@ describe("createBashExecutor", () => {
 		expect(output).toBe(payload);
 	});
 
-	it("marks truncation in the error when a failing command floods stderr", async () => {
+	it("marks truncation in the captured output when a failing command floods stderr", async () => {
 		const bash = createBashExecutor({ maxOutputBytes: 20 });
-		await expect(
-			bash(
+		let error: unknown;
+		try {
+			await bash(
 				{
 					command: process.execPath,
 					args: [
@@ -122,8 +177,15 @@ describe("createBashExecutor", () => {
 				},
 				process.cwd(),
 				ctx,
-			),
-		).rejects.toThrow("output truncated");
+			);
+		} catch (caught) {
+			error = caught;
+		}
+
+		if (!(error instanceof CommandExitError)) {
+			throw new Error("Expected CommandExitError");
+		}
+		expect(error.output).toContain("output truncated");
 	});
 
 	it("keeps the tail of streamed output written in many chunks", async () => {
@@ -153,6 +215,42 @@ describe("createBashExecutor", () => {
 		await expect(bash("sleep 10", process.cwd(), abortCtx)).rejects.toThrow(
 			"aborted",
 		);
+	});
+
+	it("flushes a trailing incomplete multibyte sequence instead of dropping it", async () => {
+		const bash = createBashExecutor();
+		// Output ends with the first byte of a two-byte UTF-8 sequence; the
+		// decoder must flush it at end-of-stream (as U+FFFD) rather than
+		// silently dropping buffered bytes.
+		const output = await bash(
+			{
+				command: process.execPath,
+				args: ["-e", "process.stdout.write(Buffer.from([0x61, 0x62, 0xc3]))"],
+			},
+			process.cwd(),
+			ctx,
+		);
+		expect(output).toHaveLength(3);
+		expect(output.startsWith("ab")).toBe(true);
+	});
+
+	it("honors maxOutputChars and the deprecated maxOutputBytes alias", async () => {
+		const emit = {
+			command: process.execPath,
+			args: ["-e", "process.stdout.write('x'.repeat(500))"],
+		};
+		const renamed = await createBashExecutor({ maxOutputChars: 100 })(
+			emit,
+			process.cwd(),
+			ctx,
+		);
+		const alias = await createBashExecutor({ maxOutputBytes: 100 })(
+			emit,
+			process.cwd(),
+			ctx,
+		);
+		expect(renamed).toContain("output truncated: 500 chars total");
+		expect(alias).toContain("output truncated: 500 chars total");
 	});
 });
 

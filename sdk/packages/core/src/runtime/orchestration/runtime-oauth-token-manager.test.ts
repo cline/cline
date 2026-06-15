@@ -62,7 +62,6 @@ describe("RuntimeOAuthTokenManager", () => {
 		});
 
 		expect(result).toMatchObject({
-			providerId: "openai-codex",
 			apiKey: "access-new",
 			accountId: "acct-new",
 			refreshed: true,
@@ -71,6 +70,65 @@ describe("RuntimeOAuthTokenManager", () => {
 			expect.objectContaining({
 				auth: expect.objectContaining({
 					accessToken: "access-new",
+					refreshToken: "refresh-new",
+					accountId: "acct-new",
+					expiresAt: 4_000_000_000_000,
+				}),
+			}),
+			{ setLastUsed: false, tokenSource: "oauth" },
+		);
+	});
+
+	it("resolves Cline Pass OAuth using Cline storage and WorkOS formatting", async () => {
+		const getProviderSettings = vi.fn().mockReturnValue({
+			provider: "cline",
+			baseUrl: "https://api.cline.test",
+			auth: {
+				accessToken: "workos:access-old",
+				refreshToken: "refresh-old",
+				expiresAt: Date.now() - 1_000,
+				accountId: "acct-old",
+			},
+		});
+		const saveProviderSettings = vi.fn();
+
+		getValidClineCredentials.mockResolvedValueOnce({
+			access: "access-new",
+			refresh: "refresh-new",
+			expires: 4_000_000_000_000,
+			accountId: "acct-new",
+		});
+
+		const manager = new RuntimeOAuthTokenManager({
+			providerSettingsManager: {
+				getProviderSettings,
+				saveProviderSettings,
+			} as never,
+		});
+
+		const result = await manager.resolveProviderApiKey({
+			providerId: "cline-pass",
+		});
+
+		expect(getProviderSettings).toHaveBeenCalledWith("cline");
+		expect(getValidClineCredentials).toHaveBeenCalledWith(
+			expect.objectContaining({
+				access: "access-old",
+				refresh: "refresh-old",
+			}),
+			expect.objectContaining({ apiBaseUrl: "https://api.cline.test" }),
+			{ forceRefresh: false },
+		);
+		expect(result).toMatchObject({
+			apiKey: "workos:access-new",
+			accountId: "acct-new",
+			refreshed: true,
+		});
+		expect(saveProviderSettings).toHaveBeenCalledWith(
+			expect.objectContaining({
+				provider: "cline",
+				auth: expect.objectContaining({
+					accessToken: "workos:access-new",
 					refreshToken: "refresh-new",
 					accountId: "acct-new",
 					expiresAt: 4_000_000_000_000,

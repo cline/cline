@@ -50,6 +50,35 @@ describe("cline builtin spec defaults.baseUrl", () => {
 	});
 });
 
+describe("cline-pass builtin spec", () => {
+	it("registers a distinct Cline-compatible provider with a custom model list", async () => {
+		const models = await getModelsForProvider("cline-pass");
+		const provider = await getProvider("cline-pass");
+
+		expect(provider).toMatchObject({
+			id: "cline-pass",
+			name: "Cline Pass",
+			baseUrl: `${CLINE_ENVIRONMENTS.production.apiBaseUrl}/api/v1`,
+			client: "openai-compatible",
+			capabilities: expect.arrayContaining([
+				"oauth",
+				"tools",
+				"reasoning",
+				"prompt-cache",
+			]),
+		});
+		expect(models).toHaveProperty(provider?.defaultModelId ?? "");
+		expect(Object.keys(models).length).toBeGreaterThan(0);
+		for (const model of Object.values(models)) {
+			expect(model.contextWindow).toBeGreaterThan(0);
+			expect(model.maxInputTokens).toBeGreaterThan(0);
+			expect(model.maxTokens).toBeGreaterThan(0);
+			expect(model.capabilities).toEqual(expect.arrayContaining(["tools"]));
+			expect(model.pricing).toBeDefined();
+		}
+	});
+});
+
 describe("built-in provider metadata", () => {
 	it("marks popular providers with a provider capability and rank", async () => {
 		await expect(getProvider("cline")).resolves.toMatchObject({

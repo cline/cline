@@ -4,8 +4,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type {
 	AgentConfig,
-	AgentExtensionCommandResult,
 	AgentExtensionAutomationEventType,
+	AgentExtensionCommandResult,
 	AgentExtensionRule,
 	AgentRuntimeHooks,
 	AgentTool,

@@ -1,6 +1,6 @@
-import { Anthropic } from "@anthropic-ai/sdk"
-import * as vscode from "vscode"
-import { Logger } from "@/shared/services/Logger"
+import type { Anthropic } from "@anthropic-ai/sdk";
+import * as vscode from "vscode";
+import { Logger } from "@/shared/services/Logger";
 
 /**
  * Safely converts a value into a plain object.
@@ -8,31 +8,31 @@ import { Logger } from "@/shared/services/Logger"
 export function asObjectSafe(value: any): object {
 	// Handle null/undefined
 	if (!value) {
-		return {}
+		return {};
 	}
 
 	try {
 		// Handle strings that might be JSON
 		if (typeof value === "string") {
-			return JSON.parse(value)
+			return JSON.parse(value);
 		}
 
 		// Handle pre-existing objects
 		if (typeof value === "object") {
-			return Object.assign({}, value)
+			return Object.assign({}, value);
 		}
 
-		return {}
+		return {};
 	} catch (error) {
-		Logger.warn("Cline <Language Model API>: Failed to parse object:", error)
-		return {}
+		Logger.warn("Cline <Language Model API>: Failed to parse object:", error);
+		return {};
 	}
 }
 
 export function convertToVsCodeLmMessages(
 	anthropicMessages: Anthropic.Messages.MessageParam[],
 ): vscode.LanguageModelChatMessage[] {
-	const vsCodeLmMessages: vscode.LanguageModelChatMessage[] = []
+	const vsCodeLmMessages: vscode.LanguageModelChatMessage[] = [];
 
 	for (const anthropicMessage of anthropicMessages) {
 		// Handle simple string messages
@@ -41,27 +41,31 @@ export function convertToVsCodeLmMessages(
 				anthropicMessage.role === "assistant"
 					? vscode.LanguageModelChatMessage.Assistant(anthropicMessage.content)
 					: vscode.LanguageModelChatMessage.User(anthropicMessage.content),
-			)
-			continue
+			);
+			continue;
 		}
 
 		// Handle complex message structures
 		switch (anthropicMessage.role) {
 			case "user": {
-				const { nonToolMessages, toolMessages } = anthropicMessage.content.reduce<{
-					nonToolMessages: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam)[]
-					toolMessages: Anthropic.ToolResultBlockParam[]
-				}>(
-					(acc, part) => {
-						if (part.type === "tool_result") {
-							acc.toolMessages.push(part)
-						} else if (part.type === "text" || part.type === "image") {
-							acc.nonToolMessages.push(part)
-						}
-						return acc
-					},
-					{ nonToolMessages: [], toolMessages: [] },
-				)
+				const { nonToolMessages, toolMessages } =
+					anthropicMessage.content.reduce<{
+						nonToolMessages: (
+							| Anthropic.TextBlockParam
+							| Anthropic.ImageBlockParam
+						)[];
+						toolMessages: Anthropic.ToolResultBlockParam[];
+					}>(
+						(acc, part) => {
+							if (part.type === "tool_result") {
+								acc.toolMessages.push(part);
+							} else if (part.type === "text" || part.type === "image") {
+								acc.nonToolMessages.push(part);
+							}
+							return acc;
+						},
+						{ nonToolMessages: [], toolMessages: [] },
+					);
 
 				// Process tool messages first then non-tool messages
 				const contentParts = [
@@ -75,12 +79,15 @@ export function convertToVsCodeLmMessages(
 										if (part.type === "image") {
 											return new vscode.LanguageModelTextPart(
 												`[Image (${part.source?.type || "Unknown source-type"}): ${(part.source?.type === "base64" && part.source.media_type) || "unknown media-type"} not supported by VSCode LM API]`,
-											)
+											);
 										}
-										return new vscode.LanguageModelTextPart(part.text)
-									}) ?? [new vscode.LanguageModelTextPart("")])
+										return new vscode.LanguageModelTextPart(part.text);
+									}) ?? [new vscode.LanguageModelTextPart("")]);
 
-						return new vscode.LanguageModelToolResultPart(toolMessage.tool_use_id, toolContentParts)
+						return new vscode.LanguageModelToolResultPart(
+							toolMessage.tool_use_id,
+							toolContentParts,
+						);
 					}),
 
 					// Convert non-tool messages to TextParts after tool messages
@@ -88,32 +95,38 @@ export function convertToVsCodeLmMessages(
 						if (part.type === "image") {
 							return new vscode.LanguageModelTextPart(
 								`[Image (${part.source?.type || "Unknown source-type"}): ${(part.source?.type === "base64" && part.source.media_type) || "unknown media-type"} not supported by VSCode LM API]`,
-							)
+							);
 						}
-						return new vscode.LanguageModelTextPart(part.text)
+						return new vscode.LanguageModelTextPart(part.text);
 					}),
-				]
+				];
 
 				// Add single user message with all content parts
-				vsCodeLmMessages.push(vscode.LanguageModelChatMessage.User(contentParts))
-				break
+				vsCodeLmMessages.push(
+					vscode.LanguageModelChatMessage.User(contentParts),
+				);
+				break;
 			}
 
 			case "assistant": {
-				const { nonToolMessages, toolMessages } = anthropicMessage.content.reduce<{
-					nonToolMessages: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam)[]
-					toolMessages: Anthropic.ToolUseBlockParam[]
-				}>(
-					(acc, part) => {
-						if (part.type === "tool_use") {
-							acc.toolMessages.push(part)
-						} else if (part.type === "text" || part.type === "image") {
-							acc.nonToolMessages.push(part)
-						}
-						return acc
-					},
-					{ nonToolMessages: [], toolMessages: [] },
-				)
+				const { nonToolMessages, toolMessages } =
+					anthropicMessage.content.reduce<{
+						nonToolMessages: (
+							| Anthropic.TextBlockParam
+							| Anthropic.ImageBlockParam
+						)[];
+						toolMessages: Anthropic.ToolUseBlockParam[];
+					}>(
+						(acc, part) => {
+							if (part.type === "tool_use") {
+								acc.toolMessages.push(part);
+							} else if (part.type === "text" || part.type === "image") {
+								acc.nonToolMessages.push(part);
+							}
+							return acc;
+						},
+						{ nonToolMessages: [], toolMessages: [] },
+					);
 
 				// Process tool messages first then non-tool messages
 				const contentParts = [
@@ -130,20 +143,24 @@ export function convertToVsCodeLmMessages(
 					// Convert non-tool messages to TextParts after tool messages
 					...nonToolMessages.map((part) => {
 						if (part.type === "image") {
-							return new vscode.LanguageModelTextPart("[Image generation not supported by VSCode LM API]")
+							return new vscode.LanguageModelTextPart(
+								"[Image generation not supported by VSCode LM API]",
+							);
 						}
-						return new vscode.LanguageModelTextPart(part.text)
+						return new vscode.LanguageModelTextPart(part.text);
 					}),
-				]
+				];
 
 				// Add the assistant message to the list of messages
-				vsCodeLmMessages.push(vscode.LanguageModelChatMessage.Assistant(contentParts))
-				break
+				vsCodeLmMessages.push(
+					vscode.LanguageModelChatMessage.Assistant(contentParts),
+				);
+				break;
 			}
 		}
 	}
 
-	return vsCodeLmMessages
+	return vsCodeLmMessages;
 }
 
 export function convertToAnthropicRole(
@@ -151,18 +168,22 @@ export function convertToAnthropicRole(
 ): Anthropic.Messages.MessageParam["role"] | null {
 	switch (vsCodeLmMessageRole) {
 		case vscode.LanguageModelChatMessageRole.Assistant:
-			return "assistant"
+			return "assistant";
 		case vscode.LanguageModelChatMessageRole.User:
-			return "user"
+			return "user";
 		default:
-			return null
+			return null;
 	}
 }
 
-export function convertToAnthropicMessage(vsCodeLmMessage: vscode.LanguageModelChatMessage): Anthropic.Messages.Message {
-	const anthropicRole = convertToAnthropicRole(vsCodeLmMessage.role)
+export function convertToAnthropicMessage(
+	vsCodeLmMessage: vscode.LanguageModelChatMessage,
+): Anthropic.Messages.Message {
+	const anthropicRole = convertToAnthropicRole(vsCodeLmMessage.role);
 	if (anthropicRole !== "assistant") {
-		throw new Error("Cline <Language Model API>: Only assistant messages are supported.")
+		throw new Error(
+			"Cline <Language Model API>: Only assistant messages are supported.",
+		);
 	}
 
 	return {
@@ -177,7 +198,7 @@ export function convertToAnthropicMessage(vsCodeLmMessage: vscode.LanguageModelC
 						type: "text",
 						text: part.value,
 						citations: null,
-					}
+					};
 				}
 
 				if (part instanceof vscode.LanguageModelToolCallPart) {
@@ -186,10 +207,10 @@ export function convertToAnthropicMessage(vsCodeLmMessage: vscode.LanguageModelC
 						id: part.callId || crypto.randomUUID(),
 						name: part.name,
 						input: asObjectSafe(part.input),
-					}
+					};
 				}
 
-				return null
+				return null;
 			})
 			.filter((part): part is Anthropic.ContentBlock => part !== null),
 		stop_reason: null,
@@ -201,5 +222,5 @@ export function convertToAnthropicMessage(vsCodeLmMessage: vscode.LanguageModelC
 			cache_read_input_tokens: null,
 			server_tool_use: null,
 		},
-	}
+	};
 }

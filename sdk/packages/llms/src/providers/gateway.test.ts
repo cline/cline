@@ -344,6 +344,7 @@ describe("sdk-gateway", () => {
 			"anthropic",
 			"bedrock",
 			"cline",
+			"cline-pass",
 			"minimax",
 			"oca",
 			"openrouter",

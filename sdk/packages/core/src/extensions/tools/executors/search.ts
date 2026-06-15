@@ -10,6 +10,7 @@ import * as path from "node:path";
 import type { AgentToolContext } from "@cline/shared";
 import { getFileIndex } from "../../../services/workspace";
 import type { SearchExecutor } from "../types";
+import { MAX_SEARCH_OUTPUT_CHARS } from "./output-limits";
 
 /**
  * Options for the search executor
@@ -363,7 +364,7 @@ export function createSearchExecutor(
 				);
 			}
 
-			return resultLines.join("\n");
+			return capSearchOutput(resultLines.join("\n"));
 		}
 
 		// Fallback to manual regex search
@@ -470,6 +471,27 @@ export function createSearchExecutor(
 			);
 		}
 
-		return resultLines.join("\n");
+		return capSearchOutput(resultLines.join("\n"));
 	};
+}
+
+/**
+ * Middle-truncate oversized search output. Matches with long context lines
+ * can blow past the per-query cap even within the maxResults bound; the
+ * head (earliest matches plus the result count) and tail (the refine hint)
+ * are preserved and the middle is elided with a notice teaching the model
+ * to narrow the pattern instead of retrying.
+ */
+function capSearchOutput(text: string): string {
+	if (text.length <= MAX_SEARCH_OUTPUT_CHARS) {
+		return text;
+	}
+	const headLimit = Math.ceil(MAX_SEARCH_OUTPUT_CHARS / 2);
+	const tailLimit = Math.max(1, MAX_SEARCH_OUTPUT_CHARS - headLimit);
+	return (
+		`${text.slice(0, headLimit)}\n` +
+		`[... search output truncated: ${text.length} chars total. ` +
+		"Narrow the pattern or scope to view the elided matches ...]\n" +
+		text.slice(-tailLimit)
+	);
 }
