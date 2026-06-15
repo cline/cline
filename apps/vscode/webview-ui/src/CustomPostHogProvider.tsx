@@ -5,19 +5,18 @@ import { type ReactNode, useEffect, useState } from "react"
 import { useExtensionState } from "./context/ExtensionStateContext"
 
 export function CustomPostHogProvider({ children }: { children: ReactNode }) {
-	const { distinctId, version, userInfo, environment } = useExtensionState()
+	const { distinctId, version, userInfo, environment, telemetrySetting } = useExtensionState()
 
 	// Skip PostHog entirely in self-hosted mode or when environment is unknown (safety fallback)
 	const isSelfHostedOrUnknown = !environment || environment === "selfHosted"
 
 	// NOTE: This is a hack to stop recording webview click events temporarily.
 	// Remove this to re-enable.
-	// const isTelemetryEnabled = telemetrySetting !== "disabled";
-	const isTelemetryEnabled = false
+	const isTelemetryEnabled = telemetrySetting !== "disabled"
 	const [isActive, setIsActive] = useState(false)
 
 	useEffect(() => {
-		if (isSelfHostedOrUnknown || isActive || !isTelemetryEnabled || !posthogConfig.apiKey) {
+		if (isSelfHostedOrUnknown || isActive || !posthogConfig.apiKey) {
 			return
 		}
 		// At this point, we know apiKey is defined due to the check above
@@ -27,7 +26,7 @@ export function CustomPostHogProvider({ children }: { children: ReactNode }) {
 			ui_host: posthogConfig.uiHost,
 			disable_session_recording: true,
 			capture_pageview: false,
-			capture_dead_clicks: true,
+			capture_dead_clicks: false,
 			// Feature flags should work regardless of telemetry opt-out
 			advanced_disable_decide: false,
 			// Autocapture should respect telemetry settings
@@ -37,14 +36,11 @@ export function CustomPostHogProvider({ children }: { children: ReactNode }) {
 	}, [isSelfHostedOrUnknown])
 
 	useEffect(() => {
-		if (!isTelemetryEnabled || !isActive || !distinctId || !version) {
-			return
-		}
-
+		// The config should always be set
 		posthog.set_config({
 			before_send: (payload) => {
 				// Only filter out events if telemetry is disabled, but allow feature flag requests
-				if (!isTelemetryEnabled && payload?.event !== "$feature_flag_called") {
+				if (!isTelemetryEnabled || payload?.event !== "$feature_flag_called") {
 					return null
 				}
 
@@ -55,6 +51,10 @@ export function CustomPostHogProvider({ children }: { children: ReactNode }) {
 				return payload
 			},
 		})
+
+		if (!isTelemetryEnabled || !isActive || !distinctId || !version) {
+			return
+		}
 
 		const optedIn = posthog.has_opted_in_capturing()
 		const optedOut = posthog.has_opted_out_capturing()
