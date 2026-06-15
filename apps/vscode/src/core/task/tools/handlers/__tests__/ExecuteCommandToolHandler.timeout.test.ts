@@ -54,6 +54,17 @@ describe("ExecuteCommandToolHandler malformed XML detection", () => {
 		assert.equal(getMalformedExecuteCommandXmlCloseTag(command), undefined)
 	})
 
+	it("detects a swallowed execute_command close tag without a close-tag hint", () => {
+		const command = "npm test\n</execute_command>"
+
+		assert.equal(isMalformedExecuteCommandXml(command), true)
+		assert.equal(getMalformedExecuteCommandXmlCloseTag(command), undefined)
+
+		const message = createMalformedExecuteCommandXmlError(command)
+		assert.match(message, /Malformed XML in execute_command/)
+		assert.doesNotMatch(message, /instead of '<\/command>'/)
+	})
+
 	it("tells the model to fix malformed execute_command XML", () => {
 		const message = createMalformedExecuteCommandXmlError(
 			"npm test</unexpected>\n<requires_approval>false</requires_approval>",
