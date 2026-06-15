@@ -211,6 +211,97 @@ export default {
 		expect(written.mcpServers?.["old-docs"]).toBeUndefined();
 	});
 
+	it("isolates plugin setup failures while syncing other plugins", async () => {
+		const { root, settingsPath } = await createPlugin("export default {};\n");
+		const goodPluginPath = join(root, "good-plugin.mjs");
+		const badPluginPath = join(root, "bad-plugin.mjs");
+		await writeFile(
+			goodPluginPath,
+			`
+export default {
+  name: "good-plugin",
+  manifest: { capabilities: ["mcp"] },
+  setup(api) {
+    api.registerMcpServer({
+      name: "good-docs",
+      transport: { type: "streamableHttp", url: "https://good.example.com/mcp" },
+    })
+  },
+}
+`,
+			"utf8",
+		);
+		await writeFile(
+			badPluginPath,
+			`
+export default {
+  name: "bad-plugin",
+  manifest: { capabilities: ["tools"] },
+  setup(api) {
+    api.registerMcpServer({
+      name: "bad-docs",
+      transport: { type: "streamableHttp", url: "https://bad.example.com/mcp" },
+    })
+  },
+}
+`,
+			"utf8",
+		);
+		await writeFile(
+			settingsPath,
+			JSON.stringify(
+				{
+					mcpServers: {
+						"bad-docs": {
+							transport: {
+								type: "streamableHttp",
+								url: "https://old-bad.example.com/mcp",
+							},
+							metadata: {
+								source: "plugin",
+								pluginName: "bad-plugin",
+								pluginPath: badPluginPath,
+							},
+						},
+					},
+				},
+				null,
+				2,
+			),
+			"utf8",
+		);
+
+		const result = await syncPluginMcpServersToSettings({
+			pluginPaths: [goodPluginPath, badPluginPath],
+			settingsPath,
+		});
+
+		expect(result.failures).toEqual([
+			expect.objectContaining({
+				pluginPath: badPluginPath,
+				pluginName: "bad-plugin",
+				message: 'registerMcpServer requires the "mcp" capability',
+			}),
+		]);
+		expect(result.mutations).toEqual([
+			expect.objectContaining({
+				name: "good-docs",
+				pluginName: "good-plugin",
+				pluginPath: goodPluginPath,
+				action: "created",
+			}),
+		]);
+		const written = JSON.parse(await readFile(settingsPath, "utf8")) as {
+			mcpServers?: Record<string, { transport?: { url?: string } }>;
+		};
+		expect(written.mcpServers?.["good-docs"]?.transport?.url).toBe(
+			"https://good.example.com/mcp",
+		);
+		expect(written.mcpServers?.["bad-docs"]?.transport?.url).toBe(
+			"https://old-bad.example.com/mcp",
+		);
+	});
+
 	it("skips user-owned name collisions", async () => {
 		const { pluginPath, settingsPath } = await createPlugin(`
 export default {

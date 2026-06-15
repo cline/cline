@@ -230,9 +230,10 @@ async function collectPluginMcpServers(
 		pluginPath: string;
 		server: AgentExtensionMcpServer;
 	}>;
+	failures: PluginMcpSettingsSyncResult["failures"];
 }> {
 	if (options.pluginPaths.length === 0) {
-		return { plugins: [], servers: [] };
+		return { plugins: [], servers: [], failures: [] };
 	}
 	const sandboxed = await loadSandboxedPlugins({
 		pluginPaths: [...options.pluginPaths],
@@ -253,16 +254,19 @@ async function collectPluginMcpServers(
 			pluginPath: string;
 			server: AgentExtensionMcpServer;
 		}> = [];
+		const failures: PluginMcpSettingsSyncResult["failures"] = (
+			sandboxed.failures ?? []
+		).map((failure) => ({
+			pluginPath: failure.pluginPath,
+			pluginName: failure.pluginName,
+			message: failure.message,
+		}));
 		for (const extension of sandboxed.extensions ?? []) {
 			const pluginPath = (extension as AgentExtensionWithPath)
 				.__clinePluginPath;
 			if (!pluginPath || !extension.setup) {
 				continue;
 			}
-			plugins.push({
-				pluginName: extension.name,
-				pluginPath,
-			});
 			const mcpServers: AgentExtensionMcpServer[] = [];
 			const api: AgentExtensionApi = {
 				registerTool: (_tool: AgentTool) => {},
@@ -278,10 +282,23 @@ async function collectPluginMcpServers(
 					mcpServers.push(server);
 				},
 			};
-			await extension.setup(api, {
-				workspaceInfo: options.workspacePath
-					? { rootPath: options.workspacePath }
-					: undefined,
+			try {
+				await extension.setup(api, {
+					workspaceInfo: options.workspacePath
+						? { rootPath: options.workspacePath }
+						: undefined,
+				});
+			} catch (error) {
+				failures.push({
+					pluginPath,
+					pluginName: extension.name,
+					message: error instanceof Error ? error.message : String(error),
+				});
+				continue;
+			}
+			plugins.push({
+				pluginName: extension.name,
+				pluginPath,
 			});
 			for (const server of mcpServers) {
 				servers.push({
@@ -299,7 +316,7 @@ async function collectPluginMcpServers(
 				});
 			}
 		}
-		return { plugins, servers };
+		return { plugins, servers, failures };
 	} finally {
 		await sandboxed.shutdown().catch(() => {
 			// Best-effort cleanup after contribution discovery.
@@ -327,6 +344,7 @@ export async function syncPluginMcpServersToSettings(
 		}
 		return result;
 	}
+	result.failures.push(...collected.failures);
 
 	let settings: Record<string, unknown>;
 	try {
