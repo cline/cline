@@ -1,4 +1,4 @@
-import { ApiConfiguration, clinePassDefaultModelId, clinePassModels, ModelInfo, QwenApiRegions } from "@shared/api"
+import { ApiConfiguration, clinePassDefaultModelId, ModelInfo, QwenApiRegions, resolveClinePassModelInfo } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 import { featureFlagsService } from "@/services/feature-flags"
 import { ClineStorageMessage } from "@/shared/messages/content"
@@ -292,10 +292,7 @@ function createHandlerForProvider(
 			const clineModelId = configuredClinePassModelId?.startsWith("cline-pass/")
 				? configuredClinePassModelId
 				: clinePassDefaultModelId
-			const clineModelInfo =
-				configuredClinePassModelInfo ||
-				clinePassModels[clineModelId as keyof typeof clinePassModels] ||
-				clinePassModels[clinePassDefaultModelId]
+			const clineModelInfo = configuredClinePassModelInfo || resolveClinePassModelInfo(clineModelId)
 			return new ClineHandler({
 				onRetryAttempt: options.onRetryAttempt,
 				clineAccountId: options.clineAccountId,

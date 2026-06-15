@@ -1,4 +1,4 @@
-import { type ApiConfiguration, CLAUDE_SONNET_1M_SUFFIX, type ModelInfo } from "@shared/api"
+import { type ApiConfiguration, buildModelInfoNameMap, CLAUDE_SONNET_1M_SUFFIX, type ModelInfo } from "@shared/api"
 import { CLINE_RECOMMENDED_MODELS_FALLBACK } from "@shared/cline/recommended-models"
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import { type ClineRecommendedModel, ClineRecommendedModelsResponse } from "@shared/proto/cline/models"
@@ -111,12 +111,17 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({
 	showFeaturedModels = true,
 }) => {
 	const { handleModeFieldsChange, handleFieldChange } = useApiConfigurationHandlers()
-	const { apiConfiguration, favoritedModelIds, clineModels, refreshClineModels } = useExtensionState()
+	const { apiConfiguration, favoritedModelIds, clineModels, openRouterModels, refreshClineModels } = useExtensionState()
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 	const resolvedModels = models ?? clineModels
+	const openRouterModelsByName = useMemo(() => buildModelInfoNameMap(openRouterModels), [openRouterModels])
 	const normalizedSelection = useMemo(
-		() => normalizeApiConfiguration(apiConfiguration, currentMode, { isClinePassEnabled }),
-		[apiConfiguration, currentMode, isClinePassEnabled],
+		() =>
+			normalizeApiConfiguration(apiConfiguration, currentMode, {
+				isClinePassEnabled,
+				clinePassModelInfoByName: openRouterModelsByName,
+			}),
+		[apiConfiguration, currentMode, isClinePassEnabled, openRouterModelsByName],
 	)
 	const configuredModelId = apiConfiguration?.[modelIdFieldPair[currentMode]] as string | undefined
 	const selectedOrDefaultModelId = defaultModelId ?? normalizedSelection.selectedModelId

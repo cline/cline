@@ -61,6 +61,7 @@ import {
 	qwenCodeModels,
 	requestyDefaultModelId,
 	requestyDefaultModelInfo,
+	resolveClinePassModelInfo,
 	sambanovaDefaultModelId,
 	sambanovaModels,
 	sapAiCoreDefaultModelId,
@@ -184,7 +185,7 @@ export interface NormalizedApiConfig {
 export function normalizeApiConfiguration(
 	apiConfiguration: ApiConfiguration | undefined,
 	currentMode: Mode,
-	options: { isClinePassEnabled?: boolean } = {},
+	options: { isClinePassEnabled?: boolean; clinePassModelInfoByName?: Record<string, ModelInfo> } = {},
 ): NormalizedApiConfig {
 	const configuredProvider =
 		(currentMode === "plan" ? apiConfiguration?.planModeApiProvider : apiConfiguration?.actModeApiProvider) || "anthropic"
@@ -308,8 +309,7 @@ export function normalizeApiConfiguration(
 				(currentMode === "plan"
 					? apiConfiguration?.planModeClinePassModelInfo
 					: apiConfiguration?.actModeClinePassModelInfo) ||
-				clinePassModels[clinePassModelId as keyof typeof clinePassModels] ||
-				clinePassModels[clinePassDefaultModelId]
+				resolveClinePassModelInfo(clinePassModelId, options.clinePassModelInfoByName)
 			return {
 				selectedProvider: provider,
 				selectedModelId: clinePassModelId,

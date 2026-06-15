@@ -1,11 +1,20 @@
-import { clinePassDefaultModelId, clinePassModels, type ModelInfo } from "@shared/api"
+import {
+	buildModelInfoNameMap,
+	clinePassDefaultModelId,
+	clinePassModels,
+	type ModelInfo,
+	resolveClinePassModelInfo,
+} from "@shared/api"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import ClineModelPicker from "../ClineModelPicker"
 import { ClineProvider } from "./ClineProvider"
 
 export const ClinePassProvider: typeof ClineProvider = (props) => {
+	const { openRouterModels } = useExtensionState()
+	const openRouterModelsByName = useMemo(() => buildModelInfoNameMap(openRouterModels), [openRouterModels])
 	const [clinePassRecommendedModels, setClinePassRecommendedModels] = useState<Record<string, ModelInfo> | undefined>(undefined)
 
 	const refreshClinePassModels = useCallback(async () => {
@@ -15,8 +24,11 @@ export const ClinePassProvider: typeof ClineProvider = (props) => {
 				(response.clinePass ?? [])
 					.filter((model) => model.id)
 					.map((model) => {
-						const fallback =
-							clinePassModels[model.id as keyof typeof clinePassModels] ?? clinePassModels[clinePassDefaultModelId]
+						// Cline Pass model IDs omit the upstream lab, so look up capabilities using
+						// the model slug (for example, glm-5.1 instead of cline-pass/glm-5.1).
+						// If the model is not in OpenRouter yet, use conservative generic defaults
+						// instead of copying GLM-5.1-specific context/max-token values.
+						const fallback = resolveClinePassModelInfo(model.id, openRouterModelsByName)
 						return [
 							model.id,
 							{
@@ -31,7 +43,7 @@ export const ClinePassProvider: typeof ClineProvider = (props) => {
 		} catch (error) {
 			console.error("Failed to refresh Cline Pass models:", error)
 		}
-	}, [])
+	}, [openRouterModelsByName])
 
 	useEffect(() => {
 		void refreshClinePassModels()
