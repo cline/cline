@@ -1,7 +1,9 @@
 import {
 	createCoreSettingsService,
+	disablePluginMcpServersInSettings,
 	setDisabledPlugin,
 	setDisabledTools,
+	syncPluginMcpServersToSettings,
 	type UserInstructionConfigService,
 	uninstallPlugin,
 } from "@cline/core";
@@ -71,14 +73,21 @@ export function createInteractiveConfigDataLoader(input: {
 
 		if (item.kind === "plugin" && typeof item.enabled === "boolean") {
 			setDisabledPlugin(item.path, item.enabled);
+			if (item.enabled) {
+				disablePluginMcpServersInSettings({ pluginPaths: [item.path] });
+			} else {
+				await syncPluginMcpServersToSettings({
+					pluginPaths: [item.path],
+					cwd: input.config.cwd,
+					workspacePath: workspaceRoot(),
+					providerId: input.config.providerId,
+					modelId: input.config.modelId,
+				});
+			}
 			return undefined;
 		}
 
-		if (
-			item.kind === "mcp" &&
-			typeof item.enabled === "boolean" &&
-			!item.pluginName
-		) {
+		if (item.kind === "mcp" && typeof item.enabled === "boolean") {
 			await settings.toggle({
 				type: "mcp",
 				id: item.id,

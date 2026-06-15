@@ -21,7 +21,11 @@ import {
 	resolve,
 	sep,
 } from "node:path";
-import { type PluginUninstallOptions, uninstallPlugin } from "@cline/core";
+import {
+	type PluginUninstallOptions,
+	syncPluginMcpServersToSettings,
+	uninstallPlugin,
+} from "@cline/core";
 import {
 	isPluginModulePath,
 	resolveClineDir,
@@ -1071,11 +1075,17 @@ export async function installPlugin(
 		}
 
 		replaceInstallPath(stagingRoot, installPath, force);
-		return {
+		const result = {
 			source,
 			installPath,
 			entryPaths: entryPaths.map((entry) => resolve(installPath, entry)),
 		};
+		await syncPluginMcpServersToSettings({
+			pluginPaths: result.entryPaths,
+			cwd,
+			workspacePath: cwd,
+		});
+		return result;
 	} catch (error) {
 		rmSync(stagingRoot, { recursive: true, force: true });
 		throw error;

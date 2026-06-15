@@ -21,6 +21,7 @@ import {
 	resolvePluginConfigSearchPaths,
 } from "@cline/shared/storage";
 import { readGlobalSettings, writeGlobalSettings } from "./global-settings";
+import { removePluginMcpServersFromSettings } from "./plugin-mcp-settings";
 
 export interface PluginUninstallOptions {
 	name?: string;
@@ -412,6 +413,10 @@ export async function uninstallPlugin(
 		force: true,
 	});
 	cleanupDisabledPluginPaths(candidate);
+	removePluginMcpServersFromSettings({
+		pluginPaths: [candidate.installPath, ...candidate.entryPaths],
+		pluginNames: candidate.names,
+	});
 	if (candidate.installed) {
 		cleanupEmptyInstallParents(candidate.installPath);
 	}

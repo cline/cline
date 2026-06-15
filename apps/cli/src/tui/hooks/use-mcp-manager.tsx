@@ -11,15 +11,13 @@ import {
 } from "../components/dialogs/mcp-manager-dialog";
 
 function toMcpEntries(items: InteractiveConfigItem[]): McpEntry[] {
-	return items
-		.filter((item) => !item.pluginName)
-		.map((item) => ({
-			name: item.name,
-			path: item.path,
-			enabled: item.enabled,
-			description: item.description,
-			lastError: item.loadError,
-		}));
+	return items.map((item) => ({
+		name: item.name,
+		path: item.path,
+		enabled: item.enabled,
+		description: item.description,
+		lastError: item.loadError,
+	}));
 }
 
 export function useMcpManager(opts: {

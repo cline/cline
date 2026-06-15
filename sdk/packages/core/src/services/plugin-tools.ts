@@ -1,15 +1,5 @@
 import { isAbsolute, relative, resolve } from "node:path";
-import type {
-	AgentConfig,
-	AgentExtensionMcpServer,
-	AgentTool,
-} from "@cline/shared";
-import {
-	createDefaultMcpServerClientFactory,
-	createMcpTools,
-	InMemoryMcpManager,
-	resolvePluginMcpServerRegistrations,
-} from "../extensions/mcp";
+import type { AgentConfig, AgentTool } from "@cline/shared";
 import { resolveAgentPluginPaths } from "../extensions/plugin/plugin-config-loader";
 import type {
 	PluginInitializationFailure,
@@ -58,7 +48,6 @@ export interface ListPluginToolsResult {
 }
 
 type PluginToolDescriptor = Omit<PluginToolSummary, "enabled">;
-type PluginMcpServerDescriptor = Omit<PluginMcpServerSummary, "enabled">;
 
 function withEnabledState(
 	tools: readonly PluginToolDescriptor[],
@@ -67,15 +56,6 @@ function withEnabledState(
 	return tools.map((tool) => ({
 		...tool,
 		enabled: !disabled.has(tool.name),
-	}));
-}
-
-function withMcpServerEnabledState(
-	servers: readonly PluginMcpServerDescriptor[],
-): PluginMcpServerSummary[] {
-	return servers.map((server) => ({
-		...server,
-		enabled: !server.loadError,
 	}));
 }
 
@@ -91,31 +71,17 @@ function sortPluginToolDescriptors(
 	});
 }
 
-function sortPluginMcpServerDescriptors(
-	servers: PluginMcpServerDescriptor[],
-): PluginMcpServerDescriptor[] {
-	return servers.sort((left, right) => {
-		const pluginOrder = left.pluginName.localeCompare(right.pluginName);
-		if (pluginOrder !== 0) {
-			return pluginOrder;
-		}
-		return left.name.localeCompare(right.name);
-	});
-}
-
 async function collectPluginContributions(
 	extension: AgentExtension,
 	workspaceInfo?: { rootPath: string },
 ): Promise<{
 	tools: AgentTool[];
-	mcpServers: AgentExtensionMcpServer[];
 }> {
 	if (!extension.setup) {
-		return { tools: [], mcpServers: [] };
+		return { tools: [] };
 	}
 
 	const tools: AgentTool[] = [];
-	const mcpServers: AgentExtensionMcpServer[] = [];
 	const api: AgentExtensionApi = {
 		registerTool: (tool) => tools.push(tool),
 		registerCommand: () => {},
@@ -123,15 +89,14 @@ async function collectPluginContributions(
 		registerRule: () => {},
 		registerProvider: () => {},
 		registerAutomationEventType: () => {},
-		registerMcpServer: (server) => {
+		registerMcpServer: (_server) => {
 			if (!extension.manifest.capabilities.includes("mcp")) {
 				throw new Error('registerMcpServer requires the "mcp" capability');
 			}
-			mcpServers.push(server);
 		},
 	};
 	await extension.setup(api, { workspaceInfo });
-	return { tools, mcpServers };
+	return { tools };
 }
 
 export async function listPluginToolsWithDiagnostics(input: {
@@ -151,15 +116,9 @@ export async function listPluginToolsWithDiagnostics(input: {
 	}
 
 	const tools: PluginToolDescriptor[] = [];
-	const mcpServers: PluginMcpServerDescriptor[] = [];
-	const pluginMcpServerCandidates: {
-		server: AgentExtensionMcpServer;
-		descriptor: PluginMcpServerDescriptor;
-	}[] = [];
 	let failures: PluginInitializationFailure[] = [];
 	let warnings: PluginInitializationWarning[] = [];
 	let sandboxed: Awaited<ReturnType<typeof loadSandboxedPlugins>> | undefined;
-	let mcpManager: InMemoryMcpManager | undefined;
 
 	try {
 		sandboxed = await loadSandboxedPlugins({
@@ -204,88 +163,6 @@ export async function listPluginToolsWithDiagnostics(input: {
 					description: tool.description?.trim() || undefined,
 				});
 			}
-			for (const server of contributions.mcpServers) {
-				const serverName =
-					typeof server.name === "string" ? server.name.trim() : "";
-				const descriptor: PluginMcpServerDescriptor = {
-					name: serverName,
-					pluginName: extension.name,
-					path: pluginPath,
-					source: pluginSource,
-					description:
-						typeof server.transport === "object" &&
-						server.transport !== null &&
-						"type" in server.transport &&
-						typeof server.transport.type === "string"
-							? server.transport.type
-							: undefined,
-				};
-				mcpServers.push(descriptor);
-				pluginMcpServerCandidates.push({ server, descriptor });
-			}
-		}
-		const resolvedMcpServers = resolvePluginMcpServerRegistrations(
-			pluginMcpServerCandidates.map(({ server, descriptor }) => ({
-				server,
-				owner: descriptor,
-				ownerLabel: descriptor.pluginName,
-			})),
-		);
-		for (const result of resolvedMcpServers) {
-			result.owner.name = result.name;
-			if (result.loadError) {
-				result.owner.loadError = result.loadError;
-			}
-		}
-
-		const loadableMcpServers = resolvedMcpServers.filter(
-			(
-				result,
-			): result is typeof result & {
-				registration: NonNullable<typeof result.registration>;
-			} => result.registration !== undefined && !result.loadError,
-		);
-		if (loadableMcpServers.length > 0) {
-			const manager = new InMemoryMcpManager({
-				clientFactory: createDefaultMcpServerClientFactory({
-					enableOAuth: false,
-				}),
-			});
-			mcpManager = manager;
-			for (const result of loadableMcpServers) {
-				await manager.registerServer(result.registration);
-			}
-			const toolResults = await Promise.allSettled(
-				loadableMcpServers.map((result) =>
-					createMcpTools({
-						serverName: result.registration.name,
-						provider: manager,
-					}),
-				),
-			);
-			for (const [index, toolResult] of toolResults.entries()) {
-				const server = loadableMcpServers[index];
-				if (!server) {
-					continue;
-				}
-				if (toolResult.status === "rejected") {
-					server.owner.loadError =
-						toolResult.reason instanceof Error
-							? toolResult.reason.message
-							: String(toolResult.reason);
-					continue;
-				}
-				for (const tool of toolResult.value) {
-					tools.push({
-						name: tool.name,
-						pluginName: server.owner.pluginName,
-						path: server.owner.path,
-						source: server.owner.source,
-						description: tool.description?.trim() || undefined,
-						mcpServerName: server.name,
-					});
-				}
-			}
 		}
 	} catch (error) {
 		failures = pluginPaths.map((pluginPath) => ({
@@ -295,19 +172,15 @@ export async function listPluginToolsWithDiagnostics(input: {
 			stack: error instanceof Error ? error.stack : undefined,
 		}));
 	} finally {
-		await mcpManager?.dispose().catch(() => {
-			// Best effort cleanup after MCP tool discovery.
-		});
 		await sandboxed?.shutdown().catch(() => {
 			// Best effort cleanup after contribution discovery.
 		});
 	}
 
 	const sortedTools = sortPluginToolDescriptors(tools);
-	const sortedMcpServers = sortPluginMcpServerDescriptors(mcpServers);
 	return {
 		tools: withEnabledState(sortedTools, disabled),
-		mcpServers: withMcpServerEnabledState(sortedMcpServers),
+		mcpServers: [],
 		failures,
 		warnings,
 	};

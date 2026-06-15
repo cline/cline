@@ -463,6 +463,16 @@ export async function loadInteractiveConfigData(input: {
 			for (const registration of resolveMcpServerRegistrations({
 				filePath: mcpSettingsPath,
 			})) {
+				const pluginName =
+					registration.metadata?.source === "plugin" &&
+					typeof registration.metadata.pluginName === "string"
+						? registration.metadata.pluginName
+						: undefined;
+				const pluginPath =
+					registration.metadata?.source === "plugin" &&
+					typeof registration.metadata.pluginPath === "string"
+						? registration.metadata.pluginPath
+						: undefined;
 				mcp.push({
 					id: registration.name,
 					name: registration.name,
@@ -472,6 +482,8 @@ export async function loadInteractiveConfigData(input: {
 					source: detectSource(mcpSettingsPath, input.workspaceRoot),
 					description: getMcpDescription(registration),
 					loadError: registration.oauth?.lastError,
+					pluginName,
+					pluginPath,
 				});
 			}
 		} catch {
@@ -508,22 +520,6 @@ export async function loadInteractiveConfigData(input: {
 				modelId: input.availabilityContext?.modelId,
 			});
 			applyPluginFailures(plugins, pluginToolResult.failures);
-			for (const pluginMcpServer of pluginToolResult.mcpServers) {
-				mcp.push({
-					id: `${pluginMcpServer.pluginName}:${pluginMcpServer.name}:${pluginMcpServer.path}`,
-					name: pluginMcpServer.name,
-					path: pluginMcpServer.path,
-					enabled: pluginMcpServer.enabled,
-					enabledState: pluginMcpServer.enabled ? "enabled" : "disabled",
-					kind: "mcp" as const,
-					configKind: "plugin-mcp",
-					pluginName: pluginMcpServer.pluginName,
-					pluginPath: pluginMcpServer.path,
-					source: pluginMcpServer.source,
-					description: `plugin MCP configured - ${pluginMcpServer.description ?? "server"}; disable plugin to disable server`,
-					loadError: pluginMcpServer.loadError,
-				});
-			}
 			for (const pluginTool of pluginToolResult.tools) {
 				tools.push({
 					id: `${pluginTool.pluginName}:${pluginTool.name}:${pluginTool.path}`,
