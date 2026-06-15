@@ -11,10 +11,18 @@
 
 import {
 	type ContentBlock,
+	createMediaBudgetState,
+	IMAGE_OMITTED_PLACEHOLDER,
+	type ImageContent,
+	type MediaBudgetOptions,
+	type MediaBudgetState,
 	type Message,
 	normalizeUserInput,
+	type ResolvedMediaBudget,
+	resolveMediaBudget,
 	type TextContent,
 	type ToolResultContent,
+	validateAndReserveImageMedia,
 } from "@cline/shared";
 
 const DEFAULT_MAX_TOOL_RESULT_CHARS = 50_000;
@@ -72,6 +80,7 @@ export class MessageBuilder {
 		private readonly maxToolResultChars = DEFAULT_MAX_TOOL_RESULT_CHARS,
 		private readonly targetToolNames = TARGET_TOOL_NAMES,
 		private readonly maxTotalTextBytes = DEFAULT_MAX_TOTAL_TEXT_BYTES,
+		private readonly mediaBudget: MediaBudgetOptions = {},
 	) {}
 
 	buildForApi(messages: Message[]): Message[] {
@@ -101,7 +110,8 @@ export class MessageBuilder {
 			return changed ? { ...message, content } : message;
 		});
 
-		return this.truncateToTotalTextBudget(prepared);
+		const mediaLimited = this.applyMediaBudget(prepared);
+		return this.truncateToTotalTextBudget(mediaLimited);
 	}
 
 	private transformBlock(
@@ -957,6 +967,153 @@ export class MessageBuilder {
 		}
 		return candidates.sort((l, r) => r.byteLength - l.byteLength);
 	}
+
+	private applyMediaBudget(messages: Message[]): Message[] {
+		const budget = this.resolveMediaBudget();
+		if (
+			budget.maxImageEncodedBytes === Number.POSITIVE_INFINITY &&
+			budget.maxImageDecodedBytes === Number.POSITIVE_INFINITY &&
+			budget.maxTotalMediaBytes === Number.POSITIVE_INFINITY
+		) {
+			return messages;
+		}
+
+		const state = createMediaBudgetState();
+		let changed = false;
+		const next = messages.map((message) => {
+			if (!Array.isArray(message.content)) {
+				return message;
+			}
+			let contentChanged = false;
+			const content = message.content.map((block) => {
+				const out = this.applyMediaBudgetToBlock(block, budget, state);
+				if (out !== block) {
+					contentChanged = true;
+				}
+				return out;
+			});
+			if (!contentChanged) {
+				return message;
+			}
+			changed = true;
+			return { ...message, content };
+		});
+
+		return changed ? next : messages;
+	}
+
+	private resolveMediaBudget(): ResolvedMediaBudget {
+		return resolveMediaBudget(this.mediaBudget);
+	}
+
+	private applyMediaBudgetToBlock(
+		block: ContentBlock,
+		budget: ResolvedMediaBudget,
+		state: MediaBudgetState,
+	): ContentBlock {
+		if (isImageContentLike(block)) {
+			return this.limitImageContent(block, budget, state);
+		}
+
+		if (block.type !== "tool_result" || typeof block.content === "string") {
+			return block;
+		}
+
+		let changed = false;
+		const content = block.content.map((entry) => {
+			const out = this.applyMediaBudgetToToolResultEntry(entry, budget, state);
+			if (out !== entry) {
+				changed = true;
+			}
+			return out as (typeof block.content)[number];
+		});
+
+		return changed
+			? { ...block, content: content as ToolResultContent["content"] }
+			: block;
+	}
+
+	private applyMediaBudgetToToolResultEntry(
+		entry: unknown,
+		budget: ResolvedMediaBudget,
+		state: MediaBudgetState,
+	): unknown {
+		if (isImageContentLike(entry)) {
+			return this.limitImageContent(entry, budget, state);
+		}
+		if (isStructuredToolResultEntry(entry)) {
+			return this.limitNestedMedia(entry, budget, state);
+		}
+		return entry;
+	}
+
+	private limitNestedMedia(
+		value: unknown,
+		budget: ResolvedMediaBudget,
+		state: MediaBudgetState,
+	): unknown {
+		if (isImageContentLike(value)) {
+			const limited = this.limitImageContent(value, budget, state);
+			return limited.type === "text" ? limited.text : limited;
+		}
+
+		if (Array.isArray(value)) {
+			let changed = false;
+			const next = value.map((item) => {
+				const out = this.limitNestedMedia(item, budget, state);
+				if (out !== item) {
+					changed = true;
+				}
+				return out;
+			});
+			return changed ? next : value;
+		}
+
+		if (value !== null && typeof value === "object") {
+			let changed = false;
+			const next: Record<string, unknown> = {};
+			for (const [key, item] of Object.entries(value)) {
+				const out = this.limitNestedMedia(item, budget, state);
+				if (out !== item) {
+					changed = true;
+				}
+				next[key] = out;
+			}
+			return changed ? next : value;
+		}
+
+		return value;
+	}
+
+	private limitImageContent(
+		image: unknown,
+		budget: ResolvedMediaBudget,
+		state: MediaBudgetState,
+	): ImageContent | TextContent {
+		if (!isImageContentWithData(image)) {
+			return { type: "text", text: IMAGE_OMITTED_PLACEHOLDER };
+		}
+
+		const validation = validateAndReserveImageMedia(
+			image.mediaType,
+			image.data,
+			{
+				maxImageEncodedBytes: budget.maxImageEncodedBytes,
+				maxImageDecodedBytes: budget.maxImageDecodedBytes,
+				maxTotalMediaBytes: budget.maxTotalMediaBytes,
+			},
+			state,
+		);
+		if (!validation.ok) {
+			return { type: "text", text: IMAGE_OMITTED_PLACEHOLDER };
+		}
+
+		return {
+			...image,
+			data: validation.base64,
+			mediaType: validation.mediaType,
+		};
+	}
 }
 
 function utf8ByteLength(text: string): number {
@@ -1042,8 +1199,22 @@ function isStructuredToolResultEntry(entry: unknown): boolean {
 	return type !== "text" && type !== "image" && type !== "file";
 }
 
-function isImageContentLike(value: object): boolean {
-	return (value as { type?: unknown }).type === "image";
+function isImageContentLike(value: unknown): boolean {
+	return (
+		value !== null &&
+		typeof value === "object" &&
+		(value as { type?: unknown }).type === "image"
+	);
+}
+
+function isImageContentWithData(value: unknown): value is ImageContent {
+	return (
+		value !== null &&
+		typeof value === "object" &&
+		(value as { type?: unknown }).type === "image" &&
+		typeof (value as { data?: unknown }).data === "string" &&
+		typeof (value as { mediaType?: unknown }).mediaType === "string"
+	);
 }
 
 function countNestedStringBytes(value: unknown): number {
@@ -1058,7 +1229,7 @@ function countNestedStringBytes(value: unknown): number {
 		return total;
 	}
 	if (value !== null && typeof value === "object") {
-		if (isImageContentLike(value)) {
+		if (isImageContentWithData(value)) {
 			return 0;
 		}
 		let total = 0;
@@ -1091,7 +1262,7 @@ function collectNestedStringCandidates(
 		return;
 	}
 	if (container !== null && typeof container === "object") {
-		if (isImageContentLike(container)) {
+		if (isImageContentWithData(container)) {
 			return;
 		}
 		const record = container as Record<string, unknown>;
