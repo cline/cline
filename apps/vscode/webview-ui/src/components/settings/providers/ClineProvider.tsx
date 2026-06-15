@@ -10,12 +10,19 @@ interface ClineProviderProps {
 	isPopup?: boolean
 	currentMode: Mode
 	initialModelTab?: "recommended" | "free"
+	isClinePassEnabled?: boolean
 }
 
 /**
  * The Cline provider configuration component
  */
-export const ClineProvider = ({ showModelOptions, isPopup, currentMode, initialModelTab }: ClineProviderProps) => {
+export const ClineProvider = ({
+	showModelOptions,
+	isPopup,
+	currentMode,
+	initialModelTab,
+	isClinePassEnabled,
+}: ClineProviderProps) => {
 	return (
 		<div>
 			{/* Cline Account Info Card */}
@@ -27,6 +34,7 @@ export const ClineProvider = ({ showModelOptions, isPopup, currentMode, initialM
 				<ClineModelPicker
 					currentMode={currentMode}
 					initialTab={initialModelTab}
+					isClinePassEnabled={isClinePassEnabled}
 					isPopup={isPopup}
 					showProviderRouting={true}
 				/>

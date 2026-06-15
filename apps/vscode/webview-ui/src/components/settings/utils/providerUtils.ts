@@ -184,9 +184,11 @@ export interface NormalizedApiConfig {
 export function normalizeApiConfiguration(
 	apiConfiguration: ApiConfiguration | undefined,
 	currentMode: Mode,
+	options: { isClinePassEnabled?: boolean } = {},
 ): NormalizedApiConfig {
-	const provider =
+	const configuredProvider =
 		(currentMode === "plan" ? apiConfiguration?.planModeApiProvider : apiConfiguration?.actModeApiProvider) || "anthropic"
+	const provider = configuredProvider === "cline-pass" && options.isClinePassEnabled === false ? "cline" : configuredProvider
 
 	const modelId = currentMode === "plan" ? apiConfiguration?.planModeApiModelId : apiConfiguration?.actModeApiModelId
 

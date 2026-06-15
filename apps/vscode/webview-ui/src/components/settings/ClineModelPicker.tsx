@@ -56,6 +56,7 @@ export interface ClineModelPickerProps {
 	modelIdFieldPair?: { plan: keyof ApiConfiguration; act: keyof ApiConfiguration }
 	modelInfoFieldPair?: { plan: keyof ApiConfiguration; act: keyof ApiConfiguration }
 	models?: Record<string, ModelInfo>
+	isClinePassEnabled?: boolean
 	showFeaturedModels?: boolean
 }
 
@@ -106,6 +107,7 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({
 	modelIdFieldPair = { plan: "planModeClineModelId", act: "actModeClineModelId" },
 	modelInfoFieldPair = { plan: "planModeClineModelInfo", act: "actModeClineModelInfo" },
 	models,
+	isClinePassEnabled = true,
 	showFeaturedModels = true,
 }) => {
 	const { handleModeFieldsChange, handleFieldChange } = useApiConfigurationHandlers()
@@ -113,8 +115,8 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 	const resolvedModels = models ?? clineModels
 	const normalizedSelection = useMemo(
-		() => normalizeApiConfiguration(apiConfiguration, currentMode),
-		[apiConfiguration, currentMode],
+		() => normalizeApiConfiguration(apiConfiguration, currentMode, { isClinePassEnabled }),
+		[apiConfiguration, currentMode, isClinePassEnabled],
 	)
 	const configuredModelId = apiConfiguration?.[modelIdFieldPair[currentMode]] as string | undefined
 	const selectedOrDefaultModelId = defaultModelId ?? normalizedSelection.selectedModelId

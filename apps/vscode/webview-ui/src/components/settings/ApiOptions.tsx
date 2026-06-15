@@ -104,7 +104,7 @@ const ApiOptions = ({
 	const { apiConfiguration, remoteConfigSettings } = useExtensionState()
 	const isClinePassEnabled = useHasFeatureFlag(FeatureFlag.CLINE_PASS)
 
-	const { selectedProvider } = normalizeApiConfiguration(apiConfiguration, currentMode)
+	const { selectedProvider } = normalizeApiConfiguration(apiConfiguration, currentMode, { isClinePassEnabled })
 
 	const { handleModeFieldChange } = useApiConfigurationHandlers()
 
@@ -370,6 +370,7 @@ const ApiOptions = ({
 				<ClineProvider
 					currentMode={currentMode}
 					initialModelTab={initialModelTab}
+					isClinePassEnabled={isClinePassEnabled}
 					isPopup={isPopup}
 					showModelOptions={showModelOptions}
 				/>
