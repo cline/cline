@@ -233,9 +233,6 @@ export function getConfigItemDisplayName(name: string): string {
 export function getPluginDiagnosticsLoadingText(
 	tab: InteractiveConfigTab,
 ): string | undefined {
-	if (tab === "mcp") {
-		return "Loading plugin MCP servers...";
-	}
 	if (tab === "tools") {
 		return "Loading plugin tools...";
 	}

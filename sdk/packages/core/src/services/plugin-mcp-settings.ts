@@ -197,8 +197,16 @@ function createSettingsEntry(input: {
 	const existingOauth = isRecord(input.existing?.oauth)
 		? { oauth: input.existing.oauth }
 		: {};
+	const transport =
+		input.registration.transport.type === "stdio" &&
+		input.registration.transport.cwd === undefined
+			? {
+					...input.registration.transport,
+					cwd: dirname(input.pluginPath),
+				}
+			: input.registration.transport;
 	return {
-		transport: input.registration.transport,
+		transport,
 		...(input.disabled ? { disabled: true } : {}),
 		...existingOauth,
 		metadata: {

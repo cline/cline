@@ -193,8 +193,6 @@ function appendToolGroupRows(
 		const enabledCount = groupItems.filter(
 			(item) => item.enabled !== false,
 		).length;
-		const nativeItems = groupItems.filter((item) => !item.mcpServerName);
-		const mcpItems = groupItems.filter((item) => item.mcpServerName);
 		rows.push({
 			kind: "tool-group",
 			label: first?.pluginName ?? "plugin",
@@ -202,7 +200,7 @@ function appendToolGroupRows(
 			indent: 2,
 		});
 
-		for (const item of sortBySourceThenName(nativeItems)) {
+		for (const item of sortBySourceThenName(groupItems)) {
 			rows.push({
 				kind: "ext",
 				name: item.name,
@@ -214,46 +212,6 @@ function appendToolGroupRows(
 				indent: 4,
 				rightLabel: sharedToolNames.has(item.name) ? "shared tool name" : "",
 			});
-		}
-
-		if (mcpItems.length === 0) {
-			continue;
-		}
-		rows.push({
-			kind: "tool-group",
-			label: "MCP",
-			rightLabel: `${mcpItems.filter((item) => item.enabled !== false).length}/${mcpItems.length} tools enabled`,
-			indent: 4,
-		});
-		const byServer = new Map<string, InteractiveConfigItem[]>();
-		for (const item of mcpItems) {
-			const serverName = item.mcpServerName ?? "MCP server";
-			const serverItems = byServer.get(serverName) ?? [];
-			serverItems.push(item);
-			byServer.set(serverName, serverItems);
-		}
-		for (const [serverName, serverItems] of [...byServer.entries()].sort(
-			(left, right) => left[0].localeCompare(right[0]),
-		)) {
-			rows.push({
-				kind: "tool-group",
-				label: serverName,
-				rightLabel: `${serverItems.filter((item) => item.enabled !== false).length}/${serverItems.length} tools enabled`,
-				indent: 6,
-			});
-			for (const item of sortBySourceThenName(serverItems)) {
-				rows.push({
-					kind: "ext",
-					name: item.name,
-					path: item.path,
-					source: item.source,
-					enabled: item.enabled,
-					description: item.description,
-					item,
-					indent: 8,
-					rightLabel: sharedToolNames.has(item.name) ? "shared tool name" : "",
-				});
-			}
 		}
 	}
 }
@@ -554,19 +512,14 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 						item,
 						rightLabel:
 							activeTab === "mcp"
-								? item.configKind === "plugin-mcp" && item.loadError
-									? getPluginLoadErrorLabel(item)
-									: getMcpManagerEntryStatus({
-											description: item.description,
-											lastError: item.loadError,
-										})
+								? getMcpManagerEntryStatus({
+										description: item.description,
+										lastError: item.loadError,
+									})
 								: getPluginLoadErrorLabel(item),
 					});
 				}
-				if (
-					(activeTab === "plugins" || activeTab === "mcp") &&
-					pluginToolsLoading
-				) {
+				if (activeTab === "plugins" && pluginToolsLoading) {
 					const loadingText = getPluginDiagnosticsLoadingText(activeTab);
 					r.push({
 						kind: "detail",

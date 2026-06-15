@@ -27,22 +27,10 @@ export interface PluginToolSummary {
 	source: "workspace-plugin" | "global-plugin";
 	enabled: boolean;
 	description?: string;
-	mcpServerName?: string;
-}
-
-export interface PluginMcpServerSummary {
-	name: string;
-	pluginName: string;
-	path: string;
-	source: "workspace-plugin" | "global-plugin";
-	enabled: boolean;
-	description?: string;
-	loadError?: string;
 }
 
 export interface ListPluginToolsResult {
 	tools: PluginToolSummary[];
-	mcpServers: PluginMcpServerSummary[];
 	failures: PluginInitializationFailure[];
 	warnings: PluginInitializationWarning[];
 }
@@ -112,7 +100,7 @@ export async function listPluginToolsWithDiagnostics(input: {
 	});
 	const disabled = resolveDisabledToolNames(input.disabledToolNames);
 	if (pluginPaths.length === 0) {
-		return { tools: [], mcpServers: [], failures: [], warnings: [] };
+		return { tools: [], failures: [], warnings: [] };
 	}
 
 	const tools: PluginToolDescriptor[] = [];
@@ -180,7 +168,6 @@ export async function listPluginToolsWithDiagnostics(input: {
 	const sortedTools = sortPluginToolDescriptors(tools);
 	return {
 		tools: withEnabledState(sortedTools, disabled),
-		mcpServers: [],
 		failures,
 		warnings,
 	};

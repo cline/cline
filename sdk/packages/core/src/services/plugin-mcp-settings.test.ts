@@ -1,6 +1,6 @@
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	disablePluginMcpServersInSettings,
@@ -71,6 +71,60 @@ export default {
 			pluginName: "repo-docs",
 			pluginPath,
 		});
+	});
+
+	it("defaults plugin stdio MCP cwd to the plugin directory", async () => {
+		const { pluginPath, settingsPath } = await createPlugin(`
+export default {
+  name: "repo-docs",
+  manifest: { capabilities: ["mcp"] },
+  setup(api) {
+    api.registerMcpServer({
+      name: "repo-docs",
+      transport: { type: "stdio", command: "node", args: ["./server.js"] },
+    })
+  },
+}
+`);
+
+		await syncPluginMcpServersToSettings({
+			pluginPaths: [pluginPath],
+			settingsPath,
+		});
+
+		const written = JSON.parse(await readFile(settingsPath, "utf8")) as {
+			mcpServers?: Record<string, { transport?: { cwd?: string } }>;
+		};
+		expect(written.mcpServers?.["repo-docs"]?.transport?.cwd).toBe(
+			dirname(pluginPath),
+		);
+	});
+
+	it("preserves explicit plugin stdio MCP cwd", async () => {
+		const { pluginPath, settingsPath } = await createPlugin(`
+export default {
+  name: "repo-docs",
+  manifest: { capabilities: ["mcp"] },
+  setup(api) {
+    api.registerMcpServer({
+      name: "repo-docs",
+      transport: { type: "stdio", command: "node", args: ["./server.js"], cwd: "/tmp/custom-cwd" },
+    })
+  },
+}
+`);
+
+		await syncPluginMcpServersToSettings({
+			pluginPaths: [pluginPath],
+			settingsPath,
+		});
+
+		const written = JSON.parse(await readFile(settingsPath, "utf8")) as {
+			mcpServers?: Record<string, { transport?: { cwd?: string } }>;
+		};
+		expect(written.mcpServers?.["repo-docs"]?.transport?.cwd).toBe(
+			"/tmp/custom-cwd",
+		);
 	});
 
 	it("does not create settings for plugins without MCP servers", async () => {

@@ -62,10 +62,9 @@ export interface InteractiveConfigItem {
 	kind: InteractiveConfigItemKind;
 	enabledState?: "enabled" | "disabled" | "partial";
 	toolNames?: string[];
-	configKind?: "tool" | "plugin" | "plugin-mcp";
+	configKind?: "tool" | "plugin";
 	pluginName?: string;
 	pluginPath?: string;
-	mcpServerName?: string;
 	loadError?: string;
 	loadErrorPhase?: PluginInitializationFailure["phase"];
 	source:
@@ -532,7 +531,6 @@ export async function loadInteractiveConfigData(input: {
 					configKind: "tool",
 					pluginName: pluginTool.pluginName,
 					pluginPath: pluginTool.path,
-					mcpServerName: pluginTool.mcpServerName,
 					source: pluginTool.source,
 					description: pluginTool.description,
 				});

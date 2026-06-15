@@ -58,7 +58,11 @@ describe("mcp manager dialog helpers", () => {
 	};
 
 	afterEach(async () => {
-		process.env.CLINE_MCP_SETTINGS_PATH = envSnapshot.CLINE_MCP_SETTINGS_PATH;
+		if (envSnapshot.CLINE_MCP_SETTINGS_PATH === undefined) {
+			delete process.env.CLINE_MCP_SETTINGS_PATH;
+		} else {
+			process.env.CLINE_MCP_SETTINGS_PATH = envSnapshot.CLINE_MCP_SETTINGS_PATH;
+		}
 		await Promise.all(
 			tempRoots.map((directory) =>
 				rm(directory, { recursive: true, force: true }),
@@ -105,6 +109,44 @@ describe("mcp manager dialog helpers", () => {
 		expect(
 			(await readSettings(currentDefaultPath)).mcpServers?.docs?.disabled,
 		).toBeUndefined();
+	});
+
+	it("does not toggle plugin-owned servers", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "cli-mcp-manager-"));
+		tempRoots.push(tempRoot);
+		const settingsPath = join(tempRoot, "cline_mcp_settings.json");
+		await writeFile(
+			settingsPath,
+			`${JSON.stringify(
+				{
+					mcpServers: {
+						docs: {
+							transport: {
+								type: "stdio",
+								command: "node",
+							},
+						},
+					},
+				},
+				null,
+				2,
+			)}\n`,
+		);
+
+		const result = toggleMcpServer({
+			name: "docs",
+			path: settingsPath,
+			enabled: true,
+			pluginName: "repo-docs",
+		});
+
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.message).toContain('managed by plugin "repo-docs"');
+		}
+		expect((await readSettings(settingsPath)).mcpServers?.docs?.disabled).toBe(
+			undefined,
+		);
 	});
 
 	it("returns a visible error message when toggling fails", async () => {
