@@ -1,4 +1,10 @@
-export type FeatureFlag = string;
+export const FeatureFlag = {
+	/** Enables Cline Pass provider/model list exposure in supported clients. */
+	CLINE_PASS: "ext-cline-pass",
+} as const;
+
+export type KnownFeatureFlag = (typeof FeatureFlag)[keyof typeof FeatureFlag];
+export type FeatureFlag = KnownFeatureFlag | (string & {});
 
 export type FeatureFlagJsonValue =
 	| string
@@ -45,7 +51,7 @@ export interface FeatureFlagsSettings {
 export interface IFeatureFlagsProvider {
 	getAllFlagsAndPayloads(options: {
 		flagKeys?: readonly string[];
-		context?: FeatureFlagsContext;
+		context: FeatureFlagsContext;
 	}): Promise<FeatureFlagsAndPayloads | undefined>;
 	readonly enabled: boolean;
 	getSettings(): FeatureFlagsSettings;
@@ -54,8 +60,8 @@ export interface IFeatureFlagsProvider {
 
 export const FeatureFlagDefaultValue: Partial<
 	Record<FeatureFlag, FeatureFlagPayload | undefined>
-> = {};
+> = {
+	[FeatureFlag.CLINE_PASS]: false,
+};
 
-export const FEATURE_FLAGS: readonly FeatureFlag[] = Object.keys(
-	FeatureFlagDefaultValue,
-);
+export const FEATURE_FLAGS: readonly FeatureFlag[] = Object.values(FeatureFlag);

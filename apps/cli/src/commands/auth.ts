@@ -4,7 +4,6 @@ import {
 	createOAuthClientCallbacks,
 	ensureCustomProvidersLoaded,
 	getProviderAuthHandler,
-	listLocalProviders,
 	loginAndSaveProviderOAuthCredentials,
 	type ProviderSettings,
 	type ProviderSettingsManager,
@@ -22,6 +21,8 @@ import {
 	type OAuthCredentials,
 	toProviderApiKey,
 } from "../utils/provider-auth";
+import { listLocalProviders } from "../utils/provider-catalog";
+import { identifyTelemetryAccount } from "../utils/telemetry";
 
 export {
 	getPersistedProviderApiKey,
@@ -434,11 +435,15 @@ export async function runAuthProviderCommand(
 		return 1;
 	}
 	try {
-		await loginAndSaveProviderOAuthCredentials(
+		const settings = await loginAndSaveProviderOAuthCredentials(
 			providerSettingsManager,
 			providerId,
 			{ callbacks: createOAuthCallbacks(io) },
 		);
+		identifyTelemetryAccount({
+			id: settings.auth?.accountId,
+			provider: providerId,
+		});
 		io.writeln(
 			`${c.green}You are now logged in to ${c.cyan}${providerId}${c.reset}`,
 		);

@@ -270,6 +270,29 @@ export class LocalRuntimeHost implements RuntimeHost {
 		});
 	}
 
+	private async applyInitialOAuthCredentials(
+		input: StartSessionInput,
+	): Promise<StartSessionInput> {
+		if (input.config.apiKey?.trim()) {
+			return input;
+		}
+
+		const resolved = await this.oauthTokenManager.resolveProviderApiKey({
+			providerId: input.config.providerId,
+		});
+		if (!resolved?.apiKey) {
+			return input;
+		}
+
+		return {
+			...input,
+			config: {
+				...input.config,
+				apiKey: resolved.apiKey,
+			},
+		};
+	}
+
 	// ── Public API ──────────────────────────────────────────────────────
 
 	async startSession(input: StartSessionInput): Promise<StartSessionResult> {
@@ -277,7 +300,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const startedAt = nowIso();
 		const requestedSessionId = input.config.sessionId?.trim() ?? "";
 		const sessionId = requestedSessionId || createSessionId();
-		const startInput: StartSessionInput = input;
+		const startInput: StartSessionInput =
+			await this.applyInitialOAuthCredentials(input);
 		const initialMessages = startInput.initialMessages ?? [];
 		const initialUsage =
 			initialMessages.length > 0

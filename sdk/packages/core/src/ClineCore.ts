@@ -200,15 +200,17 @@ export class ClineCore {
 		const normalizedOptions = { ...options, capabilities, distinctId };
 		const host = await createRuntimeHost(normalizedOptions);
 		const automationOptions = normalizeAutomationOptions(options.automation);
-		const featureFlags = new FeatureFlagsService({
-			provider: options.featureFlags ?? new NoOpFeatureFlagsProvider(),
-			telemetry: options.telemetry,
-			logger: options.logger,
-			context: {
-				distinctId,
-				clientName: options.clientName,
-			},
-		});
+		const featureFlags =
+			options.featureFlags ||
+			new FeatureFlagsService({
+				provider: new NoOpFeatureFlagsProvider(),
+				telemetry: options.telemetry,
+				logger: options.logger,
+				context: {
+					distinctId,
+					clientName: options.clientName,
+				},
+			});
 		const core = new ClineCore(
 			host,
 			options.clientName,
@@ -396,11 +398,6 @@ export class ClineCore {
 			await this.automationService?.dispose();
 			await this.host.dispose(...args);
 		} finally {
-			await this.featureFlags.dispose().catch((error) => {
-				this.logger?.error?.("Error disposing feature flags provider", {
-					error,
-				});
-			});
 			this.unsubscribeBootstrapCleanup();
 			const sessionIds = [...this.activeSessionBootstraps.keys()];
 			await Promise.allSettled(

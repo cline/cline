@@ -2,6 +2,19 @@ import { describe, expect, it } from "vitest";
 import { safeParseSettings, toProviderConfig } from "./provider-settings";
 
 describe("provider settings", () => {
+	it("formats Cline OAuth access tokens for runtime API keys", () => {
+		const config = toProviderConfig({
+			provider: "cline",
+			model: "anthropic/claude-sonnet-4.6",
+			auth: {
+				accessToken: "oauth-access-token",
+			},
+		});
+
+		expect(config.apiKey).toBe("workos:oauth-access-token");
+		expect(config.accessToken).toBe("oauth-access-token");
+	});
+
 	it("accepts the Bedrock apikey authentication alias", () => {
 		const result = safeParseSettings({
 			provider: "bedrock",

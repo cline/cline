@@ -144,4 +144,30 @@ describe("createApplyPatchExecutor", () => {
 			),
 		).rejects.toThrow("Invalid patch text - incomplete sentinels");
 	});
+
+	it("rejects a patch when a hunk context does not match", async () => {
+		const filePath = path.join(tempDir, "note.txt");
+		const original = ["alpha", "beta", "gamma"].join("\n");
+		await fs.writeFile(filePath, original, "utf-8");
+		const execute = createApplyPatchExecutor();
+
+		await expect(
+			execute(
+				{
+					input: [
+						"*** Update File: note.txt",
+						"@@",
+						" unrelated heading",
+						" missing middle",
+						"+replacement",
+						" absent footer",
+					].join("\n"),
+				},
+				tempDir,
+				{} as never,
+			),
+		).rejects.toThrow(/note\.txt: hunk 1: Could not find matching context/);
+
+		await expect(fs.readFile(filePath, "utf-8")).resolves.toBe(original);
+	});
 });

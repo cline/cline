@@ -20,6 +20,10 @@ import {
 	CLI_COMPACTION_MODE_EXPECTED_TEXT,
 } from "./utils/compaction-mode";
 import {
+	getCliFeatureFlagsService,
+	refreshCliFeatureFlagsInBackground,
+} from "./utils/feature-flags";
+import {
 	configureSandboxEnvironment,
 	normalizeAutoApproveArgs,
 	resolveWorkspaceRoot,
@@ -663,6 +667,21 @@ export async function runCli(): Promise<void> {
 
 	let resumeSessionId: string | undefined = ctx.resumeSessionId;
 	if (resumeSessionId) {
+		// The history picker already created (and tore down) an OpenTUI renderer
+		// in this process; starting the interactive TUI here would create a
+		// second one, which can crash natively during teardown. Resume in a
+		// fresh `cline --id <session-id>` child process instead.
+		const { spawnHistoryResume } = await import("./utils/history-resume");
+		const childExitCode = await spawnHistoryResume({
+			sessionId: resumeSessionId,
+			normalizedArgs,
+			remainingArgs: program.args,
+			configDir,
+		});
+		if (childExitCode !== undefined) {
+			process.exitCode = childExitCode;
+			return;
+		}
 		args = {
 			...args,
 			interactive: true,
@@ -836,8 +855,12 @@ export async function runCli(): Promise<void> {
 	};
 	registerDisposable(stopUserInstructionService);
 	try {
+		refreshCliFeatureFlagsInBackground();
 		const lastUsedProviderSettings =
-			providerSettingsManager.getLastUsedProviderSettings();
+			providerSettingsManager.getLastUsedProviderSettings({
+				isClinePassEnabled:
+					getCliFeatureFlagsService().getBooleanFlagEnabled("ext-cline-pass"),
+			});
 		const provider = normalizeProviderId(
 			args.provider?.trim() || lastUsedProviderSettings?.provider || "cline",
 		);

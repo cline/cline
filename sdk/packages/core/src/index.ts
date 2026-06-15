@@ -12,8 +12,8 @@ export type {
 	AgentEvent,
 	AgentExtension as AgentPlugin, // Public-facing alias for extensions
 	AgentExtensionCommand,
-	AgentExtensionCommandResult,
 	AgentExtensionCommand as AgentPluginCommand,
+	AgentExtensionCommandResult,
 	AgentHooks,
 	AgentMode,
 	AgentResult,
@@ -515,6 +515,7 @@ export {
 	SqliteTeamStore,
 	type SqliteTeamStoreOptions,
 } from "./services/storage/team-store";
+export { resolveCoreDistinctId } from "./services/telemetry";
 export type {
 	CaptureCompactionExecutedProperties,
 	CaptureCompactionSkippedProperties,

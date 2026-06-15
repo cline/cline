@@ -147,7 +147,13 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 		// Each stale read result is ~850 bytes. With a 1.5KB threshold, one
 		// stale read stays pending; the second stale read pushes the batch
 		// over and both rewrite at once.
-		const builder = new MessageBuilder(undefined, undefined, undefined, 1_500);
+		const builder = new MessageBuilder(
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			1_500,
+		);
 		const messages: Message[] = [{ role: "user", content: "task" }];
 		for (let i = 1; i <= 3; i++) {
 			messages.push(readToolUse(`t${i}`));
@@ -170,7 +176,13 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 		// NOT the ~2.5KB whole-block size. With a 2KB threshold, a whole-block
 		// (over)count would commit immediately; correct per-locator attribution
 		// must defer.
-		const builder = new MessageBuilder(undefined, undefined, undefined, 2_000);
+		const builder = new MessageBuilder(
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			2_000,
+		);
 		const multiReadUse: Message = {
 			role: "assistant",
 			content: [
@@ -244,6 +256,7 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 
 	it("never rewrites when the threshold is disabled via a huge value", () => {
 		const builder = new MessageBuilder(
+			undefined,
 			undefined,
 			undefined,
 			undefined,
@@ -359,7 +372,13 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 	});
 
 	it("counts stale image payload bytes toward the batch threshold", () => {
-		const builder = new MessageBuilder(undefined, undefined, undefined, 2_000);
+		const builder = new MessageBuilder(
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			2_000,
+		);
 		const imageReadResult: Message = {
 			role: "user",
 			content: [
@@ -395,7 +414,13 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 	});
 
 	it("rewrites eagerly when threshold is 0 (legacy behavior)", () => {
-		const builder = new MessageBuilder(undefined, undefined, undefined, 0);
+		const builder = new MessageBuilder(
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			0,
+		);
 		const messages: Message[] = [
 			{ role: "user", content: "task" },
 			readToolUse("t1"),
