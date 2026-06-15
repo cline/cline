@@ -495,12 +495,20 @@ export class MessageBuilder {
 			return this.tryParseReadLocators(content);
 		}
 		for (const entry of content) {
-			if (entry.type !== "text") {
+			if (entry.type === "text") {
+				const locators = this.tryParseReadLocators(entry.text);
+				if (locators.length > 0) {
+					return locators;
+				}
 				continue;
 			}
-			const locators = this.tryParseReadLocators(entry.text);
-			if (locators.length > 0) {
-				return locators;
+			// Structured ToolOperationResult[] entries (read_files/search/etc.)
+			// arrive as plain {query, result, ...} objects with no type field.
+			if (isStructuredToolResultEntry(entry)) {
+				const locator = this.extractLocatorFromResultEntry(entry);
+				if (locator) {
+					return [locator];
+				}
 			}
 		}
 		return [];
@@ -672,14 +680,22 @@ export class MessageBuilder {
 					text: OUTDATED_FILE_CONTENT,
 				} satisfies TextContent;
 			}
-			if (entry.type !== "text") {
-				return entry;
+			if (entry.type === "text") {
+				const replaced = this.replaceOutdatedInString(entry.text, outdatedKeys);
+				if (replaced === null) {
+					return { ...entry, text: OUTDATED_FILE_CONTENT };
+				}
+				return replaced === entry.text ? entry : { ...entry, text: replaced };
 			}
-			const replaced = this.replaceOutdatedInString(entry.text, outdatedKeys);
-			if (replaced === null) {
-				return { ...entry, text: OUTDATED_FILE_CONTENT };
+			// Structured ToolOperationResult[] entry: rewrite its result/content
+			// field in place when its locator is outdated.
+			if (isStructuredToolResultEntry(entry)) {
+				return this.replaceOutdatedReadEntry(
+					entry,
+					outdatedKeys,
+				) as typeof entry;
 			}
-			return replaced === entry.text ? entry : { ...entry, text: replaced };
+			return entry;
 		});
 	}
 

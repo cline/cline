@@ -916,4 +916,34 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
 		expect(serialized).toContain(HEAD_MARKER);
 		expect(serialized).toContain(TAIL_MARKER);
 	});
+
+	it("rewrites an outdated structured read_files result when the file is re-read", () => {
+		const builder = new MessageBuilder();
+		const messages: Message[] = [
+			toolUseMessage("call_1", "read_files", {
+				files: [{ path: "/tmp/a.ts" }],
+			}),
+			structuredToolResultMessage("call_1", "read_files", [
+				{
+					query: "/tmp/a.ts",
+					result: `${HEAD_MARKER}old-content${TAIL_MARKER}`,
+					success: true,
+				},
+			]),
+			toolUseMessage("call_2", "read_files", {
+				files: [{ path: "/tmp/a.ts" }],
+			}),
+			structuredToolResultMessage("call_2", "read_files", [
+				{ query: "/tmp/a.ts", result: "fresh-content", success: true },
+			]),
+		];
+
+		const result = builder.buildForApi(messages);
+		// The earlier read (call_1) is now outdated and must be rewritten.
+		const firstResult = JSON.stringify(result[1]);
+		expect(firstResult).toContain("[outdated");
+		expect(firstResult).not.toContain("old-content");
+		// The latest read (call_2) keeps its content.
+		expect(JSON.stringify(result[3])).toContain("fresh-content");
+	});
 });
