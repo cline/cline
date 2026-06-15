@@ -3,7 +3,6 @@
 ## 0.0.47
 
 - Added support for overriding the API base URL
-- Added bounded provider-request media budgeting so invalid or oversized media is omitted instead of sending corrupt base64 or unbounded payloads
 - Enforced a production singleton Cline Hub so only one hub daemon runs, and a stale hub is respawned after an upgrade
 - Allowed plugin chat commands to submit prompts to the agent
 - Fixed truncation of structured tool operation result strings so oversized tool output stays within limits
