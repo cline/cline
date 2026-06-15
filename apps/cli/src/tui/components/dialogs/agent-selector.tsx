@@ -40,25 +40,32 @@ export function AgentSelectorContent(
 
 	const items: SearchableItem[] = useMemo(() => {
 		const normalizedCurrent = currentAgentName?.trim().toLowerCase() ?? null;
-		const defaultItem: SearchableItem = {
-			key: DEFAULT_AGENT_ACTION,
-			label: "Cline (default)",
-			detail: "Standard Cline agent",
-			section: "Agents",
-			rightLabel: normalizedCurrent === null ? "(current)" : undefined,
-		};
-		const profileItems = agents.map((agent) => ({
+		const toItem = (agent: AgentProfileOption): SearchableItem => ({
 			key: agent.name.toLowerCase(),
 			label: agent.name,
 			detail: agent.description,
-			section:
-				agent.source === "workspace" ? "Workspace agents" : "Global agents",
+			section: agent.source === "workspace" ? "Workspace" : "Global",
 			rightLabel:
 				normalizedCurrent === agent.name.trim().toLowerCase()
 					? "(current)"
 					: undefined,
-		}));
-		return [defaultItem, ...profileItems];
+		});
+		// The default Cline agent lives at the top of the "Global" section; it is
+		// the revert-to-stock choice, not a peer profile.
+		const defaultItem: SearchableItem = {
+			key: DEFAULT_AGENT_ACTION,
+			label: "Cline (default)",
+			detail: "Standard Cline agent",
+			section: "Global",
+			rightLabel: normalizedCurrent === null ? "(current)" : undefined,
+		};
+		const globalItems = agents
+			.filter((agent) => agent.source === "global")
+			.map(toItem);
+		const workspaceItems = agents
+			.filter((agent) => agent.source === "workspace")
+			.map(toItem);
+		return [defaultItem, ...globalItems, ...workspaceItems];
 	}, [agents, currentAgentName]);
 
 	const list = useSearchableList(items);
