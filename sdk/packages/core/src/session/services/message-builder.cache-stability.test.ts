@@ -13,7 +13,7 @@ function codecRoundTrip(messages: Message[]): Message[] {
 }
 
 const SMALL_CONTENT = (v: number) => `export const x = ${v};\n`.repeat(40); // ~1KB
-const LARGE_CONTENT = (v: number) => `export const x = ${v};\n`.repeat(4_000); // ~80KB
+const LARGE_CONTENT = (v: number) => `export const x = ${v};\n`.repeat(7_000); // ~140KB (> 128KB threshold)
 
 function readToolUse(id: string, path = "src/a.ts"): Message {
 	return {
@@ -87,7 +87,7 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 			readToolUse("t2"),
 			readToolResult("t2", LARGE_CONTENT(2)),
 		];
-		// First build: t1 is outdated (~80KB reclaimable > 64KB threshold),
+		// First build: t1 is outdated (~140KB reclaimable > 128KB threshold),
 		// so the rewrite commits immediately.
 		const reqA = builder.buildForApi(base);
 		expect(serializedBlockAt(reqA, 2)).toContain(

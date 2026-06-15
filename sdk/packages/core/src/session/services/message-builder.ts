@@ -34,9 +34,11 @@ const MIN_TOTAL_BUDGET_TOOL_RESULT_BYTES = 8_000;
  * rewriting eagerly on every re-read, batch rewrites: defer them until the
  * total reclaimable bytes across pending outdated reads crosses this
  * threshold, then apply them all at once (one cache break amortized over a
- * large context saving). 64KB ≈ 16K tokens. Set to 0 to rewrite eagerly.
+ * large context saving). 128KB ≈ 32K tokens, ~2-3 executor-capped reads
+ * (read_files caps at 48K chars), so a single re-read never breaks the
+ * cache alone. Set to 0 to rewrite eagerly.
  */
-const DEFAULT_MIN_OUTDATED_REWRITE_BYTES = 65_536;
+const DEFAULT_MIN_OUTDATED_REWRITE_BYTES = 131_072;
 const TARGET_TOOL_NAMES = new Set([
 	"read",
 	"read_files",
