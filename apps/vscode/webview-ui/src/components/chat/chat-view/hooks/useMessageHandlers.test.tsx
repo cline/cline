@@ -29,14 +29,12 @@ vi.mock("@shared/proto/cline/common", () => ({
 	StringRequest: { create: (x: unknown) => x },
 }))
 
-// useExtensionState supplies turnState (+ backgroundCommandRunning + hasUsableProvider) to the hook.
+// useExtensionState supplies turnState (+ backgroundCommandRunning) to the hook.
 let mockTurnState: TurnState | undefined
-let mockHasUsableProvider = true
 vi.mock("@/context/ExtensionStateContext", () => ({
 	useExtensionState: () => ({
 		backgroundCommandRunning: false,
 		turnState: mockTurnState,
-		hasUsableProvider: mockHasUsableProvider,
 	}),
 }))
 
@@ -88,7 +86,6 @@ describe("useMessageHandlers — send routing", () => {
 		newTask.mockClear()
 		askResponse.mockClear()
 		mockTurnState = undefined
-		mockHasUsableProvider = true
 	})
 
 	it("after a completed turn (no clineAsk), Enter continues the conversation via askResponse — NOT newTask", async () => {
@@ -130,8 +127,10 @@ describe("useMessageHandlers — send routing", () => {
 		expect(askResponse).not.toHaveBeenCalled()
 	})
 
-	it("still starts a NEW task when there is no usable provider", async () => {
-		mockHasUsableProvider = false
+	// The webview does not gate sends on provider usability: submission always
+	// reaches the extension, which surfaces auth/config problems as chat errors
+	// (emitClineAuthError for the Cline provider, say:"error" otherwise).
+	it("always forwards a new task to the extension (no webview-side provider gate)", async () => {
 		mockTurnState = { phase: "idle", seq: 1 }
 		const { result } = renderHook(() => useMessageHandlers([], makeChatState([])))
 
@@ -142,21 +141,5 @@ describe("useMessageHandlers — send routing", () => {
 		expect(newTask).toHaveBeenCalledTimes(1)
 		expect(newTask).toHaveBeenCalledWith(expect.objectContaining({ text: "should be sent", images: [], files: [] }))
 		expect(askResponse).not.toHaveBeenCalled()
-	})
-
-	it("still sends a follow-up when there is no usable provider", async () => {
-		mockHasUsableProvider = false
-		mockTurnState = { phase: "completed", seq: 7 }
-		const { result } = renderHook(() => useMessageHandlers(completedConversation, makeChatState(completedConversation)))
-
-		await act(async () => {
-			await result.current.handleSendMessage("should be sent", [], [])
-		})
-
-		expect(newTask).not.toHaveBeenCalled()
-		expect(askResponse).toHaveBeenCalledTimes(1)
-		expect(askResponse).toHaveBeenCalledWith(
-			expect.objectContaining({ responseType: "messageResponse", text: "should be sent" }),
-		)
 	})
 })
