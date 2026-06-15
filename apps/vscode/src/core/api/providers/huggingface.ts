@@ -1,56 +1,66 @@
-import { HuggingFaceModelId, huggingFaceDefaultModelId, huggingFaceModels, ModelInfo } from "@shared/api"
-import { calculateApiCostOpenAI } from "@utils/cost"
-import OpenAI from "openai"
-import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
-import { ClineStorageMessage } from "@/shared/messages/content"
-import { createOpenAIClient } from "@/shared/net"
-import { ApiHandler, CommonApiHandlerOptions } from "../"
-import { withRetry } from "../retry"
-import { convertToOpenAiMessages } from "../transform/openai-format"
-import { ApiStream } from "../transform/stream"
-import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
+import {
+	huggingFaceDefaultModelId,
+	huggingFaceModels,
+	type ModelInfo,
+} from "@shared/api";
+import { calculateApiCostOpenAI } from "@utils/cost";
+import type OpenAI from "openai";
+import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions";
+import type { ClineStorageMessage } from "@/shared/messages/content";
+import { createOpenAIClient } from "@/shared/net";
+import type { ApiHandler, CommonApiHandlerOptions } from "../";
+import { withRetry } from "../retry";
+import { convertToOpenAiMessages } from "../transform/openai-format";
+import type { ApiStream } from "../transform/stream";
+import {
+	getOpenAIToolParams,
+	ToolCallProcessor,
+} from "../transform/tool-call-processor";
 
 interface HuggingFaceHandlerOptions extends CommonApiHandlerOptions {
-	huggingFaceApiKey?: string
-	huggingFaceModelId?: string
-	huggingFaceModelInfo?: ModelInfo
+	huggingFaceApiKey?: string;
+	huggingFaceModelId?: string;
+	huggingFaceModelInfo?: ModelInfo;
 }
 
 export class HuggingFaceHandler implements ApiHandler {
-	private options: HuggingFaceHandlerOptions
-	private client: OpenAI | undefined
-	private cachedModel: { id: HuggingFaceModelId; info: ModelInfo } | undefined
+	private options: HuggingFaceHandlerOptions;
+	private client: OpenAI | undefined;
+	private cachedModel: { id: string; info: ModelInfo } | undefined;
 
 	constructor(options: HuggingFaceHandlerOptions) {
-		this.options = options
+		this.options = options;
 	}
 
 	private ensureClient(): OpenAI {
 		if (!this.client) {
 			if (!this.options.huggingFaceApiKey) {
-				throw new Error("Hugging Face API key is required")
+				throw new Error("Hugging Face API key is required");
 			}
 
 			try {
 				this.client = createOpenAIClient({
 					baseURL: "https://router.huggingface.co/v1",
 					apiKey: this.options.huggingFaceApiKey,
-				})
+				});
 			} catch (error: any) {
-				throw new Error(`Error creating Hugging Face client: ${error.message}`)
+				throw new Error(`Error creating Hugging Face client: ${error.message}`);
 			}
 		}
-		return this.client
+		return this.client;
 	}
 
-	private async *yieldUsage(info: ModelInfo, usage: OpenAI.Completions.CompletionUsage | undefined): ApiStream {
+	private async *yieldUsage(
+		info: ModelInfo,
+		usage: OpenAI.Completions.CompletionUsage | undefined,
+	): ApiStream {
 		if (!usage) {
-			return
+			return;
 		}
 
-		const inputTokens = usage.prompt_tokens || 0
-		const outputTokens = usage.completion_tokens || 0
-		const totalCost = calculateApiCostOpenAI(info, inputTokens, outputTokens)
+		const inputTokens = usage.prompt_tokens || 0;
+		const outputTokens = usage.completion_tokens || 0;
+		const totalCost = calculateApiCostOpenAI(info, inputTokens, outputTokens);
 
 		const usageData = {
 			type: "usage" as const,
@@ -59,21 +69,25 @@ export class HuggingFaceHandler implements ApiHandler {
 			cacheWriteTokens: 0,
 			cacheReadTokens: 0,
 			totalCost: totalCost,
-		}
+		};
 
-		yield usageData
+		yield usageData;
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: OpenAITool[]): ApiStream {
+	async *createMessage(
+		systemPrompt: string,
+		messages: ClineStorageMessage[],
+		tools?: OpenAITool[],
+	): ApiStream {
 		try {
-			const client = this.ensureClient()
-			const model = this.getModel()
+			const client = this.ensureClient();
+			const model = this.getModel();
 
 			const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 				{ role: "system", content: systemPrompt },
 				...convertToOpenAiMessages(messages),
-			]
+			];
 
 			const requestParams = {
 				model: model.id,
@@ -83,66 +97,71 @@ export class HuggingFaceHandler implements ApiHandler {
 				stream_options: { include_usage: true },
 				temperature: 0,
 				...getOpenAIToolParams(tools),
-			}
+			};
 
-			const toolCallProcessor = new ToolCallProcessor()
-			const stream = (await client.chat.completions.create(requestParams)) as any
+			const toolCallProcessor = new ToolCallProcessor();
+			const stream = (await client.chat.completions.create(
+				requestParams,
+			)) as any;
 
-			let _chunkCount = 0
-			let _totalContent = ""
+			let _chunkCount = 0;
+			let _totalContent = "";
 
 			for await (const chunk of stream) {
-				_chunkCount++
-				const delta = chunk.choices?.[0]?.delta
+				_chunkCount++;
+				const delta = chunk.choices?.[0]?.delta;
 				if (delta?.content) {
-					_totalContent += delta.content
+					_totalContent += delta.content;
 
 					yield {
 						type: "text",
 						text: delta.content,
-					}
+					};
 				}
 
 				if (delta?.tool_calls) {
-					yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
+					yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls);
 				}
 
 				if (chunk.usage) {
-					yield* this.yieldUsage(model.info, chunk.usage)
+					yield* this.yieldUsage(model.info, chunk.usage);
 				}
 			}
 		} catch (error: any) {
-			throw error
+			throw error;
 		}
 	}
 
-	getModel(): { id: HuggingFaceModelId; info: ModelInfo } {
+	getModel(): { id: string; info: ModelInfo } {
 		// Return cached model if available
 		if (this.cachedModel) {
-			return this.cachedModel
+			return this.cachedModel;
 		}
 
-		const modelId = this.options.huggingFaceModelId
-
-		// List all available models for debugging
-		const _availableModels = Object.keys(huggingFaceModels)
-		let result: { id: HuggingFaceModelId; info: ModelInfo }
+		const modelId = this.options.huggingFaceModelId;
+		let result: { id: string; info: ModelInfo };
 
 		if (modelId && modelId in huggingFaceModels) {
-			const id = modelId as HuggingFaceModelId
-			const modelInfo = huggingFaceModels[id]
-			result = { id, info: modelInfo }
+			const id = modelId as keyof typeof huggingFaceModels;
+			const modelInfo = huggingFaceModels[id];
+			result = { id, info: modelInfo };
+		} else if (modelId) {
+			const defaultInfo = huggingFaceModels[huggingFaceDefaultModelId];
+			result = {
+				id: modelId,
+				info: this.options.huggingFaceModelInfo || defaultInfo,
+			};
 		} else {
-			const defaultInfo = huggingFaceModels[huggingFaceDefaultModelId]
+			const defaultInfo = huggingFaceModels[huggingFaceDefaultModelId];
 			result = {
 				id: huggingFaceDefaultModelId,
 				info: defaultInfo,
-			}
+			};
 		}
 
 		// Cache the result for future calls
-		this.cachedModel = result
+		this.cachedModel = result;
 
-		return result
+		return result;
 	}
 }
