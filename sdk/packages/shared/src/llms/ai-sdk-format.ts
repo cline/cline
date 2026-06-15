@@ -301,6 +301,7 @@ function stripImagesFromOutput(
 	value: unknown,
 	images: AiSdkImageContentBlock[],
 	state: MediaBudgetState,
+	hoistImages = true,
 ): StripImagesResult {
 	if (value == null || typeof value !== "object") {
 		return { value, changed: false, mediaChanged: false };
@@ -318,6 +319,12 @@ function stripImagesFromOutput(
 					typeof obj.data === "string" &&
 					typeof obj.mediaType === "string"
 				) {
+					if (!hoistImages) {
+						out.push(IMAGE_OMITTED_PLACEHOLDER);
+						changed = true;
+						mediaChanged = true;
+						continue;
+					}
 					const image = {
 						type: "image",
 						data: obj.data,
@@ -349,7 +356,7 @@ function stripImagesFromOutput(
 					continue;
 				}
 			}
-			const stripped = stripImagesFromOutput(item, images, state);
+			const stripped = stripImagesFromOutput(item, images, state, hoistImages);
 			out.push(stripped.value);
 			changed ||= stripped.changed;
 			mediaChanged ||= stripped.mediaChanged;
@@ -360,6 +367,13 @@ function stripImagesFromOutput(
 	const obj = value as Record<string, unknown>;
 	if (obj.type === "image") {
 		if (typeof obj.data === "string" && typeof obj.mediaType === "string") {
+			if (!hoistImages) {
+				return {
+					value: IMAGE_OMITTED_PLACEHOLDER,
+					changed: true,
+					mediaChanged: true,
+				};
+			}
 			const image = {
 				type: "image",
 				data: obj.data,
@@ -391,7 +405,7 @@ function stripImagesFromOutput(
 	let changed = false;
 	let mediaChanged = false;
 	for (const [k, v] of Object.entries(obj)) {
-		const stripped = stripImagesFromOutput(v, images, state);
+		const stripped = stripImagesFromOutput(v, images, state, hoistImages);
 		out[k] = stripped.value;
 		changed ||= stripped.changed;
 		mediaChanged ||= stripped.mediaChanged;
@@ -455,10 +469,15 @@ export function toAiSdkToolResultOutput(
 	// text block followed by the extracted images. Without this, the wire
 	// converter JSON-serialises the whole tree and the model receives the
 	// base64 bytes as opaque text.
-	if (!isError && output !== null && typeof output === "object") {
+	if (output !== null && typeof output === "object") {
 		const images: AiSdkImageContentBlock[] = [];
-		const stripped = stripImagesFromOutput(output, images, mediaState);
-		if (images.length > 0) {
+		const stripped = stripImagesFromOutput(
+			output,
+			images,
+			mediaState,
+			!isError,
+		);
+		if (!isError && images.length > 0) {
 			const headerText =
 				typeof stripped.value === "string"
 					? sanitizeSurrogates(stripped.value)
@@ -477,7 +496,7 @@ export function toAiSdkToolResultOutput(
 		}
 		if (stripped.mediaChanged) {
 			return {
-				type: "json",
+				type: isError ? "error-json" : "json",
 				value: sanitizeDeepStrings(stripped.value),
 			};
 		}

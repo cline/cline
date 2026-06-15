@@ -629,6 +629,7 @@ describe("formatMessagesForAiSdk", () => {
 	});
 
 	it("never emits content output for errors", () => {
+		const image = "QkFTRTY0REFUQQ==";
 		const messages = formatMessagesForAiSdk(undefined, [
 			{
 				role: "user",
@@ -642,7 +643,7 @@ describe("formatMessagesForAiSdk", () => {
 							{ type: "text", text: "boom" },
 							{
 								type: "image",
-								data: "QkFTRTY0REFUQQ==",
+								data: image,
 								mediaType: "image/jpeg",
 							},
 						],
@@ -661,19 +662,13 @@ describe("formatMessagesForAiSdk", () => {
 						toolName: "read_file",
 						output: {
 							type: "error-json",
-							value: [
-								{ type: "text", text: "boom" },
-								{
-									type: "image",
-									data: "QkFTRTY0REFUQQ==",
-									mediaType: "image/jpeg",
-								},
-							],
+							value: ["boom", "[media omitted: invalid or exceeds size limit]"],
 						},
 					},
 				],
 			},
 		]);
+		expect(JSON.stringify(messages)).not.toContain(image);
 	});
 
 	it("preserves providerOptions on reasoning parts", () => {
@@ -1015,6 +1010,50 @@ describe("formatMessagesForAiSdk", () => {
 			"[media omitted: invalid or exceeds size limit]",
 		);
 		expect(serialized).not.toContain(hiddenPayload);
+	});
+
+	it("replaces image-shaped error tool-result objects with placeholders", () => {
+		const hiddenPayload = imageData(1024);
+		const messages = formatMessagesForAiSdk(undefined, [
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool-result",
+						toolCallId: "call_img",
+						toolName: "custom_tool",
+						isError: true,
+						output: {
+							result: {
+								type: "image",
+								data: hiddenPayload,
+								mediaType: "image/png",
+							},
+						},
+					},
+				],
+			},
+		]);
+
+		expect(messages).toEqual([
+			{
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						toolCallId: "call_img",
+						toolName: "custom_tool",
+						output: {
+							type: "error-json",
+							value: {
+								result: "[media omitted: invalid or exceeds size limit]",
+							},
+						},
+					},
+				],
+			},
+		]);
+		expect(JSON.stringify(messages)).not.toContain(hiddenPayload);
 	});
 });
 
