@@ -28,6 +28,17 @@ import {
 const DEFAULT_MAX_TOOL_RESULT_CHARS = 50_000;
 const DEFAULT_MAX_TOTAL_TEXT_BYTES = 6_000_000;
 const MIN_TOTAL_BUDGET_TOOL_RESULT_BYTES = 8_000;
+/**
+ * Outdated-read rewrites mutate tool results in the middle of the transcript,
+ * which invalidates provider prefix caches from that point onward. Instead of
+ * rewriting eagerly on every re-read, batch rewrites: defer them until the
+ * total reclaimable bytes across pending outdated reads crosses this
+ * threshold, then apply them all at once (one cache break amortized over a
+ * large context saving). 128KB ≈ 32K tokens, ~2-3 executor-capped reads
+ * (read_files caps at 48K chars), so a single re-read never breaks the
+ * cache alone. Set to 0 to rewrite eagerly.
+ */
+const DEFAULT_MIN_OUTDATED_REWRITE_BYTES = 131_072;
 const TARGET_TOOL_NAMES = new Set([
 	"read",
 	"read_files",
@@ -75,16 +86,28 @@ export class MessageBuilder {
 		string
 	>();
 	private readResultLocatorCache = new WeakMap<object, ReadLocator[]>();
+	/**
+	 * Committed outdated-read rewrites (locator keys per tool_use_id),
+	 * applied on every build so the transcript stays byte-stable between
+	 * batch commits. Survives resetIndexes: the runtime rebuilds fresh
+	 * Message objects per request, so identity-based reindexing cannot be
+	 * trusted to detect real history changes. Stale entries are instead
+	 * re-validated against the current index at apply time and pruned in
+	 * commitOutdatedRewrites.
+	 */
+	private readonly committedOutdatedRewrites = new Map<string, Set<string>>();
 
 	constructor(
 		private readonly maxToolResultChars = DEFAULT_MAX_TOOL_RESULT_CHARS,
 		private readonly targetToolNames = TARGET_TOOL_NAMES,
 		private readonly maxTotalTextBytes = DEFAULT_MAX_TOTAL_TEXT_BYTES,
 		private readonly mediaBudget: MediaBudgetOptions = {},
+		private readonly minOutdatedRewriteBytes = DEFAULT_MIN_OUTDATED_REWRITE_BYTES,
 	) {}
 
 	buildForApi(messages: Message[]): Message[] {
 		this.reindex(messages);
+		this.commitOutdatedRewrites(messages);
 		const repairedMessages = this.addMissingToolResults(messages);
 
 		const prepared = repairedMessages.map((message) => {
@@ -141,14 +164,17 @@ export class MessageBuilder {
 			return block;
 		}
 
-		const toolName = this.toolNameByIdCache.get(block.tool_use_id);
+		const toolName = this.resolveToolName(block);
 		let nextContent = block.content;
 
 		if (this.isReadTool(toolName) && block.is_error !== true) {
-			const locators = this.getReadLocators(block);
-			if (locators.length > 0) {
-				const outdated = locators.filter((locator) =>
-					this.isOutdatedReadLocator(locator, block.tool_use_id),
+			const committed = this.committedOutdatedRewrites.get(block.tool_use_id);
+			if (committed && committed.size > 0) {
+				const locators = this.getReadLocators(block);
+				const outdated = locators.filter(
+					(locator) =>
+						committed.has(this.toReadLocatorKey(locator)) &&
+						this.isOutdatedReadLocator(locator, block.tool_use_id),
 				);
 				if (outdated.length > 0) {
 					nextContent = this.replaceOutdatedReadContent(nextContent, outdated);
@@ -197,7 +223,7 @@ export class MessageBuilder {
 						}
 					}
 				} else if (block.type === "tool_result") {
-					const toolName = this.toolNameByIdCache.get(block.tool_use_id);
+					const toolName = this.resolveToolName(block);
 					if (!this.isReadTool(toolName) || block.is_error === true) {
 						continue;
 					}
@@ -220,6 +246,181 @@ export class MessageBuilder {
 		this.indexedMessageCount = messages.length;
 		this.indexedTailRef =
 			messages.length > 0 ? messages[messages.length - 1] : undefined;
+	}
+
+	/**
+	 * Decide which outdated read results to rewrite for this build.
+	 *
+	 * Eagerly rewriting on every re-read mutates mid-transcript bytes and
+	 * invalidates the provider prefix cache from that message to the end of
+	 * the conversation. Instead, accumulate pending outdated locators and
+	 * only commit them (all at once) when the total reclaimable bytes cross
+	 * `minOutdatedRewriteBytes`. Committed rewrites are sticky so the
+	 * serialized transcript stays stable on subsequent requests.
+	 */
+	private commitOutdatedRewrites(messages: Message[]): void {
+		const pending = new Map<string, Set<string>>();
+		const seenToolUseIds = new Set<string>();
+		let pendingBytes = 0;
+
+		for (const message of messages) {
+			if (!Array.isArray(message.content)) {
+				continue;
+			}
+			for (const block of message.content) {
+				if (block.type !== "tool_result" || block.is_error === true) {
+					continue;
+				}
+				const toolName = this.resolveToolName(block);
+				if (!this.isReadTool(toolName)) {
+					continue;
+				}
+				seenToolUseIds.add(block.tool_use_id);
+				const committed = this.committedOutdatedRewrites.get(block.tool_use_id);
+				const newKeys = new Set<string>();
+				const validKeys = new Set<string>();
+				for (const locator of this.getReadLocators(block)) {
+					const key = this.toReadLocatorKey(locator);
+					if (!this.isOutdatedReadLocator(locator, block.tool_use_id)) {
+						continue;
+					}
+					validKeys.add(key);
+					if (!committed?.has(key)) {
+						newKeys.add(key);
+					}
+				}
+				// Prune committed keys no longer outdated (history rollback);
+				// a no-op in append-only growth.
+				if (committed) {
+					for (const key of committed) {
+						if (!validKeys.has(key)) {
+							committed.delete(key);
+						}
+					}
+					if (committed.size === 0) {
+						this.committedOutdatedRewrites.delete(block.tool_use_id);
+					}
+				}
+				if (newKeys.size === 0) {
+					continue;
+				}
+				let keys = pending.get(block.tool_use_id);
+				if (!keys) {
+					keys = new Set<string>();
+					pending.set(block.tool_use_id, keys);
+				}
+				for (const key of newKeys) {
+					keys.add(key);
+				}
+				// Count only the bytes the rewrite will actually reclaim for the
+				// newly-outdated locators (not the whole block), once per block.
+				pendingBytes += this.estimateOutdatedReclaimBytes(
+					block.content,
+					newKeys,
+				);
+			}
+		}
+
+		for (const toolUseId of this.committedOutdatedRewrites.keys()) {
+			if (!seenToolUseIds.has(toolUseId)) {
+				this.committedOutdatedRewrites.delete(toolUseId);
+			}
+		}
+
+		if (pending.size === 0 || pendingBytes < this.minOutdatedRewriteBytes) {
+			return;
+		}
+
+		for (const [toolUseId, keys] of pending) {
+			let committed = this.committedOutdatedRewrites.get(toolUseId);
+			if (!committed) {
+				committed = new Set<string>();
+				this.committedOutdatedRewrites.set(toolUseId, committed);
+			}
+			for (const key of keys) {
+				committed.add(key);
+			}
+		}
+	}
+
+	/**
+	 * Estimate the bytes the outdated rewrite would reclaim from a block for
+	 * the given locator keys. Attribution is per-entry where the content is
+	 * structured (parsed read results / file entries); unattributable text
+	 * falls back to its full size only when every locator in the block is
+	 * outdated (matching replaceOutdatedReadContent, which replaces whole
+	 * unparseable text entries).
+	 */
+	private estimateOutdatedReclaimBytes(
+		content: ToolResultContent["content"],
+		outdatedKeys: ReadonlySet<string>,
+	): number {
+		const allLocators = this.extractReadLocatorsFromToolResultContent(content);
+		const blockFullyOutdated =
+			allLocators.length > 0 &&
+			allLocators.every((locator) =>
+				outdatedKeys.has(this.toReadLocatorKey(locator)),
+			);
+
+		const attributeText = (text: string): number => {
+			let parsed: unknown;
+			try {
+				parsed = JSON.parse(text);
+			} catch {
+				return blockFullyOutdated || allLocators.length === 0
+					? utf8ByteLength(text)
+					: 0;
+			}
+			const entries = Array.isArray(parsed) ? parsed : [parsed];
+			let total = 0;
+			for (const entry of entries) {
+				const locator = this.extractLocatorFromResultEntry(entry);
+				if (locator && outdatedKeys.has(this.toReadLocatorKey(locator))) {
+					total += utf8ByteLength(JSON.stringify(entry));
+				}
+			}
+			return total;
+		};
+
+		if (typeof content === "string") {
+			return attributeText(content);
+		}
+		// Stale image reads are replaced positionally (see
+		// replaceOutdatedReadContent), so count image sibling bytes the same way.
+		const outdatedKeySet = new Set(outdatedKeys);
+		let outdatedImageCount = 0;
+		for (const entry of content) {
+			if (entry.type === "text") {
+				outdatedImageCount += this.countOutdatedImageEntries(
+					entry.text,
+					outdatedKeySet,
+				);
+			}
+		}
+		let total = 0;
+		for (const entry of content) {
+			if (entry.type === "text") {
+				total += attributeText(entry.text);
+			} else if (entry.type === "image") {
+				if (outdatedImageCount > 0) {
+					outdatedImageCount -= 1;
+					total += utf8ByteLength(entry.data);
+				}
+			} else if (entry.type === "file") {
+				if (
+					outdatedKeys.has(
+						this.toReadLocatorKey({
+							path: entry.path,
+							startLine: null,
+							endLine: null,
+						}),
+					)
+				) {
+					total += utf8ByteLength(entry.content);
+				}
+			}
+		}
+		return total;
 	}
 
 	private addMissingToolResults(messages: Message[]): Message[] {
@@ -775,6 +976,21 @@ export class MessageBuilder {
 
 	private isReadTool(toolName: string | undefined): boolean {
 		return !!toolName && READ_TOOL_NAMES.has(toolName);
+	}
+
+	/**
+	 * Tool results can outlive their paired tool_use (compaction/rollback),
+	 * so fall back to the name on the result itself when the id lookup
+	 * misses.
+	 */
+	private resolveToolName(block: ToolResultContent): string | undefined {
+		const cached = this.toolNameByIdCache.get(block.tool_use_id);
+		if (cached !== undefined) {
+			return cached;
+		}
+		return typeof block.name === "string" && block.name.length > 0
+			? block.name.toLowerCase()
+			: undefined;
 	}
 
 	private shouldTruncateTool(toolName: string | undefined): boolean {
