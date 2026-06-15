@@ -8,7 +8,7 @@ import type { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import type { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
-import type { SdkTaskHistory } from "./sdk-task-history"
+import { historyItemToSessionMetadata, type SdkTaskHistory } from "./sdk-task-history"
 import type { SdkSessionHost } from "./session-host"
 import type { TaskProxy } from "./task-proxy"
 import type { VscodeSessionHost } from "./vscode-session-host"
@@ -152,6 +152,7 @@ export class SdkFollowupCoordinator {
 			config,
 			interactive: true,
 			...(initialMessages ? { initialMessages: initialMessages as InitialMessages } : {}),
+			...(historyItem ? { sessionMetadata: historyItemToSessionMetadata(historyItem, config.modelId) } : {}),
 		})
 
 		const task = this.options.getTask()

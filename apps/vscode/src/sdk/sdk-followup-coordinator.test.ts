@@ -170,6 +170,10 @@ describe("SdkFollowupCoordinator", () => {
 			config: expect.objectContaining({ sessionId: "task-1" }),
 			interactive: true,
 			initialMessages: [{ role: "user", content: "hello" }],
+			sessionMetadata: expect.objectContaining({
+				title: "Original task",
+				modelId: "model",
+			}),
 		})
 		expect(options.taskHistory.updateTaskHistoryItem).toHaveBeenCalledWith(
 			expect.objectContaining({ id: "task-1", modelId: "model" }),
