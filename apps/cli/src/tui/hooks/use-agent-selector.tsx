@@ -26,6 +26,10 @@ function loadAgentProfileEntries(config: Config): {
 			description: profile.description,
 			systemPrompt: profile.systemPrompt,
 			plugins: profile.plugins?.map((plugin) => plugin.name),
+			tools: profile.tools,
+			skills: profile.skills,
+			providerId: profile.providerId,
+			modelId: profile.modelId,
 			source:
 				workspaceRoot && profile.path?.startsWith(`${workspaceRoot}${sep}`)
 					? ("workspace" as const)
@@ -98,14 +102,24 @@ export function useAgentSelector(opts: {
 			return;
 		}
 		if (profile.name !== currentAgentName) {
-			await withLoadingDialog(dialog, "Applying agent...", async () => {
-				await onAgentProfileChange({
-					name: profile.name,
-					systemPrompt: profile.systemPrompt,
-					plugins: profile.plugins,
-				});
-			});
+			const result = await withLoadingDialog(
+				dialog,
+				"Applying agent...",
+				async () =>
+					await onAgentProfileChange({
+						name: profile.name,
+						systemPrompt: profile.systemPrompt,
+						plugins: profile.plugins,
+						tools: profile.tools,
+						skills: profile.skills,
+						providerId: profile.providerId,
+						modelId: profile.modelId,
+					}),
+			);
 			session.setActiveAgentName(profile.name);
+			if (result && result.warning) {
+				session.appendEntry({ kind: "status", text: result.warning });
+			}
 		}
 		refocusTextarea();
 	}, [

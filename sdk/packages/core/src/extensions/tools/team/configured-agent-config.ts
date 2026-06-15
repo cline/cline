@@ -32,6 +32,52 @@ export interface ConfiguredAgentPluginRef {
 	install?: string;
 }
 
+// Legacy/alternate tool names accepted in agent config `tools` lists, mapped
+// to the builtin tool names they resolve to.
+const CONFIGURED_AGENT_TOOL_NAME_ALIASES: Record<string, string> = {
+	apply_diff: "editor",
+	attempt_completion: "submit_and_exit",
+	bash: "run_commands",
+	execute_command: "run_commands",
+	list_code_definition_names: "search_codebase",
+	list_files: "run_commands",
+	read_file: "read_files",
+	replace_in_file: "editor",
+	search_files: "search_codebase",
+	use_skill: "skills",
+	write_to_file: "editor",
+};
+
+export function resolveConfiguredAgentToolName(toolName: string): string {
+	const normalized = toolName.trim().toLowerCase();
+	return CONFIGURED_AGENT_TOOL_NAME_ALIASES[normalized] ?? normalized;
+}
+
+/**
+ * Resolves an agent config's `tools` allowlist to builtin tool names,
+ * applying alias resolution and the implicit rule that listing `skills`
+ * in the frontmatter also allows the `skills` tool. Returns undefined when
+ * the config does not restrict tools.
+ */
+export function resolveConfiguredAgentAllowedToolNames(
+	config: Pick<ConfiguredAgentConfig, "tools" | "skills">,
+): Set<string> | undefined {
+	if (config.tools === undefined) {
+		return undefined;
+	}
+	const allowed = new Set(config.tools.map(resolveConfiguredAgentToolName));
+	if (config.skills !== undefined) {
+		allowed.add("skills");
+	}
+	// Editing is one capability that model routing surfaces under two tool
+	// names; allowing either keeps the profile working on every model.
+	if (allowed.has("editor") || allowed.has("apply_patch")) {
+		allowed.add("editor");
+		allowed.add("apply_patch");
+	}
+	return allowed;
+}
+
 export interface ConfiguredAgentConfig {
 	name: string;
 	description: string;

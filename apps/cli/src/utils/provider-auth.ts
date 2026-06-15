@@ -23,6 +23,17 @@ export function normalizeAuthProviderId(providerId: string): string {
 
 export { isOAuthProvider };
 
+/**
+ * Returns true when the provider declares API key environment variables and
+ * one of them is set. Runtime request paths resolve these env keys even when
+ * no settings are persisted, so they count as usable credentials (e.g. for
+ * agent profiles that pin a provider the user only configured via env).
+ */
+export function hasEnvProviderApiKey(providerId: string): boolean {
+	const envKeys = Llms.getProviderCollectionSync(providerId)?.provider.env;
+	return (envKeys ?? []).some((key) => !!process.env[key]?.trim());
+}
+
 export function toProviderApiKey(
 	providerId: string,
 	credentials: Pick<OAuthCredentials, "access">,

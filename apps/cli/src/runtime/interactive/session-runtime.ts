@@ -23,6 +23,10 @@ import { setActiveCliSession } from "../../utils/output";
 import { loadInteractiveResumeMessages } from "../../utils/resume";
 import type { ActiveAgentProfile, Config } from "../../utils/types";
 import { markAbortInProgress } from "../active-runtime";
+import {
+	type AgentProfileModelSelectionResult,
+	applyAgentProfileModelSelection,
+} from "../agent-profile-model";
 import type {
 	PendingPromptSnapshot,
 	PendingPromptSubmittedEvent,
@@ -361,8 +365,17 @@ export function createInteractiveSessionRuntime(input: {
 
 	const applyAgentProfile = async (
 		profile: ActiveAgentProfile | undefined,
-	): Promise<void> => {
+	): Promise<AgentProfileModelSelectionResult> => {
+		const previousProfile = input.config.agentProfile;
 		input.config.agentProfile = profile;
+		// Apply the profile's provider/model, or restore the user's persisted
+		// selection when the profile does not pin one, before the restart
+		// rebuilds the session config from the mutated values.
+		const modelResult = await applyAgentProfileModelSelection(
+			input.config,
+			profile,
+			{ previousProfile },
+		);
 		// Re-apply the current mode so the system prompt picks up the persona.
 		await applyInteractiveModeConfig({
 			config: input.config,
@@ -370,6 +383,7 @@ export function createInteractiveSessionRuntime(input: {
 			switchToActModeTool: input.switchToActModeTool,
 		});
 		await restartWithCurrentMessages();
+		return modelResult;
 	};
 
 	const sendCurrentTurn = async (

@@ -383,6 +383,41 @@ Use the review guidance.`,
 		expect(names).toContain("read_files");
 	});
 
+	it("omits session-disabled tools from the advertised runtime tool list", async () => {
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({
+				disabledToolNames: ["search_codebase"],
+			}),
+		});
+
+		const names = runtime.tools.map((tool) => tool.name);
+		expect(names).not.toContain("search_codebase");
+		expect(names).toContain("read_files");
+	});
+
+	it("unions session-disabled tools with globally disabled tools", async () => {
+		const tempRoot = mkdtempSync(join(tmpdir(), "runtime-builder-session-"));
+		tempDirs.push(tempRoot);
+		const settingsPath = join(tempRoot, "global-settings.json");
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
+		writeFileSync(
+			settingsPath,
+			JSON.stringify({ disabledTools: ["search_codebase"] }, null, 2),
+			"utf8",
+		);
+
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({
+				disabledToolNames: ["read_files"],
+			}),
+		});
+
+		const names = runtime.tools.map((tool) => tool.name);
+		expect(names).not.toContain("search_codebase");
+		expect(names).not.toContain("read_files");
+		expect(names).toContain("run_commands");
+	});
+
 	it("adds spawn tool when enabled", async () => {
 		const runtime = await new DefaultRuntimeBuilder().build({
 			config: makeBaseConfig({

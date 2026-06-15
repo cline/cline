@@ -15,6 +15,7 @@ import {
 	getPreferredKanbanInstaller,
 } from "./commands/update";
 import { resolveAgentProfileDisabledPluginPaths } from "./runtime/agent-profile-plugins";
+import { resolveAgentProfileDisabledToolNames } from "./runtime/agent-profile-tools";
 import { CLI_DEFAULT_CHECKPOINT_CONFIG } from "./runtime/defaults";
 import {
 	buildCliCompactionConfig,
@@ -35,7 +36,9 @@ import {
 import {
 	ensureOAuthProviderApiKey,
 	getPersistedProviderApiKey,
+	hasEnvProviderApiKey,
 	isOAuthProvider,
+	isProviderConfigured,
 	normalizeProviderId,
 } from "./utils/provider-auth";
 import { rewriteTeamPrompt, TEAM_COMMAND_USAGE } from "./utils/team-command";
@@ -902,22 +905,111 @@ export async function runCli(): Promise<void> {
 	};
 	registerDisposable(stopUserInstructionService);
 	try {
+		const isYoloMode = args.mode === "yolo";
+		const isZenMode = args.mode === "zen";
+
+		// Resolved before the provider so the profile's providerId/modelId can
+		// participate in provider selection below.
+		let activeAgentProfile: ActiveAgentProfile | undefined;
+		const requestedAgentName = args.agent?.trim();
+		if (requestedAgentName) {
+			if (isYoloMode) {
+				writeErr("--agent is not supported in yolo mode");
+				process.exitCode = 1;
+				return;
+			}
+			if (args.systemPrompt) {
+				// Don't store an unused profile: it would resurface on plan/act toggles.
+				writeln(
+					`${c.dim}[warn] --system overrides --agent; ignoring agent profile "${requestedAgentName}"${c.reset}`,
+				);
+			} else {
+				const { loadConfiguredAgentConfigs } = await import("@cline/core");
+				const { configs, errors } = loadConfiguredAgentConfigs({
+					workspaceRoot,
+				});
+				const profile = configs.find(
+					(candidate) =>
+						candidate.name.trim().toLowerCase() ===
+						requestedAgentName.toLowerCase(),
+				);
+				if (!profile) {
+					const availableNames = configs.map((candidate) => candidate.name);
+					writeErr(
+						availableNames.length > 0
+							? `agent profile "${requestedAgentName}" not found (available: ${availableNames.join(", ")})`
+							: `agent profile "${requestedAgentName}" not found (no agent profiles in .cline/agents)`,
+					);
+					for (const error of errors) {
+						writeErr(`failed to load ${error.path}: ${error.error.message}`);
+					}
+					process.exitCode = 1;
+					return;
+				}
+				activeAgentProfile = {
+					name: profile.name,
+					systemPrompt: profile.systemPrompt,
+					plugins: profile.plugins?.map((plugin) => plugin.name),
+					tools: profile.tools,
+					skills: profile.skills,
+					providerId: profile.providerId,
+					modelId: profile.modelId,
+				};
+			}
+		}
+
 		const lastUsedProviderSettings =
 			providerSettingsManager.getLastUsedProviderSettings();
-		const provider = normalizeProviderId(
-			args.provider?.trim() || lastUsedProviderSettings?.provider || "cline",
+		// Provider precedence: explicit --provider, then the profile's
+		// providerId, then the persisted last-used selection.
+		let providerFromProfile =
+			!args.provider?.trim() && !!activeAgentProfile?.providerId;
+		let provider = normalizeProviderId(
+			args.provider?.trim() ||
+				activeAgentProfile?.providerId ||
+				lastUsedProviderSettings?.provider ||
+				"cline",
 		);
 		let selectedProviderSettings =
 			providerSettingsManager.getProviderSettings(provider);
+		// Env-declared API keys count as credentials (request paths resolve
+		// them at runtime even when no settings are persisted), and so does an
+		// explicit --key: with a key in hand the profile's provider is usable,
+		// and skipping the fail-soft keeps that key from being persisted into
+		// the fallback provider's settings below.
+		if (
+			providerFromProfile &&
+			!args.key?.trim() &&
+			!isProviderConfigured(provider, selectedProviderSettings) &&
+			!hasEnvProviderApiKey(provider)
+		) {
+			// Fail soft: keep the user's provider, the persona still applies.
+			const fallbackProvider = normalizeProviderId(
+				lastUsedProviderSettings?.provider || "cline",
+			);
+			writeln(
+				`${c.dim}[warn] agent profile "${activeAgentProfile?.name}" requests provider "${provider}" which is not configured; keeping ${fallbackProvider}${c.reset}`,
+			);
+			provider = fallbackProvider;
+			selectedProviderSettings =
+				providerSettingsManager.getProviderSettings(provider);
+			providerFromProfile = false;
+		}
+		// The profile's modelId only applies on the profile's intended provider
+		// (or the user's provider when the profile does not pin one).
+		const profileProviderApplied =
+			!activeAgentProfile?.providerId ||
+			provider === normalizeProviderId(activeAgentProfile.providerId);
+		const profileModelId = profileProviderApplied
+			? activeAgentProfile?.modelId
+			: undefined;
+		const modelFromProfile = !args.model && !!profileModelId;
 		const persistedApiKey = getPersistedProviderApiKey(
 			provider,
 			selectedProviderSettings,
 		);
 		const providedApiKey = args.key?.trim() || undefined;
 		let apiKey = providedApiKey || persistedApiKey || undefined;
-
-		const isYoloMode = args.mode === "yolo";
-		const isZenMode = args.mode === "zen";
 
 		// In headless mode (yolo / json / piped stdin without --tui),
 		// don't attempt browser-based OAuth. Authentication may still resolve at
@@ -970,6 +1062,14 @@ export async function runCli(): Promise<void> {
 			);
 		}
 		const knownModelIds = knownModels ? Object.keys(knownModels) : [];
+		// Model precedence: explicit --model, then the profile's modelId, then
+		// the provider's persisted selection.
+		const modelId =
+			args.model ??
+			profileModelId ??
+			selectedProviderSettings?.model ??
+			knownModelIds[0] ??
+			"anthropic/claude-sonnet-4.6";
 		const persistedReasoning = selectedProviderSettings?.reasoning;
 		const persistedReasoningEffort = persistedReasoning?.effort;
 		const reasoningEffortFromSettings =
@@ -994,57 +1094,9 @@ export async function runCli(): Promise<void> {
 			cwd,
 		});
 
-		let activeAgentProfile: ActiveAgentProfile | undefined;
-		const requestedAgentName = args.agent?.trim();
-		if (requestedAgentName) {
-			if (isYoloMode) {
-				writeErr("--agent is not supported in yolo mode");
-				process.exitCode = 1;
-				return;
-			}
-			if (args.systemPrompt) {
-				// Don't store an unused profile: it would resurface on plan/act toggles.
-				writeln(
-					`${c.dim}[warn] --system overrides --agent; ignoring agent profile "${requestedAgentName}"${c.reset}`,
-				);
-			} else {
-				const { loadConfiguredAgentConfigs } = await import("@cline/core");
-				const { configs, errors } = loadConfiguredAgentConfigs({
-					workspaceRoot,
-				});
-				const profile = configs.find(
-					(candidate) =>
-						candidate.name.trim().toLowerCase() ===
-						requestedAgentName.toLowerCase(),
-				);
-				if (!profile) {
-					const availableNames = configs.map((candidate) => candidate.name);
-					writeErr(
-						availableNames.length > 0
-							? `agent profile "${requestedAgentName}" not found (available: ${availableNames.join(", ")})`
-							: `agent profile "${requestedAgentName}" not found (no agent profiles in .cline/agents)`,
-					);
-					for (const error of errors) {
-						writeErr(`failed to load ${error.path}: ${error.error.message}`);
-					}
-					process.exitCode = 1;
-					return;
-				}
-				activeAgentProfile = {
-					name: profile.name,
-					systemPrompt: profile.systemPrompt,
-					plugins: profile.plugins?.map((plugin) => plugin.name),
-				};
-			}
-		}
-
 		const config: Config = {
 			providerId: provider,
-			modelId:
-				args.model ??
-				selectedProviderSettings?.model ??
-				knownModelIds[0] ??
-				"anthropic/claude-sonnet-4.6",
+			modelId,
 			apiKey: apiKey ?? "",
 			knownModels,
 			systemPrompt: await resolveSystemPrompt({
@@ -1080,6 +1132,15 @@ export async function runCli(): Promise<void> {
 				activeAgentProfile,
 				workspaceRoot,
 			),
+			disabledToolNames: resolveAgentProfileDisabledToolNames(
+				activeAgentProfile,
+				{
+					mode: args.mode ?? "act",
+					providerId: provider,
+					modelId,
+				},
+			),
+			skills: activeAgentProfile?.skills,
 			enableSpawnAgent: !isYoloMode,
 			enableAgentTeams: !isYoloMode,
 			enableTools: true,
@@ -1109,12 +1170,18 @@ export async function runCli(): Promise<void> {
 					: apiKey && !isOAuthProvider(provider)
 						? { apiKey }
 						: {};
-			providerSettingsManager.saveProviderSettings({
-				...(selectedProviderSettings ?? {}),
-				provider,
-				model: config.modelId,
-				...persistApiKey,
-			});
+			// A profile-driven provider/model is session-only: never write it into
+			// the user's persisted provider selection.
+			if (!providerFromProfile) {
+				providerSettingsManager.saveProviderSettings({
+					...(selectedProviderSettings ?? {}),
+					provider,
+					model: modelFromProfile
+						? selectedProviderSettings?.model
+						: config.modelId,
+					...persistApiKey,
+				});
+			}
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			writeln(

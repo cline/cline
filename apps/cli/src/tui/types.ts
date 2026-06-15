@@ -174,7 +174,9 @@ export interface TuiProps {
 	onCompactionModeChange: (mode: CliCompactionMode) => Promise<void>;
 	onModelChange: () => Promise<void>;
 	onModeChange: (mode: AgentMode) => Promise<void>;
-	onAgentProfileChange: (profile: ActiveAgentProfile | null) => Promise<void>;
+	onAgentProfileChange: (
+		profile: ActiveAgentProfile | null,
+	) => Promise<{ warning?: string } | void>;
 	onNewSession: () => Promise<void>;
 	onSessionRestart: () => Promise<void>;
 	onAccountChange: () => Promise<void>;
