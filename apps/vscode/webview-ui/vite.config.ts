@@ -1,10 +1,10 @@
 /// <reference types="vitest/config" />
 
-import { writeFileSync } from "node:fs";
-import tailwindcss from "@tailwindcss/vite";
-import react from "@vitejs/plugin-react-swc";
-import { resolve } from "path";
-import { defineConfig, type Plugin, type ViteDevServer } from "vite";
+import { writeFileSync } from "node:fs"
+import tailwindcss from "@tailwindcss/vite"
+import react from "@vitejs/plugin-react-swc"
+import { resolve } from "path"
+import { defineConfig, type Plugin, ViteDevServer } from "vite"
 
 // Custom plugin to write the server port to a file
 const writePortToFile = (): Plugin => {
@@ -12,33 +12,30 @@ const writePortToFile = (): Plugin => {
 		name: "write-port-to-file",
 		configureServer(server: ViteDevServer) {
 			server.httpServer?.once("listening", () => {
-				const address = server.httpServer?.address();
-				const port =
-					typeof address === "object" && address ? address.port : null;
+				const address = server.httpServer?.address()
+				const port = typeof address === "object" && address ? address.port : null
 
 				if (port) {
-					const portFilePath = resolve(__dirname, ".vite-port");
-					writeFileSync(portFilePath, port.toString());
+					const portFilePath = resolve(__dirname, ".vite-port")
+					writeFileSync(portFilePath, port.toString())
 				} else {
-					console.warn("[writePortToFile] Could not determine server port");
+					console.warn("[writePortToFile] Could not determine server port")
 				}
-			});
+			})
 		},
-	};
-};
+	}
+}
 
-const isDevBuild = process.argv.includes("--dev-build");
+const isDevBuild = process.argv.includes("--dev-build")
 
 // Valid platforms, these should the keys in platform-configs.json
-const VALID_PLATFORMS = ["vscode", "standalone"];
-const platform = process.env.PLATFORM || "vscode"; // Default to vscode
+const VALID_PLATFORMS = ["vscode", "standalone"]
+const platform = process.env.PLATFORM || "vscode" // Default to vscode
 
 if (!VALID_PLATFORMS.includes(platform)) {
-	throw new Error(
-		`Invalid PLATFORM "${platform}". Must be one of: ${VALID_PLATFORMS.join(", ")}`,
-	);
+	throw new Error(`Invalid PLATFORM "${platform}". Must be one of: ${VALID_PLATFORMS.join(", ")}`)
 }
-console.log("Building webview for", platform);
+console.log("Building webview for", platform)
 
 export default defineConfig({
 	base: "./",
@@ -119,49 +116,23 @@ export default defineConfig({
 	},
 	define: {
 		__PLATFORM__: JSON.stringify(platform),
-		"process.env.NODE_ENV": JSON.stringify(
-			(process.env.NODE_ENV ?? process.env.IS_DEV)
-				? "development"
-				: "production",
-		),
-		"process.env.CLINE_ENVIRONMENT": JSON.stringify(
-			process.env.CLINE_ENVIRONMENT ?? "production",
-		),
+		"process.env.NODE_ENV": JSON.stringify(process.env.NODE_ENV ?? (process.env.IS_DEV ? "development" : "production")),
+		"process.env.CLINE_ENVIRONMENT": JSON.stringify(process.env.CLINE_ENVIRONMENT ?? "production"),
 		"process.env.IS_DEV": JSON.stringify(process.env.IS_DEV),
 		"process.env.IS_TEST": JSON.stringify(process.env.IS_TEST),
 		"process.env.CI": JSON.stringify(process.env.CI),
 		// PostHog environment variables
-		"process.env.TELEMETRY_SERVICE_API_KEY": JSON.stringify(
-			process.env.TELEMETRY_SERVICE_API_KEY,
-		),
-		"process.env.ERROR_SERVICE_API_KEY": JSON.stringify(
-			process.env.ERROR_SERVICE_API_KEY,
-		),
-		"process.env.ENABLE_ERROR_AUTOCAPTURE": JSON.stringify(
-			process.env.ENABLE_ERROR_AUTOCAPTURE,
-		),
+		"process.env.TELEMETRY_SERVICE_API_KEY": JSON.stringify(process.env.TELEMETRY_SERVICE_API_KEY),
+		"process.env.ERROR_SERVICE_API_KEY": JSON.stringify(process.env.ERROR_SERVICE_API_KEY),
+		"process.env.ENABLE_ERROR_AUTOCAPTURE": JSON.stringify(process.env.ENABLE_ERROR_AUTOCAPTURE),
 		// OpenTelemetry environment variables
-		"process.env.OTEL_TELEMETRY_ENABLED": JSON.stringify(
-			process.env.OTEL_TELEMETRY_ENABLED,
-		),
-		"process.env.OTEL_METRICS_EXPORTER": JSON.stringify(
-			process.env.OTEL_METRICS_EXPORTER,
-		),
-		"process.env.OTEL_LOGS_EXPORTER": JSON.stringify(
-			process.env.OTEL_LOGS_EXPORTER,
-		),
-		"process.env.OTEL_EXPORTER_OTLP_PROTOCOL": JSON.stringify(
-			process.env.OTEL_EXPORTER_OTLP_PROTOCOL,
-		),
-		"process.env.OTEL_EXPORTER_OTLP_ENDPOINT": JSON.stringify(
-			process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
-		),
-		"process.env.OTEL_EXPORTER_OTLP_HEADERS": JSON.stringify(
-			process.env.OTEL_EXPORTER_OTLP_HEADERS,
-		),
-		"process.env.OTEL_METRIC_EXPORT_INTERVAL": JSON.stringify(
-			process.env.OTEL_METRIC_EXPORT_INTERVAL,
-		),
+		"process.env.OTEL_TELEMETRY_ENABLED": JSON.stringify(process.env.OTEL_TELEMETRY_ENABLED),
+		"process.env.OTEL_METRICS_EXPORTER": JSON.stringify(process.env.OTEL_METRICS_EXPORTER),
+		"process.env.OTEL_LOGS_EXPORTER": JSON.stringify(process.env.OTEL_LOGS_EXPORTER),
+		"process.env.OTEL_EXPORTER_OTLP_PROTOCOL": JSON.stringify(process.env.OTEL_EXPORTER_OTLP_PROTOCOL),
+		"process.env.OTEL_EXPORTER_OTLP_ENDPOINT": JSON.stringify(process.env.OTEL_EXPORTER_OTLP_ENDPOINT),
+		"process.env.OTEL_EXPORTER_OTLP_HEADERS": JSON.stringify(process.env.OTEL_EXPORTER_OTLP_HEADERS),
+		"process.env.OTEL_METRIC_EXPORT_INTERVAL": JSON.stringify(process.env.OTEL_METRIC_EXPORT_INTERVAL),
 	},
 	resolve: {
 		alias: {
@@ -172,4 +143,4 @@ export default defineConfig({
 			"@utils": resolve(__dirname, "./src/utils"),
 		},
 	},
-});
+})
