@@ -23,11 +23,14 @@ import {
 	QWEN_CACHE_ROUTING_METADATA,
 } from "./routing/anthropic-compatible";
 import { GLM_THINKING_ROUTING_METADATA } from "./routing/glm-thinking";
+import { MINIMAX_THINKING_ROUTING_METADATA } from "./routing/minimax-thinking";
 
 export const DEFAULT_INTERNAL_OCA_BASE_URL =
 	"https://code-internal.aiservice.us-chicago-1.oci.oraclecloud.com/20250206/app/litellm";
 export const DEFAULT_EXTERNAL_OCA_BASE_URL =
 	"https://code.aiservice.us-chicago-1.oci.oraclecloud.com/20250206/app/litellm";
+const CLINE_DEFAULT_MODEL_ID = "anthropic/claude-sonnet-4.6";
+const CLINE_PASS_PROVIDER_ID = "cline-pass";
 const OPENAI_CODEX_DEFAULT_MODEL_ID = "gpt-5.4";
 
 export type ProviderFamily =
@@ -273,6 +276,14 @@ function generatedModels(providerId: string): Record<string, ModelInfo> {
 	return cloneModels(getGeneratedModelsForProvider(providerId));
 }
 
+function firstGeneratedModelId(providerId: string): string {
+	const generatedModelList = Object.keys(generatedModels(providerId));
+	if (!generatedModelList.length) {
+		return "";
+	}
+	return generatedModelList[0];
+}
+
 function pickAnthropicModel(match: (id: string) => boolean): ModelInfo {
 	const entry = Object.entries(generatedModels("anthropic")).find(([id]) =>
 		match(id),
@@ -428,41 +439,80 @@ function inferClient(spec: BuiltinSpec): ProviderClient {
 	}
 }
 
-const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
-	{
-		id: "openai-compatible",
-		name: "OpenAI Compatible",
-		description: "OpenAI-compatible chat completions endpoint",
+function createClineLikeSpec(
+	input: Pick<BuiltinSpec, "id" | "name" | "defaultModelId"> &
+		Partial<
+			Pick<
+				BuiltinSpec,
+				| "description"
+				| "popular"
+				| "modelsProviderId"
+				| "modelsFactory"
+				| "metadata"
+			>
+		>,
+): BuiltinSpec {
+	return {
+		id: input.id,
+		name: input.name,
+		description: input.description ?? "Cline API endpoint",
 		family: "openai-compatible",
-		popular: 7,
-		capabilities: ["tools"],
-		defaultModelId: "gpt-4o",
-		apiKeyEnv: ["OPENAI_API_KEY"],
-		defaults: { baseUrl: "https://api.openai.com/v1" },
-	},
-	{
-		id: "cline",
-		name: "Cline",
-		description: "Cline API endpoint",
-		family: "openai-compatible",
-		popular: 1,
+		popular: input.popular,
 		capabilities: ["reasoning", "prompt-cache", "tools", "oauth"],
-		modelsProviderId: "openrouter",
-		defaultModelId: "anthropic/claude-sonnet-4.6",
+		modelsProviderId: input.modelsProviderId,
+		modelsFactory: input.modelsFactory,
+		defaultModelId: input.defaultModelId,
 		apiKeyEnv: ["CLINE_API_KEY"],
 		defaults: {
 			get baseUrl(): string {
 				return `${getClineEnvironmentConfig().apiBaseUrl}/api/v1`;
 			},
 		},
-		metadata: ANTHROPIC_AND_QWEN_CACHE_ROUTING_METADATA,
+		metadata: {
+			...ANTHROPIC_AND_QWEN_CACHE_ROUTING_METADATA,
+			...input.metadata,
+		},
+	};
+}
+
+const cline = createClineLikeSpec({
+	id: "cline",
+	name: "Cline",
+	popular: 1,
+	modelsProviderId: "openrouter",
+	defaultModelId: CLINE_DEFAULT_MODEL_ID,
+});
+
+const clinePass = createClineLikeSpec({
+	id: CLINE_PASS_PROVIDER_ID,
+	name: "Cline Pass",
+	popular: 2,
+	description: "Cline API endpoint with Cline Pass models",
+	modelsProviderId: CLINE_PASS_PROVIDER_ID,
+	defaultModelId: firstGeneratedModelId(CLINE_PASS_PROVIDER_ID),
+	metadata: { usageCostDisplay: "hide" },
+});
+
+const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
+	{
+		id: "openai-compatible",
+		name: "OpenAI Compatible",
+		description: "OpenAI-compatible chat completions endpoint",
+		family: "openai-compatible",
+		popular: 35,
+		capabilities: ["tools"],
+		defaultModelId: "gpt-4o",
+		apiKeyEnv: ["OPENAI_API_KEY"],
+		defaults: { baseUrl: "https://api.openai.com/v1" },
 	},
+	cline,
+	clinePass,
 	{
 		id: "deepseek",
 		name: "DeepSeek",
 		description: "Advanced AI models with reasoning capabilities",
 		family: "openai-compatible",
-		popular: 3,
+		popular: 10,
 		capabilities: ["reasoning", "prompt-cache"],
 		defaultModelId: "deepseek-v4-flash",
 		apiKeyEnv: ["DEEPSEEK_API_KEY"],
@@ -569,7 +619,7 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		description: "Self-hosted LLM proxy",
 		family: "openai-compatible",
 		protocol: "openai-responses",
-		popular: 8,
+		popular: 40,
 		capabilities: ["prompt-cache"],
 		defaultModelId: "gpt-5.4",
 		apiKeyEnv: ["LITELLM_API_KEY"],
@@ -583,7 +633,7 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		defaultModelId: "MiniMaxAI/MiniMax-M2.5",
 		apiKeyEnv: ["HF_TOKEN"],
 		modelsProviderId: "huggingface",
-		defaults: { baseUrl: "https://api-inference.huggingface.co/v1" },
+		defaults: { baseUrl: "https://router.huggingface.co/v1" },
 	},
 	{
 		id: "vercel-ai-gateway",
@@ -762,7 +812,7 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		name: "OpenRouter",
 		description: "OpenRouter AI platform",
 		family: "openai-compatible",
-		popular: 5,
+		popular: 20,
 		capabilities: ["reasoning", "prompt-cache"],
 		defaultModelId: "anthropic/claude-sonnet-4.6",
 		apiKeyEnv: ["OPENROUTER_API_KEY"],
@@ -776,7 +826,7 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		name: "Ollama",
 		description: "Ollama Cloud and local LLM hosting",
 		family: "openai-compatible",
-		popular: 6,
+		popular: 25,
 		defaultModelId: "",
 		apiKeyEnv: ["OLLAMA_API_KEY"],
 		defaults: { baseUrl: "http://localhost:11434/v1" },
@@ -838,7 +888,7 @@ export const BUILTIN_SPECS: BuiltinSpec[] = [
 		description:
 			"OpenAI ChatGPT subscription access uses an OAuth device code flow.",
 		family: "openai",
-		popular: 2,
+		popular: 5,
 		capabilities: ["reasoning", "oauth"],
 		defaultModelId: OPENAI_CODEX_DEFAULT_MODEL_ID,
 		modelsFactory: buildOpenAICodexModels,
@@ -863,7 +913,7 @@ export const BUILTIN_SPECS: BuiltinSpec[] = [
 		name: "Anthropic",
 		description: "Creator of Claude, the AI assistant",
 		family: "anthropic",
-		popular: 4,
+		popular: 15,
 		capabilities: ["reasoning", "prompt-cache"],
 		defaultModelId: "claude-sonnet-4-6",
 		apiKeyEnv: ["ANTHROPIC_API_KEY"],
@@ -887,7 +937,7 @@ export const BUILTIN_SPECS: BuiltinSpec[] = [
 		name: "Google Gemini",
 		description: "Google Gemini API",
 		family: "google",
-		popular: 9,
+		popular: 45,
 		capabilities: ["reasoning", "prompt-cache"],
 		defaultModelId: "gemma-4-26b",
 		apiKeyEnv: ["GOOGLE_GENERATIVE_AI_API_KEY", "GEMINI_API_KEY"],
@@ -918,7 +968,7 @@ export const BUILTIN_SPECS: BuiltinSpec[] = [
 		name: "AWS Bedrock",
 		description: "Amazon Bedrock managed foundation models",
 		family: "bedrock",
-		popular: 7,
+		popular: 30,
 		capabilities: ["reasoning", "prompt-cache"],
 		defaultModelId: "minimax.minimax-m2.5",
 		apiKeyEnv: [
@@ -953,7 +1003,7 @@ export const BUILTIN_SPECS: BuiltinSpec[] = [
 		apiKeyEnv: ["MINIMAX_API_KEY"],
 		modelsProviderId: "minimax",
 		defaults: { baseUrl: "https://api.minimax.io/anthropic/v1" },
-		metadata: ANTHROPIC_ROUTING_METADATA,
+		metadata: MINIMAX_THINKING_ROUTING_METADATA,
 	},
 	{
 		id: "opencode",

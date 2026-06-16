@@ -51,6 +51,144 @@ describe("ProviderSettingsManager", () => {
 		expect(reloaded.read().providers.anthropic?.tokenSource).toBe("manual");
 	});
 
+	it("resolves auth storage settings for providers registered with a storage provider id", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-provider-settings-"),
+		);
+		tempDirs.push(tempDir);
+		const filePath = path.join(tempDir, "provider-settings.json");
+		const manager = new ProviderSettingsManager({ filePath });
+
+		manager.saveProviderSettings(
+			{
+				provider: "cline",
+				model: "anthropic/claude-sonnet-4.6",
+				baseUrl: "https://api.example.test",
+				auth: {
+					accessToken: "workos:shared-token",
+					refreshToken: "shared-refresh",
+				},
+			},
+			{ setLastUsed: false, tokenSource: "oauth" },
+		);
+
+		expect(manager.getProviderSettings("cline-pass")).toEqual({
+			provider: "cline-pass",
+			baseUrl: "https://api.example.test",
+			auth: {
+				accessToken: "workos:shared-token",
+				refreshToken: "shared-refresh",
+			},
+		});
+		expect(manager.getProviderConfig("cline-pass")).toMatchObject({
+			providerId: "cline-pass",
+			apiKey: "workos:shared-token",
+			baseUrl: "https://api.example.test",
+		});
+
+		manager.saveProviderSettings(
+			{
+				provider: "cline-pass",
+				model: "cline-pass/glm-5.1",
+			},
+			{ setLastUsed: true },
+		);
+
+		expect(manager.getProviderSettings("cline-pass")).toEqual({
+			provider: "cline-pass",
+			model: "cline-pass/glm-5.1",
+			baseUrl: "https://api.example.test",
+			auth: {
+				accessToken: "workos:shared-token",
+				refreshToken: "shared-refresh",
+			},
+		});
+	});
+
+	it("falls back to cline when last-used provider is cline-pass and the feature is disabled", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-provider-settings-"),
+		);
+		tempDirs.push(tempDir);
+		const filePath = path.join(tempDir, "provider-settings.json");
+		const manager = new ProviderSettingsManager({ filePath });
+
+		manager.saveProviderSettings(
+			{
+				provider: "cline",
+				model: "anthropic/claude-sonnet-4.6",
+				baseUrl: "https://api.example.test",
+				auth: {
+					accessToken: "workos:shared-token",
+					refreshToken: "shared-refresh",
+				},
+			},
+			{ setLastUsed: false, tokenSource: "oauth" },
+		);
+		manager.saveProviderSettings(
+			{
+				provider: "cline-pass",
+				model: "cline-pass/glm-5.1",
+			},
+			{ setLastUsed: true },
+		);
+
+		expect(manager.getLastUsedProviderSettings()).toMatchObject({
+			provider: "cline-pass",
+			model: "cline-pass/glm-5.1",
+		});
+		expect(
+			manager.getLastUsedProviderSettings({ isClinePassEnabled: false }),
+		).toEqual({
+			provider: "cline",
+			model: "anthropic/claude-sonnet-4.6",
+			baseUrl: "https://api.example.test",
+			auth: {
+				accessToken: "workos:shared-token",
+				refreshToken: "shared-refresh",
+			},
+		});
+		expect(
+			manager.getLastUsedProviderConfig({ isClinePassEnabled: false }),
+		).toMatchObject({
+			providerId: "cline",
+			apiKey: "workos:shared-token",
+			baseUrl: "https://api.example.test",
+		});
+	});
+
+	it("returns default cline settings when cline-pass is last-used and no cline settings exist", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-provider-settings-"),
+		);
+		tempDirs.push(tempDir);
+		const filePath = path.join(tempDir, "provider-settings.json");
+		const manager = new ProviderSettingsManager({ filePath });
+
+		manager.saveProviderSettings(
+			{
+				provider: "cline-pass",
+				model: "cline-pass/glm-5.1",
+			},
+			{ setLastUsed: true },
+		);
+
+		manager.saveProviderSettings(
+			{
+				provider: "cline",
+			},
+			{ setLastUsed: true },
+		);
+
+		expect(
+			manager.getLastUsedProviderSettings({ isClinePassEnabled: false }),
+		).toEqual({ provider: "cline" });
+		expect(
+			manager.getLastUsedProviderConfig({ isClinePassEnabled: false })
+				?.providerId,
+		).toBe("cline");
+	});
+
 	it("migrates legacy provider settings during manager construction", () => {
 		const tempDir = mkdtempSync(
 			path.join(os.tmpdir(), "core-provider-settings-"),

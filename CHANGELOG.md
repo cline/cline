@@ -1,5 +1,33 @@
 # Changelog
 
+## [3.89.2]
+
+### Fixed
+
+- Complete the fix for the Anthropic provider on VS Code 1.123 and later by upgrading the bundled Anthropic SDK to a release compatible with the Node 24 runtime.
+- Update the Vertex AI provider to a compatible Anthropic Vertex SDK release so it works with the upgraded Anthropic SDK.
+
+## [3.89.1]
+
+### Fixed
+
+- Restore the Anthropic provider on VS Code 1.123 and later, where the updated Node 24 runtime broke the bundled Anthropic SDK.
+- Handle the DeepSeek V4 reasoning format.
+
+## [3.89.0]
+
+### Added
+
+- Add Claude Fable 5 model support.
+
+### Fixed
+
+- Fix MiniMax M3 thinking controls across gateways.
+
+### Changed
+
+- Clean up the Codex model list.
+
 ## [3.88.1]
 
 ### Added

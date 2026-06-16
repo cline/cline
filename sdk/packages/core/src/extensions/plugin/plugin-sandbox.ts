@@ -5,6 +5,8 @@ import { fileURLToPath } from "node:url";
 import type {
 	AgentConfig,
 	AgentExtensionAutomationEventType,
+	AgentExtensionCommandResult,
+	AgentExtensionMcpServer,
 	AgentExtensionRule,
 	AgentRuntimeHooks,
 	AgentTool,
@@ -95,6 +97,7 @@ type SandboxedPluginDescriptor = {
 		messageBuilders: SandboxedContributionDescriptor[];
 		providers: SandboxedContributionDescriptor[];
 		automationEventTypes: SandboxedAutomationEventTypeDescriptor[];
+		mcpServers: AgentExtensionMcpServer[];
 		shortcuts?: SandboxedContributionDescriptor[];
 		flags?: SandboxedContributionDescriptor[];
 	};
@@ -117,6 +120,7 @@ function normalizeDescriptor(
 			providers: descriptor.contributions?.providers ?? [],
 			automationEventTypes:
 				descriptor.contributions?.automationEventTypes ?? [],
+			mcpServers: descriptor.contributions?.mcpServers ?? [],
 			shortcuts: descriptor.contributions?.shortcuts ?? [],
 			flags: descriptor.contributions?.flags ?? [],
 		},
@@ -434,7 +438,7 @@ function registerCommands(
 			description: cd.description,
 			handler: async (input: string) => {
 				try {
-					return await sandbox.call<string>(
+					return await sandbox.call<AgentExtensionCommandResult>(
 						"executeCommand",
 						{
 							pluginId: descriptor.pluginId,
@@ -448,7 +452,7 @@ function registerCommands(
 						throw error;
 					}
 					await reinitialize();
-					return await sandbox.call<string>(
+					return await sandbox.call<AgentExtensionCommandResult>(
 						"executeCommand",
 						{
 							pluginId: descriptor.pluginId,
@@ -529,6 +533,10 @@ function registerSimpleContributions(
 			examples: eventType.examples,
 			metadata: eventType.metadata,
 		});
+	}
+
+	for (const mcpServer of descriptor.contributions?.mcpServers ?? []) {
+		api.registerMcpServer(mcpServer);
 	}
 }
 

@@ -1,5 +1,33 @@
 # Cline SDK Changelog
 
+## 0.0.47
+
+- Added support for overriding the API base URL
+- Enforced a production singleton Cline Hub so only one hub daemon runs, and a stale hub is respawned after an upgrade
+- Allowed plugin chat commands to submit prompts to the agent
+- Fixed truncation of structured tool operation result strings so oversized tool output stays within limits
+- Stopped echoing the full command text in run_commands tool results
+
+## 0.0.46
+
+- Added support for configured agents as subagent tools
+- Centralized OAuth management into the SDK
+- Added Vertex GCP settings configuration
+- Fixed the Azure Foundry API version for the CLI
+- Fixed an error caused by disabled reasoning on Fable 5
+
+## 0.0.45
+
+- Added support for the Claude Fable 5 model
+- Fixed MiniMax M3 thinking controls so they route correctly across gateways
+
+## 0.0.44
+
+- Added support for Vertex AI Application Default Credentials (ADC) with tool use
+- Added a global auto-update setting for CLI startup updates
+- Fixed empty message content replay for Bedrock
+- Cleaned up the OpenAI Codex model list
+
 ## 0.0.43
 
 - Added the Cline Hub web app for managing and monitoring agent sessions

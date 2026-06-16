@@ -6,15 +6,15 @@ import {
 	executeClineAccountAction,
 	getLocalProviderModels,
 	listLocalProviders,
-	loginLocalProvider,
+	loginAndSaveLocalProviderOAuthCredentials,
 	normalizeOAuthProvider,
 	type ProviderCapability,
 	type ProviderClient,
 	type ProviderProtocol,
 	readGlobalSettings,
 	resolveLocalClineAuthToken,
-	saveLocalProviderOAuthCredentials,
 	saveLocalProviderSettings,
+	setAutoUpdateEnabledGlobally,
 	setDisabledPlugin,
 	setDisabledTools,
 	setTelemetryOptOutGlobally,
@@ -116,17 +116,10 @@ export async function handleDesktopCommand(
 	}
 	if (command === "run_provider_oauth_login") {
 		const providerId = normalizeOAuthProvider(String(args?.provider ?? ""));
-		const existing = providerSettingsManager.getProviderSettings(providerId);
-		const credentials = await loginLocalProvider(
-			providerId,
-			existing,
-			openExternalUrl,
-		);
-		const saved = saveLocalProviderOAuthCredentials(
+		const saved = await loginAndSaveLocalProviderOAuthCredentials(
 			providerSettingsManager,
 			providerId,
-			existing,
-			credentials,
+			openExternalUrl,
 		);
 		return {
 			provider: providerId,
@@ -153,6 +146,13 @@ export async function handleDesktopCommand(
 			throw new Error("telemetry_opt_out must be a boolean");
 		}
 		setTelemetryOptOutGlobally(args.telemetry_opt_out);
+		return readGlobalSettings();
+	}
+	if (command === "set_auto_update_enabled") {
+		if (typeof args?.auto_update_enabled !== "boolean") {
+			throw new Error("auto_update_enabled must be a boolean");
+		}
+		setAutoUpdateEnabledGlobally(args.auto_update_enabled);
 		return readGlobalSettings();
 	}
 	if (command === "list_connector_channels") {

@@ -1,6 +1,7 @@
 import {
 	completeClineDeviceAuth,
 	type ITelemetryService,
+	isOAuthProvider,
 	loginLocalProvider,
 	type ProviderSettingsManager,
 	saveLocalProviderOAuthCredentials,
@@ -9,16 +10,12 @@ import {
 import { getClineEnvironmentConfig } from "@cline/shared";
 import open from "open";
 
-export type OnboardingOAuthProviderId = "cline" | "oca" | "openai-codex";
+export type OnboardingOAuthProviderId = string;
 
 export function isOnboardingOAuthProviderId(
 	providerId: string,
 ): providerId is OnboardingOAuthProviderId {
-	return (
-		providerId === "cline" ||
-		providerId === "oca" ||
-		providerId === "openai-codex"
-	);
+	return isOAuthProvider(providerId);
 }
 
 export function runOAuthAuthFlow(input: {
@@ -92,11 +89,18 @@ export function runDeviceCodeAuthFlow(input: {
 	startClineDeviceAuth()
 		.then((result) => {
 			if (input.isAborted()) return;
+			const verifyUrl =
+				result.verificationUriComplete || result.verificationUri;
 			input.setUserCode(result.userCode);
-			input.setVerifyUrl(
-				result.verificationUriComplete || result.verificationUri,
-			);
+			input.setVerifyUrl(verifyUrl);
 			input.setStatus("Enter the code at the URL below");
+			try {
+				void open(verifyUrl, { wait: false }).catch(() => {
+					input.setStatus("Could not open browser. Visit the URL below.");
+				});
+			} catch {
+				input.setStatus("Could not open browser. Visit the URL below.");
+			}
 
 			completeClineDeviceAuth({
 				deviceCode: result.deviceCode,

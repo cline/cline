@@ -1,7 +1,7 @@
 {
 	"name": "@cline/cli",
 	"displayName": "cline",
-	"version": "3.0.20",
+	"version": "3.0.24",
 	"description": "Autonomous coding agent CLI - capable of creating/editing files, running commands, using the browser, and more",
 	"type": "module",
 	"publishConfig": {
@@ -87,6 +87,7 @@
 		"open": "^10.2.0",
 		"opentui-spinner": "^0.0.6",
 		"pino": "^10.3.1",
+		"posthog-node": "^5.8.0",
 		"react": "19.2.4",
 		"react-devtools-core": "^7.0.1",
 		"react-reconciler": "0.32.0",

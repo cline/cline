@@ -11,10 +11,18 @@
 
 import {
 	type ContentBlock,
+	createMediaBudgetState,
+	IMAGE_OMITTED_PLACEHOLDER,
+	type ImageContent,
+	type MediaBudgetOptions,
+	type MediaBudgetState,
 	type Message,
 	normalizeUserInput,
+	type ResolvedMediaBudget,
+	resolveMediaBudget,
 	type TextContent,
 	type ToolResultContent,
+	validateAndReserveImageMedia,
 } from "@cline/shared";
 
 const DEFAULT_MAX_TOOL_RESULT_CHARS = 50_000;
@@ -27,6 +35,7 @@ const TARGET_TOOL_NAMES = new Set([
 	"search_codebase",
 	"bash",
 	"run_commands",
+	"fetch_web_content",
 ]);
 const READ_TOOL_NAMES = new Set(["read", "read_files"]);
 const OUTDATED_FILE_CONTENT = "[outdated - see the latest file content]";
@@ -71,6 +80,7 @@ export class MessageBuilder {
 		private readonly maxToolResultChars = DEFAULT_MAX_TOOL_RESULT_CHARS,
 		private readonly targetToolNames = TARGET_TOOL_NAMES,
 		private readonly maxTotalTextBytes = DEFAULT_MAX_TOTAL_TEXT_BYTES,
+		private readonly mediaBudget: MediaBudgetOptions = {},
 	) {}
 
 	buildForApi(messages: Message[]): Message[] {
@@ -100,7 +110,8 @@ export class MessageBuilder {
 			return changed ? { ...message, content } : message;
 		});
 
-		return this.truncateToTotalTextBudget(prepared);
+		const mediaLimited = this.applyMediaBudget(prepared);
+		return this.truncateToTotalTextBudget(mediaLimited);
 	}
 
 	private transformBlock(
@@ -765,12 +776,54 @@ export class MessageBuilder {
 				const next = this.truncateMiddle(entry.content);
 				return next === entry.content ? entry : { ...entry, content: next };
 			}
-			if (entry.type !== "text") {
-				return entry;
+			if (entry.type === "text") {
+				const next = this.truncateMiddle(entry.text);
+				return next === entry.text ? entry : { ...entry, text: next };
 			}
-			const next = this.truncateMiddle(entry.text);
-			return next === entry.text ? entry : { ...entry, text: next };
+			if (isStructuredToolResultEntry(entry)) {
+				return this.truncateNestedStrings(entry) as typeof entry;
+			}
+			return entry;
 		});
+	}
+
+	/**
+	 * Deep-truncates string values inside structured tool outputs (e.g.
+	 * `ToolOperationResult[]` from run_commands/read_files), which carry the
+	 * payload in untyped `{query, result, ...}` fields rather than text
+	 * blocks. Image blocks are left intact so base64 payloads survive.
+	 */
+	private truncateNestedStrings(value: unknown): unknown {
+		if (typeof value === "string") {
+			return this.truncateMiddle(value);
+		}
+		if (Array.isArray(value)) {
+			let changed = false;
+			const next = value.map((item) => {
+				const out = this.truncateNestedStrings(item);
+				if (out !== item) {
+					changed = true;
+				}
+				return out;
+			});
+			return changed ? next : value;
+		}
+		if (value !== null && typeof value === "object") {
+			if (isImageContentLike(value)) {
+				return value;
+			}
+			let changed = false;
+			const next: Record<string, unknown> = {};
+			for (const [key, item] of Object.entries(value)) {
+				const out = this.truncateNestedStrings(item);
+				if (out !== item) {
+					changed = true;
+				}
+				next[key] = out;
+			}
+			return changed ? next : value;
+		}
+		return value;
 	}
 
 	private truncateMiddle(text: string): string {
@@ -852,6 +905,8 @@ export class MessageBuilder {
 								total += utf8ByteLength(entry.text);
 							} else if (entry.type === "file") {
 								total += utf8ByteLength(entry.content);
+							} else if (isStructuredToolResultEntry(entry)) {
+								total += countNestedStringBytes(entry);
 							}
 						}
 					}
@@ -904,11 +959,160 @@ export class MessageBuilder {
 								entry.content = value;
 							},
 						});
+					} else if (isStructuredToolResultEntry(entry)) {
+						collectNestedStringCandidates(entry, candidates);
 					}
 				}
 			}
 		}
 		return candidates.sort((l, r) => r.byteLength - l.byteLength);
+	}
+
+	private applyMediaBudget(messages: Message[]): Message[] {
+		const budget = this.resolveMediaBudget();
+		if (
+			budget.maxImageEncodedBytes === Number.POSITIVE_INFINITY &&
+			budget.maxImageDecodedBytes === Number.POSITIVE_INFINITY &&
+			budget.maxTotalMediaBytes === Number.POSITIVE_INFINITY
+		) {
+			return messages;
+		}
+
+		const state = createMediaBudgetState();
+		let changed = false;
+		const next = messages.map((message) => {
+			if (!Array.isArray(message.content)) {
+				return message;
+			}
+			let contentChanged = false;
+			const content = message.content.map((block) => {
+				const out = this.applyMediaBudgetToBlock(block, budget, state);
+				if (out !== block) {
+					contentChanged = true;
+				}
+				return out;
+			});
+			if (!contentChanged) {
+				return message;
+			}
+			changed = true;
+			return { ...message, content };
+		});
+
+		return changed ? next : messages;
+	}
+
+	private resolveMediaBudget(): ResolvedMediaBudget {
+		return resolveMediaBudget(this.mediaBudget);
+	}
+
+	private applyMediaBudgetToBlock(
+		block: ContentBlock,
+		budget: ResolvedMediaBudget,
+		state: MediaBudgetState,
+	): ContentBlock {
+		if (isImageContentLike(block)) {
+			return this.limitImageContent(block, budget, state);
+		}
+
+		if (block.type !== "tool_result" || typeof block.content === "string") {
+			return block;
+		}
+
+		let changed = false;
+		const content = block.content.map((entry) => {
+			const out = this.applyMediaBudgetToToolResultEntry(entry, budget, state);
+			if (out !== entry) {
+				changed = true;
+			}
+			return out as (typeof block.content)[number];
+		});
+
+		return changed
+			? { ...block, content: content as ToolResultContent["content"] }
+			: block;
+	}
+
+	private applyMediaBudgetToToolResultEntry(
+		entry: unknown,
+		budget: ResolvedMediaBudget,
+		state: MediaBudgetState,
+	): unknown {
+		if (isImageContentLike(entry)) {
+			return this.limitImageContent(entry, budget, state);
+		}
+		if (isStructuredToolResultEntry(entry)) {
+			return this.limitNestedMedia(entry, budget, state);
+		}
+		return entry;
+	}
+
+	private limitNestedMedia(
+		value: unknown,
+		budget: ResolvedMediaBudget,
+		state: MediaBudgetState,
+	): unknown {
+		if (isImageContentLike(value)) {
+			const limited = this.limitImageContent(value, budget, state);
+			return limited.type === "text" ? limited.text : limited;
+		}
+
+		if (Array.isArray(value)) {
+			let changed = false;
+			const next = value.map((item) => {
+				const out = this.limitNestedMedia(item, budget, state);
+				if (out !== item) {
+					changed = true;
+				}
+				return out;
+			});
+			return changed ? next : value;
+		}
+
+		if (value !== null && typeof value === "object") {
+			let changed = false;
+			const next: Record<string, unknown> = {};
+			for (const [key, item] of Object.entries(value)) {
+				const out = this.limitNestedMedia(item, budget, state);
+				if (out !== item) {
+					changed = true;
+				}
+				next[key] = out;
+			}
+			return changed ? next : value;
+		}
+
+		return value;
+	}
+
+	private limitImageContent(
+		image: unknown,
+		budget: ResolvedMediaBudget,
+		state: MediaBudgetState,
+	): ImageContent | TextContent {
+		if (!isImageContentWithData(image)) {
+			return { type: "text", text: IMAGE_OMITTED_PLACEHOLDER };
+		}
+
+		const validation = validateAndReserveImageMedia(
+			image.mediaType,
+			image.data,
+			{
+				maxImageEncodedBytes: budget.maxImageEncodedBytes,
+				maxImageDecodedBytes: budget.maxImageDecodedBytes,
+				maxTotalMediaBytes: budget.maxTotalMediaBytes,
+			},
+			state,
+		);
+		if (!validation.ok) {
+			return { type: "text", text: IMAGE_OMITTED_PLACEHOLDER };
+		}
+
+		return {
+			...image,
+			data: validation.base64,
+			mediaType: validation.mediaType,
+		};
 	}
 }
 
@@ -971,6 +1175,124 @@ function cloneContentBlockForMutation(block: ContentBlock): ContentBlock {
 	}
 	return {
 		...block,
-		content: block.content.map((entry) => ({ ...entry })),
+		// Structured entries can nest the payload strings arbitrarily deep, so
+		// a shallow copy would leak budget-truncation mutations back into the
+		// original conversation history.
+		content: block.content.map((entry) =>
+			isStructuredToolResultEntry(entry)
+				? (deepCloneJsonLike(entry) as typeof entry)
+				: { ...entry },
+		),
 	};
+}
+
+/**
+ * True for tool_result content entries that are not the typed text/image/file
+ * blocks — i.e. structured tool outputs such as `ToolOperationResult[]`
+ * entries that the runtime stores directly in the content array.
+ */
+function isStructuredToolResultEntry(entry: unknown): boolean {
+	if (entry === null || typeof entry !== "object") {
+		return false;
+	}
+	const type = (entry as { type?: unknown }).type;
+	return type !== "text" && type !== "image" && type !== "file";
+}
+
+function isImageContentLike(value: unknown): boolean {
+	return (
+		value !== null &&
+		typeof value === "object" &&
+		(value as { type?: unknown }).type === "image"
+	);
+}
+
+function isImageContentWithData(value: unknown): value is ImageContent {
+	return (
+		value !== null &&
+		typeof value === "object" &&
+		(value as { type?: unknown }).type === "image" &&
+		typeof (value as { data?: unknown }).data === "string" &&
+		typeof (value as { mediaType?: unknown }).mediaType === "string"
+	);
+}
+
+function countNestedStringBytes(value: unknown): number {
+	if (typeof value === "string") {
+		return utf8ByteLength(value);
+	}
+	if (Array.isArray(value)) {
+		let total = 0;
+		for (const item of value) {
+			total += countNestedStringBytes(item);
+		}
+		return total;
+	}
+	if (value !== null && typeof value === "object") {
+		if (isImageContentWithData(value)) {
+			return 0;
+		}
+		let total = 0;
+		for (const item of Object.values(value)) {
+			total += countNestedStringBytes(item);
+		}
+		return total;
+	}
+	return 0;
+}
+
+function collectNestedStringCandidates(
+	container: unknown,
+	candidates: TruncationCandidate[],
+): void {
+	if (Array.isArray(container)) {
+		container.forEach((item, index) => {
+			if (typeof item === "string") {
+				candidates.push({
+					byteLength: utf8ByteLength(item),
+					get: () => container[index] as string,
+					set: (value) => {
+						container[index] = value;
+					},
+				});
+			} else {
+				collectNestedStringCandidates(item, candidates);
+			}
+		});
+		return;
+	}
+	if (container !== null && typeof container === "object") {
+		if (isImageContentWithData(container)) {
+			return;
+		}
+		const record = container as Record<string, unknown>;
+		for (const key of Object.keys(record)) {
+			const item = record[key];
+			if (typeof item === "string") {
+				candidates.push({
+					byteLength: utf8ByteLength(item),
+					get: () => record[key] as string,
+					set: (value) => {
+						record[key] = value;
+					},
+				});
+			} else {
+				collectNestedStringCandidates(item, candidates);
+			}
+		}
+	}
+}
+
+function deepCloneJsonLike(value: unknown): unknown {
+	if (Array.isArray(value)) {
+		return value.map(deepCloneJsonLike);
+	}
+	if (value !== null && typeof value === "object") {
+		const out: Record<string, unknown> = {};
+		for (const [key, item] of Object.entries(value)) {
+			out[key] = deepCloneJsonLike(item);
+		}
+		return out;
+	}
+	return value;
 }

@@ -3,12 +3,16 @@ import type {
 	HubReplyEnvelope,
 	HubTransportFrame,
 } from "@cline/shared";
+import { resolveClineBuildEnv } from "@cline/shared";
 import { createHubServerUrl, readHubDiscovery } from "../discovery";
 import {
 	type HubEndpointOverrides,
 	resolveHubEndpointOptions,
 } from "../discovery/defaults";
-import { resolveSharedHubOwnerContext } from "../discovery/workspace";
+import {
+	resolveProductionHubOwnerContext,
+	resolveSharedHubOwnerContext,
+} from "../discovery/workspace";
 
 export interface HubConnection {
 	send(envelope: HubCommandEnvelope): Promise<HubReplyEnvelope>;
@@ -68,13 +72,19 @@ function sameHubEndpoint(left: string, right: string): boolean {
 	return leftUrl.toString() === rightUrl.toString();
 }
 
+function resolveDefaultHubOwnerContext() {
+	return resolveClineBuildEnv() === "production"
+		? resolveProductionHubOwnerContext()
+		: resolveSharedHubOwnerContext();
+}
+
 async function resolveHubUrlAuthToken(url: URL): Promise<string | undefined> {
 	const queryToken = url.searchParams.get("authToken")?.trim();
 	url.searchParams.delete("authToken");
 	if (queryToken) {
 		return queryToken;
 	}
-	const owner = resolveSharedHubOwnerContext();
+	const owner = resolveDefaultHubOwnerContext();
 	const discovery = await readHubDiscovery(owner.discoveryPath);
 	if (discovery?.url && sameHubEndpoint(url.toString(), discovery.url)) {
 		return discovery.authToken;
@@ -87,7 +97,7 @@ export async function resolveHubUrl(
 ): Promise<string> {
 	const endpoint = resolveHubEndpointOptions(overrides);
 	if (!hasExplicitEndpoint(overrides)) {
-		const owner = resolveSharedHubOwnerContext();
+		const owner = resolveDefaultHubOwnerContext();
 		const discovery = await readHubDiscovery(owner.discoveryPath);
 		if (discovery?.url) {
 			return discovery.url;

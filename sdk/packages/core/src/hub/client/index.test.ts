@@ -546,6 +546,10 @@ describe("NodeHubClient", () => {
 			spawnDetachedHubServerWithRetry: vi.fn(async () => undefined),
 		}));
 		vi.doMock("../discovery/workspace", () => ({
+			resolveProductionHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-discovery.json",
+			}),
 			resolveSharedHubOwnerContext: () => ({
 				ownerId: "hub-test",
 				discoveryPath: "/tmp/hub-discovery-recovery.json",
@@ -697,6 +701,10 @@ describe("NodeHubClient", () => {
 			spawnDetachedHubServerWithRetry: vi.fn(async () => undefined),
 		}));
 		vi.doMock("../discovery/workspace", () => ({
+			resolveProductionHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-discovery.json",
+			}),
 			resolveSharedHubOwnerContext: () => ({
 				ownerId: "hub-test",
 				discoveryPath: "/tmp/hub-discovery-explicit.json",
@@ -764,6 +772,10 @@ describe("resolveCompatibleLocalHubUrl", () => {
 	it("does not clear discovery on transient probe failure", async () => {
 		const clearHubDiscoveryMock = vi.fn();
 		vi.doMock("../discovery/workspace", () => ({
+			resolveProductionHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-discovery.json",
+			}),
 			resolveSharedHubOwnerContext: () => ({
 				ownerId: "hub-test",
 				discoveryPath: "/tmp/hub-discovery.json",
@@ -798,9 +810,13 @@ describe("resolveCompatibleLocalHubUrl", () => {
 		expect(clearHubDiscoveryMock).not.toHaveBeenCalled();
 	});
 
-	it("clears discovery on build mismatch", async () => {
+	it("keeps discovery on build mismatch when protocol is compatible", async () => {
 		const clearHubDiscoveryMock = vi.fn();
 		vi.doMock("../discovery/workspace", () => ({
+			resolveProductionHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-discovery.json",
+			}),
 			resolveSharedHubOwnerContext: () => ({
 				ownerId: "hub-test",
 				discoveryPath: "/tmp/hub-discovery.json",
@@ -840,15 +856,19 @@ describe("resolveCompatibleLocalHubUrl", () => {
 
 		const { resolveCompatibleLocalHubUrl } = await import(".");
 
-		await expect(resolveCompatibleLocalHubUrl()).resolves.toBeUndefined();
-		expect(clearHubDiscoveryMock).toHaveBeenCalledWith(
-			"/tmp/hub-discovery.json",
+		await expect(resolveCompatibleLocalHubUrl()).resolves.toBe(
+			"ws://127.0.0.1:59999/hub",
 		);
+		expect(clearHubDiscoveryMock).not.toHaveBeenCalled();
 	});
 
-	it("clears discovery when a hub omits build metadata", async () => {
+	it("keeps discovery when a hub omits build metadata but has compatible protocol", async () => {
 		const clearHubDiscoveryMock = vi.fn();
 		vi.doMock("../discovery/workspace", () => ({
+			resolveProductionHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-discovery.json",
+			}),
 			resolveSharedHubOwnerContext: () => ({
 				ownerId: "hub-test",
 				discoveryPath: "/tmp/hub-discovery.json",
@@ -875,6 +895,57 @@ describe("resolveCompatibleLocalHubUrl", () => {
 				probeHubServer: vi.fn(async () => ({
 					hubId: "hub-test",
 					protocolVersion: "v1",
+					host: "127.0.0.1",
+					port: 59999,
+					url: "ws://127.0.0.1:59999/hub",
+					startedAt: new Date().toISOString(),
+					updatedAt: new Date().toISOString(),
+				})),
+			};
+		});
+
+		const { resolveCompatibleLocalHubUrl } = await import(".");
+
+		await expect(resolveCompatibleLocalHubUrl()).resolves.toBe(
+			"ws://127.0.0.1:59999/hub",
+		);
+		expect(clearHubDiscoveryMock).not.toHaveBeenCalled();
+	});
+
+	it("clears discovery on protocol mismatch", async () => {
+		const clearHubDiscoveryMock = vi.fn();
+		vi.doMock("../discovery/workspace", () => ({
+			resolveProductionHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-discovery.json",
+			}),
+			resolveSharedHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-discovery.json",
+			}),
+		}));
+		vi.doMock("../discovery", async () => {
+			const actual =
+				await vi.importActual<typeof import("../discovery")>("../discovery");
+			return {
+				...actual,
+				readHubDiscovery: vi.fn(async () => ({
+					hubId: "hub-test",
+					protocolVersion: "v0",
+					buildId: "old-build",
+					host: "127.0.0.1",
+					port: 59999,
+					url: "ws://127.0.0.1:59999/hub",
+					startedAt: new Date().toISOString(),
+					updatedAt: new Date().toISOString(),
+				})),
+				clearHubDiscovery: vi.fn(async (...args: unknown[]) => {
+					clearHubDiscoveryMock(...args);
+				}),
+				probeHubServer: vi.fn(async () => ({
+					hubId: "hub-test",
+					protocolVersion: "v0",
+					buildId: "old-build",
 					host: "127.0.0.1",
 					port: 59999,
 					url: "ws://127.0.0.1:59999/hub",
@@ -914,6 +985,10 @@ describe("resolveCompatibleLocalHubUrl", () => {
 			spawnDetachedHubServerWithRetry: spawnDetachedHubServerWithRetryMock,
 		}));
 		vi.doMock("../discovery/workspace", () => ({
+			resolveProductionHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-discovery.json",
+			}),
 			resolveSharedHubOwnerContext: () => ({
 				ownerId: "hub-test",
 				discoveryPath: "/tmp/hub-discovery.json",
@@ -950,6 +1025,73 @@ describe("resolveCompatibleLocalHubUrl", () => {
 		).toBeLessThan(readHubDiscoveryMock.mock.invocationCallOrder[1]);
 	});
 
+	it("waits on shared discovery after spawning in development builds", async () => {
+		vi.stubGlobal("WebSocket", MockWebSocket);
+		const originalBuildEnv = process.env.CLINE_BUILD_ENV;
+		process.env.CLINE_BUILD_ENV = "development";
+		const spawnDetachedHubServerWithRetryMock = vi.fn(async () => undefined);
+		const record = {
+			hubId: "hub-test",
+			protocolVersion: "v1",
+			buildId: "test-build",
+			authToken: "token",
+			host: "127.0.0.1",
+			port: 25466,
+			url: "ws://127.0.0.1:25466/hub",
+			startedAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
+		};
+		const readHubDiscoveryMock = vi.fn(async (path: string) =>
+			path === "/tmp/shared-hub-discovery.json" ? record : undefined,
+		);
+		vi.doMock("../daemon", () => ({
+			spawnDetachedHubServerWithRetry: spawnDetachedHubServerWithRetryMock,
+		}));
+		vi.doMock("../discovery/workspace", () => ({
+			resolveProductionHubOwnerContext: () => ({
+				ownerId: "production",
+				discoveryPath: "/tmp/production-hub-discovery.json",
+			}),
+			resolveSharedHubOwnerContext: () => ({
+				ownerId: "shared",
+				discoveryPath: "/tmp/shared-hub-discovery.json",
+			}),
+		}));
+		vi.doMock("../discovery", async () => {
+			const actual =
+				await vi.importActual<typeof import("../discovery")>("../discovery");
+			return {
+				...actual,
+				readHubDiscovery: readHubDiscoveryMock,
+				probeHubServer: vi.fn(async () => record),
+				clearHubDiscovery: vi.fn(async () => undefined),
+			};
+		});
+
+		try {
+			const { ensureCompatibleLocalHubUrl } = await import(".");
+
+			await expect(
+				ensureCompatibleLocalHubUrl({
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+				}),
+			).resolves.toBe("ws://127.0.0.1:25466/hub");
+			expect(readHubDiscoveryMock).toHaveBeenCalledWith(
+				"/tmp/shared-hub-discovery.json",
+			);
+			expect(readHubDiscoveryMock).not.toHaveBeenCalledWith(
+				"/tmp/production-hub-discovery.json",
+			);
+		} finally {
+			if (originalBuildEnv === undefined) {
+				delete process.env.CLINE_BUILD_ENV;
+			} else {
+				process.env.CLINE_BUILD_ENV = originalBuildEnv;
+			}
+		}
+	});
+
 	it("does not restart explicit local endpoints after startup timeout", async () => {
 		const readHubDiscoveryMock = vi.fn(async () => ({
 			hubId: "hub-test",
@@ -963,6 +1105,10 @@ describe("resolveCompatibleLocalHubUrl", () => {
 			updatedAt: new Date().toISOString(),
 		}));
 		vi.doMock("../discovery/workspace", () => ({
+			resolveProductionHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-discovery.json",
+			}),
 			resolveSharedHubOwnerContext: () => ({
 				ownerId: "hub-test",
 				discoveryPath: "/tmp/hub-discovery.json",

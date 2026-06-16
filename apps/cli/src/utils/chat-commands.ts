@@ -28,6 +28,7 @@ export type ChatCommandContext = {
 	getState: () => Promise<ChatCommandState> | ChatCommandState;
 	setState: (next: ChatCommandState) => Promise<void> | void;
 	reply: (text: string) => Promise<void> | void;
+	submitPrompt?: (prompt: string) => Promise<void> | void;
 	reset?: () => Promise<void> | void;
 	abort?: () => Promise<void> | void;
 	stop?: () => Promise<void> | void;

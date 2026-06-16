@@ -14,6 +14,7 @@ import { getCliBuildInfo } from "../utils/common";
 const {
 	mockSpawnSync,
 	mockResolveClineDataDir,
+	mockResolveProductionHubOwnerContext,
 	mockResolveSharedHubOwnerContext,
 	mockReadHubDiscovery,
 	mockProbeHubServer,
@@ -24,6 +25,15 @@ const {
 } = vi.hoisted(() => ({
 	mockSpawnSync: vi.fn(),
 	mockResolveClineDataDir: vi.fn(() => "/tmp/cline-data"),
+	mockResolveProductionHubOwnerContext: vi.fn(() => ({
+		ownerId: "hub-production",
+		discoveryPath: path.join(
+			"/tmp/cline-data",
+			"locks",
+			"hub",
+			"production.json",
+		),
+	})),
 	mockResolveSharedHubOwnerContext: vi.fn(() => ({
 		ownerId: "hub-owner",
 		discoveryPath: path.join(
@@ -52,6 +62,7 @@ vi.mock("node:child_process", () => ({
 
 vi.mock("@cline/core", () => ({
 	resolveClineDataDir: mockResolveClineDataDir,
+	resolveProductionHubOwnerContext: mockResolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext: mockResolveSharedHubOwnerContext,
 	clearHubDiscovery: mockClearHubDiscovery,
 	probeHubServer: mockProbeHubServer,
@@ -76,6 +87,15 @@ describe("runDoctorCommand", () => {
 	afterEach(() => {
 		vi.clearAllMocks();
 		mockResolveClineDataDir.mockReturnValue("/tmp/cline-data");
+		mockResolveProductionHubOwnerContext.mockReturnValue({
+			ownerId: "hub-production",
+			discoveryPath: path.join(
+				"/tmp/cline-data",
+				"locks",
+				"hub",
+				"production.json",
+			),
+		});
 		mockStopLocalHubServerGracefully.mockResolvedValue(false);
 		mockStopAllConnectors.mockResolvedValue({
 			stoppedProcesses: 0,
@@ -110,7 +130,8 @@ describe("runDoctorCommand", () => {
 				command === "pgrep" &&
 				Array.isArray(args) &&
 				args[0] === "-fal" &&
-				args[1] === "/apps/cli/src/index.ts"
+				args[1] === "--" &&
+				args[2] === "/apps/cli/src/index.ts"
 			) {
 				return {
 					status: 0,
@@ -261,7 +282,8 @@ describe("runDoctorCommand", () => {
 				command === "pgrep" &&
 				Array.isArray(args) &&
 				args[0] === "-fal" &&
-				args[1] === "/src-tauri/bin/code-sidecar"
+				args[1] === "--" &&
+				args[2] === "/src-tauri/bin/code-sidecar"
 			) {
 				return {
 					status: 0,

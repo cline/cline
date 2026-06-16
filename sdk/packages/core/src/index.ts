@@ -13,6 +13,7 @@ export type {
 	AgentExtension as AgentPlugin, // Public-facing alias for extensions
 	AgentExtensionCommand,
 	AgentExtensionCommand as AgentPluginCommand,
+	AgentExtensionCommandResult,
 	AgentHooks,
 	AgentMode,
 	AgentResult,
@@ -32,15 +33,20 @@ export type {
 	ClineAccountActionRequest,
 	ConnectorHookEvent,
 	ContentBlock,
+	FeatureFlag,
+	FeatureFlagPayload,
+	FeatureFlagsAndPayloads,
+	FeatureFlagsContext,
+	FeatureFlagsSettings,
 	FileContent,
 	GetProviderModelsActionRequest,
 	HookSessionContext,
+	IFeatureFlagsProvider,
 	ImageContent,
 	ITelemetryService,
 	ListProvidersActionRequest,
 	Message,
 	MessageWithMetadata,
-	OAuthProviderId,
 	ProviderActionRequest,
 	ProviderCatalogResponse,
 	ProviderListItem,
@@ -82,6 +88,8 @@ export {
 	createContributionRegistry,
 	createTool,
 	emptyWorkspaceManifest,
+	FEATURE_FLAGS,
+	FeatureFlagDefaultValue,
 	formatDisplayUserInput,
 	noopBasicLogger,
 	normalizeSdkError,
@@ -117,7 +125,6 @@ export {
 } from "./auth/client";
 export {
 	completeClineDeviceAuth,
-	createClineOAuthProvider,
 	getValidClineCredentials,
 	loginClineOAuth,
 	refreshClineToken,
@@ -125,20 +132,30 @@ export {
 } from "./auth/cline";
 export {
 	getValidOpenAICodexCredentials,
-	isOpenAICodexTokenExpired,
 	loginOpenAICodex,
-	normalizeOpenAICodexCredentials,
-	openaiCodexOAuthProvider,
 	refreshOpenAICodexToken,
 } from "./auth/codex";
 export {
-	createOcaOAuthProvider,
-	createOcaRequestHeaders,
-	generateOcaOpcRequestId,
 	getValidOcaCredentials,
 	loginOcaOAuth,
 	refreshOcaToken,
 } from "./auth/oca";
+export {
+	formatProviderOAuthApiKey,
+	getPersistedProviderApiKey,
+	getProviderAuthHandler,
+	getProviderAuthStorageId,
+	getProviderOAuthCredentialsFromSettings,
+	isOAuthProvider,
+	loginAndSaveProviderOAuthCredentials,
+	type ProviderAuthHandler,
+	type ProviderAuthLoginInput,
+	type ProviderAuthRefreshInput,
+	type ProviderAuthSaveCredentialsInput,
+	type ProviderOAuthCredentials,
+	resolveProviderApiKeyFromSettings,
+	saveProviderOAuthCredentials,
+} from "./auth/provider-auth-registry";
 export type {
 	LocalOAuthServer,
 	LocalOAuthServerOptions,
@@ -290,10 +307,19 @@ export {
 	type BootstrapAgentTeamsOptions,
 	type BootstrapAgentTeamsResult,
 	bootstrapAgentTeams,
+	buildConfiguredAgentToolDescriptors,
+	buildConfiguredAgentToolName,
 	buildDelegatedAgentConfig,
 	buildTeamProgressSummary,
+	type ConfiguredAgentConfig,
+	type ConfiguredAgentInput,
+	type ConfiguredAgentLoadResult,
+	type ConfiguredAgentReadError,
+	type ConfiguredAgentToolConfig,
+	type ConfiguredAgentToolDescriptor,
 	type CreateAgentTeamsToolsOptions,
 	createAgentTeamsTools,
+	createConfiguredAgentTools,
 	createDelegatedAgent,
 	createDelegatedAgentConfigProvider,
 	createSpawnAgentTool,
@@ -301,6 +327,8 @@ export {
 	type DelegatedAgentConnectionConfig,
 	type DelegatedAgentKind,
 	type DelegatedAgentRuntimeConfig,
+	loadConfiguredAgentConfigs,
+	parseConfiguredAgentConfig,
 	reviveTeamStateDates,
 	type SpawnTeammateOptions,
 	type SubAgentEndContext,
@@ -415,24 +443,42 @@ export {
 	type DesktopToolApprovalOptions,
 	requestDesktopToolApproval,
 } from "./runtime/tools/tool-approval";
+export {
+	FeatureFlagsService,
+	type FeatureFlagsServiceOptions,
+	NoOpFeatureFlagsProvider,
+} from "./services/feature-flags";
 export type { GlobalSettings } from "./services/global-settings";
 export {
 	filterDisabledPluginPaths,
 	filterDisabledTools,
 	filterExtensionToolRegistrations,
 	GlobalSettingsSchema,
+	isAutoUpdateEnabledGlobally,
 	isPluginDisabledGlobally,
 	isTelemetryOptedOutGlobally,
 	isToolDisabledGlobally,
 	readGlobalSettings,
 	resolveDisabledPluginPaths,
 	resolveDisabledToolNames,
+	setAutoUpdateEnabledGlobally,
 	setDisabledPlugin,
 	setDisabledTools,
 	setTelemetryOptOutGlobally,
 	toggleDisabledTool,
 	writeGlobalSettings,
 } from "./services/global-settings";
+export type {
+	PluginMcpSettingsMutation,
+	PluginMcpSettingsSyncResult,
+	RemovePluginMcpServersFromSettingsOptions,
+	SyncPluginMcpServersToSettingsOptions,
+} from "./services/plugin-mcp-settings";
+export {
+	disablePluginMcpServersInSettings,
+	removePluginMcpServersFromSettings,
+	syncPluginMcpServersToSettings,
+} from "./services/plugin-mcp-settings";
 export type {
 	ListPluginToolsResult,
 	PluginToolSummary,
@@ -453,6 +499,7 @@ export {
 	ensureCustomProvidersLoaded,
 	getLocalProviderModels,
 	listLocalProviders,
+	loginAndSaveLocalProviderOAuthCredentials,
 	loginLocalProvider,
 	normalizeOAuthProvider,
 	refreshProviderModelsFromSource,
@@ -479,6 +526,7 @@ export {
 	SqliteTeamStore,
 	type SqliteTeamStoreOptions,
 } from "./services/storage/team-store";
+export { resolveCoreDistinctId } from "./services/telemetry";
 export type {
 	CaptureCompactionExecutedProperties,
 	CaptureCompactionSkippedProperties,

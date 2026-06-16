@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Config } from "../utils/types";
 
 const coreMocks = vi.hoisted(() => {
@@ -9,19 +9,35 @@ const coreMocks = vi.hoisted(() => {
 	return {
 		getProviderSettings: vi.fn(),
 		saveProviderSettings: vi.fn(),
-		getValidClineCredentials: vi.fn(),
+		fetchMe: vi.fn(),
+		fetchBalance: vi.fn(),
+		fetchOrganizationBalance: vi.fn(),
 		serviceOptions,
 	};
 });
+const telemetryMocks = vi.hoisted(() => ({
+	identifyTelemetryAccount: vi.fn(),
+}));
 
-vi.mock("@cline/core", () => {
+vi.mock("@cline/core", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@cline/core")>();
 	return {
+		...actual,
 		ClineAccountService: class {
 			constructor(options: {
 				apiBaseUrl: string;
 				getAuthToken: () => Promise<string | undefined | null>;
 			}) {
 				coreMocks.serviceOptions.push(options);
+			}
+			fetchMe() {
+				return coreMocks.fetchMe();
+			}
+			fetchBalance(userId?: string) {
+				return coreMocks.fetchBalance(userId);
+			}
+			fetchOrganizationBalance(organizationId: string) {
+				return coreMocks.fetchOrganizationBalance(organizationId);
 			}
 		},
 		ProviderSettingsManager: class {
@@ -32,9 +48,12 @@ vi.mock("@cline/core", () => {
 				coreMocks.saveProviderSettings(settings, options);
 			}
 		},
-		getValidClineCredentials: coreMocks.getValidClineCredentials,
 	};
 });
+
+vi.mock("../utils/telemetry", () => ({
+	identifyTelemetryAccount: telemetryMocks.identifyTelemetryAccount,
+}));
 
 function makeConfig(overrides: Partial<Config> = {}): Config {
 	return {
@@ -59,15 +78,55 @@ function makeConfig(overrides: Partial<Config> = {}): Config {
 	} as unknown as Config;
 }
 
+function mockFetchJson(body: unknown, status = 200): void {
+	vi.stubGlobal(
+		"fetch",
+		vi.fn(
+			async () =>
+				new Response(JSON.stringify(body), {
+					status,
+					headers: { "Content-Type": "application/json" },
+				}),
+		) as unknown as typeof fetch,
+	);
+}
+
 describe("createClineAccountService", () => {
 	beforeEach(() => {
+		vi.restoreAllMocks();
+		vi.unstubAllGlobals();
 		coreMocks.getProviderSettings.mockReset();
 		coreMocks.saveProviderSettings.mockReset();
-		coreMocks.getValidClineCredentials.mockReset();
+		coreMocks.fetchMe.mockReset();
+		coreMocks.fetchBalance.mockReset();
+		coreMocks.fetchOrganizationBalance.mockReset();
 		coreMocks.serviceOptions.length = 0;
+		telemetryMocks.identifyTelemetryAccount.mockReset();
+	});
+
+	afterEach(() => {
+		vi.restoreAllMocks();
+		vi.unstubAllGlobals();
 	});
 
 	it("refreshes persisted Cline OAuth credentials before creating the account service", async () => {
+		vi.spyOn(Date, "now").mockReturnValue(100_000);
+		mockFetchJson({
+			success: true,
+			data: {
+				accessToken: "new-access",
+				refreshToken: "new-refresh",
+				tokenType: "Bearer",
+				expiresAt: "2096-10-02T07:06:40.000Z",
+				userInfo: {
+					subject: "sub-new",
+					email: "new@example.com",
+					name: "New User",
+					clineUserId: "acct-new",
+					accounts: [],
+				},
+			},
+		});
 		coreMocks.getProviderSettings.mockReturnValue({
 			provider: "cline",
 			auth: {
@@ -77,26 +136,12 @@ describe("createClineAccountService", () => {
 				expiresAt: 1,
 			},
 		});
-		coreMocks.getValidClineCredentials.mockResolvedValue({
-			access: "new-access",
-			refresh: "new-refresh",
-			expires: 4_000_000_000_000,
-			accountId: "acct-new",
-		});
 
 		const { createClineAccountService } = await import("./cline-account");
 		const service = await createClineAccountService({ config: makeConfig() });
 
 		expect(service).toBeDefined();
-		expect(coreMocks.getValidClineCredentials).toHaveBeenCalledWith(
-			{
-				access: "old-access",
-				refresh: "refresh-token",
-				expires: 1,
-				accountId: "acct-old",
-			},
-			{ apiBaseUrl: "https://api.cline.bot" },
-		);
+		expect(globalThis.fetch).toHaveBeenCalled();
 		expect(coreMocks.saveProviderSettings).toHaveBeenCalledWith(
 			expect.objectContaining({
 				provider: "cline",
@@ -115,6 +160,14 @@ describe("createClineAccountService", () => {
 	});
 
 	it("asks the user to re-authenticate when Cline OAuth credentials cannot refresh", async () => {
+		vi.spyOn(Date, "now").mockReturnValue(100_000);
+		mockFetchJson(
+			{
+				error: "invalid_grant",
+				error_description: "refresh expired",
+			},
+			401,
+		);
 		coreMocks.getProviderSettings.mockReturnValue({
 			provider: "cline",
 			auth: {
@@ -123,7 +176,6 @@ describe("createClineAccountService", () => {
 				expiresAt: 1,
 			},
 		});
-		coreMocks.getValidClineCredentials.mockResolvedValue(null);
 
 		const { createClineAccountService } = await import("./cline-account");
 
@@ -131,6 +183,69 @@ describe("createClineAccountService", () => {
 			createClineAccountService({ config: makeConfig() }),
 		).rejects.toThrow(
 			"Cline account requires re-authentication. Run cline auth cline.",
+		);
+	});
+});
+
+describe("loadClineAccountSnapshot", () => {
+	beforeEach(() => {
+		vi.restoreAllMocks();
+		vi.unstubAllGlobals();
+		coreMocks.getProviderSettings.mockReset();
+		coreMocks.saveProviderSettings.mockReset();
+		coreMocks.fetchMe.mockReset();
+		coreMocks.fetchBalance.mockReset();
+		coreMocks.fetchOrganizationBalance.mockReset();
+		coreMocks.serviceOptions.length = 0;
+		telemetryMocks.identifyTelemetryAccount.mockReset();
+	});
+
+	afterEach(() => {
+		vi.restoreAllMocks();
+		vi.unstubAllGlobals();
+	});
+
+	it("identifies the loaded Cline account for telemetry and feature flags", async () => {
+		coreMocks.getProviderSettings.mockReturnValue({
+			provider: "cline",
+			apiKey: "account-token",
+		});
+		const { loadClineAccountSnapshot } = await import("./cline-account");
+		coreMocks.fetchMe.mockResolvedValue({
+			id: "user-1",
+			email: "user@example.com",
+			displayName: "User One",
+			photoUrl: "",
+			createdAt: "",
+			updatedAt: "",
+			organizations: [
+				{
+					active: true,
+					memberId: "member-1",
+					name: "Acme",
+					organizationId: "org-1",
+					roles: ["member"],
+				},
+			],
+		});
+		coreMocks.fetchBalance.mockResolvedValue({ balance: 10, userId: "user-1" });
+		coreMocks.fetchOrganizationBalance.mockResolvedValue({
+			balance: 20,
+			organizationId: "org-1",
+		});
+
+		await loadClineAccountSnapshot({ config: makeConfig() });
+
+		expect(telemetryMocks.identifyTelemetryAccount).toHaveBeenCalledWith(
+			{
+				id: "user-1",
+				email: "user@example.com",
+				provider: "cline",
+				organizationId: "org-1",
+				organizationName: "Acme",
+				memberId: "member-1",
+			},
+			expect.any(Object),
 		);
 	});
 });

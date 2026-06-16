@@ -8,10 +8,12 @@ import {
 	createBashTool,
 	createDefaultTools,
 	createReadFilesTool,
+	createSearchTool,
 	createSkillsTool,
 	createWindowsShellTool,
 } from "./definitions";
-import { TimeoutError } from "./helpers";
+import { CommandExitError } from "./executors/bash";
+import { RUN_COMMAND_QUERY_PREVIEW_LIMIT, TimeoutError } from "./helpers";
 import { INPUT_ARG_CHAR_LIMIT } from "./schemas";
 import type { SkillsExecutorWithMetadata } from "./types";
 
@@ -348,6 +350,57 @@ describe("default submit_and_exit tool", () => {
 	});
 });
 
+describe("default search_codebase tool", () => {
+	it("treats a valid search with zero matches as success", async () => {
+		const noResults =
+			"No results found for pattern: missingSymbol\nSearched 3 files.";
+		const execute = vi.fn(async () => noResults);
+		const tool = createSearchTool(execute);
+
+		const result = await tool.execute(
+			{ queries: ["missingSymbol"] },
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		expect(result).toEqual([
+			{
+				query: "missingSymbol",
+				result: noResults,
+				success: true,
+			},
+		]);
+	});
+
+	it("treats executor errors as failures", async () => {
+		const execute = vi.fn(async () => {
+			throw new Error("bad regex");
+		});
+		const tool = createSearchTool(execute);
+
+		const result = await tool.execute(
+			{ queries: ["("] },
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		expect(result).toEqual([
+			{
+				query: "(",
+				result: "",
+				error: "Search failed: bad regex",
+				success: false,
+			},
+		]);
+	});
+});
+
 describe("default apply_patch tool", () => {
 	it("is included only when enabled with an applyPatch executor", () => {
 		const toolsWithoutExecutor = createDefaultTools({
@@ -592,6 +645,405 @@ describe("default run_commands tool", () => {
 				iteration: 1,
 			}),
 		);
+	});
+
+	it("keeps short command echoes unchanged in tool results", async () => {
+		const execute = vi.fn(
+			async (command: string | { command: string }) =>
+				`ran:${typeof command === "string" ? command : command.command}`,
+		);
+		const tool = createBashTool(execute);
+
+		const result = await tool.execute(
+			{ commands: ["git status --short"] },
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		expect(result).toEqual([
+			{
+				query: "git status --short",
+				result: "ran:git status --short",
+				success: true,
+			},
+		]);
+	});
+
+	it("returns captured output for non-zero command exits", async () => {
+		const execute = vi.fn(async () => {
+			throw new CommandExitError(
+				1,
+				"[Command exited with code 1]\nfailed assertion details",
+			);
+		});
+		const tool = createBashTool(execute);
+
+		const result = await tool.execute(
+			{ commands: ["bun test"] },
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		expect(result).toEqual([
+			{
+				query: "bun test",
+				result: "[Command exited with code 1]\nfailed assertion details",
+				error: "Command exited with code 1",
+				success: false,
+			},
+		]);
+	});
+
+	it("coalesces split heredoc command arrays before execution", async () => {
+		const execute = vi.fn(
+			async (command: string | { command: string }) =>
+				`ran:${typeof command === "string" ? command : command.command}`,
+		);
+		const tool = createBashTool(execute);
+
+		const result = await tool.execute(
+			{
+				commands: [
+					"cd /app && python3 << 'PYEOF'",
+					"import csv",
+					"print('ok')",
+					"PYEOF",
+				],
+			},
+			{
+				sessionId: "session-split-heredoc",
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		const expectedCommand =
+			"cd /app && python3 << 'PYEOF'\nimport csv\nprint('ok')\nPYEOF";
+		expect(execute).toHaveBeenCalledTimes(1);
+		expect(execute).toHaveBeenCalledWith(
+			expectedCommand,
+			process.cwd(),
+			expect.objectContaining({ sessionId: "session-split-heredoc" }),
+		);
+		expect(result).toEqual([
+			expect.objectContaining({
+				query: expect.stringContaining("cd /app && python3"),
+				result: `ran:${expectedCommand}`,
+				success: true,
+			}),
+		]);
+	});
+
+	it("coalesces split heredocs while preserving surrounding command order", async () => {
+		const execute = vi.fn(
+			async (command: string | { command: string }) =>
+				`ran:${typeof command === "string" ? command : command.command}`,
+		);
+		const tool = createBashTool(execute);
+
+		const result = await tool.execute(
+			{
+				commands: [
+					"pwd",
+					"python3 << 'PYEOF'",
+					"print('ok')",
+					"PYEOF",
+					"ls /app",
+				],
+			},
+			{
+				sessionId: "session-surrounding-heredoc",
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		const expectedCommand = "python3 << 'PYEOF'\nprint('ok')\nPYEOF";
+		expect(execute).toHaveBeenCalledTimes(3);
+		expect(execute).toHaveBeenNthCalledWith(
+			1,
+			"pwd",
+			process.cwd(),
+			expect.objectContaining({ sessionId: "session-surrounding-heredoc" }),
+		);
+		expect(execute).toHaveBeenNthCalledWith(
+			2,
+			expectedCommand,
+			process.cwd(),
+			expect.objectContaining({ sessionId: "session-surrounding-heredoc" }),
+		);
+		expect(execute).toHaveBeenNthCalledWith(
+			3,
+			"ls /app",
+			process.cwd(),
+			expect.objectContaining({ sessionId: "session-surrounding-heredoc" }),
+		);
+		expect(result).toEqual([
+			expect.objectContaining({ query: "pwd", result: "ran:pwd" }),
+			expect.objectContaining({
+				query: expectedCommand,
+				result: `ran:${expectedCommand}`,
+			}),
+			expect.objectContaining({ query: "ls /app", result: "ran:ls /app" }),
+		]);
+	});
+
+	it("coalesces split tab-stripping heredocs", async () => {
+		const execute = vi.fn(
+			async (command: string | { command: string }) =>
+				`ran:${typeof command === "string" ? command : command.command}`,
+		);
+		const tool = createBashTool(execute);
+
+		const result = await tool.execute(
+			{
+				commands: ["cat <<- EOF", "\tindented body", "EOF"],
+			},
+			{
+				sessionId: "session-tab-stripping-heredoc",
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		const expectedCommand = "cat <<- EOF\n\tindented body\nEOF";
+		expect(execute).toHaveBeenCalledTimes(1);
+		expect(execute).toHaveBeenCalledWith(
+			expectedCommand,
+			process.cwd(),
+			expect.objectContaining({
+				sessionId: "session-tab-stripping-heredoc",
+			}),
+		);
+		expect(result).toEqual([
+			expect.objectContaining({
+				query: expectedCommand,
+				result: `ran:${expectedCommand}`,
+			}),
+		]);
+	});
+
+	it("does not coalesce independent command arrays", async () => {
+		const execute = vi.fn(
+			async (command: string | { command: string }) =>
+				`ran:${typeof command === "string" ? command : command.command}`,
+		);
+		const tool = createBashTool(execute);
+
+		const result = await tool.execute(
+			{ commands: ["pwd", "ls /app"] },
+			{
+				sessionId: "session-independent-commands",
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		expect(execute).toHaveBeenCalledTimes(2);
+		expect(result).toEqual([
+			expect.objectContaining({ query: "pwd", result: "ran:pwd" }),
+			expect.objectContaining({ query: "ls /app", result: "ran:ls /app" }),
+		]);
+	});
+
+	it("coalesces consecutive split heredoc command arrays independently", async () => {
+		const execute = vi.fn(
+			async (command: string | { command: string }) =>
+				`ran:${typeof command === "string" ? command : command.command}`,
+		);
+		const tool = createBashTool(execute);
+
+		const result = await tool.execute(
+			{
+				commands: [
+					"cat << 'FOO'",
+					"foo body",
+					"FOO",
+					"cat << 'BAR'",
+					"bar body",
+					"BAR",
+				],
+			},
+			{
+				sessionId: "session-consecutive-heredocs",
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		const expectedFirstCommand = "cat << 'FOO'\nfoo body\nFOO";
+		const expectedSecondCommand = "cat << 'BAR'\nbar body\nBAR";
+		expect(execute).toHaveBeenCalledTimes(2);
+		expect(execute).toHaveBeenNthCalledWith(
+			1,
+			expectedFirstCommand,
+			process.cwd(),
+			expect.objectContaining({ sessionId: "session-consecutive-heredocs" }),
+		);
+		expect(execute).toHaveBeenNthCalledWith(
+			2,
+			expectedSecondCommand,
+			process.cwd(),
+			expect.objectContaining({ sessionId: "session-consecutive-heredocs" }),
+		);
+		expect(result).toEqual([
+			expect.objectContaining({
+				query: "cat << 'FOO'\nfoo body\nFOO",
+				result: `ran:${expectedFirstCommand}`,
+			}),
+			expect.objectContaining({
+				query: "cat << 'BAR'\nbar body\nBAR",
+				result: `ran:${expectedSecondCommand}`,
+			}),
+		]);
+	});
+
+	it("does not treat here-strings as split heredocs", async () => {
+		const execute = vi.fn(
+			async (command: string | { command: string }) =>
+				`ran:${typeof command === "string" ? command : command.command}`,
+		);
+		const tool = createBashTool(execute);
+
+		const result = await tool.execute(
+			{ commands: ['wc -c <<< "hello"', "hello"] },
+			{
+				sessionId: "session-here-string",
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		expect(execute).toHaveBeenCalledTimes(2);
+		expect(result).toEqual([
+			expect.objectContaining({
+				query: 'wc -c <<< "hello"',
+				result: 'ran:wc -c <<< "hello"',
+			}),
+			expect.objectContaining({
+				query: "hello",
+				result: "ran:hello",
+			}),
+		]);
+	});
+
+	it("does not coalesce unterminated heredoc command arrays", async () => {
+		const execute = vi.fn(
+			async (command: string | { command: string }) =>
+				`ran:${typeof command === "string" ? command : command.command}`,
+		);
+		const tool = createBashTool(execute);
+
+		const result = await tool.execute(
+			{ commands: ["python3 << 'PYEOF'", "print('ok')"] },
+			{
+				sessionId: "session-unterminated-heredoc",
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		expect(execute).toHaveBeenCalledTimes(2);
+		expect(result).toEqual([
+			expect.objectContaining({
+				query: "python3 << 'PYEOF'",
+				result: "ran:python3 << 'PYEOF'",
+			}),
+			expect.objectContaining({
+				query: "print('ok')",
+				result: "ran:print('ok')",
+			}),
+		]);
+	});
+
+	it("truncates long command echoes in tool results without affecting execution", async () => {
+		const execute = vi.fn(
+			async (command: string | { command: string }) =>
+				`ran:${typeof command === "string" ? command.length : command.command.length}`,
+		);
+		const tool = createBashTool(execute);
+		const largeSource = "x".repeat(14000);
+		const command = `cat > /app/eval.scm << 'EOF'\n${largeSource}\nEOF`;
+
+		const result = (await tool.execute(
+			{ commands: [command] },
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		)) as Array<{ query: string; result: string; success: boolean }>;
+
+		// The executor still receives the full command
+		expect(execute).toHaveBeenCalledWith(
+			command,
+			process.cwd(),
+			expect.anything(),
+		);
+		expect(result[0].success).toBe(true);
+		expect(result[0].result).toBe(`ran:${command.length}`);
+		// The provider-facing echo is bounded and self-describing
+		expect(result[0].query.length).toBeLessThan(
+			RUN_COMMAND_QUERY_PREVIEW_LIMIT + 100,
+		);
+		expect(result[0].query).toContain("cat > /app/eval.scm << 'EOF'");
+		expect(result[0].query).toContain("command truncated");
+		expect(result[0].query).toContain("full command is in the tool call input");
+	});
+
+	it("truncates long command echoes on the error path too", async () => {
+		const execute = vi.fn(async () => {
+			throw new Error("boom");
+		});
+		const tool = createBashTool(execute);
+		const command = `cat > /app/big.txt << 'EOF'\n${"y".repeat(10000)}\nEOF`;
+
+		const result = (await tool.execute(
+			{ commands: [command] },
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		)) as Array<{ query: string; success: boolean; error?: string }>;
+
+		expect(result[0].success).toBe(false);
+		expect(result[0].error).toContain("boom");
+		expect(result[0].query.length).toBeLessThan(
+			RUN_COMMAND_QUERY_PREVIEW_LIMIT + 100,
+		);
+		expect(result[0].query).toContain("command truncated");
+	});
+
+	it("truncates long command echoes for the structured windows shell tool", async () => {
+		const execute = vi.fn(async () => "ok");
+		const tool = createWindowsShellTool(execute);
+		const command = `powershell -Command "${"z".repeat(9000)}"`;
+
+		const result = (await tool.execute({ commands: [command] } as never, {
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			iteration: 1,
+		})) as Array<{ query: string; success: boolean }>;
+
+		expect(result[0].success).toBe(true);
+		expect(result[0].query.length).toBeLessThan(
+			RUN_COMMAND_QUERY_PREVIEW_LIMIT + 100,
+		);
+		expect(result[0].query).toContain("command truncated");
 	});
 
 	it("emits timeout telemetry without leaking raw command data", async () => {
@@ -1067,13 +1519,13 @@ describe("zod schema conversion", () => {
 					end_line: {
 						anyOf: [{ type: "integer" }, { type: "null" }],
 						description:
-							"Optional one-based ending line number to read through; use null or omit for the end of the file",
+							"Optional one-based ending line number to read through; use null or omit to read to the end of the file or the read cap, whichever comes first",
 					},
 				},
 				required: ["path"],
 			},
 			description:
-				"Array of file read requests. Omit start_line/end_line or set them to null to return the full file content boundaries; provide integers to return only that inclusive one-based line range. Prefer this tool over running terminal command to get file content for better performance and reliability.",
+				"Array of file read requests. Omit start_line/end_line or set them to null to read from the start; provide integers to return only that inclusive one-based line range. Reads are capped, so page through long files with start_line/end_line. Prefer this tool over running terminal command to get file content for better performance and reliability.",
 		});
 		expect(inputSchema.required).toEqual(["files"]);
 	});

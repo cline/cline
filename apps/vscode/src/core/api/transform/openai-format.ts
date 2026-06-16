@@ -1,19 +1,19 @@
-import { Anthropic } from "@anthropic-ai/sdk"
-import OpenAI from "openai"
-import { ApiProvider } from "@/shared/api"
+import type { Anthropic } from "@anthropic-ai/sdk";
+import type OpenAI from "openai";
+import type { ApiProvider } from "@/shared/api";
 import {
-	ClineAssistantRedactedThinkingBlock,
-	ClineAssistantThinkingBlock,
-	ClineAssistantToolUseBlock,
-	ClineImageContentBlock,
-	ClineStorageMessage,
-	ClineTextContentBlock,
-	ClineUserToolResultContentBlock,
-} from "@/shared/messages/content"
-import { Logger } from "@/shared/services/Logger"
+	type ClineAssistantRedactedThinkingBlock,
+	type ClineAssistantThinkingBlock,
+	type ClineAssistantToolUseBlock,
+	type ClineImageContentBlock,
+	type ClineTextContentBlock,
+	type ClineUserToolResultContentBlock,
+	getImageDataUrl,
+} from "@/shared/messages/content";
+import { Logger } from "@/shared/services/Logger";
 
 // OpenAI API has a maximum tool call ID length of 40 characters
-const MAX_TOOL_CALL_ID_LENGTH = 40
+const MAX_TOOL_CALL_ID_LENGTH = 40;
 
 /**
  * Determines if a given tool ID follows the OpenAI Responses API format for tool calls.
@@ -23,7 +23,7 @@ const MAX_TOOL_CALL_ID_LENGTH = 40
  * @returns True if the tool ID matches the OpenAI Responses API format, false otherwise
  */
 function isOpenAIResponseToolId(callId: string): boolean {
-	return callId.startsWith("fc_") && callId.length === 53
+	return callId.startsWith("fc_") && callId.length === 53;
 }
 
 /**
@@ -37,21 +37,24 @@ function isOpenAIResponseToolId(callId: string): boolean {
  * @param provider - The API provider that the OpenAI formatted messages will be sent to
  * @returns The transformed ID suitable for OpenAI API
  */
-function transformToolCallIdForNativeApi(toolId: string, provider?: ApiProvider): string {
+function transformToolCallIdForNativeApi(
+	toolId: string,
+	provider?: ApiProvider,
+): string {
 	// OpenAI Responses API uses "fc_" prefix with 53 char length
 	// Convert these to "call_" prefix format for Chat Completions API
 	if (isOpenAIResponseToolId(toolId)) {
 		// Use the last 33 chars + "call_" (5 chars) to stay under the 40-char limit.
-		return `call_${toolId.slice(toolId.length - (MAX_TOOL_CALL_ID_LENGTH - 5))}`
+		return `call_${toolId.slice(toolId.length - (MAX_TOOL_CALL_ID_LENGTH - 5))}`;
 	}
 	if (provider !== "openai-native") {
-		return toolId
+		return toolId;
 	}
 	// Ensure ID doesn't exceed max length
 	if (toolId.length > MAX_TOOL_CALL_ID_LENGTH) {
-		return toolId.slice(0, MAX_TOOL_CALL_ID_LENGTH)
+		return toolId.slice(0, MAX_TOOL_CALL_ID_LENGTH);
 	}
-	return toolId
+	return toolId;
 }
 
 /**
@@ -65,17 +68,17 @@ function transformToolCallIdForNativeApi(toolId: string, provider?: ApiProvider)
  * @returns Array of OpenAI.Chat.ChatCompletionMessageParam objects
  */
 export function convertToOpenAiMessages(
-	anthropicMessages: Omit<ClineStorageMessage, "modelInfo">[],
+	anthropicMessages: Anthropic.Messages.MessageParam[],
 	provider?: ApiProvider,
 ): OpenAI.Chat.ChatCompletionMessageParam[] {
-	const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = []
+	const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [];
 
 	for (const anthropicMessage of anthropicMessages) {
 		if (typeof anthropicMessage.content === "string") {
 			openAiMessages.push({
 				role: anthropicMessage.role,
 				content: anthropicMessage.content,
-			})
+			});
 		} else {
 			// image_url.url is base64 encoded image data
 			// ensure it contains the content-type of the image: data:image/png;base64,
@@ -86,52 +89,56 @@ export function convertToOpenAiMessages(
         { role: "tool", tool_call_id: "", content: ""}
          */
 			if (anthropicMessage.role === "user") {
-				const { nonToolMessages, toolMessages } = anthropicMessage.content.reduce<{
-					nonToolMessages: (ClineTextContentBlock | ClineImageContentBlock)[]
-					toolMessages: ClineUserToolResultContentBlock[]
-				}>(
-					(acc, part) => {
-						if (part.type === "tool_result") {
-							acc.toolMessages.push(part)
-						} else if (part.type === "text" || part.type === "image") {
-							acc.nonToolMessages.push(part)
-						} // user cannot send tool_use messages
-						return acc
-					},
-					{ nonToolMessages: [], toolMessages: [] },
-				)
+				const { nonToolMessages, toolMessages } =
+					anthropicMessage.content.reduce<{
+						nonToolMessages: (ClineTextContentBlock | ClineImageContentBlock)[];
+						toolMessages: ClineUserToolResultContentBlock[];
+					}>(
+						(acc, part) => {
+							if (part.type === "tool_result") {
+								acc.toolMessages.push(part);
+							} else if (part.type === "text" || part.type === "image") {
+								acc.nonToolMessages.push(part);
+							} // user cannot send tool_use messages
+							return acc;
+						},
+						{ nonToolMessages: [], toolMessages: [] },
+					);
 
 				// Process tool result messages FIRST since they must follow the tool use messages
-				const toolResultImages: ClineImageContentBlock[] = []
+				const toolResultImages: ClineImageContentBlock[] = [];
 				toolMessages.forEach((toolMessage) => {
 					// The Anthropic SDK allows tool results to be a string or an array of text and image blocks, enabling rich and structured content. In contrast, the OpenAI SDK only supports tool results as a single string, so we map the Anthropic tool result parts into one concatenated string to maintain compatibility.
-					let content: string
+					let content: string;
 
 					if (typeof toolMessage.content === "string") {
-						content = toolMessage.content
+						content = toolMessage.content;
 					} else if (Array.isArray(toolMessage.content)) {
 						content =
 							toolMessage.content
 								?.map((part) => {
 									if (part.type === "image") {
-										toolResultImages.push(part)
-										return "(see following user message for image)"
+										toolResultImages.push(part);
+										return "(see following user message for image)";
 									}
-									return part.text
+									return part.text;
 								})
-								.join("\n") ?? ""
+								.join("\n") ?? "";
 					} else {
 						// Handle undefined content
-						content = ""
+						content = "";
 					}
 					openAiMessages.push({
 						role: "tool",
 						// The tool_call_id must match the id used in the assistant's tool_calls array.
 						// Use the same transformation logic as tool_calls to ensure IDs match.
-						tool_call_id: transformToolCallIdForNativeApi(toolMessage.tool_use_id, provider),
+						tool_call_id: transformToolCallIdForNativeApi(
+							toolMessage.tool_use_id,
+							provider,
+						),
 						content: content,
-					})
-				})
+					});
+				});
 
 				// If tool results contain images, send as a separate user message
 				// I ran into an issue where if I gave feedback for one of many tool uses, the request would fail.
@@ -144,9 +151,9 @@ export function convertToOpenAiMessages(
 						role: "user",
 						content: toolResultImages.map((part) => ({
 							type: "image_url",
-							image_url: { url: `data:${part.source.media_type};base64,${part.source.data}` },
+							image_url: { url: getImageDataUrl(part.source) },
 						})),
-					})
+					});
 				}
 
 				// Process non-tool messages
@@ -158,106 +165,117 @@ export function convertToOpenAiMessages(
 								return {
 									type: "image_url",
 									image_url: {
-										url: `data:${part.source.media_type};base64,${part.source.data}`,
+										url: getImageDataUrl(part.source),
 									},
-								}
+								};
 							}
-							return { type: "text", text: part.text }
+							return { type: "text", text: part.text };
 						}),
-					})
+					});
 				}
 			} else if (anthropicMessage.role === "assistant") {
-				const { nonToolMessages, toolMessages } = anthropicMessage.content.reduce<{
-					nonToolMessages: (
-						| ClineTextContentBlock
-						| ClineImageContentBlock
-						| ClineAssistantThinkingBlock
-						| ClineAssistantRedactedThinkingBlock
-					)[]
-					toolMessages: ClineAssistantToolUseBlock[]
-				}>(
-					(acc, part) => {
-						if (part.type === "tool_use") {
-							acc.toolMessages.push(part)
-						} else if (part.type === "text" || part.type === "image") {
-							acc.nonToolMessages.push(part)
-						} // assistant cannot send tool_result messages
-						return acc
-					},
-					{ nonToolMessages: [], toolMessages: [] },
-				)
+				const { nonToolMessages, toolMessages } =
+					anthropicMessage.content.reduce<{
+						nonToolMessages: (
+							| ClineTextContentBlock
+							| ClineImageContentBlock
+							| ClineAssistantThinkingBlock
+							| ClineAssistantRedactedThinkingBlock
+						)[];
+						toolMessages: ClineAssistantToolUseBlock[];
+					}>(
+						(acc, part) => {
+							if (part.type === "tool_use") {
+								acc.toolMessages.push(part);
+							} else if (part.type === "text" || part.type === "image") {
+								acc.nonToolMessages.push(part);
+							} // assistant cannot send tool_result messages
+							return acc;
+						},
+						{ nonToolMessages: [], toolMessages: [] },
+					);
 
 				// Process non-tool messages
-				let content: string | undefined
-				const reasoningDetails: any[] = []
-				const thinkingBlock = []
+				let content: string | undefined;
+				const reasoningDetails: any[] = [];
+				const thinkingBlock = [];
 				if (nonToolMessages.length > 0) {
 					nonToolMessages.forEach((part) => {
-						const anyPart = part as any
+						const anyPart = part as any;
 						if (part.type === "text" && anyPart.reasoning_details) {
 							if (Array.isArray(anyPart.reasoning_details)) {
-								reasoningDetails.push(...anyPart.reasoning_details)
+								reasoningDetails.push(...anyPart.reasoning_details);
 							} else {
-								reasoningDetails.push(anyPart.reasoning_details)
+								reasoningDetails.push(anyPart.reasoning_details);
 							}
 						}
 						if (part.type === "thinking" && part.thinking) {
 							// Reasoning details should have been moved to the text block
-							thinkingBlock.push(part)
+							thinkingBlock.push(part);
 						}
-					})
+					});
 					content = nonToolMessages
 						.map((part) => {
 							if (part.type === "text" && part.text) {
-								return part.text
+								return part.text;
 							}
-							return ""
+							return "";
 						})
-						.join("\n")
+						.join("\n");
 				}
 
 				// Process tool use messages
-				const tool_calls: OpenAI.Chat.ChatCompletionMessageToolCall[] = toolMessages.map((toolMessage) => {
-					const toolDetails = toolMessage.reasoning_details
-					const toolId = toolMessage.id
-					if (toolDetails) {
-						if (Array.isArray(toolDetails)) {
-							// For Gemini: reasoning details must be linkable back to the tool call.
-							// Sometimes OpenRouter/Gemini returns entries without `id`; those poison the next request.
-							// Keep only entries with an id matching the tool call id.
-							// See: https://github.com/cline/cline/issues/8214
-							const validDetails = toolDetails.filter((detail: any) => detail?.id === toolId)
-							if (validDetails.length > 0) {
-								reasoningDetails.push(...validDetails)
-							}
-						} else {
-							// Single reasoning detail - only include if it has matching id
-							const detail = toolDetails as any
-							if (detail?.id === toolId) {
-								reasoningDetails.push(toolDetails)
+				const tool_calls: OpenAI.Chat.ChatCompletionMessageToolCall[] =
+					toolMessages.map((toolMessage) => {
+						const toolDetails = toolMessage.reasoning_details;
+						const toolId = toolMessage.id;
+						if (toolDetails) {
+							if (Array.isArray(toolDetails)) {
+								// For Gemini: reasoning details must be linkable back to the tool call.
+								// Sometimes OpenRouter/Gemini returns entries without `id`; those poison the next request.
+								// Keep only entries with an id matching the tool call id.
+								// See: https://github.com/cline/cline/issues/8214
+								const validDetails = toolDetails.filter(
+									(detail: any) => detail?.id === toolId,
+								);
+								if (validDetails.length > 0) {
+									reasoningDetails.push(...validDetails);
+								}
+							} else {
+								// Single reasoning detail - only include if it has matching id
+								const detail = toolDetails as any;
+								if (detail?.id === toolId) {
+									reasoningDetails.push(toolDetails);
+								}
 							}
 						}
-					}
 
-					return {
-						// Use the same transformation as tool_call_id to ensure IDs match
-						id: transformToolCallIdForNativeApi(toolId, provider),
-						type: "function",
-						function: {
-							name: toolMessage.name,
-							// json string
-							arguments: JSON.stringify(toolMessage.input),
-						},
-					}
-				})
+						return {
+							// Use the same transformation as tool_call_id to ensure IDs match
+							id: transformToolCallIdForNativeApi(toolId, provider),
+							type: "function",
+							function: {
+								name: toolMessage.name,
+								// json string
+								arguments: JSON.stringify(toolMessage.input),
+							},
+						};
+					});
 
 				// Set content to blank when tool_calls are present but content has no text, per OpenAI API spec
-				const hasToolCalls = tool_calls.length > 0
-				const hasMeaningfulContent = content !== undefined && content.trim() !== ""
-				const finalContent = hasMeaningfulContent ? content : hasToolCalls ? null : undefined
+				const hasToolCalls = tool_calls.length > 0;
+				const hasMeaningfulContent =
+					content !== undefined && content.trim() !== "";
+				const finalContent = hasMeaningfulContent
+					? content
+					: hasToolCalls
+						? null
+						: undefined;
 
 				const consolidatedReasoningDetails =
-					reasoningDetails.length > 0 ? consolidateReasoningDetails(reasoningDetails as any) : []
+					reasoningDetails.length > 0
+						? consolidateReasoningDetails(reasoningDetails as any)
+						: [];
 
 				openAiMessages.push({
 					role: "assistant",
@@ -266,86 +284,91 @@ export function convertToOpenAiMessages(
 					tool_calls: tool_calls?.length > 0 ? tool_calls : undefined,
 					// Only include reasoning_details when non-empty; sending [] can trigger provider validation issues.
 					// @ts-expect-error
-					reasoning_details: consolidatedReasoningDetails.length > 0 ? consolidatedReasoningDetails : undefined,
-				})
+					reasoning_details:
+						consolidatedReasoningDetails.length > 0
+							? consolidatedReasoningDetails
+							: undefined,
+				});
 			}
 		}
 	}
 
-	return openAiMessages
+	return openAiMessages;
 }
 
 // Type for OpenRouter's reasoning detail elements
 // https://openrouter.ai/docs/use-cases/reasoning-tokens#streaming-response
 type ReasoningDetail = {
 	// https://openrouter.ai/docs/use-cases/reasoning-tokens#reasoning-detail-types
-	type: string // "reasoning.summary" | "reasoning.encrypted" | "reasoning.text"
-	text?: string
-	data?: string // Encrypted reasoning data
-	signature?: string | null
-	id?: string | null // Unique identifier for the reasoning detail
+	type: string; // "reasoning.summary" | "reasoning.encrypted" | "reasoning.text"
+	text?: string;
+	data?: string; // Encrypted reasoning data
+	signature?: string | null;
+	id?: string | null; // Unique identifier for the reasoning detail
 	/*
 	 The format of the reasoning detail, with possible values:
 	 	"unknown" - Format is not specified
 		"openai-responses-v1" - OpenAI responses format version 1
 		"anthropic-claude-v1" - Anthropic Claude format version 1 (default)
 	 */
-	format: string //"unknown" | "openai-responses-v1" | "anthropic-claude-v1" | "xai-responses-v1"
-	index?: number // Sequential index of the reasoning detail
-}
+	format: string; //"unknown" | "openai-responses-v1" | "anthropic-claude-v1" | "xai-responses-v1"
+	index?: number; // Sequential index of the reasoning detail
+};
 
 // Helper function to convert reasoning_details array to the format OpenRouter API expects
 // Takes an array of reasoning detail objects and consolidates them by index
-function consolidateReasoningDetails(reasoningDetails: ReasoningDetail[]): ReasoningDetail[] {
+function consolidateReasoningDetails(
+	reasoningDetails: ReasoningDetail[],
+): ReasoningDetail[] {
 	if (!reasoningDetails || reasoningDetails.length === 0) {
-		return []
+		return [];
 	}
 
 	// Group by index
-	const groupedByIndex = new Map<number, ReasoningDetail[]>()
+	const groupedByIndex = new Map<number, ReasoningDetail[]>();
 
 	for (const detail of reasoningDetails) {
 		// Drop corrupted encrypted reasoning blocks that would otherwise trigger:
 		// "Invalid input: expected string, received undefined" for reasoning_details.*.data
 		// See: https://github.com/cline/cline/issues/8214
-		if (detail.type === "reasoning.encrypted" && !detail.data) continue
+		if (detail.type === "reasoning.encrypted" && !detail.data) continue;
 
-		const index = detail.index ?? 0
+		const index = detail.index ?? 0;
 		if (!groupedByIndex.has(index)) {
-			groupedByIndex.set(index, [])
+			groupedByIndex.set(index, []);
 		}
-		groupedByIndex.get(index)!.push(detail)
+		groupedByIndex.get(index)!.push(detail);
 	}
 
 	// Consolidate each group
-	const consolidated: ReasoningDetail[] = []
+	const consolidated: ReasoningDetail[] = [];
 
 	for (const [index, details] of groupedByIndex.entries()) {
 		// Concatenate all text parts
-		let concatenatedText = ""
-		let signature: string | undefined
-		let id: string | undefined
-		let format = "unknown"
-		let type = "reasoning.text"
+		let concatenatedText = "";
+		let signature: string | undefined;
+		let id: string | undefined;
+		let format = "unknown";
+		let type = "reasoning.text";
 
 		for (const detail of details) {
 			if (detail.text) {
-				concatenatedText += detail.text
+				concatenatedText += detail.text;
 			}
 			// Keep the signature from the last item that has one
 			if (detail.signature) {
-				signature = detail.signature
+				signature = detail.signature;
 			}
 			// Keep the id from the last item that has one
 			if (detail.id) {
-				id = detail.id
+				id = detail.id;
 			}
 			// Keep format and type from any item (they should all be the same)
 			if (detail.format) {
-				format = detail.format
+				format = detail.format;
 			}
 			if (detail.type) {
-				type = detail.type
+				type = detail.type;
 			}
 		}
 
@@ -358,12 +381,12 @@ function consolidateReasoningDetails(reasoningDetails: ReasoningDetail[]): Reaso
 				id: id,
 				format: format,
 				index: index,
-			}
-			consolidated.push(consolidatedEntry)
+			};
+			consolidated.push(consolidatedEntry);
 		}
 
 		// For encrypted chunks (data), only keep the last one
-		let lastDataEntry: ReasoningDetail | undefined
+		let lastDataEntry: ReasoningDetail | undefined;
 		for (const detail of details) {
 			if (detail.data) {
 				lastDataEntry = {
@@ -373,23 +396,25 @@ function consolidateReasoningDetails(reasoningDetails: ReasoningDetail[]): Reaso
 					id: detail.id,
 					format: detail.format,
 					index: index,
-				}
+				};
 			}
 		}
 		if (lastDataEntry) {
-			consolidated.push(lastDataEntry)
+			consolidated.push(lastDataEntry);
 		}
 	}
 
-	return consolidated
+	return consolidated;
 }
 
 // Unique name to use to filter out tool call that cannot be parsed correctly
-const UNIQUE_ERROR_TOOL_NAME = "_cline_error_unknown_function_"
+const UNIQUE_ERROR_TOOL_NAME = "_cline_error_unknown_function_";
 
 // Convert OpenAI response to Anthropic format
-export function convertToAnthropicMessage(completion: OpenAI.Chat.Completions.ChatCompletion): Anthropic.Messages.Message {
-	const openAiMessage = completion.choices[0].message
+export function convertToAnthropicMessage(
+	completion: OpenAI.Chat.Completions.ChatCompletion,
+): Anthropic.Messages.Message {
+	const openAiMessage = completion.choices[0].message;
 	const anthropicMessage: Anthropic.Messages.Message = {
 		id: completion.id,
 		type: "message",
@@ -405,14 +430,14 @@ export function convertToAnthropicMessage(completion: OpenAI.Chat.Completions.Ch
 		stop_reason: (() => {
 			switch (completion.choices[0].finish_reason) {
 				case "stop":
-					return "end_turn"
+					return "end_turn";
 				case "length":
-					return "max_tokens"
+					return "max_tokens";
 				case "tool_calls":
-					return "tool_use"
+					return "tool_use";
 				case "content_filter": // Anthropic doesn't have an exact equivalent
 				default:
-					return null
+					return null;
 			}
 		})(),
 		stop_sequence: null, // which custom stop_sequence was generated, if any (not applicable if you don't use stop_sequence)
@@ -421,37 +446,40 @@ export function convertToAnthropicMessage(completion: OpenAI.Chat.Completions.Ch
 			output_tokens: completion.usage?.completion_tokens || 0,
 			cache_creation_input_tokens: null,
 			cache_read_input_tokens: null,
+			server_tool_use: null,
 		},
-	}
+	};
 	try {
 		if (openAiMessage?.tool_calls?.length) {
-			const functionCalls = openAiMessage.tool_calls.filter((tc: any) => tc?.type === "function" && tc.function)
+			const functionCalls = openAiMessage.tool_calls.filter(
+				(tc: any) => tc?.type === "function" && tc.function,
+			);
 			if (functionCalls.length > 0) {
 				anthropicMessage.content.push(
 					...functionCalls.map((toolCall: any): Anthropic.ToolUseBlock => {
-						let parsedInput = {}
+						let parsedInput = {};
 						try {
-							parsedInput = JSON.parse(toolCall.function?.arguments || "{}")
+							parsedInput = JSON.parse(toolCall.function?.arguments || "{}");
 						} catch (error) {
-							Logger.error("Failed to parse tool arguments:", error)
+							Logger.error("Failed to parse tool arguments:", error);
 						}
 						return {
 							type: "tool_use",
 							id: toolCall.id,
 							name: toolCall.function?.name || UNIQUE_ERROR_TOOL_NAME,
 							input: parsedInput,
-						}
+						};
 					}),
-				)
+				);
 			}
 
-			return anthropicMessage
+			return anthropicMessage;
 		}
 	} catch (error) {
-		Logger.error("Error converting OpenAI message to Anthropic format:", error)
+		Logger.error("Error converting OpenAI message to Anthropic format:", error);
 	}
 
-	return anthropicMessage
+	return anthropicMessage;
 }
 
 /**
@@ -470,43 +498,47 @@ export function sanitizeGeminiMessages(
 	modelId: string,
 ): OpenAI.Chat.ChatCompletionMessageParam[] {
 	if (!modelId.includes("gemini")) {
-		return messages
+		return messages;
 	}
 
-	const droppedToolCallIds = new Set<string>()
-	const sanitized: OpenAI.Chat.ChatCompletionMessageParam[] = []
+	const droppedToolCallIds = new Set<string>();
+	const sanitized: OpenAI.Chat.ChatCompletionMessageParam[] = [];
 
 	for (const msg of messages) {
 		if (msg.role === "assistant") {
-			const anyMsg = msg as any
-			const toolCalls = anyMsg.tool_calls
+			const anyMsg = msg as any;
+			const toolCalls = anyMsg.tool_calls;
 			if (Array.isArray(toolCalls) && toolCalls.length > 0) {
-				const reasoningDetails = anyMsg.reasoning_details
-				const hasReasoningDetails = Array.isArray(reasoningDetails) && reasoningDetails.length > 0
+				const reasoningDetails = anyMsg.reasoning_details;
+				const hasReasoningDetails =
+					Array.isArray(reasoningDetails) && reasoningDetails.length > 0;
 				if (!hasReasoningDetails) {
 					for (const tc of toolCalls) {
 						if (tc?.id) {
-							droppedToolCallIds.add(tc.id)
+							droppedToolCallIds.add(tc.id);
 						}
 					}
 					// Keep any textual content, but drop the tool_calls themselves.
 					if (anyMsg.content) {
-						sanitized.push({ role: "assistant", content: anyMsg.content } as any)
+						sanitized.push({
+							role: "assistant",
+							content: anyMsg.content,
+						} as any);
 					}
-					continue
+					continue;
 				}
 			}
 		}
 
 		if (msg.role === "tool") {
-			const anyMsg = msg as any
+			const anyMsg = msg as any;
 			if (anyMsg.tool_call_id && droppedToolCallIds.has(anyMsg.tool_call_id)) {
-				continue
+				continue;
 			}
 		}
 
-		sanitized.push(msg)
+		sanitized.push(msg);
 	}
 
-	return sanitized
+	return sanitized;
 }

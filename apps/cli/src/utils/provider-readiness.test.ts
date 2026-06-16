@@ -140,6 +140,12 @@ describe("provider readiness", () => {
 			} satisfies ProviderSettings),
 		).toBe(true);
 		expect(
+			isProviderSettingsUsable("vertex", {
+				provider: "vertex",
+				gcp: { projectId: "test-project", region: "us-central1" },
+			} satisfies ProviderSettings),
+		).toBe(true);
+		expect(
 			isProviderSettingsUsable("sapaicore", {
 				provider: "sapaicore",
 				baseUrl: "https://api.ai.example.invalid",
