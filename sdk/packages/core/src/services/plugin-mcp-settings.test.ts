@@ -429,6 +429,44 @@ export default {
 		expect(await readFile(settingsPath, "utf8")).toBe("{ nope");
 	});
 
+	it("returns write failures instead of throwing after plugin sync", async () => {
+		const { root, pluginPath } = await createPlugin(`
+export default {
+  name: "repo-docs",
+  manifest: { capabilities: ["mcp"] },
+  setup(api) {
+    api.registerMcpServer({
+      name: "repo-docs",
+      transport: { type: "streamableHttp", url: "https://example.com/mcp" },
+    })
+  },
+}
+`);
+		const blockedDirectory = join(root, "not-a-directory");
+		await writeFile(blockedDirectory, "file", "utf8");
+		const settingsPath = join(blockedDirectory, "cline_mcp_settings.json");
+
+		const result = await syncPluginMcpServersToSettings({
+			pluginPaths: [pluginPath],
+			settingsPath,
+		});
+
+		expect(result.mutations).toEqual([
+			expect.objectContaining({
+				name: "repo-docs",
+				pluginName: "repo-docs",
+				pluginPath,
+				action: "created",
+			}),
+		]);
+		expect(result.failures).toEqual([
+			expect.objectContaining({
+				pluginPath,
+			}),
+		]);
+		expect(result.failures[0]?.message).toContain(blockedDirectory);
+	});
+
 	it("preserves oauth when updating plugin-owned entries", async () => {
 		const { pluginPath, settingsPath } = await createPlugin(`
 export default {

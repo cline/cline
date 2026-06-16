@@ -22,6 +22,7 @@ import {
 	sep,
 } from "node:path";
 import {
+	type PluginMcpSettingsSyncResult,
 	type PluginUninstallOptions,
 	syncPluginMcpServersToSettings,
 	uninstallPlugin,
@@ -46,6 +47,7 @@ export interface PluginInstallResult {
 	source: string;
 	installPath: string;
 	entryPaths: string[];
+	mcpSyncFailures: PluginMcpSettingsSyncResult["failures"];
 }
 
 export interface PluginInstallIo {
@@ -1079,12 +1081,14 @@ export async function installPlugin(
 			source,
 			installPath,
 			entryPaths: entryPaths.map((entry) => resolve(installPath, entry)),
+			mcpSyncFailures: [] as PluginMcpSettingsSyncResult["failures"],
 		};
-		await syncPluginMcpServersToSettings({
+		const syncResult = await syncPluginMcpServersToSettings({
 			pluginPaths: result.entryPaths,
 			cwd,
 			workspacePath: cwd,
 		});
+		result.mcpSyncFailures = syncResult.failures;
 		return result;
 	} catch (error) {
 		rmSync(stagingRoot, { recursive: true, force: true });
@@ -1103,6 +1107,11 @@ export async function runPluginInstallCommand(
 		}
 		options.io?.writeln(`Installed plugin from ${result.source}`);
 		options.io?.writeln(`  Path: ${result.installPath}`);
+		for (const failure of result.mcpSyncFailures) {
+			options.io?.writeErr(
+				`Warning: failed to sync plugin MCP servers for ${failure.pluginName ?? failure.pluginPath}: ${failure.message}`,
+			);
+		}
 		return 0;
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);

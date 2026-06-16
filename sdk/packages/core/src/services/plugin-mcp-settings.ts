@@ -457,7 +457,16 @@ export async function syncPluginMcpServersToSettings(
 	}
 
 	if (result.mutations.some((mutation) => mutation.action !== "skipped")) {
-		writeRawSettings(settingsPath, settings, servers);
+		try {
+			writeRawSettings(settingsPath, settings, servers);
+		} catch (error) {
+			for (const pluginPath of options.pluginPaths) {
+				result.failures.push({
+					pluginPath,
+					message: error instanceof Error ? error.message : String(error),
+				});
+			}
+		}
 	}
 	return result;
 }
