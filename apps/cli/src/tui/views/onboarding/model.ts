@@ -47,7 +47,7 @@ export const MAIN_MENU: MenuOption[] = [
 		label: "Sign in with ClinePass",
 		value: "cline-pass",
 		detail: "Low cost subscription for everyone",
-		icon: "\u263a",
+		icon: "\u2726",
 	},
 	{
 		label: "Sign in with ChatGPT",
