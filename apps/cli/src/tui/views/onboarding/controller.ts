@@ -54,6 +54,7 @@ import {
 import { FIELD_ORDER } from "./fields";
 import { useOnboardingKeyboard } from "./keyboard";
 import {
+	getMainMenuOptions,
 	type ModelEntry,
 	type OnboardingResult,
 	type OnboardingStep,
@@ -78,6 +79,14 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 	const providerSettingsManager = useMemo(
 		() => props.providerSettingsManager ?? new ProviderSettingsManager(),
 		[props.providerSettingsManager],
+	);
+	const menuOptions = useMemo(
+		() =>
+			getMainMenuOptions({
+				isClinePassEnabled:
+					getCliFeatureFlagsService().getBooleanFlagEnabled("ext-cline-pass"),
+			}),
+		[],
 	);
 	const [step, setStep] = useState<OnboardingStep>("menu");
 	const [menuSelected, setMenuSelected] = useState(0);
@@ -677,6 +686,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		onExit: props.onExit,
 		oauthProvider,
 		activeProviderId,
+		menuOptions,
 		menuSelected,
 		providerList,
 		modelList,
@@ -761,6 +771,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		handleClineModelTierToggle: toggleClineModelTier,
 		handleModelItemSelect: selectModelItem,
 		menuSelected,
+		menuOptions,
 		modelItems,
 		modelList,
 		modelsLoading,

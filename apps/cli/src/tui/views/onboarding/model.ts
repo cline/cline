@@ -63,6 +63,14 @@ export const MAIN_MENU: MenuOption[] = [
 	},
 ];
 
+export function getMainMenuOptions(options?: {
+	isClinePassEnabled?: boolean;
+}): MenuOption[] {
+	return MAIN_MENU.filter(
+		(option) => option.value !== "cline-pass" || options?.isClinePassEnabled,
+	);
+}
+
 export interface OnboardingResult {
 	providerId: string;
 	modelId: string;

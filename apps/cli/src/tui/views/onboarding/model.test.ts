@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	getMainMenuOptions,
 	getOAuthProviderLabel,
 	toModelEntriesFromKnownModels,
 	toModelEntry,
@@ -7,6 +8,22 @@ import {
 } from "./model";
 
 describe("onboarding model helpers", () => {
+	it("hides ClinePass from the main menu unless its feature flag is enabled", () => {
+		expect(
+			getMainMenuOptions().some((option) => option.value === "cline-pass"),
+		).toBe(false);
+		expect(
+			getMainMenuOptions({ isClinePassEnabled: false }).some(
+				(option) => option.value === "cline-pass",
+			),
+		).toBe(false);
+		expect(
+			getMainMenuOptions({ isClinePassEnabled: true }).some(
+				(option) => option.value === "cline-pass",
+			),
+		).toBe(true);
+	});
+
 	it("maps provider catalog entries into onboarding provider entries", () => {
 		expect(
 			toProviderEntry({

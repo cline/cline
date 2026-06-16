@@ -169,6 +169,7 @@ export function OnboardingView(props: OnboardingViewProps) {
 	return (
 		<OnboardingMainMenuScreen
 			contentWidth={contentWidth}
+			menuOptions={state.menuOptions}
 			menuSelected={state.menuSelected}
 			mouse={mouse}
 		/>
