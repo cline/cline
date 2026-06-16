@@ -333,6 +333,7 @@ export function useModelSelector(opts: {
 									currentModel={config.modelId}
 									currentProviderName={providerDisplayName}
 									models={modelOptions}
+									allowCustomModel={false}
 								/>
 							),
 						});
