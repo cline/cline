@@ -120,8 +120,9 @@ export default defineConfig({
 	define: {
 		__PLATFORM__: JSON.stringify(platform),
 		"process.env.NODE_ENV": JSON.stringify(
-			process.env.NODE_ENV ??
-				(process.env.IS_DEV ? "development" : "production"),
+			(process.env.NODE_ENV ?? process.env.IS_DEV)
+				? "development"
+				: "production",
 		),
 		"process.env.CLINE_ENVIRONMENT": JSON.stringify(
 			process.env.CLINE_ENVIRONMENT ?? "production",
