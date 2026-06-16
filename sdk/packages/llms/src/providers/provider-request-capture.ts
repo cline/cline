@@ -1,5 +1,13 @@
 import { createHash } from "node:crypto";
-import { appendFileSync, mkdirSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	readdirSync,
+	renameSync,
+	rmSync,
+	statSync,
+	writeFileSync,
+} from "node:fs";
 import { join, resolve } from "node:path";
 import type { GatewayStreamRequest } from "@cline/shared";
 import { estimateTokens } from "@cline/shared";
@@ -8,6 +16,11 @@ type CaptureMode = "off" | "summary" | "full";
 type CaptureStage = "ai_sdk_prompt" | "wire_request";
 
 const DEFAULT_MAX_PREVIEW_BYTES = 64 * 1024;
+const CAPTURE_FILE_EXTENSION = ".provider-request.json";
+const CAPTURE_TMP_EXTENSION = ".tmp";
+const CLEANUP_TTL_MS = 24 * 60 * 60 * 1000;
+const cleanupDirs = new Set<string>();
+const attemptCounters = new Map<string, number>();
 
 function readCaptureMode(): CaptureMode {
 	const raw = process.env.CLINE_CAPTURE_PROVIDER_REQUEST?.trim().toLowerCase();
@@ -26,6 +39,10 @@ function readMaxPreviewBytes(): number {
 	return Number.isFinite(parsed) && parsed > 0
 		? Math.floor(parsed)
 		: DEFAULT_MAX_PREVIEW_BYTES;
+}
+
+function isCleanupEnabled(): boolean {
+	return process.env.CLINE_CAPTURE_CLEANUP?.trim().toLowerCase() !== "off";
 }
 
 function resolveCaptureDir(): string | undefined {
@@ -199,17 +216,84 @@ function captureCorrelation(
 	};
 }
 
+function safeFilePart(value: unknown): string | undefined {
+	if (typeof value !== "string" && typeof value !== "number") return undefined;
+	const raw = String(value).trim();
+	if (!raw) return undefined;
+	const safe = raw.replace(/[^a-zA-Z0-9_-]+/g, "_").replace(/^_+|_+$/g, "");
+	return safe || undefined;
+}
+
+function captureIdForCorrelation(correlation: Record<string, unknown>): string {
+	const explicit = safeFilePart(correlation.captureId);
+	if (explicit) return explicit;
+	const hash = hashString(safeStringify(correlation)).slice(0, 16);
+	const runId = safeFilePart(correlation.runId);
+	const iteration = safeFilePart(correlation.iteration);
+	return ["cap", runId, iteration, hash].filter(Boolean).join("_");
+}
+
+function nextAttempt(captureId: string, stage: CaptureStage): number {
+	const key = `${captureId}:${stage}`;
+	const next = (attemptCounters.get(key) ?? 0) + 1;
+	attemptCounters.set(key, next);
+	return next;
+}
+
+function cleanupOldCaptures(dir: string): void {
+	if (!isCleanupEnabled() || cleanupDirs.has(dir)) return;
+	cleanupDirs.add(dir);
+	try {
+		const cutoff = Date.now() - CLEANUP_TTL_MS;
+		for (const file of readdirSync(dir)) {
+			if (
+				!file.endsWith(CAPTURE_FILE_EXTENSION) &&
+				!(
+					file.includes(CAPTURE_FILE_EXTENSION) &&
+					file.endsWith(CAPTURE_TMP_EXTENSION)
+				)
+			) {
+				continue;
+			}
+			const path = join(dir, file);
+			const stat = statSync(path);
+			if (stat.mtimeMs < cutoff) {
+				rmSync(path, { force: true });
+			}
+		}
+	} catch {
+		// Capture cleanup must never affect model execution.
+	}
+}
+
 function writeCapture(record: Record<string, unknown>): void {
 	try {
 		const dir = resolveCaptureDir();
 		if (!dir) return;
 		mkdirSync(dir, { recursive: true });
-		const day = new Date().toISOString().slice(0, 10);
-		appendFileSync(
-			join(dir, `${day}.provider-request.ndjson`),
-			`${safeStringify(record)}\n`,
-			"utf8",
+		cleanupOldCaptures(dir);
+		const correlation =
+			record.correlation && typeof record.correlation === "object"
+				? (record.correlation as Record<string, unknown>)
+				: {};
+		const captureId = captureIdForCorrelation(correlation);
+		const stage =
+			record.captureStage === "ai_sdk_prompt" ||
+			record.captureStage === "wire_request"
+				? record.captureStage
+				: "ai_sdk_prompt";
+		const attempt = nextAttempt(captureId, stage);
+		const finalPath = join(
+			dir,
+			`${captureId}.${stage}.${attempt}${CAPTURE_FILE_EXTENSION}`,
 		);
+		const tmpPath = `${finalPath}.${process.pid}.${Date.now()}${CAPTURE_TMP_EXTENSION}`;
+		writeFileSync(tmpPath, `${safeStringify({ ...record, attempt })}\n`, {
+			encoding: "utf8",
+			mode: 0o600,
+		});
+		renameSync(tmpPath, finalPath);
+		if (existsSync(tmpPath)) rmSync(tmpPath, { force: true });
 	} catch {
 		// Provider-request capture must never affect model execution.
 	}

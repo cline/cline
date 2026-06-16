@@ -1,4 +1,10 @@
-import { mkdtempSync, readdirSync, readFileSync } from "node:fs";
+import {
+	mkdtempSync,
+	readdirSync,
+	readFileSync,
+	utimesSync,
+	writeFileSync,
+} from "node:fs";
 import { access } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -115,16 +121,18 @@ const originalCaptureDir = process.env.CLINE_CAPTURE_DIR;
 const originalCaptureDataDir = process.env.CLINE_DATA_DIR;
 const originalCaptureMaxPreviewBytes =
 	process.env.CLINE_CAPTURE_MAX_PREVIEW_BYTES;
+const originalCaptureCleanup = process.env.CLINE_CAPTURE_CLEANUP;
 
 function readCaptureRecords(dir: string): Array<Record<string, unknown>> {
 	return readdirSync(dir)
-		.filter((file) => file.endsWith(".provider-request.ndjson"))
-		.flatMap((file) =>
-			readFileSync(join(dir, file), "utf8")
-				.trim()
-				.split("\n")
-				.filter(Boolean)
-				.map((line) => JSON.parse(line) as Record<string, unknown>),
+		.filter((file) => file.endsWith(".provider-request.json"))
+		.sort()
+		.map(
+			(file) =>
+				JSON.parse(readFileSync(join(dir, file), "utf8")) as Record<
+					string,
+					unknown
+				>,
 		);
 }
 
@@ -189,6 +197,11 @@ describe("sdk-gateway", () => {
 		} else {
 			process.env.CLINE_CAPTURE_MAX_PREVIEW_BYTES =
 				originalCaptureMaxPreviewBytes;
+		}
+		if (originalCaptureCleanup === undefined) {
+			delete process.env.CLINE_CAPTURE_CLEANUP;
+		} else {
+			process.env.CLINE_CAPTURE_CLEANUP = originalCaptureCleanup;
 		}
 	});
 
@@ -3652,6 +3665,7 @@ describe("sdk-gateway", () => {
 				modelId: "anthropic/claude-test",
 				messages: baseMessages,
 				metadata: {
+					captureId: "cap-session-1-run-1-2",
 					sessionId: "session-1",
 					runId: "run-1",
 					conversationId: "conv-1",
@@ -3662,10 +3676,15 @@ describe("sdk-gateway", () => {
 
 		const records = readCaptureRecords(captureDir);
 		expect(records).toHaveLength(1);
+		expect(readdirSync(captureDir)).toContain(
+			"cap-session-1-run-1-2.ai_sdk_prompt.1.provider-request.json",
+		);
 		expect(records[0]).toMatchObject({
 			captureStage: "ai_sdk_prompt",
+			attempt: 1,
 			mode: "summary",
 			correlation: {
+				captureId: "cap-session-1-run-1-2",
 				sessionId: "session-1",
 				runId: "run-1",
 				conversationId: "conv-1",
@@ -3688,6 +3707,36 @@ describe("sdk-gateway", () => {
 			},
 		});
 		expect(records[0]).not.toHaveProperty("payload");
+	});
+
+	it("falls back to a stable per-request capture filename without captureId", async () => {
+		const captureDir = mkdtempSync(join(tmpdir(), "llms-capture-fallback-"));
+		process.env.CLINE_CAPTURE_PROVIDER_REQUEST = "summary";
+		process.env.CLINE_CAPTURE_DIR = captureDir;
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "openrouter", apiKey: "test-key" }],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openrouter",
+				modelId: "anthropic/claude-test",
+				messages: baseMessages,
+				metadata: { runId: "run-fallback", iteration: 4 },
+			}),
+		);
+
+		const files = readdirSync(captureDir).filter((file) =>
+			file.endsWith(".provider-request.json"),
+		);
+		expect(files).toHaveLength(1);
+		expect(files[0]).toMatch(
+			/^cap_run-fallback_4_[a-f0-9]{16}\.ai_sdk_prompt\.1\.provider-request\.json$/,
+		);
 	});
 
 	it("honors the full capture preview byte cap override", async () => {
@@ -3860,5 +3909,109 @@ describe("sdk-gateway", () => {
 				},
 			},
 		});
+	});
+
+	it("increments capture attempts instead of overwriting repeated wire requests", async () => {
+		const captureDir = mkdtempSync(join(tmpdir(), "llms-wire-attempts-"));
+		process.env.CLINE_CAPTURE_PROVIDER_REQUEST = "summary";
+		process.env.CLINE_CAPTURE_WIRE = "true";
+		process.env.CLINE_CAPTURE_DIR = captureDir;
+		const customFetch = vi.fn(
+			async () => new Response("ok"),
+		) as unknown as typeof fetch;
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{ providerId: "openrouter", apiKey: "test-key", fetch: customFetch },
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openrouter",
+				modelId: "anthropic/claude-test",
+				messages: baseMessages,
+				metadata: { captureId: "cap-repeat", runId: "run-repeat" },
+			}),
+		);
+
+		const config = openaiCompatibleFactorySpy.mock.calls[0]?.[0] as {
+			fetch?: typeof fetch;
+		};
+		await config.fetch?.("https://example.test/v1/chat/completions", {
+			method: "POST",
+			body: JSON.stringify({ messages: [{ role: "user", content: "first" }] }),
+		});
+		await config.fetch?.("https://example.test/v1/chat/completions", {
+			method: "POST",
+			body: JSON.stringify({ messages: [{ role: "user", content: "second" }] }),
+		});
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		expect(
+			readdirSync(captureDir)
+				.filter((file) => file.endsWith(".provider-request.json"))
+				.sort(),
+		).toEqual([
+			"cap-repeat.ai_sdk_prompt.1.provider-request.json",
+			"cap-repeat.wire_request.1.provider-request.json",
+			"cap-repeat.wire_request.2.provider-request.json",
+		]);
+		const records = readCaptureRecords(captureDir);
+		expect(records.map((record) => record.attempt)).toEqual([1, 1, 2]);
+	});
+
+	it("prunes old capture files unless cleanup is disabled", async () => {
+		const captureDir = mkdtempSync(join(tmpdir(), "llms-capture-cleanup-"));
+		const oldFile = join(
+			captureDir,
+			"old.ai_sdk_prompt.1.provider-request.json",
+		);
+		writeFileSync(oldFile, "{}\n", { mode: 0o600 });
+		const oldDate = new Date(Date.now() - 48 * 60 * 60 * 1000);
+		utimesSync(oldFile, oldDate, oldDate);
+		process.env.CLINE_CAPTURE_PROVIDER_REQUEST = "summary";
+		process.env.CLINE_CAPTURE_DIR = captureDir;
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "openrouter", apiKey: "test-key" }],
+		});
+		await collect(
+			await gateway.stream({
+				providerId: "openrouter",
+				modelId: "anthropic/claude-test",
+				messages: baseMessages,
+				metadata: { captureId: "cap-cleanup-on" },
+			}),
+		);
+
+		expect(readdirSync(captureDir)).not.toContain(
+			"old.ai_sdk_prompt.1.provider-request.json",
+		);
+
+		const keepDir = mkdtempSync(join(tmpdir(), "llms-capture-keep-"));
+		const keepFile = join(keepDir, "old.ai_sdk_prompt.1.provider-request.json");
+		writeFileSync(keepFile, "{}\n", { mode: 0o600 });
+		utimesSync(keepFile, oldDate, oldDate);
+		process.env.CLINE_CAPTURE_DIR = keepDir;
+		process.env.CLINE_CAPTURE_CLEANUP = "off";
+		await collect(
+			await gateway.stream({
+				providerId: "openrouter",
+				modelId: "anthropic/claude-test",
+				messages: baseMessages,
+				metadata: { captureId: "cap-cleanup-off" },
+			}),
+		);
+
+		expect(readdirSync(keepDir)).toContain(
+			"old.ai_sdk_prompt.1.provider-request.json",
+		);
 	});
 });

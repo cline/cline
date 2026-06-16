@@ -47,7 +47,8 @@ issue is in Cline's final provider formatting/build step. If it is already in
 | --- | --- | --- | --- |
 | `CLINE_CAPTURE_PROVIDER_REQUEST` | `off`, `summary`, `full` | `off` | Enables provider request capture. |
 | `CLINE_CAPTURE_WIRE` | `true`, `false` | `false` | Wraps provider `fetch` to capture literal request bodies. |
-| `CLINE_CAPTURE_DIR` | filesystem path | unset | Explicit output directory for NDJSON capture files. |
+| `CLINE_CAPTURE_DIR` | filesystem path | unset | Explicit output directory for capture files. |
+| `CLINE_CAPTURE_CLEANUP` | `on`, `off` | `on` | Prunes old capture files. Set `off` to keep local files. |
 | `CLINE_CAPTURE_MAX_PREVIEW_BYTES` | positive integer | `65536` | Full-mode payload preview byte cap. |
 | `CLINE_DATA_DIR` | filesystem path | unset | Fallback base directory. Captures write to `CLINE_DATA_DIR/provider-request-captures`. |
 
@@ -57,22 +58,34 @@ accident.
 
 ## Output
 
-Capture writes newline-delimited JSON files:
+Capture writes one JSON file per captured stage:
 
 ```text
-${CLINE_CAPTURE_DIR}/YYYY-MM-DD.provider-request.ndjson
+${CLINE_CAPTURE_DIR}/<captureId>.<captureStage>.<attempt>.provider-request.json
 ```
 
 or, when only `CLINE_DATA_DIR` is set:
 
 ```text
-${CLINE_DATA_DIR}/provider-request-captures/YYYY-MM-DD.provider-request.ndjson
+${CLINE_DATA_DIR}/provider-request-captures/<captureId>.<captureStage>.<attempt>.provider-request.json
 ```
+
+Files are written atomically through a temporary file and same-directory rename,
+so consumers should ignore `*.tmp`. `captureId` comes from
+`GatewayStreamRequest.metadata.captureId` when present; otherwise the SDK derives
+a stable ID from request correlation metadata. `attempt` increments when the same
+stage is captured more than once for a request, such as provider retries.
+
+When `CLINE_CAPTURE_CLEANUP` is on, the SDK opportunistically prunes capture
+files older than 24 hours. Consumers may also delete files after processing them.
+Set `CLINE_CAPTURE_CLEANUP=off` when you need to keep local capture files for
+manual inspection.
 
 Each record includes:
 
 - `timestamp`
 - `captureStage`: `ai_sdk_prompt` or `wire_request`
+- `attempt`
 - `mode`: `summary` or `full`
 - `correlation`: copied from `GatewayStreamRequest.metadata`, plus provider and model IDs
 - `summary`: byte counts, estimated tokens, hashes, role counts, largest messages, reasoning/tool-result counts
@@ -100,6 +113,8 @@ export CLINE_DATA_DIR="$(mktemp -d)"
 export CLINE_CAPTURE_PROVIDER_REQUEST=full
 export CLINE_CAPTURE_WIRE=true
 export CLINE_CAPTURE_MAX_PREVIEW_BYTES=1000000
+# Optional: keep files after consumers process them.
+# export CLINE_CAPTURE_CLEANUP=off
 ```
 
 ## Correlation
@@ -109,7 +124,7 @@ record. A plugin can stamp this metadata from a `beforeModel` hook:
 
 ```text
 beforeModel hook
-  returns options.metadata = { sessionId, runId, conversationId, iteration }
+  returns options.metadata = { captureId, sessionId, runId, conversationId, iteration }
         |
         v
 agents/core hook composition deep-merges metadata
@@ -118,7 +133,7 @@ agents/core hook composition deep-merges metadata
 GatewayStreamRequest.metadata
         |
         v
-provider-request-capture.ts writes NDJSON records keyed by the same values
+provider-request-capture.ts writes per-stage files keyed by captureId
 ```
 
 The Weave tracing plugin uses this path to join local provider captures onto the
