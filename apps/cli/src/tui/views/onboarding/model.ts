@@ -44,6 +44,12 @@ export const MAIN_MENU: MenuOption[] = [
 		icon: "\u263a",
 	},
 	{
+		label: "Sign in with ClinePass",
+		value: "cline-pass",
+		detail: "Low cost subscription for everyone",
+		icon: "\u263a",
+	},
+	{
 		label: "Sign in with ChatGPT",
 		value: "openai-codex",
 		detail: "Use your ChatGPT Plus subscription",
@@ -139,6 +145,9 @@ export function toModelEntriesFromKnownModels(
 }
 
 export function getOAuthProviderLabel(providerId: string): string {
+	if (providerId === "cline-pass") {
+		return "ClinePass";
+	}
 	if (providerId === "cline") {
 		return "Cline";
 	}
