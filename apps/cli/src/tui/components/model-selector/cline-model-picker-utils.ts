@@ -128,6 +128,12 @@ export function getVisibleClineModelPickerEntries(
 	});
 }
 
+const TierTitle: Record<ClineModelTier, string> = {
+	recommended: "Recommended",
+	clinePass: "Cline Pass",
+	free: "Free",
+};
+
 export function buildClineModelPickerDisplayRows(
 	entries: ClineModelPickerEntry[],
 	knownModels?: Record<string, unknown>,
@@ -150,7 +156,7 @@ export function buildClineModelPickerDisplayRows(
 				rows.push({
 					kind: "header",
 					key: `tier-${entry.tier}`,
-					label: entry.tier === "recommended" ? "Recommended" : "Free",
+					label: TierTitle[entry.tier],
 					tier: entry.tier,
 					isExpanded: expanded[entry.tier],
 					count: countModelsInTier(entries, entry.tier),

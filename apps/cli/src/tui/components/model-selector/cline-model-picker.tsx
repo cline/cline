@@ -197,12 +197,6 @@ export function ClineModelPicker(props: {
 					<text fg={isSelected ? palette.textOnSelection : "gray"}>
 						{row.label}
 					</text>
-					<text
-						fg={isSelected ? palette.textOnSelection : "gray"}
-						flexShrink={0}
-					>
-						{row.count}
-					</text>
 				</box>,
 			);
 			continue;
@@ -211,13 +205,15 @@ export function ClineModelPicker(props: {
 		const entry = entries[row.entryIndex];
 		if (!entry) continue;
 		rows.push(
-			<ClineModelRow
-				key={row.key}
-				row={row}
-				entry={entry}
-				isSelected={row.focusIndex === selected}
-				onSelect={onEntrySelect}
-			/>,
+			<box marginLeft={4}>
+				<ClineModelRow
+					key={row.key}
+					row={row}
+					entry={entry}
+					isSelected={row.focusIndex === selected}
+					onSelect={onEntrySelect}
+				/>
+			</box>,
 		);
 	}
 
