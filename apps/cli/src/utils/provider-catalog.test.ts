@@ -20,7 +20,7 @@ vi.mock("./feature-flags", () => ({
 }));
 
 describe("listLocalProviders", () => {
-	it("passes the Cline Pass feature flag into the SDK provider list", async () => {
+	it("passes the ClinePass feature flag into the SDK provider list", async () => {
 		const { listLocalProviders } = await import("./provider-catalog");
 		const manager = {} as never;
 

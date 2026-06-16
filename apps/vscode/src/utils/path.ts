@@ -98,7 +98,7 @@ export function getReadablePath(cwd: string, relPath?: string): string {
 	if (isLocatedInPath(cwd, absolutePath)) {
 		return normalizedRelPath.toPosix()
 	}
-	// we are outside the cwd, so show the absolute path (useful for when cline passes in '../../' for example)
+	// we are outside the cwd, so show the absolute path (useful for when ClinePasses in '../../' for example)
 	return absolutePath.toPosix()
 }
 
