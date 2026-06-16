@@ -72,9 +72,9 @@ export function createInteractiveConfigDataLoader(input: {
 		}
 
 		if (item.kind === "plugin" && typeof item.enabled === "boolean") {
-			setDisabledPlugin(item.path, item.enabled);
 			if (item.enabled) {
 				disablePluginMcpServersInSettings({ pluginPaths: [item.path] });
+				setDisabledPlugin(item.path, true);
 			} else {
 				const ownedMcpMutations = disablePluginMcpServersInSettings({
 					pluginPaths: [item.path],
@@ -96,6 +96,7 @@ export function createInteractiveConfigDataLoader(input: {
 							.join("; ")}`,
 					);
 				}
+				setDisabledPlugin(item.path, false);
 			}
 			return undefined;
 		}

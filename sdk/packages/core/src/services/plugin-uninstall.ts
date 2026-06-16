@@ -408,15 +408,15 @@ export async function uninstallPlugin(
 			`Plugin install path does not exist: ${candidate.installPath}`,
 		);
 	}
+	removePluginMcpServersFromSettings({
+		pluginPaths: [candidate.installPath, ...candidate.entryPaths],
+		pluginNames: candidate.names,
+	});
 	rmSync(candidate.installPath, {
 		recursive: stats.isDirectory(),
 		force: true,
 	});
 	cleanupDisabledPluginPaths(candidate);
-	removePluginMcpServersFromSettings({
-		pluginPaths: [candidate.installPath, ...candidate.entryPaths],
-		pluginNames: candidate.names,
-	});
 	if (candidate.installed) {
 		cleanupEmptyInstallParents(candidate.installPath);
 	}

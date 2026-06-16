@@ -14,6 +14,7 @@ describe("plugin uninstall service", () => {
 	let originalClineDir: string | undefined;
 	let originalClineDataDir: string | undefined;
 	let originalGlobalSettingsPath: string | undefined;
+	let originalMcpSettingsPath: string | undefined;
 
 	beforeEach(() => {
 		root = mkdtempSync(join(tmpdir(), "core-plugin-uninstall-"));
@@ -22,6 +23,7 @@ describe("plugin uninstall service", () => {
 		originalClineDir = process.env.CLINE_DIR;
 		originalClineDataDir = process.env.CLINE_DATA_DIR;
 		originalGlobalSettingsPath = process.env.CLINE_GLOBAL_SETTINGS_PATH;
+		originalMcpSettingsPath = process.env.CLINE_MCP_SETTINGS_PATH;
 		process.env.HOME = home;
 		process.env.CLINE_DIR = join(home, ".cline");
 		process.env.CLINE_DATA_DIR = join(home, ".cline", "data");
@@ -56,6 +58,11 @@ describe("plugin uninstall service", () => {
 			delete process.env.CLINE_GLOBAL_SETTINGS_PATH;
 		} else {
 			process.env.CLINE_GLOBAL_SETTINGS_PATH = originalGlobalSettingsPath;
+		}
+		if (originalMcpSettingsPath === undefined) {
+			delete process.env.CLINE_MCP_SETTINGS_PATH;
+		} else {
+			process.env.CLINE_MCP_SETTINGS_PATH = originalMcpSettingsPath;
 		}
 		rmSync(root, { recursive: true, force: true });
 	});
@@ -126,6 +133,54 @@ describe("plugin uninstall service", () => {
 		expect(result.installPath).toBe(pluginPath);
 		expect(existsSync(pluginPath)).toBe(false);
 	});
+
+	it.skipIf(process.platform === "win32")(
+		"keeps plugin files when MCP settings cleanup fails",
+		async () => {
+			const pluginPath = join(home, ".cline", "plugins", "mcp-plugin.ts");
+			const settingsPath = join(root, "cline_mcp_settings.json");
+			process.env.CLINE_MCP_SETTINGS_PATH = settingsPath;
+			await mkdir(join(home, ".cline", "plugins"), { recursive: true });
+			await writeFile(
+				pluginPath,
+				"export default { name: 'mcp-plugin', manifest: { capabilities: ['mcp'] } };",
+				"utf8",
+			);
+			await writeFile(
+				settingsPath,
+				JSON.stringify(
+					{
+						mcpServers: {
+							smoke: {
+								transport: {
+									type: "stdio",
+									command: process.execPath,
+									args: ["-e", "process.exit(0)"],
+								},
+								metadata: {
+									source: "plugin",
+									pluginName: "mcp-plugin",
+									pluginPath,
+								},
+							},
+						},
+					},
+					null,
+					2,
+				),
+				"utf8",
+			);
+			chmodSync(settingsPath, 0o444);
+
+			try {
+				await expect(uninstallPlugin({ path: pluginPath })).rejects.toThrow();
+			} finally {
+				chmodSync(settingsPath, 0o644);
+			}
+
+			expect(existsSync(pluginPath)).toBe(true);
+		},
+	);
 
 	// chmod-based deletion failure cannot be simulated on Windows, where read-only
 	// directory permissions do not prevent removing files inside them.

@@ -1,4 +1,11 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import {
+	chmod,
+	mkdir,
+	mkdtemp,
+	readFile,
+	rm,
+	writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { UserInstructionConfigService } from "@cline/core";
@@ -899,6 +906,67 @@ Review with the bundled skill.`,
 			"token",
 		);
 	});
+
+	it.skipIf(process.platform === "win32")(
+		"does not mark plugin disabled when MCP disable write fails",
+		async () => {
+			const tempRoot = await mkdtemp(join(tmpdir(), "cli-config-data-"));
+			tempRoots.push(tempRoot);
+			const settingsPath = join(tempRoot, "cline_mcp_settings.json");
+			const globalSettingsPath = join(tempRoot, "global-settings.json");
+			process.env.CLINE_GLOBAL_SETTINGS_PATH = globalSettingsPath;
+			process.env.CLINE_MCP_SETTINGS_PATH = settingsPath;
+			const pluginPath = await writeMcpSettingsPlugin(tempRoot);
+			await writeFile(
+				settingsPath,
+				`${JSON.stringify(
+					{
+						mcpServers: {
+							smoke: {
+								transport: {
+									type: "stdio",
+									command: process.execPath,
+									args: ["-e", "process.exit(0)"],
+								},
+								metadata: {
+									source: "plugin",
+									pluginName: "settings-mcp-plugin",
+									pluginPath,
+								},
+							},
+						},
+					},
+					null,
+					2,
+				)}\n`,
+			);
+			await chmod(settingsPath, 0o444);
+			const loader = createInteractiveConfigDataLoader({
+				config: createConfig(tempRoot),
+			});
+
+			try {
+				await expect(
+					loader.onToggleConfigItem({
+						id: pluginPath,
+						name: "settings-mcp-plugin",
+						path: pluginPath,
+						enabled: true,
+						source: "workspace-plugin",
+						kind: "plugin",
+					}),
+				).rejects.toThrow();
+			} finally {
+				await chmod(settingsPath, 0o644);
+			}
+
+			await expect(readFile(globalSettingsPath, "utf8")).rejects.toThrow();
+			const settings = JSON.parse(await readFile(settingsPath, "utf8")) as {
+				mcpServers?: Record<string, { disabled?: boolean }>;
+			};
+			expect(settings.mcpServers?.smoke?.disabled).toBeUndefined();
+		},
+	);
 
 	it("surfaces MCP OAuth status and errors", async () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "cli-config-data-"));
