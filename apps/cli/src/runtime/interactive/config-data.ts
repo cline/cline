@@ -76,13 +76,26 @@ export function createInteractiveConfigDataLoader(input: {
 			if (item.enabled) {
 				disablePluginMcpServersInSettings({ pluginPaths: [item.path] });
 			} else {
-				await syncPluginMcpServersToSettings({
+				const ownedMcpMutations = disablePluginMcpServersInSettings({
+					pluginPaths: [item.path],
+				});
+				const result = await syncPluginMcpServersToSettings({
 					pluginPaths: [item.path],
 					cwd: input.config.cwd,
 					workspacePath: workspaceRoot(),
 					providerId: input.config.providerId,
 					modelId: input.config.modelId,
 				});
+				if (ownedMcpMutations.length > 0 && result.failures.length > 0) {
+					throw new Error(
+						`Failed to sync plugin MCP servers: ${result.failures
+							.map((failure) => {
+								const plugin = failure.pluginName ?? failure.pluginPath;
+								return `${plugin}: ${failure.message}`;
+							})
+							.join("; ")}`,
+					);
+				}
 			}
 			return undefined;
 		}
