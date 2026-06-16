@@ -116,19 +116,23 @@ export default defineConfig({
 	},
 	define: {
 		__PLATFORM__: JSON.stringify(platform),
-		process: JSON.stringify({
-			platform: JSON.stringify(process?.platform),
-			env: {
-				NODE_ENV: JSON.stringify(process?.env?.IS_DEV ? "development" : "production"),
-				CLINE_ENVIRONMENT: JSON.stringify(process?.env?.CLINE_ENVIRONMENT ?? "production"),
-				IS_DEV: JSON.stringify(process?.env?.IS_DEV),
-				IS_TEST: JSON.stringify(process?.env?.IS_TEST),
-				CI: JSON.stringify(process?.env?.CI),
-				// PostHog environment variables
-				TELEMETRY_SERVICE_API_KEY: JSON.stringify(process?.env?.TELEMETRY_SERVICE_API_KEY),
-				ERROR_SERVICE_API_KEY: JSON.stringify(process?.env?.ERROR_SERVICE_API_KEY),
-			},
-		}),
+		"process.env.NODE_ENV": JSON.stringify(process.env.IS_DEV ? "development" : "production"),
+		"process.env.CLINE_ENVIRONMENT": JSON.stringify(process.env.CLINE_ENVIRONMENT ?? "production"),
+		"process.env.IS_DEV": JSON.stringify(process.env.IS_DEV),
+		"process.env.IS_TEST": JSON.stringify(process.env.IS_TEST),
+		"process.env.CI": JSON.stringify(process.env.CI),
+		// PostHog environment variables
+		"process.env.TELEMETRY_SERVICE_API_KEY": JSON.stringify(process.env.TELEMETRY_SERVICE_API_KEY),
+		"process.env.ERROR_SERVICE_API_KEY": JSON.stringify(process.env.ERROR_SERVICE_API_KEY),
+		"process.env.ENABLE_ERROR_AUTOCAPTURE": JSON.stringify(process.env.ENABLE_ERROR_AUTOCAPTURE),
+		// OpenTelemetry environment variables
+		"process.env.OTEL_TELEMETRY_ENABLED": JSON.stringify(process.env.OTEL_TELEMETRY_ENABLED),
+		"process.env.OTEL_METRICS_EXPORTER": JSON.stringify(process.env.OTEL_METRICS_EXPORTER),
+		"process.env.OTEL_LOGS_EXPORTER": JSON.stringify(process.env.OTEL_LOGS_EXPORTER),
+		"process.env.OTEL_EXPORTER_OTLP_PROTOCOL": JSON.stringify(process.env.OTEL_EXPORTER_OTLP_PROTOCOL),
+		"process.env.OTEL_EXPORTER_OTLP_ENDPOINT": JSON.stringify(process.env.OTEL_EXPORTER_OTLP_ENDPOINT),
+		"process.env.OTEL_EXPORTER_OTLP_HEADERS": JSON.stringify(process.env.OTEL_EXPORTER_OTLP_HEADERS),
+		"process.env.OTEL_METRIC_EXPORT_INTERVAL": JSON.stringify(process.env.OTEL_METRIC_EXPORT_INTERVAL),
 	},
 	resolve: {
 		alias: {
