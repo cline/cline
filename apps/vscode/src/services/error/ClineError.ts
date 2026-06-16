@@ -8,6 +8,7 @@ export enum ClineErrorType {
 	Balance = "balance",
 	SpendLimit = "spendLimit",
 	QuotaExceeded = "quotaExceeded",
+	Entitlement = "entitlement",
 }
 
 interface ErrorDetails {
@@ -150,6 +151,12 @@ export class ClineError extends Error {
 		// Must be checked before the generic rate-limit check since both use 429
 		if (code === "SPEND_LIMIT_EXCEEDED" || details?.code === "SPEND_LIMIT_EXCEEDED") {
 			return ClineErrorType.SpendLimit
+		}
+
+		// Check entitlement errors (e.g. user not subscribed to a required model plan like Cline Pass).
+		// Must be checked before the generic auth check since these are returned as 403.
+		if (code === "ENTITLEMENT_ERROR" || details?.code === "ENTITLEMENT_ERROR") {
+			return ClineErrorType.Entitlement
 		}
 
 		// Check auth errors
