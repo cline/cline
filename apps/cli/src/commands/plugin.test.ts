@@ -681,6 +681,56 @@ describe("plugin install command", () => {
 		}
 	});
 
+	it("warns when plugin MCP settings sync fails after install", async () => {
+		const source = join(root, "mcp-plugin.js");
+		writeFileSync(
+			source,
+			`
+export default {
+  name: "mcp-plugin",
+  manifest: { capabilities: ["mcp"] },
+  setup(api) {
+    api.registerMcpServer({
+      name: "mcp-plugin",
+      transport: { type: "streamableHttp", url: "https://example.com/mcp" },
+    })
+  },
+}
+`,
+			"utf8",
+		);
+		const blockedDirectory = join(root, "not-a-directory");
+		writeFileSync(blockedDirectory, "file", "utf8");
+		const originalSettingsPath = process.env.CLINE_MCP_SETTINGS_PATH;
+		process.env.CLINE_MCP_SETTINGS_PATH = join(
+			blockedDirectory,
+			"cline_mcp_settings.json",
+		);
+		const output: string[] = [];
+		try {
+			const code = await runPluginInstallCommand({
+				source,
+				io: {
+					writeln: (text = "") => output.push(text),
+					writeErr: (text) => output.push(text),
+				},
+			});
+
+			expect(code).toBe(0);
+			expect(output.join("\n")).toContain("Installed plugin from");
+			expect(output.join("\n")).toContain(
+				"Warning: failed to sync plugin MCP servers",
+			);
+			expect(output.join("\n")).toContain("mcp-plugin");
+		} finally {
+			if (originalSettingsPath === undefined) {
+				delete process.env.CLINE_MCP_SETTINGS_PATH;
+			} else {
+				process.env.CLINE_MCP_SETTINGS_PATH = originalSettingsPath;
+			}
+		}
+	});
+
 	it("prints JSON output for official plugin installs", async () => {
 		const officialPluginsRepo = await createOfficialPluginsRepo({
 			"json-plugin": {

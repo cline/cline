@@ -243,6 +243,7 @@ describe("SessionRuntime construction", () => {
 			messageBuilder: [],
 			providers: [],
 			automationEventTypes: [],
+			mcpServers: [],
 		});
 	});
 });
@@ -295,6 +296,44 @@ describe("SessionRuntime.getExtensionRegistry", () => {
 		expect(registry.commands).toHaveLength(1);
 		expect(registry.commands[0].name).toBe("ext-cmd");
 		expect(registry.automationEventTypes).toEqual([]);
+		expect(registry.mcpServers).toEqual([]);
+	});
+
+	it("keeps plugin-registered MCP servers out of direct runtime tools", async () => {
+		const extension: AgentExtension = {
+			name: "mcp-ext",
+			manifest: { capabilities: ["mcp"] },
+			setup(api) {
+				api.registerMcpServer({
+					name: "plugin-mock",
+					transport: {
+						type: "stdio",
+						command: process.execPath,
+					},
+				});
+			},
+		};
+		const { deps, configs } = withCapturingFakeRuntime();
+		const session = new SessionRuntime(
+			makeAgentConfig({ extensions: [extension] }),
+			deps,
+		);
+
+		await session.run("go");
+
+		expect((configs[0]?.tools ?? []).map((tool) => tool.name)).not.toContain(
+			"plugin-mock__echo",
+		);
+		expect(session.getExtensionRegistry().mcpServers).toEqual([
+			expect.objectContaining({
+				name: "plugin-mock",
+				metadata: {
+					source: "plugin",
+					plugin: "mcp-ext",
+				},
+			}),
+		]);
+		await session.shutdown("test");
 	});
 
 	it("composes extension-registered rules into the runtime system prompt", async () => {
