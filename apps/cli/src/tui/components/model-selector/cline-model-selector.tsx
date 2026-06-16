@@ -194,12 +194,6 @@ export function ClineModelSelectorContent(
 								<text fg={isSel ? palette.textOnSelection : "gray"}>
 									{row.label}
 								</text>
-								<text
-									fg={isSel ? palette.textOnSelection : "gray"}
-									flexShrink={0}
-								>
-									{row.count}
-								</text>
 							</box>
 						);
 					}
