@@ -121,7 +121,8 @@ function normalizeResponse(raw: unknown): ClineRecommendedModelsData | null {
 	const clinePass = clinePassRaw
 		.map(normalizeModel)
 		.filter((model): model is ClineRecommendedModel => model !== null);
-	if (recommended.length === 0 && free.length === 0 && clinePass.length === 0) return null;
+	if (recommended.length === 0 && free.length === 0 && clinePass.length === 0)
+		return null;
 
 	return { recommended, free, clinePass };
 }
