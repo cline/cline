@@ -88,7 +88,6 @@ export function ClineModelSelectorContent(
 
 	const toggleTier = (tier: ClineModelTier) => {
 		setExpandedTiers((prev) => ({ ...prev, [tier]: !prev[tier] }));
-		setSelected(0);
 	};
 
 	const { visibleRows, aboveCount, belowCount, showAbove, showBelow } =

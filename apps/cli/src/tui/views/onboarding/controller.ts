@@ -621,7 +621,6 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 
 	const toggleClineModelTier = useCallback((tier: ClineModelTier) => {
 		setClineExpandedTiers((prev) => ({ ...prev, [tier]: !prev[tier] }));
-		setClineModelSelected(0);
 	}, []);
 
 	const saveThinkingLevel = useCallback(

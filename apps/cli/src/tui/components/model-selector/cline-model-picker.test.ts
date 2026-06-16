@@ -97,6 +97,41 @@ describe("cline model picker helpers", () => {
 		expect(resolveClineModelProviderId("free")).toBe("cline");
 	});
 
+	it("keeps section header focus indexes stable when sections expand or collapse", () => {
+		const entries = buildClineModelEntries(data, { includeClinePass: true });
+		const collapsedRows = buildClineModelPickerDisplayRows(
+			entries,
+			undefined,
+			undefined,
+			{
+				clinePass: false,
+				recommended: true,
+				free: true,
+			},
+		);
+		const expandedRows = buildClineModelPickerDisplayRows(
+			entries,
+			undefined,
+			undefined,
+			{
+				clinePass: true,
+				recommended: true,
+				free: true,
+			},
+		);
+
+		expect(
+			collapsedRows.find(
+				(row) => row.kind === "header" && row.tier === "clinePass",
+			)?.focusIndex,
+		).toBe(0);
+		expect(
+			expandedRows.find(
+				(row) => row.kind === "header" && row.tier === "clinePass",
+			)?.focusIndex,
+		).toBe(0);
+	});
+
 	it("filters collapsed tiers while keeping browse selectable", () => {
 		const visible = getVisibleClineModelPickerEntries(
 			buildClineModelEntries(data),
