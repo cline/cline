@@ -182,6 +182,8 @@ export async function getMcpSettingsFilePath(settingsDirectoryPath: string): Pro
 			if ((error as NodeJS.ErrnoException).code !== "EEXIST") {
 				throw error
 			}
+			// Another process created the settings file after our existence check.
+			// Treat that as success so we never clobber the winner's contents.
 		})
 	}
 	return mcpSettingsFilePath
