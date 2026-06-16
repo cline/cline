@@ -160,7 +160,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 
 	const createCustomModelItem = useCallback(
 		(_search: string, filteredItems: SearchableItem[]) => {
-			if (activeProviderId === "cline") return undefined;
+			if (activeProviderId === "cline-pass") return undefined;
 			if (filteredItems.some((item) => item.key === CUSTOM_MODEL_ID_ACTION)) {
 				return undefined;
 			}
@@ -602,11 +602,15 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		(entry: ClineModelPickerEntry | undefined) => {
 			if (!entry) return;
 			if (entry.kind === "model") {
-				saveClineModelSelection(
-					entry.model.id,
-					entry.model.name,
-					resolveClineModelEntryProviderId(entry) ?? "cline",
-				);
+				const providerId = resolveClineModelEntryProviderId(entry) ?? "cline";
+				if (providerId === "cline-pass") {
+					setActiveProviderId(providerId);
+					setActiveProviderName("Cline Pass");
+					setStep("model_picker");
+					loadModelsForProvider(providerId);
+					return;
+				}
+				saveClineModelSelection(entry.model.id, entry.model.name, providerId);
 				return;
 			}
 			setStep("model_picker");

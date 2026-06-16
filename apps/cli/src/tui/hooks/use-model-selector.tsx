@@ -81,7 +81,7 @@ function usesModelIdInput(providerId: string): boolean {
 }
 
 function usesClineModelSelector(providerId: string): boolean {
-	return providerId === "cline" || providerId === "cline-pass";
+	return providerId === "cline";
 }
 
 async function runProviderChange(
@@ -426,6 +426,7 @@ export function useModelSelector(opts: {
 							currentModel={config.modelId}
 							currentProviderName={providerDisplayName}
 							models={modelOptions}
+							allowCustomModel={config.providerId !== "cline-pass"}
 						/>
 					),
 				});
