@@ -10,6 +10,7 @@ import type { ChoiceContext } from "@opentui-ui/dialog";
 import type { DialogActions } from "@opentui-ui/dialog/react";
 import { useCallback } from "react";
 import { isOpenAICodexCliProvider } from "../../utils/codex-cli";
+import { getCliFeatureFlagsService } from "../../utils/feature-flags";
 import {
 	getPersistedProviderApiKey,
 	isOAuthProvider,
@@ -269,6 +270,8 @@ export function useModelSelector(opts: {
 			}
 
 			let pickingModel = true;
+			const isClinePassEnabled =
+				getCliFeatureFlagsService().getBooleanFlagEnabled("ext-cline-pass");
 
 			while (pickingModel) {
 				if (usesModelIdInput(config.providerId)) {
@@ -306,7 +309,9 @@ export function useModelSelector(opts: {
 								currentProviderName={providerDisplayName}
 								knownModels={config.knownModels as Record<string, unknown>}
 								loadEntries={async () =>
-									buildClineModelEntries(await fetchClineRecommendedModels())
+									buildClineModelEntries(await fetchClineRecommendedModels(), {
+										includeClinePass: isClinePassEnabled,
+									})
 								}
 							/>
 						),

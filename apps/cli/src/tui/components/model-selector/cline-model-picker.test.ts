@@ -48,13 +48,8 @@ const data: ClineRecommendedModelsData = {
 };
 
 describe("cline model picker helpers", () => {
-	it("builds tiered entries with browse action at the end", () => {
+	it("builds tiered entries with browse action at the end while hiding Cline Pass by default", () => {
 		expect(buildClineModelEntries(data)).toMatchObject([
-			{
-				kind: "model",
-				tier: "clinePass",
-				model: { id: "cline-pass/glm-5.1" },
-			},
 			{
 				kind: "model",
 				tier: "recommended",
@@ -76,6 +71,23 @@ describe("cline model picker helpers", () => {
 				model: { id: "qwen/qwen3-coder" },
 			},
 			{ kind: "browse" },
+		]);
+	});
+
+	it("includes Cline Pass models when enabled", () => {
+		expect(
+			buildClineModelEntries(data, { includeClinePass: true }).slice(0, 2),
+		).toMatchObject([
+			{
+				kind: "model",
+				tier: "clinePass",
+				model: { id: "cline-pass/glm-5.1" },
+			},
+			{
+				kind: "model",
+				tier: "recommended",
+				model: { id: "anthropic/claude-sonnet-4.6" },
+			},
 		]);
 	});
 
@@ -119,21 +131,20 @@ describe("cline model picker helpers", () => {
 
 		const headers = rows.filter((row) => row.kind === "header");
 		expect(headers).toMatchObject([
-			{ tier: "clinePass", focusIndex: 0, isExpanded: false },
-			{ tier: "recommended", focusIndex: 1, isExpanded: false },
-			{ tier: "free", focusIndex: 2, isExpanded: true },
+			{ tier: "recommended", focusIndex: 0, isExpanded: false },
+			{ tier: "free", focusIndex: 1, isExpanded: true },
 		]);
 
 		const freeRows = rows.filter((row) => row.kind === "model");
 		expect(freeRows).toMatchObject([
-			{ entryIndex: 3, selectableIndex: 0, focusIndex: 3 },
-			{ entryIndex: 4, selectableIndex: 1, focusIndex: 4 },
+			{ entryIndex: 2, selectableIndex: 0, focusIndex: 2 },
+			{ entryIndex: 3, selectableIndex: 1, focusIndex: 3 },
 		]);
 
-		const window = getClineModelPickerDisplayRowsWindow(rows, 4, 3);
+		const window = getClineModelPickerDisplayRowsWindow(rows, 3, 3);
 		expect(
 			window.visibleRows.some(
-				(row) => row.kind === "model" && row.entryIndex === 4,
+				(row) => row.kind === "model" && row.entryIndex === 3,
 			),
 		).toBe(true);
 	});

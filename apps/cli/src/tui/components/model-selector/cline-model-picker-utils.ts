@@ -17,6 +17,10 @@ export type ClineModelTier = "recommended" | "free" | "clinePass";
 export type ClineModelPickerExpandedTiers = Record<ClineModelTier, boolean>;
 export type ClineModelProviderId = "cline" | "cline-pass";
 
+export interface BuildClineModelEntriesOptions {
+	includeClinePass?: boolean;
+}
+
 const DEFAULT_EXPANDED_TIERS: ClineModelPickerExpandedTiers = {
 	clinePass: false,
 	recommended: false,
@@ -42,13 +46,16 @@ export function resolveClineModelDisplayName(
 
 export function buildClineModelEntries(
 	data: ClineRecommendedModelsData,
+	options: BuildClineModelEntriesOptions = {},
 ): ClineModelPickerEntry[] {
 	const entries: ClineModelPickerEntry[] = [
-		...data.clinePass.map((model) => ({
-			kind: "model" as const,
-			tier: "clinePass" as const,
-			model,
-		})),
+		...(options.includeClinePass
+			? data.clinePass.map((model) => ({
+					kind: "model" as const,
+					tier: "clinePass" as const,
+					model,
+				}))
+			: []),
 		...data.recommended.map((model) => ({
 			kind: "model" as const,
 			tier: "recommended" as const,

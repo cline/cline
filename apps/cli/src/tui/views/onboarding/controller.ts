@@ -15,6 +15,7 @@ import {
 	checkCodexCliInstalled,
 	isOpenAICodexCliProvider,
 } from "../../../utils/codex-cli";
+import { getCliFeatureFlagsService } from "../../../utils/feature-flags";
 import { getPersistedProviderApiKey } from "../../../utils/provider-auth";
 import { listLocalProviders } from "../../../utils/provider-catalog";
 import { getCliTelemetryService } from "../../../utils/telemetry";
@@ -176,9 +177,16 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 
 	// Cline featured model picker
 	const recommended = useClineRecommendedModels();
+	const isClinePassEnabled =
+		getCliFeatureFlagsService().getBooleanFlagEnabled("ext-cline-pass");
 	const clineEntries: ClineModelPickerEntry[] = useMemo(
-		() => (recommended.data ? buildClineModelEntries(recommended.data) : []),
-		[recommended.data],
+		() =>
+			recommended.data
+				? buildClineModelEntries(recommended.data, {
+						includeClinePass: isClinePassEnabled,
+					})
+				: [],
+		[recommended.data, isClinePassEnabled],
 	);
 	const [clineExpandedTiers, setClineExpandedTiers] =
 		useState<ClineModelPickerExpandedTiers>({
