@@ -297,7 +297,7 @@ export function identifyAccount(
 		telemetry?.setDistinctId(distinctId);
 	}
 	telemetry?.updateCommonProperties({
-		user_id: account.id,
+		user_id: distinctId || account.id,
 		account_id: account.id,
 		account_email: account.email,
 		provider: account.provider,
