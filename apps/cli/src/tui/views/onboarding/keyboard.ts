@@ -7,7 +7,10 @@ import type {
 	ClineModelTier,
 } from "../../components/model-selector/cline-model-picker";
 import type { SearchableListState } from "../../components/searchable-list";
-import type { OnboardingOAuthProviderId } from "./auth";
+import {
+	isOnboardingOAuthProviderId,
+	type OnboardingOAuthProviderId,
+} from "./auth";
 import { FIELD_ORDER } from "./fields";
 import {
 	MAIN_MENU,
@@ -149,7 +152,7 @@ export function useOnboardingKeyboard(input: {
 			if (key.name === "return") {
 				const option = MAIN_MENU[input.menuSelected];
 				if (!option) return;
-				if (option.value === "cline" || option.value === "openai-codex") {
+				if (isOnboardingOAuthProviderId(option.value)) {
 					input.startOAuthFlow(option.value);
 				} else {
 					input.setStep("byo_provider");
