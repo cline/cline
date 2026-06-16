@@ -1,4 +1,4 @@
-import type { ModelInfo } from "@shared/api"
+import { buildModelInfoNameMap, type ModelInfo, resolveClinePassModelInfo } from "@shared/api"
 import { CLINE_ONBOARDING_MODELS } from "@shared/cline/onboarding"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import type { ClineRecommendedModel } from "@shared/proto/cline/models"
@@ -47,6 +47,7 @@ function toOnboardingModel(
 interface RecommendedModelsData {
 	recommended: ClineRecommendedModel[]
 	free: ClineRecommendedModel[]
+	clinePass: ClineRecommendedModel[]
 }
 
 type FetchState = { status: "loading" } | { status: "success"; data: RecommendedModelsData } | { status: "empty" }
@@ -64,10 +65,11 @@ export function useOnboardingModels(): UseOnboardingModelsResult {
 				if (!cancelled) {
 					const recommended = response.recommended ?? []
 					const free = response.free ?? []
-					if (recommended.length === 0 && free.length === 0) {
+					const clinePass = response.clinePass ?? []
+					if (recommended.length === 0 && free.length === 0 && clinePass.length === 0) {
 						setFetchState({ status: "empty" })
 					} else {
-						setFetchState({ status: "success", data: { recommended, free } })
+						setFetchState({ status: "success", data: { recommended, free, clinePass } })
 					}
 				}
 			} catch {
@@ -93,6 +95,11 @@ export function useOnboardingModels(): UseOnboardingModelsResult {
 		return { ...openRouterModels, ...(clineModels ?? {}) }
 	}, [openRouterModels, clineModels])
 
+	// Cline Pass model IDs omit the upstream lab (e.g. "cline-pass/glm-5.1"), so look up
+	// capabilities via the model slug against the OpenRouter catalog, falling back to
+	// conservative Cline Pass defaults. Mirrors ClinePassProvider's resolution.
+	const openRouterModelsByName = useMemo(() => buildModelInfoNameMap(openRouterModels), [openRouterModels])
+
 	return useMemo<UseOnboardingModelsResult>(() => {
 		if (fetchState.status !== "success") {
 			return { status: fetchState.status, models: { models: CLINE_ONBOARDING_MODELS } }
@@ -101,7 +108,11 @@ export function useOnboardingModels(): UseOnboardingModelsResult {
 		const { data } = fetchState
 		const freeModels = data.free.map((rec) => toOnboardingModel(rec, "free", "Free", modelCatalog))
 		const frontierModels = data.recommended.map((rec) => toOnboardingModel(rec, "frontier", "", modelCatalog))
+		const clinePassCatalog = Object.fromEntries(
+			data.clinePass.map((rec) => [rec.id, resolveClinePassModelInfo(rec.id, openRouterModelsByName)]),
+		)
+		const clinePassModels = data.clinePass.map((rec) => toOnboardingModel(rec, "cline pass", "", clinePassCatalog))
 
-		return { status: "success", models: { models: [...freeModels, ...frontierModels] } }
-	}, [fetchState, modelCatalog])
+		return { status: "success", models: { models: [...clinePassModels, ...freeModels, ...frontierModels] } }
+	}, [fetchState, modelCatalog, openRouterModelsByName])
 }
