@@ -485,9 +485,9 @@ const cline = createClineLikeSpec({
 
 const clinePass = createClineLikeSpec({
 	id: CLINE_PASS_PROVIDER_ID,
-	name: "Cline Pass",
+	name: "ClinePass",
 	popular: 2,
-	description: "Cline API endpoint with Cline Pass models",
+	description: "Cline API endpoint with ClinePass models",
 	modelsProviderId: CLINE_PASS_PROVIDER_ID,
 	defaultModelId: firstGeneratedModelId(CLINE_PASS_PROVIDER_ID),
 	metadata: { usageCostDisplay: "hide" },
