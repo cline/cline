@@ -17,6 +17,7 @@ function toErrorMessage(error: unknown): string {
 
 export async function authorizeMcpServerOAuthWithBrowser(
 	name: string,
+	options: { throwOnError?: boolean } = {},
 ): Promise<void> {
 	p.log.info("Opening browser for MCP OAuth authorization");
 	try {
@@ -33,6 +34,9 @@ export async function authorizeMcpServerOAuthWithBrowser(
 		});
 		p.log.success(result.message);
 	} catch (error) {
+		if (options.throwOnError === true) {
+			throw error instanceof Error ? error : new Error(toErrorMessage(error));
+		}
 		p.log.error(`OAuth authorization failed: ${toErrorMessage(error)}`);
 		p.log.warn(
 			`Server "${name}" is still saved. Choose "Authorize OAuth" to retry.`,
