@@ -15,6 +15,7 @@ export type ClineModelsEntry = {
 export type ClineModelPickerEntry = ClineModelsEntry | ClineModelPickerBrowse;
 export type ClineModelTier = "recommended" | "free" | "clinePass";
 export type ClineModelPickerExpandedTiers = Record<ClineModelTier, boolean>;
+export type ClineModelProviderId = "cline" | "cline-pass";
 
 const DEFAULT_EXPANDED_TIERS: ClineModelPickerExpandedTiers = {
 	clinePass: false,
@@ -64,6 +65,20 @@ export function buildClineModelEntries(
 	];
 
 	return entries;
+}
+
+export function resolveClineModelProviderId(
+	tier: ClineModelTier,
+): ClineModelProviderId {
+	return tier === "clinePass" ? "cline-pass" : "cline";
+}
+
+export function resolveClineModelEntryProviderId(
+	entry: ClineModelPickerEntry,
+): ClineModelProviderId | undefined {
+	return entry.kind === "model"
+		? resolveClineModelProviderId(entry.tier)
+		: undefined;
 }
 
 export type ClineModelPickerDisplayRow =

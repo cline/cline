@@ -7,16 +7,28 @@ import {
 	buildClineModelPickerDisplayRows,
 	type ClineModelPickerEntry,
 	type ClineModelPickerExpandedTiers,
+	type ClineModelProviderId,
 	type ClineModelTier,
 	getClineModelPickerDisplayRowsWindow,
 	getClineModelPickerRowByFocusIndex,
 	getVisibleClineModelPickerEntries,
+	resolveClineModelEntryProviderId,
 } from "./cline-model-picker";
 import { CHANGE_PROVIDER_ACTION } from "./model-selector";
 import { ProviderRow } from "./provider-row";
 
 export const BROWSE_ALL_ACTION = "__browse_all__";
 const MAX_VISIBLE_ROWS = 10;
+
+export interface ClineModelSelection {
+	modelId: string;
+	providerId: ClineModelProviderId;
+}
+
+export type ClineModelSelectorResult =
+	| ClineModelSelection
+	| typeof BROWSE_ALL_ACTION
+	| typeof CHANGE_PROVIDER_ACTION;
 
 type ClineModelEntriesState =
 	| { status: "loading"; message: string }
@@ -30,7 +42,7 @@ function tagColor(tag: string): string {
 }
 
 export function ClineModelSelectorContent(
-	props: ChoiceContext<string> & {
+	props: ChoiceContext<ClineModelSelectorResult> & {
 		currentModel: string;
 		currentProviderName: string;
 		knownModels?: Record<string, unknown>;
@@ -90,7 +102,10 @@ export function ClineModelSelectorContent(
 		const entry = visibleEntries[selectableIndex];
 		if (!entry) return;
 		if (entry.kind === "model") {
-			resolve(entry.model.id);
+			resolve({
+				modelId: entry.model.id,
+				providerId: resolveClineModelEntryProviderId(entry) ?? "cline",
+			});
 		} else {
 			resolve(BROWSE_ALL_ACTION);
 		}
@@ -253,7 +268,7 @@ export function ClineModelSelectorContent(
 }
 
 export function ClineModelSelectorDialogContent(
-	props: ChoiceContext<string> & {
+	props: ChoiceContext<ClineModelSelectorResult> & {
 		currentModel: string;
 		currentProviderName: string;
 		knownModels?: Record<string, unknown>;

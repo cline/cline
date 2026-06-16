@@ -23,10 +23,13 @@ export {
 	type ClineModelPickerDisplayRow,
 	type ClineModelPickerEntry,
 	type ClineModelPickerExpandedTiers,
+	type ClineModelProviderId,
 	type ClineModelTier,
 	getClineModelPickerDisplayRowsWindow,
 	getClineModelPickerRowByFocusIndex,
 	getVisibleClineModelPickerEntries,
+	resolveClineModelEntryProviderId,
+	resolveClineModelProviderId,
 } from "./cline-model-picker-utils";
 
 const MAX_VISIBLE_ROWS = 10;

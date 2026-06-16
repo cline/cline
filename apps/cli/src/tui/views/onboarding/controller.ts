@@ -23,8 +23,10 @@ import {
 	buildClineModelPickerDisplayRows,
 	type ClineModelPickerEntry,
 	type ClineModelPickerExpandedTiers,
+	type ClineModelProviderId,
 	type ClineModelTier,
 	getVisibleClineModelPickerEntries,
+	resolveClineModelEntryProviderId,
 	useClineRecommendedModels,
 } from "../../components/model-selector/cline-model-picker";
 import {
@@ -565,16 +567,16 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 	}, [customModelId, completeModelSelection]);
 
 	const saveClineModelSelection = useCallback(
-		(modelId: string, modelName: string) => {
-			const existing =
-				providerSettingsManager.getProviderSettings(activeProviderId);
+		(modelId: string, modelName: string, providerId: ClineModelProviderId) => {
+			const existing = providerSettingsManager.getProviderSettings(providerId);
 			providerSettingsManager.saveProviderSettings(
 				{
-					...(existing ?? { provider: activeProviderId }),
+					...(existing ?? { provider: providerId }),
 					model: modelId,
 				},
 				{ setLastUsed: true },
 			);
+			setActiveProviderId(providerId);
 			setSelectedModelId(modelId);
 			if (clineModelReasoningIds.has(modelId)) {
 				setSelectedModelName(modelName);
@@ -584,14 +586,18 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 				setStep("done");
 			}
 		},
-		[activeProviderId, clineModelReasoningIds, providerSettingsManager],
+		[clineModelReasoningIds, providerSettingsManager],
 	);
 
 	const selectClineModelEntry = useCallback(
 		(entry: ClineModelPickerEntry | undefined) => {
 			if (!entry) return;
 			if (entry.kind === "model") {
-				saveClineModelSelection(entry.model.id, entry.model.name);
+				saveClineModelSelection(
+					entry.model.id,
+					entry.model.name,
+					resolveClineModelEntryProviderId(entry) ?? "cline",
+				);
 				return;
 			}
 			setStep("model_picker");

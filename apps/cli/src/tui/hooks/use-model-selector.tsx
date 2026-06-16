@@ -29,6 +29,7 @@ import { buildClineModelEntries } from "../components/model-selector/cline-model
 import {
 	BROWSE_ALL_ACTION,
 	ClineModelSelectorDialogContent,
+	type ClineModelSelectorResult,
 } from "../components/model-selector/cline-model-selector";
 import {
 	buildModelOptions,
@@ -76,6 +77,10 @@ function clearReasoningConfig(config: Config): void {
 
 function usesModelIdInput(providerId: string): boolean {
 	return providerId === "openai-compatible";
+}
+
+function usesClineModelSelector(providerId: string): boolean {
+	return providerId === "cline" || providerId === "cline-pass";
 }
 
 async function runProviderChange(
@@ -291,10 +296,10 @@ export function useModelSelector(opts: {
 					continue;
 				}
 
-				if (config.providerId === "cline") {
-					const clineResult = await dialog.choice<string>({
+				if (usesClineModelSelector(config.providerId)) {
+					const clineResult = await dialog.choice<ClineModelSelectorResult>({
 						style: { maxHeight: termHeight - 2 },
-						content: (ctx: ChoiceContext<string>) => (
+						content: (ctx: ChoiceContext<ClineModelSelectorResult>) => (
 							<ClineModelSelectorDialogContent
 								{...ctx}
 								currentModel={config.modelId}
@@ -332,6 +337,7 @@ export function useModelSelector(opts: {
 							continue;
 						}
 						config.modelId = browseResult;
+						config.providerId = "cline";
 						const browseModel = modelOptions.find(
 							(m: ModelOption) => m.key === browseResult,
 						);
@@ -368,9 +374,10 @@ export function useModelSelector(opts: {
 						continue;
 					}
 
-					config.modelId = clineResult;
+					config.modelId = clineResult.modelId;
+					config.providerId = clineResult.providerId;
 					const selectedModel = modelOptions.find(
-						(m: ModelOption) => m.key === clineResult,
+						(m: ModelOption) => m.key === clineResult.modelId,
 					);
 					if (selectedModel?.supportsReasoning) {
 						const currentLevel: ThinkingLevel = config.reasoningEffort
