@@ -152,11 +152,12 @@ class ClineOAuthClientProvider implements OAuthClientProvider {
 	async saveTokens(tokens: OAuthTokens): Promise<void> {
 		// Called by the SDK after a successful token exchange or refresh.
 		Logger.log(`[McpOAuth] Tokens saved for ${this.serverName}`)
+		const lastAuthenticatedAt = Date.now()
 		patchOAuthState(this.serverName, this.settingsPath, (current) => ({
 			...current,
 			tokens: tokens as Record<string, unknown>,
 			lastError: undefined,
-			lastAuthenticatedAt: Date.now(),
+			lastAuthenticatedAt,
 		}))
 	}
 

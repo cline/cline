@@ -33,7 +33,6 @@ import { secondsToMs } from "@utils/time"
 import chokidar, { type FSWatcher } from "chokidar"
 import deepEqual from "fast-deep-equal"
 import * as fs from "fs/promises"
-import * as path from "path"
 import { nanoid } from "nanoid"
 import ReconnectingEventSource from "reconnecting-eventsource"
 import { z } from "zod"
@@ -45,6 +44,7 @@ import { expandEnvironmentVariables } from "@/utils/envExpansion"
 import type { TelemetryService } from "../telemetry/TelemetryService"
 import { DEFAULT_REQUEST_TIMEOUT_MS } from "./constants"
 import { McpOAuthManager } from "./McpOAuthManager"
+import { updateMcpSettingsFile } from "./settingsLock"
 import { StreamableHttpReconnectHandler } from "./StreamableHttpReconnectHandler"
 import { BaseConfigSchema, McpSettingsSchema, ServerConfigSchema } from "./schemas"
 import type { McpConnection, McpServerConfig, Transport } from "./types"
@@ -76,7 +76,7 @@ export class McpHub {
 	 *     authorization completed elsewhere still triggers a reconnect via
 	 *     serverGainedOAuthTokens.
 	 *
-	 * Combined with atomic writes (see writeSettingsFile), a reader can never
+	 * Combined with atomic writes, a reader can never
 	 * observe a torn/empty file mid-write, so the worst case is a redundant
 	 * reconciliation rather than dropping the server list.
 	 */
@@ -167,31 +167,20 @@ export class McpHub {
 	}
 
 	/**
-	 * Atomically write the MCP settings file via a temp file + rename.
-	 *
-	 * Rename is atomic on POSIX and NTFS, so any reader — this window's watcher,
-	 * another window, or the CLI — always observes either the complete old file
-	 * or the complete new file, never a half-written or empty one. This holds for
-	 * any number of concurrent writers without coordinating between them.
-	 *
-	 * When `servers` is provided it records the post-write connection
-	 * fingerprint, so the watcher's "change" event for this write reconciles to a
-	 * no-op. Pass the same `mcpServers` map that was written.
+	 * Record the post-write connection fingerprint so this window's watcher treats
+	 * its own write as a no-op. This does not write the settings file.
 	 */
-	async writeSettingsFile(settingsPath: string, contents: string, servers?: Record<string, McpServerConfig>): Promise<void> {
-		const dir = path.dirname(settingsPath)
-		await fs.mkdir(dir, { recursive: true })
-		const tempPath = `${settingsPath}.tmp.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}`
-		try {
-			await fs.writeFile(tempPath, contents, { encoding: "utf-8", flag: "wx" })
-			await fs.rename(tempPath, settingsPath)
-		} catch (error) {
-			await fs.unlink(tempPath).catch(() => {})
-			throw error
+	recordSettingsFingerprint(servers: Record<string, McpServerConfig>): void {
+		this.lastConnectionFingerprint = this.computeConnectionFingerprint(servers)
+	}
+
+	private async readPostWriteMcpSettings(): Promise<z.infer<typeof McpSettingsSchema>> {
+		const settings = await this.readAndValidateMcpSettingsFile()
+		if (!settings) {
+			throw new Error("Failed to read or validate MCP settings after write")
 		}
-		if (servers) {
-			this.lastConnectionFingerprint = this.computeConnectionFingerprint(servers)
-		}
+		this.recordSettingsFingerprint(settings.mcpServers as Record<string, McpServerConfig>)
+		return settings
 	}
 
 	private async readAndValidateMcpSettingsFile(): Promise<z.infer<typeof McpSettingsSchema> | undefined> {
@@ -303,7 +292,7 @@ export class McpHub {
 			const settings = await this.readAndValidateMcpSettingsFile()
 			if (settings) {
 				// Skip when nothing connection-relevant changed. This covers our own
-				// writes (writeSettingsFile pre-seeds the fingerprint) as well as
+				// writes (callers pre-seed the fingerprint) as well as
 				// OAuth-handshake churn from the SDK (codeVerifier/clientInformation
 				// rewrites on every connect attempt for unauthenticated servers). A
 				// write from the CLI or another window that genuinely changes a
@@ -334,13 +323,24 @@ export class McpHub {
 						}
 						if (fileNeedsUpdate) {
 							const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
-							// Atomic write; pre-seeds the fingerprint so this write's own
-							// watcher event is recognized as a no-op.
-							await this.writeSettingsFile(
-								settingsPath,
-								JSON.stringify({ mcpServers: settings.mcpServers }, null, 2),
-								settings.mcpServers as Record<string, McpServerConfig>,
-							)
+							const fresh = await updateMcpSettingsFile(settingsPath, (current) => {
+								const servers = current.mcpServers as Record<string, any>
+								for (const rs of remoteServers) {
+									if (!servers[rs.name]) {
+										servers[rs.name] = {
+											url: rs.url,
+											type: "streamableHttp",
+											disabled: false,
+											autoApprove: [],
+											remoteConfigured: true,
+										}
+									}
+								}
+								current.mcpServers = servers
+								return current
+							})
+							this.recordSettingsFingerprint(fresh.mcpServers as Record<string, McpServerConfig>)
+							settings.mcpServers = fresh.mcpServers as any
 						}
 					}
 					await this.updateServerConnections(settings.mcpServers)
@@ -1285,31 +1285,31 @@ export class McpHub {
 	public async toggleServerDisabledRPC(serverName: string, disabled: boolean): Promise<McpServer[]> {
 		this.isConnecting = true
 		try {
-			const config = await this.readAndValidateMcpSettingsFile()
-			if (!config) {
-				throw new Error("Failed to read or validate MCP settings")
-			}
-
-			if (!config.mcpServers[serverName]) {
-				Logger.error(`Server "${serverName}" not found in MCP configuration`)
-				throw new Error(`Server "${serverName}" not found in MCP configuration`)
-			}
-
-			config.mcpServers[serverName].disabled = disabled
-
+			// Hold the cross-process lock across read-modify-write so a concurrent
+			// writer (CLI, OAuth handshake, another window) cannot clobber this
+			// toggle. Connection rebuild stays OUTSIDE the lock: connectToServer can
+			// trigger SDK OAuth writes that take the same (non-reentrant) lock.
 			const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
-			await this.writeSettingsFile(
-				settingsPath,
-				JSON.stringify(config, null, 2),
-				config.mcpServers as Record<string, McpServerConfig>,
-			)
+			await updateMcpSettingsFile(settingsPath, (validated) => {
+				const servers = validated.mcpServers as Record<string, any>
+
+				if (!servers[serverName]) {
+					throw new Error(`Server "${serverName}" not found in MCP configuration`)
+				}
+
+				servers[serverName].disabled = disabled
+				validated.mcpServers = servers
+				return validated
+			})
+			const config = await this.readPostWriteMcpSettings()
 
 			// Rebuild the connection so the toggle takes effect. A disabled
 			// server's connection is a stub with no live transport/client, so the
 			// toggle must route through connectToServer(), which opens a real
 			// transport when enabled or creates a disconnected stub when disabled.
 			// deleteConnection preserves OAuth state.
-			const newConfig = config.mcpServers[serverName] as McpServerConfig
+			const mcpServers = config.mcpServers as Record<string, McpServerConfig>
+			const newConfig = mcpServers[serverName]
 			await this.deleteConnection(serverName)
 			await this.connectToServer(serverName, newConfig, "rpc")
 
@@ -1480,28 +1480,28 @@ export class McpHub {
 	async toggleToolAutoApproveRPC(serverName: string, toolNames: string[], shouldAllow: boolean): Promise<McpServer[]> {
 		try {
 			const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
-			const content = await fs.readFile(settingsPath, "utf-8")
-			const config = JSON.parse(content)
-
-			// Initialize autoApprove if it doesn't exist
-			if (!config.mcpServers[serverName].autoApprove) {
-				config.mcpServers[serverName].autoApprove = []
-			}
-
-			const autoApprove = config.mcpServers[serverName].autoApprove
-			for (const toolName of toolNames) {
-				const toolIndex = autoApprove.indexOf(toolName)
-
-				if (shouldAllow && toolIndex === -1) {
-					// Add tool to autoApprove list
-					autoApprove.push(toolName)
-				} else if (!shouldAllow && toolIndex !== -1) {
-					// Remove tool from autoApprove list
-					autoApprove.splice(toolIndex, 1)
+			const { config, autoApprove } = await updateMcpSettingsFile(settingsPath, (parsed) => {
+				// Initialize autoApprove if it doesn't exist
+				const servers = parsed.mcpServers as Record<string, any>
+				if (!servers[serverName].autoApprove) {
+					servers[serverName].autoApprove = []
 				}
-			}
 
-			await this.writeSettingsFile(settingsPath, JSON.stringify(config, null, 2), config.mcpServers)
+				const approve = servers[serverName].autoApprove
+				for (const toolName of toolNames) {
+					const toolIndex = approve.indexOf(toolName)
+
+					if (shouldAllow && toolIndex === -1) {
+						// Add tool to autoApprove list
+						approve.push(toolName)
+					} else if (!shouldAllow && toolIndex !== -1) {
+						// Remove tool from autoApprove list
+						approve.splice(toolIndex, 1)
+					}
+				}
+				return { config: parsed, autoApprove: approve }
+			})
+			this.recordSettingsFingerprint(config.mcpServers as Record<string, McpServerConfig>)
 
 			// Update the tools list to reflect the change
 			const connection = this.connections.find((conn) => conn.server.name === serverName)
@@ -1525,28 +1525,28 @@ export class McpHub {
 	async toggleToolAutoApprove(serverName: string, toolNames: string[], shouldAllow: boolean): Promise<void> {
 		try {
 			const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
-			const content = await fs.readFile(settingsPath, "utf-8")
-			const config = JSON.parse(content)
-
-			// Initialize autoApprove if it doesn't exist
-			if (!config.mcpServers[serverName].autoApprove) {
-				config.mcpServers[serverName].autoApprove = []
-			}
-
-			const autoApprove = config.mcpServers[serverName].autoApprove
-			for (const toolName of toolNames) {
-				const toolIndex = autoApprove.indexOf(toolName)
-
-				if (shouldAllow && toolIndex === -1) {
-					// Add tool to autoApprove list
-					autoApprove.push(toolName)
-				} else if (!shouldAllow && toolIndex !== -1) {
-					// Remove tool from autoApprove list
-					autoApprove.splice(toolIndex, 1)
+			const { autoApprove, mcpServers } = await updateMcpSettingsFile(settingsPath, (config) => {
+				// Initialize autoApprove if it doesn't exist
+				const servers = config.mcpServers as Record<string, any>
+				if (!servers[serverName].autoApprove) {
+					servers[serverName].autoApprove = []
 				}
-			}
 
-			await this.writeSettingsFile(settingsPath, JSON.stringify(config, null, 2), config.mcpServers)
+				const approve = servers[serverName].autoApprove
+				for (const toolName of toolNames) {
+					const toolIndex = approve.indexOf(toolName)
+
+					if (shouldAllow && toolIndex === -1) {
+						// Add tool to autoApprove list
+						approve.push(toolName)
+					} else if (!shouldAllow && toolIndex !== -1) {
+						// Remove tool from autoApprove list
+						approve.splice(toolIndex, 1)
+					}
+				}
+				return { autoApprove: approve as string[], mcpServers: servers as Record<string, McpServerConfig> }
+			})
+			this.recordSettingsFingerprint(mcpServers)
 
 			// Update the tools list to reflect the change
 			const connection = this.connections.find((conn) => conn.server.name === serverName)
@@ -1570,46 +1570,42 @@ export class McpHub {
 
 	public async addRemoteServer(serverName: string, serverUrl: string, transportType = "streamableHttp"): Promise<McpServer[]> {
 		try {
-			const settings = await this.readAndValidateMcpSettingsFile()
-			if (!settings) {
-				throw new Error("Failed to read MCP settings")
-			}
-
-			if (settings.mcpServers[serverName]) {
-				throw new Error(`An MCP server with the name "${serverName}" already exists`)
-			}
-
-			const serverConfig = {
-				url: serverUrl,
-				type: transportType,
-				disabled: false,
-				autoApprove: [],
-			}
-
-			// Expand environment variables for validation
-			const expandedConfig = expandEnvironmentVariables(serverConfig)
-
-			const urlValidation = z.string().url().safeParse(expandedConfig.url)
-			if (!urlValidation.success) {
-				throw new Error(`Invalid server URL: ${expandedConfig.url}. Please provide a valid URL.`)
-			}
-
-			const parsedConfig = ServerConfigSchema.parse(expandedConfig)
-
-			settings.mcpServers[serverName] = parsedConfig
 			const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
+			await updateMcpSettingsFile(settingsPath, (current) => {
+				const servers = current.mcpServers as Record<string, any>
+				if (servers[serverName]) {
+					throw new Error(`An MCP server with the name "${serverName}" already exists`)
+				}
 
-			// We don't write the zod-transformed version to the file.
-			// The above parse() call adds the transportType field to the server config
-			// It would be fine if this was written, but we don't want to clutter up the file with internal details
+				const serverConfig = {
+					url: serverUrl,
+					type: transportType,
+					disabled: false,
+					autoApprove: [],
+				}
 
-			// ToDo: We could benefit from input / output types reflecting the non-transformed / transformed versions
-			const serversToWrite = { ...settings.mcpServers, [serverName]: serverConfig }
-			await this.writeSettingsFile(
-				settingsPath,
-				JSON.stringify({ mcpServers: serversToWrite }, null, 2),
-				serversToWrite as Record<string, McpServerConfig>,
-			)
+				// Expand environment variables for validation
+				const expandedConfig = expandEnvironmentVariables(serverConfig)
+
+				const urlValidation = z.string().url().safeParse(expandedConfig.url)
+				if (!urlValidation.success) {
+					throw new Error(`Invalid server URL: ${expandedConfig.url}. Please provide a valid URL.`)
+				}
+
+				const parsedConfig = ServerConfigSchema.parse(expandedConfig)
+
+				servers[serverName] = parsedConfig
+
+				// We don't write the zod-transformed version to the file.
+				// The above parse() call adds the transportType field to the server config
+				// It would be fine if this was written, but we don't want to clutter up the file with internal details
+
+				// ToDo: We could benefit from input / output types reflecting the non-transformed / transformed versions
+				const serversToWrite = { ...servers, [serverName]: serverConfig }
+				current.mcpServers = serversToWrite
+				return current
+			})
+			const settings = await this.readPostWriteMcpSettings()
 
 			await this.updateServerConnectionsRPC(settings.mcpServers as Record<string, McpServerConfig>)
 
@@ -1632,25 +1628,25 @@ export class McpHub {
 			await this.clearOAuthForConnection(serverName)
 
 			const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
-			const content = await fs.readFile(settingsPath, "utf-8")
-			const config = JSON.parse(content)
-			if (!config.mcpServers || typeof config.mcpServers !== "object") {
-				config.mcpServers = {}
-			}
+			await updateMcpSettingsFile(settingsPath, (parsed) => {
+				const servers = parsed.mcpServers as Record<string, any>
 
-			if (config.mcpServers[serverName]) {
-				delete config.mcpServers[serverName]
-				const updatedConfig = {
-					mcpServers: config.mcpServers,
+				if (!servers[serverName]) {
+					throw new Error(`${serverName} not found in MCP configuration`)
 				}
-				await this.writeSettingsFile(settingsPath, JSON.stringify(updatedConfig, null, 2), config.mcpServers)
-				await this.updateServerConnectionsRPC(config.mcpServers)
 
-				// Get the servers in their correct order from settings
-				const serverOrder = Object.keys(config.mcpServers || {})
-				return this.getSortedMcpServers(serverOrder)
-			}
-			throw new Error(`${serverName} not found in MCP configuration`)
+				delete servers[serverName]
+				parsed.mcpServers = servers
+				return parsed
+			})
+			const config = await this.readPostWriteMcpSettings()
+			const mcpServers = config.mcpServers as Record<string, McpServerConfig>
+
+			await this.updateServerConnectionsRPC(mcpServers)
+
+			// Get the servers in their correct order from settings
+			const serverOrder = Object.keys(mcpServers || {})
+			return this.getSortedMcpServers(serverOrder)
 		} catch (error) {
 			Logger.error(`Failed to delete MCP server: ${error instanceof Error ? error.message : String(error)}`)
 			throw error
@@ -1666,19 +1662,22 @@ export class McpHub {
 			}
 
 			const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
-			const content = await fs.readFile(settingsPath, "utf-8")
-			const config = JSON.parse(content)
+			await updateMcpSettingsFile(settingsPath, (parsed) => {
+				const servers = parsed.mcpServers as Record<string, any>
 
-			if (!config.mcpServers?.[serverName]) {
-				throw new Error(`Server "${serverName}" not found in settings`)
-			}
+				if (!servers[serverName]) {
+					throw new Error(`Server "${serverName}" not found in settings`)
+				}
 
-			config.mcpServers[serverName] = {
-				...config.mcpServers[serverName],
-				timeout,
-			}
+				servers[serverName] = {
+					...servers[serverName],
+					timeout,
+				}
 
-			await this.writeSettingsFile(settingsPath, JSON.stringify(config, null, 2), config.mcpServers)
+				parsed.mcpServers = servers
+				return parsed
+			})
+			const config = await this.readPostWriteMcpSettings()
 
 			// Update in-memory config to reflect the new timeout
 			const connection = this.connections.find((conn) => conn.server.name === serverName)

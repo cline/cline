@@ -12,4 +12,3 @@ import crypto from "crypto"
 export const getServerAuthHash = (serverName: string, serverUrl: string): string => {
 	return crypto.createHash("sha256").update(`${serverName}:${serverUrl}`).digest("hex")
 }
-
