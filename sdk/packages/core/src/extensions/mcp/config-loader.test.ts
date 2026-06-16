@@ -1,3 +1,4 @@
+import { existsSync, mkdirSync, readdirSync, renameSync, rmdirSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -10,6 +11,8 @@ import {
 	resolveMcpServerRegistrations,
 	setMcpServerDisabled,
 	updateMcpServerOAuthState,
+	updateMcpSettingsFileSync,
+	McpSettingsMutatorPurityError,
 } from "./config-loader";
 
 describe("mcp config loader", () => {
@@ -398,5 +401,102 @@ describe("mcp config loader", () => {
 				objectPrototype.oauth = originalOauth;
 			}
 		}
+	});
+
+	it("serializes concurrent oauth updates so neither write is lost", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
+		tempRoots.push(tempRoot);
+		const filePath = join(tempRoot, "cline_mcp_settings.json");
+		await writeFile(
+			filePath,
+			JSON.stringify(
+				{
+					mcpServers: {
+						linear: { transport: { type: "streamableHttp", url: "https://linear.example.com" } },
+						github: { transport: { type: "streamableHttp", url: "https://github.example.com" } },
+					},
+				},
+				null,
+				2,
+			),
+			"utf8",
+		);
+
+		updateMcpServerOAuthState("linear", () => ({ tokens: { access_token: "linear-token" } }), {
+			filePath,
+		});
+		updateMcpServerOAuthState("github", () => ({ tokens: { access_token: "github-token" } }), {
+			filePath,
+		});
+
+		const written = JSON.parse(await readFile(filePath, "utf8"));
+		expect(written.mcpServers.linear.oauth?.tokens?.access_token).toBe("linear-token");
+		expect(written.mcpServers.github.oauth?.tokens?.access_token).toBe("github-token");
+		// Lockfile is released after each critical section.
+		expect(existsSync(`${filePath}.lock`)).toBe(false);
+	});
+
+	it("reclaims a stale lock directory older than the hang timeout", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
+		tempRoots.push(tempRoot);
+		const filePath = join(tempRoot, "cline_mcp_settings.json");
+		await writeFile(filePath, JSON.stringify({ mcpServers: {} }, null, 2), "utf8");
+
+		// Simulate a crashed writer that left a lock directory behind, backdated well
+		// past the 10s stale threshold.
+		const lockPath = `${filePath}.lock`;
+		mkdirSync(lockPath);
+		writeFileSync(join(lockPath, "owner.dead"), "dead-owner");
+		const stale = new Date(Date.now() - 60_000);
+		const { utimesSync } = await import("node:fs");
+		utimesSync(lockPath, stale, stale);
+
+		let ran = false;
+		updateMcpSettingsFileSync(filePath, () => {
+			ran = true;
+		});
+
+		expect(ran).toBe(true);
+		// The stale lock was reclaimed and our own lock released afterward.
+		expect(existsSync(lockPath)).toBe(false);
+		expect(statSync(filePath).isFile()).toBe(true);
+	});
+
+	it("does not delete another owner's replacement lock directory on release", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
+		tempRoots.push(tempRoot);
+		const filePath = join(tempRoot, "cline_mcp_settings.json");
+		await writeFile(filePath, JSON.stringify({ mcpServers: {} }, null, 2), "utf8");
+
+		const lockPath = `${filePath}.lock`;
+		updateMcpSettingsFileSync(filePath, () => {
+			// Simulate another process reclaiming our lock directory before our
+			// finally release runs. Release must remove only our owner marker and then
+			// rmdir the directory; a populated replacement must survive.
+			const [owner] = readdirSync(lockPath);
+			unlinkSync(join(lockPath, owner));
+			rmdirSync(lockPath);
+			const replacement = `${lockPath}.replacement`;
+			mkdirSync(replacement);
+			writeFileSync(join(replacement, "owner.replacement"), "replacement-owner", { flag: "wx" });
+			renameSync(replacement, lockPath);
+		});
+
+		expect(readdirSync(lockPath)).toEqual(["owner.replacement"]);
+	});
+
+	it("rejects impure settings mutators whose output changes across calls", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
+		tempRoots.push(tempRoot);
+		const filePath = join(tempRoot, "cline_mcp_settings.json");
+		await writeFile(filePath, JSON.stringify({ mcpServers: {} }, null, 2), "utf8");
+
+		let count = 0;
+		expect(() =>
+			updateMcpSettingsFileSync(filePath, (settings) => {
+				count += 1;
+				settings.mcpServers = { generated: { counter: count } };
+			}),
+		).toThrow(McpSettingsMutatorPurityError);
 	});
 });

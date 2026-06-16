@@ -283,6 +283,8 @@ export {
 	type McpServerSnapshot,
 	type McpServerTransportConfig,
 	type McpSettingsFile,
+	type McpSettingsLockOptions,
+	type McpSettingsMutator,
 	type McpSseTransportConfig,
 	type McpStdioTransportConfig,
 	type McpStreamableHttpTransportConfig,
@@ -298,6 +300,10 @@ export {
 	type SetMcpServerDisabledOptions,
 	setMcpServerDisabled,
 	updateMcpServerOAuthState,
+	updateMcpSettingsFileSync,
+	McpSettingsLockTimeoutError,
+	McpSettingsMutatorPurityError,
+	McpSettingsUpdateSkippedError,
 } from "./extensions/mcp";
 export {
 	type AgentTask,

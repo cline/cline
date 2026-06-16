@@ -234,18 +234,16 @@ describe("syncRemoteMcpServersToSettings", () => {
 			result.mcpServers["my-server"].remoteConfigured.should.equal(true)
 		})
 
-		it("should write through McpHub.writeSettingsFile (atomic) when an McpHub is provided", async () => {
+		it("should record the post-write McpHub fingerprint when an McpHub is provided", async () => {
 			await writeSettings({})
 
 			const mockMcpHub = {
-				writeSettingsFile: sandbox.stub().callsFake(async (p: string, contents: string) => {
-					await fs.writeFile(p, contents)
-				}),
+				recordSettingsFingerprint: sandbox.stub(),
 			}
 
 			await syncRemoteMcpServersToSettings([{ name: "test", url: "https://test.com" }], tempDir, mockMcpHub as any)
 
-			mockMcpHub.writeSettingsFile.calledOnce.should.be.true()
+			mockMcpHub.recordSettingsFingerprint.calledOnce.should.be.true()
 			const result = await readSettings()
 			result.mcpServers["test"].url.should.equal("https://test.com")
 			result.mcpServers["test"].remoteConfigured.should.equal(true)
