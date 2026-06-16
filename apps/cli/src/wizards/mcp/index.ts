@@ -1,6 +1,5 @@
 import * as p from "@clack/prompts";
-import { authorizeMcpServerOAuth } from "@cline/core";
-import open from "open";
+import { authorizeMcpServerOAuthWithBrowser as authorizeOAuth } from "./oauth";
 import {
 	addServer,
 	clearServerOAuth,
@@ -15,16 +14,6 @@ import {
 
 function isCancel(value: unknown): value is symbol {
 	return p.isCancel(value);
-}
-
-function toErrorMessage(error: unknown): string {
-	if (error instanceof Error) {
-		const message = error.message.trim();
-		if (message.length > 0) {
-			return message;
-		}
-	}
-	return String(error);
 }
 
 function transportLabel(t: McpTransport): string {
@@ -220,29 +209,6 @@ async function collectUrlTransport(
 		transport: { type, url: (url as string).trim(), headers },
 		authMode,
 	};
-}
-
-async function authorizeOAuth(name: string): Promise<void> {
-	p.log.info("Opening browser for MCP OAuth authorization");
-	try {
-		const result = await authorizeMcpServerOAuth({
-			serverName: name,
-			filePath: getSettingsPath(),
-			openUrl: async (url) => {
-				p.log.message(`Authorization URL: ${url}`);
-				await open(url, { wait: false });
-			},
-			onServerListening: (info) => {
-				p.log.message(`Waiting for OAuth callback at ${info.callbackUrl}`);
-			},
-		});
-		p.log.success(result.message);
-	} catch (error) {
-		p.log.error(`OAuth authorization failed: ${toErrorMessage(error)}`);
-		p.log.warn(
-			`Server "${name}" is still saved. Choose "Authorize OAuth" to retry.`,
-		);
-	}
 }
 
 async function actionAdd(): Promise<void> {
