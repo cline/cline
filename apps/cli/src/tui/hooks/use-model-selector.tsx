@@ -380,6 +380,24 @@ export function useModelSelector(opts: {
 						continue;
 					}
 
+					if (config.providerId !== clineResult.providerId) {
+						const manager = new ProviderSettingsManager();
+						const resolved = await resolveProviderConfig(
+							clineResult.providerId,
+							{
+								loadLatestOnInit: true,
+								loadPrivateOnAuth: true,
+								failOnError: false,
+							},
+							manager.getProviderConfig(clineResult.providerId, {
+								includeKnownModels: false,
+							}),
+						);
+						modelOptions = buildModelOptions(
+							resolved?.knownModels as Record<string, Llms.ModelInfo>,
+						);
+						config.knownModels = resolved?.knownModels;
+					}
 					config.modelId = clineResult.modelId;
 					config.providerId = clineResult.providerId;
 					const selectedModel = modelOptions.find(
