@@ -1,5 +1,22 @@
 # Cline SDK Changelog
 
+## 0.0.48
+
+- Added ClinePass support and ClinePass models
+- Added MCP server support to plugins
+- Updated the recommended/fixed model list
+- Encouraged parallel tool calls for faster task execution
+- Capped tool output ingestion for bash commands and file reads to keep large output within context limits
+- Added a bounded media budget for provider requests, plus generic provider-request capture
+- Allowed ranged reads on large files
+- Fixed apply_patch to fail when a hunk is skipped instead of silently dropping it
+- Fixed run_commands to return captured stdout on failure and to coalesce split heredocs
+- Fixed search tools to treat zero results as a successful result
+- Fixed search output cap and bash executor follow-up issues
+- Fixed disabled-reasoning handling for StepFun flash
+- Fixed the Hugging Face URL
+- Fixed Cline OAuth token formatting in provider config
+
 ## 0.0.47
 
 - Added support for overriding the API base URL
