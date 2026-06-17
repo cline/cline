@@ -210,7 +210,7 @@ async function onChangeToClinePass(config: ClineAccountConfig) {
 			organizationId: null,
 		});
 	} catch (error) {
-		config.logger?.debug("Failed to switch Cline Pass to personal account", {
+		config.logger?.debug("Failed to switch ClinePass to personal account", {
 			error,
 		});
 	}

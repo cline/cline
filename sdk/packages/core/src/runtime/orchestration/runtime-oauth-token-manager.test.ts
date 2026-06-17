@@ -79,7 +79,7 @@ describe("RuntimeOAuthTokenManager", () => {
 		);
 	});
 
-	it("resolves Cline Pass OAuth using Cline storage and WorkOS formatting", async () => {
+	it("resolves ClinePass OAuth using Cline storage and WorkOS formatting", async () => {
 		const getProviderSettings = vi.fn().mockReturnValue({
 			provider: "cline",
 			baseUrl: "https://api.cline.test",

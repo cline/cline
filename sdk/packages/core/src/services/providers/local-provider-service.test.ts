@@ -1090,7 +1090,7 @@ describe("listLocalProviders", () => {
 		expect(ids).toContain("list-provider-b");
 	});
 
-	it("hides Cline Pass when the Cline Pass feature flag is disabled", async () => {
+	it("hides ClinePass when the ClinePass feature flag is disabled", async () => {
 		const { providers } = await listLocalProviders(manager, {
 			isClinePassEnabled: false,
 		});
@@ -1098,7 +1098,7 @@ describe("listLocalProviders", () => {
 		expect(providers.map((p) => p.id)).not.toContain("cline-pass");
 	});
 
-	it("includes Cline Pass when the Cline Pass feature flag is enabled", async () => {
+	it("includes ClinePass when the ClinePass feature flag is enabled", async () => {
 		const { providers } = await listLocalProviders(manager, {
 			isClinePassEnabled: true,
 		});
