@@ -1,5 +1,12 @@
 # Cline CLI Changelog
 
+## 3.0.27
+
+- Added a `cline skill` command to install and manage skills, matching `cline plugin install` and `cline mcp` (installs default to the Cline agent directory)
+- Added a prefilled MCP install wizard command for quicker MCP server setup
+- Improved error handling and messaging when plugin MCP OAuth authorization fails
+- The CLI now rejects unknown commands and unquoted multi-word input with a clear error instead of silently treating bad arguments as a prompt
+
 ## 3.0.26
 
 - Reverted the expandable model picker sections and ClinePass models, restoring the previous model-selection UI
