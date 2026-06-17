@@ -91,7 +91,7 @@ On the main branch, create a commit that updates:
 
 3. No changelog-entry file cleanup is needed. Contributors do not create changelog-entry files in this repo.
 
-**Skip running `npm run install:all`** - release automation handles lockfile consistency as needed.
+**Skip running `bun run install:all`** - release automation handles lockfile consistency as needed.
 
 Commit with message format: `v{VERSION} Release Notes (hotfix)`
 

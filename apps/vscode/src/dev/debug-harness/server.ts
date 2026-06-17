@@ -10,7 +10,7 @@
  *   - UI automation (click, type, screenshot) via Playwright
  *
  * Usage:
- *   npx tsx src/dev/debug-harness/server.ts [options]
+ *   bun src/dev/debug-harness/server.ts [options]
  *
  * Options:
  *   --skip-build        Skip building extension/webview

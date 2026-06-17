@@ -13,8 +13,16 @@ This file is the secret sauce for working effectively in this codebase. It captu
 **What NOT to add:** Stuff you can figure out from reading a few files, obvious patterns, or standard practices. This file should be high-signal, not comprehensive.
 
 ## Miscellaneous
+- **`apps/vscode` uses bun for package management + task running (NOT npm).** Emit bun
+  commands, never npm/npx: `npm run X` → `bun run X`, `npm install`/`npm ci` → `bun install`,
+  `npx <bin>` → `bunx <bin>`, `node esbuild.mjs` → `bun esbuild.mjs`, `npx tsx file.ts` → `bun file.ts`.
+  **Node is still the runtime, not the tooling.** Do NOT "fix" runtime/ABI Node references to bun:
+  esbuild `platform:"node"`/`target:"node"`, `TARGET_NODE_VERSION`, `prebuild-install --target`,
+  `NODE_PATH ... node cline-core.js`, `node:` import specifiers, `process.versions.node`,
+  `engines.node`, and `ELECTRON_RUN_AS_NODE` are all legitimate Node-runtime tokens. See
+  `apps/vscode/docs/bun-migration-notes.md` for the full keep-list vs rewrite-list.
 - Avoid provider-specific string matching / hardcoded provider branches when fixing provider/config plumbing. Prefer provider metadata, shared catalog/defaults, explicit protocol/client capabilities, or centralized normalization utilities that apply by data shape rather than `providerId === "..."`. If a provider exception seems necessary, stop and explain why instead of adding ad-hoc string matching.
-- This is a VS Code extension—check `package.json` for available scripts before trying to verify builds (e.g., `npm run compile`, not `npm run build`).
+- This is a VS Code extension—check `package.json` for available scripts before trying to verify builds (e.g., `bun run compile`, not `bun run build`).
 - When creating PRs, contributors should not create changelog-entry files. Maintainers handle release versioning and changelog curation during the release process.
 - When adding new feature flags, see this PR as a reference https://github.com/cline/cline/pull/7566
 - Additional instructions about making requests: @.clinerules/network.md
@@ -72,7 +80,7 @@ The extension and webview communicate via gRPC-like protocol over VS Code messag
 - Naming: Services `PascalCaseService`, RPCs `camelCase`, Messages `PascalCase`
 - For streaming responses, use `stream` keyword (see `subscribeToAuthCallback` in `account.proto`)
 
-**Run `npm run protos`** after any proto changes—generates types in:
+**Run `bun run protos`** after any proto changes—generates types in:
 - `src/shared/proto/` - Shared type definitions
 - `src/generated/grpc-js/` - Service implementations
 - `src/generated/nice-grpc/` - Promise-based clients
@@ -108,7 +116,7 @@ Settings plumbing gotcha: if a key is user-toggleable from settings, wire both c
 Missing one path causes a toggle to appear to change in one surface while the backend state stays unchanged.
 
 Webview toggle gotcha: settings changes must also round-trip back in state payloads.
-- Add the field to `UpdateSettingsRequest` in `proto/cline/state.proto` (for webview update requests), then run `npm run protos`
+- Add the field to `UpdateSettingsRequest` in `proto/cline/state.proto` (for webview update requests), then run `bun run protos`
 - Include the key in `Controller.getStateToPostToWebview()` (`src/core/controller/index.ts`)
 - Ensure `ExtensionState` and webview defaults include the key (`src/shared/ExtensionMessage.ts`, `webview-ui/src/context/ExtensionStateContext.tsx`)
 If this round-trip wiring is missing, the backend value can update but the toggle in webview appears stuck or reverts.
@@ -181,7 +189,7 @@ env -u ELECTRON_RUN_AS_NODE -u ELECTRON_NO_ATTACH_CONSOLE \
     -u VSCODE_CLI -u VSCODE_CODE_CACHE_PATH -u VSCODE_CRASH_REPORTER_PROCESS_TYPE \
     -u VSCODE_CWD -u VSCODE_ESM_ENTRYPOINT -u VSCODE_HANDLES_UNCAUGHT_ERRORS \
     -u VSCODE_IPC_HOOK -u VSCODE_NLS_CONFIG -u VSCODE_PID -u VSCODE_L10N_BUNDLE_LOCATION \
-    npx tsx src/dev/debug-harness/server.ts --auto-launch --skip-build
+    bun src/dev/debug-harness/server.ts --auto-launch --skip-build
 ```
 
 Check your own env with `env | grep -iE 'electron|vscode_'` first; `ELECTRON_RUN_AS_NODE=1`

@@ -7,5 +7,5 @@ fi
 
 gitleaks git --pre-commit --redact --staged --verbose || exit 1
 
-cd apps/vscode && lint-staged
+cd apps/vscode && bunx lint-staged
 

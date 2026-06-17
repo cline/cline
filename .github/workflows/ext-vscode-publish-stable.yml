@@ -109,19 +109,48 @@ jobs:
                   echo "tag=$TAG" >> $GITHUB_OUTPUT
                   echo "resolved_sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
 
+            - name: Setup Bun
+              uses: oven-sh/setup-bun@v2
+              with:
+                  bun-version: 1.3.14
+
+            # Node is still REQUIRED in the publish job (not just for install): the
+            # publish scripts run as `node scripts/publish-*.mjs`, the version step uses
+            # `node -p`, and `npx ovsx` needs npm. setup-bun does not provide a Node
+            # runtime, so keep setup-node. Pinned to Node 22 because newer LTS
+            # (Node 24 / npm 11) can make vsce's `npm list` detection fail with
+            # ELSPROBLEMS during packaging.
             - name: Setup Node.js
               uses: actions/setup-node@v4
               with:
                   node-version: 22
 
-            - name: Install extension dependencies
+            # Single root install resolves the whole bun workspace at once (replaces the
+            # per-package `npm install` steps for apps/vscode + webview-ui).
+            - name: Install workspace dependencies
               working-directory: ${{ github.workspace }}
-              run: npm --prefix apps/vscode install --include=optional
+              run: bun install --frozen-lockfile
 
-            - name: Install webview-ui dependencies
+            # @cline/* are local workspace symlinks to source packages; build dist/ before
+            # packaging/publishing the extension.
+            - name: Build SDK packages
               working-directory: ${{ github.workspace }}
-              run: npm --prefix apps/vscode/webview-ui install --include=optional
+              run: bun run build:sdk
 
+            - name: Assert better-sqlite3 native binary present
+              run: |
+                  NODE_FILE="node_modules/better-sqlite3/build/Release/better_sqlite3.node"
+                  if [ ! -f "$NODE_FILE" ]; then
+                    echo "ERROR: better-sqlite3 native binary missing at apps/vscode/$NODE_FILE"
+                    echo "(bun trustedDependencies postinstall likely did not run)"
+                    exit 1
+                  fi
+                  echo "Found better-sqlite3 native binary: $NODE_FILE"
+
+            # vsce is a workspace devDependency (on node_modules/.bin), but ovsx is not
+            # vendored and the publish script invokes it via `npx ovsx`, so install ovsx
+            # globally (npm is available via setup-node). vsce is installed globally too
+            # to preserve the script's existing PATH expectations.
             - name: Install Publishing Tools
               run: npm install -g @vscode/vsce ovsx
 
@@ -167,11 +196,14 @@ jobs:
                   # Required to generate the .vsix
                   vsce package  --allow-package-secrets sendgrid --out "cline-${{ steps.get_version.outputs.version }}.vsix"
 
+                  # These scripts run under `node scripts/publish-marketplace.mjs`;
+                  # bun run just launches them. Node + npm (for `npx ovsx`) come from
+                  # setup-node above.
                   if [ "$RELEASE_TYPE" = "pre-release" ]; then
-                    npm run publish:marketplace:prerelease
+                    bun run publish:marketplace:prerelease
                     echo "Successfully published pre-release version ${{ steps.get_version.outputs.version }} to VS Code Marketplace and Open VSX Registry"
                   else
-                    npm run publish:marketplace
+                    bun run publish:marketplace
                     echo "Successfully published release version ${{ steps.get_version.outputs.version }} to VS Code Marketplace and Open VSX Registry"
                   fi
 
