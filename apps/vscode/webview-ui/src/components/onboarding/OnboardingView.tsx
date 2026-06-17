@@ -15,6 +15,7 @@ import { AccountServiceClient, StateServiceClient } from "@/services/grpc-client
 import ApiConfigurationSection from "../settings/sections/ApiConfigurationSection"
 import { useApiConfigurationHandlers } from "../settings/utils/useApiConfigurationHandlers"
 import WelcomeView from "../welcome/WelcomeView"
+import { ClinePassSubscribeCallout } from "./ClinePassSubscribeCallout"
 import {
 	getCapabilities,
 	getClineUIOnboardingGroups,
@@ -419,6 +420,7 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 				{stepNumber === 2 && (
 					<div className="flex w-full max-w-lg flex-col gap-6 my-4 items-center ">
 						<LoaderCircleIcon className="animate-spin" />
+						{userType === NEW_USER_TYPE.CLINE_PASS && <ClinePassSubscribeCallout />}
 					</div>
 				)}
 				{stepDisplayInfo.description && (

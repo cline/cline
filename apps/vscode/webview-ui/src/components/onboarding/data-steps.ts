@@ -57,7 +57,7 @@ export const STEP_CONFIG = {
 
 const CLINE_PASS_USER_TYPE_SELECTION: UserTypeSelection = {
 	title: "Cline Pass",
-	description: "One subscription, curated models, no API keys",
+	description: "Recommended — curated models, one subscription, no API keys to manage",
 	type: NEW_USER_TYPE.CLINE_PASS,
 }
 
