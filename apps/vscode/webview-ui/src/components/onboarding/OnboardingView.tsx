@@ -287,8 +287,7 @@ const OnboardingStepContent = ({
 	return <ApiConfigurationSection />
 }
 
-// Cline Pass subscription signup page in the dashboard (gated ProtectedRoute,
-// so it requires the user to be authenticated first).
+// Cline Pass subscription signup page in the dashboard (requires auth).
 const CLINE_PASS_SUBSCRIBE_PATH = "/onboarding/individual-plan"
 const DEFAULT_APP_BASE_URL = "https://app.cline.bot"
 
@@ -306,8 +305,7 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 	const [selectedModelId, setSelectedModelId] = useState("")
 	const [searchTerm, setSearchTerm] = useState("")
 
-	// When a Cline Pass user starts signup, we open the browser login, then once
-	// auth completes we send them straight to the Cline Pass subscription page.
+	// Set when a Cline Pass user starts signup; the effect below opens the subscription page once auth completes.
 	const pendingClinePassSubscribe = useRef(false)
 
 	useEffect(() => {
@@ -359,8 +357,7 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 			const modelSelected = (updateModelId && selectedModelId) || undefined
 			if (modelSelected) {
 				if (userType === NEW_USER_TYPE.CLINE_PASS) {
-					// Cline Pass uses its own provider + model fields; costs are covered by the
-					// subscription and it routes through the Cline endpoint.
+					// Cline Pass uses its own provider + model fields.
 					const clinePassModelInfo = resolveClinePassModelInfo(selectedModelId, openRouterModelsByName)
 					await handleFieldsChange({
 						planModeClinePassModelId: selectedModelId,
@@ -393,8 +390,7 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 		async (action: "signin" | "next" | "back" | "done" | "signup") => {
 			switch (action) {
 				case "signup":
-					// For Cline Pass, after login completes we redirect the browser to the
-					// subscription signup page (handled by the clineUser effect above).
+					// Cline Pass: redirect to the subscription page once login completes (see effect above).
 					pendingClinePassSubscribe.current = userType === NEW_USER_TYPE.CLINE_PASS
 					setStepNumber(stepNumber + 1)
 					setIsActionLoading(true)
