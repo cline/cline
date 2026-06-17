@@ -12,6 +12,7 @@ import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
 import type { ToolValidator } from "../ToolValidator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
+import { commandLooksDestructive, shouldAutoApproveExecuteCommand } from "../utils/commandSafety"
 import { applyModelContentFixes } from "../utils/ModelContentProcessor"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
 
@@ -220,11 +221,25 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 			)
 		}
 
-		if (
-			config.isSubagentExecution ||
-			(!requiresApprovalPerLLM && autoApproveSafe) ||
-			(requiresApprovalPerLLM && autoApproveSafe && autoApproveAll)
-		) {
+		// Harness-trusted destructive-command check. The model's own
+		// `requires_approval` flag must not be the sole gate that decides whether
+		// its command is auto-executed: a prompt-injected or over-eager model could
+		// mark a destructive command as "safe" and have it run with no human
+		// prompt. We therefore independently inspect the command text and, when it
+		// looks destructive, refuse the "model says safe" auto-approve path so the
+		// command falls through to explicit human approval. The all-commands
+		// opt-in (executeAllCommands / yolo / autoApproveAll) is unchanged — that
+		// is a deliberate, harness-trusted decision to skip approval entirely.
+		const harnessFlagsDestructive = commandLooksDestructive(actualCommand)
+		const autoApprove = shouldAutoApproveExecuteCommand({
+			isSubagentExecution: config.isSubagentExecution,
+			requiresApprovalPerLLM,
+			autoApproveSafe,
+			autoApproveAll,
+			command: actualCommand,
+		})
+
+		if (autoApprove) {
 			// Auto-approve flow
 			if (!config.isSubagentExecution) {
 				await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "command")
@@ -242,15 +257,20 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 				block.isNativeToolCall,
 			)
 		} else {
-			// Manual approval flow
+			// Manual approval flow.
+			// Surface the explicit-approval treatment both when the model itself
+			// flagged the command as requiring approval AND when the harness
+			// overrode a model "safe" classification because the command looks
+			// destructive.
+			const requiresExplicitApproval = autoApproveSafe && (requiresApprovalPerLLM || harnessFlagsDestructive)
 			void showApprovalNotification(
-				{ message: actualCommand, requiresExplicitApproval: autoApproveSafe && requiresApprovalPerLLM },
+				{ message: actualCommand, requiresExplicitApproval },
 				config.autoApprovalSettings.enableNotifications,
 			)
 
 			const didApprove = await ToolResultUtils.askApprovalAndPushFeedback(
 				"command",
-				actualCommand + `${autoApproveSafe && requiresApprovalPerLLM ? COMMAND_REQ_APP_STRING : ""}`,
+				actualCommand + `${requiresExplicitApproval ? COMMAND_REQ_APP_STRING : ""}`,
 				config,
 			)
 			if (!didApprove) {
