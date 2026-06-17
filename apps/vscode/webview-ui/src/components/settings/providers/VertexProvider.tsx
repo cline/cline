@@ -16,7 +16,6 @@ import { LockIcon, RemotelyConfiguredInputWrapper } from "../common/RemotelyConf
 import ReasoningEffortSelector from "../ReasoningEffortSelector"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { getModeSpecificFields } from "../utils/providerUtils"
-import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 /**
  * Props for the VertexProvider component
@@ -27,21 +26,6 @@ interface VertexProviderProps {
 	currentMode: Mode
 }
 
-// Vertex models that support thinking
-const SUPPORTED_THINKING_MODELS = [
-	"claude-sonnet-4-6",
-	"claude-sonnet-4-6:1m",
-	"claude-haiku-4-5@20251001",
-	"claude-sonnet-4-5@20250929",
-	"claude-3-7-sonnet@20250219",
-	"claude-sonnet-4@20250514",
-	"claude-opus-4@20250514",
-	"claude-opus-4-1@20250805",
-	"gemini-2.5-flash",
-	"gemini-2.5-pro",
-	"gemini-2.5-flash-lite-preview-06-17",
-]
-
 const REGIONS = VertexData.regions
 
 /**
@@ -49,7 +33,6 @@ const REGIONS = VertexData.regions
  */
 export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: VertexProviderProps) => {
 	const { apiConfiguration, remoteConfigSettings } = useExtensionState()
-	const { handleModeFieldChange } = useApiConfigurationHandlers()
 	const { models: allVertexModels, defaultModelId } = useProviderModels("vertex")
 	const { config, write, commitSelection } = useProviderConfig("vertex")
 	const { selectedModel, selectedModelId, selectedModelInfo, commitModelSelection } = useProviderModelSelection(
@@ -67,14 +50,19 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 	const vertexProjectId = config?.gcp?.projectId ?? apiConfiguration?.vertexProjectId ?? ""
 	const vertexRegion = config?.gcp?.region ?? config?.region ?? apiConfiguration?.vertexRegion ?? ""
 
+	const writeProviderConfig = (patch: Parameters<typeof write>[0], label: string) => {
+		void write(patch).catch((err) => console.error(`Failed to update Vertex ${label}:`, err))
+	}
+	const writeGcp = (gcp: NonNullable<Parameters<typeof write>[0]["gcp"]>, label: string) => {
+		writeProviderConfig({ gcp }, label)
+	}
+
 	const handleProjectIdChange = (value: string) => {
-		void write({ gcp: { projectId: value } }).catch((err) => console.error("Failed to update Vertex project ID:", err))
+		writeGcp({ projectId: value }, "project ID")
 	}
 
 	const handleRegionChange = (value: string) => {
-		void write({ region: value, gcp: { region: value } }).catch((err) =>
-			console.error("Failed to update Vertex region:", err),
-		)
+		writeProviderConfig({ region: value, gcp: { region: value } }, "region")
 	}
 
 	// Catalog and selection come from the SDK via gRPC. Vertex carries a
@@ -92,6 +80,10 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 		return Object.fromEntries(Object.entries(allVertexModels).filter(([, info]) => info.supportsGlobalEndpoint === true))
 	}, [allVertexModels, vertexRegion])
 	const isAdaptiveThinkingModel = isClaudeOpusAdaptiveThinkingModel(selectedModelId)
+	const supportsThinkingBudget =
+		selectedModelInfo.supportsReasoning === true &&
+		selectedModelInfo.thinkingConfig !== undefined &&
+		selectedModelInfo.thinkingConfig.supportsThinkingLevel !== true
 	const adaptiveThinkingDefaultEffort =
 		resolveClaudeOpusAdaptiveThinking(modeFields.reasoningEffort, modeFields.thinkingBudgetTokens).effort ?? "none"
 
@@ -168,7 +160,6 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 						models={modelsToUse}
 						onChange={(e: any) => {
 							const modelId = e.target.value
-							handleModeFieldChange({ plan: "planModeApiModelId", act: "actModeApiModelId" }, modelId, currentMode)
 							void commitModelSelection({
 								modelId,
 								modelInfo: modelsToUse[modelId] ?? selectedModel.modelInfo,
@@ -186,7 +177,7 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 							description="Use None to disable adaptive thinking. Higher effort increases response detail and token usage."
 							label="Adaptive Thinking"
 						/>
-					) : SUPPORTED_THINKING_MODELS.includes(selectedModelId) ? (
+					) : supportsThinkingBudget ? (
 						<ThinkingBudgetSlider currentMode={currentMode} maxBudget={selectedModelInfo.thinkingConfig?.maxBudget} />
 					) : null}
 
