@@ -315,6 +315,26 @@ export async function runCli(): Promise<void> {
 				io,
 			});
 		});
+	const skillCmd = program
+		.command("skill")
+		.description("Manage Cline Skills via the open skills CLI (npx skills)")
+		.allowUnknownOption()
+		.passThroughOptions()
+		.argument("[args...]", "arguments forwarded to the skills CLI")
+		.addHelpText(
+			"after",
+			"\nForwards to the open skills CLI via npx. Examples:\n" +
+				"  cline skill install <owner/repo>   Install a skill into Cline\n" +
+				"  cline skill list                   List installed skills\n" +
+				"  cline skill remove                 Remove installed skills\n" +
+				"\ninstall/add default to '--agent cline' unless you pass your own --agent.\n" +
+				"Run 'npx skills --help' for the full command reference.",
+		)
+		.action(async () => {
+			const { runSkillCommand } = await import("./commands/skill");
+			ctx.exitCode = await runSkillCommand(skillCmd.args, io);
+		});
+
 	const connectCmd = program
 		.command("connect")
 		.description("Connect to an external channel")
