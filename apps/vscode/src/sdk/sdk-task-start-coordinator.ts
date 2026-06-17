@@ -8,7 +8,7 @@ import { Logger } from "@/shared/services/Logger"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import type { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
-import type { SdkTaskHistory } from "./sdk-task-history"
+import { historyItemToSessionMetadata, type SdkTaskHistory } from "./sdk-task-history"
 import type { SdkSessionHost } from "./session-host"
 import { createTaskProxy, type TaskProxy } from "./task-proxy"
 import type { VscodeSessionHost } from "./vscode-session-host"
@@ -148,6 +148,7 @@ export class SdkTaskStartCoordinator {
 				config,
 				interactive: true,
 				...(initialMessages ? { initialMessages: initialMessages as InitialMessages } : {}),
+				sessionMetadata: historyItemToSessionMetadata(historyItem, config.modelId),
 			})
 
 			this.createAndSetTask(startResult.sessionId)
