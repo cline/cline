@@ -1,7 +1,17 @@
 import { setTimeout as delay } from "node:timers/promises"
 import { randomUUID } from "node:crypto"
-import * as fs from "fs/promises"
-import * as path from "path"
+import {
+	existsSync,
+	mkdirSync,
+	readFileSync,
+	renameSync,
+	rmdirSync,
+	rmSync,
+	statSync,
+	unlinkSync,
+	writeFileSync,
+} from "node:fs"
+import * as path from "node:path"
 import { Logger } from "@/shared/services/Logger"
 
 const SETTINGS_LOCK_STALE_MS = 10_000
@@ -47,14 +57,18 @@ interface AcquiredSettingsLock {
 	ownerFile: string
 }
 
-async function atomicWriteSettingsFile(settingsPath: string, contents: string): Promise<void> {
+function atomicWriteSettingsFile(settingsPath: string, contents: string): void {
 	const tempPath = `${settingsPath}.tmp.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}`
-	await fs.mkdir(path.dirname(settingsPath), { recursive: true })
+	mkdirSync(path.dirname(settingsPath), { recursive: true })
 	try {
-		await fs.writeFile(tempPath, contents, { encoding: "utf-8", flag: "wx" })
-		await fs.rename(tempPath, settingsPath)
+		writeFileSync(tempPath, contents, { encoding: "utf-8", flag: "wx" })
+		renameSync(tempPath, settingsPath)
 	} catch (error) {
-		await fs.unlink(tempPath).catch(() => {})
+		try {
+			unlinkSync(tempPath)
+		} catch {
+			// Best-effort cleanup of the temp file.
+		}
 		throw error
 	}
 }
@@ -70,32 +84,30 @@ async function atomicWriteSettingsFile(settingsPath: string, contents: string): 
  * operations and avoids inode- or handle-based deletion, so it works with
  * Node's portable fs APIs on Windows and POSIX.
  */
-async function tryAcquireSettingsLock(lockDir: string, token: string): Promise<AcquiredSettingsLock | undefined> {
-	await fs.mkdir(path.dirname(lockDir), { recursive: true })
+function tryAcquireSettingsLock(lockDir: string, token: string): AcquiredSettingsLock | undefined {
+	mkdirSync(path.dirname(lockDir), { recursive: true })
 	const stagingDir = `${lockDir}.tmp.${token}`
-	await fs.rm(stagingDir, { recursive: true, force: true })
-	await fs.mkdir(stagingDir, { recursive: true })
+	rmSync(stagingDir, { recursive: true, force: true })
+	mkdirSync(stagingDir, { recursive: true })
 	const ownerFileName = `owner.${token}`
 	const stagingOwnerFile = path.join(stagingDir, ownerFileName)
-	await fs.writeFile(stagingOwnerFile, token, { encoding: "utf8", flag: "wx" })
+	writeFileSync(stagingOwnerFile, token, { encoding: "utf8", flag: "wx" })
 	try {
-		await fs.rename(stagingDir, lockDir)
+		renameSync(stagingDir, lockDir)
 		return { lockDir, ownerFile: path.join(lockDir, ownerFileName) }
 	} catch (error) {
-		await fs.rm(stagingDir, { recursive: true, force: true })
-		try {
-			await fs.access(lockDir)
+		rmSync(stagingDir, { recursive: true, force: true })
+		if (existsSync(lockDir)) {
 			return undefined
-		} catch {
-			throw error
 		}
+		throw error
 	}
 }
 
-async function reclaimStaleLock(lockDir: string): Promise<void> {
+function reclaimStaleLock(lockDir: string): void {
 	let ageMs: number
 	try {
-		ageMs = Date.now() - (await fs.stat(lockDir)).mtimeMs
+		ageMs = Date.now() - statSync(lockDir).mtimeMs
 	} catch (error) {
 		if ((error as NodeJS.ErrnoException).code === "ENOENT") {
 			return
@@ -108,28 +120,32 @@ async function reclaimStaleLock(lockDir: string): Promise<void> {
 	Logger.warn(`[mcp-settings] Stale lock directory at ${lockDir} (age ${ageMs}ms); reclaiming.`)
 	const staleDir = `${lockDir}.stale.${makeLockToken()}`
 	try {
-		await fs.rename(lockDir, staleDir)
+		renameSync(lockDir, staleDir)
 	} catch (error) {
 		if ((error as NodeJS.ErrnoException).code === "ENOENT") {
 			return
 		}
 		throw error
 	}
-	await fs.rm(staleDir, { recursive: true, force: true })
+	rmSync(staleDir, { recursive: true, force: true })
 }
 
-async function releaseSettingsLock(lock: AcquiredSettingsLock): Promise<void> {
-	await fs.unlink(lock.ownerFile).catch((error) => {
+function releaseSettingsLock(lock: AcquiredSettingsLock): void {
+	try {
+		unlinkSync(lock.ownerFile)
+	} catch (error) {
 		if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
 			throw error
 		}
-	})
-	await fs.rmdir(lock.lockDir).catch((error) => {
+	}
+	try {
+		rmdirSync(lock.lockDir)
+	} catch (error) {
 		const code = (error as NodeJS.ErrnoException).code
 		if (code !== "ENOENT" && code !== "ENOTEMPTY" && code !== "EEXIST") {
 			throw error
 		}
-	})
+	}
 }
 
 function checkAbort(signal: AbortSignal | undefined, lockDir: string): void {
@@ -138,8 +154,8 @@ function checkAbort(signal: AbortSignal | undefined, lockDir: string): void {
 	}
 }
 
-async function readSettingsObject(settingsPath: string): Promise<Record<string, unknown>> {
-	const content = await fs.readFile(settingsPath, "utf-8")
+function readSettingsObject(settingsPath: string): Record<string, unknown> {
+	const content = readFileSync(settingsPath, "utf-8")
 	const settings = JSON.parse(content) as Record<string, unknown>
 	if (!settings.mcpServers || typeof settings.mcpServers !== "object" || Array.isArray(settings.mcpServers)) {
 		settings.mcpServers = {}
@@ -171,6 +187,12 @@ function runPureSettingsMutator<T>(settings: Record<string, unknown>, mutator: M
  * Locked MCP settings read-update-write. The mutator is synchronous and may be
  * called more than once to validate purity/determinism. Do not perform slow work
  * or side effects inside it; compute values before calling and close over them.
+ *
+ * Waiting for another process to release the lock is async, but once this
+ * process owns the lock, the critical section uses synchronous filesystem calls.
+ * @cline/core OAuth writes use a synchronous lock in the same extension host;
+ * yielding here while holding the lock would let that sync waiter block the
+ * event loop before this holder can resume and release it.
  */
 export async function updateMcpSettingsFile<T>(
 	settingsPath: string,
@@ -180,18 +202,18 @@ export async function updateMcpSettingsFile<T>(
 	const lockDir = settingsLockDir(settingsPath)
 	const token = makeLockToken()
 	let lock: AcquiredSettingsLock | undefined
-	while (!(lock = await tryAcquireSettingsLock(lockDir, token))) {
+	while (!(lock = tryAcquireSettingsLock(lockDir, token))) {
 		checkAbort(options.abortSignal, lockDir)
-		await reclaimStaleLock(lockDir)
+		reclaimStaleLock(lockDir)
 		await delay(SETTINGS_LOCK_POLL_MS)
 	}
 	try {
 		checkAbort(options.abortSignal, lockDir)
-		const settings = await readSettingsObject(settingsPath)
+		const settings = readSettingsObject(settingsPath)
 		const result = runPureSettingsMutator(settings, mutator)
-		await atomicWriteSettingsFile(settingsPath, `${JSON.stringify(settings, null, 2)}\n`)
+		atomicWriteSettingsFile(settingsPath, `${JSON.stringify(settings, null, 2)}\n`)
 		return result
 	} finally {
-		await releaseSettingsLock(lock)
+		releaseSettingsLock(lock)
 	}
 }
