@@ -8,12 +8,15 @@ describe("getUserTypeSelections", () => {
 		expect(selections.some((s) => s.type === NEW_USER_TYPE.CLINE_PASS)).toBe(false)
 	})
 
-	it("surfaces Cline Pass first when the flag is enabled", () => {
+	it("inserts Cline Pass right after the free option when the flag is enabled", () => {
 		const selections = getUserTypeSelections(true)
-		expect(selections[0]?.type).toBe(NEW_USER_TYPE.CLINE_PASS)
+		// Free stays first (and remains the default selection); Cline Pass is the
+		// recommended-but-optional second choice.
+		expect(selections[0]?.type).toBe(NEW_USER_TYPE.FREE)
+		expect(selections[1]?.type).toBe(NEW_USER_TYPE.CLINE_PASS)
 		expect(selections.map((s) => s.type)).toEqual([
-			NEW_USER_TYPE.CLINE_PASS,
 			NEW_USER_TYPE.FREE,
+			NEW_USER_TYPE.CLINE_PASS,
 			NEW_USER_TYPE.POWER,
 			NEW_USER_TYPE.BYOK,
 		])

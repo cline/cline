@@ -56,8 +56,8 @@ export const STEP_CONFIG = {
 } as const
 
 const CLINE_PASS_USER_TYPE_SELECTION: UserTypeSelection = {
-	title: "Cline Pass",
-	description: "Recommended — curated models, one subscription, no API keys to manage",
+	title: "Cline Pass (Recommended)",
+	description: "One subscription, curated models, no API keys",
 	type: NEW_USER_TYPE.CLINE_PASS,
 }
 
@@ -68,11 +68,16 @@ const BASE_USER_TYPE_SELECTIONS: UserTypeSelection[] = [
 ]
 
 /**
- * Returns the onboarding user-type options. Cline Pass is surfaced as a
- * recommended-but-optional choice at the top of the list only when the
- * `ext-cline-pass` feature flag is enabled; otherwise it is omitted entirely
- * and the classic Free / Frontier / BYOK options are shown.
+ * Returns the onboarding user-type options. The free option leads the list and is
+ * the default selection; Cline Pass is inserted as a recommended-but-optional
+ * choice (labeled "Recommended") right after it, only when the `ext-cline-pass`
+ * feature flag is enabled. When the flag is off, the classic Free / Frontier /
+ * BYOK options are shown unchanged.
  */
 export function getUserTypeSelections(isClinePassEnabled: boolean): UserTypeSelection[] {
-	return isClinePassEnabled ? [CLINE_PASS_USER_TYPE_SELECTION, ...BASE_USER_TYPE_SELECTIONS] : BASE_USER_TYPE_SELECTIONS
+	if (!isClinePassEnabled) {
+		return BASE_USER_TYPE_SELECTIONS
+	}
+	const [free, ...rest] = BASE_USER_TYPE_SELECTIONS
+	return [free, CLINE_PASS_USER_TYPE_SELECTION, ...rest]
 }

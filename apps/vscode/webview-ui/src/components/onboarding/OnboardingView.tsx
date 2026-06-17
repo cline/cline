@@ -1,21 +1,22 @@
 import { buildModelInfoNameMap, type ModelInfo, resolveClinePassModelInfo } from "@shared/api"
+import { StringRequest } from "@shared/proto/cline/common"
 import type { OnboardingModel, OnboardingModelGroup, OpenRouterModelInfo } from "@shared/proto/index.cline"
 import { AlertCircleIcon, CircleCheckIcon, CircleIcon, ListIcon, LoaderCircleIcon, ZapIcon } from "lucide-react"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import ClineLogoWhite from "@/assets/ClineLogoWhite"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Item, ItemContent, ItemDescription, ItemHeader, ItemMedia, ItemTitle } from "@/components/ui/item"
 import { CLINE_PASS_FEATURE_FLAG } from "@/constants/featureFlags"
+import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useHasFeatureFlag } from "@/hooks/useFeatureFlag"
 import { cn } from "@/lib/utils"
-import { AccountServiceClient, StateServiceClient } from "@/services/grpc-client"
+import { AccountServiceClient, StateServiceClient, UiServiceClient } from "@/services/grpc-client"
 import ApiConfigurationSection from "../settings/sections/ApiConfigurationSection"
 import { useApiConfigurationHandlers } from "../settings/utils/useApiConfigurationHandlers"
 import WelcomeView from "../welcome/WelcomeView"
-import { ClinePassSubscribeCallout } from "./ClinePassSubscribeCallout"
 import {
 	getCapabilities,
 	getClineUIOnboardingGroups,
@@ -286,9 +287,15 @@ const OnboardingStepContent = ({
 	return <ApiConfigurationSection />
 }
 
+// Cline Pass subscription signup page in the dashboard (gated ProtectedRoute,
+// so it requires the user to be authenticated first).
+const CLINE_PASS_SUBSCRIBE_PATH = "/onboarding/individual-plan"
+const DEFAULT_APP_BASE_URL = "https://app.cline.bot"
+
 const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: OnboardingModelGroup }) => {
 	const { handleFieldsChange } = useApiConfigurationHandlers()
 	const { openRouterModels, hideSettings, hideAccount, setShowWelcome } = useExtensionState()
+	const { clineUser } = useClineAuth()
 	const isClinePassEnabled = useHasFeatureFlag(CLINE_PASS_FEATURE_FLAG)
 	const userTypeSelections = useMemo(() => getUserTypeSelections(isClinePassEnabled), [isClinePassEnabled])
 
@@ -298,6 +305,20 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 
 	const [selectedModelId, setSelectedModelId] = useState("")
 	const [searchTerm, setSearchTerm] = useState("")
+
+	// When a Cline Pass user starts signup, we open the browser login, then once
+	// auth completes we send them straight to the Cline Pass subscription page.
+	const pendingClinePassSubscribe = useRef(false)
+
+	useEffect(() => {
+		if (pendingClinePassSubscribe.current && clineUser?.uid) {
+			pendingClinePassSubscribe.current = false
+			const appBaseUrl = clineUser.appBaseUrl || DEFAULT_APP_BASE_URL
+			UiServiceClient.openUrl(StringRequest.create({ value: `${appBaseUrl}${CLINE_PASS_SUBSCRIBE_PATH}` })).catch((err) =>
+				console.error("Failed to open Cline Pass subscription page:", err),
+			)
+		}
+	}, [clineUser?.uid, clineUser?.appBaseUrl])
 
 	const models = useMemo(() => getClineUIOnboardingGroups(onboardingModels), [onboardingModels])
 	// Cline Pass model IDs (e.g. "cline-pass/glm-5.1") are not keyed in openRouterModels,
@@ -372,6 +393,9 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 		async (action: "signin" | "next" | "back" | "done" | "signup") => {
 			switch (action) {
 				case "signup":
+					// For Cline Pass, after login completes we redirect the browser to the
+					// subscription signup page (handled by the clineUser effect above).
+					pendingClinePassSubscribe.current = userType === NEW_USER_TYPE.CLINE_PASS
 					setStepNumber(stepNumber + 1)
 					setIsActionLoading(true)
 					await AccountServiceClient.accountLoginClicked({})
@@ -420,7 +444,6 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 				{stepNumber === 2 && (
 					<div className="flex w-full max-w-lg flex-col gap-6 my-4 items-center ">
 						<LoaderCircleIcon className="animate-spin" />
-						{userType === NEW_USER_TYPE.CLINE_PASS && <ClinePassSubscribeCallout />}
 					</div>
 				)}
 				{stepDisplayInfo.description && (
