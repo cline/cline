@@ -50,6 +50,13 @@ describe("EntitlementError", () => {
 		expect(querySubscribeLink()).toBeNull()
 	})
 
+	it("omits the subscribe link (without crashing) when the app base URL is malformed", () => {
+		mockAuth.clineUser = { appBaseUrl: "not a valid url" }
+		render(<EntitlementError />)
+		expect(querySubscribeLink()).toBeNull()
+		expect(screen.getByText("This model requires a Cline Pass subscription.")).toBeInTheDocument()
+	})
+
 	it("prefers the authenticated user's app base URL (staging)", () => {
 		mockAuth.clineUser = { appBaseUrl: "https://staging-app.cline.bot" }
 		render(<EntitlementError />)

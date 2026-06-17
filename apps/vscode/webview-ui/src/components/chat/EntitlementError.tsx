@@ -18,8 +18,13 @@ function buildSubscribeUrl(appBaseUrl?: string): string | undefined {
 	if (!appBaseUrl) {
 		return undefined
 	}
-	const base = appBaseUrl.endsWith("/") ? appBaseUrl : `${appBaseUrl}/`
-	return new URL(CLINE_PASS_SUBSCRIBE_PATH, base).toString()
+	try {
+		const base = appBaseUrl.endsWith("/") ? appBaseUrl : `${appBaseUrl}/`
+		return new URL(CLINE_PASS_SUBSCRIBE_PATH, base).toString()
+	} catch {
+		// Malformed appBaseUrl: omit the link rather than crashing the error card.
+		return undefined
+	}
 }
 
 const EntitlementError: React.FC<EntitlementErrorProps> = ({ message }) => {
