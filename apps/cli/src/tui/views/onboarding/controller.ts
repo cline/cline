@@ -164,6 +164,9 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 
 	const createCustomModelItem = useCallback(
 		(_search: string, filteredItems: SearchableItem[]) => {
+			if (activeProviderId === "cline-pass") {
+				return undefined;
+			}
 			if (filteredItems.some((item) => item.key === CUSTOM_MODEL_ID_ACTION)) {
 				return undefined;
 			}
@@ -174,7 +177,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 				searchText: "create custom model id manual entry",
 			} satisfies SearchableItem;
 		},
-		[],
+		[activeProviderId],
 	);
 
 	const modelList = useSearchableList(modelItems, createCustomModelItem);
