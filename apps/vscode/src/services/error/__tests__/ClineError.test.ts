@@ -37,5 +37,23 @@ describe("ClineError", () => {
 			ClineError.getErrorType(err)!.should.not.equal(ClineErrorType.Auth)
 			ClineError.getErrorType(err)!.should.equal(ClineErrorType.Entitlement)
 		})
+
+		it("should return Entitlement for the real Cline 403 provider error shape (nested error object)", () => {
+			// Mirrors what the OpenAI SDK throws for a 403 from the Cline provider: a structured
+			// error whose `error` field carries the entitlement code/message. ClineError maps
+			// `error.error` into `details`, so `details.code` should drive classification.
+			const err = new ClineError(
+				{
+					status: 403,
+					error: {
+						code: "ENTITLEMENT_ERROR",
+						message: "Error 403: the user is not subscribed to required model plan",
+					},
+				},
+				"cline-pass/glm-5.1",
+				"cline-pass",
+			)
+			ClineError.getErrorType(err)!.should.equal(ClineErrorType.Entitlement)
+		})
 	})
 })
