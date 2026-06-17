@@ -259,6 +259,10 @@ export class CommandPermissionController {
 				// Exception: shell-quote tokenizes the redirect-all operators '&>' and '&>>'
 				// as a bare '&' immediately followed by '>' / '>>'. Those are redirects, not
 				// separators, so leave them to the redirect handling in step 3 below.
+				// Note: "cmd & > file" (a space-separated background '&' then a redirect)
+				// tokenizes identically to "cmd &> file", so the carve-out fires for both.
+				// That is safe either way: the following '>' still sets hasRedirects = true
+				// (step 3), keeping the default-deny redirect path intact.
 				if (typeof token === "object" && "op" in token && token.op === "&") {
 					const nextToken = tokenList[i + 1]
 					const isRedirectAll =
