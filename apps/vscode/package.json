@@ -378,6 +378,7 @@
 		"test:unit": "TS_NODE_PROJECT=./tsconfig.unit-test.json mocha",
 		"test:vitest": "vitest run --config vitest.config.ts",
 		"test:vitest:watch": "vitest --config vitest.config.ts",
+		"test:bun": "bun scripts/run-bun-tests.ts",
 		"test:coverage": "bun run compile-tests && vscode-test --coverage",
 		"test:sca-server": "bun --watch scripts/test-standalone-core-api-server.ts",
 		"test:tp-orchestrator": "bun scripts/testing-platform-orchestrator.ts",
