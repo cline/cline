@@ -153,8 +153,12 @@ export class ClineError extends Error {
 			return ClineErrorType.SpendLimit
 		}
 
-		// Must be checked before the generic auth check since these are returned as 403
-		if (code === "ENTITLEMENT_ERROR" || details?.code === "ENTITLEMENT_ERROR") {
+		// Cline Pass: individual user not subscribed. Scoped to this case only; other ENTITLEMENT_ERROR
+		// variants (e.g. organization accounts) fall through to generic handling.
+		// Checked before the generic auth check since these are returned as 403.
+		const isEntitlementCode = code === "ENTITLEMENT_ERROR" || details?.code === "ENTITLEMENT_ERROR"
+		const entitlementText = `${message ?? ""} ${details?.message ?? ""}`.toLowerCase()
+		if (isEntitlementCode && entitlementText.includes("not subscribed to required model plan")) {
 			return ClineErrorType.Entitlement
 		}
 

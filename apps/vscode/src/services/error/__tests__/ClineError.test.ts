@@ -53,5 +53,17 @@ describe("ClineError", () => {
 			)
 			ClineError.getErrorType(err)!.should.equal(ClineErrorType.Entitlement)
 		})
+
+		it("should NOT classify the organization ENTITLEMENT_ERROR variant as Entitlement", () => {
+			// Org accounts can't use individual subs; this case is intentionally out of scope and
+			// falls through to generic handling rather than showing the Cline Pass card.
+			const err = new ClineError({
+				message: "403 Error 403: organization accounts cannot use individual model inference subscriptions",
+				code: "ENTITLEMENT_ERROR",
+				status: 403,
+			})
+			const result = ClineError.getErrorType(err)
+			;(result !== ClineErrorType.Entitlement).should.be.true()
+		})
 	})
 })

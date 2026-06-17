@@ -9,14 +9,23 @@ interface EntitlementErrorProps {
 	message?: string
 }
 
-const CLINE_PASS_SUBSCRIBE_PATH = "/dashboard/subscription"
+// Relative (no leading slash) so it appends to path-prefixed app URLs (e.g. self-hosted/proxy) instead of resetting to origin.
+const CLINE_PASS_SUBSCRIBE_PATH = "dashboard/subscription"
 
 const HEADLINE = "This model requires a Cline Pass subscription."
 
+function buildSubscribeUrl(appBaseUrl?: string): string | undefined {
+	// appBaseUrl (when present) is env-aware; omit the link if it's unavailable rather than guess a URL.
+	if (!appBaseUrl) {
+		return undefined
+	}
+	const base = appBaseUrl.endsWith("/") ? appBaseUrl : `${appBaseUrl}/`
+	return new URL(CLINE_PASS_SUBSCRIBE_PATH, base).toString()
+}
+
 const EntitlementError: React.FC<EntitlementErrorProps> = ({ message }) => {
 	const { clineUser } = useClineAuth()
-	// appBaseUrl (when present) is env-aware; omit the link if it's unavailable rather than guess a URL.
-	const subscribeUrl = clineUser?.appBaseUrl ? new URL(CLINE_PASS_SUBSCRIBE_PATH, clineUser.appBaseUrl).toString() : undefined
+	const subscribeUrl = buildSubscribeUrl(clineUser?.appBaseUrl)
 	const backendDetail = message && message !== HEADLINE ? message : undefined
 
 	return (

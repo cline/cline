@@ -57,10 +57,17 @@ describe("EntitlementError", () => {
 		expect(getSubscribeHref()).toBe("https://staging-app.cline.bot/dashboard/subscription")
 	})
 
-	it("sends yesButtonClicked when Retry Request is clicked", () => {
+	it("appends to a path-prefixed app base URL (self-hosted/proxy) instead of resetting to origin", () => {
+		mockAuth.clineUser = { appBaseUrl: "https://proxy.enterprise.com/cline/app" }
+		render(<EntitlementError />)
+		expect(getSubscribeHref()).toBe("https://proxy.enterprise.com/cline/app/dashboard/subscription")
+	})
+
+	it("sends a yesButtonClicked askResponse when Retry Request is clicked", () => {
 		render(<EntitlementError />)
 		// VSCodeButton has no ARIA role in jsdom; click by label text instead.
 		fireEvent.click(screen.getByText("Retry Request"))
 		expect(askResponseMock).toHaveBeenCalledTimes(1)
+		expect(askResponseMock.mock.calls[0][0]).toMatchObject({ responseType: "yesButtonClicked" })
 	})
 })
