@@ -1,7 +1,9 @@
 import {
 	createCoreSettingsService,
+	disablePluginMcpServersInSettings,
 	setDisabledPlugin,
 	setDisabledTools,
+	syncPluginMcpServersToSettings,
 	type UserInstructionConfigService,
 	uninstallPlugin,
 } from "@cline/core";
@@ -70,7 +72,32 @@ export function createInteractiveConfigDataLoader(input: {
 		}
 
 		if (item.kind === "plugin" && typeof item.enabled === "boolean") {
-			setDisabledPlugin(item.path, item.enabled);
+			if (item.enabled) {
+				disablePluginMcpServersInSettings({ pluginPaths: [item.path] });
+				setDisabledPlugin(item.path, true);
+			} else {
+				const ownedMcpMutations = disablePluginMcpServersInSettings({
+					pluginPaths: [item.path],
+				});
+				const result = await syncPluginMcpServersToSettings({
+					pluginPaths: [item.path],
+					cwd: input.config.cwd,
+					workspacePath: workspaceRoot(),
+					providerId: input.config.providerId,
+					modelId: input.config.modelId,
+				});
+				if (ownedMcpMutations.length > 0 && result.failures.length > 0) {
+					throw new Error(
+						`Failed to sync plugin MCP servers: ${result.failures
+							.map((failure) => {
+								const plugin = failure.pluginName ?? failure.pluginPath;
+								return `${plugin}: ${failure.message}`;
+							})
+							.join("; ")}`,
+					);
+				}
+				setDisabledPlugin(item.path, false);
+			}
 			return undefined;
 		}
 

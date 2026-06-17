@@ -11,6 +11,7 @@
  */
 
 import {
+	type AgentExtensionMcpServer,
 	type AutomationEventEnvelope,
 	normalizePluginManifest,
 	type PluginManifest,
@@ -85,6 +86,7 @@ interface PluginApi {
 	registerMessageBuilder(builder: PluginMessageBuilder): void;
 	registerProvider(provider: PluginProvider): void;
 	registerAutomationEventType(eventType: PluginAutomationEventType): void;
+	registerMcpServer(server: AgentExtensionMcpServer): void;
 }
 
 interface PluginSetupCtx {
@@ -153,6 +155,7 @@ interface PluginDescriptor {
 		messageBuilders: ContributionDescriptor[];
 		providers: ContributionDescriptor[];
 		automationEventTypes: AutomationEventTypeDescriptor[];
+		mcpServers: AgentExtensionMcpServer[];
 		shortcuts?: ContributionDescriptor[];
 		flags?: ContributionDescriptor[];
 	};
@@ -437,6 +440,7 @@ async function loadPluginDescriptor(args: {
 			messageBuilders: [],
 			providers: [],
 			automationEventTypes: [],
+			mcpServers: [],
 			shortcuts: [],
 			flags: [],
 		};
@@ -508,6 +512,9 @@ async function loadPluginDescriptor(args: {
 					id: makeId(args.pluginId, "automation_event"),
 					...normalizeAutomationEventType(eventType),
 				});
+			},
+			registerMcpServer: (server) => {
+				contributions.mcpServers.push(server);
 			},
 		};
 

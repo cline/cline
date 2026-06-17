@@ -1,5 +1,5 @@
 export const FeatureFlag = {
-	/** Enables Cline Pass provider/model list exposure in supported clients. */
+	/** Enables ClinePass provider/model list exposure in supported clients. */
 	CLINE_PASS: "ext-cline-pass",
 } as const;
 

@@ -70,7 +70,7 @@ describe("provider auth registry", () => {
 		).toBe("workos:abc");
 	});
 
-	it("login/save for Cline Pass stores credentials under Cline storage", async () => {
+	it("login/save for ClinePass stores credentials under Cline storage", async () => {
 		loginClineOAuth.mockResolvedValueOnce({
 			access: "new-access",
 			refresh: "new-refresh",
@@ -115,7 +115,7 @@ describe("provider auth registry", () => {
 		);
 	});
 
-	it("Cline Pass resolves API keys from Cline storage", () => {
+	it("ClinePass resolves API keys from Cline storage", () => {
 		const getProviderSettings = vi.fn().mockReturnValue({
 			provider: "cline",
 			auth: { accessToken: "abc" },

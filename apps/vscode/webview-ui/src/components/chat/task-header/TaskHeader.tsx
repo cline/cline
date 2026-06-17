@@ -15,7 +15,7 @@ import ContextWindow from "./ContextWindow"
 import { FocusChain } from "./FocusChain"
 import { highlightText } from "./Highlights"
 
-const IS_DEV = process.env.IS_DEV === '"true"'
+const IS_DEV = process.env.IS_DEV === "true"
 interface TaskHeaderProps {
 	task: ClineMessage
 	tokensIn: number

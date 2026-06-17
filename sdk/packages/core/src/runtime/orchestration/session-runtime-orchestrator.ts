@@ -44,8 +44,10 @@ import {
 	type Message,
 	type MessageWithMetadata,
 	type ModelInfo,
+	mergeModelOptions,
 	type ToolCallRecord,
 } from "@cline/shared";
+import { filterDisabledTools } from "../../services/global-settings";
 import {
 	createAgentModelFromConfig,
 	resolveKnownModelsFromConfig,
@@ -101,6 +103,36 @@ function mergeSystemPromptRules(
 	return base || additional;
 }
 
+function isToolEnabledByPolicies(
+	toolName: string,
+	toolPolicies: AgentConfig["toolPolicies"],
+): boolean {
+	const globalPolicy = toolPolicies?.["*"] ?? {};
+	const toolPolicy = toolPolicies?.[toolName] ?? {};
+	return (
+		{
+			...globalPolicy,
+			...toolPolicy,
+		}.enabled !== false
+	);
+}
+
+function filterToolsByPolicies(
+	tools: AgentTool[],
+	toolPolicies: AgentConfig["toolPolicies"],
+): AgentTool[] {
+	return tools.filter((tool) =>
+		isToolEnabledByPolicies(tool.name, toolPolicies),
+	);
+}
+
+function filterAvailableExtensionTools(
+	tools: AgentTool[],
+	toolPolicies: AgentConfig["toolPolicies"],
+): AgentTool[] {
+	return filterDisabledTools(filterToolsByPolicies(tools, toolPolicies));
+}
+
 function mergeRuntimeHooks(
 	layers: Array<Partial<AgentRuntimeHooks> | undefined>,
 ): Partial<AgentRuntimeHooks> {
@@ -136,17 +168,14 @@ function mergeRuntimeHooks(
 				aggregate = {
 					...aggregate,
 					...result,
-					options: {
-						...(aggregate?.options ?? {}),
-						...(result.options ?? {}),
-					},
+					options: mergeModelOptions(aggregate?.options, result.options),
 				};
 				request = {
 					...request,
 					...(result.messages ? { messages: result.messages } : {}),
 					...(result.tools ? { tools: result.tools } : {}),
 					...(result.options
-						? { options: { ...(request.options ?? {}), ...result.options } }
+						? { options: mergeModelOptions(request.options, result.options) }
 						: {}),
 				};
 			}
@@ -720,7 +749,14 @@ export class SessionRuntime {
 		// wins over a same-named extension tool (legacy behaviour:
 		// `validateTools` rejects duplicates; here we prefer the
 		// explicitly-declared config tool).
-		const extensionTools = this.contributionRegistry.getRegisteredTools();
+		const extensionToolsByName = new Map<string, AgentTool>();
+		for (const tool of this.contributionRegistry.getRegisteredTools()) {
+			extensionToolsByName.set(tool.name, tool);
+		}
+		const extensionTools = filterAvailableExtensionTools(
+			[...extensionToolsByName.values()],
+			this.config.toolPolicies,
+		);
 		const mergedToolsByName = new Map<string, AgentTool>();
 		for (const tool of extensionTools) {
 			mergedToolsByName.set(tool.name, tool);
@@ -850,7 +886,9 @@ export class SessionRuntime {
 			return;
 		}
 		try {
-			await this.contributionRegistry.initialize();
+			await this.contributionRegistry.initialize({
+				tolerateSetupErrors: this.config.hookErrorMode !== "throw",
+			});
 		} catch (error) {
 			if (this.config.hookErrorMode === "throw") {
 				throw error;

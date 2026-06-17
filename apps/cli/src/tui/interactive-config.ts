@@ -86,6 +86,7 @@ export interface InteractiveConfigData {
 	mcp: InteractiveConfigItem[];
 	tools: InteractiveConfigItem[];
 	workflowSlashCommands: InteractiveSlashCommand[];
+	pluginDiagnosticsLoaded?: boolean;
 }
 
 export interface LoadInteractiveConfigDataOptions {
@@ -93,12 +94,14 @@ export interface LoadInteractiveConfigDataOptions {
 }
 
 export function isToggleableInteractiveConfigItem(
-	item: Pick<InteractiveConfigItem, "kind" | "source">,
+	item: Pick<InteractiveConfigItem, "kind" | "source" | "pluginName">,
 ): boolean {
+	if (item.kind === "mcp") {
+		return !item.pluginName;
+	}
 	return (
 		item.kind === "skill" ||
 		item.kind === "plugin" ||
-		item.kind === "mcp" ||
 		item.source === "builtin" ||
 		item.source === "workspace-plugin" ||
 		item.source === "global-plugin"
@@ -242,9 +245,10 @@ function readPackageName(packageJsonPath: string): string | undefined {
 	}
 }
 
-function getPluginDisplayName(filePath: string): string {
+function getPluginDisplayName(filePath: string, searchRoot: string): string {
 	let current = dirname(filePath);
-	for (let depth = 0; depth < 4; depth++) {
+	const root = resolve(searchRoot);
+	while (isPathWithin(root, current)) {
 		const packageJsonPath = join(current, "package.json");
 		if (existsSync(packageJsonPath)) {
 			const packageName = readPackageName(packageJsonPath);
@@ -384,7 +388,7 @@ export async function loadInteractiveConfigData(input: {
 			for (const filePath of discoverPluginModulePaths(directory)) {
 				plugins.push({
 					id: filePath,
-					name: getPluginDisplayName(filePath),
+					name: getPluginDisplayName(filePath, directory),
 					path: filePath,
 					enabled: !disabledPlugins.has(filePath),
 					kind: "plugin",
@@ -458,6 +462,16 @@ export async function loadInteractiveConfigData(input: {
 			for (const registration of resolveMcpServerRegistrations({
 				filePath: mcpSettingsPath,
 			})) {
+				const pluginName =
+					registration.metadata?.source === "plugin" &&
+					typeof registration.metadata.pluginName === "string"
+						? registration.metadata.pluginName
+						: undefined;
+				const pluginPath =
+					registration.metadata?.source === "plugin" &&
+					typeof registration.metadata.pluginPath === "string"
+						? registration.metadata.pluginPath
+						: undefined;
 				mcp.push({
 					id: registration.name,
 					name: registration.name,
@@ -467,6 +481,8 @@ export async function loadInteractiveConfigData(input: {
 					source: detectSource(mcpSettingsPath, input.workspaceRoot),
 					description: getMcpDescription(registration),
 					loadError: registration.oauth?.lastError,
+					pluginName,
+					pluginPath,
 				});
 			}
 		} catch {
@@ -514,6 +530,7 @@ export async function loadInteractiveConfigData(input: {
 					toolNames: [pluginTool.name],
 					configKind: "tool",
 					pluginName: pluginTool.pluginName,
+					pluginPath: pluginTool.path,
 					source: pluginTool.source,
 					description: pluginTool.description,
 				});
@@ -533,5 +550,6 @@ export async function loadInteractiveConfigData(input: {
 		mcp: toSorted(mcp.filter((item) => existsSync(item.path))),
 		tools: toSorted(tools),
 		workflowSlashCommands,
+		pluginDiagnosticsLoaded: input.includePluginTools !== false,
 	};
 }
