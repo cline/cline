@@ -203,10 +203,6 @@ function EntryDetails({
 			onKeyDown={(event) => event.stopPropagation()}
 			role="presentation"
 		>
-			<p className="text-sm leading-6 text-muted-foreground">
-				{entry.description}
-			</p>
-
 			{requiredEnv.length > 0 || optionalEnv.length > 0 ? (
 				<div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
 					<p className="text-sm font-medium text-amber-800 dark:text-amber-200">
