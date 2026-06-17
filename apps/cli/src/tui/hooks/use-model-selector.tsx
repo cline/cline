@@ -74,6 +74,12 @@ function clearReasoningConfig(config: Config): void {
 	config.reasoningEffort = undefined;
 }
 
+function defaultThinkingLevel(config: Config): ThinkingLevel {
+	return config.reasoningEffort
+		? (config.reasoningEffort as ThinkingLevel)
+		: "medium";
+}
+
 function usesModelIdInput(providerId: string): boolean {
 	return providerId === "openai-compatible";
 }
@@ -336,18 +342,13 @@ export function useModelSelector(opts: {
 							(m: ModelOption) => m.key === browseResult,
 						);
 						if (browseModel?.supportsReasoning) {
-							const lvl: ThinkingLevel = config.reasoningEffort
-								? (config.reasoningEffort as ThinkingLevel)
-								: config.thinking
-									? "medium"
-									: "none";
 							const pick = await dialog.choice<ThinkingLevel>({
 								style: { maxHeight: termHeight - 2 },
 								content: (ctx: ChoiceContext<ThinkingLevel>) => (
 									<ThinkingLevelContent
 										{...ctx}
 										modelName={browseModel.name}
-										currentLevel={lvl}
+										currentLevel={defaultThinkingLevel(config)}
 									/>
 								),
 							});
@@ -373,18 +374,13 @@ export function useModelSelector(opts: {
 						(m: ModelOption) => m.key === clineResult,
 					);
 					if (selectedModel?.supportsReasoning) {
-						const currentLevel: ThinkingLevel = config.reasoningEffort
-							? (config.reasoningEffort as ThinkingLevel)
-							: config.thinking
-								? "medium"
-								: "none";
 						const thinkingLevel = await dialog.choice<ThinkingLevel>({
 							style: { maxHeight: termHeight - 2 },
 							content: (ctx: ChoiceContext<ThinkingLevel>) => (
 								<ThinkingLevelContent
 									{...ctx}
 									modelName={selectedModel.name}
-									currentLevel={currentLevel}
+									currentLevel={defaultThinkingLevel(config)}
 								/>
 							),
 						});
@@ -437,19 +433,13 @@ export function useModelSelector(opts: {
 					break;
 				}
 
-				const currentLevel: ThinkingLevel = config.reasoningEffort
-					? (config.reasoningEffort as ThinkingLevel)
-					: config.thinking
-						? "medium"
-						: "none";
-
 				const thinkingLevel = await dialog.choice<ThinkingLevel>({
 					style: { maxHeight: termHeight - 2 },
 					content: (ctx: ChoiceContext<ThinkingLevel>) => (
 						<ThinkingLevelContent
 							{...ctx}
 							modelName={selectedModel.name}
-							currentLevel={currentLevel}
+							currentLevel={defaultThinkingLevel(config)}
 						/>
 					),
 				});
