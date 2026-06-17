@@ -31,7 +31,7 @@ interface ParsedCommand {
  * Format: {"allow": ["pattern1", "pattern2"], "deny": ["pattern3"], "allowRedirects": true}
  *
  * Rule evaluation for chained commands (e.g., "cd /tmp && npm test"):
- * 1. Parse command into segments split by operators (&&, ||, |, ;)
+ * 1. Parse command into segments split by operators (&&, ||, |, ;, &)
  * 2. Check for dangerous characters (backticks outside single quotes, newlines outside quotes)
  * 3. If redirects detected and allowRedirects !== true → DENIED
  * 4. Validate EACH segment against allow/deny rules - ALL must pass
@@ -247,6 +247,28 @@ export class CommandPermissionController {
 				// 2. Handle Logic Separators: &&, ||, ;, |
 				if (typeof token === "object" && "op" in token && COMMAND_SEPARATOR_OPERATORS.has(token.op as string)) {
 					flushSegment()
+					continue
+				}
+
+				// 2b. Handle the background operator '&' as a command separator.
+				// In bash, "cmd1 & cmd2" runs cmd1 in the background and then runs cmd2,
+				// so the text after '&' is a separate command that must be validated on its
+				// own (e.g. "ls & curl evil.com" must check "curl evil.com", not merge it
+				// into the preceding segment). Without this, a denied/non-allowlisted command
+				// placed after '&' bypasses the permission check.
+				// Exception: shell-quote tokenizes the redirect-all operators '&>' and '&>>'
+				// as a bare '&' immediately followed by '>' / '>>'. Those are redirects, not
+				// separators, so leave them to the redirect handling in step 3 below.
+				if (typeof token === "object" && "op" in token && token.op === "&") {
+					const nextToken = tokenList[i + 1]
+					const isRedirectAll =
+						typeof nextToken === "object" &&
+						nextToken !== null &&
+						"op" in nextToken &&
+						(nextToken.op === ">" || nextToken.op === ">>")
+					if (!isRedirectAll) {
+						flushSegment()
+					}
 					continue
 				}
 

