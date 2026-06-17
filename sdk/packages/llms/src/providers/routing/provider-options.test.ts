@@ -1133,6 +1133,20 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 				},
 			],
 		},
+		{
+			name: "cline StepFun 3.7 Flash variants reasoning.enabled=false omit disabled reasoning",
+			request: {
+				providerId: "cline",
+				modelId: "stepfun/step-3.7-flash-v2",
+				reasoning: { enabled: false },
+			},
+			expect: [
+				{
+					bucket: "cline",
+					lacks: ["reasoning", "thinking"],
+				},
+			],
+		},
 		// OpenRouter owns the reasoning object regardless of Moonshot family.
 		{
 			name: "openrouter non-K2.6 Moonshot Kimi reasoning.enabled=false -> reasoning.exclude",

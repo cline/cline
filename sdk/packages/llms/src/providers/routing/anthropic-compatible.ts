@@ -611,6 +611,6 @@ function modelRejectsDisabledReasoning(modelId: string): boolean {
 	const normalized = modelId.toLowerCase();
 	return (
 		normalized.includes("claude-fable") ||
-		normalized === "stepfun/step-3.7-flash"
+		normalized.includes("stepfun/step-3.7-flash")
 	);
 }
