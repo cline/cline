@@ -1,5 +1,21 @@
 # Cline CLI Changelog
 
+## 3.0.25
+
+- Added ClinePass support, with selectable ClinePass models in the model picker
+- Made model picker sections expandable
+- Added MCP server support to plugins, including authorizing plugin MCP OAuth during install
+- Encouraged parallel tool calls for faster task execution
+- Capped tool output for bash commands and file reads to keep large output within context limits
+- Allowed ranged reads on large files
+- Fixed apply_patch to fail when a hunk is skipped
+- Fixed run_commands to return captured stdout on failure and handle split heredocs
+- Fixed search tools to treat zero results as success
+- Fixed disabled-reasoning handling for StepFun flash
+- Fixed history resume rendering isolation
+- Fixed the Hugging Face URL
+- Fixed Cline OAuth token formatting in provider config
+
 ## 3.0.24
 
 - Plugin commands can now submit prompts to the agent
