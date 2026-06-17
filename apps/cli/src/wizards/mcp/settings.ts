@@ -122,14 +122,21 @@ export function updateServer(name: string, transport: McpTransport): void {
 }
 
 export function clearServerOAuth(name: string): void {
-	mutateServers((servers) => {
-		const existing = getOwnServerRecord(servers, name);
-		if (!existing) {
-			throw new McpSettingsUpdateSkippedError(`MCP server not found: ${name}`);
+	try {
+		mutateServers((servers) => {
+			const existing = getOwnServerRecord(servers, name);
+			if (!existing) {
+				throw new McpSettingsUpdateSkippedError(`MCP server not found: ${name}`);
+			}
+			delete existing.oauth;
+			servers[name] = existing;
+		});
+	} catch (error) {
+		if (error instanceof McpSettingsUpdateSkippedError) {
+			return;
 		}
-		delete existing.oauth;
-		servers[name] = existing;
-	});
+		throw error;
+	}
 }
 
 export function toggleServer(name: string, disabled: boolean): void {
