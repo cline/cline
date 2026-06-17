@@ -155,8 +155,17 @@ function checkAbort(signal: AbortSignal | undefined, lockDir: string): void {
 }
 
 function readSettingsObject(settingsPath: string): Record<string, unknown> {
-	const content = readFileSync(settingsPath, "utf-8")
-	const settings = JSON.parse(content) as Record<string, unknown>
+	let settings: Record<string, unknown>
+	try {
+		settings = JSON.parse(readFileSync(settingsPath, "utf-8")) as Record<string, unknown>
+	} catch (error) {
+		// A missing file bootstraps to an empty object so the first locked write
+		// creates it. A present-but-malformed file still throws.
+		if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+			throw error
+		}
+		settings = {}
+	}
 	if (!settings.mcpServers || typeof settings.mcpServers !== "object" || Array.isArray(settings.mcpServers)) {
 		settings.mcpServers = {}
 	}

@@ -6,12 +6,11 @@
 //
 // This shared file is the single source of truth, which keeps the extension,
 // the CLI, and multiple extension windows interoperable:
-//  - Writes are a scoped read-modify-write of ONE server's `oauth` key via
-//    @cline/core's updateMcpServerOAuthStateAsync, which re-reads the file on
-//    every write and replaces it atomically (temp + rename). Concurrent writers
-//    from other processes therefore never clobber other servers or the whole
-//    file. The async variant is used so lock acquisition yields the extension
-//    host event loop instead of blocking it with Atomics.wait.
+//  - Writes scope to ONE server's `oauth` key via @cline/core's
+//    updateMcpServerOAuthStateAsync, which re-reads the file under a
+//    cross-process lock and replaces it atomically (temp + rename), so
+//    concurrent writers never clobber other servers or the whole file. Lock
+//    acquisition yields the extension host event loop rather than blocking it.
 //  - Reads come fresh from disk, so a token authorized by the CLI or another
 //    window is picked up without restarting.
 //  - The interactive authorization flow is HTTP-based token collection via
@@ -64,21 +63,12 @@ function readOAuthState(serverName: string, settingsPath: string): McpServerOAut
 }
 
 /**
- * Scoped write of one server's OAuth state. Re-reads the file inside
- * updateMcpServerOAuthStateAsync so concurrent writers (CLI, other windows) are
- * never clobbered wholesale. Failures are logged but non-fatal: a missing
- * server entry (e.g., just deleted in another window) shouldn't crash the
- * provider callbacks the MCP SDK invokes mid-connection.
- *
- * The cross-process lock acquisition is ASYNCHRONOUS: it `await`s (yields the
- * event loop) while waiting for the lock rather than blocking with
- * `Atomics.wait`. This is required in the VSCode extension host, where the
- * synchronous SDK variant could freeze the loop — and could deadlock against an
- * in-flight `updateMcpSettingsFile` whose lock-releasing continuation can only
- * run once the loop is free. The critical section itself (read+mutate+rename)
- * stays synchronous inside the SDK, and the mutator is pure, so serialization is
- * preserved without any extra in-process queue: the lock is never held across an
- * `await`.
+ * Scoped write of one server's OAuth state. The updater runs against the
+ * server's current state under a cross-process lock and returns the next state;
+ * concurrent writers are never clobbered wholesale. Lock acquisition yields the
+ * event loop. Failures are logged but non-fatal, so a missing server entry
+ * (e.g. deleted in another window) does not crash the MCP SDK provider callbacks
+ * that invoke this mid-connection.
  */
 async function patchOAuthState(
 	serverName: string,

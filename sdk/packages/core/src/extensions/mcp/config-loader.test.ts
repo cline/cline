@@ -601,6 +601,20 @@ describe("updateMcpSettingsFile (async acquisition)", () => {
 		}
 	});
 
+	it("creates a missing settings file inside the lock", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-async-"));
+		tempRoots.push(tempRoot);
+		const filePath = join(tempRoot, "cline_mcp_settings.json");
+
+		await updateMcpSettingsFile(filePath, (settings) => {
+			const servers = settings.mcpServers as Record<string, unknown>;
+			servers.docs = { transport: { type: "stdio", command: "node" } };
+		});
+
+		const written = JSON.parse(await readFile(filePath, "utf8"));
+		expect(Object.keys(written.mcpServers)).toEqual(["docs"]);
+	});
+
 	it("reclaims a stale lock directory on the async path", async () => {
 		const filePath = await makeSettingsFile();
 		const lockDir = `${filePath}.lock`;

@@ -38,4 +38,16 @@ describe("updateMcpSettingsFile", () => {
 		expect(existsSync(`${settingsPath}.lock`)).toBe(false)
 		await expect(update).resolves.toBe("updated")
 	})
+
+	it("creates a missing settings file inside the lock", async () => {
+		const missingPath = path.join(tempDir, "fresh", "cline_mcp_settings.json")
+
+		await updateMcpSettingsFile(missingPath, (settings) => {
+			settings.mcpServers = { alpha: { type: "stdio", command: "node" } }
+		})
+
+		const written = JSON.parse(await fs.readFile(missingPath, "utf-8"))
+		expect(Object.keys(written.mcpServers)).toEqual(["alpha"])
+		expect(existsSync(`${missingPath}.lock`)).toBe(false)
+	})
 })
