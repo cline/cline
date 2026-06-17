@@ -78,7 +78,6 @@ export function normalizeClineRecommendedProviderModels(
 		models[entry.id] = {
 			...capabilities,
 			id: entry.id,
-			name: entry.name,
 			description: entry.description,
 		};
 	});
