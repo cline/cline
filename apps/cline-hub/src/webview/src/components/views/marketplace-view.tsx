@@ -544,7 +544,7 @@ function InstallDialog({
 					</div>
 				) : null}
 
-				{currentInstalled && state.status !== "installed" ? (
+				{currentInstalled && state.status === "idle" ? (
 					<div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-700 dark:text-emerald-300">
 						This entry is already installed.
 					</div>
