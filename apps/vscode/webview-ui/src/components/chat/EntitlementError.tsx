@@ -2,6 +2,7 @@ import { AskResponseRequest } from "@shared/proto/cline/task"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import React from "react"
 import VSCodeButtonLink from "@/components/common/VSCodeButtonLink"
+import { APP_BASE_URL } from "@/constants"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import { TaskServiceClient } from "@/services/grpc-client"
 
@@ -10,8 +11,6 @@ interface EntitlementErrorProps {
 	message?: string
 }
 
-// Fall back to production when the authenticated user's app base URL is unavailable.
-const DEFAULT_APP_BASE_URL = "https://app.cline.bot"
 const CLINE_PASS_SUBSCRIBE_PATH = "/dashboard/subscription"
 
 const DEFAULT_MESSAGE = "This model requires a Cline Pass subscription."
@@ -21,7 +20,7 @@ const EntitlementError: React.FC<EntitlementErrorProps> = ({ message }) => {
 	const displayMessage = message || DEFAULT_MESSAGE
 	// Use the environment-aware app base URL (e.g. staging-app.cline.bot on staging)
 	// so the subscribe link points at the same environment the user is signed into.
-	const appBaseUrl = clineUser?.appBaseUrl || DEFAULT_APP_BASE_URL
+	const appBaseUrl = clineUser?.appBaseUrl || APP_BASE_URL
 	const subscribeUrl = `${appBaseUrl}${CLINE_PASS_SUBSCRIBE_PATH}`
 
 	return (

@@ -2,6 +2,7 @@ import { AskResponseRequest } from "@shared/proto/cline/task"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import React, { useEffect, useMemo, useState } from "react"
 import VSCodeButtonLink from "@/components/common/VSCodeButtonLink"
+import { APP_BASE_URL } from "@/constants"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import { AccountServiceClient, TaskServiceClient } from "@/services/grpc-client"
 
@@ -14,8 +15,8 @@ interface CreditLimitErrorProps {
 }
 
 const DEFAULT_BUY_CREDITS_URL = {
-	USER: "https://app.cline.bot/dashboard/account?tab=credits&redirect=true",
-	ORG: "https://app.cline.bot/dashboard/organization?tab=credits&redirect=true",
+	USER: `${APP_BASE_URL}/dashboard/account?tab=credits&redirect=true`,
+	ORG: `${APP_BASE_URL}/dashboard/organization?tab=credits&redirect=true`,
 }
 
 const CreditLimitError: React.FC<CreditLimitErrorProps> = ({
