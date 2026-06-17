@@ -46,7 +46,7 @@ describe("models-dev-catalog", () => {
 		expect(result["cline-pass"]).toEqual({
 			"base-model": {
 				id: "base-model",
-				name: "ClinePass Base Model",
+				name: "OpenRouter Base Model",
 				description: "Included in ClinePass",
 				contextWindow: 200_000,
 				maxInputTokens: 180_000,
@@ -96,7 +96,7 @@ describe("models-dev-catalog", () => {
 			result["cline-pass"]?.["cline-pass/cline-pass/glm-5.1"],
 		).toMatchObject({
 			id: "cline-pass/cline-pass/glm-5.1",
-			name: "zai/glm-5.1",
+			name: "GLM 5.1",
 			contextWindow: 256_000,
 			maxInputTokens: 200_000,
 			maxTokens: 32_000,
