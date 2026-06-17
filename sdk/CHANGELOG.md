@@ -1,5 +1,9 @@
 # Cline SDK Changelog
 
+## 0.0.49
+
+- Reverted ClinePass recommended-models support, removing the `clinePass` field from the recommended models data
+
 ## 0.0.48
 
 - Added ClinePass support and ClinePass models
