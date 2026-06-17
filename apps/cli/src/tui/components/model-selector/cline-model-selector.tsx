@@ -3,32 +3,11 @@ import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { palette } from "../../palette";
-import {
-	buildClineModelPickerDisplayRows,
-	type ClineModelPickerEntry,
-	type ClineModelPickerExpandedTiers,
-	type ClineModelProviderId,
-	type ClineModelTier,
-	getClineModelPickerDisplayRowsWindow,
-	getClineModelPickerRowByFocusIndex,
-	getVisibleClineModelPickerEntries,
-	resolveClineModelEntryProviderId,
-} from "./cline-model-picker";
+import type { ClineModelPickerEntry } from "./cline-model-picker";
 import { CHANGE_PROVIDER_ACTION } from "./model-selector";
 import { ProviderRow } from "./provider-row";
 
 export const BROWSE_ALL_ACTION = "__browse_all__";
-const MAX_VISIBLE_ROWS = 10;
-
-export interface ClineModelSelection {
-	modelId: string;
-	providerId: ClineModelProviderId;
-}
-
-export type ClineModelSelectorResult =
-	| ClineModelSelection
-	| typeof BROWSE_ALL_ACTION
-	| typeof CHANGE_PROVIDER_ACTION;
 
 type ClineModelEntriesState =
 	| { status: "loading"; message: string }
@@ -41,8 +20,25 @@ function tagColor(tag: string): string {
 	return "cyan";
 }
 
+function resolveDisplayName(
+	modelId: string,
+	knownModels?: Record<string, unknown>,
+): string {
+	if (knownModels) {
+		const candidates = [modelId, modelId.split("/").pop()];
+		for (const key of candidates) {
+			if (!key) continue;
+			const hit = knownModels[key] as { name?: string } | undefined;
+			if (hit?.name) return hit.name;
+		}
+	}
+	return modelId.includes("/")
+		? (modelId.split("/").pop() ?? modelId)
+		: modelId;
+}
+
 export function ClineModelSelectorContent(
-	props: ChoiceContext<ClineModelSelectorResult> & {
+	props: ChoiceContext<string> & {
 		currentModel: string;
 		currentProviderName: string;
 		knownModels?: Record<string, unknown>;
@@ -60,55 +56,53 @@ export function ClineModelSelectorContent(
 	} = props;
 	const [selected, setSelected] = useState(0);
 	const [onProvider, setOnProvider] = useState(false);
-	const [expandedTiers, setExpandedTiers] =
-		useState<ClineModelPickerExpandedTiers>({
-			clinePass: false,
-			recommended: true,
-			free: true,
-		});
 
-	const visibleEntries = useMemo(
-		() => getVisibleClineModelPickerEntries(entries, expandedTiers),
-		[entries, expandedTiers],
-	);
 	const displayRows = useMemo(() => {
-		return buildClineModelPickerDisplayRows(
-			entries,
-			knownModels,
-			currentModel,
-			expandedTiers,
-		);
-	}, [entries, knownModels, currentModel, expandedTiers]);
-
-	useEffect(() => {
-		setSelected((value) =>
-			Math.min(value, Math.max(0, displayRows.length - 1)),
-		);
-	}, [displayRows.length]);
-
-	const toggleTier = (tier: ClineModelTier) => {
-		setExpandedTiers((prev) => ({ ...prev, [tier]: !prev[tier] }));
-	};
-
-	const { visibleRows, aboveCount, belowCount, showAbove, showBelow } =
-		getClineModelPickerDisplayRowsWindow(
-			displayRows,
-			selected,
-			MAX_VISIBLE_ROWS,
-		);
-
-	const resolveEntry = (selectableIndex: number) => {
-		const entry = visibleEntries[selectableIndex];
-		if (!entry) return;
-		if (entry.kind === "model") {
-			resolve({
-				modelId: entry.model.id,
-				providerId: resolveClineModelEntryProviderId(entry) ?? "cline",
-			});
-		} else {
-			resolve(BROWSE_ALL_ACTION);
+		const rows: {
+			key: string;
+			kind: "header" | "model" | "browse";
+			label: string;
+			tags: string[];
+			isCurrent: boolean;
+			entryIndex: number;
+		}[] = [];
+		let lastTier: string | null = null;
+		for (let i = 0; i < entries.length; i++) {
+			const entry = entries[i];
+			if (!entry) continue;
+			if (entry.kind === "model") {
+				if (entry.tier !== lastTier) {
+					lastTier = entry.tier;
+					rows.push({
+						key: `tier-${entry.tier}`,
+						kind: "header",
+						label: entry.tier === "recommended" ? "Recommended" : "Free",
+						tags: [],
+						isCurrent: false,
+						entryIndex: -1,
+					});
+				}
+				rows.push({
+					key: entry.model.id,
+					kind: "model",
+					label: resolveDisplayName(entry.model.id, knownModels),
+					tags: entry.model.tags,
+					isCurrent: currentModel === entry.model.id,
+					entryIndex: i,
+				});
+			} else {
+				rows.push({
+					key: "browse-all",
+					kind: "browse",
+					label: "Browse all models...",
+					tags: [],
+					isCurrent: false,
+					entryIndex: i,
+				});
+			}
 		}
-	};
+		return rows;
+	}, [entries, knownModels, currentModel]);
 
 	useDialogKeyboard((key) => {
 		if (key.name === "escape") {
@@ -124,20 +118,20 @@ export function ClineModelSelectorContent(
 				resolve(CHANGE_PROVIDER_ACTION);
 				return;
 			}
-			const row = getClineModelPickerRowByFocusIndex(displayRows, selected);
-			if (!row) return;
-			if (row.kind === "header") {
-				toggleTier(row.tier);
-				return;
+			const entry = entries[selected];
+			if (!entry) return;
+			if (entry.kind === "model") {
+				resolve(entry.model.id);
+			} else {
+				resolve(BROWSE_ALL_ACTION);
 			}
-			resolveEntry(row.selectableIndex);
 			return;
 		}
-		const total = displayRows.length;
+		const total = entries.length;
 		if (total === 0) return;
 		if (key.name === "up" || (key.ctrl && key.name === "p")) {
 			if (!onProvider) {
-				setSelected((s) => (s <= 0 ? total - 1 : Math.min(s - 1, total - 1)));
+				setSelected((s) => (s <= 0 ? total - 1 : s - 1));
 			}
 			return;
 		}
@@ -158,45 +152,16 @@ export function ClineModelSelectorContent(
 			<ProviderRow providerName={currentProviderName} focused={onProvider} />
 
 			<box flexDirection="column">
-				{showAbove && (
-					<box paddingX={1} justifyContent="center" height={1}>
-						<text fg="gray">
-							{"\u25b2"} {aboveCount} more
-						</text>
-					</box>
-				)}
-				{visibleRows.map((row) => {
+				{displayRows.map((row, idx) => {
 					if (row.kind === "header") {
-						const isSel = row.focusIndex === selected && !onProvider;
+						const isFirst = idx === 0;
 						return (
-							<box
-								key={row.key}
-								paddingX={1}
-								height={1}
-								flexDirection="row"
-								gap={1}
-								backgroundColor={isSel ? palette.selection : undefined}
-								onMouseDown={() => toggleTier(row.tier)}
-							>
-								<text
-									fg={isSel ? palette.textOnSelection : "gray"}
-									flexShrink={0}
-								>
-									{isSel ? "\u276f" : " "}
-								</text>
-								<text
-									fg={isSel ? palette.textOnSelection : "gray"}
-									flexShrink={0}
-								>
-									{row.isExpanded ? "▾" : "▸"}
-								</text>
-								<text fg={isSel ? palette.textOnSelection : "gray"}>
-									{row.label}
-								</text>
+							<box key={row.key} paddingX={1} marginTop={isFirst ? 0 : 1}>
+								<text fg="gray">{row.label}</text>
 							</box>
 						);
 					}
-					const isSel = row.focusIndex === selected && !onProvider;
+					const isSel = row.entryIndex === selected && !onProvider;
 					const isGray = row.kind === "browse";
 					return (
 						<box
@@ -206,9 +171,6 @@ export function ClineModelSelectorContent(
 							gap={1}
 							backgroundColor={isSel ? palette.selection : undefined}
 							marginTop={row.kind === "browse" ? 1 : 0}
-							onMouseDown={() => resolveEntry(row.selectableIndex)}
-							overflow="hidden"
-							height={1}
 						>
 							<text
 								fg={isSel ? palette.textOnSelection : "gray"}
@@ -223,17 +185,16 @@ export function ClineModelSelectorContent(
 							>
 								{row.label}
 							</text>
-							{row.kind === "model" &&
-								row.tags.map((t) => (
-									<text
-										key={t}
-										fg={isSel ? palette.textOnSelection : tagColor(t)}
-										flexShrink={0}
-									>
-										{t}
-									</text>
-								))}
-							{row.kind === "model" && row.isCurrent && (
+							{row.tags.map((t) => (
+								<text
+									key={t}
+									fg={isSel ? palette.textOnSelection : tagColor(t)}
+									flexShrink={0}
+								>
+									{t}
+								</text>
+							))}
+							{row.isCurrent && (
 								<text
 									fg={isSel ? palette.textOnSelection : "gray"}
 									flexShrink={0}
@@ -244,13 +205,6 @@ export function ClineModelSelectorContent(
 						</box>
 					);
 				})}
-				{showBelow && (
-					<box paddingX={1} justifyContent="center" height={1}>
-						<text fg="gray">
-							{"\u25bc"} {belowCount} more
-						</text>
-					</box>
-				)}
 			</box>
 
 			<text fg="gray">
@@ -261,7 +215,7 @@ export function ClineModelSelectorContent(
 }
 
 export function ClineModelSelectorDialogContent(
-	props: ChoiceContext<ClineModelSelectorResult> & {
+	props: ChoiceContext<string> & {
 		currentModel: string;
 		currentProviderName: string;
 		knownModels?: Record<string, unknown>;

@@ -1207,12 +1207,10 @@ function serializePluginInstallResult(
 	};
 }
 
-function isInteractivePluginInstall(
-	options: PluginInstallOptions & { json?: boolean },
-): boolean {
+function isInteractivePluginInstall(options: PluginInstallOptions): boolean {
 	return (
 		options.mcpOAuth?.interactive ??
-		(options.json !== true && process.stdin.isTTY && process.stdout.isTTY)
+		(process.stdin.isTTY && process.stdout.isTTY)
 	);
 }
 
@@ -1268,14 +1266,16 @@ async function authorizeMcpOAuthCandidate(
 	const { authorizeMcpServerOAuthWithBrowser } = await import(
 		"../wizards/mcp/oauth"
 	);
-	await authorizeMcpServerOAuthWithBrowser(candidate.name);
+	await authorizeMcpServerOAuthWithBrowser(candidate.name, {
+		throwOnError: true,
+	});
 }
 
 async function runPluginMcpOAuthFollowup(
 	candidates: PluginMcpOAuthCandidate[],
-	options: PluginInstallOptions & { json?: boolean },
+	options: PluginInstallOptions,
 ): Promise<void> {
-	if (candidates.length === 0 || options.json === true) {
+	if (candidates.length === 0) {
 		return;
 	}
 
@@ -1303,7 +1303,7 @@ async function runPluginMcpOAuthFollowup(
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			options.io?.writeErr(
-				`Warning: failed to authorize MCP server ${candidate.name}: ${message}`,
+				`Warning: failed to authorize MCP server ${candidate.name}: ${message}. Run "cline mcp" and choose "Authorize OAuth" to retry.`,
 			);
 		}
 	}
