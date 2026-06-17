@@ -2,8 +2,14 @@ import { ParseEntry, parse } from "shell-quote"
 import { Logger } from "@/shared/services/Logger"
 import { COMMAND_PERMISSIONS_ENV_VAR, CommandPermissionConfig, PermissionValidationResult, ShellOperatorMatch } from "./types"
 
-const REDIRECT_OPERATORS = new Set([">", ">>", "<", ">&", "<&", "|&", "<(", ">("])
-const COMMAND_SEPARATOR_OPERATORS = new Set(["&&", "||", "|", ";"])
+// Note: "|&" (bash pipe-both-streams, shorthand for "2>&1 |") is intentionally NOT
+// listed here. It connects two commands (the second is a separate command that must
+// be validated on its own), so it is treated as a command separator below, not a
+// redirect. Listing it as a redirect both (a) merged the downstream command into the
+// preceding segment, letting it bypass per-segment allow/deny checks when
+// allowRedirects is true, and (b) reported "redirect_detected" for a plain pipe.
+const REDIRECT_OPERATORS = new Set([">", ">>", "<", ">&", "<&", "<(", ">("])
+const COMMAND_SEPARATOR_OPERATORS = new Set(["&&", "||", "|", ";", "|&"])
 
 const LINE_SEPARATOR_REGEX = /[\n\r\u2028\u2029\u0085]/
 const LINE_SEPARATOR_DESCRIPTIONS: Record<string, ShellOperatorMatch> = {
@@ -31,7 +37,7 @@ interface ParsedCommand {
  * Format: {"allow": ["pattern1", "pattern2"], "deny": ["pattern3"], "allowRedirects": true}
  *
  * Rule evaluation for chained commands (e.g., "cd /tmp && npm test"):
- * 1. Parse command into segments split by operators (&&, ||, |, ;)
+ * 1. Parse command into segments split by operators (&&, ||, |, ;, |&)
  * 2. Check for dangerous characters (backticks outside single quotes, newlines outside quotes)
  * 3. If redirects detected and allowRedirects !== true → DENIED
  * 4. Validate EACH segment against allow/deny rules - ALL must pass
@@ -244,7 +250,9 @@ export class CommandPermissionController {
 					continue
 				}
 
-				// 2. Handle Logic Separators: &&, ||, ;, |
+				// 2. Handle Logic/Pipe Separators: &&, ||, ;, |, |&
+				// "|&" is bash pipe-both-streams ("cmd1 2>&1 | cmd2"); the command after it
+				// is a separate command, so flush the current segment to validate it on its own.
 				if (typeof token === "object" && "op" in token && COMMAND_SEPARATOR_OPERATORS.has(token.op as string)) {
 					flushSegment()
 					continue

