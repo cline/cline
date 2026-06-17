@@ -1,6 +1,6 @@
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import { sendMcpServersUpdate } from "@core/controller/mcp/subscribeToMcpServers"
-import { getMcpSettingsFilePath as getMcpSettingsFilePathHelper } from "@core/storage/disk"
+import { atomicWriteFile, getMcpSettingsFilePath as getMcpSettingsFilePathHelper } from "@core/storage/disk"
 import { StateManager } from "@core/storage/StateManager"
 import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js"
 import { Client } from "@modelcontextprotocol/sdk/client/index.js"
@@ -256,7 +256,7 @@ export class McpHub {
 						if (fileNeedsUpdate) {
 							this.isUpdatingFromRemoteConfig = true
 							const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
-							await fs.writeFile(settingsPath, JSON.stringify({ mcpServers: settings.mcpServers }, null, 2))
+							await atomicWriteFile(settingsPath, JSON.stringify({ mcpServers: settings.mcpServers }, null, 2))
 							this.isUpdatingFromRemoteConfig = false
 						}
 					}
@@ -1141,7 +1141,7 @@ export class McpHub {
 				config.mcpServers[serverName].disabled = disabled
 
 				const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
-				await fs.writeFile(settingsPath, JSON.stringify(config, null, 2))
+				await atomicWriteFile(settingsPath, JSON.stringify(config, null, 2))
 
 				const connection = this.connections.find((conn) => conn.server.name === serverName)
 				if (connection) {
@@ -1340,7 +1340,7 @@ export class McpHub {
 				}
 			}
 
-			await fs.writeFile(settingsPath, JSON.stringify(config, null, 2))
+			await atomicWriteFile(settingsPath, JSON.stringify(config, null, 2))
 
 			// Update the tools list to reflect the change
 			const connection = this.connections.find((conn) => conn.server.name === serverName)
@@ -1393,7 +1393,7 @@ export class McpHub {
 				}
 			}
 
-			await fs.writeFile(settingsPath, JSON.stringify(config, null, 2))
+			await atomicWriteFile(settingsPath, JSON.stringify(config, null, 2))
 
 			// Update the tools list to reflect the change
 			const connection = this.connections.find((conn) => conn.server.name === serverName)
@@ -1458,7 +1458,7 @@ export class McpHub {
 			// It would be fine if this was written, but we don't want to clutter up the file with internal details
 
 			// ToDo: We could benefit from input / output types reflecting the non-transformed / transformed versions
-			await fs.writeFile(
+			await atomicWriteFile(
 				settingsPath,
 				JSON.stringify({ mcpServers: { ...settings.mcpServers, [serverName]: serverConfig } }, null, 2),
 			)
@@ -1502,7 +1502,7 @@ export class McpHub {
 				const updatedConfig = {
 					mcpServers: config.mcpServers,
 				}
-				await fs.writeFile(settingsPath, JSON.stringify(updatedConfig, null, 2))
+				await atomicWriteFile(settingsPath, JSON.stringify(updatedConfig, null, 2))
 				await this.updateServerConnectionsRPC(config.mcpServers)
 
 				// Get the servers in their correct order from settings
@@ -1544,7 +1544,7 @@ export class McpHub {
 				timeout,
 			}
 
-			await fs.writeFile(settingsPath, JSON.stringify(config, null, 2))
+			await atomicWriteFile(settingsPath, JSON.stringify(config, null, 2))
 
 			// Update in-memory config to reflect the new timeout
 			const connection = this.connections.find((conn) => conn.server.name === serverName)

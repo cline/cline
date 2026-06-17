@@ -31,7 +31,7 @@ import { StateManager } from "./StateManager";
  * @param filePath - The target file path
  * @param data - The data to write
  */
-async function atomicWriteFile(filePath: string, data: string): Promise<void> {
+export async function atomicWriteFile(filePath: string, data: string): Promise<void> {
 	const tmpPath = `${filePath}.tmp.${Date.now()}.${Math.random().toString(36).substring(7)}.json`;
 	try {
 		// Write to temporary file first
@@ -257,7 +257,7 @@ export async function getMcpSettingsFilePath(
 	);
 	const fileExists = await fileExistsAtPath(mcpSettingsFilePath);
 	if (!fileExists) {
-		await fs.writeFile(
+		await atomicWriteFile(
 			mcpSettingsFilePath,
 			JSON.stringify({ mcpServers: {} }, null, 2),
 		);
