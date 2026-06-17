@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -9,12 +9,15 @@ import {
 	installMarketplaceEntry,
 	installMarketplaceEntryForDesktopCommand,
 	listMarketplaceInstalledEntries,
+	uninstallMarketplaceEntry,
+	uninstallMarketplaceEntryForDesktopCommand,
 } from "./marketplace";
 
 describe("marketplace installer", () => {
 	const originalWrapperPath = process.env.CLINE_WRAPPER_PATH;
 	const originalClineDir = process.env.CLINE_DIR;
 	const originalHome = process.env.HOME;
+	const originalMcpSettingsPath = process.env.CLINE_MCP_SETTINGS_PATH;
 
 	afterEach(() => {
 		if (originalWrapperPath === undefined) {
@@ -31,6 +34,11 @@ describe("marketplace installer", () => {
 			delete process.env.HOME;
 		} else {
 			process.env.HOME = originalHome;
+		}
+		if (originalMcpSettingsPath === undefined) {
+			delete process.env.CLINE_MCP_SETTINGS_PATH;
+		} else {
+			process.env.CLINE_MCP_SETTINGS_PATH = originalMcpSettingsPath;
 		}
 		vi.restoreAllMocks();
 	});
@@ -230,6 +238,49 @@ describe("marketplace installer", () => {
 		});
 	});
 
+	it("removes Cline global marketplace skills without prompts", async () => {
+		const homeDir = mkdtempSync(join(tmpdir(), "cline-marketplace-home-"));
+		process.env.HOME = homeDir;
+		const skillDir = join(homeDir, ".agents", "skills", "cline-sdk");
+		mkdirSync(skillDir, { recursive: true });
+		writeFileSync(join(skillDir, "SKILL.md"), "---\nname: cline-sdk\n---\n");
+		const spawnCommand = vi.fn(async () => {
+			rmSync(skillDir, { recursive: true, force: true });
+			return {
+				exitCode: 0,
+				stdout: "removed",
+				stderr: "",
+			};
+		});
+
+		await expect(
+			uninstallMarketplaceEntry(
+				{
+					entry: {
+						id: "cline-sdk",
+						type: "skill",
+						name: "Cline SDK",
+						install: { args: ["cline/sdk-skill"] },
+					},
+				},
+				{ spawnCommand },
+			),
+		).resolves.toMatchObject({
+			status: "uninstalled",
+			message: "Uninstalled Cline SDK.",
+		});
+		expect(spawnCommand).toHaveBeenCalledWith("npx", [
+			"-y",
+			"skills@latest",
+			"remove",
+			"cline-sdk",
+			"-g",
+			"-a",
+			"cline",
+			"-y",
+		]);
+	});
+
 	it("does not report project-local skills as marketplace-installed globals", () => {
 		const homeDir = mkdtempSync(join(tmpdir(), "cline-marketplace-home-"));
 		process.env.HOME = homeDir;
@@ -406,6 +457,44 @@ describe("marketplace installer", () => {
 		]);
 	});
 
+	it("runs official plugin uninstalls through the current Cline CLI", async () => {
+		process.env.CLINE_WRAPPER_PATH = "/usr/local/bin/cline";
+		const spawnCommand = vi.fn(async () => ({
+			exitCode: 0,
+			stdout: JSON.stringify({
+				name: "goal",
+				installPath: "/tmp/plugin",
+				removedPaths: ["/tmp/plugin"],
+				entryPaths: [],
+			}),
+			stderr: "",
+		}));
+
+		await expect(
+			uninstallMarketplaceEntry(
+				{
+					entry: {
+						id: "goal",
+						type: "plugin",
+						name: "Goal",
+						install: { args: ["goal"] },
+					},
+				},
+				{ spawnCommand },
+			),
+		).resolves.toMatchObject({
+			status: "uninstalled",
+			message: "Uninstalled Goal.",
+		});
+
+		expect(spawnCommand).toHaveBeenCalledWith("/usr/local/bin/cline", [
+			"plugin",
+			"uninstall",
+			"goal",
+			"--json",
+		]);
+	});
+
 	it("resolves desktop installs from the server catalog instead of browser-sent args", async () => {
 		process.env.CLINE_WRAPPER_PATH = "/usr/local/bin/cline";
 		const spawnCommand = vi.fn(async () => ({
@@ -444,6 +533,116 @@ describe("marketplace installer", () => {
 			"marketplace-test-plugin",
 			"--json",
 		]);
+	});
+
+	it("resolves desktop uninstalls from the server catalog instead of browser-sent args", async () => {
+		process.env.CLINE_WRAPPER_PATH = "/usr/local/bin/cline";
+		const spawnCommand = vi.fn(async () => ({
+			exitCode: 0,
+			stdout: JSON.stringify({
+				name: "goal",
+				installPath: "/tmp/plugin",
+				removedPaths: ["/tmp/plugin"],
+				entryPaths: [],
+			}),
+			stderr: "",
+		}));
+
+		await uninstallMarketplaceEntryForDesktopCommand(
+			{
+				entry: {
+					id: "goal",
+					type: "plugin",
+					name: "Tampered",
+					install: { args: ["malicious-source"] },
+				},
+			},
+			{
+				spawnCommand,
+				loadCatalog: async () => ({
+					entries: [
+						{
+							id: "goal",
+							type: "plugin",
+							name: "Goal",
+							install: { args: ["goal"] },
+						},
+					],
+				}),
+			},
+		);
+
+		expect(spawnCommand).toHaveBeenCalledWith("/usr/local/bin/cline", [
+			"plugin",
+			"uninstall",
+			"goal",
+			"--json",
+		]);
+	});
+
+	it("uninstalls MCP marketplace entries from Cline MCP settings", async () => {
+		const settingsPath = join(
+			mkdtempSync(join(tmpdir(), "cline-marketplace-mcp-")),
+			"cline_mcp_settings.json",
+		);
+		process.env.CLINE_MCP_SETTINGS_PATH = settingsPath;
+		writeFileSync(
+			settingsPath,
+			JSON.stringify(
+				{
+					mcpServers: {
+						context7: {
+							transport: {
+								type: "streamableHttp",
+								url: "https://mcp.context7.com/mcp",
+							},
+						},
+					},
+				},
+				null,
+				2,
+			),
+		);
+
+		await expect(
+			uninstallMarketplaceEntry({
+				entry: {
+					id: "context7",
+					type: "mcp",
+					name: "Context7",
+					install: {
+						args: [
+							"context7",
+							"--transport",
+							"http",
+							"https://mcp.context7.com/mcp",
+						],
+					},
+				},
+			}),
+		).resolves.toMatchObject({
+			status: "uninstalled",
+			message: "Uninstalled Context7.",
+		});
+		expect(
+			listMarketplaceInstalledEntries({
+				entries: [
+					{
+						id: "context7",
+						type: "mcp",
+						name: "Context7",
+						install: {
+							args: [
+								"context7",
+								"--transport",
+								"http",
+								"https://mcp.context7.com/mcp",
+							],
+						},
+					},
+				],
+			}),
+		).toEqual({ installedKeys: [] });
 	});
 
 	it("reports official plugin marketplace entries installed from Cline home", () => {

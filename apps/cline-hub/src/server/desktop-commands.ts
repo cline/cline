@@ -30,6 +30,7 @@ import { providerSettingsManager, workspaceRoot } from "./deps";
 import {
 	installMarketplaceEntryForDesktopCommand,
 	listMarketplaceInstalledEntries,
+	uninstallMarketplaceEntryForDesktopCommand,
 } from "./marketplace";
 import {
 	deleteMcpServer,
@@ -225,6 +226,11 @@ export async function handleDesktopCommand(
 	}
 	if (command === "install_marketplace_entry") {
 		const result = await installMarketplaceEntryForDesktopCommand(args);
+		broadcastHubState(ctx);
+		return result;
+	}
+	if (command === "uninstall_marketplace_entry") {
+		const result = await uninstallMarketplaceEntryForDesktopCommand(args);
 		broadcastHubState(ctx);
 		return result;
 	}

@@ -7,6 +7,7 @@ import {
 	Search,
 	Server,
 	Sparkles,
+	Trash2,
 	Wrench,
 } from "lucide-react";
 import { type CSSProperties, useEffect, useMemo, useState } from "react";
@@ -36,15 +37,21 @@ type PrimitiveFilter = "installed" | "all" | MarketplacePrimitiveType;
 type InstallState =
 	| { status: "idle" }
 	| { status: "installing" }
+	| { status: "uninstalling" }
 	| {
 			status: "installed";
+			message: string;
+			output?: string;
+	  }
+	| {
+			status: "uninstalled";
 			message: string;
 			output?: string;
 	  }
 	| { status: "failed"; message: string };
 
 type MarketplaceInstallResult = {
-	status: "installed";
+	status: "installed" | "uninstalled";
 	message: string;
 	output?: string;
 };
@@ -247,7 +254,7 @@ function TagButton({
 }
 
 function installLabel(installed: boolean): string {
-	if (installed) return "Installed";
+	if (installed) return "Uninstall";
 	return "Install";
 }
 
@@ -323,11 +330,11 @@ function MarketplaceCard({
 					disabled={!installedStatusReady}
 					onClick={openInstallDialog}
 					type="button"
-					variant={installed ? "secondary" : "default"}
+					variant={installed ? "destructive" : "default"}
 				>
 					{installedStatusReady ? null : <Spinner />}
 					{installedStatusReady && installed ? (
-						<CheckCircle2 className="size-4" />
+						<Trash2 className="size-4" />
 					) : null}
 					{installedStatusReady ? installLabel(installed) : "Checking..."}
 				</Button>
@@ -342,6 +349,7 @@ function InstallDialog({
 	installedStatusReady,
 	onClose,
 	onInstalled,
+	onUninstalled,
 	open,
 }: {
 	entry: MarketplaceEntry | null;
@@ -349,6 +357,7 @@ function InstallDialog({
 	installedStatusReady: boolean;
 	onClose: () => void;
 	onInstalled: (entry: MarketplaceEntry) => void;
+	onUninstalled: (entry: MarketplaceEntry) => void;
 	open: boolean;
 }) {
 	const [state, setState] = useState<InstallState>({ status: "idle" });
@@ -369,7 +378,13 @@ function InstallDialog({
 	};
 
 	const install = async () => {
-		if (!entry || state.status === "installing") return;
+		if (
+			!entry ||
+			state.status === "installing" ||
+			state.status === "uninstalling"
+		) {
+			return;
+		}
 		setState({ status: "installing" });
 		try {
 			const result = await desktopClient.invoke<MarketplaceInstallResult>(
@@ -383,6 +398,35 @@ function InstallDialog({
 				output: result.output,
 			});
 			onInstalled(entry);
+		} catch (error) {
+			setState({
+				status: "failed",
+				message: error instanceof Error ? error.message : String(error),
+			});
+		}
+	};
+
+	const uninstall = async () => {
+		if (
+			!entry ||
+			state.status === "installing" ||
+			state.status === "uninstalling"
+		) {
+			return;
+		}
+		setState({ status: "uninstalling" });
+		try {
+			const result = await desktopClient.invoke<MarketplaceInstallResult>(
+				"uninstall_marketplace_entry",
+				{ entry },
+				{ timeoutMs: INSTALL_TIMEOUT_MS },
+			);
+			setState({
+				status: "uninstalled",
+				message: result.message,
+				output: result.output,
+			});
+			onUninstalled(entry);
 		} catch (error) {
 			setState({
 				status: "failed",
@@ -494,12 +538,18 @@ function InstallDialog({
 						{state.message}
 					</div>
 				) : null}
+				{state.status === "uninstalled" ? (
+					<div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+						{state.message}
+					</div>
+				) : null}
 				{state.status === "failed" ? (
 					<div className="max-h-44 overflow-auto rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
 						{state.message}
 					</div>
 				) : null}
-				{state.status === "installed" && state.output ? (
+				{(state.status === "installed" || state.status === "uninstalled") &&
+				state.output ? (
 					<pre
 						className="max-h-44 overflow-auto rounded-lg border bg-muted/30 p-3 font-mono text-xs text-muted-foreground"
 						style={CODE_FONT_STYLE}
@@ -510,7 +560,9 @@ function InstallDialog({
 
 				<DialogFooter>
 					<Button
-						disabled={state.status === "installing"}
+						disabled={
+							state.status === "installing" || state.status === "uninstalling"
+						}
 						onClick={onClose}
 						type="button"
 						variant="outline"
@@ -520,26 +572,33 @@ function InstallDialog({
 					<Button
 						disabled={
 							!installedStatusReady ||
-							installed ||
 							state.status === "installing" ||
-							state.status === "installed"
+							state.status === "uninstalling" ||
+							state.status === "installed" ||
+							state.status === "uninstalled"
 						}
-						onClick={install}
+						onClick={installed ? uninstall : install}
 						type="button"
+						variant={installed ? "destructive" : "default"}
 					>
 						{state.status === "installing" ? <Spinner /> : null}
+						{state.status === "uninstalling" ? <Spinner /> : null}
 						{installed || state.status === "installed" ? (
-							<CheckCircle2 className="size-4" />
+							<Trash2 className="size-4" />
 						) : null}
 						{!installedStatusReady
 							? "Checking..."
-							: installed
-								? "Installed"
-								: state.status === "installing"
-									? "Installing..."
-									: state.status === "installed"
-										? "Installed"
-										: installLabel(false)}
+							: state.status === "uninstalled"
+								? "Uninstalled"
+								: installed
+									? state.status === "uninstalling"
+										? "Uninstalling..."
+										: "Uninstall"
+									: state.status === "installing"
+										? "Installing..."
+										: state.status === "installed"
+											? "Installed"
+											: installLabel(false)}
 					</Button>
 				</DialogFooter>
 			</DialogContent>
@@ -865,6 +924,13 @@ export function MarketplaceView() {
 					setInstalledEntryKeys((current) =>
 						new Set(current).add(entryKey(entry)),
 					)
+				}
+				onUninstalled={(entry) =>
+					setInstalledEntryKeys((current) => {
+						const next = new Set(current);
+						next.delete(entryKey(entry));
+						return next;
+					})
 				}
 				open={selectedEntry !== null}
 			/>

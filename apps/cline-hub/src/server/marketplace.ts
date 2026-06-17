@@ -4,7 +4,11 @@ import { existsSync, mkdirSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir, platform } from "node:os";
 import { join } from "node:path";
 import { resolveClineDir } from "@cline/shared/storage";
-import { readMcpServersResponse, upsertMcpServer } from "./mcp";
+import {
+	deleteMcpServer,
+	readMcpServersResponse,
+	upsertMcpServer,
+} from "./mcp";
 import type { JsonRecord } from "./types";
 
 type MarketplacePrimitiveType = "mcp" | "skill" | "plugin";
@@ -31,7 +35,7 @@ type MarketplaceInstallInput = {
 type MarketplaceInstallResult = {
 	id: string;
 	type: MarketplacePrimitiveType;
-	status: "installed";
+	status: "installed" | "uninstalled";
 	message: string;
 	details?: JsonRecord;
 	output?: string;
@@ -477,10 +481,17 @@ function ensureGlobalSkillsDirWritable(): void {
 }
 
 function isGlobalSkillInstalled(entry: MarketplaceInstallInput): boolean {
-	if (entry.type !== "skill") return false;
+	return findInstalledGlobalSkillName(entry) !== undefined;
+}
+
+function findInstalledGlobalSkillName(
+	entry: MarketplaceInstallInput,
+): string | undefined {
+	if (entry.type !== "skill") return undefined;
 	const candidates = getSkillInstallCandidates(entry);
-	const checkedPaths = candidates.flatMap(getGlobalSkillPaths);
-	return checkedPaths.some((path) => existsSync(path));
+	return candidates.find((candidate) =>
+		getGlobalSkillPaths(candidate).some((path) => existsSync(path)),
+	);
 }
 
 function hasMatchingInventoryItem(
@@ -599,6 +610,50 @@ async function installSkill(
 	};
 }
 
+async function uninstallSkill(
+	entry: MarketplaceInstallInput,
+	spawnCommand: SpawnCommand,
+): Promise<MarketplaceInstallResult> {
+	const installedName = findInstalledGlobalSkillName(entry);
+	if (!installedName) {
+		return {
+			id: entry.id,
+			type: entry.type,
+			status: "uninstalled",
+			message: `${entry.name ?? entry.id} is not installed.`,
+		};
+	}
+	const result = await spawnCommand("npx", [
+		"-y",
+		"skills@latest",
+		"remove",
+		installedName,
+		"-g",
+		"-a",
+		"cline",
+		"-y",
+	]);
+	if (result.exitCode !== 0) {
+		const output = commandOutput(result);
+		throw new Error(
+			`Skill uninstall failed with exit code ${result.exitCode}${output ? `:\n${output}` : ""}`,
+		);
+	}
+	const output = commandOutput(result);
+	if (isGlobalSkillInstalled(entry)) {
+		throw new Error(
+			`Skill uninstall completed, but ${entry.name ?? entry.id} is still present in Cline's global skills directories.`,
+		);
+	}
+	return {
+		id: entry.id,
+		type: entry.type,
+		status: "uninstalled",
+		message: `Uninstalled ${entry.name ?? entry.id}.`,
+		output,
+	};
+}
+
 async function installPlugin(
 	entry: MarketplaceInstallInput,
 	spawnCommand: SpawnCommand,
@@ -649,6 +704,47 @@ async function installPlugin(
 	};
 }
 
+async function uninstallPlugin(
+	entry: MarketplaceInstallInput,
+	spawnCommand: SpawnCommand,
+): Promise<MarketplaceInstallResult> {
+	const installArgs = entry.install.args ?? [];
+	const target = installArgs[0]?.trim() || entry.id;
+	if (!target) {
+		throw new Error("Plugin marketplace uninstalls require a plugin name.");
+	}
+	const { command, argsPrefix } = resolveClineInvocation();
+	const result = await spawnCommand(command, [
+		...argsPrefix,
+		"plugin",
+		"uninstall",
+		target,
+		"--json",
+	]);
+	if (result.exitCode !== 0) {
+		const output = commandOutput(result);
+		throw new Error(
+			`Plugin uninstall failed with exit code ${result.exitCode}${output ? `:\n${output}` : ""}`,
+		);
+	}
+	let details: JsonRecord | undefined;
+	try {
+		details = result.stdout.trim()
+			? (JSON.parse(result.stdout.trim()) as JsonRecord)
+			: undefined;
+	} catch {
+		details = undefined;
+	}
+	return {
+		id: entry.id,
+		type: entry.type,
+		status: "uninstalled",
+		message: `Uninstalled ${entry.name ?? entry.id}.`,
+		details,
+		output: commandOutput(result),
+	};
+}
+
 export async function installMarketplaceEntry(
 	args?: Record<string, unknown>,
 	options: { spawnCommand?: SpawnCommand } = {},
@@ -671,6 +767,32 @@ export async function installMarketplaceEntry(
 	}
 	if (entry.type === "plugin") {
 		return installPlugin(entry, spawnCommand);
+	}
+	throw new Error(`Unsupported marketplace entry type: ${entry.type}`);
+}
+
+export async function uninstallMarketplaceEntry(
+	args?: Record<string, unknown>,
+	options: { spawnCommand?: SpawnCommand } = {},
+): Promise<MarketplaceInstallResult> {
+	const entry = readInstallInput(args);
+	const spawnCommand = options.spawnCommand ?? defaultSpawnCommand;
+	if (entry.type === "mcp") {
+		const input = buildMarketplaceMcpInput(entry.install.args ?? []);
+		const response = deleteMcpServer(String(input.name ?? ""));
+		return {
+			id: entry.id,
+			type: entry.type,
+			status: "uninstalled",
+			message: `Uninstalled ${entry.name ?? input.name ?? entry.id}.`,
+			details: { mcp: response },
+		};
+	}
+	if (entry.type === "skill") {
+		return uninstallSkill(entry, spawnCommand);
+	}
+	if (entry.type === "plugin") {
+		return uninstallPlugin(entry, spawnCommand);
 	}
 	throw new Error(`Unsupported marketplace entry type: ${entry.type}`);
 }
@@ -699,6 +821,30 @@ export async function installMarketplaceEntryFromCatalog(
 	);
 }
 
+export async function uninstallMarketplaceEntryFromCatalog(
+	args?: Record<string, unknown>,
+	options: {
+		spawnCommand?: SpawnCommand;
+		loadCatalog?: CatalogLoader;
+	} = {},
+): Promise<MarketplaceInstallResult> {
+	const requested = readInstallRequest(args);
+	const catalog = await (options.loadCatalog ?? fetchMarketplaceCatalog)();
+	const entry = readCatalogEntries(catalog).find(
+		(candidate) =>
+			candidate.id === requested.id && candidate.type === requested.type,
+	);
+	if (!entry) {
+		throw new Error(
+			`Marketplace entry ${requested.type}:${requested.id} was not found in the catalog.`,
+		);
+	}
+	return uninstallMarketplaceEntry(
+		{ entry },
+		{ spawnCommand: options.spawnCommand },
+	);
+}
+
 export function listMarketplaceInstalledEntries(
 	args?: Record<string, unknown>,
 	inventory?: JsonRecord,
@@ -718,4 +864,14 @@ export async function installMarketplaceEntryForDesktopCommand(
 	} = {},
 ): Promise<MarketplaceInstallResult> {
 	return installMarketplaceEntryFromCatalog(args, options);
+}
+
+export async function uninstallMarketplaceEntryForDesktopCommand(
+	args?: Record<string, unknown>,
+	options: {
+		spawnCommand?: SpawnCommand;
+		loadCatalog?: CatalogLoader;
+	} = {},
+): Promise<MarketplaceInstallResult> {
+	return uninstallMarketplaceEntryFromCatalog(args, options);
 }
