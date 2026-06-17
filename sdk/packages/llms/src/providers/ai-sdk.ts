@@ -20,6 +20,10 @@ import { z } from "zod";
 import { extractErrorMessage } from "./format";
 import { isAnthropicCompatibleModel, resolveModelFamily } from "./model-facts";
 import {
+	recordProviderRequestCapture,
+	wrapFetchForProviderRequestCapture,
+} from "./provider-request-capture";
+import {
 	applyPromptCacheToLastTextPart,
 	shouldApplyPromptCache,
 } from "./routing/anthropic-compatible";
@@ -884,7 +888,14 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 				current: undefined,
 			};
 			try {
-				const provider = await createProviderModule(kind, config, context);
+				const provider = await createProviderModule(
+					kind,
+					{
+						...config,
+						fetch: wrapFetchForProviderRequestCapture(config.fetch, request),
+					},
+					context,
+				);
 				const langfuse = await ensureGatewayLangfuseTelemetry(
 					config.providerId,
 				);
@@ -895,11 +906,29 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 				const useSystemOption =
 					typeof systemPrompt === "string" && systemPrompt.trim().length > 0;
 				const messagesSystemPrompt = useSystemOption ? undefined : systemPrompt;
+				const messages = shouldApplyPromptCache(request, context)
+					? buildCachedAiSdkMessages(request, context, messagesSystemPrompt)
+					: toAiSdkMessages(request.messages, messagesSystemPrompt);
+				const providerOptions = composeAiSdkProviderOptions(
+					request,
+					context,
+					kind,
+				) as never;
+				recordProviderRequestCapture({
+					stage: "ai_sdk_prompt",
+					request,
+					payload: {
+						messages,
+						...(useSystemOption ? { system: systemPrompt } : {}),
+						tools,
+						providerOptions,
+						maxOutputTokens: request.maxTokens,
+						temperature: request.temperature,
+					},
+				});
 				stream = streamText({
 					model: provider.model(context.model.id) as never,
-					messages: (shouldApplyPromptCache(request, context)
-						? buildCachedAiSdkMessages(request, context, messagesSystemPrompt)
-						: toAiSdkMessages(request.messages, messagesSystemPrompt)) as never,
+					messages: messages as never,
 					...(useSystemOption ? { system: systemPrompt } : {}),
 					tools: tools as never,
 					temperature: request.temperature,
@@ -910,11 +939,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					experimental_telemetry: {
 						isEnabled: langfuse,
 					},
-					providerOptions: composeAiSdkProviderOptions(
-						request,
-						context,
-						kind,
-					) as never,
+					providerOptions,
 					onError: ({ error: streamError }) => {
 						const msg = extractErrorMessage(streamError);
 						capturedError.current = msg;
