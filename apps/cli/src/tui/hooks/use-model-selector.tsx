@@ -29,7 +29,6 @@ import { buildClineModelEntries } from "../components/model-selector/cline-model
 import {
 	BROWSE_ALL_ACTION,
 	ClineModelSelectorDialogContent,
-	type ClineModelSelectorResult,
 } from "../components/model-selector/cline-model-selector";
 import {
 	buildModelOptions,
@@ -77,10 +76,6 @@ function clearReasoningConfig(config: Config): void {
 
 function usesModelIdInput(providerId: string): boolean {
 	return providerId === "openai-compatible";
-}
-
-function usesClineModelSelector(providerId: string): boolean {
-	return providerId === "cline";
 }
 
 async function runProviderChange(
@@ -296,10 +291,10 @@ export function useModelSelector(opts: {
 					continue;
 				}
 
-				if (usesClineModelSelector(config.providerId)) {
-					const clineResult = await dialog.choice<ClineModelSelectorResult>({
+				if (config.providerId === "cline") {
+					const clineResult = await dialog.choice<string>({
 						style: { maxHeight: termHeight - 2 },
-						content: (ctx: ChoiceContext<ClineModelSelectorResult>) => (
+						content: (ctx: ChoiceContext<string>) => (
 							<ClineModelSelectorDialogContent
 								{...ctx}
 								currentModel={config.modelId}
@@ -328,7 +323,6 @@ export function useModelSelector(opts: {
 									currentModel={config.modelId}
 									currentProviderName={providerDisplayName}
 									models={modelOptions}
-									allowCustomModel={false}
 								/>
 							),
 						});
@@ -338,7 +332,6 @@ export function useModelSelector(opts: {
 							continue;
 						}
 						config.modelId = browseResult;
-						config.providerId = "cline";
 						const browseModel = modelOptions.find(
 							(m: ModelOption) => m.key === browseResult,
 						);
@@ -376,7 +369,6 @@ export function useModelSelector(opts: {
 					}
 
 					config.modelId = clineResult;
-					config.providerId = "cline";
 					const selectedModel = modelOptions.find(
 						(m: ModelOption) => m.key === clineResult,
 					);
@@ -421,7 +413,6 @@ export function useModelSelector(opts: {
 							currentModel={config.modelId}
 							currentProviderName={providerDisplayName}
 							models={modelOptions}
-							allowCustomModel={config.providerId !== "cline-pass"}
 						/>
 					),
 				});

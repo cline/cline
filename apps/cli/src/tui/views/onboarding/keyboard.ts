@@ -43,7 +43,7 @@ export function useOnboardingKeyboard(input: {
 	startDeviceCodeFlow: (providerId: OnboardingOAuthProviderId) => void;
 	selectProvider: (providerId: string) => void;
 	loadModelsForProvider: (providerId: string) => void;
-	selectClineModelEntry: (entry: ClineModelPickerEntry | undefined) => void;
+	saveClineModelSelection: (modelId: string, modelName: string) => void;
 	saveCodexCliConfig: () => void;
 	saveByoConfig: () => void;
 	saveModelSelection: () => void;
@@ -208,9 +208,14 @@ export function useOnboardingKeyboard(input: {
 				return;
 			}
 			if (key.name === "return") {
-				input.selectClineModelEntry(
-					input.clineEntries[input.clineModelSelected],
-				);
+				const entry = input.clineEntries[input.clineModelSelected];
+				if (!entry) return;
+				if (entry.kind === "model") {
+					input.saveClineModelSelection(entry.model.id, entry.model.name);
+				} else {
+					input.setStep("model_picker");
+					input.loadModelsForProvider(input.activeProviderId);
+				}
 			}
 			return;
 		}

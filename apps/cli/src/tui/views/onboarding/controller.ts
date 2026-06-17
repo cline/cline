@@ -153,7 +153,6 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 
 	const createCustomModelItem = useCallback(
 		(_search: string, filteredItems: SearchableItem[]) => {
-			if (activeProviderId === "cline-pass") return undefined;
 			if (filteredItems.some((item) => item.key === CUSTOM_MODEL_ID_ACTION)) {
 				return undefined;
 			}
@@ -164,7 +163,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 				searchText: "create custom model id manual entry",
 			} satisfies SearchableItem;
 		},
-		[activeProviderId],
+		[],
 	);
 
 	const modelList = useSearchableList(modelItems, createCustomModelItem);
@@ -175,18 +174,13 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		() => (recommended.data ? buildClineModelEntries(recommended.data) : []),
 		[recommended.data],
 	);
-	const [clineKnownModels, setClineKnownModels] = useState<
-		Record<string, unknown> | undefined
-	>(undefined);
 	const [clineModelSelected, setClineModelSelected] = useState(0);
-	useEffect(() => {
-		setClineModelSelected((selected) =>
-			Math.min(selected, Math.max(0, clineEntries.length - 1)),
-		);
-	}, [clineEntries.length]);
 	const [clineModelReasoningIds, setClineModelReasoningIds] = useState<
 		Set<string>
 	>(new Set());
+	const [clineKnownModels, setClineKnownModels] = useState<
+		Record<string, unknown> | undefined
+	>(undefined);
 
 	useEffect(() => {
 		getLocalProviderModels("cline")
@@ -543,15 +537,15 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 
 	const saveClineModelSelection = useCallback(
 		(modelId: string, modelName: string) => {
-			const existing = providerSettingsManager.getProviderSettings("cline");
+			const existing =
+				providerSettingsManager.getProviderSettings(activeProviderId);
 			providerSettingsManager.saveProviderSettings(
 				{
-					...(existing ?? { provider: "cline" }),
+					...(existing ?? { provider: activeProviderId }),
 					model: modelId,
 				},
 				{ setLastUsed: true },
 			);
-			setActiveProviderId("cline");
 			setSelectedModelId(modelId);
 			if (clineModelReasoningIds.has(modelId)) {
 				setSelectedModelName(modelName);
@@ -561,20 +555,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 				setStep("done");
 			}
 		},
-		[clineModelReasoningIds, providerSettingsManager],
-	);
-
-	const selectClineModelEntry = useCallback(
-		(entry: ClineModelPickerEntry | undefined) => {
-			if (!entry) return;
-			if (entry.kind === "model") {
-				saveClineModelSelection(entry.model.id, entry.model.name);
-				return;
-			}
-			setStep("model_picker");
-			loadModelsForProvider(activeProviderId);
-		},
-		[activeProviderId, loadModelsForProvider, saveClineModelSelection],
+		[activeProviderId, clineModelReasoningIds, providerSettingsManager],
 	);
 
 	const saveThinkingLevel = useCallback(
@@ -664,7 +645,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		startDeviceCodeFlow,
 		selectProvider,
 		loadModelsForProvider,
-		selectClineModelEntry,
+		saveClineModelSelection,
 		saveCodexCliConfig,
 		saveByoConfig,
 		saveModelSelection,
@@ -701,12 +682,6 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		handleCustomModelIdInput: (value: string) => {
 			setCustomModelId(value);
 			setCustomModelError("");
-		},
-		handleClineModelEntrySelect: (
-			_entryIndex: number,
-			entry: ClineModelPickerEntry,
-		) => {
-			selectClineModelEntry(entry);
 		},
 		handleModelItemSelect: selectModelItem,
 		menuSelected,

@@ -104,7 +104,6 @@ function normalizeResponse(raw: unknown): ClineRecommendedModelsData | null {
 		? data.recommended
 		: [];
 	const freeRaw = Array.isArray(data.free) ? data.free : [];
-
 	const recommended = recommendedRaw
 		.map(normalizeModel)
 		.filter((model): model is ClineRecommendedModel => model !== null);
@@ -112,7 +111,6 @@ function normalizeResponse(raw: unknown): ClineRecommendedModelsData | null {
 		.map(normalizeModel)
 		.filter((model): model is ClineRecommendedModel => model !== null);
 	if (recommended.length === 0 && free.length === 0) return null;
-
 	return { recommended, free };
 }
 

@@ -438,7 +438,6 @@ export function OnboardingClineModelScreen(props: {
 	compact: boolean;
 	contentWidth: number;
 	mouse: MouseTrackerState;
-	onEntrySelect: (entryIndex: number, entry: ClineModelPickerEntry) => void;
 	recommendedLoading: boolean;
 }) {
 	const defaultFg = useDefaultFg();
@@ -460,7 +459,6 @@ export function OnboardingClineModelScreen(props: {
 				selected={props.clineModelSelected}
 				loading={props.recommendedLoading}
 				knownModels={props.clineKnownModels}
-				onEntrySelect={props.onEntrySelect}
 			/>
 
 			<text fg="gray" paddingX={1}>
