@@ -76,6 +76,8 @@ export function normalizeClineRecommendedProviderModels(
 		const capabilities = findORModelCapabilities(entry, openRouterModelsByName);
 
 		models[entry.id] = {
+			// We should use the OR name, unless there is not one (like when using defaults)
+			name: entry.name,
 			...capabilities,
 			id: entry.id,
 			description: entry.description,
