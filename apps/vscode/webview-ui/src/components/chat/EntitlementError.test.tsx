@@ -64,8 +64,7 @@ describe("EntitlementError", () => {
 
 	it("sends yesButtonClicked when Retry Request is clicked", () => {
 		render(<EntitlementError />)
-		// VSCodeButton renders as a <vscode-button> web component without an ARIA role in jsdom,
-		// so click the element containing the label text instead of querying by role.
+		// VSCodeButton has no ARIA role in jsdom; click by label text instead.
 		fireEvent.click(screen.getByText("Retry Request"))
 		expect(askResponseMock).toHaveBeenCalledTimes(1)
 	})

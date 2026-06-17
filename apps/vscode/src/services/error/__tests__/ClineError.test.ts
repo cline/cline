@@ -39,9 +39,7 @@ describe("ClineError", () => {
 		})
 
 		it("should return Entitlement for the real Cline 403 provider error shape (nested error object)", () => {
-			// Mirrors what the OpenAI SDK throws for a 403 from the Cline provider: a structured
-			// error whose `error` field carries the entitlement code/message. ClineError maps
-			// `error.error` into `details`, so `details.code` should drive classification.
+			// ClineError maps `error.error` into `details`, so `details.code` drives classification.
 			const err = new ClineError(
 				{
 					status: 403,

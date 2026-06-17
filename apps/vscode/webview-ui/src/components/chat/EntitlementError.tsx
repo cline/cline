@@ -8,7 +8,6 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { TaskServiceClient } from "@/services/grpc-client"
 
 interface EntitlementErrorProps {
-	/** Human-readable error message from the backend, if any */
 	message?: string
 }
 
@@ -19,12 +18,8 @@ const HEADLINE = "This model requires a Cline Pass subscription."
 const EntitlementError: React.FC<EntitlementErrorProps> = ({ message }) => {
 	const { clineUser } = useClineAuth()
 	const { environment } = useExtensionState()
-	// Point the subscribe link at the same environment the user is signed into.
-	// Prefer the authenticated user's app base URL, then the current environment, then production.
 	const appBaseUrl = clineUser?.appBaseUrl || getAppBaseUrl(environment)
 	const subscribeUrl = new URL(CLINE_PASS_SUBSCRIBE_PATH, appBaseUrl).toString()
-	// Show friendly product copy as the headline; surface the backend detail (if any)
-	// in a muted line for support/debugging rather than as the primary message.
 	const backendDetail = message && message !== HEADLINE ? message : undefined
 
 	return (

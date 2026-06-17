@@ -153,8 +153,7 @@ export class ClineError extends Error {
 			return ClineErrorType.SpendLimit
 		}
 
-		// Check entitlement errors (e.g. user not subscribed to a required model plan like Cline Pass).
-		// Must be checked before the generic auth check since these are returned as 403.
+		// Must be checked before the generic auth check since these are returned as 403
 		if (code === "ENTITLEMENT_ERROR" || details?.code === "ENTITLEMENT_ERROR") {
 			return ClineErrorType.Entitlement
 		}
