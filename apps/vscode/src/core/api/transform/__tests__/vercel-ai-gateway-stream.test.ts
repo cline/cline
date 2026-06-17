@@ -56,6 +56,19 @@ describe("createVercelAIGatewayStream", () => {
 		payload.messages[1].content[0].cache_control.should.deepEqual({ type: "ephemeral" })
 	})
 
+	it("adds cache_control blocks for Anthropic models even when the flag is unset", async () => {
+		// Guards against registry pricing data being missing or stale for an Anthropic model.
+		const { client, create } = createClient()
+
+		await createVercelAIGatewayStream(client as any, "system prompt", [{ role: "user", content: "hello" }] as any, {
+			id: "anthropic/claude-sonnet-4.5",
+			info: createModelInfo(false),
+		})
+
+		const payload = create.firstCall.args[0] as any
+		payload.messages[0].content[0].cache_control.should.deepEqual({ type: "ephemeral" })
+	})
+
 	it("adds cache_control blocks for MiniMax models even without the flag", async () => {
 		const { client, create } = createClient()
 

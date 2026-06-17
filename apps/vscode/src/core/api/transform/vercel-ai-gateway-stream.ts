@@ -54,11 +54,13 @@ export async function createVercelAIGatewayStream(
 	// Gate on the capability flag the model registry computes from pricing
 	// (refreshVercelAiGatewayModels.ts sets supportsPromptCache when the Gateway
 	// reports cache read/write pricing), so any cache-capable model gets cache_control
-	// rather than only ids that start with "anthropic/". Keep the MiniMax id check as a
-	// fallback for envelope-honoring shapes that may not be flagged by pricing.
+	// rather than only ids that start with "anthropic/". Keep the Anthropic/MiniMax id
+	// checks as a fallback for envelope-honoring families whose pricing data may be
+	// missing or stale in the registry (e.g. a new Anthropic model before pricing lands).
+	const isAnthropicModel = model.id.startsWith("anthropic/")
 	const isMinimaxModel = model.id.startsWith("minimax/")
 
-	if (model.info.supportsPromptCache || isMinimaxModel) {
+	if (model.info.supportsPromptCache || isAnthropicModel || isMinimaxModel) {
 		openAiMessages[0] = {
 			role: "system",
 			content: [
