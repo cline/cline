@@ -11,6 +11,7 @@ import {
 } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { dirname, join } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import type { BasicLogger } from "@cline/shared";
 import { resolveMcpSettingsPath } from "@cline/shared/storage";
 import { z } from "zod";
@@ -272,7 +273,16 @@ const SETTINGS_LOCK_STALE_MS = 10_000;
 const SETTINGS_LOCK_POLL_MS = 25;
 
 const syncSleepBuffer = new Int32Array(new SharedArrayBuffer(4));
-const activeSyncLocks = new Set<string>();
+
+/**
+ * Lock directories this process currently owns, regardless of whether they were
+ * acquired via the synchronous (`Atomics.wait`) or asynchronous (`await delay`)
+ * path. Both acquisition paths register here, so a nested settings update on the
+ * same file — sync-inside-sync, sync-inside-async, or async-inside-async — fails
+ * fast with a clear error instead of self-deadlocking against a lock this same
+ * process already holds (the on-disk lock is not reentrant).
+ */
+const activeLocks = new Set<string>();
 
 function sleepSync(ms: number): void {
 	Atomics.wait(syncSleepBuffer, 0, 0, ms);
@@ -366,18 +376,24 @@ function releaseSettingsLock(lock: AcquiredSettingsLock): void {
 	}
 }
 
-function acquireSettingsLockSync(filePath: string, options: McpSettingsLockOptions): AcquiredSettingsLock {
+function beginAcquire(filePath: string): { lockDir: string; token: string } {
 	const lockDir = settingsLockDir(filePath);
-	if (activeSyncLocks.has(lockDir)) {
-		throw new Error(`Reentrant synchronous MCP settings update for ${filePath}. Mutators must be pure and must not update MCP settings.`);
+	if (activeLocks.has(lockDir)) {
+		throw new Error(
+			`Reentrant MCP settings update for ${filePath}. Mutators must be pure and must not update MCP settings.`,
+		);
 	}
-	const token = makeLockToken();
+	return { lockDir, token: makeLockToken() };
+}
+
+function acquireSettingsLockSync(filePath: string, options: McpSettingsLockOptions): AcquiredSettingsLock {
+	const { lockDir, token } = beginAcquire(filePath);
 	const timeoutMs = options.timeoutMs ?? SETTINGS_LOCK_STALE_MS;
 	const startedAt = Date.now();
 	while (true) {
 		const lock = tryAcquireSettingsLock(lockDir, token);
 		if (lock) {
-			activeSyncLocks.add(lockDir);
+			activeLocks.add(lockDir);
 			return lock;
 		}
 		if (Date.now() - startedAt > timeoutMs) {
@@ -391,13 +407,65 @@ function acquireSettingsLockSync(filePath: string, options: McpSettingsLockOptio
 }
 
 /**
- * Locked MCP settings read-modify-write.
+ * Async sibling of {@link acquireSettingsLockSync}. Identical lock protocol and
+ * stale-reclaim behavior, but it yields the event loop (`await delay`) between
+ * acquisition attempts instead of blocking it with `Atomics.wait`. Use this from
+ * any host with a long-lived event loop (e.g. the VSCode extension host), where
+ * a synchronous spin would freeze unrelated async work — including the very
+ * continuation that releases the lock we are waiting on.
+ */
+async function acquireSettingsLockAsync(filePath: string, options: McpSettingsLockOptions): Promise<AcquiredSettingsLock> {
+	const { lockDir, token } = beginAcquire(filePath);
+	const timeoutMs = options.timeoutMs ?? SETTINGS_LOCK_STALE_MS;
+	const startedAt = Date.now();
+	while (true) {
+		const lock = tryAcquireSettingsLock(lockDir, token);
+		if (lock) {
+			activeLocks.add(lockDir);
+			return lock;
+		}
+		if (Date.now() - startedAt > timeoutMs) {
+			throw new McpSettingsLockTimeoutError(
+				`Timed out waiting for MCP settings lock at ${lockDir} after ${timeoutMs}ms.`,
+			);
+		}
+		reclaimStaleLock(lockDir, options);
+		await delay(SETTINGS_LOCK_POLL_MS);
+	}
+}
+
+/**
+ * The locked critical section shared by the sync and async entry points. Once
+ * the lock is held, the read-modify-write is ALWAYS synchronous and never
+ * yields the event loop, so a concurrent waiter (sync or async, same process or
+ * another) cannot interleave between our read and our write, and the lock is
+ * released promptly. This is the invariant that the async path preserves: it
+ * yields only while *acquiring*, never while *holding*.
+ */
+function runLockedSettingsMutation<T>(lock: AcquiredSettingsLock, filePath: string, mutator: McpSettingsMutator<T>): T {
+	try {
+		const settings = loadRawSettingsObject(filePath);
+		const result = runPureSettingsMutator(settings, mutator);
+		atomicWriteSettingsFile(filePath, `${JSON.stringify(settings, null, 2)}\n`);
+		return result;
+	} finally {
+		activeLocks.delete(lock.lockDir);
+		releaseSettingsLock(lock);
+	}
+}
+
+/**
+ * Locked MCP settings read-modify-write (synchronous acquisition).
  *
  * The mutator is intentionally synchronous and may be called more than once
  * with the same input to validate that it is pure/deterministic. Do not perform
  * I/O, logging, network work, timestamp generation, random ID generation, or
  * other slow/side-effectful work inside the mutator. Compute any such values
  * before calling this helper and close over them.
+ *
+ * Acquisition blocks the event loop via `Atomics.wait`. That is fine for
+ * short-lived, single-purpose processes (e.g. CLI commands) but NOT for hosts
+ * with a long-lived shared event loop — use {@link updateMcpSettingsFile} there.
  *
  * Return values are for successful updates only. To intentionally skip an
  * update for a normal/expected reason, throw McpSettingsUpdateSkippedError.
@@ -408,15 +476,28 @@ export function updateMcpSettingsFileSync<T>(
 	options: McpSettingsLockOptions = {},
 ): T {
 	const lock = acquireSettingsLockSync(filePath, options);
-	try {
-		const settings = loadRawSettingsObject(filePath);
-		const result = runPureSettingsMutator(settings, mutator);
-		atomicWriteSettingsFile(filePath, `${JSON.stringify(settings, null, 2)}\n`);
-		return result;
-	} finally {
-		activeSyncLocks.delete(lock.lockDir);
-		releaseSettingsLock(lock);
-	}
+	return runLockedSettingsMutation(lock, filePath, mutator);
+}
+
+/**
+ * Locked MCP settings read-modify-write (asynchronous acquisition).
+ *
+ * Behaves exactly like {@link updateMcpSettingsFileSync} — same lock protocol,
+ * same synchronous purity-checked critical section, same stale-lock reclaim —
+ * except it `await`s between acquisition attempts instead of blocking the event
+ * loop. Prefer this in the VSCode extension host so an in-flight settings update
+ * elsewhere on the same loop can make progress and release the lock.
+ *
+ * The mutator is still synchronous and pure; the lock is never held across an
+ * `await`, so callers cannot reintroduce a yield-while-holding deadlock.
+ */
+export async function updateMcpSettingsFile<T>(
+	filePath: string,
+	mutator: McpSettingsMutator<T>,
+	options: McpSettingsLockOptions = {},
+): Promise<T> {
+	const lock = await acquireSettingsLockAsync(filePath, options);
+	return runLockedSettingsMutation(lock, filePath, mutator);
 }
 
 function loadRawSettingsObject(filePath: string): Record<string, unknown> {
@@ -617,13 +698,11 @@ export function getMcpServerOAuthState(
 	return normalizeMcpServerOAuthState(config.mcpServers[serverName]?.oauth);
 }
 
-export function updateMcpServerOAuthState(
+function buildOAuthStateMutator(
 	serverName: string,
 	updater: (current: McpServerOAuthState) => McpServerOAuthState,
-	options: LoadMcpSettingsOptions = {},
-): McpServerOAuthState {
-	const filePath = options.filePath ?? resolveDefaultMcpSettingsPath();
-	return updateMcpSettingsFileSync(filePath, (settings) => {
+): McpSettingsMutator<McpServerOAuthState> {
+	return (settings) => {
 		const servers = settings.mcpServers as Record<string, unknown>;
 		const server = getOwnServerRecord(servers, serverName);
 		if (!server) {
@@ -638,7 +717,38 @@ export function updateMcpServerOAuthState(
 			delete server.oauth;
 		}
 		return updated ?? {};
-	});
+	};
+}
+
+/**
+ * Scoped read-modify-write of one server's `oauth` block (synchronous
+ * acquisition). Blocks the event loop while waiting for the lock; safe for the
+ * CLI, but the VSCode extension host must use
+ * {@link updateMcpServerOAuthStateAsync} instead.
+ */
+export function updateMcpServerOAuthState(
+	serverName: string,
+	updater: (current: McpServerOAuthState) => McpServerOAuthState,
+	options: LoadMcpSettingsOptions = {},
+): McpServerOAuthState {
+	const filePath = options.filePath ?? resolveDefaultMcpSettingsPath();
+	return updateMcpSettingsFileSync(filePath, buildOAuthStateMutator(serverName, updater));
+}
+
+/**
+ * Async sibling of {@link updateMcpServerOAuthState}. Identical scoped
+ * read-modify-write of one server's `oauth` block and identical synchronous,
+ * pure updater contract, but it `await`s for the lock instead of blocking the
+ * event loop. Prefer this in the VSCode extension host so it never freezes the
+ * loop — including the continuation that releases an in-flight settings lock.
+ */
+export async function updateMcpServerOAuthStateAsync(
+	serverName: string,
+	updater: (current: McpServerOAuthState) => McpServerOAuthState,
+	options: LoadMcpSettingsOptions = {},
+): Promise<McpServerOAuthState> {
+	const filePath = options.filePath ?? resolveDefaultMcpSettingsPath();
+	return updateMcpSettingsFile(filePath, buildOAuthStateMutator(serverName, updater));
 }
 
 export function listMcpServerOAuthStatuses(

@@ -18,6 +18,8 @@ export {
 	resolveMcpServerRegistrations,
 	setMcpServerDisabled,
 	updateMcpServerOAuthState,
+	updateMcpServerOAuthStateAsync,
+	updateMcpSettingsFile,
 	updateMcpSettingsFileSync,
 	McpSettingsLockTimeoutError,
 	McpSettingsMutatorPurityError,

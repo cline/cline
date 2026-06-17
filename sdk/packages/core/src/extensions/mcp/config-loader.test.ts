@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readdirSync, renameSync, rmdirSync, statSync, un
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	hasMcpSettingsFile,
 	listMcpServerOAuthStatuses,
@@ -11,6 +11,7 @@ import {
 	resolveMcpServerRegistrations,
 	setMcpServerDisabled,
 	updateMcpServerOAuthState,
+	updateMcpSettingsFile,
 	updateMcpSettingsFileSync,
 	McpSettingsMutatorPurityError,
 } from "./config-loader";
@@ -498,5 +499,138 @@ describe("mcp config loader", () => {
 				settings.mcpServers = { generated: { counter: count } };
 			}),
 		).toThrow(McpSettingsMutatorPurityError);
+	});
+});
+
+describe("updateMcpSettingsFile (async acquisition)", () => {
+	const tempRoots: string[] = [];
+
+	afterEach(async () => {
+		await Promise.all(
+			tempRoots.map((directory) => rm(directory, { recursive: true, force: true })),
+		);
+		tempRoots.length = 0;
+	});
+
+	async function makeSettingsFile(): Promise<string> {
+		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-async-"));
+		tempRoots.push(tempRoot);
+		const filePath = join(tempRoot, "cline_mcp_settings.json");
+		await writeFile(filePath, JSON.stringify({ mcpServers: {} }, null, 2), "utf8");
+		return filePath;
+	}
+
+	it("runs the mutator and releases the lock on the uncontended path", async () => {
+		const filePath = await makeSettingsFile();
+		let mutatorRan = false;
+
+		const result = await updateMcpSettingsFile(filePath, (settings) => {
+			mutatorRan = true;
+			settings.mcpServers = { alpha: { transport: { type: "stdio", command: "node" } } };
+			return "ok";
+		});
+
+		// The mutator (a synchronous, pure function) ran, the write landed, and the
+		// lock directory is gone — i.e. the lock is never left held after resolution.
+		// (That the lock is never held *across* an await is covered by the contended
+		// test below, which asserts serialization without any Atomics.wait.)
+		expect(mutatorRan).toBe(true);
+		expect(result).toBe("ok");
+		expect(existsSync(`${filePath}.lock`)).toBe(false);
+		const written = JSON.parse(await readFile(filePath, "utf8"));
+		expect(written.mcpServers.alpha.transport.command).toBe("node");
+	});
+
+	it("serializes contended async updates without losing a write and never blocks the event loop", async () => {
+		const filePath = await makeSettingsFile();
+		const waitSpy = vi.spyOn(Atomics, "wait");
+		try {
+			// Pre-place a held lock owned by a fictional live process so the first
+			// real update has to wait (and therefore exercise the await-delay path).
+			const lockDir = `${filePath}.lock`;
+			mkdirSync(lockDir);
+			writeFileSync(join(lockDir, "owner.holder"), "holder");
+
+			const linear = updateMcpSettingsFile(
+				filePath,
+				(settings) => {
+					const servers = settings.mcpServers as Record<string, Record<string, unknown>>;
+					servers.linear.oauth = { tokens: { access_token: "linear-token" } };
+				},
+				{ timeoutMs: 5_000 },
+			).catch(() => undefined);
+			const github = updateMcpSettingsFile(
+				filePath,
+				(settings) => {
+					const servers = settings.mcpServers as Record<string, Record<string, unknown>>;
+					servers.github.oauth = { tokens: { access_token: "github-token" } };
+				},
+				{ timeoutMs: 5_000 },
+			).catch(() => undefined);
+
+			// Seed the two servers while the contender(s) are parked on the lock,
+			// then release the held lock so the waiters can proceed.
+			await writeFile(
+				filePath,
+				JSON.stringify(
+					{
+						mcpServers: {
+							linear: { transport: { type: "streamableHttp", url: "https://linear.example.com" } },
+							github: { transport: { type: "streamableHttp", url: "https://github.example.com" } },
+						},
+					},
+					null,
+					2,
+				),
+				"utf8",
+			);
+			unlinkSync(join(lockDir, "owner.holder"));
+			rmdirSync(lockDir);
+
+			await Promise.all([linear, github]);
+
+			const written = JSON.parse(await readFile(filePath, "utf8"));
+			expect(written.mcpServers.linear.oauth?.tokens?.access_token).toBe("linear-token");
+			expect(written.mcpServers.github.oauth?.tokens?.access_token).toBe("github-token");
+			// Lock released after each critical section.
+			expect(existsSync(lockDir)).toBe(false);
+			// The whole point of the async path: it must never freeze the loop.
+			expect(waitSpy).not.toHaveBeenCalled();
+		} finally {
+			waitSpy.mockRestore();
+		}
+	});
+
+	it("reclaims a stale lock directory on the async path", async () => {
+		const filePath = await makeSettingsFile();
+		const lockDir = `${filePath}.lock`;
+		mkdirSync(lockDir);
+		writeFileSync(join(lockDir, "owner.dead"), "dead-owner");
+		const stale = new Date(Date.now() - 60_000);
+		const { utimesSync } = await import("node:fs");
+		utimesSync(lockDir, stale, stale);
+
+		let ran = false;
+		await updateMcpSettingsFile(filePath, () => {
+			ran = true;
+		});
+
+		expect(ran).toBe(true);
+		expect(existsSync(lockDir)).toBe(false);
+	});
+
+	it("fails fast on a reentrant settings update instead of deadlocking the loop", async () => {
+		const filePath = await makeSettingsFile();
+
+		await expect(
+			updateMcpSettingsFile(filePath, () => {
+				// A nested write on the same file would deadlock against the lock we
+				// already hold; the shared reentrancy guard must reject it instead.
+				updateMcpSettingsFileSync(filePath, () => {});
+			}),
+		).rejects.toThrow(/Reentrant MCP settings update/);
+
+		// Guard ran inside the mutator, but the outer lock is still cleaned up.
+		expect(existsSync(`${filePath}.lock`)).toBe(false);
 	});
 });

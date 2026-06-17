@@ -300,6 +300,8 @@ export {
 	type SetMcpServerDisabledOptions,
 	setMcpServerDisabled,
 	updateMcpServerOAuthState,
+	updateMcpServerOAuthStateAsync,
+	updateMcpSettingsFile,
 	updateMcpSettingsFileSync,
 	McpSettingsLockTimeoutError,
 	McpSettingsMutatorPurityError,

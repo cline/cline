@@ -7,9 +7,11 @@
 // This shared file is the single source of truth, which keeps the extension,
 // the CLI, and multiple extension windows interoperable:
 //  - Writes are a scoped read-modify-write of ONE server's `oauth` key via
-//    @cline/core's updateMcpServerOAuthState, which re-reads the file on every
-//    write and replaces it atomically (temp + rename). Concurrent writers from
-//    other processes therefore never clobber other servers or the whole file.
+//    @cline/core's updateMcpServerOAuthStateAsync, which re-reads the file on
+//    every write and replaces it atomically (temp + rename). Concurrent writers
+//    from other processes therefore never clobber other servers or the whole
+//    file. The async variant is used so lock acquisition yields the extension
+//    host event loop instead of blocking it with Atomics.wait.
 //  - Reads come fresh from disk, so a token authorized by the CLI or another
 //    window is picked up without restarting.
 //  - The interactive authorization flow is HTTP-based token collection via
@@ -20,7 +22,7 @@ import {
 	authorizeMcpServerOAuth,
 	getMcpServerOAuthState,
 	type McpServerOAuthState,
-	updateMcpServerOAuthState,
+	updateMcpServerOAuthStateAsync,
 } from "@cline/core"
 import { StateManager } from "@core/storage/StateManager"
 import { OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js"
@@ -63,29 +65,28 @@ function readOAuthState(serverName: string, settingsPath: string): McpServerOAut
 
 /**
  * Scoped write of one server's OAuth state. Re-reads the file inside
- * updateMcpServerOAuthState so concurrent writers (CLI, other windows) are
+ * updateMcpServerOAuthStateAsync so concurrent writers (CLI, other windows) are
  * never clobbered wholesale. Failures are logged but non-fatal: a missing
  * server entry (e.g., just deleted in another window) shouldn't crash the
  * provider callbacks the MCP SDK invokes mid-connection.
  *
- * The underlying read-modify-write is intentionally SYNCHRONOUS. Multiple
- * processes (CLI, JetBrains, other windows) share this file, and within this
- * process the synchronous read+write+rename cannot be interleaved by another
- * OAuth callback, the settings watcher, or a toggle RPC — it acts as a
- * process-local mutex and guarantees this window never clobbers its own
- * in-flight update. The cost is a few small, blocking file operations during
- * an interactive auth handshake (a moment the user spends in the browser); we
- * accept that to keep the shared-file updates conflict-free. Switching to async
- * I/O would reintroduce the interleaving and require a Promise queue purely to
- * recover the serialization we get here for free.
+ * The cross-process lock acquisition is ASYNCHRONOUS: it `await`s (yields the
+ * event loop) while waiting for the lock rather than blocking with
+ * `Atomics.wait`. This is required in the VSCode extension host, where the
+ * synchronous SDK variant could freeze the loop — and could deadlock against an
+ * in-flight `updateMcpSettingsFile` whose lock-releasing continuation can only
+ * run once the loop is free. The critical section itself (read+mutate+rename)
+ * stays synchronous inside the SDK, and the mutator is pure, so serialization is
+ * preserved without any extra in-process queue: the lock is never held across an
+ * `await`.
  */
-function patchOAuthState(
+async function patchOAuthState(
 	serverName: string,
 	settingsPath: string,
 	updater: (current: McpServerOAuthState) => McpServerOAuthState,
-): void {
+): Promise<void> {
 	try {
-		updateMcpServerOAuthState(serverName, updater, { filePath: settingsPath })
+		await updateMcpServerOAuthStateAsync(serverName, updater, { filePath: settingsPath })
 	} catch (error) {
 		Logger.warn(`[McpOAuth] Failed to persist OAuth state for ${serverName}: ${error}`)
 	}
@@ -134,7 +135,7 @@ class ClineOAuthClientProvider implements OAuthClientProvider {
 	}
 
 	async saveClientInformation(clientInformation: OAuthClientInformationMixed): Promise<void> {
-		patchOAuthState(this.serverName, this.settingsPath, (current) => ({
+		await patchOAuthState(this.serverName, this.settingsPath, (current) => ({
 			...current,
 			clientInformation: clientInformation as Record<string, unknown>,
 		}))
@@ -153,7 +154,7 @@ class ClineOAuthClientProvider implements OAuthClientProvider {
 		// Called by the SDK after a successful token exchange or refresh.
 		Logger.log(`[McpOAuth] Tokens saved for ${this.serverName}`)
 		const lastAuthenticatedAt = Date.now()
-		patchOAuthState(this.serverName, this.settingsPath, (current) => ({
+		await patchOAuthState(this.serverName, this.settingsPath, (current) => ({
 			...current,
 			tokens: tokens as Record<string, unknown>,
 			lastError: undefined,
@@ -171,7 +172,7 @@ class ClineOAuthClientProvider implements OAuthClientProvider {
 	}
 
 	async saveCodeVerifier(codeVerifier: string): Promise<void> {
-		patchOAuthState(this.serverName, this.settingsPath, (current) => ({
+		await patchOAuthState(this.serverName, this.settingsPath, (current) => ({
 			...current,
 			codeVerifier,
 		}))
@@ -186,7 +187,7 @@ class ClineOAuthClientProvider implements OAuthClientProvider {
 	}
 
 	async invalidateCredentials(scope: "all" | "client" | "tokens" | "verifier"): Promise<void> {
-		patchOAuthState(this.serverName, this.settingsPath, (current) => {
+		await patchOAuthState(this.serverName, this.settingsPath, (current) => {
 			if (scope === "all") {
 				return { lastError: current.lastError, redirectUrl: current.redirectUrl }
 			}
@@ -285,7 +286,7 @@ export class McpOAuthManager {
 	 */
 	async clearServerAuth(serverName: string, serverUrl: string): Promise<void> {
 		this.providers.delete(`${serverName}:${serverUrl}`)
-		patchOAuthState(serverName, await this.getSettingsPath(), () => ({}))
+		await patchOAuthState(serverName, await this.getSettingsPath(), () => ({}))
 	}
 
 	/**
@@ -313,7 +314,7 @@ export class McpOAuthManager {
 			const current = readOAuthState(serverName, settingsPath)
 			if (!current.tokens) {
 				Logger.log(`[McpOAuth] Migrating legacy OAuth tokens for ${serverName} to shared settings file`)
-				patchOAuthState(serverName, settingsPath, (state) => ({
+				await patchOAuthState(serverName, settingsPath, (state) => ({
 					...state,
 					tokens: legacy.tokens as unknown as Record<string, unknown>,
 					clientInformation: state.clientInformation ?? legacy.client_info,
