@@ -139,7 +139,7 @@ export async function runCli(): Promise<void> {
 	// Re-enable built-in help/version output for the routing program
 	program.configureOutput({
 		writeOut: (str: string) => process.stdout.write(str),
-		writeErr: (str: string) => process.stderr.write(str),
+		writeErr: () => {},
 	});
 	// Default action handles non-subcommand args (e.g. prompt text)
 	program.action(() => {});
@@ -659,6 +659,7 @@ export async function runCli(): Promise<void> {
 		if (err instanceof CommanderError) {
 			if (err.exitCode !== 0) {
 				writeErr(err.message);
+				process.exitCode = err.exitCode;
 				return;
 			}
 			return;
@@ -709,6 +710,13 @@ export async function runCli(): Promise<void> {
 
 	// Default flow: no subcommand matched, or fall-through from config/history.
 	let args = commanderToParsedArgs(program);
+	if (program.args.length > 1) {
+		writeErr(
+			`Unknown command or extra arguments: ${program.args.join(" ")}\nPrompt text with spaces must be quoted as a single argument, for example: cline "fix the tests". Use "cline --help" to see available commands and flags.`,
+		);
+		process.exitCode = 1;
+		return;
+	}
 
 	let resumeSessionId: string | undefined = ctx.resumeSessionId;
 	if (resumeSessionId) {
