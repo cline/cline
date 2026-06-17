@@ -50,10 +50,16 @@ export function isWebviewRoute(pathname: string): boolean {
 		pathname === "/index.html" ||
 		pathname === "/chat" ||
 		pathname === "/marketplace" ||
-		pathname.startsWith("/marketplace/") ||
+		pathname === "/marketplace/mcp" ||
+		pathname === "/marketplace/skills" ||
+		pathname === "/marketplace/plugins" ||
 		pathname === "/settings" ||
 		pathname.startsWith("/settings/")
 	);
+}
+
+export function normalizeWebviewIndexHtml(html: string): string {
+	return html.replaceAll('src="./', 'src="/').replaceAll('href="./', 'href="/');
 }
 
 function renderDevIndexHtml(devServerUrl: string): string {
@@ -107,7 +113,7 @@ export class WebviewAssets {
 	private async serveIndex(): Promise<Response> {
 		const indexFile = Bun.file(join(this.webviewDistDir, "index.html"));
 		if (await indexFile.exists()) {
-			return new Response(indexFile, {
+			return new Response(normalizeWebviewIndexHtml(await indexFile.text()), {
 				headers: {
 					"content-type": "text/html; charset=utf-8",
 					...NO_STORE_HEADERS,
