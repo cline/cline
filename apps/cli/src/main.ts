@@ -376,7 +376,7 @@ export async function runCli(): Promise<void> {
 			}
 		});
 
-	program
+	const mcpCmd = program
 		.command("mcp")
 		.description("Manage MCP servers")
 		.action(async () => {
@@ -387,6 +387,31 @@ export async function runCli(): Promise<void> {
 					"MCP wizard requires a TTY. Use cline config mcp to list servers.",
 				);
 			}
+		});
+	const mcpInstallCmd = mcpCmd
+		.command("install")
+		.alias("add")
+		.description("Open the MCP add wizard with server fields prefilled")
+		.argument("<name>", "MCP server name")
+		.argument(
+			"[targetArgs...]",
+			"URL for remote transports, or command and args after -- for stdio",
+		)
+		.option(
+			"--transport <transport>",
+			"stdio, sse, http, streamable-http, or streamableHttp (default: stdio)",
+		)
+		.action(async (name: string, targetArgs: string[]) => {
+			const opts = mcpInstallCmd.opts<{
+				transport?: string;
+			}>();
+			const { runMcpInstallCommand } = await import("./commands/mcp");
+			ctx.exitCode = await runMcpInstallCommand({
+				name,
+				targetArgs,
+				transport: opts.transport,
+				io,
+			});
 		});
 
 	const createDoctorRuntimeCommand = async () => {

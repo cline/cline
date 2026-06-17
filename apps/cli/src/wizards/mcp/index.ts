@@ -51,6 +51,19 @@ interface UrlServerConfig {
 	authMode: RemoteAuthMode;
 }
 
+export interface McpAddDefaults {
+	name?: string;
+	type?: McpTransport["type"];
+	command?: string;
+	url?: string;
+}
+
+export interface RunMcpWizardOptions {
+	initialAction?: "add";
+	addDefaults?: McpAddDefaults;
+	exitAfterInitialAction?: boolean;
+}
+
 export function parseStdioCommand(input: string): string[] {
 	const tokens: string[] = [];
 	let current = "";
@@ -96,12 +109,15 @@ export function parseStdioCommand(input: string): string[] {
 	return tokens;
 }
 
-async function collectStdioTransport(): Promise<McpTransport | null> {
+async function collectStdioTransport(
+	defaultCommand?: string,
+): Promise<McpTransport | null> {
 	p.log.info("Quoted arguments and escaped spaces are supported");
 
 	const command = await p.text({
 		message: "Command to run",
 		placeholder: "npx -y @modelcontextprotocol/server-filesystem",
+		initialValue: defaultCommand,
 		validate: (v) => {
 			if (!v?.trim()) return "Command is required";
 			return undefined;
@@ -141,10 +157,12 @@ async function collectStdioTransport(): Promise<McpTransport | null> {
 
 async function collectUrlTransport(
 	type: "sse" | "streamableHttp",
+	defaultUrl?: string,
 ): Promise<UrlServerConfig | null> {
 	const url = await p.text({
 		message: "Server URL",
 		placeholder: "https://example.com/mcp",
+		initialValue: defaultUrl,
 		validate: (v) => {
 			if (!v?.trim()) return "URL is required";
 			try {
@@ -211,10 +229,11 @@ async function collectUrlTransport(
 	};
 }
 
-async function actionAdd(): Promise<void> {
+async function actionAdd(defaults?: McpAddDefaults): Promise<void> {
 	const name = await p.text({
 		message: "Server name",
 		placeholder: "my-mcp-server",
+		initialValue: defaults?.name,
 		validate: (v) => {
 			if (!v?.trim()) return "Name is required";
 			const existing = loadServers();
@@ -228,6 +247,7 @@ async function actionAdd(): Promise<void> {
 
 	const type = await p.select({
 		message: "Server type",
+		initialValue: defaults?.type,
 		options: [
 			{
 				value: "stdio",
@@ -251,9 +271,12 @@ async function actionAdd(): Promise<void> {
 	let transport: McpTransport | null;
 	let authMode: RemoteAuthMode = "none";
 	if (type === "stdio") {
-		transport = await collectStdioTransport();
+		transport = await collectStdioTransport(defaults?.command);
 	} else {
-		const config = await collectUrlTransport(type as "sse" | "streamableHttp");
+		const config = await collectUrlTransport(
+			type as "sse" | "streamableHttp",
+			defaults?.url,
+		);
 		transport = config?.transport ?? null;
 		authMode = config?.authMode ?? "none";
 	}
@@ -407,8 +430,24 @@ async function actionAuthorizeOAuth(): Promise<void> {
 	await authorizeOAuth(name);
 }
 
-export async function runMcpWizard(): Promise<number> {
+export async function runMcpWizard(
+	options: RunMcpWizardOptions = {},
+): Promise<number> {
 	p.intro("MCP Servers");
+
+	if (options.initialAction === "add") {
+		let initialActionExitCode = 0;
+		try {
+			await actionAdd(options.addDefaults);
+		} catch (err) {
+			initialActionExitCode = 1;
+			p.log.error(err instanceof Error ? err.message : String(err));
+		}
+		if (options.exitAfterInitialAction === true) {
+			p.outro("Done");
+			return initialActionExitCode;
+		}
+	}
 
 	let keepGoing = true;
 	while (keepGoing) {

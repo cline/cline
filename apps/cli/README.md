@@ -163,6 +163,30 @@ cline auth --provider anthropic --apikey sk-... --modelid claude-sonnet-4-6
 cline auth --provider openai-native --apikey sk-... --modelid gpt-5 --baseurl https://api.example.com/v1
 ```
 
+### MCP servers
+
+Manage MCP servers with the interactive wizard:
+
+```sh
+cline mcp
+cline config mcp
+```
+
+Open the add-server wizard with the name, transport, and command or URL already filled in with `cline mcp install` (`cline mcp add` also works). Stdio servers use everything after `--` as the command and arguments:
+
+```sh
+cline mcp install fs -- npx -y @modelcontextprotocol/server-filesystem /tmp
+```
+
+Remote HTTP and SSE servers take a name, transport, and URL. The wizard still asks for auth details before saving:
+
+```sh
+cline mcp install ctx7 --transport http https://mcp.context7.com/mcp
+cline mcp install events --transport sse https://example.com/sse
+```
+
+Because this command opens the wizard, it requires a TTY.
+
 ### Connectors
 
 Bridge a chat surface into RPC-backed Cline sessions. Each conversation thread maps to a session with full context. Supported platforms: Telegram, Slack, Google Chat, WhatsApp, and Linear.
