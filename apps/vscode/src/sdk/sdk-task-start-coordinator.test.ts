@@ -124,6 +124,10 @@ describe("SdkTaskStartCoordinator", () => {
 			config: expect.objectContaining({ providerId: "anthropic", modelId: "model" }),
 			interactive: true,
 			initialMessages: [{ role: "user", content: "hello" }],
+			sessionMetadata: expect.objectContaining({
+				title: "old task",
+				modelId: "model",
+			}),
 		})
 		expect(state.task?.taskId).toBe("session-123")
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()

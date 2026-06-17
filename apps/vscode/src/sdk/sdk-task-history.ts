@@ -71,6 +71,20 @@ function historyItemHasTokenUsage(item: HistoryItem): boolean {
 	return (item.tokensIn ?? 0) > 0 || (item.tokensOut ?? 0) > 0 || (item.cacheReads ?? 0) > 0 || (item.cacheWrites ?? 0) > 0
 }
 
+export function historyItemToSessionMetadata(item: HistoryItem, fallbackModelId?: string): Record<string, unknown> {
+	return {
+		title: item.task,
+		isFavorited: item.isFavorited ?? false,
+		size: item.size ?? 0,
+		totalCost: item.totalCost ?? 0,
+		tokensIn: item.tokensIn ?? 0,
+		tokensOut: item.tokensOut ?? 0,
+		cacheWrites: item.cacheWrites ?? 0,
+		cacheReads: item.cacheReads ?? 0,
+		modelId: item.modelId ?? fallbackModelId ?? "",
+	}
+}
+
 function historyItemToSessionHistoryRecord(item: HistoryItem): SessionHistoryRecord {
 	const startedAt = new Date(item.ts || Date.now()).toISOString()
 	const displayTask = formatDisplayUserInput(item.task)
@@ -93,15 +107,7 @@ function historyItemToSessionHistoryRecord(item: HistoryItem): SessionHistoryRec
 		isSubagent: false,
 		prompt: displayTask,
 		metadata: {
-			title: displayTask,
-			isFavorited: item.isFavorited ?? false,
-			size: item.size ?? 0,
-			totalCost: item.totalCost ?? 0,
-			tokensIn: item.tokensIn ?? 0,
-			tokensOut: item.tokensOut ?? 0,
-			cacheWrites: item.cacheWrites ?? 0,
-			cacheReads: item.cacheReads ?? 0,
-			modelId: item.modelId ?? "",
+			...historyItemToSessionMetadata({ ...item, task: displayTask }),
 			legacyTask: true,
 		},
 		updatedAt: startedAt,
@@ -556,15 +562,7 @@ export class SdkTaskHistory {
 					interactive: true,
 					initialMessages,
 					sessionMetadata: {
-						title: historyItem.task,
-						isFavorited: historyItem.isFavorited ?? false,
-						size: historyItem.size ?? 0,
-						totalCost: historyItem.totalCost ?? 0,
-						tokensIn: historyItem.tokensIn ?? 0,
-						tokensOut: historyItem.tokensOut ?? 0,
-						cacheWrites: historyItem.cacheWrites ?? 0,
-						cacheReads: historyItem.cacheReads ?? 0,
-						modelId: historyItem.modelId ?? "",
+						...historyItemToSessionMetadata(historyItem),
 						migratedFromLegacyTask: true,
 					},
 				})
@@ -585,17 +583,15 @@ export class SdkTaskHistory {
 			const existing = await host.get(sessionId)
 			const metadata: Record<string, unknown> = {
 				...(existing?.metadata ?? {}),
-				title: item.task,
-				isFavorited: item.isFavorited ?? false,
-				totalCost: item.totalCost ?? 0,
-				tokensIn: item.tokensIn ?? 0,
-				tokensOut: item.tokensOut ?? 0,
-				cacheWrites: item.cacheWrites ?? 0,
-				cacheReads: item.cacheReads ?? 0,
-				modelId: item.modelId ?? existing?.model ?? "",
+				...historyItemToSessionMetadata(item, existing?.model),
 			}
-			if (item.size !== undefined) {
-				metadata.size = item.size
+			if (item.size === undefined) {
+				const existingSize = existing?.metadata?.size
+				if (existingSize !== undefined) {
+					metadata.size = existingSize
+				} else {
+					delete metadata.size
+				}
 			}
 			await host.update(sessionId, {
 				prompt: item.task,
