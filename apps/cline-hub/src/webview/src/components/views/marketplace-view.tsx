@@ -365,6 +365,17 @@ function InstallDialog({
 		entry?.install.env?.filter((env) => env.required !== false) ?? [];
 	const optionalEnv =
 		entry?.install.env?.filter((env) => env.required === false) ?? [];
+	const currentInstalled =
+		state.status === "installed"
+			? true
+			: state.status === "uninstalled"
+				? false
+				: installed;
+	const busy = state.status === "installing" || state.status === "uninstalling";
+	const statusMessage =
+		state.status === "installed" || state.status === "uninstalled"
+			? state.message
+			: undefined;
 
 	useEffect(() => {
 		if (open) {
@@ -378,13 +389,7 @@ function InstallDialog({
 	};
 
 	const install = async () => {
-		if (
-			!entry ||
-			state.status === "installing" ||
-			state.status === "uninstalling"
-		) {
-			return;
-		}
+		if (!entry || busy) return;
 		setState({ status: "installing" });
 		try {
 			const result = await desktopClient.invoke<MarketplaceInstallResult>(
@@ -407,13 +412,7 @@ function InstallDialog({
 	};
 
 	const uninstall = async () => {
-		if (
-			!entry ||
-			state.status === "installing" ||
-			state.status === "uninstalling"
-		) {
-			return;
-		}
+		if (!entry || busy) return;
 		setState({ status: "uninstalling" });
 		try {
 			const result = await desktopClient.invoke<MarketplaceInstallResult>(
@@ -523,7 +522,7 @@ function InstallDialog({
 					</div>
 				) : null}
 
-				{installed && state.status !== "installed" ? (
+				{currentInstalled && state.status !== "installed" ? (
 					<div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-700 dark:text-emerald-300">
 						This entry is already installed.
 					</div>
@@ -531,16 +530,6 @@ function InstallDialog({
 				{!installedStatusReady ? (
 					<div className="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
 						Checking whether this entry is already installed...
-					</div>
-				) : null}
-				{state.status === "installed" ? (
-					<div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-700 dark:text-emerald-300">
-						{state.message}
-					</div>
-				) : null}
-				{state.status === "uninstalled" ? (
-					<div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-						{state.message}
 					</div>
 				) : null}
 				{state.status === "failed" ? (
@@ -559,10 +548,11 @@ function InstallDialog({
 				) : null}
 
 				<DialogFooter>
+					<p className="min-h-9 min-w-0 flex-1 content-center text-left text-sm text-muted-foreground">
+						{statusMessage}
+					</p>
 					<Button
-						disabled={
-							state.status === "installing" || state.status === "uninstalling"
-						}
+						disabled={busy}
 						onClick={onClose}
 						type="button"
 						variant="outline"
@@ -570,35 +560,25 @@ function InstallDialog({
 						Close
 					</Button>
 					<Button
-						disabled={
-							!installedStatusReady ||
-							state.status === "installing" ||
-							state.status === "uninstalling" ||
-							state.status === "installed" ||
-							state.status === "uninstalled"
-						}
-						onClick={installed ? uninstall : install}
+						disabled={!installedStatusReady || busy}
+						onClick={currentInstalled ? uninstall : install}
 						type="button"
-						variant={installed ? "destructive" : "default"}
+						variant={currentInstalled ? "destructive" : "default"}
 					>
 						{state.status === "installing" ? <Spinner /> : null}
 						{state.status === "uninstalling" ? <Spinner /> : null}
-						{installed || state.status === "installed" ? (
-							<Trash2 className="size-4" />
-						) : null}
+						{currentInstalled ? <Trash2 className="size-4" /> : null}
 						{!installedStatusReady
 							? "Checking..."
-							: state.status === "uninstalled"
-								? "Uninstalled"
-								: installed
-									? state.status === "uninstalling"
-										? "Uninstalling..."
-										: "Uninstall"
-									: state.status === "installing"
-										? "Installing..."
-										: state.status === "installed"
-											? "Installed"
-											: installLabel(false)}
+							: currentInstalled
+								? state.status === "uninstalling"
+									? "Uninstalling..."
+									: "Uninstall"
+								: state.status === "installing"
+									? "Installing..."
+									: state.status === "installed"
+										? "Installed"
+										: installLabel(false)}
 					</Button>
 				</DialogFooter>
 			</DialogContent>
