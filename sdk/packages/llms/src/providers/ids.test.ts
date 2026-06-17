@@ -85,14 +85,14 @@ describe("provider-ids", () => {
 		);
 	});
 
-	it("registers Cline Pass as a distinct Cline-compatible built-in provider", async () => {
+	it("registers ClinePass as a distinct Cline-compatible built-in provider", async () => {
 		expect(BUILT_IN_PROVIDER_IDS).toContain("cline-pass");
 		const models = await getModelsForProvider("cline-pass");
 		const provider = await getProvider("cline-pass");
 
 		expect(provider).toMatchObject({
 			id: "cline-pass",
-			name: "Cline Pass",
+			name: "ClinePass",
 			client: "openai-compatible",
 		});
 		expect(models).toHaveProperty(provider?.defaultModelId ?? "");

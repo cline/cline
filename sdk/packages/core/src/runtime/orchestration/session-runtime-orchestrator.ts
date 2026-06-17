@@ -44,6 +44,7 @@ import {
 	type Message,
 	type MessageWithMetadata,
 	type ModelInfo,
+	mergeModelOptions,
 	type ToolCallRecord,
 } from "@cline/shared";
 import { filterDisabledTools } from "../../services/global-settings";
@@ -167,17 +168,14 @@ function mergeRuntimeHooks(
 				aggregate = {
 					...aggregate,
 					...result,
-					options: {
-						...(aggregate?.options ?? {}),
-						...(result.options ?? {}),
-					},
+					options: mergeModelOptions(aggregate?.options, result.options),
 				};
 				request = {
 					...request,
 					...(result.messages ? { messages: result.messages } : {}),
 					...(result.tools ? { tools: result.tools } : {}),
 					...(result.options
-						? { options: { ...(request.options ?? {}), ...result.options } }
+						? { options: mergeModelOptions(request.options, result.options) }
 						: {}),
 				};
 			}

@@ -57,7 +57,7 @@ describe("cline-pass builtin spec", () => {
 
 		expect(provider).toMatchObject({
 			id: "cline-pass",
-			name: "Cline Pass",
+			name: "ClinePass",
 			baseUrl: `${CLINE_ENVIRONMENTS.production.apiBaseUrl}/api/v1`,
 			client: "openai-compatible",
 			capabilities: expect.arrayContaining([

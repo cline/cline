@@ -18,8 +18,8 @@ describe("models-dev-catalog", () => {
 				clinePass: [
 					{
 						id: "base-model",
-						name: "Cline Pass Base Model",
-						description: "Included in Cline Pass",
+						name: "ClinePass Base Model",
+						description: "Included in ClinePass",
 					},
 					{
 						id: "custom-model",
@@ -46,8 +46,8 @@ describe("models-dev-catalog", () => {
 		expect(result["cline-pass"]).toEqual({
 			"base-model": {
 				id: "base-model",
-				name: "Cline Pass Base Model",
-				description: "Included in Cline Pass",
+				name: "ClinePass Base Model",
+				description: "Included in ClinePass",
 				contextWindow: 200_000,
 				maxInputTokens: 180_000,
 				maxTokens: 16_384,
@@ -104,7 +104,7 @@ describe("models-dev-catalog", () => {
 		});
 	});
 
-	it("returns no Cline Pass models when clinePass is empty or missing", () => {
+	it("returns no ClinePass models when clinePass is empty or missing", () => {
 		expect(normalizeClineRecommendedProviderModels({}, {})).toEqual({});
 		expect(
 			normalizeClineRecommendedProviderModels({ clinePass: [] }, {}),
