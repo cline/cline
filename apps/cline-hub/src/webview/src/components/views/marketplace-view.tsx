@@ -10,7 +10,13 @@ import {
 	Trash2,
 	Wrench,
 } from "lucide-react";
-import { type CSSProperties, useEffect, useMemo, useState } from "react";
+import {
+	type CSSProperties,
+	type MouseEvent,
+	useEffect,
+	useMemo,
+	useState,
+} from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -266,16 +272,28 @@ function MarketplaceCard({
 	entry,
 	installed,
 	installedStatusReady,
+	uninstalling,
 	onInstall,
+	onUninstall,
 	tagLabels,
 }: {
 	entry: MarketplaceEntry;
 	installed: boolean;
 	installedStatusReady: boolean;
+	uninstalling: boolean;
 	onInstall: (entry: MarketplaceEntry) => void;
+	onUninstall: (entry: MarketplaceEntry) => void;
 	tagLabels: Map<string, string>;
 }) {
 	const openInstallDialog = () => onInstall(entry);
+	const handleActionClick = (event: MouseEvent<HTMLButtonElement>) => {
+		event.stopPropagation();
+		if (installed) {
+			onUninstall(entry);
+			return;
+		}
+		openInstallDialog();
+	};
 	return (
 		// biome-ignore lint/a11y/useSemanticElements: The card contains a nested action button, so the wrapper cannot be a native button.
 		<div
@@ -327,16 +345,20 @@ function MarketplaceCard({
 			<div className="mt-auto pt-4">
 				<Button
 					className="w-full"
-					disabled={!installedStatusReady}
-					onClick={openInstallDialog}
+					disabled={!installedStatusReady || uninstalling}
+					onClick={handleActionClick}
 					type="button"
 					variant={installed ? "destructive" : "default"}
 				>
-					{installedStatusReady ? null : <Spinner />}
-					{installedStatusReady && installed ? (
+					{!installedStatusReady || uninstalling ? <Spinner /> : null}
+					{installedStatusReady && installed && !uninstalling ? (
 						<Trash2 className="size-4" />
 					) : null}
-					{installedStatusReady ? installLabel(installed) : "Checking..."}
+					{uninstalling
+						? "Uninstalling..."
+						: installedStatusReady
+							? installLabel(installed)
+							: "Checking..."}
 				</Button>
 			</div>
 		</div>
@@ -598,6 +620,9 @@ export function MarketplaceView() {
 	const [installedEntryKeys, setInstalledEntryKeys] = useState<Set<string>>(
 		() => new Set(),
 	);
+	const [uninstallingEntryKeys, setUninstallingEntryKeys] = useState<
+		Set<string>
+	>(() => new Set());
 	const [installedStatusState, setInstalledStatusState] =
 		useState<InstalledStatusState>("loading");
 
@@ -677,6 +702,41 @@ export function MarketplaceView() {
 		setQuery("");
 		setPrimitive("all");
 		setSelectedTag(null);
+	};
+
+	const markEntryInstalled = (entry: MarketplaceEntry) => {
+		setInstalledEntryKeys((current) => new Set(current).add(entryKey(entry)));
+	};
+
+	const markEntryUninstalled = (entry: MarketplaceEntry) => {
+		setInstalledEntryKeys((current) => {
+			const next = new Set(current);
+			next.delete(entryKey(entry));
+			return next;
+		});
+	};
+
+	const uninstallEntryFromCard = async (entry: MarketplaceEntry) => {
+		const key = entryKey(entry);
+		if (uninstallingEntryKeys.has(key)) return;
+		setErrorMessage(null);
+		setUninstallingEntryKeys((current) => new Set(current).add(key));
+		try {
+			await desktopClient.invoke<MarketplaceInstallResult>(
+				"uninstall_marketplace_entry",
+				{ entry },
+				{ timeoutMs: INSTALL_TIMEOUT_MS },
+			);
+			markEntryUninstalled(entry);
+		} catch (error) {
+			setErrorMessage(error instanceof Error ? error.message : String(error));
+		} finally {
+			setUninstallingEntryKeys((current) => {
+				const next = new Set(current);
+				next.delete(key);
+				return next;
+			});
+		}
 	};
 
 	const activeFilters =
@@ -863,7 +923,9 @@ export function MarketplaceView() {
 												installedStatusReady={installedStatusReady}
 												key={key}
 												onInstall={setSelectedEntry}
+												onUninstall={uninstallEntryFromCard}
 												tagLabels={tagLabels}
+												uninstalling={uninstallingEntryKeys.has(key)}
 											/>
 										);
 									})}
@@ -900,18 +962,8 @@ export function MarketplaceView() {
 				installedStatusReady={installedStatusReady}
 				key={selectedEntry ? entryKey(selectedEntry) : "empty"}
 				onClose={() => setSelectedEntry(null)}
-				onInstalled={(entry) =>
-					setInstalledEntryKeys((current) =>
-						new Set(current).add(entryKey(entry)),
-					)
-				}
-				onUninstalled={(entry) =>
-					setInstalledEntryKeys((current) => {
-						const next = new Set(current);
-						next.delete(entryKey(entry));
-						return next;
-					})
-				}
+				onInstalled={markEntryInstalled}
+				onUninstalled={markEntryUninstalled}
 				open={selectedEntry !== null}
 			/>
 		</ScrollArea>
