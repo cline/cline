@@ -4,8 +4,11 @@ import { EmptyRequest } from "@shared/proto/cline/common"
 import type { ClineRecommendedModel } from "@shared/proto/cline/models"
 import type { OnboardingModel, OnboardingModelGroup } from "@shared/proto/cline/state"
 import { useEffect, useMemo, useState } from "react"
+import { CLINE_PASS_FEATURE_FLAG } from "@/constants/featureFlags"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useHasFeatureFlag } from "@/hooks/useFeatureFlag"
 import { ModelsServiceClient } from "@/services/grpc-client"
+import { getRecommendedModelsData, type RecommendedModelsData } from "./data-models"
 
 export type OnboardingModelsStatus = "loading" | "success" | "empty"
 
@@ -44,16 +47,11 @@ function toOnboardingModel(
 	}
 }
 
-interface RecommendedModelsData {
-	recommended: ClineRecommendedModel[]
-	free: ClineRecommendedModel[]
-	clinePass: ClineRecommendedModel[]
-}
-
 type FetchState = { status: "loading" } | { status: "success"; data: RecommendedModelsData } | { status: "empty" }
 
 export function useOnboardingModels(): UseOnboardingModelsResult {
 	const { openRouterModels, clineModels, refreshClineModels } = useExtensionState()
+	const isClinePassEnabled = useHasFeatureFlag(CLINE_PASS_FEATURE_FLAG)
 	const [fetchState, setFetchState] = useState<FetchState>({ status: "loading" })
 
 	useEffect(() => {
@@ -63,13 +61,11 @@ export function useOnboardingModels(): UseOnboardingModelsResult {
 			try {
 				const response = await ModelsServiceClient.refreshClineRecommendedModelsRpc(EmptyRequest.create({}))
 				if (!cancelled) {
-					const recommended = response.recommended ?? []
-					const free = response.free ?? []
-					const clinePass = response.clinePass ?? []
-					if (recommended.length === 0 && free.length === 0 && clinePass.length === 0) {
+					const data = getRecommendedModelsData(response, isClinePassEnabled)
+					if (!data) {
 						setFetchState({ status: "empty" })
 					} else {
-						setFetchState({ status: "success", data: { recommended, free, clinePass } })
+						setFetchState({ status: "success", data })
 					}
 				}
 			} catch {
@@ -84,7 +80,7 @@ export function useOnboardingModels(): UseOnboardingModelsResult {
 		return () => {
 			cancelled = true
 		}
-	}, [])
+	}, [isClinePassEnabled])
 
 	useEffect(() => {
 		refreshClineModels()

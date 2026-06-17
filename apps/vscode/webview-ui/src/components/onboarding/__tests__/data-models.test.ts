@@ -1,6 +1,6 @@
 import type { OnboardingModel, OnboardingModelGroup } from "@shared/proto/cline/state"
 import { describe, expect, it } from "vitest"
-import { getClineUIOnboardingGroups } from "../data-models"
+import { getClineUIOnboardingGroups, getRecommendedModelsData } from "../data-models"
 
 function model(id: string, group: string): OnboardingModel {
 	return {
@@ -39,5 +39,48 @@ describe("getClineUIOnboardingGroups", () => {
 	it("returns an empty clinePass group when no Cline Pass models are present", () => {
 		const result = getClineUIOnboardingGroups(groupOf([model("free-model", "free")]))
 		expect(result.clinePass).toEqual([])
+	})
+})
+
+describe("getRecommendedModelsData", () => {
+	it("ignores Cline Pass-only responses when the Cline Pass feature flag is disabled", () => {
+		const result = getRecommendedModelsData(
+			{
+				recommended: [],
+				free: [],
+				clinePass: [{ id: "cline-pass/glm-5.1", name: "GLM 5.1", description: "", tags: [] }],
+			},
+			false,
+		)
+
+		expect(result).toBeUndefined()
+	})
+
+	it("includes Cline Pass models when the Cline Pass feature flag is enabled", () => {
+		const result = getRecommendedModelsData(
+			{
+				recommended: [],
+				free: [],
+				clinePass: [{ id: "cline-pass/glm-5.1", name: "GLM 5.1", description: "", tags: [] }],
+			},
+			true,
+		)
+
+		expect(result?.clinePass.map((model) => model.id)).toEqual(["cline-pass/glm-5.1"])
+	})
+
+	it("keeps classic recommended/free responses when the Cline Pass feature flag is disabled", () => {
+		const result = getRecommendedModelsData(
+			{
+				recommended: [{ id: "anthropic/claude", name: "Claude", description: "", tags: [] }],
+				free: [{ id: "free-model", name: "Free", description: "", tags: [] }],
+				clinePass: [{ id: "cline-pass/glm-5.1", name: "GLM 5.1", description: "", tags: [] }],
+			},
+			false,
+		)
+
+		expect(result?.recommended.map((model) => model.id)).toEqual(["anthropic/claude"])
+		expect(result?.free.map((model) => model.id)).toEqual(["free-model"])
+		expect(result?.clinePass).toEqual([])
 	})
 })
