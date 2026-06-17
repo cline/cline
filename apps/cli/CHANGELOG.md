@@ -1,5 +1,9 @@
 # Cline CLI Changelog
 
+## 3.0.26
+
+- Reverted the expandable model picker sections and ClinePass models, restoring the previous model-selection UI
+
 ## 3.0.25
 
 - Added ClinePass support, with selectable ClinePass models in the model picker
