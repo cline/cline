@@ -15,12 +15,19 @@ import {
 	checkCodexCliInstalled,
 	isOpenAICodexCliProvider,
 } from "../../../utils/codex-cli";
+import { getCliFeatureFlagsService } from "../../../utils/feature-flags";
 import { getPersistedProviderApiKey } from "../../../utils/provider-auth";
 import { listLocalProviders } from "../../../utils/provider-catalog";
 import { getCliTelemetryService } from "../../../utils/telemetry";
 import {
 	buildClineModelEntries,
+	buildClineModelPickerDisplayRows,
 	type ClineModelPickerEntry,
+	type ClineModelPickerExpandedTiers,
+	type ClineModelProviderId,
+	type ClineModelTier,
+	getVisibleClineModelPickerEntries,
+	resolveClineModelEntryProviderId,
 	useClineRecommendedModels,
 } from "../../components/model-selector/cline-model-picker";
 import {
@@ -153,6 +160,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 
 	const createCustomModelItem = useCallback(
 		(_search: string, filteredItems: SearchableItem[]) => {
+			if (activeProviderId === "cline-pass") return undefined;
 			if (filteredItems.some((item) => item.key === CUSTOM_MODEL_ID_ACTION)) {
 				return undefined;
 			}
@@ -163,24 +171,56 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 				searchText: "create custom model id manual entry",
 			} satisfies SearchableItem;
 		},
-		[],
+		[activeProviderId],
 	);
 
 	const modelList = useSearchableList(modelItems, createCustomModelItem);
 
 	// Cline featured model picker
 	const recommended = useClineRecommendedModels();
+	const isClinePassEnabled =
+		getCliFeatureFlagsService().getBooleanFlagEnabled("ext-cline-pass");
 	const clineEntries: ClineModelPickerEntry[] = useMemo(
-		() => (recommended.data ? buildClineModelEntries(recommended.data) : []),
-		[recommended.data],
+		() =>
+			recommended.data
+				? buildClineModelEntries(recommended.data, {
+						includeClinePass: isClinePassEnabled,
+					})
+				: [],
+		[recommended.data, isClinePassEnabled],
 	);
-	const [clineModelSelected, setClineModelSelected] = useState(0);
-	const [clineModelReasoningIds, setClineModelReasoningIds] = useState<
-		Set<string>
-	>(new Set());
+	const [clineExpandedTiers, setClineExpandedTiers] =
+		useState<ClineModelPickerExpandedTiers>({
+			clinePass: false,
+			recommended: true,
+			free: true,
+		});
+	const visibleClineEntries = useMemo(
+		() => getVisibleClineModelPickerEntries(clineEntries, clineExpandedTiers),
+		[clineEntries, clineExpandedTiers],
+	);
 	const [clineKnownModels, setClineKnownModels] = useState<
 		Record<string, unknown> | undefined
 	>(undefined);
+	const clineDisplayRows = useMemo(
+		() =>
+			buildClineModelPickerDisplayRows(
+				clineEntries,
+				clineKnownModels,
+				undefined,
+				clineExpandedTiers,
+			),
+		[clineEntries, clineKnownModels, clineExpandedTiers],
+	);
+	const [clineModelSelected, setClineModelSelected] = useState(0);
+	useEffect(() => {
+		setClineModelSelected((selected) =>
+			Math.min(selected, Math.max(0, clineDisplayRows.length - 1)),
+		);
+	}, [clineDisplayRows.length]);
+	const [clineModelReasoningIds, setClineModelReasoningIds] = useState<
+		Set<string>
+	>(new Set());
 
 	useEffect(() => {
 		getLocalProviderModels("cline")
@@ -536,16 +576,16 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 	}, [customModelId, completeModelSelection]);
 
 	const saveClineModelSelection = useCallback(
-		(modelId: string, modelName: string) => {
-			const existing =
-				providerSettingsManager.getProviderSettings(activeProviderId);
+		(modelId: string, modelName: string, providerId: ClineModelProviderId) => {
+			const existing = providerSettingsManager.getProviderSettings(providerId);
 			providerSettingsManager.saveProviderSettings(
 				{
-					...(existing ?? { provider: activeProviderId }),
+					...(existing ?? { provider: providerId }),
 					model: modelId,
 				},
 				{ setLastUsed: true },
 			);
+			setActiveProviderId(providerId);
 			setSelectedModelId(modelId);
 			if (clineModelReasoningIds.has(modelId)) {
 				setSelectedModelName(modelName);
@@ -555,8 +595,33 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 				setStep("done");
 			}
 		},
-		[activeProviderId, clineModelReasoningIds, providerSettingsManager],
+		[clineModelReasoningIds, providerSettingsManager],
 	);
+
+	const selectClineModelEntry = useCallback(
+		(entry: ClineModelPickerEntry | undefined) => {
+			if (!entry) return;
+			if (entry.kind === "model") {
+				const providerId = resolveClineModelEntryProviderId(entry) ?? "cline";
+				if (providerId === "cline-pass") {
+					setActiveProviderId(providerId);
+					setActiveProviderName("Cline Pass");
+					setStep("model_picker");
+					loadModelsForProvider(providerId);
+					return;
+				}
+				saveClineModelSelection(entry.model.id, entry.model.name, providerId);
+				return;
+			}
+			setStep("model_picker");
+			loadModelsForProvider(activeProviderId);
+		},
+		[activeProviderId, loadModelsForProvider, saveClineModelSelection],
+	);
+
+	const toggleClineModelTier = useCallback((tier: ClineModelTier) => {
+		setClineExpandedTiers((prev) => ({ ...prev, [tier]: !prev[tier] }));
+	}, []);
 
 	const saveThinkingLevel = useCallback(
 		(level: ThinkingLevel) => {
@@ -614,7 +679,8 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		menuSelected,
 		providerList,
 		modelList,
-		clineEntries,
+		clineEntries: visibleClineEntries,
+		clineDisplayRows,
 		clineModelSelected,
 		thinkingSelected,
 		setStep,
@@ -645,7 +711,8 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		startDeviceCodeFlow,
 		selectProvider,
 		loadModelsForProvider,
-		saveClineModelSelection,
+		selectClineModelEntry,
+		toggleClineModelTier,
 		saveCodexCliConfig,
 		saveByoConfig,
 		saveModelSelection,
@@ -664,6 +731,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		codexCliChecking,
 		codexCliStatus,
 		clineEntries,
+		clineExpandedTiers,
 		clineKnownModels,
 		clineModelSelected,
 		deviceError,
@@ -683,6 +751,13 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 			setCustomModelId(value);
 			setCustomModelError("");
 		},
+		handleClineModelEntrySelect: (
+			_selectableIndex: number,
+			entry: ClineModelPickerEntry,
+		) => {
+			selectClineModelEntry(entry);
+		},
+		handleClineModelTierToggle: toggleClineModelTier,
 		handleModelItemSelect: selectModelItem,
 		menuSelected,
 		modelItems,

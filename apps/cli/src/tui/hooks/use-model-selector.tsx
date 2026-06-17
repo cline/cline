@@ -10,6 +10,7 @@ import type { ChoiceContext } from "@opentui-ui/dialog";
 import type { DialogActions } from "@opentui-ui/dialog/react";
 import { useCallback } from "react";
 import { isOpenAICodexCliProvider } from "../../utils/codex-cli";
+import { getCliFeatureFlagsService } from "../../utils/feature-flags";
 import {
 	getPersistedProviderApiKey,
 	isOAuthProvider,
@@ -29,6 +30,7 @@ import { buildClineModelEntries } from "../components/model-selector/cline-model
 import {
 	BROWSE_ALL_ACTION,
 	ClineModelSelectorDialogContent,
+	type ClineModelSelectorResult,
 } from "../components/model-selector/cline-model-selector";
 import {
 	buildModelOptions,
@@ -76,6 +78,10 @@ function clearReasoningConfig(config: Config): void {
 
 function usesModelIdInput(providerId: string): boolean {
 	return providerId === "openai-compatible";
+}
+
+function usesClineModelSelector(providerId: string): boolean {
+	return providerId === "cline";
 }
 
 async function runProviderChange(
@@ -264,6 +270,8 @@ export function useModelSelector(opts: {
 			}
 
 			let pickingModel = true;
+			const isClinePassEnabled =
+				getCliFeatureFlagsService().getBooleanFlagEnabled("ext-cline-pass");
 
 			while (pickingModel) {
 				if (usesModelIdInput(config.providerId)) {
@@ -291,17 +299,19 @@ export function useModelSelector(opts: {
 					continue;
 				}
 
-				if (config.providerId === "cline") {
-					const clineResult = await dialog.choice<string>({
+				if (usesClineModelSelector(config.providerId)) {
+					const clineResult = await dialog.choice<ClineModelSelectorResult>({
 						style: { maxHeight: termHeight - 2 },
-						content: (ctx: ChoiceContext<string>) => (
+						content: (ctx: ChoiceContext<ClineModelSelectorResult>) => (
 							<ClineModelSelectorDialogContent
 								{...ctx}
 								currentModel={config.modelId}
 								currentProviderName={providerDisplayName}
 								knownModels={config.knownModels as Record<string, unknown>}
 								loadEntries={async () =>
-									buildClineModelEntries(await fetchClineRecommendedModels())
+									buildClineModelEntries(await fetchClineRecommendedModels(), {
+										includeClinePass: isClinePassEnabled,
+									})
 								}
 							/>
 						),
@@ -323,6 +333,7 @@ export function useModelSelector(opts: {
 									currentModel={config.modelId}
 									currentProviderName={providerDisplayName}
 									models={modelOptions}
+									allowCustomModel={false}
 								/>
 							),
 						});
@@ -332,6 +343,7 @@ export function useModelSelector(opts: {
 							continue;
 						}
 						config.modelId = browseResult;
+						config.providerId = "cline";
 						const browseModel = modelOptions.find(
 							(m: ModelOption) => m.key === browseResult,
 						);
@@ -368,9 +380,28 @@ export function useModelSelector(opts: {
 						continue;
 					}
 
-					config.modelId = clineResult;
+					if (config.providerId !== clineResult.providerId) {
+						const manager = new ProviderSettingsManager();
+						const resolved = await resolveProviderConfig(
+							clineResult.providerId,
+							{
+								loadLatestOnInit: true,
+								loadPrivateOnAuth: true,
+								failOnError: false,
+							},
+							manager.getProviderConfig(clineResult.providerId, {
+								includeKnownModels: false,
+							}),
+						);
+						modelOptions = buildModelOptions(
+							resolved?.knownModels as Record<string, Llms.ModelInfo>,
+						);
+						config.knownModels = resolved?.knownModels;
+					}
+					config.modelId = clineResult.modelId;
+					config.providerId = clineResult.providerId;
 					const selectedModel = modelOptions.find(
-						(m: ModelOption) => m.key === clineResult,
+						(m: ModelOption) => m.key === clineResult.modelId,
 					);
 					if (selectedModel?.supportsReasoning) {
 						const currentLevel: ThinkingLevel = config.reasoningEffort
@@ -413,6 +444,7 @@ export function useModelSelector(opts: {
 							currentModel={config.modelId}
 							currentProviderName={providerDisplayName}
 							models={modelOptions}
+							allowCustomModel={config.providerId !== "cline-pass"}
 						/>
 					),
 				});

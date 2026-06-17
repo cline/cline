@@ -7,6 +7,8 @@ import {
 import {
 	ClineModelPicker,
 	type ClineModelPickerEntry,
+	type ClineModelPickerExpandedTiers,
+	type ClineModelTier,
 } from "../../components/model-selector/cline-model-picker";
 import {
 	type SearchableItem,
@@ -433,11 +435,17 @@ export function OnboardingProviderPickerScreen(props: {
 
 export function OnboardingClineModelScreen(props: {
 	clineEntries: ClineModelPickerEntry[];
+	clineExpandedTiers: ClineModelPickerExpandedTiers;
 	clineKnownModels: Record<string, unknown> | undefined;
 	clineModelSelected: number;
 	compact: boolean;
 	contentWidth: number;
 	mouse: MouseTrackerState;
+	onEntrySelect: (
+		selectableIndex: number,
+		entry: ClineModelPickerEntry,
+	) => void;
+	onToggleTier: (tier: ClineModelTier) => void;
 	recommendedLoading: boolean;
 }) {
 	const defaultFg = useDefaultFg();
@@ -459,6 +467,9 @@ export function OnboardingClineModelScreen(props: {
 				selected={props.clineModelSelected}
 				loading={props.recommendedLoading}
 				knownModels={props.clineKnownModels}
+				expandedTiers={props.clineExpandedTiers}
+				onEntrySelect={props.onEntrySelect}
+				onToggleTier={props.onToggleTier}
 			/>
 
 			<text fg="gray" paddingX={1}>
