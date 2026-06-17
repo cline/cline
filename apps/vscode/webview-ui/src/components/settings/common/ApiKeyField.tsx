@@ -1,6 +1,6 @@
-import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import { useEffect, useRef, useState } from "react"
-import { useDebounceEffect } from "@/utils/useDebounceEffect"
+import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { useRef, useState } from "react"
+import { DebouncedTextField } from "./DebouncedTextField"
 
 /**
  * Props for the ApiKeyField component
@@ -29,48 +29,26 @@ export const ApiKeyField = ({
 }: ApiKeyFieldProps) => {
 	const [localValue, setLocalValue] = useState(initialValue)
 	const isFocusedRef = useRef(false)
-	const prevInitialValueRef = useRef(initialValue)
-
-	useEffect(() => {
-		if (prevInitialValueRef.current === initialValue) {
-			return
-		}
-
-		prevInitialValueRef.current = initialValue
-
-		// API key saves can update the masked initial value while the user is still typing.
-		// Do not replace their in-progress input with the new mask, or subsequent saves only
-		// persist the suffix typed after that rerender.
-		if (!isFocusedRef.current) {
-			setLocalValue(initialValue)
-		}
-	}, [initialValue])
-
-	useDebounceEffect(
-		() => {
-			onChange(localValue)
-		},
-		100,
-		[localValue],
-	)
 
 	return (
 		<div>
-			<VSCodeTextField
+			<DebouncedTextField
+				initialValue={initialValue}
 				onBlur={() => {
 					isFocusedRef.current = false
 				}}
+				onChange={onChange}
 				onFocus={() => {
 					isFocusedRef.current = true
 				}}
-				onInput={(e: any) => setLocalValue(e.target.value)}
+				onLocalValueChange={setLocalValue}
 				placeholder={placeholder}
 				required={true}
+				shouldSyncInitialValue={() => !isFocusedRef.current}
 				style={{ width: "100%" }}
-				type="password"
-				value={localValue}>
+				type="password">
 				<span style={{ fontWeight: 500 }}>{label}</span>
-			</VSCodeTextField>
+			</DebouncedTextField>
 			<p
 				style={{
 					fontSize: "12px",
