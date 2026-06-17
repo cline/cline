@@ -7,6 +7,7 @@ import {
 	HomeIcon,
 	LinkIcon,
 	MessageSquareIcon,
+	PackageIcon,
 	PencilIcon,
 	RotateCcwIcon,
 	RssIcon,
@@ -46,18 +47,20 @@ import type {
 	WebviewSessionSummary,
 } from "../../webview-protocol";
 import Chat from "./Chat";
+import { MarketplaceView } from "./components/views/marketplace-view";
 import {
 	type SettingsSection,
 	SettingsView,
 } from "./components/views/settings/settings-view";
 import { getVsCodeApi, postToHost } from "./vscode";
 
-type View = "home" | "chat" | "settings";
+type View = "home" | "chat" | "marketplace" | "settings";
 type Theme = "dark" | "light";
 
 const VIEW_PATHS: Record<View, string> = {
 	home: "/",
 	chat: "/chat",
+	marketplace: "/marketplace",
 	settings: "/settings",
 };
 
@@ -105,6 +108,7 @@ function writeTheme(theme: Theme): void {
 
 function viewFromPath(pathname: string): View {
 	if (pathname === VIEW_PATHS.chat) return "chat";
+	if (pathname === VIEW_PATHS.marketplace) return "marketplace";
 	if (
 		pathname === VIEW_PATHS.settings ||
 		pathname.startsWith(`${VIEW_PATHS.settings}/`)
@@ -286,6 +290,16 @@ function Shell({
 						variant={view === "chat" ? "default" : "ghost"}
 					>
 						<MessageSquareIcon className="size-4" />
+					</Button>
+					<Button
+						onClick={() => onNavigate("marketplace")}
+						size="sm"
+						title="Marketplace"
+						type="button"
+						variant={view === "marketplace" ? "default" : "ghost"}
+					>
+						<PackageIcon className="size-4" />
+						<span className="sr-only">Marketplace</span>
 					</Button>
 					<Button
 						onClick={() => onNavigate("settings")}
@@ -919,6 +933,9 @@ function App() {
 		if (nextView === "settings") {
 			setSettingsSection("General");
 		}
+		if (nextView !== "chat") {
+			setSelectedSessionId(undefined);
+		}
 		const nextPath = VIEW_PATHS[nextView];
 		if (window.location.pathname !== nextPath) {
 			window.history.pushState(null, "", nextPath);
@@ -991,6 +1008,9 @@ function App() {
 					theme={theme}
 				/>
 			);
+		}
+		if (view === "marketplace") {
+			return <MarketplaceView />;
 		}
 		return (
 			<HomeView

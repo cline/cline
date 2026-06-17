@@ -22,6 +22,7 @@ import {
 	syncHubClientsAndSessions,
 	syncHubHealth,
 } from "./server/hub";
+import { fetchMarketplaceCatalog } from "./server/marketplace";
 import {
 	loadModels,
 	runProviderOAuthLogin,
@@ -98,6 +99,21 @@ export async function startClineHubDashboardServer(): Promise<ClineHubDashboardS
 			}
 			if (url.pathname === "/config.json") {
 				return createJsonResponse(browserConfig);
+			}
+			if (url.pathname === "/api/marketplace/catalog") {
+				try {
+					return createJsonResponse(await fetchMarketplaceCatalog());
+				} catch (error) {
+					return createJsonResponse(
+						{
+							error:
+								error instanceof Error
+									? error.message
+									: "Failed to fetch marketplace catalog",
+						},
+						502,
+					);
+				}
 			}
 			return assets.serve(url.pathname);
 		},

@@ -324,10 +324,12 @@ export async function runCli(): Promise<void> {
 		.addHelpText(
 			"after",
 			"\nForwards to the open skills CLI via npx. Examples:\n" +
-				"  cline skill install <owner/repo>   Install a skill into Cline\n" +
+				"  cline skill add <owner/repo>       Add a skill into Cline\n" +
+				"  cline skill install <owner/repo>   Alias for add\n" +
 				"  cline skill list                   List installed skills\n" +
 				"  cline skill remove                 Remove installed skills\n" +
-				"\ninstall/add default to '--agent cline' unless you pass your own --agent.\n" +
+				"  cline skill uninstall              Alias for remove\n" +
+				"\nadd/install and remove/uninstall default to '--agent cline' unless you pass your own --agent.\n" +
 				"Run 'npx skills --help' for the full command reference.",
 		)
 		.action(async () => {

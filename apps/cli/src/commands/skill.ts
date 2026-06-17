@@ -16,7 +16,21 @@ const SKILLS_PACKAGE = "skills@latest";
 // own agent. `use` is intentionally excluded: without --agent it prints the
 // generated prompt to stdout, whereas adding --agent would launch that agent
 // interactively instead — not what someone scoping to Cline would expect.
-const CLINE_SCOPED_SUBCOMMANDS = new Set(["add", "install", "i", "update"]);
+const CLINE_SCOPED_SUBCOMMANDS = new Set([
+	"add",
+	"install",
+	"i",
+	"update",
+	"remove",
+	"rm",
+	"r",
+	"uninstall",
+]);
+
+const SKILLS_SUBCOMMAND_ALIASES = new Map([
+	["install", "add"],
+	["uninstall", "remove"],
+]);
 
 function hasAgentFlag(args: readonly string[]): boolean {
 	return args.some(
@@ -24,8 +38,36 @@ function hasAgentFlag(args: readonly string[]): boolean {
 	);
 }
 
+function optionConsumesNextValue(arg: string): boolean {
+	return arg === "-a" || arg === "--agent";
+}
+
+function findSubcommandIndex(args: readonly string[]): number {
+	for (let index = 0; index < args.length; index++) {
+		const arg = args[index];
+		if (arg.startsWith("-")) {
+			if (optionConsumesNextValue(arg)) {
+				index++;
+			}
+			continue;
+		}
+		return index;
+	}
+	return -1;
+}
+
 function findSubcommand(args: readonly string[]): string | undefined {
-	return args.find((arg) => !arg.startsWith("-"));
+	const index = findSubcommandIndex(args);
+	return index >= 0 ? args[index] : undefined;
+}
+
+function normalizeSkillsSubcommandAliases(args: string[]): void {
+	const index = findSubcommandIndex(args);
+	if (index < 0) return;
+	const alias = SKILLS_SUBCOMMAND_ALIASES.get(args[index]);
+	if (alias) {
+		args[index] = alias;
+	}
 }
 
 /**
@@ -35,6 +77,7 @@ function findSubcommand(args: readonly string[]): string | undefined {
 export function buildSkillsArgs(userArgs: readonly string[]): string[] {
 	const args = [...userArgs];
 	const subcommand = findSubcommand(args);
+	normalizeSkillsSubcommandAliases(args);
 	if (
 		subcommand &&
 		CLINE_SCOPED_SUBCOMMANDS.has(subcommand) &&

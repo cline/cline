@@ -28,6 +28,10 @@ import {
 } from "./connectors";
 import { providerSettingsManager, workspaceRoot } from "./deps";
 import {
+	installMarketplaceEntryForDesktopCommand,
+	listMarketplaceInstalledEntries,
+} from "./marketplace";
+import {
 	deleteMcpServer,
 	ensureMcpSettingsFile,
 	readMcpServersResponse,
@@ -212,6 +216,17 @@ export async function handleDesktopCommand(
 	}
 	if (command === "list_user_instruction_configs") {
 		return await listUserInstructionConfigs(workspaceRoot);
+	}
+	if (command === "list_marketplace_installed_entries") {
+		return listMarketplaceInstalledEntries(
+			args,
+			await listUserInstructionConfigs(workspaceRoot),
+		);
+	}
+	if (command === "install_marketplace_entry") {
+		const result = await installMarketplaceEntryForDesktopCommand(args);
+		broadcastHubState(ctx);
+		return result;
 	}
 	if (command === "toggle_disabled_plugin_tool") {
 		const toolName = String(args?.name ?? "").trim();

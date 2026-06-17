@@ -42,9 +42,8 @@ function createBrowserSocket(): WebSocket {
 		params.set("roomSecret", roomSecret);
 	}
 	const query = params.toString();
-	browserSocket = new WebSocket(
-		`${protocol}//${window.location.host}/browser${query ? `?${query}` : ""}`,
-	);
+	const socketUrl = `${protocol}//${window.location.host}/browser${query ? `?${query}` : ""}`;
+	browserSocket = new WebSocket(socketUrl);
 	browserSocket.addEventListener("open", () => {
 		for (const message of pendingMessages.splice(0)) {
 			browserSocket?.send(JSON.stringify(message));
@@ -52,10 +51,10 @@ function createBrowserSocket(): WebSocket {
 	});
 	browserSocket.addEventListener("message", (event) => {
 		try {
-			dispatchHostMessage(
-				JSON.parse(String(event.data)) as WebviewOutboundMessage,
-			);
+			const message = JSON.parse(String(event.data)) as WebviewOutboundMessage;
+			dispatchHostMessage(message);
 		} catch {
+			pendingMessages.splice(0);
 			dispatchHostMessage({
 				type: "error",
 				text: "Received an invalid message from the Cline Hub server.",
@@ -63,12 +62,14 @@ function createBrowserSocket(): WebSocket {
 		}
 	});
 	browserSocket.addEventListener("close", () => {
+		pendingMessages.splice(0);
 		dispatchHostMessage({
 			type: "status",
 			text: "Disconnected from the Cline Hub server.",
 		});
 	});
 	browserSocket.addEventListener("error", () => {
+		pendingMessages.splice(0);
 		dispatchHostMessage({
 			type: "error",
 			text: "Failed to connect to the Cline Hub server.",

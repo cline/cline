@@ -15,6 +15,14 @@ export function createTextResponse(text: string, status = 200): Response {
 	});
 }
 
+const NO_STORE_HEADERS = {
+	"cache-control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+	pragma: "no-cache",
+	expires: "0",
+};
+
+const IMMUTABLE_ASSET_CACHE = "public, max-age=31536000, immutable";
+
 function contentTypeFor(path: string): string {
 	switch (extname(path)) {
 		case ".html":
@@ -41,6 +49,7 @@ function isWebviewRoute(pathname: string): boolean {
 		pathname === "/" ||
 		pathname === "/index.html" ||
 		pathname === "/chat" ||
+		pathname === "/marketplace" ||
 		pathname === "/settings" ||
 		pathname.startsWith("/settings/")
 	);
@@ -74,6 +83,14 @@ function renderDevIndexHtml(devServerUrl: string): string {
 export class WebviewAssets {
 	constructor(private readonly webviewDistDir: string) {}
 
+	private async resolveCurrentMainAssetPath(): Promise<string | undefined> {
+		const indexFile = Bun.file(join(this.webviewDistDir, "index.html"));
+		if (!(await indexFile.exists())) return undefined;
+		const html = await indexFile.text();
+		const match = html.match(/src="\.\/(assets\/index-[^"]+\.js)"/);
+		return match?.[1] ? join(this.webviewDistDir, match[1]) : undefined;
+	}
+
 	private resolveStaticPath(pathname: string): string | undefined {
 		const decoded = decodeURIComponent(pathname);
 		const requested = decoded === "/" ? "/index.html" : decoded;
@@ -90,7 +107,10 @@ export class WebviewAssets {
 		const indexFile = Bun.file(join(this.webviewDistDir, "index.html"));
 		if (await indexFile.exists()) {
 			return new Response(indexFile, {
-				headers: { "content-type": "text/html; charset=utf-8" },
+				headers: {
+					"content-type": "text/html; charset=utf-8",
+					...NO_STORE_HEADERS,
+				},
 			});
 		}
 		return createTextResponse(
@@ -103,7 +123,10 @@ export class WebviewAssets {
 		const devServerUrl = process.env.VITE_DEV_SERVER_URL?.trim();
 		if (devServerUrl && isWebviewRoute(pathname)) {
 			return new Response(renderDevIndexHtml(devServerUrl), {
-				headers: { "content-type": "text/html; charset=utf-8" },
+				headers: {
+					"content-type": "text/html; charset=utf-8",
+					...NO_STORE_HEADERS,
+				},
 			});
 		}
 		if (isWebviewRoute(pathname)) {
@@ -112,12 +135,37 @@ export class WebviewAssets {
 
 		const filePath = this.resolveStaticPath(pathname);
 		if (!filePath) return createTextResponse("not found", 404);
-		const file = Bun.file(filePath);
+		let responsePath = filePath;
+		let file = Bun.file(responsePath);
+		if (
+			!(await file.exists()) &&
+			/^\/assets\/index-[A-Za-z0-9_-]+\.js$/.test(pathname)
+		) {
+			const currentMainAssetPath = await this.resolveCurrentMainAssetPath();
+			if (currentMainAssetPath) {
+				responsePath = currentMainAssetPath;
+				file = Bun.file(responsePath);
+			}
+		}
 		if (!(await file.exists())) {
 			return createTextResponse("not found", 404);
 		}
+		const isHashedAsset = /^\/assets\/.+-[A-Za-z0-9_-]+\.[A-Za-z0-9]+$/.test(
+			pathname,
+		);
 		return new Response(file, {
-			headers: { "content-type": contentTypeFor(filePath) },
+			headers: {
+				"content-type": contentTypeFor(responsePath),
+				"cache-control": isHashedAsset
+					? IMMUTABLE_ASSET_CACHE
+					: NO_STORE_HEADERS["cache-control"],
+				...(isHashedAsset
+					? {}
+					: {
+							pragma: NO_STORE_HEADERS.pragma,
+							expires: NO_STORE_HEADERS.expires,
+						}),
+			},
 		});
 	}
 }
