@@ -388,7 +388,7 @@ function MarketplaceEntryCard({
 			</div>
 
 			<p className="line-clamp-2 text-xs leading-5 text-muted-foreground">
-				{entry.tagline}
+				{entry.description}
 			</p>
 
 			<div className="flex flex-wrap items-center justify-between gap-3">
