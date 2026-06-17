@@ -127,6 +127,7 @@ function EntryIcon({ entry }: { entry: MarketplaceEntry }) {
 		.toUpperCase();
 	return (
 		<div className="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-background">
+			{/* Marketplace icons are currently often placeholders, so keep them hidden for now.
 			{entry.icon ? (
 				<img
 					alt=""
@@ -135,10 +136,11 @@ function EntryIcon({ entry }: { entry: MarketplaceEntry }) {
 					src={entry.icon}
 				/>
 			) : (
-				<span className="text-xs font-semibold text-muted-foreground">
-					{initials}
-				</span>
-			)}
+			*/}
+			<span className="text-xs font-semibold text-muted-foreground">
+				{initials}
+			</span>
+			{/* )} */}
 		</div>
 	);
 }
