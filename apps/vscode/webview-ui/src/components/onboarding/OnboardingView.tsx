@@ -443,7 +443,7 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 					break
 			}
 		},
-		[stepNumber, finishOnboarding, setShowWelcome],
+		[stepNumber, finishOnboarding, setShowWelcome, userType],
 	)
 
 	const stepDisplayInfo = useMemo(() => {
