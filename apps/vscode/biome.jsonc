@@ -134,7 +134,8 @@
 			"!!**/webview-ui/build",
 			"!!**/generated",
 			"!!**/proto",
-			"!!**/tests/specs"
+			"!!**/tests/specs",
+			"!!assets/icons/*.svg"
 		]
 	},
 	"plugins": [
