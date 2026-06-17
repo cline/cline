@@ -17,6 +17,7 @@ describe("buildSkillsArgs", () => {
 		]);
 		expect(buildSkillsArgs(["add", "owner/repo"])).toContain("cline");
 		expect(buildSkillsArgs(["i", "owner/repo"])).toContain("cline");
+		expect(buildSkillsArgs(["update", "owner/repo"])).toContain("cline");
 	});
 
 	it("does not inject when the user already targeted an agent", () => {
