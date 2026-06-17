@@ -436,14 +436,16 @@ export async function runMcpWizard(
 	p.intro("MCP Servers");
 
 	if (options.initialAction === "add") {
+		let initialActionExitCode = 0;
 		try {
 			await actionAdd(options.addDefaults);
 		} catch (err) {
+			initialActionExitCode = 1;
 			p.log.error(err instanceof Error ? err.message : String(err));
 		}
 		if (options.exitAfterInitialAction === true) {
 			p.outro("Done");
-			return 0;
+			return initialActionExitCode;
 		}
 	}
 

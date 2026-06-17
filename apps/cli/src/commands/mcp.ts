@@ -33,10 +33,16 @@ function normalizeTransportType(
 }
 
 function assertValidUrl(url: string): void {
+	let parsed: URL;
 	try {
-		new URL(url);
+		parsed = new URL(url);
 	} catch {
 		throw new Error(`Invalid MCP server URL: ${url}`);
+	}
+	if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+		throw new Error(
+			`Invalid MCP server URL: ${url} (only http and https are supported)`,
+		);
 	}
 }
 
@@ -98,7 +104,6 @@ export async function runMcpInstallCommand(
 	options: McpInstallOptions,
 ): Promise<number> {
 	try {
-		const defaults = buildMcpInstallDefaults(options);
 		const isTty =
 			options.isTty ?? (process.stdin.isTTY && process.stdout.isTTY);
 		if (!isTty) {
@@ -106,6 +111,7 @@ export async function runMcpInstallCommand(
 				"cline mcp install opens the MCP wizard and requires a TTY.",
 			);
 		}
+		const defaults = buildMcpInstallDefaults(options);
 		return await (options.runWizard ?? runPrefilledWizard)(defaults);
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);

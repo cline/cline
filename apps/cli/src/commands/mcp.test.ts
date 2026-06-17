@@ -78,6 +78,16 @@ describe("mcp install command", () => {
 		).toThrow(/Invalid MCP server URL/);
 	});
 
+	it("rejects remote URL schemes other than http and https", () => {
+		expect(() =>
+			buildMcpInstallDefaults({
+				name: "bad",
+				transport: "http",
+				targetArgs: ["file:///etc/passwd"],
+			}),
+		).toThrow(/only http and https are supported/);
+	});
+
 	it("opens the add wizard with prefilled defaults", async () => {
 		const runWizard = vi.fn(async () => 0);
 
@@ -113,6 +123,21 @@ describe("mcp install command", () => {
 
 		expect(code).toBe(1);
 		expect(runWizard).not.toHaveBeenCalled();
+		expect(writeErr).toHaveBeenCalledWith(
+			"cline mcp install opens the MCP wizard and requires a TTY.",
+		);
+	});
+
+	it("checks for TTY before validating install arguments", async () => {
+		const writeErr = vi.fn();
+
+		const code = await runMcpInstallCommand({
+			name: "fs",
+			isTty: false,
+			io: { writeErr },
+		});
+
+		expect(code).toBe(1);
 		expect(writeErr).toHaveBeenCalledWith(
 			"cline mcp install opens the MCP wizard and requires a TTY.",
 		);
