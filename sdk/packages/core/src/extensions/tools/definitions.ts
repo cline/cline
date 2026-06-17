@@ -328,7 +328,7 @@ export function createBashTool(
 		description:
 			"Run shell commands from the root of the workspace. " +
 			"Use for listing files, checking git status, running builds, executing tests, etc. " +
-			"Commands should be properly shell-escaped and targeted to avoid error or timeout. Include multiple commands only when they are independent complete shell commands and safe to run concurrently; multiline scripts and heredocs must be a single command string. " +
+			"Commands should be properly shell-escaped and targeted to avoid error or timeout. Include multiple commands in the same call when they are independent complete shell commands and safe to run concurrently; multiline scripts and heredocs must be a single command string. When independent reads, searches, or edits are also needed, call those tools in the same response. " +
 			`Output beyond ~${Math.round(MAX_COMMAND_OUTPUT_CHARS / 1000)}k characters is middle-truncated (start and end preserved); pipe through grep/head/tail when you need specific sections of large output. ` +
 			"For long-running commands, run them in background and redirect output to a tmp file that you can read from later.",
 		inputSchema: zodToJsonSchema(RunCommandsInputSchema),
@@ -418,10 +418,10 @@ export function createWindowsShellTool(
 	return createTool<StructuredCommandInput, ToolOperationResult[]>({
 		name: "run_commands",
 		description:
-			"Run shell commands from the root of the workspacein Windows environment. " +
+			"Run shell commands from the root of the workspace in Windows environment. " +
 			"Use for listing files, checking git status, running builds, executing tests, etc. " +
 			`Output beyond ~${Math.round(MAX_COMMAND_OUTPUT_CHARS / 1000)}k characters is middle-truncated (start and end preserved); filter output when you need specific sections. ` +
-			"Prefer structured { command, args } entries for portability; plain string commands should be properly shell-escaped. Include multiple commands when they are independent and safe to run concurrently.",
+			"Prefer structured { command, args } entries for portability; plain string commands should be properly shell-escaped. Include multiple commands in the same call when they are independent and safe to run concurrently. When independent reads, searches, or edits are also needed, call those tools in the same response.",
 		inputSchema: zodToJsonSchema(StructuredCommandsInputSchema),
 		timeoutMs: timeoutMs * 2,
 		retryable: false, // Shell commands often have side effects
@@ -635,7 +635,7 @@ export function createEditorTool(
 			"An editor for controlled filesystem edits on the text file at the provided path. " +
 			"Provide `insert_line` to insert `new_text` at a specific line number. " +
 			"Otherwise, the tool replaces `old_text` with `new_text`, or creates the file with `new_text` if file does not exist. " +
-			"Use this tools for making small, precise edits to existing files or creating new files over shell commands.",
+			"Use this tool for making small, precise edits to existing files or creating new files over shell commands. If several edits to different files or non-overlapping regions are already known, emit multiple editor tool calls in the same response instead of serializing them across turns.",
 
 		inputSchema: zodToJsonSchema(EditFileInputSchema),
 		timeoutMs,
