@@ -3794,7 +3794,7 @@ export class Task {
 					(block) => block.type === "text" && block.content.trim().length > 0,
 				);
 				const isPlanMode = this.stateManager.getGlobalSettingsKey("mode") === "plan";
-				const shouldAcceptTextOnlyResponse = isPlanMode && didProvideTextResponse;
+				const shouldAcceptTextOnlyResponse = isPlanMode && didProvideTextResponse && !didToolUse;
 
 				if (!didToolUse && !shouldAcceptTextOnlyResponse) {
 					// normal request where tool use is required
