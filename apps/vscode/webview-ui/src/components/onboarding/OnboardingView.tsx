@@ -319,19 +319,25 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 	const [selectedModelId, setSelectedModelId] = useState("")
 	const [searchTerm, setSearchTerm] = useState("")
 
-	// Set when a Cline Pass user starts signup; the effect below opens the subscription page once auth completes.
+	// Set when a Cline Pass user starts signup; cleared once the subscription page is opened.
 	const pendingClinePassSubscribe = useRef(false)
 
-	useEffect(() => {
-		// Only redirect if the user is still on the Cline Pass path (they may have backed out).
-		if (pendingClinePassSubscribe.current && userType === NEW_USER_TYPE.CLINE_PASS && clineUser?.uid) {
+	// Opens the Cline Pass subscription page if a signup is pending and the user is authenticated.
+	// Called both after login resolves (already-authenticated users) and from the auth effect
+	// below (users who log in during onboarding); the ref guard prevents a double open.
+	const openClinePassSubscriptionIfPending = useCallback(() => {
+		if (pendingClinePassSubscribe.current && clineUser?.uid) {
 			pendingClinePassSubscribe.current = false
 			const appBaseUrl = clineUser.appBaseUrl || DEFAULT_APP_BASE_URL
 			UiServiceClient.openUrl(StringRequest.create({ value: `${appBaseUrl}${CLINE_PASS_SUBSCRIBE_PATH}` })).catch((err) =>
 				console.error("Failed to open Cline Pass subscription page:", err),
 			)
 		}
-	}, [clineUser?.uid, clineUser?.appBaseUrl, userType])
+	}, [clineUser?.uid, clineUser?.appBaseUrl])
+
+	useEffect(() => {
+		openClinePassSubscriptionIfPending()
+	}, [openClinePassSubscriptionIfPending])
 
 	const models = useMemo(() => getClineUIOnboardingGroups(onboardingModels), [onboardingModels])
 	// Cline Pass model IDs (e.g. "cline-pass/glm-5.1") are not keyed in openRouterModels,
@@ -395,6 +401,11 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 						planModeApiProvider: "cline",
 						actModeApiProvider: "cline",
 					})
+				} else {
+					// userType is Cline Pass but the selected id isn't a cline-pass/ model.
+					// The guard above intentionally skips the write to avoid a bad provider
+					// config; log it so this otherwise-silent no-op is observable.
+					console.error(`Skipped Cline Pass provider setup: unexpected model id "${selectedModelId}"`)
 				}
 			}
 			hideAccount()
@@ -409,7 +420,9 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 		async (action: "signin" | "next" | "back" | "done" | "signup") => {
 			switch (action) {
 				case "signup":
-					// Cline Pass: redirect to the subscription page once login completes (see effect above).
+					// Cline Pass: open the subscription page after login. For users who log in
+					// during onboarding the auth effect handles it; for already-authenticated
+					// users we trigger it here once accountLoginClicked resolves.
 					pendingClinePassSubscribe.current = userType === NEW_USER_TYPE.CLINE_PASS
 					setStepNumber(stepNumber + 1)
 					setIsActionLoading(true)
@@ -417,6 +430,7 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 						.catch(() => {})
 						.finally(() => setIsActionLoading(false))
 					await finishOnboarding(true, stepNumber + 1)
+					openClinePassSubscriptionIfPending()
 					break
 				case "signin":
 					pendingClinePassSubscribe.current = false
@@ -443,7 +457,7 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 					break
 			}
 		},
-		[stepNumber, finishOnboarding, setShowWelcome, userType],
+		[stepNumber, finishOnboarding, setShowWelcome, userType, openClinePassSubscriptionIfPending],
 	)
 
 	const stepDisplayInfo = useMemo(() => {
