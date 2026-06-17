@@ -134,7 +134,6 @@ export function ModelSelectorContent(
 		currentModel: string;
 		currentProviderName: string;
 		models: ModelOption[];
-		allowCustomModel?: boolean;
 	},
 ) {
 	const {
@@ -144,7 +143,6 @@ export function ModelSelectorContent(
 		currentModel,
 		currentProviderName,
 		models,
-		allowCustomModel = true,
 	} = props;
 	const [search, setSearch] = useState("");
 	const [selected, setSelected] = useState(() => {
@@ -166,7 +164,7 @@ export function ModelSelectorContent(
 		return scored.map((r) => r.model);
 	}, [models, search]);
 
-	const optionCount = filtered.length + (allowCustomModel ? 1 : 0);
+	const optionCount = filtered.length + 1;
 	const safeSelected = Math.min(selected, Math.max(0, optionCount - 1));
 
 	useDialogKeyboard((key) => {
@@ -190,7 +188,7 @@ export function ModelSelectorContent(
 				resolve(model.key);
 				return;
 			}
-			if (allowCustomModel && safeSelected === filtered.length) {
+			if (safeSelected === filtered.length) {
 				setIsCreatingCustomModel(true);
 				setCustomModelId("");
 				setCustomModelError("");
@@ -292,7 +290,6 @@ export function ModelSelectorContent(
 				dimmed={onProvider}
 				currentModel={currentModel}
 				onSelect={resolve}
-				allowCustomModel={allowCustomModel}
 				onCreateCustomModel={() => {
 					setIsCreatingCustomModel(true);
 					setCustomModelId("");
@@ -411,7 +408,6 @@ function ModelList(props: {
 	dimmed?: boolean;
 	currentModel: string;
 	onSelect: (key: string) => void;
-	allowCustomModel: boolean;
 	onCreateCustomModel: () => void;
 }) {
 	const {
@@ -420,12 +416,11 @@ function ModelList(props: {
 		dimmed,
 		currentModel,
 		onSelect,
-		allowCustomModel,
 		onCreateCustomModel,
 	} = props;
 	const rows: ({ type: "model"; model: ModelOption } | { type: "custom" })[] = [
 		...items.map((model) => ({ type: "model" as const, model })),
-		...(allowCustomModel ? [{ type: "custom" as const }] : []),
+		{ type: "custom" as const },
 	];
 
 	if (rows.length <= MAX_VISIBLE) {
