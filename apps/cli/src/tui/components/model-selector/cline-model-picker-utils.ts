@@ -13,12 +13,7 @@ export type ClineModelsEntry = {
 	model: ClineRecommendedModel;
 };
 export type ClineModelPickerEntry = ClineModelsEntry | ClineModelPickerBrowse;
-export type ClineModelTier = "recommended" | "free" | "clinePass";
-export type ClineModelProviderId = "cline" | "cline-pass";
-
-export interface BuildClineModelEntriesOptions {
-	includeClinePass?: boolean;
-}
+export type ClineModelTier = "recommended" | "free";
 
 export function resolveClineModelDisplayName(
 	modelId: string,
@@ -39,16 +34,8 @@ export function resolveClineModelDisplayName(
 
 export function buildClineModelEntries(
 	data: ClineRecommendedModelsData,
-	options: BuildClineModelEntriesOptions = {},
 ): ClineModelPickerEntry[] {
 	const entries: ClineModelPickerEntry[] = [
-		...(options.includeClinePass
-			? data.clinePass.map((model) => ({
-					kind: "model" as const,
-					tier: "clinePass" as const,
-					model,
-				}))
-			: []),
 		...data.recommended.map((model) => ({
 			kind: "model" as const,
 			tier: "recommended" as const,
@@ -65,20 +52,6 @@ export function buildClineModelEntries(
 	];
 
 	return entries;
-}
-
-export function resolveClineModelProviderId(
-	tier: ClineModelTier,
-): ClineModelProviderId {
-	return tier === "clinePass" ? "cline-pass" : "cline";
-}
-
-export function resolveClineModelEntryProviderId(
-	entry: ClineModelPickerEntry,
-): ClineModelProviderId | undefined {
-	return entry.kind === "model"
-		? resolveClineModelProviderId(entry.tier)
-		: undefined;
 }
 
 export type ClineModelPickerDisplayRow =

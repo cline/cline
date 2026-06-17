@@ -15,15 +15,12 @@ import {
 	checkCodexCliInstalled,
 	isOpenAICodexCliProvider,
 } from "../../../utils/codex-cli";
-import { getCliFeatureFlagsService } from "../../../utils/feature-flags";
 import { getPersistedProviderApiKey } from "../../../utils/provider-auth";
 import { listLocalProviders } from "../../../utils/provider-catalog";
 import { getCliTelemetryService } from "../../../utils/telemetry";
 import {
 	buildClineModelEntries,
 	type ClineModelPickerEntry,
-	type ClineModelProviderId,
-	resolveClineModelEntryProviderId,
 	useClineRecommendedModels,
 } from "../../components/model-selector/cline-model-picker";
 import {
@@ -174,16 +171,9 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 
 	// Cline featured model picker
 	const recommended = useClineRecommendedModels();
-	const isClinePassEnabled =
-		getCliFeatureFlagsService().getBooleanFlagEnabled("ext-cline-pass");
 	const clineEntries: ClineModelPickerEntry[] = useMemo(
-		() =>
-			recommended.data
-				? buildClineModelEntries(recommended.data, {
-						includeClinePass: isClinePassEnabled,
-					})
-				: [],
-		[recommended.data, isClinePassEnabled],
+		() => (recommended.data ? buildClineModelEntries(recommended.data) : []),
+		[recommended.data],
 	);
 	const [clineKnownModels, setClineKnownModels] = useState<
 		Record<string, unknown> | undefined
@@ -552,16 +542,16 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 	}, [customModelId, completeModelSelection]);
 
 	const saveClineModelSelection = useCallback(
-		(modelId: string, modelName: string, providerId: ClineModelProviderId) => {
-			const existing = providerSettingsManager.getProviderSettings(providerId);
+		(modelId: string, modelName: string) => {
+			const existing = providerSettingsManager.getProviderSettings("cline");
 			providerSettingsManager.saveProviderSettings(
 				{
-					...(existing ?? { provider: providerId }),
+					...(existing ?? { provider: "cline" }),
 					model: modelId,
 				},
 				{ setLastUsed: true },
 			);
-			setActiveProviderId(providerId);
+			setActiveProviderId("cline");
 			setSelectedModelId(modelId);
 			if (clineModelReasoningIds.has(modelId)) {
 				setSelectedModelName(modelName);
@@ -578,15 +568,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		(entry: ClineModelPickerEntry | undefined) => {
 			if (!entry) return;
 			if (entry.kind === "model") {
-				const providerId = resolveClineModelEntryProviderId(entry) ?? "cline";
-				if (providerId === "cline-pass") {
-					setActiveProviderId(providerId);
-					setActiveProviderName("Cline Pass");
-					setStep("model_picker");
-					loadModelsForProvider(providerId);
-					return;
-				}
-				saveClineModelSelection(entry.model.id, entry.model.name, providerId);
+				saveClineModelSelection(entry.model.id, entry.model.name);
 				return;
 			}
 			setStep("model_picker");

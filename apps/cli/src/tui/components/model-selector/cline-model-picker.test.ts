@@ -4,18 +4,9 @@ import {
 	buildClineModelEntries,
 	buildClineModelPickerDisplayRows,
 	getClineModelPickerDisplayRowsWindow,
-	resolveClineModelProviderId,
 } from "./cline-model-picker-utils";
 
 const data: ClineRecommendedModelsData = {
-	clinePass: [
-		{
-			id: "cline-pass/glm-5.1",
-			name: "GLM 5.1",
-			description: "Cline Pass model",
-			tags: ["PASS"],
-		},
-	],
 	recommended: [
 		{
 			id: "anthropic/claude-sonnet-4.6",
@@ -47,7 +38,7 @@ const data: ClineRecommendedModelsData = {
 };
 
 describe("cline model picker helpers", () => {
-	it("builds tiered entries with browse action at the end while hiding Cline Pass by default", () => {
+	it("builds tiered entries with browse action at the end", () => {
 		expect(buildClineModelEntries(data)).toMatchObject([
 			{
 				kind: "model",
@@ -73,31 +64,8 @@ describe("cline model picker helpers", () => {
 		]);
 	});
 
-	it("includes Cline Pass models when enabled", () => {
-		expect(
-			buildClineModelEntries(data, { includeClinePass: true }).slice(0, 2),
-		).toMatchObject([
-			{
-				kind: "model",
-				tier: "clinePass",
-				model: { id: "cline-pass/glm-5.1" },
-			},
-			{
-				kind: "model",
-				tier: "recommended",
-				model: { id: "anthropic/claude-sonnet-4.6" },
-			},
-		]);
-	});
-
-	it("maps Cline Pass models to the cline-pass provider", () => {
-		expect(resolveClineModelProviderId("clinePass")).toBe("cline-pass");
-		expect(resolveClineModelProviderId("recommended")).toBe("cline");
-		expect(resolveClineModelProviderId("free")).toBe("cline");
-	});
-
 	it("builds flat display rows for every picker entry", () => {
-		const entries = buildClineModelEntries(data, { includeClinePass: true });
+		const entries = buildClineModelEntries(data);
 		const rows = buildClineModelPickerDisplayRows(entries);
 
 		expect(
@@ -111,12 +79,11 @@ describe("cline model picker helpers", () => {
 			{ kind: "model", entryIndex: 1 },
 			{ kind: "model", entryIndex: 2 },
 			{ kind: "model", entryIndex: 3 },
-			{ kind: "model", entryIndex: 4 },
 			{
 				kind: "browse",
 				key: "browse-all",
 				label: "Browse all models...",
-				entryIndex: 5,
+				entryIndex: 4,
 			},
 		]);
 	});

@@ -6,9 +6,7 @@ import { palette } from "../../palette";
 import {
 	buildClineModelPickerDisplayRows,
 	type ClineModelPickerEntry,
-	type ClineModelProviderId,
 	getClineModelPickerDisplayRowsWindow,
-	resolveClineModelEntryProviderId,
 } from "./cline-model-picker";
 import { CHANGE_PROVIDER_ACTION } from "./model-selector";
 import { ProviderRow } from "./provider-row";
@@ -16,13 +14,8 @@ import { ProviderRow } from "./provider-row";
 export const BROWSE_ALL_ACTION = "__browse_all__";
 const MAX_VISIBLE_ROWS = 10;
 
-export interface ClineModelSelection {
-	modelId: string;
-	providerId: ClineModelProviderId;
-}
-
 export type ClineModelSelectorResult =
-	| ClineModelSelection
+	| string
 	| typeof BROWSE_ALL_ACTION
 	| typeof CHANGE_PROVIDER_ACTION;
 
@@ -77,10 +70,7 @@ export function ClineModelSelectorContent(
 		const entry = entries[entryIndex];
 		if (!entry) return;
 		if (entry.kind === "model") {
-			resolve({
-				modelId: entry.model.id,
-				providerId: resolveClineModelEntryProviderId(entry) ?? "cline",
-			});
+			resolve(entry.model.id);
 		} else {
 			resolve(BROWSE_ALL_ACTION);
 		}
@@ -130,12 +120,7 @@ export function ClineModelSelectorContent(
 		const elements = [];
 		if (entry.kind === "model" && entry.tier !== lastTier) {
 			lastTier = entry.tier;
-			const label =
-				entry.tier === "clinePass"
-					? "Cline Pass"
-					: entry.tier === "recommended"
-						? "Recommended"
-						: "Free";
+			const label = entry.tier === "recommended" ? "Recommended" : "Free";
 			elements.push(
 				<box
 					key={`tier-${entry.tier}-${row.entryIndex}`}

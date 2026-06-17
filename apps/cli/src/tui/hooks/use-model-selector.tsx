@@ -10,7 +10,6 @@ import type { ChoiceContext } from "@opentui-ui/dialog";
 import type { DialogActions } from "@opentui-ui/dialog/react";
 import { useCallback } from "react";
 import { isOpenAICodexCliProvider } from "../../utils/codex-cli";
-import { getCliFeatureFlagsService } from "../../utils/feature-flags";
 import {
 	getPersistedProviderApiKey,
 	isOAuthProvider,
@@ -270,8 +269,6 @@ export function useModelSelector(opts: {
 			}
 
 			let pickingModel = true;
-			const isClinePassEnabled =
-				getCliFeatureFlagsService().getBooleanFlagEnabled("ext-cline-pass");
 
 			while (pickingModel) {
 				if (usesModelIdInput(config.providerId)) {
@@ -309,9 +306,7 @@ export function useModelSelector(opts: {
 								currentProviderName={providerDisplayName}
 								knownModels={config.knownModels as Record<string, unknown>}
 								loadEntries={async () =>
-									buildClineModelEntries(await fetchClineRecommendedModels(), {
-										includeClinePass: isClinePassEnabled,
-									})
+									buildClineModelEntries(await fetchClineRecommendedModels())
 								}
 							/>
 						),
@@ -380,28 +375,10 @@ export function useModelSelector(opts: {
 						continue;
 					}
 
-					if (config.providerId !== clineResult.providerId) {
-						const manager = new ProviderSettingsManager();
-						const resolved = await resolveProviderConfig(
-							clineResult.providerId,
-							{
-								loadLatestOnInit: true,
-								loadPrivateOnAuth: true,
-								failOnError: false,
-							},
-							manager.getProviderConfig(clineResult.providerId, {
-								includeKnownModels: false,
-							}),
-						);
-						modelOptions = buildModelOptions(
-							resolved?.knownModels as Record<string, Llms.ModelInfo>,
-						);
-						config.knownModels = resolved?.knownModels;
-					}
-					config.modelId = clineResult.modelId;
-					config.providerId = clineResult.providerId;
+					config.modelId = clineResult;
+					config.providerId = "cline";
 					const selectedModel = modelOptions.find(
-						(m: ModelOption) => m.key === clineResult.modelId,
+						(m: ModelOption) => m.key === clineResult,
 					);
 					if (selectedModel?.supportsReasoning) {
 						const currentLevel: ThinkingLevel = config.reasoningEffort

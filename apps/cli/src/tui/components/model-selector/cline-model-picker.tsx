@@ -20,11 +20,8 @@ export {
 	buildClineModelPickerDisplayRows,
 	type ClineModelPickerDisplayRow,
 	type ClineModelPickerEntry,
-	type ClineModelProviderId,
 	type ClineModelTier,
 	getClineModelPickerDisplayRowsWindow,
-	resolveClineModelEntryProviderId,
-	resolveClineModelProviderId,
 } from "./cline-model-picker-utils";
 
 const MAX_VISIBLE_ROWS = 10;
@@ -163,12 +160,7 @@ export function ClineModelPicker(props: {
 
 		if (entry.kind === "model" && entry.tier !== lastTier) {
 			lastTier = entry.tier;
-			const label =
-				entry.tier === "clinePass"
-					? "Cline Pass"
-					: entry.tier === "recommended"
-						? "Recommended"
-						: "Free";
+			const label = entry.tier === "recommended" ? "Recommended" : "Free";
 			rows.push(
 				<box
 					key={`tier-${entry.tier}`}
