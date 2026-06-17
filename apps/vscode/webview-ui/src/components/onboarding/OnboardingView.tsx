@@ -53,9 +53,10 @@ const ModelSelection = ({
 	setSearchTerm,
 	onboardingModels,
 }: ModelSelectionProps) => {
+	const isClinePass = userType === NEW_USER_TYPE.CLINE_PASS
 	const modelGroups = onboardingModels[getModelGroupKey(userType)]
 	// Cline Pass costs are covered by the subscription, so price badges/ranges are not shown.
-	const hidePrice = userType === NEW_USER_TYPE.CLINE_PASS
+	const hidePrice = isClinePass
 
 	const searchedModels = useMemo(() => {
 		if (!models || !searchTerm) {
@@ -122,6 +123,17 @@ const ModelSelection = ({
 		)
 	}
 
+	// Cline Pass models are curated by the backend; if none are available there is
+	// nothing valid to select, so show an empty state instead of any models.
+	if (isClinePass && modelGroups.length === 0) {
+		return (
+			<div className="flex w-full max-w-lg flex-col items-center justify-center my-8 px-2 text-center">
+				<p className="text-foreground text-sm m-0">No Cline Pass models are available right now.</p>
+				<p className="text-foreground/70 text-sm mt-1">Please choose another option or try again later.</p>
+			</div>
+		)
+	}
+
 	return (
 		<div className="flex flex-col w-full items-center px-2">
 			<div className="flex w-full max-w-lg flex-col gap-6 my-4">
@@ -135,67 +147,69 @@ const ModelSelection = ({
 				))}
 			</div>
 
-			{/* SEARCH MODEL */}
-			<div className="flex w-full max-w-lg flex-col gap-6 my-4 border-t border-muted-foreground">
-				<div className="flex flex-col gap-3 mt-6" key="search-results">
-					<h4 className="text-sm font-bold text-foreground/70 uppercase mb-2">other options</h4>
-					<Input
-						autoFocus={false}
-						className="focus-visible:border-button-background"
-						onChange={(e) => {
-							if (!e.target?.value) {
-								onSelectModel("")
-							}
-							setSearchTerm(e.target.value)
-						}}
-						onClick={() => onSelectModel("")}
-						placeholder="Search model..."
-						type="search"
-						value={searchTerm}
-					/>
-					<div className="w-full flex flex-col gap-3">
-						{searchTerm &&
-							searchedModels.map(([id, info]) => {
-								const isSelected = selectedModelId === id
-								// Convert ModelInfo to OpenRouterModelInfo for OnboardingModel
-								const modelInfo: OpenRouterModelInfo = {
-									name: info.name,
-									maxTokens: info.maxTokens,
-									contextWindow: info.contextWindow,
-									supportsImages: info.supportsImages,
-									supportsPromptCache: info.supportsPromptCache,
-									inputPrice: info.inputPrice,
-									outputPrice: info.outputPrice,
-									cacheWritesPrice: info.cacheWritesPrice,
-									cacheReadsPrice: info.cacheReadsPrice,
-									description: info.description,
-									supportsGlobalEndpoint: info.supportsGlobalEndpoint,
-									thinkingConfig: info.thinkingConfig
-										? {
-												maxBudget: info.thinkingConfig.maxBudget,
-												outputPrice: info.thinkingConfig.outputPrice,
-												outputPriceTiers: info.thinkingConfig.outputPriceTiers || [],
-											}
-										: undefined,
-									tiers: info.tiers || [],
+			{/* SEARCH MODEL — not shown for Cline Pass, whose selection is constrained to the curated list. */}
+			{!isClinePass && (
+				<div className="flex w-full max-w-lg flex-col gap-6 my-4 border-t border-muted-foreground">
+					<div className="flex flex-col gap-3 mt-6" key="search-results">
+						<h4 className="text-sm font-bold text-foreground/70 uppercase mb-2">other options</h4>
+						<Input
+							autoFocus={false}
+							className="focus-visible:border-button-background"
+							onChange={(e) => {
+								if (!e.target?.value) {
+									onSelectModel("")
 								}
-								const onboardingModel: OnboardingModel = {
-									id,
-									name: info.name || id,
-									info: modelInfo,
-									score: 0,
-									latency: 0,
-									badge: "",
-									group: "",
-								}
-								return <ModelItem id={id} isSelected={isSelected} key={id} model={onboardingModel} />
-							})}
-						{searchTerm.length > 0 && searchedModels.length === 0 && (
-							<p className="px-1 mt-1 text-sm text-foreground/70">No result found for "{searchTerm}"</p>
-						)}
+								setSearchTerm(e.target.value)
+							}}
+							onClick={() => onSelectModel("")}
+							placeholder="Search model..."
+							type="search"
+							value={searchTerm}
+						/>
+						<div className="w-full flex flex-col gap-3">
+							{searchTerm &&
+								searchedModels.map(([id, info]) => {
+									const isSelected = selectedModelId === id
+									// Convert ModelInfo to OpenRouterModelInfo for OnboardingModel
+									const modelInfo: OpenRouterModelInfo = {
+										name: info.name,
+										maxTokens: info.maxTokens,
+										contextWindow: info.contextWindow,
+										supportsImages: info.supportsImages,
+										supportsPromptCache: info.supportsPromptCache,
+										inputPrice: info.inputPrice,
+										outputPrice: info.outputPrice,
+										cacheWritesPrice: info.cacheWritesPrice,
+										cacheReadsPrice: info.cacheReadsPrice,
+										description: info.description,
+										supportsGlobalEndpoint: info.supportsGlobalEndpoint,
+										thinkingConfig: info.thinkingConfig
+											? {
+													maxBudget: info.thinkingConfig.maxBudget,
+													outputPrice: info.thinkingConfig.outputPrice,
+													outputPriceTiers: info.thinkingConfig.outputPriceTiers || [],
+												}
+											: undefined,
+										tiers: info.tiers || [],
+									}
+									const onboardingModel: OnboardingModel = {
+										id,
+										name: info.name || id,
+										info: modelInfo,
+										score: 0,
+										latency: 0,
+										badge: "",
+										group: "",
+									}
+									return <ModelItem id={id} isSelected={isSelected} key={id} model={onboardingModel} />
+								})}
+							{searchTerm.length > 0 && searchedModels.length === 0 && (
+								<p className="px-1 mt-1 text-sm text-foreground/70">No result found for "{searchTerm}"</p>
+							)}
+						</div>
 					</div>
 				</div>
-			</div>
+			)}
 		</div>
 	)
 }
@@ -309,14 +323,15 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 	const pendingClinePassSubscribe = useRef(false)
 
 	useEffect(() => {
-		if (pendingClinePassSubscribe.current && clineUser?.uid) {
+		// Only redirect if the user is still on the Cline Pass path (they may have backed out).
+		if (pendingClinePassSubscribe.current && userType === NEW_USER_TYPE.CLINE_PASS && clineUser?.uid) {
 			pendingClinePassSubscribe.current = false
 			const appBaseUrl = clineUser.appBaseUrl || DEFAULT_APP_BASE_URL
 			UiServiceClient.openUrl(StringRequest.create({ value: `${appBaseUrl}${CLINE_PASS_SUBSCRIBE_PATH}` })).catch((err) =>
 				console.error("Failed to open Cline Pass subscription page:", err),
 			)
 		}
-	}, [clineUser?.uid, clineUser?.appBaseUrl])
+	}, [clineUser?.uid, clineUser?.appBaseUrl, userType])
 
 	const models = useMemo(() => getClineUIOnboardingGroups(onboardingModels), [onboardingModels])
 	// Cline Pass model IDs (e.g. "cline-pass/glm-5.1") are not keyed in openRouterModels,
@@ -326,8 +341,10 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 	useEffect(() => {
 		setSearchTerm("")
 		const groupKey = userType === NEW_USER_TYPE.CLINE_PASS ? "clinePass" : userType === NEW_USER_TYPE.POWER ? "power" : "free"
-		// Some groups can be empty (e.g. Cline Pass list not returned yet); fall back to free.
-		const modelGroup = models[groupKey][0] ?? models.free[0]
+		// Cline Pass selection must stay within the curated Cline Pass list (never fall back to a
+		// free/OpenRouter model, which would be saved under the cline-pass provider). Free/Frontier
+		// fall back to free if their group is empty.
+		const modelGroup = userType === NEW_USER_TYPE.CLINE_PASS ? models[groupKey][0] : (models[groupKey][0] ?? models.free[0])
 		const userGroupInitModel = modelGroup?.models[0]
 		setSelectedModelId(userGroupInitModel?.id ?? "")
 	}, [userType, models])
@@ -355,8 +372,10 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 	const finishOnboarding = useCallback(
 		async (updateModelId: boolean, step: number) => {
 			const modelSelected = (updateModelId && selectedModelId) || undefined
+			// Guard: never save a non–Cline-Pass model id under the cline-pass provider.
+			const isClinePassModel = selectedModelId.startsWith("cline-pass/")
 			if (modelSelected) {
-				if (userType === NEW_USER_TYPE.CLINE_PASS) {
+				if (userType === NEW_USER_TYPE.CLINE_PASS && isClinePassModel) {
 					// Cline Pass uses its own provider + model fields.
 					const clinePassModelInfo = resolveClinePassModelInfo(selectedModelId, openRouterModelsByName)
 					await handleFieldsChange({
@@ -367,7 +386,7 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 						planModeApiProvider: "cline-pass",
 						actModeApiProvider: "cline-pass",
 					})
-				} else {
+				} else if (userType !== NEW_USER_TYPE.CLINE_PASS) {
 					await handleFieldsChange({
 						planModeOpenRouterModelId: selectedModelId,
 						actModeOpenRouterModelId: selectedModelId,
@@ -400,6 +419,7 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 					await finishOnboarding(true, stepNumber + 1)
 					break
 				case "signin":
+					pendingClinePassSubscribe.current = false
 					setIsActionLoading(true)
 					await AccountServiceClient.accountLoginClicked({})
 						.catch(() => {})
@@ -411,6 +431,8 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 					setStepNumber(stepNumber + 1)
 					break
 				case "back":
+					// Abandon any pending Cline Pass subscription redirect when the user goes back.
+					pendingClinePassSubscribe.current = false
 					StateServiceClient.captureOnboardingProgress({ step: stepNumber - 1 })
 					setStepNumber(stepNumber - 1)
 					break
@@ -462,16 +484,22 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 				</div>
 
 				<footer className="flex w-full max-w-lg flex-col gap-3 my-2 px-2 overflow-hidden flex-shrink-0">
-					{stepDisplayInfo.buttons.map((btn) => (
-						<Button
-							className={`w-full rounded-xs ${isActionLoading ? "animate-pulse" : ""}`}
-							disabled={isActionLoading}
-							key={btn.text}
-							onClick={() => handleFooterAction(btn.action)}
-							variant={btn.variant}>
-							{btn.text}
-						</Button>
-					))}
+					{stepDisplayInfo.buttons.map((btn) => {
+						// Block Cline Pass signup when no Cline Pass model is selected (e.g. empty list).
+						const disabled =
+							isActionLoading ||
+							(btn.action === "signup" && userType === NEW_USER_TYPE.CLINE_PASS && !selectedModelId)
+						return (
+							<Button
+								className={`w-full rounded-xs ${isActionLoading ? "animate-pulse" : ""}`}
+								disabled={disabled}
+								key={btn.text}
+								onClick={() => handleFooterAction(btn.action)}
+								variant={btn.variant}>
+								{btn.text}
+							</Button>
+						)
+					})}
 
 					{stepNumber !== 2 && (
 						<div className="items-center justify-center flex text-sm text-foreground gap-2 mb-3 text-pretty">
