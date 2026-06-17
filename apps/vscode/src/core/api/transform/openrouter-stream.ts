@@ -35,9 +35,16 @@ const openRouterExplicitCacheControlModelIds = new Set([
 	"qwen/qwen3-coder-flash",
 ])
 
-function needsExplicitCacheControl(modelId: string): boolean {
+function needsExplicitCacheControl(model: { id: string; info: ModelInfo }): boolean {
+	// Honor the capability flag the model registry computes (refreshOpenRouterModels.ts),
+	// so newly cache-capable models don't silently miss caching just because they're absent
+	// from the hardcoded id list below. The id checks remain as a fallback for envelope-honoring
+	// families (Anthropic/MiniMax shapes) and ids that aren't flagged in the registry yet.
 	return (
-		modelId.startsWith("anthropic/") || modelId.startsWith("minimax/") || openRouterExplicitCacheControlModelIds.has(modelId)
+		model.info.supportsPromptCache ||
+		model.id.startsWith("anthropic/") ||
+		model.id.startsWith("minimax/") ||
+		openRouterExplicitCacheControlModelIds.has(model.id)
 	)
 }
 
@@ -77,7 +84,7 @@ export async function createOpenRouterStream(
 	// prompt caching: https://openrouter.ai/docs/prompt-caching
 	// Some OpenRouter models require cache_control blocks instead of automatic provider caching.
 	// Other providers (OpenAI, Google) handle caching automatically without cache_control blocks.
-	const needsCacheControl = needsExplicitCacheControl(model.id)
+	const needsCacheControl = needsExplicitCacheControl(model)
 
 	if (needsCacheControl) {
 		openAiMessages[0] = {

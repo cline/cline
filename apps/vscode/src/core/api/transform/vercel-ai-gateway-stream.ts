@@ -50,12 +50,15 @@ export async function createVercelAIGatewayStream(
 	// Sanitize messages for Gemini models (removes tool_calls without reasoning_details)
 	openAiMessages = sanitizeGeminiMessages(openAiMessages, model.id)
 
-	// Prompt caching for supported models
-	// This handles cache_control for Claude and MiniMax models
-	const isAnthropicModel = model.id.startsWith("anthropic/")
+	// Prompt caching for supported models.
+	// Gate on the capability flag the model registry computes from pricing
+	// (refreshVercelAiGatewayModels.ts sets supportsPromptCache when the Gateway
+	// reports cache read/write pricing), so any cache-capable model gets cache_control
+	// rather than only ids that start with "anthropic/". Keep the MiniMax id check as a
+	// fallback for envelope-honoring shapes that may not be flagged by pricing.
 	const isMinimaxModel = model.id.startsWith("minimax/")
 
-	if (isAnthropicModel || isMinimaxModel) {
+	if (model.info.supportsPromptCache || isMinimaxModel) {
 		openAiMessages[0] = {
 			role: "system",
 			content: [
