@@ -118,33 +118,6 @@ function TypeBadge({ type }: { type: MarketplacePrimitiveType }) {
 	);
 }
 
-function EntryIcon({ entry }: { entry: MarketplaceEntry }) {
-	const initials = entry.name
-		.split(/\s+/)
-		.map((part) => part[0])
-		.join("")
-		.slice(0, 2)
-		.toUpperCase();
-	return (
-		<div className="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-background">
-			{/* Marketplace icons are currently often placeholders, so keep them hidden for now.
-			{entry.icon ? (
-				<img
-					alt=""
-					className="max-h-8 max-w-8 object-contain"
-					referrerPolicy="no-referrer"
-					src={entry.icon}
-				/>
-			) : (
-			*/}
-			<span className="text-xs font-semibold text-muted-foreground">
-				{initials}
-			</span>
-			{/* )} */}
-		</div>
-	);
-}
-
 function entryKey(entry: Pick<MarketplaceEntry, "id" | "type">): string {
 	return `${entry.type}:${entry.id}`;
 }
@@ -359,29 +332,26 @@ function MarketplaceEntryCard({
 			role="button"
 			tabIndex={0}
 		>
-			<div className="flex items-start gap-3">
-				<EntryIcon entry={entry} />
-				<div className="min-w-0 flex-1">
-					<div className="flex min-w-0 items-start justify-between gap-2">
-						<h2 className="min-w-0 truncate text-sm font-semibold text-foreground">
-							{entry.name}
-							{entry.featured ? (
-								<Sparkles className="ml-1.5 inline size-3.5 shrink-0 text-primary" />
-							) : null}
-						</h2>
-						<TypeBadge type={entry.type} />
-					</div>
-					<div className="mt-1 flex flex-wrap gap-1.5">
-						{entry.tags.slice(0, 5).map((tag) => (
-							<Badge
-								key={tag}
-								variant="outline"
-								className="max-w-full text-muted-foreground"
-							>
-								<span className="truncate">{tagLabels.get(tag) ?? tag}</span>
-							</Badge>
-						))}
-					</div>
+			<div className="min-w-0">
+				<div className="flex min-w-0 items-start justify-between gap-2">
+					<h2 className="min-w-0 truncate text-sm font-semibold text-foreground">
+						{entry.name}
+						{entry.featured ? (
+							<Sparkles className="ml-1.5 inline size-3.5 shrink-0 text-primary" />
+						) : null}
+					</h2>
+					<TypeBadge type={entry.type} />
+				</div>
+				<div className="mt-1 flex flex-wrap gap-1.5">
+					{entry.tags.slice(0, 5).map((tag) => (
+						<Badge
+							key={tag}
+							variant="outline"
+							className="max-w-full text-muted-foreground"
+						>
+							<span className="truncate">{tagLabels.get(tag) ?? tag}</span>
+						</Badge>
+					))}
 				</div>
 			</div>
 
