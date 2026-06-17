@@ -33,13 +33,13 @@ export function useDebouncedInput<T>(
 	}, [onChange, options.shouldSyncInitialValue])
 
 	useEffect(() => {
+		if (shouldSyncInitialValueRef.current?.() === false) {
+			return
+		}
+
 		if (timeoutRef.current) {
 			clearTimeout(timeoutRef.current)
 			timeoutRef.current = null
-		}
-
-		if (shouldSyncInitialValueRef.current?.() === false) {
-			return
 		}
 
 		setLocalValue(initialValue)
