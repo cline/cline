@@ -44,12 +44,13 @@ function contentTypeFor(path: string): string {
 	}
 }
 
-function isWebviewRoute(pathname: string): boolean {
+export function isWebviewRoute(pathname: string): boolean {
 	return (
 		pathname === "/" ||
 		pathname === "/index.html" ||
 		pathname === "/chat" ||
 		pathname === "/marketplace" ||
+		pathname.startsWith("/marketplace/") ||
 		pathname === "/settings" ||
 		pathname.startsWith("/settings/")
 	);
