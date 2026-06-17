@@ -16,7 +16,6 @@ import {
 	isProviderConfigured,
 } from "../../utils/provider-auth";
 import type { Config } from "../../utils/types";
-import { resolveDefaultThinkingLevel } from "./model-selector-reasoning";
 import { withLoadingDialog } from "../components/dialogs/loading-dialog";
 import {
 	CodexCliStatusContent,
@@ -73,6 +72,21 @@ async function refreshCurrentProviderModels(config: Config): Promise<void> {
 function clearReasoningConfig(config: Config): void {
 	config.thinking = false;
 	config.reasoningEffort = undefined;
+}
+
+function resolveDefaultThinkingLevel(
+	config: Pick<Config, "modelId" | "reasoningEffort" | "thinking">,
+	selectedModelId: string,
+): ThinkingLevel {
+	if (config.reasoningEffort) {
+		return config.reasoningEffort as ThinkingLevel;
+	}
+
+	if (selectedModelId === config.modelId && !config.thinking) {
+		return "none";
+	}
+
+	return "medium";
 }
 
 function usesModelIdInput(providerId: string): boolean {
