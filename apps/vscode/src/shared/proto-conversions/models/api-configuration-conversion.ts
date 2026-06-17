@@ -300,6 +300,8 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.XAI
 		case "sambanova":
 			return ProtoApiProvider.SAMBANOVA
+		case "atlascloud":
+			return ProtoApiProvider.ATLASCLOUD
 		case "cerebras":
 			return ProtoApiProvider.CEREBRAS
 		case "groq":
@@ -394,6 +396,8 @@ export function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvid
 			return "xai"
 		case ProtoApiProvider.SAMBANOVA:
 			return "sambanova"
+		case ProtoApiProvider.ATLASCLOUD:
+			return "atlascloud"
 		case ProtoApiProvider.CEREBRAS:
 			return "cerebras"
 		case ProtoApiProvider.GROQ:
@@ -491,6 +495,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		asksageApiKey: config.asksageApiKey,
 		xaiApiKey: config.xaiApiKey,
 		sambanovaApiKey: config.sambanovaApiKey,
+		atlascloudApiKey: config.atlascloudApiKey,
 		cerebrasApiKey: config.cerebrasApiKey,
 		vercelAiGatewayApiKey: config.vercelAiGatewayApiKey,
 		groqApiKey: config.groqApiKey,
@@ -675,6 +680,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		asksageApiKey: protoConfig.asksageApiKey,
 		xaiApiKey: protoConfig.xaiApiKey,
 		sambanovaApiKey: protoConfig.sambanovaApiKey,
+		atlascloudApiKey: protoConfig.atlascloudApiKey,
 		cerebrasApiKey: protoConfig.cerebrasApiKey,
 		vercelAiGatewayApiKey: protoConfig.vercelAiGatewayApiKey,
 		groqApiKey: protoConfig.groqApiKey,

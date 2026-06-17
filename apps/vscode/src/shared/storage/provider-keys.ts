@@ -73,6 +73,7 @@ export const ProviderToApiKeyMap: Partial<Record<ApiProvider, keyof Secrets | (k
 	asksage: "asksageApiKey",
 	xai: "xaiApiKey",
 	sambanova: "sambanovaApiKey",
+	atlascloud: "atlascloudApiKey",
 	cerebras: "cerebrasApiKey",
 	groq: "groqApiKey",
 	huggingface: "huggingFaceApiKey",

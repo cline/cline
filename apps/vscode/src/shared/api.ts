@@ -45,6 +45,7 @@ export type ApiProvider =
 	| "hicap"
 	| "nousResearch"
 	| "wandb"
+	| "atlascloud"
 
 export const DEFAULT_API_PROVIDER = "openrouter" as ApiProvider
 
@@ -4198,6 +4199,24 @@ export const sambanovaModels = {
 		temperature: 1.0,
 		inputPrice: 0.6,
 		outputPrice: 2.4,
+	},
+} as const satisfies Record<string, ModelInfo>
+
+// Atlas Cloud
+// https://docs.atlascloud.ai
+export type AtlascloudModelId = keyof typeof atlascloudModels
+export const atlascloudDefaultModelId: AtlascloudModelId = "deepseek-ai/deepseek-v4-pro"
+export const atlascloudModels = {
+	"deepseek-ai/deepseek-v4-pro": {
+		maxTokens: 8192,
+		contextWindow: 163840,
+		supportsImages: false,
+		supportsPromptCache: false,
+		supportsReasoning: true,
+		temperature: 0.6,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "DeepSeek V4 Pro reasoning model served through the Atlas Cloud OpenAI-compatible API.",
 	},
 } as const satisfies Record<string, ModelInfo>
 

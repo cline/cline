@@ -136,6 +136,11 @@ export function validateApiConfiguration(currentMode: Mode, apiConfiguration?: A
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break
+			case "atlascloud":
+				if (!apiConfiguration.atlascloudApiKey) {
+					return "You must provide a valid API key or choose a different provider."
+				}
+				break
 			case "sapaicore":
 				if (!apiConfiguration.sapAiCoreBaseUrl) {
 					return "You must provide a valid Base URL key or choose a different provider."
