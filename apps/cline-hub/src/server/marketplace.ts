@@ -211,12 +211,12 @@ function redactOutput(value: string): string {
 		if (!SECRET_PATTERN.test(line)) return line;
 		return line
 			.replace(
-				/(\b(?:api[_ -]?key|token|secret|password|authorization|credential)\b\s*[:=]\s*)(.+)$/gi,
+				/((?:^|[^\w])(?:[a-z0-9_]*?(?:api[_ -]?key|access[_ -]?token|refresh[_ -]?token|auth(?:orization)?[_ -]?token|token|secret|password|authorization|credential)[a-z0-9_]*)\s*[:=]\s*)(.+)$/gi,
 				"$1[redacted]",
 			)
 			.replace(/\b(Bearer)\s+\S+/gi, "$1 [redacted]")
 			.replace(
-				/(\b(?:api\s+key|access\s+token|refresh\s+token|auth(?:orization)?\s+token|secret|password|credential)\s+(?:is\s+)?)(\S+)/gi,
+				/((?:^|[^\w])(?:api\s+key|access\s+token|refresh\s+token|auth(?:orization)?\s+token|secret|password|credential)\s+(?:is\s+)?)(\S+)/gi,
 				"$1[redacted]",
 			);
 	});
@@ -528,17 +528,21 @@ function isMarketplaceEntryInstalled(
 	entry: MarketplaceInstallInput,
 	inventory?: JsonRecord,
 ): boolean {
-	if (entry.type === "mcp") return isMcpEntryInstalled(entry);
-	if (entry.type === "plugin") {
-		return (
-			isOfficialPluginInstalled(entry) ||
-			hasMatchingInventoryItem(inventory?.plugins, entry)
-		);
+	try {
+		if (entry.type === "mcp") return isMcpEntryInstalled(entry);
+		if (entry.type === "plugin") {
+			return (
+				isOfficialPluginInstalled(entry) ||
+				hasMatchingInventoryItem(inventory?.plugins, entry)
+			);
+		}
+		if (entry.type === "skill") {
+			return isGlobalSkillInstalled(entry);
+		}
+		return false;
+	} catch {
+		return false;
 	}
-	if (entry.type === "skill") {
-		return isGlobalSkillInstalled(entry);
-	}
-	return false;
 }
 
 function commandOutput(result: SpawnResult): string | undefined {
@@ -572,8 +576,9 @@ async function installSkill(
 		"-y",
 	]);
 	if (result.exitCode !== 0) {
+		const output = commandOutput(result);
 		throw new Error(
-			`Skill install failed with exit code ${result.exitCode}${commandOutput(result) ? `:\n${commandOutput(result)}` : ""}`,
+			`Skill install failed with exit code ${result.exitCode}${output ? `:\n${output}` : ""}`,
 		);
 	}
 	const output = commandOutput(result);
@@ -621,8 +626,9 @@ async function installPlugin(
 		"--json",
 	]);
 	if (result.exitCode !== 0) {
+		const output = commandOutput(result);
 		throw new Error(
-			`Plugin install failed with exit code ${result.exitCode}${commandOutput(result) ? `:\n${commandOutput(result)}` : ""}`,
+			`Plugin install failed with exit code ${result.exitCode}${output ? `:\n${output}` : ""}`,
 		);
 	}
 	let details: JsonRecord | undefined;

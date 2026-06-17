@@ -288,8 +288,10 @@ describe("marketplace installer", () => {
 		process.env.HOME = homeDir;
 		const spawnCommand = vi.fn(async () => ({
 			exitCode: 1,
-			stdout: "Authorization: Bearer stdout-token\napi key stdout-key",
-			stderr: "TOKEN=stderr-token\npassword is stderr-password",
+			stdout:
+				"Authorization: Bearer stdout-token\napi key stdout-key\nOPENAI_API_KEY=compound-key",
+			stderr:
+				"TOKEN=stderr-token\npassword is stderr-password\nANTHROPIC_SECRET_KEY=anthropic-secret",
 		}));
 
 		let message = "";
@@ -311,12 +313,16 @@ describe("marketplace installer", () => {
 
 		expect(message).toContain("Authorization: [redacted]");
 		expect(message).toContain("api key [redacted]");
+		expect(message).toContain("OPENAI_API_KEY=[redacted]");
 		expect(message).toContain("TOKEN=[redacted]");
 		expect(message).toContain("password is [redacted]");
+		expect(message).toContain("ANTHROPIC_SECRET_KEY=[redacted]");
 		expect(message).not.toContain("stdout-token");
 		expect(message).not.toContain("stdout-key");
+		expect(message).not.toContain("compound-key");
 		expect(message).not.toContain("stderr-token");
 		expect(message).not.toContain("stderr-password");
+		expect(message).not.toContain("anthropic-secret");
 	});
 
 	it("rejects skill installs before spawning when the global skill directory is not writable", async () => {
@@ -459,6 +465,49 @@ describe("marketplace installer", () => {
 		expect(
 			listMarketplaceInstalledEntries({
 				entries: [
+					{
+						id: "goal",
+						type: "plugin",
+						name: "Goal",
+						install: { args: ["goal"] },
+					},
+				],
+			}),
+		).toEqual({ installedKeys: ["plugin:goal"] });
+	});
+
+	it("skips invalid marketplace entries during installed-status checks", () => {
+		const clineDir = mkdtempSync(join(tmpdir(), "cline-marketplace-test-"));
+		process.env.CLINE_DIR = clineDir;
+		const sourceKey =
+			"official:https://github.com/cline/plugins.git#plugins/goal";
+		const hash = createHash("sha256")
+			.update(sourceKey)
+			.digest("hex")
+			.slice(0, 12);
+		mkdirSync(
+			join(clineDir, "plugins", "_installed", "official", `goal-${hash}`),
+			{
+				recursive: true,
+			},
+		);
+
+		expect(
+			listMarketplaceInstalledEntries({
+				entries: [
+					{
+						id: "broken-mcp",
+						type: "mcp",
+						name: "Broken MCP",
+						install: {
+							args: [
+								"broken-mcp",
+								"--transport",
+								"ws",
+								"https://example.com/mcp",
+							],
+						},
+					},
 					{
 						id: "goal",
 						type: "plugin",
