@@ -5,7 +5,6 @@ import {
 	Plug,
 	Search,
 	Server,
-	Sparkles,
 	Trash2,
 	Wrench,
 } from "lucide-react";
@@ -336,9 +335,6 @@ function MarketplaceEntryCard({
 				<div className="flex min-w-0 items-start justify-between gap-2">
 					<h2 className="min-w-0 truncate text-sm font-semibold text-foreground">
 						{entry.name}
-						{entry.featured ? (
-							<Sparkles className="ml-1.5 inline size-3.5 shrink-0 text-primary" />
-						) : null}
 					</h2>
 					<TypeBadge type={entry.type} />
 				</div>
