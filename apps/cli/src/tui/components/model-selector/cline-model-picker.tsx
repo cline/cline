@@ -12,8 +12,6 @@ import {
 	buildClineModelPickerDisplayRows,
 	type ClineModelPickerDisplayRow,
 	type ClineModelPickerEntry,
-	type ClineModelPickerExpandedTiers,
-	type ClineModelTier,
 	getClineModelPickerDisplayRowsWindow,
 } from "./cline-model-picker-utils";
 
@@ -22,12 +20,9 @@ export {
 	buildClineModelPickerDisplayRows,
 	type ClineModelPickerDisplayRow,
 	type ClineModelPickerEntry,
-	type ClineModelPickerExpandedTiers,
 	type ClineModelProviderId,
 	type ClineModelTier,
 	getClineModelPickerDisplayRowsWindow,
-	getClineModelPickerRowByFocusIndex,
-	getVisibleClineModelPickerEntries,
 	resolveClineModelEntryProviderId,
 	resolveClineModelProviderId,
 } from "./cline-model-picker-utils";
@@ -64,7 +59,7 @@ export function useClineRecommendedModels() {
 function ClineModelRow(props: {
 	row: Extract<ClineModelPickerDisplayRow, { kind: "model" | "browse" }>;
 	isSelected: boolean;
-	onSelect?: (selectableIndex: number, entry: ClineModelPickerEntry) => void;
+	onSelect?: (entryIndex: number, entry: ClineModelPickerEntry) => void;
 	entry: ClineModelPickerEntry;
 }) {
 	const { row, isSelected, onSelect, entry } = props;
@@ -77,7 +72,7 @@ function ClineModelRow(props: {
 			gap={1}
 			backgroundColor={isSelected ? palette.selection : undefined}
 			marginTop={isBrowse ? 1 : 0}
-			onMouseDown={() => onSelect?.(row.selectableIndex, entry)}
+			onMouseDown={() => onSelect?.(row.entryIndex, entry)}
 			overflow="hidden"
 			height={1}
 		>
@@ -119,13 +114,8 @@ export function ClineModelPicker(props: {
 	loading?: boolean;
 	knownModels?: Record<string, unknown>;
 	currentModelId?: string;
-	expandedTiers?: Partial<ClineModelPickerExpandedTiers>;
 	maxVisibleRows?: number;
-	onEntrySelect?: (
-		selectableIndex: number,
-		entry: ClineModelPickerEntry,
-	) => void;
-	onToggleTier?: (tier: ClineModelTier) => void;
+	onEntrySelect?: (entryIndex: number, entry: ClineModelPickerEntry) => void;
 }) {
 	const {
 		entries,
@@ -133,20 +123,13 @@ export function ClineModelPicker(props: {
 		loading,
 		knownModels,
 		currentModelId,
-		expandedTiers,
 		maxVisibleRows = MAX_VISIBLE_ROWS,
 		onEntrySelect,
-		onToggleTier,
 	} = props;
 	const displayRows = useMemo(
 		() =>
-			buildClineModelPickerDisplayRows(
-				entries,
-				knownModels,
-				currentModelId,
-				expandedTiers,
-			),
-		[entries, knownModels, currentModelId, expandedTiers],
+			buildClineModelPickerDisplayRows(entries, knownModels, currentModelId),
+		[entries, knownModels, currentModelId],
 	);
 
 	if (loading) {
@@ -161,6 +144,8 @@ export function ClineModelPicker(props: {
 	const { visibleRows, aboveCount, belowCount, showAbove, showBelow } =
 		getClineModelPickerDisplayRowsWindow(displayRows, selected, maxVisibleRows);
 	const rows: ReactNode[] = [];
+	let lastTier: string | null = null;
+	let isFirstHeader = true;
 
 	if (showAbove) {
 		rows.push(
@@ -173,50 +158,37 @@ export function ClineModelPicker(props: {
 	}
 
 	for (const row of visibleRows) {
-		if (row.kind === "header") {
-			const isSelected = row.focusIndex === selected;
-			rows.push(
-				<box
-					key={row.key}
-					paddingX={1}
-					height={1}
-					flexDirection="row"
-					gap={1}
-					backgroundColor={isSelected ? palette.selection : undefined}
-					onMouseDown={() => onToggleTier?.(row.tier)}
-				>
-					<text
-						fg={isSelected ? palette.textOnSelection : "gray"}
-						flexShrink={0}
-					>
-						{isSelected ? "\u276f" : " "}
-					</text>
-					<text
-						fg={isSelected ? palette.textOnSelection : "gray"}
-						flexShrink={0}
-					>
-						{row.isExpanded ? "▾" : "▸"}
-					</text>
-					<text fg={isSelected ? palette.textOnSelection : "gray"}>
-						{row.label}
-					</text>
-				</box>,
-			);
-			continue;
-		}
-
 		const entry = entries[row.entryIndex];
 		if (!entry) continue;
+
+		if (entry.kind === "model" && entry.tier !== lastTier) {
+			lastTier = entry.tier;
+			const label =
+				entry.tier === "clinePass"
+					? "Cline Pass"
+					: entry.tier === "recommended"
+						? "Recommended"
+						: "Free";
+			rows.push(
+				<box
+					key={`tier-${entry.tier}`}
+					paddingX={1}
+					marginTop={isFirstHeader ? 0 : 1}
+				>
+					<text fg="gray">{label}</text>
+				</box>,
+			);
+			isFirstHeader = false;
+		}
+
 		rows.push(
-			<box marginLeft={4}>
-				<ClineModelRow
-					key={row.key}
-					row={row}
-					entry={entry}
-					isSelected={row.focusIndex === selected}
-					onSelect={onEntrySelect}
-				/>
-			</box>,
+			<ClineModelRow
+				key={row.key}
+				row={row}
+				entry={entry}
+				isSelected={row.entryIndex === selected}
+				onSelect={onEntrySelect}
+			/>,
 		);
 	}
 
@@ -230,9 +202,5 @@ export function ClineModelPicker(props: {
 		);
 	}
 
-	return (
-		<box flexDirection="column" paddingTop={1}>
-			{rows}
-		</box>
-	);
+	return <box flexDirection="column">{rows}</box>;
 }

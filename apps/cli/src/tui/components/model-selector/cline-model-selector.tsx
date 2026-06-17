@@ -6,12 +6,8 @@ import { palette } from "../../palette";
 import {
 	buildClineModelPickerDisplayRows,
 	type ClineModelPickerEntry,
-	type ClineModelPickerExpandedTiers,
 	type ClineModelProviderId,
-	type ClineModelTier,
 	getClineModelPickerDisplayRowsWindow,
-	getClineModelPickerRowByFocusIndex,
-	getVisibleClineModelPickerEntries,
 	resolveClineModelEntryProviderId,
 } from "./cline-model-picker";
 import { CHANGE_PROVIDER_ACTION } from "./model-selector";
@@ -60,35 +56,15 @@ export function ClineModelSelectorContent(
 	} = props;
 	const [selected, setSelected] = useState(0);
 	const [onProvider, setOnProvider] = useState(false);
-	const [expandedTiers, setExpandedTiers] =
-		useState<ClineModelPickerExpandedTiers>({
-			clinePass: false,
-			recommended: true,
-			free: true,
-		});
-
-	const visibleEntries = useMemo(
-		() => getVisibleClineModelPickerEntries(entries, expandedTiers),
-		[entries, expandedTiers],
-	);
 	const displayRows = useMemo(() => {
-		return buildClineModelPickerDisplayRows(
-			entries,
-			knownModels,
-			currentModel,
-			expandedTiers,
-		);
-	}, [entries, knownModels, currentModel, expandedTiers]);
+		return buildClineModelPickerDisplayRows(entries, knownModels, currentModel);
+	}, [entries, knownModels, currentModel]);
 
 	useEffect(() => {
 		setSelected((value) =>
 			Math.min(value, Math.max(0, displayRows.length - 1)),
 		);
 	}, [displayRows.length]);
-
-	const toggleTier = (tier: ClineModelTier) => {
-		setExpandedTiers((prev) => ({ ...prev, [tier]: !prev[tier] }));
-	};
 
 	const { visibleRows, aboveCount, belowCount, showAbove, showBelow } =
 		getClineModelPickerDisplayRowsWindow(
@@ -97,8 +73,8 @@ export function ClineModelSelectorContent(
 			MAX_VISIBLE_ROWS,
 		);
 
-	const resolveEntry = (selectableIndex: number) => {
-		const entry = visibleEntries[selectableIndex];
+	const resolveEntry = (entryIndex: number) => {
+		const entry = entries[entryIndex];
 		if (!entry) return;
 		if (entry.kind === "model") {
 			resolve({
@@ -124,13 +100,9 @@ export function ClineModelSelectorContent(
 				resolve(CHANGE_PROVIDER_ACTION);
 				return;
 			}
-			const row = getClineModelPickerRowByFocusIndex(displayRows, selected);
+			const row = displayRows[selected];
 			if (!row) return;
-			if (row.kind === "header") {
-				toggleTier(row.tier);
-				return;
-			}
-			resolveEntry(row.selectableIndex);
+			resolveEntry(row.entryIndex);
 			return;
 		}
 		const total = displayRows.length;
@@ -149,6 +121,76 @@ export function ClineModelSelectorContent(
 		}
 	}, dialogId);
 
+	let lastTier: string | null = null;
+	let isFirstHeader = true;
+	const renderedRows = visibleRows.flatMap((row) => {
+		const entry = entries[row.entryIndex];
+		if (!entry) return [];
+
+		const elements = [];
+		if (entry.kind === "model" && entry.tier !== lastTier) {
+			lastTier = entry.tier;
+			const label =
+				entry.tier === "clinePass"
+					? "Cline Pass"
+					: entry.tier === "recommended"
+						? "Recommended"
+						: "Free";
+			elements.push(
+				<box
+					key={`tier-${entry.tier}-${row.entryIndex}`}
+					paddingX={1}
+					marginTop={isFirstHeader ? 0 : 1}
+				>
+					<text fg="gray">{label}</text>
+				</box>,
+			);
+			isFirstHeader = false;
+		}
+
+		const isSel = row.entryIndex === selected && !onProvider;
+		const isGray = row.kind === "browse";
+		elements.push(
+			<box
+				key={row.key}
+				paddingX={1}
+				flexDirection="row"
+				gap={1}
+				backgroundColor={isSel ? palette.selection : undefined}
+				marginTop={row.kind === "browse" ? 1 : 0}
+				onMouseDown={() => resolveEntry(row.entryIndex)}
+				overflow="hidden"
+				height={1}
+			>
+				<text fg={isSel ? palette.textOnSelection : "gray"} flexShrink={0}>
+					{isSel ? "\u276f" : " "}
+				</text>
+				<text
+					fg={isSel ? palette.textOnSelection : isGray ? "gray" : undefined}
+				>
+					{row.label}
+				</text>
+				{row.kind === "model" &&
+					row.tags.map((t) => (
+						<text
+							key={t}
+							fg={isSel ? palette.textOnSelection : tagColor(t)}
+							flexShrink={0}
+						>
+							{t}
+						</text>
+					))}
+				{row.kind === "model" && row.isCurrent && (
+					<text fg={isSel ? palette.textOnSelection : "gray"} flexShrink={0}>
+						(current)
+					</text>
+				)}
+			</box>,
+		);
+
+		return elements;
+	});
+
 	return (
 		<box flexDirection="column" gap={1}>
 			<text>
@@ -165,85 +207,7 @@ export function ClineModelSelectorContent(
 						</text>
 					</box>
 				)}
-				{visibleRows.map((row) => {
-					if (row.kind === "header") {
-						const isSel = row.focusIndex === selected && !onProvider;
-						return (
-							<box
-								key={row.key}
-								paddingX={1}
-								height={1}
-								flexDirection="row"
-								gap={1}
-								backgroundColor={isSel ? palette.selection : undefined}
-								onMouseDown={() => toggleTier(row.tier)}
-							>
-								<text
-									fg={isSel ? palette.textOnSelection : "gray"}
-									flexShrink={0}
-								>
-									{isSel ? "\u276f" : " "}
-								</text>
-								<text
-									fg={isSel ? palette.textOnSelection : "gray"}
-									flexShrink={0}
-								>
-									{row.isExpanded ? "▾" : "▸"}
-								</text>
-								<text fg={isSel ? palette.textOnSelection : "gray"}>
-									{row.label}
-								</text>
-							</box>
-						);
-					}
-					const isSel = row.focusIndex === selected && !onProvider;
-					const isGray = row.kind === "browse";
-					return (
-						<box
-							key={row.key}
-							paddingX={1}
-							flexDirection="row"
-							gap={1}
-							backgroundColor={isSel ? palette.selection : undefined}
-							marginTop={row.kind === "browse" ? 1 : 0}
-							onMouseDown={() => resolveEntry(row.selectableIndex)}
-							overflow="hidden"
-							height={1}
-						>
-							<text
-								fg={isSel ? palette.textOnSelection : "gray"}
-								flexShrink={0}
-							>
-								{isSel ? "\u276f" : " "}
-							</text>
-							<text
-								fg={
-									isSel ? palette.textOnSelection : isGray ? "gray" : undefined
-								}
-							>
-								{row.label}
-							</text>
-							{row.kind === "model" &&
-								row.tags.map((t) => (
-									<text
-										key={t}
-										fg={isSel ? palette.textOnSelection : tagColor(t)}
-										flexShrink={0}
-									>
-										{t}
-									</text>
-								))}
-							{row.kind === "model" && row.isCurrent && (
-								<text
-									fg={isSel ? palette.textOnSelection : "gray"}
-									flexShrink={0}
-								>
-									(current)
-								</text>
-							)}
-						</box>
-					);
-				})}
+				{renderedRows}
 				{showBelow && (
 					<box paddingX={1} justifyContent="center" height={1}>
 						<text fg="gray">

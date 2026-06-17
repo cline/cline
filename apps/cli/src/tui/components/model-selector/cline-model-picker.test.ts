@@ -4,7 +4,6 @@ import {
 	buildClineModelEntries,
 	buildClineModelPickerDisplayRows,
 	getClineModelPickerDisplayRowsWindow,
-	getVisibleClineModelPickerEntries,
 	resolveClineModelProviderId,
 } from "./cline-model-picker-utils";
 
@@ -97,84 +96,34 @@ describe("cline model picker helpers", () => {
 		expect(resolveClineModelProviderId("free")).toBe("cline");
 	});
 
-	it("keeps section header focus indexes stable when sections expand or collapse", () => {
+	it("builds flat display rows for every picker entry", () => {
 		const entries = buildClineModelEntries(data, { includeClinePass: true });
-		const collapsedRows = buildClineModelPickerDisplayRows(
-			entries,
-			undefined,
-			undefined,
-			{
-				clinePass: false,
-				recommended: true,
-				free: true,
-			},
-		);
-		const expandedRows = buildClineModelPickerDisplayRows(
-			entries,
-			undefined,
-			undefined,
-			{
-				clinePass: true,
-				recommended: true,
-				free: true,
-			},
-		);
+		const rows = buildClineModelPickerDisplayRows(entries);
 
 		expect(
-			collapsedRows.find(
-				(row) => row.kind === "header" && row.tier === "clinePass",
-			)?.focusIndex,
-		).toBe(0);
-		expect(
-			expandedRows.find(
-				(row) => row.kind === "header" && row.tier === "clinePass",
-			)?.focusIndex,
-		).toBe(0);
-	});
-
-	it("filters collapsed tiers while keeping browse selectable", () => {
-		const visible = getVisibleClineModelPickerEntries(
-			buildClineModelEntries(data),
-			{
-				recommended: true,
-				free: false,
-			},
-		);
-
-		expect(
-			visible.map((entry) =>
-				entry.kind === "model" ? entry.model.id : "browse",
+			rows.map((row) =>
+				row.kind === "model"
+					? { kind: row.kind, entryIndex: row.entryIndex }
+					: row,
 			),
 		).toEqual([
-			"anthropic/claude-sonnet-4.6",
-			"openai/gpt-5.3-codex",
-			"browse",
+			{ kind: "model", entryIndex: 0 },
+			{ kind: "model", entryIndex: 1 },
+			{ kind: "model", entryIndex: 2 },
+			{ kind: "model", entryIndex: 3 },
+			{ kind: "model", entryIndex: 4 },
+			{
+				kind: "browse",
+				key: "browse-all",
+				label: "Browse all models...",
+				entryIndex: 5,
+			},
 		]);
 	});
 
-	it("windows display rows around focus indexes, including expandable headers", () => {
+	it("windows flat display rows around selected indexes", () => {
 		const entries = buildClineModelEntries(data);
-		const rows = buildClineModelPickerDisplayRows(
-			entries,
-			undefined,
-			undefined,
-			{
-				recommended: false,
-				free: true,
-			},
-		);
-
-		const headers = rows.filter((row) => row.kind === "header");
-		expect(headers).toMatchObject([
-			{ tier: "recommended", focusIndex: 0, isExpanded: false },
-			{ tier: "free", focusIndex: 1, isExpanded: true },
-		]);
-
-		const freeRows = rows.filter((row) => row.kind === "model");
-		expect(freeRows).toMatchObject([
-			{ entryIndex: 2, selectableIndex: 0, focusIndex: 2 },
-			{ entryIndex: 3, selectableIndex: 1, focusIndex: 3 },
-		]);
+		const rows = buildClineModelPickerDisplayRows(entries);
 
 		const window = getClineModelPickerDisplayRowsWindow(rows, 3, 3);
 		expect(
