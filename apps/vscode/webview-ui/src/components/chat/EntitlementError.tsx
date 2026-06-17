@@ -15,7 +15,6 @@ const CLINE_PASS_SUBSCRIBE_PATH = "dashboard/subscription"
 const HEADLINE = "This model requires a Cline Pass subscription."
 
 function buildSubscribeUrl(appBaseUrl?: string): string | undefined {
-	// appBaseUrl (when present) is env-aware; omit the link if it's unavailable rather than guess a URL.
 	if (!appBaseUrl) {
 		return undefined
 	}

@@ -2,7 +2,6 @@ import { fireEvent, render, screen } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import EntitlementError from "./EntitlementError"
 
-// Mutated per-test to simulate different auth states.
 const mockAuth: { clineUser: { appBaseUrl?: string } | null } = { clineUser: null }
 
 vi.mock("@/context/ClineAuthContext", () => ({
