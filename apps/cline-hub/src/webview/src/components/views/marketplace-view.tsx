@@ -42,7 +42,6 @@ type InstallState =
 			status: "installed";
 			message: string;
 			output?: string;
-			warnings?: string[];
 	  }
 	| { status: "failed"; message: string };
 
@@ -50,7 +49,6 @@ type MarketplaceInstallResult = {
 	status: "installed";
 	message: string;
 	output?: string;
-	warnings?: string[];
 };
 
 type MarketplaceInstallStatusResult = {
@@ -385,7 +383,6 @@ function InstallDialog({
 				status: "installed",
 				message: result.message,
 				output: result.output,
-				warnings: result.warnings,
 			});
 			onInstalled(entry);
 		} catch (error) {

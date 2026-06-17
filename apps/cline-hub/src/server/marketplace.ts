@@ -35,7 +35,6 @@ type MarketplaceInstallResult = {
 	message: string;
 	details?: JsonRecord;
 	output?: string;
-	warnings?: string[];
 };
 
 type MarketplaceInstallStatusResult = {
@@ -67,14 +66,6 @@ const MARKETPLACE_CATALOG_URL =
 	"https://cline.github.io/marketplace/catalog.json";
 const SECRET_PATTERN =
 	/(api[_ -]?key|access[_ -]?token|refresh[_ -]?token|auth(?:orization)?[_ -]?token|token|secret|password|authorization|credential)/i;
-const DEBUG_MARKETPLACE =
-	process.env.CLINE_HUB_DEBUG === "1" ||
-	process.env.CLINE_HUB_DEBUG?.toLowerCase() === "true";
-
-function logMarketplace(message: string, details?: Record<string, unknown>) {
-	if (!DEBUG_MARKETPLACE) return;
-	console.info("[marketplace]", message, details ?? {});
-}
 
 export async function fetchMarketplaceCatalog(
 	fetchImpl: CatalogFetch = fetch,
@@ -236,11 +227,6 @@ const defaultSpawnCommand: SpawnCommand = async (command, args, options = {}) =>
 	new Promise<SpawnResult>((resolve, reject) => {
 		let settled = false;
 		let timedOut = false;
-		const startedAt = Date.now();
-		logMarketplace("spawn-start", {
-			command,
-			args: args.map((arg) => (SECRET_PATTERN.test(arg) ? "[redacted]" : arg)),
-		});
 		const child = spawn(command, args, {
 			...options,
 			env: options.env ?? process.env,
@@ -277,11 +263,6 @@ const defaultSpawnCommand: SpawnCommand = async (command, args, options = {}) =>
 		child.once("error", (error) => {
 			clearTimeout(timeout);
 			clearTimeout(forceKillTimeout);
-			logMarketplace("spawn-error", {
-				command,
-				elapsedMs: Date.now() - startedAt,
-				error: error.message,
-			});
 			reject(error);
 		});
 		child.once("close", (code, signal) => {
@@ -293,15 +274,6 @@ const defaultSpawnCommand: SpawnCommand = async (command, args, options = {}) =>
 				stdout,
 				stderr,
 			};
-			logMarketplace("spawn-close", {
-				command,
-				exitCode: result.exitCode,
-				signal,
-				timedOut,
-				elapsedMs: Date.now() - startedAt,
-				stdoutChars: stdout.length,
-				stderrChars: stderr.length,
-			});
 			resolve(result);
 		});
 	});
@@ -443,14 +415,7 @@ function isOfficialPluginInstalled(entry: MarketplaceInstallInput): boolean {
 	const [source] = entry.install.args ?? [];
 	if (!source) return false;
 	const installPath = getOfficialPluginInstallPath(source);
-	const installed = Boolean(installPath && existsSync(installPath));
-	logMarketplace("plugin-installed-check", {
-		id: entry.id,
-		source,
-		installPath,
-		installed,
-	});
-	return installed;
+	return Boolean(installPath && existsSync(installPath));
 }
 
 function normalizeMatchValue(value: string | undefined): string {
@@ -515,14 +480,7 @@ function isGlobalSkillInstalled(entry: MarketplaceInstallInput): boolean {
 	if (entry.type !== "skill") return false;
 	const candidates = getSkillInstallCandidates(entry);
 	const checkedPaths = candidates.flatMap(getGlobalSkillPaths);
-	const installed = checkedPaths.some((path) => existsSync(path));
-	logMarketplace("skill-installed-check", {
-		id: entry.id,
-		candidates,
-		checkedPaths,
-		installed,
-	});
-	return installed;
+	return checkedPaths.some((path) => existsSync(path));
 }
 
 function hasMatchingInventoryItem(
@@ -595,10 +553,6 @@ async function installSkill(
 	spawnCommand: SpawnCommand,
 ): Promise<MarketplaceInstallResult> {
 	if (isGlobalSkillInstalled(entry)) {
-		logMarketplace("skill-install-skip-installed", {
-			id: entry.id,
-			name: entry.name,
-		});
 		return {
 			id: entry.id,
 			type: entry.type,
@@ -606,10 +560,6 @@ async function installSkill(
 			message: `${entry.name ?? entry.id} is already installed.`,
 		};
 	}
-	logMarketplace("skill-install-start", {
-		id: entry.id,
-		name: entry.name,
-	});
 	ensureGlobalSkillsDirWritable();
 	const result = await spawnCommand("npx", [
 		"-y",
@@ -655,11 +605,6 @@ async function installPlugin(
 		);
 	}
 	if (isOfficialPluginInstalled(entry)) {
-		logMarketplace("plugin-install-skip-installed", {
-			id: entry.id,
-			name: entry.name,
-			source: installArgs[0],
-		});
 		return {
 			id: entry.id,
 			type: entry.type,
@@ -668,13 +613,6 @@ async function installPlugin(
 		};
 	}
 	const { command, argsPrefix } = resolveClineInvocation();
-	logMarketplace("plugin-install-start", {
-		id: entry.id,
-		name: entry.name,
-		source: installArgs[0],
-		command,
-		argsPrefix,
-	});
 	const result = await spawnCommand(command, [
 		...argsPrefix,
 		"plugin",
@@ -710,11 +648,6 @@ export async function installMarketplaceEntry(
 	options: { spawnCommand?: SpawnCommand } = {},
 ): Promise<MarketplaceInstallResult> {
 	const entry = readInstallInput(args);
-	logMarketplace("install-entry", {
-		id: entry.id,
-		type: entry.type,
-		name: entry.name,
-	});
 	const spawnCommand = options.spawnCommand ?? defaultSpawnCommand;
 	if (entry.type === "mcp") {
 		const input = buildMarketplaceMcpInput(entry.install.args ?? []);
@@ -768,16 +701,6 @@ export function listMarketplaceInstalledEntries(
 	const installedKeys = entries
 		.filter((entry) => isMarketplaceEntryInstalled(entry, inventory))
 		.map(marketplaceEntryKey);
-	logMarketplace("list-installed", {
-		entryCount: entries.length,
-		installedKeys,
-		inventorySkillCount: Array.isArray(inventory?.skills)
-			? inventory.skills.length
-			: undefined,
-		inventoryPluginCount: Array.isArray(inventory?.plugins)
-			? inventory.plugins.length
-			: undefined,
-	});
 	return { installedKeys };
 }
 
