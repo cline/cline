@@ -111,13 +111,10 @@ export function OnboardingView(props: OnboardingViewProps) {
 		return (
 			<OnboardingClineModelScreen
 				clineEntries={state.clineEntries}
-				clineExpandedTiers={state.clineExpandedTiers}
 				clineKnownModels={state.clineKnownModels}
 				clineModelSelected={state.clineModelSelected}
 				compact={compact}
 				contentWidth={contentWidth}
-				onEntrySelect={state.handleClineModelEntrySelect}
-				onToggleTier={state.handleClineModelTierToggle}
 				mouse={mouse}
 				recommendedLoading={state.recommendedLoading}
 			/>
