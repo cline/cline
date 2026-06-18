@@ -385,6 +385,15 @@ class DebugHarness {
 					"--disable-updates",
 					"--skip-welcome",
 					"--skip-release-notes",
+					// Headless/VM GPU stacks crash the renderer's GPU process
+					// ("Exiting GPU process during initialization" /
+					// "CreateCommandBuffer kTransientFailure"), which can kill the window
+					// before Playwright finishes attaching and trip the launch timeout.
+					// Force software rendering for a stable debugee.
+					"--disable-gpu",
+					"--disable-gpu-compositing",
+					"--disable-software-rasterizer",
+					"--disable-dev-shm-usage",
 					`--user-data-dir=${userDataDir}`,
 					workspace,
 				],
