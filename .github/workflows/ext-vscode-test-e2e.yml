@@ -141,6 +141,9 @@ jobs:
               run: bun run build:sdk
 
             - name: Assert better-sqlite3 native binary present
+              # Force bash: the Windows runner defaults to pwsh, which can't parse this
+              # POSIX test. Git Bash ships on GitHub's windows-latest images.
+              shell: bash
               run: |
                   NODE_FILE="node_modules/better-sqlite3/build/Release/better_sqlite3.node"
                   if [ ! -f "$NODE_FILE" ]; then

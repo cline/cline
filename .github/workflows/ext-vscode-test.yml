@@ -268,7 +268,6 @@ jobs:
               with:
                   name: pr-coverage-reports
                   path: |
-                      apps/vscode/coverage-unit/lcov.info
                       apps/vscode/webview-ui/coverage/lcov.info
 
     test-platform-integration:
