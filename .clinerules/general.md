@@ -13,14 +13,7 @@ This file is the secret sauce for working effectively in this codebase. It captu
 **What NOT to add:** Stuff you can figure out from reading a few files, obvious patterns, or standard practices. This file should be high-signal, not comprehensive.
 
 ## Miscellaneous
-- **`apps/vscode` uses bun for package management + task running (NOT npm).** Emit bun
-  commands, never npm/npx: `npm run X` → `bun run X`, `npm install`/`npm ci` → `bun install`,
-  `npx <bin>` → `bunx <bin>`, `node esbuild.mjs` → `bun esbuild.mjs`, `npx tsx file.ts` → `bun file.ts`.
-  **Node is still the runtime, not the tooling.** Do NOT "fix" runtime/ABI Node references to bun:
-  esbuild `platform:"node"`/`target:"node"`, `TARGET_NODE_VERSION`, `prebuild-install --target`,
-  `NODE_PATH ... node cline-core.js`, `node:` import specifiers, `process.versions.node`,
-  `engines.node`, and `ELECTRON_RUN_AS_NODE` are all legitimate Node-runtime tokens. See
-  `apps/vscode/docs/bun-migration-notes.md` for the full keep-list vs rewrite-list.
+- The whole repo (including `apps/vscode`) uses **bun** for package management and task running. Emit `bun run X` / `bun install` / `bunx <bin>` / `bun file.ts`, never npm/npx. Node remains the *runtime* (VS Code's extension host and the standalone cline-core are Node), so Node-runtime tokens are legitimate and must not be "fixed" to bun — see @.clinerules/bun-and-node.md for the keep-list vs rewrite-list.
 - Avoid provider-specific string matching / hardcoded provider branches when fixing provider/config plumbing. Prefer provider metadata, shared catalog/defaults, explicit protocol/client capabilities, or centralized normalization utilities that apply by data shape rather than `providerId === "..."`. If a provider exception seems necessary, stop and explain why instead of adding ad-hoc string matching.
 - This is a VS Code extension—check `package.json` for available scripts before trying to verify builds (e.g., `bun run compile`, not `bun run build`).
 - When creating PRs, contributors should not create changelog-entry files. Maintainers handle release versioning and changelog curation during the release process.

@@ -91,7 +91,7 @@ On the main branch, create a commit that updates:
 
 3. No changelog-entry file cleanup is needed. Contributors do not create changelog-entry files in this repo.
 
-**Skip running `bun run install:all`** - release automation handles lockfile consistency as needed.
+**No dependency install is needed.** A CHANGELOG + `version` bump does not change any dependency, and `bun.lock` does not pin workspace-package versions, so the lockfile stays consistent. The publish workflow runs `bun install --frozen-lockfile`, which would *fail* on an out-of-sync lock — so only run `bun install` here if you actually change dependencies (then commit the updated `bun.lock`).
 
 Commit with message format: `v{VERSION} Release Notes (hotfix)`
 

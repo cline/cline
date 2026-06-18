@@ -2,28 +2,24 @@
 
 import path from "node:path"
 /**
- * Isolated bun-test runner for the node-side UNIT suites migrated off mocha.
+ * Runner for the node-side `bun test` unit suites.
  *
- * Scope: the `.mocharc.json` spec set —
- *   src/**\/__tests__/*.test.ts  +  src/test/services/**\/*.test.ts
- * MINUS the five model-catalog `__tests__` files (vitest-native; covered by
- * `run-bun-tests.ts`), MINUS any ELECTRON_HOST_ONLY files that genuinely require
- * the real VSCode Electron host (they stay on @vscode/test-cli).
+ * A test file belongs to this runner iff it imports from "bun:test" (files that
+ * need the real VS Code extension host import from "mocha" and run under
+ * @vscode/test-cli instead). We glob all `*.test.ts` and keep only the
+ * bun:test ones; the SDK/model-catalog suites listed in IGNORED run through
+ * `run-bun-tests.ts`, so they're skipped here to avoid double-running.
  *
- * WHY process-per-file (the critical bit):
- *   `bun test --parallel <allFiles>` reuses a small pool of WORKER PROCESSES and
- *   `mock.module(...)` registrations accumulate across files that share a worker.
- *   Suites that mock the SAME specifier with different shapes (e.g.
- *   `@core/storage/disk`, `@cline/core`, `fs/promises`, `os`) then clobber each
- *   other and produce false cross-file failures that only appear at scale. mocha
- *   and vitest both gave us per-FILE module-registry isolation; a single bun
- *   process does not. To restore that, we spawn ONE `bun test` process PER FILE
- *   (bounded by a small concurrency pool), so every file gets a fresh module
- *   registry. Implemented with `Bun.spawn` here — a bash per-file loop is too
- *   slow / OOM-prone in constrained shells.
+ * Why one process per file: `bun test --parallel <allFiles>` reuses a pool of
+ * worker processes, and `mock.module(...)` registrations accumulate across files
+ * sharing a worker. Suites that mock the same specifier with different shapes
+ * (e.g. `@core/storage/disk`, `@cline/core`, `fs/promises`, `os`) then clobber
+ * each other and fail only at scale. Spawning one `bun test` process per file
+ * (bounded by a small concurrency pool, via `Bun.spawn`) gives each file a fresh
+ * module registry.
  *
  * Usage:
- *   bun scripts/run-bun-unit-tests.ts            # run unit set, isolated
+ *   bun scripts/run-bun-unit-tests.ts            # run the suite, isolated
  *   bun scripts/run-bun-unit-tests.ts --list     # print the resolved file list
  *   bun scripts/run-bun-unit-tests.ts --all      # include ELECTRON_HOST_ONLY
  *   bun scripts/run-bun-unit-tests.ts -c 6       # concurrency (default 4)
@@ -32,17 +28,13 @@ import { Glob } from "bun"
 
 const projectRoot = path.resolve(import.meta.dir, "..")
 
-// Single source of truth: a test file runs under `bun test` iff it imports from
-// "bun:test". The mocha->bun codemod rewrote the node-side unit suite to import
-// `bun:test`; files that still rely on the @vscode/test-cli Electron host import
-// from "mocha" and are owned by that runner (.vscode-test.mjs), so they're
-// excluded here automatically by the import filter below.
+// A file runs under `bun test` iff it imports "bun:test"; mocha-owned files are
+// skipped by the import filter in resolveFiles().
 const INCLUDE_PATTERNS = ["src/**/*.test.ts"]
-// Matches `... from "bun:test"` (the marker that a file is bun-runner-owned).
 const BUN_TEST_IMPORT = /from\s+["']bun:test["']/
 
-// `.mocharc.json` `ignore`: the model-catalog suites are vitest-native and run
-// through `run-bun-tests.ts`; excluding them avoids double-running.
+// SDK + model-catalog suites run through `run-bun-tests.ts`; skip them here so
+// they aren't run twice.
 const IGNORED = new Set<string>([
 	"src/core/controller/models/__tests__/providerCatalogHandlers.test.ts",
 	"src/core/controller/models/__tests__/providerCatalogSmoke.test.ts",

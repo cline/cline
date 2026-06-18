@@ -3,26 +3,23 @@
 import { spawn } from "node:child_process"
 import path from "node:path"
 /**
- * Bun-test runner for the vitest-native unit suites (SDK adapter + model
- * catalog). This is the `bun test` counterpart of `test:vitest`.
+ * Runner for the SDK-adapter + model-catalog `bun test` suites (the same set
+ * `vitest.config.ts` covers; `test:vitest` runs them under vitest).
  *
  * Why a script instead of a bare `bun test <globs>`:
  *
- *  1. Curated include set. `vitest.config.ts` runs a specific list of globs +
- *     explicit files — NOT the whole tree. We mirror that exact list here (see
- *     INCLUDE_PATTERNS) so the bun run covers the same files vitest does, no
- *     more (don't pull in mocha/@vscode/test-cli suites) and no less.
- *     `bun test`'s positional args do not expand `**` globs the way we need, so
- *     we resolve them ourselves with bun's `Glob`.
+ *  1. Curated include set. These suites are an explicit list (see
+ *     INCLUDE_PATTERNS, kept in sync with `vitest.config.ts` `test.include`),
+ *     not the whole tree, so the node-side unit and @vscode/test-cli suites are
+ *     not pulled in. `bun test`'s positional args don't expand `**` the way we
+ *     need, so we resolve the globs ourselves with bun's `Glob`.
  *
- *  2. Per-file isolation (the parity-critical bit). vitest's default `forks`
- *     pool runs each test file in its own process, so module mocks
- *     (`vi.mock(...)` / `mock.module(...)`) are file-local. `bun test` runs all
- *     files in ONE process by default, so several suites that mock the same
- *     specifier with different shapes (e.g. `@/core/storage/StateManager`,
- *     `@cline/core`) clobber each other and produce false failures. `--parallel`
- *     runs each file in a separate worker process, restoring vitest's isolation
- *     and full pass parity (582/582 at time of writing).
+ *  2. One process per file. `bun test` runs all files in a single process by
+ *     default, so `mock.module(...)` registrations leak between files — suites
+ *     mocking the same specifier with different shapes (e.g.
+ *     `@/core/storage/StateManager`, `@cline/core`) clobber each other.
+ *     `--parallel` runs each file in its own worker process, giving each a fresh
+ *     module registry.
  *
  * Usage:
  *   bun scripts/run-bun-tests.ts            # run the curated set, isolated

@@ -1,45 +1,37 @@
-// Bun test preload — module-substitution aliases for `bun test`.
+// Preload for `bun test` (registered via bunfig.toml [test] preload). It makes
+// the SDK-adapter and model-catalog unit tests — written against vitest's `vi`
+// API and module aliases — run under `bun test`.
 //
-// Background on what bun does automatically and what it does NOT:
+// TODO: migrate these suites to native `bun:test` (use `mock.module` / `spyOn`
+// directly and stub `vscode`/`@cline/core` per-file) and delete this preload's
+// `vi` shim. Until then the detail below documents exactly why the shim is shaped
+// the way it is.
 //
-//   • tsconfig.json `paths` (@/*, @core/*, @shared/*, @shared/proto/cline/*,
-//     @utils/*, …) — bun resolves these on its own.
-//   • Real workspace packages @cline/llms, @cline/shared and the subpath
-//     @cline/shared/storage — bun honors their package.json `exports`/`main`
-//     and loads the same dist builds vitest.config.ts aliases them to.
+// Two specifiers have real on-disk implementations that must be shadowed with
+// lightweight stubs in unit tests:
 //
-// What bun will NOT do is the *module substitution* vitest.config.ts performs
-// for two specifiers that have real on-disk implementations we must shadow in
-// unit tests:
-//
-//   vscode       -> src/test/vscode-vitest-stub.ts     (no VSCode host in bun)
+//   vscode       -> src/test/vscode-vitest-stub.ts     (no VS Code host under bun)
 //   @cline/core  -> src/test/cline-core-vitest-stub.ts (lightweight SDK stub)
 //
-// Bun's runtime plugin `onResolve` hook (loaded via preload) does NOT intercept
-// these specifiers: `vscode` is treated as a host/builtin-like module and
-// `@cline/core` is a symlinked workspace package, both of which bun resolves at
-// a layer below the JS plugin resolver (verified empirically — the onResolve
-// callback never fires for either specifier). The mechanism that DOES work for
-// `bun test` is `mock.module()`, which registers an in-memory module override
-// that takes precedence over real resolution for the whole test process.
-// A second, subtler parity gap: bun's ESM linker statically validates every
-// named import against the *names present on the mock namespace*. The hand-
-// written cline-core-vitest-stub.ts only implements the handful of @cline/core
-// exports these unit tests actually exercise — but other source files in the
-// import graph statically import additional @cline/core names (e.g.
-// `prepareRemoteConfigCoreIntegration`, `ClineCore`, `createMcpTools`). Under
-// vitest those resolve to `undefined` (vite tolerates missing aliased exports);
-// under bun the missing names are a hard "Export named 'X' not found" link
-// error. To restore vitest's leniency without bloating the shared stub, we seed
-// the mock namespace with every name the *real* @cline/core exports (value
-// `undefined`) and then overlay the stub's real implementations on top. Net
-// effect: stub names keep stub behavior, every other valid @cline/core import
-// links successfully as `undefined` — exactly what vitest does.
+// bun's runtime plugin `onResolve` hook does NOT intercept these (`vscode` is
+// host/builtin-like and `@cline/core` is a symlinked workspace package — both
+// resolve below the JS plugin resolver). `mock.module()` is what works: it
+// registers an in-memory override that takes precedence for the whole test
+// process. (Other workspace packages — @cline/llms, @cline/shared,
+// @cline/shared/storage — and the tsconfig `paths` aliases resolve on their own.)
+//
+// bun's ESM linker statically validates every named import against the names on
+// the mock namespace. The stub only implements the @cline/core exports these
+// tests exercise, but other modules in the import graph statically import
+// additional names (e.g. `prepareRemoteConfigCoreIntegration`, `ClineCore`,
+// `createMcpTools`); a missing name is a hard "Export named 'X' not found" link
+// error. So we seed the mock namespace with every name the real @cline/core
+// exports (value `undefined`) and overlay the stub on top: stub names keep stub
+// behavior, every other valid import links as `undefined`.
 //
 // Importing the real package here is safe: the preload runs before any test
-// file, so this is the only point where the real module is linked, and we only
-// read its export *names*, never its behavior (the mock shadows it everywhere
-// the tests look).
+// file, so this is the only point the real module is linked, and we only read
+// its export *names*, never its behavior (the mock shadows it everywhere tests look).
 import { vi as bunVi, mock } from "bun:test"
 import * as realClineCore from "@cline/core"
 import * as clineCoreStub from "./cline-core-vitest-stub"
