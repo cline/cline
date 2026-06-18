@@ -3,11 +3,20 @@ import { isWebviewRoute, normalizeWebviewIndexHtml } from "./http";
 
 describe("isWebviewRoute", () => {
 	it.each([
+		"/",
+		"/chat",
+		"/sessions",
+		"/models",
+		"/customizations",
 		"/marketplace",
 		"/marketplace/mcp",
 		"/marketplace/skills",
 		"/marketplace/plugins",
-	])("matches marketplace SPA route %s", (pathname) => {
+		"/channels",
+		"/schedules",
+		"/settings",
+		"/settings/providers",
+	])("matches dashboard SPA route %s", (pathname) => {
 		expect(isWebviewRoute(pathname)).toBe(true);
 	});
 
