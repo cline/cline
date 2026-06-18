@@ -169,7 +169,6 @@ const ModelSelection = ({
 							{searchTerm &&
 								searchedModels.map(([id, info]) => {
 									const isSelected = selectedModelId === id
-									// Convert ModelInfo to OpenRouterModelInfo for OnboardingModel
 									const modelInfo: OpenRouterModelInfo = {
 										name: info.name,
 										maxTokens: info.maxTokens,
@@ -321,8 +320,7 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 	// Set when a ClinePass user starts signup; cleared once the subscription page is opened.
 	const pendingClinePassSubscribe = useRef(false)
 
-	// Opens the ClinePass subscription page once a pending signup is authenticated.
-	// Runs from the auth effect below; the ref guard prevents a double open.
+	// Opens the ClinePass subscription page once a pending signup is authenticated (ref guard prevents a double open).
 	const openClinePassSubscriptionIfPending = useCallback(() => {
 		if (pendingClinePassSubscribe.current && clineUser?.uid) {
 			pendingClinePassSubscribe.current = false
@@ -379,7 +377,6 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 			const isClinePassModel = selectedModelId.startsWith("cline-pass/")
 			if (modelSelected) {
 				if (userType === NEW_USER_TYPE.CLINE_PASS && isClinePassModel) {
-					// ClinePass uses its own provider + model fields.
 					const clinePassModelInfo = resolveClinePassModelInfo(selectedModelId, openRouterModelsByName)
 					await handleFieldsChange({
 						planModeClinePassModelId: selectedModelId,
