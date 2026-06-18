@@ -17,7 +17,13 @@
  *   --auto-launch       Automatically launch VSCode on startup
  *   --workspace PATH    Workspace directory to open
  *   --port PORT         Server port (default: 19229)
+ *   --launch-timeout MS Playwright _electron.launch timeout (default: 120000)
  *   --no-browser-capture  Let openExternal() open real browser windows (for interactive OAuth)
+ *
+ * Env:
+ *   VSCODE_TEST_VERSION  Debugee VSCode version to download (default: 1.103.0; the
+ *                        bundled Playwright cannot drive the Electron in the latest
+ *                        "stable"). Set to "stable" or a pinned x.y.z to override.
  *
  * Then send commands:
  *   curl localhost:19229/api -d '{"method":"launch"}'
@@ -49,6 +55,10 @@ function getArg(name: string): string | undefined {
 
 const PORT = Number.parseInt(getArg("--port") || "19229", 10)
 const EXT_INSPECT_PORT = 9230
+// Playwright's _electron.launch() resolves once it controls the Electron main
+// process. A cold launch (first-run profile init, slow CI/VM) can exceed the old
+// 60s default, so allow more headroom and let it be overridden.
+const LAUNCH_TIMEOUT_MS = Number.parseInt(getArg("--launch-timeout") || "120000", 10)
 const PROJECT_ROOT = path.resolve(__script_dir, "..", "..", "..")
 const SCREENSHOT_DIR = path.join(os.tmpdir(), "cline-debug")
 const DEFAULT_WORKSPACE = path.join(os.tmpdir(), "cline-debug-workspace")
@@ -409,9 +419,13 @@ class DebugHarness {
 					CLINE_CAPTURE_BROWSER: BROWSER_CAPTURE ? "1" : "0",
 					CLINE_DEBUG_HARNESS_PORT: String(PORT),
 				},
-				timeout: 60000,
+				timeout: LAUNCH_TIMEOUT_MS,
 			})
 		} catch (e: any) {
+			// Best-effort: kill the orphaned Electron so a retry isn't blocked by a
+			// half-launched instance, and so Playwright stops emitting late rejections
+			// on the dead CDP transport.
+			await this.app?.close().catch(() => {})
 			this.app = null
 			throw new Error(`Failed to launch VSCode: ${e.message}`)
 		}
@@ -1585,3 +1599,15 @@ async function cleanShutdown() {
 }
 process.on("SIGINT", cleanShutdown)
 process.on("SIGTERM", cleanShutdown)
+
+// Keep the harness alive on stray async errors. A failed/aborted VSCode launch
+// (e.g. Playwright's _electron.launch timing out) can emit a late rejection on
+// the dead CDP transport AFTER we've already handled the launch error; without
+// this, the default behavior would crash the whole server and you'd have to
+// restart it just to retry. Log and keep serving so `launch` can be retried.
+process.on("unhandledRejection", (reason: unknown) => {
+	log("Unhandled rejection (ignored, server stays up):", reason instanceof Error ? reason.message : String(reason))
+})
+process.on("uncaughtException", (err: Error) => {
+	log("Uncaught exception (ignored, server stays up):", err.message)
+})
