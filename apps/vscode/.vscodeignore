@@ -11,7 +11,11 @@ out/
 dist-standalone/
 node_modules/
 # Nested workspace-member node_modules (bun links these under each package).
-**/node_modules/**
+# Scoped to the sub-package dirs so it doesn't shadow the top-level
+# node_modules/@vscode/codicons re-include below.
+webview-ui/node_modules/**
+testing-platform/node_modules/**
+standalone/**/node_modules/**
 src/**
 standalone/**
 # Build/dev tooling and inputs — bundled into dist/extension.js, not needed in the VSIX.
