@@ -8,6 +8,13 @@ describe("isWebviewRoute", () => {
 		"/sessions",
 		"/models",
 		"/customizations",
+		"/rules",
+		"/hooks",
+		"/mcp",
+		"/plugins",
+		"/skills",
+		"/agents",
+		"/tools",
 		"/marketplace",
 		"/marketplace/mcp",
 		"/marketplace/skills",
@@ -34,5 +41,14 @@ describe("normalizeWebviewIndexHtml", () => {
 		).toBe(
 			'<script type="module" src="/assets/index.js"></script><link href="/assets/index.css">',
 		);
+	});
+
+	it("injects the persisted theme bootstrap once", () => {
+		const normalized = normalizeWebviewIndexHtml(
+			"<html><head></head><body></body></html>",
+		);
+
+		expect(normalized).toContain('id="cline-hub-theme-bootstrap"');
+		expect(normalizeWebviewIndexHtml(normalized)).toBe(normalized);
 	});
 });

@@ -18,7 +18,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
 import { desktopClient } from "@/lib/desktop-client";
 import {
@@ -28,6 +27,7 @@ import {
 	type MarketplacePrimitiveType,
 	type MarketplaceTag,
 } from "@/lib/marketplace";
+import { CommandBadge, PageFrame, PageHeader } from "./page-layout";
 
 type EntryActionState =
 	| { status: "idle" }
@@ -96,6 +96,12 @@ const primitivePageDetails = {
 		icon: typeof Server;
 	}
 >;
+
+const primitiveCommands = {
+	mcp: "cline mcp install",
+	plugin: "cline plugin install",
+	skill: "cline skill add",
+} satisfies Record<MarketplacePrimitiveType, string>;
 
 const primitiveBadgeLabels: Record<MarketplacePrimitiveType, string> = {
 	mcp: "MCP Server",
@@ -475,8 +481,10 @@ function MarketplaceSection({
 }
 
 export function MarketplaceView({
+	chrome = "page",
 	primitive,
 }: {
+	chrome?: "page" | "embedded";
 	primitive: MarketplacePrimitiveType;
 }) {
 	const [catalog, setCatalog] = useState<MarketplaceCatalog | null>(null);
@@ -685,134 +693,133 @@ export function MarketplaceView({
 		}
 	};
 
-	return (
-		<ScrollArea className="h-full">
-			<div className="mx-auto max-w-6xl px-6 py-6 max-[720px]:px-3">
-				<div className="mb-6 flex flex-col gap-4 border-b pb-5 lg:flex-row lg:items-end lg:justify-between">
-					<div>
-						<h1 className="flex items-center gap-3 text-2xl font-semibold tracking-normal text-foreground">
-							<PageIcon className="size-8 text-primary" />
-							<span>{pageDetails.title}</span>
-						</h1>
-						<p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-							{pageDetails.description}
-						</p>
-					</div>
-					{catalog?.generatedAt ? (
-						<p className="text-xs text-muted-foreground">
-							Updated{" "}
-							{new Intl.DateTimeFormat(undefined, {
-								month: "short",
-								day: "numeric",
-								year: "numeric",
-							}).format(new Date(catalog.generatedAt))}
-						</p>
-					) : null}
+	const content = (
+		<div className="grid gap-6">
+			{chrome === "page" ? (
+				<PageHeader
+					description={pageDetails.description}
+					icon={PageIcon}
+					title={pageDetails.title}
+					meta={<CommandBadge>{primitiveCommands[primitive]}</CommandBadge>}
+					actions={
+						catalog?.generatedAt ? (
+							<p className="text-xs text-muted-foreground">
+								Updated{" "}
+								{new Intl.DateTimeFormat(undefined, {
+									month: "short",
+									day: "numeric",
+									year: "numeric",
+								}).format(new Date(catalog.generatedAt))}
+							</p>
+						) : null
+					}
+				/>
+			) : null}
+
+			{!catalog && !errorMessage ? (
+				<div className="flex min-h-80 items-center justify-center rounded-lg border bg-card text-sm text-muted-foreground">
+					<Spinner className="mr-2" />
+					Loading marketplace...
 				</div>
+			) : null}
 
-				{!catalog && !errorMessage ? (
-					<div className="flex min-h-80 items-center justify-center rounded-lg border bg-card text-sm text-muted-foreground">
-						<Spinner className="mr-2" />
-						Loading marketplace...
-					</div>
-				) : null}
+			{catalog && !installedStatusReady ? (
+				<div className="flex min-h-80 items-center justify-center rounded-lg border bg-card text-sm text-muted-foreground">
+					<Spinner className="mr-2" />
+					Checking installed status...
+				</div>
+			) : null}
 
-				{catalog && !installedStatusReady ? (
-					<div className="flex min-h-80 items-center justify-center rounded-lg border bg-card text-sm text-muted-foreground">
-						<Spinner className="mr-2" />
-						Checking installed status...
-					</div>
-				) : null}
+			{errorMessage ? (
+				<div className="rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
+					{errorMessage}
+				</div>
+			) : null}
 
-				{errorMessage ? (
-					<div className="rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
-						{errorMessage}
-					</div>
-				) : null}
-
-				{catalog && installedStatusReady ? (
-					<div className="grid gap-6">
-						<div className="grid gap-3">
-							<div className="flex flex-col gap-3 md:flex-row md:items-center">
-								<div className="relative block flex-1">
-									<Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-									<Input
-										aria-label={`Search ${pageDetails.title}`}
-										className="h-10 pl-8"
-										onChange={(event) => setQuery(event.target.value)}
-										placeholder={`Search ${pageDetails.title.toLowerCase()}`}
-										value={query}
-									/>
-								</div>
-								<div className="flex min-h-8 items-center gap-2 text-sm text-muted-foreground">
-									<span className="font-medium text-foreground">
-										{filteredEntries.length}
-									</span>
-									<span>
-										{filteredEntries.length === 1 ? "result" : "results"}
-									</span>
-									{activeFilters ? (
-										<Button
-											onClick={clearFilters}
-											size="sm"
-											type="button"
-											variant="ghost"
-										>
-											Clear filters
-										</Button>
-									) : null}
-								</div>
+			{catalog && installedStatusReady ? (
+				<div className="grid gap-6">
+					<div className="grid gap-3">
+						<div className="flex flex-col gap-3 md:flex-row md:items-center">
+							<div className="relative block flex-1">
+								<Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+								<Input
+									aria-label={`Search ${pageDetails.title}`}
+									className="h-10 pl-8"
+									onChange={(event) => setQuery(event.target.value)}
+									placeholder={`Search ${pageDetails.title.toLowerCase()}`}
+									value={query}
+								/>
 							</div>
-
-							{primitiveTags.length > 0 ? (
-								<div className="flex gap-2 overflow-x-auto pb-1">
-									{primitiveTags.map((tag) => (
-										<TagButton
-											active={selectedTag === tag.id}
-											count={tagCounts.get(tag.id) ?? 0}
-											key={tag.id}
-											onClick={() =>
-												setSelectedTag((current) =>
-													current === tag.id ? null : tag.id,
-												)
-											}
-											tag={tag}
-										/>
-									))}
-								</div>
-							) : null}
+							<div className="flex min-h-8 items-center gap-2 text-sm text-muted-foreground">
+								<span className="font-medium text-foreground">
+									{filteredEntries.length}
+								</span>
+								<span>
+									{filteredEntries.length === 1 ? "result" : "results"}
+								</span>
+								{activeFilters ? (
+									<Button
+										onClick={clearFilters}
+										size="sm"
+										type="button"
+										variant="ghost"
+									>
+										Clear filters
+									</Button>
+								) : null}
+							</div>
 						</div>
 
-						<MarketplaceSection
-							actionStates={actionStates}
-							emptyMessage={pageDetails.emptyInstalled}
-							entries={installedEntries}
-							expandedEntryKey={expandedEntryKey}
-							installedEntryKeys={installedEntryKeys}
-							installedStatusReady={installedStatusReady}
-							onInstall={installEntry}
-							onToggleExpanded={toggleExpanded}
-							onUninstall={uninstallEntry}
-							tagLabels={tagLabels}
-							title="Installed"
-						/>
-
-						<MarketplaceSection
-							actionStates={actionStates}
-							emptyMessage={pageDetails.emptyCatalog}
-							entries={catalogEntries}
-							expandedEntryKey={expandedEntryKey}
-							installedEntryKeys={installedEntryKeys}
-							installedStatusReady={installedStatusReady}
-							onInstall={installEntry}
-							onToggleExpanded={toggleExpanded}
-							onUninstall={uninstallEntry}
-							tagLabels={tagLabels}
-							title="Catalog"
-						/>
+						{primitiveTags.length > 0 ? (
+							<div className="flex gap-2 overflow-x-auto pb-1">
+								{primitiveTags.map((tag) => (
+									<TagButton
+										active={selectedTag === tag.id}
+										count={tagCounts.get(tag.id) ?? 0}
+										key={tag.id}
+										onClick={() =>
+											setSelectedTag((current) =>
+												current === tag.id ? null : tag.id,
+											)
+										}
+										tag={tag}
+									/>
+								))}
+							</div>
+						) : null}
 					</div>
-				) : null}
-			</div>
-		</ScrollArea>
+
+					<MarketplaceSection
+						actionStates={actionStates}
+						emptyMessage={pageDetails.emptyInstalled}
+						entries={installedEntries}
+						expandedEntryKey={expandedEntryKey}
+						installedEntryKeys={installedEntryKeys}
+						installedStatusReady={installedStatusReady}
+						onInstall={installEntry}
+						onToggleExpanded={toggleExpanded}
+						onUninstall={uninstallEntry}
+						tagLabels={tagLabels}
+						title="Installed from catalog"
+					/>
+
+					<MarketplaceSection
+						actionStates={actionStates}
+						emptyMessage={pageDetails.emptyCatalog}
+						entries={catalogEntries}
+						expandedEntryKey={expandedEntryKey}
+						installedEntryKeys={installedEntryKeys}
+						installedStatusReady={installedStatusReady}
+						onInstall={installEntry}
+						onToggleExpanded={toggleExpanded}
+						onUninstall={uninstallEntry}
+						tagLabels={tagLabels}
+						title="Catalog"
+					/>
+				</div>
+			) : null}
+		</div>
 	);
+
+	return chrome === "embedded" ? content : <PageFrame>{content}</PageFrame>;
 }

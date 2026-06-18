@@ -98,6 +98,79 @@
 	html {
 		@apply font-sans;
 	}
+	a[href],
+	button:not(:disabled),
+	[role="button"]:not([aria-disabled="true"]),
+	summary,
+	input[type="button"]:not(:disabled),
+	input[type="checkbox"]:not(:disabled),
+	input[type="radio"]:not(:disabled),
+	input[type="reset"]:not(:disabled),
+	input[type="submit"]:not(:disabled),
+	label[for],
+	select:not(:disabled) {
+		cursor: pointer;
+	}
+	button:disabled,
+	[aria-disabled="true"],
+	input:disabled,
+	select:disabled,
+	textarea:disabled {
+		cursor: not-allowed;
+	}
+}
+
+:is(
+		[role="menuitem"],
+		[role="menuitemcheckbox"],
+		[role="menuitemradio"],
+		[role="option"],
+		[role="tab"],
+		[role="switch"],
+		[role="checkbox"],
+		[role="radio"],
+		[data-slot="switch"],
+		[data-slot="checkbox"],
+		[data-slot="radio-group-item"],
+		[data-slot="tabs-trigger"],
+		[data-slot="dropdown-menu-trigger"],
+		[data-slot="dropdown-menu-item"],
+		[data-slot="dropdown-menu-checkbox-item"],
+		[data-slot="dropdown-menu-radio-item"],
+		[data-slot="dropdown-menu-sub-trigger"],
+		[data-slot="menubar-trigger"],
+		[data-slot="menubar-item"],
+		[data-slot="menubar-checkbox-item"],
+		[data-slot="menubar-radio-item"],
+		[data-slot="menubar-sub-trigger"],
+		[data-slot="select-trigger"],
+		[data-slot="select-item"],
+		[data-slot="select-scroll-up-button"],
+		[data-slot="select-scroll-down-button"],
+		[data-slot="combobox-trigger"],
+		[data-slot="combobox-clear"],
+		[data-slot="combobox-item"],
+		[data-slot="combobox-chip-remove"],
+		[data-slot="command-item"],
+		[data-slot="accordion-trigger"],
+		[data-slot="collapsible-trigger"],
+		[data-slot="dialog-trigger"],
+		[data-slot="dialog-close"],
+		[data-slot="alert-dialog-trigger"],
+		[data-slot="alert-dialog-action"],
+		[data-slot="alert-dialog-cancel"],
+		[data-slot="popover-trigger"],
+		[data-slot="hover-card-trigger"],
+		[data-slot="tooltip-trigger"]
+	):not(:disabled):not([aria-disabled="true"]):not([data-disabled]):not(
+		[data-disabled="true"]
+	) {
+	cursor: pointer;
+}
+
+[data-disabled],
+[data-disabled="true"] {
+	cursor: not-allowed;
 }
 
 ::-webkit-scrollbar {

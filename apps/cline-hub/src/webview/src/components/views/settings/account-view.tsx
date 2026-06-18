@@ -21,9 +21,9 @@ import {
 	RefreshCw,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { desktopClient } from "@/lib/desktop-client";
 import { cn } from "@/lib/utils";
+import { PageFrame, PageHeader } from "../page-layout";
 
 function normalizeAccountViewError(error: unknown): Error {
 	const message = error instanceof Error ? error.message : String(error);
@@ -302,11 +302,11 @@ export function AccountView() {
 	);
 
 	return (
-		<ScrollArea className="h-full">
-			<div className="mx-auto max-w-3xl px-8 py-6">
-				{/* Header */}
-				<div className="mb-6 flex items-center justify-between">
-					<h2 className="text-lg font-semibold text-foreground">Account</h2>
+		<PageFrame>
+			<PageHeader
+				description="Review account, usage, billing, and organization details."
+				title="Account"
+				actions={
 					<button
 						type="button"
 						className="flex items-center gap-2 rounded-lg border border-border px-3.5 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
@@ -314,264 +314,264 @@ export function AccountView() {
 						<LogOut className="h-4 w-4" />
 						Sign Out
 					</button>
-				</div>
+				}
+			/>
 
-				{/* Tabs */}
-				<div className="mb-6 flex items-center gap-0 border-b border-border">
-					{tabs.map((tab) => (
-						<button
-							key={tab}
-							type="button"
-							onClick={() => setActiveTab(tab)}
-							className={cn(
-								"relative px-4 py-2.5 text-sm font-medium capitalize transition-colors",
-								activeTab === tab
-									? "text-foreground"
-									: "text-muted-foreground hover:text-foreground",
-							)}
-						>
-							{tab}
-							{activeTab === tab && (
-								<span className="absolute inset-x-0 -bottom-px h-0.5 bg-foreground" />
-							)}
-						</button>
-					))}
-				</div>
+			{/* Tabs */}
+			<div className="mb-6 flex items-center gap-0 border-b border-border">
+				{tabs.map((tab) => (
+					<button
+						key={tab}
+						type="button"
+						onClick={() => setActiveTab(tab)}
+						className={cn(
+							"relative px-4 py-2.5 text-sm font-medium capitalize transition-colors",
+							activeTab === tab
+								? "text-foreground"
+								: "text-muted-foreground hover:text-foreground",
+						)}
+					>
+						{tab}
+						{activeTab === tab && (
+							<span className="absolute inset-x-0 -bottom-px h-0.5 bg-foreground" />
+						)}
+					</button>
+				))}
+			</div>
 
-				{/* Overview Tab */}
-				{activeTab === "overview" && (
-					<div className="flex flex-col gap-6">
-						{overviewLoading && renderLoading()}
-						{overviewError && renderError(overviewError, loadOverview)}
-						{!overviewLoading && !overviewError && user && (
-							<>
-								{/* User Profile Card */}
-								<div className="rounded-lg border border-border p-5">
-									<div className="flex items-start gap-4">
-										<div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-primary/20 text-2xl font-bold text-primary">
-											{user.displayName?.charAt(0) ??
-												user.email?.charAt(0) ??
-												"?"}
-										</div>
-										<div className="min-w-0 flex-1">
-											<h3 className="text-base font-semibold text-foreground">
-												{user.displayName || user.email}
-											</h3>
-											<p className="mt-0.5 text-sm text-muted-foreground">
-												{user.email}
-											</p>
-											<p className="mt-2 text-xs text-muted-foreground">
-												Member since {formatDate(user.createdAt)}
-											</p>
-										</div>
-										<a
-											href="https://app.cline.bot/dashboard"
-											target="_blank"
-											rel="noopener noreferrer"
-											className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
-										>
-											<ExternalLink className="h-4 w-4" />
-										</a>
+			{/* Overview Tab */}
+			{activeTab === "overview" && (
+				<div className="flex flex-col gap-6">
+					{overviewLoading && renderLoading()}
+					{overviewError && renderError(overviewError, loadOverview)}
+					{!overviewLoading && !overviewError && user && (
+						<>
+							{/* User Profile Card */}
+							<div className="rounded-lg border border-border p-5">
+								<div className="flex items-start gap-4">
+									<div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-primary/20 text-2xl font-bold text-primary">
+										{user.displayName?.charAt(0) ??
+											user.email?.charAt(0) ??
+											"?"}
 									</div>
+									<div className="min-w-0 flex-1">
+										<h3 className="text-base font-semibold text-foreground">
+											{user.displayName || user.email}
+										</h3>
+										<p className="mt-0.5 text-sm text-muted-foreground">
+											{user.email}
+										</p>
+										<p className="mt-2 text-xs text-muted-foreground">
+											Member since {formatDate(user.createdAt)}
+										</p>
+									</div>
+									<a
+										href="https://app.cline.bot/dashboard"
+										target="_blank"
+										rel="noopener noreferrer"
+										className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+									>
+										<ExternalLink className="h-4 w-4" />
+									</a>
 								</div>
+							</div>
 
-								{/* Balance Card */}
-								{displayedBalance !== null && (
-									<div className="rounded-lg border border-border p-5">
-										<div className="flex items-center justify-between mb-4">
-											<div className="flex items-center gap-3">
-												<CreditCard className="h-5 w-5 text-primary" />
-												<h3 className="text-sm font-semibold text-foreground">
-													{activeOrganization
-														? `${activeOrganization.name} Balance`
-														: "Credits Balance"}
-												</h3>
-											</div>
-											<a
-												href="https://app.cline.bot/dashboard/organization?tab=credits&redirect=true"
-												target="_blank"
-												rel="noopener noreferrer"
-												className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
-											>
-												<Plus className="h-3.5 w-3.5" />
-												Credit
-											</a>
-										</div>
-										<div className="flex items-baseline gap-2">
-											<span className="text-3xl font-bold text-foreground">
-												${formatCreditBalance(displayedBalance)}
-											</span>
-										</div>
-										{activeOrganization && balance && (
-											<p className="mt-2 text-xs text-muted-foreground">
-												Personal account: {formatCreditBalance(balance.balance)}{" "}
-												credits
-											</p>
-										)}
-									</div>
-								)}
-
-								{/* Organizations */}
+							{/* Balance Card */}
+							{displayedBalance !== null && (
 								<div className="rounded-lg border border-border p-5">
 									<div className="flex items-center justify-between mb-4">
 										<div className="flex items-center gap-3">
-											<Building className="h-5 w-5 text-muted-foreground" />
+											<CreditCard className="h-5 w-5 text-primary" />
 											<h3 className="text-sm font-semibold text-foreground">
-												Organizations
+												{activeOrganization
+													? `${activeOrganization.name} Balance`
+													: "Credits Balance"}
 											</h3>
 										</div>
 										<a
-											href="https://app.cline.bot/onboarding?step=1"
+											href="https://app.cline.bot/dashboard/organization?tab=credits&redirect=true"
 											target="_blank"
 											rel="noopener noreferrer"
 											className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
 										>
 											<Plus className="h-3.5 w-3.5" />
-											Create
+											Credit
 										</a>
 									</div>
-									{organizations.length === 0 ? (
-										<p className="text-sm text-muted-foreground">
-											No organizations yet.
+									<div className="flex items-baseline gap-2">
+										<span className="text-3xl font-bold text-foreground">
+											${formatCreditBalance(displayedBalance)}
+										</span>
+									</div>
+									{activeOrganization && balance && (
+										<p className="mt-2 text-xs text-muted-foreground">
+											Personal account: {formatCreditBalance(balance.balance)}{" "}
+											credits
 										</p>
-									) : (
-										<div className="flex flex-col gap-2">
-											{organizations.map((org) => (
-												<div
-													key={org.organizationId}
-													className="flex items-center gap-3 rounded-lg border border-border px-4 py-3 transition-colors hover:bg-accent/20"
-												>
-													<div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-sm font-bold text-foreground">
-														{org.name.charAt(0)}
-													</div>
-													<div className="min-w-0 flex-1">
-														<p className="text-sm font-medium text-foreground">
-															{org.name}
-														</p>
-														<p className="text-xs text-muted-foreground capitalize">
-															{org.roles.join(", ")}
-														</p>
-													</div>
-													{org.active && (
-														<span className="rounded-full bg-primary/20 px-2 py-0.5 text-xs font-medium text-primary">
-															Active
-														</span>
-													)}
-												</div>
-											))}
-										</div>
 									)}
 								</div>
-							</>
-						)}
-					</div>
-				)}
+							)}
 
-				{/* Usage Tab */}
-				{activeTab === "usage" && (
-					<div>
-						<p className="mb-6 text-sm text-muted-foreground">
-							{activeOrganization
-								? `Recent API usage and token consumption for ${activeOrganization.name}.`
-								: "Recent API usage and token consumption across all providers."}
-						</p>
-						{usageLoading && renderLoading()}
-						{usageError && renderError(usageError, loadUsage)}
-						{!usageLoading &&
-							!usageError &&
-							usageLoaded &&
-							(usageTransactions.length === 0 ? (
-								<p className="py-8 text-center text-sm text-muted-foreground">
-									No usage transactions yet.
-								</p>
-							) : (
-								<div className="rounded-lg border border-border overflow-hidden">
-									<div className="grid grid-cols-[1fr_auto_auto_auto] gap-4 border-b border-border bg-secondary/50 px-4 py-2.5 text-xs font-medium text-muted-foreground">
-										<span>Model</span>
-										<span className="text-right">Tokens</span>
-										<span className="text-right">Credits</span>
-										<span className="text-right">Time</span>
+							{/* Organizations */}
+							<div className="rounded-lg border border-border p-5">
+								<div className="flex items-center justify-between mb-4">
+									<div className="flex items-center gap-3">
+										<Building className="h-5 w-5 text-muted-foreground" />
+										<h3 className="text-sm font-semibold text-foreground">
+											Organizations
+										</h3>
 									</div>
-									<div className="divide-y divide-border">
-										{usageTransactions.map((tx) => (
-											<div
-												key={tx.id}
-												className="grid grid-cols-[1fr_auto_auto_auto] gap-4 px-4 py-3 text-sm transition-colors hover:bg-accent/20"
-											>
-												<div className="min-w-0">
-													<p className="font-medium text-foreground truncate">
-														{tx.aiModelName}
-													</p>
-													<p className="text-xs text-muted-foreground">
-														{tx.aiInferenceProviderName}
-													</p>
-												</div>
-												<div className="text-right text-muted-foreground">
-													{tx.totalTokens.toLocaleString()}
-												</div>
-												<div className="text-right text-foreground font-medium">
-													{formatCreditBalance(tx.creditsUsed)}
-												</div>
-												<div className="text-right text-xs text-muted-foreground">
-													<p>{formatDate(tx.createdAt)}</p>
-													<p>{formatTime(tx.createdAt)}</p>
-												</div>
-											</div>
-										))}
-									</div>
+									<a
+										href="https://app.cline.bot/onboarding?step=1"
+										target="_blank"
+										rel="noopener noreferrer"
+										className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+									>
+										<Plus className="h-3.5 w-3.5" />
+										Create
+									</a>
 								</div>
-							))}
-					</div>
-				)}
-
-				{/* Billing Tab */}
-				{activeTab === "billing" && (
-					<div>
-						<p className="mb-6 text-sm text-muted-foreground">
-							Payment history and credit purchases.
-						</p>
-						{billingLoading && renderLoading()}
-						{billingError && renderError(billingError, loadBilling)}
-						{!billingLoading &&
-							!billingError &&
-							billingLoaded &&
-							(paymentTransactions.length === 0 ? (
-								<p className="py-8 text-center text-sm text-muted-foreground">
-									No payment transactions yet.
-								</p>
-							) : (
-								<div className="rounded-lg border border-border overflow-hidden">
-									<div className="grid grid-cols-[1fr_auto_auto] gap-4 border-b border-border bg-secondary/50 px-4 py-2.5 text-xs font-medium text-muted-foreground">
-										<span>Date</span>
-										<span className="text-right">Amount</span>
-										<span className="text-right">Credits</span>
-									</div>
-									<div className="divide-y divide-border">
-										{paymentTransactions.map((tx) => (
+								{organizations.length === 0 ? (
+									<p className="text-sm text-muted-foreground">
+										No organizations yet.
+									</p>
+								) : (
+									<div className="flex flex-col gap-2">
+										{organizations.map((org) => (
 											<div
-												key={`${tx.paidAt}-${tx.amountCents}-${tx.credits}`}
-												className="grid grid-cols-[1fr_auto_auto] gap-4 px-4 py-3 text-sm transition-colors hover:bg-accent/20"
+												key={org.organizationId}
+												className="flex items-center gap-3 rounded-lg border border-border px-4 py-3 transition-colors hover:bg-accent/20"
 											>
-												<div className="flex items-center gap-3">
-													<Receipt className="h-4 w-4 text-muted-foreground" />
-													<span className="text-foreground">
-														{formatDate(tx.paidAt)}
+												<div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-sm font-bold text-foreground">
+													{org.name.charAt(0)}
+												</div>
+												<div className="min-w-0 flex-1">
+													<p className="text-sm font-medium text-foreground">
+														{org.name}
+													</p>
+													<p className="text-xs text-muted-foreground capitalize">
+														{org.roles.join(", ")}
+													</p>
+												</div>
+												{org.active && (
+													<span className="rounded-full bg-primary/20 px-2 py-0.5 text-xs font-medium text-primary">
+														Active
 													</span>
-												</div>
-												<div className="text-right text-foreground font-medium">
-													${(tx.amountCents / 100).toFixed(2)}
-												</div>
-												<div className="text-right text-primary font-medium">
-													+{formatCreditBalance(tx.credits)}
-												</div>
+												)}
 											</div>
 										))}
 									</div>
+								)}
+							</div>
+						</>
+					)}
+				</div>
+			)}
+
+			{/* Usage Tab */}
+			{activeTab === "usage" && (
+				<div>
+					<p className="mb-6 text-sm text-muted-foreground">
+						{activeOrganization
+							? `Recent API usage and token consumption for ${activeOrganization.name}.`
+							: "Recent API usage and token consumption across all providers."}
+					</p>
+					{usageLoading && renderLoading()}
+					{usageError && renderError(usageError, loadUsage)}
+					{!usageLoading &&
+						!usageError &&
+						usageLoaded &&
+						(usageTransactions.length === 0 ? (
+							<p className="py-8 text-center text-sm text-muted-foreground">
+								No usage transactions yet.
+							</p>
+						) : (
+							<div className="rounded-lg border border-border overflow-hidden">
+								<div className="grid grid-cols-[1fr_auto_auto_auto] gap-4 border-b border-border bg-secondary/50 px-4 py-2.5 text-xs font-medium text-muted-foreground">
+									<span>Model</span>
+									<span className="text-right">Tokens</span>
+									<span className="text-right">Credits</span>
+									<span className="text-right">Time</span>
 								</div>
-							))}
-					</div>
-				)}
-			</div>
-		</ScrollArea>
+								<div className="divide-y divide-border">
+									{usageTransactions.map((tx) => (
+										<div
+											key={tx.id}
+											className="grid grid-cols-[1fr_auto_auto_auto] gap-4 px-4 py-3 text-sm transition-colors hover:bg-accent/20"
+										>
+											<div className="min-w-0">
+												<p className="font-medium text-foreground truncate">
+													{tx.aiModelName}
+												</p>
+												<p className="text-xs text-muted-foreground">
+													{tx.aiInferenceProviderName}
+												</p>
+											</div>
+											<div className="text-right text-muted-foreground">
+												{tx.totalTokens.toLocaleString()}
+											</div>
+											<div className="text-right text-foreground font-medium">
+												{formatCreditBalance(tx.creditsUsed)}
+											</div>
+											<div className="text-right text-xs text-muted-foreground">
+												<p>{formatDate(tx.createdAt)}</p>
+												<p>{formatTime(tx.createdAt)}</p>
+											</div>
+										</div>
+									))}
+								</div>
+							</div>
+						))}
+				</div>
+			)}
+
+			{/* Billing Tab */}
+			{activeTab === "billing" && (
+				<div>
+					<p className="mb-6 text-sm text-muted-foreground">
+						Payment history and credit purchases.
+					</p>
+					{billingLoading && renderLoading()}
+					{billingError && renderError(billingError, loadBilling)}
+					{!billingLoading &&
+						!billingError &&
+						billingLoaded &&
+						(paymentTransactions.length === 0 ? (
+							<p className="py-8 text-center text-sm text-muted-foreground">
+								No payment transactions yet.
+							</p>
+						) : (
+							<div className="rounded-lg border border-border overflow-hidden">
+								<div className="grid grid-cols-[1fr_auto_auto] gap-4 border-b border-border bg-secondary/50 px-4 py-2.5 text-xs font-medium text-muted-foreground">
+									<span>Date</span>
+									<span className="text-right">Amount</span>
+									<span className="text-right">Credits</span>
+								</div>
+								<div className="divide-y divide-border">
+									{paymentTransactions.map((tx) => (
+										<div
+											key={`${tx.paidAt}-${tx.amountCents}-${tx.credits}`}
+											className="grid grid-cols-[1fr_auto_auto] gap-4 px-4 py-3 text-sm transition-colors hover:bg-accent/20"
+										>
+											<div className="flex items-center gap-3">
+												<Receipt className="h-4 w-4 text-muted-foreground" />
+												<span className="text-foreground">
+													{formatDate(tx.paidAt)}
+												</span>
+											</div>
+											<div className="text-right text-foreground font-medium">
+												${(tx.amountCents / 100).toFixed(2)}
+											</div>
+											<div className="text-right text-primary font-medium">
+												+{formatCreditBalance(tx.credits)}
+											</div>
+										</div>
+									))}
+								</div>
+							</div>
+						))}
+				</div>
+			)}
+		</PageFrame>
 	);
 }

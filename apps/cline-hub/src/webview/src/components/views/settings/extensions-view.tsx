@@ -14,18 +14,38 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
 import { desktopClient } from "@/lib/desktop-client";
+import type { MarketplacePrimitiveType } from "@/lib/marketplace";
 import { cn } from "@/lib/utils";
+import { MarketplaceView } from "../marketplace-view";
+import { CommandBadge, PageFrame, PageHeader } from "../page-layout";
 
-type ShortcutTab =
+export type CustomizationSection =
 	| "Rules"
 	| "Hooks"
 	| "Skills"
 	| "Agents"
 	| "Plugins"
 	| "Tools";
+
+const sectionDescriptions: Record<CustomizationSection, string> = {
+	Rules: "Review project and global rule files that shape Cline behavior.",
+	Hooks: "Inspect hook configuration and recent execution status.",
+	Skills: "Manage installed skills and add new skills from the catalog.",
+	Agents: "Review configured agents discovered from local settings.",
+	Plugins: "Manage installed plugins and add new plugins from the catalog.",
+	Tools: "Inspect built-in tools and tools contributed by plugins.",
+};
+
+const sectionCommands: Record<CustomizationSection, string> = {
+	Rules: "cline config rules",
+	Hooks: "cline config hooks",
+	Skills: "cline skill",
+	Agents: "cline config agents",
+	Plugins: "cline plugin",
+	Tools: "cline config tools",
+};
 
 type RuleItem = {
 	name: string;
@@ -218,8 +238,16 @@ function isUnsupportedDesktopCommand(error: unknown, command: string): boolean {
 	return message.includes(`unsupported desktop command: ${command}`);
 }
 
-export function RulesView() {
-	const [activeTab, setActiveTab] = useState<ShortcutTab>("Rules");
+export function CustomizationSectionView({
+	catalogPrimitive,
+	section = "Rules",
+	showTabs = false,
+}: {
+	catalogPrimitive?: MarketplacePrimitiveType;
+	section?: CustomizationSection;
+	showTabs?: boolean;
+}) {
+	const [activeTab, setActiveTab] = useState<CustomizationSection>(section);
 	const [isLoading, setIsLoading] = useState(
 		() => !hasFreshExtensionsListsCache(extensionListsCache, Date.now()),
 	);
@@ -264,6 +292,10 @@ export function RulesView() {
 	const [togglingPluginPaths, setTogglingPluginPaths] = useState<Set<string>>(
 		() => new Set(),
 	);
+
+	useEffect(() => {
+		setActiveTab(section);
+	}, [section]);
 
 	const refresh = useCallback(async (force = false) => {
 		const now = Date.now();
@@ -515,7 +547,7 @@ export function RulesView() {
 		return () => window.clearTimeout(timeoutId);
 	}, [activeTab, loadHookExecutionStats]);
 
-	const tabs: ShortcutTab[] = [
+	const tabs: CustomizationSection[] = [
 		"Rules",
 		"Hooks",
 		"Skills",
@@ -625,12 +657,12 @@ export function RulesView() {
 	}, [pluginTools]);
 
 	return (
-		<ScrollArea className="h-full">
-			<div className="mx-auto max-w-3xl px-8 py-6">
-				<div className="mb-4 flex items-center justify-between">
-					<h2 className="text-lg font-semibold text-foreground">
-						Customizations
-					</h2>
+		<PageFrame>
+			<PageHeader
+				description={sectionDescriptions[activeTab]}
+				title={activeTab}
+				meta={<CommandBadge>{sectionCommands[activeTab]}</CommandBadge>}
+				actions={
 					<Button
 						variant="outline"
 						size="sm"
@@ -644,8 +676,10 @@ export function RulesView() {
 					>
 						<RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
 					</Button>
-				</div>
+				}
+			/>
 
+			{showTabs ? (
 				<div className="mb-6 flex items-center gap-0 border-b border-border">
 					{tabs.map((tab) => (
 						<Button
@@ -666,616 +700,629 @@ export function RulesView() {
 						</Button>
 					))}
 				</div>
+			) : null}
 
-				{errorMessage && (
-					<div className="mb-4 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-						Failed to load configuration lists: {errorMessage}
+			{errorMessage && (
+				<div className="mb-4 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+					Failed to load configuration lists: {errorMessage}
+				</div>
+			)}
+
+			{warnings.length > 0 && (
+				<div className="mb-4 rounded-lg border border-yellow-500/40 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-700 dark:text-yellow-300">
+					<div className="mb-2 flex items-center gap-2 font-medium">
+						<TriangleAlert className="h-4 w-4" />
+						Partial results
 					</div>
-				)}
+					<ul className="list-disc space-y-1 pl-5">
+						{warnings.map((warning) => (
+							<li key={warning}>{warning}</li>
+						))}
+					</ul>
+				</div>
+			)}
 
-				{warnings.length > 0 && (
-					<div className="mb-4 rounded-lg border border-yellow-500/40 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-700 dark:text-yellow-300">
-						<div className="mb-2 flex items-center gap-2 font-medium">
-							<TriangleAlert className="h-4 w-4" />
-							Partial results
-						</div>
-						<ul className="list-disc space-y-1 pl-5">
-							{warnings.map((warning) => (
-								<li key={warning}>{warning}</li>
-							))}
-						</ul>
-					</div>
-				)}
+			{activeTab === "Rules" && (
+				<div>
+					<p className="mb-6 text-sm leading-relaxed text-muted-foreground">
+						Enabled rules discovered from configured workspace/global
+						directories.
+					</p>
 
-				{activeTab === "Rules" && (
-					<div>
-						<p className="mb-6 text-sm leading-relaxed text-muted-foreground">
-							Enabled rules discovered from configured workspace/global
-							directories.
-						</p>
-
-						<div className="mb-6">
-							<h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-								Global Rules
-							</h3>
-							<div className="flex flex-col gap-2">
-								{globalRules.map((rule) => (
-									<div
-										key={rule.path}
-										className="rounded-lg border border-border px-4 py-3"
-									>
-										<div className="flex items-center gap-3">
-											<FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-											<span className="flex-1 text-sm font-medium text-foreground">
-												{rule.name}
-											</span>
-										</div>
-										<p className="mt-2 text-xs text-muted-foreground">
-											{previewText(rule.instructions)}
-										</p>
-										<p className="mt-1 text-xs font-mono text-muted-foreground">
-											{rule.path}
-										</p>
-									</div>
-								))}
-								{globalRules.length === 0 && (
-									<p className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
-										No global rules found.
-									</p>
-								)}
-							</div>
-						</div>
-
-						<div className="mb-2">
-							<h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-								Project Rules
-							</h3>
-							<div className="flex flex-col gap-2">
-								{projectRules.map((rule) => (
-									<div
-										key={rule.path}
-										className="rounded-lg border border-border px-4 py-3"
-									>
-										<div className="flex items-center gap-3">
-											<FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-											<span className="flex-1 text-sm font-medium text-foreground">
-												{rule.name}
-											</span>
-										</div>
-										<p className="mt-2 text-xs text-muted-foreground">
-											{previewText(rule.instructions)}
-										</p>
-										<p className="mt-1 text-xs font-mono text-muted-foreground">
-											{rule.path}
-										</p>
-									</div>
-								))}
-								{projectRules.length === 0 && (
-									<p className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
-										No project rules found.
-									</p>
-								)}
-							</div>
-						</div>
-					</div>
-				)}
-
-				{activeTab === "Hooks" && (
-					<div>
-						<p className="mb-6 text-sm leading-relaxed text-muted-foreground">
-							Hook config files from workspace and global hook directories.
-						</p>
-						{hookExecutionLoading && hookExecutionSessionId && (
-							<p className="mb-4 text-xs text-muted-foreground">
-								Execution status is based on hook events in session{" "}
-								<span className="font-mono">{hookExecutionSessionId}</span>.
-							</p>
-						)}
-
-						<div className="mb-6">
-							<h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-								Global Hooks
-							</h3>
-							<div className="flex flex-col gap-2">
-								{globalHooks.map((hook) => (
-									<div
-										key={hook.path}
-										className="rounded-lg border border-border px-4 py-3"
-									>
-										<div className="flex items-center gap-3">
-											<Code className="h-4 w-4 shrink-0 text-muted-foreground" />
-											<span className="flex-1 text-sm font-mono text-foreground">
-												{hook.fileName}
-											</span>
-											{hook.hookEventName && (
-												<div className="flex items-center gap-2">
-													<span className="rounded border border-border px-2 py-0.5 text-xs text-muted-foreground">
-														{hook.hookEventName}
-													</span>
-													{(() => {
-														const stats =
-															hookExecutionByEvent[hook.hookEventName];
-														const executed = (stats?.count ?? 0) > 0;
-														return (
-															<span
-																className={cn(
-																	"rounded border px-2 py-0.5 text-xs",
-																	executed
-																		? "border-emerald-400/50 text-emerald-600 dark:text-emerald-400"
-																		: "border-border text-muted-foreground",
-																)}
-															>
-																{executed
-																	? `${stats?.count ?? 0} executed`
-																	: "never executed"}
-															</span>
-														);
-													})()}
-												</div>
-											)}
-										</div>
-										{hook.hookEventName ? (
-											<p className="mt-1 text-xs text-muted-foreground">
-												Last run:{" "}
-												{formatExecutionTs(
-													hookExecutionByEvent[hook.hookEventName]?.lastTs ??
-														null,
-												)}
-											</p>
-										) : null}
-										<p className="mt-1 text-xs font-mono text-muted-foreground">
-											{hook.path}
-										</p>
-									</div>
-								))}
-								{globalHooks.length === 0 && (
-									<p className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
-										No global hooks found.
-									</p>
-								)}
-							</div>
-						</div>
-
-						<div>
-							<div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-								<FolderOpen className="h-3.5 w-3.5" />
-								Project Hooks
-							</div>
-							<div className="flex flex-col gap-2">
-								{projectHooks.map((hook) => (
-									<div
-										key={hook.path}
-										className="rounded-lg border border-border px-4 py-3"
-									>
-										<div className="flex items-center gap-3">
-											<Code className="h-4 w-4 shrink-0 text-muted-foreground" />
-											<span className="flex-1 text-sm font-mono text-foreground">
-												{hook.fileName}
-											</span>
-											{hook.hookEventName && (
-												<div className="flex items-center gap-2">
-													<span className="rounded border border-border px-2 py-0.5 text-xs text-muted-foreground">
-														{hook.hookEventName}
-													</span>
-													{(() => {
-														const stats =
-															hookExecutionByEvent[hook.hookEventName];
-														const executed = (stats?.count ?? 0) > 0;
-														return (
-															<span
-																className={cn(
-																	"rounded border px-2 py-0.5 text-xs",
-																	executed
-																		? "border-emerald-400/50 text-emerald-600 dark:text-emerald-400"
-																		: "border-border text-muted-foreground",
-																)}
-															>
-																{executed
-																	? `${stats?.count ?? 0} executed`
-																	: "never executed"}
-															</span>
-														);
-													})()}
-												</div>
-											)}
-										</div>
-										{hook.hookEventName ? (
-											<p className="mt-1 text-xs text-muted-foreground">
-												Last run:{" "}
-												{formatExecutionTs(
-													hookExecutionByEvent[hook.hookEventName]?.lastTs ??
-														null,
-												)}
-											</p>
-										) : null}
-										<p className="mt-1 text-xs font-mono text-muted-foreground">
-											{hook.path}
-										</p>
-									</div>
-								))}
-								{projectHooks.length === 0 && (
-									<p className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
-										No project hooks found.
-									</p>
-								)}
-							</div>
-						</div>
-					</div>
-				)}
-
-				{activeTab === "Skills" && (
-					<div>
-						<p className="mb-6 text-sm leading-relaxed text-muted-foreground">
-							Skills can be invoked in chat with{" "}
-							<code className="rounded bg-secondary px-1.5 py-0.5 text-xs font-mono text-foreground">
-								/SKILL
-							</code>
-							.
-						</p>
-
-						<div className="flex flex-col gap-3">
-							{commandItems.map((item) => (
+					<div className="mb-6">
+						<h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+							Global Rules
+						</h3>
+						<div className="flex flex-col gap-2">
+							{globalRules.map((rule) => (
 								<div
-									key={`${item.type}:${item.path}`}
-									className="rounded-lg border border-border px-5 py-4"
+									key={rule.path}
+									className="rounded-lg border border-border px-4 py-3"
 								>
 									<div className="flex items-center gap-3">
-										{item.type === "workflow" ? (
-											<Play className="h-4 w-4 shrink-0 text-primary" />
-										) : (
-											<Zap className="h-4 w-4 shrink-0 text-primary" />
-										)}
-										<h3 className="text-sm font-semibold text-foreground">
-											{item.name}
-										</h3>
-										<span className="rounded border border-border px-2 py-0.5 text-xs text-muted-foreground">
-											{item.type}
+										<FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+										<span className="flex-1 text-sm font-medium text-foreground">
+											{rule.name}
 										</span>
 									</div>
-									<p className="mt-2 ml-7 text-xs text-muted-foreground">
-										{item.description?.trim() || previewText(item.instructions)}
+									<p className="mt-2 text-xs text-muted-foreground">
+										{previewText(rule.instructions)}
 									</p>
-									<p className="mt-1 ml-7 text-xs font-mono text-muted-foreground">
-										{item.path}
+									<p className="mt-1 text-xs font-mono text-muted-foreground">
+										{rule.path}
 									</p>
 								</div>
 							))}
-							{commandItems.length === 0 && (
+							{globalRules.length === 0 && (
 								<p className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
-									No enabled skills or workflows found.
+									No global rules found.
 								</p>
 							)}
 						</div>
 					</div>
-				)}
 
-				{activeTab === "Agents" && (
-					<div>
-						<p className="mb-6 text-sm leading-relaxed text-muted-foreground">
-							Configured agents discovered from Documents and settings
-							directories.
-						</p>
-
-						<div className="flex flex-col gap-3">
-							{agents.map((agent) => (
+					<div className="mb-2">
+						<h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+							Project Rules
+						</h3>
+						<div className="flex flex-col gap-2">
+							{projectRules.map((rule) => (
 								<div
-									key={agent.path}
+									key={rule.path}
+									className="rounded-lg border border-border px-4 py-3"
+								>
+									<div className="flex items-center gap-3">
+										<FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+										<span className="flex-1 text-sm font-medium text-foreground">
+											{rule.name}
+										</span>
+									</div>
+									<p className="mt-2 text-xs text-muted-foreground">
+										{previewText(rule.instructions)}
+									</p>
+									<p className="mt-1 text-xs font-mono text-muted-foreground">
+										{rule.path}
+									</p>
+								</div>
+							))}
+							{projectRules.length === 0 && (
+								<p className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
+									No project rules found.
+								</p>
+							)}
+						</div>
+					</div>
+				</div>
+			)}
+
+			{activeTab === "Hooks" && (
+				<div>
+					<p className="mb-6 text-sm leading-relaxed text-muted-foreground">
+						Hook config files from workspace and global hook directories.
+					</p>
+					{hookExecutionLoading && hookExecutionSessionId && (
+						<p className="mb-4 text-xs text-muted-foreground">
+							Execution status is based on hook events in session{" "}
+							<span className="font-mono">{hookExecutionSessionId}</span>.
+						</p>
+					)}
+
+					<div className="mb-6">
+						<h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+							Global Hooks
+						</h3>
+						<div className="flex flex-col gap-2">
+							{globalHooks.map((hook) => (
+								<div
+									key={hook.path}
+									className="rounded-lg border border-border px-4 py-3"
+								>
+									<div className="flex items-center gap-3">
+										<Code className="h-4 w-4 shrink-0 text-muted-foreground" />
+										<span className="flex-1 text-sm font-mono text-foreground">
+											{hook.fileName}
+										</span>
+										{hook.hookEventName && (
+											<div className="flex items-center gap-2">
+												<span className="rounded border border-border px-2 py-0.5 text-xs text-muted-foreground">
+													{hook.hookEventName}
+												</span>
+												{(() => {
+													const stats =
+														hookExecutionByEvent[hook.hookEventName];
+													const executed = (stats?.count ?? 0) > 0;
+													return (
+														<span
+															className={cn(
+																"rounded border px-2 py-0.5 text-xs",
+																executed
+																	? "border-emerald-400/50 text-emerald-600 dark:text-emerald-400"
+																	: "border-border text-muted-foreground",
+															)}
+														>
+															{executed
+																? `${stats?.count ?? 0} executed`
+																: "never executed"}
+														</span>
+													);
+												})()}
+											</div>
+										)}
+									</div>
+									{hook.hookEventName ? (
+										<p className="mt-1 text-xs text-muted-foreground">
+											Last run:{" "}
+											{formatExecutionTs(
+												hookExecutionByEvent[hook.hookEventName]?.lastTs ??
+													null,
+											)}
+										</p>
+									) : null}
+									<p className="mt-1 text-xs font-mono text-muted-foreground">
+										{hook.path}
+									</p>
+								</div>
+							))}
+							{globalHooks.length === 0 && (
+								<p className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
+									No global hooks found.
+								</p>
+							)}
+						</div>
+					</div>
+
+					<div>
+						<div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+							<FolderOpen className="h-3.5 w-3.5" />
+							Project Hooks
+						</div>
+						<div className="flex flex-col gap-2">
+							{projectHooks.map((hook) => (
+								<div
+									key={hook.path}
+									className="rounded-lg border border-border px-4 py-3"
+								>
+									<div className="flex items-center gap-3">
+										<Code className="h-4 w-4 shrink-0 text-muted-foreground" />
+										<span className="flex-1 text-sm font-mono text-foreground">
+											{hook.fileName}
+										</span>
+										{hook.hookEventName && (
+											<div className="flex items-center gap-2">
+												<span className="rounded border border-border px-2 py-0.5 text-xs text-muted-foreground">
+													{hook.hookEventName}
+												</span>
+												{(() => {
+													const stats =
+														hookExecutionByEvent[hook.hookEventName];
+													const executed = (stats?.count ?? 0) > 0;
+													return (
+														<span
+															className={cn(
+																"rounded border px-2 py-0.5 text-xs",
+																executed
+																	? "border-emerald-400/50 text-emerald-600 dark:text-emerald-400"
+																	: "border-border text-muted-foreground",
+															)}
+														>
+															{executed
+																? `${stats?.count ?? 0} executed`
+																: "never executed"}
+														</span>
+													);
+												})()}
+											</div>
+										)}
+									</div>
+									{hook.hookEventName ? (
+										<p className="mt-1 text-xs text-muted-foreground">
+											Last run:{" "}
+											{formatExecutionTs(
+												hookExecutionByEvent[hook.hookEventName]?.lastTs ??
+													null,
+											)}
+										</p>
+									) : null}
+									<p className="mt-1 text-xs font-mono text-muted-foreground">
+										{hook.path}
+									</p>
+								</div>
+							))}
+							{projectHooks.length === 0 && (
+								<p className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
+									No project hooks found.
+								</p>
+							)}
+						</div>
+					</div>
+				</div>
+			)}
+
+			{activeTab === "Skills" && (
+				<div>
+					<p className="mb-6 text-sm leading-relaxed text-muted-foreground">
+						Skills can be invoked in chat with{" "}
+						<code className="rounded bg-secondary px-1.5 py-0.5 text-xs font-mono text-foreground">
+							/SKILL
+						</code>
+						.
+					</p>
+
+					<div className="flex flex-col gap-3">
+						{commandItems.map((item) => (
+							<div
+								key={`${item.type}:${item.path}`}
+								className="rounded-lg border border-border px-5 py-4"
+							>
+								<div className="flex items-center gap-3">
+									{item.type === "workflow" ? (
+										<Play className="h-4 w-4 shrink-0 text-primary" />
+									) : (
+										<Zap className="h-4 w-4 shrink-0 text-primary" />
+									)}
+									<h3 className="text-sm font-semibold text-foreground">
+										{item.name}
+									</h3>
+									<span className="rounded border border-border px-2 py-0.5 text-xs text-muted-foreground">
+										{item.type}
+									</span>
+								</div>
+								<p className="mt-2 ml-7 text-xs text-muted-foreground">
+									{item.description?.trim() || previewText(item.instructions)}
+								</p>
+								<p className="mt-1 ml-7 text-xs font-mono text-muted-foreground">
+									{item.path}
+								</p>
+							</div>
+						))}
+						{commandItems.length === 0 && (
+							<p className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
+								No enabled skills or workflows found.
+							</p>
+						)}
+					</div>
+				</div>
+			)}
+
+			{activeTab === "Agents" && (
+				<div>
+					<p className="mb-6 text-sm leading-relaxed text-muted-foreground">
+						Configured agents discovered from Documents and settings
+						directories.
+					</p>
+
+					<div className="flex flex-col gap-3">
+						{agents.map((agent) => (
+							<div
+								key={agent.path}
+								className="rounded-lg border border-border px-5 py-4"
+							>
+								<div className="flex items-center gap-3">
+									<Bot className="h-4 w-4 shrink-0 text-primary" />
+									<h3 className="text-sm font-semibold text-foreground">
+										{agent.name}
+									</h3>
+								</div>
+								<p className="mt-1 ml-7 text-xs font-mono text-muted-foreground">
+									{agent.path}
+								</p>
+							</div>
+						))}
+						{agents.length === 0 && (
+							<p className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
+								No configured agents found.
+							</p>
+						)}
+					</div>
+				</div>
+			)}
+
+			{activeTab === "Plugins" && (
+				<div>
+					<p className="mb-6 text-sm leading-relaxed text-muted-foreground">
+						Plugins discovered from workspace and global plugin directories.
+					</p>
+
+					<div className="mb-6">
+						<h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+							Global Plugins
+						</h3>
+						<div className="flex flex-col gap-3">
+							{globalPlugins.map((plugin) => (
+								<div
+									key={plugin.path}
 									className="rounded-lg border border-border px-5 py-4"
 								>
 									<div className="flex items-center gap-3">
-										<Bot className="h-4 w-4 shrink-0 text-primary" />
-										<h3 className="text-sm font-semibold text-foreground">
-											{agent.name}
+										<Puzzle className="h-4 w-4 shrink-0 text-primary" />
+										<h3 className="min-w-0 flex-1 text-sm font-semibold text-foreground">
+											{plugin.name}
 										</h3>
+										<span className="text-xs text-muted-foreground">
+											{plugin.enabled ? "Enabled" : "Disabled"}
+										</span>
+										<Switch
+											checked={plugin.enabled}
+											onCheckedChange={() => {
+												void setPluginEnabled(plugin);
+											}}
+											disabled={togglingPluginPaths.has(plugin.path)}
+											aria-label={`Toggle ${plugin.name}`}
+										/>
 									</div>
 									<p className="mt-1 ml-7 text-xs font-mono text-muted-foreground">
-										{agent.path}
+										{plugin.path}
 									</p>
+									<div className="mt-3 ml-7 flex flex-col gap-2">
+										{(
+											pluginToolsByPluginKey.get(
+												`${plugin.name}:${plugin.path}`,
+											) ?? []
+										).map((tool) => {
+											const isToggling = togglingToolIds.has(tool.id);
+											return (
+												<div
+													key={tool.id}
+													className="flex items-center justify-between gap-4 rounded-md border border-border/70 px-3 py-2"
+												>
+													<div className="min-w-0">
+														<p className="text-xs font-medium text-foreground">
+															{tool.name}
+														</p>
+														<p className="text-xs text-muted-foreground">
+															{tool.description?.trim() ||
+																"No description available."}
+														</p>
+													</div>
+													<div className="flex items-center gap-2">
+														<span className="text-xs text-muted-foreground">
+															{tool.enabled ? "Enabled" : "Disabled"}
+														</span>
+														<Switch
+															checked={tool.enabled}
+															onCheckedChange={() => {
+																void setToolEnabled(tool);
+															}}
+															disabled={isToggling || !plugin.enabled}
+															aria-label={`Toggle ${tool.name}`}
+														/>
+													</div>
+												</div>
+											);
+										})}
+										{(pluginToolsByPluginKey.get(
+											`${plugin.name}:${plugin.path}`,
+										)?.length ?? 0) === 0 && (
+											<p className="text-xs text-muted-foreground">
+												No plugin tools found.
+											</p>
+										)}
+									</div>
 								</div>
 							))}
-							{agents.length === 0 && (
+							{globalPlugins.length === 0 && (
 								<p className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
-									No configured agents found.
+									No global plugins found.
 								</p>
 							)}
 						</div>
 					</div>
-				)}
 
-				{activeTab === "Plugins" && (
 					<div>
-						<p className="mb-6 text-sm leading-relaxed text-muted-foreground">
-							Plugins discovered from workspace and global plugin directories.
-						</p>
-
-						<div className="mb-6">
-							<h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-								Global Plugins
-							</h3>
-							<div className="flex flex-col gap-3">
-								{globalPlugins.map((plugin) => (
-									<div
-										key={plugin.path}
-										className="rounded-lg border border-border px-5 py-4"
-									>
-										<div className="flex items-center gap-3">
-											<Puzzle className="h-4 w-4 shrink-0 text-primary" />
-											<h3 className="min-w-0 flex-1 text-sm font-semibold text-foreground">
-												{plugin.name}
-											</h3>
-											<span className="text-xs text-muted-foreground">
-												{plugin.enabled ? "Enabled" : "Disabled"}
-											</span>
-											<Switch
-												checked={plugin.enabled}
-												onCheckedChange={() => {
-													void setPluginEnabled(plugin);
-												}}
-												disabled={togglingPluginPaths.has(plugin.path)}
-												aria-label={`Toggle ${plugin.name}`}
-											/>
-										</div>
-										<p className="mt-1 ml-7 text-xs font-mono text-muted-foreground">
-											{plugin.path}
-										</p>
-										<div className="mt-3 ml-7 flex flex-col gap-2">
-											{(
-												pluginToolsByPluginKey.get(
-													`${plugin.name}:${plugin.path}`,
-												) ?? []
-											).map((tool) => {
-												const isToggling = togglingToolIds.has(tool.id);
-												return (
-													<div
-														key={tool.id}
-														className="flex items-center justify-between gap-4 rounded-md border border-border/70 px-3 py-2"
-													>
-														<div className="min-w-0">
-															<p className="text-xs font-medium text-foreground">
-																{tool.name}
-															</p>
-															<p className="text-xs text-muted-foreground">
-																{tool.description?.trim() ||
-																	"No description available."}
-															</p>
-														</div>
-														<div className="flex items-center gap-2">
-															<span className="text-xs text-muted-foreground">
-																{tool.enabled ? "Enabled" : "Disabled"}
-															</span>
-															<Switch
-																checked={tool.enabled}
-																onCheckedChange={() => {
-																	void setToolEnabled(tool);
-																}}
-																disabled={isToggling || !plugin.enabled}
-																aria-label={`Toggle ${tool.name}`}
-															/>
-														</div>
-													</div>
-												);
-											})}
-											{(pluginToolsByPluginKey.get(
-												`${plugin.name}:${plugin.path}`,
-											)?.length ?? 0) === 0 && (
-												<p className="text-xs text-muted-foreground">
-													No plugin tools found.
-												</p>
-											)}
-										</div>
+						<h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+							Project Plugins
+						</h3>
+						<div className="flex flex-col gap-3">
+							{projectPlugins.map((plugin) => (
+								<div
+									key={plugin.path}
+									className="rounded-lg border border-border px-5 py-4"
+								>
+									<div className="flex items-center gap-3">
+										<Puzzle className="h-4 w-4 shrink-0 text-primary" />
+										<h3 className="min-w-0 flex-1 text-sm font-semibold text-foreground">
+											{plugin.name}
+										</h3>
+										<span className="text-xs text-muted-foreground">
+											{plugin.enabled ? "Enabled" : "Disabled"}
+										</span>
+										<Switch
+											checked={plugin.enabled}
+											onCheckedChange={() => {
+												void setPluginEnabled(plugin);
+											}}
+											disabled={togglingPluginPaths.has(plugin.path)}
+											aria-label={`Toggle ${plugin.name}`}
+										/>
 									</div>
-								))}
-								{globalPlugins.length === 0 && (
-									<p className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
-										No global plugins found.
+									<p className="mt-1 ml-7 text-xs font-mono text-muted-foreground">
+										{plugin.path}
 									</p>
-								)}
-							</div>
-						</div>
-
-						<div>
-							<h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-								Project Plugins
-							</h3>
-							<div className="flex flex-col gap-3">
-								{projectPlugins.map((plugin) => (
-									<div
-										key={plugin.path}
-										className="rounded-lg border border-border px-5 py-4"
-									>
-										<div className="flex items-center gap-3">
-											<Puzzle className="h-4 w-4 shrink-0 text-primary" />
-											<h3 className="min-w-0 flex-1 text-sm font-semibold text-foreground">
-												{plugin.name}
-											</h3>
-											<span className="text-xs text-muted-foreground">
-												{plugin.enabled ? "Enabled" : "Disabled"}
-											</span>
-											<Switch
-												checked={plugin.enabled}
-												onCheckedChange={() => {
-													void setPluginEnabled(plugin);
-												}}
-												disabled={togglingPluginPaths.has(plugin.path)}
-												aria-label={`Toggle ${plugin.name}`}
-											/>
-										</div>
-										<p className="mt-1 ml-7 text-xs font-mono text-muted-foreground">
-											{plugin.path}
-										</p>
-										<div className="mt-3 ml-7 flex flex-col gap-2">
-											{(
-												pluginToolsByPluginKey.get(
-													`${plugin.name}:${plugin.path}`,
-												) ?? []
-											).map((tool) => {
-												const isToggling = togglingToolIds.has(tool.id);
-												return (
-													<div
-														key={tool.id}
-														className="flex items-center justify-between gap-4 rounded-md border border-border/70 px-3 py-2"
-													>
-														<div className="min-w-0">
-															<p className="text-xs font-medium text-foreground">
-																{tool.name}
-															</p>
-															<p className="text-xs text-muted-foreground">
-																{tool.description?.trim() ||
-																	"No description available."}
-															</p>
-														</div>
-														<div className="flex items-center gap-2">
-															<span className="text-xs text-muted-foreground">
-																{tool.enabled ? "Enabled" : "Disabled"}
-															</span>
-															<Switch
-																checked={tool.enabled}
-																onCheckedChange={() => {
-																	void setToolEnabled(tool);
-																}}
-																disabled={isToggling || !plugin.enabled}
-																aria-label={`Toggle ${tool.name}`}
-															/>
-														</div>
-													</div>
-												);
-											})}
-											{(pluginToolsByPluginKey.get(
+									<div className="mt-3 ml-7 flex flex-col gap-2">
+										{(
+											pluginToolsByPluginKey.get(
 												`${plugin.name}:${plugin.path}`,
-											)?.length ?? 0) === 0 && (
-												<p className="text-xs text-muted-foreground">
-													No plugin tools found.
-												</p>
-											)}
-										</div>
-									</div>
-								))}
-								{projectPlugins.length === 0 && (
-									<p className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
-										No project plugins found.
-									</p>
-								)}
-							</div>
-						</div>
-					</div>
-				)}
-
-				{activeTab === "Tools" && (
-					<div>
-						<p className="mb-6 text-sm leading-relaxed text-muted-foreground">
-							Builtin tool groups and plugin-contributed tools available to the
-							runtime.
-						</p>
-
-						<div className="mb-6">
-							<h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-								Builtin Tools
-							</h3>
-							<div className="flex flex-col gap-3">
-								{builtinTools.map((tool) =>
-									(() => {
-										const isToggling = togglingToolIds.has(tool.id);
-										return (
-											<div
-												key={tool.id}
-												className="rounded-lg border border-border px-5 py-4"
-											>
-												<div className="flex items-center gap-3">
-													<Wrench className="h-4 w-4 shrink-0 text-primary" />
-													<h3 className="min-w-0 flex-1 text-sm font-semibold text-foreground">
-														{tool.name}
-													</h3>
-													<span className="text-xs text-muted-foreground">
-														{tool.enabled ? "Enabled" : "Disabled"}
-													</span>
-													<Switch
-														checked={tool.enabled}
-														onCheckedChange={() => {
-															void setToolEnabled(tool);
-														}}
-														disabled={isToggling}
-														aria-label={`Toggle ${tool.name}`}
-													/>
-												</div>
-												<p className="mt-2 ml-7 text-xs text-muted-foreground">
-													{tool.description?.trim() ||
-														"No description available."}
-												</p>
-												{!!tool.headlessToolNames?.length && (
-													<p className="mt-1 ml-7 text-xs font-mono text-muted-foreground">
-														{tool.headlessToolNames.join(", ")}
-													</p>
-												)}
-											</div>
-										);
-									})(),
-								)}
-								{builtinTools.length === 0 && (
-									<p className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
-										No builtin tools found.
-									</p>
-								)}
-							</div>
-						</div>
-
-						<div>
-							<h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-								Plugin Tools
-							</h3>
-							<div className="flex flex-col gap-3">
-								{pluginTools.map((tool) =>
-									(() => {
-										const isToggling = togglingToolIds.has(tool.id);
-										return (
-											<div
-												key={tool.id}
-												className="rounded-lg border border-border px-5 py-4"
-											>
-												<div className="flex items-center gap-3">
-													<Wrench className="h-4 w-4 shrink-0 text-primary" />
-													<h3 className="min-w-0 flex-1 text-sm font-semibold text-foreground">
-														{tool.name}
-													</h3>
-													{tool.pluginName && (
-														<span className="rounded border border-border px-2 py-0.5 text-xs text-muted-foreground">
-															plugin: {tool.pluginName}
+											) ?? []
+										).map((tool) => {
+											const isToggling = togglingToolIds.has(tool.id);
+											return (
+												<div
+													key={tool.id}
+													className="flex items-center justify-between gap-4 rounded-md border border-border/70 px-3 py-2"
+												>
+													<div className="min-w-0">
+														<p className="text-xs font-medium text-foreground">
+															{tool.name}
+														</p>
+														<p className="text-xs text-muted-foreground">
+															{tool.description?.trim() ||
+																"No description available."}
+														</p>
+													</div>
+													<div className="flex items-center gap-2">
+														<span className="text-xs text-muted-foreground">
+															{tool.enabled ? "Enabled" : "Disabled"}
 														</span>
-													)}
-													<span className="text-xs text-muted-foreground">
-														{tool.enabled ? "Enabled" : "Disabled"}
-													</span>
-													<Switch
-														checked={tool.enabled}
-														onCheckedChange={() => {
-															void setToolEnabled(tool);
-														}}
-														disabled={isToggling}
-														aria-label={`Toggle ${tool.name}`}
-													/>
+														<Switch
+															checked={tool.enabled}
+															onCheckedChange={() => {
+																void setToolEnabled(tool);
+															}}
+															disabled={isToggling || !plugin.enabled}
+															aria-label={`Toggle ${tool.name}`}
+														/>
+													</div>
 												</div>
-												<p className="mt-2 ml-7 text-xs text-muted-foreground">
-													{tool.description?.trim() ||
-														"No description available."}
-												</p>
-												{tool.path && (
-													<p className="mt-1 ml-7 text-xs font-mono text-muted-foreground">
-														{tool.path}
-													</p>
-												)}
-											</div>
-										);
-									})(),
-								)}
-								{pluginTools.length === 0 && (
-									<p className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
-										No plugin tools found.
-									</p>
-								)}
-							</div>
+											);
+										})}
+										{(pluginToolsByPluginKey.get(
+											`${plugin.name}:${plugin.path}`,
+										)?.length ?? 0) === 0 && (
+											<p className="text-xs text-muted-foreground">
+												No plugin tools found.
+											</p>
+										)}
+									</div>
+								</div>
+							))}
+							{projectPlugins.length === 0 && (
+								<p className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
+									No project plugins found.
+								</p>
+							)}
 						</div>
 					</div>
-				)}
-			</div>
-		</ScrollArea>
+				</div>
+			)}
+
+			{activeTab === "Tools" && (
+				<div>
+					<p className="mb-6 text-sm leading-relaxed text-muted-foreground">
+						Builtin tool groups and plugin-contributed tools available to the
+						runtime.
+					</p>
+
+					<div className="mb-6">
+						<h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+							Builtin Tools
+						</h3>
+						<div className="flex flex-col gap-3">
+							{builtinTools.map((tool) =>
+								(() => {
+									const isToggling = togglingToolIds.has(tool.id);
+									return (
+										<div
+											key={tool.id}
+											className="rounded-lg border border-border px-5 py-4"
+										>
+											<div className="flex items-center gap-3">
+												<Wrench className="h-4 w-4 shrink-0 text-primary" />
+												<h3 className="min-w-0 flex-1 text-sm font-semibold text-foreground">
+													{tool.name}
+												</h3>
+												<span className="text-xs text-muted-foreground">
+													{tool.enabled ? "Enabled" : "Disabled"}
+												</span>
+												<Switch
+													checked={tool.enabled}
+													onCheckedChange={() => {
+														void setToolEnabled(tool);
+													}}
+													disabled={isToggling}
+													aria-label={`Toggle ${tool.name}`}
+												/>
+											</div>
+											<p className="mt-2 ml-7 text-xs text-muted-foreground">
+												{tool.description?.trim() ||
+													"No description available."}
+											</p>
+											{!!tool.headlessToolNames?.length && (
+												<p className="mt-1 ml-7 text-xs font-mono text-muted-foreground">
+													{tool.headlessToolNames.join(", ")}
+												</p>
+											)}
+										</div>
+									);
+								})(),
+							)}
+							{builtinTools.length === 0 && (
+								<p className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
+									No builtin tools found.
+								</p>
+							)}
+						</div>
+					</div>
+
+					<div>
+						<h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+							Plugin Tools
+						</h3>
+						<div className="flex flex-col gap-3">
+							{pluginTools.map((tool) =>
+								(() => {
+									const isToggling = togglingToolIds.has(tool.id);
+									return (
+										<div
+											key={tool.id}
+											className="rounded-lg border border-border px-5 py-4"
+										>
+											<div className="flex items-center gap-3">
+												<Wrench className="h-4 w-4 shrink-0 text-primary" />
+												<h3 className="min-w-0 flex-1 text-sm font-semibold text-foreground">
+													{tool.name}
+												</h3>
+												{tool.pluginName && (
+													<span className="rounded border border-border px-2 py-0.5 text-xs text-muted-foreground">
+														plugin: {tool.pluginName}
+													</span>
+												)}
+												<span className="text-xs text-muted-foreground">
+													{tool.enabled ? "Enabled" : "Disabled"}
+												</span>
+												<Switch
+													checked={tool.enabled}
+													onCheckedChange={() => {
+														void setToolEnabled(tool);
+													}}
+													disabled={isToggling}
+													aria-label={`Toggle ${tool.name}`}
+												/>
+											</div>
+											<p className="mt-2 ml-7 text-xs text-muted-foreground">
+												{tool.description?.trim() ||
+													"No description available."}
+											</p>
+											{tool.path && (
+												<p className="mt-1 ml-7 text-xs font-mono text-muted-foreground">
+													{tool.path}
+												</p>
+											)}
+										</div>
+									);
+								})(),
+							)}
+							{pluginTools.length === 0 && (
+								<p className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
+									No plugin tools found.
+								</p>
+							)}
+						</div>
+					</div>
+				</div>
+			)}
+
+			{catalogPrimitive ? (
+				<section className="mt-10 border-t pt-8">
+					<h2 className="mb-5 text-xl font-semibold text-foreground">
+						Catalog
+					</h2>
+					<MarketplaceView chrome="embedded" primitive={catalogPrimitive} />
+				</section>
+			) : null}
+		</PageFrame>
 	);
+}
+
+export function RulesView() {
+	return <CustomizationSectionView showTabs />;
 }

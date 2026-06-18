@@ -10,11 +10,17 @@ import type {
 	ProviderModelsResponse,
 	ProviderSettingsUpdate,
 } from "@/lib/provider-schema";
+import {
+	type HubTheme,
+	readStoredHubTheme,
+	readSystemHubTheme,
+	setStoredHubTheme,
+} from "@/lib/theme";
 import { cn } from "@/lib/utils";
+import { PageFrame, PageHeader } from "../page-layout";
 import { AccountView } from "./account-view";
 import { AddProviderContent, type AddProviderPayload } from "./add-provider";
 import { ChannelsContent } from "./channels-view";
-import { RulesView } from "./extensions-view";
 import { McpServersContent } from "./mcp-view";
 import {
 	ProviderDetailContent,
@@ -30,7 +36,6 @@ import { toSettingsPatch } from "./settings-patch";
 const navCategories = [
 	"General",
 	"Providers",
-	"Customizations",
 	"MCP",
 	"Channels",
 	"Schedules",
@@ -347,55 +352,68 @@ export function SettingsView({
 		setAddingProvider(false);
 	};
 
-	const content =
-		activeNav === "Providers" && selectedProvider ? (
-			<ProviderDetailContent
-				modelsError={modelsErrorByProvider[selectedProvider.id] ?? null}
-				modelsLoading={modelsLoadingByProvider[selectedProvider.id] ?? false}
-				oauthLoginPending={oauthSigningProviderId === selectedProvider.id}
-				onBack={backToProviderList}
-				onLoadModels={() => void loadProviderModels(selectedProvider.id)}
-				onOAuthLogin={
-					isOAuthProvider(selectedProvider.id)
-						? () => void runOAuthProviderLogin(selectedProvider.id)
-						: undefined
-				}
-				onUpdate={(updates) => updateProvider(selectedProvider.id, updates)}
-				provider={selectedProvider}
+	const providerContent = addingProvider ? (
+		<AddProviderContent
+			existingProviderIds={providers.map((provider) => provider.id)}
+			onBack={backToProviderList}
+			onSave={saveNewProvider}
+		/>
+	) : providersLoading ? (
+		<div className="flex h-full items-center justify-center">
+			<p className="text-sm text-muted-foreground">Loading providers...</p>
+		</div>
+	) : providerCatalogError ? (
+		<div className="flex h-full items-center justify-center">
+			<p className="max-w-xl px-4 text-center text-sm text-destructive">
+				Failed to load providers: {providerCatalogError}
+			</p>
+		</div>
+	) : selectedProvider ? (
+		<div className="grid h-full grid-cols-[minmax(24rem,0.95fr)_minmax(28rem,1.05fr)] overflow-hidden max-[1100px]:grid-cols-1 max-[1100px]:grid-rows-[minmax(24rem,0.9fr)_minmax(26rem,1fr)]">
+			<ProviderListContent
+				onAddProvider={openAddProvider}
+				onConfigure={openProviderDetail}
+				onToggle={toggleProvider}
+				providers={providers}
+				selectedProviderId={selectedProvider.id}
+				variant="panel"
 			/>
-		) : activeNav === "Providers" ? (
-			addingProvider ? (
-				<AddProviderContent
-					existingProviderIds={providers.map((provider) => provider.id)}
+			<aside className="min-h-0 overflow-hidden border-l bg-background max-[1100px]:border-l-0 max-[1100px]:border-t">
+				<ProviderDetailContent
+					modelsError={modelsErrorByProvider[selectedProvider.id] ?? null}
+					modelsLoading={modelsLoadingByProvider[selectedProvider.id] ?? false}
+					oauthLoginPending={oauthSigningProviderId === selectedProvider.id}
 					onBack={backToProviderList}
-					onSave={saveNewProvider}
+					onLoadModels={() => void loadProviderModels(selectedProvider.id)}
+					onOAuthLogin={
+						isOAuthProvider(selectedProvider.id)
+							? () => void runOAuthProviderLogin(selectedProvider.id)
+							: undefined
+					}
+					onUpdate={(updates) => updateProvider(selectedProvider.id, updates)}
+					provider={selectedProvider}
+					variant="panel"
 				/>
-			) : providersLoading ? (
-				<div className="flex h-full items-center justify-center">
-					<p className="text-sm text-muted-foreground">Loading providers...</p>
-				</div>
-			) : providerCatalogError ? (
-				<div className="flex h-full items-center justify-center">
-					<p className="max-w-xl px-4 text-center text-sm text-destructive">
-						Failed to load providers: {providerCatalogError}
-					</p>
-				</div>
-			) : (
-				<ProviderListContent
-					onAddProvider={openAddProvider}
-					onConfigure={openProviderDetail}
-					onToggle={toggleProvider}
-					providers={providers}
-				/>
-			)
+			</aside>
+		</div>
+	) : (
+		<ProviderListContent
+			onAddProvider={openAddProvider}
+			onConfigure={openProviderDetail}
+			onToggle={toggleProvider}
+			providers={providers}
+		/>
+	);
+
+	const content =
+		activeNav === "Providers" ? (
+			providerContent
 		) : activeNav === "MCP" ? (
 			<McpServersContent />
 		) : activeNav === "Channels" ? (
 			<ChannelsContent />
 		) : activeNav === "Schedules" ? (
 			<RoutineSchedulesContent />
-		) : activeNav === "Customizations" ? (
-			<RulesView />
 		) : activeNav === "Account" ? (
 			<AccountView />
 		) : activeNav === "General" ? (
@@ -512,6 +530,10 @@ export function SettingsView({
 }
 
 function GeneralSettingsContent() {
+	const [theme, setTheme] = useState<HubTheme>(() => {
+		if (typeof window === "undefined") return "light";
+		return readStoredHubTheme() ?? readSystemHubTheme();
+	});
 	const [telemetryOptOut, setTelemetryOptOut] = useState(false);
 	const [telemetryLoading, setTelemetryLoading] = useState(true);
 	const [telemetrySaving, setTelemetrySaving] = useState(false);
@@ -593,63 +615,77 @@ function GeneralSettingsContent() {
 		}
 	};
 
+	const updateTheme = (darkModeEnabled: boolean) => {
+		const nextTheme = darkModeEnabled ? "dark" : "light";
+		setTheme(setStoredHubTheme(nextTheme));
+		window.dispatchEvent(new Event("cline-hub-theme-change"));
+	};
+
 	return (
-		<ScrollArea className="h-full">
-			<div className="px-18 py-10 max-[1200px]:px-8 max-[720px]:px-4 max-[720px]:py-5">
-				<div className="mb-12">
-					<h1 className="text-[32px] font-semibold leading-none tracking-normal text-foreground">
-						Settings
-					</h1>
+		<PageFrame>
+			<PageHeader
+				description="Manage Hub preferences for this browser and CLI environment."
+				title="Settings"
+			/>
+			<section className="max-w-[86rem]">
+				<div className="flex min-h-20 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
+					<div>
+						<p className="text-[17px] font-semibold text-foreground">
+							Dark mode
+						</p>
+						<p className="mt-1 text-[15px] text-muted-foreground">
+							Keep the Hub interface in dark mode on this browser.
+						</p>
+					</div>
+					<Switch
+						aria-label="Dark mode"
+						checked={theme === "dark"}
+						onCheckedChange={updateTheme}
+					/>
 				</div>
-				<section className="max-w-[86rem]">
-					<div className="flex min-h-20 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
-						<div>
-							<p className="text-[17px] font-semibold text-foreground">
-								Auto update
+				<div className="flex min-h-20 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
+					<div>
+						<p className="text-[17px] font-semibold text-foreground">
+							Auto update
+						</p>
+						<p className="mt-1 text-[15px] text-muted-foreground">
+							Automatically install CLI updates on startup.
+						</p>
+						{autoUpdateError ? (
+							<p className="mt-2 text-xs text-destructive">
+								Failed to update auto update setting: {autoUpdateError}
 							</p>
-							<p className="mt-1 text-[15px] text-muted-foreground">
-								Automatically install CLI updates on startup.
-							</p>
-							{autoUpdateError ? (
-								<p className="mt-2 text-xs text-destructive">
-									Failed to update auto update setting: {autoUpdateError}
-								</p>
-							) : null}
-						</div>
-						<Switch
-							aria-label="Auto update"
-							checked={autoUpdateEnabled}
-							disabled={autoUpdateLoading || autoUpdateSaving}
-							onCheckedChange={(checked) =>
-								void updateAutoUpdateEnabled(checked)
-							}
-						/>
+						) : null}
 					</div>
-					<div className="flex min-h-20 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
-						<div>
-							<p className="text-[17px] font-semibold text-foreground">
-								Telemetry
+					<Switch
+						aria-label="Auto update"
+						checked={autoUpdateEnabled}
+						disabled={autoUpdateLoading || autoUpdateSaving}
+						onCheckedChange={(checked) => void updateAutoUpdateEnabled(checked)}
+					/>
+				</div>
+				<div className="flex min-h-20 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
+					<div>
+						<p className="text-[17px] font-semibold text-foreground">
+							Telemetry
+						</p>
+						<p className="mt-1 text-[15px] text-muted-foreground">
+							Enable error and usage report to help us improve Cline.
+						</p>
+						{telemetryError ? (
+							<p className="mt-2 text-xs text-destructive">
+								Failed to update telemetry setting: {telemetryError}
 							</p>
-							<p className="mt-1 text-[15px] text-muted-foreground">
-								Enable error and usage report to help us improve Cline.
-							</p>
-							{telemetryError ? (
-								<p className="mt-2 text-xs text-destructive">
-									Failed to update telemetry setting: {telemetryError}
-								</p>
-							) : null}
-						</div>
-						<Switch
-							aria-label="Telemetry"
-							checked={!telemetryOptOut} // If opt-out is true, the switch should be off (unchecked)
-							disabled={telemetryLoading || telemetrySaving}
-							onCheckedChange={(checked) =>
-								void updateTelemetryOptOut(!checked)
-							}
-						/>
+						) : null}
 					</div>
-				</section>
-			</div>
-		</ScrollArea>
+					<Switch
+						aria-label="Telemetry"
+						checked={!telemetryOptOut} // If opt-out is true, the switch should be off (unchecked)
+						disabled={telemetryLoading || telemetrySaving}
+						onCheckedChange={(checked) => void updateTelemetryOptOut(!checked)}
+					/>
+				</div>
+			</section>
+		</PageFrame>
 	);
 }

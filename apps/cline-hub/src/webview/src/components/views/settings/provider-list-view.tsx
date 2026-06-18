@@ -14,6 +14,7 @@ import {
 	RefreshCw,
 	Search,
 	Star,
+	X,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -89,11 +90,15 @@ export function ProviderListContent({
 	onToggle,
 	onConfigure,
 	onAddProvider,
+	selectedProviderId,
+	variant = "page",
 }: {
 	providers: Provider[];
 	onToggle: (id: string) => void;
 	onConfigure: (id: string) => void;
 	onAddProvider: () => void;
+	selectedProviderId?: string | null;
+	variant?: "page" | "panel";
 }) {
 	const [providerSearchOpen, setProviderSearchOpen] = useState(false);
 	const [providerSearch, setProviderSearch] = useState("");
@@ -106,21 +111,38 @@ export function ProviderListContent({
 				provider.name.toLowerCase().includes(providerSearchQuery),
 			)
 		: providers;
+	const isPanel = variant === "panel";
 
 	return (
 		<ScrollArea className="h-full">
-			<div className="px-18 py-10 max-[1200px]:px-8 max-[720px]:px-4 max-[720px]:py-5">
-				<div className="mb-8 flex max-w-[42rem] items-end justify-between gap-4 max-[720px]:items-start">
-					<div>
-						<h1 className="text-[32px] font-semibold leading-none tracking-normal text-foreground">
+			<div
+				className={cn(
+					"py-10 max-[720px]:px-4 max-[720px]:py-5",
+					isPanel ? "px-8" : "px-18 max-[1200px]:px-8",
+				)}
+			>
+				<div
+					className={cn(
+						"mb-8 flex items-start justify-between gap-6 max-[860px]:flex-col max-[860px]:items-stretch",
+						isPanel ? "max-w-none" : "max-w-[42rem]",
+					)}
+				>
+					<div className="min-w-0">
+						<h1
+							className={cn(
+								"truncate font-semibold leading-[1.15] tracking-normal text-foreground",
+								isPanel ? "text-[24px]" : "text-[32px]",
+							)}
+						>
 							Models
 						</h1>
-						<p className="mt-8 text-[15px] text-muted-foreground max-[720px]:mt-4">
+						<p className="mt-3 text-[15px] leading-6 text-muted-foreground">
+							Configure model providers and choose which ones are available.{" "}
 							{providers.length} available &middot; {enabledProviderCount}{" "}
-							selected
+							enabled
 						</p>
 					</div>
-					<div className="flex items-center gap-2">
+					<div className="flex shrink-0 items-center gap-2 max-[860px]:justify-start">
 						<Button
 							aria-label="Search providers"
 							className="size-8 rounded-md"
@@ -143,7 +165,7 @@ export function ProviderListContent({
 				</div>
 
 				{providerSearchOpen ? (
-					<div className="mb-4 max-w-[42rem]">
+					<div className={cn("mb-4", isPanel ? "max-w-none" : "max-w-[42rem]")}>
 						<div className="flex h-9 items-center gap-2 rounded border bg-background px-3">
 							<Search className="size-4 shrink-0 text-muted-foreground" />
 							<Input
@@ -158,7 +180,12 @@ export function ProviderListContent({
 					</div>
 				) : null}
 
-				<div className="max-w-[42rem] overflow-hidden">
+				<div
+					className={cn(
+						"overflow-hidden",
+						isPanel ? "max-w-none" : "max-w-[42rem]",
+					)}
+				>
 					{filteredProviders.length === 0 ? (
 						<div className="border-b px-2 py-6 text-[15px] text-muted-foreground">
 							No providers match "{providerSearch.trim()}".
@@ -166,7 +193,10 @@ export function ProviderListContent({
 					) : null}
 					{filteredProviders.map((prov) => (
 						<div
-							className="flex min-h-11 items-center gap-4 border-b px-2 py-2 transition-colors hover:bg-accent/30"
+							className={cn(
+								"flex min-h-11 items-center gap-4 border-b px-2 py-2 transition-colors hover:bg-accent/30",
+								selectedProviderId === prov.id && "bg-accent/45",
+							)}
 							key={prov.id}
 						>
 							<button
@@ -213,6 +243,7 @@ export function ProviderDetailContent({
 	modelsError,
 	onOAuthLogin,
 	oauthLoginPending = false,
+	variant = "page",
 }: {
 	provider: Provider;
 	onBack: () => void;
@@ -222,6 +253,7 @@ export function ProviderDetailContent({
 	modelsError?: string | null;
 	onOAuthLogin?: () => void;
 	oauthLoginPending?: boolean;
+	variant?: "page" | "panel";
 }) {
 	const [shownSecrets, setShownSecrets] = useState<Record<string, boolean>>({});
 	const [localConfigValues, setLocalConfigValues] = useState<
@@ -254,6 +286,7 @@ export function ProviderDetailContent({
 					model.id.toLowerCase().includes(modelSearchQuery),
 			)
 		: modelList;
+	const isPanel = variant === "panel";
 
 	useEffect(
 		() => () => {
@@ -305,24 +338,42 @@ export function ProviderDetailContent({
 
 	return (
 		<ScrollArea className="h-full">
-			<div className="px-18 py-10 max-[1200px]:px-8 max-[720px]:px-4 max-[720px]:py-5">
+			<div
+				className={cn(
+					"py-10 max-[720px]:px-4 max-[720px]:py-5",
+					isPanel ? "px-6" : "px-18 max-[1200px]:px-8",
+				)}
+			>
 				{/* Back + title */}
 				<div className="mb-8 flex items-center gap-3">
 					<Button
-						aria-label="Back to providers"
+						aria-label={
+							isPanel ? "Close provider details" : "Back to providers"
+						}
 						className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
 						onClick={onBack}
 						variant="ghost"
 					>
-						<ArrowLeft className="h-4 w-4" />
+						{isPanel ? (
+							<X className="h-4 w-4" />
+						) : (
+							<ArrowLeft className="h-4 w-4" />
+						)}
 					</Button>
-					<h1 className="text-[32px] font-semibold leading-none tracking-normal text-foreground">
+					<h1
+						className={cn(
+							"truncate font-semibold leading-[1.15] tracking-normal text-foreground",
+							isPanel ? "text-[24px]" : "text-[32px]",
+						)}
+					>
 						{provider.name}
 					</h1>
 				</div>
 
 				{configFields.length > 0 ? (
-					<section className="mb-8 max-w-[86rem]">
+					<section
+						className={cn("mb-8", isPanel ? "max-w-none" : "max-w-[86rem]")}
+					>
 						<div className="flex flex-col">
 							{configFields.map((field) => {
 								const value = localConfigValues[field.path];
@@ -466,7 +517,12 @@ export function ProviderDetailContent({
 				) : null}
 
 				{/* Models section */}
-				<section className="max-w-[46rem] overflow-hidden rounded-lg border">
+				<section
+					className={cn(
+						"overflow-hidden rounded-lg border",
+						isPanel ? "max-w-none" : "max-w-[46rem]",
+					)}
+				>
 					<div className="flex h-12 items-center justify-between bg-muted/40 px-4">
 						<h2 className="text-[17px] font-medium text-muted-foreground">
 							Models

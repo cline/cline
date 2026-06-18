@@ -2,9 +2,9 @@ import {
 	ActivityIcon,
 	ArrowUpDownIcon,
 	BotIcon,
-	BoxIcon,
-	ChevronRight,
 	ClockIcon,
+	CodeIcon,
+	FileTextIcon,
 	Folder,
 	FunnelIcon,
 	HomeIcon,
@@ -54,11 +54,16 @@ import type {
 } from "../../webview-protocol";
 import Chat from "./Chat";
 import { MarketplaceView } from "./components/views/marketplace-view";
+import { PageFrame, PageHeader } from "./components/views/page-layout";
+import {
+	type CustomizationSection,
+	CustomizationSectionView,
+} from "./components/views/settings/extensions-view";
 import {
 	type SettingsSection,
 	SettingsView,
 } from "./components/views/settings/settings-view";
-import type { MarketplacePrimitiveType } from "./lib/marketplace";
+import { syncHubTheme } from "./lib/theme";
 import { postToHost } from "./vscode";
 
 type View =
@@ -66,10 +71,13 @@ type View =
 	| "sessions"
 	| "chat"
 	| "models"
-	| "customizations"
+	| "rules"
+	| "hooks"
 	| "mcp"
 	| "plugins"
 	| "skills"
+	| "agents"
+	| "tools"
 	| "channels"
 	| "schedules"
 	| "settings";
@@ -78,10 +86,13 @@ const VIEW_PATHS: Record<View, string> = {
 	sessions: "/sessions",
 	chat: "/chat",
 	models: "/models",
-	customizations: "/customizations",
-	mcp: "/marketplace/mcp",
-	plugins: "/marketplace/plugins",
-	skills: "/marketplace/skills",
+	rules: "/rules",
+	hooks: "/hooks",
+	mcp: "/mcp",
+	plugins: "/plugins",
+	skills: "/skills",
+	agents: "/agents",
+	tools: "/tools",
 	channels: "/channels",
 	schedules: "/schedules",
 	settings: "/settings",
@@ -92,18 +103,20 @@ const CHAT_SESSION_QUERY_PARAM = "id";
 const SETTINGS_SECTION_PATHS: Record<SettingsSection, string> = {
 	General: "/settings",
 	Providers: "/settings/providers",
-	Customizations: "/settings/customizations",
 	MCP: "/settings/mcp",
 	Channels: "/settings/channels",
 	Schedules: "/settings/schedules",
 	Account: "/settings/account",
 };
 
-const MARKETPLACE_VIEW_PRIMITIVES = {
-	mcp: "mcp",
-	skills: "skill",
-	plugins: "plugin",
-} satisfies Partial<Record<View, MarketplacePrimitiveType>>;
+const CUSTOMIZATION_VIEW_SECTIONS = {
+	rules: "Rules",
+	hooks: "Hooks",
+	skills: "Skills",
+	agents: "Agents",
+	plugins: "Plugins",
+	tools: "Tools",
+} satisfies Partial<Record<View, CustomizationSection>>;
 
 const EMPTY_HUB_STATE: WebviewHubState = {
 	type: "hub_state",
@@ -120,10 +133,25 @@ function viewFromPath(pathname: string): View {
 	if (pathname === VIEW_PATHS.sessions) return "sessions";
 	if (pathname === VIEW_PATHS.chat) return "chat";
 	if (pathname === VIEW_PATHS.models) return "models";
-	if (pathname === VIEW_PATHS.customizations) return "customizations";
-	if (pathname === "/marketplace" || pathname === VIEW_PATHS.mcp) return "mcp";
-	if (pathname === VIEW_PATHS.plugins) return "plugins";
-	if (pathname === VIEW_PATHS.skills) return "skills";
+	if (
+		pathname === VIEW_PATHS.rules ||
+		pathname === "/customizations" ||
+		pathname === "/settings/customizations"
+	)
+		return "rules";
+	if (pathname === VIEW_PATHS.hooks) return "hooks";
+	if (
+		pathname === "/marketplace" ||
+		pathname === VIEW_PATHS.mcp ||
+		pathname === "/marketplace/mcp"
+	)
+		return "mcp";
+	if (pathname === VIEW_PATHS.plugins || pathname === "/marketplace/plugins")
+		return "plugins";
+	if (pathname === VIEW_PATHS.skills || pathname === "/marketplace/skills")
+		return "skills";
+	if (pathname === VIEW_PATHS.agents) return "agents";
+	if (pathname === VIEW_PATHS.tools) return "tools";
 	if (pathname === VIEW_PATHS.channels) return "channels";
 	if (pathname === VIEW_PATHS.schedules) return "schedules";
 	if (
@@ -185,6 +213,20 @@ function routePath(pathname: string): string {
 	const params = persistentRouteSearchParams();
 	const query = params.toString();
 	return query ? `${pathname}?${query}` : pathname;
+}
+
+function replaceLegacyCustomizationRoute(): void {
+	if (
+		typeof window === "undefined" ||
+		(window.location.pathname !== "/customizations" &&
+			window.location.pathname !== "/settings/customizations")
+	) {
+		return;
+	}
+	const nextPath = routePath(VIEW_PATHS.rules);
+	if (currentPathWithSearch() !== nextPath) {
+		window.history.replaceState(null, "", nextPath);
+	}
 }
 
 function currentPathWithSearch(): string {
@@ -296,74 +338,101 @@ function Shell({
 		{ view: "home", label: "Home", icon: HomeIcon },
 		{ view: "sessions", label: "Sessions", icon: MessageSquareIcon },
 		{ view: "models", label: "Models", icon: BotIcon },
-		{ view: "customizations", label: "Customizations", icon: WrenchIcon },
-		{ view: "mcp", label: "MCP", icon: ServerIcon },
-		{ view: "plugins", label: "Plugin", icon: PlugIcon },
-		{ view: "skills", label: "Skills", icon: ActivityIcon },
 		{ view: "channels", label: "Channels", icon: LinkIcon },
 		{ view: "schedules", label: "Schedules", icon: ClockIcon },
 		{ view: "settings", label: "Settings", icon: SettingsIcon },
 	] satisfies Array<{
-		view: Exclude<View, "chat">;
+		view: Exclude<
+			View,
+			| "chat"
+			| "rules"
+			| "hooks"
+			| "mcp"
+			| "plugins"
+			| "skills"
+			| "agents"
+			| "tools"
+		>;
 		label: string;
 		icon: typeof HomeIcon;
 	}>;
+	const customizationNavItems = [
+		{ view: "plugins", label: "Plugins", icon: PlugIcon },
+		{ view: "skills", label: "Skills", icon: ActivityIcon },
+		{ view: "mcp", label: "MCP", icon: ServerIcon },
+		{ view: "hooks", label: "Hooks", icon: CodeIcon },
+		{ view: "rules", label: "Rules", icon: FileTextIcon },
+		{ view: "agents", label: "Agents", icon: BotIcon },
+		{ view: "tools", label: "Tools", icon: WrenchIcon },
+	] satisfies Array<{
+		view: Extract<
+			View,
+			"rules" | "hooks" | "mcp" | "plugins" | "skills" | "agents" | "tools"
+		>;
+		label: string;
+		icon: typeof HomeIcon;
+	}>;
+
+	const renderNavButton = (
+		item: (typeof navItems | typeof customizationNavItems)[number],
+	) => {
+		const Icon = item.icon;
+		const active =
+			view === item.view || (item.view === "sessions" && view === "chat");
+		return (
+			<button
+				className={`flex h-8 min-w-0 items-center gap-2 rounded-md px-2 text-left text-[15px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar ${
+					active
+						? "bg-sidebar-accent text-sidebar-accent-foreground"
+						: "text-sidebar-foreground hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground"
+				}`}
+				key={item.view}
+				onClick={() => onNavigate(item.view)}
+				type="button"
+			>
+				<Icon className="size-4 shrink-0" />
+				<span className="truncate">{item.label}</span>
+			</button>
+		);
+	};
 
 	return (
 		<div className="grid h-screen min-h-screen grid-cols-[14.5rem_minmax(0,1fr)] bg-background text-foreground max-[720px]:grid-cols-1 max-[720px]:grid-rows-[auto_minmax(0,1fr)]">
 			<aside className="flex min-h-0 flex-col border-r bg-sidebar p-4 text-sidebar-foreground max-[720px]:border-b max-[720px]:border-r-0 max-[720px]:p-3">
 				<button
-					className="mb-5 flex min-w-0 items-center justify-between rounded-md px-0 py-1 text-left text-lg font-semibold outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar max-[720px]:mb-2"
+					className="mb-5 flex min-w-0 items-center gap-2 rounded-md px-0 py-1 text-left text-lg font-semibold outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar max-[720px]:mb-2"
 					onClick={() => onNavigate("home")}
 					type="button"
 				>
-					<span className="truncate">Personal</span>
-					<ChevronRight className="size-4 rotate-90 text-muted-foreground" />
+					<img
+						alt=""
+						className="size-6 shrink-0 dark:invert"
+						src="/cline-logo-filled.svg"
+					/>
+					<span className="truncate">Cline Hub</span>
 				</button>
 				<nav
-					className="grid gap-1 max-[720px]:grid-flow-col max-[720px]:auto-cols-max max-[720px]:overflow-x-auto max-[720px]:[scrollbar-width:none] max-[720px]:[&::-webkit-scrollbar]:hidden"
+					className="grid gap-1 overflow-y-auto max-[720px]:grid-flow-col max-[720px]:auto-cols-max max-[720px]:overflow-x-auto max-[720px]:[scrollbar-width:none] max-[720px]:[&::-webkit-scrollbar]:hidden"
 					aria-label="Hub views"
 				>
-					{navItems.map((item) => {
-						const Icon = item.icon;
-						const active =
-							view === item.view ||
-							(item.view === "sessions" && view === "chat");
-						return (
-							<button
-								className={`flex h-8 min-w-0 items-center gap-2 rounded-md px-2 text-left text-[15px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar ${
-									active
-										? "bg-sidebar-accent text-sidebar-accent-foreground"
-										: "text-sidebar-foreground hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground"
-								}`}
-								key={item.view}
-								onClick={() => onNavigate(item.view)}
-								type="button"
-							>
-								<Icon className="size-4 shrink-0" />
-								<span className="truncate">{item.label}</span>
-								{item.view === "settings" ? (
-									<ChevronRight className="ml-auto size-4 shrink-0 text-muted-foreground" />
-								) : null}
-							</button>
-						);
-					})}
-				</nav>
-				<div className="mt-auto grid gap-4 pt-6 max-[720px]:hidden">
-					<div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-						<BoxIcon className="size-3.5" />
-						<span>{version ? `v${version}` : "Cline Hub"}</span>
+					{navItems.map(renderNavButton)}
+					<div className="mt-4 px-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground max-[720px]:mt-0 max-[720px]:self-center">
+						Customizations
 					</div>
-					<div className="border-t pt-4">
-						<div className="flex min-w-0 items-center gap-3">
-							<div className="grid size-8 shrink-0 place-items-center rounded-full bg-violet-600 text-sm font-semibold text-white">
-								P
-							</div>
-							<span className="min-w-0 flex-1 truncate text-[15px] font-medium">
-								Personal
-							</span>
-							<MoreHorizontal className="size-4 shrink-0 text-muted-foreground" />
-						</div>
+					{customizationNavItems.map(renderNavButton)}
+				</nav>
+				<div className="mt-auto pt-6 max-[720px]:mt-2 max-[720px]:pt-0">
+					<div className="flex min-w-0 items-center gap-2 px-2 text-xs text-muted-foreground">
+						<span className="shrink-0">{version ? `v${version}` : "v-"}</span>
+						<span className="shrink-0 text-border">|</span>
+						<a
+							className="truncate underline-offset-2 transition-colors hover:text-foreground hover:underline"
+							href="https://github.com/cline/cline/issues/new"
+							rel="noopener noreferrer"
+							target="_blank"
+						>
+							Report issue
+						</a>
 					</div>
 				</div>
 			</aside>
@@ -409,51 +478,53 @@ function HomeView({
 	};
 
 	return (
-		<div className="h-full overflow-auto px-18 py-10 max-[1200px]:px-8 max-[720px]:px-4 max-[720px]:py-5">
-			<section className="mb-10 flex items-start justify-between gap-6 max-[860px]:flex-col max-[860px]:items-stretch">
-				<h1 className="text-[32px] font-semibold leading-none tracking-normal text-foreground">
-					Cline Hub
-				</h1>
-				<div className="flex flex-wrap items-center justify-end gap-1.5 max-[860px]:justify-start">
-					<div
-						className="inline-flex h-7 items-center gap-1.5 rounded border bg-background px-2 text-xs text-muted-foreground"
-						title="Hub uptime"
-					>
-						<ClockIcon className="size-3.5" />
-						Uptime {hubState.hubUptime ?? "0m"}
-					</div>
-					<button
-						aria-label="Copy hub URL"
-						className="inline-flex h-7 min-w-0 max-w-64 items-center gap-1.5 rounded border bg-background px-2 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
-						disabled={!hubState.hubUrl}
-						onClick={() => copyText(hubState.hubUrl)}
-						title="Copy hub URL"
-						type="button"
-					>
-						<LinkIcon className="size-3.5 shrink-0" />
-						<span
-							className="min-w-0 truncate"
-							title={hubState.hubUrl ?? "No hub URL"}
+		<PageFrame>
+			<PageHeader
+				title="Cline Hub"
+				description="Monitor connected clients, sessions, and hub activity."
+				className="mb-10"
+				actions={
+					<>
+						<div
+							className="inline-flex h-7 items-center gap-1.5 rounded border bg-background px-2 text-xs text-muted-foreground"
+							title="Hub uptime"
 						>
-							{hubState.hubUrl ?? "no hub url"}
-						</span>
-					</button>
-					<Button
-						disabled={!hubState.connected || restartPending}
-						onClick={() => setRestartDialogOpen(true)}
-						size="sm"
-						title="Restart Cline Hub"
-						type="button"
-						variant="outline"
-						className="h-7 rounded px-2 text-xs"
-					>
-						<RotateCcwIcon
-							className={`size-3.5 ${restartPending ? "animate-spin" : ""}`}
-						/>
-						<span>{restartPending ? "Restarting" : "Restart"}</span>
-					</Button>
-				</div>
-			</section>
+							<ClockIcon className="size-3.5" />
+							Uptime {hubState.hubUptime ?? "0m"}
+						</div>
+						<button
+							aria-label="Copy hub URL"
+							className="inline-flex h-7 min-w-0 max-w-64 items-center gap-1.5 rounded border bg-background px-2 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+							disabled={!hubState.hubUrl}
+							onClick={() => copyText(hubState.hubUrl)}
+							title="Copy hub URL"
+							type="button"
+						>
+							<LinkIcon className="size-3.5 shrink-0" />
+							<span
+								className="min-w-0 truncate"
+								title={hubState.hubUrl ?? "No hub URL"}
+							>
+								{hubState.hubUrl ?? "no hub url"}
+							</span>
+						</button>
+						<Button
+							disabled={!hubState.connected || restartPending}
+							onClick={() => setRestartDialogOpen(true)}
+							size="sm"
+							title="Restart Cline Hub"
+							type="button"
+							variant="outline"
+							className="h-7 rounded px-2 text-xs"
+						>
+							<RotateCcwIcon
+								className={`size-3.5 ${restartPending ? "animate-spin" : ""}`}
+							/>
+							<span>{restartPending ? "Restarting" : "Restart"}</span>
+						</Button>
+					</>
+				}
+			/>
 			<AlertDialog
 				open={restartDialogOpen}
 				onOpenChange={(open) => {
@@ -629,7 +700,7 @@ function HomeView({
 					</div>
 				</section>
 			</div>
-		</div>
+		</PageFrame>
 	);
 }
 
@@ -697,94 +768,101 @@ function SessionsView({
 	};
 
 	return (
-		<div className="h-full overflow-auto px-18 py-10 max-[1200px]:px-8 max-[720px]:px-4 max-[720px]:py-5">
-			<section className="mb-8 flex items-center justify-between gap-4 max-[720px]:flex-col max-[720px]:items-stretch">
-				<h1 className="text-[32px] font-semibold leading-none tracking-normal">
-					Sessions
-				</h1>
-				<div className="flex items-center justify-end gap-2 max-[720px]:justify-start">
-					<DropdownMenu>
-						<DropdownMenuTrigger
-							render={
-								<Button
-									title="Sort sessions"
-									aria-label="Sort sessions"
-									size="icon-sm"
-									type="button"
-									variant="secondary"
-									className="size-8 rounded-md"
-								/>
-							}
+		<PageFrame>
+			<PageHeader
+				title="Sessions"
+				description="Review, reopen, rename, and delete recent sessions."
+				actions={
+					<>
+						<DropdownMenu>
+							<DropdownMenuTrigger
+								render={
+									<Button
+										title="Sort sessions"
+										aria-label="Sort sessions"
+										size="icon-sm"
+										type="button"
+										variant="secondary"
+										className="size-8 rounded-md"
+									/>
+								}
+							>
+								<ArrowUpDownIcon className="size-4" />
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="end" sideOffset={6}>
+								<DropdownMenuItem onClick={() => setSortDirection("newest")}>
+									{sortDirection === "newest"
+										? "Newest first ✓"
+										: "Newest first"}
+								</DropdownMenuItem>
+								<DropdownMenuItem onClick={() => setSortDirection("oldest")}>
+									{sortDirection === "oldest"
+										? "Oldest first ✓"
+										: "Oldest first"}
+								</DropdownMenuItem>
+							</DropdownMenuContent>
+						</DropdownMenu>
+						<DropdownMenu>
+							<DropdownMenuTrigger
+								render={
+									<Button
+										title="Filter sessions"
+										aria-label="Filter sessions"
+										size="icon-sm"
+										type="button"
+										variant={
+											sessionFilters.length > 0 ? "default" : "secondary"
+										}
+										className="size-8 rounded-md"
+									/>
+								}
+							>
+								<FunnelIcon className="size-4" />
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="end" className="max-h-72 w-72">
+								<DropdownMenuGroup>
+									<DropdownMenuLabel>Filter sessions</DropdownMenuLabel>
+									{sessionFilters.length > 0 ? (
+										<>
+											<DropdownMenuItem onClick={() => setSessionFilters([])}>
+												Clear filters
+											</DropdownMenuItem>
+											<DropdownMenuSeparator />
+										</>
+									) : null}
+									{runDetailFilterOptions.length === 0 ? (
+										<DropdownMenuItem disabled>No run details</DropdownMenuItem>
+									) : (
+										runDetailFilterOptions.map((detail) => (
+											<DropdownMenuCheckboxItem
+												checked={sessionFilters.includes(detail)}
+												key={detail}
+												onCheckedChange={(checked: boolean) =>
+													toggleSessionFilter(detail, checked)
+												}
+											>
+												<span className="truncate" title={detail}>
+													{detail}
+												</span>
+											</DropdownMenuCheckboxItem>
+										))
+									)}
+								</DropdownMenuGroup>
+							</DropdownMenuContent>
+						</DropdownMenu>
+						<Button
+							className="h-8 rounded-md bg-foreground px-3 text-sm text-background hover:bg-foreground/90"
+							onClick={onNewSession}
+							type="button"
 						>
-							<ArrowUpDownIcon className="size-4" />
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end" sideOffset={6}>
-							<DropdownMenuItem onClick={() => setSortDirection("newest")}>
-								{sortDirection === "newest" ? "Newest first ✓" : "Newest first"}
-							</DropdownMenuItem>
-							<DropdownMenuItem onClick={() => setSortDirection("oldest")}>
-								{sortDirection === "oldest" ? "Oldest first ✓" : "Oldest first"}
-							</DropdownMenuItem>
-						</DropdownMenuContent>
-					</DropdownMenu>
-					<DropdownMenu>
-						<DropdownMenuTrigger
-							render={
-								<Button
-									title="Filter sessions"
-									aria-label="Filter sessions"
-									size="icon-sm"
-									type="button"
-									variant={sessionFilters.length > 0 ? "default" : "secondary"}
-									className="size-8 rounded-md"
-								/>
-							}
-						>
-							<FunnelIcon className="size-4" />
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end" className="max-h-72 w-72">
-							<DropdownMenuGroup>
-								<DropdownMenuLabel>Filter sessions</DropdownMenuLabel>
-								{sessionFilters.length > 0 ? (
-									<>
-										<DropdownMenuItem onClick={() => setSessionFilters([])}>
-											Clear filters
-										</DropdownMenuItem>
-										<DropdownMenuSeparator />
-									</>
-								) : null}
-								{runDetailFilterOptions.length === 0 ? (
-									<DropdownMenuItem disabled>No run details</DropdownMenuItem>
-								) : (
-									runDetailFilterOptions.map((detail) => (
-										<DropdownMenuCheckboxItem
-											checked={sessionFilters.includes(detail)}
-											key={detail}
-											onCheckedChange={(checked: boolean) =>
-												toggleSessionFilter(detail, checked)
-											}
-										>
-											<span className="truncate" title={detail}>
-												{detail}
-											</span>
-										</DropdownMenuCheckboxItem>
-									))
-								)}
-							</DropdownMenuGroup>
-						</DropdownMenuContent>
-					</DropdownMenu>
-					<Button
-						className="h-8 rounded-md bg-foreground px-3 text-sm text-background hover:bg-foreground/90"
-						onClick={onNewSession}
-						type="button"
-					>
-						<PlusCircle className="size-4" />
-						New session
-					</Button>
-				</div>
-			</section>
+							<PlusCircle className="size-4" />
+							New session
+						</Button>
+					</>
+				}
+			/>
 
-			<section className="w-[calc(100vw-14.5rem-9rem)] max-w-[86rem] min-w-0 overflow-x-auto max-[1200px]:w-[calc(100vw-14.5rem-4rem)] max-[720px]:w-full">
+			<section className="w-full min-w-0 overflow-x-auto">
 				<div className="grid w-full min-w-[56rem] grid-cols-[minmax(12rem,1.35fr)_minmax(7rem,0.85fr)_minmax(10rem,1.1fr)_5rem_5rem_4.5rem_5.5rem_2rem] gap-x-4 bg-muted/40 px-4 py-3 text-[15px] font-medium text-muted-foreground">
 					<span>Session title</span>
 					<span>Directory</span>
@@ -880,7 +958,7 @@ function SessionsView({
 					))}
 				</div>
 			</section>
-		</div>
+		</PageFrame>
 	);
 }
 
@@ -918,11 +996,13 @@ function App() {
 	);
 
 	useEffect(() => {
-		document.documentElement.classList.remove("dark");
+		syncHubTheme();
+		replaceLegacyCustomizationRoute();
 	}, []);
 
 	useEffect(() => {
 		const handlePopState = () => {
+			replaceLegacyCustomizationRoute();
 			const nextView = readCurrentView();
 			setView(nextView);
 			setSelectedSessionId(
@@ -1064,16 +1144,6 @@ function App() {
 				/>
 			);
 		}
-		if (view === "customizations") {
-			return (
-				<SettingsView
-					chrome="content"
-					initialSection="Customizations"
-					key="customizations"
-					onClose={() => navigate("home")}
-				/>
-			);
-		}
 		if (view === "channels") {
 			return (
 				<SettingsView
@@ -1094,11 +1164,28 @@ function App() {
 				/>
 			);
 		}
-		if (view === "mcp" || view === "skills" || view === "plugins") {
+		if (view === "mcp") {
+			return <MarketplaceView key={view} primitive="mcp" />;
+		}
+		if (view === "skills" || view === "plugins") {
 			return (
-				<MarketplaceView
+				<CustomizationSectionView
+					catalogPrimitive={view === "skills" ? "skill" : "plugin"}
 					key={view}
-					primitive={MARKETPLACE_VIEW_PRIMITIVES[view]}
+					section={CUSTOMIZATION_VIEW_SECTIONS[view]}
+				/>
+			);
+		}
+		if (
+			view === "rules" ||
+			view === "hooks" ||
+			view === "agents" ||
+			view === "tools"
+		) {
+			return (
+				<CustomizationSectionView
+					key={view}
+					section={CUSTOMIZATION_VIEW_SECTIONS[view]}
 				/>
 			);
 		}
