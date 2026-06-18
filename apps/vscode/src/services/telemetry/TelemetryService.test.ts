@@ -7,6 +7,7 @@
  * validates provider switching capabilities, and ensures NoOpTelemetryProvider functionality
  */
 
+import { afterAll, beforeAll, describe, it } from "bun:test"
 import * as assert from "assert"
 import * as sinon from "sinon"
 import { ClineEndpoint } from "@/config"
@@ -19,11 +20,11 @@ import { TelemetryMetadata, TelemetryService } from "./TelemetryService"
 
 describe("Telemetry system is abstracted and can easily switch between providers", () => {
 	// Setup and teardown for HostProvider mocking
-	before(() => {
+	beforeAll(() => {
 		setVscodeHostProviderMock()
 	})
 
-	after(() => {
+	afterAll(() => {
 		// Reset HostProvider after tests
 		HostProvider.reset()
 	})
