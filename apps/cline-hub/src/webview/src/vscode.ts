@@ -19,7 +19,6 @@ let cachedApi: VsCodeApi | undefined;
 let browserSocket: WebSocket | undefined;
 const pendingMessages: WebviewInboundMessage[] = [];
 const stateKey = "cline-hub-webview-state";
-const roomSecretStateKey = "cline-hub-room-secret";
 
 function dispatchHostMessage(message: WebviewOutboundMessage): void {
 	window.dispatchEvent(new MessageEvent("message", { data: message }));
@@ -29,19 +28,7 @@ function readBrowserRoomSecret(): string | undefined {
 	const roomSecret = new URLSearchParams(window.location.search)
 		.get("roomSecret")
 		?.trim();
-	if (roomSecret) {
-		try {
-			window.localStorage.setItem(roomSecretStateKey, roomSecret);
-		} catch {
-			// Room secret persistence is best-effort.
-		}
-		return roomSecret;
-	}
-	try {
-		return window.localStorage.getItem(roomSecretStateKey)?.trim() || undefined;
-	} catch {
-		return undefined;
-	}
+	return roomSecret || undefined;
 }
 
 function createBrowserSocket(): WebSocket {

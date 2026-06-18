@@ -675,6 +675,31 @@ describe("marketplace installer", () => {
 		).toEqual({ installedKeys: ["plugin:goal"] });
 	});
 
+	it("does not report plugin inventory substring matches as installed", () => {
+		expect(
+			listMarketplaceInstalledEntries(
+				{
+					entries: [
+						{
+							id: "goal",
+							type: "plugin",
+							name: "Goal",
+							install: { args: ["goal"] },
+						},
+					],
+				},
+				{
+					plugins: [
+						{
+							name: "goal-helper",
+							path: "/workspace/.cline/plugins/goal-helper/index.ts",
+						},
+					],
+				},
+			),
+		).toEqual({ installedKeys: [] });
+	});
+
 	it("skips invalid marketplace entries during installed-status checks", () => {
 		const clineDir = mkdtempSync(join(tmpdir(), "cline-marketplace-test-"));
 		process.env.CLINE_DIR = clineDir;

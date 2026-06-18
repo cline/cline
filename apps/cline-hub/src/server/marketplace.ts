@@ -515,11 +515,7 @@ function hasMatchingInventoryItem(
 		]
 			.map(normalizeMatchValue)
 			.filter(Boolean);
-		return values.some((value) =>
-			[...candidates].some(
-				(candidate) => value === candidate || value.includes(candidate),
-			),
-		);
+		return values.some((value) => candidates.has(value));
 	});
 }
 
