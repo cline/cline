@@ -200,7 +200,10 @@ jobs:
               run: |
                   set -o pipefail
                   bun run test:vitest 2>&1 | tee vitest-output.log
-                  if ! grep -Eq 'Tests[[:space:]]+[0-9]*[1-9][0-9]* (passed|failed)' vitest-output.log; then
+                  # Strip ANSI color codes before matching — vitest colorizes the
+                  # "Tests  N passed" summary, so the count is not adjacent to the
+                  # "Tests" label in the raw bytes.
+                  if ! sed -r 's/\x1b\[[0-9;]*m//g' vitest-output.log | grep -Eq 'Tests[[:space:]]+[0-9]*[1-9][0-9]* (passed|failed)'; then
                     echo "ERROR: vitest reported zero tests (possible silent skip)."
                     exit 1
                   fi
