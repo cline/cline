@@ -106,9 +106,9 @@ export function SessionProvider(props: {
 	const [uiMode, setUiMode] = useState<AgentMode>(
 		config.mode === "plan" ? "plan" : "act",
 	);
-	const [autoApproveAll, _setAutoApproveAll] = useState(
-		config.toolPolicies["*"]?.autoApprove !== false,
-	);
+	const initialAutoApproveAll = config.toolPolicies["*"]?.autoApprove !== false;
+	const autoApproveAllRef = useRef(initialAutoApproveAll);
+	const [autoApproveAll, _setAutoApproveAll] = useState(initialAutoApproveAll);
 	const [compactionMode, _setCompactionMode] = useState<CliCompactionMode>(() =>
 		getCliCompactionMode(config),
 	);
@@ -192,11 +192,10 @@ export function SessionProvider(props: {
 	}, []);
 
 	const toggleAutoApprove = useCallback(() => {
-		_setAutoApproveAll((prev) => {
-			const next = !prev;
-			onAutoApproveChange(next);
-			return next;
-		});
+		const next = !autoApproveAllRef.current;
+		autoApproveAllRef.current = next;
+		onAutoApproveChange(next);
+		_setAutoApproveAll(next);
 	}, [onAutoApproveChange]);
 
 	const setCompactionMode = useCallback(

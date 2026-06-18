@@ -61,6 +61,20 @@ describe("createInteractiveApprovalController", () => {
 		).resolves.toEqual({ approved: false, reason: "no" });
 	});
 
+	it("approves stale required-approval requests after auto-approve is enabled", async () => {
+		const controller = createInteractiveApprovalController(makeConfig(false));
+		controller.tuiToolApprover.current = async () => ({
+			approved: false,
+			reason: "stale prompt",
+		});
+
+		controller.setInteractiveAutoApprove(true);
+
+		await expect(
+			controller.requestToolApproval(makeRequest({ autoApprove: false })),
+		).resolves.toEqual({ approved: true });
+	});
+
 	it("denies approval-required requests when no TUI approver is available", async () => {
 		const controller = createInteractiveApprovalController(makeConfig(false));
 
@@ -77,6 +91,7 @@ describe("createInteractiveApprovalController", () => {
 
 		expect(controller.autoApproveAllRef.current).toBe(true);
 		expect(config.defaultToolAutoApprove).toBe(false);
-		expect(config.toolPolicies["*"]?.autoApprove).toBe(false);
+		expect(config.toolPolicies["*"]?.autoApprove).toBe(true);
+		expect(controller.resolveToolPolicy("run_commands").autoApprove).toBe(true);
 	});
 });

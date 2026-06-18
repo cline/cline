@@ -1,5 +1,6 @@
 import {
 	type AgentEvent,
+	type AgentHooks,
 	type CheckpointEntry,
 	isSessionNotFoundError,
 	type PendingPromptMutationResult,
@@ -48,6 +49,32 @@ type CurrentTurnResult = Awaited<ReturnType<CliCore["send"]>>;
 type AskQuestionRef = {
 	current: ((question: string, options: string[]) => Promise<string>) | null;
 };
+type ToolPolicyResolver = (
+	toolName: string,
+) => NonNullable<Config["toolPolicies"]>[string];
+
+function withInteractiveApprovalPolicyHook(
+	hooks: AgentHooks | undefined,
+	resolveToolPolicy: ToolPolicyResolver,
+): AgentHooks {
+	return {
+		...hooks,
+		beforeTool: async (ctx) => {
+			const result = await hooks?.beforeTool?.(ctx);
+			if (result?.stop || result?.skip) {
+				return result;
+			}
+			const policy = resolveToolPolicy(ctx.toolCall.toolName);
+			return {
+				...result,
+				policy: {
+					...result?.policy,
+					autoApprove: policy.autoApprove,
+				},
+			};
+		},
+	};
+}
 
 export function createInteractiveSessionRuntime(input: {
 	config: Config;
@@ -58,6 +85,7 @@ export function createInteractiveSessionRuntime(input: {
 	requestToolApproval: (
 		request: ToolApprovalRequest,
 	) => Promise<ToolApprovalResult>;
+	resolveToolPolicy: ToolPolicyResolver;
 	askQuestionRef: AskQuestionRef;
 	resolveMistakeLimitDecision: Config["onConsecutiveMistakeLimitReached"];
 	switchToActModeTool: NonNullable<Config["extraTools"]>[number];
@@ -152,10 +180,14 @@ export function createInteractiveSessionRuntime(input: {
 		if (!runtimeHooks) {
 			throw new Error("interactive runtime hooks are unavailable");
 		}
+		const hooks = withInteractiveApprovalPolicyHook(
+			runtimeHooks.hooks,
+			input.resolveToolPolicy,
+		);
 		return buildInteractiveSessionConfig({
 			config: input.config,
 			chatCommandState: input.chatCommandState,
-			runtimeHooks,
+			runtimeHooks: { hooks },
 			onTeamEvent: input.onTeamEvent,
 			resolveMistakeLimitDecision: input.resolveMistakeLimitDecision,
 		});
