@@ -32,6 +32,8 @@ export type {
 } from "./providers.browser";
 export {
 	ClineNotSubscribedError,
+	getClineNotSubscribedMessage,
+	getClinePassSubscriptionUrl,
 	isClineNotSubscribedError,
 	isClineNotSubscribedMessage,
 	normalizeProviderId,

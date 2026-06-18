@@ -55,6 +55,8 @@ export {
 	ClineNotSubscribedError,
 	createHandler,
 	createHandlerAsync,
+	getClineNotSubscribedMessage,
+	getClinePassSubscriptionUrl,
 	getRegisteredHandler,
 	getRegisteredHandlerAsync,
 	hasRegisteredHandler,

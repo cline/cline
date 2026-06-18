@@ -1,15 +1,10 @@
 import {
+	getClinePassSubscriptionUrl,
 	isClineNotSubscribedError,
 	isClineNotSubscribedMessage,
 } from "@cline/core";
-import { getClineEnvironmentConfig } from "@cline/shared";
 
-export function getClinePassSubscriptionUrl(): string {
-	return `${new URL(
-		"/dashboard/subscription",
-		getClineEnvironmentConfig().appBaseUrl,
-	).toString()}/`;
-}
+export { getClinePassSubscriptionUrl };
 
 function isFormattedClinePassSubscriptionMessage(message: string): boolean {
 	const normalized = message.trim().toLowerCase();
@@ -38,9 +33,6 @@ export function isClinePassSubscriptionError(error: unknown): boolean {
 }
 
 export function formatCliErrorMessage(error: unknown): string {
-	if (isClinePassSubscriptionError(error)) {
-		return `No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: ${getClinePassSubscriptionUrl()}`;
-	}
 	if (error instanceof Error) {
 		return error.message;
 	}

@@ -27,7 +27,12 @@ const outputMocks = vi.hoisted(() => ({
 	c: { dim: "", reset: "" },
 }));
 
+const CLINE_PASS_SUBSCRIPTION_URL =
+	"https://app.cline.bot/dashboard/subscription/";
+const CLINE_PASS_SUBSCRIPTION_MESSAGE = `No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: ${CLINE_PASS_SUBSCRIPTION_URL}`;
+
 vi.mock("@cline/core", () => ({
+	getClinePassSubscriptionUrl: () => CLINE_PASS_SUBSCRIPTION_URL,
 	isClineNotSubscribedError: (error: unknown) =>
 		error instanceof Error && error.name === "ClineNotSubscribedError",
 	isClineNotSubscribedMessage: (text: string) =>
@@ -518,9 +523,7 @@ describe("runAgent", () => {
 	});
 
 	it("renders ClinePass subscription errors with friendly copy when startup throws", async () => {
-		const error = new Error(
-			"the user is not subscribed to required model plan",
-		);
+		const error = new Error(CLINE_PASS_SUBSCRIPTION_MESSAGE);
 		error.name = "ClineNotSubscribedError";
 		sessionManagerMocks.start.mockRejectedValue(error);
 
@@ -548,7 +551,7 @@ describe("runAgent", () => {
 
 		expect(process.exitCode).toBe(1);
 		expect(outputMocks.writeErr).toHaveBeenCalledWith(
-			"No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: https://app.cline.bot/dashboard/subscription/",
+			CLINE_PASS_SUBSCRIPTION_MESSAGE,
 		);
 	});
 
@@ -626,7 +629,7 @@ describe("runAgent", () => {
 			messagesPath: "/tmp/messages.json",
 			manifest: { session_id: "session-1" },
 			result: {
-				text: "the user is not subscribed to required model plan",
+				text: CLINE_PASS_SUBSCRIPTION_MESSAGE,
 				usage: {
 					inputTokens: 0,
 					outputTokens: 0,
@@ -670,7 +673,7 @@ describe("runAgent", () => {
 
 		expect(process.exitCode).toBe(1);
 		expect(outputMocks.writeErr).toHaveBeenCalledWith(
-			"No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: https://app.cline.bot/dashboard/subscription/",
+			CLINE_PASS_SUBSCRIPTION_MESSAGE,
 		);
 	});
 

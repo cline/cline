@@ -30,6 +30,8 @@ import {
 
 export {
 	ClineNotSubscribedError,
+	getClineNotSubscribedMessage,
+	getClinePassSubscriptionUrl,
 	isClineNotSubscribedError,
 	isClineNotSubscribedMessage,
 } from "./providers/errors";

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { isClineNotSubscribedMessage } from "./errors";
+import {
+	ClineNotSubscribedError,
+	getClineNotSubscribedMessage,
+	isClineNotSubscribedMessage,
+} from "./errors";
 import { extractErrorMessage } from "./format";
 
 describe("extractErrorMessage", () => {
@@ -44,6 +48,12 @@ describe("extractErrorMessage", () => {
 });
 
 describe("ClineNotSubscribedError", () => {
+	it("uses the user-facing subscription message", () => {
+		expect(new ClineNotSubscribedError("cline-pass").message).toBe(
+			getClineNotSubscribedMessage(),
+		);
+	});
+
 	it("detects the ClinePass required-plan message", () => {
 		expect(
 			isClineNotSubscribedMessage(

@@ -13,10 +13,9 @@ describe("cline-pass-errors", () => {
 			),
 		).toBe(true);
 
-		const formatted = formatCliErrorMessage(
-			"the user is not subscribed to required model plan",
-		);
+		const formatted = `No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: ${getClinePassSubscriptionUrl()}`;
 		expect(isClinePassSubscriptionError(formatted)).toBe(true);
+		expect(formatCliErrorMessage(new Error(formatted))).toBe(formatted);
 	});
 
 	it("formats the ClinePass subscription URL", () => {
