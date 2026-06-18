@@ -1,119 +1,134 @@
-import type { ClineRecommendedModel, OpenRouterModelInfo } from "@shared/proto/cline/models"
-import type { OnboardingModel, OnboardingModelGroup } from "@shared/proto/cline/state"
+import type {
+	ClineRecommendedModel,
+	OpenRouterModelInfo,
+} from "@shared/proto/cline/models";
+import type {
+	OnboardingModel,
+	OnboardingModelGroup,
+} from "@shared/proto/cline/state";
 
 export interface RecommendedModelsData {
-	recommended: ClineRecommendedModel[]
-	free: ClineRecommendedModel[]
-	clinePass: ClineRecommendedModel[]
+	recommended: ClineRecommendedModel[];
+	free: ClineRecommendedModel[];
+	clinePass: ClineRecommendedModel[];
 }
 
 type RecommendedModelsResponseLike = {
-	recommended?: ClineRecommendedModel[]
-	free?: ClineRecommendedModel[]
-	clinePass?: ClineRecommendedModel[]
-}
+	recommended?: ClineRecommendedModel[];
+	free?: ClineRecommendedModel[];
+	clinePass?: ClineRecommendedModel[];
+};
 
 export function getRecommendedModelsData(
 	response: RecommendedModelsResponseLike,
 	isClinePassEnabled: boolean,
 ): RecommendedModelsData | undefined {
-	const recommended = response.recommended ?? []
-	const free = response.free ?? []
-	const clinePass = isClinePassEnabled ? (response.clinePass ?? []) : []
+	const recommended = response.recommended ?? [];
+	const free = response.free ?? [];
+	const clinePass = isClinePassEnabled ? (response.clinePass ?? []) : [];
 
 	if (recommended.length === 0 && free.length === 0 && clinePass.length === 0) {
-		return undefined
+		return undefined;
 	}
 
-	return { recommended, free, clinePass }
+	return { recommended, free, clinePass };
 }
 
 export interface OnboardingModelsByGroup {
-	clinePass: ModelGroup[]
-	free: ModelGroup[]
-	power: ModelGroup[]
+	clinePass: ModelGroup[];
+	free: ModelGroup[];
+	power: ModelGroup[];
 }
 
 interface ModelGroup {
-	group: string
-	models: OnboardingModel[]
+	group: string;
+	models: OnboardingModel[];
 }
 
-export function getClineUIOnboardingGroups(groupedModels: OnboardingModelGroup): OnboardingModelsByGroup {
-	const { models } = groupedModels
+export function getClineUIOnboardingGroups(
+	groupedModels: OnboardingModelGroup,
+): OnboardingModelsByGroup {
+	const { models } = groupedModels;
 
-	const clinePassModels = models.filter((m) => m.group === "clinepass")
-	const freeModels = models.filter((m) => m.group === "free")
-	const frontierModels = models.filter((m) => m.group === "frontier")
-	const openSourceModels = models.filter((m) => m.group === "open source")
+	const clinePassModels = models.filter((m) => m.group === "clinepass");
+	const freeModels = models.filter((m) => m.group === "free");
+	const frontierModels = models.filter((m) => m.group === "frontier");
+	const openSourceModels = models.filter((m) => m.group === "open source");
 
 	return {
-		clinePass: clinePassModels.length > 0 ? [{ group: "clinepass", models: clinePassModels }] : [],
+		clinePass:
+			clinePassModels.length > 0
+				? [{ group: "clinepass", models: clinePassModels }]
+				: [],
 		free: freeModels.length > 0 ? [{ group: "free", models: freeModels }] : [],
 		power: [
-			...(frontierModels.length > 0 ? [{ group: "frontier", models: frontierModels }] : []),
-			...(openSourceModels.length > 0 ? [{ group: "open source", models: openSourceModels }] : []),
+			...(frontierModels.length > 0
+				? [{ group: "frontier", models: frontierModels }]
+				: []),
+			...(openSourceModels.length > 0
+				? [{ group: "open source", models: openSourceModels }]
+				: []),
 		],
-	}
+	};
 }
 
 export function getPriceRange(modelInfo: OpenRouterModelInfo): string {
-	const prompt = Number(modelInfo.inputPrice ?? 0)
-	const completion = Number(modelInfo.outputPrice ?? 0)
-	const cost = prompt + completion
+	const prompt = Number(modelInfo.inputPrice ?? 0);
+	const completion = Number(modelInfo.outputPrice ?? 0);
+	const cost = prompt + completion;
 	if (cost === 0) {
-		return "Free"
+		return "Free";
 	}
 	if (cost < 10) {
-		return "$"
+		return "$";
 	}
 	if (cost > 50) {
-		return "$$$"
+		return "$$$";
 	}
-	return "$$"
+	return "$$";
 }
 
 export function getOverviewLabel(overview: number): string {
 	if (overview >= 95) {
-		return "Top Performer"
+		return "Top Performer";
 	}
 	if (overview >= 80) {
-		return "Great"
+		return "Great";
 	}
 	if (overview >= 60) {
-		return "Good"
+		return "Good";
 	}
 	if (overview >= 50) {
-		return "Average"
+		return "Average";
 	}
-	return "Below Average"
+	return "Below Average";
 }
 
 export function getCapabilities(modelInfo: OpenRouterModelInfo): string[] {
-	const capabilities = new Set<string>()
+	const capabilities = new Set<string>();
 	if (modelInfo.supportsImages) {
-		capabilities.add("Images")
+		capabilities.add("Images");
 	}
 	if (modelInfo.supportsPromptCache) {
-		capabilities.add("Prompt Cache")
+		capabilities.add("Prompt Cache");
 	}
-	capabilities.add("Tools")
-	return Array.from(capabilities)
+	capabilities.add("Tools");
+	return Array.from(capabilities);
 }
 
 export function getSpeedLabel(latency?: number): string {
 	if (!latency) {
-		return "Average"
+		return "Average";
 	}
 	if (latency < 1) {
-		return "Instant"
+		return "Instant";
 	}
 	if (latency < 2) {
-		return "Fast"
+		return "Fast";
 	}
 	if (latency > 5) {
-		return "Slow"
+		return "Slow";
 	}
 
-	return "Average"
+	return "Average";
 }

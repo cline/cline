@@ -9,4 +9,4 @@
  */
 
 /** Enables ClinePass provider/model exposure (settings + onboarding). */
-export const CLINE_PASS_FEATURE_FLAG = "ext-cline-pass"
+export const CLINE_PASS_FEATURE_FLAG = "ext-cline-pass";

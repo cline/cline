@@ -6,10 +6,10 @@ export enum NEW_USER_TYPE {
 }
 
 type UserTypeSelection = {
-	title: string
-	description: string
-	type: NEW_USER_TYPE
-}
+	title: string;
+	description: string;
+	type: NEW_USER_TYPE;
+};
 
 export const STEP_CONFIG = {
 	0: {
@@ -50,22 +50,35 @@ export const STEP_CONFIG = {
 	},
 	2: {
 		title: "Almost there!",
-		description: "Complete account creation in your browser. Then come back here to finish up.",
+		description:
+			"Complete account creation in your browser. Then come back here to finish up.",
 		buttons: [{ text: "Back", action: "back", variant: "secondary" }],
 	},
-} as const
+} as const;
 
 const CLINE_PASS_USER_TYPE_SELECTION: UserTypeSelection = {
 	title: "ClinePass (Recommended)",
 	description: "One subscription, curated models, no API keys",
 	type: NEW_USER_TYPE.CLINE_PASS,
-}
+};
 
 const BASE_USER_TYPE_SELECTIONS: UserTypeSelection[] = [
-	{ title: "Absolutely Free", description: "Get started at no cost", type: NEW_USER_TYPE.FREE },
-	{ title: "Frontier Model", description: "Claude, GPT Codex, Gemini, etc.", type: NEW_USER_TYPE.POWER },
-	{ title: "Bring my own API key", description: "Use Cline with your provider of choice", type: NEW_USER_TYPE.BYOK },
-]
+	{
+		title: "Absolutely Free",
+		description: "Get started at no cost",
+		type: NEW_USER_TYPE.FREE,
+	},
+	{
+		title: "Frontier Model",
+		description: "Claude, GPT Codex, Gemini, etc.",
+		type: NEW_USER_TYPE.POWER,
+	},
+	{
+		title: "Bring my own API key",
+		description: "Use Cline with your provider of choice",
+		type: NEW_USER_TYPE.BYOK,
+	},
+];
 
 /**
  * Returns the onboarding user-type options. The free option leads the list and is
@@ -74,10 +87,12 @@ const BASE_USER_TYPE_SELECTIONS: UserTypeSelection[] = [
  * feature flag is enabled. When the flag is off, the classic Free / Frontier /
  * BYOK options are shown unchanged.
  */
-export function getUserTypeSelections(isClinePassEnabled: boolean): UserTypeSelection[] {
+export function getUserTypeSelections(
+	isClinePassEnabled: boolean,
+): UserTypeSelection[] {
 	if (!isClinePassEnabled) {
-		return BASE_USER_TYPE_SELECTIONS
+		return BASE_USER_TYPE_SELECTIONS;
 	}
-	const [free, ...rest] = BASE_USER_TYPE_SELECTIONS
-	return [free, CLINE_PASS_USER_TYPE_SELECTION, ...rest]
+	const [free, ...rest] = BASE_USER_TYPE_SELECTIONS;
+	return [free, CLINE_PASS_USER_TYPE_SELECTION, ...rest];
 }
