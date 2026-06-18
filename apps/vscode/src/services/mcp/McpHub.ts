@@ -397,7 +397,6 @@ export class McpHub {
 						const connection = this.findConnection(name, source)
 						if (connection) {
 							connection.server.status = "disconnected"
-							McpHub.mcpServerKeys.delete(connection.server.uid || name)
 							this.appendErrorMessage(connection, error instanceof Error ? error.message : `${error}`)
 						}
 						await this.notifyWebviewOfServerChanges()
@@ -407,7 +406,6 @@ export class McpHub {
 						const connection = this.findConnection(name, source)
 						if (connection) {
 							connection.server.status = "disconnected"
-							McpHub.mcpServerKeys.delete(connection.server.uid || name)
 						}
 						await this.notifyWebviewOfServerChanges()
 					}
@@ -479,7 +477,6 @@ export class McpHub {
 						const connection = this.findConnection(name, source)
 						if (connection) {
 							connection.server.status = "disconnected"
-							McpHub.mcpServerKeys.delete(connection.server.uid || name)
 							this.appendErrorMessage(connection, error instanceof Error ? error.message : `${error}`)
 						}
 						await this.notifyWebviewOfServerChanges()
@@ -522,7 +519,6 @@ export class McpHub {
 						connectToServer: () => this.connectToServer(name, config, source),
 						notifyWebviewOfServerChanges: () => this.notifyWebviewOfServerChanges(),
 						appendErrorMessage: (conn, msg) => this.appendErrorMessage(conn as McpConnection, msg),
-						deleteServerKey: (uid) => McpHub.mcpServerKeys.delete(uid),
 						delay: (ms) => setTimeoutPromise(ms),
 					})
 
@@ -784,6 +780,9 @@ export class McpHub {
 	async deleteConnection(name: string): Promise<void> {
 		const connection = this.connections.find((conn) => conn.server.name === name)
 		if (connection) {
+			if (connection.server.uid) {
+				McpHub.mcpServerKeys.delete(connection.server.uid)
+			}
 			try {
 				// Only close transport and client if they exist (disabled servers don't have them)
 				if (connection.transport) {
