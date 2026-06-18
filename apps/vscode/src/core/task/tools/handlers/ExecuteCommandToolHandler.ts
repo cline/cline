@@ -127,8 +127,6 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 			return await config.callbacks.sayAndCreateMissingParamError(this.name, "requires_approval")
 		}
 
-		config.taskState.consecutiveMistakeCount = 0
-
 		// Handling of timeout while in yolo mode or background exec mode
 		timeoutSeconds = resolveCommandTimeoutSeconds(
 			command,
@@ -176,11 +174,14 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 
 		const excessiveCommandError = getExcessiveCommandError(actualCommand)
 		if (excessiveCommandError) {
+			config.taskState.consecutiveMistakeCount++
 			if (!config.isSubagentExecution) {
 				await config.callbacks.say("error", excessiveCommandError)
 			}
 			return formatResponse.toolError(excessiveCommandError)
 		}
+
+		config.taskState.consecutiveMistakeCount = 0
 
 		// Check command permission validation (CLINE_COMMAND_PERMISSIONS env var)
 		const permissionResult = config.services.commandPermissionController.validateCommand(actualCommand)
