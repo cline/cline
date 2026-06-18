@@ -598,7 +598,7 @@ function GeneralSettingsContent() {
 			<div className="px-18 py-10 max-[1200px]:px-8 max-[720px]:px-4 max-[720px]:py-5">
 				<div className="mb-12">
 					<h1 className="text-[32px] font-semibold leading-none tracking-normal text-foreground">
-						General
+						Settings
 					</h1>
 				</div>
 				<section className="max-w-[86rem]">

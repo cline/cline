@@ -298,7 +298,7 @@ function Shell({
 		{ view: "models", label: "Models", icon: BotIcon },
 		{ view: "customizations", label: "Customizations", icon: WrenchIcon },
 		{ view: "mcp", label: "MCP", icon: ServerIcon },
-		{ view: "plugins", label: "Plugins", icon: PlugIcon },
+		{ view: "plugins", label: "Plugin", icon: PlugIcon },
 		{ view: "skills", label: "Skills", icon: ActivityIcon },
 		{ view: "channels", label: "Channels", icon: LinkIcon },
 		{ view: "schedules", label: "Schedules", icon: ClockIcon },
@@ -321,7 +321,7 @@ function Shell({
 					<ChevronRight className="size-4 rotate-90 text-muted-foreground" />
 				</button>
 				<nav
-					className="grid gap-1 max-[720px]:grid-flow-col max-[720px]:auto-cols-max max-[720px]:overflow-x-auto"
+					className="grid gap-1 max-[720px]:grid-flow-col max-[720px]:auto-cols-max max-[720px]:overflow-x-auto max-[720px]:[scrollbar-width:none] max-[720px]:[&::-webkit-scrollbar]:hidden"
 					aria-label="Hub views"
 				>
 					{navItems.map((item) => {
@@ -785,16 +785,17 @@ function SessionsView({
 			</section>
 
 			<section className="w-[calc(100vw-14.5rem-9rem)] max-w-[86rem] min-w-0 overflow-x-auto max-[1200px]:w-[calc(100vw-14.5rem-4rem)] max-[720px]:w-full">
-				<div className="grid w-full min-w-[48rem] grid-cols-[minmax(12rem,1.35fr)_minmax(7rem,0.85fr)_minmax(10rem,1.1fr)_5rem_5rem_4.5rem_2rem] gap-x-4 bg-muted/40 px-4 py-3 text-[15px] font-medium text-muted-foreground">
+				<div className="grid w-full min-w-[56rem] grid-cols-[minmax(12rem,1.35fr)_minmax(7rem,0.85fr)_minmax(10rem,1.1fr)_5rem_5rem_4.5rem_5.5rem_2rem] gap-x-4 bg-muted/40 px-4 py-3 text-[15px] font-medium text-muted-foreground">
 					<span>Session title</span>
 					<span>Directory</span>
 					<span>Model</span>
 					<span>Tokens in</span>
 					<span>Tokens out</span>
 					<span>Cost</span>
+					<span>Created</span>
 					<span />
 				</div>
-				<div className="w-full min-w-[48rem]">
+				<div className="w-full min-w-[56rem]">
 					{filteredSessions.length === 0 ? (
 						<div className="border-b px-4 py-8 text-[15px] text-muted-foreground">
 							{sessions.length === 0
@@ -804,11 +805,11 @@ function SessionsView({
 					) : null}
 					{filteredSessions.map((session) => (
 						<div
-							className="grid min-h-14 w-full grid-cols-[minmax(12rem,1.35fr)_minmax(7rem,0.85fr)_minmax(10rem,1.1fr)_5rem_5rem_4.5rem_2rem] items-center gap-x-4 border-b px-4 py-3 text-left text-[15px] transition-colors hover:bg-accent/40"
+							className="grid min-h-14 w-full grid-cols-[minmax(12rem,1.35fr)_minmax(7rem,0.85fr)_minmax(10rem,1.1fr)_5rem_5rem_4.5rem_5.5rem_2rem] items-center gap-x-4 border-b px-4 py-3 text-left text-[15px] transition-colors hover:bg-accent/40"
 							key={session.sessionId}
 						>
 							<button
-								className="col-span-6 grid grid-cols-[minmax(12rem,1.35fr)_minmax(7rem,0.85fr)_minmax(10rem,1.1fr)_5rem_5rem_4.5rem] items-center gap-x-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+								className="col-span-7 grid grid-cols-[minmax(12rem,1.35fr)_minmax(7rem,0.85fr)_minmax(10rem,1.1fr)_5rem_5rem_4.5rem_5.5rem] items-center gap-x-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
 								onClick={() => onOpenSession(session.sessionId)}
 								type="button"
 							>
@@ -834,6 +835,9 @@ function SessionsView({
 								</span>
 								<span className="text-muted-foreground">
 									{formatCost(session.totalCost) ?? "-"}
+								</span>
+								<span className="text-muted-foreground">
+									{formatRelativeTime(session.createdAt ?? session.updatedAt)}
 								</span>
 							</button>
 							<DropdownMenu>
