@@ -1,6 +1,5 @@
 import {
 	CheckCircle2,
-	Copy,
 	ExternalLink,
 	Plug,
 	Search,
@@ -36,12 +35,10 @@ type EntryActionState =
 	| {
 			status: "installed";
 			message: string;
-			output?: string;
 	  }
 	| {
 			status: "uninstalled";
 			message: string;
-			output?: string;
 	  }
 	| { status: "failed"; message: string };
 
@@ -145,15 +142,12 @@ function entrySearchText(
 function actionMessage(
 	state: EntryActionState | undefined,
 ): string | undefined {
-	if (state?.status === "installed" || state?.status === "uninstalled") {
+	if (
+		state?.status === "installed" ||
+		state?.status === "uninstalled" ||
+		state?.status === "failed"
+	) {
 		return state.message;
-	}
-	return undefined;
-}
-
-function actionOutput(state: EntryActionState | undefined): string | undefined {
-	if (state?.status === "installed" || state?.status === "uninstalled") {
-		return state.output;
 	}
 	return undefined;
 }
@@ -169,20 +163,18 @@ function EntryDetails({
 		entry.install.env?.filter((env) => env.required !== false) ?? [];
 	const optionalEnv =
 		entry.install.env?.filter((env) => env.required === false) ?? [];
-	const statusMessage = actionMessage(actionState);
-	const output = actionOutput(actionState);
+	const hasSetupDetails =
+		requiredEnv.length > 0 ||
+		optionalEnv.length > 0 ||
+		Boolean(entry.install.notes) ||
+		actionState?.status === "failed";
 
-	const copyCommand = async () => {
-		await navigator.clipboard?.writeText(entry.install.command);
-	};
+	if (!hasSetupDetails) {
+		return null;
+	}
 
 	return (
-		<div
-			className="grid gap-3 border-t pt-3"
-			onClick={(event) => event.stopPropagation()}
-			onKeyDown={(event) => event.stopPropagation()}
-			role="presentation"
-		>
+		<div className="grid gap-3 border-t pt-3" data-marketplace-entry-details>
 			{requiredEnv.length > 0 || optionalEnv.length > 0 ? (
 				<div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
 					<p className="text-sm font-medium text-amber-800 dark:text-amber-200">
@@ -233,46 +225,10 @@ function EntryDetails({
 				</p>
 			) : null}
 
-			<details className="rounded-lg border bg-muted/30 p-3">
-				<summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-					Manual CLI command
-				</summary>
-				<div className="mt-3 grid gap-2">
-					<p className="text-xs leading-5 text-muted-foreground">
-						Use this only if you prefer installing from a terminal.
-					</p>
-					<div className="flex items-start gap-2">
-						<code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap rounded-md border bg-background p-2 font-mono text-xs text-muted-foreground">
-							<span style={CODE_FONT_STYLE}>{entry.install.command}</span>
-						</code>
-						<Button
-							onClick={copyCommand}
-							size="sm"
-							type="button"
-							variant="ghost"
-						>
-							<Copy className="size-3.5" />
-							Copy
-						</Button>
-					</div>
-				</div>
-			</details>
-
-			{statusMessage ? (
-				<p className="text-sm text-muted-foreground">{statusMessage}</p>
-			) : null}
 			{actionState?.status === "failed" ? (
 				<div className="max-h-44 overflow-auto rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
 					{actionState.message}
 				</div>
-			) : null}
-			{output ? (
-				<pre
-					className="max-h-44 overflow-auto rounded-lg border bg-muted/30 p-3 font-mono text-xs text-muted-foreground"
-					style={CODE_FONT_STYLE}
-				>
-					{output}
-				</pre>
 			) : null}
 		</div>
 	);
@@ -303,6 +259,11 @@ function MarketplaceEntryCard({
 		actionState?.status === "installing" ||
 		actionState?.status === "uninstalling";
 	const setupNeeded = Boolean(entry.install.env?.length);
+	const hasExpandableDetails =
+		setupNeeded ||
+		Boolean(entry.install.notes) ||
+		actionState?.status === "failed";
+	const inlineMessage = actionMessage(actionState);
 	const handleActionClick = (event: MouseEvent<HTMLButtonElement>) => {
 		event.stopPropagation();
 		if (installed) {
@@ -320,23 +281,8 @@ function MarketplaceEntryCard({
 				: installed
 					? "Uninstall"
 					: "Install";
-
-	return (
-		// biome-ignore lint/a11y/useSemanticElements: The card contains a nested action button, so the wrapper cannot be a native button.
-		<div
-			aria-expanded={expanded}
-			aria-label={`${expanded ? "Collapse" : "Expand"} ${entry.name}`}
-			className="grid cursor-pointer gap-3 rounded-lg border bg-card p-4 text-left transition-colors hover:bg-accent/20 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-			onClick={() => onToggleExpanded(entry)}
-			onKeyDown={(event) => {
-				if (event.key === "Enter" || event.key === " ") {
-					event.preventDefault();
-					onToggleExpanded(entry);
-				}
-			}}
-			role="button"
-			tabIndex={0}
-		>
+	const content = (
+		<>
 			<div className="min-w-0">
 				<div className="flex min-w-0 items-start justify-between gap-2">
 					<h2 className="min-w-0 truncate text-sm font-semibold text-foreground">
@@ -363,7 +309,17 @@ function MarketplaceEntryCard({
 
 			<div className="flex flex-wrap items-center justify-between gap-3">
 				<div className="min-h-5 text-xs text-muted-foreground">
-					{installed ? (
+					{inlineMessage ? (
+						<output
+							className={
+								actionState?.status === "failed"
+									? "text-destructive"
+									: "text-muted-foreground"
+							}
+						>
+							{inlineMessage}
+						</output>
+					) : installed ? (
 						<span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-300">
 							<CheckCircle2 className="size-3.5" />
 							Installed
@@ -386,9 +342,48 @@ function MarketplaceEntryCard({
 				</Button>
 			</div>
 
-			{expanded ? (
+			{expanded && hasExpandableDetails ? (
 				<EntryDetails actionState={actionState} entry={entry} />
 			) : null}
+		</>
+	);
+
+	if (!hasExpandableDetails) {
+		return (
+			<div className="grid gap-3 rounded-lg border bg-card p-4 text-left transition-colors hover:bg-accent/20">
+				{content}
+			</div>
+		);
+	}
+
+	return (
+		// biome-ignore lint/a11y/useSemanticElements: The card contains a nested action button, so the wrapper cannot be a native button.
+		<div
+			aria-expanded={expanded}
+			aria-label={`${expanded ? "Collapse" : "Expand"} ${entry.name}`}
+			className="grid cursor-pointer gap-3 rounded-lg border bg-card p-4 text-left transition-colors hover:bg-accent/20 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+			onClick={(event) => {
+				if (
+					event.target instanceof HTMLElement &&
+					event.target.closest("[data-marketplace-entry-details]")
+				) {
+					return;
+				}
+				onToggleExpanded(entry);
+			}}
+			onKeyDown={(event) => {
+				if (event.target !== event.currentTarget) {
+					return;
+				}
+				if (event.key === "Enter" || event.key === " ") {
+					event.preventDefault();
+					onToggleExpanded(entry);
+				}
+			}}
+			role="button"
+			tabIndex={0}
+		>
+			{content}
 		</div>
 	);
 }
@@ -651,7 +646,6 @@ export function MarketplaceView({
 			setEntryState(entry, {
 				status: "installed",
 				message: result.message,
-				output: result.output,
 			});
 			markEntryInstalled(entry);
 		} catch (error) {
@@ -682,7 +676,6 @@ export function MarketplaceView({
 			setEntryState(entry, {
 				status: "uninstalled",
 				message: result.message,
-				output: result.output,
 			});
 			markEntryUninstalled(entry);
 		} catch (error) {
