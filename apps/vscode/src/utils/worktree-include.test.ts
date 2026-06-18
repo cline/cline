@@ -1,4 +1,4 @@
-import { afterAll, describe, it } from "bun:test"
+import { after, describe, it } from "mocha"
 import * as fs from "fs/promises"
 import * as os from "os"
 import * as path from "path"
@@ -11,7 +11,7 @@ describe("Worktree Include Utilities", () => {
 	const targetDir = path.join(tmpDir, "target")
 
 	// Clean up after tests
-	afterAll(async () => {
+	after(async () => {
 		try {
 			await fs.rm(tmpDir, { recursive: true, force: true })
 		} catch {

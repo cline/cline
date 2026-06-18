@@ -1,4 +1,4 @@
-import { describe, it } from "bun:test"
+import { describe, it } from "mocha"
 import { expect } from "chai"
 import * as vscode from "vscode"
 import { DiagnosticSeverity } from "@/shared/proto/index.cline"

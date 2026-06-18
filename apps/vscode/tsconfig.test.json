@@ -76,6 +76,15 @@
 	"exclude": [
 		"src/test/**/*.js",
 		"src/**/__tests__/*",
+		// The bun unit suite (.mocharc spec set) runs under `bun test` and imports
+		// `bun:test`, which the Node-based @vscode/test-cli integration runner
+		// cannot load. Keep these out of the integration compile (run-bun-unit-tests.ts
+		// owns them).
+		"src/test/services/**/*.test.ts",
+		// NOTE: files importing "bun:test" are additionally excluded dynamically by
+		// scripts/build-tests.js (it generates tsconfig.test.generated.json). That is
+		// the single source of truth for the bun-vs-integration split; this static
+		// list only covers structural/vitest excludes.
 		"src/test/e2e/**/*.test.ts",
 		// The src/sdk suites are vitest-native (run via `npm run test:vitest`),
 		// not the VS Code/mocha integration runner (see .vscode-test.mjs, which

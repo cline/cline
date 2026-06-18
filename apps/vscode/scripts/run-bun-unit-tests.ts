@@ -32,10 +32,14 @@ import { Glob } from "bun"
 
 const projectRoot = path.resolve(import.meta.dir, "..")
 
-// Mirror of `.mocharc.json` `spec` (restricted to *.test.ts; the non-test
-// helpers it also globs — setup.ts / test-utils.ts — are imported by suites,
-// not run directly).
-const INCLUDE_PATTERNS = ["src/**/__tests__/*.test.ts", "src/test/services/**/*.test.ts"]
+// Single source of truth: a test file runs under `bun test` iff it imports from
+// "bun:test". The mocha->bun codemod rewrote the node-side unit suite to import
+// `bun:test`; files that still rely on the @vscode/test-cli Electron host import
+// from "mocha" and are owned by that runner (.vscode-test.mjs), so they're
+// excluded here automatically by the import filter below.
+const INCLUDE_PATTERNS = ["src/**/*.test.ts"]
+// Matches `... from "bun:test"` (the marker that a file is bun-runner-owned).
+const BUN_TEST_IMPORT = /from\s+["']bun:test["']/
 
 // `.mocharc.json` `ignore`: the model-catalog suites are vitest-native and run
 // through `run-bun-tests.ts`; excluding them avoids double-running.
@@ -61,6 +65,12 @@ async function resolveFiles(includeHostOnly: boolean): Promise<string[]> {
 				continue
 			}
 			if (!includeHostOnly && ELECTRON_HOST_ONLY.has(normalized)) {
+				continue
+			}
+			// Only bun-runner-owned files (those importing "bun:test"). Files still on
+			// the @vscode/test-cli Electron host import from "mocha" and are skipped.
+			const source = await Bun.file(path.join(projectRoot, normalized)).text()
+			if (!BUN_TEST_IMPORT.test(source)) {
 				continue
 			}
 			seen.add(normalized)

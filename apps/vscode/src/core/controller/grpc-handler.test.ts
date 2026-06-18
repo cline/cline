@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, it } from "bun:test"
+import { afterEach, beforeEach, describe, it } from "mocha"
 import { Controller } from "@core/controller"
 import { serviceHandlers } from "@generated/hosts/vscode/protobus-services"
 import { GrpcCancel, GrpcRequest } from "@shared/WebviewMessage"

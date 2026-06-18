@@ -1,4 +1,4 @@
-import { afterEach, describe, it } from "bun:test"
+import { afterEach, describe, it } from "mocha"
 import { strict as assert } from "assert"
 import * as sinon from "sinon"
 import * as vscode from "vscode"

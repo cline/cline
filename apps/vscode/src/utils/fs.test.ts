@@ -1,4 +1,4 @@
-import { afterAll, describe, it } from "bun:test"
+import { after, describe, it } from "mocha"
 import * as fs from "fs/promises"
 import * as os from "os"
 import * as path from "path"
@@ -9,7 +9,7 @@ describe("Filesystem Utilities", () => {
 	const tmpDir = path.join(os.tmpdir(), "cline-test-" + Math.random().toString(36).slice(2))
 
 	// Clean up after tests
-	afterAll(async () => {
+	after(async () => {
 		try {
 			await fs.rm(tmpDir, { recursive: true, force: true })
 		} catch {

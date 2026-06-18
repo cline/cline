@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, it } from "bun:test"
+import { after, before, beforeEach, describe, it } from "mocha"
 import { expect } from "chai"
 import * as fs from "fs/promises"
 import * as os from "os"
@@ -12,7 +12,7 @@ describe("saveOpenDocumentIfDirty Integration Test", () => {
 	let testFilePath: string
 	let testFileUri: vscode.Uri
 
-	beforeAll(async () => {
+	before(async () => {
 		// Use a temporary directory for tests
 		testWorkspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cline-test-"))
 
@@ -21,7 +21,7 @@ describe("saveOpenDocumentIfDirty Integration Test", () => {
 		testFileUri = vscode.Uri.file(testFilePath)
 	})
 
-	afterAll(async () => {
+	after(async () => {
 		// Clean up: close all editors and delete test directory
 		await vscode.commands.executeCommand("workbench.action.closeAllEditors")
 		try {
