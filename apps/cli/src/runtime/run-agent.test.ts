@@ -28,6 +28,12 @@ const outputMocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@cline/core", () => ({
+	isClineNotSubscribedError: (error: unknown) =>
+		error instanceof Error && error.name === "ClineNotSubscribedError",
+	isClineNotSubscribedMessage: (text: string) =>
+		text
+			.toLowerCase()
+			.includes("the user is not subscribed to required model plan"),
 	prewarmFileIndex: vi.fn(async () => undefined),
 	SessionSource: {
 		CLI: "cli",
@@ -511,6 +517,41 @@ describe("runAgent", () => {
 		expect(outputMocks.writeErr).toHaveBeenCalledWith("Missing API key");
 	});
 
+	it("renders ClinePass subscription errors with friendly copy when startup throws", async () => {
+		const error = new Error(
+			"the user is not subscribed to required model plan",
+		);
+		error.name = "ClineNotSubscribedError";
+		sessionManagerMocks.start.mockRejectedValue(error);
+
+		const { runAgent } = await import("./run-agent");
+
+		await expect(
+			runAgent("test prompt", {
+				cwd: process.cwd(),
+				enableAgentTeams: false,
+				enableSpawnAgent: false,
+				enableTools: [],
+				execution: { maxConsecutiveMistakes: 3 },
+				logger: undefined,
+				mode: "yolo",
+				modelId: "premium-model",
+				outputMode: "text",
+				providerId: "cline-pass",
+				systemPrompt: "system",
+				thinking: false,
+				toolPolicies: { "*": { autoApprove: true } },
+				verbose: false,
+				workspaceRoot: process.cwd(),
+			} as never),
+		).resolves.toBeUndefined();
+
+		expect(process.exitCode).toBe(1);
+		expect(outputMocks.writeErr).toHaveBeenCalledWith(
+			"No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: https://app.cline.bot/dashboard/subscription/",
+		);
+	});
+
 	it("emits JSON error lines for non-completed results", async () => {
 		const startedAt = new Date("2026-03-22T00:00:00.000Z");
 		const endedAt = new Date("2026-03-22T00:00:01.000Z");
@@ -573,6 +614,63 @@ describe("runAgent", () => {
 		expect(process.exitCode).toBe(1);
 		expect(outputMocks.writeErr).toHaveBeenCalledWith(
 			'Missing API key for provider "cline".',
+		);
+	});
+
+	it("renders ClinePass subscription errors with friendly copy for failed results", async () => {
+		const startedAt = new Date("2026-03-22T00:00:00.000Z");
+		const endedAt = new Date("2026-03-22T00:00:01.000Z");
+		sessionManagerMocks.start.mockResolvedValue({
+			sessionId: "session-1",
+			manifestPath: "/tmp/manifest.json",
+			messagesPath: "/tmp/messages.json",
+			manifest: { session_id: "session-1" },
+			result: {
+				text: "the user is not subscribed to required model plan",
+				usage: {
+					inputTokens: 0,
+					outputTokens: 0,
+					cacheReadTokens: 0,
+					cacheWriteTokens: 0,
+					totalCost: 0,
+				},
+				messages: [],
+				toolCalls: [],
+				iterations: 1,
+				finishReason: "error",
+				model: { id: "premium-model", provider: "cline-pass", info: {} },
+				startedAt,
+				endedAt,
+				durationMs: 1000,
+			},
+		});
+		sessionManagerMocks.getAccumulatedUsage.mockResolvedValue(undefined);
+
+		const { runAgent } = await import("./run-agent");
+
+		await expect(
+			runAgent("test prompt", {
+				cwd: process.cwd(),
+				enableAgentTeams: false,
+				enableSpawnAgent: false,
+				enableTools: [],
+				execution: { maxConsecutiveMistakes: 3 },
+				logger: undefined,
+				mode: "yolo",
+				modelId: "premium-model",
+				outputMode: "text",
+				providerId: "cline-pass",
+				systemPrompt: "system",
+				thinking: false,
+				toolPolicies: { "*": { autoApprove: true } },
+				verbose: false,
+				workspaceRoot: process.cwd(),
+			} as never),
+		).resolves.toBeUndefined();
+
+		expect(process.exitCode).toBe(1);
+		expect(outputMocks.writeErr).toHaveBeenCalledWith(
+			"No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: https://app.cline.bot/dashboard/subscription/",
 		);
 	});
 
