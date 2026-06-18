@@ -13,7 +13,6 @@ import {
 	MoreHorizontal,
 	PencilIcon,
 	PlugIcon,
-	PlusCircle,
 	RotateCcwIcon,
 	RssIcon,
 	ServerIcon,
@@ -53,7 +52,6 @@ import type {
 	WebviewSessionSummary,
 } from "../../webview-protocol";
 import Chat from "./Chat";
-import { MarketplaceView } from "./components/views/marketplace-view";
 import { PageFrame, PageHeader } from "./components/views/page-layout";
 import {
 	type CustomizationSection,
@@ -112,6 +110,7 @@ const SETTINGS_SECTION_PATHS: Record<SettingsSection, string> = {
 const CUSTOMIZATION_VIEW_SECTIONS = {
 	rules: "Rules",
 	hooks: "Hooks",
+	mcp: "MCP",
 	skills: "Skills",
 	agents: "Agents",
 	plugins: "Plugins",
@@ -706,13 +705,11 @@ function HomeView({
 
 function SessionsView({
 	onDeleteSession,
-	onNewSession,
 	onOpenSession,
 	onRenameSession,
 	sessions,
 }: {
 	onDeleteSession: (sessionId: string) => Promise<void> | void;
-	onNewSession: () => void;
 	onOpenSession: (sessionId: string) => void;
 	onRenameSession: (sessionId: string, title: string) => Promise<void> | void;
 	sessions: WebviewSessionSummary[];
@@ -850,14 +847,6 @@ function SessionsView({
 								</DropdownMenuGroup>
 							</DropdownMenuContent>
 						</DropdownMenu>
-						<Button
-							className="h-8 rounded-md bg-foreground px-3 text-sm text-background hover:bg-foreground/90"
-							onClick={onNewSession}
-							type="button"
-						>
-							<PlusCircle className="size-4" />
-							New session
-						</Button>
 					</>
 				}
 			/>
@@ -1067,15 +1056,6 @@ function App() {
 		setView("chat");
 	}, []);
 
-	const startNewSession = useCallback(() => {
-		setSelectedSessionId(undefined);
-		const nextPath = chatPath();
-		if (currentPathWithSearch() !== nextPath) {
-			window.history.pushState(null, "", nextPath);
-		}
-		setView("chat");
-	}, []);
-
 	const updateChatSessionRoute = useCallback((sessionId?: string) => {
 		setSelectedSessionId(sessionId);
 		const nextPath = chatPath(sessionId);
@@ -1117,7 +1097,6 @@ function App() {
 			return (
 				<SessionsView
 					onDeleteSession={deleteSession}
-					onNewSession={startNewSession}
 					onOpenSession={openSession}
 					onRenameSession={renameSession}
 					sessions={recentSessions}
@@ -1165,7 +1144,13 @@ function App() {
 			);
 		}
 		if (view === "mcp") {
-			return <MarketplaceView key={view} primitive="mcp" />;
+			return (
+				<CustomizationSectionView
+					catalogPrimitive="mcp"
+					key={view}
+					section={CUSTOMIZATION_VIEW_SECTIONS[view]}
+				/>
+			);
 		}
 		if (view === "skills" || view === "plugins") {
 			return (
@@ -1210,7 +1195,6 @@ function App() {
 		restartPending,
 		selectedSessionId,
 		settingsSection,
-		startNewSession,
 		updateChatSessionRoute,
 		view,
 	]);

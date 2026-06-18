@@ -10,6 +10,7 @@ import {
 import {
 	type CSSProperties,
 	type MouseEvent,
+	type ReactNode,
 	useEffect,
 	useMemo,
 	useState,
@@ -65,21 +66,21 @@ const primitivePageDetails = {
 		title: "MCP Servers",
 		description:
 			"Install Model Context Protocol servers into this CLI environment.",
-		emptyInstalled: "No MCP servers installed from this catalog.",
+		emptyInstalled: "No MCP servers installed.",
 		emptyCatalog: "No MCP servers match the current filters.",
 		icon: Server,
 	},
 	skill: {
 		title: "Skills",
 		description: "Install skills globally for Cline.",
-		emptyInstalled: "No skills installed from this catalog.",
+		emptyInstalled: "No skills installed.",
 		emptyCatalog: "No skills match the current filters.",
 		icon: Wrench,
 	},
 	plugin: {
 		title: "Plugins",
 		description: "Install plugins into this CLI environment.",
-		emptyInstalled: "No plugins installed from this catalog.",
+		emptyInstalled: "No plugins installed.",
 		emptyCatalog: "No plugins match the current filters.",
 		icon: Plug,
 	},
@@ -243,6 +244,7 @@ function MarketplaceEntryCard({
 	onInstall,
 	onToggleExpanded,
 	onUninstall,
+	sourceLabel,
 	tagLabels,
 }: {
 	actionState: EntryActionState | undefined;
@@ -253,6 +255,7 @@ function MarketplaceEntryCard({
 	onInstall: (entry: MarketplaceEntry) => void;
 	onToggleExpanded: (entry: MarketplaceEntry) => void;
 	onUninstall: (entry: MarketplaceEntry) => void;
+	sourceLabel?: string;
 	tagLabels: Map<string, string>;
 }) {
 	const busy =
@@ -288,6 +291,11 @@ function MarketplaceEntryCard({
 					<h2 className="min-w-0 truncate text-sm font-semibold text-foreground">
 						{entry.name}
 					</h2>
+					{sourceLabel ? (
+						<Badge variant="outline" className="shrink-0 text-muted-foreground">
+							{sourceLabel}
+						</Badge>
+					) : null}
 					<TypeBadge type={entry.type} />
 				</div>
 				<div className="mt-1 flex flex-wrap gap-1.5">
@@ -420,11 +428,14 @@ function MarketplaceSection({
 	emptyMessage,
 	entries,
 	expandedEntryKey,
+	extraItemCount = 0,
 	installedEntryKeys,
 	installedStatusReady,
+	localInstalledItems,
 	onInstall,
 	onToggleExpanded,
 	onUninstall,
+	sourceLabel,
 	tagLabels,
 	title,
 }: {
@@ -432,22 +443,27 @@ function MarketplaceSection({
 	emptyMessage: string;
 	entries: MarketplaceEntry[];
 	expandedEntryKey: string | null;
+	extraItemCount?: number;
 	installedEntryKeys: Set<string>;
 	installedStatusReady: boolean;
+	localInstalledItems?: ReactNode;
 	onInstall: (entry: MarketplaceEntry) => void;
 	onToggleExpanded: (entry: MarketplaceEntry) => void;
 	onUninstall: (entry: MarketplaceEntry) => void;
+	sourceLabel?: string;
 	tagLabels: Map<string, string>;
 	title: string;
 }) {
+	const totalCount = entries.length + extraItemCount;
 	return (
 		<section className="grid gap-3">
 			<div className="flex items-center justify-between gap-3">
 				<h2 className="text-base font-semibold text-foreground">{title}</h2>
-				<span className="text-sm text-muted-foreground">{entries.length}</span>
+				<span className="text-sm text-muted-foreground">{totalCount}</span>
 			</div>
-			{entries.length > 0 ? (
+			{totalCount > 0 ? (
 				<div className="grid gap-3">
+					{localInstalledItems}
 					{entries.map((entry) => {
 						const key = entryKey(entry);
 						return (
@@ -461,6 +477,7 @@ function MarketplaceSection({
 								onInstall={onInstall}
 								onToggleExpanded={onToggleExpanded}
 								onUninstall={onUninstall}
+								sourceLabel={sourceLabel}
 								tagLabels={tagLabels}
 							/>
 						);
@@ -477,9 +494,13 @@ function MarketplaceSection({
 
 export function MarketplaceView({
 	chrome = "page",
+	installedItemCount = 0,
+	installedItems,
 	primitive,
 }: {
 	chrome?: "page" | "embedded";
+	installedItemCount?: number;
+	installedItems?: ReactNode;
 	primitive: MarketplacePrimitiveType;
 }) {
 	const [catalog, setCatalog] = useState<MarketplaceCatalog | null>(null);
@@ -787,13 +808,16 @@ export function MarketplaceView({
 						emptyMessage={pageDetails.emptyInstalled}
 						entries={installedEntries}
 						expandedEntryKey={expandedEntryKey}
+						extraItemCount={installedItemCount}
 						installedEntryKeys={installedEntryKeys}
 						installedStatusReady={installedStatusReady}
+						localInstalledItems={installedItems}
 						onInstall={installEntry}
 						onToggleExpanded={toggleExpanded}
 						onUninstall={uninstallEntry}
+						sourceLabel="Catalog"
 						tagLabels={tagLabels}
-						title="Installed from catalog"
+						title="Installed"
 					/>
 
 					<MarketplaceSection
@@ -807,7 +831,7 @@ export function MarketplaceView({
 						onToggleExpanded={toggleExpanded}
 						onUninstall={uninstallEntry}
 						tagLabels={tagLabels}
-						title="Catalog"
+						title="Available from catalog"
 					/>
 				</div>
 			) : null}

@@ -676,6 +676,10 @@ describe("marketplace installer", () => {
 	});
 
 	it("does not report plugin inventory substring matches as installed", () => {
+		process.env.CLINE_DIR = mkdtempSync(
+			join(tmpdir(), "cline-marketplace-test-"),
+		);
+
 		expect(
 			listMarketplaceInstalledEntries(
 				{

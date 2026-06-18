@@ -4,15 +4,16 @@ import {
 	Bot,
 	Code,
 	FileText,
-	FolderOpen,
 	Play,
 	Puzzle,
 	RefreshCw,
+	Server,
 	TriangleAlert,
 	Wrench,
 	Zap,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { desktopClient } from "@/lib/desktop-client";
@@ -24,6 +25,7 @@ import { CommandBadge, PageFrame, PageHeader } from "../page-layout";
 export type CustomizationSection =
 	| "Rules"
 	| "Hooks"
+	| "MCP"
 	| "Skills"
 	| "Agents"
 	| "Plugins"
@@ -32,6 +34,7 @@ export type CustomizationSection =
 const sectionDescriptions: Record<CustomizationSection, string> = {
 	Rules: "Review project and global rule files that shape Cline behavior.",
 	Hooks: "Inspect hook configuration and recent execution status.",
+	MCP: "Manage installed MCP servers and add new servers from the catalog.",
 	Skills: "Manage installed skills and add new skills from the catalog.",
 	Agents: "Review configured agents discovered from local settings.",
 	Plugins: "Manage installed plugins and add new plugins from the catalog.",
@@ -41,6 +44,7 @@ const sectionDescriptions: Record<CustomizationSection, string> = {
 const sectionCommands: Record<CustomizationSection, string> = {
 	Rules: "cline config rules",
 	Hooks: "cline config hooks",
+	MCP: "cline mcp install",
 	Skills: "cline skill",
 	Agents: "cline config agents",
 	Plugins: "cline plugin",
@@ -74,7 +78,10 @@ type CommandItem = {
 	description?: string;
 	instructions: string;
 	path: string;
+	scope: ItemScope;
 };
+
+type ItemScope = "Global" | "Project";
 
 type AgentItem = {
 	name: string;
@@ -151,6 +158,12 @@ type UserInstructionListsResponse = {
 	warnings: string[];
 };
 
+const EMPTY_MCP_RESPONSE: McpServersResponse = {
+	settingsPath: "",
+	hasSettingsFile: false,
+	servers: [],
+};
+
 function asArray<T>(value: T[] | null | undefined): T[] {
 	return Array.isArray(value) ? value : [];
 }
@@ -179,9 +192,7 @@ function normalizeInstructionListsResponse(
 						servers: asArray(response.mcp.servers),
 					}
 				: {
-						settingsPath: "",
-						hasSettingsFile: false,
-						servers: [],
+						...EMPTY_MCP_RESPONSE,
 					},
 		warnings: asArray(response?.warnings),
 	};
@@ -224,6 +235,22 @@ function previewText(input: string, maxLength = 150): string {
 
 function normalizePath(path: string): string {
 	return path.replaceAll("\\", "/");
+}
+
+function getPathScope(path: string, workspaceRoot: string): ItemScope {
+	const normalizedRoot = normalizePath(workspaceRoot);
+	const normalized = normalizePath(path);
+	return normalizedRoot && normalized.startsWith(`${normalizedRoot}/`)
+		? "Project"
+		: "Global";
+}
+
+function ScopeBadge({ scope }: { scope: ItemScope }) {
+	return (
+		<Badge variant="outline" className="shrink-0 text-muted-foreground">
+			{scope}
+		</Badge>
+	);
 }
 
 async function fetchUserInstructionLists(): Promise<UserInstructionListsResponse> {
@@ -276,6 +303,9 @@ export function CustomizationSectionView({
 	const [hooks, setHooks] = useState<HookItem[]>(
 		() => extensionListsCache?.hooks ?? [],
 	);
+	const [mcp, setMcp] = useState<McpServersResponse>(
+		() => extensionListsCache?.mcp ?? EMPTY_MCP_RESPONSE,
+	);
 	const [warnings, setWarnings] = useState<string[]>(
 		() => extensionListsCache?.warnings ?? [],
 	);
@@ -308,6 +338,7 @@ export function CustomizationSectionView({
 			setPlugins(extensionListsCache.plugins);
 			setTools(extensionListsCache.tools);
 			setHooks(extensionListsCache.hooks);
+			setMcp(extensionListsCache.mcp);
 			setWarnings(extensionListsCache.warnings);
 			setErrorMessage(null);
 			setIsLoading(false);
@@ -326,6 +357,7 @@ export function CustomizationSectionView({
 			setPlugins(response.plugins);
 			setTools(response.tools);
 			setHooks(response.hooks);
+			setMcp(response.mcp);
 			setWarnings(response.warnings);
 			extensionListsCache = {
 				...response,
@@ -428,6 +460,7 @@ export function CustomizationSectionView({
 			setPlugins(normalizedResponse.plugins);
 			setTools(normalizedResponse.tools);
 			setHooks(normalizedResponse.hooks);
+			setMcp(normalizedResponse.mcp);
 			setWarnings(normalizedResponse.warnings);
 			extensionListsCache = {
 				...normalizedResponse,
@@ -563,6 +596,7 @@ export function CustomizationSectionView({
 			name: workflow.name,
 			instructions: workflow.instructions,
 			path: workflow.path,
+			scope: getPathScope(workflow.path, workspaceRoot),
 		}));
 		const skillItems: CommandItem[] = skills.map((skill) => ({
 			id: normalizePath(skill.path).toLowerCase(),
@@ -571,11 +605,12 @@ export function CustomizationSectionView({
 			description: skill.description,
 			instructions: skill.instructions,
 			path: skill.path,
+			scope: getPathScope(skill.path, workspaceRoot),
 		}));
 		return [...workflowItems, ...skillItems].sort((a, b) =>
 			a.name.localeCompare(b.name),
 		);
-	}, [skills, workflows]);
+	}, [skills, workflows, workspaceRoot]);
 
 	const { projectRules, globalRules } = useMemo(() => {
 		const normalizedRoot = normalizePath(workspaceRoot);
@@ -656,6 +691,180 @@ export function CustomizationSectionView({
 		return grouped;
 	}, [pluginTools]);
 
+	const scopedPlugins = useMemo(
+		() => [
+			...globalPlugins.map((plugin) => ({
+				plugin,
+				scope: "Global" as ItemScope,
+			})),
+			...projectPlugins.map((plugin) => ({
+				plugin,
+				scope: "Project" as ItemScope,
+			})),
+		],
+		[globalPlugins, projectPlugins],
+	);
+
+	const scopedHooks = useMemo(
+		() => [
+			...globalHooks.map((hook) => ({ hook, scope: "Global" as ItemScope })),
+			...projectHooks.map((hook) => ({ hook, scope: "Project" as ItemScope })),
+		],
+		[globalHooks, projectHooks],
+	);
+
+	const renderSkillCard = (item: CommandItem) => (
+		<div
+			key={`${item.type}:${item.path}`}
+			className="rounded-lg border border-border px-5 py-4"
+		>
+			<div className="flex items-center gap-3">
+				{item.type === "workflow" ? (
+					<Play className="h-4 w-4 shrink-0 text-primary" />
+				) : (
+					<Zap className="h-4 w-4 shrink-0 text-primary" />
+				)}
+				<h3 className="min-w-0 flex-1 text-sm font-semibold text-foreground">
+					{item.name}
+				</h3>
+				<ScopeBadge scope={item.scope} />
+				<Badge variant="outline" className="shrink-0 text-muted-foreground">
+					{item.type}
+				</Badge>
+			</div>
+			<p className="mt-2 ml-7 text-xs text-muted-foreground">
+				{item.description?.trim() || previewText(item.instructions)}
+			</p>
+			<p className="mt-1 ml-7 text-xs font-mono text-muted-foreground">
+				{item.path}
+			</p>
+		</div>
+	);
+
+	const renderPluginCard = ({
+		plugin,
+		scope,
+	}: {
+		plugin: PluginItem;
+		scope: ItemScope;
+	}) => (
+		<div
+			key={plugin.path}
+			className="rounded-lg border border-border px-5 py-4"
+		>
+			<div className="flex items-center gap-3">
+				<Puzzle className="h-4 w-4 shrink-0 text-primary" />
+				<h3 className="min-w-0 flex-1 text-sm font-semibold text-foreground">
+					{plugin.name}
+				</h3>
+				<ScopeBadge scope={scope} />
+				<span className="text-xs text-muted-foreground">
+					{plugin.enabled ? "Enabled" : "Disabled"}
+				</span>
+				<Switch
+					checked={plugin.enabled}
+					onCheckedChange={() => {
+						void setPluginEnabled(plugin);
+					}}
+					disabled={togglingPluginPaths.has(plugin.path)}
+					aria-label={`Toggle ${plugin.name}`}
+				/>
+			</div>
+			<p className="mt-1 ml-7 text-xs font-mono text-muted-foreground">
+				{plugin.path}
+			</p>
+			<div className="mt-3 ml-7 flex flex-col gap-2">
+				{(
+					pluginToolsByPluginKey.get(`${plugin.name}:${plugin.path}`) ?? []
+				).map((tool) => {
+					const isToggling = togglingToolIds.has(tool.id);
+					return (
+						<div
+							key={tool.id}
+							className="flex items-center justify-between gap-4 rounded-md border border-border/70 px-3 py-2"
+						>
+							<div className="min-w-0">
+								<p className="text-xs font-medium text-foreground">
+									{tool.name}
+								</p>
+								<p className="text-xs text-muted-foreground">
+									{tool.description?.trim() || "No description available."}
+								</p>
+							</div>
+							<div className="flex items-center gap-2">
+								<span className="text-xs text-muted-foreground">
+									{tool.enabled ? "Enabled" : "Disabled"}
+								</span>
+								<Switch
+									checked={tool.enabled}
+									onCheckedChange={() => {
+										void setToolEnabled(tool);
+									}}
+									disabled={isToggling || !plugin.enabled}
+									aria-label={`Toggle ${tool.name}`}
+								/>
+							</div>
+						</div>
+					);
+				})}
+				{(pluginToolsByPluginKey.get(`${plugin.name}:${plugin.path}`)?.length ??
+					0) === 0 && (
+					<p className="text-xs text-muted-foreground">
+						No plugin tools found.
+					</p>
+				)}
+			</div>
+		</div>
+	);
+
+	const renderMcpServerCard = (server: McpServer) => (
+		<div
+			key={server.name}
+			className="rounded-lg border border-border px-5 py-4"
+		>
+			<div className="flex items-center gap-3">
+				<Server className="h-4 w-4 shrink-0 text-primary" />
+				<h3 className="min-w-0 flex-1 text-sm font-semibold text-foreground">
+					{server.name}
+				</h3>
+				<ScopeBadge scope="Global" />
+				<Badge variant="outline" className="shrink-0 text-muted-foreground">
+					{server.transportType}
+				</Badge>
+				<span className="text-xs text-muted-foreground">
+					{server.disabled ? "Disabled" : "Enabled"}
+				</span>
+			</div>
+			<p className="mt-2 ml-7 text-xs text-muted-foreground">
+				{server.url ??
+					([server.command, ...(server.args ?? [])].filter(Boolean).join(" ") ||
+						"No launch command configured.")}
+			</p>
+			{mcp.settingsPath ? (
+				<p className="mt-1 ml-7 text-xs font-mono text-muted-foreground">
+					{mcp.settingsPath}
+				</p>
+			) : null}
+		</div>
+	);
+
+	const installedCatalogLocalItems =
+		catalogPrimitive === "skill"
+			? commandItems.map(renderSkillCard)
+			: catalogPrimitive === "plugin"
+				? scopedPlugins.map(renderPluginCard)
+				: catalogPrimitive === "mcp"
+					? mcp.servers.map(renderMcpServerCard)
+					: null;
+	const installedCatalogLocalItemCount =
+		catalogPrimitive === "skill"
+			? commandItems.length
+			: catalogPrimitive === "plugin"
+				? scopedPlugins.length
+				: catalogPrimitive === "mcp"
+					? mcp.servers.length
+					: 0;
+
 	return (
 		<PageFrame>
 			<PageHeader
@@ -721,6 +930,15 @@ export function CustomizationSectionView({
 					</ul>
 				</div>
 			)}
+
+			{catalogPrimitive ? (
+				<MarketplaceView
+					chrome="embedded"
+					installedItemCount={installedCatalogLocalItemCount}
+					installedItems={installedCatalogLocalItems}
+					primitive={catalogPrimitive}
+				/>
+			) : null}
 
 			{activeTab === "Rules" && (
 				<div>
@@ -807,12 +1025,17 @@ export function CustomizationSectionView({
 						</p>
 					)}
 
-					<div className="mb-6">
-						<h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-							Global Hooks
-						</h3>
+					<div className="grid gap-3">
+						<div className="flex items-center justify-between gap-3">
+							<h3 className="text-base font-semibold text-foreground">
+								Installed
+							</h3>
+							<span className="text-sm text-muted-foreground">
+								{scopedHooks.length}
+							</span>
+						</div>
 						<div className="flex flex-col gap-2">
-							{globalHooks.map((hook) => (
+							{scopedHooks.map(({ hook, scope }) => (
 								<div
 									key={hook.path}
 									className="rounded-lg border border-border px-4 py-3"
@@ -822,6 +1045,7 @@ export function CustomizationSectionView({
 										<span className="flex-1 text-sm font-mono text-foreground">
 											{hook.fileName}
 										</span>
+										<ScopeBadge scope={scope} />
 										{hook.hookEventName && (
 											<div className="flex items-center gap-2">
 												<span className="rounded border border-border px-2 py-0.5 text-xs text-muted-foreground">
@@ -863,74 +1087,9 @@ export function CustomizationSectionView({
 									</p>
 								</div>
 							))}
-							{globalHooks.length === 0 && (
+							{scopedHooks.length === 0 && (
 								<p className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
-									No global hooks found.
-								</p>
-							)}
-						</div>
-					</div>
-
-					<div>
-						<div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-							<FolderOpen className="h-3.5 w-3.5" />
-							Project Hooks
-						</div>
-						<div className="flex flex-col gap-2">
-							{projectHooks.map((hook) => (
-								<div
-									key={hook.path}
-									className="rounded-lg border border-border px-4 py-3"
-								>
-									<div className="flex items-center gap-3">
-										<Code className="h-4 w-4 shrink-0 text-muted-foreground" />
-										<span className="flex-1 text-sm font-mono text-foreground">
-											{hook.fileName}
-										</span>
-										{hook.hookEventName && (
-											<div className="flex items-center gap-2">
-												<span className="rounded border border-border px-2 py-0.5 text-xs text-muted-foreground">
-													{hook.hookEventName}
-												</span>
-												{(() => {
-													const stats =
-														hookExecutionByEvent[hook.hookEventName];
-													const executed = (stats?.count ?? 0) > 0;
-													return (
-														<span
-															className={cn(
-																"rounded border px-2 py-0.5 text-xs",
-																executed
-																	? "border-emerald-400/50 text-emerald-600 dark:text-emerald-400"
-																	: "border-border text-muted-foreground",
-															)}
-														>
-															{executed
-																? `${stats?.count ?? 0} executed`
-																: "never executed"}
-														</span>
-													);
-												})()}
-											</div>
-										)}
-									</div>
-									{hook.hookEventName ? (
-										<p className="mt-1 text-xs text-muted-foreground">
-											Last run:{" "}
-											{formatExecutionTs(
-												hookExecutionByEvent[hook.hookEventName]?.lastTs ??
-													null,
-											)}
-										</p>
-									) : null}
-									<p className="mt-1 text-xs font-mono text-muted-foreground">
-										{hook.path}
-									</p>
-								</div>
-							))}
-							{projectHooks.length === 0 && (
-								<p className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
-									No project hooks found.
+									No hooks found.
 								</p>
 							)}
 						</div>
@@ -938,7 +1097,7 @@ export function CustomizationSectionView({
 				</div>
 			)}
 
-			{activeTab === "Skills" && (
+			{activeTab === "Skills" && !catalogPrimitive && (
 				<div>
 					<p className="mb-6 text-sm leading-relaxed text-muted-foreground">
 						Skills can be invoked in chat with{" "}
@@ -1017,7 +1176,7 @@ export function CustomizationSectionView({
 				</div>
 			)}
 
-			{activeTab === "Plugins" && (
+			{activeTab === "Plugins" && !catalogPrimitive && (
 				<div>
 					<p className="mb-6 text-sm leading-relaxed text-muted-foreground">
 						Plugins discovered from workspace and global plugin directories.
@@ -1310,15 +1469,6 @@ export function CustomizationSectionView({
 					</div>
 				</div>
 			)}
-
-			{catalogPrimitive ? (
-				<section className="mt-10 border-t pt-8">
-					<h2 className="mb-5 text-xl font-semibold text-foreground">
-						Catalog
-					</h2>
-					<MarketplaceView chrome="embedded" primitive={catalogPrimitive} />
-				</section>
-			) : null}
 		</PageFrame>
 	);
 }
