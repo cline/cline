@@ -1,5 +1,6 @@
 import axios, { AxiosRequestConfig, AxiosResponse } from "axios"
 import { Controller } from "@/core/controller"
+import { CLINE_PASS_PROVIDER_ID } from "@/core/controller/models/handleClinePassProviderSelection"
 import { ClineAccountService } from "@/services/account/ClineAccountService"
 import { buildBasicClineHeaders } from "@/services/EnvUtils"
 import { getAxiosSettings } from "@/shared/net"
@@ -11,8 +12,6 @@ import { CLINE_API_ENDPOINT } from "../../../shared/cline/api"
 import { APIKeySchema, type APIKeySettings, RemoteConfig, RemoteConfigSchema } from "../../../shared/remote-config/schema"
 import { deleteRemoteConfigFromCache, readRemoteConfigFromCache, writeRemoteConfigToCache } from "../disk"
 import { applyRemoteConfig, clearRemoteConfig, isRemoteConfigEnabled } from "./utils"
-
-const CLINE_PASS_PROVIDER_ID = "cline-pass"
 
 /**
  * Parses API keys from a JSON string response
@@ -206,10 +205,11 @@ async function resolveRemoteConfig(organizationId: string, discoveredValue?: str
 
 function isClinePassSelected(controller: Controller): boolean {
 	const apiConfiguration = controller.stateManager.getApiConfiguration()
-	const currentMode = controller.stateManager.getGlobalSettingsKey("mode")
-	const selectedProvider = currentMode === "plan" ? apiConfiguration.planModeApiProvider : apiConfiguration.actModeApiProvider
 
-	return selectedProvider === CLINE_PASS_PROVIDER_ID
+	return (
+		apiConfiguration.planModeApiProvider === CLINE_PASS_PROVIDER_ID ||
+		apiConfiguration.actModeApiProvider === CLINE_PASS_PROVIDER_ID
+	)
 }
 
 /**
