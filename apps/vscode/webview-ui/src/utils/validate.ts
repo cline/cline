@@ -1,4 +1,4 @@
-import { ApiConfiguration, ModelInfo, openRouterDefaultModelId } from "@shared/api"
+import { ApiConfiguration, clinePassDefaultModelId, clinePassModels, ModelInfo, openRouterDefaultModelId } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 import { getModeSpecificFields } from "@/components/settings/utils/providerUtils"
 
@@ -71,6 +71,7 @@ export function validateApiConfiguration(currentMode: Mode, apiConfiguration?: A
 				}
 				break
 			case "cline":
+			case "cline-pass":
 				break
 			case "openai-codex":
 				// Authentication is handled via OAuth, not API key
@@ -191,7 +192,7 @@ export function validateModelId(
 	if (apiConfiguration) {
 		const { apiProvider, openRouterModelId, clineModelId } = getModeSpecificFields(apiConfiguration, currentMode)
 		switch (apiProvider) {
-			case "openrouter":
+			case "openrouter": {
 				const modelId = openRouterModelId || openRouterDefaultModelId // in case the user hasn't changed the model id, it will be undefined by default
 				if (!modelId) {
 					return "You must provide a model ID."
@@ -201,7 +202,8 @@ export function validateModelId(
 					return "The model ID you provided is not available. Please choose a different model."
 				}
 				break
-			case "cline":
+			}
+			case "cline": {
 				const clineResolvedModelId = clineModelId || openRouterDefaultModelId
 				if (!clineResolvedModelId) {
 					return "You must provide a model ID."
@@ -210,6 +212,22 @@ export function validateModelId(
 					return "The model ID you provided is not available. Please choose a different model."
 				}
 				break
+			}
+			case "cline-pass": {
+				const clinePassModelId =
+					currentMode === "plan" ? apiConfiguration.planModeClinePassModelId : apiConfiguration.actModeClinePassModelId
+				const clinePassResolvedModelId = clinePassModelId || clinePassDefaultModelId
+				if (!clinePassResolvedModelId) {
+					return "You must provide a model ID."
+				}
+				if (
+					!Object.keys(clinePassModels).includes(clinePassResolvedModelId) &&
+					!clinePassResolvedModelId.startsWith("cline-pass/")
+				) {
+					return "The model ID you provided is not available. Please choose a different model."
+				}
+				break
+			}
 		}
 	}
 	return undefined

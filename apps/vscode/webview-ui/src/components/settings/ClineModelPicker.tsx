@@ -1,4 +1,4 @@
-import { CLAUDE_SONNET_1M_SUFFIX, openRouterDefaultModelId } from "@shared/api"
+import { type ApiConfiguration, buildModelInfoNameMap, CLAUDE_SONNET_1M_SUFFIX, type ModelInfo } from "@shared/api"
 import { CLINE_RECOMMENDED_MODELS_FALLBACK } from "@shared/cline/recommended-models"
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import { type ClineRecommendedModel, ClineRecommendedModelsResponse } from "@shared/proto/cline/models"
@@ -52,6 +52,12 @@ export interface ClineModelPickerProps {
 	currentMode: Mode
 	showProviderRouting?: boolean
 	initialTab?: "recommended" | "free"
+	defaultModelId?: string
+	modelIdFieldPair?: { plan: keyof ApiConfiguration; act: keyof ApiConfiguration }
+	modelInfoFieldPair?: { plan: keyof ApiConfiguration; act: keyof ApiConfiguration }
+	models?: Record<string, ModelInfo>
+	isClinePassEnabled?: boolean
+	showFeaturedModels?: boolean
 }
 
 interface FeaturedModelCardEntry {
@@ -92,11 +98,44 @@ const FREE_MODELS_FALLBACK: FeaturedModelCardEntry[] = CLINE_RECOMMENDED_MODELS_
 	.map((model) => toFeaturedModelCardEntry(model, "FREE"))
 	.filter((model): model is FeaturedModelCardEntry => model !== null)
 
-const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMode, showProviderRouting, initialTab }) => {
+const ClineModelPicker: React.FC<ClineModelPickerProps> = ({
+	isPopup,
+	currentMode,
+	showProviderRouting,
+	initialTab,
+	defaultModelId,
+	modelIdFieldPair = { plan: "planModeClineModelId", act: "actModeClineModelId" },
+	modelInfoFieldPair = { plan: "planModeClineModelInfo", act: "actModeClineModelInfo" },
+	models,
+	isClinePassEnabled = true,
+	showFeaturedModels = true,
+}) => {
 	const { handleModeFieldsChange, handleFieldChange } = useApiConfigurationHandlers()
-	const { apiConfiguration, favoritedModelIds, clineModels, refreshClineModels } = useExtensionState()
+	const { apiConfiguration, favoritedModelIds, clineModels, openRouterModels, refreshClineModels } = useExtensionState()
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
-	const [searchTerm, setSearchTerm] = useState(modeFields.clineModelId || openRouterDefaultModelId)
+	const resolvedModels = models ?? clineModels
+	const openRouterModelsByName = useMemo(() => buildModelInfoNameMap(openRouterModels), [openRouterModels])
+	const normalizedSelection = useMemo(
+		() =>
+			normalizeApiConfiguration(apiConfiguration, currentMode, {
+				isClinePassEnabled,
+				clinePassModelInfoByName: openRouterModelsByName,
+			}),
+		[apiConfiguration, currentMode, isClinePassEnabled, openRouterModelsByName],
+	)
+	const configuredModelId = apiConfiguration?.[modelIdFieldPair[currentMode]] as string | undefined
+	const selectedOrDefaultModelId = defaultModelId ?? normalizedSelection.selectedModelId
+	const resolveModelId = useCallback(
+		(modelId?: string) => {
+			if (models && (!modelId || !(modelId in models))) {
+				return selectedOrDefaultModelId
+			}
+
+			return modelId || selectedOrDefaultModelId
+		},
+		[models, selectedOrDefaultModelId],
+	)
+	const [searchTerm, setSearchTerm] = useState(resolveModelId(configuredModelId))
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(-1)
 	const [clineRecommendedModels, setClineRecommendedModels] = useState<FeaturedModelCardEntry[]>([])
@@ -188,9 +227,9 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 		if (initialTab) {
 			return
 		}
-		const currentModelId = modeFields.clineModelId || openRouterDefaultModelId
+		const currentModelId = resolveModelId(configuredModelId)
 		setActiveTab(freeClineModelIdSet.has(normalizeModelId(currentModelId)) ? "free" : "recommended")
-	}, [modeFields.clineModelId, freeClineModelIdSet, initialTab])
+	}, [configuredModelId, freeClineModelIdSet, initialTab, resolveModelId])
 	const dropdownRef = useRef<HTMLDivElement>(null)
 	const itemRefs = useRef<(HTMLDivElement | null)[]>([])
 	const dropdownListRef = useRef<HTMLDivElement>(null)
@@ -200,19 +239,27 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 
 		handleModeFieldsChange(
 			{
-				clineModelId: { plan: "planModeClineModelId", act: "actModeClineModelId" },
-				clineModelInfo: { plan: "planModeClineModelInfo", act: "actModeClineModelInfo" },
+				clineModelId: modelIdFieldPair,
+				clineModelInfo: modelInfoFieldPair,
 			},
 			{
 				clineModelId: newModelId,
-				clineModelInfo: clineModels?.[newModelId],
+				clineModelInfo: resolvedModels?.[newModelId],
 			},
 			currentMode,
 		)
 	}
 
 	const { selectedModelId, selectedModelInfo } = useMemo(() => {
-		const selected = normalizeApiConfiguration(apiConfiguration, currentMode)
+		const resolvedModelId = resolveModelId(configuredModelId)
+		const selected =
+			(defaultModelId || models) && resolvedModelId !== normalizedSelection.selectedModelId
+				? {
+						...normalizedSelection,
+						selectedModelId: resolvedModelId,
+						selectedModelInfo: resolvedModels?.[resolvedModelId] ?? normalizedSelection.selectedModelInfo,
+					}
+				: normalizedSelection
 		if (freeClineModelIdSet.has(normalizeModelId(selected.selectedModelId))) {
 			return {
 				...selected,
@@ -226,10 +273,12 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 			}
 		}
 		return selected
-	}, [apiConfiguration, currentMode, freeClineModelIdSet])
+	}, [configuredModelId, defaultModelId, freeClineModelIdSet, models, normalizedSelection, resolvedModels, resolveModelId])
 
 	useMount(() => {
-		refreshClineModels()
+		if (!models) {
+			refreshClineModels()
+		}
 	})
 
 	useEffect(() => {
@@ -238,9 +287,8 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 
 	// Sync external changes when the modelId changes
 	useEffect(() => {
-		const currentModelId = modeFields.clineModelId || openRouterDefaultModelId
-		setSearchTerm(currentModelId)
-	}, [modeFields.clineModelId])
+		setSearchTerm(resolveModelId(configuredModelId))
+	}, [configuredModelId, resolveModelId])
 
 	useEffect(() => {
 		const handleClickOutside = (event: MouseEvent) => {
@@ -256,9 +304,9 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 	}, [])
 
 	const modelIds = useMemo(() => {
-		const unfilteredModelIds = Object.keys(clineModels ?? {}).sort((a, b) => a.localeCompare(b))
+		const unfilteredModelIds = Object.keys(resolvedModels ?? {}).sort((a, b) => a.localeCompare(b))
 		return filterOpenRouterModelIds(unfilteredModelIds, "cline", freeClineModelIds)
-	}, [clineModels, freeClineModelIds])
+	}, [resolvedModels, freeClineModelIds])
 
 	const searchableItems = useMemo(() => {
 		return modelIds.map((id) => ({
@@ -363,7 +411,7 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 			return false
 		}
 		return (
-			Object.entries(clineModels ?? {})?.some(([id, m]) => id === selectedModelId && m.thinkingConfig) ||
+			Object.entries(resolvedModels ?? {})?.some(([id, m]) => id === selectedModelId && m.thinkingConfig) ||
 			selectedModelIdLower.includes("claude-haiku-4.5") ||
 			selectedModelIdLower.includes("claude-4.5-haiku") ||
 			selectedModelIdLower.includes("claude-sonnet-4.6") ||
@@ -377,7 +425,7 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 			selectedModelIdLower.includes("claude-3.7-sonnet") ||
 			selectedModelIdLower.includes("claude-3.7-sonnet:thinking")
 		)
-	}, [clineModels, selectedModelId, selectedModelIdLower, showReasoningEffort])
+	}, [resolvedModels, selectedModelId, selectedModelIdLower, showReasoningEffort])
 
 	return (
 		<div style={{ width: "100%", paddingBottom: 2 }}>
@@ -394,49 +442,51 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 					<span style={{ fontWeight: 500 }}>Model</span>
 				</label>
 
-				<>
-					{/* Tabs */}
-					<TabsContainer style={{ marginTop: 4 }}>
-						<Tab active={activeTab === "recommended"} onClick={() => setActiveTab("recommended")}>
-							Recommended
-						</Tab>
-						<Tab active={activeTab === "free"} onClick={() => setActiveTab("free")}>
-							Free
-						</Tab>
-					</TabsContainer>
+				{showFeaturedModels && (
+					<>
+						{/* Tabs */}
+						<TabsContainer style={{ marginTop: 4 }}>
+							<Tab active={activeTab === "recommended"} onClick={() => setActiveTab("recommended")}>
+								Recommended
+							</Tab>
+							<Tab active={activeTab === "free"} onClick={() => setActiveTab("free")}>
+								Free
+							</Tab>
+						</TabsContainer>
 
-					{/* Model Cards */}
-					<div style={{ marginBottom: "6px" }}>
-						{activeTab === "recommended" &&
-							recommendedModels.map((model) => (
-								<FeaturedModelCard
-									description={model.description}
-									isSelected={selectedModelId === model.id}
-									key={model.id}
-									label={model.label}
-									modelId={model.id}
-									onClick={() => {
-										handleModelChange(model.id)
-										setIsDropdownVisible(false)
-									}}
-								/>
-							))}
-						{activeTab === "free" &&
-							freeModels.map((model) => (
-								<FeaturedModelCard
-									description={model.description}
-									isSelected={selectedModelId === model.id}
-									key={model.id}
-									label={model.label}
-									modelId={model.id}
-									onClick={() => {
-										handleModelChange(model.id)
-										setIsDropdownVisible(false)
-									}}
-								/>
-							))}
-					</div>
-				</>
+						{/* Model Cards */}
+						<div style={{ marginBottom: "6px" }}>
+							{activeTab === "recommended" &&
+								recommendedModels.map((model) => (
+									<FeaturedModelCard
+										description={model.description}
+										isSelected={selectedModelId === model.id}
+										key={model.id}
+										label={model.label}
+										modelId={model.id}
+										onClick={() => {
+											handleModelChange(model.id)
+											setIsDropdownVisible(false)
+										}}
+									/>
+								))}
+							{activeTab === "free" &&
+								freeModels.map((model) => (
+									<FeaturedModelCard
+										description={model.description}
+										isSelected={selectedModelId === model.id}
+										key={model.id}
+										label={model.label}
+										modelId={model.id}
+										onClick={() => {
+											handleModelChange(model.id)
+											setIsDropdownVisible(false)
+										}}
+									/>
+								))}
+						</div>
+					</>
+				)}
 
 				<DropdownWrapper ref={dropdownRef}>
 					<VSCodeTextField

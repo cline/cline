@@ -5,6 +5,10 @@
 			"label": "Cline"
 		},
 		{
+			"value": "cline-pass",
+			"label": "Cline Pass"
+		},
+		{
 			"value": "openai-codex",
 			"label": "ChatGPT Subscription"
 		},

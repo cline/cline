@@ -16,6 +16,7 @@ import {
 	requestToolApproval,
 	submitAndExitInTerminal,
 } from "../utils/approval";
+import { formatCliErrorMessage } from "../utils/cline-pass-errors";
 import { handleEvent, handleTeamEvent } from "../utils/events";
 import { createRuntimeHooks } from "../utils/hooks";
 import {
@@ -374,7 +375,7 @@ export async function runAgent(
 		}
 
 		if (result.finishReason !== "completed") {
-			const errorText = result.text.trim();
+			const errorText = formatCliErrorMessage(result.text).trim();
 			if (
 				errorText &&
 				(config.outputMode === "json" || !displayedErrorMessages.has(errorText))
@@ -395,7 +396,7 @@ export async function runAgent(
 		);
 		process.exitCode = 0;
 	} catch (err) {
-		const message = err instanceof Error ? err.message : String(err);
+		const message = formatCliErrorMessage(err);
 		logCliError(config.logger, "CLI task run failed", { error: err });
 		writeErr(message);
 		process.exitCode = 1;

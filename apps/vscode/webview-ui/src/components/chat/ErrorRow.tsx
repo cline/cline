@@ -1,6 +1,8 @@
 import { ClineMessage } from "@shared/ExtensionMessage"
+import { isClineProvider } from "@shared/utils/cline"
 import { memo } from "react"
 import CreditLimitError from "@/components/chat/CreditLimitError"
+import EntitlementError from "@/components/chat/EntitlementError"
 import SpendLimitError from "@/components/chat/SpendLimitError"
 import { Button } from "@/components/ui/button"
 import { useClineAuth, useClineSignIn } from "@/context/ClineAuthContext"
@@ -32,7 +34,6 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 					const errorMessage = clineError?._error?.message || clineError?.message || rawApiError
 					const requestId = clineError?._error?.request_id
 					const providerId = clineError?.providerId || clineError?._error?.providerId
-					const isClineProvider = providerId === "cline"
 					const errorCode = clineError?._error?.code
 
 					if (clineError?.isErrorType(ClineErrorType.Balance)) {
@@ -61,6 +62,11 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 						)
 					}
 
+					if (clineError?.isErrorType(ClineErrorType.Entitlement)) {
+						const detailMessage = clineError?._error?.details?.message || errorMessage
+						return <EntitlementError message={detailMessage} />
+					}
+
 					if (clineError?.isErrorType(ClineErrorType.RateLimit)) {
 						return (
 							<p className="m-0 whitespace-pre-wrap text-error wrap-anywhere">
@@ -75,7 +81,7 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 						return <p className="m-0 whitespace-pre-wrap text-error wrap-anywhere">{detailMessage}</p>
 					}
 
-					if (clineError?.isErrorType(ClineErrorType.Auth) && isClineProvider) {
+					if (clineError?.isErrorType(ClineErrorType.Auth) && isClineProvider(providerId)) {
 						return !clineUser ? (
 							// User is using Cline provider and is not logged in
 							<div className="flex flex-col gap-3">

@@ -214,6 +214,32 @@ export const ClineSpendLimitMinimal: Story = {
 	},
 }
 
+// ClinePass entitlement error (user not subscribed to a required model plan)
+export const ClinePassEntitlementError: Story = {
+	args: {
+		message: createMockMessage(),
+		errorType: "error",
+		apiRequestFailedMessage: JSON.stringify({
+			message: "403 Error 403: the user is not subscribed to required model plan",
+			status: 403,
+			code: "ENTITLEMENT_ERROR",
+			modelId: "cline-pass/glm-5.1",
+			providerId: "cline-pass",
+			details: {
+				code: "ENTITLEMENT_ERROR",
+				message: "Error 403: the user is not subscribed to required model plan",
+			},
+		}),
+	},
+	parameters: {
+		docs: {
+			description: {
+				story: "ClinePass model returns a 403 ENTITLEMENT_ERROR when the user is not subscribed. Instead of dumping the raw JSON blob, a human-readable message with a 'Get ClinePass' subscribe link and a retry button is shown.",
+			},
+		},
+	},
+}
+
 // Authentication-related errors with configurable scenarios
 export const AuthenticationErrors: Story = {
 	args: {
