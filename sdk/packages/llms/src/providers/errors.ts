@@ -7,7 +7,7 @@ export function getClinePassSubscriptionUrl(): string {
 	return `${new URL(
 		"/dashboard/subscription",
 		getClineEnvironmentConfig().appBaseUrl,
-	).toString()}`;
+	).toString()}/`;
 }
 
 export function getClineNotSubscribedMessage(): string {
