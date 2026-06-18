@@ -66,8 +66,7 @@ function normalizeRecommendedModelsResponse(
 	if (
 		(data.recommended !== undefined && !Array.isArray(data.recommended)) ||
 		(data.free !== undefined && !Array.isArray(data.free)) ||
-		(data.clinePass !== undefined && !Array.isArray(data.clinePass)) ||
-		(data.cline_pass !== undefined && !Array.isArray(data.cline_pass))
+		(data.clinePass !== undefined && !Array.isArray(data.clinePass))
 	) {
 		return null;
 	}
@@ -76,11 +75,7 @@ function normalizeRecommendedModelsResponse(
 		? data.recommended
 		: [];
 	const freeRaw = Array.isArray(data.free) ? data.free : [];
-	const clinePassRaw = Array.isArray(data.clinePass)
-		? data.clinePass
-		: Array.isArray(data.cline_pass)
-			? data.cline_pass
-			: [];
+	const clinePassRaw = Array.isArray(data.clinePass) ? data.clinePass : [];
 
 	const recommended = recommendedRaw
 		.map((model) => normalizeRecommendedModel(model))
