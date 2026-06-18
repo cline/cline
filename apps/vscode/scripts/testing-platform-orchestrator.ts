@@ -126,7 +126,7 @@ function stopServer(server: ChildProcess): Promise<void> {
 
 function runTestingPlatform(specFile: string, grpcPort: string): Promise<void> {
 	return new Promise((resolve, reject) => {
-		const testProcess = spawn("npx", ["ts-node", "index.ts", specFile, ...(fix ? ["--fix"] : [])], {
+		const testProcess = spawn("bun", ["index.ts", specFile, ...(fix ? ["--fix"] : [])], {
 			cwd: path.join(process.cwd(), "testing-platform"),
 			stdio: "inherit",
 			env: {

@@ -480,6 +480,7 @@
         "tar": "^7.5.2",
         "tree-kill": "^1.2.2",
         "ts-proto": "^2.6.1",
+        "tsconfig-paths": "^4.2.0",
         "typescript": "^5.4.5",
         "vitest": "^4.0.17",
       },
