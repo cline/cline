@@ -10,6 +10,7 @@ import {
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import type { PluginManifest } from "..";
+import { resolveClineEnvironment } from "../runtime/cline-environment";
 
 const DEPRECATED_CONFIG_DIR = ".clinerules";
 const CLINE_CONFIG_DIR = ".cline";
@@ -259,12 +260,23 @@ export function resolveCronEventsDir(
 	);
 }
 
+function getProviderSettingsFileName(): string {
+	const environment = resolveClineEnvironment();
+
+	if (environment === "staging" || environment === "local") {
+		return `providers.${environment}.json`;
+	}
+
+	return "providers.json";
+}
+
 export function resolveProviderSettingsPath(): string {
 	const explicitPath = process.env.CLINE_PROVIDER_SETTINGS_PATH?.trim();
 	if (explicitPath) {
 		return explicitPath;
 	}
-	return join(resolveClineDataDir(), "settings", "providers.json");
+
+	return join(resolveClineDataDir(), "settings", getProviderSettingsFileName());
 }
 
 export function resolveGlobalSettingsPath(): string {
