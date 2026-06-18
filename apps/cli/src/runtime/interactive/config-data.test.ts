@@ -1,4 +1,11 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import {
+	chmod,
+	mkdir,
+	mkdtemp,
+	readFile,
+	rm,
+	writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { UserInstructionConfigService } from "@cline/core";
@@ -43,9 +50,17 @@ describe("interactive config data loader", () => {
 	};
 
 	afterEach(async () => {
-		process.env.CLINE_GLOBAL_SETTINGS_PATH =
-			envSnapshot.CLINE_GLOBAL_SETTINGS_PATH;
-		process.env.CLINE_MCP_SETTINGS_PATH = envSnapshot.CLINE_MCP_SETTINGS_PATH;
+		if (envSnapshot.CLINE_GLOBAL_SETTINGS_PATH === undefined) {
+			delete process.env.CLINE_GLOBAL_SETTINGS_PATH;
+		} else {
+			process.env.CLINE_GLOBAL_SETTINGS_PATH =
+				envSnapshot.CLINE_GLOBAL_SETTINGS_PATH;
+		}
+		if (envSnapshot.CLINE_MCP_SETTINGS_PATH === undefined) {
+			delete process.env.CLINE_MCP_SETTINGS_PATH;
+		} else {
+			process.env.CLINE_MCP_SETTINGS_PATH = envSnapshot.CLINE_MCP_SETTINGS_PATH;
+		}
 		await Promise.all(
 			tempRoots.map((dir) => rm(dir, { recursive: true, force: true })),
 		);
@@ -68,6 +83,28 @@ describe("interactive config data loader", () => {
 				"      description: 'Settings plugin tool',",
 				"      inputSchema: { type: 'object', properties: {} },",
 				"      execute: async () => 'ok',",
+				"    });",
+				"  },",
+				"};",
+			].join("\n"),
+		);
+		return pluginPath;
+	}
+
+	async function writeMcpSettingsPlugin(tempRoot: string): Promise<string> {
+		const pluginsDir = join(tempRoot, ".cline", "plugins");
+		await mkdir(pluginsDir, { recursive: true });
+		const pluginPath = join(pluginsDir, "settings-mcp-plugin.js");
+		await writeFile(
+			pluginPath,
+			[
+				"export default {",
+				"  name: 'settings-mcp-plugin',",
+				"  manifest: { capabilities: ['mcp'] },",
+				"  setup(api) {",
+				"    api.registerMcpServer({",
+				"      name: 'smoke',",
+				"      transport: { type: 'stdio', command: process.execPath, args: ['-e', 'process.exit(0)'] },",
 				"    });",
 				"  },",
 				"};",
@@ -309,6 +346,70 @@ Find installable skills.`,
 					item.name === "settings_plugin_tool",
 			),
 		).toBe(true);
+	});
+
+	it("loads plugin-owned MCP servers from settings", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "cli-config-data-"));
+		tempRoots.push(tempRoot);
+		const settingsPath = join(tempRoot, "cline_mcp_settings.json");
+		process.env.CLINE_MCP_SETTINGS_PATH = settingsPath;
+		const pluginPath = await writeMcpSettingsPlugin(tempRoot);
+		await writeFile(
+			settingsPath,
+			`${JSON.stringify(
+				{
+					mcpServers: {
+						smoke: {
+							transport: {
+								type: "stdio",
+								command: process.execPath,
+								args: ["-e", "process.exit(0)"],
+							},
+							metadata: {
+								source: "plugin",
+								pluginName: "settings-mcp-plugin",
+								pluginPath,
+							},
+						},
+					},
+				},
+				null,
+				2,
+			)}\n`,
+		);
+		const loader = createInteractiveConfigDataLoader({
+			config: createConfig(tempRoot),
+		});
+
+		const data = await loader.loadConfigData({ includePluginTools: true });
+
+		expect(
+			data.mcp.some(
+				(item) =>
+					item.name === "smoke" &&
+					item.pluginName === "settings-mcp-plugin" &&
+					item.pluginPath === pluginPath &&
+					item.kind === "mcp",
+			),
+		).toBe(true);
+	});
+
+	it("does not load plugin MCP rows directly from plugin diagnostics", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "cli-config-data-"));
+		tempRoots.push(tempRoot);
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = join(
+			tempRoot,
+			"global-settings.json",
+		);
+		const pluginPath = await writeMcpSettingsPlugin(tempRoot);
+		const loader = createInteractiveConfigDataLoader({
+			config: createConfig(tempRoot),
+		});
+
+		const data = await loader.loadConfigData({ includePluginTools: true });
+
+		expect(data.plugins.some((item) => item.path === pluginPath)).toBe(true);
+		expect(data.mcp.some((item) => item.pluginPath === pluginPath)).toBe(false);
 	});
 
 	it("keeps failed plugins visible with their load error", async () => {
@@ -730,6 +831,142 @@ Review with the bundled skill.`,
 			nextData?.mcp.find((candidate) => candidate.name === "docs")?.enabled,
 		).toBe(false);
 	});
+
+	it("disables and re-syncs plugin-owned MCP servers when toggling plugins", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "cli-config-data-"));
+		tempRoots.push(tempRoot);
+		const settingsPath = join(tempRoot, "cline_mcp_settings.json");
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = join(
+			tempRoot,
+			"global-settings.json",
+		);
+		process.env.CLINE_MCP_SETTINGS_PATH = settingsPath;
+		const pluginPath = await writeMcpSettingsPlugin(tempRoot);
+		await writeFile(
+			settingsPath,
+			`${JSON.stringify(
+				{
+					mcpServers: {
+						smoke: {
+							transport: {
+								type: "stdio",
+								command: process.execPath,
+								args: ["-e", "process.exit(0)"],
+							},
+							oauth: {
+								tokens: {
+									access_token: "token",
+								},
+							},
+							metadata: {
+								source: "plugin",
+								pluginName: "settings-mcp-plugin",
+								pluginPath,
+							},
+						},
+					},
+				},
+				null,
+				2,
+			)}\n`,
+		);
+		const loader = createInteractiveConfigDataLoader({
+			config: createConfig(tempRoot),
+		});
+		const item: InteractiveConfigItem = {
+			id: pluginPath,
+			name: "settings-mcp-plugin",
+			path: pluginPath,
+			enabled: true,
+			source: "workspace-plugin",
+			kind: "plugin",
+		};
+
+		await loader.onToggleConfigItem(item);
+		let settings = JSON.parse(await readFile(settingsPath, "utf8")) as {
+			mcpServers?: Record<
+				string,
+				{ disabled?: boolean; oauth?: { tokens?: Record<string, string> } }
+			>;
+		};
+		expect(settings.mcpServers?.smoke?.disabled).toBe(true);
+		expect(settings.mcpServers?.smoke?.oauth?.tokens?.access_token).toBe(
+			"token",
+		);
+
+		await loader.onToggleConfigItem({ ...item, enabled: false });
+		settings = JSON.parse(await readFile(settingsPath, "utf8")) as {
+			mcpServers?: Record<
+				string,
+				{ disabled?: boolean; oauth?: { tokens?: Record<string, string> } }
+			>;
+		};
+		expect(settings.mcpServers?.smoke?.disabled).toBeUndefined();
+		expect(settings.mcpServers?.smoke?.oauth?.tokens?.access_token).toBe(
+			"token",
+		);
+	});
+
+	it.skipIf(process.platform === "win32")(
+		"does not mark plugin disabled when MCP disable write fails",
+		async () => {
+			const tempRoot = await mkdtemp(join(tmpdir(), "cli-config-data-"));
+			tempRoots.push(tempRoot);
+			const settingsPath = join(tempRoot, "cline_mcp_settings.json");
+			const globalSettingsPath = join(tempRoot, "global-settings.json");
+			process.env.CLINE_GLOBAL_SETTINGS_PATH = globalSettingsPath;
+			process.env.CLINE_MCP_SETTINGS_PATH = settingsPath;
+			const pluginPath = await writeMcpSettingsPlugin(tempRoot);
+			await writeFile(
+				settingsPath,
+				`${JSON.stringify(
+					{
+						mcpServers: {
+							smoke: {
+								transport: {
+									type: "stdio",
+									command: process.execPath,
+									args: ["-e", "process.exit(0)"],
+								},
+								metadata: {
+									source: "plugin",
+									pluginName: "settings-mcp-plugin",
+									pluginPath,
+								},
+							},
+						},
+					},
+					null,
+					2,
+				)}\n`,
+			);
+			await chmod(settingsPath, 0o444);
+			const loader = createInteractiveConfigDataLoader({
+				config: createConfig(tempRoot),
+			});
+
+			try {
+				await expect(
+					loader.onToggleConfigItem({
+						id: pluginPath,
+						name: "settings-mcp-plugin",
+						path: pluginPath,
+						enabled: true,
+						source: "workspace-plugin",
+						kind: "plugin",
+					}),
+				).rejects.toThrow();
+			} finally {
+				await chmod(settingsPath, 0o644);
+			}
+
+			await expect(readFile(globalSettingsPath, "utf8")).rejects.toThrow();
+			const settings = JSON.parse(await readFile(settingsPath, "utf8")) as {
+				mcpServers?: Record<string, { disabled?: boolean }>;
+			};
+			expect(settings.mcpServers?.smoke?.disabled).toBeUndefined();
+		},
+	);
 
 	it("surfaces MCP OAuth status and errors", async () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "cli-config-data-"));

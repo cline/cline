@@ -23,7 +23,11 @@ import type {
 	ToolApprovalResult,
 	ToolPolicy,
 } from "@cline/shared";
-import { captureSdkError, estimateTokens } from "@cline/shared";
+import {
+	captureSdkError,
+	estimateTokens,
+	mergeModelOptions,
+} from "@cline/shared";
 import { nanoid } from "nanoid";
 
 // Local `createUID` helper. The clinee source imports this from
@@ -778,7 +782,7 @@ export class AgentRuntime {
 			if (result?.options) {
 				request = {
 					...request,
-					options: { ...(request.options ?? {}), ...result.options },
+					options: mergeModelOptions(request.options, result.options),
 				};
 			}
 		}

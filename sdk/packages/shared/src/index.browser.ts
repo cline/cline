@@ -33,6 +33,13 @@ export type {
 	AgentExtensionCommand,
 	AgentExtensionCommandResult,
 	AgentExtensionHooks,
+	AgentExtensionMcpEnv,
+	AgentExtensionMcpEnvValue,
+	AgentExtensionMcpServer,
+	AgentExtensionMcpSseTransport,
+	AgentExtensionMcpStdioTransport,
+	AgentExtensionMcpStreamableHttpTransport,
+	AgentExtensionMcpTransport,
 	AgentExtensionMessageBuilder,
 	AgentExtensionProvider,
 	AgentExtensionRegistry,
@@ -159,6 +166,7 @@ export {
 	type ThinkingConfig,
 	ThinkingConfigSchema,
 } from "./llms/model-info";
+export { mergeModelOptions } from "./llms/model-options";
 export {
 	DEFAULT_REASONING_EFFORT,
 	REASONING_EFFORT_RATIOS,

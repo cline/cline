@@ -59,6 +59,18 @@ describe("config view helpers", () => {
 		expect(isToggleableConfigItem(createItem({ kind: "mcp" }))).toBe(true);
 	});
 
+	it("does not treat plugin MCP rows as toggleable", () => {
+		expect(
+			isToggleableConfigItem(
+				createItem({
+					kind: "mcp",
+					pluginName: "plugin",
+					source: "workspace-plugin",
+				}),
+			),
+		).toBe(false);
+	});
+
 	it("resolves Enter/Tab on a skill row to details", () => {
 		const skill = createItem({
 			kind: "skill",

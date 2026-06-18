@@ -17,6 +17,7 @@ function toMcpEntries(items: InteractiveConfigItem[]): McpEntry[] {
 		enabled: item.enabled,
 		description: item.description,
 		lastError: item.loadError,
+		pluginName: item.pluginName,
 	}));
 }
 

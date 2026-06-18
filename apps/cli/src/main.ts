@@ -139,7 +139,7 @@ export async function runCli(): Promise<void> {
 	// Re-enable built-in help/version output for the routing program
 	program.configureOutput({
 		writeOut: (str: string) => process.stdout.write(str),
-		writeErr: (str: string) => process.stderr.write(str),
+		writeErr: () => {},
 	});
 	// Default action handles non-subcommand args (e.g. prompt text)
 	program.action(() => {});
@@ -315,6 +315,26 @@ export async function runCli(): Promise<void> {
 				io,
 			});
 		});
+	const skillCmd = program
+		.command("skill")
+		.description("Manage Cline Skills via the open skills CLI (npx skills)")
+		.allowUnknownOption()
+		.passThroughOptions()
+		.argument("[args...]", "arguments forwarded to the skills CLI")
+		.addHelpText(
+			"after",
+			"\nForwards to the open skills CLI via npx. Examples:\n" +
+				"  cline skill install <owner/repo>   Install a skill into Cline\n" +
+				"  cline skill list                   List installed skills\n" +
+				"  cline skill remove                 Remove installed skills\n" +
+				"\ninstall/add default to '--agent cline' unless you pass your own --agent.\n" +
+				"Run 'npx skills --help' for the full command reference.",
+		)
+		.action(async () => {
+			const { runSkillCommand } = await import("./commands/skill");
+			ctx.exitCode = await runSkillCommand(skillCmd.args, io);
+		});
+
 	const connectCmd = program
 		.command("connect")
 		.description("Connect to an external channel")
@@ -356,7 +376,7 @@ export async function runCli(): Promise<void> {
 			}
 		});
 
-	program
+	const mcpCmd = program
 		.command("mcp")
 		.description("Manage MCP servers")
 		.action(async () => {
@@ -367,6 +387,31 @@ export async function runCli(): Promise<void> {
 					"MCP wizard requires a TTY. Use cline config mcp to list servers.",
 				);
 			}
+		});
+	const mcpInstallCmd = mcpCmd
+		.command("install")
+		.alias("add")
+		.description("Open the MCP add wizard with server fields prefilled")
+		.argument("<name>", "MCP server name")
+		.argument(
+			"[targetArgs...]",
+			"URL for remote transports, or command and args after -- for stdio",
+		)
+		.option(
+			"--transport <transport>",
+			"stdio, sse, http, streamable-http, or streamableHttp (default: stdio)",
+		)
+		.action(async (name: string, targetArgs: string[]) => {
+			const opts = mcpInstallCmd.opts<{
+				transport?: string;
+			}>();
+			const { runMcpInstallCommand } = await import("./commands/mcp");
+			ctx.exitCode = await runMcpInstallCommand({
+				name,
+				targetArgs,
+				transport: opts.transport,
+				io,
+			});
 		});
 
 	const createDoctorRuntimeCommand = async () => {
@@ -614,6 +659,7 @@ export async function runCli(): Promise<void> {
 		if (err instanceof CommanderError) {
 			if (err.exitCode !== 0) {
 				writeErr(err.message);
+				process.exitCode = err.exitCode;
 				return;
 			}
 			return;
@@ -664,6 +710,13 @@ export async function runCli(): Promise<void> {
 
 	// Default flow: no subcommand matched, or fall-through from config/history.
 	let args = commanderToParsedArgs(program);
+	if (program.args.length > 1) {
+		writeErr(
+			`Unknown command or extra arguments: ${program.args.join(" ")}\nPrompt text with spaces must be quoted as a single argument, for example: cline "fix the tests". Use "cline --help" to see available commands and flags.`,
+		);
+		process.exitCode = 1;
+		return;
+	}
 
 	let resumeSessionId: string | undefined = ctx.resumeSessionId;
 	if (resumeSessionId) {

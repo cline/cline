@@ -41,13 +41,15 @@ export const isChrome = userAgent.indexOf("Chrome") >= 0
 
 export const isSafari = !isChrome && userAgent.indexOf("Safari") >= 0
 
+declare const __NODE_PLATFORM__: string
+
 /**
  * Gets the current platform: 'windows', 'mac', or 'linux'
  * Defaults to 'linux' if platform cannot be determined
  */
 export function getCurrentPlatform() {
 	// Fallback to linux if platform is not available
-	switch (process?.platform) {
+	switch (__NODE_PLATFORM__) {
 		case "win32":
 			return "windows"
 		case "darwin":
