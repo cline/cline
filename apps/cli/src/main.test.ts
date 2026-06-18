@@ -912,6 +912,50 @@ describe("runCli lightweight command dispatch", () => {
 		);
 	});
 
+	it("passes persisted provider endpoint config into prompt runtime", async () => {
+		const ollamaSettings = {
+			provider: "ollama",
+			baseUrl: "http://127.0.0.1:11434/v1",
+			model: "qwen3.6",
+		};
+		const ollamaProviderConfig = {
+			providerId: "ollama",
+			modelId: "qwen3.6",
+			baseUrl: "http://127.0.0.1:11434/v1",
+		};
+		providerSettingsMocks.getLastUsedProviderSettings.mockReturnValue(
+			ollamaSettings,
+		);
+		providerSettingsMocks.getProviderSettings.mockReturnValue(ollamaSettings);
+		providerSettingsMocks.getProviderConfig.mockReturnValue(
+			ollamaProviderConfig,
+		);
+		authMocks.normalizeProviderId.mockImplementation(
+			(providerId?: string) => providerId ?? "ollama",
+		);
+		forcePromptModeInput();
+		process.argv = ["bun", "src/index.ts", "hello"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(llmMocks.resolveProviderConfig).toHaveBeenCalledWith(
+			"ollama",
+			undefined,
+			ollamaProviderConfig,
+		);
+		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
+			"hello",
+			expect.objectContaining({
+				providerId: "ollama",
+				modelId: "qwen3.6",
+				baseUrl: "http://127.0.0.1:11434/v1",
+				providerConfig: ollamaProviderConfig,
+			}),
+			expect.anything(),
+		);
+	});
+
 	it("runs kanban before loading runtime modules", async () => {
 		process.argv = ["bun", "src/index.ts", "kanban"];
 
