@@ -34,9 +34,26 @@ const GRPC_JS_OUT_DIR = path.resolve("src/generated/grpc-js")
 const NICE_JS_OUT_DIR = path.resolve("src/generated/nice-grpc")
 const DESCRIPTOR_OUT_DIR = path.resolve("dist-standalone/proto")
 
-const TS_PROTO_PLUGIN = isWindows
-	? path.resolve("node_modules/.bin/protoc-gen-ts_proto.cmd") // Use the .bin directory path for Windows
-	: require.resolve("ts-proto/protoc-gen-ts_proto")
+// protoc invokes the ts-proto plugin as a child process, so it needs a path it can
+// directly execute. On POSIX the package's JS bin (with its shebang) works. On
+// Windows protoc cannot exec a bare .js or bun's `.bunx` shim ("%1 is not a valid
+// Win32 application"), and the package manager's `.cmd` shim location/name varies
+// (npm vs bun's hoisted store). To be package-manager-agnostic, generate a tiny
+// .cmd wrapper that runs the resolved plugin JS via `node`.
+function resolveTsProtoPlugin() {
+	const pluginJs = require.resolve("ts-proto/protoc-gen-ts_proto")
+	if (!isWindows) {
+		return pluginJs
+	}
+	const wrapperDir = path.resolve("dist-standalone")
+	fsSync.mkdirSync(wrapperDir, { recursive: true })
+	const wrapperPath = path.join(wrapperDir, "protoc-gen-ts_proto.cmd")
+	// %* forwards protoc's plugin args/stdio to the JS entry run under node.
+	fsSync.writeFileSync(wrapperPath, `@echo off\r\nnode "${pluginJs}" %*\r\n`)
+	return wrapperPath
+}
+
+const TS_PROTO_PLUGIN = resolveTsProtoPlugin()
 
 const TS_PROTO_OPTIONS = [
 	"env=both",
