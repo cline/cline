@@ -4,7 +4,8 @@
     "workspaces": [
         "sdk/packages/*",
         "apps/*",
-        "!apps/vscode",
+        "apps/vscode/webview-ui",
+        "apps/vscode/testing-platform",
         "apps/cline-hub/src/webview",
         "apps/examples/*",
         "apps/examples/vscode/src/webview",
@@ -64,5 +65,18 @@
         "nanoid": "^5.1.7",
         "typescript": "^5.9.3"
     },
+    "overrides": {
+        "tar-fs": ">=3.1.1",
+        "tar": "^7.5.2",
+        "vite": "^7.1.11",
+        "js-yaml": "^4.1.1",
+        "serialize-javascript": ">=7.0.3",
+        "protobufjs": "7.5.8",
+        "diff": "8.0.4"
+    },
+    "trustedDependencies": [
+        "better-sqlite3",
+        "grpc-tools"
+    ],
     "packageManager": "bun@1.3.13"
 }

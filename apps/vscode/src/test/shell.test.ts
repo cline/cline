@@ -1,14 +1,27 @@
-import { getShell } from "@utils/shell"
+import { afterEach, beforeEach, describe, it, mock } from "bun:test"
 import { expect } from "chai"
-import { afterEach, beforeEach, describe, it } from "mocha"
-import { userInfo } from "os"
+import * as actualOs from "os"
 import * as vscode from "vscode"
+
+// bun loads real ESM, so the SUT's `import { userInfo } from "os"` binding is
+// read-only and cannot be reassigned (the previous mocha test did
+// `(userInfo as any) = ...`). Route `userInfo` through a mutable module-level
+// delegate installed via mock.module, then swap the delegate per-test.
+let userInfoImpl: typeof actualOs.userInfo = actualOs.userInfo
+const userInfoDelegate = ((...args: unknown[]) =>
+	(userInfoImpl as (...a: unknown[]) => unknown)(...args)) as typeof actualOs.userInfo
+const osMockNamespace = { ...actualOs, userInfo: userInfoDelegate }
+const osMock = () => ({ ...osMockNamespace, default: osMockNamespace })
+mock.module("os", osMock)
+mock.module("node:os", osMock)
+
+import { getShell } from "@utils/shell"
 
 describe("Shell Detection Tests", () => {
 	let originalPlatform: string
 	let originalEnv: NodeJS.ProcessEnv
 	let originalGetConfig: typeof vscode.workspace.getConfiguration
-	let originalUserInfo: typeof userInfo
+	let originalUserInfo: typeof actualOs.userInfo
 
 	// Helper to mock VS Code configuration
 	function mockVsCodeConfig(platformKey: string, defaultProfileName: string | null, profiles: Record<string, any>) {
@@ -31,14 +44,14 @@ describe("Shell Detection Tests", () => {
 		originalPlatform = process.platform
 		originalEnv = { ...process.env }
 		originalGetConfig = vscode.workspace.getConfiguration
-		originalUserInfo = userInfo
+		originalUserInfo = userInfoImpl
 
 		// Clear environment variables for a clean test
 		delete process.env.SHELL
 		delete process.env.COMSPEC
 
 		// Default userInfo() mock
-		;(userInfo as any) = () => ({ shell: null })
+		userInfoImpl = (() => ({ shell: null })) as any
 	})
 
 	afterEach(() => {
@@ -46,7 +59,7 @@ describe("Shell Detection Tests", () => {
 		Object.defineProperty(process, "platform", { value: originalPlatform })
 		process.env = originalEnv
 		vscode.workspace.getConfiguration = originalGetConfig
-		;(userInfo as any) = originalUserInfo
+		userInfoImpl = originalUserInfo
 	})
 
 	// --------------------------------------------------------------------------
@@ -106,7 +119,7 @@ describe("Shell Detection Tests", () => {
 
 		it("respects userInfo() if no VS Code config is available", () => {
 			vscode.workspace.getConfiguration = () => ({ get: () => undefined }) as any
-			;(userInfo as any) = () => ({ shell: "C:\\Custom\\PowerShell.exe" })
+			userInfoImpl = () => ({ shell: "C:\\Custom\\PowerShell.exe" }) as any
 
 			expect(getShell()).to.equal("C:\\Custom\\PowerShell.exe")
 		})
@@ -136,7 +149,7 @@ describe("Shell Detection Tests", () => {
 
 		it("falls back to userInfo().shell if no VS Code config is available", () => {
 			vscode.workspace.getConfiguration = () => ({ get: () => undefined }) as any
-			;(userInfo as any) = () => ({ shell: "/opt/homebrew/bin/zsh" })
+			userInfoImpl = () => ({ shell: "/opt/homebrew/bin/zsh" }) as any
 
 			expect(getShell()).to.equal("/opt/homebrew/bin/zsh")
 		})
@@ -172,7 +185,7 @@ describe("Shell Detection Tests", () => {
 
 		it("falls back to userInfo().shell if no VS Code config is available", () => {
 			vscode.workspace.getConfiguration = () => ({ get: () => undefined }) as any
-			;(userInfo as any) = () => ({ shell: "/usr/bin/zsh" })
+			userInfoImpl = () => ({ shell: "/usr/bin/zsh" }) as any
 
 			expect(getShell()).to.equal("/usr/bin/zsh")
 		})
@@ -207,7 +220,7 @@ describe("Shell Detection Tests", () => {
 			vscode.workspace.getConfiguration = () => {
 				throw new Error("Configuration error")
 			}
-			;(userInfo as any) = () => ({ shell: "/bin/bash" })
+			userInfoImpl = () => ({ shell: "/bin/bash" }) as any
 
 			expect(getShell()).to.equal("/bin/bash")
 		})
@@ -215,7 +228,7 @@ describe("Shell Detection Tests", () => {
 		it("handles userInfo errors gracefully, falling back to environment variable if present", () => {
 			Object.defineProperty(process, "platform", { value: "darwin" })
 			vscode.workspace.getConfiguration = () => ({ get: () => undefined }) as any
-			;(userInfo as any) = () => {
+			userInfoImpl = () => {
 				throw new Error("userInfo error")
 			}
 			process.env.SHELL = "/bin/zsh"
@@ -228,7 +241,7 @@ describe("Shell Detection Tests", () => {
 			vscode.workspace.getConfiguration = () => {
 				throw new Error("Configuration error")
 			}
-			;(userInfo as any) = () => {
+			userInfoImpl = () => {
 				throw new Error("userInfo error")
 			}
 			// No SHELL in env

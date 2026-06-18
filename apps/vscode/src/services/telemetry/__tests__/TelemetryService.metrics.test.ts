@@ -1,3 +1,4 @@
+import { describe, it } from "bun:test"
 import { ApiFormat } from "@shared/proto/cline/models"
 import * as assert from "assert"
 import type { ITelemetryProvider, TelemetryProperties, TelemetrySettings } from "../providers/ITelemetryProvider"

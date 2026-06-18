@@ -17,10 +17,25 @@ export const workspace = {
 export const window = {
 	activeTextEditor: undefined,
 	visibleTextEditors: [],
+	tabGroups: {
+		all: [] as unknown[],
+		activeTabGroup: { tabs: [] as unknown[] },
+		onDidChangeTabs: () => ({ dispose: noop }),
+		close: async () => true,
+	},
 	showInformationMessage: async () => undefined,
 	showWarningMessage: async () => undefined,
 	showErrorMessage: async () => undefined,
-	createOutputChannel: () => ({ appendLine: noop, append: noop, show: noop, dispose: noop }),
+	showTextDocument: async () => undefined,
+	createOutputChannel: () => ({
+		appendLine: noop,
+		append: noop,
+		clear: noop,
+		show: noop,
+		hide: noop,
+		dispose: noop,
+	}),
+	createTextEditorDecorationType: (_options?: unknown) => ({ key: "mock-decoration-type", dispose: noop }),
 	onDidChangeActiveTextEditor: () => ({ dispose: noop }),
 	onDidChangeVisibleTextEditors: () => ({ dispose: noop }),
 }

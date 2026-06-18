@@ -10,8 +10,25 @@ CLAUDE.local.md
 out/
 dist-standalone/
 node_modules/
+# Nested workspace-member node_modules (bun links these under each package).
+# Scoped to the sub-package dirs so it doesn't shadow the top-level
+# node_modules/@vscode/codicons re-include below.
+webview-ui/node_modules/**
+testing-platform/node_modules/**
+standalone/**/node_modules/**
 src/**
 standalone/**
+# Build/dev tooling and inputs — bundled into dist/extension.js, not needed in the VSIX.
+bunfig.toml
+esbuild.mjs
+knip.json
+biome.jsonc
+test-setup.js
+.env.example
+scripts/**
+proto/**
+testing-platform/**
+tests/**
 .gitignore
 .yarnrc
 esbuild.js
@@ -46,7 +63,6 @@ eslint-rules/
 old_docs/
 evals/
 .codespellrc
-.mocharc.json
 buf.yaml
 .clinerules/
 

@@ -1,4 +1,4 @@
-import { describe, it } from "mocha"
+import { describe, it } from "bun:test"
 import "should"
 import { McpSettingsSchema, ServerConfigSchema } from "../schemas"
 

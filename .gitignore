@@ -84,3 +84,4 @@ apps/vscode/webview-ui/src/**/*.js.map
 *.db-wal
 .cline/**/managed.json
 .cline/**/bundle.json
+apps/vscode/tsconfig.test.generated.json
