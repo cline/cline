@@ -19,7 +19,10 @@ import { Switch } from "@/components/ui/switch";
 import { desktopClient } from "@/lib/desktop-client";
 import type { MarketplacePrimitiveType } from "@/lib/marketplace";
 import { cn } from "@/lib/utils";
-import { MarketplaceView } from "../marketplace-view";
+import {
+	type MarketplaceLocalInstalledItem,
+	MarketplaceView,
+} from "../marketplace-view";
 import { CommandBadge, PageFrame, PageHeader } from "../page-layout";
 
 export type CustomizationSection =
@@ -251,6 +254,35 @@ function ScopeBadge({ scope }: { scope: ItemScope }) {
 			{scope}
 		</Badge>
 	);
+}
+
+function MarketplaceBadge({ show }: { show: boolean }) {
+	return show ? (
+		<Badge variant="outline" className="shrink-0 text-muted-foreground">
+			Marketplace
+		</Badge>
+	) : null;
+}
+
+function getLocalMarketplaceMatchValues(
+	...values: Array<string | undefined>
+): string[] {
+	const matchValues = new Set<string>();
+	for (const value of values) {
+		const normalized = value?.trim().replaceAll("\\", "/");
+		if (!normalized) {
+			continue;
+		}
+		matchValues.add(normalized);
+		const segments = normalized.split("/").filter(Boolean);
+		for (const segment of segments) {
+			matchValues.add(segment.replace(/\.[^.]+$/, ""));
+		}
+		for (let index = 0; index < segments.length - 1; index += 1) {
+			matchValues.add(`${segments[index]}/${segments[index + 1]}`);
+		}
+	}
+	return [...matchValues];
 }
 
 async function fetchUserInstructionLists(): Promise<UserInstructionListsResponse> {
@@ -713,7 +745,10 @@ export function CustomizationSectionView({
 		[globalHooks, projectHooks],
 	);
 
-	const renderSkillCard = (item: CommandItem) => (
+	const renderSkillCard = (
+		item: CommandItem,
+		{ marketplaceInstalled }: { marketplaceInstalled: boolean },
+	) => (
 		<div
 			key={`${item.type}:${item.path}`}
 			className="rounded-lg border border-border px-5 py-4"
@@ -727,6 +762,7 @@ export function CustomizationSectionView({
 				<h3 className="min-w-0 flex-1 text-sm font-semibold text-foreground">
 					{item.name}
 				</h3>
+				<MarketplaceBadge show={marketplaceInstalled} />
 				<ScopeBadge scope={item.scope} />
 				<Badge variant="outline" className="shrink-0 text-muted-foreground">
 					{item.type}
@@ -741,13 +777,16 @@ export function CustomizationSectionView({
 		</div>
 	);
 
-	const renderPluginCard = ({
-		plugin,
-		scope,
-	}: {
-		plugin: PluginItem;
-		scope: ItemScope;
-	}) => (
+	const renderPluginCard = (
+		{
+			plugin,
+			scope,
+		}: {
+			plugin: PluginItem;
+			scope: ItemScope;
+		},
+		{ marketplaceInstalled }: { marketplaceInstalled: boolean },
+	) => (
 		<div
 			key={plugin.path}
 			className="rounded-lg border border-border px-5 py-4"
@@ -757,6 +796,7 @@ export function CustomizationSectionView({
 				<h3 className="min-w-0 flex-1 text-sm font-semibold text-foreground">
 					{plugin.name}
 				</h3>
+				<MarketplaceBadge show={marketplaceInstalled} />
 				<ScopeBadge scope={scope} />
 				<span className="text-xs text-muted-foreground">
 					{plugin.enabled ? "Enabled" : "Disabled"}
@@ -817,7 +857,10 @@ export function CustomizationSectionView({
 		</div>
 	);
 
-	const renderMcpServerCard = (server: McpServer) => (
+	const renderMcpServerCard = (
+		server: McpServer,
+		{ marketplaceInstalled }: { marketplaceInstalled: boolean },
+	) => (
 		<div
 			key={server.name}
 			className="rounded-lg border border-border px-5 py-4"
@@ -827,6 +870,7 @@ export function CustomizationSectionView({
 				<h3 className="min-w-0 flex-1 text-sm font-semibold text-foreground">
 					{server.name}
 				</h3>
+				<MarketplaceBadge show={marketplaceInstalled} />
 				<ScopeBadge scope="Global" />
 				<Badge variant="outline" className="shrink-0 text-muted-foreground">
 					{server.transportType}
@@ -850,21 +894,37 @@ export function CustomizationSectionView({
 
 	const installedCatalogLocalItems =
 		catalogPrimitive === "skill"
-			? commandItems.map(renderSkillCard)
+			? commandItems.map(
+					(item): MarketplaceLocalInstalledItem => ({
+						key: `${item.type}:${item.path}`,
+						matchValues: getLocalMarketplaceMatchValues(
+							item.id,
+							item.name,
+							item.path,
+						),
+						render: (options) => renderSkillCard(item, options),
+					}),
+				)
 			: catalogPrimitive === "plugin"
-				? scopedPlugins.map(renderPluginCard)
+				? scopedPlugins.map(
+						(item): MarketplaceLocalInstalledItem => ({
+							key: item.plugin.path,
+							matchValues: getLocalMarketplaceMatchValues(
+								item.plugin.name,
+								item.plugin.path,
+							),
+							render: (options) => renderPluginCard(item, options),
+						}),
+					)
 				: catalogPrimitive === "mcp"
-					? mcp.servers.map(renderMcpServerCard)
+					? mcp.servers.map(
+							(server): MarketplaceLocalInstalledItem => ({
+								key: server.name,
+								matchValues: getLocalMarketplaceMatchValues(server.name),
+								render: (options) => renderMcpServerCard(server, options),
+							}),
+						)
 					: null;
-	const installedCatalogLocalItemCount =
-		catalogPrimitive === "skill"
-			? commandItems.length
-			: catalogPrimitive === "plugin"
-				? scopedPlugins.length
-				: catalogPrimitive === "mcp"
-					? mcp.servers.length
-					: 0;
-
 	return (
 		<PageFrame>
 			<PageHeader
@@ -934,8 +994,7 @@ export function CustomizationSectionView({
 			{catalogPrimitive ? (
 				<MarketplaceView
 					chrome="embedded"
-					installedItemCount={installedCatalogLocalItemCount}
-					installedItems={installedCatalogLocalItems}
+					installedItems={installedCatalogLocalItems ?? undefined}
 					primitive={catalogPrimitive}
 				/>
 			) : null}

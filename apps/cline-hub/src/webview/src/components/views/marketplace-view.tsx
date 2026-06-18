@@ -101,28 +101,37 @@ const primitiveCommands = {
 	skill: "cline skill add",
 } satisfies Record<MarketplacePrimitiveType, string>;
 
-const primitiveBadgeLabels: Record<MarketplacePrimitiveType, string> = {
-	mcp: "MCP Server",
-	skill: "Skill",
-	plugin: "Plugin",
+export type MarketplaceLocalInstalledItem = {
+	key: string;
+	matchValues: string[];
+	render: (options: { marketplaceInstalled: boolean }) => ReactNode;
 };
-
-function TypeBadge({ type }: { type: MarketplacePrimitiveType }) {
-	const tone = {
-		mcp: "border-purple-400/40 bg-purple-500/10 text-purple-700 dark:text-purple-300",
-		skill:
-			"border-emerald-400/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
-		plugin: "border-sky-400/40 bg-sky-500/10 text-sky-700 dark:text-sky-300",
-	}[type];
-	return (
-		<Badge variant="outline" className={`${tone} max-w-32`}>
-			<span className="truncate">{primitiveBadgeLabels[type]}</span>
-		</Badge>
-	);
-}
 
 function entryKey(entry: Pick<MarketplaceEntry, "id" | "type">): string {
 	return `${entry.type}:${entry.id}`;
+}
+
+function normalizeMatchValue(value: string): string {
+	return value.trim().toLowerCase();
+}
+
+function entryMatchValues(entry: MarketplaceEntry): Set<string> {
+	return new Set(
+		[entry.id, entry.name, ...entry.install.args]
+			.map(normalizeMatchValue)
+			.filter(Boolean),
+	);
+}
+
+function entryMatchesLocalItem(
+	entry: MarketplaceEntry,
+	item: MarketplaceLocalInstalledItem,
+): boolean {
+	const entryValues = entryMatchValues(entry);
+	return item.matchValues
+		.map(normalizeMatchValue)
+		.filter(Boolean)
+		.some((value) => entryValues.has(value));
 }
 
 function entrySearchText(
@@ -288,7 +297,7 @@ function MarketplaceEntryCard({
 		<>
 			<div className="min-w-0">
 				<div className="flex min-w-0 items-start justify-between gap-2">
-					<h2 className="min-w-0 truncate text-sm font-semibold text-foreground">
+					<h2 className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
 						{entry.name}
 					</h2>
 					{sourceLabel ? (
@@ -296,7 +305,6 @@ function MarketplaceEntryCard({
 							{sourceLabel}
 						</Badge>
 					) : null}
-					<TypeBadge type={entry.type} />
 				</div>
 				<div className="mt-1 flex flex-wrap gap-1.5">
 					{entry.tags.slice(0, 5).map((tag) => (
@@ -428,10 +436,10 @@ function MarketplaceSection({
 	emptyMessage,
 	entries,
 	expandedEntryKey,
-	extraItemCount = 0,
 	installedEntryKeys,
 	installedStatusReady,
-	localInstalledItems,
+	localInstalledItems = [],
+	localMarketplaceInstalledKeys,
 	onInstall,
 	onToggleExpanded,
 	onUninstall,
@@ -443,10 +451,10 @@ function MarketplaceSection({
 	emptyMessage: string;
 	entries: MarketplaceEntry[];
 	expandedEntryKey: string | null;
-	extraItemCount?: number;
 	installedEntryKeys: Set<string>;
 	installedStatusReady: boolean;
-	localInstalledItems?: ReactNode;
+	localInstalledItems?: MarketplaceLocalInstalledItem[];
+	localMarketplaceInstalledKeys?: Set<string>;
 	onInstall: (entry: MarketplaceEntry) => void;
 	onToggleExpanded: (entry: MarketplaceEntry) => void;
 	onUninstall: (entry: MarketplaceEntry) => void;
@@ -454,7 +462,7 @@ function MarketplaceSection({
 	tagLabels: Map<string, string>;
 	title: string;
 }) {
-	const totalCount = entries.length + extraItemCount;
+	const totalCount = entries.length + localInstalledItems.length;
 	return (
 		<section className="grid gap-3">
 			<div className="flex items-center justify-between gap-3">
@@ -463,7 +471,12 @@ function MarketplaceSection({
 			</div>
 			{totalCount > 0 ? (
 				<div className="grid gap-3">
-					{localInstalledItems}
+					{localInstalledItems.map((item) =>
+						item.render({
+							marketplaceInstalled:
+								localMarketplaceInstalledKeys?.has(item.key) ?? false,
+						}),
+					)}
 					{entries.map((entry) => {
 						const key = entryKey(entry);
 						return (
@@ -494,13 +507,11 @@ function MarketplaceSection({
 
 export function MarketplaceView({
 	chrome = "page",
-	installedItemCount = 0,
 	installedItems,
 	primitive,
 }: {
 	chrome?: "page" | "embedded";
-	installedItemCount?: number;
-	installedItems?: ReactNode;
+	installedItems?: MarketplaceLocalInstalledItem[];
 	primitive: MarketplacePrimitiveType;
 }) {
 	const [catalog, setCatalog] = useState<MarketplaceCatalog | null>(null);
@@ -597,12 +608,32 @@ export function MarketplaceView({
 		});
 	}, [primitiveEntries, query, selectedTag, tagLabels]);
 
+	const localMarketplaceInstalledKeys = useMemo(() => {
+		const keys = new Set<string>();
+		for (const item of installedItems ?? []) {
+			if (
+				filteredEntries.some(
+					(entry) =>
+						installedEntryKeys.has(entryKey(entry)) &&
+						entryMatchesLocalItem(entry, item),
+				)
+			) {
+				keys.add(item.key);
+			}
+		}
+		return keys;
+	}, [filteredEntries, installedEntryKeys, installedItems]);
+
 	const installedEntries = useMemo(
 		() =>
-			filteredEntries.filter((entry) =>
-				installedEntryKeys.has(entryKey(entry)),
+			filteredEntries.filter(
+				(entry) =>
+					installedEntryKeys.has(entryKey(entry)) &&
+					!(installedItems ?? []).some((item) =>
+						entryMatchesLocalItem(entry, item),
+					),
 			),
-		[filteredEntries, installedEntryKeys],
+		[filteredEntries, installedEntryKeys, installedItems],
 	);
 
 	const catalogEntries = useMemo(
@@ -808,14 +839,14 @@ export function MarketplaceView({
 						emptyMessage={pageDetails.emptyInstalled}
 						entries={installedEntries}
 						expandedEntryKey={expandedEntryKey}
-						extraItemCount={installedItemCount}
 						installedEntryKeys={installedEntryKeys}
 						installedStatusReady={installedStatusReady}
 						localInstalledItems={installedItems}
+						localMarketplaceInstalledKeys={localMarketplaceInstalledKeys}
 						onInstall={installEntry}
 						onToggleExpanded={toggleExpanded}
 						onUninstall={uninstallEntry}
-						sourceLabel="Catalog"
+						sourceLabel="Marketplace"
 						tagLabels={tagLabels}
 						title="Installed"
 					/>
@@ -831,7 +862,7 @@ export function MarketplaceView({
 						onToggleExpanded={toggleExpanded}
 						onUninstall={uninstallEntry}
 						tagLabels={tagLabels}
-						title="Available from catalog"
+						title="Marketplace"
 					/>
 				</div>
 			) : null}
