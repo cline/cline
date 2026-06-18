@@ -300,6 +300,7 @@ export interface AgentBeforeToolResult {
 	stop?: boolean;
 	reason?: string;
 	input?: unknown;
+	policy?: ToolPolicy;
 }
 
 export interface AgentAfterToolContext {
