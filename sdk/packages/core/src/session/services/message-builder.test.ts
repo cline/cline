@@ -378,6 +378,35 @@ describe("MessageBuilder", () => {
 			}),
 		]);
 	});
+
+	it("uses tool_result.name fallback for aggregate truncation when paired tool_use is absent", () => {
+		const builder = new MessageBuilder(50_000, new Set(["read_files"]), 10_000);
+		const messages: Message[] = [
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "orphaned_read",
+						name: "read_files",
+						content: [
+							{
+								query: "/tmp/orphaned.txt",
+								result: "orphaned_".repeat(4_000),
+								success: true,
+							},
+						] as unknown as ToolResultContent["content"],
+					},
+				],
+			},
+		];
+
+		const result = builder.buildForApi(messages);
+		const serialized = JSON.stringify(result);
+
+		expect(serialized).toContain("provider request budget");
+		expect(serialized).not.toContain("orphaned_".repeat(1_000));
+	});
 });
 
 /**

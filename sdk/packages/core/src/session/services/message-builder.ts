@@ -1159,7 +1159,7 @@ export class MessageBuilder {
 				if (block.type !== "tool_result") {
 					continue;
 				}
-				const toolName = this.toolNameByIdCache.get(block.tool_use_id);
+				const toolName = this.resolveToolName(block);
 				if (!this.shouldTruncateTool(toolName)) {
 					continue;
 				}
