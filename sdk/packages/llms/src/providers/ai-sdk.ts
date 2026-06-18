@@ -44,6 +44,7 @@ interface GatewayNormalizedUsage {
 	outputTokens: number;
 	cacheReadTokens: number;
 	cacheWriteTokens: number;
+	thoughtsTokenCount?: number;
 	totalCost?: number;
 }
 type ProviderModuleKind = AiSdkProviderOptionsTarget;
@@ -541,6 +542,38 @@ export function normalizeUsage(
 				"cache_creation_input_tokens",
 			),
 	};
+	const thoughtsTokenCount =
+		getNestedUsageValue(usage, "outputTokenDetails", "reasoningTokens") ||
+		getNestedUsageValue(usage, "output_tokens_details", "reasoning_tokens") ||
+		getNestedUsageValue(
+			usage,
+			"completion_tokens_details",
+			"reasoning_tokens",
+		) ||
+		getUsageValue(usage, "reasoningTokens", "reasoning_tokens") ||
+		getNestedUsageValue(rawUsage, "output_tokens_details", "reasoning_tokens") ||
+		getNestedUsageValue(
+			rawUsage,
+			"completion_tokens_details",
+			"reasoning_tokens",
+		) ||
+		getUsageValue(rawUsage, "reasoningTokens", "reasoning_tokens") ||
+		getNestedUsageValue(
+			providerUsage ?? {},
+			"outputTokenDetails",
+			"reasoningTokens",
+		) ||
+		getNestedUsageValue(
+			providerUsage ?? {},
+			"output_tokens_details",
+			"reasoning_tokens",
+		) ||
+		getNestedUsageValue(
+			providerUsage ?? {},
+			"completion_tokens_details",
+			"reasoning_tokens",
+		) ||
+		getUsageValue(providerUsage ?? {}, "reasoningTokens", "reasoning_tokens");
 	const resolvedTotalCost =
 		totalCost !== undefined
 			? totalCost
@@ -550,6 +583,7 @@ export function normalizeUsage(
 
 	return {
 		...normalizedUsage,
+		...(thoughtsTokenCount > 0 ? { thoughtsTokenCount } : {}),
 		...(typeof resolvedTotalCost === "number"
 			? { totalCost: resolvedTotalCost }
 			: {}),

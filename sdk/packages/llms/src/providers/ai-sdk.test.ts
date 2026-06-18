@@ -175,6 +175,19 @@ describe("ai-sdk usage normalization", () => {
 		expect(streamUsage.raw).toHaveProperty("cost_details");
 	});
 
+	it("maps provider reasoning tokens to thoughtsTokenCount", () => {
+		expect(
+			normalizeUsage({
+				completion_tokens_details: { reasoning_tokens: 17 },
+			}).thoughtsTokenCount,
+		).toBe(17);
+		expect(
+			normalizeUsage({
+				outputTokenDetails: { reasoningTokens: 23 },
+			}).thoughtsTokenCount,
+		).toBe(23);
+	});
+
 	describe("cost extraction with pricing fallback", () => {
 		it("uses market_cost when available (Vercel)", () => {
 			const vercelUsage = (fixtures as Record<string, unknown>)

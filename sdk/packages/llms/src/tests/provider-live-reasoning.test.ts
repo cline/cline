@@ -54,6 +54,7 @@ interface LiveReasoningExpectations {
 	requireReasoningSignal: boolean;
 	requireReasoningChunk: boolean;
 	requireNoReasoningChunk: boolean;
+	requireNoReasoningSignal: boolean;
 }
 
 interface LiveRunMetrics {
@@ -72,6 +73,7 @@ function parseExpectations(input: unknown): LiveReasoningExpectations {
 		requireReasoningSignal: value.requireReasoningSignal === true,
 		requireReasoningChunk: value.requireReasoningChunk === true,
 		requireNoReasoningChunk: value.requireNoReasoningChunk === true,
+		requireNoReasoningSignal: value.requireNoReasoningSignal === true,
 	};
 }
 
@@ -90,11 +92,13 @@ function toTarget(
 			: 1;
 	const expectations = parseExpectations(entry?.expectations);
 	if (
-		expectations.requireReasoningChunk &&
-		expectations.requireNoReasoningChunk
+		(expectations.requireReasoningChunk ||
+			expectations.requireReasoningSignal) &&
+		(expectations.requireNoReasoningChunk ||
+			expectations.requireNoReasoningSignal)
 	) {
 		throw new Error(
-			`${label}: requireReasoningChunk and requireNoReasoningChunk are mutually exclusive`,
+			`${label}: positive and negative reasoning expectations are mutually exclusive`,
 		);
 	}
 
@@ -200,6 +204,14 @@ function assertTargetExpectations(
 	if (expectations.requireNoReasoningChunk && metrics.reasoningChunkCount > 0) {
 		errors.push(
 			`expected no reasoning chunks, got ${metrics.reasoningChunkCount}`,
+		);
+	}
+	if (
+		expectations.requireNoReasoningSignal &&
+		(metrics.reasoningChunkCount > 0 || metrics.thoughtsTokenCountMax > 0)
+	) {
+		errors.push(
+			`expected no reasoning signal, got ${metrics.reasoningChunkCount} reasoning chunks and ${metrics.thoughtsTokenCountMax} thoughts tokens`,
 		);
 	}
 	if (errors.length > 0) {

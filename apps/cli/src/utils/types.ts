@@ -25,7 +25,7 @@ export interface Config extends Omit<CoreSessionConfig, "apiKey" | "mode"> {
 	timeoutSeconds?: number;
 	sandbox: boolean;
 	sandboxDataDir?: string;
-	thinking: boolean;
+	thinking?: boolean;
 	outputMode: CliOutputMode;
 	mode: CliAgentMode;
 	defaultToolAutoApprove: boolean;

@@ -1000,17 +1000,44 @@ export async function runCli(): Promise<void> {
 		const knownModelIds = knownModels ? Object.keys(knownModels) : [];
 		const persistedReasoning = selectedProviderSettings?.reasoning;
 		const persistedReasoningEffort = persistedReasoning?.effort;
-		const reasoningEffortFromSettings =
-			persistedReasoning?.enabled === false
-				? "none"
-				: persistedReasoningEffort && persistedReasoningEffort !== "none"
-					? persistedReasoningEffort
+		const explicitReasoningEffort =
+			args.reasoningEffort === "low" ||
+			args.reasoningEffort === "medium" ||
+			args.reasoningEffort === "high" ||
+			args.reasoningEffort === "xhigh"
+				? args.reasoningEffort
+				: undefined;
+		const persistedActiveReasoningEffort =
+			persistedReasoningEffort === "low" ||
+			persistedReasoningEffort === "medium" ||
+			persistedReasoningEffort === "high" ||
+			persistedReasoningEffort === "xhigh"
+				? persistedReasoningEffort
+				: undefined;
+		const resolvedReasoning = args.thinkingExplicitlySet
+			? {
+					thinking: args.thinking,
+					reasoningEffort: explicitReasoningEffort,
+				}
+			: persistedReasoning?.enabled === false
+				? {
+						thinking: false,
+						reasoningEffort: undefined,
+					}
+				: persistedActiveReasoningEffort
+					? {
+							thinking: true,
+							reasoningEffort: persistedActiveReasoningEffort,
+						}
 					: persistedReasoning?.enabled === true
-						? "medium"
-						: "none";
-		const effectiveReasoningEffort = args.thinkingExplicitlySet
-			? (args.reasoningEffort ?? "none")
-			: (args.reasoningEffort ?? reasoningEffortFromSettings);
+						? {
+								thinking: true,
+								reasoningEffort: "medium" as const,
+							}
+						: {
+								thinking: undefined,
+								reasoningEffort: undefined,
+							};
 		const { createCliLoggerAdapter } = await import("./logging/adapter");
 		const loggerAdapter = createCliLoggerAdapter({
 			runtime: "cli",
@@ -1046,11 +1073,8 @@ export async function runCli(): Promise<void> {
 			sandbox: sandboxEnabled,
 			sandboxDataDir,
 			verbose: args.verbose,
-			thinking: effectiveReasoningEffort !== "none",
-			reasoningEffort:
-				effectiveReasoningEffort === "none"
-					? undefined
-					: effectiveReasoningEffort,
+			thinking: resolvedReasoning.thinking,
+			reasoningEffort: resolvedReasoning.reasoningEffort,
 			outputMode: args.outputMode,
 			mode: args.mode,
 			logger: loggerAdapter.core,
