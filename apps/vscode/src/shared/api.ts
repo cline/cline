@@ -44,6 +44,7 @@ export type ApiProvider =
 	| "hicap"
 	| "nousResearch"
 	| "wandb"
+	| "llmtr"
 
 export const DEFAULT_API_PROVIDER = "openrouter" as ApiProvider
 
@@ -3743,6 +3744,123 @@ export const nebiusModels = {
 export type NebiusModelId = keyof typeof nebiusModels
 export const nebiusDefaultModelId = "Qwen/Qwen2.5-32B-Instruct-fast" satisfies NebiusModelId
 
+// LLMTR
+// https://llmtr.com/docs
+// Turkey-based OpenAI-compatible AI gateway. Turkey-hosted models are listed
+// first, followed by a curated set of global models proxied by the gateway.
+export const llmtrModels = {
+	"llmtr/sincap": {
+		maxTokens: 8_192,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "Turkey-hosted general-purpose chat model with a large context window.",
+	},
+	"llmtr/gemma-4": {
+		maxTokens: 8_192,
+		contextWindow: 32_768,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 5,
+		outputPrice: 10,
+		description: "Turkey-hosted Gemma 4 chat model.",
+	},
+	"llmtr/qwen3-6-35b": {
+		maxTokens: 8_192,
+		contextWindow: 16_384,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 5,
+		outputPrice: 10,
+		description: "Turkey-hosted Qwen 3.6 MoE model tuned for code and logic tasks.",
+	},
+	"llmtr/trendyol-7b": {
+		maxTokens: 8_192,
+		contextWindow: 32_768,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "Turkey-hosted Turkish-focused chat model based on Qwen 2.5 7B.",
+	},
+	"llmtr/magibu-11b-v8": {
+		maxTokens: 4_096,
+		contextWindow: 8_192,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "Turkey-hosted Turkish-focused assistant model.",
+	},
+	"llmtr/medgemma-4b": {
+		maxTokens: 4_096,
+		contextWindow: 8_192,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 3,
+		outputPrice: 5,
+		description: "Turkey-hosted medical-domain Gemma variant with image understanding.",
+	},
+	"anthropic/claude-sonnet-4.5": {
+		maxTokens: 8_192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 3,
+		outputPrice: 15,
+		description: "Claude Sonnet 4.5 proxied through the LLMTR gateway.",
+	},
+	"anthropic/claude-haiku-4.5": {
+		maxTokens: 8_192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 1,
+		outputPrice: 5,
+		description: "Claude Haiku 4.5 proxied through the LLMTR gateway.",
+	},
+	"openai/gpt-4o": {
+		maxTokens: 16_384,
+		contextWindow: 128_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 2.5,
+		outputPrice: 10,
+		description: "GPT-4o proxied through the LLMTR gateway.",
+	},
+	"openai/o4-mini": {
+		maxTokens: 100_000,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 1.1,
+		outputPrice: 4.4,
+		description: "OpenAI o4-mini proxied through the LLMTR gateway.",
+	},
+	"google/gemini-2.5-pro": {
+		maxTokens: 65_536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 1.25,
+		outputPrice: 10,
+		description: "Gemini 2.5 Pro proxied through the LLMTR gateway.",
+	},
+	"google/gemini-2.5-flash": {
+		maxTokens: 65_536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.3,
+		outputPrice: 2.5,
+		description: "Gemini 2.5 Flash proxied through the LLMTR gateway.",
+	},
+} as const satisfies Record<string, ModelInfo>
+export type LlmtrModelId = keyof typeof llmtrModels
+export const llmtrDefaultModelId = "llmtr/sincap" satisfies LlmtrModelId
+
 // W&B Inference by CoreWeave
 // https://docs.wandb.ai/inference/models
 export const wandbModels = {
@@ -5140,8 +5258,7 @@ export const fireworksModels = {
 		outputPrice: 8,
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0.3,
-		description:
-			"Kimi K2.6 Turbo router for high-performance agentic workloads with vision and text reasoning.",
+		description: "Kimi K2.6 Turbo router for high-performance agentic workloads with vision and text reasoning.",
 	},
 	"accounts/fireworks/routers/kimi-k2p7-code-fast": {
 		maxTokens: 262000,
@@ -5221,7 +5338,8 @@ export const fireworksModels = {
 		outputPrice: 1.2,
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0.06,
-		description: "MiniMax M2.7 is tuned for strong real-world performance across coding, agent-driven, and workflow-heavy tasks.",
+		description:
+			"MiniMax M2.7 is tuned for strong real-world performance across coding, agent-driven, and workflow-heavy tasks.",
 	},
 	"accounts/fireworks/models/qwen3p7-plus": {
 		maxTokens: 262144,

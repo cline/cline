@@ -496,6 +496,54 @@ async function fetchPoolsidePrivateModels(
 	return models;
 }
 
+interface LlmtrModelResponse {
+	id?: string;
+	supported_operations?: string[];
+}
+
+async function fetchLlmtrPrivateModels(
+	config: ProviderConfig,
+	token: string,
+): Promise<Record<string, ModelInfo>> {
+	const baseUrl = normalizeBaseUrl(config.baseUrl) || "https://llmtr.com/v1";
+	const endpoint = `${baseUrl.replace(/\/+$/, "")}/models`;
+	const response = await fetchWithTimeout(endpoint, {
+		method: "GET",
+		headers: {
+			Authorization: `Bearer ${token}`,
+			accept: "application/json",
+		},
+	});
+	if (!response.ok) {
+		throw new Error(`LLMTR model refresh failed: HTTP ${response.status}`);
+	}
+
+	const payload = (await response.json()) as { data?: LlmtrModelResponse[] };
+	const entries = payload?.data ?? [];
+	const staticModels =
+		Llms.MODEL_COLLECTIONS_BY_PROVIDER_ID.llmtr?.models ?? {};
+	const models: Record<string, ModelInfo> = {};
+	for (const model of entries) {
+		const id = model.id?.trim();
+		if (!id) {
+			continue;
+		}
+		// The catalog also lists embedding/image/audio models; only chat models
+		// are usable here.
+		const operations = model.supported_operations ?? [];
+		if (operations.length > 0 && !operations.includes("CHAT_COMPLETIONS")) {
+			continue;
+		}
+		// The live endpoint only returns bare IDs; keep the richer static
+		// entries (names, context windows, pricing) for known models.
+		if (staticModels[id]) {
+			continue;
+		}
+		models[id] = buildModelFromPrivateSource(id, { name: id });
+	}
+	return models;
+}
+
 interface LiteLlmModelInfoResponse {
 	model_name?: string;
 	litellm_params?: {
@@ -590,6 +638,7 @@ const PRIVATE_PROVIDER_MODEL_FETCHERS: Record<
 	baseten: fetchBasetenPrivateModels,
 	hicap: fetchHicapPrivateModels,
 	litellm: fetchLiteLlmPrivateModels,
+	llmtr: fetchLlmtrPrivateModels,
 	poolside: fetchPoolsidePrivateModels,
 };
 

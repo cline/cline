@@ -125,6 +125,10 @@
 			"label": "Nebius AI Studio"
 		},
 		{
+			"value": "llmtr",
+			"label": "LLMTR"
+		},
+		{
 			"value": "asksage",
 			"label": "AskSage"
 		},

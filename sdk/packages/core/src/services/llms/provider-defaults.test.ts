@@ -211,6 +211,73 @@ describe("resolveProviderConfig", () => {
 		);
 	});
 
+	it("loads LLMTR chat models from the authenticated models endpoint", async () => {
+		const fetchMock = vi.fn(async () => {
+			return new Response(
+				JSON.stringify({
+					data: [
+						{
+							id: "llmtr/sincap",
+							object: "model",
+							supported_operations: ["CHAT_COMPLETIONS"],
+						},
+						{
+							id: "openai/gpt-5.4",
+							object: "model",
+							supported_operations: ["CHAT_COMPLETIONS"],
+						},
+						{
+							id: "llmtr/embeddinggemma-300m",
+							object: "model",
+							supported_operations: ["EMBEDDINGS"],
+						},
+					],
+				}),
+				{
+					status: 200,
+					headers: { "content-type": "application/json" },
+				},
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const resolved = await resolveProviderConfig(
+			"llmtr",
+			{ failOnError: true, cacheTtlMs: 0 },
+			{
+				providerId: "llmtr",
+				modelId: "llmtr/sincap",
+				apiKey: "llmtr-key",
+				baseUrl: "https://llmtr.com/v1",
+			},
+		);
+
+		expect(fetchMock).toHaveBeenCalledWith(
+			"https://llmtr.com/v1/models",
+			expect.objectContaining({
+				method: "GET",
+				headers: expect.objectContaining({
+					Authorization: "Bearer llmtr-key",
+				}),
+			}),
+		);
+		// The live endpoint returns bare IDs for models already in the static
+		// catalog; the richer static entries (names, context windows, pricing)
+		// must not be overwritten by the minimal live ones.
+		expect(resolved?.knownModels?.["llmtr/sincap"]).toEqual(
+			expect.objectContaining({
+				name: "Sincap",
+				contextWindow: 128_000,
+				pricing: { input: 0, output: 0 },
+			}),
+		);
+		expect(resolved?.knownModels?.["openai/gpt-5.4"]).toBeDefined();
+		// Non-chat models (embeddings) are filtered out.
+		expect(
+			resolved?.knownModels?.["llmtr/embeddinggemma-300m"],
+		).toBeUndefined();
+	});
+
 	it("derives ChatGPT subscription models from the generated OpenAI catalog", async () => {
 		const resolved = await resolveProviderConfig("openai-codex");
 		const openAiResolved = await resolveProviderConfig("openai-native");

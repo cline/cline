@@ -328,6 +328,8 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.NOUSRESEARCH
 		case "openai-codex":
 			return ProtoApiProvider.OPENAI_CODEX
+		case "llmtr":
+			return ProtoApiProvider.LLMTR
 		default:
 			return ProtoApiProvider.ANTHROPIC
 	}
@@ -420,6 +422,8 @@ export function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvid
 			return "nousResearch"
 		case ProtoApiProvider.OPENAI_CODEX:
 			return "openai-codex"
+		case ProtoApiProvider.LLMTR:
+			return "llmtr"
 		default:
 			return "anthropic"
 	}
@@ -482,6 +486,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		moonshotApiKey: config.moonshotApiKey,
 		huggingFaceApiKey: config.huggingFaceApiKey,
 		nebiusApiKey: config.nebiusApiKey,
+		llmtrApiKey: config.llmtrApiKey,
 		wandbApiKey: config.wandbApiKey,
 		asksageApiUrl: config.asksageApiUrl,
 		asksageApiKey: config.asksageApiKey,
@@ -662,6 +667,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		moonshotApiKey: protoConfig.moonshotApiKey,
 		huggingFaceApiKey: protoConfig.huggingFaceApiKey,
 		nebiusApiKey: protoConfig.nebiusApiKey,
+		llmtrApiKey: protoConfig.llmtrApiKey,
 		wandbApiKey: protoConfig.wandbApiKey,
 		asksageApiUrl: protoConfig.asksageApiUrl,
 		asksageApiKey: protoConfig.asksageApiKey,

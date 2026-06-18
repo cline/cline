@@ -16,6 +16,7 @@ import type {
 	ProviderClient,
 	ProviderProtocol,
 } from "../catalog/types";
+import { buildLlmtrModels } from "./llmtr-models";
 import { filterOpenAICodexModels } from "./openai-codex-models";
 import {
 	ANTHROPIC_AND_QWEN_CACHE_ROUTING_METADATA,
@@ -670,6 +671,17 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		modelsProviderId: "aihubmix",
 		defaults: { baseUrl: "https://api.aihubmix.com/v1" },
 		metadata: ANTHROPIC_ROUTING_METADATA,
+	},
+	{
+		id: "llmtr",
+		name: "LLMTR",
+		description: "Turkey-based AI gateway with Turkey-hosted and global models",
+		family: "openai-compatible",
+		defaultModelId: "llmtr/sincap",
+		apiKeyEnv: ["LLMTR_API_KEY"],
+		docsUrl: "https://llmtr.com/docs",
+		modelsFactory: buildLlmtrModels,
+		defaults: { baseUrl: "https://llmtr.com/v1" },
 	},
 	{
 		id: "hicap",

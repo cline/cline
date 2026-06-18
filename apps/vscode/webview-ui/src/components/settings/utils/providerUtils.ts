@@ -33,6 +33,8 @@ import {
 	internationalZAiDefaultModelId,
 	internationalZAiModels,
 	liteLlmModelInfoSaneDefaults,
+	llmtrDefaultModelId,
+	llmtrModels,
 	ModelInfo,
 	mainlandQwenDefaultModelId,
 	mainlandQwenModels,
@@ -120,6 +122,8 @@ export function getModelsForProvider(
 			return moonshotModels
 		case "nebius":
 			return nebiusModels
+		case "llmtr":
+			return llmtrModels
 		case "wandb":
 			return wandbModels
 		case "sambanova":
@@ -377,6 +381,8 @@ export function normalizeApiConfiguration(
 			}
 		case "nebius":
 			return getProviderData(nebiusModels, nebiusDefaultModelId)
+		case "llmtr":
+			return getProviderData(llmtrModels, llmtrDefaultModelId)
 		case "wandb":
 			return getProviderData(wandbModels, wandbDefaultModelId)
 		case "sambanova":
@@ -833,6 +839,7 @@ export async function syncModeConfigurations(
 		case "asksage":
 		case "xai":
 		case "nebius":
+		case "llmtr":
 		case "wandb":
 		case "sambanova":
 		case "cerebras":
