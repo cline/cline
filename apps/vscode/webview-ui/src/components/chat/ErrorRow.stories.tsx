@@ -214,7 +214,7 @@ export const ClineSpendLimitMinimal: Story = {
 	},
 }
 
-// Cline Pass entitlement error (user not subscribed to a required model plan)
+// ClinePass entitlement error (user not subscribed to a required model plan)
 export const ClinePassEntitlementError: Story = {
 	args: {
 		message: createMockMessage(),
@@ -234,7 +234,7 @@ export const ClinePassEntitlementError: Story = {
 	parameters: {
 		docs: {
 			description: {
-				story: "Cline Pass model returns a 403 ENTITLEMENT_ERROR when the user is not subscribed. Instead of dumping the raw JSON blob, a human-readable message with a 'Get Cline Pass' subscribe link and a retry button is shown.",
+				story: "ClinePass model returns a 403 ENTITLEMENT_ERROR when the user is not subscribed. Instead of dumping the raw JSON blob, a human-readable message with a 'Get ClinePass' subscribe link and a retry button is shown.",
 			},
 		},
 	},
