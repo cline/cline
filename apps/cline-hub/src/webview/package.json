@@ -10,7 +10,7 @@
 	},
 	"dependencies": {
 		"@base-ui/react": "^1.3.0",
-		"@fontsource-variable/geist": "^5.2.8",
+		"@fontsource-variable/schibsted-grotesk": "^5.2.8",
 		"@radix-ui/react-use-controllable-state": "^1.2.2",
 		"@rive-app/react-webgl2": "^4.27.2",
 		"@streamdown/cjk": "^1.0.3",

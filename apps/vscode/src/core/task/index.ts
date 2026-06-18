@@ -87,6 +87,7 @@ import {
 } from "@shared/Languages";
 import { USER_CONTENT_TAGS } from "@shared/messages/constants";
 import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message";
+import { FeatureFlag } from "@shared/services/feature-flags/feature-flags";
 import { type ClineDefaultTool, READ_ONLY_TOOLS } from "@shared/tools";
 import type { ClineAskResponse } from "@shared/WebviewMessage";
 import {
@@ -2033,11 +2034,16 @@ export class Task {
 		const model = this.api.getModel();
 		const apiConfig = this.stateManager.getApiConfiguration();
 		const mode = this.stateManager.getGlobalSettingsKey("mode");
-		const providerId = (
+		const configuredProviderId = (
 			mode === "plan"
 				? apiConfig.planModeApiProvider
 				: apiConfig.actModeApiProvider
 		) as string;
+		const providerId =
+			configuredProviderId === "cline-pass" &&
+			!featureFlagsService.getBooleanFlagEnabled(FeatureFlag.CLINE_PASS)
+				? "cline"
+				: configuredProviderId;
 		const customPrompt = this.stateManager.getGlobalSettingsKey("customPrompt");
 		return { model, providerId, customPrompt, mode };
 	}

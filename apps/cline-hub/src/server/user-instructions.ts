@@ -1,5 +1,13 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { extname, join, basename as pathBasename } from "node:path";
+import {
+	dirname,
+	extname,
+	isAbsolute,
+	join,
+	basename as pathBasename,
+	relative,
+	resolve,
+} from "node:path";
 import {
 	createUserInstructionConfigService,
 	discoverPluginModulePaths,
@@ -15,6 +23,48 @@ import type { JsonRecord } from "./types";
 
 function resolveAgentConfigSearchPaths(workspaceRoot?: string): string[] {
 	return resolveSharedAgentConfigSearchPaths(workspaceRoot);
+}
+
+function readPackageName(packageJsonPath: string): string | undefined {
+	try {
+		const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8")) as {
+			name?: unknown;
+		};
+		return typeof packageJson.name === "string" && packageJson.name.trim()
+			? packageJson.name.trim()
+			: undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+function isPathWithin(parentPath: string, childPath: string): boolean {
+	const relativePath = relative(resolve(parentPath), resolve(childPath));
+	return (
+		relativePath === "" ||
+		(!relativePath.startsWith("..") && !isAbsolute(relativePath))
+	);
+}
+
+function getPluginDisplayName(filePath: string, searchRoot: string): string {
+	let current = dirname(filePath);
+	const root = resolve(searchRoot);
+	while (isPathWithin(root, current)) {
+		const packageJsonPath = join(current, "package.json");
+		if (existsSync(packageJsonPath)) {
+			const packageName = readPackageName(packageJsonPath);
+			if (packageName) {
+				return packageName;
+			}
+			break;
+		}
+		const parent = resolve(current, "..");
+		if (parent === current) {
+			break;
+		}
+		current = parent;
+	}
+	return pathBasename(filePath, extname(filePath));
 }
 
 export async function listUserInstructionConfigs(
@@ -115,7 +165,7 @@ export async function listUserInstructionConfigs(
 				for (const filePath of discoverPluginModulePaths(directory)) {
 					if (pluginsByPath.has(filePath)) continue;
 					pluginsByPath.set(filePath, {
-						name: pathBasename(filePath, extname(filePath)),
+						name: getPluginDisplayName(filePath, directory),
 						path: filePath,
 						enabled: !disabledPlugins.has(filePath),
 					});
