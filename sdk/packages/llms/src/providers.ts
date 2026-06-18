@@ -29,6 +29,13 @@ import {
 } from "./providers/types";
 
 export {
+	ClineNotSubscribedError,
+	getClineNotSubscribedMessage,
+	getClinePassSubscriptionUrl,
+	isClineNotSubscribedError,
+	isClineNotSubscribedMessage,
+} from "./providers/errors";
+export {
 	getRegisteredHandler,
 	getRegisteredHandlerAsync,
 	hasRegisteredHandler,

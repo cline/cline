@@ -19,6 +19,11 @@ vi.mock("@/components/chat/CreditLimitError", () => ({
 	default: ({ message }: { message: string }) => <div data-testid="credit-limit-error">{message}</div>,
 }))
 
+// Mock EntitlementError component
+vi.mock("@/components/chat/EntitlementError", () => ({
+	default: ({ message }: { message: string }) => <div data-testid="entitlement-error">{message}</div>,
+}))
+
 // Mock ClineError
 vi.mock("../../../../src/services/error/ClineError", () => ({
 	ClineError: {
@@ -28,6 +33,7 @@ vi.mock("../../../../src/services/error/ClineError", () => ({
 		Balance: "balance",
 		RateLimit: "rateLimit",
 		Auth: "auth",
+		Entitlement: "entitlement",
 	},
 }))
 
@@ -126,6 +132,38 @@ describe("ErrorRow", () => {
 
 			render(<ErrorRow apiRequestFailedMessage="The message" errorType="error" message="" />)
 			expect(screen.getByText("Inference cap reached")).toBeInTheDocument()
+		})
+
+		it("renders entitlement error with the detail message instead of a raw JSON blob", async () => {
+			const mockClineError = {
+				message: "403 Error 403: the user is not subscribed to required model plan",
+				isErrorType: vi.fn((type) => type === "entitlement"),
+				providerId: "cline-pass",
+				_error: {
+					code: "ENTITLEMENT_ERROR",
+					details: {
+						code: "ENTITLEMENT_ERROR",
+						message: "Error 403: the user is not subscribed to required model plan",
+					},
+				},
+			}
+
+			const { ClineError } = await import("../../../../src/services/error/ClineError")
+			vi.mocked(ClineError.parse).mockReturnValue(mockClineError as any)
+
+			render(
+				<ErrorRow
+					apiRequestFailedMessage='{"message":"403 Error 403...","code":"ENTITLEMENT_ERROR"}'
+					errorType="error"
+					message={mockMessage}
+				/>,
+			)
+
+			// Renders the friendly EntitlementError component with the human-readable detail message...
+			expect(screen.getByTestId("entitlement-error")).toBeInTheDocument()
+			expect(screen.getByText("Error 403: the user is not subscribed to required model plan")).toBeInTheDocument()
+			// ...and does not dump the raw JSON blob or the [CLINE-PASS] ENTITLEMENT_ERROR header.
+			expect(screen.queryByText(/ENTITLEMENT_ERROR/)).not.toBeInTheDocument()
 		})
 
 		it("renders friendly logged-out message and sign in button when user is not signed in", async () => {

@@ -1,4 +1,5 @@
 import { stat } from "node:fs/promises";
+import { isAbsolute, relative, resolve } from "node:path";
 import type { AgentConfig, AgentTool } from "@cline/shared";
 import { resolveAgentPluginPaths } from "../extensions/plugin/plugin-config-loader";
 import type {
@@ -11,6 +12,14 @@ import { resolveDisabledToolNames } from "./global-settings";
 type AgentExtension = NonNullable<AgentConfig["extensions"]>[number];
 type AgentExtensionApi = Parameters<NonNullable<AgentExtension["setup"]>>[0];
 type AgentExtensionWithPath = AgentExtension & { __clinePluginPath?: string };
+
+function isPathWithin(parentPath: string, childPath: string): boolean {
+	const relativePath = relative(resolve(parentPath), resolve(childPath));
+	return (
+		relativePath === "" ||
+		(!relativePath.startsWith("..") && !isAbsolute(relativePath))
+	);
+}
 
 export interface PluginToolSummary {
 	name: string;
@@ -104,12 +113,14 @@ function sortPluginToolDescriptors(
 	});
 }
 
-function collectRegisteredTools(
+async function collectPluginContributions(
 	extension: AgentExtension,
 	workspaceInfo?: { rootPath: string },
-): AgentTool[] {
+): Promise<{
+	tools: AgentTool[];
+}> {
 	if (!extension.setup) {
-		return [];
+		return { tools: [] };
 	}
 
 	const tools: AgentTool[] = [];
@@ -120,9 +131,14 @@ function collectRegisteredTools(
 		registerRule: () => {},
 		registerProvider: () => {},
 		registerAutomationEventType: () => {},
+		registerMcpServer: (_server) => {
+			if (!extension.manifest.capabilities.includes("mcp")) {
+				throw new Error('registerMcpServer requires the "mcp" capability');
+			}
+		},
 	};
-	extension.setup(api, { workspaceInfo });
-	return tools;
+	await extension.setup(api, { workspaceInfo });
+	return { tools };
 }
 
 export async function listPluginToolsWithDiagnostics(input: {
@@ -178,16 +194,30 @@ export async function listPluginToolsWithDiagnostics(input: {
 			if (!pluginPath) {
 				continue;
 			}
-			for (const tool of collectRegisteredTools(extension, {
-				rootPath: input.workspacePath,
-			})) {
+			const pluginSource = isPathWithin(input.workspacePath, pluginPath)
+				? "workspace-plugin"
+				: "global-plugin";
+			let contributions: Awaited<ReturnType<typeof collectPluginContributions>>;
+			try {
+				contributions = await collectPluginContributions(extension, {
+					rootPath: input.workspacePath,
+				});
+			} catch (error) {
+				failures.push({
+					pluginPath,
+					pluginName: extension.name,
+					phase: "setup",
+					message: error instanceof Error ? error.message : String(error),
+					stack: error instanceof Error ? error.stack : undefined,
+				});
+				continue;
+			}
+			for (const tool of contributions.tools) {
 				tools.push({
 					name: tool.name,
 					pluginName: extension.name,
 					path: pluginPath,
-					source: pluginPath.startsWith(input.workspacePath)
-						? "workspace-plugin"
-						: "global-plugin",
+					source: pluginSource,
 					description: tool.description?.trim() || undefined,
 				});
 			}
@@ -206,12 +236,11 @@ export async function listPluginToolsWithDiagnostics(input: {
 	}
 
 	const sortedTools = sortPluginToolDescriptors(tools);
-	const cacheEntry = {
+	cachePluginToolDescriptors(cacheKey, {
 		tools: sortedTools,
 		failures,
 		warnings,
-	};
-	cachePluginToolDescriptors(cacheKey, cacheEntry);
+	});
 	return {
 		tools: withEnabledState(sortedTools, disabled),
 		failures,

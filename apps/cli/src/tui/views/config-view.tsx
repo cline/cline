@@ -25,6 +25,7 @@ import {
 	getConfigFooterText,
 	getConfigItemDisplayName,
 	getConfigTabs,
+	getPluginDiagnosticsLoadingText,
 	isInlineConfigAction,
 	isToggleableConfigItem,
 	resolveActiveConfigItems,
@@ -198,6 +199,7 @@ function appendToolGroupRows(
 			rightLabel: `${enabledCount}/${groupItems.length} tools enabled`,
 			indent: 2,
 		});
+
 		for (const item of sortBySourceThenName(groupItems)) {
 			rows.push({
 				kind: "ext",
@@ -245,15 +247,22 @@ function appendToolRows(
 		appendExtRows(rows, builtinTools);
 	}
 
-	const pluginGroups = groupToolItems(items.filter((item) => item.pluginName));
+	const pluginToolItems = items.filter((item) => item.pluginName);
+	const pluginGroups = groupToolItems(pluginToolItems);
 	if (pluginGroups.length > 0) {
 		rows.push({ kind: "head", label: "Plugins" });
 		appendToolGroupRows(
 			rows,
 			pluginGroups,
-			getSharedToolNames(items.filter((item) => item.pluginName)),
+			getSharedToolNames(pluginToolItems),
 		);
 	}
+}
+
+function hasPluginDiagnostics(data: InteractiveConfigData): boolean {
+	return (
+		data.pluginDiagnosticsLoaded || data.tools.some((item) => item.pluginName)
+	);
 }
 
 function appendSkillRows(
@@ -305,11 +314,18 @@ function withOptimisticToggle(
 		).filter(Boolean),
 	);
 	const updateItems = (items: InteractiveConfigItem[]) =>
-		items.map((candidate) =>
-			matchesItem(candidate)
-				? { ...candidate, enabled: nextEnabled }
-				: candidate,
-		);
+		items.map((candidate) => {
+			if (matchesItem(candidate)) {
+				return { ...candidate, enabled: nextEnabled };
+			}
+			if (
+				item.kind === "plugin" &&
+				(candidate.path === item.path || candidate.pluginPath === item.path)
+			) {
+				return { ...candidate, enabled: nextEnabled };
+			}
+			return candidate;
+		});
 	const updateTools = (items: InteractiveConfigItem[]) =>
 		items.map((candidate) => {
 			if (matchesItem(candidate)) {
@@ -381,7 +397,7 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 	);
 	const [configData, setConfigData] = useState(props.configData);
 	const [pluginToolsLoaded, setPluginToolsLoaded] = useState(
-		props.configData.tools.some((item) => item.pluginName),
+		hasPluginDiagnostics(props.configData),
 	);
 	const [pluginToolsLoading, setPluginToolsLoading] = useState(false);
 	const [pluginToolsError, setPluginToolsError] = useState<
@@ -465,10 +481,11 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 				});
 			} else if (activeTab === "tools") {
 				appendToolRows(r, activeItems);
-				if (pluginToolsLoading) {
+				const loadingText = getPluginDiagnosticsLoadingText(activeTab);
+				if (pluginToolsLoading && loadingText) {
 					r.push({
 						kind: "detail",
-						text: "Loading plugin tools...",
+						text: loadingText,
 					});
 				}
 				if (pluginToolsError) {
@@ -499,9 +516,10 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 					});
 				}
 				if (activeTab === "plugins" && pluginToolsLoading) {
+					const loadingText = getPluginDiagnosticsLoadingText(activeTab);
 					r.push({
 						kind: "detail",
-						text: "Loading plugin diagnostics...",
+						text: loadingText ?? "Loading plugin diagnostics...",
 					});
 				}
 				if (activeTab === "plugins" && pluginToolsError) {
@@ -549,15 +567,13 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 			});
 			if (nextData) {
 				setConfigData(nextData);
-				setPluginToolsLoaded(nextData.tools.some((tool) => tool.pluginName));
+				setPluginToolsLoaded(hasPluginDiagnostics(nextData));
 			} else if (item.kind === "plugin" && loadConfigData) {
 				const refreshedData = await loadConfigData({
 					includePluginTools: true,
 				});
 				setConfigData(refreshedData);
-				setPluginToolsLoaded(
-					refreshedData.tools.some((tool) => tool.pluginName),
-				);
+				setPluginToolsLoaded(hasPluginDiagnostics(refreshedData));
 				setPluginToolsError(undefined);
 			}
 		} catch (error) {

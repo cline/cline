@@ -1,6 +1,8 @@
-import { ApiConfiguration, ModelInfo, QwenApiRegions } from "@shared/api"
+import { ApiConfiguration, clinePassDefaultModelId, ModelInfo, QwenApiRegions, resolveClinePassModelInfo } from "@shared/api"
 import { Mode } from "@shared/storage/types"
+import { featureFlagsService } from "@/services/feature-flags"
 import { ClineStorageMessage } from "@/shared/messages/content"
+import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
 import { Logger } from "@/shared/services/Logger"
 import { ClineTool } from "@/shared/tools"
 import { AIhubmixHandler } from "./providers/aihubmix"
@@ -78,7 +80,10 @@ function createHandlerForProvider(
 	options: Omit<ApiConfiguration, "apiProvider">,
 	mode: Mode,
 ): ApiHandler {
-	switch (apiProvider) {
+	const effectiveApiProvider =
+		apiProvider === "cline-pass" && !featureFlagsService.getBooleanFlagEnabled(FeatureFlag.CLINE_PASS) ? "cline" : apiProvider
+
+	switch (effectiveApiProvider) {
 		case "anthropic":
 			return new AnthropicHandler({
 				onRetryAttempt: options.onRetryAttempt,
@@ -258,12 +263,36 @@ function createHandlerForProvider(
 					mode === "plan" ? options.planModeVsCodeLmModelSelector : options.actModeVsCodeLmModelSelector,
 			})
 		case "cline": {
+			const configuredClineModelId = mode === "plan" ? options.planModeClineModelId : options.actModeClineModelId
+			const configuredClineModelInfo = mode === "plan" ? options.planModeClineModelInfo : options.actModeClineModelInfo
 			const clineModelId =
-				(mode === "plan" ? options.planModeClineModelId : options.actModeClineModelId) ||
-				(mode === "plan" ? options.planModeOpenRouterModelId : options.actModeOpenRouterModelId)
+				configuredClineModelId || (mode === "plan" ? options.planModeOpenRouterModelId : options.actModeOpenRouterModelId)
 			const clineModelInfo =
-				(mode === "plan" ? options.planModeClineModelInfo : options.actModeClineModelInfo) ||
+				configuredClineModelInfo ||
 				(mode === "plan" ? options.planModeOpenRouterModelInfo : options.actModeOpenRouterModelInfo)
+			return new ClineHandler({
+				onRetryAttempt: options.onRetryAttempt,
+				clineAccountId: options.clineAccountId,
+				clineApiKey: options.clineApiKey,
+				ulid: options.ulid,
+				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
+				thinkingBudgetTokens:
+					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
+				openRouterProviderSorting: options.openRouterProviderSorting,
+				openRouterModelId: clineModelId,
+				openRouterModelInfo: clineModelInfo,
+				enableParallelToolCalling: options.enableParallelToolCalling,
+			})
+		}
+		case "cline-pass": {
+			const configuredClinePassModelId =
+				mode === "plan" ? options.planModeClinePassModelId : options.actModeClinePassModelId
+			const configuredClinePassModelInfo =
+				mode === "plan" ? options.planModeClinePassModelInfo : options.actModeClinePassModelInfo
+			const clineModelId = configuredClinePassModelId?.startsWith("cline-pass/")
+				? configuredClinePassModelId
+				: clinePassDefaultModelId
+			const clineModelInfo = configuredClinePassModelInfo || resolveClinePassModelInfo(clineModelId)
 			return new ClineHandler({
 				onRetryAttempt: options.onRetryAttempt,
 				clineAccountId: options.clineAccountId,

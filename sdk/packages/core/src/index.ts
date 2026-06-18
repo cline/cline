@@ -5,6 +5,13 @@
  */
 
 export * as Llms from "@cline/llms";
+export {
+	ClineNotSubscribedError,
+	getClineNotSubscribedMessage,
+	getClinePassSubscriptionUrl,
+	isClineNotSubscribedError,
+	isClineNotSubscribedMessage,
+} from "@cline/llms";
 // Shared contracts and path helpers re-exported for app consumers.
 export type {
 	AddProviderActionRequest,
@@ -468,6 +475,17 @@ export {
 	toggleDisabledTool,
 	writeGlobalSettings,
 } from "./services/global-settings";
+export type {
+	PluginMcpSettingsMutation,
+	PluginMcpSettingsSyncResult,
+	RemovePluginMcpServersFromSettingsOptions,
+	SyncPluginMcpServersToSettingsOptions,
+} from "./services/plugin-mcp-settings";
+export {
+	disablePluginMcpServersInSettings,
+	removePluginMcpServersFromSettings,
+	syncPluginMcpServersToSettings,
+} from "./services/plugin-mcp-settings";
 export type {
 	ListPluginToolsResult,
 	PluginToolSummary,
