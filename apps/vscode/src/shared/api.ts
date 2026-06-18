@@ -5196,6 +5196,18 @@ export const fireworksModels = {
 		description:
 			"Kimi K2.6 Turbo router for high-performance agentic workloads with vision and text reasoning.",
 	},
+	"accounts/fireworks/routers/kimi-k2p6-fast": {
+		maxTokens: 262000,
+		contextWindow: 262000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 2,
+		outputPrice: 8,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0.3,
+		description:
+			"Kimi K2.6 Fast router for high-performance agentic workloads with vision and text reasoning.",
+	},
 	"accounts/fireworks/routers/kimi-k2p7-code-fast": {
 		maxTokens: 262000,
 		contextWindow: 262000,
@@ -5216,7 +5228,7 @@ export const fireworksModels = {
 		inputPrice: 0.14,
 		outputPrice: 0.28,
 		cacheWritesPrice: 0,
-		cacheReadsPrice: 0.03,
+		cacheReadsPrice: 0.028,
 		description:
 			"DeepSeek V4 Flash is a fast, cost-efficient reasoning model with a 1M context window and strong tool-use capabilities.",
 	},
@@ -5231,6 +5243,17 @@ export const fireworksModels = {
 		cacheReadsPrice: 0.145,
 		description:
 			"DeepSeek V4 Pro is a flagship reasoning model with a 1M context window, advanced structured output, and agentic performance.",
+	},
+	"accounts/fireworks/models/glm-5p2": {
+		maxTokens: 131072,
+		contextWindow: 1048576,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 1.4,
+		outputPrice: 4.4,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0.26,
+		description: "GLM 5.2 is a next-generation general-purpose model optimized for coding, reasoning, and agentic workflows with a 1M context window.",
 	},
 	"accounts/fireworks/models/glm-5p1": {
 		maxTokens: 131072,
