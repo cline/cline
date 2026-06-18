@@ -736,8 +736,8 @@ function SessionsView({
 						),
 					);
 		return [...filtered].sort((a, b) => {
-			const aTime = a.updatedAt ?? 0;
-			const bTime = b.updatedAt ?? 0;
+			const aTime = a.createdAt ?? a.updatedAt ?? 0;
+			const bTime = b.createdAt ?? b.updatedAt ?? 0;
 			return sortDirection === "newest" ? bTime - aTime : aTime - bTime;
 		});
 	}, [sessions, sessionFilters, sortDirection]);
