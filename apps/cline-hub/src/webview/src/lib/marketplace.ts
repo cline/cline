@@ -19,10 +19,7 @@ export type MarketplaceEntry = {
 	name: string;
 	tagline: string;
 	description: string;
-	icon?: string;
 	tags: string[];
-	verified?: boolean;
-	featured?: boolean;
 	install: {
 		args: string[];
 		env?: MarketplaceEnvVar[];
@@ -98,19 +95,6 @@ function parseEnv(value: unknown): MarketplaceEnvVar[] | undefined {
 	return env.length > 0 ? env : undefined;
 }
 
-function resolveCatalogAssetUrl(
-	value: string | undefined,
-	baseUrl: string | undefined,
-): string | undefined {
-	if (!value) return undefined;
-	if (!baseUrl) return value;
-	try {
-		return new URL(value, baseUrl).toString();
-	} catch {
-		return value;
-	}
-}
-
 export async function fetchMarketplaceCatalog(): Promise<MarketplaceCatalog> {
 	const response = await fetch(MARKETPLACE_CATALOG_URL, {
 		headers: { Accept: "application/json" },
@@ -170,19 +154,7 @@ export async function fetchMarketplaceCatalog(): Promise<MarketplaceCatalog> {
 						name: candidate.name,
 						tagline: candidate.tagline,
 						description: candidate.description,
-						icon: resolveCatalogAssetUrl(
-							typeof candidate.icon === "string" ? candidate.icon : undefined,
-							baseUrl,
-						),
 						tags: toStringArray(candidate.tags),
-						verified:
-							typeof candidate.verified === "boolean"
-								? candidate.verified
-								: undefined,
-						featured:
-							typeof candidate.featured === "boolean"
-								? candidate.featured
-								: undefined,
 						install: {
 							args: toStringArray(install.args),
 							command: install.command,
