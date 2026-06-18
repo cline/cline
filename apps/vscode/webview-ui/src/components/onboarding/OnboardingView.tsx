@@ -1,19 +1,18 @@
 import { buildModelInfoNameMap, type ModelInfo, resolveClinePassModelInfo } from "@shared/api"
-import { StringRequest } from "@shared/proto/cline/common"
 import type { OnboardingModel, OnboardingModelGroup, OpenRouterModelInfo } from "@shared/proto/index.cline"
 import { AlertCircleIcon, CircleCheckIcon, CircleIcon, ListIcon, LoaderCircleIcon, ZapIcon } from "lucide-react"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import ClineLogoWhite from "@/assets/ClineLogoWhite"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Item, ItemContent, ItemDescription, ItemHeader, ItemMedia, ItemTitle } from "@/components/ui/item"
 import { CLINE_PASS_FEATURE_FLAG } from "@/constants/featureFlags"
-import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useHasFeatureFlag } from "@/hooks/useFeatureFlag"
 import { cn } from "@/lib/utils"
-import { AccountServiceClient, StateServiceClient, UiServiceClient } from "@/services/grpc-client"
+import { AccountServiceClient, StateServiceClient } from "@/services/grpc-client"
+import { setPendingClinePassSubscribe } from "./clinePassSubscribe"
 import ApiConfigurationSection from "../settings/sections/ApiConfigurationSection"
 import { useApiConfigurationHandlers } from "../settings/utils/useApiConfigurationHandlers"
 import WelcomeView from "../welcome/WelcomeView"
@@ -299,14 +298,9 @@ const OnboardingStepContent = ({
 	return <ApiConfigurationSection />
 }
 
-// ClinePass subscription signup page in the dashboard (requires auth).
-const CLINE_PASS_SUBSCRIBE_PATH = "/onboarding/individual-plan"
-const DEFAULT_APP_BASE_URL = "https://app.cline.bot"
-
 const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: OnboardingModelGroup }) => {
 	const { handleFieldsChange } = useApiConfigurationHandlers()
 	const { openRouterModels, hideSettings, hideAccount, setShowWelcome } = useExtensionState()
-	const { clineUser } = useClineAuth()
 	const isClinePassEnabled = useHasFeatureFlag(CLINE_PASS_FEATURE_FLAG)
 	const userTypeSelections = useMemo(() => getUserTypeSelections(isClinePassEnabled), [isClinePassEnabled])
 
@@ -316,24 +310,6 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 
 	const [selectedModelId, setSelectedModelId] = useState("")
 	const [searchTerm, setSearchTerm] = useState("")
-
-	// Set when a ClinePass user starts signup; cleared once the subscription page is opened.
-	const pendingClinePassSubscribe = useRef(false)
-
-	// Opens the ClinePass subscription page once a pending signup is authenticated (ref guard prevents a double open).
-	const openClinePassSubscriptionIfPending = useCallback(() => {
-		if (pendingClinePassSubscribe.current && clineUser?.uid) {
-			pendingClinePassSubscribe.current = false
-			const appBaseUrl = clineUser.appBaseUrl || DEFAULT_APP_BASE_URL
-			UiServiceClient.openUrl(StringRequest.create({ value: `${appBaseUrl}${CLINE_PASS_SUBSCRIBE_PATH}` })).catch((err) =>
-				console.error("Failed to open ClinePass subscription page:", err),
-			)
-		}
-	}, [clineUser?.uid, clineUser?.appBaseUrl])
-
-	useEffect(() => {
-		openClinePassSubscriptionIfPending()
-	}, [openClinePassSubscriptionIfPending])
 
 	const models = useMemo(() => getClineUIOnboardingGroups(onboardingModels), [onboardingModels])
 	// ClinePass model IDs (e.g. "cline-pass/glm-5.1") aren't keyed in openRouterModels,
@@ -413,9 +389,9 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 		async (action: "signin" | "next" | "back" | "done" | "signup") => {
 			switch (action) {
 				case "signup":
-					// ClinePass: flag the subscription page to open once authenticated (the
-					// clineUser effect handles it). The login flow below is unchanged.
-					pendingClinePassSubscribe.current = userType === NEW_USER_TYPE.CLINE_PASS
+					// ClinePass: record the intent so App opens the subscription page once auth
+					// completes (App outlives this view, which unmounts on auth). Login flow unchanged.
+					setPendingClinePassSubscribe(userType === NEW_USER_TYPE.CLINE_PASS)
 					setStepNumber(stepNumber + 1)
 					setIsActionLoading(true)
 					await AccountServiceClient.accountLoginClicked({})
@@ -424,7 +400,7 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 					await finishOnboarding(true, stepNumber + 1)
 					break
 				case "signin":
-					pendingClinePassSubscribe.current = false
+					setPendingClinePassSubscribe(false)
 					setIsActionLoading(true)
 					await AccountServiceClient.accountLoginClicked({})
 						.catch(() => {})
@@ -437,7 +413,7 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 					break
 				case "back":
 					// Abandon any pending ClinePass subscription redirect when the user goes back.
-					pendingClinePassSubscribe.current = false
+					setPendingClinePassSubscribe(false)
 					StateServiceClient.captureOnboardingProgress({ step: stepNumber - 1 })
 					setStepNumber(stepNumber - 1)
 					break
@@ -448,7 +424,7 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 					break
 			}
 		},
-		[stepNumber, finishOnboarding, setShowWelcome, userType, openClinePassSubscriptionIfPending],
+		[stepNumber, finishOnboarding, setShowWelcome, userType],
 	)
 
 	const stepDisplayInfo = useMemo(() => {
