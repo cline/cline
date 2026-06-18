@@ -59,6 +59,8 @@ import { XaiProvider } from "./providers/XaiProvider"
 import { ZAiProvider } from "./providers/ZAiProvider"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
+const CLINE_PASS_FEATURE_FLAG = "ext-cline-pass"
+
 interface ApiOptionsProps {
 	showModelOptions: boolean
 	apiErrorMessage?: string

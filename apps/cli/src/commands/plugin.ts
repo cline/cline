@@ -21,7 +21,15 @@ import {
 	resolve,
 	sep,
 } from "node:path";
-import { type PluginUninstallOptions, uninstallPlugin } from "@cline/core";
+import {
+	type McpServerRegistration,
+	type PluginMcpSettingsSyncResult,
+	type PluginUninstallOptions,
+	resolveDefaultMcpSettingsPath,
+	resolveMcpServerRegistrations,
+	syncPluginMcpServersToSettings,
+	uninstallPlugin,
+} from "@cline/core";
 import {
 	isPluginModulePath,
 	resolveClineDir,
@@ -36,12 +44,31 @@ export interface PluginInstallOptions {
 	npmCommand?: string;
 	officialPluginsRepo?: string;
 	io?: PluginInstallIo;
+	mcpOAuth?: PluginInstallMcpOAuthOptions;
 }
 
 export interface PluginInstallResult {
 	source: string;
 	installPath: string;
 	entryPaths: string[];
+	mcpSyncFailures: PluginMcpSettingsSyncResult["failures"];
+	mcpOAuthCandidates: PluginMcpOAuthCandidate[];
+}
+
+export interface PluginMcpOAuthCandidate {
+	name: string;
+	pluginName: string;
+	pluginPath: string;
+	transportType: "sse" | "streamableHttp";
+	lastError?: string;
+}
+
+export interface PluginInstallMcpOAuthOptions {
+	interactive?: boolean;
+	selectCandidates?: (
+		candidates: PluginMcpOAuthCandidate[],
+	) => Promise<PluginMcpOAuthCandidate[]>;
+	authorize?: (candidate: PluginMcpOAuthCandidate) => Promise<void>;
 }
 
 export interface PluginInstallIo {
@@ -1005,6 +1032,81 @@ function replaceInstallPath(
 	}
 }
 
+function hasStaticHeaders(registration: McpServerRegistration): boolean {
+	const transport = registration.transport;
+	if (transport.type === "stdio") {
+		return false;
+	}
+	return (
+		transport.headers !== undefined && Object.keys(transport.headers).length > 0
+	);
+}
+
+function hasOAuthAccessToken(registration: McpServerRegistration): boolean {
+	const accessToken = registration.oauth?.tokens?.access_token;
+	return typeof accessToken === "string" && accessToken.trim().length > 0;
+}
+
+function getPluginOwner(
+	registration: McpServerRegistration,
+): { pluginName: string; pluginPath: string } | undefined {
+	const metadata = registration.metadata;
+	if (
+		!metadata ||
+		metadata.source !== "plugin" ||
+		typeof metadata.pluginName !== "string" ||
+		typeof metadata.pluginPath !== "string"
+	) {
+		return undefined;
+	}
+	return {
+		pluginName: metadata.pluginName,
+		pluginPath: metadata.pluginPath,
+	};
+}
+
+export function collectPluginMcpOAuthCandidates(input: {
+	pluginPaths: readonly string[];
+	settingsPath?: string;
+}): PluginMcpOAuthCandidate[] {
+	const pluginPaths = new Set(input.pluginPaths.map((path) => resolve(path)));
+	if (pluginPaths.size === 0) {
+		return [];
+	}
+
+	let registrations: McpServerRegistration[];
+	try {
+		registrations = resolveMcpServerRegistrations({
+			filePath: input.settingsPath ?? resolveDefaultMcpSettingsPath(),
+		});
+	} catch {
+		return [];
+	}
+
+	const candidates: PluginMcpOAuthCandidate[] = [];
+	for (const registration of registrations) {
+		const owner = getPluginOwner(registration);
+		if (!owner || !pluginPaths.has(resolve(owner.pluginPath))) {
+			continue;
+		}
+		const transportType = registration.transport.type;
+		if (transportType === "stdio") {
+			continue;
+		}
+		if (hasStaticHeaders(registration) || hasOAuthAccessToken(registration)) {
+			continue;
+		}
+		candidates.push({
+			name: registration.name,
+			pluginName: owner.pluginName,
+			pluginPath: owner.pluginPath,
+			transportType,
+			lastError: registration.oauth?.lastError,
+		});
+	}
+	return candidates.sort((left, right) => left.name.localeCompare(right.name));
+}
+
 export async function installPlugin(
 	options: PluginInstallOptions,
 ): Promise<PluginInstallResult> {
@@ -1071,14 +1173,139 @@ export async function installPlugin(
 		}
 
 		replaceInstallPath(stagingRoot, installPath, force);
-		return {
+		const result = {
 			source,
 			installPath,
 			entryPaths: entryPaths.map((entry) => resolve(installPath, entry)),
+			mcpSyncFailures: [] as PluginMcpSettingsSyncResult["failures"],
+			mcpOAuthCandidates: [] as PluginMcpOAuthCandidate[],
 		};
+		const syncResult = await syncPluginMcpServersToSettings({
+			pluginPaths: result.entryPaths,
+			cwd,
+			workspacePath: cwd,
+		});
+		result.mcpSyncFailures = syncResult.failures;
+		result.mcpOAuthCandidates = collectPluginMcpOAuthCandidates({
+			pluginPaths: result.entryPaths,
+		});
+		return result;
 	} catch (error) {
 		rmSync(stagingRoot, { recursive: true, force: true });
 		throw error;
+	}
+}
+
+function serializePluginInstallResult(
+	result: PluginInstallResult,
+): Omit<PluginInstallResult, "mcpOAuthCandidates"> {
+	return {
+		source: result.source,
+		installPath: result.installPath,
+		entryPaths: result.entryPaths,
+		mcpSyncFailures: result.mcpSyncFailures,
+	};
+}
+
+function isInteractivePluginInstall(options: PluginInstallOptions): boolean {
+	return (
+		options.mcpOAuth?.interactive ??
+		(process.stdin.isTTY && process.stdout.isTTY)
+	);
+}
+
+async function selectMcpOAuthCandidatesWithClack(
+	candidates: PluginMcpOAuthCandidate[],
+): Promise<PluginMcpOAuthCandidate[]> {
+	const p = await import("@clack/prompts");
+	const action = await p.select({
+		message: "Authorize plugin MCP servers now?",
+		options: [
+			{
+				value: "all",
+				label: "Authorize all",
+				hint: "open browser authorization for each server",
+			},
+			{
+				value: "choose",
+				label: "Choose servers",
+				hint: "select which servers to authorize",
+			},
+			{
+				value: "skip",
+				label: "Skip",
+			},
+		],
+	});
+	if (p.isCancel(action) || action === "skip") {
+		return [];
+	}
+	if (action === "all") {
+		return candidates;
+	}
+
+	const selectedNames = await p.multiselect({
+		message: "Select MCP servers to authorize",
+		options: candidates.map((candidate) => ({
+			value: candidate.name,
+			label: candidate.name,
+			hint: `${candidate.transportType} [${candidate.pluginName}]`,
+		})),
+		required: false,
+	});
+	if (p.isCancel(selectedNames) || !Array.isArray(selectedNames)) {
+		return [];
+	}
+	const selected = new Set(selectedNames);
+	return candidates.filter((candidate) => selected.has(candidate.name));
+}
+
+async function authorizeMcpOAuthCandidate(
+	candidate: PluginMcpOAuthCandidate,
+): Promise<void> {
+	const { authorizeMcpServerOAuthWithBrowser } = await import(
+		"../wizards/mcp/oauth"
+	);
+	await authorizeMcpServerOAuthWithBrowser(candidate.name, {
+		throwOnError: true,
+	});
+}
+
+async function runPluginMcpOAuthFollowup(
+	candidates: PluginMcpOAuthCandidate[],
+	options: PluginInstallOptions,
+): Promise<void> {
+	if (candidates.length === 0) {
+		return;
+	}
+
+	if (!isInteractivePluginInstall(options)) {
+		options.io?.writeln("Plugin MCP servers may require OAuth authorization:");
+		for (const candidate of candidates) {
+			options.io?.writeln(
+				`  ${candidate.name} (${candidate.transportType}, plugin: ${candidate.pluginName})`,
+			);
+		}
+		options.io?.writeln(
+			'Run "cline mcp" and choose "Authorize OAuth" to authorize them.',
+		);
+		return;
+	}
+
+	const selected =
+		options.mcpOAuth?.selectCandidates !== undefined
+			? await options.mcpOAuth.selectCandidates(candidates)
+			: await selectMcpOAuthCandidatesWithClack(candidates);
+	const authorize = options.mcpOAuth?.authorize ?? authorizeMcpOAuthCandidate;
+	for (const candidate of selected) {
+		try {
+			await authorize(candidate);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			options.io?.writeErr(
+				`Warning: failed to authorize MCP server ${candidate.name}: ${message}. Run "cline mcp" and choose "Authorize OAuth" to retry.`,
+			);
+		}
 	}
 }
 
@@ -1088,11 +1315,19 @@ export async function runPluginInstallCommand(
 	try {
 		const result = await installPlugin(options);
 		if (options.json) {
-			process.stdout.write(JSON.stringify(result));
+			process.stdout.write(
+				JSON.stringify(serializePluginInstallResult(result)),
+			);
 			return 0;
 		}
 		options.io?.writeln(`Installed plugin from ${result.source}`);
 		options.io?.writeln(`  Path: ${result.installPath}`);
+		for (const failure of result.mcpSyncFailures) {
+			options.io?.writeErr(
+				`Warning: failed to sync plugin MCP servers for ${failure.pluginName ?? failure.pluginPath}: ${failure.message}`,
+			);
+		}
+		await runPluginMcpOAuthFollowup(result.mcpOAuthCandidates, options);
 		return 0;
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);

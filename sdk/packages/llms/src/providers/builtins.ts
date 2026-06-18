@@ -485,9 +485,9 @@ const cline = createClineLikeSpec({
 
 const clinePass = createClineLikeSpec({
 	id: CLINE_PASS_PROVIDER_ID,
-	name: "Cline Pass",
+	name: "ClinePass",
 	popular: 2,
-	description: "Cline API endpoint with Cline Pass models",
+	description: "Cline API endpoint with ClinePass models",
 	modelsProviderId: CLINE_PASS_PROVIDER_ID,
 	defaultModelId: firstGeneratedModelId(CLINE_PASS_PROVIDER_ID),
 	metadata: { usageCostDisplay: "hide" },
@@ -633,7 +633,7 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		defaultModelId: "MiniMaxAI/MiniMax-M2.5",
 		apiKeyEnv: ["HF_TOKEN"],
 		modelsProviderId: "huggingface",
-		defaults: { baseUrl: "https://api-inference.huggingface.co/v1" },
+		defaults: { baseUrl: "https://router.huggingface.co/v1" },
 	},
 	{
 		id: "vercel-ai-gateway",

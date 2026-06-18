@@ -235,6 +235,7 @@ export function toWebviewSessionSummary(
 		providerId: session.provider,
 		model: session.model,
 		workspaceRoot: session.workspaceRoot,
+		createdAt: session.createdAt,
 		updatedAt: session.updatedAt,
 		inputTokens: session.inputTokens,
 		outputTokens: session.outputTokens,

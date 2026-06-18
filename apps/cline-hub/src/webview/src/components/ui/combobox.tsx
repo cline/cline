@@ -24,7 +24,10 @@ function ComboboxTrigger({
 	return (
 		<ComboboxPrimitive.Trigger
 			data-slot="combobox-trigger"
-			className={cn("[&_svg:not([class*='size-'])]:size-4", className)}
+			className={cn(
+				"cursor-pointer data-disabled:cursor-not-allowed [&_svg:not([class*='size-'])]:size-4",
+				className,
+			)}
 			{...props}
 		>
 			{children}
@@ -140,7 +143,7 @@ function ComboboxItem({
 		<ComboboxPrimitive.Item
 			data-slot="combobox-item"
 			className={cn(
-				"relative flex w-full cursor-default items-center gap-2 rounded-md py-1 pr-8 pl-1.5 text-sm outline-hidden select-none data-highlighted:bg-accent data-highlighted:text-accent-foreground not-data-[variant=destructive]:data-highlighted:**:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+				"relative flex w-full cursor-pointer items-center gap-2 rounded-md py-1 pr-8 pl-1.5 text-sm outline-hidden select-none data-highlighted:bg-accent data-highlighted:text-accent-foreground not-data-[variant=destructive]:data-highlighted:**:text-accent-foreground data-disabled:pointer-events-none data-disabled:cursor-not-allowed data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
 				className,
 			)}
 			{...props}
@@ -250,7 +253,7 @@ function ComboboxChip({
 			{showRemove && (
 				<ComboboxPrimitive.ChipRemove
 					render={<Button variant="ghost" size="icon-xs" />}
-					className="-ml-1 opacity-50 hover:opacity-100"
+					className="-ml-1 cursor-pointer opacity-50 hover:opacity-100"
 					data-slot="combobox-chip-remove"
 				>
 					<XIcon className="pointer-events-none" />

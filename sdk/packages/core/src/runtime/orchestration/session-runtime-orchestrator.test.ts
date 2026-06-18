@@ -243,6 +243,7 @@ describe("SessionRuntime construction", () => {
 			messageBuilder: [],
 			providers: [],
 			automationEventTypes: [],
+			mcpServers: [],
 		});
 	});
 });
@@ -295,6 +296,44 @@ describe("SessionRuntime.getExtensionRegistry", () => {
 		expect(registry.commands).toHaveLength(1);
 		expect(registry.commands[0].name).toBe("ext-cmd");
 		expect(registry.automationEventTypes).toEqual([]);
+		expect(registry.mcpServers).toEqual([]);
+	});
+
+	it("keeps plugin-registered MCP servers out of direct runtime tools", async () => {
+		const extension: AgentExtension = {
+			name: "mcp-ext",
+			manifest: { capabilities: ["mcp"] },
+			setup(api) {
+				api.registerMcpServer({
+					name: "plugin-mock",
+					transport: {
+						type: "stdio",
+						command: process.execPath,
+					},
+				});
+			},
+		};
+		const { deps, configs } = withCapturingFakeRuntime();
+		const session = new SessionRuntime(
+			makeAgentConfig({ extensions: [extension] }),
+			deps,
+		);
+
+		await session.run("go");
+
+		expect((configs[0]?.tools ?? []).map((tool) => tool.name)).not.toContain(
+			"plugin-mock__echo",
+		);
+		expect(session.getExtensionRegistry().mcpServers).toEqual([
+			expect.objectContaining({
+				name: "plugin-mock",
+				metadata: {
+					source: "plugin",
+					plugin: "mcp-ext",
+				},
+			}),
+		]);
+		await session.shutdown("test");
 	});
 
 	it("composes extension-registered rules into the runtime system prompt", async () => {
@@ -522,6 +561,85 @@ describe("SessionRuntime message preparation", () => {
 			),
 		);
 		expect(textParts).toEqual(["original", "builder-added"]);
+	});
+
+	it("merges beforeModel metadata through final message preparation", async () => {
+		const extension: AgentExtension = {
+			name: "metadata-ext",
+			manifest: { capabilities: ["hooks"] },
+			hooks: {
+				beforeModel: () => ({
+					options: {
+						metadata: {
+							runId: "run-plugin",
+							iteration: 2,
+						},
+					},
+				}),
+			},
+		};
+		const { deps, configs } = makeRecordingRuntimeFactory();
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				extensions: [extension],
+				hooks: {
+					beforeModel: () => ({
+						options: {
+							metadata: {
+								sessionId: "session-config",
+								conversationId: "conversation-config",
+							},
+						},
+					}),
+				},
+			}),
+			deps,
+		);
+
+		await (
+			session as unknown as {
+				ensureExtensionsInitialized(): Promise<void>;
+			}
+		).ensureExtensionsInitialized();
+		const hooks = (
+			session as unknown as {
+				createRuntimeHooks(): AgentRuntimeConfig["hooks"];
+			}
+		).createRuntimeHooks();
+		const beforeModel = hooks?.beforeModel;
+		expect(beforeModel).toBeDefined();
+
+		const result = await beforeModel?.({
+			snapshot: makeSnapshot(),
+			request: {
+				systemPrompt: "system",
+				messages: [
+					{
+						id: "m1",
+						role: "user",
+						content: [
+							{
+								type: "text",
+								text: "<user_input>original</user_input>",
+							},
+						],
+						createdAt: 1,
+					},
+				],
+				tools: [],
+			},
+		});
+
+		expect(result?.options?.metadata).toMatchObject({
+			sessionId: "session-config",
+			conversationId: "conversation-config",
+			runId: "run-plugin",
+			iteration: 2,
+		});
+		expect(result?.messages?.[0]?.content).toEqual([
+			{ type: "text", text: "original" },
+		]);
+		expect(configs).toHaveLength(0);
 	});
 
 	it("adapts prepareTurn with API-safe messages for runtime compaction", async () => {
