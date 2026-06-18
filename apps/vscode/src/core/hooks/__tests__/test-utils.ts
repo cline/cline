@@ -1,8 +1,11 @@
+import { spyOn } from "bun:test"
 import * as fs from "fs/promises"
 import * as os from "os"
 import * as path from "path"
 import should from "should"
 import sinon from "sinon"
+import { HostProvider } from "../../../hosts/host-provider"
+import { setVscodeHostProviderMock } from "../../../test/host-provider-test-utils"
 import { HookOutput } from "../../../shared/proto/cline/hooks"
 import * as diskModule from "../../storage/disk"
 import { StateManager } from "../../storage/StateManager"
@@ -60,17 +63,36 @@ export function hookPath(hooksDir: string, hookName: string, platform: NodeJS.Pl
 	return path.join(hooksDir, hookFileName(hookName, platform))
 }
 
-export function stubHookDirs(sandbox: sinon.SinonSandbox, dirs: string[]): sinon.SinonStub {
-	const existing = diskModule.getAllHooksDirs as unknown as sinon.SinonStub
-	if (existing && typeof existing.getCall === "function") {
-		existing.resolves(dirs)
-		return existing
-	}
+// bun loads real ESM, so sinon cannot stub the `getAllHooksDirs` namespace
+// export ("ES Modules cannot be stubbed"). Use bun's spyOn, which can replace
+// ESM namespace bindings in place. The spy is tracked module-locally so the
+// per-env cleanup can restore it (the sandbox arg is retained for call-site
+// compatibility but is unused for this export).
+let hooksDirsSpy: ReturnType<typeof spyOn> | undefined
 
-	return sandbox.stub(diskModule, "getAllHooksDirs").resolves(dirs)
+export function stubHookDirs(_sandbox: sinon.SinonSandbox, dirs: string[]): ReturnType<typeof spyOn> {
+	if (!hooksDirsSpy) {
+		hooksDirsSpy = spyOn(diskModule, "getAllHooksDirs")
+	}
+	hooksDirsSpy.mockImplementation(async () => dirs)
+	return hooksDirsSpy
+}
+
+function restoreHookDirsSpy(): void {
+	hooksDirsSpy?.mockRestore()
+	hooksDirsSpy = undefined
 }
 
 export async function createHookTestEnv(): Promise<HookTestEnv> {
+	// Hook execution emits telemetry, which lazily constructs TelemetryService
+	// via HostProvider.env.getHostVersion(). Under mocha's single-process run an
+	// earlier suite left HostProvider initialized; bun's per-file isolation does
+	// not, so initialize it here (idempotent) to keep the telemetry path from
+	// throwing "HostProvider not setup".
+	if (!HostProvider.isInitialized()) {
+		setVscodeHostProviderMock()
+	}
+
 	const sandbox = sinon.createSandbox()
 	const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "hook-test-"))
 	const hooksDir = await createHooksDirectory(tempDir)
@@ -96,6 +118,7 @@ export async function createHookTestEnv(): Promise<HookTestEnv> {
 		sandbox,
 		cleanup: async () => {
 			sandbox.restore()
+			restoreHookDirsSpy()
 			resetHookCache()
 			await removeTempDirWithRetry(tempDir)
 		},

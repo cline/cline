@@ -1,5 +1,5 @@
 import * as assert from "assert"
-import { describe, it } from "mocha"
+import { describe, it } from "bun:test"
 import { DiffViewProvider } from "../DiffViewProvider"
 
 class TestBoundaryDiffViewProvider extends DiffViewProvider {
@@ -278,8 +278,6 @@ describe("DiffViewProvider Update Throttling", () => {
 	})
 
 	it("should allow update after throttle period", async function () {
-		this.timeout(500) // Allow time for the delay
-
 		const provider = new ThrottleTestDiffViewProvider()
 		provider.setup("initial\n")
 
@@ -293,7 +291,7 @@ describe("DiffViewProvider Update Throttling", () => {
 		// Next update should go through
 		await provider.update("line1\nline2\n", false)
 		assert.strictEqual(provider.replaceTextCallCount, 2, "Update after throttle period should go through")
-	})
+	}, 500)
 
 	it("should always process final updates regardless of throttling", async () => {
 		const provider = new ThrottleTestDiffViewProvider()
@@ -334,8 +332,6 @@ describe("DiffViewProvider Update Throttling", () => {
 	})
 
 	it("should reset throttle state on reset()", async function () {
-		this.timeout(500)
-
 		const provider = new ThrottleTestDiffViewProvider()
 		provider.setup("initial\n")
 
@@ -356,7 +352,7 @@ describe("DiffViewProvider Update Throttling", () => {
 		// Update immediately after reset should go through (throttle state cleared)
 		await provider.update("newcontent\n", false)
 		assert.strictEqual(provider.replaceTextCallCount, 1, "Update after reset should go through immediately")
-	})
+	}, 500)
 
 	it("should allow first update to go through immediately", async () => {
 		const provider = new ThrottleTestDiffViewProvider()
@@ -368,8 +364,6 @@ describe("DiffViewProvider Update Throttling", () => {
 	})
 
 	it("should handle streaming simulation with many rapid updates", async function () {
-		this.timeout(500)
-
 		const provider = new ThrottleTestDiffViewProvider()
 		provider.setup("")
 
@@ -395,11 +389,9 @@ describe("DiffViewProvider Update Throttling", () => {
 		// Final update always goes through
 		await provider.update(contentAfterWait + "end", true)
 		assert.strictEqual(provider.replaceTextCallCount, 3, "Final update should go through")
-	})
+	}, 500)
 
 	it("should throttle by time regardless of content length changes", async function () {
-		this.timeout(500)
-
 		const provider = new ThrottleTestDiffViewProvider()
 		provider.setup("")
 
@@ -417,7 +409,7 @@ describe("DiffViewProvider Update Throttling", () => {
 		// Now should go through
 		await provider.update("line1\nline2\nline3\nline4\n", false)
 		assert.strictEqual(provider.replaceTextCallCount, 2, "Should update after throttle period")
-	})
+	}, 500)
 })
 
 describe("DiffViewProvider Newline Preservation", () => {

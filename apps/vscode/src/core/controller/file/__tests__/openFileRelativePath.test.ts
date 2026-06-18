@@ -1,19 +1,31 @@
 import { Controller } from "@core/controller"
-import * as openFileIntegration from "@integrations/misc/open-file"
+import * as actualOpenFileIntegration from "@integrations/misc/open-file"
 import { Empty, StringRequest } from "@shared/proto/cline/common"
-import * as pathUtils from "@utils/path"
+import * as actualPathUtils from "@utils/path"
 import { expect } from "chai"
-import { afterEach, beforeEach, describe, it } from "mocha"
+import { afterEach, beforeEach, describe, it, mock } from "bun:test"
 import * as path from "path"
 import * as sinon from "sinon"
 import { Logger } from "@/shared/services/Logger"
+
+// bun loads real ESM, so sinon cannot stub the `@integrations/misc/open-file`
+// and `@utils/path` namespace exports ("ES Modules cannot be stubbed"). Inject
+// module-level sinon stubs via mock.module so the full sinon stub API keeps
+// working. (`Logger` is a class with static methods and is still sinon-stubbed
+// directly below.)
+const openFileIntegrationStub: sinon.SinonStub = sinon.stub()
+const getWorkspacePathStub: sinon.SinonStub = sinon.stub()
+const openFileMock = () => ({ ...actualOpenFileIntegration, openFile: openFileIntegrationStub })
+const pathUtilsMock = () => ({ ...actualPathUtils, getWorkspacePath: getWorkspacePathStub })
+mock.module("@integrations/misc/open-file", openFileMock)
+mock.module("@utils/path", pathUtilsMock)
+mock.module("@/utils/path", pathUtilsMock)
+
 import { openFileRelativePath } from "../openFileRelativePath"
 
 describe("openFileRelativePath", () => {
 	let sandbox: sinon.SinonSandbox
 	let mockController: Controller
-	let openFileIntegrationStub: sinon.SinonStub
-	let getWorkspacePathStub: sinon.SinonStub
 	let consoleErrorStub: sinon.SinonStub
 
 	beforeEach(() => {
@@ -22,11 +34,9 @@ describe("openFileRelativePath", () => {
 		// Create a mock controller
 		mockController = {} as any
 
-		// Stub the openFileIntegration function
-		openFileIntegrationStub = sandbox.stub(openFileIntegration, "openFile")
-
-		// Stub getWorkspacePath utility
-		getWorkspacePathStub = sandbox.stub(pathUtils, "getWorkspacePath")
+		// Reset the module-level sinon stubs (injected via mock.module above)
+		openFileIntegrationStub.reset()
+		getWorkspacePathStub.reset()
 
 		// Stub console.error to prevent test output pollution
 		consoleErrorStub = sandbox.stub(Logger, "error")
@@ -34,6 +44,8 @@ describe("openFileRelativePath", () => {
 
 	afterEach(() => {
 		sandbox.restore()
+		openFileIntegrationStub.reset()
+		getWorkspacePathStub.reset()
 	})
 
 	it("should return Empty response on successful execution", async () => {

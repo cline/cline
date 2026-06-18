@@ -1,6 +1,6 @@
 import { getProviderCollectionSync } from "@cline/llms"
 import { expect } from "chai"
-import { describe, it } from "mocha"
+import { describe, it } from "bun:test"
 import { getProviderDefaultModelId, getProviderModelIdKey } from "../provider-keys"
 
 describe("Provider key mapping", () => {

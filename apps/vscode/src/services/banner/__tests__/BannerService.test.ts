@@ -5,7 +5,7 @@
 
 import type { BannerRules } from "@shared/ClineBanner"
 import { expect } from "chai"
-import { afterEach, beforeEach, describe, it } from "mocha"
+import { afterEach, beforeEach, describe, it } from "bun:test"
 import * as sinon from "sinon"
 import { ClineEnv, Environment } from "@/config"
 import { Controller } from "@/core/controller"

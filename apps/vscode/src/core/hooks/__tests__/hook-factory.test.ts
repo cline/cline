@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, it } from "mocha"
+import { afterEach, beforeEach, describe, it } from "bun:test"
 import "should"
 import fs from "fs/promises"
 import path from "path"
@@ -21,7 +21,6 @@ describe("Hook System", () => {
 
 	beforeEach(async function () {
 		if (process.platform === "win32") {
-			this.timeout(WINDOWS_TEST_TIMEOUT_MS)
 		}
 		setDistinctId("test-id")
 		hookTestEnv = await createHookTestEnv()
@@ -54,7 +53,6 @@ describe("Hook System", () => {
 	describe("StdioHookRunner", () => {
 		it("should execute workspace hook from its respective workspace root directory", async function () {
 			if (process.platform === "win32") {
-				this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
 			}
 
 			// Create a test hook script that outputs the current working directory
@@ -88,7 +86,7 @@ console.log(JSON.stringify({
 			const normalizedCwd = await fs.realpath(cwdFromHook)
 			const normalizedTempDir = await fs.realpath(tempDir)
 			normalizedCwd.should.equal(normalizedTempDir)
-		})
+		}, WINDOWS_HOOK_TEST_TIMEOUT_MS)
 
 		it("should execute hook script and parse output", async () => {
 			// Create a test hook script
@@ -619,7 +617,6 @@ console.log(JSON.stringify({
 
 		it("should execute global hook from primary workspace root directory", async function () {
 			if (process.platform === "win32") {
-				this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
 			}
 
 			// Create a global hook script that outputs the current working directory
@@ -652,7 +649,7 @@ console.log(JSON.stringify({
 			const normalizedCwd = await fs.realpath(cwdFromHook)
 			const normalizedTempDir = await fs.realpath(tempDir)
 			normalizedCwd.should.equal(normalizedTempDir)
-		})
+		}, WINDOWS_HOOK_TEST_TIMEOUT_MS)
 
 		it("should work with global PostToolUse hooks", async () => {
 			// Create global PostToolUse hook

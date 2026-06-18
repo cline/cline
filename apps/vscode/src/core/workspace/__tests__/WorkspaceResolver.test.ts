@@ -5,7 +5,7 @@
 
 import { VcsType, WorkspaceRoot } from "@shared/multi-root/types"
 import { expect } from "chai"
-import { afterEach, beforeEach, describe, it } from "mocha"
+import { afterEach, beforeEach, describe, it } from "bun:test"
 import * as path from "path"
 import * as sinon from "sinon"
 import { Logger } from "@/shared/services/Logger"

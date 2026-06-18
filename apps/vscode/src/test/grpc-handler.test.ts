@@ -1,12 +1,25 @@
 import { expect } from "chai"
 import "should"
-import { afterEach, beforeEach, describe, it } from "mocha"
+import { afterEach, beforeEach, describe, it, mock } from "bun:test"
 import * as sinon from "sinon"
+import * as actualProtobusServices from "@generated/hosts/vscode/protobus-services"
 import { Controller } from "@/core/controller"
-import { handleGrpcRequest } from "@/core/controller/grpc-handler"
 import { GrpcRecorder } from "@/core/controller/grpc-recorder/grpc-recorder"
 import type { ExtensionMessage } from "@/shared/ExtensionMessage"
 import type { GrpcRequest } from "@/shared/WebviewMessage"
+
+// bun loads real ESM, so sinon cannot replace the `serviceHandlers` namespace
+// binding ("Cannot replace module namespace object's binding's value"). Route it
+// through a STABLE object reference installed via mock.module; the SUT reads
+// `serviceHandlers[serviceName]` at call time, so each test mutates the contents
+// of this same object (clearing then assigning) rather than swapping the binding.
+const currentServiceHandlers: Record<string, unknown> = {}
+mock.module("@generated/hosts/vscode/protobus-services", () => ({
+	...actualProtobusServices,
+	serviceHandlers: currentServiceHandlers,
+}))
+
+import { handleGrpcRequest } from "@/core/controller/grpc-handler"
 
 describe("GrpcHandler Recording Middleware", () => {
 	let recorderStub: sinon.SinonStubbedInstance<any>
@@ -41,7 +54,10 @@ describe("GrpcHandler Recording Middleware", () => {
 			},
 		}
 
-		sinon.stub(require("@generated/hosts/vscode/protobus-services"), "serviceHandlers").value(mockServiceHandlers)
+		for (const key of Object.keys(currentServiceHandlers)) {
+			delete currentServiceHandlers[key]
+		}
+		Object.assign(currentServiceHandlers, mockServiceHandlers)
 	})
 
 	afterEach(() => {

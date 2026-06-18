@@ -1,13 +1,32 @@
-import * as diskModule from "@core/storage/disk"
+import * as actualDiskModule from "@core/storage/disk"
 import { expect } from "chai"
-import chokidar from "chokidar"
-import { afterEach, beforeEach, describe, it } from "mocha"
+import * as actualChokidar from "chokidar"
+import { afterEach, beforeEach, describe, it, mock } from "bun:test"
 import * as path from "path"
 import * as sinon from "sinon"
 import * as vscode from "vscode"
 import { Controller } from "@/core/controller"
 import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
 import type { FileMetadataEntry, TaskMetadata } from "./ContextTrackerTypes"
+
+// bun loads real ESM, so sinon cannot stub the `@core/storage/disk` and
+// `chokidar` namespace exports ("ES Modules cannot be stubbed"). Inject
+// module-level sinon stubs via mock.module so the full sinon stub API keeps
+// working. (`vscode` is the writable unit-test stub, still sinon-stubbed below.)
+const getTaskMetadataStub: sinon.SinonStub = sinon.stub()
+const saveTaskMetadataStub: sinon.SinonStub = sinon.stub()
+const chokidarWatchStub: sinon.SinonStub = sinon.stub()
+const diskMock = () => ({
+	...actualDiskModule,
+	getTaskMetadata: getTaskMetadataStub,
+	saveTaskMetadata: saveTaskMetadataStub,
+})
+const chokidarNamespace = { ...actualChokidar, watch: chokidarWatchStub }
+const chokidarMock = () => ({ ...chokidarNamespace, default: chokidarNamespace })
+mock.module("@core/storage/disk", diskMock)
+mock.module("@/core/storage/disk", diskMock)
+mock.module("chokidar", chokidarMock)
+
 import { FileContextTracker } from "./FileContextTracker"
 
 describe("FileContextTracker", () => {
@@ -17,11 +36,8 @@ describe("FileContextTracker", () => {
 	let sandbox: sinon.SinonSandbox
 	let _mockWorkspace: sinon.SinonStub
 	let mockFileSystemWatcher: any
-	let chokidarWatchStub: sinon.SinonStub
 	let tracker: FileContextTracker
 	let mockTaskMetadata: TaskMetadata
-	let getTaskMetadataStub: sinon.SinonStub
-	let saveTaskMetadataStub: sinon.SinonStub
 
 	beforeEach(() => {
 		sandbox = sinon.createSandbox()
@@ -43,13 +59,16 @@ describe("FileContextTracker", () => {
 		// Return the watcher itself for chaining
 		mockFileSystemWatcher.on.returns(mockFileSystemWatcher)
 
-		// Stub chokidar.watch to return our mock watcher
-		chokidarWatchStub = sandbox.stub(chokidar, "watch").returns(mockFileSystemWatcher as any)
+		// Reset the module-level chokidar.watch stub to return our mock watcher
+		chokidarWatchStub.reset()
+		chokidarWatchStub.returns(mockFileSystemWatcher as any)
 
-		// Mock disk module functions
+		// Reset the module-level disk stubs
 		mockTaskMetadata = { files_in_context: [], model_usage: [], environment_history: [] }
-		getTaskMetadataStub = sandbox.stub(diskModule, "getTaskMetadata").resolves(mockTaskMetadata)
-		saveTaskMetadataStub = sandbox.stub(diskModule, "saveTaskMetadata").resolves()
+		getTaskMetadataStub.reset()
+		getTaskMetadataStub.resolves(mockTaskMetadata)
+		saveTaskMetadataStub.reset()
+		saveTaskMetadataStub.resolves()
 
 		setVscodeHostProviderMock()
 

@@ -4,7 +4,7 @@
  */
 
 import { expect } from "chai"
-import { describe, it } from "mocha"
+import { describe, it } from "bun:test"
 import { synchronizeRemoteRuleToggles } from "@/core/context/instructions/user-instructions/rule-helpers"
 import { parseRemoteSkillEntries } from "@/core/context/instructions/user-instructions/skills"
 import { transformRemoteConfigToStateShape } from "@/core/storage/remote-config/utils"

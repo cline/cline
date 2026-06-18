@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, it } from "mocha"
+import { afterEach, beforeEach, describe, it } from "bun:test"
 import "should"
 import fs from "fs/promises"
 import path from "path"
@@ -37,8 +37,6 @@ describe("UserPromptSubmit Hook", () => {
 
 	describe("Hook Input Format", () => {
 		it("should receive prompt text from user content", async function () {
-			this.timeout(5000)
-
 			const hookPath = path.join(tempDir, ".clinerules", "hooks", "UserPromptSubmit")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
@@ -63,7 +61,7 @@ console.log(JSON.stringify({
 
 			result.cancel.should.be.false()
 			result.contextModification?.should.equal("Received prompt")
-		})
+		}, 5000)
 
 		it("should handle multiline prompts", async () => {
 			const hookPath = path.join(tempDir, ".clinerules", "hooks", "UserPromptSubmit")
@@ -373,8 +371,6 @@ console.log(JSON.stringify({
 		it("should validate representative fixtures end-to-end", async function () {
 			// Multiple fixture scenarios spawn child processes sequentially,
 			// which can easily exceed the default 2 s Mocha timeout.
-			this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
-
 			const scenarios: FixtureScenario[] = [
 				{
 					fixtureName: "success",
@@ -455,7 +451,7 @@ console.log(JSON.stringify({
 					},
 				)
 			}
-		})
+		}, WINDOWS_HOOK_TEST_TIMEOUT_MS)
 
 		it("should cover malformed-json fixture path", async () => {
 			await withFixtureRunner("UserPromptSubmit", "hooks/userpromptsubmit/malformed-json", hookTestEnv, async (runner) => {

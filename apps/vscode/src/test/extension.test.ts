@@ -1,5 +1,5 @@
 import { readFile } from "fs/promises"
-import { after, describe, it } from "mocha"
+import { afterAll, describe, it } from "bun:test"
 import path from "path"
 import "should"
 import * as vscode from "vscode"
@@ -7,7 +7,7 @@ import * as vscode from "vscode"
 const packagePath = path.join(__dirname, "..", "..", "package.json")
 
 describe("Cline Extension", () => {
-	after(() => {
+	afterAll(() => {
 		vscode.window.showInformationMessage("All tests done!")
 	})
 

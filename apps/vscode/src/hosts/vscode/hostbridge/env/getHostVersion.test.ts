@@ -1,5 +1,5 @@
 import { strict as assert } from "assert"
-import { afterEach, describe, it } from "mocha"
+import { afterEach, describe, it } from "bun:test"
 import * as sinon from "sinon"
 import * as vscode from "vscode"
 import { ExtensionRegistryInfo } from "@/registry"

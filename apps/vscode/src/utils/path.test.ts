@@ -1,4 +1,4 @@
-import { describe, it } from "mocha"
+import { describe, it } from "bun:test"
 import * as os from "os"
 import * as path from "path"
 import "should"

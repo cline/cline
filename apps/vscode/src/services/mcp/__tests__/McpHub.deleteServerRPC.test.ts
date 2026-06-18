@@ -1,10 +1,31 @@
-import { afterEach, beforeEach, describe, it } from "mocha"
+import { afterEach, beforeEach, describe, it, mock } from "bun:test"
 import "should"
-import * as diskModule from "@core/storage/disk"
+import * as actualDiskModule from "@core/storage/disk"
+import * as actualFsPromises from "fs/promises"
 import fs from "fs/promises"
 import os from "os"
 import path from "path"
 import sinon from "sinon"
+
+// bun loads real ESM, so sinon cannot stub the `@core/storage/disk` namespace
+// export, and `fs.promises` (the default import below) is NOT the same object as
+// the SUT's `import * as fs from "fs/promises"`. Inject module-level sinon stubs
+// via mock.module so the full sinon stub API keeps working on the exact
+// specifiers the SUT imports. `writeFile` defaults to the real implementation so
+// the test's own settings-file writes still hit disk.
+// Capture the genuine writeFile before mock.module overrides `fs/promises`, so
+// the test's pass-through stub does not recurse into itself.
+const realWriteFile = actualFsPromises.writeFile
+const getMcpSettingsFilePathStub: sinon.SinonStub = sinon.stub()
+const writeFileStub: sinon.SinonStub = sinon.stub()
+const diskMock = () => ({ ...actualDiskModule, getMcpSettingsFilePath: getMcpSettingsFilePathStub })
+const fsPromisesNamespace = { ...actualFsPromises, writeFile: writeFileStub }
+const fsPromisesMock = () => ({ ...fsPromisesNamespace, default: fsPromisesNamespace })
+mock.module("@core/storage/disk", diskMock)
+mock.module("@/core/storage/disk", diskMock)
+mock.module("fs/promises", fsPromisesMock)
+mock.module("node:fs/promises", fsPromisesMock)
+
 import { McpHub } from "../McpHub"
 
 // Regression tests for McpHub.deleteServerRPC(): deleting one server must not
@@ -45,7 +66,12 @@ describe("McpHub.deleteServerRPC", () => {
 		tempDir = path.join(os.tmpdir(), `mcp-delete-test-${Date.now()}-${Math.random().toString(36).slice(2)}`)
 		await fs.mkdir(tempDir, { recursive: true })
 		settingsPath = path.join(tempDir, "cline_mcp_settings.json")
-		sandbox.stub(diskModule, "getMcpSettingsFilePath").resolves(settingsPath)
+		getMcpSettingsFilePathStub.reset()
+		getMcpSettingsFilePathStub.resolves(settingsPath)
+		// Default writeFile to the real implementation; individual tests can wrap
+		// it to observe behavior.
+		writeFileStub.reset()
+		writeFileStub.callsFake((...args: unknown[]) => (realWriteFile as (...a: unknown[]) => Promise<void>)(...args))
 
 		hub = Object.create(McpHub.prototype) as McpHub
 		;(hub as any).getSettingsDirectoryPath = async () => tempDir
@@ -95,10 +121,11 @@ describe("McpHub.deleteServerRPC", () => {
 		const clock = sandbox.useFakeTimers()
 		await writeSettings({ alpha: { type: "stdio", command: "a" }, beta: { type: "stdio", command: "b" } })
 
-		// Capture the flag at the moment the settings file is written.
+		// Capture the flag at the moment the settings file is written. Wrap the
+		// module-level writeFile stub (mock.module) rather than sinon-stubbing the
+		// ESM `fs/promises` namespace, which bun forbids.
 		let flagDuringWrite: boolean | undefined
-		const realWriteFile = fs.writeFile.bind(fs)
-		sandbox.stub(fs, "writeFile").callsFake((...args: unknown[]) => {
+		writeFileStub.callsFake((...args: unknown[]) => {
 			flagDuringWrite = (hub as any).isUpdatingClineSettings
 			return (realWriteFile as (...a: unknown[]) => Promise<void>)(...args)
 		})

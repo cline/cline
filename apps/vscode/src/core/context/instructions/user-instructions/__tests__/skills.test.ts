@@ -4,14 +4,56 @@
  */
 
 import { expect } from "chai"
-import * as fs from "fs"
-import { afterEach, beforeEach, describe, it } from "mocha"
+import * as actualFsPromises from "fs/promises"
+import { afterEach, beforeEach, describe, it, mock } from "bun:test"
 import * as path from "path"
 import * as sinon from "sinon"
 
-import * as skillDirectories from "@/core/storage/skill-directories"
+import * as actualSkillDirectories from "@/core/storage/skill-directories"
 import { Logger } from "@/shared/services/Logger"
-import * as fsUtils from "@/utils/fs"
+import * as actualFsUtils from "@/utils/fs"
+
+// bun loads real ESM, so sinon cannot stub the `@utils/fs`,
+// `@core/storage/skill-directories`, or the `fs/promises` namespace exports
+// ("ES Modules cannot be stubbed"). Crucially, under bun `fs.promises` and the
+// `fs/promises` module are NOT the same object, so stubbing `fs.promises.X`
+// (which worked under mocha/ts-node) does not affect the SUT's
+// `import * as fs from "fs/promises"` bindings. Inject module-level sinon stubs
+// via bun's mock.module so the full sinon stub API (.withArgs/.resolves/etc.)
+// keeps working through the exact specifiers the SUT imports.
+const fileExistsAtPathStub = sinon.stub()
+const isDirectoryStub_ = sinon.stub()
+const getSkillsDirectoriesForScanStub = sinon.stub()
+const readdirStub_ = sinon.stub()
+const statStub_ = sinon.stub()
+const readFileStub_ = sinon.stub()
+const writeFileStub_ = sinon.stub()
+const fsUtilsMock = () => ({
+	...actualFsUtils,
+	fileExistsAtPath: fileExistsAtPathStub,
+	isDirectory: isDirectoryStub_,
+})
+const skillDirsMock = () => ({
+	...actualSkillDirectories,
+	getSkillsDirectoriesForScan: getSkillsDirectoriesForScanStub,
+})
+const fsPromisesMockNamespace = {
+	...actualFsPromises,
+	readdir: readdirStub_,
+	stat: statStub_,
+	readFile: readFileStub_,
+	writeFile: writeFileStub_,
+}
+const fsPromisesMock = () => ({ ...fsPromisesMockNamespace, default: fsPromisesMockNamespace })
+// The SUT imports via the `@utils/*` and `@core/*` tsconfig path aliases;
+// register both the `@/`-prefixed and bare-alias forms to be safe.
+mock.module("@utils/fs", fsUtilsMock)
+mock.module("@/utils/fs", fsUtilsMock)
+mock.module("@core/storage/skill-directories", skillDirsMock)
+mock.module("@/core/storage/skill-directories", skillDirsMock)
+mock.module("fs/promises", fsPromisesMock)
+mock.module("node:fs/promises", fsPromisesMock)
+
 import { parseYamlFrontmatter } from "../frontmatter"
 import {
 	discoverSkills,
@@ -40,13 +82,22 @@ describe("Skills Utility Functions", () => {
 		// Stub Logger.warn to avoid noise in test output
 		sandbox.stub(Logger, "warn")
 
-		// Stub filesystem utilities
-		fileExistsStub = sandbox.stub(fsUtils, "fileExistsAtPath")
-		isDirectoryStub = sandbox.stub(fsUtils, "isDirectory")
-		readdirStub = sandbox.stub(fs.promises, "readdir")
-		statStub = sandbox.stub(fs.promises, "stat")
-		readFileStub = sandbox.stub(fs.promises, "readFile")
-		sandbox.stub(skillDirectories, "getSkillsDirectoriesForScan").returns([
+		// Reset the module-level sinon stubs (injected via mock.module above) and
+		// re-point the per-test handles at them.
+		fileExistsAtPathStub.reset()
+		isDirectoryStub_.reset()
+		getSkillsDirectoriesForScanStub.reset()
+		readdirStub_.reset()
+		statStub_.reset()
+		readFileStub_.reset()
+		writeFileStub_.reset()
+		fileExistsStub = fileExistsAtPathStub
+		isDirectoryStub = isDirectoryStub_
+		readdirStub = readdirStub_
+		statStub = statStub_
+		readFileStub = readFileStub_
+
+		getSkillsDirectoriesForScanStub.returns([
 			{ path: path.join(TEST_CWD, ".clinerules", "skills"), source: "project" },
 			{ path: path.join(TEST_CWD, ".cline", "skills"), source: "project" },
 			{ path: path.join(TEST_CWD, ".claude", "skills"), source: "project" },
@@ -743,8 +794,13 @@ describe("setSkillDisabledInFrontmatter", () => {
 	beforeEach(() => {
 		sandbox = sinon.createSandbox()
 		sandbox.stub(Logger, "warn")
-		readFileStub = sandbox.stub(fs.promises, "readFile")
-		writeFileStub = sandbox.stub(fs.promises, "writeFile").resolves()
+		// Use the module-level fs/promises stubs (mock.module above) since under
+		// bun fs.promises !== the `fs/promises` module the SUT imports.
+		readFileStub_.reset()
+		writeFileStub_.reset()
+		readFileStub = readFileStub_
+		writeFileStub = writeFileStub_
+		writeFileStub.resolves()
 	})
 
 	afterEach(() => sandbox.restore())

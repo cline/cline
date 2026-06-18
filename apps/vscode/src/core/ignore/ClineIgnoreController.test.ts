@@ -1,5 +1,5 @@
 import fs from "fs/promises"
-import { after, beforeEach, describe, it } from "mocha"
+import { afterAll, beforeEach, describe, it } from "bun:test"
 import os from "os"
 import path from "path"
 import { ClineIgnoreController } from "./ClineIgnoreController"
@@ -26,7 +26,7 @@ describe("ClineIgnoreController", () => {
 		await controller.initialize()
 	})
 
-	after(async () => {
+	afterAll(async () => {
 		// Clean up temp directory
 		await fs.rm(tempDir, { recursive: true, force: true })
 	})

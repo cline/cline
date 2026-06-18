@@ -1,4 +1,4 @@
-import { describe, it } from "mocha"
+import { describe, it } from "bun:test"
 import type { ClineMessage } from "./ExtensionMessage"
 import "should"
 import { combineHookSequences } from "./combineHookSequences"

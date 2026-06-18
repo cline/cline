@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, it } from "mocha"
+import { afterEach, beforeEach, describe, it } from "bun:test"
 import "should"
 import fs from "fs/promises"
 import path from "path"
@@ -113,7 +113,6 @@ console.log(JSON.stringify({
 	describe("Time-Based Calculations", () => {
 		it("should correctly calculate minutes ago for recent resumes", async function () {
 			if (process.platform === "win32") {
-				this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
 			}
 
 			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskResume")
@@ -155,11 +154,10 @@ console.log(JSON.stringify({
 
 				result.contextModification?.should.equal(`Minutes ago: ${expected}`)
 			}
-		})
+		}, WINDOWS_HOOK_TEST_TIMEOUT_MS)
 
 		it("should handle very old timestamps (days ago)", async function () {
 			if (process.platform === "win32") {
-				this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
 			}
 
 			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskResume")
@@ -193,7 +191,7 @@ console.log(JSON.stringify({
 			})
 
 			result.contextModification?.should.equal("Days ago: 7")
-		})
+		}, WINDOWS_HOOK_TEST_TIMEOUT_MS)
 
 		it("should handle edge case: future timestamp", async () => {
 			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskResume")
@@ -232,7 +230,6 @@ console.log(JSON.stringify({
 	describe("Message Count Analysis", () => {
 		it("should analyze message count thresholds", async function () {
 			if (process.platform === "win32") {
-				this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
 			}
 
 			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskResume")
@@ -274,7 +271,7 @@ console.log(JSON.stringify({
 
 				result.contextModification?.should.equal(`Conversation length: ${expected}`)
 			}
-		})
+		}, WINDOWS_HOOK_TEST_TIMEOUT_MS)
 
 		it("should handle zero message count", async () => {
 			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskResume")
@@ -555,8 +552,6 @@ console.log(JSON.stringify({
 		it("should validate representative fixtures end-to-end", async function () {
 			// Multiple fixture scenarios spawn child processes sequentially,
 			// which can easily exceed the default 2 s Mocha timeout.
-			this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
-
 			const scenarios: FixtureScenario[] = [
 				{
 					fixtureName: "success",
@@ -639,7 +634,7 @@ console.log(JSON.stringify({
 					scenario.assert(result)
 				})
 			}
-		})
+		}, WINDOWS_HOOK_TEST_TIMEOUT_MS)
 
 		it("should preserve fixture-based failure behavior", async () => {
 			await withFixtureRunner("TaskResume", "hooks/taskresume/error", hookTestEnv, async (runner) => {

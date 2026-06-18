@@ -206,15 +206,23 @@ jobs:
                     exit 1
                   fi
 
-            - name: Unit Tests with coverage - Linux
+            - name: Unit Tests (bun) - Linux
               id: unit_tests_linux
               if: ${{ !cancelled() && steps.build_step.outcome == 'success' && runner.os == 'Linux' }}
-              # Keep nyc/c8 coverage for the still-mocha unit suite; invoke nyc via bunx
-              # and run the suite through `bun run test:unit`.
+              # The node-side unit suite (.mocharc spec set) now runs under `bun test`
+              # via scripts/run-bun-unit-tests.ts (one isolated bun process per file).
+              # The runner exits non-zero on any failure and prints a final
+              # "Files: N  Pass: P  Fail: F" summary; assert a non-zero pass count to
+              # guard against an empty glob silently "passing".
               run: |
-                  bunx nyc --nycrc-path .nycrc.unit.json --reporter=lcov bun run test:unit
+                  set -o pipefail
+                  bun run test:unit 2>&1 | tee unit-output.log
+                  if ! grep -Eq 'Pass:[[:space:]]+[0-9]*[1-9][0-9]*' unit-output.log; then
+                    echo "ERROR: bun unit runner reported zero passing tests (possible silent skip)."
+                    exit 1
+                  fi
 
-            - name: Unit Tests - Non-Linux
+            - name: Unit Tests (bun) - Non-Linux
               id: unit_tests_non_linux
               if: ${{ !cancelled() && steps.build_step.outcome == 'success' && runner.os != 'Linux' }}
               run: |

@@ -1,6 +1,6 @@
 import { strict as assert } from "assert"
 import * as fs from "fs/promises"
-import { afterEach, beforeEach, describe, it } from "mocha"
+import { afterEach, beforeEach, describe, it } from "bun:test"
 import * as os from "os"
 import pWaitFor from "p-wait-for"
 import * as path from "path"

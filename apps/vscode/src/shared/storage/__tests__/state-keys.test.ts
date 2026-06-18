@@ -36,7 +36,7 @@
  */
 
 import { expect } from "chai"
-import { describe, it } from "mocha"
+import { describe, it } from "bun:test"
 
 import {
 	applyTransform,
