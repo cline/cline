@@ -1,13 +1,13 @@
-import { parseYamlFrontmatter } from "@core/context/instructions/user-instructions/frontmatter"
-import { StateManager } from "@core/storage/StateManager"
-import { openFile as openFileIntegration } from "@integrations/misc/open-file"
-import { Empty, StringRequest } from "@shared/proto/cline/common"
-import { REMOTE_URI_SCHEME } from "@shared/remote-config/constants"
-import type { GlobalInstructionsFile } from "@shared/remote-config/schema"
-import { writeFile } from "@utils/fs"
-import * as os from "os"
-import * as path from "path"
-import { Controller } from ".."
+import { parseYamlFrontmatter } from "@core/context/instructions/user-instructions/frontmatter";
+import { StateManager } from "@core/storage/StateManager";
+import { openFile as openFileIntegration } from "@integrations/misc/open-file";
+import { Empty, StringRequest } from "@shared/proto/cline/common";
+import { REMOTE_URI_SCHEME } from "@shared/remote-config/constants";
+import type { GlobalInstructionsFile } from "@shared/remote-config/schema";
+import { writeFile } from "@utils/fs";
+import * as os from "os";
+import * as path from "path";
+import { Controller } from "..";
 
 /**
  * Opens a file in the editor
@@ -19,16 +19,19 @@ import { Controller } from ".."
  *                - remote://skill/{skillName}
  * @returns Empty response
  */
-export async function openFile(_controller: Controller, request: StringRequest): Promise<Empty> {
+export async function openFile(
+	_controller: Controller,
+	request: StringRequest,
+): Promise<Empty> {
 	if (request.value) {
 		// Check for remote:// prefix for remote rules/workflows
 		if (request.value.startsWith(REMOTE_URI_SCHEME)) {
-			await openRemoteFile(request.value)
+			await openRemoteFile(request.value);
 		} else {
-			await openFileIntegration(request.value)
+			await openFileIntegration(request.value);
 		}
 	}
-	return Empty.create()
+	return Empty.create();
 }
 
 /**
@@ -37,45 +40,48 @@ export async function openFile(_controller: Controller, request: StringRequest):
  */
 async function openRemoteFile(uri: string): Promise<void> {
 	// Parse: remote://rule/{name}, remote://workflow/{name}, or remote://skill/{name}
-	const match = uri.match(/^remote:\/\/(rule|workflow|skill)\/(.+)$/)
+	const match = uri.match(/^remote:\/\/(rule|workflow|skill)\/(.+)$/);
 	if (!match) {
-		throw new Error(`Invalid remote file URI: ${uri}`)
+		throw new Error(`Invalid remote file URI: ${uri}`);
 	}
 
-	const [, type, name] = match
-	const remoteConfig = StateManager.get().getRemoteConfigSettings()
+	const [, type, name] = match;
+	const remoteConfig = StateManager.get().getRemoteConfigSettings();
 
 	// Look up content based on type
-	let items: GlobalInstructionsFile[] | undefined
+	let items: GlobalInstructionsFile[] | undefined;
 	if (type === "rule") {
-		items = remoteConfig.remoteGlobalRules
+		items = remoteConfig.remoteGlobalRules;
 	} else if (type === "workflow") {
-		items = remoteConfig.remoteGlobalWorkflows
+		items = remoteConfig.remoteGlobalWorkflows;
 	} else {
-		items = remoteConfig.remoteGlobalSkills
+		items = remoteConfig.remoteGlobalSkills;
 	}
 	// Try entry.name first (fast path), fall back to frontmatter.name for skills
 	// in case entry.name drifts from the frontmatter
-	let item = items?.find((r) => r.name === name)
+	let item = items?.find((r) => r.name === name);
 	if (!item && type === "skill") {
 		item = items?.find((r) => {
-			const { data } = parseYamlFrontmatter(r.contents)
-			return typeof data.name === "string" && data.name === name
-		})
+			const { data } = parseYamlFrontmatter(r.contents);
+			return typeof data.name === "string" && data.name === name;
+		});
 	}
 
 	if (!item?.contents) {
-		throw new Error(`Remote ${type} not found: ${name}`)
+		throw new Error(`Remote ${type} not found: ${name}`);
 	}
 
 	// Create temp file with read-only header comment
-	const header = `# ⚠️ READ-ONLY: This ${type} is managed by your organization.\n# Changes made here will not be saved.\n\n`
-	const content = header + item.contents
+	const header = `# ⚠️ READ-ONLY: This ${type} is managed by your organization.\n# Changes made here will not be saved.\n\n`;
+	const content = header + item.contents;
 
 	// Sanitize the name for use in filename (replace invalid characters)
-	const sanitizedName = name.replace(/[<>:"/\\|?*]/g, "_")
-	const tempPath = path.join(os.tmpdir(), `cline-remote-${type}-${sanitizedName}.md`)
+	const sanitizedName = name.replace(/[<>:"/\\|?*]/g, "_");
+	const tempPath = path.join(
+		os.tmpdir(),
+		`cline-remote-${type}-${sanitizedName}.md`,
+	);
 
-	await writeFile(tempPath, content)
-	await openFileIntegration(tempPath)
+	await writeFile(tempPath, content);
+	await openFileIntegration(tempPath);
 }

@@ -1029,13 +1029,12 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						},
 					}),
 				)
-				// Focus the textarea after mode toggle with slight delay
-				setTimeout(() => {
-					if (response.value) {
-						setInputValue("")
-					}
-					textAreaRef.current?.focus()
-				}, 100)
+				if (response.forwarded) {
+					setInputValue("")
+				} else if (response.returnedMessage) {
+					setInputValue(response.returnedMessage)
+				}
+				textAreaRef.current?.focus()
 			})()
 		}, [mode, inputValue, selectedImages, selectedFiles, setInputValue])
 

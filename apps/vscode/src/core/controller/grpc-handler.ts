@@ -1,10 +1,10 @@
-import { Controller } from "@core/controller/index"
-import { serviceHandlers } from "@generated/hosts/vscode/protobus-services"
-import { GrpcRecorderBuilder } from "@/core/controller/grpc-recorder/grpc-recorder.builder"
-import { GrpcRequestRegistry } from "@/core/controller/grpc-request-registry"
-import { ExtensionMessage } from "@/shared/ExtensionMessage"
-import { Logger } from "@/shared/services/Logger"
-import { GrpcCancel, GrpcRequest } from "@/shared/WebviewMessage"
+import { Controller } from "@core/controller/index";
+import { serviceHandlers } from "@generated/hosts/vscode/protobus-services";
+import { GrpcRecorderBuilder } from "@/core/controller/grpc-recorder/grpc-recorder.builder";
+import { GrpcRequestRegistry } from "@/core/controller/grpc-request-registry";
+import { ExtensionMessage } from "@/shared/ExtensionMessage";
+import { Logger } from "@/shared/services/Logger";
+import { GrpcCancel, GrpcRequest } from "@/shared/WebviewMessage";
 
 /**
  * Type definition for a streaming response handler
@@ -13,27 +13,32 @@ export type StreamingResponseHandler<TResponse> = (
 	response: TResponse,
 	isLast?: boolean,
 	sequenceNumber?: number,
-) => Promise<void>
+) => Promise<void>;
 
-export type PostMessageToWebview = (message: ExtensionMessage) => Thenable<boolean | undefined>
+export type PostMessageToWebview = (
+	message: ExtensionMessage,
+) => Thenable<boolean | undefined>;
 
 /**
  * Creates a middleware wrapper for recording gRPC requests and responses
  */
-function withRecordingMiddleware(postMessage: PostMessageToWebview, controller: Controller): PostMessageToWebview {
+function withRecordingMiddleware(
+	postMessage: PostMessageToWebview,
+	controller: Controller,
+): PostMessageToWebview {
 	return async (response: ExtensionMessage) => {
 		if (response?.grpc_response) {
 			try {
 				GrpcRecorderBuilder.getRecorder(controller).recordResponse(
 					response.grpc_response.request_id,
 					response.grpc_response,
-				)
+				);
 			} catch (e) {
-				Logger.warn("Failed to record gRPC response:", e)
+				Logger.warn("Failed to record gRPC response:", e);
 			}
 		}
-		return postMessage(response)
-	}
+		return postMessage(response);
+	};
 }
 
 /**
@@ -41,9 +46,9 @@ function withRecordingMiddleware(postMessage: PostMessageToWebview, controller: 
  */
 function recordRequest(request: GrpcRequest, controller: Controller): void {
 	try {
-		GrpcRecorderBuilder.getRecorder(controller).recordRequest(request)
+		GrpcRecorderBuilder.getRecorder(controller).recordRequest(request);
 	} catch (e) {
-		Logger.warn("Failed to record gRPC request:", e)
+		Logger.warn("Failed to record gRPC request:", e);
 	}
 }
 
@@ -55,15 +60,18 @@ export async function handleGrpcRequest(
 	postMessageToWebview: PostMessageToWebview,
 	request: GrpcRequest,
 ): Promise<void> {
-	recordRequest(request, controller)
+	recordRequest(request, controller);
 
 	// Create recording middleware wrapper
-	const postMessageWithRecording = withRecordingMiddleware(postMessageToWebview, controller)
+	const postMessageWithRecording = withRecordingMiddleware(
+		postMessageToWebview,
+		controller,
+	);
 
 	if (request.is_streaming) {
-		await handleStreamingRequest(controller, postMessageWithRecording, request)
+		await handleStreamingRequest(controller, postMessageWithRecording, request);
 	} else {
-		await handleUnaryRequest(controller, postMessageWithRecording, request)
+		await handleUnaryRequest(controller, postMessageWithRecording, request);
 	}
 }
 
@@ -79,9 +87,9 @@ async function handleUnaryRequest(
 ): Promise<void> {
 	try {
 		// Get the service handler from the config
-		const handler = getHandler(request.service, request.method)
+		const handler = getHandler(request.service, request.method);
 		// Handle unary request
-		const response = await handler(controller, request.message)
+		const response = await handler(controller, request.message);
 		// Send response to the webview
 		await postMessageToWebview({
 			type: "grpc_response",
@@ -89,10 +97,10 @@ async function handleUnaryRequest(
 				message: response,
 				request_id: request.request_id,
 			},
-		})
+		});
 	} catch (error) {
 		// Send error response
-		Logger.log("Protobus error:", error)
+		Logger.log("Protobus error:", error);
 		await postMessageToWebview({
 			type: "grpc_response",
 			grpc_response: {
@@ -100,7 +108,7 @@ async function handleUnaryRequest(
 				request_id: request.request_id,
 				is_streaming: false,
 			},
-		})
+		});
 	}
 }
 
@@ -129,21 +137,26 @@ async function handleStreamingRequest(
 				is_streaming: !isLast,
 				sequence_number: sequenceNumber,
 			},
-		})
-	}
+		});
+	};
 
 	try {
 		// Get the service handler from the config
-		const handler = getHandler(request.service, request.method)
+		const handler = getHandler(request.service, request.method);
 
 		// Handle streaming request and pass the requestId to all streaming handlers
-		await handler(controller, request.message, responseStream, request.request_id)
+		await handler(
+			controller,
+			request.message,
+			responseStream,
+			request.request_id,
+		);
 
 		// Don't send a final message here - the stream should stay open for future updates
 		// The stream will be closed when the client disconnects or when the service explicitly ends it
 	} catch (error) {
 		// Send error response
-		Logger.log("Protobus error:", error)
+		Logger.log("Protobus error:", error);
 		await postMessageToWebview({
 			type: "grpc_response",
 			grpc_response: {
@@ -151,7 +164,7 @@ async function handleStreamingRequest(
 				request_id: request.request_id,
 				is_streaming: false,
 			},
-		})
+		});
 	}
 }
 
@@ -160,8 +173,11 @@ async function handleStreamingRequest(
  * @param controller The controller instance
  * @param request The cancellation request
  */
-export async function handleGrpcRequestCancel(postMessageToWebview: PostMessageToWebview, request: GrpcCancel) {
-	const cancelled = requestRegistry.cancelRequest(request.request_id)
+export async function handleGrpcRequestCancel(
+	postMessageToWebview: PostMessageToWebview,
+	request: GrpcCancel,
+) {
+	const cancelled = requestRegistry.cancelRequest(request.request_id);
 
 	if (cancelled) {
 		// Send a cancellation confirmation
@@ -172,32 +188,34 @@ export async function handleGrpcRequestCancel(postMessageToWebview: PostMessageT
 				request_id: request.request_id,
 				is_streaming: false,
 			},
-		})
+		});
 	} else {
-		Logger.log(`[DEBUG] Request not found for cancellation: ${request.request_id}`)
+		Logger.log(
+			`[DEBUG] Request not found for cancellation: ${request.request_id}`,
+		);
 	}
 }
 
 // Registry to track active gRPC requests and their cleanup functions
-const requestRegistry = new GrpcRequestRegistry()
+const requestRegistry = new GrpcRequestRegistry();
 
 /**
  * Get the request registry instance
  * This allows other parts of the code to access the registry
  */
 export function getRequestRegistry(): GrpcRequestRegistry {
-	return requestRegistry
+	return requestRegistry;
 }
 
 function getHandler(serviceName: string, methodName: string): any {
 	// Get the service handler from the config
-	const serviceConfig = serviceHandlers[serviceName]
+	const serviceConfig = serviceHandlers[serviceName];
 	if (!serviceConfig) {
-		throw new Error(`Unknown service: ${serviceName}`)
+		throw new Error(`Unknown service: ${serviceName}`);
 	}
-	const handler = serviceConfig[methodName]
+	const handler = serviceConfig[methodName];
 	if (!handler) {
-		throw new Error(`Unknown rpc: ${serviceName}.${methodName}`)
+		throw new Error(`Unknown rpc: ${serviceName}.${methodName}`);
 	}
-	return handler
+	return handler;
 }

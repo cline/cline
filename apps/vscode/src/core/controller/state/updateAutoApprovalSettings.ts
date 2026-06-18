@@ -1,6 +1,6 @@
-import { Empty } from "@shared/proto/cline/common"
-import { AutoApprovalSettingsRequest } from "@shared/proto/cline/state"
-import { Controller } from ".."
+import { Empty } from "@shared/proto/cline/common";
+import { AutoApprovalSettingsRequest } from "@shared/proto/cline/state";
+import { Controller } from "..";
 
 /**
  * Updates the auto approval settings
@@ -8,10 +8,14 @@ import { Controller } from ".."
  * @param request The auto approval settings request
  * @returns Empty response
  */
-export async function updateAutoApprovalSettings(controller: Controller, request: AutoApprovalSettingsRequest): Promise<Empty> {
-	const currentSettings = (await controller.getStateToPostToWebview()).autoApprovalSettings
-	const incomingVersion = request.version
-	const currentVersion = currentSettings?.version ?? 1
+export async function updateAutoApprovalSettings(
+	controller: Controller,
+	request: AutoApprovalSettingsRequest,
+): Promise<Empty> {
+	const currentSettings = (await controller.getStateToPostToWebview())
+		.autoApprovalSettings;
+	const incomingVersion = request.version;
+	const currentVersion = currentSettings?.version ?? 1;
 
 	// Only update if incoming version is higher
 	if (incomingVersion > currentVersion) {
@@ -19,19 +23,25 @@ export async function updateAutoApprovalSettings(controller: Controller, request
 		const settings = {
 			...currentSettings,
 			...(request.version !== undefined && { version: request.version }),
-			...(request.enableNotifications !== undefined && { enableNotifications: request.enableNotifications }),
+			...(request.enableNotifications !== undefined && {
+				enableNotifications: request.enableNotifications,
+			}),
 			actions: {
 				...currentSettings.actions,
 				...(request.actions
-					? Object.fromEntries(Object.entries(request.actions).filter(([_, v]) => v !== undefined))
+					? Object.fromEntries(
+							Object.entries(request.actions).filter(
+								([_, v]) => v !== undefined,
+							),
+						)
 					: {}),
 			},
-		}
+		};
 
-		controller.stateManager.setGlobalState("autoApprovalSettings", settings)
+		controller.stateManager.setGlobalState("autoApprovalSettings", settings);
 
-		await controller.postStateToWebview()
+		await controller.postStateToWebview();
 	}
 
-	return Empty.create()
+	return Empty.create();
 }

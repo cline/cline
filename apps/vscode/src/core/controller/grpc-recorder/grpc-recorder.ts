@@ -1,15 +1,15 @@
-import { GrpcResponse } from "@shared/ExtensionMessage"
-import { GrpcRequest } from "@shared/WebviewMessage"
-import { GrpcRecorderBuilder } from "@/core/controller/grpc-recorder/grpc-recorder.builder"
-import { ILogFileHandler } from "@/core/controller/grpc-recorder/log-file-handler"
+import { GrpcResponse } from "@shared/ExtensionMessage";
+import { GrpcRequest } from "@shared/WebviewMessage";
+import { GrpcRecorderBuilder } from "@/core/controller/grpc-recorder/grpc-recorder.builder";
+import { ILogFileHandler } from "@/core/controller/grpc-recorder/log-file-handler";
 import {
 	GrpcLogEntry,
 	GrpcPostRecordHook,
 	GrpcRequestFilter,
 	GrpcSessionLog,
 	SessionStats,
-} from "@/core/controller/grpc-recorder/types"
-import { Logger } from "@/shared/services/Logger"
+} from "@/core/controller/grpc-recorder/types";
+import { Logger } from "@/shared/services/Logger";
 
 export class GrpcRecorderNoops implements IRecorder {
 	recordRequest(_request: GrpcRequest): void {}
@@ -19,17 +19,17 @@ export class GrpcRecorderNoops implements IRecorder {
 		return {
 			startTime: "",
 			entries: [],
-		}
+		};
 	}
 	cleanupSyntheticEntries(): void {}
 }
 
 export interface IRecorder {
-	recordRequest(request: GrpcRequest, synthetic?: boolean): void
-	recordResponse(requestId: string, response: GrpcResponse): void
-	recordError(requestId: string, error: string): void
-	getSessionLog(): GrpcSessionLog
-	cleanupSyntheticEntries(): void
+	recordRequest(request: GrpcRequest, synthetic?: boolean): void;
+	recordResponse(requestId: string, response: GrpcResponse): void;
+	recordError(requestId: string, error: string): void;
+	getSessionLog(): GrpcSessionLog;
+	cleanupSyntheticEntries(): void;
 }
 
 /**
@@ -42,8 +42,11 @@ export interface IRecorder {
  * - Persists logs asynchronously through a file handler.
  */
 export class GrpcRecorder implements IRecorder {
-	private sessionLog: GrpcSessionLog
-	private pendingRequests: Map<string, { entry: GrpcLogEntry; startTime: number }> = new Map()
+	private sessionLog: GrpcSessionLog;
+	private pendingRequests: Map<
+		string,
+		{ entry: GrpcLogEntry; startTime: number }
+	> = new Map();
 
 	constructor(
 		private fileHandler: ILogFileHandler,
@@ -53,15 +56,15 @@ export class GrpcRecorder implements IRecorder {
 		this.sessionLog = {
 			startTime: new Date().toISOString(),
 			entries: [],
-		}
+		};
 
 		this.fileHandler.initialize(this.sessionLog).catch((error) => {
-			Logger.error("Failed to initialize gRPC log file:", error)
-		})
+			Logger.error("Failed to initialize gRPC log file:", error);
+		});
 	}
 
 	public static builder(): GrpcRecorderBuilder {
-		return new GrpcRecorderBuilder()
+		return new GrpcRecorderBuilder();
 	}
 
 	/**
@@ -75,7 +78,7 @@ export class GrpcRecorder implements IRecorder {
 	 */
 	public recordRequest(request: GrpcRequest, synthetic: boolean = false): void {
 		if (this.shouldFilter(request)) {
-			return
+			return;
 		}
 
 		const entry: GrpcLogEntry = {
@@ -88,19 +91,19 @@ export class GrpcRecorder implements IRecorder {
 			},
 			status: "pending",
 			meta: { synthetic },
-		}
+		};
 
 		this.pendingRequests.set(request.request_id, {
 			entry,
 			startTime: Date.now(),
-		})
+		});
 
-		this.sessionLog.entries.push(entry)
-		this.flushLogAsync()
+		this.sessionLog.entries.push(entry);
+		this.flushLogAsync();
 	}
 
 	public getSessionLog(): GrpcSessionLog {
-		return this.sessionLog
+		return this.sessionLog;
 	}
 
 	/**
@@ -116,56 +119,62 @@ export class GrpcRecorder implements IRecorder {
 	 * @param response - The corresponding gRPC response.
 	 */
 	public recordResponse(requestId: string, response: GrpcResponse): void {
-		const pendingRequest = this.pendingRequests.get(requestId)
+		const pendingRequest = this.pendingRequests.get(requestId);
 
 		if (!pendingRequest) {
-			Logger.warn(`No pending request found for response with ID: ${requestId}`)
-			return
+			Logger.warn(
+				`No pending request found for response with ID: ${requestId}`,
+			);
+			return;
 		}
 
-		const { entry, startTime } = pendingRequest
+		const { entry, startTime } = pendingRequest;
 
 		entry.response = {
 			message: response?.message ? response.message : undefined,
 			error: response?.error,
 			isStreaming: response?.is_streaming,
 			sequenceNumber: response?.sequence_number,
-		}
+		};
 
-		entry.duration = Date.now() - startTime
-		entry.status = response?.error ? "error" : "completed"
+		entry.duration = Date.now() - startTime;
+		entry.status = response?.error ? "error" : "completed";
 
 		if (!response?.is_streaming) {
-			this.pendingRequests.delete(requestId)
+			this.pendingRequests.delete(requestId);
 		}
 
-		this.sessionLog.stats = this.getStats()
+		this.sessionLog.stats = this.getStats();
 
-		this.flushLogAsync()
+		this.flushLogAsync();
 
-		this.runHooks(entry).catch((e) => Logger.error("Post-record hook failed:", e))
+		this.runHooks(entry).catch((e) =>
+			Logger.error("Post-record hook failed:", e),
+		);
 	}
 
 	private async runHooks(entry: GrpcLogEntry): Promise<void> {
-		if (entry.meta?.synthetic) return
+		if (entry.meta?.synthetic) return;
 		for (const hook of this.postRecordHooks) {
-			await hook(entry)
+			await hook(entry);
 		}
 	}
 
 	public cleanupSyntheticEntries(): void {
 		// Remove synthetic entries from session log
-		this.sessionLog.entries = this.sessionLog.entries.filter((entry) => !entry.meta?.synthetic)
+		this.sessionLog.entries = this.sessionLog.entries.filter(
+			(entry) => !entry.meta?.synthetic,
+		);
 
 		// clean up from pending requests if needed
 		for (const [requestId, pendingRequest] of this.pendingRequests.entries()) {
 			if (pendingRequest.entry.meta?.synthetic) {
-				this.pendingRequests.delete(requestId)
+				this.pendingRequests.delete(requestId);
 			}
 		}
 
-		this.sessionLog.stats = this.getStats()
-		this.flushLogAsync()
+		this.sessionLog.stats = this.getStats();
+		this.flushLogAsync();
 	}
 
 	/**
@@ -180,47 +189,53 @@ export class GrpcRecorder implements IRecorder {
 	 * @param error - Error message.
 	 */
 	public recordError(requestId: string, error: string): void {
-		const pendingRequest = this.pendingRequests.get(requestId)
+		const pendingRequest = this.pendingRequests.get(requestId);
 		if (!pendingRequest) {
-			Logger.warn(`No pending request found for error with ID: ${requestId}`)
-			return
+			Logger.warn(`No pending request found for error with ID: ${requestId}`);
+			return;
 		}
 
-		const { entry, startTime } = pendingRequest
+		const { entry, startTime } = pendingRequest;
 
 		entry.response = {
 			error: error,
-		}
-		entry.duration = Date.now() - startTime
-		entry.status = "error"
+		};
+		entry.duration = Date.now() - startTime;
+		entry.status = "error";
 
-		this.pendingRequests.delete(requestId)
-		this.flushLogAsync()
+		this.pendingRequests.delete(requestId);
+		this.flushLogAsync();
 	}
 
 	private flushLogAsync(): void {
 		setImmediate(() => {
 			this.fileHandler.write(this.sessionLog).catch((error) => {
-				Logger.error("Failed to flush gRPC log:", error)
-			})
-		})
+				Logger.error("Failed to flush gRPC log:", error);
+			});
+		});
 	}
 
 	public getStats(): SessionStats {
-		const totalRequests = this.sessionLog.entries.length
-		const pendingRequests = this.sessionLog.entries.filter((e) => e.status === "pending").length
-		const completedRequests = this.sessionLog.entries.filter((e) => e.status === "completed").length
-		const errorRequests = this.sessionLog.entries.filter((e) => e.status === "error").length
+		const totalRequests = this.sessionLog.entries.length;
+		const pendingRequests = this.sessionLog.entries.filter(
+			(e) => e.status === "pending",
+		).length;
+		const completedRequests = this.sessionLog.entries.filter(
+			(e) => e.status === "completed",
+		).length;
+		const errorRequests = this.sessionLog.entries.filter(
+			(e) => e.status === "error",
+		).length;
 
 		return {
 			totalRequests,
 			pendingRequests,
 			completedRequests,
 			errorRequests,
-		}
+		};
 	}
 
 	private shouldFilter(request: GrpcRequest): boolean {
-		return this.requestFilters.some((filter) => filter(request))
+		return this.requestFilters.some((filter) => filter(request));
 	}
 }

@@ -1,11 +1,13 @@
-import { EmptyRequest } from "@shared/proto/cline/common"
-import { McpMarketplaceCatalog } from "@shared/proto/cline/mcp"
-import { Logger } from "@/shared/services/Logger"
-import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
-import { Controller } from "../index"
+import { EmptyRequest } from "@shared/proto/cline/common";
+import { McpMarketplaceCatalog } from "@shared/proto/cline/mcp";
+import { Logger } from "@/shared/services/Logger";
+import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler";
+import { Controller } from "../index";
 
 // Keep track of active subscriptions
-const activeMcpMarketplaceSubscriptions = new Set<StreamingResponseHandler<McpMarketplaceCatalog>>()
+const activeMcpMarketplaceSubscriptions = new Set<
+	StreamingResponseHandler<McpMarketplaceCatalog>
+>();
 
 /**
  * Subscribe to MCP marketplace catalog updates
@@ -21,36 +23,45 @@ export async function subscribeToMcpMarketplaceCatalog(
 	requestId?: string,
 ): Promise<void> {
 	// Add this subscription to the active subscriptions
-	activeMcpMarketplaceSubscriptions.add(responseStream)
+	activeMcpMarketplaceSubscriptions.add(responseStream);
 
 	// Register cleanup when the connection is closed
 	const cleanup = () => {
-		activeMcpMarketplaceSubscriptions.delete(responseStream)
-	}
+		activeMcpMarketplaceSubscriptions.delete(responseStream);
+	};
 
 	// Register the cleanup function with the request registry if we have a requestId
 	if (requestId) {
-		getRequestRegistry().registerRequest(requestId, cleanup, { type: "mcp_marketplace_subscription" }, responseStream)
+		getRequestRegistry().registerRequest(
+			requestId,
+			cleanup,
+			{ type: "mcp_marketplace_subscription" },
+			responseStream,
+		);
 	}
 }
 
 /**
  * Send an MCP marketplace catalog event to all active subscribers
  */
-export async function sendMcpMarketplaceCatalogEvent(catalog: McpMarketplaceCatalog): Promise<void> {
+export async function sendMcpMarketplaceCatalogEvent(
+	catalog: McpMarketplaceCatalog,
+): Promise<void> {
 	// Send the event to all active subscribers
-	const promises = Array.from(activeMcpMarketplaceSubscriptions).map(async (responseStream) => {
-		try {
-			await responseStream(
-				catalog,
-				false, // Not the last message
-			)
-		} catch (error) {
-			Logger.error("Error sending MCP marketplace catalog event:", error)
-			// Remove the subscription if there was an error
-			activeMcpMarketplaceSubscriptions.delete(responseStream)
-		}
-	})
+	const promises = Array.from(activeMcpMarketplaceSubscriptions).map(
+		async (responseStream) => {
+			try {
+				await responseStream(
+					catalog,
+					false, // Not the last message
+				);
+			} catch (error) {
+				Logger.error("Error sending MCP marketplace catalog event:", error);
+				// Remove the subscription if there was an error
+				activeMcpMarketplaceSubscriptions.delete(responseStream);
+			}
+		},
+	);
 
-	await Promise.all(promises)
+	await Promise.all(promises);
 }

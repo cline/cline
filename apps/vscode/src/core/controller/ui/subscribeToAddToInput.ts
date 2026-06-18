@@ -1,10 +1,18 @@
-import type { EmptyRequest, String as ProtoString } from "@shared/proto/cline/common"
-import { Logger } from "@/shared/services/Logger"
-import { getRequestRegistry, type StreamingResponseHandler } from "../grpc-handler"
-import type { Controller } from "../index"
+import type {
+	EmptyRequest,
+	String as ProtoString,
+} from "@shared/proto/cline/common";
+import { Logger } from "@/shared/services/Logger";
+import {
+	getRequestRegistry,
+	type StreamingResponseHandler,
+} from "../grpc-handler";
+import type { Controller } from "../index";
 
 // Keep track of active addToInput subscriptions
-const activeAddToInputSubscriptions = new Set<StreamingResponseHandler<ProtoString>>()
+const activeAddToInputSubscriptions = new Set<
+	StreamingResponseHandler<ProtoString>
+>();
 
 /**
  * Subscribe to addToInput events
@@ -20,16 +28,21 @@ export async function subscribeToAddToInput(
 	requestId?: string,
 ): Promise<void> {
 	// Add this subscription to the active subscriptions
-	activeAddToInputSubscriptions.add(responseStream)
+	activeAddToInputSubscriptions.add(responseStream);
 
 	// Register cleanup when the connection is closed
 	const cleanup = () => {
-		activeAddToInputSubscriptions.delete(responseStream)
-	}
+		activeAddToInputSubscriptions.delete(responseStream);
+	};
 
 	// Register the cleanup function with the request registry if we have a requestId
 	if (requestId) {
-		getRequestRegistry().registerRequest(requestId, cleanup, { type: "addToInput_subscription" }, responseStream)
+		getRequestRegistry().registerRequest(
+			requestId,
+			cleanup,
+			{ type: "addToInput_subscription" },
+			responseStream,
+		);
 	}
 }
 
@@ -39,21 +52,23 @@ export async function subscribeToAddToInput(
  */
 export async function sendAddToInputEvent(text: string): Promise<void> {
 	// Send the event to all active subscribers
-	const promises = Array.from(activeAddToInputSubscriptions).map(async (responseStream) => {
-		try {
-			const event: ProtoString = {
-				value: text,
+	const promises = Array.from(activeAddToInputSubscriptions).map(
+		async (responseStream) => {
+			try {
+				const event: ProtoString = {
+					value: text,
+				};
+				await responseStream(
+					event,
+					false, // Not the last message
+				);
+			} catch (error) {
+				Logger.error("Error sending addToInput event:", error);
+				// Remove the subscription if there was an error
+				activeAddToInputSubscriptions.delete(responseStream);
 			}
-			await responseStream(
-				event,
-				false, // Not the last message
-			)
-		} catch (error) {
-			Logger.error("Error sending addToInput event:", error)
-			// Remove the subscription if there was an error
-			activeAddToInputSubscriptions.delete(responseStream)
-		}
-	})
+		},
+	);
 
-	await Promise.all(promises)
+	await Promise.all(promises);
 }

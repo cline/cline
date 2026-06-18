@@ -1,10 +1,13 @@
-import { EmptyRequest } from "@shared/proto/cline/common"
-import { OpenRouterCompatibleModelInfo, OpenRouterModelInfo } from "@shared/proto/cline/models"
-import axios from "axios"
-import { toRequestyServiceUrl } from "@/shared/clients/requesty"
-import { getAxiosSettings } from "@/shared/net"
-import { Logger } from "@/shared/services/Logger"
-import { Controller } from ".."
+import { EmptyRequest } from "@shared/proto/cline/common";
+import {
+	OpenRouterCompatibleModelInfo,
+	OpenRouterModelInfo,
+} from "@shared/proto/cline/models";
+import axios from "axios";
+import { toRequestyServiceUrl } from "@/shared/clients/requesty";
+import { getAxiosSettings } from "@/shared/net";
+import { Logger } from "@/shared/services/Logger";
+import { Controller } from "..";
 
 /**
  * Refreshes the Requesty models and returns the updated model list
@@ -12,30 +15,37 @@ import { Controller } from ".."
  * @param request Empty request object
  * @returns Response containing the Requesty models
  */
-export async function refreshRequestyModels(controller: Controller, _: EmptyRequest): Promise<OpenRouterCompatibleModelInfo> {
+export async function refreshRequestyModels(
+	controller: Controller,
+	_: EmptyRequest,
+): Promise<OpenRouterCompatibleModelInfo> {
 	const parsePrice = (price: any) => {
 		if (price) {
-			return parseFloat(price) * 1_000_000
+			return parseFloat(price) * 1_000_000;
 		}
-		return undefined
-	}
+		return undefined;
+	};
 
-	const models: Record<string, OpenRouterModelInfo> = {}
+	const models: Record<string, OpenRouterModelInfo> = {};
 	try {
-		const apiKey = controller.stateManager.getSecretKey("requestyApiKey")
-		const baseUrl = controller.stateManager.getGlobalSettingsKey("requestyBaseUrl")
+		const apiKey = controller.stateManager.getSecretKey("requestyApiKey");
+		const baseUrl =
+			controller.stateManager.getGlobalSettingsKey("requestyBaseUrl");
 
-		const resolvedUrl = toRequestyServiceUrl(baseUrl)
-		const url = resolvedUrl != null ? new URL(`${resolvedUrl.pathname}/models`, resolvedUrl).toString() : undefined
+		const resolvedUrl = toRequestyServiceUrl(baseUrl);
+		const url =
+			resolvedUrl != null
+				? new URL(`${resolvedUrl.pathname}/models`, resolvedUrl).toString()
+				: undefined;
 
 		if (url == null) {
-			throw new Error("URL is not valid.")
+			throw new Error("URL is not valid.");
 		}
 
 		const headers = {
 			Authorization: `Bearer ${apiKey}`,
-		}
-		const response = await axios.get(url, { headers, ...getAxiosSettings() })
+		};
+		const response = await axios.get(url, { headers, ...getAxiosSettings() });
 		if (response.data?.data) {
 			for (const model of response.data.data) {
 				const modelInfo: OpenRouterModelInfo = OpenRouterModelInfo.create({
@@ -48,16 +58,16 @@ export async function refreshRequestyModels(controller: Controller, _: EmptyRequ
 					cacheWritesPrice: parsePrice(model.caching_price) || 0,
 					cacheReadsPrice: parsePrice(model.cached_price) || 0,
 					description: model.description,
-				})
-				models[model.id] = modelInfo
+				});
+				models[model.id] = modelInfo;
 			}
-			Logger.log("Requesty models fetched", models)
+			Logger.log("Requesty models fetched", models);
 		} else {
-			Logger.error("Invalid response from Requesty API")
+			Logger.error("Invalid response from Requesty API");
 		}
 	} catch (error) {
-		Logger.error("Error fetching Requesty models:", error)
+		Logger.error("Error fetching Requesty models:", error);
 	}
 
-	return OpenRouterCompatibleModelInfo.create({ models })
+	return OpenRouterCompatibleModelInfo.create({ models });
 }

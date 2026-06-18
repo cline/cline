@@ -1,11 +1,13 @@
-import { EmptyRequest } from "@shared/proto/cline/common"
-import { ShowWebviewEvent } from "@shared/proto/cline/ui"
-import { Logger } from "@/shared/services/Logger"
-import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
-import type { Controller } from "../index"
+import { EmptyRequest } from "@shared/proto/cline/common";
+import { ShowWebviewEvent } from "@shared/proto/cline/ui";
+import { Logger } from "@/shared/services/Logger";
+import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler";
+import type { Controller } from "../index";
 
 // Keep track of active show webview subscriptions
-const showWebviewSubscriptions = new Set<StreamingResponseHandler<ShowWebviewEvent>>()
+const showWebviewSubscriptions = new Set<
+	StreamingResponseHandler<ShowWebviewEvent>
+>();
 
 /**
  * Subscribe to show webview events
@@ -21,16 +23,21 @@ export async function subscribeToShowWebview(
 	requestId?: string,
 ): Promise<void> {
 	// Add this subscription to the active subscriptions
-	showWebviewSubscriptions.add(responseStream)
+	showWebviewSubscriptions.add(responseStream);
 
 	// Register cleanup when the connection is closed
 	const cleanup = () => {
-		showWebviewSubscriptions.delete(responseStream)
-	}
+		showWebviewSubscriptions.delete(responseStream);
+	};
 
 	// Register the cleanup function with the request registry if we have a requestId
 	if (requestId) {
-		getRequestRegistry().registerRequest(requestId, cleanup, { type: "show_webview_subscription" }, responseStream)
+		getRequestRegistry().registerRequest(
+			requestId,
+			cleanup,
+			{ type: "show_webview_subscription" },
+			responseStream,
+		);
 	}
 }
 
@@ -38,21 +45,25 @@ export async function subscribeToShowWebview(
  * Send a show webview event to all active subscribers
  * @param preserveEditorFocus When true, the webview should not steal focus from the editor
  */
-export async function sendShowWebviewEvent(preserveEditorFocus: boolean = false): Promise<void> {
+export async function sendShowWebviewEvent(
+	preserveEditorFocus: boolean = false,
+): Promise<void> {
 	// Send the event to all active subscribers
-	const promises = Array.from(showWebviewSubscriptions).map(async (responseStream) => {
-		try {
-			const event = ShowWebviewEvent.create({ preserveEditorFocus })
-			await responseStream(
-				event,
-				false, // Not the last message
-			)
-		} catch (error) {
-			Logger.error("Error sending show webview event:", error)
-			// Remove the subscription if there was an error
-			showWebviewSubscriptions.delete(responseStream)
-		}
-	})
+	const promises = Array.from(showWebviewSubscriptions).map(
+		async (responseStream) => {
+			try {
+				const event = ShowWebviewEvent.create({ preserveEditorFocus });
+				await responseStream(
+					event,
+					false, // Not the last message
+				);
+			} catch (error) {
+				Logger.error("Error sending show webview event:", error);
+				// Remove the subscription if there was an error
+				showWebviewSubscriptions.delete(responseStream);
+			}
+		},
+	);
 
-	await Promise.all(promises)
+	await Promise.all(promises);
 }

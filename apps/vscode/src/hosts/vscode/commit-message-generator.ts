@@ -1,11 +1,11 @@
-import { buildApiHandler } from "@core/api"
-import * as path from "path"
-import * as vscode from "vscode"
-import { Controller } from "@/core/controller"
-import { HostProvider } from "@/hosts/host-provider"
-import { ShowMessageType } from "@/shared/proto/host/window"
-import { Logger } from "@/shared/services/Logger"
-import { getGitDiff } from "@/utils/git"
+import { buildApiHandler } from "@core/api";
+import * as path from "path";
+import * as vscode from "vscode";
+import { Controller } from "@/core/controller";
+import { HostProvider } from "@/hosts/host-provider";
+import { ShowMessageType } from "@/shared/proto/host/window";
+import { Logger } from "@/shared/services/Logger";
+import { getGitDiff } from "@/utils/git";
 
 /**
  * Git commit message generator module
@@ -17,16 +17,17 @@ import { getGitDiff } from "@/utils/git"
  */
 export async function getGitDiffStagedFirst(cwd: string): Promise<string> {
 	try {
-		return await getGitDiff(cwd, true)
+		return await getGitDiff(cwd, true);
 	} catch {
-		return await getGitDiff(cwd, false)
+		return await getGitDiff(cwd, false);
 	}
 }
 
-let commitGenerationAbortController: AbortController | undefined
+let commitGenerationAbortController: AbortController | undefined;
 
 const PROMPT = {
-	system: "You are a helpful assistant that generates informative git commit messages based on git diffs output. Skip preamble and remove all backticks surrounding the commit message.",
+	system:
+		"You are a helpful assistant that generates informative git commit messages based on git diffs output. Skip preamble and remove all backticks surrounding the commit message.",
 	user: "Notes from developer (ignore if not relevant): {{USER_CURRENT_INPUT}}",
 	instruction: `Based on the provided git diff, generate a concise and descriptive commit message.
 
@@ -35,97 +36,106 @@ The commit message should:
 2. The commit message should adhere to the conventional commit format
 3. Describe what was changed and why
 4. Be clear and informative`,
-}
+};
 
-export async function generateCommitMsg(controller: Controller, scm?: vscode.SourceControl) {
+export async function generateCommitMsg(
+	controller: Controller,
+	scm?: vscode.SourceControl,
+) {
 	try {
-		const gitExtension = vscode.extensions.getExtension("vscode.git")?.exports
+		const gitExtension = vscode.extensions.getExtension("vscode.git")?.exports;
 		if (!gitExtension) {
-			throw new Error("Git extension not found")
+			throw new Error("Git extension not found");
 		}
 
-		const git = gitExtension.getAPI(1)
+		const git = gitExtension.getAPI(1);
 		if (git.repositories.length === 0) {
-			throw new Error("No Git repositories available")
+			throw new Error("No Git repositories available");
 		}
 
 		// If scm is provided, then the user specified one repository by clicking the "Source Control" menu button
 		if (scm) {
-			const repository = git.getRepository(scm.rootUri)
+			const repository = git.getRepository(scm.rootUri);
 
 			if (!repository) {
-				throw new Error("Repository not found for provided SCM")
+				throw new Error("Repository not found for provided SCM");
 			}
 
-			await generateCommitMsgForRepository(controller, repository)
-			return
+			await generateCommitMsgForRepository(controller, repository);
+			return;
 		}
 
-		await orchestrateWorkspaceCommitMsgGeneration(controller, git.repositories)
+		await orchestrateWorkspaceCommitMsgGeneration(controller, git.repositories);
 	} catch (error) {
-		const errorMessage = error instanceof Error ? error.message : String(error)
+		const errorMessage = error instanceof Error ? error.message : String(error);
 		HostProvider.window.showMessage({
 			type: ShowMessageType.ERROR,
 			message: `[Commit Generation Failed] ${errorMessage}`,
-		})
+		});
 	}
 }
 
-async function orchestrateWorkspaceCommitMsgGeneration(controller: Controller, repos: any[]) {
-	const reposWithChanges = await filterForReposWithChanges(repos)
+async function orchestrateWorkspaceCommitMsgGeneration(
+	controller: Controller,
+	repos: any[],
+) {
+	const reposWithChanges = await filterForReposWithChanges(repos);
 
 	if (reposWithChanges.length === 0) {
 		HostProvider.window.showMessage({
 			type: ShowMessageType.INFORMATION,
 			message: "No changes found in any workspace repositories",
-		})
-		return
+		});
+		return;
 	}
 
 	if (reposWithChanges.length === 1) {
 		// Only one repo with changes, generate for it
-		const repo = reposWithChanges[0]
-		await generateCommitMsgForRepository(controller, repo)
-		return
+		const repo = reposWithChanges[0];
+		await generateCommitMsgForRepository(controller, repo);
+		return;
 	}
 
-	const selection = await promptRepoSelection(reposWithChanges)
+	const selection = await promptRepoSelection(reposWithChanges);
 
 	if (!selection) {
 		// User cancelled
-		return
+		return;
 	}
 
 	if (selection.repo === null) {
 		// Generate for all repositories with changes
 		for (const repo of reposWithChanges) {
 			try {
-				await generateCommitMsgForRepository(controller, repo)
+				await generateCommitMsgForRepository(controller, repo);
 			} catch (error) {
-				Logger.error(`Failed to generate commit message for ${repo.rootUri.fsPath}:`, error)
+				Logger.error(
+					`Failed to generate commit message for ${repo.rootUri.fsPath}:`,
+					error,
+				);
 			}
 		}
 	} else {
 		// Generate for selected repository
-		await generateCommitMsgForRepository(controller, selection.repo)
+		await generateCommitMsgForRepository(controller, selection.repo);
 	}
 }
 
 async function filterForReposWithChanges(repos: any[]) {
-	const reposWithChanges = []
+	const reposWithChanges = [];
 
 	// Check which repositories have changes (prefer staged, fall back to all)
 	for (const repo of repos) {
 		try {
-			const gitDiff = await getGitDiffStagedFirst(repo.rootUri.fsPath)
+			const gitDiff = await getGitDiffStagedFirst(repo.rootUri.fsPath);
 			if (gitDiff) {
-				reposWithChanges.push(repo)
+				reposWithChanges.push(repo);
 			}
 		} catch {
 			// Skip repositories with errors (no changes, etc.)
 		}
 	}
-	return reposWithChanges
+	return reposWithChanges;
 }
 
 async function promptRepoSelection(repos: any[]) {
@@ -134,26 +144,31 @@ async function promptRepoSelection(repos: any[]) {
 		label: repo.rootUri.fsPath.split(path.sep).pop() || repo.rootUri.fsPath,
 		description: repo.rootUri.fsPath,
 		repo: repo,
-	}))
+	}));
 
 	repoItems.unshift({
 		label: "$(git-commit) Generate for all repositories with changes",
 		description: `Generate commit messages for ${repos.length} repositories`,
 		repo: null as any,
-	})
+	});
 
 	return await vscode.window.showQuickPick(repoItems, {
 		placeHolder: "Select repository for commit message generation",
-	})
+	});
 }
 
-async function generateCommitMsgForRepository(controller: Controller, repository: any) {
-	const inputBox = repository.inputBox
-	const repoPath = repository.rootUri.fsPath
-	const gitDiff = await getGitDiffStagedFirst(repoPath)
+async function generateCommitMsgForRepository(
+	controller: Controller,
+	repository: any,
+) {
+	const inputBox = repository.inputBox;
+	const repoPath = repository.rootUri.fsPath;
+	const gitDiff = await getGitDiffStagedFirst(repoPath);
 
 	if (!gitDiff) {
-		throw new Error(`No changes in repository ${repoPath.split(path.sep).pop() || "repository"} for commit message`)
+		throw new Error(
+			`No changes in repository ${repoPath.split(path.sep).pop() || "repository"} for commit message`,
+		);
 	}
 
 	await vscode.window.withProgress(
@@ -163,76 +178,95 @@ async function generateCommitMsgForRepository(controller: Controller, repository
 			cancellable: true,
 		},
 		() => performCommitMsgGeneration(controller, gitDiff, inputBox),
-	)
+	);
 }
 
-async function performCommitMsgGeneration(controller: Controller, gitDiff: string, inputBox: any) {
+async function performCommitMsgGeneration(
+	controller: Controller,
+	gitDiff: string,
+	inputBox: any,
+) {
 	try {
-		vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", true)
+		vscode.commands.executeCommand(
+			"setContext",
+			"cline.isGeneratingCommit",
+			true,
+		);
 
-		const prompts = [PROMPT.instruction]
+		const prompts = [PROMPT.instruction];
 
-		const workspaceManager = await controller.ensureWorkspaceManager()
+		const workspaceManager = await controller.ensureWorkspaceManager();
 		if (workspaceManager) {
-			const workspacesJson = await workspaceManager.buildWorkspacesJson()
+			const workspacesJson = await workspaceManager.buildWorkspacesJson();
 			if (workspacesJson) {
-				prompts.push(`# Workspace Configuration\n${workspacesJson}`)
+				prompts.push(`# Workspace Configuration\n${workspacesJson}`);
 			}
 		}
 
-		const currentInput = inputBox.value?.trim() || ""
+		const currentInput = inputBox.value?.trim() || "";
 		if (currentInput) {
-			prompts.push(PROMPT.user.replace("{{USER_CURRENT_INPUT}}", currentInput))
+			prompts.push(PROMPT.user.replace("{{USER_CURRENT_INPUT}}", currentInput));
 		}
 
-		const truncatedDiff = gitDiff.length > 5000 ? gitDiff.substring(0, 5000) + "\n\n[Diff truncated due to size]" : gitDiff
-		prompts.push(truncatedDiff)
+		const truncatedDiff =
+			gitDiff.length > 5000
+				? gitDiff.substring(0, 5000) + "\n\n[Diff truncated due to size]"
+				: gitDiff;
+		prompts.push(truncatedDiff);
 
-		const prompt = prompts.join("\n\n")
+		const prompt = prompts.join("\n\n");
 
 		// Get the current API configuration
 		// Set to use Act mode for now by default
-		const apiConfiguration = controller.stateManager.getApiConfiguration()
-		const currentMode = "act"
+		const apiConfiguration = controller.stateManager.getApiConfiguration();
+		const currentMode = "act";
 
 		// Build the API handler
-		const apiHandler = buildApiHandler(apiConfiguration, currentMode)
+		const apiHandler = buildApiHandler(apiConfiguration, currentMode);
 
 		// Create a system prompt
-		const systemPrompt = PROMPT.system
+		const systemPrompt = PROMPT.system;
 
 		// Create a message for the API
-		const messages = [{ role: "user" as const, content: prompt }]
+		const messages = [{ role: "user" as const, content: prompt }];
 
-		commitGenerationAbortController = new AbortController()
-		const stream = apiHandler.createMessage(systemPrompt, messages)
+		commitGenerationAbortController = new AbortController();
+		const stream = apiHandler.createMessage(systemPrompt, messages);
 
-		let response = ""
+		let response = "";
 		for await (const chunk of stream) {
-			commitGenerationAbortController.signal.throwIfAborted()
+			commitGenerationAbortController.signal.throwIfAborted();
 			if (chunk.type === "text") {
-				response += chunk.text
-				inputBox.value = extractCommitMessage(response)
+				response += chunk.text;
+				inputBox.value = extractCommitMessage(response);
 			}
 		}
 
 		if (!inputBox.value) {
-			throw new Error("empty API response")
+			throw new Error("empty API response");
 		}
 	} catch (error) {
-		const errorMessage = error instanceof Error ? error.message : String(error)
+		const errorMessage = error instanceof Error ? error.message : String(error);
 		HostProvider.window.showMessage({
 			type: ShowMessageType.ERROR,
 			message: `Failed to generate commit message: ${errorMessage}`,
-		})
+		});
 	} finally {
-		vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", false)
+		vscode.commands.executeCommand(
+			"setContext",
+			"cline.isGeneratingCommit",
+			false,
+		);
 	}
 }
 
 export function abortCommitGeneration() {
-	commitGenerationAbortController?.abort()
-	vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", false)
+	commitGenerationAbortController?.abort();
+	vscode.commands.executeCommand(
+		"setContext",
+		"cline.isGeneratingCommit",
+		false,
+	);
 }
 
 /**
@@ -245,5 +279,5 @@ function extractCommitMessage(str: string): string {
 	return str
 		.trim()
 		.replace(/^```[^\n]*\n?|```$/g, "")
-		.trim()
+		.trim();
 }

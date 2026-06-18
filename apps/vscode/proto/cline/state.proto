@@ -17,7 +17,7 @@ service StateService {
   rpc subscribeToState(EmptyRequest) returns (stream State);
   rpc toggleFavoriteModel(StringRequest) returns (Empty);
   rpc resetState(ResetStateRequest) returns (Empty);
-  rpc togglePlanActModeProto(TogglePlanActModeRequest) returns (Boolean);
+  rpc togglePlanActModeProto(TogglePlanActModeRequest) returns (TogglePlanActModeResponse);
   rpc updateAutoApprovalSettings(AutoApprovalSettingsRequest) returns (Empty);
   rpc updateSettings(UpdateSettingsRequest) returns (Empty);
   rpc updateSettingsCli(UpdateSettingsRequestCli) returns (Empty);
@@ -314,6 +314,11 @@ message TogglePlanActModeRequest {
   Metadata metadata = 1;
   PlanActMode mode = 2;
   optional ChatContent chat_content = 3;
+}
+
+message TogglePlanActModeResponse {
+  bool forwarded = 1;
+  string returned_message = 2;
 }
 
 enum PlanActMode {

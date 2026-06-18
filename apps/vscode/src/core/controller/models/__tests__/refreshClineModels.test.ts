@@ -1,47 +1,49 @@
-import * as disk from "@core/storage/disk"
-import { openRouterClaudeFable51mModelId } from "@shared/api"
-import axios from "axios"
-import { expect } from "chai"
-import fs from "fs/promises"
-import { afterEach, beforeEach, describe, it } from "mocha"
-import sinon from "sinon"
-import { ClineEnv, Environment } from "@/config"
-import type { Controller } from "@/core/controller"
-import { StateManager } from "@/core/storage/StateManager"
-import { getFeatureFlagsService } from "@/services/feature-flags"
-import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
-import { Logger } from "@/shared/services/Logger"
-import { refreshClineModels } from "../refreshClineModels"
+import * as disk from "@core/storage/disk";
+import { openRouterClaudeFable51mModelId } from "@shared/api";
+import axios from "axios";
+import { expect } from "chai";
+import fs from "fs/promises";
+import { afterEach, beforeEach, describe, it } from "mocha";
+import sinon from "sinon";
+import { ClineEnv, Environment } from "@/config";
+import type { Controller } from "@/core/controller";
+import { StateManager } from "@/core/storage/StateManager";
+import { getFeatureFlagsService } from "@/services/feature-flags";
+import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags";
+import { Logger } from "@/shared/services/Logger";
+import { refreshClineModels } from "../refreshClineModels";
 
 describe("refreshClineModels", () => {
-	let sandbox: sinon.SinonSandbox
+	let sandbox: sinon.SinonSandbox;
 
 	beforeEach(() => {
-		sandbox = sinon.createSandbox()
-		sandbox.stub(Logger, "log")
-		sandbox.stub(Logger, "error")
-	})
+		sandbox = sinon.createSandbox();
+		sandbox.stub(Logger, "log");
+		sandbox.stub(Logger, "error");
+	});
 
 	afterEach(() => {
-		sandbox.restore()
-	})
+		sandbox.restore();
+	});
 
 	it("marks Qwen 3.7 Max as prompt-cache capable when Cline model pricing includes cache reads", async () => {
-		sandbox.stub(getFeatureFlagsService(), "getBooleanFlagEnabled").callsFake((flag) => {
-			return flag === FeatureFlag.EXTENSION_CLINE_MODELS_ENDPOINT
-		})
+		sandbox
+			.stub(getFeatureFlagsService(), "getBooleanFlagEnabled")
+			.callsFake((flag) => {
+				return flag === FeatureFlag.EXTENSION_CLINE_MODELS_ENDPOINT;
+			});
 		sandbox.stub(ClineEnv, "config").returns({
 			environment: Environment.production,
 			appBaseUrl: "https://app.cline-mock.bot",
 			apiBaseUrl: "https://api.cline-mock.bot",
 			mcpBaseUrl: "https://api.cline-mock.bot/v1/mcp",
-		})
+		});
 		sandbox.stub(StateManager, "get").returns({
 			getModelsCache: () => null,
 			setModelsCache: () => {},
-		} as unknown as StateManager)
-		sandbox.stub(disk, "ensureCacheDirectoryExists").resolves("/tmp")
-		sandbox.stub(fs, "writeFile").resolves()
+		} as unknown as StateManager);
+		sandbox.stub(disk, "ensureCacheDirectoryExists").resolves("/tmp");
+		sandbox.stub(fs, "writeFile").resolves();
 		sandbox.stub(axios, "get").resolves({
 			data: {
 				data: [
@@ -67,32 +69,34 @@ describe("refreshClineModels", () => {
 					},
 				],
 			},
-		})
+		});
 
-		const models = await refreshClineModels({} as Controller)
-		const qwen37 = models["qwen/qwen3.7-max"]
+		const models = await refreshClineModels({} as Controller);
+		const qwen37 = models["qwen/qwen3.7-max"];
 
-		expect(qwen37.supportsPromptCache).to.equal(true)
-		expect(qwen37.cacheReadsPrice).to.equal(0.25)
-		expect(qwen37.cacheWritesPrice).to.equal(undefined)
-	})
+		expect(qwen37.supportsPromptCache).to.equal(true);
+		expect(qwen37.cacheReadsPrice).to.equal(0.25);
+		expect(qwen37.cacheWritesPrice).to.equal(undefined);
+	});
 
 	it("adds Claude Fable 5 context variants to the Cline model list", async () => {
-		sandbox.stub(getFeatureFlagsService(), "getBooleanFlagEnabled").callsFake((flag) => {
-			return flag === FeatureFlag.EXTENSION_CLINE_MODELS_ENDPOINT
-		})
+		sandbox
+			.stub(getFeatureFlagsService(), "getBooleanFlagEnabled")
+			.callsFake((flag) => {
+				return flag === FeatureFlag.EXTENSION_CLINE_MODELS_ENDPOINT;
+			});
 		sandbox.stub(ClineEnv, "config").returns({
 			environment: Environment.production,
 			appBaseUrl: "https://app.cline-mock.bot",
 			apiBaseUrl: "https://api.cline-mock.bot",
 			mcpBaseUrl: "https://api.cline-mock.bot/v1/mcp",
-		})
+		});
 		sandbox.stub(StateManager, "get").returns({
 			getModelsCache: () => null,
 			setModelsCache: () => {},
-		} as unknown as StateManager)
-		sandbox.stub(disk, "ensureCacheDirectoryExists").resolves("/tmp")
-		sandbox.stub(fs, "writeFile").resolves()
+		} as unknown as StateManager);
+		sandbox.stub(disk, "ensureCacheDirectoryExists").resolves("/tmp");
+		sandbox.stub(fs, "writeFile").resolves();
 		sandbox.stub(axios, "get").resolves({
 			data: {
 				data: [
@@ -119,20 +123,20 @@ describe("refreshClineModels", () => {
 					},
 				],
 			},
-		})
+		});
 
-		const models = await refreshClineModels({} as Controller)
-		const fable = models["anthropic/claude-fable-5"]
-		const fable1m = models[openRouterClaudeFable51mModelId]
+		const models = await refreshClineModels({} as Controller);
+		const fable = models["anthropic/claude-fable-5"];
+		const fable1m = models[openRouterClaudeFable51mModelId];
 
-		expect(fable.contextWindow).to.equal(200_000)
-		expect(fable.maxTokens).to.equal(128_000)
-		expect(fable.supportsPromptCache).to.equal(true)
-		expect(fable.inputPrice).to.equal(10)
-		expect(fable.outputPrice).to.equal(50)
-		expect(fable.cacheWritesPrice).to.equal(12.5)
-		expect(fable.cacheReadsPrice).to.equal(1)
-		expect(fable1m.contextWindow).to.equal(1_000_000)
-		expect(fable1m.tiers).to.not.equal(undefined)
-	})
-})
+		expect(fable.contextWindow).to.equal(200_000);
+		expect(fable.maxTokens).to.equal(128_000);
+		expect(fable.supportsPromptCache).to.equal(true);
+		expect(fable.inputPrice).to.equal(10);
+		expect(fable.outputPrice).to.equal(50);
+		expect(fable.cacheWritesPrice).to.equal(12.5);
+		expect(fable.cacheReadsPrice).to.equal(1);
+		expect(fable1m.contextWindow).to.equal(1_000_000);
+		expect(fable1m.tiers).to.not.equal(undefined);
+	});
+});

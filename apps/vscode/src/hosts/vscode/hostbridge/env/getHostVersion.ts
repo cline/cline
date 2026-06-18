@@ -1,10 +1,12 @@
-import { EmptyRequest } from "@shared/proto/cline/common"
-import * as vscode from "vscode"
-import { ExtensionRegistryInfo } from "@/registry"
-import { ClineClient } from "@/shared/cline"
-import { GetHostVersionResponse } from "@/shared/proto/index.host"
+import { EmptyRequest } from "@shared/proto/cline/common";
+import * as vscode from "vscode";
+import { ExtensionRegistryInfo } from "@/registry";
+import { ClineClient } from "@/shared/cline";
+import { GetHostVersionResponse } from "@/shared/proto/index.host";
 
-export async function getHostVersion(_: EmptyRequest): Promise<GetHostVersionResponse> {
+export async function getHostVersion(
+	_: EmptyRequest,
+): Promise<GetHostVersionResponse> {
 	return {
 		platform: vscode.env.appName,
 		version: vscode.version,
@@ -16,5 +18,5 @@ export async function getHostVersion(_: EmptyRequest): Promise<GetHostVersionRes
 		// field is absent for local workspaces. An empty string is treated as local — the
 		// safe direction (false negative rather than false positive).
 		remoteName: vscode.env.remoteName || undefined,
-	}
+	};
 }

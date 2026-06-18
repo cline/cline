@@ -1,7 +1,7 @@
-import type { EmptyRequest } from "@shared/proto/cline/common"
-import { McpMarketplaceCatalog } from "@shared/proto/cline/mcp"
-import { Logger } from "@/shared/services/Logger"
-import type { Controller } from "../index"
+import type { EmptyRequest } from "@shared/proto/cline/common";
+import { McpMarketplaceCatalog } from "@shared/proto/cline/mcp";
+import { Logger } from "@/shared/services/Logger";
+import type { Controller } from "../index";
 
 /**
  * RPC handler that silently refreshes the MCP marketplace catalog
@@ -9,17 +9,22 @@ import type { Controller } from "../index"
  * @param _request Empty request
  * @returns MCP marketplace catalog
  */
-export async function refreshMcpMarketplace(controller: Controller, _request: EmptyRequest): Promise<McpMarketplaceCatalog> {
+export async function refreshMcpMarketplace(
+	controller: Controller,
+	_request: EmptyRequest,
+): Promise<McpMarketplaceCatalog> {
 	try {
 		// Call the RPC variant which returns the result directly
-		const catalog = await controller.refreshMcpMarketplace(false /* sendCatalogEvent */)
+		const catalog = await controller.refreshMcpMarketplace(
+			false /* sendCatalogEvent */,
+		);
 		if (catalog) {
 			// Types are structurally identical, use direct type assertion
-			return catalog as McpMarketplaceCatalog
+			return catalog as McpMarketplaceCatalog;
 		}
 	} catch (error) {
-		Logger.error("Failed to refresh MCP marketplace:", error)
+		Logger.error("Failed to refresh MCP marketplace:", error);
 	}
 	// Return empty catalog if nothing was fetched
-	return { items: [] }
+	return { items: [] };
 }

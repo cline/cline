@@ -1,7 +1,7 @@
-import { StringArray, StringRequest } from "@shared/proto/cline/common"
-import axios from "axios"
-import { getAxiosSettings } from "@/shared/net"
-import { Controller } from ".."
+import { StringArray, StringRequest } from "@shared/proto/cline/common";
+import axios from "axios";
+import { getAxiosSettings } from "@/shared/net";
+import { Controller } from "..";
 
 /**
  * Fetches available models from Ollama
@@ -9,20 +9,24 @@ import { Controller } from ".."
  * @param request The request containing the base URL (optional)
  * @returns Array of model names
  */
-export async function getOllamaModels(_controller: Controller, request: StringRequest): Promise<StringArray> {
+export async function getOllamaModels(
+	_controller: Controller,
+	request: StringRequest,
+): Promise<StringArray> {
 	try {
-		const baseUrl = request.value || "http://localhost:11434"
+		const baseUrl = request.value || "http://localhost:11434";
 
 		if (!URL.canParse(baseUrl)) {
-			return StringArray.create({ values: [] })
+			return StringArray.create({ values: [] });
 		}
 
-		const response = await axios.get(`${baseUrl}/api/tags`, getAxiosSettings())
-		const modelsArray = response.data?.models?.map((model: any) => model.name) || []
-		const models = [...new Set<string>(modelsArray)].sort()
+		const response = await axios.get(`${baseUrl}/api/tags`, getAxiosSettings());
+		const modelsArray =
+			response.data?.models?.map((model: any) => model.name) || [];
+		const models = [...new Set<string>(modelsArray)].sort();
 
-		return StringArray.create({ values: models })
+		return StringArray.create({ values: models });
 	} catch (_error) {
-		return StringArray.create({ values: [] })
+		return StringArray.create({ values: [] });
 	}
 }
