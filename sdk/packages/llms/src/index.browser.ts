@@ -30,4 +30,11 @@ export type {
 	ProviderCapability,
 	ProviderId,
 } from "./providers.browser";
-export { normalizeProviderId } from "./providers.browser";
+export {
+	ClineNotSubscribedError,
+	getClineNotSubscribedMessage,
+	getClinePassSubscriptionUrl,
+	isClineNotSubscribedError,
+	isClineNotSubscribedMessage,
+	normalizeProviderId,
+} from "./providers.browser";
