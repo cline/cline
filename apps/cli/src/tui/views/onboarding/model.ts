@@ -164,3 +164,7 @@ export function getOAuthProviderLabel(providerId: string): string {
 	}
 	return providerId;
 }
+
+export function shouldUseFeaturedClineModelPicker(providerId: string): boolean {
+	return providerId === "cline";
+}

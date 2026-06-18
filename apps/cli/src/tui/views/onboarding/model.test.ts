@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	getMainMenuOptions,
 	getOAuthProviderLabel,
+	shouldUseFeaturedClineModelPicker,
 	toModelEntriesFromKnownModels,
 	toModelEntry,
 	toProviderEntry,
@@ -132,5 +133,11 @@ describe("onboarding model helpers", () => {
 		expect(getOAuthProviderLabel("cline-pass")).toBe("ClinePass");
 		expect(getOAuthProviderLabel("openai-codex")).toBe("ChatGPT");
 		expect(getOAuthProviderLabel("oca")).toBe("oca");
+	});
+
+	it("uses the featured Cline model picker only for the Cline provider", () => {
+		expect(shouldUseFeaturedClineModelPicker("cline")).toBe(true);
+		expect(shouldUseFeaturedClineModelPicker("cline-pass")).toBe(false);
+		expect(shouldUseFeaturedClineModelPicker("anthropic")).toBe(false);
 	});
 });
