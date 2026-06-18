@@ -18,6 +18,7 @@ import {
 	ServerIcon,
 	SettingsIcon,
 	Trash2Icon,
+	UserCircleIcon,
 	WrenchIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
@@ -43,6 +44,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import type {
 	WebviewActiveConnector,
 	WebviewConnectedClient,
@@ -78,7 +80,8 @@ type View =
 	| "tools"
 	| "channels"
 	| "schedules"
-	| "settings";
+	| "settings"
+	| "account";
 const VIEW_PATHS: Record<View, string> = {
 	home: "/",
 	sessions: "/sessions",
@@ -94,6 +97,7 @@ const VIEW_PATHS: Record<View, string> = {
 	channels: "/channels",
 	schedules: "/schedules",
 	settings: "/settings",
+	account: "/settings/account",
 };
 
 const CHAT_SESSION_QUERY_PARAM = "id";
@@ -153,6 +157,7 @@ function viewFromPath(pathname: string): View {
 	if (pathname === VIEW_PATHS.tools) return "tools";
 	if (pathname === VIEW_PATHS.channels) return "channels";
 	if (pathname === VIEW_PATHS.schedules) return "schedules";
+	if (pathname === VIEW_PATHS.account) return "account";
 	if (
 		pathname === VIEW_PATHS.settings ||
 		pathname.startsWith(`${VIEW_PATHS.settings}/`)
@@ -340,6 +345,7 @@ function Shell({
 		{ view: "channels", label: "Channels", icon: LinkIcon },
 		{ view: "schedules", label: "Schedules", icon: ClockIcon },
 		{ view: "settings", label: "Settings", icon: SettingsIcon },
+		{ view: "account", label: "Account", icon: UserCircleIcon },
 	] satisfies Array<{
 		view: Exclude<
 			View,
@@ -715,6 +721,10 @@ function SessionsView({
 	sessions: WebviewSessionSummary[];
 }) {
 	const [sessionFilters, setSessionFilters] = useState<string[]>([]);
+	const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+	const [editingTitle, setEditingTitle] = useState("");
+	const [deleteSessionCandidate, setDeleteSessionCandidate] =
+		useState<WebviewSessionSummary | null>(null);
 	const [sortDirection, setSortDirection] = useState<"newest" | "oldest">(
 		"newest",
 	);
@@ -742,17 +752,31 @@ function SessionsView({
 		});
 	}, [sessions, sessionFilters, sortDirection]);
 
-	const renameSession = (session: WebviewSessionSummary) => {
-		const currentTitle = session.title || shortId(session.sessionId);
-		const nextTitle = window.prompt("Rename session", currentTitle)?.trim();
-		if (!nextTitle || nextTitle === currentTitle) return;
-		void onRenameSession(session.sessionId, nextTitle);
+	const startRenameSession = (session: WebviewSessionSummary) => {
+		setEditingSessionId(session.sessionId);
+		setEditingTitle(session.title || shortId(session.sessionId));
 	};
 
-	const deleteSession = (session: WebviewSessionSummary) => {
-		const title = session.title || shortId(session.sessionId);
-		if (!window.confirm(`Delete session "${title}"?`)) return;
-		void onDeleteSession(session.sessionId);
+	const cancelRenameSession = () => {
+		setEditingSessionId(null);
+		setEditingTitle("");
+	};
+
+	const submitRenameSession = (session: WebviewSessionSummary) => {
+		const currentTitle = session.title || shortId(session.sessionId);
+		const nextTitle = editingTitle.trim();
+		if (!nextTitle || nextTitle === currentTitle) {
+			cancelRenameSession();
+			return;
+		}
+		void onRenameSession(session.sessionId, nextTitle);
+		cancelRenameSession();
+	};
+
+	const confirmDeleteSession = () => {
+		if (!deleteSessionCandidate) return;
+		void onDeleteSession(deleteSessionCandidate.sessionId);
+		setDeleteSessionCandidate(null);
 	};
 
 	const toggleSessionFilter = (detail: string, checked: boolean) => {
@@ -870,83 +894,181 @@ function SessionsView({
 								: "No sessions match the selected filters."}
 						</div>
 					) : null}
-					{filteredSessions.map((session) => (
-						<div
-							className="grid min-h-14 w-full grid-cols-[minmax(12rem,1.35fr)_minmax(7rem,0.85fr)_minmax(10rem,1.1fr)_5rem_5rem_4.5rem_5.5rem_2rem] items-center gap-x-4 border-b px-4 py-3 text-left text-[15px] transition-colors hover:bg-accent/40"
-							key={session.sessionId}
-						>
-							<button
-								className="col-span-7 grid grid-cols-[minmax(12rem,1.35fr)_minmax(7rem,0.85fr)_minmax(10rem,1.1fr)_5rem_5rem_4.5rem_5.5rem] items-center gap-x-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-								onClick={() => onOpenSession(session.sessionId)}
-								type="button"
+					{filteredSessions.map((session) => {
+						const isEditing = editingSessionId === session.sessionId;
+						const title = session.title || shortId(session.sessionId);
+						return (
+							<div
+								className="grid min-h-14 w-full grid-cols-[minmax(12rem,1.35fr)_minmax(7rem,0.85fr)_minmax(10rem,1.1fr)_5rem_5rem_4.5rem_5.5rem_2rem] items-center gap-x-4 border-b px-4 py-3 text-left text-[15px] transition-colors hover:bg-accent/40"
+								key={session.sessionId}
 							>
-								<span className="flex min-w-0 items-center gap-3 font-semibold">
-									<span
-										className={`size-1.5 shrink-0 rounded-full ${statusTone(session.status)}`}
-									/>
-									<span className="truncate">
-										{session.title || shortId(session.sessionId)}
-									</span>
-								</span>
-								<span className="truncate text-muted-foreground">
-									{workspaceName(session.workspaceRoot) ?? "No workspace"}
-								</span>
-								<span className="truncate text-muted-foreground">
-									{formatSessionModel(session)}
-								</span>
-								<span className="text-muted-foreground">
-									{formatCompactNumber(session.inputTokens) ?? "-"}
-								</span>
-								<span className="text-muted-foreground">
-									{formatCompactNumber(session.outputTokens) ?? "-"}
-								</span>
-								<span className="text-muted-foreground">
-									{formatCost(session.totalCost) ?? "-"}
-								</span>
-								<span className="text-muted-foreground">
-									{formatRelativeTime(session.createdAt ?? session.updatedAt)}
-								</span>
-							</button>
-							<DropdownMenu>
-								<DropdownMenuTrigger
-									render={
-										<button
-											aria-label={`Session actions for ${session.title || shortId(session.sessionId)}`}
-											className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-											onClick={(event) => event.stopPropagation()}
-											type="button"
-										/>
-									}
-								>
-									<MoreHorizontal className="size-4" />
-								</DropdownMenuTrigger>
-								<DropdownMenuContent align="end" sideOffset={6}>
-									<DropdownMenuItem
-										onClick={(event) => {
-											event.stopPropagation();
-											renameSession(session);
+								{isEditing ? (
+									<form
+										className="col-span-7 grid grid-cols-[minmax(12rem,1.35fr)_minmax(7rem,0.85fr)_minmax(10rem,1.1fr)_5rem_5rem_4.5rem_5.5rem] items-center gap-x-4"
+										onSubmit={(event) => {
+											event.preventDefault();
+											submitRenameSession(session);
 										}}
 									>
-										<PencilIcon className="size-4" />
-										Rename
-									</DropdownMenuItem>
-									<DropdownMenuSeparator />
-									<DropdownMenuItem
-										className="text-destructive"
-										onClick={(event) => {
-											event.stopPropagation();
-											deleteSession(session);
-										}}
+										<div className="col-span-2 flex min-w-0 items-center gap-2">
+											<Input
+												aria-label={`Rename ${title}`}
+												autoFocus
+												className="h-8"
+												onChange={(event) =>
+													setEditingTitle(event.target.value)
+												}
+												onKeyDown={(event) => {
+													if (event.key === "Escape") {
+														event.preventDefault();
+														cancelRenameSession();
+													}
+												}}
+												value={editingTitle}
+											/>
+											<Button
+												className="h-8 rounded-md px-2.5 text-xs"
+												disabled={!editingTitle.trim()}
+												type="submit"
+												variant="default"
+											>
+												Save
+											</Button>
+											<Button
+												className="h-8 rounded-md px-2.5 text-xs"
+												onClick={cancelRenameSession}
+												type="button"
+												variant="outline"
+											>
+												Cancel
+											</Button>
+										</div>
+										<span className="truncate text-muted-foreground">
+											{formatSessionModel(session)}
+										</span>
+										<span className="text-muted-foreground">
+											{formatCompactNumber(session.inputTokens) ?? "-"}
+										</span>
+										<span className="text-muted-foreground">
+											{formatCompactNumber(session.outputTokens) ?? "-"}
+										</span>
+										<span className="text-muted-foreground">
+											{formatCost(session.totalCost) ?? "-"}
+										</span>
+										<span className="text-muted-foreground">
+											{formatRelativeTime(
+												session.createdAt ?? session.updatedAt,
+											)}
+										</span>
+									</form>
+								) : (
+									<button
+										className="col-span-7 grid grid-cols-[minmax(12rem,1.35fr)_minmax(7rem,0.85fr)_minmax(10rem,1.1fr)_5rem_5rem_4.5rem_5.5rem] items-center gap-x-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+										onClick={() => onOpenSession(session.sessionId)}
+										type="button"
 									>
-										<Trash2Icon className="size-4" />
-										Delete
-									</DropdownMenuItem>
-								</DropdownMenuContent>
-							</DropdownMenu>
-						</div>
-					))}
+										<span className="flex min-w-0 items-center gap-3 font-semibold">
+											<span
+												className={`size-1.5 shrink-0 rounded-full ${statusTone(session.status)}`}
+											/>
+											<span className="truncate">{title}</span>
+										</span>
+										<span className="truncate text-muted-foreground">
+											{workspaceName(session.workspaceRoot) ?? "No workspace"}
+										</span>
+										<span className="truncate text-muted-foreground">
+											{formatSessionModel(session)}
+										</span>
+										<span className="text-muted-foreground">
+											{formatCompactNumber(session.inputTokens) ?? "-"}
+										</span>
+										<span className="text-muted-foreground">
+											{formatCompactNumber(session.outputTokens) ?? "-"}
+										</span>
+										<span className="text-muted-foreground">
+											{formatCost(session.totalCost) ?? "-"}
+										</span>
+										<span className="text-muted-foreground">
+											{formatRelativeTime(
+												session.createdAt ?? session.updatedAt,
+											)}
+										</span>
+									</button>
+								)}
+								<DropdownMenu>
+									<DropdownMenuTrigger
+										render={
+											<button
+												aria-label={`Session actions for ${title}`}
+												className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+												onClick={(event) => event.stopPropagation()}
+												type="button"
+											/>
+										}
+									>
+										<MoreHorizontal className="size-4" />
+									</DropdownMenuTrigger>
+									<DropdownMenuContent align="end" sideOffset={6}>
+										<DropdownMenuItem
+											onClick={(event) => {
+												event.stopPropagation();
+												startRenameSession(session);
+											}}
+										>
+											<PencilIcon className="size-4" />
+											Rename
+										</DropdownMenuItem>
+										<DropdownMenuSeparator />
+										<DropdownMenuItem
+											className="text-destructive"
+											onClick={(event) => {
+												event.stopPropagation();
+												setDeleteSessionCandidate(session);
+											}}
+										>
+											<Trash2Icon className="size-4" />
+											Delete
+										</DropdownMenuItem>
+									</DropdownMenuContent>
+								</DropdownMenu>
+							</div>
+						);
+					})}
 				</div>
 			</section>
+			<AlertDialog
+				open={deleteSessionCandidate !== null}
+				onOpenChange={(open) => {
+					if (!open) {
+						setDeleteSessionCandidate(null);
+					}
+				}}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Delete session</AlertDialogTitle>
+						<AlertDialogDescription>
+							Delete{" "}
+							<span className="font-medium text-foreground">
+								{deleteSessionCandidate?.title ||
+									(deleteSessionCandidate
+										? shortId(deleteSessionCandidate.sessionId)
+										: "this session")}
+							</span>
+							? This removes it from recent sessions.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Cancel</AlertDialogCancel>
+						<AlertDialogAction
+							onClick={confirmDeleteSession}
+							variant="destructive"
+						>
+							Delete
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 		</PageFrame>
 	);
 }
@@ -1109,6 +1231,16 @@ function App() {
 					initialSection={settingsSection}
 					key={settingsSection}
 					chrome="content"
+					onClose={() => navigate("home")}
+				/>
+			);
+		}
+		if (view === "account") {
+			return (
+				<SettingsView
+					chrome="content"
+					initialSection="Account"
+					key="account"
 					onClose={() => navigate("home")}
 				/>
 			);

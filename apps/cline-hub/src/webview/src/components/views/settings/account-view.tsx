@@ -15,12 +15,15 @@ import {
 	CreditCard,
 	ExternalLink,
 	Loader2,
+	LogIn,
 	LogOut,
 	Plus,
 	Receipt,
 	RefreshCw,
+	UserCircleIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { desktopClient } from "@/lib/desktop-client";
 import { cn } from "@/lib/utils";
 import { PageFrame, PageHeader } from "../page-layout";
@@ -33,6 +36,16 @@ function normalizeAccountViewError(error: unknown): Error {
 		);
 	}
 	return error instanceof Error ? error : new Error(message);
+}
+
+function isAccountAuthError(message: string): boolean {
+	const normalized = message.toLowerCase();
+	return (
+		normalized.includes("no cline account auth token found") ||
+		normalized.includes("requires re-authentication") ||
+		normalized.includes("auth token") ||
+		normalized.includes("unauthorized")
+	);
 }
 
 // ---------------------------------------------------------------------------
@@ -125,6 +138,9 @@ export function AccountView() {
 	const [activeTab, setActiveTab] = useState<"overview" | "usage" | "billing">(
 		"overview",
 	);
+	const [accountActionPending, setAccountActionPending] = useState<
+		"sign-in" | "sign-out" | null
+	>(null);
 
 	// Overview data
 	const [user, setUser] = useState<ClineAccountUser | null>(null);
@@ -155,6 +171,19 @@ export function AccountView() {
 	const [billingLoaded, setBillingLoaded] = useState(false);
 	const activeOrganization = organizations.find((org) => org.active) ?? null;
 
+	const resetAccountData = useCallback(() => {
+		setUser(null);
+		setBalance(null);
+		setOrganizationBalance(null);
+		setOrganizations([]);
+		setUsageTransactions([]);
+		setUsageLoaded(false);
+		setUsageError(null);
+		setPaymentTransactions([]);
+		setBillingLoaded(false);
+		setBillingError(null);
+	}, []);
+
 	// -- Overview fetch --
 	const loadOverview = useCallback(async () => {
 		setOverviewLoading(true);
@@ -175,16 +204,60 @@ export function AccountView() {
 			setOrganizationBalance(organizationBalanceData);
 			setOrganizations(orgsData);
 		} catch (err) {
+			resetAccountData();
 			const message = normalizeAccountViewError(err).message;
 			setOverviewError(message);
 		} finally {
 			setOverviewLoading(false);
 		}
-	}, []);
+	}, [resetAccountData]);
 
 	useEffect(() => {
 		void loadOverview();
 	}, [loadOverview]);
+
+	const signIn = async () => {
+		setAccountActionPending("sign-in");
+		setOverviewError(null);
+		try {
+			await desktopClient.invoke("run_provider_oauth_login", {
+				provider: "cline",
+			});
+			await loadOverview();
+			setActiveTab("overview");
+		} catch (err) {
+			const message = normalizeAccountViewError(err).message;
+			setOverviewError(message);
+			resetAccountData();
+		} finally {
+			setAccountActionPending(null);
+		}
+	};
+
+	const signOut = async () => {
+		setAccountActionPending("sign-out");
+		try {
+			await desktopClient.invoke("save_provider_settings", {
+				provider: "cline",
+				api_key: "",
+				settings: {
+					auth: {
+						accessToken: "",
+						refreshToken: "",
+						accountId: "",
+					},
+				},
+			});
+			resetAccountData();
+			setActiveTab("overview");
+			setOverviewError("No Cline account auth token found");
+		} catch (err) {
+			const message = normalizeAccountViewError(err).message;
+			setOverviewError(message);
+		} finally {
+			setAccountActionPending(null);
+		}
+	};
 
 	// -- Usage fetch (lazy on tab switch) --
 	const loadUsage = useCallback(async () => {
@@ -295,6 +368,48 @@ export function AccountView() {
 		</div>
 	);
 
+	const renderSignedOut = () => (
+		<div className="rounded-lg border border-border bg-card p-6">
+			<div className="mx-auto flex max-w-xl flex-col items-center gap-4 py-8 text-center">
+				<div className="flex size-12 items-center justify-center rounded-lg bg-primary/10 text-primary">
+					<UserCircleIcon className="h-6 w-6" />
+				</div>
+				<div>
+					<h3 className="text-lg font-semibold text-foreground">
+						Sign in to Cline
+					</h3>
+					<p className="mt-2 text-sm text-muted-foreground">
+						Connect your Cline account to review credits, usage, billing, and
+						organization details from Cline Hub.
+					</p>
+				</div>
+				<div className="flex flex-wrap items-center justify-center gap-2">
+					<Button
+						disabled={accountActionPending !== null}
+						onClick={() => void signIn()}
+						type="button"
+					>
+						{accountActionPending === "sign-in" ? (
+							<Loader2 className="h-4 w-4 animate-spin" />
+						) : (
+							<LogIn className="h-4 w-4" />
+						)}
+						{accountActionPending === "sign-in" ? "Signing in" : "Sign in"}
+					</Button>
+					<a
+						className="inline-flex h-9 items-center gap-2 rounded-lg border border-border px-3.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+						href="https://app.cline.bot"
+						rel="noopener noreferrer"
+						target="_blank"
+					>
+						Create account
+						<ExternalLink className="h-4 w-4" />
+					</a>
+				</div>
+			</div>
+		</div>
+	);
+
 	const renderLoading = () => (
 		<div className="flex items-center justify-center py-12">
 			<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -307,13 +422,34 @@ export function AccountView() {
 				description="Review account, usage, billing, and organization details."
 				title="Account"
 				actions={
-					<button
-						type="button"
-						className="flex items-center gap-2 rounded-lg border border-border px-3.5 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
-					>
-						<LogOut className="h-4 w-4" />
-						Sign Out
-					</button>
+					user ? (
+						<Button
+							disabled={accountActionPending !== null}
+							onClick={() => void signOut()}
+							type="button"
+							variant="outline"
+						>
+							{accountActionPending === "sign-out" ? (
+								<Loader2 className="h-4 w-4 animate-spin" />
+							) : (
+								<LogOut className="h-4 w-4" />
+							)}
+							{accountActionPending === "sign-out" ? "Signing out" : "Sign out"}
+						</Button>
+					) : (
+						<Button
+							disabled={accountActionPending !== null || overviewLoading}
+							onClick={() => void signIn()}
+							type="button"
+						>
+							{accountActionPending === "sign-in" ? (
+								<Loader2 className="h-4 w-4 animate-spin" />
+							) : (
+								<LogIn className="h-4 w-4" />
+							)}
+							{accountActionPending === "sign-in" ? "Signing in" : "Sign in"}
+						</Button>
+					)
 				}
 			/>
 
@@ -343,7 +479,10 @@ export function AccountView() {
 			{activeTab === "overview" && (
 				<div className="flex flex-col gap-6">
 					{overviewLoading && renderLoading()}
-					{overviewError && renderError(overviewError, loadOverview)}
+					{overviewError &&
+						(isAccountAuthError(overviewError)
+							? renderSignedOut()
+							: renderError(overviewError, loadOverview))}
 					{!overviewLoading && !overviewError && user && (
 						<>
 							{/* User Profile Card */}
