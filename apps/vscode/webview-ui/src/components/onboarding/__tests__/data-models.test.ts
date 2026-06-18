@@ -22,7 +22,7 @@ describe("getClineUIOnboardingGroups", () => {
 	it("buckets Cline Pass models into the clinePass group", () => {
 		const result = getClineUIOnboardingGroups(
 			groupOf([
-				model("cline-pass/glm-5.1", "cline pass"),
+				model("cline-pass/glm-5.1", "clinepass"),
 				model("free-model", "free"),
 				model("anthropic/claude", "frontier"),
 				model("z-ai/glm", "open source"),
@@ -30,7 +30,7 @@ describe("getClineUIOnboardingGroups", () => {
 		)
 
 		expect(result.clinePass).toHaveLength(1)
-		expect(result.clinePass[0].group).toBe("cline pass")
+		expect(result.clinePass[0].group).toBe("clinepass")
 		expect(result.clinePass[0].models.map((m) => m.id)).toEqual(["cline-pass/glm-5.1"])
 		expect(result.free[0].models.map((m) => m.id)).toEqual(["free-model"])
 		expect(result.power.flatMap((g) => g.models.map((m) => m.id))).toEqual(["anthropic/claude", "z-ai/glm"])

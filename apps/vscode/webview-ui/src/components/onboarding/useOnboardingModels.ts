@@ -107,7 +107,7 @@ export function useOnboardingModels(): UseOnboardingModelsResult {
 		const clinePassCatalog = Object.fromEntries(
 			data.clinePass.map((rec) => [rec.id, resolveClinePassModelInfo(rec.id, openRouterModelsByName)]),
 		)
-		const clinePassModels = data.clinePass.map((rec) => toOnboardingModel(rec, "cline pass", "", clinePassCatalog))
+		const clinePassModels = data.clinePass.map((rec) => toOnboardingModel(rec, "clinepass", "", clinePassCatalog))
 
 		return { status: "success", models: { models: [...clinePassModels, ...freeModels, ...frontierModels] } }
 	}, [fetchState, modelCatalog, openRouterModelsByName])

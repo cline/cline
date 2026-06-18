@@ -128,7 +128,7 @@ const ModelSelection = ({
 	if (isClinePass && modelGroups.length === 0) {
 		return (
 			<div className="flex w-full max-w-lg flex-col items-center justify-center my-8 px-2 text-center">
-				<p className="text-foreground text-sm m-0">No Cline Pass models are available right now.</p>
+				<p className="text-foreground text-sm m-0">No ClinePass models are available right now.</p>
 				<p className="text-foreground/70 text-sm mt-1">Please choose another option or try again later.</p>
 			</div>
 		)
@@ -322,9 +322,9 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 	// Set when a Cline Pass user starts signup; cleared once the subscription page is opened.
 	const pendingClinePassSubscribe = useRef(false)
 
-	// Opens the Cline Pass subscription page if a signup is pending and the user is authenticated.
-	// Called both after login resolves (already-authenticated users) and from the auth effect
-	// below (users who log in during onboarding); the ref guard prevents a double open.
+	// Opens the Cline Pass subscription page once a pending signup becomes authenticated.
+	// Fires from the auth effect below when clineUser is populated; the ref guard prevents
+	// a double open.
 	const openClinePassSubscriptionIfPending = useCallback(() => {
 		if (pendingClinePassSubscribe.current && clineUser?.uid) {
 			pendingClinePassSubscribe.current = false
@@ -420,9 +420,9 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 		async (action: "signin" | "next" | "back" | "done" | "signup") => {
 			switch (action) {
 				case "signup":
-					// Cline Pass: open the subscription page after login. For users who log in
-					// during onboarding the auth effect handles it; for already-authenticated
-					// users we trigger it here once accountLoginClicked resolves.
+					// Cline Pass: flag that the subscription page should open once the user is
+					// authenticated; the clineUser effect handles the redirect. The login flow
+					// below is unchanged.
 					pendingClinePassSubscribe.current = userType === NEW_USER_TYPE.CLINE_PASS
 					setStepNumber(stepNumber + 1)
 					setIsActionLoading(true)
@@ -430,7 +430,6 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 						.catch(() => {})
 						.finally(() => setIsActionLoading(false))
 					await finishOnboarding(true, stepNumber + 1)
-					openClinePassSubscriptionIfPending()
 					break
 				case "signin":
 					pendingClinePassSubscribe.current = false

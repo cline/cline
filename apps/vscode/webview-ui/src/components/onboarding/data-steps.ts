@@ -21,7 +21,7 @@ export const STEP_CONFIG = {
 		],
 	},
 	[NEW_USER_TYPE.CLINE_PASS]: {
-		title: "Select a Cline Pass model",
+		title: "Select a ClinePass model",
 		buttons: [
 			{ text: "Create my Account", action: "signup", variant: "default" },
 			{ text: "Back", action: "back", variant: "secondary" },
@@ -56,7 +56,7 @@ export const STEP_CONFIG = {
 } as const
 
 const CLINE_PASS_USER_TYPE_SELECTION: UserTypeSelection = {
-	title: "Cline Pass (Recommended)",
+	title: "ClinePass (Recommended)",
 	description: "One subscription, curated models, no API keys",
 	type: NEW_USER_TYPE.CLINE_PASS,
 }

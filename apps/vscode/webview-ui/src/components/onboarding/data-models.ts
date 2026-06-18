@@ -42,13 +42,13 @@ interface ModelGroup {
 export function getClineUIOnboardingGroups(groupedModels: OnboardingModelGroup): OnboardingModelsByGroup {
 	const { models } = groupedModels
 
-	const clinePassModels = models.filter((m) => m.group === "cline pass")
+	const clinePassModels = models.filter((m) => m.group === "clinepass")
 	const freeModels = models.filter((m) => m.group === "free")
 	const frontierModels = models.filter((m) => m.group === "frontier")
 	const openSourceModels = models.filter((m) => m.group === "open source")
 
 	return {
-		clinePass: clinePassModels.length > 0 ? [{ group: "cline pass", models: clinePassModels }] : [],
+		clinePass: clinePassModels.length > 0 ? [{ group: "clinepass", models: clinePassModels }] : [],
 		free: freeModels.length > 0 ? [{ group: "free", models: freeModels }] : [],
 		power: [
 			...(frontierModels.length > 0 ? [{ group: "frontier", models: frontierModels }] : []),
