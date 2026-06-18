@@ -335,15 +335,6 @@ function MarketplaceEntryCard({
 						)}
 					</div>
 				</div>
-				{matchedLocalItems.some((item) => item.renderMatchedMeta) ? (
-					<div className="mt-1 grid gap-1">
-						{matchedLocalItems.map((item) =>
-							item.renderMatchedMeta ? (
-								<div key={`${item.key}:meta`}>{item.renderMatchedMeta()}</div>
-							) : null,
-						)}
-					</div>
-				) : null}
 				<div className="mt-1 flex flex-wrap gap-1.5">
 					{entry.tags.slice(0, 5).map((tag) => (
 						<Badge
@@ -355,6 +346,15 @@ function MarketplaceEntryCard({
 						</Badge>
 					))}
 				</div>
+				{matchedLocalItems.some((item) => item.renderMatchedMeta) ? (
+					<div className="mt-1 grid gap-1">
+						{matchedLocalItems.map((item) =>
+							item.renderMatchedMeta ? (
+								<div key={`${item.key}:meta`}>{item.renderMatchedMeta()}</div>
+							) : null,
+						)}
+					</div>
+				) : null}
 			</div>
 
 			<p className="line-clamp-2 text-xs leading-5 text-muted-foreground">
