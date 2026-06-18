@@ -109,6 +109,7 @@ export type WebviewSessionSummary = {
 	providerId?: string;
 	model?: string;
 	workspaceRoot?: string;
+	createdAt?: number;
 	updatedAt?: number;
 	inputTokens?: number;
 	outputTokens?: number;
