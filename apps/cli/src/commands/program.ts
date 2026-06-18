@@ -207,12 +207,15 @@ export function commanderToParsedArgs(program: Command): ParsedArgs {
 
 	// Retries (max consecutive mistakes) validation
 	if (opts.retries !== undefined) {
-		const raw = typeof opts.retries === 'string' ? opts.retries.trim() : String(opts.retries);
+		const raw =
+			typeof opts.retries === "string"
+				? opts.retries.trim()
+				: String(opts.retries);
 		const parsed = Number.parseInt(raw, 10);
 		if (raw && Number.isInteger(parsed) && parsed >= 1) {
 			result.retries = parsed;
-		} else if (raw) {
-			result.invalidRetries = raw;
+		} else {
+			result.invalidRetries = raw || "(empty)";
 		}
 	}
 

@@ -65,7 +65,9 @@ export async function runInteractive(
 		onInitialNoticeShown?: (notice: CliMigrationNotice) => void | Promise<void>;
 	},
 ): Promise<void> {
-	assertInteractivePreflight(config);
+	assertInteractivePreflight(config, {
+		allowJson: !!resumeSessionId,
+	});
 
 	const initialRepoStatus = await readRepoStatus(config.cwd);
 	const workflowSlashCommands = listInteractiveSlashCommands(

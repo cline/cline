@@ -817,7 +817,11 @@ export async function runCli(): Promise<void> {
 		},
 	};
 
-	if (args.outputMode === "json" && (args.interactive || !args.prompt) && !args.id) {
+	if (
+		args.outputMode === "json" &&
+		(args.interactive || !args.prompt) &&
+		!args.id
+	) {
 		writeErr(
 			"JSON output mode requires a prompt argument or piped stdin (interactive mode is unsupported)",
 		);
