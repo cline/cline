@@ -104,7 +104,9 @@ const primitiveCommands = {
 export type MarketplaceLocalInstalledItem = {
 	key: string;
 	matchValues: string[];
-	render: (options: { marketplaceInstalled: boolean }) => ReactNode;
+	render: () => ReactNode;
+	renderMatchedBadges?: () => ReactNode;
+	renderMatchedDetails?: () => ReactNode;
 };
 
 function entryKey(entry: Pick<MarketplaceEntry, "id" | "type">): string {
@@ -253,6 +255,7 @@ function MarketplaceEntryCard({
 	onInstall,
 	onToggleExpanded,
 	onUninstall,
+	matchedLocalItems = [],
 	sourceLabel,
 	tagLabels,
 }: {
@@ -264,6 +267,7 @@ function MarketplaceEntryCard({
 	onInstall: (entry: MarketplaceEntry) => void;
 	onToggleExpanded: (entry: MarketplaceEntry) => void;
 	onUninstall: (entry: MarketplaceEntry) => void;
+	matchedLocalItems?: MarketplaceLocalInstalledItem[];
 	sourceLabel?: string;
 	tagLabels: Map<string, string>;
 }) {
@@ -305,6 +309,13 @@ function MarketplaceEntryCard({
 							{sourceLabel}
 						</Badge>
 					) : null}
+					{matchedLocalItems.map((item) =>
+						item.renderMatchedBadges ? (
+							<span className="contents" key={item.key}>
+								{item.renderMatchedBadges()}
+							</span>
+						) : null,
+					)}
 				</div>
 				<div className="mt-1 flex flex-wrap gap-1.5">
 					{entry.tags.slice(0, 5).map((tag) => (
@@ -322,6 +333,19 @@ function MarketplaceEntryCard({
 			<p className="line-clamp-2 text-xs leading-5 text-muted-foreground">
 				{entry.description}
 			</p>
+
+			{matchedLocalItems.some((item) => item.renderMatchedDetails) ? (
+				<div
+					className="grid gap-2 rounded-md border bg-muted/20 p-3"
+					data-marketplace-entry-details
+				>
+					{matchedLocalItems.map((item) =>
+						item.renderMatchedDetails ? (
+							<div key={item.key}>{item.renderMatchedDetails()}</div>
+						) : null,
+					)}
+				</div>
+			) : null}
 
 			<div className="flex flex-wrap items-center justify-between gap-3">
 				<div className="min-h-5 text-xs text-muted-foreground">
@@ -438,8 +462,8 @@ function MarketplaceSection({
 	expandedEntryKey,
 	installedEntryKeys,
 	installedStatusReady,
-	localInstalledItems = [],
-	localMarketplaceInstalledKeys,
+	localOnlyInstalledItems = [],
+	matchedLocalItemsByEntryKey,
 	onInstall,
 	onToggleExpanded,
 	onUninstall,
@@ -453,8 +477,8 @@ function MarketplaceSection({
 	expandedEntryKey: string | null;
 	installedEntryKeys: Set<string>;
 	installedStatusReady: boolean;
-	localInstalledItems?: MarketplaceLocalInstalledItem[];
-	localMarketplaceInstalledKeys?: Set<string>;
+	localOnlyInstalledItems?: MarketplaceLocalInstalledItem[];
+	matchedLocalItemsByEntryKey?: Map<string, MarketplaceLocalInstalledItem[]>;
 	onInstall: (entry: MarketplaceEntry) => void;
 	onToggleExpanded: (entry: MarketplaceEntry) => void;
 	onUninstall: (entry: MarketplaceEntry) => void;
@@ -462,7 +486,7 @@ function MarketplaceSection({
 	tagLabels: Map<string, string>;
 	title: string;
 }) {
-	const totalCount = entries.length + localInstalledItems.length;
+	const totalCount = entries.length + localOnlyInstalledItems.length;
 	return (
 		<section className="grid gap-3">
 			<div className="flex items-center justify-between gap-3">
@@ -471,12 +495,7 @@ function MarketplaceSection({
 			</div>
 			{totalCount > 0 ? (
 				<div className="grid gap-3">
-					{localInstalledItems.map((item) =>
-						item.render({
-							marketplaceInstalled:
-								localMarketplaceInstalledKeys?.has(item.key) ?? false,
-						}),
-					)}
+					{localOnlyInstalledItems.map((item) => item.render())}
 					{entries.map((entry) => {
 						const key = entryKey(entry);
 						return (
@@ -490,6 +509,7 @@ function MarketplaceSection({
 								onInstall={onInstall}
 								onToggleExpanded={onToggleExpanded}
 								onUninstall={onUninstall}
+								matchedLocalItems={matchedLocalItemsByEntryKey?.get(key) ?? []}
 								sourceLabel={sourceLabel}
 								tagLabels={tagLabels}
 							/>
@@ -608,32 +628,49 @@ export function MarketplaceView({
 		});
 	}, [primitiveEntries, query, selectedTag, tagLabels]);
 
-	const localMarketplaceInstalledKeys = useMemo(() => {
-		const keys = new Set<string>();
+	const matchedLocalItemsByEntryKey = useMemo(() => {
+		const matched = new Map<string, MarketplaceLocalInstalledItem[]>();
 		for (const item of installedItems ?? []) {
-			if (
-				filteredEntries.some(
-					(entry) =>
-						installedEntryKeys.has(entryKey(entry)) &&
-						entryMatchesLocalItem(entry, item),
-				)
-			) {
-				keys.add(item.key);
+			for (const entry of filteredEntries) {
+				const key = entryKey(entry);
+				if (
+					!installedEntryKeys.has(key) ||
+					!entryMatchesLocalItem(entry, item)
+				) {
+					continue;
+				}
+				const items = matched.get(key) ?? [];
+				items.push(item);
+				matched.set(key, items);
 			}
 		}
-		return keys;
+		return matched;
 	}, [filteredEntries, installedEntryKeys, installedItems]);
+
+	const matchedLocalItemKeys = useMemo(
+		() =>
+			new Set(
+				[...matchedLocalItemsByEntryKey.values()].flatMap((items) =>
+					items.map((item) => item.key),
+				),
+			),
+		[matchedLocalItemsByEntryKey],
+	);
+
+	const localOnlyInstalledItems = useMemo(
+		() =>
+			(installedItems ?? []).filter(
+				(item) => !matchedLocalItemKeys.has(item.key),
+			),
+		[installedItems, matchedLocalItemKeys],
+	);
 
 	const installedEntries = useMemo(
 		() =>
-			filteredEntries.filter(
-				(entry) =>
-					installedEntryKeys.has(entryKey(entry)) &&
-					!(installedItems ?? []).some((item) =>
-						entryMatchesLocalItem(entry, item),
-					),
+			filteredEntries.filter((entry) =>
+				installedEntryKeys.has(entryKey(entry)),
 			),
-		[filteredEntries, installedEntryKeys, installedItems],
+		[filteredEntries, installedEntryKeys],
 	);
 
 	const catalogEntries = useMemo(
@@ -841,8 +878,8 @@ export function MarketplaceView({
 						expandedEntryKey={expandedEntryKey}
 						installedEntryKeys={installedEntryKeys}
 						installedStatusReady={installedStatusReady}
-						localInstalledItems={installedItems}
-						localMarketplaceInstalledKeys={localMarketplaceInstalledKeys}
+						localOnlyInstalledItems={localOnlyInstalledItems}
+						matchedLocalItemsByEntryKey={matchedLocalItemsByEntryKey}
 						onInstall={installEntry}
 						onToggleExpanded={toggleExpanded}
 						onUninstall={uninstallEntry}

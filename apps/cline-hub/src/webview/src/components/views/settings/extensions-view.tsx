@@ -256,14 +256,6 @@ function ScopeBadge({ scope }: { scope: ItemScope }) {
 	);
 }
 
-function MarketplaceBadge({ show }: { show: boolean }) {
-	return show ? (
-		<Badge variant="outline" className="shrink-0 text-muted-foreground">
-			Marketplace
-		</Badge>
-	) : null;
-}
-
 function getLocalMarketplaceMatchValues(
 	...values: Array<string | undefined>
 ): string[] {
@@ -737,6 +729,14 @@ export function CustomizationSectionView({
 		[globalPlugins, projectPlugins],
 	);
 
+	const scopedRules = useMemo(
+		() => [
+			...globalRules.map((rule) => ({ rule, scope: "Global" as ItemScope })),
+			...projectRules.map((rule) => ({ rule, scope: "Project" as ItemScope })),
+		],
+		[globalRules, projectRules],
+	);
+
 	const scopedHooks = useMemo(
 		() => [
 			...globalHooks.map((hook) => ({ hook, scope: "Global" as ItemScope })),
@@ -745,10 +745,7 @@ export function CustomizationSectionView({
 		[globalHooks, projectHooks],
 	);
 
-	const renderSkillCard = (
-		item: CommandItem,
-		{ marketplaceInstalled }: { marketplaceInstalled: boolean },
-	) => (
+	const renderSkillCard = (item: CommandItem) => (
 		<div
 			key={`${item.type}:${item.path}`}
 			className="rounded-lg border border-border px-5 py-4"
@@ -762,7 +759,6 @@ export function CustomizationSectionView({
 				<h3 className="min-w-0 flex-1 text-sm font-semibold text-foreground">
 					{item.name}
 				</h3>
-				<MarketplaceBadge show={marketplaceInstalled} />
 				<ScopeBadge scope={item.scope} />
 				<Badge variant="outline" className="shrink-0 text-muted-foreground">
 					{item.type}
@@ -777,16 +773,22 @@ export function CustomizationSectionView({
 		</div>
 	);
 
-	const renderPluginCard = (
-		{
-			plugin,
-			scope,
-		}: {
-			plugin: PluginItem;
-			scope: ItemScope;
-		},
-		{ marketplaceInstalled }: { marketplaceInstalled: boolean },
-	) => (
+	const renderSkillMatchedDetails = (item: CommandItem) => (
+		<div className="grid gap-1">
+			<p className="text-xs text-muted-foreground">
+				{item.description?.trim() || previewText(item.instructions)}
+			</p>
+			<p className="text-xs font-mono text-muted-foreground">{item.path}</p>
+		</div>
+	);
+
+	const renderPluginCard = ({
+		plugin,
+		scope,
+	}: {
+		plugin: PluginItem;
+		scope: ItemScope;
+	}) => (
 		<div
 			key={plugin.path}
 			className="rounded-lg border border-border px-5 py-4"
@@ -796,7 +798,6 @@ export function CustomizationSectionView({
 				<h3 className="min-w-0 flex-1 text-sm font-semibold text-foreground">
 					{plugin.name}
 				</h3>
-				<MarketplaceBadge show={marketplaceInstalled} />
 				<ScopeBadge scope={scope} />
 				<span className="text-xs text-muted-foreground">
 					{plugin.enabled ? "Enabled" : "Disabled"}
@@ -857,10 +858,76 @@ export function CustomizationSectionView({
 		</div>
 	);
 
-	const renderMcpServerCard = (
-		server: McpServer,
-		{ marketplaceInstalled }: { marketplaceInstalled: boolean },
-	) => (
+	const renderPluginMatchedDetails = ({
+		plugin,
+	}: {
+		plugin: PluginItem;
+		scope: ItemScope;
+	}) => (
+		<div className="grid gap-3">
+			<div className="flex items-center justify-between gap-3">
+				<p className="min-w-0 text-xs font-mono text-muted-foreground">
+					{plugin.path}
+				</p>
+				<div className="flex items-center gap-2">
+					<span className="text-xs text-muted-foreground">
+						{plugin.enabled ? "Enabled" : "Disabled"}
+					</span>
+					<Switch
+						checked={plugin.enabled}
+						onCheckedChange={() => {
+							void setPluginEnabled(plugin);
+						}}
+						disabled={togglingPluginPaths.has(plugin.path)}
+						aria-label={`Toggle ${plugin.name}`}
+					/>
+				</div>
+			</div>
+			<div className="grid gap-2">
+				{(
+					pluginToolsByPluginKey.get(`${plugin.name}:${plugin.path}`) ?? []
+				).map((tool) => {
+					const isToggling = togglingToolIds.has(tool.id);
+					return (
+						<div
+							key={tool.id}
+							className="flex items-center justify-between gap-4 rounded-md border border-border/70 px-3 py-2"
+						>
+							<div className="min-w-0">
+								<p className="text-xs font-medium text-foreground">
+									{tool.name}
+								</p>
+								<p className="text-xs text-muted-foreground">
+									{tool.description?.trim() || "No description available."}
+								</p>
+							</div>
+							<div className="flex items-center gap-2">
+								<span className="text-xs text-muted-foreground">
+									{tool.enabled ? "Enabled" : "Disabled"}
+								</span>
+								<Switch
+									checked={tool.enabled}
+									onCheckedChange={() => {
+										void setToolEnabled(tool);
+									}}
+									disabled={isToggling || !plugin.enabled}
+									aria-label={`Toggle ${tool.name}`}
+								/>
+							</div>
+						</div>
+					);
+				})}
+				{(pluginToolsByPluginKey.get(`${plugin.name}:${plugin.path}`)?.length ??
+					0) === 0 && (
+					<p className="text-xs text-muted-foreground">
+						No plugin tools found.
+					</p>
+				)}
+			</div>
+		</div>
+	);
+
+	const renderMcpServerCard = (server: McpServer) => (
 		<div
 			key={server.name}
 			className="rounded-lg border border-border px-5 py-4"
@@ -870,7 +937,6 @@ export function CustomizationSectionView({
 				<h3 className="min-w-0 flex-1 text-sm font-semibold text-foreground">
 					{server.name}
 				</h3>
-				<MarketplaceBadge show={marketplaceInstalled} />
 				<ScopeBadge scope="Global" />
 				<Badge variant="outline" className="shrink-0 text-muted-foreground">
 					{server.transportType}
@@ -892,6 +958,20 @@ export function CustomizationSectionView({
 		</div>
 	);
 
+	const renderMcpMatchedDetails = (server: McpServer) => (
+		<div className="grid gap-1">
+			<p className="text-xs text-muted-foreground">
+				{server.disabled ? "Disabled" : "Enabled"} locally
+				{server.transportType ? ` via ${server.transportType}` : ""}
+			</p>
+			{mcp.settingsPath ? (
+				<p className="text-xs font-mono text-muted-foreground">
+					{mcp.settingsPath}
+				</p>
+			) : null}
+		</div>
+	);
+
 	const installedCatalogLocalItems =
 		catalogPrimitive === "skill"
 			? commandItems.map(
@@ -902,7 +982,19 @@ export function CustomizationSectionView({
 							item.name,
 							item.path,
 						),
-						render: (options) => renderSkillCard(item, options),
+						render: () => renderSkillCard(item),
+						renderMatchedBadges: () => (
+							<>
+								<ScopeBadge scope={item.scope} />
+								<Badge
+									variant="outline"
+									className="shrink-0 text-muted-foreground"
+								>
+									{item.type}
+								</Badge>
+							</>
+						),
+						renderMatchedDetails: () => renderSkillMatchedDetails(item),
 					}),
 				)
 			: catalogPrimitive === "plugin"
@@ -913,7 +1005,9 @@ export function CustomizationSectionView({
 								item.plugin.name,
 								item.plugin.path,
 							),
-							render: (options) => renderPluginCard(item, options),
+							render: () => renderPluginCard(item),
+							renderMatchedBadges: () => <ScopeBadge scope={item.scope} />,
+							renderMatchedDetails: () => renderPluginMatchedDetails(item),
 						}),
 					)
 				: catalogPrimitive === "mcp"
@@ -921,7 +1015,19 @@ export function CustomizationSectionView({
 							(server): MarketplaceLocalInstalledItem => ({
 								key: server.name,
 								matchValues: getLocalMarketplaceMatchValues(server.name),
-								render: (options) => renderMcpServerCard(server, options),
+								render: () => renderMcpServerCard(server),
+								renderMatchedBadges: () => (
+									<>
+										<ScopeBadge scope="Global" />
+										<Badge
+											variant="outline"
+											className="shrink-0 text-muted-foreground"
+										>
+											{server.transportType}
+										</Badge>
+									</>
+								),
+								renderMatchedDetails: () => renderMcpMatchedDetails(server),
 							}),
 						)
 					: null;
@@ -1006,44 +1112,17 @@ export function CustomizationSectionView({
 						directories.
 					</p>
 
-					<div className="mb-6">
-						<h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-							Global Rules
-						</h3>
-						<div className="flex flex-col gap-2">
-							{globalRules.map((rule) => (
-								<div
-									key={rule.path}
-									className="rounded-lg border border-border px-4 py-3"
-								>
-									<div className="flex items-center gap-3">
-										<FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-										<span className="flex-1 text-sm font-medium text-foreground">
-											{rule.name}
-										</span>
-									</div>
-									<p className="mt-2 text-xs text-muted-foreground">
-										{previewText(rule.instructions)}
-									</p>
-									<p className="mt-1 text-xs font-mono text-muted-foreground">
-										{rule.path}
-									</p>
-								</div>
-							))}
-							{globalRules.length === 0 && (
-								<p className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
-									No global rules found.
-								</p>
-							)}
+					<div className="grid gap-3">
+						<div className="flex items-center justify-between gap-3">
+							<h3 className="text-base font-semibold text-foreground">
+								Installed
+							</h3>
+							<span className="text-sm text-muted-foreground">
+								{scopedRules.length}
+							</span>
 						</div>
-					</div>
-
-					<div className="mb-2">
-						<h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-							Project Rules
-						</h3>
 						<div className="flex flex-col gap-2">
-							{projectRules.map((rule) => (
+							{scopedRules.map(({ rule, scope }) => (
 								<div
 									key={rule.path}
 									className="rounded-lg border border-border px-4 py-3"
@@ -1053,6 +1132,7 @@ export function CustomizationSectionView({
 										<span className="flex-1 text-sm font-medium text-foreground">
 											{rule.name}
 										</span>
+										<ScopeBadge scope={scope} />
 									</div>
 									<p className="mt-2 text-xs text-muted-foreground">
 										{previewText(rule.instructions)}
@@ -1062,9 +1142,9 @@ export function CustomizationSectionView({
 									</p>
 								</div>
 							))}
-							{projectRules.length === 0 && (
+							{scopedRules.length === 0 && (
 								<p className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
-									No project rules found.
+									No rules found.
 								</p>
 							)}
 						</div>
