@@ -929,6 +929,10 @@ describe("runCli lightweight command dispatch", () => {
 			"bun",
 			"src/index.ts",
 			"dashboard",
+			"--config",
+			"/tmp/cline-config",
+			"--data-dir",
+			".cline-dashboard-data",
 			"--port",
 			"9090",
 			"--no-open",
@@ -939,6 +943,8 @@ describe("runCli lightweight command dispatch", () => {
 		await expect(runCli()).resolves.toBeUndefined();
 		expect(dashboardMocks.runDashboardCommand).toHaveBeenCalledWith(
 			expect.objectContaining({
+				configDir: "/tmp/cline-config",
+				dataDir: ".cline-dashboard-data",
 				port: "9090",
 				openBrowser: false,
 				io: expect.any(Object),
