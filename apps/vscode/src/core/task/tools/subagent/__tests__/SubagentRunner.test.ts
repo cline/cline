@@ -462,6 +462,38 @@ describe("SubagentRunner", () => {
 		assert.match(result.error || "", /stream_initialization_failed/i)
 	})
 
+	it("does not retry initial ClinePass entitlement errors", async () => {
+		const createMessage = sinon.stub()
+		createMessage.onFirstCall().callsFake(async function* () {
+			yield* []
+			throw Object.assign(new Error("403 the user is not subscribed to required model plan"), {
+				status: 403,
+				code: "ENTITLEMENT_ERROR",
+				error: {
+					code: "ENTITLEMENT_ERROR",
+					message: "Error 403: the user is not subscribed to required model plan",
+				},
+			})
+		})
+
+		const promptRegistry = PromptRegistry.getInstance()
+		sinon.stub(promptRegistry, "get").callsFake(async () => {
+			promptRegistry.nativeTools = undefined
+			return "system prompt"
+		})
+		sinon.stub(skills, "discoverSkills").resolves([])
+		sinon.stub(skills, "getAvailableSkills").returns([])
+		stubApiHandler(createMessage)
+		initializeHostProvider()
+
+		const runner = new SubagentRunner(createTaskConfig(false))
+		const result = await runner.run("List files", () => {})
+
+		assert.equal(result.status, "failed")
+		assert.equal(createMessage.callCount, 1)
+		assert.match(result.error || "", /not subscribed to required model plan/i)
+	})
+
 	it("fails context window errors", async () => {
 		const createMessage = sinon.stub()
 		createMessage.onFirstCall().callsFake(async function* () {
