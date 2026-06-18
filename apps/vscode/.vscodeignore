@@ -46,7 +46,6 @@ eslint-rules/
 old_docs/
 evals/
 .codespellrc
-.mocharc.json
 buf.yaml
 .clinerules/
 
