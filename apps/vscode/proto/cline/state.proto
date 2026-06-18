@@ -454,6 +454,11 @@ message OnboardingProgressRequest {
   optional string action = 2;
   optional bool completed = 3;
   optional string model_selected = 4;
+  optional string page = 5;
+  optional string page_variant = 6;
+  optional string user_type = 7;
+  optional int32 destination_step = 8;
+  optional string destination_page = 9;
 }
 
 message OnboardingModelGroup {
