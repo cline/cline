@@ -5,7 +5,10 @@
 		"forceConsistentCasingInFileNames": true,
 		"isolatedModules": true,
 		"jsx": "react",
-		"lib": ["es2022", "DOM"],
+		"lib": [
+			"es2022",
+			"DOM"
+		],
 		"module": "esnext",
 		"moduleResolution": "Bundler",
 		"noFallthroughCasesInSwitch": true,
@@ -18,23 +21,49 @@
 		"sourceMap": true,
 		"strict": true,
 		"target": "es2022",
-		"typeRoots": ["./node_modules/@types", "../../node_modules/@types", "./src/types"],
+		"typeRoots": [
+			"./node_modules/@types",
+			"../../node_modules/@types",
+			"./src/types"
+		],
 		"useDefineForClassFields": true,
 		"useUnknownInCatchVariables": false,
 		"paths": {
-			"@/*": ["./src/*"],
-			"@api/*": ["./src/core/api/*"],
-			"@core/*": ["./src/core/*"],
-			"@generated/*": ["./src/generated/*"],
-			"@hosts/*": ["./src/hosts/*"],
-			"@integrations/*": ["./src/integrations/*"],
-			"@packages/*": ["./src/packages/*"],
-			"@services/*": ["./src/services/*"],
-			"@shared/*": ["./src/shared/*"],
-			"@utils/*": ["./src/utils/*"]
+			"@/*": [
+				"./src/*"
+			],
+			"@api/*": [
+				"./src/core/api/*"
+			],
+			"@core/*": [
+				"./src/core/*"
+			],
+			"@generated/*": [
+				"./src/generated/*"
+			],
+			"@hosts/*": [
+				"./src/hosts/*"
+			],
+			"@integrations/*": [
+				"./src/integrations/*"
+			],
+			"@packages/*": [
+				"./src/packages/*"
+			],
+			"@services/*": [
+				"./src/services/*"
+			],
+			"@shared/*": [
+				"./src/shared/*"
+			],
+			"@utils/*": [
+				"./src/utils/*"
+			]
 		}
 	},
-	"include": ["./src/**/*"],
+	"include": [
+		"./src/**/*"
+	],
 	"exclude": [
 		"node_modules",
 		".vscode-test",
