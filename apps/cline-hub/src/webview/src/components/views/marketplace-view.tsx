@@ -106,7 +106,9 @@ export type MarketplaceLocalInstalledItem = {
 	matchValues: string[];
 	render: () => ReactNode;
 	renderMatchedBadges?: () => ReactNode;
+	renderMatchedControls?: () => ReactNode;
 	renderMatchedDetails?: () => ReactNode;
+	renderMatchedMeta?: () => ReactNode;
 };
 
 function entryKey(entry: Pick<MarketplaceEntry, "id" | "type">): string {
@@ -304,19 +306,44 @@ function MarketplaceEntryCard({
 					<h2 className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
 						{entry.name}
 					</h2>
-					{sourceLabel ? (
-						<Badge variant="outline" className="shrink-0 text-muted-foreground">
-							{sourceLabel}
-						</Badge>
-					) : null}
-					{matchedLocalItems.map((item) =>
-						item.renderMatchedBadges ? (
-							<span className="contents" key={item.key}>
-								{item.renderMatchedBadges()}
-							</span>
-						) : null,
-					)}
+					<div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+						{sourceLabel ? (
+							<Badge
+								variant="outline"
+								className="shrink-0 text-muted-foreground"
+							>
+								{sourceLabel}
+							</Badge>
+						) : null}
+						{matchedLocalItems.map((item) =>
+							item.renderMatchedBadges ? (
+								<span className="contents" key={`${item.key}:badges`}>
+									{item.renderMatchedBadges()}
+								</span>
+							) : null,
+						)}
+						{matchedLocalItems.map((item) =>
+							item.renderMatchedControls ? (
+								<span
+									className="contents"
+									data-marketplace-entry-interactive
+									key={`${item.key}:controls`}
+								>
+									{item.renderMatchedControls()}
+								</span>
+							) : null,
+						)}
+					</div>
 				</div>
+				{matchedLocalItems.some((item) => item.renderMatchedMeta) ? (
+					<div className="mt-1 grid gap-1">
+						{matchedLocalItems.map((item) =>
+							item.renderMatchedMeta ? (
+								<div key={`${item.key}:meta`}>{item.renderMatchedMeta()}</div>
+							) : null,
+						)}
+					</div>
+				) : null}
 				<div className="mt-1 flex flex-wrap gap-1.5">
 					{entry.tags.slice(0, 5).map((tag) => (
 						<Badge
@@ -405,7 +432,9 @@ function MarketplaceEntryCard({
 			onClick={(event) => {
 				if (
 					event.target instanceof HTMLElement &&
-					event.target.closest("[data-marketplace-entry-details]")
+					event.target.closest(
+						"[data-marketplace-entry-details], [data-marketplace-entry-interactive]",
+					)
 				) {
 					return;
 				}

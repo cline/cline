@@ -858,35 +858,37 @@ export function CustomizationSectionView({
 		</div>
 	);
 
-	const renderPluginMatchedDetails = ({
-		plugin,
-	}: {
-		plugin: PluginItem;
-		scope: ItemScope;
-	}) => (
-		<div className="grid gap-3">
-			<div className="flex items-center justify-between gap-3">
-				<p className="min-w-0 text-xs font-mono text-muted-foreground">
-					{plugin.path}
-				</p>
-				<div className="flex items-center gap-2">
-					<span className="text-xs text-muted-foreground">
-						{plugin.enabled ? "Enabled" : "Disabled"}
-					</span>
-					<Switch
-						checked={plugin.enabled}
-						onCheckedChange={() => {
-							void setPluginEnabled(plugin);
-						}}
-						disabled={togglingPluginPaths.has(plugin.path)}
-						aria-label={`Toggle ${plugin.name}`}
-					/>
-				</div>
-			</div>
+	const renderPluginMatchedControls = (plugin: PluginItem) => (
+		<>
+			<span className="text-xs text-muted-foreground">
+				{plugin.enabled ? "Enabled" : "Disabled"}
+			</span>
+			<Switch
+				checked={plugin.enabled}
+				onCheckedChange={() => {
+					void setPluginEnabled(plugin);
+				}}
+				disabled={togglingPluginPaths.has(plugin.path)}
+				aria-label={`Toggle ${plugin.name}`}
+			/>
+		</>
+	);
+
+	const renderPluginMatchedMeta = (plugin: PluginItem) => (
+		<p className="min-w-0 truncate text-xs font-mono text-muted-foreground">
+			{plugin.path}
+		</p>
+	);
+
+	const renderPluginMatchedDetails = (plugin: PluginItem) => {
+		const pluginTools =
+			pluginToolsByPluginKey.get(`${plugin.name}:${plugin.path}`) ?? [];
+		if (pluginTools.length === 0) {
+			return null;
+		}
+		return (
 			<div className="grid gap-2">
-				{(
-					pluginToolsByPluginKey.get(`${plugin.name}:${plugin.path}`) ?? []
-				).map((tool) => {
+				{pluginTools.map((tool) => {
 					const isToggling = togglingToolIds.has(tool.id);
 					return (
 						<div
@@ -917,15 +919,9 @@ export function CustomizationSectionView({
 						</div>
 					);
 				})}
-				{(pluginToolsByPluginKey.get(`${plugin.name}:${plugin.path}`)?.length ??
-					0) === 0 && (
-					<p className="text-xs text-muted-foreground">
-						No plugin tools found.
-					</p>
-				)}
 			</div>
-		</div>
-	);
+		);
+	};
 
 	const renderMcpServerCard = (server: McpServer) => (
 		<div
@@ -1007,7 +1003,17 @@ export function CustomizationSectionView({
 							),
 							render: () => renderPluginCard(item),
 							renderMatchedBadges: () => <ScopeBadge scope={item.scope} />,
-							renderMatchedDetails: () => renderPluginMatchedDetails(item),
+							renderMatchedControls: () =>
+								renderPluginMatchedControls(item.plugin),
+							renderMatchedDetails:
+								(
+									pluginToolsByPluginKey.get(
+										`${item.plugin.name}:${item.plugin.path}`,
+									) ?? []
+								).length > 0
+									? () => renderPluginMatchedDetails(item.plugin)
+									: undefined,
+							renderMatchedMeta: () => renderPluginMatchedMeta(item.plugin),
 						}),
 					)
 				: catalogPrimitive === "mcp"
