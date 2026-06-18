@@ -18,6 +18,10 @@ import { ToolResultUtils } from "../utils/ToolResultUtils"
 // Default timeout for commands in yolo mode and background exec mode
 const DEFAULT_COMMAND_TIMEOUT_SECONDS = 30
 const LONG_RUNNING_COMMAND_TIMEOUT_SECONDS = 300
+const MAX_COMMAND_LENGTH = 12_000
+const MAX_HEREDOC_COMMAND_LENGTH = 4_000
+
+const HEREDOC_PATTERN = /<<-?\s*(['"]?[A-Za-z_][A-Za-z0-9_]*['"]?)/
 
 const LONG_RUNNING_COMMAND_PATTERNS: RegExp[] = [
 	/\b(npm|pnpm|yarn|bun)\s+(install|ci|build|test)\b/i,
@@ -53,6 +57,18 @@ export function resolveCommandTimeoutSeconds(
 	}
 
 	return isLikelyLongRunningCommand(command) ? LONG_RUNNING_COMMAND_TIMEOUT_SECONDS : DEFAULT_COMMAND_TIMEOUT_SECONDS
+}
+
+function getExcessiveCommandError(command: string): string | undefined {
+	if (command.length > MAX_COMMAND_LENGTH) {
+		return `Cline tried to execute a terminal command that is too long (${command.length} characters). Break it into shorter terminal commands and run them sequentially instead of combining everything into one command.`
+	}
+
+	if (HEREDOC_PATTERN.test(command) && command.length > MAX_HEREDOC_COMMAND_LENGTH) {
+		return `Cline tried to execute a large heredoc-style terminal command (${command.length} characters). Use shorter terminal commands and inspect each result before running the next command instead of sending one very large combined command.`
+	}
+
+	return undefined
 }
 
 export class ExecuteCommandToolHandler implements IFullyManagedTool {
@@ -156,6 +172,14 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 				command = actualCommand
 			}
 			// If no hint, use primary workspace (cwd)
+		}
+
+		const excessiveCommandError = getExcessiveCommandError(actualCommand)
+		if (excessiveCommandError) {
+			if (!config.isSubagentExecution) {
+				await config.callbacks.say("error", excessiveCommandError)
+			}
+			return formatResponse.toolError(excessiveCommandError)
 		}
 
 		// Check command permission validation (CLINE_COMMAND_PERMISSIONS env var)
