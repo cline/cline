@@ -1,4 +1,3 @@
-@import url("https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:ital,wght@0,400..900;1,400..900&display=swap");
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
@@ -43,7 +42,7 @@
 }
 
 @theme inline {
-	--font-sans: "Schibsted Grotesk", "Geist Variable", sans-serif;
+	--font-sans: "Geist Variable", sans-serif;
 	--font-mono:
 		ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono",
 		monospace;
