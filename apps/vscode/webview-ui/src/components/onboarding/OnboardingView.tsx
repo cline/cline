@@ -55,7 +55,7 @@ const ModelSelection = ({
 }: ModelSelectionProps) => {
 	const isClinePass = userType === NEW_USER_TYPE.CLINE_PASS
 	const modelGroups = onboardingModels[getModelGroupKey(userType)]
-	// Cline Pass costs are covered by the subscription, so price badges/ranges are not shown.
+	// ClinePass costs are covered by the subscription, so prices are hidden.
 	const hidePrice = isClinePass
 
 	const searchedModels = useMemo(() => {
@@ -123,8 +123,7 @@ const ModelSelection = ({
 		)
 	}
 
-	// Cline Pass models are curated by the backend; if none are available there is
-	// nothing valid to select, so show an empty state instead of any models.
+	// No curated ClinePass models available: show an empty state rather than other models.
 	if (isClinePass && modelGroups.length === 0) {
 		return (
 			<div className="flex w-full max-w-lg flex-col items-center justify-center my-8 px-2 text-center">
@@ -147,7 +146,7 @@ const ModelSelection = ({
 				))}
 			</div>
 
-			{/* SEARCH MODEL — not shown for Cline Pass, whose selection is constrained to the curated list. */}
+			{/* SEARCH MODEL — hidden for ClinePass, whose selection is constrained to the curated list. */}
 			{!isClinePass && (
 				<div className="flex w-full max-w-lg flex-col gap-6 my-4 border-t border-muted-foreground">
 					<div className="flex flex-col gap-3 mt-6" key="search-results">
@@ -301,7 +300,7 @@ const OnboardingStepContent = ({
 	return <ApiConfigurationSection />
 }
 
-// Cline Pass subscription signup page in the dashboard (requires auth).
+// ClinePass subscription signup page in the dashboard (requires auth).
 const CLINE_PASS_SUBSCRIBE_PATH = "/onboarding/individual-plan"
 const DEFAULT_APP_BASE_URL = "https://app.cline.bot"
 
@@ -319,18 +318,17 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 	const [selectedModelId, setSelectedModelId] = useState("")
 	const [searchTerm, setSearchTerm] = useState("")
 
-	// Set when a Cline Pass user starts signup; cleared once the subscription page is opened.
+	// Set when a ClinePass user starts signup; cleared once the subscription page is opened.
 	const pendingClinePassSubscribe = useRef(false)
 
-	// Opens the Cline Pass subscription page once a pending signup becomes authenticated.
-	// Fires from the auth effect below when clineUser is populated; the ref guard prevents
-	// a double open.
+	// Opens the ClinePass subscription page once a pending signup is authenticated.
+	// Runs from the auth effect below; the ref guard prevents a double open.
 	const openClinePassSubscriptionIfPending = useCallback(() => {
 		if (pendingClinePassSubscribe.current && clineUser?.uid) {
 			pendingClinePassSubscribe.current = false
 			const appBaseUrl = clineUser.appBaseUrl || DEFAULT_APP_BASE_URL
 			UiServiceClient.openUrl(StringRequest.create({ value: `${appBaseUrl}${CLINE_PASS_SUBSCRIBE_PATH}` })).catch((err) =>
-				console.error("Failed to open Cline Pass subscription page:", err),
+				console.error("Failed to open ClinePass subscription page:", err),
 			)
 		}
 	}, [clineUser?.uid, clineUser?.appBaseUrl])
@@ -340,16 +338,15 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 	}, [openClinePassSubscriptionIfPending])
 
 	const models = useMemo(() => getClineUIOnboardingGroups(onboardingModels), [onboardingModels])
-	// Cline Pass model IDs (e.g. "cline-pass/glm-5.1") are not keyed in openRouterModels,
+	// ClinePass model IDs (e.g. "cline-pass/glm-5.1") aren't keyed in openRouterModels,
 	// so resolve their info via the slug-based lookup used by ClinePassProvider.
 	const openRouterModelsByName = useMemo(() => buildModelInfoNameMap(openRouterModels), [openRouterModels])
 
 	useEffect(() => {
 		setSearchTerm("")
 		const groupKey = userType === NEW_USER_TYPE.CLINE_PASS ? "clinePass" : userType === NEW_USER_TYPE.POWER ? "power" : "free"
-		// Cline Pass selection must stay within the curated Cline Pass list (never fall back to a
-		// free/OpenRouter model, which would be saved under the cline-pass provider). Free/Frontier
-		// fall back to free if their group is empty.
+		// ClinePass must stay within its curated list (never fall back to a free/OpenRouter model
+		// under the cline-pass provider). Free/Frontier fall back to free if their group is empty.
 		const modelGroup = userType === NEW_USER_TYPE.CLINE_PASS ? models[groupKey][0] : (models[groupKey][0] ?? models.free[0])
 		const userGroupInitModel = modelGroup?.models[0]
 		setSelectedModelId(userGroupInitModel?.id ?? "")
@@ -378,11 +375,11 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 	const finishOnboarding = useCallback(
 		async (updateModelId: boolean, step: number) => {
 			const modelSelected = (updateModelId && selectedModelId) || undefined
-			// Guard: never save a non–Cline-Pass model id under the cline-pass provider.
+			// Guard: never save a non-ClinePass model id under the cline-pass provider.
 			const isClinePassModel = selectedModelId.startsWith("cline-pass/")
 			if (modelSelected) {
 				if (userType === NEW_USER_TYPE.CLINE_PASS && isClinePassModel) {
-					// Cline Pass uses its own provider + model fields.
+					// ClinePass uses its own provider + model fields.
 					const clinePassModelInfo = resolveClinePassModelInfo(selectedModelId, openRouterModelsByName)
 					await handleFieldsChange({
 						planModeClinePassModelId: selectedModelId,
@@ -402,10 +399,9 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 						actModeApiProvider: "cline",
 					})
 				} else {
-					// userType is Cline Pass but the selected id isn't a cline-pass/ model.
-					// The guard above intentionally skips the write to avoid a bad provider
-					// config; log it so this otherwise-silent no-op is observable.
-					console.error(`Skipped Cline Pass provider setup: unexpected model id "${selectedModelId}"`)
+					// ClinePass selected but the id isn't a cline-pass/ model: skip the write
+					// (avoids a bad provider config) and log so the no-op is observable.
+					console.error(`Skipped ClinePass provider setup: unexpected model id "${selectedModelId}"`)
 				}
 			}
 			hideAccount()
@@ -420,9 +416,8 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 		async (action: "signin" | "next" | "back" | "done" | "signup") => {
 			switch (action) {
 				case "signup":
-					// Cline Pass: flag that the subscription page should open once the user is
-					// authenticated; the clineUser effect handles the redirect. The login flow
-					// below is unchanged.
+					// ClinePass: flag the subscription page to open once authenticated (the
+					// clineUser effect handles it). The login flow below is unchanged.
 					pendingClinePassSubscribe.current = userType === NEW_USER_TYPE.CLINE_PASS
 					setStepNumber(stepNumber + 1)
 					setIsActionLoading(true)
@@ -444,7 +439,7 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 					setStepNumber(stepNumber + 1)
 					break
 				case "back":
-					// Abandon any pending Cline Pass subscription redirect when the user goes back.
+					// Abandon any pending ClinePass subscription redirect when the user goes back.
 					pendingClinePassSubscribe.current = false
 					StateServiceClient.captureOnboardingProgress({ step: stepNumber - 1 })
 					setStepNumber(stepNumber - 1)
@@ -498,7 +493,7 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 
 				<footer className="flex w-full max-w-lg flex-col gap-3 my-2 px-2 overflow-hidden flex-shrink-0">
 					{stepDisplayInfo.buttons.map((btn) => {
-						// Block Cline Pass signup when no Cline Pass model is selected (e.g. empty list).
+						// Block ClinePass signup when no ClinePass model is selected (e.g. empty list).
 						const disabled =
 							isActionLoading ||
 							(btn.action === "signup" && userType === NEW_USER_TYPE.CLINE_PASS && !selectedModelId)

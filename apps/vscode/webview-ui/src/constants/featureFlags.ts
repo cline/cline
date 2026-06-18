@@ -8,5 +8,5 @@
  * the webview bundle.
  */
 
-/** Enables Cline Pass provider/model exposure (settings + onboarding). */
+/** Enables ClinePass provider/model exposure (settings + onboarding). */
 export const CLINE_PASS_FEATURE_FLAG = "ext-cline-pass"

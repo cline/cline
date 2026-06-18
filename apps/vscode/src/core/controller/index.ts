@@ -524,7 +524,7 @@ export class Controller {
 			// On login we route the user to the managed "cline" provider, but preserve a
 			// "cline-pass" selection made during onboarding (otherwise it would be clobbered).
 			// A "cline-pass" provider can only be set when the ext-cline-pass flag is on, so
-			// non-Cline-Pass logins are unaffected.
+			// non-ClinePass logins are unaffected.
 			const planProvider: ApiProvider =
 				currentApiConfiguration.planModeApiProvider === "cline-pass" ? "cline-pass" : "cline"
 			const actProvider: ApiProvider = currentApiConfiguration.actModeApiProvider === "cline-pass" ? "cline-pass" : "cline"

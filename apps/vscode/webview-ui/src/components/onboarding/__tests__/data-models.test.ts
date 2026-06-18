@@ -19,7 +19,7 @@ function groupOf(models: OnboardingModel[]): OnboardingModelGroup {
 }
 
 describe("getClineUIOnboardingGroups", () => {
-	it("buckets Cline Pass models into the clinePass group", () => {
+	it("buckets ClinePass models into the clinePass group", () => {
 		const result = getClineUIOnboardingGroups(
 			groupOf([
 				model("cline-pass/glm-5.1", "clinepass"),
@@ -36,14 +36,14 @@ describe("getClineUIOnboardingGroups", () => {
 		expect(result.power.flatMap((g) => g.models.map((m) => m.id))).toEqual(["anthropic/claude", "z-ai/glm"])
 	})
 
-	it("returns an empty clinePass group when no Cline Pass models are present", () => {
+	it("returns an empty clinePass group when no ClinePass models are present", () => {
 		const result = getClineUIOnboardingGroups(groupOf([model("free-model", "free")]))
 		expect(result.clinePass).toEqual([])
 	})
 })
 
 describe("getRecommendedModelsData", () => {
-	it("ignores Cline Pass-only responses when the Cline Pass feature flag is disabled", () => {
+	it("ignores ClinePass-only responses when the ClinePass feature flag is disabled", () => {
 		const result = getRecommendedModelsData(
 			{
 				recommended: [],
@@ -56,7 +56,7 @@ describe("getRecommendedModelsData", () => {
 		expect(result).toBeUndefined()
 	})
 
-	it("includes Cline Pass models when the Cline Pass feature flag is enabled", () => {
+	it("includes ClinePass models when the ClinePass feature flag is enabled", () => {
 		const result = getRecommendedModelsData(
 			{
 				recommended: [],
@@ -69,7 +69,7 @@ describe("getRecommendedModelsData", () => {
 		expect(result?.clinePass.map((model) => model.id)).toEqual(["cline-pass/glm-5.1"])
 	})
 
-	it("keeps classic recommended/free responses when the Cline Pass feature flag is disabled", () => {
+	it("keeps classic recommended/free responses when the ClinePass feature flag is disabled", () => {
 		const result = getRecommendedModelsData(
 			{
 				recommended: [{ id: "anthropic/claude", name: "Claude", description: "", tags: [] }],
