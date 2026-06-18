@@ -73,9 +73,7 @@ function createAzureApiVersionFetch(
 	return azureFetch;
 }
 
-type ResponseErrorHandler = (
-	response: Response,
-) => Error | undefined | Promise<Error | undefined>;
+type ResponseErrorHandler = (response: Response) => Promise<void> | void;
 
 function readResponseErrorHandler(
 	config: GatewayResolvedProviderConfig,
