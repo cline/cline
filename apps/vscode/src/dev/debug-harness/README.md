@@ -16,7 +16,7 @@ Designed to be driven from an agentic loop via `curl` commands.
 
 ```bash
 # Terminal 1: Start the debug harness server
-npx tsx src/dev/debug-harness/server.ts --auto-launch --skip-build
+bun src/dev/debug-harness/server.ts --auto-launch --skip-build
 
 # Terminal 2: Interact via curl
 curl localhost:19229/api -d '{"method":"status"}'
@@ -27,7 +27,7 @@ curl localhost:19229/api -d '{"method":"ui.screenshot"}'
 ## Server Options
 
 ```
-npx tsx src/dev/debug-harness/server.ts [options]
+bun src/dev/debug-harness/server.ts [options]
 
 Options:
   --skip-build        Skip building extension/webview (use existing dist/)
@@ -42,7 +42,7 @@ Options:
 ```bash
 # This builds protos, extension (unminified+sourcemaps), webview (unminified+sourcemaps),
 # downloads VSCode, launches it, and connects CDP to the extension host.
-npx tsx src/dev/debug-harness/server.ts --auto-launch
+bun src/dev/debug-harness/server.ts --auto-launch
 ```
 
 ## Data Isolation
@@ -126,7 +126,7 @@ curl localhost:19229/api -d '{"method":"ui.screenshot"}'
 MCP servers that require OAuth use a different flow: the browser redirects
 to a `vscode://` URI handled by the extension's URI handler. The auth provider
 (e.g. Linear) decides the `code`; for end-to-end testing, pair this with the
-local MCP OAuth test server (`npm run dev:mcp-oauth-test-server`, see
+local MCP OAuth test server (`bun run dev:mcp-oauth-test-server`, see
 `src/dev/mcp-oauth-test-server/README.md`), which mints real codes/tokens.
 
 ```bash

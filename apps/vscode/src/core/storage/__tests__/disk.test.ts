@@ -1,12 +1,24 @@
-import { afterEach, beforeEach, describe, it } from "mocha"
+import { afterAll, afterEach, beforeAll, beforeEach, describe, it, mock } from "bun:test"
 import "should"
-import * as fsUtils from "@utils/fs"
+import * as actualFsUtils from "@utils/fs"
 import fs from "fs/promises"
 import os from "os"
 import path from "path"
 import sinon from "sinon"
 import { HostProvider } from "@/hosts/host-provider"
 import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
+
+// bun loads real ESM, so sinon cannot stub the `@utils/fs` namespace export
+// ("ES Modules cannot be stubbed"). Inject a module-level sinon stub for
+// `isDirectory` via mock.module so the full sinon stub API keeps working. It
+// defaults to the real implementation; only the error-propagation test overrides
+// it. Register both the alias form and the SUT's relative form.
+const realIsDirectory = actualFsUtils.isDirectory
+const isDirectoryStub: sinon.SinonStub = sinon.stub()
+const fsUtilsMock = () => ({ ...actualFsUtils, isDirectory: isDirectoryStub })
+mock.module("@utils/fs", fsUtilsMock)
+mock.module("@/utils/fs", fsUtilsMock)
+
 import { getAllHooksDirs, getWorkspaceHooksDirs, setRuntimeHooksDir } from "../disk"
 import { StateManager } from "../StateManager"
 
@@ -16,6 +28,10 @@ describe("disk - hooks functionality", () => {
 
 	beforeEach(async () => {
 		sandbox = sinon.createSandbox()
+		// Default the module-level isDirectory stub to the real implementation;
+		// individual tests override it as needed.
+		isDirectoryStub.reset()
+		isDirectoryStub.callsFake((...args: unknown[]) => (realIsDirectory as (...a: unknown[]) => Promise<boolean>)(...args))
 		tempDir = path.join(os.tmpdir(), `disk-test-${Date.now()}-${Math.random().toString(36).slice(2)}`)
 		await fs.mkdir(tempDir, { recursive: true })
 	})
@@ -151,7 +167,7 @@ describe("disk - hooks functionality", () => {
 			} as any)
 
 			// Stub isDirectory to throw an error
-			sandbox.stub(fsUtils, "isDirectory").rejects(new Error("Permission denied"))
+			isDirectoryStub.rejects(new Error("Permission denied"))
 
 			// Should propagate the error
 			try {
@@ -204,7 +220,7 @@ describe("disk - hooks functionality", () => {
 				getGlobalStateKey: () => [],
 			} as any)
 
-			sandbox.stub(fsUtils, "isDirectory").callsFake(async (targetPath: string) => targetPath === runtimeHooksDir)
+			isDirectoryStub.callsFake(async (targetPath: string) => targetPath === runtimeHooksDir)
 
 			setRuntimeHooksDir(runtimeHooksDir)
 
@@ -220,7 +236,7 @@ describe("disk - hooks functionality", () => {
 				getGlobalStateKey: () => [],
 			} as any)
 
-			sandbox.stub(fsUtils, "isDirectory").resolves(false)
+			isDirectoryStub.resolves(false)
 
 			setRuntimeHooksDir(runtimeHooksDir)
 
@@ -235,7 +251,7 @@ describe("disk - atomic writes", () => {
 	let testGlobalStorageDir: string
 
 	// Setup HostProvider for tests with real temp directory
-	before(async () => {
+	beforeAll(async () => {
 		// Create a real temp directory for the tests
 		testGlobalStorageDir = path.join(os.tmpdir(), `cline-test-storage-${Date.now()}-${Math.random().toString(36).slice(2)}`)
 		await fs.mkdir(testGlobalStorageDir, { recursive: true })
@@ -246,7 +262,7 @@ describe("disk - atomic writes", () => {
 		})
 	})
 
-	after(async () => {
+	afterAll(async () => {
 		HostProvider.reset()
 
 		// Clean up temp directory

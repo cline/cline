@@ -1,5 +1,5 @@
+import { afterAll, describe, it } from "bun:test"
 import * as fs from "fs/promises"
-import { after, describe, it } from "mocha"
 import * as os from "os"
 import * as path from "path"
 import "should"
@@ -12,7 +12,7 @@ function normalizeForComparison(filePath: string): string {
 describe("listFiles", () => {
 	const tmpDir = path.join(os.tmpdir(), `cline-list-files-test-${Math.random().toString(36).slice(2)}`)
 
-	after(async () => {
+	afterAll(async () => {
 		await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => undefined)
 	})
 
@@ -44,7 +44,7 @@ describe("listFiles gitignore handling", () => {
 	// overwrite earlier .gitignore files and pass for the wrong reasons.
 	const baseDir = path.join(os.tmpdir(), `cline-gitignore-test-${Math.random().toString(36).slice(2)}`)
 
-	after(async () => {
+	afterAll(async () => {
 		await fs.rm(baseDir, { recursive: true, force: true }).catch(() => undefined)
 	})
 

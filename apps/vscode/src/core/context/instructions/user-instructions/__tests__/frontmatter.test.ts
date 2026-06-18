@@ -1,3 +1,4 @@
+import { describe, it } from "bun:test"
 import { expect } from "chai"
 import { parseYamlFrontmatter } from "../frontmatter"
 

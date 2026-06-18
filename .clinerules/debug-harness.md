@@ -6,10 +6,10 @@ HTTP-controlled debugger for the VSCode extension at `src/dev/debug-harness/serv
 
 ```bash
 # Build extension first if needed (protos + esbuild):
-npm run protos && IS_DEV=true node esbuild.mjs
+bun run protos && IS_DEV=true bun esbuild.mjs
 
 # Launch (skip-build if already built):
-npx tsx src/dev/debug-harness/server.ts --skip-build --auto-launch
+bun src/dev/debug-harness/server.ts --skip-build --auto-launch
 
 # In another terminal:
 curl localhost:19229/api -d '{"method":"status"}'
@@ -51,7 +51,7 @@ debug-only hook via `ext.evaluate` (with `awaitPromise: true`):
 It runs the same `SharedUriHandler.handleUri` as VSCode's real URI handler and exists only
 when `CLINE_CAPTURE_BROWSER` is set (the harness always sets it; never ships in prod).
 For end-to-end MCP OAuth, get a real `code` from the local MCP OAuth test server
-(`npm run dev:mcp-oauth-test-server`).
+(`bun run dev:mcp-oauth-test-server`).
 
 ## Navigating Views — Use Commands, Not Clicks
 

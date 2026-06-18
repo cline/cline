@@ -32,9 +32,9 @@ Exercises MCP OAuth failure modes without a real remote server:
 
 ```bash
 cd apps/vscode
-npm run dev:mcp-oauth-test-server -- --verbose
+bun run dev:mcp-oauth-test-server -- --verbose
 # or directly:
-npx tsx src/dev/mcp-oauth-test-server/server.ts --verbose
+bun src/dev/mcp-oauth-test-server/server.ts --verbose
 ```
 
 Then in Cline, add an MCP server (StreamableHTTP) pointing at:
@@ -64,13 +64,13 @@ can click **Approve** or **Deny**.
 10-minute state window:
 
 ```bash
-npx tsx src/dev/mcp-oauth-test-server/server.ts --slow-authorize 605000 --verbose
+bun src/dev/mcp-oauth-test-server/server.ts --slow-authorize 605000 --verbose
 ```
 
 **Denied redirect** — always deny so every redirect carries `access_denied`:
 
 ```bash
-npx tsx src/dev/mcp-oauth-test-server/server.ts --auto-deny --verbose
+bun src/dev/mcp-oauth-test-server/server.ts --auto-deny --verbose
 ```
 
 ## Debug-harness integration
