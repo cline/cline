@@ -3,10 +3,13 @@ import { useKeyboard } from "@opentui/react";
 import type { Dispatch, SetStateAction } from "react";
 import type { ClineModelPickerEntry } from "../../components/model-selector/cline-model-picker";
 import type { SearchableListState } from "../../components/searchable-list";
-import type { OnboardingOAuthProviderId } from "./auth";
+import {
+	isOnboardingOAuthProviderId,
+	type OnboardingOAuthProviderId,
+} from "./auth";
 import { FIELD_ORDER } from "./fields";
 import {
-	MAIN_MENU,
+	type MenuOption,
 	type OnboardingStep,
 	THINKING_LEVELS,
 	type ThinkingLevel,
@@ -17,6 +20,7 @@ export function useOnboardingKeyboard(input: {
 	onExit: () => void;
 	oauthProvider: string;
 	activeProviderId: string;
+	menuOptions: MenuOption[];
 	menuSelected: number;
 	providerList: SearchableListState;
 	modelList: SearchableListState;
@@ -133,17 +137,21 @@ export function useOnboardingKeyboard(input: {
 
 		if (input.step === "menu") {
 			if (key.name === "up") {
-				input.setMenuSelected((s) => (s <= 0 ? MAIN_MENU.length - 1 : s - 1));
+				input.setMenuSelected((s) =>
+					s <= 0 ? input.menuOptions.length - 1 : s - 1,
+				);
 				return;
 			}
 			if (key.name === "down") {
-				input.setMenuSelected((s) => (s >= MAIN_MENU.length - 1 ? 0 : s + 1));
+				input.setMenuSelected((s) =>
+					s >= input.menuOptions.length - 1 ? 0 : s + 1,
+				);
 				return;
 			}
 			if (key.name === "return") {
-				const option = MAIN_MENU[input.menuSelected];
+				const option = input.menuOptions[input.menuSelected];
 				if (!option) return;
-				if (option.value === "cline" || option.value === "openai-codex") {
+				if (isOnboardingOAuthProviderId(option.value)) {
 					input.startOAuthFlow(option.value);
 				} else {
 					input.setStep("byo_provider");
