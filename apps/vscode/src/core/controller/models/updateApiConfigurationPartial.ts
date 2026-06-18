@@ -4,6 +4,7 @@ import { UpdateApiConfigurationPartialRequest } from "@shared/proto/cline/models
 import { convertProtoToApiConfiguration } from "@shared/proto-conversions/models/api-configuration-conversion"
 import { Logger } from "@/shared/services/Logger"
 import type { Controller } from "../index"
+import { clearOrganizationForClinePassProviderSelection } from "./handleClinePassProviderSelection"
 
 /**
  * Updates API configuration with partial values using FieldMask
@@ -42,6 +43,7 @@ export async function updateApiConfigurationPartial(
 
 		// Update storage and task API handler
 		controller.stateManager.setApiConfiguration(updatedConfig)
+		await clearOrganizationForClinePassProviderSelection(controller, updatedConfig)
 		if (controller.task) {
 			const currentMode = controller.stateManager.getGlobalSettingsKey("mode")
 			controller.task.api = buildApiHandler({ ...updatedConfig, ulid: controller.task.ulid }, currentMode)
