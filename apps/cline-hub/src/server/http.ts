@@ -49,10 +49,15 @@ export function isWebviewRoute(pathname: string): boolean {
 		pathname === "/" ||
 		pathname === "/index.html" ||
 		pathname === "/chat" ||
+		pathname === "/sessions" ||
+		pathname === "/models" ||
+		pathname === "/customizations" ||
 		pathname === "/marketplace" ||
 		pathname === "/marketplace/mcp" ||
 		pathname === "/marketplace/skills" ||
 		pathname === "/marketplace/plugins" ||
+		pathname === "/channels" ||
+		pathname === "/schedules" ||
 		pathname === "/settings" ||
 		pathname.startsWith("/settings/")
 	);

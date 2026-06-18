@@ -2,18 +2,20 @@ import {
 	ActivityIcon,
 	BotIcon,
 	BoxIcon,
+	ChevronRight,
 	ClockIcon,
+	Folder,
 	FunnelIcon,
 	HomeIcon,
 	LinkIcon,
 	MessageSquareIcon,
-	PencilIcon,
+	MoreHorizontal,
 	PlugIcon,
+	PlusCircle,
 	RotateCcwIcon,
 	RssIcon,
 	ServerIcon,
 	SettingsIcon,
-	Trash2Icon,
 	WrenchIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
@@ -39,7 +41,6 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
 import type {
 	WebviewActiveConnector,
 	WebviewConnectedClient,
@@ -55,17 +56,31 @@ import {
 	SettingsView,
 } from "./components/views/settings/settings-view";
 import type { MarketplacePrimitiveType } from "./lib/marketplace";
-import { getVsCodeApi, postToHost } from "./vscode";
+import { postToHost } from "./vscode";
 
-type View = "home" | "chat" | "mcp" | "skills" | "plugins" | "settings";
-type Theme = "dark" | "light";
-
+type View =
+	| "home"
+	| "sessions"
+	| "chat"
+	| "models"
+	| "customizations"
+	| "mcp"
+	| "plugins"
+	| "skills"
+	| "channels"
+	| "schedules"
+	| "settings";
 const VIEW_PATHS: Record<View, string> = {
 	home: "/",
+	sessions: "/sessions",
 	chat: "/chat",
+	models: "/models",
+	customizations: "/customizations",
 	mcp: "/marketplace/mcp",
-	skills: "/marketplace/skills",
 	plugins: "/marketplace/plugins",
+	skills: "/marketplace/skills",
+	channels: "/channels",
+	schedules: "/schedules",
 	settings: "/settings",
 };
 
@@ -98,30 +113,16 @@ const EMPTY_HUB_STATE: WebviewHubState = {
 	events: [],
 };
 
-function readTheme(): Theme {
-	try {
-		const state = getVsCodeApi()?.getState() as { theme?: Theme } | undefined;
-		return state?.theme === "light" ? "light" : "dark";
-	} catch {
-		return "dark";
-	}
-}
-
-function writeTheme(theme: Theme): void {
-	try {
-		const api = getVsCodeApi();
-		const state = (api?.getState() as Record<string, unknown>) ?? {};
-		api?.setState({ ...state, theme });
-	} catch {
-		// Theme persistence is best-effort.
-	}
-}
-
 function viewFromPath(pathname: string): View {
+	if (pathname === VIEW_PATHS.sessions) return "sessions";
 	if (pathname === VIEW_PATHS.chat) return "chat";
+	if (pathname === VIEW_PATHS.models) return "models";
+	if (pathname === VIEW_PATHS.customizations) return "customizations";
 	if (pathname === "/marketplace" || pathname === VIEW_PATHS.mcp) return "mcp";
-	if (pathname === VIEW_PATHS.skills) return "skills";
 	if (pathname === VIEW_PATHS.plugins) return "plugins";
+	if (pathname === VIEW_PATHS.skills) return "skills";
+	if (pathname === VIEW_PATHS.channels) return "channels";
+	if (pathname === VIEW_PATHS.schedules) return "schedules";
 	if (
 		pathname === VIEW_PATHS.settings ||
 		pathname.startsWith(`${VIEW_PATHS.settings}/`)
@@ -259,17 +260,11 @@ function connectorLabel(connector: WebviewActiveConnector): string {
 	return shortId(connector.id);
 }
 
-function sessionRunDetails(session: WebviewSessionSummary): string[] {
-	const inputTokens = formatCompactNumber(session.inputTokens);
-	const outputTokens = formatCompactNumber(session.outputTokens);
-	const cost = formatCost(session.totalCost);
-	return [
-		workspaceName(session.workspaceRoot),
-		`${session.providerId}:${session.model}`,
-		inputTokens ? `${inputTokens}/${outputTokens}` : undefined,
-		cost,
-		session.source,
-	].filter((detail): detail is string => Boolean(detail));
+function formatSessionModel(session: WebviewSessionSummary): string {
+	if (session.providerId && session.model) {
+		return `${session.providerId}:${session.model}`;
+	}
+	return session.model ?? session.providerId ?? "No model";
 }
 
 function sessionFilterDetails(session: WebviewSessionSummary): string[] {
@@ -286,35 +281,41 @@ function sessionFilterDetails(session: WebviewSessionSummary): string[] {
 function Shell({
 	children,
 	onNavigate,
+	version,
 	view,
 }: {
 	children: ReactNode;
 	onNavigate: (view: View) => void;
-	theme: Theme;
+	version?: string;
 	view: View;
 }) {
 	const navItems = [
 		{ view: "home", label: "Home", icon: HomeIcon },
-		{ view: "chat", label: "Chat", icon: MessageSquareIcon },
+		{ view: "sessions", label: "Sessions", icon: MessageSquareIcon },
+		{ view: "models", label: "Models", icon: BotIcon },
+		{ view: "customizations", label: "Customizations", icon: WrenchIcon },
 		{ view: "mcp", label: "MCP", icon: ServerIcon },
-		{ view: "skills", label: "Skills", icon: WrenchIcon },
 		{ view: "plugins", label: "Plugins", icon: PlugIcon },
+		{ view: "skills", label: "Skills", icon: ActivityIcon },
+		{ view: "channels", label: "Channels", icon: LinkIcon },
+		{ view: "schedules", label: "Schedules", icon: ClockIcon },
 		{ view: "settings", label: "Settings", icon: SettingsIcon },
 	] satisfies Array<{
-		view: View;
+		view: Exclude<View, "chat">;
 		label: string;
 		icon: typeof HomeIcon;
 	}>;
 
 	return (
-		<div className="grid h-screen min-h-screen grid-cols-[13.5rem_minmax(0,1fr)] bg-background text-foreground max-[720px]:grid-cols-1 max-[720px]:grid-rows-[auto_minmax(0,1fr)]">
-			<aside className="flex min-h-0 flex-col border-r bg-[color-mix(in_oklch,var(--background)_94%,var(--card))] p-3 max-[720px]:border-b max-[720px]:border-r-0">
+		<div className="grid h-screen min-h-screen grid-cols-[14.5rem_minmax(0,1fr)] bg-background text-foreground max-[720px]:grid-cols-1 max-[720px]:grid-rows-[auto_minmax(0,1fr)]">
+			<aside className="flex min-h-0 flex-col border-r bg-sidebar p-4 text-sidebar-foreground max-[720px]:border-b max-[720px]:border-r-0 max-[720px]:p-3">
 				<button
-					className="mb-4 flex min-w-0 items-center rounded-md px-2 py-1.5 text-left text-base font-semibold outline-none transition-colors hover:text-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background max-[720px]:mb-2"
+					className="mb-5 flex min-w-0 items-center justify-between rounded-md px-0 py-1 text-left text-lg font-semibold outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar max-[720px]:mb-2"
 					onClick={() => onNavigate("home")}
 					type="button"
 				>
-					<span className="truncate">Cline Hub</span>
+					<span className="truncate">Personal</span>
+					<ChevronRight className="size-4 rotate-90 text-muted-foreground" />
 				</button>
 				<nav
 					className="grid gap-1 max-[720px]:grid-flow-col max-[720px]:auto-cols-max max-[720px]:overflow-x-auto"
@@ -322,23 +323,48 @@ function Shell({
 				>
 					{navItems.map((item) => {
 						const Icon = item.icon;
+						const active =
+							view === item.view ||
+							(item.view === "sessions" && view === "chat");
 						return (
-							<Button
-								className="justify-start"
+							<button
+								className={`flex h-8 min-w-0 items-center gap-2 rounded-md px-2 text-left text-[15px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar ${
+									active
+										? "bg-sidebar-accent text-sidebar-accent-foreground"
+										: "text-sidebar-foreground hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground"
+								}`}
 								key={item.view}
 								onClick={() => onNavigate(item.view)}
-								size="sm"
 								type="button"
-								variant={view === item.view ? "default" : "ghost"}
 							>
-								<Icon className="size-4" />
-								<span>{item.label}</span>
-							</Button>
+								<Icon className="size-4 shrink-0" />
+								<span className="truncate">{item.label}</span>
+								{item.view === "settings" ? (
+									<ChevronRight className="ml-auto size-4 shrink-0 text-muted-foreground" />
+								) : null}
+							</button>
 						);
 					})}
 				</nav>
+				<div className="mt-auto grid gap-4 pt-6 max-[720px]:hidden">
+					<div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+						<BoxIcon className="size-3.5" />
+						<span>{version ? `v${version}` : "Cline Hub"}</span>
+					</div>
+					<div className="border-t pt-4">
+						<div className="flex min-w-0 items-center gap-3">
+							<div className="grid size-8 shrink-0 place-items-center rounded-full bg-violet-600 text-sm font-semibold text-white">
+								P
+							</div>
+							<span className="min-w-0 flex-1 truncate text-[15px] font-medium">
+								Personal
+							</span>
+							<MoreHorizontal className="size-4 shrink-0 text-muted-foreground" />
+						</div>
+					</div>
+				</div>
 			</aside>
-			<main className="min-h-0 overflow-hidden [&>.h-screen]:h-full">
+			<main className="min-h-0 overflow-hidden bg-background [&>.h-screen]:h-full">
 				{children}
 			</main>
 		</div>
@@ -348,53 +374,26 @@ function Shell({
 function HomeView({
 	hubState,
 	onOpenSession,
-	onDeleteSession,
-	onRenameSession,
 	onRestartHub,
+	onViewSessions,
 	restartPending,
 	recentSessions,
 }: {
 	hubState: WebviewHubState;
 	onOpenSession: (sessionId: string) => void;
-	onDeleteSession: (sessionId: string) => Promise<void> | void;
-	onRenameSession: (sessionId: string, title: string) => Promise<void> | void;
 	onRestartHub: () => void;
+	onViewSessions: () => void;
 	restartPending: boolean;
 	recentSessions: WebviewSessionSummary[];
 }) {
 	const activeSessions = hubState.sessionSummaries ?? [];
 	const connectedClients = hubState.clients ?? [];
 	const connectedConnectors = hubState.connectors ?? [];
-	const latestEvents = hubState.events.slice(0, 6);
+	const latestEvents = hubState.events.slice(0, 3);
+	const sessionPreview = (
+		recentSessions.length > 0 ? recentSessions : activeSessions
+	).slice(0, 2);
 	const [restartDialogOpen, setRestartDialogOpen] = useState(false);
-	const [sessionFilters, setSessionFilters] = useState<string[]>([]);
-	const runDetailFilterOptions = useMemo(
-		() =>
-			Array.from(
-				new Set(
-					recentSessions.flatMap((session) => sessionFilterDetails(session)),
-				),
-			).sort((a, b) => a.localeCompare(b)),
-		[recentSessions],
-	);
-	const filteredRecentSessions = useMemo(() => {
-		if (sessionFilters.length === 0) {
-			return recentSessions;
-		}
-		const selected = new Set(sessionFilters);
-		return recentSessions.filter((session) =>
-			sessionFilterDetails(session).some((detail) => selected.has(detail)),
-		);
-	}, [recentSessions, sessionFilters]);
-
-	const toggleSessionFilter = (detail: string, checked: boolean) => {
-		setSessionFilters((prev) => {
-			if (checked) {
-				return prev.includes(detail) ? prev : [...prev, detail];
-			}
-			return prev.filter((item) => item !== detail);
-		});
-	};
 
 	const copyText = useCallback((value?: string) => {
 		if (!value || typeof navigator === "undefined") return;
@@ -407,51 +406,33 @@ function HomeView({
 	};
 
 	return (
-		<div className="h-full overflow-auto p-4.5 max-[720px]:p-3">
-			<section className="flex items-center justify-between gap-4 border-b pb-4.5 max-[720px]:flex-col max-[720px]:items-stretch">
-				<div>
-					<p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-						Dashboard
-					</p>
-					{/* <p className="overview-subtitle">
-						{hubState.lastWorkspaceRoot || "No workspace context yet"}
-					</p> */}
-				</div>
-				<div className="flex flex-wrap items-center justify-end gap-2.5 max-[720px]:justify-start">
+		<div className="h-full overflow-auto px-18 py-10 max-[1200px]:px-8 max-[720px]:px-4 max-[720px]:py-5">
+			<section className="mb-10 flex items-start justify-between gap-6 max-[860px]:flex-col max-[860px]:items-stretch">
+				<h1 className="text-[32px] font-semibold leading-none tracking-normal text-foreground">
+					Cline Hub
+				</h1>
+				<div className="flex flex-wrap items-center justify-end gap-1.5 max-[860px]:justify-start">
 					<div
-						className="inline-flex items-center gap-2 rounded-lg border px-2.5 py-2 text-xs text-muted-foreground"
+						className="inline-flex h-7 items-center gap-1.5 rounded border bg-background px-2 text-xs text-muted-foreground"
 						title="Hub uptime"
 					>
-						<ClockIcon className="size-4" />
-						{hubState.hubUptime ?? "no uptime"}
+						<ClockIcon className="size-3.5" />
+						Uptime {hubState.hubUptime ?? "0m"}
 					</div>
 					<button
 						aria-label="Copy hub URL"
-						className="inline-flex min-w-0 max-w-full items-center gap-2 rounded-lg border px-2.5 py-2 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+						className="inline-flex h-7 min-w-0 max-w-64 items-center gap-1.5 rounded border bg-background px-2 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
 						disabled={!hubState.hubUrl}
 						onClick={() => copyText(hubState.hubUrl)}
 						title="Copy hub URL"
 						type="button"
 					>
-						<LinkIcon className="size-4 shrink-0" />
+						<LinkIcon className="size-3.5 shrink-0" />
 						<span
 							className="min-w-0 truncate"
 							title={hubState.hubUrl ?? "No hub URL"}
 						>
 							{hubState.hubUrl ?? "no hub url"}
-						</span>
-					</button>
-					<button
-						aria-label="Copy ClineCore SDK version"
-						className="inline-flex items-center gap-2 rounded-lg border px-2.5 py-2 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
-						disabled={!hubState.coreVersion}
-						onClick={() => copyText(hubState.coreVersion)}
-						title="Copy ClineCore SDK version"
-						type="button"
-					>
-						<BoxIcon className="size-4 shrink-0" />
-						<span title={hubState.coreVersion ?? "Unknown"}>
-							v{hubState.coreVersion ?? "Unknown"}
 						</span>
 					</button>
 					<Button
@@ -461,9 +442,10 @@ function HomeView({
 						title="Restart Cline Hub"
 						type="button"
 						variant="outline"
+						className="h-7 rounded px-2 text-xs"
 					>
 						<RotateCcwIcon
-							className={`size-4 ${restartPending ? "animate-spin" : ""}`}
+							className={`size-3.5 ${restartPending ? "animate-spin" : ""}`}
 						/>
 						<span>{restartPending ? "Restarting" : "Restart"}</span>
 					</Button>
@@ -504,190 +486,143 @@ function HomeView({
 				</AlertDialogContent>
 			</AlertDialog>
 
-			<section className="my-4 grid grid-cols-2 gap-2.5 max-[720px]:grid-cols-1">
-				<div className="grid grid-cols-[auto_1fr] grid-rows-[auto_auto] items-center gap-x-2.5 gap-y-0.5 rounded-lg border bg-[color-mix(in_oklch,var(--card)_88%,transparent)] p-3.5">
-					<BotIcon className="size-4 text-muted-foreground" />
-					<span className="text-[26px] font-bold leading-none">
-						{connectedClients.length + connectedConnectors.length}
-					</span>
-					<span className="col-start-2 text-xs text-muted-foreground">
-						Connected Clients
-					</span>
-				</div>
-				<div className="grid grid-cols-[auto_1fr] grid-rows-[auto_auto] items-center gap-x-2.5 gap-y-0.5 rounded-lg border bg-[color-mix(in_oklch,var(--card)_88%,transparent)] p-3.5">
-					<ActivityIcon className="size-4 text-muted-foreground" />
-					<span className="text-[26px] font-bold leading-none">
-						{activeSessions.length}
-					</span>
-					<span className="col-start-2 text-xs text-muted-foreground">
-						Active Sessions
-					</span>
-				</div>
-			</section>
-
-			<section
-				id="connected-clients-section"
-				className="min-h-60 overflow-hidden rounded-lg border bg-card"
-			>
-				<div className="flex items-center justify-between gap-3 border-b px-3.5 py-3">
-					<h3 className="text-[13px] font-[650]">Connected Clients</h3>
-					<span className="text-xs text-muted-foreground">
-						{connectedClients.length + connectedConnectors.length}
-					</span>
-				</div>
-				<div className="grid max-h-43.5 gap-2 overflow-y-auto p-2.5">
-					{connectedClients.length === 0 && connectedConnectors.length === 0 ? (
-						<p className="px-1 py-4 text-[13px] text-muted-foreground">
-							No connected clients or channels found.
-						</p>
-					) : (
-						connectedClients.map((client) => (
+			<div className="grid max-w-[86rem] grid-cols-2 gap-6 max-[1100px]:grid-cols-1">
+				<section
+					id="connected-clients-section"
+					className="overflow-hidden rounded-lg border bg-card"
+				>
+					<div className="flex h-11 items-center justify-between gap-3 border-b bg-muted/40 px-4">
+						<h2 className="text-[17px] font-medium text-muted-foreground">
+							Connected clients
+						</h2>
+						<span className="text-sm text-muted-foreground">
+							{connectedClients.length + connectedConnectors.length}
+						</span>
+					</div>
+					<div className="min-h-46">
+						{connectedClients.length === 0 &&
+						connectedConnectors.length === 0 ? (
+							<p className="px-4 py-5 text-[15px] text-muted-foreground">
+								No connected clients.
+							</p>
+						) : null}
+						{connectedClients.map((client) => (
 							<div
-								className="flex items-center justify-between gap-3 border bg-[color-mix(in_oklch,var(--background)_70%,var(--card))] p-2.5"
+								className="flex min-h-18 items-center justify-between gap-4 border-b px-4 py-3 last:border-b-0"
 								key={client.clientId}
 							>
-								<div className="min-w-0">
-									<p className="truncate text-[13px] font-semibold leading-tight">
-										{clientLabel(client)}
-									</p>
-									<span className="block truncate text-[11px] text-muted-foreground">
-										{client.clientType}
-									</span>
+								<div className="flex min-w-0 items-start gap-3">
+									<MessageSquareIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+									<div className="min-w-0">
+										<p className="truncate text-[15px] font-semibold">
+											{clientLabel(client)}
+										</p>
+										<p className="mt-1 truncate text-[13px] text-muted-foreground">
+											{client.clientType}
+										</p>
+									</div>
 								</div>
-								<span className="whitespace-nowrap text-[11px] text-muted-foreground">
+								<time className="shrink-0 text-sm text-muted-foreground">
 									{formatRelativeTime(client.connectedAt)}
+								</time>
+							</div>
+						))}
+						{connectedConnectors.map((connector) => (
+							<div
+								className="flex min-h-18 items-center justify-between gap-4 border-b px-4 py-3 last:border-b-0"
+								key={connector.id}
+							>
+								<div className="flex min-w-0 items-start gap-3">
+									<ServerIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+									<div className="min-w-0">
+										<p className="truncate text-[15px] font-semibold">
+											{connector.type.toUpperCase()}
+										</p>
+										<p className="mt-1 truncate text-[13px] text-muted-foreground">
+											{connectorLabel(connector)}
+										</p>
+									</div>
+								</div>
+								<span className="shrink-0 text-sm text-muted-foreground">
+									Channel
 								</span>
 							</div>
-						))
-					)}
-					{connectedConnectors.map((connector) => (
-						<div
-							className="flex items-center justify-between gap-3 border bg-[color-mix(in_oklch,var(--background)_70%,var(--card))] p-2.5"
-							key={connector.id}
-						>
-							<div className="min-w-0">
-								<p className="truncate text-[13px] font-semibold leading-tight">
-									{connector.type.toUpperCase()}
-								</p>
-								<span
-									className="block truncate text-[11px] text-muted-foreground"
-									title={connector.hubUrl}
-								>
-									{connectorLabel(connector)} | pid={connector.pid}
-								</span>
-							</div>
-							<span
-								className="block truncate text-[11px] text-muted-foreground"
-								title={connector.hubUrl}
-							>
-								Channel
-							</span>
-						</div>
-					))}
-				</div>
-			</section>
-
-			<div className="mt-4 grid grid-cols-[minmax(0,1.25fr)_minmax(280px,0.75fr)] gap-3.5 max-[980px]:grid-cols-1">
-				<section
-					id="recent-sessions-section"
-					className="min-h-60 overflow-hidden rounded-lg border bg-card"
-				>
-					<div className="flex items-center justify-between gap-3 border-b px-3.5 py-3">
-						<h3 className="text-[13px] font-[650]">
-							Last {filteredRecentSessions.length} Sessions
-						</h3>
-						<DropdownMenu>
-							<DropdownMenuTrigger
-								render={
-									<Button
-										title="Session Filters"
-										aria-label="Filter sessions"
-										size="icon-sm"
-										type="button"
-										variant={sessionFilters.length > 0 ? "default" : "ghost"}
-									/>
-								}
-							>
-								<FunnelIcon className="size-4" />
-							</DropdownMenuTrigger>
-							<DropdownMenuContent
-								align="end"
-								className="max-h-72 w-72"
-								sideOffset={6}
-							>
-								<DropdownMenuGroup>
-									<DropdownMenuLabel>Filter sessions</DropdownMenuLabel>
-									{sessionFilters.length > 0 ? (
-										<>
-											<DropdownMenuItem onClick={() => setSessionFilters([])}>
-												Clear filters
-											</DropdownMenuItem>
-											<DropdownMenuSeparator />
-										</>
-									) : null}
-									{runDetailFilterOptions.length === 0 ? (
-										<DropdownMenuItem disabled>No run details</DropdownMenuItem>
-									) : (
-										runDetailFilterOptions.map((detail) => (
-											<DropdownMenuCheckboxItem
-												checked={sessionFilters.includes(detail)}
-												key={detail}
-												onCheckedChange={(checked: boolean) =>
-													toggleSessionFilter(detail, checked)
-												}
-											>
-												<span className="truncate" title={detail}>
-													{detail}
-												</span>
-											</DropdownMenuCheckboxItem>
-										))
-									)}
-								</DropdownMenuGroup>
-							</DropdownMenuContent>
-						</DropdownMenu>
-					</div>
-					<div className="grid gap-2 p-2.5">
-						{recentSessions.length === 0 ? (
-							<p className="px-1 py-4 text-[13px] text-muted-foreground">
-								No recent sessions.
-							</p>
-						) : filteredRecentSessions.length === 0 ? (
-							<p className="px-1 py-4 text-[13px] text-muted-foreground">
-								No sessions match the selected filters.
-							</p>
-						) : (
-							filteredRecentSessions.map((session) => (
-								<RecentSessionRow
-									key={session.sessionId}
-									onDelete={() => onDeleteSession(session.sessionId)}
-									onOpen={() => onOpenSession(session.sessionId)}
-									onRename={(title) =>
-										onRenameSession(session.sessionId, title)
-									}
-									session={session}
-								/>
-							))
-						)}
+						))}
 					</div>
 				</section>
 
-				<section className="min-h-60 overflow-hidden rounded-lg border bg-card">
-					<div className="flex items-center justify-between gap-3 border-b px-3.5 py-3">
-						<h3 className="text-[13px] font-[650]">Recent Events</h3>
-						<span className="text-xs text-muted-foreground">
-							<RssIcon className="size-4" />
+				<section className="overflow-hidden rounded-lg border bg-card">
+					<div className="flex h-11 items-center justify-between gap-3 border-b bg-muted/40 px-4">
+						<h2 className="text-[17px] font-medium text-muted-foreground">
+							Sessions
+						</h2>
+						<span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+							<span className="size-1.5 rounded-full bg-emerald-500" />
+							{activeSessions.length} active
 						</span>
 					</div>
-					<div className="w-full p-2.5">
+					<div className="min-h-46">
+						{sessionPreview.length === 0 ? (
+							<p className="px-4 py-5 text-[15px] text-muted-foreground">
+								No sessions yet.
+							</p>
+						) : null}
+						{sessionPreview.map((session) => (
+							<button
+								className="flex min-h-19 w-full items-center justify-between gap-4 border-b px-4 py-3 text-left transition-colors hover:bg-accent/40"
+								key={session.sessionId}
+								onClick={() => onOpenSession(session.sessionId)}
+								type="button"
+							>
+								<div className="min-w-0">
+									<div className="flex items-center gap-2">
+										<span
+											className={`size-1.5 shrink-0 rounded-full ${statusTone(session.status)}`}
+										/>
+										<p className="truncate text-[15px] font-semibold">
+											{session.title || shortId(session.sessionId)}
+										</p>
+									</div>
+									<div className="mt-2 flex min-w-0 items-center gap-2 pl-3.5 text-[13px] text-muted-foreground">
+										<Folder className="size-3.5 shrink-0" />
+										<span className="truncate">
+											{session.workspaceRoot ?? "No workspace"}
+										</span>
+										<span className="shrink-0 rounded-full border bg-background px-2 py-0.5 text-xs">
+											{formatSessionModel(session)}
+										</span>
+									</div>
+								</div>
+								<time className="shrink-0 text-sm text-muted-foreground">
+									{formatRelativeTime(session.updatedAt)}
+								</time>
+							</button>
+						))}
+						<button
+							className="flex h-9 w-full items-center justify-center border-t text-sm text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+							onClick={onViewSessions}
+							type="button"
+						>
+							View all
+						</button>
+					</div>
+				</section>
+
+				<section className="overflow-hidden rounded-lg border bg-card">
+					<div className="flex h-11 items-center justify-between gap-3 border-b bg-muted/40 px-4">
+						<h2 className="text-[17px] font-medium text-muted-foreground">
+							Recent events
+						</h2>
+					</div>
+					<div className="min-h-46">
 						{latestEvents.length === 0 ? (
-							<p className="px-1 py-4 text-[13px] text-muted-foreground">
+							<p className="px-4 py-5 text-[15px] text-muted-foreground">
 								No hub events yet.
 							</p>
-						) : (
-							latestEvents.map((event) => (
-								<EventRow event={event} key={event.id} />
-							))
-						)}
+						) : null}
+						{latestEvents.map((event) => (
+							<EventRow event={event} key={event.id} />
+						))}
 					</div>
 				</section>
 			</div>
@@ -695,196 +630,193 @@ function HomeView({
 	);
 }
 
-function RecentSessionRow({
-	onDelete,
-	onOpen,
-	onRename,
-	session,
+function SessionsView({
+	onNewSession,
+	onOpenSession,
+	sessions,
 }: {
-	onDelete: () => Promise<void> | void;
-	onOpen: () => void;
-	onRename: (title: string) => Promise<void> | void;
-	session: WebviewSessionSummary;
+	onNewSession: () => void;
+	onOpenSession: (sessionId: string) => void;
+	sessions: WebviewSessionSummary[];
 }) {
-	const runDetails = sessionRunDetails(session);
-	const currentSessionId = session.sessionId;
-	const currentTitle = session.title || shortId(session.sessionId);
-	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-	const [deleting, setDeleting] = useState(false);
-	const [editingTitle, setEditingTitle] = useState(false);
-	const [renaming, setRenaming] = useState(false);
-	const [titleDraft, setTitleDraft] = useState(currentTitle);
-
-	const saveTitle = async () => {
-		if (renaming) return;
-		const nextTitle = titleDraft.replace(/\s+/g, " ").trim();
-		setRenaming(true);
-		try {
-			await onRename(nextTitle);
-			setEditingTitle(false);
-		} finally {
-			setRenaming(false);
+	const [sessionFilters, setSessionFilters] = useState<string[]>([]);
+	const runDetailFilterOptions = useMemo(
+		() =>
+			Array.from(
+				new Set(sessions.flatMap((session) => sessionFilterDetails(session))),
+			).sort((a, b) => a.localeCompare(b)),
+		[sessions],
+	);
+	const filteredSessions = useMemo(() => {
+		if (sessionFilters.length === 0) {
+			return sessions;
 		}
-	};
+		const selected = new Set(sessionFilters);
+		return sessions.filter((session) =>
+			sessionFilterDetails(session).some((detail) => selected.has(detail)),
+		);
+	}, [sessions, sessionFilters]);
 
-	const confirmDelete = async () => {
-		setDeleting(true);
-		try {
-			await onDelete();
-			setDeleteDialogOpen(false);
-		} finally {
-			setDeleting(false);
-		}
+	const toggleSessionFilter = (detail: string, checked: boolean) => {
+		setSessionFilters((prev) => {
+			if (checked) {
+				return prev.includes(detail) ? prev : [...prev, detail];
+			}
+			return prev.filter((item) => item !== detail);
+		});
 	};
 
 	return (
-		<div className="grid w-full gap-2 border bg-[color-mix(in_oklch,var(--background)_70%,var(--card))] p-2.5 text-left transition-colors hover:bg-accent">
-			<div className="flex items-center justify-start gap-3">
-				<span
-					className={`size-2 shrink-0 rounded-full ${statusTone(session.status)}`}
-				/>
-				{editingTitle ? (
-					<form
-						className="flex min-w-0 flex-1 items-center gap-2"
-						onSubmit={(event) => {
-							event.preventDefault();
-							void saveTitle();
-						}}
+		<div className="h-full overflow-auto px-18 py-10 max-[1200px]:px-8 max-[720px]:px-4 max-[720px]:py-5">
+			<section className="mb-8 flex items-center justify-between gap-4 max-[720px]:flex-col max-[720px]:items-stretch">
+				<h1 className="text-[32px] font-semibold leading-none tracking-normal">
+					Sessions
+				</h1>
+				<div className="flex items-center justify-end gap-2 max-[720px]:justify-start">
+					<DropdownMenu>
+						<DropdownMenuTrigger
+							render={
+								<Button
+									title="Sort sessions"
+									aria-label="Sort sessions"
+									size="icon-sm"
+									type="button"
+									variant="secondary"
+									className="size-8 rounded-md"
+								/>
+							}
+						>
+							<ActivityIcon className="size-4" />
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end" sideOffset={6}>
+							<DropdownMenuItem disabled>Newest first</DropdownMenuItem>
+						</DropdownMenuContent>
+					</DropdownMenu>
+					<DropdownMenu>
+						<DropdownMenuTrigger
+							render={
+								<Button
+									title="Filter sessions"
+									aria-label="Filter sessions"
+									size="icon-sm"
+									type="button"
+									variant={sessionFilters.length > 0 ? "default" : "secondary"}
+									className="size-8 rounded-md"
+								/>
+							}
+						>
+							<FunnelIcon className="size-4" />
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end" className="max-h-72 w-72">
+							<DropdownMenuGroup>
+								<DropdownMenuLabel>Filter sessions</DropdownMenuLabel>
+								{sessionFilters.length > 0 ? (
+									<>
+										<DropdownMenuItem onClick={() => setSessionFilters([])}>
+											Clear filters
+										</DropdownMenuItem>
+										<DropdownMenuSeparator />
+									</>
+								) : null}
+								{runDetailFilterOptions.length === 0 ? (
+									<DropdownMenuItem disabled>No run details</DropdownMenuItem>
+								) : (
+									runDetailFilterOptions.map((detail) => (
+										<DropdownMenuCheckboxItem
+											checked={sessionFilters.includes(detail)}
+											key={detail}
+											onCheckedChange={(checked: boolean) =>
+												toggleSessionFilter(detail, checked)
+											}
+										>
+											<span className="truncate" title={detail}>
+												{detail}
+											</span>
+										</DropdownMenuCheckboxItem>
+									))
+								)}
+							</DropdownMenuGroup>
+						</DropdownMenuContent>
+					</DropdownMenu>
+					<Button
+						className="h-8 rounded-md bg-foreground px-3 text-sm text-background hover:bg-foreground/90"
+						onClick={onNewSession}
+						type="button"
 					>
-						<Input
-							autoFocus
-							className="h-7 min-w-0 flex-1 text-[13px]"
-							disabled={renaming}
-							onChange={(event) => setTitleDraft(event.target.value)}
-							onKeyDown={(event) => {
-								if (event.key === "Escape") {
-									event.preventDefault();
-									setTitleDraft(currentTitle);
-									setEditingTitle(false);
-								}
-							}}
-							value={titleDraft}
-						/>
-						<Button disabled={renaming} size="sm" type="submit">
-							Save
-						</Button>
-						<Button
-							disabled={renaming}
-							onClick={() => {
-								setTitleDraft(currentTitle);
-								setEditingTitle(false);
-							}}
-							size="sm"
-							type="button"
-							variant="outline"
-						>
-							Cancel
-						</Button>
-					</form>
-				) : (
-					<div className="flex min-w-0 flex-1 items-center gap-1.5">
+						<PlusCircle className="size-4" />
+						New session
+					</Button>
+				</div>
+			</section>
+
+			<section className="w-[calc(100vw-14.5rem-9rem)] max-w-[86rem] min-w-0 overflow-x-auto max-[1200px]:w-[calc(100vw-14.5rem-4rem)] max-[720px]:w-full">
+				<div className="grid w-full min-w-[46rem] grid-cols-[minmax(12rem,1.35fr)_minmax(7rem,0.85fr)_minmax(10rem,1.1fr)_5rem_5rem_4.5rem] gap-x-4 bg-muted/40 px-4 py-3 text-[15px] font-medium text-muted-foreground">
+					<span>Session title</span>
+					<span>Directory</span>
+					<span>Model</span>
+					<span>Tokens in</span>
+					<span>Tokens out</span>
+					<span>Cost</span>
+				</div>
+				<div className="w-full min-w-[46rem]">
+					{filteredSessions.length === 0 ? (
+						<div className="border-b px-4 py-8 text-[15px] text-muted-foreground">
+							{sessions.length === 0
+								? "No sessions yet."
+								: "No sessions match the selected filters."}
+						</div>
+					) : null}
+					{filteredSessions.map((session) => (
 						<button
-							className="min-w-0 flex-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-							onClick={onOpen}
+							className="grid min-h-14 w-full grid-cols-[minmax(12rem,1.35fr)_minmax(7rem,0.85fr)_minmax(10rem,1.1fr)_5rem_5rem_4.5rem] items-center gap-x-4 border-b px-4 py-3 text-left text-[15px] transition-colors hover:bg-accent/40"
+							key={session.sessionId}
+							onClick={() => onOpenSession(session.sessionId)}
 							type="button"
 						>
-							<span className="block truncate text-[13px] font-semibold leading-tight">
-								{currentTitle}
+							<span className="flex min-w-0 items-center gap-3 font-semibold">
+								<span
+									className={`size-1.5 shrink-0 rounded-full ${statusTone(session.status)}`}
+								/>
+								<span className="truncate">
+									{session.title || shortId(session.sessionId)}
+								</span>
+							</span>
+							<span className="truncate text-muted-foreground">
+								{workspaceName(session.workspaceRoot) ?? "No workspace"}
+							</span>
+							<span className="truncate text-muted-foreground">
+								{formatSessionModel(session)}
+							</span>
+							<span className="text-muted-foreground">
+								{formatCompactNumber(session.inputTokens) ?? "-"}
+							</span>
+							<span className="text-muted-foreground">
+								{formatCompactNumber(session.outputTokens) ?? "-"}
+							</span>
+							<span className="text-muted-foreground">
+								{formatCost(session.totalCost) ?? "-"}
 							</span>
 						</button>
-						<Button
-							title="Edit session title"
-							aria-label="Edit session title"
-							onClick={() => {
-								setTitleDraft(currentTitle);
-								setEditingTitle(true);
-							}}
-							size="icon-sm"
-							type="button"
-							variant="ghost"
-						>
-							<PencilIcon className="size-3.5" />
-						</Button>
-						<Button
-							title="Delete session"
-							aria-label="Delete session"
-							onClick={() => setDeleteDialogOpen(true)}
-							size="icon-sm"
-							type="button"
-							variant="ghost"
-						>
-							<Trash2Icon className="size-3.5" />
-						</Button>
-					</div>
-				)}
-			</div>
-			{runDetails.length > 0 ? (
-				<div className="flex flex-wrap items-center gap-1.5 pl-4.5 text-[11px] text-muted-foreground">
-					<span>{formatRelativeTime(session.updatedAt)}</span>
-					<span
-						className="max-w-full break-all rounded-md border bg-background px-1.5 py-0.5"
-						key={session.workspaceRoot}
-						title={session.workspaceRoot}
-					>
-						{session.workspaceRoot}
-					</span>
-					{runDetails.map((detail) => (
-						<span
-							className="max-w-full break-all rounded-md border bg-background px-1.5 py-0.5"
-							key={detail}
-							title={detail}
-						>
-							{detail}
-						</span>
 					))}
 				</div>
-			) : null}
-			<AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-				<AlertDialogContent>
-					<AlertDialogHeader>
-						<AlertDialogTitle>
-							Delete Session {currentSessionId}
-						</AlertDialogTitle>
-						<AlertDialogDescription>
-							This will permanently delete this session from Cline across
-							clients:
-							<br />
-							{currentTitle}
-						</AlertDialogDescription>
-					</AlertDialogHeader>
-					<AlertDialogFooter>
-						<AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-						<AlertDialogAction
-							disabled={deleting}
-							onClick={() => void confirmDelete()}
-							variant="destructive"
-						>
-							{deleting ? "Deleting..." : "Delete"}
-						</AlertDialogAction>
-					</AlertDialogFooter>
-				</AlertDialogContent>
-			</AlertDialog>
+			</section>
 		</div>
 	);
 }
 
 function EventRow({ event }: { event: WebviewHubEvent }) {
-	const severityBorder = {
-		error: "border-l-destructive",
-		info: "border-l-blue-300",
-		success: "border-l-muted-foreground",
-		warn: "border-l-amber-300",
-	}[event.severity];
-
 	return (
-		<div
-			className={`flex items-start justify-between gap-3 border border-l-[3px] bg-[color-mix(in_oklch,var(--background)_70%,var(--card))] p-2.5 ${severityBorder}`}
-		>
-			<div>
-				<p className="text-[13px] font-semibold leading-tight">{event.title}</p>
-				<span className="text-[11px] text-muted-foreground">{event.body}</span>
+		<div className="flex min-h-18 items-start justify-between gap-4 border-b px-4 py-3 last:border-b-0">
+			<div className="flex min-w-0 items-start gap-3">
+				<RssIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+				<div className="min-w-0">
+					<p className="truncate text-[15px] font-semibold">{event.title}</p>
+					<p className="mt-1 truncate text-[13px] text-muted-foreground">
+						{event.body}
+					</p>
+				</div>
 			</div>
-			<time className="whitespace-nowrap text-[11px] text-muted-foreground">
+			<time className="shrink-0 whitespace-nowrap text-sm text-muted-foreground">
 				{formatRelativeTime(event.timestamp)}
 			</time>
 		</div>
@@ -896,7 +828,6 @@ function App() {
 	const [settingsSection, setSettingsSection] = useState<SettingsSection>(() =>
 		readCurrentSettingsSection(),
 	);
-	const [theme, setTheme] = useState<Theme>(() => readTheme());
 	const [hubState, setHubState] = useState<WebviewHubState>(EMPTY_HUB_STATE);
 	const [restartPending, setRestartPending] = useState(false);
 	const [selectedSessionId, setSelectedSessionId] = useState<
@@ -907,9 +838,8 @@ function App() {
 	);
 
 	useEffect(() => {
-		document.documentElement.classList.toggle("dark", theme === "dark");
-		writeTheme(theme);
-	}, [theme]);
+		document.documentElement.classList.remove("dark");
+	}, []);
 
 	useEffect(() => {
 		const handlePopState = () => {
@@ -968,17 +898,18 @@ function App() {
 		setView(nextView);
 	}, []);
 
-	const navigateSettingsSection = useCallback((section: SettingsSection) => {
-		setSettingsSection(section);
-		const nextPath = routePath(SETTINGS_SECTION_PATHS[section]);
-		if (currentPathWithSearch() !== nextPath) {
-			window.history.pushState(null, "", nextPath);
-		}
-	}, []);
-
 	const openSession = useCallback((sessionId: string) => {
 		setSelectedSessionId(sessionId);
 		const nextPath = chatPath(sessionId);
+		if (currentPathWithSearch() !== nextPath) {
+			window.history.pushState(null, "", nextPath);
+		}
+		setView("chat");
+	}, []);
+
+	const startNewSession = useCallback(() => {
+		setSelectedSessionId(undefined);
+		const nextPath = chatPath();
 		if (currentPathWithSearch() !== nextPath) {
 			window.history.pushState(null, "", nextPath);
 		}
@@ -993,26 +924,6 @@ function App() {
 		}
 	}, []);
 
-	const deleteSession = useCallback((sessionId: string) => {
-		setRecentSessions((current) =>
-			current.filter((session) => session.sessionId !== sessionId),
-		);
-		postToHost({ type: "deleteSession", sessionId });
-	}, []);
-
-	const renameSession = useCallback((sessionId: string, title: string) => {
-		setRecentSessions((current) =>
-			current.map((session) =>
-				session.sessionId === sessionId ? { ...session, title } : session,
-			),
-		);
-		postToHost({
-			type: "updateSessionMetadata",
-			sessionId,
-			metadata: { title },
-		});
-	}, []);
-
 	const content = useMemo(() => {
 		if (view === "chat") {
 			return (
@@ -1022,15 +933,62 @@ function App() {
 				/>
 			);
 		}
+		if (view === "sessions") {
+			return (
+				<SessionsView
+					onNewSession={startNewSession}
+					onOpenSession={openSession}
+					sessions={recentSessions}
+				/>
+			);
+		}
 		if (view === "settings") {
 			return (
 				<SettingsView
 					initialSection={settingsSection}
 					key={settingsSection}
+					chrome="content"
 					onClose={() => navigate("home")}
-					onNavigateSection={navigateSettingsSection}
-					onThemeChange={setTheme}
-					theme={theme}
+				/>
+			);
+		}
+		if (view === "models") {
+			return (
+				<SettingsView
+					chrome="content"
+					initialSection="Providers"
+					key="models"
+					onClose={() => navigate("home")}
+				/>
+			);
+		}
+		if (view === "customizations") {
+			return (
+				<SettingsView
+					chrome="content"
+					initialSection="Customizations"
+					key="customizations"
+					onClose={() => navigate("home")}
+				/>
+			);
+		}
+		if (view === "channels") {
+			return (
+				<SettingsView
+					chrome="content"
+					initialSection="Channels"
+					key="channels"
+					onClose={() => navigate("home")}
+				/>
+			);
+		}
+		if (view === "schedules") {
+			return (
+				<SettingsView
+					chrome="content"
+					initialSection="Schedules"
+					key="schedules"
+					onClose={() => navigate("home")}
 				/>
 			);
 		}
@@ -1045,33 +1003,29 @@ function App() {
 		return (
 			<HomeView
 				hubState={hubState}
-				onDeleteSession={deleteSession}
 				onOpenSession={openSession}
-				onRenameSession={renameSession}
 				onRestartHub={restartHub}
+				onViewSessions={() => navigate("sessions")}
 				recentSessions={recentSessions}
 				restartPending={restartPending}
 			/>
 		);
 	}, [
 		hubState,
-		deleteSession,
 		navigate,
-		navigateSettingsSection,
 		openSession,
 		recentSessions,
-		renameSession,
 		restartHub,
 		restartPending,
 		selectedSessionId,
 		settingsSection,
-		theme,
+		startNewSession,
 		updateChatSessionRoute,
 		view,
 	]);
 
 	return (
-		<Shell onNavigate={navigate} theme={theme} view={view}>
+		<Shell onNavigate={navigate} version={hubState.coreVersion} view={view}>
 			{content}
 		</Shell>
 	);
