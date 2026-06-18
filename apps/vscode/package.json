@@ -438,6 +438,7 @@
 		"chalk": "5.6.2",
 		"dotenv": "^17.2.3",
 		"esbuild": "^0.25.0",
+		"glob": "^11.0.0",
 		"grpc-tools": "^1.13.0",
 		"lint-staged": "^16.1.0",
 		"minimatch": "^3.0.3",
