@@ -344,9 +344,13 @@ class DebugHarness {
 			}
 		}
 
-		// Download VSCode binary
+		// Download VSCode binary. Default to a version whose Electron the bundled
+		// Playwright can drive (the very latest "stable" can ship an Electron newer
+		// than playwright supports, making _electron.launch() hang). Override with
+		// VSCODE_TEST_VERSION (e.g. "stable" or a pinned x.y.z).
 		log("Ensuring VSCode binary is available...")
-		const executablePath = await downloadAndUnzipVSCode("stable", undefined, new SilentReporter())
+		const vscodeVersion = process.env.VSCODE_TEST_VERSION || "1.103.0"
+		const executablePath = await downloadAndUnzipVSCode(vscodeVersion, undefined, new SilentReporter())
 		log(`VSCode binary: ${executablePath}`)
 
 		// Resolve the CLINE_DIR for the debugee (separate from debugger's ~/.cline)
