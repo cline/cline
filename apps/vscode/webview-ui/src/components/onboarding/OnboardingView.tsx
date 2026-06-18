@@ -25,6 +25,29 @@ import {
 import { NEW_USER_TYPE, STEP_CONFIG, USER_TYPE_SELECTIONS } from "./data-steps"
 import { useOnboardingModels } from "./useOnboardingModels"
 
+type OnboardingPage =
+	| "user_type"
+	| "free_model_selection"
+	| "power_model_selection"
+	| "byok_provider_config"
+	| "account_creation_wait"
+
+const getOnboardingPage = (step: number, userType: NEW_USER_TYPE): OnboardingPage => {
+	if (step === 0) {
+		return "user_type"
+	}
+	if (step === 2) {
+		return "account_creation_wait"
+	}
+	if (userType === NEW_USER_TYPE.POWER) {
+		return "power_model_selection"
+	}
+	if (userType === NEW_USER_TYPE.BYOK) {
+		return "byok_provider_config"
+	}
+	return "free_model_selection"
+}
+
 type ModelSelectionProps = {
 	userType: NEW_USER_TYPE.FREE | NEW_USER_TYPE.POWER
 	selectedModelId: string
@@ -274,6 +297,7 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 	const { commitSelection } = useProviderConfig("cline")
 	const loginAttemptIdRef = useRef(0)
 	const loginLoadingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+	const pageViewTelemetryKeyRef = useRef<string | null>(null)
 
 	const [stepNumber, setStepNumber] = useState(0)
 	const [isActionLoading, setIsActionLoading] = useState(false)
@@ -286,6 +310,7 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 	const onboardingModelById = useMemo(() => {
 		return new Map(onboardingModels.models.map((model) => [model.id, model]))
 	}, [onboardingModels])
+	const currentPage = useMemo(() => getOnboardingPage(stepNumber, userType), [stepNumber, userType])
 
 	useEffect(() => {
 		setSearchTerm("")
@@ -303,23 +328,47 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 		}
 	}, [])
 
-	const onUserTypeClick = useCallback((userType: NEW_USER_TYPE) => {
-		setUserType(userType)
-		const action =
-			userType === NEW_USER_TYPE.POWER
-				? "power_user_selected"
-				: userType === NEW_USER_TYPE.FREE
-					? "free_user_selected"
-					: "byok_user_selected"
-		// User selection is available in step 0 only
-		StateServiceClient.captureOnboardingProgress({ step: 0, action })
+	useEffect(() => {
+		const telemetryKey = `${stepNumber}:${currentPage}`
+		if (pageViewTelemetryKeyRef.current === telemetryKey) {
+			return
+		}
+		pageViewTelemetryKeyRef.current = telemetryKey
+		StateServiceClient.captureOnboardingProgress({
+			step: stepNumber,
+			action: "page_viewed",
+			page: currentPage,
+			userType: currentPage === "user_type" ? undefined : userType,
+			modelSelected: selectedModelId || undefined,
+		})
+	}, [currentPage, selectedModelId, stepNumber, userType])
+
+	const onUserTypeClick = useCallback((selectedUserType: NEW_USER_TYPE) => {
+		setUserType(selectedUserType)
+		StateServiceClient.captureOnboardingProgress({
+			step: 0,
+			action: "option_selected",
+			page: "user_type",
+			userType: selectedUserType,
+		})
 	}, [])
 
-	const onModelClick = useCallback((modelSelected: string) => {
-		setSelectedModelId(modelSelected)
-		// User selection is available in step 1 only
-		StateServiceClient.captureOnboardingProgress({ step: 1, modelSelected, action: "model_selected" })
-	}, [])
+	const onModelClick = useCallback(
+		(modelSelected: string) => {
+			setSelectedModelId(modelSelected)
+			if (!modelSelected) {
+				return
+			}
+			StateServiceClient.captureOnboardingProgress({
+				step: stepNumber,
+				action: "model_selected",
+				page: currentPage,
+				userType,
+				modelSelected,
+			})
+		},
+		[currentPage, stepNumber, userType],
+	)
 
 	const finishOnboarding = useCallback(
 		async (updateModelId: boolean, step: number) => {
@@ -358,8 +407,14 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 			setShowWelcome(false)
 			hideAccount()
 			hideSettings()
-			const action = "onboarding_completed"
-			StateServiceClient.captureOnboardingProgress({ step, modelSelected, action, completed: true })
+			StateServiceClient.captureOnboardingProgress({
+				step,
+				action: "completed",
+				page: getOnboardingPage(step, userType),
+				userType,
+				modelSelected,
+				completed: true,
+			})
 		},
 		[
 			hideAccount,
@@ -370,6 +425,7 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 			onboardingModelById,
 			commitSelection,
 			setShowWelcome,
+			userType,
 		],
 	)
 
@@ -412,20 +468,34 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 
 	const handleFooterAction = useCallback(
 		async (action: "signin" | "next" | "back" | "done" | "signup") => {
+			const captureNavigation = (telemetryAction: string, destinationStep?: number) => {
+				StateServiceClient.captureOnboardingProgress({
+					step: stepNumber,
+					action: telemetryAction,
+					page: currentPage,
+					userType,
+					modelSelected: selectedModelId || undefined,
+					destinationStep,
+					destinationPage: destinationStep === undefined ? undefined : getOnboardingPage(destinationStep, userType),
+				})
+			}
+
 			switch (action) {
 				case "signup":
+					captureNavigation("signup_clicked", stepNumber + 1)
 					setStepNumber(stepNumber + 1)
 					await loginAndFinishOnboarding(true, stepNumber + 1)
 					break
 				case "signin":
-					await loginAndFinishOnboarding(true, stepNumber + 1)
+					captureNavigation("signin_clicked")
+					await loginAndFinishOnboarding(true, stepNumber)
 					break
 				case "next":
-					StateServiceClient.captureOnboardingProgress({ step: stepNumber + 1 })
+					captureNavigation("continued", stepNumber + 1)
 					setStepNumber(stepNumber + 1)
 					break
 				case "back":
-					StateServiceClient.captureOnboardingProgress({ step: stepNumber - 1 })
+					captureNavigation("back_clicked", stepNumber - 1)
 					setStepNumber(stepNumber - 1)
 					break
 				case "done":
@@ -433,7 +503,7 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 					break
 			}
 		},
-		[stepNumber, finishOnboarding, loginAndFinishOnboarding],
+		[stepNumber, currentPage, userType, selectedModelId, finishOnboarding, loginAndFinishOnboarding],
 	)
 
 	const stepDisplayInfo = useMemo(() => {
@@ -506,6 +576,18 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 	)
 }
 
+const OnboardingWelcomeFallback = () => {
+	useEffect(() => {
+		StateServiceClient.captureOnboardingProgress({
+			step: 0,
+			action: "fallback_welcome_viewed",
+			page: "legacy_welcome_fallback",
+		})
+	}, [])
+
+	return <WelcomeView />
+}
+
 const OnboardingView = () => {
 	const { status, models } = useOnboardingModels()
 
@@ -518,7 +600,7 @@ const OnboardingView = () => {
 	}
 
 	if (status === "empty") {
-		return <WelcomeView />
+		return <OnboardingWelcomeFallback />
 	}
 
 	return <OnboardingViewContent onboardingModels={models} />

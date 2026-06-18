@@ -2136,7 +2136,17 @@ export class TelemetryService {
 		})
 	}
 
-	public captureOnboardingProgress(args: { step: number; action?: string; model?: string; completed?: boolean }) {
+	public captureOnboardingProgress(args: {
+		step: number
+		action?: string
+		page?: string
+		pageVariant?: string
+		userType?: string
+		selectedModelId?: string
+		destinationStep?: number
+		destinationPage?: string
+		completed?: boolean
+	}) {
 		this.capture({
 			event: TelemetryService.EVENTS.USER.ONBOARDING_PROGRESS,
 			properties: {
