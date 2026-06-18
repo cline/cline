@@ -515,7 +515,7 @@ export class McpHub {
 
 					const reconnectHandler = new StreamableHttpReconnectHandler(name, {
 						findConnection: () => this.findConnection(name, source),
-						deleteConnection: () => this.deleteConnection(name),
+						deleteConnection: () => this.deleteConnection(name, { preserveKey: true }),
 						connectToServer: () => this.connectToServer(name, config, source),
 						notifyWebviewOfServerChanges: () => this.notifyWebviewOfServerChanges(),
 						appendErrorMessage: (conn, msg) => this.appendErrorMessage(conn as McpConnection, msg),
@@ -777,10 +777,10 @@ export class McpHub {
 		}
 	}
 
-	async deleteConnection(name: string): Promise<void> {
+	async deleteConnection(name: string, { preserveKey = false } = {}): Promise<void> {
 		const connection = this.connections.find((conn) => conn.server.name === name)
 		if (connection) {
-			if (connection.server.uid) {
+			if (!preserveKey && connection.server.uid) {
 				McpHub.mcpServerKeys.delete(connection.server.uid)
 			}
 			try {
@@ -846,7 +846,7 @@ export class McpHub {
 					if (config.type === "stdio") {
 						this.setupFileWatcher(name, config)
 					}
-					await this.deleteConnection(name) // Don't clear OAuth - just reconnecting with new config
+					await this.deleteConnection(name, { preserveKey: true })
 					await this.connectToServer(name, config, "rpc")
 					Logger.log(`Reconnected MCP server with updated config: ${name}`)
 				} catch (error) {
@@ -920,7 +920,7 @@ export class McpHub {
 					if (config.type === "stdio") {
 						this.setupFileWatcher(name, config)
 					}
-					await this.deleteConnection(name)
+					await this.deleteConnection(name, { preserveKey: true })
 					await this.connectToServer(name, config, "internal")
 					Logger.log(`Reconnected MCP server with updated config: ${name}`)
 					connectionChangesOccurred = true
@@ -1024,7 +1024,7 @@ export class McpHub {
 			connection.server.error = ""
 			await setTimeoutPromise(500) // artificial delay to show user that server is restarting
 			try {
-				await this.deleteConnection(serverName)
+				await this.deleteConnection(serverName, { preserveKey: true })
 				// Try to connect again using existing config
 				await this.connectToServer(serverName, JSON.parse(inMemoryConfig), "rpc")
 			} catch (error) {
@@ -1059,7 +1059,7 @@ export class McpHub {
 			await this.notifyWebviewOfServerChanges()
 			await setTimeoutPromise(500) // artificial delay to show user that server is restarting
 			try {
-				await this.deleteConnection(serverName)
+				await this.deleteConnection(serverName, { preserveKey: true })
 				// Try to connect again using existing config
 				await this.connectToServer(serverName, JSON.parse(config), "internal")
 				HostProvider.window.showMessage({
