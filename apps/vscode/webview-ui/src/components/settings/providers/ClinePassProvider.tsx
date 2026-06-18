@@ -9,6 +9,7 @@ import { EmptyRequest } from "@shared/proto/cline/common"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
+import { ClineAccountInfoCard } from "../ClineAccountInfoCard"
 import ClineModelPicker from "../ClineModelPicker"
 import { ClineProvider } from "./ClineProvider"
 
@@ -61,13 +62,19 @@ export const ClinePassProvider: typeof ClineProvider = (props) => {
 	}, [clinePassModelOptions])
 
 	return (
-		<ClineModelPicker
-			{...props}
-			defaultModelId={clinePassDefaultModel}
-			modelIdFieldPair={{ plan: "planModeClinePassModelId", act: "actModeClinePassModelId" }}
-			modelInfoFieldPair={{ plan: "planModeClinePassModelInfo", act: "actModeClinePassModelInfo" }}
-			models={clinePassModelOptions}
-			showFeaturedModels={false}
-		/>
+		<div>
+			<div style={{ marginBottom: 14, marginTop: 4 }}>
+				<ClineAccountInfoCard />
+			</div>
+
+			<ClineModelPicker
+				{...props}
+				defaultModelId={clinePassDefaultModel}
+				modelIdFieldPair={{ plan: "planModeClinePassModelId", act: "actModeClinePassModelId" }}
+				modelInfoFieldPair={{ plan: "planModeClinePassModelInfo", act: "actModeClinePassModelInfo" }}
+				models={clinePassModelOptions}
+				showFeaturedModels={false}
+			/>
+		</div>
 	)
 }
