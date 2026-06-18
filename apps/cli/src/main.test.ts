@@ -114,6 +114,7 @@ const telemetryMocks = vi.hoisted(() => ({
 }));
 const featureFlagMocks = vi.hoisted(() => ({
 	getBooleanFlagEnabled: vi.fn(() => false),
+	setCliFeatureFlagsAccountContext: vi.fn(),
 }));
 
 function forcePromptModeInput() {
@@ -179,6 +180,8 @@ vi.mock("./utils/feature-flags", () => ({
 		getBooleanFlagEnabled: featureFlagMocks.getBooleanFlagEnabled,
 	}),
 	refreshCliFeatureFlagsInBackground: vi.fn(),
+	setCliFeatureFlagsAccountContext:
+		featureFlagMocks.setCliFeatureFlagsAccountContext,
 }));
 vi.mock("./runtime/prompt", () => ({
 	resolveSystemPrompt: promptMocks.resolveSystemPrompt,
@@ -252,6 +255,9 @@ describe("runCli lightweight command dispatch", () => {
 		providerSettingsMocks.getProviderSettings.mockReset();
 		providerSettingsMocks.getProviderSettings.mockReturnValue(undefined);
 		providerSettingsMocks.saveProviderSettings.mockReset();
+		featureFlagMocks.getBooleanFlagEnabled.mockReset();
+		featureFlagMocks.getBooleanFlagEnabled.mockReturnValue(false);
+		featureFlagMocks.setCliFeatureFlagsAccountContext.mockReset();
 		kanbanMocks.launchKanban.mockReset();
 		kanbanMocks.launchKanban.mockResolvedValue(0);
 		dashboardMocks.runDashboardCommand.mockReset();
@@ -909,6 +915,33 @@ describe("runCli lightweight command dispatch", () => {
 				clineApiBaseUrl: "https://api.example.test",
 				clineProviderSettings: clineSettings,
 			}),
+		);
+	});
+
+	it("seeds feature flag identity from persisted Cline account id before checking flags", async () => {
+		const clineSettings = {
+			provider: "cline",
+			model: "anthropic/claude-sonnet-4.6",
+			auth: {
+				accountId: "acct-startup",
+				accessToken: "workos:token",
+				refreshToken: "refresh-token",
+			},
+		};
+		providerSettingsMocks.getProviderSettings.mockReturnValue(clineSettings);
+		process.argv = ["bun", "src/index.ts"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(
+			featureFlagMocks.setCliFeatureFlagsAccountContext,
+		).toHaveBeenCalledWith({ id: "acct-startup" });
+		expect(
+			featureFlagMocks.setCliFeatureFlagsAccountContext.mock
+				.invocationCallOrder[0],
+		).toBeLessThan(
+			featureFlagMocks.getBooleanFlagEnabled.mock.invocationCallOrder[0],
 		);
 	});
 
