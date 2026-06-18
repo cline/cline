@@ -45,6 +45,7 @@ import { rewriteTeamPrompt, TEAM_COMMAND_USAGE } from "./utils/team-command";
 import {
 	captureCliExtensionActivated,
 	getCliTelemetryService,
+	identifyTelemetryAccount,
 } from "./utils/telemetry";
 import type { Config } from "./utils/types";
 import { runConnectWizard } from "./wizards/connect";
@@ -930,6 +931,24 @@ export async function runCli(): Promise<void> {
 		);
 		let selectedProviderSettings =
 			providerSettingsManager.getProviderSettings(provider);
+
+		// Apply locally persisted Cline account identity so subsequent events
+		// (task.*, workspace.initialized) carry user_id when available.
+		// Note: user.extension_activated fires anonymously earlier in startup
+		// and cannot be retroactively updated; this is by design for
+		// lightweight subcommand and pre-auth CLI flows. See CLINE-2406.
+		if (provider === "cline") {
+			const savedAccountId = (
+				selectedProviderSettings as
+					| { auth?: { accountId?: string } }
+					| null
+					| undefined
+			)?.auth?.accountId;
+			if (savedAccountId) {
+				identifyTelemetryAccount({ id: savedAccountId, provider: "cline" });
+			}
+		}
+
 		const persistedApiKey = getPersistedProviderApiKey(
 			provider,
 			selectedProviderSettings,
