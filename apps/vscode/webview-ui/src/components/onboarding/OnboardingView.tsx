@@ -31,6 +31,7 @@ type OnboardingPage =
 	| "power_model_selection"
 	| "byok_provider_config"
 	| "account_creation_wait"
+	| "legacy_welcome_fallback"
 
 const getOnboardingPage = (step: number, userType: NEW_USER_TYPE): OnboardingPage => {
 	if (step === 0) {
@@ -297,7 +298,7 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 	const { commitSelection } = useProviderConfig("cline")
 	const loginAttemptIdRef = useRef(0)
 	const loginLoadingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-	const pageViewTelemetryKeyRef = useRef<string | null>(null)
+	const viewedPageTelemetryKeysRef = useRef<Set<string>>(new Set())
 
 	const [stepNumber, setStepNumber] = useState(0)
 	const [isActionLoading, setIsActionLoading] = useState(false)
@@ -330,10 +331,10 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 
 	useEffect(() => {
 		const telemetryKey = `${stepNumber}:${currentPage}`
-		if (pageViewTelemetryKeyRef.current === telemetryKey) {
+		if (viewedPageTelemetryKeysRef.current.has(telemetryKey)) {
 			return
 		}
-		pageViewTelemetryKeyRef.current = telemetryKey
+		viewedPageTelemetryKeysRef.current.add(telemetryKey)
 		StateServiceClient.captureOnboardingProgress({
 			step: stepNumber,
 			action: "page_viewed",
@@ -578,10 +579,11 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 
 const OnboardingWelcomeFallback = () => {
 	useEffect(() => {
+		const page: OnboardingPage = "legacy_welcome_fallback"
 		StateServiceClient.captureOnboardingProgress({
 			step: 0,
 			action: "fallback_welcome_viewed",
-			page: "legacy_welcome_fallback",
+			page,
 		})
 	}, [])
 
