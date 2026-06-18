@@ -1,12 +1,12 @@
-import { Empty } from "@shared/proto/cline/common";
-import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion";
-import { buildApiHandler } from "@/core/api";
-import type { ApiHandlerOptions, ApiProvider } from "@/shared/api";
-import type { UpdateApiConfigurationRequestNew } from "@/shared/proto/index.cline";
-import { Logger } from "@/shared/services/Logger";
-import type { Secrets } from "@/shared/storage/state-keys";
-import type { Controller } from "../index";
-import { clearOrganizationForClinePassProviderSelection } from "./handleClinePassProviderSelection";
+import { Empty } from "@shared/proto/cline/common"
+import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion"
+import { buildApiHandler } from "@/core/api"
+import { ApiHandlerOptions, ApiProvider } from "@/shared/api"
+import { UpdateApiConfigurationRequestNew } from "@/shared/proto/index.cline"
+import { Logger } from "@/shared/services/Logger"
+import { Secrets } from "@/shared/storage/state-keys"
+import type { Controller } from "../index"
+import { clearOrganizationForClinePassProviderSelection } from "./handleClinePassProviderSelection"
 
 /**
  * Parses field mask paths into separate sets for options and secrets
@@ -14,24 +14,24 @@ import { clearOrganizationForClinePassProviderSelection } from "./handleClinePas
  * @returns Object with options and secrets field name sets
  */
 function parseFieldMask(updateMask: string[]): {
-	options: Set<string>;
-	secrets: Set<string>;
+	options: Set<string>
+	secrets: Set<string>
 } {
-	const options = new Set<string>();
-	const secrets = new Set<string>();
+	const options = new Set<string>()
+	const secrets = new Set<string>()
 
 	for (const path of updateMask) {
-		const [prefix, fieldName] = path.split(".", 2);
+		const [prefix, fieldName] = path.split(".", 2)
 		if (prefix === "options" && fieldName) {
-			options.add(fieldName);
+			options.add(fieldName)
 		} else if (prefix === "secrets" && fieldName) {
-			secrets.add(fieldName);
+			secrets.add(fieldName)
 		} else {
-			throw new Error(`Invalid field mask path: ${path}`);
+			throw new Error(`Invalid field mask path: ${path}`)
 		}
 	}
 
-	return { options, secrets };
+	return { options, secrets }
 }
 
 /**
@@ -41,11 +41,12 @@ function parseFieldMask(updateMask: string[]): {
  */
 function getAlternateModeField(fieldName: string): string | null {
 	if (fieldName.startsWith("planMode")) {
-		return fieldName.replace("planMode", "actMode");
-	} else if (fieldName.startsWith("actMode")) {
-		return fieldName.replace("actMode", "planMode");
+		return fieldName.replace("planMode", "actMode")
 	}
-	return null;
+	if (fieldName.startsWith("actMode")) {
+		return fieldName.replace("actMode", "planMode")
+	}
+	return null
 }
 
 /**
@@ -54,91 +55,76 @@ function getAlternateModeField(fieldName: string): string | null {
  * @param request The update API configuration request with field mask
  * @returns Empty response
  */
-export async function updateApiConfiguration(
-	controller: Controller,
-	request: UpdateApiConfigurationRequestNew,
-): Promise<Empty> {
+export async function updateApiConfiguration(controller: Controller, request: UpdateApiConfigurationRequestNew): Promise<Empty> {
 	try {
-		const { updates, updateMask } = request;
+		const { updates, updateMask } = request
 
 		if (!updates) {
-			throw new Error("API configuration is required");
+			throw new Error("API configuration is required")
 		}
 
 		if (!updateMask || updateMask.length === 0) {
-			throw new Error(
-				"Update mask is required and must contain at least one path",
-			);
+			throw new Error("Update mask is required and must contain at least one path")
 		}
 
-		const { options: protoOptions, secrets: protoSecrets } = updates;
+		const { options: protoOptions, secrets: protoSecrets } = updates
 
 		// Parse the field mask to determine which fields to update
-		const { options: maskOptionsFields, secrets: maskSecretsFields } =
-			parseFieldMask(updateMask);
+		const { options: maskOptionsFields, secrets: maskSecretsFields } = parseFieldMask(updateMask)
 
 		// Process secrets based on field mask
-		const secrets: Partial<Secrets> = {};
+		const secrets: Partial<Secrets> = {}
 
 		if (protoSecrets && maskSecretsFields.size > 0) {
 			// Validate all masked fields exist
 			for (const fieldName of maskSecretsFields) {
 				if (!(fieldName in protoSecrets)) {
-					throw new Error(
-						`Field "${fieldName}" specified in mask but not found in secrets`,
-					);
+					throw new Error(`Field "${fieldName}" specified in mask but not found in secrets`)
 				}
 			}
 			// Process entries that are in the mask
 			for (const [key, value] of Object.entries(protoSecrets)) {
 				if (maskSecretsFields.has(key)) {
-					secrets[key as keyof Secrets] = value;
+					secrets[key as keyof Secrets] = value
 				}
 			}
 		}
 
 		// Process options based on field mask
-		const options: Partial<ApiHandlerOptions> & {
-			planModeApiProvider?: ApiProvider;
-			actModeApiProvider?: ApiProvider;
-		} = {};
+		const options: Partial<ApiHandlerOptions> & { planModeApiProvider?: ApiProvider; actModeApiProvider?: ApiProvider } = {}
 		if (protoOptions && maskOptionsFields.size > 0) {
 			// Validate all masked fields exist
 			for (const fieldName of maskOptionsFields) {
 				if (!(fieldName in protoOptions)) {
-					throw new Error(
-						`Field "${fieldName}" specified in mask but not found in options`,
-					);
+					throw new Error(`Field "${fieldName}" specified in mask but not found in options`)
 				}
 			}
 
 			// Check if mode-specific configurations should be kept separate
-			const separateModeConfigs = controller.stateManager.getGlobalSettingsKey(
-				"planActSeparateModelsSetting",
-			);
+			const separateModeConfigs = controller.stateManager.getGlobalSettingsKey("planActSeparateModelsSetting")
 
 			// Process entries that are in the mask
 			for (const [key, value] of Object.entries(protoOptions)) {
 				if (maskOptionsFields.has(key)) {
 					// Handle enum conversions
 					if (key === "planModeApiProvider") {
-						options.planModeApiProvider = convertProtoToApiProvider(value);
+						options.planModeApiProvider = convertProtoToApiProvider(value)
 					} else if (key === "actModeApiProvider") {
-						options.actModeApiProvider = convertProtoToApiProvider(value);
+						options.actModeApiProvider = convertProtoToApiProvider(value)
 					} else {
-						options[key as keyof ApiHandlerOptions] = value;
+						options[key as keyof ApiHandlerOptions] = value
 					}
 
 					// If mode configs should be synced, also update the alternate mode field
 					if (!separateModeConfigs) {
-						const alternateField = getAlternateModeField(key);
+						const alternateField = getAlternateModeField(key)
 						if (alternateField) {
 							if (alternateField === "planModeApiProvider") {
-								options.planModeApiProvider = convertProtoToApiProvider(value);
+								options.planModeApiProvider = convertProtoToApiProvider(value)
 							} else if (alternateField === "actModeApiProvider") {
-								options.actModeApiProvider = convertProtoToApiProvider(value);
+								options.actModeApiProvider = convertProtoToApiProvider(value)
 							} else {
-								options[alternateField as keyof ApiHandlerOptions] = value;
+								options[alternateField as keyof ApiHandlerOptions] = value
 							}
 						}
 					}
@@ -148,19 +134,16 @@ export async function updateApiConfiguration(
 
 		// Update storage using batch methods
 		if (Object.keys(secrets).length > 0) {
-			controller.stateManager.setSecretsBatch(secrets);
+			controller.stateManager.setSecretsBatch(secrets)
 		}
 		if (Object.keys(options).length > 0) {
-			controller.stateManager.setGlobalStateBatch(options);
-			await clearOrganizationForClinePassProviderSelection(
-				controller,
-				controller.stateManager.getApiConfiguration(),
-			);
+			controller.stateManager.setGlobalStateBatch(options)
+			await clearOrganizationForClinePassProviderSelection(controller, controller.stateManager.getApiConfiguration())
 		}
 
 		// Update the task's API handler if there's an active task
 		if (controller.task) {
-			const currentMode = controller.stateManager.getGlobalSettingsKey("mode");
+			const currentMode = controller.stateManager.getGlobalSettingsKey("mode")
 			// Build updated config
 			controller.task.api = buildApiHandler(
 				{
@@ -168,15 +151,15 @@ export async function updateApiConfiguration(
 					ulid: controller.task.ulid,
 				},
 				currentMode,
-			);
+			)
 		}
 
 		// Post updated state to webview
-		await controller.postStateToWebview();
+		await controller.postStateToWebview()
 
-		return Empty.create();
+		return Empty.create()
 	} catch (error) {
-		Logger.error(`Failed to update API configuration: ${error}`);
-		throw error;
+		Logger.error(`Failed to update API configuration: ${error}`)
+		throw error
 	}
 }

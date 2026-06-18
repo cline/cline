@@ -1,10 +1,10 @@
-import { buildApiHandler } from "@core/api";
-import { Empty } from "@shared/proto/cline/common";
-import type { UpdateApiConfigurationPartialRequest } from "@shared/proto/cline/models";
-import { convertProtoToApiConfiguration } from "@shared/proto-conversions/models/api-configuration-conversion";
-import { Logger } from "@/shared/services/Logger";
-import type { Controller } from "../index";
-import { clearOrganizationForClinePassProviderSelection } from "./handleClinePassProviderSelection";
+import { buildApiHandler } from "@core/api"
+import { Empty } from "@shared/proto/cline/common"
+import { UpdateApiConfigurationPartialRequest } from "@shared/proto/cline/models"
+import { convertProtoToApiConfiguration } from "@shared/proto-conversions/models/api-configuration-conversion"
+import { Logger } from "@/shared/services/Logger"
+import type { Controller } from "../index"
+import { clearOrganizationForClinePassProviderSelection } from "./handleClinePassProviderSelection"
 
 /**
  * Updates API configuration with partial values using FieldMask
@@ -24,49 +24,37 @@ export async function updateApiConfigurationPartial(
 	try {
 		// Validate request
 		if (!request.updateMask || request.updateMask.length === 0) {
-			throw new Error(
-				"update_mask is required and must contain at least one field",
-			);
+			throw new Error("update_mask is required and must contain at least one field")
 		}
 
 		if (!request.apiConfiguration) {
-			throw new Error("api_configuration is required");
+			throw new Error("api_configuration is required")
 		}
 
 		// Get current config and convert new values from proto format
-		const currentConfig = controller.stateManager.getApiConfiguration();
-		const newConfigValues = convertProtoToApiConfiguration(
-			request.apiConfiguration,
-		);
+		const currentConfig = controller.stateManager.getApiConfiguration()
+		const newConfigValues = convertProtoToApiConfiguration(request.apiConfiguration)
 
 		// Apply only the fields specified in the mask
-		const updatedConfig = { ...currentConfig };
+		const updatedConfig = { ...currentConfig }
 		for (const field of request.updateMask) {
-			(updatedConfig as Record<string, any>)[field] = (
-				newConfigValues as Record<string, any>
-			)[field];
+			;(updatedConfig as Record<string, any>)[field] = (newConfigValues as Record<string, any>)[field]
 		}
 
 		// Update storage and task API handler
-		controller.stateManager.setApiConfiguration(updatedConfig);
-		await clearOrganizationForClinePassProviderSelection(
-			controller,
-			updatedConfig,
-		);
+		controller.stateManager.setApiConfiguration(updatedConfig)
+		await clearOrganizationForClinePassProviderSelection(controller, updatedConfig)
 		if (controller.task) {
-			const currentMode = controller.stateManager.getGlobalSettingsKey("mode");
-			controller.task.api = buildApiHandler(
-				{ ...updatedConfig, ulid: controller.task.ulid },
-				currentMode,
-			);
+			const currentMode = controller.stateManager.getGlobalSettingsKey("mode")
+			controller.task.api = buildApiHandler({ ...updatedConfig, ulid: controller.task.ulid }, currentMode)
 		}
 
 		// Notify webview
-		await controller.postStateToWebview();
+		await controller.postStateToWebview()
 
-		return Empty.create();
+		return Empty.create()
 	} catch (error) {
-		Logger.error(`Failed to update API configuration (partial): ${error}`);
-		throw error;
+		Logger.error(`Failed to update API configuration (partial): ${error}`)
+		throw error
 	}
 }
