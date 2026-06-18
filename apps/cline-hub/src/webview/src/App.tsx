@@ -8,10 +8,13 @@ import {
 	LinkIcon,
 	MessageSquareIcon,
 	PencilIcon,
+	PlugIcon,
 	RotateCcwIcon,
 	RssIcon,
+	ServerIcon,
 	SettingsIcon,
 	Trash2Icon,
+	WrenchIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -46,18 +49,23 @@ import type {
 	WebviewSessionSummary,
 } from "../../webview-protocol";
 import Chat from "./Chat";
+import { MarketplaceView } from "./components/views/marketplace-view";
 import {
 	type SettingsSection,
 	SettingsView,
 } from "./components/views/settings/settings-view";
+import type { MarketplacePrimitiveType } from "./lib/marketplace";
 import { getVsCodeApi, postToHost } from "./vscode";
 
-type View = "home" | "chat" | "settings";
+type View = "home" | "chat" | "mcp" | "skills" | "plugins" | "settings";
 type Theme = "dark" | "light";
 
 const VIEW_PATHS: Record<View, string> = {
 	home: "/",
 	chat: "/chat",
+	mcp: "/marketplace/mcp",
+	skills: "/marketplace/skills",
+	plugins: "/marketplace/plugins",
 	settings: "/settings",
 };
 
@@ -72,6 +80,12 @@ const SETTINGS_SECTION_PATHS: Record<SettingsSection, string> = {
 	Schedules: "/settings/schedules",
 	Account: "/settings/account",
 };
+
+const MARKETPLACE_VIEW_PRIMITIVES = {
+	mcp: "mcp",
+	skills: "skill",
+	plugins: "plugin",
+} satisfies Partial<Record<View, MarketplacePrimitiveType>>;
 
 const EMPTY_HUB_STATE: WebviewHubState = {
 	type: "hub_state",
@@ -105,6 +119,9 @@ function writeTheme(theme: Theme): void {
 
 function viewFromPath(pathname: string): View {
 	if (pathname === VIEW_PATHS.chat) return "chat";
+	if (pathname === "/marketplace" || pathname === VIEW_PATHS.mcp) return "mcp";
+	if (pathname === VIEW_PATHS.skills) return "skills";
+	if (pathname === VIEW_PATHS.plugins) return "plugins";
 	if (
 		pathname === VIEW_PATHS.settings ||
 		pathname.startsWith(`${VIEW_PATHS.settings}/`)
@@ -138,14 +155,37 @@ function readCurrentChatSessionId(): string | undefined {
 }
 
 function chatPath(sessionId?: string): string {
-	if (!sessionId) return VIEW_PATHS.chat;
-	const params = new URLSearchParams({ [CHAT_SESSION_QUERY_PARAM]: sessionId });
-	return `${VIEW_PATHS.chat}?${params.toString()}`;
+	const params = persistentRouteSearchParams();
+	if (sessionId) {
+		params.set(CHAT_SESSION_QUERY_PARAM, sessionId);
+	} else {
+		params.delete(CHAT_SESSION_QUERY_PARAM);
+	}
+	const query = params.toString();
+	return query ? `${VIEW_PATHS.chat}?${query}` : VIEW_PATHS.chat;
 }
 
 function readCurrentSettingsSection(): SettingsSection {
 	if (typeof window === "undefined") return "General";
 	return settingsSectionFromPath(window.location.pathname);
+}
+
+function persistentRouteSearchParams(): URLSearchParams {
+	if (typeof window === "undefined") return new URLSearchParams();
+	const params = new URLSearchParams(window.location.search);
+	params.delete(CHAT_SESSION_QUERY_PARAM);
+	return params;
+}
+
+function routePath(pathname: string): string {
+	const params = persistentRouteSearchParams();
+	const query = params.toString();
+	return query ? `${pathname}?${query}` : pathname;
+}
+
+function currentPathWithSearch(): string {
+	if (typeof window === "undefined") return "/";
+	return `${window.location.pathname}${window.location.search}`;
 }
 
 function formatRelativeTime(timestamp?: number): string {
@@ -253,52 +293,51 @@ function Shell({
 	theme: Theme;
 	view: View;
 }) {
+	const navItems = [
+		{ view: "home", label: "Home", icon: HomeIcon },
+		{ view: "chat", label: "Chat", icon: MessageSquareIcon },
+		{ view: "mcp", label: "MCP", icon: ServerIcon },
+		{ view: "skills", label: "Skills", icon: WrenchIcon },
+		{ view: "plugins", label: "Plugins", icon: PlugIcon },
+		{ view: "settings", label: "Settings", icon: SettingsIcon },
+	] satisfies Array<{
+		view: View;
+		label: string;
+		icon: typeof HomeIcon;
+	}>;
+
 	return (
-		<div className="grid h-screen min-h-screen grid-rows-[auto_minmax(0,1fr)] bg-background text-foreground">
-			<header className="flex items-center justify-between gap-4 border-b bg-[color-mix(in_oklch,var(--background)_94%,var(--card))] px-4 py-2.5 max-[720px]:flex-col max-[720px]:items-stretch">
-				<div className="min-w-0">
-					<h1 className="min-w-0">
-						<button
-							className="block truncate rounded-sm text-base font-semibold outline-none transition-colors hover:text-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background pointer-cursor"
-							onClick={() => onNavigate("home")}
-							type="button"
-						>
-							Cline Hub
-						</button>
-					</h1>
-				</div>
+		<div className="grid h-screen min-h-screen grid-cols-[13.5rem_minmax(0,1fr)] bg-background text-foreground max-[720px]:grid-cols-1 max-[720px]:grid-rows-[auto_minmax(0,1fr)]">
+			<aside className="flex min-h-0 flex-col border-r bg-[color-mix(in_oklch,var(--background)_94%,var(--card))] p-3 max-[720px]:border-b max-[720px]:border-r-0">
+				<button
+					className="mb-4 flex min-w-0 items-center rounded-md px-2 py-1.5 text-left text-base font-semibold outline-none transition-colors hover:text-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background max-[720px]:mb-2"
+					onClick={() => onNavigate("home")}
+					type="button"
+				>
+					<span className="truncate">Cline Hub</span>
+				</button>
 				<nav
-					className="flex items-center gap-1.5 max-[720px]:justify-start"
+					className="grid gap-1 max-[720px]:grid-flow-col max-[720px]:auto-cols-max max-[720px]:overflow-x-auto"
 					aria-label="Hub views"
 				>
-					<Button
-						onClick={() => onNavigate("home")}
-						size="sm"
-						type="button"
-						variant={view === "home" ? "default" : "ghost"}
-					>
-						<HomeIcon className="size-4" />
-					</Button>
-					<Button
-						onClick={() => onNavigate("chat")}
-						size="sm"
-						type="button"
-						variant={view === "chat" ? "default" : "ghost"}
-					>
-						<MessageSquareIcon className="size-4" />
-					</Button>
-					<Button
-						onClick={() => onNavigate("settings")}
-						size="icon-sm"
-						title="Settings"
-						type="button"
-						variant={view === "settings" ? "default" : "ghost"}
-					>
-						<SettingsIcon className="size-4" />
-						<span className="sr-only">Settings</span>
-					</Button>
+					{navItems.map((item) => {
+						const Icon = item.icon;
+						return (
+							<Button
+								className="justify-start"
+								key={item.view}
+								onClick={() => onNavigate(item.view)}
+								size="sm"
+								type="button"
+								variant={view === item.view ? "default" : "ghost"}
+							>
+								<Icon className="size-4" />
+								<span>{item.label}</span>
+							</Button>
+						);
+					})}
 				</nav>
-			</header>
+			</aside>
 			<main className="min-h-0 overflow-hidden [&>.h-screen]:h-full">
 				{children}
 			</main>
@@ -919,8 +958,11 @@ function App() {
 		if (nextView === "settings") {
 			setSettingsSection("General");
 		}
-		const nextPath = VIEW_PATHS[nextView];
-		if (window.location.pathname !== nextPath) {
+		if (nextView !== "chat") {
+			setSelectedSessionId(undefined);
+		}
+		const nextPath = routePath(VIEW_PATHS[nextView]);
+		if (currentPathWithSearch() !== nextPath) {
 			window.history.pushState(null, "", nextPath);
 		}
 		setView(nextView);
@@ -928,8 +970,8 @@ function App() {
 
 	const navigateSettingsSection = useCallback((section: SettingsSection) => {
 		setSettingsSection(section);
-		const nextPath = SETTINGS_SECTION_PATHS[section];
-		if (window.location.pathname !== nextPath) {
+		const nextPath = routePath(SETTINGS_SECTION_PATHS[section]);
+		if (currentPathWithSearch() !== nextPath) {
 			window.history.pushState(null, "", nextPath);
 		}
 	}, []);
@@ -937,7 +979,7 @@ function App() {
 	const openSession = useCallback((sessionId: string) => {
 		setSelectedSessionId(sessionId);
 		const nextPath = chatPath(sessionId);
-		if (`${window.location.pathname}${window.location.search}` !== nextPath) {
+		if (currentPathWithSearch() !== nextPath) {
 			window.history.pushState(null, "", nextPath);
 		}
 		setView("chat");
@@ -946,7 +988,7 @@ function App() {
 	const updateChatSessionRoute = useCallback((sessionId?: string) => {
 		setSelectedSessionId(sessionId);
 		const nextPath = chatPath(sessionId);
-		if (`${window.location.pathname}${window.location.search}` !== nextPath) {
+		if (currentPathWithSearch() !== nextPath) {
 			window.history.replaceState(null, "", nextPath);
 		}
 	}, []);
@@ -989,6 +1031,14 @@ function App() {
 					onNavigateSection={navigateSettingsSection}
 					onThemeChange={setTheme}
 					theme={theme}
+				/>
+			);
+		}
+		if (view === "mcp" || view === "skills" || view === "plugins") {
+			return (
+				<MarketplaceView
+					key={view}
+					primitive={MARKETPLACE_VIEW_PRIMITIVES[view]}
 				/>
 			);
 		}

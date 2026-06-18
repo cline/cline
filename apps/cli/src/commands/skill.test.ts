@@ -10,7 +10,7 @@ describe("buildSkillsArgs", () => {
 		expect(buildSkillsArgs(["install", "owner/repo"])).toEqual([
 			"-y",
 			"skills@latest",
-			"install",
+			"add",
 			"owner/repo",
 			"--agent",
 			"cline",
@@ -18,6 +18,17 @@ describe("buildSkillsArgs", () => {
 		expect(buildSkillsArgs(["add", "owner/repo"])).toContain("cline");
 		expect(buildSkillsArgs(["i", "owner/repo"])).toContain("cline");
 		expect(buildSkillsArgs(["update", "owner/repo"])).toContain("cline");
+	});
+
+	it("aliases uninstall to the skills remove subcommand", () => {
+		expect(buildSkillsArgs(["uninstall", "my-skill"])).toEqual([
+			"-y",
+			"skills@latest",
+			"remove",
+			"my-skill",
+			"--agent",
+			"cline",
+		]);
 	});
 
 	it("does not inject when the user already targeted an agent", () => {
@@ -32,10 +43,37 @@ describe("buildSkillsArgs", () => {
 		).not.toContain("cline");
 	});
 
+	it("aliases install and uninstall when agent options come before the subcommand", () => {
+		expect(
+			buildSkillsArgs(["--agent", "cursor", "install", "owner/repo"]),
+		).toEqual([
+			"-y",
+			"skills@latest",
+			"--agent",
+			"cursor",
+			"add",
+			"owner/repo",
+		]);
+		expect(
+			buildSkillsArgs(["--agent=cursor", "uninstall", "my-skill"]),
+		).toEqual(["-y", "skills@latest", "--agent=cursor", "remove", "my-skill"]);
+	});
+
 	it("does not scope non-install subcommands to cline", () => {
 		expect(buildSkillsArgs(["use", "owner/repo"])).not.toContain("--agent");
-		expect(buildSkillsArgs(["remove"])).not.toContain("--agent");
 		expect(buildSkillsArgs(["list"])).not.toContain("--agent");
+	});
+
+	it("scopes remove-style subcommands to cline", () => {
+		expect(buildSkillsArgs(["remove"])).toEqual([
+			"-y",
+			"skills@latest",
+			"remove",
+			"--agent",
+			"cline",
+		]);
+		expect(buildSkillsArgs(["rm", "my-skill"])).toContain("cline");
+		expect(buildSkillsArgs(["r", "my-skill"])).toContain("cline");
 	});
 
 	it("ignores leading flags when detecting the subcommand", () => {
