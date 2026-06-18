@@ -22,6 +22,17 @@ const NO_STORE_HEADERS = {
 };
 
 const IMMUTABLE_ASSET_CACHE = "public, max-age=31536000, immutable";
+const THEME_BOOTSTRAP_SCRIPT = `<script id="cline-hub-theme-bootstrap">
+  (() => {
+    try {
+      const theme = window.localStorage.getItem("cline-hub-theme");
+      if (theme === "dark" || theme === "light") {
+        document.documentElement.classList.toggle("dark", theme === "dark");
+        document.documentElement.dataset.clineHubTheme = theme;
+      }
+    } catch {}
+  })();
+</script>`;
 
 function contentTypeFor(path: string): string {
 	switch (extname(path)) {
@@ -49,23 +60,42 @@ export function isWebviewRoute(pathname: string): boolean {
 		pathname === "/" ||
 		pathname === "/index.html" ||
 		pathname === "/chat" ||
+		pathname === "/sessions" ||
+		pathname === "/models" ||
+		pathname === "/customizations" ||
+		pathname === "/rules" ||
+		pathname === "/hooks" ||
+		pathname === "/mcp" ||
+		pathname === "/plugins" ||
+		pathname === "/skills" ||
+		pathname === "/agents" ||
+		pathname === "/tools" ||
 		pathname === "/marketplace" ||
 		pathname === "/marketplace/mcp" ||
 		pathname === "/marketplace/skills" ||
 		pathname === "/marketplace/plugins" ||
+		pathname === "/channels" ||
+		pathname === "/schedules" ||
 		pathname === "/settings" ||
 		pathname.startsWith("/settings/")
 	);
 }
 
 export function normalizeWebviewIndexHtml(html: string): string {
-	return html.replaceAll('src="./', 'src="/').replaceAll('href="./', 'href="/');
+	const normalized = html
+		.replaceAll('src="./', 'src="/')
+		.replaceAll('href="./', 'href="/');
+	if (normalized.includes('id="cline-hub-theme-bootstrap"')) {
+		return normalized;
+	}
+	return normalized.replace("<head>", `<head>\n${THEME_BOOTSTRAP_SCRIPT}`);
 }
 
 function renderDevIndexHtml(devServerUrl: string): string {
 	return `<!doctype html>
 <html lang="en">
 <head>
+  ${THEME_BOOTSTRAP_SCRIPT}
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <script type="module">
@@ -76,7 +106,7 @@ function renderDevIndexHtml(devServerUrl: string): string {
     window.__vite_plugin_react_preamble_installed__ = true;
   </script>
   <script type="module" src="${devServerUrl}/@vite/client"></script>
-  <link rel="icon" type="image/svg+xml" href="${devServerUrl}/favicon.svg" />
+  <link rel="icon" type="image/svg+xml" href="${devServerUrl}/cline-logo-filled.svg" />
   <title>Cline Hub</title>
 </head>
 <body>

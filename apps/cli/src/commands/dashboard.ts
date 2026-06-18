@@ -3,6 +3,7 @@ import { arch, platform } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import open from "open";
+import { configureSandboxEnvironment } from "../utils/helpers";
 import { c } from "../utils/output";
 
 export interface DashboardServerHandle {
@@ -19,7 +20,9 @@ interface DashboardCommandIo {
 }
 
 export interface RunDashboardCommandOptions {
+	configDir?: string;
 	cwd?: string;
+	dataDir?: string;
 	host?: string;
 	port?: string;
 	publicUrl?: string;
@@ -36,10 +39,9 @@ const WEBVIEW_DIST_ENV = "CLINE_HUB_WEBVIEW_DIST_DIR";
 
 function setEnvValue(name: string, value: string | undefined): () => void {
 	const previous = process.env[name];
-	if (value === undefined) {
-		return () => {};
+	if (value !== undefined) {
+		process.env[name] = value;
 	}
-	process.env[name] = value;
 	return () => {
 		if (previous === undefined) {
 			delete process.env[name];
@@ -49,21 +51,39 @@ function setEnvValue(name: string, value: string | undefined): () => void {
 	};
 }
 
+const SANDBOX_ENV_KEYS = [
+	"CLINE_SANDBOX",
+	"CLINE_SANDBOX_DATA_DIR",
+	"CLINE_DATA_DIR",
+	"CLINE_DB_DATA_DIR",
+	"CLINE_SESSION_DATA_DIR",
+	"CLINE_TEAM_DATA_DIR",
+	"CLINE_PROVIDER_SETTINGS_PATH",
+	"CLINE_HOOKS_LOG_PATH",
+] as const;
+
 async function withDashboardEnvironment<T>(
 	options: RunDashboardCommandOptions,
 	fn: () => Promise<T>,
 ): Promise<T> {
+	const cwd = options.cwd ? resolve(options.cwd) : process.cwd();
 	const restore = [
-		setEnvValue(
-			"WORKSPACE_ROOT",
-			options.cwd ? resolve(options.cwd) : undefined,
-		),
+		setEnvValue("WORKSPACE_ROOT", options.cwd ? cwd : undefined),
+		setEnvValue("CLINE_DIR", options.configDir?.trim() || undefined),
 		setEnvValue("HOST", options.host),
 		setEnvValue(DASHBOARD_PORT_ENV, options.port),
 		setEnvValue("PUBLIC_URL", options.publicUrl),
 		setEnvValue("ROOM_SECRET", options.roomSecret),
 		setEnvValue(WEBVIEW_DIST_ENV, resolveDefaultWebviewDistDir()),
+		...SANDBOX_ENV_KEYS.map((key) => setEnvValue(key, undefined)),
 	];
+	if (options.dataDir || process.env.CLINE_SANDBOX?.trim() === "1") {
+		configureSandboxEnvironment({
+			enabled: true,
+			cwd,
+			explicitDir: options.dataDir,
+		});
+	}
 	try {
 		return await fn();
 	} finally {

@@ -1,29 +1,29 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist";
+@import "@fontsource-variable/schibsted-grotesk";
 
 @custom-variant dark (&:is(.dark *));
 
 :root {
 	--background: oklch(1 0 0);
-	--foreground: oklch(0.145 0 0);
+	--foreground: oklch(0.18 0.008 255);
 	--card: oklch(1 0 0);
-	--card-foreground: oklch(0.145 0 0);
+	--card-foreground: oklch(0.18 0.008 255);
 	--popover: oklch(1 0 0);
 	--popover-foreground: oklch(0.145 0 0);
 	--primary: oklch(0.205 0 0);
 	--primary-foreground: oklch(0.985 0 0);
 	--secondary: oklch(0.97 0 0);
 	--secondary-foreground: oklch(0.205 0 0);
-	--muted: oklch(0.97 0 0);
-	--muted-foreground: oklch(0.556 0 0);
-	--accent: oklch(0.97 0 0);
-	--accent-foreground: oklch(0.205 0 0);
+	--muted: oklch(0.974 0.003 270);
+	--muted-foreground: oklch(0.52 0.014 270);
+	--accent: oklch(0.94 0.004 270);
+	--accent-foreground: oklch(0.18 0.008 255);
 	--destructive: oklch(0.577 0.245 27.325);
 	--destructive-foreground: oklch(0.93 0 0);
-	--border: oklch(0.922 0 0);
-	--input: oklch(0.922 0 0);
+	--border: oklch(0.92 0.005 270);
+	--input: oklch(0.9 0.006 270);
 	--ring: oklch(0.708 0 0);
 	--chart-1: oklch(0.809 0.105 251.813);
 	--chart-2: oklch(0.623 0.214 259.815);
@@ -31,18 +31,18 @@
 	--chart-4: oklch(0.488 0.243 264.376);
 	--chart-5: oklch(0.424 0.199 265.638);
 	--radius: 0.625rem;
-	--sidebar: oklch(0.985 0 0);
-	--sidebar-foreground: oklch(0.145 0 0);
+	--sidebar: oklch(0.977 0.004 270);
+	--sidebar-foreground: oklch(0.18 0.008 255);
 	--sidebar-primary: oklch(0.205 0 0);
 	--sidebar-primary-foreground: oklch(0.985 0 0);
-	--sidebar-accent: oklch(0.97 0 0);
-	--sidebar-accent-foreground: oklch(0.205 0 0);
-	--sidebar-border: oklch(0.922 0 0);
+	--sidebar-accent: oklch(0.928 0.006 270);
+	--sidebar-accent-foreground: oklch(0.18 0.008 255);
+	--sidebar-border: oklch(0.92 0.005 270);
 	--sidebar-ring: oklch(0.708 0 0);
 }
 
 @theme inline {
-	--font-sans: "Geist Variable", sans-serif;
+	--font-sans: "Schibsted Grotesk Variable", sans-serif;
 	--font-mono:
 		ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono",
 		monospace;
@@ -93,13 +93,86 @@
 	}
 	body {
 		@apply bg-background text-foreground;
+		font-optical-sizing: auto;
 	}
 	html {
 		@apply font-sans;
 	}
+	a[href],
+	button:not(:disabled),
+	[role="button"]:not([aria-disabled="true"]),
+	summary,
+	input[type="button"]:not(:disabled),
+	input[type="checkbox"]:not(:disabled),
+	input[type="radio"]:not(:disabled),
+	input[type="reset"]:not(:disabled),
+	input[type="submit"]:not(:disabled),
+	label[for],
+	select:not(:disabled) {
+		cursor: pointer;
+	}
+	button:disabled,
+	[aria-disabled="true"],
+	input:disabled,
+	select:disabled,
+	textarea:disabled {
+		cursor: not-allowed;
+	}
 }
 
-/* Custom scrollbar for dark theme */
+:is(
+		[role="menuitem"],
+		[role="menuitemcheckbox"],
+		[role="menuitemradio"],
+		[role="option"],
+		[role="tab"],
+		[role="switch"],
+		[role="checkbox"],
+		[role="radio"],
+		[data-slot="switch"],
+		[data-slot="checkbox"],
+		[data-slot="radio-group-item"],
+		[data-slot="tabs-trigger"],
+		[data-slot="dropdown-menu-trigger"],
+		[data-slot="dropdown-menu-item"],
+		[data-slot="dropdown-menu-checkbox-item"],
+		[data-slot="dropdown-menu-radio-item"],
+		[data-slot="dropdown-menu-sub-trigger"],
+		[data-slot="menubar-trigger"],
+		[data-slot="menubar-item"],
+		[data-slot="menubar-checkbox-item"],
+		[data-slot="menubar-radio-item"],
+		[data-slot="menubar-sub-trigger"],
+		[data-slot="select-trigger"],
+		[data-slot="select-item"],
+		[data-slot="select-scroll-up-button"],
+		[data-slot="select-scroll-down-button"],
+		[data-slot="combobox-trigger"],
+		[data-slot="combobox-clear"],
+		[data-slot="combobox-item"],
+		[data-slot="combobox-chip-remove"],
+		[data-slot="command-item"],
+		[data-slot="accordion-trigger"],
+		[data-slot="collapsible-trigger"],
+		[data-slot="dialog-trigger"],
+		[data-slot="dialog-close"],
+		[data-slot="alert-dialog-trigger"],
+		[data-slot="alert-dialog-action"],
+		[data-slot="alert-dialog-cancel"],
+		[data-slot="popover-trigger"],
+		[data-slot="hover-card-trigger"],
+		[data-slot="tooltip-trigger"]
+	):not(:disabled):not([aria-disabled="true"]):not([data-disabled]):not(
+		[data-disabled="true"]
+	) {
+	cursor: pointer;
+}
+
+[data-disabled],
+[data-disabled="true"] {
+	cursor: not-allowed;
+}
+
 ::-webkit-scrollbar {
 	width: 6px;
 	height: 6px;
@@ -110,12 +183,12 @@
 }
 
 ::-webkit-scrollbar-thumb {
-	background: oklch(0.3 0.005 260);
+	background: oklch(0.82 0.006 270);
 	border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-	background: oklch(0.4 0.005 260);
+	background: oklch(0.72 0.01 270);
 }
 
 /* Selection color */

@@ -19,7 +19,7 @@
     },
     "apps/cli": {
       "name": "@cline/cli",
-      "version": "3.0.25",
+      "version": "3.0.27",
       "bin": {
         "cline": "src/index.ts",
       },
@@ -75,7 +75,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@base-ui/react": "^1.3.0",
-        "@fontsource-variable/geist": "^5.2.8",
+        "@fontsource-variable/schibsted-grotesk": "^5.2.8",
         "@radix-ui/react-use-controllable-state": "^1.2.2",
         "@rive-app/react-webgl2": "^4.27.2",
         "@streamdown/cjk": "^1.0.3",
@@ -809,6 +809,8 @@
     "@floating-ui/utils": ["@floating-ui/utils@0.2.11", "", {}, "sha512-RiB/yIh78pcIxl6lLMG0CgBXAZ2Y0eVHqMPYugu+9U0AeT6YBeiJpf7lbdJNIugFP5SIjwNRgo4DhR1Qxi26Gg=="],
 
     "@fontsource-variable/geist": ["@fontsource-variable/geist@5.2.9", "", {}, "sha512-TP+QSBG3wxKGPE33CbMy/L0Nu3qvJ6Fy81Yc4LnQ95xH+i+cfEp8fyU8/kfV14YwszxIFPhnoMTbjL71waVpyQ=="],
+
+    "@fontsource-variable/schibsted-grotesk": ["@fontsource-variable/schibsted-grotesk@5.2.8", "", {}, "sha512-nZAorDrFue4dXZbI613WdvAhu5DPH1UJYNn5fWl7Poa+nl/s9o3VUcQImIiVZpQnYG/jkPVzHsTE7WZbSDvvkw=="],
 
     "@googleapis/chat": ["@googleapis/chat@44.7.0", "", { "dependencies": { "googleapis-common": "^8.0.0" } }, "sha512-1TTvtQ/nRD4Yb5PcMWl1J6vN3QjOyDr3t9XtM1iRJlAO8wux5dOChJSOyAlm2IOcRrrqmL4d0DVUkgMqovHjNA=="],
 

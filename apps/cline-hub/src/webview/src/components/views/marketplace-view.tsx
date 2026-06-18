@@ -1,16 +1,15 @@
 import {
-	CheckCircle2,
-	Copy,
 	ExternalLink,
-	Plug,
+	Puzzle,
 	Search,
 	Server,
 	Trash2,
-	Wrench,
+	Zap,
 } from "lucide-react";
 import {
 	type CSSProperties,
 	type MouseEvent,
+	type ReactNode,
 	useEffect,
 	useMemo,
 	useState,
@@ -18,7 +17,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
 import { desktopClient } from "@/lib/desktop-client";
 import {
@@ -28,6 +26,7 @@ import {
 	type MarketplacePrimitiveType,
 	type MarketplaceTag,
 } from "@/lib/marketplace";
+import { CommandBadge, PageFrame, PageHeader } from "./page-layout";
 
 type EntryActionState =
 	| { status: "idle" }
@@ -36,12 +35,10 @@ type EntryActionState =
 	| {
 			status: "installed";
 			message: string;
-			output?: string;
 	  }
 	| {
 			status: "uninstalled";
 			message: string;
-			output?: string;
 	  }
 	| { status: "failed"; message: string };
 
@@ -68,23 +65,23 @@ const primitivePageDetails = {
 		title: "MCP Servers",
 		description:
 			"Install Model Context Protocol servers into this CLI environment.",
-		emptyInstalled: "No MCP servers installed from this catalog.",
+		emptyInstalled: "No MCP servers installed.",
 		emptyCatalog: "No MCP servers match the current filters.",
 		icon: Server,
 	},
 	skill: {
 		title: "Skills",
 		description: "Install skills globally for Cline.",
-		emptyInstalled: "No skills installed from this catalog.",
+		emptyInstalled: "No skills installed.",
 		emptyCatalog: "No skills match the current filters.",
-		icon: Wrench,
+		icon: Zap,
 	},
 	plugin: {
 		title: "Plugins",
 		description: "Install plugins into this CLI environment.",
-		emptyInstalled: "No plugins installed from this catalog.",
+		emptyInstalled: "No plugins installed.",
 		emptyCatalog: "No plugins match the current filters.",
-		icon: Plug,
+		icon: Puzzle,
 	},
 } satisfies Record<
 	MarketplacePrimitiveType,
@@ -97,28 +94,47 @@ const primitivePageDetails = {
 	}
 >;
 
-const primitiveBadgeLabels: Record<MarketplacePrimitiveType, string> = {
-	mcp: "MCP Server",
-	skill: "Skill",
-	plugin: "Plugin",
-};
+const primitiveCommands = {
+	mcp: "cline mcp install",
+	plugin: "cline plugin install",
+	skill: "cline skill add",
+} satisfies Record<MarketplacePrimitiveType, string>;
 
-function TypeBadge({ type }: { type: MarketplacePrimitiveType }) {
-	const tone = {
-		mcp: "border-purple-400/40 bg-purple-500/10 text-purple-700 dark:text-purple-300",
-		skill:
-			"border-emerald-400/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
-		plugin: "border-sky-400/40 bg-sky-500/10 text-sky-700 dark:text-sky-300",
-	}[type];
-	return (
-		<Badge variant="outline" className={`${tone} max-w-32`}>
-			<span className="truncate">{primitiveBadgeLabels[type]}</span>
-		</Badge>
-	);
-}
+export type MarketplaceLocalInstalledItem = {
+	key: string;
+	matchValues: string[];
+	render: () => ReactNode;
+	renderMatchedBadges?: () => ReactNode;
+	renderMatchedControls?: () => ReactNode;
+	renderMatchedDetails?: () => ReactNode;
+	renderMatchedMeta?: () => ReactNode;
+};
 
 function entryKey(entry: Pick<MarketplaceEntry, "id" | "type">): string {
 	return `${entry.type}:${entry.id}`;
+}
+
+function normalizeMatchValue(value: string): string {
+	return value.trim().toLowerCase();
+}
+
+function entryMatchValues(entry: MarketplaceEntry): Set<string> {
+	return new Set(
+		[entry.id, entry.name, ...entry.install.args]
+			.map(normalizeMatchValue)
+			.filter(Boolean),
+	);
+}
+
+function entryMatchesLocalItem(
+	entry: MarketplaceEntry,
+	item: MarketplaceLocalInstalledItem,
+): boolean {
+	const entryValues = entryMatchValues(entry);
+	return item.matchValues
+		.map(normalizeMatchValue)
+		.filter(Boolean)
+		.some((value) => entryValues.has(value));
 }
 
 function entrySearchText(
@@ -139,15 +155,12 @@ function entrySearchText(
 function actionMessage(
 	state: EntryActionState | undefined,
 ): string | undefined {
-	if (state?.status === "installed" || state?.status === "uninstalled") {
+	if (
+		state?.status === "installed" ||
+		state?.status === "uninstalled" ||
+		state?.status === "failed"
+	) {
 		return state.message;
-	}
-	return undefined;
-}
-
-function actionOutput(state: EntryActionState | undefined): string | undefined {
-	if (state?.status === "installed" || state?.status === "uninstalled") {
-		return state.output;
 	}
 	return undefined;
 }
@@ -163,20 +176,18 @@ function EntryDetails({
 		entry.install.env?.filter((env) => env.required !== false) ?? [];
 	const optionalEnv =
 		entry.install.env?.filter((env) => env.required === false) ?? [];
-	const statusMessage = actionMessage(actionState);
-	const output = actionOutput(actionState);
+	const hasSetupDetails =
+		requiredEnv.length > 0 ||
+		optionalEnv.length > 0 ||
+		Boolean(entry.install.notes) ||
+		actionState?.status === "failed";
 
-	const copyCommand = async () => {
-		await navigator.clipboard?.writeText(entry.install.command);
-	};
+	if (!hasSetupDetails) {
+		return null;
+	}
 
 	return (
-		<div
-			className="grid gap-3 border-t pt-3"
-			onClick={(event) => event.stopPropagation()}
-			onKeyDown={(event) => event.stopPropagation()}
-			role="presentation"
-		>
+		<div className="grid gap-3 border-t pt-3" data-marketplace-entry-details>
 			{requiredEnv.length > 0 || optionalEnv.length > 0 ? (
 				<div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
 					<p className="text-sm font-medium text-amber-800 dark:text-amber-200">
@@ -227,46 +238,10 @@ function EntryDetails({
 				</p>
 			) : null}
 
-			<details className="rounded-lg border bg-muted/30 p-3">
-				<summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-					Manual CLI command
-				</summary>
-				<div className="mt-3 grid gap-2">
-					<p className="text-xs leading-5 text-muted-foreground">
-						Use this only if you prefer installing from a terminal.
-					</p>
-					<div className="flex items-start gap-2">
-						<code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap rounded-md border bg-background p-2 font-mono text-xs text-muted-foreground">
-							<span style={CODE_FONT_STYLE}>{entry.install.command}</span>
-						</code>
-						<Button
-							onClick={copyCommand}
-							size="sm"
-							type="button"
-							variant="ghost"
-						>
-							<Copy className="size-3.5" />
-							Copy
-						</Button>
-					</div>
-				</div>
-			</details>
-
-			{statusMessage ? (
-				<p className="text-sm text-muted-foreground">{statusMessage}</p>
-			) : null}
 			{actionState?.status === "failed" ? (
 				<div className="max-h-44 overflow-auto rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
 					{actionState.message}
 				</div>
-			) : null}
-			{output ? (
-				<pre
-					className="max-h-44 overflow-auto rounded-lg border bg-muted/30 p-3 font-mono text-xs text-muted-foreground"
-					style={CODE_FONT_STYLE}
-				>
-					{output}
-				</pre>
 			) : null}
 		</div>
 	);
@@ -281,6 +256,8 @@ function MarketplaceEntryCard({
 	onInstall,
 	onToggleExpanded,
 	onUninstall,
+	matchedLocalItems = [],
+	sourceLabel,
 	tagLabels,
 }: {
 	actionState: EntryActionState | undefined;
@@ -291,12 +268,20 @@ function MarketplaceEntryCard({
 	onInstall: (entry: MarketplaceEntry) => void;
 	onToggleExpanded: (entry: MarketplaceEntry) => void;
 	onUninstall: (entry: MarketplaceEntry) => void;
+	matchedLocalItems?: MarketplaceLocalInstalledItem[];
+	sourceLabel?: string;
 	tagLabels: Map<string, string>;
 }) {
+	const EntryIcon = primitivePageDetails[entry.type].icon;
 	const busy =
 		actionState?.status === "installing" ||
 		actionState?.status === "uninstalling";
 	const setupNeeded = Boolean(entry.install.env?.length);
+	const hasExpandableDetails =
+		setupNeeded ||
+		Boolean(entry.install.notes) ||
+		actionState?.status === "failed";
+	const inlineMessage = actionMessage(actionState);
 	const handleActionClick = (event: MouseEvent<HTMLButtonElement>) => {
 		event.stopPropagation();
 		if (installed) {
@@ -314,31 +299,62 @@ function MarketplaceEntryCard({
 				: installed
 					? "Uninstall"
 					: "Install";
-
-	return (
-		// biome-ignore lint/a11y/useSemanticElements: The card contains a nested action button, so the wrapper cannot be a native button.
-		<div
-			aria-expanded={expanded}
-			aria-label={`${expanded ? "Collapse" : "Expand"} ${entry.name}`}
-			className="grid cursor-pointer gap-3 rounded-lg border bg-card p-4 text-left transition-colors hover:bg-accent/20 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-			onClick={() => onToggleExpanded(entry)}
-			onKeyDown={(event) => {
-				if (event.key === "Enter" || event.key === " ") {
-					event.preventDefault();
-					onToggleExpanded(entry);
-				}
-			}}
-			role="button"
-			tabIndex={0}
-		>
+	const content = (
+		<>
 			<div className="min-w-0">
 				<div className="flex min-w-0 items-start justify-between gap-2">
-					<h2 className="min-w-0 truncate text-sm font-semibold text-foreground">
-						{entry.name}
-					</h2>
-					<TypeBadge type={entry.type} />
+					<div className="flex min-w-0 flex-1 items-center gap-3">
+						<EntryIcon className="h-4 w-4 shrink-0 text-primary" />
+						<h2 className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
+							{entry.name}
+						</h2>
+					</div>
+					<div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+						{sourceLabel ? (
+							<Badge
+								variant="outline"
+								className="shrink-0 text-muted-foreground"
+							>
+								{sourceLabel}
+							</Badge>
+						) : null}
+						{matchedLocalItems.map((item) =>
+							item.renderMatchedBadges ? (
+								<span className="contents" key={`${item.key}:badges`}>
+									{item.renderMatchedBadges()}
+								</span>
+							) : null,
+						)}
+						{matchedLocalItems.map((item) =>
+							item.renderMatchedControls ? (
+								<span
+									className="contents"
+									data-marketplace-entry-interactive
+									key={`${item.key}:controls`}
+								>
+									{item.renderMatchedControls()}
+								</span>
+							) : null,
+						)}
+					</div>
 				</div>
-				<div className="mt-1 flex flex-wrap gap-1.5">
+				{matchedLocalItems.some((item) => item.renderMatchedMeta) ? (
+					<div className="mt-1 grid gap-1">
+						{matchedLocalItems.map((item) =>
+							item.renderMatchedMeta ? (
+								<div key={`${item.key}:meta`}>{item.renderMatchedMeta()}</div>
+							) : null,
+						)}
+					</div>
+				) : null}
+			</div>
+
+			<p className="line-clamp-2 text-xs leading-5 text-muted-foreground">
+				{entry.description}
+			</p>
+
+			{entry.tags.length > 0 ? (
+				<div className="flex flex-wrap gap-1.5">
 					{entry.tags.slice(0, 5).map((tag) => (
 						<Badge
 							key={tag}
@@ -349,19 +365,30 @@ function MarketplaceEntryCard({
 						</Badge>
 					))}
 				</div>
-			</div>
+			) : null}
 
-			<p className="line-clamp-2 text-xs leading-5 text-muted-foreground">
-				{entry.description}
-			</p>
+			{matchedLocalItems.some((item) => item.renderMatchedDetails) ? (
+				<div className="grid gap-2" data-marketplace-entry-details>
+					{matchedLocalItems.map((item) =>
+						item.renderMatchedDetails ? (
+							<div key={item.key}>{item.renderMatchedDetails()}</div>
+						) : null,
+					)}
+				</div>
+			) : null}
 
 			<div className="flex flex-wrap items-center justify-between gap-3">
 				<div className="min-h-5 text-xs text-muted-foreground">
-					{installed ? (
-						<span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-300">
-							<CheckCircle2 className="size-3.5" />
-							Installed
-						</span>
+					{inlineMessage ? (
+						<output
+							className={
+								actionState?.status === "failed"
+									? "text-destructive"
+									: "text-muted-foreground"
+							}
+						>
+							{inlineMessage}
+						</output>
 					) : setupNeeded ? (
 						<span className="text-amber-700 dark:text-amber-300">
 							Requires setup after install
@@ -380,9 +407,50 @@ function MarketplaceEntryCard({
 				</Button>
 			</div>
 
-			{expanded ? (
+			{expanded && hasExpandableDetails ? (
 				<EntryDetails actionState={actionState} entry={entry} />
 			) : null}
+		</>
+	);
+
+	if (!hasExpandableDetails) {
+		return (
+			<div className="grid gap-3 rounded-lg border bg-card p-4 text-left transition-colors hover:bg-accent/20">
+				{content}
+			</div>
+		);
+	}
+
+	return (
+		// biome-ignore lint/a11y/useSemanticElements: The card contains a nested action button, so the wrapper cannot be a native button.
+		<div
+			aria-expanded={expanded}
+			aria-label={`${expanded ? "Collapse" : "Expand"} ${entry.name}`}
+			className="grid cursor-pointer gap-3 rounded-lg border bg-card p-4 text-left transition-colors hover:bg-accent/20 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+			onClick={(event) => {
+				if (
+					event.target instanceof HTMLElement &&
+					event.target.closest(
+						"[data-marketplace-entry-details], [data-marketplace-entry-interactive]",
+					)
+				) {
+					return;
+				}
+				onToggleExpanded(entry);
+			}}
+			onKeyDown={(event) => {
+				if (event.target !== event.currentTarget) {
+					return;
+				}
+				if (event.key === "Enter" || event.key === " ") {
+					event.preventDefault();
+					onToggleExpanded(entry);
+				}
+			}}
+			role="button"
+			tabIndex={0}
+		>
+			{content}
 		</div>
 	);
 }
@@ -421,9 +489,12 @@ function MarketplaceSection({
 	expandedEntryKey,
 	installedEntryKeys,
 	installedStatusReady,
+	localOnlyInstalledItems = [],
+	matchedLocalItemsByEntryKey,
 	onInstall,
 	onToggleExpanded,
 	onUninstall,
+	sourceLabel,
 	tagLabels,
 	title,
 }: {
@@ -433,20 +504,25 @@ function MarketplaceSection({
 	expandedEntryKey: string | null;
 	installedEntryKeys: Set<string>;
 	installedStatusReady: boolean;
+	localOnlyInstalledItems?: MarketplaceLocalInstalledItem[];
+	matchedLocalItemsByEntryKey?: Map<string, MarketplaceLocalInstalledItem[]>;
 	onInstall: (entry: MarketplaceEntry) => void;
 	onToggleExpanded: (entry: MarketplaceEntry) => void;
 	onUninstall: (entry: MarketplaceEntry) => void;
+	sourceLabel?: string;
 	tagLabels: Map<string, string>;
 	title: string;
 }) {
+	const totalCount = entries.length + localOnlyInstalledItems.length;
 	return (
 		<section className="grid gap-3">
 			<div className="flex items-center justify-between gap-3">
 				<h2 className="text-base font-semibold text-foreground">{title}</h2>
-				<span className="text-sm text-muted-foreground">{entries.length}</span>
+				<span className="text-sm text-muted-foreground">{totalCount}</span>
 			</div>
-			{entries.length > 0 ? (
+			{totalCount > 0 ? (
 				<div className="grid gap-3">
+					{localOnlyInstalledItems.map((item) => item.render())}
 					{entries.map((entry) => {
 						const key = entryKey(entry);
 						return (
@@ -460,6 +536,8 @@ function MarketplaceSection({
 								onInstall={onInstall}
 								onToggleExpanded={onToggleExpanded}
 								onUninstall={onUninstall}
+								matchedLocalItems={matchedLocalItemsByEntryKey?.get(key) ?? []}
+								sourceLabel={sourceLabel}
 								tagLabels={tagLabels}
 							/>
 						);
@@ -475,8 +553,14 @@ function MarketplaceSection({
 }
 
 export function MarketplaceView({
+	chrome = "page",
+	installedItems,
+	onInstalledItemsChanged,
 	primitive,
 }: {
+	chrome?: "page" | "embedded";
+	installedItems?: MarketplaceLocalInstalledItem[];
+	onInstalledItemsChanged?: () => void | Promise<void>;
 	primitive: MarketplacePrimitiveType;
 }) {
 	const [catalog, setCatalog] = useState<MarketplaceCatalog | null>(null);
@@ -573,6 +657,43 @@ export function MarketplaceView({
 		});
 	}, [primitiveEntries, query, selectedTag, tagLabels]);
 
+	const matchedLocalItemsByEntryKey = useMemo(() => {
+		const matched = new Map<string, MarketplaceLocalInstalledItem[]>();
+		for (const item of installedItems ?? []) {
+			for (const entry of filteredEntries) {
+				const key = entryKey(entry);
+				if (
+					!installedEntryKeys.has(key) ||
+					!entryMatchesLocalItem(entry, item)
+				) {
+					continue;
+				}
+				const items = matched.get(key) ?? [];
+				items.push(item);
+				matched.set(key, items);
+			}
+		}
+		return matched;
+	}, [filteredEntries, installedEntryKeys, installedItems]);
+
+	const matchedLocalItemKeys = useMemo(
+		() =>
+			new Set(
+				[...matchedLocalItemsByEntryKey.values()].flatMap((items) =>
+					items.map((item) => item.key),
+				),
+			),
+		[matchedLocalItemsByEntryKey],
+	);
+
+	const localOnlyInstalledItems = useMemo(
+		() =>
+			(installedItems ?? []).filter(
+				(item) => !matchedLocalItemKeys.has(item.key),
+			),
+		[installedItems, matchedLocalItemKeys],
+	);
+
 	const installedEntries = useMemo(
 		() =>
 			filteredEntries.filter((entry) =>
@@ -643,9 +764,9 @@ export function MarketplaceView({
 			setEntryState(entry, {
 				status: "installed",
 				message: result.message,
-				output: result.output,
 			});
 			markEntryInstalled(entry);
+			await onInstalledItemsChanged?.();
 		} catch (error) {
 			setEntryState(entry, {
 				status: "failed",
@@ -674,9 +795,9 @@ export function MarketplaceView({
 			setEntryState(entry, {
 				status: "uninstalled",
 				message: result.message,
-				output: result.output,
 			});
 			markEntryUninstalled(entry);
+			await onInstalledItemsChanged?.();
 		} catch (error) {
 			setEntryState(entry, {
 				status: "failed",
@@ -685,134 +806,136 @@ export function MarketplaceView({
 		}
 	};
 
-	return (
-		<ScrollArea className="h-full">
-			<div className="mx-auto max-w-6xl px-6 py-6 max-[720px]:px-3">
-				<div className="mb-6 flex flex-col gap-4 border-b pb-5 lg:flex-row lg:items-end lg:justify-between">
-					<div>
-						<h1 className="flex items-center gap-3 text-2xl font-semibold tracking-normal text-foreground">
-							<PageIcon className="size-8 text-primary" />
-							<span>{pageDetails.title}</span>
-						</h1>
-						<p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-							{pageDetails.description}
-						</p>
-					</div>
-					{catalog?.generatedAt ? (
-						<p className="text-xs text-muted-foreground">
-							Updated{" "}
-							{new Intl.DateTimeFormat(undefined, {
-								month: "short",
-								day: "numeric",
-								year: "numeric",
-							}).format(new Date(catalog.generatedAt))}
-						</p>
-					) : null}
+	const content = (
+		<div className="grid gap-6">
+			{chrome === "page" ? (
+				<PageHeader
+					description={pageDetails.description}
+					icon={PageIcon}
+					title={pageDetails.title}
+					meta={<CommandBadge>{primitiveCommands[primitive]}</CommandBadge>}
+					actions={
+						catalog?.generatedAt ? (
+							<p className="text-xs text-muted-foreground">
+								Updated{" "}
+								{new Intl.DateTimeFormat(undefined, {
+									month: "short",
+									day: "numeric",
+									year: "numeric",
+								}).format(new Date(catalog.generatedAt))}
+							</p>
+						) : null
+					}
+				/>
+			) : null}
+
+			{!catalog && !errorMessage ? (
+				<div className="flex min-h-80 items-center justify-center rounded-lg border bg-card text-sm text-muted-foreground">
+					<Spinner className="mr-2" />
+					Loading marketplace...
 				</div>
+			) : null}
 
-				{!catalog && !errorMessage ? (
-					<div className="flex min-h-80 items-center justify-center rounded-lg border bg-card text-sm text-muted-foreground">
-						<Spinner className="mr-2" />
-						Loading marketplace...
-					</div>
-				) : null}
+			{catalog && !installedStatusReady ? (
+				<div className="flex min-h-80 items-center justify-center rounded-lg border bg-card text-sm text-muted-foreground">
+					<Spinner className="mr-2" />
+					Checking installed status...
+				</div>
+			) : null}
 
-				{catalog && !installedStatusReady ? (
-					<div className="flex min-h-80 items-center justify-center rounded-lg border bg-card text-sm text-muted-foreground">
-						<Spinner className="mr-2" />
-						Checking installed status...
-					</div>
-				) : null}
+			{errorMessage ? (
+				<div className="rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
+					{errorMessage}
+				</div>
+			) : null}
 
-				{errorMessage ? (
-					<div className="rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
-						{errorMessage}
-					</div>
-				) : null}
-
-				{catalog && installedStatusReady ? (
-					<div className="grid gap-6">
-						<div className="grid gap-3">
-							<div className="flex flex-col gap-3 md:flex-row md:items-center">
-								<div className="relative block flex-1">
-									<Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-									<Input
-										aria-label={`Search ${pageDetails.title}`}
-										className="h-10 pl-8"
-										onChange={(event) => setQuery(event.target.value)}
-										placeholder={`Search ${pageDetails.title.toLowerCase()}`}
-										value={query}
-									/>
-								</div>
-								<div className="flex min-h-8 items-center gap-2 text-sm text-muted-foreground">
-									<span className="font-medium text-foreground">
-										{filteredEntries.length}
-									</span>
-									<span>
-										{filteredEntries.length === 1 ? "result" : "results"}
-									</span>
-									{activeFilters ? (
-										<Button
-											onClick={clearFilters}
-											size="sm"
-											type="button"
-											variant="ghost"
-										>
-											Clear filters
-										</Button>
-									) : null}
-								</div>
+			{catalog && installedStatusReady ? (
+				<div className="grid gap-6">
+					<div className="grid gap-3">
+						<div className="flex flex-col gap-3 md:flex-row md:items-center">
+							<div className="relative block flex-1">
+								<Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+								<Input
+									aria-label={`Search ${pageDetails.title}`}
+									className="h-10 pl-8"
+									onChange={(event) => setQuery(event.target.value)}
+									placeholder={`Search ${pageDetails.title.toLowerCase()}`}
+									value={query}
+								/>
 							</div>
-
-							{primitiveTags.length > 0 ? (
-								<div className="flex gap-2 overflow-x-auto pb-1">
-									{primitiveTags.map((tag) => (
-										<TagButton
-											active={selectedTag === tag.id}
-											count={tagCounts.get(tag.id) ?? 0}
-											key={tag.id}
-											onClick={() =>
-												setSelectedTag((current) =>
-													current === tag.id ? null : tag.id,
-												)
-											}
-											tag={tag}
-										/>
-									))}
-								</div>
-							) : null}
+							<div className="flex min-h-8 items-center gap-2 text-sm text-muted-foreground">
+								<span className="font-medium text-foreground">
+									{filteredEntries.length}
+								</span>
+								<span>
+									{filteredEntries.length === 1 ? "result" : "results"}
+								</span>
+								{activeFilters ? (
+									<Button
+										onClick={clearFilters}
+										size="sm"
+										type="button"
+										variant="ghost"
+									>
+										Clear filters
+									</Button>
+								) : null}
+							</div>
 						</div>
 
-						<MarketplaceSection
-							actionStates={actionStates}
-							emptyMessage={pageDetails.emptyInstalled}
-							entries={installedEntries}
-							expandedEntryKey={expandedEntryKey}
-							installedEntryKeys={installedEntryKeys}
-							installedStatusReady={installedStatusReady}
-							onInstall={installEntry}
-							onToggleExpanded={toggleExpanded}
-							onUninstall={uninstallEntry}
-							tagLabels={tagLabels}
-							title="Installed"
-						/>
-
-						<MarketplaceSection
-							actionStates={actionStates}
-							emptyMessage={pageDetails.emptyCatalog}
-							entries={catalogEntries}
-							expandedEntryKey={expandedEntryKey}
-							installedEntryKeys={installedEntryKeys}
-							installedStatusReady={installedStatusReady}
-							onInstall={installEntry}
-							onToggleExpanded={toggleExpanded}
-							onUninstall={uninstallEntry}
-							tagLabels={tagLabels}
-							title="Catalog"
-						/>
+						{primitiveTags.length > 0 ? (
+							<div className="flex gap-2 overflow-x-auto pb-1">
+								{primitiveTags.map((tag) => (
+									<TagButton
+										active={selectedTag === tag.id}
+										count={tagCounts.get(tag.id) ?? 0}
+										key={tag.id}
+										onClick={() =>
+											setSelectedTag((current) =>
+												current === tag.id ? null : tag.id,
+											)
+										}
+										tag={tag}
+									/>
+								))}
+							</div>
+						) : null}
 					</div>
-				) : null}
-			</div>
-		</ScrollArea>
+
+					<MarketplaceSection
+						actionStates={actionStates}
+						emptyMessage={pageDetails.emptyInstalled}
+						entries={installedEntries}
+						expandedEntryKey={expandedEntryKey}
+						installedEntryKeys={installedEntryKeys}
+						installedStatusReady={installedStatusReady}
+						localOnlyInstalledItems={localOnlyInstalledItems}
+						matchedLocalItemsByEntryKey={matchedLocalItemsByEntryKey}
+						onInstall={installEntry}
+						onToggleExpanded={toggleExpanded}
+						onUninstall={uninstallEntry}
+						sourceLabel="Marketplace"
+						tagLabels={tagLabels}
+						title="Installed"
+					/>
+
+					<MarketplaceSection
+						actionStates={actionStates}
+						emptyMessage={pageDetails.emptyCatalog}
+						entries={catalogEntries}
+						expandedEntryKey={expandedEntryKey}
+						installedEntryKeys={installedEntryKeys}
+						installedStatusReady={installedStatusReady}
+						onInstall={installEntry}
+						onToggleExpanded={toggleExpanded}
+						onUninstall={uninstallEntry}
+						tagLabels={tagLabels}
+						title="Marketplace"
+					/>
+				</div>
+			) : null}
+		</div>
 	);
+
+	return chrome === "embedded" ? content : <PageFrame>{content}</PageFrame>;
 }

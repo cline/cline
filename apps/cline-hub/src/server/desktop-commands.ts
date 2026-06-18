@@ -4,15 +4,20 @@ import {
 	ClineAccountService,
 	ensureCustomProvidersLoaded,
 	executeClineAccountAction,
+	formatProviderOAuthApiKey,
 	getLocalProviderModels,
+	getPersistedProviderApiKey,
+	getProviderOAuthCredentialsFromSettings,
+	getValidClineCredentials,
 	listLocalProviders,
 	loginAndSaveLocalProviderOAuthCredentials,
 	normalizeOAuthProvider,
 	type ProviderCapability,
 	type ProviderClient,
 	type ProviderProtocol,
+	type ProviderSettings,
 	readGlobalSettings,
-	resolveLocalClineAuthToken,
+	saveLocalProviderOAuthCredentials,
 	saveLocalProviderSettings,
 	setAutoUpdateEnabledGlobally,
 	setDisabledPlugin,
@@ -30,6 +35,7 @@ import { providerSettingsManager, workspaceRoot } from "./deps";
 import {
 	installMarketplaceEntryForDesktopCommand,
 	listMarketplaceInstalledEntries,
+	uninstallLocalPrimitive,
 	uninstallMarketplaceEntryForDesktopCommand,
 } from "./marketplace";
 import {
@@ -56,6 +62,39 @@ const ROUTINE_SCHEDULE_COMMANDS = new Set([
 	"trigger_routine_schedule",
 	"delete_routine_schedule",
 ]);
+
+async function resolveHubClineAccountAuthToken(input: {
+	settings?: ProviderSettings;
+	apiBaseUrl: string;
+}): Promise<string | undefined> {
+	const credentials = input.settings
+		? getProviderOAuthCredentialsFromSettings("cline", input.settings)
+		: null;
+	if (!credentials || !input.settings) {
+		return getPersistedProviderApiKey("cline", input.settings);
+	}
+
+	const nextCredentials = await getValidClineCredentials(credentials, {
+		apiBaseUrl: input.apiBaseUrl,
+	});
+	if (!nextCredentials) {
+		throw new Error(
+			"Cline account requires re-authentication. Run cline auth cline.",
+		);
+	}
+
+	if (nextCredentials !== credentials) {
+		saveLocalProviderOAuthCredentials(
+			providerSettingsManager,
+			"cline",
+			input.settings,
+			nextCredentials,
+			{ setLastUsed: false },
+		);
+	}
+
+	return formatProviderOAuthApiKey("cline", nextCredentials);
+}
 
 export async function handleDesktopCommand(
 	ctx: HubContext,
@@ -133,10 +172,18 @@ export async function handleDesktopCommand(
 	}
 	if (command === "cline_account") {
 		const settings = providerSettingsManager.getProviderSettings("cline");
+		const apiBaseUrl =
+			settings?.baseUrl?.trim() || getClineEnvironmentConfig().apiBaseUrl;
+		const authToken = await resolveHubClineAccountAuthToken({
+			settings,
+			apiBaseUrl,
+		});
+		if (!authToken) {
+			throw new Error("No Cline account auth token found");
+		}
 		const accountService = new ClineAccountService({
-			apiBaseUrl:
-				settings?.baseUrl?.trim() || getClineEnvironmentConfig().apiBaseUrl,
-			getAuthToken: async () => resolveLocalClineAuthToken(settings),
+			apiBaseUrl,
+			getAuthToken: async () => authToken,
 		});
 		return await executeClineAccountAction(
 			args as ClineAccountActionRequest,
@@ -231,6 +278,11 @@ export async function handleDesktopCommand(
 	}
 	if (command === "uninstall_marketplace_entry") {
 		const result = await uninstallMarketplaceEntryForDesktopCommand(args);
+		broadcastHubState(ctx);
+		return result;
+	}
+	if (command === "uninstall_local_primitive") {
+		const result = await uninstallLocalPrimitive(args, { workspaceRoot });
 		broadcastHubState(ctx);
 		return result;
 	}
