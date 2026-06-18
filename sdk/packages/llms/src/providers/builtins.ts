@@ -16,6 +16,7 @@ import type {
 	ProviderClient,
 	ProviderProtocol,
 } from "../catalog/types";
+import { ClineNotSubscribedError, isClineNotSubscribedMessage } from "./errors";
 import { filterOpenAICodexModels } from "./openai-codex-models";
 import {
 	ANTHROPIC_AND_QWEN_CACHE_ROUTING_METADATA,
@@ -449,6 +450,7 @@ function createClineLikeSpec(
 				| "modelsProviderId"
 				| "modelsFactory"
 				| "metadata"
+				| "defaults"
 			>
 		>,
 ): BuiltinSpec {
@@ -467,6 +469,7 @@ function createClineLikeSpec(
 			get baseUrl(): string {
 				return `${getClineEnvironmentConfig().apiBaseUrl}/api/v1`;
 			},
+			...input.defaults,
 		},
 		metadata: {
 			...ANTHROPIC_AND_QWEN_CACHE_ROUTING_METADATA,
@@ -491,6 +494,25 @@ const clinePass = createClineLikeSpec({
 	modelsProviderId: CLINE_PASS_PROVIDER_ID,
 	defaultModelId: firstGeneratedModelId(CLINE_PASS_PROVIDER_ID),
 	metadata: { usageCostDisplay: "hide" },
+	defaults: {
+		options: {
+			onResponseError: async (response: Response) => {
+				if (response.status !== 403) {
+					return undefined;
+				}
+				const body = await response
+					.clone()
+					.text()
+					.catch(() => "");
+
+				if (isClineNotSubscribedMessage(body)) {
+					throw new ClineNotSubscribedError(CLINE_PASS_PROVIDER_ID);
+				}
+
+				return undefined;
+			},
+		},
+	},
 });
 
 const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [

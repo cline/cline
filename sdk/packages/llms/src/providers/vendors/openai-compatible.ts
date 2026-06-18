@@ -5,7 +5,7 @@ import type {
 	GatewayResolvedProviderConfig,
 } from "@cline/shared";
 import { wrapLanguageModel } from "ai";
-import { resolveApiKey } from "../http";
+import { ensureFetch, resolveApiKey } from "../http";
 import { splitToolImagesMiddleware } from "../middleware/split-tool-images";
 import type { ProviderFactoryResult } from "./types";
 
@@ -73,6 +73,39 @@ function createAzureApiVersionFetch(
 	return azureFetch;
 }
 
+type ResponseErrorHandler = (
+	response: Response,
+) => Error | undefined | Promise<Error | undefined>;
+
+function readResponseErrorHandler(
+	config: GatewayResolvedProviderConfig,
+): ResponseErrorHandler | undefined {
+	const handler = config.options?.onResponseError;
+	return typeof handler === "function"
+		? (handler as ResponseErrorHandler)
+		: undefined;
+}
+
+function createResponseErrorFetch(input: {
+	fetch: typeof fetch;
+	onResponseError: ResponseErrorHandler;
+}): typeof fetch {
+	const responseErrorFetch = (async (requestInput, init) => {
+		const response = await input.fetch(requestInput, init);
+
+		await input.onResponseError(response);
+
+		return response;
+	}) as typeof fetch;
+
+	const baseFetchWithPreconnect = input.fetch as FetchWithOptionalPreconnect;
+	(responseErrorFetch as FetchWithOptionalPreconnect).preconnect =
+		typeof baseFetchWithPreconnect.preconnect === "function"
+			? baseFetchWithPreconnect.preconnect.bind(input.fetch)
+			: () => undefined;
+	return responseErrorFetch;
+}
+
 export async function createOpenAICompatibleProviderModule(
 	config: GatewayResolvedProviderConfig,
 	context: GatewayProviderContext,
@@ -83,12 +116,19 @@ export async function createOpenAICompatibleProviderModule(
 	// `llms` unopinionated about which providers do or don't need a key.
 	const apiKey = await resolveApiKey(config);
 	const fetch = createAzureApiVersionFetch(config);
+	const onResponseError = readResponseErrorHandler(config);
+	const providerFetch = onResponseError
+		? createResponseErrorFetch({
+				fetch: ensureFetch(fetch),
+				onResponseError,
+			})
+		: fetch;
 	const provider = createOpenAICompatible({
 		name: context.provider.id,
 		apiKey,
 		...(config.baseUrl ? { baseURL: config.baseUrl } : {}),
 		...(config.headers ? { headers: config.headers } : {}),
-		...(fetch ? { fetch } : {}),
+		...(providerFetch ? { fetch: providerFetch } : {}),
 		includeUsage: true,
 	} as never);
 	return {
