@@ -1,30 +1,20 @@
-import {
-	buildModelInfoNameMap,
-	type ModelInfo,
-	resolveClinePassModelInfo,
-} from "@shared/api";
-import { CLINE_ONBOARDING_MODELS } from "@shared/cline/onboarding";
-import { EmptyRequest } from "@shared/proto/cline/common";
-import type { ClineRecommendedModel } from "@shared/proto/cline/models";
-import type {
-	OnboardingModel,
-	OnboardingModelGroup,
-} from "@shared/proto/cline/state";
-import { useEffect, useMemo, useState } from "react";
-import { CLINE_PASS_FEATURE_FLAG } from "@/constants/featureFlags";
-import { useExtensionState } from "@/context/ExtensionStateContext";
-import { useHasFeatureFlag } from "@/hooks/useFeatureFlag";
-import { ModelsServiceClient } from "@/services/grpc-client";
-import {
-	getRecommendedModelsData,
-	type RecommendedModelsData,
-} from "./data-models";
+import { buildModelInfoNameMap, type ModelInfo, resolveClinePassModelInfo } from "@shared/api"
+import { CLINE_ONBOARDING_MODELS } from "@shared/cline/onboarding"
+import { EmptyRequest } from "@shared/proto/cline/common"
+import type { ClineRecommendedModel } from "@shared/proto/cline/models"
+import type { OnboardingModel, OnboardingModelGroup } from "@shared/proto/cline/state"
+import { useEffect, useMemo, useState } from "react"
+import { CLINE_PASS_FEATURE_FLAG } from "@/constants/featureFlags"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useHasFeatureFlag } from "@/hooks/useFeatureFlag"
+import { ModelsServiceClient } from "@/services/grpc-client"
+import { getRecommendedModelsData, type RecommendedModelsData } from "./data-models"
 
-export type OnboardingModelsStatus = "loading" | "success" | "empty";
+export type OnboardingModelsStatus = "loading" | "success" | "empty"
 
 export interface UseOnboardingModelsResult {
-	status: OnboardingModelsStatus;
-	models: OnboardingModelGroup;
+	status: OnboardingModelsStatus
+	models: OnboardingModelGroup
 }
 
 function toOnboardingModel(
@@ -33,9 +23,9 @@ function toOnboardingModel(
 	fallbackBadge: string,
 	modelCatalog: Record<string, ModelInfo>,
 ): OnboardingModel {
-	const catalogInfo = modelCatalog[rec.id];
-	const tag = rec.tags?.[0] ?? "";
-	const badge = tag || fallbackBadge;
+	const catalogInfo = modelCatalog[rec.id]
+	const tag = rec.tags?.[0] ?? ""
+	const badge = tag || fallbackBadge
 
 	return {
 		id: rec.id,
@@ -54,100 +44,71 @@ function toOnboardingModel(
 					tiers: catalogInfo.tiers ?? [],
 				}
 			: undefined,
-	};
+	}
 }
 
-type FetchState =
-	| { status: "loading" }
-	| { status: "success"; data: RecommendedModelsData }
-	| { status: "empty" };
+type FetchState = { status: "loading" } | { status: "success"; data: RecommendedModelsData } | { status: "empty" }
 
 export function useOnboardingModels(): UseOnboardingModelsResult {
-	const { openRouterModels, clineModels, refreshClineModels } =
-		useExtensionState();
-	const isClinePassEnabled = useHasFeatureFlag(CLINE_PASS_FEATURE_FLAG);
-	const [fetchState, setFetchState] = useState<FetchState>({
-		status: "loading",
-	});
+	const { openRouterModels, clineModels, refreshClineModels } = useExtensionState()
+	const isClinePassEnabled = useHasFeatureFlag(CLINE_PASS_FEATURE_FLAG)
+	const [fetchState, setFetchState] = useState<FetchState>({ status: "loading" })
 
 	useEffect(() => {
-		let cancelled = false;
+		let cancelled = false
 
 		const refreshRecommendedModels = async () => {
 			try {
-				const response =
-					await ModelsServiceClient.refreshClineRecommendedModelsRpc(
-						EmptyRequest.create({}),
-					);
+				const response = await ModelsServiceClient.refreshClineRecommendedModelsRpc(EmptyRequest.create({}))
 				if (!cancelled) {
-					const data = getRecommendedModelsData(response, isClinePassEnabled);
+					const data = getRecommendedModelsData(response, isClinePassEnabled)
 					if (!data) {
-						setFetchState({ status: "empty" });
+						setFetchState({ status: "empty" })
 					} else {
-						setFetchState({ status: "success", data });
+						setFetchState({ status: "success", data })
 					}
 				}
 			} catch {
 				if (!cancelled) {
-					setFetchState({ status: "empty" });
+					setFetchState({ status: "empty" })
 				}
 			}
-		};
+		}
 
-		refreshRecommendedModels();
+		refreshRecommendedModels()
 
 		return () => {
-			cancelled = true;
-		};
-	}, [isClinePassEnabled]);
+			cancelled = true
+		}
+	}, [isClinePassEnabled])
 
 	useEffect(() => {
-		refreshClineModels();
-	}, [refreshClineModels]);
+		refreshClineModels()
+	}, [refreshClineModels])
 
 	// Merge openRouter and cline models into a single catalog for lookups
 	const modelCatalog = useMemo<Record<string, ModelInfo>>(() => {
-		return { ...openRouterModels, ...(clineModels ?? {}) };
-	}, [openRouterModels, clineModels]);
+		return { ...openRouterModels, ...(clineModels ?? {}) }
+	}, [openRouterModels, clineModels])
 
 	// ClinePass model IDs omit the upstream lab (e.g. "cline-pass/glm-5.1"), so look up
 	// capabilities via the model slug against the OpenRouter catalog, falling back to
 	// conservative ClinePass defaults. Mirrors ClinePassProvider's resolution.
-	const openRouterModelsByName = useMemo(
-		() => buildModelInfoNameMap(openRouterModels),
-		[openRouterModels],
-	);
+	const openRouterModelsByName = useMemo(() => buildModelInfoNameMap(openRouterModels), [openRouterModels])
 
 	return useMemo<UseOnboardingModelsResult>(() => {
 		if (fetchState.status !== "success") {
-			return {
-				status: fetchState.status,
-				models: { models: CLINE_ONBOARDING_MODELS },
-			};
+			return { status: fetchState.status, models: { models: CLINE_ONBOARDING_MODELS } }
 		}
 
-		const { data } = fetchState;
-		const freeModels = data.free.map((rec) =>
-			toOnboardingModel(rec, "free", "Free", modelCatalog),
-		);
-		const frontierModels = data.recommended.map((rec) =>
-			toOnboardingModel(rec, "frontier", "", modelCatalog),
-		);
+		const { data } = fetchState
+		const freeModels = data.free.map((rec) => toOnboardingModel(rec, "free", "Free", modelCatalog))
+		const frontierModels = data.recommended.map((rec) => toOnboardingModel(rec, "frontier", "", modelCatalog))
 		const clinePassCatalog = Object.fromEntries(
-			data.clinePass.map((rec) => [
-				rec.id,
-				resolveClinePassModelInfo(rec.id, openRouterModelsByName),
-			]),
-		);
-		const clinePassModels = data.clinePass.map((rec) =>
-			toOnboardingModel(rec, "clinepass", "", clinePassCatalog),
-		);
+			data.clinePass.map((rec) => [rec.id, resolveClinePassModelInfo(rec.id, openRouterModelsByName)]),
+		)
+		const clinePassModels = data.clinePass.map((rec) => toOnboardingModel(rec, "clinepass", "", clinePassCatalog))
 
-		return {
-			status: "success",
-			models: {
-				models: [...clinePassModels, ...freeModels, ...frontierModels],
-			},
-		};
-	}, [fetchState, modelCatalog, openRouterModelsByName]);
+		return { status: "success", models: { models: [...clinePassModels, ...freeModels, ...frontierModels] } }
+	}, [fetchState, modelCatalog, openRouterModelsByName])
 }
