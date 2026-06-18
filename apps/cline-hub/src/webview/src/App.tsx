@@ -344,8 +344,8 @@ function Shell({
 		{ view: "models", label: "Models", icon: BotIcon },
 		{ view: "channels", label: "Channels", icon: LinkIcon },
 		{ view: "schedules", label: "Schedules", icon: ClockIcon },
-		{ view: "settings", label: "Settings", icon: SettingsIcon },
 		{ view: "account", label: "Account", icon: UserCircleIcon },
+		{ view: "settings", label: "Settings", icon: SettingsIcon },
 	] satisfies Array<{
 		view: Exclude<
 			View,

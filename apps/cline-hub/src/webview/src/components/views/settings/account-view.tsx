@@ -421,58 +421,34 @@ export function AccountView() {
 			<PageHeader
 				description="Review account, usage, billing, and organization details."
 				title="Account"
-				actions={
-					user ? (
-						<Button
-							disabled={accountActionPending !== null}
-							onClick={() => void signOut()}
-							type="button"
-							variant="outline"
-						>
-							{accountActionPending === "sign-out" ? (
-								<Loader2 className="h-4 w-4 animate-spin" />
-							) : (
-								<LogOut className="h-4 w-4" />
-							)}
-							{accountActionPending === "sign-out" ? "Signing out" : "Sign out"}
-						</Button>
-					) : (
-						<Button
-							disabled={accountActionPending !== null || overviewLoading}
-							onClick={() => void signIn()}
-							type="button"
-						>
-							{accountActionPending === "sign-in" ? (
-								<Loader2 className="h-4 w-4 animate-spin" />
-							) : (
-								<LogIn className="h-4 w-4" />
-							)}
-							{accountActionPending === "sign-in" ? "Signing in" : "Sign in"}
-						</Button>
-					)
-				}
 			/>
 
 			{/* Tabs */}
 			<div className="mb-6 flex items-center gap-0 border-b border-border">
-				{tabs.map((tab) => (
-					<button
-						key={tab}
-						type="button"
-						onClick={() => setActiveTab(tab)}
-						className={cn(
-							"relative px-4 py-2.5 text-sm font-medium capitalize transition-colors",
-							activeTab === tab
-								? "text-foreground"
-								: "text-muted-foreground hover:text-foreground",
-						)}
-					>
-						{tab}
-						{activeTab === tab && (
-							<span className="absolute inset-x-0 -bottom-px h-0.5 bg-foreground" />
-						)}
-					</button>
-				))}
+				{tabs.map((tab) => {
+					const disabled = !user && tab !== "overview";
+					return (
+						<button
+							disabled={disabled}
+							key={tab}
+							type="button"
+							onClick={() => setActiveTab(tab)}
+							className={cn(
+								"relative px-4 py-2.5 text-sm font-medium capitalize transition-colors",
+								activeTab === tab
+									? "text-foreground"
+									: "text-muted-foreground hover:text-foreground",
+								disabled &&
+									"cursor-not-allowed opacity-45 hover:text-muted-foreground",
+							)}
+						>
+							{tab}
+							{activeTab === tab && (
+								<span className="absolute inset-x-0 -bottom-px h-0.5 bg-foreground" />
+							)}
+						</button>
+					);
+				})}
 			</div>
 
 			{/* Overview Tab */}
@@ -504,14 +480,33 @@ export function AccountView() {
 											Member since {formatDate(user.createdAt)}
 										</p>
 									</div>
-									<a
-										href="https://app.cline.bot/dashboard"
-										target="_blank"
-										rel="noopener noreferrer"
-										className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
-									>
-										<ExternalLink className="h-4 w-4" />
-									</a>
+									<div className="flex shrink-0 items-center gap-2">
+										<a
+											href="https://app.cline.bot/dashboard"
+											target="_blank"
+											rel="noopener noreferrer"
+											className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+										>
+											Open dashboard
+											<ExternalLink className="h-3.5 w-3.5" />
+										</a>
+										<Button
+											className="h-8 rounded-md px-2.5 text-xs"
+											disabled={accountActionPending !== null}
+											onClick={() => void signOut()}
+											type="button"
+											variant="outline"
+										>
+											{accountActionPending === "sign-out" ? (
+												<Loader2 className="h-3.5 w-3.5 animate-spin" />
+											) : (
+												<LogOut className="h-3.5 w-3.5" />
+											)}
+											{accountActionPending === "sign-out"
+												? "Signing out"
+												: "Sign out"}
+										</Button>
+									</div>
 								</div>
 							</div>
 
