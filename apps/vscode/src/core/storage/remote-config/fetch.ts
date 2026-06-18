@@ -1,31 +1,18 @@
-import axios, { type AxiosRequestConfig, type AxiosResponse } from "axios";
-import type { Controller } from "@/core/controller";
-import { ClineAccountService } from "@/services/account/ClineAccountService";
-import { buildBasicClineHeaders } from "@/services/EnvUtils";
-import { getAxiosSettings } from "@/shared/net";
-import { Logger } from "@/shared/services/Logger";
-import type { ConfiguredAPIKeys } from "@/shared/storage/state-keys";
-import { ClineEnv } from "../../../config";
-import { AuthService } from "../../../services/auth/AuthService";
-import { CLINE_API_ENDPOINT } from "../../../shared/cline/api";
-import {
-	APIKeySchema,
-	type APIKeySettings,
-	type RemoteConfig,
-	RemoteConfigSchema,
-} from "../../../shared/remote-config/schema";
-import {
-	deleteRemoteConfigFromCache,
-	readRemoteConfigFromCache,
-	writeRemoteConfigToCache,
-} from "../disk";
-import {
-	applyRemoteConfig,
-	clearRemoteConfig,
-	isRemoteConfigEnabled,
-} from "./utils";
+import axios, { AxiosRequestConfig, AxiosResponse } from "axios"
+import { Controller } from "@/core/controller"
+import { ClineAccountService } from "@/services/account/ClineAccountService"
+import { buildBasicClineHeaders } from "@/services/EnvUtils"
+import { getAxiosSettings } from "@/shared/net"
+import { Logger } from "@/shared/services/Logger"
+import { ConfiguredAPIKeys } from "@/shared/storage/state-keys"
+import { ClineEnv } from "../../../config"
+import { AuthService } from "../../../services/auth/AuthService"
+import { CLINE_API_ENDPOINT } from "../../../shared/cline/api"
+import { APIKeySchema, type APIKeySettings, RemoteConfig, RemoteConfigSchema } from "../../../shared/remote-config/schema"
+import { deleteRemoteConfigFromCache, readRemoteConfigFromCache, writeRemoteConfigToCache } from "../disk"
+import { applyRemoteConfig, clearRemoteConfig, isRemoteConfigEnabled } from "./utils"
 
-const CLINE_PASS_PROVIDER_ID = "cline-pass";
+const CLINE_PASS_PROVIDER_ID = "cline-pass"
 
 /**
  * Parses API keys from a JSON string response
@@ -35,12 +22,12 @@ const CLINE_PASS_PROVIDER_ID = "cline-pass";
 function parseApiKeys(value: string): APIKeySettings {
 	try {
 		if (!value) {
-			return {};
+			return {}
 		}
-		return APIKeySchema.parse(JSON.parse(value));
+		return APIKeySchema.parse(JSON.parse(value))
 	} catch (err) {
-		Logger.error(`Failed to parse providers api keys`, err);
-		return {};
+		Logger.error(`Failed to parse providers api keys`, err)
+		return {}
 	}
 }
 
@@ -51,21 +38,18 @@ function parseApiKeys(value: string): APIKeySettings {
  * @returns The response data on success
  * @throws Error if the request fails or returns an error
  */
-async function makeAuthenticatedRequest<T>(
-	endpoint: string,
-	organizationId: string,
-): Promise<T> {
-	const authService = AuthService.getInstance();
+async function makeAuthenticatedRequest<T>(endpoint: string, organizationId: string): Promise<T> {
+	const authService = AuthService.getInstance()
 
 	// Get authentication token
-	const authToken = await authService.getAuthToken();
+	const authToken = await authService.getAuthToken()
 	if (!authToken) {
-		throw new Error("No Cline account auth token found");
+		throw new Error("No Cline account auth token found")
 	}
 
 	// Construct URL by replacing {id} placeholder with organizationId
-	const apiEndpoint = endpoint.replace("{id}", organizationId);
-	const url = new URL(apiEndpoint, ClineEnv.config().apiBaseUrl).toString();
+	const apiEndpoint = endpoint.replace("{id}", organizationId)
+	const url = new URL(apiEndpoint, ClineEnv.config().apiBaseUrl).toString()
 
 	// Make authenticated request
 	const requestConfig: AxiosRequestConfig = {
@@ -75,36 +59,36 @@ async function makeAuthenticatedRequest<T>(
 			...(await buildBasicClineHeaders()),
 		},
 		...getAxiosSettings(),
-	};
+	}
 
 	const response: AxiosResponse<{
-		data?: T;
-		error: string;
-		success: boolean;
+		data?: T
+		error: string
+		success: boolean
 	}> = await axios.request({
 		url,
 		method: "GET",
 		...requestConfig,
-	});
+	})
 
 	// Validate response status
-	const status = response.status;
+	const status = response.status
 	if (status < 200 || status >= 300) {
-		throw new Error(`Request to ${apiEndpoint} failed with status ${status}`);
+		throw new Error(`Request to ${apiEndpoint} failed with status ${status}`)
 	}
 
 	// Validate response structure
 	if (!response.data || !response.data.success) {
-		throw new Error(`API error: ${response.data?.error || "Unknown error"}`);
+		throw new Error(`API error: ${response.data?.error || "Unknown error"}`)
 	}
 
 	// Extract and return data
-	const data = response.data.data;
+	const data = response.data.data
 	if (!data) {
-		throw new Error(`No data returned from ${apiEndpoint}`);
+		throw new Error(`No data returned from ${apiEndpoint}`)
 	}
 
-	return data;
+	return data
 }
 
 /**
@@ -114,53 +98,45 @@ async function makeAuthenticatedRequest<T>(
  * @param organizationId The organization ID to fetch config for
  * @returns RemoteConfig if enabled, undefined if disabled or not found
  */
-async function fetchRemoteConfigForOrganization(
-	organizationId: string,
-): Promise<RemoteConfig | undefined> {
+async function fetchRemoteConfigForOrganization(organizationId: string): Promise<RemoteConfig | undefined> {
 	try {
 		// Fetch config data using helper
-		const configData = await makeAuthenticatedRequest<{
-			value: string;
-			enabled: boolean;
-		}>(CLINE_API_ENDPOINT.REMOTE_CONFIG, organizationId);
+		const configData = await makeAuthenticatedRequest<{ value: string; enabled: boolean }>(
+			CLINE_API_ENDPOINT.REMOTE_CONFIG,
+			organizationId,
+		)
 
 		// Check if config is enabled
 		if (!configData.enabled) {
 			// Clear the remote config from the on-disk cache if it exists
-			await deleteRemoteConfigFromCache(organizationId);
-			return undefined;
+			await deleteRemoteConfigFromCache(organizationId)
+			return undefined
 		}
 
 		// Parse the JSON-encoded Value field
-		const parsedConfig = JSON.parse(configData.value);
+		const parsedConfig = JSON.parse(configData.value)
 
 		// Validate against schema
-		const validatedConfig = RemoteConfigSchema.parse(parsedConfig);
+		const validatedConfig = RemoteConfigSchema.parse(parsedConfig)
 
-		return validatedConfig;
+		return validatedConfig
 	} catch (error) {
-		Logger.error(
-			`Failed to fetch remote config for organization ${organizationId}:`,
-			error,
-		);
+		Logger.error(`Failed to fetch remote config for organization ${organizationId}:`, error)
 
 		// Try to fall back to cached config
-		const cachedConfig = await readRemoteConfigFromCache(organizationId);
+		const cachedConfig = await readRemoteConfigFromCache(organizationId)
 		if (cachedConfig) {
 			try {
 				// Validate cached config against schema
-				const validatedCachedConfig = RemoteConfigSchema.parse(cachedConfig);
-				return validatedCachedConfig;
+				const validatedCachedConfig = RemoteConfigSchema.parse(cachedConfig)
+				return validatedCachedConfig
 			} catch (validationError) {
 				// Cache validation failed - log and continue
-				Logger.error(
-					`Cached config validation failed for organization ${organizationId}:`,
-					validationError,
-				);
+				Logger.error(`Cached config validation failed for organization ${organizationId}:`, validationError)
 			}
 		}
 
-		return undefined;
+		return undefined
 	}
 }
 
@@ -170,94 +146,70 @@ async function fetchRemoteConfigForOrganization(
  * @param organizationId The organization ID to fetch API keys for
  * @returns Record of API keys (e.g., { litellm: "key" }) or undefined if fetch fails
  */
-async function fetchApiKeysForOrganization(
-	organizationId: string,
-): Promise<APIKeySettings> {
+async function fetchApiKeysForOrganization(organizationId: string): Promise<APIKeySettings> {
 	try {
 		// Fetch API keys string using helper
-		const response = await makeAuthenticatedRequest<{
-			providerApiKeys: string;
-		}>(CLINE_API_ENDPOINT.API_KEYS, organizationId);
+		const response = await makeAuthenticatedRequest<{ providerApiKeys: string }>(CLINE_API_ENDPOINT.API_KEYS, organizationId)
 
 		// Parse and return API keys
-		return parseApiKeys(response?.providerApiKeys);
+		return parseApiKeys(response?.providerApiKeys)
 	} catch (error) {
-		Logger.error(
-			`Failed to fetch API keys for organization ${organizationId}:`,
-			error,
-		);
-		return {};
+		Logger.error(`Failed to fetch API keys for organization ${organizationId}:`, error)
+		return {}
 	}
 }
 
-async function discoverRemoteConfigOrg(): Promise<
-	{ organizationId: string; discoveredValue?: string } | undefined
-> {
-	const accountService = ClineAccountService.getInstance();
+async function discoverRemoteConfigOrg(): Promise<{ organizationId: string; discoveredValue?: string } | undefined> {
+	const accountService = ClineAccountService.getInstance()
 
-	const discovery = await accountService.fetchUserRemoteConfig();
+	const discovery = await accountService.fetchUserRemoteConfig()
 	if (!discovery) {
-		return undefined;
+		return undefined
 	}
 
 	if (isRemoteConfigEnabled(discovery.organizationId)) {
-		return {
-			organizationId: discovery.organizationId,
-			discoveredValue: discovery.value,
-		};
+		return { organizationId: discovery.organizationId, discoveredValue: discovery.value }
 	}
 
 	if (discovery.organizations) {
 		for (const org of discovery.organizations) {
 			if (org.organizationId === discovery.organizationId) {
-				continue;
+				continue
 			}
 			if (isRemoteConfigEnabled(org.organizationId)) {
-				return { organizationId: org.organizationId };
+				return { organizationId: org.organizationId }
 			}
 		}
 	}
 
-	return undefined;
+	return undefined
 }
 
-function parseDiscoveredConfig(
-	value: string,
-	organizationId: string,
-): RemoteConfig | undefined {
+function parseDiscoveredConfig(value: string, organizationId: string): RemoteConfig | undefined {
 	try {
-		return RemoteConfigSchema.parse(JSON.parse(value));
+		return RemoteConfigSchema.parse(JSON.parse(value))
 	} catch (error) {
-		Logger.warn(
-			`Failed to parse discovered config for org ${organizationId}, will re-fetch`,
-			error,
-		);
-		return undefined;
+		Logger.warn(`Failed to parse discovered config for org ${organizationId}, will re-fetch`, error)
+		return undefined
 	}
 }
 
-async function resolveRemoteConfig(
-	organizationId: string,
-	discoveredValue?: string,
-): Promise<RemoteConfig | undefined> {
+async function resolveRemoteConfig(organizationId: string, discoveredValue?: string): Promise<RemoteConfig | undefined> {
 	if (discoveredValue) {
-		const config = parseDiscoveredConfig(discoveredValue, organizationId);
+		const config = parseDiscoveredConfig(discoveredValue, organizationId)
 		if (config) {
-			return config;
+			return config
 		}
 	}
-	return fetchRemoteConfigForOrganization(organizationId);
+	return fetchRemoteConfigForOrganization(organizationId)
 }
 
 function isClinePassSelected(controller: Controller): boolean {
-	const apiConfiguration = controller.stateManager.getApiConfiguration();
-	const currentMode = controller.stateManager.getGlobalSettingsKey("mode");
-	const selectedProvider =
-		currentMode === "plan"
-			? apiConfiguration.planModeApiProvider
-			: apiConfiguration.actModeApiProvider;
+	const apiConfiguration = controller.stateManager.getApiConfiguration()
+	const currentMode = controller.stateManager.getGlobalSettingsKey("mode")
+	const selectedProvider = currentMode === "plan" ? apiConfiguration.planModeApiProvider : apiConfiguration.actModeApiProvider
 
-	return selectedProvider === CLINE_PASS_PROVIDER_ID;
+	return selectedProvider === CLINE_PASS_PROVIDER_ID
 }
 
 /**
@@ -268,75 +220,65 @@ function isClinePassSelected(controller: Controller): boolean {
  * @param controller The controller instance
  * @returns RemoteConfig if found and applied, undefined otherwise
  */
-async function ensureUserInOrgWithRemoteConfig(
-	controller: Controller,
-): Promise<RemoteConfig | undefined> {
-	const authService = AuthService.getInstance();
+async function ensureUserInOrgWithRemoteConfig(controller: Controller): Promise<RemoteConfig | undefined> {
+	const authService = AuthService.getInstance()
 
 	if (isClinePassSelected(controller)) {
-		clearRemoteConfig();
-		controller.postStateToWebview();
-		return undefined;
+		clearRemoteConfig()
+		controller.postStateToWebview()
+		return undefined
 	}
 
-	const discovered = await discoverRemoteConfigOrg();
+	const discovered = await discoverRemoteConfigOrg()
 
 	if (!discovered) {
-		clearRemoteConfig();
-		controller.postStateToWebview();
-		return undefined;
+		clearRemoteConfig()
+		controller.postStateToWebview()
+		return undefined
 	}
 
-	const { organizationId, discoveredValue } = discovered;
+	const { organizationId, discoveredValue } = discovered
 
-	const remoteConfig = await resolveRemoteConfig(
-		organizationId,
-		discoveredValue,
-	);
+	const remoteConfig = await resolveRemoteConfig(organizationId, discoveredValue)
 
 	if (!remoteConfig) {
-		clearRemoteConfig();
-		controller.postStateToWebview();
-		return undefined;
+		clearRemoteConfig()
+		controller.postStateToWebview()
+		return undefined
 	}
 
 	// Switch org only after we know we have a valid config to apply.
 	if (authService.getActiveOrganizationId() !== organizationId) {
-		await controller.accountService.switchAccount(organizationId);
+		await controller.accountService.switchAccount(organizationId)
 	}
 
-	const configuredApiKeys: ConfiguredAPIKeys = {};
-	const hasConfiguredProviders =
-		remoteConfig.providerSettings &&
-		Object.keys(remoteConfig.providerSettings).length > 0;
+	const configuredApiKeys: ConfiguredAPIKeys = {}
+	const hasConfiguredProviders = remoteConfig.providerSettings && Object.keys(remoteConfig.providerSettings).length > 0
 	if (hasConfiguredProviders) {
-		const apiKeys = await fetchApiKeysForOrganization(organizationId);
+		const apiKeys = await fetchApiKeysForOrganization(organizationId)
 		if (remoteConfig.providerSettings?.LiteLLM) {
 			if (apiKeys.litellm) {
-				configuredApiKeys["litellm"] = true;
-				controller.stateManager.setSecret(
-					"remoteLiteLlmApiKey",
-					apiKeys.litellm,
-				);
+				configuredApiKeys["litellm"] = true
+				controller.stateManager.setSecret("remoteLiteLlmApiKey", apiKeys.litellm)
 			} else {
-				controller.stateManager.setSecret("remoteLiteLlmApiKey", undefined);
+				controller.stateManager.setSecret("remoteLiteLlmApiKey", undefined)
 			}
 		} else {
-			controller.stateManager.setSecret("remoteLiteLlmApiKey", undefined);
+			controller.stateManager.setSecret("remoteLiteLlmApiKey", undefined)
 		}
 	} else {
-		controller.stateManager.setSecret("remoteLiteLlmApiKey", undefined);
+		controller.stateManager.setSecret("remoteLiteLlmApiKey", undefined)
 	}
 
-	await writeRemoteConfigToCache(organizationId, remoteConfig);
+	await writeRemoteConfigToCache(organizationId, remoteConfig)
 	if (isRemoteConfigEnabled(organizationId)) {
-		await applyRemoteConfig(remoteConfig, configuredApiKeys, controller.mcpHub);
+		await applyRemoteConfig(remoteConfig, configuredApiKeys, controller.mcpHub)
 	} else {
-		clearRemoteConfig();
+		clearRemoteConfig()
 	}
-	controller.postStateToWebview();
+	controller.postStateToWebview()
 
-	return remoteConfig;
+	return remoteConfig
 }
 
 /**
@@ -351,8 +293,8 @@ async function ensureUserInOrgWithRemoteConfig(
  */
 export async function fetchRemoteConfig(controller: Controller) {
 	try {
-		await ensureUserInOrgWithRemoteConfig(controller);
+		await ensureUserInOrgWithRemoteConfig(controller)
 	} catch (error) {
-		Logger.error("Failed to fetch remote config", error);
+		Logger.error("Failed to fetch remote config", error)
 	}
 }
