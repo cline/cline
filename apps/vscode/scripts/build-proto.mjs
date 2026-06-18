@@ -34,9 +34,34 @@ const GRPC_JS_OUT_DIR = path.resolve("src/generated/grpc-js")
 const NICE_JS_OUT_DIR = path.resolve("src/generated/nice-grpc")
 const DESCRIPTOR_OUT_DIR = path.resolve("dist-standalone/proto")
 
-const TS_PROTO_PLUGIN = isWindows
-	? path.resolve("node_modules/.bin/protoc-gen-ts_proto.cmd") // Use the .bin directory path for Windows
-	: require.resolve("ts-proto/protoc-gen-ts_proto")
+// protoc needs an executable plugin path. On Windows that's a .bin shim whose
+// extension/location differs by package manager (npm writes .cmd into the local
+// node_modules/.bin; bun may hoist it and use .cmd/.bunx). Probe the likely
+// locations instead of hardcoding a single path so this works under both npm and
+// bun's workspace store. On POSIX, resolve the package's bin entry directly.
+function resolveTsProtoPlugin() {
+	if (!isWindows) {
+		return require.resolve("ts-proto/protoc-gen-ts_proto")
+	}
+	const binDirs = [
+		path.resolve("node_modules/.bin"),
+		path.resolve("../../node_modules/.bin"), // bun workspace root hoist
+	]
+	const exts = [".cmd", ".CMD", ".bunx", ".exe", ""]
+	for (const dir of binDirs) {
+		for (const ext of exts) {
+			const candidate = path.join(dir, `protoc-gen-ts_proto${ext}`)
+			if (fsSync.existsSync(candidate)) {
+				return candidate
+			}
+		}
+	}
+	// Last resort: the package's bin entry (may not be directly executable by protoc
+	// on Windows, but surfaces a clearer error than a missing .cmd path).
+	return require.resolve("ts-proto/protoc-gen-ts_proto")
+}
+
+const TS_PROTO_PLUGIN = resolveTsProtoPlugin()
 
 const TS_PROTO_OPTIONS = [
 	"env=both",
