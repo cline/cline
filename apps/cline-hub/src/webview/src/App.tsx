@@ -1,5 +1,6 @@
 import {
 	ActivityIcon,
+	ArrowUpDownIcon,
 	BotIcon,
 	BoxIcon,
 	ChevronRight,
@@ -10,12 +11,14 @@ import {
 	LinkIcon,
 	MessageSquareIcon,
 	MoreHorizontal,
+	PencilIcon,
 	PlugIcon,
 	PlusCircle,
 	RotateCcwIcon,
 	RssIcon,
 	ServerIcon,
 	SettingsIcon,
+	Trash2Icon,
 	WrenchIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
@@ -631,15 +634,22 @@ function HomeView({
 }
 
 function SessionsView({
+	onDeleteSession,
 	onNewSession,
 	onOpenSession,
+	onRenameSession,
 	sessions,
 }: {
+	onDeleteSession: (sessionId: string) => Promise<void> | void;
 	onNewSession: () => void;
 	onOpenSession: (sessionId: string) => void;
+	onRenameSession: (sessionId: string, title: string) => Promise<void> | void;
 	sessions: WebviewSessionSummary[];
 }) {
 	const [sessionFilters, setSessionFilters] = useState<string[]>([]);
+	const [sortDirection, setSortDirection] = useState<"newest" | "oldest">(
+		"newest",
+	);
 	const runDetailFilterOptions = useMemo(
 		() =>
 			Array.from(
@@ -648,14 +658,34 @@ function SessionsView({
 		[sessions],
 	);
 	const filteredSessions = useMemo(() => {
-		if (sessionFilters.length === 0) {
-			return sessions;
-		}
 		const selected = new Set(sessionFilters);
-		return sessions.filter((session) =>
-			sessionFilterDetails(session).some((detail) => selected.has(detail)),
-		);
-	}, [sessions, sessionFilters]);
+		const filtered =
+			sessionFilters.length === 0
+				? sessions
+				: sessions.filter((session) =>
+						sessionFilterDetails(session).some((detail) =>
+							selected.has(detail),
+						),
+					);
+		return [...filtered].sort((a, b) => {
+			const aTime = a.updatedAt ?? 0;
+			const bTime = b.updatedAt ?? 0;
+			return sortDirection === "newest" ? bTime - aTime : aTime - bTime;
+		});
+	}, [sessions, sessionFilters, sortDirection]);
+
+	const renameSession = (session: WebviewSessionSummary) => {
+		const currentTitle = session.title || shortId(session.sessionId);
+		const nextTitle = window.prompt("Rename session", currentTitle)?.trim();
+		if (!nextTitle || nextTitle === currentTitle) return;
+		void onRenameSession(session.sessionId, nextTitle);
+	};
+
+	const deleteSession = (session: WebviewSessionSummary) => {
+		const title = session.title || shortId(session.sessionId);
+		if (!window.confirm(`Delete session "${title}"?`)) return;
+		void onDeleteSession(session.sessionId);
+	};
 
 	const toggleSessionFilter = (detail: string, checked: boolean) => {
 		setSessionFilters((prev) => {
@@ -686,10 +716,15 @@ function SessionsView({
 								/>
 							}
 						>
-							<ActivityIcon className="size-4" />
+							<ArrowUpDownIcon className="size-4" />
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end" sideOffset={6}>
-							<DropdownMenuItem disabled>Newest first</DropdownMenuItem>
+							<DropdownMenuItem onClick={() => setSortDirection("newest")}>
+								{sortDirection === "newest" ? "Newest first ✓" : "Newest first"}
+							</DropdownMenuItem>
+							<DropdownMenuItem onClick={() => setSortDirection("oldest")}>
+								{sortDirection === "oldest" ? "Oldest first ✓" : "Oldest first"}
+							</DropdownMenuItem>
 						</DropdownMenuContent>
 					</DropdownMenu>
 					<DropdownMenu>
@@ -750,15 +785,16 @@ function SessionsView({
 			</section>
 
 			<section className="w-[calc(100vw-14.5rem-9rem)] max-w-[86rem] min-w-0 overflow-x-auto max-[1200px]:w-[calc(100vw-14.5rem-4rem)] max-[720px]:w-full">
-				<div className="grid w-full min-w-[46rem] grid-cols-[minmax(12rem,1.35fr)_minmax(7rem,0.85fr)_minmax(10rem,1.1fr)_5rem_5rem_4.5rem] gap-x-4 bg-muted/40 px-4 py-3 text-[15px] font-medium text-muted-foreground">
+				<div className="grid w-full min-w-[48rem] grid-cols-[minmax(12rem,1.35fr)_minmax(7rem,0.85fr)_minmax(10rem,1.1fr)_5rem_5rem_4.5rem_2rem] gap-x-4 bg-muted/40 px-4 py-3 text-[15px] font-medium text-muted-foreground">
 					<span>Session title</span>
 					<span>Directory</span>
 					<span>Model</span>
 					<span>Tokens in</span>
 					<span>Tokens out</span>
 					<span>Cost</span>
+					<span />
 				</div>
-				<div className="w-full min-w-[46rem]">
+				<div className="w-full min-w-[48rem]">
 					{filteredSessions.length === 0 ? (
 						<div className="border-b px-4 py-8 text-[15px] text-muted-foreground">
 							{sessions.length === 0
@@ -767,36 +803,76 @@ function SessionsView({
 						</div>
 					) : null}
 					{filteredSessions.map((session) => (
-						<button
-							className="grid min-h-14 w-full grid-cols-[minmax(12rem,1.35fr)_minmax(7rem,0.85fr)_minmax(10rem,1.1fr)_5rem_5rem_4.5rem] items-center gap-x-4 border-b px-4 py-3 text-left text-[15px] transition-colors hover:bg-accent/40"
+						<div
+							className="grid min-h-14 w-full grid-cols-[minmax(12rem,1.35fr)_minmax(7rem,0.85fr)_minmax(10rem,1.1fr)_5rem_5rem_4.5rem_2rem] items-center gap-x-4 border-b px-4 py-3 text-left text-[15px] transition-colors hover:bg-accent/40"
 							key={session.sessionId}
-							onClick={() => onOpenSession(session.sessionId)}
-							type="button"
 						>
-							<span className="flex min-w-0 items-center gap-3 font-semibold">
-								<span
-									className={`size-1.5 shrink-0 rounded-full ${statusTone(session.status)}`}
-								/>
-								<span className="truncate">
-									{session.title || shortId(session.sessionId)}
+							<button
+								className="col-span-6 grid grid-cols-[minmax(12rem,1.35fr)_minmax(7rem,0.85fr)_minmax(10rem,1.1fr)_5rem_5rem_4.5rem] items-center gap-x-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+								onClick={() => onOpenSession(session.sessionId)}
+								type="button"
+							>
+								<span className="flex min-w-0 items-center gap-3 font-semibold">
+									<span
+										className={`size-1.5 shrink-0 rounded-full ${statusTone(session.status)}`}
+									/>
+									<span className="truncate">
+										{session.title || shortId(session.sessionId)}
+									</span>
 								</span>
-							</span>
-							<span className="truncate text-muted-foreground">
-								{workspaceName(session.workspaceRoot) ?? "No workspace"}
-							</span>
-							<span className="truncate text-muted-foreground">
-								{formatSessionModel(session)}
-							</span>
-							<span className="text-muted-foreground">
-								{formatCompactNumber(session.inputTokens) ?? "-"}
-							</span>
-							<span className="text-muted-foreground">
-								{formatCompactNumber(session.outputTokens) ?? "-"}
-							</span>
-							<span className="text-muted-foreground">
-								{formatCost(session.totalCost) ?? "-"}
-							</span>
-						</button>
+								<span className="truncate text-muted-foreground">
+									{workspaceName(session.workspaceRoot) ?? "No workspace"}
+								</span>
+								<span className="truncate text-muted-foreground">
+									{formatSessionModel(session)}
+								</span>
+								<span className="text-muted-foreground">
+									{formatCompactNumber(session.inputTokens) ?? "-"}
+								</span>
+								<span className="text-muted-foreground">
+									{formatCompactNumber(session.outputTokens) ?? "-"}
+								</span>
+								<span className="text-muted-foreground">
+									{formatCost(session.totalCost) ?? "-"}
+								</span>
+							</button>
+							<DropdownMenu>
+								<DropdownMenuTrigger
+									render={
+										<button
+											aria-label={`Session actions for ${session.title || shortId(session.sessionId)}`}
+											className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+											onClick={(event) => event.stopPropagation()}
+											type="button"
+										/>
+									}
+								>
+									<MoreHorizontal className="size-4" />
+								</DropdownMenuTrigger>
+								<DropdownMenuContent align="end" sideOffset={6}>
+									<DropdownMenuItem
+										onClick={(event) => {
+											event.stopPropagation();
+											renameSession(session);
+										}}
+									>
+										<PencilIcon className="size-4" />
+										Rename
+									</DropdownMenuItem>
+									<DropdownMenuSeparator />
+									<DropdownMenuItem
+										className="text-destructive"
+										onClick={(event) => {
+											event.stopPropagation();
+											deleteSession(session);
+										}}
+									>
+										<Trash2Icon className="size-4" />
+										Delete
+									</DropdownMenuItem>
+								</DropdownMenuContent>
+							</DropdownMenu>
+						</div>
 					))}
 				</div>
 			</section>
@@ -924,6 +1000,26 @@ function App() {
 		}
 	}, []);
 
+	const deleteSession = useCallback((sessionId: string) => {
+		setRecentSessions((current) =>
+			current.filter((session) => session.sessionId !== sessionId),
+		);
+		postToHost({ type: "deleteSession", sessionId });
+	}, []);
+
+	const renameSession = useCallback((sessionId: string, title: string) => {
+		setRecentSessions((current) =>
+			current.map((session) =>
+				session.sessionId === sessionId ? { ...session, title } : session,
+			),
+		);
+		postToHost({
+			type: "updateSessionMetadata",
+			sessionId,
+			metadata: { title },
+		});
+	}, []);
+
 	const content = useMemo(() => {
 		if (view === "chat") {
 			return (
@@ -936,8 +1032,10 @@ function App() {
 		if (view === "sessions") {
 			return (
 				<SessionsView
+					onDeleteSession={deleteSession}
 					onNewSession={startNewSession}
 					onOpenSession={openSession}
+					onRenameSession={renameSession}
 					sessions={recentSessions}
 				/>
 			);
@@ -1012,9 +1110,11 @@ function App() {
 		);
 	}, [
 		hubState,
+		deleteSession,
 		navigate,
 		openSession,
 		recentSessions,
+		renameSession,
 		restartHub,
 		restartPending,
 		selectedSessionId,
