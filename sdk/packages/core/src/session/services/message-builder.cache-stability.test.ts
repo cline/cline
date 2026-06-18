@@ -1,4 +1,4 @@
-import type { Message } from "@cline/shared";
+import type { Message, ToolResultContent } from "@cline/shared";
 import { describe, expect, it } from "vitest";
 import {
 	agentMessagesToMessages,
@@ -43,6 +43,33 @@ function readToolResult(
 				tool_use_id: id,
 				name: "read_files",
 				content: JSON.stringify([{ path, result: content }]),
+			},
+		],
+	};
+}
+
+function structuredReadToolResult(
+	id: string,
+	content: unknown,
+	path = "src/a.ts",
+): Message {
+	return {
+		role: "user",
+		content: [
+			{
+				type: "tool_result",
+				tool_use_id: id,
+				name: "read_files",
+				// Mirrors the real default-tool shape emitted by createReadFilesTool:
+				// ToolOperationResult[] entries are stored directly, without a
+				// text/image/file `type` discriminator.
+				content: [
+					{
+						query: path,
+						result: content,
+						success: true,
+					},
+				] as unknown as ToolResultContent["content"],
 			},
 		],
 	};
@@ -411,6 +438,82 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 		const block = JSON.stringify(result[2]);
 		expect(block).toContain("outdated");
 		expect(block).not.toContain("AAAA");
+	});
+
+	it("batches and rewrites structured ToolOperationResult read_files entries", () => {
+		const builder = new MessageBuilder();
+		const messages: Message[] = [
+			{ role: "user", content: "task" },
+			readToolUse("t1"),
+			structuredReadToolResult("t1", LARGE_CONTENT(1)),
+			readToolUse("t2"),
+			structuredReadToolResult("t2", LARGE_CONTENT(2)),
+		];
+
+		const result = builder.buildForApi(messages);
+		const firstRead = JSON.stringify(result[2]);
+		const latestRead = JSON.stringify(result[4]);
+
+		expect(firstRead).toContain("outdated - see the latest file content");
+		expect(firstRead).toContain('"query":"src/a.ts"');
+		expect(firstRead).toContain('"success":true');
+		expect(firstRead).not.toContain("export const x = 1;");
+		expect(latestRead).toContain("export const x = 2;");
+	});
+
+	it("counts structured ToolOperationResult bytes per stale entry before committing", () => {
+		const builder = new MessageBuilder(
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			1_500,
+		);
+		const messages: Message[] = [{ role: "user", content: "task" }];
+
+		for (let i = 1; i <= 3; i++) {
+			messages.push(readToolUse(`t${i}`));
+			messages.push(structuredReadToolResult(`t${i}`, SMALL_CONTENT(i)));
+			const result = builder.buildForApi([...messages]);
+			const serialized = JSON.stringify(result);
+
+			if (i < 3) {
+				expect(serialized).not.toContain(
+					"outdated - see the latest file content",
+				);
+			} else {
+				expect(serialized).toContain("outdated - see the latest file content");
+				expect(serialized).not.toContain("export const x = 1;");
+				expect(serialized).not.toContain("export const x = 2;");
+				expect(serialized).toContain("export const x = 3;");
+			}
+		}
+	});
+
+	it("keeps structured ToolOperationResult batching stable across codec round-trips", () => {
+		const builder = new MessageBuilder();
+		const history: Message[] = [
+			{ role: "user", content: "task" },
+			readToolUse("t1", "src/big.ts"),
+			structuredReadToolResult("t1", LARGE_CONTENT(1), "src/big.ts"),
+			readToolUse("t2", "src/big.ts"),
+			structuredReadToolResult("t2", LARGE_CONTENT(2), "src/big.ts"),
+		];
+
+		const reqA = builder.buildForApi(codecRoundTrip(history));
+		expect(JSON.stringify(reqA[2])).toContain("outdated");
+
+		history.push(
+			readToolUse("t3", "src/small.ts"),
+			structuredReadToolResult("t3", SMALL_CONTENT(1), "src/small.ts"),
+			readToolUse("t4", "src/small.ts"),
+			structuredReadToolResult("t4", SMALL_CONTENT(2), "src/small.ts"),
+		);
+		const reqB = builder.buildForApi(codecRoundTrip(history));
+
+		expect(JSON.stringify(reqB[2])).toContain("outdated");
+		expect(JSON.stringify(reqB[6])).not.toContain("outdated");
+		expect(JSON.stringify(reqB[6])).toContain("export const x = 1;");
 	});
 
 	it("rewrites eagerly when threshold is 0 (legacy behavior)", () => {

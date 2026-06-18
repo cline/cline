@@ -406,6 +406,11 @@ export class MessageBuilder {
 					outdatedImageCount -= 1;
 					total += utf8ByteLength(entry.data);
 				}
+			} else if (isStructuredToolResultEntry(entry)) {
+				const locator = this.extractLocatorFromResultEntry(entry);
+				if (locator && outdatedKeys.has(this.toReadLocatorKey(locator))) {
+					total += utf8ByteLength(JSON.stringify(entry));
+				}
 			} else if (entry.type === "file") {
 				if (
 					outdatedKeys.has(
@@ -695,16 +700,20 @@ export class MessageBuilder {
 		if (typeof content === "string") {
 			return this.tryParseReadLocators(content);
 		}
+		const locators: ReadLocator[] = [];
 		for (const entry of content) {
-			if (entry.type !== "text") {
+			if (entry.type === "text") {
+				locators.push(...this.tryParseReadLocators(entry.text));
 				continue;
 			}
-			const locators = this.tryParseReadLocators(entry.text);
-			if (locators.length > 0) {
-				return locators;
+			if (isStructuredToolResultEntry(entry)) {
+				const locator = this.extractLocatorFromResultEntry(entry);
+				if (locator) {
+					locators.push(locator);
+				}
 			}
 		}
-		return [];
+		return this.dedupeReadLocators(locators);
 	}
 
 	private tryParseReadLocators(text: string): ReadLocator[] {
@@ -872,6 +881,12 @@ export class MessageBuilder {
 					type: "text",
 					text: OUTDATED_FILE_CONTENT,
 				} satisfies TextContent;
+			}
+			if (isStructuredToolResultEntry(entry)) {
+				return this.replaceOutdatedReadEntry(
+					entry,
+					outdatedKeys,
+				) as typeof entry;
 			}
 			if (entry.type !== "text") {
 				return entry;
