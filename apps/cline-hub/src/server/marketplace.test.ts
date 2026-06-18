@@ -1,5 +1,12 @@
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -9,6 +16,7 @@ import {
 	installMarketplaceEntry,
 	installMarketplaceEntryForDesktopCommand,
 	listMarketplaceInstalledEntries,
+	uninstallLocalPrimitive,
 	uninstallMarketplaceEntry,
 	uninstallMarketplaceEntryForDesktopCommand,
 } from "./marketplace";
@@ -643,6 +651,67 @@ describe("marketplace installer", () => {
 				],
 			}),
 		).toEqual({ installedKeys: [] });
+	});
+
+	it("uninstalls local MCP servers by name", async () => {
+		const settingsPath = join(
+			mkdtempSync(join(tmpdir(), "cline-local-mcp-")),
+			"cline_mcp_settings.json",
+		);
+		process.env.CLINE_MCP_SETTINGS_PATH = settingsPath;
+		writeFileSync(
+			settingsPath,
+			JSON.stringify(
+				{
+					mcpServers: {
+						context7: {
+							transport: {
+								type: "streamableHttp",
+								url: "https://mcp.context7.com/mcp",
+							},
+						},
+					},
+				},
+				null,
+				2,
+			),
+		);
+
+		await expect(
+			uninstallLocalPrimitive({
+				type: "mcp",
+				id: "context7",
+				name: "context7",
+			}),
+		).resolves.toMatchObject({
+			status: "uninstalled",
+			message: "Uninstalled context7.",
+		});
+		expect(readFileSync(settingsPath, "utf8")).not.toContain("context7");
+	});
+
+	it("uninstalls local skills by removing their configured skill directory", async () => {
+		const workspaceRoot = mkdtempSync(join(tmpdir(), "cline-local-skill-"));
+		const skillDir = join(workspaceRoot, ".cline", "skills", "review");
+		mkdirSync(skillDir, { recursive: true });
+		const skillPath = join(skillDir, "SKILL.md");
+		writeFileSync(skillPath, "---\nname: review\n---\nReview changes.");
+
+		await expect(
+			uninstallLocalPrimitive(
+				{
+					type: "skill",
+					id: "review",
+					name: "Review",
+					path: skillPath,
+				},
+				{ workspaceRoot },
+			),
+		).resolves.toMatchObject({
+			status: "uninstalled",
+			message: "Uninstalled Review.",
+		});
+		expect(existsSync(skillDir)).toBe(false);
 	});
 
 	it("reports official plugin marketplace entries installed from Cline home", () => {

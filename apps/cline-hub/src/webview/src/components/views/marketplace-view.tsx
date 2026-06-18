@@ -1,5 +1,4 @@
 import {
-	CheckCircle2,
 	ExternalLink,
 	Puzzle,
 	Search,
@@ -339,17 +338,6 @@ function MarketplaceEntryCard({
 						)}
 					</div>
 				</div>
-				<div className="mt-1 flex flex-wrap gap-1.5">
-					{entry.tags.slice(0, 5).map((tag) => (
-						<Badge
-							key={tag}
-							variant="outline"
-							className="max-w-full text-muted-foreground"
-						>
-							<span className="truncate">{tagLabels.get(tag) ?? tag}</span>
-						</Badge>
-					))}
-				</div>
 				{matchedLocalItems.some((item) => item.renderMatchedMeta) ? (
 					<div className="mt-1 grid gap-1">
 						{matchedLocalItems.map((item) =>
@@ -364,6 +352,20 @@ function MarketplaceEntryCard({
 			<p className="line-clamp-2 text-xs leading-5 text-muted-foreground">
 				{entry.description}
 			</p>
+
+			{entry.tags.length > 0 ? (
+				<div className="flex flex-wrap gap-1.5">
+					{entry.tags.slice(0, 5).map((tag) => (
+						<Badge
+							key={tag}
+							variant="outline"
+							className="max-w-full text-muted-foreground"
+						>
+							<span className="truncate">{tagLabels.get(tag) ?? tag}</span>
+						</Badge>
+					))}
+				</div>
+			) : null}
 
 			{matchedLocalItems.some((item) => item.renderMatchedDetails) ? (
 				<div className="grid gap-2" data-marketplace-entry-details>
@@ -387,11 +389,6 @@ function MarketplaceEntryCard({
 						>
 							{inlineMessage}
 						</output>
-					) : installed ? (
-						<span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-300">
-							<CheckCircle2 className="size-3.5" />
-							Installed
-						</span>
 					) : setupNeeded ? (
 						<span className="text-amber-700 dark:text-amber-300">
 							Requires setup after install
@@ -558,10 +555,12 @@ function MarketplaceSection({
 export function MarketplaceView({
 	chrome = "page",
 	installedItems,
+	onInstalledItemsChanged,
 	primitive,
 }: {
 	chrome?: "page" | "embedded";
 	installedItems?: MarketplaceLocalInstalledItem[];
+	onInstalledItemsChanged?: () => void | Promise<void>;
 	primitive: MarketplacePrimitiveType;
 }) {
 	const [catalog, setCatalog] = useState<MarketplaceCatalog | null>(null);
@@ -767,6 +766,7 @@ export function MarketplaceView({
 				message: result.message,
 			});
 			markEntryInstalled(entry);
+			await onInstalledItemsChanged?.();
 		} catch (error) {
 			setEntryState(entry, {
 				status: "failed",
@@ -797,6 +797,7 @@ export function MarketplaceView({
 				message: result.message,
 			});
 			markEntryUninstalled(entry);
+			await onInstalledItemsChanged?.();
 		} catch (error) {
 			setEntryState(entry, {
 				status: "failed",

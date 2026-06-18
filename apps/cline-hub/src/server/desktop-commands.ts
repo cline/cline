@@ -35,6 +35,7 @@ import { providerSettingsManager, workspaceRoot } from "./deps";
 import {
 	installMarketplaceEntryForDesktopCommand,
 	listMarketplaceInstalledEntries,
+	uninstallLocalPrimitive,
 	uninstallMarketplaceEntryForDesktopCommand,
 } from "./marketplace";
 import {
@@ -277,6 +278,11 @@ export async function handleDesktopCommand(
 	}
 	if (command === "uninstall_marketplace_entry") {
 		const result = await uninstallMarketplaceEntryForDesktopCommand(args);
+		broadcastHubState(ctx);
+		return result;
+	}
+	if (command === "uninstall_local_primitive") {
+		const result = await uninstallLocalPrimitive(args, { workspaceRoot });
 		broadcastHubState(ctx);
 		return result;
 	}

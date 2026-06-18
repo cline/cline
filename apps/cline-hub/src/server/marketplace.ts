@@ -1,8 +1,27 @@
 import { type SpawnOptions, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, unlinkSync, writeFileSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	rmSync,
+	statSync,
+	unlinkSync,
+	writeFileSync,
+} from "node:fs";
 import { homedir, platform } from "node:os";
-import { join } from "node:path";
+import {
+	basename,
+	dirname,
+	isAbsolute,
+	join,
+	relative,
+	resolve,
+} from "node:path";
+import {
+	resolveSkillsConfigSearchPaths,
+	resolveWorkflowsConfigSearchPaths,
+	uninstallPlugin as uninstallLocalPlugin,
+} from "@cline/core";
 import { resolveClineDir } from "@cline/shared/storage";
 import {
 	deleteMcpServer,
@@ -12,6 +31,7 @@ import {
 import type { JsonRecord } from "./types";
 
 type MarketplacePrimitiveType = "mcp" | "skill" | "plugin";
+type LocalPrimitiveType = MarketplacePrimitiveType | "workflow";
 
 type MarketplaceEnvVar = {
 	name: string;
@@ -34,7 +54,7 @@ type MarketplaceInstallInput = {
 
 type MarketplaceInstallResult = {
 	id: string;
-	type: MarketplacePrimitiveType;
+	type: LocalPrimitiveType;
 	status: "installed" | "uninstalled";
 	message: string;
 	details?: JsonRecord;
@@ -167,6 +187,42 @@ function readInstallRequest(args?: Record<string, unknown>) {
 	return {
 		id: entry.id.trim(),
 		type: entry.type,
+	};
+}
+
+function readLocalUninstallInput(args?: Record<string, unknown>): {
+	id: string;
+	type: LocalPrimitiveType;
+	name?: string;
+	path?: string;
+} {
+	const type = typeof args?.type === "string" ? args.type.trim() : "";
+	if (
+		type !== "mcp" &&
+		type !== "skill" &&
+		type !== "workflow" &&
+		type !== "plugin"
+	) {
+		throw new Error(
+			"local uninstall type must be mcp, skill, workflow, or plugin",
+		);
+	}
+	const id =
+		typeof args?.id === "string" && args.id.trim().length > 0
+			? args.id.trim()
+			: typeof args?.name === "string" && args.name.trim().length > 0
+				? args.name.trim()
+				: typeof args?.path === "string" && args.path.trim().length > 0
+					? args.path.trim()
+					: "";
+	if (!id) {
+		throw new Error("local uninstall id, name, or path is required");
+	}
+	return {
+		id,
+		type,
+		name: typeof args?.name === "string" ? args.name.trim() : undefined,
+		path: typeof args?.path === "string" ? args.path.trim() : undefined,
 	};
 }
 
@@ -373,6 +429,98 @@ function resolveClineInvocation(): { command: string; argsPrefix: string[] } {
 		return { command: process.execPath, argsPrefix: [entry] };
 	}
 	return { command: "cline", argsPrefix: [] };
+}
+
+function isInsidePath(childPath: string, parentPath: string): boolean {
+	const relativePath = relative(resolve(parentPath), resolve(childPath));
+	return (
+		relativePath === "" ||
+		(!relativePath.startsWith("..") && !isAbsolute(relativePath))
+	);
+}
+
+function resolveUserInstructionRemovalTarget(input: {
+	type: "skill" | "workflow";
+	path: string;
+	workspaceRoot?: string;
+}): string {
+	const filePath = resolve(input.path);
+	const searchPaths =
+		input.type === "skill"
+			? resolveSkillsConfigSearchPaths(input.workspaceRoot)
+			: resolveWorkflowsConfigSearchPaths(input.workspaceRoot);
+	const containingRoot = searchPaths.find((root) =>
+		isInsidePath(filePath, root),
+	);
+	if (!containingRoot) {
+		throw new Error(
+			`${input.type} uninstall requires a file inside a configured ${input.type} directory.`,
+		);
+	}
+	const stats = statSync(filePath, { throwIfNoEntry: false });
+	if (!stats?.isFile()) {
+		throw new Error(`${input.type} file does not exist: ${filePath}`);
+	}
+	if (input.type === "workflow") {
+		return filePath;
+	}
+	const skillDir = dirname(filePath);
+	return resolve(skillDir) === resolve(containingRoot) ? filePath : skillDir;
+}
+
+export async function uninstallLocalPrimitive(
+	args?: Record<string, unknown>,
+	options: { workspaceRoot?: string } = {},
+): Promise<MarketplaceInstallResult> {
+	const input = readLocalUninstallInput(args);
+	if (input.type === "mcp") {
+		const name = input.name ?? input.id;
+		const response = deleteMcpServer(name);
+		return {
+			id: input.id,
+			type: input.type,
+			status: "uninstalled",
+			message: `Uninstalled ${name}.`,
+			details: { mcp: response },
+		};
+	}
+	if (input.type === "plugin") {
+		const result = await uninstallLocalPlugin({
+			name: input.path ? undefined : (input.name ?? input.id),
+			path: input.path,
+			workspaceRoot: options.workspaceRoot,
+		});
+		return {
+			id: input.id,
+			type: input.type,
+			status: "uninstalled",
+			message: `Uninstalled ${result.name}.`,
+			details: result as unknown as JsonRecord,
+		};
+	}
+	if (input.type === "skill" || input.type === "workflow") {
+		if (!input.path) {
+			throw new Error(`${input.type} uninstall requires a path.`);
+		}
+		const target = resolveUserInstructionRemovalTarget({
+			type: input.type,
+			path: input.path,
+			workspaceRoot: options.workspaceRoot,
+		});
+		const stats = statSync(target, { throwIfNoEntry: false });
+		if (!stats) {
+			throw new Error(`${input.type} target does not exist: ${target}`);
+		}
+		rmSync(target, { recursive: stats.isDirectory(), force: true });
+		return {
+			id: input.id,
+			type: input.type,
+			status: "uninstalled",
+			message: `Uninstalled ${input.name ?? basename(target)}.`,
+			details: { path: target },
+		};
+	}
+	throw new Error(`Unsupported local uninstall type: ${input.type}`);
 }
 
 function hashSource(source: string): string {

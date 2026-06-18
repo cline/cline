@@ -8,6 +8,7 @@ import {
 	Puzzle,
 	RefreshCw,
 	Server,
+	Trash2,
 	TriangleAlert,
 	Wrench,
 	Zap,
@@ -15,6 +16,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { desktopClient } from "@/lib/desktop-client";
 import type { MarketplacePrimitiveType } from "@/lib/marketplace";
@@ -146,6 +148,16 @@ type McpServersResponse = {
 	settingsPath: string;
 	hasSettingsFile: boolean;
 	servers: McpServer[];
+};
+
+type LocalUninstallType = "mcp" | "skill" | "workflow" | "plugin";
+
+type LocalUninstallTarget = {
+	key: string;
+	type: LocalUninstallType;
+	id?: string;
+	name?: string;
+	path?: string;
 };
 
 type UserInstructionListsResponse = {
@@ -346,6 +358,12 @@ export function CustomizationSectionView({
 	const [togglingPluginPaths, setTogglingPluginPaths] = useState<Set<string>>(
 		() => new Set(),
 	);
+	const [localUninstallingKeys, setLocalUninstallingKeys] = useState<
+		Set<string>
+	>(() => new Set());
+	const [localActionMessages, setLocalActionMessages] = useState<
+		Map<string, { status: "success" | "failed"; message: string }>
+	>(() => new Map());
 
 	useEffect(() => {
 		setActiveTab(section);
@@ -573,6 +591,58 @@ export function CustomizationSectionView({
 		[applyResponse],
 	);
 
+	const uninstallLocalPrimitive = useCallback(
+		async (target: LocalUninstallTarget) => {
+			if (localUninstallingKeys.has(target.key)) {
+				return;
+			}
+			setLocalUninstallingKeys((current) => new Set(current).add(target.key));
+			setLocalActionMessages((current) => {
+				const next = new Map(current);
+				next.delete(target.key);
+				return next;
+			});
+			setErrorMessage(null);
+			try {
+				const result = await desktopClient.invoke<{ message?: string }>(
+					"uninstall_local_primitive",
+					{
+						type: target.type,
+						id: target.id,
+						name: target.name,
+						path: target.path,
+					},
+				);
+				setLocalActionMessages((current) => {
+					const next = new Map(current);
+					next.set(target.key, {
+						status: "success",
+						message:
+							result.message ??
+							`Uninstalled ${target.name ?? target.id ?? target.path}.`,
+					});
+					return next;
+				});
+				await refresh(true);
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				setLocalActionMessages((current) => {
+					const next = new Map(current);
+					next.set(target.key, { status: "failed", message });
+					return next;
+				});
+				setErrorMessage(message);
+			} finally {
+				setLocalUninstallingKeys((current) => {
+					const next = new Set(current);
+					next.delete(target.key);
+					return next;
+				});
+			}
+		},
+		[localUninstallingKeys, refresh],
+	);
+
 	const formatExecutionTs = useCallback((value: string | null): string => {
 		if (!value) {
 			return "never";
@@ -745,33 +815,83 @@ export function CustomizationSectionView({
 		[globalHooks, projectHooks],
 	);
 
-	const renderSkillCard = (item: CommandItem) => (
-		<div
-			key={`${item.type}:${item.path}`}
-			className="rounded-lg border border-border px-5 py-4"
-		>
-			<div className="flex items-center gap-3">
-				{item.type === "workflow" ? (
-					<Play className="h-4 w-4 shrink-0 text-primary" />
-				) : (
-					<Zap className="h-4 w-4 shrink-0 text-primary" />
+	const renderLocalActionMessage = (key: string) => {
+		const message = localActionMessages.get(key);
+		if (!message) {
+			return null;
+		}
+		return (
+			<output
+				className={cn(
+					"text-xs",
+					message.status === "failed"
+						? "text-destructive"
+						: "text-muted-foreground",
 				)}
-				<h3 className="min-w-0 flex-1 text-sm font-semibold text-foreground">
-					{item.name}
-				</h3>
-				<ScopeBadge scope={item.scope} />
-				<Badge variant="outline" className="shrink-0 text-muted-foreground">
-					{item.type}
-				</Badge>
+			>
+				{message.message}
+			</output>
+		);
+	};
+
+	const renderLocalActionRow = (target: LocalUninstallTarget) => {
+		const uninstalling = localUninstallingKeys.has(target.key);
+		return (
+			<div className="flex flex-wrap items-center justify-between gap-3">
+				<div className="min-h-5 text-xs text-muted-foreground">
+					{renderLocalActionMessage(target.key)}
+				</div>
+				<Button
+					disabled={uninstalling}
+					onClick={() => {
+						void uninstallLocalPrimitive(target);
+					}}
+					type="button"
+					variant="destructive"
+				>
+					{uninstalling ? <Spinner /> : <Trash2 className="size-4" />}
+					{uninstalling ? "Uninstalling..." : "Uninstall"}
+				</Button>
 			</div>
-			<p className="mt-2 ml-7 text-xs text-muted-foreground">
-				{item.description?.trim() || previewText(item.instructions)}
-			</p>
-			<p className="mt-1 ml-7 text-xs font-mono text-muted-foreground">
-				{item.path}
-			</p>
-		</div>
-	);
+		);
+	};
+
+	const renderSkillCard = (item: CommandItem) => {
+		const key = `${item.type}:${item.path}`;
+		return (
+			<div key={key} className="rounded-lg border border-border px-5 py-4">
+				<div className="flex items-center gap-3">
+					{item.type === "workflow" ? (
+						<Play className="h-4 w-4 shrink-0 text-primary" />
+					) : (
+						<Zap className="h-4 w-4 shrink-0 text-primary" />
+					)}
+					<h3 className="min-w-0 flex-1 text-sm font-semibold text-foreground">
+						{item.name}
+					</h3>
+					<ScopeBadge scope={item.scope} />
+					<Badge variant="outline" className="shrink-0 text-muted-foreground">
+						{item.type}
+					</Badge>
+				</div>
+				<p className="mt-2 ml-7 text-xs text-muted-foreground">
+					{item.description?.trim() || previewText(item.instructions)}
+				</p>
+				<p className="mt-1 ml-7 text-xs font-mono text-muted-foreground">
+					{item.path}
+				</p>
+				<div className="mt-3">
+					{renderLocalActionRow({
+						key,
+						type: item.type,
+						id: item.id,
+						name: item.name,
+						path: item.path,
+					})}
+				</div>
+			</div>
+		);
+	};
 
 	const renderSkillMatchedDetails = (item: CommandItem) => (
 		<div className="grid gap-1">
@@ -788,75 +908,87 @@ export function CustomizationSectionView({
 	}: {
 		plugin: PluginItem;
 		scope: ItemScope;
-	}) => (
-		<div
-			key={plugin.path}
-			className="rounded-lg border border-border px-5 py-4"
-		>
-			<div className="flex items-center gap-3">
-				<Puzzle className="h-4 w-4 shrink-0 text-primary" />
-				<h3 className="min-w-0 flex-1 text-sm font-semibold text-foreground">
-					{plugin.name}
-				</h3>
-				<ScopeBadge scope={scope} />
-				<span className="text-xs text-muted-foreground">
-					{plugin.enabled ? "Enabled" : "Disabled"}
-				</span>
-				<Switch
-					checked={plugin.enabled}
-					onCheckedChange={() => {
-						void setPluginEnabled(plugin);
-					}}
-					disabled={togglingPluginPaths.has(plugin.path)}
-					aria-label={`Toggle ${plugin.name}`}
-				/>
-			</div>
-			<p className="mt-1 ml-7 text-xs font-mono text-muted-foreground">
-				{plugin.path}
-			</p>
-			<div className="mt-3 ml-7 flex flex-col gap-2">
-				{(
-					pluginToolsByPluginKey.get(`${plugin.name}:${plugin.path}`) ?? []
-				).map((tool) => {
-					const isToggling = togglingToolIds.has(tool.id);
-					return (
-						<div
-							key={tool.id}
-							className="flex items-center justify-between gap-4 rounded-md border border-border/70 px-3 py-2"
-						>
-							<div className="min-w-0">
-								<p className="text-xs font-medium text-foreground">
-									{tool.name}
-								</p>
-								<p className="text-xs text-muted-foreground">
-									{tool.description?.trim() || "No description available."}
-								</p>
+	}) => {
+		const key = plugin.path;
+		return (
+			<div
+				key={plugin.path}
+				className="rounded-lg border border-border px-5 py-4"
+			>
+				<div className="flex items-center gap-3">
+					<Puzzle className="h-4 w-4 shrink-0 text-primary" />
+					<h3 className="min-w-0 flex-1 text-sm font-semibold text-foreground">
+						{plugin.name}
+					</h3>
+					<ScopeBadge scope={scope} />
+					<span className="text-xs text-muted-foreground">
+						{plugin.enabled ? "Enabled" : "Disabled"}
+					</span>
+					<Switch
+						checked={plugin.enabled}
+						onCheckedChange={() => {
+							void setPluginEnabled(plugin);
+						}}
+						disabled={togglingPluginPaths.has(plugin.path)}
+						aria-label={`Toggle ${plugin.name}`}
+					/>
+				</div>
+				<p className="mt-1 ml-7 text-xs font-mono text-muted-foreground">
+					{plugin.path}
+				</p>
+				<div className="mt-3 ml-7 flex flex-col gap-2">
+					{(
+						pluginToolsByPluginKey.get(`${plugin.name}:${plugin.path}`) ?? []
+					).map((tool) => {
+						const isToggling = togglingToolIds.has(tool.id);
+						return (
+							<div
+								key={tool.id}
+								className="flex items-center justify-between gap-4 rounded-md border border-border/70 px-3 py-2"
+							>
+								<div className="min-w-0">
+									<p className="text-xs font-medium text-foreground">
+										{tool.name}
+									</p>
+									<p className="text-xs text-muted-foreground">
+										{tool.description?.trim() || "No description available."}
+									</p>
+								</div>
+								<div className="flex items-center gap-2">
+									<span className="text-xs text-muted-foreground">
+										{tool.enabled ? "Enabled" : "Disabled"}
+									</span>
+									<Switch
+										checked={tool.enabled}
+										onCheckedChange={() => {
+											void setToolEnabled(tool);
+										}}
+										disabled={isToggling || !plugin.enabled}
+										aria-label={`Toggle ${tool.name}`}
+									/>
+								</div>
 							</div>
-							<div className="flex items-center gap-2">
-								<span className="text-xs text-muted-foreground">
-									{tool.enabled ? "Enabled" : "Disabled"}
-								</span>
-								<Switch
-									checked={tool.enabled}
-									onCheckedChange={() => {
-										void setToolEnabled(tool);
-									}}
-									disabled={isToggling || !plugin.enabled}
-									aria-label={`Toggle ${tool.name}`}
-								/>
-							</div>
-						</div>
-					);
-				})}
-				{(pluginToolsByPluginKey.get(`${plugin.name}:${plugin.path}`)?.length ??
-					0) === 0 && (
-					<p className="text-xs text-muted-foreground">
-						No plugin tools found.
-					</p>
-				)}
+						);
+					})}
+					{(pluginToolsByPluginKey.get(`${plugin.name}:${plugin.path}`)
+						?.length ?? 0) === 0 && (
+						<p className="text-xs text-muted-foreground">
+							No plugin tools found.
+						</p>
+					)}
+				</div>
+				<div className="mt-3">
+					{renderLocalActionRow({
+						key,
+						type: "plugin",
+						id: plugin.name,
+						name: plugin.name,
+						path: plugin.path,
+					})}
+				</div>
 			</div>
-		</div>
-	);
+		);
+	};
 
 	const renderPluginMatchedControls = (plugin: PluginItem) => (
 		<>
@@ -923,36 +1055,49 @@ export function CustomizationSectionView({
 		);
 	};
 
-	const renderMcpServerCard = (server: McpServer) => (
-		<div
-			key={server.name}
-			className="rounded-lg border border-border px-5 py-4"
-		>
-			<div className="flex items-center gap-3">
-				<Server className="h-4 w-4 shrink-0 text-primary" />
-				<h3 className="min-w-0 flex-1 text-sm font-semibold text-foreground">
-					{server.name}
-				</h3>
-				<ScopeBadge scope="Global" />
-				<Badge variant="outline" className="shrink-0 text-muted-foreground">
-					{server.transportType}
-				</Badge>
-				<span className="text-xs text-muted-foreground">
-					{server.disabled ? "Disabled" : "Enabled"}
-				</span>
-			</div>
-			<p className="mt-2 ml-7 text-xs text-muted-foreground">
-				{server.url ??
-					([server.command, ...(server.args ?? [])].filter(Boolean).join(" ") ||
-						"No launch command configured.")}
-			</p>
-			{mcp.settingsPath ? (
-				<p className="mt-1 ml-7 text-xs font-mono text-muted-foreground">
-					{mcp.settingsPath}
+	const renderMcpServerCard = (server: McpServer) => {
+		const key = server.name;
+		return (
+			<div
+				key={server.name}
+				className="rounded-lg border border-border px-5 py-4"
+			>
+				<div className="flex items-center gap-3">
+					<Server className="h-4 w-4 shrink-0 text-primary" />
+					<h3 className="min-w-0 flex-1 text-sm font-semibold text-foreground">
+						{server.name}
+					</h3>
+					<ScopeBadge scope="Global" />
+					<Badge variant="outline" className="shrink-0 text-muted-foreground">
+						{server.transportType}
+					</Badge>
+					<span className="text-xs text-muted-foreground">
+						{server.disabled ? "Disabled" : "Enabled"}
+					</span>
+				</div>
+				<p className="mt-2 ml-7 text-xs text-muted-foreground">
+					{server.url ??
+						([server.command, ...(server.args ?? [])]
+							.filter(Boolean)
+							.join(" ") ||
+							"No launch command configured.")}
 				</p>
-			) : null}
-		</div>
-	);
+				{mcp.settingsPath ? (
+					<p className="mt-1 ml-7 text-xs font-mono text-muted-foreground">
+						{mcp.settingsPath}
+					</p>
+				) : null}
+				<div className="mt-3">
+					{renderLocalActionRow({
+						key,
+						type: "mcp",
+						id: server.name,
+						name: server.name,
+					})}
+				</div>
+			</div>
+		);
+	};
 
 	const renderMcpMatchedDetails = (server: McpServer) => (
 		<div className="grid gap-1">
@@ -1107,6 +1252,7 @@ export function CustomizationSectionView({
 				<MarketplaceView
 					chrome="embedded"
 					installedItems={installedCatalogLocalItems ?? undefined}
+					onInstalledItemsChanged={() => refresh(true)}
 					primitive={catalogPrimitive}
 				/>
 			) : null}
