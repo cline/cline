@@ -1,11 +1,11 @@
 import {
 	CheckCircle2,
 	ExternalLink,
-	Plug,
+	Puzzle,
 	Search,
 	Server,
 	Trash2,
-	Wrench,
+	Zap,
 } from "lucide-react";
 import {
 	type CSSProperties,
@@ -75,14 +75,14 @@ const primitivePageDetails = {
 		description: "Install skills globally for Cline.",
 		emptyInstalled: "No skills installed.",
 		emptyCatalog: "No skills match the current filters.",
-		icon: Wrench,
+		icon: Zap,
 	},
 	plugin: {
 		title: "Plugins",
 		description: "Install plugins into this CLI environment.",
 		emptyInstalled: "No plugins installed.",
 		emptyCatalog: "No plugins match the current filters.",
-		icon: Plug,
+		icon: Puzzle,
 	},
 } satisfies Record<
 	MarketplacePrimitiveType,
@@ -273,6 +273,7 @@ function MarketplaceEntryCard({
 	sourceLabel?: string;
 	tagLabels: Map<string, string>;
 }) {
+	const EntryIcon = primitivePageDetails[entry.type].icon;
 	const busy =
 		actionState?.status === "installing" ||
 		actionState?.status === "uninstalling";
@@ -303,9 +304,12 @@ function MarketplaceEntryCard({
 		<>
 			<div className="min-w-0">
 				<div className="flex min-w-0 items-start justify-between gap-2">
-					<h2 className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
-						{entry.name}
-					</h2>
+					<div className="flex min-w-0 flex-1 items-center gap-3">
+						<EntryIcon className="h-4 w-4 shrink-0 text-primary" />
+						<h2 className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
+							{entry.name}
+						</h2>
+					</div>
 					<div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
 						{sourceLabel ? (
 							<Badge
