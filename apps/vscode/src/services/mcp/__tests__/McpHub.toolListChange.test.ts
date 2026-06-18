@@ -9,7 +9,7 @@
  * We avoid importing McpHub directly (too many transitive deps for unit tests).
  * Instead we extract the pure logic and test it in isolation.
  */
-import { describe, it } from "mocha"
+import { describe, it } from "bun:test"
 import "should"
 import sinon from "sinon"
 

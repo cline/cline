@@ -135,7 +135,15 @@ export default defineConfig({
 		"process.env.OTEL_METRIC_EXPORT_INTERVAL": JSON.stringify(process.env.OTEL_METRIC_EXPORT_INTERVAL),
 	},
 	resolve: {
+		// Force a single React copy. In the bun workspace, sibling packages pull
+		// react@19 into the shared store; without deduping, transitive webview deps
+		// can resolve a second React instance, which bundles two copies and yields a
+		// null hook dispatcher at runtime ("Cannot read properties of null (reading
+		// 'useRef')"). Pin react/react-dom to webview-ui's own (React 18) copy.
+		dedupe: ["react", "react-dom"],
 		alias: {
+			react: resolve(__dirname, "node_modules/react"),
+			"react-dom": resolve(__dirname, "node_modules/react-dom"),
 			"@": resolve(__dirname, "./src"),
 			"@components": resolve(__dirname, "./src/components"),
 			"@context": resolve(__dirname, "./src/context"),

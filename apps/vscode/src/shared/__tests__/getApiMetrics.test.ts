@@ -1,5 +1,5 @@
+import { describe, it } from "bun:test"
 import { strict as assert } from "node:assert"
-import { describe, it } from "mocha"
 import type { ClineMessage } from "../ExtensionMessage"
 import { getApiMetrics, getLastApiReqTotalTokens } from "../getApiMetrics"
 

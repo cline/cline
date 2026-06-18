@@ -388,6 +388,9 @@ class NightlyPublisher {
 		const args = [
 			"package",
 			...(isPreRelease ? ["--pre-release"] : []),
+			// The extension is fully esbuild-bundled, so vsce must not walk node_modules
+			// (the @cline/* workspace symlinks point outside the package).
+			"--no-dependencies",
 			"--no-update-package-json",
 			"--no-git-tag-version",
 			"--allow-package-secrets",
