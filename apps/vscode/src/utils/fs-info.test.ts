@@ -1,5 +1,5 @@
+import { beforeEach, describe, it } from "bun:test"
 import * as os from "node:os"
-import { describe, it, beforeEach } from "bun:test"
 import "should"
 import { _getFsInfoCacheSizeForTests, _resetFsInfoCacheForTests, getFsInfo } from "./fs-info"
 

@@ -1,6 +1,6 @@
+import { describe, it } from "bun:test"
 import assert from "node:assert/strict"
 import { EventEmitter } from "events"
-import { describe, it } from "bun:test"
 import { orchestrateCommandExecution } from "./CommandOrchestrator"
 import type {
 	CommandExecutorCallbacks,

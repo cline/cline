@@ -1,5 +1,5 @@
-import { readFile } from "fs/promises"
 import { afterAll, describe, it } from "bun:test"
+import { readFile } from "fs/promises"
 import path from "path"
 import "should"
 import * as vscode from "vscode"

@@ -25,9 +25,7 @@ const project = new Project({ tsConfigFilePath: undefined, skipAddingFilesFromTs
 function findEnclosingTestCall(node: Node): CallExpression | undefined {
 	let current: Node | undefined = node
 	while (current) {
-		const fn = current.getFirstAncestor(
-			(a) => Node.isFunctionExpression(a) || Node.isArrowFunction(a),
-		)
+		const fn = current.getFirstAncestor((a) => Node.isFunctionExpression(a) || Node.isArrowFunction(a))
 		if (!fn) {
 			return undefined
 		}

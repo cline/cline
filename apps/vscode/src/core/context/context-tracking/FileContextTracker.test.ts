@@ -1,7 +1,7 @@
+import { afterEach, beforeEach, describe, it, mock } from "bun:test"
 import * as actualDiskModule from "@core/storage/disk"
 import { expect } from "chai"
 import * as actualChokidar from "chokidar"
-import { afterEach, beforeEach, describe, it, mock } from "bun:test"
 import * as path from "path"
 import * as sinon from "sinon"
 import * as vscode from "vscode"

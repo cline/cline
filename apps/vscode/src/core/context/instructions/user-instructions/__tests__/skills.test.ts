@@ -3,9 +3,9 @@
  * Tests skill discovery, override resolution, toggle filtering, and content loading
  */
 
+import { afterEach, beforeEach, describe, it, mock } from "bun:test"
 import { expect } from "chai"
 import * as actualFsPromises from "fs/promises"
-import { afterEach, beforeEach, describe, it, mock } from "bun:test"
 import * as path from "path"
 import * as sinon from "sinon"
 

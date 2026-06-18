@@ -1,5 +1,5 @@
-import { GrpcRecorder, IRecorder } from "@core/controller/grpc-recorder/grpc-recorder"
 import { beforeAll, describe, it } from "bun:test"
+import { GrpcRecorder, IRecorder } from "@core/controller/grpc-recorder/grpc-recorder"
 import { expect } from "chai"
 import { ExtensionMessage } from "@/shared/ExtensionMessage"
 import { GrpcRequest } from "@/shared/WebviewMessage"

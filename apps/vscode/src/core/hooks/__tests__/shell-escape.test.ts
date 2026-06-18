@@ -1,4 +1,4 @@
-import { describe, it, afterAll, beforeAll } from "bun:test"
+import { afterAll, beforeAll, describe, it } from "bun:test"
 import "should"
 import { escapeShellPath } from "../shell-escape"
 

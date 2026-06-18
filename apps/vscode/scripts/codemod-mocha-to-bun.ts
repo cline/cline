@@ -62,9 +62,7 @@ async function main(): Promise<void> {
 
 	for (const filePath of targetFiles) {
 		const sourceFile = project.addSourceFileAtPath(filePath)
-		const mochaImport = sourceFile
-			.getImportDeclarations()
-			.find((decl) => decl.getModuleSpecifierValue() === "mocha")
+		const mochaImport = sourceFile.getImportDeclarations().find((decl) => decl.getModuleSpecifierValue() === "mocha")
 
 		if (!mochaImport) {
 			project.removeSourceFile(sourceFile)
@@ -155,7 +153,9 @@ async function main(): Promise<void> {
 		}
 	}
 
-	console.log(`${dryRun ? "[dry-run] " : ""}codemod: ${changed.length} file(s) ${dryRun ? "would change" : "changed"}, ${skipped} skipped (no mocha import)`)
+	console.log(
+		`${dryRun ? "[dry-run] " : ""}codemod: ${changed.length} file(s) ${dryRun ? "would change" : "changed"}, ${skipped} skipped (no mocha import)`,
+	)
 	for (const c of changed.sort()) {
 		console.log(`  ${c}`)
 	}

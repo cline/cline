@@ -1,5 +1,5 @@
-import * as assert from "assert"
 import { describe, it } from "bun:test"
+import * as assert from "assert"
 import { DiffViewProvider } from "../DiffViewProvider"
 
 class TestBoundaryDiffViewProvider extends DiffViewProvider {
@@ -26,7 +26,7 @@ class TestBoundaryDiffViewProvider extends DiffViewProvider {
 		return this.documentText
 	}
 
-	async saveDocument(): Promise<Boolean> {
+	async saveDocument(): Promise<boolean> {
 		return true
 	}
 	async closeAllDiffViews(): Promise<void> {}
@@ -215,7 +215,7 @@ describe("DiffViewProvider Update Throttling", () => {
 			return this.documentText
 		}
 
-		async saveDocument(): Promise<Boolean> {
+		async saveDocument(): Promise<boolean> {
 			return true
 		}
 		async closeAllDiffViews(): Promise<void> {}
@@ -277,7 +277,7 @@ describe("DiffViewProvider Update Throttling", () => {
 		assert.strictEqual(provider.replaceTextCallCount, 1, "Rapid updates should be throttled")
 	})
 
-	it("should allow update after throttle period", async function () {
+	it("should allow update after throttle period", async () => {
 		const provider = new ThrottleTestDiffViewProvider()
 		provider.setup("initial\n")
 
@@ -331,7 +331,7 @@ describe("DiffViewProvider Update Throttling", () => {
 		assert.strictEqual(provider.replaceTextCallCount, 2, "Final update should bypass length check")
 	})
 
-	it("should reset throttle state on reset()", async function () {
+	it("should reset throttle state on reset()", async () => {
 		const provider = new ThrottleTestDiffViewProvider()
 		provider.setup("initial\n")
 
@@ -363,7 +363,7 @@ describe("DiffViewProvider Update Throttling", () => {
 		assert.strictEqual(provider.replaceTextCallCount, 1, "First update should not be throttled")
 	})
 
-	it("should handle streaming simulation with many rapid updates", async function () {
+	it("should handle streaming simulation with many rapid updates", async () => {
 		const provider = new ThrottleTestDiffViewProvider()
 		provider.setup("")
 
@@ -391,7 +391,7 @@ describe("DiffViewProvider Update Throttling", () => {
 		assert.strictEqual(provider.replaceTextCallCount, 3, "Final update should go through")
 	}, 500)
 
-	it("should throttle by time regardless of content length changes", async function () {
+	it("should throttle by time regardless of content length changes", async () => {
 		const provider = new ThrottleTestDiffViewProvider()
 		provider.setup("")
 

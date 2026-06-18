@@ -1,7 +1,7 @@
+import { afterEach, beforeEach, describe, it, mock } from "bun:test"
 import * as actualDiskStorage from "@core/storage/disk"
 import * as actualRemoteConfigUtils from "@core/storage/remote-config/utils"
 import * as assert from "assert"
-import { afterEach, beforeEach, describe, it, mock } from "bun:test"
 import sinon from "sinon"
 import { ClineAccountService } from "@/services/account/ClineAccountService"
 import { AuthService } from "@/services/auth/AuthService"
@@ -188,7 +188,7 @@ describe("fetchRemoteConfig", () => {
 		})
 
 		// Both inline parse and org-level fetch fail (no auth → no fetch), cache is empty
-		;readRemoteConfigFromCacheStub.resolves(undefined)
+		readRemoteConfigFromCacheStub.resolves(undefined)
 
 		const controller = {
 			accountService: { switchAccount: sandbox.stub() },
@@ -226,7 +226,7 @@ describe("fetchRemoteConfig", () => {
 		isRemoteConfigEnabledStub.withArgs("org-3").returns(true)
 		// Fallback org has no discoveredValue, so it will go through fetchRemoteConfigForOrganization
 		// which needs auth → will fall back to cache
-		;readRemoteConfigFromCacheStub.resolves({ version: "v1" })
+		readRemoteConfigFromCacheStub.resolves({ version: "v1" })
 
 		const controller = {
 			accountService: { switchAccount: sandbox.stub().resolves() },

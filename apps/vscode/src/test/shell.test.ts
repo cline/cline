@@ -1,5 +1,5 @@
-import { expect } from "chai"
 import { afterEach, beforeEach, describe, it, mock } from "bun:test"
+import { expect } from "chai"
 import * as actualOs from "os"
 import * as vscode from "vscode"
 
@@ -8,7 +8,8 @@ import * as vscode from "vscode"
 // `(userInfo as any) = ...`). Route `userInfo` through a mutable module-level
 // delegate installed via mock.module, then swap the delegate per-test.
 let userInfoImpl: typeof actualOs.userInfo = actualOs.userInfo
-const userInfoDelegate = ((...args: unknown[]) => (userInfoImpl as (...a: unknown[]) => unknown)(...args)) as typeof actualOs.userInfo
+const userInfoDelegate = ((...args: unknown[]) =>
+	(userInfoImpl as (...a: unknown[]) => unknown)(...args)) as typeof actualOs.userInfo
 const osMockNamespace = { ...actualOs, userInfo: userInfoDelegate }
 const osMock = () => ({ ...osMockNamespace, default: osMockNamespace })
 mock.module("os", osMock)

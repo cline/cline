@@ -1,5 +1,5 @@
-import fs from "fs/promises"
 import { afterAll, beforeEach, describe, it } from "bun:test"
+import fs from "fs/promises"
 import os from "os"
 import path from "path"
 import { ClineIgnoreController } from "./ClineIgnoreController"

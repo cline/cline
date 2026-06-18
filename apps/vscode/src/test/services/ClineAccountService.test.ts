@@ -1,5 +1,5 @@
-import * as assert from "assert"
 import { afterEach, beforeEach, describe, it } from "bun:test"
+import * as assert from "assert"
 import sinon from "sinon"
 import { ClineAccountService } from "@/services/account/ClineAccountService"
 import { AuthService } from "@/services/auth/AuthService"

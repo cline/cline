@@ -1,6 +1,6 @@
+import { afterAll, beforeAll, beforeEach, describe, it } from "bun:test"
 import { expect } from "chai"
 import * as fs from "fs/promises"
-import { afterAll, beforeAll, beforeEach, describe, it } from "bun:test"
 import * as os from "os"
 import * as path from "path"
 import * as vscode from "vscode"

@@ -1,8 +1,8 @@
+import { afterEach, beforeEach, describe, it, mock } from "bun:test"
 import { Controller } from "@core/controller"
 import { BooleanResponse, StringRequest } from "@shared/proto/cline/common"
 import * as actualPathUtils from "@utils/path"
 import { expect } from "chai"
-import { afterEach, beforeEach, describe, it, mock } from "bun:test"
 import * as sinon from "sinon"
 
 // bun loads real ESM, so sinon cannot stub the `@utils/path` namespace export

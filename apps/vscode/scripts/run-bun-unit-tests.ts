@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 
+import path from "node:path"
 /**
  * Isolated bun-test runner for the node-side UNIT suites migrated off mocha.
  *
@@ -28,7 +29,6 @@
  *   bun scripts/run-bun-unit-tests.ts -c 6       # concurrency (default 4)
  */
 import { Glob } from "bun"
-import path from "node:path"
 
 const projectRoot = path.resolve(import.meta.dir, "..")
 
@@ -112,7 +112,7 @@ async function runOne(file: string): Promise<FileResult> {
 		proc.exited,
 	])
 	clearTimeout(timer)
-	const output = (stdout + stderr) + (timedOut ? `\n[runner] TIMEOUT after ${PER_FILE_TIMEOUT_MS}ms — killed\n` : "")
+	const output = stdout + stderr + (timedOut ? `\n[runner] TIMEOUT after ${PER_FILE_TIMEOUT_MS}ms — killed\n` : "")
 	const { pass, fail } = parseCounts(output)
 	// A nonzero exit with no parsed counts (load/parse error, timeout) must count
 	// as a failure so the gate cannot pass silently.
@@ -194,4 +194,3 @@ async function main(): Promise<void> {
 }
 
 void main()
-

@@ -9,11 +9,11 @@ import { createHook } from "../core/controller/file/createHook"
 import { deleteHook } from "../core/controller/file/deleteHook"
 import { refreshHooks } from "../core/controller/file/refreshHooks"
 import { toggleHook } from "../core/controller/file/toggleHook"
+import { hookFileName } from "../core/hooks/__tests__/test-utils"
 import { HookDiscoveryCache } from "../core/hooks/HookDiscoveryCache"
 import { StateManager } from "../core/storage/StateManager"
 import { HostProvider } from "../hosts/host-provider"
 import { CreateHookRequest, DeleteHookRequest, ToggleHookRequest } from "../shared/proto/cline/file"
-import { hookFileName } from "../core/hooks/__tests__/test-utils"
 
 /**
  * Integration tests for hook management
@@ -80,7 +80,7 @@ describe("Hook Management Integration", () => {
 	})
 
 	describe("Complete Hook Lifecycle", () => {
-		it("should support full lifecycle: create -> verify disabled -> enable -> verify enabled -> delete -> verify gone", async function () {
+		it("should support full lifecycle: create -> verify disabled -> enable -> verify enabled -> delete -> verify gone", async () => {
 			const hookName = "TaskStart"
 
 			// Step 1: Verify hook doesn't exist initially
@@ -170,7 +170,7 @@ describe("Hook Management Integration", () => {
 			hooks.globalHooks.should.have.length(0)
 		}, 10000)
 
-		it("should handle multiple global hooks with independent states", async function () {
+		it("should handle multiple global hooks with independent states", async () => {
 			// Create four global hooks
 			await createHook(
 				mockController,
@@ -301,7 +301,7 @@ describe("Hook Management Integration", () => {
 			finalHooks.globalHooks.should.have.length(0)
 		}, 10000)
 
-		it("should maintain hook state consistency after rapid operations", async function () {
+		it("should maintain hook state consistency after rapid operations", async () => {
 			const hookName = "TaskCancel"
 
 			// Rapid sequence of operations
@@ -361,7 +361,7 @@ describe("Hook Management Integration", () => {
 	})
 
 	describe("Cache Invalidation", () => {
-		it("should properly invalidate cache across all operations", async function () {
+		it("should properly invalidate cache across all operations", async () => {
 			// Create a hook
 			await createHook(
 				mockController,

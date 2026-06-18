@@ -1,5 +1,5 @@
-import { expect } from "chai"
 import { afterEach, beforeEach, describe, it, mock } from "bun:test"
+import { expect } from "chai"
 import * as actualNodeMachineId from "node-machine-id"
 import * as sinon from "sinon"
 import { HostProvider } from "@/hosts/host-provider"

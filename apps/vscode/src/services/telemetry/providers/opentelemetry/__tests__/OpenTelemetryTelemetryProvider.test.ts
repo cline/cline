@@ -1,5 +1,5 @@
-import { InMemoryLogRecordExporter, LoggerProvider, SimpleLogRecordProcessor } from "@opentelemetry/sdk-logs"
 import { afterEach, beforeEach, describe, it, mock } from "bun:test"
+import { InMemoryLogRecordExporter, LoggerProvider, SimpleLogRecordProcessor } from "@opentelemetry/sdk-logs"
 import { expect } from "chai"
 import * as sinon from "sinon"
 import type { ClineAccountUserInfo } from "@/services/auth/AuthService"

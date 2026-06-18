@@ -1,5 +1,5 @@
-import { expect } from "chai"
 import { beforeAll, describe, it } from "bun:test"
+import { expect } from "chai"
 import { LogFileHandler } from "@/core/controller/grpc-recorder/log-file-handler"
 
 describe("log-file-handler", () => {

@@ -1,8 +1,8 @@
+import { afterEach, beforeEach, describe, it, mock } from "bun:test"
 import * as actualFileSearch from "@services/search/file-search"
 import * as actualChildProcess from "child_process"
 import * as fs from "fs"
 import type { FzfResultItem } from "fzf"
-import { describe, it, beforeEach, afterEach, mock } from "bun:test"
 import should from "should"
 import sinon from "sinon"
 import { Readable } from "stream"
@@ -30,7 +30,8 @@ const realSpawn = actualChildProcess.spawn
 let spawnImpl: typeof actualChildProcess.spawn | null = null
 const childProcessNamespace = {
 	...actualChildProcess,
-	spawn: ((...args: Parameters<typeof actualChildProcess.spawn>) => (spawnImpl ?? realSpawn)(...args)) as typeof actualChildProcess.spawn,
+	spawn: ((...args: Parameters<typeof actualChildProcess.spawn>) =>
+		(spawnImpl ?? realSpawn)(...args)) as typeof actualChildProcess.spawn,
 }
 const childProcessMock = () => ({ ...childProcessNamespace, default: childProcessNamespace })
 mock.module("child_process", childProcessMock)
@@ -263,7 +264,10 @@ describe("File Search", () => {
 			]
 
 			// Override searchWorkspaceFiles (via mock.module delegate) for this test
-			searchWorkspaceFilesOverride = (async () => ({ items: mockItems.slice(0, 2), source: "ripgrep" })) as typeof realSearchWorkspaceFiles
+			searchWorkspaceFilesOverride = (async () => ({
+				items: mockItems.slice(0, 2),
+				source: "ripgrep",
+			})) as typeof realSearchWorkspaceFiles
 
 			const result = await fileSearch.searchWorkspaceFiles("", "/workspace", 2)
 

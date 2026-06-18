@@ -1,6 +1,6 @@
+import { afterEach, beforeEach, describe, it } from "bun:test"
 import { strict as assert } from "assert"
 import * as fs from "fs/promises"
-import { afterEach, beforeEach, describe, it } from "bun:test"
 import * as os from "os"
 import * as path from "path"
 import * as vscode from "vscode"

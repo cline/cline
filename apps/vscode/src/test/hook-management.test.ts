@@ -81,7 +81,7 @@ describe("Hook Management", () => {
 	})
 
 	describe("createHook", () => {
-		it("should create hook with correct template content", async function () {
+		it("should create hook with correct template content", async () => {
 			const request = CreateHookRequest.create({
 				hookName: "TaskStart",
 				isGlobal: true,
@@ -112,7 +112,7 @@ describe("Hook Management", () => {
 			response.hooksToggles!.globalHooks[0].name.should.equal("TaskStart")
 		}, 5000)
 
-		it("should create hook with non-executable permissions (644)", async function () {
+		it("should create hook with non-executable permissions (644)", async () => {
 			if (isWindows) {
 				return
 			}
@@ -132,7 +132,7 @@ describe("Hook Management", () => {
 			mode.should.equal(0o644)
 		}, 5000)
 
-		it("should throw error for invalid hook types", async function () {
+		it("should throw error for invalid hook types", async () => {
 			const request = CreateHookRequest.create({
 				hookName: "InvalidHookType",
 				isGlobal: true,
@@ -146,7 +146,7 @@ describe("Hook Management", () => {
 			}
 		}, 5000)
 
-		it("should throw error if hook already exists", async function () {
+		it("should throw error if hook already exists", async () => {
 			// Create hook first time
 			const request = CreateHookRequest.create({
 				hookName: "UserPromptSubmit",
@@ -164,7 +164,7 @@ describe("Hook Management", () => {
 			}
 		}, 5000)
 
-		it("should create parent directories if they don't exist", async function () {
+		it("should create parent directories if they don't exist", async () => {
 			// Remove the hooks directory
 			await fs.rm(globalHooksDir, { recursive: true, force: true })
 
@@ -191,7 +191,7 @@ describe("Hook Management", () => {
 			fileExists.should.equal(true)
 		}, 5000)
 
-		it("should create workspace hook when isGlobal is false", async function () {
+		it("should create workspace hook when isGlobal is false", async () => {
 			const request = CreateHookRequest.create({
 				hookName: "TaskCancel",
 				isGlobal: false,
@@ -207,7 +207,7 @@ describe("Hook Management", () => {
 			exists.should.equal(true)
 		}, 5000)
 
-		it("should create Notification hook with valid template", async function () {
+		it("should create Notification hook with valid template", async () => {
 			const request = CreateHookRequest.create({
 				hookName: "Notification",
 				isGlobal: true,
@@ -223,7 +223,7 @@ describe("Hook Management", () => {
 	})
 
 	describe("deleteHook", () => {
-		it("should delete existing hook file", async function () {
+		it("should delete existing hook file", async () => {
 			// Create a hook first
 			const hookPath = path.join(globalHooksDir, hookFileName("TaskStart"))
 			await fs.writeFile(hookPath, "#!/usr/bin/env node\nconsole.log('test')", { mode: 0o755 })
@@ -247,7 +247,7 @@ describe("Hook Management", () => {
 			response.hooksToggles!.globalHooks.should.have.length(0)
 		}, 5000)
 
-		it("should throw error if hook doesn't exist", async function () {
+		it("should throw error if hook doesn't exist", async () => {
 			const request = DeleteHookRequest.create({
 				hookName: "NonExistentHook",
 				isGlobal: true,
@@ -261,7 +261,7 @@ describe("Hook Management", () => {
 			}
 		}, 5000)
 
-		it("should delete workspace hook when isGlobal is false", async function () {
+		it("should delete workspace hook when isGlobal is false", async () => {
 			// Create a workspace hook first
 			const hookPath = path.join(workspaceHooksDir, hookFileName("TaskResume"))
 			await fs.writeFile(hookPath, "#!/usr/bin/env node\nconsole.log('test')", { mode: 0o755 })
@@ -282,7 +282,7 @@ describe("Hook Management", () => {
 	})
 
 	describe("toggleHook", () => {
-		it("should make hook executable (chmod +x)", async function () {
+		it("should make hook executable (chmod +x)", async () => {
 			if (isWindows) {
 				return
 			}
@@ -306,7 +306,7 @@ describe("Hook Management", () => {
 			;(mode & 0o100).should.be.greaterThan(0)
 		}, 5000)
 
-		it("should make hook non-executable (chmod -x)", async function () {
+		it("should make hook non-executable (chmod -x)", async () => {
 			if (isWindows) {
 				return
 			}
@@ -329,7 +329,7 @@ describe("Hook Management", () => {
 			mode.should.equal(0o644)
 		}, 5000)
 
-		it("should work for workspace hooks", async function () {
+		it("should work for workspace hooks", async () => {
 			if (isWindows) {
 				return
 			}
@@ -351,7 +351,7 @@ describe("Hook Management", () => {
 			;(mode & 0o100).should.be.greaterThan(0)
 		}, 5000)
 
-		it("should return updated hooks state", async function () {
+		it("should return updated hooks state", async () => {
 			const hookPath = path.join(globalHooksDir, hookFileName("TaskComplete"))
 			await fs.writeFile(hookPath, "#!/usr/bin/env node\nconsole.log('test')", { mode: 0o644 })
 
@@ -370,7 +370,7 @@ describe("Hook Management", () => {
 	})
 
 	describe("refreshHooks", () => {
-		it("should discover hooks in global directory", async function () {
+		it("should discover hooks in global directory", async () => {
 			// Create some hooks
 			if (isWindows) {
 				await fs.writeFile(path.join(globalHooksDir, "TaskStart.ps1"), "Write-Output '{}'", { mode: 0o644 })
@@ -393,7 +393,7 @@ describe("Hook Management", () => {
 			}
 		}, 5000)
 
-		it("should discover hooks in workspace directories", async function () {
+		it("should discover hooks in workspace directories", async () => {
 			await fs.writeFile(path.join(workspaceHooksDir, hookFileName("UserPromptSubmit")), hookTemplate, {
 				mode: 0o755,
 			})
@@ -406,7 +406,7 @@ describe("Hook Management", () => {
 			result.workspaceHooks[0].hooks[0].enabled.should.equal(true)
 		}, 5000)
 
-		it("should correctly identify executable vs non-executable hooks", async function () {
+		it("should correctly identify executable vs non-executable hooks", async () => {
 			if (isWindows) {
 				return
 			}
@@ -423,7 +423,7 @@ describe("Hook Management", () => {
 			taskCancel!.enabled.should.equal(false)
 		}, 5000)
 
-		it("should return empty list when no hooks exist", async function () {
+		it("should return empty list when no hooks exist", async () => {
 			const result = await refreshHooks(mockController, undefined, globalHooksDir)
 
 			result.globalHooks.should.have.length(0)
@@ -432,7 +432,7 @@ describe("Hook Management", () => {
 			result.workspaceHooks[0].hooks.should.have.length(0)
 		}, 5000)
 
-		it("should include absolute paths in hook info", async function () {
+		it("should include absolute paths in hook info", async () => {
 			if (isWindows) {
 				await fs.writeFile(path.join(globalHooksDir, "TaskComplete.ps1"), "Write-Output '{}'", { mode: 0o644 })
 			} else {
@@ -444,13 +444,13 @@ describe("Hook Management", () => {
 			result.globalHooks[0].absolutePath.should.equal(path.join(globalHooksDir, hookFileName("TaskComplete")))
 		}, 5000)
 
-		it("should set isWindows flag correctly", async function () {
+		it("should set isWindows flag correctly", async () => {
 			const result = await refreshHooks(mockController, undefined)
 
 			result.isWindows.should.equal(isWindows)
 		}, 5000)
 
-		it("should resolve .ps1-only hooks on Windows (extensionless is unsupported)", async function () {
+		it("should resolve .ps1-only hooks on Windows (extensionless is unsupported)", async () => {
 			await withPlatform("win32", async () => {
 				await fs.writeFile(path.join(globalHooksDir, "TaskStart.ps1"), "Write-Output '{}'", { mode: 0o644 })
 
@@ -462,7 +462,7 @@ describe("Hook Management", () => {
 			})
 		}, 5000)
 
-		it("should ignore extensionless hook on Windows and use .ps1 only", async function () {
+		it("should ignore extensionless hook on Windows and use .ps1 only", async () => {
 			await withPlatform("win32", async () => {
 				await fs.writeFile(path.join(globalHooksDir, "TaskResume"), "Write-Output '{}'", { mode: 0o644 })
 				await fs.writeFile(path.join(globalHooksDir, "TaskResume.ps1"), "Write-Output '{}'", { mode: 0o644 })
@@ -476,7 +476,7 @@ describe("Hook Management", () => {
 	})
 
 	describe("Edge Cases", () => {
-		it("should handle missing .clinerules directory gracefully", async function () {
+		it("should handle missing .clinerules directory gracefully", async () => {
 			// Remove workspace hooks directory
 			await fs.rm(path.dirname(workspaceHooksDir), { recursive: true, force: true })
 
@@ -487,7 +487,7 @@ describe("Hook Management", () => {
 			result.workspaceHooks[0].hooks.should.have.length(0)
 		}, 5000)
 
-		it("should handle permission errors gracefully", async function () {
+		it("should handle permission errors gracefully", async () => {
 			if (isWindows) {
 				return
 			}
@@ -517,7 +517,7 @@ describe("Hook Management", () => {
 			}
 		}, 5000)
 
-		it("should invalidate cache after hook operations", async function () {
+		it("should invalidate cache after hook operations", async () => {
 			// Create a hook
 			const createRequest = CreateHookRequest.create({
 				hookName: "TaskStart",
@@ -541,7 +541,7 @@ describe("Hook Management", () => {
 			result.globalHooks.should.have.length(0)
 		}, 5000)
 
-		it("should toggle and delete .ps1-only hooks on Windows", async function () {
+		it("should toggle and delete .ps1-only hooks on Windows", async () => {
 			await withPlatform("win32", async () => {
 				const ps1Path = path.join(globalHooksDir, "TaskCancel.ps1")
 				await fs.writeFile(ps1Path, "Write-Output '{}'", { mode: 0o644 })

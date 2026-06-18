@@ -1,5 +1,5 @@
-import { expect } from "chai"
 import { describe, it } from "bun:test"
+import { expect } from "chai"
 import * as vscode from "vscode"
 import { DiagnosticSeverity } from "@/shared/proto/index.cline"
 import { convertToFileDiagnostics, convertVscodeDiagnostics } from "./getDiagnostics"

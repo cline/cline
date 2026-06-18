@@ -1,5 +1,5 @@
-import { expect } from "chai"
 import { describe, it } from "bun:test"
+import { expect } from "chai"
 import {
 	addWorkspaceHint,
 	hasWorkspaceHint,
