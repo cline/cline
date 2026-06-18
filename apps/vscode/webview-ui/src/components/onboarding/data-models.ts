@@ -1,7 +1,35 @@
-import type { OpenRouterModelInfo } from "@shared/proto/cline/models"
+import type { ClineRecommendedModel, OpenRouterModelInfo } from "@shared/proto/cline/models"
 import type { OnboardingModel, OnboardingModelGroup } from "@shared/proto/cline/state"
 
+export interface RecommendedModelsData {
+	recommended: ClineRecommendedModel[]
+	free: ClineRecommendedModel[]
+	clinePass: ClineRecommendedModel[]
+}
+
+type RecommendedModelsResponseLike = {
+	recommended?: ClineRecommendedModel[]
+	free?: ClineRecommendedModel[]
+	clinePass?: ClineRecommendedModel[]
+}
+
+export function getRecommendedModelsData(
+	response: RecommendedModelsResponseLike,
+	isClinePassEnabled: boolean,
+): RecommendedModelsData | undefined {
+	const recommended = response.recommended ?? []
+	const free = response.free ?? []
+	const clinePass = isClinePassEnabled ? (response.clinePass ?? []) : []
+
+	if (recommended.length === 0 && free.length === 0 && clinePass.length === 0) {
+		return undefined
+	}
+
+	return { recommended, free, clinePass }
+}
+
 export interface OnboardingModelsByGroup {
+	clinePass: ModelGroup[]
 	free: ModelGroup[]
 	power: ModelGroup[]
 }
@@ -14,11 +42,13 @@ interface ModelGroup {
 export function getClineUIOnboardingGroups(groupedModels: OnboardingModelGroup): OnboardingModelsByGroup {
 	const { models } = groupedModels
 
+	const clinePassModels = models.filter((m) => m.group === "clinepass")
 	const freeModels = models.filter((m) => m.group === "free")
 	const frontierModels = models.filter((m) => m.group === "frontier")
 	const openSourceModels = models.filter((m) => m.group === "open source")
 
 	return {
+		clinePass: clinePassModels.length > 0 ? [{ group: "clinepass", models: clinePassModels }] : [],
 		free: freeModels.length > 0 ? [{ group: "free", models: freeModels }] : [],
 		power: [
 			...(frontierModels.length > 0 ? [{ group: "frontier", models: frontierModels }] : []),

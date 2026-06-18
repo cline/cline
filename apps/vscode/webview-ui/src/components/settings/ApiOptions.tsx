@@ -9,6 +9,7 @@ import styled from "styled-components"
 import { normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
+import { CLINE_PASS_FEATURE_FLAG } from "@/constants/featureFlags"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useHasFeatureFlag } from "@/hooks/useFeatureFlag"
 import { ModelsServiceClient } from "@/services/grpc-client"
@@ -57,8 +58,6 @@ import { WandbProvider } from "./providers/WandbProvider"
 import { XaiProvider } from "./providers/XaiProvider"
 import { ZAiProvider } from "./providers/ZAiProvider"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
-
-const CLINE_PASS_FEATURE_FLAG = "ext-cline-pass"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
