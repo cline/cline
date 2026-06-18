@@ -22,6 +22,7 @@ export type ApiProvider =
 	| "mistral"
 	| "vscode-lm"
 	| "cline"
+	| "cline-pass"
 	| "litellm"
 	| "moonshot"
 	| "nebius"
@@ -1021,6 +1022,58 @@ export const clineDevstralModelInfo: ModelInfo = {
 	cacheReadsPrice: 0,
 	cacheWritesPrice: 0,
 	description: "A stealth model for agentic coding tasks",
+}
+
+export type ClinePassModelId = keyof typeof clinePassModels
+export const clinePassDefaultModelId = "cline-pass/glm-5.1"
+export const clinePassModelInfoSaneDefaults: ModelInfo = {
+	maxTokens: 8_192,
+	contextWindow: 128_000,
+	supportsImages: false,
+	supportsPromptCache: false,
+	supportsReasoning: true,
+	inputPrice: 0,
+	outputPrice: 0,
+	cacheReadsPrice: 0,
+	cacheWritesPrice: 0,
+	description: "",
+}
+export const clinePassModels = {
+	"cline-pass/glm-5.1": {
+		name: "cline-pass/glm-5.1",
+		maxTokens: 131_072,
+		contextWindow: 202_752,
+		supportsImages: false,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		inputPrice: 0.98,
+		outputPrice: 3.08,
+		cacheReadsPrice: 0.182,
+		cacheWritesPrice: 0,
+		description: "",
+	},
+} as const satisfies Record<string, ModelInfo>
+
+export function getModelSlug(modelId: string): string {
+	return modelId.split("/").at(-1) ?? modelId
+}
+
+export function buildModelInfoNameMap(models: Record<string, ModelInfo>): Record<string, ModelInfo> {
+	const nameMap: Record<string, ModelInfo> = {}
+
+	for (const [id, info] of Object.entries(models)) {
+		nameMap[getModelSlug(id)] = info
+	}
+
+	return nameMap
+}
+
+export function resolveClinePassModelInfo(modelId: string, modelInfoByName?: Record<string, ModelInfo>): ModelInfo {
+	return (
+		clinePassModels[modelId as keyof typeof clinePassModels] ??
+		modelInfoByName?.[getModelSlug(modelId)] ??
+		clinePassModelInfoSaneDefaults
+	)
 }
 
 export const OPENROUTER_PROVIDER_PREFERENCES: Record<string, { order: string[]; allow_fallbacks: boolean }> = {

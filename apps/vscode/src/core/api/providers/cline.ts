@@ -1,4 +1,4 @@
-import { type ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "@shared/api"
+import { clinePassModels, type ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "@shared/api"
 import { shouldSkipReasoningForModel } from "@utils/model-utils"
 import axios from "axios"
 import OpenAI from "openai"
@@ -37,7 +37,10 @@ function normalizeModelId(modelId: string): string {
 	return modelId.trim().toLowerCase()
 }
 
-const CLINE_FREE_MODEL_IDS = new Set(CLINE_RECOMMENDED_MODELS_FALLBACK.free.map((model) => normalizeModelId(model.id)))
+const CLINE_FREE_MODEL_IDS = new Set([
+	...CLINE_RECOMMENDED_MODELS_FALLBACK.free.map((model) => normalizeModelId(model.id)),
+	...Object.keys(clinePassModels).map((modelId) => normalizeModelId(modelId)),
+])
 
 function getCacheReadTokens(usage: any): number {
 	return usage?.prompt_tokens_details?.cached_tokens || usage?.cache_read_input_tokens || 0
@@ -67,7 +70,9 @@ export class ClineHandler implements ApiHandler {
 	private async getFreeModelIdSet(): Promise<Set<string>> {
 		try {
 			const models = await refreshClineRecommendedModels()
-			const freeModelIds = models.free.map((model) => normalizeModelId(model.id)).filter((modelId) => modelId.length > 0)
+			const freeModelIds = [...models.free, ...models.clinePass]
+				.map((model) => normalizeModelId(model.id))
+				.filter((modelId) => modelId.length > 0)
 			if (freeModelIds.length > 0) {
 				return new Set(freeModelIds)
 			}

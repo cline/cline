@@ -11,6 +11,7 @@ import { OnboardingModelGroup, type TerminalProfile } from "@shared/proto/cline/
 import { convertProtoToClineMessage } from "@shared/proto-conversions/cline-message"
 import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
 import { fromProtobufModels } from "@shared/proto-conversions/models/typeConversion"
+import { isClineProvider } from "@shared/utils/cline"
 import type React from "react"
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
 import {
@@ -777,7 +778,8 @@ export const ExtensionStateContextProvider: React.FC<{
 	// Auto-refresh Cline models when provider is cline
 	useEffect(() => {
 		const hasClineProvider =
-			state.apiConfiguration?.actModeApiProvider === "cline" || state.apiConfiguration?.planModeApiProvider === "cline"
+			isClineProvider(state.apiConfiguration?.actModeApiProvider) ||
+			isClineProvider(state.apiConfiguration?.planModeApiProvider)
 		if (hasClineProvider && clineModels === null) {
 			refreshClineModels()
 		}
