@@ -362,10 +362,7 @@ function MarketplaceEntryCard({
 			</p>
 
 			{matchedLocalItems.some((item) => item.renderMatchedDetails) ? (
-				<div
-					className="grid gap-2 rounded-md border bg-muted/20 p-3"
-					data-marketplace-entry-details
-				>
+				<div className="grid gap-2" data-marketplace-entry-details>
 					{matchedLocalItems.map((item) =>
 						item.renderMatchedDetails ? (
 							<div key={item.key}>{item.renderMatchedDetails()}</div>
