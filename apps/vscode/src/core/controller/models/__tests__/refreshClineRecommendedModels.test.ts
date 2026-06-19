@@ -48,7 +48,7 @@ describe("refreshClineRecommendedModels", () => {
 				clinePass: [
 					{
 						id: "cline-pass/glm-5",
-						description: "Remote Cline Pass",
+						description: "Remote ClinePass",
 						tags: ["CLINE_PASS"],
 					},
 				],
@@ -79,7 +79,7 @@ describe("refreshClineRecommendedModels", () => {
 				{
 					id: "cline-pass/glm-5",
 					name: "cline-pass/glm-5",
-					description: "Remote Cline Pass",
+					description: "Remote ClinePass",
 					tags: ["CLINE_PASS"],
 				},
 			],
@@ -114,7 +114,7 @@ describe("refreshClineRecommendedModels", () => {
 				clinePass: [
 					{
 						id: "cline-pass/glm-5",
-						description: "Remote Cline Pass",
+						description: "Remote ClinePass",
 						tags: ["CLINE_PASS"],
 					},
 				],
