@@ -9,14 +9,14 @@ This is a VS Code extension. Read `.clinerules/general.md` for tribal knowledge 
 - **MCP**: `src/services/mcp/McpHub.ts`.
 
 ## Build & Test (Critical — non-obvious commands)
-- **Build**: `npm run compile` — NOT `npm run build`.
-- **Watch**: `npm run watch` (extension + webview).
-- **Protos**: `npm run protos` — run **immediately** after any `.proto` change. Generates into `src/shared/proto/`, `src/generated/`.
-- **Tests**: `npm run test:unit`. After prompt/tool changes: `UPDATE_SNAPSHOTS=true npm run test:unit`.
+- **Build**: `bun run compile` — NOT `bun run build`.
+- **Watch**: `bun run watch` (extension + webview).
+- **Protos**: `bun run protos` — run **immediately** after any `.proto` change. Generates into `src/shared/proto/`, `src/generated/`.
+- **Tests**: `bun run test:unit`. After prompt/tool changes: `UPDATE_SNAPSHOTS=true bun run test:unit`.
 
 ## Protobuf RPC Workflow (4 steps)
 1. **Define** in `proto/cline/*.proto`. Naming: `PascalCaseService`, `camelCase` RPCs, `PascalCase` Messages. Use `common.proto` shared types for simple data.
-2. **Generate**: `npm run protos`.
+2. **Generate**: `bun run protos`.
 3. **Backend handler**: `src/core/controller/<domain>/`. 
 4. **Frontend call**: `UiServiceClient.myMethod(Request.create({...}))`.
 - Adding enums (e.g. `ClineSay`) → also update `src/shared/proto-conversions/cline-message.ts`.
@@ -38,7 +38,7 @@ For Responses API providers: add to `isNextGenModelProvider()` in `src/utils/mod
 4. Whitelist in `src/core/prompts/system-prompt/variants/*/config.ts` for each model family.
 5. Handler in `src/core/task/tools/handlers/`, wire in `ToolExecutor.ts`.
 6. If tool has UI: add `ClineSay` enum in proto → `ExtensionMessage.ts` → `cline-message.ts` → `ChatRow.tsx`.
-7. Regenerate snapshots: `UPDATE_SNAPSHOTS=true npm run test:unit`.
+7. Regenerate snapshots: `UPDATE_SNAPSHOTS=true bun run test:unit`.
 
 ## Modifying System Prompt
 Modular: `components/` (shared) + `variants/` (model-specific) + `templates/` (`{{PLACEHOLDER}}`). Variants override components via `componentOverrides` in `config.ts` or custom `template.ts`. XS variant is heavily condensed inline. Always regenerate snapshots after changes.

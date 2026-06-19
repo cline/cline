@@ -1,8 +1,9 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
 import {
 	type McpServerOAuthState,
+	McpSettingsUpdateSkippedError,
 	resolveDefaultMcpSettingsPath,
+	updateMcpSettingsFileSync,
 } from "@cline/core";
 
 export interface McpServerEntry {
@@ -56,28 +57,6 @@ export function loadServers(): McpServerEntry[] {
 	}
 }
 
-function readRawSettings(): Record<string, unknown> {
-	const path = getSettingsPath();
-	if (!existsSync(path)) return {};
-	try {
-		const raw = readFileSync(path, "utf-8");
-		const parsed = JSON.parse(raw);
-		return parsed && typeof parsed === "object" && !Array.isArray(parsed)
-			? (parsed as Record<string, unknown>)
-			: {};
-	} catch {
-		return {};
-	}
-}
-
-function readRawServers(): Record<string, unknown> {
-	const settings = readRawSettings();
-	const servers = settings.mcpServers;
-	return servers && typeof servers === "object" && !Array.isArray(servers)
-		? { ...(servers as Record<string, unknown>) }
-		: {};
-}
-
 function getOwnServerRecord(
 	servers: Record<string, unknown>,
 	name: string,
@@ -92,62 +71,85 @@ function getOwnServerRecord(
 	return value as Record<string, unknown>;
 }
 
-function writeServers(servers: Record<string, unknown>): void {
-	const path = getSettingsPath();
-	const settings = readRawSettings();
-	mkdirSync(dirname(path), { recursive: true });
-	writeFileSync(
-		path,
-		`${JSON.stringify({ ...settings, mcpServers: servers }, null, 2)}\n`,
-	);
+/**
+ * Mutate the MCP settings file through @cline/core's locked read-update-write
+ * helper. The mutator must be synchronous and pure; the helper may call it more
+ * than once to verify deterministic output. Throw McpSettingsUpdateSkippedError
+ * for normal no-op cases instead of returning a boolean that callers can ignore.
+ */
+function mutateServers(mutate: (servers: Record<string, unknown>) => void): void {
+	updateMcpSettingsFileSync(getSettingsPath(), (settings) => {
+		const serversValue = settings.mcpServers;
+		const servers = serversValue && typeof serversValue === "object" && !Array.isArray(serversValue)
+			? { ...(serversValue as Record<string, unknown>) }
+			: {};
+		mutate(servers);
+		settings.mcpServers = servers;
+	});
 }
 
 export function addServer(name: string, transport: McpTransport): void {
-	const servers = readRawServers();
-	servers[name] = { transport };
-	writeServers(servers);
+	mutateServers((servers) => {
+		servers[name] = { transport };
+	});
 }
 
 export function removeServer(name: string): boolean {
-	const servers = readRawServers();
-	if (!(name in servers)) return false;
-	delete servers[name];
-	writeServers(servers);
-	return true;
+	try {
+		mutateServers((servers) => {
+			if (!(name in servers)) {
+				throw new McpSettingsUpdateSkippedError(`MCP server not found: ${name}`);
+			}
+			delete servers[name];
+		});
+		return true;
+	} catch (error) {
+		if (error instanceof McpSettingsUpdateSkippedError) {
+			return false;
+		}
+		throw error;
+	}
 }
 
 export function updateServer(name: string, transport: McpTransport): void {
-	const servers = readRawServers();
-	const existing =
-		servers[name] && typeof servers[name] === "object"
-			? (servers[name] as Record<string, unknown>)
-			: {};
-	servers[name] = { ...existing, transport };
-	writeServers(servers);
+	mutateServers((servers) => {
+		const existing =
+			servers[name] && typeof servers[name] === "object"
+				? (servers[name] as Record<string, unknown>)
+				: {};
+		servers[name] = { ...existing, transport };
+	});
 }
 
 export function clearServerOAuth(name: string): void {
-	const servers = readRawServers();
-	const existing = getOwnServerRecord(servers, name);
-	if (!existing) {
-		return;
+	try {
+		mutateServers((servers) => {
+			const existing = getOwnServerRecord(servers, name);
+			if (!existing) {
+				throw new McpSettingsUpdateSkippedError(`MCP server not found: ${name}`);
+			}
+			delete existing.oauth;
+			servers[name] = existing;
+		});
+	} catch (error) {
+		if (error instanceof McpSettingsUpdateSkippedError) {
+			return;
+		}
+		throw error;
 	}
-	delete existing.oauth;
-	servers[name] = existing;
-	writeServers(servers);
 }
 
 export function toggleServer(name: string, disabled: boolean): void {
-	const servers = readRawServers();
-	const existing =
-		servers[name] && typeof servers[name] === "object"
-			? (servers[name] as Record<string, unknown>)
-			: {};
-	if (disabled) {
-		existing.disabled = true;
-	} else {
-		delete existing.disabled;
-	}
-	servers[name] = existing;
-	writeServers(servers);
+	mutateServers((servers) => {
+		const existing =
+			servers[name] && typeof servers[name] === "object"
+				? (servers[name] as Record<string, unknown>)
+				: {};
+		if (disabled) {
+			existing.disabled = true;
+		} else {
+			delete existing.disabled;
+		}
+		servers[name] = existing;
+	});
 }
