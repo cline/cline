@@ -23,7 +23,11 @@
  *
  *   2. MCP StreamableHTTP resource server:
  *        POST /mcp             (returns 401 + WWW-Authenticate until authed,
- *                               then a minimal initialize response)
+ *                               then initialize + a `frozzle` tool)
+ *
+ * The `frozzle` tool exists so an eval can prove the OAuth'd MCP round-trip
+ * actually happened: its output is not derivable without calling the tool, so
+ * a correct "frozzle <text>" answer can't be hallucinated. See frozzle().
  *
  * The endpoint shapes match what `@modelcontextprotocol/sdk` v1.25.x discovers
  * (see node_modules/@modelcontextprotocol/sdk/dist/esm/client/auth.js).
@@ -45,7 +49,7 @@
  *
  * Run interactively:
  *   cd apps/vscode
- *   npx tsx src/dev/mcp-oauth-test-server/server.ts --verbose
+ *   bun src/dev/mcp-oauth-test-server/server.ts --verbose
  *
  * Then add an MCP server to Cline pointing at:
  *   http://127.0.0.1:7777/mcp   (type: streamableHttp)
@@ -68,6 +72,18 @@ interface TestServerOptions {
 	codeTtlMs: number
 	slowAuthorizeMs: number
 	verbose: boolean
+	/**
+	 * Number of independent server instances to start. When > 1, each instance
+	 * binds its own OS-assigned random port (the fixed `--port` can't be shared),
+	 * so you can add several distinct MCP servers to Cline at once and exercise
+	 * concurrent OAuth flows.
+	 */
+	instances: number
+	/**
+	 * Bind an OS-assigned random free port instead of the fixed `--port`.
+	 * Implied when `--instances` > 1. Also enabled by passing `--port 0`.
+	 */
+	randomPort: boolean
 }
 
 function parseArgs(argv: string[]): TestServerOptions {
@@ -79,6 +95,8 @@ function parseArgs(argv: string[]): TestServerOptions {
 		codeTtlMs: 10 * 60 * 1000,
 		slowAuthorizeMs: 0,
 		verbose: false,
+		instances: 1,
+		randomPort: false,
 	}
 	for (let i = 0; i < argv.length; i++) {
 		const arg = argv[i]
@@ -98,6 +116,13 @@ function parseArgs(argv: string[]): TestServerOptions {
 			case "--slow-authorize":
 				opts.slowAuthorizeMs = Number(argv[++i])
 				break
+			case "--instances":
+				opts.instances = Number(argv[++i])
+				break
+			case "--random-port":
+			case "--random-ports":
+				opts.randomPort = true
+				break
 			case "--verbose":
 			case "-v":
 				opts.verbose = true
@@ -115,22 +140,45 @@ function parseArgs(argv: string[]): TestServerOptions {
 		console.error("Cannot set both --auto-approve and --auto-deny")
 		process.exit(1)
 	}
+	if (!Number.isInteger(opts.instances) || opts.instances < 1) {
+		console.error(`--instances must be a positive integer (got ${opts.instances})`)
+		process.exit(1)
+	}
+	// `--port 0` is a conventional request for an OS-assigned random port.
+	if (opts.port === 0) {
+		opts.randomPort = true
+	}
+	// Multiple instances can't share one fixed port, so each gets a random one.
+	if (opts.instances > 1) {
+		opts.randomPort = true
+	}
 	return opts
 }
 
 function printUsageAndExit(code = 0): never {
 	console.log(`MCP OAuth Test Server
 
-Usage: npx tsx src/dev/mcp-oauth-test-server/server.ts [options]
+Usage: bun src/dev/mcp-oauth-test-server/server.ts [options]
 
 Options:
-  --port <n>            Port to listen on (default 7777)
+  --port <n>            Port to listen on (default 7777; 0 = OS-assigned random)
+  --random-port         Bind an OS-assigned random free port instead of --port
+  --instances <n>       Start N independent servers, each on its own random
+                        port (implies --random-port). Use to add several MCP
+                        servers to Cline at once.
   --auto-approve        Always approve authorization (no consent screen)
   --auto-deny           Always deny authorization (simulate "Deny" click)
   --code-ttl <ms>       Authorization code lifetime (default 600000)
   --slow-authorize <ms> Delay /authorize response by <ms>
   --verbose, -v         Log every request
   --help, -h            Show this help
+
+Examples:
+  # Single server on the default fixed port
+  bun src/dev/mcp-oauth-test-server/server.ts --verbose
+
+  # Three servers on random ports, to test adding multiple at once
+  bun src/dev/mcp-oauth-test-server/server.ts --instances 3 --verbose
 `)
 	process.exit(code)
 }
@@ -172,13 +220,31 @@ class TestServer {
 	private readonly authCodes = new Map<string, PendingAuthCode>()
 	private readonly refreshTokens = new Map<string, IssuedToken>()
 	private server: http.Server | null = null
+	/**
+	 * The port actually bound. Differs from `opts.port` when `randomPort` is
+	 * set (the OS assigns it), and is the value every absolute URL we emit
+	 * (discovery metadata, redirect targets, the /mcp resource id) must use —
+	 * otherwise the SDK's redirect_uri / resource checks fail.
+	 */
+	private boundPort = 0
 
 	constructor(opts: TestServerOptions) {
 		this.opts = opts
+		this.boundPort = opts.port
 	}
 
 	private get baseUrl(): string {
-		return `http://${this.opts.host}:${this.opts.port}`
+		return `http://${this.opts.host}:${this.boundPort}`
+	}
+
+	/** The port this server is actually listening on (resolved after start). */
+	get port(): number {
+		return this.boundPort
+	}
+
+	/** The MCP StreamableHTTP endpoint clients should connect to. */
+	get mcpEndpoint(): string {
+		return `${this.baseUrl}/mcp`
 	}
 
 	private log(...args: unknown[]): void {
@@ -187,21 +253,35 @@ class TestServer {
 		}
 	}
 
-	start(): void {
-		this.server = http.createServer((req, res) => {
-			this.handleRequest(req, res).catch((err) => {
-				console.error("[mcp-oauth-test] Unhandled error:", err)
-				if (!res.headersSent) {
-					this.json(res, 500, { error: "server_error", error_description: String(err) })
-				}
+	/**
+	 * Start listening. Resolves once bound, so callers can read `.port`
+	 * (important when binding an OS-assigned random port).
+	 */
+	start(): Promise<void> {
+		return new Promise((resolve, reject) => {
+			this.server = http.createServer((req, res) => {
+				this.handleRequest(req, res).catch((err) => {
+					console.error("[mcp-oauth-test] Unhandled error:", err)
+					if (!res.headersSent) {
+						this.json(res, 500, { error: "server_error", error_description: String(err) })
+					}
+				})
 			})
-		})
-		this.server.listen(this.opts.port, this.opts.host, () => {
-			console.log(`MCP OAuth Test Server listening on ${this.baseUrl}`)
-			console.log(`  MCP endpoint:   ${this.baseUrl}/mcp  (type: streamableHttp)`)
-			console.log(`  Authorize page: ${this.baseUrl}/authorize`)
-			const mode = this.opts.autoApprove ? "auto-approve" : this.opts.autoDeny ? "auto-deny" : "interactive consent"
-			console.log(`  Mode: ${mode}, code TTL: ${this.opts.codeTtlMs}ms`)
+			this.server.once("error", reject)
+			// `randomPort` → listen on 0 so the OS assigns a free port.
+			const listenPort = this.opts.randomPort ? 0 : this.opts.port
+			this.server.listen(listenPort, this.opts.host, () => {
+				const address = this.server?.address()
+				if (address && typeof address === "object") {
+					this.boundPort = address.port
+				}
+				console.log(`MCP OAuth Test Server listening on ${this.baseUrl}`)
+				console.log(`  MCP endpoint:   ${this.baseUrl}/mcp  (type: streamableHttp)`)
+				console.log(`  Authorize page: ${this.baseUrl}/authorize`)
+				const mode = this.opts.autoApprove ? "auto-approve" : this.opts.autoDeny ? "auto-deny" : "interactive consent"
+				console.log(`  Mode: ${mode}, code TTL: ${this.opts.codeTtlMs}ms`)
+				resolve()
+			})
 		})
 	}
 
@@ -500,6 +580,62 @@ class TestServer {
 				},
 			})
 		}
+
+		// Advertise the `frozzle` tool. Its description deliberately does NOT
+		// reveal what frozzling does, so a model cannot fabricate the result —
+		// the only way to produce a correct answer is to actually call the tool
+		// over MCP. This makes it a reliable end-to-end signal that the OAuth'd
+		// MCP connection works (vs. the model hallucinating an answer).
+		if (body?.method === "tools/list") {
+			return this.json(res, 200, {
+				jsonrpc: "2.0",
+				id,
+				result: {
+					tools: [
+						{
+							name: "frozzle",
+							description:
+								"Frozzle the given text and return its frozzled form. " +
+								"The frozzling transform is defined solely by this server; " +
+								"there is no way to compute the result without calling this tool.",
+							inputSchema: {
+								type: "object",
+								properties: {
+									text: { type: "string", description: "The text to frozzle." },
+								},
+								required: ["text"],
+							},
+						},
+					],
+				},
+			})
+		}
+
+		if (body?.method === "tools/call") {
+			const params = (body?.params ?? {}) as { name?: string; arguments?: Record<string, unknown> }
+			if (params.name === "frozzle") {
+				const text = typeof params.arguments?.text === "string" ? params.arguments.text : ""
+				const frozzled = frozzle(text)
+				this.log(`frozzle(${JSON.stringify(text)}) -> ${JSON.stringify(frozzled)}`)
+				return this.json(res, 200, {
+					jsonrpc: "2.0",
+					id,
+					result: {
+						content: [{ type: "text", text: frozzled }],
+					},
+				})
+			}
+			// Unknown tool.
+			return this.json(res, 200, {
+				jsonrpc: "2.0",
+				id,
+				result: {
+					isError: true,
+					content: [{ type: "text", text: `Unknown tool: ${String(params.name)}` }],
+				},
+			})
+		}
+
 		// Any other method: empty-ish OK so the SDK doesn't error out.
 		return this.json(res, 200, { jsonrpc: "2.0", id, result: {} })
 	}
@@ -604,6 +740,37 @@ function base64UrlSha256(input: string): string {
 	return crypto.createHash("sha256").update(input).digest("base64url")
 }
 
+/**
+ * The "frozzle" transform exposed by the test server's MCP `frozzle` tool.
+ *
+ * The point of frozzling is that it is arbitrary and non-obvious: a model
+ * cannot guess or compute the result without actually calling the tool over
+ * the (OAuth-authenticated) MCP connection. So when an eval asks the agent to
+ * "frozzle <text>" and checks the answer, a correct result is proof the MCP
+ * round-trip really happened — not a hallucination.
+ *
+ * It is nonetheless deterministic, easy to verify at a glance, and invertible:
+ * reverse the string and swap the case of each letter (upper<->lower), then
+ * wrap in « » markers. e.g. frozzle("Hello") === "«OLLEh»".
+ */
+export function frozzle(text: string): string {
+	const swapped = [...text]
+		.reverse()
+		.map((ch) => {
+			const lower = ch.toLowerCase()
+			const upper = ch.toUpperCase()
+			if (ch === lower && ch !== upper) {
+				return upper // lowercase -> uppercase
+			}
+			if (ch === upper && ch !== lower) {
+				return lower // uppercase -> lowercase
+			}
+			return ch // non-letters unchanged
+		})
+		.join("")
+	return `«${swapped}»`
+}
+
 function asString(value: unknown): string | undefined {
 	return typeof value === "string" ? value : undefined
 }
@@ -620,18 +787,58 @@ function delay(ms: number): Promise<void> {
 // Entry point
 // ---------------------------------------------------------------------------
 
-export { parseArgs, TestServer, type TestServerOptions }
+export { buildSettingsFragment, parseArgs, TestServer, type TestServerOptions }
+
+/**
+ * Build a paste-ready `mcpServers` fragment for cline_mcp_settings.json from a
+ * set of running test-server endpoints.
+ *
+ * Uses the nested `transport` shape the CLI/SDK writes (and the extension also
+ * accepts), so the output can be dropped straight into the settings file. When
+ * there are multiple endpoints the names are suffixed (`oauth-test-1`, …) since
+ * OAuth state is keyed by server name — distinct names get independent tokens.
+ */
+function buildSettingsFragment(endpoints: string[]): string {
+	const mcpServers: Record<string, unknown> = {}
+	endpoints.forEach((endpoint, index) => {
+		const name = endpoints.length === 1 ? "oauth-test" : `oauth-test-${index + 1}`
+		mcpServers[name] = {
+			transport: {
+				type: "streamableHttp",
+				url: endpoint,
+			},
+		}
+	})
+	return JSON.stringify({ mcpServers }, null, 2)
+}
 
 // Only auto-start when run directly (so this module can be imported by the
 // debug harness later without spawning a server).
 const isMain = process.argv[1] && /mcp-oauth-test-server[/\\]server\.(ts|js)$/.test(process.argv[1])
 if (isMain) {
 	const opts = parseArgs(process.argv.slice(2))
-	const server = new TestServer(opts)
-	server.start()
+	const servers: TestServer[] = []
+
+	void (async () => {
+		for (let i = 0; i < opts.instances; i++) {
+			const server = new TestServer(opts)
+			await server.start()
+			servers.push(server)
+		}
+		if (opts.instances > 1) {
+			console.log(`\nStarted ${opts.instances} MCP OAuth test servers.`)
+		}
+		// Emit a paste-ready settings fragment so you don't have to hand-write
+		// the JSON (handy with random ports / multiple instances).
+		console.log("\nPaste into ~/.cline/data/settings/cline_mcp_settings.json (merge under mcpServers):\n")
+		console.log(buildSettingsFragment(servers.map((server) => server.mcpEndpoint)))
+	})()
+
 	process.on("SIGINT", () => {
 		console.log("\nShutting down...")
-		server.stop()
+		for (const server of servers) {
+			server.stop()
+		}
 		process.exit(0)
 	})
 }

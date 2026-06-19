@@ -1,4 +1,4 @@
-#!/usr/bin/env npx tsx
+#!/usr/bin/env bun
 
 /**
  * Debug Harness Server
@@ -331,10 +331,10 @@ class DebugHarness {
 		if (!opts.skipBuild && !SKIP_BUILD) {
 			log("Building extension (unminified, with sourcemaps)...")
 			const execOpts: ExecSyncOptions = { cwd: PROJECT_ROOT, stdio: "inherit", env: { ...process.env, IS_DEV: "true" } }
-			execSync("npm run protos", execOpts)
-			execSync("node esbuild.mjs", execOpts)
+			execSync("bun run protos", execOpts)
+			execSync("bun esbuild.mjs", execOpts)
 			log("Building webview (unminified, with inline sourcemaps)...")
-			execSync("cd webview-ui && npx vite build -- --dev-build", execOpts)
+			execSync("cd webview-ui && bunx vite build -- --dev-build", execOpts)
 		}
 
 		// Verify build output exists
