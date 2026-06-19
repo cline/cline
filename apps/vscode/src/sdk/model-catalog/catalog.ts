@@ -1,5 +1,9 @@
-import { type ModelCatalogConfig, resolveProviderConfig } from "@cline/core"
-import { getAllProviders, type ProviderConfig, type ProviderInfo, resolveProviderUsageCostDisplay } from "@cline/llms"
+import { listLocalProviders, type ModelCatalogConfig, resolveProviderConfig } from "@cline/core"
+import { type ProviderConfig, resolveProviderUsageCostDisplay } from "@cline/llms"
+import { type ProviderListItem } from "@cline/shared"
+import { getFeatureFlagsService } from "@/services/feature-flags"
+import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
+import { getProviderSettingsManager } from "../provider-migration"
 import type {
 	CatalogError,
 	Disposable,
@@ -185,7 +189,7 @@ function optionalNonEmpty(value: string | undefined): string | undefined {
 	return trimmed ? trimmed : undefined
 }
 
-function toProviderListing(provider: ProviderInfo): ProviderListing {
+function toProviderListing(provider: ProviderListItem): ProviderListing {
 	return {
 		id: parseProviderId(provider.id),
 		name: provider.name,
@@ -194,7 +198,7 @@ function toProviderListing(provider: ProviderInfo): ProviderListing {
 		// ProviderListing intentionally does not include full model-list data.
 		// Reuse the lightweight description slot until the RPC-facing picker
 		// contract decides whether it needs a generic provider description field.
-		authDescription: optionalNonEmpty(provider.description),
+		authDescription: optionalNonEmpty(provider.authDescription),
 		// The SDK has the right signal for this on each provider (e.g.
 		// `modelsSourceUrl` for ollama/lmstudio, or the `openai-compatible`
 		// family with no curated catalog), but does not yet expose it
@@ -206,7 +210,10 @@ function toProviderListing(provider: ProviderInfo): ProviderListing {
 }
 
 function listSdkProviderListings(): Promise<ReadonlyArray<ProviderListing>> {
-	return getAllProviders().then((providers) => providers.map(toProviderListing))
+	const manager = getProviderSettingsManager()
+	return listLocalProviders(manager, {
+		isClinePassEnabled: getFeatureFlagsService().getBooleanFlagEnabled(FeatureFlag.CLINE_PASS),
+	}).then(({ providers }) => providers.map(toProviderListing))
 }
 
 async function resolveSdkModels(
