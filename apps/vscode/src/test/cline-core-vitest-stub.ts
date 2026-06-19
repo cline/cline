@@ -151,6 +151,50 @@ export class ProviderSettingsManager {
 	}
 }
 
+const WORKOS_TOKEN_PREFIX = "workos:"
+
+export function getProviderAuthStorageId(providerId: string): string | undefined {
+	const normalized = providerId.trim().toLowerCase()
+	if (normalized === "cline" || normalized === "cline-pass") {
+		return "cline"
+	}
+	if (normalized === "oca" || normalized === "openai-codex") {
+		return normalized
+	}
+	return undefined
+}
+
+function formatClineApiKey(accessToken: string): string {
+	const token = accessToken.trim()
+	return token.toLowerCase().startsWith(WORKOS_TOKEN_PREFIX) ? token : `${WORKOS_TOKEN_PREFIX}${token}`
+}
+
+export function getProviderAuthHandler(providerId: string) {
+	const storageProviderId = getProviderAuthStorageId(providerId)
+	if (!storageProviderId) {
+		return undefined
+	}
+	return {
+		providerId,
+		storageProviderId,
+		getApiKey(settings: Record<string, unknown> | undefined): string | undefined {
+			const auth = settings?.auth as { accessToken?: string; apiKey?: string } | undefined
+			const accessToken = auth?.accessToken?.trim()
+			if (accessToken) {
+				return storageProviderId === "cline" ? formatClineApiKey(accessToken) : accessToken
+			}
+			return (settings?.apiKey as string | undefined)?.trim() || auth?.apiKey?.trim() || undefined
+		},
+	}
+}
+
+export function resolveProviderApiKeyFromSettings(manager: ProviderSettingsManager, providerId: string): string | undefined {
+	const handler = getProviderAuthHandler(providerId)
+	const storageProviderId = handler?.storageProviderId ?? providerId
+	const settings = manager.getProviderSettings(storageProviderId)
+	return handler?.getApiKey(settings) ?? ((settings?.apiKey as string | undefined)?.trim() || undefined)
+}
+
 export interface ModelCatalogConfig {
 	loadLatestOnInit?: boolean
 	loadPrivateOnAuth?: boolean

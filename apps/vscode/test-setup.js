@@ -77,6 +77,38 @@ Module.prototype.require = function (id) {
 			saveProviderSettings(_settings, _options) {}
 		}
 
+		const getProviderAuthStorageId = (providerId) => {
+			const normalized = String(providerId || "")
+				.trim()
+				.toLowerCase()
+			if (normalized === "cline" || normalized === "cline-pass") return "cline"
+			if (normalized === "oca" || normalized === "openai-codex") return normalized
+			return undefined
+		}
+		const formatClineApiKey = (token) => {
+			const trimmed = String(token || "").trim()
+			return trimmed.toLowerCase().startsWith("workos:") ? trimmed : `workos:${trimmed}`
+		}
+		const getProviderAuthHandler = (providerId) => {
+			const storageProviderId = getProviderAuthStorageId(providerId)
+			if (!storageProviderId) return undefined
+			return {
+				providerId,
+				storageProviderId,
+				getApiKey(settings) {
+					const accessToken = settings?.auth?.accessToken?.trim?.()
+					if (accessToken) return storageProviderId === "cline" ? formatClineApiKey(accessToken) : accessToken
+					return settings?.apiKey?.trim?.() || settings?.auth?.apiKey?.trim?.() || undefined
+				},
+			}
+		}
+		const resolveProviderApiKeyFromSettings = (manager, providerId) => {
+			const handler = getProviderAuthHandler(providerId)
+			const storageProviderId = handler?.storageProviderId ?? providerId
+			const settings = manager.getProviderSettings(storageProviderId)
+			return handler?.getApiKey(settings) ?? settings?.apiKey?.trim?.()
+		}
+
 		return {
 			createClineTelemetryServiceConfig: (config = {}) => ({
 				enabled: false,
@@ -158,6 +190,9 @@ Module.prototype.require = function (id) {
 			createDefaultExecutors: () => ({}),
 			createMcpTools: () => ({}),
 			createOAuthClientCallbacks: () => ({}),
+			getProviderAuthHandler,
+			getProviderAuthStorageId,
+			resolveProviderApiKeyFromSettings,
 			getValidClineCredentials: async () => undefined,
 			loginClineOAuth: async () => undefined,
 			loginOcaOAuth: async () => undefined,

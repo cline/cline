@@ -1,3 +1,4 @@
+import { getProviderAuthStorageId } from "@cline/core"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@shared/ClineAccount"
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
@@ -16,6 +17,10 @@ import type { VscodeSessionHost } from "./vscode-session-host"
 type StartInput = Parameters<VscodeSessionHost["start"]>[0]
 type InitialMessages = StartInput["initialMessages"]
 type SessionConfig = Awaited<ReturnType<SdkSessionConfigBuilder["build"]>>
+
+function usesClineAccountAuth(providerId: string): boolean {
+	return getProviderAuthStorageId(providerId) === "cline"
+}
 
 export interface SdkTaskStartCoordinatorOptions {
 	stateManager: StateManager
@@ -80,8 +85,10 @@ export class SdkTaskStartCoordinator {
 				`[SdkController] Session config: provider=${config.providerId}, model=${config.modelId}, hasApiKey=${!!config.apiKey}`,
 			)
 
-			if (config.providerId === "cline" && !config.apiKey) {
-				Logger.warn("[SdkController] Cline provider selected but no auth token — emitting auth error")
+			if (usesClineAccountAuth(config.providerId) && !config.apiKey) {
+				Logger.warn(
+					`[SdkController] ${config.providerId} provider selected but no Cline auth token — emitting auth error`,
+				)
 				this.options.emitClineAuthError(prompt)
 				return undefined
 			}
