@@ -42,6 +42,7 @@ import {
 	isOAuthProvider,
 	normalizeProviderId,
 } from "./utils/provider-auth";
+import { resolveCliReasoning } from "./utils/reasoning";
 import { rewriteTeamPrompt, TEAM_COMMAND_USAGE } from "./utils/team-command";
 import {
 	captureCliExtensionActivated,
@@ -998,46 +999,12 @@ export async function runCli(): Promise<void> {
 			);
 		}
 		const knownModelIds = knownModels ? Object.keys(knownModels) : [];
-		const persistedReasoning = selectedProviderSettings?.reasoning;
-		const persistedReasoningEffort = persistedReasoning?.effort;
-		const explicitReasoningEffort =
-			args.reasoningEffort === "low" ||
-			args.reasoningEffort === "medium" ||
-			args.reasoningEffort === "high" ||
-			args.reasoningEffort === "xhigh"
-				? args.reasoningEffort
-				: undefined;
-		const persistedActiveReasoningEffort =
-			persistedReasoningEffort === "low" ||
-			persistedReasoningEffort === "medium" ||
-			persistedReasoningEffort === "high" ||
-			persistedReasoningEffort === "xhigh"
-				? persistedReasoningEffort
-				: undefined;
-		const resolvedReasoning = args.thinkingExplicitlySet
-			? {
-					thinking: args.thinking,
-					reasoningEffort: explicitReasoningEffort,
-				}
-			: persistedReasoning?.enabled === false
-				? {
-						thinking: false,
-						reasoningEffort: undefined,
-					}
-				: persistedActiveReasoningEffort
-					? {
-							thinking: true,
-							reasoningEffort: persistedActiveReasoningEffort,
-						}
-					: persistedReasoning?.enabled === true
-						? {
-								thinking: true,
-								reasoningEffort: "medium" as const,
-							}
-						: {
-								thinking: undefined,
-								reasoningEffort: undefined,
-							};
+		const resolvedReasoning = resolveCliReasoning({
+			thinking: args.thinking,
+			thinkingExplicitlySet: args.thinkingExplicitlySet,
+			reasoningEffort: args.reasoningEffort,
+			persistedReasoning: selectedProviderSettings?.reasoning,
+		});
 		const { createCliLoggerAdapter } = await import("./logging/adapter");
 		const loggerAdapter = createCliLoggerAdapter({
 			runtime: "cli",
