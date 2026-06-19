@@ -9,6 +9,7 @@ import * as os from "node:os"
 import * as path from "node:path"
 import {
 	createUserInstructionConfigService,
+	getProviderAuthStorageId,
 	type PreparedRemoteConfigCoreIntegration,
 	type SessionHistoryRecord,
 	setTelemetryOptOutGlobally,
@@ -89,6 +90,10 @@ function stubWarn(name: string): void {
 function metadataNumber(metadata: SessionHistoryRecord["metadata"] | undefined, key: string): number | undefined {
 	const value = metadata?.[key]
 	return typeof value === "number" && Number.isFinite(value) ? value : undefined
+}
+
+function usesClineAccountAuth(providerId: string): boolean {
+	return getProviderAuthStorageId(providerId) === "cline"
 }
 
 function metadataBoolean(metadata: SessionHistoryRecord["metadata"] | undefined, key: string): boolean | undefined {
@@ -1060,7 +1065,7 @@ export class Controller {
 		const cwd = await this.getWorkspaceRoot()
 		const mode = this.stateManager.getGlobalSettingsKey("mode") === "plan" ? "plan" : "act"
 		const config = await this.sessionConfigBuilder.build({ cwd, mode, prompt: historyTitle })
-		if (config.providerId === "cline" && !config.apiKey) {
+		if (usesClineAccountAuth(config.providerId) && !config.apiKey) {
 			this.emitClineAuthError(editedText)
 			return
 		}

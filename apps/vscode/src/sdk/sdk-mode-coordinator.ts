@@ -1,3 +1,4 @@
+import { getProviderAuthStorageId } from "@cline/core"
 import type { ChatContent } from "@shared/ChatContent"
 import type { ClineMessage, TurnPhase } from "@shared/ExtensionMessage"
 import type { Mode } from "@shared/storage/types"
@@ -14,6 +15,10 @@ import type { VscodeSessionHost } from "./vscode-session-host"
 type StartInput = Parameters<VscodeSessionHost["start"]>[0]
 type InitialMessages = StartInput["initialMessages"]
 type SessionConfig = Awaited<ReturnType<SdkSessionConfigBuilder["build"]>>
+
+function usesClineAccountAuth(providerId: string): boolean {
+	return getProviderAuthStorageId(providerId) === "cline"
+}
 
 export const ACT_MODE_CONTINUATION_PROMPT = "The user approved switching to act mode. Continue with the approved plan now."
 
@@ -204,9 +209,9 @@ export class SdkModeCoordinator {
 			)
 			config.sessionId = oldSessionId
 
-			if (config.providerId === "cline" && !config.apiKey) {
+			if (usesClineAccountAuth(config.providerId) && !config.apiKey) {
 				Logger.warn(
-					`[SdkController] Mode rebuild: new mode '${newMode}' provider is 'cline' but no auth token - emitting auth error`,
+					`[SdkController] Mode rebuild: new mode '${newMode}' provider is '${config.providerId}' but no Cline auth token - emitting auth error`,
 				)
 				// The session still runs with the old mode's tools, so roll the
 				// setting back to keep the UI toggle coherent with it.
