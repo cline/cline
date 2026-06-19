@@ -35,8 +35,8 @@ export const DEFAULT_MAX_TOTAL_TEXT_BYTES = 6_000_000;
 export const DEFAULT_MAX_ASSISTANT_TEXT_CHARS = 200_000;
 export const DEFAULT_MAX_ASSISTANT_TOOL_MARKUP_CHARS = 12_000;
 // Batch stale-read rewrites to avoid breaking provider prefix caches on every re-read.
-// 128KB is roughly 2-3 executor-capped reads; set to 0 for eager rewriting.
-export const DEFAULT_MIN_OUTDATED_REWRITE_BYTES = 131_072;
+// 64KB is roughly 8 provider-capped read results; set to 0 for eager rewriting.
+export const DEFAULT_MIN_OUTDATED_REWRITE_BYTES = 65_536;
 const MIN_TOTAL_BUDGET_TOOL_RESULT_BYTES = 2_000;
 const MIN_TOTAL_BUDGET_ASSISTANT_TEXT_BYTES = 40_000;
 const REPEATED_TOOL_CALL_MARKUP_THRESHOLD = 8;
