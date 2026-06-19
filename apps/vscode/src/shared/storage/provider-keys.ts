@@ -4,11 +4,18 @@ import { getProviderCollectionSync } from "@cline/llms"
 import { SettingsKey } from "@shared/storage/state-keys"
 import { toSdkProviderId } from "@/sdk/model-catalog/sdk-provider-id"
 import { toLegacyApiProvider } from "@/shared/model-catalog/provider-helpers"
-import { type ApiProvider, liteLlmDefaultModelId, openRouterDefaultModelId, requestyDefaultModelId } from "../api"
+import {
+	type ApiProvider,
+	clinePassDefaultModelId,
+	liteLlmDefaultModelId,
+	openRouterDefaultModelId,
+	requestyDefaultModelId,
+} from "../api"
 
 const ProviderKeyMap: Partial<Record<ApiProvider, string>> = {
 	openrouter: "OpenRouterModelId",
 	cline: "ClineModelId",
+	"cline-pass": "ClinePassModelId",
 	openai: "OpenAiModelId",
 	ollama: "OllamaModelId",
 	lmstudio: "LmStudioModelId",
@@ -42,6 +49,7 @@ const ProviderKeyMap: Partial<Record<ApiProvider, string>> = {
 const NON_SDK_PROVIDER_DEFAULTS: Partial<Record<ApiProvider, string>> = {
 	openrouter: openRouterDefaultModelId,
 	cline: openRouterDefaultModelId,
+	"cline-pass": clinePassDefaultModelId,
 	together: openRouterDefaultModelId,
 	aihubmix: openRouterDefaultModelId,
 	"vercel-ai-gateway": openRouterDefaultModelId,

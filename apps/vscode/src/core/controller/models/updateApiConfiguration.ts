@@ -138,14 +138,14 @@ export async function updateApiConfiguration(controller: Controller, request: Up
 			controller.stateManager.setSecretsBatch(secrets)
 		}
 		if (Object.keys(options).length > 0) {
-		controller.stateManager.setGlobalStateBatch(
-			normalizeProviderSwitchModel(
-				controller.getProviderConfigStore(),
-				controller.stateManager.getApiConfiguration(),
-				options,
-			),
-		)
-		await clearOrganizationForClinePassProviderSelection(controller, controller.stateManager.getApiConfiguration())
+			controller.stateManager.setGlobalStateBatch(
+				normalizeProviderSwitchModel(
+					controller.getProviderConfigStore(),
+					controller.stateManager.getApiConfiguration(),
+					options,
+				),
+			)
+			await clearOrganizationForClinePassProviderSelection(controller, controller.stateManager.getApiConfiguration())
 		}
 
 		// Update the task's API model shim if there's an active task
