@@ -39,10 +39,10 @@ export type CustomizationSection =
 const sectionDescriptions: Record<CustomizationSection, string> = {
 	Rules: "Review project and global rule files that shape Cline behavior.",
 	Hooks: "Inspect hook configuration and recent execution status.",
-	MCP: "Manage installed MCP servers and add new servers from the catalog.",
-	Skills: "Manage installed skills and add new skills from the catalog.",
+	MCP: "Manage installed MCP servers and add new servers from the marketplace.",
+	Skills: "Manage installed skills and add new skills from the marketplace.",
 	Agents: "Review configured agents discovered from local settings.",
-	Plugins: "Manage installed plugins and add new plugins from the catalog.",
+	Plugins: "Manage installed plugins and add new plugins from the marketplace.",
 	Tools: "Inspect built-in tools and tools contributed by plugins.",
 };
 

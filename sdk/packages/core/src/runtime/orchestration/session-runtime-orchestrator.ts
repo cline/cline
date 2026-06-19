@@ -53,7 +53,10 @@ import {
 	resolveKnownModelsFromConfig,
 } from "../../services/llms/handler-factory";
 import { CLINE_INTERNAL_TELEMETRY_METADATA_KEY } from "../../services/telemetry/tool-context";
-import { MessageBuilder } from "../../session/services/message-builder";
+import {
+	getMessageBuilderOptionsFromEnv,
+	MessageBuilder,
+} from "../../session/services/message-builder";
 import { ConversationStore } from "../../session/stores/conversation-store";
 import {
 	agentMessagesToMessages,
@@ -374,7 +377,7 @@ export class SessionRuntime {
 			deps.createAgentRuntimeImpl ?? createAgentRuntime;
 
 		this.conversation = new ConversationStore(config.initialMessages);
-		this.messageBuilder = new MessageBuilder();
+		this.messageBuilder = new MessageBuilder(getMessageBuilderOptionsFromEnv());
 		this.contributionRegistry = createContributionRegistry<
 			AgentExtension,
 			AgentTool,

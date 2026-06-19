@@ -17,6 +17,7 @@ export type MarketplaceEntry = {
 	id: string;
 	type: MarketplacePrimitiveType;
 	name: string;
+	featured?: boolean;
 	tagline: string;
 	description: string;
 	tags: string[];
@@ -100,7 +101,7 @@ export async function fetchMarketplaceCatalog(): Promise<MarketplaceCatalog> {
 		headers: { Accept: "application/json" },
 	});
 	if (!response.ok) {
-		throw new Error(`Failed to fetch marketplace catalog: ${response.status}`);
+		throw new Error(`Failed to fetch marketplace: ${response.status}`);
 	}
 	const data = await response.json();
 	const baseUrl = typeof data?.baseUrl === "string" ? data.baseUrl : undefined;
@@ -152,6 +153,10 @@ export async function fetchMarketplaceCatalog(): Promise<MarketplaceCatalog> {
 						id: candidate.id,
 						type: candidate.type,
 						name: candidate.name,
+						featured:
+							typeof candidate.featured === "boolean"
+								? candidate.featured
+								: undefined,
 						tagline: candidate.tagline,
 						description: candidate.description,
 						tags: toStringArray(candidate.tags),
