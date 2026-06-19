@@ -53,6 +53,7 @@ const KNOWN_API_PROVIDERS = {
 	hicap: true,
 	nousResearch: true,
 	wandb: true,
+	"cline-pass": true,
 } satisfies Record<ApiProvider, true>
 
 const normalizeProviderId = (raw: string): string => raw.trim().toLowerCase()

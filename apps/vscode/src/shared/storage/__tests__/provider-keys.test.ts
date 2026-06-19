@@ -51,5 +51,4 @@ describe("Provider key mapping", () => {
 		expect(getProviderDefaultModelId("nousresearch")).to.equal(expectedDefault)
 		expect(expectedDefault).not.to.equal("")
 	})
-	})
 })
