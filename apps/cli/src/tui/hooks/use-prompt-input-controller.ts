@@ -1,4 +1,5 @@
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { formatCliErrorMessage } from "../../utils/cline-pass-errors";
 import { shouldShowCliUsageCost } from "../../utils/usage-cost-display";
 import type { SlashCommandRegistry } from "../commands/slash-command-registry";
 import {
@@ -376,7 +377,7 @@ export function usePromptInputController(input: {
 				if (!turnErrorReportedRef.current) {
 					session.appendEntry({
 						kind: "error",
-						text: error instanceof Error ? error.message : String(error),
+						text: formatCliErrorMessage(error),
 					});
 				}
 			} finally {

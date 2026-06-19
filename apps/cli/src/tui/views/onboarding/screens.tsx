@@ -20,7 +20,7 @@ import {
 import { useTerminalBackground } from "../../hooks/use-terminal-background";
 import { getDefaultForeground, palette } from "../../palette";
 import { FIELD_ORDER } from "./fields";
-import { MAIN_MENU, THINKING_LEVELS } from "./model";
+import { type MenuOption, THINKING_LEVELS } from "./model";
 
 type MouseTrackerState = ReturnType<typeof useMouseTracker>;
 
@@ -633,6 +633,7 @@ export function OnboardingThinkingLevelScreen(props: {
 
 export function OnboardingMainMenuScreen(props: {
 	contentWidth: number;
+	menuOptions: MenuOption[];
 	menuSelected: number;
 	mouse: MouseTrackerState;
 }) {
@@ -671,7 +672,7 @@ export function OnboardingMainMenuScreen(props: {
 				marginTop={1}
 				gap={0}
 			>
-				{MAIN_MENU.map((option, i) => {
+				{props.menuOptions.map((option, i) => {
 					const isSel = i === props.menuSelected;
 					return (
 						<box

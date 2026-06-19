@@ -114,6 +114,7 @@ const telemetryMocks = vi.hoisted(() => ({
 }));
 const featureFlagMocks = vi.hoisted(() => ({
 	getBooleanFlagEnabled: vi.fn(() => false),
+	setCliFeatureFlagsAccountContext: vi.fn(),
 }));
 
 function forcePromptModeInput() {
@@ -179,6 +180,8 @@ vi.mock("./utils/feature-flags", () => ({
 		getBooleanFlagEnabled: featureFlagMocks.getBooleanFlagEnabled,
 	}),
 	refreshCliFeatureFlagsInBackground: vi.fn(),
+	setCliFeatureFlagsAccountContext:
+		featureFlagMocks.setCliFeatureFlagsAccountContext,
 }));
 vi.mock("./runtime/prompt", () => ({
 	resolveSystemPrompt: promptMocks.resolveSystemPrompt,
@@ -252,6 +255,9 @@ describe("runCli lightweight command dispatch", () => {
 		providerSettingsMocks.getProviderSettings.mockReset();
 		providerSettingsMocks.getProviderSettings.mockReturnValue(undefined);
 		providerSettingsMocks.saveProviderSettings.mockReset();
+		featureFlagMocks.getBooleanFlagEnabled.mockReset();
+		featureFlagMocks.getBooleanFlagEnabled.mockReturnValue(false);
+		featureFlagMocks.setCliFeatureFlagsAccountContext.mockReset();
 		kanbanMocks.launchKanban.mockReset();
 		kanbanMocks.launchKanban.mockResolvedValue(0);
 		dashboardMocks.runDashboardCommand.mockReset();
@@ -408,6 +414,61 @@ describe("runCli lightweight command dispatch", () => {
 		await expect(runCli()).resolves.toBeUndefined();
 		expect(runtimeMocks.runAgent).toHaveBeenCalledTimes(1);
 		expect(mockState.runAgentImports).toBe(1);
+		expect(mockState.runInteractiveImports).toBe(0);
+	});
+
+	it("rejects multiple bare positional prompt tokens", async () => {
+		const consoleError = vi
+			.spyOn(console, "error")
+			.mockImplementation(() => undefined);
+		forcePromptModeInput();
+		process.argv = ["bun", "src/index.ts", "hello", "world"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(process.exitCode).toBe(1);
+		expect(consoleError).toHaveBeenCalledWith(
+			expect.stringContaining(
+				"Unknown command or extra arguments: hello world",
+			),
+		);
+		expect(runtimeMocks.runAgent).not.toHaveBeenCalled();
+		expect(mockState.runAgentImports).toBe(0);
+		expect(mockState.runInteractiveImports).toBe(0);
+	});
+
+	it("runs quoted positional prompt text", async () => {
+		forcePromptModeInput();
+		process.argv = ["bun", "src/index.ts", "hello world"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(runtimeMocks.runAgent).toHaveBeenCalledTimes(1);
+		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
+			"hello world",
+			expect.any(Object),
+			expect.anything(),
+		);
+	});
+
+	it("rejects unknown root flags before loading runtime modules", async () => {
+		const consoleError = vi
+			.spyOn(console, "error")
+			.mockImplementation(() => undefined);
+		forcePromptModeInput();
+		process.argv = ["bun", "src/index.ts", "--made-up-flag"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(process.exitCode).toBe(1);
+		expect(consoleError).toHaveBeenCalledWith(
+			expect.stringContaining("unknown option '--made-up-flag'"),
+		);
+		expect(runtimeMocks.runAgent).not.toHaveBeenCalled();
+		expect(mockState.runAgentImports).toBe(0);
 		expect(mockState.runInteractiveImports).toBe(0);
 	});
 
@@ -857,6 +918,33 @@ describe("runCli lightweight command dispatch", () => {
 		);
 	});
 
+	it("seeds feature flag identity from persisted Cline account id before checking flags", async () => {
+		const clineSettings = {
+			provider: "cline",
+			model: "anthropic/claude-sonnet-4.6",
+			auth: {
+				accountId: "acct-startup",
+				accessToken: "workos:token",
+				refreshToken: "refresh-token",
+			},
+		};
+		providerSettingsMocks.getProviderSettings.mockReturnValue(clineSettings);
+		process.argv = ["bun", "src/index.ts"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(
+			featureFlagMocks.setCliFeatureFlagsAccountContext,
+		).toHaveBeenCalledWith({ id: "acct-startup" });
+		expect(
+			featureFlagMocks.setCliFeatureFlagsAccountContext.mock
+				.invocationCallOrder[0],
+		).toBeLessThan(
+			featureFlagMocks.getBooleanFlagEnabled.mock.invocationCallOrder[0],
+		);
+	});
+
 	it("runs kanban before loading runtime modules", async () => {
 		process.argv = ["bun", "src/index.ts", "kanban"];
 
@@ -874,6 +962,10 @@ describe("runCli lightweight command dispatch", () => {
 			"bun",
 			"src/index.ts",
 			"dashboard",
+			"--config",
+			"/tmp/cline-config",
+			"--data-dir",
+			".cline-dashboard-data",
 			"--port",
 			"9090",
 			"--no-open",
@@ -884,6 +976,8 @@ describe("runCli lightweight command dispatch", () => {
 		await expect(runCli()).resolves.toBeUndefined();
 		expect(dashboardMocks.runDashboardCommand).toHaveBeenCalledWith(
 			expect.objectContaining({
+				configDir: "/tmp/cline-config",
+				dataDir: ".cline-dashboard-data",
 				port: "9090",
 				openBrowser: false,
 				io: expect.any(Object),
@@ -932,7 +1026,7 @@ describe("runCli lightweight command dispatch", () => {
 		runtimeMocks.runAgent.mockClear();
 
 		forcePromptModeInput();
-		process.argv = ["bun", "src/index.ts", "/team", "find", "the", "bug"];
+		process.argv = ["bun", "src/index.ts", "/team find the bug"];
 
 		const { runCli } = await import("./main");
 

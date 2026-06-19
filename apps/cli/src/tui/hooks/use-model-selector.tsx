@@ -323,6 +323,7 @@ export function useModelSelector(opts: {
 									currentModel={config.modelId}
 									currentProviderName={providerDisplayName}
 									models={modelOptions}
+									showCustomModelId={config.providerId !== "cline-pass"}
 								/>
 							),
 						});
@@ -413,6 +414,7 @@ export function useModelSelector(opts: {
 							currentModel={config.modelId}
 							currentProviderName={providerDisplayName}
 							models={modelOptions}
+							showCustomModelId={config.providerId !== "cline-pass"}
 						/>
 					),
 				});

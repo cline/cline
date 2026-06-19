@@ -42,7 +42,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
 	Select,
 	SelectContent,
@@ -60,6 +59,12 @@ import {
 	loadProviderModels,
 } from "@/lib/provider-model-catalog";
 import { cn } from "@/lib/utils";
+import {
+	CommandBadge,
+	PageEmptyState,
+	PageFrame,
+	PageHeader,
+} from "../page-layout";
 
 type DateTimeValue = number | string;
 
@@ -871,18 +876,13 @@ export function RoutineSchedulesContent() {
 	);
 
 	return (
-		<ScrollArea className="h-full">
-			<div className="mx-auto max-w-3xl px-8 py-6">
-				<div className="mb-6 flex items-center justify-between gap-3">
-					<div className="flex min-w-0 items-center gap-3">
-						<h2 className="truncate text-lg font-semibold text-foreground">
-							Schedules
-						</h2>
-						<span className="rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground">
-							cline schedule
-						</span>
-					</div>
-					<div className="flex items-center gap-2">
+		<PageFrame>
+			<PageHeader
+				description="Scheduled jobs are run through the hub."
+				title="Schedules"
+				meta={<CommandBadge>cline schedule</CommandBadge>}
+				actions={
+					<>
 						<Button
 							variant="outline"
 							size="sm"
@@ -897,223 +897,204 @@ export function RoutineSchedulesContent() {
 							<Plus className="h-4 w-4" />
 							New Schedule
 						</Button>
-					</div>
+					</>
+				}
+			/>
+
+			{errorMessage && (
+				<div className="mb-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+					{errorMessage}
 				</div>
+			)}
 
-				<p className="mb-6 text-xs text-muted-foreground">
-					Scheduled jobs are run through the hub.
-				</p>
-
-				{errorMessage && (
-					<div className="mb-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-						{errorMessage}
-					</div>
-				)}
-
-				{isLoading ? (
-					<div className="rounded-lg border border-border px-5 py-4 text-sm text-muted-foreground">
-						Loading routines...
-					</div>
-				) : sortedSchedules.length === 0 ? (
-					<div className="rounded-lg border border-border px-5 py-4 text-sm text-muted-foreground">
-						No schedules found. Create a schedule to run routines on a recurring
-						basis.
-					</div>
-				) : (
-					<div className="flex flex-col gap-3">
-						{sortedSchedules.map((schedule) => {
-							const isBusy = busyScheduleId === schedule.scheduleId;
-							const activeExecution = executionBySchedule.get(
-								schedule.scheduleId,
-							);
-							const lastExecution = lastExecutionBySchedule.get(
-								schedule.scheduleId,
-							);
-							const upcoming = upcomingRuns.find(
-								(item) => item.scheduleId === schedule.scheduleId,
-							);
-							return (
-								<div
-									key={schedule.scheduleId}
-									className="rounded-lg border border-border px-5 py-4 transition-colors hover:bg-accent/20"
-								>
-									<div className="flex items-center gap-3">
-										<Circle
-											className={cn(
-												"h-2.5 w-2.5 shrink-0",
+			{isLoading ? (
+				<PageEmptyState>Loading schedules...</PageEmptyState>
+			) : sortedSchedules.length === 0 ? (
+				<PageEmptyState>
+					No schedules found. Create a schedule to run routines on a recurring
+					basis.
+				</PageEmptyState>
+			) : (
+				<div className="flex flex-col gap-3">
+					{sortedSchedules.map((schedule) => {
+						const isBusy = busyScheduleId === schedule.scheduleId;
+						const activeExecution = executionBySchedule.get(
+							schedule.scheduleId,
+						);
+						const lastExecution = lastExecutionBySchedule.get(
+							schedule.scheduleId,
+						);
+						const upcoming = upcomingRuns.find(
+							(item) => item.scheduleId === schedule.scheduleId,
+						);
+						return (
+							<div
+								key={schedule.scheduleId}
+								className="rounded-lg border border-border px-5 py-4 transition-colors hover:bg-accent/20"
+							>
+								<div className="flex items-center gap-3">
+									<Circle
+										className={cn(
+											"h-2.5 w-2.5 shrink-0",
+											schedule.enabled
+												? "fill-primary text-primary"
+												: "fill-muted-foreground/40 text-muted-foreground/40",
+										)}
+									/>
+									<h3 className="text-sm font-semibold text-foreground">
+										{schedule.name}
+									</h3>
+									<span className="rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground">
+										{schedule.mode}
+									</span>
+									<span className="rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground">
+										{schedule.cronPattern}
+									</span>
+									<div className="flex-1" />
+									<div className="flex items-center gap-1">
+										<Button
+											variant="ghost"
+											size="icon-sm"
+											aria-label={`View ${schedule.name}`}
+											onClick={() => {
+												window.alert(JSON.stringify(schedule, null, 2));
+											}}
+										>
+											<Eye className="h-3.5 w-3.5" />
+										</Button>
+										<Button
+											variant="ghost"
+											size="icon-sm"
+											aria-label={`Edit ${schedule.name}`}
+											onClick={() => openEditDialog(schedule)}
+											disabled={isBusy}
+										>
+											<Pencil className="h-3.5 w-3.5" />
+										</Button>
+										<Button
+											variant="ghost"
+											size="icon-sm"
+											aria-label={`Run ${schedule.name} now`}
+											onClick={() => void triggerSchedule(schedule.scheduleId)}
+											disabled={isBusy}
+										>
+											<Zap className="h-3.5 w-3.5" />
+										</Button>
+										<Button
+											variant="ghost"
+											size="icon-sm"
+											aria-label={
 												schedule.enabled
-													? "fill-primary text-primary"
-													: "fill-muted-foreground/40 text-muted-foreground/40",
+													? `Pause ${schedule.name}`
+													: `Resume ${schedule.name}`
+											}
+											onClick={() =>
+												void upsertScheduleEnabled(schedule, !schedule.enabled)
+											}
+											disabled={isBusy}
+										>
+											{schedule.enabled ? (
+												<Pause className="h-3.5 w-3.5" />
+											) : (
+												<Play className="h-3.5 w-3.5" />
 											)}
+										</Button>
+										<Button
+											variant="ghost"
+											size="icon-sm"
+											aria-label={`Delete ${schedule.name}`}
+											onClick={() => setSchedulePendingDelete(schedule)}
+											disabled={isBusy}
+										>
+											<Trash2 className="h-3.5 w-3.5" />
+										</Button>
+										<Switch
+											checked={schedule.enabled}
+											onCheckedChange={(checked) =>
+												void upsertScheduleEnabled(schedule, checked)
+											}
+											disabled={isBusy}
+											aria-label={`Enable ${schedule.name}`}
 										/>
-										<h3 className="text-sm font-semibold text-foreground">
-											{schedule.name}
-										</h3>
-										<span className="rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground">
-											{schedule.mode}
-										</span>
-										<span className="rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground">
-											{schedule.cronPattern}
-										</span>
-										<div className="flex-1" />
-										<div className="flex items-center gap-1">
-											<Button
-												variant="ghost"
-												size="icon-sm"
-												aria-label={`View ${schedule.name}`}
-												onClick={() => {
-													window.alert(JSON.stringify(schedule, null, 2));
-												}}
-											>
-												<Eye className="h-3.5 w-3.5" />
-											</Button>
-											<Button
-												variant="ghost"
-												size="icon-sm"
-												aria-label={`Edit ${schedule.name}`}
-												onClick={() => openEditDialog(schedule)}
-												disabled={isBusy}
-											>
-												<Pencil className="h-3.5 w-3.5" />
-											</Button>
-											<Button
-												variant="ghost"
-												size="icon-sm"
-												aria-label={`Run ${schedule.name} now`}
-												onClick={() =>
-													void triggerSchedule(schedule.scheduleId)
-												}
-												disabled={isBusy}
-											>
-												<Zap className="h-3.5 w-3.5" />
-											</Button>
-											<Button
-												variant="ghost"
-												size="icon-sm"
-												aria-label={
-													schedule.enabled
-														? `Pause ${schedule.name}`
-														: `Resume ${schedule.name}`
-												}
-												onClick={() =>
-													void upsertScheduleEnabled(
-														schedule,
-														!schedule.enabled,
-													)
-												}
-												disabled={isBusy}
-											>
-												{schedule.enabled ? (
-													<Pause className="h-3.5 w-3.5" />
-												) : (
-													<Play className="h-3.5 w-3.5" />
-												)}
-											</Button>
-											<Button
-												variant="ghost"
-												size="icon-sm"
-												aria-label={`Delete ${schedule.name}`}
-												onClick={() => setSchedulePendingDelete(schedule)}
-												disabled={isBusy}
-											>
-												<Trash2 className="h-3.5 w-3.5" />
-											</Button>
-											<Switch
-												checked={schedule.enabled}
-												onCheckedChange={(checked) =>
-													void upsertScheduleEnabled(schedule, checked)
-												}
-												disabled={isBusy}
-												aria-label={`Enable ${schedule.name}`}
-											/>
-										</div>
-									</div>
-
-									<div className="mt-2.5 ml-5.5 flex flex-col gap-1 text-xs text-muted-foreground">
-										<p>
-											<span className="text-muted-foreground/70">ID:</span>{" "}
-											{schedule.scheduleId}
-										</p>
-										<p>
-											<span className="text-muted-foreground/70">Prompt:</span>{" "}
-											{schedule.prompt}
-										</p>
-										<p>
-											<span className="text-muted-foreground/70">Model:</span>{" "}
-											{formatScheduleModel(schedule)}
-										</p>
-										{schedule.workspaceRoot && (
-											<p>
-												<span className="text-muted-foreground/70">
-													Workspace:
-												</span>{" "}
-												{schedule.workspaceRoot}
-											</p>
-										)}
-										{schedule.cwd && (
-											<p>
-												<span className="text-muted-foreground/70">CWD:</span>{" "}
-												{schedule.cwd}
-											</p>
-										)}
-										<p>
-											<span className="text-muted-foreground/70">
-												Last run:
-											</span>{" "}
-											{formatDateTime(schedule.lastRunAt)}
-										</p>
-										<p>
-											<span className="text-muted-foreground/70">
-												Last result:
-											</span>{" "}
-											{formatExecutionResult(lastExecution)}
-										</p>
-										{lastExecution?.sessionId && (
-											<p>
-												<span className="text-muted-foreground/70">
-													Last session:
-												</span>{" "}
-												{lastExecution.sessionId}
-											</p>
-										)}
-										{lastExecution?.errorMessage && (
-											<p className="text-destructive">
-												<span className="text-muted-foreground/70">
-													Last error:
-												</span>{" "}
-												{lastExecution.errorMessage}
-											</p>
-										)}
-										<p>
-											<span className="text-muted-foreground/70">
-												Next run:
-											</span>{" "}
-											{formatDateTime(
-												schedule.nextRunAt || upcoming?.nextRunAt,
-											)}
-										</p>
-										{activeExecution && (
-											<p>
-												<span className="text-muted-foreground/70">
-													Active:
-												</span>{" "}
-												{activeExecution.executionId} since{" "}
-												{formatDateTime(activeExecution.startedAt)}
-											</p>
-										)}
-										{schedule.tags && schedule.tags.length > 0 && (
-											<p>
-												<span className="text-muted-foreground/70">Tags:</span>{" "}
-												{schedule.tags.join(", ")}
-											</p>
-										)}
 									</div>
 								</div>
-							);
-						})}
-					</div>
-				)}
-			</div>
+
+								<div className="mt-2.5 ml-5.5 flex flex-col gap-1 text-xs text-muted-foreground">
+									<p>
+										<span className="text-muted-foreground/70">ID:</span>{" "}
+										{schedule.scheduleId}
+									</p>
+									<p>
+										<span className="text-muted-foreground/70">Prompt:</span>{" "}
+										{schedule.prompt}
+									</p>
+									<p>
+										<span className="text-muted-foreground/70">Model:</span>{" "}
+										{formatScheduleModel(schedule)}
+									</p>
+									{schedule.workspaceRoot && (
+										<p>
+											<span className="text-muted-foreground/70">
+												Workspace:
+											</span>{" "}
+											{schedule.workspaceRoot}
+										</p>
+									)}
+									{schedule.cwd && (
+										<p>
+											<span className="text-muted-foreground/70">CWD:</span>{" "}
+											{schedule.cwd}
+										</p>
+									)}
+									<p>
+										<span className="text-muted-foreground/70">Last run:</span>{" "}
+										{formatDateTime(schedule.lastRunAt)}
+									</p>
+									<p>
+										<span className="text-muted-foreground/70">
+											Last result:
+										</span>{" "}
+										{formatExecutionResult(lastExecution)}
+									</p>
+									{lastExecution?.sessionId && (
+										<p>
+											<span className="text-muted-foreground/70">
+												Last session:
+											</span>{" "}
+											{lastExecution.sessionId}
+										</p>
+									)}
+									{lastExecution?.errorMessage && (
+										<p className="text-destructive">
+											<span className="text-muted-foreground/70">
+												Last error:
+											</span>{" "}
+											{lastExecution.errorMessage}
+										</p>
+									)}
+									<p>
+										<span className="text-muted-foreground/70">Next run:</span>{" "}
+										{formatDateTime(schedule.nextRunAt || upcoming?.nextRunAt)}
+									</p>
+									{activeExecution && (
+										<p>
+											<span className="text-muted-foreground/70">Active:</span>{" "}
+											{activeExecution.executionId} since{" "}
+											{formatDateTime(activeExecution.startedAt)}
+										</p>
+									)}
+									{schedule.tags && schedule.tags.length > 0 && (
+										<p>
+											<span className="text-muted-foreground/70">Tags:</span>{" "}
+											{schedule.tags.join(", ")}
+										</p>
+									)}
+								</div>
+							</div>
+						);
+					})}
+				</div>
+			)}
 			<AlertDialog
 				open={Boolean(schedulePendingDelete)}
 				onOpenChange={(open) => {
@@ -1554,6 +1535,6 @@ export function RoutineSchedulesContent() {
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>
-		</ScrollArea>
+		</PageFrame>
 	);
 }

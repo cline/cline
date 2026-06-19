@@ -152,7 +152,10 @@ function deferred<T>() {
 
 function makeRuntime(
 	manager: ReturnType<typeof makeManager>,
-	options: { resumeSessionId?: string } = {},
+	options: {
+		resumeSessionId?: string;
+		resolveToolPolicy?: (toolName: string) => Config["toolPolicies"][string];
+	} = {},
 ) {
 	mockCreateCliCore.mockResolvedValue(manager);
 	const config = makeConfig();
@@ -164,6 +167,8 @@ function makeRuntime(
 		requestToolApproval: async (
 			_request: ToolApprovalRequest,
 		): Promise<ToolApprovalResult> => ({ approved: true }),
+		resolveToolPolicy:
+			options.resolveToolPolicy ?? (() => ({ autoApprove: true })),
 		askQuestionRef: { current: null },
 		resolveMistakeLimitDecision: undefined,
 		switchToActModeTool: makeSwitchToActModeTool(),
@@ -203,6 +208,68 @@ describe("createInteractiveSessionRuntime", () => {
 
 		expect(manager.start).toHaveBeenCalledTimes(2);
 		expect(runtime.getActiveSessionId()).toBe("session-2");
+	});
+
+	it("adds a live interactive approval policy hook to started sessions", async () => {
+		const manager = makeManager();
+		const upstreamBeforeTool = vi.fn(async () => ({
+			input: { text: "updated" },
+		}));
+		mockCreateRuntimeHooks.mockReturnValueOnce({
+			hooks: {
+				beforeTool: upstreamBeforeTool,
+			},
+			shutdown: vi.fn(async () => {}),
+		});
+		const runtime = makeRuntime(manager, {
+			resolveToolPolicy: (toolName) => ({
+				autoApprove: toolName === "echo",
+			}),
+		});
+
+		await runtime.ensureReady();
+
+		const startInput = manager.start.mock.calls[0]?.[0] as
+			| { config?: Config }
+			| undefined;
+		const beforeTool = startInput?.config?.hooks?.beforeTool;
+		expect(beforeTool).toBeTypeOf("function");
+
+		const result = await beforeTool?.({
+			snapshot: {
+				agentId: "agent-1",
+				conversationId: "conversation-1",
+				status: "running",
+				iteration: 1,
+				messages: [],
+				pendingToolCalls: [],
+				usage: {
+					inputTokens: 0,
+					outputTokens: 0,
+					cacheReadTokens: 0,
+					cacheWriteTokens: 0,
+				},
+			},
+			tool: {
+				name: "echo",
+				description: "",
+				inputSchema: {},
+				execute: async () => "ok",
+			},
+			toolCall: {
+				type: "tool-call",
+				toolCallId: "call-1",
+				toolName: "echo",
+				input: { text: "original" },
+			},
+			input: { text: "original" },
+		});
+
+		expect(upstreamBeforeTool).toHaveBeenCalledOnce();
+		expect(result).toEqual({
+			input: { text: "updated" },
+			policy: { autoApprove: true },
+		});
 	});
 
 	it("starts fresh after resetting an initially resumed session", async () => {

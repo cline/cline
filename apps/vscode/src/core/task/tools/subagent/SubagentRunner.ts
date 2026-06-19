@@ -733,8 +733,9 @@ export class SubagentRunner {
 		const parsedError = ClineError.transform(error, modelId, providerId)
 		const isAuthError = parsedError.isErrorType(ClineErrorType.Auth)
 		const isBalanceError = parsedError.isErrorType(ClineErrorType.Balance)
+		const isEntitlementError = parsedError.isErrorType(ClineErrorType.Entitlement)
 
-		if (isAuthError || isBalanceError) {
+		if (isAuthError || isBalanceError || isEntitlementError) {
 			return false
 		}
 

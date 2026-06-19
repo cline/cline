@@ -600,6 +600,73 @@ describe("AgentRuntime", () => {
 		});
 	});
 
+	it("applies beforeTool approval policy overrides before executing tools", async () => {
+		const executeTool = vi.fn(async () => ({ echoed: "hi" }));
+		const requestToolApproval = vi.fn(async () => ({
+			approved: false,
+			reason: "live policy denied",
+		}));
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_live_policy",
+					toolName: "echo",
+					inputText: '{"text":"hi"}',
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			(request) => {
+				const toolMessage = request.messages.at(-1) as AgentMessage;
+				expect(toolMessage.role).toBe("tool");
+				expect(toolMessage.content[0]).toMatchObject({
+					type: "tool-result",
+					isError: true,
+					output: { error: "live policy denied" },
+				});
+				return [
+					{ type: "text-delta", text: "live policy handled" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({
+			sessionId: "session_test",
+			agentId: "agent_test",
+			conversationId: "conversation_test",
+			model,
+			tools: [
+				{
+					name: "echo",
+					description: "Echo input text",
+					inputSchema: { type: "object" },
+					execute: executeTool,
+				},
+			],
+			toolPolicies: { "*": { autoApprove: true } },
+			hooks: {
+				beforeTool: () => ({ policy: { autoApprove: false } }),
+			},
+			requestToolApproval,
+		});
+
+		const result = await runtime.run("Start");
+
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("live policy handled");
+		expect(executeTool).not.toHaveBeenCalled();
+		expect(requestToolApproval).toHaveBeenCalledWith({
+			sessionId: "session_test",
+			agentId: "agent_test",
+			conversationId: "conversation_test",
+			iteration: 1,
+			toolCallId: "call_live_policy",
+			toolName: "echo",
+			input: { text: "hi" },
+			policy: { autoApprove: false },
+		});
+	});
+
 	it("stores tool calls but skips execution when metadata disables external execution", async () => {
 		const executeTool = vi.fn(async () => ({ echoed: "hi" }));
 		const model = new ScriptedModel([
@@ -958,6 +1025,47 @@ describe("AgentRuntime", () => {
 		expect(result.messages[0]).toEqual(compactedMessage);
 		expect(result.messages).toHaveLength(2);
 		expect(model.requests).toHaveLength(1);
+	});
+
+	it("merges beforeModel options metadata into the model request", async () => {
+		const model = new ScriptedModel([
+			(request) => {
+				expect(request.options?.metadata).toMatchObject({
+					sessionId: "session-1",
+					runId: "run-1",
+					iteration: 1,
+				});
+				return [
+					{ type: "text-delta", text: "done" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			modelOptions: { metadata: { existing: true } },
+			hooks: {
+				beforeModel: () => ({
+					options: {
+						metadata: {
+							sessionId: "session-1",
+							runId: "run-1",
+							iteration: 1,
+						},
+					},
+				}),
+			},
+		});
+
+		await runtime.run("capture metadata");
+
+		expect(model.requests).toHaveLength(1);
+		expect(model.requests[0]?.options?.metadata).toMatchObject({
+			existing: true,
+			sessionId: "session-1",
+			runId: "run-1",
+			iteration: 1,
+		});
 	});
 
 	it("preserves the existing system prompt when prepareTurn returns only messages", async () => {

@@ -285,7 +285,7 @@ export class ClineAccountService {
 	 * @returns {Promise<void>} A promise that resolves when the account switch is complete.
 	 * @throws {Error} If the account switch fails, an error will be thrown.
 	 */
-	async switchAccount(organizationId?: string): Promise<void> {
+	async switchAccount(organizationId?: string | null): Promise<void> {
 		// Call API to switch account
 		try {
 			// make XHR request to switch account
