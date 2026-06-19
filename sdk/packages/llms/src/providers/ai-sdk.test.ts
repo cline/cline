@@ -175,17 +175,22 @@ describe("ai-sdk usage normalization", () => {
 		expect(streamUsage.raw).toHaveProperty("cost_details");
 	});
 
-	it("maps provider reasoning tokens to thoughtsTokenCount", () => {
+	it("maps provider reasoning tokens to reasoningTokenCount", () => {
 		expect(
 			normalizeUsage({
 				completion_tokens_details: { reasoning_tokens: 17 },
-			}).thoughtsTokenCount,
+			}).reasoningTokenCount,
 		).toBe(17);
 		expect(
 			normalizeUsage({
 				outputTokenDetails: { reasoningTokens: 23 },
-			}).thoughtsTokenCount,
+			}).reasoningTokenCount,
 		).toBe(23);
+		expect(
+			normalizeUsage({
+				raw: { outputTokenDetails: { reasoningTokens: 31 } },
+			}).reasoningTokenCount,
+		).toBe(31);
 	});
 
 	describe("cost extraction with pricing fallback", () => {

@@ -81,8 +81,8 @@ export interface AgentTokenUsage {
 	outputTokens: number;
 	cacheReadTokens: number;
 	cacheWriteTokens: number;
-	/** Provider-reported thinking/reasoning tokens, when available. */
-	thoughtsTokenCount?: number;
+	/** Provider-reported hidden reasoning tokens, when available. */
+	reasoningTokenCount?: number;
 }
 
 /**

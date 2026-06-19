@@ -906,19 +906,20 @@ describe("AgentRuntime", () => {
 	it("annotates assistant messages with per-turn metrics and model info", async () => {
 		const model = new ScriptedModel([
 			() => [
-				{
-					type: "usage",
-					usage: {
-						inputTokens: 12,
-						outputTokens: 7,
-						cacheReadTokens: 3,
-						cacheWriteTokens: 2,
-						totalCost: 0.42,
+					{
+						type: "usage",
+						usage: {
+							inputTokens: 12,
+							outputTokens: 7,
+							cacheReadTokens: 3,
+							cacheWriteTokens: 2,
+							reasoningTokenCount: 5,
+							totalCost: 0.42,
+						},
 					},
-				},
-				{ type: "text-delta", text: "hello" },
-				{ type: "finish", reason: "stop" },
-			],
+					{ type: "text-delta", text: "hello" },
+					{ type: "finish", reason: "stop" },
+				],
 		]);
 		const runtime = new AgentRuntime({
 			model,
@@ -937,15 +938,16 @@ describe("AgentRuntime", () => {
 			id: "anthropic/claude-sonnet-4.6",
 			provider: "openrouter",
 			family: "claude-sonnet",
+			});
+			expect(assistant?.metrics).toEqual({
+				inputTokens: 12,
+				outputTokens: 7,
+				cacheReadTokens: 3,
+				cacheWriteTokens: 2,
+				reasoningTokenCount: 5,
+				cost: 0.42,
+			});
 		});
-		expect(assistant?.metrics).toEqual({
-			inputTokens: 12,
-			outputTokens: 7,
-			cacheReadTokens: 3,
-			cacheWriteTokens: 2,
-			cost: 0.42,
-		});
-	});
 
 	it("stops a run from beforeModel hooks and returns an aborted result", async () => {
 		const model = new ScriptedModel([
