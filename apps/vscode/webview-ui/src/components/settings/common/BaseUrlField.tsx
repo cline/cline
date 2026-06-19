@@ -1,6 +1,6 @@
-import { VSCodeCheckbox, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import { useState } from "react"
-import { useDebouncedInput } from "../utils/useDebouncedInput"
+import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
+import { useEffect, useState } from "react"
+import { DebouncedTextField } from "./DebouncedTextField"
 
 /**
  * Props for the BaseUrlField component
@@ -27,13 +27,15 @@ export const BaseUrlField = ({
 	showLockIcon = false,
 }: BaseUrlFieldProps) => {
 	const [isEnabled, setIsEnabled] = useState(!!initialValue)
-	const [localValue, setLocalValue] = useDebouncedInput(initialValue || "", onChange)
 
-	const handleToggle = (e: any) => {
-		const checked = e.target.checked === true
+	useEffect(() => {
+		setIsEnabled(!!initialValue)
+	}, [initialValue])
+
+	const handleToggle = (e: unknown) => {
+		const checked = (e as { target: HTMLInputElement }).target.checked === true
 		setIsEnabled(checked)
 		if (!checked) {
-			setLocalValue("")
 			onChange("")
 		}
 	}
@@ -48,13 +50,13 @@ export const BaseUrlField = ({
 			</div>
 
 			{isEnabled && (
-				<VSCodeTextField
+				<DebouncedTextField
 					disabled={disabled}
-					onInput={(e: any) => setLocalValue(e.target.value.trim())}
+					initialValue={initialValue || ""}
+					onChange={(value) => onChange(value.trim())}
 					placeholder={placeholder}
 					style={{ width: "100%", marginTop: 3 }}
 					type="text"
-					value={localValue}
 				/>
 			)}
 		</div>

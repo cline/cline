@@ -1,4 +1,5 @@
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { useEffect } from "react"
 import { useDebouncedInput } from "../utils/useDebouncedInput"
 
 /**
@@ -17,6 +18,11 @@ interface DebouncedTextFieldProps {
 	children?: React.ReactNode
 	disabled?: boolean
 	className?: string
+	required?: boolean
+	onFocus?: React.FocusEventHandler<HTMLElement>
+	onBlur?: React.FocusEventHandler<HTMLElement>
+	onLocalValueChange?: (value: string) => void
+	shouldSyncInitialValue?: () => boolean
 }
 
 /**
@@ -29,16 +35,22 @@ export const DebouncedTextField = ({
 	children,
 	type,
 	className,
+	onLocalValueChange,
+	shouldSyncInitialValue,
 	...otherProps
 }: DebouncedTextFieldProps) => {
-	const [localValue, setLocalValue] = useDebouncedInput(initialValue, onChange)
+	const [localValue, setLocalValue] = useDebouncedInput(initialValue, onChange, 100, { shouldSyncInitialValue })
+
+	useEffect(() => {
+		onLocalValueChange?.(localValue)
+	}, [localValue, onLocalValueChange])
 
 	return (
 		<VSCodeTextField
 			{...otherProps}
 			className={className}
-			onInput={(e: any) => {
-				const value = e.target.value
+			onInput={(e) => {
+				const value = (e.target as HTMLInputElement).value
 				setLocalValue(value)
 			}}
 			type={type}
