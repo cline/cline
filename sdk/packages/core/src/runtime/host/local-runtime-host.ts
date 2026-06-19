@@ -485,9 +485,16 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const explicitInitialCompactionState = startInput.initialCompactionState;
 		let activeSessionRef: ActiveSession | undefined;
 		const compact = createContextCompactionPrepareTurn(configWithProvider);
-		const initialCompactionState = compact
-			? (explicitInitialCompactionState ?? resumedCompactionState)
-			: undefined;
+		const rawInitialCompactionState =
+			explicitInitialCompactionState ?? resumedCompactionState;
+		const initialCompactionState =
+			compact && rawInitialCompactionState
+				? {
+						...rawInitialCompactionState,
+						conversation_id:
+							rawInitialCompactionState.conversation_id?.trim() || sessionId,
+					}
+				: undefined;
 		const prepareTurn = compact
 			? createCompactionStateAwarePrepareTurn({
 					compact,
