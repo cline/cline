@@ -496,6 +496,124 @@ describe("MessageBuilder", () => {
 			}),
 		]);
 	});
+
+	it("caps assistant text with repeated DSML tool-call fragments before provider requests", () => {
+		const builder = new MessageBuilder();
+		const dsmlFragment = [
+			"<\uFF5CDSML\uFF5Ctool_calls>",
+			'<\uFF5CDSML\uFF5Cinvoke name="read_file">',
+			`{"path":"/tmp/circuit-fibsqrt.ts","payload":"${"x".repeat(1_200)}"}`,
+			"</\uFF5CDSML\uFF5Cinvoke>",
+			"</\uFF5CDSML\uFF5Ctool_calls>",
+			"<tool_call>",
+			"</tool_call>",
+		].join("\n");
+		const assistantText = `I will inspect the circuit.\n${dsmlFragment.repeat(437)}\nDone.`;
+		const messages: Message[] = [
+			{
+				role: "assistant",
+				content: [{ type: "text", text: assistantText }],
+			},
+			{
+				role: "user",
+				content: [{ type: "text", text: "continue" }],
+			},
+		];
+
+		const result = builder.buildForApi(messages);
+		const block = Array.isArray(result[0].content)
+			? result[0].content[0]
+			: undefined;
+
+		expect(assistantText.length).toBeGreaterThan(500_000);
+		expect(block?.type).toBe("text");
+		if (block?.type !== "text") {
+			throw new Error("expected assistant text block");
+		}
+		expect(block.text.length).toBeLessThanOrEqual(12_000);
+		expect(block.text).toContain("assistant text truncated: omitted");
+		expect(block.text).toContain("repeated tool-call markup");
+		expect(block.text.match(/DSML/g)?.length ?? 0).toBeLessThan(40);
+		expect(messages[0].content).toEqual([
+			{ type: "text", text: assistantText },
+		]);
+	});
+
+	it("keeps repeated assistant tool-call markup out of provider-formatted AI SDK payloads", () => {
+		const builder = new MessageBuilder();
+		const dsmlFragment = [
+			"<\uFF5CDSML\uFF5Ctool_calls>",
+			'<\uFF5CDSML\uFF5Cinvoke name="run_command">',
+			`{"command":"${"printf x; ".repeat(150)}"}`,
+			"</\uFF5CDSML\uFF5Cinvoke>",
+			"</\uFF5CDSML\uFF5Ctool_calls>",
+		].join("\n");
+		const messages: Message[] = [
+			{
+				role: "assistant",
+				content: [{ type: "text", text: dsmlFragment.repeat(500) }],
+			},
+			{
+				role: "user",
+				content: [{ type: "text", text: "next request" }],
+			},
+		];
+
+		const built = builder.buildForApi(messages);
+		const agentMessages = messagesToAgentMessages(built);
+		const aiSdkMessages = formatMessagesForAiSdk(
+			undefined,
+			agentMessages.map(({ role, content }) => ({
+				role,
+				content,
+			})) as unknown as AiSdkFormatterMessage[],
+		);
+		const serialized = JSON.stringify(aiSdkMessages);
+
+		expect(JSON.stringify(messages).length).toBeGreaterThan(650_000);
+		expect(serialized.length).toBeLessThan(25_000);
+		expect(serialized).toContain("assistant text truncated: omitted");
+		expect(serialized.match(/DSML/g)?.length ?? 0).toBeLessThan(40);
+	});
+
+	it("caps oversized top-level assistant string content with an omitted-char marker", () => {
+		const builder = new MessageBuilder({ maxAssistantTextChars: 1_000 });
+		const assistantText = `Lead\n${"normal assistant answer ".repeat(200)}\nTail`;
+		const messages: Message[] = [
+			{
+				role: "assistant",
+				content: assistantText,
+			},
+		];
+
+		const result = builder.buildForApi(messages);
+
+		expect(typeof result[0].content).toBe("string");
+		expect(result[0].content.length).toBeLessThanOrEqual(1_000);
+		expect(result[0].content).toContain("assistant text truncated: omitted");
+		expect(messages[0].content).toBe(assistantText);
+	});
+
+	it("preserves normal long assistant answers below the assistant text cap", () => {
+		const builder = new MessageBuilder();
+		const answer = [
+			"Summary:",
+			"A".repeat(80_000),
+			"Implementation notes:",
+			"B".repeat(80_000),
+			"Final answer.",
+		].join("\n");
+		const messages: Message[] = [
+			{
+				role: "assistant",
+				content: [{ type: "text", text: answer }],
+			},
+		];
+
+		const result = builder.buildForApi(messages);
+
+		expect(result).toEqual(messages);
+	});
 });
 
 /**
