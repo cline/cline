@@ -8,7 +8,14 @@
 //
 // The factory does NOT handle UI concerns — that's the SdkController's job.
 
-import { type ClineCoreStartInput, type CoreSessionConfig, type ProviderSettings, type StartSessionResult } from "@cline/core"
+import {
+	type ClineCoreStartInput,
+	type CoreSessionConfig,
+	getProviderAuthHandler,
+	type ProviderSettings,
+	resolveProviderApiKeyFromSettings,
+	type StartSessionResult,
+} from "@cline/core"
 import { getGeneratedModelsForProvider, MODEL_COLLECTIONS_BY_PROVIDER_ID } from "@cline/llms"
 import { buildClineSystemPrompt } from "@cline/shared"
 import type { ApiConfiguration } from "@shared/api"
@@ -190,6 +197,8 @@ const PROVIDER_API_KEY_MAP: Record<string, keyof ApiConfiguration> = {
 	vertex: "geminiApiKey",
 	gemini: "geminiApiKey",
 	deepseek: "deepSeekApiKey",
+	cline: "clineApiKey",
+	"cline-pass": "clineApiKey",
 	ollama: "ollamaApiKey",
 	lmstudio: "apiKey", // LM Studio doesn't need a key but uses the generic field
 	requesty: "requestyApiKey",
@@ -221,7 +230,6 @@ const PROVIDER_API_KEY_MAP: Record<string, keyof ApiConfiguration> = {
 	wandb: "wandbApiKey",
 	"qwen-code": "qwenApiKey",
 	oca: "ocaApiKey",
-	// "cline" is handled specially — see resolveApiKey()
 }
 
 /**
@@ -241,6 +249,7 @@ const PROVIDER_MODEL_ID_MAP: Record<string, { plan: keyof ApiConfiguration; act:
 	vertex: { plan: "planModeApiModelId", act: "actModeApiModelId" },
 	deepseek: { plan: "planModeApiModelId", act: "actModeApiModelId" },
 	cline: { plan: "planModeClineModelId", act: "actModeClineModelId" },
+	"cline-pass": { plan: "planModeClinePassModelId", act: "actModeClinePassModelId" },
 	litellm: { plan: "planModeLiteLlmModelId", act: "actModeLiteLlmModelId" },
 	requesty: { plan: "planModeRequestyModelId", act: "actModeRequestyModelId" },
 	together: { plan: "planModeTogetherModelId", act: "actModeTogetherModelId" },
@@ -286,28 +295,30 @@ export function getDefaultModelIdForProvider(providerId: string): string | undef
 /**
  * Resolve the API key for a given provider from the ApiConfiguration.
  *
- * For the "cline" provider, reads the OAuth token from providers.json
+ * For SDK-managed OAuth providers, reads the OAuth token from providers.json
  * via ProviderSettingsManager (the single source of truth for credentials).
  */
 export function resolveApiKey(providerId: string, config: ApiConfiguration): string | undefined {
-	// For "cline" provider — read from providers.json
-	if (providerId === "cline") {
-		// First check if clineApiKey is set directly (e.g. from env var)
-		if (config.clineApiKey) {
-			return config.clineApiKey
+	const authHandler = getProviderAuthHandler(providerId)
+	if (authHandler) {
+		const keyField = PROVIDER_API_KEY_MAP[providerId]
+		const configuredApiKey = keyField ? (config[keyField] as string | undefined)?.trim() : undefined
+		if (configuredApiKey) {
+			return configuredApiKey
 		}
 
-		// Read from providers.json via the shared ProviderSettingsManager
+		// Read from providers.json via the shared ProviderSettingsManager. This is
+		// intentionally keyed by the requested provider so SDK auth metadata can
+		// resolve shared storage (e.g. cline-pass -> cline) without VS Code
+		// hardcoding provider exceptions.
 		try {
 			const manager = getProviderSettingsManager()
-			const settings = manager.getProviderSettings("cline")
-			const accessToken = settings?.auth?.accessToken?.trim()
-			if (accessToken) {
-				// providers.json stores the token with workos: prefix already
-				return accessToken.toLowerCase().startsWith("workos:") ? accessToken : `workos:${accessToken}`
+			const apiKey = resolveProviderApiKeyFromSettings(manager, providerId)?.trim()
+			if (apiKey) {
+				return apiKey
 			}
 		} catch {
-			Logger.warn("[SessionFactory] Failed to read cline credentials from providers.json")
+			Logger.warn(`[SessionFactory] Failed to read ${providerId} credentials from providers.json`)
 		}
 
 		return undefined
@@ -602,7 +613,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		...(cloudProviderConfig ?? {}),
 		providerId: sdkProviderId,
 		modelId,
-		apiKey,
+		...(apiKey ? { apiKey } : {}),
 		baseUrl,
 		fetch,
 	}

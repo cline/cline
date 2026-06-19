@@ -61,6 +61,16 @@ describe("SdkTaskStartCoordinator", () => {
 		expect(options.sessions.startNewSession).not.toHaveBeenCalled()
 	})
 
+	it("emits a Cline auth error instead of starting when ClinePass has no token", async () => {
+		const { coordinator, options } = makeCoordinator({ config: { providerId: "cline-pass", modelId: "model", apiKey: "" } })
+
+		const sessionId = await coordinator.initTask("needs clinepass auth")
+
+		expect(sessionId).toBeUndefined()
+		expect(options.emitClineAuthError).toHaveBeenCalledWith("needs clinepass auth")
+		expect(options.sessions.startNewSession).not.toHaveBeenCalled()
+	})
+
 	it("emits a plain chat error when session start fails (e.g. provider misconfigured)", async () => {
 		const { coordinator, options } = makeCoordinator()
 		options.sessions.startNewSession.mockRejectedValue(new Error("No model configured for provider openai"))
