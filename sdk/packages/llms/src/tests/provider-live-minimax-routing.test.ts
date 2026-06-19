@@ -173,7 +173,7 @@ function buildCases(): LiveCase[] {
 		modelId: "minimax/minimax-m3",
 		apiKeyEnv: "OPENROUTER_API_KEY",
 		reasoning: { enabled: false },
-		expectedBody: { reasoning: { enabled: false } },
+		expectedBody: { reasoning: { effort: "none" } },
 		unexpectedBodyKeys: ["thinking"],
 	});
 	addCase({

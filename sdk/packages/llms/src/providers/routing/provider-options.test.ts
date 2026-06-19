@@ -738,14 +738,14 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 		},
 		// GLM/Z.AI routed reasoning — disabled
 		{
-			name: "openrouter GLM thinking-disabled -> reasoning.enabled=false in provider+compatible",
+			name: "openrouter GLM thinking-disabled -> reasoning.effort=none in provider+compatible",
 			request: {
 				providerId: "openrouter",
 				modelId: "z-ai/glm-4.7",
 				reasoning: { enabled: false },
 			},
 			expect: [
-				{ bucket: "openrouter", has: { reasoning: { enabled: false } } },
+				{ bucket: "openrouter", has: { reasoning: { effort: "none" } } },
 				// The OpenRouter bucket is authoritative on the wire; this residual
 				// compatible bucket remains for non-OpenRouter routed GLM paths.
 				{ bucket: "openaiCompatible", has: { reasoning: { exclude: true } } },
@@ -886,7 +886,7 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			],
 		},
 		{
-			name: "openrouter Kimi K2.6 family reasoning.enabled=false -> reasoning.enabled=false",
+			name: "openrouter Kimi K2.6 family reasoning.enabled=false -> reasoning.effort=none",
 			request: {
 				providerId: "openrouter",
 				modelId: "moonshotai/kimi-k2.6",
@@ -896,7 +896,7 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			expect: [
 				{
 					bucket: "openrouter",
-					has: { reasoning: { enabled: false } },
+					has: { reasoning: { effort: "none" } },
 					lacks: ["thinking"],
 				},
 				{ bucket: "openaiCompatible", lacks: ["thinking"] },
@@ -1168,7 +1168,7 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 		},
 		// OpenRouter owns the reasoning object regardless of Moonshot family.
 		{
-			name: "openrouter non-K2.6 Moonshot Kimi reasoning.enabled=false -> reasoning.enabled=false",
+			name: "openrouter non-K2.6 Moonshot Kimi reasoning.enabled=false -> reasoning.effort=none",
 			request: {
 				providerId: "openrouter",
 				modelId: "moonshotai/kimi-k2.5",
@@ -1177,7 +1177,7 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			expect: [
 				{
 					bucket: "openrouter",
-					has: { reasoning: { enabled: false } },
+					has: { reasoning: { effort: "none" } },
 					lacks: ["thinking"],
 				},
 				{ bucket: "openaiCompatible", lacks: ["thinking"] },
@@ -1317,7 +1317,7 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			],
 		},
 		{
-			name: "openrouter MiniMax M3 reasoning disabled -> OpenRouter reasoning.enabled=false",
+			name: "openrouter MiniMax M3 reasoning disabled -> OpenRouter reasoning.effort=none",
 			request: {
 				providerId: "openrouter",
 				modelId: "minimax/minimax-m3",
@@ -1330,7 +1330,7 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			expect: [
 				{
 					bucket: "openrouter",
-					has: { reasoning: { enabled: false } },
+					has: { reasoning: { effort: "none" } },
 					lacks: ["thinking"],
 				},
 				{
