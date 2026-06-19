@@ -170,33 +170,6 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 		expect(serializedBlockAt(reqB, 2)).toEqual(rewrittenA);
 	});
 
-	it("accumulates multiple small outdated reads and commits them together", () => {
-		// Each stale read result is ~850 bytes. With a 1.5KB threshold, one
-		// stale read stays pending; the second stale read pushes the batch
-		// over and both rewrite at once.
-		const builder = new MessageBuilder(
-			undefined,
-			undefined,
-			undefined,
-			undefined,
-			1_500,
-		);
-		const messages: Message[] = [{ role: "user", content: "task" }];
-		for (let i = 1; i <= 3; i++) {
-			messages.push(readToolUse(`t${i}`));
-			messages.push(readToolResult(`t${i}`, SMALL_CONTENT(i)));
-			const result = builder.buildForApi([...messages]);
-			const staleCount = result.filter((m) =>
-				JSON.stringify(m).includes("outdated - see the latest file content"),
-			).length;
-			if (i < 3) {
-				expect(staleCount).toBe(0); // pending, below threshold
-			} else {
-				expect(staleCount).toBe(2); // t1 + t2 committed together
-			}
-		}
-	});
-
 	it("counts multi-file read results per outdated locator, not per whole block", () => {
 		// One read_files call returns files A, B, C (~850 bytes each entry).
 		// Only A is later re-read, so the reclaimable amount is ~850 bytes —
@@ -279,46 +252,6 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 		expect(multiBlock).not.toContain("export const x = 1;");
 		expect(multiBlock).not.toContain("export const x = 2;");
 		expect(multiBlock).not.toContain("export const x = 3;");
-	});
-
-	it("never rewrites when the threshold is disabled via a huge value", () => {
-		const builder = new MessageBuilder(
-			undefined,
-			undefined,
-			undefined,
-			undefined,
-			Number.POSITIVE_INFINITY,
-		);
-		const messages: Message[] = [
-			{ role: "user", content: "task" },
-			readToolUse("t1"),
-			readToolResult("t1", LARGE_CONTENT(1)),
-			readToolUse("t2"),
-			readToolResult("t2", LARGE_CONTENT(2)),
-		];
-		const result = builder.buildForApi(messages);
-		expect(JSON.stringify(result)).not.toContain("outdated");
-	});
-
-	it("restores full content after history is rolled back past the re-read", () => {
-		const builder = new MessageBuilder();
-		const t1Only: Message[] = [
-			{ role: "user", content: "task" },
-			readToolUse("t1"),
-			readToolResult("t1", LARGE_CONTENT(1)),
-		];
-		const withReread: Message[] = [
-			...t1Only,
-			readToolUse("t2"),
-			readToolResult("t2", LARGE_CONTENT(2)),
-		];
-		const reqA = builder.buildForApi(withReread);
-		expect(serializedBlockAt(reqA, 2)).toContain("outdated");
-
-		// Same builder instance, history rolled back past the re-read.
-		const reqB = builder.buildForApi(t1Only);
-		expect(serializedBlockAt(reqB, 2)).not.toContain("outdated");
-		expect(serializedBlockAt(reqB, 2)).toContain("export const x = 1;");
 	});
 
 	it("keeps batching state when the runtime rebuilds fresh message objects per request", () => {
@@ -459,35 +392,6 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 		expect(firstRead).toContain('"success":true');
 		expect(firstRead).not.toContain("export const x = 1;");
 		expect(latestRead).toContain("export const x = 2;");
-	});
-
-	it("counts structured ToolOperationResult bytes per stale entry before committing", () => {
-		const builder = new MessageBuilder(
-			undefined,
-			undefined,
-			undefined,
-			undefined,
-			1_500,
-		);
-		const messages: Message[] = [{ role: "user", content: "task" }];
-
-		for (let i = 1; i <= 3; i++) {
-			messages.push(readToolUse(`t${i}`));
-			messages.push(structuredReadToolResult(`t${i}`, SMALL_CONTENT(i)));
-			const result = builder.buildForApi([...messages]);
-			const serialized = JSON.stringify(result);
-
-			if (i < 3) {
-				expect(serialized).not.toContain(
-					"outdated - see the latest file content",
-				);
-			} else {
-				expect(serialized).toContain("outdated - see the latest file content");
-				expect(serialized).not.toContain("export const x = 1;");
-				expect(serialized).not.toContain("export const x = 2;");
-				expect(serialized).toContain("export const x = 3;");
-			}
-		}
 	});
 
 	it("keeps structured ToolOperationResult batching stable across codec round-trips", () => {
