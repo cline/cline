@@ -49,7 +49,7 @@
  *
  * Run interactively:
  *   cd apps/vscode
- *   npx tsx src/dev/mcp-oauth-test-server/server.ts --verbose
+ *   bun src/dev/mcp-oauth-test-server/server.ts --verbose
  *
  * Then add an MCP server to Cline pointing at:
  *   http://127.0.0.1:7777/mcp   (type: streamableHttp)
@@ -158,7 +158,7 @@ function parseArgs(argv: string[]): TestServerOptions {
 function printUsageAndExit(code = 0): never {
 	console.log(`MCP OAuth Test Server
 
-Usage: npx tsx src/dev/mcp-oauth-test-server/server.ts [options]
+Usage: bun src/dev/mcp-oauth-test-server/server.ts [options]
 
 Options:
   --port <n>            Port to listen on (default 7777; 0 = OS-assigned random)
@@ -175,10 +175,10 @@ Options:
 
 Examples:
   # Single server on the default fixed port
-  npx tsx src/dev/mcp-oauth-test-server/server.ts --verbose
+  bun src/dev/mcp-oauth-test-server/server.ts --verbose
 
   # Three servers on random ports, to test adding multiple at once
-  npx tsx src/dev/mcp-oauth-test-server/server.ts --instances 3 --verbose
+  bun src/dev/mcp-oauth-test-server/server.ts --instances 3 --verbose
 `)
 	process.exit(code)
 }

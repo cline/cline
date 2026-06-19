@@ -35,9 +35,9 @@
  *   least as often as the scheduled release nightly runs.
  *
  * Usage:
- *   npm run publish:marketplace:nightly                    # release channel
- *   npm run publish:marketplace:nightly -- --pre-release   # pre-release channel
- *   npm run publish:marketplace:nightly -- --dry-run       # package only
+ *   bun run publish:marketplace:nightly                    # release channel
+ *   bun run publish:marketplace:nightly -- --pre-release   # pre-release channel
+ *   bun run publish:marketplace:nightly -- --dry-run       # package only
  *
  * Environment variables:
  *   VSCE_PAT  - Personal Access Token for VS Code Marketplace
@@ -582,7 +582,7 @@ if (showHelp) {
 Nightly publish script for VS Code extension
 
 Usage:
-  npm run publish:marketplace:nightly [options]
+  bun run publish:marketplace:nightly [options]
 
 Options:
   --pre-release    Publish to the pre-release channel of cline-nightly.
@@ -596,10 +596,10 @@ Environment variables:
   OVSX_PAT         Personal Access Token for OpenVSX Registry
 
 Examples:
-  npm run publish:marketplace:nightly                      # Release channel publish
-  npm run publish:marketplace:nightly -- --pre-release     # Pre-release channel publish
-  npm run publish:marketplace:nightly -- --dry-run         # Package only
-  VSCE_PAT="token" npm run publish:marketplace:nightly     # Publish to VS Code only
+  bun run publish:marketplace:nightly                      # Release channel publish
+  bun run publish:marketplace:nightly -- --pre-release     # Pre-release channel publish
+  bun run publish:marketplace:nightly -- --dry-run         # Package only
+  VSCE_PAT="token" bun run publish:marketplace:nightly     # Publish to VS Code only
 `)
 	process.exit(0)
 }

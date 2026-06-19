@@ -1,4 +1,4 @@
-#!/usr/bin/env npx tsx
+#!/usr/bin/env bun
 import * as grpc from "@grpc/grpc-js"
 import { ReflectionService } from "@grpc/reflection"
 import * as health from "grpc-health-check"

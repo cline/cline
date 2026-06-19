@@ -71,7 +71,7 @@ each one to Cline as a separate StreamableHTTP server to exercise concurrent
 OAuth flows / multiple authenticated servers:
 
 ```bash
-npx tsx src/dev/mcp-oauth-test-server/server.ts --instances 3 --verbose
+bun src/dev/mcp-oauth-test-server/server.ts --instances 3 --verbose
 ```
 
 Because OAuth state is keyed by **server name** in `cline_mcp_settings.json`,
