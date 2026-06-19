@@ -1047,10 +1047,10 @@ describe("default run_commands tool", () => {
 	});
 
 	it("emits timeout telemetry without leaking raw command data", async () => {
-		const execute = vi.fn(
-			async (): Promise<string> =>
-				await new Promise((resolve) => setTimeout(() => resolve("ok"), 20)),
-		);
+		// Never resolves, so the configured timeout deterministically wins the
+		// race regardless of host load (a tight real-timer margin flaked under
+		// heavy parallel CI runs).
+		const execute = vi.fn((): Promise<string> => new Promise<string>(() => {}));
 		const tool = createWindowsShellTool(execute, { bashTimeoutMs: 5 });
 		const telemetry = createTelemetryStub();
 
@@ -1151,10 +1151,10 @@ describe("default run_commands tool", () => {
 
 	it("emits timeout telemetry on the default bash tool path", async () => {
 		const telemetry = createTelemetryStub();
-		const execute = vi.fn(
-			async (): Promise<string> =>
-				await new Promise((resolve) => setTimeout(() => resolve("ok"), 20)),
-		);
+		// Never resolves, so the configured timeout deterministically wins the
+		// race regardless of host load (a tight real-timer margin flaked under
+		// heavy parallel CI runs).
+		const execute = vi.fn((): Promise<string> => new Promise<string>(() => {}));
 		const tool = createBashTool(execute, { bashTimeoutMs: 5 });
 
 		const result = await tool.execute(
