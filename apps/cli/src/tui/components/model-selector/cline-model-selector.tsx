@@ -4,6 +4,10 @@ import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { palette } from "../../palette";
 import type { ClineModelPickerEntry } from "./cline-model-picker";
+import {
+	type KnownModels,
+	resolveModelDisplayName,
+} from "./model-display-name";
 import { CHANGE_PROVIDER_ACTION } from "./model-selector";
 import { ProviderRow } from "./provider-row";
 
@@ -20,28 +24,11 @@ function tagColor(tag: string): string {
 	return "cyan";
 }
 
-function resolveDisplayName(
-	modelId: string,
-	knownModels?: Record<string, unknown>,
-): string {
-	if (knownModels) {
-		const candidates = [modelId, modelId.split("/").pop()];
-		for (const key of candidates) {
-			if (!key) continue;
-			const hit = knownModels[key] as { name?: string } | undefined;
-			if (hit?.name) return hit.name;
-		}
-	}
-	return modelId.includes("/")
-		? (modelId.split("/").pop() ?? modelId)
-		: modelId;
-}
-
 export function ClineModelSelectorContent(
 	props: ChoiceContext<string> & {
 		currentModel: string;
 		currentProviderName: string;
-		knownModels?: Record<string, unknown>;
+		knownModels?: KnownModels;
 		entries: ClineModelPickerEntry[];
 	},
 ) {
@@ -85,7 +72,11 @@ export function ClineModelSelectorContent(
 				rows.push({
 					key: entry.model.id,
 					kind: "model",
-					label: resolveDisplayName(entry.model.id, knownModels),
+					label: resolveModelDisplayName(
+						entry.model.id,
+						knownModels,
+						entry.model.name,
+					),
 					tags: entry.model.tags,
 					isCurrent: currentModel === entry.model.id,
 					entryIndex: i,
@@ -218,7 +209,7 @@ export function ClineModelSelectorDialogContent(
 	props: ChoiceContext<string> & {
 		currentModel: string;
 		currentProviderName: string;
-		knownModels?: Record<string, unknown>;
+		knownModels?: KnownModels;
 		loadEntries: () => Promise<ClineModelPickerEntry[]>;
 	},
 ) {

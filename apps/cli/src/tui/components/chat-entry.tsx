@@ -3,6 +3,10 @@ import type React from "react";
 import { useState } from "react";
 import "opentui-spinner/react";
 import {
+	getClinePassSubscriptionUrl,
+	isClinePassSubscriptionError,
+} from "../../utils/cline-pass-errors";
+import {
 	CLINE_CREDITS_DASHBOARD_URL,
 	isClineAccountCreditsErrorMessage,
 } from "../cline-account";
@@ -290,6 +294,41 @@ function ClineCreditsErrorView(props: { defaultFg?: string }) {
 	);
 }
 
+function ClinePassSubscriptionErrorView(props: { defaultFg?: string }) {
+	const subscriptionUrl = getClinePassSubscriptionUrl();
+	return (
+		<box flexDirection="row">
+			<text fg="yellow" content="* " />
+			<box
+				flexDirection="column"
+				border
+				borderStyle="rounded"
+				borderColor="yellow"
+				paddingX={1}
+			>
+				<text fg="yellow">ClinePass subscription required</text>
+				<text
+					fg={props.defaultFg}
+					selectable
+					content="No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan."
+				/>
+				<box flexDirection="row">
+					<text fg="gray">Subscribe: </text>
+					<text fg="cyan" selectable>
+						<a href={subscriptionUrl}>Open subscription page</a>
+					</text>
+				</box>
+				<box flexDirection="row">
+					<text fg="gray">URL: </text>
+					<text fg="cyan" selectable>
+						<a href={subscriptionUrl}>{subscriptionUrl}</a>
+					</text>
+				</box>
+			</box>
+		</box>
+	);
+}
+
 export function ChatEntryView(props: {
 	entry: ChatEntry;
 	accent?: string;
@@ -387,6 +426,9 @@ export function ChatEntryView(props: {
 		case "error":
 			if (isClineAccountCreditsErrorMessage(entry.text)) {
 				return <ClineCreditsErrorView defaultFg={defaultFg} />;
+			}
+			if (isClinePassSubscriptionError(entry.text)) {
+				return <ClinePassSubscriptionErrorView defaultFg={defaultFg} />;
 			}
 			return (
 				<box flexDirection="row">

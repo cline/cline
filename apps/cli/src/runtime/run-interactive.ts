@@ -121,6 +121,7 @@ export async function runInteractive(
 		autoApproveAllRef,
 		setInteractiveAutoApprove,
 		requestToolApproval,
+		resolveToolPolicy,
 		tuiToolApprover,
 		tuiAskQuestion,
 	} = createInteractiveApprovalController(config);
@@ -160,6 +161,7 @@ export async function runInteractive(
 		resumeSessionId,
 		chatCommandState,
 		requestToolApproval,
+		resolveToolPolicy,
 		askQuestionRef: tuiAskQuestion,
 		resolveMistakeLimitDecision,
 		switchToActModeTool,

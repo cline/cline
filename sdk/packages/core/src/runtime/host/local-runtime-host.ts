@@ -669,7 +669,16 @@ export class LocalRuntimeHost implements RuntimeHost {
 						modelId: active.config.modelId,
 					},
 				});
-				await this.failSession(active);
+				try {
+					await this.failSession(active);
+				} catch (cleanupError) {
+					// Never let cleanup failures mask the error that actually
+					// killed the turn; that one is what callers must see.
+					active.config.logger?.error?.("Session failure cleanup threw", {
+						sessionId: active.sessionId,
+						error: cleanupError,
+					});
+				}
 				throw error;
 			}
 		}

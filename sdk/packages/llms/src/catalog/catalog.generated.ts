@@ -14,7 +14,7 @@ export const GENERATED_PROVIDER_MODELS: {
 	version: number;
 	providers: Record<string, Record<string, ModelInfo>>;
 } = {
-	version: 1781654469496,
+	version: 1781728990666,
 	providers: {
 		aihubmix: {
 			"glm-5v-turbo": {
@@ -3682,7 +3682,7 @@ export const GENERATED_PROVIDER_MODELS: {
 		"cline-pass": {
 			"cline-pass/glm-5.1": {
 				id: "cline-pass/glm-5.1",
-				name: "cline-pass/glm-5.1",
+				name: "GLM-5.1",
 				contextWindow: 202752,
 				maxInputTokens: 202752,
 				maxTokens: 131072,
@@ -3705,9 +3705,9 @@ export const GENERATED_PROVIDER_MODELS: {
 			},
 			"cline-pass/deepseek-v4-flash": {
 				id: "cline-pass/deepseek-v4-flash",
-				name: "cline-pass/deepseek-v4-flash",
-				contextWindow: 1048575,
-				maxInputTokens: 1048575,
+				name: "DeepSeek V4 Flash",
+				contextWindow: 1000000,
+				maxInputTokens: 1000000,
 				maxTokens: 65536,
 				capabilities: [
 					"tools",
@@ -3717,8 +3717,8 @@ export const GENERATED_PROVIDER_MODELS: {
 					"prompt-cache",
 				],
 				pricing: {
-					input: 0.098,
-					output: 0.196,
+					input: 0.09,
+					output: 0.18,
 					cacheRead: 0.02,
 					cacheWrite: 0,
 				},
@@ -3728,7 +3728,7 @@ export const GENERATED_PROVIDER_MODELS: {
 			},
 			"cline-pass/deepseek-v4-pro": {
 				id: "cline-pass/deepseek-v4-pro",
-				name: "cline-pass/deepseek-v4-pro",
+				name: "DeepSeek V4 Pro",
 				contextWindow: 1048576,
 				maxInputTokens: 1048576,
 				maxTokens: 384000,
@@ -3751,7 +3751,7 @@ export const GENERATED_PROVIDER_MODELS: {
 			},
 			"cline-pass/kimi-k2.6": {
 				id: "cline-pass/kimi-k2.6",
-				name: "cline-pass/kimi-k2.6",
+				name: "Kimi K2.6",
 				contextWindow: 262142,
 				maxInputTokens: 262142,
 				maxTokens: 262142,
@@ -3853,6 +3853,22 @@ export const GENERATED_PROVIDER_MODELS: {
 			},
 		},
 		fireworks: {
+			"accounts/fireworks/models/glm-5p2": {
+				id: "accounts/fireworks/models/glm-5p2",
+				name: "GLM 5.2",
+				contextWindow: 1048576,
+				maxInputTokens: 1048576,
+				maxTokens: 131072,
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
+				pricing: {
+					input: 1.4,
+					output: 4.4,
+					cacheRead: 0.26,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-06-16",
+				family: "glm",
+			},
 			"accounts/fireworks/models/kimi-k2p7-code": {
 				id: "accounts/fireworks/models/kimi-k2p7-code",
 				name: "Kimi K2.7 Code",
@@ -3863,7 +3879,6 @@ export const GENERATED_PROVIDER_MODELS: {
 					"images",
 					"tools",
 					"reasoning",
-					"structured_output",
 					"temperature",
 					"prompt-cache",
 				],
@@ -3924,12 +3939,11 @@ export const GENERATED_PROVIDER_MODELS: {
 					"images",
 					"tools",
 					"reasoning",
-					"structured_output",
 					"temperature",
 					"prompt-cache",
 				],
 				pricing: {
-					input: 2,
+					input: 1.9,
 					output: 8,
 					cacheRead: 0.38,
 					cacheWrite: 0,
@@ -3953,7 +3967,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				pricing: {
 					input: 0.14,
 					output: 0.28,
-					cacheRead: 0.03,
+					cacheRead: 0.028,
 					cacheWrite: 0,
 				},
 				releaseDate: "2026-04-24",
@@ -4105,7 +4119,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				pricing: {
 					input: 0.15,
 					output: 0.6,
-					cacheRead: 0.01,
+					cacheRead: 0.015,
 					cacheWrite: 0,
 				},
 				releaseDate: "2025-08-05",
@@ -11231,10 +11245,16 @@ export const GENERATED_PROVIDER_MODELS: {
 			"z-ai/glm-5.2": {
 				id: "z-ai/glm-5.2",
 				name: "GLM-5.2",
-				contextWindow: 1048576,
-				maxInputTokens: 1048576,
-				maxTokens: 131072,
-				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
+				contextWindow: 262144,
+				maxInputTokens: 262144,
+				maxTokens: 262144,
+				capabilities: [
+					"tools",
+					"reasoning",
+					"structured_output",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 1.4,
 					output: 4.4,
@@ -11249,7 +11269,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Kimi K2.7 Code",
 				contextWindow: 262144,
 				maxInputTokens: 262144,
-				maxTokens: 262144,
+				maxTokens: 16384,
 				capabilities: [
 					"images",
 					"tools",
@@ -11259,9 +11279,9 @@ export const GENERATED_PROVIDER_MODELS: {
 					"prompt-cache",
 				],
 				pricing: {
-					input: 0.75,
+					input: 0.74,
 					output: 3.5,
-					cacheRead: 0.16,
+					cacheRead: 0.15,
 					cacheWrite: 0,
 				},
 				releaseDate: "2026-06-12",
@@ -11326,8 +11346,8 @@ export const GENERATED_PROVIDER_MODELS: {
 				],
 				pricing: {
 					input: 0.5,
-					output: 2.5,
-					cacheRead: 0.15,
+					output: 2.2,
+					cacheRead: 0.1,
 					cacheWrite: 0,
 				},
 				releaseDate: "2026-06-04",
@@ -11914,8 +11934,8 @@ export const GENERATED_PROVIDER_MODELS: {
 			"deepseek/deepseek-v4-flash": {
 				id: "deepseek/deepseek-v4-flash",
 				name: "DeepSeek V4 Flash",
-				contextWindow: 1048575,
-				maxInputTokens: 1048575,
+				contextWindow: 1000000,
+				maxInputTokens: 1000000,
 				maxTokens: 65536,
 				capabilities: [
 					"tools",
@@ -11925,8 +11945,8 @@ export const GENERATED_PROVIDER_MODELS: {
 					"prompt-cache",
 				],
 				pricing: {
-					input: 0.098,
-					output: 0.196,
+					input: 0.09,
+					output: 0.18,
 					cacheRead: 0.02,
 					cacheWrite: 0,
 				},
@@ -14835,14 +14855,14 @@ export const GENERATED_PROVIDER_MODELS: {
 			"z-ai/glm-4.5-air": {
 				id: "z-ai/glm-4.5-air",
 				name: "GLM-4.5-Air",
-				contextWindow: 131070,
-				maxInputTokens: 131070,
-				maxTokens: 131070,
+				contextWindow: 131072,
+				maxInputTokens: 131072,
+				maxTokens: 98304,
 				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
-					input: 0.125,
+					input: 0.13,
 					output: 0.85,
-					cacheRead: 0.06,
+					cacheRead: 0.025,
 					cacheWrite: 0,
 				},
 				releaseDate: "2025-07-28",
@@ -18877,7 +18897,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				contextWindow: 256000,
 				maxInputTokens: 256000,
 				maxTokens: 256000,
-				capabilities: ["images", "tools", "reasoning", "temperature"],
+				capabilities: ["images", "tools", "temperature"],
 				pricing: {
 					input: 0.15,
 					output: 0.6,

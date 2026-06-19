@@ -9,6 +9,10 @@ import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import "opentui-spinner/react";
 import { palette } from "../../palette";
+import {
+	type KnownModels,
+	resolveModelDisplayName,
+} from "./model-display-name";
 
 export interface ClineModelPickerItem {
 	kind: "model";
@@ -28,23 +32,6 @@ function tagColor(tag: string): string {
 	if (tag === "FREE") return palette.success;
 	if (tag === "BEST") return "magenta";
 	return "cyan";
-}
-
-function resolveDisplayName(
-	modelId: string,
-	knownModels?: Record<string, unknown>,
-): string {
-	if (knownModels) {
-		const candidates = [modelId, modelId.split("/").pop()];
-		for (const key of candidates) {
-			if (!key) continue;
-			const hit = knownModels[key] as { name?: string } | undefined;
-			if (hit?.name) return hit.name;
-		}
-	}
-	return modelId.includes("/")
-		? (modelId.split("/").pop() ?? modelId)
-		: modelId;
 }
 
 export function useClineRecommendedModels() {
@@ -86,7 +73,7 @@ export function ClineModelPicker(props: {
 	entries: ClineModelPickerEntry[];
 	selected: number;
 	loading?: boolean;
-	knownModels?: Record<string, unknown>;
+	knownModels?: KnownModels;
 	currentModelId?: string;
 }) {
 	const { entries, selected, loading, knownModels, currentModelId } = props;
@@ -126,7 +113,11 @@ export function ClineModelPicker(props: {
 			}
 
 			const tags = entry.model.tags;
-			const name = resolveDisplayName(entry.model.id, knownModels);
+			const name = resolveModelDisplayName(
+				entry.model.id,
+				knownModels,
+				entry.model.name,
+			);
 			const isCurrent = currentModelId === entry.model.id;
 			rows.push(
 				<box

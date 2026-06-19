@@ -8,6 +8,7 @@ import {
 	ClineModelPicker,
 	type ClineModelPickerEntry,
 } from "../../components/model-selector/cline-model-picker";
+import type { KnownModels } from "../../components/model-selector/model-display-name";
 import {
 	type SearchableItem,
 	SearchableList,
@@ -20,7 +21,7 @@ import {
 import { useTerminalBackground } from "../../hooks/use-terminal-background";
 import { getDefaultForeground, palette } from "../../palette";
 import { FIELD_ORDER } from "./fields";
-import { MAIN_MENU, THINKING_LEVELS } from "./model";
+import { type MenuOption, THINKING_LEVELS } from "./model";
 
 type MouseTrackerState = ReturnType<typeof useMouseTracker>;
 
@@ -433,7 +434,7 @@ export function OnboardingProviderPickerScreen(props: {
 
 export function OnboardingClineModelScreen(props: {
 	clineEntries: ClineModelPickerEntry[];
-	clineKnownModels: Record<string, unknown> | undefined;
+	clineKnownModels: KnownModels | undefined;
 	clineModelSelected: number;
 	compact: boolean;
 	contentWidth: number;
@@ -633,6 +634,7 @@ export function OnboardingThinkingLevelScreen(props: {
 
 export function OnboardingMainMenuScreen(props: {
 	contentWidth: number;
+	menuOptions: MenuOption[];
 	menuSelected: number;
 	mouse: MouseTrackerState;
 }) {
@@ -671,7 +673,7 @@ export function OnboardingMainMenuScreen(props: {
 				marginTop={1}
 				gap={0}
 			>
-				{MAIN_MENU.map((option, i) => {
+				{props.menuOptions.map((option, i) => {
 					const isSel = i === props.menuSelected;
 					return (
 						<box

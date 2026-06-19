@@ -299,7 +299,7 @@ export function useModelSelector(opts: {
 								{...ctx}
 								currentModel={config.modelId}
 								currentProviderName={providerDisplayName}
-								knownModels={config.knownModels as Record<string, unknown>}
+								knownModels={config.knownModels}
 								loadEntries={async () =>
 									buildClineModelEntries(await fetchClineRecommendedModels())
 								}
@@ -323,6 +323,7 @@ export function useModelSelector(opts: {
 									currentModel={config.modelId}
 									currentProviderName={providerDisplayName}
 									models={modelOptions}
+									showCustomModelId={config.providerId !== "cline-pass"}
 								/>
 							),
 						});
@@ -413,6 +414,7 @@ export function useModelSelector(opts: {
 							currentModel={config.modelId}
 							currentProviderName={providerDisplayName}
 							models={modelOptions}
+							showCustomModelId={config.providerId !== "cline-pass"}
 						/>
 					),
 				});

@@ -116,7 +116,6 @@ export function createProgram(): Command {
 			writeOut: () => {}, // suppress by default; main.ts re-enables for routing
 			writeErr: () => {},
 		})
-		.allowUnknownOption()
 		.allowExcessArguments()
 		.enablePositionalOptions()
 		.argument(

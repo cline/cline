@@ -87,22 +87,29 @@ export async function disposeCliFeatureFlagsService(): Promise<void> {
 	await current.dispose();
 }
 
-export async function identifyFeatureFlagsAccount(
-	account: { id?: string; email?: string },
-	logger?: BasicLogger,
-): Promise<void> {
+export function setCliFeatureFlagsAccountContext(account: {
+	id?: string;
+	email?: string;
+}): void {
 	const accountId = account.id?.trim();
 	cliFeatureFlagsContext = {
 		...cliFeatureFlagsContext,
 		...(accountId ? { distinctId: accountId, userId: accountId } : {}),
 		...(account.email?.trim() ? { email: account.email.trim() } : {}),
 	};
+	cliFeatureFlagsService?.setContext(getCliFeatureFlagsContext());
+}
+
+export async function identifyFeatureFlagsAccount(
+	account: { id?: string; email?: string },
+	logger?: BasicLogger,
+): Promise<void> {
+	setCliFeatureFlagsAccountContext(account);
 
 	if (!cliFeatureFlagsService) {
 		return;
 	}
 
-	cliFeatureFlagsService.setContext(getCliFeatureFlagsContext());
 	try {
 		await cliFeatureFlagsService.poll();
 	} catch (error) {

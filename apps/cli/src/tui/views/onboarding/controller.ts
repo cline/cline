@@ -9,12 +9,14 @@ import {
 	resolveProviderConfig,
 	saveLocalProviderSettings,
 } from "@cline/core";
+import { isClineProvider } from "@cline/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	type CodexCliStatus,
 	checkCodexCliInstalled,
 	isOpenAICodexCliProvider,
 } from "../../../utils/codex-cli";
+import { getCliFeatureFlagsService } from "../../../utils/feature-flags";
 import { getPersistedProviderApiKey } from "../../../utils/provider-auth";
 import { listLocalProviders } from "../../../utils/provider-catalog";
 import { getCliTelemetryService } from "../../../utils/telemetry";
@@ -23,6 +25,7 @@ import {
 	type ClineModelPickerEntry,
 	useClineRecommendedModels,
 } from "../../components/model-selector/cline-model-picker";
+import type { KnownModels } from "../../components/model-selector/model-display-name";
 import {
 	type SearchableItem,
 	useSearchableList,
@@ -46,11 +49,13 @@ import {
 import { FIELD_ORDER } from "./fields";
 import { useOnboardingKeyboard } from "./keyboard";
 import {
+	getMainMenuOptions,
 	type ModelEntry,
 	type OnboardingResult,
 	type OnboardingStep,
 	type ProviderEntry,
 	type ReasoningEffort,
+	shouldUseFeaturedClineModelPicker,
 	type ThinkingLevel,
 	toModelEntriesFromKnownModels,
 	toModelEntry,
@@ -70,6 +75,14 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 	const providerSettingsManager = useMemo(
 		() => props.providerSettingsManager ?? new ProviderSettingsManager(),
 		[props.providerSettingsManager],
+	);
+	const menuOptions = useMemo(
+		() =>
+			getMainMenuOptions({
+				isClinePassEnabled:
+					getCliFeatureFlagsService().getBooleanFlagEnabled("ext-cline-pass"),
+			}),
+		[],
 	);
 	const [step, setStep] = useState<OnboardingStep>("menu");
 	const [menuSelected, setMenuSelected] = useState(0);
@@ -153,6 +166,9 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 
 	const createCustomModelItem = useCallback(
 		(_search: string, filteredItems: SearchableItem[]) => {
+			if (activeProviderId === "cline-pass") {
+				return undefined;
+			}
 			if (filteredItems.some((item) => item.key === CUSTOM_MODEL_ID_ACTION)) {
 				return undefined;
 			}
@@ -163,7 +179,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 				searchText: "create custom model id manual entry",
 			} satisfies SearchableItem;
 		},
-		[],
+		[activeProviderId],
 	);
 
 	const modelList = useSearchableList(modelItems, createCustomModelItem);
@@ -179,7 +195,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		Set<string>
 	>(new Set());
 	const [clineKnownModels, setClineKnownModels] = useState<
-		Record<string, unknown> | undefined
+		KnownModels | undefined
 	>(undefined);
 
 	useEffect(() => {
@@ -256,7 +272,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 			const provider = providers.find((p) => p.id === providerId);
 			setActiveProviderName(provider?.name ?? providerId);
 			setModelsDefaultId(provider?.defaultModelId ?? "");
-			if (providerId === "cline") {
+			if (shouldUseFeaturedClineModelPicker(providerId)) {
 				setClineModelSelected(0);
 				setStep("cline_model");
 			} else if (providerId === "openai-compatible") {
@@ -307,7 +323,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 
 	const startOAuthFlow = useCallback(
 		(providerId: OnboardingOAuthProviderId) => {
-			if (providerId === "cline") {
+			if (isClineProvider(providerId)) {
 				startDeviceCodeFlow(providerId);
 				return;
 			}
@@ -611,6 +627,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		onExit: props.onExit,
 		oauthProvider,
 		activeProviderId,
+		menuOptions,
 		menuSelected,
 		providerList,
 		modelList,
@@ -685,6 +702,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		},
 		handleModelItemSelect: selectModelItem,
 		menuSelected,
+		menuOptions,
 		modelItems,
 		modelList,
 		modelsLoading,

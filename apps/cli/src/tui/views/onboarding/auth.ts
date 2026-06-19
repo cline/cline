@@ -9,6 +9,7 @@ import {
 } from "@cline/core";
 import { getClineEnvironmentConfig } from "@cline/shared";
 import open from "open";
+import { identifyFeatureFlagsAccount } from "../../../utils/feature-flags";
 
 export type OnboardingOAuthProviderId = string;
 
@@ -16,6 +17,10 @@ export function isOnboardingOAuthProviderId(
 	providerId: string,
 ): providerId is OnboardingOAuthProviderId {
 	return isOAuthProvider(providerId);
+}
+
+function isClineAccountOAuthProvider(providerId: string): boolean {
+	return providerId === "cline" || providerId === "cline-pass";
 }
 
 export function runOAuthAuthFlow(input: {
@@ -56,6 +61,12 @@ export function runOAuthAuthFlow(input: {
 				existing,
 				credentials,
 			);
+			if (isClineAccountOAuthProvider(input.providerId)) {
+				void identifyFeatureFlagsAccount({
+					id: credentials.accountId,
+					email: credentials.email,
+				}).catch(() => {});
+			}
 			input.onComplete(input.providerId);
 		})
 		.catch((err: unknown) => {
@@ -118,6 +129,12 @@ export function runDeviceCodeAuthFlow(input: {
 						existing,
 						credentials,
 					);
+					if (isClineAccountOAuthProvider(input.providerId)) {
+						void identifyFeatureFlagsAccount({
+							id: credentials.accountId,
+							email: credentials.email,
+						}).catch(() => {});
+					}
 					input.onComplete(input.providerId);
 				})
 				.catch((err: unknown) => {

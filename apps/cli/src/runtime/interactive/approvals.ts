@@ -3,6 +3,7 @@ import type { Config } from "../../utils/types";
 import {
 	applyInteractiveAutoApproveOverride,
 	cloneToolPolicies,
+	resolveInteractiveAutoApprovePolicy,
 } from "../tool-policies";
 
 export interface InteractiveRuntimeRefs {
@@ -38,10 +39,10 @@ export function createInteractiveApprovalController(config: Config) {
 	const requestToolApproval = async (
 		request: ToolApprovalRequest,
 	): Promise<ToolApprovalResult> => {
-		if (request.policy?.autoApprove === true) {
+		if (autoApproveAllRef.current) {
 			return { approved: true };
 		}
-		if (autoApproveAllRef.current && request.policy?.autoApprove !== false) {
+		if (request.policy?.autoApprove === true) {
 			return { approved: true };
 		}
 		if (refs.tuiToolApprover.current) {
@@ -54,6 +55,12 @@ export function createInteractiveApprovalController(config: Config) {
 		autoApproveAllRef,
 		setInteractiveAutoApprove,
 		requestToolApproval,
+		resolveToolPolicy: (toolName: string) =>
+			resolveInteractiveAutoApprovePolicy({
+				toolName,
+				baselinePolicies: baselineToolPolicies,
+				enabled: autoApproveAllRef.current,
+			}),
 		...refs,
 	};
 }

@@ -280,6 +280,8 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.VSCODE_LM
 		case "cline":
 			return ProtoApiProvider.CLINE
+		case "cline-pass":
+			return ProtoApiProvider.CLINE_PASS
 		case "litellm":
 			return ProtoApiProvider.LITELLM
 		case "moonshot":
@@ -372,6 +374,8 @@ export function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvid
 			return "vscode-lm"
 		case ProtoApiProvider.CLINE:
 			return "cline"
+		case ProtoApiProvider.CLINE_PASS:
+			return "cline-pass"
 		case ProtoApiProvider.LITELLM:
 			return "litellm"
 		case ProtoApiProvider.MOONSHOT:
@@ -528,6 +532,8 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		planModeOpenRouterModelInfo: convertModelInfoToProtoOpenRouter(config.planModeOpenRouterModelInfo),
 		planModeClineModelId: config.planModeClineModelId,
 		planModeClineModelInfo: convertModelInfoToProtoOpenRouter(config.planModeClineModelInfo),
+		planModeClinePassModelId: config.planModeClinePassModelId,
+		planModeClinePassModelInfo: convertModelInfoToProtoOpenRouter(config.planModeClinePassModelInfo),
 		planModeOpenAiModelId: config.planModeOpenAiModelId,
 		planModeOpenAiModelInfo: convertOpenAiCompatibleModelInfoToProto(config.planModeOpenAiModelInfo),
 		planModeOllamaModelId: config.planModeOllamaModelId,
@@ -572,6 +578,8 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		actModeOpenRouterModelInfo: convertModelInfoToProtoOpenRouter(config.actModeOpenRouterModelInfo),
 		actModeClineModelId: config.actModeClineModelId,
 		actModeClineModelInfo: convertModelInfoToProtoOpenRouter(config.actModeClineModelInfo),
+		actModeClinePassModelId: config.actModeClinePassModelId,
+		actModeClinePassModelInfo: convertModelInfoToProtoOpenRouter(config.actModeClinePassModelInfo),
 		actModeOpenAiModelId: config.actModeOpenAiModelId,
 		actModeOpenAiModelInfo: convertOpenAiCompatibleModelInfoToProto(config.actModeOpenAiModelInfo),
 		actModeOllamaModelId: config.actModeOllamaModelId,
@@ -711,6 +719,8 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		planModeOpenRouterModelInfo: convertProtoToModelInfo(protoConfig.planModeOpenRouterModelInfo),
 		planModeClineModelId: protoConfig.planModeClineModelId,
 		planModeClineModelInfo: convertProtoToModelInfo(protoConfig.planModeClineModelInfo),
+		planModeClinePassModelId: protoConfig.planModeClinePassModelId,
+		planModeClinePassModelInfo: convertProtoToModelInfo(protoConfig.planModeClinePassModelInfo),
 		planModeOpenAiModelId: protoConfig.planModeOpenAiModelId,
 		planModeOpenAiModelInfo: convertProtoToOpenAiCompatibleModelInfo(protoConfig.planModeOpenAiModelInfo),
 		planModeOllamaModelId: protoConfig.planModeOllamaModelId,
@@ -756,6 +766,8 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		actModeOpenRouterModelInfo: convertProtoToModelInfo(protoConfig.actModeOpenRouterModelInfo),
 		actModeClineModelId: protoConfig.actModeClineModelId,
 		actModeClineModelInfo: convertProtoToModelInfo(protoConfig.actModeClineModelInfo),
+		actModeClinePassModelId: protoConfig.actModeClinePassModelId,
+		actModeClinePassModelInfo: convertProtoToModelInfo(protoConfig.actModeClinePassModelInfo),
 		actModeOpenAiModelId: protoConfig.actModeOpenAiModelId,
 		actModeOpenAiModelInfo: convertProtoToOpenAiCompatibleModelInfo(protoConfig.actModeOpenAiModelInfo),
 		actModeOllamaModelId: protoConfig.actModeOllamaModelId,
