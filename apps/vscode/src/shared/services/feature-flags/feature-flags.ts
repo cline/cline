@@ -15,7 +15,7 @@ export enum FeatureFlag {
 	// Rollout flag for Cline provider model sourcing:
 	// off => OpenRouter model list, on => Cline endpoint model list.
 	EXTENSION_CLINE_MODELS_ENDPOINT = "extension_cline_models_endpoint",
-	// Enables Cline Pass provider/model list exposure.
+	// Enables ClinePass provider/model list exposure.
 	CLINE_PASS = "ext-cline-pass",
 	// Use the websocket mode for OpenAI native Responses API format
 	OPENAI_RESPONSES_WEBSOCKET_MODE = "openai-responses-websocket-mode",
