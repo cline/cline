@@ -4,6 +4,9 @@
   "workspaces": {
     "": {
       "name": "@cline/packages",
+      "dependencies": {
+        "undici": "6.27.0",
+      },
       "devDependencies": {
         "@biomejs/biome": "2.4.5",
         "@types/bun": "^1.3.13",
@@ -19,7 +22,7 @@
     },
     "apps/cli": {
       "name": "@cline/cli",
-      "version": "3.0.27",
+      "version": "3.0.28",
       "bin": {
         "cline": "src/index.ts",
       },
@@ -468,6 +471,10 @@
         "zod-to-json-schema": "^3.25.1",
       },
     },
+  },
+  "overrides": {
+    "form-data": "4.0.6",
+    "undici": "6.27.0",
   },
   "packages": {
     "@agentclientprotocol/sdk": ["@agentclientprotocol/sdk@0.16.1", "", { "peerDependencies": { "zod": "^3.25.0 || ^4.0.0" } }, "sha512-1ad+Sc/0sCtZGHthxxvgEUo5Wsbw16I+aF+YwdiLnPwkZG8KAGUEAPK6LM6Pf69lCyJPt1Aomk1d+8oE3C4ZEw=="],
@@ -3094,7 +3101,7 @@
 
     "uc.micro": ["uc.micro@1.0.6", "", {}, "sha512-8Y75pvTYkLJW2hWQHXxoqRgV7qb9B+9vFEtidML+7koHUFapnVJAZ6cKs+Qjz5Aw3aZWHMC6u0wJE3At+nSGwA=="],
 
-    "undici": ["undici@6.24.1", "", {}, "sha512-sC+b0tB1whOCzbtlx20fx3WgCXwkW627p4EA9uM+/tNNPkSS+eSEld6pAs9nDv7WbY1UUljBMYPtu9BCOrCWKA=="],
+    "undici": ["undici@6.27.0", "", {}, "sha512-YmfV3YnEDzXRC5lZ2jWtWWHKGUm1zIt8AhesR1tens+HTNv+YZlN/dp6G727LOvMJ8xjP9Be7Y2Sdr96LDm+pg=="],
 
     "undici-types": ["undici-types@7.24.6", "", {}, "sha512-WRNW+sJgj5OBN4/0JpHFqtqzhpbnV0GuB+OozA9gCL7a993SmU+1JBZCzLNxYsbMfIeDL+lTsphD5jN5N+n0zg=="],
 
