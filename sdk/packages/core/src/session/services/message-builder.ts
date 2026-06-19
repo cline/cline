@@ -28,16 +28,8 @@ import {
 const DEFAULT_MAX_TOOL_RESULT_CHARS = 50_000;
 const DEFAULT_MAX_TOTAL_TEXT_BYTES = 6_000_000;
 const MIN_TOTAL_BUDGET_TOOL_RESULT_BYTES = 8_000;
-/**
- * Outdated-read rewrites mutate tool results in the middle of the transcript,
- * which invalidates provider prefix caches from that point onward. Instead of
- * rewriting eagerly on every re-read, batch rewrites: defer them until the
- * total reclaimable bytes across pending outdated reads crosses this
- * threshold, then apply them all at once (one cache break amortized over a
- * large context saving). 128KB ≈ 32K tokens, ~2-3 executor-capped reads
- * (read_files caps at 48K chars), so a single re-read never breaks the
- * cache alone. Set to 0 to rewrite eagerly.
- */
+// Batch stale-read rewrites to avoid breaking provider prefix caches on every re-read.
+// 128KB is roughly 2-3 executor-capped reads; set to 0 for eager rewriting.
 const DEFAULT_MIN_OUTDATED_REWRITE_BYTES = 131_072;
 const TARGET_TOOL_NAMES = new Set([
 	"read",
@@ -86,15 +78,8 @@ export class MessageBuilder {
 		string
 	>();
 	private readResultLocatorCache = new WeakMap<object, ReadLocator[]>();
-	/**
-	 * Committed outdated-read rewrites (locator keys per tool_use_id),
-	 * applied on every build so the transcript stays byte-stable between
-	 * batch commits. Survives resetIndexes: the runtime rebuilds fresh
-	 * Message objects per request, so identity-based reindexing cannot be
-	 * trusted to detect real history changes. Stale entries are instead
-	 * re-validated against the current index at apply time and pruned in
-	 * commitOutdatedRewrites.
-	 */
+	// Sticky rewrite decisions. Kept across resetIndexes because production
+	// rebuilds fresh Message objects; entries are revalidated/pruned per build.
 	private readonly committedOutdatedRewrites = new Map<string, Set<string>>();
 
 	constructor(
@@ -248,16 +233,7 @@ export class MessageBuilder {
 			messages.length > 0 ? messages[messages.length - 1] : undefined;
 	}
 
-	/**
-	 * Decide which outdated read results to rewrite for this build.
-	 *
-	 * Eagerly rewriting on every re-read mutates mid-transcript bytes and
-	 * invalidates the provider prefix cache from that message to the end of
-	 * the conversation. Instead, accumulate pending outdated locators and
-	 * only commit them (all at once) when the total reclaimable bytes cross
-	 * `minOutdatedRewriteBytes`. Committed rewrites are sticky so the
-	 * serialized transcript stays stable on subsequent requests.
-	 */
+	/** Commits pending stale-read rewrites once reclaimable bytes cross the threshold. */
 	private commitOutdatedRewrites(messages: Message[]): void {
 		const pending = new Map<string, Set<string>>();
 		const seenToolUseIds = new Set<string>();
@@ -289,8 +265,7 @@ export class MessageBuilder {
 						newKeys.add(key);
 					}
 				}
-				// Prune committed keys no longer outdated (history rollback);
-				// a no-op in append-only growth.
+				// Rollback can make a committed locator current again.
 				if (committed) {
 					for (const key of committed) {
 						if (!validKeys.has(key)) {
@@ -312,8 +287,7 @@ export class MessageBuilder {
 				for (const key of newKeys) {
 					keys.add(key);
 				}
-				// Count only the bytes the rewrite will actually reclaim for the
-				// newly-outdated locators (not the whole block), once per block.
+				// Attribute bytes to the newly-stale locators, not the whole block.
 				pendingBytes += this.estimateOutdatedReclaimBytes(
 					block.content,
 					newKeys,
@@ -343,14 +317,7 @@ export class MessageBuilder {
 		}
 	}
 
-	/**
-	 * Estimate the bytes the outdated rewrite would reclaim from a block for
-	 * the given locator keys. Attribution is per-entry where the content is
-	 * structured (parsed read results / file entries); unattributable text
-	 * falls back to its full size only when every locator in the block is
-	 * outdated (matching replaceOutdatedReadContent, which replaces whole
-	 * unparseable text entries).
-	 */
+	/** Estimates reclaimable bytes for stale locators inside one tool-result block. */
 	private estimateOutdatedReclaimBytes(
 		content: ToolResultContent["content"],
 		outdatedKeys: ReadonlySet<string>,
@@ -385,8 +352,7 @@ export class MessageBuilder {
 		if (typeof content === "string") {
 			return attributeText(content);
 		}
-		// Stale image reads are replaced positionally (see
-		// replaceOutdatedReadContent), so count image sibling bytes the same way.
+		// Image siblings are rewritten positionally, so count them positionally too.
 		const outdatedKeySet = new Set(outdatedKeys);
 		let outdatedImageCount = 0;
 		for (const entry of content) {
@@ -852,9 +818,7 @@ export class MessageBuilder {
 			);
 		}
 
-		// Two-pass over content array: first count outdated image entries embedded
-		// in text payloads (those need to convert image siblings → text). Second
-		// pass rewrites entries.
+		// Image entries are paired with text result markers, so rewrite them positionally.
 		let pendingImageReplacements = 0;
 		for (const entry of content) {
 			if (entry.type === "text") {
@@ -977,11 +941,7 @@ export class MessageBuilder {
 		return !!toolName && READ_TOOL_NAMES.has(toolName);
 	}
 
-	/**
-	 * Tool results can outlive their paired tool_use (compaction/rollback),
-	 * so fall back to the name on the result itself when the id lookup
-	 * misses.
-	 */
+	/** Tool results can outlive their paired tool_use after compaction/rollback. */
 	private resolveToolName(block: ToolResultContent): string | undefined {
 		const cached = this.toolNameByIdCache.get(block.tool_use_id);
 		if (cached !== undefined) {
@@ -1018,12 +978,7 @@ export class MessageBuilder {
 		});
 	}
 
-	/**
-	 * Deep-truncates string values inside structured tool outputs (e.g.
-	 * `ToolOperationResult[]` from run_commands/read_files), which carry the
-	 * payload in untyped `{query, result, ...}` fields rather than text
-	 * blocks. Image blocks are left intact so base64 payloads survive.
-	 */
+	/** Deep-truncates strings inside structured tool outputs. */
 	private truncateNestedStrings(value: unknown): unknown {
 		if (typeof value === "string") {
 			return this.truncateMiddle(value);
@@ -1406,9 +1361,7 @@ function cloneContentBlockForMutation(block: ContentBlock): ContentBlock {
 	}
 	return {
 		...block,
-		// Structured entries can nest the payload strings arbitrarily deep, so
-		// a shallow copy would leak budget-truncation mutations back into the
-		// original conversation history.
+		// Avoid leaking nested truncation mutations into the original history.
 		content: block.content.map((entry) =>
 			isStructuredToolResultEntry(entry)
 				? (deepCloneJsonLike(entry) as typeof entry)
@@ -1417,11 +1370,7 @@ function cloneContentBlockForMutation(block: ContentBlock): ContentBlock {
 	};
 }
 
-/**
- * True for tool_result content entries that are not the typed text/image/file
- * blocks — i.e. structured tool outputs such as `ToolOperationResult[]`
- * entries that the runtime stores directly in the content array.
- */
+/** True for untyped structured tool-result entries, e.g. ToolOperationResult. */
 function isStructuredToolResultEntry(entry: unknown): boolean {
 	if (entry === null || typeof entry !== "object") {
 		return false;
