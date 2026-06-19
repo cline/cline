@@ -9,7 +9,10 @@ import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import "opentui-spinner/react";
 import { palette } from "../../palette";
-import { resolveModelDisplayName } from "./model-display-name";
+import {
+	type KnownModels,
+	resolveModelDisplayName,
+} from "./model-display-name";
 
 export interface ClineModelPickerItem {
 	kind: "model";
@@ -70,7 +73,7 @@ export function ClineModelPicker(props: {
 	entries: ClineModelPickerEntry[];
 	selected: number;
 	loading?: boolean;
-	knownModels?: Record<string, unknown>;
+	knownModels?: KnownModels;
 	currentModelId?: string;
 }) {
 	const { entries, selected, loading, knownModels, currentModelId } = props;

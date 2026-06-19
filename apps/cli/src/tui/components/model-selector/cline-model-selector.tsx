@@ -4,7 +4,10 @@ import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { palette } from "../../palette";
 import type { ClineModelPickerEntry } from "./cline-model-picker";
-import { resolveModelDisplayName } from "./model-display-name";
+import {
+	type KnownModels,
+	resolveModelDisplayName,
+} from "./model-display-name";
 import { CHANGE_PROVIDER_ACTION } from "./model-selector";
 import { ProviderRow } from "./provider-row";
 
@@ -25,7 +28,7 @@ export function ClineModelSelectorContent(
 	props: ChoiceContext<string> & {
 		currentModel: string;
 		currentProviderName: string;
-		knownModels?: Record<string, unknown>;
+		knownModels?: KnownModels;
 		entries: ClineModelPickerEntry[];
 	},
 ) {
@@ -206,7 +209,7 @@ export function ClineModelSelectorDialogContent(
 	props: ChoiceContext<string> & {
 		currentModel: string;
 		currentProviderName: string;
-		knownModels?: Record<string, unknown>;
+		knownModels?: KnownModels;
 		loadEntries: () => Promise<ClineModelPickerEntry[]>;
 	},
 ) {

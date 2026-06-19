@@ -8,6 +8,7 @@ import {
 	ClineModelPicker,
 	type ClineModelPickerEntry,
 } from "../../components/model-selector/cline-model-picker";
+import type { KnownModels } from "../../components/model-selector/model-display-name";
 import {
 	type SearchableItem,
 	SearchableList,
@@ -433,7 +434,7 @@ export function OnboardingProviderPickerScreen(props: {
 
 export function OnboardingClineModelScreen(props: {
 	clineEntries: ClineModelPickerEntry[];
-	clineKnownModels: Record<string, unknown> | undefined;
+	clineKnownModels: KnownModels | undefined;
 	clineModelSelected: number;
 	compact: boolean;
 	contentWidth: number;

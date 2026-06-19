@@ -12,6 +12,7 @@ import {
 } from "../palette";
 import { HOME_VIEW_MAX_WIDTH } from "../types";
 import {
+	type KnownModels,
 	resolveModelDisplayName as resolveKnownModelDisplayName,
 	resolveKnownModelInfo,
 } from "./model-selector/model-display-name";
@@ -62,7 +63,7 @@ export function formatStatusBarUsageText(input: {
 
 export function resolveModelDisplayName(config: {
 	modelId: string;
-	knownModels?: Record<string, unknown>;
+	knownModels?: KnownModels;
 	thinking?: boolean;
 	reasoningEffort?: string;
 }): string {
@@ -75,13 +76,9 @@ export function resolveModelDisplayName(config: {
 
 export function resolveModelMaxInputTokens(config: {
 	modelId: string;
-	knownModels?: Record<string, unknown>;
+	knownModels?: KnownModels;
 }): number | undefined {
-	const info = (resolveKnownModelInfo(config.modelId, config.knownModels) ??
-		{}) as {
-		maxInputTokens?: number;
-		contextWindow?: number;
-	};
+	const info = resolveKnownModelInfo(config.modelId, config.knownModels) ?? {};
 	if (typeof info.maxInputTokens === "number" && info.maxInputTokens > 0) {
 		return info.maxInputTokens;
 	}
