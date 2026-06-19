@@ -31,7 +31,7 @@
  * ## Running Tests
  *
  * ```bash
- * npm run test:unit -- --grep "State Keys"
+ * bun run test:unit -- --grep "State Keys"
  * ```
  */
 

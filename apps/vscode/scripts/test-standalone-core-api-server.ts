@@ -1,4 +1,4 @@
-#!/usr/bin/env npx tsx
+#!/usr/bin/env bun
 
 /**
  * Simple Cline gRPC Server
@@ -7,8 +7,8 @@
  * without requiring the full installation, while automatically mocking all external services. Simply run:
  *
  *   # One-time setup (generates protobuf files)
- *	 npm run compile-standalone
- *   npm run test:sca-server
+ *	 bun run compile-standalone
+ *   bun run test:sca-server
  *
  * The following components are started automatically:
  *   1. HostBridge test server
@@ -66,7 +66,7 @@ async function main(): Promise<void> {
 		console.error("  CLINE_DIST_DIR - Override distribution directory")
 		console.error("  CLINE_CORE_FILE - Override core file name")
 		console.error("")
-		console.error("To build the standalone version, run: npm run compile-standalone")
+		console.error("To build the standalone version, run: bun run compile-standalone")
 		process.exit(1)
 	}
 

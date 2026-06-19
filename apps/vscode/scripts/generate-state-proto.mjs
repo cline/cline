@@ -453,7 +453,7 @@ async function main() {
 	await fs.writeFile(STATE_PROTO_PATH, protoContent)
 	console.log(`Updated ${STATE_PROTO_PATH}`)
 
-	console.log("\nGeneration complete! Run 'npm run protos' to regenerate TypeScript from protos.")
+	console.log("\nGeneration complete! Run 'bun run protos' to regenerate TypeScript from protos.")
 }
 
 main().catch((error) => {

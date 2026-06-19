@@ -234,21 +234,19 @@ describe("syncRemoteMcpServersToSettings", () => {
 			result.mcpServers["my-server"].remoteConfigured.should.equal(true)
 		})
 
-		it("should set McpHub isUpdatingFromRemoteConfig flag during write", async () => {
+		it("should record the post-write McpHub fingerprint when an McpHub is provided", async () => {
 			await writeSettings({})
 
 			const mockMcpHub = {
-				setIsUpdatingFromRemoteConfig: sandbox.stub(),
+				recordSettingsFingerprint: sandbox.stub(),
 			}
 
 			await syncRemoteMcpServersToSettings([{ name: "test", url: "https://test.com" }], tempDir, mockMcpHub as any)
 
-			mockMcpHub.setIsUpdatingFromRemoteConfig.calledWith(true).should.be.true()
-			mockMcpHub.setIsUpdatingFromRemoteConfig.calledWith(false).should.be.true()
-
-			const calls = mockMcpHub.setIsUpdatingFromRemoteConfig.getCalls()
-			calls[0].args[0].should.equal(true)
-			calls[1].args[0].should.equal(false)
+			mockMcpHub.recordSettingsFingerprint.calledOnce.should.be.true()
+			const result = await readSettings()
+			result.mcpServers["test"].url.should.equal("https://test.com")
+			result.mcpServers["test"].remoteConfigured.should.equal(true)
 		})
 	})
 })

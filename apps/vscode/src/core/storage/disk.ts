@@ -176,9 +176,18 @@ export async function ensureSettingsDirectoryExists(): Promise<string> {
  */
 export async function getMcpSettingsFilePath(settingsDirectoryPath: string): Promise<string> {
 	const mcpSettingsFilePath = path.join(settingsDirectoryPath, GlobalFileNames.mcpSettings)
-	const fileExists = await fileExistsAtPath(mcpSettingsFilePath)
-	if (!fileExists) {
-		await fs.writeFile(mcpSettingsFilePath, JSON.stringify({ mcpServers: {} }, null, 2))
+	const tempPath = `${mcpSettingsFilePath}.tmp.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}`
+	try {
+		await fs.writeFile(tempPath, JSON.stringify({ mcpServers: {} }, null, 2), { encoding: "utf8", flag: "wx" })
+		// Hard-linking publishes the fully-written temp file without overwriting an
+		// existing settings file. EEXIST means another process won the create race.
+		await fs.link(tempPath, mcpSettingsFilePath)
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code !== "EEXIST") {
+			throw error
+		}
+	} finally {
+		await fs.unlink(tempPath).catch(() => {})
 	}
 	return mcpSettingsFilePath
 }
