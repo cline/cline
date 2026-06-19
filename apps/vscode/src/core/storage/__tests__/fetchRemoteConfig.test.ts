@@ -85,7 +85,10 @@ describe("fetchRemoteConfig", () => {
 
 		const controller = {
 			accountService: { switchAccount: sandbox.stub().resolves() },
-			stateManager: { setSecret: sandbox.stub() },
+			stateManager: {
+				getApiConfiguration: sandbox.stub().returns({ planModeApiProvider: "cline", actModeApiProvider: "cline" }),
+				setSecret: sandbox.stub(),
+			},
 			mcpHub: {},
 			postStateToWebview: sandbox.stub(),
 		}
@@ -110,7 +113,10 @@ describe("fetchRemoteConfig", () => {
 
 		const controller = {
 			accountService: { switchAccount: sandbox.stub() },
-			stateManager: { setSecret: sandbox.stub() },
+			stateManager: {
+				getApiConfiguration: sandbox.stub().returns({ planModeApiProvider: "cline", actModeApiProvider: "cline" }),
+				setSecret: sandbox.stub(),
+			},
 			mcpHub: {},
 			postStateToWebview: sandbox.stub(),
 		}
@@ -135,7 +141,10 @@ describe("fetchRemoteConfig", () => {
 
 		const controller = {
 			accountService: { switchAccount: sandbox.stub() },
-			stateManager: { setSecret: sandbox.stub() },
+			stateManager: {
+				getApiConfiguration: sandbox.stub().returns({ planModeApiProvider: "cline", actModeApiProvider: "cline" }),
+				setSecret: sandbox.stub(),
+			},
 			mcpHub: {},
 			postStateToWebview: sandbox.stub(),
 		}
@@ -163,7 +172,10 @@ describe("fetchRemoteConfig", () => {
 
 		const controller = {
 			accountService: { switchAccount: sandbox.stub() },
-			stateManager: { setSecret: sandbox.stub() },
+			stateManager: {
+				getApiConfiguration: sandbox.stub().returns({ planModeApiProvider: "cline", actModeApiProvider: "cline" }),
+				setSecret: sandbox.stub(),
+			},
 			mcpHub: {},
 			postStateToWebview: sandbox.stub(),
 		}
@@ -192,7 +204,10 @@ describe("fetchRemoteConfig", () => {
 
 		const controller = {
 			accountService: { switchAccount: sandbox.stub() },
-			stateManager: { setSecret: sandbox.stub() },
+			stateManager: {
+				getApiConfiguration: sandbox.stub().returns({ planModeApiProvider: "cline", actModeApiProvider: "cline" }),
+				setSecret: sandbox.stub(),
+			},
 			mcpHub: {},
 			postStateToWebview: sandbox.stub(),
 		}
@@ -230,7 +245,10 @@ describe("fetchRemoteConfig", () => {
 
 		const controller = {
 			accountService: { switchAccount: sandbox.stub().resolves() },
-			stateManager: { setSecret: sandbox.stub() },
+			stateManager: {
+				getApiConfiguration: sandbox.stub().returns({ planModeApiProvider: "cline", actModeApiProvider: "cline" }),
+				setSecret: sandbox.stub(),
+			},
 			mcpHub: {},
 			postStateToWebview: sandbox.stub(),
 		}
@@ -254,7 +272,10 @@ describe("fetchRemoteConfig", () => {
 
 		const controller = {
 			accountService: { switchAccount: sandbox.stub() },
-			stateManager: { setSecret: sandbox.stub() },
+			stateManager: {
+				getApiConfiguration: sandbox.stub().returns({ planModeApiProvider: "cline", actModeApiProvider: "cline" }),
+				setSecret: sandbox.stub(),
+			},
 			mcpHub: {},
 			postStateToWebview: sandbox.stub(),
 		}
@@ -271,7 +292,10 @@ describe("fetchRemoteConfig", () => {
 
 		const controller = {
 			accountService: { switchAccount: sandbox.stub() },
-			stateManager: { setSecret: sandbox.stub() },
+			stateManager: {
+				getApiConfiguration: sandbox.stub().returns({ planModeApiProvider: "cline", actModeApiProvider: "cline" }),
+				setSecret: sandbox.stub(),
+			},
 			mcpHub: {},
 			postStateToWebview: sandbox.stub(),
 		}
@@ -300,7 +324,10 @@ describe("fetchRemoteConfig", () => {
 
 		const controller = {
 			accountService: { switchAccount: sandbox.stub() },
-			stateManager: { setSecret: sandbox.stub() },
+			stateManager: {
+				getApiConfiguration: sandbox.stub().returns({ planModeApiProvider: "cline", actModeApiProvider: "cline" }),
+				setSecret: sandbox.stub(),
+			},
 			mcpHub: {},
 			postStateToWebview: sandbox.stub(),
 		}
@@ -317,7 +344,10 @@ describe("fetchRemoteConfig", () => {
 
 		const controller = {
 			accountService: { switchAccount: sandbox.stub() },
-			stateManager: { setSecret: sandbox.stub() },
+			stateManager: {
+				getApiConfiguration: sandbox.stub().returns({ planModeApiProvider: "cline", actModeApiProvider: "cline" }),
+				setSecret: sandbox.stub(),
+			},
 			mcpHub: {},
 			postStateToWebview: sandbox.stub(),
 		}
@@ -342,7 +372,10 @@ describe("fetchRemoteConfig", () => {
 
 		const controller = {
 			accountService: { switchAccount: sandbox.stub().rejects(new Error("switch failed")) },
-			stateManager: { setSecret: sandbox.stub() },
+			stateManager: {
+				getApiConfiguration: sandbox.stub().returns({ planModeApiProvider: "cline", actModeApiProvider: "cline" }),
+				setSecret: sandbox.stub(),
+			},
 			mcpHub: {},
 			postStateToWebview: sandbox.stub(),
 		}
