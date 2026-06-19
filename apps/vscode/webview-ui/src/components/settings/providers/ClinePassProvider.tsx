@@ -25,7 +25,7 @@ export const ClinePassProvider: typeof ClineProvider = (props) => {
 				(response.clinePass ?? [])
 					.filter((model) => model.id)
 					.map((model) => {
-						// Cline Pass model IDs omit the upstream lab, so look up capabilities using
+						// ClinePass model IDs omit the upstream lab, so look up capabilities using
 						// the model slug (for example, glm-5.1 instead of cline-pass/glm-5.1).
 						// If the model is not in OpenRouter yet, use conservative generic defaults
 						// instead of copying GLM-5.1-specific context/max-token values.
@@ -42,7 +42,7 @@ export const ClinePassProvider: typeof ClineProvider = (props) => {
 			)
 			setClinePassRecommendedModels(Object.keys(models).length > 0 ? models : undefined)
 		} catch (error) {
-			console.error("Failed to refresh Cline Pass models:", error)
+			console.error("Failed to refresh ClinePass models:", error)
 		}
 	}, [openRouterModelsByName])
 

@@ -5,7 +5,7 @@ import type { Controller } from "../index"
 export const CLINE_PASS_PROVIDER_ID = "cline-pass"
 
 /**
- * Cline Pass always uses the user's personal Cline account balance.
+ * ClinePass always uses the user's personal Cline account balance.
  *
  * This is intentionally best-effort: selecting the provider should still be
  * saved even if the account switch fails.
@@ -24,6 +24,6 @@ export async function clearOrganizationForClinePassProviderSelection(
 	try {
 		await controller.accountService.switchAccount(null)
 	} catch (error) {
-		Logger.debug("Failed to switch Cline Pass to personal account", { error })
+		Logger.debug("Failed to switch ClinePass to personal account", { error })
 	}
 }
