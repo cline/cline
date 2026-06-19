@@ -60,7 +60,7 @@ describe("fetchRemoteConfig", () => {
 		sandbox.restore();
 	});
 
-	it("clears remote config and skips discovery when Cline Pass is selected", async () => {
+	it("clears remote config and skips discovery when ClinePass is selected", async () => {
 		const controller = createController({
 			stateManager: {
 				getApiConfiguration: sandbox.stub().returns({
