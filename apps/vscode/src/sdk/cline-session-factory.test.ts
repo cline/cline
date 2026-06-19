@@ -12,13 +12,14 @@ import {
 	getHistoryItemById,
 	normalizeProviderReasoningSettings,
 	normalizeSdkBaseUrl,
+	resolveApiKey,
 	updateHistoryItem,
 } from "./cline-session-factory"
 
 const mocks = vi.hoisted(() => {
 	const providerSettingsManager = {
 		getLastUsedProviderSettings: vi.fn(() => undefined),
-		getProviderSettings: vi.fn(() => undefined),
+		getProviderSettings: vi.fn((_providerId?: string) => undefined),
 		saveProviderSettings: vi.fn(),
 	}
 
@@ -286,6 +287,66 @@ describe("buildSessionConfig", () => {
 
 		expect(config.providerId).toBe("cline")
 		expect(config.apiKey).toBe("workos:test-access-token")
+	})
+
+	it("resolves ClinePass from the shared Cline OAuth credentials", async () => {
+		mocks.providerSettingsManager.getProviderSettings.mockImplementation((providerId?: string) => {
+			if (providerId !== "cline") {
+				return undefined
+			}
+			return {
+				provider: "cline",
+				auth: {
+					accessToken: "workos:shared-cline-token",
+					refreshToken: "shared-refresh-token",
+				},
+			} as any
+		})
+
+		const apiKey = resolveApiKey("cline-pass", {
+			actModeApiProvider: "cline-pass",
+		} as any)
+
+		expect(apiKey).toBe("workos:shared-cline-token")
+		expect(mocks.providerSettingsManager.getProviderSettings).toHaveBeenCalledWith("cline")
+	})
+
+	it("preserves explicit ClinePass API keys from state before OAuth storage", () => {
+		mocks.providerSettingsManager.getProviderSettings.mockReturnValue({
+			provider: "cline",
+			auth: { accessToken: "workos:stored-token" },
+		} as any)
+
+		expect(resolveApiKey("cline-pass", { clineApiKey: "workos:configured-token" } as any)).toBe("workos:configured-token")
+		expect(mocks.providerSettingsManager.getProviderSettings).not.toHaveBeenCalled()
+	})
+
+	it("preserves explicit Cline API keys from state before OAuth storage", () => {
+		mocks.providerSettingsManager.getProviderSettings.mockReturnValue({
+			provider: "cline",
+			auth: { accessToken: "workos:stored-token" },
+		} as any)
+
+		expect(resolveApiKey("cline", { clineApiKey: "workos:configured-cline-token" } as any)).toBe(
+			"workos:configured-cline-token",
+		)
+		expect(mocks.providerSettingsManager.getProviderSettings).not.toHaveBeenCalled()
+	})
+
+	it("uses ClinePass model storage and omits empty nested apiKey so SDK OAuth can fill it", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "cline-pass",
+			actModeClinePassModelId: "cline-pass/glm-5.1",
+		} as any)
+		mocks.providerSettingsManager.getProviderSettings.mockReturnValue(undefined)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerId).toBe("cline-pass")
+		expect(config.modelId).toBe("cline-pass/glm-5.1")
+		expect(config.apiKey).toBe("")
+		expect(config.providerConfig).toMatchObject({ providerId: "cline-pass", modelId: "cline-pass/glm-5.1" })
+		expect(config.providerConfig).not.toHaveProperty("apiKey")
 	})
 
 	it("enables basic SDK compaction when global useAutoCondense is true", async () => {
