@@ -5,6 +5,7 @@
 # Agent tooling, never shipped in the VSIX
 .agents/**
 .claude/**
+.cline/**
 .codex/**
 CLAUDE.local.md
 out/
@@ -51,6 +52,7 @@ sdk/**
 # only exists if a publish aborts mid-swap; neither should ship in the .vsix.
 README.marketplace.md
 .README.github.bak
+package.json.backup
 
 # Custom
 **/demo.gif
@@ -94,6 +96,9 @@ old_docs/**
 e2e-build.mjs
 e2e.vsix
 test-results/
+coverage/**
+webview-ui/coverage/**
+webview-ui/.vite-port
 
 # Ignore Storybook files
 **/*.stories.tsx
