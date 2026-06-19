@@ -1,5 +1,6 @@
 import { listLocalProviders, type ModelCatalogConfig, resolveProviderConfig } from "@cline/core"
-import { type ProviderConfig, ProviderListItem, resolveProviderUsageCostDisplay } from "@cline/llms"
+import { type ProviderConfig, resolveProviderUsageCostDisplay } from "@cline/llms"
+import { type ProviderListItem } from "@cline/shared"
 import { getFeatureFlagsService } from "@/services/feature-flags"
 import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
 import { getProviderSettingsManager } from "../provider-migration"
