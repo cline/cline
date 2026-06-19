@@ -420,4 +420,21 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 		const result = builder.buildForApi(messages);
 		expect(serializedBlockAt(result, 2)).toContain("outdated");
 	});
+
+	it("does not rewrite outdated reads when threshold is Infinity", () => {
+		const builder = new MessageBuilder({
+			minOutdatedRewriteBytes: Number.POSITIVE_INFINITY,
+		});
+		const messages: Message[] = [
+			{ role: "user", content: "task" },
+			readToolUse("t1"),
+			readToolResult("t1", LARGE_CONTENT(1)),
+			readToolUse("t2"),
+			readToolResult("t2", LARGE_CONTENT(2)),
+		];
+
+		const result = builder.buildForApi(messages);
+		expect(serializedBlockAt(result, 2)).not.toContain("outdated");
+		expect(serializedBlockAt(result, 2)).toContain("export const x = 1;");
+	});
 });

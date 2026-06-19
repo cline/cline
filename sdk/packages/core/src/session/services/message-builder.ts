@@ -1497,9 +1497,10 @@ function normalizeNonNegativeLimit(
 	value: number | undefined,
 	fallback: number,
 ): number {
-	return typeof value === "number" && Number.isFinite(value) && value >= 0
-		? Math.floor(value)
-		: fallback;
+	if (typeof value !== "number" || Number.isNaN(value) || value < 0) {
+		return fallback;
+	}
+	return Number.isFinite(value) ? Math.floor(value) : value;
 }
 
 function truncateMiddleByChars(
