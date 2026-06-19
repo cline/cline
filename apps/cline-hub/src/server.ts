@@ -4,6 +4,7 @@ import {
 	handleToolApprovalResponse,
 	rejectOrphanedApprovals,
 } from "./server/approvals";
+import { isAuthorizedBrowserToDesktopRequest } from "./server/browser-auth";
 import {
 	browserConfig,
 	host,
@@ -59,11 +60,6 @@ export async function startClineHubDashboardServer(): Promise<ClineHubDashboardS
 	const syncClientsAndSessions = () => syncHubClientsAndSessions(ctx);
 	let stopped = false;
 
-	function isAuthorizedBrowserRequest(url: URL): boolean {
-		if (!roomSecret) return true;
-		return url.searchParams.get("roomSecret") === roomSecret;
-	}
-
 	await attachHub(ctx);
 	const healthInterval = setInterval(() => {
 		void (async () => {
@@ -77,6 +73,16 @@ export async function startClineHubDashboardServer(): Promise<ClineHubDashboardS
 		hostname: host,
 		async fetch(req, server) {
 			const url = new URL(req.url);
+			if (
+				!isAuthorizedBrowserToDesktopRequest(req, url, {
+					bindHost: host,
+					port,
+					publicUrl,
+					roomSecret,
+				})
+			) {
+				return createJsonResponse({ error: "unauthorized_browser" }, 403);
+			}
 			if (url.pathname === "/version") {
 				return createJsonResponse({ coreVersion: CORE_BUILD_VERSION });
 			}
@@ -85,9 +91,6 @@ export async function startClineHubDashboardServer(): Promise<ClineHubDashboardS
 				return createJsonResponse(hubStatusPayload(ctx));
 			}
 			if (url.pathname === "/browser") {
-				if (!isAuthorizedBrowserRequest(url)) {
-					return createJsonResponse({ error: "invalid_room_secret" }, 401);
-				}
 				const displayName = `Browser ${Math.random().toString(36).slice(2, 6)}`;
 				const data = {
 					socket: undefined as never,
