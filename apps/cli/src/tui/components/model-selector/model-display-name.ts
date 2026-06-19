@@ -15,7 +15,7 @@ export function resolveKnownModelInfo(
 	if (!knownModels) return undefined;
 
 	const exactMatch = knownModels[modelId];
-	if (exactMatch) return exactMatch;
+	if (exactMatch !== undefined) return exactMatch;
 
 	const modelSlug = modelId.split("/").pop();
 	return Object.entries(knownModels).find(([key, model]) => {
