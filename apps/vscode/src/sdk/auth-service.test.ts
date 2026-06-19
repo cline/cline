@@ -17,6 +17,7 @@ import { AuthService, type ClineAuthInfo, LogoutReason } from "./auth-service"
 // ---------------------------------------------------------------------------
 
 const mockFeatureFlagsPoll = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
+const mockIdentifyAccount = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
 
 // Mock StateManager
 const mockSecrets = new Map<string, string>()
@@ -83,6 +84,13 @@ vi.mock("@/services/EnvUtils", () => ({
 vi.mock("@/services/feature-flags", () => ({
 	featureFlagsService: {
 		poll: mockFeatureFlagsPoll,
+	},
+}))
+
+// Mock telemetry
+vi.mock("@/services/telemetry", () => ({
+	telemetryService: {
+		identifyAccount: mockIdentifyAccount,
 	},
 }))
 
@@ -510,7 +518,9 @@ describe("AuthService", () => {
 				mockResponseStream as any,
 			)
 
+			expect(mockIdentifyAccount).toHaveBeenCalledWith(authInfo.userInfo)
 			expect(mockFeatureFlagsPoll).toHaveBeenCalledWith("user-123")
+			expect(mockIdentifyAccount.mock.invocationCallOrder[0]).toBeLessThan(mockFeatureFlagsPoll.mock.invocationCallOrder[0])
 			expect(mockController.postStateToWebview).toHaveBeenCalled()
 		})
 

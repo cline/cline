@@ -29,6 +29,7 @@ import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
 import { BannerService } from "@/services/banner/BannerService"
 import { buildBasicClineHeaders } from "@/services/EnvUtils"
 import { featureFlagsService } from "@/services/feature-flags"
+import { telemetryService } from "@/services/telemetry"
 import { CLINE_API_ENDPOINT } from "@/shared/cline/api"
 import { fetch, getAxiosSettings } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
@@ -963,9 +964,17 @@ export class AuthService {
 
 		await Promise.all(streamSends)
 
-		// Poll feature flags immediately for the current auth context so cache-only
-		// consumers (for example BannerService) see the latest remote config.
-		await featureFlagsService.poll(this._clineAuthInfo?.userInfo?.id || null)
+		// Identify authenticated users before polling feature flags so PostHog
+		// evaluates flags against the Cline account ID instead of the anonymous
+		// machine/install ID. Pass known person properties so flags can also target
+		// by email.
+		const userInfo = this._clineAuthInfo?.userInfo
+		if (userInfo?.id) {
+			await telemetryService.identifyAccount(userInfo)
+			await featureFlagsService.poll(userInfo.id)
+		} else {
+			await featureFlagsService.poll(null)
+		}
 
 		// Update state in webviews once per unique controller
 		await Promise.all(Array.from(uniqueControllers).map((c) => c.postStateToWebview()))
