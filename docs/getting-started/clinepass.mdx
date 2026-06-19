@@ -25,32 +25,13 @@ ClinePass solves this by:
 
 ## How it works
 
-ClinePass is a separate provider in Cline — set it up just like any other provider.
+ClinePass is a separate provider in Cline. After subscribing, select **ClinePass** wherever you configure your provider.
 
-<Steps>
-  <Step title="Subscribe">
-    Visit the [Cline dashboard](https://app.cline.bot/dashboard/subscription) and subscribe to ClinePass for **$9.99/month**.
-  </Step>
-
-  <Step title="Open Cline Settings">
-    Click the settings icon in the Cline panel.
-  </Step>
-
-  <Step title="Choose Provider">
-    Set **API Provider** to **ClinePass**.
-  </Step>
-
-  <Step title="Sign In">
-    Click **Sign In** and complete authentication with your Cline account.
-  </Step>
-
-  <Step title="Select a Model">
-    Choose any ClinePass model from the **Model** dropdown.
-  </Step>
-</Steps>
+- **IDE Extension**: Go to IDE extension settings, set **API Provider** to **ClinePass**, and sign in.
+- **CLI**: Go to `/settings` and select **ClinePass** as your provider.
 
 <Note>
-ClinePass is a separate provider from the Cline provider. You can use both independently — subscribe to ClinePass for 5x API rate limits, or use the Cline provider for pay-as-you-go access.
+ClinePass is a separate provider from the Cline Provider. You can use both independently — subscribe to ClinePass for 5x API rate limits, or use the Cline Provider for pay-as-you-go access.
 </Note>
 
 ## Models
@@ -69,7 +50,7 @@ ClinePass includes the following models, tested and benchmarked for coding agent
 
 ### Reference pricing
 
-ClinePass is a flat monthly subscription, so you are not charged the individual API prices below. These reference prices show the underlying per-1M-token rates for each model and can help you understand how usage is measured against your ClinePass quota.
+ClinePass is a flat monthly subscription, so you are not charged the individual API prices below. These reference prices show the underlying per-1M-token rates for each model and can help you understand how usage is measured against your ClinePass quota (5x quota compares to paying standard api rate).
 
 | Model | Input | Output | Cached Read | Cached Write |
 |-------|-------|--------|-------------|--------------|
@@ -93,6 +74,6 @@ We created ClinePass to:
 
 ## Related
 
-- [Cline provider](/getting-started/cline-provider)
+- [Cline Provider](/getting-started/cline-provider)
 - [Authorization](/getting-started/authorizing-with-cline)
 - [Local models](/running-models-locally/overview)

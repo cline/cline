@@ -68,7 +68,7 @@
 							"getting-started/cline-provider",
 							"getting-started/clinepass",
 							{
-								"group": "Other models & providers",
+								"group": "Other Models & Providers",
 								"pages": [
 									"getting-started/authorizing-with-cline",
 									"running-models-locally/overview",
