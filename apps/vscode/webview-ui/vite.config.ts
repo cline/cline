@@ -4,7 +4,7 @@ import { writeFileSync } from "node:fs"
 import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react-swc"
 import { resolve } from "path"
-import { defineConfig, type Plugin, ViteDevServer } from "vite"
+import { defineConfig, loadEnv, type Plugin, ViteDevServer } from "vite"
 
 // Custom plugin to write the server port to a file
 const writePortToFile = (): Plugin => {
@@ -27,6 +27,14 @@ const writePortToFile = (): Plugin => {
 }
 
 const isDevBuild = process.argv.includes("--dev-build")
+
+// VS Code launch configurations load apps/vscode/.env for the extension host,
+// but pre-launch webview tasks run as separate processes. Load the parent .env
+// here so F5 builds get the same build-time constants in the webview bundle.
+const parentEnv = loadEnv(process.env.NODE_ENV || "development", resolve(__dirname, ".."), "")
+for (const [key, value] of Object.entries(parentEnv)) {
+	process.env[key] ??= value
+}
 
 // Valid platforms, these should the keys in platform-configs.json
 const VALID_PLATFORMS = ["vscode", "standalone"]
