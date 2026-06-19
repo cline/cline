@@ -36,16 +36,16 @@ function getCapabilityOwnerClientId(
 	ctx: HubTransportContext,
 	sessionId: string,
 ): string | undefined {
-	// Compaction sidecar access is intentionally tied to live hub session
-	// ownership, not mutable persisted metadata. Sessions restored after the
-	// hub forgets their live owner must be recreated or backfilled before using
-	// these owner-scoped sidecar endpoints.
+	// Sidecar access follows the live hub owner, not persisted metadata clients
+	// can replay or edit.
 	return ctx.sessionState.get(sessionId)?.createdByClientId;
 }
 
 function stripServerOwnedSessionMetadata(
 	metadata: Record<string, JsonValue | undefined> | undefined,
 ): Record<string, JsonValue | undefined> | undefined {
+	// Clients may echo old records back through session.update; keep ownership
+	// on the live hub state only.
 	if (!metadata || !(CAPABILITY_OWNER_METADATA_KEY in metadata)) {
 		return metadata;
 	}
@@ -65,7 +65,7 @@ function authorizeSessionCompactionAccess(input: {
 		return errorReply(
 			input.envelope,
 			"session_wrong_client",
-			`Session ${input.sessionId} has no authorized owner`,
+			`Session ${input.sessionId} has no owner`,
 		);
 	}
 	if (ownerClientId !== input.clientId) {

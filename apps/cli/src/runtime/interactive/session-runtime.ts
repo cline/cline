@@ -315,6 +315,25 @@ export function createInteractiveSessionRuntime(input: {
 		}
 	};
 
+	const readCompactionState = async (
+		sessionId: string,
+	): Promise<SessionCompactionState | undefined> => {
+		const manager = sessionManager;
+		if (!manager) {
+			return undefined;
+		}
+		try {
+			return await manager.readSessionCompactionState(sessionId);
+		} catch (error) {
+			input.config.logger?.log?.("Failed to read session compaction state", {
+				sessionId,
+				error,
+				severity: "warn",
+			});
+			return undefined;
+		}
+	};
+
 	const recoverMissingActiveSession = async (
 		error: unknown,
 	): Promise<MissingSessionRecovery> => {
@@ -352,12 +371,10 @@ export function createInteractiveSessionRuntime(input: {
 	const readCurrentCompactionState = async (): Promise<
 		SessionCompactionState | undefined
 	> => {
-		if (!sessionManager || !activeSessionId) {
+		if (!activeSessionId) {
 			return undefined;
 		}
-		return await sessionManager
-			.readSessionCompactionState(activeSessionId)
-			.catch(() => undefined);
+		return await readCompactionState(activeSessionId);
 	};
 
 	const stopCurrentSession = async (): Promise<void> => {
@@ -446,26 +463,17 @@ export function createInteractiveSessionRuntime(input: {
 		const projectedMessages = compactionState
 			? projectSessionCompactionState(compactionState, messages)
 			: undefined;
-		await restartWithMessages(messages);
-		if (!projectedMessages || !sessionManager || !activeSessionId) {
-			return;
-		}
-		const reanchoredCompactionState = createSessionCompactionState({
-			sourceMessages: messages,
-			compactedMessages: projectedMessages,
-			conversationId: activeSessionId,
-			systemPrompt: compactionState?.system_prompt,
-		});
-		const updated = await sessionManager.updateSessionCompactionState(
-			activeSessionId,
-			reanchoredCompactionState,
+		await restartWithMessages(
+			messages,
+			undefined,
+			projectedMessages
+				? createSessionCompactionState({
+						sourceMessages: messages,
+						compactedMessages: projectedMessages,
+						systemPrompt: compactionState?.system_prompt,
+					})
+				: undefined,
 		);
-		if (!updated.updated) {
-			input.config.logger?.log?.(
-				"Skipped re-anchoring session compaction state after restart",
-				{ sessionId: activeSessionId },
-			);
-		}
 	};
 
 	const restartEmpty = async (): Promise<void> => {
@@ -579,9 +587,7 @@ export function createInteractiveSessionRuntime(input: {
 		if (messages.length === 0) {
 			throw new Error("Cannot fork an empty session.");
 		}
-		const compactionState = await manager
-			.readSessionCompactionState(forkedFromSessionId)
-			.catch(() => undefined);
+		const compactionState = await readCompactionState(forkedFromSessionId);
 		const projectedMessages = compactionState
 			? projectSessionCompactionState(compactionState, messages)
 			: undefined;
@@ -592,25 +598,17 @@ export function createInteractiveSessionRuntime(input: {
 			sourceSession: sessionRecord,
 			messages,
 		});
-		await startFreshSession(messages, forkMetadata);
-		if (projectedMessages && activeSessionId) {
-			const reanchoredCompactionState = createSessionCompactionState({
-				sourceMessages: messages,
-				compactedMessages: projectedMessages,
-				conversationId: activeSessionId,
-				systemPrompt: compactionState?.system_prompt,
-			});
-			const updated = await manager.updateSessionCompactionState(
-				activeSessionId,
-				reanchoredCompactionState,
-			);
-			if (!updated.updated) {
-				input.config.logger?.log?.(
-					"Skipped re-anchoring session compaction state after fork",
-					{ sessionId: activeSessionId },
-				);
-			}
-		}
+		await startFreshSession(
+			messages,
+			forkMetadata,
+			projectedMessages
+				? createSessionCompactionState({
+						sourceMessages: messages,
+						compactedMessages: projectedMessages,
+						systemPrompt: compactionState?.system_prompt,
+					})
+				: undefined,
+		);
 		return { forkedFromSessionId, newSessionId: activeSessionId };
 	};
 
@@ -635,6 +633,11 @@ export function createInteractiveSessionRuntime(input: {
 		workingContextMessagesAfter?: number;
 		compacted: boolean;
 	}> => {
+		if (input.config.compaction?.enabled === false) {
+			throw new Error(
+				"Cannot compact because compaction is off for this session.",
+			);
+		}
 		const manager = sessionManager;
 		const sourceSessionId = activeSessionId;
 		if (!manager || !sourceSessionId) {

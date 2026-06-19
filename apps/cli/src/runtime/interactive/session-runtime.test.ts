@@ -83,12 +83,12 @@ function createConfig(): Config {
 	};
 }
 
-function createChatCommandState(): ChatCommandState {
+function createChatCommandState(config = createConfig()): ChatCommandState {
 	return {
-		enableTools: true,
-		autoApproveTools: true,
-		cwd: "/tmp/project",
-		workspaceRoot: "/tmp/project",
+		enableTools: config.enableTools,
+		autoApproveTools: config.defaultToolAutoApprove,
+		cwd: config.cwd,
+		workspaceRoot: config.workspaceRoot?.trim() || config.cwd,
 	};
 }
 
@@ -132,7 +132,7 @@ function makeSwitchToActModeTool(): AgentTool {
 
 function makeManager() {
 	let startCount = 0;
-	const start = vi.fn(async () => {
+	const start = vi.fn(async (_input?: unknown) => {
 		startCount += 1;
 		const sessionId = `session-${startCount}`;
 		return {
@@ -192,18 +192,19 @@ function deferred<T>() {
 async function makeRuntime(
 	manager: ReturnType<typeof makeManager>,
 	options: {
+		config?: Config;
 		resumeSessionId?: string;
 		resolveToolPolicy?: (toolName: string) => Config["toolPolicies"][string];
 	} = {},
 ) {
 	createCliCoreMock.mockResolvedValue(manager);
-	const config = createConfig();
+	const config = options.config ?? createConfig();
 	const { createInteractiveSessionRuntime } = await importRuntime();
 	return createInteractiveSessionRuntime({
 		config,
 		providerSettingsManager: createProviderSettingsManager(),
 		resumeSessionId: options.resumeSessionId,
-		chatCommandState: createChatCommandState(),
+		chatCommandState: createChatCommandState(config),
 		requestToolApproval: async (
 			_request: ToolApprovalRequest,
 		): Promise<ToolApprovalResult> => ({ approved: true }),
@@ -285,6 +286,7 @@ describe("createInteractiveSessionRuntime", () => {
 			providerSettingsManager: createProviderSettingsManager(),
 			chatCommandState: createChatCommandState(),
 			requestToolApproval: vi.fn(),
+			resolveToolPolicy: () => ({ autoApprove: true }),
 			askQuestionRef: { current: null },
 			resolveMistakeLimitDecision: undefined,
 			switchToActModeTool: {} as never,
@@ -358,6 +360,7 @@ describe("createInteractiveSessionRuntime", () => {
 			providerSettingsManager: createProviderSettingsManager(),
 			chatCommandState: createChatCommandState(),
 			requestToolApproval: vi.fn(),
+			resolveToolPolicy: () => ({ autoApprove: true }),
 			askQuestionRef: { current: null },
 			resolveMistakeLimitDecision: undefined,
 			switchToActModeTool: {} as never,
@@ -373,6 +376,21 @@ describe("createInteractiveSessionRuntime", () => {
 			"Cannot compact while the current turn is running",
 		);
 		expect(manager.readMessages).toHaveBeenCalledWith(sessionId);
+		expect(compactInteractiveMessagesMock).not.toHaveBeenCalled();
+		expect(manager.updateSessionCompactionState).not.toHaveBeenCalled();
+	});
+
+	it("rejects manual compact when compaction is disabled", async () => {
+		const manager = makeManager();
+		const config = createConfig();
+		config.compaction = { enabled: false };
+		const runtime = await makeRuntime(manager, { config });
+
+		await runtime.ensureReady();
+
+		await expect(runtime.compactCurrentSession()).rejects.toThrow(
+			"compaction is off",
+		);
 		expect(compactInteractiveMessagesMock).not.toHaveBeenCalled();
 		expect(manager.updateSessionCompactionState).not.toHaveBeenCalled();
 	});
@@ -439,6 +457,7 @@ describe("createInteractiveSessionRuntime", () => {
 			providerSettingsManager: createProviderSettingsManager(),
 			chatCommandState: createChatCommandState(),
 			requestToolApproval: vi.fn(),
+			resolveToolPolicy: () => ({ autoApprove: true }),
 			askQuestionRef: { current: null },
 			resolveMistakeLimitDecision: undefined,
 			switchToActModeTool: {} as never,
@@ -459,17 +478,16 @@ describe("createInteractiveSessionRuntime", () => {
 		const restartInput = manager.start.mock.calls[1]?.[0];
 		expect(restartInput).toMatchObject({
 			initialMessages: messages,
-		});
-		expect(restartInput).not.toHaveProperty("initialCompactionState");
-		expect(manager.updateSessionCompactionState).toHaveBeenCalledWith(
-			secondSessionId,
-			expect.objectContaining({
-				conversation_id: secondSessionId,
+			initialCompactionState: expect.objectContaining({
 				source_message_count: messages.length,
 				messages: [summaryMessage, tailMessage],
 				system_prompt: "compacted system",
 			}),
+		});
+		expect(restartInput.initialCompactionState).not.toHaveProperty(
+			"conversation_id",
 		);
+		expect(manager.updateSessionCompactionState).not.toHaveBeenCalled();
 		expect(runtime.getActiveSessionId()).toBe(secondSessionId);
 	});
 
@@ -505,6 +523,7 @@ describe("createInteractiveSessionRuntime", () => {
 			providerSettingsManager: createProviderSettingsManager(),
 			chatCommandState: createChatCommandState(),
 			requestToolApproval: vi.fn(),
+			resolveToolPolicy: () => ({ autoApprove: true }),
 			askQuestionRef: { current: null },
 			resolveMistakeLimitDecision: undefined,
 			switchToActModeTool: {} as never,
@@ -570,13 +589,13 @@ describe("createInteractiveSessionRuntime", () => {
 		const upstreamBeforeTool = vi.fn(async () => ({
 			input: { text: "updated" },
 		}));
-		mockCreateRuntimeHooks.mockReturnValueOnce({
+		createRuntimeHooksMock.mockReturnValueOnce({
 			hooks: {
 				beforeTool: upstreamBeforeTool,
 			},
 			shutdown: vi.fn(async () => {}),
 		});
-		const runtime = makeRuntime(manager, {
+		const runtime = await makeRuntime(manager, {
 			resolveToolPolicy: (toolName) => ({
 				autoApprove: toolName === "echo",
 			}),
@@ -660,6 +679,7 @@ describe("createInteractiveSessionRuntime", () => {
 			resumeSessionId: "resumed-session",
 			chatCommandState: createChatCommandState(),
 			requestToolApproval: vi.fn(),
+			resolveToolPolicy: () => ({ autoApprove: true }),
 			askQuestionRef: { current: null },
 			resolveMistakeLimitDecision: undefined,
 			switchToActModeTool: {} as never,
@@ -734,6 +754,7 @@ describe("createInteractiveSessionRuntime", () => {
 			providerSettingsManager: createProviderSettingsManager(),
 			chatCommandState: createChatCommandState(),
 			requestToolApproval: vi.fn(),
+			resolveToolPolicy: () => ({ autoApprove: true }),
 			askQuestionRef: { current: null },
 			resolveMistakeLimitDecision: undefined,
 			switchToActModeTool: {} as never,
