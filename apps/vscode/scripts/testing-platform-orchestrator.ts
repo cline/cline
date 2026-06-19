@@ -1,15 +1,15 @@
-#!/usr/bin/env npx tsx
+#!/usr/bin/env bun
 /**
  * Test Orchestrator
  *
  * Automates server lifecycle for running spec files against the standalone server.
  *
  * Prerequisites:
- *   Build standalone first: `npm run compile-standalone`
+ *   Build standalone first: `bun run compile-standalone`
  *
  * Usage:
- *   - Single file:   `npm run test:tp-orchestrator path/to/spec.json`
- *   - All specs dir: `npm run test:tp-orchestrator tests/specs`
+ *   - Single file:   `bun run test:tp-orchestrator path/to/spec.json`
+ *   - All specs dir: `bun run test:tp-orchestrator tests/specs`
  *
  * Flags:
  *   --server-logs        Show server logs (hidden by default)
@@ -209,7 +209,7 @@ async function main() {
 
 	if (!inputPath) {
 		console.error(
-			"Usage: npx tsx scripts/testing-platform-orchestrator.ts <spec-file-or-folder> [--count=N] [--server-logs] [--fix] [--coverage]",
+			"Usage: bun scripts/testing-platform-orchestrator.ts <spec-file-or-folder> [--count=N] [--server-logs] [--fix] [--coverage]",
 		)
 		process.exit(1)
 	}

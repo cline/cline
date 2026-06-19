@@ -9,7 +9,9 @@ export default defineConfig({
 		include: [
 			"src/sdk/**/*.test.ts",
 			"src/shared/vsCodeSelectorUtils.test.ts",
+			"src/core/storage/__tests__/**/*.test.ts",
 			"src/core/storage/remote-config/**/*.test.ts",
+			"src/services/mcp/__tests__/settingsLock.test.ts",
 			"src/shared/model-catalog/provider-helpers.test.ts",
 			"src/core/controller/models/__tests__/providerCatalogHandlers.test.ts",
 			"src/core/controller/models/__tests__/providerSwitchNormalization.test.ts",

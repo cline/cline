@@ -6,7 +6,7 @@
 		{
 			"label": "compile-standalone",
 			"type": "shell",
-			"command": "npm run compile-standalone",
+			"command": "bun run compile-standalone",
 			"group": "build",
 			"problemMatcher": [],
 			"presentation": {
@@ -19,7 +19,7 @@
 		{
 			"label": "npm: protos",
 			"type": "shell",
-			"command": "npm run protos",
+			"command": "bun run protos",
 			"problemMatcher": [],
 			"isBackground": false,
 			"presentation": {
@@ -65,7 +65,7 @@
 		},
 		{
 			"type": "shell",
-			"command": "npm run build:webview",
+			"command": "bun run build:webview",
 			"group": "build",
 			"problemMatcher": [],
 			"isBackground": true,
@@ -86,7 +86,7 @@
 		},
 		{
 			"type": "shell",
-			"command": "npm run build:webview:test",
+			"command": "bun run build:webview:test",
 			"group": "build",
 			"problemMatcher": [],
 			"isBackground": true,
@@ -108,7 +108,7 @@
 		},
 		{
 			"type": "shell",
-			"command": "npm run dev:webview",
+			"command": "bun run dev:webview",
 			"group": "build",
 			"problemMatcher": [
 				{
@@ -145,7 +145,7 @@
 		},
 		{
 			"type": "shell",
-			"command": "npm run watch:esbuild",
+			"command": "bun run watch:esbuild",
 			"group": "build",
 			"problemMatcher": {
 				"pattern": [
@@ -184,7 +184,7 @@
 		},
 		{
 			"type": "shell",
-			"command": "npm run watch:esbuild:test",
+			"command": "bun run watch:esbuild:test",
 			"group": "build",
 			"problemMatcher": {
 				"pattern": [
@@ -224,7 +224,7 @@
 		},
 		{
 			"type": "shell",
-			"command": "npm run watch:tsc",
+			"command": "bun run watch:tsc",
 			"group": "build",
 			"problemMatcher": "$tsc-watch",
 			"isBackground": true,
@@ -242,7 +242,7 @@
 		},
 		{
 			"type": "shell",
-			"command": "npm run watch-tests",
+			"command": "bun run watch-tests",
 			"label": "npm: watch-tests",
 			"problemMatcher": "$tsc-watch",
 			"isBackground": true,
@@ -282,7 +282,7 @@
 		},
 		{
 			"type": "shell",
-			"command": "npm run storybook",
+			"command": "bun run storybook",
 			"group": "build",
 			"problemMatcher": [],
 			"isBackground": false,

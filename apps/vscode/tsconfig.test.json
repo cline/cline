@@ -86,7 +86,7 @@
 		// the single source of truth for the bun-vs-integration split; this static
 		// list only covers structural/vitest excludes.
 		"src/test/e2e/**/*.test.ts",
-		// The src/sdk suites are vitest-native (run via `npm run test:vitest`),
+		// The src/sdk suites are vitest-native (run via `bun run test:vitest`),
 		// not the VS Code/mocha integration runner (see .vscode-test.mjs, which
 		// only globs core/test/utils/shared/integrations/hosts/services). Some of
 		// them use top-level `await import(...)` after `vi.mock(...)`, which is

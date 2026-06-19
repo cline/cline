@@ -99,6 +99,15 @@ export async function startLocalOAuthServer(
 		boundPort = null;
 		if (activeServer) {
 			activeServer.close();
+			// `Server.close()` only stops accepting new connections; existing
+			// keep-alive sockets keep working. A browser / global-fetch connection
+			// pool keeps such a socket to the (fixed) callback port alive, and a
+			// later request to that port can be delivered over the pooled socket to
+			// this server even after it has settled — so a subsequent OAuth flow
+			// reusing the port would have its callback delivered here and never
+			// resolve. Drop lingering connections so no pooled socket outlives this
+			// server.
+			activeServer.closeAllConnections?.();
 			activeServer = null;
 		}
 		if (closingPort !== null && options.onClose) {
