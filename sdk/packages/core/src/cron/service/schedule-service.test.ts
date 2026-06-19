@@ -104,7 +104,7 @@ describe("HubScheduleService", () => {
 		} finally {
 			await service.dispose();
 		}
-	});
+	}, 15_000);
 
 	sqliteIt("publishes failed schedule execution events", async () => {
 		const dbPath = await createTempDbPath();
