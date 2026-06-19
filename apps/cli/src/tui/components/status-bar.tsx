@@ -11,6 +11,11 @@ import {
 	getSuccessColor,
 } from "../palette";
 import { HOME_VIEW_MAX_WIDTH } from "../types";
+import {
+	type KnownModels,
+	resolveModelDisplayName as resolveKnownModelDisplayName,
+	resolveKnownModelInfo,
+} from "./model-selector/model-display-name";
 
 export function createContextBar(
 	used: number,
@@ -56,31 +61,13 @@ export function formatStatusBarUsageText(input: {
 	return `${tokens} ${formatCost(input.totalCost)}`;
 }
 
-// knownModels keys are bare IDs ("claude-sonnet-4-6") but config.modelId
-// may include a provider prefix ("anthropic/claude-sonnet-4-6"), so we
-// try the full ID first, then strip the prefix and retry.
-function lookupModelInfo(
-	modelId: string,
-	knownModels?: Record<string, unknown>,
-): { name?: string } | undefined {
-	if (!knownModels) return undefined;
-	const candidates = [modelId, modelId.split("/").pop()];
-	for (const key of candidates) {
-		if (!key) continue;
-		const hit = knownModels[key] as { name?: string } | undefined;
-		if (hit) return hit;
-	}
-	return undefined;
-}
-
 export function resolveModelDisplayName(config: {
 	modelId: string;
-	knownModels?: Record<string, unknown>;
+	knownModels?: KnownModels;
 	thinking?: boolean;
 	reasoningEffort?: string;
 }): string {
-	const info = lookupModelInfo(config.modelId, config.knownModels);
-	const name = info?.name ?? config.modelId.split("/").pop() ?? config.modelId;
+	const name = resolveKnownModelDisplayName(config.modelId, config.knownModels);
 	if (config.thinking && config.reasoningEffort) {
 		return `${name} (${config.reasoningEffort})`;
 	}
@@ -89,12 +76,9 @@ export function resolveModelDisplayName(config: {
 
 export function resolveModelMaxInputTokens(config: {
 	modelId: string;
-	knownModels?: Record<string, unknown>;
+	knownModels?: KnownModels;
 }): number | undefined {
-	const info = (lookupModelInfo(config.modelId, config.knownModels) ?? {}) as {
-		maxInputTokens?: number;
-		contextWindow?: number;
-	};
+	const info = resolveKnownModelInfo(config.modelId, config.knownModels) ?? {};
 	if (typeof info.maxInputTokens === "number" && info.maxInputTokens > 0) {
 		return info.maxInputTokens;
 	}

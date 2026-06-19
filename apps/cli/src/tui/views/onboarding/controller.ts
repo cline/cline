@@ -25,6 +25,7 @@ import {
 	type ClineModelPickerEntry,
 	useClineRecommendedModels,
 } from "../../components/model-selector/cline-model-picker";
+import type { KnownModels } from "../../components/model-selector/model-display-name";
 import {
 	type SearchableItem,
 	useSearchableList,
@@ -194,7 +195,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		Set<string>
 	>(new Set());
 	const [clineKnownModels, setClineKnownModels] = useState<
-		Record<string, unknown> | undefined
+		KnownModels | undefined
 	>(undefined);
 
 	useEffect(() => {
