@@ -29,7 +29,7 @@ import kill from "tree-kill"
 let showServerLogs = false
 let fix = false
 let coverage = false
-const WAIT_SERVER_DEFAULT_TIMEOUT = 15000
+const WAIT_SERVER_DEFAULT_TIMEOUT = 60000
 const usedPorts = new Set<number>()
 
 /**
@@ -94,8 +94,10 @@ async function startServer(): Promise<{ server: ChildProcess; grpcPort: string }
 	const grpcPort = (await getAvailablePort()).toString()
 	const hostbridgePort = (await getAvailablePort()).toString()
 
-	const server = spawn("npx", ["tsx", "scripts/test-standalone-core-api-server.ts"], {
-		stdio: showServerLogs ? "inherit" : "pipe",
+	const server = spawn("bun", ["scripts/test-standalone-core-api-server.ts"], {
+		// When logs are hidden, ignore stdio instead of piping it without a reader:
+		// an unread pipe can fill and stall server startup/shutdown in CI.
+		stdio: showServerLogs ? "inherit" : "ignore",
 		env: {
 			...process.env,
 			PROTOBUS_PORT: grpcPort,
@@ -104,23 +106,44 @@ async function startServer(): Promise<{ server: ChildProcess; grpcPort: string }
 		},
 	})
 
-	// Wait for either the server to become ready or fail on spawn error
-	await Promise.race([
-		waitForPort(Number(grpcPort), "127.0.0.1", WAIT_SERVER_DEFAULT_TIMEOUT),
-		new Promise((_, reject) => server.once("error", reject)),
-	])
+	try {
+		// Wait for either the server to become ready or fail on spawn error.
+		await Promise.race([
+			waitForPort(Number(grpcPort), "127.0.0.1", WAIT_SERVER_DEFAULT_TIMEOUT),
+			new Promise((_, reject) => server.once("error", reject)),
+			new Promise((_, reject) =>
+				server.once("exit", (code, signal) => reject(new Error(`Server exited before ready: ${code ?? signal}`))),
+			),
+		])
+	} catch (error) {
+		await stopServer(server)
+		throw error
+	}
 
 	return { server, grpcPort }
 }
 
 function stopServer(server: ChildProcess): Promise<void> {
 	return new Promise((resolve) => {
-		if (!server.pid) return resolve()
+		if (!server.pid || server.exitCode !== null || server.signalCode !== null) return resolve()
 
+		let settled = false
+		const finish = () => {
+			if (!settled) {
+				settled = true
+				resolve()
+			}
+		}
+
+		server.once("exit", finish)
 		kill(server.pid, "SIGINT", (err) => {
 			if (err) console.warn("Failed to kill server process:", err)
-			server.once("exit", () => resolve())
 		})
+		setTimeout(() => {
+			if (!settled && server.pid) {
+				kill(server.pid, "SIGKILL", finish)
+			}
+		}, 5000).unref()
 	})
 }
 

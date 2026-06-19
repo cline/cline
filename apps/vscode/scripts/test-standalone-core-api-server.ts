@@ -83,8 +83,8 @@ async function main(): Promise<void> {
 	const clineTestWorkspace = mkdtempSync(path.join(os.tmpdir(), "cline-test-workspace-"))
 
 	console.log("Starting HostBridge test server...")
-	const hostbridge: ChildProcess = spawn("npx", ["tsx", path.join(__dirname, "test-hostbridge-server.ts")], {
-		stdio: "pipe",
+	const hostbridge: ChildProcess = spawn("bun", [path.join(__dirname, "test-hostbridge-server.ts")], {
+		stdio: "inherit",
 		env: {
 			...process.env,
 			TEST_HOSTBRIDGE_WORKSPACE_DIR: clineTestWorkspace,
@@ -118,11 +118,13 @@ async function main(): Promise<void> {
 	const workosFetchMockPath = path.join(projectRoot, "scripts", "testing-platform-workos-fetch-mock.cjs")
 	const baseArgs = ["--enable-source-maps", "--require", workosFetchMockPath, path.join(distDir, "cline-core.js")]
 
-	const spawnArgs = USE_C8 ? ["c8", "--report-dir", covDir, "node", ...baseArgs] : ["node", ...baseArgs]
+	const c8Bin = path.join(projectRoot, "node_modules", ".bin", process.platform === "win32" ? "c8.cmd" : "c8")
+	const spawnCommand = USE_C8 ? c8Bin : "node"
+	const spawnArgs = USE_C8 ? ["--report-dir", covDir, "node", ...baseArgs] : baseArgs
 
 	console.log(`Starting Cline Core Service... (useC8=${USE_C8})`)
 
-	const coreService: ChildProcess = spawn("npx", spawnArgs, {
+	const coreService: ChildProcess = spawn(spawnCommand, spawnArgs, {
 		cwd: projectRoot,
 		env: {
 			...process.env,
