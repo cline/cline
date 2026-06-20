@@ -108,6 +108,7 @@ Module.prototype.require = function (id) {
 			const settings = manager.getProviderSettings(storageProviderId)
 			return handler?.getApiKey(settings) ?? settings?.apiKey?.trim?.()
 		}
+		const listLocalProviders = async (manager) => ({ providers: [], settingsPath: manager.getFilePath?.() ?? "" })
 
 		return {
 			createClineTelemetryServiceConfig: (config = {}) => ({
@@ -181,6 +182,7 @@ Module.prototype.require = function (id) {
 				}
 			},
 			ProviderSettingsManager,
+			listLocalProviders,
 			resolveProviderConfig: async () => undefined,
 			getProviderConfigFields: () => [],
 			fetchClineRecommendedModels: async () => ({ recommended: [], free: [] }),
