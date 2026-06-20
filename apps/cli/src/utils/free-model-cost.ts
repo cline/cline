@@ -3,7 +3,10 @@ import { getClineEnvironmentConfig } from "@cline/shared";
 import type { Config } from "./types";
 
 const CLINE_RECOMMENDED_MODELS_TIMEOUT_MS = 5_000;
-const freeModelIdsByBaseUrl = new Map<string, Promise<readonly string[]>>();
+const freeModelIdsByBaseUrl = new Map<
+	string,
+	Promise<readonly string[] | undefined>
+>();
 
 function normalizeModelId(modelId: string | undefined): string {
 	return modelId?.trim().toLowerCase() ?? "";
@@ -13,9 +16,7 @@ function modelIdsMatch(selectedModelId: string, freeModelId: string): boolean {
 	const selected = normalizeModelId(selectedModelId);
 	const free = normalizeModelId(freeModelId);
 	if (!selected || !free) return false;
-	return (
-		selected === free || selected.split("/").pop() === free.split("/").pop()
-	);
+	return selected === free;
 }
 
 function resolveClineRecommendedModelsUrl(baseUrl: string): string {
@@ -28,7 +29,7 @@ function resolveClineRecommendedModelsUrl(baseUrl: string): string {
 
 async function fetchClineFreeModelIds(
 	baseUrl: string,
-): Promise<readonly string[]> {
+): Promise<readonly string[] | undefined> {
 	const controller = new AbortController();
 	const timeout = setTimeout(
 		() => controller.abort(),
@@ -38,7 +39,7 @@ async function fetchClineFreeModelIds(
 		const response = await fetch(resolveClineRecommendedModelsUrl(baseUrl), {
 			signal: controller.signal,
 		});
-		if (!response.ok) return [];
+		if (!response.ok) return undefined;
 		const json = (await response.json()) as { free?: unknown };
 		return Array.isArray(json.free)
 			? json.free
@@ -50,7 +51,7 @@ async function fetchClineFreeModelIds(
 					.filter((id): id is string => typeof id === "string" && id.length > 0)
 			: [];
 	} catch {
-		return [];
+		return undefined;
 	} finally {
 		clearTimeout(timeout);
 	}
@@ -60,10 +61,13 @@ function getClineFreeModelIds(baseUrl: string): Promise<readonly string[]> {
 	const cacheKey = baseUrl.trim();
 	let cached = freeModelIdsByBaseUrl.get(cacheKey);
 	if (!cached) {
-		cached = fetchClineFreeModelIds(cacheKey);
+		cached = fetchClineFreeModelIds(cacheKey).then((ids) => {
+			if (!ids) freeModelIdsByBaseUrl.delete(cacheKey);
+			return ids;
+		});
 		freeModelIdsByBaseUrl.set(cacheKey, cached);
 	}
-	return cached;
+	return cached.then((ids) => ids ?? []);
 }
 
 export async function shouldZeroClineFreeModelCost(

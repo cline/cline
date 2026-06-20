@@ -52,6 +52,59 @@ describe("shouldZeroClineFreeModelCost", () => {
 		).resolves.toBe(false);
 		expect(fetchMock).not.toHaveBeenCalled();
 	});
+
+	it("does not match a paid model by only the final path segment", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => {
+				return new Response(
+					JSON.stringify({
+						free: [{ id: "deepseek/deepseek-v4-flash" }],
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			}),
+		);
+
+		await expect(
+			shouldZeroClineFreeModelCost({
+				providerId: "cline",
+				modelId: "acme/deepseek-v4-flash",
+				baseUrl: "https://cline.test/api/v1",
+			}),
+		).resolves.toBe(false);
+	});
+
+	it("retries after a failed free model list fetch", async () => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce(new Response("unavailable", { status: 503 }))
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({
+						free: [{ id: "deepseek/deepseek-v4-flash" }],
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				),
+			);
+		vi.stubGlobal("fetch", fetchMock);
+
+		await expect(
+			shouldZeroClineFreeModelCost({
+				providerId: "cline",
+				modelId: "deepseek/deepseek-v4-flash",
+				baseUrl: "https://cline.test/api/v1",
+			}),
+		).resolves.toBe(false);
+		await expect(
+			shouldZeroClineFreeModelCost({
+				providerId: "cline",
+				modelId: "deepseek/deepseek-v4-flash",
+				baseUrl: "https://cline.test/api/v1",
+			}),
+		).resolves.toBe(true);
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+	});
 });
 
 describe("zeroCliUsageCost", () => {
