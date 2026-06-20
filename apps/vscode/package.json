@@ -383,7 +383,6 @@
 		"test:coverage": "bun run compile-tests && vscode-test --coverage",
 		"test:sca-server": "bun --watch scripts/test-standalone-core-api-server.ts",
 		"test:tp-orchestrator": "bun scripts/testing-platform-orchestrator.ts",
-		"dev:mcp-oauth-test-server": "bun src/dev/mcp-oauth-test-server/server.ts",
 		"e2e": "playwright test -c playwright.config.ts",
 		"test:e2e:build": "vsce package --no-dependencies --allow-package-secrets sendgrid --out dist/e2e.vsix",
 		"test:e2e": "playwright install && bun run test:e2e:build && node src/test/e2e/utils/build.mjs && playwright test",
