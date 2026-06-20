@@ -1,5 +1,9 @@
 # Cline SDK Changelog
 
+## 0.0.51
+
+- Fixed Z.ai model metadata not resolving correctly when using Z.ai models through the Cline provider; aliases now map to the right model metadata and user overrides are preserved
+
 ## 0.0.50
 
 - Truncate every tool result by default (including MCP and custom tool output), with tightened `MessageBuilder` limits and tunable `CLINE_MESSAGE_BUILDER_*` env overrides, to keep provider requests within budget
