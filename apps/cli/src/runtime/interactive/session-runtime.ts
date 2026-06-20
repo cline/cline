@@ -93,6 +93,7 @@ export function createInteractiveSessionRuntime(input: {
 	onTeamEvent: (event: TeamEvent) => void;
 	onPendingPrompts: (event: PendingPromptSnapshot) => void;
 	onPendingPromptSubmitted: (event: PendingPromptSubmittedEvent) => void;
+	shouldZeroExitSummaryCost?: () => boolean;
 }) {
 	let sessionManager: CliCore | undefined;
 	let runtimeHooks: RuntimeHooks | undefined;
@@ -344,6 +345,7 @@ export function createInteractiveSessionRuntime(input: {
 			row,
 			messages,
 			usage,
+			shouldZeroCost: input.shouldZeroExitSummaryCost?.() ?? false,
 		});
 	};
 

@@ -47,6 +47,7 @@ export function createInteractiveExitSummary(input: {
 	row?: SessionRecord;
 	messages?: Message[];
 	usage?: SessionAccumulatedUsage;
+	shouldZeroCost?: boolean;
 }): InteractiveExitSummary | undefined {
 	const sessionId = trim(input.sessionId);
 	if (!sessionId) {
@@ -59,10 +60,13 @@ export function createInteractiveExitSummary(input: {
 		return undefined;
 	}
 
-	const totalCost =
+	let totalCost =
 		asFiniteNumber(input.usage?.totalCost) ??
 		asFiniteNumber(input.row?.metadata?.aggregatedAgentsCost) ??
 		asFiniteNumber(input.row?.metadata?.totalCost);
+	if (input.shouldZeroCost && totalCost !== undefined) {
+		totalCost = 0;
+	}
 
 	return {
 		sessionId,

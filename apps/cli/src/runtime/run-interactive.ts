@@ -159,6 +159,7 @@ export async function runInteractive(
 	});
 	const providerSettingsManager = new ProviderSettingsManager();
 	let zeroCurrentTurnCost = false;
+	let zeroExitSummaryCost = false;
 
 	const sessionRuntime = createInteractiveSessionRuntime({
 		config,
@@ -183,6 +184,7 @@ export async function runInteractive(
 		onPendingPromptSubmitted: (event) => {
 			uiEvents.emit("pending-prompt-submitted", event);
 		},
+		shouldZeroExitSummaryCost: () => zeroExitSummaryCost,
 	});
 	let modeChangePromise: Promise<void> | undefined;
 	let modeChangeTarget: "plan" | "act" | undefined;
@@ -487,6 +489,7 @@ export async function runInteractive(
 				commandOutput = chatCommandResult.commandOutput;
 				zeroTurnCost = await shouldZeroClineFreeModelCost(config);
 				zeroCurrentTurnCost = zeroTurnCost;
+				zeroExitSummaryCost ||= zeroTurnCost;
 				const {
 					prompt: userInput,
 					userImages,

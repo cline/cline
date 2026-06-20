@@ -115,4 +115,28 @@ describe("interactive exit summary", () => {
 		expect(output).not.toContain("  Cost");
 		expect(output).not.toContain("$0.250000");
 	});
+
+	it("zeros persisted cost for free Cline models", () => {
+		const summary = createInteractiveExitSummary({
+			sessionId: "sess_123",
+			row: makeSessionRecord(),
+			messages: [
+				{ role: "user", content: "hello" },
+				{ role: "assistant", content: "hi" },
+			],
+			usage: {
+				inputTokens: 100,
+				outputTokens: 50,
+				cacheReadTokens: 0,
+				cacheWriteTokens: 0,
+				totalCost: 0.25,
+			},
+			shouldZeroCost: true,
+		});
+
+		expect(summary?.totalCost).toBe(0);
+		expect(formatInteractiveExitSummary(summary!)).toContain(
+			"  Cost      $0.00",
+		);
+	});
 });
