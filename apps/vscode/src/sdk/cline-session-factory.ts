@@ -192,7 +192,6 @@ const PROVIDER_API_KEY_MAP: Record<string, keyof ApiConfiguration> = {
 	openrouter: "openRouterApiKey",
 	openai: "openAiApiKey",
 	"openai-native": "openAiNativeApiKey",
-	"openai-codex": "openAiNativeApiKey", // Codex uses the same key
 	bedrock: "awsBedrockApiKey",
 	vertex: "geminiApiKey",
 	gemini: "geminiApiKey",
