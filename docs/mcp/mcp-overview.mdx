@@ -89,12 +89,13 @@ When adding a server, the CLI prompts for server name, transport type, command/a
 }
 ```
 
-### Remote server (HTTP/SSE)
+### Remote server (Streamable HTTP)
 
 ```json
 {
   "mcpServers": {
     "remote-server": {
+      "type": "streamableHttp",
       "url": "https://example.com/mcp",
       "headers": {
         "Authorization": "Bearer your-token"
@@ -105,6 +106,8 @@ When adding a server, the CLI prompts for server name, transport type, command/a
   }
 }
 ```
+
+The `type` field selects the transport. Omitting it defaults to the legacy `sse` transport for backward compatibility, so set `"type": "streamableHttp"` explicitly for the recommended transport. Use `"type": "sse"` only for legacy SSE servers.
 
 ## Transport types
 
