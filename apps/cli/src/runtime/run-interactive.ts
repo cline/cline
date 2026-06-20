@@ -25,6 +25,11 @@ import type { QueuedPromptItem } from "../tui/types";
 import { type ChatCommandState, chatCommandHost } from "../utils/chat-commands";
 import { applyCliCompactionMode } from "../utils/compaction-mode";
 import {
+	shouldZeroClineFreeModelCost,
+	zeroCliAgentEventCost,
+	zeroCliUsageCost,
+} from "../utils/free-model-cost";
+import {
 	prepareTerminalForPostTuiOutput,
 	writeErr,
 	writeln,
@@ -153,6 +158,7 @@ export async function runInteractive(
 		askQuestionRef: tuiAskQuestion,
 	});
 	const providerSettingsManager = new ProviderSettingsManager();
+	let zeroCurrentTurnCost = false;
 
 	const sessionRuntime = createInteractiveSessionRuntime({
 		config,
@@ -166,7 +172,7 @@ export async function runInteractive(
 		resolveMistakeLimitDecision,
 		switchToActModeTool,
 		onAgentEvent: (event) => {
-			uiEvents.emit("agent", event);
+			uiEvents.emit("agent", zeroCliAgentEventCost(event, zeroCurrentTurnCost));
 		},
 		onTeamEvent: (event) => {
 			uiEvents.emit("team", event);
@@ -432,6 +438,7 @@ export async function runInteractive(
 		},
 		onSubmit: async (input, mode, delivery, attachments, onCommandOutput) => {
 			let commandOutput: string | undefined;
+			let zeroTurnCost = false;
 			try {
 				await sessionRuntime.ensureReady();
 				await waitForSubmittedMode(mode);
@@ -478,6 +485,8 @@ export async function runInteractive(
 				}
 				input = chatCommandResult.input;
 				commandOutput = chatCommandResult.commandOutput;
+				zeroTurnCost = await shouldZeroClineFreeModelCost(config);
+				zeroCurrentTurnCost = zeroTurnCost;
 				const {
 					prompt: userInput,
 					userImages,
@@ -519,8 +528,9 @@ export async function runInteractive(
 				}
 				if (result.finishReason !== "completed") {
 					if (result.finishReason === "aborted" || isAbortInProgress()) {
-						const usage = await sessionRuntime.getAccumulatedUsage(
-							result.usage,
+						const usage = zeroCliUsageCost(
+							await sessionRuntime.getAccumulatedUsage(result.usage),
+							zeroTurnCost,
 						);
 						return {
 							usage,
@@ -535,7 +545,10 @@ export async function runInteractive(
 						errorText || `Turn finished with ${result.finishReason}`,
 					);
 				}
-				const usage = await sessionRuntime.getAccumulatedUsage(result.usage);
+				const usage = zeroCliUsageCost(
+					await sessionRuntime.getAccumulatedUsage(result.usage),
+					zeroTurnCost,
+				);
 				return {
 					usage,
 					currentContextSize: getCurrentContextSize(result.messages),
@@ -559,6 +572,7 @@ export async function runInteractive(
 				});
 				throw error;
 			} finally {
+				zeroCurrentTurnCost = false;
 				if (!delivery) {
 					isRunning = false;
 					clearAbortInProgress();
