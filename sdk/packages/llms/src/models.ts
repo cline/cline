@@ -6,6 +6,12 @@ export {
 	fetchModelsDevProviderModels,
 	sortModelsByReleaseDate,
 } from "./catalog/catalog-live";
+export type { ModelIdAliasRule } from "./catalog/model-id-aliases";
+export {
+	isCanonicalModelIdForAliasRules,
+	preferCanonicalModelIds,
+	VERCEL_OPENROUTER_MODEL_ID_ALIAS_RULES,
+} from "./catalog/model-id-aliases";
 export type {
 	ModelCollection,
 	ModelInfo,

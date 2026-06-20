@@ -10,6 +10,11 @@ import {
 	type ProviderConfigField,
 } from "@cline/shared";
 import { getGeneratedModelsForProvider } from "../catalog/catalog.generated-access";
+import {
+	isCanonicalModelIdForAliasRules,
+	preferCanonicalModelIds,
+	VERCEL_OPENROUTER_MODEL_ID_ALIAS_RULES,
+} from "../catalog/model-id-aliases";
 import type {
 	ModelCollection,
 	ModelInfo,
@@ -325,6 +330,27 @@ function buildOpenAICodexModels(): Record<string, ModelInfo> {
 	return filterOpenAICodexModels(generatedModels("openai-native"));
 }
 
+function buildClineModels(): Record<string, ModelInfo> {
+	// Cline is OpenRouter-backed generally, but its recommended-model endpoint
+	// can return Vercel-style ids. Include those exact ids so runtime metadata
+	// resolves without adding duplicate OpenRouter aliases to the picker.
+	const vercelAliasModels = Object.fromEntries(
+		Object.entries(generatedModels("vercel-ai-gateway")).filter(([modelId]) =>
+			isCanonicalModelIdForAliasRules(
+				modelId,
+				VERCEL_OPENROUTER_MODEL_ID_ALIAS_RULES,
+			),
+		),
+	);
+	return preferCanonicalModelIds(
+		{
+			...generatedModels("openrouter"),
+			...vercelAliasModels,
+		},
+		VERCEL_OPENROUTER_MODEL_ID_ALIAS_RULES,
+	);
+}
+
 function fallbackModelInfo(id: string, spec?: BuiltinSpec): ModelInfo {
 	const info: ModelInfo = {
 		id,
@@ -482,7 +508,7 @@ const cline = createClineLikeSpec({
 	id: "cline",
 	name: "Cline",
 	popular: 1,
-	modelsProviderId: "openrouter",
+	modelsFactory: buildClineModels,
 	defaultModelId: CLINE_DEFAULT_MODEL_ID,
 });
 

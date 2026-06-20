@@ -50,6 +50,23 @@ describe("cline builtin spec defaults.baseUrl", () => {
 	});
 });
 
+describe("cline builtin models", () => {
+	it("prefers Vercel-style Z.ai model ids over equivalent OpenRouter ids", async () => {
+		const models = await getModelsForProvider("cline");
+
+		expect(models["zai/glm-5.2"]).toMatchObject({
+			id: "zai/glm-5.2",
+			name: "GLM 5.2",
+			contextWindow: 1_000_000,
+			maxInputTokens: 1_000_000,
+		});
+		expect(models["zai/glm-5.1"]).toMatchObject({
+			id: "zai/glm-5.1",
+		});
+		expect(models["z-ai/glm-5.2"]).toBeUndefined();
+	});
+});
+
 describe("cline-pass builtin spec", () => {
 	it("registers a distinct Cline-compatible provider with a custom model list", async () => {
 		const models = await getModelsForProvider("cline-pass");
