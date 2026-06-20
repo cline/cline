@@ -333,6 +333,48 @@ describe("buildSessionConfig", () => {
 		expect(mocks.providerSettingsManager.getProviderSettings).not.toHaveBeenCalled()
 	})
 
+	it("resolves OpenAI Codex through the shared OAuth provider registry", async () => {
+		mocks.providerSettingsManager.getProviderSettings.mockReturnValue({
+			provider: "openai-codex",
+			auth: {
+				accessToken: "codex-oauth-token",
+				refreshToken: "codex-refresh-token",
+			},
+		} as any)
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "openai-codex",
+			actModeApiModelId: "gpt-5.4",
+			openAiNativeApiKey: "openai-api-key-should-not-be-used",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerId).toBe("openai-codex")
+		expect(config.modelId).toBe("gpt-5.4")
+		expect(config.apiKey).toBe("codex-oauth-token")
+		expect(config.providerConfig).toMatchObject({
+			providerId: "openai-codex",
+			modelId: "gpt-5.4",
+			apiKey: "codex-oauth-token",
+		})
+	})
+
+	it("does not treat OpenAI Codex as OpenAI Native API-key auth", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "openai-codex",
+			actModeApiModelId: "gpt-5.4",
+			openAiNativeApiKey: "openai-api-key-should-not-be-used",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerId).toBe("openai-codex")
+		expect(config.modelId).toBe("gpt-5.4")
+		expect(config.apiKey).toBe("")
+		expect(config.providerConfig).toMatchObject({ providerId: "openai-codex", modelId: "gpt-5.4" })
+		expect(config.providerConfig).not.toHaveProperty("apiKey")
+	})
+
 	it("uses ClinePass model storage and omits empty nested apiKey so SDK OAuth can fill it", async () => {
 		mocks.stateManager.getApiConfiguration.mockReturnValue({
 			actModeApiProvider: "cline-pass",
