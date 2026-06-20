@@ -69,8 +69,8 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 
 			for await (let data of stream) {
 				// Parse shell integration completion markers when present.
-				// Sequence format: ]633;D;<exitCode>
-				const completionMatches = [...data.matchAll(/\]633;D(?:;(-?\d+))?/g)]
+				// Sequence format: ESC ]633;D;<exitCode> BEL
+				const completionMatches = [...data.matchAll(/\x1b\]633;D(?:;(-?\d+))?\x07/g)]
 				const latestCompletionMatch = completionMatches[completionMatches.length - 1]
 				if (latestCompletionMatch) {
 					didSeeCompletionMarker = true
