@@ -1193,7 +1193,7 @@ describe("listLocalProviders", () => {
 		).toBe(false);
 	});
 
-	it("uses the same built-in model list for cline as openrouter", async () => {
+	it("uses Cline-specific Z.ai aliases in the built-in model list", async () => {
 		manager.saveProviderSettings(
 			{
 				provider: "cline",
@@ -1209,9 +1209,17 @@ describe("listLocalProviders", () => {
 		const openrouter = providers.find(
 			(provider) => provider.id === "openrouter",
 		);
+		const clineModelIds = new Set(
+			cline?.modelList?.map((model) => model.id) ?? [],
+		);
+		const openrouterModelIds = new Set(
+			openrouter?.modelList?.map((model) => model.id) ?? [],
+		);
 
 		expect(cline?.modelList?.length).toBeGreaterThan(0);
-		expect(cline?.modelList).toEqual(openrouter?.modelList);
+		expect(clineModelIds).toContain("zai/glm-5.2");
+		expect(clineModelIds).not.toContain("z-ai/glm-5.2");
+		expect(openrouterModelIds).toContain("z-ai/glm-5.2");
 	});
 
 	it("does not eagerly fetch LiteLLM private models while listing providers", async () => {

@@ -58,6 +58,45 @@ describe("resolveProviderConfig", () => {
 		);
 	});
 
+	it("prefers Vercel-style Z.ai ids in Cline known models", async () => {
+		const resolved = await resolveProviderConfig("cline");
+
+		expect(resolved?.knownModels?.["zai/glm-5.2"]).toMatchObject({
+			id: "zai/glm-5.2",
+			name: "GLM 5.2",
+			contextWindow: 1_000_000,
+			maxInputTokens: 1_000_000,
+		});
+		expect(resolved?.knownModels?.["z-ai/glm-5.2"]).toBeUndefined();
+	});
+
+	it("preserves explicit Cline known model overrides for alias ids", async () => {
+		const resolved = await resolveProviderConfig("cline", undefined, {
+			providerId: "cline",
+			modelId: "z-ai/glm-5.2",
+			knownModels: {
+				"z-ai/glm-5.2": {
+					id: "z-ai/glm-5.2",
+					name: "Custom GLM 5.2",
+					contextWindow: 123_456,
+					maxInputTokens: 123_456,
+				},
+			},
+		});
+
+		expect(resolved?.knownModels?.["z-ai/glm-5.2"]).toMatchObject({
+			id: "z-ai/glm-5.2",
+			name: "Custom GLM 5.2",
+			contextWindow: 123_456,
+			maxInputTokens: 123_456,
+		});
+		expect(resolved?.knownModels?.["zai/glm-5.2"]).toMatchObject({
+			id: "zai/glm-5.2",
+			contextWindow: 1_000_000,
+			maxInputTokens: 1_000_000,
+		});
+	});
+
 	it("uses the live OpenAI catalog for ChatGPT subscription models", async () => {
 		vi.stubGlobal(
 			"fetch",

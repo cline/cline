@@ -1,5 +1,6 @@
 export type {
 	ModelCollection,
+	ModelIdAliasRule,
 	ModelInfo,
 	ModelInfo as CatalogModelInfo,
 	ProviderCapability as CatalogProviderCapability,
@@ -15,11 +16,14 @@ export {
 	getProviderCollectionSync,
 	getProviderIds,
 	hasProvider,
+	isCanonicalModelIdForAliasRules,
 	MODEL_COLLECTIONS_BY_PROVIDER_ID,
+	preferCanonicalModelIds,
 	registerModel,
 	registerProvider,
 	resetRegistry,
 	unregisterProvider,
+	VERCEL_OPENROUTER_MODEL_ID_ALIAS_RULES,
 } from "./models";
 export {
 	type ProviderUsageCostDisplay,

@@ -179,12 +179,28 @@ async function mergeKnownModels(
 			...userKnownModels,
 		});
 	}
-	return Llms.sortModelsByReleaseDate({
+	const knownModelsWithoutUserOverrides = Llms.sortModelsByReleaseDate({
 		...generated,
 		...defaultKnownModels,
 		...liveModels,
 		...privateModels,
 		...publicModels,
+	});
+
+	if (providerId === "cline") {
+		// Cline recommendations can use Vercel-style ids while the broader
+		// catalog includes OpenRouter aliases for the same models.
+		return Llms.sortModelsByReleaseDate({
+			...Llms.preferCanonicalModelIds(
+				knownModelsWithoutUserOverrides,
+				Llms.VERCEL_OPENROUTER_MODEL_ID_ALIAS_RULES,
+			),
+			...userKnownModels,
+		});
+	}
+
+	return Llms.sortModelsByReleaseDate({
+		...knownModelsWithoutUserOverrides,
 		...userKnownModels,
 	});
 }
