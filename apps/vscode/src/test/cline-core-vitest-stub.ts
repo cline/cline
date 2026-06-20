@@ -202,6 +202,44 @@ export interface ModelCatalogConfig {
 	cacheTtlMs?: number
 }
 
+function titleCaseFromId(id: string): string {
+	return id
+		.split(/[-_]/)
+		.filter(Boolean)
+		.map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+		.join(" ")
+}
+
+export async function listLocalProviders(
+	manager: ProviderSettingsManager,
+	options: { isClinePassEnabled?: boolean } = {},
+): Promise<{ providers: Array<Record<string, unknown>>; settingsPath: string }> {
+	const state = manager.read()
+	const providers = Object.entries(MODEL_COLLECTIONS_BY_PROVIDER_ID)
+		.map(([id, collection]) => {
+			const settings = state.providers[id]?.settings as Record<string, unknown> | undefined
+			const provider = collection.provider
+			return {
+				id,
+				name: provider.name ?? titleCaseFromId(id),
+				models: Object.keys(collection.models ?? {}).length,
+				enabled: Boolean(settings),
+				apiKey: settings?.apiKey,
+				baseUrl: settings?.baseUrl ?? provider.baseUrl,
+				defaultModelId: provider.defaultModelId,
+				protocol: settings?.protocol ?? provider.protocol,
+				client: settings?.client ?? provider.client,
+				capabilities: provider.capabilities,
+				authDescription: "This provider uses API keys for authentication.",
+				baseUrlDescription: "The base endpoint to use for provider requests.",
+			}
+		})
+		.filter((provider) => options.isClinePassEnabled === true || provider.id !== "cline-pass")
+		.sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id))
+
+	return { providers, settingsPath: manager.getFilePath() }
+}
+
 export async function resolveProviderConfig(
 	providerId: string,
 	_config?: ModelCatalogConfig,
