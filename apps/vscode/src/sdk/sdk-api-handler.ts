@@ -1,19 +1,17 @@
 // Replaces classic src/core/api buildApiHandler (see origin/main).
 //
-// Builds an SDK ApiHandler (from `@cline/llms`) directly from the extension's
-// legacy ApiConfiguration. This is the single inference path: the main task
-// loop runs through ClineCore (see cline-session-factory.ts), and standalone
-// utility callers (commit message generation) use the handler
-// returned here. Both share the same provider/model/key/baseUrl resolution so
+// Builds an SDK ApiHandler (from `@cline/llms`) from SDK provider settings.
+// The main task loop runs through ClineCore (see cline-session-factory.ts), and
+// standalone utility callers (commit message generation) use the handler
+// returned here. Both share the same SDK-first provider config resolution so
 // there is no second source of truth.
 
 import { type ApiHandler, createHandler, type ProviderConfig } from "@cline/llms"
 import type { ApiConfiguration } from "@shared/api"
 import type { Mode } from "@shared/storage/types"
+import { mirrorPlanActApiConfiguration } from "@/core/controller/models/sharedModeConfiguration"
 import { fetch } from "@/shared/net"
-import { buildBedrockProviderConfig } from "./bedrock-config"
-import { resolveApiKey, resolveBaseUrl, resolveModelId, resolveVertexProviderConfig } from "./cline-session-factory"
-import { toSdkProviderId } from "./model-catalog/sdk-provider-id"
+import { buildRuntimeProviderConfig } from "./cline-session-factory"
 
 export interface BuildApiHandlerOptions {
 	/**
@@ -30,9 +28,10 @@ export interface BuildApiHandlerOptions {
  * Build an SDK `ProviderConfig` from the extension's `ApiConfiguration` for the
  * given mode (plan/act).
  *
- * Reuses the same resolvers the session factory uses to map the legacy config
- * onto provider id, model id, API key, and base URL, then converts the provider
- * id to the SDK's spelling (e.g. `openai` → `openai-compatible`).
+ * Reads the SDK ProviderSettingsManager first, matching the CLI's ownership
+ * model. Legacy ApiConfiguration is only a compatibility fallback for installs
+ * that have not produced SDK provider settings yet. Plan/Act mode changes
+ * runtime behavior and tool access, not the selected provider/model.
  *
  * Reasoning handling: the SDK gateway forwards `reasoningEffort` as
  * `reasoning.effort` and `thinkingBudgetTokens` as `reasoning.max_tokens`.
@@ -45,36 +44,36 @@ export function buildSdkProviderConfig(
 	mode: Mode,
 	options?: BuildApiHandlerOptions,
 ): ProviderConfig {
-	const providerId = (mode === "plan" ? configuration.planModeApiProvider : configuration.actModeApiProvider) ?? "cline"
-
-	const apiKey = resolveApiKey(providerId, configuration)
-	const modelId = resolveModelId(providerId, mode, configuration)
-	const baseUrl = resolveBaseUrl(providerId, configuration)
+	const sharedConfiguration = mirrorPlanActApiConfiguration(configuration)
+	const providerId =
+		(mode === "plan" ? sharedConfiguration.planModeApiProvider : sharedConfiguration.actModeApiProvider) ?? "cline"
+	const runtimeProviderConfig = buildRuntimeProviderConfig(providerId, mode, sharedConfiguration)
+	const modelId = runtimeProviderConfig.modelId ?? ""
 
 	const thinkingBudgetTokens =
-		mode === "plan" ? configuration.planModeThinkingBudgetTokens : configuration.actModeThinkingBudgetTokens
-	const reasoningEffort = mode === "plan" ? configuration.planModeReasoningEffort : configuration.actModeReasoningEffort
-
-	const vertexProviderConfig = providerId === "vertex" ? resolveVertexProviderConfig(configuration) : undefined
+		mode === "plan" ? sharedConfiguration.planModeThinkingBudgetTokens : sharedConfiguration.actModeThinkingBudgetTokens
+	const reasoningEffort =
+		mode === "plan" ? sharedConfiguration.planModeReasoningEffort : sharedConfiguration.actModeReasoningEffort
 
 	const base: ProviderConfig = {
-		providerId: toSdkProviderId(providerId),
-		modelId: modelId ?? "",
-		apiKey: apiKey ?? "",
-		baseUrl,
-		...(vertexProviderConfig ?? {}),
+		...runtimeProviderConfig,
+		modelId,
 		// Use the proxy-aware fetch so gateway providers respect corporate proxy
 		// configuration (see .clinerules/network.md).
 		fetch,
 		onRetryAttempt: configuration.onRetryAttempt,
-		// Bedrock needs its region + structured AWS auth options forwarded to the
-		// SDK gateway. Without these, a pasted Bedrock API key / region is dropped.
-		...(providerId === "bedrock" ? buildBedrockProviderConfig(configuration, mode) : {}),
 	}
 
 	if (options?.disableReasoning) {
 		// Explicitly turn reasoning off; do not send effort or budget.
-		return { ...base, thinking: false }
+		const withoutReasoning = { ...base }
+		delete withoutReasoning.reasoningEffort
+		delete withoutReasoning.thinkingBudgetTokens
+		return { ...withoutReasoning, thinking: false }
+	}
+
+	if (runtimeProviderConfig.thinking !== undefined || runtimeProviderConfig.reasoningEffort !== undefined) {
+		return base
 	}
 
 	// Send at most one of budget/effort to avoid the "Only one of

@@ -5,6 +5,7 @@ import type { CoreSessionConfig } from "@cline/core"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import {
 	buildResumeSessionInput,
+	buildRuntimeProviderConfig,
 	buildSessionConfig,
 	buildStartSessionInput,
 	createHistoryItemFromSession,
@@ -19,7 +20,8 @@ import {
 const mocks = vi.hoisted(() => {
 	const providerSettingsManager = {
 		getLastUsedProviderSettings: vi.fn(() => undefined),
-		getProviderSettings: vi.fn((_providerId?: string) => undefined),
+		getProviderConfig: vi.fn((_providerId?: string, _options?: unknown): any => undefined),
+		getProviderSettings: vi.fn((_providerId?: string): any => undefined),
 		saveProviderSettings: vi.fn(),
 	}
 
@@ -33,6 +35,7 @@ const mocks = vi.hoisted(() => {
 				actModeApiModelId: "claude-sonnet-4-6",
 				apiKey: "test-key",
 			})),
+			getRemoteConfigSettings: vi.fn(() => ({})),
 			getGlobalSettingsKey: vi.fn((key: string): boolean | undefined => {
 				if (key === "subagentsEnabled" || key === "useAutoCondense") {
 					return false
@@ -86,7 +89,9 @@ beforeEach(() => {
 		}
 		return undefined
 	})
+	mocks.stateManager.getRemoteConfigSettings.mockReturnValue({})
 	mocks.providerSettingsManager.getLastUsedProviderSettings.mockReturnValue(undefined)
+	mocks.providerSettingsManager.getProviderConfig.mockReturnValue(undefined)
 	mocks.providerSettingsManager.getProviderSettings.mockReturnValue(undefined)
 })
 
@@ -273,6 +278,642 @@ describe("normalizeProviderReasoningSettings", () => {
 // ---------------------------------------------------------------------------
 
 describe("buildSessionConfig", () => {
+	it("prefers SDK provider config and overlays the VS Code mode model selection", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "bedrock",
+			actModeApiModelId: "bedrock-model",
+			awsBedrockApiKey: "legacy-bedrock-key",
+			awsRegion: "us-east-1",
+		} as any)
+		mocks.providerSettingsManager.getProviderConfig.mockImplementation((providerId?: string) => {
+			if (providerId !== "bedrock") {
+				return undefined
+			}
+			return {
+				providerId: "bedrock",
+				modelId: "anthropic.claude-default",
+				apiKey: "sdk-bedrock-key",
+				baseUrl: "https://bedrock-proxy.example",
+				region: "us-west-2",
+				aws: {
+					authentication: "apikey",
+					region: "us-west-2",
+					customModelBaseId: "base-profile",
+				},
+			} as any
+		})
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(mocks.providerSettingsManager.getProviderConfig).toHaveBeenCalledWith("bedrock", {
+			includeKnownModels: false,
+		})
+		expect(config.providerId).toBe("bedrock")
+		expect(config.modelId).toBe("bedrock-model")
+		expect(config.apiKey).toBe("sdk-bedrock-key")
+		expect(config.baseUrl).toBe("https://bedrock-proxy.example")
+		expect(config.providerConfig).toMatchObject({
+			providerId: "bedrock",
+			modelId: "bedrock-model",
+			apiKey: "sdk-bedrock-key",
+			baseUrl: "https://bedrock-proxy.example",
+			region: "us-west-2",
+			aws: {
+				authentication: "apikey",
+				region: "us-west-2",
+				customModelBaseId: "base-profile",
+			},
+		})
+	})
+
+	it("does not pass stale Bedrock API keys when legacy credentials auth maps to IAM", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "bedrock",
+			actModeApiModelId: "bedrock-model",
+			awsAuthentication: "credentials",
+			awsBedrockApiKey: "stale-bedrock-api-key",
+			awsRegion: "us-east-1",
+		} as any)
+		mocks.providerSettingsManager.getProviderConfig.mockImplementation((providerId?: string) => {
+			if (providerId !== "bedrock") {
+				return undefined
+			}
+			return {
+				providerId: "bedrock",
+				modelId: "sdk-default",
+				apiKey: "persisted-stale-bedrock-api-key",
+				aws: {
+					authentication: "iam",
+				},
+			} as any
+		})
+		mocks.providerSettingsManager.getProviderSettings.mockImplementation((providerId?: string) => {
+			if (providerId !== "bedrock") {
+				return undefined
+			}
+			return {
+				provider: "bedrock",
+				apiKey: "persisted-stale-bedrock-api-key",
+				aws: {
+					authentication: "iam",
+				},
+			}
+		})
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.apiKey).toBe("")
+		expect(config.providerConfig).toMatchObject({
+			providerId: "bedrock",
+			modelId: "bedrock-model",
+			region: "us-east-1",
+			aws: {
+				authentication: "iam",
+				region: "us-east-1",
+			},
+		})
+		expect(config.providerConfig).not.toHaveProperty("apiKey")
+	})
+
+	it("fills missing Bedrock SDK settings from legacy state without overriding persisted credentials", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "bedrock",
+			actModeApiModelId: "bedrock-model",
+			awsBedrockApiKey: "legacy-bedrock-key",
+			awsRegion: "us-east-1",
+			awsUseGlobalInference: true,
+		} as any)
+		mocks.providerSettingsManager.getProviderConfig.mockImplementation((providerId?: string) => {
+			if (providerId !== "bedrock") {
+				return undefined
+			}
+			return {
+				providerId: "bedrock",
+				modelId: "sdk-default",
+				apiKey: "sdk-bedrock-key",
+				aws: {
+					authentication: "api-key",
+				},
+			} as any
+		})
+		mocks.providerSettingsManager.getProviderSettings.mockImplementation((providerId?: string) => {
+			if (providerId !== "bedrock") {
+				return undefined
+			}
+			return {
+				provider: "bedrock",
+				apiKey: "sdk-bedrock-key",
+				aws: {
+					authentication: "api-key",
+				},
+			}
+		})
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.apiKey).toBe("sdk-bedrock-key")
+		expect(config.providerConfig).toMatchObject({
+			providerId: "bedrock",
+			modelId: "bedrock-model",
+			apiKey: "sdk-bedrock-key",
+			region: "us-east-1",
+			useGlobalInference: true,
+			aws: {
+				authentication: "api-key",
+				region: "us-east-1",
+				useGlobalInference: true,
+			},
+		})
+	})
+
+	it("fills missing SAP SDK settings from legacy state and keeps mode-specific deployment selection", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "sapaicore",
+			actModeSapAiCoreModelId: "anthropic--claude-3.5-sonnet",
+			actModeSapAiCoreDeploymentId: "act-deployment",
+			sapAiCoreBaseUrl: "https://legacy.sap.example",
+			sapAiCoreClientId: "legacy-client",
+			sapAiCoreClientSecret: "legacy-secret",
+			sapAiCoreTokenUrl: "https://legacy.authentication.sap.hana.ondemand.com",
+			sapAiResourceGroup: "legacy-group",
+		} as any)
+		mocks.providerSettingsManager.getProviderConfig.mockImplementation((providerId?: string) => {
+			if (providerId !== "sapaicore") {
+				return undefined
+			}
+			return {
+				providerId: "sapaicore",
+				modelId: "sdk-default",
+				baseUrl: "https://sdk.sap.example",
+				sap: {
+					clientId: "sdk-client",
+				},
+			} as any
+		})
+		mocks.providerSettingsManager.getProviderSettings.mockImplementation((providerId?: string) => {
+			if (providerId !== "sapaicore") {
+				return undefined
+			}
+			return {
+				provider: "sapaicore",
+				baseUrl: "https://sdk.sap.example",
+				sap: {
+					clientId: "sdk-client",
+				},
+			}
+		})
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.baseUrl).toBe("https://sdk.sap.example")
+		expect(config.providerConfig).toMatchObject({
+			providerId: "sapaicore",
+			modelId: "anthropic--claude-3.5-sonnet",
+			baseUrl: "https://sdk.sap.example",
+			sap: {
+				clientId: "sdk-client",
+				clientSecret: "legacy-secret",
+				tokenUrl: "https://legacy.authentication.sap.hana.ondemand.com",
+				resourceGroup: "legacy-group",
+				deploymentId: "act-deployment",
+			},
+		})
+	})
+
+	it("fills Vertex session config from legacy state", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "vertex",
+			actModeApiModelId: "gemini-2.5-pro",
+			vertexProjectId: "legacy-project",
+			vertexRegion: "us-central1",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerConfig).toMatchObject({
+			providerId: "vertex",
+			modelId: "gemini-2.5-pro",
+			region: "us-central1",
+			gcp: {
+				projectId: "legacy-project",
+				region: "us-central1",
+			},
+		})
+	})
+
+	it("prefers persisted Vertex SDK config while preserving the mode-selected model in sessions", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "vertex",
+			actModeApiModelId: "gemini-2.5-pro",
+			vertexProjectId: "legacy-project",
+			vertexRegion: "us-central1",
+		} as any)
+		mocks.providerSettingsManager.getProviderConfig.mockImplementation((providerId?: string) => {
+			if (providerId !== "vertex") {
+				return undefined
+			}
+			return {
+				providerId: "vertex",
+				modelId: "sdk-default",
+				gcp: {
+					projectId: "sdk-project",
+					region: "europe-west4",
+				},
+			} as any
+		})
+		mocks.providerSettingsManager.getProviderSettings.mockImplementation((providerId?: string) => {
+			if (providerId !== "vertex") {
+				return undefined
+			}
+			return {
+				provider: "vertex",
+				gcp: {
+					projectId: "sdk-project",
+					region: "europe-west4",
+				},
+			}
+		})
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerConfig).toMatchObject({
+			providerId: "vertex",
+			modelId: "gemini-2.5-pro",
+			region: "europe-west4",
+			gcp: {
+				projectId: "sdk-project",
+				region: "europe-west4",
+			},
+		})
+	})
+
+	it("prefers act-mode SAP deployment over single persisted SDK deployment", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			planModeApiProvider: "sapaicore",
+			planModeSapAiCoreModelId: "anthropic--claude-3.5-sonnet",
+			planModeSapAiCoreDeploymentId: "plan-deployment",
+			actModeSapAiCoreDeploymentId: "act-deployment",
+			sapAiCoreBaseUrl: "https://legacy.sap.example",
+		} as any)
+		mocks.providerSettingsManager.getProviderConfig.mockImplementation((providerId?: string) => {
+			if (providerId !== "sapaicore") {
+				return undefined
+			}
+			return {
+				providerId: "sapaicore",
+				modelId: "sdk-default",
+				sap: {
+					deploymentId: "persisted-deployment",
+				},
+			} as any
+		})
+		mocks.providerSettingsManager.getProviderSettings.mockImplementation((providerId?: string) => {
+			if (providerId !== "sapaicore") {
+				return undefined
+			}
+			return {
+				provider: "sapaicore",
+				sap: {
+					deploymentId: "persisted-deployment",
+				},
+			}
+		})
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace", mode: "plan" })
+
+		expect(config.providerConfig).toMatchObject({
+			providerId: "sapaicore",
+			modelId: "anthropic--claude-3.5-sonnet",
+			sap: {
+				deploymentId: "act-deployment",
+			},
+		})
+	})
+
+	it("prefers act-mode Bedrock custom base model over single persisted SDK value", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			planModeApiProvider: "bedrock",
+			planModeApiModelId: "bedrock-model",
+			planModeAwsBedrockCustomModelBaseId: "plan-base",
+			actModeAwsBedrockCustomModelBaseId: "act-base",
+			awsAuthentication: "api-key",
+			awsBedrockApiKey: "bedrock-key",
+		} as any)
+		mocks.providerSettingsManager.getProviderConfig.mockImplementation((providerId?: string) => {
+			if (providerId !== "bedrock") {
+				return undefined
+			}
+			return {
+				providerId: "bedrock",
+				modelId: "sdk-default",
+				apiKey: "bedrock-key",
+				aws: {
+					authentication: "api-key",
+					customModelBaseId: "persisted-base",
+				},
+			} as any
+		})
+		mocks.providerSettingsManager.getProviderSettings.mockImplementation((providerId?: string) => {
+			if (providerId !== "bedrock") {
+				return undefined
+			}
+			return {
+				provider: "bedrock",
+				apiKey: "bedrock-key",
+				aws: {
+					authentication: "api-key",
+					customModelBaseId: "persisted-base",
+				},
+			}
+		})
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace", mode: "plan" })
+
+		expect(config.providerConfig).toMatchObject({
+			providerId: "bedrock",
+			modelId: "bedrock-model",
+			apiKey: "bedrock-key",
+			aws: {
+				authentication: "api-key",
+				customModelBaseId: "act-base",
+			},
+		})
+	})
+
+	it("maps remote Bedrock custom model selections to their configured base model", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			planModeApiProvider: "bedrock",
+			planModeApiModelId: "application-inference-profile",
+			awsAuthentication: "api-key",
+			awsBedrockApiKey: "bedrock-key",
+		} as any)
+		mocks.stateManager.getRemoteConfigSettings.mockReturnValue({
+			remoteProviderModelSettings: {
+				bedrock: {
+					bedrockCustomModels: [
+						{
+							name: "application-inference-profile",
+							baseModelId: "anthropic.claude-sonnet-4-6",
+						},
+					],
+				},
+			},
+		})
+		mocks.providerSettingsManager.getProviderConfig.mockImplementation((providerId?: string) => {
+			if (providerId !== "bedrock") {
+				return undefined
+			}
+			return {
+				providerId: "bedrock",
+				modelId: "sdk-default",
+				apiKey: "bedrock-key",
+				aws: {
+					authentication: "api-key",
+				},
+			} as any
+		})
+		mocks.providerSettingsManager.getProviderSettings.mockImplementation((providerId?: string) => {
+			if (providerId !== "bedrock") {
+				return undefined
+			}
+			return {
+				provider: "bedrock",
+				apiKey: "bedrock-key",
+				aws: {
+					authentication: "api-key",
+				},
+			}
+		})
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace", mode: "plan" })
+
+		expect(config.providerConfig).toMatchObject({
+			providerId: "bedrock",
+			modelId: "application-inference-profile",
+			apiKey: "bedrock-key",
+			aws: {
+				authentication: "api-key",
+				customModelBaseId: "anthropic.claude-sonnet-4-6",
+			},
+		})
+	})
+
+	it("coerces stale runtime selections to the remote-config model allowlist", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "anthropic",
+			actModeApiModelId: "blocked-model",
+			apiKey: "test-key",
+		} as any)
+		mocks.stateManager.getRemoteConfigSettings.mockReturnValue({
+			remoteProviderModelSettings: {
+				anthropic: {
+					models: [{ id: "allowed-model" }, { id: "second-allowed-model" }],
+				},
+			},
+		})
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.modelId).toBe("allowed-model")
+		expect(config.providerConfig).toMatchObject({
+			providerId: "anthropic",
+			modelId: "allowed-model",
+			apiKey: "test-key",
+		})
+	})
+
+	it("uses the provider default model when no runtime model is selected", () => {
+		const config = buildRuntimeProviderConfig("deepseek", "act", {
+			actModeApiProvider: "deepseek",
+			deepSeekApiKey: "test-key",
+		} as any)
+
+		expect(config.modelId).toBe(getDefaultModelIdForProvider("deepseek"))
+		expect(config.modelId).not.toBe("")
+	})
+
+	it("falls unsupported persisted providers back to the VS Code default at runtime", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "qwen-code",
+			actModeApiModelId: "qwen3-coder-plus",
+			qwenApiKey: "qwen-key",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerId).toBe("cline")
+		expect(config.providerConfig).toMatchObject({
+			providerId: "cline",
+		})
+		expect(config.apiKey).toBe("")
+		expect(config.providerConfig?.apiKey).toBeUndefined()
+	})
+
+	it("resolves persisted OpenAI Compatible config through the SDK provider id alias", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "openai",
+			actModeOpenAiModelId: "custom-chat-model",
+			openAiApiKey: "legacy-openai-compatible-key",
+		} as any)
+		mocks.providerSettingsManager.getProviderConfig.mockImplementation((providerId?: string) => {
+			if (providerId !== "openai-compatible") {
+				return undefined
+			}
+			return {
+				providerId: "openai-compatible",
+				modelId: "sdk-model",
+				apiKey: "sdk-openai-compatible-key",
+				baseUrl: "https://openai-compatible.example/v1",
+			} as any
+		})
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(mocks.providerSettingsManager.getProviderConfig).toHaveBeenCalledWith("openai-compatible", {
+			includeKnownModels: false,
+		})
+		expect(config.providerId).toBe("openai-compatible")
+		expect(config.modelId).toBe("custom-chat-model")
+		expect(config.apiKey).toBe("sdk-openai-compatible-key")
+		expect(config.providerConfig).toMatchObject({
+			providerId: "openai-compatible",
+			modelId: "custom-chat-model",
+			apiKey: "sdk-openai-compatible-key",
+			baseUrl: "https://openai-compatible.example/v1",
+		})
+	})
+
+	it("lets remote-config OpenAI-compatible fields override stale persisted SDK settings", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "openai",
+			actModeOpenAiModelId: "custom-chat-model",
+			openAiBaseUrl: "https://remote.example/v1",
+			openAiHeaders: { "x-remote": "locked" },
+			azureApiVersion: "2026-01-01-preview",
+		} as any)
+		mocks.stateManager.getRemoteConfigSettings.mockReturnValue({
+			remoteConfiguredProviders: ["openai-compatible"],
+			openAiBaseUrl: "https://remote.example/v1",
+			openAiHeaders: { "x-remote": "locked" },
+			azureApiVersion: "2026-01-01-preview",
+		})
+		mocks.providerSettingsManager.getProviderConfig.mockImplementation((providerId?: string) => {
+			if (providerId !== "openai-compatible") {
+				return undefined
+			}
+			return {
+				providerId: "openai-compatible",
+				modelId: "sdk-model",
+				apiKey: "sdk-openai-compatible-key",
+				baseUrl: "https://stale.example/v1",
+				headers: { "x-local": "stale" },
+				azure: { apiVersion: "2024-02-15-preview" },
+			} as any
+		})
+		mocks.providerSettingsManager.getProviderSettings.mockImplementation((providerId?: string) => {
+			if (providerId !== "openai-compatible") {
+				return undefined
+			}
+			return {
+				provider: "openai-compatible",
+				apiKey: "sdk-openai-compatible-key",
+				baseUrl: "https://stale.example/v1",
+			}
+		})
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerConfig).toMatchObject({
+			providerId: "openai-compatible",
+			modelId: "custom-chat-model",
+			apiKey: "sdk-openai-compatible-key",
+			baseUrl: "https://remote.example/v1",
+			headers: { "x-remote": "locked" },
+			azure: { apiVersion: "2026-01-01-preview" },
+		})
+	})
+
+	it("uses legacy OpenAI-compatible base URL when providers.json only has default SDK config", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "openai",
+			actModeOpenAiModelId: "custom-chat-model",
+			openAiBaseUrl: "http://localhost:8000/v1",
+			azureApiVersion: "2025-01-01-preview",
+		} as any)
+		mocks.providerSettingsManager.getProviderConfig.mockImplementation((providerId?: string) => {
+			if (providerId !== "openai-compatible") {
+				return undefined
+			}
+			return {
+				providerId: "openai-compatible",
+				modelId: "sdk-model",
+				apiKey: "sdk-openai-compatible-key",
+				baseUrl: "https://api.openai.com/v1",
+			} as any
+		})
+		mocks.providerSettingsManager.getProviderSettings.mockImplementation((providerId?: string) => {
+			if (providerId !== "openai-compatible") {
+				return undefined
+			}
+			return {
+				provider: "openai-compatible",
+				apiKey: "sdk-openai-compatible-key",
+			}
+		})
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerConfig).toMatchObject({
+			providerId: "openai-compatible",
+			modelId: "custom-chat-model",
+			apiKey: "sdk-openai-compatible-key",
+			baseUrl: "http://localhost:8000/v1",
+			azure: {
+				apiVersion: "2025-01-01-preview",
+			},
+		})
+	})
+
+	it("overlays legacy OCA mode and base URL into SDK runtime config", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "oca",
+			actModeOcaModelId: "anthropic/claude-3-7-sonnet-20250219",
+			ocaMode: "internal",
+			ocaBaseUrl: "https://internal.oca.example/v1",
+		} as any)
+		mocks.providerSettingsManager.getProviderConfig.mockImplementation((providerId?: string) => {
+			if (providerId !== "oca") {
+				return undefined
+			}
+			return {
+				providerId: "oca",
+				modelId: "sdk-oca-default",
+				baseUrl: "https://code.aiservice.us-chicago-1.oci.oraclecloud.com/20250206/app/litellm",
+			} as any
+		})
+		mocks.providerSettingsManager.getProviderSettings.mockImplementation((providerId?: string) => {
+			if (providerId !== "oca") {
+				return undefined
+			}
+			return {
+				provider: "oca",
+				baseUrl: "https://stale-migrated.oca.example/v1",
+				oca: { mode: "external" },
+			}
+		})
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerConfig).toMatchObject({
+			providerId: "oca",
+			modelId: "anthropic/claude-3-7-sonnet-20250219",
+			baseUrl: "https://internal.oca.example/v1",
+			oca: {
+				mode: "internal",
+			},
+		})
+	})
+
 	it("resolves Cline OAuth credentials after defaulting to the Cline provider", async () => {
 		mocks.stateManager.getApiConfiguration.mockReturnValue({} as any)
 		mocks.providerSettingsManager.getProviderSettings.mockReturnValue({
@@ -389,6 +1030,113 @@ describe("buildSessionConfig", () => {
 		expect(config.apiKey).toBe("")
 		expect(config.providerConfig).toMatchObject({ providerId: "cline-pass", modelId: "cline-pass/glm-5.1" })
 		expect(config.providerConfig).not.toHaveProperty("apiKey")
+	})
+
+	it("resolves reasoning settings through the OpenAI-compatible SDK alias", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "openai",
+			actModeOpenAiModelId: "custom-openai-compatible-model",
+			openAiApiKey: "openai-compatible-key",
+			openAiBaseUrl: "https://openai-compatible.example/v1",
+		} as any)
+		mocks.providerSettingsManager.getProviderSettings.mockImplementation((providerId?: string) => {
+			if (providerId !== "openai-compatible") {
+				return undefined
+			}
+			return {
+				provider: "openai-compatible",
+				reasoning: {
+					enabled: true,
+					effort: "high",
+				},
+			} as any
+		})
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(mocks.providerSettingsManager.getProviderSettings).toHaveBeenCalledWith("openai-compatible")
+		expect(config.providerId).toBe("openai-compatible")
+		expect(config.thinking).toBe(true)
+		expect(config.reasoningEffort).toBe("high")
+	})
+
+	it("maps OpenAI Codex legacy reasoning effort into the SDK session config", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "openai-codex",
+			actModeApiModelId: "gpt-5.4",
+			actModeReasoningEffort: "high",
+		} as any)
+		mocks.providerSettingsManager.getProviderSettings.mockReturnValue({
+			provider: "openai-codex",
+			auth: { accessToken: "codex-oauth-token" },
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerId).toBe("openai-codex")
+		expect(config.thinking).toBe(true)
+		expect(config.reasoningEffort).toBe("high")
+	})
+
+	it("maps OCA legacy reasoning effort into the SDK session config", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "oca",
+			actModeOcaModelId: "oca-model",
+			actModeOcaReasoningEffort: "low",
+			ocaMode: "external",
+		} as any)
+		mocks.providerSettingsManager.getProviderSettings.mockReturnValue({
+			provider: "oca",
+			oca: { mode: "external" },
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerId).toBe("oca")
+		expect(config.thinking).toBe(true)
+		expect(config.reasoningEffort).toBe("low")
+	})
+
+	it("does not leak stale persisted providerConfig reasoning fields after sanitizing disabled reasoning", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "openai",
+			actModeOpenAiModelId: "custom-openai-compatible-model",
+			openAiApiKey: "openai-compatible-key",
+		} as any)
+		mocks.providerSettingsManager.getProviderConfig.mockImplementation((providerId?: string) => {
+			if (providerId !== "openai-compatible") {
+				return undefined
+			}
+			return {
+				providerId: "openai-compatible",
+				modelId: "sdk-model",
+				apiKey: "sdk-openai-compatible-key",
+				thinking: false,
+				reasoningEffort: "high",
+				thinkingBudgetTokens: 4096,
+			} as any
+		})
+		mocks.providerSettingsManager.getProviderSettings.mockImplementation((providerId?: string) => {
+			if (providerId !== "openai-compatible") {
+				return undefined
+			}
+			return {
+				provider: "openai-compatible",
+				reasoning: {
+					enabled: false,
+					effort: "high",
+					budgetTokens: 4096,
+				},
+			} as any
+		})
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.thinking).toBe(false)
+		expect(config.reasoningEffort).toBeUndefined()
+		expect(config.providerConfig).not.toHaveProperty("thinking")
+		expect(config.providerConfig).not.toHaveProperty("reasoningEffort")
+		expect(config.providerConfig).not.toHaveProperty("thinkingBudgetTokens")
 	})
 
 	it("enables basic SDK compaction when global useAutoCondense is true", async () => {

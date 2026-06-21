@@ -11,6 +11,7 @@
  * those casts are never necessary or correct.
  */
 
+import type { ProviderConfigField } from "@cline/shared"
 import type { ModelInfo } from "@shared/api"
 import type { Mode } from "@shared/storage/types"
 
@@ -75,6 +76,7 @@ export interface AwsProviderConfig {
 	readonly accessKey?: string
 	readonly secretKey?: string
 	readonly sessionToken?: string
+	readonly region?: string
 	readonly authentication?: "iam" | "api-key" | "apikey" | "profile" | string
 	readonly profile?: string
 	readonly usePromptCache?: boolean
@@ -89,6 +91,26 @@ export interface GcpProviderConfig {
 	readonly region?: string
 }
 
+export interface AzureProviderConfig {
+	readonly apiVersion?: string
+}
+
+export interface SapProviderConfig {
+	readonly clientId?: string
+	readonly clientSecret?: string
+	readonly tokenUrl?: string
+	readonly resourceGroup?: string
+	readonly deploymentId?: string
+	readonly useOrchestrationMode?: boolean
+	readonly api?: "orchestration" | "foundation-models" | string
+	readonly defaultSettings?: Readonly<Record<string, unknown>>
+}
+
+export interface OcaProviderConfig {
+	readonly mode?: "internal" | "external" | string
+	readonly usePromptCache?: boolean
+}
+
 export interface EffectiveProviderConfig {
 	readonly providerId: ProviderId
 	readonly apiKey?: string
@@ -98,6 +120,9 @@ export interface EffectiveProviderConfig {
 	readonly region?: string
 	readonly aws?: AwsProviderConfig
 	readonly gcp?: GcpProviderConfig
+	readonly azure?: AzureProviderConfig
+	readonly sap?: SapProviderConfig
+	readonly oca?: OcaProviderConfig
 	/**
 	 * OAuth-style auth bundle (e.g. cline provider's WorkOS token).
 	 * Compatible with `apiKey`; some providers populate both.
@@ -133,6 +158,8 @@ interface ProviderReasoningPatch {
 }
 
 export interface ProviderConfigPatch {
+	readonly mode?: Mode
+	readonly settings?: Readonly<Record<string, unknown>>
 	readonly apiKey?: string | null
 	readonly baseUrl?: string | null
 	readonly apiLine?: string | null
@@ -140,6 +167,9 @@ export interface ProviderConfigPatch {
 	readonly region?: string | null
 	readonly aws?: AwsProviderConfig | null
 	readonly gcp?: GcpProviderConfig | null
+	readonly azure?: AzureProviderConfig | null
+	readonly sap?: SapProviderConfig | null
+	readonly oca?: OcaProviderConfig | null
 	readonly auth?: {
 		readonly accessToken?: string
 		readonly refreshToken?: string
@@ -226,8 +256,11 @@ export interface ProviderListing {
 	readonly defaultModelId?: string
 	readonly family?: string
 	readonly protocol?: string
+	readonly authMethod?: "api-key" | "oauth" | "local"
 	readonly authDescription?: string
 	readonly baseUrlDescription?: string
+	readonly configFields?: readonly ProviderConfigField[]
+	readonly configValues?: Readonly<Record<string, unknown>>
 	/**
 	 * Whether arbitrary model ids are meaningful for this provider. Drives
 	 * the manual-entry affordance in `ModelPickerWithManualEntry`.

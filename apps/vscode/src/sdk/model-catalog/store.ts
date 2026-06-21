@@ -1,8 +1,9 @@
 import { getGeneratedModelsForProvider, MODEL_COLLECTIONS_BY_PROVIDER_ID } from "@cline/llms"
 import { type ApiConfiguration, type ApiProvider, type ModelInfo, openAiModelInfoSafeDefaults } from "@shared/api"
 import { getProviderModelIdKey } from "@shared/storage/provider-keys"
-import { isSecretKey, isSettingsKey, type SecretKey, type SettingsKey } from "@shared/storage/state-keys"
+import type { SettingsKey } from "@shared/storage/state-keys"
 import { StateManager } from "@/core/storage/StateManager"
+import { toLegacyApiProvider } from "@/shared/model-catalog/provider-helpers"
 import { getProviderSettingsManager } from "../provider-migration"
 import type {
 	Disposable,
@@ -21,74 +22,9 @@ import { toSdkProviderId } from "./sdk-provider-id"
 import { adaptSdkModelInfo } from "./shape-adapter"
 
 type ProviderSettingsRecord = Record<string, unknown>
-type ProviderSettingsPatchKey = "apiKey" | "baseUrl" | "apiLine" | "headers" | "region" | "auth" | "extras" | "aws" | "gcp"
-
 type ModelInfoKeys = {
 	readonly plan: keyof ApiConfiguration & SettingsKey
 	readonly act: keyof ApiConfiguration & SettingsKey
-}
-
-const providerConfigStateKeys: Record<ProviderSettingsPatchKey, Partial<Record<string, SecretKey | SettingsKey>>> = {
-	apiKey: {
-		anthropic: "apiKey",
-		openrouter: "openRouterApiKey",
-		openai: "openAiApiKey",
-		"openai-native": "openAiNativeApiKey",
-		"openai-codex": "openAiNativeApiKey",
-		bedrock: "awsBedrockApiKey",
-		gemini: "geminiApiKey",
-		deepseek: "deepSeekApiKey",
-		ollama: "ollamaApiKey",
-		requesty: "requestyApiKey",
-		together: "togetherApiKey",
-		fireworks: "fireworksApiKey",
-		qwen: "qwenApiKey",
-		"qwen-code": "qwenApiKey",
-		doubao: "doubaoApiKey",
-		mistral: "mistralApiKey",
-		litellm: "liteLlmApiKey",
-		asksage: "asksageApiKey",
-		xai: "xaiApiKey",
-		moonshot: "moonshotApiKey",
-		zai: "zaiApiKey",
-		huggingface: "huggingFaceApiKey",
-		nebius: "nebiusApiKey",
-		sambanova: "sambanovaApiKey",
-		cerebras: "cerebrasApiKey",
-		groq: "groqApiKey",
-		baseten: "basetenApiKey",
-		"huawei-cloud-maas": "huaweiCloudMaasApiKey",
-		dify: "difyApiKey",
-		minimax: "minimaxApiKey",
-		hicap: "hicapApiKey",
-		aihubmix: "aihubmixApiKey",
-		nousresearch: "nousResearchApiKey",
-		"vercel-ai-gateway": "vercelAiGatewayApiKey",
-		wandb: "wandbApiKey",
-		oca: "ocaApiKey",
-		cline: "clineApiKey",
-	},
-	baseUrl: {
-		anthropic: "anthropicBaseUrl",
-		openai: "openAiBaseUrl",
-		ollama: "ollamaBaseUrl",
-		lmstudio: "lmStudioBaseUrl",
-		gemini: "geminiBaseUrl",
-		requesty: "requestyBaseUrl",
-		asksage: "asksageApiUrl",
-		litellm: "liteLlmBaseUrl",
-		sapaicore: "sapAiCoreBaseUrl",
-		dify: "difyBaseUrl",
-		oca: "ocaBaseUrl",
-		aihubmix: "aihubmixBaseUrl",
-	},
-	apiLine: { qwen: "qwenApiLine", moonshot: "moonshotApiLine", zai: "zaiApiLine", minimax: "minimaxApiLine" },
-	headers: { openai: "openAiHeaders" },
-	region: { bedrock: "awsRegion", vertex: "vertexRegion" },
-	auth: {},
-	extras: {},
-	aws: {},
-	gcp: {},
 }
 
 const modelInfoKeysByProvider: Partial<Record<string, ModelInfoKeys>> = {
@@ -107,28 +43,13 @@ const modelInfoKeysByProvider: Partial<Record<string, ModelInfoKeys>> = {
 	"vercel-ai-gateway": { plan: "planModeVercelAiGatewayModelInfo", act: "actModeVercelAiGatewayModelInfo" },
 }
 
-// In-memory selection envelope for providers that have a mode-specific model
-// id key but no durable `*ModelInfo` key in the StateManager schema (for
-// example DeepSeek/Gemini/generic SDK-backed providers). Keyed by
-// provider+mode so that switching between providers that share the same
-// `*ModeApiModelId` key does not combine one provider's model id with
-// another provider's model info.
-const selectionMemory = new Map<string, ModelSelection>()
-
 function providerKey(providerId: ProviderId): string {
 	return providerId.toString()
 }
 
 function providerForStorage(providerId: ProviderId): ApiProvider | undefined {
 	const key = providerKey(providerId)
-	if (key === "nousresearch") {
-		return "nousResearch"
-	}
-	return key as ApiProvider
-}
-
-function memoryKey(providerId: ProviderId, mode: Mode): string {
-	return `${providerId}:${mode}`
+	return toLegacyApiProvider(key)
 }
 
 function modePair<T>(mode: Mode, plan: T, act: T): T {
@@ -152,16 +73,14 @@ function isModelInfo(value: unknown): value is ModelInfo {
 	return isRecord(value) && typeof value.supportsPromptCache === "boolean"
 }
 
-function isKnownModelIdForProvider(providerId: ProviderId, modelId: string): boolean {
-	const sdkProviderId = toSdkProviderId(providerId)
-	return Boolean(
-		getGeneratedModelsForProvider(sdkProviderId)[modelId] || MODEL_COLLECTIONS_BY_PROVIDER_ID[sdkProviderId]?.models[modelId],
-	)
-}
-
 function readProviderSettingsModelId(providerId: ProviderId): string | undefined {
 	const model = getProviderSettings(providerId).model
 	return typeof model === "string" && model.trim().length > 0 ? model.trim() : undefined
+}
+
+function readProviderSettingsModelInfo(providerId: ProviderId): ModelInfo | undefined {
+	const modelInfo = getProviderSettings(providerId).modelInfo
+	return isModelInfo(modelInfo) ? modelInfo : undefined
 }
 
 function fallbackModelInfo(modelId: string): ModelInfo {
@@ -206,91 +125,53 @@ function readSelectionFromProviderSettings(providerId: ProviderId): ModelSelecti
 	return {
 		providerId,
 		modelId,
-		modelInfo: readKnownModelInfoForProvider(providerId, modelId) ?? fallbackModelInfo(modelId),
-	}
-}
-
-function writeStateKey(key: SecretKey | SettingsKey, value: unknown): void {
-	const stateManager = StateManager.get()
-	if (isSecretKey(key)) {
-		stateManager.setSecret(key, typeof value === "string" ? value : undefined)
-		return
-	}
-	if (isSettingsKey(key)) {
-		stateManager.setGlobalState(key, value as never)
-	}
-}
-
-function writeStateFields(providerId: ProviderId, patch: ProviderConfigPatch): void {
-	const provider = providerKey(providerId)
-	for (const key of ["apiKey", "baseUrl", "apiLine", "headers", "region"] as const) {
-		if (!(key in patch)) {
-			continue
-		}
-		const stateKey = providerConfigStateKeys[key][provider]
-		if (stateKey) {
-			const value = typeof patch[key] === "string" ? patchStringValue(patch[key]) : patchValue(patch[key])
-			writeStateKey(stateKey, value)
-		}
-	}
-
-	if (provider === "vertex" && "gcp" in patch) {
-		const gcp = patch.gcp
-		if (gcp === null || gcp === undefined) {
-			writeStateKey("vertexProjectId", undefined)
-			writeStateKey("vertexRegion", undefined)
-		} else {
-			if ("projectId" in gcp) writeStateKey("vertexProjectId", patchStringValue(gcp.projectId))
-			if ("region" in gcp) writeStateKey("vertexRegion", patchStringValue(gcp.region))
-		}
-	}
-
-	if (provider === "bedrock" && "aws" in patch) {
-		const aws = patch.aws
-		if (aws === null || aws === undefined) {
-			writeStateKey("awsAccessKey", undefined)
-			writeStateKey("awsSecretKey", undefined)
-			writeStateKey("awsSessionToken", undefined)
-			writeStateKey("awsAuthentication", undefined)
-			writeStateKey("awsProfile", undefined)
-			writeStateKey("awsBedrockUsePromptCache", undefined)
-			writeStateKey("awsBedrockEndpoint", undefined)
-		} else {
-			if ("accessKey" in aws) writeStateKey("awsAccessKey", patchStringValue(aws.accessKey))
-			if ("secretKey" in aws) writeStateKey("awsSecretKey", patchStringValue(aws.secretKey))
-			if ("sessionToken" in aws) writeStateKey("awsSessionToken", patchStringValue(aws.sessionToken))
-			if ("authentication" in aws) writeStateKey("awsAuthentication", patchStringValue(aws.authentication))
-			if ("profile" in aws) writeStateKey("awsProfile", patchStringValue(aws.profile))
-			if ("usePromptCache" in aws) writeStateKey("awsBedrockUsePromptCache", aws.usePromptCache)
-			if ("endpoint" in aws) writeStateKey("awsBedrockEndpoint", patchStringValue(aws.endpoint))
-			if ("customModelBaseId" in aws) {
-				const customModelBaseId = patchStringValue(aws.customModelBaseId)
-				writeStateKey("planModeAwsBedrockCustomModelBaseId", customModelBaseId)
-				writeStateKey("actModeAwsBedrockCustomModelBaseId", customModelBaseId)
-			}
-			if ("useCrossRegionInference" in aws) writeStateKey("awsUseCrossRegionInference", aws.useCrossRegionInference)
-			if ("useGlobalInference" in aws) writeStateKey("awsUseGlobalInference", aws.useGlobalInference)
-		}
-	}
-
-	if (provider === "cline" && "auth" in patch) {
-		writeStateKey("clineApiKey", patch.auth?.accessToken)
-		writeStateKey("clineAccountId", patch.auth?.accountId)
+		modelInfo:
+			readProviderSettingsModelInfo(providerId) ??
+			readKnownModelInfoForProvider(providerId, modelId) ??
+			fallbackModelInfo(modelId),
 	}
 }
 
 function getProviderSettings(providerId: ProviderId): ProviderSettingsRecord {
-	const settings = getProviderSettingsManager().getProviderSettings(providerId)
+	const manager = getProviderSettingsManager()
+	const sdkProviderId = toSdkProviderId(providerId)
+	const settings = manager.getProviderSettings(sdkProviderId) ?? manager.getProviderSettings(providerId)
 	return isRecord(settings) ? settings : {}
 }
 
 function saveProviderSettings(providerId: ProviderId, next: ProviderSettingsRecord): void {
-	getProviderSettingsManager().saveProviderSettings({ provider: providerId, ...next }, { setLastUsed: false })
+	const sdkProviderId = toSdkProviderId(providerId)
+	getProviderSettingsManager().saveProviderSettings({ provider: sdkProviderId, ...next }, { setLastUsed: false })
+}
+
+function mergeProviderSettingsRecord(
+	base: ProviderSettingsRecord,
+	patch: Readonly<Record<string, unknown>> | undefined,
+): ProviderSettingsRecord {
+	if (!patch) {
+		return base
+	}
+	const next: ProviderSettingsRecord = { ...base }
+	for (const [key, value] of Object.entries(patch)) {
+		if (value === undefined) {
+			continue
+		}
+		if (value === null) {
+			delete next[key]
+			continue
+		}
+		const existingValue = next[key]
+		if (isRecord(existingValue) && isRecord(value)) {
+			next[key] = mergeProviderSettingsRecord(existingValue, value)
+		} else {
+			next[key] = value
+		}
+	}
+	return next
 }
 
 function writeProviderSettingsFields(providerId: ProviderId, patch: ProviderConfigPatch): void {
-	const existing = getProviderSettings(providerId)
-	const next: ProviderSettingsRecord = { ...existing }
+	const next: ProviderSettingsRecord = mergeProviderSettingsRecord(getProviderSettings(providerId), patch.settings)
 
 	for (const key of ["apiKey", "baseUrl", "apiLine", "headers", "region", "auth", "extras"] as const) {
 		if (key in patch) {
@@ -299,6 +180,50 @@ function writeProviderSettingsFields(providerId: ProviderId, patch: ProviderConf
 				delete next[key]
 			} else {
 				next[key] = value
+			}
+		}
+	}
+
+	if ("sap" in patch) {
+		const sapPatch = patch.sap
+		if (sapPatch === null || sapPatch === undefined) {
+			delete next.sap
+		} else {
+			const existingSap = isRecord(next.sap) ? next.sap : {}
+			const nextSap: ProviderSettingsRecord = { ...existingSap }
+			for (const [key, value] of Object.entries(sapPatch)) {
+				if (typeof value === "string" && value.length === 0) {
+					delete nextSap[key]
+				} else {
+					nextSap[key] = value
+				}
+			}
+			if (Object.keys(nextSap).length === 0) {
+				delete next.sap
+			} else {
+				next.sap = nextSap
+			}
+		}
+	}
+
+	if ("oca" in patch) {
+		const ocaPatch = patch.oca
+		if (ocaPatch === null || ocaPatch === undefined) {
+			delete next.oca
+		} else {
+			const existingOca = isRecord(next.oca) ? next.oca : {}
+			const nextOca: ProviderSettingsRecord = { ...existingOca }
+			for (const [key, value] of Object.entries(ocaPatch)) {
+				if (typeof value === "string" && value.length === 0) {
+					delete nextOca[key]
+				} else {
+					nextOca[key] = value
+				}
+			}
+			if (Object.keys(nextOca).length === 0) {
+				delete next.oca
+			} else {
+				next.oca = nextOca
 			}
 		}
 	}
@@ -325,6 +250,28 @@ function writeProviderSettingsFields(providerId: ProviderId, patch: ProviderConf
 		}
 	}
 
+	if ("azure" in patch) {
+		const azurePatch = patch.azure
+		if (azurePatch === null || azurePatch === undefined) {
+			delete next.azure
+		} else {
+			const existingAzure = isRecord(next.azure) ? next.azure : {}
+			const nextAzure: ProviderSettingsRecord = { ...existingAzure }
+			for (const [key, value] of Object.entries(azurePatch)) {
+				if (typeof value === "string" && value.length === 0) {
+					delete nextAzure[key]
+				} else {
+					nextAzure[key] = value
+				}
+			}
+			if (Object.keys(nextAzure).length === 0) {
+				delete next.azure
+			} else {
+				next.azure = nextAzure
+			}
+		}
+	}
+
 	if ("aws" in patch) {
 		const awsPatch = patch.aws
 		if (awsPatch === null || awsPatch === undefined) {
@@ -339,7 +286,11 @@ function writeProviderSettingsFields(providerId: ProviderId, patch: ProviderConf
 					nextAws[key] = value
 				}
 			}
-			next.aws = nextAws
+			if (Object.keys(nextAws).length === 0) {
+				delete next.aws
+			} else {
+				next.aws = nextAws
+			}
 		}
 	}
 
@@ -376,29 +327,16 @@ function getModelIdKey(providerId: ProviderId, mode: Mode): keyof ApiConfigurati
 }
 
 function getModelInfoKey(providerId: ProviderId, mode: Mode): (keyof ApiConfiguration & SettingsKey) | undefined {
-	const keys = modelInfoKeysByProvider[providerKey(providerId)]
+	const keys = modelInfoKeysByProvider[toLegacyApiProvider(providerKey(providerId))]
 	return keys ? modePair(mode, keys.plan, keys.act) : undefined
 }
 
-function syncedModes(mode: Mode): Mode[] {
-	return StateManager.get().getGlobalSettingsKey("planActSeparateModelsSetting") ? [mode] : ["plan", "act"]
-}
-
-function writeSelectionToState(providerId: ProviderId, mode: Mode, selection: ModelSelection): void {
-	const updates: Partial<Record<SettingsKey, unknown>> = {}
-	for (const targetMode of syncedModes(mode)) {
-		updates[getModelIdKey(providerId, targetMode)] = selection.modelId
-		const modelInfoKey = getModelInfoKey(providerId, targetMode)
-		if (modelInfoKey) {
-			updates[modelInfoKey] = selection.modelInfo
-		}
-		selectionMemory.set(memoryKey(providerId, targetMode), { ...selection, providerId })
-	}
-	StateManager.get().setGlobalStateBatch(updates as never)
-}
-
 function writeSelectionToProviderSettings(providerId: ProviderId, selection: ModelSelection): void {
-	const next: ProviderSettingsRecord = { ...getProviderSettings(providerId), model: selection.modelId }
+	const next: ProviderSettingsRecord = {
+		...getProviderSettings(providerId),
+		model: selection.modelId,
+		modelInfo: selection.modelInfo,
+	}
 
 	if (selection.modelInfo.contextWindow !== undefined && selection.modelInfo.contextWindow > 0) {
 		next.contextWindow = selection.modelInfo.contextWindow
@@ -412,16 +350,19 @@ function writeSelectionToProviderSettings(providerId: ProviderId, selection: Mod
 }
 
 function readSelectionFromState(providerId: ProviderId, mode: Mode): ModelSelection | undefined {
+	const providerSettingsSelection = readSelectionFromProviderSettings(providerId)
+	if (providerSettingsSelection) {
+		return providerSettingsSelection
+	}
+
 	const apiConfiguration = StateManager.get().getApiConfiguration()
 	const modelId = apiConfiguration[getModelIdKey(providerId, mode)]
 	const modelInfoKey = getModelInfoKey(providerId, mode)
-	const rememberedSelection = selectionMemory.get(memoryKey(providerId, mode))
-	const providerSettingsSelection = readSelectionFromProviderSettings(providerId)
 
 	if (modelInfoKey) {
 		const modelInfo = apiConfiguration[modelInfoKey]
 		if (typeof modelId !== "string" || modelId.length === 0 || !isModelInfo(modelInfo)) {
-			return providerSettingsSelection
+			return undefined
 		}
 		return { providerId, modelId, modelInfo }
 	}
@@ -429,21 +370,18 @@ function readSelectionFromState(providerId: ProviderId, mode: Mode): ModelSelect
 	const activeProvider = mode === "plan" ? apiConfiguration.planModeApiProvider : apiConfiguration.actModeApiProvider
 	const provider = providerForStorage(providerId)
 	if (activeProvider !== provider) {
-		return rememberedSelection ?? providerSettingsSelection
+		return undefined
 	}
 
 	if (typeof modelId !== "string" || modelId.length === 0) {
-		return rememberedSelection ?? providerSettingsSelection
+		return undefined
 	}
 
-	if (!isKnownModelIdForProvider(providerId, modelId)) {
-		return rememberedSelection ?? providerSettingsSelection
+	const modelInfo = readKnownModelInfoForProvider(providerId, modelId)
+	if (!modelInfo) {
+		return undefined
 	}
-
-	if (!rememberedSelection || rememberedSelection.modelId !== modelId) {
-		return providerSettingsSelection
-	}
-	return rememberedSelection
+	return { providerId, modelId, modelInfo }
 }
 
 /**
@@ -474,7 +412,6 @@ export function createProviderConfigStore(): ProviderConfigStore {
 		},
 
 		write(providerId: ProviderId, patch: ProviderConfigPatch): EffectiveProviderConfig {
-			writeStateFields(providerId, patch)
 			writeProviderSettingsFields(providerId, patch)
 			const config = this.read(providerId)
 			emit({ kind: "fields", providerId, config })
@@ -482,7 +419,6 @@ export function createProviderConfigStore(): ProviderConfigStore {
 		},
 
 		commitSelection(providerId: ProviderId, mode: Mode, selection: ModelSelection): void {
-			writeSelectionToState(providerId, mode, selection)
 			writeSelectionToProviderSettings(providerId, selection)
 			emit({ kind: "selection", providerId, mode, selection })
 		},

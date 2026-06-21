@@ -94,19 +94,39 @@ const FREE_MODELS_FALLBACK: FeaturedModelCardEntry[] = CLINE_RECOMMENDED_MODELS_
 
 const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMode, showProviderRouting, initialTab }) => {
 	const { handleModeFieldsChange, handleFieldChange } = useApiConfigurationHandlers()
-	const { apiConfiguration, favoritedModelIds } = useExtensionState()
+	const { apiConfiguration, favoritedModelIds, remoteConfigSettings } = useExtensionState()
 	const { models: catalogClineModels, defaultModelId: clineDefaultModelId } = useProviderModels("cline")
 	const { config, write: writeProviderConfig, commitSelection } = useProviderConfig("cline")
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 	const effectiveClineModels = catalogClineModels
+	const remoteClineModelSettings = remoteConfigSettings?.remoteProviderModelSettings?.cline
+	const remoteAllowedClineModelIds = useMemo(
+		() =>
+			[
+				...(remoteClineModelSettings?.models ?? []).map((model) => model.id),
+				...(remoteClineModelSettings?.bedrockCustomModels ?? []).map((model) => model.name),
+			].filter((modelId) => modelId.trim().length > 0),
+		[remoteClineModelSettings],
+	)
+	const remoteAllowedClineModelIdSet = useMemo(() => new Set(remoteAllowedClineModelIds), [remoteAllowedClineModelIds])
+	const isRemoteClineModelAllowlistActive = remoteAllowedClineModelIds.length > 0
+	const isRemoteAllowedClineModel = useCallback(
+		(modelId: string) => !isRemoteClineModelAllowlistActive || remoteAllowedClineModelIdSet.has(modelId),
+		[isRemoteClineModelAllowlistActive, remoteAllowedClineModelIdSet],
+	)
 	const committedSelection = currentMode === "plan" ? config?.planSelection : config?.actSelection
-	const committedModelInfo = committedSelection?.modelInfo ? fromProtobufModelInfo(committedSelection.modelInfo) : undefined
+	const storedClineModelId = committedSelection?.modelId || modeFields.clineModelId
 	const currentClineModelId =
-		committedSelection?.modelId ||
-		modeFields.clineModelId ||
-		clineDefaultModelId ||
+		(storedClineModelId && isRemoteAllowedClineModel(storedClineModelId) ? storedClineModelId : undefined) ||
+		(clineDefaultModelId && isRemoteAllowedClineModel(clineDefaultModelId) ? clineDefaultModelId : undefined) ||
+		remoteAllowedClineModelIds[0] ||
 		Object.keys(effectiveClineModels ?? {})[0] ||
 		""
+	const committedModelInfo =
+		committedSelection?.modelId === currentClineModelId && committedSelection?.modelInfo
+			? fromProtobufModelInfo(committedSelection.modelInfo)
+			: undefined
+	const modeModelInfo = modeFields.clineModelId === currentClineModelId ? modeFields.clineModelInfo : undefined
 	const [searchTerm, setSearchTerm] = useState(currentClineModelId)
 	const searchTermEditedByUserRef = useRef(false)
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
@@ -123,11 +143,14 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 		[freeClineModelIds],
 	)
 	const [activeTab, setActiveTab] = useState<"recommended" | "free">(initialTab ?? "recommended")
-	const recommendedModels = useMemo(
-		() => (clineRecommendedModels.length > 0 ? clineRecommendedModels : RECOMMENDED_MODELS_FALLBACK),
-		[clineRecommendedModels],
-	)
-	const freeModels = useMemo(() => (clineFreeModels.length > 0 ? clineFreeModels : FREE_MODELS_FALLBACK), [clineFreeModels])
+	const recommendedModels = useMemo(() => {
+		const models = clineRecommendedModels.length > 0 ? clineRecommendedModels : RECOMMENDED_MODELS_FALLBACK
+		return isRemoteClineModelAllowlistActive ? models.filter((model) => remoteAllowedClineModelIdSet.has(model.id)) : models
+	}, [clineRecommendedModels, isRemoteClineModelAllowlistActive, remoteAllowedClineModelIdSet])
+	const freeModels = useMemo(() => {
+		const models = clineFreeModels.length > 0 ? clineFreeModels : FREE_MODELS_FALLBACK
+		return isRemoteClineModelAllowlistActive ? models.filter((model) => remoteAllowedClineModelIdSet.has(model.id)) : models
+	}, [clineFreeModels, isRemoteClineModelAllowlistActive, remoteAllowedClineModelIdSet])
 	const hasSuccessfulClineRecommendedModelsFetchRef = useRef(false)
 	const isFetchingClineRecommendedModelsRef = useRef(false)
 	const clineRecommendedModelsRetryTimeoutRef = useRef<number | null>(null)
@@ -207,6 +230,12 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 	const dropdownListRef = useRef<HTMLDivElement>(null)
 
 	const handleModelChange = (newModelId: string) => {
+		if (!isRemoteAllowedClineModel(newModelId)) {
+			searchTermEditedByUserRef.current = false
+			setSearchTerm(currentClineModelId)
+			return
+		}
+
 		searchTermEditedByUserRef.current = false
 		setSearchTerm(newModelId)
 
@@ -253,7 +282,7 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 					selectedModelId: currentClineModelId,
 					selectedModelInfo:
 						committedModelInfo ||
-						modeFields.clineModelInfo ||
+						modeModelInfo ||
 						effectiveClineModels?.[currentClineModelId] ||
 						selected.selectedModelInfo,
 				}
@@ -278,7 +307,7 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 		currentClineModelId,
 		effectiveClineModels,
 		freeClineModelIdSet,
-		modeFields.clineModelInfo,
+		modeModelInfo,
 	])
 
 	useEffect(() => {
@@ -306,8 +335,11 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 
 	const modelIds = useMemo(() => {
 		const unfilteredModelIds = Object.keys(effectiveClineModels ?? {}).sort((a, b) => a.localeCompare(b))
-		return filterOpenRouterModelIds(unfilteredModelIds, "cline", freeClineModelIds)
-	}, [effectiveClineModels, freeClineModelIds])
+		const remoteFilteredModelIds = isRemoteClineModelAllowlistActive
+			? unfilteredModelIds.filter((modelId) => remoteAllowedClineModelIdSet.has(modelId))
+			: unfilteredModelIds
+		return filterOpenRouterModelIds(remoteFilteredModelIds, "cline", freeClineModelIds)
+	}, [effectiveClineModels, freeClineModelIds, isRemoteClineModelAllowlistActive, remoteAllowedClineModelIdSet])
 
 	const searchableItems = useMemo(() => {
 		return modelIds.map((id) => ({

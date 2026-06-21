@@ -50,6 +50,36 @@ function getAlternateModeField(fieldName: string): string | null {
 	return null
 }
 
+function assignMaskedOption(
+	options: Partial<ApiHandlerOptions> & { planModeApiProvider?: ApiProvider; actModeApiProvider?: ApiProvider },
+	key: string,
+	value: unknown,
+): void {
+	if (key === "planModeApiProvider") {
+		options.planModeApiProvider = convertProtoToApiProvider(value as never)
+		return
+	}
+	if (key === "actModeApiProvider") {
+		options.actModeApiProvider = convertProtoToApiProvider(value as never)
+		return
+	}
+	if (key === "planModeApiProviderId") {
+		const providerId = typeof value === "string" ? value.trim() : ""
+		if (providerId) {
+			options.planModeApiProvider = providerId as ApiProvider
+		}
+		return
+	}
+	if (key === "actModeApiProviderId") {
+		const providerId = typeof value === "string" ? value.trim() : ""
+		if (providerId) {
+			options.actModeApiProvider = providerId as ApiProvider
+		}
+		return
+	}
+	options[key as keyof ApiHandlerOptions] = value as never
+}
+
 /**
  * Updates API configuration using field mask
  * @param controller The controller instance
@@ -101,33 +131,14 @@ export async function updateApiConfiguration(controller: Controller, request: Up
 				}
 			}
 
-			// Check if mode-specific configurations should be kept separate
-			const separateModeConfigs = controller.stateManager.getGlobalSettingsKey("planActSeparateModelsSetting")
-
 			// Process entries that are in the mask
 			for (const [key, value] of Object.entries(protoOptions)) {
 				if (maskOptionsFields.has(key)) {
-					// Handle enum conversions
-					if (key === "planModeApiProvider") {
-						options.planModeApiProvider = convertProtoToApiProvider(value)
-					} else if (key === "actModeApiProvider") {
-						options.actModeApiProvider = convertProtoToApiProvider(value)
-					} else {
-						options[key as keyof ApiHandlerOptions] = value
-					}
+					assignMaskedOption(options, key, value)
 
-					// If mode configs should be synced, also update the alternate mode field
-					if (!separateModeConfigs) {
-						const alternateField = getAlternateModeField(key)
-						if (alternateField) {
-							if (alternateField === "planModeApiProvider") {
-								options.planModeApiProvider = convertProtoToApiProvider(value)
-							} else if (alternateField === "actModeApiProvider") {
-								options.actModeApiProvider = convertProtoToApiProvider(value)
-							} else {
-								options[alternateField as keyof ApiHandlerOptions] = value
-							}
-						}
+					const alternateField = getAlternateModeField(key)
+					if (alternateField) {
+						assignMaskedOption(options, alternateField, value)
 					}
 				}
 			}

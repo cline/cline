@@ -55,7 +55,7 @@ function getActiveProviderAndModelId(apiConfiguration: ReturnType<typeof useExte
 		"huawei-cloud-maas": modeFields.huaweiCloudMaasModelId,
 		together: modeFields.togetherModelId,
 		fireworks: modeFields.fireworksModelId,
-		sapaicore: modeFields.apiModelId,
+		sapaicore: modeFields.sapAiCoreModelId,
 		"vscode-lm": modeFields.vsCodeLmModelSelector
 			? `${modeFields.vsCodeLmModelSelector.vendor}/${modeFields.vsCodeLmModelSelector.family}`
 			: undefined,

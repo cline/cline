@@ -36,6 +36,7 @@ import {
 	fetchModelIdsFromSource,
 	resolveModelsSourceUrl,
 } from "./model-source";
+import { getProviderConfigFields } from "./provider-config-fields";
 
 export { ensureCustomProvidersLoaded } from "./local-provider-registry";
 
@@ -186,10 +187,7 @@ function isProviderConfigField(input: unknown): input is ProviderConfigField {
 	);
 }
 
-function readProviderConfigFields(
-	metadata: Record<string, unknown> | undefined,
-): ProviderConfigField[] | undefined {
-	const fields = metadata?.configFields;
+function readProviderConfigFields(fields: unknown): ProviderConfigField[] | undefined {
 	if (!Array.isArray(fields)) {
 		return undefined;
 	}
@@ -665,8 +663,10 @@ export async function listLocalProviders(
 					persistedSettings?.capabilities,
 				);
 				const configFields =
-					readProviderConfigFields(info?.metadata) ??
+					readProviderConfigFields(info?.configFields) ??
+					readProviderConfigFields(info?.metadata?.configFields) ??
 					fallbackProviderConfigFields(info);
+				const authMethod = getProviderConfigFields(id).authMethod;
 				return {
 					provider: {
 						id,
@@ -686,6 +686,7 @@ export async function listLocalProviders(
 						protocol: persistedSettings?.protocol ?? info?.protocol,
 						client: persistedSettings?.client ?? info?.client,
 						capabilities,
+						authMethod,
 						authDescription: "This provider uses API keys for authentication.",
 						baseUrlDescription:
 							"The base endpoint to use for provider requests.",

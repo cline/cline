@@ -1,7 +1,12 @@
 import { synchronizeRemoteRuleToggles } from "@core/context/instructions/user-instructions/rule-helpers"
 import { parseRemoteSkillEntries } from "@core/context/instructions/user-instructions/skills"
 import type { RemoteConfig, S3AccessKeySettings } from "@shared/remote-config/schema"
-import { ConfiguredAPIKeys, GlobalStateAndSettings, RemoteConfigFields } from "@shared/storage/state-keys"
+import {
+	ConfiguredAPIKeys,
+	GlobalStateAndSettings,
+	RemoteConfigFields,
+	type RemoteProviderModelSettings,
+} from "@shared/storage/state-keys"
 import { AuthService } from "@/services/auth/AuthService"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { type McpHub } from "@/services/mcp/McpHub"
@@ -10,6 +15,7 @@ import { OpenTelemetryClientProvider } from "@/services/telemetry/providers/open
 import { OpenTelemetryTelemetryProvider } from "@/services/telemetry/providers/opentelemetry/OpenTelemetryTelemetryProvider"
 import { type TelemetryService } from "@/services/telemetry/TelemetryService"
 import { ApiProvider } from "@/shared/api"
+import { isProviderAllowedByRemoteConfig } from "@/shared/model-catalog/provider-helpers"
 import { isOpenTelemetryConfigValid, remoteConfigToOtelConfig } from "@/shared/services/config/otel-config"
 import { Logger } from "@/shared/services/Logger"
 import { syncWorker } from "@/shared/services/worker/sync"
@@ -43,6 +49,7 @@ function accessSettingsToBlobStorage(type: BlobStoreSettings["adapterType"], set
  */
 export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): Partial<RemoteConfigFields> {
 	const transformed: Partial<RemoteConfigFields> = {}
+	const remoteProviderModelSettings: RemoteProviderModelSettings = {}
 
 	// Map top-level settings
 	if (remoteConfig.telemetryEnabled !== undefined) {
@@ -142,6 +149,9 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 		if (openAiSettings.azureIdentity !== undefined) {
 			transformed.azureIdentity = openAiSettings.azureIdentity
 		}
+		if (openAiSettings.models?.length) {
+			remoteProviderModelSettings["openai-compatible"] = { models: openAiSettings.models }
+		}
 	}
 
 	// Map AwsBedrock provider settings
@@ -166,6 +176,12 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 		if (awsBedrockSettings.awsBedrockEndpoint !== undefined) {
 			transformed.awsBedrockEndpoint = awsBedrockSettings.awsBedrockEndpoint
 		}
+		if (awsBedrockSettings.models?.length || awsBedrockSettings.customModels?.length) {
+			remoteProviderModelSettings.bedrock = {
+				...(awsBedrockSettings.models?.length ? { models: awsBedrockSettings.models } : {}),
+				...(awsBedrockSettings.customModels?.length ? { bedrockCustomModels: awsBedrockSettings.customModels } : {}),
+			}
+		}
 	}
 
 	const clineSettings = remoteConfig.providerSettings?.Cline
@@ -173,6 +189,9 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 		transformed.planModeApiProvider = "cline"
 		transformed.actModeApiProvider = "cline"
 		providers.push("cline")
+		if (clineSettings.models?.length) {
+			remoteProviderModelSettings.cline = { models: clineSettings.models }
+		}
 	}
 
 	// Map LiteLLM provider settings
@@ -184,6 +203,9 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 
 		if (liteLlmSettings.baseUrl !== undefined) {
 			transformed.liteLlmBaseUrl = liteLlmSettings.baseUrl
+		}
+		if (liteLlmSettings.models?.length) {
+			remoteProviderModelSettings.litellm = { models: liteLlmSettings.models }
 		}
 	}
 
@@ -200,6 +222,9 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 		if (vertexSettings.vertexRegion !== undefined) {
 			transformed.vertexRegion = vertexSettings.vertexRegion
 		}
+		if (vertexSettings.models?.length) {
+			remoteProviderModelSettings.vertex = { models: vertexSettings.models }
+		}
 	}
 
 	const anthropicSettings = remoteConfig.providerSettings?.Anthropic
@@ -211,11 +236,17 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 		if (anthropicSettings.baseUrl) {
 			transformed.anthropicBaseUrl = anthropicSettings.baseUrl
 		}
+		if (anthropicSettings.models?.length) {
+			remoteProviderModelSettings.anthropic = { models: anthropicSettings.models }
+		}
 	}
 
 	// This line needs to stay here, it is order dependent on the above code checking the configured providers
 	if (providers.length > 0) {
 		transformed.remoteConfiguredProviders = providers
+	}
+	if (Object.keys(remoteProviderModelSettings).length > 0) {
+		transformed.remoteProviderModelSettings = remoteProviderModelSettings
 	}
 
 	// Map global rules, workflows, and skills
@@ -390,7 +421,7 @@ const isProviderValid = (provider?: ApiProvider, remoteConfig?: Partial<RemoteCo
 		return true
 	}
 
-	return provider && remoteConfiguredProviders.includes(provider)
+	return isProviderAllowedByRemoteConfig(provider, remoteConfiguredProviders)
 }
 
 /**

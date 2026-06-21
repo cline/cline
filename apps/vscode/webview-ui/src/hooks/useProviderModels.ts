@@ -17,8 +17,10 @@ function createRequestId(): string {
  * useProviderConfig/commitModelSelection.
  */
 export function useProviderModels(providerId: ProviderId) {
-	const { providerModelsByProvider, startProviderModelsRequest, applyProviderModelsResponse } = useExtensionState()
+	const { providerModelsByProvider, remoteConfigSettings, startProviderModelsRequest, applyProviderModelsResponse } =
+		useExtensionState()
 	const state = providerModelsByProvider?.[providerId]
+	const remoteConfigKey = JSON.stringify(remoteConfigSettings ?? {})
 
 	const refresh = useCallback(async () => {
 		const requestId = createRequestId()
@@ -46,7 +48,7 @@ export function useProviderModels(providerId: ProviderId) {
 
 	useEffect(() => {
 		void refresh()
-	}, [refresh])
+	}, [refresh, remoteConfigKey])
 
 	return {
 		models: state?.models ?? {},

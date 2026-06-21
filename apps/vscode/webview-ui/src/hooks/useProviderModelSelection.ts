@@ -11,6 +11,7 @@ interface UseProviderModelSelectionOptions {
 	defaultModelId?: string
 	config?: ProviderConfigResponse
 	commitSelection: (mode: "plan" | "act", selection: ProviderModelSelection) => Promise<unknown>
+	allowsCustomIds?: boolean
 	fallbackModelInfo?: ModelInfo
 	customModelInfo?: (modelId: string) => ModelInfo
 }
@@ -23,18 +24,22 @@ export function useProviderModelSelection(
 		defaultModelId,
 		config,
 		commitSelection,
+		allowsCustomIds = true,
 		fallbackModelInfo = openAiModelInfoSafeDefaults,
 		customModelInfo,
 	}: UseProviderModelSelectionOptions,
 ) {
 	const committedSelection = currentMode === "plan" ? config?.planSelection : config?.actSelection
 	const fallbackModelId = defaultModelId || Object.keys(models)[0] || ""
-	const selectedModelId = committedSelection?.modelId ?? fallbackModelId
-	const selectedModelInfo = committedSelection?.modelInfo
-		? fromProtobufModelInfo(committedSelection.modelInfo)
-		: (models[selectedModelId] ??
-			(selectedModelId && customModelInfo ? customModelInfo(selectedModelId) : undefined) ??
-			fallbackModelInfo)
+	const committedModelId = committedSelection?.modelId
+	const selectedModelId =
+		committedModelId && (allowsCustomIds || committedModelId in models) ? committedModelId : fallbackModelId
+	const selectedModelInfo =
+		committedSelection?.modelInfo && selectedModelId === committedModelId
+			? fromProtobufModelInfo(committedSelection.modelInfo)
+			: (models[selectedModelId] ??
+				(selectedModelId && customModelInfo ? customModelInfo(selectedModelId) : undefined) ??
+				fallbackModelInfo)
 
 	const selectedModel: ProviderModelSelection = {
 		providerId,

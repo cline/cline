@@ -72,6 +72,30 @@ export type ProviderClient = z.infer<typeof ProviderClientSchema>;
 export type ProviderProtocol = z.infer<typeof ProviderProtocolSchema>;
 export type ProviderSource = z.infer<typeof ProviderSourceSchema>;
 
+const ProviderConfigFieldPrimitiveSchema = z.union([
+	z.string(),
+	z.number(),
+	z.boolean(),
+	z.null(),
+]);
+
+const ProviderConfigFieldOptionSchema = z.object({
+	label: z.string(),
+	value: z.union([z.string(), z.number(), z.boolean()]),
+});
+
+const ProviderConfigFieldSchema = z.object({
+	path: z.string(),
+	label: z.string(),
+	type: z.enum(["text", "password", "url", "number", "select", "boolean"]),
+	description: z.string().optional(),
+	placeholder: z.string().optional(),
+	required: z.boolean().optional(),
+	secret: z.boolean().optional(),
+	options: z.array(ProviderConfigFieldOptionSchema).optional(),
+	defaultValue: ProviderConfigFieldPrimitiveSchema.optional(),
+});
+
 export const ProviderInfoSchema = z.object({
 	id: z.string(),
 	name: z.string(),
@@ -81,6 +105,7 @@ export const ProviderInfoSchema = z.object({
 	modelsSourceUrl: z.string().optional(),
 	defaultModelId: z.string(),
 	capabilities: z.array(ProviderCapabilitySchema).optional(),
+	configFields: z.array(ProviderConfigFieldSchema).optional(),
 	env: z.array(z.string()).optional(),
 	client: ProviderClientSchema,
 	source: ProviderSourceSchema.default("system"),

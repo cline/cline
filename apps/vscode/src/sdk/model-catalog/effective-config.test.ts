@@ -4,17 +4,24 @@ import { parseProviderId } from "./provider-id"
 
 const mocks = vi.hoisted(() => {
 	let apiConfiguration: ApiConfiguration = {}
+	let remoteConfigSettings: ApiConfiguration = {}
 	let providerSettingsById: Record<string, unknown> = {}
 
 	return {
 		setApiConfiguration(value: ApiConfiguration): void {
 			apiConfiguration = value
 		},
+		setRemoteConfigSettings(value: ApiConfiguration): void {
+			remoteConfigSettings = value
+		},
 		setProviderSettings(value: Record<string, unknown>): void {
 			providerSettingsById = value
 		},
 		getStateManager() {
-			return { getApiConfiguration: () => apiConfiguration }
+			return {
+				getApiConfiguration: () => apiConfiguration,
+				getRemoteConfigSettings: () => remoteConfigSettings,
+			}
 		},
 		getProviderSettingsManager() {
 			return { getProviderSettings: (providerId: string) => providerSettingsById[providerId] }
@@ -33,10 +40,11 @@ vi.mock("../provider-migration", () => ({
 describe("buildEffectiveProviderConfig", () => {
 	beforeEach(() => {
 		mocks.setApiConfiguration({})
+		mocks.setRemoteConfigSettings({})
 		mocks.setProviderSettings({})
 	})
 
-	it("builds Ollama config with StateManager base URL over providers.json and local extras", async () => {
+	it("builds Ollama config from SDK provider settings when a provider record exists", async () => {
 		const { buildEffectiveProviderConfig } = await import("./effective-config")
 		mocks.setProviderSettings({
 			ollama: {
@@ -53,12 +61,11 @@ describe("buildEffectiveProviderConfig", () => {
 		expect(buildEffectiveProviderConfig(parseProviderId("ollama"))).toEqual({
 			providerId: parseProviderId("ollama"),
 			apiKey: "provider-ollama-key",
-			baseUrl: "http://state-ollama:11434",
-			extras: { ollamaApiOptionsCtxNum: "8192" },
+			baseUrl: "http://provider-ollama:11434",
 		})
 	})
 
-	it("builds LiteLLM config by merging providers.json fields and StateManager overlays", async () => {
+	it("builds LiteLLM config from SDK provider settings without StateManager overlays", async () => {
 		const { buildEffectiveProviderConfig } = await import("./effective-config")
 		mocks.setProviderSettings({
 			litellm: {
@@ -77,47 +84,72 @@ describe("buildEffectiveProviderConfig", () => {
 		expect(buildEffectiveProviderConfig(parseProviderId("litellm"))).toEqual({
 			providerId: parseProviderId("litellm"),
 			apiKey: "provider-litellm-key",
-			baseUrl: "https://state-litellm.example.com/v1",
+			baseUrl: "https://provider-litellm.example.com/v1",
 			headers: { "x-provider": "provider-header" },
-			extras: { providerOnly: true, liteLlmUsePromptCache: true },
+			extras: { providerOnly: true },
 		})
 	})
 
-	it("uses StateManager DeepSeek API key over providers.json", async () => {
+	it("uses SDK provider settings over stale StateManager DeepSeek keys", async () => {
 		const { buildEffectiveProviderConfig } = await import("./effective-config")
 		mocks.setProviderSettings({ deepseek: { provider: "deepseek", apiKey: "provider-deepseek-key" } })
 		mocks.setApiConfiguration({ deepSeekApiKey: "state-deepseek-key" })
 
 		expect(buildEffectiveProviderConfig(parseProviderId("deepseek"))).toEqual({
 			providerId: parseProviderId("deepseek"),
-			apiKey: "state-deepseek-key",
+			apiKey: "provider-deepseek-key",
 		})
 	})
 
-	it("reads normalized nousResearch API key from StateManager", async () => {
+	it("reads normalized nousResearch API key from SDK provider settings", async () => {
 		const { buildEffectiveProviderConfig } = await import("./effective-config")
 		mocks.setProviderSettings({ nousresearch: { provider: "nousresearch", apiKey: "provider-nous-key" } })
 		mocks.setApiConfiguration({ nousResearchApiKey: "state-nous-key" })
 
 		expect(buildEffectiveProviderConfig(parseProviderId("nousResearch"))).toEqual({
 			providerId: parseProviderId("nousResearch"),
-			apiKey: "state-nous-key",
+			apiKey: "provider-nous-key",
 		})
 	})
 
-	it("carries Qwen apiLine from StateManager effective configuration", async () => {
+	it("hydrates OpenAI-compatible SDK config from provider settings", async () => {
+		const { buildEffectiveProviderConfig } = await import("./effective-config")
+		mocks.setProviderSettings({
+			"openai-compatible": {
+				provider: "openai-compatible",
+				apiKey: "provider-openai-key",
+				baseUrl: "https://provider.example/v1",
+				azure: { apiVersion: "2024-02-15-preview" },
+			},
+		})
+		mocks.setApiConfiguration({
+			openAiApiKey: "state-openai-key",
+			openAiBaseUrl: "https://state.example/v1",
+			openAiHeaders: { "x-provider": "state" },
+			azureApiVersion: "2025-01-01-preview",
+		})
+
+		expect(buildEffectiveProviderConfig(parseProviderId("openai-compatible"))).toEqual({
+			providerId: parseProviderId("openai-compatible"),
+			apiKey: "provider-openai-key",
+			baseUrl: "https://provider.example/v1",
+			azure: { apiVersion: "2024-02-15-preview" },
+		})
+	})
+
+	it("carries Qwen apiLine from SDK provider settings", async () => {
 		const { buildEffectiveProviderConfig } = await import("./effective-config")
 		mocks.setProviderSettings({ qwen: { provider: "qwen", apiKey: "provider-qwen-key", apiLine: "china" } })
 		mocks.setApiConfiguration({ qwenApiKey: "state-qwen-key", qwenApiLine: "international" })
 
 		expect(buildEffectiveProviderConfig(parseProviderId("qwen"))).toEqual({
 			providerId: parseProviderId("qwen"),
-			apiKey: "state-qwen-key",
-			apiLine: "international",
+			apiKey: "provider-qwen-key",
+			apiLine: "china",
 		})
 	})
 
-	it("respects remote-config-locked LiteLLM key already applied by StateManager", async () => {
+	it("respects remote-config-locked LiteLLM key over SDK provider settings", async () => {
 		const { buildEffectiveProviderConfig } = await import("./effective-config")
 		mocks.setProviderSettings({
 			litellm: {
@@ -126,7 +158,7 @@ describe("buildEffectiveProviderConfig", () => {
 				baseUrl: "https://provider-litellm.example.com/v1",
 			},
 		})
-		mocks.setApiConfiguration({
+		mocks.setRemoteConfigSettings({
 			liteLlmApiKey: "remote-config-locked-litellm-key",
 			liteLlmBaseUrl: "https://remote-litellm.example.com/v1",
 		})
@@ -135,6 +167,24 @@ describe("buildEffectiveProviderConfig", () => {
 			providerId: parseProviderId("litellm"),
 			apiKey: "remote-config-locked-litellm-key",
 			baseUrl: "https://remote-litellm.example.com/v1",
+		})
+	})
+
+	it("falls back to legacy StateManager provider fields when SDK provider settings do not exist", async () => {
+		const { buildEffectiveProviderConfig } = await import("./effective-config")
+		mocks.setApiConfiguration({
+			openAiApiKey: "state-openai-key",
+			openAiBaseUrl: "https://state.example/v1",
+			openAiHeaders: { "x-provider": "state" },
+			azureApiVersion: "2025-01-01-preview",
+		})
+
+		expect(buildEffectiveProviderConfig(parseProviderId("openai-compatible"))).toEqual({
+			providerId: parseProviderId("openai-compatible"),
+			apiKey: "state-openai-key",
+			baseUrl: "https://state.example/v1",
+			headers: { "x-provider": "state" },
+			azure: { apiVersion: "2025-01-01-preview" },
 		})
 	})
 

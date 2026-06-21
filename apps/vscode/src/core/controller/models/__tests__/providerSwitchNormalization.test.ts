@@ -96,6 +96,19 @@ describe("normalizeProviderSwitchModel", () => {
 		expect(store.readSelection).not.toHaveBeenCalled()
 	})
 
+	it("preserves unsupported VS Code providers in storage for rollback", () => {
+		const providerId = parseProviderId("cline")
+		const store = makeStore({ providerId })
+
+		const normalized = normalizeProviderSwitchModel(
+			store,
+			{ actModeApiProvider: "qwen-code" },
+			{ actModeApiProvider: "qwen-code" },
+		)
+
+		expect(normalized.actModeApiProvider).toBe("qwen-code")
+	})
+
 	it("normalizes plan mode independently", () => {
 		const providerId = parseProviderId("deepseek")
 		const defaultModelId = MODEL_COLLECTIONS_BY_PROVIDER_ID.deepseek.provider.defaultModelId

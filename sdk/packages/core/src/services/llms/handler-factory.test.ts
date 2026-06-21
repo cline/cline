@@ -290,7 +290,6 @@ describe("createAgentModelFromConfig", () => {
 					modelId: "gpt-4.1",
 					azure: {
 						apiVersion: "2025-01-01-preview",
-						useIdentity: false,
 					},
 				},
 			},
@@ -304,7 +303,56 @@ describe("createAgentModelFromConfig", () => {
 						providerId: "openai-compatible",
 						options: expect.objectContaining({
 							apiVersion: "2025-01-01-preview",
-							useIdentity: false,
+						}),
+					}),
+				],
+			}),
+		);
+	});
+
+	it("forwards SAP settings as gateway provider options", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+
+		createAgentModelFromConfig(
+			{
+				providerId: "sapaicore",
+				modelId: "anthropic--claude-3.5-sonnet",
+				baseUrl: "https://api.ai.example.sap",
+				systemPrompt: "",
+				tools: [],
+				providerConfig: {
+					providerId: "sapaicore",
+					modelId: "anthropic--claude-3.5-sonnet",
+					baseUrl: "https://api.ai.example.sap",
+					sap: {
+						clientId: "sap-client",
+						clientSecret: "sap-secret",
+						tokenUrl: "https://auth.sap.example",
+						resourceGroup: "default",
+						deploymentId: "deployment-123",
+						useOrchestrationMode: true,
+						api: "orchestration",
+						defaultSettings: { foo: "bar" },
+					},
+				},
+			},
+			undefined,
+		);
+
+		expect(gatewayMock.createGateway).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				providerConfigs: [
+					expect.objectContaining({
+						providerId: "sapaicore",
+						options: expect.objectContaining({
+							clientId: "sap-client",
+							clientSecret: "sap-secret",
+							tokenUrl: "https://auth.sap.example",
+							resourceGroup: "default",
+							deploymentId: "deployment-123",
+							useOrchestrationMode: true,
+							api: "orchestration",
+							defaultSettings: { foo: "bar" },
 						}),
 					}),
 				],
@@ -326,7 +374,6 @@ describe("createAgentModelFromConfig", () => {
 					modelId: "claude-3-5-sonnet",
 					azure: {
 						apiVersion: "2025-01-01-preview",
-						useIdentity: false,
 					},
 				},
 			},

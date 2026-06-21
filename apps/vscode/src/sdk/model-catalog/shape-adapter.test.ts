@@ -1,4 +1,5 @@
 import { openAiModelInfoSafeDefaults } from "@shared/api"
+import { ApiFormat } from "@shared/proto/cline/models"
 import { describe, expect, it } from "vitest"
 import { adaptSdkModelInfo, CatalogShapeError } from "./shape-adapter"
 
@@ -23,6 +24,9 @@ describe("adaptSdkModelInfo", () => {
 			expect(() => adaptSdkModelInfo({ id: "m", maxTokens: "huge" })).toThrow(CatalogShapeError)
 			expect(() => adaptSdkModelInfo({ id: "m", name: 1 })).toThrow(CatalogShapeError)
 			expect(() => adaptSdkModelInfo({ id: "m", description: 1 })).toThrow(CatalogShapeError)
+			expect(() => adaptSdkModelInfo({ id: "m", apiFormat: "messages" })).toThrow(CatalogShapeError)
+			expect(() => adaptSdkModelInfo({ id: "m", temperature: "0" })).toThrow(CatalogShapeError)
+			expect(() => adaptSdkModelInfo({ id: "m", thinkingConfig: "enabled" })).toThrow(CatalogShapeError)
 		})
 
 		it("throws CatalogShapeError when capabilities is malformed", () => {
@@ -35,6 +39,11 @@ describe("adaptSdkModelInfo", () => {
 			expect(() => adaptSdkModelInfo({ id: "m", pricing: { input: "free" } })).toThrow(CatalogShapeError)
 			expect(() => adaptSdkModelInfo({ id: "m", pricing: { input: Number.NaN } })).toThrow(CatalogShapeError)
 			expect(() => adaptSdkModelInfo({ id: "m", pricing: { input: Number.POSITIVE_INFINITY } })).toThrow(CatalogShapeError)
+		})
+
+		it("throws CatalogShapeError when metadata is malformed", () => {
+			expect(() => adaptSdkModelInfo({ id: "m", metadata: "sap" })).toThrow(CatalogShapeError)
+			expect(() => adaptSdkModelInfo({ id: "m", metadata: [] })).toThrow(CatalogShapeError)
 		})
 
 		it("CatalogShapeError exposes useful message and details", () => {
@@ -149,9 +158,13 @@ describe("adaptSdkModelInfo", () => {
 			maxTokens: 8192,
 			capabilities: ["tools", "reasoning", "structured_output", "temperature", "prompt-cache", "images"],
 			pricing: { input: 0.5, output: 1.5, cacheRead: 0.05, cacheWrite: 0.1 },
+			apiFormat: "openai-responses",
+			temperature: 0,
+			thinkingConfig: { maxBudget: 4096 },
 			releaseDate: "2026-04-01",
 			family: "deepseek",
 			status: "ga",
+			metadata: { sap: { deploymentId: "deployment-123" } },
 		})
 
 		expect(model).toMatchObject({
@@ -165,6 +178,12 @@ describe("adaptSdkModelInfo", () => {
 			outputPrice: 1.5,
 			cacheReadsPrice: 0.05,
 			cacheWritesPrice: 0.1,
+			apiFormat: ApiFormat.OPENAI_RESPONSES,
+			temperature: 0,
+			thinkingConfig: { maxBudget: 4096 },
+		})
+		expect((model as typeof model & { metadata?: Record<string, unknown> }).metadata).toEqual({
+			sap: { deploymentId: "deployment-123" },
 		})
 		expect(Object.hasOwn(model, "releaseDate")).toBe(false)
 		expect(Object.hasOwn(model, "family")).toBe(false)

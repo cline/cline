@@ -1,4 +1,4 @@
-import { providerAllowsCustomModelIds } from "@/sdk/model-catalog/catalog"
+import { providerAllowsCustomModelIds, providerHasRemoteModelAllowlist } from "@/sdk/model-catalog/catalog"
 import type { ProviderModelsResult } from "@/sdk/model-catalog/contracts"
 import { ResolveModelInfoRequest, ResolveModelInfoResponse } from "@/shared/proto/cline/models"
 import { toProtobufModelInfo } from "@/shared/proto-conversions/models/typeConversion"
@@ -41,7 +41,8 @@ export async function resolveModelInfo(
 	const requestedModelId = request.modelId?.trim() || ""
 
 	const store = controller.getProviderConfigStore()
-	if (requestedModelId) {
+	const remoteModelAllowlistActive = providerHasRemoteModelAllowlist(providerId)
+	if (requestedModelId && !remoteModelAllowlistActive) {
 		const actSelection = store.readSelection(providerId, "act")
 		if (actSelection?.modelId === requestedModelId) {
 			return ResolveModelInfoResponse.create({

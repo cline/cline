@@ -4,7 +4,7 @@ import type { ProviderConfigChange } from "./contracts"
 import { parseProviderId } from "./provider-id"
 
 const mocks = vi.hoisted(() => {
-	type MockApiConfiguration = ApiConfiguration & { planActSeparateModelsSetting?: boolean }
+	type MockApiConfiguration = ApiConfiguration
 	let apiConfiguration: MockApiConfiguration = {}
 	let providerSettingsById: Record<string, Record<string, unknown>> = {}
 	const saveProviderSettings = vi.fn((settings: Record<string, unknown>, _options?: { setLastUsed?: boolean }) => {
@@ -114,6 +114,174 @@ describe("createProviderConfigStore", () => {
 		expect(store.read(providerId).baseUrl).toBeUndefined()
 	})
 
+	it("writes generic Bedrock SDK settings without mirroring legacy provider keys", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("bedrock")
+
+		store.write(providerId, {
+			settings: {
+				apiKey: "bedrock-api-key",
+				aws: {
+					authentication: "api-key",
+					region: "us-west-2",
+					accessKey: "access-key",
+					secretKey: "secret-key",
+					sessionToken: "session-token",
+					endpoint: "https://bedrock.example",
+					customModelBaseId: "base-profile",
+					useCrossRegionInference: true,
+					useGlobalInference: false,
+					usePromptCache: true,
+				},
+			},
+			apiKey: "bedrock-api-key",
+			aws: {
+				authentication: "api-key",
+				region: "us-west-2",
+				accessKey: "access-key",
+				secretKey: "secret-key",
+				sessionToken: "session-token",
+				endpoint: "https://bedrock.example",
+				customModelBaseId: "base-profile",
+				useCrossRegionInference: true,
+				useGlobalInference: false,
+				usePromptCache: true,
+			},
+		})
+
+		expect(mocks.getSavedProviderSettings("bedrock")).toMatchObject({
+			provider: "bedrock",
+			apiKey: "bedrock-api-key",
+			aws: {
+				authentication: "api-key",
+				region: "us-west-2",
+				customModelBaseId: "base-profile",
+			},
+		})
+		expect(mocks.getStateManager().getApiConfiguration()).toEqual({})
+	})
+
+	it("stores formerly mode-scoped Bedrock and SAP SDK fields as provider settings", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		mocks.setApiConfiguration({
+			planModeAwsBedrockCustomModelBaseId: "old-plan-base",
+			actModeAwsBedrockCustomModelBaseId: "old-act-base",
+			planModeSapAiCoreDeploymentId: "old-plan-deployment",
+			actModeSapAiCoreDeploymentId: "old-act-deployment",
+		})
+		mocks.setProviderSettings({
+			bedrock: { provider: "bedrock", aws: { customModelBaseId: "provider-wide-base" } },
+			sapaicore: { provider: "sapaicore", sap: { deploymentId: "provider-wide-deployment" } },
+		})
+		const store = createProviderConfigStore()
+
+		store.write(parseProviderId("bedrock"), {
+			mode: "plan",
+			settings: { aws: { customModelBaseId: "new-plan-base" } },
+			aws: { customModelBaseId: "new-plan-base" },
+		})
+		store.write(parseProviderId("sapaicore"), {
+			mode: "act",
+			settings: { sap: { deploymentId: "new-act-deployment" } },
+			sap: { deploymentId: "new-act-deployment" },
+		})
+
+		expect(mocks.getStateManager().getApiConfiguration()).toMatchObject({
+			planModeAwsBedrockCustomModelBaseId: "old-plan-base",
+			actModeAwsBedrockCustomModelBaseId: "old-act-base",
+			planModeSapAiCoreDeploymentId: "old-plan-deployment",
+			actModeSapAiCoreDeploymentId: "old-act-deployment",
+		})
+		expect(mocks.getSavedProviderSettings("bedrock")).toMatchObject({
+			provider: "bedrock",
+			aws: { customModelBaseId: "new-plan-base" },
+		})
+		expect(mocks.getSavedProviderSettings("sapaicore")).toMatchObject({
+			provider: "sapaicore",
+			sap: { deploymentId: "new-act-deployment" },
+		})
+	})
+
+	it("writes OpenAI-compatible SDK settings without mirroring legacy OpenAI keys", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		const store = createProviderConfigStore()
+
+		store.write(parseProviderId("openai-compatible"), {
+			settings: {
+				apiKey: "openai-compatible-key",
+				baseUrl: "https://compatible.example/v1",
+				headers: { "x-provider": "compatible" },
+				azure: { apiVersion: "2025-01-01-preview" },
+			},
+			apiKey: "openai-compatible-key",
+			baseUrl: "https://compatible.example/v1",
+			headers: { "x-provider": "compatible" },
+			azure: { apiVersion: "2025-01-01-preview" },
+		})
+
+		expect(mocks.getSavedProviderSettings("openai-compatible")).toMatchObject({
+			provider: "openai-compatible",
+			apiKey: "openai-compatible-key",
+			baseUrl: "https://compatible.example/v1",
+			headers: { "x-provider": "compatible" },
+			azure: { apiVersion: "2025-01-01-preview" },
+		})
+		expect(mocks.getStateManager().getApiConfiguration()).toEqual({})
+	})
+
+	it("writes generic SAP and OCA SDK settings without mirroring legacy provider keys", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		const store = createProviderConfigStore()
+
+		store.write(parseProviderId("sapaicore"), {
+			settings: {
+				baseUrl: "https://sap.example",
+				sap: {
+					clientId: "sap-client",
+					clientSecret: "sap-secret",
+					tokenUrl: "https://auth.sap.example",
+					resourceGroup: "sap-group",
+					deploymentId: "sap-deployment",
+					useOrchestrationMode: true,
+				},
+			},
+			baseUrl: "https://sap.example",
+			sap: {
+				clientId: "sap-client",
+				clientSecret: "sap-secret",
+				tokenUrl: "https://auth.sap.example",
+				resourceGroup: "sap-group",
+				deploymentId: "sap-deployment",
+				useOrchestrationMode: true,
+			},
+		})
+		store.write(parseProviderId("oca"), {
+			settings: { baseUrl: "https://oca.example", oca: { mode: "external", usePromptCache: true } },
+			baseUrl: "https://oca.example",
+			oca: { mode: "external", usePromptCache: true },
+		})
+
+		expect(mocks.getSavedProviderSettings("sapaicore")).toMatchObject({
+			provider: "sapaicore",
+			baseUrl: "https://sap.example",
+			sap: {
+				clientId: "sap-client",
+				clientSecret: "sap-secret",
+				tokenUrl: "https://auth.sap.example",
+				resourceGroup: "sap-group",
+				deploymentId: "sap-deployment",
+				useOrchestrationMode: true,
+			},
+		})
+		expect(mocks.getSavedProviderSettings("oca")).toMatchObject({
+			provider: "oca",
+			baseUrl: "https://oca.example",
+			oca: { mode: "external", usePromptCache: true },
+		})
+		expect(mocks.getStateManager().getApiConfiguration()).toEqual({})
+	})
+
 	it("round-trips commitSelection then readSelection for provider-specific model info", async () => {
 		const { createProviderConfigStore } = await import("./store")
 		const store = createProviderConfigStore()
@@ -178,8 +346,8 @@ describe("createProviderConfigStore", () => {
 
 		expect(written).toEqual({ providerId, apiKey: "nous-key" })
 		expect(store.readSelection(providerId, "act")).toEqual(selection)
-		expect(mocks.getSavedProviderSettings("nousresearch")).toMatchObject({
-			provider: "nousresearch",
+		expect(mocks.getSavedProviderSettings("nousResearch")).toMatchObject({
+			provider: "nousResearch",
 			apiKey: "nous-key",
 			model: "nousresearch/hermes-4-70b",
 		})
@@ -197,9 +365,8 @@ describe("createProviderConfigStore", () => {
 		expect(store.readSelection(providerId, "act")).toBeUndefined()
 	})
 
-	it("keeps Plan and Act selections independent and mirrors the latest selection to provider settings", async () => {
+	it("uses the latest provider setting selection for both modes", async () => {
 		const { createProviderConfigStore } = await import("./store")
-		mocks.setApiConfiguration({ planActSeparateModelsSetting: true })
 		const store = createProviderConfigStore()
 		const providerId = parseProviderId("openrouter")
 		const planSelection = { providerId, modelId: "provider/model-a", modelInfo: modelInfoA }
@@ -208,7 +375,7 @@ describe("createProviderConfigStore", () => {
 		store.commitSelection(providerId, "plan", planSelection)
 		store.commitSelection(providerId, "act", actSelection)
 
-		expect(store.readSelection(providerId, "plan")).toEqual(planSelection)
+		expect(store.readSelection(providerId, "plan")).toEqual(actSelection)
 		expect(store.readSelection(providerId, "act")).toEqual(actSelection)
 		expect(mocks.getSavedProviderSettings("openrouter")).toMatchObject({
 			provider: "openrouter",
@@ -218,9 +385,8 @@ describe("createProviderConfigStore", () => {
 		})
 	})
 
-	it("updates providers.json model with setLastUsed false when planActSeparateModelsSetting=false", async () => {
+	it("updates providers.json model with setLastUsed false", async () => {
 		const { createProviderConfigStore } = await import("./store")
-		mocks.setApiConfiguration({ planActSeparateModelsSetting: false })
 		mocks.setProviderSettings({ openrouter: { provider: "openrouter", apiKey: "existing-key" } })
 		const store = createProviderConfigStore()
 		const providerId = parseProviderId("openrouter")

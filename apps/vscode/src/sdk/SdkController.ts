@@ -41,6 +41,7 @@ import { ClineError } from "@/services/error/ClineError"
 import { McpHub } from "@/services/mcp/McpHub"
 import { telemetryService } from "@/services/telemetry"
 import type { ClineExtensionContext } from "@/shared/cline"
+import { areProviderIdsEquivalent } from "@/shared/model-catalog/provider-helpers"
 import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { arePathsEqual, getDesktopDir } from "@/utils/path"
@@ -509,6 +510,10 @@ export class Controller {
 	private handleProviderConfigChange(event: ProviderConfigChange): void {
 		this.scheduleProviderConfigStatePost()
 
+		if (event.kind === "fields") {
+			this.providerChanges.handleProviderConfigFieldsChanged(event.providerId.toString())
+		}
+
 		if (event.kind === "selection" && this.isSelectionForActiveModeProvider(event)) {
 			this.sessions
 				?.updateActiveSessionModel(event.selection.modelId)
@@ -530,7 +535,7 @@ export class Controller {
 
 			const apiConfig = this.stateManager.getApiConfiguration()
 			const activeProvider = mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider
-			return activeProvider === event.providerId.toString()
+			return areProviderIdsEquivalent(activeProvider, event.providerId.toString())
 		} catch {
 			return false
 		}

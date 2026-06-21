@@ -211,6 +211,284 @@ describe("resolveProviderConfig", () => {
 		);
 	});
 
+	it("loads SAP AI Core deployments as private models", async () => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce(
+				new Response(JSON.stringify({ access_token: "sap-token" }), {
+					status: 200,
+					headers: { "content-type": "application/json" },
+				}),
+			)
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({
+							resources: [
+								{
+									id: "deployment-123",
+									targetStatus: "RUNNING",
+								scenarioId: "foundation-models",
+								details: {
+									resources: {
+										backend_details: {
+											model: {
+												name: "anthropic--claude-3.5-sonnet",
+												version: "20241022",
+											},
+										},
+										},
+									},
+								},
+								{
+									id: "deployment-456",
+									targetStatus: "RUNNING",
+									scenarioId: "foundation-models",
+									details: {
+										resources: {
+											backend_details: {
+												model: {
+													name: "anthropic--claude-3.5-sonnet",
+													version: "20241022",
+												},
+											},
+										},
+									},
+								},
+								{
+									id: "stopped-deployment",
+									targetStatus: "STOPPED",
+								details: {
+									resources: {
+										backend_details: {
+											model: { name: "gpt-4o", version: "latest" },
+										},
+									},
+								},
+							},
+						],
+					}),
+					{
+						status: 200,
+						headers: { "content-type": "application/json" },
+					},
+				),
+			);
+		vi.stubGlobal("fetch", fetchMock);
+
+		const resolved = await resolveProviderConfig(
+			"sapaicore",
+			{ failOnError: true, cacheTtlMs: 0 },
+			{
+				providerId: "sapaicore",
+				modelId: "anthropic--claude-3.5-sonnet",
+				baseUrl: "https://api.ai.example.sap",
+				sap: {
+					clientId: "sap-client",
+					clientSecret: "sap-secret",
+					tokenUrl: "https://auth.sap.example",
+					resourceGroup: "default",
+				},
+			},
+		);
+
+		expect(fetchMock).toHaveBeenNthCalledWith(
+			1,
+			"https://auth.sap.example/oauth/token",
+			expect.objectContaining({
+				method: "POST",
+				headers: { "Content-Type": "application/x-www-form-urlencoded" },
+			}),
+		);
+		expect(fetchMock).toHaveBeenNthCalledWith(
+			2,
+			"https://api.ai.example.sap/v2/lm/deployments?$top=10000&$skip=0",
+			expect.objectContaining({
+				method: "GET",
+				headers: expect.objectContaining({
+					Authorization: "Bearer sap-token",
+					"AI-Resource-Group": "default",
+					"AI-Client-Type": "Cline",
+				}),
+			}),
+			);
+			expect(
+				resolved?.knownModels?.["anthropic--claude-3.5-sonnet:deployment-123"],
+			).toMatchObject({
+				name: "anthropic--claude-3.5-sonnet:20241022",
+				metadata: {
+					sap: {
+						modelName: "anthropic--claude-3.5-sonnet",
+						deploymentId: "deployment-123",
+						resourceGroup: "default",
+						orchestrationAvailable: false,
+					},
+				},
+			});
+			expect(
+				resolved?.knownModels?.["anthropic--claude-3.5-sonnet:deployment-456"],
+			).toMatchObject({
+				metadata: {
+					sap: {
+						modelName: "anthropic--claude-3.5-sonnet",
+						deploymentId: "deployment-456",
+					},
+				},
+			});
+			expect(resolved?.knownModels?.["gpt-4o"]?.metadata).toBeUndefined();
+		});
+
+	it("loads OCA entitlement models through SDK private model discovery", async () => {
+		const fetchMock = vi.fn(async () => {
+			return new Response(
+				JSON.stringify({
+					data: [
+						{
+							litellm_params: {
+								model: "oca/gpt5",
+								max_tokens: 16_384,
+							},
+							model_info: {
+								context_window: 128_000,
+								supports_vision: true,
+								supports_caching: true,
+								input_price: "0.000001",
+								output_price: "0.000002",
+								caching_price: "0.0000005",
+								cached_price: "0.00000025",
+								description: "Oracle Code Assist GPT-5",
+								temperature: 0,
+								is_reasoning_model: true,
+								reasoning_effort_options: ["low", "medium", "high"],
+								supported_api_list: ["RESPONSES"],
+								banner: { type: "warning", message: "Restricted" },
+								survey_content: { label: "Feedback" },
+								survey_id: "survey-1",
+							},
+						},
+					],
+				}),
+				{ status: 200, headers: { "content-type": "application/json" } },
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const resolved = await resolveProviderConfig(
+			"oca",
+			{ failOnError: true, cacheTtlMs: 0 },
+			{
+				providerId: "oca",
+				modelId: "",
+				accessToken: "oca-token",
+				baseUrl: "https://oca.example.com/app/litellm",
+			},
+		);
+
+		expect(fetchMock).toHaveBeenCalledWith(
+			"https://oca.example.com/app/litellm/v1/model/info",
+			expect.objectContaining({
+				method: "GET",
+				headers: expect.objectContaining({
+					Authorization: "Bearer oca-token",
+					client: "Cline",
+				}),
+			}),
+		);
+		expect(resolved?.knownModels?.["oca/gpt5"]).toMatchObject({
+			name: "oca/gpt5",
+			contextWindow: 128_000,
+			maxInputTokens: 128_000,
+			maxTokens: 16_384,
+			capabilities: expect.arrayContaining([
+				"images",
+				"prompt-cache",
+				"reasoning",
+				"reasoning-effort",
+			]),
+			apiFormat: "openai-responses",
+			pricing: {
+				input: 1,
+				output: 2,
+				cacheWrite: 0.5,
+				cacheRead: 0.25,
+			},
+			metadata: {
+				oca: {
+					banner: { type: "warning", message: "Restricted" },
+					surveyContent: { label: "Feedback" },
+					surveyId: "survey-1",
+					reasoningEffortOptions: ["low", "medium", "high"],
+					supportedApiList: ["RESPONSES"],
+				},
+			},
+		});
+	});
+
+	it("keys SAP private model cache by apiKey fallback client secret", async () => {
+		const deploymentResponse = (deploymentId: string, modelName: string) =>
+			new Response(
+				JSON.stringify({
+					resources: [
+						{
+							id: deploymentId,
+							targetStatus: "RUNNING",
+							scenarioId: "foundation-models",
+							details: {
+								resources: {
+									backend_details: {
+										model: { name: modelName, version: "latest" },
+									},
+								},
+							},
+						},
+					],
+				}),
+				{ status: 200, headers: { "content-type": "application/json" } },
+			);
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce(
+				new Response(JSON.stringify({ access_token: "sap-token-a" }), {
+					status: 200,
+					headers: { "content-type": "application/json" },
+				}),
+			)
+			.mockResolvedValueOnce(deploymentResponse("deployment-a", "model-a"))
+			.mockResolvedValueOnce(
+				new Response(JSON.stringify({ access_token: "sap-token-b" }), {
+					status: 200,
+					headers: { "content-type": "application/json" },
+				}),
+			)
+			.mockResolvedValueOnce(deploymentResponse("deployment-b", "model-b"));
+		vi.stubGlobal("fetch", fetchMock);
+
+		const commonConfig = {
+			providerId: "sapaicore",
+			modelId: "",
+			baseUrl: "https://api.ai.example.sap",
+			sap: {
+				clientId: "sap-client",
+				tokenUrl: "https://auth.sap.example",
+				resourceGroup: "default",
+			},
+		};
+
+		const first = await resolveProviderConfig(
+			"sapaicore",
+			{ failOnError: true, cacheTtlMs: 60_000 },
+			{ ...commonConfig, apiKey: "secret-a" },
+		);
+		const second = await resolveProviderConfig(
+			"sapaicore",
+			{ failOnError: true, cacheTtlMs: 60_000 },
+			{ ...commonConfig, apiKey: "secret-b" },
+		);
+
+		expect(fetchMock).toHaveBeenCalledTimes(4);
+		expect(first?.knownModels?.["model-a:deployment-a"]).toBeDefined();
+		expect(second?.knownModels?.["model-b:deployment-b"]).toBeDefined();
+	});
+
 	it("derives ChatGPT subscription models from the generated OpenAI catalog", async () => {
 		const resolved = await resolveProviderConfig("openai-codex");
 		const openAiResolved = await resolveProviderConfig("openai-native");

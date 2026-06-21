@@ -112,6 +112,7 @@ function convertOcaModelInfoToProtoOcaModelInfo(info: OcaModelInfo | undefined):
 		apiFormat: info.apiFormat,
 		supportsReasoning: info.supportsReasoning,
 		reasoningEffortOptions: info.reasoningEffortOptions,
+		temperature: info.temperature,
 	}
 }
 
@@ -131,6 +132,7 @@ function convertProtoOcaModelInfoToOcaModelInfo(info: ProtoOcaModelInfo | undefi
 		cacheWritesPrice: info.cacheWritesPrice,
 		cacheReadsPrice: info.cacheReadsPrice,
 		description: info.description,
+		thinkingConfig: convertProtoToThinkingConfig(info.thinkingConfig),
 		surveyContent: info.surveyContent,
 		surveyId: info.surveyId,
 		banner: info.banner,
@@ -138,6 +140,7 @@ function convertProtoOcaModelInfoToOcaModelInfo(info: ProtoOcaModelInfo | undefi
 		apiFormat: info.apiFormat,
 		supportsReasoning: info.supportsReasoning,
 		reasoningEffortOptions: info.reasoningEffortOptions,
+		temperature: info.temperature,
 	}
 }
 
@@ -242,7 +245,7 @@ function convertProtoToOpenAiCompatibleModelInfo(
 }
 
 // Convert application ApiProvider to proto ApiProvider
-function convertApiProviderToProto(provider: string | undefined): ProtoApiProvider {
+function convertApiProviderToProto(provider: string | undefined): ProtoApiProvider | undefined {
 	switch (provider) {
 		case "anthropic":
 			return ProtoApiProvider.ANTHROPIC
@@ -331,8 +334,17 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 		case "openai-codex":
 			return ProtoApiProvider.OPENAI_CODEX
 		default:
-			return ProtoApiProvider.ANTHROPIC
+			return undefined
 	}
+}
+
+function readProtoApiProvider(provider: ProtoApiProvider | undefined, providerId: string | undefined): ApiProvider | undefined {
+	const trimmedProviderId = providerId?.trim()
+	return provider !== undefined
+		? convertProtoToApiProvider(provider)
+		: trimmedProviderId
+			? (trimmedProviderId as ApiProvider)
+			: undefined
 }
 
 // Convert proto ApiProvider to application ApiProvider
@@ -521,6 +533,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 
 		// Plan mode configurations
 		planModeApiProvider: config.planModeApiProvider ? convertApiProviderToProto(config.planModeApiProvider) : undefined,
+		planModeApiProviderId: config.planModeApiProvider,
 		planModeApiModelId: config.planModeApiModelId,
 		planModeThinkingBudgetTokens: config.planModeThinkingBudgetTokens,
 		geminiPlanModeThinkingLevel: config.geminiPlanModeThinkingLevel,
@@ -567,6 +580,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 
 		// Act mode configurations
 		actModeApiProvider: config.actModeApiProvider ? convertApiProviderToProto(config.actModeApiProvider) : undefined,
+		actModeApiProviderId: config.actModeApiProvider,
 		actModeApiModelId: config.actModeApiModelId,
 		actModeThinkingBudgetTokens: config.actModeThinkingBudgetTokens,
 		geminiActModeThinkingLevel: config.geminiActModeThinkingLevel,
@@ -704,10 +718,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		clineApiKey: protoConfig.clineApiKey,
 
 		// Plan mode configurations
-		planModeApiProvider:
-			protoConfig.planModeApiProvider !== undefined
-				? convertProtoToApiProvider(protoConfig.planModeApiProvider)
-				: undefined,
+		planModeApiProvider: readProtoApiProvider(protoConfig.planModeApiProvider, protoConfig.planModeApiProviderId),
 		planModeApiModelId: protoConfig.planModeApiModelId,
 		planModeThinkingBudgetTokens: protoConfig.planModeThinkingBudgetTokens,
 		geminiPlanModeThinkingLevel: protoConfig.geminiPlanModeThinkingLevel,
@@ -753,8 +764,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		planModeVercelAiGatewayModelInfo: convertProtoToModelInfo(protoConfig.planModeVercelAiGatewayModelInfo),
 
 		// Act mode configurations
-		actModeApiProvider:
-			protoConfig.actModeApiProvider !== undefined ? convertProtoToApiProvider(protoConfig.actModeApiProvider) : undefined,
+		actModeApiProvider: readProtoApiProvider(protoConfig.actModeApiProvider, protoConfig.actModeApiProviderId),
 		actModeApiModelId: protoConfig.actModeApiModelId,
 		actModeThinkingBudgetTokens: protoConfig.actModeThinkingBudgetTokens,
 		geminiActModeThinkingLevel: protoConfig.geminiActModeThinkingLevel,

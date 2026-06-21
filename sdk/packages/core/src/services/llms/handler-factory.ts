@@ -74,6 +74,19 @@ function buildGatewayProviderOptions(
 		});
 	}
 
+	if (config.providerId === "sapaicore") {
+		Object.assign(options, {
+			clientId: config.sap?.clientId,
+			clientSecret: config.sap?.clientSecret,
+			tokenUrl: config.sap?.tokenUrl,
+			resourceGroup: config.sap?.resourceGroup,
+			deploymentId: config.sap?.deploymentId,
+			useOrchestrationMode: config.sap?.useOrchestrationMode,
+			api: config.sap?.api,
+			defaultSettings: config.sap?.defaultSettings,
+		});
+	}
+
 	return compactOptions(options);
 }
 

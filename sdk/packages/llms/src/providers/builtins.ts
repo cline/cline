@@ -86,6 +86,25 @@ const BASE_URL_FIELD: ProviderConfigField = {
 	description: "Base endpoint used for provider requests.",
 };
 
+const OPENAI_COMPATIBLE_CONFIG_FIELDS: readonly ProviderConfigField[] = [
+	API_KEY_FIELD,
+	BASE_URL_FIELD,
+	{
+		path: "azure.apiVersion",
+		label: "Azure API Version",
+		type: "text",
+		placeholder: "2025-01-01-preview",
+		description: "Optional Azure OpenAI API version for Azure-compatible endpoints.",
+	},
+	{
+		path: "headers",
+		label: "Headers",
+		type: "text",
+		placeholder: '{"x-custom-header":"value"}',
+		description: "Optional JSON object of headers to include with requests.",
+	},
+];
+
 const VERTEX_CONFIG_FIELDS: readonly ProviderConfigField[] = [
 	{
 		path: "gcp.projectId",
@@ -172,6 +191,13 @@ const BEDROCK_CONFIG_FIELDS: readonly ProviderConfigField[] = [
 		description: "Optional custom Bedrock runtime endpoint.",
 	},
 	{
+		path: "aws.customModelBaseId",
+		label: "Base Inference Model",
+		type: "text",
+		placeholder: "anthropic.claude-sonnet-4-5-20250929-v1:0",
+		description: "Optional base model ID used with a custom Bedrock Application Inference Profile.",
+	},
+	{
 		path: "aws.useCrossRegionInference",
 		label: "Cross-Region Inference",
 		type: "boolean",
@@ -185,6 +211,62 @@ const BEDROCK_CONFIG_FIELDS: readonly ProviderConfigField[] = [
 		path: "aws.usePromptCache",
 		label: "Prompt Cache",
 		type: "boolean",
+	},
+];
+
+const SAP_AI_CORE_CONFIG_FIELDS: readonly ProviderConfigField[] = [
+	{
+		path: "baseUrl",
+		label: "Base URL",
+		type: "url",
+		placeholder: "https://api.ai.prod.eu-central-1.aws.ml.hana.ondemand.com",
+		description: "SAP AI Core API endpoint.",
+		required: true,
+	},
+	{
+		path: "sap.clientId",
+		label: "Client ID",
+		type: "password",
+		description: "OAuth client ID from the SAP AI Core service key.",
+		required: true,
+		secret: true,
+	},
+	{
+		path: "sap.clientSecret",
+		label: "Client Secret",
+		type: "password",
+		description: "OAuth client secret from the SAP AI Core service key.",
+		required: true,
+		secret: true,
+	},
+	{
+		path: "sap.tokenUrl",
+		label: "Token URL",
+		type: "url",
+		placeholder: "https://<subdomain>.authentication.sap.hana.ondemand.com",
+		description: "SAP OAuth token service URL.",
+		required: true,
+	},
+	{
+		path: "sap.resourceGroup",
+		label: "Resource Group",
+		type: "text",
+		placeholder: "default",
+		description: "SAP AI Core resource group used when no deployment ID is set.",
+	},
+	{
+		path: "sap.deploymentId",
+		label: "Deployment ID",
+		type: "text",
+		description: "Optional deployment ID for foundation-model deployments.",
+	},
+	{
+		path: "sap.useOrchestrationMode",
+		label: "Use Orchestration API",
+		type: "boolean",
+		defaultValue: true,
+		description:
+			"Use SAP AI Core orchestration mode. Disable for direct foundation-model deployments.",
 	},
 ];
 
@@ -526,6 +608,7 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		defaultModelId: "gpt-4o",
 		apiKeyEnv: ["OPENAI_API_KEY"],
 		defaults: { baseUrl: "https://api.openai.com/v1" },
+		configFields: OPENAI_COMPATIBLE_CONFIG_FIELDS,
 	},
 	cline,
 	clinePass,
@@ -1057,6 +1140,7 @@ export const BUILTIN_SPECS: BuiltinSpec[] = [
 		defaultModelId: "anthropic--claude-3.5-sonnet",
 		apiKeyEnv: ["AICORE_SERVICE_KEY", "VCAP_SERVICES"],
 		modelsProviderId: "sapaicore",
+		configFields: SAP_AI_CORE_CONFIG_FIELDS,
 		metadata: ANTHROPIC_ROUTING_METADATA,
 	},
 	...OPENAI_COMPATIBLE_SPECS,

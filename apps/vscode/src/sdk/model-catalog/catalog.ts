@@ -1,8 +1,16 @@
 import { listLocalProviders, type ModelCatalogConfig, resolveProviderConfig } from "@cline/core"
 import { type ProviderConfig, resolveProviderUsageCostDisplay } from "@cline/llms"
 import { type ProviderListItem } from "@cline/shared"
+import { type ModelInfo, openAiModelInfoSafeDefaults } from "@shared/api"
+import { isVscodeUnsupportedProvider } from "@shared/model-catalog/provider-helpers"
+import { StateManager } from "@/core/storage/StateManager"
 import { getFeatureFlagsService } from "@/services/feature-flags"
 import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
+import type {
+	RemoteBedrockCustomModelEntry,
+	RemoteProviderModelEntry,
+	RemoteProviderModelSettings,
+} from "@/shared/storage/state-keys"
 import { getProviderSettingsManager } from "../provider-migration"
 import type {
 	CatalogError,
@@ -18,6 +26,7 @@ import type {
 	ProviderModelsResult,
 	UsageCostDisplay,
 } from "./contracts"
+import { buildEffectiveProviderConfig } from "./effective-config"
 import { computeConfigFingerprint } from "./fingerprint"
 import { applyHostModelInfoOverrides } from "./host-overrides"
 import { parseProviderId } from "./provider-id"
@@ -40,7 +49,6 @@ interface ResolveRecordOptions {
 	load(): Promise<ProviderModelsRecord>
 }
 
-const DEFAULT_MODEL_CACHE_TTL_MS = 5 * 60 * 1000
 const DEFAULT_MODEL_CATALOG_CONFIG: ModelCatalogConfig = {
 	loadLatestOnInit: true,
 	loadPrivateOnAuth: true,
@@ -54,7 +62,7 @@ const DEFAULT_MODEL_CATALOG_CONFIG: ModelCatalogConfig = {
 // list that the user can also bypass (ollama/lmstudio/litellm). For these,
 // the picker must allow arbitrary model ids and model resolution must honor
 // the requested id instead of coercing to the catalog default.
-const CUSTOM_MODEL_ID_PROVIDER_IDS = new Set(["openai-compatible", "ollama", "lmstudio", "litellm"])
+const CUSTOM_MODEL_ID_PROVIDER_IDS = new Set(["openai-compatible", "ollama", "lmstudio", "litellm", "bedrock"])
 
 /**
  * Whether a provider id accepts a user-supplied (custom) model id. Exported so
@@ -65,7 +73,12 @@ const CUSTOM_MODEL_ID_PROVIDER_IDS = new Set(["openai-compatible", "ollama", "lm
  * `openai` maps to the SDK's `openai-compatible`).
  */
 export function providerAllowsCustomModelIds(providerId: string): boolean {
-	return CUSTOM_MODEL_ID_PROVIDER_IDS.has(toSdkProviderId(providerId))
+	const parsedProviderId = parseProviderId(providerId)
+	return CUSTOM_MODEL_ID_PROVIDER_IDS.has(toSdkProviderId(providerId)) && !hasRemoteModelAllowlist(parsedProviderId)
+}
+
+export function providerHasRemoteModelAllowlist(providerId: string): boolean {
+	return hasRemoteModelAllowlist(parseProviderId(providerId))
 }
 
 /**
@@ -80,6 +93,60 @@ function readUsageCostDisplay(providerId: string): UsageCostDisplay {
 
 function makeCacheKey(providerId: ProviderId, fingerprint: Fingerprint): CacheKey {
 	return `${providerId}:${fingerprint}`
+}
+
+function isSdkAwsAuthentication(value: unknown): value is NonNullable<ProviderConfig["aws"]>["authentication"] {
+	return value === "iam" || value === "api-key" || value === "apikey" || value === "profile"
+}
+
+function normalizeSdkAwsAuthentication(value: unknown): NonNullable<ProviderConfig["aws"]>["authentication"] | undefined {
+	if (value === "credentials") {
+		return "iam"
+	}
+	return isSdkAwsAuthentication(value) ? value : undefined
+}
+
+function toSdkAwsConfig(config: EffectiveProviderConfig["aws"]): ProviderConfig["aws"] {
+	if (!config) {
+		return undefined
+	}
+	return {
+		...config,
+		authentication: normalizeSdkAwsAuthentication(config.authentication),
+	}
+}
+
+function isBedrockApiKeyAuthentication(authentication: unknown): boolean {
+	return authentication === "api-key" || authentication === "apikey"
+}
+
+function isSdkSapApi(value: unknown): value is NonNullable<ProviderConfig["sap"]>["api"] {
+	return value === "orchestration" || value === "foundation-models"
+}
+
+function toSdkSapConfig(config: EffectiveProviderConfig["sap"]): ProviderConfig["sap"] {
+	if (!config) {
+		return undefined
+	}
+	return {
+		...config,
+		api: isSdkSapApi(config.api) ? config.api : undefined,
+		defaultSettings: config.defaultSettings ? { ...config.defaultSettings } : undefined,
+	}
+}
+
+function isSdkOcaMode(value: unknown): value is NonNullable<ProviderConfig["oca"]>["mode"] {
+	return value === "internal" || value === "external"
+}
+
+function toSdkOcaConfig(config: EffectiveProviderConfig["oca"]): ProviderConfig["oca"] {
+	if (!config) {
+		return undefined
+	}
+	return {
+		...config,
+		mode: isSdkOcaMode(config.mode) ? config.mode : undefined,
+	}
 }
 
 function assertRecordMatchesRequest(record: ProviderModelsRecord, providerId: ProviderId, fingerprint: Fingerprint): void {
@@ -162,18 +229,124 @@ function createProviderModelsCache(options: ProviderModelsCacheOptions) {
 }
 
 function toSdkProviderConfig(config: EffectiveProviderConfig, selection: ModelSelection | undefined): ProviderConfig {
+	const providerId = toSdkProviderId(config.providerId)
+	const aws = toSdkAwsConfig(config.aws)
+	const apiKey = providerId === "bedrock" && !isBedrockApiKeyAuthentication(aws?.authentication) ? undefined : config.apiKey
+
 	return {
-		providerId: toSdkProviderId(config.providerId),
+		providerId,
 		modelId: selection?.modelId ?? "",
-		apiKey: config.apiKey,
+		...(apiKey ? { apiKey } : {}),
 		baseUrl: config.baseUrl,
 		headers: config.headers ? { ...config.headers } : undefined,
 		accessToken: config.auth?.accessToken,
 		refreshToken: config.auth?.refreshToken,
 		accountId: config.auth?.accountId,
 		apiLine: config.apiLine === "china" || config.apiLine === "international" ? config.apiLine : undefined,
-		region: config.gcp?.region ?? config.region,
+		region: config.gcp?.region ?? config.aws?.region ?? config.region,
 		gcp: config.gcp ? { ...config.gcp } : undefined,
+		azure: config.azure ? { ...config.azure } : undefined,
+		aws,
+		sap: toSdkSapConfig(config.sap),
+		oca: toSdkOcaConfig(config.oca),
+	}
+}
+
+function readRemoteProviderModelSettings(providerId: ProviderId): RemoteProviderModelSettings[string] | undefined {
+	try {
+		const manager = StateManager.get() as { getRemoteConfigSettings?: () => unknown }
+		const settings = manager.getRemoteConfigSettings?.()
+		if (!settings || typeof settings !== "object" || Array.isArray(settings)) {
+			return undefined
+		}
+		const remoteProviderModelSettings = (settings as { remoteProviderModelSettings?: RemoteProviderModelSettings })
+			.remoteProviderModelSettings
+		return remoteProviderModelSettings?.[toSdkProviderId(providerId)] ?? remoteProviderModelSettings?.[providerId]
+	} catch {
+		return undefined
+	}
+}
+
+function readRemoteAllowedModelIdsForProvider(providerId: ProviderId): readonly string[] {
+	const settings = readRemoteProviderModelSettings(providerId)
+	return [
+		...(settings?.models ?? []).map((model) => model.id),
+		...(settings?.bedrockCustomModels ?? []).map((model) => model.name),
+	].filter((modelId) => modelId.trim().length > 0)
+}
+
+export function readRemoteAllowedModelIds(providerId: string): readonly string[] {
+	return readRemoteAllowedModelIdsForProvider(parseProviderId(providerId))
+}
+
+function hasRemoteModelAllowlist(providerId: ProviderId): boolean {
+	return readRemoteAllowedModelIdsForProvider(providerId).length > 0
+}
+
+function readRemoteConfigCacheKey(): string {
+	try {
+		const manager = StateManager.get() as { getRemoteConfigSettings?: () => unknown }
+		return JSON.stringify(manager.getRemoteConfigSettings?.() ?? {}) ?? "{}"
+	} catch {
+		return "{}"
+	}
+}
+
+function withRemoteModelInfo(base: ModelInfo | undefined, entry: RemoteProviderModelEntry): ModelInfo {
+	const next: ModelInfo & { isR1FormatRequired?: boolean } = {
+		...(base ?? openAiModelInfoSafeDefaults),
+		name: base?.name ?? entry.id,
+	}
+	if (entry.contextWindow !== undefined) next.contextWindow = entry.contextWindow
+	if (entry.maxTokens !== undefined) next.maxTokens = entry.maxTokens
+	if (entry.inputPrice !== undefined) next.inputPrice = entry.inputPrice
+	if (entry.outputPrice !== undefined) next.outputPrice = entry.outputPrice
+	if (entry.supportsImages !== undefined) next.supportsImages = entry.supportsImages
+	if (entry.promptCachingEnabled !== undefined) next.supportsPromptCache = entry.promptCachingEnabled
+	if (entry.temperature !== undefined) next.temperature = entry.temperature
+	if (entry.isR1FormatRequired !== undefined) next.isR1FormatRequired = entry.isR1FormatRequired
+	if (entry.thinkingBudgetTokens !== undefined) {
+		next.thinkingConfig = { ...(next.thinkingConfig ?? {}), maxBudget: entry.thinkingBudgetTokens }
+	}
+	return next
+}
+
+function withRemoteBedrockCustomModelInfo(
+	models: ReadonlyMap<string, ModelInfo>,
+	entry: RemoteBedrockCustomModelEntry,
+): ModelInfo {
+	const base = models.get(entry.baseModelId) ?? openAiModelInfoSafeDefaults
+	return {
+		...base,
+		name: entry.name,
+		description: base.description
+			? `${base.description} Base model: ${entry.baseModelId}.`
+			: `Base model: ${entry.baseModelId}.`,
+		...(entry.thinkingBudgetTokens !== undefined
+			? { thinkingConfig: { ...(base.thinkingConfig ?? {}), maxBudget: entry.thinkingBudgetTokens } }
+			: {}),
+	}
+}
+
+function applyRemoteModelSettings(record: ProviderModelsRecord, providerId: ProviderId): ProviderModelsRecord {
+	const settings = readRemoteProviderModelSettings(providerId)
+	if (!settings?.models?.length && !settings?.bedrockCustomModels?.length) {
+		return record
+	}
+
+	const nextModels = new Map<string, ModelInfo>()
+	for (const entry of settings.models ?? []) {
+		nextModels.set(entry.id, withRemoteModelInfo(record.models.get(entry.id), entry))
+	}
+	for (const customModel of settings.bedrockCustomModels ?? []) {
+		nextModels.set(customModel.name, withRemoteBedrockCustomModelInfo(record.models, customModel))
+	}
+
+	return {
+		...record,
+		models: nextModels,
+		defaultModelId: nextModels.has(record.defaultModelId) ? record.defaultModelId : (nextModels.keys().next().value ?? ""),
+		source: "host-adapter",
 	}
 }
 
@@ -189,31 +362,73 @@ function optionalNonEmpty(value: string | undefined): string | undefined {
 	return trimmed ? trimmed : undefined
 }
 
+function isProviderConfigFieldValue(value: unknown): boolean {
+	return typeof value === "string" || typeof value === "number" || typeof value === "boolean" || value === null
+}
+
+function readConfigPathValue(config: EffectiveProviderConfig, path: string): unknown {
+	let current: unknown = config
+	for (const segment of path.split(".")) {
+		if (typeof current !== "object" || current === null || Array.isArray(current)) {
+			return undefined
+		}
+		current = (current as Record<string, unknown>)[segment]
+	}
+	return isProviderConfigFieldValue(current) || path === "headers" ? current : undefined
+}
+
+function readEffectiveConfigValues(provider: ProviderListItem): Record<string, unknown> | undefined {
+	const fields = provider.configFields?.filter((field) => field.path && !field.secret)
+	if (!fields?.length) {
+		return undefined
+	}
+
+	const effectiveConfig = buildEffectiveProviderConfig(parseProviderId(provider.id))
+	const values: Record<string, unknown> = {}
+	for (const field of fields) {
+		const value = readConfigPathValue(effectiveConfig, field.path)
+		if (value !== undefined) {
+			values[field.path] = value
+		}
+	}
+	return Object.keys(values).length > 0 ? values : undefined
+}
+
 function toProviderListing(provider: ProviderListItem): ProviderListing {
+	const effectiveConfigValues = readEffectiveConfigValues(provider)
+	const providerId = parseProviderId(provider.id)
 	return {
-		id: parseProviderId(provider.id),
+		id: providerId,
 		name: provider.name,
 		defaultModelId: optionalNonEmpty(provider.defaultModelId),
 		protocol: provider.protocol,
-		// ProviderListing intentionally does not include full model-list data.
-		// Reuse the lightweight description slot until the RPC-facing picker
-		// contract decides whether it needs a generic provider description field.
+		authMethod: provider.authMethod,
 		authDescription: optionalNonEmpty(provider.authDescription),
-		// The SDK has the right signal for this on each provider (e.g.
-		// `modelsSourceUrl` for ollama/lmstudio, or the `openai-compatible`
-		// family with no curated catalog), but does not yet expose it
-		// through a public helper. Until then this set is the host-side
-		// fallback; remove it as soon as upstream exposes the signal.
-		allowsCustomModelIds: CUSTOM_MODEL_ID_PROVIDER_IDS.has(parseProviderId(provider.id)),
+		baseUrlDescription: optionalNonEmpty(provider.baseUrlDescription),
+		configFields: provider.configFields,
+		configValues: effectiveConfigValues
+			? { ...(provider.configValues ?? {}), ...effectiveConfigValues }
+			: provider.configValues,
+		allowsCustomModelIds: CUSTOM_MODEL_ID_PROVIDER_IDS.has(providerId) && !hasRemoteModelAllowlist(providerId),
 		usageCostDisplay: readUsageCostDisplay(provider.id),
 	}
+}
+
+function isVscodeSupportedProvider(provider: ProviderListItem): boolean {
+	if (isVscodeUnsupportedProvider(provider.id)) {
+		return false
+	}
+	if (provider.authMethod === "local") {
+		return false
+	}
+	return true
 }
 
 function listSdkProviderListings(): Promise<ReadonlyArray<ProviderListing>> {
 	const manager = getProviderSettingsManager()
 	return listLocalProviders(manager, {
 		isClinePassEnabled: getFeatureFlagsService().getBooleanFlagEnabled(FeatureFlag.CLINE_PASS),
-	}).then(({ providers }) => providers.map(toProviderListing))
+	}).then(({ providers }) => providers.filter(isVscodeSupportedProvider).map(toProviderListing))
 }
 
 async function resolveSdkModels(
@@ -267,16 +482,6 @@ function toCatalogError(error: unknown): CatalogError {
 }
 
 /**
- * Internal test hook for cache/in-flight behavior. Not part of the public
- * model-catalog API; production callers should use createProviderCatalog.
- */
-export const _testing = {
-	createProviderModelsCache,
-	makeCacheKey,
-	assertRecordMatchesRequest,
-}
-
-/**
  * Create a {@link ProviderCatalog}.
  *
  * Accepts a read-only {@link ProviderConfigReader} (not the full store), so
@@ -285,8 +490,9 @@ export const _testing = {
  */
 export function createProviderCatalog(reader: ProviderConfigReader): ProviderCatalog {
 	const now = () => Date.now()
-	const cache = createProviderModelsCache({ ttlMs: DEFAULT_MODEL_CACHE_TTL_MS, now })
+	const cache = createProviderModelsCache({ ttlMs: 5 * 60 * 1000, now })
 	let providerListingsPromise: Promise<ReadonlyArray<ProviderListing>> | undefined
+	let providerListingsRemoteConfigKey: string | undefined
 	const modelListeners = new Map<ProviderId, Set<(event: ProviderModelsEvent) => void>>()
 
 	function notifyModelListeners(providerId: ProviderId, result: ProviderModelsResult): void {
@@ -304,16 +510,22 @@ export function createProviderCatalog(reader: ProviderConfigReader): ProviderCat
 		if (event.kind !== "fields") {
 			return
 		}
+		providerListingsPromise = undefined
 		const latestConfig = reader.read(event.providerId)
 		const latestFingerprint = computeConfigFingerprint(event.providerId, latestConfig)
 		cache.invalidateProviderExcept(event.providerId, latestFingerprint)
 	})
 	return {
 		async listProviders(): Promise<ReadonlyArray<ProviderListing>> {
-			providerListingsPromise ??= listSdkProviderListings().catch((error) => {
-				providerListingsPromise = undefined
-				throw error
-			})
+			const remoteConfigKey = readRemoteConfigCacheKey()
+			if (!providerListingsPromise || providerListingsRemoteConfigKey !== remoteConfigKey) {
+				providerListingsRemoteConfigKey = remoteConfigKey
+				providerListingsPromise = listSdkProviderListings().catch((error) => {
+					providerListingsPromise = undefined
+					providerListingsRemoteConfigKey = undefined
+					throw error
+				})
+			}
 			return providerListingsPromise
 		},
 
@@ -335,6 +547,7 @@ export function createProviderCatalog(reader: ProviderConfigReader): ProviderCat
 					forceRefresh: options?.forceRefresh,
 					load: () => resolveSdkModels(providerId, fingerprint, config, selection, now),
 				})
+				result = applyRemoteModelSettings(result, providerId)
 			} catch (error) {
 				result = {
 					ok: false,
@@ -351,7 +564,8 @@ export function createProviderCatalog(reader: ProviderConfigReader): ProviderCat
 		peekModels(providerId: ProviderId): ProviderModelsResult | undefined {
 			const config = reader.read(providerId)
 			const fingerprint = computeConfigFingerprint(providerId, config)
-			return cache.peek(providerId, fingerprint)
+			const result = cache.peek(providerId, fingerprint)
+			return result ? applyRemoteModelSettings(result, providerId) : undefined
 		},
 
 		subscribe(providerId: ProviderId, listener: (event: ProviderModelsEvent) => void): Disposable {
@@ -371,4 +585,14 @@ export function createProviderCatalog(reader: ProviderConfigReader): ProviderCat
 			}
 		},
 	}
+}
+
+/**
+ * Internal test hook for cache/in-flight behavior. Not part of the public
+ * model-catalog API; production callers should use createProviderCatalog.
+ */
+export const _testing = {
+	createProviderModelsCache,
+	makeCacheKey,
+	assertRecordMatchesRequest,
 }

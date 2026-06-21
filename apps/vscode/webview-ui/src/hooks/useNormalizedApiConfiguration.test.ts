@@ -144,6 +144,23 @@ describe("useNormalizedApiConfiguration", () => {
 		expect(mockResolveModelInfo).toHaveBeenCalledWith({ providerId: "ollama", modelId: "llama3.1:8b" })
 	})
 
+	it("uses SAP-specific model fields instead of a stale generic id", async () => {
+		setApiConfiguration({
+			actModeApiProvider: "sapaicore",
+			actModeApiModelId: "stale-generic-model",
+			actModeSapAiCoreModelId: "anthropic--claude-3.5-sonnet",
+		})
+		mockResolveModelInfo.mockResolvedValue(modelInfoResponse("sapaicore", "anthropic--claude-3.5-sonnet", 200_000))
+
+		const { result } = renderHook(() => useNormalizedApiConfiguration("act"))
+
+		await waitFor(() => expect(result.current.selectedModelId).toBe("anthropic--claude-3.5-sonnet"))
+		expect(mockResolveModelInfo).toHaveBeenCalledWith({
+			providerId: "sapaicore",
+			modelId: "anthropic--claude-3.5-sonnet",
+		})
+	})
+
 	it("uses VS Code LM selector as the active model id", async () => {
 		setApiConfiguration({
 			actModeApiProvider: "vscode-lm",

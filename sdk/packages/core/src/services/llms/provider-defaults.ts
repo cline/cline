@@ -229,7 +229,20 @@ function resolvePrivateCacheKey(
 	providerId: string,
 	config: ProviderConfig,
 ): string {
-	return `${providerId}:${normalizeBaseUrl(config.baseUrl)}:${fingerprint(resolveAuthToken(config) ?? "")}`;
+	const sap = config.sap;
+	const authPayload =
+		providerId === "sapaicore"
+			? [
+						sap?.clientId,
+						sap?.clientSecret ?? config.apiKey,
+						sap?.tokenUrl,
+						sap?.resourceGroup,
+						sap?.deploymentId,
+					sap?.useOrchestrationMode,
+					sap?.api,
+				].join("\0")
+			: (resolveAuthToken(config) ?? "");
+	return `${providerId}:${normalizeBaseUrl(config.baseUrl)}:${fingerprint(authPayload)}`;
 }
 
 async function fetchWithTimeout(
@@ -511,6 +524,267 @@ interface LiteLlmModelInfoResponse {
 	};
 }
 
+interface OcaModelInfoResponse {
+	litellm_params?: {
+		model?: string;
+		max_tokens?: number;
+	};
+	model_info?: {
+		context_window?: number;
+		supports_vision?: boolean;
+		supports_caching?: boolean;
+		input_price?: number | string;
+		output_price?: number | string;
+		caching_price?: number | string;
+		cached_price?: number | string;
+		description?: string;
+		thinking_config?: ModelInfo["thinkingConfig"];
+		temperature?: number;
+		banner?: unknown;
+		survey_content?: unknown;
+		survey_id?: string;
+		is_reasoning_model?: boolean;
+		reasoning_effort_options?: string[];
+		supported_api_list?: string[];
+	};
+}
+
+interface SapTokenResponse {
+	access_token?: string;
+	expires_in?: number;
+	token_type?: string;
+}
+
+interface SapDeploymentResponse {
+	resources?: Array<{
+		id?: string;
+		targetStatus?: string;
+		scenarioId?: string;
+		details?: {
+			resources?: {
+				backend_details?: {
+					model?: {
+						name?: string;
+						version?: string;
+					};
+				};
+			};
+		};
+	}>;
+}
+
+function normalizeSapTokenUrl(tokenUrl: string): string {
+	const trimmed = tokenUrl.replace(/\/+$/, "");
+	return /\/oauth\/token$/i.test(trimmed) ? trimmed : `${trimmed}/oauth/token`;
+}
+
+function hasSapCredentials(config: ProviderConfig): boolean {
+	return Boolean(
+		normalizeBaseUrl(config.baseUrl) &&
+			config.sap?.clientId?.trim() &&
+			(config.sap.clientSecret?.trim() || config.apiKey?.trim()) &&
+			config.sap.tokenUrl?.trim(),
+	);
+}
+
+async function fetchSapAccessToken(config: ProviderConfig): Promise<string> {
+	const clientId = config.sap?.clientId?.trim();
+	const clientSecret = config.sap?.clientSecret?.trim() || config.apiKey?.trim();
+	const tokenUrl = config.sap?.tokenUrl?.trim();
+	if (!clientId || !clientSecret || !tokenUrl) {
+		return "";
+	}
+
+	const payload = new URLSearchParams({
+		grant_type: "client_credentials",
+		client_id: clientId,
+		client_secret: clientSecret,
+	});
+	const response = await fetchWithTimeout(normalizeSapTokenUrl(tokenUrl), {
+		method: "POST",
+		headers: { "Content-Type": "application/x-www-form-urlencoded" },
+		body: payload,
+	});
+	if (!response.ok) {
+		throw new Error(`SAP AI Core token refresh failed: HTTP ${response.status}`);
+	}
+	const token = (await response.json()) as SapTokenResponse;
+	return token.access_token?.trim() ?? "";
+}
+
+async function fetchSapAiCorePrivateModels(
+	config: ProviderConfig,
+	_token: string,
+): Promise<Record<string, ModelInfo>> {
+	if (!hasSapCredentials(config)) {
+		return {};
+	}
+
+	const accessToken = await fetchSapAccessToken(config);
+	if (!accessToken) {
+		return {};
+	}
+
+	const baseUrl = normalizeBaseUrl(config.baseUrl).replace(/\/+$/, "");
+	const resourceGroup = config.sap?.resourceGroup?.trim() || "default";
+	const response = await fetchWithTimeout(
+		`${baseUrl}/v2/lm/deployments?$top=10000&$skip=0`,
+		{
+			method: "GET",
+			headers: {
+				Authorization: `Bearer ${accessToken}`,
+				"AI-Resource-Group": resourceGroup,
+				"Content-Type": "application/json",
+				"AI-Client-Type": "Cline",
+			},
+		},
+	);
+	if (!response.ok) {
+		throw new Error(
+			`SAP AI Core deployment refresh failed: HTTP ${response.status}`,
+		);
+	}
+
+	const payload = (await response.json()) as SapDeploymentResponse;
+	const models: Record<string, ModelInfo> = {};
+	for (const deployment of payload.resources ?? []) {
+		if (deployment.targetStatus !== "RUNNING") {
+			continue;
+		}
+		const deploymentId = deployment.id?.trim();
+		const model = deployment.details?.resources?.backend_details?.model;
+		const modelName = model?.name?.trim().toLowerCase();
+			if (!deploymentId || !modelName) {
+				continue;
+			}
+			const modelVersion = model?.version?.trim();
+			const displayName = modelVersion
+				? `${modelName}:${modelVersion}`
+				: modelName;
+			const modelId = `${modelName}:${deploymentId}`;
+			models[modelId] = {
+				...buildModelFromPrivateSource(modelId, { name: displayName }),
+				metadata: {
+					sap: {
+						modelName,
+						deploymentId,
+						resourceGroup,
+						orchestrationAvailable: deployment.scenarioId === "orchestration",
+					},
+				},
+			};
+	}
+	return models;
+}
+
+function parseOcaPrice(value: number | string | undefined): number | undefined {
+	const parsed = parseOptionalNumber(value);
+	return parsed === undefined ? undefined : parsed * 1_000_000;
+}
+
+function createOcaRequestId(): string {
+	if (typeof globalThis.crypto?.randomUUID === "function") {
+		return globalThis.crypto.randomUUID();
+	}
+	return `cline-${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`;
+}
+
+async function fetchOcaPrivateModels(
+	config: ProviderConfig,
+	token: string,
+): Promise<Record<string, ModelInfo>> {
+	if (!token) {
+		return {};
+	}
+	const manifestDefaultBaseUrl = getBuiltInProviderManifest("oca")?.baseUrl ?? "";
+	const baseUrl = (
+		normalizeBaseUrl(config.baseUrl) || manifestDefaultBaseUrl
+	).replace(/\/+$/, "");
+	if (!baseUrl) {
+		return {};
+	}
+	const response = await fetchWithTimeout(`${baseUrl}/v1/model/info`, {
+		method: "GET",
+		headers: {
+			Authorization: `Bearer ${token}`,
+			"Content-Type": "application/json",
+			client: "Cline",
+			"opc-request-id": createOcaRequestId(),
+		},
+	});
+	if (!response.ok) {
+		throw new Error(`OCA model refresh failed: HTTP ${response.status}`);
+	}
+
+	const payload = (await response.json()) as { data?: OcaModelInfoResponse[] };
+	const models: Record<string, ModelInfo> = {};
+	for (const entry of payload?.data ?? []) {
+		const id = entry.litellm_params?.model?.trim();
+		if (!id) {
+			continue;
+		}
+		const info = entry.model_info;
+		const capabilities: NonNullable<ModelInfo["capabilities"]> = [
+			"streaming",
+			"tools",
+		];
+		includeCapability(capabilities, "images", Boolean(info?.supports_vision));
+		includeCapability(
+			capabilities,
+			"prompt-cache",
+			Boolean(info?.supports_caching),
+		);
+		includeCapability(
+			capabilities,
+			"reasoning",
+			Boolean(info?.is_reasoning_model),
+		);
+		includeCapability(
+			capabilities,
+			"reasoning-effort",
+			Boolean(info?.reasoning_effort_options?.length),
+		);
+		const pricing = {
+			input: parseOcaPrice(info?.input_price),
+			output: parseOcaPrice(info?.output_price),
+			cacheWrite: parseOcaPrice(info?.caching_price),
+			cacheRead: parseOcaPrice(info?.cached_price),
+		};
+		models[id] = {
+			id,
+			name: id,
+			contextWindow: info?.context_window,
+			maxInputTokens: info?.context_window,
+			maxTokens: entry.litellm_params?.max_tokens,
+			capabilities,
+			description: info?.description,
+			temperature: info?.temperature,
+			thinkingConfig: info?.thinking_config,
+			pricing:
+				pricing.input !== undefined ||
+				pricing.output !== undefined ||
+				pricing.cacheWrite !== undefined ||
+				pricing.cacheRead !== undefined
+					? pricing
+					: undefined,
+			apiFormat: info?.supported_api_list?.includes("RESPONSES")
+				? "openai-responses"
+				: undefined,
+			status: "active",
+			metadata: {
+				oca: {
+					banner: info?.banner,
+					surveyContent: info?.survey_content,
+					surveyId: info?.survey_id,
+					reasoningEffortOptions: info?.reasoning_effort_options ?? [],
+					supportedApiList: info?.supported_api_list ?? [],
+				},
+			},
+		};
+	}
+	return models;
+}
+
 function normalizeLiteLlmBaseUrl(baseUrl: string | undefined): string {
 	const normalized = normalizeBaseUrl(baseUrl);
 	if (!normalized) {
@@ -590,7 +864,9 @@ const PRIVATE_PROVIDER_MODEL_FETCHERS: Record<
 	baseten: fetchBasetenPrivateModels,
 	hicap: fetchHicapPrivateModels,
 	litellm: fetchLiteLlmPrivateModels,
+	oca: fetchOcaPrivateModels,
 	poolside: fetchPoolsidePrivateModels,
+	sapaicore: fetchSapAiCorePrivateModels,
 };
 
 const PUBLIC_MODELS_CACHE = new Map<
@@ -670,7 +946,7 @@ async function fetchPrivateProviderModels(
 	config: ProviderConfig,
 ): Promise<Record<string, ModelInfo>> {
 	const token = resolveAuthToken(config);
-	if (!token) {
+	if (!token && providerId !== "sapaicore") {
 		return {};
 	}
 
@@ -678,7 +954,7 @@ async function fetchPrivateProviderModels(
 	if (!fetcher) {
 		return {};
 	}
-	return fetcher(config, token);
+	return fetcher(config, token ?? "");
 }
 
 function shouldLoadPrivateModels(
@@ -694,6 +970,9 @@ function shouldLoadPrivateModels(
 	}
 	if (modelCatalog?.loadPrivateOnAuth === false) {
 		return false;
+	}
+	if (providerId === "sapaicore") {
+		return hasSapCredentials(config);
 	}
 	return Boolean(resolveAuthToken(config));
 }
