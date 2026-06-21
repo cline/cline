@@ -11,12 +11,9 @@ import { ExternalHostBridgeClientManager } from "@hosts/external/host-bridge-cli
 import { retryOperation } from "@utils/retry"
 import * as path from "path"
 import { initialize, tearDown } from "@/common"
-import { SqliteLockManager } from "@/core/locks/SqliteLockManager"
 import { WebviewProvider } from "@/core/webview"
 import { AuthHandler } from "@/hosts/external/AuthHandler"
 import { HostProvider } from "@/hosts/host-provider"
-import { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
-import { StandaloneTerminalManager } from "@/integrations/terminal"
 import { Logger } from "@/shared/services/Logger"
 import { createStorageContext } from "@/shared/storage/storage-context"
 import { HOSTBRIDGE_PORT, waitForHostBridgeReady } from "./hostbridge-client"
@@ -24,6 +21,19 @@ import { startMemoryMonitoring, stopMemoryMonitoring } from "./memory-monitor"
 import { PROTOBUS_PORT, startProtobusService } from "./protobus-service"
 import { log } from "./utils"
 import { initializeContext } from "./vscode-context"
+
+// Inert shell stubs: real implementations removed.
+type SqliteLockManager = any
+const SqliteLockManager = class {
+	constructor(_opts: any) {}
+	async registerInstance(_opts: any): Promise<void> {}
+	unregisterInstance(): void {}
+	cleanupOrphanedFolderLocks(): void {}
+	touchInstance(): void {}
+	close(): void {}
+}
+type DiffViewProvider = any
+const StandaloneTerminalManager = class {} as any
 
 let globalLockManager: SqliteLockManager | undefined
 

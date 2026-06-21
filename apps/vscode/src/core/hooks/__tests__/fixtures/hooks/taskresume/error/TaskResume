@@ -1,3 +1,0 @@
-#!/usr/bin/env node
-console.error("TaskResume hook encountered an error");
-process.exit(1);

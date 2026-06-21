@@ -1,4 +1,4 @@
-import type { FeatureFlagPayload } from "@/services/feature-flags/providers/IFeatureFlagsProvider"
+type FeatureFlagPayload = any
 
 export enum FeatureFlag {
 	WEBTOOLS = "webtools",

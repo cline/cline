@@ -4,7 +4,6 @@ import { Controller } from ".."
 /**
  * Command slash command logic
  */
-export async function condense(controller: Controller, _request: StringRequest): Promise<Empty> {
-	await controller.task?.handleWebviewAskResponse("yesButtonClicked")
+export async function condense(_controller: Controller, _request: StringRequest): Promise<Empty> {
 	return Empty.create()
 }

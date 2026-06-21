@@ -1,61 +1,12 @@
 import { CheckpointEvent, CheckpointSubscriptionRequest } from "@shared/proto/cline/checkpoints"
-import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
+import { StreamingResponseHandler } from "../grpc-handler"
 import { Controller } from "../index"
 
-/**
- * Track active checkpoint subscriptions per workspace.
- * Map structure: cwdHash -> Set of response streams
- */
-const activeCheckpointSubscriptions = new Map<string, Set<StreamingResponseHandler<CheckpointEvent>>>()
-
-/**
- * Subscribe to checkpoint events for a specific workspace.
- *
- * Clients receive real-time notifications about checkpoint operations:
- * - Shadow git initialization
- * - Commit creation
- * - Checkpoint restoration
- *
- * Each operation generates two events (start and completion).
- *
- * @param controller The controller instance
- * @param request The subscription request containing cwdHash
- * @param responseStream The streaming response handler
- * @param requestId The ID of the request
- */
 export async function subscribeToCheckpoints(
 	_controller: Controller,
-	request: CheckpointSubscriptionRequest,
-	responseStream: StreamingResponseHandler<CheckpointEvent>,
-	requestId?: string,
+	_request: CheckpointSubscriptionRequest,
+	_responseStream: StreamingResponseHandler<CheckpointEvent>,
+	_requestId?: string,
 ): Promise<void> {
-	const { cwdHash } = request
-
-	if (!activeCheckpointSubscriptions.has(cwdHash)) {
-		activeCheckpointSubscriptions.set(cwdHash, new Set())
-	}
-
-	const subscriptions = activeCheckpointSubscriptions.get(cwdHash)
-	if (!subscriptions) {
-		throw new Error(`Failed to retrieve subscriptions for cwdHash: ${cwdHash}`)
-	}
-
-	subscriptions.add(responseStream)
-
-	// Register cleanup when the connection is closed
-	const cleanup = () => {
-		subscriptions.delete(responseStream)
-		if (subscriptions.size === 0) {
-			activeCheckpointSubscriptions.delete(cwdHash)
-		}
-	}
-
-	if (requestId) {
-		getRequestRegistry().registerRequest(
-			requestId,
-			cleanup,
-			{ type: "checkpoint_subscription" as const, cwdHash },
-			responseStream,
-		)
-	}
+	return
 }

@@ -2,7 +2,6 @@
 
 import { getProviderCollectionSync } from "@cline/llms"
 import { SettingsKey } from "@shared/storage/state-keys"
-import { toSdkProviderId } from "@/sdk/model-catalog/sdk-provider-id"
 import { toLegacyApiProvider } from "@/shared/model-catalog/provider-helpers"
 import {
 	type ApiProvider,
@@ -94,6 +93,6 @@ export function getProviderDefaultModelId(provider: ApiProvider | string): strin
 	if (override !== undefined) {
 		return override
 	}
-	const collection = getProviderCollectionSync(toSdkProviderId(provider))
+	const collection = getProviderCollectionSync(provider as any)
 	return collection?.provider.defaultModelId ?? ""
 }

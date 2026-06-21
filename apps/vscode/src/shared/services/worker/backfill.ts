@@ -6,7 +6,11 @@
  * configuration changes.
  */
 
-import { GlobalFileNames, getSavedApiConversationHistory } from "@/core/storage/disk"
+// Inline stubs for removed "@/core/storage/disk" module (bare-bones inert shell).
+const GlobalFileNames = { apiConversationHistory: "api_conversation_history.json" } as const
+async function getSavedApiConversationHistory(_taskId: string): Promise<unknown> {
+	return []
+}
 import { Logger } from "@/shared/services/Logger"
 import { syncWorker } from "./sync"
 import { getTaskTimestamp } from "./utils"
