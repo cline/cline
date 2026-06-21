@@ -23,6 +23,31 @@ export interface LiteLlmModelInfoResponse {
 	}>
 }
 
+function buildModelInfoUrls(baseUrl: string): string[] {
+	const normalizedBaseUrl = baseUrl.replace(/\/+$/, "")
+	const baseUrlWithoutV1 = normalizedBaseUrl.replace(/\/v1$/, "")
+	const urls = normalizedBaseUrl.endsWith("/v1")
+		? [`${normalizedBaseUrl}/model/info`, `${baseUrlWithoutV1}/model/info`]
+		: [`${normalizedBaseUrl}/v1/model/info`, `${normalizedBaseUrl}/model/info`]
+
+	return [...new Set(urls)]
+}
+
+function modelInfoPath(url: string): string {
+	try {
+		return new URL(url).pathname
+	} catch {
+		return url
+	}
+}
+
+async function describeHttpFailure(response: Response): Promise<string> {
+	const body = (await response.text().catch(() => "")).replace(/\s+/g, " ").trim()
+	const statusText = response.statusText ? ` ${response.statusText}` : ""
+	const details = body ? `${response.status}${statusText}: ${body.slice(0, 500)}` : `${response.status}${statusText}`
+	return body.length > 500 ? `${details}...` : details
+}
+
 /**
  * Fetch LiteLLM model info from a LiteLLM proxy.
  *
@@ -31,43 +56,37 @@ export interface LiteLlmModelInfoResponse {
  * @returns The model info response or undefined if fetch fails
  */
 export async function fetchLiteLlmModelsInfo(baseUrl: string, apiKey: string): Promise<LiteLlmModelInfoResponse | undefined> {
-	// Handle base URLs that already include /v1 to avoid double /v1/v1/
-	const normalizedBaseUrl = baseUrl.endsWith("/v1") ? baseUrl : `${baseUrl}/v1`
-	const url = `${normalizedBaseUrl}/model/info`
+	const failures: string[] = []
+	const authHeaders = [
+		["x-litellm-api-key", { "x-litellm-api-key": apiKey }],
+		["Authorization", { Authorization: `Bearer ${apiKey}` }],
+	] as const
 
-	try {
-		const response = await fetch(url, {
-			method: "GET",
-			headers: {
-				accept: "application/json",
-				"x-litellm-api-key": apiKey,
-				...buildExternalBasicHeaders(),
-			},
-		})
+	for (const url of buildModelInfoUrls(baseUrl)) {
+		for (const [authLabel, authHeader] of authHeaders) {
+			try {
+				const response = await fetch(url, {
+					method: "GET",
+					headers: {
+						accept: "application/json",
+						...authHeader,
+						...buildExternalBasicHeaders(),
+					},
+				})
 
-		if (response.ok) {
-			const data: LiteLlmModelInfoResponse = await response.json()
-			return data
+				if (response.ok) {
+					const data: LiteLlmModelInfoResponse = await response.json()
+					return data
+				}
+				failures.push(`${modelInfoPath(url)} (${authLabel}): ${await describeHttpFailure(response)}`)
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error)
+				failures.push(`${modelInfoPath(url)} (${authLabel}): ${message}`)
+			}
 		}
-		Logger.error("Failed to fetch LiteLLM model info:", response.statusText)
-		// Try with Authorization header instead
-		const retryResponse = await fetch(url, {
-			method: "GET",
-			headers: {
-				accept: "application/json",
-				Authorization: `Bearer ${apiKey}`,
-				...buildExternalBasicHeaders(),
-			},
-		})
-
-		if (retryResponse.ok) {
-			const data: LiteLlmModelInfoResponse = await retryResponse.json()
-			return data
-		}
-		Logger.error("Failed to fetch LiteLLM model info with Authorization header:", retryResponse.statusText)
-		throw new Error(`Failed to fetch LiteLLM model info: ${retryResponse.statusText}`)
-	} catch (error) {
-		Logger.error("Error fetching LiteLLM model info:", error)
-		throw error
 	}
+
+	const message = `Failed to fetch LiteLLM model info. Attempts: ${failures.join("; ")}`
+	Logger.error(message)
+	throw new Error(message)
 }
