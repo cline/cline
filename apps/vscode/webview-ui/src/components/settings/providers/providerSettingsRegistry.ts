@@ -50,6 +50,7 @@ const GENERIC_PROVIDER_PRESENTATION_OVERRIDES: Record<string, GenericProviderPre
 	groq: {
 		signupUrl: "https://console.groq.com/keys",
 	},
+	poolside: {},
 	cerebras: {
 		signupUrl: "https://cloud.cerebras.ai/",
 	},
@@ -90,9 +91,12 @@ const GENERIC_PROVIDER_PRESENTATION_OVERRIDES: Record<string, GenericProviderPre
 	"vercel-ai-gateway": {
 		signupUrl: "https://vercel.com/d?to=%2F%5Bteam%5D%2F%7E%2Fai",
 	},
+	v0: {},
 	wandb: {
 		signupUrl: "https://wandb.ai",
 	},
+	xiaomi: {},
+	"zai-coding-plan": {},
 }
 
 const GENERIC_PROVIDER_PROTOCOLS = new Set(["anthropic", "gemini", "openai-chat", "openai-responses"])
@@ -137,8 +141,12 @@ const FALLBACK_GENERIC_PROVIDER_NAMES = {
 	minimax: "MiniMax",
 	mistral: "Mistral",
 	nousResearch: "NousResearch",
+	poolside: "Poolside",
 	together: "Together",
+	v0: "Vercel v0",
 	wandb: "W&B",
+	xiaomi: "Xiaomi",
+	"zai-coding-plan": "Z.AI Coding Plan",
 } as const
 
 export function getFallbackGenericProviderSettings(providerId: string): GenericProviderSettingsConfig | undefined {

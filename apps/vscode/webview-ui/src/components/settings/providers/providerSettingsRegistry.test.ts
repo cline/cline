@@ -67,9 +67,13 @@ describe("providerSettingsRegistry", () => {
 			["mistral", "Mistral", "https://console.mistral.ai/codestral"],
 			["nebius", "Nebius", "https://auth.tokenfactory.nebius.com/ui/login"],
 			["nousResearch", "NousResearch", undefined],
+			["poolside", "Poolside", undefined],
 			["sambanova", "SambaNova", "https://docs.sambanova.ai/cloud/docs/get-started/overview"],
 			["vercel-ai-gateway", "Vercel AI Gateway", "https://vercel.com/d?to=%2F%5Bteam%5D%2F%7E%2Fai"],
+			["v0", "Vercel v0", undefined],
 			["wandb", "W&B", "https://wandb.ai"],
+			["xiaomi", "Xiaomi", undefined],
+			["zai-coding-plan", "Z.AI Coding Plan", undefined],
 		] as const
 
 		for (const [providerId, providerName, signupUrl] of migratedProviders) {
@@ -170,6 +174,11 @@ describe("providerSettingsRegistry", () => {
 			providerId: "together",
 			providerName: "Together",
 			signupUrl: "https://api.together.ai/settings/api-keys",
+		})
+		expect(getFallbackGenericProviderSettings("zai-coding-plan")).toEqual({
+			allowsCustomIds: false,
+			providerId: "zai-coding-plan",
+			providerName: "Z.AI Coding Plan",
 		})
 		expect(getFallbackGenericProviderSettings("openai")).toBeUndefined()
 	})

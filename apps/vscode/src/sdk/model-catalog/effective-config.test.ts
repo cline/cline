@@ -117,6 +117,19 @@ describe("buildEffectiveProviderConfig", () => {
 		})
 	})
 
+	it("reuses the legacy Z.AI API key for Z.AI Coding Plan", async () => {
+		const { buildEffectiveProviderConfig } = await import("./effective-config")
+		mocks.setProviderSettings({
+			"zai-coding-plan": { provider: "zai-coding-plan", apiKey: "provider-zai-coding-plan-key" },
+		})
+		mocks.setApiConfiguration({ zaiApiKey: "state-zai-key" })
+
+		expect(buildEffectiveProviderConfig(parseProviderId("zai-coding-plan"))).toEqual({
+			providerId: parseProviderId("zai-coding-plan"),
+			apiKey: "state-zai-key",
+		})
+	})
+
 	it("respects remote-config-locked LiteLLM key already applied by StateManager", async () => {
 		const { buildEffectiveProviderConfig } = await import("./effective-config")
 		mocks.setProviderSettings({

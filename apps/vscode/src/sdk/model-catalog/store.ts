@@ -35,6 +35,7 @@ const providerConfigStateKeys: Record<ProviderSettingsPatchKey, Partial<Record<s
 		openai: "openAiApiKey",
 		"openai-native": "openAiNativeApiKey",
 		"openai-codex": "openAiNativeApiKey",
+		"zai-coding-plan": "zaiApiKey",
 		bedrock: "awsBedrockApiKey",
 		gemini: "geminiApiKey",
 		deepseek: "deepSeekApiKey",

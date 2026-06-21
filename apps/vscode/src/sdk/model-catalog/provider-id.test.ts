@@ -45,6 +45,10 @@ describe("parseProviderId", () => {
 		parseProviderId("anthropic")
 		parseProviderId("openai")
 		parseProviderId("nousResearch")
+		parseProviderId("zai-coding-plan")
+		parseProviderId("poolside")
+		parseProviderId("v0")
+		parseProviderId("xiaomi")
 
 		expect(warnSpy).not.toHaveBeenCalled()
 	})
@@ -56,6 +60,10 @@ describe("isKnownProviderId", () => {
 		expect(isKnownProviderId(parseProviderId("openai"))).toBe(true)
 		expect(isKnownProviderId(parseProviderId("deepseek"))).toBe(true)
 		expect(isKnownProviderId(parseProviderId("nousResearch"))).toBe(true)
+		expect(isKnownProviderId(parseProviderId("zai-coding-plan"))).toBe(true)
+		expect(isKnownProviderId(parseProviderId("poolside"))).toBe(true)
+		expect(isKnownProviderId(parseProviderId("v0"))).toBe(true)
+		expect(isKnownProviderId(parseProviderId("xiaomi"))).toBe(true)
 	})
 
 	it("returns false for a custom provider id", () => {
