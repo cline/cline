@@ -4,25 +4,12 @@ import { ToolResponse } from "@core/task"
 import { processFilesIntoText } from "@/integrations/misc/extract-text"
 import { ClineAsk } from "@/shared/ExtensionMessage"
 import { Logger } from "@/shared/services/Logger"
+import { truncateMiddle } from "@utils/string"
 import type { ToolExecutorCoordinator } from "../ToolExecutorCoordinator"
 import { TaskConfig } from "../types/TaskConfig"
 
 export const MAX_TOOL_RESULT_TEXT_CHARS = 8_000
 const TOOL_RESULT_TRUNCATION_REASON = "tool result truncated"
-
-function truncateMiddle(text: string, maxChars: number, makeMarker: (removed: number) => string): string {
-	if (text.length <= maxChars) {
-		return text
-	}
-
-	const tentativeMarker = makeMarker(text.length - maxChars)
-	const tentativeKeep = Math.max(0, Math.floor((maxChars - tentativeMarker.length) / 2))
-	const removed = Math.max(0, text.length - tentativeKeep * 2)
-	const marker = makeMarker(removed)
-	const keep = Math.max(0, Math.floor((maxChars - marker.length) / 2))
-
-	return `${text.slice(0, keep)}${marker}${keep > 0 ? text.slice(-keep) : ""}`
-}
 
 /**
  * Utility functions for handling tool results and feedback

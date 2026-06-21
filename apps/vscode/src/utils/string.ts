@@ -20,3 +20,21 @@ export function fixModelHtmlEscaping(text: string): string {
 export function removeInvalidChars(text: string): string {
 	return text.replace(/\uFFFD/g, "")
 }
+
+/**
+ * Truncates the middle of a string, preserving an equal prefix and suffix.
+ * The marker is generated after calculating how many characters are omitted.
+ */
+export function truncateMiddle(text: string, maxChars: number, makeMarker: (removed: number) => string): string {
+	if (text.length <= maxChars) {
+		return text
+	}
+
+	const tentativeMarker = makeMarker(text.length - maxChars)
+	const tentativeKeep = Math.max(0, Math.floor((maxChars - tentativeMarker.length) / 2))
+	const removed = Math.max(0, text.length - tentativeKeep * 2)
+	const marker = makeMarker(removed)
+	const keep = Math.max(0, Math.floor((maxChars - marker.length) / 2))
+
+	return `${text.slice(0, keep)}${marker}${keep > 0 ? text.slice(-keep) : ""}`
+}

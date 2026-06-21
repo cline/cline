@@ -1,6 +1,6 @@
 import { describe, it } from "mocha"
 import "should"
-import { fixModelHtmlEscaping, removeInvalidChars } from "./string"
+import { fixModelHtmlEscaping, removeInvalidChars, truncateMiddle } from "./string"
 
 describe("fixModelHtmlEscaping", () => {
 	it("should convert &gt; to >", () => {
@@ -53,5 +53,24 @@ describe("removeInvalidChars", () => {
 
 	it("should return unchanged string when no replacement characters are present", () => {
 		removeInvalidChars("normal string").should.equal("normal string")
+	})
+})
+
+describe("truncateMiddle", () => {
+	it("should return unchanged string when it is under the limit", () => {
+		truncateMiddle("short", 10, (removed) => `[omitted ${removed}]`).should.equal("short")
+	})
+
+	it("should preserve the start and end with a generated marker", () => {
+		const result = truncateMiddle(
+			`${"a".repeat(50)}${"b".repeat(50)}`,
+			40,
+			(removed) => `[omitted ${removed}]`,
+		)
+
+		result.length.should.equal(40)
+		result.should.startWith("a".repeat(14))
+		result.should.containEql("[omitted 72]")
+		result.should.endWith("b".repeat(14))
 	})
 })
