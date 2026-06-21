@@ -53,9 +53,10 @@ async function describeHttpFailure(response: Response): Promise<string> {
  *
  * @param baseUrl The base URL for the LiteLLM API
  * @param apiKey The API key for authentication
- * @returns The model info response or undefined if fetch fails
+ * @returns The model info response
+ * @throws {Error} When all endpoint/auth-header combinations fail
  */
-export async function fetchLiteLlmModelsInfo(baseUrl: string, apiKey: string): Promise<LiteLlmModelInfoResponse | undefined> {
+export async function fetchLiteLlmModelsInfo(baseUrl: string, apiKey: string): Promise<LiteLlmModelInfoResponse> {
 	const failures: string[] = []
 	const authHeaders = [
 		["x-litellm-api-key", { "x-litellm-api-key": apiKey }],
