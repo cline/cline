@@ -617,6 +617,8 @@ enum ApiProvider {
   V0 = 46;
   XIAOMI = 47;
   ZAI_CODING_PLAN = 49;
+  reserved 43, 44, 48;
+  reserved "OPENAI_CODEX_CLI", "OPENCODE", "KILO";
 }
 
 enum ApiFormat {
