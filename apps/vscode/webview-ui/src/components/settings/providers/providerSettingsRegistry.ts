@@ -130,14 +130,17 @@ export function getGenericProviderSettings(
 }
 
 const FALLBACK_GENERIC_PROVIDER_NAMES = {
+	baseten: "Baseten",
 	deepseek: "DeepSeek",
 	doubao: "Doubao",
 	gemini: "Gemini",
+	groq: "Groq",
 	"huawei-cloud-maas": "Huawei Cloud MaaS",
 	minimax: "MiniMax",
 	mistral: "Mistral",
 	nousResearch: "NousResearch",
 	together: "Together",
+	"vercel-ai-gateway": "Vercel AI Gateway",
 	wandb: "W&B",
 } as const
 

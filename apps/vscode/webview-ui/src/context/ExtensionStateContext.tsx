@@ -790,10 +790,11 @@ export const ExtensionStateContextProvider: React.FC<{
 	const refreshBasetenModels = useCallback(() => {
 		ModelsServiceClient.refreshBasetenModelsRpc(EmptyRequest.create({}))
 			.then((response) => {
-				// Live-fetched Baseten models. The SDK-curated catalog is
-				// pulled separately by BasetenModelPicker via
-				// `useProviderModels("baseten")` and merged on top of this
-				// dynamic slice at render time.
+				// Live-fetched Baseten models. NOTE: Baseten now renders through the
+				// generic SDK-driven settings path (GenericProviderSettings), whose
+				// model list comes from the unified `useProviderModels("baseten")`
+				// catalog RPC. This legacy refresh + `basetenModels` state is no longer
+				// consumed by the settings UI and is a candidate for removal.
 				setBasetenModels(fromProtobufModels(response.models))
 			})
 			.catch((err) => console.error("Failed to refresh Baseten models:", err))

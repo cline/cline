@@ -173,4 +173,28 @@ describe("providerSettingsRegistry", () => {
 		})
 		expect(getFallbackGenericProviderSettings("openai")).toBeUndefined()
 	})
+
+	it("provides static fallback metadata for providers migrated off bespoke UIs", () => {
+		// These providers used to ship dedicated *Provider.tsx components rendered
+		// only when no SDK listing was loaded yet. They now rely entirely on the
+		// generic path, so the fallback must render them before listings load.
+		expect(getFallbackGenericProviderSettings("groq")).toEqual({
+			allowsCustomIds: false,
+			providerId: "groq",
+			providerName: "Groq",
+			signupUrl: "https://console.groq.com/keys",
+		})
+		expect(getFallbackGenericProviderSettings("baseten")).toEqual({
+			allowsCustomIds: false,
+			providerId: "baseten",
+			providerName: "Baseten",
+			signupUrl: "https://app.baseten.co/settings/api_keys",
+		})
+		expect(getFallbackGenericProviderSettings("vercel-ai-gateway")).toEqual({
+			allowsCustomIds: false,
+			providerId: "vercel-ai-gateway",
+			providerName: "Vercel AI Gateway",
+			signupUrl: "https://vercel.com/d?to=%2F%5Bteam%5D%2F%7E%2Fai",
+		})
+	})
 })
