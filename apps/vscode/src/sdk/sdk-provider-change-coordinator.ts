@@ -1,6 +1,7 @@
 import type { ApiConfiguration } from "@shared/api"
 import type { Mode } from "@shared/storage/types"
 import type { StateManager } from "@/core/storage/StateManager"
+import { areProviderIdsEquivalent } from "@/shared/model-catalog/provider-helpers"
 import { Logger } from "@/shared/services/Logger"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import type { SdkModeCoordinator } from "./sdk-mode-coordinator"
@@ -35,6 +36,31 @@ export class SdkProviderChangeCoordinator {
 	private restartInFlight: Promise<void> | undefined
 
 	constructor(private readonly options: SdkProviderChangeCoordinatorOptions) {}
+
+	handleProviderConfigFieldsChanged(providerId: string): void {
+		const mode = this.getCurrentMode()
+		const activeProvider = providerForMode(this.options.stateManager.getApiConfiguration(), mode)
+		if (!areProviderIdsEquivalent(activeProvider, providerId)) {
+			return
+		}
+
+		const activeSession = this.options.sessions.getActiveSession()
+		if (!activeSession) {
+			Logger.log("[SdkController] Active provider config changed without active session; next task will use new config")
+			return
+		}
+
+		Logger.log(`[SdkController] Active provider config changed for ${mode}: ${providerId}`)
+		if (activeSession.isRunning) {
+			Logger.log("[SdkController] Session is mid-turn; deferring provider config restart")
+			this.restartPending = true
+			return
+		}
+
+		this.restartActiveSessionForProviderChange().catch((error) => {
+			Logger.error("[SdkController] Failed to restart session after provider config change:", error)
+		})
+	}
 
 	handleApiConfigurationChanged(previous: ApiConfiguration, next: ApiConfiguration): void {
 		const mode = this.getCurrentMode()

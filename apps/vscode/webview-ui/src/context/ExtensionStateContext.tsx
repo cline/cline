@@ -254,7 +254,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		environment: Environment.production,
 		telemetrySetting: "unset",
 		distinctId: "",
-		planActSeparateModelsSetting: true,
+		planActSeparateModelsSetting: false,
 		enableCheckpointsSetting: true,
 		mcpDisplayMode: DEFAULT_MCP_DISPLAY_MODE,
 		globalClineRulesToggles: {},
@@ -790,10 +790,8 @@ export const ExtensionStateContextProvider: React.FC<{
 	const refreshBasetenModels = useCallback(() => {
 		ModelsServiceClient.refreshBasetenModelsRpc(EmptyRequest.create({}))
 			.then((response) => {
-				// Live-fetched Baseten models. The SDK-curated catalog is
-				// pulled separately by BasetenModelPicker via
-				// `useProviderModels("baseten")` and merged on top of this
-				// dynamic slice at render time.
+				// Live-fetched Baseten models are merged with the SDK-curated catalog
+				// by provider model selection hooks.
 				setBasetenModels(fromProtobufModels(response.models))
 			})
 			.catch((err) => console.error("Failed to refresh Baseten models:", err))

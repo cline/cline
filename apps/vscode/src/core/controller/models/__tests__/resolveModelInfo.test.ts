@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import type {
 	EffectiveProviderConfig,
 	ModelInfo,
@@ -10,6 +10,26 @@ import type {
 import { computeConfigFingerprint } from "@/sdk/model-catalog/fingerprint"
 import { parseProviderId } from "@/sdk/model-catalog/provider-id"
 import type { ProviderCatalogController } from "../providerCatalogShared"
+
+const mocks = vi.hoisted(() => {
+	let remoteConfigSettings: Record<string, unknown> = {}
+	return {
+		setRemoteConfigSettings(value: Record<string, unknown>): void {
+			remoteConfigSettings = value
+		},
+		getRemoteConfigSettings(): Record<string, unknown> {
+			return remoteConfigSettings
+		},
+	}
+})
+
+vi.mock("@/core/storage/StateManager", () => ({
+	StateManager: {
+		get: () => ({
+			getRemoteConfigSettings: mocks.getRemoteConfigSettings,
+		}),
+	},
+}))
 
 function fingerprint(providerId: ProviderId): ReturnType<typeof computeConfigFingerprint> {
 	return computeConfigFingerprint(providerId, { providerId })
@@ -62,6 +82,10 @@ function peekResult(providerId: string, entries: Array<[string, ModelInfo]>, def
 }
 
 describe("resolveModelInfo", () => {
+	beforeEach(() => {
+		mocks.setRemoteConfigSettings({})
+	})
+
 	it("returns committed-selection source when a matching selection exists", async () => {
 		const { resolveModelInfo } = await import("../resolveModelInfo")
 		const providerId = parseProviderId("deepseek")
@@ -225,6 +249,42 @@ describe("resolveModelInfo", () => {
 		expect(response.modelId).toBe("my-custom-model-xyz")
 		expect(response.source).toBe("unknown")
 		expect(response.modelInfo).toBeUndefined()
+	})
+
+	it("uses the remote allowlist default instead of stale committed custom model info", async () => {
+		const { resolveModelInfo } = await import("../resolveModelInfo")
+		const providerId = parseProviderId("openai")
+		const store = makeStore({ providerId })
+		vi.mocked(store.readSelection).mockReturnValue({
+			providerId,
+			modelId: "blocked-custom-model",
+			modelInfo: { name: "Blocked Custom", supportsPromptCache: false, contextWindow: 1_000 },
+		})
+		const catalog = makeCatalog()
+		vi.mocked(catalog.peekModels).mockReturnValue(
+			peekResult(
+				"openai",
+				[["allowed-model", { name: "Allowed Model", supportsPromptCache: false, contextWindow: 128_000 }]],
+				"allowed-model",
+			),
+		)
+		mocks.setRemoteConfigSettings({
+			remoteProviderModelSettings: {
+				"openai-compatible": {
+					models: [{ id: "allowed-model" }],
+				},
+			},
+		})
+
+		const response = await resolveModelInfo(makeController(store, catalog), {
+			providerId: "openai",
+			modelId: "blocked-custom-model",
+		})
+
+		expect(response.source).toBe("sdk-default")
+		expect(response.modelId).toBe("allowed-model")
+		expect(response.modelInfo?.contextWindow).toBe(128_000)
+		expect(store.readSelection).not.toHaveBeenCalled()
 	})
 
 	it("still honors a custom-provider model id that does match the catalog", async () => {

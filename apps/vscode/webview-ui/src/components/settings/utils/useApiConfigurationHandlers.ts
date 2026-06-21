@@ -6,7 +6,7 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
 
 export const useApiConfigurationHandlers = () => {
-	const { apiConfiguration, planActSeparateModelsSetting } = useExtensionState()
+	const { apiConfiguration } = useExtensionState()
 
 	/**
 	 * Updates a single field in the API configuration.
@@ -58,17 +58,12 @@ export const useApiConfigurationHandlers = () => {
 	const handleModeFieldChange = async <PlanK extends keyof ApiConfiguration, ActK extends keyof ApiConfiguration>(
 		fieldPair: { plan: PlanK; act: ActK },
 		value: ApiConfiguration[PlanK] & ApiConfiguration[ActK], // Intersection ensures value is compatible with both field types
-		currentMode: Mode,
+		_currentMode: Mode,
 	) => {
-		if (planActSeparateModelsSetting) {
-			const targetField = fieldPair[currentMode]
-			await handleFieldChange(targetField, value)
-		} else {
-			await handleFieldsChange({
-				[fieldPair.plan]: value,
-				[fieldPair.act]: value,
-			})
-		}
+		await handleFieldsChange({
+			[fieldPair.plan]: value,
+			[fieldPair.act]: value,
+		})
 	}
 
 	/**
@@ -84,25 +79,14 @@ export const useApiConfigurationHandlers = () => {
 	const handleModeFieldsChange = async <T extends Record<string, any>>(
 		fieldPairs: { [K in keyof T]: { plan: keyof ApiConfiguration; act: keyof ApiConfiguration } },
 		values: T,
-		currentMode: Mode,
+		_currentMode: Mode,
 	) => {
-		if (planActSeparateModelsSetting) {
-			// Update only the current mode's fields
-			const updates: Partial<ApiConfiguration> = {}
-			Object.entries(fieldPairs).forEach(([key, { plan, act }]) => {
-				const targetField = currentMode === "plan" ? plan : act
-				updates[targetField] = values[key]
-			})
-			await handleFieldsChange(updates)
-		} else {
-			// Update both modes' fields
-			const updates: Partial<ApiConfiguration> = {}
-			Object.entries(fieldPairs).forEach(([key, { plan, act }]) => {
-				updates[plan] = values[key]
-				updates[act] = values[key]
-			})
-			await handleFieldsChange(updates)
-		}
+		const updates: Partial<ApiConfiguration> = {}
+		Object.entries(fieldPairs).forEach(([key, { plan, act }]) => {
+			updates[plan] = values[key]
+			updates[act] = values[key]
+		})
+		await handleFieldsChange(updates)
 	}
 
 	return { handleFieldChange, handleFieldsChange, handleModeFieldChange, handleModeFieldsChange }

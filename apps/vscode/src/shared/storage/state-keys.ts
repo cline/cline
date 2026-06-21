@@ -48,8 +48,35 @@ type FieldDefinition<T> = {
 type FieldDefinitions = Record<string, FieldDefinition<any>>
 
 export type ConfiguredAPIKeys = Partial<Record<ApiProvider, boolean>>
+export interface RemoteProviderModelEntry {
+	id: string
+	contextWindow?: number
+	maxTokens?: number
+	inputPrice?: number
+	outputPrice?: number
+	supportsImages?: boolean
+	isR1FormatRequired?: boolean
+	temperature?: number
+	thinkingBudgetTokens?: number
+	promptCachingEnabled?: boolean
+}
+
+export interface RemoteBedrockCustomModelEntry {
+	name: string
+	baseModelId: string
+	thinkingBudgetTokens?: number
+}
+
+export type RemoteProviderModelSettings = Record<
+	string,
+	{
+		models?: RemoteProviderModelEntry[]
+		bedrockCustomModels?: RemoteBedrockCustomModelEntry[]
+	}
+>
 const REMOTE_CONFIG_EXTRA_FIELDS = {
 	remoteConfiguredProviders: { default: [] as ApiProvider[] },
+	remoteProviderModelSettings: { default: undefined as RemoteProviderModelSettings | undefined },
 	allowedMCPServers: { default: [] as Array<{ id: string }> },
 	remoteMCPServers: { default: undefined as Array<{ name: string; url: string; alwaysEnabled?: boolean }> | undefined },
 	previousRemoteMCPServers: { default: undefined as Array<{ name: string; url: string }> | undefined },

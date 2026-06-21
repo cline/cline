@@ -8,11 +8,18 @@ import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
 import type { ExtensionState, Platform } from "@shared/ExtensionMessage"
 import { ClineEnv } from "@/config"
 import { ExtensionRegistryInfo } from "@/registry"
+import type { ProviderConfigStore } from "@/sdk/model-catalog/contracts"
+import { parseProviderId } from "@/sdk/model-catalog/provider-id"
 import { BannerService } from "@/services/banner/BannerService"
 import { featureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
+import type { ApiConfiguration, ApiProvider } from "@/shared/api"
+import { toVscodeSupportedProvider } from "@/shared/model-catalog/provider-helpers"
+import { getProviderModelIdKey } from "@/shared/storage/provider-keys"
+import type { SettingsKey } from "@/shared/storage/state-keys"
 import { getLatestAnnouncementId } from "@/utils/announcements"
 import { getClineOnboardingModels } from "../models/getClineOnboardingModels"
+import { ensureSharedModeApiConfiguration } from "../models/sharedModeConfiguration"
 
 /**
  * Builds the ExtensionState object to push to the webview.
@@ -25,12 +32,13 @@ export async function getStateToPostToWebview(controller: {
 	backgroundCommandRunning?: boolean
 	backgroundCommandTaskId?: string
 	workspaceManager?: any
+	getProviderConfigStore?(): ProviderConfigStore
 }): Promise<ExtensionState> {
 	const stateManager = controller.stateManager
 
 	// Get API configuration from cache for immediate access
 	const onboardingModels = getClineOnboardingModels()
-	const apiConfiguration = stateManager.getApiConfiguration()
+	const apiConfiguration = hydrateApiConfigurationFromSdkSelection(controller, ensureSharedModeApiConfiguration(controller))
 	const lastShownAnnouncementId = stateManager.getGlobalStateKey("lastShownAnnouncementId")
 	const taskHistory = stateManager.getGlobalStateKey("taskHistory")
 	const autoApprovalSettings = stateManager.getGlobalSettingsKey("autoApprovalSettings")
@@ -44,7 +52,6 @@ export async function getStateToPostToWebview(controller: {
 	const mcpMarketplaceEnabled = stateManager.getGlobalStateKey("mcpMarketplaceEnabled")
 	const mcpDisplayMode = stateManager.getGlobalStateKey("mcpDisplayMode")
 	const telemetrySetting = stateManager.getGlobalSettingsKey("telemetrySetting")
-	const planActSeparateModelsSetting = stateManager.getGlobalSettingsKey("planActSeparateModelsSetting")
 	const enableCheckpointsSetting = stateManager.getGlobalSettingsKey("enableCheckpointsSetting")
 	const globalClineRulesToggles = stateManager.getGlobalStateKey("globalClineRulesToggles")
 	const globalWorkflowToggles = stateManager.getGlobalStateKey("globalWorkflowToggles")
@@ -124,7 +131,7 @@ export async function getStateToPostToWebview(controller: {
 		mcpMarketplaceEnabled,
 		mcpDisplayMode,
 		telemetrySetting,
-		planActSeparateModelsSetting,
+		planActSeparateModelsSetting: false,
 		enableCheckpointsSetting: enableCheckpointsSetting ?? true,
 		platform,
 		environment,
@@ -187,4 +194,37 @@ export async function getStateToPostToWebview(controller: {
 		welcomeBanners,
 		openAiCodexIsAuthenticated,
 	} as ExtensionState
+}
+
+function hydrateApiConfigurationFromSdkSelection(
+	controller: { getProviderConfigStore?(): ProviderConfigStore },
+	config: ApiConfiguration,
+): ApiConfiguration {
+	const store = controller.getProviderConfigStore?.()
+	if (!store) {
+		return config
+	}
+
+	const next: ApiConfiguration = { ...config }
+	for (const mode of ["plan", "act"] as const) {
+		const provider = mode === "plan" ? next.planModeApiProvider : next.actModeApiProvider
+		if (!provider) {
+			continue
+		}
+
+		const supportedProvider = toVscodeSupportedProvider(provider)
+		const selection = store.readSelection(parseProviderId(supportedProvider), mode)
+		if (!selection?.modelId) {
+			continue
+		}
+
+		const modelKey = getProviderModelIdKey(supportedProvider as ApiProvider, mode)
+		setApiConfigurationString(next, modelKey, selection.modelId)
+	}
+
+	return next
+}
+
+function setApiConfigurationString(config: ApiConfiguration, key: SettingsKey, value: string): void {
+	;(config as Partial<Record<SettingsKey, string>>)[key] = value
 }

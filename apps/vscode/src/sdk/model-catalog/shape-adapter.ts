@@ -15,6 +15,9 @@
  *   capabilities?: string[],     // e.g. ["tools", "reasoning", "prompt-cache", "images"]
  *   pricing?: { input?, output?, cacheRead?, cacheWrite? },
  *   description?: string,
+ *   apiFormat?: "default" | "openai-responses" | "r1",
+ *   temperature?: number,
+ *   thinkingConfig?: object,
  *   releaseDate?: string,        // not mapped — see "Unmapped SDK fields" below
  *   family?: string,             // not mapped
  *   status?: string,             // not mapped
@@ -37,19 +40,23 @@
  * | cacheReadsPrice | `sdk.pricing.cacheRead` if finite number | omitted (undefined) |
  * | cacheWritesPrice | `sdk.pricing.cacheWrite` if finite number | omitted (undefined) |
  * | description | `sdk.description` if string | omitted (undefined) |
+ * | apiFormat | SDK `apiFormat` mapped to extension enum | omitted for `default`/missing |
+ * | temperature | `sdk.temperature` if finite number | omitted (undefined) |
+ * | thinkingConfig | `sdk.thinkingConfig` if object | omitted (undefined) |
+ * | metadata | `sdk.metadata` if object | omitted (undefined) |
  *
  * Unmapped SDK fields intentionally dropped here: `releaseDate`, `family`,
  * `status`, and capabilities other than `images`/`vision`/`prompt-cache`/
  * `reasoning` (for example `tools`, `streaming`, `structured_output`,
  * `temperature`).
  *
- * Extension-only fields not populated by this adapter: `thinkingConfig`,
- * `tiers`, `temperature`, `apiFormat`, `supportsGlobalEndpoint`, and local
- * provider loaded-context overrides. Those require host enrichment or upstream
- * SDK metadata rather than adapter guesses.
+ * Extension-only fields not populated by this adapter: `tiers`,
+ * `supportsGlobalEndpoint`, and local provider loaded-context overrides.
+ * Those require host enrichment or upstream SDK metadata rather than adapter guesses.
  */
 
 import { type ModelInfo, openAiModelInfoSafeDefaults } from "@shared/api"
+import { ApiFormat } from "@shared/proto/cline/models"
 
 /**
  * Typed error thrown when SDK model-info shape validation fails. The catalog
@@ -136,6 +143,21 @@ function readPricing(value: unknown): NormalizedPricing | undefined {
 	return result
 }
 
+function readApiFormat(value: unknown): ApiFormat | undefined {
+	if (value === undefined || value === "default") {
+		return undefined
+	}
+	if (value === "openai-responses") {
+		return ApiFormat.OPENAI_RESPONSES
+	}
+	if (value === "r1") {
+		return ApiFormat.R1_CHAT
+	}
+	throw new CatalogShapeError("SDK model-info `apiFormat` must be `default`, `openai-responses`, or `r1` when present.", {
+		details: { receivedValue: value },
+	})
+}
+
 /**
  * Adapt an SDK model-info shape into the extension's {@link ModelInfo} shape.
  *
@@ -190,6 +212,19 @@ export function adaptSdkModelInfo(input: unknown): ModelInfo {
 
 	const capabilities = readStringArray(input.capabilities)
 	const pricing = readPricing(input.pricing)
+	const apiFormat = readApiFormat(input.apiFormat)
+	const rawTemperature = input.temperature
+	if (rawTemperature !== undefined && !isFiniteNumber(rawTemperature)) {
+		throw new CatalogShapeError("SDK model-info `temperature` must be a finite number when present.", {
+			details: { receivedType: typeof rawTemperature },
+		})
+	}
+	const thinkingConfig = input.thinkingConfig
+	if (thinkingConfig !== undefined && !isPlainObject(thinkingConfig)) {
+		throw new CatalogShapeError("SDK model-info `thinkingConfig` must be an object when present.", {
+			details: { receivedType: typeof thinkingConfig },
+		})
+	}
 
 	const result: ModelInfo = {
 		name: rawName ?? id,
@@ -219,6 +254,23 @@ export function adaptSdkModelInfo(input: unknown): ModelInfo {
 	}
 	if (rawDescription !== undefined) {
 		result.description = rawDescription
+	}
+	if (apiFormat !== undefined) {
+		result.apiFormat = apiFormat
+	}
+	if (rawTemperature !== undefined) {
+		result.temperature = rawTemperature
+	}
+	if (thinkingConfig !== undefined) {
+		result.thinkingConfig = { ...thinkingConfig }
+	}
+	if (input.metadata !== undefined) {
+		if (!isPlainObject(input.metadata)) {
+			throw new CatalogShapeError("SDK model-info `metadata` must be an object when present.", {
+				details: { receivedType: typeof input.metadata },
+			})
+		}
+		;(result as ModelInfo & { metadata?: Record<string, unknown> }).metadata = { ...input.metadata }
 	}
 
 	return result

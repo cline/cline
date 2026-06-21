@@ -1106,6 +1106,42 @@ describe("listLocalProviders", () => {
 		expect(providers.map((p) => p.id)).toContain("cline-pass");
 	});
 
+	it("classifies auth method from the core provider auth contract", async () => {
+		const { providers } = await listLocalProviders(manager, {
+			isClinePassEnabled: true,
+		});
+
+		expect(providers.find((p) => p.id === "cline")?.authMethod).toBe("oauth");
+		expect(providers.find((p) => p.id === "cline-pass")?.authMethod).toBe(
+			"oauth",
+		);
+		expect(providers.find((p) => p.id === "oca")?.authMethod).toBe("oauth");
+		expect(providers.find((p) => p.id === "openai-codex")?.authMethod).toBe(
+			"oauth",
+		);
+		expect(providers.find((p) => p.id === "openai-codex-cli")?.authMethod).toBe(
+			"local",
+		);
+		expect(providers.find((p) => p.id === "opencode")?.capabilities).toContain(
+			"oauth",
+		);
+		expect(providers.find((p) => p.id === "opencode")?.authMethod).toBe(
+			"api-key",
+		);
+	});
+
+	it("surfaces top-level SDK provider config fields", async () => {
+		const { providers } = await listLocalProviders(manager);
+		const bedrock = providers.find((provider) => provider.id === "bedrock");
+
+		expect(bedrock?.configFields).toContainEqual(
+			expect.objectContaining({
+				path: "aws.customModelBaseId",
+				label: "Base Inference Model",
+			}),
+		);
+	});
+
 	it("marks enabled providers correctly", async () => {
 		await addLocalProvider(manager, {
 			providerId: "enabled-check-provider",

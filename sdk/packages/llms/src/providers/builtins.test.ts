@@ -96,6 +96,26 @@ describe("built-in provider metadata", () => {
 		});
 	});
 
+	it("exposes only runtime-supported OpenAI-compatible and secret SAP config fields", async () => {
+		const openAiCompatible = BUILTIN_SPECS.find(
+			(spec) => spec.id === "openai-compatible",
+		);
+		const sapAiCore = BUILTIN_SPECS.find((spec) => spec.id === "sapaicore");
+
+		expect(openAiCompatible?.configFields?.map((field) => field.path)).toEqual([
+			"apiKey",
+			"baseUrl",
+			"azure.apiVersion",
+			"headers",
+		]);
+		expect(
+			sapAiCore?.configFields?.find((field) => field.path === "sap.clientId"),
+		).toMatchObject({
+			type: "password",
+			secret: true,
+		});
+	});
+
 	it("derives ChatGPT subscription models from the generated OpenAI catalog", async () => {
 		const chatGptModels = await getModelsForProvider("openai-codex");
 		const openAiModels = await getModelsForProvider("openai-native");

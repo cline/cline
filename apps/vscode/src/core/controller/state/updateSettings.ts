@@ -1,7 +1,6 @@
 import { Empty } from "@shared/proto/cline/common"
 import { PlanActMode, McpDisplayMode as ProtoMcpDisplayMode, UpdateSettingsRequest } from "@shared/proto/cline/state"
-import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion"
-import { OpenaiReasoningEffort } from "@shared/storage/types"
+import { convertProtoToApiConfiguration } from "@shared/proto-conversions/models/api-configuration-conversion"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { ClineEnv } from "@/config"
 import { fetchRemoteConfig } from "@/core/storage/remote-config/fetch"
@@ -13,6 +12,7 @@ import { BrowserSettings as SharedBrowserSettings } from "../../../shared/Browse
 import { Controller } from ".."
 import { accountLogoutClicked } from "../account/accountLogoutClicked"
 import { normalizeProviderSwitchModel } from "../models/providerSwitchNormalization"
+import { mirrorPlanActApiConfiguration } from "../models/sharedModeConfiguration"
 import { createTaskApiModelShim, resolveActiveModelIdFromApiConfiguration } from "../models/taskApiModel"
 
 /**
@@ -31,18 +31,9 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 		if (request.apiConfiguration) {
 			const protoApiConfiguration = request.apiConfiguration
 
-			const convertedApiConfigurationFromProto = {
-				...protoApiConfiguration,
-				// Convert proto ApiProvider enums to native string types
-				planModeApiProvider: protoApiConfiguration.planModeApiProvider
-					? convertProtoToApiProvider(protoApiConfiguration.planModeApiProvider)
-					: undefined,
-				actModeApiProvider: protoApiConfiguration.actModeApiProvider
-					? convertProtoToApiProvider(protoApiConfiguration.actModeApiProvider)
-					: undefined,
-				planModeReasoningEffort: protoApiConfiguration.planModeReasoningEffort as OpenaiReasoningEffort | undefined,
-				actModeReasoningEffort: protoApiConfiguration.actModeReasoningEffort as OpenaiReasoningEffort | undefined,
-			}
+			const convertedApiConfigurationFromProto = mirrorPlanActApiConfiguration(
+				convertProtoToApiConfiguration(protoApiConfiguration),
+			)
 
 			const previousApiConfiguration = controller.stateManager.getApiConfiguration()
 			const normalizedApiConfiguration = normalizeProviderSwitchModel(
@@ -66,9 +57,8 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			await controller.updateTelemetrySetting(request.telemetrySetting as TelemetrySetting)
 		}
 
-		// Update plan/act separate models setting
 		if (request.planActSeparateModelsSetting !== undefined) {
-			controller.stateManager.setGlobalState("planActSeparateModelsSetting", request.planActSeparateModelsSetting)
+			controller.stateManager.setGlobalState("planActSeparateModelsSetting", false)
 		}
 
 		// Update checkpoints setting

@@ -94,7 +94,8 @@ async function handleComputedProperties(result: any, stateValues: Map<string, an
 	result.planModeApiProvider = result.planModeApiProvider || defaultApiProvider
 	result.actModeApiProvider = result.actModeApiProvider || defaultApiProvider
 
-	// 2. Plan/Act separate models setting with special logic
+	// 2. Legacy separate-models flag. New SDK-native settings force this false,
+	// but old installs may still have a stored value until normalization runs.
 	const planActSeparateModelsSettingRaw = stateValues.get("planActSeparateModelsSetting")
 	if (planActSeparateModelsSettingRaw === true || planActSeparateModelsSettingRaw === false) {
 		result.planActSeparateModelsSetting = planActSeparateModelsSettingRaw

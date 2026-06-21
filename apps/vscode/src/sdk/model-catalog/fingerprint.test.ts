@@ -112,6 +112,12 @@ describe("computeConfigFingerprint", () => {
 		)
 	})
 
+	it("changes when Azure OpenAI-compatible settings change", () => {
+		expect(computeConfigFingerprint(providerId, makeConfig({ azure: { apiVersion: "2025-01-01-preview" } }))).not.toBe(
+			computeConfigFingerprint(providerId, makeConfig({ azure: { apiVersion: "2024-02-15-preview" } })),
+		)
+	})
+
 	it("does not include raw secret sentinel values in the returned fingerprint", () => {
 		const fingerprint = computeConfigFingerprint(
 			providerId,

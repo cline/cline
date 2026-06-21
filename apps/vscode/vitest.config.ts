@@ -10,19 +10,25 @@ export default defineConfig({
 			"src/sdk/**/*.test.ts",
 			"src/shared/vsCodeSelectorUtils.test.ts",
 			"src/core/storage/remote-config/**/*.test.ts",
+			"src/shared/model-catalog/remote-config-locks.test.ts",
 			"src/services/mcp/__tests__/settingsLock.test.ts",
 			"src/shared/model-catalog/provider-helpers.test.ts",
+			"src/core/controller/state/__tests__/updateSettings.test.ts",
 			"src/core/controller/models/__tests__/providerCatalogHandlers.test.ts",
+			"src/core/controller/models/__tests__/sharedModeConfiguration.test.ts",
+			"src/core/controller/models/__tests__/updateApiConfiguration.test.ts",
 			"src/core/controller/models/__tests__/providerSwitchNormalization.test.ts",
 			"src/core/controller/models/__tests__/resolveModelInfo.test.ts",
 			"src/core/controller/models/__tests__/providerCatalogSmoke.test.ts",
 			"src/core/controller/models/__tests__/refreshClineRecommendedModels.test.ts",
+			"src/core/controller/models/__tests__/updateApiConfigurationProto.test.ts",
 		],
 		environment: "node",
 		// Some matched files are intentionally-empty placeholders that point to
 		// where the real suite lives (e.g. sdk-control-plane.test.ts), so an
 		// empty file should not fail the run.
 		passWithNoTests: true,
+		fileParallelism: false,
 	},
 	resolve: {
 		alias: {

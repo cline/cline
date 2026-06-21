@@ -106,6 +106,15 @@ function sanitizeGcp(config: EffectiveProviderConfig["gcp"]): Readonly<Record<st
 	}
 }
 
+function sanitizeAzure(config: EffectiveProviderConfig["azure"]): Readonly<Record<string, unknown>> | null {
+	if (!config) {
+		return null
+	}
+	return {
+		apiVersion: config.apiVersion ?? null,
+	}
+}
+
 function sanitizeAws(config: EffectiveProviderConfig["aws"]): Readonly<Record<string, unknown>> | null {
 	if (!config) {
 		return null
@@ -114,6 +123,7 @@ function sanitizeAws(config: EffectiveProviderConfig["aws"]): Readonly<Record<st
 		accessKey: shortSecretHash(config.accessKey),
 		secretKey: shortSecretHash(config.secretKey),
 		sessionToken: shortSecretHash(config.sessionToken),
+		region: config.region ?? null,
 		authentication: config.authentication ?? null,
 		profile: config.profile ?? null,
 		usePromptCache: config.usePromptCache ?? null,
@@ -121,6 +131,32 @@ function sanitizeAws(config: EffectiveProviderConfig["aws"]): Readonly<Record<st
 		customModelBaseId: config.customModelBaseId ?? null,
 		useCrossRegionInference: config.useCrossRegionInference ?? null,
 		useGlobalInference: config.useGlobalInference ?? null,
+	}
+}
+
+function sanitizeSap(config: EffectiveProviderConfig["sap"]): Readonly<Record<string, unknown>> | null {
+	if (!config) {
+		return null
+	}
+	return {
+		clientId: shortSecretHash(config.clientId),
+		clientSecret: shortSecretHash(config.clientSecret),
+		tokenUrl: config.tokenUrl ?? null,
+		resourceGroup: config.resourceGroup ?? null,
+		deploymentId: config.deploymentId ?? null,
+		useOrchestrationMode: config.useOrchestrationMode ?? null,
+		api: config.api ?? null,
+		defaultSettings: sanitizeExtras(config.defaultSettings),
+	}
+}
+
+function sanitizeOca(config: EffectiveProviderConfig["oca"]): Readonly<Record<string, unknown>> | null {
+	if (!config) {
+		return null
+	}
+	return {
+		mode: config.mode ?? null,
+		usePromptCache: config.usePromptCache ?? null,
 	}
 }
 
@@ -170,6 +206,9 @@ export function computeConfigFingerprint(providerId: ProviderId, config: Effecti
 		region: config.region ?? null,
 		aws: sanitizeAws(config.aws),
 		gcp: sanitizeGcp(config.gcp),
+		azure: sanitizeAzure(config.azure),
+		sap: sanitizeSap(config.sap),
+		oca: sanitizeOca(config.oca),
 		extras: sanitizeExtras(config.extras),
 		auth: {
 			accountId: config.auth?.accountId ?? null,

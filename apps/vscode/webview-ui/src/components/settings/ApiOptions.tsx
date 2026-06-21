@@ -1,10 +1,10 @@
-import { StringRequest } from "@shared/proto/cline/common"
-import PROVIDERS from "@shared/providers/providers.json"
+import type { ApiConfiguration } from "@shared/api"
+import { toLegacyApiProvider, toVscodeSupportedProvider } from "@shared/model-catalog/provider-helpers"
+import { getRemoteLockedProviderFieldPaths } from "@shared/model-catalog/remote-config-locks"
 import { Mode } from "@shared/storage/types"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
-import { KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useInterval } from "react-use"
+import { KeyboardEvent, useEffect, useMemo, useRef, useState } from "react"
 import styled from "styled-components"
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -13,40 +13,12 @@ import { CLINE_PASS_FEATURE_FLAG } from "@/constants/featureFlags"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useHasFeatureFlag } from "@/hooks/useFeatureFlag"
 import { useProviderListings } from "@/hooks/useProviderListings"
-import { ModelsServiceClient } from "@/services/grpc-client"
-import { OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
-import { AIhubmixProvider } from "./providers/AihubmixProvider"
-import { AnthropicProvider } from "./providers/AnthropicProvider"
-import { AskSageProvider } from "./providers/AskSageProvider"
-import { BasetenProvider } from "./providers/BasetenProvider"
-import { BedrockProvider } from "./providers/BedrockProvider"
-import { ClaudeCodeProvider } from "./providers/ClaudeCodeProvider"
 import { ClinePassProvider } from "./providers/ClinePassProvider"
 import { ClineProvider } from "./providers/ClineProvider"
-import { DifyProvider } from "./providers/DifyProvider"
 import { GenericProviderSettings } from "./providers/GenericProviderSettings"
-import { GroqProvider } from "./providers/GroqProvider"
-import { HicapProvider } from "./providers/HicapProvider"
-import { HuggingFaceProvider } from "./providers/HuggingFaceProvider"
-import { LiteLlmProvider } from "./providers/LiteLlmProvider"
-import { LMStudioProvider } from "./providers/LMStudioProvider"
-import { MoonshotProvider } from "./providers/MoonshotProvider"
 import { OcaProvider } from "./providers/OcaProvider"
-import { OllamaProvider } from "./providers/OllamaProvider"
-import { OpenAICompatibleProvider } from "./providers/OpenAICompatible"
-import { OpenAINativeProvider } from "./providers/OpenAINative"
 import { OpenAiCodexProvider } from "./providers/OpenAiCodexProvider"
-import { OpenRouterProvider } from "./providers/OpenRouterProvider"
-import { getFallbackGenericProviderSettings, getGenericProviderSettings } from "./providers/providerSettingsRegistry"
-import { QwenCodeProvider } from "./providers/QwenCodeProvider"
-import { QwenProvider } from "./providers/QwenProvider"
-import { RequestyProvider } from "./providers/RequestyProvider"
-import { SapAiCoreProvider } from "./providers/SapAiCoreProvider"
-import { VercelAIGatewayProvider } from "./providers/VercelAIGatewayProvider"
-import { VertexProvider } from "./providers/VertexProvider"
 import { VSCodeLmProvider } from "./providers/VSCodeLmProvider"
-import { XaiProvider } from "./providers/XaiProvider"
-import { ZAiProvider } from "./providers/ZAiProvider"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
 interface ApiOptionsProps {
@@ -58,8 +30,8 @@ interface ApiOptionsProps {
 	initialModelTab?: "recommended" | "free"
 }
 
-// This is necessary to ensure dropdown opens downward, important for when this is used in popup
-export const DROPDOWN_Z_INDEX = OPENROUTER_MODEL_PICKER_Z_INDEX + 2 // Higher than the OpenRouterModelPicker's and ModelSelectorTooltip's z-index
+// This is necessary to ensure dropdown opens downward, important for when this is used in popup.
+export const DROPDOWN_Z_INDEX = 1_002
 
 export const DropdownContainer = styled.div<{ zIndex?: number }>`
 	position: relative;
@@ -97,44 +69,35 @@ const ApiOptions = ({
 	const selectedProviderRaw =
 		(currentMode === "plan" ? apiConfiguration?.planModeApiProvider : apiConfiguration?.actModeApiProvider) || "anthropic"
 	// Fall back from cline-pass to cline when the feature flag is off.
-	const selectedProvider = selectedProviderRaw === "cline-pass" && !isClinePassEnabled ? "cline" : selectedProviderRaw
+	const selectedProvider =
+		selectedProviderRaw === "cline-pass" && !isClinePassEnabled ? "cline" : toVscodeSupportedProvider(selectedProviderRaw)
 	const { providers: catalogProviderListings } = useProviderListings()
 	const catalogProviderListing = useMemo(
-		() => catalogProviderListings.find((provider) => provider.id === selectedProvider),
+		() =>
+			catalogProviderListings.find(
+				(provider) => provider.id === selectedProvider || toLegacyApiProvider(provider.id) === selectedProvider,
+			),
 		[catalogProviderListings, selectedProvider],
 	)
-	const genericProviderSettings =
-		getGenericProviderSettings(selectedProvider, catalogProviderListing) ??
-		getFallbackGenericProviderSettings(selectedProvider)
+	const configValuesJson = useMemo(
+		() =>
+			catalogProviderListing
+				? withModeSpecificConfigValues(
+						catalogProviderListing.id,
+						catalogProviderListing.configValuesJson,
+						apiConfiguration,
+						currentMode,
+					)
+				: undefined,
+		[catalogProviderListing, apiConfiguration, currentMode],
+	)
+	const lockedFieldPaths = useMemo(
+		() =>
+			catalogProviderListing ? [...getRemoteLockedProviderFieldPaths(remoteConfigSettings, catalogProviderListing.id)] : [],
+		[catalogProviderListing, remoteConfigSettings],
+	)
 
 	const { handleModeFieldChange } = useApiConfigurationHandlers()
-
-	const [_ollamaModels, setOllamaModels] = useState<string[]>([])
-
-	// Poll ollama/vscode-lm models
-	const requestLocalModels = useCallback(async () => {
-		if (selectedProvider === "ollama") {
-			try {
-				const response = await ModelsServiceClient.getOllamaModels(
-					StringRequest.create({
-						value: apiConfiguration?.ollamaBaseUrl || "",
-					}),
-				)
-				if (response && response.values) {
-					setOllamaModels(response.values)
-				}
-			} catch (error) {
-				console.error("Failed to fetch Ollama models:", error)
-				setOllamaModels([])
-			}
-		}
-	}, [selectedProvider, apiConfiguration?.ollamaBaseUrl])
-	useEffect(() => {
-		if (selectedProvider === "ollama") {
-			requestLocalModels()
-		}
-	}, [selectedProvider, requestLocalModels])
-	useInterval(requestLocalModels, selectedProvider === "ollama" ? 2000 : null)
 
 	// Provider search state
 	const [searchTerm, setSearchTerm] = useState("")
@@ -145,7 +108,18 @@ const ApiOptions = ({
 	const dropdownListRef = useRef<HTMLDivElement>(null)
 
 	const providerOptions = useMemo(() => {
-		let providers = PROVIDERS.list
+		let providers = catalogProviderListings.map((provider) => ({
+			sdkId: provider.id,
+			value: toLegacyApiProvider(provider.id),
+			label: `${provider.name}${provider.authMethod === "oauth" ? " (OAuth)" : ""}`,
+		}))
+		if (PLATFORM_CONFIG.type === PlatformType.VSCODE && !providers.some((option) => option.value === "vscode-lm")) {
+			providers.push({
+				sdkId: "vscode-lm",
+				value: "vscode-lm",
+				label: "GitHub Copilot",
+			})
+		}
 		if (!isClinePassEnabled) {
 			providers = providers.filter((option) => option.value !== "cline-pass")
 		}
@@ -158,14 +132,19 @@ const ApiOptions = ({
 		// Filter by remote config if remoteConfiguredProviders is set
 		const remoteProviders: string[] = remoteConfigSettings?.remoteConfiguredProviders || []
 		if (remoteProviders.length > 0) {
-			providers = providers.filter((option) => remoteProviders.includes(option.value))
+			providers = providers.filter(
+				(option) => remoteProviders.includes(option.value) || remoteProviders.includes(option.sdkId),
+			)
 		}
 
 		return providers
-	}, [isClinePassEnabled, remoteConfigSettings])
+	}, [catalogProviderListings, isClinePassEnabled, remoteConfigSettings])
 
 	const currentProviderLabel = useMemo(() => {
-		return providerOptions.find((option) => option.value === selectedProvider)?.label || selectedProvider
+		return (
+			providerOptions.find((option) => option.value === selectedProvider || option.sdkId === selectedProvider)?.label ||
+			selectedProvider
+		)
 	}, [providerOptions, selectedProvider])
 
 	// Sync search term with current provider when not searching
@@ -363,10 +342,6 @@ const ApiOptions = ({
 				</ProviderDropdownWrapper>
 			</DropdownContainer>
 
-			{apiConfiguration && selectedProvider === "hicap" && (
-				<HicapProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
 			{apiConfiguration && selectedProvider === "cline" && (
 				<ClineProvider
 					currentMode={currentMode}
@@ -380,116 +355,40 @@ const ApiOptions = ({
 				<ClinePassProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
-			{apiConfiguration && selectedProvider === "asksage" && (
-				<AskSageProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "anthropic" && (
-				<AnthropicProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "claude-code" && (
-				<ClaudeCodeProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "openai-native" && (
-				<OpenAINativeProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
 			{apiConfiguration && selectedProvider === "openai-codex" && (
 				<OpenAiCodexProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
-			{apiConfiguration && selectedProvider === "qwen" && (
-				<QwenProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
+			{apiConfiguration && selectedProvider === "vscode-lm" && <VSCodeLmProvider currentMode={currentMode} />}
 
-			{apiConfiguration && selectedProvider === "qwen-code" && (
-				<QwenCodeProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "openrouter" && (
-				<OpenRouterProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && genericProviderSettings && (
-				<GenericProviderSettings
-					{...genericProviderSettings}
+			{apiConfiguration && selectedProvider === "oca" && (
+				<OcaProvider
+					configFields={catalogProviderListing?.configFields?.filter(
+						(field) => field.path !== "oca.mode" && field.path !== "apiKey",
+					)}
+					configValuesJson={configValuesJson}
 					currentMode={currentMode}
 					isPopup={isPopup}
-					showModelOptions={showModelOptions}
+					lockedFieldPaths={lockedFieldPaths}
 				/>
 			)}
 
-			{apiConfiguration && selectedProvider === "openai" && (
-				<OpenAICompatibleProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "vercel-ai-gateway" && !genericProviderSettings && (
-				<VercelAIGatewayProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "bedrock" && (
-				<BedrockProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "vertex" && (
-				<VertexProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "requesty" && (
-				<RequestyProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "vscode-lm" && <VSCodeLmProvider currentMode={currentMode} />}
-
-			{apiConfiguration && selectedProvider === "groq" && !genericProviderSettings && (
-				<GroqProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-			{apiConfiguration && selectedProvider === "baseten" && !genericProviderSettings && (
-				<BasetenProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-			{apiConfiguration && selectedProvider === "litellm" && (
-				<LiteLlmProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "lmstudio" && (
-				<LMStudioProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "ollama" && (
-				<OllamaProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "moonshot" && (
-				<MoonshotProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "huggingface" && !genericProviderSettings && (
-				<HuggingFaceProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "xai" && (
-				<XaiProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "sapaicore" && (
-				<SapAiCoreProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "dify" && (
-				<DifyProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "zai" && (
-				<ZAiProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && selectedProvider === "oca" && <OcaProvider currentMode={currentMode} isPopup={isPopup} />}
-
-			{apiConfiguration && selectedProvider === "aihubmix" && (
-				<AIhubmixProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
+			{apiConfiguration &&
+				catalogProviderListing &&
+				!["cline", "cline-pass", "openai-codex", "vscode-lm", "oca"].includes(selectedProvider) && (
+					<GenericProviderSettings
+						allowsCustomIds={catalogProviderListing.allowsCustomModelIds}
+						configFields={catalogProviderListing.configFields}
+						configValuesJson={configValuesJson}
+						currentMode={currentMode}
+						isPopup={isPopup}
+						key={catalogProviderListing.id}
+						lockedFieldPaths={lockedFieldPaths}
+						providerId={catalogProviderListing.id}
+						providerName={catalogProviderListing.name}
+						showModelOptions={showModelOptions}
+					/>
+				)}
 
 			{apiErrorMessage && (
 				<p
@@ -516,6 +415,47 @@ const ApiOptions = ({
 }
 
 export default ApiOptions
+
+function readModeString(
+	apiConfiguration: Partial<ApiConfiguration> | undefined,
+	currentMode: Mode,
+	keys: { readonly plan: keyof ApiConfiguration; readonly act: keyof ApiConfiguration },
+): string | undefined {
+	const value = apiConfiguration?.[currentMode === "plan" ? keys.plan : keys.act]
+	return typeof value === "string" && value.length > 0 ? value : undefined
+}
+
+function withModeSpecificConfigValues(
+	providerId: string,
+	configValuesJson: Record<string, string> | undefined,
+	apiConfiguration: Partial<ApiConfiguration> | undefined,
+	currentMode: Mode,
+): Record<string, string> | undefined {
+	const provider = toLegacyApiProvider(providerId)
+	const next = { ...(configValuesJson ?? {}) }
+
+	if (provider === "bedrock") {
+		const customModelBaseId = readModeString(apiConfiguration, currentMode, {
+			plan: "planModeAwsBedrockCustomModelBaseId",
+			act: "actModeAwsBedrockCustomModelBaseId",
+		})
+		if (customModelBaseId) {
+			next["aws.customModelBaseId"] = JSON.stringify(customModelBaseId)
+		}
+	}
+
+	if (provider === "sapaicore") {
+		const deploymentId = readModeString(apiConfiguration, currentMode, {
+			plan: "planModeSapAiCoreDeploymentId",
+			act: "actModeSapAiCoreDeploymentId",
+		})
+		if (deploymentId) {
+			next["sap.deploymentId"] = JSON.stringify(deploymentId)
+		}
+	}
+
+	return Object.keys(next).length > 0 ? next : undefined
+}
 
 const ProviderDropdownWrapper = styled.div`
 	position: relative;

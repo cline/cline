@@ -114,58 +114,38 @@ export async function refreshOcaModels(controller: Controller, request: StringRe
 
 			// Fetch current config to determine existing model selections
 			const apiConfiguration = controller.stateManager.getApiConfiguration()
-			const planActSeparateModelsSetting = controller.stateManager.getGlobalSettingsKey("planActSeparateModelsSetting")
 			const currentMode = controller.stateManager.getGlobalSettingsKey("mode")
 
-			const planModeSelectedModelId: string =
-				apiConfiguration?.planModeOcaModelId && models[apiConfiguration.planModeOcaModelId]
-					? apiConfiguration.planModeOcaModelId
-					: defaultModelId
-			const actModeSelectedModelId: string =
-				apiConfiguration?.actModeOcaModelId && models[apiConfiguration.actModeOcaModelId]
-					? apiConfiguration.actModeOcaModelId
-					: defaultModelId
+			const preferredModelId =
+				currentMode === "plan" ? apiConfiguration?.planModeOcaModelId : apiConfiguration?.actModeOcaModelId
+			const fallbackModelId =
+				currentMode === "plan" ? apiConfiguration?.actModeOcaModelId : apiConfiguration?.planModeOcaModelId
+			const selectedModelId: string =
+				(preferredModelId && models[preferredModelId] ? preferredModelId : undefined) ??
+				(fallbackModelId && models[fallbackModelId] ? fallbackModelId : undefined) ??
+				defaultModelId
 
-			let planModeOcaReasoningEffort: string | undefined
-			let actModeOcaReasoningEffort: string | undefined
-			if (
-				models[planModeSelectedModelId].supportsReasoning &&
-				models[planModeSelectedModelId].reasoningEffortOptions.length > 0
-			) {
-				planModeOcaReasoningEffort = apiConfiguration.planModeOcaReasoningEffort
-					? apiConfiguration.planModeOcaReasoningEffort
-					: models[planModeSelectedModelId].reasoningEffortOptions[0]
-			}
-			if (
-				models[actModeSelectedModelId].supportsReasoning &&
-				models[actModeSelectedModelId].reasoningEffortOptions.length > 0
-			) {
-				actModeOcaReasoningEffort = apiConfiguration.actModeOcaReasoningEffort
-					? apiConfiguration.actModeOcaReasoningEffort
-					: models[actModeSelectedModelId].reasoningEffortOptions[0]
+			let reasoningEffort: string | undefined
+			if (models[selectedModelId].supportsReasoning && models[selectedModelId].reasoningEffortOptions.length > 0) {
+				const preferredReasoningEffort =
+					currentMode === "plan"
+						? apiConfiguration.planModeOcaReasoningEffort
+						: apiConfiguration.actModeOcaReasoningEffort
+				const fallbackReasoningEffort =
+					currentMode === "plan"
+						? apiConfiguration.actModeOcaReasoningEffort
+						: apiConfiguration.planModeOcaReasoningEffort
+				reasoningEffort =
+					preferredReasoningEffort ?? fallbackReasoningEffort ?? models[selectedModelId].reasoningEffortOptions[0]
 			}
 
-			// Build updates object based on plan/act mode setting
 			const updates: Partial<GlobalStateAndSettings> = {}
-
-			if (planActSeparateModelsSetting) {
-				if (currentMode === "plan") {
-					updates.planModeOcaModelId = planModeSelectedModelId
-					updates.planModeOcaModelInfo = models[planModeSelectedModelId]
-					updates.planModeOcaReasoningEffort = planModeOcaReasoningEffort
-				} else {
-					updates.actModeOcaModelId = actModeSelectedModelId
-					updates.actModeOcaModelInfo = models[actModeSelectedModelId]
-					updates.actModeOcaReasoningEffort = actModeOcaReasoningEffort
-				}
-			} else {
-				updates.planModeOcaModelId = planModeSelectedModelId
-				updates.planModeOcaModelInfo = models[planModeSelectedModelId]
-				updates.planModeOcaReasoningEffort = planModeOcaReasoningEffort
-				updates.actModeOcaModelId = actModeSelectedModelId
-				updates.actModeOcaModelInfo = models[actModeSelectedModelId]
-				updates.actModeOcaReasoningEffort = actModeOcaReasoningEffort
-			}
+			updates.planModeOcaModelId = selectedModelId
+			updates.planModeOcaModelInfo = models[selectedModelId]
+			updates.planModeOcaReasoningEffort = reasoningEffort
+			updates.actModeOcaModelId = selectedModelId
+			updates.actModeOcaModelInfo = models[selectedModelId]
+			updates.actModeOcaReasoningEffort = reasoningEffort
 
 			// Update state directly using batch method
 			controller.stateManager.setGlobalStateBatch(updates)

@@ -134,6 +134,27 @@ export class ProviderSettingsManager {
 		return this.state.providers[providerId]
 	}
 
+	getProviderConfig(providerId: string, _options?: unknown): Record<string, unknown> | undefined {
+		const settings = this.getProviderSettings(providerId)
+		if (!settings) {
+			return undefined
+		}
+		return {
+			providerId: settings.provider ?? providerId,
+			modelId: settings.model ?? "default",
+			apiKey: resolveProviderApiKeyFromSettings(this, providerId),
+			baseUrl: settings.baseUrl,
+			region: settings.region,
+			aws: settings.aws,
+			gcp: settings.gcp,
+			azure: settings.azure,
+			sap: settings.sap,
+			oca: settings.oca,
+			headers: settings.headers,
+			reasoning: settings.reasoning,
+		}
+	}
+
 	getLastUsedProviderSettings(): Record<string, unknown> | undefined {
 		return this.state.lastUsedProvider ? this.state.providers[this.state.lastUsedProvider] : undefined
 	}

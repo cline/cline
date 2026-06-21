@@ -135,6 +135,8 @@ message ProviderListing {
   optional string default_model_id = 3;
   optional string family = 4;
   optional string protocol = 5;
+  // SDK/core-owned auth classification. Values: "api-key", "oauth", "local".
+  optional string auth_method = 17;
   optional string auth_description = 6;
   optional string base_url_description = 7;
   bool allows_custom_model_ids = 8;
@@ -144,6 +146,26 @@ message ProviderListing {
   // `@cline/llms`. When "hide", consumers must suppress per-token pricing
   // and total cost displays (matches the CLI's `shouldShowCliUsageCost`).
   string usage_cost_display = 11;
+  repeated ProviderConfigField config_fields = 15;
+  map<string, string> config_values_json = 16;
+}
+
+message ProviderConfigFieldOption {
+  string label = 1;
+  string value = 2;
+  optional string value_json = 3;
+}
+
+message ProviderConfigField {
+  string path = 1;
+  string label = 2;
+  string type = 3;
+  optional string placeholder = 4;
+  optional string description = 5;
+  bool secret = 6;
+  bool required = 7;
+  repeated ProviderConfigFieldOption options = 8;
+  optional string default_value_json = 9;
 }
 
 message ProviderListingsResponse {
@@ -249,6 +271,11 @@ message WriteProviderConfigPatch {
   optional bool clear_headers = 10;
   optional AwsProviderConfig aws = 11;
   optional GcpProviderConfig gcp = 12;
+  // Generic SDK/core provider settings patch, encoded as JSON object and
+  // merged by the provider settings service. This lets the webview render and
+  // persist SDK-provided config field paths without hardcoding provider shapes
+  // into the proto.
+  optional string settings_json = 13;
 }
 
 message WriteProviderConfigRequest {
@@ -398,6 +425,7 @@ message ModelsApiOptions {
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;
+  optional string plan_mode_api_provider_id = 190;
   optional string plan_mode_api_model_id = 101;
   optional int64 plan_mode_thinking_budget_tokens = 102;
   optional string plan_mode_reasoning_effort = 103;
@@ -439,6 +467,7 @@ message ModelsApiOptions {
 
   // Act mode configurations
   optional ApiProvider act_mode_api_provider = 200;
+  optional string act_mode_api_provider_id = 290;
   optional string act_mode_api_model_id = 201;
   optional int64 act_mode_thinking_budget_tokens = 202;
   optional string act_mode_reasoning_effort = 203;
@@ -755,6 +784,7 @@ message ModelsApiConfiguration {
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;
+  optional string plan_mode_api_provider_id = 190;
   optional string plan_mode_api_model_id = 101;
   optional int64 plan_mode_thinking_budget_tokens = 102;
   optional string plan_mode_reasoning_effort = 103;
@@ -801,6 +831,7 @@ message ModelsApiConfiguration {
 
   // Act mode configurations
   optional ApiProvider act_mode_api_provider = 200;
+  optional string act_mode_api_provider_id = 290;
   optional string act_mode_api_model_id = 201;
   optional int64 act_mode_thinking_budget_tokens = 202;
   optional string act_mode_reasoning_effort = 203;

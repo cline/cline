@@ -18,6 +18,8 @@ import {
 	CommittedModelSelection,
 	GcpProviderConfig,
 	OpenRouterModelInfo,
+	ProviderConfigFieldOption,
+	ProviderConfigField as ProviderConfigFieldProto,
 	ProviderConfigResponse,
 	ProviderListing as ProviderListingProto,
 	ProviderModelsResponse,
@@ -37,6 +39,7 @@ export interface ProviderCatalogStateController extends ProviderCatalogControlle
 		getApiConfiguration?(): ApiConfiguration
 	}
 	handleApiConfigurationChanged?(previous: ApiConfiguration, next: ApiConfiguration): void
+	postStateToWebview?(): Promise<void>
 }
 
 export function hasProviderCatalogStateController(
@@ -61,15 +64,59 @@ export function parseModeRequest(rawMode: string | undefined): Mode {
 	throw new Error('mode must be "plan" or "act"')
 }
 
+const SENSITIVE_HEADER_NAME_PATTERN = /(?:^|[-_])(authorization|cookie|api[-_]?key|token|secret|credential|session)(?:$|[-_])/i
+
+function isSensitiveHeaderName(name: string): boolean {
+	return SENSITIVE_HEADER_NAME_PATTERN.test(name)
+}
+
+function redactHeaders(headers: Readonly<Record<string, string>> | undefined): Record<string, string> {
+	if (!headers) {
+		return {}
+	}
+	return Object.fromEntries(Object.entries(headers).map(([name, value]) => [name, isSensitiveHeaderName(name) ? "" : value]))
+}
+
 export function toProviderListingProto(listing: ProviderListing): ProviderListingProto {
+	const secretFieldPaths = new Set(listing.configFields?.filter((field) => field.secret).map((field) => field.path) ?? [])
 	return ProviderListingProto.create({
 		id: listing.id,
 		name: listing.name,
 		defaultModelId: listing.defaultModelId,
 		family: listing.family,
 		protocol: listing.protocol,
+		authMethod: listing.authMethod,
 		authDescription: listing.authDescription,
 		baseUrlDescription: listing.baseUrlDescription,
+		configFields: listing.configFields?.map((field) =>
+			ProviderConfigFieldProto.create({
+				path: field.path,
+				label: field.label,
+				type: field.type,
+				placeholder: field.placeholder,
+				description: field.description,
+				secret: field.secret ?? false,
+				required: field.required ?? false,
+				options: field.options?.map((option) =>
+					ProviderConfigFieldOption.create({
+						label: option.label,
+						value: String(option.value),
+						valueJson: JSON.stringify(option.value),
+					}),
+				),
+				defaultValueJson: field.defaultValue !== undefined ? JSON.stringify(field.defaultValue) : undefined,
+			}),
+		),
+		configValuesJson: Object.fromEntries(
+			Object.entries(listing.configValues ?? {})
+				.filter(([path]) => !secretFieldPaths.has(path))
+				.map(([path, value]) => [
+					path,
+					JSON.stringify(
+						path === "headers" && typeof value === "object" ? redactHeaders(value as Record<string, string>) : value,
+					),
+				]),
+		),
 		allowsCustomModelIds: listing.allowsCustomModelIds,
 		usageCostDisplay: listing.usageCostDisplay,
 	})
@@ -188,7 +235,7 @@ export function toRedactedProviderConfigResponse(
 		providerId: config.providerId,
 		baseUrl: config.baseUrl,
 		apiLine: config.apiLine,
-		headers: config.headers ?? {},
+		headers: redactHeaders(config.headers),
 		region: config.region,
 		apiKeyLength: config.apiKey?.length ?? 0,
 		hasAccessToken: Boolean(config.auth?.accessToken),

@@ -3,6 +3,7 @@ import type { Mode, ProviderConfigStore, ProviderId } from "@/sdk/model-catalog/
 import { parseProviderId } from "@/sdk/model-catalog/provider-id"
 import { toSdkProviderId } from "@/sdk/model-catalog/sdk-provider-id"
 import type { ApiConfiguration, ApiProvider } from "@/shared/api"
+import { isVscodeUnsupportedProvider } from "@/shared/model-catalog/provider-helpers"
 import { getProviderModelIdKey } from "@/shared/storage/provider-keys"
 
 type ProviderSwitchConfig = Partial<
@@ -67,8 +68,16 @@ export function normalizeProviderSwitchModel<T extends ProviderSwitchConfig>(
 
 	for (const [mode, fields] of Object.entries(modeFields) as [Mode, (typeof modeFields)[Mode]][]) {
 		const previousProvider = previous[fields.provider]
-		const nextProvider = (normalized[fields.provider] ?? previousProvider) as ApiProvider | undefined
+		const requestedProvider = (normalized[fields.provider] ?? previousProvider) as ApiProvider | undefined
+		if (!requestedProvider) {
+			continue
+		}
+
+		const nextProvider = requestedProvider
 		if (!nextProvider || nextProvider === previousProvider) {
+			continue
+		}
+		if (isVscodeUnsupportedProvider(nextProvider)) {
 			continue
 		}
 

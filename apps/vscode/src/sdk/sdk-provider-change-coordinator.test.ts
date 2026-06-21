@@ -83,6 +83,19 @@ describe("SdkProviderChangeCoordinator", () => {
 		await vi.waitFor(() => expect(options.sessions.replaceActiveSession).toHaveBeenCalledOnce())
 	})
 
+	it("restarts when current provider fields change through an SDK provider alias", async () => {
+		const activeSession = makeActiveSession()
+		const { coordinator, options } = makeCoordinator({
+			activeSession,
+			apiConfiguration: { actModeApiProvider: "openai" },
+		})
+
+		coordinator.handleProviderConfigFieldsChanged("openai-compatible")
+
+		await vi.waitFor(() => expect(options.sessions.replaceActiveSession).toHaveBeenCalledOnce())
+		expect(options.sessionConfigBuilder.build).toHaveBeenCalledWith({ cwd: "/workspace", mode: "act" })
+	})
+
 	it("can clear a deferred restart before the session becomes idle", async () => {
 		const activeSession = makeActiveSession({ isRunning: true })
 		const { coordinator, options } = makeCoordinator({ activeSession })
@@ -199,6 +212,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 	const options = {
 		stateManager: {
 			getGlobalSettingsKey: vi.fn(() => input.mode ?? "act"),
+			getApiConfiguration: vi.fn(() => input.apiConfiguration ?? { actModeApiProvider: "anthropic" }),
 		} as unknown as StateManager,
 		sessions: {
 			getActiveSession: vi.fn(() => activeSession),
@@ -245,6 +259,7 @@ interface MakeCoordinatorInput {
 	activeSession: ReturnType<typeof makeActiveSession>
 	mode: "act" | "plan"
 	task: { taskId: string }
+	apiConfiguration: Record<string, unknown>
 }
 
 function makeActiveSession(input: { isRunning?: boolean } = {}) {

@@ -13,10 +13,14 @@ import type { ProviderId } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import type { ModelInfo } from "../../../src/shared/api"
 
+const pendingWritesByProvider = new Map<ProviderId, Promise<ProviderConfigResponse>>()
+const writeSequenceByProvider = new Map<ProviderId, number>()
+
 export type ProviderConfigWritePatch = Partial<Omit<WriteProviderConfigPatch, "headers" | "aws" | "gcp">> & {
 	headers?: Record<string, string>
 	aws?: Partial<AwsProviderConfig>
 	gcp?: Partial<GcpProviderConfig>
+	settingsJson?: string
 }
 
 export interface ProviderModelSelection {
@@ -40,6 +44,7 @@ export function useProviderConfig(providerId: ProviderId) {
 	const [config, setConfig] = useState<ProviderConfigResponse | undefined>(undefined)
 
 	const read = useCallback(async () => {
+		await pendingWritesByProvider.get(providerId)?.catch(() => undefined)
 		const response = await ModelsServiceClient.readProviderConfig(StringRequest.create({ value: providerId }))
 		setConfig(response)
 		return response
@@ -51,13 +56,27 @@ export function useProviderConfig(providerId: ProviderId) {
 
 	const write = useCallback(
 		async (patch: ProviderConfigWritePatch) => {
-			const response = await ModelsServiceClient.writeProviderConfig(
-				WriteProviderConfigRequest.create({
-					providerId,
-					patch: toWriteProviderConfigPatch(patch),
-				}),
+			const previousWrite = pendingWritesByProvider.get(providerId)?.catch(() => undefined)
+			const sequence = (writeSequenceByProvider.get(providerId) ?? 0) + 1
+			writeSequenceByProvider.set(providerId, sequence)
+			const writePromise = (previousWrite ?? Promise.resolve()).then(() =>
+				ModelsServiceClient.writeProviderConfig(
+					WriteProviderConfigRequest.create({
+						providerId,
+						patch: toWriteProviderConfigPatch(patch),
+					}),
+				),
 			)
-			setConfig(response)
+			const trackedWritePromise = writePromise.finally(() => {
+				if (pendingWritesByProvider.get(providerId) === trackedWritePromise) {
+					pendingWritesByProvider.delete(providerId)
+				}
+			})
+			pendingWritesByProvider.set(providerId, trackedWritePromise)
+			const response = await writePromise
+			if (writeSequenceByProvider.get(providerId) === sequence) {
+				setConfig(response)
+			}
 			return response
 		},
 		[providerId],

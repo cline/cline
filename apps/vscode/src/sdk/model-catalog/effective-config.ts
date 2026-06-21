@@ -1,7 +1,17 @@
 import type { ApiConfiguration } from "@shared/api"
 import { StateManager } from "@/core/storage/StateManager"
+import { toLegacyApiProvider } from "@/shared/model-catalog/provider-helpers"
 import { getProviderSettingsManager } from "../provider-migration"
-import type { AwsProviderConfig, EffectiveProviderConfig, GcpProviderConfig, ProviderId } from "./contracts"
+import type {
+	AwsProviderConfig,
+	AzureProviderConfig,
+	EffectiveProviderConfig,
+	GcpProviderConfig,
+	OcaProviderConfig,
+	ProviderId,
+	SapProviderConfig,
+} from "./contracts"
+import { toSdkProviderId } from "./sdk-provider-id"
 
 type AuthConfig = NonNullable<EffectiveProviderConfig["auth"]>
 type ExtrasConfig = NonNullable<EffectiveProviderConfig["extras"]>
@@ -17,8 +27,16 @@ type ProviderSettingsLike = {
 	readonly region?: string
 	readonly aws?: AwsProviderConfig
 	readonly gcp?: GcpProviderConfig
+	readonly azure?: AzureProviderConfig
+	readonly sap?: SapProviderConfig
+	readonly oca?: OcaProviderConfig
 	readonly auth?: AuthConfig
 	readonly extras?: ExtrasConfig
+}
+
+type ProviderSettingsRead = {
+	readonly exists: boolean
+	readonly config: ConfigParts
 }
 
 const apiKeyFields: Partial<Record<string, keyof ApiConfiguration>> = {
@@ -26,7 +44,6 @@ const apiKeyFields: Partial<Record<string, keyof ApiConfiguration>> = {
 	openrouter: "openRouterApiKey",
 	openai: "openAiApiKey",
 	"openai-native": "openAiNativeApiKey",
-	"openai-codex": "openAiNativeApiKey",
 	bedrock: "awsBedrockApiKey",
 	gemini: "geminiApiKey",
 	deepseek: "deepSeekApiKey",
@@ -55,6 +72,7 @@ const apiKeyFields: Partial<Record<string, keyof ApiConfiguration>> = {
 	hicap: "hicapApiKey",
 	aihubmix: "aihubmixApiKey",
 	nousresearch: "nousResearchApiKey",
+	nousResearch: "nousResearchApiKey",
 	"vercel-ai-gateway": "vercelAiGatewayApiKey",
 	wandb: "wandbApiKey",
 	oca: "ocaApiKey",
@@ -174,6 +192,50 @@ function readGcp(record: Record<string, unknown>): GcpProviderConfig | undefined
 	return Object.values(result).some((value) => value !== undefined) ? result : undefined
 }
 
+function readAzure(record: Record<string, unknown>): AzureProviderConfig | undefined {
+	const azure = record.azure
+	if (!isPlainRecord(azure)) {
+		return undefined
+	}
+
+	const result: AzureProviderConfig = {
+		apiVersion: readString(azure, "apiVersion"),
+	}
+	return Object.values(result).some((value) => value !== undefined) ? result : undefined
+}
+
+function readSap(record: Record<string, unknown>): SapProviderConfig | undefined {
+	const sap = record.sap
+	if (!isPlainRecord(sap)) {
+		return undefined
+	}
+
+	const result: SapProviderConfig = {
+		clientId: readString(sap, "clientId"),
+		clientSecret: readString(sap, "clientSecret"),
+		tokenUrl: readString(sap, "tokenUrl"),
+		resourceGroup: readString(sap, "resourceGroup"),
+		deploymentId: readString(sap, "deploymentId"),
+		useOrchestrationMode: readBoolean(sap, "useOrchestrationMode"),
+		api: readString(sap, "api"),
+		defaultSettings: isPlainRecord(sap.defaultSettings) ? sap.defaultSettings : undefined,
+	}
+	return Object.values(result).some((value) => value !== undefined) ? result : undefined
+}
+
+function readOca(record: Record<string, unknown>): OcaProviderConfig | undefined {
+	const oca = record.oca
+	if (!isPlainRecord(oca)) {
+		return undefined
+	}
+
+	const result: OcaProviderConfig = {
+		mode: readString(oca, "mode"),
+		usePromptCache: readBoolean(oca, "usePromptCache"),
+	}
+	return Object.values(result).some((value) => value !== undefined) ? result : undefined
+}
+
 function readAws(record: Record<string, unknown>): AwsProviderConfig | undefined {
 	const aws = record.aws
 	if (!isPlainRecord(aws)) {
@@ -184,6 +246,7 @@ function readAws(record: Record<string, unknown>): AwsProviderConfig | undefined
 		accessKey: readString(aws, "accessKey"),
 		secretKey: readString(aws, "secretKey"),
 		sessionToken: readString(aws, "sessionToken"),
+		region: readString(aws, "region"),
 		authentication: readString(aws, "authentication"),
 		profile: readString(aws, "profile"),
 		usePromptCache: readBoolean(aws, "usePromptCache"),
@@ -195,26 +258,37 @@ function readAws(record: Record<string, unknown>): AwsProviderConfig | undefined
 	return Object.values(result).some((value) => value !== undefined) ? result : undefined
 }
 
-function readProviderSettings(providerId: ProviderId): ConfigParts {
+function readProviderSettings(providerId: ProviderId): ProviderSettingsRead {
 	try {
-		const settings: unknown = getProviderSettingsManager().getProviderSettings(providerId)
+		const manager = getProviderSettingsManager()
+		const settings: unknown =
+			manager.getProviderSettings(toSdkProviderId(providerId)) ?? manager.getProviderSettings(providerId)
 		if (!isPlainRecord(settings)) {
-			return {}
+			return { exists: false, config: {} }
 		}
+		const aws = readAws(settings)
+		const gcp = readGcp(settings)
+		const azure = readAzure(settings)
 
 		return {
-			apiKey: readString(settings, "apiKey"),
-			baseUrl: readString(settings, "baseUrl"),
-			apiLine: readString(settings, "apiLine"),
-			headers: readHeaders(settings, "headers"),
-			region: readString(settings, "region"),
-			aws: readAws(settings),
-			gcp: readGcp(settings),
-			auth: readAuth(settings),
-			extras: isPlainRecord(settings.extras) ? settings.extras : undefined,
-		} satisfies ProviderSettingsLike
+			exists: true,
+			config: {
+				apiKey: readString(settings, "apiKey"),
+				baseUrl: readString(settings, "baseUrl"),
+				apiLine: readString(settings, "apiLine"),
+				headers: readHeaders(settings, "headers"),
+				region: readString(settings, "region") ?? aws?.region ?? gcp?.region,
+				aws,
+				gcp,
+				azure,
+				sap: readSap(settings),
+				oca: readOca(settings),
+				auth: readAuth(settings),
+				extras: isPlainRecord(settings.extras) ? settings.extras : undefined,
+			} satisfies ProviderSettingsLike,
+		}
 	} catch {
-		return {}
+		return { exists: false, config: {} }
 	}
 }
 
@@ -283,6 +357,17 @@ function readStateGcp(provider: string, config: ApiConfiguration): GcpProviderCo
 	return Object.values(gcp).some((value) => value !== undefined) ? gcp : undefined
 }
 
+function readStateAzure(provider: string, config: ApiConfiguration): AzureProviderConfig | undefined {
+	if (provider !== "openai") {
+		return undefined
+	}
+
+	const azure: AzureProviderConfig = {
+		apiVersion: readStringFromConfig(config, "azureApiVersion"),
+	}
+	return Object.values(azure).some((value) => value !== undefined) ? azure : undefined
+}
+
 function readStateAws(provider: string, config: ApiConfiguration): AwsProviderConfig | undefined {
 	if (provider !== "bedrock") {
 		return undefined
@@ -292,6 +377,7 @@ function readStateAws(provider: string, config: ApiConfiguration): AwsProviderCo
 		accessKey: readStringFromConfig(config, "awsAccessKey"),
 		secretKey: readStringFromConfig(config, "awsSecretKey"),
 		sessionToken: readStringFromConfig(config, "awsSessionToken"),
+		region: readStringFromConfig(config, "awsRegion"),
 		authentication: readStringFromConfig(config, "awsAuthentication"),
 		profile: readStringFromConfig(config, "awsProfile"),
 		usePromptCache: readStateBoolean(config, "awsBedrockUsePromptCache"),
@@ -302,8 +388,35 @@ function readStateAws(provider: string, config: ApiConfiguration): AwsProviderCo
 	return Object.values(aws).some((value) => value !== undefined) ? aws : undefined
 }
 
+function readStateSap(provider: string, config: ApiConfiguration): SapProviderConfig | undefined {
+	if (provider !== "sapaicore") {
+		return undefined
+	}
+
+	const sap: SapProviderConfig = {
+		clientId: readStringFromConfig(config, "sapAiCoreClientId"),
+		clientSecret: readStringFromConfig(config, "sapAiCoreClientSecret"),
+		tokenUrl: readStringFromConfig(config, "sapAiCoreTokenUrl"),
+		resourceGroup: readStringFromConfig(config, "sapAiResourceGroup"),
+		useOrchestrationMode: readStateBoolean(config, "sapAiCoreUseOrchestrationMode"),
+	}
+	return Object.values(sap).some((value) => value !== undefined) ? sap : undefined
+}
+
+function readStateOca(provider: string, config: ApiConfiguration): OcaProviderConfig | undefined {
+	if (provider !== "oca") {
+		return undefined
+	}
+
+	const mode = readStringFromConfig(config, "ocaMode")
+	const oca: OcaProviderConfig = {
+		mode,
+	}
+	return Object.values(oca).some((value) => value !== undefined) ? oca : undefined
+}
+
 function readStateConfig(providerId: ProviderId, config: ApiConfiguration): ConfigParts {
-	const provider = providerId.toString()
+	const provider = toLegacyApiProvider(providerId.toString())
 	return {
 		apiKey: readStringFromConfig(config, apiKeyFields[provider]),
 		baseUrl: readStringFromConfig(config, baseUrlFields[provider]),
@@ -312,6 +425,9 @@ function readStateConfig(providerId: ProviderId, config: ApiConfiguration): Conf
 		region: readStringFromConfig(config, regionFields[provider]),
 		aws: readStateAws(provider, config),
 		gcp: readStateGcp(provider, config),
+		azure: readStateAzure(provider, config),
+		sap: readStateSap(provider, config),
+		oca: readStateOca(provider, config),
 		auth: readStateAuth(provider, config),
 		extras: readStateExtras(provider, config),
 	}
@@ -337,14 +453,39 @@ function mergeGcp(first: GcpProviderConfig | undefined, second: GcpProviderConfi
 	return { ...first, ...second }
 }
 
-function mergeAws(first: AwsProviderConfig | undefined, second: AwsProviderConfig | undefined): AwsProviderConfig | undefined {
+function mergeAzure(
+	first: AzureProviderConfig | undefined,
+	second: AzureProviderConfig | undefined,
+): AzureProviderConfig | undefined {
+	return mergeDefined(first, second)
+}
+
+function mergeDefined<T extends object>(first: T | undefined, second: T | undefined): T | undefined {
 	if (!first) {
 		return second
 	}
 	if (!second) {
 		return first
 	}
-	return { ...first, ...second }
+	const merged: Record<string, unknown> = { ...(first as Record<string, unknown>) }
+	for (const [key, value] of Object.entries(second)) {
+		if (value !== undefined) {
+			merged[key] = value
+		}
+	}
+	return merged as T
+}
+
+function mergeSap(first: SapProviderConfig | undefined, second: SapProviderConfig | undefined): SapProviderConfig | undefined {
+	return mergeDefined(first, second)
+}
+
+function mergeOca(first: OcaProviderConfig | undefined, second: OcaProviderConfig | undefined): OcaProviderConfig | undefined {
+	return mergeDefined(first, second)
+}
+
+function mergeAws(first: AwsProviderConfig | undefined, second: AwsProviderConfig | undefined): AwsProviderConfig | undefined {
+	return mergeDefined(first, second)
 }
 
 function assignIfDefined<T extends ConfigKey>(target: Partial<ConfigParts>, key: T, value: ConfigParts[T] | undefined): void {
@@ -354,30 +495,45 @@ function assignIfDefined<T extends ConfigKey>(target: Partial<ConfigParts>, key:
 }
 
 /**
- * Build an {@link EffectiveProviderConfig} by merging provider-owned settings
- * from SDK `providers.json` with the current StateManager effective API
- * configuration. StateManager's `getApiConfiguration()` already applies
- * task/session/remote-config overlays for legacy fields, so those values win.
+ * Build an {@link EffectiveProviderConfig} from SDK `providers.json`.
+ * Legacy StateManager config is a migration fallback for users that do not
+ * have an SDK provider settings record yet; it is not a live shadow source
+ * after SDK settings exist.
  *
  * Mode-dependent model selection is intentionally excluded; callers use
  * `ProviderConfigStore.readSelection(providerId, mode)` for that.
  */
 export function buildEffectiveProviderConfig(providerId: ProviderId): EffectiveProviderConfig {
-	const providerSettings = readProviderSettings(providerId)
+	const providerSettingsRead = readProviderSettings(providerId)
+	const providerSettings = providerSettingsRead.config
 	const stateConfig = readStateConfig(providerId, StateManager.get().getApiConfiguration())
+	const fallbackConfig: ConfigParts = providerSettingsRead.exists ? {} : stateConfig
 	const merged: Partial<ConfigParts> = {}
 
-	assignIfDefined(merged, "apiKey", stateConfig.apiKey ?? providerSettings.apiKey)
-	assignIfDefined(merged, "baseUrl", stateConfig.baseUrl ?? providerSettings.baseUrl)
-	assignIfDefined(merged, "apiLine", stateConfig.apiLine ?? providerSettings.apiLine)
-	assignIfDefined(merged, "headers", stateConfig.headers ?? providerSettings.headers)
-	assignIfDefined(merged, "region", stateConfig.region ?? providerSettings.region)
-	// Bedrock/Vertex are migrated to providers.json. Keep legacy StateManager cloud
-	// fields as a fallback for old installs, but let providers.json win when both exist.
-	assignIfDefined(merged, "aws", mergeAws(stateConfig.aws, providerSettings.aws))
-	assignIfDefined(merged, "gcp", mergeGcp(stateConfig.gcp, providerSettings.gcp))
-	assignIfDefined(merged, "auth", stateConfig.auth ?? providerSettings.auth)
-	assignIfDefined(merged, "extras", mergeExtras(providerSettings.extras, stateConfig.extras))
+	const remoteConfig = buildRemoteProviderConfig(providerId)
+
+	assignIfDefined(merged, "apiKey", remoteConfig.apiKey ?? providerSettings.apiKey ?? fallbackConfig.apiKey)
+	assignIfDefined(merged, "baseUrl", remoteConfig.baseUrl ?? providerSettings.baseUrl ?? fallbackConfig.baseUrl)
+	assignIfDefined(merged, "apiLine", remoteConfig.apiLine ?? providerSettings.apiLine ?? fallbackConfig.apiLine)
+	assignIfDefined(merged, "headers", remoteConfig.headers ?? providerSettings.headers ?? fallbackConfig.headers)
+	assignIfDefined(merged, "region", remoteConfig.region ?? providerSettings.region ?? fallbackConfig.region)
+	assignIfDefined(merged, "aws", mergeAws(mergeAws(fallbackConfig.aws, providerSettings.aws), remoteConfig.aws))
+	assignIfDefined(merged, "gcp", mergeGcp(mergeGcp(fallbackConfig.gcp, providerSettings.gcp), remoteConfig.gcp))
+	assignIfDefined(merged, "azure", mergeAzure(mergeAzure(fallbackConfig.azure, providerSettings.azure), remoteConfig.azure))
+	assignIfDefined(merged, "sap", mergeSap(mergeSap(fallbackConfig.sap, providerSettings.sap), remoteConfig.sap))
+	assignIfDefined(merged, "oca", mergeOca(mergeOca(fallbackConfig.oca, providerSettings.oca), remoteConfig.oca))
+	assignIfDefined(merged, "auth", providerSettings.auth ?? fallbackConfig.auth)
+	assignIfDefined(merged, "extras", mergeExtras(fallbackConfig.extras, providerSettings.extras))
 
 	return { providerId, ...merged }
+}
+
+export function buildRemoteProviderConfig(providerId: ProviderId): ConfigParts {
+	try {
+		const manager = StateManager.get() as { getRemoteConfigSettings?: () => unknown }
+		const remoteConfigSettings = manager.getRemoteConfigSettings?.()
+		return isPlainRecord(remoteConfigSettings) ? readStateConfig(providerId, remoteConfigSettings as ApiConfiguration) : {}
+	} catch {
+		return {}
+	}
 }

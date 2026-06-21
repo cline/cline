@@ -2,7 +2,7 @@
 //
 // Creates and manages SDK sessions using ClineCore. This factory handles:
 // - Creating ClineCore instances with proper configuration
-// - Building session config from legacy state (provider, model, API key)
+// - Building session config from SDK provider settings plus VS Code host state
 // - Custom session persistence adapter reading ~/.cline/data/tasks/
 // - Mapping HistoryItem ↔ SDK session fields
 //
@@ -21,17 +21,24 @@ import { buildClineSystemPrompt } from "@cline/shared"
 import type { ApiConfiguration } from "@shared/api"
 import type { HistoryItem } from "@shared/HistoryItem"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, type LanguageDisplay } from "@shared/Languages"
+import {
+	isVscodeUnsupportedProvider,
+	toVscodeSupportedProvider,
+	VSCODE_DEFAULT_PROVIDER_ID,
+} from "@shared/model-catalog/provider-helpers"
 import { Logger } from "@shared/services/Logger"
-import type { Settings } from "@shared/storage/state-keys"
+import type { RemoteProviderModelSettings, Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
 import { stringifyVsCodeLmModelSelector } from "@shared/vsCodeSelectorUtils"
+import { mirrorPlanActApiConfiguration } from "@/core/controller/models/sharedModeConfiguration"
 import { StateManager } from "@/core/storage/StateManager"
 import { ExtensionRegistryInfo } from "@/registry"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { fetch } from "@/shared/net"
-import { type BedrockProviderConfig, buildBedrockProviderConfig } from "./bedrock-config"
 import { buildAgentHooks } from "./hooks-adapter"
 import { readTaskHistory, resolveDataDir } from "./legacy-state-reader"
+import { buildEffectiveProviderConfig, buildRemoteProviderConfig } from "./model-catalog/effective-config"
+import { parseProviderId } from "./model-catalog/provider-id"
 import { toSdkProviderId } from "./model-catalog/sdk-provider-id"
 import { getProviderSettingsManager } from "./provider-migration"
 import type { SdkSessionHost } from "./session-host"
@@ -121,6 +128,7 @@ function resolveWorkspaceName(workspacePath: string): string {
 type ReasoningEffort = NonNullable<CoreSessionConfig["reasoningEffort"]>
 type ProviderReasoningSettings = NonNullable<ProviderSettings["reasoning"]>
 type SessionReasoningConfig = Pick<CoreSessionConfig, "thinking" | "reasoningEffort">
+type RuntimeProviderConfig = NonNullable<CoreSessionConfig["providerConfig"]>
 
 function isReasoningEffort(value: unknown): value is ReasoningEffort {
 	return value === "low" || value === "medium" || value === "high" || value === "xhigh"
@@ -128,6 +136,24 @@ function isReasoningEffort(value: unknown): value is ReasoningEffort {
 
 function hasStaleDisabledReasoningFields(reasoning: ProviderReasoningSettings | undefined): boolean {
 	return reasoning?.enabled === false && (reasoning.effort !== undefined || reasoning.budgetTokens !== undefined)
+}
+
+function resolvePersistedProviderConfig(
+	providerId: string,
+	dataDir: string = resolveDataDir(),
+): RuntimeProviderConfig | undefined {
+	const manager = getProviderSettingsManager(dataDir)
+	const sdkProviderId = toSdkProviderId(providerId)
+	return (
+		manager.getProviderConfig(sdkProviderId, { includeKnownModels: false }) ??
+		manager.getProviderConfig(providerId, { includeKnownModels: false })
+	)
+}
+
+function resolvePersistedProviderSettings(providerId: string, dataDir: string = resolveDataDir()): ProviderSettings | undefined {
+	const manager = getProviderSettingsManager(dataDir)
+	const sdkProviderId = toSdkProviderId(providerId)
+	return manager.getProviderSettings(sdkProviderId) ?? manager.getProviderSettings(providerId)
 }
 
 /**
@@ -154,12 +180,42 @@ export function normalizeProviderReasoningSettings(reasoning: ProviderReasoningS
 	return isReasoningEffort(reasoning.effort) ? { reasoningEffort: reasoning.effort } : {}
 }
 
-function resolveProviderReasoningConfig(providerId: string): SessionReasoningConfig {
+function hasSessionReasoningConfig(config: SessionReasoningConfig): boolean {
+	return config.thinking !== undefined || config.reasoningEffort !== undefined
+}
+
+function normalizeLegacyReasoningEffort(value: unknown): SessionReasoningConfig {
+	if (value === "none") {
+		return { thinking: false }
+	}
+	if (isReasoningEffort(value)) {
+		return { thinking: true, reasoningEffort: value }
+	}
+	return {}
+}
+
+function resolveLegacyReasoningConfig(providerId: string, mode: Mode, apiConfig: ApiConfiguration): SessionReasoningConfig {
+	const sdkProviderId = toSdkProviderId(providerId)
+	if (sdkProviderId === "openai-codex") {
+		return normalizeLegacyReasoningEffort(
+			mode === "plan" ? apiConfig.planModeReasoningEffort : apiConfig.actModeReasoningEffort,
+		)
+	}
+	if (sdkProviderId === "oca") {
+		return normalizeLegacyReasoningEffort(
+			mode === "plan" ? apiConfig.planModeOcaReasoningEffort : apiConfig.actModeOcaReasoningEffort,
+		)
+	}
+	return {}
+}
+
+function resolveProviderReasoningConfig(providerId: string, mode: Mode, apiConfig: ApiConfiguration): SessionReasoningConfig {
 	try {
 		const manager = getProviderSettingsManager(resolveDataDir())
-		const settings = manager.getProviderSettings(providerId)
+		const sdkProviderId = toSdkProviderId(providerId)
+		const settings = manager.getProviderSettings(sdkProviderId) ?? manager.getProviderSettings(providerId)
 		if (!settings) {
-			return {}
+			return resolveLegacyReasoningConfig(providerId, mode, apiConfig)
 		}
 
 		if (hasStaleDisabledReasoningFields(settings.reasoning)) {
@@ -172,10 +228,13 @@ function resolveProviderReasoningConfig(providerId: string): SessionReasoningCon
 			return normalizeProviderReasoningSettings(sanitizedSettings.reasoning)
 		}
 
-		return normalizeProviderReasoningSettings(settings.reasoning)
+		const providerReasoningConfig = normalizeProviderReasoningSettings(settings.reasoning)
+		return hasSessionReasoningConfig(providerReasoningConfig)
+			? providerReasoningConfig
+			: resolveLegacyReasoningConfig(providerId, mode, apiConfig)
 	} catch (error) {
 		Logger.warn("[SessionFactory] Provider reasoning resolution failed:", error)
-		return {}
+		return resolveLegacyReasoningConfig(providerId, mode, apiConfig)
 	}
 }
 
@@ -269,7 +328,7 @@ const PROVIDER_MODEL_ID_MAP: Record<string, { plan: keyof ApiConfiguration; act:
 // Provider/model defaults
 // ---------------------------------------------------------------------------
 
-const DEFAULT_PROVIDER_ID = "cline"
+const DEFAULT_PROVIDER_ID = VSCODE_DEFAULT_PROVIDER_ID
 
 export function getDefaultModelIdForProvider(providerId: string): string | undefined {
 	const sdkProviderId = toSdkProviderId(providerId)
@@ -339,7 +398,7 @@ export function resolveApiKey(providerId: string, config: ApiConfiguration): str
  * Resolve the model ID for a given provider and mode from the ApiConfiguration.
  * Uses mode-specific model ID fields when available, falls back to generic fields.
  */
-export function resolveModelId(providerId: string, mode: Mode, config: ApiConfiguration): string | undefined {
+function resolveModelId(providerId: string, mode: Mode, config: ApiConfiguration): string | undefined {
 	// VS Code LM has no plain model-id field: the selected model is stored as a
 	// structured LanguageModelChatSelector ({vendor, family, ...}) in
 	// plan/actModeVsCodeLmModelSelector. The SDK ProviderConfig only carries a
@@ -402,28 +461,7 @@ export function normalizeSdkBaseUrl(providerId: string, baseUrl: unknown): strin
 	return trimmed
 }
 
-export function resolveVertexProviderConfig(config: ApiConfiguration): Pick<ProviderSettings, "gcp" | "region"> {
-	let providerSettingsProjectId: string | undefined
-	let providerSettingsRegion: string | undefined
-	try {
-		const settings = getProviderSettingsManager().getProviderSettings("vertex")
-		providerSettingsProjectId = settings?.gcp?.projectId?.trim() || undefined
-		providerSettingsRegion = settings?.gcp?.region?.trim() || settings?.region?.trim() || undefined
-	} catch {
-		Logger.warn("[SessionFactory] Failed to read Vertex settings from providers.json")
-	}
-
-	const region = (providerSettingsRegion ?? config.vertexRegion?.trim()) || undefined
-	return {
-		region,
-		gcp: {
-			projectId: (providerSettingsProjectId ?? config.vertexProjectId?.trim()) || undefined,
-			region,
-		},
-	}
-}
-
-export function resolveBaseUrl(providerId: string, config: ApiConfiguration): string | undefined {
+function resolveBaseUrl(providerId: string, config: ApiConfiguration): string | undefined {
 	const baseUrlMap: Record<string, keyof ApiConfiguration> = {
 		anthropic: "anthropicBaseUrl",
 		openai: "openAiBaseUrl",
@@ -445,6 +483,241 @@ export function resolveBaseUrl(providerId: string, config: ApiConfiguration): st
 	return undefined
 }
 
+function mergeRuntimeObject<T extends object>(first: T | undefined, second: T | undefined): T | undefined {
+	if (!first) {
+		return second
+	}
+	if (!second) {
+		return first
+	}
+	const merged: Record<string, unknown> = { ...(first as Record<string, unknown>) }
+	for (const [key, value] of Object.entries(second)) {
+		if (value !== undefined) {
+			merged[key] = value
+		}
+	}
+	return merged as T
+}
+
+function isSdkAwsAuthentication(value: unknown): value is NonNullable<RuntimeProviderConfig["aws"]>["authentication"] {
+	return value === "iam" || value === "api-key" || value === "apikey" || value === "profile"
+}
+
+function normalizeSdkAwsAuthentication(value: unknown): NonNullable<RuntimeProviderConfig["aws"]>["authentication"] | undefined {
+	if (value === "credentials") {
+		return "iam"
+	}
+	return isSdkAwsAuthentication(value) ? value : undefined
+}
+
+function toRuntimeAwsConfig(aws: ReturnType<typeof buildEffectiveProviderConfig>["aws"]): RuntimeProviderConfig["aws"] {
+	if (!aws) {
+		return undefined
+	}
+	return {
+		...aws,
+		authentication: normalizeSdkAwsAuthentication(aws.authentication),
+	}
+}
+
+function isBedrockApiKeyAuthentication(authentication: unknown): boolean {
+	return authentication === "api-key" || authentication === "apikey"
+}
+
+function isSdkSapApi(value: unknown): value is NonNullable<RuntimeProviderConfig["sap"]>["api"] {
+	return value === "orchestration" || value === "foundation-models"
+}
+
+function isSdkOcaMode(value: unknown): value is NonNullable<RuntimeProviderConfig["oca"]>["mode"] {
+	return value === "internal" || value === "external"
+}
+
+function toRuntimeApiLine(value: unknown): RuntimeProviderConfig["apiLine"] {
+	return value === "china" || value === "international" ? value : undefined
+}
+
+function toRuntimeSapConfig(sap: ReturnType<typeof buildEffectiveProviderConfig>["sap"]): RuntimeProviderConfig["sap"] {
+	if (!sap) {
+		return undefined
+	}
+	return {
+		...sap,
+		api: isSdkSapApi(sap.api) ? sap.api : undefined,
+		defaultSettings: sap.defaultSettings ? { ...sap.defaultSettings } : undefined,
+	}
+}
+
+function toRuntimeOcaConfig(oca: ReturnType<typeof buildEffectiveProviderConfig>["oca"]): RuntimeProviderConfig["oca"] {
+	if (!oca) {
+		return undefined
+	}
+	return {
+		...oca,
+		mode: isSdkOcaMode(oca.mode) ? oca.mode : undefined,
+	}
+}
+
+function readModeSpecificSapDeploymentId(providerId: string, mode: Mode, config: ApiConfiguration): string | undefined {
+	if (providerId !== "sapaicore") {
+		return undefined
+	}
+	const value = mode === "plan" ? config.planModeSapAiCoreDeploymentId : config.actModeSapAiCoreDeploymentId
+	return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined
+}
+
+function readModeSpecificBedrockCustomModelBaseId(providerId: string, mode: Mode, config: ApiConfiguration): string | undefined {
+	if (providerId !== "bedrock") {
+		return undefined
+	}
+	const value = mode === "plan" ? config.planModeAwsBedrockCustomModelBaseId : config.actModeAwsBedrockCustomModelBaseId
+	return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined
+}
+
+function readRemoteBedrockCustomModelBaseId(modelId: string | undefined): string | undefined {
+	if (!modelId) {
+		return undefined
+	}
+	return readRemoteProviderModelSettings("bedrock")?.bedrockCustomModels?.find((model) => model.name === modelId)?.baseModelId
+}
+
+function readRemoteProviderModelSettings(providerId: string): RemoteProviderModelSettings[string] | undefined {
+	try {
+		const manager = StateManager.get() as { getRemoteConfigSettings?: () => unknown }
+		const settings = manager.getRemoteConfigSettings?.()
+		if (!settings || typeof settings !== "object" || Array.isArray(settings)) {
+			return undefined
+		}
+		const remoteProviderModelSettings = (settings as { remoteProviderModelSettings?: RemoteProviderModelSettings })
+			.remoteProviderModelSettings
+		const sdkProviderId = toSdkProviderId(providerId)
+		return remoteProviderModelSettings?.[sdkProviderId] ?? remoteProviderModelSettings?.[providerId]
+	} catch {
+		return undefined
+	}
+}
+
+function resolveRemoteAllowedModelId(providerId: string, modelId: string | undefined): string | undefined {
+	const remoteModelSettings = readRemoteProviderModelSettings(providerId)
+	if (!remoteModelSettings?.models?.length && !remoteModelSettings?.bedrockCustomModels?.length) {
+		return modelId
+	}
+
+	const allowedModelIds = [
+		...(remoteModelSettings.models ?? []).map((model) => model.id),
+		...(remoteModelSettings.bedrockCustomModels ?? []).map((model) => model.name),
+	].filter((value) => value.trim().length > 0)
+	if (allowedModelIds.length === 0) {
+		return modelId
+	}
+	return modelId && allowedModelIds.includes(modelId) ? modelId : allowedModelIds[0]
+}
+
+/**
+ * Runtime provider config is built from the same effective SDK/legacy boundary
+ * as the catalog. A partial providers.json entry is not authoritative; missing
+ * fields are filled from legacy StateManager overlays so old installs keep
+ * working while the SDK-owned provider shape becomes the runtime contract.
+ */
+export function buildRuntimeProviderConfig(providerId: string, mode: Mode, apiConfig: ApiConfiguration): RuntimeProviderConfig {
+	const sharedApiConfig = mirrorPlanActApiConfiguration(apiConfig)
+	const runtimeProviderId = toVscodeSupportedProvider(providerId)
+	const persistedProviderConfig = resolvePersistedProviderConfig(runtimeProviderId)
+	const persistedProviderSettings = resolvePersistedProviderSettings(runtimeProviderId)
+	const parsedProviderId = parseProviderId(runtimeProviderId)
+	const effectiveConfig = buildEffectiveProviderConfig(parsedProviderId)
+	const remoteConfig = buildRemoteProviderConfig(parsedProviderId)
+	const rawModelId =
+		persistedProviderConfig?.modelId ??
+		resolveModelId(runtimeProviderId, mode, sharedApiConfig) ??
+		getDefaultModelIdForProvider(runtimeProviderId)
+	const modelId = resolveRemoteAllowedModelId(runtimeProviderId, rawModelId)
+	const apiKey =
+		remoteConfig.apiKey ??
+		persistedProviderConfig?.apiKey ??
+		effectiveConfig.apiKey ??
+		resolveApiKey(runtimeProviderId, apiConfig)
+	const persistedExplicitBaseUrl =
+		typeof persistedProviderSettings?.baseUrl === "string" && persistedProviderSettings.baseUrl.trim().length > 0
+			? persistedProviderConfig?.baseUrl
+			: undefined
+	const baseUrl =
+		remoteConfig.baseUrl ??
+		(parsedProviderId === "oca"
+			? (effectiveConfig.baseUrl ??
+				resolveBaseUrl(runtimeProviderId, sharedApiConfig) ??
+				persistedExplicitBaseUrl ??
+				persistedProviderConfig?.baseUrl)
+			: (persistedExplicitBaseUrl ??
+				effectiveConfig.baseUrl ??
+				resolveBaseUrl(runtimeProviderId, sharedApiConfig) ??
+				persistedProviderConfig?.baseUrl))
+	const bedrockCustomModelBaseId =
+		readRemoteBedrockCustomModelBaseId(modelId) ??
+		readModeSpecificBedrockCustomModelBaseId(runtimeProviderId, mode, sharedApiConfig)
+	const mergedAwsBase = mergeRuntimeObject(
+		mergeRuntimeObject(effectiveConfig.aws, persistedProviderConfig?.aws),
+		remoteConfig.aws,
+	)
+	const mergedAws = bedrockCustomModelBaseId
+		? { ...(mergedAwsBase ?? {}), customModelBaseId: bedrockCustomModelBaseId }
+		: mergedAwsBase
+	const aws = toRuntimeAwsConfig(mergedAws)
+	const gcp = mergeRuntimeObject(mergeRuntimeObject(effectiveConfig.gcp, persistedProviderConfig?.gcp), remoteConfig.gcp)
+	const azure = mergeRuntimeObject(
+		mergeRuntimeObject(effectiveConfig.azure, persistedProviderConfig?.azure),
+		remoteConfig.azure,
+	)
+	const apiLine = toRuntimeApiLine(remoteConfig.apiLine ?? persistedProviderConfig?.apiLine ?? effectiveConfig.apiLine)
+	const modeSpecificSapDeploymentId = readModeSpecificSapDeploymentId(runtimeProviderId, mode, sharedApiConfig)
+	const mergedSapBase = mergeRuntimeObject(
+		mergeRuntimeObject(effectiveConfig.sap, persistedProviderConfig?.sap),
+		remoteConfig.sap,
+	)
+	const mergedSap = modeSpecificSapDeploymentId
+		? { ...(mergedSapBase ?? {}), deploymentId: modeSpecificSapDeploymentId }
+		: mergedSapBase
+	const sap = toRuntimeSapConfig(mergedSap)
+	const oca = toRuntimeOcaConfig(
+		mergeRuntimeObject(mergeRuntimeObject(persistedProviderSettings?.oca, effectiveConfig.oca), remoteConfig.oca),
+	)
+	const region =
+		gcp?.region ?? mergedAws?.region ?? remoteConfig.region ?? effectiveConfig.region ?? persistedProviderConfig?.region
+	const runtimeApiKey =
+		runtimeProviderId === "bedrock" && !isBedrockApiKeyAuthentication(aws?.authentication) ? undefined : apiKey
+	const {
+		apiKey: _persistedApiKey,
+		thinking: _persistedThinking,
+		reasoningEffort: _persistedReasoningEffort,
+		thinkingBudgetTokens: _persistedThinkingBudgetTokens,
+		...persistedProviderConfigWithoutRuntimeOnlyFields
+	} = persistedProviderConfig ?? {}
+
+	return {
+		...persistedProviderConfigWithoutRuntimeOnlyFields,
+		providerId: toSdkProviderId(runtimeProviderId),
+		modelId: modelId || getDefaultModelIdForProvider(runtimeProviderId) || "",
+		apiLine,
+		...(runtimeApiKey ? { apiKey: runtimeApiKey } : {}),
+		...(baseUrl ? { baseUrl } : {}),
+		...((remoteConfig.headers ?? effectiveConfig.headers)
+			? { headers: { ...(remoteConfig.headers ?? effectiveConfig.headers) } }
+			: {}),
+		...(effectiveConfig.auth?.accessToken ? { accessToken: effectiveConfig.auth.accessToken } : {}),
+		...(effectiveConfig.auth?.refreshToken ? { refreshToken: effectiveConfig.auth.refreshToken } : {}),
+		...(effectiveConfig.auth?.accountId ? { accountId: effectiveConfig.auth.accountId } : {}),
+		...(region ? { region } : {}),
+		...(aws ? { aws } : {}),
+		...(gcp ? { gcp } : {}),
+		...(azure ? { azure } : {}),
+		...(sap ? { sap } : {}),
+		...(oca ? { oca } : {}),
+		...(mergedAws?.useCrossRegionInference !== undefined
+			? { useCrossRegionInference: mergedAws.useCrossRegionInference }
+			: {}),
+		...(mergedAws?.useGlobalInference !== undefined ? { useGlobalInference: mergedAws.useGlobalInference } : {}),
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Session config builder
 // ---------------------------------------------------------------------------
@@ -453,8 +726,9 @@ export function resolveBaseUrl(providerId: string, config: ApiConfiguration): st
  * Build a CoreSessionConfig from the current state.
  *
  * Reads provider settings from the classic StateManager's ApiConfiguration
- * (which correctly reads from globalState.json + secrets.json), then resolves
- * the provider, model, and API key for the current mode (plan/act).
+ * (which correctly reads from globalState.json + secrets.json), mirrors legacy
+ * plan/act slots to one shared selection, then resolves the provider, model,
+ * and API key for the current mode's runtime behavior.
  *
  * This replaces the previous two-path approach (SDK ProviderSettingsManager +
  * StateManager.buildApiHandlerSettings) which both failed silently.
@@ -474,47 +748,33 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	let apiKey: string | undefined
 	let baseUrl: string | undefined
 	let apiConfig: ApiConfiguration | undefined
-	// Cloud-provider structured options. The core runtime reads these from
-	// CoreSessionConfig.providerConfig; without them the SDK gateway never receives
-	// region/project/auth fields for inference calls.
-	let bedrockProviderConfig: BedrockProviderConfig | undefined
-	let vertexProviderConfig: Pick<ProviderSettings, "gcp" | "region"> | undefined
+	let sdkProviderConfig: CoreSessionConfig["providerConfig"] | undefined
 
 	try {
 		const stateManager = StateManager.get()
-		apiConfig = stateManager.getApiConfiguration()
+		apiConfig = mirrorPlanActApiConfiguration(stateManager.getApiConfiguration())
 
-		// Resolve the provider for the current mode
+		// Resolve the shared provider selection. The mode still controls tool
+		// access and prompting, but not provider/model choice.
 		const modeProvider = mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider
-		providerId = modeProvider
+		providerId = modeProvider ? toVscodeSupportedProvider(modeProvider, DEFAULT_PROVIDER_ID) : undefined
+		if (modeProvider && providerId !== modeProvider) {
+			Logger.warn(`[SessionFactory] Provider ${modeProvider} is unsupported in VS Code; using ${providerId} for runtime`)
+		}
 
 		if (providerId) {
-			// Resolve API key
-			apiKey = resolveApiKey(providerId, apiConfig)
-
-			// Resolve model ID
-			modelId = resolveModelId(providerId, mode, apiConfig)
-
-			// Resolve base URL
-			baseUrl = resolveBaseUrl(providerId, apiConfig)
-
-			// Resolve Bedrock region + AWS authentication options from the legacy
-			// ApiConfiguration (StateManager is the VSCode source of truth, not
-			// providers.json).
-			if (providerId === "bedrock") {
-				bedrockProviderConfig = buildBedrockProviderConfig(apiConfig, mode)
-			}
-
-			if (providerId === "vertex") {
-				vertexProviderConfig = resolveVertexProviderConfig(apiConfig)
-			}
+			const sdkProviderId = toSdkProviderId(providerId)
+			sdkProviderConfig = buildRuntimeProviderConfig(providerId, mode, apiConfig)
+			modelId = sdkProviderConfig.modelId
+			apiKey = sdkProviderConfig.apiKey
+			baseUrl = sdkProviderConfig.baseUrl
 
 			Logger.log(
-				`[SessionFactory] Resolved from StateManager: provider=${providerId}, model=${modelId}, hasApiKey=${!!apiKey}`,
+				`[SessionFactory] Resolved provider config: provider=${providerId}, sdkProvider=${sdkProviderId}, model=${modelId}, source=effective, hasApiKey=${!!apiKey}`,
 			)
 		}
 	} catch (error) {
-		Logger.warn("[SessionFactory] StateManager credential resolution failed:", error)
+		Logger.warn("[SessionFactory] Provider config resolution failed:", error)
 	}
 
 	// Fallback: try SDK's ProviderSettingsManager only when StateManager did not
@@ -527,12 +787,18 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 			const manager = getProviderSettingsManager(dataDir)
 			const lastUsed = manager.getLastUsedProviderSettings()
 
-			if (lastUsed?.provider && lastUsed?.apiKey) {
+			if (lastUsed?.provider && !isVscodeUnsupportedProvider(lastUsed.provider)) {
+				const lastUsedConfig = manager.getProviderConfig(lastUsed.provider, { includeKnownModels: false })
 				providerId = lastUsed.provider
-				modelId = lastUsed.model
-				apiKey = lastUsed.apiKey
-				baseUrl = lastUsed.baseUrl
+				sdkProviderConfig = lastUsedConfig
+				modelId = lastUsedConfig?.modelId ?? lastUsed.model
+				apiKey = lastUsedConfig?.apiKey ?? lastUsed.apiKey
+				baseUrl = lastUsedConfig?.baseUrl ?? lastUsed.baseUrl
 				Logger.log(`[SessionFactory] Using SDK provider fallback: ${providerId}/${modelId}`)
+			} else if (lastUsed?.provider) {
+				Logger.warn(
+					`[SessionFactory] Ignoring unsupported SDK provider fallback ${lastUsed.provider}; using ${DEFAULT_PROVIDER_ID}`,
+				)
 			}
 		} catch (error) {
 			Logger.warn("[SessionFactory] SDK ProviderSettingsManager fallback failed:", error)
@@ -543,11 +809,13 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	// session factory share one source of truth for default models.
 	providerId = providerId ?? DEFAULT_PROVIDER_ID
 	modelId = modelId ?? getDefaultModelIdForProvider(providerId) ?? getDefaultModelIdForProvider(DEFAULT_PROVIDER_ID) ?? ""
-	if (!apiKey && apiConfig) {
+	const shouldResolveLegacyApiKey =
+		providerId !== "bedrock" || isBedrockApiKeyAuthentication(sdkProviderConfig?.aws?.authentication)
+	if (!apiKey && apiConfig && shouldResolveLegacyApiKey) {
 		apiKey = resolveApiKey(providerId, apiConfig)
 	}
 	apiKey = apiKey ?? ""
-	const reasoningConfig = resolveProviderReasoningConfig(providerId)
+	const reasoningConfig = resolveProviderReasoningConfig(providerId, mode, apiConfig ?? {})
 
 	// Build the system prompt using the shared prompt builder. Core still
 	// expects callers to provide a concrete systemPrompt, but the prompt builder
@@ -600,20 +868,12 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	// extension's "openai"). Convert before handing the id to core.
 	const sdkProviderId = toSdkProviderId(providerId)
 
-	// Always pass a providerConfig so the proxy/CA-aware fetch reaches the SDK
-	// gateway; without it the agent loop uses bare global fetch and corporate
-	// proxy/self-signed CA setups fail on JetBrains and CLI. Cloud providers
-	// additionally need structured options (region/project/auth), which core
-	// reads from providerConfig in createAgentModelFromConfig.
-	const cloudProviderConfig = bedrockProviderConfig ?? vertexProviderConfig
-	// Spread the cloud config first so the explicit fields below — notably the
-	// proxy/CA-aware fetch — can never be clobbered if those types gain matching keys.
 	const providerConfig = {
-		...(cloudProviderConfig ?? {}),
+		...(sdkProviderConfig ?? {}),
 		providerId: sdkProviderId,
 		modelId,
 		...(apiKey ? { apiKey } : {}),
-		baseUrl,
+		...(baseUrl ? { baseUrl } : {}),
 		fetch,
 	}
 

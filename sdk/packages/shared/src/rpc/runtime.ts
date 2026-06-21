@@ -190,6 +190,7 @@ export interface ProviderListItem {
 	protocol?: ProviderProtocol;
 	client?: ProviderClient;
 	capabilities?: ProviderCapability[];
+	authMethod?: "api-key" | "oauth" | "local";
 	authDescription: string;
 	baseUrlDescription: string;
 	configFields?: ProviderConfigField[];
