@@ -7,6 +7,23 @@ import { Logger } from "@/shared/services/Logger"
 import type { ToolExecutorCoordinator } from "../ToolExecutorCoordinator"
 import { TaskConfig } from "../types/TaskConfig"
 
+export const MAX_TOOL_RESULT_TEXT_CHARS = 8_000
+const TOOL_RESULT_TRUNCATION_REASON = "tool result truncated"
+
+function truncateMiddle(text: string, maxChars: number, makeMarker: (removed: number) => string): string {
+	if (text.length <= maxChars) {
+		return text
+	}
+
+	const tentativeMarker = makeMarker(text.length - maxChars)
+	const tentativeKeep = Math.max(0, Math.floor((maxChars - tentativeMarker.length) / 2))
+	const removed = Math.max(0, text.length - tentativeKeep * 2)
+	const marker = makeMarker(removed)
+	const keep = Math.max(0, Math.floor((maxChars - marker.length) / 2))
+
+	return `${text.slice(0, keep)}${marker}${keep > 0 ? text.slice(-keep) : ""}`
+}
+
 /**
  * Utility functions for handling tool results and feedback
  */
@@ -69,7 +86,9 @@ export class ToolResultUtils {
 		if (id === "cline" || !id) {
 			return {
 				type: "text",
-				text: typeof content === "string" ? content : JSON.stringify(content, null, 2),
+				text: ToolResultUtils.truncateToolResultText(
+					typeof content === "string" ? content : JSON.stringify(content, null, 2),
+				),
 			}
 		}
 
@@ -80,8 +99,14 @@ export class ToolResultUtils {
 			type: "tool_result",
 			tool_use_id: id,
 			call_id: call_id,
-			content: typeof content === "string" ? content : content,
+			content: typeof content === "string" ? ToolResultUtils.truncateToolResultText(content) : content,
 		}
+	}
+
+	private static truncateToolResultText(text: string): string {
+		return truncateMiddle(text, MAX_TOOL_RESULT_TEXT_CHARS, (removed) => {
+			return `\n... (${TOOL_RESULT_TRUNCATION_REASON}, ${removed} chars omitted) ...\n`
+		})
 	}
 
 	/**
