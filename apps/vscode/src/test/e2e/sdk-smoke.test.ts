@@ -1,40 +1,39 @@
-import { expect } from "@playwright/test"
+import { expect, type Frame } from "@playwright/test"
 import { e2e } from "./utils/helpers"
 
-// End-to-end smoke tests for the SDK-rebuilt extension.
-//
-// These exercise the real extension host in VS Code (via the Playwright/Electron
-// harness) and prove the plumbing that connects the webview to the Cline SDK:
-//   activate -> webview render -> gRPC -> Controller -> ClineCore -> CoreSessionEvent
+// End-to-end tests for the SDK-rebuilt extension, exercising the real extension host in VS Code:
+//   activate -> webview render -> gRPC -> Controller -> AuthService/ClineCore -> CoreSessionEvent
 //   -> message translator -> ClineMessage -> webview render.
+// In e2e the Cline backend is the mock server (CLINE_ENVIRONMENT=local), so sign-in and the LLM
+// response are served by the mock without real credentials.
 
-e2e("SDK shell renders the Cline webview", async ({ sidebar }) => {
-	// The webview must mount real content (proves activation, the gRPC state
-	// subscription, and that the host returns a valid ExtensionState).
-	await expect(sidebar.locator("#root > *")).toBeVisible({ timeout: 15_000 })
-	await expect(sidebar.getByTestId("chat-input")).toBeVisible()
+async function signIn(sidebar: Frame): Promise<void> {
+	// When signed out, the welcome/onboarding view shows a sign-in CTA.
+	const cta = sidebar.getByRole("button", { name: /get started|login to cline|sign in|try cline for free/i }).first()
+	await expect(cta).toBeVisible({ timeout: 15_000 })
+	await cta.click()
+	// After the (mock) sign-in completes, welcomeViewCompleted flips true and the chat view renders.
+	await expect(sidebar.getByTestId("chat-input")).toBeVisible({ timeout: 20_000 })
+}
+
+e2e("SDK shell renders the welcome view when signed out", async ({ sidebar }) => {
+	// Signed out -> the onboarding/welcome view (not chat) is shown.
+	await expect(sidebar.getByRole("button", { name: /get started for free/i })).toBeVisible({ timeout: 15_000 })
+	await expect(sidebar.getByTestId("chat-input")).toHaveCount(0)
 })
 
-e2e("SDK shell submits a chat message and starts a task through the SDK", async ({ sidebar, page }) => {
-	const input = sidebar.getByTestId("chat-input")
-	await expect(input).toBeVisible({ timeout: 15_000 })
+e2e("SDK shell: sign in, send a message, and stream a response through the SDK", async ({ sidebar }) => {
+	await signIn(sidebar)
 
+	const input = sidebar.getByTestId("chat-input")
 	await input.click()
 	await input.fill("Say hello in one word")
-	await expect(input).toHaveValue("Say hello in one word")
+	await sidebar.getByTestId("send-button").click()
 
-	const sendButton = sidebar.getByTestId("send-button")
-	await expect(sendButton).toBeEnabled()
-	await sendButton.click()
-
-	// Submitting clears the input — confirms the webview accepted the send and dispatched newTask
-	// to the host (webview -> gRPC -> Controller.initTask).
+	// The send is accepted and dispatched to the host (input clears).
 	await expect(input).toHaveValue("", { timeout: 15_000 })
 
-	// The task actually starts against the SDK with a resolved provider/model. This is a regression
-	// guard for the empty-model bug: an unconfigured model surfaces a Zod "expected string to have
-	// >=1 characters" error in the transcript. Its absence means session-config resolved a default
-	// model and ClineCore accepted the session.
-	await page.waitForTimeout(3000)
-	await expect(sidebar.getByText(/expected string to have/i)).not.toBeVisible()
+	// The full loop completes: ClineCore -> cline provider -> mock /chat/completions streams the
+	// response, which is translated to a ClineMessage and rendered in the transcript.
+	await expect(sidebar.getByText(/mock Cline API response/i)).toBeVisible({ timeout: 30_000 })
 })
