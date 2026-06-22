@@ -59,6 +59,9 @@ export function isClineOrgIndividualInferenceSubscriptionErrorMessage(
 }
 
 export function formatCliErrorMessage(error: unknown): string {
+	if (isClineOrgIndividualInferenceSubscriptionErrorMessage(error)) {
+		return getClineOrgIndividualInferenceSubscriptionMessage();
+	}
 	if (error instanceof Error) {
 		return error.message;
 	}

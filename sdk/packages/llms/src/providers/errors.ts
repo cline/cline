@@ -27,7 +27,7 @@ export class ClineNotSubscribedError extends Error {
 }
 
 export function getClineOrgIndividualInferenceSubscriptionMessage(): string {
-	return "Organization accounts cannot use ClinePass subscriptions. Go to /account -> change account to switch to your personal account for ClinePass.";
+	return "Organization accounts cannot use ClinePass subscriptions. Go to /account -> change account to switch to your personal account for ClinePass";
 }
 
 export class ClineOrgIndividualInferenceSubscriptionError extends Error {
