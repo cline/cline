@@ -382,6 +382,20 @@ export function resolveApiKey(providerId: string, config: ApiConfiguration): str
 		}
 	}
 
+	// SDK-backed API-key providers save credentials in providers.json instead
+	// of legacy ApiConfiguration fields. Fall back to that store so providers
+	// exposed through the SDK settings UI still receive credentials at task
+	// startup.
+	try {
+		const manager = getProviderSettingsManager()
+		const apiKey = resolveProviderApiKeyFromSettings(manager, providerId)?.trim()
+		if (apiKey) {
+			return apiKey
+		}
+	} catch {
+		Logger.warn(`[SessionFactory] Failed to read ${providerId} API key from providers.json`)
+	}
+
 	return undefined
 }
 

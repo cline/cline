@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import { buildSdkProviderConfig } from "./sdk-api-handler"
 
 const mocks = vi.hoisted(() => {
@@ -22,6 +22,10 @@ vi.mock("@shared/services/Logger", () => ({
 }))
 
 describe("buildSdkProviderConfig", () => {
+	beforeEach(() => {
+		vi.clearAllMocks()
+	})
+
 	it("uses shared Cline OAuth credentials for ClinePass direct handlers", () => {
 		mocks.providerSettingsManager.getProviderSettings.mockImplementation((providerId: string) => {
 			if (providerId !== "cline") {
@@ -50,5 +54,32 @@ describe("buildSdkProviderConfig", () => {
 			apiKey: "workos:shared-cline-token",
 		})
 		expect(mocks.providerSettingsManager.getProviderSettings).toHaveBeenCalledWith("cline")
+	})
+
+	it("uses provider-specific settings for SDK-backed direct handlers", () => {
+		mocks.providerSettingsManager.getProviderSettings.mockImplementation((providerId: string) => {
+			if (providerId !== "v0") {
+				return undefined
+			}
+			return {
+				provider: "v0",
+				apiKey: "v0-key",
+			}
+		})
+
+		const providerConfig = buildSdkProviderConfig(
+			{
+				actModeApiProvider: "v0",
+				actModeApiModelId: "v0-1.5-md",
+			},
+			"act",
+		)
+
+		expect(providerConfig).toMatchObject({
+			providerId: "v0",
+			modelId: "v0-1.5-md",
+			apiKey: "v0-key",
+		})
+		expect(mocks.providerSettingsManager.getProviderSettings).toHaveBeenCalledWith("v0")
 	})
 })
