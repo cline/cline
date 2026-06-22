@@ -1,6 +1,11 @@
 import { AgentRuntimeAbortError } from "@cline/agents";
 import { initVcr, resolveClineBuildEnv } from "@cline/shared";
+import {
+	restartManagedHubDashboardProcess,
+	stopManagedHubDashboardProcess,
+} from "../daemon/dashboard-process";
 import { createLocalHubScheduleRuntimeHandlers } from "../daemon/runtime-handlers";
+import { resolveHubDashboardDiscoveryPath } from "../dashboard-discovery";
 import { resolveHubEndpointOptions } from "../discovery/defaults";
 import {
 	resolveProductionHubOwnerContext,
@@ -61,19 +66,34 @@ async function main(): Promise<void> {
 		pathname: options.pathname,
 	});
 
+	const owner =
+		resolveClineBuildEnv() === "production"
+			? resolveProductionHubOwnerContext()
+			: resolveSharedHubOwnerContext();
+	const dashboardDiscoveryPath = resolveHubDashboardDiscoveryPath(owner);
+
 	const server = await startHubWebSocketServer({
 		host: endpoint.host,
 		port: endpoint.port,
 		pathname: endpoint.pathname,
-		owner:
-			resolveClineBuildEnv() === "production"
-				? resolveProductionHubOwnerContext()
-				: resolveSharedHubOwnerContext(),
+		owner,
 		runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
 		cronOptions: { workspaceRoot: options.cwd },
 	});
 
+	await restartManagedHubDashboardProcess({
+		discoveryPath: dashboardDiscoveryPath,
+		cwd: options.cwd,
+	}).catch((error) => {
+		const message =
+			error instanceof Error ? error.stack || error.message : String(error);
+		process.stderr.write(`[hub-daemon] dashboard restart failed: ${message}\n`);
+	});
+
 	const shutdown = async (): Promise<void> => {
+		await stopManagedHubDashboardProcess(dashboardDiscoveryPath).catch(
+			() => undefined,
+		);
 		await server.close();
 		process.exit(0);
 	};
@@ -87,8 +107,9 @@ async function main(): Promise<void> {
 		const message =
 			error instanceof Error ? error.stack || error.message : String(error);
 		process.stderr.write(`[hub-daemon] ${label}: ${message}\n`);
-		void server
-			.close()
+		void stopManagedHubDashboardProcess(dashboardDiscoveryPath)
+			.catch(() => undefined)
+			.then(() => server.close())
 			.catch((closeError) => {
 				const closeMessage =
 					closeError instanceof Error

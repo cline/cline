@@ -62,6 +62,11 @@ if (!isMainThread) {
 			return;
 		}
 
+		const { configureCliHubDashboardLaunchEnvironment } = await import(
+			"./utils/hub-dashboard-launch"
+		);
+		configureCliHubDashboardLaunchEnvironment();
+
 		let exitCode = 0;
 		try {
 			const { runCli } = await import("./main");

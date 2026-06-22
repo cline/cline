@@ -988,6 +988,27 @@ describe("runCli lightweight command dispatch", () => {
 		expect(process.exitCode).toBe(0);
 	});
 
+	it("does not expose the internal dashboard serve action in invalid action errors", async () => {
+		const consoleError = vi
+			.spyOn(console, "error")
+			.mockImplementation(() => undefined);
+		process.argv = ["bun", "src/index.ts", "dashboard", "nonesuch"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(consoleError).toHaveBeenCalledWith(
+			expect.stringContaining(
+				'Unknown dashboard action "nonesuch". Expected restart or stop.',
+			),
+		);
+		expect(
+			consoleError.mock.calls.some((call) => String(call[0]).includes("serve")),
+		).toBe(false);
+		expect(dashboardMocks.runDashboardCommand).not.toHaveBeenCalled();
+		expect(process.exitCode).toBe(1);
+	});
+
 	it("prints an install hint when kanban is missing", async () => {
 		const stderrWrite = vi
 			.spyOn(process.stderr, "write")

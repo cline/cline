@@ -595,7 +595,8 @@ export async function runCli(): Promise<void> {
 
 	const dashboardCmd = program
 		.command("dashboard")
-		.description("Start the Cline Hub dashboard and open it in a browser")
+		.description("Open or manage the Cline Hub dashboard")
+		.argument("[action]", "dashboard action: restart or stop")
 		.option("--config <dir>", "configuration directory")
 		.option("-c, --cwd <path>", "Workspace root", process.cwd())
 		.option(
@@ -607,7 +608,7 @@ export async function runCli(): Promise<void> {
 		.option("--public-url <url>", "Public dashboard URL")
 		.option("--room-secret <secret>", "Invite secret for browser access")
 		.option("--no-open", "Start the dashboard without opening a browser")
-		.action(async () => {
+		.action(async (action?: string) => {
 			const opts = dashboardCmd.opts<{
 				config?: string;
 				cwd?: string;
@@ -618,8 +619,22 @@ export async function runCli(): Promise<void> {
 				roomSecret?: string;
 				open?: boolean;
 			}>();
+			const normalizedAction = action?.trim().toLowerCase();
+			if (
+				normalizedAction &&
+				normalizedAction !== "restart" &&
+				normalizedAction !== "stop" &&
+				normalizedAction !== "serve"
+			) {
+				io.writeErr(
+					`Unknown dashboard action "${action}". Expected restart or stop.`,
+				);
+				ctx.exitCode = 1;
+				return;
+			}
 			const { runDashboardCommand } = await import("./commands/dashboard");
 			ctx.exitCode = await runDashboardCommand({
+				action: normalizedAction as "restart" | "serve" | "stop" | undefined,
 				configDir: opts.config,
 				cwd: opts.cwd,
 				dataDir: opts.dataDir,
