@@ -29,33 +29,37 @@ export async function refreshLiteLlmModels(): Promise<Record<string, ModelInfo>>
 		// Use the shared utility function to fetch model info
 		const data = await fetchLiteLlmModelsInfo(baseUrl, apiKey)
 
-		for (const rawModel of data.data) {
-			const modelInfo: ModelInfo = {
-				name: rawModel.model_name,
-				maxTokens: rawModel.model_info?.max_output_tokens ?? rawModel.model_info?.max_tokens ?? 4096,
-				contextWindow: rawModel.model_info?.max_input_tokens ?? rawModel.model_info?.max_tokens ?? 8192,
-				supportsImages: rawModel.model_info?.supports_vision ?? false,
-				supportsPromptCache: rawModel.model_info?.supports_prompt_caching ?? false,
-				supportsReasoning: rawModel.model_info?.supports_reasoning ?? false,
-				inputPrice: rawModel.model_info?.input_cost_per_token ? rawModel.model_info.input_cost_per_token * 1_000_000 : 0,
-				outputPrice: rawModel.model_info?.output_cost_per_token
-					? rawModel.model_info.output_cost_per_token * 1_000_000
-					: 0,
-				cacheWritesPrice: rawModel.model_info?.cache_creation_input_token_cost
-					? rawModel.model_info.cache_creation_input_token_cost * 1_000_000
-					: undefined,
-				cacheReadsPrice: rawModel.model_info?.cache_read_input_token_cost
-					? rawModel.model_info.cache_read_input_token_cost * 1_000_000
-					: undefined,
-				description: undefined,
-			}
+		if (data?.data) {
+			for (const rawModel of data.data) {
+				const modelInfo: ModelInfo = {
+					name: rawModel.model_name,
+					maxTokens: rawModel.model_info?.max_output_tokens ?? rawModel.model_info?.max_tokens ?? 4096,
+					contextWindow: rawModel.model_info?.max_input_tokens ?? rawModel.model_info?.max_tokens ?? 8192,
+					supportsImages: rawModel.model_info?.supports_vision ?? false,
+					supportsPromptCache: rawModel.model_info?.supports_prompt_caching ?? false,
+					supportsReasoning: rawModel.model_info?.supports_reasoning ?? false,
+					inputPrice: rawModel.model_info?.input_cost_per_token
+						? rawModel.model_info.input_cost_per_token * 1_000_000
+						: 0,
+					outputPrice: rawModel.model_info?.output_cost_per_token
+						? rawModel.model_info.output_cost_per_token * 1_000_000
+						: 0,
+					cacheWritesPrice: rawModel.model_info?.cache_creation_input_token_cost
+						? rawModel.model_info.cache_creation_input_token_cost * 1_000_000
+						: undefined,
+					cacheReadsPrice: rawModel.model_info?.cache_read_input_token_cost
+						? rawModel.model_info.cache_read_input_token_cost * 1_000_000
+						: undefined,
+					description: undefined,
+				}
 
-			// Use litellm_params.model as the key since that's the actual model ID users select
-			// model_name may not include the region prefix (e.g., "us." for Bedrock models)
-			if (rawModel.litellm_params?.model) {
-				models[rawModel.litellm_params?.model] = modelInfo
+				// Use litellm_params.model as the key since that's the actual model ID users select
+				// model_name may not include the region prefix (e.g., "us." for Bedrock models)
+				if (rawModel.litellm_params?.model) {
+					models[rawModel.litellm_params?.model] = modelInfo
+				}
+				models[rawModel.model_name] = modelInfo
 			}
-			models[rawModel.model_name] = modelInfo
 		}
 	} catch (error) {
 		Logger.error("Error fetching LiteLLM models:", error)

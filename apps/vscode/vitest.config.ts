@@ -17,7 +17,6 @@ export default defineConfig({
 			"src/core/controller/models/__tests__/resolveModelInfo.test.ts",
 			"src/core/controller/models/__tests__/providerCatalogSmoke.test.ts",
 			"src/core/controller/models/__tests__/refreshClineRecommendedModels.test.ts",
-			"src/core/controller/models/__tests__/fetchLiteLlmModels.test.ts",
 		],
 		environment: "node",
 		// Some matched files are intentionally-empty placeholders that point to
