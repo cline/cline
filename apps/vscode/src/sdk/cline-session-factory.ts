@@ -16,9 +16,9 @@ import {
 	resolveProviderApiKeyFromSettings,
 	type StartSessionResult,
 } from "@cline/core"
-import { getGeneratedModelsForProvider, MODEL_COLLECTIONS_BY_PROVIDER_ID } from "@cline/llms"
+import { getGeneratedModelsForProvider, type ModelInfo as SdkModelInfo, MODEL_COLLECTIONS_BY_PROVIDER_ID } from "@cline/llms"
 import { buildClineSystemPrompt } from "@cline/shared"
-import type { ApiConfiguration } from "@shared/api"
+import type { ApiConfiguration, ModelInfo as LegacyModelInfo } from "@shared/api"
 import type { HistoryItem } from "@shared/HistoryItem"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, type LanguageDisplay } from "@shared/Languages"
 import { Logger } from "@shared/services/Logger"
@@ -176,6 +176,57 @@ function resolveProviderReasoningConfig(providerId: string): SessionReasoningCon
 	} catch (error) {
 		Logger.warn("[SessionFactory] Provider reasoning resolution failed:", error)
 		return {}
+	}
+}
+
+function positiveNumber(value: unknown): number | undefined {
+	return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : undefined
+}
+
+function getOpenAiCompatibleModelInfo(config: ApiConfiguration, mode: Mode): LegacyModelInfo | undefined {
+	return mode === "plan" ? config.planModeOpenAiModelInfo : config.actModeOpenAiModelInfo
+}
+
+const OPENAI_COMPATIBLE_DEFAULT_CAPABILITIES: NonNullable<SdkModelInfo["capabilities"]> = [
+	"streaming",
+	"tools",
+]
+
+function buildOpenAiCompatibleCapabilities(modelInfo: LegacyModelInfo): NonNullable<SdkModelInfo["capabilities"]> {
+	const capabilities: NonNullable<SdkModelInfo["capabilities"]> = [...OPENAI_COMPATIBLE_DEFAULT_CAPABILITIES]
+	if (modelInfo.supportsImages !== false) {
+		capabilities.push("images")
+	}
+	return capabilities
+}
+
+// VS Code stores OpenAI-compatible custom model metadata in legacy
+// ApiConfiguration fields. The SDK runtime enforces context/output limits from
+// knownModels, so bridge the selected model into the SDK shape during session
+// creation.
+function buildOpenAiCompatibleKnownModels(
+	modelId: string | undefined,
+	modelInfo: LegacyModelInfo | undefined,
+): Record<string, SdkModelInfo> | undefined {
+	const trimmedModelId = modelId?.trim()
+	if (!trimmedModelId || !modelInfo) {
+		return undefined
+	}
+
+	const contextWindow = positiveNumber(modelInfo.contextWindow)
+	const maxTokens = positiveNumber(modelInfo.maxTokens)
+
+	return {
+		[trimmedModelId]: {
+			id: trimmedModelId,
+			name: modelInfo.name ?? trimmedModelId,
+			description: modelInfo.description,
+			contextWindow,
+			maxInputTokens: contextWindow,
+			maxTokens,
+			capabilities: buildOpenAiCompatibleCapabilities(modelInfo),
+			temperature: modelInfo.temperature,
+		},
 	}
 }
 
@@ -473,6 +524,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	let modelId: string | undefined
 	let apiKey: string | undefined
 	let baseUrl: string | undefined
+	let knownModels: CoreSessionConfig["knownModels"] | undefined
 	let apiConfig: ApiConfiguration | undefined
 	// Cloud-provider structured options. The core runtime reads these from
 	// CoreSessionConfig.providerConfig; without them the SDK gateway never receives
@@ -494,6 +546,9 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 
 			// Resolve model ID
 			modelId = resolveModelId(providerId, mode, apiConfig)
+			if (providerId === "openai") {
+				knownModels = buildOpenAiCompatibleKnownModels(modelId, getOpenAiCompatibleModelInfo(apiConfig, mode))
+			}
 
 			// Resolve base URL
 			baseUrl = resolveBaseUrl(providerId, apiConfig)
@@ -614,6 +669,10 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		modelId,
 		...(apiKey ? { apiKey } : {}),
 		baseUrl,
+		...(knownModels ? { knownModels } : {}),
+		...(modelId && positiveNumber(knownModels?.[modelId]?.maxTokens)
+			? { maxOutputTokens: positiveNumber(knownModels?.[modelId]?.maxTokens) }
+			: {}),
 		fetch,
 	}
 
@@ -622,6 +681,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		modelId,
 		apiKey,
 		baseUrl,
+		knownModels,
 		providerConfig,
 		cwd,
 		workspaceRoot,
