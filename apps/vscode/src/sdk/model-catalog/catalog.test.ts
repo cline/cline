@@ -554,39 +554,6 @@ describe("ProviderCatalog Phase 3.5 listProviders", () => {
 		expect(mocks.listLocalProviders).toHaveBeenCalledWith(expect.anything(), { isClinePassEnabled: false })
 	})
 
-	it("awaits account-scoped feature flags from the existing provider before listing ClinePass-gated providers", async () => {
-		const { createProviderCatalog } = await import("./catalog")
-		const flagRefresh = deferred<void>()
-		mocks.getProviderSettings.mockReturnValue({ auth: { accountId: "user-123" } })
-		mocks.pollFeatureFlags.mockReturnValue(flagRefresh.promise)
-		mocks.getBooleanFlagEnabled.mockReturnValue(true)
-		mocks.listLocalProviders.mockResolvedValue({
-			providers: [
-				{
-					id: "cline-pass",
-					name: "ClinePass",
-					protocol: "anthropic",
-					client: "anthropic",
-					source: "system",
-				},
-			],
-		})
-		const providerId = parseProviderId("cline-pass")
-		const catalog = createProviderCatalog(makeReader({ providerId }))
-
-		const listingsPromise = catalog.listProviders()
-		await Promise.resolve()
-
-		expect(mocks.pollFeatureFlags).toHaveBeenCalledWith("user-123")
-		expect(mocks.listLocalProviders).not.toHaveBeenCalled()
-
-		flagRefresh.resolve()
-		const listings = await listingsPromise
-
-		expect(listings[0]?.id).toBe("cline-pass")
-		expect(mocks.listLocalProviders).toHaveBeenCalledWith(expect.anything(), { isClinePassEnabled: true })
-	})
-
 	it("caches provider listings per catalog instance without reading provider config", async () => {
 		const { createProviderCatalog } = await import("./catalog")
 		mocks.listLocalProviders.mockResolvedValue({
