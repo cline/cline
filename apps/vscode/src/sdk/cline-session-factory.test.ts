@@ -375,6 +375,48 @@ describe("buildSessionConfig", () => {
 		expect(config.providerConfig).not.toHaveProperty("apiKey")
 	})
 
+	it("passes OpenAI Compatible custom model metadata through as SDK knownModels", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "openai",
+			actModeOpenAiModelId: "custom-reasoner",
+			openAiApiKey: "openai-compatible-key",
+			openAiBaseUrl: "https://openai-compatible.example/v1",
+			actModeOpenAiModelInfo: {
+				name: "Custom Reasoner",
+				contextWindow: 16_000,
+				maxTokens: 4_096,
+				family: "deepseek",
+				metadata: { reasoningDefaultOn: true },
+				supportsImages: false,
+				supportsPromptCache: false,
+				supportsReasoning: true,
+				inputPrice: 0,
+				outputPrice: 0,
+			},
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerId).toBe("openai-compatible")
+		expect(config.modelId).toBe("custom-reasoner")
+		expect(config.knownModels?.["custom-reasoner"]).toMatchObject({
+			id: "custom-reasoner",
+			name: "Custom Reasoner",
+			contextWindow: 16_000,
+			maxInputTokens: 16_000,
+			maxTokens: 4_096,
+			capabilities: expect.arrayContaining(["streaming", "tools", "reasoning"]),
+			family: "deepseek",
+			metadata: { reasoningDefaultOn: true },
+		})
+		expect((config.providerConfig as any).knownModels?.["custom-reasoner"]).toMatchObject({
+			contextWindow: 16_000,
+			maxInputTokens: 16_000,
+			maxTokens: 4_096,
+		})
+		expect((config.providerConfig as any).maxOutputTokens).toBe(4_096)
+	})
+
 	it("uses ClinePass model storage and omits empty nested apiKey so SDK OAuth can fill it", async () => {
 		mocks.stateManager.getApiConfiguration.mockReturnValue({
 			actModeApiProvider: "cline-pass",
