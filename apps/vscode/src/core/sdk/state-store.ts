@@ -177,13 +177,20 @@ export class ExtensionStateStore {
 	 * Controller). Every required field is filled with a sensible default so the webview never
 	 * sees an undefined required key.
 	 */
-	buildExtensionState(clineMessages: ClineMessage[], turnState?: TurnState): ExtensionState {
+	buildExtensionState(
+		clineMessages: ClineMessage[],
+		turnState?: TurnState,
+		auth?: { isAuthenticated: boolean },
+	): ExtensionState {
 		const s = this.settings
 		const currentTaskItem = clineMessages.length > 0 ? this.taskHistory[0] : undefined
+		// The webview shows the onboarding/login view until `welcomeViewCompleted` is true. We treat
+		// "signed in to Cline" as completing onboarding so an unauthenticated user lands on Login.
+		const welcomeViewCompleted = auth?.isAuthenticated ?? false
 		return {
 			version: this.version,
 			isNewUser: false,
-			welcomeViewCompleted: true,
+			welcomeViewCompleted,
 			onboardingModels: undefined,
 			apiConfiguration: this.apiConfiguration,
 			autoApprovalSettings: DEFAULT_AUTO_APPROVAL_SETTINGS,

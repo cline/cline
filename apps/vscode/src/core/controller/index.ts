@@ -20,6 +20,7 @@ import type { State } from "@shared/proto/cline/state"
 import type { ClineMessage as ProtoClineMessage } from "@shared/proto/cline/ui"
 import { Logger } from "@shared/services/Logger"
 import type { ClineExtensionContext } from "@/shared/cline"
+import { AuthService } from "../sdk/auth-service"
 import { MessageIdMinter } from "../sdk/message-id-minter"
 import { buildToolApprovalAskMessage, MessageTranslator } from "../sdk/message-translator"
 import { buildSessionConfig, type SessionMode } from "../sdk/session-config"
@@ -54,7 +55,10 @@ export class Controller {
 	// scope for the SDK MVP. Loosely typed on purpose.
 	readonly stateManager: any = createInertStateManager()
 	task: any = undefined
-	accountService: any = undefined
+
+	// Cline account authentication (sign-in/out + auth-status streaming). Shared singleton so all
+	// webviews observe the same auth state and providers.json is the single token source of truth.
+	readonly authService: AuthService = AuthService.getInstance()
 	terminalManager: any = undefined
 	workspaceManager: any = undefined
 	backgroundCommandRunning?: boolean = false
@@ -66,6 +70,10 @@ export class Controller {
 		this.translator = new MessageTranslator(this.minter)
 		this.bridge = new WebviewBridge()
 		this.stateStore = new ExtensionStateStore(context)
+
+		// Restore any persisted Cline credentials in the background. When it resolves it pushes an
+		// auth-status update + refreshes ExtensionState, flipping the webview to chat if signed in.
+		void this.authService.restoreAuth().catch((error) => Logger.error("[Controller] restoreAuth failed:", error))
 	}
 
 	async dispose(): Promise<void> {
@@ -83,7 +91,12 @@ export class Controller {
 	// ---- state ----
 
 	async getStateToPostToWebview(): Promise<ExtensionState> {
-		return this.stateStore.buildExtensionState(this.clineMessages, this.turnState)
+		// The webview gates the onboarding/login view on `welcomeViewCompleted`, which we map to
+		// "is the user signed in to Cline". An unauthenticated user sees the Login view; a signed-in
+		// user sees chat.
+		return this.stateStore.buildExtensionState(this.clineMessages, this.turnState, {
+			isAuthenticated: this.authService.isAuthenticated(),
+		})
 	}
 
 	async postStateToWebview(): Promise<void> {

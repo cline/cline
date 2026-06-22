@@ -11,6 +11,11 @@ import { getProviderCollectionSync } from "@cline/llms"
 import { buildClineSystemPrompt } from "@cline/shared"
 import type { ApiConfiguration } from "@shared/api"
 import type { Mode } from "@shared/storage/types"
+import { ClineEnv } from "@/config"
+import { resolveClineApiKey } from "./auth-service"
+
+/** Cline-hosted providers whose credentials + endpoint come from the signed-in account, not ApiConfiguration. */
+const CLINE_HOSTED_PROVIDER_IDS = new Set(["cline", "cline-pass"])
 
 export type SessionMode = Extract<Mode, "plan" | "act">
 
@@ -135,11 +140,25 @@ function resolveDefaultModelId(sdkProviderId: string): string {
 }
 
 function resolveApiKey(config: ApiConfiguration, providerId: string): string | undefined {
+	// Cline-hosted providers authenticate with the signed-in account's access token, stored in
+	// providers.json (workos-prefixed). This is the token the AuthService persists at sign-in.
+	if (CLINE_HOSTED_PROVIDER_IDS.has(providerId)) {
+		const accountToken = resolveClineApiKey()
+		if (accountToken) {
+			return accountToken
+		}
+	}
 	const field = PROVIDER_API_KEY_MAP[providerId] ?? "apiKey"
 	return stringField(config, field)
 }
 
 function resolveBaseUrl(config: ApiConfiguration, providerId: string): string | undefined {
+	// Cline-hosted providers route to the configured environment's API (e2e mock in local, real in
+	// prod). The SDK's openai-compatible client appends /chat/completions, so the base must include
+	// the /api/v1 prefix — matching the SDK's own builtin cline endpoint.
+	if (CLINE_HOSTED_PROVIDER_IDS.has(providerId)) {
+		return `${ClineEnv.config().apiBaseUrl}/api/v1`
+	}
 	return stringField(config, PROVIDER_BASE_URL_MAP[providerId])
 }
 

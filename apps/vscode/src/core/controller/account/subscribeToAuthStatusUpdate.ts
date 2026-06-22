@@ -3,10 +3,10 @@ import { Controller } from ".."
 import { StreamingResponseHandler } from "../grpc-handler"
 
 export async function subscribeToAuthStatusUpdate(
-	_controller: Controller,
-	_request: EmptyRequest,
-	_responseStream: StreamingResponseHandler<AuthState>,
-	_requestId?: string,
+	controller: Controller,
+	request: EmptyRequest,
+	responseStream: StreamingResponseHandler<AuthState>,
+	requestId?: string,
 ): Promise<void> {
-	return
+	return controller.authService.subscribeToAuthStatusUpdate(controller, request, responseStream, requestId)
 }

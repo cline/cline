@@ -33,6 +33,10 @@ export class SdkSessionManager {
 	private core?: ClineCore
 	private activeSessionId?: string
 	private readonly deps: SdkSessionManagerDeps
+	// The Controller subscribes before the core is lazily created (so it never misses the first
+	// turn's events). We hold the listener and attach it as soon as the core exists.
+	private listener?: (event: CoreSessionEvent) => void
+	private coreUnsubscribe?: () => void
 
 	private constructor(deps: SdkSessionManagerDeps) {
 		this.deps = deps
@@ -62,6 +66,10 @@ export class SdkSessionManager {
 			},
 		})
 		Logger.log("[SdkSessionManager] ClineCore created (local backend)")
+		// Attach any listener registered before the core existed.
+		if (this.listener) {
+			this.coreUnsubscribe = this.core.subscribe(this.listener)
+		}
 		return this.core
 	}
 
@@ -129,12 +137,21 @@ export class SdkSessionManager {
 		}
 	}
 
-	/** Subscribe to translated-eligible session events for the active session. */
+	/**
+	 * Subscribe to session events. Safe to call before the core is created (lazy): the listener is
+	 * stored and attached as soon as ensureCore() boots the runtime, so the first turn is never missed.
+	 */
 	subscribe(listener: (event: CoreSessionEvent) => void): () => void {
-		if (!this.core) {
-			return () => {}
+		this.listener = listener
+		this.coreUnsubscribe?.()
+		this.coreUnsubscribe = this.core ? this.core.subscribe(listener) : undefined
+		return () => {
+			if (this.listener === listener) {
+				this.listener = undefined
+			}
+			this.coreUnsubscribe?.()
+			this.coreUnsubscribe = undefined
 		}
-		return this.core.subscribe(listener)
 	}
 
 	/** Stop the active session (keeps the core alive for the next task). */
