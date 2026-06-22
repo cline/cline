@@ -16,7 +16,7 @@ import {
 	resolveProviderApiKeyFromSettings,
 	type StartSessionResult,
 } from "@cline/core"
-import { getGeneratedModelsForProvider, type ModelInfo as SdkModelInfo, MODEL_COLLECTIONS_BY_PROVIDER_ID } from "@cline/llms"
+import { getGeneratedModelsForProvider, MODEL_COLLECTIONS_BY_PROVIDER_ID, type ModelInfo as SdkModelInfo } from "@cline/llms"
 import { buildClineSystemPrompt } from "@cline/shared"
 import type { ApiConfiguration, ModelInfo as LegacyModelInfo } from "@shared/api"
 import type { HistoryItem } from "@shared/HistoryItem"
@@ -27,8 +27,10 @@ import type { Mode } from "@shared/storage/types"
 import { stringifyVsCodeLmModelSelector } from "@shared/vsCodeSelectorUtils"
 import { StateManager } from "@/core/storage/StateManager"
 import { ExtensionRegistryInfo } from "@/registry"
+import { getFeatureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { fetch } from "@/shared/net"
+import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
 import { type BedrockProviderConfig, buildBedrockProviderConfig } from "./bedrock-config"
 import { buildAgentHooks } from "./hooks-adapter"
 import { readTaskHistory, resolveDataDir } from "./legacy-state-reader"
@@ -591,7 +593,9 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		try {
 			const dataDir = resolveDataDir()
 			const manager = getProviderSettingsManager(dataDir)
-			const lastUsed = manager.getLastUsedProviderSettings()
+			const lastUsed = manager.getLastUsedProviderSettings({
+				isClinePassEnabled: getFeatureFlagsService().getBooleanFlagEnabled(FeatureFlag.CLINE_PASS),
+			})
 
 			if (lastUsed?.provider && lastUsed?.apiKey) {
 				providerId = lastUsed.provider
