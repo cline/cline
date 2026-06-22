@@ -47,7 +47,6 @@ export interface ChatState {
 	resetState: () => void
 
 	// Scroll-related state (will be moved to scroll hook)
-	showScrollToBottom?: boolean
 	isAtBottom?: boolean
 	pendingScrollToMessage?: number | null
 }
@@ -74,8 +73,6 @@ export interface ScrollBehavior {
 	scrollToMessage: (messageIndex: number) => void
 	toggleRowExpansion: (ts: number) => void
 	handleRowHeightChange: (isTaller: boolean) => void
-	showScrollToBottom: boolean
-	setShowScrollToBottom: React.Dispatch<React.SetStateAction<boolean>>
 	isAtBottom: boolean
 	setIsAtBottom: React.Dispatch<React.SetStateAction<boolean>>
 	pendingScrollToMessage: number | null

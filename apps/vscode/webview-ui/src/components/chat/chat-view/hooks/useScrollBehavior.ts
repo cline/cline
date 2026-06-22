@@ -19,8 +19,6 @@ export function useScrollBehavior(
 	expandedRows: Record<number, boolean>,
 	setExpandedRows: React.Dispatch<React.SetStateAction<Record<number, boolean>>>,
 ): ScrollBehavior & {
-	showScrollToBottom: boolean
-	setShowScrollToBottom: React.Dispatch<React.SetStateAction<boolean>>
 	isAtBottom: boolean
 	setIsAtBottom: React.Dispatch<React.SetStateAction<boolean>>
 	pendingScrollToMessage: number | null
@@ -34,7 +32,6 @@ export function useScrollBehavior(
 	const disableAutoScrollRef = useRef(false)
 
 	// State
-	const [showScrollToBottom, setShowScrollToBottom] = useState(false)
 	const [isAtBottom, setIsAtBottom] = useState(false)
 	const [pendingScrollToMessage, setPendingScrollToMessage] = useState<number | null>(null)
 	const [scrolledPastUserMessage, setScrolledPastUserMessage] = useState<ClineMessage | null>(null)
@@ -299,12 +296,6 @@ export function useScrollBehavior(
 		}
 	}, [pendingScrollToMessage, groupedMessages, scrollToMessage])
 
-	useEffect(() => {
-		if (!messages?.length) {
-			setShowScrollToBottom(false)
-		}
-	}, [messages.length])
-
 	const handleWheel = useCallback((event: Event) => {
 		const wheelEvent = event as WheelEvent
 		if (wheelEvent.deltaY && wheelEvent.deltaY < 0) {
@@ -325,8 +316,6 @@ export function useScrollBehavior(
 		scrollToMessage,
 		toggleRowExpansion,
 		handleRowHeightChange,
-		showScrollToBottom,
-		setShowScrollToBottom,
 		isAtBottom,
 		setIsAtBottom,
 		pendingScrollToMessage,
