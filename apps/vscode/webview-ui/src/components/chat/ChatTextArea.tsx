@@ -21,7 +21,7 @@ import { usePlatform } from "@/context/PlatformContext"
 import { useNormalizedApiConfiguration } from "@/hooks/useNormalizedApiConfiguration"
 import { cn } from "@/lib/utils"
 import { FileServiceClient, StateServiceClient } from "@/services/grpc-client"
-import { shouldProcessImageAttachments } from "./chat-view/utils/imageAttachments"
+import { isAcceptedImageType, shouldProcessImageAttachments } from "./chat-view/utils/imageAttachments"
 import {
 	ContextMenuOptionType,
 	getContextMenuOptionIndex,
@@ -1212,7 +1212,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					showUnsupportedFileErrorMessage()
 				}
 
-				const hasImageFile = items.some((item) => item.kind === "file" && item.type.split("/")[0] === "image")
+				const hasImageFile = items.some((item) => item.kind === "file" && isAcceptedImageType(item.type))
 				if (hasImageFile && !selectedModelSupportsImages) {
 					showUnsupportedImageErrorMessage()
 				}
@@ -1329,11 +1329,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			// --- 3. Image Drop Handling ---
 			// Only proceed if it wasn't a VSCode resource or plain text drop
 			const files = Array.from(e.dataTransfer.files)
-			const acceptedTypes = ["png", "jpeg", "webp"]
-			const imageFiles = files.filter((file) => {
-				const [type, subtype] = file.type.split("/")
-				return type === "image" && acceptedTypes.includes(subtype)
-			})
+			const imageFiles = files.filter((file) => isAcceptedImageType(file.type))
 
 			if (imageFiles.length > 0 && !selectedModelSupportsImages) {
 				showUnsupportedImageErrorMessage()
