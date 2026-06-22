@@ -209,11 +209,13 @@ function toProviderListing(provider: ProviderListItem): ProviderListing {
 	}
 }
 
-function listSdkProviderListings(): Promise<ReadonlyArray<ProviderListing>> {
+async function listSdkProviderListings(): Promise<ReadonlyArray<ProviderListing>> {
 	const manager = getProviderSettingsManager()
-	return listLocalProviders(manager, {
-		isClinePassEnabled: getFeatureFlagsService().getBooleanFlagEnabled(FeatureFlag.CLINE_PASS),
-	}).then(({ providers }) => providers.map(toProviderListing))
+	const featureFlags = getFeatureFlagsService()
+	const { providers } = await listLocalProviders(manager, {
+		isClinePassEnabled: featureFlags.getBooleanFlagEnabled(FeatureFlag.CLINE_PASS),
+	})
+	return providers.map(toProviderListing)
 }
 
 async function resolveSdkModels(
@@ -315,6 +317,10 @@ export function createProviderCatalog(reader: ProviderConfigReader): ProviderCat
 				throw error
 			})
 			return providerListingsPromise
+		},
+
+		invalidateProviderListings(): void {
+			providerListingsPromise = undefined
 		},
 
 		async resolveModels(

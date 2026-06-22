@@ -24,6 +24,7 @@ function makeStore(config: EffectiveProviderConfig): ProviderConfigStore {
 function makeCatalog(): ProviderCatalog {
 	return {
 		listProviders: vi.fn(async () => []),
+		invalidateProviderListings: vi.fn(),
 		resolveModels: vi.fn(),
 		peekModels: vi.fn(),
 		subscribe: vi.fn(() => ({ dispose: vi.fn() })),
