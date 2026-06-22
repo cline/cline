@@ -21,7 +21,10 @@ import {
 	listConnectorCatalog,
 	shouldIncludeConnectorField,
 } from "@cline/shared";
-import { resolveClineDataDir } from "@cline/shared/storage";
+import {
+	resolveConnectorDataDir,
+	resolveConnectorSettingsPath,
+} from "@cline/shared/storage";
 import { captureToolUsage } from "../../../services/telemetry/core-events";
 import { errorReply, type HubTransportContext, okReply } from "./context";
 
@@ -89,10 +92,6 @@ const connectorActiveStateConfigs: Record<
 		optional: ["startedAt", "phoneNumberId", "port", "baseUrl"],
 	},
 };
-
-function resolveConnectorSettingsPath(): string {
-	return join(resolveClineDataDir(), "connectors", "settings.json");
-}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -172,7 +171,7 @@ function isProcessRunning(pid: number): boolean {
 }
 
 function listConnectorStatePaths(type: string): string[] {
-	const dir = join(resolveClineDataDir(), "connectors", type);
+	const dir = join(resolveConnectorDataDir(), type);
 	if (!existsSync(dir)) {
 		return [];
 	}
