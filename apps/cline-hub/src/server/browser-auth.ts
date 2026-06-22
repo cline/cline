@@ -37,12 +37,13 @@ export function allowedBrowserOrigins({
 	port,
 	publicUrl,
 }: BrowserRequestAuthOptions): Set<string> {
+	const publicUrlParts = new URL(publicUrl);
 	const origins = new Set<string>();
-	origins.add(new URL(publicUrl).origin);
+	origins.add(publicUrlParts.origin);
 
 	if (!isNonLocalBindHost(bindHost)) {
 		for (const hostname of ["127.0.0.1", "localhost", "[::1]"]) {
-			origins.add(`http://${hostname}:${port}`);
+			origins.add(`${publicUrlParts.protocol}//${hostname}:${port}`);
 		}
 	}
 

@@ -38,6 +38,21 @@ describe("allowedBrowserOrigins", () => {
 		]);
 	});
 
+	it("uses the configured public URL scheme for local aliases", () => {
+		expect(
+			[
+				...allowedBrowserOrigins({
+					...defaultOptions,
+					publicUrl: "https://127.0.0.1:8787",
+				}),
+			].sort(),
+		).toEqual([
+			"https://127.0.0.1:8787",
+			"https://[::1]:8787",
+			"https://localhost:8787",
+		]);
+	});
+
 	it("only allows the configured public URL origin for non-local binds", () => {
 		expect([
 			...allowedBrowserOrigins({
@@ -214,6 +229,7 @@ describe("isAuthorizedBrowserToDesktopRequest", () => {
 			isAuthorizedBrowserToDesktopRequest(
 				new Request("http://127.0.0.1:8787/future-socket", {
 					headers: {
+						host: "127.0.0.1:8787",
 						origin: "http://evil.attacker.example.com",
 						upgrade: "websocket",
 					},
@@ -229,7 +245,10 @@ describe("isAuthorizedBrowserToDesktopRequest", () => {
 			isAuthorizedBrowserToDesktopRequest(
 				new Request("http://127.0.0.1:8787/future-api", {
 					method: "POST",
-					headers: { origin: "http://evil.attacker.example.com" },
+					headers: {
+						host: "127.0.0.1:8787",
+						origin: "http://evil.attacker.example.com",
+					},
 				}),
 				new URL("http://127.0.0.1:8787/future-api"),
 				defaultOptions,
