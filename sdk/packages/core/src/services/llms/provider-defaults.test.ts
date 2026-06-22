@@ -211,6 +211,76 @@ describe("resolveProviderConfig", () => {
 		);
 	});
 
+	it("falls back to /model/info for LiteLLM private models", async () => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce(new Response("no v1 route", { status: 404 }))
+			.mockResolvedValueOnce(new Response("no v1 route", { status: 404 }))
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({
+						data: [
+							{
+								model_name: "private-proxy-model",
+								litellm_params: { model: "openai/gpt-4o-mini" },
+								model_info: {
+									supports_vision: true,
+									supports_reasoning: true,
+								},
+							},
+						],
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				),
+			);
+		vi.stubGlobal("fetch", fetchMock);
+
+		const resolved = await resolveProviderConfig(
+			"litellm",
+			{ failOnError: true, cacheTtlMs: 0 },
+			{
+				providerId: "litellm",
+				modelId: "",
+				apiKey: "litellm-key",
+				baseUrl: "http://localhost:4000/v1/",
+			},
+		);
+
+		expect(fetchMock.mock.calls.map((call) => call[0])).toEqual([
+			"http://localhost:4000/v1/model/info",
+			"http://localhost:4000/v1/model/info",
+			"http://localhost:4000/model/info",
+		]);
+		expect(resolved?.knownModels?.["openai/gpt-4o-mini"]).toEqual(
+			expect.objectContaining({
+				name: "private-proxy-model",
+				capabilities: expect.arrayContaining(["images", "reasoning"]),
+			}),
+		);
+	});
+
+	it("reports attempted path, auth header, status, and body for LiteLLM model fetch failures", async () => {
+		const fetchMock = vi.fn(
+			async () => new Response('{"error":"unauthorized"}', { status: 401 }),
+		);
+		vi.stubGlobal("fetch", fetchMock);
+
+		await expect(
+			resolveProviderConfig(
+				"litellm",
+				{ failOnError: true, cacheTtlMs: 0 },
+				{
+					providerId: "litellm",
+					modelId: "",
+					apiKey: "litellm-key",
+					baseUrl: "http://localhost:4000",
+				},
+			),
+		).rejects.toThrow(
+			'/model/info (Authorization): HTTP 401: {"error":"unauthorized"}',
+		);
+	});
+
 	it("derives ChatGPT subscription models from the generated OpenAI catalog", async () => {
 		const resolved = await resolveProviderConfig("openai-codex");
 		const openAiResolved = await resolveProviderConfig("openai-native");
