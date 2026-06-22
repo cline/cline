@@ -364,7 +364,7 @@ describe("buildSessionConfig", () => {
 			{ providerId: "poolside", modelId: "poolside/laguna-m.1:free" },
 			{ providerId: "v0", modelId: "v0-1.5-md" },
 			{ providerId: "xiaomi", modelId: "mimo-v2-omni" },
-			{ providerId: "zai-coding-plan", modelId: "glm-5v-turbo" },
+			{ providerId: "zai-coding-plan", modelId: "glm-5.2" },
 		] as const
 
 		for (const { providerId, modelId } of providers) {

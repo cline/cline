@@ -776,7 +776,7 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		description: "Z.AI's coding-focused models",
 		family: "openai-compatible",
 		capabilities: ["reasoning", "tools"],
-		defaultModelId: "glm-5v-turbo",
+		defaultModelId: "glm-5.2",
 		apiKeyEnv: ["ZHIPU_API_KEY"],
 		modelsProviderId: "zai-coding-plan",
 		defaults: { baseUrl: "https://api.z.ai/api/coding/paas/v4" },
