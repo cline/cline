@@ -3,16 +3,12 @@ import type {
 	HubReplyEnvelope,
 	HubTransportFrame,
 } from "@cline/shared";
-import { resolveClineBuildEnv } from "@cline/shared";
 import { createHubServerUrl, readHubDiscovery } from "../discovery";
 import {
 	type HubEndpointOverrides,
 	resolveHubEndpointOptions,
 } from "../discovery/defaults";
-import {
-	resolveProductionHubOwnerContext,
-	resolveSharedHubOwnerContext,
-} from "../discovery/workspace";
+import { resolveDefaultHubOwnerContext } from "../discovery/workspace";
 
 export interface HubConnection {
 	send(envelope: HubCommandEnvelope): Promise<HubReplyEnvelope>;
@@ -70,12 +66,6 @@ function sameHubEndpoint(left: string, right: string): boolean {
 	rightUrl.search = "";
 	rightUrl.hash = "";
 	return leftUrl.toString() === rightUrl.toString();
-}
-
-function resolveDefaultHubOwnerContext() {
-	return resolveClineBuildEnv() === "production"
-		? resolveProductionHubOwnerContext()
-		: resolveSharedHubOwnerContext();
 }
 
 async function resolveHubUrlAuthToken(url: URL): Promise<string | undefined> {

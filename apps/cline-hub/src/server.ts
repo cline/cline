@@ -1,13 +1,13 @@
 import { CORE_BUILD_VERSION } from "@cline/core";
-import { isNonLocalBindHost } from "./options";
+import { buildDashboardLaunchUrl, isNonLocalBindHost } from "./options";
 import {
 	handleToolApprovalResponse,
 	rejectOrphanedApprovals,
 } from "./server/approvals";
 import {
 	browserConfig,
+	dashboardWebUrl,
 	host,
-	inviteUrl,
 	port,
 	publicUrl,
 	roomSecret,
@@ -64,6 +64,20 @@ export async function startClineHubDashboardServer(): Promise<ClineHubDashboardS
 		return url.searchParams.get("roomSecret") === roomSecret;
 	}
 
+	function isAllowedBrowserOrigin(req: Request): boolean {
+		const origin = req.headers.get("origin");
+		if (!origin) return true;
+		try {
+			const parsedOrigin = new URL(origin);
+			const allowedOrigins = [publicUrl, dashboardWebUrl].map(
+				(value) => new URL(value).origin,
+			);
+			return allowedOrigins.includes(parsedOrigin.origin);
+		} catch {
+			return false;
+		}
+	}
+
 	await attachHub(ctx);
 	const healthInterval = setInterval(() => {
 		void (async () => {
@@ -85,7 +99,7 @@ export async function startClineHubDashboardServer(): Promise<ClineHubDashboardS
 				return createJsonResponse(hubStatusPayload(ctx));
 			}
 			if (url.pathname === "/browser") {
-				if (!isAuthorizedBrowserRequest(url)) {
+				if (!isAuthorizedBrowserRequest(url) || !isAllowedBrowserOrigin(req)) {
 					return createJsonResponse({ error: "invalid_room_secret" }, 401);
 				}
 				const displayName = `Browser ${Math.random().toString(36).slice(2, 6)}`;
@@ -149,6 +163,12 @@ export async function startClineHubDashboardServer(): Promise<ClineHubDashboardS
 							});
 						}
 					} else if (frame.type === "ready") {
+						await initializePeer(ctx, peer, syncClientsAndSessions);
+					} else if (frame.type === "connect_hub") {
+						await attachHub(ctx, {
+							hubUrl: frame.hubUrl,
+							authToken: frame.authToken,
+						});
 						await initializePeer(ctx, peer, syncClientsAndSessions);
 					} else if (frame.type === "loadModels") {
 						await loadModels(ctx, peer, frame.providerId);
@@ -231,7 +251,12 @@ export async function startClineHubDashboardServer(): Promise<ClineHubDashboardS
 	return {
 		listenUrl: server.url.toString(),
 		publicUrl,
-		inviteUrl,
+		inviteUrl: buildDashboardLaunchUrl(
+			dashboardWebUrl,
+			publicUrl,
+			roomSecret,
+			ctx.hubUrl,
+		),
 		bindHost: host,
 		inviteRequired: Boolean(roomSecret),
 		hubUrl: ctx.hubUrl,

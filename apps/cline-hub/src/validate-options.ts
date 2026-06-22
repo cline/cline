@@ -1,4 +1,7 @@
-import { buildInviteUrl, resolveClineHubServerOptions } from "./options";
+import {
+	buildDashboardLaunchUrl,
+	resolveClineHubServerOptions,
+} from "./options";
 
 function expectEqual<T>(actual: T, expected: T, label: string): void {
 	if (actual !== expected) {
@@ -21,7 +24,9 @@ const defaults = resolveClineHubServerOptions({});
 expectEqual(defaults.host, "127.0.0.1", "default host");
 expectEqual(defaults.port, 8787, "default port");
 expectEqual(defaults.publicUrl, "http://127.0.0.1:8787", "default public URL");
-expectEqual(defaults.roomSecret, undefined, "default room secret");
+if (!defaults.roomSecret) {
+	throw new Error("default room secret: expected a generated secret");
+}
 
 const lan = resolveClineHubServerOptions({
 	HOST: "0.0.0.0",
@@ -36,15 +41,11 @@ expectEqual(lan.publicUrl, "https://example.ngrok-free.app", "LAN public URL");
 expectEqual(lan.roomSecret, "invite-123", "LAN room secret");
 expectEqual(lan.workspaceRoot, "/tmp/workspace", "workspace root");
 expectEqual(
-	buildInviteUrl(lan.publicUrl, lan.roomSecret),
-	"https://example.ngrok-free.app/?roomSecret=invite-123",
+	buildDashboardLaunchUrl(lan.publicUrl, lan.publicUrl, lan.roomSecret),
+	"https://example.ngrok-free.app/#bridgeUrl=https%3A%2F%2Fexample.ngrok-free.app&roomSecret=invite-123",
 	"invite URL",
 );
 
-expectThrows(
-	() => resolveClineHubServerOptions({ HOST: "0.0.0.0" }),
-	"non-local bind without ROOM_SECRET",
-);
 expectThrows(
 	() => resolveClineHubServerOptions({ CLINE_HUB_DASHBOARD_PORT: "70000" }),
 	"invalid dashboard port",

@@ -11,12 +11,10 @@ import {
 	isHubDashboardPidAlive,
 	readHubDashboardDiscovery,
 	readHubDiscovery,
+	resolveDefaultHubOwnerContext,
 	resolveHubDashboardDiscoveryPath,
-	resolveProductionHubOwnerContext,
-	resolveSharedHubOwnerContext,
 	writeHubDashboardDiscovery,
 } from "@cline/core";
-import { resolveClineBuildEnv } from "@cline/shared";
 import open from "open";
 import { configureSandboxEnvironment } from "../utils/helpers";
 import { buildCliSubcommandCommand } from "../utils/internal-launch";
@@ -55,7 +53,9 @@ export interface RunDashboardCommandOptions {
 
 const DASHBOARD_PORT_ENV = "CLINE_HUB_DASHBOARD_PORT";
 const WEBVIEW_DIST_ENV = "CLINE_HUB_WEBVIEW_DIST_DIR";
+const DASHBOARD_WEB_URL_ENV = "CLINE_HUB_DASHBOARD_WEB_URL";
 const DASHBOARD_DISCOVERY_PATH_ENV = "CLINE_HUB_DASHBOARD_DISCOVERY_PATH";
+const DEFAULT_HOSTED_DASHBOARD_WEB_URL = "https://cline.bot/dashboard";
 const DASHBOARD_STARTUP_TIMEOUT_MS = 8_000;
 const DASHBOARD_STARTUP_POLL_MS = 200;
 const DASHBOARD_STOP_TIMEOUT_MS = 3_000;
@@ -93,14 +93,20 @@ async function withDashboardEnvironment<T>(
 	fn: () => Promise<T>,
 ): Promise<T> {
 	const cwd = options.cwd ? resolve(options.cwd) : process.cwd();
+	const webviewDistDir = resolveDefaultWebviewDistDir();
 	const restore = [
 		setEnvValue("WORKSPACE_ROOT", options.cwd ? cwd : undefined),
 		setEnvValue("CLINE_DIR", options.configDir?.trim() || undefined),
 		setEnvValue("HOST", options.host),
 		setEnvValue(DASHBOARD_PORT_ENV, options.port),
 		setEnvValue("PUBLIC_URL", options.publicUrl),
+		setEnvValue(
+			DASHBOARD_WEB_URL_ENV,
+			process.env[DASHBOARD_WEB_URL_ENV]?.trim() ||
+				(webviewDistDir ? undefined : DEFAULT_HOSTED_DASHBOARD_WEB_URL),
+		),
 		setEnvValue("ROOM_SECRET", options.roomSecret),
-		setEnvValue(WEBVIEW_DIST_ENV, resolveDefaultWebviewDistDir()),
+		setEnvValue(WEBVIEW_DIST_ENV, webviewDistDir),
 		...SANDBOX_ENV_KEYS.map((key) => setEnvValue(key, undefined)),
 	];
 	if (options.dataDir || process.env.CLINE_SANDBOX?.trim() === "1") {
@@ -175,16 +181,10 @@ async function openDefaultUrl(url: string): Promise<void> {
 	await open(url, { wait: false });
 }
 
-function resolveCliHubOwnerContext() {
-	return resolveClineBuildEnv() === "production"
-		? resolveProductionHubOwnerContext()
-		: resolveSharedHubOwnerContext();
-}
-
 function resolveDashboardDiscoveryPath(): string {
 	return (
 		process.env[DASHBOARD_DISCOVERY_PATH_ENV]?.trim() ||
-		resolveHubDashboardDiscoveryPath(resolveCliHubOwnerContext())
+		resolveHubDashboardDiscoveryPath(resolveDefaultHubOwnerContext())
 	);
 }
 
@@ -292,7 +292,7 @@ async function ensureDefaultDashboard(
 ): Promise<HubDashboardDiscoveryRecord> {
 	return await withDashboardEnvironment(options, async () => {
 		const cwd = options.cwd ? resolve(options.cwd) : process.cwd();
-		const owner = resolveCliHubOwnerContext();
+		const owner = resolveDefaultHubOwnerContext();
 		const hubBefore = await readHubDiscovery(owner.discoveryPath);
 		await ensureDetachedHubServer(cwd);
 		const hubAfter = await readHubDiscovery(owner.discoveryPath);

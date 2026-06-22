@@ -13,6 +13,10 @@ const { spawn, coreMocks, buildCliSubcommandCommand } = vi.hoisted(() => ({
 		),
 		readHubDashboardDiscovery: vi.fn(),
 		readHubDiscovery: vi.fn(),
+		resolveDefaultHubOwnerContext: vi.fn(() => ({
+			ownerId: "hub-shared",
+			discoveryPath: "/tmp/hub.json",
+		})),
 		resolveHubDashboardDiscoveryPath: vi.fn(() => "/tmp/dashboard.json"),
 		resolveProductionHubOwnerContext: vi.fn(() => ({
 			ownerId: "hub-production",

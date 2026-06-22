@@ -1,12 +1,26 @@
 import { dirname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ProviderSettingsManager } from "@cline/core";
-import { buildInviteUrl, resolveClineHubServerOptions } from "../options";
+import {
+	buildDashboardLaunchUrl,
+	resolveClineHubServerOptions,
+} from "../options";
 import type { BrowserConfig } from "./types";
 
 export const options = resolveClineHubServerOptions();
-export const { host, port, publicUrl, roomSecret, workspaceRoot } = options;
-export const inviteUrl = buildInviteUrl(publicUrl, roomSecret);
+export const {
+	dashboardWebUrl,
+	host,
+	port,
+	publicUrl,
+	roomSecret,
+	workspaceRoot,
+} = options;
+export const inviteUrl = buildDashboardLaunchUrl(
+	dashboardWebUrl,
+	publicUrl,
+	roomSecret,
+);
 
 const serverDir = dirname(fileURLToPath(import.meta.url));
 /** server.ts lives one level up from this module, so resolve relative to it. */
@@ -21,6 +35,8 @@ export const cliIndexPath = normalize(
 export const providerSettingsManager = new ProviderSettingsManager();
 
 export const browserConfig: BrowserConfig = {
+	bridgeUrl: publicUrl,
+	dashboardWebUrl,
 	inviteRequired: Boolean(roomSecret),
 	publicUrl,
 };

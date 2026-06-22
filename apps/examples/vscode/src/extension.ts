@@ -7,7 +7,7 @@ import {
 	captureExtensionActivated,
 	createConfiguredTelemetryService,
 	createLocalHubScheduleRuntimeHandlers,
-	ensureHubWebSocketServer,
+	ensureHubServer,
 	type ITelemetryService,
 	Llms,
 	NodeHubClient,
@@ -17,7 +17,7 @@ import {
 	type RuntimeCapabilities,
 	readHubDiscovery,
 	rememberRecoverableLocalHubUrl,
-	resolveSharedHubOwnerContext,
+	resolveDefaultHubOwnerContext,
 	type ToolPolicy,
 } from "@cline/core";
 import {
@@ -698,7 +698,7 @@ class CoreChatWebviewController implements vscode.Disposable {
 	}
 
 	private async discoverOrStartHub(): Promise<HubResolution | undefined> {
-		const owner = resolveSharedHubOwnerContext();
+		const owner = resolveDefaultHubOwnerContext();
 
 		if (this.hubUrl) {
 			const healthy = await probeHubServer(this.hubUrl, {
@@ -715,8 +715,7 @@ class CoreChatWebviewController implements vscode.Disposable {
 		const discovered = await this.probeDiscoveredHub(owner.discoveryPath);
 		if (discovered) return discovered;
 
-		await ensureHubWebSocketServer({
-			owner,
+		await ensureHubServer({
 			allowPortFallback: true,
 			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
 		});

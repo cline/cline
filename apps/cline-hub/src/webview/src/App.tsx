@@ -64,7 +64,11 @@ import {
 	SettingsView,
 } from "./components/views/settings/settings-view";
 import { syncHubTheme } from "./lib/theme";
-import { postToHost } from "./vscode";
+import {
+	postToHost,
+	readBrowserConnectionTarget,
+	writeBrowserConnectionTarget,
+} from "./vscode";
 
 type View =
 	| "home"
@@ -450,6 +454,7 @@ function Shell({
 
 function HomeView({
 	hubState,
+	onConnectHub,
 	onOpenSession,
 	onRestartHub,
 	onViewSessions,
@@ -457,6 +462,7 @@ function HomeView({
 	recentSessions,
 }: {
 	hubState: WebviewHubState;
+	onConnectHub: (hubUrl: string) => void;
 	onOpenSession: (sessionId: string) => void;
 	onRestartHub: () => void;
 	onViewSessions: () => void;
@@ -471,6 +477,9 @@ function HomeView({
 		recentSessions.length > 0 ? recentSessions : activeSessions
 	).slice(0, 2);
 	const [restartDialogOpen, setRestartDialogOpen] = useState(false);
+	const [hubUrlInput, setHubUrlInput] = useState(
+		() => readBrowserConnectionTarget().hubUrl ?? hubState.hubUrl ?? "",
+	);
 
 	const copyText = useCallback((value?: string) => {
 		if (!value || typeof navigator === "undefined") return;
@@ -480,6 +489,13 @@ function HomeView({
 	const confirmRestartHub = () => {
 		setRestartDialogOpen(false);
 		onRestartHub();
+	};
+
+	const submitHubUrl = () => {
+		const nextHubUrl = hubUrlInput.trim();
+		if (!nextHubUrl) return;
+		writeBrowserConnectionTarget({ hubUrl: nextHubUrl });
+		onConnectHub(nextHubUrl);
 	};
 
 	return (
@@ -530,6 +546,25 @@ function HomeView({
 					</>
 				}
 			/>
+			<form
+				className="mb-5 flex max-w-[52rem] items-center gap-2"
+				onSubmit={(event) => {
+					event.preventDefault();
+					submitHubUrl();
+				}}
+			>
+				<Input
+					aria-label="Hub URL"
+					className="h-8"
+					onChange={(event) => setHubUrlInput(event.target.value)}
+					placeholder="ws://127.0.0.1:25463/hub"
+					value={hubUrlInput}
+				/>
+				<Button className="h-8 rounded px-2" size="sm" type="submit">
+					<LinkIcon className="size-3.5" />
+					<span>Connect</span>
+				</Button>
+			</form>
 			<AlertDialog
 				open={restartDialogOpen}
 				onOpenChange={(open) => {
@@ -1152,6 +1187,10 @@ function App() {
 		postToHost({ type: "restart_hub" });
 	}, []);
 
+	const connectHub = useCallback((hubUrl: string) => {
+		postToHost({ type: "connect_hub", hubUrl });
+	}, []);
+
 	const navigate = useCallback((nextView: View) => {
 		if (nextView === "chat") {
 			setSelectedSessionId(undefined);
@@ -1309,6 +1348,7 @@ function App() {
 		return (
 			<HomeView
 				hubState={hubState}
+				onConnectHub={connectHub}
 				onOpenSession={openSession}
 				onRestartHub={restartHub}
 				onViewSessions={() => navigate("sessions")}
@@ -1318,6 +1358,7 @@ function App() {
 		);
 	}, [
 		hubState,
+		connectHub,
 		deleteSession,
 		navigate,
 		openSession,

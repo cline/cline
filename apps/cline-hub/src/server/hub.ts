@@ -3,6 +3,7 @@ import {
 	ensureDetachedHubServer,
 	type HubServerDiscoveryRecord,
 	HubUIClient,
+	rememberRecoverableLocalHubUrl,
 	stopLocalHubServerGracefully,
 	toHubHealthUrl,
 } from "@cline/core";
@@ -89,8 +90,50 @@ export async function syncHubClientsAndSessions(
 	if (mostRecent) ctx.lastSessionContext = mostRecent;
 }
 
-export async function attachHub(ctx: HubContext): Promise<void> {
-	const hub = await ensureDetachedHubServer(workspaceRoot);
+export interface HubAttachmentOverride {
+	hubUrl?: string;
+	authToken?: string;
+}
+
+function resolveHubAttachmentOverride(
+	override?: HubAttachmentOverride,
+): { hubUrl: string; authToken: string } | undefined {
+	const rawHubUrl = override?.hubUrl?.trim();
+	if (!rawHubUrl) {
+		return undefined;
+	}
+	const parsed = new URL(rawHubUrl);
+	const queryToken = parsed.searchParams.get("authToken")?.trim();
+	parsed.searchParams.delete("authToken");
+	parsed.hash = "";
+	const authToken = override?.authToken?.trim() || queryToken || undefined;
+	if (!authToken) {
+		throw new Error(
+			"Hub auth token is required when connecting the dashboard to a custom hub URL.",
+		);
+	}
+	return {
+		hubUrl: parsed.toString(),
+		authToken,
+	};
+}
+
+export async function attachHub(
+	ctx: HubContext,
+	override?: HubAttachmentOverride,
+): Promise<void> {
+	const resolvedOverride = resolveHubAttachmentOverride(override);
+	const hub = resolvedOverride
+		? {
+				url: rememberRecoverableLocalHubUrl(
+					resolvedOverride.hubUrl,
+					resolvedOverride.authToken,
+				),
+				authToken: resolvedOverride.authToken,
+			}
+		: await ensureDetachedHubServer(workspaceRoot);
+
+	await detachHub(ctx);
 	ctx.hubUrl = hub.url;
 	ctx.hubAuthToken = hub.authToken;
 

@@ -230,6 +230,7 @@ export type WebviewHubState = {
 export type WebviewInboundMessage =
 	| { type: "ready" }
 	| { type: "restart_hub" }
+	| { type: "connect_hub"; hubUrl: string; authToken?: string }
 	| {
 			type: "desktopCommand";
 			id: string;

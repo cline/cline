@@ -7,11 +7,10 @@ import {
 	probeHubServer,
 	readHubDiscovery,
 	resolveClineDataDir,
-	resolveProductionHubOwnerContext,
-	resolveSharedHubOwnerContext,
+	resolveDefaultHubOwnerContext,
 	stopLocalHubServerGracefully,
 } from "@cline/core";
-import { formatUptime, resolveClineBuildEnv } from "@cline/shared";
+import { formatUptime } from "@cline/shared";
 import { Command } from "commander";
 import open from "open";
 import { isProcessRunning } from "../connectors/common";
@@ -317,9 +316,7 @@ function formatHubUptimeFromStartedAt(
 }
 
 function resolveCliHubOwnerContext() {
-	return resolveClineBuildEnv() === "production"
-		? resolveProductionHubOwnerContext()
-		: resolveSharedHubOwnerContext();
+	return resolveDefaultHubOwnerContext();
 }
 
 async function collectDoctorStatus(cwd: string): Promise<DoctorStatus> {

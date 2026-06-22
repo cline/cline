@@ -1,5 +1,5 @@
 import { AgentRuntimeAbortError } from "@cline/agents";
-import { initVcr, resolveClineBuildEnv } from "@cline/shared";
+import { initVcr } from "@cline/shared";
 import {
 	restartManagedHubDashboardProcess,
 	stopManagedHubDashboardProcess,
@@ -7,10 +7,7 @@ import {
 import { createLocalHubScheduleRuntimeHandlers } from "../daemon/runtime-handlers";
 import { resolveHubDashboardDiscoveryPath } from "../dashboard-discovery";
 import { resolveHubEndpointOptions } from "../discovery/defaults";
-import {
-	resolveProductionHubOwnerContext,
-	resolveSharedHubOwnerContext,
-} from "../discovery/workspace";
+import { resolveDefaultHubOwnerContext } from "../discovery/workspace";
 import { startHubWebSocketServer } from "../server";
 
 initVcr(process.env.CLINE_VCR);
@@ -66,10 +63,7 @@ async function main(): Promise<void> {
 		pathname: options.pathname,
 	});
 
-	const owner =
-		resolveClineBuildEnv() === "production"
-			? resolveProductionHubOwnerContext()
-			: resolveSharedHubOwnerContext();
+	const owner = resolveDefaultHubOwnerContext();
 	const dashboardDiscoveryPath = resolveHubDashboardDiscoveryPath(owner);
 
 	const server = await startHubWebSocketServer({

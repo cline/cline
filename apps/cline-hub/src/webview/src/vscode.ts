@@ -19,16 +19,89 @@ let cachedApi: VsCodeApi | undefined;
 let browserSocket: WebSocket | undefined;
 const pendingMessages: WebviewInboundMessage[] = [];
 const stateKey = "cline-hub-webview-state";
+const browserConnectionKey = "cline-hub-browser-connection";
+
+type BrowserConnectionTarget = {
+	bridgeUrl?: string;
+	roomSecret?: string;
+	hubUrl?: string;
+};
 
 function dispatchHostMessage(message: WebviewOutboundMessage): void {
 	window.dispatchEvent(new MessageEvent("message", { data: message }));
 }
 
-function readBrowserRoomSecret(): string | undefined {
-	const roomSecret = new URLSearchParams(window.location.search)
-		.get("roomSecret")
-		?.trim();
-	return roomSecret || undefined;
+function readFragmentParams(): URLSearchParams {
+	return new URLSearchParams(window.location.hash.replace(/^#/, ""));
+}
+
+function readPersistedBrowserConnection(): BrowserConnectionTarget {
+	try {
+		const raw = window.localStorage.getItem(browserConnectionKey);
+		return raw ? (JSON.parse(raw) as BrowserConnectionTarget) : {};
+	} catch {
+		return {};
+	}
+}
+
+export function readBrowserConnectionTarget(): BrowserConnectionTarget {
+	if (typeof window === "undefined") return {};
+	const fragment = readFragmentParams();
+	const search = new URLSearchParams(window.location.search);
+	const persisted = readPersistedBrowserConnection();
+	return {
+		bridgeUrl:
+			fragment.get("bridgeUrl")?.trim() ||
+			fragment.get("bridge")?.trim() ||
+			search.get("bridgeUrl")?.trim() ||
+			persisted.bridgeUrl,
+		roomSecret:
+			fragment.get("roomSecret")?.trim() ||
+			search.get("roomSecret")?.trim() ||
+			persisted.roomSecret,
+		hubUrl:
+			fragment.get("hubUrl")?.trim() ||
+			search.get("hubUrl")?.trim() ||
+			persisted.hubUrl,
+	};
+}
+
+export function writeBrowserConnectionTarget(
+	target: BrowserConnectionTarget,
+): void {
+	if (typeof window === "undefined") return;
+	const next = {
+		...readPersistedBrowserConnection(),
+		...target,
+	};
+	try {
+		window.localStorage.setItem(browserConnectionKey, JSON.stringify(next));
+	} catch {
+		// Browser persistence is best-effort.
+	}
+}
+
+function resolveBrowserSocketUrl(): string {
+	const target = readBrowserConnectionTarget();
+	const bridgeUrl = target.bridgeUrl?.trim();
+	const base = bridgeUrl ? new URL(bridgeUrl) : new URL(window.location.href);
+	const protocol =
+		base.protocol === "https:"
+			? "wss:"
+			: base.protocol === "http:"
+				? "ws:"
+				: "";
+	if (!protocol) {
+		throw new Error(`Unsupported dashboard bridge protocol: ${base.protocol}`);
+	}
+	base.protocol = protocol;
+	base.pathname = "/browser";
+	base.search = "";
+	base.hash = "";
+	if (target.roomSecret?.trim()) {
+		base.searchParams.set("roomSecret", target.roomSecret.trim());
+	}
+	return base.toString();
 }
 
 function createBrowserSocket(): WebSocket {
@@ -40,15 +113,7 @@ function createBrowserSocket(): WebSocket {
 		return browserSocket;
 	}
 
-	const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-	const params = new URLSearchParams();
-	const roomSecret = readBrowserRoomSecret();
-	if (roomSecret) {
-		params.set("roomSecret", roomSecret);
-	}
-	const query = params.toString();
-	const socketUrl = `${protocol}//${window.location.host}/browser${query ? `?${query}` : ""}`;
-	browserSocket = new WebSocket(socketUrl);
+	browserSocket = new WebSocket(resolveBrowserSocketUrl());
 	browserSocket.addEventListener("open", () => {
 		for (const message of pendingMessages.splice(0)) {
 			browserSocket?.send(JSON.stringify(message));
