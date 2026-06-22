@@ -850,6 +850,27 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			}, 3000)
 		}, [])
 
+		// Function to show error message for unsupported files for drag and drop
+		const showUnsupportedFileErrorMessage = useCallback(
+			(message = "Files other than images are currently disabled") => {
+				// Show error message for unsupported files
+				setUnsupportedFileErrorMessage(message)
+				setShowUnsupportedFileError(true)
+
+				// Clear any existing timer
+				if (unsupportedFileTimerRef.current) {
+					clearTimeout(unsupportedFileTimerRef.current)
+				}
+
+				// Set timer to hide error after 3 seconds
+				unsupportedFileTimerRef.current = setTimeout(() => {
+					setShowUnsupportedFileError(false)
+					unsupportedFileTimerRef.current = null
+				}, 3000)
+			},
+			[],
+		)
+
 		const handlePaste = useCallback(
 			async (e: React.ClipboardEvent) => {
 				const items = e.clipboardData.items
@@ -932,9 +953,13 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					} else {
 						console.warn("No valid images were processed")
 					}
-				} else if (!supportsImages && imageItems.length > 0) {
+				} else if (imageItems.length > 0) {
 					e.preventDefault()
-					showUnsupportedFileErrorMessage("The selected model does not support images")
+					if (shouldDisableFilesAndImages) {
+						showUnsupportedFileErrorMessage()
+					} else if (!supportsImages) {
+						showUnsupportedFileErrorMessage("The selected model does not support images")
+					}
 				}
 			},
 			[
@@ -947,6 +972,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				setInputValue,
 				inputValue,
 				showDimensionErrorMessage,
+				showUnsupportedFileErrorMessage,
 			],
 		)
 
@@ -1142,26 +1168,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			}
 		}, [apiConfiguration, mode])
 
-		// Function to show error message for unsupported files for drag and drop
-		const showUnsupportedFileErrorMessage = (
-			message = "Files other than images are currently disabled",
-		) => {
-			// Show error message for unsupported files
-			setUnsupportedFileErrorMessage(message)
-			setShowUnsupportedFileError(true)
-
-			// Clear any existing timer
-			if (unsupportedFileTimerRef.current) {
-				clearTimeout(unsupportedFileTimerRef.current)
-			}
-
-			// Set timer to hide error after 3 seconds
-			unsupportedFileTimerRef.current = setTimeout(() => {
-				setShowUnsupportedFileError(false)
-				unsupportedFileTimerRef.current = null
-			}, 3000)
-		}
-
 		const handleDragEnter = (e: React.DragEvent) => {
 			e.preventDefault()
 			setIsDraggingOver(true)
@@ -1301,8 +1307,12 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			})
 
 			if (shouldDisableFilesAndImages || !supportsImages || imageFiles.length === 0) {
-				if (!supportsImages && imageFiles.length > 0) {
-					showUnsupportedFileErrorMessage("The selected model does not support images")
+				if (imageFiles.length > 0) {
+					if (shouldDisableFilesAndImages) {
+						showUnsupportedFileErrorMessage()
+					} else if (!supportsImages) {
+						showUnsupportedFileErrorMessage("The selected model does not support images")
+					}
 				}
 				return
 			}
