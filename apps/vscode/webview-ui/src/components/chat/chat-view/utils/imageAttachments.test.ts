@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { shouldProcessImageAttachments } from "./imageAttachments"
+import { isAcceptedImageType, shouldProcessImageAttachments } from "./imageAttachments"
 
 describe("shouldProcessImageAttachments", () => {
 	it("rejects images when the selected model does not support images", () => {
@@ -37,5 +37,19 @@ describe("shouldProcessImageAttachments", () => {
 				imageCount: 1,
 			}),
 		).toBe(false)
+	})
+})
+
+describe("isAcceptedImageType", () => {
+	it("accepts image MIME types supported by the attachment pipeline", () => {
+		expect(isAcceptedImageType("image/png")).toBe(true)
+		expect(isAcceptedImageType("image/jpeg")).toBe(true)
+		expect(isAcceptedImageType("image/webp")).toBe(true)
+	})
+
+	it("rejects unsupported image MIME types and non-image files", () => {
+		expect(isAcceptedImageType("image/gif")).toBe(false)
+		expect(isAcceptedImageType("text/plain")).toBe(false)
+		expect(isAcceptedImageType("")).toBe(false)
 	})
 })
