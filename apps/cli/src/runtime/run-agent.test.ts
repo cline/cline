@@ -38,7 +38,7 @@ const sessionEventsMocks = vi.hoisted(() => ({
 }));
 
 const CLINE_PASS_SUBSCRIPTION_URL =
-	"https://app.cline.bot/dashboard/subscription/";
+	"https://app.cline.bot/dashboard/subscription?personal=true";
 const CLINE_PASS_SUBSCRIPTION_MESSAGE = `No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: ${CLINE_PASS_SUBSCRIPTION_URL}`;
 
 vi.mock("@cline/core", () => ({

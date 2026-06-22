@@ -48,14 +48,14 @@ describe("EntitlementError", () => {
 	it("builds the subscribe link from the authenticated user's app base URL", () => {
 		mockAuth.clineUser = { appBaseUrl: "https://staging-app.cline.bot" }
 		const { unmount } = render(<EntitlementError />)
-		expect(getSubscribeHref()).toBe("https://staging-app.cline.bot/dashboard/subscription")
+		expect(getSubscribeHref()).toBe("https://staging-app.cline.bot/dashboard/subscription?personal=true")
 		unmount()
 
 		mockAuth.clineUser = {
 			appBaseUrl: "https://proxy.enterprise.com/cline/app",
 		}
 		render(<EntitlementError />)
-		expect(getSubscribeHref()).toBe("https://proxy.enterprise.com/cline/app/dashboard/subscription")
+		expect(getSubscribeHref()).toBe("https://proxy.enterprise.com/cline/app/dashboard/subscription?personal=true")
 	})
 
 	it("sends a yesButtonClicked askResponse when Retry Request is clicked", () => {

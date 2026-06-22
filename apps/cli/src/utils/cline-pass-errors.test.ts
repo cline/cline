@@ -20,7 +20,7 @@ describe("cline-pass-errors", () => {
 
 	it("formats the ClinePass subscription URL", () => {
 		expect(getClinePassSubscriptionUrl()).toBe(
-			"https://app.cline.bot/dashboard/subscription/",
+			"https://app.cline.bot/dashboard/subscription?personal=true",
 		);
 	});
 });
