@@ -19,7 +19,7 @@
     },
     "apps/cli": {
       "name": "@cline/cli",
-      "version": "3.0.28",
+      "version": "3.0.29",
       "bin": {
         "cline": "src/index.ts",
       },
@@ -342,6 +342,72 @@
         "typescript": "^5.9.3",
         "typescript-eslint": "^8.56.1",
         "vite": "^8.0.0",
+      },
+    },
+    "apps/welcome": {
+      "name": "@cline/welcome",
+      "version": "0.1.0",
+      "dependencies": {
+        "@hookform/resolvers": "^3.9.1",
+        "@radix-ui/react-accordion": "1.2.12",
+        "@radix-ui/react-alert-dialog": "1.1.15",
+        "@radix-ui/react-aspect-ratio": "1.1.8",
+        "@radix-ui/react-avatar": "1.1.11",
+        "@radix-ui/react-checkbox": "1.3.3",
+        "@radix-ui/react-collapsible": "1.1.12",
+        "@radix-ui/react-context-menu": "2.2.16",
+        "@radix-ui/react-dialog": "1.1.15",
+        "@radix-ui/react-dropdown-menu": "2.1.16",
+        "@radix-ui/react-hover-card": "1.1.15",
+        "@radix-ui/react-label": "2.1.8",
+        "@radix-ui/react-menubar": "1.1.16",
+        "@radix-ui/react-navigation-menu": "1.2.14",
+        "@radix-ui/react-popover": "1.1.15",
+        "@radix-ui/react-progress": "1.1.8",
+        "@radix-ui/react-radio-group": "1.3.8",
+        "@radix-ui/react-scroll-area": "1.2.10",
+        "@radix-ui/react-select": "2.2.6",
+        "@radix-ui/react-separator": "1.1.8",
+        "@radix-ui/react-slider": "1.3.6",
+        "@radix-ui/react-slot": "1.2.4",
+        "@radix-ui/react-switch": "1.2.6",
+        "@radix-ui/react-tabs": "1.1.13",
+        "@radix-ui/react-toast": "1.2.15",
+        "@radix-ui/react-toggle": "1.1.10",
+        "@radix-ui/react-toggle-group": "1.1.11",
+        "@radix-ui/react-tooltip": "1.2.8",
+        "@vercel/analytics": "1.6.1",
+        "autoprefixer": "^10.4.20",
+        "class-variance-authority": "^0.7.1",
+        "clsx": "^2.1.1",
+        "cmdk": "1.1.1",
+        "date-fns": "4.1.0",
+        "embla-carousel-react": "8.6.0",
+        "framer-motion": "^12.40.0",
+        "input-otp": "1.4.2",
+        "lucide-react": "^0.564.0",
+        "next": "16.2.6",
+        "next-themes": "^0.4.6",
+        "react": "^19",
+        "react-day-picker": "9.13.2",
+        "react-dom": "^19",
+        "react-hook-form": "^7.54.1",
+        "react-resizable-panels": "^2.1.7",
+        "recharts": "2.15.0",
+        "sonner": "^1.7.1",
+        "tailwind-merge": "^3.3.1",
+        "vaul": "^1.1.2",
+        "zod": "^3.24.1",
+      },
+      "devDependencies": {
+        "@tailwindcss/postcss": "^4.2.0",
+        "@types/node": "^22",
+        "@types/react": "^19",
+        "@types/react-dom": "^19",
+        "postcss": "^8.5",
+        "tailwindcss": "^4.2.0",
+        "tw-animate-css": "1.3.3",
+        "typescript": "5.7.3",
       },
     },
     "sdk/examples": {
@@ -699,6 +765,8 @@
     "@cline/shared": ["@cline/shared@workspace:sdk/packages/shared"],
 
     "@cline/vscode": ["@cline/vscode@workspace:apps/examples/vscode"],
+
+    "@cline/welcome": ["@cline/welcome@workspace:apps/welcome"],
 
     "@colors/colors": ["@colors/colors@1.6.0", "", {}, "sha512-Ir+AOibqzrIsL6ajt3Rz3LskB7OiMVHqltZmspbW/TJuTVuyOMirVqAkjfY6JISiLHgyNqicAC8AyHHGzNd/dA=="],
 
@@ -3250,6 +3318,20 @@
 
     "@cline/code/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
 
+    "@cline/welcome/@types/node": ["@types/node@22.20.0", "", { "dependencies": { "undici-types": "~6.21.0" } }, "sha512-QWlFW2wf3nTjC13/DqRnBpR4ZO36VJH/JVBkA/vcnmbTBNQIlnObqyqZE1tUR7+Ni23Lda8R1BxMfbXRpCUx5g=="],
+
+    "@cline/welcome/lucide-react": ["lucide-react@0.564.0", "", { "peerDependencies": { "react": "^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0" } }, "sha512-JJ8GVTQqFwuliifD48U6+h7DXEHdkhJ/E87kksGByII3qHxtPciVb8T8woQONHBQgHVOl7rSMrrip3SeVNy7Fg=="],
+
+    "@cline/welcome/recharts": ["recharts@2.15.0", "", { "dependencies": { "clsx": "^2.0.0", "eventemitter3": "^4.0.1", "lodash": "^4.17.21", "react-is": "^18.3.1", "react-smooth": "^4.0.0", "recharts-scale": "^0.4.4", "tiny-invariant": "^1.3.1", "victory-vendor": "^36.6.8" }, "peerDependencies": { "react": "^16.0.0 || ^17.0.0 || ^18.0.0 || ^19.0.0", "react-dom": "^16.0.0 || ^17.0.0 || ^18.0.0 || ^19.0.0" } }, "sha512-cIvMxDfpAmqAmVgc4yb7pgm/O1tmmkl/CjrvXuW+62/+7jj/iF9Ykm+hb/UJt42TREHMyd3gb+pkgoa2MxgDIw=="],
+
+    "@cline/welcome/sonner": ["sonner@1.7.4", "", { "peerDependencies": { "react": "^18.0.0 || ^19.0.0 || ^19.0.0-rc", "react-dom": "^18.0.0 || ^19.0.0 || ^19.0.0-rc" } }, "sha512-DIS8z4PfJRbIyfVFDVnK9rO3eYDtse4Omcm6bt0oEr5/jtLgysmjuBl1frJ9E/EQZrFmKx2A8m/s5s9CRXIzhw=="],
+
+    "@cline/welcome/tw-animate-css": ["tw-animate-css@1.3.3", "", {}, "sha512-tXE2TRWrskc4TU3RDd7T8n8Np/wCfoeH9gz22c7PzYqNPQ9FBGFbWWzwL0JyHcFp+jHozmF76tbHfPAx22ua2Q=="],
+
+    "@cline/welcome/typescript": ["typescript@5.7.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-84MVSjMEHP+FQRPy3pX9sTVV/INIex71s9TL2Gm5FG/WG1SqXeKyZ0k7/blY/4FdOzI12CBy1vGc4og/eus0fw=="],
+
+    "@cline/welcome/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
+
     "@discordjs/builders/discord-api-types": ["discord-api-types@0.38.48", "", {}, "sha512-WFUE/2o0lBlLeCQonQ+Pu2RqHAqbytBJ2RlXR91gzk05InSS6k9ShzzLYoymrA4c2oRgRKGE7/VqQJNNdGWSxQ=="],
 
     "@discordjs/formatters/discord-api-types": ["discord-api-types@0.38.48", "", {}, "sha512-WFUE/2o0lBlLeCQonQ+Pu2RqHAqbytBJ2RlXR91gzk05InSS6k9ShzzLYoymrA4c2oRgRKGE7/VqQJNNdGWSxQ=="],
@@ -3823,6 +3905,8 @@
     "wrap-ansi-cjs/strip-ansi": ["strip-ansi@6.0.1", "", { "dependencies": { "ansi-regex": "^5.0.1" } }, "sha512-Y38VPSHcqkFrCpFnQ9vuSXmquuv5oXOKpGeT6aGrr3o3Gc9AlVa6JBfUSOCnbxGGZF+/0ooI7KrPuUSztUdU5A=="],
 
     "@cline/cline-hub-webview/@types/node/undici-types": ["undici-types@7.18.2", "", {}, "sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w=="],
+
+    "@cline/welcome/@types/node/undici-types": ["undici-types@6.21.0", "", {}, "sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ=="],
 
     "@dotenvx/dotenvx/execa/get-stream": ["get-stream@6.0.1", "", {}, "sha512-ts6Wi+2j3jQjqi70w5AlN8DFnkSwC+MqmxEzdEALB2qXZYV3X/b1CTfgPLGJNMeAWxdPfU8FO1ms3NUfaHCPYg=="],
 
