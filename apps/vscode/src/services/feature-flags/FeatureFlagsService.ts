@@ -54,6 +54,7 @@ export class FeatureFlagsService {
 				flagKeys: FEATURE_FLAGS,
 			})
 			this.cacheInfo.flagsPayload = values
+			Logger.log("Fetched Feature Flag values", JSON.stringify(values))
 
 			for (const flag of FEATURE_FLAGS) {
 				const payload = await this.getFeatureFlag(flag).catch(() => false)
