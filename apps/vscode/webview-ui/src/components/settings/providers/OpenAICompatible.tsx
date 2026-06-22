@@ -16,7 +16,7 @@ import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import ReasoningEffortSelector from "../ReasoningEffortSelector"
 import { parsePrice } from "../utils/pricingUtils"
-import { getModeSpecificFields, supportsReasoningEffortForModelId } from "../utils/providerUtils"
+import { getModeSpecificFields } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 import { useProviderApiKeyField } from "../utils/useProviderApiKeyField"
 
@@ -60,7 +60,6 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = useDynamicProviderSelection("openai", apiConfiguration, currentMode)
-	const showReasoningEffort = supportsReasoningEffortForModelId(selectedModelId, true)
 
 	// Get mode-specific fields
 	const { openAiModelInfo } = getModeSpecificFields(apiConfiguration, currentMode)
@@ -541,7 +540,18 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 
 			{showModelOptions && (
 				<>
-					{showReasoningEffort && <ReasoningEffortSelector currentMode={currentMode} />}
+					<ReasoningEffortSelector
+						currentMode={currentMode}
+						defaultEffort="none"
+						onEffortChange={(effort) => {
+							void write({
+								reasoning: {
+									enabled: effort !== "none",
+									effort: effort !== "none" ? effort : undefined,
+								},
+							}).catch((err) => console.error("Failed to update OpenAI Compatible reasoning effort:", err))
+						}}
+					/>
 					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
 				</>
 			)}
