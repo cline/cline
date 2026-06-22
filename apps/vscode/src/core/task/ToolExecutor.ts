@@ -1,3 +1,4 @@
+import path from "node:path"
 import { ApiHandler } from "@core/api"
 import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
 import { getHookModelContext } from "@core/hooks/hook-model-context"
@@ -393,9 +394,14 @@ export class ToolExecutor {
 			return false
 		}
 
+		if (block.name === ClineDefaultTool.FILE_NEW && block.partial) {
+			return false
+		}
+
 		const relPath = block.params.path || block.params.absolutePath
+		const normalizedFileName = relPath ? path.basename(relPath).toLowerCase() : undefined
 		const isAllowedPlanArtifactWrite =
-			block.name === ClineDefaultTool.FILE_NEW && relPath === "implementation_plan.md"
+			block.name === ClineDefaultTool.FILE_NEW && !block.partial && normalizedFileName === "implementation_plan.md"
 
 		return !isAllowedPlanArtifactWrite
 	}
