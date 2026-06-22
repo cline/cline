@@ -359,6 +359,42 @@ describe("buildSessionConfig", () => {
 		})
 	})
 
+	it("resolves SDK-backed provider API keys from provider-specific settings", async () => {
+		const providers = [
+			{ providerId: "poolside", modelId: "poolside/laguna-m.1" },
+			{ providerId: "v0", modelId: "v0-1.5-md" },
+			{ providerId: "xiaomi", modelId: "mimo-v2-omni" },
+			{ providerId: "zai-coding-plan", modelId: "glm-5.2" },
+		] as const
+
+		for (const { providerId, modelId } of providers) {
+			mocks.providerSettingsManager.getProviderSettings.mockImplementation((requestedProviderId?: string) => {
+				if (requestedProviderId !== providerId) {
+					return undefined
+				}
+				return {
+					provider: providerId,
+					apiKey: `${providerId}-key`,
+				} as any
+			})
+			mocks.stateManager.getApiConfiguration.mockReturnValue({
+				actModeApiProvider: providerId,
+				actModeApiModelId: modelId,
+			} as any)
+
+			const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+			expect(config.providerId).toBe(providerId)
+			expect(config.modelId).toBe(modelId)
+			expect(config.apiKey).toBe(`${providerId}-key`)
+			expect(config.providerConfig).toMatchObject({
+				providerId,
+				modelId,
+				apiKey: `${providerId}-key`,
+			})
+		}
+	})
+
 	it("does not treat OpenAI Codex as OpenAI Native API-key auth", async () => {
 		mocks.stateManager.getApiConfiguration.mockReturnValue({
 			actModeApiProvider: "openai-codex",
