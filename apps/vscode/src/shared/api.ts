@@ -33,18 +33,22 @@ export type ApiProvider =
 	| "cerebras"
 	| "sapaicore"
 	| "groq"
+	| "poolside"
 	| "huggingface"
 	| "huawei-cloud-maas"
 	| "dify"
 	| "baseten"
 	| "vercel-ai-gateway"
+	| "v0"
 	| "zai"
+	| "zai-coding-plan"
 	| "oca"
 	| "aihubmix"
 	| "minimax"
 	| "hicap"
 	| "nousResearch"
 	| "wandb"
+	| "xiaomi"
 
 export const DEFAULT_API_PROVIDER = "openrouter" as ApiProvider
 
