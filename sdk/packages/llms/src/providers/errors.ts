@@ -5,7 +5,7 @@ export const CLINE_NOT_SUBSCRIBED_RESPONSE_MESSAGE =
 
 export function getClinePassSubscriptionUrl(): string {
 	return `${new URL(
-		"/dashboard/subscription",
+		"/dashboard/subscription?personal=true",
 		getClineEnvironmentConfig().appBaseUrl,
 	).toString()}/`;
 }
