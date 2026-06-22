@@ -335,7 +335,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					/>
 				)}
 			</div>
-			<footer className="bg-(--vscode-sidebar-background) flex flex-col gap-3.5" style={{ gridRow: "2" }}>
+			<footer className="bg-(--vscode-sidebar-background) flex flex-col" style={{ gridRow: "2" }}>
 				<AutoApproveBar />
 				<ActionButtons
 					chatState={chatState}
