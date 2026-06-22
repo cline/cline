@@ -13,6 +13,10 @@
 			"label": "ChatGPT Subscription"
 		},
 		{
+			"value": "zai-coding-plan",
+			"label": "Z.AI Coding Plan"
+		},
+		{
 			"value": "gemini",
 			"label": "Google Gemini"
 		},
@@ -77,12 +81,20 @@
 			"label": "Groq"
 		},
 		{
+			"value": "poolside",
+			"label": "Poolside"
+		},
+		{
 			"value": "cerebras",
 			"label": "Cerebras"
 		},
 		{
 			"value": "vercel-ai-gateway",
 			"label": "Vercel AI Gateway"
+		},
+		{
+			"value": "v0",
+			"label": "Vercel v0"
 		},
 		{
 			"value": "baseten",
@@ -171,6 +183,10 @@
 		{
 			"value": "wandb",
 			"label": "W&B Inference by CoreWeave"
+		},
+		{
+			"value": "xiaomi",
+			"label": "Xiaomi"
 		}
 	]
 }

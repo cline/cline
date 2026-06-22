@@ -31,6 +31,9 @@ const mocks = vi.hoisted(() => {
 		getSavedProviderSettings(providerId: string): Record<string, unknown> | undefined {
 			return providerSettingsById[providerId]
 		},
+		getApiConfiguration(): MockApiConfiguration {
+			return { ...apiConfiguration }
+		},
 		getSaveProviderSettingsMock(): typeof saveProviderSettings {
 			return saveProviderSettings
 		},
@@ -183,6 +186,22 @@ describe("createProviderConfigStore", () => {
 			apiKey: "nous-key",
 			model: "nousresearch/hermes-4-70b",
 		})
+	})
+
+	it("writes Z.AI Coding Plan API keys only to provider-specific settings", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		mocks.setApiConfiguration({ zaiApiKey: "shared-zai-key" })
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("zai-coding-plan")
+
+		const written = store.write(providerId, { apiKey: "coding-plan-key" })
+
+		expect(written).toEqual({ providerId, apiKey: "coding-plan-key" })
+		expect(mocks.getSavedProviderSettings("zai-coding-plan")).toMatchObject({
+			provider: "zai-coding-plan",
+			apiKey: "coding-plan-key",
+		})
+		expect(mocks.getApiConfiguration().zaiApiKey).toBe("shared-zai-key")
 	})
 
 	it("returns undefined from readSelection when modelId or modelInfo is missing", async () => {
