@@ -105,3 +105,15 @@ webview-ui/.vite-port
 *storybook.log
 storybook-static
 **/StorybookDecorator.tsx
+
+# Worktree symlinks to directories. In a git worktree these paths are symlinks
+# pointing at the shared checkout. vsce treats a symlinked directory as a single
+# file entry, and the trailing-slash ignores above only exclude directory
+# *contents* — not the symlink entry itself — so secretlint then tries to read
+# the symlink as a file and crashes with EISDIR. Exclude the entries themselves.
+out
+test-results
+.vscode-test
+.cline
+dist-standalone
+webview-ui/node_modules
