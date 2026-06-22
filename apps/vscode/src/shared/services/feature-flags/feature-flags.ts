@@ -15,7 +15,7 @@ export enum FeatureFlag {
 	// Rollout flag for Cline provider model sourcing:
 	// off => OpenRouter model list, on => Cline endpoint model list.
 	EXTENSION_CLINE_MODELS_ENDPOINT = "extension_cline_models_endpoint",
-	// Enables Cline Pass provider/model list exposure.
+	// Enables ClinePass provider/model list exposure.
 	CLINE_PASS = "ext-cline-pass",
 	// Rollout flag for fetching recommended Cline models from the upstream endpoint.
 	CLINE_RECOMMENDED_MODELS_UPSTREAM = "cline_recommended_models_upstream",

@@ -25,7 +25,7 @@ describe("clearOrganizationForClinePassProviderSelection", () => {
 		} as unknown as Controller
 	}
 
-	it("does nothing when Cline Pass is not selected", async () => {
+	it("does nothing when ClinePass is not selected", async () => {
 		await clearOrganizationForClinePassProviderSelection(createController(), {
 			planModeApiProvider: "cline",
 			actModeApiProvider: "openrouter",
@@ -34,7 +34,7 @@ describe("clearOrganizationForClinePassProviderSelection", () => {
 		assert.strictEqual(switchAccount.callCount, 0)
 	})
 
-	it("switches to the personal account when Cline Pass is selected", async () => {
+	it("switches to the personal account when ClinePass is selected", async () => {
 		await clearOrganizationForClinePassProviderSelection(createController(), {
 			planModeApiProvider: "cline-pass",
 			actModeApiProvider: "openrouter",
