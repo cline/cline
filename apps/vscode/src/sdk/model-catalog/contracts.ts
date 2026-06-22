@@ -385,6 +385,12 @@ export interface ProviderCatalog {
 	listProviders(): Promise<ReadonlyArray<ProviderListing>>
 
 	/**
+	 * Clear cached provider listings so the next list request re-applies
+	 * feature-flag-gated provider visibility.
+	 */
+	invalidateProviderListings(): void
+
+	/**
 	 * Resolve models for a provider given the current effective config.
 	 * Reads effective config from the store; callers do not pass it.
 	 *

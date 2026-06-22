@@ -14,6 +14,9 @@ import { parseProviderId } from "./provider-id"
 const mocks = vi.hoisted(() => ({
 	resolveProviderConfig: vi.fn(),
 	listLocalProviders: vi.fn(),
+	getBooleanFlagEnabled: vi.fn(() => false),
+	pollFeatureFlags: vi.fn(async (): Promise<void> => undefined),
+	getProviderSettings: vi.fn((): any => undefined),
 }))
 
 vi.mock("@cline/core", async (importOriginal: any) => {
@@ -24,6 +27,23 @@ vi.mock("@cline/core", async (importOriginal: any) => {
 		listLocalProviders: mocks.listLocalProviders,
 	}
 })
+
+vi.mock("@/services/feature-flags", () => ({
+	getFeatureFlagsService: () => ({
+		getBooleanFlagEnabled: mocks.getBooleanFlagEnabled,
+		poll: mocks.pollFeatureFlags,
+	}),
+}))
+
+vi.mock("@/services/logging/distinctId", () => ({
+	setDistinctId: vi.fn(),
+}))
+
+vi.mock("../provider-migration", () => ({
+	getProviderSettingsManager: () => ({
+		getProviderSettings: mocks.getProviderSettings,
+	}),
+}))
 
 const modelInfo: ModelInfo = {
 	supportsPromptCache: false,
@@ -46,6 +66,12 @@ beforeAll(async () => {
 beforeEach(() => {
 	mocks.resolveProviderConfig.mockReset()
 	mocks.listLocalProviders.mockReset()
+	mocks.getBooleanFlagEnabled.mockReset()
+	mocks.getBooleanFlagEnabled.mockReturnValue(false)
+	mocks.pollFeatureFlags.mockReset()
+	mocks.pollFeatureFlags.mockResolvedValue(undefined)
+	mocks.getProviderSettings.mockReset()
+	mocks.getProviderSettings.mockReturnValue(undefined)
 })
 
 function fingerprint(value: string): Fingerprint {
@@ -528,6 +554,39 @@ describe("ProviderCatalog Phase 3.5 listProviders", () => {
 		expect(mocks.listLocalProviders).toHaveBeenCalledWith(expect.anything(), { isClinePassEnabled: false })
 	})
 
+	it("awaits account-scoped feature flags from the existing provider before listing ClinePass-gated providers", async () => {
+		const { createProviderCatalog } = await import("./catalog")
+		const flagRefresh = deferred<void>()
+		mocks.getProviderSettings.mockReturnValue({ auth: { accountId: "user-123" } })
+		mocks.pollFeatureFlags.mockReturnValue(flagRefresh.promise)
+		mocks.getBooleanFlagEnabled.mockReturnValue(true)
+		mocks.listLocalProviders.mockResolvedValue({
+			providers: [
+				{
+					id: "cline-pass",
+					name: "ClinePass",
+					protocol: "anthropic",
+					client: "anthropic",
+					source: "system",
+				},
+			],
+		})
+		const providerId = parseProviderId("cline-pass")
+		const catalog = createProviderCatalog(makeReader({ providerId }))
+
+		const listingsPromise = catalog.listProviders()
+		await Promise.resolve()
+
+		expect(mocks.pollFeatureFlags).toHaveBeenCalledWith("user-123")
+		expect(mocks.listLocalProviders).not.toHaveBeenCalled()
+
+		flagRefresh.resolve()
+		const listings = await listingsPromise
+
+		expect(listings[0]?.id).toBe("cline-pass")
+		expect(mocks.listLocalProviders).toHaveBeenCalledWith(expect.anything(), { isClinePassEnabled: true })
+	})
+
 	it("caches provider listings per catalog instance without reading provider config", async () => {
 		const { createProviderCatalog } = await import("./catalog")
 		mocks.listLocalProviders.mockResolvedValue({
@@ -559,6 +618,28 @@ describe("ProviderCatalog Phase 3.5 listProviders", () => {
 		expect(mocks.listLocalProviders).toHaveBeenCalledTimes(1)
 		expect(reader.read).not.toHaveBeenCalled()
 		expect(reader.readSelection).not.toHaveBeenCalled()
+	})
+
+	it("refetches provider listings after explicit invalidation", async () => {
+		const { createProviderCatalog } = await import("./catalog")
+		mocks.listLocalProviders
+			.mockResolvedValueOnce({
+				providers: [{ id: "cline", name: "Cline", protocol: "anthropic", client: "anthropic", source: "system" }],
+			})
+			.mockResolvedValueOnce({
+				providers: [
+					{ id: "cline-pass", name: "ClinePass", protocol: "anthropic", client: "anthropic", source: "system" },
+				],
+			})
+		const catalog = createProviderCatalog(makeReader({ providerId: parseProviderId("cline") }))
+
+		const first = await catalog.listProviders()
+		catalog.invalidateProviderListings()
+		const second = await catalog.listProviders()
+
+		expect(first[0]?.id).toBe("cline")
+		expect(second[0]?.id).toBe("cline-pass")
+		expect(mocks.listLocalProviders).toHaveBeenCalledTimes(2)
 	})
 
 	it("retries provider listing after an SDK listing failure", async () => {
