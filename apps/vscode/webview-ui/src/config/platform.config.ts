@@ -51,13 +51,33 @@ declare global {
 	function acquireVsCodeApi(): any
 }
 
-// Initialize the vscode API if available
-const vsCodeApi = typeof acquireVsCodeApi === "function" ? acquireVsCodeApi() : null
-
-// Expose the VSCode API for debug harness access
-if (vsCodeApi && typeof window !== "undefined") {
-	;(window as any).__clineVsCodeApi = vsCodeApi
+// Initialize the vscode API if available.
+//
+// acquireVsCodeApi() may only be called ONCE per webview; a second call throws
+// "An instance of the VS Code API has already been acquired". If this module is
+// evaluated more than once in the same webview, re-acquiring would throw and
+// leave postMessage/gRPC dead. Cache the instance on `window` and reuse it
+// (tolerating a throw) so acquisition is idempotent.
+function resolveVsCodeApi(): any {
+	if (typeof window !== "undefined" && (window as any).__clineVsCodeApi) {
+		return (window as any).__clineVsCodeApi
+	}
+	if (typeof acquireVsCodeApi !== "function") {
+		return null
+	}
+	try {
+		const api = acquireVsCodeApi()
+		if (typeof window !== "undefined") {
+			;(window as any).__clineVsCodeApi = api
+		}
+		return api
+	} catch {
+		// Already acquired elsewhere in this webview — reuse the cached instance.
+		return (typeof window !== "undefined" && (window as any).__clineVsCodeApi) || null
+	}
 }
+
+const vsCodeApi = resolveVsCodeApi()
 
 // Implementations for post message handling
 const postMessageStrategies: Record<string, PostMessageFunction> = {
