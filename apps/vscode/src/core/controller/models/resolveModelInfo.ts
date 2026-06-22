@@ -1,5 +1,5 @@
-import { providerAllowsCustomModelIds } from "@/sdk/model-catalog/catalog"
 import type { ProviderModelsResult } from "@/sdk/model-catalog/contracts"
+import { providerAllowsCustomModelIds } from "@/sdk/model-catalog/custom-model-ids"
 import { ResolveModelInfoRequest, ResolveModelInfoResponse } from "@/shared/proto/cline/models"
 import { toProtobufModelInfo } from "@/shared/proto-conversions/models/typeConversion"
 import { type ProviderCatalogController, parseProviderIdRequest } from "./providerCatalogShared"

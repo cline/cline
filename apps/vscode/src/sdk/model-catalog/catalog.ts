@@ -18,6 +18,7 @@ import type {
 	ProviderModelsResult,
 	UsageCostDisplay,
 } from "./contracts"
+import { providerAllowsCustomModelIds } from "./custom-model-ids"
 import { computeConfigFingerprint } from "./fingerprint"
 import { applyHostModelInfoOverrides } from "./host-overrides"
 import { parseProviderId } from "./provider-id"
@@ -46,26 +47,6 @@ const DEFAULT_MODEL_CATALOG_CONFIG: ModelCatalogConfig = {
 	loadPrivateOnAuth: true,
 	failOnError: false,
 	cacheTtlMs: 0,
-}
-
-// Providers whose model id is user-supplied free text rather than a fixed
-// catalog selection. The SDK catalog for these either has no curated model
-// list (openai-compatible: bring-your-own base URL + model) or a host-fetched
-// list that the user can also bypass (ollama/lmstudio/litellm). For these,
-// the picker must allow arbitrary model ids and model resolution must honor
-// the requested id instead of coercing to the catalog default.
-const CUSTOM_MODEL_ID_PROVIDER_IDS = new Set(["openai-compatible", "ollama", "lmstudio", "litellm"])
-
-/**
- * Whether a provider id accepts a user-supplied (custom) model id. Exported so
- * model-resolution code paths (e.g. `resolveModelInfo`) can honor a custom id
- * for these providers rather than falling back to the SDK catalog default.
- *
- * Accepts either the extension or SDK provider id spelling (the extension's
- * `openai` maps to the SDK's `openai-compatible`).
- */
-export function providerAllowsCustomModelIds(providerId: string): boolean {
-	return CUSTOM_MODEL_ID_PROVIDER_IDS.has(toSdkProviderId(providerId))
 }
 
 /**
@@ -204,7 +185,7 @@ function toProviderListing(provider: ProviderListItem): ProviderListing {
 		// family with no curated catalog), but does not yet expose it
 		// through a public helper. Until then this set is the host-side
 		// fallback; remove it as soon as upstream exposes the signal.
-		allowsCustomModelIds: CUSTOM_MODEL_ID_PROVIDER_IDS.has(parseProviderId(provider.id)),
+		allowsCustomModelIds: providerAllowsCustomModelIds(provider.id),
 		usageCostDisplay: readUsageCostDisplay(provider.id),
 	}
 }
