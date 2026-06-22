@@ -24,6 +24,73 @@ first pass, and a prioritized roadmap for the rest.
 
 ---
 
+## Rebuilt on the SDK (2026-06-21)
+
+After the demolition (below), the host was **rebuilt on the Cline SDK**, mirroring
+how `apps/cli` consumes it. The extension now **builds on the SDK** — verified:
+`bun run protos && tsc --noEmit` (host) ✅, webview `tsc --noEmit` ✅,
+`bun esbuild.mjs` → `dist/extension.js` ✅, `bun run build` (vite webview) ✅.
+
+### New SDK integration layer (`src/core/sdk/`)
+
+| Module | Role |
+|---|---|
+| `session-manager.ts` | Wraps `ClineCore.create()` + `start`/`send`/`subscribe`/`abort` (mirrors the CLI's core lifecycle) |
+| `session-config.ts` | Maps the legacy `ApiConfiguration` → SDK `CoreSessionConfig` (provider/model/key/reasoning) |
+| `message-translator.ts` | Translates SDK `CoreSessionEvent`/`AgentEvent` → webview `ClineMessage[]` (text/reasoning/tool/usage/done/error), with SDK→classic tool-name mapping |
+| `message-id-minter.ts` | `ts`/`seq`/`epoch` authority for the webview's convergent-replica merge protocol |
+| `webview-bridge.ts` | Holds the active `subscribeToPartialMessage` + `subscribeToState` response streams and pushes to them |
+| `state-store.ts` | `ApiConfiguration`/mode/history persisted via `context.globalState`/secrets; builds a valid `ExtensionState` |
+
+The `Controller` (`src/core/controller/index.ts`) was rewritten to own these and
+implement `initTask`/`askResponse`/`cancelTask`/`clearTask`/`getStateToPostToWebview`,
+delegating all inference to the SDK. The critical-path gRPC handlers were re-wired
+to it: `state/{subscribeToState,getLatestState}`, `task/{newTask,askResponse,cancelTask,clearTask}`,
+`ui/{subscribeToPartialMessage,initializeWebview}`, `models/{listProviders,resolveProviderModels,updateApiConfiguration*}`.
+
+### Verified vs not
+
+- **Verified (builds):** host tsc, webview tsc, esbuild, vite, and `vsce package`
+  all green.
+- **Verified (runtime, real VS Code):** using the Playwright/Electron e2e harness
+  (`closed-loop-extension` skill), two e2e tests pass in a real VS Code instance
+  (`src/test/e2e/sdk-smoke.test.ts`):
+  1. *renders the Cline webview* — extension activates, the webview mounts, the
+     gRPC state subscription reaches the host, and the host returns a valid
+     `ExtensionState` (the chat UI renders).
+  2. *submits a chat message and starts a task through the SDK* — sending a
+     message clears the input (proves `newTask` dispatched), and the task starts
+     with a resolved provider/model (no empty-model error), exercising
+     webview → gRPC → `Controller.initTask` → `ClineCore` → `CoreSessionEvent`
+     → translator → render.
+- **NOT yet verified:** a full assistant *response* rendering end-to-end. The
+  default `cline` provider requires account auth (signin) and the cline endpoint
+  routed to the mock; the MVP left account/auth and cline-endpoint routing inert,
+  so the LLM call doesn't complete in the harness. Wiring those is the next step.
+- **MVP scope:** secondary surfaces (MCP, checkpoints, browser, task-history
+  persistence, plan/act switching, spawn-agent aggregation, account/auth) are
+  minimal/inert but compile. They are the follow-on work to reach feature parity.
+
+### Bugs found & fixed via the closed loop
+
+- **Double `acquireVsCodeApi()`** crashed the webview's VS Code API/gRPC client
+  (zero requests reached the host → blank UI). Made acquisition idempotent in
+  `webview-ui/src/config/platform.config.ts` (cache on `window`, tolerate a throw).
+- **Empty `modelId`** — `session-config` didn't default a model when the user
+  hadn't selected one, so `ClineCore` rejected the session (Zod
+  `model: expected string to have >=1 characters`). Now falls back to the SDK
+  catalog default via `getProviderCollectionSync(...).provider.defaultModelId`
+  (imported from `@cline/llms`, not `@cline/core`).
+- **Packaging in a git worktree** — `vsce` can't follow the worktree's symlinked
+  `dist` / `webview-ui/build` directories, and `.vscodeignore`'s trailing-slash
+  entries didn't exclude symlinked-dir entries (`out`, `test-results`, …), so
+  `secretlint` crashed with `EISDIR`. Dereferenced the two required dirs and added
+  bare-name `.vscodeignore` entries for the worktree symlinks.
+- A leftover empty interface (`ProviderCatalogController`) failed lint (blocked
+  packaging) and then a naive fix broke types — aliased it to `Controller`.
+
+---
+
 ## Bare-bones demolition (2026-06-21)
 
 We decided to stop doing this incrementally and instead **gut the extension host

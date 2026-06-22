@@ -1,25 +1,57 @@
-// MINIMAL INERT CONTROLLER
+// SDK-backed Controller.
 //
-// The full Controller (Task loop, providers, models, sessions, MCP, hooks,
-// services, SDK bridge, storage) has been removed. This is a bare, constructable
-// shell that exists only so the surviving plumbing keeps compiling and running:
+// Runs the extension on the Cline SDK (@cline/core) exactly like apps/cli: it builds a provider
+// config from the legacy ApiConfiguration, starts a task via ClineCore, translates the SDK's
+// CoreSessionEvents into ClineMessage[], streams them to the webview, and handles
+// askResponse/cancel/clear. It owns the single MessageIdMinter (ts/seq/epoch authority), the
+// ExtensionStateStore, the SdkSessionManager, the MessageTranslator, and the WebviewBridge.
 //
-//   - core/webview/WebviewProvider.ts   -> `new Controller(context)` + `dispose()`
-//   - core/controller/grpc-handler.ts   -> uses `Controller` as a type only
-//   - core/controller/grpc-recorder/**  -> uses `Controller` as a type; test-hooks
-//                                          calls getLatestState -> getStateToPostToWebview()
-//   - core/controller/<group>/*.ts      -> gutted handlers reference these members
-//
-// Every member here is a no-op / empty-default. Nothing actually works.
+// Members the surviving gutted handlers reference (stateManager, task, accountService, …) are
+// retained — loosely typed where their real backing services are out of scope for this layer —
+// so the rest of the codebase keeps compiling. The SDK pieces are constructed lazily/safely so
+// activation never throws.
 
-import type { ExtensionState } from "@shared/ExtensionMessage"
-import { ClineExtensionContext } from "@/shared/cline"
+import type { CoreSessionEvent } from "@cline/core"
+import type { ToolApprovalRequest, ToolApprovalResult } from "@cline/shared"
+import type { StreamingResponseHandler } from "@core/controller/grpc-handler"
+import type { ApiConfiguration } from "@shared/api"
+import type { ClineMessage, ExtensionState, TurnState } from "@shared/ExtensionMessage"
+import type { State } from "@shared/proto/cline/state"
+import type { ClineMessage as ProtoClineMessage } from "@shared/proto/cline/ui"
+import { Logger } from "@shared/services/Logger"
+import type { ClineExtensionContext } from "@/shared/cline"
+import { MessageIdMinter } from "../sdk/message-id-minter"
+import { buildToolApprovalAskMessage, MessageTranslator } from "../sdk/message-translator"
+import { buildSessionConfig, type SessionMode } from "../sdk/session-config"
+import { SdkSessionManager } from "../sdk/session-manager"
+import { ExtensionStateStore } from "../sdk/state-store"
+import { WebviewBridge } from "../sdk/webview-bridge"
+
+interface PendingToolApproval {
+	resolve: (result: ToolApprovalResult) => void
+	toolName: string
+}
 
 export class Controller {
 	readonly context: ClineExtensionContext
 
-	// Inert state holders that gutted handlers may read. They are deliberately
-	// typed loosely (`any`) because their real backing implementations were removed.
+	// ---- SDK integration layer ----
+	private readonly minter: MessageIdMinter
+	private readonly stateStore: ExtensionStateStore
+	private readonly translator: MessageTranslator
+	private readonly bridge: WebviewBridge
+	private sessionManager?: SdkSessionManager
+	private unsubscribe?: () => void
+
+	private clineMessages: ClineMessage[] = []
+	private turnState?: TurnState
+
+	// Tool-approval requests waiting on an askResponse from the webview.
+	private pendingToolApprovals: PendingToolApproval[] = []
+
+	// ---- Compatibility members referenced by surviving gutted handlers ----
+	// These keep the rest of the codebase compiling; their real backing services are out of
+	// scope for the SDK MVP. Loosely typed on purpose.
 	readonly stateManager: any = createInertStateManager()
 	task: any = undefined
 	accountService: any = undefined
@@ -30,75 +62,275 @@ export class Controller {
 
 	constructor(context: ClineExtensionContext) {
 		this.context = context
+		this.minter = new MessageIdMinter()
+		this.translator = new MessageTranslator(this.minter)
+		this.bridge = new WebviewBridge()
+		this.stateStore = new ExtensionStateStore(context)
 	}
 
 	async dispose(): Promise<void> {
-		// no-op: nothing to tear down in the inert shell
+		this.unsubscribe?.()
+		this.unsubscribe = undefined
+		this.rejectPendingApprovals()
+		this.bridge.clearPartialMessageStream()
+		this.bridge.clearStateStream()
+		if (this.sessionManager) {
+			await this.sessionManager.dispose("Controller.dispose").catch(() => {})
+		}
+		this.sessionManager = undefined
 	}
 
-	// --- state ---
+	// ---- state ----
 
 	async getStateToPostToWebview(): Promise<ExtensionState> {
-		// The inert shell has no real state to build.
-		return {} as unknown as ExtensionState
+		return this.stateStore.buildExtensionState(this.clineMessages, this.turnState)
 	}
 
 	async postStateToWebview(): Promise<void> {
-		// no-op
+		const state = await this.getStateToPostToWebview()
+		await this.bridge.pushState(state)
 	}
 
-	// --- providers / models ---
-
-	getProviderCatalog(): any {
-		return createInertProviderCatalog()
+	getClineMessages(): ClineMessage[] {
+		return this.clineMessages
 	}
 
-	getProviderConfigStore(): any {
-		return createInertProviderConfigStore()
+	// ---- webview stream registration (called by subscribe handlers) ----
+
+	setPartialMessageStream(stream: StreamingResponseHandler<ProtoClineMessage>): void {
+		this.bridge.setPartialMessageStream(stream)
 	}
 
-	async handleApiConfigurationChanged(_previous?: any, _next?: any): Promise<void> {
-		// no-op
+	clearPartialMessageStream(): void {
+		this.bridge.clearPartialMessageStream()
 	}
 
-	async readOpenRouterModels(): Promise<any> {
-		return undefined
+	setStateStream(stream: StreamingResponseHandler<State>): void {
+		this.bridge.setStateStream(stream)
 	}
 
-	// --- task ---
-
-	async initTask(_text?: string, _images?: string[], _files?: string[], _historyItem?: any, _settings?: any): Promise<void> {
-		// no-op
+	clearStateStream(): void {
+		this.bridge.clearStateStream()
 	}
 
-	async showTaskWithId(_id: string): Promise<void> {
-		// no-op
+	// ---- task lifecycle ----
+
+	/**
+	 * Start a new task. Clears the previous transcript, bumps the epoch fence, builds the SDK
+	 * session config from the stored ApiConfiguration, creates + starts the SDK session,
+	 * subscribes to translate events into the transcript, and fires the prompt fire-and-forget.
+	 */
+	async initTask(text?: string, images?: string[], files?: string[]): Promise<void> {
+		const prompt = text ?? ""
+
+		// Reset transcript + fence for the new conversation.
+		this.unsubscribe?.()
+		this.unsubscribe = undefined
+		this.rejectPendingApprovals()
+		this.clineMessages = []
+		this.minter.bumpEpoch()
+		this.translator.reset()
+		this.setTurnPhase("streaming")
+
+		// Seed the transcript with the user's task message.
+		this.appendAndPush([
+			this.stamp({ ts: this.minter.nextTs(), type: "say", say: "task", text: prompt, images, files, partial: false }),
+		])
+
+		const cwd = this.resolveCwd()
+		const mode = this.getSessionMode()
+		const config = buildSessionConfig(this.stateStore.getApiConfiguration(), mode, cwd, cwd)
+
+		try {
+			const manager = this.ensureSessionManager()
+			// Subscribe BEFORE starting so we never miss the first turn's events.
+			this.unsubscribe = manager.subscribe((event) => this.handleSessionEvent(event))
+			await manager.startTask({ config, prompt, images, files })
+			await this.postStateToWebview()
+		} catch (error) {
+			Logger.error("[Controller] initTask failed:", error)
+			this.emitError(error)
+		}
 	}
 
-	async exportTaskWithId(_id: string): Promise<void> {
-		// no-op
+	/**
+	 * Respond to a pending ask. If a tool approval is pending, yes/no resolves it; otherwise the
+	 * text is sent as a continuation prompt (a new agent turn).
+	 */
+	async askResponse(responseType: string, text?: string, images?: string[], files?: string[]): Promise<void> {
+		if (this.pendingToolApprovals.length > 0 && (responseType === "yesButtonClicked" || responseType === "noButtonClicked")) {
+			const approved = responseType === "yesButtonClicked"
+			const pending = this.pendingToolApprovals.shift()
+			pending?.resolve({ approved, ...(approved ? {} : { reason: "Denied by user" }) })
+			this.setTurnPhase("streaming")
+			await this.postStateToWebview()
+			return
+		}
+
+		// messageResponse (or any other) -> continuation prompt.
+		const prompt = text ?? ""
+		if (!prompt && (!images || images.length === 0) && (!files || files.length === 0)) {
+			return
+		}
+		this.translator.reset()
+		this.setTurnPhase("streaming")
+		this.appendAndPush([
+			this.stamp({
+				ts: this.minter.nextTs(),
+				type: "say",
+				say: "user_feedback",
+				text: prompt,
+				images,
+				files,
+				partial: false,
+			}),
+		])
+		this.sessionManager?.send(prompt, images, files)
+		await this.postStateToWebview()
 	}
 
-	async getTaskHistory(_request?: any): Promise<any> {
-		return undefined
+	/** Cancel the active turn. Bumps the epoch fence SYNCHRONOUSLY before aborting. */
+	async cancelTask(): Promise<void> {
+		this.minter.bumpEpoch()
+		this.setTurnPhase("resumable")
+		this.rejectPendingApprovals()
+		if (this.sessionManager) {
+			await this.sessionManager.abort()
+		}
+		await this.postStateToWebview()
 	}
 
-	async toggleTaskFavorite(_taskId: string, _isFavorited: boolean): Promise<void> {
-		// no-op
+	/** Clear the active task: stop the session and reset the transcript. */
+	async clearTask(): Promise<void> {
+		this.unsubscribe?.()
+		this.unsubscribe = undefined
+		this.rejectPendingApprovals()
+		if (this.sessionManager) {
+			await this.sessionManager.stopActiveSession().catch(() => {})
+		}
+		this.clineMessages = []
+		this.minter.bumpEpoch()
+		this.translator.reset()
+		this.setTurnPhase("idle")
+		await this.postStateToWebview()
 	}
 
-	async editMessageAndRegenerate(..._args: any[]): Promise<void> {
-		// no-op
+	// ---- provider / config ----
+
+	getApiConfiguration(): ApiConfiguration {
+		return this.stateStore.getApiConfiguration()
 	}
 
-	// --- mode / telemetry ---
-
-	async togglePlanActMode(_mode?: any, _chatContent?: any): Promise<any> {
-		return undefined
+	async updateApiConfiguration(config: Partial<ApiConfiguration>): Promise<void> {
+		this.stateStore.setApiConfiguration(config)
+		await this.postStateToWebview()
 	}
 
-	async updateTelemetrySetting(_setting?: any): Promise<void> {
-		// no-op
+	// ---- internals ----
+
+	private ensureSessionManager(): SdkSessionManager {
+		if (!this.sessionManager) {
+			this.sessionManager = SdkSessionManager.create({
+				requestToolApproval: (request) => this.handleRequestToolApproval(request),
+			})
+		}
+		return this.sessionManager
+	}
+
+	/** Translate an SDK session event and stream the resulting messages + state to the webview. */
+	private handleSessionEvent(event: CoreSessionEvent): void {
+		try {
+			const messages = this.translator.translate(event)
+			if (messages.length > 0) {
+				this.appendAndPush(messages)
+			}
+			if (this.isTurnTerminal(event)) {
+				this.setTurnPhase(this.terminalPhaseFor(event))
+				this.postStateToWebview().catch((error) => Logger.error("[Controller] post state after turn failed:", error))
+			}
+		} catch (error) {
+			Logger.error("[Controller] handleSessionEvent failed:", error)
+		}
+	}
+
+	/** Service a tool-approval request: emit an ask row + park a resolver for askResponse. */
+	private handleRequestToolApproval(request: ToolApprovalRequest): Promise<ToolApprovalResult> {
+		const { ask, text } = buildToolApprovalAskMessage(request.toolName, request.input)
+		const ts = this.minter.nextTs()
+		this.appendAndPush([this.stamp({ ts, type: "ask", ask, text, partial: false })])
+		this.setTurnPhase("awaiting_approval", ts)
+		this.postStateToWebview().catch(() => {})
+		return new Promise<ToolApprovalResult>((resolve) => {
+			this.pendingToolApprovals.push({ resolve, toolName: request.toolName })
+		})
+	}
+
+	private rejectPendingApprovals(): void {
+		const pending = this.pendingToolApprovals
+		this.pendingToolApprovals = []
+		for (const item of pending) {
+			item.resolve({ approved: false, reason: "Cancelled" })
+		}
+	}
+
+	private appendAndPush(messages: ClineMessage[]): void {
+		for (const message of messages) {
+			const index = this.clineMessages.findIndex((m) => m.ts === message.ts)
+			if (index >= 0) {
+				this.clineMessages[index] = message
+			} else {
+				this.clineMessages.push(message)
+			}
+			this.bridge.pushMessage(message).catch((error) => Logger.error("[Controller] pushMessage failed:", error))
+		}
+	}
+
+	private emitError(error: unknown): void {
+		const message = error instanceof Error ? error.message : String(error)
+		this.setTurnPhase("error")
+		this.appendAndPush([this.stamp({ ts: this.minter.nextTs(), type: "say", say: "error", text: message, partial: false })])
+		this.postStateToWebview().catch(() => {})
+	}
+
+	private stamp(message: ClineMessage): ClineMessage {
+		message.seq = this.minter.nextSeq()
+		message.epoch = this.minter.currentEpoch()
+		return message
+	}
+
+	private setTurnPhase(phase: TurnState["phase"], anchorTs?: number): void {
+		this.turnState = { phase, anchorTs, seq: this.minter.nextSeq() }
+	}
+
+	private getSessionMode(): SessionMode {
+		return this.stateStore.getMode() === "plan" ? "plan" : "act"
+	}
+
+	private isTurnTerminal(event: CoreSessionEvent): boolean {
+		if (event.type === "ended") {
+			return true
+		}
+		if (event.type === "agent_event") {
+			const t = event.payload.event.type
+			return t === "done" || t === "error"
+		}
+		return false
+	}
+
+	private terminalPhaseFor(event: CoreSessionEvent): TurnState["phase"] {
+		if (event.type === "agent_event" && event.payload.event.type === "error") {
+			return "error"
+		}
+		// Without deeper completion-tool tracking, a finished turn awaits the user's next input.
+		return "awaiting_followup"
+	}
+
+	private resolveCwd(): string {
+		try {
+			return process.cwd()
+		} catch {
+			return "."
+		}
 	}
 }
 
@@ -115,19 +347,5 @@ function createInertStateManager(): any {
 		setTaskSettings: (_settings: unknown) => {},
 		setTaskSettingsBatch: (_settings: unknown) => {},
 		flushPendingState: async () => {},
-	}
-}
-
-function createInertProviderCatalog(): any {
-	return {
-		listProviders: async () => [],
-		resolveModels: async () => ({}),
-	}
-}
-
-function createInertProviderConfigStore(): any {
-	return {
-		read: (_id: unknown) => ({}),
-		commitSelection: (_id: unknown, _mode: unknown, _selection: unknown) => {},
 	}
 }
