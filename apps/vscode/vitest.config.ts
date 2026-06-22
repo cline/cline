@@ -20,6 +20,13 @@ export default defineConfig({
 			"src/core/controller/models/__tests__/refreshClineRecommendedModels.test.ts",
 		],
 		environment: "node",
+		// Several suites lazily `await import()` their subject inside the first test
+		// (needed so vi.mock factories apply first). That import pulls in heavy
+		// workspace packages (@cline/core/@cline/llms/@cline/shared), and on loaded
+		// CI runners the first test in a file can blow past the 5s default and flake
+		// (seen in catalog.test.ts and resolveModelInfo.test.ts). Raise the per-test
+		// timeout so import cost attributed to the first test doesn't cause flakes.
+		testTimeout: 20000,
 		// Some matched files are intentionally-empty placeholders that point to
 		// where the real suite lives (e.g. sdk-control-plane.test.ts), so an
 		// empty file should not fail the run.
