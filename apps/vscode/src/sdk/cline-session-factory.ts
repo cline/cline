@@ -187,10 +187,7 @@ function getOpenAiCompatibleModelInfo(config: ApiConfiguration, mode: Mode): Leg
 	return mode === "plan" ? config.planModeOpenAiModelInfo : config.actModeOpenAiModelInfo
 }
 
-const OPENAI_COMPATIBLE_DEFAULT_CAPABILITIES: NonNullable<SdkModelInfo["capabilities"]> = [
-	"streaming",
-	"tools",
-]
+const OPENAI_COMPATIBLE_DEFAULT_CAPABILITIES: NonNullable<SdkModelInfo["capabilities"]> = ["streaming", "tools"]
 
 function buildOpenAiCompatibleCapabilities(modelInfo: LegacyModelInfo): NonNullable<SdkModelInfo["capabilities"]> {
 	const capabilities: NonNullable<SdkModelInfo["capabilities"]> = [...OPENAI_COMPATIBLE_DEFAULT_CAPABILITIES]
@@ -381,6 +378,16 @@ export function resolveApiKey(providerId: string, config: ApiConfiguration): str
 		if (apiKey) {
 			return apiKey
 		}
+	}
+
+	try {
+		const manager = getProviderSettingsManager()
+		const apiKey = resolveProviderApiKeyFromSettings(manager, providerId)?.trim()
+		if (apiKey) {
+			return apiKey
+		}
+	} catch {
+		Logger.warn(`[SessionFactory] Failed to read ${providerId} API key from providers.json`)
 	}
 
 	return undefined
