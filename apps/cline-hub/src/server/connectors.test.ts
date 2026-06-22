@@ -35,6 +35,46 @@ describe("connector launch command", () => {
 		});
 	});
 
+	it("uses Bun conditions when launching the source CLI from Node", () => {
+		expect(
+			__test__.buildCliConnectCommand(["telegram", "--bot-token", "token"], {
+				execPath: "/usr/local/bin/node",
+				cliPath: "/repo/apps/cli/src/index.ts",
+				exists: () => true,
+			}),
+		).toEqual({
+			launcher: "bun",
+			childArgs: [
+				"--conditions=development",
+				"/repo/apps/cli/src/index.ts",
+				"connect",
+				"telegram",
+				"--bot-token",
+				"token",
+			],
+		});
+	});
+
+	it("detects Windows Node when launching the source CLI", () => {
+		expect(
+			__test__.buildCliConnectCommand(["telegram", "--bot-token", "token"], {
+				execPath: "node.exe",
+				cliPath: "C:\\repo\\apps\\cli\\src\\index.ts",
+				exists: () => true,
+			}),
+		).toEqual({
+			launcher: "bun",
+			childArgs: [
+				"--conditions=development",
+				"C:\\repo\\apps\\cli\\src\\index.ts",
+				"connect",
+				"telegram",
+				"--bot-token",
+				"token",
+			],
+		});
+	});
+
 	it("strips terminal color codes from connector command failures", () => {
 		expect(
 			__test__.normalizeConnectorError(

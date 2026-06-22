@@ -64,7 +64,7 @@ function buildCliConnectCommand(
 	const exists = options.exists ?? existsSync;
 	const runtimeName = basename(execPath).toLowerCase();
 	const isBunRuntime = runtimeName.includes("bun");
-	const isNodeRuntime = runtimeName === "node";
+	const isNodeRuntime = runtimeName === "node" || runtimeName === "node.exe";
 	const useBunSourceEntrypoint =
 		(isBunRuntime || isNodeRuntime) && exists(cliPath);
 	const launcher = isBunRuntime
