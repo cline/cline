@@ -22,7 +22,8 @@ import {
 	shouldIncludeConnectorField,
 } from "@cline/shared";
 import { resolveClineDataDir } from "@cline/shared/storage";
-import { errorReply, okReply } from "./context";
+import { captureToolUsage } from "../../../services/telemetry/core-events";
+import { errorReply, type HubTransportContext, okReply } from "./context";
 
 type ConnectorSettingsEntry = {
 	type: string;
@@ -370,7 +371,31 @@ function deleteConnectorConfig(payload: unknown): ConnectorChannelsResponse {
 	return connectorChannelsPayload();
 }
 
+function isStateMutatingConnectorCommand(
+	command: HubCommandEnvelope["command"],
+) {
+	return (
+		command === "connector.configure" || command === "connector.delete_config"
+	);
+}
+
+function captureConnectorCommandUsage(
+	ctx: HubTransportContext,
+	envelope: HubCommandEnvelope,
+	success: boolean,
+): void {
+	if (!isStateMutatingConnectorCommand(envelope.command)) {
+		return;
+	}
+	captureToolUsage(ctx.telemetry, {
+		ulid: envelope.sessionId ?? envelope.requestId ?? "hub",
+		tool: envelope.command,
+		success,
+	});
+}
+
 export async function handleConnectorCommand(
+	ctx: HubTransportContext,
 	envelope: HubCommandEnvelope,
 ): Promise<HubReplyEnvelope> {
 	try {
@@ -378,10 +403,14 @@ export async function handleConnectorCommand(
 			return okReply(envelope, connectorChannelsPayload());
 		}
 		if (envelope.command === "connector.configure") {
-			return okReply(envelope, configureConnector(envelope.payload));
+			const payload = configureConnector(envelope.payload);
+			captureConnectorCommandUsage(ctx, envelope, true);
+			return okReply(envelope, payload);
 		}
 		if (envelope.command === "connector.delete_config") {
-			return okReply(envelope, deleteConnectorConfig(envelope.payload));
+			const payload = deleteConnectorConfig(envelope.payload);
+			captureConnectorCommandUsage(ctx, envelope, true);
+			return okReply(envelope, payload);
 		}
 		return errorReply(
 			envelope,
@@ -389,6 +418,7 @@ export async function handleConnectorCommand(
 			`unsupported connector command: ${envelope.command}`,
 		);
 	} catch (error) {
+		captureConnectorCommandUsage(ctx, envelope, false);
 		return errorReply(
 			envelope,
 			"connector_command_failed",

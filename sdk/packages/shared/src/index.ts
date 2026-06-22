@@ -34,9 +34,7 @@ export {
 	CONNECTOR_PLATFORMS,
 	connectorChannelsFromPlatforms,
 	listConnectorCatalog,
-	PLATFORMS,
 	shouldIncludeConnectorField,
-	shouldIncludeField,
 } from "./connectors/platforms";
 export type {
 	AutomationEventEnvelope,

@@ -401,7 +401,7 @@ export class HubServerTransport implements NativeHubTransport {
 			case "connector.channels":
 			case "connector.configure":
 			case "connector.delete_config":
-				return await handleConnectorCommand(envelope);
+				return await handleConnectorCommand(this.ctx, envelope);
 			case "settings.get":
 			case "settings.patch":
 				return {
