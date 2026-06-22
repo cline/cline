@@ -41,6 +41,7 @@ import {
 	handleClientUnregister,
 	handleClientUpdate,
 } from "./handlers/client-handlers";
+import { handleConnectorCommand } from "./handlers/connector-handlers";
 import {
 	buildHubEvent,
 	type HubTransportContext,
@@ -397,6 +398,10 @@ export class HubServerTransport implements NativeHubTransport {
 				return await this.handleSettingsList(envelope);
 			case "settings.toggle":
 				return await this.handleSettingsToggle(envelope);
+			case "connector.channels":
+			case "connector.configure":
+			case "connector.delete_config":
+				return await handleConnectorCommand(envelope);
 			case "settings.get":
 			case "settings.patch":
 				return {
