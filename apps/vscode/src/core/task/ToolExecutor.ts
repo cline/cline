@@ -344,7 +344,7 @@ export class ToolExecutor {
 				this.stateManager.getGlobalSettingsKey("strictPlanModeEnabled") &&
 				this.stateManager.getGlobalSettingsKey("mode") === "plan" &&
 				block.name &&
-				this.isPlanModeToolRestricted(block.name)
+				this.isPlanModeToolRestricted(block)
 			) {
 				const errorMessage = `Tool '${block.name}' is not available in PLAN MODE. This tool is restricted to ACT MODE for file modifications. Only use tools available for PLAN MODE when in that mode.`
 				await this.removeLastPartialMessageIfExistsWithType("say", "error")
@@ -382,11 +382,22 @@ export class ToolExecutor {
 	 * In strict plan mode, file modification tools (write_to_file, editedExistingFile, etc.)
 	 * are blocked. The AI must switch to Act mode to use these tools.
 	 *
-	 * @param toolName The name of the tool to check
+	 * Allows writing the dedicated deep-planning artifact while keeping all other file
+	 * modifications restricted in plan mode.
+	 *
+	 * @param block The tool use block to check
 	 * @returns true if the tool is restricted in plan mode, false otherwise
 	 */
-	private isPlanModeToolRestricted(toolName: ClineDefaultTool): boolean {
-		return ToolExecutor.PLAN_MODE_RESTRICTED_TOOLS.includes(toolName)
+	private isPlanModeToolRestricted(block: ToolUse): boolean {
+		if (!ToolExecutor.PLAN_MODE_RESTRICTED_TOOLS.includes(block.name)) {
+			return false
+		}
+
+		const relPath = block.params.path || block.params.absolutePath
+		const isAllowedPlanArtifactWrite =
+			block.name === ClineDefaultTool.FILE_NEW && relPath === "implementation_plan.md"
+
+		return !isAllowedPlanArtifactWrite
 	}
 
 	/**
