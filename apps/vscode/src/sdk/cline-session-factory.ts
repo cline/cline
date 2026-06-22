@@ -190,8 +190,15 @@ function getOpenAiCompatibleModelInfo(config: ApiConfiguration, mode: Mode): Leg
 const OPENAI_COMPATIBLE_DEFAULT_CAPABILITIES: NonNullable<SdkModelInfo["capabilities"]> = [
 	"streaming",
 	"tools",
-	"images",
 ]
+
+function buildOpenAiCompatibleCapabilities(modelInfo: LegacyModelInfo): NonNullable<SdkModelInfo["capabilities"]> {
+	const capabilities: NonNullable<SdkModelInfo["capabilities"]> = [...OPENAI_COMPATIBLE_DEFAULT_CAPABILITIES]
+	if (modelInfo.supportsImages !== false) {
+		capabilities.push("images")
+	}
+	return capabilities
+}
 
 // VS Code stores OpenAI-compatible custom model metadata in legacy
 // ApiConfiguration fields. The SDK runtime enforces context/output limits from
@@ -217,7 +224,7 @@ function buildOpenAiCompatibleKnownModels(
 			contextWindow,
 			maxInputTokens: contextWindow,
 			maxTokens,
-			capabilities: OPENAI_COMPATIBLE_DEFAULT_CAPABILITIES,
+			capabilities: buildOpenAiCompatibleCapabilities(modelInfo),
 			temperature: modelInfo.temperature,
 		},
 	}

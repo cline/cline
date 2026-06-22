@@ -403,7 +403,7 @@ describe("buildSessionConfig", () => {
 			contextWindow: 16_000,
 			maxInputTokens: 16_000,
 			maxTokens: 4_096,
-			capabilities: ["streaming", "tools", "images"],
+			capabilities: ["streaming", "tools"],
 		})
 		expect((config.providerConfig as any).knownModels?.["custom-reasoner"]).toMatchObject({
 			contextWindow: 16_000,
