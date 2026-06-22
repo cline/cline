@@ -21,6 +21,7 @@ import { usePlatform } from "@/context/PlatformContext"
 import { useNormalizedApiConfiguration } from "@/hooks/useNormalizedApiConfiguration"
 import { cn } from "@/lib/utils"
 import { FileServiceClient, StateServiceClient } from "@/services/grpc-client"
+import { shouldProcessImageAttachments } from "./chat-view/utils/imageAttachments"
 import {
 	ContextMenuOptionType,
 	getContextMenuOptionIndex,
@@ -253,13 +254,16 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const _shiftHoldTimerRef = useRef<NodeJS.Timeout | null>(null)
 		const [showUnsupportedFileError, setShowUnsupportedFileError] = useState(false)
 		const unsupportedFileTimerRef = useRef<NodeJS.Timeout | null>(null)
+		const [showUnsupportedImageError, setShowUnsupportedImageError] = useState(false)
+		const unsupportedImageTimerRef = useRef<NodeJS.Timeout | null>(null)
 		const [showDimensionError, setShowDimensionError] = useState(false)
 		const dimensionErrorTimerRef = useRef<NodeJS.Timeout | null>(null)
 
 		const [fileSearchResults, setFileSearchResults] = useState<SearchResult[]>([])
 		const [searchLoading, setSearchLoading] = useState(false)
 		const [, metaKeyChar] = useMetaKeyDetection(platform)
-		const { selectedProvider, selectedModelId } = useNormalizedApiConfiguration(mode)
+		const { selectedProvider, selectedModelId, selectedModelInfo } = useNormalizedApiConfiguration(mode)
+		const selectedModelSupportsImages = selectedModelInfo.supportsImages ?? false
 
 		// Fetch git commits when Git is selected or when typing a hash
 		useEffect(() => {
@@ -843,6 +847,17 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			}, 3000)
 		}, [])
 
+		const showUnsupportedImageErrorMessage = useCallback(() => {
+			setShowUnsupportedImageError(true)
+			if (unsupportedImageTimerRef.current) {
+				clearTimeout(unsupportedImageTimerRef.current)
+			}
+			unsupportedImageTimerRef.current = setTimeout(() => {
+				setShowUnsupportedImageError(false)
+				unsupportedImageTimerRef.current = null
+			}, 3000)
+		}, [])
+
 		const handlePaste = useCallback(
 			async (e: React.ClipboardEvent) => {
 				const items = e.clipboardData.items
@@ -878,7 +893,18 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					const [type, subtype] = item.type.split("/")
 					return type === "image" && acceptedTypes.includes(subtype)
 				})
-				if (!shouldDisableFilesAndImages && imageItems.length > 0) {
+				if (imageItems.length > 0 && !selectedModelSupportsImages) {
+					e.preventDefault()
+					showUnsupportedImageErrorMessage()
+					return
+				}
+				if (
+					shouldProcessImageAttachments({
+						supportsImages: selectedModelSupportsImages,
+						shouldDisableFilesAndImages,
+						imageCount: imageItems.length,
+					})
+				) {
 					e.preventDefault()
 					const imagePromises = imageItems.map((item) => {
 						return new Promise<string | null>((resolve) => {
@@ -936,6 +962,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				setInputValue,
 				inputValue,
 				showDimensionErrorMessage,
+				showUnsupportedImageErrorMessage,
+				selectedModelSupportsImages,
 			],
 		)
 
@@ -1145,7 +1173,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				default:
 					return `${selectedProvider}:${selectedModelId}`
 			}
-		}, [apiConfiguration, mode, selectedProvider, selectedModelId])
+		}, [apiConfiguration, mode, selectedModelId, selectedProvider])
 
 		// Function to show error message for unsupported files for drag and drop
 		const showUnsupportedFileErrorMessage = () => {
@@ -1182,6 +1210,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 				if (hasNonImageFile) {
 					showUnsupportedFileErrorMessage()
+				}
+
+				const hasImageFile = items.some((item) => item.kind === "file" && item.type.split("/")[0] === "image")
+				if (hasImageFile && !selectedModelSupportsImages) {
+					showUnsupportedImageErrorMessage()
 				}
 			}
 		}
@@ -1302,7 +1335,18 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				return type === "image" && acceptedTypes.includes(subtype)
 			})
 
-			if (shouldDisableFilesAndImages || imageFiles.length === 0) {
+			if (imageFiles.length > 0 && !selectedModelSupportsImages) {
+				showUnsupportedImageErrorMessage()
+				return
+			}
+
+			if (
+				!shouldProcessImageAttachments({
+					supportsImages: selectedModelSupportsImages,
+					shouldDisableFilesAndImages,
+					imageCount: imageFiles.length,
+				})
+			) {
 				return
 			}
 
@@ -1398,6 +1442,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							<span className="text-error font-bold text-xs">Files other than images are currently disabled</span>
 						</div>
 					)}
+					{showUnsupportedImageError && (
+						<div className="absolute inset-2.5 bg-[rgba(var(--vscode-errorForeground-rgb),0.1)] border-2 border-error rounded-xs flex items-center justify-center z-10 pointer-events-none">
+							<span className="text-error font-bold text-xs">The current model doesn't support images</span>
+						</div>
+					)}
 					{showSlashCommandsMenu && (
 						<div ref={slashCommandsMenuContainerRef}>
 							<SlashCommandMenu
@@ -1480,7 +1529,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						onPaste={handlePaste}
 						onScroll={() => updateHighlights()}
 						onSelect={updateCursorPosition}
-						placeholder={showUnsupportedFileError || showDimensionError ? "" : placeholderText}
+						placeholder={showUnsupportedFileError || showUnsupportedImageError || showDimensionError ? "" : placeholderText}
 						ref={(el) => {
 							if (typeof ref === "function") {
 								ref(el)
