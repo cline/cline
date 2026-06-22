@@ -198,7 +198,7 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 		const liteLlmBaseUrl = controller.stateManager.getGlobalSettingsKey("liteLlmBaseUrl")
 		const liteLlmApiKey = controller.stateManager.getSecretKey("liteLlmApiKey")
 		if (liteLlmBaseUrl && liteLlmApiKey) {
-			await refreshLiteLlmModels()
+			await refreshLiteLlmModels(controller)
 		}
 
 		// GUI relies on model info to be up-to-date to provide the most accurate pricing, so we need to fetch the latest details on launch.
