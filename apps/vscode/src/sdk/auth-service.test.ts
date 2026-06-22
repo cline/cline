@@ -476,7 +476,7 @@ describe("AuthService", () => {
 	describe("streaming subscriptions", () => {
 		it("subscribeToAuthStatusUpdate pushes initial state immediately", async () => {
 			const mockResponseStream = vi.fn()
-			const mockController = { postStateToWebview: vi.fn() }
+			const mockController = { postStateToWebview: vi.fn(), invalidateProviderListings: vi.fn() }
 
 			await authService.subscribeToAuthStatusUpdate(
 				// biome-ignore lint/suspicious/noExplicitAny: mock controller for testing
@@ -500,7 +500,7 @@ describe("AuthService", () => {
 			testAccess(authService)._authenticated = true
 
 			const mockResponseStream = vi.fn().mockResolvedValue(undefined)
-			const mockController = { postStateToWebview: vi.fn() }
+			const mockController = { postStateToWebview: vi.fn(), invalidateProviderListings: vi.fn() }
 
 			await authService.subscribeToAuthStatusUpdate(
 				// biome-ignore lint/suspicious/noExplicitAny: mock controller for testing
@@ -522,7 +522,7 @@ describe("AuthService", () => {
 
 		it("removes subscription on cleanup", async () => {
 			const mockResponseStream = vi.fn().mockResolvedValue(undefined)
-			const mockController = { postStateToWebview: vi.fn() }
+			const mockController = { postStateToWebview: vi.fn(), invalidateProviderListings: vi.fn() }
 
 			await authService.subscribeToAuthStatusUpdate(
 				// biome-ignore lint/suspicious/noExplicitAny: mock controller for testing
