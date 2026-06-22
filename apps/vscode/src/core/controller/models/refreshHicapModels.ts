@@ -1,78 +1,10 @@
-import { GlobalFileNames } from "@core/storage/disk"
 import { EmptyRequest } from "@shared/proto/cline/common"
-import { OpenRouterCompatibleModelInfo, OpenRouterModelInfo } from "@shared/proto/cline/models"
-import axios from "axios"
-import fs from "fs/promises"
-import path from "path"
-import { getAxiosSettings } from "@/shared/net"
+import { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
 import { Controller } from ".."
 
-/**
- * The raw model information returned by the Hicap API to list models
- */
-interface HicapRawModelInfo {
-	id: string
-	object: string
-}
-
-/**
- * Refreshes the Hicap models and returns the updated model list
- * @param controller The controller instance
- * @param request Empty request object
- * @returns Response containing the OpenRouter models
- */
-// TODO(sdk-consolidation): Live-fetches Hicap's /models endpoint. The SDK's
-// generic models-URL fetcher returns ids-only and (for providers with a
-// registered modelsSourceUrl) REPLACES rather than merges the curated catalog,
-// so a naive migration would regress metadata. See the detailed note in
-// refreshGroqModels.ts; share via the SDK + delete this handler + RPC once the
-// SDK supports rich/merged per-provider live models for all clients (incl. CLI).
-export async function refreshHicapModels(controller: Controller, _request: EmptyRequest): Promise<OpenRouterCompatibleModelInfo> {
-	const hicapModelsFilePath = path.join(await ensureCacheDirectoryExists(controller), GlobalFileNames.hicapModels)
-
-	const models: Record<string, OpenRouterModelInfo> = {}
-	try {
-		// Get the Hicap API key from the controller's state
-		const hicapApiKey = controller.stateManager.getSecretKey("hicapApiKey")
-
-		const response = await axios.get("https://api.hicap.ai/v2/openai/models", {
-			headers: {
-				"api-key": hicapApiKey,
-			},
-			...getAxiosSettings(),
-		})
-
-		if (response.data?.data) {
-			const rawModels = response.data.data
-
-			for (const rawModel of rawModels as HicapRawModelInfo[]) {
-				models[rawModel.id] = {
-					maxTokens: -1,
-					contextWindow: 128_000,
-					supportsImages: true,
-					supportsPromptCache: true,
-					inputPrice: 0,
-					outputPrice: 0,
-					cacheWritesPrice: 0,
-					cacheReadsPrice: 0,
-					tiers: [],
-					description: "",
-				}
-			}
-		}
-		await fs.writeFile(hicapModelsFilePath, JSON.stringify(models))
-	} catch (_error) {
-		// If we failed to fetch models, keep whatever we have.
-	}
-
-	return OpenRouterCompatibleModelInfo.create({ models })
-}
-
-/**
- * Ensures the cache directory exists and returns its path
- */
-async function ensureCacheDirectoryExists(controller: Controller): Promise<string> {
-	const cacheDir = path.join(controller.context.globalStorageUri.fsPath, "cache")
-	await fs.mkdir(cacheDir, { recursive: true })
-	return cacheDir
+export async function refreshHicapModels(
+	_controller: Controller,
+	_request: EmptyRequest,
+): Promise<OpenRouterCompatibleModelInfo> {
+	return OpenRouterCompatibleModelInfo.create({})
 }

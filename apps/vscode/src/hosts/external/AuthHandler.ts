@@ -1,9 +1,15 @@
 import type { IncomingMessage, Server, ServerResponse } from "node:http"
 import http from "node:http"
 import type { AddressInfo } from "node:net"
-import { SharedUriHandler } from "@/services/uri/SharedUriHandler"
 import { Logger } from "@/shared/services/Logger"
 import { HostProvider } from "../host-provider"
+
+// The shared URI handler service has been removed from this inert shell. This
+// stub keeps AuthHandler constructable for the standalone host provider; URI
+// handling is a no-op.
+const SharedUriHandler = {
+	handleUri: async (_uri: string): Promise<boolean> => false,
+}
 
 const SERVER_TIMEOUT = 10 * 60 * 1000 // 10 minutes
 

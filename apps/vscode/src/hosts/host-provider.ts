@@ -1,8 +1,12 @@
 import { WebviewProvider } from "@/core/webview"
-import { CommentReviewController } from "@/integrations/editor/CommentReviewController"
-import { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
-import { ITerminalManager } from "@/integrations/terminal/types"
 import { HostBridgeClientProvider } from "./host-provider-types"
+
+// NOTE: The diff view, comment review, and terminal implementations have been
+// removed from this inert shell. These are kept as opaque types so the host
+// provider factory signatures still type-check.
+type DiffViewProvider = unknown
+type CommentReviewController = unknown
+type ITerminalManager = unknown
 /**
  * Singleton class that manages host-specific providers for dependency injection.
  *

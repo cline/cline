@@ -18,14 +18,12 @@ import { OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
 import { AIhubmixProvider } from "./providers/AihubmixProvider"
 import { AnthropicProvider } from "./providers/AnthropicProvider"
 import { AskSageProvider } from "./providers/AskSageProvider"
-import { BasetenProvider } from "./providers/BasetenProvider"
 import { BedrockProvider } from "./providers/BedrockProvider"
 import { ClaudeCodeProvider } from "./providers/ClaudeCodeProvider"
 import { ClinePassProvider } from "./providers/ClinePassProvider"
 import { ClineProvider } from "./providers/ClineProvider"
 import { DifyProvider } from "./providers/DifyProvider"
 import { GenericProviderSettings } from "./providers/GenericProviderSettings"
-import { GroqProvider } from "./providers/GroqProvider"
 import { HicapProvider } from "./providers/HicapProvider"
 import { HuggingFaceProvider } from "./providers/HuggingFaceProvider"
 import { LiteLlmProvider } from "./providers/LiteLlmProvider"
@@ -42,7 +40,6 @@ import { QwenCodeProvider } from "./providers/QwenCodeProvider"
 import { QwenProvider } from "./providers/QwenProvider"
 import { RequestyProvider } from "./providers/RequestyProvider"
 import { SapAiCoreProvider } from "./providers/SapAiCoreProvider"
-import { VercelAIGatewayProvider } from "./providers/VercelAIGatewayProvider"
 import { VertexProvider } from "./providers/VertexProvider"
 import { VSCodeLmProvider } from "./providers/VSCodeLmProvider"
 import { XaiProvider } from "./providers/XaiProvider"
@@ -425,10 +422,6 @@ const ApiOptions = ({
 				<OpenAICompatibleProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
-			{apiConfiguration && selectedProvider === "vercel-ai-gateway" && !genericProviderSettings && (
-				<VercelAIGatewayProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
 			{apiConfiguration && selectedProvider === "bedrock" && (
 				<BedrockProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
@@ -443,12 +436,6 @@ const ApiOptions = ({
 
 			{apiConfiguration && selectedProvider === "vscode-lm" && <VSCodeLmProvider currentMode={currentMode} />}
 
-			{apiConfiguration && selectedProvider === "groq" && !genericProviderSettings && (
-				<GroqProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-			{apiConfiguration && selectedProvider === "baseten" && !genericProviderSettings && (
-				<BasetenProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
 			{apiConfiguration && selectedProvider === "litellm" && (
 				<LiteLlmProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
