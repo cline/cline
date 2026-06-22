@@ -187,6 +187,12 @@ function getOpenAiCompatibleModelInfo(config: ApiConfiguration, mode: Mode): Leg
 	return mode === "plan" ? config.planModeOpenAiModelInfo : config.actModeOpenAiModelInfo
 }
 
+const OPENAI_COMPATIBLE_DEFAULT_CAPABILITIES: NonNullable<SdkModelInfo["capabilities"]> = [
+	"streaming",
+	"tools",
+	"images",
+]
+
 // VS Code stores OpenAI-compatible custom model metadata in legacy
 // ApiConfiguration fields. The SDK runtime enforces context/output limits from
 // knownModels, so bridge the selected model into the SDK shape during session
@@ -200,37 +206,6 @@ function buildOpenAiCompatibleKnownModels(
 		return undefined
 	}
 
-	const modelInfoExtras = modelInfo as LegacyModelInfo & {
-		family?: string
-		metadata?: SdkModelInfo["metadata"]
-		supportsReasoningEffort?: boolean
-		supportsStreaming?: boolean
-		supportsTools?: boolean
-	}
-	const capabilities: NonNullable<SdkModelInfo["capabilities"]> = []
-	const supportsStreaming = modelInfoExtras.supportsStreaming
-	const supportsTools = modelInfoExtras.supportsTools
-	const supportsReasoningEffort = modelInfoExtras.supportsReasoningEffort
-
-	if (supportsStreaming !== false) {
-		capabilities.push("streaming")
-	}
-	if (supportsTools !== false) {
-		capabilities.push("tools")
-	}
-	if (modelInfo.supportsImages) {
-		capabilities.push("images")
-	}
-	if (modelInfo.supportsPromptCache) {
-		capabilities.push("prompt-cache")
-	}
-	if (modelInfo.supportsReasoning || supportsReasoningEffort) {
-		capabilities.push("reasoning")
-	}
-	if (supportsReasoningEffort) {
-		capabilities.push("reasoning-effort")
-	}
-
 	const contextWindow = positiveNumber(modelInfo.contextWindow)
 	const maxTokens = positiveNumber(modelInfo.maxTokens)
 
@@ -242,16 +217,8 @@ function buildOpenAiCompatibleKnownModels(
 			contextWindow,
 			maxInputTokens: contextWindow,
 			maxTokens,
-			capabilities: capabilities.length > 0 ? capabilities : undefined,
-			family: modelInfoExtras.family,
-			metadata: modelInfoExtras.metadata,
+			capabilities: OPENAI_COMPATIBLE_DEFAULT_CAPABILITIES,
 			temperature: modelInfo.temperature,
-			pricing: {
-				input: modelInfo.inputPrice,
-				output: modelInfo.outputPrice,
-				cacheWrite: modelInfo.cacheWritesPrice,
-				cacheRead: modelInfo.cacheReadsPrice,
-			},
 		},
 	}
 }

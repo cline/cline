@@ -385,8 +385,6 @@ describe("buildSessionConfig", () => {
 				name: "Custom Reasoner",
 				contextWindow: 16_000,
 				maxTokens: 4_096,
-				family: "deepseek",
-				metadata: { reasoningDefaultOn: true },
 				supportsImages: false,
 				supportsPromptCache: false,
 				supportsReasoning: true,
@@ -405,9 +403,7 @@ describe("buildSessionConfig", () => {
 			contextWindow: 16_000,
 			maxInputTokens: 16_000,
 			maxTokens: 4_096,
-			capabilities: expect.arrayContaining(["streaming", "tools", "reasoning"]),
-			family: "deepseek",
-			metadata: { reasoningDefaultOn: true },
+			capabilities: ["streaming", "tools", "images"],
 		})
 		expect((config.providerConfig as any).knownModels?.["custom-reasoner"]).toMatchObject({
 			contextWindow: 16_000,
