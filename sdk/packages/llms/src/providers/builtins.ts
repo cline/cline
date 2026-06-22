@@ -605,6 +605,17 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		defaults: { baseUrl: "https://api.groq.com/openai/v1" },
 	},
 	{
+		id: "pleumrouter",
+		name: "PleumRouter",
+		description: "Korea-region OpenAI-compatible multi-provider LLM gateway",
+		family: "openai-compatible",
+		capabilities: ["tools", "reasoning"],
+		defaultModelId: "claude-sonnet-4-6",
+		apiKeyEnv: ["PLEUMROUTER_API_KEY"],
+		defaults: { baseUrl: "https://router.pleum.ai/v1" },
+		docsUrl: "https://router.pleum.ai/docs",
+	},
+	{
 		id: "poolside",
 		name: "Poolside",
 		description: "OpenAI-compatible code intelligence models",
