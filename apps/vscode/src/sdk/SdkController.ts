@@ -506,6 +506,10 @@ export class Controller {
 		return this.providerCatalog
 	}
 
+	invalidateProviderListings(): void {
+		this.providerCatalog.invalidateProviderListings()
+	}
+
 	private handleProviderConfigChange(event: ProviderConfigChange): void {
 		this.scheduleProviderConfigStatePost()
 
