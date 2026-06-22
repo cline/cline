@@ -32,14 +32,14 @@ const START_LINE_PATTERN = /startLine=(\d+)/;
 const NO_LINE_NUMBERS_PATTERN = /\bnoLineNumbers\b/;
 
 function codeText(children: ReactNode): string {
-	if (typeof children === "string") {
-		return children;
+	if (typeof children === "string" || typeof children === "number") {
+		return String(children);
 	}
-	if (
-		isValidElement<{ children?: ReactNode }>(children) &&
-		typeof children.props.children === "string"
-	) {
-		return children.props.children;
+	if (Array.isArray(children)) {
+		return children.map(codeText).join("");
+	}
+	if (isValidElement<{ children?: ReactNode }>(children)) {
+		return codeText(children.props.children);
 	}
 	return "";
 }
@@ -151,19 +151,20 @@ const streamdownPlugins = { cjk, mermaid: createLazyMermaidPlugin() };
 export type HubStreamdownProps = StreamdownProps;
 
 export const HubStreamdown = memo(
-	({ className, components, ...props }: HubStreamdownProps) => (
-		<Streamdown
-			className={className}
-			components={{ ...markdownComponents, ...components }}
-			plugins={streamdownPlugins}
-			{...props}
-		/>
-	),
-	(prevProps, nextProps) =>
-		prevProps.children === nextProps.children &&
-		nextProps.isAnimating === prevProps.isAnimating &&
-		prevProps.className === nextProps.className &&
-		prevProps.components === nextProps.components,
+	({ className, components, ...props }: HubStreamdownProps) => {
+		const mergedComponents = components
+			? { ...markdownComponents, ...components }
+			: markdownComponents;
+
+		return (
+			<Streamdown
+				className={className}
+				components={mergedComponents}
+				plugins={streamdownPlugins}
+				{...props}
+			/>
+		);
+	},
 );
 
 HubStreamdown.displayName = "HubStreamdown";

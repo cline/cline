@@ -324,9 +324,6 @@ export const MessageResponse = memo(
 			{...props}
 		/>
 	),
-	(prevProps, nextProps) =>
-		prevProps.children === nextProps.children &&
-		nextProps.isAnimating === prevProps.isAnimating,
 );
 
 MessageResponse.displayName = "MessageResponse";
