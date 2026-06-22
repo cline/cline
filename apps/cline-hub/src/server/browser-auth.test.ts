@@ -53,15 +53,17 @@ describe("allowedBrowserOrigins", () => {
 		]);
 	});
 
-	it("only allows the configured public URL origin for non-local binds", () => {
-		expect([
-			...allowedBrowserOrigins({
-				bindHost: "0.0.0.0",
-				port: 8787,
-				publicUrl: "https://example.ngrok-free.app",
-				roomSecret: "secret",
-			}),
-		]).toEqual(["https://example.ngrok-free.app"]);
+	it("allows the configured public URL origin and explicit bind origin for non-local binds", () => {
+		expect(
+			[
+				...allowedBrowserOrigins({
+					bindHost: "0.0.0.0",
+					port: 8787,
+					publicUrl: "https://example.ngrok-free.app",
+					roomSecret: "secret",
+				}),
+			].sort(),
+		).toEqual(["https://0.0.0.0:8787", "https://example.ngrok-free.app"]);
 	});
 });
 
@@ -74,15 +76,17 @@ describe("allowedBrowserHosts", () => {
 		]);
 	});
 
-	it("only allows the configured public URL host for non-local binds", () => {
-		expect([
-			...allowedBrowserHosts({
-				bindHost: "0.0.0.0",
-				port: 8787,
-				publicUrl: "https://example.ngrok-free.app",
-				roomSecret: "secret",
-			}),
-		]).toEqual(["example.ngrok-free.app"]);
+	it("allows the configured public URL host and explicit bind host for non-local binds", () => {
+		expect(
+			[
+				...allowedBrowserHosts({
+					bindHost: "0.0.0.0",
+					port: 8787,
+					publicUrl: "https://example.ngrok-free.app",
+					roomSecret: "secret",
+				}),
+			].sort(),
+		).toEqual(["0.0.0.0:8787", "example.ngrok-free.app"]);
 	});
 });
 
@@ -175,6 +179,23 @@ describe("isAuthorizedBrowserRequest", () => {
 				defaultOptions,
 			),
 		).toBe(false);
+	});
+
+	it("allows explicit wildcard bind host and origin when a room secret is configured", () => {
+		expect(
+			isAuthorizedBrowserRequest(
+				browserRequest("http://0.0.0.0:8787", {
+					headers: { host: "0.0.0.0:8787" },
+				}),
+				new URL("http://0.0.0.0:8787/browser?roomSecret=invite-123"),
+				{
+					bindHost: "0.0.0.0",
+					port: 8787,
+					publicUrl: "http://127.0.0.1:8787",
+					roomSecret: "invite-123",
+				},
+			),
+		).toBe(true);
 	});
 
 	it("requires trusted origin, trusted host, and room secret when a room secret is configured", () => {

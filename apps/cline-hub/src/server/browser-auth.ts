@@ -32,6 +32,10 @@ function parseHeader(value: string | null): string | undefined {
 	return host || undefined;
 }
 
+function formatHostForOrigin(host: string): string {
+	return host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
+}
+
 export function allowedBrowserOrigins({
 	bindHost,
 	port,
@@ -40,6 +44,10 @@ export function allowedBrowserOrigins({
 	const publicUrlParts = new URL(publicUrl);
 	const origins = new Set<string>();
 	origins.add(publicUrlParts.origin);
+
+	origins.add(
+		`${publicUrlParts.protocol}//${formatHostForOrigin(bindHost)}:${port}`,
+	);
 
 	if (!isNonLocalBindHost(bindHost)) {
 		for (const hostname of ["127.0.0.1", "localhost", "[::1]"]) {
@@ -58,6 +66,8 @@ export function allowedBrowserHosts({
 	const hosts = new Set<string>();
 	const publicHost = new URL(publicUrl).host.toLowerCase();
 	hosts.add(publicHost);
+
+	hosts.add(`${formatHostForOrigin(bindHost)}:${port}`);
 
 	if (!isNonLocalBindHost(bindHost)) {
 		for (const hostname of ["127.0.0.1", "localhost", "[::1]"]) {
