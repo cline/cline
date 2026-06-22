@@ -1,5 +1,5 @@
 import type { ModelInfo } from "@shared/api"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 import type {
 	EffectiveProviderConfig,
 	Fingerprint,
@@ -33,6 +33,15 @@ type TestReader = ProviderConfigReader & {
 	setConfig(next: EffectiveProviderConfig): void
 	emit(event: ProviderConfigChange): void
 }
+
+// Warm the catalog module graph once before any test runs. catalog.ts statically
+// pulls in @cline/core, @cline/llms and @cline/shared, so the first test to call
+// `await import("./catalog")` otherwise pays the entire (>5s on CI) import cost
+// inside its own 5s test timeout and flakily fails. Importing here moves that cost
+// outside any per-test clock (hooks get a generous timeout of their own).
+beforeAll(async () => {
+	await import("./catalog")
+}, 60_000)
 
 beforeEach(() => {
 	mocks.resolveProviderConfig.mockReset()
