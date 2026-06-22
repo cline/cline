@@ -118,11 +118,11 @@ describe("provider-ids", () => {
 			id: "poolside",
 			name: "Poolside",
 			baseUrl: "https://inference.poolside.ai/v1",
-			defaultModelId: "poolside/laguna-m.1:free",
+			defaultModelId: "poolside/laguna-m.1",
 			client: "openai-compatible",
 		});
 		const models = await getModelsForProvider("poolside");
-		expect(Object.hasOwn(models, "poolside/laguna-m.1:free")).toBe(true);
+		expect(Object.hasOwn(models, "poolside/laguna-m.1")).toBe(true);
 
 		const registration = BUILTIN_PROVIDER_REGISTRATIONS.find(
 			(item) => item.manifest.id === "poolside",

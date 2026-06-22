@@ -584,7 +584,7 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		description: "OpenAI-compatible code intelligence models",
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning"],
-		defaultModelId: "poolside/laguna-m.1:free",
+		defaultModelId: "poolside/laguna-m.1",
 		apiKeyEnv: ["POOLSIDE_API_KEY"],
 		defaults: { baseUrl: "https://inference.poolside.ai/v1" },
 	},

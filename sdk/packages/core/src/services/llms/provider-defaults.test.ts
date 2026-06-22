@@ -178,7 +178,7 @@ describe("resolveProviderConfig", () => {
 			{ failOnError: true, cacheTtlMs: 0 },
 			{
 				providerId: "poolside",
-				modelId: "poolside/laguna-m.1:free",
+				modelId: "poolside/laguna-m.1",
 				apiKey: "poolside-key",
 				baseUrl: "https://inference.poolside.ai/v1",
 			},

@@ -361,7 +361,7 @@ describe("buildSessionConfig", () => {
 
 	it("resolves SDK-backed provider API keys from provider-specific settings", async () => {
 		const providers = [
-			{ providerId: "poolside", modelId: "poolside/laguna-m.1:free" },
+			{ providerId: "poolside", modelId: "poolside/laguna-m.1" },
 			{ providerId: "v0", modelId: "v0-1.5-md" },
 			{ providerId: "xiaomi", modelId: "mimo-v2-omni" },
 			{ providerId: "zai-coding-plan", modelId: "glm-5.2" },
