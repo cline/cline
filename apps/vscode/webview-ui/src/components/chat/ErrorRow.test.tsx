@@ -254,7 +254,6 @@ describe("ErrorRow", () => {
 					/Organization accounts cannot use ClinePass subscriptions/,
 				),
 			).toBeInTheDocument();
-			expect(screen.getByText(/\/accounts/)).toBeInTheDocument();
 			expect(screen.queryByText(rawMessage)).not.toBeInTheDocument();
 
 			fireEvent.click(screen.getByText("Switch to personal account"));

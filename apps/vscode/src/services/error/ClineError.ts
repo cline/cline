@@ -189,8 +189,9 @@ export class ClineError extends Error {
 		const entitlementText =
 			`${message ?? ""} ${details?.message ?? ""}`.toLowerCase();
 		if (
-			entitlementText.includes(ORG_CLINE_PASS_RESTRICTION_MESSAGE) ||
-			entitlementText.includes(ORG_CLINE_PASS_RESTRICTION_USER_MESSAGE)
+			isEntitlementCode &&
+			(entitlementText.includes(ORG_CLINE_PASS_RESTRICTION_MESSAGE) ||
+				entitlementText.includes(ORG_CLINE_PASS_RESTRICTION_USER_MESSAGE))
 		) {
 			return ClineErrorType.OrgClinePassRestriction;
 		}

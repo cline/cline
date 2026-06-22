@@ -78,5 +78,16 @@ describe("ClineError", () => {
 			result!.should.equal(ClineErrorType.OrgClinePassRestriction);
 			(result !== ClineErrorType.Entitlement).should.be.true();
 		});
+
+		it("should not classify organization restriction text without ENTITLEMENT_ERROR as OrgClinePassRestriction", () => {
+			const err = new ClineError({
+				message:
+					"Network error: organization accounts cannot use individual model inference subscriptions",
+				code: "ERR_NETWORK",
+			});
+
+			const result = ClineError.getErrorType(err);
+			(result !== ClineErrorType.OrgClinePassRestriction).should.be.true();
+		});
 	});
 });
