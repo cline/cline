@@ -12,6 +12,7 @@ import type {
 	ConfiguredConnectorRecord,
 	ConnectorChannelsResponse,
 	ConnectorFieldDef,
+	ConnectorPlatformDef,
 	HubCommandEnvelope,
 	HubReplyEnvelope,
 } from "@cline/shared";
@@ -292,6 +293,26 @@ function validateRequiredField(
 	}
 }
 
+function buildActiveConnectorFieldValues(
+	platform: ConnectorPlatformDef,
+	values: Record<string, string>,
+): Record<string, string> {
+	const fieldValues: Record<string, string> = {};
+	for (const field of platform.fields) {
+		fieldValues[field.flag] = values[field.flag] ?? field.initialValue ?? "";
+	}
+
+	const activeFieldValues: Record<string, string> = {};
+	for (const field of platform.fields) {
+		if (!shouldIncludeConnectorField(field, fieldValues)) {
+			continue;
+		}
+		validateRequiredField(field, fieldValues);
+		activeFieldValues[field.flag] = fieldValues[field.flag];
+	}
+	return activeFieldValues;
+}
+
 function configureConnector(payload: unknown): ConnectorChannelsResponse {
 	if (!isRecord(payload)) {
 		throw new Error("connector.configure payload must be an object.");
@@ -310,15 +331,7 @@ function configureConnector(payload: unknown): ConnectorChannelsResponse {
 	}
 
 	const values = normalizeStringRecord(payload.values);
-	const fieldValues: Record<string, string> = {};
-	for (const field of platform.fields) {
-		fieldValues[field.flag] = values[field.flag] ?? field.initialValue ?? "";
-	}
-	for (const field of platform.fields) {
-		if (shouldIncludeConnectorField(field, fieldValues)) {
-			validateRequiredField(field, fieldValues);
-		}
-	}
+	const fieldValues = buildActiveConnectorFieldValues(platform, values);
 
 	const securityInput = isRecord(payload.security) ? payload.security : {};
 	const securityEnabled = securityInput.enabled === true;

@@ -53,6 +53,17 @@ describe("connector hub handlers", () => {
 		};
 	}
 
+	function readPersistedConnectorValues(
+		channel: string,
+	): Record<string, string> {
+		const persisted = JSON.parse(
+			readFileSync(__test__.resolveConnectorSettingsPath(), "utf8"),
+		) as {
+			connectors: Record<string, { values: Record<string, string> }>;
+		};
+		return persisted.connectors[channel]?.values ?? {};
+	}
+
 	it("configures a connector through hub settings without starting it", () => {
 		useTempDataDir();
 
@@ -158,6 +169,40 @@ describe("connector hub handlers", () => {
 				},
 			}),
 		).toThrow("Signing secret is required");
+	});
+
+	it("persists only active Slack fields for the selected mode", () => {
+		useTempDataDir();
+
+		__test__.configureConnector({
+			channel: "slack",
+			values: {
+				"--bot-token": "xoxb-token",
+				"--base-url": "",
+				"--app-token": "xapp-token",
+				"--signing-secret": "stale-signing-secret",
+			},
+		});
+		expect(readPersistedConnectorValues("slack")).toEqual({
+			"--bot-token": "xoxb-token",
+			"--base-url": "",
+			"--app-token": "xapp-token",
+		});
+
+		__test__.configureConnector({
+			channel: "slack",
+			values: {
+				"--bot-token": "xoxb-token",
+				"--base-url": "https://hooks.example.com",
+				"--signing-secret": "signing-secret",
+				"--app-token": "stale-app-token",
+			},
+		});
+		expect(readPersistedConnectorValues("slack")).toEqual({
+			"--bot-token": "xoxb-token",
+			"--base-url": "https://hooks.example.com",
+			"--signing-secret": "signing-secret",
+		});
 	});
 
 	it("emits telemetry for state-mutating connector command outcomes", async () => {
