@@ -41,16 +41,32 @@ function makeChatState(): ChatState {
 	} as unknown as ChatState
 }
 
-function makeScrollBehavior() {
-	return {
-		scrollToBottomSmooth: vi.fn(),
-		disableAutoScrollRef: { current: false },
-		showScrollToBottom: false,
-		virtuosoRef: { current: null },
-	} as unknown as Parameters<typeof ActionButtons>[0]["scrollBehavior"]
-}
-
 describe("ActionButtons", () => {
+	it("does not render a scroll button when there are no action buttons", () => {
+		mockTurnState.mockReturnValue(undefined)
+		const task: ClineMessage = {
+			ts: 1,
+			type: "ask",
+			ask: "followup",
+			text: "Anything else?",
+			partial: false,
+		}
+
+		render(
+			<ActionButtons
+				chatState={makeChatState()}
+				messageHandlers={{ executeButtonAction: vi.fn() } as unknown as MessageHandlers}
+				messages={[task]}
+				mode="act"
+				task={task}
+			/>,
+		)
+
+		expect(screen.queryByRole("button")).not.toBeInTheDocument()
+		expect(screen.queryByLabelText("Scroll to bottom")).not.toBeInTheDocument()
+		expect(screen.queryByLabelText("Scroll to top")).not.toBeInTheDocument()
+	})
+
 	it("re-enables the buttons when a second identical approval ask arrives", async () => {
 		// Regression: the button configs are shared singletons, so two consecutive
 		// "create file" asks return the same object. Clicking the first latches a
@@ -68,7 +84,6 @@ describe("ActionButtons", () => {
 			chatState: makeChatState(),
 			messageHandlers,
 			mode: "act" as const,
-			scrollBehavior: makeScrollBehavior(),
 		}
 
 		const { rerender } = render(<ActionButtons {...props} messages={[task]} />)

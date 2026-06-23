@@ -3,7 +3,6 @@ import type { Mode } from "@shared/storage/types"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import type React from "react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { VirtuosoHandle } from "react-virtuoso"
 import { useExtensionState } from "../../../../../context/ExtensionStateContext"
 import { ButtonActionType, getButtonConfigFromState } from "../../shared/buttonConfig"
 import type { ChatState, MessageHandlers } from "../../types/chatTypes"
@@ -14,25 +13,12 @@ interface ActionButtonsProps {
 	chatState: ChatState
 	messageHandlers: MessageHandlers
 	mode: Mode
-	scrollBehavior: {
-		scrollToBottomSmooth: () => void
-		disableAutoScrollRef: React.MutableRefObject<boolean>
-		showScrollToBottom: boolean
-		virtuosoRef: React.RefObject<VirtuosoHandle>
-	}
 }
 
 /**
- * Action buttons area including scroll-to-bottom and approve/reject buttons
+ * Action buttons area including approve/reject buttons
  */
-export const ActionButtons: React.FC<ActionButtonsProps> = ({
-	task,
-	messages,
-	chatState,
-	mode,
-	messageHandlers,
-	scrollBehavior,
-}) => {
+export const ActionButtons: React.FC<ActionButtonsProps> = ({ task, messages, chatState, mode, messageHandlers }) => {
 	const { inputValue, selectedImages, selectedFiles, setSendingDisabled } = chatState
 	const { turnState } = useExtensionState()
 
@@ -130,63 +116,13 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 		return null
 	}
 
-	const { showScrollToBottom, scrollToBottomSmooth, disableAutoScrollRef } = scrollBehavior
-
 	const { primaryText, secondaryText, primaryAction, secondaryAction, enableButtons } = buttonConfig
 	const hasButtons = primaryText || secondaryText
 	const isStreaming = task.partial === true
 	const canInteract = enableButtons && !isProcessing
 
-	// Early return for scroll button to avoid unnecessary computation.
-	// Action buttons must take priority over the scroll button; otherwise an
-	// approval ask can be visible while the footer only shows “scroll to bottom”.
 	if (!hasButtons) {
-		const handleScrollToBottom = () => {
-			scrollToBottomSmooth()
-			disableAutoScrollRef.current = false
-		}
-		// Show scroll to top button when there are no action buttons
-		const handleScrollToTop = () => {
-			scrollBehavior.virtuosoRef.current?.scrollTo({
-				top: 0,
-				behavior: "smooth",
-			})
-			disableAutoScrollRef.current = true
-			// Virtual rendering may not have all items rendered when at bottom,
-			// so scroll again after a delay to ensure we reach the true top
-			setTimeout(() => {
-				scrollBehavior.virtuosoRef.current?.scrollTo({
-					top: 0,
-					behavior: "smooth",
-				})
-			}, 300)
-		}
-
-		return (
-			<div className="flex px-3.5">
-				<VSCodeButton
-					appearance="icon"
-					aria-label={showScrollToBottom ? "Scroll to bottom" : "Scroll to top"}
-					className="text-lg text-(--vscode-primaryButton-foreground) bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_55%,transparent)] rounded-[3px] overflow-hidden cursor-pointer flex justify-center items-center flex-1 h-[25px] hover:bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_90%,transparent)] active:bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_70%,transparent)] border-0"
-					onClick={showScrollToBottom ? handleScrollToBottom : handleScrollToTop}
-					onKeyDown={(e) => {
-						if (e.key === "Enter" || e.key === " ") {
-							e.preventDefault()
-							if (showScrollToBottom) {
-								handleScrollToBottom()
-							} else {
-								handleScrollToTop()
-							}
-						}
-					}}>
-					{showScrollToBottom ? (
-						<span className="codicon codicon-chevron-down" />
-					) : (
-						<span className="codicon codicon-chevron-up" />
-					)}
-				</VSCodeButton>
-			</div>
-		)
+		return null
 	}
 
 	const opacity = canInteract || isStreaming ? 1 : 0.5
