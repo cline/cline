@@ -700,9 +700,6 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		...(apiKey ? { apiKey } : {}),
 		...(baseUrl !== undefined ? { baseUrl } : {}),
 		...(knownModels ? { knownModels } : {}),
-		...(modelId && positiveNumber(knownModels?.[modelId]?.maxTokens)
-			? { maxOutputTokens: positiveNumber(knownModels?.[modelId]?.maxTokens) }
-			: {}),
 		fetch,
 	}
 

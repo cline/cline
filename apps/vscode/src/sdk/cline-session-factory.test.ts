@@ -446,7 +446,7 @@ describe("buildSessionConfig", () => {
 			maxInputTokens: 16_000,
 			maxTokens: 4_096,
 		})
-		expect((config.providerConfig as any).maxOutputTokens).toBe(4_096)
+		expect(config.providerConfig).not.toHaveProperty("maxOutputTokens")
 	})
 
 	it("builds structured SAP AI Core config from legacy ApiConfiguration fields", async () => {

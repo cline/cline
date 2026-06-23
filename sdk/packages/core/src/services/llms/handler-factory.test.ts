@@ -125,7 +125,33 @@ describe("createAgentModelFromConfig", () => {
 		);
 	});
 
-	it("uses providerConfig maxOutputTokens when no direct per-turn override is set", async () => {
+	it("uses maxTokensPerTurn as the request max token cap", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+
+		createAgentModelFromConfig(
+			{
+				providerId: "openai-compatible",
+				modelId: "custom-model",
+				apiKey: "key",
+				systemPrompt: "",
+				tools: [],
+				maxTokensPerTurn: 4_096,
+				providerConfig: {
+					providerId: "openai-compatible",
+					modelId: "custom-model",
+					maxOutputTokens: 8_192,
+				},
+			},
+			undefined,
+		);
+
+		expect(gatewayMock.createAgentModel).toHaveBeenLastCalledWith(
+			{ providerId: "openai-compatible", modelId: "custom-model" },
+			{ maxTokens: 4_096 },
+		);
+	});
+
+	it("does not use providerConfig maxOutputTokens as a request cap", async () => {
 		const { createAgentModelFromConfig } = await import("./handler-factory");
 
 		createAgentModelFromConfig(
@@ -146,7 +172,7 @@ describe("createAgentModelFromConfig", () => {
 
 		expect(gatewayMock.createAgentModel).toHaveBeenLastCalledWith(
 			{ providerId: "openai-compatible", modelId: "custom-model" },
-			{ maxTokens: 4_096 },
+			undefined,
 		);
 	});
 
