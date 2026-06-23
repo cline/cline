@@ -3,6 +3,7 @@ import { memo } from "react"
 import { ClineAuthStatus } from "@/components/account/ClineAuthStatus"
 import CreditLimitError from "@/components/chat/CreditLimitError"
 import EntitlementError from "@/components/chat/EntitlementError"
+import OrgClinePassRestrictionError from "@/components/chat/OrgClinePassRestrictionError"
 import SpendLimitError from "@/components/chat/SpendLimitError"
 import { Button } from "@/components/ui/button"
 import { useClineAuth, useClineSignIn } from "@/context/ClineAuthContext"
@@ -68,6 +69,10 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 					if (clineError?.isErrorType(ClineErrorType.Entitlement)) {
 						const detailMessage = clineError?._error?.details?.message || errorMessage
 						return <EntitlementError message={detailMessage} />
+					}
+
+					if (clineError?.isErrorType(ClineErrorType.OrgClinePassRestriction)) {
+						return <OrgClinePassRestrictionError />
 					}
 
 					if (clineError?.isErrorType(ClineErrorType.RateLimit)) {
