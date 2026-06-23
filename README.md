@@ -165,6 +165,7 @@ Cline is not locked to a single AI provider. Use whichever model fits your workf
 | AWS Bedrock | Claude, Llama, and more |
 | Azure / GCP Vertex | All hosted models |
 | Cerebras / Groq | Fast inference models |
+| [Atlas Cloud](https://www.atlascloud.ai/?utm_source=github&utm_medium=link&utm_campaign=cline) | OpenAI-compatible API for DeepSeek, Qwen, GLM, Kimi, MiniMax and more |
 | Ollama / LM Studio | Run local models on your machine |
 | Any OpenAI-compatible API | Self-hosted or third-party endpoints |
 

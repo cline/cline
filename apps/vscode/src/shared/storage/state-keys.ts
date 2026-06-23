@@ -336,6 +336,7 @@ const SECRETS_KEYS = [
 	"huggingFaceApiKey",
 	"nebiusApiKey",
 	"sambanovaApiKey",
+	"atlascloudApiKey",
 	"cerebrasApiKey",
 	"sapAiCoreClientId",
 	"sapAiCoreClientSecret",

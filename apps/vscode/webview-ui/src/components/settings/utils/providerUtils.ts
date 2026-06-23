@@ -59,6 +59,8 @@ import {
 	openRouterDefaultModelInfo,
 	qwenCodeDefaultModelId,
 	qwenCodeModels,
+	atlascloudDefaultModelId,
+	atlascloudModels,
 	requestyDefaultModelId,
 	requestyDefaultModelInfo,
 	resolveClinePassModelInfo,
@@ -137,6 +139,8 @@ export function getModelsForProvider(
 			return wandbModels;
 		case "sambanova":
 			return sambanovaModels;
+		case "atlascloud":
+			return atlascloudModels;
 		case "cerebras":
 			return cerebrasModels;
 		case "groq":
@@ -486,6 +490,8 @@ export function normalizeApiConfiguration(
 			return getProviderData(wandbModels, wandbDefaultModelId);
 		case "sambanova":
 			return getProviderData(sambanovaModels, sambanovaDefaultModelId);
+		case "atlascloud":
+			return getProviderData(atlascloudModels, atlascloudDefaultModelId);
 		case "cerebras":
 			return getProviderData(cerebrasModels, cerebrasDefaultModelId);
 		case "groq": {
@@ -1101,6 +1107,7 @@ export async function syncModeConfigurations(
 		case "nebius":
 		case "wandb":
 		case "sambanova":
+		case "atlascloud":
 		case "cerebras":
 		case "sapaicore":
 		case "zai":

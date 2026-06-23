@@ -1,0 +1,30 @@
+---
+title: "Atlas Cloud"
+description: "Learn how to configure and use the Atlas Cloud provider with Cline."
+---
+
+Atlas Cloud provides access to a wide range of AI models through a unified, OpenAI-compatible API, including reasoning models such as the DeepSeek series.
+
+**Website:** [https://www.atlascloud.ai](https://www.atlascloud.ai)
+
+### Get API Credentials
+
+1.  **Sign Up/Sign In:** Go to [Atlas Cloud](https://www.atlascloud.ai). Create an account or sign in.
+2.  **Navigate to API Keys:** Open the API key / dashboard section.
+3.  **Create a Key:** Generate a new API key.
+4.  **Copy the Key:** Copy the API key immediately and store it securely.
+
+### Configuration in Cline
+
+> See [Authorization & Model Selection](/getting-started/authorizing-with-cline#menu).
+
+1.  **Open Cline Settings:** Click the settings icon (⚙️) in the Cline panel.
+2.  **Select Provider:** Choose "Atlas Cloud" from the "API Provider" dropdown.
+3.  **Enter API Key:** Paste your Atlas Cloud API key.
+4.  **Select Provider Model:** Choose your desired model from the "Model" dropdown.
+
+### Tips and Notes
+
+-   **OpenAI-compatible API:** Atlas Cloud exposes an OpenAI-compatible endpoint at `https://api.atlascloud.ai/v1`.
+-   **Reasoning Support:** Models such as `deepseek-ai/deepseek-v4-pro` support extended thinking/reasoning. Cline surfaces the reasoning stream separately from the final answer.
+-   **Pricing:** Check the [Atlas Cloud pricing page](https://www.atlascloud.ai) for current rates.

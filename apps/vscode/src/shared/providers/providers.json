@@ -141,6 +141,10 @@
 			"label": "SambaNova"
 		},
 		{
+			"value": "atlascloud",
+			"label": "Atlas Cloud"
+		},
+		{
 			"value": "huawei-cloud-maas",
 			"label": "Huawei Cloud MaaS"
 		},

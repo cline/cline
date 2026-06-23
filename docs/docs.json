@@ -75,6 +75,7 @@
 										"pages": [
 											"provider-config/qwen",
 											"provider-config/anthropic",
+											"provider-config/atlas-cloud",
 											{
 												"group": "AWS Bedrock",
 												"pages": [

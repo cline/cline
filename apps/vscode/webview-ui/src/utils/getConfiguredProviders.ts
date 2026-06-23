@@ -116,6 +116,11 @@ export function getConfiguredProviders(
 		configured.push("sambanova")
 	}
 
+	// Atlas Cloud - requires API key
+	if (apiConfiguration.atlascloudApiKey) {
+		configured.push("atlascloud")
+	}
+
 	// Cerebras - requires API key
 	if (apiConfiguration.cerebrasApiKey) {
 		configured.push("cerebras")

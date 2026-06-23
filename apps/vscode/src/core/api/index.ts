@@ -8,6 +8,7 @@ import { ClineTool } from "@/shared/tools"
 import { AIhubmixHandler } from "./providers/aihubmix"
 import { AnthropicHandler } from "./providers/anthropic"
 import { AskSageHandler } from "./providers/asksage"
+import { AtlascloudHandler } from "./providers/atlascloud"
 import { BasetenHandler } from "./providers/baseten"
 import { AwsBedrockHandler } from "./providers/bedrock"
 import { CerebrasHandler } from "./providers/cerebras"
@@ -359,6 +360,12 @@ function createHandlerForProvider(
 			return new SambanovaHandler({
 				onRetryAttempt: options.onRetryAttempt,
 				sambanovaApiKey: options.sambanovaApiKey,
+				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+			})
+		case "atlascloud":
+			return new AtlascloudHandler({
+				onRetryAttempt: options.onRetryAttempt,
+				atlascloudApiKey: options.atlascloudApiKey,
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
 			})
 		case "cerebras":
