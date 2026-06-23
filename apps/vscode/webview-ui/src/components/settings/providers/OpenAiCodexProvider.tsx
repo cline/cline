@@ -1,4 +1,4 @@
-import { openAiModelInfoSafeDefaults } from "@shared/api"
+import { ModelInfo, openAiModelInfoSafeDefaults } from "@shared/api"
 import { fromProtobufModelInfo } from "@shared/proto-conversions/models/typeConversion"
 import type { Mode } from "@shared/storage/types"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
@@ -59,7 +59,7 @@ export const OpenAiCodexProvider = ({ showModelOptions, isPopup, currentMode }: 
 		void commitSelection(currentMode, {
 			providerId: OPENAI_CODEX_PROVIDER_ID,
 			modelId,
-			modelInfo,
+			modelInfo: { ...modelInfo, maxTokens: undefined } as ModelInfo,
 		}).catch((err) => console.error("Failed to commit OpenAI Codex model selection:", err))
 	}
 
