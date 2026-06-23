@@ -1066,6 +1066,21 @@ describe("CommandPermissionController", () => {
 			result.reason.should.equal("redirect_detected")
 		})
 
+		it('should treat space-separated "& >" the same as "&>" (blocked by default)', () => {
+			process.env[COMMAND_PERMISSIONS_ENV_VAR] = JSON.stringify({
+				allow: ["echo *"],
+			})
+			const controller = new CommandPermissionController()
+
+			// shell-quote tokenizes "echo hello & > out.txt" identically to "echo hello &> out.txt"
+			// (["echo","hello",{op:"&"},{op:">"},"out.txt"]), so the background-operator carve-out
+			// fires for both forms; the trailing '>' keeps it on the default-deny redirect path
+			// rather than splitting off a background segment.
+			const result = controller.validateCommand("echo hello & > out.txt")
+			result.allowed.should.be.false()
+			result.reason.should.equal("redirect_detected")
+		})
+
 		it("should allow &> redirect-all of an allowed command when allowRedirects is true", () => {
 			process.env[COMMAND_PERMISSIONS_ENV_VAR] = JSON.stringify({
 				allow: ["echo *"],
