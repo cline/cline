@@ -169,7 +169,8 @@
 			"isBackground": true,
 			"label": "npm: watch:esbuild",
 			"dependsOn": [
-				"npm: protos"
+				"npm: protos",
+				"build-sdk:debug"
 			],
 			"presentation": {
 				"group": "watch",
@@ -208,7 +209,8 @@
 			"isBackground": true,
 			"label": "npm: watch:esbuild:test",
 			"dependsOn": [
-				"npm: protos"
+				"npm: protos",
+				"build-sdk:debug"
 			],
 			"presentation": {
 				"group": "watch",
@@ -310,6 +312,24 @@
 			],
 			"options": {
 				"cwd": "${workspaceFolder}"
+			}
+		},
+		{
+			"label": "build-sdk:debug",
+			"type": "shell",
+			"command": "bun run build:sdk",
+			"problemMatcher": [
+				"$tsc"
+			],
+			"presentation": {
+				"group": "watch",
+				"reveal": "always"
+			},
+			"options": {
+				"cwd": "${workspaceFolder}",
+				"env": {
+					"CLINE_SOURCEMAPS": "1"
+				}
 			}
 		}
 	],
