@@ -140,4 +140,27 @@ describe("ClineModelPicker", () => {
 
 		expect(screen.getByRole("combobox")).toHaveValue("cline-next")
 	})
+
+	it("shows the full SDK catalog in search results, including free models", async () => {
+		vi.mocked(useProviderModels).mockReturnValue({
+			models: {
+				"anthropic/claude-sonnet-4.6": { name: "Claude Sonnet 4.6", supportsPromptCache: true },
+				"openai/gpt-oss-120b:free": { name: "GPT OSS 120B Free", supportsPromptCache: true },
+				"qwen/qwen3-coder:free": { name: "Qwen3 Coder Free", supportsPromptCache: true },
+			},
+			defaultModelId: "anthropic/claude-sonnet-4.6",
+			isLoading: false,
+			isStale: false,
+			error: undefined,
+			refresh: vi.fn(),
+			fingerprint: "fingerprint",
+		})
+
+		render(<ClineModelPicker currentMode="act" />)
+
+		fireEvent.focus(screen.getByRole("combobox"))
+
+		expect(await screen.findByText("openai/gpt-oss-120b:free")).toBeInTheDocument()
+		expect(screen.getByText("qwen/qwen3-coder:free")).toBeInTheDocument()
+	})
 })

@@ -19,7 +19,7 @@ import { highlight } from "../history/HistoryView"
 import { ModelInfoView } from "./common/ModelInfoView"
 import FeaturedModelCard from "./FeaturedModelCard"
 import ReasoningEffortSelector from "./ReasoningEffortSelector"
-import { filterOpenRouterModelIds, getModeSpecificFields } from "./utils/providerUtils"
+import { getModeSpecificFields } from "./utils/providerUtils"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
 // Star icon for favorites
@@ -305,9 +305,8 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 	}, [])
 
 	const modelIds = useMemo(() => {
-		const unfilteredModelIds = Object.keys(effectiveClineModels ?? {}).sort((a, b) => a.localeCompare(b))
-		return filterOpenRouterModelIds(unfilteredModelIds, "cline", freeClineModelIds)
-	}, [effectiveClineModels, freeClineModelIds])
+		return Object.keys(effectiveClineModels ?? {}).sort((a, b) => a.localeCompare(b))
+	}, [effectiveClineModels])
 
 	const searchableItems = useMemo(() => {
 		return modelIds.map((id) => ({
