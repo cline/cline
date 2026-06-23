@@ -21,7 +21,7 @@ describe("createSapAiCoreProviderModule", () => {
 			options: {
 				clientId: "sap-client",
 				clientSecret: "sap-secret",
-				tokenUrl: "https://auth.example",
+				tokenUrl: "https://auth.example/oauth/token",
 				deploymentId: "deployment-id",
 			},
 		});
@@ -32,12 +32,47 @@ describe("createSapAiCoreProviderModule", () => {
 
 		expect(process.env.AICORE_SERVICE_KEY).toBe("existing-service-key");
 		expect(model.config?.destination).toMatchObject({
-			authentication: "OAuth2ClientCredentials",
-			clientId: "sap-client",
-			clientSecret: "sap-secret",
-			tokenServiceUrl: "https://auth.example/oauth/token",
-			url: "https://api.ai.example.aws.ml.hana.ondemand.com",
+			service: {
+				credentials: {
+					clientid: "sap-client",
+					clientsecret: "sap-secret",
+					serviceurls: {
+						AI_API_URL: "https://api.ai.example.aws.ml.hana.ondemand.com",
+					},
+					url: "https://auth.example",
+				},
+				label: "aicore",
+				name: "sapaicore",
+				tags: ["aicore"],
+			},
 		});
+	});
+
+	it("uses resource group deployment resolution for orchestration mode", async () => {
+		const provider = await createSapAiCoreProviderModule({
+			providerId: "sapaicore",
+			baseUrl: "https://api.ai.example.aws.ml.hana.ondemand.com",
+			options: {
+				clientId: "sap-client",
+				clientSecret: "sap-secret",
+				tokenUrl: "https://auth.example",
+				resourceGroup: "default",
+				useOrchestrationMode: true,
+			},
+		});
+
+		const model = provider.model("anthropic--claude-4.6-sonnet") as {
+			config?: {
+				deploymentConfig?: Record<string, unknown>;
+				providerApi?: string;
+			};
+		};
+
+		expect(model.config?.deploymentConfig).toMatchObject({
+			resourceGroup: "default",
+		});
+		expect(model.config?.deploymentConfig).not.toHaveProperty("deploymentId");
+		expect(model.config?.providerApi).toBe("orchestration");
 	});
 
 	it("fails fast for partial explicit SAP configuration", async () => {

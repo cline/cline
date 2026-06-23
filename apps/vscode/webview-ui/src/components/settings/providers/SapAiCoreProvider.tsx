@@ -43,6 +43,7 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 	const [hasCheckedOrchestration, setHasCheckedOrchestration] = useState<boolean>(false)
 	const [isLoadingModels, setIsLoadingModels] = useState(false)
 	const [modelError, setModelError] = useState<string | null>(null)
+	const useOrchestrationMode = apiConfiguration?.sapAiCoreUseOrchestrationMode ?? true
 
 	// Check if all required credentials are available
 	const hasRequiredCredentials =
@@ -109,10 +110,10 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 
 	// Handle automatic disabling of orchestration mode when not available
 	useEffect(() => {
-		if (hasCheckedOrchestration && !orchestrationAvailable && apiConfiguration?.sapAiCoreUseOrchestrationMode) {
+		if (hasCheckedOrchestration && !orchestrationAvailable && useOrchestrationMode) {
 			handleFieldChange("sapAiCoreUseOrchestrationMode", false)
 		}
-	}, [hasCheckedOrchestration, orchestrationAvailable, apiConfiguration?.sapAiCoreUseOrchestrationMode, handleFieldChange])
+	}, [hasCheckedOrchestration, orchestrationAvailable, useOrchestrationMode, handleFieldChange])
 
 	// Handle model selection
 	const handleModelChange = useCallback(
@@ -198,7 +199,7 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 					<div className="flex items-center gap-2">
 						<VSCodeCheckbox
 							aria-label="Orchestration Mode"
-							checked={apiConfiguration?.sapAiCoreUseOrchestrationMode}
+							checked={useOrchestrationMode}
 							onChange={(e) => handleOrchestrationChange((e.target as HTMLInputElement).checked)}
 						/>
 						<span className="font-medium">Orchestration Mode</span>
@@ -247,7 +248,7 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 										]
 									}
 									selectedModelId={selectedModelId || ""}
-									useOrchestrationMode={apiConfiguration?.sapAiCoreUseOrchestrationMode}
+									useOrchestrationMode={useOrchestrationMode}
 								/>
 							</>
 						) : (
