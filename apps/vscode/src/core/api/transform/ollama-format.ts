@@ -5,8 +5,12 @@ import {
 	type ClineStorageMessage,
 	type ClineTextContentBlock,
 	type ClineUserToolResultContentBlock,
-	getImageDataUrl,
+	getBase64ImageSource,
 } from "@/shared/messages/content";
+
+function getOllamaImageData(source: ClineImageContentBlock["source"]): string {
+	return getBase64ImageSource(source).data;
+}
 
 export function convertToOllamaMessages(
 	anthropicMessages: Omit<ClineStorageMessage, "modelInfo">[],
@@ -38,8 +42,8 @@ export function convertToOllamaMessages(
 					);
 
 				// Process tool result messages FIRST since they must follow the tool use messages
-				const toolResultImages: string[] = [];
 				toolMessages.forEach((toolMessage) => {
+					const toolResultImages: string[] = [];
 					// The Anthropic SDK allows tool results to be a string or an array of text and image blocks, enabling rich and structured content. In contrast, the Ollama SDK only supports tool results as a single string, so we map the Anthropic tool result parts into one concatenated string to maintain compatibility.
 					let content: string;
 
@@ -50,7 +54,7 @@ export function convertToOllamaMessages(
 							toolMessage.content
 								?.map((part) => {
 									if (part.type === "image") {
-										toolResultImages.push(getImageDataUrl(part.source));
+										toolResultImages.push(getOllamaImageData(part.source));
 										return "(see following user message for image)";
 									}
 									return part.text;
@@ -66,16 +70,18 @@ export function convertToOllamaMessages(
 
 				// Process non-tool messages
 				if (nonToolMessages.length > 0) {
+					const images = nonToolMessages
+						.filter((part) => part.type === "image")
+						.map((part) => getOllamaImageData(part.source));
+					const content = nonToolMessages
+						.filter((part) => part.type === "text")
+						.map((part) => part.text)
+						.join("\n");
+
 					ollamaMessages.push({
 						role: "user",
-						content: nonToolMessages
-							.map((part) => {
-								if (part.type === "image") {
-									return getImageDataUrl(part.source);
-								}
-								return part.text;
-							})
-							.join("\n"),
+						content,
+						images: images.length > 0 ? images : undefined,
 					});
 				}
 			} else if (anthropicMessage.role === "assistant") {
