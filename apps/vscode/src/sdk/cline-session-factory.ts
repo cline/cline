@@ -508,7 +508,6 @@ export function resolveBaseUrl(providerId: string, config: ApiConfiguration): st
 		oca: "ocaBaseUrl",
 		aihubmix: "aihubmixBaseUrl",
 		dify: "difyBaseUrl",
-		sapaicore: "sapAiCoreBaseUrl",
 	}
 
 	const field = baseUrlMap[providerId]
