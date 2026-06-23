@@ -33,6 +33,28 @@ function formatHostForOrigin(host: string): string {
 	return host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
 }
 
+function isDefaultProtocolPort(protocol: string, port: number): boolean {
+	return (
+		(protocol === "http:" && port === 80) ||
+		(protocol === "https:" && port === 443)
+	);
+}
+
+function originForHost(protocol: string, host: string, port: number): string {
+	return new URL(`${protocol}//${formatHostForOrigin(host)}:${port}`).origin;
+}
+
+function hostHeaderForHost(
+	protocol: string,
+	host: string,
+	port: number,
+): string {
+	const formattedHost = formatHostForOrigin(host).toLowerCase();
+	return isDefaultProtocolPort(protocol, port)
+		? formattedHost
+		: `${formattedHost}:${port}`;
+}
+
 export function allowedBrowserOrigins({
 	bindHost,
 	port,
@@ -42,13 +64,11 @@ export function allowedBrowserOrigins({
 	const origins = new Set<string>();
 	origins.add(publicUrlParts.origin);
 
-	origins.add(
-		`${publicUrlParts.protocol}//${formatHostForOrigin(bindHost)}:${port}`,
-	);
+	origins.add(originForHost(publicUrlParts.protocol, bindHost, port));
 
 	if (!isNonLocalBindHost(bindHost)) {
 		for (const hostname of ["127.0.0.1", "localhost", "[::1]"]) {
-			origins.add(`${publicUrlParts.protocol}//${hostname}:${port}`);
+			origins.add(originForHost(publicUrlParts.protocol, hostname, port));
 		}
 	}
 
@@ -60,15 +80,16 @@ export function allowedBrowserHosts({
 	port,
 	publicUrl,
 }: BrowserRequestAuthOptions): Set<string> {
+	const publicUrlParts = new URL(publicUrl);
 	const hosts = new Set<string>();
-	const publicHost = new URL(publicUrl).host.toLowerCase();
+	const publicHost = publicUrlParts.host.toLowerCase();
 	hosts.add(publicHost);
 
-	hosts.add(`${formatHostForOrigin(bindHost)}:${port}`);
+	hosts.add(hostHeaderForHost(publicUrlParts.protocol, bindHost, port));
 
 	if (!isNonLocalBindHost(bindHost)) {
 		for (const hostname of ["127.0.0.1", "localhost", "[::1]"]) {
-			hosts.add(`${hostname}:${port}`);
+			hosts.add(hostHeaderForHost(publicUrlParts.protocol, hostname, port));
 		}
 	}
 

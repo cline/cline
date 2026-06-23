@@ -55,6 +55,28 @@ describe("allowedBrowserOrigins", () => {
 		]);
 	});
 
+	it("omits default protocol ports for local alias origins", () => {
+		expect(
+			[
+				...allowedBrowserOrigins({
+					bindHost: "127.0.0.1",
+					port: 80,
+					publicUrl: "http://localhost",
+				}),
+			].sort(),
+		).toEqual(["http://127.0.0.1", "http://[::1]", "http://localhost"]);
+
+		expect(
+			[
+				...allowedBrowserOrigins({
+					bindHost: "127.0.0.1",
+					port: 443,
+					publicUrl: "https://localhost",
+				}),
+			].sort(),
+		).toEqual(["https://127.0.0.1", "https://[::1]", "https://localhost"]);
+	});
+
 	it("allows the configured public URL origin and explicit bind origin for non-local binds", () => {
 		expect(
 			[
@@ -76,6 +98,28 @@ describe("allowedBrowserHosts", () => {
 			"[::1]:8787",
 			"localhost:8787",
 		]);
+	});
+
+	it("omits default protocol ports for local alias hosts", () => {
+		expect(
+			[
+				...allowedBrowserHosts({
+					bindHost: "127.0.0.1",
+					port: 80,
+					publicUrl: "http://localhost",
+				}),
+			].sort(),
+		).toEqual(["127.0.0.1", "[::1]", "localhost"]);
+
+		expect(
+			[
+				...allowedBrowserHosts({
+					bindHost: "127.0.0.1",
+					port: 443,
+					publicUrl: "https://localhost",
+				}),
+			].sort(),
+		).toEqual(["127.0.0.1", "[::1]", "localhost"]);
 	});
 
 	it("allows the configured public URL host and explicit bind host for non-local binds", () => {
