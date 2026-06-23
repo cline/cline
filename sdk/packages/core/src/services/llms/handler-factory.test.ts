@@ -301,6 +301,87 @@ describe("createAgentModelFromConfig", () => {
 		);
 	});
 
+	it("forwards SAP AI Core settings as gateway provider options", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+
+		createAgentModelFromConfig(
+			{
+				providerId: "sapaicore",
+				modelId: "anthropic--claude-4.6-sonnet",
+				baseUrl: "https://api.ai.example.aws.ml.hana.ondemand.com",
+				systemPrompt: "",
+				tools: [],
+				providerConfig: {
+					providerId: "sapaicore",
+					modelId: "anthropic--claude-4.6-sonnet",
+					sap: {
+						clientId: "sap-client",
+						clientSecret: "sap-secret",
+						tokenUrl: "https://auth.example",
+						resourceGroup: "default",
+						deploymentId: "deployment-id",
+						useOrchestrationMode: false,
+					},
+				},
+			},
+			undefined,
+		);
+
+		expect(gatewayMock.createGateway).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				providerConfigs: [
+					expect.objectContaining({
+						providerId: "sapaicore",
+						baseUrl: "https://api.ai.example.aws.ml.hana.ondemand.com",
+						options: expect.objectContaining({
+							clientId: "sap-client",
+							clientSecret: "sap-secret",
+							tokenUrl: "https://auth.example",
+							resourceGroup: "default",
+							deploymentId: "deployment-id",
+							useOrchestrationMode: false,
+						}),
+					}),
+				],
+			}),
+		);
+
+		const gatewayConfig = (
+			gatewayMock.createGateway.mock.calls as unknown as Array<
+				[
+					{
+						providerConfigs: Array<Record<string, unknown>>;
+					},
+				]
+			>
+		).at(-1)?.[0];
+		const { createSapAiCoreProviderModule } = await import(
+			"../../../../llms/src/providers/vendors/community"
+		);
+		const provider = await createSapAiCoreProviderModule(
+			gatewayConfig?.providerConfigs[0] as never,
+		);
+		const model = provider.model("anthropic--claude-4.6-sonnet") as {
+			config?: {
+				destination?: Record<string, unknown>;
+				deploymentConfig?: Record<string, unknown>;
+				providerApi?: string;
+			};
+		};
+
+		expect(model.config?.destination).toMatchObject({
+			authentication: "OAuth2ClientCredentials",
+			clientId: "sap-client",
+			clientSecret: "sap-secret",
+			tokenServiceUrl: "https://auth.example/oauth/token",
+			url: "https://api.ai.example.aws.ml.hana.ondemand.com",
+		});
+		expect(model.config?.deploymentConfig).toMatchObject({
+			deploymentId: "deployment-id",
+		});
+		expect(model.config?.providerApi).toBe("foundation-models");
+	});
+
 	it("forwards Azure settings as OpenAI-compatible gateway provider options", async () => {
 		const { createAgentModelFromConfig } = await import("./handler-factory");
 
