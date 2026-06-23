@@ -24,6 +24,7 @@ export const PLUGINS_DIRECTORY_NAME = "plugins";
 export const AGENTS_RULES_FILE_NAME = "AGENTS.md";
 
 export const CLINE_MCP_SETTINGS_FILE_NAME = "cline_mcp_settings.json";
+export const CLINE_CONNECTOR_SETTINGS_FILE_NAME = "settings.json";
 
 function resolveDefaultHomeDir(): string {
 	const envHome = process?.env?.HOME?.trim();
@@ -142,6 +143,22 @@ export function resolveTeamDataDir(): string {
 		return explicitDir;
 	}
 	return join(resolveClineDataDir(), "teams");
+}
+
+export function resolveConnectorDataDir(): string {
+	const explicitDir = process.env.CLINE_CONNECTOR_DATA_DIR?.trim();
+	if (explicitDir) {
+		return explicitDir;
+	}
+	return join(resolveClineDataDir(), "connectors");
+}
+
+export function resolveConnectorSettingsPath(): string {
+	const explicitPath = process.env.CLINE_CONNECTOR_SETTINGS_PATH?.trim();
+	if (explicitPath) {
+		return explicitPath;
+	}
+	return join(resolveConnectorDataDir(), CLINE_CONNECTOR_SETTINGS_FILE_NAME);
 }
 
 export function resolveDbDataDir(): string {

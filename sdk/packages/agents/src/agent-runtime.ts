@@ -594,6 +594,21 @@ export class AgentRuntime {
 				});
 
 				const { message, finishReason } = await this.generateAssistantMessage();
+				if (finishReason === "aborted") {
+					throw this.normalizeAbortError();
+				}
+				if (message.content.length === 0) {
+					throw new Error(
+						finishReason === "error"
+							? (this.state.lastError ?? "Model stream failed")
+							: "Model returned empty response",
+					);
+				}
+				const toolCalls = message.content.filter(
+					(part: AgentMessagePart): part is AgentToolCallPart =>
+						part.type === "tool-call",
+				);
+
 				finalAssistantMessage = message;
 				this.state.messages.push(message);
 				await this.emit({
@@ -609,14 +624,6 @@ export class AgentRuntime {
 					finishReason,
 				});
 
-				if (finishReason === "aborted") {
-					throw this.normalizeAbortError();
-				}
-
-				const toolCalls = message.content.filter(
-					(part: AgentMessagePart): part is AgentToolCallPart =>
-						part.type === "tool-call",
-				);
 				if (finishReason === "error" && toolCalls.length === 0) {
 					throw new Error(this.state.lastError ?? "Model stream failed");
 				}

@@ -20,7 +20,9 @@ function buildSubscribeUrl(appBaseUrl?: string): string | undefined {
 	}
 	try {
 		const base = appBaseUrl.endsWith("/") ? appBaseUrl : `${appBaseUrl}/`
-		return new URL(CLINE_PASS_SUBSCRIBE_PATH, base).toString()
+		const url = new URL(CLINE_PASS_SUBSCRIBE_PATH, base)
+		url.searchParams.set("personal", "true")
+		return url.toString()
 	} catch {
 		// Malformed appBaseUrl: omit the link rather than crashing the error card.
 		return undefined

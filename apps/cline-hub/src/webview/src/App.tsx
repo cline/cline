@@ -22,7 +22,14 @@ import {
 	WrenchIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+	lazy,
+	Suspense,
+	useCallback,
+	useEffect,
+	useMemo,
+	useState,
+} from "react";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -53,18 +60,23 @@ import type {
 	WebviewOutboundMessage,
 	WebviewSessionSummary,
 } from "../../webview-protocol";
-import Chat from "./Chat";
 import { PageFrame, PageHeader } from "./components/views/page-layout";
-import {
-	type CustomizationSection,
-	CustomizationSectionView,
-} from "./components/views/settings/extensions-view";
-import {
-	type SettingsSection,
-	SettingsView,
-} from "./components/views/settings/settings-view";
+import type { CustomizationSection } from "./components/views/settings/extensions-view";
+import type { SettingsSection } from "./components/views/settings/settings-view";
 import { syncHubTheme } from "./lib/theme";
 import { postToHost } from "./vscode";
+
+const Chat = lazy(() => import("./Chat"));
+const SettingsView = lazy(() =>
+	import("./components/views/settings/settings-view").then((module) => ({
+		default: module.SettingsView,
+	})),
+);
+const CustomizationSectionView = lazy(() =>
+	import("./components/views/settings/extensions-view").then((module) => ({
+		default: module.CustomizationSectionView,
+	})),
+);
 
 type View =
 	| "home"
@@ -236,6 +248,14 @@ function replaceLegacyCustomizationRoute(): void {
 function currentPathWithSearch(): string {
 	if (typeof window === "undefined") return "/";
 	return `${window.location.pathname}${window.location.search}`;
+}
+
+function ViewLoading() {
+	return (
+		<PageFrame>
+			<p className="text-sm text-muted-foreground">Loading...</p>
+		</PageFrame>
+	);
 }
 
 function formatRelativeTime(timestamp?: number): string {
@@ -1333,7 +1353,7 @@ function App() {
 
 	return (
 		<Shell onNavigate={navigate} version={hubState.coreVersion} view={view}>
-			{content}
+			<Suspense fallback={<ViewLoading />}>{content}</Suspense>
 		</Shell>
 	);
 }
