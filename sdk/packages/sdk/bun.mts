@@ -1,14 +1,16 @@
 export {};
 
 const sourcemap = Bun.env.CLINE_SOURCEMAPS === "1" ? "linked" : "none";
+// minify: true keeps identifier mangling active even when sourcemaps are enabled.
+const minify = Bun.env.CLINE_SOURCEMAPS !== "1";
 
 const result = await Bun.build({
 	entrypoints: ["./src/index.ts"],
 	outdir: "./dist",
 	target: "node",
 	format: "esm",
-	minify: true,
 	packages: "bundle",
+	minify,
 	sourcemap,
 	external: ["@cline/core"],
 });
