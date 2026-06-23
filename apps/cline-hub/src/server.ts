@@ -15,7 +15,11 @@ import {
 	webviewDistDir,
 } from "./server/deps";
 import { handleDesktopCommand } from "./server/desktop-commands";
-import { createJsonResponse, WebviewAssets } from "./server/http";
+import {
+	createJsonResponse,
+	isWebviewRoute,
+	WebviewAssets,
+} from "./server/http";
 import {
 	attachHub,
 	detachHub,
@@ -54,6 +58,27 @@ export interface ClineHubDashboardServer {
 	stop: () => Promise<void>;
 }
 
+const PUBLIC_BROWSER_PATHS = new Set([
+	"/version",
+	"/health",
+	"/config.json",
+	"/api/marketplace/catalog",
+	"/icon.png",
+	"/icon.svg",
+	"/icon.ico",
+	"/32x32.png",
+	"/cline-logo-filled.svg",
+	"/favicon.svg",
+]);
+
+function isPublicStaticAssetPath(pathname: string): boolean {
+	return pathname.startsWith("/assets/") || PUBLIC_BROWSER_PATHS.has(pathname);
+}
+
+function isPublicBrowserRoute(_req: Request, url: URL): boolean {
+	return isWebviewRoute(url.pathname) || isPublicStaticAssetPath(url.pathname);
+}
+
 export async function startClineHubDashboardServer(): Promise<ClineHubDashboardServer> {
 	const ctx = new HubContext();
 	const assets = new WebviewAssets(webviewDistDir);
@@ -74,12 +99,17 @@ export async function startClineHubDashboardServer(): Promise<ClineHubDashboardS
 		async fetch(req, server) {
 			const url = new URL(req.url);
 			if (
-				!isAuthorizedBrowserToDesktopRequest(req, url, {
-					bindHost: host,
-					port,
-					publicUrl,
-					roomSecret,
-				})
+				!isAuthorizedBrowserToDesktopRequest(
+					req,
+					url,
+					{
+						bindHost: host,
+						port,
+						publicUrl,
+						roomSecret,
+					},
+					isPublicBrowserRoute,
+				)
 			) {
 				return createJsonResponse({ error: "unauthorized_browser" }, 403);
 			}

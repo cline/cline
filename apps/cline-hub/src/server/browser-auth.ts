@@ -9,10 +9,7 @@ export interface BrowserRequestAuthOptions {
 
 const SAFE_HTTP_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
-// Browser-to-desktop routes must be origin-gated by default. This catches future
-// WebSocket endpoints and unsafe HTTP APIs automatically; add any privileged
-// safe-method paths here so they cannot bypass Origin/room-secret checks.
-const PRIVILEGED_BROWSER_PATHS = new Set(["/browser"]);
+export type PublicBrowserRoutePredicate = (req: Request, url: URL) => boolean;
 
 function isWebSocketUpgrade(req: Request): boolean {
 	return req.headers.get("upgrade")?.toLowerCase() === "websocket";
@@ -78,12 +75,14 @@ export function allowedBrowserHosts({
 	return hosts;
 }
 
-export function requiresBrowserRequestAuth(req: Request, url: URL): boolean {
-	return (
-		isWebSocketUpgrade(req) ||
-		!SAFE_HTTP_METHODS.has(req.method.toUpperCase()) ||
-		PRIVILEGED_BROWSER_PATHS.has(url.pathname)
-	);
+export function requiresBrowserRequestAuth(
+	req: Request,
+	url: URL,
+	isPublicBrowserRoute: PublicBrowserRoutePredicate,
+): boolean {
+	if (isWebSocketUpgrade(req)) return true;
+	if (!SAFE_HTTP_METHODS.has(req.method.toUpperCase())) return true;
+	return !isPublicBrowserRoute(req, url);
 }
 
 export function isAuthorizedBrowserRequest(
@@ -105,9 +104,10 @@ export function isAuthorizedBrowserToDesktopRequest(
 	req: Request,
 	url: URL,
 	options: BrowserRequestAuthOptions,
+	isPublicBrowserRoute: PublicBrowserRoutePredicate,
 ): boolean {
 	return (
-		!requiresBrowserRequestAuth(req, url) ||
+		!requiresBrowserRequestAuth(req, url, isPublicBrowserRoute) ||
 		isAuthorizedBrowserRequest(req, url, options)
 	);
 }

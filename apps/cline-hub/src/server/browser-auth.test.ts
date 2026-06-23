@@ -13,6 +13,8 @@ const defaultOptions = {
 	publicUrl: "http://127.0.0.1:8787",
 };
 
+const publicRoute = (_req: Request, url: URL) => url.pathname === "/public";
+
 function browserRequest(
 	origin?: string,
 	init?: Omit<RequestInit, "headers"> & {
@@ -91,13 +93,24 @@ describe("allowedBrowserHosts", () => {
 });
 
 describe("requiresBrowserRequestAuth", () => {
-	it("does not require browser auth for safe public GET routes", () => {
+	it("does not require browser auth for public GET routes", () => {
 		expect(
 			requiresBrowserRequestAuth(
-				new Request("http://127.0.0.1:8787/health"),
-				new URL("http://127.0.0.1:8787/health"),
+				new Request("http://127.0.0.1:8787/public"),
+				new URL("http://127.0.0.1:8787/public"),
+				publicRoute,
 			),
 		).toBe(false);
+	});
+
+	it("requires browser auth for unknown paths even when they use GET", () => {
+		expect(
+			requiresBrowserRequestAuth(
+				new Request("http://127.0.0.1:8787/future-api"),
+				new URL("http://127.0.0.1:8787/future-api"),
+				publicRoute,
+			),
+		).toBe(true);
 	});
 
 	it("requires browser auth for privileged paths even when they use GET", () => {
@@ -105,6 +118,7 @@ describe("requiresBrowserRequestAuth", () => {
 			requiresBrowserRequestAuth(
 				new Request("http://127.0.0.1:8787/browser"),
 				new URL("http://127.0.0.1:8787/browser"),
+				publicRoute,
 			),
 		).toBe(true);
 	});
@@ -116,6 +130,7 @@ describe("requiresBrowserRequestAuth", () => {
 					headers: { upgrade: "websocket" },
 				}),
 				new URL("http://127.0.0.1:8787/future-socket"),
+				publicRoute,
 			),
 		).toBe(true);
 	});
@@ -125,6 +140,7 @@ describe("requiresBrowserRequestAuth", () => {
 			requiresBrowserRequestAuth(
 				new Request("http://127.0.0.1:8787/future-api", { method: "POST" }),
 				new URL("http://127.0.0.1:8787/future-api"),
+				publicRoute,
 			),
 		).toBe(true);
 	});
@@ -238,9 +254,10 @@ describe("isAuthorizedBrowserToDesktopRequest", () => {
 	it("allows safe public GET routes without an origin", () => {
 		expect(
 			isAuthorizedBrowserToDesktopRequest(
-				new Request("http://127.0.0.1:8787/health"),
-				new URL("http://127.0.0.1:8787/health"),
+				new Request("http://127.0.0.1:8787/public"),
+				new URL("http://127.0.0.1:8787/public"),
 				defaultOptions,
+				publicRoute,
 			),
 		).toBe(true);
 	});
@@ -257,6 +274,7 @@ describe("isAuthorizedBrowserToDesktopRequest", () => {
 				}),
 				new URL("http://127.0.0.1:8787/future-socket"),
 				defaultOptions,
+				publicRoute,
 			),
 		).toBe(false);
 	});
@@ -273,6 +291,7 @@ describe("isAuthorizedBrowserToDesktopRequest", () => {
 				}),
 				new URL("http://127.0.0.1:8787/future-api"),
 				defaultOptions,
+				publicRoute,
 			),
 		).toBe(false);
 	});
@@ -289,6 +308,7 @@ describe("isAuthorizedBrowserToDesktopRequest", () => {
 				}),
 				new URL("http://127.0.0.1:8787/future-api"),
 				defaultOptions,
+				publicRoute,
 			),
 		).toBe(true);
 	});
