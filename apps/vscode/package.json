@@ -413,6 +413,7 @@
 		]
 	},
 	"devDependencies": {
+		"@jerome-benoit/sap-ai-provider": "4.6.9",
 		"@biomejs/biome": "^2.3.14",
 		"@bufbuild/buf": "^1.54.0",
 		"@microsoft/tui-test": "0.0.1",

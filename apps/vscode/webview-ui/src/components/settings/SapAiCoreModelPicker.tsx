@@ -82,20 +82,29 @@ const SapAiCoreModelPicker: React.FC<SapAiCoreModelPickerProps> = ({
 			(supportedModel: string) => !deployedModelNames.includes(supportedModel),
 		)
 
-		const deployed: CategorizedModel[] = deployedAndSupported.map((modelName: string) => ({
+		// In non-orchestration (foundation-models) mode the SDK only wires up the
+		// Azure OpenAI chat client, which talks to /chat/completions. Other models
+		// need different endpoints which are not supported.
+		// Codex variants (`gpt-*-codex*`) are Responses API-only and also
+		// reject /chat/completions. Hide everything that isn't a chat-capable gpt
+		// model when orchestration is off.
+		const isFoundationModelsChatCapable = (id: string) => id.startsWith("gpt-") && !id.includes("codex")
+		const filterForApi = (ids: string[]) => (useOrchestrationMode ? ids : ids.filter(isFoundationModelsChatCapable))
+
+		const deployed: CategorizedModel[] = filterForApi(deployedAndSupported).map((modelName: string) => ({
 			id: modelName,
 			isDeployed: true,
 			section: "deployed" as const,
 		}))
 
-		const supported: CategorizedModel[] = supportedButNotDeployed.map((id: string) => ({
+		const supported: CategorizedModel[] = filterForApi(supportedButNotDeployed).map((id: string) => ({
 			id,
 			isDeployed: false,
 			section: "supported" as const,
 		}))
 
 		return { deployed, supported }
-	}, [sapAiCoreModelDeployments, sapAiCoreModels])
+	}, [sapAiCoreModelDeployments, sapAiCoreModels, useOrchestrationMode])
 
 	const renderOptions = () => {
 		const options: React.ReactNode[] = []

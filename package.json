@@ -72,7 +72,11 @@
         "js-yaml": "^4.1.1",
         "serialize-javascript": ">=7.0.3",
         "protobufjs": "7.5.8",
-        "diff": "8.0.4"
+        "diff": "8.0.4",
+        "@sap-cloud-sdk/connectivity": "4.7.1-20260623133234.0",
+        "@sap-cloud-sdk/http-client": "4.7.1-20260623133234.0",
+        "@sap-cloud-sdk/util": "4.7.1-20260623133234.0",
+        "@sap-cloud-sdk/resilience": "4.7.1-20260623133234.0"
     },
     "trustedDependencies": [
         "better-sqlite3",

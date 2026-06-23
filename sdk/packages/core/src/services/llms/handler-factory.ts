@@ -74,6 +74,10 @@ function buildGatewayProviderOptions(
 		});
 	}
 
+	if (config.providerId === "sapaicore") {
+		Object.assign(options, config.sap);
+	}
+
 	return compactOptions(options);
 }
 

@@ -21,7 +21,13 @@ function trimString(value: unknown): string | undefined {
 export function buildSapProviderConfig(config: ApiConfiguration, mode: Mode): SapProviderConfig {
 	const sap: NonNullable<SapProviderConfig["sap"]> = {}
 	const baseUrl = trimString(config.sapAiCoreBaseUrl)
-	const deploymentId = trimString(mode === "plan" ? config.planModeSapAiCoreDeploymentId : config.actModeSapAiCoreDeploymentId)
+	// The per-model deploymentId (one per running foundation-models deployment)
+	// only applies in foundation-models mode. In orchestration mode the SAP SDK
+	// discovers the orchestration deployment automatically; forwarding a
+	// foundation-models deploymentId there would be invalid and cause errors.
+	const deploymentId = config.sapAiCoreUseOrchestrationMode
+		? undefined
+		: trimString(mode === "plan" ? config.planModeSapAiCoreDeploymentId : config.actModeSapAiCoreDeploymentId)
 	const sapFields = {
 		clientId: trimString(config.sapAiCoreClientId),
 		clientSecret: trimString(config.sapAiCoreClientSecret),

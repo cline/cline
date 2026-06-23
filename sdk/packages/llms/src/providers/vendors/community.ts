@@ -111,11 +111,6 @@ function readStringOption(
 		: undefined;
 }
 
-function normalizeSapTokenServiceUrl(tokenUrl: string): string {
-	const trimmed = tokenUrl.replace(/\/+$/, "");
-	return /\/oauth\/token$/i.test(trimmed) ? trimmed : `${trimmed}/oauth/token`;
-}
-
 function hasExplicitSapConnectionConfig(
 	config: GatewayResolvedProviderConfig,
 	options: Record<string, unknown>,
@@ -155,13 +150,20 @@ function buildSapDestination(
 		);
 	}
 	return {
-		authentication: "OAuth2ClientCredentials" as const,
-		clientId,
-		clientSecret,
-		name: config.providerId,
-		tokenServiceUrl: normalizeSapTokenServiceUrl(tokenUrl),
-		url: baseUrl.replace(/\/+$/, ""),
-	} satisfies SapDestination;
+		service: {
+			name: "aicore",
+			label: "aicore",
+			tags: [],
+			credentials: {
+				clientid: clientId,
+				clientsecret: clientSecret,
+				url: tokenUrl.replace(/\/+$/, ""),
+				serviceurls: {
+					AI_API_URL: baseUrl.replace(/\/+$/, ""),
+				},
+			},
+		},
+	} as unknown as SapDestination;
 }
 
 function resolveSapApi(options: Record<string, unknown>) {
