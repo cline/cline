@@ -14,17 +14,23 @@
  *  - `canStartRun` / `shutdown` guards enforce the lifecycle rules.
  */
 
-import type { AgentRuntime, AgentRuntimeConfig } from "@cline/agents";
-import type {
-	AgentConfig,
-	AgentEvent,
-	AgentExtension,
-	AgentExtensionContext,
-	AgentMessage,
-	AgentRunResult,
-	AgentRuntimeEvent,
-	AgentTool,
-	AgentToolContext,
+import {
+	type AgentRuntime,
+	type AgentRuntimeConfig,
+	createAgentRuntime,
+} from "@cline/agents";
+import {
+	type AgentConfig,
+	type AgentEvent,
+	type AgentExtension,
+	type AgentExtensionContext,
+	type AgentMessage,
+	type AgentModel,
+	type AgentRunResult,
+	type AgentRuntimeEvent,
+	type AgentTool,
+	type AgentToolContext,
+	EMPTY_CONTENT_TEXT,
 } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import { CLINE_INTERNAL_TELEMETRY_METADATA_KEY } from "../../services/telemetry/tool-context";
@@ -1226,6 +1232,69 @@ describe("SessionRuntime.addTools / updateConnection / clearHistory / restore", 
 		expect(messages).toHaveLength(2);
 		expect(messages[0].role).toBe("user");
 		expect(messages[1].role).toBe("assistant");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// real AgentRuntime smoke
+// ---------------------------------------------------------------------------
+
+describe("SessionRuntime real AgentRuntime smoke", () => {
+	it("does not replay ERROR: EMPTY CONTENT after an empty upstream failure", async () => {
+		const modelRequests: AgentMessage[][] = [];
+		const scriptedModel: AgentModel = {
+			async stream(request) {
+				modelRequests.push(request.messages.map((message) => ({ ...message })));
+				const turn = modelRequests.length;
+
+				return (async function* () {
+					if (turn === 1) {
+						yield {
+							type: "finish" as const,
+							reason: "error" as const,
+							error: "upstream failed",
+						};
+						return;
+					}
+					yield { type: "text-delta" as const, text: "second ok" };
+					yield { type: "finish" as const, reason: "stop" as const };
+				})();
+			},
+		};
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				providerId: "cline",
+				modelId: "openai/gpt-5.5",
+				apiKey: "test-key",
+			}),
+			{
+				createAgentRuntimeImpl: (config) =>
+					createAgentRuntime({ ...config, model: scriptedModel }),
+			},
+		);
+
+		const first = await session.run("first");
+		expect(first.finishReason).toBe("error");
+		expect(first.text).toBe("upstream failed");
+		expect(session.getMessages().map((message) => message.role)).toEqual([
+			"user",
+		]);
+
+		const second = await session.continue("second");
+		expect(second.finishReason).toBe("completed");
+		expect(second.text).toBe("second ok");
+		expect(modelRequests).toHaveLength(2);
+		expect(
+			modelRequests[1]?.some((message) =>
+				message.content.some(
+					(part) => part.type === "text" && part.text === EMPTY_CONTENT_TEXT,
+				),
+			),
+		).toBe(false);
+		expect(modelRequests[1]?.map((message) => message.role)).toEqual([
+			"user",
+			"user",
+		]);
 	});
 });
 
