@@ -2469,6 +2469,9 @@ export class Task {
 				const isEntitlementError = clineError.isErrorType(
 					ClineErrorType.Entitlement,
 				);
+				const isOrgClinePassRestrictionError = clineError.isErrorType(
+					ClineErrorType.OrgClinePassRestriction,
+				);
 
 				// Check if this is a Cline provider insufficient credits error - don't auto-retry these
 				const isClineProviderInsufficientCredits = (() => {
@@ -2495,6 +2498,7 @@ export class Task {
 					!isSpendLimitError &&
 					!quotaExceeded &&
 					!isEntitlementError &&
+					!isOrgClinePassRestrictionError &&
 					this.taskState.autoRetryAttempts < 3;
 				if (shouldRetry) {
 					// Auto-retry enabled with max 3 attempts: automatically approve the retry
@@ -2557,7 +2561,8 @@ export class Task {
 						!isAuthError &&
 						!isSpendLimitError &&
 						!quotaExceeded &&
-						!isEntitlementError;
+						!isEntitlementError &&
+						!isOrgClinePassRestrictionError;
 					if (showRetry) {
 						await this.say(
 							"error_retry",
