@@ -38,6 +38,19 @@ const codexExecSpy = vi.fn((modelId: string) => ({
 	family: "openai-codex",
 }));
 
+function createFetchMock() {
+	const fetchMock = vi.fn(
+		async (
+			_input: Parameters<typeof fetch>[0],
+			_init?: Parameters<typeof fetch>[1],
+		) => new Response("ok"),
+	);
+	return {
+		fetchMock,
+		fetch: fetchMock as unknown as typeof fetch,
+	};
+}
+
 vi.mock("ai", () => ({
 	jsonSchema: (schema: unknown, options: unknown) => ({
 		jsonSchema: schema,
@@ -3851,10 +3864,8 @@ describe("sdk-gateway", () => {
 	});
 
 	it("adds OpenRouter session_id to JSON wire requests from request metadata", async () => {
-		const customFetchMock = vi.fn(
-			async () => new Response("ok"),
-		);
-		const customFetch = customFetchMock as unknown as typeof fetch;
+		const { fetchMock: customFetchMock, fetch: customFetch } =
+			createFetchMock();
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
 		});
@@ -3894,8 +3905,8 @@ describe("sdk-gateway", () => {
 	});
 
 	it("adds configured JSON-body sticky session fields for providers that opt in", async () => {
-		const customFetchMock = vi.fn(async () => new Response("ok"));
-		const customFetch = customFetchMock as unknown as typeof fetch;
+		const { fetchMock: customFetchMock, fetch: customFetch } =
+			createFetchMock();
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
 		});
@@ -3943,8 +3954,8 @@ describe("sdk-gateway", () => {
 	});
 
 	it("adds configured header sticky session fields for providers that opt in", async () => {
-		const customFetchMock = vi.fn(async () => new Response("ok"));
-		const customFetch = customFetchMock as unknown as typeof fetch;
+		const { fetchMock: customFetchMock, fetch: customFetch } =
+			createFetchMock();
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
 		});
@@ -3993,8 +4004,8 @@ describe("sdk-gateway", () => {
 	});
 
 	it("preserves explicit configured header sticky session values", async () => {
-		const customFetchMock = vi.fn(async () => new Response("ok"));
-		const customFetch = customFetchMock as unknown as typeof fetch;
+		const { fetchMock: customFetchMock, fetch: customFetch } =
+			createFetchMock();
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
 		});
@@ -4041,10 +4052,8 @@ describe("sdk-gateway", () => {
 	});
 
 	it("preserves explicit OpenRouter session_id in JSON wire requests", async () => {
-		const customFetchMock = vi.fn(
-			async () => new Response("ok"),
-		);
-		const customFetch = customFetchMock as unknown as typeof fetch;
+		const { fetchMock: customFetchMock, fetch: customFetch } =
+			createFetchMock();
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
 		});
@@ -4081,11 +4090,49 @@ describe("sdk-gateway", () => {
 		});
 	});
 
-	it("does not fall back to conversationId for OpenRouter session_id", async () => {
-		const customFetchMock = vi.fn(
-			async () => new Response("ok"),
+	it("does not inspect a Request body when init explicitly sets a null body", async () => {
+		const { fetchMock: customFetchMock, fetch: customFetch } =
+			createFetchMock();
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{ providerId: "openrouter", apiKey: "test-key", fetch: customFetch },
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openrouter",
+				modelId: "anthropic/claude-test",
+				messages: baseMessages,
+				metadata: { sessionId: "session-openrouter" },
+			}),
 		);
-		const customFetch = customFetchMock as unknown as typeof fetch;
+
+		const config = openaiCompatibleFactorySpy.mock.calls[0]?.[0] as {
+			fetch?: typeof fetch;
+		};
+		const request = new Request(
+			"https://openrouter.ai/api/v1/chat/completions",
+			{
+				method: "POST",
+				body: JSON.stringify({ messages: [{ role: "user", content: "hi" }] }),
+			},
+		);
+		await config.fetch?.(request, { body: null });
+
+		expect(customFetch).toHaveBeenCalledOnce();
+		expect(customFetchMock.mock.calls[0]?.[0]).toBe(request);
+		const init = customFetchMock.mock.calls[0]?.[1] as RequestInit | undefined;
+		expect(init?.body).toBeNull();
+	});
+
+	it("does not fall back to conversationId for OpenRouter session_id", async () => {
+		const { fetchMock: customFetchMock, fetch: customFetch } =
+			createFetchMock();
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
 		});

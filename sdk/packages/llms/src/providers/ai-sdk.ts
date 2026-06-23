@@ -108,31 +108,45 @@ function resolveStickySession(
 	};
 }
 
+type FetchBodyText =
+	| { source: "init-body"; text: string }
+	| { request: Request; source: "request"; text: string };
+
 async function bodyTextFromFetchInput(
 	input: Parameters<typeof fetch>[0],
 	init: Parameters<typeof fetch>[1],
-): Promise<string | undefined> {
+): Promise<FetchBodyText | undefined> {
 	const body = init?.body;
+	if (body === null) {
+		return undefined;
+	}
 	if (typeof body === "string") {
-		return body;
+		return { source: "init-body", text: body };
 	}
 	if (body instanceof URLSearchParams) {
-		return body.toString();
+		return { source: "init-body", text: body.toString() };
 	}
 	if (body instanceof ArrayBuffer) {
-		return Buffer.from(body).toString("utf8");
+		return { source: "init-body", text: Buffer.from(body).toString("utf8") };
 	}
 	if (ArrayBuffer.isView(body)) {
-		return Buffer.from(body.buffer, body.byteOffset, body.byteLength).toString(
-			"utf8",
-		);
+		return {
+			source: "init-body",
+			text: Buffer.from(body.buffer, body.byteOffset, body.byteLength).toString(
+				"utf8",
+			),
+		};
 	}
-	if (body !== undefined && body !== null) {
+	if (body !== undefined) {
 		return undefined;
 	}
 	if (input instanceof Request) {
 		try {
-			return await input.clone().text();
+			return {
+				request: input,
+				source: "request",
+				text: await input.clone().text(),
+			};
 		} catch {
 			return undefined;
 		}
@@ -145,13 +159,13 @@ async function injectJsonBodyStickySession(
 	init: Parameters<typeof fetch>[1],
 	stickySession: { field: string; value: string },
 ): Promise<Parameters<typeof fetch>> {
-	const text = await bodyTextFromFetchInput(input, init);
-	if (!text?.trim().startsWith("{")) {
+	const bodyText = await bodyTextFromFetchInput(input, init);
+	if (!bodyText?.text.trim().startsWith("{")) {
 		return [input, init];
 	}
 	let parsed: unknown;
 	try {
-		parsed = JSON.parse(text);
+		parsed = JSON.parse(bodyText.text);
 	} catch {
 		return [input, init];
 	}
@@ -164,13 +178,10 @@ async function injectJsonBodyStickySession(
 		body[stickySession.field] = stickySession.value;
 	}
 	const nextBody = JSON.stringify(body);
-	if (init?.body !== undefined && init.body !== null) {
+	if (bodyText.source === "init-body") {
 		return [input, { ...init, body: nextBody }];
 	}
-	if (input instanceof Request) {
-		return [new Request(input, { body: nextBody }), init];
-	}
-	return [input, { ...init, body: nextBody }];
+	return [new Request(bodyText.request, { body: nextBody }), init];
 }
 
 function injectHeaderStickySession(
@@ -178,7 +189,9 @@ function injectHeaderStickySession(
 	init: Parameters<typeof fetch>[1],
 	stickySession: { field: string; value: string },
 ): Parameters<typeof fetch> {
-	const headers = new Headers(input instanceof Request ? input.headers : undefined);
+	const headers = new Headers(
+		input instanceof Request ? input.headers : undefined,
+	);
 	new Headers(init?.headers).forEach((value, key) => {
 		headers.set(key, value);
 	});
