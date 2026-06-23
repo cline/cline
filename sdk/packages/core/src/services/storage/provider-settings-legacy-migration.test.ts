@@ -71,6 +71,43 @@ describe("migrateLegacyProviderSettings", () => {
 		expect(manager.read().providers.anthropic?.tokenSource).toBe("migration");
 	});
 
+	it("migrates legacy OCA-specific reasoning effort into provider settings", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-legacy-provider-"),
+		);
+		tempDirs.push(tempDir);
+		const providersPath = path.join(tempDir, "provider-settings.json");
+		const manager = new ProviderSettingsManager({ filePath: providersPath });
+
+		writeFileSync(
+			path.join(tempDir, "globalState.json"),
+			JSON.stringify(
+				{
+					mode: "plan",
+					planModeApiProvider: "oca",
+					actModeReasoningEffort: "low",
+					planModeOcaReasoningEffort: "high",
+					actModeOcaReasoningEffort: "medium",
+				},
+				null,
+				2,
+			),
+		);
+		writeFileSync(
+			path.join(tempDir, "secrets.json"),
+			JSON.stringify({ ocaApiKey: "legacy-oca-key" }, null, 2),
+		);
+
+		migrateLegacyProviderSettings({
+			providerSettingsManager: manager,
+			dataDir: tempDir,
+		});
+
+		expect(manager.getProviderSettings("oca")?.reasoning).toEqual({
+			effort: "medium",
+		});
+	});
+
 	it("migrates missing providers without overwriting existing providers", () => {
 		const tempDir = mkdtempSync(
 			path.join(os.tmpdir(), "core-legacy-provider-"),
