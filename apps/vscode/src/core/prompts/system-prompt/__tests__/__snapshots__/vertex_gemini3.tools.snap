@@ -429,6 +429,22 @@
     }
   },
   {
+    "name": "condense",
+    "description": "Request to create a detailed summary of the conversation so far, which will be used to compact the current context window while retaining key information. With this tool you will summarise the conversation paying close attention to the user's explicit requests and your previous actions. The user will be presented with a preview of your generated summary and can choose to use it to compact their context window or keep chatting in the current conversation.",
+    "parameters": {
+      "type": "OBJECT",
+      "properties": {
+        "context": {
+          "type": "STRING",
+          "description": "The context to continue the conversation with. Should include:\n  1. Previous Conversation: High level details about what was discussed throughout the entire conversation.\n  2. Current Work: Describe in detail what was being worked on prior to this compaction request.\n  3. Key Technical Concepts: List all important technical concepts, technologies, and frameworks discussed.\n  4. Relevant Files and Code: Enumerate specific files and code sections examined, modified, or created.\n  5. Problem Solving: Document problems solved thus far and any ongoing troubleshooting efforts.\n  6. Pending Tasks and Next Steps: Outline all pending tasks and next steps, including direct quotes where helpful."
+        }
+      },
+      "required": [
+        "context"
+      ]
+    }
+  },
+  {
     "name": "12345670mcp0test_tool",
     "description": "test-server: A test tool",
     "parameters": {
