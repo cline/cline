@@ -15,6 +15,8 @@ import type {
 } from "@cline/shared";
 import { EMPTY_CONTENT_TEXT } from "@cline/shared";
 
+export const SYNTHETIC_EMPTY_CONTENT_METADATA_KEY = "syntheticEmptyContent";
+
 export function messageToAgentMessages(
 	message: MessageWithMetadata,
 ): AgentMessage[] {
@@ -51,7 +53,10 @@ export function messageToAgentMessages(
 			role: message.role,
 			content: [{ type: "text", text: EMPTY_CONTENT_TEXT }],
 			createdAt: message.ts ?? Date.now(),
-			metadata: message.metadata,
+			metadata: {
+				...message.metadata,
+				[SYNTHETIC_EMPTY_CONTENT_METADATA_KEY]: true,
+			},
 			modelInfo: message.modelInfo,
 			metrics: metricsToAgentMetrics(message.metrics),
 		});

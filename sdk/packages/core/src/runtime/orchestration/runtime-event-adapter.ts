@@ -61,6 +61,8 @@ import type {
 	AgentUsage,
 	LegacyAgentUsage,
 } from "@cline/shared";
+import { EMPTY_CONTENT_TEXT } from "@cline/shared";
+import { SYNTHETIC_EMPTY_CONTENT_METADATA_KEY } from "../config/agent-message-codec";
 
 // =============================================================================
 // Helpers
@@ -104,6 +106,16 @@ function textFromMessage(message: AgentMessage | undefined): string {
 		return "";
 	}
 	return extractTextPart(message) ?? "";
+}
+
+function isSyntheticEmptyContentMessage(
+	message: AgentMessage,
+	text: string,
+): boolean {
+	return (
+		message.metadata?.[SYNTHETIC_EMPTY_CONTENT_METADATA_KEY] === true &&
+		text === EMPTY_CONTENT_TEXT
+	);
 }
 
 function statusToLegacyFinishReason(
@@ -266,7 +278,7 @@ export class RuntimeEventAdapter {
 	private translateAssistantMessage(message: AgentMessage): AgentEvent[] {
 		const out: AgentEvent[] = [];
 		const text = extractTextPart(message);
-		if (text !== undefined) {
+		if (text !== undefined && !isSyntheticEmptyContentMessage(message, text)) {
 			out.push({ type: "content_end", contentType: "text", text });
 		}
 		const reasoning = extractReasoningPart(message);

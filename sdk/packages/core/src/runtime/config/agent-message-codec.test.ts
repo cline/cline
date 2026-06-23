@@ -2,8 +2,9 @@ import { EMPTY_CONTENT_TEXT } from "@cline/shared";
 import { describe, expect, it } from "vitest";
 import {
 	agentMessageToMessageWithMetadata,
-	messageToAgentMessages,
 	messagesToAgentMessages,
+	messageToAgentMessages,
+	SYNTHETIC_EMPTY_CONTENT_METADATA_KEY,
 } from "./agent-message-codec";
 
 describe("agent message codec", () => {
@@ -21,7 +22,7 @@ describe("agent message codec", () => {
 				role: "assistant",
 				content: [{ type: "text", text: EMPTY_CONTENT_TEXT }],
 				createdAt: 1,
-				metadata: undefined,
+				metadata: { [SYNTHETIC_EMPTY_CONTENT_METADATA_KEY]: true },
 				modelInfo: undefined,
 				metrics: undefined,
 			},
@@ -39,7 +40,7 @@ describe("agent message codec", () => {
 				role: "user",
 				content: [{ type: "text", text: EMPTY_CONTENT_TEXT }],
 				createdAt: 1,
-				metadata: undefined,
+				metadata: { [SYNTHETIC_EMPTY_CONTENT_METADATA_KEY]: true },
 				modelInfo: undefined,
 				metrics: undefined,
 			},
@@ -57,7 +58,7 @@ describe("agent message codec", () => {
 				role: "assistant",
 				content: [{ type: "text", text: EMPTY_CONTENT_TEXT }],
 				createdAt: 1,
-				metadata: undefined,
+				metadata: { [SYNTHETIC_EMPTY_CONTENT_METADATA_KEY]: true },
 				modelInfo: undefined,
 				metrics: undefined,
 			},

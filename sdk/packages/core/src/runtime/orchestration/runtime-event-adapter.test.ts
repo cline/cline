@@ -21,7 +21,9 @@ import type {
 	AgentToolCallPart,
 	AgentUsage,
 } from "@cline/shared";
+import { EMPTY_CONTENT_TEXT } from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { SYNTHETIC_EMPTY_CONTENT_METADATA_KEY } from "../config/agent-message-codec";
 import {
 	RuntimeEventAdapter,
 	toLegacyAgentEvent,
@@ -287,6 +289,37 @@ describe("RuntimeEventAdapter — assistant-message → content_end", () => {
 		});
 		expect(out).toEqual([
 			{ type: "content_end", contentType: "text", text: "hi there" },
+		]);
+	});
+
+	it("suppresses synthetic empty-content placeholder text", () => {
+		const out = adapter.translate({
+			type: "assistant-message",
+			snapshot: makeSnapshot(),
+			iteration: 1,
+			message: makeMessage(
+				{
+					metadata: { [SYNTHETIC_EMPTY_CONTENT_METADATA_KEY]: true },
+				},
+				[{ type: "text", text: EMPTY_CONTENT_TEXT }],
+			),
+			finishReason: "stop",
+		});
+
+		expect(out).toEqual([]);
+	});
+
+	it("keeps literal empty-content text when it is not synthetic", () => {
+		const out = adapter.translate({
+			type: "assistant-message",
+			snapshot: makeSnapshot(),
+			iteration: 1,
+			message: makeMessage({}, [{ type: "text", text: EMPTY_CONTENT_TEXT }]),
+			finishReason: "stop",
+		});
+
+		expect(out).toEqual([
+			{ type: "content_end", contentType: "text", text: EMPTY_CONTENT_TEXT },
 		]);
 	});
 
