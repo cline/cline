@@ -24,6 +24,8 @@ interface LegacyGlobalState {
 	actModeApiModelId?: string;
 	planModeReasoningEffort?: string;
 	actModeReasoningEffort?: string;
+	planModeOcaReasoningEffort?: string;
+	actModeOcaReasoningEffort?: string;
 	planModeThinkingBudgetTokens?: number;
 	actModeThinkingBudgetTokens?: number;
 	geminiPlanModeThinkingLevel?: string;
@@ -337,25 +339,30 @@ function resolveReasoning(
 	providerId: string,
 	mode: LegacyMode,
 ): ProviderSettings["reasoning"] | undefined {
-	const effortCandidate =
-		mode === "plan"
-			? legacy.planModeReasoningEffort
-			: legacy.actModeReasoningEffort;
-	const geminiLevel =
-		mode === "plan"
-			? legacy.geminiPlanModeThinkingLevel
-			: legacy.geminiActModeThinkingLevel;
 	const budgetTokens =
 		mode === "plan"
 			? legacy.planModeThinkingBudgetTokens
 			: legacy.actModeThinkingBudgetTokens;
-	const rawEffort =
-		(providerId === "gemini" ? geminiLevel : undefined) ?? effortCandidate;
+	// ProviderSettings has one reasoning effort; legacy state had mode-specific
+	// fields, with OCA/Gemini using provider-specific variants.
+	const rawEffort = [
+		...(providerId === "oca"
+			? [legacy.actModeOcaReasoningEffort, legacy.planModeOcaReasoningEffort]
+			: []),
+		...(providerId === "gemini"
+			? [legacy.geminiActModeThinkingLevel, legacy.geminiPlanModeThinkingLevel]
+			: []),
+		legacy.actModeReasoningEffort,
+		legacy.planModeReasoningEffort,
+	]
+		.map(trimNonEmpty)
+		.find(Boolean);
 	const effort =
 		rawEffort === "none" ||
 		rawEffort === "low" ||
 		rawEffort === "medium" ||
-		rawEffort === "high"
+		rawEffort === "high" ||
+		rawEffort === "xhigh"
 			? rawEffort
 			: undefined;
 	const normalizedBudget =
