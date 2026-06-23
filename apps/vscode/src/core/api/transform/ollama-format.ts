@@ -12,6 +12,18 @@ function getOllamaImageData(source: ClineImageContentBlock["source"]): string {
 	return getBase64ImageSource(source).data;
 }
 
+function isImageContentBlock(
+	part: ClineTextContentBlock | ClineImageContentBlock,
+): part is ClineImageContentBlock {
+	return part.type === "image";
+}
+
+function isTextContentBlock(
+	part: ClineTextContentBlock | ClineImageContentBlock,
+): part is ClineTextContentBlock {
+	return part.type === "text";
+}
+
 export function convertToOllamaMessages(
 	anthropicMessages: Omit<ClineStorageMessage, "modelInfo">[],
 ): Message[] {
@@ -71,10 +83,10 @@ export function convertToOllamaMessages(
 				// Process non-tool messages
 				if (nonToolMessages.length > 0) {
 					const images = nonToolMessages
-						.filter((part) => part.type === "image")
+						.filter(isImageContentBlock)
 						.map((part) => getOllamaImageData(part.source));
 					const content = nonToolMessages
-						.filter((part) => part.type === "text")
+						.filter(isTextContentBlock)
 						.map((part) => part.text)
 						.join("\n");
 
