@@ -7,22 +7,16 @@
 // This shared file is the single source of truth, which keeps the extension,
 // the CLI, and multiple extension windows interoperable:
 //  - Writes scope to ONE server's `oauth` key via @cline/core's
-//    updateMcpServerOAuthStateAsync, which re-reads the file under a
-//    cross-process lock and replaces it atomically (temp + rename), so
-//    concurrent writers never clobber other servers or the whole file. Lock
-//    acquisition yields the extension host event loop rather than blocking it.
+//    updateMcpServerOAuthState, which re-reads the file under a cross-process
+//    lock and replaces it atomically (temp + rename), so concurrent writers
+//    never clobber other servers or the whole file.
 //  - Reads come fresh from disk, so a token authorized by the CLI or another
 //    window is picked up without restarting.
 //  - The interactive authorization flow is HTTP-based token collection via
 //    @cline/core's authorizeMcpServerOAuth, which binds a local loopback
 //    callback server — the same flow the CLI uses.
 
-import {
-	authorizeMcpServerOAuth,
-	getMcpServerOAuthState,
-	type McpServerOAuthState,
-	updateMcpServerOAuthStateAsync,
-} from "@cline/core"
+import { authorizeMcpServerOAuth, getMcpServerOAuthState, type McpServerOAuthState, updateMcpServerOAuthState } from "@cline/core"
 import { StateManager } from "@core/storage/StateManager"
 import { OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js"
 import type { OAuthClientInformationMixed, OAuthClientMetadata, OAuthTokens } from "@modelcontextprotocol/sdk/shared/auth.js"
@@ -65,10 +59,9 @@ function readOAuthState(serverName: string, settingsPath: string): McpServerOAut
 /**
  * Scoped write of one server's OAuth state. The updater runs against the
  * server's current state under a cross-process lock and returns the next state;
- * concurrent writers are never clobbered wholesale. Lock acquisition yields the
- * event loop. Failures are logged but non-fatal, so a missing server entry
- * (e.g. deleted in another window) does not crash the MCP SDK provider callbacks
- * that invoke this mid-connection.
+ * concurrent writers are never clobbered wholesale. Failures are logged but
+ * non-fatal, so a missing server entry (e.g. deleted in another window) does
+ * not crash the MCP SDK provider callbacks that invoke this mid-connection.
  */
 async function patchOAuthState(
 	serverName: string,
@@ -76,7 +69,7 @@ async function patchOAuthState(
 	updater: (current: McpServerOAuthState) => McpServerOAuthState,
 ): Promise<void> {
 	try {
-		await updateMcpServerOAuthStateAsync(serverName, updater, { filePath: settingsPath })
+		updateMcpServerOAuthState(serverName, updater, { filePath: settingsPath })
 	} catch (error) {
 		Logger.warn(`[McpOAuth] Failed to persist OAuth state for ${serverName}: ${error}`)
 	}
