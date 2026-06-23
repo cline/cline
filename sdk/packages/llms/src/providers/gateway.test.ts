@@ -2231,6 +2231,65 @@ describe("sdk-gateway", () => {
 		expect(call).not.toHaveProperty("maxOutputTokens");
 	});
 
+	it("does not send maxOutputTokens to ChatGPT OAuth even when the request has max tokens", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "openai-codex" }],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openai-codex",
+				modelId: "gpt-5.4",
+				messages: baseMessages,
+				maxTokens: 4096,
+			}),
+		);
+
+		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+			| { maxOutputTokens?: unknown }
+			| undefined;
+		expect(call).not.toHaveProperty("maxOutputTokens");
+	});
+
+	it("still sends maxOutputTokens for OpenAI-compatible requests with max tokens", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "openai-compatible",
+					apiKey: "openai-compatible-key",
+					baseUrl: "https://openai-compatible.example/v1",
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openai-compatible",
+				modelId: "custom-model",
+				messages: baseMessages,
+				maxTokens: 4096,
+			}),
+		);
+
+		expect(streamTextSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				maxOutputTokens: 4096,
+			}),
+		);
+	});
+
 	it("passes Codex instructions through provider options and removes the system message from messages", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([

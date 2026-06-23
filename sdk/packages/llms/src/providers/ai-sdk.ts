@@ -948,13 +948,15 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 						temperature: request.temperature,
 					},
 				});
+				const supportsRequestMaxOutputTokens =
+					request.providerId !== "openai-codex";
 				stream = streamText({
 					model: provider.model(context.model.id) as never,
 					messages: messages as never,
 					...(useSystemOption ? { system: systemPrompt } : {}),
 					tools: tools as never,
 					temperature: request.temperature,
-					...(request.maxTokens !== undefined
+					...(supportsRequestMaxOutputTokens && request.maxTokens !== undefined
 						? { maxOutputTokens: request.maxTokens }
 						: {}),
 					abortSignal: request.signal,
