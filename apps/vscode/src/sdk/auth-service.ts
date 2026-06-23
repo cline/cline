@@ -29,7 +29,7 @@ import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
 import { BannerService } from "@/services/banner/BannerService"
 import { buildBasicClineHeaders } from "@/services/EnvUtils"
 import { featureFlagsService } from "@/services/feature-flags"
-import { setDistinctId } from "@/services/logging/distinctId"
+import { telemetryService } from "@/services/telemetry"
 import { CLINE_API_ENDPOINT } from "@/shared/cline/api"
 import { fetch, getAxiosSettings } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
@@ -945,7 +945,7 @@ export class AuthService {
 	 * Send an authStatusUpdate event to all active subscribers.
 	 */
 	async sendAuthStatusUpdate(): Promise<void> {
-		const authInfo: AuthState = this.getInfo()
+		const authState: AuthState = this.getInfo()
 		const uniqueControllers = new Set<Controller>()
 
 		const streamSends = Array.from(this._activeAuthStatusUpdateHandlers).map(async (responseStream) => {
@@ -954,7 +954,7 @@ export class AuthService {
 				uniqueControllers.add(controller)
 			}
 			try {
-				await responseStream(authInfo, false)
+				await responseStream(authState, false)
 			} catch (error) {
 				Logger.error("[SdkAuthService] Error sending authStatusUpdate event:", error)
 				this._activeAuthStatusUpdateHandlers.delete(responseStream)
@@ -966,10 +966,11 @@ export class AuthService {
 
 		// Poll feature flags immediately for the current auth context so cache-only
 		// consumers (for example BannerService) see the latest remote config.
-		const userId = this._clineAuthInfo?.userInfo?.id || null
-		if (userId) {
-			setDistinctId(userId)
+		const authInfo = this._clineAuthInfo
+		if (authInfo?.userInfo) {
+			await telemetryService.identifyAccount(authInfo.userInfo)
 		}
+		const userId = authInfo?.userInfo?.id || null
 		await featureFlagsService.poll(userId)
 		for (const controller of uniqueControllers) {
 			controller.invalidateProviderListings()
