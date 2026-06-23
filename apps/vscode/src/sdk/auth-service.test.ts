@@ -17,6 +17,7 @@ import { AuthService, type ClineAuthInfo, LogoutReason } from "./auth-service"
 // ---------------------------------------------------------------------------
 
 const mockFeatureFlagsPoll = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
+const mockIdentifyAccount = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
 
 // Mock StateManager
 const mockSecrets = new Map<string, string>()
@@ -83,6 +84,12 @@ vi.mock("@/services/EnvUtils", () => ({
 vi.mock("@/services/feature-flags", () => ({
 	featureFlagsService: {
 		poll: mockFeatureFlagsPoll,
+	},
+}))
+
+vi.mock("@/services/telemetry", () => ({
+	telemetryService: {
+		identifyAccount: mockIdentifyAccount,
 	},
 }))
 
@@ -511,6 +518,8 @@ describe("AuthService", () => {
 			)
 
 			expect(mockFeatureFlagsPoll).toHaveBeenCalledWith("user-123")
+			expect(mockIdentifyAccount).toHaveBeenCalledWith(authInfo.userInfo)
+			expect(mockIdentifyAccount.mock.invocationCallOrder[0]).toBeLessThan(mockFeatureFlagsPoll.mock.invocationCallOrder[0])
 			expect(mockController.postStateToWebview).toHaveBeenCalled()
 		})
 
@@ -518,6 +527,7 @@ describe("AuthService", () => {
 			await authService.sendAuthStatusUpdate()
 
 			expect(mockFeatureFlagsPoll).toHaveBeenCalledWith(null)
+			expect(mockIdentifyAccount).not.toHaveBeenCalled()
 		})
 
 		it("removes subscription on cleanup", async () => {
