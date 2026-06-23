@@ -484,6 +484,55 @@ describe("buildSessionConfig", () => {
 		expect(config.providerConfig).not.toHaveProperty("apiKey")
 	})
 
+	it("defaults SAP AI Core to orchestration mode and omits deployment id when mode is unset", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "sapaicore",
+			actModeApiModelId: "anthropic--claude-4.6-sonnet",
+			sapAiCoreClientId: "sap-client",
+			sapAiCoreClientSecret: "sap-secret",
+			sapAiCoreBaseUrl: "https://api.ai.example.aws.ml.hana.ondemand.com",
+			sapAiCoreTokenUrl: "https://example.authentication.sap.hana.ondemand.com",
+			sapAiResourceGroup: "default",
+			actModeSapAiCoreDeploymentId: "foundation-deployment-id",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerConfig).toMatchObject({
+			providerId: "sapaicore",
+			sap: {
+				clientId: "sap-client",
+				clientSecret: "sap-secret",
+				tokenUrl: "https://example.authentication.sap.hana.ondemand.com",
+				resourceGroup: "default",
+				useOrchestrationMode: true,
+			},
+		})
+		expect((config.providerConfig as any).sap).not.toHaveProperty("deploymentId")
+	})
+
+	it("omits SAP AI Core deployment id when orchestration mode is enabled", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "sapaicore",
+			actModeApiModelId: "anthropic--claude-4.6-sonnet",
+			sapAiCoreClientId: "sap-client",
+			sapAiCoreClientSecret: "sap-secret",
+			sapAiCoreBaseUrl: "https://api.ai.example.aws.ml.hana.ondemand.com",
+			sapAiCoreTokenUrl: "https://example.authentication.sap.hana.ondemand.com",
+			sapAiResourceGroup: "default",
+			sapAiCoreUseOrchestrationMode: true,
+			actModeSapAiCoreDeploymentId: "foundation-deployment-id",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect((config.providerConfig as any).sap).toMatchObject({
+			resourceGroup: "default",
+			useOrchestrationMode: true,
+		})
+		expect((config.providerConfig as any).sap).not.toHaveProperty("deploymentId")
+	})
+
 	it("falls back to legacy SAP-specific model fields when the generic model field is absent", async () => {
 		mocks.stateManager.getApiConfiguration.mockReturnValue({
 			actModeApiProvider: "sapaicore",

@@ -21,7 +21,10 @@ function trimString(value: unknown): string | undefined {
 export function buildSapProviderConfig(config: ApiConfiguration, mode: Mode): SapProviderConfig {
 	const sap: NonNullable<SapProviderConfig["sap"]> = {}
 	const baseUrl = trimString(config.sapAiCoreBaseUrl)
-	const deploymentId = trimString(mode === "plan" ? config.planModeSapAiCoreDeploymentId : config.actModeSapAiCoreDeploymentId)
+	const useOrchestrationMode = config.sapAiCoreUseOrchestrationMode ?? true
+	const deploymentId = useOrchestrationMode
+		? undefined
+		: trimString(mode === "plan" ? config.planModeSapAiCoreDeploymentId : config.actModeSapAiCoreDeploymentId)
 	const sapFields = {
 		clientId: trimString(config.sapAiCoreClientId),
 		clientSecret: trimString(config.sapAiCoreClientSecret),
@@ -36,8 +39,8 @@ export function buildSapProviderConfig(config: ApiConfiguration, mode: Mode): Sa
 		}
 	}
 
-	if (Object.keys(sap).length > 0 && config.sapAiCoreUseOrchestrationMode !== undefined) {
-		sap.useOrchestrationMode = config.sapAiCoreUseOrchestrationMode
+	if (Object.keys(sap).length > 0) {
+		sap.useOrchestrationMode = useOrchestrationMode
 	}
 
 	return {

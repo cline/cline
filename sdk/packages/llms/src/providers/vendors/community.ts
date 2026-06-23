@@ -111,9 +111,9 @@ function readStringOption(
 		: undefined;
 }
 
-function normalizeSapTokenServiceUrl(tokenUrl: string): string {
+function normalizeSapTokenBaseUrl(tokenUrl: string): string {
 	const trimmed = tokenUrl.replace(/\/+$/, "");
-	return /\/oauth\/token$/i.test(trimmed) ? trimmed : `${trimmed}/oauth/token`;
+	return trimmed.replace(/\/oauth\/token$/i, "");
 }
 
 function hasExplicitSapConnectionConfig(
@@ -154,14 +154,25 @@ function buildSapDestination(
 			)}.`,
 		);
 	}
+	// SAP Cloud SDK accepts service-binding fetch options at runtime
+	// (`isDestinationFetchOptions()` checks for `service`), but its exported
+	// XOR type makes the `service` branch unrepresentable by also requiring
+	// `destinationName`. Keep the cast at this dependency boundary.
 	return {
-		authentication: "OAuth2ClientCredentials" as const,
-		clientId,
-		clientSecret,
-		name: config.providerId,
-		tokenServiceUrl: normalizeSapTokenServiceUrl(tokenUrl),
-		url: baseUrl.replace(/\/+$/, ""),
-	} satisfies SapDestination;
+		service: {
+			credentials: {
+				clientid: clientId,
+				clientsecret: clientSecret,
+				serviceurls: {
+					AI_API_URL: baseUrl.replace(/\/+$/, ""),
+				},
+				url: normalizeSapTokenBaseUrl(tokenUrl),
+			},
+			label: "aicore",
+			name: config.providerId,
+			tags: ["aicore"],
+		},
+	} as unknown as SapDestination;
 }
 
 function resolveSapApi(options: Record<string, unknown>) {
