@@ -1,5 +1,7 @@
 export {};
 
+const sourcemap = Bun.env.CLINE_SOURCEMAPS === "1" ? "linked" : "none";
+
 const result = await Bun.build({
 	entrypoints: ["./src/index.ts"],
 	outdir: "./dist",
@@ -7,7 +9,7 @@ const result = await Bun.build({
 	format: "esm",
 	minify: true,
 	packages: "bundle",
-	sourcemap: "none",
+	sourcemap,
 	external: ["@cline/core"],
 });
 
