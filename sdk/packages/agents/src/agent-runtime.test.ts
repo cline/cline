@@ -1068,6 +1068,66 @@ describe("AgentRuntime", () => {
 		});
 	});
 
+	it("stamps runtime identity metadata onto model requests", async () => {
+		const model = new ScriptedModel([
+			(request) => {
+				const metadata = request.options?.metadata as
+					| Record<string, unknown>
+					| undefined;
+				expect(metadata).toMatchObject({
+					sessionId: "session-runtime",
+					agentId: "agent-runtime",
+					conversationId: "conversation-runtime",
+					iteration: 1,
+				});
+				expect(typeof metadata?.runId).toBe("string");
+				return [
+					{ type: "text-delta", text: "done" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({
+			sessionId: "session-runtime",
+			agentId: "agent-runtime",
+			conversationId: "conversation-runtime",
+			model,
+		});
+
+		await runtime.run("capture metadata");
+
+		expect(model.requests).toHaveLength(1);
+	});
+
+	it("does not synthesize session or conversation ids in model request metadata", async () => {
+		const model = new ScriptedModel([
+			(request) => {
+				const metadata = request.options?.metadata as
+					| Record<string, unknown>
+					| undefined;
+				expect(metadata).not.toHaveProperty("sessionId");
+				expect(metadata).not.toHaveProperty("conversationId");
+				expect(metadata).toMatchObject({
+					agentId: "agent-runtime",
+					iteration: 1,
+				});
+				expect(typeof metadata?.runId).toBe("string");
+				return [
+					{ type: "text-delta", text: "done" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({
+			agentId: "agent-runtime",
+			model,
+		});
+
+		await runtime.run("capture metadata");
+
+		expect(model.requests).toHaveLength(1);
+	});
+
 	it("preserves the existing system prompt when prepareTurn returns only messages", async () => {
 		const compactedMessage: AgentMessage = {
 			id: "msg_compacted",

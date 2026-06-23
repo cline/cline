@@ -424,6 +424,11 @@ describe("sdk-gateway", () => {
 		const openrouter = gateway
 			.listProviders()
 			.find((provider) => provider.id === "openrouter");
+		expect(openrouter?.metadata?.stickySession).toEqual({
+			transport: "json-body",
+			field: "session_id",
+			metadataKey: "sessionId",
+		});
 		const promptCacheRoutes =
 			openrouter?.metadata?.routing?.promptCache?.routes ?? [];
 
@@ -3836,6 +3841,267 @@ describe("sdk-gateway", () => {
 				providerId: "openrouter",
 				modelId: "anthropic/claude-test",
 				messages: baseMessages,
+			}),
+		);
+
+		const config = openaiCompatibleFactorySpy.mock.calls[0]?.[0] as {
+			fetch?: typeof fetch;
+		};
+		expect(config.fetch).toBe(customFetch);
+	});
+
+	it("adds OpenRouter session_id to JSON wire requests from request metadata", async () => {
+		const customFetchMock = vi.fn(
+			async () => new Response("ok"),
+		);
+		const customFetch = customFetchMock as unknown as typeof fetch;
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{ providerId: "openrouter", apiKey: "test-key", fetch: customFetch },
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openrouter",
+				modelId: "anthropic/claude-test",
+				messages: baseMessages,
+				metadata: {
+					sessionId: "session-openrouter",
+					conversationId: "conversation-openrouter",
+				},
+			}),
+		);
+
+		const config = openaiCompatibleFactorySpy.mock.calls[0]?.[0] as {
+			fetch?: typeof fetch;
+		};
+		expect(config.fetch).not.toBe(customFetch);
+		await config.fetch?.("https://openrouter.ai/api/v1/chat/completions", {
+			method: "POST",
+			body: JSON.stringify({ messages: [{ role: "user", content: "hi" }] }),
+		});
+
+		expect(customFetch).toHaveBeenCalledOnce();
+		const init = customFetchMock.mock.calls[0]?.[1] as RequestInit | undefined;
+		expect(JSON.parse(String(init?.body))).toMatchObject({
+			session_id: "session-openrouter",
+		});
+	});
+
+	it("adds configured JSON-body sticky session fields for providers that opt in", async () => {
+		const customFetchMock = vi.fn(async () => new Response("ok"));
+		const customFetch = customFetchMock as unknown as typeof fetch;
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "openai-compatible",
+					apiKey: "test-key",
+					fetch: customFetch,
+					metadata: {
+						stickySession: {
+							transport: "json-body",
+							field: "sticky_session",
+							metadataKey: "sessionId",
+						},
+					},
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openai-compatible",
+				modelId: "custom/model",
+				messages: baseMessages,
+				metadata: { sessionId: "session-longer-than-eight" },
+			}),
+		);
+
+		const config = openaiCompatibleFactorySpy.mock.calls[0]?.[0] as {
+			fetch?: typeof fetch;
+		};
+		expect(config.fetch).not.toBe(customFetch);
+		await config.fetch?.("https://example.test/v1/chat/completions", {
+			method: "POST",
+			body: JSON.stringify({ messages: [{ role: "user", content: "hi" }] }),
+		});
+
+		expect(customFetch).toHaveBeenCalledOnce();
+		const init = customFetchMock.mock.calls[0]?.[1] as RequestInit | undefined;
+		expect(JSON.parse(String(init?.body))).toMatchObject({
+			sticky_session: "session-longer-than-eight",
+		});
+	});
+
+	it("adds configured header sticky session fields for providers that opt in", async () => {
+		const customFetchMock = vi.fn(async () => new Response("ok"));
+		const customFetch = customFetchMock as unknown as typeof fetch;
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "openai-compatible",
+					apiKey: "test-key",
+					fetch: customFetch,
+					metadata: {
+						stickySession: {
+							transport: "header",
+							field: "x-session-id",
+							metadataKey: "sessionId",
+						},
+					},
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openai-compatible",
+				modelId: "custom/model",
+				messages: baseMessages,
+				metadata: { sessionId: "session-header" },
+			}),
+		);
+
+		const config = openaiCompatibleFactorySpy.mock.calls[0]?.[0] as {
+			fetch?: typeof fetch;
+		};
+		expect(config.fetch).not.toBe(customFetch);
+		await config.fetch?.("https://example.test/v1/chat/completions", {
+			method: "POST",
+			headers: { "x-existing": "kept" },
+			body: JSON.stringify({ messages: [{ role: "user", content: "hi" }] }),
+		});
+
+		expect(customFetch).toHaveBeenCalledOnce();
+		const init = customFetchMock.mock.calls[0]?.[1] as RequestInit | undefined;
+		const headers = new Headers(init?.headers);
+		expect(headers.get("x-session-id")).toBe("session-header");
+		expect(headers.get("x-existing")).toBe("kept");
+	});
+
+	it("preserves explicit configured header sticky session values", async () => {
+		const customFetchMock = vi.fn(async () => new Response("ok"));
+		const customFetch = customFetchMock as unknown as typeof fetch;
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "openai-compatible",
+					apiKey: "test-key",
+					fetch: customFetch,
+					metadata: {
+						stickySession: {
+							transport: "header",
+							field: "x-session-id",
+							metadataKey: "sessionId",
+						},
+					},
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openai-compatible",
+				modelId: "custom/model",
+				messages: baseMessages,
+				metadata: { sessionId: "session-header" },
+			}),
+		);
+
+		const config = openaiCompatibleFactorySpy.mock.calls[0]?.[0] as {
+			fetch?: typeof fetch;
+		};
+		await config.fetch?.("https://example.test/v1/chat/completions", {
+			method: "POST",
+			headers: { "x-session-id": "explicit-header-session" },
+			body: JSON.stringify({ messages: [{ role: "user", content: "hi" }] }),
+		});
+
+		const init = customFetchMock.mock.calls[0]?.[1] as RequestInit | undefined;
+		expect(new Headers(init?.headers).get("x-session-id")).toBe(
+			"explicit-header-session",
+		);
+	});
+
+	it("preserves explicit OpenRouter session_id in JSON wire requests", async () => {
+		const customFetchMock = vi.fn(
+			async () => new Response("ok"),
+		);
+		const customFetch = customFetchMock as unknown as typeof fetch;
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{ providerId: "openrouter", apiKey: "test-key", fetch: customFetch },
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openrouter",
+				modelId: "anthropic/claude-test",
+				messages: baseMessages,
+				metadata: { sessionId: "session-openrouter" },
+			}),
+		);
+
+		const config = openaiCompatibleFactorySpy.mock.calls[0]?.[0] as {
+			fetch?: typeof fetch;
+		};
+		await config.fetch?.("https://openrouter.ai/api/v1/chat/completions", {
+			method: "POST",
+			body: JSON.stringify({
+				session_id: "explicit-session",
+				messages: [{ role: "user", content: "hi" }],
+			}),
+		});
+
+		const init = customFetchMock.mock.calls[0]?.[1] as RequestInit | undefined;
+		expect(JSON.parse(String(init?.body))).toMatchObject({
+			session_id: "explicit-session",
+		});
+	});
+
+	it("does not fall back to conversationId for OpenRouter session_id", async () => {
+		const customFetchMock = vi.fn(
+			async () => new Response("ok"),
+		);
+		const customFetch = customFetchMock as unknown as typeof fetch;
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{ providerId: "openrouter", apiKey: "test-key", fetch: customFetch },
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openrouter",
+				modelId: "anthropic/claude-test",
+				messages: baseMessages,
+				metadata: { conversationId: "conversation-openrouter" },
 			}),
 		);
 

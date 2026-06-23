@@ -43,6 +43,13 @@ export const DEFAULT_EXTERNAL_OCA_BASE_URL =
 const CLINE_DEFAULT_MODEL_ID = "anthropic/claude-sonnet-4.6";
 const CLINE_PASS_PROVIDER_ID = "cline-pass";
 const OPENAI_CODEX_DEFAULT_MODEL_ID = "gpt-5.4";
+const OPENROUTER_STICKY_SESSION_METADATA: GatewayProviderMetadata = {
+	stickySession: {
+		transport: "json-body",
+		field: "session_id",
+		metadataKey: "sessionId",
+	},
+};
 
 export type ProviderFamily =
 	| "openai"
@@ -889,7 +896,10 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		modelsProviderId: "openrouter",
 		docsUrl: "https://openrouter.ai/models",
 		defaults: { baseUrl: "https://openrouter.ai/api/v1" },
-		metadata: ANTHROPIC_AND_QWEN_CACHE_ROUTING_METADATA,
+		metadata: {
+			...ANTHROPIC_AND_QWEN_CACHE_ROUTING_METADATA,
+			...OPENROUTER_STICKY_SESSION_METADATA,
+		},
 	},
 	{
 		id: "ollama",
