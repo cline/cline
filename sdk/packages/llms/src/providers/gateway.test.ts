@@ -3904,6 +3904,60 @@ describe("sdk-gateway", () => {
 		});
 	});
 
+	it("preserves default model metadata when request metadata is present", async () => {
+		const { fetchMock: customFetchMock, fetch: customFetch } =
+			createFetchMock();
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{ providerId: "openrouter", apiKey: "test-key", fetch: customFetch },
+			],
+		});
+		const model = gateway.createAgentModel(
+			{
+				providerId: "openrouter",
+				modelId: "anthropic/claude-test",
+			},
+			{
+				metadata: {
+					sessionId: "default-session",
+					traceId: "default-trace",
+				},
+			},
+		);
+
+		await collect(
+			await model.stream({
+				messages: baseMessages,
+				tools: [],
+				options: {
+					metadata: {
+						runId: "request-run",
+						traceId: "request-trace",
+					},
+				},
+			}),
+		);
+
+		const config = openaiCompatibleFactorySpy.mock.calls[0]?.[0] as {
+			fetch?: typeof fetch;
+		};
+		expect(config.fetch).not.toBe(customFetch);
+		await config.fetch?.("https://openrouter.ai/api/v1/chat/completions", {
+			method: "POST",
+			body: JSON.stringify({ messages: [{ role: "user", content: "hi" }] }),
+		});
+
+		expect(customFetch).toHaveBeenCalledOnce();
+		const init = customFetchMock.mock.calls[0]?.[1] as RequestInit | undefined;
+		expect(JSON.parse(String(init?.body))).toMatchObject({
+			session_id: "default-session",
+		});
+	});
+
 	it("adds configured JSON-body sticky session fields for providers that opt in", async () => {
 		const { fetchMock: customFetchMock, fetch: customFetch } =
 			createFetchMock();
