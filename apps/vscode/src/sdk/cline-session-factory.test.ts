@@ -449,6 +449,86 @@ describe("buildSessionConfig", () => {
 		expect((config.providerConfig as any).maxOutputTokens).toBe(4_096)
 	})
 
+	it("builds structured SAP AI Core config from legacy ApiConfiguration fields", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "sapaicore",
+			actModeApiModelId: "anthropic--claude-4.6-sonnet",
+			sapAiCoreClientId: "sap-client",
+			sapAiCoreClientSecret: "sap-secret",
+			sapAiCoreBaseUrl: " https://api.ai.example.aws.ml.hana.ondemand.com ",
+			sapAiCoreTokenUrl: " https://example.authentication.sap.hana.ondemand.com ",
+			sapAiResourceGroup: " default ",
+			sapAiCoreUseOrchestrationMode: false,
+			actModeSapAiCoreDeploymentId: " deployment-id ",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerId).toBe("sapaicore")
+		expect(config.modelId).toBe("anthropic--claude-4.6-sonnet")
+		expect(config.apiKey).toBe("")
+		expect(config.baseUrl).toBe("https://api.ai.example.aws.ml.hana.ondemand.com")
+		expect(config.providerConfig).toMatchObject({
+			providerId: "sapaicore",
+			modelId: "anthropic--claude-4.6-sonnet",
+			baseUrl: "https://api.ai.example.aws.ml.hana.ondemand.com",
+			sap: {
+				clientId: "sap-client",
+				clientSecret: "sap-secret",
+				tokenUrl: "https://example.authentication.sap.hana.ondemand.com",
+				resourceGroup: "default",
+				deploymentId: "deployment-id",
+				useOrchestrationMode: false,
+			},
+		})
+		expect(config.providerConfig).not.toHaveProperty("apiKey")
+	})
+
+	it("falls back to legacy SAP-specific model fields when the generic model field is absent", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "sapaicore",
+			actModeSapAiCoreModelId: "anthropic--claude-3.5-sonnet",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerId).toBe("sapaicore")
+		expect(config.modelId).toBe("anthropic--claude-3.5-sonnet")
+	})
+
+	it("preserves an explicitly cleared SAP base URL so stored settings cannot fill it back in", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "sapaicore",
+			actModeApiModelId: "anthropic--claude-4.6-sonnet",
+			sapAiCoreBaseUrl: "   ",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.baseUrl).toBe("")
+		expect(config.providerConfig).toMatchObject({
+			providerId: "sapaicore",
+			baseUrl: "",
+		})
+		expect(config.providerConfig).not.toHaveProperty("sap")
+	})
+
+	it("does not emit partial SAP overrides when SAP strings are absent", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "sapaicore",
+			actModeApiModelId: "anthropic--claude-4.6-sonnet",
+			sapAiCoreUseOrchestrationMode: false,
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerConfig).toMatchObject({
+			providerId: "sapaicore",
+		})
+		expect(config.providerConfig).not.toHaveProperty("baseUrl")
+		expect(config.providerConfig).not.toHaveProperty("sap")
+	})
+
 	it("uses ClinePass model storage and omits empty nested apiKey so SDK OAuth can fill it", async () => {
 		mocks.stateManager.getApiConfiguration.mockReturnValue({
 			actModeApiProvider: "cline-pass",

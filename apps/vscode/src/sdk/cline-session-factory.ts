@@ -36,6 +36,7 @@ import { buildAgentHooks } from "./hooks-adapter"
 import { readTaskHistory, resolveDataDir } from "./legacy-state-reader"
 import { toSdkProviderId } from "./model-catalog/sdk-provider-id"
 import { getProviderSettingsManager } from "./provider-migration"
+import { buildSapProviderConfig, type SapProviderConfig } from "./sap-config"
 import type { SdkSessionHost } from "./session-host"
 
 // ---------------------------------------------------------------------------
@@ -274,7 +275,6 @@ const PROVIDER_API_KEY_MAP: Record<string, keyof ApiConfiguration> = {
 	aihubmix: "aihubmixApiKey",
 	nousResearch: "nousResearchApiKey",
 	"vercel-ai-gateway": "vercelAiGatewayApiKey",
-	sapaicore: "sapAiCoreClientId", // SAP uses client ID + secret
 	claude_code: "apiKey", // Claude Code uses anthropic key
 	wandb: "wandbApiKey",
 	"qwen-code": "qwenApiKey",
@@ -312,7 +312,6 @@ const PROVIDER_MODEL_ID_MAP: Record<string, { plan: keyof ApiConfiguration; act:
 	hicap: { plan: "planModeHicapModelId", act: "actModeHicapModelId" },
 	nousResearch: { plan: "planModeNousResearchModelId", act: "actModeNousResearchModelId" },
 	"vercel-ai-gateway": { plan: "planModeVercelAiGatewayModelId", act: "actModeVercelAiGatewayModelId" },
-	sapaicore: { plan: "planModeSapAiCoreModelId", act: "actModeSapAiCoreModelId" },
 }
 
 // ---------------------------------------------------------------------------
@@ -414,6 +413,16 @@ export function resolveModelId(providerId: string, mode: Mode, config: ApiConfig
 		return selector ? stringifyVsCodeLmModelSelector(selector) || undefined : undefined
 	}
 
+	if (providerId === "sapaicore") {
+		const genericField = mode === "plan" ? "planModeApiModelId" : "actModeApiModelId"
+		const legacyField = mode === "plan" ? "planModeSapAiCoreModelId" : "actModeSapAiCoreModelId"
+		return (
+			(config[genericField] as string | undefined)?.trim() ||
+			(config[legacyField] as string | undefined)?.trim() ||
+			undefined
+		)
+	}
+
 	// Check provider-specific mode model ID fields.
 	// If the provider has a dedicated field, do not fall back to generic
 	// *ModeApiModelId. Those generic slots may contain a stale model from a
@@ -499,6 +508,7 @@ export function resolveBaseUrl(providerId: string, config: ApiConfiguration): st
 		oca: "ocaBaseUrl",
 		aihubmix: "aihubmixBaseUrl",
 		dify: "difyBaseUrl",
+		sapaicore: "sapAiCoreBaseUrl",
 	}
 
 	const field = baseUrlMap[providerId]
@@ -544,6 +554,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	// region/project/auth fields for inference calls.
 	let bedrockProviderConfig: BedrockProviderConfig | undefined
 	let vertexProviderConfig: Pick<ProviderSettings, "gcp" | "region"> | undefined
+	let sapProviderConfig: SapProviderConfig | undefined
 
 	try {
 		const stateManager = StateManager.get()
@@ -575,6 +586,11 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 
 			if (providerId === "vertex") {
 				vertexProviderConfig = resolveVertexProviderConfig(apiConfig)
+			}
+
+			if (providerId === "sapaicore") {
+				sapProviderConfig = buildSapProviderConfig(apiConfig, mode)
+				baseUrl = sapProviderConfig.baseUrl
 			}
 
 			Logger.log(
@@ -673,9 +689,9 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	// Always pass a providerConfig so the proxy/CA-aware fetch reaches the SDK
 	// gateway; without it the agent loop uses bare global fetch and corporate
 	// proxy/self-signed CA setups fail on JetBrains and CLI. Cloud providers
-	// additionally need structured options (region/project/auth), which core
+	// additionally need structured options (region/project/auth/SAP OAuth), which core
 	// reads from providerConfig in createAgentModelFromConfig.
-	const cloudProviderConfig = bedrockProviderConfig ?? vertexProviderConfig
+	const cloudProviderConfig = bedrockProviderConfig ?? vertexProviderConfig ?? sapProviderConfig
 	// Spread the cloud config first so the explicit fields below — notably the
 	// proxy/CA-aware fetch — can never be clobbered if those types gain matching keys.
 	const providerConfig = {
@@ -683,7 +699,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		providerId: sdkProviderId,
 		modelId,
 		...(apiKey ? { apiKey } : {}),
-		baseUrl,
+		...(baseUrl !== undefined ? { baseUrl } : {}),
 		...(knownModels ? { knownModels } : {}),
 		...(modelId && positiveNumber(knownModels?.[modelId]?.maxTokens)
 			? { maxOutputTokens: positiveNumber(knownModels?.[modelId]?.maxTokens) }
