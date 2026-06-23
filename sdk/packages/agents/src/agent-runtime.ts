@@ -597,10 +597,6 @@ export class AgentRuntime {
 				if (finishReason === "aborted") {
 					throw this.normalizeAbortError();
 				}
-				const toolCalls = message.content.filter(
-					(part: AgentMessagePart): part is AgentToolCallPart =>
-						part.type === "tool-call",
-				);
 				if (message.content.length === 0) {
 					throw new Error(
 						finishReason === "error"
@@ -608,6 +604,10 @@ export class AgentRuntime {
 							: "Model returned empty response",
 					);
 				}
+				const toolCalls = message.content.filter(
+					(part: AgentMessagePart): part is AgentToolCallPart =>
+						part.type === "tool-call",
+				);
 
 				finalAssistantMessage = message;
 				this.state.messages.push(message);
