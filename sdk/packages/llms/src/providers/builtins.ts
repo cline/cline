@@ -21,7 +21,12 @@ import type {
 	ProviderClient,
 	ProviderProtocol,
 } from "../catalog/types";
-import { ClineNotSubscribedError, isClineNotSubscribedMessage } from "./errors";
+import {
+	ClineNotSubscribedError,
+	ClineOrgIndividualInferenceSubscriptionError,
+	isClineNotSubscribedMessage,
+	isClineOrgIndividualInferenceSubscriptionMessage,
+} from "./errors";
 import { filterOpenAICodexModels } from "./openai-codex-models";
 import {
 	ANTHROPIC_AND_QWEN_CACHE_ROUTING_METADATA,
@@ -504,12 +509,41 @@ function createClineLikeSpec(
 	};
 }
 
+async function handleClineResponseError(
+	response: Response,
+	providerId: string,
+): Promise<void> {
+	if (response.status !== 403) {
+		return;
+	}
+
+	const body = await response
+		.clone()
+		.text()
+		.catch(() => "");
+
+	if (isClineOrgIndividualInferenceSubscriptionMessage(body)) {
+		throw new ClineOrgIndividualInferenceSubscriptionError(providerId);
+	}
+
+	if (isClineNotSubscribedMessage(body)) {
+		throw new ClineNotSubscribedError(providerId);
+	}
+}
+
 const cline = createClineLikeSpec({
 	id: "cline",
 	name: "Cline",
 	popular: 1,
 	modelsFactory: buildClineModels,
 	defaultModelId: CLINE_DEFAULT_MODEL_ID,
+	defaults: {
+		options: {
+			onResponseError: async (response: Response) => {
+				await handleClineResponseError(response, "cline");
+			},
+		},
+	},
 });
 
 const clinePass = createClineLikeSpec({
@@ -523,19 +557,7 @@ const clinePass = createClineLikeSpec({
 	defaults: {
 		options: {
 			onResponseError: async (response: Response) => {
-				if (response.status !== 403) {
-					return undefined;
-				}
-				const body = await response
-					.clone()
-					.text()
-					.catch(() => "");
-
-				if (isClineNotSubscribedMessage(body)) {
-					throw new ClineNotSubscribedError(CLINE_PASS_PROVIDER_ID);
-				}
-
-				return undefined;
+				await handleClineResponseError(response, CLINE_PASS_PROVIDER_ID);
 			},
 		},
 	},

@@ -40,8 +40,12 @@ const sessionEventsMocks = vi.hoisted(() => ({
 const CLINE_PASS_SUBSCRIPTION_URL =
 	"https://app.cline.bot/dashboard/subscription?personal=true";
 const CLINE_PASS_SUBSCRIPTION_MESSAGE = `No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: ${CLINE_PASS_SUBSCRIPTION_URL}`;
+const CLINE_ORG_INDIVIDUAL_INFERENCE_SUBSCRIPTION_MESSAGE =
+	"Organization accounts cannot use ClinePass subscriptions. Go to /account -> change account to switch to your personal account for ClinePass";
 
 vi.mock("@cline/core", () => ({
+	getClineOrgIndividualInferenceSubscriptionMessage: () =>
+		CLINE_ORG_INDIVIDUAL_INFERENCE_SUBSCRIPTION_MESSAGE,
 	getClinePassSubscriptionUrl: () => CLINE_PASS_SUBSCRIPTION_URL,
 	isClineNotSubscribedError: (error: unknown) =>
 		error instanceof Error && error.name === "ClineNotSubscribedError",
@@ -49,6 +53,15 @@ vi.mock("@cline/core", () => ({
 		text
 			.toLowerCase()
 			.includes("the user is not subscribed to required model plan"),
+	isClineOrgIndividualInferenceSubscriptionError: (error: unknown) =>
+		error instanceof Error &&
+		error.name === "ClineOrgIndividualInferenceSubscriptionError",
+	isClineOrgIndividualInferenceSubscriptionMessage: (text: string) =>
+		text
+			.toLowerCase()
+			.includes(
+				"organization accounts cannot use individual model inference subscriptions",
+			),
 	prewarmFileIndex: vi.fn(async () => undefined),
 	SessionSource: {
 		CLI: "cli",
