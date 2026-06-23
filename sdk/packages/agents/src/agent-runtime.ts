@@ -27,6 +27,8 @@ import {
 	captureSdkError,
 	estimateTokens,
 	mergeModelOptions,
+	omitUndefinedValues,
+	trimNonEmpty,
 } from "@cline/shared";
 import { nanoid } from "nanoid";
 
@@ -754,6 +756,13 @@ export class AgentRuntime {
 		finishReason: AgentModelFinishReason;
 	}> {
 		const usageBeforeModel = cloneUsage(this.state.usage);
+		const modelRequestMetadata = omitUndefinedValues({
+			sessionId: trimNonEmpty(this.config.sessionId),
+			agentId: this.state.agentId,
+			conversationId: trimNonEmpty(this.config.conversationId),
+			runId: this.state.runId,
+			iteration: this.state.iteration,
+		});
 		let request: AgentModelRequest = {
 			systemPrompt: this.config.systemPrompt,
 			messages: cloneMessages(this.state.messages),
@@ -763,7 +772,9 @@ export class AgentRuntime {
 				inputSchema: tool.inputSchema,
 			})),
 			signal: this.abortController?.signal,
-			options: this.config.modelOptions,
+			options: mergeModelOptions(this.config.modelOptions, {
+				metadata: modelRequestMetadata,
+			}),
 		};
 
 		if (this.state.iteration > 1) {

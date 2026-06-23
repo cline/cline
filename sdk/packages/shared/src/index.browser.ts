@@ -212,10 +212,12 @@ export {
 	safeJsonParse,
 	safeJsonStringify,
 } from "./parse/json";
+export { omitUndefinedValues, type OmitUndefinedValues } from "./parse/object";
 export { getDefaultShell, getShellArgs } from "./parse/shell";
 export {
 	maskSecret,
 	sanitizeFileName,
+	trimNonEmpty,
 	truncateSplit,
 	truncateStr,
 } from "./parse/string";
