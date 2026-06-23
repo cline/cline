@@ -40,6 +40,33 @@ describe("createSapAiCoreProviderModule", () => {
 		});
 	});
 
+	it("uses resource group deployment resolution for orchestration mode", async () => {
+		const provider = await createSapAiCoreProviderModule({
+			providerId: "sapaicore",
+			baseUrl: "https://api.ai.example.aws.ml.hana.ondemand.com",
+			options: {
+				clientId: "sap-client",
+				clientSecret: "sap-secret",
+				tokenUrl: "https://auth.example",
+				resourceGroup: "default",
+				useOrchestrationMode: true,
+			},
+		});
+
+		const model = provider.model("anthropic--claude-4.6-sonnet") as {
+			config?: {
+				deploymentConfig?: Record<string, unknown>;
+				providerApi?: string;
+			};
+		};
+
+		expect(model.config?.deploymentConfig).toMatchObject({
+			resourceGroup: "default",
+		});
+		expect(model.config?.deploymentConfig).not.toHaveProperty("deploymentId");
+		expect(model.config?.providerApi).toBe("orchestration");
+	});
+
 	it("fails fast for partial explicit SAP configuration", async () => {
 		await expect(
 			createSapAiCoreProviderModule({

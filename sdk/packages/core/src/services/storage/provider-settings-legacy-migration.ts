@@ -554,17 +554,21 @@ function buildLegacyProviderSettings(
 		};
 	}
 	if (providerId === "sapaicore") {
+		const useOrchestrationMode =
+			legacyGlobalState.sapAiCoreUseOrchestrationMode ?? true;
 		providerSpecific.sap = {
 			clientId: trimNonEmpty(legacySecrets.sapAiCoreClientId),
 			clientSecret: trimNonEmpty(legacySecrets.sapAiCoreClientSecret),
 			tokenUrl: trimNonEmpty(legacyGlobalState.sapAiCoreTokenUrl),
 			resourceGroup: trimNonEmpty(legacyGlobalState.sapAiResourceGroup),
-			deploymentId: trimNonEmpty(
-				mode === "plan"
-					? legacyGlobalState.planModeSapAiCoreDeploymentId
-					: legacyGlobalState.actModeSapAiCoreDeploymentId,
-			),
-			useOrchestrationMode: legacyGlobalState.sapAiCoreUseOrchestrationMode,
+			deploymentId: useOrchestrationMode
+				? undefined
+				: trimNonEmpty(
+						mode === "plan"
+							? legacyGlobalState.planModeSapAiCoreDeploymentId
+							: legacyGlobalState.actModeSapAiCoreDeploymentId,
+					),
+			useOrchestrationMode,
 		};
 	}
 	if (providerId === "oca") {
