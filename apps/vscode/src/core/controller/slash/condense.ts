@@ -14,4 +14,3 @@ export async function condense(controller: Controller, _request: StringRequest):
 	await controller.compactTask()
 	return Empty.create()
 }
-
