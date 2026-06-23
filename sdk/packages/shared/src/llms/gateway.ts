@@ -4,7 +4,7 @@ import type {
 	AgentToolDefinition,
 } from "../agent";
 import type { BasicLogger } from "../logging/logger";
-import type { ProviderCapability } from "../rpc/runtime";
+import type { ProviderCapability, ProviderConfigField } from "../rpc/runtime";
 import type { ITelemetryService } from "../services/telemetry";
 
 export type JsonValue =
@@ -35,7 +35,10 @@ export type GatewayModelCapability =
 export type GatewayPromptCacheStrategy = "anthropic-automatic";
 export type GatewayUsageCostDisplay = "show" | "hide";
 export type GatewayPromptCacheFormat = "anthropic-cache-control";
-export type GatewayReasoningFormat = "anthropic-thinking";
+export type GatewayReasoningFormat =
+	| "anthropic-thinking"
+	| "glm-thinking"
+	| "minimax-thinking";
 export type GatewayModelRoute =
 	| { matcher: "anthropic-compatible" }
 	| {
@@ -63,7 +66,12 @@ export interface GatewayProviderMetadata {
 	promptCacheStrategy?: GatewayPromptCacheStrategy;
 	usageCostDisplay?: GatewayUsageCostDisplay;
 	routing?: GatewayProviderRouting;
-	[key: string]: JsonValue | GatewayProviderRouting | undefined;
+	configFields?: readonly ProviderConfigField[];
+	[key: string]:
+		| JsonValue
+		| GatewayProviderRouting
+		| readonly ProviderConfigField[]
+		| undefined;
 }
 
 export interface GatewayModelDefinition {

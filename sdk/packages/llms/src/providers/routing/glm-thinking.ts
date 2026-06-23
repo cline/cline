@@ -1,8 +1,9 @@
 import type {
 	GatewayProviderContext,
+	GatewayProviderMetadata,
 	GatewayStreamRequest,
 } from "@cline/shared";
-import { resolveModelFamily } from "./anthropic-compatible";
+import { isGlmModel } from "../model-facts";
 import type { ProviderOptionsPatch } from "./utils";
 
 /**
@@ -14,18 +15,18 @@ import type { ProviderOptionsPatch } from "./utils";
  * composer can rely on merge order instead of out-of-band flags.
  */
 
-export function isGlmModel(
-	request: GatewayStreamRequest,
-	context: GatewayProviderContext,
-): boolean {
-	const family = resolveModelFamily(context)?.toLowerCase() ?? "";
-	const modelId = request.modelId.toLowerCase();
-	return family.includes("glm") || modelId.includes("glm");
-}
-
-export function isNativeZaiProvider(providerId: string): boolean {
-	return providerId === "zai" || providerId === "zai-coding-plan";
-}
+export const GLM_THINKING_ROUTING_METADATA: GatewayProviderMetadata = {
+	routing: {
+		reasoning: {
+			format: "glm-thinking",
+			routes: [
+				{ matcher: "model-family", family: "glm" },
+				{ matcher: "model-family", family: "glm-air" },
+				{ matcher: "model-family", family: "glm-flash" },
+			],
+		},
+	},
+};
 
 function buildNativeZaiThinkingOptions(request: GatewayStreamRequest) {
 	if (request.reasoning?.enabled === undefined) {
@@ -56,28 +57,32 @@ function buildRoutedGlmReasoningOptions(request: GatewayStreamRequest) {
 	return undefined;
 }
 
-export function buildGlmThinkingProviderOptionsPatch(
+export function buildNativeGlmThinkingProviderOptionsPatch(
+	request: GatewayStreamRequest,
+	providerOptionsKey: string,
+): ProviderOptionsPatch | undefined {
+	// Native Z.AI GLM endpoints expect `thinking.type`; they do not accept the
+	// routed `reasoning.enabled` / `reasoning.exclude` shape.
+	const nativeThinking = buildNativeZaiThinkingOptions(request);
+	return nativeThinking
+		? {
+				openaiCompatible: nativeThinking,
+				[request.providerId]: nativeThinking,
+				...(providerOptionsKey !== request.providerId
+					? { [providerOptionsKey]: nativeThinking }
+					: {}),
+			}
+		: undefined;
+}
+
+export function buildRoutedGlmReasoningProviderOptionsPatch(
 	request: GatewayStreamRequest,
 	context: GatewayProviderContext,
 	providerOptionsKey: string,
 	options?: { includeProviderBuckets?: boolean },
 ): ProviderOptionsPatch | undefined {
-	if (isNativeZaiProvider(request.providerId)) {
-		if (!isGlmModel(request, context)) {
-			return undefined;
-		}
-		const nativeThinking = buildNativeZaiThinkingOptions(request);
-		return nativeThinking
-			? {
-					openaiCompatible: nativeThinking,
-					[request.providerId]: nativeThinking,
-					...(providerOptionsKey !== request.providerId
-						? { [providerOptionsKey]: nativeThinking }
-						: {}),
-				}
-			: undefined;
-	}
-
+	// Routed GLM endpoints stay OpenAI-compatible and use the generic
+	// `reasoning` include/exclude shape instead of native Z.AI `thinking.type`.
 	if (!isGlmModel(request, context)) {
 		return undefined;
 	}

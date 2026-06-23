@@ -13,15 +13,18 @@ import type { PluginManifest } from "..";
 
 const DEPRECATED_CONFIG_DIR = ".clinerules";
 const CLINE_CONFIG_DIR = ".cline";
-const LEGACY_AGENT_SKILLS_DIRECTORY_NAME = ".agents";
-export const AGENT_CONFIG_DIRECTORY_NAME = "agents";
+const LEGACY_AGENT_SKILLS_CONFIG_DIR = ".agents";
 
+export const AGENT_CONFIG_DIRECTORY_NAME = "agents";
 export const HOOKS_CONFIG_DIRECTORY_NAME = "hooks";
 export const SKILLS_CONFIG_DIRECTORY_NAME = "skills";
 export const RULES_CONFIG_DIRECTORY_NAME = "rules";
 export const WORKFLOWS_CONFIG_DIRECTORY_NAME = "workflows";
 export const PLUGINS_DIRECTORY_NAME = "plugins";
+export const AGENTS_RULES_FILE_NAME = "AGENTS.md";
+
 export const CLINE_MCP_SETTINGS_FILE_NAME = "cline_mcp_settings.json";
+export const CLINE_CONNECTOR_SETTINGS_FILE_NAME = "settings.json";
 
 function resolveDefaultHomeDir(): string {
 	const envHome = process?.env?.HOME?.trim();
@@ -140,6 +143,22 @@ export function resolveTeamDataDir(): string {
 		return explicitDir;
 	}
 	return join(resolveClineDataDir(), "teams");
+}
+
+export function resolveConnectorDataDir(): string {
+	const explicitDir = process.env.CLINE_CONNECTOR_DATA_DIR?.trim();
+	if (explicitDir) {
+		return explicitDir;
+	}
+	return join(resolveClineDataDir(), "connectors");
+}
+
+export function resolveConnectorSettingsPath(): string {
+	const explicitPath = process.env.CLINE_CONNECTOR_SETTINGS_PATH?.trim();
+	if (explicitPath) {
+		return explicitPath;
+	}
+	return join(resolveConnectorDataDir(), CLINE_CONNECTOR_SETTINGS_FILE_NAME);
 }
 
 export function resolveDbDataDir(): string {
@@ -301,7 +320,7 @@ function getWorkspaceSkillDirectories(workspacePath?: string): string[] {
 	return [
 		DEPRECATED_CONFIG_DIR,
 		CLINE_CONFIG_DIR,
-		LEGACY_AGENT_SKILLS_DIRECTORY_NAME,
+		LEGACY_AGENT_SKILLS_CONFIG_DIR,
 	].map((dir) => join(workspacePath, dir, SKILLS_CONFIG_DIRECTORY_NAME));
 }
 
@@ -344,10 +363,14 @@ export function resolveSkillsConfigSearchPaths(
 		join(resolveClineDir(), SKILLS_CONFIG_DIRECTORY_NAME),
 		join(
 			HOME_DIR,
-			LEGACY_AGENT_SKILLS_DIRECTORY_NAME,
+			LEGACY_AGENT_SKILLS_CONFIG_DIR,
 			SKILLS_CONFIG_DIRECTORY_NAME,
 		),
 	]);
+}
+
+export function resolveGlobalAgentsRulesPath(): string {
+	return join(HOME_DIR, LEGACY_AGENT_SKILLS_CONFIG_DIR, AGENTS_RULES_FILE_NAME);
 }
 
 export function resolveRulesConfigSearchPaths(
@@ -360,11 +383,12 @@ export function resolveRulesConfigSearchPaths(
 			]
 		: [];
 	const workspaceAgentsFile = workspacePath
-		? [join(workspacePath, "AGENTS.md")]
+		? [join(workspacePath, AGENTS_RULES_FILE_NAME)]
 		: [];
 	return dedupePaths([
 		...workspaceAgentsFile,
 		...wsPaths,
+		resolveGlobalAgentsRulesPath(),
 		join(resolveClineDir(), RULES_CONFIG_DIRECTORY_NAME),
 		resolveDocumentsExtensionPath("Rules"),
 	]);

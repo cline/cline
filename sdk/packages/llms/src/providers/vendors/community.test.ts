@@ -1,50 +1,55 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { listOpenAICodexModels } from "./community";
+import { afterEach, describe, expect, it } from "vitest";
+import { createSapAiCoreProviderModule } from "./community";
 
-const listModelsSpy = vi.fn();
-const closeSpy = vi.fn();
-const createCodexAppServerSpy = vi.fn(() => ({
-	listModels: listModelsSpy,
-	close: closeSpy,
-}));
+const originalServiceKey = process.env.AICORE_SERVICE_KEY;
 
-vi.mock("ai-sdk-provider-codex-cli", () => ({
-	createCodexAppServer: (options: unknown) => createCodexAppServerSpy(options),
-	createCodexExec: () => () => ({}),
-}));
-
-describe("listOpenAICodexModels", () => {
-	beforeEach(() => {
-		createCodexAppServerSpy.mockClear();
-		listModelsSpy.mockReset();
-		closeSpy.mockReset();
-		listModelsSpy.mockResolvedValue({ models: [] });
-		closeSpy.mockResolvedValue(undefined);
+describe("createSapAiCoreProviderModule", () => {
+	afterEach(() => {
+		if (originalServiceKey === undefined) {
+			delete process.env.AICORE_SERVICE_KEY;
+		} else {
+			process.env.AICORE_SERVICE_KEY = originalServiceKey;
+		}
 	});
 
-	it("uses the codex executable on PATH by default", async () => {
-		await listOpenAICodexModels();
+	it("passes SAP credentials as a provider destination without mutating process env", async () => {
+		process.env.AICORE_SERVICE_KEY = "existing-service-key";
 
-		expect(createCodexAppServerSpy).toHaveBeenCalledWith(
-			expect.objectContaining({
-				defaultSettings: expect.objectContaining({
-					codexPath: "codex",
-				}),
-			}),
-		);
-		expect(listModelsSpy).toHaveBeenCalledWith(["openai"]);
-		expect(closeSpy).toHaveBeenCalled();
+		const provider = await createSapAiCoreProviderModule({
+			providerId: "sapaicore",
+			baseUrl: "https://api.ai.example.aws.ml.hana.ondemand.com",
+			options: {
+				clientId: "sap-client",
+				clientSecret: "sap-secret",
+				tokenUrl: "https://auth.example",
+				deploymentId: "deployment-id",
+			},
+		});
+
+		const model = provider.model("anthropic--claude-4.6-sonnet") as {
+			config?: { destination?: Record<string, unknown> };
+		};
+
+		expect(process.env.AICORE_SERVICE_KEY).toBe("existing-service-key");
+		expect(model.config?.destination).toMatchObject({
+			authentication: "OAuth2ClientCredentials",
+			clientId: "sap-client",
+			clientSecret: "sap-secret",
+			tokenServiceUrl: "https://auth.example/oauth/token",
+			url: "https://api.ai.example.aws.ml.hana.ondemand.com",
+		});
 	});
 
-	it("preserves an explicit codexPath override", async () => {
-		await listOpenAICodexModels({ codexPath: "/tmp/custom-codex" });
-
-		expect(createCodexAppServerSpy).toHaveBeenCalledWith(
-			expect.objectContaining({
-				defaultSettings: expect.objectContaining({
-					codexPath: "/tmp/custom-codex",
-				}),
+	it("fails fast for partial explicit SAP configuration", async () => {
+		await expect(
+			createSapAiCoreProviderModule({
+				providerId: "sapaicore",
+				options: {
+					clientId: "sap-client",
+					clientSecret: "sap-secret",
+					tokenUrl: "https://auth.example",
+				},
 			}),
-		);
+		).rejects.toThrow(/baseUrl/);
 	});
 });

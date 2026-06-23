@@ -1,4 +1,5 @@
 import type * as LlmsProviders from "@cline/llms";
+import type { AgentFinishReason } from "@cline/shared";
 import type { SessionAccumulatedUsage } from "../runtime/host/runtime-host";
 import type { BuiltRuntime } from "../runtime/orchestration/session-runtime";
 import type { SessionRuntime } from "../runtime/orchestration/session-runtime-orchestrator";
@@ -35,6 +36,7 @@ export type ActiveSession = {
 	turnAggregateUsageBaseline?: SessionAccumulatedUsage;
 	turnPrimaryUsage?: SessionAccumulatedUsage;
 	turnUsageByAgent?: Map<string, SessionAccumulatedUsage>;
+	lastInteractiveTurnFinishReason?: AgentFinishReason;
 	/**
 	 * Set to `true` once the assistant successfully invoked the canonical
 	 * completion tool (`submit_and_exit`) for this session. Used to:

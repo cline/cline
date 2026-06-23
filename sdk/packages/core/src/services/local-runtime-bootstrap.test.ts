@@ -143,8 +143,10 @@ describe("prepareLocalRuntimeBootstrap", () => {
 					},
 				],
 				failures: [],
+				pluginPaths: [],
 				warnings: [],
 			})),
+			resolvePluginSkillDirectoriesFromPaths: vi.fn(() => []),
 		}));
 
 		const { prepareLocalRuntimeBootstrap } = await import(
@@ -176,6 +178,7 @@ describe("prepareLocalRuntimeBootstrap", () => {
 				registerRule: () => {},
 				registerProvider: () => {},
 				registerAutomationEventType: () => {},
+				registerMcpServer: () => {},
 			},
 			{},
 		);
@@ -228,9 +231,14 @@ describe("prepareLocalRuntimeBootstrap", () => {
 									},
 								],
 					failures: [],
+					pluginPaths:
+						providerId === "cline" && modelId === "anthropic/claude-haiku-4.5"
+							? ["/tmp/compatible-plugin.js"]
+							: [],
 					warnings: [],
 				}),
 			),
+			resolvePluginSkillDirectoriesFromPaths: vi.fn(() => []),
 		}));
 
 		const { prepareLocalRuntimeBootstrap } = await import(
@@ -262,11 +270,57 @@ describe("prepareLocalRuntimeBootstrap", () => {
 				registerRule: () => {},
 				registerProvider: () => {},
 				registerAutomationEventType: () => {},
+				registerMcpServer: () => {},
 			},
 			{},
 		);
 
 		expect(registeredTools).toEqual(["compatible_tool"]);
+	});
+
+	it("threads active plugin skill directories into the runtime builder input", async () => {
+		vi.resetModules();
+		resetModulesAfterEach = true;
+		const activePluginPath = "/tmp/review-plugin/index.js";
+		const activeSkillDirectory = "/tmp/review-plugin/skills";
+		const resolvePluginSkillDirectoriesFromPaths = vi.fn(() => [
+			activeSkillDirectory,
+		]);
+		vi.doMock("../extensions/plugin/plugin-config-loader", () => ({
+			resolveAndLoadAgentPlugins: vi.fn(async () => ({
+				extensions: [],
+				failures: [],
+				pluginPaths: [activePluginPath],
+				warnings: [],
+			})),
+			resolvePluginSkillDirectoriesFromPaths,
+		}));
+
+		const { prepareLocalRuntimeBootstrap } = await import(
+			"./local-runtime-bootstrap"
+		);
+		const bootstrap = await prepareLocalRuntimeBootstrap({
+			input: createStartInput(),
+			localRuntime: {
+				configExtensions: ["plugins", "skills"],
+			},
+			sessionId: "sess-1",
+			providerSettingsManager: createProviderSettingsManager() as never,
+			defaultTelemetry: undefined,
+			defaultToolPolicies: undefined,
+			onPluginEvent: () => {},
+			onTeamEvent: () => {},
+			createSpawnTool,
+			readSessionMetadata: async () => undefined,
+			writeSessionMetadata: async () => {},
+		});
+
+		expect(resolvePluginSkillDirectoriesFromPaths).toHaveBeenCalledWith([
+			activePluginPath,
+		]);
+		expect(bootstrap.runtimeBuilderInput.pluginSkillDirectories).toEqual([
+			activeSkillDirectory,
+		]);
 	});
 
 	it("threads defaultFetch into providerConfig.fetch", async () => {

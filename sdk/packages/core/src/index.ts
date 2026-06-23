@@ -5,6 +5,17 @@
  */
 
 export * as Llms from "@cline/llms";
+export {
+	ClineNotSubscribedError,
+	ClineOrgIndividualInferenceSubscriptionError,
+	getClineOrgIndividualInferenceSubscriptionMessage,
+	getClineNotSubscribedMessage,
+	getClinePassSubscriptionUrl,
+	isClineNotSubscribedError,
+	isClineNotSubscribedMessage,
+	isClineOrgIndividualInferenceSubscriptionError,
+	isClineOrgIndividualInferenceSubscriptionMessage,
+} from "@cline/llms";
 // Shared contracts and path helpers re-exported for app consumers.
 export type {
 	AddProviderActionRequest,
@@ -13,6 +24,7 @@ export type {
 	AgentExtension as AgentPlugin, // Public-facing alias for extensions
 	AgentExtensionCommand,
 	AgentExtensionCommand as AgentPluginCommand,
+	AgentExtensionCommandResult,
 	AgentHooks,
 	AgentMode,
 	AgentResult,
@@ -32,15 +44,20 @@ export type {
 	ClineAccountActionRequest,
 	ConnectorHookEvent,
 	ContentBlock,
+	FeatureFlag,
+	FeatureFlagPayload,
+	FeatureFlagsAndPayloads,
+	FeatureFlagsContext,
+	FeatureFlagsSettings,
 	FileContent,
 	GetProviderModelsActionRequest,
 	HookSessionContext,
+	IFeatureFlagsProvider,
 	ImageContent,
 	ITelemetryService,
 	ListProvidersActionRequest,
 	Message,
 	MessageWithMetadata,
-	OAuthProviderId,
 	ProviderActionRequest,
 	ProviderCatalogResponse,
 	ProviderListItem,
@@ -82,6 +99,8 @@ export {
 	createContributionRegistry,
 	createTool,
 	emptyWorkspaceManifest,
+	FEATURE_FLAGS,
+	FeatureFlagDefaultValue,
 	formatDisplayUserInput,
 	noopBasicLogger,
 	normalizeSdkError,
@@ -117,7 +136,6 @@ export {
 } from "./auth/client";
 export {
 	completeClineDeviceAuth,
-	createClineOAuthProvider,
 	getValidClineCredentials,
 	loginClineOAuth,
 	refreshClineToken,
@@ -125,20 +143,30 @@ export {
 } from "./auth/cline";
 export {
 	getValidOpenAICodexCredentials,
-	isOpenAICodexTokenExpired,
 	loginOpenAICodex,
-	normalizeOpenAICodexCredentials,
-	openaiCodexOAuthProvider,
 	refreshOpenAICodexToken,
 } from "./auth/codex";
 export {
-	createOcaOAuthProvider,
-	createOcaRequestHeaders,
-	generateOcaOpcRequestId,
 	getValidOcaCredentials,
 	loginOcaOAuth,
 	refreshOcaToken,
 } from "./auth/oca";
+export {
+	formatProviderOAuthApiKey,
+	getPersistedProviderApiKey,
+	getProviderAuthHandler,
+	getProviderAuthStorageId,
+	getProviderOAuthCredentialsFromSettings,
+	isOAuthProvider,
+	loginAndSaveProviderOAuthCredentials,
+	type ProviderAuthHandler,
+	type ProviderAuthLoginInput,
+	type ProviderAuthRefreshInput,
+	type ProviderAuthSaveCredentialsInput,
+	type ProviderOAuthCredentials,
+	resolveProviderApiKeyFromSettings,
+	saveProviderOAuthCredentials,
+} from "./auth/provider-auth-registry";
 export type {
 	LocalOAuthServer,
 	LocalOAuthServerOptions,
@@ -197,6 +225,7 @@ export {
 	resolveAgentPluginPaths,
 	resolveAndLoadAgentPlugins,
 	resolvePluginConfigSearchPaths,
+	resolvePluginSkillDirectoriesFromPaths,
 } from "./extensions";
 export type {
 	AvailableRuntimeCommand,
@@ -289,10 +318,19 @@ export {
 	type BootstrapAgentTeamsOptions,
 	type BootstrapAgentTeamsResult,
 	bootstrapAgentTeams,
+	buildConfiguredAgentToolDescriptors,
+	buildConfiguredAgentToolName,
 	buildDelegatedAgentConfig,
 	buildTeamProgressSummary,
+	type ConfiguredAgentConfig,
+	type ConfiguredAgentInput,
+	type ConfiguredAgentLoadResult,
+	type ConfiguredAgentReadError,
+	type ConfiguredAgentToolConfig,
+	type ConfiguredAgentToolDescriptor,
 	type CreateAgentTeamsToolsOptions,
 	createAgentTeamsTools,
+	createConfiguredAgentTools,
 	createDelegatedAgent,
 	createDelegatedAgentConfigProvider,
 	createSpawnAgentTool,
@@ -300,6 +338,8 @@ export {
 	type DelegatedAgentConnectionConfig,
 	type DelegatedAgentKind,
 	type DelegatedAgentRuntimeConfig,
+	loadConfiguredAgentConfigs,
+	parseConfiguredAgentConfig,
 	reviveTeamStateDates,
 	type SpawnTeammateOptions,
 	type SubAgentEndContext,
@@ -384,7 +424,12 @@ export type {
 	StartSessionInput,
 	StartSessionResult,
 } from "./runtime/host/runtime-host";
-export { splitCoreSessionConfig } from "./runtime/host/runtime-host";
+export {
+	isSessionNotFoundError,
+	SESSION_NOT_FOUND_ERROR_CODE,
+	SessionNotFoundError,
+	splitCoreSessionConfig,
+} from "./runtime/host/runtime-host";
 export {
 	createTeamName,
 	DefaultRuntimeBuilder,
@@ -409,39 +454,65 @@ export {
 	type DesktopToolApprovalOptions,
 	requestDesktopToolApproval,
 } from "./runtime/tools/tool-approval";
+export {
+	FeatureFlagsService,
+	type FeatureFlagsServiceOptions,
+	NoOpFeatureFlagsProvider,
+} from "./services/feature-flags";
 export type { GlobalSettings } from "./services/global-settings";
 export {
 	filterDisabledPluginPaths,
 	filterDisabledTools,
 	filterExtensionToolRegistrations,
 	GlobalSettingsSchema,
+	isAutoUpdateEnabledGlobally,
 	isPluginDisabledGlobally,
 	isTelemetryOptedOutGlobally,
 	isToolDisabledGlobally,
 	readGlobalSettings,
 	resolveDisabledPluginPaths,
 	resolveDisabledToolNames,
+	setAutoUpdateEnabledGlobally,
 	setDisabledPlugin,
 	setDisabledTools,
 	setTelemetryOptOutGlobally,
 	toggleDisabledTool,
 	writeGlobalSettings,
 } from "./services/global-settings";
-export type { PluginToolSummary } from "./services/plugin-tools";
-export { listPluginTools } from "./services/plugin-tools";
+export type {
+	PluginMcpSettingsMutation,
+	PluginMcpSettingsSyncResult,
+	RemovePluginMcpServersFromSettingsOptions,
+	SyncPluginMcpServersToSettingsOptions,
+} from "./services/plugin-mcp-settings";
+export {
+	disablePluginMcpServersInSettings,
+	removePluginMcpServersFromSettings,
+	syncPluginMcpServersToSettings,
+} from "./services/plugin-mcp-settings";
+export type {
+	ListPluginToolsResult,
+	PluginToolSummary,
+} from "./services/plugin-tools";
+export {
+	listPluginTools,
+	listPluginToolsWithDiagnostics,
+} from "./services/plugin-tools";
+export type {
+	PluginUninstallOptions,
+	PluginUninstallResult,
+} from "./services/plugin-uninstall";
+export { uninstallPlugin } from "./services/plugin-uninstall";
 export {
 	addLocalProvider,
 	type DeleteLocalProviderRequest,
 	deleteLocalProvider,
 	ensureCustomProvidersLoaded,
 	getLocalProviderModels,
-	getProviderConfigFields,
 	listLocalProviders,
+	loginAndSaveLocalProviderOAuthCredentials,
 	loginLocalProvider,
 	normalizeOAuthProvider,
-	type ProviderConfigFieldKey,
-	type ProviderConfigFieldRequirement,
-	type ProviderConfigFields,
 	refreshProviderModelsFromSource,
 	resolveLocalClineAuthToken,
 	saveLocalProviderOAuthCredentials,
@@ -449,6 +520,12 @@ export {
 	type UpdateLocalProviderRequest,
 	updateLocalProvider,
 } from "./services/providers/local-provider-service";
+export {
+	getProviderConfigFields,
+	type ProviderConfigFieldKey,
+	type ProviderConfigFieldRequirement,
+	type ProviderConfigFields,
+} from "./services/providers/provider-config-fields";
 export {
 	type MigrateLegacyProviderSettingsOptions,
 	type MigrateLegacyProviderSettingsResult,
@@ -460,6 +537,7 @@ export {
 	SqliteTeamStore,
 	type SqliteTeamStoreOptions,
 } from "./services/storage/team-store";
+export { resolveCoreDistinctId } from "./services/telemetry";
 export type {
 	CaptureCompactionExecutedProperties,
 	CaptureCompactionSkippedProperties,
@@ -490,6 +568,7 @@ export {
 	captureMentionUsed,
 	captureModeSwitch,
 	captureProviderApiError,
+	captureProviderConfigured,
 	captureSkillUsed,
 	captureSubagentExecution,
 	captureTaskCompleted,

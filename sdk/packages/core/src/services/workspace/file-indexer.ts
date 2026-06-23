@@ -54,6 +54,14 @@ interface IndexResponseMessage {
 
 const CACHE = new Map<string, CacheEntry>();
 
+function canUseFileIndexWorker(): boolean {
+	if (!isMainThread) {
+		return false;
+	}
+
+	return true;
+}
+
 function pruneStaleCacheEntries(now: number): void {
 	if (CACHE.size <= 1) {
 		return;
@@ -77,6 +85,8 @@ async function listFilesWithRg(cwd: string): Promise<Set<string>> {
 		const child = spawn("rg", ["--files", "--hidden", "-g", "!.git"], {
 			cwd,
 			stdio: ["ignore", "pipe", "pipe"],
+			// Prevent a console window from flashing on Windows.
+			windowsHide: true,
 		});
 
 		let stdout = "";
@@ -276,7 +286,7 @@ startWorkerServer();
 let workerClient: FileIndexWorkerClient | null | undefined;
 
 function getWorkerClient(): FileIndexWorkerClient | null {
-	if (!isMainThread) {
+	if (!canUseFileIndexWorker()) {
 		return null;
 	}
 	if (workerClient === undefined) {

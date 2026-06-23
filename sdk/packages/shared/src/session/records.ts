@@ -1,5 +1,7 @@
 export const SESSION_STATUS_VALUES = [
+	"idle",
 	"running",
+	"pending",
 	"completed",
 	"failed",
 	"cancelled",

@@ -10,8 +10,9 @@ export enum BUILT_IN_PROVIDER {
 	ANTHROPIC = "anthropic",
 	CLAUDE_CODE = "claude-code",
 	CLINE = "cline",
+	CLINE_PASS = "cline-pass",
 	// OpenAI variants
-	// OPENAI = "openai", // OpenAi Completions (deprecated - not a built-in pre-configured provider)
+	OPENAI_COMPATIBLE = "openai-compatible",
 	OPENAI_NATIVE = "openai-native",
 	OPENAI_CODEX = "openai-codex",
 	OPENAI_CODEX_CLI = "openai-codex-cli",
@@ -30,6 +31,7 @@ export enum BUILT_IN_PROVIDER {
 	TOGETHER = "together",
 	FIREWORKS = "fireworks",
 	GROQ = "groq",
+	POOLSIDE = "poolside",
 	CEREBRAS = "cerebras",
 	SAMBANOVA = "sambanova",
 	NEBIUS = "nebius",
@@ -69,7 +71,7 @@ export enum BUILT_IN_PROVIDER {
  * Keep this map as the single source of truth for alias handling.
  */
 export const PROVIDER_ID_ALIASES: Record<string, BUILT_IN_PROVIDER> = {
-	openai: BUILT_IN_PROVIDER.OPENAI_NATIVE,
+	openai: BUILT_IN_PROVIDER.OPENAI_COMPATIBLE,
 	togetherai: BUILT_IN_PROVIDER.TOGETHER,
 	"sap-ai-core": BUILT_IN_PROVIDER.SAPAICORE,
 };

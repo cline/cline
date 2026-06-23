@@ -1,4 +1,4 @@
-import { createGateway } from "@cline/llms";
+import { createGateway, type GatewayProviderSettings } from "@cline/llms";
 import type {
 	AgentAfterToolResult,
 	AgentBeforeModelResult,
@@ -23,7 +23,11 @@ import type {
 	ToolApprovalResult,
 	ToolPolicy,
 } from "@cline/shared";
-import { captureSdkError, estimateTokens } from "@cline/shared";
+import {
+	captureSdkError,
+	estimateTokens,
+	mergeModelOptions,
+} from "@cline/shared";
 import { nanoid } from "nanoid";
 
 // Local `createUID` helper. The clinee source imports this from
@@ -64,6 +68,8 @@ export interface AgentRuntimeConfigWithProvider
 	baseUrl?: string;
 	/** Additional headers for API requests */
 	headers?: Record<string, string>;
+	/** Provider-specific gateway options */
+	options?: GatewayProviderSettings["options"];
 }
 
 /**
@@ -88,9 +94,10 @@ function resolveRuntimeConfig(
 	if (hasPrebuiltModel(config)) {
 		return config;
 	}
-	const { providerId, modelId, apiKey, baseUrl, headers, ...rest } = config;
+	const { providerId, modelId, apiKey, baseUrl, headers, options, ...rest } =
+		config;
 	const gateway = createGateway({
-		providerConfigs: [{ providerId, apiKey, baseUrl, headers }],
+		providerConfigs: [{ providerId, apiKey, baseUrl, headers, options }],
 		telemetry: rest.telemetry,
 	});
 	const model = gateway.createAgentModel({ providerId, modelId });
@@ -213,6 +220,24 @@ class ControlledStopError extends Error {
 	constructor(reason?: string) {
 		super(reason ?? "Run stopped by runtime control");
 		this.name = "ControlledStopError";
+		this.reason = reason;
+	}
+}
+
+export class AgentRuntimeAbortError extends Error {
+	readonly reason?: unknown;
+
+	constructor(reason?: unknown) {
+		const message =
+			typeof reason === "string"
+				? reason
+				: reason instanceof Error
+					? reason.message
+					: reason === undefined
+						? "Run aborted"
+						: String(reason);
+		super(message);
+		this.name = "AgentRuntimeAbortError";
 		this.reason = reason;
 	}
 }
@@ -390,16 +415,12 @@ export class AgentRuntime {
 		if (!this.abortController) {
 			return;
 		}
-		const message =
-			typeof reason === "string"
+		const abortError =
+			reason instanceof AgentRuntimeAbortError
 				? reason
-				: reason instanceof Error
-					? reason.message
-					: reason === undefined
-						? undefined
-						: String(reason);
-		this.state.lastError = message ?? "Run aborted";
-		this.abortController.abort(new Error(this.state.lastError));
+				: new AgentRuntimeAbortError(reason);
+		this.state.lastError = abortError.message;
+		this.abortController.abort(abortError);
 	}
 
 	subscribe(listener: AgentEventListener): () => void {
@@ -537,6 +558,7 @@ export class AgentRuntime {
 		this.state.iteration = 0;
 		this.state.pendingToolCalls = [];
 		this.state.lastError = undefined;
+		this.state.usage = cloneUsage(DEFAULT_USAGE);
 
 		try {
 			await this.callBeforeRunHooks();
@@ -572,6 +594,21 @@ export class AgentRuntime {
 				});
 
 				const { message, finishReason } = await this.generateAssistantMessage();
+				if (finishReason === "aborted") {
+					throw this.normalizeAbortError();
+				}
+				if (message.content.length === 0) {
+					throw new Error(
+						finishReason === "error"
+							? (this.state.lastError ?? "Model stream failed")
+							: "Model returned empty response",
+					);
+				}
+				const toolCalls = message.content.filter(
+					(part: AgentMessagePart): part is AgentToolCallPart =>
+						part.type === "tool-call",
+				);
+
 				finalAssistantMessage = message;
 				this.state.messages.push(message);
 				await this.emit({
@@ -587,14 +624,6 @@ export class AgentRuntime {
 					finishReason,
 				});
 
-				if (finishReason === "aborted") {
-					throw this.normalizeAbortError();
-				}
-
-				const toolCalls = message.content.filter(
-					(part: AgentMessagePart): part is AgentToolCallPart =>
-						part.type === "tool-call",
-				);
 				if (finishReason === "error" && toolCalls.length === 0) {
 					throw new Error(this.state.lastError ?? "Model stream failed");
 				}
@@ -760,7 +789,7 @@ export class AgentRuntime {
 			if (result?.options) {
 				request = {
 					...request,
-					options: { ...(request.options ?? {}), ...result.options },
+					options: mergeModelOptions(request.options, result.options),
 				};
 			}
 		}
@@ -1111,6 +1140,7 @@ export class AgentRuntime {
 			skipReason = `Tool execution is disabled for provider ${providerId}`;
 		}
 
+		let policyOverride: ToolPolicy | undefined;
 		if (tool && !skipReason) {
 			for (const hook of this.hooks.beforeTool) {
 				const result = (await hook({
@@ -1122,6 +1152,12 @@ export class AgentRuntime {
 				if (result?.input !== undefined) {
 					input = result.input;
 				}
+				if (result?.policy) {
+					policyOverride = {
+						...policyOverride,
+						...result.policy,
+					};
+				}
 				this.applyStopControl(result);
 				if (result?.skip) {
 					skipReason =
@@ -1132,10 +1168,10 @@ export class AgentRuntime {
 		}
 
 		if (tool && !skipReason) {
-			const policy = resolveToolPolicy(
-				toolCall.toolName,
-				this.config.toolPolicies,
-			);
+			const policy = {
+				...resolveToolPolicy(toolCall.toolName, this.config.toolPolicies),
+				...policyOverride,
+			};
 			if (policy.enabled === false) {
 				skipReason = `Tool "${toolCall.toolName}" is disabled by policy`;
 			} else if (policy.autoApprove === false) {

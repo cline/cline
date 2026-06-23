@@ -5,7 +5,11 @@ import type {
 	HubReplyEnvelope,
 } from "@cline/shared";
 import { parseHookEventPayload } from "../../../hooks";
-import type { SendSessionInput } from "../../../runtime/host/runtime-host";
+import {
+	isSessionNotFoundError,
+	SESSION_NOT_FOUND_ERROR_CODE,
+	type SendSessionInput,
+} from "../../../runtime/host/runtime-host";
 import { logHubMessage } from "../hub-server-logging";
 import { cancelPendingApprovals } from "./approval-handlers";
 import { cancelPendingCapabilityRequests } from "./capability-handlers";
@@ -33,6 +37,18 @@ function errorMessageForResult(result: AgentResult): string | undefined {
 	}
 	const text = result.text.trim();
 	return text || undefined;
+}
+
+function sessionNotFoundReply(
+	envelope: HubCommandEnvelope,
+	sessionId: string,
+	error?: unknown,
+): HubReplyEnvelope {
+	const message =
+		error instanceof Error && error.message.trim()
+			? error.message
+			: `Unknown session: ${sessionId}`;
+	return errorReply(envelope, SESSION_NOT_FOUND_ERROR_CODE, message);
 }
 
 function parseTurnMode(mode?: unknown): AgentMode | undefined {
@@ -222,6 +238,9 @@ export async function handleSessionInput(
 		) {
 			ctx.suppressNextTerminalEventBySession.delete(sessionId);
 		}
+		if (isSessionNotFoundError(error)) {
+			return sessionNotFoundReply(envelope, sessionId, error);
+		}
 		ctx.publish(
 			ctx.buildEvent(
 				"run.failed",
@@ -281,13 +300,23 @@ export async function handleRunAbort(
 		(approval) => approval.sessionId === sessionId,
 		reason,
 	);
-	await ctx.sessionHost.abort(sessionId, envelope.payload?.reason);
-	cancelPendingCapabilityRequests(
-		ctx,
-		(request) => request.sessionId === sessionId,
-		reason,
-	);
-	ctx.publish(ctx.buildEvent("run.aborted", { reason }, sessionId));
+	try {
+		await ctx.sessionHost.abort(sessionId, envelope.payload?.reason);
+	} catch (error) {
+		logHubMessage("warn", "run.abort_failed", {
+			command: envelope.command,
+			requestId: envelope.requestId,
+			clientId: envelope.clientId,
+			sessionId,
+			error,
+		});
+	} finally {
+		cancelPendingCapabilityRequests(
+			ctx,
+			(request) => request.sessionId === sessionId,
+			reason,
+		);
+	}
 	return okReply(envelope, { applied: true });
 }
 

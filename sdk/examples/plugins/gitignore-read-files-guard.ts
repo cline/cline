@@ -5,8 +5,7 @@
  * workspace .gitignore file.
  *
  * CLI usage:
- *   mkdir -p .cline/plugins
- *   cp examples/plugins/gitignore-read-files-guard.ts .cline/plugins/gitignore-read-files-guard.ts
+ *   cline plugin install https://github.com/cline/cline/blob/main/sdk/examples/plugins/gitignore-read-files-guard.ts --cwd .
  *   cline -i "Read the ignored .env file"
  */
 
@@ -193,7 +192,11 @@ async function checkIgnoredByWorkspaceGitignore(
 		const child = spawn(
 			"git",
 			["check-ignore", "--stdin", "-z", "-v", "-n", "--no-index"],
-			{ cwd: workspaceRoot, stdio: ["pipe", "pipe", "pipe"] },
+			{
+				cwd: workspaceRoot,
+				stdio: ["pipe", "pipe", "pipe"],
+				windowsHide: true,
+			},
 		);
 
 		const stdout: Buffer[] = [];

@@ -18,6 +18,25 @@ export {
 } from "./connectors/events";
 export type * from "./connectors/options";
 export type {
+	ActiveConnectorRecord,
+	ConfiguredConnectorRecord,
+	ConnectorCatalogEntry,
+	ConnectorChannel,
+	ConnectorChannelsResponse,
+	ConnectorFieldCondition,
+	ConnectorFieldDef,
+	ConnectorPlatformDef,
+	ConnectorSecurityDef,
+	ConnectorSecurityFieldDef,
+} from "./connectors/platforms";
+export {
+	CONNECTOR_CATALOG,
+	CONNECTOR_PLATFORMS,
+	connectorChannelsFromPlatforms,
+	listConnectorCatalog,
+	shouldIncludeConnectorField,
+} from "./connectors/platforms";
+export type {
 	AutomationEventEnvelope,
 	CronEventSpec,
 	CronOneOffSpec,
@@ -45,7 +64,15 @@ export type {
 	AgentExtensionAutomationEventType,
 	AgentExtensionCapability,
 	AgentExtensionCommand,
+	AgentExtensionCommandResult,
 	AgentExtensionHooks,
+	AgentExtensionMcpEnv,
+	AgentExtensionMcpEnvValue,
+	AgentExtensionMcpServer,
+	AgentExtensionMcpSseTransport,
+	AgentExtensionMcpStdioTransport,
+	AgentExtensionMcpStreamableHttpTransport,
+	AgentExtensionMcpTransport,
 	AgentExtensionMessageBuilder,
 	AgentExtensionProvider,
 	AgentExtensionRegistry,
@@ -62,6 +89,16 @@ export {
 	normalizePluginManifest,
 } from "./extensions/contribution-registry";
 export { PLUGIN_FILE_EXTENSIONS } from "./extensions/plugin";
+export {
+	FEATURE_FLAGS,
+	type FeatureFlag,
+	FeatureFlagDefaultValue,
+	type FeatureFlagPayload,
+	type FeatureFlagsAndPayloads,
+	type FeatureFlagsContext,
+	type FeatureFlagsSettings,
+	type IFeatureFlagsProvider,
+} from "./feature-flags";
 export type { HookControl } from "./hooks/contracts";
 export type {
 	AgentAbortHookPayload,
@@ -100,11 +137,38 @@ export type {
 	AiSdkMessagePart,
 } from "./llms/ai-sdk-format";
 export {
+	EMPTY_CONTENT_TEXT,
 	formatMessagesForAiSdk,
 	sanitizeSurrogates,
 	toAiSdkToolResultOutput,
 } from "./llms/ai-sdk-format";
 export type * from "./llms/gateway";
+export {
+	createMediaBudgetState,
+	DEFAULT_MAX_IMAGE_BASE64_BYTES,
+	DEFAULT_MAX_IMAGE_DECODED_BYTES,
+	DEFAULT_MAX_IMAGE_ENCODED_BYTES,
+	DEFAULT_MAX_TOTAL_MEDIA_BYTES,
+	IMAGE_OMITTED_PLACEHOLDER,
+	type ImageMediaLimits,
+	type ImageMediaValidationFailure,
+	type ImageMediaValidationResult,
+	type ImageMediaValidationSuccess,
+	imageBase64DecodedByteLength,
+	imageBase64EncodedByteLength,
+	imageBase64LengthForDecodedBytes,
+	imageFileMaxDecodedBytesForBase64Limit,
+	isBase64Char,
+	isCanonicalBase64,
+	type MediaBudgetOptions,
+	type MediaBudgetState,
+	type ResolvedMediaBudget,
+	reserveImageMediaBytes,
+	resolveMediaBudget,
+	SUPPORTED_IMAGE_MEDIA_TYPES,
+	validateAndReserveImageMedia,
+	validateImageMedia,
+} from "./llms/media";
 export type {
 	ContentBlock,
 	FileContent,
@@ -126,6 +190,8 @@ export {
 	ModelCapabilitySchema,
 	type ModelInfo,
 	ModelInfoSchema,
+	type ModelMetadata,
+	ModelMetadataSchema,
 	type ModelPricing,
 	ModelPricingSchema,
 	type ModelStatus,
@@ -133,6 +199,7 @@ export {
 	type ThinkingConfig,
 	ThinkingConfigSchema,
 } from "./llms/model-info";
+export { mergeModelOptions } from "./llms/model-options";
 export {
 	DEFAULT_REASONING_EFFORT,
 	REASONING_EFFORT_RATIOS,
@@ -179,6 +246,7 @@ export {
 	parseUserCommandEnvelope,
 	xmlTagsRemoval,
 } from "./prompt/format";
+export { isClineProvider } from "./providers/utils";
 export {
 	buildRemoteConfigSessionBlobUploadMetadata,
 	clearRemoteConfigSessionBlobUpload,
@@ -269,6 +337,10 @@ export type {
 	ProviderCapability,
 	ProviderCatalogResponse,
 	ProviderClient,
+	ProviderConfigField,
+	ProviderConfigFieldOption,
+	ProviderConfigFieldPrimitive,
+	ProviderConfigFieldType,
 	ProviderListItem,
 	ProviderModel,
 	ProviderModelsResponse,
@@ -388,11 +460,5 @@ export * from "./session/workspace";
 export * from "./team";
 export { createTool } from "./tools/create";
 export * from "./types";
-export type { OAuthProviderId } from "./types/auth";
-export {
-	AUTH_ERROR_PATTERNS,
-	isLikelyAuthError,
-	isOAuthProviderId,
-	OAUTH_PROVIDER_IDS,
-} from "./types/auth";
+export { AUTH_ERROR_PATTERNS, isLikelyAuthError } from "./types/auth";
 export { initVcr } from "./vcr";

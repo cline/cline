@@ -1,8 +1,18 @@
 export type {
 	AgentRunResult,
 	AgentRunStatus,
+	FeatureFlag,
+	FeatureFlagPayload,
+	FeatureFlagsAndPayloads,
+	FeatureFlagsContext,
+	FeatureFlagsSettings,
+	IFeatureFlagsProvider,
 	WorkspaceInfo,
 	WorkspaceManifest,
+} from "@cline/shared";
+export {
+	FEATURE_FLAGS,
+	FeatureFlagDefaultValue,
 } from "@cline/shared";
 export { ClineCore } from "./ClineCore";
 export type {
@@ -23,6 +33,7 @@ export {
 	resolveAgentPluginPaths,
 	resolveAndLoadAgentPlugins,
 	resolvePluginConfigSearchPaths,
+	resolvePluginSkillDirectoriesFromPaths,
 } from "./extensions";
 export type {
 	CreateInstructionWatcherOptions,
@@ -102,26 +113,39 @@ export type {
 	SubprocessSandboxOptions,
 } from "./runtime/tools/subprocess-sandbox";
 export { SubprocessSandbox } from "./runtime/tools/subprocess-sandbox";
+export {
+	FeatureFlagsService,
+	type FeatureFlagsServiceOptions,
+	NoOpFeatureFlagsProvider,
+} from "./services/feature-flags";
 export type { GlobalSettings } from "./services/global-settings";
 export {
 	filterDisabledPluginPaths,
 	filterDisabledTools,
 	filterExtensionToolRegistrations,
 	GlobalSettingsSchema,
+	isAutoUpdateEnabledGlobally,
 	isPluginDisabledGlobally,
 	isTelemetryOptedOutGlobally,
 	isToolDisabledGlobally,
 	readGlobalSettings,
 	resolveDisabledPluginPaths,
 	resolveDisabledToolNames,
+	setAutoUpdateEnabledGlobally,
 	setDisabledPlugin,
 	setDisabledTools,
 	setTelemetryOptOutGlobally,
 	toggleDisabledTool,
 	writeGlobalSettings,
 } from "./services/global-settings";
-export type { PluginToolSummary } from "./services/plugin-tools";
-export { listPluginTools } from "./services/plugin-tools";
+export type {
+	ListPluginToolsResult,
+	PluginToolSummary,
+} from "./services/plugin-tools";
+export {
+	listPluginTools,
+	listPluginToolsWithDiagnostics,
+} from "./services/plugin-tools";
 export type {
 	WorkspaceManager,
 	WorkspaceManagerEvent,

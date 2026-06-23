@@ -18,6 +18,7 @@ import {
 	PatchActionType,
 	type PatchChunk,
 	PatchParser,
+	type PatchWarning,
 } from "./apply-patch-parser";
 
 interface FileChange {
@@ -252,6 +253,25 @@ function patchToChanges(
 	return changes;
 }
 
+function formatSkippedHunkFailure(warnings: readonly PatchWarning[]): string {
+	const lines = [
+		`Patch could not be applied because ${warnings.length} hunk${warnings.length === 1 ? "" : "s"} did not match the current file content.`,
+	];
+
+	for (const warning of warnings) {
+		const hunkNumber =
+			warning.chunkIndex === undefined
+				? "unknown"
+				: String(warning.chunkIndex + 1);
+		lines.push(`${warning.path}: hunk ${hunkNumber}: ${warning.message}`);
+		if (warning.context) {
+			lines.push(`Context:\n${warning.context}`);
+		}
+	}
+
+	return lines.join("\n");
+}
+
 async function applyChanges(
 	changes: Record<string, FileChange>,
 	cwd: string,
@@ -326,6 +346,10 @@ export function createApplyPatchExecutor(
 		);
 		const parser = new PatchParser(normalizedInput.lines, currentFiles);
 		const { patch, fuzz } = parser.parse();
+		if (patch.warnings && patch.warnings.length > 0) {
+			throw new DiffError(formatSkippedHunkFailure(patch.warnings));
+		}
+
 		const changes = patchToChanges(patch, currentFiles);
 		const touched = await applyChanges(changes, cwd, encoding, restrictToCwd);
 
@@ -337,11 +361,6 @@ export function createApplyPatchExecutor(
 		}
 		if (fuzz > 0) {
 			responseLines.push(`Note: Patch applied with fuzz factor ${fuzz}`);
-		}
-		if (patch.warnings && patch.warnings.length > 0) {
-			for (const warning of patch.warnings) {
-				responseLines.push(`Warning (${warning.path}): ${warning.message}`);
-			}
 		}
 		return responseLines.join("\n");
 	};

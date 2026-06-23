@@ -1,7 +1,7 @@
 {
 	"name": "@cline/core",
 	"description": "Cline Core SDK for Node Runtime",
-	"version": "0.0.41",
+	"version": "0.0.51",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/cline/cline",
@@ -30,6 +30,10 @@
 		"./telemetry": {
 			"types": "./dist/services/telemetry/index.d.ts",
 			"import": "./dist/services/telemetry/index.js"
+		},
+		"./services/feature-flags/posthog": {
+			"types": "./dist/services/feature-flags/posthog.d.ts",
+			"import": "./dist/services/feature-flags/posthog.js"
 		}
 	},
 	"scripts": {
@@ -59,7 +63,7 @@
 		"@opentelemetry/sdk-trace-base": "^2.6.1",
 		"@opentelemetry/sdk-trace-node": "^2.6.1",
 		"@opentelemetry/semantic-conventions": "^1.40.0",
-		"jiti": "^1.21.7",
+		"jiti": "^2.7.0",
 		"node-machine-id": "^1.1.12",
 		"nanoid": "^5.1.7",
 		"simple-git": "3.36.0",
@@ -67,8 +71,17 @@
 		"yaml": "^2.8.2",
 		"zod": "^4.3.6"
 	},
+	"peerDependencies": {
+		"posthog-node": "^5.8.0"
+	},
+	"peerDependenciesMeta": {
+		"posthog-node": {
+			"optional": true
+		}
+	},
 	"devDependencies": {
-		"@types/ws": "^8.18.1"
+		"@types/ws": "^8.18.1",
+		"posthog-node": "^5.8.0"
 	},
 	"engines": {
 		"node": ">=22"

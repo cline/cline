@@ -14,19 +14,26 @@
  *  - `canStartRun` / `shutdown` guards enforce the lifecycle rules.
  */
 
-import type { AgentRuntime, AgentRuntimeConfig } from "@cline/agents";
-import type {
-	AgentConfig,
-	AgentEvent,
-	AgentExtension,
-	AgentExtensionContext,
-	AgentMessage,
-	AgentRunResult,
-	AgentRuntimeEvent,
-	AgentTool,
-	AgentToolContext,
+import {
+	type AgentRuntime,
+	type AgentRuntimeConfig,
+	createAgentRuntime,
+} from "@cline/agents";
+import {
+	type AgentConfig,
+	type AgentEvent,
+	type AgentExtension,
+	type AgentExtensionContext,
+	type AgentMessage,
+	type AgentModel,
+	type AgentRunResult,
+	type AgentRuntimeEvent,
+	type AgentTool,
+	type AgentToolContext,
+	EMPTY_CONTENT_TEXT,
 } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
+import { CLINE_INTERNAL_TELEMETRY_METADATA_KEY } from "../../services/telemetry/tool-context";
 import {
 	SessionRuntime,
 	type SessionRuntimeOrchestratorDeps,
@@ -242,6 +249,7 @@ describe("SessionRuntime construction", () => {
 			messageBuilder: [],
 			providers: [],
 			automationEventTypes: [],
+			mcpServers: [],
 		});
 	});
 });
@@ -294,6 +302,44 @@ describe("SessionRuntime.getExtensionRegistry", () => {
 		expect(registry.commands).toHaveLength(1);
 		expect(registry.commands[0].name).toBe("ext-cmd");
 		expect(registry.automationEventTypes).toEqual([]);
+		expect(registry.mcpServers).toEqual([]);
+	});
+
+	it("keeps plugin-registered MCP servers out of direct runtime tools", async () => {
+		const extension: AgentExtension = {
+			name: "mcp-ext",
+			manifest: { capabilities: ["mcp"] },
+			setup(api) {
+				api.registerMcpServer({
+					name: "plugin-mock",
+					transport: {
+						type: "stdio",
+						command: process.execPath,
+					},
+				});
+			},
+		};
+		const { deps, configs } = withCapturingFakeRuntime();
+		const session = new SessionRuntime(
+			makeAgentConfig({ extensions: [extension] }),
+			deps,
+		);
+
+		await session.run("go");
+
+		expect((configs[0]?.tools ?? []).map((tool) => tool.name)).not.toContain(
+			"plugin-mock__echo",
+		);
+		expect(session.getExtensionRegistry().mcpServers).toEqual([
+			expect.objectContaining({
+				name: "plugin-mock",
+				metadata: {
+					source: "plugin",
+					plugin: "mcp-ext",
+				},
+			}),
+		]);
+		await session.shutdown("test");
 	});
 
 	it("composes extension-registered rules into the runtime system prompt", async () => {
@@ -523,6 +569,85 @@ describe("SessionRuntime message preparation", () => {
 		expect(textParts).toEqual(["original", "builder-added"]);
 	});
 
+	it("merges beforeModel metadata through final message preparation", async () => {
+		const extension: AgentExtension = {
+			name: "metadata-ext",
+			manifest: { capabilities: ["hooks"] },
+			hooks: {
+				beforeModel: () => ({
+					options: {
+						metadata: {
+							runId: "run-plugin",
+							iteration: 2,
+						},
+					},
+				}),
+			},
+		};
+		const { deps, configs } = makeRecordingRuntimeFactory();
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				extensions: [extension],
+				hooks: {
+					beforeModel: () => ({
+						options: {
+							metadata: {
+								sessionId: "session-config",
+								conversationId: "conversation-config",
+							},
+						},
+					}),
+				},
+			}),
+			deps,
+		);
+
+		await (
+			session as unknown as {
+				ensureExtensionsInitialized(): Promise<void>;
+			}
+		).ensureExtensionsInitialized();
+		const hooks = (
+			session as unknown as {
+				createRuntimeHooks(): AgentRuntimeConfig["hooks"];
+			}
+		).createRuntimeHooks();
+		const beforeModel = hooks?.beforeModel;
+		expect(beforeModel).toBeDefined();
+
+		const result = await beforeModel?.({
+			snapshot: makeSnapshot(),
+			request: {
+				systemPrompt: "system",
+				messages: [
+					{
+						id: "m1",
+						role: "user",
+						content: [
+							{
+								type: "text",
+								text: "<user_input>original</user_input>",
+							},
+						],
+						createdAt: 1,
+					},
+				],
+				tools: [],
+			},
+		});
+
+		expect(result?.options?.metadata).toMatchObject({
+			sessionId: "session-config",
+			conversationId: "conversation-config",
+			runId: "run-plugin",
+			iteration: 2,
+		});
+		expect(result?.messages?.[0]?.content).toEqual([
+			{ type: "text", text: "original" },
+		]);
+		expect(configs).toHaveLength(0);
+	});
+
 	it("adapts prepareTurn with API-safe messages for runtime compaction", async () => {
 		const prepareTurn = vi.fn(() => ({
 			messages: [
@@ -659,10 +784,15 @@ describe("SessionRuntime message preparation", () => {
 it("derives tool image support metadata from resolved provider model catalog", async () => {
 	const { deps, configs } = withCapturingFakeRuntime();
 	const execute = vi.fn(async () => "ok");
+	const telemetry = {
+		capture: vi.fn(),
+		captureRequired: vi.fn(),
+	} as unknown as AgentConfig["telemetry"];
 	const session = new SessionRuntime(
 		makeAgentConfig({
 			providerId: "cline",
 			modelId: "anthropic/claude-sonnet-4.6",
+			telemetry,
 			tools: [
 				{
 					name: "read_file",
@@ -712,8 +842,12 @@ it("derives tool image support metadata from resolved provider model catalog", a
 	expect(execute).toHaveBeenCalledTimes(1);
 	expect(execute.mock.calls[0]).toEqual([expect.anything(), toolContext]);
 	expect(runtimeConfig.toolContextMetadata).toEqual(
-		expect.objectContaining({ modelSupportsImages: true }),
+		expect.objectContaining({
+			modelSupportsImages: true,
+			[CLINE_INTERNAL_TELEMETRY_METADATA_KEY]: telemetry,
+		}),
 	);
+	expect(runtimeConfig.toolContextMetadata?.telemetry).toBeUndefined();
 });
 
 describe("SessionRuntime.run", () => {
@@ -1098,6 +1232,69 @@ describe("SessionRuntime.addTools / updateConnection / clearHistory / restore", 
 		expect(messages).toHaveLength(2);
 		expect(messages[0].role).toBe("user");
 		expect(messages[1].role).toBe("assistant");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// real AgentRuntime smoke
+// ---------------------------------------------------------------------------
+
+describe("SessionRuntime real AgentRuntime smoke", () => {
+	it("does not replay ERROR: EMPTY CONTENT after an empty upstream failure", async () => {
+		const modelRequests: AgentMessage[][] = [];
+		const scriptedModel: AgentModel = {
+			async stream(request) {
+				modelRequests.push(request.messages.map((message) => ({ ...message })));
+				const turn = modelRequests.length;
+
+				return (async function* () {
+					if (turn === 1) {
+						yield {
+							type: "finish" as const,
+							reason: "error" as const,
+							error: "upstream failed",
+						};
+						return;
+					}
+					yield { type: "text-delta" as const, text: "second ok" };
+					yield { type: "finish" as const, reason: "stop" as const };
+				})();
+			},
+		};
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				providerId: "cline",
+				modelId: "openai/gpt-5.5",
+				apiKey: "test-key",
+			}),
+			{
+				createAgentRuntimeImpl: (config) =>
+					createAgentRuntime({ ...config, model: scriptedModel }),
+			},
+		);
+
+		const first = await session.run("first");
+		expect(first.finishReason).toBe("error");
+		expect(first.text).toBe("upstream failed");
+		expect(session.getMessages().map((message) => message.role)).toEqual([
+			"user",
+		]);
+
+		const second = await session.continue("second");
+		expect(second.finishReason).toBe("completed");
+		expect(second.text).toBe("second ok");
+		expect(modelRequests).toHaveLength(2);
+		expect(
+			modelRequests[1]?.some((message) =>
+				message.content.some(
+					(part) => part.type === "text" && part.text === EMPTY_CONTENT_TEXT,
+				),
+			),
+		).toBe(false);
+		expect(modelRequests[1]?.map((message) => message.role)).toEqual([
+			"user",
+			"user",
+		]);
 	});
 });
 

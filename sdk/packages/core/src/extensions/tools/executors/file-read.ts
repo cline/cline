@@ -4,11 +4,19 @@
  * Built-in implementation for reading files using Node.js fs module.
  */
 
+import { createReadStream } from "node:fs";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import { createInterface } from "node:readline";
 import type { AgentToolContext } from "@cline/shared";
+import { resolveExistingFilePath } from "@cline/shared/storage";
 import type { ReadFileRequest } from "../schemas";
 import type { FileReadExecutor } from "../types";
+import {
+	MAX_LINE_CHARS,
+	MAX_READ_LINES,
+	MAX_READ_OUTPUT_CHARS,
+} from "./output-limits";
 
 const IMAGE_MEDIA_TYPES = new Map<string, string>([
 	[".gif", "image/gif"],
@@ -47,6 +55,139 @@ const DEFAULT_FILE_READ_OPTIONS: Required<FileReadExecutorOptions> = {
 	includeLineNumbers: true, // Include line numbers by default
 };
 
+const MAX_TEXT_STREAM_BYTES = 100_000_000;
+const MAX_UNRANGED_LINE_SCAN = 50_000;
+
+interface CapturedLine {
+	lineNumber: number;
+	text: string;
+}
+
+function getAbortError(signal: AbortSignal): Error {
+	const { reason } = signal;
+	if (reason instanceof Error) {
+		return reason;
+	}
+	if (reason !== undefined) {
+		return new Error(String(reason));
+	}
+	return new Error("File read was aborted");
+}
+
+async function readTextWindow(
+	filePath: string,
+	encoding: BufferEncoding,
+	includeLineNumbers: boolean,
+	startLine: number | null | undefined,
+	endLine: number | null | undefined,
+	signal?: AbortSignal,
+): Promise<string> {
+	if (signal?.aborted) {
+		throw getAbortError(signal);
+	}
+
+	const requestedStartLine = Math.max(startLine ?? 1, 1);
+	const requestedEndLine = endLine ?? Number.POSITIVE_INFINITY;
+	const hasFiniteEndLine = Number.isFinite(requestedEndLine);
+	const maxScannedLine = hasFiniteEndLine
+		? requestedEndLine
+		: requestedStartLine + MAX_UNRANGED_LINE_SCAN - 1;
+	const captured: CapturedLine[] = [];
+	let chars = 0;
+	let totalLines = 0;
+	let capped = false;
+	let approximateTotalLines = false;
+	const maxCapturedLineNumber = Number.isFinite(requestedEndLine)
+		? Math.min(requestedEndLine, requestedStartLine + MAX_READ_LINES - 1)
+		: requestedStartLine + MAX_READ_LINES - 1;
+	const lineNumberPrefixChars = includeLineNumbers
+		? String(maxCapturedLineNumber).length + 3
+		: 0;
+
+	const stream = createReadStream(filePath, { encoding });
+	const reader = createInterface({
+		input: stream,
+		crlfDelay: Number.POSITIVE_INFINITY,
+	});
+	const abortHandler = signal
+		? () => stream.destroy(getAbortError(signal))
+		: undefined;
+
+	if (signal && abortHandler) {
+		signal.addEventListener("abort", abortHandler, { once: true });
+	}
+
+	try {
+		for await (const rawLine of reader) {
+			totalLines += 1;
+			if (totalLines > requestedEndLine) {
+				totalLines = requestedEndLine;
+				break;
+			}
+			if (!hasFiniteEndLine && capped && totalLines >= maxScannedLine) {
+				approximateTotalLines = true;
+				break;
+			}
+			if (totalLines < requestedStartLine || capped) {
+				continue;
+			}
+			if (captured.length >= MAX_READ_LINES) {
+				capped = true;
+				continue;
+			}
+
+			let line = rawLine;
+			if (line.length > MAX_LINE_CHARS) {
+				line = `${line.slice(0, MAX_LINE_CHARS)} [line truncated]`;
+			}
+
+			const nextChars = chars + line.length + lineNumberPrefixChars + 1;
+			if (nextChars > MAX_READ_OUTPUT_CHARS && captured.length > 0) {
+				capped = true;
+				continue;
+			}
+
+			captured.push({ lineNumber: totalLines, text: line });
+			chars = nextChars;
+		}
+	} finally {
+		if (signal && abortHandler) {
+			signal.removeEventListener("abort", abortHandler);
+		}
+		reader.close();
+		stream.destroy();
+	}
+
+	const maxLineNumWidth = String(
+		captured[captured.length - 1]?.lineNumber ?? totalLines,
+	).length;
+	const body = captured
+		.map(({ lineNumber, text }) =>
+			includeLineNumbers
+				? `${String(lineNumber).padStart(maxLineNumWidth, " ")} | ${text}`
+				: text,
+		)
+		.join("\n");
+	const lastCapturedLine = captured[captured.length - 1]?.lineNumber;
+	if (lastCapturedLine === undefined) {
+		return body;
+	}
+
+	const effectiveEndLine = Math.min(requestedEndLine, totalLines);
+	if (lastCapturedLine >= effectiveEndLine) {
+		return body;
+	}
+	const totalLineText = approximateTotalLines
+		? `${totalLines}+ lines`
+		: effectiveEndLine;
+
+	return (
+		`${body}\n\n` +
+		`[Showing lines ${requestedStartLine}-${lastCapturedLine} of ${totalLineText}. ` +
+		"Use start_line/end_line to read other sections.]"
+	);
+}
+
 /**
  * Create a file read executor using Node.js fs module
  *
@@ -70,9 +211,13 @@ export function createFileReadExecutor(
 
 	return async (request: ReadFileRequest, context: AgentToolContext) => {
 		const { path: filePath, start_line, end_line } = request;
-		const resolvedPath = path.isAbsolute(filePath)
+		const initialPath = path.isAbsolute(filePath)
 			? path.normalize(filePath)
 			: path.resolve(process.cwd(), filePath);
+		// Tolerate Unicode-whitespace mismatches (e.g. macOS Sonoma+
+		// screenshot paths where the on-disk filename contains U+202F but
+		// the caller's string has a regular space).
+		const resolvedPath = resolveExistingFilePath(initialPath) ?? initialPath;
 		const extension = path.extname(resolvedPath).toLowerCase();
 		const imageMediaType = IMAGE_MEDIA_TYPES.get(extension);
 
@@ -83,15 +228,12 @@ export function createFileReadExecutor(
 			throw new Error(`Path is not a file: ${resolvedPath}`);
 		}
 
-		// Check file size
-		if (stat.size > maxFileSizeBytes) {
-			throw new Error(
-				`File too large: ${stat.size} bytes (max: ${maxFileSizeBytes} bytes). ` +
-					`Consider reading specific sections or using a different approach.`,
-			);
-		}
-
 		if (imageMediaType) {
+			if (stat.size > maxFileSizeBytes) {
+				throw new Error(
+					`Image file too large: ${stat.size} bytes (max: ${maxFileSizeBytes} bytes).`,
+				);
+			}
 			if (context.metadata?.modelSupportsImages !== true) {
 				throw new Error("Current model does not support image input");
 			}
@@ -109,27 +251,19 @@ export function createFileReadExecutor(
 			];
 		}
 
-		// Read file content
-		const content = await fs.readFile(resolvedPath, encoding);
-		const allLines = content.split("\n");
-		const rangeStart = Math.max((start_line ?? 1) - 1, 0);
-		const rangeEndExclusive = Math.min(
-			end_line ?? allLines.length,
-			allLines.length,
-		);
-		const lines = allLines.slice(rangeStart, rangeEndExclusive);
-
-		// Optionally add line numbers - one-based indexing for better readability
-		if (includeLineNumbers) {
-			const maxLineNumWidth = String(allLines.length).length;
-			return lines
-				.map(
-					(line, i) =>
-						`${String(rangeStart + i + 1).padStart(maxLineNumWidth, " ")} | ${line}`,
-				)
-				.join("\n");
+		if (stat.size > MAX_TEXT_STREAM_BYTES) {
+			throw new Error(
+				`Text file too large to stream safely: ${stat.size} bytes (max: ${MAX_TEXT_STREAM_BYTES} bytes). Use a targeted command such as sed, grep, head, or tail to inspect specific sections.`,
+			);
 		}
 
-		return lines.join("\n");
+		return readTextWindow(
+			resolvedPath,
+			encoding,
+			includeLineNumbers,
+			start_line,
+			end_line,
+			context.signal,
+		);
 	};
 }

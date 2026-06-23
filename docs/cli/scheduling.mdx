@@ -100,7 +100,7 @@ cline schedule create "Code health" \
 Combine schedules with [connectors](/cli/connectors) to send results to messaging platforms:
 
 ```bash
-cline connect telegram -m my_bot -k $BOT_TOKEN
+cline connect telegram -k $BOT_TOKEN
 
 cline schedule create "Morning briefing" \
   --cron "0 8 * * *" \

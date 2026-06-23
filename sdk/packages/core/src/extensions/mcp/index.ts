@@ -25,6 +25,11 @@ export type {
 	McpOAuthProviderContext,
 } from "./oauth";
 export { authorizeMcpServerOAuth } from "./oauth";
+export type { PluginMcpServerResolution } from "./plugin-server-registration";
+export {
+	normalizePluginMcpServerRegistration,
+	resolvePluginMcpServerRegistrations,
+} from "./plugin-server-registration";
 export type {
 	CreateDisabledMcpToolPoliciesOptions,
 	CreateDisabledMcpToolPolicyOptions,

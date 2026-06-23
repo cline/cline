@@ -1,6 +1,57 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createGatewayApiHandler, toGatewayRequestMessages } from "./compat";
+import { ClineNotSubscribedError } from "./errors";
 import type { Message } from "./types";
+
+const streamTextSpy = vi.fn();
+const openaiCompatibleFactorySpy = vi.fn();
+const openaiCompatibleSpy = vi.fn((modelId: string) => ({
+	modelId,
+	family: "openai-compatible",
+}));
+
+vi.mock("ai", () => ({
+	jsonSchema: (schema: unknown, options: unknown) => ({
+		jsonSchema: schema,
+		...(options && typeof options === "object" ? options : {}),
+	}),
+	streamText: (input: unknown) => streamTextSpy(input),
+	wrapLanguageModel: ({ model }: { model: unknown }) => model,
+}));
+
+vi.mock("@ai-sdk/openai-compatible", () => ({
+	createOpenAICompatible: (config: unknown) => {
+		openaiCompatibleFactorySpy(config);
+		return (modelId: string) => openaiCompatibleSpy(modelId);
+	},
+}));
+
+vi.mock("@ai-sdk/openai", () => ({
+	createOpenAI: () => ({
+		responses: (modelId: string) => ({ modelId, family: "openai" }),
+	}),
+}));
+
+vi.mock("@ai-sdk/anthropic", () => ({
+	createAnthropic: () => (modelId: string) => ({
+		modelId,
+		family: "anthropic",
+	}),
+}));
+
+vi.mock("@ai-sdk/google", () => ({
+	createGoogleGenerativeAI: () => (modelId: string) => ({
+		modelId,
+		family: "google",
+	}),
+}));
+
+vi.mock("ai-sdk-provider-codex-cli", () => ({
+	createCodexExec: () => (modelId: string) => ({
+		modelId,
+		family: "openai-codex",
+	}),
+}));
 
 describe("createGatewayApiHandler.getMessages", () => {
 	it("preserves structured tool_result content for gateway requests", () => {
@@ -296,6 +347,218 @@ describe("createGatewayApiHandler.getMessages", () => {
 				},
 			],
 		});
+	});
+});
+
+describe("createGatewayApiHandler.createMessage", () => {
+	beforeEach(() => {
+		streamTextSpy.mockReset();
+		openaiCompatibleFactorySpy.mockReset();
+		openaiCompatibleSpy.mockClear();
+	});
+
+	it("does not convert catalog maxTokens into request maxOutputTokens", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: (async function* () {
+				yield { type: "finish", finishReason: "stop" };
+			})(),
+			usage: Promise.resolve({ inputTokens: 1, outputTokens: 1 }),
+		});
+
+		const handler = createGatewayApiHandler({
+			providerId: "openrouter",
+			clientType: "openai-compatible",
+			modelId: "z-ai/glm-5.1",
+			apiKey: "test-key",
+			knownModels: {
+				"z-ai/glm-5.1": {
+					id: "z-ai/glm-5.1",
+					name: "GLM 5.1",
+					contextWindow: 202_800,
+					maxInputTokens: 202_800,
+					maxTokens: 202_800,
+					capabilities: ["tools"],
+				},
+			},
+		});
+
+		for await (const _chunk of handler.createMessage("", [
+			{ role: "user", content: "Hello" },
+		])) {
+			// Drain the stream so the provider request is executed.
+		}
+
+		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+			| { maxOutputTokens?: unknown }
+			| undefined;
+		expect(call).not.toHaveProperty("maxOutputTokens");
+	});
+
+	it("caps configured maxOutputTokens with the catalog model output limit", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: (async function* () {
+				yield { type: "finish", finishReason: "stop" };
+			})(),
+			usage: Promise.resolve({ inputTokens: 1, outputTokens: 1 }),
+		});
+
+		const handler = createGatewayApiHandler({
+			providerId: "openrouter",
+			clientType: "openai-compatible",
+			modelId: "small-output",
+			apiKey: "test-key",
+			maxOutputTokens: 16_000,
+			knownModels: {
+				"small-output": {
+					id: "small-output",
+					name: "Small Output",
+					contextWindow: 202_800,
+					maxInputTokens: 202_800,
+					maxTokens: 8_192,
+					capabilities: ["tools"],
+				},
+			},
+		});
+
+		for await (const _chunk of handler.createMessage("", [
+			{ role: "user", content: "Hello" },
+		])) {
+			// Drain the stream so the provider request is executed.
+		}
+
+		expect(streamTextSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				maxOutputTokens: 8_192,
+			}),
+		);
+	});
+
+	it("adds Azure API version to deployment-style OpenAI-compatible requests", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: (async function* () {
+				yield { type: "finish", finishReason: "stop" };
+			})(),
+			usage: Promise.resolve({ inputTokens: 1, outputTokens: 1 }),
+		});
+		const providerFetch = vi.fn(
+			async () => new Response("{}"),
+		) as unknown as typeof fetch;
+
+		const handler = createGatewayApiHandler({
+			providerId: "openai-compatible",
+			clientType: "openai-compatible",
+			modelId: "gpt-4.1",
+			apiKey: "test-key",
+			baseUrl: "https://example.openai.azure.com/openai/deployments/gpt-4.1",
+			fetch: providerFetch,
+			azure: { apiVersion: "2025-01-01-preview" },
+		});
+
+		for await (const _chunk of handler.createMessage("", [
+			{ role: "user", content: "Hello" },
+		])) {
+			// Drain the stream so the provider is constructed.
+		}
+
+		const factoryConfig = openaiCompatibleFactorySpy.mock.calls.at(-1)?.[0] as
+			| { fetch?: typeof fetch }
+			| undefined;
+		expect(factoryConfig?.fetch).toEqual(expect.any(Function));
+
+		await factoryConfig?.fetch?.(
+			"https://example.openai.azure.com/openai/deployments/gpt-4.1/chat/completions",
+			{ method: "POST" },
+		);
+
+		expect(providerFetch).toHaveBeenCalledWith(
+			"https://example.openai.azure.com/openai/deployments/gpt-4.1/chat/completions?api-version=2025-01-01-preview",
+			{ method: "POST" },
+		);
+	});
+
+	it("does not add Azure API version to OpenAI v1-compatible requests", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: (async function* () {
+				yield { type: "finish", finishReason: "stop" };
+			})(),
+			usage: Promise.resolve({ inputTokens: 1, outputTokens: 1 }),
+		});
+		const providerFetch = vi.fn(
+			async () => new Response("{}"),
+		) as unknown as typeof fetch;
+
+		const handler = createGatewayApiHandler({
+			providerId: "openai-compatible",
+			clientType: "openai-compatible",
+			modelId: "gpt-4.1",
+			apiKey: "test-key",
+			baseUrl: "https://example.openai.azure.com/openai/v1",
+			fetch: providerFetch,
+			azure: { apiVersion: "2025-01-01-preview" },
+		});
+
+		for await (const _chunk of handler.createMessage("", [
+			{ role: "user", content: "Hello" },
+		])) {
+			// Drain the stream so the provider is constructed.
+		}
+
+		const factoryConfig = openaiCompatibleFactorySpy.mock.calls.at(-1)?.[0] as
+			| { fetch?: typeof fetch }
+			| undefined;
+		await factoryConfig?.fetch?.(
+			"https://example.openai.azure.com/openai/v1/chat/completions",
+			{ method: "POST" },
+		);
+
+		expect(providerFetch).toHaveBeenCalledWith(
+			"https://example.openai.azure.com/openai/v1/chat/completions",
+			{ method: "POST" },
+		);
+	});
+
+	it("throws ClineNotSubscribedError for ClinePass required-plan 403 responses", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: (async function* () {
+				yield { type: "finish", finishReason: "stop" };
+			})(),
+			usage: Promise.resolve({ inputTokens: 1, outputTokens: 1 }),
+		});
+		const providerFetch = vi.fn(
+			async () =>
+				new Response(
+					JSON.stringify({
+						error: {
+							message: "the user is not subscribed to required model plan",
+						},
+					}),
+					{ status: 403 },
+				),
+		) as unknown as typeof fetch;
+
+		const handler = createGatewayApiHandler({
+			providerId: "cline-pass",
+			clientType: "openai-compatible",
+			modelId: "premium-model",
+			apiKey: "test-key",
+			fetch: providerFetch,
+		});
+
+		for await (const _chunk of handler.createMessage("", [
+			{ role: "user", content: "Hello" },
+		])) {
+			// Drain the stream so the provider is constructed.
+		}
+
+		const factoryConfig = openaiCompatibleFactorySpy.mock.calls.at(-1)?.[0] as
+			| { fetch?: typeof fetch }
+			| undefined;
+
+		await expect(
+			factoryConfig?.fetch?.("https://api.cline.bot/api/v1/chat/completions", {
+				method: "POST",
+			}),
+		).rejects.toBeInstanceOf(ClineNotSubscribedError);
 	});
 });
 

@@ -68,6 +68,41 @@ describe("AgentRuntime", () => {
 		expect(model.requests).toHaveLength(1);
 	});
 
+	it("does not persist an empty assistant message when the model stream fails", async () => {
+		const model = new ScriptedModel([
+			() => [{ type: "finish", reason: "error", error: "upstream failed" }],
+		]);
+		const addedMessages: AgentMessage[] = [];
+		const runtime = new AgentRuntime({ model });
+		runtime.subscribe((event) => {
+			if (event.type === "message-added") {
+				addedMessages.push(event.message);
+			}
+		});
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toBe("upstream failed");
+		expect(result.messages).toHaveLength(1);
+		expect(result.messages[0]?.role).toBe("user");
+		expect(addedMessages.map((message) => message.role)).toEqual(["user"]);
+	});
+
+	it("does not complete or persist history when the model returns no content", async () => {
+		const model = new ScriptedModel([
+			() => [{ type: "finish", reason: "stop" }],
+		]);
+		const runtime = new AgentRuntime({ model });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toBe("Model returned empty response");
+		expect(result.messages).toHaveLength(1);
+		expect(result.messages[0]?.role).toBe("user");
+	});
+
 	it("executes a tool call and continues the loop", async () => {
 		const model = new ScriptedModel([
 			() => [
@@ -442,7 +477,7 @@ describe("AgentRuntime", () => {
 	it("preserves structured multimodal tool results for the next model request", async () => {
 		const structuredOutput = [
 			{ type: "text", text: "Successfully read image" },
-			{ type: "image", data: "BASE64DATA", mediaType: "image/jpeg" },
+			{ type: "image", data: "QkFTRTY0REFUQQ==", mediaType: "image/jpeg" },
 		];
 		const model = new ScriptedModel([
 			() => [
@@ -594,6 +629,73 @@ describe("AgentRuntime", () => {
 			conversationId: "conversation_test",
 			iteration: 1,
 			toolCallId: "call_approval",
+			toolName: "echo",
+			input: { text: "hi" },
+			policy: { autoApprove: false },
+		});
+	});
+
+	it("applies beforeTool approval policy overrides before executing tools", async () => {
+		const executeTool = vi.fn(async () => ({ echoed: "hi" }));
+		const requestToolApproval = vi.fn(async () => ({
+			approved: false,
+			reason: "live policy denied",
+		}));
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_live_policy",
+					toolName: "echo",
+					inputText: '{"text":"hi"}',
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			(request) => {
+				const toolMessage = request.messages.at(-1) as AgentMessage;
+				expect(toolMessage.role).toBe("tool");
+				expect(toolMessage.content[0]).toMatchObject({
+					type: "tool-result",
+					isError: true,
+					output: { error: "live policy denied" },
+				});
+				return [
+					{ type: "text-delta", text: "live policy handled" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({
+			sessionId: "session_test",
+			agentId: "agent_test",
+			conversationId: "conversation_test",
+			model,
+			tools: [
+				{
+					name: "echo",
+					description: "Echo input text",
+					inputSchema: { type: "object" },
+					execute: executeTool,
+				},
+			],
+			toolPolicies: { "*": { autoApprove: true } },
+			hooks: {
+				beforeTool: () => ({ policy: { autoApprove: false } }),
+			},
+			requestToolApproval,
+		});
+
+		const result = await runtime.run("Start");
+
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("live policy handled");
+		expect(executeTool).not.toHaveBeenCalled();
+		expect(requestToolApproval).toHaveBeenCalledWith({
+			sessionId: "session_test",
+			agentId: "agent_test",
+			conversationId: "conversation_test",
+			iteration: 1,
+			toolCallId: "call_live_policy",
 			toolName: "echo",
 			input: { text: "hi" },
 			policy: { autoApprove: false },
@@ -958,6 +1060,47 @@ describe("AgentRuntime", () => {
 		expect(result.messages[0]).toEqual(compactedMessage);
 		expect(result.messages).toHaveLength(2);
 		expect(model.requests).toHaveLength(1);
+	});
+
+	it("merges beforeModel options metadata into the model request", async () => {
+		const model = new ScriptedModel([
+			(request) => {
+				expect(request.options?.metadata).toMatchObject({
+					sessionId: "session-1",
+					runId: "run-1",
+					iteration: 1,
+				});
+				return [
+					{ type: "text-delta", text: "done" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			modelOptions: { metadata: { existing: true } },
+			hooks: {
+				beforeModel: () => ({
+					options: {
+						metadata: {
+							sessionId: "session-1",
+							runId: "run-1",
+							iteration: 1,
+						},
+					},
+				}),
+			},
+		});
+
+		await runtime.run("capture metadata");
+
+		expect(model.requests).toHaveLength(1);
+		expect(model.requests[0]?.options?.metadata).toMatchObject({
+			existing: true,
+			sessionId: "session-1",
+			runId: "run-1",
+			iteration: 1,
+		});
 	});
 
 	it("preserves the existing system prompt when prepareTurn returns only messages", async () => {
@@ -1387,5 +1530,41 @@ describe("AgentRuntime", () => {
 		expect(snapshots.every((snapshot) => snapshot.agentRole === "lead")).toBe(
 			true,
 		);
+	});
+
+	it("resets usage between consecutive run/continue calls", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "usage",
+					usage: { inputTokens: 100, outputTokens: 20, totalCost: 0.5 },
+				},
+				{ type: "text-delta", text: "first" },
+				{ type: "finish", reason: "stop" },
+			],
+			() => [
+				{
+					type: "usage",
+					usage: { inputTokens: 200, outputTokens: 40, totalCost: 1.0 },
+				},
+				{ type: "text-delta", text: "second" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({ model });
+
+		const first = await runtime.run("Turn 1");
+		expect(first.usage).toMatchObject({
+			inputTokens: 100,
+			outputTokens: 20,
+			totalCost: 0.5,
+		});
+
+		const second = await runtime.continue("Turn 2");
+		expect(second.usage).toMatchObject({
+			inputTokens: 200,
+			outputTokens: 40,
+			totalCost: 1.0,
+		});
 	});
 });

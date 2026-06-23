@@ -3,7 +3,6 @@ import {
 	type EditFileInput,
 	INPUT_ARG_CHAR_LIMIT,
 	type ReadFileRequest,
-	ReadFilesInputUnionSchema,
 	type StructuredCommandInput,
 	StructuredCommandsInputUnionSchema,
 } from "./schemas";
@@ -36,6 +35,16 @@ export function getEditorSizeError(input: EditFileInput): string | null {
 /**
  * Create a timeout-wrapped promise
  */
+export class TimeoutError extends Error {
+	readonly timeoutMs: number;
+
+	constructor(message: string, timeoutMs: number) {
+		super(message);
+		this.name = "TimeoutError";
+		this.timeoutMs = timeoutMs;
+	}
+}
+
 export function withTimeout<T>(
 	promise: Promise<T>,
 	ms: number,
@@ -44,46 +53,9 @@ export function withTimeout<T>(
 	return Promise.race([
 		promise,
 		new Promise<never>((_, reject) => {
-			setTimeout(() => reject(new Error(message)), ms);
+			setTimeout(() => reject(new TimeoutError(message, ms)), ms);
 		}),
 	]);
-}
-
-export function normalizeReadFileRequests(input: unknown): ReadFileRequest[] {
-	const validate = validateWithZod(ReadFilesInputUnionSchema, input);
-
-	if (typeof validate === "string") {
-		return [{ path: validate }];
-	}
-
-	if (Array.isArray(validate)) {
-		return validate.map((value) =>
-			typeof value === "string" ? { path: value } : value,
-		);
-	}
-
-	if ("files" in validate) {
-		const files = Array.isArray(validate.files)
-			? validate.files
-			: [validate.files];
-		return files;
-	}
-
-	if ("file_paths" in validate) {
-		const filePaths = Array.isArray(validate.file_paths)
-			? validate.file_paths
-			: [validate.file_paths];
-		return filePaths.map((filePath) => ({ path: filePath }));
-	}
-
-	if ("paths" in validate) {
-		const paths = Array.isArray(validate.paths)
-			? validate.paths
-			: [validate.paths];
-		return paths.map((path) => (typeof path === "string" ? { path } : path));
-	}
-
-	return [validate];
 }
 
 export function formatReadFileQuery(request: ReadFileRequest): string {
@@ -151,4 +123,28 @@ export function formatRunCommandQuery(
 		/[\s"]/u.test(arg) ? JSON.stringify(arg) : arg,
 	);
 	return `${command.command} ${renderedArgs.join(" ")}`;
+}
+
+/**
+ * Max characters of the executed command echoed back in the tool result's
+ * `query` field. The full command already exists in the assistant tool-call
+ * input, so repeating it in the result only duplicates tokens in the
+ * provider request (expensive for large heredoc/file-generation commands).
+ */
+export const RUN_COMMAND_QUERY_PREVIEW_LIMIT = 200;
+
+/**
+ * Bound the command echo placed in a provider-facing tool result.
+ * Short commands pass through unchanged; long commands keep a short
+ * prefix plus a truncation note so the result is still identifiable.
+ */
+export function formatRunCommandQueryPreview(
+	command: string | StructuredCommandInput,
+): string {
+	const rendered = formatRunCommandQuery(command);
+	if (rendered.length <= RUN_COMMAND_QUERY_PREVIEW_LIMIT) {
+		return rendered;
+	}
+	const truncatedChars = rendered.length - RUN_COMMAND_QUERY_PREVIEW_LIMIT;
+	return `${rendered.slice(0, RUN_COMMAND_QUERY_PREVIEW_LIMIT)} ... [command truncated: ${truncatedChars} more chars; full command is in the tool call input]`;
 }

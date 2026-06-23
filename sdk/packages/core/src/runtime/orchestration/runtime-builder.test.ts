@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -7,7 +7,9 @@ import {
 	createContributionRegistry,
 	type Message,
 } from "@cline/shared";
+import { setHomeDir } from "@cline/shared/storage";
 import { afterEach, describe, expect, it } from "vitest";
+import { createUserInstructionConfigService } from "../../extensions/config";
 import { TelemetryService } from "../../services/telemetry/TelemetryService";
 import type { CoreSessionConfig } from "../../types/config";
 import { DefaultRuntimeBuilder } from "./runtime-builder";
@@ -52,10 +54,17 @@ async function collectExtensionTools(
 }
 
 describe("DefaultRuntimeBuilder", () => {
+	const previousHome = process.env.HOME;
 	const previousGlobalSettingsPath = process.env.CLINE_GLOBAL_SETTINGS_PATH;
+	const tempDirs: string[] = [];
 
 	afterEach(() => {
+		process.env.HOME = previousHome;
+		setHomeDir(previousHome ?? "~");
 		process.env.CLINE_GLOBAL_SETTINGS_PATH = previousGlobalSettingsPath;
+		for (const dir of tempDirs.splice(0)) {
+			rmSync(dir, { recursive: true, force: true });
+		}
 	});
 
 	it("includes builtin tools when enabled", async () => {
@@ -81,6 +90,100 @@ describe("DefaultRuntimeBuilder", () => {
 		});
 
 		expect(runtime.logger).toBe(logger);
+	});
+
+	it("loads configured agent files as named subagent tools", async () => {
+		const tempHome = mkdtempSync(join(tmpdir(), "cline-agent-home-"));
+		const workspaceRoot = mkdtempSync(join(tmpdir(), "cline-agent-workspace-"));
+		tempDirs.push(tempHome, workspaceRoot);
+		setHomeDir(tempHome);
+
+		const globalAgentsDir = join(tempHome, ".cline", "agents");
+		mkdirSync(globalAgentsDir, { recursive: true });
+		writeFileSync(
+			join(globalAgentsDir, "code-reviewer.yml"),
+			`---
+name: code-reviewer
+description: Reviews code for quality and best practices
+tools: Execute_Command, Read_File
+modelId: anthropic/claude-sonnet-4.6
+---
+You are a code reviewer.`,
+			"utf8",
+		);
+
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({
+				cwd: workspaceRoot,
+				workspaceRoot,
+				enableSpawnAgent: true,
+				enableAgentTeams: false,
+			}),
+			createSpawnTool: makeSpawnTool,
+		});
+
+		const configuredAgentTool = runtime.tools.find(
+			(tool) => tool.name === "subagent_code_reviewer",
+		);
+		expect(configuredAgentTool).toBeDefined();
+		expect(configuredAgentTool?.description).toContain(
+			'Use the "code-reviewer" subagent',
+		);
+		expect(runtime.tools.map((tool) => tool.name)).toContain("spawn_agent");
+	});
+
+	it("does not register root skills when only configured agents declare skills", async () => {
+		const tempHome = mkdtempSync(join(tmpdir(), "cline-agent-home-"));
+		const workspaceRoot = mkdtempSync(join(tmpdir(), "cline-agent-workspace-"));
+		const cwd = join(workspaceRoot, "packages", "app");
+		tempDirs.push(tempHome, workspaceRoot);
+		setHomeDir(tempHome);
+		mkdirSync(cwd, { recursive: true });
+
+		const agentsDir = join(workspaceRoot, ".cline", "agents");
+		const skillDir = join(workspaceRoot, ".cline", "skills", "review");
+		mkdirSync(agentsDir, { recursive: true });
+		mkdirSync(skillDir, { recursive: true });
+		writeFileSync(
+			join(agentsDir, "code-reviewer.yml"),
+			`---
+name: code-reviewer
+description: Reviews code
+tools: use_skill
+skills: review
+---
+You are a code reviewer.`,
+			"utf8",
+		);
+		writeFileSync(
+			join(skillDir, "SKILL.md"),
+			`---
+name: review
+---
+Use the review guidance.`,
+			"utf8",
+		);
+
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({
+				cwd,
+				workspaceRoot,
+				enableSpawnAgent: true,
+			}),
+			configExtensions: [],
+			createSpawnTool: makeSpawnTool,
+		});
+
+		expect(runtime.tools.map((tool) => tool.name)).toContain(
+			"subagent_code_reviewer",
+		);
+		expect(runtime.tools.map((tool) => tool.name)).not.toContain("skills");
+		expect(
+			(await collectExtensionTools(runtime.extensions)).map(
+				(tool) => tool.name,
+			),
+		).not.toContain("skills");
+		await runtime.shutdown("test");
 	});
 
 	it("forwards telemetry for downstream runtime consumers", async () => {
@@ -544,6 +647,162 @@ Use conventional commits.`,
 		await runtime.shutdown("test");
 	});
 
+	it("includes skills bundled in discovered plugin packages", async () => {
+		const cwd = mkdtempSync(join(tmpdir(), "runtime-builder-plugin-skills-"));
+		process.env.HOME = cwd;
+		setHomeDir(cwd);
+		const pluginDir = join(cwd, ".cline", "plugins", "review-plugin");
+		const skillDir = join(pluginDir, "skills", "review");
+		mkdirSync(skillDir, { recursive: true });
+		writeFileSync(
+			join(pluginDir, "package.json"),
+			JSON.stringify(
+				{
+					name: "review-plugin",
+					private: true,
+					cline: {
+						plugins: [{ paths: ["./index.ts"] }],
+					},
+				},
+				null,
+				2,
+			),
+			"utf8",
+		);
+		writeFileSync(join(pluginDir, "index.ts"), "export default {}", "utf8");
+		writeFileSync(
+			join(skillDir, "SKILL.md"),
+			`---
+name: review
+description: Review code
+---
+Use the review plugin guidance.`,
+			"utf8",
+		);
+
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({ cwd }),
+		});
+		const extensionTools = await collectExtensionTools(runtime.extensions);
+		const skillsTool = extensionTools.find((tool) => tool.name === "skills");
+		expect(skillsTool).toBeDefined();
+		if (!skillsTool) {
+			throw new Error("Expected skills tool.");
+		}
+
+		const result = await skillsTool.execute(
+			{ skill: "review" },
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+		expect(result).toContain("<command-name>review</command-name>");
+		expect(result).toContain("Use the review plugin guidance.");
+
+		await runtime.shutdown("test");
+	});
+
+	it("uses explicit plugin skill directories instead of rediscovering plugins", async () => {
+		const cwd = mkdtempSync(
+			join(tmpdir(), "runtime-builder-active-plugin-skills-"),
+		);
+		process.env.HOME = cwd;
+		setHomeDir(cwd);
+		const pluginDir = join(cwd, ".cline", "plugins", "review-plugin");
+		const skillRoot = join(pluginDir, "skills");
+		const skillDir = join(skillRoot, "review");
+		mkdirSync(skillDir, { recursive: true });
+		writeFileSync(
+			join(pluginDir, "package.json"),
+			JSON.stringify({
+				name: "review-plugin",
+				private: true,
+				cline: {
+					plugins: [{ paths: ["./index.ts"] }],
+				},
+			}),
+			"utf8",
+		);
+		writeFileSync(join(pluginDir, "index.ts"), "export default {}", "utf8");
+		writeFileSync(
+			join(skillDir, "SKILL.md"),
+			`---
+name: review
+description: Review code
+---
+Use the review plugin guidance.`,
+			"utf8",
+		);
+
+		const inactiveRuntime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({ cwd }),
+			pluginSkillDirectories: [],
+		});
+		const inactiveExtensionTools = await collectExtensionTools(
+			inactiveRuntime.extensions,
+		);
+		expect(inactiveExtensionTools.map((tool) => tool.name)).not.toContain(
+			"skills",
+		);
+		await inactiveRuntime.shutdown("test");
+
+		const activeRuntime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({ cwd }),
+			pluginSkillDirectories: [skillRoot],
+		});
+		const activeExtensionTools = await collectExtensionTools(
+			activeRuntime.extensions,
+		);
+		const skillsTool = activeExtensionTools.find(
+			(tool) => tool.name === "skills",
+		);
+		expect(skillsTool).toBeDefined();
+		await activeRuntime.shutdown("test");
+	});
+
+	it("does not include bundled plugin skills when plugins are disabled", async () => {
+		const cwd = mkdtempSync(
+			join(tmpdir(), "runtime-builder-plugin-skills-disabled-"),
+		);
+		process.env.HOME = cwd;
+		setHomeDir(cwd);
+		const pluginDir = join(cwd, ".cline", "plugins", "review-plugin");
+		const skillDir = join(pluginDir, "skills", "review");
+		mkdirSync(skillDir, { recursive: true });
+		writeFileSync(
+			join(pluginDir, "package.json"),
+			JSON.stringify({
+				name: "review-plugin",
+				private: true,
+				cline: {
+					plugins: [{ paths: ["./index.ts"] }],
+				},
+			}),
+			"utf8",
+		);
+		writeFileSync(join(pluginDir, "index.ts"), "export default {}", "utf8");
+		writeFileSync(
+			join(skillDir, "SKILL.md"),
+			`---
+name: review
+---
+Use the review plugin guidance.`,
+			"utf8",
+		);
+
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({ cwd }),
+			configExtensions: ["skills"],
+		});
+		const extensionTools = await collectExtensionTools(runtime.extensions);
+
+		expect(extensionTools.map((tool) => tool.name)).not.toContain("skills");
+
+		await runtime.shutdown("test");
+	});
+
 	it("allows tool routing rules to disable skills even when skills exist", async () => {
 		const cwd = mkdtempSync(
 			join(tmpdir(), "runtime-builder-skills-routing-disabled-"),
@@ -690,6 +949,36 @@ Review skill.`,
 		);
 		expect(blocked).toContain('Skill "review" not found.');
 		expect(blocked).toContain("Available skills: commit");
+
+		await runtime.shutdown("test");
+	});
+
+	it("does not register the skills tool when all configured skills are disabled", async () => {
+		const cwd = mkdtempSync(join(tmpdir(), "runtime-disabled-skills-"));
+		const skillDir = join(cwd, ".cline", "skills", "review");
+		mkdirSync(skillDir, { recursive: true });
+		writeFileSync(
+			join(skillDir, "SKILL.md"),
+			`---
+name: review
+disabled: true
+---
+Review skill.`,
+			"utf8",
+		);
+		const userInstructionService = createUserInstructionConfigService({
+			skills: { directories: [join(cwd, ".cline", "skills")] },
+			rules: { directories: [] },
+			workflows: { directories: [] },
+		});
+
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({ cwd }),
+			userInstructionService,
+		});
+
+		const extensionTools = await collectExtensionTools(runtime.extensions);
+		expect(extensionTools.map((tool) => tool.name)).not.toContain("skills");
 
 		await runtime.shutdown("test");
 	});

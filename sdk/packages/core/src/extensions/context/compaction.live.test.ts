@@ -251,6 +251,7 @@ async function runOversizedToolResultCompaction(
 				{
 					type: "tool_result" as const,
 					tool_use_id: "tool-live-report",
+					name: "tool",
 					content: [{ type: "text" as const, text: hugeToolOutput }],
 				},
 			],

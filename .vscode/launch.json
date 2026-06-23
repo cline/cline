@@ -10,23 +10,23 @@
 			"type": "extensionHost",
 			"request": "launch",
 			"args": [
-				"--extensionDevelopmentPath=${workspaceFolder}",
+				"--extensionDevelopmentPath=${workspaceFolder}/apps/vscode",
 				"--disable-workspace-trust",
 				"--disable-extension",
 				"saoudrizwan.claude-dev", // Avoid conflicts with installed Cline
 				"--disable-extension",
 				"saoudrizwan.cline-nightly", // Avoid conflicts with installed Cline Nightly
-				"${workspaceFolder}",
+				"${workspaceFolder}/apps/vscode",
 				"--disable-extensions"
 			],
 			"outFiles": [
-				"${workspaceFolder}/dist/**/*.js"
+				"${workspaceFolder}/apps/vscode/dist/**/*.js"
 			],
 			"preLaunchTask": "${defaultBuildTask}",
-			"envFile": "${workspaceFolder}/.env",
+			"envFile": "${workspaceFolder}/apps/vscode/.env",
 			"env": {
 				"IS_DEV": "true",
-				"DEV_WORKSPACE_FOLDER": "${workspaceFolder}",
+				"DEV_WORKSPACE_FOLDER": "${workspaceFolder}/apps/vscode",
 				"CLINE_ENVIRONMENT": "production"
 			}
 		},
@@ -35,22 +35,22 @@
 			"type": "extensionHost",
 			"request": "launch",
 			"args": [
-				"--extensionDevelopmentPath=${workspaceFolder}",
+				"--extensionDevelopmentPath=${workspaceFolder}/apps/vscode",
 				"--disable-workspace-trust",
 				"--disable-extension",
 				"saoudrizwan.claude-dev", // Avoid conflicts with installed Cline
 				"--disable-extension",
 				"saoudrizwan.cline-nightly", // Avoid conflicts with installed Cline Nightly
-				"${workspaceFolder}"
+				"${workspaceFolder}/apps/vscode"
 			],
 			"outFiles": [
-				"${workspaceFolder}/dist/**/*.js"
+				"${workspaceFolder}/apps/vscode/dist/**/*.js"
 			],
 			"preLaunchTask": "${defaultBuildTask}",
-			"envFile": "${workspaceFolder}/.env",
+			"envFile": "${workspaceFolder}/apps/vscode/.env",
 			"env": {
 				"IS_DEV": "true",
-				"DEV_WORKSPACE_FOLDER": "${workspaceFolder}",
+				"DEV_WORKSPACE_FOLDER": "${workspaceFolder}/apps/vscode",
 				"CLINE_ENVIRONMENT": "staging"
 			}
 		},
@@ -59,22 +59,22 @@
 			"type": "extensionHost",
 			"request": "launch",
 			"args": [
-				"--extensionDevelopmentPath=${workspaceFolder}",
+				"--extensionDevelopmentPath=${workspaceFolder}/apps/vscode",
 				"--disable-workspace-trust",
 				"--disable-extension",
 				"saoudrizwan.claude-dev", // Avoid conflicts with installed Cline
 				"--disable-extension",
 				"saoudrizwan.cline-nightly", // Avoid conflicts with installed Cline Nightly
-				"${workspaceFolder}"
+				"${workspaceFolder}/apps/vscode"
 			],
 			"outFiles": [
-				"${workspaceFolder}/dist/**/*.js"
+				"${workspaceFolder}/apps/vscode/dist/**/*.js"
 			],
 			"preLaunchTask": "${defaultBuildTask}",
-			"envFile": "${workspaceFolder}/.env",
+			"envFile": "${workspaceFolder}/apps/vscode/.env",
 			"env": {
 				"IS_DEV": "true",
-				"DEV_WORKSPACE_FOLDER": "${workspaceFolder}",
+				"DEV_WORKSPACE_FOLDER": "${workspaceFolder}/apps/vscode",
 				"CLINE_ENVIRONMENT": "local"
 			}
 		},
@@ -84,27 +84,27 @@
 			"request": "launch",
 			"runtimeExecutable": "${execPath}",
 			"args": [
-				"--user-data-dir=${workspaceFolder}/dist/tmp/user",
+				"--user-data-dir=${workspaceFolder}/apps/vscode/dist/tmp/user",
 				"--profile-temp",
 				"--sync=off",
 				"--disable-extension",
 				"saoudrizwan.claude-dev", // Avoid conflicts with installed Cline
 				"--disable-extension",
 				"saoudrizwan.cline-nightly", // Avoid conflicts with installed Cline Nightly
-				"--extensionDevelopmentPath=${workspaceFolder}",
-				"${workspaceFolder}"
+				"--extensionDevelopmentPath=${workspaceFolder}/apps/vscode",
+				"${workspaceFolder}/apps/vscode"
 			],
 			"outFiles": [
-				"${workspaceFolder}/dist/**/*.js"
+				"${workspaceFolder}/apps/vscode/dist/**/*.js"
 			],
 			"preLaunchTask": "clean-tmp-user",
 			"internalConsoleOptions": "openOnSessionStart",
 			"postDebugTask": "stop",
-			"envFile": "${workspaceFolder}/.env",
+			"envFile": "${workspaceFolder}/apps/vscode/.env",
 			"env": {
 				"IS_DEV": "true",
 				"TEMP_PROFILE": "true",
-				"DEV_WORKSPACE_FOLDER": "${workspaceFolder}",
+				"DEV_WORKSPACE_FOLDER": "${workspaceFolder}/apps/vscode",
 				"CLINE_ENVIRONMENT": "production"
 			}
 		},
@@ -117,13 +117,13 @@
 			],
 			"sourceMaps": true,
 			"resolveSourceMapLocations": [
-				"${workspaceFolder}/**",
+				"${workspaceFolder}/apps/vscode/**",
 				"!**/node_modules/**"
 			],
-			"cwd": "${workspaceFolder}",
+			"cwd": "${workspaceFolder}/apps/vscode",
 			"outFiles": [
-				"${workspaceFolder}/dist/**/*.js",
-				"${workspaceFolder}/dist-standalone/**/*.js"
+				"${workspaceFolder}/apps/vscode/dist/**/*.js",
+				"${workspaceFolder}/apps/vscode/dist-standalone/**/*.js"
 			],
 			"preLaunchTask": "compile-standalone",
 			"runtimeExecutable": "npx",
@@ -131,11 +131,11 @@
 				"tsx"
 			],
 			"program": "scripts/test-standalone-core-api-server.ts",
-			"envFile": "${workspaceFolder}/.env",
+			"envFile": "${workspaceFolder}/apps/vscode/.env",
 			"env": {
 				"PROTOBUS_PORT": "26040",
 				"HOSTBRIDGE_PORT": "26041",
-				"WORKSPACE_DIR": "${workspaceFolder}",
+				"WORKSPACE_DIR": "${workspaceFolder}/apps/vscode",
 				"E2E_TEST": "true",
 				"CLINE_ENVIRONMENT": "local"
 			},
@@ -151,10 +151,10 @@
 			],
 			"sourceMaps": true,
 			"resolveSourceMapLocations": [
-				"${workspaceFolder}/**",
+				"${workspaceFolder}/apps/vscode/**",
 				"!**/node_modules/**"
 			],
-			"cwd": "${workspaceFolder}",
+			"cwd": "${workspaceFolder}/apps/vscode",
 			"runtimeExecutable": "npx",
 			"runtimeArgs": [
 				"mocha"
@@ -169,7 +169,7 @@
 				"--exit",
 				"${file}"
 			],
-			"envFile": "${workspaceFolder}/.env",
+			"envFile": "${workspaceFolder}/apps/vscode/.env",
 			"env": {
 				"TS_NODE_PROJECT": "./tsconfig.unit-test.json",
 				"NODE_ENV": "test",
@@ -188,7 +188,7 @@
 				"run",
 				"storybook"
 			],
-			"cwd": "${workspaceFolder}/webview-ui",
+			"cwd": "${workspaceFolder}/apps/vscode/webview-ui",
 			"console": "integratedTerminal",
 			"internalConsoleOptions": "neverOpen",
 			"serverReadyAction": {
@@ -199,6 +199,119 @@
 			"env": {
 				"IS_DEV": "true"
 			}
+		},
+		{
+			"name": "Launch Bun CLI (Prompt)",
+			"type": "bun",
+			"request": "launch",
+			"cwd": "${workspaceFolder}/sdk/apps/cli",
+			"runtime": "bun",
+			"runtimeArgs": [
+				"--conditions=development"
+			],
+			"program": "${workspaceFolder}/sdk/apps/cli/src/index.ts",
+			"args": [
+				"${input:cliPrompt}"
+			],
+			"env": {
+				"CLINE_BUILD_ENV": "development"
+			},
+			"presentation": {
+				"hidden": true
+			}
+		},
+		{
+			"name": "Launch RPC Server",
+			"type": "bun",
+			"request": "launch",
+			"cwd": "${workspaceFolder}/sdk/apps/cli",
+			"runtime": "bun",
+			"runtimeArgs": [
+				"--conditions=development"
+			],
+			"program": "${workspaceFolder}/sdk/apps/cli/src/index.ts",
+			"args": [
+				"rpc",
+				"start"
+			],
+			"env": {
+				"CLINE_BUILD_ENV": "development",
+				"CLINE_DEBUG_PORT_BASE": "9230"
+			},
+			"presentation": {
+				"hidden": true
+			}
+		},
+		{
+			"name": "Attach RPC Runtime (9230)",
+			"type": "bun",
+			"request": "attach",
+			"url": "ws://127.0.0.1:9230",
+			"localRoot": "${workspaceFolder}/sdk",
+			"remoteRoot": "${workspaceFolder}/sdk",
+			"presentation": {
+				"hidden": true
+			}
+		},
+		{
+			"name": "Attach Hook Worker (9231)",
+			"type": "bun",
+			"request": "attach",
+			"url": "ws://127.0.0.1:9231",
+			"localRoot": "${workspaceFolder}/sdk",
+			"remoteRoot": "${workspaceFolder}/sdk",
+			"presentation": {
+				"hidden": true
+			}
+		},
+		{
+			"name": "Attach Plugin Sandbox (9232)",
+			"type": "bun",
+			"request": "attach",
+			"url": "ws://127.0.0.1:9232",
+			"localRoot": "${workspaceFolder}/sdk",
+			"remoteRoot": "${workspaceFolder}/sdk",
+			"presentation": {
+				"hidden": true
+			}
+		},
+		{
+			"name": "Attach Connector Child (9233)",
+			"type": "bun",
+			"request": "attach",
+			"url": "ws://127.0.0.1:9233",
+			"localRoot": "${workspaceFolder}/sdk",
+			"remoteRoot": "${workspaceFolder}/sdk",
+			"presentation": {
+				"hidden": true
+			}
+		}
+	],
+	"compounds": [
+		{
+			"name": "Launch RPC Server Debugger",
+			"configurations": [
+				"Launch RPC Server",
+				"Attach RPC Runtime (9230)"
+			]
+		},
+		{
+			"name": "Launch CLI Debugger",
+			"configurations": [
+				"Launch Bun CLI (Prompt)",
+				"Attach RPC Runtime (9230)",
+				"Attach Hook Worker (9231)",
+				"Attach Plugin Sandbox (9232)",
+				"Attach Connector Child (9233)"
+			]
+		}
+	],
+	"inputs": [
+		{
+			"id": "cliPrompt",
+			"type": "promptString",
+			"description": "Prompt to send to the CLI",
+			"default": "hey"
 		}
 	]
 }

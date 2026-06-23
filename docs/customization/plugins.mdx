@@ -11,9 +11,17 @@ Plugins extend Cline with custom tools, lifecycle hooks, slash commands, and mor
 
 ## Installing Plugins via CLI
 
-The `cline plugin install` command installs plugins from three source types:
+The `cline plugin install` command installs plugins from four source types:
 
 <Tabs>
+  <Tab title="File URL">
+    ```bash
+    cline plugin install https://github.com/owner/repo/blob/main/plugins/my-plugin.ts
+    cline plugin install https://raw.githubusercontent.com/owner/repo/main/plugins/my-plugin.ts
+    ```
+
+    File URLs install a single `.ts` or `.js` plugin file directly. GitHub `blob` and raw URLs are supported, and remote plugin file URLs must use `https://`.
+  </Tab>
   <Tab title="Git Repository">
     ```bash
     cline plugin install https://github.com/owner/repo.git
@@ -100,15 +108,15 @@ If no `cline.plugins` field is present, the installer falls back to auto-discove
 
 ### Host-Provided Dependencies
 
-Dependencies under the `@cline/` scope (like `@cline/core`, `@cline/shared`) are provided by the host runtime. The installer automatically strips these from the plugin's dependency list before running `npm install`, so you should declare them as `peerDependencies`:
+Dependencies under the `@cline/` scope are provided by the host runtime. The installer automatically strips these from the plugin's dependency list before running `npm install`, so declare any `@cline/*` package your plugin imports as an optional peer dependency. The host currently provides `@cline/sdk`, `@cline/core`, `@cline/agents`, `@cline/llms`, and `@cline/shared`.
 
 ```json
 {
   "peerDependencies": {
-    "@cline/core": "*"
+    "@cline/sdk": "*"
   },
   "peerDependenciesMeta": {
-    "@cline/core": {
+    "@cline/sdk": {
       "optional": true
     }
   }
@@ -125,6 +133,7 @@ Plugins are stored in the `plugins` directory at two levels:
     _installed/                # Managed by `cline plugin install`
       npm/                     # npm-sourced plugins
       git/                     # git-sourced plugins
+      remote/                  # file URL-sourced plugins
       local/                   # local-sourced plugins
 
 .cline/                        # Project root

@@ -5,12 +5,25 @@
  */
 
 import { spawn } from "node:child_process";
+import { StringDecoder } from "node:string_decoder";
 import {
 	type AgentToolContext,
 	getDefaultShell,
 	getShellArgs,
 } from "@cline/shared";
+import { TimeoutError } from "../helpers";
 import type { BashExecutor } from "../types";
+import { MAX_COMMAND_OUTPUT_CHARS } from "./output-limits";
+
+export class CommandExitError extends Error {
+	constructor(
+		readonly exitCode: number,
+		readonly output: string,
+	) {
+		super(`Command exited with code ${exitCode}`);
+		this.name = "CommandExitError";
+	}
+}
 
 /**
  * Options for the bash executor
@@ -29,8 +42,18 @@ export interface BashExecutorOptions {
 	timeoutMs?: number;
 
 	/**
-	 * Maximum output size in bytes
-	 * @default 1_000_000 (1MB)
+	 * Maximum output kept, in characters. Output beyond this is
+	 * middle-truncated: the head and tail are preserved and the middle is
+	 * elided, since build and test failures usually live at the end of the
+	 * output.
+	 * @default 48_000 — see MAX_COMMAND_OUTPUT_CHARS in output-limits.ts
+	 */
+	maxOutputChars?: number;
+
+	/**
+	 * @deprecated Misnamed — the limit was always enforced in characters,
+	 * not bytes. Use {@link maxOutputChars}; this alias is honored when
+	 * maxOutputChars is not set.
 	 */
 	maxOutputBytes?: number;
 
@@ -53,11 +76,70 @@ interface SpawnConfig {
 	env: Record<string, string>;
 }
 
+/**
+ * Collects stream output with bounded memory: the first half of the budget
+ * is kept verbatim, the rest rolls so the latest output always survives.
+ */
+function createRollingCollector(maxChars: number) {
+	const headLimit = Math.ceil(maxChars / 2);
+	const tailLimit = Math.max(1, maxChars - headLimit);
+	// StringDecoder keeps multibyte UTF-8 sequences split across stream
+	// chunks intact instead of corrupting them at chunk boundaries.
+	const decoder = new StringDecoder("utf8");
+	let head = "";
+	let tail = "";
+	let totalChars = 0;
+
+	const appendText = (text: string): void => {
+		if (!text) return;
+		totalChars += text.length;
+		const headRoom = headLimit - head.length;
+		if (headRoom > 0) {
+			head += text.slice(0, headRoom);
+			tail = (tail + text.slice(headRoom)).slice(-tailLimit);
+			return;
+		}
+		tail = (tail + text).slice(-tailLimit);
+	};
+
+	return {
+		append(data: Buffer): void {
+			appendText(decoder.write(data));
+		},
+		snapshot() {
+			// Flush bytes the decoder buffered for an incomplete multibyte
+			// sequence at end-of-stream; otherwise the final characters of
+			// non-ASCII output are silently dropped.
+			appendText(decoder.end());
+			return {
+				text: head + tail,
+				totalChars,
+				dropped: totalChars > head.length + tail.length,
+			};
+		},
+	};
+}
+
+function truncateMiddle(
+	text: string,
+	maxChars: number,
+	totalChars: number,
+): string {
+	const headLimit = Math.ceil(maxChars / 2);
+	const tailLimit = Math.max(1, maxChars - headLimit);
+	return (
+		`${text.slice(0, headLimit)}\n` +
+		`[... output truncated: ${totalChars} chars total. ` +
+		"Refine the command (grep, head, tail) to view the elided middle ...]\n" +
+		text.slice(-tailLimit)
+	);
+}
+
 function spawnAndCollect(
 	config: SpawnConfig,
 	context: AgentToolContext,
 	timeoutMs: number,
-	maxOutputBytes: number,
+	maxOutputChars: number,
 	combineOutput: boolean,
 ): Promise<string> {
 	return new Promise((resolve, reject) => {
@@ -68,12 +150,15 @@ function spawnAndCollect(
 			env: { ...process.env, ...config.env },
 			stdio: ["pipe", "pipe", "pipe"],
 			detached: !isWindows,
+			// Prevent a console window from flashing on Windows when the
+			// parent process has no console (or a different console).
+			// No-op on non-Windows platforms.
+			windowsHide: true,
 		});
 		const childPid = child.pid;
 
-		let stdout = "";
-		let stderr = "";
-		let outputSize = 0;
+		const stdout = createRollingCollector(maxOutputChars);
+		const stderr = createRollingCollector(maxOutputChars);
 		let killed = false;
 		let settled = false;
 
@@ -108,7 +193,10 @@ function spawnAndCollect(
 		};
 
 		const timeout = setTimeout(
-			() => killAndReject(new Error(`Command timed out after ${timeoutMs}ms`)),
+			() =>
+				killAndReject(
+					new TimeoutError(`Command timed out after ${timeoutMs}ms`, timeoutMs),
+				),
 			timeoutMs,
 		);
 
@@ -124,32 +212,52 @@ function spawnAndCollect(
 		};
 
 		child.stdout?.on("data", (data: Buffer) => {
-			outputSize += data.length;
-			if (outputSize <= maxOutputBytes) stdout += data.toString();
+			stdout.append(data);
 		});
 
 		child.stderr?.on("data", (data: Buffer) => {
-			outputSize += data.length;
-			if (outputSize <= maxOutputBytes) stderr += data.toString();
+			stderr.append(data);
 		});
 
 		child.on("close", (code) => {
 			cleanup();
 			if (killed) return;
 
-			let output = combineOutput
-				? stdout + (stderr ? `\n[stderr]\n${stderr}` : "")
-				: stdout;
-
-			if (outputSize > maxOutputBytes) {
-				output += `\n\n[Output truncated: ${outputSize} bytes total, showing first ${maxOutputBytes} bytes]`;
-			}
+			const out = stdout.snapshot();
+			const err = stderr.snapshot();
 
 			if (code !== 0) {
-				settle(() =>
-					reject(new Error(stderr || `Command exited with code ${code}`)),
-				);
+				const exitCode = code ?? 1;
+				let failureOutput = combineOutput
+					? out.text + (err.text ? `\n[stderr]\n${err.text}` : "")
+					: out.text;
+				const dropped = out.dropped || (combineOutput && err.dropped);
+				const totalChars = combineOutput
+					? out.totalChars + err.totalChars
+					: out.totalChars;
+				if (dropped || failureOutput.length > maxOutputChars) {
+					failureOutput = truncateMiddle(
+						failureOutput,
+						maxOutputChars,
+						totalChars,
+					);
+				}
+				const result =
+					failureOutput.length > 0
+						? `[Command exited with code ${exitCode}]\n${failureOutput}`
+						: `[Command exited with code ${exitCode}]`;
+				settle(() => reject(new CommandExitError(exitCode, result)));
 			} else {
+				let output = combineOutput
+					? out.text + (err.text ? `\n[stderr]\n${err.text}` : "")
+					: out.text;
+				const dropped = out.dropped || (combineOutput && err.dropped);
+				if (dropped || output.length > maxOutputChars) {
+					const totalChars = combineOutput
+						? out.totalChars + err.totalChars
+						: out.totalChars;
+					output = truncateMiddle(output, maxOutputChars, totalChars);
+				}
 				settle(() => resolve(output));
 			}
 		});
@@ -182,10 +290,13 @@ export function createBashExecutor(
 	const {
 		shell = getDefaultShell(process.platform),
 		timeoutMs = 30000,
-		maxOutputBytes = 1_000_000,
 		env = {},
 		combineOutput = true,
 	} = options;
+	const maxOutputChars =
+		options.maxOutputChars ??
+		options.maxOutputBytes ??
+		MAX_COMMAND_OUTPUT_CHARS;
 
 	return (command, cwd, context) => {
 		const isStructured = typeof command !== "string";
@@ -200,7 +311,7 @@ export function createBashExecutor(
 			},
 			context,
 			timeoutMs,
-			maxOutputBytes,
+			maxOutputChars,
 			combineOutput,
 		);
 	};

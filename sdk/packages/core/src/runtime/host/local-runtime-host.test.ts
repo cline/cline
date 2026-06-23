@@ -294,6 +294,73 @@ describe("LocalRuntimeHost", () => {
 		);
 	});
 
+	it("resolves OAuth credentials before creating the agent", async () => {
+		const sessionId = "sess-oauth-bootstrap";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest.json",
+				messagesPath: "/tmp/messages.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({ tools: [], shutdown: vi.fn() }),
+		};
+		const agent = {
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const createAgent = vi.fn(() => agent as never);
+		const oauthTokenManager = {
+			resolveProviderApiKey: vi.fn().mockResolvedValue({
+				apiKey: "workos:resolved-token",
+				refreshed: false,
+			}),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent,
+			oauthTokenManager: oauthTokenManager as never,
+		});
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({
+					sessionId,
+					providerId: "cline-pass",
+					modelId: "cline-pass/glm-5.1",
+					apiKey: undefined,
+				}),
+				prompt: "hello",
+			}),
+		);
+
+		expect(oauthTokenManager.resolveProviderApiKey).toHaveBeenCalledWith({
+			providerId: "cline-pass",
+		});
+		expect(createAgent).toHaveBeenCalledWith(
+			expect.objectContaining({
+				providerId: "cline-pass",
+				apiKey: "workos:resolved-token",
+			}),
+		);
+	});
+
 	it("captures active session lookup misses as handled telemetry", async () => {
 		const adapter = {
 			name: "test",
@@ -374,7 +441,7 @@ describe("LocalRuntimeHost", () => {
 			} as never,
 			runtimeBuilder: runtimeBuilder as never,
 			createAgent: (config) => {
-				expect(config.requestToolApproval).toBe(requestToolApproval);
+				expect(typeof config.requestToolApproval).toBe("function");
 				return agent as never;
 			},
 		});
@@ -401,6 +468,124 @@ describe("LocalRuntimeHost", () => {
 			undefined,
 			undefined,
 		);
+	});
+
+	it("marks interactive sessions pending while awaiting tool approval", async () => {
+		const sessionId = "sess-pending-approval-status";
+		const manifest = createManifest(sessionId);
+		let resolveApproval:
+			| ((result: { approved: boolean; reason?: string }) => void)
+			| undefined;
+		const requestToolApproval = vi.fn(
+			() =>
+				new Promise<{ approved: boolean; reason?: string }>((resolve) => {
+					resolveApproval = resolve;
+				}),
+		);
+		let capturedConfig: AgentConfig | undefined;
+		const updateSessionStatus = vi.fn().mockResolvedValue({ updated: true });
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				shutdown: vi.fn(),
+			}),
+		};
+		const agent = {
+			run: vi.fn(async () => {
+				const approval = await capturedConfig?.requestToolApproval?.({
+					sessionId,
+					agentId: "agent-root-1",
+					conversationId: "conv-root-1",
+					iteration: 1,
+					toolCallId: "call-approval-1",
+					toolName: "edit_file",
+					input: { path: "README.md" },
+					policy: { autoApprove: false },
+				});
+				expect(approval?.approved).toBe(true);
+				return createResult();
+			}),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: {
+				ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+				createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+					manifestPath: "/tmp/manifest.json",
+					messagesPath: "/tmp/messages.json",
+					manifest,
+				}),
+				persistSessionMessages: vi.fn(),
+				updateSessionStatus,
+				writeSessionManifest: vi.fn(),
+				listSessions: vi.fn().mockResolvedValue([]),
+				deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+			} as never,
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: (config) => {
+				capturedConfig = config;
+				return agent as never;
+			},
+		});
+		const pendingStatus = new Promise<void>((resolve) => {
+			manager.subscribe((event) => {
+				if (
+					event.type === "status" &&
+					event.payload.sessionId === sessionId &&
+					event.payload.status === "pending"
+				) {
+					resolve();
+				}
+			});
+		});
+
+		const started = manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				prompt: "hello",
+				interactive: true,
+				capabilities: { requestToolApproval },
+			}),
+		);
+		await pendingStatus;
+
+		await expect(manager.getSession(sessionId)).resolves.toMatchObject({
+			sessionId,
+			status: "pending",
+		});
+		resolveApproval?.({ approved: true });
+		await started;
+
+		expect(updateSessionStatus).toHaveBeenNthCalledWith(
+			1,
+			sessionId,
+			"pending",
+			null,
+		);
+		expect(updateSessionStatus).toHaveBeenNthCalledWith(
+			2,
+			sessionId,
+			"running",
+			null,
+		);
+		expect(updateSessionStatus).toHaveBeenNthCalledWith(
+			3,
+			sessionId,
+			"idle",
+			null,
+		);
+		await expect(manager.getSession(sessionId)).resolves.toMatchObject({
+			sessionId,
+			status: "idle",
+		});
 	});
 
 	it("ingests automation events emitted by sandbox plugins during setup", async () => {
@@ -688,7 +873,7 @@ describe("LocalRuntimeHost", () => {
 		expect(sessionService.readSessionManifest).toHaveBeenCalledWith(sessionId);
 	});
 
-	it("marks interactive turns completed without disposing the session", async () => {
+	it("marks interactive sessions idle after a completed turn", async () => {
 		const sessionId = "sess-interactive-turn-status";
 		const manifest = createManifest(sessionId);
 		const sessionService = {
@@ -703,7 +888,7 @@ describe("LocalRuntimeHost", () => {
 				.fn()
 				.mockImplementation(async (_sessionId: string, status: string) => ({
 					updated: true,
-					...(status === "running"
+					...(status === "running" || status === "idle" || status === "pending"
 						? {}
 						: { endedAt: "2026-01-01T00:00:05.000Z" }),
 				})),
@@ -743,18 +928,18 @@ describe("LocalRuntimeHost", () => {
 
 		expect(sessionService.updateSessionStatus).toHaveBeenCalledWith(
 			sessionId,
-			"completed",
-			0,
+			"idle",
+			null,
 		);
 		await expect(manager.getSession(sessionId)).resolves.toMatchObject({
 			sessionId,
-			status: "completed",
+			status: "idle",
 		});
 		expect(agent.shutdown).not.toHaveBeenCalled();
 		expect(runtime.shutdown).not.toHaveBeenCalled();
 	});
 
-	it("disposes idle interactive sessions without changing completed status", async () => {
+	it("disposes idle interactive sessions without changing status", async () => {
 		const sessionId = "sess-interactive-dispose";
 		const manifest = createManifest(sessionId);
 		const sessionService = {
@@ -2138,6 +2323,127 @@ describe("LocalRuntimeHost", () => {
 		).toEqual([]);
 	});
 
+	it("keeps the same live interactive session usable after aborting before the first response", async () => {
+		const sessionId = "sess-abort-then-next-turn";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest.json",
+				messagesPath: "/tmp/messages.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtime = { tools: [], shutdown: vi.fn() };
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue(runtime),
+		};
+		let messages: AgentResult["messages"] = [];
+		let activeRun = false;
+		let rejectRun: ((error: Error) => void) | undefined;
+		let markRunStarted: (() => void) | undefined;
+		const runStarted = new Promise<void>((resolve) => {
+			markRunStarted = resolve;
+		});
+		const run = vi.fn(
+			() =>
+				new Promise<AgentResult>((_resolve, reject) => {
+					activeRun = true;
+					messages = [{ role: "user", content: "slow" }];
+					rejectRun = (error) => {
+						activeRun = false;
+						reject(error);
+					};
+					markRunStarted?.();
+				}),
+		);
+		const continueTurn = vi.fn().mockResolvedValue(
+			createResult({
+				text: "continued after abort",
+			}),
+		);
+		const agent = {
+			run,
+			continue: continueTurn,
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+			getMessages: vi.fn(() => messages),
+			canStartRun: vi.fn(() => !activeRun),
+		};
+		agent.abort.mockImplementation(() => {
+			rejectRun?.(new Error("user cancelled before first response"));
+		});
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: () => agent as never,
+		});
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				interactive: true,
+			}),
+		);
+		const events: unknown[] = [];
+		manager.subscribe((event) => events.push(event));
+
+		const firstTurn = manager.runTurn({ sessionId, prompt: "slow" });
+		await runStarted;
+		await manager.abort(sessionId, new Error("test abort"));
+		await expect(firstTurn).resolves.toMatchObject({
+			finishReason: "aborted",
+		});
+
+		await expect(
+			manager.runTurn({ sessionId, prompt: "next turn after abort" }),
+		).resolves.toMatchObject({
+			finishReason: "completed",
+			text: "continued after abort",
+		});
+		await expect(manager.getSession(sessionId)).resolves.toMatchObject({
+			sessionId,
+			status: "idle",
+		});
+		expect(run).toHaveBeenCalledTimes(1);
+		expect(continueTurn).toHaveBeenCalledTimes(1);
+		expect(agent.shutdown).not.toHaveBeenCalled();
+		expect(runtime.shutdown).not.toHaveBeenCalled();
+		expect(sessionService.updateSessionStatus).toHaveBeenNthCalledWith(
+			1,
+			sessionId,
+			"idle",
+			null,
+		);
+		expect(sessionService.updateSessionStatus).toHaveBeenNthCalledWith(
+			2,
+			sessionId,
+			"running",
+			null,
+		);
+		expect(sessionService.updateSessionStatus).toHaveBeenNthCalledWith(
+			3,
+			sessionId,
+			"idle",
+			null,
+		);
+		expect(events).not.toContainEqual(
+			expect.objectContaining({
+				type: "ended",
+				payload: expect.objectContaining({ sessionId, reason: "aborted" }),
+			}),
+		);
+	});
+
 	it("preserves per-turn metadata on prior assistant messages across turns", async () => {
 		const sessionId = "sess-meta-multi";
 		const manifest = createManifest(sessionId);
@@ -2825,9 +3131,10 @@ describe("LocalRuntimeHost", () => {
 		expect(updateSessionStatus).toHaveBeenNthCalledWith(
 			2,
 			sessionId,
-			"completed",
-			0,
+			"idle",
+			null,
 		);
+		expect(updateSessionStatus).toHaveBeenCalledTimes(2);
 		const persistedMetadata = updateSession.mock.calls[0]?.[0]
 			.metadata as Record<string, unknown>;
 		expect(persistedMetadata.title).toBe("saved title");
@@ -3772,7 +4079,6 @@ describe("LocalRuntimeHost", () => {
 			runtimeBuilder,
 			oauthTokenManager: {
 				resolveProviderApiKey: vi.fn().mockResolvedValue({
-					providerId: "openai-codex",
 					apiKey: "oauth-access-new",
 					refreshed: true,
 				}),
@@ -4169,7 +4475,6 @@ describe("LocalRuntimeHost", () => {
 			.fn()
 			.mockResolvedValueOnce(null)
 			.mockResolvedValueOnce({
-				providerId: "openai-codex",
 				apiKey: "oauth-access-new",
 				refreshed: true,
 			});

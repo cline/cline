@@ -4,7 +4,7 @@ Learn how to build with the Cline SDK through practical, runnable examples.
 
 ## 📁 Plugin, Hook, and Automation Examples
 
-Plugins extend the CLI and SDK with custom capabilities. Install them in `~/.cline/plugins/`:
+Plugins extend the CLI and SDK with custom capabilities. Install local files, GitHub file URLs, package directories, git repos, and npm packages with `cline plugin install`:
 
 ### [`./plugins/`](./plugins/)
 
@@ -19,13 +19,40 @@ Examples include:
 - `mac-notify.ts` - macOS Notification Center alerts
 - `custom-compaction.ts` - Custom context compaction
 - `automation-events.ts` - Plugin event emission
-- `background-terminal.ts` - Background shell jobs with logging
+- `background-terminal.ts` - Background shell jobs with setup and job logging
 
 ```bash
-mkdir -p ~/.cline/plugins
-cp examples/plugins/weather-metrics.ts ~/.cline/plugins/weather-metrics.ts
+cline plugin install https://github.com/cline/cline/blob/main/sdk/examples/plugins/weather-metrics.ts
 cline -i "What's the weather like in Tokyo and Paris?"
 ```
+
+Plugin setup receives a host logger through the second `setup` argument. Use
+`ctx.logger` for setup-time diagnostics and logs emitted during tool calls:
+
+```ts
+setup(api, ctx) {
+  ctx.logger?.log("my-plugin setup", {
+    sessionId: ctx.session?.sessionId,
+    workspaceRoot: ctx.workspaceInfo?.rootPath,
+  });
+
+  try {
+    // Register tools or perform plugin setup work.
+  } catch (error) {
+    if (ctx.logger?.error) {
+      ctx.logger.error("my-plugin setup failed", { error });
+    } else {
+      ctx.logger?.log("my-plugin setup failed", { error, severity: "error" });
+    }
+    throw error;
+  }
+}
+```
+
+`ctx.logger` is session-scoped. For detached work that can outlive the session,
+such as background processes, persist status to plugin-owned storage or report
+completion through the host event channel instead of calling the captured logger
+from long-lived callbacks.
 
 ### [`./plugins/typescript-lsp/`](./plugins/typescript-lsp)
 
@@ -37,7 +64,7 @@ TypeScript LSP plugin that gives the agent a `goto_definition` tool powered by t
 - Zero extra dependencies -- resolves `typescript` from the target project
 
 ```bash
-cp examples/plugins/typescript-lsp/index.ts ~/.cline/plugins/typescript-lsp.ts
+cline plugin install https://github.com/cline/cline/blob/main/sdk/examples/plugins/typescript-lsp/index.ts
 cline -i "Find where createTool is defined"
 ```
 
@@ -48,6 +75,7 @@ cline -i "Find where createTool is defined"
 - Export a reusable plugin module for `.cline/plugins`
 - Start background subagents from the main session
 - Load bundled or custom agent presets and skills
+- Log setup, subagent starts, and follow-ups through `ctx.logger`
 
 Includes pre-configured agents:
 - **Anvil** - Build and compile
@@ -59,8 +87,7 @@ Skills available:
 - API design, code review, debugging, documentation, migration, refactoring, test generation
 
 ```bash
-mkdir -p ~/.cline/plugins
-cp examples/plugins/agents-squad/index.ts ~/.cline/plugins/portable-subagents.ts
+cline plugin install ./examples/plugins/agents-squad
 cline -i "Use subagents to inspect this repository and report back."
 ```
 
@@ -151,7 +178,7 @@ Current SDK layering:
 
 **Building integrations?**
 - Review [`./cron/`](./cron) for automation and event-driven workflows
-- Explore [`desktop-app/`](../apps/examples/desktop-app), [`vscode/`](../apps/examples/vscode), and [`menubar/`](../apps/examples/menubar) for app integration patterns
+- Explore [`desktop-app/`](../../apps/examples/desktop-app), [`vscode/`](../../apps/examples/vscode), and [`menubar/`](../../apps/examples/menubar) for app integration patterns
 
 **Controlling agent behavior?**
 - Explore [`./hooks/`](./hooks) to intercept and modify tool execution, log actions, or enforce policies

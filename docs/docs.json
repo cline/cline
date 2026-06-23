@@ -114,7 +114,8 @@
 											"cli/samples/github-issue-rca",
 											"cli/samples/github-integration",
 											"cli/samples/github-pr-review",
-											"cli/samples/model-orchestration"
+											"cli/samples/model-orchestration",
+											"cli/samples/supply-chain-alerts"
 										]
 									},
 									"cli/acp-editor-integrations"
@@ -153,6 +154,12 @@
 							"core-workflows/checkpoints",
 							"cli/agent-teams",
 							"features/subagents"
+						]
+					},
+					{
+						"group": "Best Practices",
+						"pages": [
+							"best-practices/memory-bank"
 						]
 					},
 					{
@@ -365,6 +372,10 @@
 			"destination": "/getting-started/installing-cline"
 		},
 		{
+			"source": "/getting-started/for-new-coders",
+			"destination": "/getting-started/installing-cline"
+		},
+		{
 			"source": "/getting-started/overview",
 			"destination": "/cline-overview"
 		},
@@ -430,11 +441,11 @@
 		},
 		{
 			"source": "/prompting/cline-memory-bank",
-			"destination": "/core-workflows/task-management"
+			"destination": "/best-practices/memory-bank"
 		},
 		{
 			"source": "/customization/memory-bank",
-			"destination": "/core-workflows/task-management"
+			"destination": "/best-practices/memory-bank"
 		},
 		{
 			"source": "/customization/overview",
@@ -650,7 +661,7 @@
 		},
 		{
 			"source": "/features/memory-bank",
-			"destination": "/core-workflows/task-management"
+			"destination": "/best-practices/memory-bank"
 		},
 		{
 			"source": "/features/focus-chain",

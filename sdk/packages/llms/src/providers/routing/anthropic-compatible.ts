@@ -6,6 +6,12 @@ import type {
 	GatewayProviderMetadata,
 	GatewayStreamRequest,
 } from "@cline/shared";
+import {
+	isAnthropicCompatibleModel,
+	isQwenModel,
+	modelRouteMatches,
+	resolveModelFamily,
+} from "../model-facts";
 import { createEphemeralCacheControl, toProviderOptionsKey } from "./utils";
 
 const ANTHROPIC_DEFAULT_THINKING_BUDGET_TOKENS = 1024;
@@ -82,110 +88,6 @@ export const ANTHROPIC_AND_QWEN_CACHE_ROUTING_METADATA =
 	createAnthropicRoutingMetadata({
 		promptCacheRoutes: [ANTHROPIC_COMPATIBLE_ROUTE, QWEN_PROMPT_CACHE_ROUTE],
 	});
-
-export function resolveModelFamily(
-	context: GatewayProviderContext,
-): string | undefined {
-	const family = context.model.metadata?.family;
-	return typeof family === "string" ? family : undefined;
-}
-
-export function isAnthropicCompatibleModel(options: {
-	modelId?: string;
-	family?: string;
-}): boolean {
-	const family = normalizeRoutingValue(options.family);
-	if (family) {
-		return isAnthropicLineageValue(family);
-	}
-
-	return isAnthropicCompatibleModelId(options.modelId);
-}
-
-export function isAnthropicCompatibleModelId(
-	modelId: string | undefined,
-): boolean {
-	if (!modelId) {
-		return false;
-	}
-
-	return isAnthropicLineageValue(modelId);
-}
-
-export function isQwenModel(options: {
-	modelId?: string;
-	family?: string;
-}): boolean {
-	const family = normalizeRoutingValue(options.family);
-	if (isQwenLineageValue(family)) {
-		return true;
-	}
-
-	const modelId = normalizeRoutingValue(options.modelId);
-	return isQwenLineageValue(modelId);
-}
-
-function normalizeRoutingValue(value: string | undefined) {
-	const normalized = value?.trim().toLowerCase();
-	return normalized ? normalized : undefined;
-}
-
-function isAnthropicLineageValue(value: string | undefined): boolean {
-	const normalized = normalizeRoutingValue(value);
-	return normalized
-		? normalized.includes("anthropic") || normalized.includes("claude")
-		: false;
-}
-
-function isQwenLineageValue(value: string | undefined): boolean {
-	return value ? /(^|[/:._-])qwen(?:$|[/:._-]|\d)/.test(value) : false;
-}
-
-function modelFamilyMatches(
-	family: string | undefined,
-	routeFamily: string | undefined,
-): boolean {
-	const normalizedFamily = normalizeRoutingValue(family);
-	const normalizedRouteFamily = normalizeRoutingValue(routeFamily);
-	if (!normalizedFamily || !normalizedRouteFamily) {
-		return false;
-	}
-	if (normalizedFamily === normalizedRouteFamily) {
-		return true;
-	}
-	return normalizedRouteFamily === "qwen"
-		? isQwenLineageValue(normalizedFamily)
-		: false;
-}
-
-function routeMatches(
-	route: GatewayModelRoute,
-	options: {
-		modelId?: string;
-		family?: string;
-		capabilities?: readonly string[];
-	},
-): boolean {
-	if (
-		"requiredCapability" in route &&
-		route.requiredCapability &&
-		!options.capabilities?.includes(route.requiredCapability)
-	) {
-		return false;
-	}
-
-	switch (route.matcher) {
-		case "anthropic-compatible":
-			return isAnthropicCompatibleModel(options);
-		case "model-family":
-			return modelFamilyMatches(options.family, route.family);
-		case "model-id":
-			return (
-				normalizeRoutingValue(options.modelId) ===
-				normalizeRoutingValue(route.modelId)
-			);
-	}
-}
 
 export function createPromptCacheProviderOptions(
 	providerId: string,
@@ -377,7 +279,7 @@ export function resolvePromptCacheRoute(
 		}
 
 		return promptCache.routes.find((route) =>
-			routeMatches(route, {
+			modelRouteMatches(route, {
 				modelId: request.modelId,
 				family: resolveModelFamily(context),
 				capabilities: context.model.capabilities,
@@ -404,7 +306,7 @@ export function resolveReasoningRoute(
 	}
 
 	return reasoning.routes.find((route) =>
-		routeMatches(route, {
+		modelRouteMatches(route, {
 			modelId: request.modelId,
 			family: resolveModelFamily(context),
 			capabilities: context.model.capabilities,
@@ -679,10 +581,16 @@ export function buildGatewayReasoningOptions(
 					explicitBudgetTokens: request.reasoning?.budgetTokens,
 				})
 			: request.reasoning?.budgetTokens;
+	const shouldSendDisabledReasoning =
+		request.reasoning?.enabled === false &&
+		// FIXME: temporary compatibility patch for models that reject disabled
+		// reasoning. Remove once routed providers normalize disabled reasoning
+		// consistently, or replace with a systematic model policy.
+		!modelRejectsDisabledReasoning(request.modelId);
 	const reasoning: Record<string, unknown> = {
 		...(request.reasoning?.enabled === true
 			? { enabled: true }
-			: request.reasoning?.enabled === false
+			: shouldSendDisabledReasoning
 				? { enabled: false }
 				: request.reasoning?.effort
 					? { enabled: true }
@@ -697,4 +605,12 @@ export function buildGatewayReasoningOptions(
 	}
 
 	return Object.keys(reasoning).length > 0 ? reasoning : undefined;
+}
+
+function modelRejectsDisabledReasoning(modelId: string): boolean {
+	const normalized = modelId.toLowerCase();
+	return (
+		normalized.includes("claude-fable") ||
+		normalized.includes("stepfun/step-3.7-flash")
+	);
 }

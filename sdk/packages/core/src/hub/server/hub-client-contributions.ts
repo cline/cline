@@ -377,6 +377,8 @@ function createUserInstructionServiceProxy(
 			configuredSkills(snapshot, allowedSkillNames).some(
 				(entry) => !entry.disabled,
 			),
+		createSkillsExecutor: (allowedSkillNames) =>
+			createSnapshotSkillsExecutor(snapshot, allowedSkillNames),
 		createExtension: (options): AgentExtension => ({
 			name: "cline-hub-user-instructions",
 			manifest: {

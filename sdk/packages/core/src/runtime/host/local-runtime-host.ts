@@ -13,6 +13,7 @@ import {
 	normalizeUserInput,
 } from "@cline/shared";
 import { setHomeDirIfUnset } from "@cline/shared/storage";
+import { isOAuthProvider } from "../../auth/provider-auth-registry";
 import { createContextCompactionPrepareTurn } from "../../extensions/context/compaction";
 import type { ToolExecutors } from "../../extensions/tools";
 import { DefaultToolNames } from "../../extensions/tools";
@@ -62,7 +63,11 @@ import {
 	shouldAutoContinueTeamRuns,
 	waitForTeamRunUpdates,
 } from "../../session/team";
-import { SessionSource, type SessionStatus } from "../../types/common";
+import {
+	isNonTerminalSessionStatus,
+	SessionSource,
+	type SessionStatus,
+} from "../../types/common";
 import type { CoreSessionConfig } from "../../types/config";
 import type { CoreSessionEvent } from "../../types/events";
 import type { ActiveSession, PreparedTurnInput } from "../../types/session";
@@ -91,6 +96,7 @@ import {
 } from "./local/session-service-invoker";
 import {
 	createSessionSpawnTool,
+	createSessionSubAgentLifecycleCallbacks,
 	type SubAgentStartTracker,
 } from "./local/spawn-tool";
 import { loadUserFileContent } from "./local/user-files";
@@ -106,6 +112,7 @@ import type {
 	StartSessionInput,
 	StartSessionResult,
 } from "./runtime-host";
+import { SessionNotFoundError } from "./runtime-host";
 import {
 	cloneAccumulatedUsage,
 	RuntimeHostEventBus,
@@ -263,6 +270,29 @@ export class LocalRuntimeHost implements RuntimeHost {
 		});
 	}
 
+	private async applyInitialOAuthCredentials(
+		input: StartSessionInput,
+	): Promise<StartSessionInput> {
+		if (input.config.apiKey?.trim()) {
+			return input;
+		}
+
+		const resolved = await this.oauthTokenManager.resolveProviderApiKey({
+			providerId: input.config.providerId,
+		});
+		if (!resolved?.apiKey) {
+			return input;
+		}
+
+		return {
+			...input,
+			config: {
+				...input.config,
+				apiKey: resolved.apiKey,
+			},
+		};
+	}
+
 	// ── Public API ──────────────────────────────────────────────────────
 
 	async startSession(input: StartSessionInput): Promise<StartSessionResult> {
@@ -270,7 +300,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const startedAt = nowIso();
 		const requestedSessionId = input.config.sessionId?.trim() ?? "";
 		const sessionId = requestedSessionId || createSessionId();
-		const startInput: StartSessionInput = input;
+		const startInput: StartSessionInput =
+			await this.applyInitialOAuthCredentials(input);
 		const initialMessages = startInput.initialMessages ?? [];
 		const initialUsage =
 			initialMessages.length > 0
@@ -353,6 +384,17 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const pluginEventFallbackAutomation =
 			inputLocalConfig?.extensionContext?.automation;
 		let bootstrap!: Awaited<ReturnType<typeof prepareLocalRuntimeBootstrap>>;
+		const subAgentDeps = {
+			getSession: (sid: string) => this.sessions.get(sid),
+			subAgentStarts: this.subAgentStarts,
+			onAgentEvent: (
+				rootSessionId: string,
+				config: CoreSessionConfig,
+				event: AgentEvent,
+			) => this.eventBridge.dispatchAgentEvent(rootSessionId, config, event),
+			invokeBackendOptional: (method: string, ...args: unknown[]) =>
+				this.invokeOptional(method, ...args),
+		};
 		bootstrap = await prepareLocalRuntimeBootstrap({
 			input: startInput,
 			localRuntime: input.localRuntime,
@@ -383,17 +425,16 @@ export class LocalRuntimeHost implements RuntimeHost {
 			},
 			createSpawnTool: () =>
 				createSessionSpawnTool(
-					{
-						getSession: (sid) => this.sessions.get(sid),
-						subAgentStarts: this.subAgentStarts,
-						onAgentEvent: (rootSessionId, config, event) =>
-							this.eventBridge.dispatchAgentEvent(rootSessionId, config, event),
-						invokeBackendOptional: (method, ...args) =>
-							this.invokeOptional(method, ...args),
-					},
+					subAgentDeps,
 					bootstrap.config,
 					sessionId,
 					sessionToolExecutors,
+				),
+			createSubAgentLifecycleCallbacks: (config) =>
+				createSessionSubAgentLifecycleCallbacks(
+					subAgentDeps,
+					config,
+					sessionId,
 				),
 			readSessionMetadata: async () =>
 				(await this.getSession(sessionId))?.metadata as
@@ -438,7 +479,29 @@ export class LocalRuntimeHost implements RuntimeHost {
 			initialMessages: bootstrap.effectiveInput.initialMessages,
 			userFileContentLoader: loadUserFileContent,
 			toolPolicies: bootstrap.toolPolicies,
-			requestToolApproval: bootstrap.requestToolApproval,
+			requestToolApproval: bootstrap.requestToolApproval
+				? async (request) => {
+						const requestToolApproval = bootstrap.requestToolApproval;
+						const liveSession = this.sessions.get(sessionId);
+						if (liveSession) {
+							await this.markTurnPending(liveSession);
+						}
+						try {
+							if (!requestToolApproval) {
+								return {
+									approved: false,
+									reason: "Tool approval callback is not configured.",
+								};
+							}
+							return await requestToolApproval(request);
+						} finally {
+							const currentSession = this.sessions.get(sessionId);
+							if (currentSession?.status === "pending") {
+								await this.markTurnRunning(currentSession);
+							}
+						}
+					}
+				: undefined,
 			telemetry: configWithProvider.telemetry,
 			onConsecutiveMistakeLimitReached:
 				configWithProvider.onConsecutiveMistakeLimitReached,
@@ -559,6 +622,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			drainingPendingPrompts: false,
 			pluginSandboxShutdown: bootstrap.pluginSandboxShutdown,
 			submitAndExitObserved: false,
+			lastInteractiveTurnFinishReason: undefined,
 		};
 		this.sessions.set(sessionId, active);
 		this.emitStatus(sessionId, "running");
@@ -605,7 +669,16 @@ export class LocalRuntimeHost implements RuntimeHost {
 						modelId: active.config.modelId,
 					},
 				});
-				await this.failSession(active);
+				try {
+					await this.failSession(active);
+				} catch (cleanupError) {
+					// Never let cleanup failures mask the error that actually
+					// killed the turn; that one is what callers must see.
+					active.config.logger?.error?.("Session failure cleanup threw", {
+						sessionId: active.sessionId,
+						error: cleanupError,
+					});
+				}
 				throw error;
 			}
 		}
@@ -743,8 +816,17 @@ export class LocalRuntimeHost implements RuntimeHost {
 			event: "session.stopped",
 			properties: { sessionId },
 		});
-		if (session.interactive && session.status !== "running") {
+		if (session.interactive && !isNonTerminalSessionStatus(session.status)) {
 			await this.releaseSessionRuntime(session, "session_stop");
+			return;
+		}
+		if (session.interactive && session.agent.canStartRun()) {
+			await this.shutdownSession(session, {
+				status: this.resolveInteractiveStopStatus(session),
+				exitCode: this.resolveInteractiveStopExitCode(session),
+				shutdownReason: "session_stop",
+				endReason: "stopped",
+			});
 			return;
 		}
 		// Abort the agent first if it's running, so shutdown can proceed
@@ -763,14 +845,21 @@ export class LocalRuntimeHost implements RuntimeHost {
 		if (sessions.length === 0) return;
 		await Promise.allSettled(
 			sessions.map((session) =>
-				session.interactive && session.status !== "running"
+				session.interactive && !isNonTerminalSessionStatus(session.status)
 					? this.releaseSessionRuntime(session, reason)
-					: this.shutdownSession(session, {
-							status: "cancelled",
-							exitCode: 0,
-							shutdownReason: reason,
-							endReason: "disposed",
-						}),
+					: session.interactive && session.agent.canStartRun()
+						? this.shutdownSession(session, {
+								status: this.resolveInteractiveStopStatus(session),
+								exitCode: this.resolveInteractiveStopExitCode(session),
+								shutdownReason: reason,
+								endReason: "disposed",
+							})
+						: this.shutdownSession(session, {
+								status: "cancelled",
+								exitCode: 0,
+								shutdownReason: reason,
+								endReason: "disposed",
+							}),
 			),
 		);
 		this.usageBySession.clear();
@@ -945,22 +1034,32 @@ export class LocalRuntimeHost implements RuntimeHost {
 		finishReason: AgentResult["finishReason"],
 	): Promise<void> {
 		if (hasPendingTeamRunWork(session)) return;
-		const isAborted = finishReason === "aborted" || session.aborting;
-		const isError = finishReason === "error";
-		await this.updateStatus(
-			session,
-			isAborted ? "cancelled" : isError ? "failed" : "completed",
-			isError ? 1 : 0,
-		);
-		this.emit({
-			type: "ended",
-			payload: {
-				sessionId: session.sessionId,
-				reason: finishReason,
-				ts: Date.now(),
-			},
-		});
+		session.lastInteractiveTurnFinishReason = finishReason;
+		await this.markTurnIdle(session);
 		session.aborting = false;
+	}
+
+	private resolveInteractiveStopStatus(session: ActiveSession): SessionStatus {
+		const finishReason = session.lastInteractiveTurnFinishReason;
+		if (!finishReason) return "cancelled";
+
+		switch (finishReason) {
+			case "completed":
+				return "completed";
+			case "error":
+				return "failed";
+			case "aborted":
+			case "max_iterations":
+			case "mistake_limit":
+				return "cancelled";
+		}
+
+		const _exhaustive: never = finishReason;
+		return _exhaustive;
+	}
+
+	private resolveInteractiveStopExitCode(session: ActiveSession): number {
+		return session.lastInteractiveTurnFinishReason === "error" ? 1 : 0;
 	}
 
 	private async completeAbortedInteractiveTurn(
@@ -1224,6 +1323,16 @@ export class LocalRuntimeHost implements RuntimeHost {
 		await this.updateStatus(session, "running", null);
 	}
 
+	private async markTurnPending(session: ActiveSession): Promise<void> {
+		if (session.status === "pending") return;
+		await this.updateStatus(session, "pending", null);
+	}
+
+	private async markTurnIdle(session: ActiveSession): Promise<void> {
+		if (session.status === "idle") return;
+		await this.updateStatus(session, "idle", null);
+	}
+
 	private async persistSessionMetadata(
 		sessionId: string,
 		resolveMetadata: (
@@ -1437,7 +1546,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 				session.sessionId,
 			)) ?? session.artifacts.manifest;
 		latestManifest.status = status;
-		if (status === "running") {
+		if (isNonTerminalSessionStatus(status)) {
 			delete latestManifest.ended_at;
 			latestManifest.exit_code = null;
 		} else {
@@ -1447,7 +1556,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 		session.artifacts.manifest = latestManifest;
 		session.status = status;
 		session.updatedAt = result.endedAt ?? nowIso();
-		session.endedAt = status === "running" ? null : latestManifest.ended_at;
+		session.endedAt = isNonTerminalSessionStatus(status)
+			? null
+			: latestManifest.ended_at;
 		session.exitCode = latestManifest.exit_code;
 		await this.invoke<void>(
 			"writeSessionManifest",
@@ -1467,7 +1578,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 		try {
 			return await run();
 		} catch (error) {
-			if (!isLikelyAuthError(error, session.config.providerId)) {
+			if (
+				!isOAuthProvider(session.config.providerId) ||
+				!isLikelyAuthError(error)
+			) {
 				throw error;
 			}
 			await this.syncOAuthCredentials(session, { forceRefresh: true });
@@ -1508,7 +1622,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private getSessionOrThrow(sessionId: string): ActiveSession {
 		const session = this.sessions.get(sessionId);
 		if (!session) {
-			const error = new Error(`session not found: ${sessionId}`);
+			const error = new SessionNotFoundError(sessionId);
 			captureSdkError(this.defaultTelemetry, {
 				component: "core",
 				operation: "session.active_lookup",

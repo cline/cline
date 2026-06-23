@@ -28,7 +28,7 @@ The same pattern applies for enterprise use cases: you can build plugins that wr
 ## Use it with the CLI
 
 ```bash
-cp examples/plugins/typescript-lsp/index.ts ~/.cline/plugins/typescript-lsp.ts
+cline plugin install https://github.com/cline/cline/blob/main/sdk/examples/plugins/typescript-lsp/index.ts
 cline -i "Find where createTool is defined"
 ```
 

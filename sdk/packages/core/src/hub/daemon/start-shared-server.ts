@@ -1,5 +1,9 @@
+import { resolveClineBuildEnv } from "@cline/shared";
 import { resolveHubEndpointOptions } from "../discovery/defaults";
-import { resolveSharedHubOwnerContext } from "../discovery/workspace";
+import {
+	resolveProductionHubOwnerContext,
+	resolveSharedHubOwnerContext,
+} from "../discovery/workspace";
 import {
 	type EnsuredHubWebSocketServerResult,
 	type EnsureHubWebSocketServerOptions,
@@ -18,9 +22,19 @@ export interface StartHubServerOptions
 export interface EnsureHubServerOptions
 	extends Omit<EnsureHubWebSocketServerOptions, "owner"> {}
 
+function resolveDefaultHubOwnerContext() {
+	return resolveClineBuildEnv() === "production"
+		? resolveProductionHubOwnerContext()
+		: resolveSharedHubOwnerContext();
+}
+
+function shouldAllowDefaultPortFallback(hasExplicitPort: boolean): boolean {
+	return resolveClineBuildEnv() !== "production" && !hasExplicitPort;
+}
+
 /**
- * Start a hub WebSocket server bound to the process-local shared owner
- * context. Callers that need a custom owner should invoke
+ * Start a hub WebSocket server bound to the default owner context for the
+ * current build environment. Callers that need a custom owner should invoke
  * {@link startHubWebSocketServer} directly.
  */
 export async function startHubServer(
@@ -34,13 +48,13 @@ export async function startHubServer(
 	return await startHubWebSocketServer({
 		...options,
 		...endpoint,
-		owner: resolveSharedHubOwnerContext(),
+		owner: resolveDefaultHubOwnerContext(),
 	});
 }
 
 /**
- * Ensure a hub WebSocket server is running in the process-local shared owner
- * context, reusing a compatible in-process instance when available.
+ * Ensure a hub WebSocket server is running in the default owner context for the
+ * current build environment, reusing a compatible in-process instance when available.
  */
 export async function ensureHubServer(
 	options: EnsureHubServerOptions,
@@ -55,7 +69,9 @@ export async function ensureHubServer(
 	return await ensureHubWebSocketServer({
 		...options,
 		...endpoint,
-		allowPortFallback: options.allowPortFallback ?? !hasExplicitPort,
-		owner: resolveSharedHubOwnerContext(),
+		allowPortFallback:
+			options.allowPortFallback ??
+			shouldAllowDefaultPortFallback(hasExplicitPort),
+		owner: resolveDefaultHubOwnerContext(),
 	});
 }

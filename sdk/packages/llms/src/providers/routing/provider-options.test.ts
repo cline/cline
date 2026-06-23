@@ -3,6 +3,8 @@ import type {
 	GatewayStreamRequest,
 } from "@cline/shared";
 import { describe, expect, it } from "vitest";
+import { GLM_THINKING_ROUTING_METADATA } from "./glm-thinking";
+import { MINIMAX_THINKING_ROUTING_METADATA } from "./minimax-thinking";
 import {
 	composeAiSdkProviderOptions,
 	mergeProviderOptionPatches,
@@ -18,8 +20,10 @@ type ContextOverrides = {
 	providerId?: string;
 	modelId?: string;
 	family?: string;
+	modelMetadata?: NonNullable<GatewayProviderContext["model"]["metadata"]>;
 	capabilities?: GatewayProviderContext["model"]["capabilities"];
 	metadata?: GatewayProviderContext["provider"]["metadata"];
+	/** Test helper escape hatch for Claude-like models that should not get an auto-injected Anthropic reasoning route. */
 	disableAutoAnthropicRouting?: boolean;
 };
 
@@ -62,6 +66,13 @@ function makeContext(options?: ContextOverrides): GatewayProviderContext {
 							: undefined,
 				}
 			: undefined;
+	const modelMetadata =
+		options?.family || options?.modelMetadata
+			? {
+					...options.modelMetadata,
+					...(options.family ? { family: options.family } : {}),
+				}
+			: undefined;
 	return {
 		provider: {
 			id: providerId,
@@ -77,7 +88,7 @@ function makeContext(options?: ContextOverrides): GatewayProviderContext {
 			name: modelId,
 			providerId,
 			capabilities: options?.capabilities,
-			metadata: options?.family ? { family: options.family } : undefined,
+			metadata: modelMetadata,
 		},
 		config: { providerId },
 	};
@@ -761,6 +772,7 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 				modelId: "glm-4.7",
 				reasoning: { enabled: true },
 			},
+			context: { family: "glm", metadata: GLM_THINKING_ROUTING_METADATA },
 			expect: [
 				{ bucket: "zai", has: { thinking: { type: "enabled" } } },
 				{
@@ -768,6 +780,19 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 					has: { thinking: { type: "enabled" } },
 					lacks: ["reasoning"],
 				},
+			],
+		},
+		{
+			name: "native zai custom non-GLM -> no generic adaptive thinking",
+			request: {
+				providerId: "zai",
+				modelId: "zai-other-model",
+				reasoning: { enabled: true },
+			},
+			context: { family: "other", metadata: GLM_THINKING_ROUTING_METADATA },
+			expect: [
+				{ bucket: "zai", lacks: ["thinking", "reasoning"] },
+				{ bucket: "openaiCompatible", lacks: ["thinking", "reasoning"] },
 			],
 		},
 		// Kimi K2.6 family: explicit enabled/disabled and unset defaults to enabled
@@ -1076,6 +1101,52 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			context: { family: "kimi-k2.6" },
 			expect: [{ bucket: "cline", has: { reasoning: { enabled: false } } }],
 		},
+		{
+			name: "cline Claude Fable reasoning.enabled=false uses lowest supported reasoning",
+			request: {
+				providerId: "cline",
+				modelId: "anthropic/claude-fable-5",
+				reasoning: { enabled: false },
+			},
+			expect: [
+				{
+					bucket: "cline",
+					has: { reasoning: { max_tokens: 1024 } },
+				},
+			],
+		},
+		{
+			name: "cline StepFun 3.7 Flash reasoning.enabled=false omits disabled reasoning",
+			request: {
+				providerId: "cline",
+				modelId: "stepfun/step-3.7-flash",
+				reasoning: { enabled: false },
+			},
+			expect: [
+				{
+					bucket: "cline",
+					lacks: ["reasoning", "thinking"],
+				},
+				{
+					bucket: "openaiCompatible",
+					lacks: ["reasoning", "thinking"],
+				},
+			],
+		},
+		{
+			name: "cline StepFun 3.7 Flash variants reasoning.enabled=false omit disabled reasoning",
+			request: {
+				providerId: "cline",
+				modelId: "stepfun/step-3.7-flash-v2",
+				reasoning: { enabled: false },
+			},
+			expect: [
+				{
+					bucket: "cline",
+					lacks: ["reasoning", "thinking"],
+				},
+			],
+		},
 		// OpenRouter owns the reasoning object regardless of Moonshot family.
 		{
 			name: "openrouter non-K2.6 Moonshot Kimi reasoning.enabled=false -> reasoning.exclude",
@@ -1203,6 +1274,403 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 				{ bucket: "openaiCompatible", lacks: ["thinking"] },
 			],
 		},
+		{
+			name: "openrouter MiniMax M3 reasoning enabled -> OpenRouter reasoning shape",
+			request: {
+				providerId: "openrouter",
+				modelId: "minimax/minimax-m3",
+				reasoning: { enabled: true },
+			},
+			context: {
+				family: "minimax",
+				capabilities: ["reasoning"],
+			},
+			expect: [
+				{
+					bucket: "openrouter",
+					has: { reasoning: { enabled: true } },
+					lacks: ["thinking", "effort", "reasoningEffort"],
+				},
+				{
+					bucket: "openaiCompatible",
+					lacks: ["thinking", "reasoning", "effort", "reasoningEffort"],
+				},
+			],
+		},
+		{
+			name: "openrouter MiniMax M3 reasoning disabled -> OpenRouter reasoning.exclude",
+			request: {
+				providerId: "openrouter",
+				modelId: "minimax/minimax-m3",
+				reasoning: { enabled: false },
+			},
+			context: {
+				family: "minimax",
+				capabilities: ["reasoning"],
+			},
+			expect: [
+				{
+					bucket: "openrouter",
+					has: { reasoning: { exclude: true } },
+					lacks: ["thinking"],
+				},
+				{
+					bucket: "openaiCompatible",
+					lacks: ["thinking", "reasoning"],
+				},
+			],
+		},
+		{
+			name: "vercel MiniMax M3 reasoning enabled -> gateway reasoning shape",
+			request: {
+				providerId: "vercel-ai-gateway",
+				modelId: "minimax/minimax-m3",
+				reasoning: { enabled: true, effort: "high" },
+			},
+			context: {
+				family: "minimax",
+				capabilities: ["reasoning"],
+			},
+			expect: [
+				{
+					bucket: "vercel-ai-gateway",
+					has: { reasoning: { enabled: true } },
+					lacks: ["thinking", "effort", "reasoningEffort", "reasoningSummary"],
+				},
+				{
+					bucket: "vercelAiGateway",
+					has: { reasoning: { enabled: true } },
+					lacks: ["thinking", "effort", "reasoningEffort", "reasoningSummary"],
+				},
+			],
+		},
+		{
+			name: "vercel MiniMax M3 reasoning disabled -> gateway reasoning.exclude",
+			request: {
+				providerId: "vercel-ai-gateway",
+				modelId: "minimax/minimax-m3",
+				reasoning: { enabled: false },
+			},
+			context: {
+				family: "minimax",
+				capabilities: ["reasoning"],
+			},
+			expect: [
+				{
+					bucket: "vercel-ai-gateway",
+					has: { reasoning: { exclude: true } },
+					lacks: ["thinking"],
+				},
+				{
+					bucket: "vercelAiGateway",
+					has: { reasoning: { exclude: true } },
+					lacks: ["thinking"],
+				},
+			],
+		},
+		{
+			name: "vercel MiniMax M3 sibling id -> no MiniMax M3 gateway exception",
+			request: {
+				providerId: "vercel-ai-gateway",
+				modelId: "minimax/minimax-m3-pro",
+				reasoning: { enabled: true },
+			},
+			context: {
+				family: "minimax",
+				capabilities: ["reasoning"],
+			},
+			expect: [
+				{
+					bucket: "vercel-ai-gateway",
+					has: { thinking: { type: "adaptive" } },
+					lacks: ["reasoning"],
+				},
+			],
+		},
+		{
+			name: "cline MiniMax M3 reasoning enabled -> gateway reasoning without thinking leak",
+			request: {
+				providerId: "cline",
+				modelId: "minimax/minimax-m3",
+				reasoning: { enabled: true, effort: "high" },
+			},
+			context: {
+				family: "minimax",
+				capabilities: ["reasoning"],
+			},
+			expect: [
+				{
+					bucket: "cline",
+					has: { reasoning: { enabled: true, effort: "high" } },
+					lacks: ["thinking", "effort", "reasoningEffort", "reasoningSummary"],
+				},
+				{
+					bucket: "openaiCompatible",
+					lacks: ["thinking", "reasoning", "effort", "reasoningEffort"],
+				},
+			],
+		},
+		{
+			name: "cline MiniMax M3 reasoning disabled -> gateway reasoning disabled",
+			request: {
+				providerId: "cline",
+				modelId: "minimax/minimax-m3",
+				reasoning: { enabled: false },
+			},
+			context: {
+				family: "minimax",
+				capabilities: ["reasoning"],
+			},
+			expect: [
+				{
+					bucket: "cline",
+					has: { reasoning: { enabled: false } },
+					lacks: ["thinking"],
+				},
+				{
+					bucket: "openaiCompatible",
+					lacks: ["thinking", "reasoning"],
+				},
+			],
+		},
+		{
+			name: "direct MiniMax M3 reasoning disabled -> thinking.type=disabled",
+			request: {
+				providerId: "minimax",
+				modelId: "MiniMax-M3",
+				reasoning: { enabled: false },
+			},
+			context: {
+				family: "minimax",
+				capabilities: ["reasoning"],
+				metadata: MINIMAX_THINKING_ROUTING_METADATA,
+			},
+			expect: [
+				{
+					bucket: "minimax",
+					has: { thinking: { type: "disabled" } },
+					lacks: ["reasoning", "effort", "reasoningEffort", "reasoningSummary"],
+				},
+				{
+					bucket: "openaiCompatible",
+					has: { thinking: { type: "disabled" } },
+					lacks: ["reasoning", "effort", "reasoningEffort", "reasoningSummary"],
+				},
+			],
+		},
+		{
+			name: "direct MiniMax M3 reasoning enabled -> thinking.type=adaptive",
+			request: {
+				providerId: "minimax",
+				modelId: "MiniMax-M3",
+				reasoning: { enabled: true, effort: "high" },
+			},
+			context: {
+				family: "minimax",
+				capabilities: ["reasoning"],
+				metadata: MINIMAX_THINKING_ROUTING_METADATA,
+			},
+			expect: [
+				{
+					bucket: "minimax",
+					has: { thinking: { type: "adaptive" } },
+					lacks: ["reasoning", "effort", "reasoningEffort", "reasoningSummary"],
+				},
+				{
+					bucket: "openaiCompatible",
+					has: { thinking: { type: "adaptive" } },
+					lacks: ["reasoning", "effort", "reasoningEffort", "reasoningSummary"],
+				},
+			],
+		},
+		{
+			name: "direct MiniMax M2.5 reasoning enabled -> existing generic adaptive thinking",
+			request: {
+				providerId: "minimax",
+				modelId: "MiniMax-M2.5",
+				reasoning: { enabled: true },
+			},
+			context: {
+				family: "minimax",
+				capabilities: ["reasoning"],
+				metadata: MINIMAX_THINKING_ROUTING_METADATA,
+			},
+			expect: [
+				{
+					bucket: "minimax",
+					has: { thinking: { type: "adaptive" } },
+					lacks: ["reasoning"],
+				},
+				{
+					bucket: "openaiCompatible",
+					has: { thinking: { type: "adaptive" } },
+					lacks: ["reasoning"],
+				},
+			],
+		},
+		{
+			name: "direct MiniMax M2.7 reasoning disabled -> no MiniMax M3 disabled exception",
+			request: {
+				providerId: "minimax",
+				modelId: "MiniMax-M2.7",
+				reasoning: { enabled: false },
+			},
+			context: {
+				family: "minimax",
+				capabilities: ["reasoning"],
+				metadata: MINIMAX_THINKING_ROUTING_METADATA,
+			},
+			expect: [
+				{
+					bucket: "minimax",
+					lacks: ["thinking", "reasoning", "effort", "reasoningEffort"],
+				},
+				{
+					bucket: "openaiCompatible",
+					lacks: ["thinking", "reasoning", "effort", "reasoningEffort"],
+				},
+			],
+		},
+		// Ollama Qwen3: model behavior fact first, documented dynamic fallback second.
+		{
+			name: "ollama metadata reasoningDefaultOn disabled -> reasoningEffort none",
+			request: {
+				providerId: "ollama",
+				modelId: "local-known-reasoner:latest",
+				reasoning: { enabled: false },
+			},
+			context: { modelMetadata: { reasoningDefaultOn: true } },
+			expect: [
+				{
+					bucket: "ollama",
+					has: {
+						reasoningEffort: "none",
+						reasoning: { effort: "none" },
+					},
+				},
+				{
+					bucket: "openaiCompatible",
+					has: {
+						reasoningEffort: "none",
+						reasoning: { effort: "none" },
+					},
+				},
+			],
+		},
+		{
+			name: "ollama qwen3 fallback reasoning disabled -> reasoningEffort none",
+			request: {
+				providerId: "ollama",
+				modelId: "qwen3-coder:30b",
+				reasoning: { enabled: false },
+			},
+			expect: [
+				{
+					bucket: "ollama",
+					has: {
+						reasoningEffort: "none",
+						reasoning: { effort: "none" },
+					},
+				},
+				{
+					bucket: "openaiCompatible",
+					has: {
+						reasoningEffort: "none",
+						reasoning: { effort: "none" },
+					},
+				},
+			],
+		},
+		{
+			name: "ollama qwen3 fallback reasoning enabled -> no disable patch",
+			request: {
+				providerId: "ollama",
+				modelId: "qwen3-coder:30b",
+				reasoning: { enabled: true },
+			},
+			expect: [
+				{ bucket: "ollama", lacks: ["reasoningEffort", "reasoning"] },
+				{ bucket: "openaiCompatible", lacks: ["reasoningEffort", "reasoning"] },
+			],
+		},
+		{
+			name: "ollama qwen3 fallback with unset reasoning -> no disable patch",
+			request: {
+				providerId: "ollama",
+				modelId: "qwen3-coder:30b",
+			},
+			expect: [
+				{ bucket: "ollama", lacks: ["reasoningEffort", "reasoning"] },
+				{ bucket: "openaiCompatible", lacks: ["reasoningEffort", "reasoning"] },
+			],
+		},
+		{
+			name: "ollama metadata reasoningDefaultOn with unset reasoning -> no disable patch",
+			request: {
+				providerId: "ollama",
+				modelId: "local-known-reasoner:latest",
+			},
+			context: { modelMetadata: { reasoningDefaultOn: true } },
+			expect: [
+				{ bucket: "ollama", lacks: ["reasoningEffort", "reasoning"] },
+				{ bucket: "openaiCompatible", lacks: ["reasoningEffort", "reasoning"] },
+			],
+		},
+		{
+			name: "ollama metadata reasoningDefaultOn beats deepseek family thinking disable",
+			request: {
+				providerId: "ollama",
+				modelId: "deepseek-r1:latest",
+				reasoning: { enabled: false },
+			},
+			context: {
+				family: "deepseek",
+				modelMetadata: { reasoningDefaultOn: true },
+			},
+			expect: [
+				{
+					bucket: "ollama",
+					has: {
+						reasoningEffort: "none",
+						reasoning: { effort: "none" },
+					},
+					lacks: ["thinking"],
+				},
+				{
+					bucket: "openaiCompatible",
+					has: {
+						reasoningEffort: "none",
+						reasoning: { effort: "none" },
+					},
+					lacks: ["thinking"],
+				},
+			],
+		},
+		{
+			name: "ollama metadata reasoningDefaultOn false prevents qwen3 fallback",
+			request: {
+				providerId: "ollama",
+				modelId: "qwen3-coder:30b",
+				reasoning: { enabled: false },
+			},
+			context: { modelMetadata: { reasoningDefaultOn: false } },
+			expect: [
+				{ bucket: "ollama", lacks: ["reasoningEffort", "reasoning"] },
+				{ bucket: "openaiCompatible", lacks: ["reasoningEffort", "reasoning"] },
+			],
+		},
+		{
+			name: "ollama non-default reasoning disabled -> no special disable patch",
+			request: {
+				providerId: "ollama",
+				modelId: "llama3.1:8b",
+				reasoning: { enabled: false },
+			},
+			expect: [
+				{ bucket: "ollama", lacks: ["reasoningEffort", "reasoning"] },
+				{ bucket: "openaiCompatible", lacks: ["reasoningEffort", "reasoning"] },
+			],
+		},
 	]);
 });
 
@@ -1252,7 +1720,7 @@ describe("composeAiSdkProviderOptions: provider-specific overlays", () => {
 		expect(result.openaiCodex).not.toHaveProperty("truncation");
 	});
 
-	it("emits the gemini google.thinkingConfig only when reasoning effort is set", () => {
+	it("emits Gemini 2.5 google.thinkingConfig budget only when reasoning effort is set", () => {
 		const withEffort = composeAiSdkProviderOptions(
 			makeRequest({
 				providerId: "gemini",
@@ -1262,7 +1730,7 @@ describe("composeAiSdkProviderOptions: provider-specific overlays", () => {
 			makeContext({ providerId: "gemini", modelId: "gemini-2.5-flash" }),
 		);
 		expect(withEffort.google).toEqual({
-			thinkingConfig: { thinkingLevel: "medium", includeThoughts: true },
+			thinkingConfig: { thinkingBudget: 8192, includeThoughts: true },
 		});
 
 		const withoutEffort = composeAiSdkProviderOptions(
@@ -1283,11 +1751,168 @@ describe("composeAiSdkProviderOptions: provider-specific overlays", () => {
 		);
 
 		expect(result.google).toEqual({
-			thinkingConfig: { thinkingLevel: "high", includeThoughts: true },
+			thinkingConfig: { thinkingBudget: 24576, includeThoughts: true },
 		});
 		expect(result.google).not.toHaveProperty("thinking");
 		expect(result.google).not.toHaveProperty("effort");
 		expect(result.google).not.toHaveProperty("reasoningEffort");
 		expect(result.google).not.toHaveProperty("reasoningSummary");
+	});
+
+	it("emits Gemini thinkingConfig in the vertex bucket for Vertex providers", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "vertex",
+				modelId: "gemini-3-flash-preview",
+				reasoning: { enabled: true, effort: "high" },
+			}),
+			makeContext({
+				providerId: "vertex",
+				modelId: "gemini-3-flash-preview",
+			}),
+		);
+
+		expect(result.vertex).toEqual(
+			expect.objectContaining({
+				thinkingConfig: { thinkingLevel: "high", includeThoughts: true },
+			}),
+		);
+		expect(result.vertex).not.toHaveProperty("thinking");
+		expect(result.vertex).not.toHaveProperty("effort");
+		expect(result.vertex).not.toHaveProperty("reasoningEffort");
+		expect(result.vertex).not.toHaveProperty("reasoningSummary");
+		expect(result.google).toBeUndefined();
+	});
+
+	it("keeps Vertex Claude reasoning on the Anthropic-compatible route", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "vertex",
+				modelId: "claude-sonnet-4-5",
+				reasoning: { enabled: true, effort: "high" },
+			}),
+			makeContext({
+				providerId: "vertex",
+				modelId: "claude-sonnet-4-5",
+				family: "claude-sonnet",
+				capabilities: ["text", "reasoning"],
+			}),
+		);
+
+		expect(result.vertex).toEqual(
+			expect.objectContaining({
+				reasoning: { enabled: true, max_tokens: 1024 },
+			}),
+		);
+		expect(result.vertex).not.toHaveProperty("thinkingConfig");
+		expect(result.vertex).not.toHaveProperty("effort");
+		expect(result.vertex).not.toHaveProperty("reasoningEffort");
+		expect(result.vertex).not.toHaveProperty("reasoningSummary");
+	});
+
+	it("maps disabled Vertex thinking to minimal thinkingConfig", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "vertex",
+				modelId: "gemini-3-flash-preview",
+				reasoning: { enabled: false },
+			}),
+			makeContext({
+				providerId: "vertex",
+				modelId: "gemini-3-flash-preview",
+			}),
+		);
+
+		expect(result.vertex).toEqual(
+			expect.objectContaining({
+				thinkingConfig: { thinkingLevel: "minimal", includeThoughts: false },
+			}),
+		);
+		expect(result.vertex).not.toHaveProperty("thinking");
+		expect(result.vertex).not.toHaveProperty("effort");
+		expect(result.vertex).not.toHaveProperty("reasoningEffort");
+		expect(result.vertex).not.toHaveProperty("reasoningSummary");
+		expect(result.google).toBeUndefined();
+	});
+
+	it("maps Vertex Gemini Flash Latest disabled thinking to a zero thinking budget", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "vertex",
+				modelId: "gemini-flash-latest",
+				reasoning: { enabled: false },
+			}),
+			makeContext({
+				providerId: "vertex",
+				modelId: "gemini-flash-latest",
+				family: "gemini-flash",
+				capabilities: ["reasoning"],
+			}),
+		);
+
+		expect(result.vertex).toEqual(
+			expect.objectContaining({
+				thinkingConfig: { thinkingBudget: 0, includeThoughts: false },
+			}),
+		);
+		expect(result.vertex).not.toHaveProperty("thinking");
+		expect(result.vertex).not.toHaveProperty("effort");
+		expect(result.vertex).not.toHaveProperty("reasoningEffort");
+		expect(result.vertex).not.toHaveProperty("reasoningSummary");
+		expect(result.google).toBeUndefined();
+	});
+
+	it("maps Vertex Gemini Flash Latest effort to a Gemini 2.5 thinking budget", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "vertex",
+				modelId: "gemini-flash-latest",
+				reasoning: { enabled: true, effort: "high" },
+			}),
+			makeContext({
+				providerId: "vertex",
+				modelId: "gemini-flash-latest",
+				family: "gemini-flash",
+				capabilities: ["reasoning"],
+			}),
+		);
+
+		expect(result.vertex).toEqual(
+			expect.objectContaining({
+				thinkingConfig: { thinkingBudget: 24576, includeThoughts: true },
+			}),
+		);
+		expect(result.vertex).not.toHaveProperty("thinking");
+		expect(result.vertex).not.toHaveProperty("effort");
+		expect(result.vertex).not.toHaveProperty("reasoningEffort");
+		expect(result.vertex).not.toHaveProperty("reasoningSummary");
+		expect(result.google).toBeUndefined();
+	});
+
+	it("keeps disabled Vertex Gemini 2.5 Pro on a valid minimum thinking budget", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "vertex",
+				modelId: "gemini-2.5-pro",
+				reasoning: { enabled: false },
+			}),
+			makeContext({
+				providerId: "vertex",
+				modelId: "gemini-2.5-pro",
+				family: "gemini-pro",
+				capabilities: ["reasoning"],
+			}),
+		);
+
+		expect(result.vertex).toEqual(
+			expect.objectContaining({
+				thinkingConfig: { thinkingBudget: 128, includeThoughts: false },
+			}),
+		);
+		expect(result.vertex).not.toHaveProperty("thinking");
+		expect(result.vertex).not.toHaveProperty("effort");
+		expect(result.vertex).not.toHaveProperty("reasoningEffort");
+		expect(result.vertex).not.toHaveProperty("reasoningSummary");
+		expect(result.google).toBeUndefined();
 	});
 });
