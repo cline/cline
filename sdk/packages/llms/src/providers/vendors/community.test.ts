@@ -21,7 +21,7 @@ describe("createSapAiCoreProviderModule", () => {
 			options: {
 				clientId: "sap-client",
 				clientSecret: "sap-secret",
-				tokenUrl: "https://auth.example",
+				tokenUrl: "https://auth.example/oauth/token",
 				deploymentId: "deployment-id",
 			},
 		});
@@ -32,11 +32,19 @@ describe("createSapAiCoreProviderModule", () => {
 
 		expect(process.env.AICORE_SERVICE_KEY).toBe("existing-service-key");
 		expect(model.config?.destination).toMatchObject({
-			authentication: "OAuth2ClientCredentials",
-			clientId: "sap-client",
-			clientSecret: "sap-secret",
-			tokenServiceUrl: "https://auth.example/oauth/token",
-			url: "https://api.ai.example.aws.ml.hana.ondemand.com",
+			service: {
+				credentials: {
+					clientid: "sap-client",
+					clientsecret: "sap-secret",
+					serviceurls: {
+						AI_API_URL: "https://api.ai.example.aws.ml.hana.ondemand.com",
+					},
+					url: "https://auth.example",
+				},
+				label: "aicore",
+				name: "sapaicore",
+				tags: ["aicore"],
+			},
 		});
 	});
 

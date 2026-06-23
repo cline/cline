@@ -370,11 +370,19 @@ describe("createAgentModelFromConfig", () => {
 		};
 
 		expect(model.config?.destination).toMatchObject({
-			authentication: "OAuth2ClientCredentials",
-			clientId: "sap-client",
-			clientSecret: "sap-secret",
-			tokenServiceUrl: "https://auth.example/oauth/token",
-			url: "https://api.ai.example.aws.ml.hana.ondemand.com",
+			service: {
+				credentials: {
+					clientid: "sap-client",
+					clientsecret: "sap-secret",
+					serviceurls: {
+						AI_API_URL: "https://api.ai.example.aws.ml.hana.ondemand.com",
+					},
+					url: "https://auth.example",
+				},
+				label: "aicore",
+				name: "sapaicore",
+				tags: ["aicore"],
+			},
 		});
 		expect(model.config?.deploymentConfig).toMatchObject({
 			deploymentId: "deployment-id",
