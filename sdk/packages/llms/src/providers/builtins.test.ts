@@ -169,6 +169,14 @@ describe("built-in provider metadata", () => {
 		}
 	});
 
+	it("declares per-request output-token caps for direct AI SDK providers", async () => {
+		for (const providerId of ["mistral", "minimax", "sapaicore"] as const) {
+			await expect(getProvider(providerId)).resolves.toMatchObject({
+				capabilities: expect.arrayContaining(["request-max-output-tokens"]),
+			});
+		}
+	});
+
 	it("routes direct MiniMax M3 through MiniMax thinking metadata", async () => {
 		await expect(getProvider("minimax")).resolves.toMatchObject({
 			metadata: {
