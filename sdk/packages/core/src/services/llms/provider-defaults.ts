@@ -105,6 +105,7 @@ function toRuntimeCapabilities(
 			case "prompt-cache":
 			case "tools":
 			case "oauth":
+			case "request-max-output-tokens":
 				return [capability satisfies ProviderCapability];
 			default:
 				return [];

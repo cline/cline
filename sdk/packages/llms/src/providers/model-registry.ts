@@ -1,9 +1,11 @@
 import type {
 	ModelCollection,
 	ModelInfo,
+	ProviderCapability,
 	ProviderInfo,
 } from "../catalog/types";
 import { BUILTIN_PROVIDER_COLLECTION_LIST } from "./builtins";
+import { normalizeProviderId } from "./ids";
 
 function buildInitialRegistry(): Map<string, ModelCollection> {
 	const map = new Map<string, ModelCollection>();
@@ -57,6 +59,17 @@ export async function getProviderCollection(
 	providerId: string,
 ): Promise<ModelCollection | undefined> {
 	return getProviderFromCache(providerId);
+}
+
+export function providerHasCapability(
+	providerId: string,
+	capability: ProviderCapability,
+	capabilities?: readonly ProviderCapability[],
+): boolean {
+	const normalizedProviderId = normalizeProviderId(providerId);
+	const resolvedCapabilities =
+		capabilities ?? getProviderFromCache(normalizedProviderId)?.provider.capabilities;
+	return resolvedCapabilities?.includes(capability) ?? false;
 }
 
 export async function getModelsForProvider(

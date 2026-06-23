@@ -15,6 +15,25 @@ describe("provider settings", () => {
 		expect(config.accessToken).toBe("oauth-access-token");
 	});
 
+	it("maps explicit maxTokens only for providers with request max-output capability", () => {
+		expect(
+			toProviderConfig({
+				provider: "openai-compatible",
+				model: "custom-model",
+				maxTokens: 4096,
+				capabilities: ["request-max-output-tokens"],
+			}).maxOutputTokens,
+		).toBe(4096);
+
+		expect(
+			toProviderConfig({
+				provider: "openai-codex",
+				model: "gpt-5.4",
+				maxTokens: 4096,
+			}).maxOutputTokens,
+		).toBeUndefined();
+	});
+
 	it("accepts the Bedrock apikey authentication alias", () => {
 		const result = safeParseSettings({
 			provider: "bedrock",

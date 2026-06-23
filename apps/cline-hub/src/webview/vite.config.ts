@@ -6,8 +6,7 @@ import { defineConfig } from "vite";
 const mermaidChunkGroups = [
 	{
 		name: "mermaid-parser",
-		maxSize: 450_000,
-		test: /node_modules[\\/](?:\.bun[\\/])?@mermaid-js[+]parser/,
+		test: /node_modules[\\/](?:\.bun[\\/])?(?:@mermaid-js[+]parser|@mermaid-js[\\/]parser)/,
 	},
 	{
 		name: "mermaid-langium",
@@ -15,7 +14,6 @@ const mermaidChunkGroups = [
 	},
 	{
 		name: "mermaid-layout",
-		maxSize: 450_000,
 		test: /node_modules[\\/](?:\.bun[\\/])?(?:cytoscape|cytoscape-cose-bilkent|dagre|elkjs)/,
 	},
 	{
@@ -47,10 +45,10 @@ export default defineConfig({
 		emptyOutDir: true,
 		cssMinify: "esbuild",
 		chunkSizeWarningLimit: 600,
-		rolldownOptions: {
+		rollupOptions: {
 			output: {
-				codeSplitting: {
-					groups: mermaidChunkGroups,
+				manualChunks(id) {
+					return mermaidChunkGroups.find((group) => group.test.test(id))?.name;
 				},
 			},
 		},

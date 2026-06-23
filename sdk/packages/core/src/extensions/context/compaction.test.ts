@@ -16,6 +16,20 @@ const createHandlerMock = vi.fn();
 
 vi.mock("@cline/llms", () => ({
 	createHandlerAsync: (config: unknown) => createHandlerMock(config),
+	normalizeProviderId: (id: string) => id,
+	providerHasCapability: (providerId: string, capability: string, capabilities?: string[]) => {
+		const catalog: Record<string, string[]> = {
+			anthropic: ["request-max-output-tokens"],
+			openai: ["request-max-output-tokens"],
+			"openai-codex": [],
+		}
+		return (capabilities ?? catalog[providerId] ?? []).includes(capability)
+	},
+	MODEL_COLLECTIONS_BY_PROVIDER_ID: {
+		anthropic: { provider: { capabilities: ["request-max-output-tokens"] } },
+		openai: { provider: { capabilities: ["request-max-output-tokens"] } },
+		"openai-codex": { provider: { capabilities: [] } },
+	},
 }));
 
 async function* streamChunks(chunks: FakeChunk[]): AsyncGenerator<FakeChunk> {

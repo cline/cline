@@ -162,6 +162,7 @@ export const ProviderSettingsSchema = z.object({
 				"prompt-cache",
 				"streaming",
 				"tools",
+				"request-max-output-tokens",
 				"vision",
 				"computer-use",
 				"oauth",
@@ -237,6 +238,9 @@ export function toProviderConfig(
 				? generatedKnownModels
 				: undefined))
 		: undefined;
+	const capabilities = (settings.capabilities ?? providerDefaults?.capabilities) as
+		| ProviderCapability[]
+		| undefined;
 
 	const config: ProviderConfig = {
 		providerId,
@@ -255,7 +259,13 @@ export function toProviderConfig(
 		baseUrl: resolvedBaseUrl,
 		headers: settings.headers,
 		timeoutMs: settings.timeout,
-		maxOutputTokens: settings.maxTokens,
+		maxOutputTokens: Llms.providerHasCapability(
+			providerId,
+			"request-max-output-tokens",
+			capabilities,
+		)
+			? settings.maxTokens
+			: undefined,
 		maxInputTokens: settings.contextWindow,
 		thinking: settings.reasoning?.enabled,
 		reasoningEffort,
@@ -285,9 +295,7 @@ export function toProviderConfig(
 		azure: settings.azure,
 		sap: settings.sap,
 		oca: settings.oca,
-		capabilities: (settings.capabilities ?? providerDefaults?.capabilities) as
-			| ProviderCapability[]
-			| undefined,
+		capabilities,
 		modelCatalog: settings.modelCatalog
 			? {
 					loadLatestOnInit: settings.modelCatalog.loadLatestOnInit,

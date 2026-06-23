@@ -1,4 +1,4 @@
-import type { ToolResultContent } from "@cline/llms";
+import { providerHasCapability, type ToolResultContent } from "@cline/llms";
 import { estimateTokens, type MessageWithMetadata } from "@cline/shared";
 
 export { estimateTokens };
@@ -452,7 +452,13 @@ export function resolveSummarizerConfig(options: {
 }): ProviderConfig {
 	const summarizer = options.summarizer;
 	const withSummarizerDefaults = (config: ProviderConfig): ProviderConfig => {
-		if (config.providerId === "openai-codex") {
+		if (
+			!providerHasCapability(
+				config.providerId,
+				"request-max-output-tokens",
+				config.capabilities,
+			)
+		) {
 			const { maxOutputTokens: _maxOutputTokens, ...rest } = config;
 			return {
 				...rest,

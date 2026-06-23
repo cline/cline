@@ -217,6 +217,8 @@ export const ProviderCapabilitySchema = z.enum([
 	"provider-tools",
 	"oauth",
 	"temperature",
+	// Provider accepts an explicit per-request max output token limit.
+	"request-max-output-tokens",
 	"files",
 	"streaming",
 	"vision",

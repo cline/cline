@@ -269,6 +269,16 @@ function getProviderCapabilities(
 	]);
 }
 
+function addRequestMaxOutputCapability(spec: BuiltinSpec): BuiltinSpec {
+	return {
+		...spec,
+		capabilities: uniqueCapabilities([
+			...(spec.capabilities ?? []),
+			"request-max-output-tokens",
+		]),
+	};
+}
+
 function getProviderMetadata(
 	spec: BuiltinSpec,
 ): GatewayProviderMetadata | undefined {
@@ -563,7 +573,7 @@ const clinePass = createClineLikeSpec({
 	},
 });
 
-const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
+const OPENAI_COMPATIBLE_SPECS = ([
 	{
 		id: "openai-compatible",
 		name: "OpenAI Compatible",
@@ -936,7 +946,7 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		modelsFactory: () => ({}),
 		defaults: { baseUrl: "https://api.asksage.ai/server" },
 	},
-];
+] satisfies BuiltinSpec[]).map(addRequestMaxOutputCapability);
 
 export const BUILTIN_SPECS: BuiltinSpec[] = [
 	{
@@ -944,7 +954,7 @@ export const BUILTIN_SPECS: BuiltinSpec[] = [
 		name: "OpenAI",
 		description: "Creator of GPT and ChatGPT",
 		family: "openai",
-		capabilities: ["reasoning"],
+		capabilities: ["reasoning", "request-max-output-tokens"],
 		modelsProviderId: "openai-native",
 		defaultModelId: "gpt-5.4",
 		apiKeyEnv: ["OPENAI_API_KEY"],
@@ -982,7 +992,7 @@ export const BUILTIN_SPECS: BuiltinSpec[] = [
 		description: "Creator of Claude, the AI assistant",
 		family: "anthropic",
 		popular: 15,
-		capabilities: ["reasoning", "prompt-cache"],
+		capabilities: ["reasoning", "prompt-cache", "request-max-output-tokens"],
 		defaultModelId: "claude-sonnet-4-6",
 		apiKeyEnv: ["ANTHROPIC_API_KEY"],
 		modelsProviderId: "anthropic",
@@ -1006,7 +1016,7 @@ export const BUILTIN_SPECS: BuiltinSpec[] = [
 		description: "Google Gemini API",
 		family: "google",
 		popular: 45,
-		capabilities: ["reasoning", "prompt-cache"],
+		capabilities: ["reasoning", "prompt-cache", "request-max-output-tokens"],
 		defaultModelId: "gemma-4-26b",
 		apiKeyEnv: ["GOOGLE_GENERATIVE_AI_API_KEY", "GEMINI_API_KEY"],
 		modelsProviderId: "gemini",
@@ -1017,7 +1027,7 @@ export const BUILTIN_SPECS: BuiltinSpec[] = [
 		name: "Google Vertex AI",
 		description: "Google Cloud Vertex AI",
 		family: "vertex",
-		capabilities: ["reasoning", "prompt-cache"],
+		capabilities: ["reasoning", "prompt-cache", "request-max-output-tokens"],
 		apiKeyEnv: [
 			"GCP_PROJECT_ID",
 			"GOOGLE_CLOUD_PROJECT",
@@ -1037,7 +1047,7 @@ export const BUILTIN_SPECS: BuiltinSpec[] = [
 		description: "Amazon Bedrock managed foundation models",
 		family: "bedrock",
 		popular: 30,
-		capabilities: ["reasoning", "prompt-cache"],
+		capabilities: ["reasoning", "prompt-cache", "request-max-output-tokens"],
 		defaultModelId: "minimax.minimax-m2.5",
 		apiKeyEnv: [
 			"AWS_BEARER_TOKEN_BEDROCK",

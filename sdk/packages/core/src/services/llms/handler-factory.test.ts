@@ -15,7 +15,17 @@ const gatewayMock = vi.hoisted(() => {
 
 vi.mock("@cline/llms", () => ({
 	createGateway: gatewayMock.createGateway,
-	MODEL_COLLECTIONS_BY_PROVIDER_ID: {},
+	MODEL_COLLECTIONS_BY_PROVIDER_ID: {
+		"openai-compatible": {
+			provider: {
+				id: "openai-compatible",
+				capabilities: ["request-max-output-tokens"],
+			},
+			models: {},
+		},
+	},
+	providerHasCapability: (providerId: string, capability: string, capabilities?: string[]) =>
+		(capabilities ?? (providerId === "openai-compatible" ? ["request-max-output-tokens"] : [])).includes(capability),
 	hasRegisteredHandler: gatewayMock.hasRegisteredHandler,
 	createHandlerAsync: gatewayMock.createHandlerAsync,
 	normalizeProviderId: (id: string) => id,

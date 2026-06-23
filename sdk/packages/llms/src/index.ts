@@ -23,6 +23,7 @@ export {
 	isCanonicalModelIdForAliasRules,
 	MODEL_COLLECTIONS_BY_PROVIDER_ID,
 	preferCanonicalModelIds,
+	providerHasCapability,
 	registerModel,
 	registerProvider,
 	resetRegistry,

@@ -4,6 +4,7 @@ import {
 	hasRegisteredHandler,
 	MODEL_COLLECTIONS_BY_PROVIDER_ID,
 	normalizeProviderId,
+	providerHasCapability,
 } from "@cline/llms";
 import type {
 	AgentConfig,
@@ -143,6 +144,23 @@ function toGatewayConfiguredModel(
 	};
 }
 
+function resolveConfiguredMaxOutputTokens(
+	config: AgentConfig,
+	baseProviderConfig: ProviderConfig | undefined,
+): number | undefined {
+	if (
+		!providerHasCapability(
+			config.providerId,
+			"request-max-output-tokens",
+			baseProviderConfig?.capabilities,
+		)
+	) {
+		return undefined;
+	}
+
+	return config.maxTokensPerTurn ?? baseProviderConfig?.maxOutputTokens;
+}
+
 export function createAgentModelFromConfig(
 	config: AgentConfig,
 	logger: BasicLogger | undefined,
@@ -159,7 +177,10 @@ export function createAgentModelFromConfig(
 		baseUrl: config.baseUrl ?? baseProviderConfig?.baseUrl,
 		headers: config.headers ?? baseProviderConfig?.headers,
 		knownModels: resolveKnownModelsFromConfig(config),
-		maxOutputTokens: config.maxTokensPerTurn ?? baseProviderConfig?.maxOutputTokens,
+		maxOutputTokens: resolveConfiguredMaxOutputTokens(
+			config,
+			baseProviderConfig,
+		),
 		reasoningEffort: config.reasoningEffort,
 		thinkingBudgetTokens: config.thinkingBudgetTokens,
 		thinking: config.thinking,

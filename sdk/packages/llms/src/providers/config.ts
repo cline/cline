@@ -56,6 +56,7 @@ export type ProviderCapability =
 	| "prompt-cache" // Prompt caching
 	| "streaming" // Streaming responses
 	| "tools" // Tool/function calling
+	| "request-max-output-tokens" // Explicit per-request max output token limit
 	| "vision" // Image inputs
 	| "computer-use" // Computer use tools
 	| "oauth"; // OAuth authentication flow
