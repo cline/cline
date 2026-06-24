@@ -399,6 +399,47 @@ describe("default search_codebase tool", () => {
 			},
 		]);
 	});
+
+	it("accepts object input with queries as a JSON-encoded string array", async () => {
+		const execute = vi.fn(async (query: string) => `results:${query}`);
+		const tool = createSearchTool(execute);
+
+		const result = await tool.execute(
+			{
+				queries: JSON.stringify(["createSearchTool", "run_commands"]),
+			} as never,
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		expect(result).toEqual([
+			{
+				query: "createSearchTool",
+				result: "results:createSearchTool",
+				success: true,
+			},
+			{
+				query: "run_commands",
+				result: "results:run_commands",
+				success: true,
+			},
+		]);
+		expect(execute).toHaveBeenNthCalledWith(
+			1,
+			"createSearchTool",
+			process.cwd(),
+			expect.objectContaining({ iteration: 1 }),
+		);
+		expect(execute).toHaveBeenNthCalledWith(
+			2,
+			"run_commands",
+			process.cwd(),
+			expect.objectContaining({ iteration: 1 }),
+		);
+	});
 });
 
 describe("default apply_patch tool", () => {
@@ -1462,6 +1503,45 @@ describe("default read_files tool", () => {
 			3,
 			{ path: "/tmp/c.ts" },
 			expect.objectContaining({ iteration: 2 }),
+		);
+	});
+
+	it("accepts object input with files as a JSON-encoded string array", async () => {
+		const execute = vi.fn(
+			async (request: { path: string }) => `content:${request.path}`,
+		);
+		const tool = createReadFilesTool(execute);
+
+		const result = await tool.execute(
+			{ files: JSON.stringify(["/tmp/a.ts", "/tmp/b.ts"]) } as never,
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		expect(result).toEqual([
+			{
+				query: "/tmp/a.ts",
+				result: "content:/tmp/a.ts",
+				success: true,
+			},
+			{
+				query: "/tmp/b.ts",
+				result: "content:/tmp/b.ts",
+				success: true,
+			},
+		]);
+		expect(execute).toHaveBeenNthCalledWith(
+			1,
+			{ path: "/tmp/a.ts" },
+			expect.objectContaining({ iteration: 1 }),
+		);
+		expect(execute).toHaveBeenNthCalledWith(
+			2,
+			{ path: "/tmp/b.ts" },
+			expect.objectContaining({ iteration: 1 }),
 		);
 	});
 

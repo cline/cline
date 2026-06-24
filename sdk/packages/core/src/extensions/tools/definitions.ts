@@ -26,7 +26,9 @@ import {
 	formatRunCommandQueryPreview,
 	getEditorSizeError,
 	getReadFileRangeError,
+	normalizeJsonLikeReadFilesInput,
 	normalizeJsonLikeRunCommandsInput,
+	normalizeJsonLikeSearchCodebaseInput,
 	normalizeRunCommandsInput,
 	TimeoutError,
 	withTimeout,
@@ -192,7 +194,10 @@ export function createReadFilesTool(
 		retryable: true,
 		maxRetries: 1,
 		execute: async (input, context) => {
-			const validate = validateWithZod(ReadFilesInputUnionSchema, input);
+			const validate = validateWithZod(
+				ReadFilesInputUnionSchema,
+				normalizeJsonLikeReadFilesInput(input),
+			);
 			let requests: ReadFileRequest[];
 			if (typeof validate === "string") {
 				requests = [{ path: validate }];
@@ -286,7 +291,10 @@ export function createSearchTool(
 		maxRetries: 1,
 		execute: async (input, context) => {
 			// Validate input with Zod schema
-			const validate = validateWithZod(SearchCodebaseUnionInputSchema, input);
+			const validate = validateWithZod(
+				SearchCodebaseUnionInputSchema,
+				normalizeJsonLikeSearchCodebaseInput(input),
+			);
 			const queries = Array.isArray(validate)
 				? validate
 				: typeof validate === "object"

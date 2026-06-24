@@ -98,18 +98,42 @@ function isRecord(input: unknown): input is Record<string, unknown> {
 	return typeof input === "object" && input != null && !Array.isArray(input);
 }
 
-export function normalizeJsonLikeRunCommandsInput(input: unknown): unknown {
+export function normalizeJsonLikeToolInput(
+	input: unknown,
+	keys: string[],
+): unknown {
 	const parsed = parseJsonLikeString(input);
-	if (!isRecord(parsed) || !("commands" in parsed)) {
+	if (!isRecord(parsed)) {
 		return parsed;
 	}
 
-	const commands = parseJsonLikeString(parsed.commands);
-	if (isRecord(commands) && "commands" in commands) {
-		return { ...parsed, commands: parseJsonLikeString(commands.commands) };
+	const normalized = { ...parsed };
+	for (const key of keys) {
+		if (!(key in normalized)) {
+			continue;
+		}
+
+		const value = parseJsonLikeString(normalized[key]);
+		if (isRecord(value) && key in value) {
+			normalized[key] = parseJsonLikeString(value[key]);
+		} else {
+			normalized[key] = value;
+		}
 	}
 
-	return { ...parsed, commands };
+	return normalized;
+}
+
+export function normalizeJsonLikeRunCommandsInput(input: unknown): unknown {
+	return normalizeJsonLikeToolInput(input, ["commands"]);
+}
+
+export function normalizeJsonLikeReadFilesInput(input: unknown): unknown {
+	return normalizeJsonLikeToolInput(input, ["files", "file_paths", "paths"]);
+}
+
+export function normalizeJsonLikeSearchCodebaseInput(input: unknown): unknown {
+	return normalizeJsonLikeToolInput(input, ["queries"]);
 }
 
 export function normalizeRunCommandsInput(
