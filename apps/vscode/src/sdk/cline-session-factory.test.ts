@@ -438,6 +438,40 @@ describe("buildSessionConfig", () => {
 		expect((config as any).maxTokensPerTurn).toBe(4_096)
 	})
 
+	it("passes OCA reasoning effort from legacy mode settings to SDK sessions", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "oca",
+			actModeOcaModelId: "oca-reasoner",
+			ocaApiKey: "oca-key",
+			actModeOcaReasoningEffort: " HIGH ",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerId).toBe("oca")
+		expect(config.modelId).toBe("oca-reasoner")
+		expect(config.thinking).toBe(true)
+		expect(config.reasoningEffort).toBe("high")
+	})
+
+	it("lets legacy OCA none override stale provider reasoning settings", async () => {
+		mocks.providerSettingsManager.getProviderSettings.mockReturnValue({
+			provider: "oca",
+			reasoning: { enabled: true, effort: "medium" },
+		} as any)
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "oca",
+			actModeOcaModelId: "oca-reasoner",
+			ocaApiKey: "oca-key",
+			actModeOcaReasoningEffort: "none",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.thinking).toBe(false)
+		expect(config.reasoningEffort).toBeUndefined()
+	})
+
 	it("builds structured SAP AI Core config from legacy ApiConfiguration fields", async () => {
 		mocks.stateManager.getApiConfiguration.mockReturnValue({
 			actModeApiProvider: "sapaicore",
