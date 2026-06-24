@@ -267,6 +267,76 @@ export const AskQuestionInputSchema = z.object({
 		),
 });
 
+/**
+ * Schema for a single ask_question option supplied as an object.
+ *
+ * Some models emit structured option entries such as
+ * `{ key, label, description }` instead of plain strings. Accept the common
+ * key variants and normalize them to a display string at execution time.
+ */
+export const AskQuestionOptionObjectSchema = z
+	.object({
+		label: z.string().min(1).optional(),
+		value: z.string().min(1).optional(),
+		title: z.string().min(1).optional(),
+		name: z.string().min(1).optional(),
+		key: z.string().min(1).optional(),
+		description: z.string().optional(),
+	})
+	.refine(
+		(option) =>
+			Boolean(
+				option.label ??
+					option.value ??
+					option.title ??
+					option.name ??
+					option.key,
+			),
+		{
+			message:
+				"Option object must include a non-empty label, value, title, name, or key",
+		},
+	);
+
+/**
+ * Union schema for ask_question tool input. Accepts options as plain strings or
+ * as structured objects, mirroring the read_files union-schema flexibility.
+ */
+export const AskQuestionInputUnionSchema = z.object({
+	question: z
+		.string()
+		.min(1)
+		.describe(
+			'The single question to ask the user. E.g. "How can I help you?"',
+		),
+	options: z
+		.array(z.union([z.string().min(1), AskQuestionOptionObjectSchema]))
+		.min(2)
+		.max(5)
+		.describe(
+			"Array of 2-5 user-selectable answer options for the single question",
+		),
+});
+
+/**
+ * Normalize ask_question options to display strings, collapsing any structured
+ * option objects down to their most descriptive label.
+ */
+export function normalizeAskQuestionOptions(
+	options: z.infer<typeof AskQuestionInputUnionSchema>["options"],
+): string[] {
+	return options.map((option) =>
+		typeof option === "string"
+			? option
+			: (option.label ??
+				option.value ??
+				option.title ??
+				option.name ??
+				option.key ??
+				""),
+	);
+}
+
 export const SubmitInputSchema = z.object({
 	summary: z
 		.string()

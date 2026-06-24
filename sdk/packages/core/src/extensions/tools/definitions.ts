@@ -36,10 +36,12 @@ import {
 	ApplyPatchInputUnionSchema,
 	type AskQuestionInput,
 	AskQuestionInputSchema,
+	AskQuestionInputUnionSchema,
 	type EditFileInput,
 	EditFileInputSchema,
 	type FetchWebContentInput,
 	FetchWebContentInputSchema,
+	normalizeAskQuestionOptions,
 	type ReadFileRequest,
 	type ReadFilesInput,
 	ReadFilesInputSchema,
@@ -757,8 +759,12 @@ export function createAskQuestionTool(
 		retryable: false,
 		maxRetries: 0,
 		execute: async (input, context) => {
-			const validatedInput = validateWithZod(AskQuestionInputSchema, input);
-			return executor(validatedInput.question, validatedInput.options, context);
+			const validatedInput = validateWithZod(
+				AskQuestionInputUnionSchema,
+				input,
+			);
+			const options = normalizeAskQuestionOptions(validatedInput.options);
+			return executor(validatedInput.question, options, context);
 		},
 	};
 }
