@@ -59,7 +59,7 @@ export async function parseSlashCommands(
 		smol: condenseToolResponse(focusChainSettings),
 		compact: condenseToolResponse(focusChainSettings),
 		newrule: newRuleToolResponse(),
-		reportbug: reportBugToolResponse(),
+		reportbug: reportBugToolResponse(willUseNativeTools),
 		"deep-planning": deepPlanningToolResponse(focusChainSettings, providerInfo, willUseNativeTools),
 		"explain-changes": explainChangesToolResponse(),
 	}
