@@ -186,6 +186,11 @@ export function getConfiguredProviders(
 		configured.push("nousResearch")
 	}
 
+	// Chutes - requires API key
+	if (apiConfiguration.chutesApiKey) {
+		configured.push("chutes")
+	}
+
 	// OpenAI Compatible - requires base URL and API key, OR has model configured
 	if (
 		(apiConfiguration.openAiBaseUrl && apiConfiguration.openAiApiKey) ||

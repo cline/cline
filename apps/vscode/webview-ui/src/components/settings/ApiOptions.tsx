@@ -20,6 +20,7 @@ import { AskSageProvider } from "./providers/AskSageProvider"
 import { BasetenProvider } from "./providers/BasetenProvider"
 import { BedrockProvider } from "./providers/BedrockProvider"
 import { CerebrasProvider } from "./providers/CerebrasProvider"
+import { ChutesProvider } from "./providers/ChutesProvider"
 import { ClaudeCodeProvider } from "./providers/ClaudeCodeProvider"
 import { ClinePassProvider } from "./providers/ClinePassProvider"
 import { ClineProvider } from "./providers/ClineProvider"
@@ -494,6 +495,10 @@ const ApiOptions = ({
 
 			{apiConfiguration && selectedProvider === "wandb" && (
 				<WandbProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+			)}
+
+			{apiConfiguration && selectedProvider === "chutes" && (
+				<ChutesProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
 			{apiConfiguration && selectedProvider === "xai" && (
