@@ -22,6 +22,7 @@ interface OpenAiHandlerOptions extends CommonApiHandlerOptions {
 	openAiModelId?: string
 	openAiModelInfo?: OpenAiCompatibleModelInfo
 	reasoningEffort?: string
+	requestTimeoutMs?: number
 }
 
 export class OpenAiHandler implements ApiHandler {
@@ -133,16 +134,41 @@ export class OpenAiHandler implements ApiHandler {
 			reasoningEffort = requestedEffort === "none" ? undefined : (requestedEffort as ChatCompletionReasoningEffort)
 		}
 
-		const stream = await client.chat.completions.create({
-			model: modelId,
-			messages: openAiMessages,
-			temperature,
-			max_tokens: maxTokens,
-			reasoning_effort: reasoningEffort,
-			stream: true,
-			stream_options: { include_usage: true },
-			...getOpenAIToolParams(tools),
-		})
+		// Apply timeout wrapper if configured
+		const timeoutMs = this.options.requestTimeoutMs
+		let stream: Awaited<ReturnType<typeof client.chat.completions.create>>
+
+		if (timeoutMs && timeoutMs > 0) {
+			const timeoutPromise = new Promise<never>((_, reject) => {
+				setTimeout(() => {
+					reject(new Error(`OpenAI API request timed out after ${timeoutMs / 1000} seconds`))
+				}, timeoutMs)
+			})
+			stream = (await Promise.race([
+				client.chat.completions.create({
+					model: modelId,
+					messages: openAiMessages,
+					temperature,
+					max_tokens: maxTokens,
+					reasoning_effort: reasoningEffort,
+					stream: true,
+					stream_options: { include_usage: true },
+					...getOpenAIToolParams(tools),
+				}),
+				timeoutPromise,
+			])) as typeof stream
+		} else {
+			stream = await client.chat.completions.create({
+				model: modelId,
+				messages: openAiMessages,
+				temperature,
+				max_tokens: maxTokens,
+				reasoning_effort: reasoningEffort,
+				stream: true,
+				stream_options: { include_usage: true },
+				...getOpenAIToolParams(tools),
+			})
+		}
 
 		const toolCallProcessor = new ToolCallProcessor()
 

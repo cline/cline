@@ -232,6 +232,30 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 				Use Azure Identity Authentication
 			</VSCodeCheckbox>
 
+			<DebouncedTextField
+				initialValue={
+					apiConfiguration?.requestTimeoutMs ? apiConfiguration.requestTimeoutMs.toString() : "1800000"
+				}
+				onChange={(value) => {
+					const numValue = parseInt(value, 10)
+					if (!Number.isNaN(numValue) && numValue > 0) {
+						handleFieldChange("requestTimeoutMs", numValue)
+					}
+				}}
+				placeholder="Default: 1800000 (30 minutes)"
+				style={{ width: "100%" }}>
+				<span style={{ fontWeight: 500 }}>Request Timeout (ms)</span>
+			</DebouncedTextField>
+			<p
+				style={{
+					fontSize: "12px",
+					marginBottom: 10,
+					color: "var(--vscode-descriptionForeground)",
+				}}>
+				Maximum time in milliseconds to wait for the full API response before timing out. Increase this value if you
+				encounter timeout errors with large context windows or slow models.
+			</p>
+
 			<div
 				onClick={() => setModelConfigurationSelected((val) => !val)}
 				style={{
