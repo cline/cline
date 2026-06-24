@@ -1,4 +1,5 @@
 import { MODELS_DEV_PROVIDER_KEY_MAP } from "../providers/provider-keys";
+import { fetchClineRecommendedProviderModels } from "./catalog-cline-recommended";
 import type { ModelInfo } from "./types";
 
 export interface ModelsDevModel {
@@ -183,4 +184,28 @@ export async function fetchModelsDevProviderModels(
 
 	const payload = (await response.json()) as ModelsDevPayload;
 	return normalizeModelsDevProviderModels(payload);
+}
+
+export async function fetchLiveProviderModels(
+	modelsDevUrl: string,
+	fetcher: typeof fetch = fetch,
+): Promise<Record<string, Record<string, ModelInfo>>> {
+	const providerModels = await fetchModelsDevProviderModels(
+		modelsDevUrl,
+		fetcher,
+	);
+	let clineRecommended: Record<string, Record<string, ModelInfo>> = {};
+	try {
+		clineRecommended = await fetchClineRecommendedProviderModels(
+			fetcher,
+			providerModels.openrouter ?? {},
+		);
+	} catch {
+		clineRecommended = {};
+	}
+
+	return {
+		...providerModels,
+		...clineRecommended,
+	};
 }

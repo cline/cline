@@ -786,7 +786,7 @@ async function getPrivateProviderModels(
 async function fetchLiveModelsCatalog(
 	url: string,
 ): Promise<Record<string, Record<string, ModelInfo>>> {
-	return Llms.fetchModelsDevProviderModels(url, globalThis.fetch);
+	return Llms.fetchLiveProviderModels(url, globalThis.fetch);
 }
 
 export async function getLiveModelsCatalog(

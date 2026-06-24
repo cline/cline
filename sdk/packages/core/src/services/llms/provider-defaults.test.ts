@@ -58,6 +58,63 @@ describe("resolveProviderConfig", () => {
 		);
 	});
 
+	it("uses live Cline recommended models for ClinePass", async () => {
+		const fetchMock = vi.fn(async (url: string) => {
+			if (url === "https://models.test/api.json") {
+				return new Response(
+					JSON.stringify({
+						openrouter: {
+							models: {
+								"vendor/live-pass-model": {
+									name: "Live Pass Model",
+									tool_call: true,
+									reasoning: true,
+									limit: { context: 256_000, input: 200_000, output: 32_000 },
+								},
+							},
+						},
+					}),
+					{
+						status: 200,
+						headers: { "content-type": "application/json" },
+					},
+				);
+			}
+
+			return new Response(
+				JSON.stringify({
+					clinePass: [
+						{
+							id: "cline-pass/live-pass-model",
+							name: "vendor/live-pass-model",
+						},
+					],
+				}),
+				{
+					status: 200,
+					headers: { "content-type": "application/json" },
+				},
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const resolved = await resolveProviderConfig("cline-pass", {
+			loadLatestOnInit: true,
+			failOnError: false,
+			cacheTtlMs: 0,
+			url: "https://models.test/api.json",
+		});
+
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		expect(resolved?.knownModels?.["cline-pass/live-pass-model"]).toMatchObject({
+			id: "cline-pass/live-pass-model",
+			name: "Live Pass Model",
+			contextWindow: 256_000,
+			maxInputTokens: 200_000,
+			maxTokens: 32_000,
+		});
+	});
+
 	it("prefers Vercel-style Z.ai ids in Cline known models", async () => {
 		const resolved = await resolveProviderConfig("cline");
 
