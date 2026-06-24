@@ -3800,12 +3800,19 @@ export class Task {
 				// Save checkpoint after all tools in this response have finished executing
 				await this.checkpointManager?.saveCheckpoint();
 
-				// if the model did not tool use, then we need to tell it to either use a tool or attempt_completion
+				// In plan mode, a non-empty text response is a valid outcome even without tool use.
+				// In act mode, text-only responses should still hit the corrective nudge and mistake counter
+				// so we preserve the existing loop-protection behavior.
 				const didToolUse = this.taskState.assistantMessageContent.some(
 					(block) => block.type === "tool_use",
 				);
+				const didProvideTextResponse = this.taskState.assistantMessageContent.some(
+					(block) => block.type === "text" && block.content.trim().length > 0,
+				);
+				const isPlanMode = this.stateManager.getGlobalSettingsKey("mode") === "plan";
+				const shouldAcceptTextOnlyResponse = isPlanMode && didProvideTextResponse && !didToolUse;
 
-				if (!didToolUse) {
+				if (!didToolUse && !shouldAcceptTextOnlyResponse) {
 					// normal request where tool use is required
 					this.taskState.userMessageContent.push({
 						type: "text",
@@ -3817,10 +3824,16 @@ export class Task {
 				// Reset auto-retry counter for each new API request
 				this.taskState.autoRetryAttempts = 0;
 
-				const recDidEndLoop = await this.recursivelyMakeClineRequests(
-					this.taskState.userMessageContent,
-				);
-				didEndLoop = recDidEndLoop;
+				if (shouldAcceptTextOnlyResponse) {
+					// In plan mode, a valid text-only response should end this turn without
+					// forcing an empty recursive follow-up or the outer no-tools corrective nudge.
+					didEndLoop = true;
+				} else {
+					const recDidEndLoop = await this.recursivelyMakeClineRequests(
+						this.taskState.userMessageContent,
+					);
+					didEndLoop = recDidEndLoop;
+				}
 			} else {
 				// if there's no assistant_responses, that means we got no text or tool_use content blocks from API which we should assume is an error
 				const { model, providerId } = this.getCurrentProviderInfo();
