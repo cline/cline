@@ -158,6 +158,23 @@ export async function runCli(): Promise<void> {
 		.option("-m, --modelid <id>", "Model ID")
 		.option("-b, --baseurl <url>", "Base URL")
 		.option("--azure-api-version <version>", "Azure API version")
+		.option(
+			"-H, --header <key=value>",
+			"Custom HTTP header sent on every request (repeatable)",
+			(value: string, previous: string[]) => [...previous, value],
+			[],
+		)
+		.option("--context-window <tokens>", "Context window size for the model")
+		.option(
+			"--max-output-tokens <tokens>",
+			"Max output tokens per request for the model",
+		)
+		.option("--supports-images", "Mark the model as supporting image input")
+		.option(
+			"--no-supports-images",
+			"Mark the model as not supporting image input",
+		)
+		.option("--clear-headers", "Remove all saved custom headers")
 		.option("--config <dir>", "configuration directory")
 		.option("-c, --cwd <path>", "Working directory")
 		.option(
@@ -172,6 +189,11 @@ export async function runCli(): Promise<void> {
 				modelid?: string;
 				baseurl?: string;
 				azureApiVersion?: string;
+				header?: string[];
+				clearHeaders?: boolean;
+				contextWindow?: string;
+				maxOutputTokens?: string;
+				supportsImages?: boolean;
 				config?: string;
 				cwd?: string;
 				dataDir?: string;
@@ -203,6 +225,11 @@ export async function runCli(): Promise<void> {
 				modelid: opts.modelid,
 				baseurl: opts.baseurl,
 				azureApiVersion: opts.azureApiVersion,
+				header: opts.header,
+				clearHeaders: opts.clearHeaders,
+				contextWindow: opts.contextWindow,
+				maxOutputTokens: opts.maxOutputTokens,
+				supportsImages: opts.supportsImages,
 				io,
 			});
 		});

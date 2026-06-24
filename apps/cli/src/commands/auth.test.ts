@@ -1,13 +1,42 @@
 import { spawnSync } from "node:child_process";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { ProviderSettingsManager } from "@cline/core";
+import { ProviderSettingsManager } from "@cline/core";
 import { describe, expect, it, vi } from "vitest";
 import {
 	getPersistedProviderApiKey,
 	normalizeAuthProviderId,
 	parseAuthCommandArgs,
+	parseHeaderFlags,
+	runAuthCommand,
 	saveOAuthProviderSettings,
 } from "./auth";
+
+function createTempProviderSettingsManager(): ProviderSettingsManager {
+	const dir = mkdtempSync(join(tmpdir(), "cline-auth-test-"));
+	return new ProviderSettingsManager({
+		filePath: join(dir, "settings", "providers.json"),
+	});
+}
+
+function createAuthIo() {
+	const out: string[] = [];
+	const err: string[] = [];
+	return {
+		io: {
+			writeln: (text?: string) => {
+				out.push(text ?? "");
+			},
+			writeErr: (text: string) => {
+				err.push(text);
+			},
+		},
+		out,
+		err,
+	};
+}
 
 describe("parseAuthCommandArgs", () => {
 	it("parses Azure API version quick setup option", () => {
@@ -94,6 +123,294 @@ describe("getPersistedProviderApiKey", () => {
 				},
 			}),
 		).toBe("workos:oauth-access");
+	});
+});
+
+describe("parseAuthCommandArgs", () => {
+	it("parses repeatable --header flags and model configuration options", () => {
+		const parsed = parseAuthCommandArgs([
+			"--provider",
+			"openai-compatible",
+			"--header",
+			"X-Org=abc",
+			"-H",
+			"Authorization=Bearer a=b",
+			"--context-window",
+			"128000",
+			"--max-output-tokens",
+			"8192",
+			"--supports-images",
+		]);
+
+		expect(parsed.parseError).toBeUndefined();
+		expect(parsed.explicitProvider).toBe("openai-compatible");
+		expect(parsed.header).toEqual(["X-Org=abc", "Authorization=Bearer a=b"]);
+		expect(parsed.contextWindow).toBe("128000");
+		expect(parsed.maxOutputTokens).toBe("8192");
+		expect(parsed.supportsImages).toBe(true);
+	});
+
+	it("parses --no-supports-images as an explicit false", () => {
+		const parsed = parseAuthCommandArgs([
+			"--provider",
+			"openai-compatible",
+			"--no-supports-images",
+		]);
+		expect(parsed.supportsImages).toBe(false);
+	});
+
+	it("leaves supportsImages undefined when neither flag is given", () => {
+		const parsed = parseAuthCommandArgs(["--provider", "openai-compatible"]);
+		expect(parsed.supportsImages).toBeUndefined();
+	});
+});
+
+describe("parseHeaderFlags", () => {
+	it("splits each header at the first equals sign", () => {
+		expect(
+			parseHeaderFlags(["X-Org=abc", "Authorization=Bearer a=b=c"]),
+		).toEqual({
+			headers: {
+				"X-Org": "abc",
+				Authorization: "Bearer a=b=c",
+			},
+		});
+	});
+
+	it("rejects headers without a key", () => {
+		expect(parseHeaderFlags(["=value"]).error).toMatch(/invalid --header/);
+		expect(parseHeaderFlags(["no-separator"]).error).toMatch(
+			/invalid --header/,
+		);
+	});
+
+	it("returns no headers for empty input", () => {
+		expect(parseHeaderFlags(undefined)).toEqual({});
+		expect(parseHeaderFlags([])).toEqual({});
+	});
+});
+
+describe("runAuthCommand quick setup", () => {
+	it("persists headers and model configuration for openai-compatible", async () => {
+		const manager = createTempProviderSettingsManager();
+		const { io, err } = createAuthIo();
+
+		const exitCode = await runAuthCommand({
+			providerSettingsManager: manager,
+			io,
+			explicitProvider: "openai-compatible",
+			apikey: "sk-test",
+			modelid: "my-custom-model",
+			baseurl: "https://llm.example.com/v1",
+			header: ["X-Org=abc", "Authorization=Bearer token=1"],
+			contextWindow: "128000",
+			maxOutputTokens: "8192",
+			supportsImages: true,
+		});
+
+		expect(err).toEqual([]);
+		expect(exitCode).toBe(0);
+		expect(manager.getProviderSettings("openai-compatible")).toMatchObject({
+			provider: "openai-compatible",
+			apiKey: "sk-test",
+			model: "my-custom-model",
+			baseUrl: "https://llm.example.com/v1",
+			headers: {
+				"X-Org": "abc",
+				Authorization: "Bearer token=1",
+			},
+			contextWindow: 128_000,
+			maxTokens: 8_192,
+		});
+		expect(
+			manager.getProviderSettings("openai-compatible")?.capabilities,
+		).toEqual(expect.arrayContaining(["streaming", "tools", "vision"]));
+	});
+
+	it("updates stored settings without requiring the api key again", async () => {
+		const manager = createTempProviderSettingsManager();
+		manager.saveProviderSettings({
+			provider: "openai-compatible",
+			apiKey: "sk-existing",
+			model: "my-custom-model",
+			baseUrl: "https://llm.example.com/v1",
+		});
+		const { io, err } = createAuthIo();
+
+		const exitCode = await runAuthCommand({
+			providerSettingsManager: manager,
+			io,
+			explicitProvider: "openai-compatible",
+			header: ["X-Team=infra"],
+		});
+
+		expect(err).toEqual([]);
+		expect(exitCode).toBe(0);
+		expect(manager.getProviderSettings("openai-compatible")).toMatchObject({
+			apiKey: "sk-existing",
+			model: "my-custom-model",
+			headers: { "X-Team": "infra" },
+		});
+	});
+
+	it("merges new headers into existing ones", async () => {
+		const manager = createTempProviderSettingsManager();
+		manager.saveProviderSettings({
+			provider: "openai-compatible",
+			apiKey: "sk-existing",
+			model: "my-custom-model",
+			headers: { "X-Org": "abc", "X-Team": "old" },
+		});
+		const { io } = createAuthIo();
+
+		const exitCode = await runAuthCommand({
+			providerSettingsManager: manager,
+			io,
+			explicitProvider: "openai-compatible",
+			header: ["X-Team=infra"],
+		});
+
+		expect(exitCode).toBe(0);
+		expect(manager.getProviderSettings("openai-compatible")?.headers).toEqual({
+			"X-Org": "abc",
+			"X-Team": "infra",
+		});
+	});
+
+	it("removes saved headers with --clear-headers", async () => {
+		const manager = createTempProviderSettingsManager();
+		manager.saveProviderSettings({
+			provider: "openai-compatible",
+			apiKey: "sk-existing",
+			model: "my-custom-model",
+			headers: { "X-Org": "abc" },
+		});
+		const { io } = createAuthIo();
+
+		const exitCode = await runAuthCommand({
+			providerSettingsManager: manager,
+			io,
+			explicitProvider: "openai-compatible",
+			clearHeaders: true,
+		});
+
+		expect(exitCode).toBe(0);
+		expect(
+			manager.getProviderSettings("openai-compatible")?.headers,
+		).toBeUndefined();
+	});
+
+	it("replaces headers when --clear-headers is combined with --header", async () => {
+		const manager = createTempProviderSettingsManager();
+		manager.saveProviderSettings({
+			provider: "openai-compatible",
+			apiKey: "sk-existing",
+			model: "my-custom-model",
+			headers: { "X-Org": "abc", "X-Team": "old" },
+		});
+		const { io } = createAuthIo();
+
+		const exitCode = await runAuthCommand({
+			providerSettingsManager: manager,
+			io,
+			explicitProvider: "openai-compatible",
+			clearHeaders: true,
+			header: ["X-Fresh=1"],
+		});
+
+		expect(exitCode).toBe(0);
+		expect(manager.getProviderSettings("openai-compatible")?.headers).toEqual({
+			"X-Fresh": "1",
+		});
+	});
+
+	it("removes the vision capability with --no-supports-images", async () => {
+		const manager = createTempProviderSettingsManager();
+		manager.saveProviderSettings({
+			provider: "openai-compatible",
+			apiKey: "sk-existing",
+			model: "my-custom-model",
+			capabilities: ["streaming", "tools", "vision"],
+		});
+		const { io } = createAuthIo();
+
+		const exitCode = await runAuthCommand({
+			providerSettingsManager: manager,
+			io,
+			explicitProvider: "openai-compatible",
+			supportsImages: false,
+		});
+
+		expect(exitCode).toBe(0);
+		const capabilities =
+			manager.getProviderSettings("openai-compatible")?.capabilities;
+		expect(capabilities).toEqual(
+			expect.arrayContaining(["streaming", "tools"]),
+		);
+		expect(capabilities).not.toContain("vision");
+	});
+
+	it("rejects custom headers for providers without endpoint customization", async () => {
+		const manager = createTempProviderSettingsManager();
+		const { io, err } = createAuthIo();
+
+		const exitCode = await runAuthCommand({
+			providerSettingsManager: manager,
+			io,
+			explicitProvider: "anthropic",
+			apikey: "sk-ant",
+			modelid: "claude-sonnet-4-20250514",
+			header: ["X-Org=abc"],
+		});
+
+		expect(exitCode).toBe(1);
+		expect(err.join("\n")).toMatch(/custom headers are only supported/i);
+	});
+
+	it("rejects model configuration options for non openai-compatible providers", async () => {
+		const manager = createTempProviderSettingsManager();
+		const { io, err } = createAuthIo();
+
+		const exitCode = await runAuthCommand({
+			providerSettingsManager: manager,
+			io,
+			explicitProvider: "anthropic",
+			apikey: "sk-ant",
+			modelid: "claude-sonnet-4-20250514",
+			contextWindow: "128000",
+		});
+
+		expect(exitCode).toBe(1);
+		expect(err.join("\n")).toMatch(/model configuration options/i);
+	});
+
+	it("rejects malformed header and numeric flag values", async () => {
+		const manager = createTempProviderSettingsManager();
+		const malformedHeader = createAuthIo();
+		expect(
+			await runAuthCommand({
+				providerSettingsManager: manager,
+				io: malformedHeader.io,
+				explicitProvider: "openai-compatible",
+				apikey: "sk-test",
+				modelid: "my-custom-model",
+				header: ["missing-separator"],
+			}),
+		).toBe(1);
+		expect(malformedHeader.err.join("\n")).toMatch(/invalid --header/);
+
+		const malformedNumber = createAuthIo();
+		expect(
+			await runAuthCommand({
+				providerSettingsManager: manager,
+				io: malformedNumber.io,
+				explicitProvider: "openai-compatible",
+				apikey: "sk-test",
+				modelid: "my-custom-model",
+				maxOutputTokens: "not-a-number",
+			}),
+		).toBe(1);
+		expect(malformedNumber.err.join("\n")).toMatch(/--max-output-tokens/);
 	});
 });
 

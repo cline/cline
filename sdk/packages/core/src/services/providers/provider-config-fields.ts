@@ -5,6 +5,9 @@ export type ProviderConfigFieldKey =
 	| "apiKey"
 	| "baseUrl"
 	| "azureApiVersion"
+	| "headers"
+	| "contextWindow"
+	| "maxOutputTokens"
 	| "awsRegion"
 	| "awsProfile"
 	| "gcpProjectId"
@@ -37,6 +40,9 @@ const FIELD_KEYS: ProviderConfigFieldKey[] = [
 	"apiKey",
 	"baseUrl",
 	"azureApiVersion",
+	"headers",
+	"contextWindow",
+	"maxOutputTokens",
 	"awsRegion",
 	"awsProfile",
 	"gcpProjectId",
@@ -63,6 +69,21 @@ const PROVIDER_CONFIG_FIELD_METADATA: Partial<
 		description:
 			"For Azure AI Foundry deployments, use a Base URL ending at /openai/deployments/<deployment> and set the Azure API version.",
 		fields: {
+			headers: {
+				label: "Custom Headers (optional)",
+				placeholder: "X-Header=value, X-Other=value",
+				optional: true,
+			},
+			contextWindow: {
+				label: "Context Window (optional)",
+				placeholder: "e.g. 128000",
+				optional: true,
+			},
+			maxOutputTokens: {
+				label: "Max Output Tokens (optional)",
+				placeholder: "e.g. 8192",
+				optional: true,
+			},
 			azureApiVersion: {
 				label: "Azure API Version (optional)",
 				placeholder: "2025-01-01-preview",
