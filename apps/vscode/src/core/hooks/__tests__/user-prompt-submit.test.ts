@@ -457,7 +457,8 @@ console.log(JSON.stringify({
 			WINDOWS_HOOK_TEST_TIMEOUT_MS,
 		)
 
-		it("should cover malformed-json fixture path", async () => {
+		it("should cover malformed-json fixture path", async function () {
+			this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
 			await withFixtureRunner("UserPromptSubmit", "hooks/userpromptsubmit/malformed-json", hookTestEnv, async (runner) => {
 				const malformedResult = await runner.run({
 					taskId: "test-task",
@@ -474,7 +475,8 @@ console.log(JSON.stringify({
 			})
 		})
 
-		it("should cover failing fixture path", async () => {
+		it("should cover failing fixture path", async function () {
+			this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
 			await withFixtureRunner("UserPromptSubmit", "hooks/userpromptsubmit/error", hookTestEnv, async (runner) => {
 				try {
 					await runner.run({

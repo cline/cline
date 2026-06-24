@@ -222,7 +222,7 @@ const PROVIDER_API_KEY_MAP: Record<string, keyof ApiConfiguration> = {
 	cline: "clineApiKey",
 	"cline-pass": "clineApiKey",
 	ollama: "ollamaApiKey",
-	lmstudio: "apiKey", // LM Studio doesn't need a key but uses the generic field
+	lmstudio: "lmStudioApiKey",
 	requesty: "requestyApiKey",
 	together: "togetherApiKey",
 	fireworks: "fireworksApiKey",
