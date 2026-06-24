@@ -400,14 +400,6 @@ function writeSelectionToState(providerId: ProviderId, mode: Mode, selection: Mo
 function writeSelectionToProviderSettings(providerId: ProviderId, selection: ModelSelection): void {
 	const next: ProviderSettingsRecord = { ...getProviderSettings(providerId), model: selection.modelId }
 
-	if (selection.modelInfo.contextWindow !== undefined && selection.modelInfo.contextWindow > 0) {
-		next.contextWindow = selection.modelInfo.contextWindow
-	}
-
-	if (selection.modelInfo.maxTokens !== undefined && selection.modelInfo.maxTokens > 0) {
-		next.maxTokens = selection.modelInfo.maxTokens
-	}
-
 	saveProviderSettings(providerId, next)
 }
 

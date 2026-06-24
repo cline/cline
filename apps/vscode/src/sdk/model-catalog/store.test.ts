@@ -232,9 +232,9 @@ describe("createProviderConfigStore", () => {
 		expect(mocks.getSavedProviderSettings("openrouter")).toMatchObject({
 			provider: "openrouter",
 			model: "provider/model-b",
-			contextWindow: 64_000,
-			maxTokens: 4_096,
 		})
+		expect(mocks.getSavedProviderSettings("openrouter")).not.toHaveProperty("contextWindow")
+		expect(mocks.getSavedProviderSettings("openrouter")).not.toHaveProperty("maxTokens")
 	})
 
 	it("updates providers.json model with setLastUsed false when planActSeparateModelsSetting=false", async () => {
@@ -268,9 +268,9 @@ describe("createProviderConfigStore", () => {
 		expect(mocks.getSavedProviderSettings("claude-code")).toMatchObject({
 			provider: "claude-code",
 			model: "haiku",
-			contextWindow: 128_000,
-			maxTokens: 8_192,
 		})
+		expect(mocks.getSavedProviderSettings("claude-code")).not.toHaveProperty("contextWindow")
+		expect(mocks.getSavedProviderSettings("claude-code")).not.toHaveProperty("maxTokens")
 		expect(mocks.getSaveProviderSettingsMock()).toHaveBeenCalledWith(expect.objectContaining({ model: "haiku" }), {
 			setLastUsed: false,
 		})
