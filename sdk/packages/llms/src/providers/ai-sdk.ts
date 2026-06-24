@@ -293,7 +293,10 @@ export function wrapFetchForRetryAfterGuard(
 
 		const headers = new Headers(response.headers);
 		headers.delete("retry-after");
-		headers.set("x-cline-retry-after-ms", String(Math.round(retryAfterDelayMs)));
+		headers.set(
+			"x-cline-retry-after-ms",
+			String(Math.round(retryAfterDelayMs)),
+		);
 		headers.set("x-cline-retry-after-truncated", "true");
 		return new Response(response.body, {
 			headers,
@@ -319,15 +322,15 @@ function wrapFetchForAiSdkProvider(
 	request: GatewayStreamRequest,
 	context: GatewayProviderContext,
 ): typeof fetch | undefined {
-	const fetchWithCapture = wrapFetchForProviderRequestCapture(baseFetch, request);
+	const fetchWithCapture = wrapFetchForProviderRequestCapture(
+		baseFetch,
+		request,
+	);
 	const fetchWithStickySession = wrapFetchForStickySession(
 		fetchWithCapture,
 		request,
 		context,
 	);
-	if (baseFetch && fetchWithStickySession === baseFetch) {
-		return baseFetch;
-	}
 	return wrapFetchForRetryAfterGuard(fetchWithStickySession);
 }
 
