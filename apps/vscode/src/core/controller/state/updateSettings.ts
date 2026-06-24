@@ -122,12 +122,6 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.terminalManager?.setTerminalReuseEnabled(!!request.terminalReuseEnabled)
 		}
 
-		// Update terminal output line limit
-		if (request.terminalOutputLineLimit !== undefined) {
-			controller.stateManager.setGlobalState("terminalOutputLineLimit", Number(request.terminalOutputLineLimit))
-			controller.terminalManager?.setTerminalOutputLineLimit(Number(request.terminalOutputLineLimit))
-		}
-
 		if (request.vscodeTerminalExecutionMode !== undefined && request.vscodeTerminalExecutionMode !== "") {
 			controller.stateManager.setGlobalState(
 				"vscodeTerminalExecutionMode",
