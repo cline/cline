@@ -46,6 +46,27 @@ expectEqual(
 	"invite URL",
 );
 
+const tailscale = resolveClineHubServerOptions({
+	HOST: "0.0.0.0",
+	CLINE_HUB_DASHBOARD_PORT: "8787",
+	PUBLIC_URL: "http://100.82.5.118",
+	ROOM_SECRET: "invite-123",
+});
+expectEqual(
+	tailscale.publicUrl,
+	"http://100.82.5.118:8787",
+	"direct IP public URL gets dashboard port",
+);
+expectEqual(
+	buildDashboardLaunchUrl(
+		tailscale.publicUrl,
+		tailscale.publicUrl,
+		tailscale.roomSecret,
+	),
+	"http://100.82.5.118:8787/#bridgeUrl=http%3A%2F%2F100.82.5.118%3A8787&roomSecret=invite-123",
+	"invite URL for direct IP public URL",
+);
+
 expectThrows(
 	() => resolveClineHubServerOptions({ CLINE_HUB_DASHBOARD_PORT: "70000" }),
 	"invalid dashboard port",

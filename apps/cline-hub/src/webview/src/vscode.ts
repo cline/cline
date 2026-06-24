@@ -24,7 +24,6 @@ const browserConnectionKey = "cline-hub-browser-connection";
 type BrowserConnectionTarget = {
 	bridgeUrl?: string;
 	roomSecret?: string;
-	hubUrl?: string;
 };
 
 function dispatchHostMessage(message: WebviewOutboundMessage): void {
@@ -59,10 +58,6 @@ export function readBrowserConnectionTarget(): BrowserConnectionTarget {
 			fragment.get("roomSecret")?.trim() ||
 			search.get("roomSecret")?.trim() ||
 			persisted.roomSecret,
-		hubUrl:
-			fragment.get("hubUrl")?.trim() ||
-			search.get("hubUrl")?.trim() ||
-			persisted.hubUrl,
 	};
 }
 
@@ -84,6 +79,12 @@ export function writeBrowserConnectionTarget(
 function resolveBrowserSocketUrl(): string {
 	const target = readBrowserConnectionTarget();
 	const bridgeUrl = target.bridgeUrl?.trim();
+	if (bridgeUrl || target.roomSecret?.trim()) {
+		writeBrowserConnectionTarget({
+			bridgeUrl,
+			roomSecret: target.roomSecret?.trim(),
+		});
+	}
 	const base = bridgeUrl ? new URL(bridgeUrl) : new URL(window.location.href);
 	const protocol =
 		base.protocol === "https:"

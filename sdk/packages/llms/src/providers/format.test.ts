@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
 	ClineNotSubscribedError,
+	ClineOrgIndividualInferenceSubscriptionError,
 	getClineNotSubscribedMessage,
+	getClineOrgIndividualInferenceSubscriptionMessage,
 	isClineNotSubscribedMessage,
+	isClineOrgIndividualInferenceSubscriptionMessage,
 } from "./errors";
 import { extractErrorMessage } from "./format";
 
@@ -67,5 +70,32 @@ describe("ClineNotSubscribedError", () => {
 		expect(isClineNotSubscribedMessage("different forbidden error")).toBe(
 			false,
 		);
+	});
+});
+
+describe("ClineOrgIndividualInferenceSubscriptionError", () => {
+	it("uses the user-facing organization account message", () => {
+		expect(
+			new ClineOrgIndividualInferenceSubscriptionError("cline").message,
+		).toBe(getClineOrgIndividualInferenceSubscriptionMessage());
+	});
+
+	it("detects the organization individual-subscription entitlement message", () => {
+		expect(
+			isClineOrgIndividualInferenceSubscriptionMessage(
+				JSON.stringify({
+					error: {
+						code: "ENTITLEMENT_ERROR",
+						message:
+							"organization accounts cannot use individual model inference subscriptions",
+					},
+				}),
+			),
+		).toBe(true);
+		expect(
+			isClineOrgIndividualInferenceSubscriptionMessage(
+				"the user is not subscribed to required model plan",
+			),
+		).toBe(false);
 	});
 });

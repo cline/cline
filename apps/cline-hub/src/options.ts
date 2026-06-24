@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { isIP } from "node:net";
 
 export interface ClineHubServerOptions {
 	host: string;
@@ -50,6 +51,9 @@ function normalizePublicUrl(
 		throw new Error(
 			`PUBLIC_URL must use http: or https:, got ${parsed.protocol}`,
 		);
+	}
+	if (shouldAddDashboardPortToPublicUrl(parsed, port)) {
+		parsed.port = String(port);
 	}
 	parsed.hash = "";
 	return parsed.toString().replace(/\/$/, "");
@@ -103,11 +107,6 @@ export function resolveClineHubServerOptions(
 		publicUrl,
 	);
 	const roomSecret = normalizeRoomSecret(env.ROOM_SECRET);
-	if (isNonLocalBindHost(host) && !roomSecret) {
-		throw new Error(
-			`ROOM_SECRET is required when HOST=${host}. Use HOST=127.0.0.1 for local-only development or set ROOM_SECRET before exposing this example on a LAN/tunnel.`,
-		);
-	}
 	return {
 		host,
 		port,
@@ -118,20 +117,29 @@ export function resolveClineHubServerOptions(
 	};
 }
 
+function isDefaultProtocolPort(url: URL, port: number): boolean {
+	return (
+		(url.protocol === "http:" && port === 80) ||
+		(url.protocol === "https:" && port === 443)
+	);
+}
+
+function shouldAddDashboardPortToPublicUrl(url: URL, port: number): boolean {
+	if (url.port || isDefaultProtocolPort(url, port)) return false;
+	const hostname = url.hostname.replace(/^\[|\]$/g, "");
+	return hostname === "localhost" || isIP(hostname) !== 0;
+}
+
 export function buildDashboardLaunchUrl(
 	dashboardWebUrl: string,
 	bridgeUrl: string,
 	roomSecret: string | undefined,
-	hubUrl?: string,
 ): string {
 	const url = new URL(dashboardWebUrl);
 	const fragment = new URLSearchParams(url.hash.replace(/^#/, ""));
 	fragment.set("bridgeUrl", bridgeUrl);
 	if (roomSecret) {
 		fragment.set("roomSecret", roomSecret);
-	}
-	if (hubUrl) {
-		fragment.set("hubUrl", hubUrl);
 	}
 	url.hash = fragment.toString();
 	return url.toString();

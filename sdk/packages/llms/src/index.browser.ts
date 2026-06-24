@@ -36,9 +36,13 @@ export type {
 } from "./providers.browser";
 export {
 	ClineNotSubscribedError,
+	ClineOrgIndividualInferenceSubscriptionError,
 	getClineNotSubscribedMessage,
+	getClineOrgIndividualInferenceSubscriptionMessage,
 	getClinePassSubscriptionUrl,
 	isClineNotSubscribedError,
 	isClineNotSubscribedMessage,
+	isClineOrgIndividualInferenceSubscriptionError,
+	isClineOrgIndividualInferenceSubscriptionMessage,
 	normalizeProviderId,
 } from "./providers.browser";

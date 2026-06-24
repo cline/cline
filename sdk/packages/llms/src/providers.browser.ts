@@ -1,9 +1,13 @@
 export {
 	ClineNotSubscribedError,
+	ClineOrgIndividualInferenceSubscriptionError,
 	getClineNotSubscribedMessage,
+	getClineOrgIndividualInferenceSubscriptionMessage,
 	getClinePassSubscriptionUrl,
 	isClineNotSubscribedError,
 	isClineNotSubscribedMessage,
+	isClineOrgIndividualInferenceSubscriptionError,
+	isClineOrgIndividualInferenceSubscriptionMessage,
 } from "./providers/errors";
 export {
 	normalizeProviderId,

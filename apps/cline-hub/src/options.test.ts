@@ -34,10 +34,9 @@ describe("buildDashboardLaunchUrl", () => {
 				"https://cline.bot/dashboard",
 				"http://127.0.0.1:8787",
 				"invite-123",
-				"ws://127.0.0.1:25463/hub",
 			),
 		).toBe(
-			"https://cline.bot/dashboard#bridgeUrl=http%3A%2F%2F127.0.0.1%3A8787&roomSecret=invite-123&hubUrl=ws%3A%2F%2F127.0.0.1%3A25463%2Fhub",
+			"https://cline.bot/dashboard#bridgeUrl=http%3A%2F%2F127.0.0.1%3A8787&roomSecret=invite-123",
 		);
 	});
 });

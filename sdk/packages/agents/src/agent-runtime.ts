@@ -27,6 +27,8 @@ import {
 	captureSdkError,
 	estimateTokens,
 	mergeModelOptions,
+	omitUndefinedValues,
+	trimNonEmpty,
 } from "@cline/shared";
 import { nanoid } from "nanoid";
 
@@ -594,6 +596,21 @@ export class AgentRuntime {
 				});
 
 				const { message, finishReason } = await this.generateAssistantMessage();
+				if (finishReason === "aborted") {
+					throw this.normalizeAbortError();
+				}
+				if (message.content.length === 0) {
+					throw new Error(
+						finishReason === "error"
+							? (this.state.lastError ?? "Model stream failed")
+							: "Model returned empty response",
+					);
+				}
+				const toolCalls = message.content.filter(
+					(part: AgentMessagePart): part is AgentToolCallPart =>
+						part.type === "tool-call",
+				);
+
 				finalAssistantMessage = message;
 				this.state.messages.push(message);
 				await this.emit({
@@ -609,14 +626,6 @@ export class AgentRuntime {
 					finishReason,
 				});
 
-				if (finishReason === "aborted") {
-					throw this.normalizeAbortError();
-				}
-
-				const toolCalls = message.content.filter(
-					(part: AgentMessagePart): part is AgentToolCallPart =>
-						part.type === "tool-call",
-				);
 				if (finishReason === "error" && toolCalls.length === 0) {
 					throw new Error(this.state.lastError ?? "Model stream failed");
 				}
@@ -747,6 +756,13 @@ export class AgentRuntime {
 		finishReason: AgentModelFinishReason;
 	}> {
 		const usageBeforeModel = cloneUsage(this.state.usage);
+		const modelRequestMetadata = omitUndefinedValues({
+			sessionId: trimNonEmpty(this.config.sessionId),
+			agentId: this.state.agentId,
+			conversationId: trimNonEmpty(this.config.conversationId),
+			runId: this.state.runId,
+			iteration: this.state.iteration,
+		});
 		let request: AgentModelRequest = {
 			systemPrompt: this.config.systemPrompt,
 			messages: cloneMessages(this.state.messages),
@@ -756,7 +772,9 @@ export class AgentRuntime {
 				inputSchema: tool.inputSchema,
 			})),
 			signal: this.abortController?.signal,
-			options: this.config.modelOptions,
+			options: mergeModelOptions(this.config.modelOptions, {
+				metadata: modelRequestMetadata,
+			}),
 		};
 
 		if (this.state.iteration > 1) {

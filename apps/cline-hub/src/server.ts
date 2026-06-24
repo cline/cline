@@ -4,6 +4,7 @@ import {
 	handleToolApprovalResponse,
 	rejectOrphanedApprovals,
 } from "./server/approvals";
+import { isAuthorizedBrowserToDesktopRequest } from "./server/browser-auth";
 import {
 	browserConfig,
 	dashboardWebUrl,
@@ -14,7 +15,11 @@ import {
 	webviewDistDir,
 } from "./server/deps";
 import { handleDesktopCommand } from "./server/desktop-commands";
-import { createJsonResponse, WebviewAssets } from "./server/http";
+import {
+	createJsonResponse,
+	isWebviewRoute,
+	WebviewAssets,
+} from "./server/http";
 import {
 	attachHub,
 	detachHub,
@@ -53,30 +58,32 @@ export interface ClineHubDashboardServer {
 	stop: () => Promise<void>;
 }
 
+const PUBLIC_BROWSER_PATHS = new Set([
+	"/version",
+	"/health",
+	"/config.json",
+	"/api/marketplace/catalog",
+	"/icon.png",
+	"/icon.svg",
+	"/icon.ico",
+	"/32x32.png",
+	"/cline-logo-filled.svg",
+	"/favicon.svg",
+]);
+
+function isPublicStaticAssetPath(pathname: string): boolean {
+	return pathname.startsWith("/assets/") || PUBLIC_BROWSER_PATHS.has(pathname);
+}
+
+function isPublicBrowserRoute(_req: Request, url: URL): boolean {
+	return isWebviewRoute(url.pathname) || isPublicStaticAssetPath(url.pathname);
+}
+
 export async function startClineHubDashboardServer(): Promise<ClineHubDashboardServer> {
 	const ctx = new HubContext();
 	const assets = new WebviewAssets(webviewDistDir);
 	const syncClientsAndSessions = () => syncHubClientsAndSessions(ctx);
 	let stopped = false;
-
-	function isAuthorizedBrowserRequest(url: URL): boolean {
-		if (!roomSecret) return true;
-		return url.searchParams.get("roomSecret") === roomSecret;
-	}
-
-	function isAllowedBrowserOrigin(req: Request): boolean {
-		const origin = req.headers.get("origin");
-		if (!origin) return true;
-		try {
-			const parsedOrigin = new URL(origin);
-			const allowedOrigins = [publicUrl, dashboardWebUrl].map(
-				(value) => new URL(value).origin,
-			);
-			return allowedOrigins.includes(parsedOrigin.origin);
-		} catch {
-			return false;
-		}
-	}
 
 	await attachHub(ctx);
 	const healthInterval = setInterval(() => {
@@ -91,6 +98,22 @@ export async function startClineHubDashboardServer(): Promise<ClineHubDashboardS
 		hostname: host,
 		async fetch(req, server) {
 			const url = new URL(req.url);
+			if (
+				!isAuthorizedBrowserToDesktopRequest(
+					req,
+					url,
+					{
+						bindHost: host,
+						dashboardWebUrl,
+						port,
+						publicUrl,
+						roomSecret,
+					},
+					isPublicBrowserRoute,
+				)
+			) {
+				return createJsonResponse({ error: "unauthorized_browser" }, 403);
+			}
 			if (url.pathname === "/version") {
 				return createJsonResponse({ coreVersion: CORE_BUILD_VERSION });
 			}
@@ -99,9 +122,6 @@ export async function startClineHubDashboardServer(): Promise<ClineHubDashboardS
 				return createJsonResponse(hubStatusPayload(ctx));
 			}
 			if (url.pathname === "/browser") {
-				if (!isAuthorizedBrowserRequest(url) || !isAllowedBrowserOrigin(req)) {
-					return createJsonResponse({ error: "invalid_room_secret" }, 401);
-				}
 				const displayName = `Browser ${Math.random().toString(36).slice(2, 6)}`;
 				const data = {
 					socket: undefined as never,
@@ -251,12 +271,7 @@ export async function startClineHubDashboardServer(): Promise<ClineHubDashboardS
 	return {
 		listenUrl: server.url.toString(),
 		publicUrl,
-		inviteUrl: buildDashboardLaunchUrl(
-			dashboardWebUrl,
-			publicUrl,
-			roomSecret,
-			ctx.hubUrl,
-		),
+		inviteUrl: buildDashboardLaunchUrl(dashboardWebUrl, publicUrl, roomSecret),
 		bindHost: host,
 		inviteRequired: Boolean(roomSecret),
 		hubUrl: ctx.hubUrl,
