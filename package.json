@@ -68,7 +68,6 @@
     "overrides": {
         "tar-fs": ">=3.1.1",
         "tar": "^7.5.2",
-        "vite": "^7.1.11",
         "js-yaml": "^4.1.1",
         "serialize-javascript": ">=7.0.3",
         "protobufjs": "7.5.8",
