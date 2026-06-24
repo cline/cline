@@ -136,13 +136,18 @@
 						"pages": [
 							"tools-reference/all-cline-tools",
 							"customization/cline-rules",
+							"cli/scheduling",
+							"customization/clineignore"
+						]
+					},
+					{
+						"group": "Extending Cline",
+						"pages": [
+							"mcp/mcp-overview",
 							"customization/skills",
 							"customization/plugins",
-							"mcp/mcp-overview",
-							"customization/hooks",
-							"cli/scheduling",
-							"cli/connectors",
-							"customization/clineignore"
+							"customization/marketplace",
+							"cli/connectors"
 						]
 					},
 					{
@@ -473,19 +478,19 @@
 		},
 		{
 			"source": "/features/hooks/real-world-examples",
-			"destination": "/customization/hooks"
+			"destination": "/sdk/plugins"
 		},
 		{
 			"source": "/features/hooks/index",
-			"destination": "/customization/hooks"
+			"destination": "/sdk/plugins"
 		},
 		{
 			"source": "/features/hooks/hook-reference",
-			"destination": "/customization/hooks"
+			"destination": "/sdk/plugins"
 		},
 		{
 			"source": "/features/hooks/samples",
-			"destination": "/customization/hooks"
+			"destination": "/sdk/plugins"
 		},
 		{
 			"source": "/features/plan-and-act",
