@@ -644,6 +644,27 @@ describe("addLocalProvider – capabilities", () => {
 			supportsReasoning: true,
 		});
 	});
+
+	it("uses an empty LiteLLM model list when no private model list is fetched", async () => {
+		manager.saveProviderSettings(
+			{
+				provider: "litellm",
+				baseUrl: "http://localhost:4010",
+				model: "gpt-4o",
+			},
+			{ setLastUsed: false },
+		);
+		const fetchMock = vi.fn();
+		vi.stubGlobal("fetch", fetchMock);
+
+		const { models } = await getLocalProviderModels(
+			"litellm",
+			manager.getProviderConfig("litellm"),
+		);
+
+		expect(fetchMock).not.toHaveBeenCalled();
+		expect(models).toEqual([]);
+	});
 });
 
 // ===========================================================================

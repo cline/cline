@@ -149,6 +149,10 @@ async function mergeKnownModels(
 	publicModels: Record<string, ModelInfo> = {},
 	userKnownModels: Record<string, ModelInfo> = {},
 ): Promise<Record<string, ModelInfo>> {
+	if (providerId === "litellm") {
+		return Llms.sortModelsByReleaseDate(privateModels);
+	}
+
 	const generatedProviderModels = await loadGeneratedProviderModels();
 	const generatedKeys = Llms.resolveProviderModelCatalogKeys(providerId);
 	const generated = Object.assign(
@@ -170,14 +174,6 @@ async function mergeKnownModels(
 			...publicModels,
 			...userKnownModels,
 		});
-	}
-	// LiteLLM model access is controlled by the user's proxy. When the proxy
-	// returns a private model list, treat that list as authoritative so bundled
-	// OpenAI-compatible catalog entries are not shown unless the proxy exposes
-	// them. Do not merge userKnownModels here because provider settings may carry
-	// generated catalog metadata as knownModels.
-	if (providerId === "litellm" && Object.keys(privateModels).length > 0) {
-		return Llms.sortModelsByReleaseDate(privateModels);
 	}
 	if (providerId === "openai-codex") {
 		return Llms.sortModelsByReleaseDate({
@@ -934,6 +930,12 @@ export async function resolveProviderConfig(
 	} catch (error) {
 		if (modelCatalog?.failOnError) {
 			throw error;
+		}
+		if (providerId === "litellm") {
+			return {
+				...defaults,
+				knownModels: {},
+			};
 		}
 		return defaults;
 	}
