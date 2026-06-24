@@ -296,6 +296,17 @@ describe("resolveProviderConfig", () => {
 				capabilities: expect.arrayContaining(["images", "reasoning"]),
 			}),
 		);
+		expect(resolved?.knownModels?.["private-proxy-model"]).toEqual(
+			expect.objectContaining({
+				name: "private-proxy-model",
+				capabilities: expect.arrayContaining(["images", "reasoning"]),
+			}),
+		);
+		expect(Object.keys(resolved?.knownModels ?? {}).sort()).toEqual([
+			"openai/gpt-4o-mini",
+			"private-proxy-model",
+		]);
+		expect(resolved?.knownModels?.["gpt-5.4"]).toBeUndefined();
 	});
 
 	it("reports attempted path, auth header, status, and body for LiteLLM model fetch failures", async () => {
