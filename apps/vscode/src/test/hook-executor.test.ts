@@ -684,5 +684,59 @@ setTimeout(() => {
 			result.wasCancelled.should.equal(false)
 			// contextModification and errorMessage may be undefined
 		})
+
+		it("should update hook status to completed for NoOp hooks", async function () {
+			this.timeout(5000)
+
+			await createHookScript("TaskStart", {
+				cancel: false,
+			})
+
+			const messages: ClineMessage[] = []
+			const mockHandler = {
+				...testHandler,
+				getClineMessages: () => messages,
+				updateClineMessage: async (index: number, updates: Partial<ClineMessage>) => {
+					if (messages[index]) {
+						Object.assign(messages[index], updates)
+					}
+				},
+			} as any
+
+			await executeHook({
+				hookName: "TaskStart",
+				hookInput: {
+					taskStart: {
+						taskMetadata: {
+							taskId: "test-task",
+							ulid: "test-ulid",
+							initialTask: "test task",
+						},
+					},
+				},
+				isCancellable: true,
+				say: async (type: any) => {
+					const msg: ClineMessage = {
+						ts: Date.now(),
+						type: "say",
+						say: type,
+						text: "",
+					}
+					messages.push(msg)
+					return msg.ts
+				},
+				messageStateHandler: mockHandler,
+				taskId: "test-task",
+				hooksEnabled: true,
+			})
+
+			// Verify hook message was updated to completed
+			const hookMessage = messages.find((m) => m.say === "hook_status")
+			should.exist(hookMessage)
+			if (hookMessage) {
+				const metadata = JSON.parse(hookMessage.text || "{}")
+				metadata.status.should.equal("completed")
+			}
+		})
 	})
 })
