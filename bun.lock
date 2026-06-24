@@ -346,7 +346,7 @@
     },
     "apps/vscode": {
       "name": "claude-dev",
-      "version": "3.89.0",
+      "version": "4.0.0",
       "dependencies": {
         "@anthropic-ai/sdk": "^0.37.0",
         "@bufbuild/protobuf": "^2.2.5",
