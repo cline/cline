@@ -8,7 +8,7 @@ import { CLINE_PASS_FEATURE_FLAG } from "@/constants/featureFlags"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useHasFeatureFlag } from "@/hooks/useFeatureFlag"
 import { ModelsServiceClient } from "@/services/grpc-client"
-import { getRecommendedModelsData, type RecommendedModelsData } from "./data-models"
+import { CLINEPASS_GROUP, getRecommendedModelsData, type RecommendedModelsData } from "./data-models"
 
 export type OnboardingModelsStatus = "loading" | "success" | "empty"
 
@@ -107,7 +107,7 @@ export function useOnboardingModels(): UseOnboardingModelsResult {
 		const clinePassCatalog = Object.fromEntries(
 			data.clinePass.map((rec) => [rec.id, resolveClinePassModelInfo(rec.id, openRouterModelsByName)]),
 		)
-		const clinePassModels = data.clinePass.map((rec) => toOnboardingModel(rec, "clinepass", "", clinePassCatalog))
+		const clinePassModels = data.clinePass.map((rec) => toOnboardingModel(rec, CLINEPASS_GROUP, "", clinePassCatalog))
 
 		return { status: "success", models: { models: [...clinePassModels, ...freeModels, ...frontierModels] } }
 	}, [fetchState, modelCatalog, openRouterModelsByName])
