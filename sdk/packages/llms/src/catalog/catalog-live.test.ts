@@ -398,9 +398,8 @@ describe("models-dev-catalog", () => {
 			fetcher as unknown as typeof fetch,
 		);
 
-		expect(fetcher).toHaveBeenNthCalledWith(1, "https://models.dev/api.json");
-		expect(fetcher).toHaveBeenNthCalledWith(
-			2,
+		expect(fetcher).toHaveBeenCalledWith("https://models.dev/api.json");
+		expect(fetcher).toHaveBeenCalledWith(
 			"https://api.cline.bot/api/v1/ai/cline/recommended-models",
 		);
 		expect(result.openrouter).toHaveProperty("vendor/live-base-model");
@@ -440,6 +439,41 @@ describe("models-dev-catalog", () => {
 
 		expect(result["openai-native"]?.["gpt-live"]?.name).toBe("GPT Live");
 		expect(result["cline-pass"]).toBeUndefined();
+	});
+
+	it("keeps Cline recommended clinePass models when models.dev fails", async () => {
+		const fetcher = vi.fn(async (url: string) => {
+			if (url === "https://models.dev/api.json") {
+				return { ok: false, status: 503 };
+			}
+
+			return {
+				ok: true,
+				json: async () => ({
+					clinePass: [
+						{
+							id: "cline-pass/live-default-model",
+							name: "Live Default Model",
+						},
+					],
+				}),
+			};
+		});
+
+		const result = await fetchLiveProviderModels(
+			"https://models.dev/api.json",
+			fetcher as unknown as typeof fetch,
+		);
+
+		expect(result["openai-native"]).toBeUndefined();
+		expect(result["cline-pass"]?.["cline-pass/live-default-model"]).toMatchObject({
+			id: "cline-pass/live-default-model",
+			name: "Live Default Model",
+			contextWindow: 128_000,
+			maxInputTokens: 128_000,
+			maxTokens: 8_192,
+			pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+		});
 	});
 
 	it("throws when models.dev request fails", async () => {
