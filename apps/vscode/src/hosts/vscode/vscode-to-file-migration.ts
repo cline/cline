@@ -134,7 +134,7 @@ export async function exportVSCodeStorageToSharedFiles(
 			globalStateBatch[MIGRATION_VERSION_KEY] = CURRENT_MIGRATION_VERSION
 
 			// Write all global state in one operation
-			storage.globalState.setBatch(globalStateBatch)
+			await storage.globalState.setBatch(globalStateBatch)
 
 			// Batch secrets
 			const secretsBatch: Record<string, string> = {}
@@ -159,7 +159,7 @@ export async function exportVSCodeStorageToSharedFiles(
 			}
 
 			// Write all secrets in one operation
-			storage.secrets.setBatch(secretsBatch)
+			await storage.secrets.setBatch(secretsBatch)
 		}
 
 		// ─── 2. Migrate workspace state (if needed) ────────────────────
@@ -186,7 +186,7 @@ export async function exportVSCodeStorageToSharedFiles(
 			workspaceStateBatch[MIGRATION_VERSION_KEY] = CURRENT_MIGRATION_VERSION
 
 			// Write all workspace state in one operation
-			storage.workspaceState.setBatch(workspaceStateBatch)
+			await storage.workspaceState.setBatch(workspaceStateBatch)
 		}
 
 		result.migrated = true

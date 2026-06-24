@@ -682,6 +682,33 @@ export class StateManager {
 	}
 
 	/**
+	 * Reload a secret from disk and update this process's cache.
+	 * Use this only inside a caller-owned cross-process transaction.
+	 */
+	reloadSecretKey<K extends keyof Secrets>(key: K): Secrets[K] {
+		if (!this.isInitialized) {
+			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+		}
+		this.storage.secrets.reloadFromDisk()
+		for (const secretKey of SecretKeys) {
+			if (secretKey === key || !this.pendingSecrets.has(secretKey)) {
+				this.secretsCache[secretKey] = this.storage.secrets.get<string>(secretKey)
+			}
+		}
+		return this.secretsCache[key]
+	}
+
+	/**
+	 * Return the shared data directory used by file-backed state.
+	 */
+	getDataDir(): string {
+		if (!this.isInitialized) {
+			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+		}
+		return this.storage.dataDir
+	}
+
+	/**
 	 * Get method for workspace state keys - reads from in-memory cache
 	 */
 	getWorkspaceStateKey<K extends keyof LocalState>(key: K): LocalState[K] {
@@ -828,7 +855,7 @@ export class StateManager {
 
 		// Batch write all regular keys in a single disk operation
 		if (Object.keys(regularEntries).length > 0) {
-			this.storage.globalStateBackingStore.setBatch(regularEntries)
+			await this.storage.globalStateBackingStore.setBatch(regularEntries)
 		}
 	}
 
@@ -867,7 +894,7 @@ export class StateManager {
 			const value = this.secretsCache[key]
 			entries[key] = value || undefined // Convert empty strings to undefined (delete)
 		}
-		this.storage.secrets.setBatch(entries)
+		await this.storage.secrets.setBatch(entries)
 	}
 
 	/**
@@ -879,7 +906,7 @@ export class StateManager {
 		for (const key of keys) {
 			entries[key] = this.workspaceStateCache[key]
 		}
-		this.storage.workspaceState.setBatch(entries)
+		await this.storage.workspaceState.setBatch(entries)
 	}
 
 	/**

@@ -1,10 +1,13 @@
 import * as crypto from "crypto"
 import * as http from "http"
+import * as path from "path"
+import { lock } from "proper-lockfile"
 import { URL } from "url"
 import { z } from "zod"
 import { StateManager } from "@/core/storage/StateManager"
 import { fetch } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
+import { version as clineVersion } from "../../../package.json"
 
 /**
  * OpenAI Codex OAuth Configuration
@@ -27,6 +30,9 @@ export const OPENAI_CODEX_OAUTH_CONFIG = {
 
 // Token storage key - must match the key in SECRETS_KEYS (state-keys.ts)
 const OPENAI_CODEX_CREDENTIALS_KEY = "openai-codex-oauth-credentials"
+const OPENAI_CODEX_REFRESH_LOCK_NAME = "openai-codex-oauth-refresh"
+const OPENAI_CODEX_REFRESH_LOCK_STALE_MS = 60_000
+const OPENAI_CODEX_REFRESH_LOCK_UPDATE_MS = 10_000
 
 // Credentials schema
 const openAiCodexCredentialsSchema = z.object({
@@ -41,6 +47,11 @@ const openAiCodexCredentialsSchema = z.object({
 })
 
 export type OpenAiCodexCredentials = z.infer<typeof openAiCodexCredentialsSchema>
+
+type OpenAiCodexStateManager = Pick<
+	StateManager,
+	"flushPendingState" | "getDataDir" | "getSecretKey" | "reloadSecretKey" | "setSecret"
+>
 
 // Token response schema from OpenAI
 const tokenResponseSchema = z.object({
@@ -233,6 +244,7 @@ export async function exchangeCodeForTokens(code: string, codeVerifier: string):
 		method: "POST",
 		headers: {
 			"Content-Type": "application/x-www-form-urlencoded",
+			"User-Agent": `cline/${clineVersion}`,
 		},
 		body: body.toString(),
 		signal: AbortSignal.timeout(30000),
@@ -284,6 +296,7 @@ export async function refreshAccessToken(credentials: OpenAiCodexCredentials): P
 		method: "POST",
 		headers: {
 			"Content-Type": "application/x-www-form-urlencoded",
+			"User-Agent": `cline/${clineVersion}`,
 		},
 		body: body.toString(),
 		signal: AbortSignal.timeout(30000),
@@ -336,12 +349,18 @@ export function isTokenExpired(credentials: OpenAiCodexCredentials): boolean {
  */
 export class OpenAiCodexOAuthManager {
 	private credentials: OpenAiCodexCredentials | null = null
-	private refreshPromise: Promise<OpenAiCodexCredentials> | null = null
+	private refreshPromise: Promise<OpenAiCodexCredentials | null> | null = null
+	private refreshPromiseForce = false
+	private readonly getStateManager: () => OpenAiCodexStateManager
 	private pendingAuth: {
 		codeVerifier: string
 		state: string
 		server?: http.Server
 	} | null = null
+
+	constructor(getStateManager: () => OpenAiCodexStateManager = () => StateManager.get()) {
+		this.getStateManager = getStateManager
+	}
 
 	/**
 	 * Force a refresh using the stored refresh token even if the access token is not expired.
@@ -357,22 +376,10 @@ export class OpenAiCodexOAuthManager {
 		}
 
 		try {
-			// De-dupe concurrent refreshes
-			if (!this.refreshPromise) {
-				this.refreshPromise = refreshAccessToken(this.credentials)
-			}
-
-			const newCredentials = await this.refreshPromise
-			this.refreshPromise = null
-			await this.saveCredentials(newCredentials)
-			return newCredentials.access_token
+			const newCredentials = await this.refreshCredentials(true)
+			return newCredentials?.access_token ?? null
 		} catch (error) {
-			this.refreshPromise = null
 			Logger.error("[openai-codex-oauth] Failed to force refresh token:", error)
-			if (error instanceof OpenAiCodexOAuthTokenError && error.isLikelyInvalidGrant()) {
-				Logger.log("[openai-codex-oauth] Refresh token appears invalid; clearing stored credentials")
-				await this.clearCredentials()
-			}
 			return null
 		}
 	}
@@ -381,11 +388,18 @@ export class OpenAiCodexOAuthManager {
 	 * Load credentials from storage via StateManager.
 	 */
 	async loadCredentials(): Promise<OpenAiCodexCredentials | null> {
+		return this.loadCredentialsFromStorage(false)
+	}
+
+	private loadCredentialsFromStorage(reloadFromDisk: boolean): OpenAiCodexCredentials | null {
 		try {
-			const stateManager = StateManager.get()
-			const credentialsJson = stateManager.getSecretKey("openai-codex-oauth-credentials")
+			const stateManager = this.getStateManager()
+			const credentialsJson = reloadFromDisk
+				? stateManager.reloadSecretKey(OPENAI_CODEX_CREDENTIALS_KEY)
+				: stateManager.getSecretKey(OPENAI_CODEX_CREDENTIALS_KEY)
 
 			if (!credentialsJson) {
+				this.credentials = null
 				return null
 			}
 
@@ -402,8 +416,8 @@ export class OpenAiCodexOAuthManager {
 	 * Save credentials to storage via StateManager
 	 */
 	async saveCredentials(credentials: OpenAiCodexCredentials): Promise<void> {
-		const stateManager = StateManager.get()
-		stateManager.setSecret("openai-codex-oauth-credentials", JSON.stringify(credentials))
+		const stateManager = this.getStateManager()
+		stateManager.setSecret(OPENAI_CODEX_CREDENTIALS_KEY, JSON.stringify(credentials))
 		await stateManager.flushPendingState()
 		this.credentials = credentials
 	}
@@ -412,10 +426,80 @@ export class OpenAiCodexOAuthManager {
 	 * Clear credentials from storage
 	 */
 	async clearCredentials(): Promise<void> {
-		const stateManager = StateManager.get()
-		stateManager.setSecret("openai-codex-oauth-credentials", undefined)
+		const stateManager = this.getStateManager()
+		stateManager.setSecret(OPENAI_CODEX_CREDENTIALS_KEY, undefined)
 		await stateManager.flushPendingState()
 		this.credentials = null
+	}
+
+	private async refreshCredentials(force: boolean): Promise<OpenAiCodexCredentials | null> {
+		if (this.refreshPromise) {
+			const refreshPromise = this.refreshPromise
+			const refreshPromiseForce = this.refreshPromiseForce
+			const credentials = await refreshPromise
+			return force && !refreshPromiseForce ? this.refreshCredentials(true) : credentials
+		}
+		this.refreshPromiseForce = force
+		const refreshPromise = this.refreshCredentialsUnderLock(force).finally(() => {
+			if (this.refreshPromise === refreshPromise) {
+				this.refreshPromise = null
+				this.refreshPromiseForce = false
+			}
+		})
+		this.refreshPromise = refreshPromise
+		return refreshPromise
+	}
+
+	private async refreshCredentialsUnderLock(force: boolean): Promise<OpenAiCodexCredentials | null> {
+		const lockPath = path.join(this.getStateManager().getDataDir(), OPENAI_CODEX_REFRESH_LOCK_NAME)
+		const release = await lock(lockPath, {
+			realpath: false,
+			stale: OPENAI_CODEX_REFRESH_LOCK_STALE_MS,
+			update: OPENAI_CODEX_REFRESH_LOCK_UPDATE_MS,
+			retries: {
+				retries: 60,
+				factor: 1.2,
+				minTimeout: 100,
+				maxTimeout: 1000,
+				randomize: true,
+			},
+		})
+
+		try {
+			const cachedCredentials = this.credentials
+			const storedCredentials = this.loadCredentialsFromStorage(true)
+			if (!storedCredentials) {
+				return null
+			}
+
+			const storedCredentialsChanged =
+				cachedCredentials !== null &&
+				(cachedCredentials.access_token !== storedCredentials.access_token ||
+					cachedCredentials.refresh_token !== storedCredentials.refresh_token ||
+					cachedCredentials.expires !== storedCredentials.expires)
+
+			if (!isTokenExpired(storedCredentials) && (!force || storedCredentialsChanged)) {
+				return storedCredentials
+			}
+
+			try {
+				const newCredentials = await refreshAccessToken(storedCredentials)
+				await this.saveCredentials(newCredentials)
+				return newCredentials
+			} catch (error) {
+				if (error instanceof OpenAiCodexOAuthTokenError && error.isLikelyInvalidGrant()) {
+					const replacementCredentials = this.loadCredentialsFromStorage(true)
+					if (replacementCredentials?.refresh_token !== storedCredentials.refresh_token) {
+						return replacementCredentials
+					}
+					Logger.log("[openai-codex-oauth] Refresh token appears invalid; clearing stored credentials")
+					await this.clearCredentials()
+				}
+				throw error
+			}
+		} finally {
+			await release()
+		}
 	}
 
 	/**
@@ -434,23 +518,10 @@ export class OpenAiCodexOAuthManager {
 		// Check if token is expired and refresh if needed
 		if (isTokenExpired(this.credentials)) {
 			try {
-				// De-dupe concurrent refreshes
-				if (!this.refreshPromise) {
-					this.refreshPromise = refreshAccessToken(this.credentials)
-				}
-
-				const newCredentials = await this.refreshPromise
-				this.refreshPromise = null
-				await this.saveCredentials(newCredentials)
+				const newCredentials = await this.refreshCredentials(false)
+				return newCredentials?.access_token ?? null
 			} catch (error) {
-				this.refreshPromise = null
 				Logger.error("[openai-codex-oauth] Failed to refresh token:", error)
-
-				// Only clear secrets when the refresh token is clearly invalid/revoked.
-				if (error instanceof OpenAiCodexOAuthTokenError && error.isLikelyInvalidGrant()) {
-					Logger.log("[openai-codex-oauth] Refresh token appears invalid; clearing stored credentials")
-					await this.clearCredentials()
-				}
 				return null
 			}
 		}
