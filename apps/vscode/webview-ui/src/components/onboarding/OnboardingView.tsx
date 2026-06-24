@@ -335,7 +335,7 @@ const OnboardingStepContent = ({
 
 const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: OnboardingModelGroup }) => {
 	const { handleFieldsChange } = useApiConfigurationHandlers()
-	const { openRouterModels, hideSettings, hideAccount, setShowWelcome } = useExtensionState()
+	const { openRouterModels, hideSettings, hideAccount, setShowWelcome, clinePassEnabled } = useExtensionState()
 	const { models: clineModels } = useProviderModels("cline")
 	const { commitSelection } = useProviderConfig("cline")
 	const loginAttemptIdRef = useRef(0)
@@ -350,8 +350,8 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 	const [searchTerm, setSearchTerm] = useState("")
 
 	const models = useMemo(() => getClineUIOnboardingGroups(onboardingModels), [onboardingModels])
-	const hasClinePassModels = models.clinePass.length > 0
-	const userTypeSelections = useMemo(() => getUserTypeSelections(hasClinePassModels), [hasClinePassModels])
+	const showClinePass = Boolean(clinePassEnabled) && models.clinePass.length > 0
+	const userTypeSelections = useMemo(() => getUserTypeSelections(showClinePass), [showClinePass])
 	// ClinePass model IDs (e.g. "cline-pass/glm-5.1") aren't keyed in openRouterModels,
 	// so resolve their info via the slug-based lookup used by ClinePassProvider.
 	const openRouterModelsByName = useMemo(() => buildModelInfoNameMap(openRouterModels), [openRouterModels])
