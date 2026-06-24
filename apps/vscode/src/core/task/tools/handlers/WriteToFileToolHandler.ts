@@ -523,10 +523,11 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				const { providerId, modelId } = getModelInfo(config)
 
 				// Extract error type from error message if possible
-				const errorType =
-					error instanceof Error && error.message.includes("does not match anything")
-						? "search_not_found"
-						: "other_diff_error"
+				const isSearchMismatchError =
+					error instanceof Error &&
+					(error.message.includes("does not match anything") ||
+						error.message.includes("only matches part of a longer line"))
+				const errorType = isSearchMismatchError ? "search_not_found" : "other_diff_error"
 
 				// Add telemetry for diff edit failure
 				const isNativeToolCall = block.isNativeToolCall === true

@@ -102,6 +102,68 @@ function lineTrimmedFallbackMatch(originalContent: string, searchContent: string
 	return false
 }
 
+function hasPartialLineMismatch(originalContent: string, searchContent: string, startIndex: number): boolean {
+	const originalLines = originalContent.split("\n")
+	const searchLines = searchContent.split("\n")
+
+	if (searchLines[searchLines.length - 1] === "") {
+		searchLines.pop()
+	}
+
+	if (searchLines.length === 0) {
+		return false
+	}
+
+	let startLineNum = 0
+	let currentIndex = 0
+	while (currentIndex < startIndex && startLineNum < originalLines.length) {
+		currentIndex += originalLines[startLineNum].length + 1
+		startLineNum++
+	}
+
+	for (let i = startLineNum; i <= originalLines.length - searchLines.length; i++) {
+		let sawPartialLineMatch = false
+		let matches = true
+
+		for (let j = 0; j < searchLines.length; j++) {
+			const originalTrimmed = originalLines[i + j].trim()
+			const searchTrimmed = searchLines[j].trim()
+
+			if (originalTrimmed === searchTrimmed) {
+				continue
+			}
+
+			if (searchTrimmed.length > 2 && originalTrimmed.includes(searchTrimmed)) {
+				sawPartialLineMatch = true
+				continue
+			}
+
+			matches = false
+			break
+		}
+
+		if (matches && sawPartialLineMatch) {
+			return true
+		}
+	}
+
+	return false
+}
+
+function getSearchMismatchError(originalContent: string, searchContent: string, startIndex: number): Error {
+	const trimmedSearchContent = searchContent.trimEnd()
+	const hasMeaningfulPartialLineMismatch =
+		hasPartialLineMismatch(originalContent, searchContent, startIndex) ||
+		(startIndex > 0 && hasPartialLineMismatch(originalContent, searchContent, 0))
+	if (hasMeaningfulPartialLineMismatch) {
+		return new Error(
+			`The SEARCH block:\n${trimmedSearchContent}\n...only matches part of a longer line in the file. SEARCH/REPLACE blocks require an exact line or span match, including line boundaries.`,
+		)
+	}
+
+	return new Error(`The SEARCH block:\n${trimmedSearchContent}\n...does not match anything in the file.`)
+}
+
 /**
  * Attempts to match blocks of code by using the first and last lines as anchors.
  * This is a third-tier fallback strategy that helps match blocks where we can identify
@@ -371,9 +433,7 @@ async function constructNewFileContentV1(
 									pendingOutOfOrderReplacement = true
 								}
 							} else {
-								throw new Error(
-									`The SEARCH block:\n${currentSearchContent.trimEnd()}\n...does not match anything in the file.`,
-								)
+								throw getSearchMismatchError(originalContent, currentSearchContent, lastProcessedIndex)
 							}
 						}
 					}
@@ -703,9 +763,7 @@ class NewFileContentConstructor {
 					if (blockMatch) {
 						;[this.searchMatchIndex, this.searchEndIndex] = blockMatch
 					} else {
-						throw new Error(
-							`The SEARCH block:\n${this.currentSearchContent.trimEnd()}\n...does not match anything in the file.`,
-						)
+						throw getSearchMismatchError(this.originalContent, this.currentSearchContent, this.lastProcessedIndex)
 					}
 				}
 			}
