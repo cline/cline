@@ -163,7 +163,7 @@ export function createAgentModelFromConfig(
 		baseUrl: config.baseUrl ?? baseProviderConfig?.baseUrl,
 		headers: config.headers ?? baseProviderConfig?.headers,
 		knownModels: resolveKnownModelsFromConfig(config),
-		maxOutputTokens: config.maxTokensPerTurn ?? baseProviderConfig?.maxOutputTokens,
+		maxOutputTokens: config.maxTokensPerTurn,
 		reasoningEffort: config.reasoningEffort,
 		thinkingBudgetTokens: config.thinkingBudgetTokens,
 		thinking: config.thinking,

@@ -125,31 +125,6 @@ describe("createAgentModelFromConfig", () => {
 		);
 	});
 
-	it("uses providerConfig maxOutputTokens when no direct per-turn override is set", async () => {
-		const { createAgentModelFromConfig } = await import("./handler-factory");
-
-		createAgentModelFromConfig(
-			{
-				providerId: "openai-compatible",
-				modelId: "custom-model",
-				apiKey: "key",
-				systemPrompt: "",
-				tools: [],
-				providerConfig: {
-					providerId: "openai-compatible",
-					modelId: "custom-model",
-					maxOutputTokens: 4_096,
-				},
-			},
-			undefined,
-		);
-
-		expect(gatewayMock.createAgentModel).toHaveBeenLastCalledWith(
-			{ providerId: "openai-compatible", modelId: "custom-model" },
-			{ maxTokens: 4_096 },
-		);
-	});
-
 	it("preserves model capabilities and metadata when configuring gateway models", async () => {
 		const { createAgentModelFromConfig } = await import("./handler-factory");
 
