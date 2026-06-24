@@ -34,6 +34,7 @@ import {
 } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import { CLINE_INTERNAL_TELEMETRY_METADATA_KEY } from "../../services/telemetry/tool-context";
+import { MESSAGE_BUILDER_LIMIT_ENV } from "../../session/services/message-builder";
 import {
 	SessionRuntime,
 	type SessionRuntimeOrchestratorDeps,
@@ -1232,6 +1233,144 @@ describe("SessionRuntime.addTools / updateConnection / clearHistory / restore", 
 		expect(messages).toHaveLength(2);
 		expect(messages[0].role).toBe("user");
 		expect(messages[1].role).toBe("assistant");
+	});
+
+	it("restore clears stale MessageBuilder rewrite state when tool ids are reused", async () => {
+		const previousThresholdEnv =
+			process.env[MESSAGE_BUILDER_LIMIT_ENV.minOutdatedRewriteBytes];
+		process.env[MESSAGE_BUILDER_LIMIT_ENV.minOutdatedRewriteBytes] = "7000";
+		const { deps, configs } = makeRecordingRuntimeFactory();
+		const session = new SessionRuntime(makeAgentConfig(), deps);
+		if (previousThresholdEnv === undefined) {
+			delete process.env[MESSAGE_BUILDER_LIMIT_ENV.minOutdatedRewriteBytes];
+		} else {
+			process.env[MESSAGE_BUILDER_LIMIT_ENV.minOutdatedRewriteBytes] =
+				previousThresholdEnv;
+		}
+		await session.run("go");
+		const beforeModel = configs[0]?.hooks?.beforeModel;
+		if (!beforeModel) {
+			throw new Error("expected beforeModel hook");
+		}
+
+		const staleRead = "export const x = 1;\n".repeat(7_000);
+		const latestRead = "export const x = 2;\n".repeat(7_000);
+		const beforeRestore = await beforeModel({
+			snapshot: makeSnapshot(),
+			request: {
+				systemPrompt: "system",
+				messages: [
+					{
+						id: "m0",
+						role: "user",
+						content: [{ type: "text", text: "task" }],
+						createdAt: 1,
+					},
+					{
+						id: "m1",
+						role: "assistant",
+						content: [
+							{
+								type: "tool-call",
+								toolCallId: "t1",
+								toolName: "read_files",
+								input: { files: [{ path: "src/a.ts" }] },
+							},
+						],
+						createdAt: 2,
+					},
+					{
+						id: "m2",
+						role: "tool",
+						content: [
+							{
+								type: "tool-result",
+								toolCallId: "t1",
+								toolName: "read_files",
+								output: JSON.stringify([
+									{ path: "src/a.ts", result: staleRead },
+								]),
+							},
+						],
+						createdAt: 3,
+					},
+					{
+						id: "m3",
+						role: "assistant",
+						content: [
+							{
+								type: "tool-call",
+								toolCallId: "t2",
+								toolName: "read_files",
+								input: { files: [{ path: "src/a.ts" }] },
+							},
+						],
+						createdAt: 4,
+					},
+					{
+						id: "m4",
+						role: "tool",
+						content: [
+							{
+								type: "tool-result",
+								toolCallId: "t2",
+								toolName: "read_files",
+								output: JSON.stringify([
+									{ path: "src/a.ts", result: latestRead },
+								]),
+							},
+						],
+						createdAt: 5,
+					},
+				],
+				tools: [],
+			},
+		});
+		expect(JSON.stringify(beforeRestore?.messages?.[2])).toContain("outdated");
+
+		session.restore([]);
+		const afterRestore = await beforeModel({
+			snapshot: makeSnapshot(),
+			request: {
+				systemPrompt: "system",
+				messages: [
+					{
+						id: "r1",
+						role: "assistant",
+						content: [
+							{
+								type: "tool-call",
+								toolCallId: "t1",
+								toolName: "read_files",
+								input: { files: [{ path: "src/a.ts" }] },
+							},
+						],
+						createdAt: 6,
+					},
+					{
+						id: "r2",
+						role: "tool",
+						content: [
+							{
+								type: "tool-result",
+								toolCallId: "t1",
+								toolName: "read_files",
+								output: JSON.stringify([
+									{ path: "src/a.ts", result: staleRead },
+								]),
+							},
+						],
+						createdAt: 7,
+					},
+				],
+				tools: [],
+			},
+		});
+
+		expect(JSON.stringify(afterRestore?.messages)).not.toContain("outdated");
+		expect(JSON.stringify(afterRestore?.messages)).toContain(
+			"export const x = 1;",
+		);
 	});
 });
 

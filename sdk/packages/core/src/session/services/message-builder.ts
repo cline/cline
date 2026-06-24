@@ -34,12 +34,16 @@ export const DEFAULT_MAX_FILE_CONTENT_CHARS = 50_000;
 export const DEFAULT_MAX_TOTAL_TEXT_BYTES = 6_000_000;
 export const DEFAULT_MAX_ASSISTANT_TEXT_CHARS = 200_000;
 export const DEFAULT_MAX_ASSISTANT_TOOL_MARKUP_CHARS = 12_000;
+// Batch stale-read rewrites to avoid breaking provider prefix caches on every re-read.
+// 64KB is roughly 8 provider-capped read results; set to 0 for eager rewriting.
+export const DEFAULT_MIN_OUTDATED_REWRITE_BYTES = 65_536;
 const MIN_TOTAL_BUDGET_TOOL_RESULT_BYTES = 2_000;
 const MIN_TOTAL_BUDGET_ASSISTANT_TEXT_BYTES = 40_000;
 const REPEATED_TOOL_CALL_MARKUP_THRESHOLD = 8;
 export const MESSAGE_BUILDER_LIMIT_ENV = {
 	maxToolResultChars: "CLINE_MESSAGE_BUILDER_MAX_TOOL_RESULT_CHARS",
 	maxTotalTextBytes: "CLINE_MESSAGE_BUILDER_MAX_TOTAL_TEXT_BYTES",
+	minOutdatedRewriteBytes: "CLINE_MESSAGE_BUILDER_MIN_OUTDATED_REWRITE_BYTES",
 } as const;
 const READ_TOOL_NAMES = new Set(["read", "read_files"]);
 const OUTDATED_FILE_CONTENT = "[outdated - see the latest file content]";
@@ -77,19 +81,23 @@ export interface MessageBuilderOptions {
 	mediaBudget?: MediaBudgetOptions;
 	maxAssistantTextChars?: number;
 	maxAssistantToolMarkupChars?: number;
+	minOutdatedRewriteBytes?: number;
 }
 
 export function getMessageBuilderOptionsFromEnv(
 	env: Record<string, string | undefined> = process.env,
 ): MessageBuilderOptions {
-	// Zero and negative values are rejected (falling back to the defaults), so
-	// an env override can tune the limits but never silently disable them.
+	// Size caps reject zero/negative overrides; stale-read batching accepts 0
+	// for eager mode and "disable"/"Infinity" for rollback.
 	return {
 		maxToolResultChars: parsePositiveIntegerEnv(
 			env[MESSAGE_BUILDER_LIMIT_ENV.maxToolResultChars],
 		),
 		maxTotalTextBytes: parsePositiveIntegerEnv(
 			env[MESSAGE_BUILDER_LIMIT_ENV.maxTotalTextBytes],
+		),
+		minOutdatedRewriteBytes: parseNonNegativeLimitEnv(
+			env[MESSAGE_BUILDER_LIMIT_ENV.minOutdatedRewriteBytes],
 		),
 	};
 }
@@ -117,6 +125,10 @@ export class MessageBuilder {
 	private readonly mediaBudget: MediaBudgetOptions;
 	private readonly maxAssistantTextChars: number;
 	private readonly maxAssistantToolMarkupChars: number;
+	private readonly minOutdatedRewriteBytes: number;
+	// Sticky rewrite decisions. Kept across resetIndexes because production
+	// rebuilds fresh Message objects; entries are revalidated/pruned per build.
+	private readonly committedOutdatedRewrites = new Map<string, Set<string>>();
 
 	constructor(options: MessageBuilderOptions = {}) {
 		this.maxToolResultChars = normalizePositiveLimit(
@@ -140,10 +152,20 @@ export class MessageBuilder {
 			options.maxAssistantToolMarkupChars,
 			DEFAULT_MAX_ASSISTANT_TOOL_MARKUP_CHARS,
 		);
+		this.minOutdatedRewriteBytes = normalizeNonNegativeLimit(
+			options.minOutdatedRewriteBytes,
+			DEFAULT_MIN_OUTDATED_REWRITE_BYTES,
+		);
+	}
+
+	resetConversationState(): void {
+		this.resetIndexes();
+		this.committedOutdatedRewrites.clear();
 	}
 
 	buildForApi(messages: Message[]): Message[] {
 		this.reindex(messages);
+		this.commitOutdatedRewrites(messages);
 		const repairedMessages = this.addMissingToolResults(messages);
 
 		const prepared = repairedMessages.map((message) => {
@@ -229,10 +251,13 @@ export class MessageBuilder {
 		let nextContent = block.content;
 
 		if (this.isReadTool(toolName) && block.is_error !== true) {
-			const locators = this.getReadLocators(block);
-			if (locators.length > 0) {
-				const outdated = locators.filter((locator) =>
-					this.isOutdatedReadLocator(locator, block.tool_use_id),
+			const committed = this.committedOutdatedRewrites.get(block.tool_use_id);
+			if (committed && committed.size > 0) {
+				const locators = this.getReadLocators(block);
+				const outdated = locators.filter(
+					(locator) =>
+						committed.has(this.toReadLocatorKey(locator)) &&
+						this.isOutdatedReadLocator(locator, block.tool_use_id),
 				);
 				if (outdated.length > 0) {
 					nextContent = this.replaceOutdatedReadContent(nextContent, outdated);
@@ -305,6 +330,173 @@ export class MessageBuilder {
 		this.indexedMessageCount = messages.length;
 		this.indexedTailRef =
 			messages.length > 0 ? messages[messages.length - 1] : undefined;
+	}
+
+	/** Commits pending stale-read rewrites once reclaimable bytes cross the threshold. */
+	private commitOutdatedRewrites(messages: Message[]): void {
+		const pending = new Map<string, Set<string>>();
+		const seenToolUseIds = new Set<string>();
+		let pendingBytes = 0;
+
+		for (const message of messages) {
+			if (!Array.isArray(message.content)) {
+				continue;
+			}
+			for (const block of message.content) {
+				if (block.type !== "tool_result" || block.is_error === true) {
+					continue;
+				}
+				const toolName = this.resolveToolName(block);
+				if (!this.isReadTool(toolName)) {
+					continue;
+				}
+				seenToolUseIds.add(block.tool_use_id);
+				const committed = this.committedOutdatedRewrites.get(block.tool_use_id);
+				const newKeys = new Set<string>();
+				const validKeys = new Set<string>();
+				for (const locator of this.getReadLocators(block)) {
+					const key = this.toReadLocatorKey(locator);
+					if (!this.isOutdatedReadLocator(locator, block.tool_use_id)) {
+						continue;
+					}
+					validKeys.add(key);
+					if (!committed?.has(key)) {
+						newKeys.add(key);
+					}
+				}
+				// Rollback can make a committed locator current again.
+				if (committed) {
+					for (const key of committed) {
+						if (!validKeys.has(key)) {
+							committed.delete(key);
+						}
+					}
+					if (committed.size === 0) {
+						this.committedOutdatedRewrites.delete(block.tool_use_id);
+					}
+				}
+				if (newKeys.size === 0) {
+					continue;
+				}
+				let keys = pending.get(block.tool_use_id);
+				if (!keys) {
+					keys = new Set<string>();
+					pending.set(block.tool_use_id, keys);
+				}
+				for (const key of newKeys) {
+					keys.add(key);
+				}
+				// Attribute provider-bound bytes to the newly-stale locators, not
+				// raw history bytes or the whole block.
+				pendingBytes += this.estimateOutdatedReclaimBytes(
+					block.content,
+					newKeys,
+				);
+			}
+		}
+
+		for (const toolUseId of this.committedOutdatedRewrites.keys()) {
+			if (!seenToolUseIds.has(toolUseId)) {
+				this.committedOutdatedRewrites.delete(toolUseId);
+			}
+		}
+
+		if (pending.size === 0 || pendingBytes < this.minOutdatedRewriteBytes) {
+			return;
+		}
+
+		for (const [toolUseId, keys] of pending) {
+			let committed = this.committedOutdatedRewrites.get(toolUseId);
+			if (!committed) {
+				committed = new Set<string>();
+				this.committedOutdatedRewrites.set(toolUseId, committed);
+			}
+			for (const key of keys) {
+				committed.add(key);
+			}
+		}
+	}
+
+	/** Estimates reclaimable bytes for stale locators inside one tool-result block. */
+	private estimateOutdatedReclaimBytes(
+		content: ToolResultContent["content"],
+		outdatedKeys: ReadonlySet<string>,
+	): number {
+		const allLocators = this.extractReadLocatorsFromToolResultContent(content);
+		const blockFullyOutdated =
+			allLocators.length > 0 &&
+			allLocators.every((locator) =>
+				outdatedKeys.has(this.toReadLocatorKey(locator)),
+			);
+
+		const attributeText = (text: string): number => {
+			let parsed: unknown;
+			try {
+				parsed = JSON.parse(text);
+			} catch {
+				return blockFullyOutdated || allLocators.length === 0
+					? utf8ByteLength(this.truncateMiddle(text))
+					: 0;
+			}
+			const entries = Array.isArray(parsed) ? parsed : [parsed];
+			let total = 0;
+			for (const entry of entries) {
+				const locator = this.extractLocatorFromResultEntry(entry);
+				if (locator && outdatedKeys.has(this.toReadLocatorKey(locator))) {
+					total += this.providerBoundEntryBytes(entry);
+				}
+			}
+			return total;
+		};
+
+		if (typeof content === "string") {
+			return attributeText(content);
+		}
+		// Image siblings are rewritten positionally, so count them positionally too.
+		const outdatedKeySet = new Set(outdatedKeys);
+		let outdatedImageCount = 0;
+		for (const entry of content) {
+			if (entry.type === "text") {
+				outdatedImageCount += this.countOutdatedImageEntries(
+					entry.text,
+					outdatedKeySet,
+				);
+			}
+		}
+		let total = 0;
+		for (const entry of content) {
+			if (entry.type === "text") {
+				total += attributeText(entry.text);
+			} else if (entry.type === "image") {
+				if (outdatedImageCount > 0) {
+					outdatedImageCount -= 1;
+					total += utf8ByteLength(entry.data);
+				}
+			} else if (isStructuredToolResultEntry(entry)) {
+				const locator = this.extractLocatorFromResultEntry(entry);
+				if (locator && outdatedKeys.has(this.toReadLocatorKey(locator))) {
+					total += this.providerBoundEntryBytes(entry);
+				}
+			} else if (entry.type === "file") {
+				if (
+					outdatedKeys.has(
+						this.toReadLocatorKey({
+							path: entry.path,
+							startLine: null,
+							endLine: null,
+						}),
+					)
+				) {
+					total += utf8ByteLength(this.truncateMiddle(entry.content));
+				}
+			}
+		}
+		return total;
+	}
+
+	private providerBoundEntryBytes(entry: unknown): number {
+		const providerBound = this.truncateNestedStrings(entry);
+		return utf8ByteLength(JSON.stringify(providerBound));
 	}
 
 	private addMissingToolResults(messages: Message[]): Message[] {
@@ -579,16 +771,20 @@ export class MessageBuilder {
 		if (typeof content === "string") {
 			return this.tryParseReadLocators(content);
 		}
+		const locators: ReadLocator[] = [];
 		for (const entry of content) {
-			if (entry.type !== "text") {
+			if (entry.type === "text") {
+				locators.push(...this.tryParseReadLocators(entry.text));
 				continue;
 			}
-			const locators = this.tryParseReadLocators(entry.text);
-			if (locators.length > 0) {
-				return locators;
+			if (isStructuredToolResultEntry(entry)) {
+				const locator = this.extractLocatorFromResultEntry(entry);
+				if (locator) {
+					locators.push(locator);
+				}
 			}
 		}
-		return [];
+		return this.dedupeReadLocators(locators);
 	}
 
 	private tryParseReadLocators(text: string): ReadLocator[] {
@@ -727,9 +923,7 @@ export class MessageBuilder {
 			);
 		}
 
-		// Two-pass over content array: first count outdated image entries embedded
-		// in text payloads (those need to convert image siblings → text). Second
-		// pass rewrites entries.
+		// Image entries are paired with text result markers, so rewrite them positionally.
 		let pendingImageReplacements = 0;
 		for (const entry of content) {
 			if (entry.type === "text") {
@@ -756,6 +950,12 @@ export class MessageBuilder {
 					type: "text",
 					text: OUTDATED_FILE_CONTENT,
 				} satisfies TextContent;
+			}
+			if (isStructuredToolResultEntry(entry)) {
+				return this.replaceOutdatedReadEntry(
+					entry,
+					outdatedKeys,
+				) as typeof entry;
 			}
 			if (entry.type !== "text") {
 				return entry;
@@ -1299,6 +1499,20 @@ function parsePositiveIntegerEnv(
 	return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 }
 
+function parseNonNegativeLimitEnv(
+	value: string | undefined,
+): number | undefined {
+	if (value === undefined) {
+		return undefined;
+	}
+	const normalized = value.trim().toLowerCase();
+	if (normalized === "infinity" || normalized === "disable") {
+		return Number.POSITIVE_INFINITY;
+	}
+	const parsed = Number.parseInt(value, 10);
+	return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
+}
+
 function normalizePositiveLimit(
 	value: number | undefined,
 	fallback: number,
@@ -1306,6 +1520,16 @@ function normalizePositiveLimit(
 	return typeof value === "number" && Number.isFinite(value) && value > 0
 		? Math.floor(value)
 		: fallback;
+}
+
+function normalizeNonNegativeLimit(
+	value: number | undefined,
+	fallback: number,
+): number {
+	if (typeof value !== "number" || Number.isNaN(value) || value < 0) {
+		return fallback;
+	}
+	return Number.isFinite(value) ? Math.floor(value) : value;
 }
 
 function truncateMiddleByChars(
