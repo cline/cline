@@ -48,7 +48,11 @@ async function generate(): Promise<void> {
 	let loadError: Error | undefined;
 
 	const [modelsDevResult, clineRecommendedPayloadResult] = await Promise.all([
-		loadModelsDevProviderModels(),
+		loadModelsDevProviderModels().catch((error) => {
+			loadError =
+				error instanceof Error ? error : new Error(String(error ?? "unknown"));
+			return {};
+		}),
 		fetchClineRecommendedModelsPayload(fetch).catch((error) => {
 			loadError =
 				error instanceof Error ? error : new Error(String(error ?? "unknown"));
