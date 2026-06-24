@@ -182,6 +182,20 @@ function resolveProviderReasoningConfig(providerId: string): SessionReasoningCon
 	}
 }
 
+function resolveOcaReasoningConfig(mode: Mode, apiConfig: ApiConfiguration | undefined): SessionReasoningConfig | undefined {
+	const rawEffort = mode === "plan" ? apiConfig?.planModeOcaReasoningEffort : apiConfig?.actModeOcaReasoningEffort
+	const effort = rawEffort?.trim().toLowerCase()
+	if (!effort) {
+		return undefined
+	}
+
+	if (effort === "none") {
+		return { thinking: false }
+	}
+
+	return isReasoningEffort(effort) ? { thinking: true, reasoningEffort: effort } : undefined
+}
+
 function resolveOpenAiCompatibleMaxTokens(config: ApiConfiguration | undefined, mode: Mode): number | undefined {
 	const modelInfo = mode === "plan" ? config?.planModeOpenAiModelInfo : config?.actModeOpenAiModelInfo
 	const maxTokens = modelInfo?.maxTokens
@@ -587,7 +601,10 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	}
 	apiKey = apiKey ?? ""
 	const maxTokensPerTurn = providerId === "openai" ? resolveOpenAiCompatibleMaxTokens(apiConfig, mode) : undefined
-	const reasoningConfig = resolveProviderReasoningConfig(providerId)
+	const reasoningConfig =
+		providerId === "oca"
+			? (resolveOcaReasoningConfig(mode, apiConfig) ?? resolveProviderReasoningConfig(providerId))
+			: resolveProviderReasoningConfig(providerId)
 
 	// Build the system prompt using the shared prompt builder. Core still
 	// expects callers to provide a concrete systemPrompt, but the prompt builder
