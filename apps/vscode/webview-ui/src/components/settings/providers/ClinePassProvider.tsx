@@ -1,65 +1,53 @@
-import {
-	buildModelInfoNameMap,
-	clinePassDefaultModelId,
-	clinePassModels,
-	type ModelInfo,
-	resolveClinePassModelInfo,
-} from "@shared/api"
-import { EmptyRequest } from "@shared/proto/cline/common"
-import { useCallback, useEffect, useMemo, useState } from "react"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { ModelsServiceClient } from "@/services/grpc-client"
+import type { ModelInfo } from "@shared/api"
+import { openAiModelInfoSafeDefaults } from "@shared/api"
+import { Mode } from "@shared/storage/types"
+import { useProviderConfig } from "@/hooks/useProviderConfig"
+import { useProviderModelSelection } from "@/hooks/useProviderModelSelection"
+import { useProviderModels } from "@/hooks/useProviderModels"
 import { ClineAccountInfoCard } from "../ClineAccountInfoCard"
-import ClineModelPicker from "../ClineModelPicker"
-import { ClineProvider } from "./ClineProvider"
+import { ModelInfoView } from "../common/ModelInfoView"
+import ReasoningEffortSelector from "../ReasoningEffortSelector"
+import { type ModelPickerSelection, ModelPickerWithManualEntry } from "./ModelPickerWithManualEntry"
 
-export const ClinePassProvider: typeof ClineProvider = (props) => {
-	const { openRouterModels } = useExtensionState()
-	const openRouterModelsByName = useMemo(() => buildModelInfoNameMap(openRouterModels), [openRouterModels])
-	const [clinePassRecommendedModels, setClinePassRecommendedModels] = useState<Record<string, ModelInfo> | undefined>(undefined)
+interface ClinePassProviderProps {
+	showModelOptions: boolean
+	isPopup?: boolean
+	currentMode: Mode
+}
 
-	const refreshClinePassModels = useCallback(async () => {
-		try {
-			const response = await ModelsServiceClient.refreshClineRecommendedModelsRpc(EmptyRequest.create({}))
-			const models = Object.fromEntries(
-				(response.clinePass ?? [])
-					.filter((model) => model.id)
-					.map((model) => {
-						// ClinePass model IDs omit the upstream lab, so look up capabilities using
-						// the model slug (for example, glm-5.1 instead of cline-pass/glm-5.1).
-						// If the model is not in OpenRouter yet, use conservative generic defaults
-						// instead of copying GLM-5.1-specific context/max-token values.
-						const fallback = resolveClinePassModelInfo(model.id, openRouterModelsByName)
-						return [
-							model.id,
-							{
-								...fallback,
-								name: model.name || fallback.name || model.id,
-								description: model.description || fallback.description,
-							},
-						]
-					}),
-			)
-			setClinePassRecommendedModels(Object.keys(models).length > 0 ? models : undefined)
-		} catch (error) {
-			console.error("Failed to refresh ClinePass models:", error)
-		}
-	}, [openRouterModelsByName])
+const CLINE_PASS_PROVIDER_ID = "cline-pass"
 
-	useEffect(() => {
-		void refreshClinePassModels()
-	}, [refreshClinePassModels])
+function clinePassFallbackModelInfo(modelId: string): ModelInfo {
+	return {
+		...openAiModelInfoSafeDefaults,
+		name: modelId,
+		inputPrice: 0,
+		outputPrice: 0,
+		cacheReadsPrice: 0,
+		cacheWritesPrice: 0,
+	}
+}
 
-	const clinePassModelOptions = clinePassRecommendedModels ?? clinePassModels
-	const clinePassDefaultModel = useMemo(() => {
-		if (!clinePassModelOptions) {
-			return undefined
-		}
+/**
+ * ClinePass is a first-class SDK provider whose credentials are backed by the
+ * user's Cline OAuth account. Keep the UX close to the Cline provider (account
+ * card + model selection), but resolve and persist selections through the SDK
+ * provider catalog under providerId="cline-pass".
+ */
+export const ClinePassProvider = ({ showModelOptions, isPopup, currentMode }: ClinePassProviderProps) => {
+	const { models, defaultModelId, isLoading, isStale, error } = useProviderModels(CLINE_PASS_PROVIDER_ID)
+	const { config, write, commitSelection } = useProviderConfig(CLINE_PASS_PROVIDER_ID)
+	const { selectedModel, commitModelSelection } = useProviderModelSelection(CLINE_PASS_PROVIDER_ID, currentMode, {
+		models,
+		defaultModelId,
+		config,
+		commitSelection,
+		customModelInfo: clinePassFallbackModelInfo,
+	})
 
-		return clinePassModelOptions[clinePassDefaultModelId]
-			? clinePassDefaultModelId
-			: (Object.keys(clinePassModelOptions)[0] ?? clinePassDefaultModelId)
-	}, [clinePassModelOptions])
+	const handleModelSelect = (selection: ModelPickerSelection) => {
+		void commitModelSelection(selection).catch((err) => console.error("Failed to commit ClinePass model selection:", err))
+	}
 
 	return (
 		<div>
@@ -67,14 +55,40 @@ export const ClinePassProvider: typeof ClineProvider = (props) => {
 				<ClineAccountInfoCard />
 			</div>
 
-			<ClineModelPicker
-				{...props}
-				defaultModelId={clinePassDefaultModel}
-				modelIdFieldPair={{ plan: "planModeClinePassModelId", act: "actModeClinePassModelId" }}
-				modelInfoFieldPair={{ plan: "planModeClinePassModelInfo", act: "actModeClinePassModelInfo" }}
-				models={clinePassModelOptions}
-				showFeaturedModels={false}
-			/>
+			{showModelOptions && (
+				<>
+					<ModelPickerWithManualEntry
+						allowsCustomIds={false}
+						error={error}
+						isLoading={isLoading}
+						isStale={isStale}
+						models={models}
+						onSelect={handleModelSelect}
+						selectedModel={selectedModel}
+					/>
+
+					{selectedModel.modelInfo.supportsReasoning === true && (
+						<ReasoningEffortSelector
+							currentMode={currentMode}
+							onEffortChange={(effort) => {
+								void write({
+									reasoning: {
+										enabled: effort !== "none",
+										effort: effort !== "none" ? effort : undefined,
+									},
+								}).catch((err) => console.error("Failed to update ClinePass reasoning effort:", err))
+							}}
+						/>
+					)}
+
+					<ModelInfoView
+						hideUsageCost={true}
+						isPopup={isPopup}
+						modelInfo={selectedModel.modelInfo}
+						selectedModelId={selectedModel.modelId}
+					/>
+				</>
+			)}
 		</div>
 	)
 }

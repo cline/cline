@@ -42,7 +42,7 @@ export async function isPortOpen(host: string, port: number, timeout = 1000): Pr
 /**
  * Try to connect to Chrome at a specific IP address
  */
-export async function tryConnect(ipAddress: string): Promise<{ endpoint: string; ip: string } | null> {
+async function tryConnect(ipAddress: string): Promise<{ endpoint: string; ip: string } | null> {
 	try {
 		const response = await axios.get(`http://${ipAddress}:9222/json/version`, { timeout: 1000 })
 		const data = response.data

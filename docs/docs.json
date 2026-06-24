@@ -117,8 +117,7 @@
 											"cli/samples/model-orchestration",
 											"cli/samples/supply-chain-alerts"
 										]
-									},
-									"cli/acp-editor-integrations"
+									}
 								]
 							},
 							{
@@ -299,7 +298,7 @@
 								"group": "Control Other Cline Features",
 								"pages": [
 									"enterprise-solutions/configuration/infrastructure-configuration/control-other-cline-features/yolo-mode",
-									"enterprise-solutions/configuration/infrastructure-configuration/control-other-cline-features/mcp-marketplace"
+									"enterprise-solutions/configuration/infrastructure-configuration/control-other-cline-features/mcp-server-controls"
 								]
 							},
 							{
@@ -363,6 +362,10 @@
 		}
 	],
 	"redirects": [
+		{
+			"source": "/enterprise-solutions/configuration/infrastructure-configuration/control-other-cline-features/mcp-marketplace",
+			"destination": "/enterprise-solutions/configuration/infrastructure-configuration/control-other-cline-features/mcp-server-controls"
+		},
 		{
 			"source": "/usage/cli",
 			"destination": "/usage/cli-overview"
@@ -650,10 +653,6 @@
 		{
 			"source": "/features/slash-commands/smol",
 			"destination": "/core-workflows/using-commands#smol"
-		},
-		{
-			"source": "/features/slash-commands/explain-changes",
-			"destination": "/core-workflows/using-commands#explain-changes"
 		},
 		{
 			"source": "/features/slash-commands/new-rule",

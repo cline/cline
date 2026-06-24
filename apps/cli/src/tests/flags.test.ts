@@ -26,7 +26,6 @@ test.describe("root flag descriptions", () => {
 			"Set reasoning effort level",
 			"consecutive mistakes",
 			"Output messages as JSON",
-			"ACP",
 			"Check for updates and install if available",
 			"Run the kanban app",
 		]);

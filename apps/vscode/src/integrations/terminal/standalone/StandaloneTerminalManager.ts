@@ -14,6 +14,7 @@
 
 import { ClineTempManager } from "@services/temp"
 import * as fs from "fs"
+import { Logger } from "@/shared/services/Logger"
 import { BACKGROUND_COMMAND_TIMEOUT_MS, DEFAULT_TERMINAL_OUTPUT_LINE_LIMIT } from "../constants"
 import type { BackgroundCommand, ITerminalManager, TerminalInfo, TerminalProcessResultPromise } from "../types"
 import { StandaloneTerminalProcess } from "./StandaloneTerminalProcess"
@@ -100,6 +101,7 @@ export class StandaloneTerminalManager implements ITerminalManager {
 	 * @returns A promise-like object that emits events and resolves on completion
 	 */
 	runCommand(terminalInfo: TerminalInfo, command: string): TerminalProcessResultPromise {
+		Logger.debug(`[StandaloneTerminalManager] runCommand terminalId=${terminalInfo.id}`)
 		terminalInfo.busy = true
 		terminalInfo.lastCommand = command
 
@@ -120,8 +122,17 @@ export class StandaloneTerminalManager implements ITerminalManager {
 			process.once("error", (error: Error) => reject(error))
 		})
 
-		// Run the command immediately (no shell integration wait needed)
-		process.run(terminalInfo.terminal, command)
+		// Run the command immediately (no shell integration wait needed).
+		// process.run is async but intentionally not awaited. run() emits "error"
+		// for failures it catches itself; this guard handles any rejection that
+		// escapes without an "error" event, re-emitting it so the outer promise
+		// rejects instead of hanging forever.
+		process.run(terminalInfo.terminal, command).catch((error) => {
+			Logger.error(
+				`[StandaloneTerminalManager] process.run rejected for terminal ${terminalInfo.id}: ${(error as Error)?.message ?? String(error)}`,
+			)
+			process.emit("error", error instanceof Error ? error : new Error(String(error)))
+		})
 
 		// Return merged promise/process object
 		return mergePromise(process, promise)

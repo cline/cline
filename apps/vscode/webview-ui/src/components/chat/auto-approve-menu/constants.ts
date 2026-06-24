@@ -42,8 +42,8 @@ export const ACTION_METADATA: ActionMetadata[] = [
 	},
 	{
 		id: "useBrowser",
-		label: "Use the browser",
-		shortName: "Browser",
+		label: "Fetch web content",
+		shortName: "Web Fetch",
 		icon: "codicon-globe",
 	},
 	{
@@ -53,10 +53,3 @@ export const ACTION_METADATA: ActionMetadata[] = [
 		icon: "codicon-server",
 	},
 ]
-
-export const NOTIFICATIONS_SETTING: ActionMetadata = {
-	id: "enableNotifications",
-	label: "Enable notifications",
-	shortName: "Notifications",
-	icon: "codicon-bell",
-}

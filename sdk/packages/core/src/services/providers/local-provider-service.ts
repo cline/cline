@@ -136,6 +136,10 @@ async function resolveProviderModelMap(
 		config,
 	);
 
+	if (providerId === "litellm" && resolved?.knownModels) {
+		return resolved.knownModels;
+	}
+
 	return resolved?.knownModels
 		? {
 				...registeredModels,

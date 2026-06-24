@@ -5,7 +5,6 @@ import {
 	ClineAskUseMcpServer,
 	ClineMessage,
 	ClinePlanModeResponse,
-	ClineSayGenerateExplanation,
 	ClineSayTool,
 	COMPLETION_RESULT_CHANGES_FLAG,
 } from "@shared/ExtensionMessage"
@@ -13,12 +12,9 @@ import { BooleanRequest, StringRequest } from "@shared/proto/cline/common"
 import { Mode } from "@shared/storage/types"
 import deepEqual from "fast-deep-equal"
 import {
-	ArrowRightIcon,
 	BellIcon,
-	CheckIcon,
 	ChevronDownIcon,
 	ChevronRightIcon,
-	CircleSlashIcon,
 	CircleXIcon,
 	FileCode2Icon,
 	FilePlus2Icon,
@@ -47,7 +43,7 @@ import McpToolRow from "@/components/mcp/configuration/tabs/installed/server-row
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
 import { FileServiceClient, UiServiceClient } from "@/services/grpc-client"
-import { findMatchingResourceOrTemplate, getMcpServerDisplayName } from "@/utils/mcp"
+import { findMatchingResourceOrTemplate } from "@/utils/mcp"
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
 import { CommandOutputContent, CommandOutputRow } from "./CommandOutputRow"
 import { CompletionOutputRow } from "./CompletionOutputRow"
@@ -151,14 +147,12 @@ export const ChatRowContent = memo(
 		const {
 			backgroundEditEnabled,
 			mcpServers,
-			mcpMarketplaceCatalog,
 			onRelinquishControl,
 			vscodeTerminalExecutionMode,
 			clineMessages,
 			showFeatureTips,
 		} = useExtensionState()
 		const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
-		const [explainChangesDisabled, setExplainChangesDisabled] = useState(false)
 		const [quoteButtonState, setQuoteButtonState] = useState<QuoteButtonState>({
 			visible: false,
 			top: 0,
@@ -235,7 +229,6 @@ export const ChatRowContent = memo(
 		useEffect(() => {
 			return onRelinquishControl(() => {
 				setSeeNewChangesDisabled(false)
-				setExplainChangesDisabled(false)
 			})
 		}, [onRelinquishControl])
 
@@ -337,10 +330,7 @@ export const ChatRowContent = memo(
 						),
 						<span className="ph-no-capture font-bold text-foreground break-words">
 							Cline wants to {mcpServerUse.type === "use_mcp_tool" ? "use a tool" : "access a resource"} on the{" "}
-							<code className="break-all">
-								{getMcpServerDisplayName(mcpServerUse.serverName, mcpMarketplaceCatalog)}
-							</code>{" "}
-							MCP server:
+							<code className="break-all">{mcpServerUse.serverName}</code> MCP server:
 						</span>,
 					]
 				case "completion_result":
@@ -443,10 +433,10 @@ export const ChatRowContent = memo(
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
 								<span style={{ fontWeight: "bold" }}>{editToolTitle}</span>
 							</div>
-							{backgroundEditEnabled && tool.path && tool.content ? (
+							{backgroundEditEnabled && tool.path && (tool.diff || tool.content) ? (
 								<DiffEditRow
 									isLoading={message.partial}
-									patch={tool.content}
+									patch={tool.diff || tool.content!}
 									path={tool.path}
 									startLineNumbers={tool.startLineNumbers}
 								/>
@@ -951,87 +941,17 @@ export const ChatRowContent = memo(
 								Loading MCP documentation
 							</div>
 						)
-					case "generate_explanation": {
-						let explanationInfo: ClineSayGenerateExplanation = {
-							title: "code changes",
-							fromRef: "",
-							toRef: "",
-							status: "generating",
-						}
-						try {
-							if (message.text) {
-								explanationInfo = JSON.parse(message.text)
-							}
-						} catch {
-							// Use defaults if parsing fails
-						}
-						// Check if generation was interrupted:
-						// 1. If status is "generating" but this isn't the last message, it was interrupted
-						// 2. If status is "generating" and lastModifiedMessage is a resume ask, task was just cancelled
-						const wasCancelled =
-							explanationInfo.status === "generating" &&
-							(!isLast ||
-								lastModifiedMessage?.ask === "resume_task" ||
-								lastModifiedMessage?.ask === "resume_completed_task")
-						const isGenerating = explanationInfo.status === "generating" && !wasCancelled
-						const isError = explanationInfo.status === "error"
-						return (
-							<div className="bg-code flex flex-col border border-editor-group-border rounded-sm py-2.5 px-3">
-								<div className="flex items-center">
-									{isGenerating ? (
-										<ProgressIndicator />
-									) : isError ? (
-										<CircleXIcon className="size-2 mr-2 text-error" />
-									) : wasCancelled ? (
-										<CircleSlashIcon className="size-2 mr-2" />
-									) : (
-										<CheckIcon className="size-2 mr-2 text-success" />
-									)}
-									<span className="font-semibold">
-										{isGenerating
-											? "Generating explanation"
-											: isError
-												? "Failed to generate explanation"
-												: wasCancelled
-													? "Explanation cancelled"
-													: "Generated explanation"}
-									</span>
-								</div>
-								{isError && explanationInfo.error && (
-									<div className="opacity-80 ml-6 mt-1.5 text-error break-words">{explanationInfo.error}</div>
-								)}
-								{!isError && (explanationInfo.title || explanationInfo.fromRef) && (
-									<div className="opacity-80 ml-6 mt-1.5">
-										<div>{explanationInfo.title}</div>
-										{explanationInfo.fromRef && (
-											<div className="opacity-70 mt-1.5 break-all text-xs">
-												<code className="bg-quote rounded-sm py-0.5 pr-1.5">
-													{explanationInfo.fromRef}
-												</code>
-												<ArrowRightIcon className="inline size-2 mx-1" />
-												<code className="bg-quote rounded-sm py-0.5 px-1.5">
-													{explanationInfo.toRef || "working directory"}
-												</code>
-											</div>
-										)}
-									</div>
-								)}
-							</div>
-						)
-					}
 					case "completion_result":
 						const hasChanges = message.text?.endsWith(COMPLETION_RESULT_CHANGES_FLAG) ?? false
 						const text = hasChanges ? message.text?.slice(0, -COMPLETION_RESULT_CHANGES_FLAG.length) : message.text
 
 						return (
 							<CompletionOutputRow
-								explainChangesDisabled={explainChangesDisabled}
 								handleQuoteClick={handleQuoteClick}
 								headClassNames={HEADER_CLASSNAMES}
 								messageTs={message.ts}
 								quoteButtonState={quoteButtonState}
 								seeNewChangesDisabled={seeNewChangesDisabled}
-								setExplainChangesDisabled={setExplainChangesDisabled}
 								setSeeNewChangesDisabled={setSeeNewChangesDisabled}
 								showActionRow={message.partial !== true && hasChanges}
 								text={text || ""}
@@ -1172,13 +1092,11 @@ export const ChatRowContent = memo(
 							const text = hasChanges ? message.text.slice(0, -COMPLETION_RESULT_CHANGES_FLAG.length) : message.text
 							return (
 								<CompletionOutputRow
-									explainChangesDisabled={explainChangesDisabled}
 									handleQuoteClick={handleQuoteClick}
 									headClassNames={HEADER_CLASSNAMES}
 									messageTs={message.ts}
 									quoteButtonState={quoteButtonState}
 									seeNewChangesDisabled={seeNewChangesDisabled}
-									setExplainChangesDisabled={setExplainChangesDisabled}
 									setSeeNewChangesDisabled={setSeeNewChangesDisabled}
 									showActionRow={message.partial !== true && hasChanges}
 									text={text || ""}

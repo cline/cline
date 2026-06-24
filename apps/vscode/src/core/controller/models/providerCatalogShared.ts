@@ -1,0 +1,256 @@
+import type { ApiConfiguration, ModelInfo } from "@shared/api"
+import type {
+	EffectiveProviderConfig,
+	Mode,
+	ModelSelection,
+	ProviderCatalog,
+	ProviderConfigPatch,
+	ProviderConfigStore,
+	ProviderId,
+	ProviderListing,
+	ProviderModelsResult,
+} from "@/sdk/model-catalog/contracts"
+import { parseProviderId } from "@/sdk/model-catalog/provider-id"
+import {
+	AwsProviderConfig,
+	CatalogErrorInfo,
+	CommitModelSelectionRequest,
+	CommittedModelSelection,
+	GcpProviderConfig,
+	OpenRouterModelInfo,
+	ProviderConfigResponse,
+	ProviderListing as ProviderListingProto,
+	ProviderModelsResponse,
+	WriteProviderConfigPatch,
+} from "@/shared/proto/cline/models"
+import { fromProtobufModelInfo, toProtobufModelInfo } from "@/shared/proto-conversions/models/typeConversion"
+import type { GlobalStateAndSettings } from "@/shared/storage/state-keys"
+
+export interface ProviderCatalogController {
+	getProviderConfigStore(): ProviderConfigStore
+	getProviderCatalog(): ProviderCatalog
+}
+
+export interface ProviderCatalogStateController extends ProviderCatalogController {
+	stateManager: {
+		setGlobalStateBatch(updates: Partial<GlobalStateAndSettings>): void
+		getApiConfiguration?(): ApiConfiguration
+	}
+	handleApiConfigurationChanged?(previous: ApiConfiguration, next: ApiConfiguration): void
+}
+
+export function hasProviderCatalogStateController(
+	controller: ProviderCatalogController,
+): controller is ProviderCatalogStateController {
+	const candidate = controller as { stateManager?: { setGlobalStateBatch?: unknown } }
+	return typeof candidate.stateManager?.setGlobalStateBatch === "function"
+}
+
+export function parseProviderIdRequest(rawProviderId: string | undefined, fieldName = "provider_id"): ProviderId {
+	const providerId = rawProviderId?.trim()
+	if (!providerId) {
+		throw new Error(`${fieldName} is required`)
+	}
+	return parseProviderId(providerId)
+}
+
+export function parseModeRequest(rawMode: string | undefined): Mode {
+	if (rawMode === "plan" || rawMode === "act") {
+		return rawMode
+	}
+	throw new Error('mode must be "plan" or "act"')
+}
+
+export function toProviderListingProto(listing: ProviderListing): ProviderListingProto {
+	return ProviderListingProto.create({
+		id: listing.id,
+		name: listing.name,
+		defaultModelId: listing.defaultModelId,
+		family: listing.family,
+		protocol: listing.protocol,
+		authDescription: listing.authDescription,
+		baseUrlDescription: listing.baseUrlDescription,
+		allowsCustomModelIds: listing.allowsCustomModelIds,
+		usageCostDisplay: listing.usageCostDisplay,
+	})
+}
+
+type ProviderModelsError = Extract<ProviderModelsResult, { ok: false }>["error"]
+
+function toCatalogErrorInfo(error: ProviderModelsError): CatalogErrorInfo {
+	return CatalogErrorInfo.create({
+		kind: error.kind,
+		message: error.message,
+		code: error.code,
+	})
+}
+
+function toProtobufModels(models: ReadonlyMap<string, ModelInfo>): Record<string, OpenRouterModelInfo> {
+	const result: Record<string, OpenRouterModelInfo> = {}
+	for (const [modelId, modelInfo] of models) {
+		result[modelId] = toProtobufModelInfo(modelInfo)
+	}
+	return result
+}
+
+function toCommittedModelSelectionProto(selection: ModelSelection | undefined): CommittedModelSelection | undefined {
+	if (!selection) {
+		return undefined
+	}
+	return CommittedModelSelection.create({
+		providerId: selection.providerId,
+		modelId: selection.modelId,
+		modelInfo: toProtobufModelInfo(selection.modelInfo),
+	})
+}
+
+function toRedactedAwsProviderConfigProto(aws: EffectiveProviderConfig["aws"]): AwsProviderConfig | undefined {
+	if (!aws) {
+		return undefined
+	}
+	return AwsProviderConfig.create({
+		authentication: aws.authentication,
+		profile: aws.profile,
+		accessKeyLength: aws.accessKey?.length ?? 0,
+		secretKeyLength: aws.secretKey?.length ?? 0,
+		sessionTokenLength: aws.sessionToken?.length ?? 0,
+		endpoint: aws.endpoint,
+		usePromptCache: aws.usePromptCache,
+		customModelBaseId: aws.customModelBaseId,
+		useCrossRegionInference: aws.useCrossRegionInference,
+		useGlobalInference: aws.useGlobalInference,
+	})
+}
+
+function toGcpProviderConfigPatch(protoPatch: WriteProviderConfigPatch): ProviderConfigPatch["gcp"] {
+	if (!protoPatch.gcp) {
+		return undefined
+	}
+	return {
+		...(protoPatch.gcp.projectId !== undefined ? { projectId: protoPatch.gcp.projectId } : {}),
+		...(protoPatch.gcp.region !== undefined ? { region: protoPatch.gcp.region } : {}),
+	}
+}
+
+function toRedactedGcpProviderConfigProto(gcp: EffectiveProviderConfig["gcp"]): GcpProviderConfig | undefined {
+	if (!gcp) {
+		return undefined
+	}
+	return GcpProviderConfig.create({
+		projectId: gcp.projectId,
+		region: gcp.region,
+	})
+}
+
+function toAwsProviderConfigPatch(protoPatch: WriteProviderConfigPatch): ProviderConfigPatch["aws"] {
+	if (!protoPatch.aws) {
+		return undefined
+	}
+	return {
+		...(protoPatch.aws.accessKey !== undefined ? { accessKey: protoPatch.aws.accessKey } : {}),
+		...(protoPatch.aws.secretKey !== undefined ? { secretKey: protoPatch.aws.secretKey } : {}),
+		...(protoPatch.aws.sessionToken !== undefined ? { sessionToken: protoPatch.aws.sessionToken } : {}),
+		...(protoPatch.aws.authentication !== undefined ? { authentication: protoPatch.aws.authentication } : {}),
+		...(protoPatch.aws.profile !== undefined ? { profile: protoPatch.aws.profile } : {}),
+		...(protoPatch.aws.usePromptCache !== undefined ? { usePromptCache: protoPatch.aws.usePromptCache } : {}),
+		...(protoPatch.aws.endpoint !== undefined ? { endpoint: protoPatch.aws.endpoint } : {}),
+		...(protoPatch.aws.customModelBaseId !== undefined ? { customModelBaseId: protoPatch.aws.customModelBaseId } : {}),
+		...(protoPatch.aws.useCrossRegionInference !== undefined
+			? { useCrossRegionInference: protoPatch.aws.useCrossRegionInference }
+			: {}),
+		...(protoPatch.aws.useGlobalInference !== undefined ? { useGlobalInference: protoPatch.aws.useGlobalInference } : {}),
+	}
+}
+
+export function toProviderModelsResponse(
+	providerId: ProviderId,
+	requestId: string,
+	result: ProviderModelsResult,
+): ProviderModelsResponse {
+	return ProviderModelsResponse.create({
+		providerId,
+		requestId,
+		configFingerprint: result.configFingerprint,
+		fetchedAt: result.fetchedAt,
+		ok: result.ok,
+		models: result.ok ? toProtobufModels(result.models) : {},
+		defaultModelId: result.ok ? result.defaultModelId : undefined,
+		source: result.ok ? result.source : undefined,
+		error: result.ok ? undefined : toCatalogErrorInfo(result.error),
+	})
+}
+
+export function toRedactedProviderConfigResponse(
+	config: EffectiveProviderConfig,
+	store?: ProviderConfigStore,
+): ProviderConfigResponse {
+	return ProviderConfigResponse.create({
+		providerId: config.providerId,
+		baseUrl: config.baseUrl,
+		apiLine: config.apiLine,
+		headers: config.headers ?? {},
+		region: config.region,
+		apiKeyLength: config.apiKey?.length ?? 0,
+		hasAccessToken: Boolean(config.auth?.accessToken),
+		hasRefreshToken: Boolean(config.auth?.refreshToken),
+		accountId: config.auth?.accountId,
+		planSelection: toCommittedModelSelectionProto(store?.readSelection(config.providerId, "plan")),
+		actSelection: toCommittedModelSelectionProto(store?.readSelection(config.providerId, "act")),
+		aws: toRedactedAwsProviderConfigProto(config.aws),
+		gcp: toRedactedGcpProviderConfigProto(config.gcp),
+	})
+}
+
+export function toProviderConfigPatch(protoPatch: WriteProviderConfigPatch | undefined): ProviderConfigPatch {
+	if (!protoPatch) {
+		throw new Error("patch is required")
+	}
+	return {
+		...(protoPatch.apiKey !== undefined ? { apiKey: protoPatch.apiKey } : {}),
+		...(protoPatch.baseUrl !== undefined ? { baseUrl: protoPatch.baseUrl } : {}),
+		...(protoPatch.clearHeaders
+			? { headers: {} }
+			: Object.keys(protoPatch.headers ?? {}).length > 0
+				? { headers: { ...protoPatch.headers } }
+				: {}),
+		...(protoPatch.region !== undefined ? { region: protoPatch.region } : {}),
+		...(protoPatch.apiLine !== undefined ? { apiLine: protoPatch.apiLine } : {}),
+		...(protoPatch.aws !== undefined ? { aws: toAwsProviderConfigPatch(protoPatch) } : {}),
+		...(protoPatch.gcp !== undefined ? { gcp: toGcpProviderConfigPatch(protoPatch) } : {}),
+		...(protoPatch.accessToken !== undefined || protoPatch.refreshToken !== undefined || protoPatch.accountId !== undefined
+			? {
+					auth: {
+						accessToken: protoPatch.accessToken,
+						refreshToken: protoPatch.refreshToken,
+						accountId: protoPatch.accountId,
+					},
+				}
+			: {}),
+		...(protoPatch.reasoning
+			? {
+					reasoning: {
+						...(protoPatch.reasoning.enabled !== undefined ? { enabled: protoPatch.reasoning.enabled } : {}),
+						...(protoPatch.reasoning.effort !== undefined ? { effort: protoPatch.reasoning.effort } : {}),
+						...(protoPatch.reasoning.budgetTokens !== undefined
+							? { budgetTokens: protoPatch.reasoning.budgetTokens }
+							: {}),
+					},
+				}
+			: {}),
+	}
+}
+
+export function toModelSelection(request: CommitModelSelectionRequest, providerId: ProviderId): ModelSelection {
+	const modelId = request.modelId.trim()
+	if (!modelId) {
+		throw new Error("model_id is required")
+	}
+	if (!request.modelInfo) {
+		throw new Error("model_info is required")
+	}
+	return {
+		providerId,
+		modelId,
+		modelInfo: fromProtobufModelInfo(request.modelInfo),
+	}
+}

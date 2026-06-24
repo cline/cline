@@ -485,6 +485,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			providerConfig: config.providerConfig,
 			knownModels: config.knownModels,
 			thinking: config.thinking,
+			maxTokensPerTurn: config.maxTokensPerTurn,
 			maxIterations: config.maxIterations,
 			hooks,
 			extensions: runtimeExtensions,

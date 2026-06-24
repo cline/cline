@@ -29,14 +29,15 @@ const getActivityText = (tool: ClineSayTool): string | null => {
 	const cleanedPath = cleanPathPrefix(tool.path || "")
 	const formatSearchRegex = (regex: string, path: string, filePattern?: string): string => {
 		const cleanedPath = cleanPathPrefix(path)
+		const pathDisplay = cleanedPath ? `${cleanedPath}/` : "codebase"
 		const terms = regex
 			.split("|")
 			.map((t) => t.trim().replace(/\\b/g, "").replace(/\\s\?/g, " "))
 			.filter(Boolean)
 			.join(" | ")
 		return filePattern && filePattern !== "*"
-			? `"${terms}" in ${cleanedPath}/ (${filePattern})`
-			: `"${terms}" in ${cleanedPath}/`
+			? `"${terms}" in ${pathDisplay} (${filePattern})`
+			: `"${terms}" in ${pathDisplay}`
 	}
 
 	switch (tool.tool) {
@@ -52,7 +53,7 @@ const getActivityText = (tool: ClineSayTool): string | null => {
 		case "listFilesRecursive":
 			return tool.path ? `Exploring ${cleanedPath}/...` : null
 		case "searchFiles":
-			return tool.regex && tool.path ? `Searching ${formatSearchRegex(tool.regex, tool.path, tool.filePattern)}...` : null
+			return tool.regex ? `Searching ${formatSearchRegex(tool.regex, tool.path || "", tool.filePattern)}...` : null
 		case "listCodeDefinitionNames":
 			return tool.path ? `Analyzing ${cleanedPath}/...` : null
 		default:
@@ -318,7 +319,7 @@ function getToolDisplayInfo(tool: ClineSayTool) {
 		case "searchFiles":
 			return {
 				icon,
-				path: folderPath,
+				path: filePath ? folderPath : "",
 				label: `search: ${tool.regex}`,
 				displayText: formatSearchDisplay(tool.regex || "", filePath, tool.filePattern),
 			}
@@ -338,7 +339,9 @@ function formatSearchDisplay(regex: string, path: string, filePattern?: string):
 		.filter(Boolean)
 
 	const termDisplay = terms.length > 3 ? `${terms.length} patterns` : `"${terms.join(" | ")}"`
-	let result = `${termDisplay} in ${cleanPathPrefix(path)}/`
+	// When path is empty (e.g. SDK search_codebase has no path param), show "codebase"
+	const pathDisplay = path ? `${cleanPathPrefix(path)}/` : "codebase"
+	let result = `${termDisplay} in ${pathDisplay}`
 
 	if (filePattern && filePattern !== "*") {
 		result += ` (${filePattern})`

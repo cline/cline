@@ -19,6 +19,7 @@
 		"@floating-ui/react": "^0.27.4",
 		"@fontsource/azeret-mono": "^5.2.9",
 		"@heroui/react": "^2.8.0-beta.2",
+		"@heroui/theme": "2.4.26",
 		"@paper-design/shaders-react": "^0.0.46",
 		"@radix-ui/react-dialog": "^1.1.15",
 		"@radix-ui/react-hover-card": "^1.1.15",
@@ -42,6 +43,8 @@
 		"fuse.js": "^7.0.0",
 		"fzf": "^0.5.2",
 		"lucide-react": "^0.511.0",
+		"magic-string": "^0.30.21",
+		"marked": "^15.0.12",
 		"mermaid": "11.12.3",
 		"posthog-js": "^1.224.0",
 		"pretty-bytes": "^6.1.1",
@@ -61,6 +64,7 @@
 		"tailwind-merge": "^3.3.1",
 		"tailwindcss-animate": "^1.0.7",
 		"unified": "^11.0.5",
+		"unist-util-visit": "^5.0.0",
 		"uuid": "^9.0.1"
 	},
 	"devDependencies": {
@@ -74,6 +78,7 @@
 		"@types/node": "^22.13.4",
 		"@types/react": "^18.3.18",
 		"@types/react-dom": "^18.3.5",
+		"@types/unist": "^3.0.3",
 		"@types/uuid": "^9.0.8",
 		"@types/vscode-webview": "^1.57.5",
 		"@vitejs/plugin-react-swc": "^3.5.0",
@@ -92,7 +97,7 @@
 	"optionalDependencies": {
 		"@rollup/rollup-linux-arm64-gnu": "^4.40.0",
 		"@rollup/rollup-linux-x64-gnu": "^4.40.0",
-		"@rollup/rollup-win32-x64-msvc": "^4.40.0",
+		"@rollup/rollup-win32-x64-msvc": "^4.60.4",
 		"@swc/core-linux-x64-gnu": "^1.11.0",
 		"@tailwindcss/oxide-linux-x64-gnu": "^4.0.1",
 		"lightningcss-linux-x64-gnu": "^1.29.1",

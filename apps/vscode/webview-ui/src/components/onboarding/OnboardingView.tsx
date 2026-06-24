@@ -1,7 +1,7 @@
-import { buildModelInfoNameMap, type ModelInfo, resolveClinePassModelInfo } from "@shared/api"
+import { buildModelInfoNameMap, type ModelInfo, openAiModelInfoSafeDefaults, resolveClinePassModelInfo } from "@shared/api"
 import type { OnboardingModel, OnboardingModelGroup, OpenRouterModelInfo } from "@shared/proto/index.cline"
 import { AlertCircleIcon, CircleCheckIcon, CircleIcon, ListIcon, LoaderCircleIcon, ZapIcon } from "lucide-react"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import ClineLogoWhite from "@/assets/ClineLogoWhite"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -10,6 +10,8 @@ import { Item, ItemContent, ItemDescription, ItemHeader, ItemMedia, ItemTitle } 
 import { CLINE_PASS_FEATURE_FLAG } from "@/constants/featureFlags"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useHasFeatureFlag } from "@/hooks/useFeatureFlag"
+import { useProviderConfig } from "@/hooks/useProviderConfig"
+import { useProviderModels } from "@/hooks/useProviderModels"
 import { cn } from "@/lib/utils"
 import { AccountServiceClient, StateServiceClient } from "@/services/grpc-client"
 import { setPendingClinePassSubscribe } from "./clinePassSubscribe"
@@ -25,6 +27,30 @@ import {
 } from "./data-models"
 import { getUserTypeSelections, NEW_USER_TYPE, STEP_CONFIG } from "./data-steps"
 import { useOnboardingModels } from "./useOnboardingModels"
+
+type OnboardingPage =
+	| "user_type"
+	| "free_model_selection"
+	| "power_model_selection"
+	| "byok_provider_config"
+	| "account_creation_wait"
+	| "legacy_welcome_fallback"
+
+const getOnboardingPage = (step: number, userType: NEW_USER_TYPE): OnboardingPage => {
+	if (step === 0) {
+		return "user_type"
+	}
+	if (step === 2) {
+		return "account_creation_wait"
+	}
+	if (userType === NEW_USER_TYPE.POWER) {
+		return "power_model_selection"
+	}
+	if (userType === NEW_USER_TYPE.BYOK) {
+		return "byok_provider_config"
+	}
+	return "free_model_selection"
+}
 
 type ModelSelectionProps = {
 	userType: NEW_USER_TYPE.FREE | NEW_USER_TYPE.POWER | NEW_USER_TYPE.CLINE_PASS
@@ -303,6 +329,11 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 	const { openRouterModels, hideSettings, hideAccount, setShowWelcome } = useExtensionState()
 	const isClinePassEnabled = useHasFeatureFlag(CLINE_PASS_FEATURE_FLAG)
 	const userTypeSelections = useMemo(() => getUserTypeSelections(isClinePassEnabled), [isClinePassEnabled])
+	const { models: clineModels } = useProviderModels("cline")
+	const { commitSelection } = useProviderConfig("cline")
+	const loginAttemptIdRef = useRef(0)
+	const loginLoadingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+	const viewedPageTelemetryKeysRef = useRef<Set<string>>(new Set())
 
 	const [stepNumber, setStepNumber] = useState(0)
 	const [isActionLoading, setIsActionLoading] = useState(false)
@@ -315,6 +346,10 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 	// ClinePass model IDs (e.g. "cline-pass/glm-5.1") aren't keyed in openRouterModels,
 	// so resolve their info via the slug-based lookup used by ClinePassProvider.
 	const openRouterModelsByName = useMemo(() => buildModelInfoNameMap(openRouterModels), [openRouterModels])
+	const onboardingModelById = useMemo(() => {
+		return new Map(onboardingModels.models.map((model) => [model.id, model]))
+	}, [onboardingModels])
+	const currentPage = useMemo(() => getOnboardingPage(stepNumber, userType), [stepNumber, userType])
 
 	useEffect(() => {
 		setSearchTerm("")
@@ -326,25 +361,55 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 		setSelectedModelId(userGroupInitModel?.id ?? "")
 	}, [userType, models])
 
-	const onUserTypeClick = useCallback((userType: NEW_USER_TYPE) => {
-		setUserType(userType)
-		const action =
-			userType === NEW_USER_TYPE.CLINE_PASS
-				? "cline_pass_user_selected"
-				: userType === NEW_USER_TYPE.POWER
-					? "power_user_selected"
-					: userType === NEW_USER_TYPE.FREE
-						? "free_user_selected"
-						: "byok_user_selected"
-		// User selection is available in step 0 only
-		StateServiceClient.captureOnboardingProgress({ step: 0, action })
+	useEffect(() => {
+		return () => {
+			if (loginLoadingTimeoutRef.current) {
+				clearTimeout(loginLoadingTimeoutRef.current)
+			}
+		}
 	}, [])
 
-	const onModelClick = useCallback((modelSelected: string) => {
-		setSelectedModelId(modelSelected)
-		// User selection is available in step 1 only
-		StateServiceClient.captureOnboardingProgress({ step: 1, modelSelected, action: "model_selected" })
+	useEffect(() => {
+		const telemetryKey = `${stepNumber}:${currentPage}`
+		if (viewedPageTelemetryKeysRef.current.has(telemetryKey)) {
+			return
+		}
+		viewedPageTelemetryKeysRef.current.add(telemetryKey)
+		StateServiceClient.captureOnboardingProgress({
+			step: stepNumber,
+			action: "page_viewed",
+			page: currentPage,
+			userType: currentPage === "user_type" ? undefined : userType,
+			modelSelected: selectedModelId || undefined,
+		})
+	}, [currentPage, selectedModelId, stepNumber, userType])
+
+	const onUserTypeClick = useCallback((selectedUserType: NEW_USER_TYPE) => {
+		setUserType(selectedUserType)
+		StateServiceClient.captureOnboardingProgress({
+			step: 0,
+			action: "option_selected",
+			page: "user_type",
+			userType: selectedUserType,
+		})
 	}, [])
+
+	const onModelClick = useCallback(
+		(modelSelected: string) => {
+			setSelectedModelId(modelSelected)
+			if (!modelSelected) {
+				return
+			}
+			StateServiceClient.captureOnboardingProgress({
+				step: stepNumber,
+				action: "model_selected",
+				page: currentPage,
+				userType,
+				modelSelected,
+			})
+		},
+		[currentPage, stepNumber, userType],
+	)
 
 	const finishOnboarding = useCallback(
 		async (updateModelId: boolean, step: number) => {
@@ -363,11 +428,30 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 						actModeApiProvider: "cline-pass",
 					})
 				} else if (userType !== NEW_USER_TYPE.CLINE_PASS) {
+					const selectedModelInfo = clineModels[selectedModelId] ??
+						onboardingModelById.get(selectedModelId)?.info ?? {
+							...openAiModelInfoSafeDefaults,
+							name: selectedModelId,
+						}
+
+					await Promise.all([
+						commitSelection("plan", {
+							providerId: "cline",
+							modelId: selectedModelId,
+							modelInfo: selectedModelInfo,
+						}),
+						commitSelection("act", {
+							providerId: "cline",
+							modelId: selectedModelId,
+							modelInfo: selectedModelInfo,
+						}),
+					])
+
 					await handleFieldsChange({
-						planModeOpenRouterModelId: selectedModelId,
-						actModeOpenRouterModelId: selectedModelId,
-						planModeOpenRouterModelInfo: openRouterModels[selectedModelId],
-						actModeOpenRouterModelInfo: openRouterModels[selectedModelId],
+						planModeClineModelId: selectedModelId,
+						actModeClineModelId: selectedModelId,
+						planModeClineModelInfo: selectedModelInfo,
+						actModeClineModelInfo: selectedModelInfo,
 						planModeApiProvider: "cline",
 						actModeApiProvider: "cline",
 					})
@@ -377,54 +461,116 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 					console.error(`Skipped ClinePass provider setup: unexpected model id "${selectedModelId}"`)
 				}
 			}
+
+			await StateServiceClient.setWelcomeViewCompleted({ value: true }).catch(() => {})
+			setShowWelcome(false)
 			hideAccount()
 			hideSettings()
-			const action = "onboarding_completed"
-			StateServiceClient.captureOnboardingProgress({ step, modelSelected, action, completed: true })
+			StateServiceClient.captureOnboardingProgress({
+				step,
+				action: "completed",
+				page: getOnboardingPage(step, userType),
+				userType,
+				modelSelected,
+				completed: true,
+			})
 		},
-		[hideAccount, hideSettings, handleFieldsChange, selectedModelId, openRouterModels, openRouterModelsByName, userType],
+		[
+			hideAccount,
+			hideSettings,
+			handleFieldsChange,
+			selectedModelId,
+			openRouterModels,
+			openRouterModelsByName,
+			clineModels,
+			onboardingModelById,
+			commitSelection,
+			setShowWelcome,
+			userType,
+		],
+	)
+
+	const loginAndFinishOnboarding = useCallback(
+		async (updateModelId: boolean, step: number) => {
+			const loginAttemptId = loginAttemptIdRef.current + 1
+			loginAttemptIdRef.current = loginAttemptId
+
+			if (loginLoadingTimeoutRef.current) {
+				clearTimeout(loginLoadingTimeoutRef.current)
+			}
+
+			setIsActionLoading(true)
+			// Allow the user to re-attempt after 10s
+			loginLoadingTimeoutRef.current = setTimeout(() => {
+				if (loginAttemptIdRef.current === loginAttemptId) {
+					setIsActionLoading(false)
+				}
+			}, 10_000)
+
+			await AccountServiceClient.accountLoginClicked({})
+				.catch((error) => {
+					console.error("Failed to log in during onboarding:", error)
+				})
+				.finally(() => {
+					if (loginAttemptIdRef.current !== loginAttemptId) {
+						return
+					}
+					if (loginLoadingTimeoutRef.current) {
+						clearTimeout(loginLoadingTimeoutRef.current)
+						loginLoadingTimeoutRef.current = null
+					}
+				})
+
+			await finishOnboarding(updateModelId, step)
+			setIsActionLoading(false)
+		},
+		[finishOnboarding],
 	)
 
 	const handleFooterAction = useCallback(
 		async (action: "signin" | "next" | "back" | "done" | "signup") => {
+			const captureNavigation = (telemetryAction: string, destinationStep?: number) => {
+				StateServiceClient.captureOnboardingProgress({
+					step: stepNumber,
+					action: telemetryAction,
+					page: currentPage,
+					userType,
+					modelSelected: selectedModelId || undefined,
+					destinationStep,
+					destinationPage: destinationStep === undefined ? undefined : getOnboardingPage(destinationStep, userType),
+				})
+			}
+
 			switch (action) {
 				case "signup":
 					// ClinePass: record the intent so App opens the subscription page once auth
 					// completes (App outlives this view, which unmounts on auth). Login flow unchanged.
 					setPendingClinePassSubscribe(userType === NEW_USER_TYPE.CLINE_PASS)
+					captureNavigation("signup_clicked", stepNumber + 1)
 					setStepNumber(stepNumber + 1)
-					setIsActionLoading(true)
-					await AccountServiceClient.accountLoginClicked({})
-						.catch(() => {})
-						.finally(() => setIsActionLoading(false))
-					await finishOnboarding(true, stepNumber + 1)
+					await loginAndFinishOnboarding(true, stepNumber + 1)
 					break
 				case "signin":
 					setPendingClinePassSubscribe(false)
-					setIsActionLoading(true)
-					await AccountServiceClient.accountLoginClicked({})
-						.catch(() => {})
-						.finally(() => setIsActionLoading(false))
-					await finishOnboarding(true, stepNumber + 1)
+					captureNavigation("signin_clicked")
+					await loginAndFinishOnboarding(true, stepNumber)
 					break
 				case "next":
-					StateServiceClient.captureOnboardingProgress({ step: stepNumber + 1 })
+					captureNavigation("continued", stepNumber + 1)
 					setStepNumber(stepNumber + 1)
 					break
 				case "back":
 					// Abandon any pending ClinePass subscription redirect when the user goes back.
 					setPendingClinePassSubscribe(false)
-					StateServiceClient.captureOnboardingProgress({ step: stepNumber - 1 })
+					captureNavigation("back_clicked", stepNumber - 1)
 					setStepNumber(stepNumber - 1)
 					break
 				case "done":
-					await StateServiceClient.setWelcomeViewCompleted({ value: true }).catch(() => {})
-					setShowWelcome(false)
 					await finishOnboarding(false, stepNumber)
 					break
 			}
 		},
-		[stepNumber, finishOnboarding, setShowWelcome, userType],
+		[stepNumber, currentPage, userType, selectedModelId, finishOnboarding, loginAndFinishOnboarding, setShowWelcome],
 	)
 
 	const stepDisplayInfo = useMemo(() => {
@@ -451,7 +597,7 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 
 				<div className="flex-1 w-full flex max-w-lg overflow-y-auto min-h-0">
 					<OnboardingStepContent
-						models={openRouterModels}
+						models={Object.keys(clineModels).length > 0 ? clineModels : openRouterModels}
 						onboardingModels={models}
 						onSelectModel={onModelClick}
 						onSelectUserType={onUserTypeClick}
@@ -467,6 +613,8 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 				<footer className="flex w-full max-w-lg flex-col gap-3 my-2 px-2 overflow-hidden flex-shrink-0">
 					{stepDisplayInfo.buttons.map((btn) => {
 						// Block ClinePass signup when no ClinePass model is selected (e.g. empty list).
+						const isLoginAction = btn.action === "signin" || btn.action === "signup"
+						const showSpinner = isActionLoading && isLoginAction
 						const disabled =
 							isActionLoading ||
 							(btn.action === "signup" && userType === NEW_USER_TYPE.CLINE_PASS && !selectedModelId)
@@ -477,10 +625,17 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 								key={btn.text}
 								onClick={() => handleFooterAction(btn.action)}
 								variant={btn.variant}>
-								{btn.text}
+								{showSpinner && <LoaderCircleIcon className="mr-2 size-4 animate-spin" />}
+								{showSpinner ? "Waiting for sign in..." : btn.text}
 							</Button>
 						)
 					})}
+
+					{isActionLoading && stepNumber !== 2 && (
+						<div className="items-center justify-center flex text-sm text-foreground/70 text-pretty text-center">
+							Complete sign in in your browser. We'll continue automatically once you're done.
+						</div>
+					)}
 
 					{stepNumber !== 2 && (
 						<div className="items-center justify-center flex text-sm text-foreground gap-2 mb-3 text-pretty">
@@ -491,6 +646,19 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 			</div>
 		</div>
 	)
+}
+
+const OnboardingWelcomeFallback = () => {
+	useEffect(() => {
+		const page: OnboardingPage = "legacy_welcome_fallback"
+		StateServiceClient.captureOnboardingProgress({
+			step: 0,
+			action: "fallback_welcome_viewed",
+			page,
+		})
+	}, [])
+
+	return <WelcomeView />
 }
 
 const OnboardingView = () => {
@@ -505,7 +673,7 @@ const OnboardingView = () => {
 	}
 
 	if (status === "empty") {
-		return <WelcomeView />
+		return <OnboardingWelcomeFallback />
 	}
 
 	return <OnboardingViewContent onboardingModels={models} />
