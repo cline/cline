@@ -62,7 +62,7 @@ function lineTrimmedFallbackMatch(originalContent: string, searchContent: string
 	let startLineNum = 0
 	let currentIndex = 0
 	while (currentIndex < startIndex && startLineNum < originalLines.length) {
-		currentIndex += originalLines[startLineNum].length + 1 // +1 for \n
+		currentIndex += getLineLengthWithTerminator(originalLines, startLineNum)
 		startLineNum++
 	}
 
@@ -86,13 +86,13 @@ function lineTrimmedFallbackMatch(originalContent: string, searchContent: string
 			// Find start character index
 			let matchStartIndex = 0
 			for (let k = 0; k < i; k++) {
-				matchStartIndex += originalLines[k].length + 1 // +1 for \n
+				matchStartIndex += getLineLengthWithTerminator(originalLines, k)
 			}
 
 			// Find end character index
 			let matchEndIndex = matchStartIndex
 			for (let k = 0; k < searchLines.length; k++) {
-				matchEndIndex += originalLines[i + k].length + 1 // +1 for \n
+				matchEndIndex += getLineLengthWithTerminator(originalLines, i + k)
 			}
 
 			return [matchStartIndex, matchEndIndex]
@@ -151,7 +151,7 @@ function blockAnchorFallbackMatch(originalContent: string, searchContent: string
 	let startLineNum = 0
 	let currentIndex = 0
 	while (currentIndex < startIndex && startLineNum < originalLines.length) {
-		currentIndex += originalLines[startLineNum].length + 1
+		currentIndex += getLineLengthWithTerminator(originalLines, startLineNum)
 		startLineNum++
 	}
 
@@ -170,18 +170,42 @@ function blockAnchorFallbackMatch(originalContent: string, searchContent: string
 		// Calculate exact character positions
 		let matchStartIndex = 0
 		for (let k = 0; k < i; k++) {
-			matchStartIndex += originalLines[k].length + 1
+			matchStartIndex += getLineLengthWithTerminator(originalLines, k)
 		}
 
 		let matchEndIndex = matchStartIndex
 		for (let k = 0; k < searchBlockSize; k++) {
-			matchEndIndex += originalLines[i + k].length + 1
+			matchEndIndex += getLineLengthWithTerminator(originalLines, i + k)
 		}
 
 		return [matchStartIndex, matchEndIndex]
 	}
 
 	return false
+}
+
+function getLineLengthWithTerminator(lines: string[], lineIndex: number): number {
+	return lines[lineIndex].length + (lineIndex < lines.length - 1 ? 1 : 0)
+}
+
+function shouldTrimSyntheticReplacementNewline(originalContent: string, searchEndIndex: number): boolean {
+	return originalContent.length > 0 && searchEndIndex === originalContent.length && !originalContent.endsWith("\n")
+}
+
+function normalizeReplacementContentForMatchedRange(
+	replacementContent: string,
+	originalContent: string,
+	searchEndIndex: number,
+): string {
+	if (
+		shouldTrimSyntheticReplacementNewline(originalContent, searchEndIndex) &&
+		replacementContent.length > 1 &&
+		replacementContent.endsWith("\n")
+	) {
+		return replacementContent.slice(0, -1)
+	}
+
+	return replacementContent
 }
 
 /**
@@ -403,7 +427,7 @@ async function constructNewFileContentV1(
 			replacements.push({
 				start: searchMatchIndex,
 				end: searchEndIndex,
-				content: currentReplaceContent,
+				content: normalizeReplacementContentForMatchedRange(currentReplaceContent, originalContent, searchEndIndex),
 			})
 
 			// If this was an in-order replacement, advance lastProcessedIndex
@@ -446,7 +470,7 @@ async function constructNewFileContentV1(
 			replacements.push({
 				start: searchMatchIndex,
 				end: searchEndIndex,
-				content: currentReplaceContent,
+				content: normalizeReplacementContentForMatchedRange(currentReplaceContent, originalContent, searchEndIndex),
 			})
 
 			// If this was an in-order replacement, advance lastProcessedIndex
@@ -506,6 +530,7 @@ class NewFileContentConstructor {
 	private currentSearchContent: string
 	private searchMatchIndex: number
 	private searchEndIndex: number
+	private currentReplaceStartIndex: number
 
 	constructor(originalContent: string, isFinal: boolean) {
 		this.originalContent = originalContent
@@ -517,6 +542,7 @@ class NewFileContentConstructor {
 		this.currentSearchContent = ""
 		this.searchMatchIndex = -1
 		this.searchEndIndex = -1
+		this.currentReplaceStartIndex = 0
 	}
 
 	private resetForNextBlock() {
@@ -525,6 +551,7 @@ class NewFileContentConstructor {
 		this.currentSearchContent = ""
 		this.searchMatchIndex = -1
 		this.searchEndIndex = -1
+		this.currentReplaceStartIndex = 0
 	}
 
 	private findLastMatchingLineIndex(regx: RegExp, lineLimit: number) {
@@ -626,6 +653,14 @@ class NewFileContentConstructor {
 				this.tryFixReplaceBlock(pendingNonStandardLineLimit)
 				canWritependingNonStandardLines && (this.pendingNonStandardLines.length = 0)
 			}
+			if (
+				shouldTrimSyntheticReplacementNewline(this.originalContent, this.searchEndIndex) &&
+				this.result.length > this.currentReplaceStartIndex &&
+				this.result.length - this.currentReplaceStartIndex > 1 &&
+				this.result.endsWith("\n")
+			) {
+				this.result = this.result.slice(0, -1)
+			}
 			this.lastProcessedIndex = this.searchEndIndex
 			this.resetForNextBlock()
 		} else {
@@ -717,6 +752,7 @@ class NewFileContentConstructor {
 		}
 		// Output everything up to the match location
 		this.result += this.originalContent.slice(this.lastProcessedIndex, this.searchMatchIndex)
+		this.currentReplaceStartIndex = this.result.length
 	}
 
 	private tryFixSearchBlock(lineLimit: number): number {
