@@ -110,7 +110,7 @@ export abstract class WebviewProvider {
 					font-src ${this.getCspSource()} data:; 
 					style-src ${this.getCspSource()} 'unsafe-inline'; 
 					img-src ${this.getCspSource()} https: data:; 
-					script-src 'nonce-${nonce}' 'unsafe-eval';">
+					script-src 'nonce-${nonce}' 'unsafe-eval' https://*.posthog.com https://*.cline.bot;">
 				<title>Cline</title>
 			</head>
 			<body>
