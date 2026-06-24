@@ -382,6 +382,35 @@ export class SdkTaskHistory {
 		this.metadataHistoryCache = undefined
 	}
 
+	/**
+	 * Patch a single session's metadata in the cached merged history in place.
+	 *
+	 * A session update (e.g. per-turn token/cost usage) only changes one record,
+	 * but it used to drop the entire `metadataHistoryCache`, forcing the next
+	 * state post to re-enumerate, re-merge, and re-read manifest titles for ALL
+	 * sessions. During streaming this defeated the cache on the hot path. Instead
+	 * we mutate just the matching cached record so the rest of the merged history
+	 * survives. Returns true when the record was found and patched; callers fall
+	 * back to full invalidation only when the session isn't in the cache (e.g. a
+	 * brand-new id, where list ordering/membership may change).
+	 */
+	private patchMetadataHistoryCacheRecord(sessionId: string, metadata: Record<string, unknown>): boolean {
+		const cache = this.metadataHistoryCache
+		if (!cache) {
+			return false
+		}
+		const index = cache.records.findIndex((record) => record.sessionId === sessionId)
+		if (index === -1) {
+			return false
+		}
+		const existing = cache.records[index]
+		cache.records[index] = {
+			...existing,
+			metadata: { ...(existing.metadata ?? {}), ...metadata },
+		}
+		return true
+	}
+
 	private canUseMetadataHistoryCache(options: SdkTaskHistoryListOptions): boolean {
 		return options.hydrate === false
 	}
@@ -579,7 +608,7 @@ export class SdkTaskHistory {
 	}
 
 	private async updateSession(sessionId: string, item: HistoryItem): Promise<void> {
-		await this.withHistoryHost(async (host) => {
+		const writtenMetadata = await this.withHistoryHost(async (host) => {
 			const existing = await host.get(sessionId)
 			const metadata: Record<string, unknown> = {
 				...(existing?.metadata ?? {}),
@@ -598,8 +627,17 @@ export class SdkTaskHistory {
 				metadata,
 				title: item.task,
 			})
+			return metadata
 		})
-		this.invalidateMetadataHistoryCache()
+		// A single-session update only changes this one record. Patch it in the
+		// cached merged history in place instead of invalidating the whole cache,
+		// so frequent per-turn usage updates don't force the next state post to
+		// re-enumerate and re-merge every old session. Only when the record isn't
+		// already cached (e.g. a freshly-created task whose presence/order in the
+		// list may change) do we fall back to a full invalidation.
+		if (!this.patchMetadataHistoryCacheRecord(sessionId, writtenMetadata)) {
+			this.invalidateMetadataHistoryCache()
+		}
 	}
 
 	async updateTaskHistoryItem(item: HistoryItem): Promise<void> {
