@@ -236,6 +236,13 @@ message ProviderReasoningPatch {
   optional int32 budget_tokens = 3;
 }
 
+message ProviderPricingPatch {
+  optional double input = 1;
+  optional double output = 2;
+  optional double cache_read = 3;
+  optional double cache_write = 4;
+}
+
 message WriteProviderConfigPatch {
   optional string api_key = 1;
   optional string base_url = 2;
@@ -249,6 +256,10 @@ message WriteProviderConfigPatch {
   optional bool clear_headers = 10;
   optional AwsProviderConfig aws = 11;
   optional GcpProviderConfig gcp = 12;
+  optional int64 max_tokens = 13;
+  optional int64 context_window = 14;
+  optional double temperature = 15;
+  optional ProviderPricingPatch pricing = 16;
 }
 
 message WriteProviderConfigRequest {

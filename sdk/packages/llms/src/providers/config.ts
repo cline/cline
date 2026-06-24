@@ -249,6 +249,8 @@ export interface CloudConfig {
 export interface ProviderOptions {
 	/** OpenRouter provider sorting preference */
 	openRouterProviderSorting?: string;
+	/** Default request temperature override */
+	temperature?: number;
 	/** Runtime model catalog refresh configuration */
 	modelCatalog?: ModelCatalogConfig;
 }

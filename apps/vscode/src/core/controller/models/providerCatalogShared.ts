@@ -218,6 +218,19 @@ export function toProviderConfigPatch(protoPatch: WriteProviderConfigPatch | und
 		...(protoPatch.apiLine !== undefined ? { apiLine: protoPatch.apiLine } : {}),
 		...(protoPatch.aws !== undefined ? { aws: toAwsProviderConfigPatch(protoPatch) } : {}),
 		...(protoPatch.gcp !== undefined ? { gcp: toGcpProviderConfigPatch(protoPatch) } : {}),
+		...(protoPatch.maxTokens !== undefined ? { maxTokens: Number(protoPatch.maxTokens) } : {}),
+		...(protoPatch.contextWindow !== undefined ? { contextWindow: Number(protoPatch.contextWindow) } : {}),
+		...(protoPatch.temperature !== undefined ? { temperature: protoPatch.temperature } : {}),
+		...(protoPatch.pricing !== undefined
+			? {
+					pricing: {
+						...(protoPatch.pricing.input !== undefined ? { input: protoPatch.pricing.input } : {}),
+						...(protoPatch.pricing.output !== undefined ? { output: protoPatch.pricing.output } : {}),
+						...(protoPatch.pricing.cacheRead !== undefined ? { cacheRead: protoPatch.pricing.cacheRead } : {}),
+						...(protoPatch.pricing.cacheWrite !== undefined ? { cacheWrite: protoPatch.pricing.cacheWrite } : {}),
+					},
+				}
+			: {}),
 		...(protoPatch.accessToken !== undefined || protoPatch.refreshToken !== undefined || protoPatch.accountId !== undefined
 			? {
 					auth: {
