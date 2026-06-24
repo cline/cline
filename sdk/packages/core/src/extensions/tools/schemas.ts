@@ -194,7 +194,6 @@ export const EditFileInputSchema = z
 			.describe("The absolute file path for the action to be performed on"),
 		old_text: z
 			.string()
-			.nullable()
 			.optional()
 			.describe(
 				`Exact text to replace (must match exactly once). Omit this when creating a missing file or inserting via insert_line. Keep this at or below ${INPUT_ARG_CHAR_LIMIT} characters when possible; larger payloads should be split across multiple tool calls to avoid timeouts.`,

@@ -1287,6 +1287,36 @@ describe("zod schema conversion", () => {
 		expect(schema.required).toEqual(["skill"]);
 		expect(schema.properties).toHaveProperty("args");
 	});
+
+	it("exposes editor old_text as optional string, not nullable", () => {
+		const tools = createDefaultTools({
+			executors: {
+				editor: async () => "ok",
+			},
+			enableReadFiles: false,
+			enableSearch: false,
+			enableBash: false,
+			enableWebFetch: false,
+			enableEditor: true,
+			enableApplyPatch: false,
+			enableAskQuestion: false,
+			enableSkills: false,
+		});
+		const editor = tools.find((tool) => tool.name === "editor");
+		expect(editor).toBeDefined();
+		if (!editor) {
+			throw new Error("Expected editor tool.");
+		}
+		const schema = editor.inputSchema as {
+			required?: string[];
+			properties?: Record<string, unknown>;
+		};
+		expect(schema.required).toEqual(["path", "new_text"]);
+		expect(schema.properties?.old_text).toMatchObject({
+			type: "string",
+		});
+		expect(schema.properties?.old_text).not.toHaveProperty("anyOf");
+	});
 });
 
 describe("default editor tool", () => {
