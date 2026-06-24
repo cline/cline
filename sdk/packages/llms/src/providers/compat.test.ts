@@ -394,6 +394,36 @@ describe("createGatewayApiHandler.createMessage", () => {
 		expect(call).not.toHaveProperty("maxOutputTokens");
 	});
 
+	it("sends configured OpenAI-compatible maxOutputTokens to the provider request", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: (async function* () {
+				yield { type: "finish", finishReason: "stop" };
+			})(),
+			usage: Promise.resolve({ inputTokens: 1, outputTokens: 1 }),
+		});
+
+		const handler = createGatewayApiHandler({
+			providerId: "openai-compatible",
+			clientType: "openai-compatible",
+			modelId: "custom-model",
+			apiKey: "test-key",
+			baseUrl: "https://example.com/v1",
+			maxOutputTokens: 4_096,
+		});
+
+		for await (const _chunk of handler.createMessage("", [
+			{ role: "user", content: "Hello" },
+		])) {
+			// Drain the stream so the provider request is executed.
+		}
+
+		expect(streamTextSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				maxOutputTokens: 4_096,
+			}),
+		);
+	});
+
 	it("caps configured maxOutputTokens with the catalog model output limit", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: (async function* () {

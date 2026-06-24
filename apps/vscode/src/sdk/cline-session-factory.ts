@@ -182,6 +182,12 @@ function resolveProviderReasoningConfig(providerId: string): SessionReasoningCon
 	}
 }
 
+function resolveOpenAiCompatibleMaxTokens(config: ApiConfiguration | undefined, mode: Mode): number | undefined {
+	const modelInfo = mode === "plan" ? config?.planModeOpenAiModelInfo : config?.actModeOpenAiModelInfo
+	const maxTokens = modelInfo?.maxTokens
+	return typeof maxTokens === "number" && Number.isFinite(maxTokens) && maxTokens > 0 ? maxTokens : undefined
+}
+
 // ---------------------------------------------------------------------------
 // Provider → API key field mapping
 // ---------------------------------------------------------------------------
@@ -580,6 +586,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		apiKey = resolveApiKey(providerId, apiConfig)
 	}
 	apiKey = apiKey ?? ""
+	const maxTokensPerTurn = providerId === "openai" ? resolveOpenAiCompatibleMaxTokens(apiConfig, mode) : undefined
 	const reasoningConfig = resolveProviderReasoningConfig(providerId)
 
 	// Build the system prompt using the shared prompt builder. Core still
@@ -673,6 +680,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		disableMcpSettingsTools: true,
 		mode: mode === "plan" ? "plan" : "act",
 		...reasoningConfig,
+		...(maxTokensPerTurn !== undefined ? { maxTokensPerTurn } : {}),
 		maxIterations: undefined,
 		logger: sdkLogger,
 		extensionContext: {
