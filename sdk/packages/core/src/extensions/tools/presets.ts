@@ -102,7 +102,7 @@ export const ToolPresets = {
 		enableEditor: true,
 		enableSkills: false,
 		enableAskQuestion: false,
-		enableSubmitAndExit: true,
+		enableSubmitAndExit: false,
 		enableSpawnAgent: false,
 		enableAgentTeams: false,
 	},
