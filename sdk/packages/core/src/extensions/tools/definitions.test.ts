@@ -535,6 +535,111 @@ describe("default run_commands tool", () => {
 		);
 	});
 
+	it("accepts object input with commands as a JSON-encoded string array", async () => {
+		const execute = vi.fn(async (command: string | { command: string }) =>
+			typeof command === "string" ? `ran:${command}` : `ran:${command.command}`,
+		);
+		const tool = createBashTool(execute);
+		const command = "cd /repo && bunx tsc --noEmit --pretty 2>&1 | head -40";
+
+		const result = await tool.execute(
+			{ commands: JSON.stringify([command]) } as never,
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		expect(result).toEqual([
+			{
+				query: command,
+				result: `ran:${command}`,
+				success: true,
+			},
+		]);
+		expect(execute).toHaveBeenCalledTimes(1);
+		expect(execute).toHaveBeenCalledWith(
+			command,
+			process.cwd(),
+			expect.objectContaining({
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			}),
+		);
+	});
+
+	it("accepts JSON-encoded command arrays in the Windows shell tool", async () => {
+		const execute = vi.fn(async (command: string | { command: string }) =>
+			typeof command === "string" ? `ran:${command}` : `ran:${command.command}`,
+		);
+		const tool = createWindowsShellTool(execute);
+
+		const result = await tool.execute(
+			{ commands: JSON.stringify(["git status --short"]) } as never,
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		expect(result).toEqual([
+			{
+				query: "git status --short",
+				result: "ran:git status --short",
+				success: true,
+			},
+		]);
+		expect(execute).toHaveBeenCalledWith(
+			"git status --short",
+			process.cwd(),
+			expect.objectContaining({
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			}),
+		);
+	});
+
+	it("accepts nested JSON-encoded commands payloads", async () => {
+		const execute = vi.fn(async (command: string | { command: string }) =>
+			typeof command === "string" ? `ran:${command}` : `ran:${command.command}`,
+		);
+		const tool = createBashTool(execute);
+
+		const result = await tool.execute(
+			{
+				commands: JSON.stringify({
+					commands: JSON.stringify(["git status --short"]),
+				}),
+			} as never,
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		expect(result).toEqual([
+			{
+				query: "git status --short",
+				result: "ran:git status --short",
+				success: true,
+			},
+		]);
+		expect(execute).toHaveBeenCalledWith(
+			"git status --short",
+			process.cwd(),
+			expect.objectContaining({
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			}),
+		);
+	});
+
 	it("accepts common single-command aliases", async () => {
 		const execute = vi.fn(
 			async (command: string | { command: string }) =>

@@ -155,15 +155,11 @@ export const StructuredCommandsInputSchema = z.object({
  * Union schema for run_commands tool input. More flexible.
  */
 export const StructuredCommandsInputUnionSchema = z.union([
-	RunCommandsInputSchema,
 	StructuredCommandsInputSchema,
 	z.object({ commands: StructuredCommandEntrySchema }),
 	z.array(StructuredCommandInputSchema),
 	StructuredCommandInputSchema,
-	z.object({ command: CommandInputSchema }),
-	z.object({ cmd: CommandInputSchema }),
-	z.array(z.string()),
-	z.string(),
+	RunCommandsInputUnionSchema,
 ]);
 
 /**
