@@ -11,6 +11,7 @@ interface ApiKeyFieldProps {
 	signupUrl?: string
 	placeholder?: string
 	helpText?: string
+	required?: boolean
 }
 
 /**
@@ -23,6 +24,7 @@ export const ApiKeyField = ({
 	signupUrl,
 	placeholder = "Enter API Key...",
 	helpText,
+	required = true,
 }: ApiKeyFieldProps) => {
 	const [localValue, setLocalValue] = useDebouncedInput(initialValue, onChange)
 
@@ -31,7 +33,7 @@ export const ApiKeyField = ({
 			<VSCodeTextField
 				onInput={(e: any) => setLocalValue(e.target.value)}
 				placeholder={placeholder}
-				required={true}
+				required={required}
 				style={{ width: "100%" }}
 				type="password"
 				value={localValue}>
