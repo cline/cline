@@ -233,8 +233,35 @@ describe("createProviderConfigStore", () => {
 			provider: "openrouter",
 			model: "provider/model-b",
 			contextWindow: 64_000,
-			maxTokens: 4_096,
 		})
+		expect(mocks.getSavedProviderSettings("openrouter")).not.toHaveProperty("maxTokens")
+	})
+
+	it("only persists maxTokens for providers with user-editable max output token settings", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		mocks.setProviderSettings({ anthropic: { provider: "anthropic", maxTokens: 8_192 } })
+		const store = createProviderConfigStore()
+
+		store.commitSelection(parseProviderId("openai"), "act", {
+			providerId: parseProviderId("openai"),
+			modelId: "custom-model",
+			modelInfo: modelInfoA,
+		})
+		store.commitSelection(parseProviderId("ollama"), "act", {
+			providerId: parseProviderId("ollama"),
+			modelId: "llama3",
+			modelInfo: modelInfoB,
+		})
+
+		store.commitSelection(parseProviderId("anthropic"), "act", {
+			providerId: parseProviderId("anthropic"),
+			modelId: "claude-sonnet",
+			modelInfo: modelInfoA,
+		})
+
+		expect(mocks.getSavedProviderSettings("openai")).toMatchObject({ maxTokens: 8_192 })
+		expect(mocks.getSavedProviderSettings("ollama")).toMatchObject({ maxTokens: 4_096 })
+		expect(mocks.getSavedProviderSettings("anthropic")).not.toHaveProperty("maxTokens")
 	})
 
 	it("updates providers.json model with setLastUsed false when planActSeparateModelsSetting=false", async () => {
@@ -269,8 +296,8 @@ describe("createProviderConfigStore", () => {
 			provider: "claude-code",
 			model: "haiku",
 			contextWindow: 128_000,
-			maxTokens: 8_192,
 		})
+		expect(mocks.getSavedProviderSettings("claude-code")).not.toHaveProperty("maxTokens")
 		expect(mocks.getSaveProviderSettingsMock()).toHaveBeenCalledWith(expect.objectContaining({ model: "haiku" }), {
 			setLastUsed: false,
 		})

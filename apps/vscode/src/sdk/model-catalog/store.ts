@@ -127,6 +127,14 @@ function providerForStorage(providerId: ProviderId): ApiProvider | undefined {
 	return key as ApiProvider
 }
 
+// Legacy VS Code selection persistence can copy catalog model maxTokens into
+// providers.json. Only keep that value for providers with a user-editable max
+// output token setting; otherwise it becomes an accidental request cap in SDK.
+function shouldPersistMaxTokens(providerId: ProviderId): boolean {
+	const key = providerKey(providerId)
+	return key === "openai" || key === "ollama"
+}
+
 function memoryKey(providerId: ProviderId, mode: Mode): string {
 	return `${providerId}:${mode}`
 }
@@ -404,8 +412,10 @@ function writeSelectionToProviderSettings(providerId: ProviderId, selection: Mod
 		next.contextWindow = selection.modelInfo.contextWindow
 	}
 
-	if (selection.modelInfo.maxTokens !== undefined && selection.modelInfo.maxTokens > 0) {
+	if (shouldPersistMaxTokens(providerId) && selection.modelInfo.maxTokens !== undefined && selection.modelInfo.maxTokens > 0) {
 		next.maxTokens = selection.modelInfo.maxTokens
+	} else {
+		delete next.maxTokens
 	}
 
 	saveProviderSettings(providerId, next)
