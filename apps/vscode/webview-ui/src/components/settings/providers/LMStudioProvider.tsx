@@ -67,11 +67,11 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 			.catch((error) => {
 				console.error("Failed to parse LM Studio models:", error)
 			})
-	}, [endpoint])
+	}, [endpoint, apiConfiguration?.lmStudioApiKey])
 
 	useEffect(() => {
 		requestLmStudioModels()
-	}, [])
+	}, [requestLmStudioModels])
 
 	const lmStudioMaxTokens = currentLMStudioModel?.max_context_length?.toString()
 	const currentLoadedContext = currentLMStudioModel?.loaded_context_length?.toString()
@@ -100,6 +100,20 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 				onChange={(value) => handleFieldChange("lmStudioBaseUrl", value)}
 				placeholder="Default: http://localhost:1234"
 			/>
+
+			<div>
+				<DebouncedTextField
+					initialValue={apiConfiguration?.lmStudioApiKey || ""}
+					onChange={(value) => handleFieldChange("lmStudioApiKey", value)}
+					placeholder="Enter API Key (optional)..."
+					style={{ width: "100%" }}
+					type="password">
+					<span style={{ fontWeight: 500 }}>LM Studio API Key</span>
+				</DebouncedTextField>
+				<p style={{ fontSize: "12px", marginTop: 3, color: "var(--vscode-descriptionForeground)" }}>
+					Optional API key for authenticated LM Studio servers. Leave empty for local servers without authentication.
+				</p>
+			</div>
 
 			<div className="font-semibold">Model</div>
 			{lmStudioModels.length > 0 ? (

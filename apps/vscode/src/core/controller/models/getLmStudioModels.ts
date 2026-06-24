@@ -9,15 +9,18 @@ import type { Controller } from ".."
  * @param request The request containing the base URL (optional)
  * @returns Array of model names
  */
-export async function getLmStudioModels(_controller: Controller, request: StringRequest): Promise<StringArray> {
+export async function getLmStudioModels(controller: Controller, request: StringRequest): Promise<StringArray> {
 	try {
 		const baseUrl = request.value || "http://localhost:1234"
 		if (!URL.canParse(baseUrl)) {
 			return StringArray.create({ values: [] })
 		}
 		const endpoint = new URL("api/v0/models", baseUrl)
+		const apiKey = controller.stateManager.getSecretKey("lmStudioApiKey")
 
-		const response = await fetch(endpoint.href)
+		const response = await fetch(endpoint.href, {
+			headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : undefined,
+		})
 		const data = await response.json()
 		const models = data?.data?.map((m: unknown) => JSON.stringify(m)) || []
 
