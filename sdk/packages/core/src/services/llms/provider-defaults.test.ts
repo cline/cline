@@ -309,6 +309,47 @@ describe("resolveProviderConfig", () => {
 		expect(resolved?.knownModels?.["gpt-5.4"]).toBeUndefined();
 	});
 
+	it("returns an empty authoritative LiteLLM model list without auth", async () => {
+		const fetchMock = vi.fn();
+		vi.stubGlobal("fetch", fetchMock);
+
+		const resolved = await resolveProviderConfig(
+			"litellm",
+			{ failOnError: true, cacheTtlMs: 0 },
+			{
+				providerId: "litellm",
+				modelId: "",
+				baseUrl: "http://localhost:4000/v1/",
+			},
+		);
+
+		expect(fetchMock).not.toHaveBeenCalled();
+		expect(resolved?.knownModels).toEqual({});
+		expect(resolved?.knownModels?.["gpt-5.4"]).toBeUndefined();
+	});
+
+	it("does not fall back to bundled LiteLLM models when private model fetch fails non-strictly", async () => {
+		const fetchMock = vi.fn(
+			async () => new Response('{"error":"unauthorized"}', { status: 401 }),
+		);
+		vi.stubGlobal("fetch", fetchMock);
+
+		const resolved = await resolveProviderConfig(
+			"litellm",
+			{ failOnError: false, cacheTtlMs: 0 },
+			{
+				providerId: "litellm",
+				modelId: "",
+				apiKey: "litellm-key",
+				baseUrl: "http://localhost:4000",
+			},
+		);
+
+		expect(fetchMock).toHaveBeenCalled();
+		expect(resolved?.knownModels).toEqual({});
+		expect(resolved?.knownModels?.["gpt-5.4"]).toBeUndefined();
+	});
+
 	it("reports attempted path, auth header, status, and body for LiteLLM model fetch failures", async () => {
 		const fetchMock = vi.fn(
 			async () => new Response('{"error":"unauthorized"}', { status: 401 }),
