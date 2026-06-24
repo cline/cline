@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { resolveMcpSettingsPath } from "@cline/shared/storage";
 import { z } from "zod";
@@ -368,11 +368,20 @@ export function setMcpServerDisabled(
 		delete next.disabled;
 	}
 	setOwnServerRecord(servers, name, next);
-	mkdirSync(dirname(filePath), { recursive: true });
+	mkdirSync(dirname(filePath), { recursive: true, mode: 0o700 });
 	writeFileSync(
 		filePath,
 		`${JSON.stringify({ ...settings, mcpServers: servers }, null, 2)}\n`,
+		{ mode: 0o600 },
 	);
+	// Belt-and-suspenders: writeFile's mode option only applies when the file
+	// is created, not on overwrite of an existing file. chmod the final result
+	// explicitly. Mirrors the discipline in provider-settings-manager.ts.
+	try {
+		chmodSync(filePath, 0o600);
+	} catch {
+		// Ignore — Windows does not support POSIX chmod.
+	}
 }
 
 export function getMcpServerOAuthState(
@@ -407,8 +416,19 @@ export function updateMcpServerOAuthState(
 		delete server.oauth;
 	}
 
-	mkdirSync(dirname(filePath), { recursive: true });
-	writeFileSync(filePath, `${JSON.stringify(settings, null, 2)}\n`, "utf8");
+	mkdirSync(dirname(filePath), { recursive: true, mode: 0o700 });
+	writeFileSync(filePath, `${JSON.stringify(settings, null, 2)}\n`, {
+		encoding: "utf8",
+		mode: 0o600,
+	});
+	// Belt-and-suspenders: writeFile's mode option only applies when the file
+	// is created, not on overwrite of an existing file. chmod the final result
+	// explicitly. Mirrors the discipline in provider-settings-manager.ts.
+	try {
+		chmodSync(filePath, 0o600);
+	} catch {
+		// Ignore — Windows does not support POSIX chmod.
+	}
 	return updated ?? {};
 }
 
