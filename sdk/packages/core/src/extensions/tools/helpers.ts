@@ -3,8 +3,8 @@ import {
 	type EditFileInput,
 	INPUT_ARG_CHAR_LIMIT,
 	type ReadFileRequest,
+	RunCommandsInputUnionSchema,
 	type StructuredCommandInput,
-	StructuredCommandsInputUnionSchema,
 } from "./schemas";
 
 /**
@@ -80,7 +80,7 @@ export function getReadFileRangeError(request: ReadFileRequest): string | null {
 export function normalizeRunCommandsInput(
 	input: unknown,
 ): Array<string | StructuredCommandInput> {
-	const validate = validateWithZod(StructuredCommandsInputUnionSchema, input);
+	const validate = validateWithZod(RunCommandsInputUnionSchema, input);
 
 	if (typeof validate === "string") {
 		return [validate];
