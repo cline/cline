@@ -183,6 +183,12 @@ async function mergeKnownModels(
 			...userKnownModels,
 		});
 	}
+	if (providerId === "cline-pass" && Object.keys(liveModels).length > 0) {
+		return Llms.sortModelsByReleaseDate({
+			...liveModels,
+			...userKnownModels,
+		});
+	}
 	const knownModelsWithoutUserOverrides = Llms.sortModelsByReleaseDate({
 		...generated,
 		...defaultKnownModels,
@@ -786,7 +792,7 @@ async function getPrivateProviderModels(
 async function fetchLiveModelsCatalog(
 	url: string,
 ): Promise<Record<string, Record<string, ModelInfo>>> {
-	return Llms.fetchModelsDevProviderModels(url, globalThis.fetch);
+	return Llms.fetchLiveProviderModels(url, globalThis.fetch);
 }
 
 export async function getLiveModelsCatalog(

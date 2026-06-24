@@ -9,6 +9,7 @@ export type {
 	ProviderProtocol,
 } from "./models";
 export {
+	fetchLiveProviderModels,
 	fetchModelsDevProviderModels,
 	filterOpenAICodexModels,
 	getAllProviders,

@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import * as LlmsModels from "@cline/llms";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { clearLiveModelsCatalogCache } from "../llms/provider-defaults";
 import { ProviderSettingsManager } from "../storage/provider-settings-manager";
 import {
 	parseModelsFile,
@@ -47,6 +48,7 @@ function makeTempManager(): {
 // ---------------------------------------------------------------------------
 
 afterEach(() => {
+	clearLiveModelsCatalogCache();
 	LlmsModels.resetRegistry();
 	vi.restoreAllMocks();
 	vi.unstubAllGlobals();
@@ -222,6 +224,98 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 
 		const { models } = await getLocalProviderModels("ollama-shaped-provider");
 		expect(models.map((m) => m.id).sort()).toEqual(["llama3.1", "qwen3:8b"]);
+	});
+
+	it("uses only live ClinePass models when live models are found", async () => {
+		const fetchMock = vi.fn(async (url: string) => {
+			if (url === "https://models.dev/api.json") {
+				return new Response(
+					JSON.stringify({
+						openrouter: {
+							models: {
+								"vendor/live-pass-model": {
+									name: "Live Pass Model",
+									tool_call: true,
+									reasoning: true,
+									limit: { context: 256_000, input: 200_000, output: 32_000 },
+								},
+							},
+						},
+					}),
+					{
+						status: 200,
+						headers: { "content-type": "application/json" },
+					},
+				);
+			}
+
+			return new Response(
+				JSON.stringify({
+					clinePass: [
+						{
+							id: "cline-pass/live-pass-model",
+							name: "vendor/live-pass-model",
+						},
+					],
+				}),
+				{
+					status: 200,
+					headers: { "content-type": "application/json" },
+				},
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const { models } = await getLocalProviderModels("cline-pass");
+
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		expect(models.map((model) => model.id)).toEqual([
+			"cline-pass/live-pass-model",
+		]);
+		expect(models[0]).toMatchObject({
+			id: "cline-pass/live-pass-model",
+			name: "Live Pass Model",
+			supportsReasoning: true,
+		});
+	});
+
+	it("falls back to generated ClinePass models when no live ClinePass models are found", async () => {
+		const fetchMock = vi.fn(async (url: string) => {
+			if (url === "https://models.dev/api.json") {
+				return new Response(
+					JSON.stringify({
+						openrouter: {
+							models: {
+								"vendor/live-openrouter-model": {
+									name: "Live OpenRouter Model",
+									tool_call: true,
+								},
+							},
+						},
+					}),
+					{
+						status: 200,
+						headers: { "content-type": "application/json" },
+					},
+				);
+			}
+
+			return new Response(JSON.stringify({ clinePass: [] }), {
+				status: 200,
+				headers: { "content-type": "application/json" },
+			});
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const { models } = await getLocalProviderModels("cline-pass");
+
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		expect(models.map((model) => model.id)).toContain(
+			"cline-pass/mimo-v2.5-pro",
+		);
+		expect(models.map((model) => model.id)).not.toContain(
+			"vendor/live-openrouter-model",
+		);
 	});
 
 	it("parses a { models: { id1: {}, id2: {} } } object-keyed payload", async () => {
