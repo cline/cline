@@ -4226,15 +4226,6 @@ export const cerebrasModels = {
 		outputPrice: 0,
 		description: "Intelligent general purpose model with 3,000 tokens/s",
 	},
-	"qwen-3-235b-a22b-instruct-2507": {
-		maxTokens: 64000,
-		contextWindow: 64000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
-		description: "Intelligent model with ~1400 tokens/s",
-	},
 } as const satisfies Record<string, ModelInfo>
 
 // Groq
