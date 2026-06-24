@@ -14,6 +14,15 @@ export interface WorkspaceContext {
 	currentRoot?: WorkspaceRoot
 }
 
+function getWorkspaceRootName(rootPath: string): string {
+	const win32Root = path.win32.parse(rootPath).root
+	if (win32Root && path.win32.normalize(rootPath) === win32Root) {
+		return win32Root.replace(/[\\/]+$/, "") || win32Root
+	}
+
+	return path.basename(rootPath) || path.parse(rootPath).root || rootPath
+}
+
 export class WorkspaceRootManager {
 	private roots: WorkspaceRoot[] = []
 	private primaryIndex = 0
@@ -33,7 +42,7 @@ export class WorkspaceRootManager {
 
 		const root: WorkspaceRoot = {
 			path: cwd,
-			name: path.basename(cwd),
+			name: getWorkspaceRootName(cwd),
 			vcs,
 			commitHash,
 		}
@@ -186,7 +195,7 @@ export class WorkspaceRootManager {
 		const primary = this.getPrimaryRoot()
 		return `Multi-workspace (${this.roots.length} roots)\nPrimary: ${primary?.name || primary?.path}\nAdditional: ${this.roots
 			.filter((_, i) => i !== this.primaryIndex)
-			.map((r) => r.name || path.basename(r.path))
+			.map((r) => r.name || getWorkspaceRootName(r.path))
 			.join(", ")}`
 	}
 
@@ -228,7 +237,7 @@ export class WorkspaceRootManager {
 
 		// Process all workspace roots
 		for (const root of this.roots) {
-			const hint = root.name || path.basename(root.path)
+			const hint = root.name || getWorkspaceRootName(root.path)
 			const gitRemotes = await getGitRemoteUrls(root.path)
 			const gitCommitHash = await getLatestGitCommitHash(root.path)
 
