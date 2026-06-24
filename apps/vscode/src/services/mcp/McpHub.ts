@@ -43,7 +43,6 @@ import { Logger } from "@/shared/services/Logger"
 import { expandEnvironmentVariables } from "@/utils/envExpansion"
 import { getServerAuthHash } from "@/utils/mcpAuth"
 import { TelemetryService } from "../telemetry/TelemetryService"
-import { DEFAULT_REQUEST_TIMEOUT_MS } from "./constants"
 import { McpOAuthManager } from "./McpOAuthManager"
 import { StreamableHttpReconnectHandler } from "./StreamableHttpReconnectHandler"
 import { BaseConfigSchema, McpSettingsSchema, ServerConfigSchema } from "./schemas"
@@ -674,6 +673,17 @@ export class McpHub {
 		connection.server.error = newError //.slice(0, 800)
 	}
 
+	private getServerRequestTimeout(connection: McpConnection): number {
+		try {
+			const config = JSON.parse(connection.server.config)
+			const parsedConfig = ServerConfigSchema.parse(config)
+			return secondsToMs(parsedConfig.timeout)
+		} catch (error) {
+			Logger.error(`Failed to parse timeout configuration for server ${connection.server.name}: ${error}`)
+			return secondsToMs(DEFAULT_MCP_TIMEOUT_SECONDS)
+		}
+	}
+
 	private async fetchToolsList(serverName: string): Promise<McpTool[]> {
 		try {
 			const connection = this.connections.find((conn) => conn.server.name === serverName)
@@ -688,7 +698,7 @@ export class McpHub {
 			}
 
 			const response = await connection.client.request({ method: "tools/list" }, ListToolsResultSchema, {
-				timeout: DEFAULT_REQUEST_TIMEOUT_MS,
+				timeout: this.getServerRequestTimeout(connection),
 			})
 
 			// Get autoApprove settings
@@ -720,7 +730,7 @@ export class McpHub {
 			}
 
 			const response = await connection.client.request({ method: "resources/list" }, ListResourcesResultSchema, {
-				timeout: DEFAULT_REQUEST_TIMEOUT_MS,
+				timeout: this.getServerRequestTimeout(connection),
 			})
 			return response?.resources || []
 		} catch (_error) {
@@ -742,7 +752,7 @@ export class McpHub {
 				{ method: "resources/templates/list" },
 				ListResourceTemplatesResultSchema,
 				{
-					timeout: DEFAULT_REQUEST_TIMEOUT_MS,
+					timeout: this.getServerRequestTimeout(connection),
 				},
 			)
 
@@ -763,7 +773,7 @@ export class McpHub {
 			}
 
 			const response = await connection.client.request({ method: "prompts/list" }, ListPromptsResultSchema, {
-				timeout: DEFAULT_REQUEST_TIMEOUT_MS,
+				timeout: this.getServerRequestTimeout(connection),
 			})
 
 			return (response?.prompts || []).map((prompt) => ({
@@ -1217,7 +1227,7 @@ export class McpHub {
 			},
 			GetPromptResultSchema,
 			{
-				timeout: DEFAULT_REQUEST_TIMEOUT_MS,
+				timeout: this.getServerRequestTimeout(connection),
 			},
 		)
 
@@ -1247,15 +1257,7 @@ export class McpHub {
 			throw new Error(`Server "${serverName}" is disabled and cannot be used`)
 		}
 
-		let timeout = secondsToMs(DEFAULT_MCP_TIMEOUT_SECONDS) // sdk expects ms
-
-		try {
-			const config = JSON.parse(connection.server.config)
-			const parsedConfig = ServerConfigSchema.parse(config)
-			timeout = secondsToMs(parsedConfig.timeout)
-		} catch (error) {
-			Logger.error(`Failed to parse timeout configuration for server ${serverName}: ${error}`)
-		}
+		const timeout = this.getServerRequestTimeout(connection)
 
 		this.telemetryService.captureMcpToolCall(
 			ulid,
