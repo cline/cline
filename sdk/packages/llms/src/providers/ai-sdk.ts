@@ -239,6 +239,98 @@ function wrapFetchForStickySession(
 	return sessionFetch;
 }
 
+export const DEFAULT_MAX_RETRY_AFTER_MS = 5 * 60 * 1_000;
+
+export function parseRetryAfterDelayMs(
+	value: string | null | undefined,
+	nowMs = Date.now(),
+): number | undefined {
+	const trimmed = value?.trim();
+	if (!trimmed) {
+		return undefined;
+	}
+
+	const numericValue = Number.parseFloat(trimmed);
+	if (Number.isFinite(numericValue)) {
+		if (numericValue > nowMs / 1_000) {
+			return Math.max(0, numericValue * 1_000 - nowMs);
+		}
+		return Math.max(0, numericValue * 1_000);
+	}
+
+	const dateValue = Date.parse(trimmed);
+	if (Number.isFinite(dateValue)) {
+		return Math.max(0, dateValue - nowMs);
+	}
+
+	return undefined;
+}
+
+export function wrapFetchForRetryAfterGuard(
+	baseFetch: typeof fetch | undefined,
+	maxRetryAfterMs = DEFAULT_MAX_RETRY_AFTER_MS,
+): typeof fetch | undefined {
+	const delegate = baseFetch ?? globalThis.fetch;
+	if (!delegate) {
+		return baseFetch;
+	}
+
+	const guardedFetch = (async (input, init) => {
+		const response = await delegate(input, init);
+		if (response.status !== 429) {
+			return response;
+		}
+
+		const retryAfterDelayMs = parseRetryAfterDelayMs(
+			response.headers.get("retry-after"),
+		);
+		if (
+			retryAfterDelayMs === undefined ||
+			retryAfterDelayMs <= maxRetryAfterMs
+		) {
+			return response;
+		}
+
+		const headers = new Headers(response.headers);
+		headers.delete("retry-after");
+		headers.set("x-cline-retry-after-ms", String(Math.round(retryAfterDelayMs)));
+		headers.set("x-cline-retry-after-truncated", "true");
+		return new Response(response.body, {
+			headers,
+			status: response.status,
+			statusText: response.statusText,
+		});
+	}) as typeof fetch;
+	const delegateWithPreconnect = delegate as typeof fetch & {
+		preconnect?: (...args: unknown[]) => unknown;
+	};
+	if (typeof delegateWithPreconnect.preconnect === "function") {
+		(
+			guardedFetch as typeof fetch & {
+				preconnect?: (...args: unknown[]) => unknown;
+			}
+		).preconnect = delegateWithPreconnect.preconnect.bind(delegate);
+	}
+	return guardedFetch;
+}
+
+function wrapFetchForAiSdkProvider(
+	baseFetch: typeof fetch | undefined,
+	request: GatewayStreamRequest,
+	context: GatewayProviderContext,
+): typeof fetch | undefined {
+	const fetchWithCapture = wrapFetchForProviderRequestCapture(baseFetch, request);
+	const fetchWithStickySession = wrapFetchForStickySession(
+		fetchWithCapture,
+		request,
+		context,
+	);
+	if (baseFetch && fetchWithStickySession === baseFetch) {
+		return baseFetch;
+	}
+	return wrapFetchForRetryAfterGuard(fetchWithStickySession);
+}
+
 function shouldIncludeReasoningHistory(
 	request: GatewayStreamRequest,
 	context: GatewayProviderContext,
@@ -1110,11 +1202,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					kind,
 					{
 						...config,
-						fetch: wrapFetchForStickySession(
-							wrapFetchForProviderRequestCapture(config.fetch, request),
-							request,
-							context,
-						),
+						fetch: wrapFetchForAiSdkProvider(config.fetch, request, context),
 					},
 					context,
 				);
