@@ -463,6 +463,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		ollamaBaseUrl: config.ollamaBaseUrl,
 		ollamaApiKey: config.ollamaApiKey,
 		ollamaApiOptionsCtxNum: config.ollamaApiOptionsCtxNum,
+		ollamaThinking: config.ollamaThinking,
 		lmStudioBaseUrl: config.lmStudioBaseUrl,
 		lmStudioMaxTokens: config.lmStudioMaxTokens,
 		geminiApiKey: config.geminiApiKey,

@@ -1,6 +1,6 @@
 import { StringRequest } from "@shared/proto/cline/common"
 import { Mode } from "@shared/storage/types"
-import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeDropdown, VSCodeLink, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useEffect, useState } from "react"
 import { useInterval } from "react-use"
 import UseCustomPromptCheckbox from "@/components/settings/UseCustomPromptCheckbox"
@@ -124,6 +124,31 @@ export const OllamaProvider = ({ showModelOptions, isPopup, currentMode }: Ollam
 					</p>
 				</>
 			)}
+
+			<span className="font-semibold">Thinking mode</span>
+			<VSCodeDropdown
+				id="ollama-provider-thinking"
+				value={String(apiConfiguration?.ollamaThinking ?? "")}
+				onChange={(e: any) => {
+					handleFieldChange("ollamaThinking", e.target.value)
+				}}
+				style={{ width: "100%" }}>
+				<VSCodeOption key="" value="">Default (unset)</VSCodeOption>
+				<VSCodeOption key="true" value="true">Enabled</VSCodeOption>
+				<VSCodeOption key="false" value="false">Disabled</VSCodeOption>
+				<VSCodeOption key="high" value="high">High (for gpt-oss)</VSCodeOption>
+				<VSCodeOption key="medium" value="medium">Medium (for gpt-oss)</VSCodeOption>
+				<VSCodeOption key="low" value="low">Low (for gpt-oss)</VSCodeOption>
+			</VSCodeDropdown>
+
+			<p
+				style={{
+					fontSize: "12px",
+					marginTop: "5px",
+					color: "var(--vscode-descriptionForeground)",
+				}}>
+				Thinking mode of the selected model
+			</p>
 
 			<UseCustomPromptCheckbox providerId="ollama" />
 
