@@ -1,5 +1,8 @@
 import * as assert from "assert"
+import * as fs from "fs/promises"
 import { describe, it } from "mocha"
+import * as os from "os"
+import * as path from "path"
 import { DiffViewProvider } from "../DiffViewProvider"
 
 class TestBoundaryDiffViewProvider extends DiffViewProvider {
@@ -515,5 +518,123 @@ describe("DiffViewProvider Newline Preservation", () => {
 
 		const result = await provider.getDocumentText()
 		assert.strictEqual(result, "Hello World")
+	})
+})
+
+describe("DiffViewProvider abort-path revert guarantees", () => {
+	class AbortTestDiffViewProvider extends DiffViewProvider {
+		public documentText = ""
+		public replaceTextCalls = 0
+		public saveDocCalls = 0
+		public closeViewsCalls = 0
+		public getDocumentTextReturnsUndefined = false
+
+		async openDiffEditor(): Promise<void> {}
+		async scrollEditorToLine(_line: number): Promise<void> {}
+		async scrollAnimation(_startLine: number, _endLine: number): Promise<void> {}
+		async truncateDocument(_lineNumber: number): Promise<void> {}
+
+		async getDocumentLineCount(): Promise<number> {
+			return this.documentText.split("\n").length
+		}
+
+		async getDocumentText(): Promise<string | undefined> {
+			if (this.getDocumentTextReturnsUndefined) {
+				return undefined
+			}
+			return this.documentText
+		}
+
+		async saveDocument(): Promise<Boolean> {
+			this.saveDocCalls++
+			return true
+		}
+
+		async closeAllDiffViews(): Promise<void> {
+			this.closeViewsCalls++
+		}
+
+		async resetDiffView(): Promise<void> {}
+
+		async replaceText(
+			content: string,
+			_rangeToReplace: { startLine: number; endLine: number },
+			_currentLine: number | undefined,
+		): Promise<void> {
+			this.replaceTextCalls++
+			this.documentText = content
+		}
+
+		public getAbsolutePath(): string | undefined {
+			return this.absolutePath
+		}
+
+		public setup(initialContent: string, absolutePath = "/test/file.txt") {
+			this.isEditing = true
+			this.editType = "modify"
+			this.documentText = initialContent
+			this.originalContent = initialContent
+			this.capturedOriginalForAbort = initialContent
+			this.absolutePath = absolutePath
+			this.fileEncoding = "utf8"
+			this.replaceTextCalls = 0
+			this.saveDocCalls = 0
+			this.closeViewsCalls = 0
+			this.getDocumentTextReturnsUndefined = false
+		}
+	}
+
+	it("revertChanges() restores original content when the editor text is unavailable", async () => {
+		const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "cline-test-"))
+		const tmpFile = path.join(tmpDir, "revert-target.txt")
+
+		try {
+			await fs.writeFile(tmpFile, "should be overwritten")
+
+			const provider = new AbortTestDiffViewProvider()
+			provider.setup("original content", tmpFile)
+			provider.getDocumentTextReturnsUndefined = true
+
+			await provider.revertChanges()
+
+			assert.strictEqual(await fs.readFile(tmpFile, "utf8"), "original content")
+			assert.strictEqual(provider.isEditing, false)
+			assert.strictEqual(provider.getAbsolutePath(), undefined)
+			assert.strictEqual(provider.replaceTextCalls, 0)
+			assert.strictEqual(provider.saveDocCalls, 0)
+			assert.strictEqual(provider.closeViewsCalls, 1)
+		} finally {
+			await fs.rm(tmpDir, { recursive: true, force: true })
+		}
+	})
+
+	it("revertChanges() before open() does not throw", async () => {
+		const provider = new AbortTestDiffViewProvider()
+
+		await provider.revertChanges()
+
+		assert.strictEqual(provider.isEditing, false)
+		assert.strictEqual(provider.getAbsolutePath(), undefined)
+	})
+
+	it("double revertChanges() is idempotent", async () => {
+		const provider = new AbortTestDiffViewProvider()
+		provider.setup("original content")
+
+		await provider.revertChanges()
+		assert.strictEqual(provider.isEditing, false)
+		assert.strictEqual(provider.replaceTextCalls, 1)
+		assert.strictEqual(provider.saveDocCalls, 1)
+		assert.strictEqual(provider.closeViewsCalls, 1)
+
+		provider.replaceTextCalls = 0
+		provider.saveDocCalls = 0
+		provider.closeViewsCalls = 0
+
+		await provider.revertChanges()
+
+		assert.strictEqual(provider.replaceTextCalls, 0)
+		assert.strictEqual(provider.saveDocCalls, 0)
+		assert.strictEqual(provider.closeViewsCalls, 0)
 	})
 })
