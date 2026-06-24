@@ -68,7 +68,7 @@ export const DEFAULT_MODEL_TOOL_ROUTING_RULES: ToolRoutingRule[] = [
 	{
 		name: "codex-and-gpt-use-apply-patch",
 		mode: "act",
-		modelIdIncludes: ["codex", "gpt"],
+		modelIdIncludes: ["codex", "gpt", "glm"],
 		enableTools: ["apply_patch"],
 		disableTools: ["editor"],
 	},
