@@ -12,9 +12,9 @@ describe("detectMetaKeyChar", () => {
 		expect(result).toBe("Win")
 	})
 
-	it("should return Alt for linux platform", () => {
+	it("should return Super for linux platform", () => {
 		const result = detectMetaKeyChar("linux")
-		expect(result).toBe("Alt")
+		expect(result).toBe("Super")
 	})
 
 	it("should return generic CMD for unknown platform", () => {

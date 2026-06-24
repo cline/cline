@@ -29,7 +29,7 @@ export const detectMetaKeyChar = (platform: string) => {
 	} else if (platform.match(platforms.windows)) {
 		return "Win"
 	} else if (platform.match(platforms.linux)) {
-		return "Alt"
+		return "Super"
 	} else {
 		return "CMD"
 	}
