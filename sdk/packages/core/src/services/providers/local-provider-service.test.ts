@@ -598,7 +598,7 @@ describe("addLocalProvider – capabilities", () => {
 		expect(models[0].supportsReasoning).toBeFalsy();
 	});
 
-	it("merges LiteLLM private models into the provider model listing when auth is configured", async () => {
+	it("uses LiteLLM private models as the authoritative provider model listing when auth is configured", async () => {
 		manager.saveProviderSettings(
 			{
 				provider: "litellm",
@@ -632,8 +632,11 @@ describe("addLocalProvider – capabilities", () => {
 			manager.getProviderConfig("litellm"),
 		);
 
-		expect(models.map((model) => model.id)).toContain("private-proxy-model");
-		expect(models.map((model) => model.id)).toContain("openai/gpt-4o-mini");
+		expect(models.map((model) => model.id).sort()).toEqual([
+			"openai/gpt-4o-mini",
+			"private-proxy-model",
+		]);
+		expect(models.map((model) => model.id)).not.toContain("gpt-5.4");
 		expect(
 			models.find((model) => model.id === "private-proxy-model"),
 		).toMatchObject({

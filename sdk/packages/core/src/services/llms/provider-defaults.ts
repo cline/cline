@@ -171,15 +171,13 @@ async function mergeKnownModels(
 			...userKnownModels,
 		});
 	}
-	// LiteLLM model access is configured by the user's proxy. When the proxy
-	// returns a private model list, treat it as the authoritative allowlist so
-	// the picker does not show bundled OpenAI-compatible catalog entries that the
-	// proxy may not actually expose.
+	// LiteLLM model access is controlled by the user's proxy. When the proxy
+	// returns a private model list, treat that list as authoritative so bundled
+	// OpenAI-compatible catalog entries are not shown unless the proxy exposes
+	// them. Do not merge userKnownModels here because provider settings may carry
+	// generated catalog metadata as knownModels.
 	if (providerId === "litellm" && Object.keys(privateModels).length > 0) {
-		return Llms.sortModelsByReleaseDate({
-			...privateModels,
-			...userKnownModels,
-		});
+		return Llms.sortModelsByReleaseDate(privateModels);
 	}
 	if (providerId === "openai-codex") {
 		return Llms.sortModelsByReleaseDate({
