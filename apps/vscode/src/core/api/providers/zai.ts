@@ -17,6 +17,7 @@ import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
+import { OpenAiStreamUsageTracker } from "./utils/openai-stream-usage"
 
 interface ZAiHandlerOptions extends CommonApiHandlerOptions {
 	zaiApiLine?: string
@@ -92,6 +93,7 @@ export class ZAiHandler implements ApiHandler {
 		})
 
 		const toolCallProcessor = new ToolCallProcessor()
+		const usageTracker = new OpenAiStreamUsageTracker()
 
 		for await (const chunk of stream) {
 			const delta = chunk.choices?.[0]?.delta
@@ -107,14 +109,13 @@ export class ZAiHandler implements ApiHandler {
 			}
 
 			if (chunk.usage) {
-				yield {
-					type: "usage",
-					inputTokens: chunk.usage.prompt_tokens || 0,
-					outputTokens: chunk.usage.completion_tokens || 0,
-					cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
-					cacheWriteTokens: 0,
-				}
+				usageTracker.record(chunk.usage)
 			}
+		}
+
+		const usageChunk = usageTracker.getUsageChunk()
+		if (usageChunk) {
+			yield usageChunk
 		}
 	}
 }
