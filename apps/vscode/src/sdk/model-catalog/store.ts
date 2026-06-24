@@ -412,8 +412,10 @@ function writeSelectionToProviderSettings(providerId: ProviderId, selection: Mod
 		next.contextWindow = selection.modelInfo.contextWindow
 	}
 
-	if (shouldPersistMaxTokens(providerId) && selection.modelInfo.maxTokens !== undefined && selection.modelInfo.maxTokens > 0) {
-		next.maxTokens = selection.modelInfo.maxTokens
+	if (shouldPersistMaxTokens(providerId)) {
+		if (selection.modelInfo.maxTokens !== undefined && selection.modelInfo.maxTokens > 0) {
+			next.maxTokens = selection.modelInfo.maxTokens
+		}
 	} else {
 		delete next.maxTokens
 	}

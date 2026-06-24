@@ -264,6 +264,27 @@ describe("createProviderConfigStore", () => {
 		expect(mocks.getSavedProviderSettings("anthropic")).not.toHaveProperty("maxTokens")
 	})
 
+	it("preserves existing maxTokens for allowed providers when selected model metadata omits it", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		mocks.setProviderSettings({ openai: { provider: "openai", maxTokens: 1_234 } })
+		const store = createProviderConfigStore()
+
+		store.commitSelection(parseProviderId("openai"), "act", {
+			providerId: parseProviderId("openai"),
+			modelId: "custom-model",
+			modelInfo: {
+				name: "Custom Model",
+				contextWindow: 128_000,
+				supportsPromptCache: false,
+			},
+		})
+
+		expect(mocks.getSavedProviderSettings("openai")).toMatchObject({
+			model: "custom-model",
+			maxTokens: 1_234,
+		})
+	})
+
 	it("updates providers.json model with setLastUsed false when planActSeparateModelsSetting=false", async () => {
 		const { createProviderConfigStore } = await import("./store")
 		mocks.setApiConfiguration({ planActSeparateModelsSetting: false })
