@@ -11,6 +11,7 @@
 import { telemetryService } from "@services/telemetry"
 import { ChildProcess, spawn } from "child_process"
 import { EventEmitter } from "events"
+import iconv from "iconv-lite"
 import { terminateProcessTree } from "@/utils/process-termination"
 
 import {
@@ -22,6 +23,16 @@ import {
 	TRUNCATE_KEEP_LINES,
 } from "../constants"
 import type { ITerminal, ITerminalProcess, TerminalCompletionDetails, TerminalProcessEvents } from "../types"
+import { getWindowsConsoleEncoding } from "./windowsEncoding"
+
+// Lazily initialize encoding on first use instead of at module load
+let cachedWindowsConsoleEncoding: string | undefined
+function getEncoding(): string {
+	if (cachedWindowsConsoleEncoding === undefined) {
+		cachedWindowsConsoleEncoding = getWindowsConsoleEncoding()
+	}
+	return cachedWindowsConsoleEncoding
+}
 
 /**
  * Manages the execution of a command in a standalone terminal environment.
@@ -84,6 +95,12 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 		const shell = (terminal as any)._shellPath || this.getDefaultShell()
 		const cwd = (terminal as any)._cwd || process.cwd()
 
+		// Determine encoding based on shell type:
+		// cmd.exe uses system code page (e.g., GBK on Chinese Windows);
+		// PowerShell/pwsh and other shells default to UTF-8 output
+		const isCmdExe = shell.toLowerCase().includes("cmd")
+		const shellEncoding = isCmdExe ? getEncoding() : "utf8"
+
 		// Prepare command for execution
 		const shellArgs = this.getShellArgs(shell, command)
 
@@ -108,6 +125,7 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 				},
 			}
 
+
 			// Enable the shell option for "cmd.exe" to prevent double quotes from being over escaped
 			if (shell.toLowerCase().includes("cmd")) {
 				shellOptions.shell = true
@@ -128,7 +146,7 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 
 			// Handle stdout
 			this.childProcess.stdout?.on("data", (data: Buffer) => {
-				const output = data.toString()
+				const output = iconv.decode(data, shellEncoding)
 				this.handleOutput(output, didEmitEmptyLine)
 				if (!didEmitEmptyLine && output) {
 					this.emit("line", "") // Signal start of output
@@ -138,7 +156,7 @@ export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvent
 
 			// Handle stderr
 			this.childProcess.stderr?.on("data", (data: Buffer) => {
-				const output = data.toString()
+				const output = iconv.decode(data, shellEncoding)
 				this.handleOutput(output, didEmitEmptyLine)
 				if (!didEmitEmptyLine && output) {
 					this.emit("line", "")
