@@ -272,6 +272,7 @@ describe("MessageBuilder", () => {
 			getMessageBuilderOptionsFromEnv({
 				CLINE_MESSAGE_BUILDER_MAX_TOOL_RESULT_CHARS: "96",
 				CLINE_MESSAGE_BUILDER_MAX_TOTAL_TEXT_BYTES: "5000",
+				CLINE_MESSAGE_BUILDER_MIN_OUTDATED_REWRITE_BYTES: "0",
 			}),
 		);
 		const messages: Message[] = [
@@ -314,6 +315,38 @@ describe("MessageBuilder", () => {
 		}
 		expect(block.content.length).toBeLessThanOrEqual(96);
 		expect(block.content).toContain("...[truncated");
+
+		const eagerBuilder = new MessageBuilder(
+			getMessageBuilderOptionsFromEnv({
+				CLINE_MESSAGE_BUILDER_MIN_OUTDATED_REWRITE_BYTES: "0",
+			}),
+		);
+		const eager = eagerBuilder.buildForApi([
+			{ role: "user", content: "task" },
+			readToolUse("t1"),
+			readToolResult("t1", SMALL_CONTENT(1)),
+			readToolUse("t2"),
+			readToolResult("t2", SMALL_CONTENT(2)),
+		]);
+		expect(JSON.stringify(eager[2])).toContain("outdated");
+	});
+
+	it("parses an env disable value for outdated-read rewrites", () => {
+		const builder = new MessageBuilder(
+			getMessageBuilderOptionsFromEnv({
+				CLINE_MESSAGE_BUILDER_MIN_OUTDATED_REWRITE_BYTES: "disable",
+			}),
+		);
+		const result = builder.buildForApi([
+			{ role: "user", content: "task" },
+			readToolUse("t1"),
+			readToolResult("t1", LARGE_CONTENT(1)),
+			readToolUse("t2"),
+			readToolResult("t2", LARGE_CONTENT(2)),
+		]);
+
+		expect(JSON.stringify(result[2])).not.toContain("outdated");
+		expect(JSON.stringify(result[2])).toContain("export const x = 1;");
 	});
 
 	it("ignores zero env overrides instead of disabling the limits", () => {
@@ -1843,7 +1876,7 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 	});
 
 	it("commits batched rewrites once reclaimable bytes cross the threshold", () => {
-		const builder = new MessageBuilder();
+		const builder = new MessageBuilder({ minOutdatedRewriteBytes: 7_000 });
 		const base: Message[] = [
 			{ role: "user", content: "task" },
 			readToolUse("t1"),
@@ -1851,7 +1884,7 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 			readToolUse("t2"),
 			readToolResult("t2", LARGE_CONTENT(2)),
 		];
-		// First build: t1 is outdated (~140KB reclaimable > 64KB threshold),
+		// First build: t1 is outdated (~8KB provider-bound reclaimable),
 		// so the rewrite commits immediately.
 		const reqA = builder.buildForApi(base);
 		expect(serializedBlockAt(reqA, 2)).toContain(
@@ -1863,7 +1896,7 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 	});
 
 	it("keeps committed rewrites sticky across subsequent builds", () => {
-		const builder = new MessageBuilder();
+		const builder = new MessageBuilder({ minOutdatedRewriteBytes: 7_000 });
 		const base: Message[] = [
 			{ role: "user", content: "task" },
 			readToolUse("t1"),
@@ -1985,8 +2018,51 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 		expect(multiBlock).not.toContain("export const x = 3;");
 	});
 
+	it("uses provider-bound stale bytes after per-result truncation", () => {
+		const builder = new MessageBuilder({ minOutdatedRewriteBytes: 20_000 });
+		const messages: Message[] = [
+			{ role: "user", content: "task" },
+			readToolUse("t1"),
+			readToolResult("t1", LARGE_CONTENT(1)),
+			readToolUse("t2"),
+			readToolResult("t2", LARGE_CONTENT(2)),
+		];
+
+		const result = builder.buildForApi(messages);
+
+		// Raw t1 history is ~140KB, but the provider-bound stale entry is capped
+		// near 8KB before threshold accounting. A 20KB threshold must defer.
+		expect(JSON.stringify(result[2])).not.toContain("outdated");
+		expect(JSON.stringify(result[2])).toContain("...[truncated");
+	});
+
+	it("clears committed rewrite state on explicit conversation reset", () => {
+		const builder = new MessageBuilder({ minOutdatedRewriteBytes: 0 });
+		const firstConversation: Message[] = [
+			{ role: "user", content: "task one" },
+			readToolUse("t1"),
+			readToolResult("t1", SMALL_CONTENT(1)),
+			readToolUse("t2"),
+			readToolResult("t2", SMALL_CONTENT(2)),
+		];
+		expect(JSON.stringify(builder.buildForApi(firstConversation)[2])).toContain(
+			"outdated",
+		);
+
+		builder.resetConversationState();
+		const restoredConversationWithReusedId: Message[] = [
+			{ role: "user", content: "task two" },
+			readToolUse("t1"),
+			readToolResult("t1", SMALL_CONTENT(3)),
+		];
+		const restored = builder.buildForApi(restoredConversationWithReusedId);
+
+		expect(JSON.stringify(restored[2])).not.toContain("outdated");
+		expect(JSON.stringify(restored[2])).toContain("export const x = 3;");
+	});
+
 	it("keeps batching state when the runtime rebuilds fresh message objects per request", () => {
-		const builder = new MessageBuilder();
+		const builder = new MessageBuilder({ minOutdatedRewriteBytes: 7_000 });
 		const history: Message[] = [
 			{ role: "user", content: "task" },
 			readToolUse("t1", "src/big.ts"),
@@ -1994,11 +2070,11 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 			readToolUse("t2", "src/big.ts"),
 			readToolResult("t2", LARGE_CONTENT(2), "src/big.ts"),
 		];
-		// Request A: t1 (~80KB stale) crosses the threshold and commits.
+		// Request A: t1 (~8KB provider-bound stale) crosses the test threshold and commits.
 		const reqA = builder.buildForApi(codecRoundTrip(history));
 		expect(JSON.stringify(reqA[2])).toContain("outdated");
 
-		// Request B: a ~1KB re-read makes t3 newly stale. The committed 80KB
+		// Request B: a ~1KB re-read makes t3 newly stale. The committed big read
 		// must NOT be recounted as pending, so t3 stays deferred.
 		history.push(
 			readToolUse("t3", "src/small.ts"),
@@ -2013,7 +2089,7 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 	});
 
 	it("restores full content after rollback even with fresh message objects", () => {
-		const builder = new MessageBuilder();
+		const builder = new MessageBuilder({ minOutdatedRewriteBytes: 7_000 });
 		const t1Only: Message[] = [
 			{ role: "user", content: "task" },
 			readToolUse("t1"),
@@ -2033,7 +2109,7 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 	});
 
 	it("keeps committed rewrites applied when compaction drops the paired tool_use", () => {
-		const builder = new MessageBuilder();
+		const builder = new MessageBuilder({ minOutdatedRewriteBytes: 7_000 });
 		const withReread: Message[] = [
 			{ role: "user", content: "task" },
 			readToolUse("t1"),
@@ -2099,7 +2175,7 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 	});
 
 	it("batches and rewrites structured ToolOperationResult read_files entries", () => {
-		const builder = new MessageBuilder();
+		const builder = new MessageBuilder({ minOutdatedRewriteBytes: 7_000 });
 		const messages: Message[] = [
 			{ role: "user", content: "task" },
 			readToolUse("t1"),
@@ -2120,7 +2196,7 @@ describe("MessageBuilder outdated-read rewrite batching (prefix-cache stability)
 	});
 
 	it("keeps structured ToolOperationResult batching stable across codec round-trips", () => {
-		const builder = new MessageBuilder();
+		const builder = new MessageBuilder({ minOutdatedRewriteBytes: 7_000 });
 		const history: Message[] = [
 			{ role: "user", content: "task" },
 			readToolUse("t1", "src/big.ts"),

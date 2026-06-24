@@ -43,6 +43,7 @@ const REPEATED_TOOL_CALL_MARKUP_THRESHOLD = 8;
 export const MESSAGE_BUILDER_LIMIT_ENV = {
 	maxToolResultChars: "CLINE_MESSAGE_BUILDER_MAX_TOOL_RESULT_CHARS",
 	maxTotalTextBytes: "CLINE_MESSAGE_BUILDER_MAX_TOTAL_TEXT_BYTES",
+	minOutdatedRewriteBytes: "CLINE_MESSAGE_BUILDER_MIN_OUTDATED_REWRITE_BYTES",
 } as const;
 const READ_TOOL_NAMES = new Set(["read", "read_files"]);
 const OUTDATED_FILE_CONTENT = "[outdated - see the latest file content]";
@@ -86,14 +87,17 @@ export interface MessageBuilderOptions {
 export function getMessageBuilderOptionsFromEnv(
 	env: Record<string, string | undefined> = process.env,
 ): MessageBuilderOptions {
-	// Zero and negative values are rejected (falling back to the defaults), so
-	// an env override can tune the limits but never silently disable them.
+	// Size caps reject zero/negative overrides; stale-read batching accepts 0
+	// for eager mode and "disable"/"Infinity" for rollback.
 	return {
 		maxToolResultChars: parsePositiveIntegerEnv(
 			env[MESSAGE_BUILDER_LIMIT_ENV.maxToolResultChars],
 		),
 		maxTotalTextBytes: parsePositiveIntegerEnv(
 			env[MESSAGE_BUILDER_LIMIT_ENV.maxTotalTextBytes],
+		),
+		minOutdatedRewriteBytes: parseNonNegativeLimitEnv(
+			env[MESSAGE_BUILDER_LIMIT_ENV.minOutdatedRewriteBytes],
 		),
 	};
 }
@@ -152,6 +156,11 @@ export class MessageBuilder {
 			options.minOutdatedRewriteBytes,
 			DEFAULT_MIN_OUTDATED_REWRITE_BYTES,
 		);
+	}
+
+	resetConversationState(): void {
+		this.resetIndexes();
+		this.committedOutdatedRewrites.clear();
 	}
 
 	buildForApi(messages: Message[]): Message[] {
@@ -377,7 +386,8 @@ export class MessageBuilder {
 				for (const key of newKeys) {
 					keys.add(key);
 				}
-				// Attribute bytes to the newly-stale locators, not the whole block.
+				// Attribute provider-bound bytes to the newly-stale locators, not
+				// raw history bytes or the whole block.
 				pendingBytes += this.estimateOutdatedReclaimBytes(
 					block.content,
 					newKeys,
@@ -425,7 +435,7 @@ export class MessageBuilder {
 				parsed = JSON.parse(text);
 			} catch {
 				return blockFullyOutdated || allLocators.length === 0
-					? utf8ByteLength(text)
+					? utf8ByteLength(this.truncateMiddle(text))
 					: 0;
 			}
 			const entries = Array.isArray(parsed) ? parsed : [parsed];
@@ -433,7 +443,7 @@ export class MessageBuilder {
 			for (const entry of entries) {
 				const locator = this.extractLocatorFromResultEntry(entry);
 				if (locator && outdatedKeys.has(this.toReadLocatorKey(locator))) {
-					total += utf8ByteLength(JSON.stringify(entry));
+					total += this.providerBoundEntryBytes(entry);
 				}
 			}
 			return total;
@@ -465,7 +475,7 @@ export class MessageBuilder {
 			} else if (isStructuredToolResultEntry(entry)) {
 				const locator = this.extractLocatorFromResultEntry(entry);
 				if (locator && outdatedKeys.has(this.toReadLocatorKey(locator))) {
-					total += utf8ByteLength(JSON.stringify(entry));
+					total += this.providerBoundEntryBytes(entry);
 				}
 			} else if (entry.type === "file") {
 				if (
@@ -477,11 +487,16 @@ export class MessageBuilder {
 						}),
 					)
 				) {
-					total += utf8ByteLength(entry.content);
+					total += utf8ByteLength(this.truncateMiddle(entry.content));
 				}
 			}
 		}
 		return total;
+	}
+
+	private providerBoundEntryBytes(entry: unknown): number {
+		const providerBound = this.truncateNestedStrings(entry);
+		return utf8ByteLength(JSON.stringify(providerBound));
 	}
 
 	private addMissingToolResults(messages: Message[]): Message[] {
@@ -1482,6 +1497,20 @@ function parsePositiveIntegerEnv(
 	}
 	const parsed = Number.parseInt(value, 10);
 	return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function parseNonNegativeLimitEnv(
+	value: string | undefined,
+): number | undefined {
+	if (value === undefined) {
+		return undefined;
+	}
+	const normalized = value.trim().toLowerCase();
+	if (normalized === "infinity" || normalized === "disable") {
+		return Number.POSITIVE_INFINITY;
+	}
+	const parsed = Number.parseInt(value, 10);
+	return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
 }
 
 function normalizePositiveLimit(
