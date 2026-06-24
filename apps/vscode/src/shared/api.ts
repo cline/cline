@@ -4247,9 +4247,10 @@ export const groqModels = {
 		maxTokens: 32766, // Model fails if you try to use more than 32K tokens
 		contextWindow: 131_072,
 		supportsImages: false,
-		supportsPromptCache: false,
+		supportsPromptCache: true,
 		inputPrice: 0.15,
-		outputPrice: 0.75,
+		outputPrice: 0.60,
+		cacheReadsPrice: 0.075,
 		description:
 			"A state-of-the-art 120B open-weight Mixture-of-Experts language model optimized for strong reasoning, tool use, and efficient deployment on large GPUs",
 	},
@@ -4257,9 +4258,10 @@ export const groqModels = {
 		maxTokens: 32766, // Model fails if you try to use more than 32K tokens
 		contextWindow: 131_072,
 		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0.1,
-		outputPrice: 0.5,
+		supportsPromptCache: true,
+		inputPrice: 0.075,
+		outputPrice: 0.3,
+		cacheReadsPrice: 0.0375,
 		description:
 			"A compact 20B open-weight Mixture-of-Experts language model designed for strong reasoning and tool use, ideal for edge devices and local inference.",
 	},
