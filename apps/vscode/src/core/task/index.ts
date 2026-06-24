@@ -3802,10 +3802,20 @@ export class Task {
 
 				// if the model did not tool use, then we need to tell it to either use a tool or attempt_completion
 				const didToolUse = this.taskState.assistantMessageContent.some(
-					(block) => block.type === "tool_use",
+					(block) => block.type === "tool_use" && !block.isTruncatedOpenTag,
+				);
+				const hadTruncatedOpenTag = this.taskState.assistantMessageContent.some(
+					(block) =>
+						block.type === "tool_use" && block.isTruncatedOpenTag === true,
 				);
 
-				if (!didToolUse) {
+				if (hadTruncatedOpenTag && !didToolUse) {
+					this.taskState.userMessageContent.push({
+						type: "text",
+						text: formatResponse.truncatedToolTag(),
+					});
+					this.taskState.consecutiveMistakeCount++;
+				} else if (!didToolUse) {
 					// normal request where tool use is required
 					this.taskState.userMessageContent.push({
 						type: "text",

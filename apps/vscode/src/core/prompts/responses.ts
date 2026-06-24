@@ -1,10 +1,13 @@
-import { Anthropic } from "@anthropic-ai/sdk"
-import * as diff from "diff"
-import * as path from "path"
-import { Mode } from "@/shared/storage/types"
-import { ClineIgnoreController, LOCK_TEXT_SYMBOL } from "../ignore/ClineIgnoreController"
+import type { Anthropic } from "@anthropic-ai/sdk";
+import * as diff from "diff";
+import * as path from "path";
+import type { Mode } from "@/shared/storage/types";
+import {
+	type ClineIgnoreController,
+	LOCK_TEXT_SYMBOL,
+} from "../ignore/ClineIgnoreController";
 
-const CONTEXT_WINDOW_WARNING_THRESHOLD_PERCENT = 50
+const CONTEXT_WINDOW_WARNING_THRESHOLD_PERCENT = 50;
 
 export const formatResponse = {
 	duplicateFileReadNotice: () =>
@@ -14,7 +17,7 @@ export const formatResponse = {
 		`[NOTE] Some previous conversation history with the user has been removed to maintain optimal context window length. The initial user task has been retained for continuity, while intermediate conversation history has been removed. Keep this in mind as you continue assisting the user. Pay special attention to the user's latest messages.`,
 
 	processFirstUserMessageForTruncation: () => {
-		return "[Continue assisting the user!]"
+		return "[Continue assisting the user!]";
 	},
 
 	condense: () =>
@@ -22,7 +25,8 @@ export const formatResponse = {
 
 	toolDenied: () => `The user denied this operation.`,
 
-	toolError: (error?: string) => `The tool execution failed with the following error:\n<error>\n${error}\n</error>`,
+	toolError: (error?: string) =>
+		`The tool execution failed with the following error:\n<error>\n${error}\n</error>`,
 
 	clineIgnoreError: (path: string) =>
 		`Access to ${path} is blocked by the .clineignore file settings. You must try to continue in the task without using this file, or ask the user to update the .clineignore file.`,
@@ -42,6 +46,18 @@ If you require additional information from the user, use the ask_followup_questi
 Otherwise, if you have not completed the task and do not need additional information, then proceed with the next step of the task. 
 (This is an automated message, so do not respond to it conversationally.)`,
 
+	truncatedToolTag: () =>
+		`[ERROR] Your previous response was truncated while starting a tool-opening tag, so the tool call could not be parsed. Please retry and emit the complete tool tag in one response.
+
+${toolUseInstructionsReminder}
+
+# Next Steps
+
+If you have completed the user's task, use the attempt_completion tool.
+If you require additional information from the user, use the ask_followup_question tool.
+Otherwise, if you have not completed the task and do not need additional information, then proceed with the next step of the task.
+(This is an automated message, so do not respond to it conversationally.)`,
+
 	tooManyMistakes: (feedback?: string) =>
 		`You seem to be having trouble proceeding. The user has provided the following feedback to help guide you:\n<feedback>\n${feedback}\n</feedback>`,
 
@@ -53,13 +69,18 @@ Otherwise, if you have not completed the task and do not need additional informa
 	 * Provides progressive guidance based on how many times this has happened consecutively,
 	 * and includes token budget awareness to help the model understand output constraints.
 	 */
-	writeToFileMissingContentError: (relPath: string, consecutiveFailures: number, contextUsagePercent?: number): string => {
-		const baseError = `Failed to write to '${relPath}': The 'content' parameter was empty. This typically happens when the file content is too large to generate in a single response, or when output token limits are reached before the content parameter is fully written.`
+	writeToFileMissingContentError: (
+		relPath: string,
+		consecutiveFailures: number,
+		contextUsagePercent?: number,
+	): string => {
+		const baseError = `Failed to write to '${relPath}': The 'content' parameter was empty. This typically happens when the file content is too large to generate in a single response, or when output token limits are reached before the content parameter is fully written.`;
 
 		const contextWarning =
-			contextUsagePercent !== undefined && contextUsagePercent > CONTEXT_WINDOW_WARNING_THRESHOLD_PERCENT
+			contextUsagePercent !== undefined &&
+			contextUsagePercent > CONTEXT_WINDOW_WARNING_THRESHOLD_PERCENT
 				? `\n\nWarning: Context window is ${contextUsagePercent}% full. The remaining output budget may be insufficient for large file writes. You MUST use a strategy that produces smaller outputs.`
-				: ""
+				: "";
 
 		if (consecutiveFailures >= 3) {
 			// After 3+ failures, be very directive — stop trying write_to_file entirely
@@ -71,7 +92,7 @@ Otherwise, if you have not completed the task and do not need additional informa
 				`2. **Break the file into multiple smaller files** if architecturally appropriate\n` +
 				`3. **Write a minimal skeleton** using write_to_file (just imports, class/function signatures, no implementations), then use replace_in_file to fill in each section one at a time\n\n` +
 				`Each replace_in_file call should add no more than 50-100 lines of content at a time.`
-			)
+			);
 		}
 		if (consecutiveFailures >= 2) {
 			// After 2 failures, strongly suggest alternative approaches
@@ -83,7 +104,7 @@ Otherwise, if you have not completed the task and do not need additional informa
 				`2. **Use replace_in_file with smaller chunks** — if the file already exists, make targeted edits instead of rewriting the entire file\n` +
 				`3. **Break the task into smaller steps** — write one function or section at a time\n\n` +
 				`Do NOT attempt to write the full file content in a single write_to_file call again.`
-			)
+			);
 		}
 		// First failure — provide helpful guidance
 		return (
@@ -93,7 +114,7 @@ Otherwise, if you have not completed the task and do not need additional informa
 			`- If the file already exists, prefer replace_in_file to make targeted edits instead of rewriting the entire file.\n` +
 			`- Ensure the 'content' parameter contains the complete file content before closing the tool tag.\n\n` +
 			toolUseInstructionsReminder
-		)
+		);
 	},
 
 	replaceInFileMissingDiffError: (relPath: string): string => {
@@ -109,7 +130,7 @@ Otherwise, if you have not completed the task and do not need additional informa
 			`- The SEARCH block must match existing file content exactly (including whitespace and indentation)\n` +
 			`- You can include multiple SEARCH/REPLACE blocks in a single diff parameter\n` +
 			`- If you're unsure of the exact content, use read_file first to see the current file`
-		)
+		);
 	},
 
 	executeCommandMissingCommandError: (): string => {
@@ -120,7 +141,7 @@ Otherwise, if you have not completed the task and do not need additional informa
 			"<command>cd /path && python -m pytest tests/</command>\n" +
 			"<requires_approval>false</requires_approval>\n" +
 			"</execute_command>"
-		)
+		);
 	},
 
 	invalidMcpToolArgumentError: (serverName: string, toolName: string) =>
@@ -131,30 +152,34 @@ Otherwise, if you have not completed the task and do not need additional informa
 		images?: string[],
 		fileString?: string,
 	): string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam> => {
-		const toolResultOutput = []
+		const toolResultOutput = [];
 
 		if (!(images && images.length > 0) && !fileString) {
-			return text
+			return text;
 		}
 
-		const textBlock: Anthropic.TextBlockParam = { type: "text", text }
-		toolResultOutput.push(textBlock)
+		const textBlock: Anthropic.TextBlockParam = { type: "text", text };
+		toolResultOutput.push(textBlock);
 
 		if (images && images.length > 0) {
-			const imageBlocks: Anthropic.ImageBlockParam[] = formatImagesIntoBlocks(images)
-			toolResultOutput.push(...imageBlocks)
+			const imageBlocks: Anthropic.ImageBlockParam[] =
+				formatImagesIntoBlocks(images);
+			toolResultOutput.push(...imageBlocks);
 		}
 
 		if (fileString) {
-			const fileBlock: Anthropic.TextBlockParam = { type: "text", text: fileString }
-			toolResultOutput.push(fileBlock)
+			const fileBlock: Anthropic.TextBlockParam = {
+				type: "text",
+				text: fileString,
+			};
+			toolResultOutput.push(fileBlock);
 		}
 
-		return toolResultOutput
+		return toolResultOutput;
 	},
 
 	imageBlocks: (images?: string[]): Anthropic.ImageBlockParam[] => {
-		return formatImagesIntoBlocks(images)
+		return formatImagesIntoBlocks(images);
 	},
 
 	formatFilesList: (
@@ -166,66 +191,74 @@ Otherwise, if you have not completed the task and do not need additional informa
 		const sorted = files
 			.map((file) => {
 				// convert absolute path to relative path
-				const relativePath = path.relative(absolutePath, file).toPosix()
-				return file.endsWith("/") ? relativePath + "/" : relativePath
+				const relativePath = path.relative(absolutePath, file).toPosix();
+				return file.endsWith("/") ? relativePath + "/" : relativePath;
 			})
 			// Sort so files are listed under their respective directories to make it clear what files are children of what directories. Since we build file list top down, even if file list is truncated it will show directories that cline can then explore further.
 			.sort((a, b) => {
-				const aParts = a.split("/") // only works if we use toPosix first
-				const bParts = b.split("/")
+				const aParts = a.split("/"); // only works if we use toPosix first
+				const bParts = b.split("/");
 				for (let i = 0; i < Math.min(aParts.length, bParts.length); i++) {
 					if (aParts[i] !== bParts[i]) {
 						// If one is a directory and the other isn't at this level, sort the directory first
 						if (i + 1 === aParts.length && i + 1 < bParts.length) {
-							return -1
+							return -1;
 						}
 						if (i + 1 === bParts.length && i + 1 < aParts.length) {
-							return 1
+							return 1;
 						}
 						// Otherwise, sort alphabetically
 						return aParts[i].localeCompare(bParts[i], undefined, {
 							numeric: true,
 							sensitivity: "base",
-						})
+						});
 					}
 				}
 				// If all parts are the same up to the length of the shorter path,
 				// the shorter one comes first
-				return aParts.length - bParts.length
-			})
+				return aParts.length - bParts.length;
+			});
 
 		const clineIgnoreParsed = clineIgnoreController
 			? sorted.map((filePath) => {
 					// path is relative to absolute path, not cwd
 					// validateAccess expects either path relative to cwd or absolute path
 					// otherwise, for validating against ignore patterns like "assets/icons", we would end up with just "icons", which would result in the path not being ignored.
-					const absoluteFilePath = path.resolve(absolutePath, filePath)
-					const isIgnored = !clineIgnoreController.validateAccess(absoluteFilePath)
+					const absoluteFilePath = path.resolve(absolutePath, filePath);
+					const isIgnored =
+						!clineIgnoreController.validateAccess(absoluteFilePath);
 					if (isIgnored) {
-						return LOCK_TEXT_SYMBOL + " " + filePath
+						return LOCK_TEXT_SYMBOL + " " + filePath;
 					}
 
-					return filePath
+					return filePath;
 				})
-			: sorted
+			: sorted;
 
 		if (didHitLimit) {
 			return `${clineIgnoreParsed.join(
 				"\n",
-			)}\n\n(File list truncated. Use list_files on specific subdirectories if you need to explore further.)`
+			)}\n\n(File list truncated. Use list_files on specific subdirectories if you need to explore further.)`;
 		}
-		if (clineIgnoreParsed.length === 0 || (clineIgnoreParsed.length === 1 && clineIgnoreParsed[0] === "")) {
-			return "No files found."
+		if (
+			clineIgnoreParsed.length === 0 ||
+			(clineIgnoreParsed.length === 1 && clineIgnoreParsed[0] === "")
+		) {
+			return "No files found.";
 		}
-		return clineIgnoreParsed.join("\n")
+		return clineIgnoreParsed.join("\n");
 	},
 
 	createPrettyPatch: (filename = "file", oldStr?: string, newStr?: string) => {
 		// strings cannot be undefined or diff throws exception
-		const patch = diff.createPatch(filename.toPosix(), oldStr || "", newStr || "")
-		const lines = patch.split("\n")
-		const prettyPatchLines = lines.slice(4)
-		return prettyPatchLines.join("\n")
+		const patch = diff.createPatch(
+			filename.toPosix(),
+			oldStr || "",
+			newStr || "",
+		);
+		const lines = patch.split("\n");
+		const prettyPatchLines = lines.slice(4);
+		return prettyPatchLines.join("\n");
 	},
 
 	taskResumption: (
@@ -244,7 +277,7 @@ Otherwise, if you have not completed the task and do not need additional informa
 			wasRecent && !hasPendingFileContextWarnings
 				? "\n\nIMPORTANT: If the last tool use was a replace_in_file or write_to_file that was interrupted, the file was reverted back to its original state before the interrupted edit, and you do NOT need to re-read the file as you already have its up-to-date contents."
 				: ""
-		}`
+		}`;
 
 		const userResponseMessage = `${
 			responseText
@@ -252,14 +285,14 @@ Otherwise, if you have not completed the task and do not need additional informa
 				: mode === "plan"
 					? "(The user did not provide a new message. Consider asking them how they'd like you to proceed, or suggest to them to switch to Act mode to continue with the task.)"
 					: ""
-		}`
+		}`;
 
-		return [taskResumptionMessage, userResponseMessage]
+		return [taskResumptionMessage, userResponseMessage];
 	},
 
 	planModeInstructions: () => {
 		return `In this mode you should focus on information gathering, asking questions, and architecting a solution. Once you have a plan, use the plan_mode_respond tool to engage in a conversational back and forth with the user. Do not use the plan_mode_respond tool until you've gathered all the information you need e.g. with read_file or ask_followup_question.
-(Remember: If it seems the user wants you to use tools only available in Act Mode, you should ask the user to "toggle to Act mode" (use those words) - they will have to manually do this themselves with the Plan/Act toggle button below. You do not have the ability to switch to Act Mode yourself, and must wait for the user to do it themselves once they are satisfied with the plan. You also cannot present an option to toggle to Act mode, as this will be something you need to direct the user to do manually themselves.)`
+(Remember: If it seems the user wants you to use tools only available in Act Mode, you should ask the user to "toggle to Act mode" (use those words) - they will have to manually do this themselves with the Plan/Act toggle button below. You do not have the ability to switch to Act Mode yourself, and must wait for the user to do it themselves once they are satisfied with the plan. You also cannot present an option to toggle to Act mode, as this will be something you need to direct the user to do manually themselves.)`;
 	},
 
 	fileEditWithUserChanges: (
@@ -312,7 +345,10 @@ Otherwise, if you have not completed the task and do not need additional informa
 	clineIgnoreInstructions: (content: string) =>
 		`# .clineignore\n\n(The following is provided by a root-level .clineignore file where the user has specified files and directories that should not be accessed. When using list_files, you'll notice a ${LOCK_TEXT_SYMBOL} next to files that are blocked. Attempting to access the file's contents e.g. through read_file will result in an error.)\n\n${content}\n.clineignore`,
 
-	clineRulesGlobalDirectoryInstructions: (globalClineRulesFilePath: string, content: string) =>
+	clineRulesGlobalDirectoryInstructions: (
+		globalClineRulesFilePath: string,
+		content: string,
+	) =>
 		`# .clinerules/\n\nThe following is provided by a global .clinerules/ directory, located at ${globalClineRulesFilePath.toPosix()}, where the user has specified instructions for all working directories:\n\n${content}`,
 
 	clineRulesLocalDirectoryInstructions: (cwd: string, content: string) =>
@@ -334,26 +370,29 @@ Otherwise, if you have not completed the task and do not need additional informa
 		`# AGENTS.md\n\nThe following is provided by AGENTS.md files found recursively throughout this working directory (${cwd.toPosix()}) where the user has specified instructions. Nested AGENTS.md will be combined below, and you should only apply the instructions for each AGENTS.md file that is directly applicable to the current task, i.e. if you are reading or writing to a file in that directory.\n\n${content}`,
 
 	fileContextWarning: (editedFiles: string[]): string => {
-		const fileCount = editedFiles.length
-		const fileVerb = fileCount === 1 ? "file has" : "files have"
-		const fileDemonstrativePronoun = fileCount === 1 ? "this file" : "these files"
-		const filePersonalPronoun = fileCount === 1 ? "it" : "they"
+		const fileCount = editedFiles.length;
+		const fileVerb = fileCount === 1 ? "file has" : "files have";
+		const fileDemonstrativePronoun =
+			fileCount === 1 ? "this file" : "these files";
+		const filePersonalPronoun = fileCount === 1 ? "it" : "they";
 
 		return (
 			`<explicit_instructions>\nCRITICAL FILE STATE ALERT: ${fileCount} ${fileVerb} been externally modified since your last interaction. Your cached understanding of ${fileDemonstrativePronoun} is now stale and unreliable. Before making ANY modifications to ${fileDemonstrativePronoun}, you must execute read_file to obtain the current state, as ${filePersonalPronoun} may contain completely different content than what you expect:\n` +
 			`${editedFiles.map((file) => ` ${path.resolve(file).toPosix()}`).join("\n")}\n` +
 			`Failure to re-read before editing will result in replace_in_file edit errors, requiring subsequent attempts and wasting tokens. You DO NOT need to re-read these files after subsequent edits, unless instructed to do so.\n</explicit_instructions>`
-		)
+		);
 	},
-}
+};
 
 // to avoid circular dependency
-const formatImagesIntoBlocks = (images?: string[]): Anthropic.ImageBlockParam[] => {
+const formatImagesIntoBlocks = (
+	images?: string[],
+): Anthropic.ImageBlockParam[] => {
 	return images
 		? images.map((dataUrl) => {
 				// data:image/png;base64,base64string
-				const [rest, base64] = dataUrl.split(",")
-				const mimeType = rest.split(":")[1].split(";")[0]
+				const [rest, base64] = dataUrl.split(",");
+				const mimeType = rest.split(":")[1].split(";")[0];
 				return {
 					type: "image",
 					source: {
@@ -361,10 +400,10 @@ const formatImagesIntoBlocks = (images?: string[]): Anthropic.ImageBlockParam[] 
 						media_type: mimeType,
 						data: base64,
 					},
-				} as Anthropic.ImageBlockParam
+				} as Anthropic.ImageBlockParam;
 			})
-		: []
-}
+		: [];
+};
 
 const toolUseInstructionsReminder = `# Reminder: Instructions for Tool Use
 Tool uses are formatted using XML-style tags. The tool name is enclosed in opening and closing tags, and each parameter is similarly enclosed within its own set of tags. Here's the structure:
@@ -379,4 +418,4 @@ For example:
 I have completed the task...
 </result>
 </attempt_completion>
-Always adhere to this format for all tool uses to ensure proper parsing and execution.`
+Always adhere to this format for all tool uses to ensure proper parsing and execution.`;
