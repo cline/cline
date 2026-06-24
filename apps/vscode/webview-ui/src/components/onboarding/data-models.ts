@@ -1,6 +1,8 @@
 import type { ClineRecommendedModel, OpenRouterModelInfo } from "@shared/proto/cline/models"
 import type { OnboardingModel, OnboardingModelGroup } from "@shared/proto/cline/state"
 
+export const CLINEPASS_GROUP = "cline-pass"
+
 export interface RecommendedModelsData {
 	recommended: ClineRecommendedModel[]
 	free: ClineRecommendedModel[]
@@ -39,16 +41,20 @@ interface ModelGroup {
 	models: OnboardingModel[]
 }
 
+function isClinePassOnboardingModel(model: OnboardingModel): boolean {
+	return model.group === CLINEPASS_GROUP
+}
+
 export function getClineUIOnboardingGroups(groupedModels: OnboardingModelGroup): OnboardingModelsByGroup {
 	const { models } = groupedModels
 
-	const clinePassModels = models.filter((m) => m.group === "clinepass")
+	const clinePassModels = models.filter(isClinePassOnboardingModel)
 	const freeModels = models.filter((m) => m.group === "free")
 	const frontierModels = models.filter((m) => m.group === "frontier")
 	const openSourceModels = models.filter((m) => m.group === "open source")
 
 	return {
-		clinePass: clinePassModels.length > 0 ? [{ group: "clinepass", models: clinePassModels }] : [],
+		clinePass: clinePassModels.length > 0 ? [{ group: CLINEPASS_GROUP, models: clinePassModels }] : [],
 		free: freeModels.length > 0 ? [{ group: "free", models: freeModels }] : [],
 		power: [
 			...(frontierModels.length > 0 ? [{ group: "frontier", models: frontierModels }] : []),
