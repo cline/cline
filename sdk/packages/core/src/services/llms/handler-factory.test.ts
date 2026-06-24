@@ -200,6 +200,31 @@ describe("createAgentModelFromConfig", () => {
 		});
 	});
 
+	it("uses explicit per-turn max tokens for gateway request limits", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+
+		createAgentModelFromConfig(
+			{
+				providerId: "openai-compatible",
+				modelId: "custom-model",
+				apiKey: "key",
+				systemPrompt: "",
+				tools: [],
+				maxTokensPerTurn: 4_096,
+				providerConfig: {
+					providerId: "openai-compatible",
+					modelId: "custom-model",
+				},
+			},
+			undefined,
+		);
+
+		expect(gatewayMock.createAgentModel).toHaveBeenLastCalledWith(
+			{ providerId: "openai-compatible", modelId: "custom-model" },
+			{ maxTokens: 4_096 },
+		);
+	});
+
 	it("forwards Bedrock AWS settings as gateway provider options", async () => {
 		const { createAgentModelFromConfig } = await import("./handler-factory");
 

@@ -411,6 +411,33 @@ describe("buildSessionConfig", () => {
 		expect(config.providerConfig).not.toHaveProperty("apiKey")
 	})
 
+	it("passes OpenAI Compatible max output tokens as an explicit request limit", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "openai",
+			actModeOpenAiModelId: "custom-reasoner",
+			openAiApiKey: "openai-compatible-key",
+			openAiBaseUrl: "https://openai-compatible.example/v1",
+			actModeOpenAiModelInfo: {
+				name: "Custom Reasoner",
+				contextWindow: 16_000,
+				maxTokens: 4_096,
+				supportsImages: false,
+				supportsPromptCache: false,
+				inputPrice: 0,
+				outputPrice: 0,
+			},
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerId).toBe("openai-compatible")
+		expect(config.modelId).toBe("custom-reasoner")
+		expect(config.knownModels).toBeUndefined()
+		expect((config.providerConfig as any).knownModels).toBeUndefined()
+		expect((config.providerConfig as any).maxOutputTokens).toBeUndefined()
+		expect((config as any).maxTokensPerTurn).toBe(4_096)
+	})
+
 	it("builds structured SAP AI Core config from legacy ApiConfiguration fields", async () => {
 		mocks.stateManager.getApiConfiguration.mockReturnValue({
 			actModeApiProvider: "sapaicore",
