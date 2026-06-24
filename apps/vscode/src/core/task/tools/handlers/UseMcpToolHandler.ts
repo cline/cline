@@ -18,6 +18,37 @@ export class UseMcpToolHandler implements IFullyManagedTool {
 		return `[${block.name} for '${block.params.server_name}']`
 	}
 
+	/**
+	 * Decide whether a specific MCP tool call should be auto-approved.
+	 *
+	 * The global "Use MCP servers" auto-approve action (autoApprovalSettings.actions.useMcp)
+	 * only *enables* per-tool auto-approval — it must not approve a tool on its own. A tool is
+	 * auto-approved only when its individual Auto-approve toggle is ON. This matches the webview,
+	 * which renders the per-tool checkbox only while the global MCP action is enabled.
+	 *
+	 * YOLO mode and "auto-approve all" are master overrides that bypass the per-tool gate, so a
+	 * truthy (non-tuple) result from shouldAutoApproveTool is honored directly.
+	 */
+	private isMcpToolAutoApproved(config: TaskConfig, serverName: string | undefined, toolName: string | undefined): boolean {
+		// Master overrides (YOLO / auto-approve all) make shouldAutoApproveTool return a plain
+		// boolean; the per-action useMcp path returns its value too, so distinguish them via the
+		// dedicated toggles rather than the conflated return value.
+		if (config.yoloModeToggled || config.services.stateManager.getGlobalSettingsKey("autoApproveAllToggled")) {
+			return true
+		}
+
+		const useMcpEnabled = config.callbacks.shouldAutoApproveTool(this.name) === true
+		if (!useMcpEnabled) {
+			return false
+		}
+
+		const isToolAutoApproved = config.services.mcpHub.connections
+			?.find((conn) => conn.server.name === serverName)
+			?.server.tools?.find((tool) => tool.name === toolName)?.autoApprove
+
+		return isToolAutoApproved === true
+	}
+
 	async handlePartialBlock(block: ToolUse, uiHelpers: StronglyTypedUIHelpers): Promise<void> {
 		const server_name = block.params.server_name
 		const tool_name = block.params.tool_name
@@ -32,7 +63,7 @@ export class UseMcpToolHandler implements IFullyManagedTool {
 
 		// Check if tool should be auto-approved using MCP-specific logic
 		const config = uiHelpers.getConfig()
-		const shouldAutoApprove = config.callbacks.shouldAutoApproveTool(block.name)
+		const shouldAutoApprove = this.isMcpToolAutoApproved(config, server_name, tool_name)
 
 		if (shouldAutoApprove) {
 			await uiHelpers.removeLastPartialMessageIfExistsWithType("ask", "use_mcp_server")
@@ -86,11 +117,7 @@ export class UseMcpToolHandler implements IFullyManagedTool {
 			arguments: mcp_arguments,
 		} satisfies ClineAskUseMcpServer)
 
-		const isToolAutoApproved = config.services.mcpHub.connections
-			?.find((conn: any) => conn.server.name === server_name)
-			?.server.tools?.find((tool: any) => tool.name === tool_name)?.autoApprove
-
-		if (config.callbacks.shouldAutoApproveTool(block.name) || isToolAutoApproved) {
+		if (this.isMcpToolAutoApproved(config, server_name, tool_name)) {
 			// Auto-approval flow
 			await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "use_mcp_server")
 			await config.callbacks.say("use_mcp_server", completeMessage, undefined, undefined, false)
