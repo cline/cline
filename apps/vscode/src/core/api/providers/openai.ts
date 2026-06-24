@@ -97,6 +97,10 @@ export class OpenAiHandler implements ApiHandler {
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: ChatCompletionTool[]): ApiStream {
 		const client = this.ensureClient()
 		const modelId = this.options.openAiModelId ?? ""
+		const baseUrl = this.options.openAiBaseUrl?.toLowerCase() ?? ""
+		const isKimiK2OnMoonshot =
+			baseUrl.includes("moonshot.ai") &&
+			modelId.toLowerCase().startsWith("kimi-k2")
 		const isDeepseekReasoner = modelId.includes("deepseek-reasoner")
 		const isR1FormatRequired = this.options.openAiModelInfo?.isR1FormatRequired ?? false
 		const isReasoningModelFamily =
@@ -131,6 +135,11 @@ export class OpenAiHandler implements ApiHandler {
 			temperature = undefined // does not support temperature
 			const requestedEffort = normalizeOpenaiReasoningEffort(this.options.reasoningEffort)
 			reasoningEffort = requestedEffort === "none" ? undefined : (requestedEffort as ChatCompletionReasoningEffort)
+		}
+
+		// TODO(#10985): replace with supportsTemperature field
+		if (isKimiK2OnMoonshot) {
+			temperature = 1
 		}
 
 		const stream = await client.chat.completions.create({
