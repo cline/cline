@@ -18,6 +18,15 @@ const builds: Parameters<typeof Bun.build>[0][] = [
 		packages: "bundle",
 		external,
 	},
+	{
+		entrypoints: ["./src/index.browser.ts"],
+		outdir: "./dist",
+		target: "browser",
+		minify: true,
+		sourcemap,
+		packages: "bundle",
+		external,
+	},
 ];
 
 for (const config of builds) {
