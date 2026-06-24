@@ -26,6 +26,7 @@ import {
 	formatRunCommandQueryPreview,
 	getEditorSizeError,
 	getReadFileRangeError,
+	normalizeJsonLikeRunCommandsInput,
 	normalizeRunCommandsInput,
 	TimeoutError,
 	withTimeout,
@@ -118,10 +119,21 @@ function getHeredocDelimiter(command: string): string | undefined {
 	return match?.[1] ?? match?.[2] ?? match?.[3];
 }
 
-function coalesceSplitHeredocCommands(commands: string[]): string[] {
-	const coalesced: string[] = [];
+function coalesceSplitHeredocCommands(commands: string[]): string[];
+function coalesceSplitHeredocCommands(
+	commands: Array<string | StructuredCommandInput>,
+): Array<string | StructuredCommandInput>;
+function coalesceSplitHeredocCommands(
+	commands: Array<string | StructuredCommandInput>,
+): Array<string | StructuredCommandInput> {
+	const coalesced: Array<string | StructuredCommandInput> = [];
 	for (let index = 0; index < commands.length; index += 1) {
 		const command = commands[index];
+		if (typeof command !== "string") {
+			coalesced.push(command);
+			continue;
+		}
+
 		const delimiter = getHeredocDelimiter(command);
 		if (!delimiter) {
 			coalesced.push(command);
@@ -130,7 +142,9 @@ function coalesceSplitHeredocCommands(commands: string[]): string[] {
 
 		const endIndex = commands.findIndex(
 			(nextCommand, nextIndex) =>
-				nextIndex > index && nextCommand.trim() === delimiter,
+				nextIndex > index &&
+				typeof nextCommand === "string" &&
+				nextCommand.trim() === delimiter,
 		);
 		if (endIndex === -1) {
 			coalesced.push(command);
@@ -141,7 +155,9 @@ function coalesceSplitHeredocCommands(commands: string[]): string[] {
 		while (index < endIndex) {
 			index += 1;
 			const nextCommand = commands[index];
-			parts.push(nextCommand);
+			if (typeof nextCommand === "string") {
+				parts.push(nextCommand);
+			}
 		}
 		coalesced.push(parts.join("\n"));
 	}
@@ -334,7 +350,10 @@ export function createBashTool(
 		retryable: false, // Shell commands often have side effects
 		maxRetries: 0,
 		execute: async (input, context) => {
-			const validate = validateWithZod(RunCommandsInputUnionSchema, input);
+			const validate = validateWithZod(
+				RunCommandsInputUnionSchema,
+				normalizeJsonLikeRunCommandsInput(input),
+			);
 			let commands: string[];
 			if (typeof validate === "string") {
 				commands = [validate];
