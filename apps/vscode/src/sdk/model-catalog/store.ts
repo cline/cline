@@ -399,6 +399,7 @@ function writeSelectionToState(providerId: ProviderId, mode: Mode, selection: Mo
 
 function writeSelectionToProviderSettings(providerId: ProviderId, selection: ModelSelection): void {
 	const next: ProviderSettingsRecord = { ...getProviderSettings(providerId), model: selection.modelId }
+	// Prune model metadata that earlier builds may have written to providers.json.
 	delete next.contextWindow
 	delete next.maxTokens
 
