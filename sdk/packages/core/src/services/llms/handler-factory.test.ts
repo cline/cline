@@ -369,21 +369,7 @@ describe("createAgentModelFromConfig", () => {
 			};
 		};
 
-		expect(model.config?.destination).toMatchObject({
-			service: {
-				credentials: {
-					clientid: "sap-client",
-					clientsecret: "sap-secret",
-					serviceurls: {
-						AI_API_URL: "https://api.ai.example.aws.ml.hana.ondemand.com",
-					},
-					url: "https://auth.example",
-				},
-				label: "aicore",
-				name: "sapaicore",
-				tags: ["aicore"],
-			},
-		});
+		expect(model.config?.destination).toBeUndefined();
 		expect(model.config?.deploymentConfig).toMatchObject({
 			deploymentId: "deployment-id",
 		});

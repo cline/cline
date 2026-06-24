@@ -12,7 +12,7 @@ describe("createSapAiCoreProviderModule", () => {
 		}
 	});
 
-	it("passes SAP credentials as a provider destination without mutating process env", async () => {
+	it("uses SAP service-key credentials without mutating process env", async () => {
 		process.env.AICORE_SERVICE_KEY = "existing-service-key";
 
 		const provider = await createSapAiCoreProviderModule({
@@ -27,25 +27,19 @@ describe("createSapAiCoreProviderModule", () => {
 		});
 
 		const model = provider.model("anthropic--claude-4.6-sonnet") as {
-			config?: { destination?: Record<string, unknown> };
+			config?: {
+				destination?: Record<string, unknown>;
+				deploymentConfig?: Record<string, unknown>;
+				providerApi?: string;
+			};
 		};
 
 		expect(process.env.AICORE_SERVICE_KEY).toBe("existing-service-key");
-		expect(model.config?.destination).toMatchObject({
-			service: {
-				credentials: {
-					clientid: "sap-client",
-					clientsecret: "sap-secret",
-					serviceurls: {
-						AI_API_URL: "https://api.ai.example.aws.ml.hana.ondemand.com",
-					},
-					url: "https://auth.example",
-				},
-				label: "aicore",
-				name: "sapaicore",
-				tags: ["aicore"],
-			},
+		expect(model.config?.destination).toBeUndefined();
+		expect(model.config?.deploymentConfig).toMatchObject({
+			deploymentId: "deployment-id",
 		});
+		expect(model.config?.providerApi).toBe("orchestration");
 	});
 
 	it("uses resource group deployment resolution for orchestration mode", async () => {
