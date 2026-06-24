@@ -11,6 +11,12 @@ import { resolveApiKey } from "../http";
 import type { ProviderFactoryResult } from "./types";
 
 type SapModel = Record<PropertyKey, unknown>;
+const SAP_SERVICE_KEY_METHODS = new Set<PropertyKey>([
+	"doGenerate",
+	"doStream",
+	"doEmbed",
+]);
+let sapServiceKeyQueue: Promise<void> = Promise.resolve();
 
 function readOptions(
 	config: GatewayResolvedProviderConfig,
@@ -177,26 +183,35 @@ function resolveSapApi(options: Record<string, unknown>) {
 	return "orchestration";
 }
 
-function withSapServiceKey<T>(serviceKey: string | undefined, fn: () => T): T {
+async function withSapServiceKey<T>(
+	serviceKey: string | undefined,
+	fn: () => T,
+): Promise<Awaited<T>> {
 	if (!serviceKey) {
-		return fn();
+		return await fn();
 	}
+
+	const previousQueue = sapServiceKeyQueue.catch(() => {});
+	let releaseQueue!: () => void;
+	sapServiceKeyQueue = new Promise<void>((resolve) => {
+		releaseQueue = resolve;
+	});
+
+	await previousQueue;
 	const previous = process.env.AICORE_SERVICE_KEY;
 	process.env.AICORE_SERVICE_KEY = serviceKey;
 	try {
-		const result = fn();
-		const maybePromise = result as unknown as { finally?: unknown };
-		if (result && typeof maybePromise.finally === "function") {
-			return (maybePromise as Promise<unknown>).finally(() => {
-				restoreSapServiceKey(previous);
-			}) as T;
-		}
-		restoreSapServiceKey(previous);
-		return result;
+		return await fn();
 	} catch (error) {
-		restoreSapServiceKey(previous);
 		throw error;
+	} finally {
+		restoreSapServiceKey(previous);
+		releaseQueue();
 	}
+}
+
+function shouldWrapSapServiceKeyMethod(property: PropertyKey): boolean {
+	return SAP_SERVICE_KEY_METHODS.has(property);
 }
 
 function restoreSapServiceKey(previous: string | undefined): void {
@@ -217,7 +232,10 @@ function wrapSapModelWithServiceKey(
 	return new Proxy(model as SapModel, {
 		get(target, property, receiver) {
 			const value = Reflect.get(target, property, receiver);
-			if (typeof value !== "function") {
+			if (
+				typeof value !== "function" ||
+				!shouldWrapSapServiceKeyMethod(property)
+			) {
 				return value;
 			}
 			return (...args: unknown[]) =>
