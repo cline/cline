@@ -130,7 +130,6 @@ interface TaskProxyTerminalManager {
 	setDefaultTerminalProfile: (profileId: string) => { closedCount: number; busyTerminals: never[] }
 	setShellIntegrationTimeout: (timeout: number) => void
 	setTerminalReuseEnabled: (enabled: boolean) => void
-	setTerminalOutputLineLimit: (limit: number) => void
 }
 
 /**
@@ -189,7 +188,6 @@ export function createTaskProxy(
 		setDefaultTerminalProfile: () => ({ closedCount: 0, busyTerminals: [] }),
 		setShellIntegrationTimeout: () => {},
 		setTerminalReuseEnabled: () => {},
-		setTerminalOutputLineLimit: () => {},
 	}
 
 	const proxy: TaskProxy = {

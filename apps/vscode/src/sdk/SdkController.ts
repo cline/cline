@@ -1574,11 +1574,6 @@ export class Controller {
 			terminalManager.setTerminalReuseEnabled(!!terminalReuseEnabled)
 		}
 
-		const terminalOutputLineLimit = this.stateManager.getGlobalSettingsKey("terminalOutputLineLimit")
-		if (terminalOutputLineLimit !== undefined) {
-			terminalManager.setTerminalOutputLineLimit(Number(terminalOutputLineLimit))
-		}
-
 		const defaultTerminalProfile = this.stateManager.getGlobalSettingsKey("defaultTerminalProfile")
 		if (defaultTerminalProfile !== undefined && defaultTerminalProfile !== "") {
 			terminalManager.setDefaultTerminalProfile(String(defaultTerminalProfile))
@@ -1586,8 +1581,7 @@ export class Controller {
 
 		Logger.log(
 			`[SdkController] Applied terminal settings: profile=${defaultTerminalProfile ?? "default"}, ` +
-				`timeout=${shellIntegrationTimeout ?? 4000}, reuse=${terminalReuseEnabled ?? true}, ` +
-				`outputLimit=${terminalOutputLineLimit ?? 500}`,
+				`timeout=${shellIntegrationTimeout ?? 4000}, reuse=${terminalReuseEnabled ?? true}`,
 		)
 	}
 

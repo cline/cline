@@ -1,4 +1,4 @@
-import { createDefaultExecutors, createMcpTools } from "@cline/core"
+import { createDefaultShellExecutor, createMcpTools } from "@cline/core"
 import { type AgentTool, type AgentToolContext, createTool } from "@cline/shared"
 import type { ITerminalManager } from "@/integrations/terminal/types"
 import type { McpHub } from "@/services/mcp/McpHub"
@@ -44,21 +44,18 @@ class McpHubToolProvider {
 }
 
 /**
- * Lazily-created bash executor for attempt_completion commands.
- * Re-uses the SDK's built-in bash executor (via createDefaultExecutors) which
+ * Lazily-created shell executor for attempt_completion commands.
+ * Re-uses the SDK's built-in shell executor which
  * already handles cross-platform shells, timeout, abort signals, and output truncation.
  */
 const getCompletionCommandExecutor = (() => {
-	let executor: ReturnType<typeof createDefaultExecutors>["bash"] | undefined
+	let executor: ReturnType<typeof createDefaultShellExecutor> | undefined
 	return () => {
 		if (!executor) {
-			const executors = createDefaultExecutors({
-				bash: {
-					timeoutMs: 15_000, // showcase commands, not long-running builds
-					maxOutputBytes: 256_000,
-				},
+			executor = createDefaultShellExecutor({
+				timeoutMs: 15_000, // showcase commands, not long-running builds
+				maxOutputBytes: 256_000,
 			})
-			executor = executors.bash
 		}
 		return executor!
 	}
@@ -100,8 +97,8 @@ function createAttemptCompletionTool(options: { cwd?: string } = {}): AgentTool 
 			Logger.log(`[attempt_completion] Executing command: ${command} (cwd: ${cwd})`)
 
 			try {
-				const bashExecutor = getCompletionCommandExecutor()
-				const commandOutput = await bashExecutor(command, cwd, context)
+				const shellExecutor = getCompletionCommandExecutor()
+				const commandOutput = await shellExecutor(command, cwd, context)
 				const trimmedOutput = commandOutput.trim()
 
 				if (trimmedOutput) {

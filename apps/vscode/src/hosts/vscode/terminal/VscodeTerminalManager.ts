@@ -374,10 +374,6 @@ export class VscodeTerminalManager implements ITerminalManager {
 		this.terminalReuseEnabled = enabled
 	}
 
-	setTerminalOutputLineLimit(limit: number): void {
-		this.terminalOutputLineLimit = limit
-	}
-
 	public processOutput(outputLines: string[], overrideLimit?: number): string {
 		const limit = overrideLimit !== undefined ? overrideLimit : this.terminalOutputLineLimit
 		if (outputLines.length > limit) {

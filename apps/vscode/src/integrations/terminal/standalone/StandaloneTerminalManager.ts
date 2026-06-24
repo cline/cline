@@ -287,14 +287,6 @@ export class StandaloneTerminalManager implements ITerminalManager {
 	}
 
 	/**
-	 * Set the maximum number of output lines to keep.
-	 * @param limit Maximum number of lines
-	 */
-	setTerminalOutputLineLimit(limit: number): void {
-		this.terminalOutputLineLimit = limit
-	}
-
-	/**
 	 * Set the default terminal profile.
 	 * @param profile The profile identifier
 	 * @returns Object with information about closed terminals and remaining busy terminals

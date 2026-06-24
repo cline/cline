@@ -2171,6 +2171,46 @@ describe("translateSessionEvent — run_commands bare array/string input (ENG-18
 		// The running command row carries the "Output:" marker so ChatRow renders it as executing.
 		expect(result.messages[0].text).toBe("npm test\nOutput:")
 	})
+
+	it("structured command array input renders command and args, not [object Object]", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "s1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "run_commands",
+					toolCallId: "c1",
+					input: { commands: [{ command: "ls", args: ["-la", "/tmp"] }] },
+				} as AgentEvent,
+			},
+		}
+		const result = translateSessionEvent(event, state)
+		expect(result.messages[0].text).toBe("ls -la /tmp\nOutput:")
+		expect(result.messages[0].text).not.toContain("[object Object]")
+	})
+
+	it("direct structured command input renders command and args, not [object Object]", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "s1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "run_commands",
+					toolCallId: "c1",
+					input: { command: "ls", args: ["-la", "/tmp"] },
+				} as AgentEvent,
+			},
+		}
+		const result = translateSessionEvent(event, state)
+		expect(result.messages[0].text).toBe("ls -la /tmp\nOutput:")
+		expect(result.messages[0].text).not.toContain("[object Object]")
+	})
 })
 
 // ---------------------------------------------------------------------------

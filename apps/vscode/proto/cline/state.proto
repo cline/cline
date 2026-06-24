@@ -248,7 +248,6 @@ message Settings {
   optional bool enable_checkpoints_setting = 135;
   optional int32 shell_integration_timeout = 136;
   optional string default_terminal_profile = 137;
-  optional int32 terminal_output_line_limit = 138;
   optional int32 max_consecutive_mistakes = 139;
   optional bool yolo_mode_toggled = 142;
   optional bool use_auto_condense = 143;
@@ -390,6 +389,7 @@ message UpdateSettingsRequest {
   reserved 23; // was dictation_settings (dictation removed)
   reserved 38; // was skills_enabled (removed - now always enabled)
   reserved 43; // was lazy_teammate_mode_enabled (removed)
+  reserved 12; // was terminal_output_line_limit (removed; SDK command output limits are character-based)
 
   Metadata metadata = 1;
   optional ModelsApiConfiguration api_configuration = 2;
@@ -401,7 +401,6 @@ message UpdateSettingsRequest {
   optional bool terminal_reuse_enabled = 9;
   optional bool mcp_responses_collapsed = 10;
   optional McpDisplayMode mcp_display_mode = 11;
-  optional int32 terminal_output_line_limit = 12;
   optional PlanActMode mode = 13;
   optional string preferred_language = 14;
   reserved 16; // was strict_plan_mode_enabled (removed)

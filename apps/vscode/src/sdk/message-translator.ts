@@ -709,6 +709,25 @@ function getArrayField(input: Record<string, unknown> | undefined, field: string
 	return undefined
 }
 
+function formatStructuredCommand(command: unknown): string {
+	if (typeof command === "string") return command
+	if (command && typeof command === "object" && !Array.isArray(command)) {
+		const record = command as Record<string, unknown>
+		if (typeof record.command === "string") {
+			const args = Array.isArray(record.args) ? record.args.map(String) : []
+			return args.length > 0 ? `${record.command} ${args.join(" ")}` : record.command
+		}
+	}
+	return String(command)
+}
+
+function getCommandArrayField(input: Record<string, unknown> | undefined, field: string): string[] | undefined {
+	if (!input) return undefined
+	const value = input[field]
+	if (Array.isArray(value)) return value.map(formatStructuredCommand)
+	return undefined
+}
+
 /** Get a boolean field from a parsed input object */
 function getBooleanField(input: Record<string, unknown> | undefined, field: string): boolean | undefined {
 	if (!input) return undefined
@@ -800,14 +819,20 @@ function buildMcpToolPayload(mcpInfo: { serverName: string; toolName: string }, 
 
 function extractCommandText(input: unknown): string {
 	if (Array.isArray(input)) {
-		return (input as string[]).join(" && ")
+		return input.map(formatStructuredCommand).join(" && ")
 	}
 	if (typeof input === "string") {
 		return input
 	}
 	const parsedInput = parseToolInput(input)
-	const commands = getArrayField(parsedInput, "commands")
-	return commands?.join(" && ") ?? getStringField(parsedInput, "commands") ?? getStringField(parsedInput, "command") ?? ""
+	const commands = getCommandArrayField(parsedInput, "commands")
+	return (
+		commands?.join(" && ") ??
+		(typeof parsedInput?.commands === "object" ? formatStructuredCommand(parsedInput.commands) : undefined) ??
+		getStringField(parsedInput, "commands") ??
+		(typeof parsedInput?.command === "string" ? formatStructuredCommand(parsedInput) : undefined) ??
+		""
+	)
 }
 
 /**
