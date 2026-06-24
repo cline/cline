@@ -5,6 +5,7 @@ import { useInterval } from "react-use"
 import UseCustomPromptCheckbox from "@/components/settings/UseCustomPromptCheckbox"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
+import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { DropdownContainer } from "../common/ModelSelector"
@@ -100,6 +101,16 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 				onChange={(value) => handleFieldChange("lmStudioBaseUrl", value)}
 				placeholder="Default: http://localhost:1234"
 			/>
+
+			{apiConfiguration?.lmStudioBaseUrl && (
+				<ApiKeyField
+					helpText="Optional API key for authenticated LM Studio servers. Leave empty for local installations."
+					initialValue={apiConfiguration?.lmStudioApiKey || ""}
+					onChange={(value) => handleFieldChange("lmStudioApiKey", value)}
+					placeholder="Enter API Key (optional)..."
+					providerName="LM Studio"
+				/>
+			)}
 
 			<div className="font-semibold">Model</div>
 			{lmStudioModels.length > 0 ? (
