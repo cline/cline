@@ -356,6 +356,7 @@ describe("createAgentModelFromConfig", () => {
 			>
 		).at(-1)?.[0];
 		const { createSapAiCoreProviderModule } = await import(
+			// biome-ignore lint/style/noRestrictedImports: test asserts internal SAP provider module behavior not exposed via @cline/llms entrypoint
 			"../../../../llms/src/providers/vendors/community"
 		);
 		const provider = await createSapAiCoreProviderModule(
