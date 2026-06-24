@@ -171,7 +171,6 @@ export async function getStateToPostToWebview(controller: {
 			user: stateManager.getGlobalSettingsKey("worktreesEnabled"),
 			featureFlag: featureFlagsService.getWorktreesEnabled(),
 		},
-		clinePassEnabled: featureFlagsService.getClinePassEnabled(),
 		hooksEnabled: getHooksEnabledSafe(stateManager.getGlobalSettingsKey("hooksEnabled")),
 		lastDismissedInfoBannerVersion,
 		lastDismissedModelBannerVersion,
