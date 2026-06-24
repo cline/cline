@@ -36,4 +36,38 @@ describe("provider settings", () => {
 			}),
 		);
 	});
+
+	it("only adapts persisted maxTokens for providers with user-editable output token settings", () => {
+		expect(
+			toProviderConfig({
+				provider: "openai-compatible",
+				model: "custom-model",
+				maxTokens: 4096,
+			}).maxOutputTokens,
+		).toBe(4096);
+
+		expect(
+			toProviderConfig({
+				provider: "ollama",
+				model: "llama3",
+				maxTokens: 4096,
+			}).maxOutputTokens,
+		).toBe(4096);
+
+		expect(
+			toProviderConfig({
+				provider: "openai-codex",
+				model: "gpt-5.4",
+				maxTokens: 4096,
+			}).maxOutputTokens,
+		).toBeUndefined();
+
+		expect(
+			toProviderConfig({
+				provider: "anthropic",
+				model: "claude-sonnet-4-6-20251111",
+				maxTokens: 4096,
+			}).maxOutputTokens,
+		).toBeUndefined();
+	});
 });

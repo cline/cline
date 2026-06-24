@@ -196,6 +196,15 @@ function shouldRouteThroughOpenAIResponses(
 	);
 }
 
+// Legacy VS Code/provider settings could persist catalog model max tokens here.
+// Only adapt it as a request cap for providers where users can edit that value.
+function shouldAdaptMaxTokensSetting(providerId: string): boolean {
+	return (
+		providerId === BUILT_IN_PROVIDER.OPENAI_COMPATIBLE ||
+		providerId === BUILT_IN_PROVIDER.OLLAMA
+	);
+}
+
 export function toProviderConfig(
 	settings: ProviderSettings,
 	options: ToProviderConfigOptions = {},
@@ -255,7 +264,9 @@ export function toProviderConfig(
 		baseUrl: resolvedBaseUrl,
 		headers: settings.headers,
 		timeoutMs: settings.timeout,
-		maxOutputTokens: settings.maxTokens,
+		maxOutputTokens: shouldAdaptMaxTokensSetting(normalizedProviderId)
+			? settings.maxTokens
+			: undefined,
 		maxInputTokens: settings.contextWindow,
 		thinking: settings.reasoning?.enabled,
 		reasoningEffort,
