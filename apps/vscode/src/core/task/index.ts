@@ -8,6 +8,7 @@ import type { ApiStream } from "@core/api/transform/stream";
 import {
 	type AssistantMessageContent,
 	parseAssistantMessageV2,
+  stripJsonToolPayloadsFromDisplayText,
 	type ToolUse,
 } from "@core/assistant-message";
 import { ContextManager } from "@core/context/context-management/ContextManager";
@@ -2687,6 +2688,8 @@ export class Task {
 					// New claude models tend to output <function_calls> tags which we don't want to show in the chat
 					content = content.replace(/<function_calls>\s?/g, "");
 					content = content.replace(/\s?<\/function_calls>/g, "");
+
+					content = stripJsonToolPayloadsFromDisplayText(content)
 
 					// Remove partial XML tag at the very end of the content (for tool use and thinking tags)
 					// (prevents scrollview from jumping when tags are automatically removed)
