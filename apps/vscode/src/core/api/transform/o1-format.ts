@@ -1,6 +1,8 @@
 import type { Anthropic } from "@anthropic-ai/sdk";
+import { ClineDefaultTool } from "@shared/tools";
 import type OpenAI from "openai";
 import { Logger } from "@/shared/services/Logger";
+import { fixModelHtmlEscaping } from "@/utils/string";
 
 const o1SystemPrompt = (systemPrompt: string) => `
 # System Prompt
@@ -320,7 +322,7 @@ function parseToolCall(toolName: string, content: string): ToolCall | null {
 	while ((match = paramRegex.exec(innerContent)) !== null) {
 		const [, paramName, paramValue] = match;
 		// Preserve newlines and trim only leading/trailing whitespace
-		tool_input[paramName] = paramValue.replace(/^\s+|\s+$/g, "");
+		tool_input[paramName] = normalizeToolInput(toolName, paramName, paramValue.replace(/^\s+|\s+$/g, ""));
 	}
 
 	// Validate required parameters
@@ -354,6 +356,14 @@ function validateToolInput(
 		default:
 			return false;
 	}
+}
+
+function normalizeToolInput(toolName: string, paramName: string, value: string): string {
+	if (toolName === ClineDefaultTool.BASH && paramName === "command") {
+		return fixModelHtmlEscaping(value)
+	}
+
+	return value
 }
 
 // Example usage:
