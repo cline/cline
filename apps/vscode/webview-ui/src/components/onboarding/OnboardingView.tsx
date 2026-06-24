@@ -7,20 +7,20 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Item, ItemContent, ItemDescription, ItemHeader, ItemMedia, ItemTitle } from "@/components/ui/item"
-import { CLINE_PASS_FEATURE_FLAG } from "@/constants/featureFlags"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { useHasFeatureFlag } from "@/hooks/useFeatureFlag"
 import { useProviderConfig } from "@/hooks/useProviderConfig"
 import { useProviderModels } from "@/hooks/useProviderModels"
 import { cn } from "@/lib/utils"
 import { AccountServiceClient, StateServiceClient } from "@/services/grpc-client"
-import { setPendingClinePassSubscribe } from "./clinePassSubscribe"
 import ApiConfigurationSection from "../settings/sections/ApiConfigurationSection"
 import { useApiConfigurationHandlers } from "../settings/utils/useApiConfigurationHandlers"
 import WelcomeView from "../welcome/WelcomeView"
+import { setPendingClinePassSubscribe } from "./clinePassSubscribe"
 import {
+	CLINEPASS_GROUP,
 	getCapabilities,
 	getClineUIOnboardingGroups,
+	getOnboardingGroupDisplayName,
 	getPriceRange,
 	getSpeedLabel,
 	type OnboardingModelsByGroup,
@@ -161,14 +161,23 @@ const ModelSelection = ({
 	return (
 		<div className="flex flex-col w-full items-center px-2">
 			<div className="flex w-full max-w-lg flex-col gap-6 my-4">
-				{modelGroups.map((group) => (
-					<div className="flex flex-col gap-3" key={group.group}>
-						<h4 className="text-sm font-bold text-foreground/70 uppercase mb-2">{group.group}</h4>
-						{group.models.map((model) => (
-							<ModelItem id={model.id} isSelected={selectedModelId === model.id} key={model.id} model={model} />
-						))}
-					</div>
-				))}
+				{modelGroups.map((group) => {
+					const isClinePassGroup = group.group === CLINEPASS_GROUP
+					return (
+						<div className="flex flex-col gap-3" key={group.group}>
+							<h4
+								className={cn(
+									"text-sm font-bold text-foreground/70 mb-2",
+									isClinePassGroup ? "normal-case" : "uppercase",
+								)}>
+								{getOnboardingGroupDisplayName(group.group)}
+							</h4>
+							{group.models.map((model) => (
+								<ModelItem id={model.id} isSelected={selectedModelId === model.id} key={model.id} model={model} />
+							))}
+						</div>
+					)
+				})}
 			</div>
 
 			{/* SEARCH MODEL — hidden for ClinePass, whose selection is constrained to the curated list. */}
@@ -326,9 +335,7 @@ const OnboardingStepContent = ({
 
 const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: OnboardingModelGroup }) => {
 	const { handleFieldsChange } = useApiConfigurationHandlers()
-	const { openRouterModels, hideSettings, hideAccount, setShowWelcome } = useExtensionState()
-	const isClinePassEnabled = useHasFeatureFlag(CLINE_PASS_FEATURE_FLAG)
-	const userTypeSelections = useMemo(() => getUserTypeSelections(isClinePassEnabled), [isClinePassEnabled])
+	const { openRouterModels, hideSettings, hideAccount, setShowWelcome, clinePassEnabled } = useExtensionState()
 	const { models: clineModels } = useProviderModels("cline")
 	const { commitSelection } = useProviderConfig("cline")
 	const loginAttemptIdRef = useRef(0)
@@ -343,6 +350,8 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 	const [searchTerm, setSearchTerm] = useState("")
 
 	const models = useMemo(() => getClineUIOnboardingGroups(onboardingModels), [onboardingModels])
+	const showClinePass = Boolean(clinePassEnabled) && models.clinePass.length > 0
+	const userTypeSelections = useMemo(() => getUserTypeSelections(showClinePass), [showClinePass])
 	// ClinePass model IDs (e.g. "cline-pass/glm-5.1") aren't keyed in openRouterModels,
 	// so resolve their info via the slug-based lookup used by ClinePassProvider.
 	const openRouterModelsByName = useMemo(() => buildModelInfoNameMap(openRouterModels), [openRouterModels])
