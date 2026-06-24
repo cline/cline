@@ -411,7 +411,7 @@ describe("buildSessionConfig", () => {
 		expect(config.providerConfig).not.toHaveProperty("apiKey")
 	})
 
-	it("passes OpenAI Compatible custom model metadata through as SDK knownModels", async () => {
+	it("passes OpenAI Compatible max output tokens as an explicit request limit", async () => {
 		mocks.stateManager.getApiConfiguration.mockReturnValue({
 			actModeApiProvider: "openai",
 			actModeOpenAiModelId: "custom-reasoner",
@@ -423,7 +423,6 @@ describe("buildSessionConfig", () => {
 				maxTokens: 4_096,
 				supportsImages: false,
 				supportsPromptCache: false,
-				supportsReasoning: true,
 				inputPrice: 0,
 				outputPrice: 0,
 			},
@@ -433,20 +432,10 @@ describe("buildSessionConfig", () => {
 
 		expect(config.providerId).toBe("openai-compatible")
 		expect(config.modelId).toBe("custom-reasoner")
-		expect(config.knownModels?.["custom-reasoner"]).toMatchObject({
-			id: "custom-reasoner",
-			name: "Custom Reasoner",
-			contextWindow: 16_000,
-			maxInputTokens: 16_000,
-			maxTokens: 4_096,
-			capabilities: ["streaming", "tools"],
-		})
-		expect((config.providerConfig as any).knownModels?.["custom-reasoner"]).toMatchObject({
-			contextWindow: 16_000,
-			maxInputTokens: 16_000,
-			maxTokens: 4_096,
-		})
-		expect((config.providerConfig as any).maxOutputTokens).toBe(4_096)
+		expect(config.knownModels).toBeUndefined()
+		expect((config.providerConfig as any).knownModels).toBeUndefined()
+		expect((config.providerConfig as any).maxOutputTokens).toBeUndefined()
+		expect((config as any).maxTokensPerTurn).toBe(4_096)
 	})
 
 	it("builds structured SAP AI Core config from legacy ApiConfiguration fields", async () => {
