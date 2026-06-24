@@ -77,10 +77,48 @@ export function getReadFileRangeError(request: ReadFileRequest): string | null {
 	return `start_line must be less than or equal to end_line (received start_line: ${start_line}, end_line: ${end_line})`;
 }
 
+function parseJsonLikeString(input: unknown): unknown {
+	if (typeof input !== "string") {
+		return input;
+	}
+
+	const trimmed = input.trim();
+	if (!trimmed.startsWith("[") && !trimmed.startsWith("{")) {
+		return input;
+	}
+
+	try {
+		return JSON.parse(trimmed) as unknown;
+	} catch {
+		return input;
+	}
+}
+
+function isRecord(input: unknown): input is Record<string, unknown> {
+	return typeof input === "object" && input != null && !Array.isArray(input);
+}
+
+function normalizeJsonLikeRunCommandsInput(input: unknown): unknown {
+	const parsed = parseJsonLikeString(input);
+	if (!isRecord(parsed) || !("commands" in parsed)) {
+		return parsed;
+	}
+
+	const commands = parseJsonLikeString(parsed.commands);
+	if (isRecord(commands) && "commands" in commands) {
+		return { ...parsed, commands: parseJsonLikeString(commands.commands) };
+	}
+
+	return { ...parsed, commands };
+}
+
 export function normalizeRunCommandsInput(
 	input: unknown,
 ): Array<string | StructuredCommandInput> {
-	const validate = validateWithZod(StructuredCommandsInputUnionSchema, input);
+	const validate = validateWithZod(
+		StructuredCommandsInputUnionSchema,
+		normalizeJsonLikeRunCommandsInput(input),
+	);
 
 	if (typeof validate === "string") {
 		return [validate];
