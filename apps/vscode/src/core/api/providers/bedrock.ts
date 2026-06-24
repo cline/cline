@@ -212,10 +212,11 @@ export class AwsBedrockHandler implements ApiHandler {
 
 		// Handle custom models
 		if (customSelected && modelId) {
-			// If base model is provided and valid, use its capabilities
+			// If base model is provided and valid, use its capabilities and identity for detection.
+			// The raw model ID (ARN / custom identifier) is only used for the wire call via getModelId().
 			if (baseModel && baseModel in bedrockModels) {
 				return {
-					id: modelId,
+					id: baseModel,
 					info: bedrockModels[baseModel as BedrockModelId],
 				}
 			}
@@ -322,11 +323,18 @@ export class AwsBedrockHandler implements ApiHandler {
 	}
 
 	/**
-	 * Gets the appropriate model ID, accounting for cross-region inference if enabled.
-	 * For custom models, returns the raw model ID without any encoding.
+	 * Gets the appropriate model ID for the wire API call, accounting for cross-region inference.
+	 * For custom models (ARNs, inference profiles), returns the raw apiModelId directly.
+	 * For standard models, applies cross-region prefixing when enabled.
 	 */
 	async getModelId(): Promise<string> {
-		if (!this.options.awsBedrockCustomSelected && this.options.awsUseCrossRegionInference) {
+		// Custom models use the raw apiModelId (ARN / custom identifier) for the wire call.
+		// getModel().id now returns the base model identity, not the raw ARN.
+		if (this.options.awsBedrockCustomSelected) {
+			return this.options.apiModelId || this.getModel().id
+		}
+
+		if (this.options.awsUseCrossRegionInference) {
 			if (this.getModel().info.supportsGlobalEndpoint && this.options.awsUseGlobalInference) {
 				return `global.${this.getModel().id}`
 			}
@@ -883,6 +891,7 @@ export class AwsBedrockHandler implements ApiHandler {
 			const reasoningOn = modelInfo.supportsReasoning && budget_tokens > 0
 
 			// Claude Opus 4.5+ uses adaptive thinking instead of budgeted extended thinking.
+			// modelId here is the base model identity (from getModel().id), not the wire ARN.
 			const isAdaptiveThinkingModel = isClaudeOpusAdaptiveThinkingModel(modelId)
 
 			return {
@@ -928,7 +937,8 @@ export class AwsBedrockHandler implements ApiHandler {
 		// Get thinking configuration
 		const budget_tokens = this.options.thinkingBudgetTokens || 0
 		const reasoningOn = model.info.supportsReasoning && budget_tokens > 0
-		const isAdaptiveThinkingModel = isClaudeOpusAdaptiveThinkingModel(modelId)
+		// model.id is the base model identity (not the wire ARN), so detection works correctly
+		const isAdaptiveThinkingModel = isClaudeOpusAdaptiveThinkingModel(model.id)
 		const adaptiveThinking = isAdaptiveThinkingModel
 			? resolveClaudeOpusAdaptiveThinking(this.options.reasoningEffort, budget_tokens)
 			: undefined
@@ -942,7 +952,7 @@ export class AwsBedrockHandler implements ApiHandler {
 			modelId: modelId,
 			messages: messagesWithCache,
 			system: systemMessages,
-			inferenceConfig: this.getInferenceConfig(model.info, "anthropic", modelId),
+			inferenceConfig: this.getInferenceConfig(model.info, "anthropic", model.id),
 			...(toolConfig ? { toolConfig } : {}),
 			additionalModelRequestFields: {
 				// Add thinking configuration as per LangChain documentation
