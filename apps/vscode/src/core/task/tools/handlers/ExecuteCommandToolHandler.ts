@@ -55,6 +55,36 @@ export function resolveCommandTimeoutSeconds(
 	return isLikelyLongRunningCommand(command) ? LONG_RUNNING_COMMAND_TIMEOUT_SECONDS : DEFAULT_COMMAND_TIMEOUT_SECONDS
 }
 
+const NON_COMMAND_CLOSE_BEFORE_REQUIRES_APPROVAL_PATTERN =
+	/<\/(?!command\b)[A-Za-z_][\w:.-]*>\s*<requires_approval\b/i
+
+export function getMalformedExecuteCommandXmlCloseTag(command: string): string | undefined {
+	const match = command.match(NON_COMMAND_CLOSE_BEFORE_REQUIRES_APPROVAL_PATTERN)
+	return match?.[0].match(/<\/[A-Za-z_][\w:.-]*>/)?.[0]
+}
+
+export function isMalformedExecuteCommandXml(command: string): boolean {
+	return /<requires_approval\b/i.test(command) || /<\/execute_command>/i.test(command)
+}
+
+export function createMalformedExecuteCommandXmlError(command: string): string {
+	const closeTag = getMalformedExecuteCommandXmlCloseTag(command)
+	const closeTagHint = closeTag
+		? ` It looks like the command parameter was closed with '${closeTag}' instead of '</command>'.`
+		: ""
+
+	return (
+		`Malformed XML in execute_command.${closeTagHint}\n\n` +
+		`Each execute_command parameter must use matching XML tags.\n` +
+		`Close <command> with </command>, and keep other parameter tags outside the command text.\n\n` +
+		`Correct format:\n` +
+		`<execute_command>\n` +
+		`<command>npm test</command>\n` +
+		`<requires_approval>false</requires_approval>\n` +
+		`</execute_command>`
+	)
+}
+
 export class ExecuteCommandToolHandler implements IFullyManagedTool {
 	readonly name = ClineDefaultTool.BASH
 
@@ -108,6 +138,10 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 
 		if (!requiresApprovalRaw) {
 			config.taskState.consecutiveMistakeCount++
+			if (isMalformedExecuteCommandXml(command)) {
+				await config.callbacks.say("error", "Cline tried to use malformed XML for execute_command. Retrying...")
+				return formatResponse.toolError(createMalformedExecuteCommandXmlError(command))
+			}
 			return await config.callbacks.sayAndCreateMissingParamError(this.name, "requires_approval")
 		}
 
