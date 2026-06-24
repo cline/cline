@@ -222,11 +222,12 @@ export {
 	noopBasicLogger,
 } from "./logging/logger";
 export {
+	normalizeJsonLikeStringsForSchema,
 	parseJsonStream,
 	safeJsonParse,
 	safeJsonStringify,
 } from "./parse/json";
-export { omitUndefinedValues, type OmitUndefinedValues } from "./parse/object";
+export { type OmitUndefinedValues, omitUndefinedValues } from "./parse/object";
 export { getDefaultShell, getShellArgs } from "./parse/shell";
 export {
 	maskSecret,
