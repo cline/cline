@@ -13,7 +13,7 @@ import { ClineAsk, ClineSay } from "@shared/ExtensionMessage"
 import { ClineContent } from "@shared/messages/content"
 import { ClineDefaultTool, toolUseNames } from "@shared/tools"
 import { ClineAskResponse } from "@shared/WebviewMessage"
-import { isParallelToolCallingEnabled, modelDoesntSupportWebp } from "@/utils/model-utils"
+import { isParallelToolCallingEnabled, getRecommendedScreenshotFormat } from "@/utils/model-utils"
 import { ToolUse } from "../assistant-message"
 import { ContextManager } from "../context/context-management/ContextManager"
 import { formatResponse } from "../prompts/responses"
@@ -219,7 +219,10 @@ export class ToolExecutor {
 	public async applyLatestBrowserSettings() {
 		await this.browserSession.dispose()
 		const apiHandlerModel = this.api.getModel()
-		const useWebp = this.api ? !modelDoesntSupportWebp(apiHandlerModel) : true
+		const mode = this.stateManager.getGlobalSettingsKey("mode")
+		const apiConfiguration = this.stateManager.getApiConfiguration()
+		const providerId = mode === "plan" ? apiConfiguration.planModeApiProvider : apiConfiguration.actModeApiProvider
+		const useWebp = this.api ? getRecommendedScreenshotFormat(apiHandlerModel, providerId) === "webp" : true
 		this.browserSession = new BrowserSession(this.stateManager, useWebp)
 		return this.browserSession
 	}
