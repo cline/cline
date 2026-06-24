@@ -1,3 +1,5 @@
 export { CommandPermissionController } from "./CommandPermissionController"
+export { inspectCommandForTyposquat } from "./SupplyChainInspector"
+export type { SupplyChainInspectionResult } from "./SupplyChainInspector"
 export type { CommandPermissionConfig, PermissionValidationResult } from "./types"
 export { COMMAND_PERMISSIONS_ENV_VAR } from "./types"

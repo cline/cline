@@ -1,4 +1,5 @@
 import type { ToolUse } from "@core/assistant-message"
+import { inspectCommandForTyposquat } from "@core/permissions"
 import { formatResponse } from "@core/prompts/responses"
 import { WorkspacePathAdapter } from "@core/workspace/WorkspacePathAdapter"
 import { showApprovalNotification, showSystemNotification } from "@integrations/notifications"
@@ -191,12 +192,29 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 
 		let didAutoApprove = false
 
+		// Supply-chain check: flag commands that install (or run via npx/dlx/bunx) an npm
+		// package whose name is one edit away from a popular package - a likely typosquat.
+		// This runs unconditionally (it is not gated by CLINE_COMMAND_PERMISSIONS) and never
+		// hard-denies; on a hit it forces the manual-approval flow so the user can confirm.
+		const supplyChainResult = inspectCommandForTyposquat(actualCommand)
+		if (supplyChainResult.flagged && !config.isSubagentExecution) {
+			await config.callbacks.say(
+				"text",
+				`Possible npm typosquat detected before running this command: ${supplyChainResult.reason}. ` +
+					`Review the package name carefully before approving.`,
+			)
+		}
+
 		// If the model says this command is safe and auto approval for safe commands is true, execute the command
 		// If the model says the command is risky, but *BOTH* auto approve settings are true, execute the command
 		const autoApproveResult = config.autoApprover?.shouldAutoApproveTool(block.name)
-		const [autoApproveSafe, autoApproveAll] = Array.isArray(autoApproveResult)
+		const [autoApproveSafeRaw, autoApproveAllRaw] = Array.isArray(autoApproveResult)
 			? autoApproveResult
 			: [autoApproveResult, false]
+
+		// A flagged supply-chain risk overrides auto-approval: require explicit human approval.
+		const autoApproveSafe = autoApproveSafeRaw && !supplyChainResult.flagged
+		const autoApproveAll = autoApproveAllRaw && !supplyChainResult.flagged
 
 		// Determine workspace context for telemetry
 		const resolvedToNonPrimary = !arePathsEqual(executionDir, config.cwd)
