@@ -1,5 +1,5 @@
 import { type ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
-import { type Config, type Message, Ollama } from "ollama"
+import { type ChatRequest, type Config, type Message, Ollama, type Tool } from "ollama"
 import type { ChatCompletionTool } from "openai/resources/chat/completions"
 import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { ClineStorageMessage } from "@/shared/messages/content"
@@ -24,6 +24,8 @@ const DEFAULT_CONTEXT_WINDOW = 32768
 export class OllamaHandler implements ApiHandler {
 	private options: OllamaHandlerOptions
 	private client: Ollama | undefined
+	private supportsTools: boolean | undefined
+	private supportsToolsPromise: Promise<boolean> | undefined
 
 	constructor(options: OllamaHandlerOptions) {
 		const ollamaApiOptionsCtxNum = (options.ollamaApiOptionsCtxNum ?? DEFAULT_CONTEXT_WINDOW).toString()
@@ -68,16 +70,23 @@ export class OllamaHandler implements ApiHandler {
 				setTimeout(() => reject(new Error(`Ollama request timed out after ${timeoutMs / 1000} seconds`)), timeoutMs)
 			})
 
-			// Create the actual API request promise
-			const apiPromise = client.chat({
+			const modelSupportsTools = tools?.length ? await this.selectedModelSupportsTools(timeoutPromise) : false
+
+			const request: ChatRequest & { stream: true } = {
 				model: this.getModel().id,
 				messages: ollamaMessages,
 				stream: true,
 				options: {
 					num_ctx: Number(this.options.ollamaApiOptionsCtxNum),
 				},
-				tools: tools as any,
-			})
+			}
+
+			if (tools?.length && modelSupportsTools) {
+				request.tools = tools as unknown as Tool[]
+			}
+
+			// Create the actual API request promise
+			const apiPromise = client.chat(request)
 
 			const toolCallProcessor = new ToolCallProcessor()
 
@@ -123,9 +132,9 @@ export class OllamaHandler implements ApiHandler {
 						}
 					}
 				}
-			} catch (streamError: any) {
+			} catch (streamError: unknown) {
 				Logger.error("Error processing Ollama stream:", streamError)
-				throw new Error(`Ollama stream processing error: ${streamError.message || "Unknown error"}`)
+				throw new Error(`Ollama stream processing error: ${this.getErrorMessage(streamError)}`)
 			}
 		} catch (error) {
 			// Check if it's a timeout error
@@ -155,5 +164,61 @@ export class OllamaHandler implements ApiHandler {
 
 	abort(): void {
 		this.client?.abort()
+	}
+
+	private async selectedModelSupportsTools(timeoutPromise: Promise<never>): Promise<boolean> {
+		if (this.supportsTools !== undefined) {
+			return this.supportsTools
+		}
+
+		const supportsToolsPromise = this.getOrCreateSupportsToolsPromise()
+
+		try {
+			return await Promise.race([supportsToolsPromise, timeoutPromise])
+		} catch (error) {
+			if (this.supportsToolsPromise === supportsToolsPromise) {
+				this.supportsToolsPromise = undefined
+			}
+			throw error
+		}
+	}
+
+	private getOrCreateSupportsToolsPromise(): Promise<boolean> {
+		if (this.supportsToolsPromise) {
+			return this.supportsToolsPromise
+		}
+
+		const supportsToolsPromise = this.fetchSelectedModelSupportsTools()
+		this.supportsToolsPromise = supportsToolsPromise
+
+		void supportsToolsPromise
+			.then((supportsTools) => {
+				if (this.supportsToolsPromise === supportsToolsPromise) {
+					this.supportsTools = supportsTools
+				}
+			})
+			.finally(() => {
+				if (this.supportsToolsPromise === supportsToolsPromise) {
+					this.supportsToolsPromise = undefined
+				}
+			})
+
+		return supportsToolsPromise
+	}
+
+	private async fetchSelectedModelSupportsTools(): Promise<boolean> {
+		try {
+			const modelId = this.getModel().id
+			const metadata = await this.ensureClient().show({ model: modelId })
+
+			return Array.isArray(metadata.capabilities) && metadata.capabilities.includes("tools")
+		} catch (error) {
+			Logger.debug(`[OllamaHandler] Could not read model capabilities: ${this.getErrorMessage(error)}`)
+			return false
+		}
+	}
+
+	private getErrorMessage(error: unknown): string {
+		return error instanceof Error ? error.message : String(error || "Unknown error")
 	}
 }
