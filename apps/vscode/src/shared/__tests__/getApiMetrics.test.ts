@@ -100,4 +100,23 @@ describe("getLastApiReqTotalTokens", () => {
 		const total = getLastApiReqTotalTokens(messages)
 		assert.equal(total, 23)
 	})
+
+	it("uses normalized non-cached input tokens with separately reported cache tokens", () => {
+		const messages: ClineMessage[] = [
+			{
+				ts: 1,
+				type: "say",
+				say: "api_req_started",
+				text: JSON.stringify({
+					tokensIn: 1_068,
+					tokensOut: 1_029,
+					cacheWrites: 0,
+					cacheReads: 148_167,
+				}),
+			},
+		]
+
+		const total = getLastApiReqTotalTokens(messages)
+		assert.equal(total, 150_264)
+	})
 })

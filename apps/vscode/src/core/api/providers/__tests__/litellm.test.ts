@@ -246,6 +246,42 @@ describe("LiteLlmHandler", () => {
 				expect(callArgs.stream).to.equal(true)
 				expect(callArgs.stream_options).to.deep.equal({ include_usage: true })
 			})
+
+			it("normalizes OpenAI-style usage to non-cached input tokens", async () => {
+				fakeClient.chat.completions.create.resolves(
+					createAsyncIterable([
+						{
+							choices: [{ delta: { content: "test response" } }],
+						},
+						{
+							choices: [{}],
+							usage: {
+								prompt_tokens: 100,
+								completion_tokens: 50,
+								prompt_tokens_details: {
+									cached_tokens: 10,
+								},
+								prompt_cache_miss_tokens: 20,
+							},
+						},
+					]),
+				)
+
+				const chunks = []
+
+				for await (const chunk of handler.createMessage("Test System Prompt", [{ role: "user", content: "hello" }])) {
+					chunks.push(chunk)
+				}
+
+				const usage = chunks.find((chunk) => chunk.type === "usage")
+				expect(usage).to.include({
+					type: "usage",
+					inputTokens: 70,
+					outputTokens: 50,
+					cacheWriteTokens: 20,
+					cacheReadTokens: 10,
+				})
+			})
 		})
 	})
 
