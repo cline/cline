@@ -603,6 +603,43 @@ describe("default run_commands tool", () => {
 		);
 	});
 
+	it("accepts nested JSON-encoded commands payloads", async () => {
+		const execute = vi.fn(async (command: string | { command: string }) =>
+			typeof command === "string" ? `ran:${command}` : `ran:${command.command}`,
+		);
+		const tool = createBashTool(execute);
+
+		const result = await tool.execute(
+			{
+				commands: JSON.stringify({
+					commands: JSON.stringify(["git status --short"]),
+				}),
+			} as never,
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		expect(result).toEqual([
+			{
+				query: "git status --short",
+				result: "ran:git status --short",
+				success: true,
+			},
+		]);
+		expect(execute).toHaveBeenCalledWith(
+			"git status --short",
+			process.cwd(),
+			expect.objectContaining({
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			}),
+		);
+	});
+
 	it("accepts common single-command aliases", async () => {
 		const execute = vi.fn(
 			async (command: string | { command: string }) =>

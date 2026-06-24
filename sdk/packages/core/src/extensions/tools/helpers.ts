@@ -98,7 +98,7 @@ function isRecord(input: unknown): input is Record<string, unknown> {
 	return typeof input === "object" && input != null && !Array.isArray(input);
 }
 
-function normalizeJsonLikeRunCommandsInput(input: unknown): unknown {
+export function normalizeJsonLikeRunCommandsInput(input: unknown): unknown {
 	const parsed = parseJsonLikeString(input);
 	if (!isRecord(parsed) || !("commands" in parsed)) {
 		return parsed;

@@ -26,6 +26,7 @@ import {
 	formatRunCommandQueryPreview,
 	getEditorSizeError,
 	getReadFileRangeError,
+	normalizeJsonLikeRunCommandsInput,
 	normalizeRunCommandsInput,
 	TimeoutError,
 	withTimeout,
@@ -46,6 +47,7 @@ import {
 	ReadFilesInputUnionSchema,
 	type RunCommandsInput,
 	RunCommandsInputSchema,
+	RunCommandsInputUnionSchema,
 	type SearchCodebaseInput,
 	SearchCodebaseInputSchema,
 	SearchCodebaseUnionInputSchema,
@@ -117,6 +119,10 @@ function getHeredocDelimiter(command: string): string | undefined {
 	return match?.[1] ?? match?.[2] ?? match?.[3];
 }
 
+function coalesceSplitHeredocCommands(commands: string[]): string[];
+function coalesceSplitHeredocCommands(
+	commands: Array<string | StructuredCommandInput>,
+): Array<string | StructuredCommandInput>;
 function coalesceSplitHeredocCommands(
 	commands: Array<string | StructuredCommandInput>,
 ): Array<string | StructuredCommandInput> {
@@ -346,12 +352,28 @@ export function createBashTool(
 		retryable: false, // Shell commands often have side effects
 		maxRetries: 0,
 		execute: async (input, context) => {
-			const commands = coalesceSplitHeredocCommands(
-				normalizeRunCommandsInput(input),
+			const validate = validateWithZod(
+				RunCommandsInputUnionSchema,
+				normalizeJsonLikeRunCommandsInput(input),
 			);
+			let commands: string[];
+			if (typeof validate === "string") {
+				commands = [validate];
+			} else if (Array.isArray(validate)) {
+				commands = validate;
+			} else if ("commands" in validate) {
+				commands = Array.isArray(validate.commands)
+					? validate.commands
+					: [validate.commands];
+			} else if ("command" in validate) {
+				commands = [validate.command];
+			} else {
+				commands = [validate.cmd];
+			}
+			commands = coalesceSplitHeredocCommands(commands);
 
 			return Promise.all(
-				commands.map(async (command): Promise<ToolOperationResult> => {
+				commands.map(async (command: string): Promise<ToolOperationResult> => {
 					const startedAt = Date.now();
 					const query = formatRunCommandQueryPreview(command);
 					try {
