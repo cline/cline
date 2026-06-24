@@ -1,5 +1,6 @@
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
+import { hasEnabledMcpServers } from "../components/mcp"
 import type { ClineToolSpec } from "../spec"
 import { TASK_PROGRESS_PARAMETER } from "../types"
 
@@ -26,7 +27,7 @@ const generic: ClineToolSpec = {
 	name: "access_mcp_resource",
 	description:
 		"Request to access a resource provided by a connected MCP server. Resources represent data sources that can be used as context, such as files, API responses, or system information.",
-	contextRequirements: (context) => context.mcpHub !== undefined && context.mcpHub !== null,
+	contextRequirements: hasEnabledMcpServers,
 	parameters: [
 		{
 			name: "server_name",
@@ -50,7 +51,7 @@ const NATIVE_GPT_5: ClineToolSpec = {
 	name: "access_mcp_resource",
 	description:
 		"Request to access a resource provided by a connected MCP server. Resources represent data sources that can be used as context, such as files, API responses, or system information. You must only use this tool if you have been informed of the MCP server and the resource you are trying to access.",
-	contextRequirements: (context) => context.mcpHub !== undefined && context.mcpHub !== null,
+	contextRequirements: hasEnabledMcpServers,
 	parameters: [
 		{
 			name: "server_name",

@@ -1,6 +1,7 @@
 import { SystemPromptSection } from "../templates/placeholders"
 import { TemplateEngine } from "../templates/TemplateEngine"
 import type { PromptVariant, SystemPromptContext } from "../types"
+import { hasEnabledMcpServers } from "./mcp"
 
 const getCapabilitiesTemplateText = (context: SystemPromptContext) => `CAPABILITIES
 
@@ -10,7 +11,7 @@ const getCapabilitiesTemplateText = (context: SystemPromptContext) => `CAPABILIT
 - You can use the list_code_definition_names tool to get an overview of source code definitions for all files at the top level of a specified directory. This can be particularly useful when you need to understand the broader context and relationships between certain parts of the code. You may need to call this tool multiple times to understand various parts of the codebase related to the task.
     - For example, when asked to make edits or improvements you might analyze the file structure in the initial environment_details to get an overview of the project, then use list_code_definition_names to get further insight using source code definitions for files located in relevant directories, then read_file to examine the contents of relevant files, analyze the code and suggest improvements or make necessary edits, then use the replace_in_file tool to implement changes. If you refactored code that could affect other parts of the codebase, you could use search_files to ensure you update other files as needed.
 - You can use the execute_command tool to run commands on the user's computer whenever you feel it can help accomplish the user's task. When you need to execute a CLI command, you must provide a clear explanation of what the command does. Prefer to execute complex CLI commands over creating executable scripts, since they are more flexible and easier to run. Prefer non-interactive commands when possible: use flags to disable pagers (e.g., '--no-pager'), auto-confirm prompts (e.g., '-y' when safe), provide input via flags/arguments rather than stdin, suppress interactive behavior, etc. For commands that may fail, consider redirecting stderr to stdout (e.g., \`command 2>&1\`) so you can see error messages in the output. For long-running commands, the user may keep them running in the background and you will be kept updated on their status along the way. Each command you execute is run in a new terminal instance.{{BROWSER_CAPABILITIES}}{{WEB_TOOLS_CAPABILITIES}}
-- You have access to MCP servers that may provide additional tools and resources. Each server may provide different capabilities that you can use to accomplish tasks more effectively.`
+{{MCP_CAPABILITIES}}`
 
 export async function getCapabilitiesSection(variant: PromptVariant, context: SystemPromptContext): Promise<string> {
 	const template = variant.componentOverrides?.[SystemPromptSection.CAPABILITIES]?.template || getCapabilitiesTemplateText
@@ -24,12 +25,16 @@ export async function getCapabilitiesSection(variant: PromptVariant, context: Sy
 		context.providerInfo.providerId === "cline" && context.clineWebToolsEnabled === true
 			? `\n- When the task requires or could benefit from getting up to date information on a topic (e.g. latest best practices, latest documentation, latest news, etc.), use the web_search tool to find current results, then use the web_fetch tool to retrieve and analyze the content from relevant URLs.`
 			: ""
+	const mcpCapabilities = hasEnabledMcpServers(context)
+		? "- You have access to MCP servers that may provide additional tools and resources. Each server may provide different capabilities that you can use to accomplish tasks more effectively."
+		: ""
 
 	const templateEngine = new TemplateEngine()
 	return templateEngine.resolve(template, context, {
 		BROWSER_SUPPORT: browserSupport,
 		BROWSER_CAPABILITIES: browserCapabilities,
 		WEB_TOOLS_CAPABILITIES: webToolsCapabilities,
+		MCP_CAPABILITIES: mcpCapabilities,
 		CWD: context.cwd || process.cwd(),
 	})
 }

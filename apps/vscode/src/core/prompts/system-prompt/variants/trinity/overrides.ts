@@ -1,3 +1,4 @@
+import { hasEnabledMcpServers } from "../../components/mcp"
 import { SystemPromptSection } from "../../templates/placeholders"
 import type { PromptVariant, SystemPromptContext } from "../../types"
 
@@ -59,8 +60,7 @@ const TRINITY_RULES_TEMPLATE = (context: SystemPromptContext) => `RULES
 - When using the replace_in_file tool, you must include complete lines in your SEARCH blocks, not partial lines. The system requires exact line matches and cannot match partial lines. For example, if you want to match a line containing "const x = 5;", your SEARCH block must include the entire line, not just "x = 5" or other fragments.
 - When using the replace_in_file tool, if you use multiple SEARCH/REPLACE blocks, list them in the order they appear in the file. For example if you need to make changes to both line 10 and line 50, first include the SEARCH/REPLACE block for line 10, followed by the SEARCH/REPLACE block for line 50.
 - When using the replace_in_file tool, Do NOT add extra characters to the markers (e.g., ------- SEARCH> is INVALID). Do NOT forget to use the closing +++++++ REPLACE marker. Do NOT modify the marker format in any way. Malformed XML will cause complete tool failure and break the entire editing process.
-- It is critical you wait for the user's response after each tool use, in order to confirm the success of the tool use. For example, if asked to make a todo app, you would create a file, wait for the user's response it was created successfully, then create another file if needed, wait for the user's response it was created successfully, etc.{{BROWSER_WAIT_RULES}}
-- MCP operations should be used one at a time, similar to other tool usage. Wait for confirmation of success before proceeding with additional operations.
+- It is critical you wait for the user's response after each tool use, in order to confirm the success of the tool use. For example, if asked to make a todo app, you would create a file, wait for the user's response it was created successfully, then create another file if needed, wait for the user's response it was created successfully, etc.{{BROWSER_WAIT_RULES}}${hasEnabledMcpServers(context) ? "\n- MCP operations should be used one at a time, similar to other tool usage. Wait for confirmation of success before proceeding with additional operations." : ""}
 - You are STRICTLY FORBIDDEN from using any format other than XML for tool calls.
   WRONG: {"tool": "read_file", "path": "main.py"} or tool: read_file, path: main.py or <tool_call>{"name": "read_file"}</tool_call>
   CORRECT: <read_file><path>main.py</path></read_file>

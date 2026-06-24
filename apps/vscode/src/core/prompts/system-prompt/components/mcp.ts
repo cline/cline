@@ -17,7 +17,7 @@ import type { PromptVariant, SystemPromptContext } from "../types"
  * }
  */
 export function hasEnabledMcpServers(context: SystemPromptContext): boolean {
-	return (context.mcpHub?.getServers() || []).length > 0
+	return (context.mcpHub?.getServers() || []).some((server) => server.status === "connected")
 }
 
 const MCP_TEMPLATE_TEXT = `MCP SERVERS
@@ -35,7 +35,7 @@ Servers may also provide prompts - predefined templates that can be invoked by u
 export async function getMcp(variant: PromptVariant, context: SystemPromptContext): Promise<string | undefined> {
 	const servers = context.mcpHub?.getServers() || []
 	// Skip the section if there are no servers connected / available
-	if (servers.length === 0) {
+	if (!hasEnabledMcpServers(context)) {
 		return undefined
 	}
 	return await getMcpServers(servers, variant, context)

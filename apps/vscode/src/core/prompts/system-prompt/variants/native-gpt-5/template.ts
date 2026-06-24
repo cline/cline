@@ -1,3 +1,4 @@
+import { hasEnabledMcpServers } from "../../components/mcp"
 import { SystemPromptSection } from "../../templates/placeholders"
 import type { SystemPromptContext } from "../../types"
 
@@ -43,11 +44,11 @@ export const BASE = `{{${SystemPromptSection.AGENT_ROLE}}}
 
 {{${SystemPromptSection.USER_INSTRUCTIONS}}}`
 
-const RULES = (_context: SystemPromptContext) => `RULES
+const RULES = (context: SystemPromptContext) => `RULES
 
 - Your current working directory is: {{CWD}} - this is where you will be using tools from.
 - Do not use the ~ character or $HOME to refer to the home directory. Use absolute paths instead.
-- MCP operations should be used one at a time, similar to other tool usage. Wait for confirmation of success before proceeding with additional operations.`
+${hasEnabledMcpServers(context) ? "- MCP operations should be used one at a time, similar to other tool usage. Wait for confirmation of success before proceeding with additional operations." : ""}`
 
 const TOOL_USE = (_context: SystemPromptContext) => `TOOL USE
 
