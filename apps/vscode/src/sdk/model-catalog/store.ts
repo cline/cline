@@ -399,6 +399,8 @@ function writeSelectionToState(providerId: ProviderId, mode: Mode, selection: Mo
 
 function writeSelectionToProviderSettings(providerId: ProviderId, selection: ModelSelection): void {
 	const next: ProviderSettingsRecord = { ...getProviderSettings(providerId), model: selection.modelId }
+	delete next.contextWindow
+	delete next.maxTokens
 
 	saveProviderSettings(providerId, next)
 }

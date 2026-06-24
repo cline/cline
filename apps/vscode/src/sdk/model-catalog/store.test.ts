@@ -240,7 +240,9 @@ describe("createProviderConfigStore", () => {
 	it("updates providers.json model with setLastUsed false when planActSeparateModelsSetting=false", async () => {
 		const { createProviderConfigStore } = await import("./store")
 		mocks.setApiConfiguration({ planActSeparateModelsSetting: false })
-		mocks.setProviderSettings({ openrouter: { provider: "openrouter", apiKey: "existing-key" } })
+		mocks.setProviderSettings({
+			openrouter: { provider: "openrouter", apiKey: "existing-key", contextWindow: 64_000, maxTokens: 4_096 },
+		})
 		const store = createProviderConfigStore()
 		const providerId = parseProviderId("openrouter")
 		const selection = { providerId, modelId: "provider/model-a", modelInfo: modelInfoA }
@@ -252,6 +254,8 @@ describe("createProviderConfigStore", () => {
 			apiKey: "existing-key",
 			model: "provider/model-a",
 		})
+		expect(mocks.getSavedProviderSettings("openrouter")).not.toHaveProperty("contextWindow")
+		expect(mocks.getSavedProviderSettings("openrouter")).not.toHaveProperty("maxTokens")
 		expect(mocks.getSaveProviderSettingsMock()).toHaveBeenCalledWith(expect.objectContaining({ model: "provider/model-a" }), {
 			setLastUsed: false,
 		})
