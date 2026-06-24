@@ -374,6 +374,12 @@ interface HicapModelResponse {
 	id?: string;
 }
 
+interface AgioneModelResponse {
+	id?: string;
+	model?: string;
+	created?: number;
+}
+
 interface PoolsideModelResponse {
 	id?: string;
 	name?: string;
@@ -432,6 +438,47 @@ async function fetchHicapPrivateModels(
 			maxInputTokens: 128_000,
 			supportsImages: true,
 			supportsPromptCache: true,
+		});
+	}
+	return models;
+}
+
+function normalizeAgioneModelsBaseUrl(baseUrl: string | undefined): string {
+	const raw =
+		normalizeBaseUrl(baseUrl) || "https://agione.pro/hyperone/xapi/api/v1";
+	const normalized = raw.replace(/\/+$/, "");
+	return normalized.endsWith("/v1") ? normalized.slice(0, -3) : normalized;
+}
+
+async function fetchAgionePrivateModels(
+	config: ProviderConfig,
+	token: string,
+): Promise<Record<string, ModelInfo>> {
+	const baseUrl = normalizeAgioneModelsBaseUrl(config.baseUrl);
+	const endpoint = `${baseUrl.replace(/\/+$/, "")}/models`;
+	const response = await fetchWithTimeout(endpoint, {
+		method: "GET",
+		headers: {
+			Authorization: `Bearer ${token}`,
+			accept: "application/json",
+		},
+	});
+	if (!response.ok) {
+		throw new Error(`AGIone model refresh failed: HTTP ${response.status}`);
+	}
+
+	const payload = (await response.json()) as { data?: AgioneModelResponse[] };
+	const entries = payload?.data ?? [];
+	const models: Record<string, ModelInfo> = {};
+	for (const model of entries) {
+		const id = (model.id ?? model.model)?.trim();
+		if (!id) {
+			continue;
+		}
+		models[id] = buildModelFromPrivateSource(id, {
+			name: id,
+			maxInputTokens: 128_000,
+			supportsReasoning: true,
 		});
 	}
 	return models;
@@ -603,6 +650,7 @@ const PRIVATE_PROVIDER_MODEL_FETCHERS: Record<
 	string,
 	PrivateProviderModelFetcher
 > = {
+	agione: fetchAgionePrivateModels,
 	baseten: fetchBasetenPrivateModels,
 	hicap: fetchHicapPrivateModels,
 	litellm: fetchLiteLlmPrivateModels,

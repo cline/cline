@@ -127,6 +127,28 @@ describe("provider-ids", () => {
 		});
 	});
 
+	it("registers AGIone as an OpenAI-compatible built-in provider", async () => {
+		expect(BUILT_IN_PROVIDER_IDS).toContain("agione");
+
+		await expect(getProvider("agione")).resolves.toMatchObject({
+			id: "agione",
+			name: "AGIone",
+			baseUrl: "https://agione.pro/hyperone/xapi/api/v1",
+			defaultModelId: "deepseek/deepseek-v4-pro/d3462",
+			client: "openai-compatible",
+		});
+		await expect(getModelsForProvider("agione")).resolves.toHaveProperty(
+			"deepseek/deepseek-v4-pro/d3462",
+		);
+
+		const registration = BUILTIN_PROVIDER_REGISTRATIONS.find(
+			(item) => item.manifest.id === "agione",
+		);
+		await expect(registration?.loadProvider?.()).resolves.toMatchObject({
+			createProvider: createOpenAICompatibleProvider,
+		});
+	});
+
 	it("routes Responses API built-ins through the OpenAI provider factory", async () => {
 		for (const providerId of ["litellm", "v0"]) {
 			const provider = await getProvider(providerId);

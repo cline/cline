@@ -644,6 +644,16 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		defaults: { baseUrl: "https://inference.poolside.ai/v1" },
 	},
 	{
+		id: "agione",
+		name: "AGIone",
+		description: "OpenAI-compatible inference endpoint",
+		family: "openai-compatible",
+		capabilities: ["tools", "reasoning"],
+		defaultModelId: "deepseek/deepseek-v4-pro/d3462",
+		apiKeyEnv: ["AGIONE_API_KEY"],
+		defaults: { baseUrl: "https://agione.pro/hyperone/xapi/api/v1" },
+	},
+	{
 		id: "cerebras",
 		name: "Cerebras",
 		description: "Fast inference on Cerebras wafer-scale chips",
