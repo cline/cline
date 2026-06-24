@@ -189,11 +189,11 @@ export class WorkspaceRootManager {
 		}
 
 		if (this.roots.length === 1) {
-			return `Single workspace: ${this.roots[0].name || this.roots[0].path}`
+			return `Single workspace: ${this.roots[0].name || getWorkspaceRootName(this.roots[0].path)}`
 		}
 
 		const primary = this.getPrimaryRoot()
-		return `Multi-workspace (${this.roots.length} roots)\nPrimary: ${primary?.name || primary?.path}\nAdditional: ${this.roots
+		return `Multi-workspace (${this.roots.length} roots)\nPrimary: ${primary?.name || getWorkspaceRootName(primary?.path ?? "")}\nAdditional: ${this.roots
 			.filter((_, i) => i !== this.primaryIndex)
 			.map((r) => r.name || getWorkspaceRootName(r.path))
 			.join(", ")}`
