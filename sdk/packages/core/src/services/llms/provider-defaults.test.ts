@@ -58,7 +58,7 @@ describe("resolveProviderConfig", () => {
 		);
 	});
 
-	it("uses live Cline recommended models for ClinePass", async () => {
+	it("uses only live Cline recommended models for ClinePass when live models are found", async () => {
 		const fetchMock = vi.fn(async (url: string) => {
 			if (url === "https://models.test/api.json") {
 				return new Response(
@@ -113,6 +113,51 @@ describe("resolveProviderConfig", () => {
 			maxInputTokens: 200_000,
 			maxTokens: 32_000,
 		});
+		expect(resolved?.knownModels?.["cline-pass/mimo-v2.5-pro"]).toBeUndefined();
+	});
+
+	it("falls back to generated ClinePass models when no live ClinePass models are found", async () => {
+		const fetchMock = vi.fn(async (url: string) => {
+			if (url === "https://models.test/api.json") {
+				return new Response(
+					JSON.stringify({
+						openrouter: {
+							models: {
+								"vendor/live-openrouter-model": {
+									name: "Live OpenRouter Model",
+									tool_call: true,
+								},
+							},
+						},
+					}),
+					{
+						status: 200,
+						headers: { "content-type": "application/json" },
+					},
+				);
+			}
+
+			return new Response(JSON.stringify({ clinePass: [] }), {
+				status: 200,
+				headers: { "content-type": "application/json" },
+			});
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const resolved = await resolveProviderConfig("cline-pass", {
+			loadLatestOnInit: true,
+			failOnError: false,
+			cacheTtlMs: 0,
+			url: "https://models.test/api.json",
+		});
+
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		expect(
+			resolved?.knownModels?.["cline-pass/mimo-v2.5-pro"]?.name,
+		).toBe("MiMo-V2.5-Pro");
+		expect(
+			resolved?.knownModels?.["vendor/live-openrouter-model"],
+		).toBeUndefined();
 	});
 
 	it("prefers Vercel-style Z.ai ids in Cline known models", async () => {
