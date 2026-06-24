@@ -77,7 +77,10 @@ function formatMcpServersList(servers: McpServer[]): string {
 				?.map((prompt) => {
 					const argsStr = prompt.arguments?.length
 						? `\n    Arguments: ${prompt.arguments
-								.map((arg) => `${arg.name}${arg.required ? " (required)" : ""}${arg.description ? `: ${arg.description}` : ""}`)
+								.map(
+									(arg) =>
+										`${arg.name}${arg.required ? " (required)" : ""}${arg.description ? `: ${arg.description}` : ""}`,
+								)
 								.join(", ")}`
 						: ""
 					const title = prompt.title ? ` (${prompt.title})` : ""
@@ -87,11 +90,14 @@ function formatMcpServersList(servers: McpServer[]): string {
 
 			const config = JSON.parse(server.config)
 
+			const instructions = server.instructions?.trim()
+
 			return (
 				`## ${server.name}` +
 				(config.command
 					? ` (\`${config.command}${config.args && Array.isArray(config.args) ? ` ${config.args.join(" ")}` : ""}\`)`
 					: "") +
+				(instructions ? `\n\n### Instructions\n${instructions}` : "") +
 				(tools ? `\n\n### Available Tools\n${tools}` : "") +
 				(templates ? `\n\n### Resource Templates\n${templates}` : "") +
 				(resources ? `\n\n### Direct Resources\n${resources}` : "") +
