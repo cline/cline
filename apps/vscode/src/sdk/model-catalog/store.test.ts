@@ -353,6 +353,59 @@ describe("createProviderConfigStore", () => {
 		expect(mocks.getSavedProviderSettings("openrouter")).not.toHaveProperty("maxTokens")
 	})
 
+	it("persists explicit provider model overrides to providers.json", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("openai")
+
+		store.write(providerId, {
+			contextWindow: 128_000,
+			maxTokens: 8_192,
+			pricing: { input: 0, output: 2.5, cacheRead: 0.1, cacheWrite: 0.2 },
+			temperature: 0.2,
+		})
+
+		expect(mocks.getSavedProviderSettings("openai")).toMatchObject({
+			provider: "openai",
+			contextWindow: 128_000,
+			maxTokens: 8_192,
+			pricing: { input: 0, output: 2.5, cacheRead: 0.1, cacheWrite: 0.2 },
+			temperature: 0.2,
+		})
+	})
+
+	it("does not persist explicit custom model overrides for non-OpenAI-Compatible providers", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		mocks.setProviderSettings({
+			openrouter: {
+				provider: "openrouter",
+				apiKey: "existing-key",
+				contextWindow: 64_000,
+				maxTokens: 4_096,
+				temperature: 0.2,
+				pricing: { input: 1, output: 2, cacheRead: 0.1, cacheWrite: 0.2 },
+			},
+		})
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("openrouter")
+
+		store.write(providerId, {
+			contextWindow: 128_000,
+			maxTokens: 8_192,
+			pricing: { input: 0, output: 2.5, cacheRead: 0.1, cacheWrite: 0.2 },
+			temperature: 0.3,
+		})
+
+		expect(mocks.getSavedProviderSettings("openrouter")).toMatchObject({
+			provider: "openrouter",
+			apiKey: "existing-key",
+		})
+		expect(mocks.getSavedProviderSettings("openrouter")).not.toHaveProperty("contextWindow")
+		expect(mocks.getSavedProviderSettings("openrouter")).not.toHaveProperty("maxTokens")
+		expect(mocks.getSavedProviderSettings("openrouter")).not.toHaveProperty("temperature")
+		expect(mocks.getSavedProviderSettings("openrouter")).not.toHaveProperty("pricing")
+	})
+
 	it("updates providers.json model with setLastUsed false when planActSeparateModelsSetting=false", async () => {
 		const { createProviderConfigStore } = await import("./store")
 		mocks.setApiConfiguration({ planActSeparateModelsSetting: false })

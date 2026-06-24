@@ -131,6 +131,14 @@ export const ModelCatalogSettingsSchema = z.object({
 	failOnError: z.boolean().optional(),
 });
 
+export const PricingSettingsSchema = z.object({
+	input: z.number().nonnegative(),
+	output: z.number().nonnegative(),
+	cacheRead: z.number().nonnegative(),
+	cacheWrite: z.number().nonnegative(),
+});
+
+export type PricingSettings = z.infer<typeof PricingSettingsSchema>;
 export type ModelCatalogSettings = z.infer<typeof ModelCatalogSettingsSchema>;
 export type ModelCatalogConfig = ModelCatalogSettings;
 
@@ -144,6 +152,9 @@ export const ProviderSettingsSchema = z.object({
 	routingProviderId: ProviderIdSchema.optional(),
 	maxTokens: z.number().int().positive().optional(),
 	contextWindow: z.number().int().positive().optional(),
+	/** Pricing per million tokens (for usage tracking). */
+	pricing: PricingSettingsSchema.optional(),
+	temperature: z.number().optional(),
 	baseUrl: z.string().url().optional(),
 	headers: z.record(z.string(), z.string()).optional(),
 	timeout: z.number().int().positive().optional(),
@@ -231,11 +242,33 @@ export function toProviderConfig(
 			? BUILT_IN_PROVIDER.OPENAI_NATIVE
 			: undefined);
 
+	const supportsCustomModelSettings = normalizedProviderId === BUILT_IN_PROVIDER.OPENAI_COMPATIBLE;
+	const configuredModelInfo = supportsCustomModelSettings && settings.model
+		? {
+				id: settings.model,
+				name: settings.model,
+				maxTokens: settings.maxTokens,
+				contextWindow: settings.contextWindow,
+				maxInputTokens: settings.contextWindow,
+				temperature: settings.temperature,
+				pricing: settings.pricing
+					? {
+							input: settings.pricing.input,
+							output: settings.pricing.output,
+							cacheRead: settings.pricing.cacheRead,
+							cacheWrite: settings.pricing.cacheWrite,
+						}
+					: undefined,
+			}
+		: undefined;
+
 	const knownModels = includeKnownModels
-		? (providerDefaults?.knownModels ??
-			(Object.keys(generatedKnownModels).length > 0
-				? generatedKnownModels
-				: undefined))
+		? (configuredModelInfo
+			? { ...(providerDefaults?.knownModels ?? generatedKnownModels), [settings.model as string]: configuredModelInfo }
+			: (providerDefaults?.knownModels ??
+				(Object.keys(generatedKnownModels).length > 0
+					? generatedKnownModels
+					: undefined)))
 		: undefined;
 
 	const config: ProviderConfig = {
@@ -257,6 +290,7 @@ export function toProviderConfig(
 		timeoutMs: settings.timeout,
 		maxOutputTokens: settings.maxTokens,
 		maxInputTokens: settings.contextWindow,
+		temperature: settings.temperature,
 		thinking: settings.reasoning?.enabled,
 		reasoningEffort,
 		thinkingBudgetTokens: settings.reasoning?.budgetTokens,

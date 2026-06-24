@@ -132,6 +132,13 @@ interface ProviderReasoningPatch {
 	readonly budgetTokens?: number
 }
 
+interface ProviderPricingPatch {
+	readonly input?: number
+	readonly output?: number
+	readonly cacheRead?: number
+	readonly cacheWrite?: number
+}
+
 export interface ProviderConfigPatch {
 	readonly apiKey?: string | null
 	readonly baseUrl?: string | null
@@ -147,6 +154,10 @@ export interface ProviderConfigPatch {
 	} | null
 	readonly reasoning?: ProviderReasoningPatch | null
 	readonly extras?: Readonly<Record<string, unknown>> | null
+	readonly maxTokens?: number | null
+	readonly contextWindow?: number | null
+	readonly temperature?: number | null
+	readonly pricing?: ProviderPricingPatch | null
 }
 
 // ---------------------------------------------------------------------------
