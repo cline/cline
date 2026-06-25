@@ -54,8 +54,9 @@ declare global {
 // Initialize the vscode API if available
 const vsCodeApi = typeof acquireVsCodeApi === "function" ? acquireVsCodeApi() : null
 
-// Expose the VSCode API for debug harness access
-if (vsCodeApi && typeof window !== "undefined") {
+// Expose the VSCode API for debug harness access in development builds only.
+// Guard with IS_DEV so production webview builds compile this out.
+if (process.env.IS_DEV === "true" && vsCodeApi && typeof window !== "undefined") {
 	;(window as any).__clineVsCodeApi = vsCodeApi
 }
 

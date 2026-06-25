@@ -181,11 +181,14 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.window.registerUriHandler({ handleUri }))
 
 	// Debug-harness affordance: VSCode only delivers real vscode:// URIs to the
-	// registered handler above, which the harness can't synthesize. When running
-	// under browser-capture (debug harness) mode, expose the same handler on
-	// globalThis so the harness can deliver simulated OAuth callbacks via
-	// `ext.evaluate`. Gated on CLINE_CAPTURE_BROWSER so it never ships in prod.
-	if (process.env.CLINE_CAPTURE_BROWSER === "1" || process.env.CLINE_CAPTURE_BROWSER === "true") {
+	// registered handler above, which the harness can't synthesize. In development
+	// builds running under browser-capture (debug harness) mode, expose the same
+	// handler on globalThis so the harness can deliver simulated OAuth callbacks
+	// via `ext.evaluate`. Guard with IS_DEV so production builds compile this out.
+	if (
+		process.env.IS_DEV === "true" &&
+		(process.env.CLINE_CAPTURE_BROWSER === "1" || process.env.CLINE_CAPTURE_BROWSER === "true")
+	) {
 		;(globalThis as Record<string, unknown>).__clineHandleUri = (url: string) => SharedUriHandler.handleUri(url)
 	}
 
