@@ -1,4 +1,4 @@
-import { MarketplaceInstallResult, type MarketplaceEntryRequest } from "@shared/proto/cline/marketplace"
+import { type MarketplaceEntryRequest, MarketplaceInstallResult } from "@shared/proto/cline/marketplace"
 import type { Controller } from "../index"
 import { installMarketplaceEntryWithCli } from "./marketplace-helpers"
 
