@@ -71,6 +71,7 @@ interface ChatRowProps {
 	lastModifiedMessage?: ClineMessage
 	isLast: boolean
 	onHeightChange: (isTaller: boolean) => void
+	onLastRowContentChange: () => void
 	inputValue?: string
 	sendMessageFromChatRow?: (text: string, images: string[], files: string[]) => void
 	onSetQuote: (text: string) => void
@@ -88,7 +89,9 @@ export interface QuoteButtonState {
 	selectedText: string
 }
 
-interface ChatRowContentProps extends Omit<ChatRowProps, "onHeightChange"> {}
+interface ChatRowContentProps extends Omit<ChatRowProps, "onHeightChange" | "onLastRowContentChange"> {
+	onLastRowContentChange?: () => void
+}
 
 export const ProgressIndicator = () => <LoaderCircleIcon className="size-2 mr-2 animate-spin" />
 const InvisibleSpacer = () => <div aria-hidden className="h-px" />
@@ -139,6 +142,7 @@ export const ChatRowContent = memo(
 		sendMessageFromChatRow,
 		onSetQuote,
 		onCancelCommand,
+		onLastRowContentChange,
 		mode,
 		isRequestInProgress,
 		reasoningContent,
@@ -742,6 +746,7 @@ export const ChatRowContent = memo(
 					isCommandPending={isCommandPending}
 					isOutputFullyExpanded={isOutputFullyExpanded}
 					message={message}
+					onOutputChange={isLast ? onLastRowContentChange : undefined}
 					onCancelCommand={onCancelCommand}
 					setIsOutputFullyExpanded={setIsOutputFullyExpanded}
 					title={title}
