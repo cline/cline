@@ -273,6 +273,24 @@ export function useScrollBehavior(
 		[scrollToBottomSmooth, scrollToBottomAuto],
 	)
 
+	const handleLastRowContentChange = useCallback(() => {
+		if (disableAutoScrollRef.current) {
+			return
+		}
+
+		scrollToBottomSmooth()
+		setTimeout(() => {
+			if (!disableAutoScrollRef.current) {
+				scrollToBottomAuto()
+			}
+		}, 0)
+		setTimeout(() => {
+			if (!disableAutoScrollRef.current) {
+				scrollToBottomAuto()
+			}
+		}, 50)
+	}, [scrollToBottomSmooth, scrollToBottomAuto])
+
 	useEffect(() => {
 		if (!disableAutoScrollRef.current) {
 			scrollToBottomSmooth()
@@ -316,6 +334,7 @@ export function useScrollBehavior(
 		scrollToMessage,
 		toggleRowExpansion,
 		handleRowHeightChange,
+		handleLastRowContentChange,
 		isAtBottom,
 		setIsAtBottom,
 		pendingScrollToMessage,

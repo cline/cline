@@ -42,6 +42,7 @@ interface HookMessageProps {
 		isOutputFullyExpanded: boolean
 		onToggle: () => void
 		isContainerExpanded: boolean
+		onOutputChange?: () => void
 	}>
 }
 
