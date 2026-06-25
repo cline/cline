@@ -67,6 +67,7 @@ export const OptionsButtons = ({
 					$isNotSelectable={hasSelected || !isActive}
 					$isSelected={option === selectedOption}
 					className="options-button"
+					disabled={hasSelected || !isActive}
 					id={`options-button-${index}`}
 					key={option}
 					onClick={async () => {
