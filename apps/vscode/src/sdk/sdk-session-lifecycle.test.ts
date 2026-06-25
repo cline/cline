@@ -371,6 +371,31 @@ describe("SdkSessionLifecycle", () => {
 		expect(lifecycle.getActiveSession()?.isRunning).toBe(false)
 	})
 
+	it("adopts the restored session and stops the source session", async () => {
+		const restored = {
+			sessionId: "restored-session",
+			startResult: { sessionId: "restored-session" },
+			checkpoint: { ref: "abc", createdAt: 1, runCount: 1 },
+		}
+		const sdkHost = makeSdkHost({
+			startResult: { sessionId: "source-session" },
+			restore: vi.fn().mockResolvedValue(restored),
+		})
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		const lifecycle = makeLifecycle()
+
+		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
+		await lifecycle.startNewSession({ config: { sessionId: "source-session" } } as any)
+		const result = await lifecycle.restoreActiveSession({
+			sessionId: "source-session",
+			checkpointRunCount: 1,
+		})
+
+		expect(result).toBe(restored)
+		expect(lifecycle.getActiveSession()?.sessionId).toBe("restored-session")
+		expect(sdkHost.stop).toHaveBeenCalledWith("source-session")
+	})
+
 	it("updates the active session model for the next turn when supported", async () => {
 		const updateSessionModel = vi.fn().mockResolvedValue(undefined)
 		const sdkHost = makeSdkHost({ startResult: { sessionId: "session-123" }, updateSessionModel })
@@ -422,6 +447,11 @@ function makeSdkHost(overrides: Record<string, unknown> = {}) {
 		start: vi.fn().mockResolvedValue(startResult),
 		subscribe: vi.fn().mockReturnValue(overrides.unsubscribe ?? vi.fn()),
 		send: vi.fn().mockResolvedValue(undefined),
+		restore: vi.fn().mockResolvedValue({
+			sessionId: "session-123",
+			startResult,
+			checkpoint: { ref: "abc", createdAt: 1, runCount: 1 },
+		}),
 		stop: vi.fn().mockResolvedValue(undefined),
 		dispose: vi.fn().mockResolvedValue(undefined),
 		...overrides,

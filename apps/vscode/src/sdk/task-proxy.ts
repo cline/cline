@@ -30,9 +30,6 @@ export interface TaskProxy {
 	/** Browser session — stubbed (browser automation removed in this migration) */
 	// biome-ignore lint/suspicious/noExplicitAny: typed as any for handler compatibility; browser automation removed
 	browserSession: any
-	/** Checkpoint manager — stubbed (shadow git removed in this migration) */
-	// biome-ignore lint/suspicious/noExplicitAny: typed as any for handler compatibility; checkpoints removed
-	checkpointManager: any
 	/** Terminal manager — stub that safely no-ops for settings compatibility */
 	terminalManager: TaskProxyTerminalManager
 	/** Task state for tracking */
@@ -109,6 +106,12 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 	clear(): void {
 		this.messages = []
 	}
+
+	/** Replace the full message list, preserving the classic set-change event. */
+	replaceMessages(messages: ClineMessage[]): void {
+		this.messages = [...messages]
+		this.emit("clineMessagesChanged", { type: "set", messages: this.messages })
+	}
 }
 
 /**
@@ -139,10 +142,6 @@ interface TaskProxyTerminalManager {
 interface TaskProxyState {
 	askResponse?: ClineAskResponse
 	autoRetryAttempts?: number
-	/** Checkpoint manager initialized flag (stub — checkpoints removed) */
-	isInitialized?: boolean
-	/** Checkpoint manager error message (stub — checkpoints removed) */
-	checkpointManagerErrorMessage?: string
 	/** Focus chain checklist (stub — focus chain removed) */
 	currentFocusChainChecklist?: null
 	/** Abort flag for task cancellation (classic TaskState used boolean) */
@@ -245,11 +244,6 @@ export function createTaskProxy(
 
 		get browserSession() {
 			// Browser automation is not part of the SDK adapter.
-			return undefined
-		},
-
-		get checkpointManager() {
-			// Shadow-git checkpoints are not part of the SDK adapter.
 			return undefined
 		},
 

@@ -25,6 +25,7 @@ export async function getStateToPostToWebview(controller: {
 	backgroundCommandRunning?: boolean
 	backgroundCommandTaskId?: string
 	workspaceManager?: any
+	checkpointRestoreInput?: ExtensionState["checkpointRestoreInput"]
 }): Promise<ExtensionState> {
 	const stateManager = controller.stateManager
 
@@ -80,7 +81,7 @@ export async function getStateToPostToWebview(controller: {
 		? (taskHistory || []).find((item: any) => item.id === controller.task?.taskId)
 		: undefined
 	const clineMessages = [...(controller.task?.messageStateHandler?.getClineMessages?.() || [])]
-	const checkpointManagerErrorMessage = controller.task?.taskState?.checkpointManagerErrorMessage
+	const checkpointRestoreInput = controller.checkpointRestoreInput
 
 	const processedTaskHistory = (taskHistory || [])
 		.filter((item: any) => item.ts && item.task)
@@ -111,7 +112,7 @@ export async function getStateToPostToWebview(controller: {
 		apiConfiguration,
 		currentTaskItem,
 		clineMessages,
-		checkpointManagerErrorMessage,
+		checkpointRestoreInput,
 		autoApprovalSettings,
 		browserSettings,
 		preferredLanguage,

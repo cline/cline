@@ -724,7 +724,7 @@ export const MistakeLimitReached = quickStory(
 export const CompletionResult = quickStory(
 	"Task Completion",
 	"completion_result",
-	"Task completed successfully! I've implemented all the requested features.\n\nWould you like to start a new task?\n\n- View Changes\n- Start New Task\n- Resume Previous Task HAS_CHANGES",
+	"Task completed successfully! I've implemented all the requested features.\n\nWould you like to start a new task?\n\n- Start New Task\n- Resume Previous Task HAS_CHANGES",
 	"Shows task completion state with Start New Task button.",
 )
 export const BrowserActionLaunch = quickStory(
