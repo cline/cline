@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 // gRPC clients: record which RPC the send path chose.
 const newTask = vi.fn().mockResolvedValue(undefined)
 const askResponse = vi.fn().mockResolvedValue(undefined)
+const condense = vi.fn().mockResolvedValue(undefined)
 
 vi.mock("@/services/grpc-client", () => ({
 	TaskServiceClient: {
@@ -14,7 +15,7 @@ vi.mock("@/services/grpc-client", () => ({
 		clearTask: vi.fn().mockResolvedValue(undefined),
 	},
 	SlashServiceClient: {
-		condense: vi.fn().mockResolvedValue(undefined),
+		condense: (req: unknown) => condense(req),
 		reportBug: vi.fn().mockResolvedValue(undefined),
 	},
 }))
@@ -85,7 +86,47 @@ describe("useMessageHandlers — send routing", () => {
 	beforeEach(() => {
 		newTask.mockClear()
 		askResponse.mockClear()
+		condense.mockClear()
 		mockTurnState = undefined
+	})
+
+	it("routes /compact to the condense RPC instead of sending it as a message", async () => {
+		mockTurnState = { phase: "completed", seq: 7 }
+		const { result } = renderHook(() => useMessageHandlers(completedConversation, makeChatState(completedConversation)))
+
+		await act(async () => {
+			await result.current.handleSendMessage("/compact", [], [])
+		})
+
+		expect(condense).toHaveBeenCalledTimes(1)
+		expect(condense).toHaveBeenCalledWith(expect.objectContaining({ value: "compact" }))
+		expect(newTask).not.toHaveBeenCalled()
+		expect(askResponse).not.toHaveBeenCalled()
+	})
+
+	it("routes the /smol alias to the condense RPC as well", async () => {
+		mockTurnState = { phase: "completed", seq: 7 }
+		const { result } = renderHook(() => useMessageHandlers(completedConversation, makeChatState(completedConversation)))
+
+		await act(async () => {
+			await result.current.handleSendMessage("/smol", [], [])
+		})
+
+		expect(condense).toHaveBeenCalledTimes(1)
+		expect(newTask).not.toHaveBeenCalled()
+		expect(askResponse).not.toHaveBeenCalled()
+	})
+
+	it("does not intercept /compact when there is no active task (starts a new task instead)", async () => {
+		mockTurnState = { phase: "idle", seq: 1 }
+		const { result } = renderHook(() => useMessageHandlers([], makeChatState([])))
+
+		await act(async () => {
+			await result.current.handleSendMessage("/compact", [], [])
+		})
+
+		expect(condense).not.toHaveBeenCalled()
+		expect(newTask).toHaveBeenCalledTimes(1)
 	})
 
 	it("after a completed turn (no clineAsk), Enter continues the conversation via askResponse — NOT newTask", async () => {
