@@ -254,6 +254,7 @@ export class Controller {
 				this.mode.queueSwitchToActMode()
 			},
 			shouldStopAfterModeSwitch: () => this.mode.hasPendingModeChange(),
+			onConsecutiveMistakeLimitReached: (context) => this.interactions.handleConsecutiveMistakeLimitReached(context),
 		})
 		this.interactions = new SdkInteractionCoordinator({
 			messages: this.messages,
