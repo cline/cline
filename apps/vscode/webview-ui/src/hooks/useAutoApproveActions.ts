@@ -13,8 +13,6 @@ export function useAutoApproveActions() {
 			switch (action.id) {
 				case "enableNotifications":
 					return autoApprovalSettings.enableNotifications
-				case "executeSafeCommands":
-					return !!autoApprovalSettings.actions.executeSafeCommands || !!autoApprovalSettings.actions.executeAllCommands
 				default:
 					return autoApprovalSettings.actions[action.id] ?? false
 			}
@@ -40,10 +38,6 @@ export function useAutoApproveActions() {
 
 			if (value === false && subActionId) {
 				newActions[subActionId] = false
-			}
-
-			if (actionId === "executeSafeCommands" && value === false) {
-				newActions.executeAllCommands = false
 			}
 
 			if (value === true && action.parentActionId) {
