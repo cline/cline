@@ -3,6 +3,7 @@ import {
 	cpSync,
 	existsSync,
 	mkdirSync,
+	readFileSync,
 	readdirSync,
 	statSync,
 } from "node:fs";
@@ -21,6 +22,17 @@ const hubWebviewSourcePath = join(repoRoot, "apps/cline-hub/src/webview");
 const hubWebviewDistPath = join(repoRoot, "apps/cline-hub/dist/webview");
 const hubWebviewIndexPath = join(hubWebviewDistPath, "index.html");
 const cliHubWebviewDistPath = join(rootDir, "dist/cline-hub/webview");
+const SAP_PROVIDER_DIST_PATTERN =
+	/[\\/]@jerome-benoit[\\/]sap-ai-provider[\\/]dist[\\/].+\.js$/;
+
+function renameSapCreateRequireAlias(contents: string): string {
+	return contents
+		.replace(
+			/createRequire\s+as\s+__createRequire/g,
+			"createRequire as __clineSapCreateRequire",
+		)
+		.replace(/\b__createRequire\(/g, "__clineSapCreateRequire(");
+}
 
 function newestFileMtimeMs(dir: string): number {
 	let newest = 0;
@@ -121,13 +133,28 @@ const result = await Bun.build({
 	},
 	env: "OTEL_*",
 	banner:
-		'import { createRequire as __createRequire } from "node:module"; const require = __createRequire(import.meta.url);',
+		'import { createRequire as __clineCliCreateRequire } from "node:module"; const require = __clineCliCreateRequire(import.meta.url);',
+	plugins: [
+		{
+			name: "rename-sap-create-require-alias",
+			setup(build) {
+				build.onLoad({ filter: SAP_PROVIDER_DIST_PATTERN }, async (args) => ({
+					contents: renameSapCreateRequireAlias(readFileSync(args.path, "utf8")),
+					loader: "js",
+				}));
+			},
+		},
+	],
 });
 
 if (result.logs.length > 0) {
 	for (const log of result.logs) {
 		console.warn(log);
 	}
+}
+
+if (!result.success) {
+	process.exit(1);
 }
 
 const coreBootstrapPath = join(
