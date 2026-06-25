@@ -218,19 +218,17 @@ export class VscodeTerminalManager implements ITerminalManager {
 			})
 		})
 
-		const startCommand = async () => {
-			await this.showTerminalBeforeInput(vscodeTerminalInfo.terminal)
-
+		this.showTerminalBeforeInput(vscodeTerminalInfo.terminal).then(() => {
 			// if shell integration is already active, run the command immediately
 			if (vscodeTerminalInfo.terminal.shellIntegration) {
 				process.waitForShellIntegration = false
-				await process.run(vscodeTerminalInfo.terminal, command)
+				process.run(vscodeTerminalInfo.terminal, command)
 			} else {
 				// docs recommend waiting 3s for shell integration to activate
 				Logger.log(
 					`[TerminalManager Test] Waiting for shell integration for terminal ${vscodeTerminalInfo.id} with timeout ${this.shellIntegrationTimeout}ms`,
 				)
-				await pWaitFor(() => vscodeTerminalInfo.terminal.shellIntegration !== undefined, {
+				pWaitFor(() => vscodeTerminalInfo.terminal.shellIntegration !== undefined, {
 					timeout: this.shellIntegrationTimeout,
 				})
 					.then(() => {
@@ -243,20 +241,15 @@ export class VscodeTerminalManager implements ITerminalManager {
 							`[TerminalManager Test] Shell integration timed out or failed for terminal ${vscodeTerminalInfo.id}: ${err.message}`,
 						)
 					})
-
-				Logger.log(`[TerminalManager Test] Proceeding with command execution for terminal ${vscodeTerminalInfo.id}.`)
-				const existingProcess = this.processes.get(vscodeTerminalInfo.id)
-				if (existingProcess && existingProcess.waitForShellIntegration) {
-					existingProcess.waitForShellIntegration = false
-					await existingProcess.run(vscodeTerminalInfo.terminal, command)
-				}
+					.finally(() => {
+						Logger.log(`[TerminalManager Test] Proceeding with command execution for terminal ${vscodeTerminalInfo.id}.`)
+						const existingProcess = this.processes.get(vscodeTerminalInfo.id)
+						if (existingProcess && existingProcess.waitForShellIntegration) {
+							existingProcess.waitForShellIntegration = false
+							existingProcess.run(vscodeTerminalInfo.terminal, command)
+						}
+					})
 			}
-		}
-		startCommand().catch((error) => {
-			Logger.error(
-				`[TerminalManager] Failed to start command on terminal ${vscodeTerminalInfo.id}: ${(error as Error)?.message ?? String(error)}`,
-			)
-			process.emit("error", error instanceof Error ? error : new Error(String(error)))
 		})
 
 		return mergePromise(process, promise)
