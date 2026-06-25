@@ -112,6 +112,10 @@ export function resolveConfigDirArg(argv: string[]): string | undefined {
 	return undefined;
 }
 
+function collectOption(value: string, previous: string[] = []): string[] {
+	return [...previous, value];
+}
+
 export async function runCli(): Promise<void> {
 	installStreamErrorGuards();
 	autoUpdateOnStartup();
@@ -404,15 +408,24 @@ export async function runCli(): Promise<void> {
 			"--transport <transport>",
 			"stdio, sse, http, streamable-http, or streamableHttp (default: stdio)",
 		)
+		.option("--header <header>", "Remote MCP request header", collectOption, [])
+		.option("--yes", "Install noninteractively without opening the wizard")
+		.option("--json", "Output as JSON")
 		.action(async (name: string, targetArgs: string[]) => {
 			const opts = mcpInstallCmd.opts<{
+				header?: string[];
+				json?: boolean;
 				transport?: string;
+				yes?: boolean;
 			}>();
 			const { runMcpInstallCommand } = await import("./commands/mcp");
 			ctx.exitCode = await runMcpInstallCommand({
 				name,
+				headers: opts.header,
 				targetArgs,
 				transport: opts.transport,
+				json: opts.json === true || program.opts().json === true,
+				yes: opts.yes === true,
 				io,
 			});
 		});
