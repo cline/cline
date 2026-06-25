@@ -13,7 +13,7 @@ describe("condense slash handler", () => {
 
 		await condense(controller, StringRequest.create({ value: "compact" }))
 
-		expect(controller.compactTask).toHaveBeenCalledOnce()
+		expect(controller.compactTask).toHaveBeenCalledTimes(1)
 		expect(handleWebviewAskResponse).not.toHaveBeenCalled()
 	})
 })
