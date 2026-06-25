@@ -74,6 +74,21 @@ function clearReasoningConfig(config: Config): void {
 	config.reasoningEffort = undefined;
 }
 
+function resolveDefaultThinkingLevel(
+	config: Pick<Config, "modelId" | "reasoningEffort" | "thinking">,
+	selectedModelId: string,
+): ThinkingLevel {
+	if (config.reasoningEffort) {
+		return config.reasoningEffort as ThinkingLevel;
+	}
+
+	if (selectedModelId === config.modelId && !config.thinking) {
+		return "none";
+	}
+
+	return "medium";
+}
+
 function usesModelIdInput(providerId: string): boolean {
 	return providerId === "openai-compatible";
 }
@@ -332,23 +347,21 @@ export function useModelSelector(opts: {
 							await changeProvider();
 							continue;
 						}
-						config.modelId = browseResult;
 						const browseModel = modelOptions.find(
 							(m: ModelOption) => m.key === browseResult,
 						);
 						if (browseModel?.supportsReasoning) {
-							const lvl: ThinkingLevel = config.reasoningEffort
-								? (config.reasoningEffort as ThinkingLevel)
-								: config.thinking
-									? "medium"
-									: "none";
+							const currentLevel = resolveDefaultThinkingLevel(
+								config,
+								browseResult,
+							);
 							const pick = await dialog.choice<ThinkingLevel>({
 								style: { maxHeight: termHeight - 2 },
 								content: (ctx: ChoiceContext<ThinkingLevel>) => (
 									<ThinkingLevelContent
 										{...ctx}
 										modelName={browseModel.name}
-										currentLevel={lvl}
+										currentLevel={currentLevel}
 									/>
 								),
 							});
@@ -362,6 +375,7 @@ export function useModelSelector(opts: {
 								}
 							}
 						}
+						config.modelId = browseResult;
 						if (!browseModel?.supportsReasoning) {
 							clearReasoningConfig(config);
 						}
@@ -369,16 +383,14 @@ export function useModelSelector(opts: {
 						continue;
 					}
 
-					config.modelId = clineResult;
 					const selectedModel = modelOptions.find(
 						(m: ModelOption) => m.key === clineResult,
 					);
 					if (selectedModel?.supportsReasoning) {
-						const currentLevel: ThinkingLevel = config.reasoningEffort
-							? (config.reasoningEffort as ThinkingLevel)
-							: config.thinking
-								? "medium"
-								: "none";
+						const currentLevel = resolveDefaultThinkingLevel(
+							config,
+							clineResult,
+						);
 						const thinkingLevel = await dialog.choice<ThinkingLevel>({
 							style: { maxHeight: termHeight - 2 },
 							content: (ctx: ChoiceContext<ThinkingLevel>) => (
@@ -399,6 +411,7 @@ export function useModelSelector(opts: {
 							}
 						}
 					}
+					config.modelId = clineResult;
 					if (!selectedModel?.supportsReasoning) {
 						clearReasoningConfig(config);
 					}
@@ -428,23 +441,17 @@ export function useModelSelector(opts: {
 					continue;
 				}
 
-				config.modelId = selectedKey;
-
 				const selectedModel = modelOptions.find(
 					(m: ModelOption) => m.key === selectedKey,
 				);
 				if (!selectedModel?.supportsReasoning) {
+					config.modelId = selectedKey;
 					clearReasoningConfig(config);
 					pickingModel = false;
 					break;
 				}
 
-				const currentLevel: ThinkingLevel = config.reasoningEffort
-					? (config.reasoningEffort as ThinkingLevel)
-					: config.thinking
-						? "medium"
-						: "none";
-
+				const currentLevel = resolveDefaultThinkingLevel(config, selectedKey);
 				const thinkingLevel = await dialog.choice<ThinkingLevel>({
 					style: { maxHeight: termHeight - 2 },
 					content: (ctx: ChoiceContext<ThinkingLevel>) => (
@@ -467,6 +474,7 @@ export function useModelSelector(opts: {
 					config.thinking = true;
 					config.reasoningEffort = thinkingLevel;
 				}
+				config.modelId = selectedKey;
 				pickingModel = false;
 			}
 

@@ -1103,6 +1103,76 @@ describe("runCli lightweight command dispatch", () => {
 		);
 	});
 
+	it("defaults thinking to medium for reasoning-capable selected models", async () => {
+		mockState.runAgentCalls = 0;
+		runtimeMocks.runAgent.mockClear();
+		llmMocks.resolveProviderConfig.mockResolvedValue({
+			knownModels: {
+				"openai/gpt-5": {
+					id: "openai/gpt-5",
+					name: "GPT-5",
+					capabilities: ["tools", "reasoning"],
+				},
+			},
+		});
+
+		forcePromptModeInput();
+		process.argv = ["bun", "src/index.ts", "-m", "openai/gpt-5", "hello"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(mockState.runAgentCalls).toBe(1);
+		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
+			"hello",
+			expect.objectContaining({
+				modelId: "openai/gpt-5",
+				thinking: true,
+				reasoningEffort: "medium",
+			}),
+			expect.anything(),
+		);
+	});
+
+	it("keeps thinking disabled when explicitly set to none for reasoning models", async () => {
+		mockState.runAgentCalls = 0;
+		runtimeMocks.runAgent.mockClear();
+		llmMocks.resolveProviderConfig.mockResolvedValue({
+			knownModels: {
+				"openai/gpt-5": {
+					id: "openai/gpt-5",
+					name: "GPT-5",
+					capabilities: ["tools", "reasoning"],
+				},
+			},
+		});
+
+		forcePromptModeInput();
+		process.argv = [
+			"bun",
+			"src/index.ts",
+			"-m",
+			"openai/gpt-5",
+			"--thinking",
+			"none",
+			"hello",
+		];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(mockState.runAgentCalls).toBe(1);
+		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
+			"hello",
+			expect.objectContaining({
+				modelId: "openai/gpt-5",
+				thinking: false,
+				reasoningEffort: undefined,
+			}),
+			expect.anything(),
+		);
+	});
+
 	it("maps --thinking to medium effort", async () => {
 		mockState.runAgentCalls = 0;
 		runtimeMocks.runAgent.mockClear();
@@ -1149,6 +1219,42 @@ describe("runCli lightweight command dispatch", () => {
 			expect.objectContaining({
 				thinking: true,
 				reasoningEffort: "high",
+			}),
+			expect.anything(),
+		);
+	});
+
+	it("keeps persisted disabled reasoning when --thinking is not provided", async () => {
+		mockState.runAgentCalls = 0;
+		runtimeMocks.runAgent.mockClear();
+		providerSettingsMocks.getProviderSettings.mockReturnValue({
+			provider: "cline",
+			model: "openai/gpt-5",
+			reasoning: { enabled: false },
+		});
+		llmMocks.resolveProviderConfig.mockResolvedValue({
+			knownModels: {
+				"openai/gpt-5": {
+					id: "openai/gpt-5",
+					name: "GPT-5",
+					capabilities: ["tools", "reasoning"],
+				},
+			},
+		});
+
+		forcePromptModeInput();
+		process.argv = ["bun", "src/index.ts", "hello"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(mockState.runAgentCalls).toBe(1);
+		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
+			"hello",
+			expect.objectContaining({
+				modelId: "openai/gpt-5",
+				thinking: false,
+				reasoningEffort: undefined,
 			}),
 			expect.anything(),
 		);

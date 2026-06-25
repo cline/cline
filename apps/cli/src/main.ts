@@ -62,6 +62,13 @@ export function stdinHasPipedInput(): boolean {
 	}
 }
 
+function modelSupportsReasoning(
+	knownModels: Config["knownModels"],
+	modelId: string,
+): boolean {
+	return knownModels?.[modelId]?.capabilities?.includes("reasoning") ?? false;
+}
+
 async function createProviderSettingsManager() {
 	const { ProviderSettingsManager } = await import("@cline/core");
 	return new ProviderSettingsManager();
@@ -1011,8 +1018,17 @@ export async function runCli(): Promise<void> {
 			);
 		}
 		const knownModelIds = knownModels ? Object.keys(knownModels) : [];
+		const selectedModelId =
+			args.model ??
+			selectedProviderSettings?.model ??
+			knownModelIds[0] ??
+			"anthropic/claude-sonnet-4.6";
 		const persistedReasoning = selectedProviderSettings?.reasoning;
 		const persistedReasoningEffort = persistedReasoning?.effort;
+		const hasPersistedReasoning =
+			persistedReasoning?.enabled !== undefined ||
+			persistedReasoning?.effort !== undefined ||
+			persistedReasoning?.budgetTokens !== undefined;
 		const reasoningEffortFromSettings =
 			persistedReasoning?.enabled === false
 				? "none"
@@ -1021,9 +1037,18 @@ export async function runCli(): Promise<void> {
 					: persistedReasoning?.enabled === true
 						? "medium"
 						: "none";
+		const reasoningEffortFromModel = modelSupportsReasoning(
+			knownModels,
+			selectedModelId,
+		)
+			? "medium"
+			: "none";
 		const effectiveReasoningEffort = args.thinkingExplicitlySet
 			? (args.reasoningEffort ?? "none")
-			: (args.reasoningEffort ?? reasoningEffortFromSettings);
+			: (args.reasoningEffort ??
+				(hasPersistedReasoning
+					? reasoningEffortFromSettings
+					: reasoningEffortFromModel));
 		const { createCliLoggerAdapter } = await import("./logging/adapter");
 		const loggerAdapter = createCliLoggerAdapter({
 			runtime: "cli",
@@ -1037,11 +1062,7 @@ export async function runCli(): Promise<void> {
 
 		const config: Config = {
 			providerId: provider,
-			modelId:
-				args.model ??
-				selectedProviderSettings?.model ??
-				knownModelIds[0] ??
-				"anthropic/claude-sonnet-4.6",
+			modelId: selectedModelId,
 			apiKey: apiKey ?? "",
 			knownModels,
 			systemPrompt: await resolveSystemPrompt({
