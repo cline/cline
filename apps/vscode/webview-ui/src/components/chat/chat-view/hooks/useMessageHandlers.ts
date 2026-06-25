@@ -79,6 +79,16 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					setSelectedFiles(files)
 					setEnableButtons(enableButtons)
 				}
+				const sendAskResponseOptimistically = async (request: ReturnType<typeof AskResponseRequest.create>) => {
+					clearSentMessageState()
+					try {
+						await TaskServiceClient.askResponse(request)
+					} catch (error) {
+						restorePendingMessageState()
+						throw error
+					}
+					messageSent = true
+				}
 
 				if (messages.length === 0) {
 					const request = NewTaskRequest.create({
@@ -98,7 +108,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					// For resume_task and resume_completed_task, use yesButtonClicked to match Resume button behavior
 					// This ensures Enter key and Resume button work identically
 					if (clineAsk === "resume_task" || clineAsk === "resume_completed_task") {
-						await TaskServiceClient.askResponse(
+						await sendAskResponseOptimistically(
 							AskResponseRequest.create({
 								responseType: "yesButtonClicked",
 								text: messageToSend,
@@ -106,7 +116,6 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 								files,
 							}),
 						)
-						messageSent = true
 					} else {
 						// All other ask types use messageResponse
 						switch (clineAsk) {
@@ -124,7 +133,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 							case "new_task":
 							case "condense":
 							case "report_bug":
-								await TaskServiceClient.askResponse(
+								await sendAskResponseOptimistically(
 									AskResponseRequest.create({
 										responseType: "messageResponse",
 										text: messageToSend,
@@ -132,7 +141,6 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 										files,
 									}),
 								)
-								messageSent = true
 								break
 						}
 					}
@@ -158,7 +166,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 
 					if (turnAllowsFollowup || isTaskRunning) {
 						// Continue the conversation / interrupt with feedback.
-						await TaskServiceClient.askResponse(
+						await sendAskResponseOptimistically(
 							AskResponseRequest.create({
 								responseType: "messageResponse",
 								text: messageToSend,
@@ -166,7 +174,6 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 								files,
 							}),
 						)
-						messageSent = true
 					}
 				}
 

@@ -148,6 +148,108 @@ describe("useMessageHandlers — send routing", () => {
 		)
 	})
 
+	it("clears follow-up UI state before askResponse resolves", async () => {
+		mockTurnState = { phase: "completed", seq: 7 }
+		let resolveAskResponse: () => void = () => {}
+		askResponse.mockImplementationOnce(
+			() =>
+				new Promise<void>((resolve) => {
+					resolveAskResponse = resolve
+				}),
+		)
+		const setInputValue = vi.fn()
+		const setActiveQuote = vi.fn()
+		const setSendingDisabled = vi.fn()
+		const setSelectedImages = vi.fn()
+		const setSelectedFiles = vi.fn()
+		const setEnableButtons = vi.fn()
+		const chatState = makeChatState(completedConversation, {
+			activeQuote: "selected context",
+			sendingDisabled: false,
+			enableButtons: true,
+			setInputValue,
+			setActiveQuote,
+			setSendingDisabled,
+			setSelectedImages,
+			setSelectedFiles,
+			setEnableButtons,
+		})
+		const { result } = renderHook(() => useMessageHandlers(completedConversation, chatState))
+
+		let sendPromise: Promise<void>
+		await act(async () => {
+			sendPromise = result.current.handleSendMessage("another question", ["image.png"], ["a.ts"])
+			await Promise.resolve()
+		})
+
+		expect(askResponse).toHaveBeenCalledTimes(1)
+		expect(setInputValue).toHaveBeenCalledWith("")
+		expect(setActiveQuote).toHaveBeenCalledWith(null)
+		expect(setSendingDisabled).toHaveBeenCalledWith(true)
+		expect(setSelectedImages).toHaveBeenCalledWith([])
+		expect(setSelectedFiles).toHaveBeenCalledWith([])
+		expect(setEnableButtons).toHaveBeenCalledWith(false)
+
+		await act(async () => {
+			resolveAskResponse()
+			await sendPromise
+		})
+	})
+
+	it("restores pending follow-up UI state when askResponse fails", async () => {
+		mockTurnState = { phase: "completed", seq: 7 }
+		const error = new Error("transport down")
+		const setInputValue = vi.fn()
+		const setActiveQuote = vi.fn()
+		const setSendingDisabled = vi.fn()
+		const setSelectedImages = vi.fn()
+		const setSelectedFiles = vi.fn()
+		const setEnableButtons = vi.fn()
+		const chatState = makeChatState(completedConversation, {
+			activeQuote: "selected context",
+			sendingDisabled: false,
+			enableButtons: true,
+			setInputValue,
+			setActiveQuote,
+			setSendingDisabled,
+			setSelectedImages,
+			setSelectedFiles,
+			setEnableButtons,
+		})
+		const { result } = renderHook(() => useMessageHandlers(completedConversation, chatState))
+		askResponse.mockRejectedValueOnce(error)
+
+		let caught: unknown
+		await act(async () => {
+			try {
+				await result.current.handleSendMessage("another question", ["image.png"], ["a.ts"])
+			} catch (err) {
+				caught = err
+			}
+		})
+
+		expect(caught).toBe(error)
+		expect(askResponse).toHaveBeenCalledWith(
+			expect.objectContaining({
+				text: expect.stringContaining("selected context"),
+				images: ["image.png"],
+				files: ["a.ts"],
+			}),
+		)
+		expect(setInputValue).toHaveBeenNthCalledWith(1, "")
+		expect(setInputValue).toHaveBeenLastCalledWith("another question")
+		expect(setActiveQuote).toHaveBeenNthCalledWith(1, null)
+		expect(setActiveQuote).toHaveBeenLastCalledWith("selected context")
+		expect(setSendingDisabled).toHaveBeenNthCalledWith(1, true)
+		expect(setSendingDisabled).toHaveBeenLastCalledWith(false)
+		expect(setSelectedImages).toHaveBeenNthCalledWith(1, [])
+		expect(setSelectedImages).toHaveBeenLastCalledWith(["image.png"])
+		expect(setSelectedFiles).toHaveBeenNthCalledWith(1, [])
+		expect(setSelectedFiles).toHaveBeenLastCalledWith(["a.ts"])
+		expect(setEnableButtons).toHaveBeenNthCalledWith(1, false)
+		expect(setEnableButtons).toHaveBeenLastCalledWith(true)
+	})
+
 	it("phase awaiting_followup also routes a follow-up to askResponse", async () => {
 		mockTurnState = { phase: "awaiting_followup", seq: 3 }
 		const { result } = renderHook(() => useMessageHandlers(completedConversation, makeChatState(completedConversation)))
