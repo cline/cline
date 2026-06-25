@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 // gRPC clients: record which RPC the send path chose.
 const newTask = vi.fn().mockResolvedValue(undefined)
 const askResponse = vi.fn().mockResolvedValue(undefined)
+const condense = vi.fn().mockResolvedValue(undefined)
 
 vi.mock("@/services/grpc-client", () => ({
 	TaskServiceClient: {
@@ -14,7 +15,7 @@ vi.mock("@/services/grpc-client", () => ({
 		clearTask: vi.fn().mockResolvedValue(undefined),
 	},
 	SlashServiceClient: {
-		condense: vi.fn().mockResolvedValue(undefined),
+		condense: (req: unknown) => condense(req),
 		reportBug: vi.fn().mockResolvedValue(undefined),
 	},
 }))
@@ -42,9 +43,9 @@ import type { ChatState } from "../types/chatTypes"
 import { useMessageHandlers } from "./useMessageHandlers"
 
 // Minimal ChatState stub. clineAsk/lastMessage are the only derived values the send path reads.
-function makeChatState(messages: ClineMessage[]): ChatState {
+function makeChatState(messages: ClineMessage[], overrides: Partial<ChatState> = {}): ChatState {
 	const last = messages.at(-1)
-	return {
+	const state = {
 		inputValue: "",
 		setInputValue: vi.fn(),
 		activeQuote: null,
@@ -74,6 +75,7 @@ function makeChatState(messages: ClineMessage[]): ChatState {
 		clearExpandedRows: vi.fn(),
 		resetState: vi.fn(),
 	} as unknown as ChatState
+	return { ...state, ...overrides } as ChatState
 }
 
 const completedConversation: ClineMessage[] = [
@@ -83,9 +85,52 @@ const completedConversation: ClineMessage[] = [
 
 describe("useMessageHandlers — send routing", () => {
 	beforeEach(() => {
-		newTask.mockClear()
-		askResponse.mockClear()
+		newTask.mockReset()
+		newTask.mockResolvedValue(undefined)
+		askResponse.mockReset()
+		askResponse.mockResolvedValue(undefined)
+		condense.mockReset()
+		condense.mockResolvedValue(undefined)
 		mockTurnState = undefined
+	})
+
+	it("routes /compact to the condense RPC instead of sending it as a message", async () => {
+		mockTurnState = { phase: "completed", seq: 7 }
+		const { result } = renderHook(() => useMessageHandlers(completedConversation, makeChatState(completedConversation)))
+
+		await act(async () => {
+			await result.current.handleSendMessage("/compact", [], [])
+		})
+
+		expect(condense).toHaveBeenCalledTimes(1)
+		expect(condense).toHaveBeenCalledWith(expect.objectContaining({ value: "compact" }))
+		expect(newTask).not.toHaveBeenCalled()
+		expect(askResponse).not.toHaveBeenCalled()
+	})
+
+	it("routes the /smol alias to the condense RPC as well", async () => {
+		mockTurnState = { phase: "completed", seq: 7 }
+		const { result } = renderHook(() => useMessageHandlers(completedConversation, makeChatState(completedConversation)))
+
+		await act(async () => {
+			await result.current.handleSendMessage("/smol", [], [])
+		})
+
+		expect(condense).toHaveBeenCalledTimes(1)
+		expect(newTask).not.toHaveBeenCalled()
+		expect(askResponse).not.toHaveBeenCalled()
+	})
+
+	it("does not intercept /compact when there is no active task (starts a new task instead)", async () => {
+		mockTurnState = { phase: "idle", seq: 1 }
+		const { result } = renderHook(() => useMessageHandlers([], makeChatState([])))
+
+		await act(async () => {
+			await result.current.handleSendMessage("/compact", [], [])
+		})
+
+		expect(condense).not.toHaveBeenCalled()
+		expect(newTask).toHaveBeenCalledTimes(1)
 	})
 
 	it("after a completed turn (no clineAsk), Enter continues the conversation via askResponse — NOT newTask", async () => {
@@ -125,6 +170,60 @@ describe("useMessageHandlers — send routing", () => {
 
 		expect(newTask).toHaveBeenCalledTimes(1)
 		expect(askResponse).not.toHaveBeenCalled()
+	})
+
+	it("restores pending new-task UI state when the RPC fails", async () => {
+		mockTurnState = { phase: "idle", seq: 1 }
+		const error = new Error("transport down")
+		const setInputValue = vi.fn()
+		const setActiveQuote = vi.fn()
+		const setSendingDisabled = vi.fn()
+		const setSelectedImages = vi.fn()
+		const setSelectedFiles = vi.fn()
+		const setEnableButtons = vi.fn()
+		const chatState = makeChatState([], {
+			activeQuote: "selected context",
+			sendingDisabled: false,
+			enableButtons: true,
+			setInputValue,
+			setActiveQuote,
+			setSendingDisabled,
+			setSelectedImages,
+			setSelectedFiles,
+			setEnableButtons,
+		})
+		const { result } = renderHook(() => useMessageHandlers([], chatState))
+		newTask.mockRejectedValueOnce(error)
+
+		let caught: unknown
+		await act(async () => {
+			try {
+				await result.current.handleSendMessage("brand new task", ["image.png"], ["a.ts"])
+			} catch (err) {
+				caught = err
+			}
+		})
+
+		expect(caught).toBe(error)
+		expect(newTask).toHaveBeenCalledWith(
+			expect.objectContaining({
+				text: expect.stringContaining("selected context"),
+				images: ["image.png"],
+				files: ["a.ts"],
+			}),
+		)
+		expect(setInputValue).toHaveBeenNthCalledWith(1, "")
+		expect(setInputValue).toHaveBeenLastCalledWith("brand new task")
+		expect(setActiveQuote).toHaveBeenNthCalledWith(1, null)
+		expect(setActiveQuote).toHaveBeenLastCalledWith("selected context")
+		expect(setSendingDisabled).toHaveBeenNthCalledWith(1, true)
+		expect(setSendingDisabled).toHaveBeenLastCalledWith(false)
+		expect(setSelectedImages).toHaveBeenNthCalledWith(1, [])
+		expect(setSelectedImages).toHaveBeenLastCalledWith(["image.png"])
+		expect(setSelectedFiles).toHaveBeenNthCalledWith(1, [])
+		expect(setSelectedFiles).toHaveBeenLastCalledWith(["a.ts"])
+		expect(setEnableButtons).toHaveBeenNthCalledWith(1, false)
+		expect(setEnableButtons).toHaveBeenLastCalledWith(true)
 	})
 
 	// The webview does not gate sends on provider usability: submission always

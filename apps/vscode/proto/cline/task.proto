@@ -36,8 +36,6 @@ service TaskService {
   rpc editMessageAndRegenerate(EditMessageAndRegenerateRequest) returns (Empty);
   // Records task feedback (thumbs up/down)
   rpc taskFeedback(StringRequest) returns (Empty);
-  // Shows task completion changes diff in a view
-  rpc taskCompletionViewChanges(Int64Request) returns (Empty);
   // Executes a quick win task with command and title
   rpc executeQuickWin(ExecuteQuickWinRequest) returns (Empty);
   // Deletes all task history

@@ -43,6 +43,7 @@ vi.mock("../../../../src/services/error/ClineError", () => ({
 		Auth: "auth",
 		Entitlement: "entitlement",
 		OrgClinePassRestriction: "orgClinePassRestriction",
+		QuotaExceeded: "quotaExceeded",
 	},
 }))
 
@@ -168,36 +169,46 @@ describe("ErrorRow", () => {
 			expect(screen.getByText("Inference cap reached")).toBeInTheDocument()
 		})
 
-		it("renders entitlement error with the detail message instead of a raw JSON blob", async () => {
+		it("renders entitlement error when ClineError detects ClineNotSubscribedError", async () => {
+			const cliMessage =
+				"No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: https://app.cline.bot/promo?code=CLI-100&personal=true"
 			const mockClineError = {
-				message: "403 Error 403: the user is not subscribed to required model plan",
+				message: cliMessage,
 				isErrorType: vi.fn((type) => type === "entitlement"),
 				providerId: "cline-pass",
 				_error: {
-					code: "ENTITLEMENT_ERROR",
-					details: {
-						code: "ENTITLEMENT_ERROR",
-						message: "Error 403: the user is not subscribed to required model plan",
-					},
+					message: cliMessage,
 				},
 			}
 
 			const { ClineError } = await import("../../../../src/services/error/ClineError")
 			vi.mocked(ClineError.parse).mockReturnValue(mockClineError as any)
 
-			render(
-				<ErrorRow
-					apiRequestFailedMessage='{"message":"403 Error 403...","code":"ENTITLEMENT_ERROR"}'
-					errorType="error"
-					message={mockMessage}
-				/>,
-			)
+			render(<ErrorRow apiRequestFailedMessage={cliMessage} errorType="error" message={mockMessage} />)
 
-			// Renders the friendly EntitlementError component with the human-readable detail message...
 			expect(screen.getByTestId("entitlement-error")).toBeInTheDocument()
-			expect(screen.getByText("Error 403: the user is not subscribed to required model plan")).toBeInTheDocument()
-			// ...and does not dump the raw JSON blob or the [CLINE-PASS] ENTITLEMENT_ERROR header.
-			expect(screen.queryByText(/ENTITLEMENT_ERROR/)).not.toBeInTheDocument()
+			expect(screen.getByText(cliMessage)).toBeInTheDocument()
+			expect(screen.queryByText(/\[cline-pass\]/i)).not.toBeInTheDocument()
+		})
+
+		it("renders entitlement error when ClineError detects a raw required-plan message", async () => {
+			const rawMessage = "403 Error 403: the user is not subscribed to required model plan"
+			const mockClineError = {
+				message: rawMessage,
+				isErrorType: vi.fn((type) => type === "entitlement"),
+				providerId: "cline-pass",
+				_error: {
+					message: rawMessage,
+				},
+			}
+
+			const { ClineError } = await import("../../../../src/services/error/ClineError")
+			vi.mocked(ClineError.parse).mockReturnValue(mockClineError as any)
+
+			render(<ErrorRow apiRequestFailedMessage={rawMessage} errorType="error" message={mockMessage} />)
+
+			expect(screen.getByTestId("entitlement-error")).toBeInTheDocument()
+			expect(screen.getByText(rawMessage)).toBeInTheDocument()
 		})
 
 		it("renders organization account ClinePass restriction with friendly account switching copy", async () => {
@@ -207,7 +218,6 @@ describe("ErrorRow", () => {
 				isErrorType: vi.fn((type) => type === "orgClinePassRestriction"),
 				providerId: "cline",
 				_error: {
-					code: "ENTITLEMENT_ERROR",
 					message: rawMessage,
 				},
 			}
@@ -225,6 +235,27 @@ describe("ErrorRow", () => {
 
 			await waitFor(() => expect(mockSetUserOrganization).toHaveBeenCalledWith({}))
 			expect(screen.getByText("Switched to personal account")).toBeInTheDocument()
+		})
+
+		it("renders organization ClinePass restriction when ClineError detects the SDK formatted message", async () => {
+			const formattedMessage =
+				"Organization accounts cannot use ClinePass subscriptions. Go to /account -> change account to switch to your personal account for ClinePass"
+			const mockClineError = {
+				message: formattedMessage,
+				isErrorType: vi.fn((type) => type === "orgClinePassRestriction"),
+				providerId: "cline-pass",
+				_error: {
+					message: formattedMessage,
+				},
+			}
+
+			const { ClineError } = await import("../../../../src/services/error/ClineError")
+			vi.mocked(ClineError.parse).mockReturnValue(mockClineError as any)
+
+			render(<ErrorRow apiRequestFailedMessage={formattedMessage} errorType="error" message={mockMessage} />)
+
+			expect(screen.getByTestId("org-cline-pass-restriction-error")).toBeInTheDocument()
+			expect(screen.queryByText(formattedMessage)).not.toBeInTheDocument()
 		})
 
 		it("renders friendly logged-out message and sign in button when user is not signed in", async () => {

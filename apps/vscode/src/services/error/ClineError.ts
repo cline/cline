@@ -1,3 +1,8 @@
+import {
+	getClineOrgIndividualInferenceSubscriptionMessage,
+	isClineNotSubscribedMessage,
+	isClineOrgIndividualInferenceSubscriptionMessage,
+} from "@cline/llms"
 import { serializeError } from "serialize-error"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "../../shared/ClineAccount"
 
@@ -45,8 +50,6 @@ interface ErrorDetails {
 }
 
 const RATE_LIMIT_PATTERNS = [/status code 429/i, /rate limit/i, /too many requests/i, /quota exceeded/i, /resource exhausted/i]
-const ORG_CLINE_PASS_RESTRICTION_MESSAGE = "organization accounts cannot use individual model inference subscriptions"
-const ORG_CLINE_PASS_RESTRICTION_USER_MESSAGE = "organization accounts cannot use clinepass subscriptions"
 
 export class ClineError extends Error {
 	readonly title = "ClineError"
@@ -142,7 +145,9 @@ export class ClineError extends Error {
 	 */
 	static getErrorType(err: ClineError): ClineErrorType | undefined {
 		const { code, status, details } = err._error
-		const message = (err._error?.message || err.message || JSON.stringify(err._error))?.toLowerCase()
+		const rawMessage = err._error?.message || err.message || JSON.stringify(err._error)
+		const message = rawMessage?.toLowerCase()
+		const detailMessage = typeof details?.message === "string" ? details.message : undefined
 
 		// Check balance error first (most specific)
 		if (code === "insufficient_credits" && typeof details?.current_balance === "number") {
@@ -155,18 +160,18 @@ export class ClineError extends Error {
 			return ClineErrorType.SpendLimit
 		}
 
-		// ClinePass entitlement errors are user-actionable and should not fall through to generic 403 auth.
-		// The organization-account variant gets separate copy because subscribing is not the right action.
-		const isEntitlementCode = code === "ENTITLEMENT_ERROR" || details?.code === "ENTITLEMENT_ERROR"
-		const entitlementText = `${message ?? ""} ${details?.message ?? ""}`.toLowerCase()
 		if (
-			isEntitlementCode &&
-			(entitlementText.includes(ORG_CLINE_PASS_RESTRICTION_MESSAGE) ||
-				entitlementText.includes(ORG_CLINE_PASS_RESTRICTION_USER_MESSAGE))
+			rawMessage === getClineOrgIndividualInferenceSubscriptionMessage() ||
+			(detailMessage ? isClineOrgIndividualInferenceSubscriptionMessage(detailMessage) : false) ||
+			(rawMessage ? isClineOrgIndividualInferenceSubscriptionMessage(rawMessage) : false)
 		) {
 			return ClineErrorType.OrgClinePassRestriction
 		}
-		if (isEntitlementCode && entitlementText.includes("not subscribed to required model plan")) {
+
+		if (
+			(detailMessage ? isClineNotSubscribedMessage(detailMessage) : false) ||
+			(rawMessage ? isClineNotSubscribedMessage(rawMessage) : false)
+		) {
 			return ClineErrorType.Entitlement
 		}
 

@@ -259,7 +259,7 @@ export class TelemetryService {
 			OPTION_SELECTED: "task.option_selected",
 			// Tracks when users type a custom response instead of selecting an option from AI-generated followup questions
 			OPTIONS_IGNORED: "task.options_ignored",
-			// Tracks usage of the git-based checkpoint system (shadow_git_initialized, commit_created, branch_created, branch_deleted_active, branch_deleted_inactive, restored)
+			// Tracks checkpoint lifecycle actions.
 			CHECKPOINT_USED: "task.checkpoint_used",
 			// Tracks when tools (like file operations, commands) are used
 			TOOL_USED: "task.tool_used",
@@ -309,8 +309,6 @@ export class TelemetryService {
 			AUTO_CONDENSE_TOGGLED: "task.auto_condense_toggled",
 			// Tracks when yolo mode setting is toggled on/off
 			YOLO_MODE_TOGGLED: "task.yolo_mode_toggled",
-			// Tracks when Cline web tools setting is toggled on/off
-			CLINE_WEB_TOOLS_TOGGLED: "task.cline_web_tools_toggled",
 			// Tracks task initialization timing
 			INITIALIZATION: "task.initialization",
 			// Terminal execution telemetry events
@@ -1109,16 +1107,12 @@ export class TelemetryService {
 	}
 
 	/**
-	 * Records interactions with the git-based checkpoint system
+	 * Records checkpoint interactions.
 	 * @param ulid Unique identifier for the task
 	 * @param action The type of checkpoint action
 	 * @param durationMs Optional duration of the operation in milliseconds
 	 */
-	public captureCheckpointUsage(
-		ulid: string,
-		action: "shadow_git_initialized" | "commit_created" | "restored" | "diff_generated",
-		durationMs?: number,
-	) {
+	public captureCheckpointUsage(ulid: string, action: "created" | "restored", durationMs?: number) {
 		if (!this.isCategoryEnabled("checkpoints")) {
 			return
 		}
@@ -1629,21 +1623,6 @@ export class TelemetryService {
 	public captureYoloModeToggle(ulid: string, enabled: boolean) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.YOLO_MODE_TOGGLED,
-			properties: {
-				ulid,
-				enabled,
-			},
-		})
-	}
-
-	/**
-	 * Records when Cline web tools are enabled/disabled by the user
-	 * @param ulid Unique identifier for the task
-	 * @param enabled Whether Cline web tools are enabled (true) or disabled (false)
-	 */
-	public captureClineWebToolsToggle(ulid: string, enabled: boolean) {
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.CLINE_WEB_TOOLS_TOGGLED,
 			properties: {
 				ulid,
 				enabled,

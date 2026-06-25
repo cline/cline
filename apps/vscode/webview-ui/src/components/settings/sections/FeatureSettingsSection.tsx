@@ -38,20 +38,6 @@ const agentFeatures: FeatureToggle[] = [
 		settingKey: "subagentsEnabled",
 	},
 	{
-		id: "native-tool-call",
-		label: "Native Tool Call",
-		description: "Use native function calling when available",
-		stateKey: "nativeToolCallSetting",
-		settingKey: "nativeToolCallEnabled",
-	},
-	{
-		id: "parallel-tool-calling",
-		label: "Parallel Tool Calling",
-		description: "Execute multiple tool calls simultaneously",
-		stateKey: "enableParallelToolCalling",
-		settingKey: "enableParallelToolCalling",
-	},
-	{
 		id: "auto-compact",
 		label: "Auto Compact",
 		description: "Automatically compress conversation history.",
@@ -83,13 +69,6 @@ const editorFeatures: FeatureToggle[] = [
 		settingKey: "enableCheckpointsSetting",
 	},
 	{
-		id: "cline-web-tools",
-		label: "Cline Web Tools",
-		description: "Access web browsing and search capabilities",
-		stateKey: "clineWebToolsEnabled",
-		settingKey: "clineWebToolsEnabled",
-	},
-	{
 		id: "worktrees",
 		label: "Worktrees",
 		description: "Enables git worktree management for running parallel Cline tasks.",
@@ -106,14 +85,6 @@ const experimentalFeatures: FeatureToggle[] = [
 			"Execute tasks without user's confirmation. Auto-switches from Plan to Act mode and disables the ask question tool. Use with extreme caution.",
 		stateKey: "yoloModeToggled",
 		settingKey: "yoloModeToggled",
-	},
-	{
-		id: "double-check-completion",
-		label: "Double-Check Completion",
-		description:
-			"Rejects the first completion attempt and asks the model to re-verify its work against the original task requirements before accepting.",
-		stateKey: "doubleCheckCompletionEnabled",
-		settingKey: "doubleCheckCompletionEnabled",
 	},
 ]
 
@@ -191,13 +162,9 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		yoloModeToggled,
 		useAutoCondense,
 		subagentsEnabled,
-		clineWebToolsEnabled,
 		worktreesEnabled,
 		remoteConfigSettings,
-		nativeToolCallSetting,
-		enableParallelToolCalling,
 		backgroundEditEnabled,
-		doubleCheckCompletionEnabled,
 		showFeatureTips,
 	} = useExtensionState()
 
@@ -208,20 +175,15 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		showFeatureTips,
 		enableCheckpointsSetting,
 		hooksEnabled,
-		nativeToolCallSetting,
 		useAutoCondense,
 		subagentsEnabled,
-		clineWebToolsEnabled: clineWebToolsEnabled?.user,
 		worktreesEnabled: worktreesEnabled?.user,
-		enableParallelToolCalling,
 		backgroundEditEnabled,
-		doubleCheckCompletionEnabled,
 		yoloModeToggled: isYoloRemoteLocked ? remoteConfigSettings?.yoloModeToggled : yoloModeToggled,
 	}
 
 	// Visibility lookup for features with feature flags
 	const featureVisibility: Record<string, boolean | undefined> = {
-		clineWebToolsEnabled: clineWebToolsEnabled?.featureFlag,
 		worktreesEnabled: worktreesEnabled?.featureFlag,
 	}
 

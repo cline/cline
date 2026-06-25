@@ -1,51 +1,38 @@
 ---
-title: "Cline provider"
-description: "Use the Cline provider for the fastest setup with built-in authentication and unified billing."
+title: "Cline Provider"
+description: "Use the Cline Provider for pay-as-you-go model access with built-in authentication and Cline credits."
 ---
 
-The **Cline provider** is the simplest way to get started with Cline.
+The **Cline Provider** is the simplest way to get started with pay-as-you-go model access in Cline.
 
-Instead of managing separate API keys across multiple vendors, you sign in once and select from available models directly in Cline.
+Instead of managing separate API keys across multiple vendors, you sign in once, add **Cline credits**, and select from available models directly in Cline.
 
-## Why use Cline provider
+If you want a flat monthly subscription for selected open coding models with higher rate limits, use [ClinePass (beta)](/getting-started/clinepass) instead. ClinePass (beta) is a separate provider in Cline.
+
+## Why use Cline Provider
 
 - **Fastest setup**: no manual API key copy/paste
 - **One account**: sign in once with Google, GitHub, or email
-- **Unified billing**: one balance across supported models
+- **Pay as you go**: add Cline credits and use one balance across supported models
 - **Free options**: look for models tagged **FREE** in the selector
 
-## Setup
+## How it works
 
-<Steps>
-  <Step title="Open Cline Settings">
-    Click the settings icon in the Cline panel.
-  </Step>
+The Cline Provider is the pay-as-you-go provider in Cline. Add Cline credits, then select **Cline** wherever you configure your provider.
 
-  <Step title="Choose Provider">
-    Set **API Provider** to **Cline**.
-  </Step>
-
-  <Step title="Sign In">
-    Click **Sign In** and complete authentication in your browser.
-  </Step>
-
-  <Step title="Select a Model">
-    Choose a model from the **Model** dropdown.
-  </Step>
-
-  <Step title="Verify">
-    Send a test message. If Cline responds, setup is complete.
-  </Step>
-</Steps>
+- **IDE Extension**: Go to IDE extension settings, set **API Provider** to **Cline**, and sign in.
+- **CLI**: Go to `/settings` and select **Cline** as your provider.
 
 ## Credits and usage
 
-- Add credits from your [Cline dashboard](https://app.cline.bot/dashboard)
+- Add **Cline credits** from your [Cline dashboard](https://app.cline.bot/dashboard)
+- Credits are used on a pay-as-you-go basis when you select paid models through the Cline Provider
 - View usage in Cline Settings → **View Usage**
 - Switch organizations in Cline Settings → **Switch Organization**
 
 ## Related
 
 - [Authorization](/getting-started/authorizing-with-cline)
+- [ClinePass (beta)](/getting-started/clinepass)
 - [Local models](/running-models-locally/overview)
 - [Provider setup guides](/provider-config/openrouter)
