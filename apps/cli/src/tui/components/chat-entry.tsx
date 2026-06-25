@@ -5,7 +5,6 @@ import "opentui-spinner/react";
 import { getClineEnvironmentConfig } from "@cline/shared";
 import {
 	getClineOrgIndividualInferenceSubscriptionMessage,
-	getClinePassSubscriptionUrl,
 	isClineOrgIndividualInferenceSubscriptionErrorMessage,
 	isClinePassSubscriptionError,
 } from "../../utils/cline-pass-errors";
