@@ -1,7 +1,6 @@
 import { Empty } from "@shared/proto/cline/common"
 import { PlanActMode, UpdateTaskSettingsRequest } from "@shared/proto/cline/state"
 import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion"
-import { mergeAutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { Mode } from "@/shared/storage/types"
 import { Controller } from ".."
 import { normalizeOpenaiReasoningEffort } from "./reasoningEffort"
@@ -57,17 +56,19 @@ export async function updateTaskSettings(controller: Controller, request: Update
 			if (autoApprovalSettings) {
 				// Merge with current settings to preserve unspecified fields
 				const currentAutoApprovalSettings = controller.stateManager.getGlobalSettingsKey("autoApprovalSettings")
-				const mergedSettings = mergeAutoApprovalSettings(currentAutoApprovalSettings, {
+				const mergedSettings = {
+					...currentAutoApprovalSettings,
 					...(autoApprovalSettings.version !== undefined && { version: autoApprovalSettings.version }),
 					...(autoApprovalSettings.enableNotifications !== undefined && {
 						enableNotifications: autoApprovalSettings.enableNotifications,
 					}),
-					...(autoApprovalSettings.actions && {
-						actions: Object.fromEntries(
-							Object.entries(autoApprovalSettings.actions).filter(([_, v]) => v !== undefined),
-						),
-					}),
-				})
+					actions: {
+						...currentAutoApprovalSettings.actions,
+						...(autoApprovalSettings.actions
+							? Object.fromEntries(Object.entries(autoApprovalSettings.actions).filter(([_, v]) => v !== undefined))
+							: {}),
+					},
+				}
 				controller.stateManager.setTaskSettings(taskId, "autoApprovalSettings", mergedSettings)
 			}
 

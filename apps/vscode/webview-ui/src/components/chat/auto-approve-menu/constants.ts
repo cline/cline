@@ -14,7 +14,7 @@ export const ACTION_METADATA: ActionMetadata[] = [
 		icon: "codicon-edit",
 	},
 	{
-		id: "executeAllCommands",
+		id: "executeSafeCommands",
 		label: "Execute commands",
 		shortName: "Commands",
 		icon: "codicon-terminal",

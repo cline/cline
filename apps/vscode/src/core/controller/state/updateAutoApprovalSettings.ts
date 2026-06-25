@@ -1,6 +1,5 @@
 import { Empty } from "@shared/proto/cline/common"
 import { AutoApprovalSettingsRequest } from "@shared/proto/cline/state"
-import { mergeAutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { Controller } from ".."
 
 /**
@@ -17,13 +16,17 @@ export async function updateAutoApprovalSettings(controller: Controller, request
 	// Only update if incoming version is higher
 	if (incomingVersion > currentVersion) {
 		// Merge with current settings to preserve unspecified fields
-		const settings = mergeAutoApprovalSettings(currentSettings, {
+		const settings = {
+			...currentSettings,
 			...(request.version !== undefined && { version: request.version }),
 			...(request.enableNotifications !== undefined && { enableNotifications: request.enableNotifications }),
-			...(request.actions && {
-				actions: Object.fromEntries(Object.entries(request.actions).filter(([_, v]) => v !== undefined)),
-			}),
-		})
+			actions: {
+				...currentSettings.actions,
+				...(request.actions
+					? Object.fromEntries(Object.entries(request.actions).filter(([_, v]) => v !== undefined))
+					: {}),
+			},
+		}
 
 		controller.stateManager.setGlobalState("autoApprovalSettings", settings)
 

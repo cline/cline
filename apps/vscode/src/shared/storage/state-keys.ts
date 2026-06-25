@@ -1,8 +1,4 @@
-import {
-	AutoApprovalSettings,
-	DEFAULT_AUTO_APPROVAL_SETTINGS,
-	normalizeAutoApprovalSettings,
-} from "@shared/AutoApprovalSettings"
+import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import {
 	ApiProvider,
 	DEFAULT_API_PROVIDER,
@@ -252,7 +248,6 @@ const USER_SETTINGS_FIELDS = {
 	// Settings that are NOT part of ApiHandlerOptions
 	autoApprovalSettings: {
 		default: DEFAULT_AUTO_APPROVAL_SETTINGS as AutoApprovalSettings,
-		transform: normalizeAutoApprovalSettings,
 	},
 	globalClineRulesToggles: { default: {} as ClineRulesToggles },
 	globalWorkflowToggles: { default: {} as ClineRulesToggles },
