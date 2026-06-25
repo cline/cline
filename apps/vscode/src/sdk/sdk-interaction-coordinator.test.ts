@@ -308,6 +308,94 @@ describe("SdkInteractionCoordinator", () => {
 		])
 	})
 
+	it("emits mistake_limit_reached and resolves proceed as SDK recovery guidance", async () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const setTurnPhase = vi.fn()
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+			setTurnPhase,
+		})
+
+		const decisionPromise = coordinator.handleConsecutiveMistakeLimitReached({
+			iteration: 4,
+			consecutiveMistakes: 3,
+			maxConsecutiveMistakes: 3,
+			reason: "tool_execution_failed",
+			details: "bad arguments",
+		})
+		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
+
+		expect(task.messageStateHandler.getClineMessages()[0]).toMatchObject({
+			type: "ask",
+			ask: "mistake_limit_reached",
+			partial: false,
+		})
+		expect(setTurnPhase).toHaveBeenCalledWith("error", task.messageStateHandler.getClineMessages()[0].ts)
+
+		expect(coordinator.resolvePendingMistakeLimit("try smaller steps", "yesButtonClicked")).toBe(true)
+		await expect(decisionPromise).resolves.toEqual({
+			action: "continue",
+			guidance: "mistake_limit_reached: try smaller steps",
+		})
+		expect(task.messageStateHandler.getClineMessages()).toMatchObject([
+			{ type: "ask", ask: "mistake_limit_reached" },
+			{ type: "say", say: "user_feedback", text: "try smaller steps" },
+		])
+		expect(setTurnPhase).toHaveBeenLastCalledWith("streaming")
+	})
+
+	it("resolves mistake-limit no-button responses as stop decisions", async () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const setTurnPhase = vi.fn()
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+			setTurnPhase,
+		})
+
+		const decisionPromise = coordinator.handleConsecutiveMistakeLimitReached({
+			iteration: 4,
+			consecutiveMistakes: 3,
+			maxConsecutiveMistakes: 3,
+			reason: "tool_execution_failed",
+		})
+		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
+
+		expect(coordinator.resolvePendingMistakeLimit(undefined, "noButtonClicked")).toBe(true)
+
+		await expect(decisionPromise).resolves.toEqual({
+			action: "stop",
+			reason: "stopped after mistake_limit_reached prompt",
+		})
+		expect(task.messageStateHandler.getClineMessages()).toMatchObject([{ type: "ask", ask: "mistake_limit_reached" }])
+		expect(setTurnPhase).toHaveBeenLastCalledWith("streaming")
+	})
+
+	it("clears pending mistake-limit prompts as stop decisions", async () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+		})
+
+		const decisionPromise = coordinator.handleConsecutiveMistakeLimitReached({
+			iteration: 4,
+			consecutiveMistakes: 3,
+			maxConsecutiveMistakes: 3,
+			reason: "tool_execution_failed",
+		})
+		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
+
+		coordinator.clearPending("Task cleared")
+
+		await expect(decisionPromise).resolves.toEqual({ action: "stop", reason: "Task cleared" })
+		expect(coordinator.resolvePendingMistakeLimit(undefined, "yesButtonClicked")).toBe(false)
+	})
+
 	it("clears pending tool approvals as rejected", async () => {
 		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
 		const recordDeniedToolApproval = vi.fn()

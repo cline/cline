@@ -259,7 +259,7 @@ export class TelemetryService {
 			OPTION_SELECTED: "task.option_selected",
 			// Tracks when users type a custom response instead of selecting an option from AI-generated followup questions
 			OPTIONS_IGNORED: "task.options_ignored",
-			// Tracks usage of the git-based checkpoint system (shadow_git_initialized, commit_created, branch_created, branch_deleted_active, branch_deleted_inactive, restored)
+			// Tracks checkpoint lifecycle actions.
 			CHECKPOINT_USED: "task.checkpoint_used",
 			// Tracks when tools (like file operations, commands) are used
 			TOOL_USED: "task.tool_used",
@@ -1109,16 +1109,12 @@ export class TelemetryService {
 	}
 
 	/**
-	 * Records interactions with the git-based checkpoint system
+	 * Records checkpoint interactions.
 	 * @param ulid Unique identifier for the task
 	 * @param action The type of checkpoint action
 	 * @param durationMs Optional duration of the operation in milliseconds
 	 */
-	public captureCheckpointUsage(
-		ulid: string,
-		action: "shadow_git_initialized" | "commit_created" | "restored" | "diff_generated",
-		durationMs?: number,
-	) {
+	public captureCheckpointUsage(ulid: string, action: "created" | "restored", durationMs?: number) {
 		if (!this.isCategoryEnabled("checkpoints")) {
 			return
 		}
