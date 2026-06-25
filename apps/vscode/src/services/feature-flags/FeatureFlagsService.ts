@@ -122,10 +122,6 @@ export class FeatureFlagsService {
 		return this.getBooleanFlagEnabled(FeatureFlag.WORKTREES)
 	}
 
-	public getClinePassEnabled(): boolean {
-		return this.getBooleanFlagEnabled(FeatureFlag.CLINE_PASS)
-	}
-
 	public getOnboardingOverrides() {
 		const payload = this.cache.get(FeatureFlag.ONBOARDING_MODELS)
 		// Check if payload is object

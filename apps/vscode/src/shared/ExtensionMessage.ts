@@ -101,7 +101,6 @@ export interface ExtensionState {
 	subagentsEnabled?: boolean
 	clineWebToolsEnabled?: ClineFeatureSetting
 	worktreesEnabled?: ClineFeatureSetting
-	clinePassEnabled?: boolean
 	customPrompt?: string
 	favoritedModelIds: string[]
 	// NEW: Add workspace information

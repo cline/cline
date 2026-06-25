@@ -279,7 +279,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		subagentsEnabled: false,
 		clineWebToolsEnabled: { user: true, featureFlag: false },
 		worktreesEnabled: { user: true, featureFlag: false },
-		clinePassEnabled: false,
 		favoritedModelIds: [],
 		lastDismissedInfoBannerVersion: 0,
 		lastDismissedModelBannerVersion: 0,
