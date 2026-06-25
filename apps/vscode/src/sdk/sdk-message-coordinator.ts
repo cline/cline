@@ -84,6 +84,17 @@ export class SdkMessageCoordinator {
 		task.messageStateHandler.addMessages(messages)
 	}
 
+	replaceMessages(messages: ClineMessage[]): void {
+		this.stamp(messages)
+
+		const task = this.options.getTask()
+		if (!task?.messageStateHandler) {
+			return
+		}
+
+		task.messageStateHandler.replaceMessages(messages)
+	}
+
 	appendAndEmit(messages: ClineMessage[], event: CoreSessionEvent): void {
 		this.appendMessages(messages)
 		this.emitSessionEvents(messages, event)

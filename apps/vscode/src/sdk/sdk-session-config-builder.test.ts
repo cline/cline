@@ -70,4 +70,21 @@ describe("SdkSessionConfigBuilder", () => {
 		})
 		expect(baseBeforeModel).toHaveBeenCalledOnce()
 	})
+
+	it("passes the mistake-limit callback into the SDK config without overriding SDK execution defaults", async () => {
+		const onConsecutiveMistakeLimitReached = vi.fn()
+		mocks.buildSessionConfig.mockResolvedValueOnce({ hooks: {}, execution: { maxRetries: 1 } })
+
+		const builder = new SdkSessionConfigBuilder({
+			stateManager: { getGlobalSettingsKey: vi.fn(() => 3) } as never,
+			emitHookMessage: vi.fn(),
+			onSwitchToActMode: vi.fn(),
+			onConsecutiveMistakeLimitReached,
+		})
+
+		const config = await builder.build({ cwd: "/workspace", mode: "act" })
+
+		expect(config.execution).toEqual({ maxRetries: 1 })
+		expect(config.onConsecutiveMistakeLimitReached).toBe(onConsecutiveMistakeLimitReached)
+	})
 })

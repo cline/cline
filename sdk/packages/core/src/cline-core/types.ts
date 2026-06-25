@@ -12,6 +12,7 @@ import type {
 	CronSpecRecord,
 } from "../cron/store/sqlite-cron-store";
 import type { CheckpointEntry } from "../hooks/checkpoint-hooks";
+import type { CheckpointWorkspaceCompareResult } from "../session/checkpoint-diff";
 import type { RuntimeCapabilities } from "../runtime/capabilities";
 import type { SessionHistoryListOptions } from "../runtime/host/history";
 import type { SessionBackend } from "../runtime/host/host";
@@ -165,6 +166,14 @@ export interface RestoreResult {
 	messages?: Message[];
 	checkpoint: CheckpointEntry;
 }
+
+export interface CompareCheckpointInput {
+	sessionId: string;
+	checkpointRunCount: number;
+	cwd?: string;
+}
+
+export type CompareCheckpointResult = CheckpointWorkspaceCompareResult;
 
 export interface ClineCoreOptions {
 	/**
