@@ -1,5 +1,6 @@
 import { type AgentMode, normalizeUserInput } from "@cline/shared";
 import { nanoid } from "nanoid";
+import { isTerminalSessionStatus } from "../../types/common";
 import type {
 	CoreSessionEvent,
 	SessionPendingPrompt,
@@ -317,8 +318,10 @@ export class PendingPromptsController {
 			});
 		} catch {
 			continueDrain = false;
-			this.service.requeueFront(session, next);
-			this.emitPrompts(session);
+			if (!isTerminalSessionStatus(session.status)) {
+				this.service.requeueFront(session, next);
+				this.emitPrompts(session);
+			}
 		} finally {
 			session.drainingPendingPrompts = false;
 			if (
