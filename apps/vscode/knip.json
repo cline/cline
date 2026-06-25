@@ -1,0 +1,34 @@
+{
+	"$schema": "https://unpkg.com/knip@5/schema.json",
+	"workspaces": {
+		".": {
+			"entry": [
+				"src/extension.ts",
+				"src/standalone/cline-core.ts",
+				"src/generated/hosts/standalone/protobus-server-setup.ts",
+				"src/generated/hosts/standalone/host-bridge-clients.ts",
+				"src/generated/hosts/vscode/protobus-services.ts",
+				"src/generated/hosts/vscode/hostbridge-grpc-service-config.ts",
+				"src/**/*.test.ts",
+				"src/**/__tests__/**/*.ts",
+				"src/test/**/*.ts"
+			],
+			"project": [
+				"src/**/*.ts"
+			]
+		},
+		"webview-ui": {
+			"entry": [
+				"src/services/grpc-client.ts",
+				"src/**/*.test.{ts,tsx}",
+				"src/**/*.spec.{ts,tsx}",
+				"src/**/__tests__/**/*.{ts,tsx}"
+			],
+			"project": [
+				"src/**/*.{ts,tsx}",
+				"*.ts"
+			],
+			"vite": true
+		}
+	}
+}

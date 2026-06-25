@@ -5,24 +5,28 @@
 	"tasks": [
 		{
 			"label": "compile-standalone",
-			"type": "npm",
-			"script": "compile-standalone",
+			"type": "shell",
+			"command": "bun run compile-standalone",
 			"group": "build",
 			"problemMatcher": [],
 			"presentation": {
 				"reveal": "always"
+			},
+			"options": {
+				"cwd": "${workspaceFolder}/apps/vscode"
 			}
 		},
 		{
 			"label": "npm: protos",
-			"type": "npm",
-			"script": "protos",
+			"type": "shell",
+			"command": "bun run protos",
 			"problemMatcher": [],
 			"isBackground": false,
 			"presentation": {
 				"reveal": "always"
 			},
 			"options": {
+				"cwd": "${workspaceFolder}/apps/vscode",
 				"env": {
 					"IS_DEV": "true"
 				}
@@ -60,8 +64,8 @@
 			"group": "build"
 		},
 		{
-			"type": "npm",
-			"script": "build:webview",
+			"type": "shell",
+			"command": "bun run build:webview",
 			"group": "build",
 			"problemMatcher": [],
 			"isBackground": true,
@@ -74,14 +78,15 @@
 				"reveal": "always"
 			},
 			"options": {
+				"cwd": "${workspaceFolder}/apps/vscode",
 				"env": {
 					"IS_DEV": "true"
 				}
 			}
 		},
 		{
-			"type": "npm",
-			"script": "build:webview:test",
+			"type": "shell",
+			"command": "bun run build:webview:test",
 			"group": "build",
 			"problemMatcher": [],
 			"isBackground": true,
@@ -94,6 +99,7 @@
 				"reveal": "always"
 			},
 			"options": {
+				"cwd": "${workspaceFolder}/apps/vscode",
 				"env": {
 					"IS_DEV": "true",
 					"IS_TEST": "true"
@@ -101,8 +107,8 @@
 			}
 		},
 		{
-			"type": "npm",
-			"script": "dev:webview",
+			"type": "shell",
+			"command": "bun run dev:webview",
 			"group": "build",
 			"problemMatcher": [
 				{
@@ -131,14 +137,15 @@
 				"reveal": "always"
 			},
 			"options": {
+				"cwd": "${workspaceFolder}/apps/vscode",
 				"env": {
 					"IS_DEV": "true"
 				}
 			}
 		},
 		{
-			"type": "npm",
-			"script": "watch:esbuild",
+			"type": "shell",
+			"command": "bun run watch:esbuild",
 			"group": "build",
 			"problemMatcher": {
 				"pattern": [
@@ -162,21 +169,23 @@
 			"isBackground": true,
 			"label": "npm: watch:esbuild",
 			"dependsOn": [
-				"npm: protos"
+				"npm: protos",
+				"build-sdk:debug"
 			],
 			"presentation": {
 				"group": "watch",
 				"reveal": "always"
 			},
 			"options": {
+				"cwd": "${workspaceFolder}/apps/vscode",
 				"env": {
 					"IS_DEV": "true"
 				}
 			}
 		},
 		{
-			"type": "npm",
-			"script": "watch:esbuild:test",
+			"type": "shell",
+			"command": "bun run watch:esbuild:test",
 			"group": "build",
 			"problemMatcher": {
 				"pattern": [
@@ -200,13 +209,15 @@
 			"isBackground": true,
 			"label": "npm: watch:esbuild:test",
 			"dependsOn": [
-				"npm: protos"
+				"npm: protos",
+				"build-sdk:debug"
 			],
 			"presentation": {
 				"group": "watch",
 				"reveal": "always"
 			},
 			"options": {
+				"cwd": "${workspaceFolder}/apps/vscode",
 				"env": {
 					"IS_DEV": "true",
 					"IS_TEST": "true"
@@ -214,8 +225,8 @@
 			}
 		},
 		{
-			"type": "npm",
-			"script": "watch:tsc",
+			"type": "shell",
+			"command": "bun run watch:tsc",
 			"group": "build",
 			"problemMatcher": "$tsc-watch",
 			"isBackground": true,
@@ -226,11 +237,15 @@
 			"presentation": {
 				"group": "watch",
 				"reveal": "always"
+			},
+			"options": {
+				"cwd": "${workspaceFolder}/apps/vscode"
 			}
 		},
 		{
-			"type": "npm",
-			"script": "watch-tests",
+			"type": "shell",
+			"command": "bun run watch-tests",
+			"label": "npm: watch-tests",
 			"problemMatcher": "$tsc-watch",
 			"isBackground": true,
 			"dependsOn": [
@@ -240,7 +255,10 @@
 				"reveal": "always",
 				"group": "watchers"
 			},
-			"group": "build"
+			"group": "build",
+			"options": {
+				"cwd": "${workspaceFolder}/apps/vscode"
+			}
 		},
 		{
 			"label": "tasks: watch-tests",
@@ -262,11 +280,11 @@
 			"dependsOn": [
 				"watch"
 			],
-			"command": "rm -rf ${workspaceFolder}/dist/tmp/user && mkdir -p ${workspaceFolder}/dist/tmp/user"
+			"command": "rm -rf ${workspaceFolder}/apps/vscode/dist/tmp/user && mkdir -p ${workspaceFolder}/apps/vscode/dist/tmp/user"
 		},
 		{
-			"type": "npm",
-			"script": "storybook",
+			"type": "shell",
+			"command": "bun run storybook",
 			"group": "build",
 			"problemMatcher": [],
 			"isBackground": false,
@@ -279,8 +297,38 @@
 				"reveal": "always"
 			},
 			"options": {
+				"cwd": "${workspaceFolder}/apps/vscode",
 				"env": {
 					"IS_DEV": "true"
+				}
+			}
+		},
+		{
+			"label": "build-sdk",
+			"type": "shell",
+			"command": "bun run build:sdk",
+			"problemMatcher": [
+				"$tsc"
+			],
+			"options": {
+				"cwd": "${workspaceFolder}"
+			}
+		},
+		{
+			"label": "build-sdk:debug",
+			"type": "shell",
+			"command": "bun run build:sdk",
+			"problemMatcher": [
+				"$tsc"
+			],
+			"presentation": {
+				"group": "watch",
+				"reveal": "always"
+			},
+			"options": {
+				"cwd": "${workspaceFolder}",
+				"env": {
+					"CLINE_SOURCEMAPS": "1"
 				}
 			}
 		}

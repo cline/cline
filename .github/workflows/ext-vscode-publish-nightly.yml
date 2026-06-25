@@ -1,0 +1,135 @@
+name: ext-vscode-publish-nightly
+
+on:
+  workflow_dispatch:
+
+run-name: "Publish Nightly from ${{ github.ref_name }} @ ${{ github.sha }}"
+
+# Prevent concurrent publish runs on the same branch. The nightly publish script
+# generates the extension version from a seconds-resolution timestamp, so parallel
+# runs on the same ref can collide on the same version and cause publish failures
+# or inconsistent tagging. Runs on different branches proceed independently.
+concurrency:
+  group: ext-vscode-publish-nightly-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  test:
+    if: github.repository == 'cline/cline' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dpc/sdk-migration-simpler-login')
+    permissions:
+      contents: read
+      pull-requests: read
+    uses: ./.github/workflows/ext-vscode-test.yml
+
+  publish:
+    needs: test
+    permissions:
+      contents: write
+    name: Publish Cline (Nightly) Extension
+    if: github.repository == 'cline/cline' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dpc/sdk-migration-simpler-login')
+    runs-on: ubuntu-latest
+    environment: PublishNightly
+    # The VS Code extension's package.json and lockfiles live under apps/vscode/
+    # (the repo root has no package.json). Mirror ext-vscode-test.yml so install
+    # and publish steps run in the correct workspace.
+    defaults:
+      run:
+        working-directory: apps/vscode
+
+    steps:
+      - name: Checkout selected branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          lfs: true
+          persist-credentials: false
+
+      - name: Show build source
+        working-directory: ${{ github.workspace }}
+        run: |
+          echo "Building ref: $GITHUB_REF"
+          echo "Building sha: $GITHUB_SHA"
+          git --no-pager log -1 --oneline
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      # Node is still REQUIRED in the publish job (not just for install): the publish
+      # scripts run as `node ./scripts/publish-*.mjs` and shell out to `npx ovsx`.
+      # setup-bun does not provide a Node runtime, so keep setup-node here.
+      # Pinned to Node 22 because newer LTS (Node 24 / npm 11) can make vsce's
+      # `npm list` dependency detection fail with ELSPROBLEMS during packaging.
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Single root install resolves the whole bun workspace at once (replaces the
+      # per-package `npm ci` steps for apps/vscode + webview-ui).
+      - name: Install workspace dependencies
+        working-directory: ${{ github.workspace }}
+        run: bun install --frozen-lockfile
+
+      # @cline/* are local workspace symlinks to source packages; build dist/ before
+      # packaging/publishing the extension.
+      - name: Build SDK packages
+        working-directory: ${{ github.workspace }}
+        run: bun run build:sdk
+
+      - name: Assert better-sqlite3 native binary present
+        run: |
+          NODE_FILE="node_modules/better-sqlite3/build/Release/better_sqlite3.node"
+          if [ ! -f "$NODE_FILE" ]; then
+            echo "ERROR: better-sqlite3 native binary missing at apps/vscode/$NODE_FILE"
+            echo "(bun trustedDependencies postinstall likely did not run)"
+            exit 1
+          fi
+          echo "Found better-sqlite3 native binary: $NODE_FILE"
+
+      # vsce is now a workspace devDependency (on node_modules/.bin), but ovsx is not
+      # vendored and the publish script invokes it via `npx ovsx`, so install ovsx
+      # globally here (npm is available via setup-node). vsce is installed globally
+      # too to preserve the script's existing PATH expectations.
+      - name: Install Publishing Tools
+        run: npm install -g @vscode/vsce ovsx
+
+      - name: Publish Nightly Extension
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+          TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
+          ERROR_SERVICE_API_KEY: ${{ secrets.ERROR_SERVICE_API_KEY }}
+          CLINE_ENVIRONMENT: production
+          # OpenTelemetry production defaults (can be overridden at runtime)
+          OTEL_TELEMETRY_ENABLED: ${{ secrets.OTEL_TELEMETRY_ENABLED }}
+          OTEL_LOGS_EXPORTER: otlp
+          OTEL_METRICS_EXPORTER: otlp
+          OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
+          OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
+          OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
+        # The script itself runs under `node ./scripts/publish-nightly.mjs`; bun run
+        # just launches it. Node + npm (for `npx ovsx`) are provided by setup-node above.
+        run: bun run publish:marketplace:nightly
+
+      - name: Tag published commit
+        working-directory: ${{ github.workspace }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          SAFE_REF=$(echo "$GITHUB_REF_NAME" | tr '/[:upper:]' '-[:lower:]' | tr -cd 'a-z0-9._-')
+          SHORT_SHA=$(git rev-parse --short=12 HEAD)
+          TIMESTAMP=$(date -u +"%Y%m%d%H%M%S")
+          TAG="nightly-${SAFE_REF}-${TIMESTAMP}-${SHORT_SHA}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Cline Nightly published from ${GITHUB_REF_NAME} at ${GITHUB_SHA}"
+          # Use an explicit HTTPS remote with GH_TOKEN because checkout was run with
+          # persist-credentials: false, so actions/checkout did not persist a git credential helper.
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "refs/tags/${TAG}"
+
+          echo "Tagged published commit: $TAG"

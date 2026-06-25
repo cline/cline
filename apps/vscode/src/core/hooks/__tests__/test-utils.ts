@@ -1,0 +1,647 @@
+import { spyOn } from "bun:test"
+import * as fs from "fs/promises"
+import * as os from "os"
+import * as path from "path"
+import should from "should"
+import sinon from "sinon"
+import { HostProvider } from "../../../hosts/host-provider"
+import { HookOutput } from "../../../shared/proto/cline/hooks"
+import { setVscodeHostProviderMock } from "../../../test/host-provider-test-utils"
+import * as diskModule from "../../storage/disk"
+import { StateManager } from "../../storage/StateManager"
+import { HookDiscoveryCache } from "../HookDiscoveryCache"
+import { HookFactory, Hooks, NamedHookInput } from "../hook-factory"
+
+// Define HookName locally since it's not exported from hook-factory
+type HookName = keyof Hooks
+
+export type HookTestEnv = {
+	tempDir: string
+	hooksDir: string
+	sandbox: sinon.SinonSandbox
+	cleanup: () => Promise<void>
+}
+
+async function removeTempDirWithRetry(tempDir: string): Promise<void> {
+	const maxAttempts = process.platform === "win32" ? 5 : 1
+	for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+		try {
+			await fs.rm(tempDir, { recursive: true, force: true })
+			return
+		} catch (error) {
+			const nodeError = error as NodeJS.ErrnoException
+			const isRetryableWindowsLock = process.platform === "win32" && nodeError?.code === "EBUSY"
+			if (!isRetryableWindowsLock || attempt === maxAttempts) {
+				throw error
+			}
+
+			// Give Windows a brief moment to release file handles from child processes.
+			await new Promise((resolve) => setTimeout(resolve, 100 * attempt))
+		}
+	}
+}
+
+export function resetHookCache(): void {
+	HookDiscoveryCache.resetForTesting()
+}
+
+export async function withPlatform<T>(platform: NodeJS.Platform, fn: () => Promise<T> | T): Promise<T> {
+	const originalPlatform = process.platform
+	Object.defineProperty(process, "platform", { value: platform, configurable: true })
+	try {
+		return await fn()
+	} finally {
+		Object.defineProperty(process, "platform", { value: originalPlatform, configurable: true })
+	}
+}
+
+export function hookFileName(hookName: string, platform: NodeJS.Platform = process.platform): string {
+	return platform === "win32" ? `${hookName}.ps1` : hookName
+}
+
+export function hookPath(hooksDir: string, hookName: string, platform: NodeJS.Platform = process.platform): string {
+	return path.join(hooksDir, hookFileName(hookName, platform))
+}
+
+// bun loads real ESM, so sinon cannot stub the `getAllHooksDirs` namespace
+// export ("ES Modules cannot be stubbed"). Use bun's spyOn, which can replace
+// ESM namespace bindings in place. The spy is tracked module-locally so the
+// per-env cleanup can restore it (the sandbox arg is retained for call-site
+// compatibility but is unused for this export).
+let hooksDirsSpy: ReturnType<typeof spyOn> | undefined
+
+export function stubHookDirs(_sandbox: sinon.SinonSandbox, dirs: string[]): ReturnType<typeof spyOn> {
+	if (!hooksDirsSpy) {
+		hooksDirsSpy = spyOn(diskModule, "getAllHooksDirs")
+	}
+	hooksDirsSpy.mockImplementation(async () => dirs)
+	return hooksDirsSpy
+}
+
+function restoreHookDirsSpy(): void {
+	hooksDirsSpy?.mockRestore()
+	hooksDirsSpy = undefined
+}
+
+export async function createHookTestEnv(): Promise<HookTestEnv> {
+	// Hook execution emits telemetry, which lazily constructs TelemetryService
+	// via HostProvider.env.getHostVersion(). Under mocha's single-process run an
+	// earlier suite left HostProvider initialized; bun's per-file isolation does
+	// not, so initialize it here (idempotent) to keep the telemetry path from
+	// throwing "HostProvider not setup".
+	if (!HostProvider.isInitialized()) {
+		setVscodeHostProviderMock()
+	}
+
+	const sandbox = sinon.createSandbox()
+	const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "hook-test-"))
+	const hooksDir = await createHooksDirectory(tempDir)
+
+	sandbox.stub(StateManager, "get").returns({
+		getGlobalStateKey: (key: string) => {
+			if (key === "workspaceRoots") {
+				return [{ path: tempDir }]
+			}
+			if (key === "primaryRootIndex") {
+				return 0
+			}
+			return undefined
+		},
+	} as any)
+
+	resetHookCache()
+	stubHookDirs(sandbox, [hooksDir])
+
+	return {
+		tempDir,
+		hooksDir,
+		sandbox,
+		cleanup: async () => {
+			sandbox.restore()
+			restoreHookDirsSpy()
+			resetHookCache()
+			await removeTempDirWithRetry(tempDir)
+		},
+	}
+}
+
+/**
+ * Creates a hooks directory structure at the specified location.
+ *
+ * @param baseDir Base directory where .clinerules/hooks will be created
+ * @returns Path to the created hooks directory
+ *
+ * @example
+ * const hooksDir = await createHooksDirectory("/tmp/test")
+ * // Returns: "/tmp/test/.clinerules/hooks"
+ */
+export async function createHooksDirectory(baseDir: string): Promise<string> {
+	const hooksDir = path.join(baseDir, ".clinerules", "hooks")
+	await fs.mkdir(hooksDir, { recursive: true })
+	return hooksDir
+}
+
+/**
+ * Creates a test hook script with the specified output behavior.
+ *
+ * On Unix, this writes an executable `HookName` script with a shebang.
+ * On Windows, this writes both:
+ * - `HookName` (PowerShell bridge script)
+ * - `HookName.js` (Node implementation)
+ *
+ * This mirrors runtime behavior where Windows hooks execute via PowerShell.
+ *
+ * @param baseDir Base directory (typically tempDir from test environment)
+ * @param hookName Name of the hook (e.g., "PreToolUse", "PostToolUse")
+ * @param output The JSON output the hook should return
+ * @param options Optional configuration for hook behavior
+ * @returns Path to the created hook script
+ *
+ * @example
+ * // Create a simple success hook
+ * await createTestHook(tempDir, "PreToolUse", {
+ *   cancel: false,
+ *   contextModification: "TEST_CONTEXT"
+ * })
+ *
+ * @example
+ * // Create a hook that delays before responding
+ * await createTestHook(tempDir, "PreToolUse", {
+ *   cancel: false
+ * }, { delay: 100 })
+ *
+ * @example
+ * // Create a hook that exits with an error
+ * await createTestHook(tempDir, "PreToolUse", {
+ *   cancel: true
+ * }, { exitCode: 1 })
+ *
+ * @example
+ * // Create a hook with custom Node.js code
+ * await createTestHook(tempDir, "PreToolUse", {}, {
+ *   customNodeCode: "console.log('custom behavior'); process.exit(0);"
+ * })
+ */
+export async function createTestHook(
+	baseDir: string,
+	hookName: string,
+	output: Partial<HookOutput>,
+	options: {
+		delay?: number
+		exitCode?: number
+		malformedJson?: boolean
+		customNodeCode?: string
+		exitWithoutOutput?: boolean
+	} = {},
+): Promise<string> {
+	const hooksDir = await createHooksDirectory(baseDir)
+	const scriptContent = generateHookScript(output, options)
+
+	// Create hook scripts compatible with the active platform/runtime.
+	return writeShellHook(hooksDir, hookName, scriptContent)
+}
+
+/**
+ * Writes a hook script at a specific hook base path (without extension).
+ *
+ * - Unix/macOS: writes executable extensionless script directly
+ * - Windows: writes `<HookName>.ps1` + `<HookName>.js` companion script
+ */
+export async function writeHookScriptForPlatform(hookPath: string, nodeScript: string): Promise<void> {
+	if (process.platform === "win32") {
+		const jsPath = `${hookPath}.js`
+		const ps1Path = `${hookPath}.ps1`
+		const psBridge = buildPowerShellNodeBridge(process.execPath, path.basename(jsPath))
+
+		await fs.writeFile(jsPath, nodeScript)
+		await fs.writeFile(ps1Path, psBridge)
+		return
+	}
+
+	await fs.writeFile(hookPath, nodeScript)
+	await fs.chmod(hookPath, 0o755)
+}
+
+function buildPowerShellNodeBridge(nodePath: string, jsFileName: string): string {
+	const escapedNodePath = nodePath.replace(/'/g, "''")
+	const escapedJsFileName = jsFileName.replace(/'/g, "''")
+
+	return [
+		`$ErrorActionPreference = 'Stop'`,
+		`$scriptPath = Join-Path -Path $PSScriptRoot -ChildPath '${escapedJsFileName}'`,
+		`$inputData = [Console]::In.ReadToEnd()`,
+		`$inputData | & '${escapedNodePath}' $scriptPath`,
+		`if ($null -ne $LASTEXITCODE) { exit $LASTEXITCODE }`,
+		`exit 0`,
+	].join("\n")
+}
+
+/**
+ * Generates an executable Node.js script with shebang.
+ */
+function generateHookScript(
+	output: Partial<HookOutput>,
+	options: {
+		delay?: number
+		exitCode?: number
+		malformedJson?: boolean
+		customNodeCode?: string
+		exitWithoutOutput?: boolean
+	},
+): string {
+	let script = "#!/usr/bin/env node\n"
+
+	// If custom Node.js code is provided, use it directly
+	if (options.customNodeCode) {
+		return script + options.customNodeCode
+	}
+
+	// If exitWithoutOutput is true, just exit
+	if (options.exitWithoutOutput) {
+		return `${script}process.exit(0);\n`
+	}
+
+	if (options.delay) {
+		script += `setTimeout(() => {\n`
+	}
+
+	if (options.malformedJson) {
+		script += `  console.log("not valid json");\n`
+	} else {
+		script += `  console.log(JSON.stringify(${JSON.stringify(output)}));\n`
+	}
+
+	if (options.exitCode !== undefined) {
+		script += `  process.exit(${options.exitCode});\n`
+	}
+
+	if (options.delay) {
+		script += `}, ${options.delay});\n`
+	}
+
+	return script
+}
+
+/**
+ * Writes an executable hook script.
+ *
+ * Unix: writes executable script directly.
+ * Windows: writes a PowerShell bridge that pipes stdin to a Node companion script.
+ */
+async function writeShellHook(hooksDir: string, hookName: string, scriptContent: string): Promise<string> {
+	const scriptPath = path.join(hooksDir, hookName)
+	await writeHookScriptForPlatform(scriptPath, scriptContent)
+	return process.platform === "win32" ? `${scriptPath}.ps1` : scriptPath
+}
+
+/**
+ * Builds a complete HookInput object for PreToolUse testing.
+ *
+ * @param params Partial parameters to customize the input
+ * @returns Complete HookInput ready for runner.run()
+ *
+ * @example
+ * const input = buildPreToolUseInput({
+ *   toolName: "write_to_file",
+ *   parameters: { path: "test.ts", content: "test" }
+ * })
+ */
+export function buildPreToolUseInput(params: {
+	toolName: string
+	parameters?: Record<string, any>
+	taskId?: string
+}): NamedHookInput<"PreToolUse"> {
+	return {
+		taskId: params.taskId || "test-task-id",
+		preToolUse: {
+			toolName: params.toolName,
+			parameters: params.parameters || {},
+		},
+	}
+}
+
+/**
+ * Builds a complete HookInput object for PostToolUse testing.
+ *
+ * @param params Partial parameters to customize the input
+ * @returns Complete HookInput ready for runner.run()
+ *
+ * @example
+ * const input = buildPostToolUseInput({
+ *   toolName: "write_to_file",
+ *   result: "File created successfully",
+ *   success: true
+ * })
+ */
+export function buildPostToolUseInput(params: {
+	toolName: string
+	parameters?: Record<string, any>
+	result?: string
+	success?: boolean
+	executionTimeMs?: number
+	taskId?: string
+}): NamedHookInput<"PostToolUse"> {
+	return {
+		taskId: params.taskId || "test-task-id",
+		postToolUse: {
+			toolName: params.toolName,
+			parameters: params.parameters || {},
+			result: params.result || "",
+			success: params.success ?? true,
+			executionTimeMs: params.executionTimeMs ?? 100,
+		},
+	}
+}
+
+/**
+ * Assertion helper for HookOutput validation.
+ * Compares actual output against expected partial output.
+ *
+ * @param actual The actual hook output received
+ * @param expected The expected hook output (partial match)
+ *
+ * @example
+ * assertHookOutput(result, {
+ *   cancel: false,
+ *   contextModification: "Expected context"
+ * })
+ */
+export function assertHookOutput(actual: HookOutput, expected: Partial<HookOutput>): void {
+	if (expected.cancel !== undefined) {
+		if (actual.cancel !== expected.cancel) {
+			throw new Error(
+				`Hook output assertion failed for 'cancel':\n` +
+					`  Expected: ${expected.cancel}\n` +
+					`  Received: ${actual.cancel}\n` +
+					`  Full output: ${JSON.stringify(actual, null, 2)}`,
+			)
+		}
+	}
+
+	if (expected.contextModification !== undefined) {
+		if (actual.contextModification !== expected.contextModification) {
+			throw new Error(
+				`Hook output assertion failed for 'contextModification':\n` +
+					`  Expected: "${expected.contextModification}"\n` +
+					`  Received: "${actual.contextModification}"\n` +
+					`  Full output: ${JSON.stringify(actual, null, 2)}`,
+			)
+		}
+	}
+
+	if (expected.errorMessage !== undefined) {
+		if (actual.errorMessage !== expected.errorMessage) {
+			throw new Error(
+				`Hook output assertion failed for 'errorMessage':\n` +
+					`  Expected: "${expected.errorMessage}"\n` +
+					`  Received: "${actual.errorMessage}"\n` +
+					`  Full output: ${JSON.stringify(actual, null, 2)}`,
+			)
+		}
+	}
+}
+
+/**
+ * Type guard to check if a value is serializable (can be cloned).
+ * Prevents errors from attempting to clone non-serializable objects.
+ */
+function isSerializable(value: any): boolean {
+	if (value === null || value === undefined) {
+		return true
+	}
+
+	const type = typeof value
+	if (type === "string" || type === "number" || type === "boolean") {
+		return true
+	}
+
+	if (type === "object") {
+		// Check for non-serializable types
+		if (value instanceof Function || value instanceof RegExp || value instanceof Error) {
+			return false
+		}
+
+		// Check if it's an array or plain object
+		if (Array.isArray(value)) {
+			return value.every(isSerializable)
+		}
+
+		// For objects, check all values
+		return Object.values(value).every(isSerializable)
+	}
+
+	return false
+}
+
+/**
+ * Mock implementation of HookRunner for fast integration tests.
+ * Tracks calls and returns predefined responses without spawning processes.
+ *
+ * @example
+ * const mockRunner = new MockHookRunner("PreToolUse")
+ * mockRunner.setResponse({ cancel: false })
+ *
+ * const result = await mockRunner.run(input)
+ * mockRunner.assertCalled(1)
+ * mockRunner.assertCalledWith({ preToolUse: { toolName: "write_to_file" } })
+ */
+export class MockHookRunner<Name extends HookName> {
+	private response: HookOutput = {
+		cancel: false,
+		contextModification: "",
+		errorMessage: "",
+	}
+	public executionLog: Array<{ input: NamedHookInput<Name>; timestamp: number }> = []
+	public readonly hookName: Name
+
+	constructor(hookName: Name) {
+		this.hookName = hookName
+	}
+
+	/**
+	 * Set the response this mock should return.
+	 *
+	 * @param output The HookOutput to return on execution
+	 */
+	setResponse(output: Partial<HookOutput>): void {
+		this.response = {
+			cancel: output.cancel ?? false,
+			contextModification: output.contextModification ?? "",
+			errorMessage: output.errorMessage ?? "",
+		}
+	}
+
+	/**
+	 * Mock run method that records calls and returns preset response.
+	 * Does not use the actual HookRunner execution mechanism.
+	 */
+	async run(params: NamedHookInput<Name>): Promise<HookOutput> {
+		// Validate params are serializable
+		if (!isSerializable(params)) {
+			throw new Error(
+				`MockHookRunner: Cannot clone non-serializable input. ` +
+					`Ensure all input values are primitive types, arrays, or plain objects.`,
+			)
+		}
+
+		// Use structuredClone for deep copy (Node 17+)
+		// Falls back to JSON stringify/parse for older Node versions
+		let clonedInput: NamedHookInput<Name>
+		try {
+			clonedInput = structuredClone(params)
+		} catch {
+			// Fallback for older Node versions
+			clonedInput = JSON.parse(JSON.stringify(params))
+		}
+
+		this.executionLog.push({
+			input: clonedInput,
+			timestamp: Date.now(),
+		})
+
+		// Simulate async execution
+		await new Promise((resolve) => setTimeout(resolve, 1))
+
+		return this.response
+	}
+
+	/**
+	 * Assert this hook was called a specific number of times.
+	 *
+	 * @param times Expected number of calls
+	 */
+	assertCalled(times: number): void {
+		if (this.executionLog.length !== times) {
+			throw new Error(
+				`MockHookRunner call count assertion failed:\n` +
+					`  Expected: ${times} calls\n` +
+					`  Received: ${this.executionLog.length} calls\n` +
+					`  Execution log:\n${JSON.stringify(this.executionLog, null, 2)}`,
+			)
+		}
+	}
+
+	/**
+	 * Assert this hook was called with matching input.
+	 * Performs partial match on the input object using deep equality.
+	 * Property ordering does not affect equality checks.
+	 * Uses should.js's eql() for robust deep equality comparison.
+	 *
+	 * @param matcher Partial input to match against
+	 */
+	assertCalledWith(matcher: Partial<NamedHookInput<Name>>): void {
+		const matchingCalls = this.executionLog.filter((log) => {
+			return Object.keys(matcher).every((key) => {
+				const matcherValue = (matcher as any)[key]
+				const logValue = (log.input as any)[key]
+				// Use should.js's eql() for deep equality (handles property ordering)
+				try {
+					should(logValue).eql(matcherValue)
+					return true
+				} catch {
+					return false
+				}
+			})
+		})
+
+		if (matchingCalls.length === 0) {
+			throw new Error(
+				`MockHookRunner input assertion failed - no calls matched the expected input:\n` +
+					`  Expected input (partial): ${JSON.stringify(matcher, null, 2)}\n` +
+					`  Actual calls: ${JSON.stringify(this.executionLog, null, 2)}`,
+			)
+		}
+	}
+
+	/**
+	 * Reset all recorded calls and responses.
+	 */
+	reset(): void {
+		this.executionLog = []
+		this.response = {
+			cancel: false,
+			contextModification: "",
+			errorMessage: "",
+		}
+	}
+}
+
+/**
+ * Copies a fixture to the test environment.
+ *
+ * @param fixtureName Path to fixture relative to fixtures directory (e.g., "hooks/pretooluse/success")
+ * @param destDir Destination directory (typically tempDir from test environment)
+ *
+ * @example
+ * await loadFixture("hooks/pretooluse/success", tempDir)
+ * // Hook is now available at tempDir/.clinerules/hooks/PreToolUse
+ */
+export async function loadFixture(fixtureName: string, destDir: string): Promise<void> {
+	const fixturesDir = path.join(__dirname, "fixtures")
+	const sourcePath = path.join(fixturesDir, fixtureName)
+	const destHooksDir = await createHooksDirectory(destDir)
+
+	// Copy all files from the fixture directory to the destination
+	const files = await fs.readdir(sourcePath)
+	for (const file of files) {
+		const sourceFile = path.join(sourcePath, file)
+
+		if (process.platform === "win32") {
+			const sourceContent = await fs.readFile(sourceFile, "utf-8")
+			await writeHookScriptForPlatform(path.join(destHooksDir, file), sourceContent)
+		} else {
+			const destFile = path.join(destHooksDir, file)
+			await fs.copyFile(sourceFile, destFile)
+
+			// Set executable permission (not needed on Windows)
+			const stats = await fs.stat(sourceFile)
+			await fs.chmod(destFile, stats.mode)
+		}
+	}
+}
+
+/**
+ * Creates an isolated hook test environment, loads a fixture into it, creates a runner,
+ * and guarantees cleanup once the callback completes.
+ *
+ * This is useful for fixture suites that want to iterate through multiple scenarios
+ * without sharing hook directories, discovery cache state, or filesystem artifacts
+ * between scenarios.
+ */
+export async function withFixtureRunner<Name extends HookName, TResult>(
+	hookName: Name,
+	fixtureName: string,
+	callback: (runner: Awaited<ReturnType<HookFactory["create"]>>, env: HookTestEnv) => Promise<TResult>,
+): Promise<TResult>
+export async function withFixtureRunner<Name extends HookName, TResult>(
+	hookName: Name,
+	fixtureName: string,
+	env: HookTestEnv,
+	callback: (runner: Awaited<ReturnType<HookFactory["create"]>>, env: HookTestEnv) => Promise<TResult>,
+): Promise<TResult>
+export async function withFixtureRunner<Name extends HookName, TResult>(
+	hookName: Name,
+	fixtureName: string,
+	envOrCallback: HookTestEnv | ((runner: Awaited<ReturnType<HookFactory["create"]>>, env: HookTestEnv) => Promise<TResult>),
+	maybeCallback?: (runner: Awaited<ReturnType<HookFactory["create"]>>, env: HookTestEnv) => Promise<TResult>,
+): Promise<TResult> {
+	const usingExistingEnv = typeof envOrCallback !== "function"
+	const env = usingExistingEnv ? envOrCallback : await createHookTestEnv()
+	const runCallback = usingExistingEnv ? maybeCallback : envOrCallback
+	if (!runCallback) {
+		throw new Error("withFixtureRunner requires a callback")
+	}
+	try {
+		await fs.rm(env.hooksDir, { recursive: true, force: true })
+		await createHooksDirectory(env.tempDir)
+		resetHookCache()
+		await loadFixture(fixtureName, env.tempDir)
+		const factory = new HookFactory()
+		const runner = await factory.create(hookName)
+		return await runCallback(runner, env)
+	} finally {
+		if (!usingExistingEnv) {
+			await env.cleanup()
+		}
+	}
+}

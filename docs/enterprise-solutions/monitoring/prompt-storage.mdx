@@ -1,0 +1,666 @@
+---
+title: "Prompt Storage"
+description: "Backup conversation history to S3 or Cloudflare R2 for compliance, audit, and analysis"
+---
+
+Prompt Storage allows enterprises to automatically back up Cline conversation history to cloud storage (AWS S3 or Cloudflare R2). This provides a centralized repository for compliance, audit trails, and usage analysis while maintaining local storage as the primary source of truth.
+
+## Overview
+
+Every Cline task conversation is stored locally in `~/.cline/data/tasks/<taskId>/api_conversation_history.json`. When prompt storage is enabled, a background sync worker automatically uploads these conversation files to your configured S3 or R2 bucket.
+
+<CardGroup cols={2}>
+  <Card title="Compliance Ready" icon="shield-check">
+    Maintain conversation records for regulatory requirements and internal policies.
+  </Card>
+  
+  <Card title="Audit Trail" icon="scroll">
+    Track AI interactions across your organization with timestamped conversation logs.
+  </Card>
+  
+  <Card title="Usage Analysis" icon="chart-line">
+    Analyze conversation patterns, token usage, and model performance at scale.
+  </Card>
+  
+  <Card title="Disaster Recovery" icon="cloud-arrow-up">
+    Backup conversation history independent of local storage for business continuity.
+  </Card>
+</CardGroup>
+
+## How It Works
+
+```mermaid
+graph LR
+    A[User] --> B[Cline Extension]
+    B --> C[Local Storage<br/>~/.cline/data/tasks/]
+    C --> D[Background Sync Worker]
+    D --> E[S3/R2 Bucket]
+    E --> F[Compliance/Analytics]
+```
+
+1. **Local Storage First**: All conversations are written to local disk immediately
+2. **Background Sync**: A worker process queues conversation files for upload
+3. **Reliable Upload**: Automatic retry logic with configurable batch sizes
+4. **Cloud Backup**: Files are stored in your S3/R2 bucket with the same path structure
+
+## Storage Architecture
+
+### What Gets Stored
+
+Prompt storage uploads the following files from each task:
+
+| File | Content | Purpose |
+|------|---------|---------|
+| `api_conversation_history.json` | Full conversation in Anthropic MessageParam format | Core conversation data for analysis |
+| Task metadata | Task ID, timestamps, model info | Correlation and indexing |
+
+### What's NOT Stored
+
+Prompt storage **does not** include:
+
+- ❌ Workspace files not accessed by Cline
+- ❌ API keys or secrets  
+- ❌ User credentials or authentication tokens
+
+<Warning>
+Conversation history includes **all tool inputs and outputs**. This means code written via `write_to_file`, file contents read via `read_file`, and command outputs are included in the uploaded data. Review your compliance and data classification requirements before enabling.
+</Warning>
+
+### Storage Path Pattern
+
+Files are uploaded to your bucket following this structure:
+
+```
+s3://your-bucket/tasks/{taskId}/api_conversation_history.json
+```
+
+This mirrors the local storage structure, making it easy to correlate local and cloud data.
+
+## Configuration
+
+Prompt storage is configured through Remote Configuration in the `enterpriseTelemetry.promptUploading` section.
+
+### Schema
+
+```json
+{
+  "enterpriseTelemetry": {
+    "promptUploading": {
+      "enabled": true,
+      "type": "s3_access_keys",
+      "s3AccessSettings": {
+        "bucket": "your-cline-prompts",
+        "accessKeyId": "AKIAIOSFODNN7EXAMPLE",
+        "secretAccessKey": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+        "region": "us-east-1",
+        "intervalMs": 30000,
+        "maxRetries": 5,
+        "batchSize": 10,
+        "maxQueueSize": 1000,
+        "maxFailedAgeMs": 604800000,
+        "backfillEnabled": false
+      }
+    }
+  }
+}
+```
+
+### Configuration Fields
+
+#### Core Settings
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `enabled` | boolean | Yes | Enable/disable prompt storage |
+| `type` | string | Yes | Storage type: `"s3_access_keys"` or `"r2_access_keys"` |
+
+#### Access Settings (S3/R2)
+
+| Field | Type | Required | Description | Default |
+|-------|------|----------|-------------|---------|
+| `bucket` | string | Yes | S3/R2 bucket name | - |
+| `accessKeyId` | string | Yes | AWS/Cloudflare access key ID | - |
+| `secretAccessKey` | string | Yes | AWS/Cloudflare secret access key | - |
+| `region` | string | S3 only | AWS region (e.g., `us-east-1`) | - |
+| `endpoint` | string | R2 only | Cloudflare R2 endpoint URL | - |
+| `accountId` | string | R2 only | Cloudflare account ID | - |
+
+#### Sync Worker Settings
+
+| Field | Type | Description | Default |
+|-------|------|-------------|---------|
+| `intervalMs` | number | Milliseconds between sync attempts | 30000 (30s) |
+| `maxRetries` | number | Maximum retries before giving up | 5 |
+| `batchSize` | number | Items to process per interval | 10 |
+| `maxQueueSize` | number | Maximum queue size before eviction | 1000 |
+| `maxFailedAgeMs` | number | Time before discarding failed items | 604800000 (7 days) |
+| `backfillEnabled` | boolean | Sync existing tasks on startup | false |
+
+## Setup Guides
+
+<Tabs>
+  <Tab title="AWS S3">
+    ### AWS S3 Configuration
+
+    <Steps>
+      <Step title="Create S3 Bucket">
+        Create a dedicated S3 bucket for Cline conversation storage:
+        
+        ```bash
+        aws s3 mb s3://your-cline-prompts --region us-east-1
+        ```
+        
+        Enable versioning and encryption:
+        
+        ```bash
+        aws s3api put-bucket-versioning \
+          --bucket your-cline-prompts \
+          --versioning-configuration Status=Enabled
+        
+        aws s3api put-bucket-encryption \
+          --bucket your-cline-prompts \
+          --server-side-encryption-configuration '{
+            "Rules": [{
+              "ApplyServerSideEncryptionByDefault": {
+                "SSEAlgorithm": "AES256"
+              }
+            }]
+          }'
+        ```
+      </Step>
+
+      <Step title="Create IAM Policy">
+        Create an IAM policy with minimal required permissions:
+        
+        ```json
+        {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Action": [
+                "s3:PutObject",
+                "s3:PutObjectAcl",
+                "s3:GetObject",
+                "s3:DeleteObject"
+              ],
+              "Resource": "arn:aws:s3:::your-cline-prompts/*"
+            },
+            {
+              "Effect": "Allow",
+              "Action": [
+                "s3:ListBucket"
+              ],
+              "Resource": "arn:aws:s3:::your-cline-prompts"
+            }
+          ]
+        }
+        ```
+        
+        Save this as `cline-prompt-storage-policy.json` and create the policy:
+        
+        ```bash
+        aws iam create-policy \
+          --policy-name ClinePromptStorage \
+          --policy-document file://cline-prompt-storage-policy.json
+        ```
+      </Step>
+
+      <Step title="Create IAM User">
+        Create a dedicated IAM user and attach the policy:
+        
+        ```bash
+        aws iam create-user --user-name cline-prompt-uploader
+        
+        aws iam attach-user-policy \
+          --user-name cline-prompt-uploader \
+          --policy-arn arn:aws:iam::YOUR_ACCOUNT_ID:policy/ClinePromptStorage
+        
+        aws iam create-access-key --user-name cline-prompt-uploader
+        ```
+        
+        Save the `AccessKeyId` and `SecretAccessKey` from the output.
+      </Step>
+
+      <Step title="Configure in Cline Dashboard">
+        In the Cline admin console at [app.cline.bot](https://app.cline.bot):
+        
+        1. Navigate to **Settings** → **Enterprise Telemetry**
+        2. Enable **Prompt Uploading**
+        3. Select **S3** as the storage type
+        4. Enter your bucket name, access key ID, secret key, and region
+        5. Configure sync worker settings (or use defaults)
+        6. Save configuration
+      </Step>
+
+      <Step title="Test Connection">
+        Use the "Test Connection" button in the admin console to verify:
+        - Bucket access
+        - Write permissions
+        - Credential validity
+        
+        A test file will be uploaded and deleted from your bucket.
+      </Step>
+    </Steps>
+
+    ### Optional: Lifecycle Policies
+
+    Configure retention policies for cost management:
+
+    ```json
+    {
+      "Rules": [
+        {
+          "Id": "ArchiveOldPrompts",
+          "Status": "Enabled",
+          "Transitions": [
+            {
+              "Days": 90,
+              "StorageClass": "GLACIER"
+            }
+          ]
+        },
+        {
+          "Id": "DeleteOldPrompts",
+          "Status": "Enabled",
+          "Expiration": {
+            "Days": 2555
+          }
+        }
+      ]
+    }
+    ```
+  </Tab>
+
+  <Tab title="Cloudflare R2">
+    ### Cloudflare R2 Configuration
+
+    <Steps>
+      <Step title="Create R2 Bucket">
+        1. Log in to the [Cloudflare Dashboard](https://dash.cloudflare.com)
+        2. Navigate to **R2** in the sidebar
+        3. Click **Create bucket**
+        4. Name your bucket (e.g., `cline-prompts`)
+        5. Select a location close to your users
+        6. Click **Create bucket**
+      </Step>
+
+      <Step title="Generate API Token">
+        1. In the R2 dashboard, click **Manage R2 API Tokens**
+        2. Click **Create API token**
+        3. Configure permissions:
+           - **Token name**: Cline Prompt Storage
+           - **Permissions**: Object Read & Write
+           - **Bucket**: Select your bucket or use All buckets
+        4. Click **Create API Token**
+        5. Save the **Access Key ID** and **Secret Access Key**
+        6. Note your **Account ID** (shown in the R2 overview)
+      </Step>
+
+      <Step title="Get R2 Endpoint">
+        Your R2 endpoint follows this format:
+        
+        ```
+        https://<ACCOUNT_ID>.r2.cloudflarestorage.com
+        ```
+        
+        Find your account ID in the Cloudflare dashboard under R2 overview.
+      </Step>
+
+      <Step title="Configure in Cline Dashboard">
+        In the Cline admin console at [app.cline.bot](https://app.cline.bot):
+        
+        1. Navigate to **Settings** → **Enterprise Telemetry**
+        2. Enable **Prompt Uploading**
+        3. Select **R2** as the storage type
+        4. Enter:
+           - Bucket name
+           - Access key ID
+           - Secret access key
+           - Account ID
+           - Endpoint URL
+        5. Configure sync worker settings (or use defaults)
+        6. Save configuration
+      </Step>
+
+      <Step title="Test Connection">
+        Use the "Test Connection" button to verify:
+        - Bucket access with provided credentials
+        - Write permissions
+        - Endpoint connectivity
+      </Step>
+    </Steps>
+
+    ### Cost Advantages
+
+    R2 offers significant cost advantages over S3:
+    - **No egress fees**: Download data at no cost
+    - **Lower storage costs**: ~$0.015/GB vs S3's ~$0.023/GB
+    - **Global edge access**: Fast access from anywhere
+  </Tab>
+</Tabs>
+
+## Sync Worker Behavior
+
+The background sync worker manages the upload queue with these characteristics:
+
+### Queue Management
+
+- **FIFO ordering**: Files are uploaded in the order they were created
+- **Automatic batching**: Processes up to `batchSize` items per interval
+- **Queue size limits**: Evicts oldest items when `maxQueueSize` is exceeded
+- **Retry logic**: Failed uploads are retried up to `maxRetries` times
+
+### Failure Handling
+
+When an upload fails:
+
+1. **Immediate retry**: Item stays in queue for next sync interval
+2. **Exponential backoff**: Retry attempts are spaced out
+3. **Maximum retries**: After `maxRetries` attempts, item is marked as permanently failed
+4. **Age-based cleanup**: Failed items older than `maxFailedAgeMs` are discarded
+5. **No data loss**: Local files remain intact regardless of sync status
+
+### Backfill Mode
+
+When `backfillEnabled` is set to `true`:
+
+- On first startup, scans all existing tasks in `~/.cline/data/tasks/`
+- Queues conversation files that haven't been uploaded
+- Useful for enabling prompt storage on an existing Cline deployment
+- Can generate significant upload volume — monitor queue size
+
+<Warning>
+Enable backfill carefully on large deployments. Consider starting with `backfillEnabled: false` and monitoring the steady-state queue before enabling backfill.
+</Warning>
+
+## Monitoring & Observability
+
+### Integration with OpenTelemetry
+
+While prompt storage operates independently, it integrates with Cline's observability system:
+
+- **Task lifecycle events**: `task.created`, `task.completed` track when conversations are generated
+- **Conversation events**: `task.conversation_turn`, `task.tokens` provide usage metrics
+- **Local monitoring**: Sync worker status is logged but not yet exported as OTel events
+
+See [OpenTelemetry](/enterprise-solutions/monitoring/opentelemetry) for configuring metrics export.
+
+### CloudWatch Monitoring (S3)
+
+Monitor S3 upload activity with CloudWatch:
+
+```bash
+# View PutObject requests (uploads)
+aws cloudwatch get-metric-statistics \
+  --namespace AWS/S3 \
+  --metric-name NumberOfObjects \
+  --dimensions Name=BucketName,Value=your-cline-prompts \
+  --start-time 2026-03-01T00:00:00Z \
+  --end-time 2026-03-08T00:00:00Z \
+  --period 3600 \
+  --statistics Sum
+```
+
+### R2 Analytics
+
+Cloudflare R2 provides built-in analytics in the dashboard:
+
+- Request counts and rates
+- Storage usage over time
+- Bandwidth utilization
+- Error rates
+
+## Security & Compliance
+
+### Encryption
+
+**At Rest:**
+- S3: Enable server-side encryption (SSE-S3 or SSE-KMS)
+- R2: Encryption enabled by default
+
+**In Transit:**
+- All uploads use HTTPS/TLS
+- Credentials are never logged or exposed
+
+### Access Control
+
+**Recommended IAM policies:**
+
+- Use dedicated IAM users/roles
+- Limit permissions to write-only if read access isn't needed
+- Enable MFA for credential generation
+- Rotate access keys regularly
+
+**Bucket policies:**
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Deny",
+      "Principal": "*",
+      "Action": "s3:*",
+      "Resource": [
+        "arn:aws:s3:::your-cline-prompts/*",
+        "arn:aws:s3:::your-cline-prompts"
+      ],
+      "Condition": {
+        "Bool": {
+          "aws:SecureTransport": "false"
+        }
+      }
+    }
+  ]
+}
+```
+
+### Audit Logging
+
+**S3 Server Access Logging:**
+
+```bash
+aws s3api put-bucket-logging \
+  --bucket your-cline-prompts \
+  --bucket-logging-status '{
+    "LoggingEnabled": {
+      "TargetBucket": "your-log-bucket",
+      "TargetPrefix": "cline-prompts-access/"
+    }
+  }'
+```
+
+**CloudTrail for API Calls:**
+
+Enable CloudTrail to track all S3 API operations on your bucket.
+
+### Data Retention
+
+Implement retention policies based on your compliance requirements:
+
+- **GDPR**: Consider right to erasure
+- **SOC 2**: Maintain audit trails for required period
+- **HIPAA**: Ensure appropriate retention and disposal
+
+## Troubleshooting
+
+### Common Issues
+
+<AccordionGroup>
+  <Accordion title="Queue size growing continuously">
+    **Symptoms**: `maxQueueSize` limit reached, oldest items being evicted
+    
+    **Causes**:
+    - Upload rate slower than conversation creation rate
+    - Network connectivity issues
+    - Insufficient batch size or interval
+    
+    **Solutions**:
+    1. Increase `batchSize` to process more items per interval
+    2. Decrease `intervalMs` to sync more frequently
+    3. Check network connectivity and credentials
+    4. Temporarily increase `maxQueueSize` while investigating
+  </Accordion>
+
+  <Accordion title="Uploads failing with 403 Forbidden">
+    **Symptoms**: Repeated upload failures, items reaching `maxRetries`
+    
+    **Causes**:
+    - Invalid or expired credentials
+    - Insufficient IAM permissions
+    - Bucket policy denying access
+    
+    **Solutions**:
+    1. Verify credentials are correct in remote config
+    2. Check IAM policy includes `s3:PutObject` permission
+    3. Review bucket policies for deny rules
+    4. Test with AWS CLI: `aws s3 cp test.txt s3://your-bucket/`
+  </Accordion>
+
+  <Accordion title="R2 endpoint connection timeout">
+    **Symptoms**: Connection timeouts, failed uploads
+    
+    **Causes**:
+    - Incorrect endpoint URL
+    - Firewall blocking Cloudflare IPs
+    - Invalid account ID
+    
+    **Solutions**:
+    1. Verify endpoint format: `https://<ACCOUNT_ID>.r2.cloudflarestorage.com`
+    2. Check firewall rules allow HTTPS to Cloudflare IPs
+    3. Confirm account ID in Cloudflare dashboard
+    4. Test with curl: `curl -I https://<ACCOUNT_ID>.r2.cloudflarestorage.com`
+  </Accordion>
+
+  <Accordion title="Backfill overwhelming upload queue">
+    **Symptoms**: Queue at max size immediately after enabling backfill
+    
+    **Causes**:
+    - Large number of existing tasks
+    - Backfill queuing faster than upload processing
+    
+    **Solutions**:
+    1. Disable backfill temporarily: `"backfillEnabled": false`
+    2. Let steady-state queue drain first
+    3. Increase `batchSize` and decrease `intervalMs`
+    4. Consider `maxQueueSize` increase during backfill period
+    5. Re-enable backfill once queue is stable
+  </Accordion>
+</AccordionGroup>
+
+### Debug Logging
+
+Enable debug logging to diagnose sync issues:
+
+1. Check extension developer console (Help → Toggle Developer Tools)
+2. Look for `[ClineBlobStorage]` and `[SyncWorker]` log entries
+3. Failed uploads log error messages with details
+
+### Testing Configuration
+
+Use the built-in test connection feature:
+
+```typescript
+// Programmatic test (for custom integrations)
+import { testPromptUploading } from '@/core/controller/state/testPromptUploading'
+
+await testPromptUploading(controller)
+// Returns: { success: boolean, message: string }
+```
+
+## Data Format Reference
+
+### Conversation File Schema
+
+Uploaded `api_conversation_history.json` files contain an array of messages:
+
+```json
+[
+  {
+    "role": "user",
+    "content": [
+      {
+        "type": "text",
+        "text": "Create a React component for a todo list"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "type": "text",
+        "text": "I'll create a todo list component..."
+      },
+      {
+        "type": "tool_use",
+        "id": "toolu_123",
+        "name": "write_to_file",
+        "input": {
+          "path": "TodoList.tsx",
+          "content": "..."
+        }
+      }
+    ]
+  }
+]
+```
+
+This follows the [Anthropic Messages API format](https://docs.anthropic.com/claude/reference/messages_post).
+
+### Metadata Schema
+
+Task metadata includes:
+
+```json
+{
+  "taskId": "1234567890",
+  "createdAt": "2026-03-05T10:30:00Z",
+  "lastModified": "2026-03-05T11:45:00Z",
+  "modelInfo": {
+    "id": "claude-sonnet-4",
+    "provider": "anthropic"
+  },
+  "tokensUsed": {
+    "input": 1250,
+    "output": 3400
+  }
+}
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Start Small" icon="seedling">
+    Test with a single team or project before rolling out organization-wide.
+  </Card>
+  
+  <Card title="Monitor Costs" icon="dollar-sign">
+    Set up billing alerts and review storage usage monthly.
+  </Card>
+  
+  <Card title="Secure Credentials" icon="lock">
+    Use dedicated IAM users with minimal permissions and rotate keys regularly.
+  </Card>
+  
+  <Card title="Plan Retention" icon="calendar">
+    Define and implement data retention policies based on compliance needs.
+  </Card>
+</CardGroup>
+
+## See Also
+
+<CardGroup cols={3}>
+  <Card title="OpenTelemetry" icon="chart-line" href="/enterprise-solutions/monitoring/opentelemetry">
+    Configure metrics and logs export for comprehensive observability
+  </Card>
+  
+  <Card title="Telemetry" icon="chart-simple" href="/enterprise-solutions/monitoring/telemetry">
+    Learn about Cline's built-in anonymous usage tracking
+  </Card>
+  
+  <Card title="Remote Configuration" icon="gear" href="/enterprise-solutions/configuration/remote-configuration/overview">
+    Understand the remote configuration system
+  </Card>
+</CardGroup>

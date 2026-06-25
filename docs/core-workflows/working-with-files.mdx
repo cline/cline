@@ -1,0 +1,85 @@
+---
+title: "Adding Context"
+sidebarTitle: "Adding Context"
+description: "Use @ mentions and drag & drop to bring files into your conversations."
+---
+
+Cline works best when it has the right context, not just more context. `@` mentions let you pull in the files and folders that matter for your task — no copying, no pasting, no context switching.
+
+You can add context two ways:
+- Type `@` in the chat input and select a file or folder
+- Click the **+** button in the bottom left to browse files or images
+
+## Quick Reference
+
+| What you want | Syntax | Example |
+|---------------|--------|---------|
+| File content | `@/path/to/file` | `@/src/index.ts` |
+| Folder contents | `@/path/to/folder/` | `@/src/components/` |
+
+For other context — git history, web pages, terminal errors — just describe it. Cline will run `git log`, fetch the URL, or read the output itself.
+
+## File Mentions
+
+Reference any file with `@/path/to/file`. Cline sees the complete file content, including imports, related functions, and surrounding context.
+
+```text
+Can you refactor the error handling in @/src/api/users.ts?
+```
+
+## Folder Mentions
+
+Reference entire directories with `@/path/to/folder/` (note the trailing slash). Cline sees the folder structure and all file contents.
+
+```text
+Explain how the components in @/src/components/auth/ work together.
+```
+
+<Note>
+In multi-root workspaces, prefix paths with the workspace name: `@workspace-name:/path/to/file`
+</Note>
+
+## Drag & Drop
+
+Drag files directly into the chat input to add them to your conversation.
+
+<Note>
+In VS Code, hold **Shift** while dragging files into the chat input.
+</Note>
+
+Dragging workspace files automatically creates file mentions. You can also drag files from Finder or File Explorer directly into Cline.
+
+### Supported File Types
+
+Cline supports text files from your workspace, plus images, PDFs, CSVs, and Excel files from your file system.
+
+<Note>
+Images require a multimodal model. Check the model selector to see which models support image inputs.
+</Note>
+
+## Context Menu Commands
+
+Right-click on selected code to access Cline without typing. This is the fastest way to get help with specific code since it automatically includes the selected text and its file location as context.
+
+### Code Editor Commands
+
+| Command | When to Use |
+|---------|-------------|
+| **Add to Cline** | Ask questions about code, get suggestions, or start a conversation with specific code as context |
+| **Fix with Cline** | Quick fixes for errors, bugs, or issues in the selected code |
+| **Explain with Cline** | Understand unfamiliar code, complex logic, or code you're reviewing |
+| **Improve with Cline** | Get refactoring suggestions, performance improvements, or cleaner implementations |
+
+**Fix with Cline** also appears in the lightbulb menu (Quick Fix) when your cursor is on an error or warning, making it easy to fix issues inline.
+
+### Terminal Commands
+
+Right-click in the terminal to "Add to Cline" and get help with:
+- Build errors and failed commands
+- Test failures and stack traces
+- Configuration issues
+- Any terminal output you need help interpreting
+
+### Source Control Commands
+
+In the Source Control panel, use "Generate Commit Message" to create AI-powered commit messages from your staged changes. Cline analyzes the diff and writes a descriptive commit message following conventional commit patterns.

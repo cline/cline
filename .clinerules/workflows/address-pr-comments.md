@@ -19,7 +19,7 @@ Review and address all comments on the current branch's PR.
    - Inline comments: `gh api repos/{owner}/{repo}/pulls/{pr_number}/comments`
    - General comments: `gh pr view {pr_number} --json comments,reviews`
 
-4. Present a summary of all comments with your recommendation for each (apply, skip, or respond). Ignore bot noise (changeset-bot, CI status, etc.).
+4. Present a summary of all comments with your recommendation for each (apply, skip, or respond). Ignore bot noise (release automation, CI status, etc.).
 
 5. **Wait for my approval** before proceeding.
 

@@ -1,6 +1,6 @@
 {
 	"$schema": "https://mintlify.com/docs.json",
-	"theme": "linden",
+	"theme": "mint",
 	"name": "Cline",
 	"description": "AI-powered coding agent for complex work",
 	"colors": {
@@ -10,7 +10,8 @@
 	},
 	"logo": {
 		"light": "/assets/Cline_Logo-complete_black.png",
-		"dark": "/assets/Cline_Logo-complete_white.png"
+		"dark": "/assets/Cline_Logo-complete_white.png",
+		"href": "https://cline.bot/"
 	},
 	"favicon": {
 		"light": "/assets/robot_panel_light.png",
@@ -56,233 +57,189 @@
 	"navigation": {
 		"tabs": [
 			{
-				"tab": "Docs",
-				"icon": "square-terminal",
+				"tab": "Cline",
+				"icon": "robot",
 				"groups": [
-					{
-						"group": "Introduction",
-						"pages": [
-							"introduction/welcome",
-							"introduction/overview"
-						]
-					},
 					{
 						"group": "Getting Started",
 						"pages": [
+							"cline-overview",
 							"getting-started/installing-cline",
-							"getting-started/selecting-your-model",
-							"getting-started/your-first-project"
-						]
-					},
-					{
-						"group": "Best Practices",
-						"pages": [
-							"prompting/understanding-context-management",
-							"prompting/prompt-engineering-guide",
-							"prompting/cline-memory-bank"
-						]
-					},
-					{
-						"group": "CLI",
-						"pages": [
-							"cline-cli/overview",
-							"cline-cli/installation",
-							"cline-cli/interactive-mode",
-							"cline-cli/configuration",
-							"cline-cli/three-core-flows",
-							"cline-cli/acp-editor-integrations",
+							"getting-started/cline-provider",
+							"getting-started/clinepass",
 							{
-								"group": "CLI Samples",
+								"group": "Other Models & Providers",
 								"pages": [
-									"cline-cli/samples/overview",
-									"cline-cli/samples/model-orchestration",
-									"cline-cli/samples/worktree-workflows",
-									"cline-cli/samples/github-issue-rca",
-									"cline-cli/samples/github-integration",
-									"cline-cli/samples/github-pr-review"
-								]
-							},
-							"cline-cli/cli-reference"
-						]
-					},
-					{
-						"group": "Features",
-						"pages": [
-							{
-								"group": "@ Mentions",
-								"pages": [
-									"features/at-mentions/overview",
-									"features/at-mentions/file-mentions",
-									"features/at-mentions/terminal-mentions",
-									"features/at-mentions/problem-mentions",
-									"features/at-mentions/git-mentions",
-									"features/at-mentions/url-mentions"
-								]
-							},
-							"features/auto-approve",
-							"features/auto-compact",
-							"features/background-edit",
-							"features/checkpoints",
-							{
-								"group": "Cline Rules",
-								"pages": [
-									"features/cline-rules/overview",
-									"features/cline-rules/conditional-rules"
-								]
-							},
-							{
-								"group": "Commands & Shortcuts",
-								"pages": [
-									"features/commands-and-shortcuts/overview",
-									"features/commands-and-shortcuts/code-commands",
-									"features/commands-and-shortcuts/terminal-integration",
-									"features/commands-and-shortcuts/git-integration",
-									"features/commands-and-shortcuts/keyboard-shortcuts"
-								]
-							},
-							{
-								"group": "Customization",
-								"pages": [
-									"features/customization/opening-cline-in-sidebar",
-									"features/customization/disable-terminal-pagers"
-								]
-							},
-							"features/dictation",
-							"features/drag-and-drop",
-							"features/editing-messages",
-							"features/explain-changes",
-							"features/focus-chain",
-							{
-								"group": "Hooks",
-								"pages": [
-									"features/hooks/index",
-									"features/hooks/hook-reference",
-									"features/hooks/samples"
-								]
-							},
-							"features/jupyter-notebooks",
-							"features/multiroot-workspace",
-							"features/plan-and-act",
-							"features/skills",
-							"features/subagents",
-							{
-								"group": "Slash Commands",
-								"pages": [
-									"features/slash-commands/new-task",
-									"features/slash-commands/new-rule",
-									"features/slash-commands/explain-changes",
-									"features/slash-commands/smol",
-									"features/slash-commands/report-bug",
-									"features/slash-commands/deep-planning"
-								]
-							},
-							{
-								"group": "Workflows",
-								"pages": [
-									"features/slash-commands/workflows/index",
-									"features/slash-commands/workflows/quickstart",
-									"features/slash-commands/workflows/best-practices"
-								]
-							},
-							{
-								"group": "Task Management",
-								"pages": [
-									"features/tasks/understanding-tasks",
-									"features/tasks/task-management"
-								]
-							},
-							"features/worktrees",
-							"features/yolo-mode"
-						]
-					},
-					{
-						"group": "Model & Provider Configuration",
-						"pages": [
-							{
-								"group": "Model Selection",
-								"pages": [
-									"core-features/model-selection-guide",
-									"model-config/model-comparison",
-									"model-config/context-windows"
-								]
-							},
-							{
-								"group": "Cloud Providers",
-								"pages": [
-									"provider-config/anthropic",
-									"provider-config/claude-code",
-									"provider-config/openai",
-									"provider-config/openai-codex",
-									"provider-config/openrouter",
-									"provider-config/cerebras",
-									"provider-config/deepseek",
-									"provider-config/groq",
-									"provider-config/xai-grok",
-									"provider-config/mistral-ai",
-									"provider-config/doubao",
-									"provider-config/fireworks",
-									"provider-config/zai",
-									"provider-config/gcp-vertex-ai",
-									"provider-config/baseten",
+									"getting-started/authorizing-with-cline",
+									"running-models-locally/overview",
 									{
-										"group": "AWS Bedrock",
+										"group": "Cloud Providers",
 										"pages": [
-											"provider-config/aws-bedrock/api-key",
-											"provider-config/aws-bedrock/iam-credentials",
-											"provider-config/aws-bedrock/cli-profile"
+											"provider-config/qwen",
+											"provider-config/anthropic",
+											{
+												"group": "AWS Bedrock",
+												"pages": [
+													"provider-config/aws-bedrock/api-key",
+													"provider-config/aws-bedrock/iam-credentials",
+													"provider-config/aws-bedrock/cli-profile"
+												]
+											},
+											"provider-config/deepseek",
+											"provider-config/google-gemini",
+											"provider-config/minimax",
+											"provider-config/openai",
+											"provider-config/openai-compatible",
+											"provider-config/openrouter",
+											"provider-config/zai",
+											"provider-config/other-30-plus-providers"
+										]
+									}
+								]
+							},
+							"getting-started/config"
+						]
+					},
+					{
+						"group": "Usage",
+						"pages": [
+							"usage/ide",
+							"usage/tui",
+							{
+								"group": "CLI",
+								"pages": [
+									"usage/cli-overview",
+									"cli/cli-reference",
+									{
+										"group": "Examples",
+										"pages": [
+											"cli/samples/github-issue-rca",
+											"cli/samples/github-integration",
+											"cli/samples/github-pr-review",
+											"cli/samples/model-orchestration",
+											"cli/samples/supply-chain-alerts"
 										]
 									}
 								]
 							},
 							{
-								"group": "Running Models Locally",
+								"group": "Kanban",
 								"pages": [
-									"running-models-locally/overview",
-									"running-models-locally/ollama",
-									"running-models-locally/lm-studio"
-								]
-							},
-							{
-								"group": "Advanced Configuration",
-								"pages": [
-									"provider-config/openai-compatible",
-									"provider-config/litellm-and-cline-using-codestral",
-									"provider-config/vscode-language-model-api",
-									"provider-config/sap-aicore",
-									"provider-config/vercel-ai-gateway",
-									"provider-config/requesty"
+									"usage/kanban",
+									"kanban/core-workflow",
+									"kanban/remote-access"
 								]
 							}
 						]
 					},
 					{
-						"group": "MCP Integration",
+						"group": "Configurations",
 						"pages": [
+							"tools-reference/all-cline-tools",
+							"customization/cline-rules",
+							"customization/skills",
+							"customization/plugins",
 							"mcp/mcp-overview",
-							"mcp/adding-mcp-servers-from-github",
-							"mcp/configuring-mcp-servers",
-							"mcp/connecting-to-a-remote-server",
-							"mcp/mcp-marketplace",
-							"mcp/mcp-server-development-protocol",
-							"mcp/mcp-transport-mechanisms"
+							"customization/hooks",
+							"cli/scheduling",
+							"cli/connectors",
+							"customization/clineignore"
 						]
 					},
 					{
-						"group": "Cline Tools Reference",
+						"group": "Features",
 						"pages": [
-							"exploring-clines-tools/cline-tools-guide",
-							"exploring-clines-tools/new-task-tool",
-							"exploring-clines-tools/remote-browser-support"
+							"core-workflows/plan-and-act",
+							"core-workflows/working-with-files",
+							"core-workflows/using-commands",
+							"core-workflows/checkpoints",
+							"cli/agent-teams",
+							"features/subagents"
 						]
 					},
 					{
-						"group": "Reference",
+						"group": "Best Practices",
 						"pages": [
-							"troubleshooting/networking-and-proxies",
-							"troubleshooting/terminal-quick-fixes",
-							"troubleshooting/terminal-integration-guide",
-							"troubleshooting/task-history-recovery",
-							"more-info/telemetry"
+							"best-practices/memory-bank"
+						]
+					},
+					{
+						"group": "IDE Specific Features",
+						"pages": [
+							"features/auto-approve",
+							"features/jupyter-notebooks",
+							"features/multiroot-workspace"
+						]
+					},
+					{
+						"group": "Troubleshooting",
+						"pages": [
+							"troubleshooting/networking-and-proxies"
+						]
+					}
+				]
+			},
+			{
+				"tab": "SDK",
+				"icon": "cube",
+				"groups": [
+					{
+						"group": "Start",
+						"pages": [
+							"sdk/overview",
+							"sdk/examples"
+						]
+					},
+					{
+						"group": "Concepts",
+						"pages": [
+							{
+								"group": "Plugins",
+								"pages": [
+									"sdk/plugins",
+									"sdk/plugin-install",
+									"sdk/guides/writing-plugins",
+									"sdk/plugin-examples"
+								]
+							},
+							{
+								"group": "Tools",
+								"pages": [
+									"sdk/tools",
+									"sdk/guides/creating-custom-tools"
+								]
+							},
+							"sdk/guides/scheduled-agents",
+							"sdk/events",
+							"sdk/model-providers",
+							"sdk/clinecore"
+						]
+					},
+					{
+						"group": "Architecture",
+						"pages": [
+							"sdk/architecture/overview",
+							"sdk/architecture/hub-spoke"
+						]
+					},
+					{
+						"group": "Guides",
+						"pages": [
+							"sdk/guides/building-an-agent",
+							"sdk/guides/permission-handling",
+							"sdk/guides/multi-agent-teams",
+							"sdk/guides/going-to-production"
+						]
+					},
+					{
+						"group": "API Reference",
+						"pages": [
+							"sdk/reference/cline-core",
+							"sdk/reference/agent",
+							"sdk/reference/gateway",
+							"sdk/reference/tools-api",
+							"sdk/reference/events",
+							"sdk/reference/types"
 						]
 					}
 				]
@@ -299,7 +256,7 @@
 							"enterprise-solutions/sso-setup",
 							"enterprise-solutions/team-management/managing-members",
 							{
-								"group": "SaaS Provider Configuration",
+								"group": "Remote Provider Configuration",
 								"pages": [
 									"enterprise-solutions/configuration/remote-configuration/overview",
 									{
@@ -310,17 +267,31 @@
 										]
 									},
 									{
-										"group": "LiteLLM",
-										"pages": [
-											"enterprise-solutions/configuration/remote-configuration/litellm/admin-configuration",
-											"enterprise-solutions/configuration/remote-configuration/litellm/member-configuration"
-										]
-									},
-									{
 										"group": "Google Vertex AI",
 										"pages": [
 											"enterprise-solutions/configuration/remote-configuration/google-vertex/admin-configuration",
 											"enterprise-solutions/configuration/remote-configuration/google-vertex/member-configuration"
+										]
+									},
+									{
+										"group": "OpenAI Compatible",
+										"pages": [
+											"enterprise-solutions/configuration/remote-configuration/openai-compatible/admin-configuration",
+											"enterprise-solutions/configuration/remote-configuration/openai-compatible/member-configuration"
+										]
+									},
+									{
+										"group": "Anthropic",
+										"pages": [
+											"enterprise-solutions/configuration/remote-configuration/anthropic/admin-configuration",
+											"enterprise-solutions/configuration/remote-configuration/anthropic/member-configuration"
+										]
+									},
+									{
+										"group": "LiteLLM",
+										"pages": [
+											"enterprise-solutions/configuration/remote-configuration/litellm/admin-configuration",
+											"enterprise-solutions/configuration/remote-configuration/litellm/member-configuration"
 										]
 									}
 								]
@@ -328,7 +299,8 @@
 							{
 								"group": "Control Other Cline Features",
 								"pages": [
-									"enterprise-solutions/configuration/infrastructure-configuration/control-other-cline-features/yolo-mode"
+									"enterprise-solutions/configuration/infrastructure-configuration/control-other-cline-features/yolo-mode",
+									"enterprise-solutions/configuration/infrastructure-configuration/control-other-cline-features/mcp-server-controls"
 								]
 							},
 							{
@@ -336,18 +308,44 @@
 								"pages": [
 									"enterprise-solutions/monitoring/overview",
 									"enterprise-solutions/monitoring/telemetry",
+									"enterprise-solutions/monitoring/prompt-storage",
 									"enterprise-solutions/monitoring/opentelemetry",
+									"enterprise-solutions/monitoring/opentelemetry-events",
 									"enterprise-solutions/monitoring/opentelemetry_override"
 								]
-							}
+							},
+							"enterprise-solutions/api-reference"
 						]
 					}
 				]
 			},
 			{
-				"tab": "Learn",
-				"icon": "graduation-cap",
-				"href": "https://cline.bot/learn"
+				"tab": "API",
+				"icon": "code",
+				"groups": [
+					{
+						"group": "Cline API",
+						"pages": [
+							"api/overview",
+							"api/getting-started",
+							"api/authentication"
+						]
+					},
+					{
+						"group": "Endpoints",
+						"pages": [
+							"api/chat-completions"
+						]
+					},
+					{
+						"group": "Reference",
+						"pages": [
+							"api/models",
+							"api/errors",
+							"api/sdk-examples"
+						]
+					}
+				]
 			}
 		]
 	},
@@ -362,57 +360,249 @@
 		{
 			"name": "Overview",
 			"icon": "house",
-			"url": "introduction/overview"
+			"url": "cline-overview"
 		}
 	],
 	"redirects": [
+		{
+			"source": "/enterprise-solutions/configuration/infrastructure-configuration/control-other-cline-features/mcp-marketplace",
+			"destination": "/enterprise-solutions/configuration/infrastructure-configuration/control-other-cline-features/mcp-server-controls"
+		},
+		{
+			"source": "/usage/cli",
+			"destination": "/usage/cli-overview"
+		},
 		{
 			"source": "/getting-started/installing-cline-jetbrains",
 			"destination": "/getting-started/installing-cline"
 		},
 		{
-			"source": "/getting-started/what-is-cline",
-			"destination": "/introduction/overview"
+			"source": "/getting-started/for-new-coders",
+			"destination": "/getting-started/installing-cline"
 		},
 		{
 			"source": "/getting-started/overview",
-			"destination": "/introduction/overview"
+			"destination": "/cline-overview"
+		},
+		{
+			"source": "/getting-started/your-first-project",
+			"destination": "/usage/ide"
 		},
 		{
 			"source": "/introduction",
-			"destination": "/introduction/welcome"
+			"destination": "/cline-overview"
+		},
+		{
+			"source": "/introduction/welcome",
+			"destination": "/cline-overview"
+		},
+		{
+			"source": "/introduction/overview",
+			"destination": "/cline-overview"
 		},
 		{
 			"source": "/getting-started/model-selection-guide",
-			"destination": "/core-features/model-selection-guide"
+			"destination": "/getting-started/cline-provider"
 		},
 		{
 			"source": "/provider-config/ollama",
-			"destination": "/running-models-locally/ollama"
+			"destination": "/running-models-locally/overview#runtime-options"
 		},
 		{
 			"source": "/running-models-locally/read-me-first",
 			"destination": "/running-models-locally/overview"
 		},
 		{
+			"source": "/running-models-locally/ollama",
+			"destination": "/running-models-locally/overview#runtime-options"
+		},
+		{
+			"source": "/running-models-locally/lm-studio",
+			"destination": "/running-models-locally/overview#runtime-options"
+		},
+		{
 			"source": "/getting-started/understanding-context-management",
-			"destination": "/prompting/understanding-context-management"
+			"destination": "/getting-started/cline-provider"
 		},
 		{
 			"source": "/best-practices/understanding-context-management",
-			"destination": "/prompting/understanding-context-management"
+			"destination": "/getting-started/cline-provider"
+		},
+		{
+			"source": "/prompting/understanding-context-management",
+			"destination": "/getting-started/cline-provider"
+		},
+		{
+			"source": "/model-config/context-windows",
+			"destination": "/getting-started/cline-provider"
+		},
+		{
+			"source": "/core-features/model-selection-guide",
+			"destination": "/getting-started/cline-provider"
+		},
+		{
+			"source": "/prompting/prompt-engineering-guide",
+			"destination": "/customization/cline-rules"
+		},
+		{
+			"source": "/prompting/cline-memory-bank",
+			"destination": "/best-practices/memory-bank"
+		},
+		{
+			"source": "/customization/memory-bank",
+			"destination": "/best-practices/memory-bank"
+		},
+		{
+			"source": "/customization/overview",
+			"destination": "/getting-started/config"
+		},
+		{
+			"source": "/customization/focus-chain",
+			"destination": "/core-workflows/using-commands#deep-planning"
+		},
+		{
+			"source": "/features/deep-planning",
+			"destination": "/core-workflows/using-commands#deep-planning"
+		},
+		{
+			"source": "/customization/auto-approve",
+			"destination": "/features/auto-approve"
+		},
+		{
+			"source": "/customization/auto-compact",
+			"destination": "/features/auto-compact"
 		},
 		{
 			"source": "/getting-started/your-first-task",
-			"destination": "/getting-started/your-first-project"
-		},
-		{
-			"source": "/cline-cli/samples",
-			"destination": "/cline-cli/samples/overview"
+			"destination": "/usage/ide"
 		},
 		{
 			"source": "/features/hooks/real-world-examples",
-			"destination": "/features/hooks/samples"
+			"destination": "/customization/hooks"
+		},
+		{
+			"source": "/features/hooks/index",
+			"destination": "/customization/hooks"
+		},
+		{
+			"source": "/features/hooks/hook-reference",
+			"destination": "/customization/hooks"
+		},
+		{
+			"source": "/features/hooks/samples",
+			"destination": "/customization/hooks"
+		},
+		{
+			"source": "/features/plan-and-act",
+			"destination": "/core-workflows/plan-and-act"
+		},
+		{
+			"source": "/features/checkpoints",
+			"destination": "/core-workflows/checkpoints"
+		},
+		{
+			"source": "/features/tasks/understanding-tasks",
+			"destination": "/core-workflows/task-management"
+		},
+		{
+			"source": "/features/tasks/task-management",
+			"destination": "/core-workflows/task-management"
+		},
+		{
+			"source": "/features/at-mentions/overview",
+			"destination": "/core-workflows/working-with-files"
+		},
+		{
+			"source": "/features/at-mentions/file-mentions",
+			"destination": "/core-workflows/working-with-files"
+		},
+		{
+			"source": "/features/at-mentions/folder-mentions",
+			"destination": "/core-workflows/working-with-files"
+		},
+		{
+			"source": "/features/at-mentions/terminal-mentions",
+			"destination": "/core-workflows/working-with-files"
+		},
+		{
+			"source": "/features/at-mentions/problem-mentions",
+			"destination": "/core-workflows/working-with-files"
+		},
+		{
+			"source": "/features/at-mentions/git-mentions",
+			"destination": "/core-workflows/working-with-files"
+		},
+		{
+			"source": "/features/at-mentions/url-mentions",
+			"destination": "/core-workflows/working-with-files"
+		},
+		{
+			"source": "/features/drag-and-drop",
+			"destination": "/core-workflows/working-with-files"
+		},
+		{
+			"source": "/features/yolo-mode",
+			"destination": "/features/auto-approve"
+		},
+		{
+			"source": "/features/cline-rules",
+			"destination": "/customization/cline-rules"
+		},
+		{
+			"source": "/features/cline-rules/overview",
+			"destination": "/customization/cline-rules"
+		},
+		{
+			"source": "/features/cline-rules/conditional-rules",
+			"destination": "/customization/cline-rules"
+		},
+		{
+			"source": "/features/commands-and-shortcuts/overview",
+			"destination": "/core-workflows/using-commands"
+		},
+		{
+			"source": "/features/commands-and-shortcuts/code-commands",
+			"destination": "/core-workflows/using-commands"
+		},
+		{
+			"source": "/features/commands-and-shortcuts/terminal-integration",
+			"destination": "/core-workflows/using-commands"
+		},
+		{
+			"source": "/features/commands-and-shortcuts/git-integration",
+			"destination": "/core-workflows/using-commands"
+		},
+		{
+			"source": "/features/commands-and-shortcuts/keyboard-shortcuts",
+			"destination": "/core-workflows/using-commands"
+		},
+		{
+			"source": "/features/slash-commands/new-task",
+			"destination": "/core-workflows/using-commands"
+		},
+		{
+			"source": "/exploring-clines-tools/cline-tools-guide",
+			"destination": "/tools-reference/all-cline-tools"
+		},
+		{
+			"source": "/exploring-clines-tools/new-task-tool",
+			"destination": "/tools-reference/all-cline-tools"
+		},
+		{
+			"source": "/exploring-clines-tools/remote-browser-support",
+			"destination": "/tools-reference/all-cline-tools"
+		},
+		{
+			"source": "/mcp/adding-mcp-servers-from-github",
+			"destination": "/mcp/mcp-overview"
+		},
+		{
+			"source": "/mcp/configuring-mcp-servers",
+			"destination": "/mcp/mcp-overview"
+		},
+		{
+			"source": "/more-info/telemetry",
+			"destination": "/enterprise-solutions/monitoring/telemetry"
 		},
 		{
 			"source": "/enterprise-solutions/configure-AWS-Bedrock-Admin",
@@ -439,16 +629,492 @@
 			"destination": "/enterprise-solutions/team-management/managing-members"
 		},
 		{
-			"source": "/features/cline-rules",
-			"destination": "/features/cline-rules/overview"
+			"source": "/features/customization/opening-cline-in-sidebar",
+			"destination": "/getting-started/installing-cline"
 		},
 		{
-			"source": "/features/conditional-rules",
-			"destination": "/features/cline-rules/conditional-rules"
+			"source": "/prompting/prompt-engineering-guide/clineignore-file-guide",
+			"destination": "/customization/clineignore"
 		},
 		{
-			"source": "/cline-cli/authentication",
-			"destination": "/cline-cli/installation"
+			"source": "/getting-started/selecting-your-model",
+			"destination": "/getting-started/authorizing-with-cline"
+		},
+		{
+			"source": "/model-config/model-comparison",
+			"destination": "/getting-started/cline-provider"
+		},
+		{
+			"source": "/troubleshooting/terminal-integration-guide",
+			"destination": "/core-workflows/using-commands"
+		},
+		{
+			"source": "/features/slash-commands/deep-planning",
+			"destination": "/core-workflows/using-commands#deep-planning"
+		},
+		{
+			"source": "/features/slash-commands/smol",
+			"destination": "/core-workflows/using-commands#smol"
+		},
+		{
+			"source": "/features/slash-commands/new-rule",
+			"destination": "/core-workflows/using-commands#newrule"
+		},
+		{
+			"source": "/features/memory-bank",
+			"destination": "/best-practices/memory-bank"
+		},
+		{
+			"source": "/features/focus-chain",
+			"destination": "/core-workflows/using-commands#deep-planning"
+		},
+		{
+			"source": "/features/skills",
+			"destination": "/customization/skills"
+		},
+		{
+			"source": "/api/reference",
+			"destination": "/api/overview"
+		},
+		{
+			"source": "/cli/overview",
+			"destination": "/usage/cli-overview"
+		},
+		{
+			"source": "/kanban/overview",
+			"destination": "/usage/kanban"
+		},
+		{
+			"source": "/kanban/getting-started",
+			"destination": "/usage/kanban"
+		},
+		{
+			"source": "/kanban/features",
+			"destination": "/usage/kanban"
+		},
+		{
+			"source": "/features/background-edit",
+			"destination": "/features/auto-approve"
+		},
+		{
+			"source": "/features/worktrees",
+			"destination": "/usage/ide"
+		},
+		{
+			"source": "/cli/getting-started",
+			"destination": "/usage/cli-overview"
+		},
+		{
+			"source": "/cli/installation",
+			"destination": "/getting-started/installing-cline"
+		},
+		{
+			"source": "/cli/three-core-flows",
+			"destination": "/usage/cli-overview#headless-mode"
+		},
+		{
+			"source": "/cline-cli/getting-started",
+			"destination": "/usage/cli-overview"
+		},
+		{
+			"source": "/cline-cli/installation",
+			"destination": "/getting-started/installing-cline"
+		},
+		{
+			"source": "/cline-cli/three-core-flows",
+			"destination": "/usage/cli-overview#headless-mode"
+		},
+		{
+			"source": "/cline-cli/connectors",
+			"destination": "/cli/connectors"
+		},
+		{
+			"source": "/cline-cli/scheduling",
+			"destination": "/cli/scheduling"
+		},
+		{
+			"source": "/cline-cli/mcp-servers",
+			"destination": "/mcp/mcp-overview"
+		},
+		{
+			"source": "/cli/mcp-servers",
+			"destination": "/mcp/mcp-overview"
+		},
+		{
+			"source": "/cline-cli/agent-teams",
+			"destination": "/cli/agent-teams"
+		},
+		{
+			"source": "/cline-cli/cli-reference",
+			"destination": "/cli/cli-reference"
+		},
+		{
+			"source": "/cline-cli/configuration",
+			"destination": "/getting-started/config"
+		},
+		{
+			"source": "/provider-config/claude-code",
+			"destination": "/provider-config/anthropic"
+		},
+		{
+			"source": "/provider-config/openai-codex",
+			"destination": "/provider-config/openai"
+		},
+		{
+			"source": "/cli/configuration",
+			"destination": "/getting-started/config"
+		},
+		{
+			"source": "/cline-cli/acp-editor-integrations",
+			"destination": "/cli/acp-editor-integrations"
+		},
+		{
+			"source": "/cline-cli/samples/github-issue-rca",
+			"destination": "/cli/samples/github-issue-rca"
+		},
+		{
+			"source": "/cline-cli/samples/github-integration",
+			"destination": "/cli/samples/github-integration"
+		},
+		{
+			"source": "/cline-cli/samples/github-pr-review",
+			"destination": "/cli/samples/github-pr-review"
+		},
+		{
+			"source": "/cline-cli/samples/model-orchestration",
+			"destination": "/cli/samples/model-orchestration"
+		},
+		{
+			"source": "/cline-sdk/overview",
+			"destination": "/sdk/overview"
+		},
+		{
+			"source": "/cline-sdk/quickstart",
+			"destination": "/sdk/guides/building-an-agent"
+		},
+		{
+			"source": "/sdk/quickstart",
+			"destination": "/sdk/guides/building-an-agent"
+		},
+		{
+			"source": "/cline-sdk/examples",
+			"destination": "/sdk/guides/building-an-agent"
+		},
+		{
+			"source": "/cline-sdk/agents",
+			"destination": "/sdk/clinecore"
+		},
+		{
+			"source": "/cline-sdk/sessions",
+			"destination": "/sdk/clinecore"
+		},
+		{
+			"source": "/cline-sdk/tools",
+			"destination": "/sdk/tools"
+		},
+		{
+			"source": "/cline-sdk/streaming-and-events",
+			"destination": "/sdk/events"
+		},
+		{
+			"source": "/cline-sdk/plugins",
+			"destination": "/sdk/plugins"
+		},
+		{
+			"source": "/cline-sdk/hooks",
+			"destination": "/sdk/plugins"
+		},
+		{
+			"source": "/cline-sdk/model-providers",
+			"destination": "/sdk/model-providers"
+		},
+		{
+			"source": "/cline-sdk/guides/building-an-agent",
+			"destination": "/sdk/guides/building-an-agent"
+		},
+		{
+			"source": "/cline-sdk/guides/creating-custom-tools",
+			"destination": "/sdk/guides/creating-custom-tools"
+		},
+		{
+			"source": "/cline-sdk/guides/writing-plugins",
+			"destination": "/sdk/guides/writing-plugins"
+		},
+		{
+			"source": "/cline-sdk/guides/permission-handling",
+			"destination": "/sdk/guides/permission-handling"
+		},
+		{
+			"source": "/cline-sdk/guides/scheduled-agents",
+			"destination": "/sdk/guides/scheduled-agents"
+		},
+		{
+			"source": "/cline-sdk/guides/multi-agent-teams",
+			"destination": "/sdk/guides/multi-agent-teams"
+		},
+		{
+			"source": "/cline-sdk/guides/connectors",
+			"destination": "/cli/connectors"
+		},
+		{
+			"source": "/sdk/guides/connectors",
+			"destination": "/cli/connectors"
+		},
+		{
+			"source": "/cline-sdk/guides/going-to-production",
+			"destination": "/sdk/guides/going-to-production"
+		},
+		{
+			"source": "/cline-sdk/architecture/overview",
+			"destination": "/sdk/architecture/overview"
+		},
+		{
+			"source": "/cline-sdk/architecture/hub-spoke",
+			"destination": "/sdk/architecture/hub-spoke"
+		},
+		{
+			"source": "/cline-sdk/architecture/packages",
+			"destination": "/sdk/architecture/overview"
+		},
+		{
+			"source": "/cline-sdk/reference/cline-core",
+			"destination": "/sdk/reference/cline-core"
+		},
+		{
+			"source": "/cline-sdk/reference/agent",
+			"destination": "/sdk/reference/agent"
+		},
+		{
+			"source": "/cline-sdk/reference/gateway",
+			"destination": "/sdk/reference/gateway"
+		},
+		{
+			"source": "/cline-sdk/reference/tools-api",
+			"destination": "/sdk/reference/tools-api"
+		},
+		{
+			"source": "/cline-sdk/reference/events",
+			"destination": "/sdk/reference/events"
+		},
+		{
+			"source": "/cline-sdk/reference/types",
+			"destination": "/sdk/reference/types"
+		},
+		{
+			"source": "/cline-sdk/extensions",
+			"destination": "/sdk/plugins"
+		},
+		{
+			"source": "/sdk/guides/writing-extensions",
+			"destination": "/sdk/guides/writing-plugins"
+		},
+		{
+			"source": "/cline-sdk/guides/writing-extensions",
+			"destination": "/sdk/guides/writing-plugins"
+		},
+		{
+			"source": "/mcp/mcp-marketplace",
+			"destination": "/mcp/mcp-overview"
+		},
+		{
+			"source": "/mcp/adding-and-configuring-servers",
+			"destination": "/mcp/mcp-overview"
+		},
+		{
+			"source": "/mcp/mcp-server-development-protocol",
+			"destination": "/mcp/mcp-overview"
+		},
+		{
+			"source": "/mcp/connecting-to-a-remote-server",
+			"destination": "/mcp/mcp-overview"
+		},
+		{
+			"source": "/mcp/mcp-transport-mechanisms",
+			"destination": "/mcp/mcp-overview"
+		},
+		{
+			"source": "/sdk/agents",
+			"destination": "/sdk/clinecore"
+		},
+		{
+			"source": "/sdk/sessions",
+			"destination": "/sdk/clinecore"
+		},
+		{
+			"source": "/sdk/streaming-and-events",
+			"destination": "/sdk/events"
+		},
+		{
+			"source": "/sdk/hooks",
+			"destination": "/sdk/plugins"
+		},
+		{
+			"source": "/sdk/extensions",
+			"destination": "/sdk/plugins"
+		},
+		{
+			"source": "/sdk/examples",
+			"destination": "/sdk/guides/building-an-agent"
+		},
+		{
+			"source": "/cline-cli/interactive-mode",
+			"destination": "/usage/cli-overview"
+		},
+		{
+			"source": "/cline-cli/overview",
+			"destination": "/usage/cli-overview"
+		},
+		{
+			"source": "/cline-cli/samples/overview",
+			"destination": "/usage/cli-overview"
+		},
+		{
+			"source": "/cline-cli/samples/worktree-workflows",
+			"destination": "/usage/cli-overview"
+		},
+		{
+			"source": "/contributing/doc-templates",
+			"destination": "/cline-overview"
+		},
+		{
+			"source": "/contributing/documentation-guide",
+			"destination": "/cline-overview"
+		},
+		{
+			"source": "/customization/workflows",
+			"destination": "/customization/cline-rules"
+		},
+		{
+			"source": "/features/web-tools",
+			"destination": "/tools-reference/all-cline-tools"
+		},
+		{
+			"source": "/getting-started/quick-start",
+			"destination": "/cline-overview"
+		},
+		{
+			"source": "/getting-started/what-is-cline",
+			"destination": "/cline-overview"
+		},
+		{
+			"source": "/home",
+			"destination": "/cline-overview"
+		},
+		{
+			"source": "/provider-config/aihubmix",
+			"destination": "/provider-config/other-30-plus-providers#aihubmix"
+		},
+		{
+			"source": "/provider-config/asksage",
+			"destination": "/provider-config/other-30-plus-providers#asksage"
+		},
+		{
+			"source": "/provider-config/baseten",
+			"destination": "/provider-config/other-30-plus-providers#baseten"
+		},
+		{
+			"source": "/provider-config/cerebras",
+			"destination": "/provider-config/other-30-plus-providers#cerebras"
+		},
+		{
+			"source": "/provider-config/dify",
+			"destination": "/provider-config/other-30-plus-providers#difyai"
+		},
+		{
+			"source": "/provider-config/doubao",
+			"destination": "/provider-config/other-30-plus-providers#doubao"
+		},
+		{
+			"source": "/provider-config/fireworks",
+			"destination": "/provider-config/other-30-plus-providers#fireworks-ai"
+		},
+		{
+			"source": "/provider-config/gcp-vertex-ai",
+			"destination": "/provider-config/other-30-plus-providers#gcp-vertex-ai"
+		},
+		{
+			"source": "/provider-config/groq",
+			"destination": "/provider-config/other-30-plus-providers#groq"
+		},
+		{
+			"source": "/provider-config/hicap",
+			"destination": "/provider-config/other-30-plus-providers#hicap"
+		},
+		{
+			"source": "/provider-config/huawei-cloud-maas",
+			"destination": "/provider-config/other-30-plus-providers#huawei-cloud-maas"
+		},
+		{
+			"source": "/provider-config/huggingface",
+			"destination": "/provider-config/other-30-plus-providers#hugging-face"
+		},
+		{
+			"source": "/provider-config/litellm-and-cline-using-codestral",
+			"destination": "/provider-config/openai-compatible"
+		},
+		{
+			"source": "/provider-config/mistral-ai",
+			"destination": "/provider-config/other-30-plus-providers#mistral"
+		},
+		{
+			"source": "/provider-config/moonshot",
+			"destination": "/provider-config/other-30-plus-providers#moonshot"
+		},
+		{
+			"source": "/provider-config/nebius",
+			"destination": "/provider-config/other-30-plus-providers#nebius-ai-studio"
+		},
+		{
+			"source": "/provider-config/nousresearch",
+			"destination": "/provider-config/other-30-plus-providers#nous-research"
+		},
+		{
+			"source": "/provider-config/oracle-code-assist",
+			"destination": "/provider-config/other-30-plus-providers#oracle-code-assist"
+		},
+		{
+			"source": "/provider-config/qwen-code",
+			"destination": "/provider-config/other-30-plus-providers#qwen-code"
+		},
+		{
+			"source": "/provider-config/requesty",
+			"destination": "/provider-config/other-30-plus-providers#requesty"
+		},
+		{
+			"source": "/provider-config/sambanova",
+			"destination": "/provider-config/other-30-plus-providers#sambanova"
+		},
+		{
+			"source": "/provider-config/sap-aicore",
+			"destination": "/provider-config/other-30-plus-providers#sap-ai-core"
+		},
+		{
+			"source": "/provider-config/together",
+			"destination": "/provider-config/other-30-plus-providers#together"
+		},
+		{
+			"source": "/provider-config/vercel-ai-gateway",
+			"destination": "/provider-config/other-30-plus-providers#vercel-ai-gateway"
+		},
+		{
+			"source": "/provider-config/vscode-language-model-api",
+			"destination": "/provider-config/other-30-plus-providers#vs-code-language-model-api"
+		},
+		{
+			"source": "/provider-config/xai-grok",
+			"destination": "/provider-config/other-30-plus-providers#xai-grok"
+		},
+		{
+			"source": "/tools-reference/browser-automation",
+			"destination": "/tools-reference/all-cline-tools"
+		},
+		{
+			"source": "/troubleshooting/task-history-recovery",
+			"destination": "/core-workflows/task-management"
+		},
+		{
+			"source": "/troubleshooting/terminal-quick-fixes",
+			"destination": "/core-workflows/using-commands"
 		}
 	],
 	"search": {

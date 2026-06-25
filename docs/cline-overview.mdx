@@ -1,0 +1,85 @@
+---
+title: "Cline Overview"
+sidebarTitle: "Cline Overview"
+description: "Your AI-powered coding agent for complex work. Read files, write code, run commands, all with your approval."
+---
+
+Welcome to the Cline documentation. Whether you're just getting started or looking to unlock advanced capabilities, you'll find everything you need here.
+
+## What is Cline?
+
+Cline is an AI coding agent that lives in your editor and your terminal. It can read and write files, run terminal commands, use a browser, and help you build features through natural conversation. Every action requires your explicit approval. You're always in control.
+
+## Model access
+
+Choose the model access path that fits your workflow:
+
+<CardGroup cols={3}>
+  <Card title="Cline Provider" icon="bolt" href="/getting-started/cline-provider">
+    Fastest setup path with one sign-in, built-in billing, and free model options.
+  </Card>
+  <Card title="ClinePass (beta)" icon="credit-card" href="/getting-started/clinepass">
+    Flat $9.99/month subscription for selected open coding models with 2-5x API rate limits.
+  </Card>
+  <Card title="Bring Your Own Key" icon="key" href="/getting-started/authorizing-with-cline#byok-cloud--local">
+    Use your own provider credentials for cloud providers or local runtimes.
+  </Card>
+</CardGroup>
+
+## Applications
+
+These are end-user applications built on top of Cline's agent core:
+
+<CardGroup cols={2}>
+  <Card title="CLI" icon="terminal" href="/usage/cli-overview">
+    Run Cline in your terminal with interactive chat or fully headless automation for CI/CD and scripting.
+
+    `npm i -g cline`
+  </Card>
+  <Card title="Kanban" icon="table-columns" href="https://github.com/cline/kanban">
+    Run many agents in parallel from a web-based task board with per-card worktrees, auto-commit, and dependency chains.
+
+    `npx kanban`
+  </Card>
+  <Card title="VS Code Extension" icon="code" href="https://marketplace.visualstudio.com/items?itemName=saoudrizwan.claude-dev">
+    AI coding assistant in your editor. Create files, run commands, browse the web, and use tools with human-in-the-loop approval.
+  </Card>
+  <Card title="JetBrains Plugin" icon="brain" href="https://plugins.jetbrains.com/plugin/27189-cline">
+    The same Cline experience in IntelliJ IDEA, PyCharm, WebStorm, GoLand, and the rest of the JetBrains family.
+  </Card>
+</CardGroup>
+
+
+## Agent Core (SDK)
+
+The SDK is Cline's agent core—use it to build your own applications, automations, and integrations. See SDK section for detailed functionality and architectural design of the Cline Agent.
+
+<CardGroup cols={1}>
+  <Card title="SDK" icon="cube" href="https://docs.cline.bot/sdk/overview">
+    Build AI agents and integrations powered by the same core engine behind the CLI, Kanban, VS Code extension, and JetBrains plugin.
+
+    `npm install @cline/sdk`
+  </Card>
+</CardGroup>
+
+## Other IDE Supports
+
+Cline works across all major editors: **VS Code**, **Cursor**, **Windsurf**, **JetBrains** (IntelliJ, PyCharm, WebStorm), **Antigravity**, and **Zed**, **Neovim** via ACP mode.
+
+
+## Enterprise Solutions
+
+<CardGroup cols={2}>
+  <Card title="Security & Governance" icon="shield-halved" href="/enterprise-solutions/overview">
+    SSO, role-based access control, model and tool controls per team, and remote configuration.
+  </Card>
+  <Card title="Observability" icon="chart-line" href="/enterprise-solutions/monitoring/overview">
+    OpenTelemetry, Datadog, Grafana, Splunk integrations with real-time analytics.
+  </Card>
+  <Card title="Team Management" icon="users-gear" href="/enterprise-solutions/team-management/managing-members">
+    Manage members, roles, and permissions across your organization.
+  </Card>
+  <Card title="API Reference" icon="code" href="/enterprise-solutions/api-reference">
+    Programmatic access to Cline's enterprise features.
+  </Card>
+</CardGroup>

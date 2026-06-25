@@ -1,0 +1,179 @@
+name: ext-vscode-test-e2e
+
+on:
+    push:
+        branches:
+            - main
+    pull_request:
+        types: [opened, reopened, synchronize, ready_for_review]
+    workflow_dispatch:
+
+concurrency:
+    group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+    cancel-in-progress: true
+
+permissions:
+    contents: read
+    pull-requests: read
+
+jobs:
+    detect-changes:
+        runs-on: ubuntu-latest
+        name: Detect Changes
+        outputs:
+            e2e: ${{ steps.force.outputs.run_all == 'true' || steps.filter.outputs.e2e == 'true' }}
+        steps:
+            - id: force
+              if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+              run: echo "run_all=true" >> "$GITHUB_OUTPUT"
+
+            - uses: actions/checkout@v4
+              if: steps.force.outputs.run_all != 'true'
+
+            - uses: dorny/paths-filter@v3
+              if: steps.force.outputs.run_all != 'true'
+              id: filter
+              with:
+                  filters: |
+                      e2e:
+                          - 'apps/vscode/src/**'
+                          - 'apps/vscode/webview-ui/**'
+                          - 'apps/vscode/proto/**'
+                          - 'apps/vscode/tests/**'
+                          - 'apps/vscode/scripts/**'
+                          - 'apps/vscode/standalone/**'
+                          - 'apps/vscode/assets/**'
+                          - 'apps/vscode/walkthrough/**'
+                          - 'apps/vscode/package.json'
+                          - 'apps/vscode/webview-ui/package.json'
+                          # Root bun lockfile is authoritative for the whole workspace (incl. apps/vscode).
+                          - 'bun.lock'
+                          # SDK source packages are local workspace symlinks (@cline/*), so SDK changes affect the build.
+                          - 'sdk/packages/**'
+                          - 'apps/vscode/buf.yaml'
+                          - 'apps/vscode/tsconfig*.json'
+                          - 'apps/vscode/biome.jsonc'
+                          - 'apps/vscode/esbuild.mjs'
+                          - 'apps/vscode/bunfig.toml'
+                          - 'apps/vscode/.vscode-test.mjs'
+                          - 'apps/vscode/.vscodeignore'
+                          - 'apps/vscode/playwright*.ts'
+                          - '.github/workflows/ext-vscode-test-e2e.yml'
+
+    matrix_prep:
+        needs: detect-changes
+        if: needs.detect-changes.outputs.e2e == 'true'
+        runs-on: ubuntu-latest
+        outputs:
+            matrix: ${{ steps.set-matrix.outputs.matrix }}
+        steps:
+            - id: set-matrix
+              run: |
+                  echo 'matrix=[{"runner":"ubuntu"},{"runner":"windows"},{"runner":"macos"}]' >> $GITHUB_OUTPUT
+
+    e2e:
+        needs: [detect-changes, matrix_prep]
+        if: needs.detect-changes.outputs.e2e == 'true'
+        strategy:
+            fail-fast: false
+            matrix:
+                include: ${{ fromJson(needs.matrix_prep.outputs.matrix) }}
+        runs-on: ${{ matrix.runner }}-latest
+        timeout-minutes: 20
+        permissions:
+            id-token: write
+            contents: read
+        defaults:
+            run:
+                working-directory: apps/vscode
+        steps:
+            - uses: actions/checkout@v4
+            - name: Setup Bun
+              uses: oven-sh/setup-bun@v2
+              with:
+                  bun-version: 1.3.14
+
+            # Cache Bun's global install cache - keyed on the authoritative root bun.lock.
+            - name: Cache Bun install cache
+              uses: actions/cache@v4
+              id: bun-cache
+              with:
+                  path: ~/.bun/install/cache
+                  key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+                  restore-keys: |
+                      ${{ runner.os }}-bun-
+
+            # Cache VS Code installation
+            - name: Cache VS Code
+              uses: actions/cache@v4
+              id: vscode-cache
+              with:
+                  path: apps/vscode/.vscode-test
+                  key: vscode-${{ runner.os }}-stable-${{ hashFiles('apps/vscode/.vscode-test.mjs', 'apps/vscode/package.json') }}
+                  restore-keys: |
+                      vscode-${{ runner.os }}-stable-
+
+            # Cache Playwright browsers
+            - name: Cache Playwright browsers
+              uses: actions/cache@v4
+              id: playwright-cache
+              with:
+                  path: |
+                      ~/.cache/ms-playwright
+                      ~/Library/Caches/ms-playwright
+                      ~/AppData/Local/ms-playwright
+                  key: playwright-browsers-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+                  restore-keys: |
+                      playwright-browsers-${{ runner.os }}-
+
+            # Single root install resolves the entire bun workspace at once (replaces
+            # the per-package `npm ci` steps for apps/vscode + webview-ui).
+            - name: Install workspace dependencies
+              working-directory: ${{ github.workspace }}
+              run: bun install --frozen-lockfile
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            # @cline/* are local workspace symlinks to source packages; build dist/
+            # before building/packaging the extension for E2E.
+            - name: Build SDK packages
+              working-directory: ${{ github.workspace }}
+              run: bun run build:sdk
+
+            - name: Assert better-sqlite3 native binary present
+              # Force bash: the Windows runner defaults to pwsh, which can't parse this
+              # POSIX test. Git Bash ships on GitHub's windows-latest images.
+              shell: bash
+              run: |
+                  NODE_FILE="node_modules/better-sqlite3/build/Release/better_sqlite3.node"
+                  if [ ! -f "$NODE_FILE" ]; then
+                    echo "ERROR: better-sqlite3 native binary missing at apps/vscode/$NODE_FILE"
+                    echo "(bun trustedDependencies postinstall likely did not run)"
+                    exit 1
+                  fi
+                  echo "Found better-sqlite3 native binary: $NODE_FILE"
+
+            # NOTE: vsce is no longer installed globally. @vscode/vsce is a workspace
+            # devDependency of apps/vscode (resolved into node_modules/.bin), and the
+            # `test:e2e:build` script invokes `vsce` via `bun run`, which puts the local
+            # .bin on PATH. No global install needed.
+
+            - name: Install xvfb on Linux
+              if: matrix.runner == 'ubuntu'
+              run: sudo apt-get update && sudo apt-get install -y xvfb
+
+            # Run optimized E2E tests (eliminates redundant builds)
+            - name: Run E2E tests - Linux
+              if: matrix.runner == 'ubuntu'
+              run: xvfb-run -a bun run test:e2e:optimal
+
+            - name: Run E2E tests - Non-Linux
+              if: matrix.runner != 'ubuntu'
+              run: bun run test:e2e:optimal
+
+            - uses: actions/upload-artifact@v4
+              if: ${{ failure() }}
+              with:
+                  name: playwright-recordings-${{ matrix.runner }}
+                  path: |
+                      test-results/playwright/

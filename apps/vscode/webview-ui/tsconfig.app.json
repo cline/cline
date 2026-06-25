@@ -1,0 +1,71 @@
+{
+	"compilerOptions": {
+		"tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
+		"target": "ES2022",
+		"useDefineForClassFields": true,
+		"lib": [
+			"ES2022",
+			"DOM",
+			"DOM.Iterable"
+		],
+		"types": [
+			"vitest/globals",
+			"@testing-library/jest-dom"
+		],
+		"module": "ESNext",
+		"skipLibCheck": true,
+
+		/* Bundler mode */
+		"moduleResolution": "bundler",
+		"allowImportingTsExtensions": true,
+		"isolatedModules": true,
+		"moduleDetection": "force",
+		"noEmit": true,
+		"jsx": "react-jsx",
+
+		/* Linting */
+		"strict": true,
+		"noFallthroughCasesInSwitch": true,
+		"noUncheckedSideEffectImports": true,
+
+		/* Aliasing */
+		"paths": {
+			// Pin React types to webview-ui's own React 18 copy. In the bun
+			// workspace, @testing-library/react's optional peer pulls
+			// @types/react@19 into a resolvable location, and tsc would otherwise
+			// mix it with the toolkit's React 18 types (breaking JSX: React 19
+			// dropped Component.refs). These aliases force a single React 18 type.
+			"react": [
+				"./node_modules/@types/react"
+			],
+			"react-dom": [
+				"./node_modules/@types/react-dom"
+			],
+			"@/*": [
+				"./src/*"
+			],
+			"@components/*": [
+				"./src/components/*"
+			],
+			"@context/*": [
+				"./src/context/*"
+			],
+			"@shared/*": [
+				"../src/shared/*"
+			],
+			"@utils/*": [
+				"./src/utils/*"
+			]
+		}
+	},
+	"include": [
+		"src"
+	],
+	"exclude": [
+		"src/**/*.test.tsx",
+		"src/**/*.test.ts",
+		"src/**/*.spec.tsx",
+		"src/**/*.spec.ts",
+		"src/**/__tests__/**"
+	]
+}

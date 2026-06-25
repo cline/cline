@@ -1,0 +1,45 @@
+{
+	"name": "@cline/agents",
+	"version": "0.0.51",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/cline/cline",
+		"directory": "sdk/packages/agents"
+	},
+	"main": "dist/index.js",
+	"dependencies": {
+		"@cline/llms": "workspace:*",
+		"@cline/shared": "workspace:*",
+		"nanoid": "^5.1.7"
+	},
+	"exports": {
+		".": {
+			"browser": "./dist/index.js",
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"description": "Browser-safe agent runtime for the next-generation Cline SDK",
+	"files": [
+		"dist"
+	],
+	"keywords": [
+		"llm",
+		"agents",
+		"ai",
+		"tool-calling"
+	],
+	"license": "Apache-2.0",
+	"scripts": {
+		"build": "bun run bun.mts && bun tsc -p tsconfig.build.json",
+		"dev": "bun build ./src/index.ts --outdir ./dist --target node --format esm --watch",
+		"typecheck": "bun tsc -p tsconfig.dev.json --noEmit",
+		"test": "vitest run",
+		"test:watch": "vitest"
+	},
+	"engines": {
+		"node": ">=22"
+	},
+	"type": "module",
+	"types": "dist/index.d.ts"
+}

@@ -1,0 +1,100 @@
+syntax = "proto3";
+
+package cline;
+
+import "cline/common.proto";
+
+option go_package = "github.com/cline/grpc-go/cline";
+option java_multiple_files = true;
+option java_package = "bot.cline.proto";
+
+service MarketplaceService {
+  rpc getMarketplaceCatalog(EmptyRequest) returns (MarketplaceCatalog);
+  rpc listMarketplaceLocalInstalledEntries(EmptyRequest) returns (MarketplaceLocalInstalledEntries);
+  rpc listMarketplaceInstalledEntries(MarketplaceEntriesRequest) returns (MarketplaceInstalledEntries);
+  rpc installMarketplaceEntry(MarketplaceEntryRequest) returns (MarketplaceInstallResult);
+  rpc toggleMarketplaceLocalInstalledEntry(ToggleMarketplaceLocalInstalledEntryRequest) returns (MarketplaceLocalInstalledEntries);
+}
+
+message MarketplaceTag {
+  string label = 1;
+  optional string color = 2;
+}
+
+message MarketplaceCounts {
+  optional int32 tools = 1;
+  optional int32 prompts = 2;
+  optional int32 resources = 3;
+}
+
+message MarketplaceEnvVar {
+  string name = 1;
+  bool required = 2;
+  optional string description = 3;
+  optional string url = 4;
+}
+
+message MarketplaceInstall {
+  repeated string args = 1;
+  repeated MarketplaceEnvVar env = 2;
+  optional string command = 3;
+  optional string notes = 4;
+}
+
+message MarketplaceEntry {
+  string id = 1;
+  string type = 2;
+  string name = 3;
+  optional string tagline = 4;
+  optional string description = 5;
+  repeated string tags = 6;
+  repeated MarketplaceTag tag_objects = 7;
+  optional string author = 8;
+  optional string source_url = 9;
+  optional string homepage_url = 10;
+  optional MarketplaceCounts counts = 11;
+  optional MarketplaceInstall install = 12;
+}
+
+message MarketplaceCatalog {
+  repeated MarketplaceEntry entries = 1;
+}
+
+message MarketplaceEntriesRequest {
+  repeated MarketplaceEntry entries = 1;
+}
+
+message MarketplaceInstalledEntries {
+  repeated string installed_keys = 1;
+}
+
+message MarketplaceLocalInstalledEntry {
+  string id = 1;
+  string type = 2;
+  string name = 3;
+  optional string description = 4;
+  optional string path = 5;
+  optional string source = 6;
+  bool enabled = 7;
+}
+
+message MarketplaceLocalInstalledEntries {
+  repeated MarketplaceLocalInstalledEntry entries = 1;
+}
+
+message ToggleMarketplaceLocalInstalledEntryRequest {
+  MarketplaceLocalInstalledEntry entry = 1;
+  bool enabled = 2;
+}
+
+message MarketplaceEntryRequest {
+  MarketplaceEntry entry = 1;
+}
+
+message MarketplaceInstallResult {
+  string id = 1;
+  string type = 2;
+  string status = 3;
+  string message = 4;
+  optional string output = 5;
+}

@@ -1,0 +1,109 @@
+---
+title: "Model Providers"
+sidebarTitle: "Model Providers"
+description: "Configure provider credentials, model IDs, and the LLM gateway."
+---
+
+The `@cline/llms` package provides provider registries, model catalogs, handlers, and a gateway. `@cline/agents` and `@cline/core` use this layer internally.
+
+## Configure a Provider
+
+```typescript
+const agent = new Agent({
+  providerId: "anthropic",
+  modelId: "claude-sonnet-4-6",
+  apiKey: process.env.ANTHROPIC_API_KEY,
+  // ...
+})
+```
+
+Provider config can include `apiKey`, `baseUrl`, `headers`, and provider-specific settings through core/provider config types.
+
+Common environment variables:
+
+| Provider | Environment variable |
+|----------|----------------------|
+| Anthropic | `ANTHROPIC_API_KEY` |
+| OpenAI | `OPENAI_API_KEY` |
+| Google | `GOOGLE_API_KEY` or `GOOGLE_APPLICATION_CREDENTIALS` |
+| AWS Bedrock | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN` |
+| Mistral | `MISTRAL_API_KEY` |
+
+## OpenAI-Compatible Providers
+
+Use `openai-compatible` for providers that expose an OpenAI-compatible API:
+
+```typescript
+const agent = new Agent({
+  providerId: "openai-compatible",
+  modelId: "your-model-name",
+  apiKey: process.env.PROVIDER_API_KEY,
+  baseUrl: "https://your-provider.com/v1",
+})
+```
+
+## AWS Bedrock
+
+Bedrock uses AWS credentials from the standard environment/SDK chain and provider-specific config:
+
+```typescript
+const agent = new Agent({
+  providerId: "bedrock",
+  modelId: "anthropic.claude-sonnet-4-6",
+  providerConfig: {
+    awsRegion: "us-east-1",
+  },
+})
+```
+
+## Gateway API
+
+Use `DefaultGateway` or `createGateway` when you need direct provider/model access:
+
+```typescript
+import { DefaultGateway } from "@cline/llms"
+
+const gateway = new DefaultGateway()
+
+const providers = gateway.listProviders()
+const model = gateway.createAgentModel({
+  providerId: "anthropic",
+  modelId: "claude-sonnet-4-6",
+})
+```
+
+The package also exports registry helpers such as `getAllProviders`, `getProviderIds`, `getModelsForProvider`, `registerProvider`, and `registerModel`.
+
+See [Gateway reference](/sdk/reference/gateway) for exact APIs.
+
+## Model Metadata
+
+Models expose metadata for selection and cost calculations:
+
+```typescript
+interface ModelInfo {
+  id: string
+  name?: string
+  contextWindow?: number
+  maxTokens?: number
+  pricing?: {
+    input?: number
+    output?: number
+    cacheCreation?: number
+    cacheRead?: number
+  }
+  capabilities?: Record<string, unknown>
+}
+```
+
+## Cost Tracking
+
+Agent results and usage events include token usage:
+
+```typescript
+const result = await agent.run("Analyze this codebase")
+
+console.log(result.usage.inputTokens)
+console.log(result.usage.outputTokens)
+console.log(result.usage.totalCost)
+```

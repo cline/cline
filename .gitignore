@@ -13,12 +13,15 @@ tmp
 pnpm-lock.yaml
 
 .clineignore
+.cline/enterprise
+.cline/remote-config
+**/.cline/remote-config
 .venv
 .actrc
 CLAUDE.local.md
 
-webview-ui/src/**/*.js
-webview-ui/src/**/*.js.map
+apps/vscode/webview-ui/src/**/*.js
+apps/vscode/webview-ui/src/**/*.js.map
 
 # Ignore coverage directories and files
 coverage
@@ -35,9 +38,9 @@ coverage-unit
 .worktrees
 
 ## Generated files ##
-src/generated/
-src/shared/proto/
-webview-ui/src/services/grpc-client.ts
+apps/vscode/src/generated/
+apps/vscode/src/shared/proto/
+apps/vscode/webview-ui/src/services/grpc-client.ts
 *.tsbuildinfo
 
 # E2E Tests
@@ -51,3 +54,34 @@ test-results
 
 # Smoke test results (generated)
 evals/smoke-tests/results/
+
+.tui-test
+secrets.json
+tui-traces
+tests/**/cache
+
+# Backup created by scripts/marketplace-readme.mjs while publishing.
+# Should never be committed: only exists if a publish aborts mid-swap.
+.README.github.bak
+
+# Tauri generated code
+apps/*/src-tauri/gen
+apps/*/src-tauri/bin
+apps/examples/*/src-tauri/gen
+apps/examples/*/src-tauri/bin
+# Tauri UI test snapshots
+apps/*/src/tests/.tui-test
+apps/*/src/tests/tui-traces
+apps/vscode/webview-ui/src/**/*.js
+apps/vscode/webview-ui/src/**/*.js.map
+
+
+# SDK Session files / User data
+.cline/data
+.cline/tmp
+*.db
+*.db-shm
+*.db-wal
+.cline/**/managed.json
+.cline/**/bundle.json
+apps/vscode/tsconfig.test.generated.json

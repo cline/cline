@@ -1,0 +1,258 @@
+---
+title: "Chat Completions"
+sidebarTitle: "Chat Completions"
+description: "Full reference for the POST /chat/completions endpoint including all parameters, streaming, and tool calling."
+---
+
+The Chat Completions endpoint generates model responses from a conversation. It follows the [OpenAI Chat Completions](https://platform.openai.com/docs/api-reference/chat/create) format.
+
+## Endpoint
+
+```
+POST https://api.cline.bot/api/v1/chat/completions
+```
+
+## Request Headers
+
+| Header | Required | Description |
+|--------|----------|-------------|
+| `Authorization` | Yes | `Bearer YOUR_API_KEY` |
+| `Content-Type` | Yes | `application/json` |
+| `HTTP-Referer` | No | Your application URL (for usage tracking) |
+| `X-Title` | No | Your application name (for usage logs) |
+
+## Request Body
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `model` | string | Yes | | Model ID in `provider/model` format. See [Models](/api/models). |
+| `messages` | array | Yes | | Conversation messages. Each has `role` (`system`, `user`, `assistant`) and `content`. |
+| `stream` | boolean | No | `true` | Return the response as a stream of Server-Sent Events. |
+| `tools` | array | No | | Tool/function definitions in OpenAI format. |
+| `temperature` | number | No | Model default | Sampling temperature (0.0 to 2.0). Lower values are more deterministic. |
+
+### Message Format
+
+Each message in the `messages` array has this structure:
+
+```json
+{
+  "role": "user",
+  "content": "Your message here"
+}
+```
+
+**Roles:**
+
+| Role | Purpose |
+|------|---------|
+| `system` | Sets the model's behavior and persona. Place first in the array. |
+| `user` | The human's input. |
+| `assistant` | Previous model responses (for multi-turn conversations). |
+
+### Multi-Turn Conversation
+
+Include previous messages to maintain context:
+
+```json
+{
+  "model": "anthropic/claude-sonnet-4-6",
+  "messages": [
+    {"role": "system", "content": "You are a helpful coding assistant."},
+    {"role": "user", "content": "What is a closure in JavaScript?"},
+    {"role": "assistant", "content": "A closure is a function that..."},
+    {"role": "user", "content": "Can you show me an example?"}
+  ]
+}
+```
+
+## Streaming Response
+
+When `stream: true` (the default), the response is a series of [Server-Sent Events](https://developer.mozilla.org/en-US/docs/Web/API/Server-Sent_Events):
+
+```
+data: {"id":"gen-abc123","choices":[{"delta":{"role":"assistant"},"index":0}],"model":"anthropic/claude-sonnet-4-6"}
+
+data: {"id":"gen-abc123","choices":[{"delta":{"content":"The capital"},"index":0}],"model":"anthropic/claude-sonnet-4-6"}
+
+data: {"id":"gen-abc123","choices":[{"delta":{"content":" of France"},"index":0}],"model":"anthropic/claude-sonnet-4-6"}
+
+data: {"id":"gen-abc123","choices":[{"delta":{"content":" is Paris."},"index":0,"finish_reason":"stop"}],"model":"anthropic/claude-sonnet-4-6","usage":{"prompt_tokens":14,"completion_tokens":8,"cost":0.000066}}
+
+data: [DONE]
+```
+
+Each `data:` line contains a JSON chunk. Key fields:
+
+| Field | Description |
+|-------|-------------|
+| `id` | Generation ID, consistent across all chunks |
+| `choices[0].delta.content` | The new text in this chunk |
+| `choices[0].delta.reasoning` | Reasoning/thinking content (for reasoning models) |
+| `choices[0].finish_reason` | `stop` when complete, `error` on failure |
+| `usage` | Token counts and cost (included in the final chunk) |
+
+### Usage Object
+
+The final chunk includes token usage and cost:
+
+```json
+{
+  "usage": {
+    "prompt_tokens": 25,
+    "completion_tokens": 42,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "cost": 0.000315
+  }
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `prompt_tokens` | Total input tokens |
+| `completion_tokens` | Total output tokens |
+| `prompt_tokens_details.cached_tokens` | Tokens served from cache (reduces cost) |
+| `cost` | Total cost in USD for this request |
+
+## Non-Streaming Response
+
+When `stream: false`, the response is a single JSON object:
+
+```json
+{
+  "id": "gen-abc123",
+  "model": "anthropic/claude-sonnet-4-6",
+  "choices": [
+    {
+      "message": {
+        "role": "assistant",
+        "content": "The capital of France is Paris."
+      },
+      "finish_reason": "stop",
+      "index": 0
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 14,
+    "completion_tokens": 8
+  }
+}
+```
+
+## Tool Calling
+
+You can define tools that the model can call using the OpenAI function calling format:
+
+```json
+{
+  "model": "anthropic/claude-sonnet-4-6",
+  "messages": [
+    {"role": "user", "content": "What's the weather in San Francisco?"}
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "get_weather",
+        "description": "Get the current weather for a location",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "location": {
+              "type": "string",
+              "description": "City and state, e.g. San Francisco, CA"
+            }
+          },
+          "required": ["location"]
+        }
+      }
+    }
+  ]
+}
+```
+
+When the model decides to call a tool, the response includes a `tool_calls` array:
+
+```json
+{
+  "choices": [
+    {
+      "message": {
+        "role": "assistant",
+        "tool_calls": [
+          {
+            "id": "call_abc123",
+            "type": "function",
+            "function": {
+              "name": "get_weather",
+              "arguments": "{\"location\": \"San Francisco, CA\"}"
+            }
+          }
+        ]
+      },
+      "finish_reason": "tool_calls"
+    }
+  ]
+}
+```
+
+To continue the conversation after a tool call, include the tool result:
+
+```json
+{
+  "messages": [
+    {"role": "user", "content": "What's the weather in San Francisco?"},
+    {"role": "assistant", "tool_calls": [{"id": "call_abc123", "type": "function", "function": {"name": "get_weather", "arguments": "{\"location\": \"San Francisco, CA\"}"}}]},
+    {"role": "tool", "tool_call_id": "call_abc123", "content": "{\"temperature\": 62, \"condition\": \"foggy\"}"},
+  ]
+}
+```
+
+## Reasoning Models
+
+Some models support extended thinking (reasoning). When using these models, the response may include reasoning content in the streaming delta:
+
+```json
+{"choices":[{"delta":{"reasoning":"Let me think about this step by step..."}}]}
+```
+
+Reasoning tokens are separate from the main content and appear in the `delta.reasoning` field. Some providers return encrypted reasoning blocks via `delta.reasoning_details` that can be passed back in subsequent requests to preserve the reasoning trace.
+
+<Note>
+  Not all models support reasoning. See [Models](/api/models) for which models have reasoning capabilities.
+</Note>
+
+## Complete Example
+
+```bash
+curl -X POST https://api.cline.bot/api/v1/chat/completions \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "anthropic/claude-sonnet-4-6",
+    "messages": [
+      {"role": "system", "content": "You are a concise assistant. Answer in one sentence."},
+      {"role": "user", "content": "Explain what an API is."}
+    ],
+    "stream": true
+  }'
+```
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Models" icon="brain" href="/api/models">
+    Browse available models and their capabilities.
+  </Card>
+  <Card title="Errors" icon="triangle-exclamation" href="/api/errors">
+    Handle errors and implement retry logic.
+  </Card>
+  <Card title="SDK Examples" icon="code" href="/api/sdk-examples">
+    Use this endpoint from Python, Node.js, and more.
+  </Card>
+  <Card title="Authentication" icon="key" href="/api/authentication">
+    API key management and security practices.
+  </Card>
+</CardGroup>

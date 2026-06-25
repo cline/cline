@@ -1,0 +1,19 @@
+{
+	"version": 1,
+	"providers": {
+		"openai-codex": {
+			"settings": {
+				"provider": "openai-codex",
+				"model": "gpt-5.4",
+				"headers": {
+					"originator": "cline-live-test",
+					"session_id": "llms-live-openai-codex",
+					"User-Agent": "Cline/live-test"
+				}
+			},
+			"expectations": {
+				"requireUsage": true
+			}
+		}
+	}
+}

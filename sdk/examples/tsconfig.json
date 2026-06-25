@@ -1,0 +1,58 @@
+{
+	"extends": "../../apps/tsconfig.apps.json",
+	"compilerOptions": {
+		// Environment setup & latest features
+		"lib": ["ESNext"],
+		"types": ["bun"],
+		"target": "ESNext",
+		"module": "Preserve",
+		"moduleDetection": "force",
+		"jsx": "react-jsx",
+		"allowJs": true,
+
+		// Bundler mode
+		"moduleResolution": "bundler",
+		"allowImportingTsExtensions": true,
+		"verbatimModuleSyntax": true,
+		"noEmit": true,
+
+		// Best practices
+		"strict": true,
+		"skipLibCheck": true,
+		"noFallthroughCasesInSwitch": true,
+		"noUncheckedIndexedAccess": false,
+		"noImplicitOverride": true,
+
+		// Some stricter flags (disabled by default)
+		"noUnusedLocals": false,
+		"noUnusedParameters": false,
+		"noPropertyAccessFromIndexSignature": false,
+		"paths": {
+			"@cline/agents": ["../packages/agents/src/index.ts"],
+			"@cline/agents/*": [
+				"../packages/agents/src/*",
+				"../packages/agents/src/*/index.ts"
+			],
+			"@cline/cline-hub": ["./cline-hub/src/server.ts"],
+			"@cline/core": ["../packages/core/src/index.ts"],
+			"@cline/core/hub/daemon-entry": [
+				"../packages/core/src/hub/daemon/entry.ts"
+			],
+			"@cline/core/*": [
+				"../packages/core/src/*",
+				"../packages/core/src/*/index.ts"
+			],
+			"@cline/core/telemetry": [
+				"../packages/core/src/services/telemetry/index.ts"
+			],
+			"@cline/llms": ["../packages/llms/src/index.ts"],
+			"@cline/shared": ["../packages/shared/src/index.ts"],
+			"@cline/shared/storage": ["../packages/shared/src/storage/index.ts"],
+			"@cline/shared/db": ["../packages/shared/src/db/index.ts"],
+			"@cline/shared/*": [
+				"../packages/shared/src/*",
+				"../packages/shared/src/*/index.ts"
+			]
+		}
+	}
+}

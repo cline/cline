@@ -1,0 +1,69 @@
+out
+dist
+dist-standalone
+node_modules
+tmp
+.vscode-test/
+*.vsix
+
+.DS_Store
+.idea
+.husky/_/
+
+pnpm-lock.yaml
+
+.clineignore
+.venv
+.actrc
+CLAUDE.local.md
+
+# Ignore coverage directories and files
+coverage
+coverage-unit
+.nyc_output
+# But don't ignore the coverage scripts in .github/scripts/
+!.github/scripts/coverage/
+
+*evals.env
+.env
+.secrets
+.github/act/.secrets
+
+.worktrees
+
+## Generated files ##
+apps/vscode/src/generated/
+apps/vscode/src/shared/proto/
+apps/vscode/webview-ui/src/services/grpc-client.ts
+*.tsbuildinfo
+
+# E2E Tests
+test-results
+
+/.github/act
+/pkg
+.secrets
+
+*.tsbuildinfo
+
+# Smoke test results (generated)
+evals/smoke-tests/results/
+
+.tui-test
+secrets.json
+tui-traces
+tests/**/cache
+
+# Backup created by scripts/marketplace-readme.mjs while publishing.
+# Should never be committed: only exists if a publish aborts mid-swap.
+.README.github.bak
+
+
+# SDK Session files / User data
+.cline/data
+.cline/tmp
+*.db
+*.db-shm
+*.db-wal
+.cline/**/managed.json
+.cline/**/bundle.json

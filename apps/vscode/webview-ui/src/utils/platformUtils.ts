@@ -1,0 +1,64 @@
+export const unknown = "Unknown"
+
+const platforms = {
+	windows: /win32/,
+	mac: /darwin/,
+	linux: /linux/,
+}
+
+export const detectOS = (platform: string) => {
+	let detectedOs = unknown
+	if (platform.match(platforms.windows)) {
+		detectedOs = "windows"
+	} else if (platform.match(platforms.mac)) {
+		detectedOs = "mac"
+	} else if (platform.match(platforms.linux)) {
+		detectedOs = "linux"
+	}
+	return detectedOs
+}
+
+export const detectMetaKeyChar = (platform: string) => {
+	if (platform.match(platforms.mac)) {
+		return "CMD"
+	}
+	if (platform.match(platforms.windows)) {
+		return "Win"
+	}
+	if (platform.match(platforms.linux)) {
+		return "Alt"
+	}
+	return "CMD"
+}
+
+const userAgent = navigator?.userAgent || ""
+
+const isChrome = userAgent.indexOf("Chrome") >= 0
+
+export const isSafari = !isChrome && userAgent.indexOf("Safari") >= 0
+
+declare const __NODE_PLATFORM__: string
+
+/**
+ * Gets the current platform: 'windows', 'mac', or 'linux'
+ * Defaults to 'linux' if platform cannot be determined
+ */
+export function getCurrentPlatform() {
+	// Fallback to linux if platform is not available
+	switch (__NODE_PLATFORM__) {
+		case "win32":
+			return "windows"
+		case "darwin":
+			return "mac"
+		default:
+			return "linux"
+	}
+}
+
+/**
+ * Checks if the platform is macOS or Linux
+ * @returns true if platform is darwin (macOS) or linux
+ */
+export const isMacOSOrLinux = (): boolean => {
+	return getCurrentPlatform() !== "windows" // Non-Windows
+}

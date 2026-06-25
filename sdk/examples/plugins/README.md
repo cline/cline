@@ -1,0 +1,203 @@
+# Cline Plugin Examples
+
+A plugin is a single file (or directory) that extends any Cline agent — CLI, Kanban, VS Code, JetBrains, or anything built on the Core SDK. Drop one in, get new tools, hooks, providers, or message rewriters everywhere.
+
+What a plugin can do:
+
+- **Register tools** — give the agent new capabilities it can call
+- **Hook into the lifecycle** — observe or steer execution at key points
+- **Rewrite provider messages** — custom compaction, redaction, context shaping
+- **Emit automation events** — push normalized events into the runtime
+
+## Examples
+
+| Example | What it shows | What it does |
+| ------- | ------------- | ------------ |
+| [weather-metrics.ts](./weather-metrics.ts) | Tool registration + lifecycle metrics hooks. Best starting point. | Adds a mock `get_weather` tool and logs run/tool metrics, workspace git context, token usage, and cost. It also demonstrates blocking `git push` on protected branches from a `beforeTool` hook. |
+| [mac-notify.ts](./mac-notify.ts) | macOS Notification Center alert via `afterRun` | Sends a native macOS notification when a run completes successfully, using the final output text or iteration count as the notification body. Non-macOS hosts no-op. |
+| [custom-compaction.ts](./custom-compaction.ts) | Provider-message compaction via `registerMessageBuilder` | Rewrites oversized provider-bound message history by preserving the first user message and recent context, then replacing older middle history with a structured summary of roles, tools, files, and highlights. |
+| [background-terminal.ts](./background-terminal.ts) | Detached shell jobs with persisted logs and session steering | Registers `start_background_command`, `get_background_command`, and `delete_background_command` so agents can launch long-running shell commands, poll stdout/stderr tails, clean up job metadata, and receive completion summaries as steer messages. |
+| [automation-events.ts](./automation-events.ts) | Plugin-emitted automation events | Registers a normalized `local.plugin_event` automation event type and, when `CLINE_LOCAL_EVENT_INTERVAL_MS` is set, periodically emits demo events into Cline automation. |
+| [gitignore-read-files-guard.ts](./gitignore-read-files-guard.ts) | Runtime hook policy for workspace `.gitignore` boundaries | Uses `beforeTool` to inspect `read_files`, `editor`, and `apply_patch` requests and skips them when target paths match workspace `.gitignore` rules, preventing ignored files from being read or modified. |
+| [env-blocker.ts](./env-blocker.ts) | Deterministic secret protection via `beforeTool` | Uses `beforeTool` to block `read_files` and `run_commands` (e.g. `cat .env`) calls that read `.env` secret files, while leaving `.env.example`/`.env.sample`/`.env.template` readable. A hard guarantee where an AGENTS.md rule is only a suggestion. |
+| [web-search.ts](./web-search.ts) | `web_search` tool backed by an Exa API key | Adds a `web_search` tool that queries Exa for current public web results, with optional result limits, domain filters, recency windows, and country localization. Requires `EXA_API_KEY`. |
+| [openrouter-provider.ts](./openrouter-provider.ts) | Custom model provider via `registerProvider` | Registers an OpenAI-compatible model provider (pointed at OpenRouter) plus its model catalog so the agent can run inference against it. Swap the base URL, API key env var, and models to add any OpenAI-compatible endpoint Cline does not bundle. Requires `OPENROUTER_API_KEY`. |
+| [typescript-lsp/](./typescript-lsp/) | `goto_definition` tool powered by the TypeScript Language Service | Adds `goto_definition(file, line)` for TypeScript/JavaScript projects. It loads the target project’s own TypeScript version, finds identifiers on a line, and resolves definitions through imports, re-exports, aliases, and other language-service semantics. |
+| [agents-squad/](./agents-squad/) | Multi-agent team — spin up subagents with their own models and personalities | Adds tools for starting, messaging, polling, and coordinating background subagents. It includes bundled agent presets, skill discovery/loading, and a shared handoff store for passing notes between subagents in the same conversation. |
+
+The runtime-hook variant of compaction lives in [../hooks/custom-compaction-hook.example.ts](../hooks/custom-compaction-hook.example.ts).
+
+## Try it with the CLI
+
+The CLI auto-discovers plugins from `.cline/plugins` in the workspace, `~/.cline/plugins`, and the system Plugins folder. Use `cline plugin install` for local files, GitHub file URLs, package directories, git repos, and npm packages:
+
+```bash
+cline plugin install https://github.com/cline/cline/blob/main/sdk/examples/plugins/weather-metrics.ts --cwd .
+cline -i "What's the weather like in Tokyo and Paris?"
+```
+
+Swap the GitHub URL for any other single-file example.
+
+To block file access for paths ignored by workspace `.gitignore` files:
+
+```bash
+cline plugin install https://github.com/cline/cline/blob/main/sdk/examples/plugins/gitignore-read-files-guard.ts --cwd .
+cline -i "Read the ignored .env file"
+```
+
+The guard uses the `beforeTool` runtime hook. When a `read_files`, `editor`, or `apply_patch` call targets an ignored workspace file, the hook returns `{ skip: true }`, so the tool result records a policy error and the file is not accessed.
+
+For a plugin that lives in a directory (with its own `package.json`), use `cline plugin install`:
+
+```bash
+cline plugin install ./examples/plugins/agents-squad
+```
+
+To add web search through a normal plugin tool:
+
+```bash
+cline plugin install https://github.com/cline/cline/blob/main/sdk/examples/plugins/web-search.ts --cwd .
+
+export EXA_API_KEY=...
+export OPENROUTER_API_KEY=...
+
+cline auth --provider openrouter --apikey "$OPENROUTER_API_KEY" --modelid anthropic/claude-sonnet-4.6
+cline -P openrouter -m anthropic/claude-sonnet-4.6 "Search the web for recent Bun release notes, then fetch the most relevant page"
+```
+
+The plugin registers `web_search`, which returns normalized search results from
+Exa. It is intentionally separate from `fetch_web_content`: use `web_search` to
+discover relevant URLs, then use `fetch_web_content` when the agent needs to
+inspect a specific page. `EXA_API_KEY` only authenticates the search backend;
+the CLI still needs a normal model provider key or saved provider auth for
+inference.
+
+## Run a demo directly
+
+```bash
+ANTHROPIC_API_KEY=sk-... bun run examples/plugins/weather-metrics.ts
+```
+
+## Anatomy of a plugin
+
+```ts
+import type { AgentPlugin } from "@cline/core";
+import { createTool } from "@cline/core";
+
+const myPlugin: AgentPlugin = {
+  name: "my-plugin",
+
+  manifest: {
+    capabilities: ["tools", "hooks"],
+  },
+
+  setup(api, ctx) {
+    api.registerTool(createTool({ /* ... */ }));
+  },
+
+  hooks: {
+    beforeRun({ snapshot }) { /* ... */ },
+    afterRun({ result }) { /* ... */ },
+  },
+};
+
+export default myPlugin;
+```
+
+Pass it to the SDK:
+
+```ts
+import plugin from "./my-plugin";
+import { ClineCore } from "@cline/core";
+
+const host = await ClineCore.create({ backendMode: "local" });
+await host.start({
+  config: {
+    providerId: "anthropic",
+    modelId: "claude-sonnet-4-6",
+    apiKey: process.env.ANTHROPIC_API_KEY ?? "",
+    cwd: process.cwd(),
+    enableTools: true,
+    systemPrompt: "You are a helpful assistant.",
+    extensions: [plugin],
+  },
+  prompt: "What's the weather like in Tokyo and Paris?",
+  interactive: false,
+});
+```
+
+## Capabilities
+
+Declare what the plugin uses in `manifest.capabilities`. Each one unlocks one part of the `api` passed to `setup()`:
+
+| Capability         | What it unlocks |
+| ------------------ | --------------- |
+| `tools`            | `api.registerTool()` |
+| `commands`         | `api.registerCommand()` |
+| `rules`            | `api.registerRule()` |
+| `skills`           | bundled skills discovered from the plugin package |
+| `providers`        | `api.registerProvider()` |
+| `messageBuilders`  | `api.registerMessageBuilder()` |
+| `automationEvents` | `api.registerAutomationEventType()` and `ctx.automation?.ingestEvent()` |
+| `hooks`            | runtime lifecycle callbacks (see below) |
+
+The setup `ctx` may include `session`, `client`, `user`, `workspaceInfo`, `automation`, `logger`, and `telemetry` depending on the host. See [`automation-events.ts`](./automation-events.ts) for an end-to-end example.
+
+## Runtime hooks
+
+Hooks are typed, in-process callbacks on the same hook layer as `@cline/agents`. They run inside the agent loop with full type information.
+
+| Hook          | When it fires |
+| ------------- | ------------- |
+| `beforeRun`   | before the runtime loop starts |
+| `afterRun`    | after the runtime loop finishes |
+| `beforeModel` | before each model request |
+| `afterModel`  | after each model response, before tool execution |
+| `beforeTool`  | before each tool execution |
+| `afterTool`   | after each tool execution |
+| `onEvent`     | every `AgentRuntimeEvent` emitted by the runtime |
+
+`beforeRun` and `afterRun` wrap one `run()` / `continue()` invocation — in an interactive session, that's one user turn. `afterRun` is the right place for completion notifications, but it also fires on aborted and failed runs, so check `result.status === "completed"` if you only want successes.
+
+### Plugin hooks vs file hooks
+
+File hooks are external scripts in `.cline/hooks` that the runtime invokes with serialized JSON payloads. Plugin runtime hooks are typed callbacks inside the agent loop. Core adapts file hooks onto the runtime hook layer.
+
+| File hook | File event | Backed by runtime hook |
+| --------- | ---------- | ---------------------- |
+| `TaskStart` | `agent_start` | `beforeRun` |
+| `TaskResume` | `agent_resume` | `beforeRun` with resume context |
+| `UserPromptSubmit` | `prompt_submit` | `beforeRun` with prompt context |
+| `PreToolUse` | `tool_call` | `beforeTool` |
+| `PostToolUse` | `tool_result` | `afterTool` |
+| `TaskComplete` | `agent_end` | `afterRun` (completed) |
+| `TaskError` | `agent_error` | `afterRun` (failed) |
+| `TaskCancel` | `agent_abort` | `afterRun` or session shutdown |
+| `SessionShutdown` | `session_shutdown` | session cleanup |
+
+Use **file hooks** for user- or workspace-configured scripts. Use **plugin runtime hooks** when the behavior belongs to a reusable extension and needs typed access to the runtime.
+
+## Custom message compaction
+
+Use `registerMessageBuilder` when a plugin needs to rewrite the provider-bound message list before the model call. Builders run after runtime messages are converted into SDK message blocks and before core's built-in safety pass — so provider-safe normalization is still the final word.
+
+| Example | Extension point | Best for |
+| ------- | --------------- | -------- |
+| [`custom-compaction.ts`](./custom-compaction.ts) | `api.registerMessageBuilder()` | reusable, plugin-owned compaction policies |
+| [`../hooks/custom-compaction-hook.example.ts`](../hooks/custom-compaction-hook.example.ts) | `hooks.beforeModel` runtime hook | logic that needs runtime hook context or direct request mutation |
+
+Prefer the message-builder version for normal compaction. It runs in the core message pipeline before the built-in safety builder, multiple builders run in registration order, and the final pass enforces provider-safe truncation.
+
+Reach for `beforeModel` only when you need the runtime snapshot or want to mutate the runtime request object itself.
+
+## Background terminal plugin
+
+[`background-terminal.ts`](./background-terminal.ts) registers three tools for long-running shell jobs:
+
+| Tool | Purpose |
+| ---- | ------- |
+| `start_background_command` | starts a detached shell command, returns a job id immediately, captures stdout/stderr under Cline's data directory |
+| `get_background_command` | reads job status plus recent stdout/stderr tails |
+| `delete_background_command` | deletes saved job metadata, optionally deletes captured logs |
+
+When `notifyParent` is true (the default), the plugin emits a `steer_message` through the host bridge after the command exits, pushing a completion summary back into the active session — so the agent can react to long-running commands without blocking the original tool call.

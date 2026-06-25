@@ -1,0 +1,41 @@
+import { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/index"
+import { FunctionDeclaration as GoogleTool } from "@google/genai"
+import { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
+
+type ClineTool = OpenAITool | AnthropicTool | GoogleTool
+
+// Define available tool ids
+export enum ClineDefaultTool {
+	ASK = "ask_followup_question",
+	ATTEMPT = "attempt_completion",
+	BASH = "execute_command",
+	FILE_EDIT = "replace_in_file",
+	FILE_READ = "read_file",
+	FILE_NEW = "write_to_file",
+	SEARCH = "search_files",
+	LIST_FILES = "list_files",
+	LIST_CODE_DEF = "list_code_definition_names",
+	BROWSER = "browser_action",
+	MCP_USE = "use_mcp_tool",
+	MCP_ACCESS = "access_mcp_resource",
+	MCP_DOCS = "load_mcp_documentation",
+	NEW_TASK = "new_task",
+	PLAN_MODE = "plan_mode_respond",
+	ACT_MODE = "act_mode_respond",
+	TODO = "focus_chain",
+	WEB_FETCH = "web_fetch",
+	WEB_SEARCH = "web_search",
+	CONDENSE = "condense",
+	SUMMARIZE_TASK = "summarize_task",
+	REPORT_BUG = "report_bug",
+	NEW_RULE = "new_rule",
+	APPLY_PATCH = "apply_patch",
+	USE_SKILL = "use_skill",
+	USE_SUBAGENTS = "use_subagents",
+}
+
+const dynamicToolUseNamesByNamespace = new Map<string, Set<string>>()
+
+export function setDynamicToolUseNames(namespace: string, names: string[]): void {
+	dynamicToolUseNamesByNamespace.set(namespace, new Set(names.map((name) => name.trim()).filter(Boolean)))
+}

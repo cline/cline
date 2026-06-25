@@ -42,42 +42,27 @@ We also welcome contributions to our [documentation](https://github.com/cline/cl
     ```bash
     code cline
     ```
-3. Install the necessary dependencies for the extension and webview-gui:
+3. Install [bun](https://bun.com)
+4. Install the necessary dependencies for the extension and webview-gui:
     ```bash
-    npm run install:all
+    cd apps/vscode && bun run install:all && cd ../..
+    cd sdk && bun run build && cd ..
     ```
-4. Generate Protocol Buffer files (required before first build):
-    ```bash
-    npm run protos
-    ```
-5. Launch by pressing `F5` (or `Run`->`Start Debugging`) to open a new VSCode window with the extension loaded. (You may need to install the [esbuild problem matchers extension](https://marketplace.visualstudio.com/items?itemName=connor4312.esbuild-problem-matchers) if you run into issues building the project.)
+5. Generate Protocol Buffer files (required before first build):
+6. Launch by pressing `F5` (or `Run`->`Start Debugging`) to open a new VSCode window with the extension loaded. (You may need to install the [esbuild problem matchers extension](https://marketplace.visualstudio.com/items?itemName=connor4312.esbuild-problem-matchers) if you run into issues building the project.)
 
 
 
 
 ### Creating a Pull Request
 
-1. Before creating a PR, generate a changeset entry:
-    ```bash
-    npm run changeset
-    ```
-   This will prompt you for:
-   - Type of change (major, minor, patch)
-     - `major` → breaking changes (1.0.0 → 2.0.0)
-     - `minor` → new features (1.0.0 → 1.1.0)
-     - `patch` → bug fixes (1.0.0 → 1.0.1)
-   - Description of your changes
+1. Commit your changes.
 
-2. Commit your changes and the generated `.changeset` file
-
-3. Push your branch and create a PR on GitHub. Our CI will:
+2. Push your branch and create a PR on GitHub. Our CI will:
    - Run tests and checks
-   - Changesetbot will create a comment showing the version impact
-   - When merged to main, changesetbot will create a Version Packages PR
-   - When the Version Packages PR is merged, a new release will be published
-4. Testing
-    - Run `npm run test` to run tests locally. 
-    - Before submitting PR, run `npm run format:fix` to format your code
+3. Testing
+    - Run `cd apps/vscode && bun run test` to run tests locally. 
+    - Before submitting PR, run `bun run format:fix` to format your code
 
 ### Extension
 
@@ -88,12 +73,13 @@ We also welcome contributions to our [documentation](https://github.com/cline/cl
     - If you dismissed the prompts, you can install them manually from the Extensions panel
 
 2. **Local Development**
-    - Run `npm run install:all` to install dependencies
-    - Run `npm run protos` to generate Protocol Buffer files (required before first build)
-    - Run `npm run test` to run tests locally
+    - cd into the vscode extension, `cd apps/vscode`
+    - Run `bun run install:all` to install dependencies
+    - Run `bun run protos` to generate Protocol Buffer files (required before first build)
+    - Run `bun run test` to run tests locally
     - Run → Start Debugging or `>Debug: Select and Start Debugging` and wait for a new VS Code instance to open
-    - **Terminal Workflow**: Use `npm run dev` (generates protos + runs watch mode) or `npm run watch` (if protos already generated)
-    - Before submitting PR, run `npm run format:fix` to format your code
+    - **Terminal Workflow**: Use `bun run dev` (generates protos + runs watch mode) or `bun run watch` (if protos already generated)
+    - Before submitting PR, run `bun run format:fix` to format your code
 
 3. **Linux-specific Setup**
     VS Code extension tests on Linux require the following system libraries:
@@ -149,8 +135,8 @@ Anyone can contribute code to Cline, but we ask that you follow these guidelines
 
 2. **Code Quality**
 
-    - Run `npm run lint` to check code style
-    - Run `npm run format` to automatically format code
+    - Run `bun run lint` to check code style
+    - Run `bun run format` to automatically format code
     - All PRs must pass CI checks which include both linting and formatting
     - Address any warnings or errors from linter before submitting
     - Follow TypeScript best practices and maintain type safety
@@ -158,7 +144,7 @@ Anyone can contribute code to Cline, but we ask that you follow these guidelines
 3. **Testing**
 
     - Add tests for new features
-    - Run `npm test` to ensure all tests pass
+    - Run `bun test` to ensure all tests pass
     - Update existing tests if your changes affect them
     - Include both unit tests and integration tests where appropriate
 
@@ -168,9 +154,9 @@ Anyone can contribute code to Cline, but we ask that you follow these guidelines
     
     - **Running E2E tests:**
       ```bash
-      npm run test:e2e        # Build and run all E2E tests
-      npm run e2e             # Run tests without rebuilding
-      npm run test:e2e -- --debug  # Run with interactive debugger
+      bun run test:e2e        # Build and run all E2E tests
+      bun run e2e             # Run tests without rebuilding
+      bun run test:e2e -- --debug  # Run with interactive debugger
       ```
     
     - **Writing E2E tests:**
@@ -192,15 +178,10 @@ Anyone can contribute code to Cline, but we ask that you follow these guidelines
       - Temporary workspaces with test fixtures
       - Video recording for failed tests
 
-4. **Version Management with Changesets**
+4. **Versioning & Changelog Notes**
 
-    - Create a changeset for any user-facing changes using `npm run changeset`
-    - Choose the appropriate version bump:
-        - `major` for breaking changes (1.0.0 → 2.0.0)
-        - `minor` for new features (1.0.0 → 1.1.0)
-        - `patch` for bug fixes (1.0.0 → 1.0.1)
-    - Write clear, descriptive changeset messages that explain the impact
-    - Documentation-only changes don't require changesets
+    - Contributors do not need to create changelog-entry files as part of PRs.
+    - Maintainers handle release versioning and changelog curation during the release process.
 
 5. **Commit Guidelines**
 

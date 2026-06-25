@@ -43,7 +43,7 @@ export class FailureClassifier {
 
 	private loadPatternsFromYaml(filePath: string): FailurePatternsConfig {
 		const content = fs.readFileSync(filePath, "utf-8")
-		const config = yaml.load(content) as FailurePatternsConfig
+		const config = yaml.load(content, { schema: yaml.JSON_SCHEMA }) as FailurePatternsConfig
 
 		if (!config.version || !config.patterns) {
 			throw new Error("Invalid patterns YAML: missing version or patterns")
