@@ -24,6 +24,8 @@ import type {
 	ToolPolicy,
 } from "@cline/shared";
 import {
+	captureAgentActionFollowThroughFired,
+	captureAgentActionFollowThroughOutcome,
 	captureAgentUnexpectedReasoningTokens,
 	captureSdkError,
 	estimateTokens,
@@ -403,6 +405,10 @@ export class AgentRuntime {
 		lastError: undefined as string | undefined,
 	};
 	private initialization?: Promise<void>;
+	private actionFollowThroughGuardFired = false;
+	// Set on the turn the action-follow-through guard fires; checked on the next
+	// turn to record whether the model actually followed through with a tool call.
+	private actionFollowThroughGuardPending = false;
 	private abortController?: AbortController;
 
 	constructor(config: AgentRuntimeConfig) {
@@ -542,11 +548,47 @@ export class AgentRuntime {
 		)}. Continue working if requirements are not met. If the task is complete, call the appropriate terminal completion tool now.`;
 	}
 
-	private getCompletionReminderMessages(): string[] {
-		return [
-			this.getCompletionToolReminderMessage(),
-			this.config.completionPolicy?.completionGuard?.(),
-		].filter((message): message is string => Boolean(message));
+	private getCompletionReminderMessages(
+		finalAssistantMessage: AgentMessage | undefined,
+	): string[] {
+		const messages: string[] = [];
+		const toolReminder = this.getCompletionToolReminderMessage();
+		if (toolReminder) {
+			messages.push(toolReminder);
+		}
+		const guardReminder = this.config.completionPolicy?.completionGuard?.();
+		if (guardReminder) {
+			messages.push(guardReminder);
+		}
+
+		// Action-follow-through guard. Only consult it when no stronger
+		// completion obligation already produced a reminder this turn, so the
+		// model never receives a "finish your obligations" nudge and a
+		// "follow through on your stated action" nudge stacked on the same turn.
+		// It also fires at most once per run so a model that keeps narrating
+		// without acting can never loop on it.
+		const actionGuard = this.config.completionPolicy?.actionFollowThroughGuard;
+		if (
+			actionGuard &&
+			messages.length === 0 &&
+			!this.actionFollowThroughGuardFired
+		) {
+			const assistantText = textFromMessage(finalAssistantMessage);
+			const nudge = actionGuard({ assistantText });
+			if (nudge) {
+				this.actionFollowThroughGuardFired = true;
+				this.actionFollowThroughGuardPending = true;
+				captureAgentActionFollowThroughFired(this.config.telemetry, {
+					agentId: this.state.agentId,
+					iteration: this.state.iteration,
+					providerId: this.config.messageModelInfo?.provider,
+					modelId: this.config.messageModelInfo?.id,
+				});
+				messages.push(nudge);
+			}
+		}
+
+		return messages;
 	}
 
 	private async addUserReminderMessage(text: string): Promise<AgentMessage> {
@@ -573,6 +615,8 @@ export class AgentRuntime {
 		this.state.pendingToolCalls = [];
 		this.state.lastError = undefined;
 		this.state.usage = cloneUsage(DEFAULT_USAGE);
+		this.actionFollowThroughGuardFired = false;
+		this.actionFollowThroughGuardPending = false;
 
 		try {
 			await this.callBeforeRunHooks();
@@ -623,6 +667,21 @@ export class AgentRuntime {
 						part.type === "tool-call",
 				);
 
+				// If the action-follow-through guard nudged on the previous turn,
+				// record whether the model actually followed through with a tool
+				// call this turn (success-rate signal).
+				if (this.actionFollowThroughGuardPending) {
+					this.actionFollowThroughGuardPending = false;
+					captureAgentActionFollowThroughOutcome(this.config.telemetry, {
+						agentId: this.state.agentId,
+						iteration: this.state.iteration,
+						providerId: this.config.messageModelInfo?.provider,
+						modelId: this.config.messageModelInfo?.id,
+						followedThrough: toolCalls.length > 0,
+						terminal: false,
+					});
+				}
+
 				finalAssistantMessage = message;
 				this.state.messages.push(message);
 				await this.emit({
@@ -651,7 +710,7 @@ export class AgentRuntime {
 						toolCallCount: 0,
 					});
 					const completionReminderMessages =
-						this.getCompletionReminderMessages();
+						this.getCompletionReminderMessages(finalAssistantMessage);
 					if (completionReminderMessages.length > 0) {
 						for (const reminderMessage of completionReminderMessages) {
 							await this.addUserReminderMessage(reminderMessage);
@@ -744,6 +803,21 @@ export class AgentRuntime {
 			}
 			return result;
 		} finally {
+			// If the action-follow-through guard fired but the run ended (completed,
+			// aborted, or errored) before a following assistant turn could be
+			// observed, record a terminal outcome so every `fired` event has a
+			// matching `outcome` event for analytics.
+			if (this.actionFollowThroughGuardPending) {
+				this.actionFollowThroughGuardPending = false;
+				captureAgentActionFollowThroughOutcome(this.config.telemetry, {
+					agentId: this.state.agentId,
+					iteration: this.state.iteration,
+					providerId: this.config.messageModelInfo?.provider,
+					modelId: this.config.messageModelInfo?.id,
+					followedThrough: false,
+					terminal: true,
+				});
+			}
 			this.abortController = undefined;
 		}
 	}

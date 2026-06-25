@@ -1,4 +1,6 @@
 import {
+	AGENT_ACTION_FOLLOW_THROUGH_FIRED_EVENT,
+	AGENT_ACTION_FOLLOW_THROUGH_OUTCOME_EVENT,
 	AGENT_UNEXPECTED_REASONING_TOKENS_EVENT,
 	type ITelemetryService,
 } from "@cline/shared";
@@ -83,6 +85,15 @@ describe("CORE_TELEMETRY_EVENTS", () => {
 	test("catalogs the unexpected reasoning token event", () => {
 		expect(CORE_TELEMETRY_EVENTS.AGENT.UNEXPECTED_REASONING_TOKENS).toBe(
 			AGENT_UNEXPECTED_REASONING_TOKENS_EVENT,
+		);
+	});
+
+	test("catalogs the action-follow-through events", () => {
+		expect(CORE_TELEMETRY_EVENTS.AGENT.ACTION_FOLLOW_THROUGH_FIRED).toBe(
+			AGENT_ACTION_FOLLOW_THROUGH_FIRED_EVENT,
+		);
+		expect(CORE_TELEMETRY_EVENTS.AGENT.ACTION_FOLLOW_THROUGH_OUTCOME).toBe(
+			AGENT_ACTION_FOLLOW_THROUGH_OUTCOME_EVENT,
 		);
 	});
 });

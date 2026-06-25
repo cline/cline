@@ -102,6 +102,53 @@ export interface ITelemetryService {
 
 export const SDK_ERROR_TELEMETRY_EVENT = "sdk.error";
 
+export const AGENT_ACTION_FOLLOW_THROUGH_FIRED_EVENT =
+	"agent.action_follow_through.fired";
+export const AGENT_ACTION_FOLLOW_THROUGH_OUTCOME_EVENT =
+	"agent.action_follow_through.outcome";
+
+export interface CaptureAgentActionFollowThroughInput {
+	agentId: string;
+	iteration: number;
+	providerId?: string;
+	modelId?: string;
+}
+
+export function captureAgentActionFollowThroughFired(
+	telemetry: ITelemetryService | undefined,
+	input: CaptureAgentActionFollowThroughInput,
+): void {
+	telemetry?.capture({
+		event: AGENT_ACTION_FOLLOW_THROUGH_FIRED_EVENT,
+		properties: stripUndefinedTelemetryProperties({
+			agentId: input.agentId,
+			iteration: input.iteration,
+			providerId: input.providerId,
+			modelId: input.modelId,
+		}),
+	});
+}
+
+export function captureAgentActionFollowThroughOutcome(
+	telemetry: ITelemetryService | undefined,
+	input: CaptureAgentActionFollowThroughInput & {
+		followedThrough: boolean;
+		terminal: boolean;
+	},
+): void {
+	telemetry?.capture({
+		event: AGENT_ACTION_FOLLOW_THROUGH_OUTCOME_EVENT,
+		properties: stripUndefinedTelemetryProperties({
+			agentId: input.agentId,
+			iteration: input.iteration,
+			providerId: input.providerId,
+			modelId: input.modelId,
+			followed_through: input.followedThrough,
+			terminal: input.terminal,
+		}),
+	});
+}
+
 export function captureAgentUnexpectedReasoningTokens(
 	telemetry: ITelemetryService | undefined,
 	input: CaptureAgentUnexpectedReasoningTokensInput,

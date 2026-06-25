@@ -253,7 +253,18 @@ Use the review guidance.`,
 			const names = runtime.tools.map((tool) => tool.name);
 			expect(names).toContain("ask_question");
 			expect(names).not.toContain("submit_and_exit");
-			expect(runtime.completionPolicy).toBeUndefined();
+			if (mode === "act") {
+				// Act mode wires the action-follow-through guard (nudge once per
+				// run when the model narrates an action but calls no tool), but
+				// must not require a completion tool.
+				expect(runtime.completionPolicy?.requireCompletionTool).toBeUndefined();
+				expect(runtime.completionPolicy?.completionGuard).toBeUndefined();
+				expect(
+					typeof runtime.completionPolicy?.actionFollowThroughGuard,
+				).toBe("function");
+			} else {
+				expect(runtime.completionPolicy).toBeUndefined();
+			}
 		}
 	}, 10_000);
 
