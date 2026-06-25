@@ -1,6 +1,6 @@
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import { describe, expect, it } from "vitest"
-import { filterVisibleMessages, groupLowStakesTools, isToolGroup } from "./messageUtils"
+import { canRestoreWorkspaceFromMessage, filterVisibleMessages, groupLowStakesTools, isToolGroup } from "./messageUtils"
 
 const createTextMessage = (ts: number, text: string): ClineMessage => ({
 	type: "say",
@@ -26,6 +26,13 @@ const createReasoningMessage = (ts: number, text: string): ClineMessage => ({
 const createUserFeedbackMessage = (ts: number, text: string): ClineMessage => ({
 	type: "say",
 	say: "user_feedback",
+	text,
+	ts,
+})
+
+const createTaskMessage = (ts: number, text: string): ClineMessage => ({
+	type: "say",
+	say: "task",
 	text,
 	ts,
 })
@@ -83,6 +90,23 @@ describe("filterVisibleMessages", () => {
 		const visible = filterVisibleMessages([askMessage, userMessage])
 
 		expect(visible).toEqual([askMessage, userMessage])
+	})
+})
+
+describe("canRestoreWorkspaceFromMessage", () => {
+	it("allows restore for user messages that start runs, but not ask answers", () => {
+		const messages = [
+			createTaskMessage(1, "start"),
+			createAskMessage(2, "followup", ["src/index.ts"]),
+			createTextMessage(3, "Which file should I inspect?"),
+			createUserFeedbackMessage(4, "src/index.ts"),
+			createUserFeedbackMessage(5, "next task"),
+		]
+
+		expect(canRestoreWorkspaceFromMessage(messages, 1)).toBe(true)
+		expect(canRestoreWorkspaceFromMessage(messages, 4)).toBe(false)
+		expect(canRestoreWorkspaceFromMessage(messages, 5)).toBe(true)
+		expect(canRestoreWorkspaceFromMessage(messages, 999)).toBe(false)
 	})
 })
 
