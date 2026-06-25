@@ -6,10 +6,7 @@ import sinon from "sinon"
 import { HookFactory } from "../hook-factory"
 import { createHookTestEnv, HookTestEnv, loadFixture, stubHookDirs, writeHookScriptForPlatform } from "./test-utils"
 
-describe("TaskCancel Hook", function () {
-	// Hook tests spawn child processes which can be slow on Windows CI runners
-	this.timeout(15000)
-
+describe("TaskCancel Hook", () => {
 	let tempDir: string
 	let sandbox: sinon.SinonSandbox
 	let getEnv: () => { tempDir: string }
