@@ -28,6 +28,11 @@ import ServersToggleList from "../mcp/configuration/tabs/installed/ServersToggle
 
 type PrimitiveType = "mcp" | "skill" | "plugin"
 
+type MarketplaceViewProps = {
+	initialType?: PrimitiveType
+	onDone: () => void
+}
+
 type PrimitiveConfig = {
 	type: PrimitiveType
 	label: string
@@ -830,9 +835,9 @@ const CatalogEntryRow = ({
 	)
 }
 
-const MarketplaceView = ({ onDone }: { onDone: () => void }) => {
+const MarketplaceView = ({ initialType = "skill", onDone }: MarketplaceViewProps) => {
 	const { environment } = useExtensionState()
-	const [activeType, setActiveType] = useState<PrimitiveType>("skill")
+	const [activeType, setActiveType] = useState<PrimitiveType>(initialType)
 	const [catalogEntries, setCatalogEntries] = useState<MarketplaceEntry[]>([])
 	const [localEntries, setLocalEntries] = useState<MarketplaceLocalInstalledEntry[]>([])
 	const [installedKeys, setInstalledKeys] = useState<Set<string>>(new Set())
@@ -868,6 +873,12 @@ const MarketplaceView = ({ onDone }: { onDone: () => void }) => {
 	useEffect(() => {
 		refresh()
 	}, [refresh])
+
+	useEffect(() => {
+		setActiveType(initialType)
+		setQuery("")
+		setSelectedTag(null)
+	}, [initialType])
 
 	const primitive = getPrimitive(activeType)
 	const searchedCatalogEntries = useMemo(() => {

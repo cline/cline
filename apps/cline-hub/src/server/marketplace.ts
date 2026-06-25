@@ -8,7 +8,7 @@ import {
 	unlinkSync,
 	writeFileSync,
 } from "node:fs";
-import { platform } from "node:os";
+import { homedir as osHomedir, platform } from "node:os";
 import {
 	basename,
 	dirname,
@@ -600,7 +600,9 @@ function isOfficialPluginInstalled(entry: MarketplaceInstallInput): boolean {
 }
 
 function resolveHomeDir(): string {
-	return process.env.HOME?.trim() || process.env.USERPROFILE?.trim() || "";
+	return (
+		process.env.HOME?.trim() || process.env.USERPROFILE?.trim() || osHomedir()
+	);
 }
 
 function normalizeMatchValue(value: string | undefined): string {
@@ -929,6 +931,7 @@ export async function installMarketplaceEntry(
 	const entry = readInstallInput(args);
 	const spawnCommand = options.spawnCommand ?? defaultSpawnCommand;
 	if (entry.type === "mcp") {
+		// Validate marketplace args before handing them to the CLI-backed installer.
 		buildMarketplaceMcpInput(entry.install.args ?? []);
 		const { command, argsPrefix } = resolveClineInvocation();
 		const result = await spawnCommand(command, [
