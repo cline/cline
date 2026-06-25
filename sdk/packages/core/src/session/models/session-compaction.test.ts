@@ -112,6 +112,29 @@ describe("session compaction state", () => {
 		).toBeUndefined();
 	});
 
+	it("projects legacy sidecars when the boundary key matches", () => {
+		const sourceMessages = [
+			{ id: "u1", role: "user" as const, content: "original detail" },
+			{ id: "a1", role: "assistant" as const, content: "answer" },
+		];
+		const tail = { id: "u2", role: "user" as const, content: "tail" };
+		const state = parseSessionCompactionState({
+			version: 1,
+			updated_at: "2026-01-01T00:00:00.000Z",
+			source_message_count: sourceMessages.length,
+			source_last_message_key: "id:a1",
+			messages: [{ id: "summary", role: "user" as const, content: "summary" }],
+		});
+
+		expect(state).toBeDefined();
+		if (!state) {
+			throw new Error("expected parsed compaction state");
+		}
+		expect(
+			projectSessionCompactionState(state, [...sourceMessages, tail]),
+		).toEqual([{ id: "summary", role: "user", content: "summary" }, tail]);
+	});
+
 	it("rejects malformed sidecar timestamps", () => {
 		const state = parseSessionCompactionState({
 			version: 1,
