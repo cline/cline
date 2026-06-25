@@ -143,21 +143,18 @@ function createProviderModelsCache(options: ProviderModelsCacheOptions) {
 }
 
 function toSdkProviderConfig(config: EffectiveProviderConfig, selection: ModelSelection | undefined): ProviderConfig {
-	const useOrchestrationMode =
-		config.providerId === "sapaicore" && typeof config.extras?.sapAiCoreUseOrchestrationMode === "boolean"
-			? config.extras.sapAiCoreUseOrchestrationMode
-			: undefined
-	const resourceGroup =
-		config.providerId === "sapaicore" && typeof config.extras?.sapAiResourceGroup === "string"
-			? config.extras.sapAiResourceGroup
-			: undefined
-	const sap =
-		config.providerId === "sapaicore" && (useOrchestrationMode !== undefined || resourceGroup)
-			? {
-					...(useOrchestrationMode === undefined ? {} : { useOrchestrationMode }),
-					...(resourceGroup ? { resourceGroup } : {}),
-				}
-			: undefined
+	let sap: ProviderConfig["sap"] | undefined
+	if (config.providerId === "sapaicore") {
+		const resourceGroup =
+			typeof config.extras?.sapAiResourceGroup === "string" ? optionalNonEmpty(config.extras.sapAiResourceGroup) : undefined
+		sap = {
+			useOrchestrationMode:
+				typeof config.extras?.sapAiCoreUseOrchestrationMode === "boolean"
+					? config.extras.sapAiCoreUseOrchestrationMode
+					: true,
+			...(resourceGroup ? { resourceGroup } : {}),
+		}
+	}
 	return {
 		providerId: toSdkProviderId(config.providerId),
 		modelId: selection?.modelId ?? "",

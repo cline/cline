@@ -226,10 +226,10 @@ function isSapAiCoreFoundationModels(
 
 function isSapAiCoreFoundationChatModel(modelId: string): boolean {
 	const normalizedModelId = modelId.trim().toLowerCase();
+	const unsupportedModelKinds = ["base", "codex", "instruct", "realtime"];
 	return (
 		/^gpt-?\d/.test(normalizedModelId) &&
-		!normalizedModelId.includes("codex") &&
-		!normalizedModelId.includes("realtime")
+		!unsupportedModelKinds.some((kind) => normalizedModelId.includes(kind))
 	);
 }
 
@@ -247,6 +247,16 @@ function filterResolvedKnownModels(
 			isSapAiCoreFoundationChatModel(modelId),
 		),
 	);
+}
+
+function chooseResolvedModelId(
+	defaultModelId: string,
+	knownModels: Record<string, ModelInfo>,
+): string {
+	if (knownModels[defaultModelId]) {
+		return defaultModelId;
+	}
+	return Object.keys(knownModels)[0] ?? defaultModelId;
 }
 
 function resolveCatalogModels(
@@ -970,6 +980,7 @@ export async function resolveProviderConfig(
 
 		return {
 			...defaults,
+			modelId: chooseResolvedModelId(defaults.modelId, knownModels),
 			knownModels,
 		};
 	} catch (error) {

@@ -323,6 +323,35 @@ describe("ProviderCatalog Phase 3.2 resolveModels happy path", () => {
 		expect([...result.models.keys()]).toEqual(["anthropic--claude-4.6-sonnet", "gpt-5.5", "gpt-5.4-nano"])
 	})
 
+	it("defaults SAP AI Core model resolution to orchestration mode", async () => {
+		const { createProviderCatalog } = await import("./catalog")
+		mocks.resolveProviderConfig.mockResolvedValue({
+			modelId: "anthropic--claude-3.5-sonnet",
+			knownModels: {
+				"anthropic--claude-3.5-sonnet": { id: "anthropic--claude-3.5-sonnet", name: "Claude 3.5 Sonnet" },
+			},
+		})
+		const providerId = parseProviderId("sapaicore")
+		const reader = makeReader({
+			providerId,
+			baseUrl: "https://sap.example.com",
+			extras: { sapAiResourceGroup: " default " },
+		})
+
+		const result = await createProviderCatalog(reader).resolveModels(providerId)
+
+		expect(result.ok).toBe(true)
+		if (!result.ok) throw new Error("expected success")
+		expect(mocks.resolveProviderConfig).toHaveBeenCalledWith(
+			"sapaicore",
+			expect.anything(),
+			expect.objectContaining({
+				providerId: "sapaicore",
+				sap: { useOrchestrationMode: true, resourceGroup: "default" },
+			}),
+		)
+	})
+
 	it("keeps SDK-provided SAP AI Core models unchanged in orchestration mode", async () => {
 		const { createProviderCatalog } = await import("./catalog")
 		mocks.resolveProviderConfig.mockResolvedValue({
