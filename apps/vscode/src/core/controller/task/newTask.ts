@@ -2,6 +2,7 @@ import { String } from "@shared/proto/cline/common"
 import { PlanActMode } from "@shared/proto/cline/state"
 import { NewTaskRequest } from "@shared/proto/cline/task"
 import { Settings } from "@shared/storage/state-keys"
+import { telemetryService } from "@/services/telemetry"
 import { convertProtoToApiProvider } from "@/shared/proto-conversions/models/api-configuration-conversion"
 import { DEFAULT_BROWSER_SETTINGS } from "../../../shared/BrowserSettings"
 import { Controller } from ".."
@@ -14,6 +15,21 @@ import { normalizeOpenaiReasoningEffort } from "../state/reasoningEffort"
  * @returns Empty response
  */
 export async function newTask(controller: Controller, request: NewTaskRequest): Promise<String> {
+	const hasText = !!request.text?.trim()
+	const hasImages = request.images.length > 0
+	const hasFiles = request.files.length > 0
+
+	if (hasText || hasImages || hasFiles) {
+		telemetryService.capturePromptSubmitted({
+			source: "new_task_rpc",
+			hasText,
+			hasImages,
+			hasFiles,
+			hasActiveTask: !!controller.task,
+			textLength: request.text?.length ?? 0,
+		})
+	}
+
 	const convertPlanActMode = (mode: PlanActMode): string => {
 		return mode === PlanActMode.PLAN ? "plan" : "act"
 	}

@@ -1,9 +1,10 @@
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import { AskResponseRequest, NewTaskRequest } from "@shared/proto/cline/task"
+import { IntentEvent } from "@shared/proto/cline/ui"
 import { useCallback, useRef } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { SlashServiceClient, TaskServiceClient } from "@/services/grpc-client"
+import { SlashServiceClient, TaskServiceClient, UiServiceClient } from "@/services/grpc-client"
 import type { ButtonActionType } from "../shared/buttonConfig"
 import type { ChatState, MessageHandlers } from "../types/chatTypes"
 
@@ -256,9 +257,16 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 
 	// Start a new task
 	const startNewTask = useCallback(async () => {
+		UiServiceClient.trackIntent(
+			IntentEvent.create({
+				action: "new_task_clicked",
+				source: "chat_new_task",
+				hasActiveTask: messages.length > 0,
+			}),
+		).catch((error) => console.error("Failed to track new task click:", error))
 		setActiveQuote(null)
 		await TaskServiceClient.clearTask(EmptyRequest.create({}))
-	}, [setActiveQuote])
+	}, [messages.length, setActiveQuote])
 
 	// Clear input state helper
 	const clearInputState = useCallback(() => {

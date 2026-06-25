@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 const newTask = vi.fn().mockResolvedValue(undefined)
 const askResponse = vi.fn().mockResolvedValue(undefined)
 const condense = vi.fn().mockResolvedValue(undefined)
+const trackIntent = vi.fn().mockResolvedValue(undefined)
 
 vi.mock("@/services/grpc-client", () => ({
 	TaskServiceClient: {
@@ -18,12 +19,18 @@ vi.mock("@/services/grpc-client", () => ({
 		condense: (req: unknown) => condense(req),
 		reportBug: vi.fn().mockResolvedValue(undefined),
 	},
+	UiServiceClient: {
+		trackIntent: (req: unknown) => trackIntent(req),
+	},
 }))
 
 // Proto request factories just echo their input so we can assert on it.
 vi.mock("@shared/proto/cline/task", () => ({
 	AskResponseRequest: { create: (x: unknown) => x },
 	NewTaskRequest: { create: (x: unknown) => x },
+}))
+vi.mock("@shared/proto/cline/ui", () => ({
+	IntentEvent: { create: (x: unknown) => x },
 }))
 vi.mock("@shared/proto/cline/common", () => ({
 	EmptyRequest: { create: (x: unknown) => x },
@@ -93,6 +100,8 @@ describe("useMessageHandlers — send routing", () => {
 		askResponse.mockResolvedValue(undefined)
 		condense.mockReset()
 		condense.mockResolvedValue(undefined)
+		trackIntent.mockReset()
+		trackIntent.mockResolvedValue(undefined)
 		mockTurnState = undefined
 	})
 

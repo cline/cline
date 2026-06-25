@@ -1,5 +1,6 @@
 import { Empty } from "@shared/proto/cline/common"
 import { AskResponseRequest } from "@shared/proto/cline/task"
+import { telemetryService } from "@/services/telemetry"
 import { Logger } from "@/shared/services/Logger"
 import { ClineAskResponse } from "../../../shared/WebviewMessage"
 import { Controller } from ".."
@@ -33,6 +34,20 @@ export async function askResponse(controller: Controller, request: AskResponseRe
 			default:
 				Logger.warn(`askResponse: Unknown response type: ${request.responseType}`)
 				return Empty.create()
+		}
+
+		if (
+			responseType === "messageResponse" &&
+			(request.text?.trim() || request.images.length > 0 || request.files.length > 0)
+		) {
+			telemetryService.capturePromptSubmitted({
+				source: "ask_response_rpc",
+				hasText: !!request.text?.trim(),
+				hasImages: request.images.length > 0,
+				hasFiles: request.files.length > 0,
+				hasActiveTask: true,
+				textLength: request.text?.length ?? 0,
+			})
 		}
 
 		// Call the task's handler for webview responses
