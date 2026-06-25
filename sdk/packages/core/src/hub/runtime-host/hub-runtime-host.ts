@@ -1677,6 +1677,8 @@ export class HubRuntimeHost implements RuntimeHost {
 						prompt: prompt.prompt,
 						delivery: prompt.delivery,
 						attachmentCount: prompt.attachmentCount,
+						userImages: prompt.userImages,
+						userFiles: prompt.userFiles,
 					},
 				});
 				return;

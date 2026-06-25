@@ -91,7 +91,9 @@ export class SdkFollowupCoordinator {
 		}
 
 		this.options.sessions.setRunning(true)
-		this.emitUserFeedback(sessionId, prompt, images, files)
+		if (!wasAlreadyRunning) {
+			this.emitUserFeedback(sessionId, prompt, images, files)
+		}
 
 		if (!wasAlreadyRunning) {
 			this.options.resetMessageTranslator()

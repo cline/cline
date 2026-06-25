@@ -72,6 +72,7 @@ describe("SdkFollowupCoordinator", () => {
 
 		await coordinator.askResponse("queued")
 
+		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
 		expect(options.resetMessageTranslator).not.toHaveBeenCalled()
 		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
 			activeSession.sdkHost,
@@ -125,16 +126,7 @@ describe("SdkFollowupCoordinator", () => {
 		await coordinator.askResponse("just give me an answer", undefined, undefined, "messageResponse")
 
 		expect(options.interactions.resolvePendingToolApproval).toHaveBeenCalledWith("just give me an answer", "messageResponse")
-		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
-			[
-				expect.objectContaining({
-					type: "say",
-					say: "user_feedback",
-					text: "just give me an answer",
-				}),
-			],
-			{ type: "status", payload: { sessionId: "session-123", status: "running" } },
-		)
+		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
 		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
 			activeSession.sdkHost,
 			"session-123",

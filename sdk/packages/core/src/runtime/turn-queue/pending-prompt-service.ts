@@ -347,6 +347,8 @@ export class PendingPromptsController {
 				prompt: prompt.prompt,
 				delivery: prompt.delivery,
 				attachmentCount: prompt.attachmentCount,
+				userImages: prompt.userImages,
+				userFiles: prompt.userFiles,
 			},
 		});
 	}
@@ -359,6 +361,8 @@ function snapshotPrompt(entry: PendingPromptEntry): SessionPendingPrompt {
 		delivery: entry.delivery,
 		attachmentCount:
 			(entry.userImages?.length ?? 0) + (entry.userFiles?.length ?? 0),
+		userImages: entry.userImages,
+		userFiles: entry.userFiles,
 	};
 }
 
