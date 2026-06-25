@@ -19,7 +19,9 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 		setActiveQuote,
 		setSelectedImages,
 		setSelectedFiles,
+		sendingDisabled,
 		setSendingDisabled,
+		enableButtons,
 		setEnableButtons,
 		clineAsk,
 		lastMessage,
@@ -61,6 +63,22 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			if (hasContent) {
 				console.log("[ChatView] handleSendMessage - Sending message:", messageToSend)
 				let messageSent = false
+				const clearSentMessageState = () => {
+					setInputValue("")
+					setActiveQuote(null)
+					setSendingDisabled(true)
+					setSelectedImages([])
+					setSelectedFiles([])
+					setEnableButtons(false)
+				}
+				const restorePendingMessageState = () => {
+					setInputValue(text)
+					setActiveQuote(activeQuote)
+					setSendingDisabled(sendingDisabled)
+					setSelectedImages(images)
+					setSelectedFiles(files)
+					setEnableButtons(enableButtons)
+				}
 
 				if (messages.length === 0) {
 					const request = NewTaskRequest.create({
@@ -68,13 +86,13 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 						images,
 						files,
 					})
-					setInputValue("")
-					setActiveQuote(null)
-					setSendingDisabled(true)
-					setSelectedImages([])
-					setSelectedFiles([])
-					setEnableButtons(false)
-					await TaskServiceClient.newTask(request)
+					clearSentMessageState()
+					try {
+						await TaskServiceClient.newTask(request)
+					} catch (error) {
+						restorePendingMessageState()
+						throw error
+					}
 					messageSent = true
 				} else if (clineAsk) {
 					// For resume_task and resume_completed_task, use yesButtonClicked to match Resume button behavior
@@ -152,14 +170,9 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					}
 				}
 
-				// Only clear input and disable UI if message was actually sent
+				// New tasks clear optimistically before the RPC; the repeated success cleanup is idempotent.
 				if (messageSent) {
-					setInputValue("")
-					setActiveQuote(null)
-					setSendingDisabled(true)
-					setSelectedImages([])
-					setSelectedFiles([])
-					setEnableButtons(false)
+					clearSentMessageState()
 
 					// Reset auto-scroll
 					if ("disableAutoScrollRef" in chatState) {
@@ -175,9 +188,11 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			activeQuote,
 			setInputValue,
 			setActiveQuote,
+			sendingDisabled,
 			setSendingDisabled,
 			setSelectedImages,
 			setSelectedFiles,
+			enableButtons,
 			setEnableButtons,
 			chatState,
 		],
