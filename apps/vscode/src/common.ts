@@ -154,6 +154,12 @@ async function checkWorktreeAutoOpen(stateManager: StateManager): Promise<void> 
  * Performs cleanup when Cline is deactivated that is common to all platforms.
  */
 export async function tearDown(): Promise<void> {
+	try {
+		await StateManager.get().flushPendingState()
+	} catch (error) {
+		Logger.error("[Cline] Failed to flush pending state during teardown:", error)
+	}
+
 	AgentConfigLoader.getInstance()?.dispose()
 	PostHogClientProvider.getInstance().dispose()
 	telemetryService.dispose()
