@@ -54,6 +54,7 @@ import { createProviderCatalog } from "./model-catalog/catalog"
 import type { Disposable, ProviderCatalog, ProviderConfigChange, ProviderConfigStore } from "./model-catalog/contracts"
 import { parseProviderId } from "./model-catalog/provider-id"
 import { createProviderConfigStore } from "./model-catalog/store"
+import { SdkCompactionCoordinator } from "./sdk-compaction-coordinator"
 import {
 	buildSdkCheckpointRows,
 	findVisibleCheckpointUserMessageByRun,
@@ -155,6 +156,7 @@ export class Controller {
 	private followups: SdkFollowupCoordinator
 	private taskControl: SdkTaskControlCoordinator
 	private taskStart: SdkTaskStartCoordinator
+	private compaction: SdkCompactionCoordinator
 	private sessionEvents: SdkSessionEventCoordinator
 	private sessionHistory: SdkSessionHistoryLoader
 	private readonly sdkTelemetry: VscodeSdkTelemetryHandle
@@ -461,6 +463,17 @@ export class Controller {
 			resolveContextMentions: (text) => this.resolveContextMentions(text),
 			isClineProviderActive: () => this.isClineProviderActive(),
 			emitClineAuthError: (task) => this.emitClineAuthError(task),
+			postStateToWebview: () => this.postStateToWebview(),
+		})
+		this.compaction = new SdkCompactionCoordinator({
+			stateManager: this.stateManager,
+			sessions: this.sessions,
+			messages: this.messages,
+			sessionConfigBuilder: this.sessionConfigBuilder,
+			getTask: () => this.task,
+			getWorkspaceRoot: () => this.getWorkspaceRoot(),
+			buildStartSessionInput,
+			resetMessageTranslator: () => this.resetMessageTranslatorAndFence(),
 			postStateToWebview: () => this.postStateToWebview(),
 		})
 		this.sessionEvents = new SdkSessionEventCoordinator({
@@ -976,6 +989,17 @@ export class Controller {
 
 	async cancelBackgroundCommand(): Promise<void> {
 		stubWarn("cancelBackgroundCommand")
+	}
+
+	/**
+	 * Manually compact (condense) the active task's conversation. Triggered by
+	 * the compact button and the `/compact` (alias `/smol`) slash command.
+	 * Mirrors the CLI's `/compact` local command: runs an SDK manual compaction
+	 * and restarts the session with the compacted transcript so the model's
+	 * working context is actually reduced.
+	 */
+	async compactTask(): Promise<void> {
+		await this.compaction.compactTask()
 	}
 
 	async clearTask(): Promise<void> {

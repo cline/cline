@@ -287,6 +287,50 @@ describe("SdkSessionLifecycle", () => {
 		expect(result?.startResult.sessionId).toBe("plan-session")
 	})
 
+	it("passes compacted initial messages after a same-id replacement stop completes", async () => {
+		let resolveStop: () => void = () => {}
+		const stop = vi.fn(
+			() =>
+				new Promise<void>((resolve) => {
+					resolveStop = resolve
+				}),
+		)
+		const start = vi
+			.fn()
+			.mockResolvedValueOnce({ sessionId: "task-session" })
+			.mockResolvedValueOnce({ sessionId: "task-session" })
+		const sdkHost = makeSdkHost({ start, stop })
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		const lifecycle = makeLifecycle()
+		await lifecycle.startNewSession({ config: { sessionId: "task-session" } } as unknown as StartInput)
+
+		const initialMessages = [{ role: "user", content: "compacted summary" }]
+		const replacePromise = lifecycle.replaceActiveSession({
+			startInput: {
+				config: { sessionId: "task-session" },
+				prompt: undefined,
+				interactive: true,
+			} as unknown as StartInput,
+			initialMessages: initialMessages as unknown as StartInput["initialMessages"],
+			disposeReason: "compactTask",
+		})
+		await new Promise((resolve) => setTimeout(resolve, 0))
+
+		expect(start).toHaveBeenCalledTimes(1)
+
+		resolveStop()
+		const result = await replacePromise
+
+		expect(result?.startResult.sessionId).toBe("task-session")
+		expect(start).toHaveBeenLastCalledWith({
+			config: { sessionId: "task-session" },
+			prompt: undefined,
+			interactive: true,
+			initialMessages,
+		})
+		expect(lifecycle.getActiveSession()?.isRunning).toBe(false)
+	})
+
 	it("waits for a fire-and-forget stop before resuming the same sessionId", async () => {
 		let resolveStop: () => void = () => {}
 		const stop = vi.fn(
