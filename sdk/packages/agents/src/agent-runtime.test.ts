@@ -7,6 +7,7 @@ import type {
 	AgentTool,
 	ITelemetryService,
 } from "@cline/shared";
+import { AGENT_UNEXPECTED_REASONING_TOKENS_EVENT } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import { AgentRuntime } from "./index";
 
@@ -993,7 +994,7 @@ describe("AgentRuntime", () => {
 
 		expect(telemetry.capture).toHaveBeenCalledWith(
 			expect.objectContaining({
-				event: "agent.reasoning.unexpected_tokens",
+				event: AGENT_UNEXPECTED_REASONING_TOKENS_EVENT,
 				properties: expect.objectContaining({
 					providerId: "openrouter",
 					modelId: "z-ai/glm-4.7",

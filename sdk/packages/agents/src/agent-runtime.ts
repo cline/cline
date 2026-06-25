@@ -24,13 +24,12 @@ import type {
 	ToolPolicy,
 } from "@cline/shared";
 import {
+	captureAgentUnexpectedReasoningTokens,
 	captureSdkError,
 	estimateTokens,
 	mergeModelOptions,
 } from "@cline/shared";
 import { nanoid } from "nanoid";
-
-const UNEXPECTED_REASONING_TOKENS_EVENT = "agent.reasoning.unexpected_tokens";
 
 // Local `createUID` helper. The clinee source imports this from
 // `@cline/shared` (see `packages/shared/dist/identifier.ts`), but
@@ -1001,23 +1000,20 @@ export class AgentRuntime {
 		) {
 			return;
 		}
+		const reasoningTokenCount = metrics.reasoningTokenCount;
+		if (reasoningTokenCount === undefined) {
+			return;
+		}
 
-		this.config.telemetry?.capture({
-			event: UNEXPECTED_REASONING_TOKENS_EVENT,
-			properties: {
-				sessionId: this.config.sessionId,
-				agentId: this.state.agentId,
-				runId: this.state.runId,
-				iteration: this.state.iteration,
-				...(this.config.messageModelInfo?.provider
-					? { providerId: this.config.messageModelInfo.provider }
-					: {}),
-				...(this.config.messageModelInfo?.id
-					? { modelId: this.config.messageModelInfo.id }
-					: {}),
-				requestedThinking: false,
-				reasoningTokenCount: metrics.reasoningTokenCount,
-			} satisfies TelemetryProperties,
+		captureAgentUnexpectedReasoningTokens(this.config.telemetry, {
+			sessionId: this.config.sessionId,
+			agentId: this.state.agentId,
+			runId: this.state.runId,
+			iteration: this.state.iteration,
+			providerId: this.config.messageModelInfo?.provider,
+			modelId: this.config.messageModelInfo?.id,
+			requestedThinking: false,
+			reasoningTokenCount,
 		});
 	}
 
