@@ -39,7 +39,10 @@ const sessionEventsMocks = vi.hoisted(() => ({
 
 const CLINE_PASS_SUBSCRIPTION_URL =
 	"https://app.cline.bot/dashboard/subscription?personal=true";
-const CLINE_PASS_SUBSCRIPTION_MESSAGE = `No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: ${CLINE_PASS_SUBSCRIPTION_URL}`;
+const CLI_SUBSCRIPTION_URL =
+	"https://app.cline.bot/promo?code=CLI-100&personal=true";
+const SDK_CLINE_PASS_SUBSCRIPTION_MESSAGE = `No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: ${CLINE_PASS_SUBSCRIPTION_URL}`;
+const CLI_CLINE_PASS_SUBSCRIPTION_MESSAGE = `No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: ${CLI_SUBSCRIPTION_URL}`;
 const CLINE_ORG_INDIVIDUAL_INFERENCE_SUBSCRIPTION_MESSAGE =
 	"Organization accounts cannot use ClinePass subscriptions. Go to /account -> change account to switch to your personal account for ClinePass";
 
@@ -549,7 +552,7 @@ describe("runAgent", () => {
 	});
 
 	it("renders ClinePass subscription errors with friendly copy when startup throws", async () => {
-		const error = new Error(CLINE_PASS_SUBSCRIPTION_MESSAGE);
+		const error = new Error(SDK_CLINE_PASS_SUBSCRIPTION_MESSAGE);
 		error.name = "ClineNotSubscribedError";
 		sessionManagerMocks.start.mockRejectedValue(error);
 
@@ -577,7 +580,7 @@ describe("runAgent", () => {
 
 		expect(process.exitCode).toBe(1);
 		expect(outputMocks.writeErr).toHaveBeenCalledWith(
-			CLINE_PASS_SUBSCRIPTION_MESSAGE,
+			CLI_CLINE_PASS_SUBSCRIPTION_MESSAGE,
 		);
 	});
 
@@ -655,7 +658,7 @@ describe("runAgent", () => {
 			messagesPath: "/tmp/messages.json",
 			manifest: { session_id: "session-1" },
 			result: {
-				text: CLINE_PASS_SUBSCRIPTION_MESSAGE,
+				text: SDK_CLINE_PASS_SUBSCRIPTION_MESSAGE,
 				usage: {
 					inputTokens: 0,
 					outputTokens: 0,
@@ -699,7 +702,7 @@ describe("runAgent", () => {
 
 		expect(process.exitCode).toBe(1);
 		expect(outputMocks.writeErr).toHaveBeenCalledWith(
-			CLINE_PASS_SUBSCRIPTION_MESSAGE,
+			CLI_CLINE_PASS_SUBSCRIPTION_MESSAGE,
 		);
 	});
 

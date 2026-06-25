@@ -2,8 +2,8 @@ import { useTerminalDimensions } from "@opentui/react";
 import type React from "react";
 import { useState } from "react";
 import "opentui-spinner/react";
-import { getClineEnvironmentConfig } from "@cline/shared";
 import {
+	getCliSubscriptionUrl,
 	getClineOrgIndividualInferenceSubscriptionMessage,
 	isClineOrgIndividualInferenceSubscriptionErrorMessage,
 	isClinePassSubscriptionError,
@@ -295,13 +295,6 @@ function ClineCreditsErrorView(props: { defaultFg?: string }) {
 		</box>
 	);
 }
-
-const getCliSubscriptionUrl = () => {
-	return `${new URL(
-		"/promo?code=CLI-100&personal=true",
-		getClineEnvironmentConfig().appBaseUrl,
-	).toString()}`;
-};
 
 function ClinePassSubscriptionErrorView(props: { defaultFg?: string }) {
 	const subscriptionUrl = getCliSubscriptionUrl();

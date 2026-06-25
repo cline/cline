@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
 	formatCliErrorMessage,
+	getCliNotSubscribedMessage,
+	getCliSubscriptionUrl,
 	getClineOrgIndividualInferenceSubscriptionMessage,
-	getClinePassSubscriptionUrl,
 	isClineOrgIndividualInferenceSubscriptionErrorMessage,
 	isClinePassSubscriptionError,
 } from "./cline-pass-errors";
@@ -15,14 +16,18 @@ describe("cline-pass-errors", () => {
 			),
 		).toBe(true);
 
-		const formatted = `No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: ${getClinePassSubscriptionUrl()}`;
+		const sdkFormatted =
+			"No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: https://app.cline.bot/dashboard/subscription?personal=true";
+		const formatted = getCliNotSubscribedMessage();
+		expect(isClinePassSubscriptionError(sdkFormatted)).toBe(true);
 		expect(isClinePassSubscriptionError(formatted)).toBe(true);
+		expect(formatCliErrorMessage(new Error(sdkFormatted))).toBe(formatted);
 		expect(formatCliErrorMessage(new Error(formatted))).toBe(formatted);
 	});
 
 	it("formats the ClinePass subscription URL", () => {
-		expect(getClinePassSubscriptionUrl()).toBe(
-			"https://app.cline.bot/dashboard/subscription?personal=true",
+		expect(getCliSubscriptionUrl()).toBe(
+			"https://app.cline.bot/promo?code=CLI-100&personal=true",
 		);
 	});
 
