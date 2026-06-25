@@ -816,6 +816,123 @@ describe("AgentRuntime", () => {
 		]);
 	});
 
+	it("normalizes JSON-encoded string fields when the tool schema expects arrays", async () => {
+		const executeTool = vi.fn(async (input: { commands: string[] }) => ({
+			joined: input.commands.join(" && "),
+		}));
+		const beforeTool = vi.fn();
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_commands",
+					toolName: "commands",
+					inputText: JSON.stringify({
+						commands: JSON.stringify(["git status", "bun test"]),
+					}),
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			(request) => {
+				const toolMessage = request.messages.at(-1) as AgentMessage;
+				expect(toolMessage.role).toBe("tool");
+				expect(toolMessage.content[0]).toMatchObject({
+					type: "tool-result",
+					toolName: "commands",
+					output: { joined: "git status && bun test" },
+				});
+				return [
+					{ type: "text-delta", text: "done" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			tools: [
+				{
+					name: "commands",
+					description: "Run commands",
+					inputSchema: {
+						type: "object",
+						properties: {
+							commands: {
+								type: "array",
+								items: { type: "string" },
+							},
+						},
+					},
+					execute: executeTool,
+				},
+			],
+			hooks: {
+				beforeTool,
+			},
+		});
+
+		const result = await runtime.run("Start");
+
+		expect(result.status).toBe("completed");
+		expect(executeTool).toHaveBeenCalledWith(
+			{ commands: ["git status", "bun test"] },
+			expect.anything(),
+		);
+		expect(beforeTool).toHaveBeenCalledWith(
+			expect.objectContaining({
+				input: { commands: ["git status", "bun test"] },
+				toolCall: expect.objectContaining({
+					input: { commands: ["git status", "bun test"] },
+				}),
+			}),
+		);
+	});
+
+	it("preserves JSON-looking strings when the tool schema expects strings", async () => {
+		const executeTool = vi.fn(async (input: { text: string }) => ({
+			echoed: input.text,
+		}));
+		const jsonText = JSON.stringify({ keep: "as text" });
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_text",
+					toolName: "echo_json",
+					inputText: JSON.stringify({ text: jsonText }),
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			() => [
+				{ type: "text-delta", text: "done" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			tools: [
+				{
+					name: "echo_json",
+					description: "Echo JSON-looking text",
+					inputSchema: {
+						type: "object",
+						properties: {
+							text: { type: "string" },
+						},
+					},
+					execute: executeTool,
+				},
+			],
+		});
+
+		const result = await runtime.run("Start");
+
+		expect(result.status).toBe("completed");
+		expect(executeTool).toHaveBeenCalledWith(
+			{ text: jsonText },
+			expect.anything(),
+		);
+	});
+
 	it("treats an unset maxIterations as unlimited", async () => {
 		const model = new ScriptedModel([
 			() => [
