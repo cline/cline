@@ -30,6 +30,7 @@ export function useScrollBehavior(
 	const virtuosoRef = useRef<VirtuosoHandle>(null)
 	const scrollContainerRef = useRef<HTMLDivElement>(null)
 	const disableAutoScrollRef = useRef(false)
+	const lastRowContentScrollTimersRef = useRef<ReturnType<typeof setTimeout>[]>([])
 
 	// State
 	const [isAtBottom, setIsAtBottom] = useState(false)
@@ -273,6 +274,29 @@ export function useScrollBehavior(
 		[scrollToBottomSmooth, scrollToBottomAuto],
 	)
 
+	const clearLastRowContentScrollTimers = useCallback(() => {
+		lastRowContentScrollTimersRef.current.forEach((timer) => clearTimeout(timer))
+		lastRowContentScrollTimersRef.current = []
+	}, [])
+
+	const handleLastRowContentChange = useCallback(() => {
+		if (disableAutoScrollRef.current) {
+			return
+		}
+
+		clearLastRowContentScrollTimers()
+		scrollToBottomSmooth()
+		lastRowContentScrollTimersRef.current = [0, 50].map((delay) =>
+			setTimeout(() => {
+				if (!disableAutoScrollRef.current) {
+					scrollToBottomAuto()
+				}
+			}, delay),
+		)
+	}, [clearLastRowContentScrollTimers, scrollToBottomSmooth, scrollToBottomAuto])
+
+	useEffect(() => clearLastRowContentScrollTimers, [clearLastRowContentScrollTimers])
+
 	useEffect(() => {
 		if (!disableAutoScrollRef.current) {
 			scrollToBottomSmooth()
@@ -316,6 +340,7 @@ export function useScrollBehavior(
 		scrollToMessage,
 		toggleRowExpansion,
 		handleRowHeightChange,
+		handleLastRowContentChange,
 		isAtBottom,
 		setIsAtBottom,
 		pendingScrollToMessage,

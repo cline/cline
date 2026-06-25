@@ -73,6 +73,7 @@ export interface ScrollBehavior {
 	scrollToMessage: (messageIndex: number) => void
 	toggleRowExpansion: (ts: number) => void
 	handleRowHeightChange: (isTaller: boolean) => void
+	handleLastRowContentChange: () => void
 	isAtBottom: boolean
 	setIsAtBottom: React.Dispatch<React.SetStateAction<boolean>>
 	pendingScrollToMessage: number | null

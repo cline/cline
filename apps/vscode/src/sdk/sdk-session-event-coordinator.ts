@@ -58,6 +58,12 @@ export class SdkSessionEventCoordinator {
 			return
 		}
 
+		if (event.type === "pending_prompts") {
+			this.options.postStateToWebview().catch((err) => {
+				Logger.error("[SdkController] Failed to post pending-prompt state update:", err)
+			})
+		}
+
 		const result = this.translateSessionEvent(event, this.options.messageTranslatorState)
 		const zeroCostPromise = this.zeroCostForFreeClineModel(result)
 		if (zeroCostPromise) {

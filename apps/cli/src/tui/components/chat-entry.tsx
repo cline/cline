@@ -3,8 +3,8 @@ import type React from "react";
 import { useState } from "react";
 import "opentui-spinner/react";
 import {
+	getCliSubscriptionUrl,
 	getClineOrgIndividualInferenceSubscriptionMessage,
-	getClinePassSubscriptionUrl,
 	isClineOrgIndividualInferenceSubscriptionErrorMessage,
 	isClinePassSubscriptionError,
 } from "../../utils/cline-pass-errors";
@@ -297,7 +297,7 @@ function ClineCreditsErrorView(props: { defaultFg?: string }) {
 }
 
 function ClinePassSubscriptionErrorView(props: { defaultFg?: string }) {
-	const subscriptionUrl = getClinePassSubscriptionUrl();
+	const subscriptionUrl = getCliSubscriptionUrl();
 	return (
 		<box flexDirection="row">
 			<text fg="yellow" content="* " />
@@ -455,7 +455,9 @@ export function ChatEntryView(props: {
 			}
 			if (isClineOrgIndividualInferenceSubscriptionErrorMessage(entry.text)) {
 				return (
-					<ClineOrgIndividualInferenceSubscriptionErrorView defaultFg={defaultFg} />
+					<ClineOrgIndividualInferenceSubscriptionErrorView
+						defaultFg={defaultFg}
+					/>
 				);
 			}
 			if (isClinePassSubscriptionError(entry.text)) {
