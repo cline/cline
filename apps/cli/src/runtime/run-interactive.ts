@@ -8,6 +8,7 @@ import type { CliMigrationNotice } from "../kanban-migration/notice";
 import { logCliError } from "../logging/errors";
 import {
 	loadClineAccountSnapshot,
+	loadIndividualSubscriptionPlans,
 	onProviderChange,
 	switchClineAccount,
 } from "../tui/cline-account";
@@ -409,6 +410,12 @@ export async function runInteractive(
 			await loadClineAccountSnapshot({
 				config,
 				clineApiBaseUrl: options?.clineApiBaseUrl,
+			}),
+		loadIndividualSubscriptionPlans: async () =>
+			await loadIndividualSubscriptionPlans({
+				config,
+				clineApiBaseUrl: options?.clineApiBaseUrl,
+				clineProviderSettings: options?.clineProviderSettings,
 			}),
 		switchClineAccount: async (organizationId) =>
 			await switchClineAccount({

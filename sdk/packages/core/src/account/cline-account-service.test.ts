@@ -118,6 +118,41 @@ describe("ClineAccountService", () => {
 		});
 	});
 
+	it("fetches available individual subscription plans with auth header", async () => {
+		const plansPayload = [
+			{
+				id: "plan-1",
+				displayName: "ClinePass Monthly",
+				interval: "plan_interval_monthly",
+				features: { included: ["Major open-weights models"] },
+			},
+		];
+		const fetchImpl = vi.fn(async (input: unknown, init?: RequestInit) => {
+			expect(String(input)).toBe(
+				"https://api.cline.bot/api/v1/plans?type=individual",
+			);
+			expect(init?.headers).toMatchObject({
+				Authorization: "Bearer workos:token-123",
+			});
+			return new Response(
+				JSON.stringify({ success: true, data: plansPayload }),
+				{ status: 200, headers: { "Content-Type": "application/json" } },
+			);
+		});
+
+		const service = new ClineAccountService({
+			apiBaseUrl: "https://api.cline.bot",
+			getAuthToken: async () => "workos:token-123",
+			fetchImpl: fetchImpl as unknown as typeof fetch,
+		});
+
+		const plans = await service.fetchAvailableSubscriptionPlans({
+			type: "individual",
+		});
+
+		expect(plans).toEqual(plansPayload);
+	});
+
 	it("fetches remote config with fallback org selected", async () => {
 		const remoteConfigPayload = {
 			organizationId: "org-fallback",
