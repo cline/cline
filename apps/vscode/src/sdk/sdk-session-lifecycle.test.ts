@@ -287,6 +287,50 @@ describe("SdkSessionLifecycle", () => {
 		expect(result?.startResult.sessionId).toBe("plan-session")
 	})
 
+	it("passes compacted initial messages after a same-id replacement stop completes", async () => {
+		let resolveStop: () => void = () => {}
+		const stop = vi.fn(
+			() =>
+				new Promise<void>((resolve) => {
+					resolveStop = resolve
+				}),
+		)
+		const start = vi
+			.fn()
+			.mockResolvedValueOnce({ sessionId: "task-session" })
+			.mockResolvedValueOnce({ sessionId: "task-session" })
+		const sdkHost = makeSdkHost({ start, stop })
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		const lifecycle = makeLifecycle()
+		await lifecycle.startNewSession({ config: { sessionId: "task-session" } } as unknown as StartInput)
+
+		const initialMessages = [{ role: "user", content: "compacted summary" }]
+		const replacePromise = lifecycle.replaceActiveSession({
+			startInput: {
+				config: { sessionId: "task-session" },
+				prompt: undefined,
+				interactive: true,
+			} as unknown as StartInput,
+			initialMessages: initialMessages as unknown as StartInput["initialMessages"],
+			disposeReason: "compactTask",
+		})
+		await new Promise((resolve) => setTimeout(resolve, 0))
+
+		expect(start).toHaveBeenCalledTimes(1)
+
+		resolveStop()
+		const result = await replacePromise
+
+		expect(result?.startResult.sessionId).toBe("task-session")
+		expect(start).toHaveBeenLastCalledWith({
+			config: { sessionId: "task-session" },
+			prompt: undefined,
+			interactive: true,
+			initialMessages,
+		})
+		expect(lifecycle.getActiveSession()?.isRunning).toBe(false)
+	})
+
 	it("waits for a fire-and-forget stop before resuming the same sessionId", async () => {
 		let resolveStop: () => void = () => {}
 		const stop = vi.fn(
@@ -371,6 +415,31 @@ describe("SdkSessionLifecycle", () => {
 		expect(lifecycle.getActiveSession()?.isRunning).toBe(false)
 	})
 
+	it("adopts the restored session and stops the source session", async () => {
+		const restored = {
+			sessionId: "restored-session",
+			startResult: { sessionId: "restored-session" },
+			checkpoint: { ref: "abc", createdAt: 1, runCount: 1 },
+		}
+		const sdkHost = makeSdkHost({
+			startResult: { sessionId: "source-session" },
+			restore: vi.fn().mockResolvedValue(restored),
+		})
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		const lifecycle = makeLifecycle()
+
+		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
+		await lifecycle.startNewSession({ config: { sessionId: "source-session" } } as any)
+		const result = await lifecycle.restoreActiveSession({
+			sessionId: "source-session",
+			checkpointRunCount: 1,
+		})
+
+		expect(result).toBe(restored)
+		expect(lifecycle.getActiveSession()?.sessionId).toBe("restored-session")
+		expect(sdkHost.stop).toHaveBeenCalledWith("source-session")
+	})
+
 	it("updates the active session model for the next turn when supported", async () => {
 		const updateSessionModel = vi.fn().mockResolvedValue(undefined)
 		const sdkHost = makeSdkHost({ startResult: { sessionId: "session-123" }, updateSessionModel })
@@ -422,6 +491,11 @@ function makeSdkHost(overrides: Record<string, unknown> = {}) {
 		start: vi.fn().mockResolvedValue(startResult),
 		subscribe: vi.fn().mockReturnValue(overrides.unsubscribe ?? vi.fn()),
 		send: vi.fn().mockResolvedValue(undefined),
+		restore: vi.fn().mockResolvedValue({
+			sessionId: "session-123",
+			startResult,
+			checkpoint: { ref: "abc", createdAt: 1, runCount: 1 },
+		}),
 		stop: vi.fn().mockResolvedValue(undefined),
 		dispose: vi.fn().mockResolvedValue(undefined),
 		...overrides,

@@ -40,6 +40,24 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 				messageToSend = `${prefix} ${formattedQuote} ${suffix} ${messageToSend}`
 			}
 
+			// Intercept the built-in compaction commands when an active task exists.
+			// `/compact` (and its alias `/smol`) must run a real SDK manual
+			// compaction via the condense RPC — sending the literal text to the
+			// model would make it improvise a fake summary instead of compacting
+			// the context window (CLINE-2503). With no active task there is nothing
+			// to compact, so fall through to normal new-task handling.
+			if (messages.length > 0 && (messageToSend === "/compact" || messageToSend === "/smol")) {
+				await SlashServiceClient.condense(StringRequest.create({ value: "compact" })).catch((err) =>
+					console.error("Failed to compact task:", err),
+				)
+				setInputValue("")
+				setActiveQuote(null)
+				if ("disableAutoScrollRef" in chatState) {
+					;(chatState as any).disableAutoScrollRef.current = false
+				}
+				return
+			}
+
 			if (hasContent) {
 				console.log("[ChatView] handleSendMessage - Sending message:", messageToSend)
 				let messageSent = false

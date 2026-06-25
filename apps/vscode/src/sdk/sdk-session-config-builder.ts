@@ -1,3 +1,4 @@
+import type { CoreSessionConfig } from "@cline/core"
 import { type AgentTool, createTool } from "@cline/shared"
 import type { StateManager } from "@/core/storage/StateManager"
 import { buildSessionConfig, type SessionConfigInput } from "./cline-session-factory"
@@ -8,6 +9,7 @@ export interface SdkSessionConfigBuilderOptions {
 	emitHookMessage: HookMessageEmitter
 	onSwitchToActMode: () => void
 	shouldStopAfterModeSwitch?: () => boolean
+	onConsecutiveMistakeLimitReached?: CoreSessionConfig["onConsecutiveMistakeLimitReached"]
 }
 
 export class SdkSessionConfigBuilder {
@@ -15,6 +17,10 @@ export class SdkSessionConfigBuilder {
 
 	async build(input: SessionConfigInput): Promise<Awaited<ReturnType<typeof buildSessionConfig>>> {
 		const config = await buildSessionConfig(input)
+		if (this.options.onConsecutiveMistakeLimitReached) {
+			config.onConsecutiveMistakeLimitReached = this.options.onConsecutiveMistakeLimitReached
+		}
+
 		const baseHooks = buildAgentHooks(this.options.stateManager, this.options.emitHookMessage)
 		config.hooks = {
 			...baseHooks,

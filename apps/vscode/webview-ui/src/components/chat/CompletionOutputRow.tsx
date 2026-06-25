@@ -1,10 +1,7 @@
-import { Int64Request } from "@shared/proto/cline/common"
 import { CheckIcon } from "lucide-react"
 import { memo } from "react"
 import { cn } from "@/lib/utils"
-import { TaskServiceClient } from "@/services/grpc-client"
 import { CopyButton } from "../common/CopyButton"
-import SuccessButton from "../common/SuccessButton"
 import { QuoteButtonState } from "./ChatRow"
 import { MarkdownRow } from "./MarkdownRow"
 import QuoteButton from "./QuoteButton"
@@ -14,23 +11,10 @@ interface CompletionOutputRowProps {
 	quoteButtonState: QuoteButtonState
 	handleQuoteClick: () => void
 	headClassNames?: string
-	showActionRow?: boolean
-	seeNewChangesDisabled: boolean
-	setSeeNewChangesDisabled: (value: boolean) => void
-	messageTs: number
 }
 
 export const CompletionOutputRow = memo(
-	({
-		headClassNames,
-		text,
-		quoteButtonState,
-		showActionRow,
-		seeNewChangesDisabled,
-		setSeeNewChangesDisabled,
-		messageTs,
-		handleQuoteClick,
-	}: CompletionOutputRowProps) => {
+	({ headClassNames, text, quoteButtonState, handleQuoteClick }: CompletionOutputRowProps) => {
 		return (
 			<div>
 				<div className="rounded-sm border border-success/20 overflow-visible bg-success/10 p-2 pt-3">
@@ -52,51 +36,9 @@ export const CompletionOutputRow = memo(
 						</div>
 					</div>
 				</div>
-				{/* Action Buttons */}
-				{showActionRow && (
-					<CompletionOutputActionRow
-						messageTs={messageTs}
-						seeNewChangesDisabled={seeNewChangesDisabled}
-						setSeeNewChangesDisabled={setSeeNewChangesDisabled}
-					/>
-				)}
 			</div>
 		)
 	},
 )
 
 CompletionOutputRow.displayName = "CompletionOutputRow"
-
-const CompletionOutputActionRow = memo(
-	({
-		seeNewChangesDisabled,
-		setSeeNewChangesDisabled,
-		messageTs,
-	}: {
-		seeNewChangesDisabled: boolean
-		setSeeNewChangesDisabled: (value: boolean) => void
-		messageTs: number
-	}) => {
-		return (
-			<div style={{ paddingTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
-				<SuccessButton
-					disabled={seeNewChangesDisabled}
-					onClick={() => {
-						setSeeNewChangesDisabled(true)
-						TaskServiceClient.taskCompletionViewChanges(
-							Int64Request.create({
-								value: messageTs,
-							}),
-						).catch((err) => console.error("Failed to show task completion view changes:", err))
-					}}
-					style={{
-						cursor: seeNewChangesDisabled ? "wait" : "pointer",
-						width: "100%",
-					}}>
-					<i className="codicon codicon-new-file" style={{ marginRight: 6 }} />
-					View Changes
-				</SuccessButton>
-			</div>
-		)
-	},
-)
