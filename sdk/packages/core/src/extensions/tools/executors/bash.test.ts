@@ -1,6 +1,6 @@
 import type { AgentToolContext } from "@cline/shared";
 import { describe, expect, it } from "vitest";
-import { CommandExitError, createBashExecutor } from "./bash";
+import { CommandExitError, createShellExecutor } from "./bash";
 
 const ctx: AgentToolContext = {
 	agentId: "agent-1",
@@ -8,23 +8,23 @@ const ctx: AgentToolContext = {
 	iteration: 1,
 };
 
-describe("createBashExecutor", () => {
+describe("createShellExecutor", () => {
 	it("runs a simple command and returns stdout", async () => {
-		const bash = createBashExecutor();
-		const output = await bash("echo hello", process.cwd(), ctx);
+		const shell = createShellExecutor();
+		const output = await shell("echo hello", process.cwd(), ctx);
 		expect(output.trim()).toBe("hello");
 	});
 
 	it("rejects on non-zero exit code", async () => {
-		const bash = createBashExecutor();
-		await expect(bash("exit 1", process.cwd(), ctx)).rejects.toThrow();
+		const shell = createShellExecutor();
+		await expect(shell("exit 1", process.cwd(), ctx)).rejects.toThrow();
 	});
 
 	it("includes stdout and exit code on non-zero exit", async () => {
-		const bash = createBashExecutor();
+		const shell = createShellExecutor();
 		let error: unknown;
 		try {
-			await bash(
+			await shell(
 				{
 					command: process.execPath,
 					args: [
@@ -48,10 +48,10 @@ describe("createBashExecutor", () => {
 	});
 
 	it("excludes stderr on non-zero exit when combineOutput is false", async () => {
-		const bash = createBashExecutor({ combineOutput: false });
+		const shell = createShellExecutor({ combineOutput: false });
 		let error: unknown;
 		try {
-			await bash(
+			await shell(
 				{
 					command: process.execPath,
 					args: [
@@ -75,8 +75,8 @@ describe("createBashExecutor", () => {
 	});
 
 	it("includes stderr in combined output on success", async () => {
-		const bash = createBashExecutor({ combineOutput: true });
-		const output = await bash(
+		const shell = createShellExecutor({ combineOutput: true });
+		const output = await shell(
 			{
 				command: process.execPath,
 				args: [
@@ -93,8 +93,8 @@ describe("createBashExecutor", () => {
 	});
 
 	it("excludes stderr when combineOutput is false", async () => {
-		const bash = createBashExecutor({ combineOutput: false });
-		const output = await bash(
+		const shell = createShellExecutor({ combineOutput: false });
+		const output = await shell(
 			{
 				command: process.execPath,
 				args: [
@@ -109,15 +109,15 @@ describe("createBashExecutor", () => {
 	});
 
 	it("rejects on timeout", async () => {
-		const bash = createBashExecutor({ timeoutMs: 50 });
-		await expect(bash("sleep 10", process.cwd(), ctx)).rejects.toThrow(
+		const shell = createShellExecutor({ timeoutMs: 50 });
+		await expect(shell("sleep 10", process.cwd(), ctx)).rejects.toThrow(
 			"timed out",
 		);
 	});
 
 	it("middle-truncates output exceeding maxOutputBytes, keeping head and tail", async () => {
-		const bash = createBashExecutor({ maxOutputBytes: 20 });
-		const output = await bash(
+		const shell = createShellExecutor({ maxOutputBytes: 20 });
+		const output = await shell(
 			{
 				command: process.execPath,
 				args: ["-e", "process.stdout.write('HEAD' + 'x'.repeat(100) + 'TAIL')"],
@@ -136,8 +136,8 @@ describe("createBashExecutor", () => {
 		// may middle-cut long tool-result strings again with its own
 		// backstop. The executor keeps its truncation notice in the head and
 		// tail halves, so the recovery guidance survives any such cut.
-		const bash = createBashExecutor();
-		const output = await bash(
+		const shell = createShellExecutor();
+		const output = await shell(
 			{
 				command: process.execPath,
 				args: ["-e", "process.stdout.write('x'.repeat(60_000))"],
@@ -150,9 +150,9 @@ describe("createBashExecutor", () => {
 	});
 
 	it("does not truncate output within maxOutputBytes", async () => {
-		const bash = createBashExecutor({ maxOutputBytes: 1000 });
+		const shell = createShellExecutor({ maxOutputBytes: 1000 });
 		const payload = "b".repeat(500);
-		const output = await bash(
+		const output = await shell(
 			{
 				command: process.execPath,
 				args: ["-e", `process.stdout.write('${payload}')`],
@@ -164,10 +164,10 @@ describe("createBashExecutor", () => {
 	});
 
 	it("marks truncation in the captured output when a failing command floods stderr", async () => {
-		const bash = createBashExecutor({ maxOutputBytes: 20 });
+		const shell = createShellExecutor({ maxOutputBytes: 20 });
 		let error: unknown;
 		try {
-			await bash(
+			await shell(
 				{
 					command: process.execPath,
 					args: [
@@ -189,8 +189,8 @@ describe("createBashExecutor", () => {
 	});
 
 	it("keeps the tail of streamed output written in many chunks", async () => {
-		const bash = createBashExecutor({ maxOutputBytes: 40 });
-		const output = await bash(
+		const shell = createShellExecutor({ maxOutputBytes: 40 });
+		const output = await shell(
 			{
 				command: process.execPath,
 				args: [
@@ -209,20 +209,20 @@ describe("createBashExecutor", () => {
 	it("rejects when abort signal fires", async () => {
 		const ac = new AbortController();
 		const abortCtx: AgentToolContext = { ...ctx, signal: ac.signal };
-		const bash = createBashExecutor();
+		const shell = createShellExecutor();
 
 		setTimeout(() => ac.abort(), 50);
-		await expect(bash("sleep 10", process.cwd(), abortCtx)).rejects.toThrow(
+		await expect(shell("sleep 10", process.cwd(), abortCtx)).rejects.toThrow(
 			"aborted",
 		);
 	});
 
 	it("flushes a trailing incomplete multibyte sequence instead of dropping it", async () => {
-		const bash = createBashExecutor();
+		const shell = createShellExecutor();
 		// Output ends with the first byte of a two-byte UTF-8 sequence; the
 		// decoder must flush it at end-of-stream (as U+FFFD) rather than
 		// silently dropping buffered bytes.
-		const output = await bash(
+		const output = await shell(
 			{
 				command: process.execPath,
 				args: ["-e", "process.stdout.write(Buffer.from([0x61, 0x62, 0xc3]))"],
@@ -239,12 +239,12 @@ describe("createBashExecutor", () => {
 			command: process.execPath,
 			args: ["-e", "process.stdout.write('x'.repeat(500))"],
 		};
-		const renamed = await createBashExecutor({ maxOutputChars: 100 })(
+		const renamed = await createShellExecutor({ maxOutputChars: 100 })(
 			emit,
 			process.cwd(),
 			ctx,
 		);
-		const alias = await createBashExecutor({ maxOutputBytes: 100 })(
+		const alias = await createShellExecutor({ maxOutputBytes: 100 })(
 			emit,
 			process.cwd(),
 			ctx,
@@ -256,7 +256,7 @@ describe("createBashExecutor", () => {
 
 describe.runIf(process.platform === "win32")("createWindowsExecutor", () => {
 	it("runs structured commands without shell parsing", async () => {
-		const executor = createBashExecutor();
+		const executor = createShellExecutor();
 		const output = await executor(
 			{
 				command: process.execPath,
@@ -269,7 +269,7 @@ describe.runIf(process.platform === "win32")("createWindowsExecutor", () => {
 	});
 
 	it("runs string commands through the shell", async () => {
-		const executor = createBashExecutor();
+		const executor = createShellExecutor();
 		const output = await executor("echo shell-ok", process.cwd(), ctx);
 		expect(output.trim()).toBe("shell-ok");
 	});

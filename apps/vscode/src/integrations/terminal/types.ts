@@ -211,12 +211,6 @@ export interface ITerminalManager {
 	setTerminalReuseEnabled(enabled: boolean): void
 
 	/**
-	 * Set the maximum number of output lines to keep.
-	 * @param limit Maximum number of lines
-	 */
-	setTerminalOutputLineLimit(limit: number): void
-
-	/**
 	 * Set the default terminal profile.
 	 * @param profile The profile identifier
 	 */

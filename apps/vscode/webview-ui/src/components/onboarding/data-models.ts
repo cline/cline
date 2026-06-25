@@ -15,13 +15,10 @@ type RecommendedModelsResponseLike = {
 	clinePass?: ClineRecommendedModel[]
 }
 
-export function getRecommendedModelsData(
-	response: RecommendedModelsResponseLike,
-	isClinePassEnabled: boolean,
-): RecommendedModelsData | undefined {
+export function getRecommendedModelsData(response: RecommendedModelsResponseLike): RecommendedModelsData | undefined {
 	const recommended = response.recommended ?? []
 	const free = response.free ?? []
-	const clinePass = isClinePassEnabled ? (response.clinePass ?? []) : []
+	const clinePass = response.clinePass ?? []
 
 	if (recommended.length === 0 && free.length === 0 && clinePass.length === 0) {
 		return undefined
@@ -61,6 +58,13 @@ export function getClineUIOnboardingGroups(groupedModels: OnboardingModelGroup):
 			...(openSourceModels.length > 0 ? [{ group: "open source", models: openSourceModels }] : []),
 		],
 	}
+}
+
+export function getOnboardingGroupDisplayName(group: string): string {
+	if (group === CLINEPASS_GROUP) {
+		return "ClinePass"
+	}
+	return group
 }
 
 export function getPriceRange(modelInfo: OpenRouterModelInfo): string {

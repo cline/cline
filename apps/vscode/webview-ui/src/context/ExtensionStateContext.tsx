@@ -267,7 +267,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		shellIntegrationTimeout: 4000,
 		terminalReuseEnabled: true,
 		vscodeTerminalExecutionMode: "vscodeTerminal",
-		terminalOutputLineLimit: 500,
 		maxConsecutiveMistakes: 3,
 		defaultTerminalProfile: "default",
 		isNewUser: false,

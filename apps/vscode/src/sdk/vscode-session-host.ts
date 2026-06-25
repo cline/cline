@@ -82,7 +82,7 @@ export class VscodeSessionHost implements SdkSessionHost {
 			toolExecutors.askQuestion = options.askQuestion
 		}
 		if (options.getTerminalManager) {
-			// Setting bash to undefined suppresses the SDK's createBashTool():
+			// Setting bash to undefined suppresses the SDK's createShellTool():
 			// createDefaultTools() checks `enableBash && executors.bash` — falsy
 			// bash means no built-in run_commands tool is created.
 			;(toolExecutors as Record<string, unknown>).bash = undefined
