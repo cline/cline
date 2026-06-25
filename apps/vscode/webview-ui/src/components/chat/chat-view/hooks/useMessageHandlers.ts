@@ -23,6 +23,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 		setSendingDisabled,
 		enableButtons,
 		setEnableButtons,
+		setPendingUserMessage,
 		clineAsk,
 		lastMessage,
 	} = chatState
@@ -79,11 +80,32 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					setSelectedFiles(files)
 					setEnableButtons(enableButtons)
 				}
-				const sendAskResponseWithPendingState = async (request: ReturnType<typeof AskResponseRequest.create>) => {
+				const sendAskResponseWithPendingState = async (
+					request: ReturnType<typeof AskResponseRequest.create>,
+					options: { showPendingMessage?: boolean } = {},
+				) => {
 					clearSentMessageState()
+					if (options.showPendingMessage) {
+						const afterTs = Math.max(0, ...messages.map((message) => message.ts))
+						setPendingUserMessage({
+							afterTs,
+							message: {
+								ts: Date.now(),
+								type: "say",
+								say: "user_feedback",
+								text: request.text ?? "",
+								images: request.images,
+								files: request.files,
+								partial: false,
+							},
+						})
+					}
 					try {
 						await TaskServiceClient.askResponse(request)
 					} catch (error) {
+						if (options.showPendingMessage) {
+							setPendingUserMessage(undefined)
+						}
 						restorePendingMessageState()
 						throw error
 					}
@@ -140,6 +162,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 										images,
 										files,
 									}),
+									{ showPendingMessage: turnState?.phase !== "streaming" },
 								)
 								messageSent = true
 								break
@@ -174,6 +197,9 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 								images,
 								files,
 							}),
+							{
+								showPendingMessage: turnState?.phase === "completed" || turnState?.phase === "awaiting_followup",
+							},
 						)
 						messageSent = true
 					}
@@ -203,6 +229,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			setSelectedFiles,
 			enableButtons,
 			setEnableButtons,
+			setPendingUserMessage,
 			chatState,
 		],
 	)
