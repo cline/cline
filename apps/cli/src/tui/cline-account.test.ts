@@ -281,7 +281,7 @@ describe("loadIndividualSubscriptionPlans", () => {
 		const plans = [
 			{
 				id: "plan-1",
-				interval: "plan_interval_monthly",
+				interval: "Monthly",
 				features: { included: ["Major open-weights models"] },
 			},
 		];

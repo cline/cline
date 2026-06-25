@@ -123,7 +123,7 @@ describe("ClineAccountService", () => {
 			{
 				id: "plan-1",
 				displayName: "ClinePass Monthly",
-				interval: "plan_interval_monthly",
+				interval: "Monthly",
 				features: { included: ["Major open-weights models"] },
 			},
 		];
