@@ -98,12 +98,16 @@ describe("SdkCompactionCoordinator", () => {
 
 		await coordinator.compactTask()
 
-		expect(options.buildStartSessionInput).toHaveBeenCalledWith(
-			expect.objectContaining({ sessionId: "old-session" }),
-			{ cwd: "/workspace", mode: "act" },
-		)
+		expect(options.buildStartSessionInput).toHaveBeenCalledWith(expect.objectContaining({ sessionId: "old-session" }), {
+			cwd: "/workspace",
+			mode: "act",
+		})
 		expect(options.sessions.replaceActiveSession).toHaveBeenCalledWith({
-			startInput: { prompt: "start" },
+			startInput: expect.objectContaining({
+				config: expect.objectContaining({ sessionId: "old-session" }),
+				interactive: true,
+				prompt: undefined,
+			}),
 			initialMessages: [{ role: "user", content: "summary" }],
 			disposeReason: "compactTask",
 		})
@@ -166,7 +170,11 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		},
 		getTask: vi.fn(() => input.task),
 		getWorkspaceRoot: vi.fn().mockResolvedValue("/workspace"),
-		buildStartSessionInput: vi.fn(() => ({ prompt: "start" })),
+		buildStartSessionInput: vi.fn((startConfig) => ({
+			config: startConfig,
+			prompt: undefined,
+			interactive: true,
+		})),
 		resetMessageTranslator: vi.fn(),
 		postStateToWebview: vi.fn().mockResolvedValue(undefined),
 	} as unknown as SdkCompactionCoordinatorOptions & {

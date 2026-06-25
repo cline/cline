@@ -1,5 +1,5 @@
 import { Empty, StringRequest } from "@shared/proto/cline/common"
-import { Controller } from ".."
+import type { Controller } from ".."
 
 /**
  * Condense / compact slash command logic.
