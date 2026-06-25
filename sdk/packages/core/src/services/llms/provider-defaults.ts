@@ -215,6 +215,40 @@ async function mergeKnownModels(
 	});
 }
 
+function isSapAiCoreFoundationModels(
+	config: ProviderConfig | undefined,
+): boolean {
+	return (
+		config?.providerId === "sapaicore" &&
+		config.sap?.useOrchestrationMode === false
+	);
+}
+
+function isSapAiCoreFoundationChatModel(modelId: string): boolean {
+	const normalizedModelId = modelId.trim().toLowerCase();
+	return (
+		/^gpt-?\d/.test(normalizedModelId) &&
+		!normalizedModelId.includes("codex") &&
+		!normalizedModelId.includes("realtime")
+	);
+}
+
+function filterResolvedKnownModels(
+	providerId: string,
+	knownModels: Record<string, ModelInfo>,
+	config: ProviderConfig | undefined,
+): Record<string, ModelInfo> {
+	if (providerId !== "sapaicore" || !isSapAiCoreFoundationModels(config)) {
+		return knownModels;
+	}
+
+	return Object.fromEntries(
+		Object.entries(knownModels).filter(([modelId]) =>
+			isSapAiCoreFoundationChatModel(modelId),
+		),
+	);
+}
+
 function resolveCatalogModels(
 	providerId: string,
 	modelsByProviderId: Record<string, Record<string, ModelInfo>>,
@@ -920,13 +954,18 @@ export async function resolveProviderConfig(
 					publicConfig,
 				).catch(() => ({}))
 			: {};
-		const knownModels = await mergeKnownModels(
+		const mergedModels = await mergeKnownModels(
 			providerId,
 			defaults.knownModels,
 			liveModels,
 			privateModels,
 			publicModels,
 			config?.knownModels,
+		);
+		const knownModels = filterResolvedKnownModels(
+			providerId,
+			mergedModels,
+			config,
 		);
 
 		return {

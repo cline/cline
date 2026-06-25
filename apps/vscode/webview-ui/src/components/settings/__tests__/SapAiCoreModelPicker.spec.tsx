@@ -1,7 +1,23 @@
-import { render, screen } from "@testing-library/react"
+import { render, screen, waitFor } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 import { ExtensionStateContextProvider } from "@/context/ExtensionStateContext"
 import SapAiCoreModelPicker from "../SapAiCoreModelPicker"
+
+const resolveProviderModelsMock = vi.fn().mockResolvedValue({
+	providerId: "sapaicore",
+	requestId: "test-request-id",
+	configFingerprint: "test-fingerprint",
+	fetchedAt: Date.now(),
+	ok: true,
+	models: {},
+	defaultModelId: "",
+})
+
+vi.mock("@/services/grpc-client", () => ({
+	ModelsServiceClient: {
+		resolveProviderModels: resolveProviderModelsMock,
+	},
+}))
 
 // Define the interface locally since it's not exported from the proto
 interface SapAiCoreModelDeployment {
@@ -53,6 +69,35 @@ describe("SapAiCoreModelPicker Component", () => {
 
 	beforeEach(() => {
 		mockOnModelChange.mockClear()
+		resolveProviderModelsMock.mockClear()
+	})
+
+	it("refreshes the provider model list when orchestration mode changes", async () => {
+		const { rerender } = render(
+			<ExtensionStateContextProvider>
+				<SapAiCoreModelPicker
+					onModelChange={mockOnModelChange}
+					sapAiCoreModelDeployments={createDeployments(["anthropic--claude-3.5-sonnet", "gpt-4o"])}
+					selectedModelId="anthropic--claude-3.5-sonnet"
+					useOrchestrationMode={false}
+				/>
+			</ExtensionStateContextProvider>,
+		)
+
+		await waitFor(() => expect(resolveProviderModelsMock).toHaveBeenCalledTimes(1))
+
+		rerender(
+			<ExtensionStateContextProvider>
+				<SapAiCoreModelPicker
+					onModelChange={mockOnModelChange}
+					sapAiCoreModelDeployments={createDeployments(["anthropic--claude-3.5-sonnet", "gpt-4o"])}
+					selectedModelId="anthropic--claude-3.5-sonnet"
+					useOrchestrationMode={true}
+				/>
+			</ExtensionStateContextProvider>,
+		)
+
+		await waitFor(() => expect(resolveProviderModelsMock).toHaveBeenCalledTimes(2))
 	})
 
 	it("renders the model dropdown with correct label", () => {
