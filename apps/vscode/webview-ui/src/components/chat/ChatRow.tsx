@@ -35,7 +35,6 @@ import {
 import { MouseEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useSize } from "react-use"
 import { OptionsButtons } from "@/components/chat/OptionsButtons"
-import { CheckmarkControl } from "@/components/common/CheckmarkControl"
 import { WithCopyButton } from "@/components/common/CopyButton"
 import McpResponseDisplay from "@/components/mcp/chat-display/McpResponseDisplay"
 import McpResourceRow from "@/components/mcp/configuration/tabs/installed/server-row/McpResourceRow"
@@ -923,14 +922,6 @@ export const ChatRowContent = memo(
 						return <ErrorRow errorType="diff_error" message={message} />
 					case "clineignore_error":
 						return <ErrorRow errorType="clineignore_error" message={message} />
-					case "checkpoint_created":
-						return (
-							<CheckmarkControl
-								checkpointNumber={message.conversationHistoryIndex}
-								isCheckpointCheckedOut={message.isCheckpointCheckedOut}
-								messageTs={message.ts}
-							/>
-						)
 					case "load_mcp_documentation":
 						return (
 							<div className="text-foreground flex items-center opacity-70 text-[12px] py-1 px-0">

@@ -16,14 +16,16 @@ interface UserMessageProps {
 const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageTs }) => {
 	const [isEditing, setIsEditing] = useState(false)
 	const [editedText, setEditedText] = useState(text ?? "")
-	const [isSaving, setIsSaving] = useState(false)
+	const [savingMode, setSavingMode] = useState<"chat" | "workspace" | undefined>()
+	const [errorMessage, setErrorMessage] = useState<string | undefined>()
 	const highlightedText = useMemo(() => highlightText(text), [text])
 
-	const handleSave = async () => {
-		if (!messageTs || isSaving) {
+	const handleSave = async (restoreWorkspace: boolean) => {
+		if (!messageTs || savingMode) {
 			return
 		}
-		setIsSaving(true)
+		setSavingMode(restoreWorkspace ? "workspace" : "chat")
+		setErrorMessage(undefined)
 		try {
 			await TaskServiceClient.editMessageAndRegenerate(
 				EditMessageAndRegenerateRequest.create({
@@ -31,12 +33,15 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 					text: editedText,
 					images: images ?? [],
 					files: files ?? [],
+					restoreWorkspace,
 				}),
 			)
 			setIsEditing(false)
+			setSavingMode(undefined)
 		} catch (error) {
 			console.error("Failed to edit and regenerate message:", error)
-			setIsSaving(false)
+			setErrorMessage(error instanceof Error ? error.message : "Failed to edit and regenerate message")
+			setSavingMode(undefined)
 		}
 	}
 
@@ -54,6 +59,7 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 					className="absolute right-1.5 top-1.5 opacity-0 group-hover:opacity-80 hover:opacity-100 bg-transparent border-0 text-badge-foreground cursor-pointer p-1"
 					onClick={() => {
 						setEditedText(text ?? "")
+						setErrorMessage(undefined)
 						setIsEditing(true)
 					}}
 					title="Edit and regenerate from here"
@@ -65,25 +71,34 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 				<div className="flex flex-col gap-2">
 					<textarea
 						className="w-full box-border rounded-xs border border-vscode-input-border bg-vscode-input-background text-vscode-input-foreground p-2 text-sm resize-vertical"
-						disabled={isSaving}
+						disabled={!!savingMode}
 						onChange={(event) => setEditedText(event.target.value)}
 						rows={Math.max(3, editedText.split("\n").length)}
 						value={editedText}
 					/>
-					<div className="flex gap-2 justify-end">
+					{errorMessage && <div className="text-xs text-(--vscode-errorForeground)">{errorMessage}</div>}
+					<div className="flex flex-wrap gap-2 justify-end">
 						<button
 							className="px-2 py-1 rounded-xs border border-vscode-button-border bg-transparent text-badge-foreground cursor-pointer"
-							disabled={isSaving}
+							disabled={!!savingMode}
 							onClick={() => setIsEditing(false)}
 							type="button">
 							Cancel
 						</button>
 						<button
 							className="px-2 py-1 rounded-xs border-0 bg-vscode-button-background text-vscode-button-foreground cursor-pointer disabled:opacity-60"
-							disabled={isSaving}
-							onClick={handleSave}
+							disabled={!!savingMode}
+							onClick={() => handleSave(false)}
 							type="button">
-							{isSaving ? "Regenerating..." : "Save & Regenerate"}
+							{savingMode === "chat" ? "Regenerating..." : "Save & Regenerate"}
+						</button>
+						<button
+							className="px-2 py-1 rounded-xs border border-vscode-button-border bg-transparent text-badge-foreground cursor-pointer disabled:opacity-60"
+							disabled={!!savingMode}
+							onClick={() => handleSave(true)}
+							title="Restore workspace files to this checkpoint before regenerating"
+							type="button">
+							{savingMode === "workspace" ? "Restoring..." : "Restore Code & Regenerate"}
 						</button>
 					</div>
 				</div>

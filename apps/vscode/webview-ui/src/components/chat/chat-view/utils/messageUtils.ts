@@ -105,6 +105,7 @@ export function filterVisibleMessages(messages: ClineMessage[]): ClineMessage[] 
 			case "deleted_api_reqs": // aggregated api_req metrics from deleted messages
 			case "subagent_usage": // aggregated subagent usage metrics for task-level accounting
 			case "task_progress": // task progress messages are displayed in TaskHeader, not in main chat
+			case "checkpoint_created": // checkpoint restore is exposed from user-message edit controls
 				return false
 			// NOTE: reasoning passes through to be included in tool groups
 			case "api_req_started": {
@@ -153,7 +154,6 @@ function isBrowserSessionMessage(message: ClineMessage): boolean {
 			"text",
 			"browser_action",
 			"browser_action_result",
-			"checkpoint_created",
 			"reasoning",
 			"error_retry",
 		].includes(message.say ?? "")
@@ -451,11 +451,6 @@ export function isApiReqAbsorbable(apiReqTs: number, allMessages: ClineMessage[]
 			continue
 		}
 
-		// Checkpoints do not affect absorbability
-		if (msg.say === "checkpoint_created") {
-			continue
-		}
-
 		// Text is allowed (we still want to absorb api_req into the tool group)
 		if (msg.say === "text") {
 			continue
@@ -505,10 +500,6 @@ function isApiReqFollowedOnlyByLowStakesTools(index: number, messages: (ClineMes
 		// Low-stakes tool - mark it
 		if (isLowStakesTool(msg)) {
 			hasLowStakesTool = true
-			continue
-		}
-		// Checkpoint is OK
-		if (msg.say === "checkpoint_created") {
 			continue
 		}
 		// Text is OK - it will render separately, but we still absorb api_req
@@ -622,12 +613,6 @@ export function groupLowStakesTools(groupedMessages: (ClineMessage | ClineMessag
 				flushPending()
 				result.push(message)
 			}
-			continue
-		}
-
-		// Checkpoint - absorb into active tool group
-		if (messageType === "checkpoint_created" && hasTools) {
-			toolGroup.push(message)
 			continue
 		}
 
