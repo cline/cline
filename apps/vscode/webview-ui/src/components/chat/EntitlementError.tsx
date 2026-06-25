@@ -29,10 +29,8 @@ function buildSubscribeUrl(appBaseUrl?: string): string | undefined {
 	}
 }
 
-// The backend promo message embeds the canonical subscribe URL (with the discount code, e.g.
-// /promo?code=CLI-100). Prefer it, but only trust an http(s) URL on the same host as appBaseUrl.
 function extractSubscribeUrlFromMessage(message?: string, appBaseUrl?: string): string | undefined {
-	if (!message) {
+	if (!message || !appBaseUrl) {
 		return undefined
 	}
 	const match = message.match(/https?:\/\/\S+/)
@@ -44,11 +42,9 @@ function extractSubscribeUrlFromMessage(message?: string, appBaseUrl?: string): 
 		if (candidate.protocol !== "https:" && candidate.protocol !== "http:") {
 			return undefined
 		}
-		if (appBaseUrl) {
-			const expectedHost = new URL(appBaseUrl).host
-			if (candidate.host !== expectedHost) {
-				return undefined
-			}
+		const expectedHost = new URL(appBaseUrl).host
+		if (candidate.host !== expectedHost) {
+			return undefined
 		}
 		return candidate.toString()
 	} catch {
@@ -58,12 +54,8 @@ function extractSubscribeUrlFromMessage(message?: string, appBaseUrl?: string): 
 
 const EntitlementError: React.FC<EntitlementErrorProps> = ({ message }) => {
 	const { clineUser } = useClineAuth()
-	// Prefer the promo URL embedded in the backend message (carries the discount code); otherwise
-	// fall back to the constructed subscription URL.
 	const subscribeUrl =
 		extractSubscribeUrlFromMessage(message, clineUser?.appBaseUrl) ?? buildSubscribeUrl(clineUser?.appBaseUrl)
-	// Suppress the default "No access to ClinePass..." promo message: it duplicates this card's copy
-	// and the Get ClinePass button. Only surface a backend detail when it adds something new.
 	const isDefaultPromoMessage = message?.toLowerCase().includes("no access to clinepass subscription models")
 	const backendDetail = message && message !== HEADLINE && !isDefaultPromoMessage ? message : undefined
 

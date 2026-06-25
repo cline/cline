@@ -155,26 +155,18 @@ export class ClineError extends Error {
 			return ClineErrorType.SpendLimit
 		}
 
-		// ClinePass entitlement errors are user-actionable and should not fall through to generic 403 auth.
-		// The organization-account variant gets separate copy because subscribing is not the right action.
 		const isEntitlementCode = code === "ENTITLEMENT_ERROR" || details?.code === "ENTITLEMENT_ERROR"
 		const entitlementText = `${message ?? ""} ${details?.message ?? ""}`.toLowerCase()
-		// Org variant. The raw backend phrase ("...individual model inference subscriptions") stays gated
-		// on the code to avoid false positives, but the user-facing message ("...ClinePass subscriptions")
-		// is specific enough to match on text alone — needed because the SDK rethrow strips the code.
-		if (
+		const isOrgClinePassRestriction =
 			(isEntitlementCode && entitlementText.includes(ORG_CLINE_PASS_RESTRICTION_MESSAGE)) ||
 			entitlementText.includes(ORG_CLINE_PASS_RESTRICTION_USER_MESSAGE)
-		) {
+		if (isOrgClinePassRestriction) {
 			return ClineErrorType.OrgClinePassRestriction
 		}
-		// Personal ClinePass "not subscribed" errors. The SDK rethrows these as a plain Error and
-		// drops the backend ENTITLEMENT_ERROR code, so match on the user-facing message too (not just
-		// isEntitlementCode) to keep rendering the actionable "Get ClinePass" subscription card.
-		if (
+		const isClinePassNotSubscribed =
 			(isEntitlementCode && entitlementText.includes("not subscribed to required model plan")) ||
 			entitlementText.includes("no access to clinepass subscription models")
-		) {
+		if (isClinePassNotSubscribed) {
 			return ClineErrorType.Entitlement
 		}
 
