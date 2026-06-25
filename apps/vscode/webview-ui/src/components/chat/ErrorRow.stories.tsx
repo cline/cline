@@ -219,22 +219,13 @@ export const ClinePassEntitlementError: Story = {
 	args: {
 		message: createMockMessage(),
 		errorType: "error",
-		apiRequestFailedMessage: JSON.stringify({
-			message: "403 Error 403: the user is not subscribed to required model plan",
-			status: 403,
-			code: "ENTITLEMENT_ERROR",
-			modelId: "cline-pass/glm-5.1",
-			providerId: "cline-pass",
-			details: {
-				code: "ENTITLEMENT_ERROR",
-				message: "Error 403: the user is not subscribed to required model plan",
-			},
-		}),
+		apiRequestFailedMessage:
+			"No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: https://app.cline.bot/promo?code=CLI-100&personal=true",
 	},
 	parameters: {
 		docs: {
 			description: {
-				story: "ClinePass model returns a 403 ENTITLEMENT_ERROR when the user is not subscribed. Instead of dumping the raw JSON blob, a human-readable message with a 'Get ClinePass' subscribe link and a retry button is shown.",
+				story: "ClinePass model returns the SDK ClineNotSubscribedError message when the user is not subscribed. A human-readable message with a 'Get ClinePass' subscribe link and a retry button is shown.",
 			},
 		},
 	},
