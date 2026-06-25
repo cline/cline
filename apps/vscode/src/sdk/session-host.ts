@@ -1,8 +1,6 @@
 import type {
 	ClineCoreListHistoryOptions,
 	ClineCoreStartInput,
-	CompareCheckpointInput,
-	CompareCheckpointResult,
 	CoreSessionEvent,
 	HookEventPayload,
 	PendingPromptMutationResult,
@@ -36,7 +34,6 @@ export interface SdkSessionHost {
 	delete(sessionId: string): Promise<boolean>
 	readMessages(sessionId: string): Promise<SdkInitialMessages>
 	restore(input: RestoreInput): Promise<RestoreResult>
-	compareCheckpoint(input: CompareCheckpointInput): Promise<CompareCheckpointResult>
 	update(
 		sessionId: string,
 		updates: {

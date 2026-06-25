@@ -11,7 +11,6 @@ import {
 	createUserInstructionConfigService,
 	getProviderAuthStorageId,
 	type PreparedRemoteConfigCoreIntegration,
-	readSessionCheckpointHistory,
 	type SessionHistoryRecord,
 	setTelemetryOptOutGlobally,
 	type UserInstructionConfigService,
@@ -54,7 +53,11 @@ import { createProviderCatalog } from "./model-catalog/catalog"
 import type { Disposable, ProviderCatalog, ProviderConfigChange, ProviderConfigStore } from "./model-catalog/contracts"
 import { parseProviderId } from "./model-catalog/provider-id"
 import { createProviderConfigStore } from "./model-catalog/store"
-import { buildSdkCheckpointRows, findVisibleCheckpointUserMessageByRun, isVisibleCheckpointUserMessage } from "./sdk-checkpoints"
+import {
+	findVisibleCheckpointUserMessageByRun,
+	getCheckpointRunCountForMessage,
+	isVisibleCheckpointUserMessage,
+} from "./sdk-checkpoints"
 import { SdkCompactionCoordinator } from "./sdk-compaction-coordinator"
 import { SdkFollowupCoordinator } from "./sdk-followup-coordinator"
 import { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
@@ -484,7 +487,6 @@ export class Controller {
 			getTask: () => this.task,
 			postStateToWebview: () => this.postStateToWebview(),
 			setTurnPhase: (phase, anchorTs) => this.turnStateTracker.set(phase, anchorTs),
-			syncCheckpointRows: () => this.syncCheckpointRowsFromActiveSession(),
 		})
 		// Subscribe to MCP tool list changes so we can restart the SDK session
 		// when servers are added/removed/reconnected. The SDK's DefaultSessionBuilder
@@ -1067,147 +1069,114 @@ export class Controller {
 			throw new Error("Only user messages can be edited")
 		}
 
-		if (input.restoreWorkspace) {
-			HostProvider.window.showMessage({
-				type: ShowMessageType.INFORMATION,
-				message: "Workspace restore is not available for edited-message regeneration yet. Regenerating chat only.",
-			})
-		}
-
 		const userOrdinal = clineMessages
 			.slice(0, targetIndex + 1)
 			.filter((message) => message.type === "say" && (message.say === "task" || message.say === "user_feedback")).length
-
+		const checkpointRunCount = getCheckpointRunCountForMessage(clineMessages, targetIndex)
+		const sourceSessionId = activeSession?.sessionId ?? currentTask.taskId
 		let sdkMessages: SdkUserMessage[]
-		if (activeSession) {
-			sdkMessages = (await activeSession.sdkHost.readMessages(activeSession.sessionId)) as SdkUserMessage[]
-		} else {
-			const tempHost = await VscodeSessionHost.create({ mcpHub: this.mcpHub })
-			try {
-				sdkMessages = (await tempHost.readMessages(currentTask.taskId)) as SdkUserMessage[]
-			} finally {
-				await tempHost.dispose("editMessageAndRegenerate.readMessages")
+		let tempHost: VscodeSessionHost | undefined
+		const sessionHost = activeSession?.sdkHost ?? (tempHost = await VscodeSessionHost.create({ mcpHub: this.mcpHub }))
+		try {
+			sdkMessages = (await sessionHost.readMessages(sourceSessionId)) as SdkUserMessage[]
+			const sdkTargetIndex = findSdkUserMessageIndexByOrdinal(sdkMessages, userOrdinal)
+			if (sdkTargetIndex === -1) {
+				throw new Error("Could not map edited message to persisted conversation history")
 			}
+
+			const initialMessages = sdkMessages.slice(0, sdkTargetIndex) as Parameters<
+				VscodeSessionHost["start"]
+			>[0]["initialMessages"]
+			const firstUserMessage = sdkMessages.find(
+				(message) => message.role === "user" && !!extractSdkUserText(message) && !isSyntheticSdkUserMessage(message),
+			)
+			const historyTitle =
+				userOrdinal === 1
+					? editedText
+					: extractSdkUserText(firstUserMessage ?? {}) || clineMessages[0]?.text || editedText
+			const fallbackCwd = await this.getWorkspaceRoot()
+			const [sessionRecord, historyItem] = await Promise.all([
+				sessionHost.get(sourceSessionId).catch(() => undefined),
+				this.taskHistory.findHistoryItem(currentTask.taskId).catch(() => undefined),
+			])
+			const cwd =
+				sessionRecord?.cwd?.trim() ||
+				sessionRecord?.workspaceRoot?.trim() ||
+				historyItem?.cwdOnTaskInitialization?.trim() ||
+				fallbackCwd
+			const mode = this.stateManager.getGlobalSettingsKey("mode") === "plan" ? "plan" : "act"
+			const config = await this.sessionConfigBuilder.build({ cwd, mode, prompt: historyTitle })
+			if (usesClineAccountAuth(config.providerId) && !config.apiKey) {
+				this.emitClineAuthError(editedText)
+				return
+			}
+
+			const resolvedPrompt = await this.resolveContextMentions(editedText)
+			const startInput = {
+				...buildStartSessionInput(config, { prompt: historyTitle, cwd, mode }),
+				initialMessages,
+				sessionMetadata: {
+					title: historyTitle,
+					modelId: config.modelId,
+				},
+			}
+
+			if (input.restoreWorkspace) {
+				if (activeSession?.isRunning) {
+					throw new Error("Wait for the current run to finish before restoring workspace changes")
+				}
+				if (checkpointRunCount === undefined) {
+					throw new Error("Workspace restore is only available for messages that started an agent run")
+				}
+				await sessionHost.restore({
+					sessionId: sourceSessionId,
+					checkpointRunCount,
+					cwd,
+					restore: {
+						messages: false,
+						workspace: true,
+						omitCheckpointMessageFromSession: true,
+					},
+				})
+			}
+
+			const { startResult, sdkHost } = await this.sessions.startNewSession(startInput)
+
+			this.turnStateTracker.set("streaming")
+			this.messageTranslatorState.clearTurnOutcome()
+			this.resetMessageTranslatorAndFence()
+
+			const task = createTaskProxy(
+				startResult.sessionId,
+				(text?: string, images?: string[], files?: string[]) => this.askResponse(text, images, files),
+				() => this.cancelTask(),
+			)
+			this.task = task
+
+			const newHistoryItem = createHistoryItemFromSession(startResult.sessionId, historyTitle, config.modelId, cwd)
+			await this.taskHistory.updateTaskHistoryItem(newHistoryItem)
+
+			const visibleMessages = clineMessages.slice(0, targetIndex)
+			if (visibleMessages.length > 0) {
+				task.messageStateHandler.addMessages(visibleMessages)
+			}
+			task.messageStateHandler.addMessages([
+				{
+					ts: Date.now(),
+					type: "say",
+					say: userOrdinal === 1 ? "task" : "user_feedback",
+					text: editedText,
+					images: input.images,
+					files: input.files,
+					partial: false,
+				},
+			])
+			await this.postStateToWebview()
+
+			this.sessions.fireAndForgetSend(sdkHost, startResult.sessionId, resolvedPrompt, input.images, input.files)
+		} finally {
+			await tempHost?.dispose("editMessageAndRegenerate")
 		}
-		const sdkTargetIndex = findSdkUserMessageIndexByOrdinal(sdkMessages, userOrdinal)
-		if (sdkTargetIndex === -1) {
-			throw new Error("Could not map edited message to persisted conversation history")
-		}
-
-		const initialMessages = sdkMessages.slice(0, sdkTargetIndex) as Parameters<
-			VscodeSessionHost["start"]
-		>[0]["initialMessages"]
-		const firstUserMessage = sdkMessages.find(
-			(message) => message.role === "user" && !!extractSdkUserText(message) && !isSyntheticSdkUserMessage(message),
-		)
-		const historyTitle =
-			userOrdinal === 1 ? editedText : extractSdkUserText(firstUserMessage ?? {}) || clineMessages[0]?.text || editedText
-		const cwd = await this.getWorkspaceRoot()
-		const mode = this.stateManager.getGlobalSettingsKey("mode") === "plan" ? "plan" : "act"
-		const config = await this.sessionConfigBuilder.build({ cwd, mode, prompt: historyTitle })
-		if (usesClineAccountAuth(config.providerId) && !config.apiKey) {
-			this.emitClineAuthError(editedText)
-			return
-		}
-
-		this.turnStateTracker.set("streaming")
-		this.messageTranslatorState.clearTurnOutcome()
-		this.resetMessageTranslatorAndFence()
-
-		const startInput = {
-			...buildStartSessionInput(config, { prompt: historyTitle, cwd, mode }),
-			initialMessages,
-			sessionMetadata: {
-				title: historyTitle,
-				modelId: config.modelId,
-			},
-		}
-		const { startResult, sdkHost } = await this.sessions.startNewSession(startInput)
-		const task = createTaskProxy(
-			startResult.sessionId,
-			(text?: string, images?: string[], files?: string[]) => this.askResponse(text, images, files),
-			() => this.cancelTask(),
-		)
-		this.task = task
-
-		const newHistoryItem = createHistoryItemFromSession(startResult.sessionId, historyTitle, config.modelId, cwd)
-		await this.taskHistory.updateTaskHistoryItem(newHistoryItem)
-
-		const visibleMessages = clineMessages.slice(0, targetIndex)
-		if (visibleMessages.length > 0) {
-			task.messageStateHandler.addMessages(visibleMessages)
-		}
-		task.messageStateHandler.addMessages([
-			{
-				ts: Date.now(),
-				type: "say",
-				say: userOrdinal === 1 ? "task" : "user_feedback",
-				text: editedText,
-				images: input.images,
-				files: input.files,
-				partial: false,
-			},
-		])
-		await this.postStateToWebview()
-
-		const resolvedPrompt = await this.resolveContextMentions(editedText)
-		this.sessions.fireAndForgetSend(sdkHost, startResult.sessionId, resolvedPrompt, input.images, input.files)
-	}
-
-	private async syncCheckpointRowsFromActiveSession(): Promise<void> {
-		const task = this.task
-		const activeSession = this.sessions.getActiveSession()
-		if (!task || !activeSession) {
-			return
-		}
-
-		const session = await activeSession.sdkHost.get(activeSession.sessionId)
-		const checkpointHistory = readSessionCheckpointHistory(session)
-		const currentMessages = task.messageStateHandler.getClineMessages()
-		const nextMessages = buildSdkCheckpointRows({
-			messages: currentMessages,
-			checkpointHistory,
-			createTimestamp: () => this.messageTranslatorState.nextTs(),
-		})
-		if (
-			nextMessages.length === currentMessages.length &&
-			nextMessages.every((message, index) => message === currentMessages[index])
-		) {
-			return
-		}
-
-		this.messages.replaceMessages(nextMessages)
-	}
-
-	async compareCheckpoint(input: { checkpointRunCount: number }): Promise<void> {
-		const checkpointRunCount = Number(input.checkpointRunCount)
-		if (!Number.isInteger(checkpointRunCount) || checkpointRunCount < 1) {
-			throw new Error("checkpointRunCount must be a positive integer")
-		}
-
-		const activeSession = this.sessions.getActiveSession()
-		if (!activeSession) {
-			throw new Error("No active task to compare")
-		}
-
-		const cwd = await this.getWorkspaceRoot()
-		const { diffs } = await activeSession.sdkHost.compareCheckpoint({
-			sessionId: activeSession.sessionId,
-			checkpointRunCount,
-			cwd,
-		})
-		if (diffs.length === 0) {
-			HostProvider.window.showMessage({
-				type: ShowMessageType.INFORMATION,
-				message: "No changes found",
-			})
-			return
-		}
-
-		await HostProvider.diff.openMultiFileDiff({
-			title: "Changes since checkpoint",
-			diffs,
-		})
 	}
 
 	async restoreCheckpoint(input: { checkpointRunCount: number; restoreType: ClineCheckpointRestore }): Promise<void> {
@@ -1267,7 +1236,6 @@ export class Controller {
 		})
 
 		if (!restoreMessages) {
-			await this.syncCheckpointRowsFromActiveSession()
 			await this.postStateToWebview()
 			return
 		}
@@ -1301,7 +1269,6 @@ export class Controller {
 			files: target.message.files ?? [],
 			sessionId: restored.sessionId,
 		}
-		await this.syncCheckpointRowsFromActiveSession()
 		await this.postStateToWebview()
 	}
 
