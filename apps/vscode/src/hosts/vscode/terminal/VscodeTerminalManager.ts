@@ -7,6 +7,7 @@ import {
 	ITerminalManager,
 	TerminalProcessResultPromise as ITerminalProcessResultPromise,
 } from "@/integrations/terminal/types"
+import { SHELL_INTEGRATION_STREAM_TIMEOUT_MS } from "@/integrations/terminal/constants"
 import { Logger } from "@/shared/services/Logger"
 import { mergePromise, VscodeTerminalProcess } from "./VscodeTerminalProcess"
 import { TerminalInfo, TerminalRegistry } from "./VscodeTerminalRegistry"
@@ -101,6 +102,7 @@ export class VscodeTerminalManager implements ITerminalManager {
 	private processes: Map<number, VscodeTerminalProcess> = new Map()
 	private disposables: vscode.Disposable[] = []
 	private shellIntegrationTimeout = 4000
+	private shellIntegrationStreamTimeout = SHELL_INTEGRATION_STREAM_TIMEOUT_MS
 	private terminalReuseEnabled = true
 	private terminalOutputLineLimit = 500
 	private defaultTerminalProfile = "default"
@@ -172,6 +174,10 @@ export class VscodeTerminalManager implements ITerminalManager {
 		return arePathsEqual(currentCwd, targetCwd)
 	}
 
+	setShellIntegrationStreamTimeout(timeoutMs: number): void {
+		this.shellIntegrationStreamTimeout = timeoutMs
+	}
+
 	runCommand(terminalInfo: ITerminalInfo, command: string): ITerminalProcessResultPromise {
 		// Cast to VSCode-specific TerminalInfo for internal use
 		// Using unknown as intermediate cast due to structural differences between ITerminal and vscode.Terminal
@@ -211,7 +217,7 @@ export class VscodeTerminalManager implements ITerminalManager {
 		// if shell integration is already active, run the command immediately
 		if (vscodeTerminalInfo.terminal.shellIntegration) {
 			process.waitForShellIntegration = false
-			process.run(vscodeTerminalInfo.terminal, command)
+			process.run(vscodeTerminalInfo.terminal, command, this.shellIntegrationStreamTimeout)
 		} else {
 			// docs recommend waiting 3s for shell integration to activate
 			Logger.log(
@@ -235,7 +241,7 @@ export class VscodeTerminalManager implements ITerminalManager {
 					const existingProcess = this.processes.get(vscodeTerminalInfo.id)
 					if (existingProcess && existingProcess.waitForShellIntegration) {
 						existingProcess.waitForShellIntegration = false
-						existingProcess.run(vscodeTerminalInfo.terminal, command)
+						existingProcess.run(vscodeTerminalInfo.terminal, command, this.shellIntegrationStreamTimeout)
 					}
 				})
 		}
