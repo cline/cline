@@ -1,4 +1,5 @@
 import { synchronizeRemoteRuleToggles } from "@core/context/instructions/user-instructions/rule-helpers"
+import path from "node:path"
 import { parseRemoteSkillEntries } from "@core/context/instructions/user-instructions/skills"
 import type { RemoteConfig, S3AccessKeySettings } from "@shared/remote-config/schema"
 import { ConfiguredAPIKeys, GlobalStateAndSettings, RemoteConfigFields } from "@shared/storage/state-keys"
@@ -14,7 +15,6 @@ import { isOpenTelemetryConfigValid, remoteConfigToOtelConfig } from "@/shared/s
 import { Logger } from "@/shared/services/Logger"
 import { syncWorker } from "@/shared/services/worker/sync"
 import { BlobStoreSettings } from "@/shared/storage"
-import { ensureSettingsDirectoryExists } from "../disk"
 import { StateManager } from "../StateManager"
 import { syncRemoteMcpServersToSettings } from "./syncRemoteMcpServers"
 
@@ -373,8 +373,9 @@ export async function applyRemoteConfig(
 	// - No dependency on in-memory state that would be lost across restarts
 	try {
 		const serversToSync = remoteConfig.remoteMCPServers ?? []
-		const settingsPath = await ensureSettingsDirectoryExists()
-		await syncRemoteMcpServersToSettings(serversToSync, settingsPath, mcpHub)
+		const settingsPath = await mcpHub.getMcpSettingsFilePath()
+		const settingsDirectoryPath = path.dirname(settingsPath)
+		await syncRemoteMcpServersToSettings(serversToSync, settingsDirectoryPath, mcpHub)
 		stateManager.setRemoteConfigField("previousRemoteMCPServers", serversToSync)
 	} catch (error) {
 		Logger.error("[RemoteConfig] Failed to sync remote MCP servers to settings:", error)

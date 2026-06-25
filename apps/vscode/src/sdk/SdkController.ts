@@ -5,11 +5,11 @@
 // cancelTask, …) to the Cline SDK (@cline/core) and bridges SDK events to
 // the webview's gRPC streams.
 import * as fs from "node:fs/promises"
-import * as os from "node:os"
 import * as path from "node:path"
 import {
 	createUserInstructionConfigService,
 	getProviderAuthStorageId,
+	resolveDefaultMcpSettingsPath,
 	type PreparedRemoteConfigCoreIntegration,
 	type SessionHistoryRecord,
 	setTelemetryOptOutGlobally,
@@ -232,8 +232,7 @@ export class Controller {
 		this.mcpHub = new McpHub(
 			() => ensureMcpServersDirectoryExists(),
 			async () => {
-				const clineDir = process.env.CLINE_DIR || path.join(os.homedir(), ".cline")
-				const settingsDir = path.join(clineDir, "data", "settings")
+				const settingsDir = path.dirname(resolveDefaultMcpSettingsPath())
 				await fs.mkdir(settingsDir, { recursive: true })
 				return settingsDir
 			},
