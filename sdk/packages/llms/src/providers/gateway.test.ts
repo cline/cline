@@ -3506,7 +3506,7 @@ describe("sdk-gateway", () => {
 			expect.objectContaining({
 				providerOptions: expect.objectContaining({
 					openrouter: expect.objectContaining({
-						reasoning: { exclude: true },
+						reasoning: { effort: "none" },
 					}),
 				}),
 			}),
