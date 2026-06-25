@@ -5,11 +5,11 @@
 // cancelTask, …) to the Cline SDK (@cline/core) and bridges SDK events to
 // the webview's gRPC streams.
 import * as fs from "node:fs/promises"
-import * as os from "node:os"
 import * as path from "node:path"
 import {
 	createUserInstructionConfigService,
 	getProviderAuthStorageId,
+	resolveDefaultMcpSettingsPath,
 	type PreparedRemoteConfigCoreIntegration,
 	type SessionHistoryRecord,
 	setTelemetryOptOutGlobally,
@@ -232,8 +232,7 @@ export class Controller {
 		this.mcpHub = new McpHub(
 			() => ensureMcpServersDirectoryExists(),
 			async () => {
-				const clineDir = process.env.CLINE_DIR || path.join(os.homedir(), ".cline")
-				const settingsDir = path.join(clineDir, "data", "settings")
+				const settingsDir = path.dirname(resolveDefaultMcpSettingsPath())
 				await fs.mkdir(settingsDir, { recursive: true })
 				return settingsDir
 			},
@@ -1029,6 +1028,8 @@ export class Controller {
 			return
 		}
 
+		const turnStateBefore = this.turnStateTracker.get()
+
 		// Answering an ask / continuing after completion / resuming a cancelled task all kick off a
 		// new agent turn — move the authoritative phase to "streaming" so the footer shows
 		// Thinking + Cancel (and not the stale resumable/completed/awaiting_followup buttons or the
@@ -1038,7 +1039,7 @@ export class Controller {
 		this.turnStateTracker.set("streaming")
 		// Clear the previous turn's completion signal so this new turn's phase is computed fresh.
 		this.messageTranslatorState.clearTurnOutcome()
-		await this.followups.askResponse(prompt, images, files, this.task?.taskState?.askResponse)
+		await this.followups.askResponse(prompt, images, files, this.task?.taskState?.askResponse, turnStateBefore.phase)
 	}
 
 	async editMessageAndRegenerate(input: {

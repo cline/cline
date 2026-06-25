@@ -166,6 +166,41 @@ describe("translateSessionEvent — chunk events", () => {
 })
 
 // ---------------------------------------------------------------------------
+// translateSessionEvent — pending prompts
+// ---------------------------------------------------------------------------
+
+describe("translateSessionEvent — pending prompts", () => {
+	it("renders a submitted queued prompt as user feedback", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "pending_prompt_submitted",
+			payload: {
+				sessionId: "session-1",
+				id: "pending-1",
+				prompt: "please just finish",
+				delivery: "queue",
+				attachmentCount: 2,
+				userImages: ["image.png"],
+				userFiles: ["notes.txt"],
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+
+		expect(result.messages).toEqual([
+			expect.objectContaining({
+				type: "say",
+				say: "user_feedback",
+				text: "please just finish",
+				images: ["image.png"],
+				files: ["notes.txt"],
+				partial: false,
+			}),
+		])
+	})
+})
+
+// ---------------------------------------------------------------------------
 // translateSessionEvent — agent_event (content_start)
 // ---------------------------------------------------------------------------
 

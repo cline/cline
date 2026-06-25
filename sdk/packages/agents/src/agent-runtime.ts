@@ -24,6 +24,7 @@ import type {
 	ToolPolicy,
 } from "@cline/shared";
 import {
+	captureAgentUnexpectedReasoningTokens,
 	captureSdkError,
 	estimateTokens,
 	mergeModelOptions,
@@ -300,6 +301,10 @@ function usageDelta(
 		0,
 		(end.cacheWriteTokens ?? 0) - (start.cacheWriteTokens ?? 0),
 	);
+	const reasoningTokenCount = Math.max(
+		0,
+		(end.reasoningTokenCount ?? 0) - (start.reasoningTokenCount ?? 0),
+	);
 	const startCost = start.totalCost ?? 0;
 	const endCost = end.totalCost ?? 0;
 	const cost = Math.max(0, endCost - startCost);
@@ -308,6 +313,7 @@ function usageDelta(
 		outputTokens === 0 &&
 		cacheReadTokens === 0 &&
 		cacheWriteTokens === 0 &&
+		reasoningTokenCount === 0 &&
 		cost === 0
 	) {
 		return undefined;
@@ -317,8 +323,13 @@ function usageDelta(
 		outputTokens: outputTokens > 0 ? outputTokens : 0,
 		cacheReadTokens: cacheReadTokens > 0 ? cacheReadTokens : 0,
 		cacheWriteTokens: cacheWriteTokens > 0 ? cacheWriteTokens : 0,
+		...(reasoningTokenCount > 0 ? { reasoningTokenCount } : {}),
 		...(cost > 0 ? { cost } : {}),
 	};
+}
+
+function reasoningWasRequestedOff(request: AgentModelRequest): boolean {
+	return request.options?.thinking === false;
 }
 
 function textFromMessage(message: AgentMessage | undefined): string {
@@ -981,6 +992,7 @@ export class AgentRuntime {
 		const metrics = usageDelta(usageBeforeModel, this.state.usage);
 		if (metrics) {
 			message.metrics = metrics;
+			this.captureUnexpectedReasoningTokens(request, metrics);
 		}
 		if (this.config.messageModelInfo) {
 			message.modelInfo = { ...this.config.messageModelInfo };
@@ -995,6 +1007,33 @@ export class AgentRuntime {
 		}
 
 		return { message, finishReason };
+	}
+
+	private captureUnexpectedReasoningTokens(
+		request: AgentModelRequest,
+		metrics: NonNullable<AgentMessage["metrics"]>,
+	): void {
+		if (
+			!reasoningWasRequestedOff(request) ||
+			(metrics.reasoningTokenCount ?? 0) <= 0
+		) {
+			return;
+		}
+		const reasoningTokenCount = metrics.reasoningTokenCount;
+		if (reasoningTokenCount === undefined) {
+			return;
+		}
+
+		captureAgentUnexpectedReasoningTokens(this.config.telemetry, {
+			sessionId: this.config.sessionId,
+			agentId: this.state.agentId,
+			runId: this.state.runId,
+			iteration: this.state.iteration,
+			providerId: this.config.messageModelInfo?.provider,
+			modelId: this.config.messageModelInfo?.id,
+			requestedThinking: false,
+			reasoningTokenCount,
+		});
 	}
 
 	private async prepareTurnForModelRequest(
@@ -1069,6 +1108,9 @@ export class AgentRuntime {
 				this.state.usage.cacheReadTokens + (usage.cacheReadTokens ?? 0),
 			cacheWriteTokens:
 				this.state.usage.cacheWriteTokens + (usage.cacheWriteTokens ?? 0),
+			reasoningTokenCount:
+				(this.state.usage.reasoningTokenCount ?? 0) +
+				(usage.reasoningTokenCount ?? 0),
 			totalCost: (this.state.usage.totalCost ?? 0) + (usage.totalCost ?? 0),
 		};
 		await this.emit({

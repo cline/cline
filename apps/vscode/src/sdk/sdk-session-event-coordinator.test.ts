@@ -111,6 +111,62 @@ describe("SdkSessionEventCoordinator", () => {
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()
 	})
 
+	it("marks a submitted queued prompt as a new streaming turn", async () => {
+		const message: ClineMessage = { ts: 1, type: "say", say: "user_feedback", text: "queued prompt" }
+		const { coordinator, options } = makeCoordinator({
+			translation: {
+				messages: [message],
+				sessionEnded: false,
+				turnComplete: false,
+			},
+		})
+		const clearTurnOutcome = vi.spyOn(options.messageTranslatorState, "clearTurnOutcome")
+		const event: CoreSessionEvent = {
+			type: "pending_prompt_submitted",
+			payload: {
+				sessionId: "session-123",
+				id: "pending-1",
+				prompt: "queued prompt",
+				delivery: "queue",
+				attachmentCount: 0,
+			},
+		} as CoreSessionEvent
+
+		await coordinator.handleSessionEvent(event)
+
+		expect(clearTurnOutcome).toHaveBeenCalledOnce()
+		expect(options.sessions.setRunning).toHaveBeenCalledWith(true)
+		expect(options.setTurnPhase).toHaveBeenCalledWith("streaming")
+		expect(options.messages.appendAndEmit).toHaveBeenCalledWith([message], event)
+		expect(options.postStateToWebview).toHaveBeenCalledOnce()
+	})
+
+	it("posts state for queued prompt turn start even when no transcript message is emitted", async () => {
+		const { coordinator, options } = makeCoordinator({
+			translation: {
+				messages: [],
+				sessionEnded: false,
+				turnComplete: false,
+			},
+		})
+		const event: CoreSessionEvent = {
+			type: "pending_prompt_submitted",
+			payload: {
+				sessionId: "session-123",
+				id: "pending-1",
+				prompt: "",
+				delivery: "queue",
+				attachmentCount: 0,
+			},
+		} as CoreSessionEvent
+
+		await coordinator.handleSessionEvent(event)
+
+		expect(options.setTurnPhase).toHaveBeenCalledWith("streaming")
+		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
+		expect(options.postStateToWebview).toHaveBeenCalledOnce()
+	})
+
 	it("does NOT override the phase on a turn-complete straggler from an already-cancelled session", async () => {
 		// After cancelTask sets phase "resumable" and aborts, the SDK may still emit a trailing
 		// done/turnComplete. Because the session is no longer running, this straggler must NOT
@@ -262,6 +318,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		taskHistory: SdkSessionEventCoordinatorOptions["taskHistory"] & { updateTaskUsage: ReturnType<typeof vi.fn> }
 		postStateToWebview: ReturnType<typeof vi.fn>
 		translateSessionEvent: ReturnType<typeof vi.fn>
+		messageTranslatorState: MessageTranslatorState
 	}
 
 	return {
