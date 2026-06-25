@@ -346,6 +346,34 @@ describe("SdkInteractionCoordinator", () => {
 		expect(setTurnPhase).toHaveBeenLastCalledWith("streaming")
 	})
 
+	it("resolves mistake-limit no-button responses as stop decisions", async () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const setTurnPhase = vi.fn()
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+			setTurnPhase,
+		})
+
+		const decisionPromise = coordinator.handleConsecutiveMistakeLimitReached({
+			iteration: 4,
+			consecutiveMistakes: 3,
+			maxConsecutiveMistakes: 3,
+			reason: "tool_execution_failed",
+		})
+		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
+
+		expect(coordinator.resolvePendingMistakeLimit(undefined, "noButtonClicked")).toBe(true)
+
+		await expect(decisionPromise).resolves.toEqual({
+			action: "stop",
+			reason: "stopped after mistake_limit_reached prompt",
+		})
+		expect(task.messageStateHandler.getClineMessages()).toMatchObject([{ type: "ask", ask: "mistake_limit_reached" }])
+		expect(setTurnPhase).toHaveBeenLastCalledWith("streaming")
+	})
+
 	it("clears pending mistake-limit prompts as stop decisions", async () => {
 		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
 		const coordinator = new SdkInteractionCoordinator({
