@@ -25,9 +25,9 @@ OpenRouter is an AI platform that provides access to a wide variety of language 
 
 ### TrustedRouter
 
-TrustedRouter exposes an OpenAI-compatible API that can be used through Cline's OpenRouter provider with a custom base URL.
+TrustedRouter exposes an OpenAI-compatible API. You can connect to it inside Cline by choosing the OpenRouter provider and overriding the base URL; requests then go directly to TrustedRouter, not through OpenRouter.
 
-1.  **Create a TrustedRouter API key:** Sign in to the [TrustedRouter console](https://trustedrouter.com/console/keys), create a key, and copy it.
+1.  **Create a TrustedRouter API key:** Sign in to the [TrustedRouter console](https://trustedrouter.com/console/api-keys), create a key, and copy it.
 2.  **Open Cline Settings:** Click the settings icon (⚙️) in the Cline panel.
 3.  **Select Provider:** Choose "OpenRouter" from the "API Provider" dropdown.
 4.  **Enter API Key:** Paste your TrustedRouter API key into the "OpenRouter API Key" field.
@@ -37,7 +37,7 @@ TrustedRouter exposes an OpenAI-compatible API that can be used through Cline's 
     https://api.trustedrouter.com/v1
     ```
 
-6.  **Choose a model:** Use a TrustedRouter model ID such as:
+6.  **Choose a model:** Type a TrustedRouter model ID directly into the model field, such as:
 
     ```txt
     trustedrouter/auto
