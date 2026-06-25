@@ -29,16 +29,9 @@ export const ACTION_METADATA: ActionMetadata[] = [
 	},
 	{
 		id: "executeSafeCommands",
-		label: "Execute safe commands",
-		shortName: "Safe Commands",
+		label: "Execute commands",
+		shortName: "Commands",
 		icon: "codicon-terminal",
-		subAction: {
-			id: "executeAllCommands",
-			label: "Execute all commands",
-			shortName: "All Commands",
-			icon: "codicon-terminal-bash",
-			parentActionId: "executeSafeCommands",
-		},
 	},
 	{
 		id: "useBrowser",
