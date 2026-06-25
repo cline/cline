@@ -1,4 +1,11 @@
-import type { CoreSessionEvent, ITelemetryService, PreparedRemoteConfigCoreIntegration, StartSessionResult } from "@cline/core"
+import type {
+	CoreSessionEvent,
+	ITelemetryService,
+	PreparedRemoteConfigCoreIntegration,
+	RestoreInput,
+	RestoreResult,
+	StartSessionResult,
+} from "@cline/core"
 import { StateManager } from "@/core/storage/StateManager"
 import { ITerminalManager } from "@/integrations/terminal"
 import { McpHub } from "@/services/mcp/McpHub"
@@ -158,6 +165,35 @@ export class SdkSessionLifecycle {
 		this.setRunning(false)
 
 		return { oldSessionId, startResult, sdkHost }
+	}
+
+	async restoreActiveSession(input: RestoreInput): Promise<RestoreResult> {
+		const activeSession = this.activeSession
+		if (!activeSession) {
+			throw new Error("No active SDK session to restore")
+		}
+
+		const sourceSessionId = activeSession.sessionId
+		const restored = await activeSession.sdkHost.restore(input)
+		if (!restored.startResult || !restored.sessionId) {
+			return restored
+		}
+
+		this.activeSession = {
+			...activeSession,
+			sessionId: restored.sessionId,
+			startResult: restored.startResult,
+			isRunning: false,
+		}
+
+		if (restored.sessionId !== sourceSessionId) {
+			const stopPromise = this.trackSessionStop(activeSession.sdkHost, sourceSessionId, "restoreActiveSession")
+			stopPromise.catch((error) => {
+				Logger.warn(`[SdkController] Failed to stop source session after checkpoint restore: ${sourceSessionId}`, error)
+			})
+		}
+
+		return restored
 	}
 
 	async dispose(reason = "SdkSessionLifecycle.dispose"): Promise<void> {

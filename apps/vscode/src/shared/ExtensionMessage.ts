@@ -45,8 +45,13 @@ export interface ExtensionState {
 	remoteBrowserHost?: string
 	preferredLanguage?: string
 	mode: Mode
-	checkpointManagerErrorMessage?: string
 	clineMessages: ClineMessage[]
+	checkpointRestoreInput?: {
+		text: string
+		images?: string[]
+		files?: string[]
+		sessionId: string
+	}
 	/**
 	 * The single authoritative UI mode for the current turn, owned by the extension. The webview
 	 * renders the footer/buttons/thinking indicator from this, NOT from the tail of clineMessages.

@@ -9,19 +9,24 @@ Welcome to the Cline documentation. Whether you're just getting started or looki
 ## What is Cline?
 
 Cline is an AI coding agent that lives in your editor and your terminal. It can read and write files, run terminal commands, use a browser, and help you build features through natural conversation. Every action requires your explicit approval. You're always in control.
-### Agent Core (SDK)
 
-The SDK is Cline's agent core—use it to build your own applications, automations, and integrations. See SDK section for detailed functionality and architectural design of the Cline Agent.
+## Model access
 
-<CardGroup cols={1}>
-  <Card title="SDK" icon="cube" href="https://docs.cline.bot/sdk/overview">
-    Build AI agents and integrations powered by the same core engine behind the CLI, Kanban, VS Code extension, and JetBrains plugin.
+Choose the model access path that fits your workflow:
 
-    `npm install @cline/sdk`
+<CardGroup cols={3}>
+  <Card title="Cline Provider" icon="bolt" href="/getting-started/cline-provider">
+    Fastest setup path with one sign-in, built-in billing, and free model options.
+  </Card>
+  <Card title="ClinePass (beta)" icon="credit-card" href="/getting-started/clinepass">
+    Flat $9.99/month subscription for selected open coding models with 2-5x API rate limits.
+  </Card>
+  <Card title="Bring Your Own Key" icon="key" href="/getting-started/authorizing-with-cline#byok-cloud--local">
+    Use your own provider credentials for cloud providers or local runtimes.
   </Card>
 </CardGroup>
 
-### Applications
+## Applications
 
 These are end-user applications built on top of Cline's agent core:
 
@@ -44,6 +49,18 @@ These are end-user applications built on top of Cline's agent core:
   </Card>
 </CardGroup>
 
+
+## Agent Core (SDK)
+
+The SDK is Cline's agent core—use it to build your own applications, automations, and integrations. See SDK section for detailed functionality and architectural design of the Cline Agent.
+
+<CardGroup cols={1}>
+  <Card title="SDK" icon="cube" href="https://docs.cline.bot/sdk/overview">
+    Build AI agents and integrations powered by the same core engine behind the CLI, Kanban, VS Code extension, and JetBrains plugin.
+
+    `npm install @cline/sdk`
+  </Card>
+</CardGroup>
 
 ## Other IDE Supports
 
