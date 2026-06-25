@@ -10,7 +10,8 @@
 	},
 	"logo": {
 		"light": "/assets/Cline_Logo-complete_black.png",
-		"dark": "/assets/Cline_Logo-complete_white.png"
+		"dark": "/assets/Cline_Logo-complete_white.png",
+		"href": "https://cline.bot/"
 	},
 	"favicon": {
 		"light": "/assets/robot_panel_light.png",
@@ -64,11 +65,12 @@
 						"pages": [
 							"cline-overview",
 							"getting-started/installing-cline",
+							"getting-started/cline-provider",
+							"getting-started/clinepass",
 							{
-								"group": "Models & Providers",
+								"group": "Other Models & Providers",
 								"pages": [
 									"getting-started/authorizing-with-cline",
-									"getting-started/cline-provider",
 									"running-models-locally/overview",
 									{
 										"group": "Cloud Providers",
