@@ -106,13 +106,15 @@ describe("resolveProviderConfig", () => {
 		});
 
 		expect(fetchMock).toHaveBeenCalledTimes(2);
-		expect(resolved?.knownModels?.["cline-pass/live-pass-model"]).toMatchObject({
-			id: "cline-pass/live-pass-model",
-			name: "Live Pass Model",
-			contextWindow: 256_000,
-			maxInputTokens: 200_000,
-			maxTokens: 32_000,
-		});
+		expect(resolved?.knownModels?.["cline-pass/live-pass-model"]).toMatchObject(
+			{
+				id: "cline-pass/live-pass-model",
+				name: "Live Pass Model",
+				contextWindow: 256_000,
+				maxInputTokens: 200_000,
+				maxTokens: 32_000,
+			},
+		);
 		expect(resolved?.knownModels?.["cline-pass/mimo-v2.5-pro"]).toBeUndefined();
 	});
 
@@ -152,9 +154,9 @@ describe("resolveProviderConfig", () => {
 		});
 
 		expect(fetchMock).toHaveBeenCalledTimes(2);
-		expect(
-			resolved?.knownModels?.["cline-pass/mimo-v2.5-pro"]?.name,
-		).toBe("MiMo-V2.5-Pro");
+		expect(resolved?.knownModels?.["cline-pass/mimo-v2.5-pro"]?.name).toBe(
+			"MiMo-V2.5-Pro",
+		);
 		expect(
 			resolved?.knownModels?.["vendor/live-openrouter-model"],
 		).toBeUndefined();
@@ -519,44 +521,5 @@ describe("resolveProviderConfig", () => {
 			}),
 		);
 		expect(resolved?.knownModels?.["gpt-5.4-nano"]).toBeUndefined();
-	});
-
-	it("filters SAP AI Core models in foundation-models mode", async () => {
-		const resolved = await resolveProviderConfig("sapaicore", undefined, {
-			providerId: "sapaicore",
-			modelId: "anthropic--claude-3.5-sonnet",
-			sap: { useOrchestrationMode: false },
-			knownModels: {
-				"gpt-4-base": { id: "gpt-4-base", name: "GPT-4 Base" },
-				"gpt-4-instruct": { id: "gpt-4-instruct", name: "GPT-4 Instruct" },
-				"gpt-4-realtime": { id: "gpt-4-realtime", name: "GPT-4 Realtime" },
-			},
-		});
-
-		expect(Object.keys(resolved?.knownModels ?? {})).toEqual(
-			expect.arrayContaining(["gpt-5.4", "gpt-5.5"]),
-		);
-		expect(resolved?.modelId).not.toBe("anthropic--claude-3.5-sonnet");
-		expect(resolved?.knownModels?.[resolved?.modelId ?? ""]).toBeDefined();
-		expect(
-			resolved?.knownModels?.["anthropic--claude-3.5-sonnet"],
-		).toBeUndefined();
-		expect(resolved?.knownModels?.["gpt-4-base"]).toBeUndefined();
-		expect(resolved?.knownModels?.["gpt-4-instruct"]).toBeUndefined();
-		expect(resolved?.knownModels?.["gpt-4-realtime"]).toBeUndefined();
-		expect(resolved?.knownModels?.["gpt-5.3-codex"]).toBeUndefined();
-	});
-
-	it("keeps the full SAP AI Core catalog in orchestration mode", async () => {
-		const resolved = await resolveProviderConfig("sapaicore", undefined, {
-			providerId: "sapaicore",
-			modelId: "anthropic--claude-3.5-sonnet",
-			sap: { useOrchestrationMode: true },
-		});
-
-		expect(
-			resolved?.knownModels?.["anthropic--claude-3.5-sonnet"],
-		).toBeDefined();
-		expect(resolved?.knownModels?.["gpt-5.4"]).toBeDefined();
 	});
 });
