@@ -706,6 +706,69 @@ describe("runAgent", () => {
 		);
 	});
 
+	it("does not duplicate ClinePass subscription errors already displayed by agent events", async () => {
+		const startedAt = new Date("2026-03-22T00:00:00.000Z");
+		const endedAt = new Date("2026-03-22T00:00:01.000Z");
+		sessionManagerMocks.start.mockImplementation(async () => {
+			sessionEventsMocks.listener?.({
+				type: "error",
+				error: new Error(SDK_CLINE_PASS_SUBSCRIPTION_MESSAGE),
+				recoverable: false,
+			});
+
+			return {
+				sessionId: "session-1",
+				manifestPath: "/tmp/manifest.json",
+				messagesPath: "/tmp/messages.json",
+				manifest: { session_id: "session-1" },
+				result: {
+					text: SDK_CLINE_PASS_SUBSCRIPTION_MESSAGE,
+					usage: {
+						inputTokens: 0,
+						outputTokens: 0,
+						cacheReadTokens: 0,
+						cacheWriteTokens: 0,
+						totalCost: 0,
+					},
+					messages: [],
+					toolCalls: [],
+					iterations: 1,
+					finishReason: "error",
+					model: { id: "premium-model", provider: "cline-pass", info: {} },
+					startedAt,
+					endedAt,
+					durationMs: 1000,
+				},
+			};
+		});
+		sessionManagerMocks.getAccumulatedUsage.mockResolvedValue(undefined);
+
+		const { runAgent } = await import("./run-agent");
+
+		await expect(
+			runAgent("test prompt", {
+				cwd: process.cwd(),
+				enableAgentTeams: false,
+				enableSpawnAgent: false,
+				enableTools: [],
+				execution: { maxConsecutiveMistakes: 3 },
+				logger: undefined,
+				mode: "yolo",
+				modelId: "premium-model",
+				outputMode: "text",
+				providerId: "cline-pass",
+				systemPrompt: "system",
+				thinking: false,
+				toolPolicies: { "*": { autoApprove: true } },
+				verbose: false,
+				workspaceRoot: process.cwd(),
+			} as never),
+		).resolves.toBeUndefined();
+
+		expect(process.exitCode).toBe(1);
+		expect(outputMocks.writeErr).not.toHaveBeenCalled();
+	});
+
 	it("surfaces post-run bookkeeping failures after a completed result", async () => {
 		const startedAt = new Date("2026-03-22T00:00:00.000Z");
 		const endedAt = new Date("2026-03-22T00:00:01.000Z");
