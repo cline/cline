@@ -1,5 +1,5 @@
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@shared/ClineAccount"
-import type { ClineMessage } from "@shared/ExtensionMessage"
+import type { ClineMessage, TurnPhase } from "@shared/ExtensionMessage"
 import type { Mode } from "@shared/storage/types"
 import type { ClineAskResponse } from "@shared/WebviewMessage"
 import type { StateManager } from "@/core/storage/StateManager"
@@ -47,7 +47,13 @@ export interface SdkFollowupCoordinatorOptions {
 export class SdkFollowupCoordinator {
 	constructor(private readonly options: SdkFollowupCoordinatorOptions) {}
 
-	async askResponse(prompt?: string, images?: string[], files?: string[], askResponse?: ClineAskResponse): Promise<void> {
+	async askResponse(
+		prompt?: string,
+		images?: string[],
+		files?: string[],
+		askResponse?: ClineAskResponse,
+		turnPhaseAtSubmit?: TurnPhase,
+	): Promise<void> {
 		if (this.options.interactions.resolvePendingMistakeLimit(prompt, askResponse)) {
 			return
 		}
@@ -62,7 +68,9 @@ export class SdkFollowupCoordinator {
 
 		let activeSession = this.options.sessions.getActiveSession()
 		const task = this.options.getTask()
-		if (!activeSession?.isRunning && task) {
+		const submittedDuringActiveTurn = turnPhaseAtSubmit === "streaming" || turnPhaseAtSubmit === "awaiting_approval"
+		const isActiveTurnInProgress = () => !!activeSession && (activeSession.isRunning || submittedDuringActiveTurn)
+		if (!isActiveTurnInProgress() && task) {
 			// A mode rebuild clears the active session while the old stop is
 			// awaited and only marks the replacement running after the
 			// continuation send. Resuming in that window would start a parallel
@@ -71,7 +79,7 @@ export class SdkFollowupCoordinator {
 			await this.options.waitForPendingModeRebuild()
 			activeSession = this.options.sessions.getActiveSession()
 		}
-		if (!activeSession?.isRunning && task) {
+		if (!isActiveTurnInProgress() && task) {
 			Logger.log(`[SdkController] askResponse: No active session but task exists (${task.taskId}), resuming...`)
 			await this.tryResumeSessionFromTask(task.taskId, prompt, images, files)
 			return
@@ -83,19 +91,19 @@ export class SdkFollowupCoordinator {
 		}
 
 		const { sdkHost, sessionId } = activeSession
-		const wasAlreadyRunning = activeSession.isRunning
-		const delivery = wasAlreadyRunning ? ("queue" as const) : undefined
+		const shouldQueue = isActiveTurnInProgress()
+		const delivery = shouldQueue ? ("queue" as const) : undefined
 
-		if (wasAlreadyRunning) {
+		if (shouldQueue) {
 			Logger.log(`[SdkController] Session is running - queuing follow-up message for session: ${sessionId}`)
 		}
 
 		this.options.sessions.setRunning(true)
-		if (!wasAlreadyRunning) {
+		if (!shouldQueue) {
 			this.emitUserFeedback(sessionId, prompt, images, files)
 		}
 
-		if (!wasAlreadyRunning) {
+		if (!shouldQueue) {
 			this.options.resetMessageTranslator()
 		}
 

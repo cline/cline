@@ -84,6 +84,85 @@ describe("SdkFollowupCoordinator", () => {
 		)
 	})
 
+	it("queues a follow-up when the turn phase is still streaming even if the session running flag is stale", async () => {
+		const activeSession = makeActiveSession({ isRunning: false })
+		const task = makeTask("session-123")
+		const { coordinator, options } = makeCoordinator({ activeSession, task })
+
+		await coordinator.askResponse("queued while streaming", undefined, undefined, "messageResponse", "streaming")
+
+		expect(options.waitForPendingModeRebuild).not.toHaveBeenCalled()
+		expect(options.sessions.startNewSession).not.toHaveBeenCalled()
+		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
+		expect(options.resetMessageTranslator).not.toHaveBeenCalled()
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
+			activeSession.sdkHost,
+			"session-123",
+			"resolved: queued while streaming",
+			undefined,
+			undefined,
+			"queue",
+		)
+	})
+
+	it("queues a chat-field message submitted while a tool approval is pending", async () => {
+		const activeSession = makeActiveSession({ isRunning: false })
+		const task = makeTask("session-123")
+		const { coordinator, options } = makeCoordinator({ activeSession, task })
+		options.interactions.resolvePendingToolApproval.mockReturnValue(false)
+
+		await coordinator.askResponse(
+			"do the next thing after this",
+			undefined,
+			undefined,
+			"messageResponse",
+			"awaiting_approval",
+		)
+
+		expect(options.interactions.resolvePendingToolApproval).toHaveBeenCalledWith(
+			"do the next thing after this",
+			"messageResponse",
+		)
+		expect(options.waitForPendingModeRebuild).not.toHaveBeenCalled()
+		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
+		expect(options.resetMessageTranslator).not.toHaveBeenCalled()
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
+			activeSession.sdkHost,
+			"session-123",
+			"resolved: do the next thing after this",
+			undefined,
+			undefined,
+			"queue",
+		)
+	})
+
+	it("sends immediately when the submit-time phase was completed", async () => {
+		const activeSession = makeActiveSession({ isRunning: false })
+		const { coordinator, options } = makeCoordinator({ activeSession })
+
+		await coordinator.askResponse("next request", undefined, undefined, "messageResponse", "completed")
+
+		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
+			[
+				expect.objectContaining({
+					type: "say",
+					say: "user_feedback",
+					text: "next request",
+				}),
+			],
+			{ type: "status", payload: { sessionId: "session-123", status: "running" } },
+		)
+		expect(options.resetMessageTranslator).toHaveBeenCalledOnce()
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
+			activeSession.sdkHost,
+			"session-123",
+			"resolved: next request",
+			undefined,
+			undefined,
+			undefined,
+		)
+	})
+
 	it("waits for an in-flight mode rebuild before deciding whether to resume a displayed task", async () => {
 		const task = makeTask("task-1")
 		const rebuiltSession = makeActiveSession({ isRunning: true })
@@ -118,7 +197,7 @@ describe("SdkFollowupCoordinator", () => {
 		)
 	})
 
-	it("queues a message response after a pending tool approval is rejected", async () => {
+	it("queues a message response after a pending tool approval is not resolved by chat text", async () => {
 		const activeSession = makeActiveSession({ isRunning: true })
 		const { coordinator, options } = makeCoordinator({ activeSession })
 		options.interactions.resolvePendingToolApproval.mockReturnValue(false)
