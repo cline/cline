@@ -34,13 +34,22 @@ export interface CoreModelConfig {
 	 */
 	thinking?: boolean;
 	/**
+	 * Maximum tokens for model thinking/reasoning, when supported.
+	 */
+	thinkingBudgetTokens?: number;
+	/**
 	 * Explicit reasoning effort override for capable models.
 	 */
 	reasoningEffort?: ProviderConfig["reasoningEffort"];
 	/**
-	 * Maximum output tokens per API call.
+	 * Maximum output tokens per model API call.
 	 */
 	maxTokensPerTurn?: number;
+	/**
+	 * Timeout for each model API call. Defaults to the agent config API
+	 * timeout default when omitted.
+	 */
+	apiTimeoutMs?: number;
 }
 
 export interface CoreRuntimeFeatures {
