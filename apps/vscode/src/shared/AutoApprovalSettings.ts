@@ -16,8 +16,8 @@ export interface AutoApprovalSettings {
 		readFilesExternally?: boolean // Legacy field - kept for backward compatibility with older extension versions
 		editFiles: boolean // Edit files
 		editFilesExternally?: boolean // Legacy field - kept for backward compatibility with older extension versions
-		executeSafeCommands?: boolean // Execute commands
-		executeAllCommands?: boolean // Legacy field - kept for backward compatibility with older extension versions
+		executeSafeCommands?: boolean // Legacy field - kept for backward compatibility with older extension versions
+		executeAllCommands?: boolean // Execute commands
 		useBrowser: boolean // Use browser
 		useMcp: boolean // Use MCP servers
 	}
@@ -36,9 +36,55 @@ export const DEFAULT_AUTO_APPROVAL_SETTINGS: AutoApprovalSettings = {
 		editFiles: false,
 		editFilesExternally: true,
 		executeSafeCommands: true,
-		executeAllCommands: false,
+		executeAllCommands: true,
 		useBrowser: false,
 		useMcp: true,
 	},
 	enableNotifications: false,
+}
+
+export type AutoApprovalSettingsUpdate = Omit<Partial<AutoApprovalSettings>, "actions"> & {
+	actions?: Partial<AutoApprovalSettings["actions"]>
+}
+
+export function normalizeAutoApprovalSettings(settings?: AutoApprovalSettingsUpdate): AutoApprovalSettings {
+	const incomingActions = settings?.actions ?? {}
+	const actions = {
+		...DEFAULT_AUTO_APPROVAL_SETTINGS.actions,
+		...incomingActions,
+	}
+
+	if (incomingActions.executeSafeCommands === true) {
+		actions.executeAllCommands = true
+	} else if (incomingActions.executeAllCommands === undefined && incomingActions.executeSafeCommands === false) {
+		actions.executeAllCommands = false
+	}
+
+	return {
+		...DEFAULT_AUTO_APPROVAL_SETTINGS,
+		...settings,
+		actions,
+	}
+}
+
+export function mergeAutoApprovalSettings(
+	base: AutoApprovalSettings,
+	incoming?: AutoApprovalSettingsUpdate,
+): AutoApprovalSettings {
+	const incomingActions = {
+		...(incoming?.actions ?? {}),
+	}
+
+	if (incomingActions.executeAllCommands !== undefined) {
+		incomingActions.executeSafeCommands = incomingActions.executeAllCommands
+	}
+
+	return normalizeAutoApprovalSettings({
+		...base,
+		...incoming,
+		actions: {
+			...base.actions,
+			...incomingActions,
+		},
+	})
 }

@@ -2,6 +2,7 @@ import { String } from "@shared/proto/cline/common"
 import { PlanActMode } from "@shared/proto/cline/state"
 import { NewTaskRequest } from "@shared/proto/cline/task"
 import { Settings } from "@shared/storage/state-keys"
+import { mergeAutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { convertProtoToApiProvider } from "@/shared/proto-conversions/models/api-configuration-conversion"
 import { DEFAULT_BROWSER_SETTINGS } from "../../../shared/BrowserSettings"
 import { Controller } from ".."
@@ -26,19 +27,17 @@ export async function newTask(controller: Controller, request: NewTaskRequest): 
 					// Merge with global settings to ensure complete settings for new task
 					const globalSettings = controller.stateManager.getGlobalSettingsKey("autoApprovalSettings")
 					const incomingSettings = request.taskSettings.autoApprovalSettings
-					return {
-						...globalSettings,
+					return mergeAutoApprovalSettings(globalSettings, {
 						...(incomingSettings.version !== undefined && { version: incomingSettings.version }),
 						...(incomingSettings.enableNotifications !== undefined && {
 							enableNotifications: incomingSettings.enableNotifications,
 						}),
-						actions: {
-							...globalSettings.actions,
-							...(incomingSettings.actions
-								? Object.fromEntries(Object.entries(incomingSettings.actions).filter(([_, v]) => v !== undefined))
-								: {}),
-						},
-					}
+						...(incomingSettings.actions && {
+							actions: Object.fromEntries(
+								Object.entries(incomingSettings.actions).filter(([_, v]) => v !== undefined),
+							),
+						}),
+					})
 				})(),
 			}),
 			...(request.taskSettings?.browserSettings && {

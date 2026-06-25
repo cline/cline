@@ -2,7 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { TaskMetadata } from "@core/context/context-tracking/ContextTrackerTypes"
 import { execa } from "@packages/execa"
 import { RemoteConfig } from "@shared/remote-config/schema"
-import { GlobalState, Settings } from "@shared/storage/state-keys"
+import { applyTransform, isSettingsKey, Settings } from "@shared/storage/state-keys"
 import { fileExistsAtPath, isDirectory } from "@utils/fs"
 import fs from "fs/promises"
 import os from "os"
@@ -233,14 +233,20 @@ async function getGlobalStorageDir(...subdirs: string[]) {
 	return fullPath
 }
 
-export async function readTaskSettingsFromStorage(taskId: string): Promise<Partial<GlobalState>> {
+export async function readTaskSettingsFromStorage(taskId: string): Promise<Partial<Settings>> {
 	try {
 		const taskDirectoryFilePath = await ensureTaskDirectoryExists(taskId)
 		const settingsFilePath = path.join(taskDirectoryFilePath, "settings.json")
 
 		if (await fileExistsAtPath(settingsFilePath)) {
 			const settingsContent = await fs.readFile(settingsFilePath, "utf8")
-			return JSON.parse(settingsContent)
+			const settings = JSON.parse(settingsContent) as Record<string, unknown>
+			return Object.fromEntries(
+				Object.entries(settings).map(([key, value]) => [
+					key,
+					isSettingsKey(key) ? applyTransform(key, value) : value,
+				]),
+			) as Partial<Settings>
 		}
 
 		// Return empty object if settings file doesn't exist (new task)
