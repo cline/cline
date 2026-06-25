@@ -151,7 +151,6 @@ export class ClineError extends Error {
 		const rawMessage = err._error?.message || err.message || JSON.stringify(err._error)
 		const message = rawMessage?.toLowerCase()
 		const detailMessage = typeof details?.message === "string" ? details.message : undefined
-		const errorName = err._error?.name
 
 		// Check balance error first (most specific)
 		if (code === "insufficient_credits" && typeof details?.current_balance === "number") {
@@ -165,7 +164,6 @@ export class ClineError extends Error {
 		}
 
 		if (
-			errorName === CLINE_ORG_INDIVIDUAL_INFERENCE_SUBSCRIPTION_ERROR_NAME ||
 			rawMessage === getClineOrgIndividualInferenceSubscriptionMessage() ||
 			(detailMessage ? isClineOrgIndividualInferenceSubscriptionMessage(detailMessage) : false) ||
 			(rawMessage ? isClineOrgIndividualInferenceSubscriptionMessage(rawMessage) : false)
@@ -174,7 +172,6 @@ export class ClineError extends Error {
 		}
 
 		if (
-			errorName === CLINE_NOT_SUBSCRIBED_ERROR_NAME ||
 			rawMessage === getClineNotSubscribedMessage() ||
 			(detailMessage ? isClineNotSubscribedMessage(detailMessage) : false) ||
 			(rawMessage ? isClineNotSubscribedMessage(rawMessage) : false)
