@@ -549,6 +549,7 @@ export {
 } from "./services/storage/team-store";
 export { resolveCoreDistinctId } from "./services/telemetry";
 export type {
+	CaptureAgentUnexpectedReasoningTokensInput,
 	CaptureCompactionExecutedProperties,
 	CaptureCompactionSkippedProperties,
 	TelemetryAgentIdentityProperties,
@@ -563,6 +564,7 @@ export {
 	CORE_TELEMETRY_EVENTS,
 	captureAgentCreated,
 	captureAgentTeamCreated,
+	captureAgentUnexpectedReasoningTokens,
 	captureAuthFailed,
 	captureAuthLoggedOut,
 	captureAuthStarted,

@@ -405,6 +405,7 @@ export {
 	isHubDaemonProcess,
 } from "./runtime/hub-daemon-env";
 export type {
+	CaptureAgentUnexpectedReasoningTokensInput,
 	CaptureSdkErrorInput,
 	ITelemetryService,
 	OpenTelemetryClientConfig,
@@ -418,7 +419,9 @@ export type {
 	TelemetryValue,
 } from "./services/telemetry";
 export {
+	AGENT_UNEXPECTED_REASONING_TOKENS_EVENT,
 	buildSdkErrorProperties,
+	captureAgentUnexpectedReasoningTokens,
 	captureSdkError,
 	normalizeSdkError,
 	SDK_ERROR_TELEMETRY_EVENT,

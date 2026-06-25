@@ -48,6 +48,7 @@ interface GatewayNormalizedUsage {
 	outputTokens: number;
 	cacheReadTokens: number;
 	cacheWriteTokens: number;
+	reasoningTokenCount?: number;
 	totalCost?: number;
 }
 type ProviderModuleKind = AiSdkProviderOptionsTarget;
@@ -532,6 +533,39 @@ function getNestedUsageValue(
 	return getNumericValue(current) ?? 0;
 }
 
+type UsagePath = readonly [string] | readonly [string, string];
+
+const REASONING_TOKEN_PATHS: UsagePath[] = [
+	["outputTokenDetails", "reasoningTokens"],
+	["output_tokens_details", "reasoning_tokens"],
+	["completion_tokens_details", "reasoning_tokens"],
+	["reasoningTokens"],
+	["reasoning_tokens"],
+];
+
+function getUsageValueByPath(source: unknown, path: UsagePath): number {
+	let current: unknown = source;
+	for (const key of path) {
+		if (!current || typeof current !== "object") {
+			return 0;
+		}
+		current = (current as Record<string, unknown>)[key];
+	}
+	return getNumericValue(current) ?? 0;
+}
+
+function firstUsageValue(sources: unknown[], paths: UsagePath[]): number {
+	for (const source of sources) {
+		for (const path of paths) {
+			const value = getUsageValueByPath(source, path);
+			if (value > 0) {
+				return value;
+			}
+		}
+	}
+	return 0;
+}
+
 function extractProviderNestedUsage(
 	value: unknown,
 ): Record<string, unknown> | undefined {
@@ -720,6 +754,10 @@ export function normalizeUsage(
 				"cache_creation_input_tokens",
 			),
 	};
+	const reasoningTokenCount = firstUsageValue(
+		[usage, rawUsage, providerUsage ?? {}],
+		REASONING_TOKEN_PATHS,
+	);
 	const resolvedTotalCost =
 		totalCost !== undefined
 			? totalCost
@@ -729,6 +767,7 @@ export function normalizeUsage(
 
 	return {
 		...normalizedUsage,
+		...(reasoningTokenCount > 0 ? { reasoningTokenCount } : {}),
 		...(typeof resolvedTotalCost === "number"
 			? { totalCost: resolvedTotalCost }
 			: {}),
