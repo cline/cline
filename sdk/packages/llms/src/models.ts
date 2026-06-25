@@ -3,6 +3,7 @@ export {
 	getGeneratedProviderModels,
 } from "./catalog/catalog.generated-access";
 export {
+	fetchLiveProviderModels,
 	fetchModelsDevProviderModels,
 	sortModelsByReleaseDate,
 } from "./catalog/catalog-live";

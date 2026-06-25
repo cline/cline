@@ -1,18 +1,26 @@
-import { ModelInfo } from "@shared/api"
-import { UpdateApiConfigurationRequestNew } from "@shared/proto/index.cline"
+import { ModelInfo, openAiModelInfoSafeDefaults } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { RefreshCwIcon } from "lucide-react"
-import { useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { ModelsServiceClient } from "@/services/grpc-client"
+import { useProviderConfig } from "@/hooks/useProviderConfig"
+import { useProviderModelSelection } from "@/hooks/useProviderModelSelection"
+import { useProviderModels } from "@/hooks/useProviderModels"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelAutocomplete } from "../common/ModelAutocomplete"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { LockIcon, RemotelyConfiguredInputWrapper } from "../common/RemotelyConfiguredInputWrapper"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
-import { normalizeApiConfiguration } from "../utils/providerUtils"
-import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { useProviderApiKeyField } from "../utils/useProviderApiKeyField"
+
+const LITELLM_PROVIDER_ID = "litellm"
+
+function customModelInfo(modelId: string): ModelInfo {
+	return {
+		...openAiModelInfoSafeDefaults,
+		name: modelId,
+	}
+}
 
 /**
  * Props for the LiteLlmProvider component
@@ -24,35 +32,44 @@ interface LiteLlmProviderProps {
 }
 
 export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: LiteLlmProviderProps) => {
-	const { apiConfiguration, remoteConfigSettings, liteLlmModels, refreshLiteLlmModels } = useExtensionState()
-	const { handleModeFieldsChange } = useApiConfigurationHandlers()
-
-	const [isLoading, setIsLoading] = useState(false)
-
-	// Get the normalized configuration with model info
-	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
+	const { remoteConfigSettings } = useExtensionState()
+	const { models, defaultModelId, isLoading, isStale, error, refresh } = useProviderModels(LITELLM_PROVIDER_ID)
+	const { config, write, commitSelection } = useProviderConfig(LITELLM_PROVIDER_ID)
+	const { selectedModelId, selectedModelInfo, commitModelSelection } = useProviderModelSelection(
+		LITELLM_PROVIDER_ID,
+		currentMode,
+		{
+			models,
+			defaultModelId,
+			config,
+			commitSelection,
+			customModelInfo,
+		},
+	)
+	const { savedApiKeyMask, handleApiKeyChange } = useProviderApiKeyField({
+		apiKeyLength: config?.apiKeyLength,
+		canWrite: config !== undefined,
+		providerName: "LiteLLM",
+		write,
+	})
 
 	const handleModelChange = (newModelId: string, modelInfo: ModelInfo | undefined) => {
-		handleModeFieldsChange(
-			{
-				liteLlmModelId: { plan: "planModeLiteLlmModelId", act: "actModeLiteLlmModelId" },
-				liteLlmModelInfo: { plan: "planModeLiteLlmModelInfo", act: "actModeLiteLlmModelInfo" },
-			},
-			{
-				liteLlmModelId: newModelId,
-				liteLlmModelInfo: modelInfo,
-			},
-			currentMode,
-		)
+		void commitModelSelection({
+			modelId: newModelId,
+			modelInfo: modelInfo ?? customModelInfo(newModelId),
+		}).catch((err) => console.error("Failed to commit LiteLLM model selection:", err))
 	}
 
 	const onRefreshModels = async () => {
-		try {
-			setIsLoading(true)
-			await refreshLiteLlmModels()
-		} finally {
-			setIsLoading(false)
+		await refresh()
+	}
+
+	const handleBaseUrlChange = (value: string) => {
+		if (!config) {
+			return
 		}
+
+		void write({ baseUrl: value }).catch((err) => console.error("Failed to update LiteLLM base URL:", err))
 	}
 
 	return (
@@ -60,19 +77,8 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 			<RemotelyConfiguredInputWrapper hidden={remoteConfigSettings?.liteLlmBaseUrl === undefined}>
 				<DebouncedTextField
 					disabled={remoteConfigSettings?.liteLlmBaseUrl !== undefined}
-					initialValue={apiConfiguration?.liteLlmBaseUrl || ""}
-					onChange={async (value) => {
-						await ModelsServiceClient.updateApiConfiguration(
-							UpdateApiConfigurationRequestNew.create({
-								updates: {
-									options: {
-										liteLlmBaseUrl: value,
-									},
-								},
-								updateMask: ["options.liteLlmBaseUrl"],
-							}),
-						)
-					}}
+					initialValue={config?.baseUrl || ""}
+					onChange={handleBaseUrlChange}
 					placeholder={"Default: http://localhost:4000"}
 					style={{ width: "100%" }}
 					type="text">
@@ -85,19 +91,8 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 			<RemotelyConfiguredInputWrapper hidden={!remoteConfigSettings?.configuredApiKeys?.litellm}>
 				<DebouncedTextField
 					disabled={remoteConfigSettings?.configuredApiKeys?.litellm}
-					initialValue={apiConfiguration?.liteLlmApiKey || ""}
-					onChange={async (value) => {
-						await ModelsServiceClient.updateApiConfiguration(
-							UpdateApiConfigurationRequestNew.create({
-								updates: {
-									secrets: {
-										liteLlmApiKey: value,
-									},
-								},
-								updateMask: ["secrets.liteLlmApiKey"],
-							}),
-						)
-					}}
+					initialValue={savedApiKeyMask}
+					onChange={handleApiKeyChange}
 					placeholder="Default: noop"
 					style={{ width: "100%" }}
 					type="password">
@@ -109,9 +104,11 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 			</RemotelyConfiguredInputWrapper>
 			{showModelOptions && (
 				<>
+					{isStale && <div role="status">Model list may be stale for the current LiteLLM configuration.</div>}
+					{error && <div role="alert">{error}</div>}
 					<ModelAutocomplete
 						label="Model"
-						models={liteLlmModels}
+						models={models}
 						onChange={handleModelChange}
 						placeholder="Search or enter a custom model ID..."
 						selectedModelId={selectedModelId}

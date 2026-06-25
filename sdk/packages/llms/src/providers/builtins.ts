@@ -21,7 +21,12 @@ import type {
 	ProviderClient,
 	ProviderProtocol,
 } from "../catalog/types";
-import { ClineNotSubscribedError, isClineNotSubscribedMessage } from "./errors";
+import {
+	ClineNotSubscribedError,
+	ClineOrgIndividualInferenceSubscriptionError,
+	isClineNotSubscribedMessage,
+	isClineOrgIndividualInferenceSubscriptionMessage,
+} from "./errors";
 import { filterOpenAICodexModels } from "./openai-codex-models";
 import {
 	ANTHROPIC_AND_QWEN_CACHE_ROUTING_METADATA,
@@ -38,6 +43,13 @@ export const DEFAULT_EXTERNAL_OCA_BASE_URL =
 const CLINE_DEFAULT_MODEL_ID = "anthropic/claude-sonnet-4.6";
 const CLINE_PASS_PROVIDER_ID = "cline-pass";
 const OPENAI_CODEX_DEFAULT_MODEL_ID = "gpt-5.4";
+const OPENROUTER_STICKY_SESSION_METADATA: GatewayProviderMetadata = {
+	stickySession: {
+		transport: "json-body",
+		field: "session_id",
+		metadataKey: "sessionId",
+	},
+};
 
 export type ProviderFamily =
 	| "openai"
@@ -504,12 +516,41 @@ function createClineLikeSpec(
 	};
 }
 
+async function handleClineResponseError(
+	response: Response,
+	providerId: string,
+): Promise<void> {
+	if (response.status !== 403) {
+		return;
+	}
+
+	const body = await response
+		.clone()
+		.text()
+		.catch(() => "");
+
+	if (isClineOrgIndividualInferenceSubscriptionMessage(body)) {
+		throw new ClineOrgIndividualInferenceSubscriptionError(providerId);
+	}
+
+	if (isClineNotSubscribedMessage(body)) {
+		throw new ClineNotSubscribedError(providerId);
+	}
+}
+
 const cline = createClineLikeSpec({
 	id: "cline",
 	name: "Cline",
 	popular: 1,
 	modelsFactory: buildClineModels,
 	defaultModelId: CLINE_DEFAULT_MODEL_ID,
+	defaults: {
+		options: {
+			onResponseError: async (response: Response) => {
+				await handleClineResponseError(response, "cline");
+			},
+		},
+	},
 });
 
 const clinePass = createClineLikeSpec({
@@ -523,19 +564,7 @@ const clinePass = createClineLikeSpec({
 	defaults: {
 		options: {
 			onResponseError: async (response: Response) => {
-				if (response.status !== 403) {
-					return undefined;
-				}
-				const body = await response
-					.clone()
-					.text()
-					.catch(() => "");
-
-				if (isClineNotSubscribedMessage(body)) {
-					throw new ClineNotSubscribedError(CLINE_PASS_PROVIDER_ID);
-				}
-
-				return undefined;
+				await handleClineResponseError(response, CLINE_PASS_PROVIDER_ID);
 			},
 		},
 	},
@@ -701,7 +730,6 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		description:
 			"The Vercel provider gives you access to the v0 API, designed for building modern web applications.",
 		family: "openai-compatible",
-		protocol: "openai-responses",
 		capabilities: ["reasoning", "tools"],
 		defaultModelId: "v0-1.5-md",
 		apiKeyEnv: ["V0_API_KEY"],
@@ -803,7 +831,7 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		description: "Z.AI's coding-focused models",
 		family: "openai-compatible",
 		capabilities: ["reasoning", "tools"],
-		defaultModelId: "glm-5v-turbo",
+		defaultModelId: "glm-5.2",
 		apiKeyEnv: ["ZHIPU_API_KEY"],
 		modelsProviderId: "zai-coding-plan",
 		defaults: { baseUrl: "https://api.z.ai/api/coding/paas/v4" },
@@ -836,7 +864,6 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		name: "Xiaomi",
 		description: "Xiaomi",
 		family: "openai-compatible",
-		protocol: "openai-responses",
 		capabilities: ["prompt-cache", "tools", "reasoning"],
 		defaultModelId: "mimo-v2-omni",
 		apiKeyEnv: ["XIAOMI_API_KEY"],
@@ -867,7 +894,10 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		modelsProviderId: "openrouter",
 		docsUrl: "https://openrouter.ai/models",
 		defaults: { baseUrl: "https://openrouter.ai/api/v1" },
-		metadata: ANTHROPIC_AND_QWEN_CACHE_ROUTING_METADATA,
+		metadata: {
+			...ANTHROPIC_AND_QWEN_CACHE_ROUTING_METADATA,
+			...OPENROUTER_STICKY_SESSION_METADATA,
+		},
 	},
 	{
 		id: "ollama",

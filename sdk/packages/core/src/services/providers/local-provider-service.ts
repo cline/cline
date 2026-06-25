@@ -123,18 +123,27 @@ async function resolveProviderModelMap(
 	config?: ProviderConfig,
 ): Promise<Record<string, ModelInfo>> {
 	const registeredModels = await LlmsModels.getModelsForProvider(providerId);
-	if (!config) {
+	const isClinePass = providerId === CLINE_PASS_PROVIDER_ID;
+	if (!config && !isClinePass) {
 		return registeredModels;
 	}
 
 	const resolved = await resolveProviderConfig(
 		providerId,
 		{
+			loadLatestOnInit: isClinePass,
 			loadPrivateOnAuth: true,
 			failOnError: false,
 		},
 		config,
 	);
+
+	if (providerId === "litellm" && resolved?.knownModels) {
+		return resolved.knownModels;
+	}
+	if (isClinePass && resolved?.knownModels) {
+		return resolved.knownModels;
+	}
 
 	return resolved?.knownModels
 		? {

@@ -52,7 +52,7 @@ export class MementoStore implements vscode.Memento {
 
 // Simple implementation of VSCode's EventEmitter
 type EventCallback<T> = (e: T) => any
-export class EventEmitter<T> {
+class EventEmitter<T> {
 	private listeners: EventCallback<T>[] = []
 
 	event: vscode.Event<T> = (listener: EventCallback<T>) => {
@@ -114,7 +114,7 @@ export class JsonKeyValueStore<T> {
 
 /** This is not used in cline, none of the methods are implemented. */
 export class EnvironmentVariableCollection implements EnvironmentVariableCollection {
-	persistent: boolean = false
+	persistent = false
 	description: string | undefined = undefined
 	replace(_variable: string, _value: string, _options?: EnvironmentVariableMutatorOptions): void {
 		throw new Error("Method not implemented.")

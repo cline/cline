@@ -12,7 +12,7 @@ import type { ChatState, MessageHandlers } from "../types/chatTypes"
  * Handles sending messages, button clicks, and task management
  */
 export function useMessageHandlers(messages: ClineMessage[], chatState: ChatState): MessageHandlers {
-	const { backgroundCommandRunning } = useExtensionState()
+	const { backgroundCommandRunning, turnState } = useExtensionState()
 	const {
 		setInputValue,
 		activeQuote,
@@ -96,14 +96,27 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 						}
 					}
 				} else if (messages.length > 0) {
-					// No clineAsk set - check if task is actively running
-					// If so, allow interrupting it with feedback
+					// No clineAsk set, but there is an existing conversation. Route this to the
+					// active session as a follow-up when either:
+					//
+					//   1. The authoritative turnState says the conversation is continuable —
+					//      phases "completed" / "awaiting_followup" (the agent finished or is
+					//      waiting for the user) or "streaming" (interrupt with feedback). The SDK
+					//      does not emit a trailing ask:"completion_result", so clineAsk is
+					//      undefined even when the user can keep talking; turnState is the source
+					//      of truth.
+					//   2. Legacy fallback (no turnState): the task looks actively running from the
+					//      message tail.
 					const lastMessage = messages[messages.length - 1]
 					const isTaskRunning =
 						lastMessage.partial === true || (lastMessage.type === "say" && lastMessage.say === "api_req_started")
+					const turnAllowsFollowup =
+						turnState?.phase === "completed" ||
+						turnState?.phase === "awaiting_followup" ||
+						turnState?.phase === "streaming"
 
-					if (isTaskRunning) {
-						// Task is running - send message as interruption/feedback
+					if (turnAllowsFollowup || isTaskRunning) {
+						// Continue the conversation / interrupt with feedback.
 						await TaskServiceClient.askResponse(
 							AskResponseRequest.create({
 								responseType: "messageResponse",
@@ -133,8 +146,9 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			}
 		},
 		[
-			messages.length,
+			messages,
 			clineAsk,
+			turnState,
 			activeQuote,
 			setInputValue,
 			setActiveQuote,

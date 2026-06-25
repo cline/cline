@@ -62,14 +62,29 @@ export interface GatewayProviderRouting {
 	};
 }
 
+export type GatewayStickySessionTransport = "json-body" | "header";
+
+export interface GatewayStickySessionMetadata {
+	/**
+	 * Where the provider expects the sticky-session identifier on the wire.
+	 * `field` is a JSON body property for `json-body`, and an HTTP header name
+	 * for `header`.
+	 */
+	transport: GatewayStickySessionTransport;
+	field: string;
+	metadataKey: string;
+}
+
 export interface GatewayProviderMetadata {
 	promptCacheStrategy?: GatewayPromptCacheStrategy;
 	usageCostDisplay?: GatewayUsageCostDisplay;
 	routing?: GatewayProviderRouting;
+	stickySession?: GatewayStickySessionMetadata;
 	configFields?: readonly ProviderConfigField[];
 	[key: string]:
 		| JsonValue
 		| GatewayProviderRouting
+		| GatewayStickySessionMetadata
 		| readonly ProviderConfigField[]
 		| undefined;
 }

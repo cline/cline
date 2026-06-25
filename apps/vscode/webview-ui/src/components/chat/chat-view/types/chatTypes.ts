@@ -7,16 +7,6 @@ import { ListRange, VirtuosoHandle } from "react-virtuoso"
 import { ButtonActionType } from "../shared/buttonConfig"
 
 /**
- * Main ChatView component props
- */
-export interface ChatViewProps {
-	isHidden: boolean
-	showAnnouncement: boolean
-	hideAnnouncement: () => void
-	showHistoryView: () => void
-}
-
-/**
  * Chat state interface
  */
 export interface ChatState {
@@ -57,7 +47,6 @@ export interface ChatState {
 	resetState: () => void
 
 	// Scroll-related state (will be moved to scroll hook)
-	showScrollToBottom?: boolean
 	isAtBottom?: boolean
 	pendingScrollToMessage?: number | null
 }
@@ -84,61 +73,12 @@ export interface ScrollBehavior {
 	scrollToMessage: (messageIndex: number) => void
 	toggleRowExpansion: (ts: number) => void
 	handleRowHeightChange: (isTaller: boolean) => void
-	showScrollToBottom: boolean
-	setShowScrollToBottom: React.Dispatch<React.SetStateAction<boolean>>
 	isAtBottom: boolean
 	setIsAtBottom: React.Dispatch<React.SetStateAction<boolean>>
 	pendingScrollToMessage: number | null
 	setPendingScrollToMessage: React.Dispatch<React.SetStateAction<number | null>>
 	scrolledPastUserMessage: ClineMessage | null
 	handleRangeChanged: (range: ListRange) => void
-}
-
-/**
- * Button state interface
- */
-export interface ButtonState {
-	enableButtons: boolean
-	primaryButtonText: string | undefined
-	secondaryButtonText: string | undefined
-}
-
-/**
- * Input state interface
- */
-export interface InputState {
-	inputValue: string
-	selectedImages: string[]
-	selectedFiles: string[]
-	activeQuote: string | null
-	isTextAreaFocused: boolean
-}
-
-/**
- * Task section props
- */
-export interface TaskSectionProps {
-	task: ClineMessage
-	messages: ClineMessage[]
-	scrollBehavior: ScrollBehavior
-	buttonState: ButtonState
-	messageHandlers: MessageHandlers
-	chatState: ChatState
-	apiMetrics: {
-		totalTokensIn: number
-		totalTokensOut: number
-		totalCacheWrites?: number
-		totalCacheReads?: number
-		totalCost: number
-	}
-	lastApiReqTotalTokens?: number
-	selectedModelInfo: {
-		supportsPromptCache: boolean
-		supportsImages: boolean
-	}
-	isStreaming: boolean
-	clineAsk?: ClineAsk
-	modifiedMessages: ClineMessage[]
 }
 
 /**
@@ -152,21 +92,4 @@ export interface WelcomeSectionProps {
 	version: string
 	taskHistory: any[]
 	shouldShowQuickWins: boolean
-}
-
-/**
- * Input section props
- */
-export interface InputSectionProps {
-	chatState: ChatState
-	messageHandlers: MessageHandlers
-	textAreaRef: React.RefObject<HTMLTextAreaElement>
-	onFocusChange: (isFocused: boolean) => void
-	onInputChange: (value: string) => void
-	onQuoteChange: (quote: string | null) => void
-	onImagesChange: (images: string[]) => void
-	onFilesChange: (files: string[]) => void
-	placeholderText: string
-	shouldDisableFilesAndImages: boolean
-	selectFilesAndImages: () => Promise<void>
 }

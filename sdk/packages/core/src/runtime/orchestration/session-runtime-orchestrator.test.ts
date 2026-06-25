@@ -14,20 +14,27 @@
  *  - `canStartRun` / `shutdown` guards enforce the lifecycle rules.
  */
 
-import type { AgentRuntime, AgentRuntimeConfig } from "@cline/agents";
-import type {
-	AgentConfig,
-	AgentEvent,
-	AgentExtension,
-	AgentExtensionContext,
-	AgentMessage,
-	AgentRunResult,
-	AgentRuntimeEvent,
-	AgentTool,
-	AgentToolContext,
+import {
+	type AgentRuntime,
+	type AgentRuntimeConfig,
+	createAgentRuntime,
+} from "@cline/agents";
+import {
+	type AgentConfig,
+	type AgentEvent,
+	type AgentExtension,
+	type AgentExtensionContext,
+	type AgentMessage,
+	type AgentModel,
+	type AgentRunResult,
+	type AgentRuntimeEvent,
+	type AgentTool,
+	type AgentToolContext,
+	EMPTY_CONTENT_TEXT,
 } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import { CLINE_INTERNAL_TELEMETRY_METADATA_KEY } from "../../services/telemetry/tool-context";
+import { MESSAGE_BUILDER_LIMIT_ENV } from "../../session/services/message-builder";
 import {
 	SessionRuntime,
 	type SessionRuntimeOrchestratorDeps,
@@ -1226,6 +1233,207 @@ describe("SessionRuntime.addTools / updateConnection / clearHistory / restore", 
 		expect(messages).toHaveLength(2);
 		expect(messages[0].role).toBe("user");
 		expect(messages[1].role).toBe("assistant");
+	});
+
+	it("restore clears stale MessageBuilder rewrite state when tool ids are reused", async () => {
+		const previousThresholdEnv =
+			process.env[MESSAGE_BUILDER_LIMIT_ENV.minOutdatedRewriteBytes];
+		process.env[MESSAGE_BUILDER_LIMIT_ENV.minOutdatedRewriteBytes] = "7000";
+		const { deps, configs } = makeRecordingRuntimeFactory();
+		const session = new SessionRuntime(makeAgentConfig(), deps);
+		if (previousThresholdEnv === undefined) {
+			delete process.env[MESSAGE_BUILDER_LIMIT_ENV.minOutdatedRewriteBytes];
+		} else {
+			process.env[MESSAGE_BUILDER_LIMIT_ENV.minOutdatedRewriteBytes] =
+				previousThresholdEnv;
+		}
+		await session.run("go");
+		const beforeModel = configs[0]?.hooks?.beforeModel;
+		if (!beforeModel) {
+			throw new Error("expected beforeModel hook");
+		}
+
+		const staleRead = "export const x = 1;\n".repeat(7_000);
+		const latestRead = "export const x = 2;\n".repeat(7_000);
+		const beforeRestore = await beforeModel({
+			snapshot: makeSnapshot(),
+			request: {
+				systemPrompt: "system",
+				messages: [
+					{
+						id: "m0",
+						role: "user",
+						content: [{ type: "text", text: "task" }],
+						createdAt: 1,
+					},
+					{
+						id: "m1",
+						role: "assistant",
+						content: [
+							{
+								type: "tool-call",
+								toolCallId: "t1",
+								toolName: "read_files",
+								input: { files: [{ path: "src/a.ts" }] },
+							},
+						],
+						createdAt: 2,
+					},
+					{
+						id: "m2",
+						role: "tool",
+						content: [
+							{
+								type: "tool-result",
+								toolCallId: "t1",
+								toolName: "read_files",
+								output: JSON.stringify([
+									{ path: "src/a.ts", result: staleRead },
+								]),
+							},
+						],
+						createdAt: 3,
+					},
+					{
+						id: "m3",
+						role: "assistant",
+						content: [
+							{
+								type: "tool-call",
+								toolCallId: "t2",
+								toolName: "read_files",
+								input: { files: [{ path: "src/a.ts" }] },
+							},
+						],
+						createdAt: 4,
+					},
+					{
+						id: "m4",
+						role: "tool",
+						content: [
+							{
+								type: "tool-result",
+								toolCallId: "t2",
+								toolName: "read_files",
+								output: JSON.stringify([
+									{ path: "src/a.ts", result: latestRead },
+								]),
+							},
+						],
+						createdAt: 5,
+					},
+				],
+				tools: [],
+			},
+		});
+		expect(JSON.stringify(beforeRestore?.messages?.[2])).toContain("outdated");
+
+		session.restore([]);
+		const afterRestore = await beforeModel({
+			snapshot: makeSnapshot(),
+			request: {
+				systemPrompt: "system",
+				messages: [
+					{
+						id: "r1",
+						role: "assistant",
+						content: [
+							{
+								type: "tool-call",
+								toolCallId: "t1",
+								toolName: "read_files",
+								input: { files: [{ path: "src/a.ts" }] },
+							},
+						],
+						createdAt: 6,
+					},
+					{
+						id: "r2",
+						role: "tool",
+						content: [
+							{
+								type: "tool-result",
+								toolCallId: "t1",
+								toolName: "read_files",
+								output: JSON.stringify([
+									{ path: "src/a.ts", result: staleRead },
+								]),
+							},
+						],
+						createdAt: 7,
+					},
+				],
+				tools: [],
+			},
+		});
+
+		expect(JSON.stringify(afterRestore?.messages)).not.toContain("outdated");
+		expect(JSON.stringify(afterRestore?.messages)).toContain(
+			"export const x = 1;",
+		);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// real AgentRuntime smoke
+// ---------------------------------------------------------------------------
+
+describe("SessionRuntime real AgentRuntime smoke", () => {
+	it("does not replay ERROR: EMPTY CONTENT after an empty upstream failure", async () => {
+		const modelRequests: AgentMessage[][] = [];
+		const scriptedModel: AgentModel = {
+			async stream(request) {
+				modelRequests.push(request.messages.map((message) => ({ ...message })));
+				const turn = modelRequests.length;
+
+				return (async function* () {
+					if (turn === 1) {
+						yield {
+							type: "finish" as const,
+							reason: "error" as const,
+							error: "upstream failed",
+						};
+						return;
+					}
+					yield { type: "text-delta" as const, text: "second ok" };
+					yield { type: "finish" as const, reason: "stop" as const };
+				})();
+			},
+		};
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				providerId: "cline",
+				modelId: "openai/gpt-5.5",
+				apiKey: "test-key",
+			}),
+			{
+				createAgentRuntimeImpl: (config) =>
+					createAgentRuntime({ ...config, model: scriptedModel }),
+			},
+		);
+
+		const first = await session.run("first");
+		expect(first.finishReason).toBe("error");
+		expect(first.text).toBe("upstream failed");
+		expect(session.getMessages().map((message) => message.role)).toEqual([
+			"user",
+		]);
+
+		const second = await session.continue("second");
+		expect(second.finishReason).toBe("completed");
+		expect(second.text).toBe("second ok");
+		expect(modelRequests).toHaveLength(2);
+		expect(
+			modelRequests[1]?.some((message) =>
+				message.content.some(
+					(part) => part.type === "text" && part.text === EMPTY_CONTENT_TEXT,
+				),
+			),
+		).toBe(false);
+		expect(modelRequests[1]?.map((message) => message.role)).toEqual([
+			"user",
+			"user",
+		]);
 	});
 });
 

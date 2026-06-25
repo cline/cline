@@ -1,9 +1,10 @@
 import type { ModelInfo } from "@shared/api"
 import { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
-import { fetchLiteLlmModelsInfo } from "@/core/api/providers/litellm"
 import { StateManager } from "@/core/storage/StateManager"
+import { parseProviderId } from "@/sdk/model-catalog/provider-id"
 import { toProtobufModels } from "@/shared/proto-conversions/models/typeConversion"
 import { Logger } from "@/shared/services/Logger"
+import type { ProviderCatalogController } from "./providerCatalogShared"
 import { sendLiteLlmModelsEvent } from "./subscribeToLiteLlmModels"
 
 /**
@@ -11,74 +12,32 @@ import { sendLiteLlmModelsEvent } from "./subscribeToLiteLlmModels"
  * @param controller The controller instance
  * @returns Record of model ID to ModelInfo (application types)
  */
-export async function refreshLiteLlmModels(): Promise<Record<string, ModelInfo>> {
-	const models: Record<string, ModelInfo> = {}
-
-	const stateManager = StateManager.get()
-
+export async function refreshLiteLlmModels(controller: ProviderCatalogController): Promise<Record<string, ModelInfo>> {
 	try {
-		// Get the LiteLLM configuration
-		const apiConfiguration = stateManager.getApiConfiguration()
-		const baseUrl = apiConfiguration.liteLlmBaseUrl || "http://localhost:4000"
-		const apiKey = apiConfiguration.liteLlmApiKey
-
-		if (!apiKey) {
-			throw new Error("LiteLLM API key is not configured or is invalid")
+		const result = await controller.getProviderCatalog().resolveModels(parseProviderId("litellm"), { forceRefresh: true })
+		if (!result.ok) {
+			throw new Error(result.error.message)
 		}
 
-		// Use the shared utility function to fetch model info
-		const data = await fetchLiteLlmModelsInfo(baseUrl, apiKey)
+		const models: Record<string, ModelInfo> = Object.fromEntries(result.models)
 
-		if (data?.data) {
-			for (const rawModel of data.data) {
-				const modelInfo: ModelInfo = {
-					name: rawModel.model_name,
-					maxTokens: rawModel.model_info?.max_output_tokens ?? rawModel.model_info?.max_tokens ?? 4096,
-					contextWindow: rawModel.model_info?.max_input_tokens ?? rawModel.model_info?.max_tokens ?? 8192,
-					supportsImages: rawModel.model_info?.supports_vision ?? false,
-					supportsPromptCache: rawModel.model_info?.supports_prompt_caching ?? false,
-					supportsReasoning: rawModel.model_info?.supports_reasoning ?? false,
-					inputPrice: rawModel.model_info?.input_cost_per_token
-						? rawModel.model_info.input_cost_per_token * 1_000_000
-						: 0,
-					outputPrice: rawModel.model_info?.output_cost_per_token
-						? rawModel.model_info.output_cost_per_token * 1_000_000
-						: 0,
-					cacheWritesPrice: rawModel.model_info?.cache_creation_input_token_cost
-						? rawModel.model_info.cache_creation_input_token_cost * 1_000_000
-						: undefined,
-					cacheReadsPrice: rawModel.model_info?.cache_read_input_token_cost
-						? rawModel.model_info.cache_read_input_token_cost * 1_000_000
-						: undefined,
-					description: undefined,
-				}
+		// Store in StateManager's in-memory cache
+		StateManager.get().setModelsCache("liteLlm", models)
 
-				// Use litellm_params.model as the key since that's the actual model ID users select
-				// model_name may not include the region prefix (e.g., "us." for Bedrock models)
-				if (rawModel.litellm_params?.model) {
-					models[rawModel.litellm_params?.model] = modelInfo
-				}
-				models[rawModel.model_name] = modelInfo
-			}
+		// Send event to subscribers
+		try {
+			await sendLiteLlmModelsEvent(
+				OpenRouterCompatibleModelInfo.create({
+					models: toProtobufModels(models),
+				}),
+			)
+		} catch (error) {
+			Logger.error("Error sending LiteLLM models event:", error)
 		}
+
+		return models
 	} catch (error) {
 		Logger.error("Error fetching LiteLLM models:", error)
 		throw error
 	}
-
-	// Store in StateManager's in-memory cache
-	StateManager.get().setModelsCache("liteLlm", models)
-
-	// Send event to subscribers
-	try {
-		await sendLiteLlmModelsEvent(
-			OpenRouterCompatibleModelInfo.create({
-				models: toProtobufModels(models),
-			}),
-		)
-	} catch (error) {
-		Logger.error("Error sending LiteLLM models event:", error)
-	}
-
-	return models
 }

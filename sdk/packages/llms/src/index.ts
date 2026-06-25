@@ -9,6 +9,7 @@ export type {
 	ProviderProtocol,
 } from "./models";
 export {
+	fetchLiveProviderModels,
 	fetchModelsDevProviderModels,
 	filterOpenAICodexModels,
 	getAllProviders,
@@ -57,8 +58,10 @@ export {
 	BUILT_IN_PROVIDER,
 	BUILT_IN_PROVIDER_IDS,
 	ClineNotSubscribedError,
+	ClineOrgIndividualInferenceSubscriptionError,
 	createHandler,
 	createHandlerAsync,
+	getClineOrgIndividualInferenceSubscriptionMessage,
 	getClineNotSubscribedMessage,
 	getClinePassSubscriptionUrl,
 	getRegisteredHandler,
@@ -67,6 +70,8 @@ export {
 	isBuiltInProviderId,
 	isClineNotSubscribedError,
 	isClineNotSubscribedMessage,
+	isClineOrgIndividualInferenceSubscriptionError,
+	isClineOrgIndividualInferenceSubscriptionMessage,
 	isRegisteredHandlerAsync,
 	normalizeProviderId,
 	registerAsyncHandler,

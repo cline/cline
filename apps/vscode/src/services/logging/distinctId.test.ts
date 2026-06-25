@@ -1,8 +1,15 @@
+import { afterEach, beforeEach, describe, it, mock } from "bun:test"
 import { expect } from "chai"
-import { afterEach, beforeEach, describe, it } from "mocha"
-import * as nodeMachineId from "node-machine-id"
+import * as actualNodeMachineId from "node-machine-id"
 import * as sinon from "sinon"
 import { HostProvider } from "@/hosts/host-provider"
+
+// bun loads real ESM, so sinon cannot stub the `node-machine-id` namespace
+// export ("ES Modules cannot be stubbed"). Inject a module-level sinon stub for
+// `machineId` via mock.module so the full sinon stub API keeps working.
+const machineIdStub: sinon.SinonStub = sinon.stub()
+mock.module("node-machine-id", () => ({ ...actualNodeMachineId, machineId: machineIdStub }))
+
 import { _GENERATED_MACHINE_ID_KEY, getDistinctId, initializeDistinctId, setDistinctId } from "@/services/logging/distinctId"
 import { StorageContext } from "@/shared/storage"
 
@@ -58,6 +65,9 @@ describe("distinctId", () => {
 		// Mock extension storage
 		mockStorage = { globalState: mockGlobalState } as unknown as StorageContext
 
+		// Reset the module-level node-machine-id stub
+		machineIdStub.reset()
+
 		// Reset the distinctId module state
 		setDistinctId("")
 	})
@@ -74,7 +84,7 @@ describe("distinctId", () => {
 
 	it("should use id from extension globalstate if it exists", async () => {
 		mockGlobalState.get.withArgs(_GENERATED_MACHINE_ID_KEY).returns(MOCK_GLOBAL_STATE_ID)
-		const machineIdStub = sandbox.stub(nodeMachineId, "machineId")
+		// machineIdStub is the module-level stub (left unconfigured -> resolves undefined)
 
 		await initializeDistinctId(mockStorage, mockUuidGenerator)
 
@@ -85,7 +95,7 @@ describe("distinctId", () => {
 
 	it("should use the machine ID from node-machine-id", async () => {
 		// Mock node-machine-id to return a machine ID
-		const machineIdStub = sandbox.stub(nodeMachineId, "machineId").resolves(MOCK_MACHINE_ID)
+		machineIdStub.resolves(MOCK_MACHINE_ID)
 
 		await initializeDistinctId(mockStorage, mockUuidGenerator)
 
@@ -97,7 +107,7 @@ describe("distinctId", () => {
 	it("distinct ID should be stable", async () => {
 		mockGlobalState.get.withArgs(_GENERATED_MACHINE_ID_KEY).returns(undefined)
 		// Mock node-machine-id to return a machine ID
-		sandbox.stub(nodeMachineId, "machineId").resolves(MOCK_MACHINE_ID)
+		machineIdStub.resolves(MOCK_MACHINE_ID)
 
 		await initializeDistinctId(mockStorage, mockUuidGenerator)
 		expect(getDistinctId()).to.equal(MOCK_MACHINE_ID)
@@ -111,7 +121,7 @@ describe("distinctId", () => {
 	it("should generate and store UUID if node-machine-id returns empty string", async () => {
 		mockGlobalState.get.withArgs(_GENERATED_MACHINE_ID_KEY).returns(undefined)
 		// Mock node-machine-id to return empty string
-		const machineIdStub = sandbox.stub(nodeMachineId, "machineId").resolves("")
+		machineIdStub.resolves("")
 
 		await initializeDistinctId(mockStorage, mockUuidGenerator)
 
@@ -123,7 +133,7 @@ describe("distinctId", () => {
 	it("should handle node-machine-id errors gracefully", async () => {
 		mockGlobalState.get.withArgs(_GENERATED_MACHINE_ID_KEY).returns(undefined)
 		// Mock node-machine-id to throw an error
-		const machineIdStub = sandbox.stub(nodeMachineId, "machineId").rejects(new Error("Failed to get machine ID"))
+		machineIdStub.rejects(new Error("Failed to get machine ID"))
 
 		await initializeDistinctId(mockStorage, mockUuidGenerator)
 

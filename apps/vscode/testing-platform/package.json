@@ -4,8 +4,8 @@
 	"main": "dist/runner.js",
 	"scripts": {
 		"build": "tsc",
-		"start:dev": "ts-node index.ts",
-		"start": "npm run build && node dist/runner.js"
+		"start:dev": "bun index.ts",
+		"start": "bun run build && node dist/runner.js"
 	},
 	"dependencies": {
 		"jest-diff": "^30.1.2"

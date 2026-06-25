@@ -1,10 +1,21 @@
-import { afterEach, beforeEach, describe, it } from "mocha"
+import { afterEach, beforeEach, describe, it, mock } from "bun:test"
 import "should"
-import * as diskModule from "@core/storage/disk"
+import * as actualDiskModule from "@core/storage/disk"
 import fs from "fs/promises"
 import os from "os"
 import path from "path"
 import sinon from "sinon"
+
+// bun loads real ESM, so sinon cannot stub the `@core/storage/disk` namespace
+// export ("ES Modules cannot be stubbed"). Inject a module-level sinon stub for
+// `getMcpSettingsFilePath` via mock.module so the full sinon stub API keeps
+// working. Register both the alias form and the relative form the SUT uses.
+const getMcpSettingsFilePathStub: sinon.SinonStub = sinon.stub()
+const diskMock = () => ({ ...actualDiskModule, getMcpSettingsFilePath: getMcpSettingsFilePathStub })
+mock.module("@core/storage/disk", diskMock)
+mock.module("@/core/storage/disk", diskMock)
+mock.module("../../disk", diskMock)
+
 import { syncRemoteMcpServersToSettings } from "../remote-config/syncRemoteMcpServers"
 
 describe("syncRemoteMcpServersToSettings", () => {
@@ -18,7 +29,8 @@ describe("syncRemoteMcpServersToSettings", () => {
 		await fs.mkdir(tempDir, { recursive: true })
 		settingsPath = path.join(tempDir, "cline_mcp_settings.json")
 
-		sandbox.stub(diskModule, "getMcpSettingsFilePath").callsFake(async () => {
+		getMcpSettingsFilePathStub.reset()
+		getMcpSettingsFilePathStub.callsFake(async () => {
 			try {
 				await fs.access(settingsPath)
 			} catch {
@@ -30,6 +42,7 @@ describe("syncRemoteMcpServersToSettings", () => {
 
 	afterEach(async () => {
 		sandbox.restore()
+		getMcpSettingsFilePathStub.reset()
 		try {
 			await fs.rm(tempDir, { recursive: true, force: true })
 		} catch {
@@ -221,21 +234,19 @@ describe("syncRemoteMcpServersToSettings", () => {
 			result.mcpServers["my-server"].remoteConfigured.should.equal(true)
 		})
 
-		it("should set McpHub isUpdatingFromRemoteConfig flag during write", async () => {
+		it("should record the post-write McpHub fingerprint when an McpHub is provided", async () => {
 			await writeSettings({})
 
 			const mockMcpHub = {
-				setIsUpdatingFromRemoteConfig: sandbox.stub(),
+				recordSettingsFingerprint: sandbox.stub(),
 			}
 
 			await syncRemoteMcpServersToSettings([{ name: "test", url: "https://test.com" }], tempDir, mockMcpHub as any)
 
-			mockMcpHub.setIsUpdatingFromRemoteConfig.calledWith(true).should.be.true()
-			mockMcpHub.setIsUpdatingFromRemoteConfig.calledWith(false).should.be.true()
-
-			const calls = mockMcpHub.setIsUpdatingFromRemoteConfig.getCalls()
-			calls[0].args[0].should.equal(true)
-			calls[1].args[0].should.equal(false)
+			mockMcpHub.recordSettingsFingerprint.calledOnce.should.be.true()
+			const result = await readSettings()
+			result.mcpServers["test"].url.should.equal("https://test.com")
+			result.mcpServers["test"].remoteConfigured.should.equal(true)
 		})
 	})
 })

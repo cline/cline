@@ -3,10 +3,10 @@ import React, { useMemo } from "react"
 import CodeAccordian from "../common/CodeAccordian"
 
 interface SearchResultsDisplayProps {
-	content: string
+	content?: string
 	isExpanded: boolean
 	onToggleExpand: () => void
-	path: string
+	path?: string
 	filePattern?: string
 }
 
@@ -17,9 +17,12 @@ const SearchResultsDisplay: React.FC<SearchResultsDisplayProps> = ({
 	path,
 	filePattern,
 }) => {
+	const safeContent = content ?? ""
+	const safePath = path ?? ""
+
 	const parsedData = useMemo(() => {
 		// Check if this is a multi-workspace result
-		const multiWorkspaceMatch = content.match(/^Found \d+ results? across \d+ workspaces?\./m)
+		const multiWorkspaceMatch = safeContent.match(/^Found \d+ results? across \d+ workspaces?\./m)
 
 		if (!multiWorkspaceMatch) {
 			// Single workspace result - return as is
@@ -27,7 +30,7 @@ const SearchResultsDisplay: React.FC<SearchResultsDisplayProps> = ({
 		}
 
 		// Parse multi-workspace results
-		const lines = content.split("\n")
+		const lines = safeContent.split("\n")
 		const sections: Array<{ workspace: string; content: string }> = []
 		let currentWorkspace: string | null = null
 		let currentContent: string[] = []
@@ -63,17 +66,21 @@ const SearchResultsDisplay: React.FC<SearchResultsDisplayProps> = ({
 		}
 
 		return { isMultiWorkspace: true, sections, summaryLine: lines[0] }
-	}, [content])
+	}, [safeContent])
+
+	if (!safeContent) {
+		return null
+	}
 
 	// For single workspace, use the standard CodeAccordian
 	if (!parsedData.isMultiWorkspace) {
 		return (
 			<CodeAccordian
-				code={content}
+				code={safeContent}
 				isExpanded={isExpanded}
 				language="plaintext"
 				onToggleExpand={onToggleExpand}
-				path={path + (filePattern ? `/(${filePattern})` : "")}
+				path={safePath + (filePattern ? `/(${filePattern})` : "")}
 			/>
 		)
 	}
@@ -119,9 +126,9 @@ const SearchResultsDisplay: React.FC<SearchResultsDisplayProps> = ({
 						textOverflow: "ellipsis",
 						marginRight: "8px",
 					}}>
-					{path + (filePattern ? `/(${filePattern})` : "")}
+					{safePath + (filePattern ? `/(${filePattern})` : "")}
 				</span>
-				<div style={{ flexGrow: 1 }}></div>
+				<div style={{ flexGrow: 1 }} />
 				{isExpanded ? (
 					<ChevronDownIcon size={16} style={{ margin: "1px 0" }} />
 				) : (
@@ -162,7 +169,8 @@ const SearchResultsDisplay: React.FC<SearchResultsDisplayProps> = ({
 									style={{
 										fontSize: "14px",
 										color: "var(--vscode-symbolIcon-folderForeground)",
-									}}></span>
+									}}
+								/>
 								<span
 									style={{
 										fontWeight: "500",

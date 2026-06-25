@@ -394,6 +394,36 @@ describe("createGatewayApiHandler.createMessage", () => {
 		expect(call).not.toHaveProperty("maxOutputTokens");
 	});
 
+	it("sends configured OpenAI-compatible maxOutputTokens to the provider request", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: (async function* () {
+				yield { type: "finish", finishReason: "stop" };
+			})(),
+			usage: Promise.resolve({ inputTokens: 1, outputTokens: 1 }),
+		});
+
+		const handler = createGatewayApiHandler({
+			providerId: "openai-compatible",
+			clientType: "openai-compatible",
+			modelId: "custom-model",
+			apiKey: "test-key",
+			baseUrl: "https://example.com/v1",
+			maxOutputTokens: 4_096,
+		});
+
+		for await (const _chunk of handler.createMessage("", [
+			{ role: "user", content: "Hello" },
+		])) {
+			// Drain the stream so the provider request is executed.
+		}
+
+		expect(streamTextSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				maxOutputTokens: 4_096,
+			}),
+		);
+	});
+
 	it("caps configured maxOutputTokens with the catalog model output limit", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: (async function* () {
@@ -431,6 +461,60 @@ describe("createGatewayApiHandler.createMessage", () => {
 				maxOutputTokens: 8_192,
 			}),
 		);
+	});
+
+	it("strips legacy thinking history before sending Cerebras requests", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: (async function* () {
+				yield { type: "finish", finishReason: "stop" };
+			})(),
+			usage: Promise.resolve({ inputTokens: 1, outputTokens: 1 }),
+		});
+
+		const handler = createGatewayApiHandler({
+			providerId: "cerebras",
+			modelId: "zai-glm-4.7",
+			apiKey: "test-key",
+		});
+
+		for await (const _chunk of handler.createMessage("", [
+			{ role: "user", content: "hello" },
+			{
+				role: "assistant",
+				content: [
+					{ type: "thinking", thinking: "private trace" },
+					{ type: "text", text: "Hello from Cline" },
+				],
+			},
+			{
+				role: "assistant",
+				content: [{ type: "thinking", thinking: "drop me" }],
+			},
+			{ role: "user", content: "workd" },
+		])) {
+			// Drain the stream so the provider request is executed.
+		}
+
+		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+			| { messages?: unknown[] }
+			| undefined;
+		expect(call?.messages).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					role: "assistant",
+					content: [
+						expect.objectContaining({
+							type: "text",
+							text: "Hello from Cline",
+						}),
+					],
+				}),
+			]),
+		);
+		const serializedMessages = JSON.stringify(call?.messages);
+		expect(serializedMessages).not.toContain("reasoning");
+		expect(serializedMessages).not.toContain("private trace");
+		expect(serializedMessages).not.toContain("drop me");
 	});
 
 	it("adds Azure API version to deployment-style OpenAI-compatible requests", async () => {

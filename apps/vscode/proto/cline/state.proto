@@ -248,9 +248,7 @@ message Settings {
   optional bool enable_checkpoints_setting = 135;
   optional int32 shell_integration_timeout = 136;
   optional string default_terminal_profile = 137;
-  optional int32 terminal_output_line_limit = 138;
   optional int32 max_consecutive_mistakes = 139;
-  optional bool strict_plan_mode_enabled = 141;
   optional bool yolo_mode_toggled = 142;
   optional bool use_auto_condense = 143;
   optional bool cline_web_tools_enabled = 144;
@@ -286,7 +284,6 @@ message Settings {
   optional string act_mode_cline_model_id = 180;
   optional OpenRouterModelInfo act_mode_cline_model_info = 181;
   optional bool show_feature_tips = 182;
-  optional bool lazy_teammate_mode_enabled = 183;
 }
 
 message State {
@@ -391,6 +388,8 @@ message UpdateSettingsRequest {
   reserved 15; // was openai_reasoning_effort (moved to mode-scoped reasoning effort)
   reserved 23; // was dictation_settings (dictation removed)
   reserved 38; // was skills_enabled (removed - now always enabled)
+  reserved 43; // was lazy_teammate_mode_enabled (removed)
+  reserved 12; // was terminal_output_line_limit (removed; SDK command output limits are character-based)
 
   Metadata metadata = 1;
   optional ModelsApiConfiguration api_configuration = 2;
@@ -402,10 +401,9 @@ message UpdateSettingsRequest {
   optional bool terminal_reuse_enabled = 9;
   optional bool mcp_responses_collapsed = 10;
   optional McpDisplayMode mcp_display_mode = 11;
-  optional int32 terminal_output_line_limit = 12;
   optional PlanActMode mode = 13;
   optional string preferred_language = 14;
-  optional bool strict_plan_mode_enabled = 16;
+  reserved 16; // was strict_plan_mode_enabled (removed)
   optional FocusChainSettings focus_chain_settings = 17;
   optional bool use_auto_condense = 18;
   optional string custom_prompt = 19;
@@ -429,7 +427,6 @@ message UpdateSettingsRequest {
   optional bool worktrees_enabled = 40;
   optional bool double_check_completion_enabled = 41;
   optional bool show_feature_tips = 42;
-  optional bool lazy_teammate_mode_enabled = 43;
 }
 
 message UpdateTerminalConnectionTimeoutRequest {
@@ -456,6 +453,11 @@ message OnboardingProgressRequest {
   optional string action = 2;
   optional bool completed = 3;
   optional string model_selected = 4;
+  optional string page = 5;
+  optional string page_variant = 6;
+  optional string user_type = 7;
+  optional int32 destination_step = 8;
+  optional string destination_page = 9;
 }
 
 message OnboardingModelGroup {

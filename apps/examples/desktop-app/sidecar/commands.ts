@@ -1,11 +1,9 @@
 import { execFileSync, spawn } from "node:child_process";
 import {
 	existsSync,
-	mkdirSync,
 	readdirSync,
 	readFileSync,
 	rmSync,
-	writeFileSync,
 } from "node:fs";
 import { basename, dirname, extname, join } from "node:path";
 import type {
@@ -45,6 +43,7 @@ import {
 	setDisabledPlugin,
 	setDisabledTools,
 	toggleDisabledTool,
+	updateMcpSettingsFileSync,
 } from "@cline/core";
 import { getClineEnvironmentConfig } from "@cline/shared";
 import { broadcastEvent, resolveSidecarAskQuestion } from "./context";
@@ -143,9 +142,9 @@ function readMcpServersResponse(): JsonRecord {
 }
 
 function writeMcpServersMap(servers: JsonRecord): void {
-	const path = resolveMcpSettingsPath();
-	mkdirSync(dirname(path), { recursive: true });
-	writeFileSync(path, `${JSON.stringify({ mcpServers: servers }, null, 2)}\n`);
+	updateMcpSettingsFileSync(resolveMcpSettingsPath(), (settings) => {
+		settings.mcpServers = servers;
+	});
 }
 
 function ensureMcpSettingsFile(): string {
@@ -1043,18 +1042,19 @@ export async function handleCommand(
 	}
 	if (command === "set_mcp_server_disabled") {
 		const path = ensureMcpSettingsFile();
-		const parsed = JSON.parse(readFileSync(path, "utf8")) as JsonRecord;
-		const servers = (parsed.mcpServers as JsonRecord | undefined) ?? {};
-		const name = String(args?.name ?? "").trim();
-		const current = servers[name];
-		if (!current || typeof current !== "object") {
-			throw new Error(`unknown MCP server: ${name}`);
-		}
-		servers[name] = {
-			...(current as JsonRecord),
-			disabled: Boolean(args?.disabled),
-		};
-		writeMcpServersMap(servers);
+		updateMcpSettingsFileSync(path, (settings) => {
+			const servers = ((settings.mcpServers as JsonRecord | undefined) ?? {}) as JsonRecord;
+			const name = String(args?.name ?? "").trim();
+			const current = servers[name];
+			if (!current || typeof current !== "object") {
+				throw new Error(`unknown MCP server: ${name}`);
+			}
+			servers[name] = {
+				...(current as JsonRecord),
+				disabled: Boolean(args?.disabled),
+			};
+			settings.mcpServers = servers;
+		});
 		return readMcpServersResponse();
 	}
 	if (command === "upsert_mcp_server") {
@@ -1093,21 +1093,23 @@ export async function handleCommand(
 						metadata: input.metadata,
 					};
 		const path = ensureMcpSettingsFile();
-		const parsed = JSON.parse(readFileSync(path, "utf8")) as JsonRecord;
-		const servers = (parsed.mcpServers as JsonRecord | undefined) ?? {};
-		if (previousName && previousName !== name) {
-			delete servers[previousName];
-		}
-		servers[name] = next;
-		writeMcpServersMap(servers);
+		updateMcpSettingsFileSync(path, (settings) => {
+			const servers = ((settings.mcpServers as JsonRecord | undefined) ?? {}) as JsonRecord;
+			if (previousName && previousName !== name) {
+				delete servers[previousName];
+			}
+			servers[name] = next;
+			settings.mcpServers = servers;
+		});
 		return readMcpServersResponse();
 	}
 	if (command === "delete_mcp_server") {
 		const path = ensureMcpSettingsFile();
-		const parsed = JSON.parse(readFileSync(path, "utf8")) as JsonRecord;
-		const servers = (parsed.mcpServers as JsonRecord | undefined) ?? {};
-		delete servers[String(args?.name ?? "")];
-		writeMcpServersMap(servers);
+		updateMcpSettingsFileSync(path, (settings) => {
+			const servers = ((settings.mcpServers as JsonRecord | undefined) ?? {}) as JsonRecord;
+			delete servers[String(args?.name ?? "")];
+			settings.mcpServers = servers;
+		});
 		return readMcpServersResponse();
 	}
 	if (command === "ensure_mcp_settings_file") {
