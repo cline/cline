@@ -468,14 +468,14 @@ export function resolveVertexProviderConfig(config: ApiConfiguration): Pick<Prov
 /**
  * Resolve the base URL for a given provider from the ApiConfiguration.
  *
- * OpenAI-compatible settings support per-mode overrides. An explicit empty
- * string in the mode-specific field means "do not inherit the generic base
- * URL", so only `undefined` falls back to `openAiBaseUrl`.
+ * OpenAI-compatible settings support per-mode overrides. Empty or blank
+ * mode-specific values should fall back to the generic base URL so runtime
+ * resolution matches the webview's displayed inheritance behavior.
  */
 export function resolveBaseUrl(providerId: string, mode: Mode, config: ApiConfiguration): string | undefined {
 	if (providerId === "openai") {
 		const modeSpecificBaseUrl = mode === "plan" ? config.planModeOpenAiBaseUrl : config.actModeOpenAiBaseUrl
-		return normalizeSdkBaseUrl(providerId, modeSpecificBaseUrl !== undefined ? modeSpecificBaseUrl : config.openAiBaseUrl)
+		return normalizeSdkBaseUrl(providerId, modeSpecificBaseUrl?.trim() ? modeSpecificBaseUrl : config.openAiBaseUrl)
 	}
 
 	const baseUrlMap: Record<string, keyof ApiConfiguration> = {
