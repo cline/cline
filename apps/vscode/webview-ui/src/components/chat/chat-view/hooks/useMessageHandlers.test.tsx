@@ -43,9 +43,9 @@ import type { ChatState } from "../types/chatTypes"
 import { useMessageHandlers } from "./useMessageHandlers"
 
 // Minimal ChatState stub. clineAsk/lastMessage are the only derived values the send path reads.
-function makeChatState(messages: ClineMessage[]): ChatState {
+function makeChatState(messages: ClineMessage[], overrides: Partial<ChatState> = {}): ChatState {
 	const last = messages.at(-1)
-	return {
+	const state = {
 		inputValue: "",
 		setInputValue: vi.fn(),
 		activeQuote: null,
@@ -75,6 +75,7 @@ function makeChatState(messages: ClineMessage[]): ChatState {
 		clearExpandedRows: vi.fn(),
 		resetState: vi.fn(),
 	} as unknown as ChatState
+	return { ...state, ...overrides } as ChatState
 }
 
 const completedConversation: ClineMessage[] = [
@@ -84,9 +85,12 @@ const completedConversation: ClineMessage[] = [
 
 describe("useMessageHandlers — send routing", () => {
 	beforeEach(() => {
-		newTask.mockClear()
-		askResponse.mockClear()
-		condense.mockClear()
+		newTask.mockReset()
+		newTask.mockResolvedValue(undefined)
+		askResponse.mockReset()
+		askResponse.mockResolvedValue(undefined)
+		condense.mockReset()
+		condense.mockResolvedValue(undefined)
 		mockTurnState = undefined
 	})
 
@@ -166,6 +170,60 @@ describe("useMessageHandlers — send routing", () => {
 
 		expect(newTask).toHaveBeenCalledTimes(1)
 		expect(askResponse).not.toHaveBeenCalled()
+	})
+
+	it("restores pending new-task UI state when the RPC fails", async () => {
+		mockTurnState = { phase: "idle", seq: 1 }
+		const error = new Error("transport down")
+		const setInputValue = vi.fn()
+		const setActiveQuote = vi.fn()
+		const setSendingDisabled = vi.fn()
+		const setSelectedImages = vi.fn()
+		const setSelectedFiles = vi.fn()
+		const setEnableButtons = vi.fn()
+		const chatState = makeChatState([], {
+			activeQuote: "selected context",
+			sendingDisabled: false,
+			enableButtons: true,
+			setInputValue,
+			setActiveQuote,
+			setSendingDisabled,
+			setSelectedImages,
+			setSelectedFiles,
+			setEnableButtons,
+		})
+		const { result } = renderHook(() => useMessageHandlers([], chatState))
+		newTask.mockRejectedValueOnce(error)
+
+		let caught: unknown
+		await act(async () => {
+			try {
+				await result.current.handleSendMessage("brand new task", ["image.png"], ["a.ts"])
+			} catch (err) {
+				caught = err
+			}
+		})
+
+		expect(caught).toBe(error)
+		expect(newTask).toHaveBeenCalledWith(
+			expect.objectContaining({
+				text: expect.stringContaining("selected context"),
+				images: ["image.png"],
+				files: ["a.ts"],
+			}),
+		)
+		expect(setInputValue).toHaveBeenNthCalledWith(1, "")
+		expect(setInputValue).toHaveBeenLastCalledWith("brand new task")
+		expect(setActiveQuote).toHaveBeenNthCalledWith(1, null)
+		expect(setActiveQuote).toHaveBeenLastCalledWith("selected context")
+		expect(setSendingDisabled).toHaveBeenNthCalledWith(1, true)
+		expect(setSendingDisabled).toHaveBeenLastCalledWith(false)
+		expect(setSelectedImages).toHaveBeenNthCalledWith(1, [])
+		expect(setSelectedImages).toHaveBeenLastCalledWith(["image.png"])
+		expect(setSelectedFiles).toHaveBeenNthCalledWith(1, [])
+		expect(setSelectedFiles).toHaveBeenLastCalledWith(["a.ts"])
+		expect(setEnableButtons).toHaveBeenNthCalledWith(1, false)
+		expect(setEnableButtons).toHaveBeenLastCalledWith(true)
 	})
 
 	// The webview does not gate sends on provider usability: submission always
