@@ -103,46 +103,48 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 						value={editedText}
 					/>
 					{errorMessage && <div className="text-xs text-(--vscode-errorForeground)">{errorMessage}</div>}
-					<div className="flex items-center justify-end gap-1.5">
+					<div className="flex items-center justify-between gap-1.5">
 						<button
-							className="shrink-0 whitespace-nowrap px-2 py-1 rounded-xs border border-vscode-button-border bg-transparent text-badge-foreground cursor-pointer text-xs"
+							className="shrink-0 whitespace-nowrap px-1 py-1 rounded-xs border-0 bg-transparent text-badge-foreground/80 hover:text-badge-foreground cursor-pointer text-xs"
 							disabled={!!savingMode}
 							onClick={() => setIsEditing(false)}
 							type="button">
 							Cancel
 						</button>
-						<Tooltip>
-							<TooltipContent side="top">
-								Regenerate from this edited message without changing files.
-							</TooltipContent>
-							<TooltipTrigger asChild>
-								<span className="inline-flex shrink-0">
-									<button
-										className="whitespace-nowrap px-2 py-1 rounded-xs border-0 bg-vscode-button-background text-vscode-button-foreground cursor-pointer disabled:opacity-60 text-xs"
-										disabled={!!savingMode}
-										onClick={() => handleSave(false)}
-										type="button">
-										{savingMode === "chat" ? "Running..." : "Regenerate"}
-									</button>
-								</span>
-							</TooltipTrigger>
-						</Tooltip>
-						<Tooltip>
-							<TooltipContent side="top">
-								Restore workspace files to this checkpoint, then regenerate.
-							</TooltipContent>
-							<TooltipTrigger asChild>
-								<span className="inline-flex shrink-0">
-									<button
-										className="whitespace-nowrap px-2 py-1 rounded-xs border border-vscode-button-border bg-transparent text-badge-foreground cursor-pointer disabled:opacity-60 text-xs"
-										disabled={!!savingMode}
-										onClick={() => handleSave(true)}
-										type="button">
-										{savingMode === "workspace" ? "Restoring..." : "Restore + Run"}
-									</button>
-								</span>
-							</TooltipTrigger>
-						</Tooltip>
+						<div className="flex items-center gap-1.5">
+							<Tooltip>
+								<TooltipContent side="top">
+									Regenerate from this edited message without changing files.
+								</TooltipContent>
+								<TooltipTrigger asChild>
+									<span className="inline-flex shrink-0">
+										<button
+											className="whitespace-nowrap px-2 py-1 rounded-xs border border-vscode-button-border bg-transparent text-badge-foreground cursor-pointer disabled:opacity-60 text-xs"
+											disabled={!!savingMode}
+											onClick={() => handleSave(false)}
+											type="button">
+											{savingMode === "chat" ? "Running..." : "Regenerate"}
+										</button>
+									</span>
+								</TooltipTrigger>
+							</Tooltip>
+							<Tooltip>
+								<TooltipContent side="top">
+									Restore workspace files to this checkpoint, then regenerate.
+								</TooltipContent>
+								<TooltipTrigger asChild>
+									<span className="inline-flex shrink-0">
+										<button
+											className="whitespace-nowrap px-2 py-1 rounded-xs border border-vscode-button-border bg-transparent text-badge-foreground cursor-pointer disabled:opacity-60 text-xs"
+											disabled={!!savingMode}
+											onClick={() => handleSave(true)}
+											type="button">
+											{savingMode === "workspace" ? "Restoring..." : "Restore + Run"}
+										</button>
+									</span>
+								</TooltipTrigger>
+							</Tooltip>
+						</div>
 					</div>
 				</div>
 			) : (
