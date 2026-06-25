@@ -26,15 +26,47 @@ export function removeInvalidChars(text: string): string {
  * The marker is generated after calculating how many characters are omitted.
  */
 export function truncateMiddle(text: string, maxChars: number, makeMarker: (removed: number) => string): string {
-	if (text.length <= maxChars) {
+	const truncation = getMiddleTruncationParts(text.length, maxChars, makeMarker)
+	if (!truncation) {
 		return text
 	}
 
-	const tentativeMarker = makeMarker(text.length - maxChars)
-	const tentativeKeep = Math.max(0, Math.floor((maxChars - tentativeMarker.length) / 2))
-	const removed = Math.max(0, text.length - tentativeKeep * 2)
-	const marker = makeMarker(removed)
-	const keep = Math.max(0, Math.floor((maxChars - marker.length) / 2))
+	const { prefixChars, suffixChars, marker } = truncation
+	return `${text.slice(0, prefixChars)}${marker}${suffixChars > 0 ? text.slice(-suffixChars) : ""}`
+}
 
-	return `${text.slice(0, keep)}${marker}${keep > 0 ? text.slice(-keep) : ""}`
+export interface MiddleTruncationParts {
+	prefixChars: number
+	suffixChars: number
+	marker: string
+}
+
+export function getMiddleTruncationParts(
+	textLength: number,
+	maxChars: number,
+	makeMarker: (removed: number) => string,
+): MiddleTruncationParts | undefined {
+	if (textLength <= maxChars) {
+		return undefined
+	}
+
+	if (maxChars <= 0) {
+		return { prefixChars: 0, suffixChars: 0, marker: "" }
+	}
+
+	let keep = Math.max(0, Math.floor(maxChars / 2))
+
+	while (true) {
+		const removed = Math.max(0, textLength - keep * 2)
+		const marker = makeMarker(removed)
+		if (marker.length > maxChars) {
+			return { prefixChars: 0, suffixChars: 0, marker: marker.slice(0, maxChars) }
+		}
+
+		const nextKeep = Math.max(0, Math.floor((maxChars - marker.length) / 2))
+		if (nextKeep === keep) {
+			return { prefixChars: keep, suffixChars: keep, marker }
+		}
+		keep = nextKeep
+	}
 }

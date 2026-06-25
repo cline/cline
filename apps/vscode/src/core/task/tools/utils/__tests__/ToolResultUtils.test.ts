@@ -52,6 +52,43 @@ describe("ToolResultUtils", () => {
 		expect(userMessageContent[0].content.endsWith("y".repeat(20))).to.equal(true)
 	})
 
+	it("caps aggregate text in matched native tool_result array content", () => {
+		const userMessageContent: any[] = []
+		const toolUseIdMap = new Map([["tool-call-1", "provider-tool-use-1"]])
+		const imageBlock = {
+			type: "image",
+			source: {
+				type: "base64",
+				media_type: "image/png",
+				data: "abc123",
+			},
+		} as const
+
+		ToolResultUtils.pushToolResult(
+			[
+				{ type: "text", text: "a".repeat(MAX_TOOL_RESULT_TEXT_CHARS) },
+				imageBlock,
+				{ type: "text", text: "b".repeat(10_000) },
+			],
+			block,
+			userMessageContent,
+			() => "[browser_action result]",
+			undefined,
+			toolUseIdMap,
+		)
+
+		const resultContent = userMessageContent[0].content
+		const textBlocks = resultContent.filter((item: any) => item.type === "text")
+		const totalTextLength = textBlocks.reduce((total: number, item: any) => total + item.text.length, 0)
+
+		expect(userMessageContent).to.have.length(1)
+		expect(userMessageContent[0].type).to.equal("tool_result")
+		expect(totalTextLength).to.equal(MAX_TOOL_RESULT_TEXT_CHARS)
+		expect(textBlocks.map((item: any) => item.text).join("")).to.contain("tool result truncated")
+		expect(resultContent).to.deep.include(imageBlock)
+		expect(textBlocks[textBlocks.length - 1].text.endsWith("b".repeat(20))).to.equal(true)
+	})
+
 	it("does not alter small string results", () => {
 		const userMessageContent: any[] = []
 

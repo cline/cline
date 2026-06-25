@@ -73,4 +73,20 @@ describe("truncateMiddle", () => {
 		result.should.containEql("[omitted 72]")
 		result.should.endWith("b".repeat(14))
 	})
+
+	it("should report the exact omitted count when marker length changes", () => {
+		const originalLength = 18_000
+		const result = truncateMiddle("a".repeat(9_000) + "b".repeat(9_000), 8_001, (removed) => {
+			return `[omitted ${removed}]`
+		})
+		const match = result.match(/\[omitted (\d+)\]/)
+
+		result.length.should.be.belowOrEqual(8_001)
+		if (!match) {
+			throw new Error("expected omission marker")
+		}
+		const marker = match[0]
+		const omitted = Number(match[1])
+		omitted.should.equal(originalLength - (result.length - marker.length))
+	})
 })

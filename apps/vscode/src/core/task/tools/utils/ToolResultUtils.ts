@@ -4,12 +4,13 @@ import { ToolResponse } from "@core/task"
 import { processFilesIntoText } from "@/integrations/misc/extract-text"
 import { ClineAsk } from "@/shared/ExtensionMessage"
 import { Logger } from "@/shared/services/Logger"
-import { truncateMiddle } from "@utils/string"
+import { getMiddleTruncationParts, truncateMiddle } from "@utils/string"
 import type { ToolExecutorCoordinator } from "../ToolExecutorCoordinator"
 import { TaskConfig } from "../types/TaskConfig"
 
 export const MAX_TOOL_RESULT_TEXT_CHARS = 8_000
 const TOOL_RESULT_TRUNCATION_REASON = "tool result truncated"
+type ToolResponseBlocks = Exclude<ToolResponse, string>
 
 /**
  * Utility functions for handling tool results and feedback
@@ -60,7 +61,7 @@ export class ToolResultUtils {
 			// If using backward-compatible "cline" ID and content is an array, spread it directly
 			// instead of wrapping it (which would cause JSON.stringify in createToolResultBlock)
 			if ((toolUseId === "cline" || !toolUseId) && Array.isArray(content)) {
-				userMessageContent.push(...content)
+				userMessageContent.push(...ToolResultUtils.truncateToolResponseBlocks(content))
 			} else {
 				userMessageContent.push(ToolResultUtils.createToolResultBlock(content, toolUseId, block.call_id))
 			}
@@ -71,11 +72,13 @@ export class ToolResultUtils {
 		// If id is "cline", we treat it as a plain text result for backward compatibility
 		// as we cannot find any existing tool call that matches this id.
 		if (id === "cline" || !id) {
+			const text =
+				typeof content === "string"
+					? content
+					: JSON.stringify(ToolResultUtils.truncateToolResponseContent(content), null, 2)
 			return {
 				type: "text",
-				text: ToolResultUtils.truncateToolResultText(
-					typeof content === "string" ? content : JSON.stringify(content, null, 2),
-				),
+				text: ToolResultUtils.truncateToolResultText(text),
 			}
 		}
 
@@ -86,14 +89,84 @@ export class ToolResultUtils {
 			type: "tool_result",
 			tool_use_id: id,
 			call_id: call_id,
-			content: typeof content === "string" ? ToolResultUtils.truncateToolResultText(content) : content,
+			content: ToolResultUtils.truncateToolResponseContent(content),
 		}
 	}
 
+	private static truncateToolResponseContent(content: ToolResponse): ToolResponse {
+		return typeof content === "string"
+			? ToolResultUtils.truncateToolResultText(content)
+			: ToolResultUtils.truncateToolResponseBlocks(content)
+	}
+
+	private static truncateToolResponseBlocks(content: ToolResponseBlocks): ToolResponseBlocks {
+		const textLength = content.reduce((total, block) => {
+			return block.type === "text" ? total + block.text.length : total
+		}, 0)
+		const truncation = getMiddleTruncationParts(
+			textLength,
+			MAX_TOOL_RESULT_TEXT_CHARS,
+			ToolResultUtils.createToolResultTruncationMarker,
+		)
+		if (!truncation) {
+			return content
+		}
+
+		const prefixText = ToolResultUtils.takeTextFromStart(content, truncation.prefixChars)
+		const suffixText = ToolResultUtils.takeTextFromEnd(content, truncation.suffixChars)
+		const nonTextBlocks = content.filter((block) => block.type !== "text")
+		const truncatedBlocks: ToolResponseBlocks = []
+		if (prefixText) {
+			truncatedBlocks.push({ type: "text", text: prefixText })
+		}
+		if (truncation.marker) {
+			truncatedBlocks.push({ type: "text", text: truncation.marker })
+		}
+		truncatedBlocks.push(...nonTextBlocks)
+		if (suffixText) {
+			truncatedBlocks.push({ type: "text", text: suffixText })
+		}
+		return truncatedBlocks
+	}
+
+	private static takeTextFromStart(content: ToolResponseBlocks, chars: number): string {
+		let remaining = chars
+		let text = ""
+		for (const block of content) {
+			if (remaining <= 0) {
+				break
+			}
+			if (block.type !== "text") {
+				continue
+			}
+			const chunk = block.text.slice(0, remaining)
+			text += chunk
+			remaining -= chunk.length
+		}
+		return text
+	}
+
+	private static takeTextFromEnd(content: ToolResponseBlocks, chars: number): string {
+		let remaining = chars
+		let text = ""
+		for (let i = content.length - 1; i >= 0 && remaining > 0; i--) {
+			const block = content[i]
+			if (block.type !== "text") {
+				continue
+			}
+			const chunk = block.text.slice(Math.max(0, block.text.length - remaining))
+			text = `${chunk}${text}`
+			remaining -= chunk.length
+		}
+		return text
+	}
+
 	private static truncateToolResultText(text: string): string {
-		return truncateMiddle(text, MAX_TOOL_RESULT_TEXT_CHARS, (removed) => {
-			return `\n... (${TOOL_RESULT_TRUNCATION_REASON}, ${removed} chars omitted) ...\n`
-		})
+		return truncateMiddle(text, MAX_TOOL_RESULT_TEXT_CHARS, ToolResultUtils.createToolResultTruncationMarker)
+	}
+
+	private static createToolResultTruncationMarker(removed: number): string {
+		return `\n... (${TOOL_RESULT_TRUNCATION_REASON}, ${removed} chars omitted) ...\n`
 	}
 
 	/**
