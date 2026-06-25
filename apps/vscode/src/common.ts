@@ -17,7 +17,6 @@ import { getDistinctId } from "./services/logging/distinctId"
 import { telemetryService } from "./services/telemetry"
 import { PostHogClientProvider } from "./services/telemetry/providers/posthog/PostHogClientProvider"
 import { ClineTempManager } from "./services/temp"
-import { cleanupTestMode } from "./services/test/TestMode"
 import { ShowMessageType } from "./shared/proto/host/window"
 import { syncWorker } from "./shared/services/worker/sync"
 import { getBlobStoreSettingsFromEnv } from "./shared/services/worker/worker"
@@ -171,9 +170,6 @@ export async function tearDown(): Promise<void> {
 		HookDiscoveryCache.getInstance().dispose()
 		// Stop periodic temp file cleanup
 		ClineTempManager.stopPeriodicCleanup()
-
-		// Clean up test mode
-		cleanupTestMode()
 	} finally {
 		try {
 			await StateManager.get().flushPendingState()

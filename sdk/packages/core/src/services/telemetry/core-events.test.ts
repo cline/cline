@@ -1,4 +1,7 @@
-import type { ITelemetryService } from "@cline/shared";
+import {
+	AGENT_UNEXPECTED_REASONING_TOKENS_EVENT,
+	type ITelemetryService,
+} from "@cline/shared";
 import { describe, expect, test, vi } from "vitest";
 import {
 	CORE_TELEMETRY_EVENTS,
@@ -72,6 +75,14 @@ describe("captureTelemetryOptOut", () => {
 		expect(stub.captureRequired).toHaveBeenCalledWith(
 			"user.opt_out",
 			undefined,
+		);
+	});
+});
+
+describe("CORE_TELEMETRY_EVENTS", () => {
+	test("catalogs the unexpected reasoning token event", () => {
+		expect(CORE_TELEMETRY_EVENTS.AGENT.UNEXPECTED_REASONING_TOKENS).toBe(
+			AGENT_UNEXPECTED_REASONING_TOKENS_EVENT,
 		);
 	});
 });
