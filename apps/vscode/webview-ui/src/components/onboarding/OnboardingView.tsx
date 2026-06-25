@@ -353,9 +353,7 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 	const [searchTerm, setSearchTerm] = useState("")
 
 	const models = useMemo(() => getClineUIOnboardingGroups(onboardingModels), [onboardingModels])
-	// Only offer ClinePass when the flag is on AND models actually loaded. Otherwise a
-	// fallback/empty recommended-models response would route flagged users into the
-	// ClinePass model step's empty state, where signup is disabled (a dead end).
+	// Gate on models too, so a fallback/empty response can't route flagged users into the dead-end empty step.
 	const showClinePass = isClinePassEnabled && models.clinePass.length > 0
 	const userTypeSelections = useMemo(() => getUserTypeSelections(showClinePass), [showClinePass])
 	// ClinePass model IDs (e.g. "cline-pass/glm-5.1") aren't keyed in openRouterModels,
