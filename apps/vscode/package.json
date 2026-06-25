@@ -139,6 +139,11 @@
 				"icon": "$(server)"
 			},
 			{
+				"command": "cline.marketplaceButtonClicked",
+				"title": "Customize",
+				"icon": "$(wrench)"
+			},
+			{
 				"command": "cline.historyButtonClicked",
 				"title": "History",
 				"icon": "$(history)"
@@ -261,7 +266,7 @@
 					"when": "view == claude-dev.SidebarProvider"
 				},
 				{
-					"command": "cline.mcpButtonClicked",
+					"command": "cline.marketplaceButtonClicked",
 					"group": "navigation@2",
 					"when": "view == claude-dev.SidebarProvider"
 				},
@@ -391,7 +396,7 @@
 		"test:e2e:ui": "bun scripts/interactive-playwright.ts",
 		"install:all": "bun install",
 		"dev:webview": "cd webview-ui && bun run dev",
-		"build:webview": "cd webview-ui && bun run build",
+		"build:webview": "bun run protos && cd webview-ui && bun run build",
 		"test:webview": "cd webview-ui && bun run test",
 		"publish:marketplace": "node scripts/publish-marketplace.mjs",
 		"publish:marketplace:prerelease": "node scripts/publish-marketplace.mjs --pre-release",

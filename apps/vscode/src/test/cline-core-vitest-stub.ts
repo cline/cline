@@ -12,6 +12,66 @@ export interface StartSessionResult {
 
 export interface SessionHistoryRecord {
 	id: string
+	metadata?: Record<string, unknown>
+}
+
+export interface CheckpointEntry {
+	ref: string
+	createdAt: number
+	runCount: number
+	kind?: "stash" | "commit"
+}
+
+export function readSessionCheckpointHistory(session: { metadata?: Record<string, unknown> } | undefined): CheckpointEntry[] {
+	const checkpoint =
+		session?.metadata?.checkpoint &&
+		typeof session.metadata.checkpoint === "object" &&
+		!Array.isArray(session.metadata.checkpoint)
+			? (session.metadata.checkpoint as Record<string, unknown>)
+			: undefined
+	const history = Array.isArray(checkpoint?.history) ? checkpoint.history : []
+	return history.flatMap((entry): CheckpointEntry[] => {
+		if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+			return []
+		}
+		const record = entry as Record<string, unknown>
+		const ref = typeof record.ref === "string" ? record.ref.trim() : ""
+		const createdAt = Number(record.createdAt ?? 0)
+		const runCount = Number(record.runCount ?? 0)
+		if (!ref || !Number.isFinite(createdAt) || !Number.isInteger(runCount) || runCount < 1) {
+			return []
+		}
+		const kind = record.kind === "stash" || record.kind === "commit" ? record.kind : undefined
+		return [{ ref, createdAt, runCount, ...(kind ? { kind } : {}) }]
+	})
+}
+
+export function findCheckpointForRun(history: readonly CheckpointEntry[], runCount: number): CheckpointEntry | undefined {
+	return history.reduce<CheckpointEntry | undefined>((best, entry) => {
+		if (entry.runCount > runCount) {
+			return best
+		}
+		if (!best || entry.runCount > best.runCount) {
+			return entry
+		}
+		return best
+	}, undefined)
+}
+
+export interface CheckpointContentDiff {
+	filePath: string
+	leftContent: string
+	rightContent: string
+}
+
+export interface CheckpointWorkspaceCompareResult {
+	checkpoint: CheckpointEntry
+	cwd: string
+	diffs: CheckpointContentDiff[]
+}
+
+export async function compareCheckpointToWorkspace(): Promise<CheckpointWorkspaceCompareResult> {
+	throw new Error("compareCheckpointToWorkspace is not implemented in the Vitest @cline/core stub")
 }
 
 export type CoreSessionEvent = { type: string; payload?: unknown }

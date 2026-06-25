@@ -21,7 +21,7 @@ describe("SdkTaskStartCoordinator", () => {
 
 		const sessionId = await coordinator.initTask("hello @file", ["image.png"], ["a.ts"])
 
-		expect(sessionId).toBe("session-123")
+		expect(sessionId).toEqual(expect.any(String))
 		expect(options.clearTask).toHaveBeenCalledOnce()
 		expect(options.sessionConfigBuilder.build).toHaveBeenCalledWith({
 			prompt: "hello @file",
@@ -32,19 +32,32 @@ describe("SdkTaskStartCoordinator", () => {
 			cwd: "/workspace",
 			mode: "act",
 		})
-		expect(state.task?.taskId).toBe("session-123")
+		expect(options.buildStartSessionInput).toHaveBeenCalledWith(
+			expect.objectContaining({ providerId: "anthropic", modelId: "model", sessionId }),
+			expect.objectContaining({
+				prompt: "hello @file",
+				images: ["image.png"],
+				files: ["a.ts"],
+				cwd: "/workspace",
+				mode: "act",
+			}),
+		)
+		expect(state.task?.taskId).toBe(sessionId)
 		expect(options.taskHistory.updateTaskHistoryItem).toHaveBeenCalledWith(
-			expect.objectContaining({ id: "session-123", task: "hello @file", modelId: "model" }),
+			expect.objectContaining({ id: sessionId, task: "hello @file", modelId: "model" }),
 		)
 		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
 			[expect.objectContaining({ type: "say", say: "task", text: "hello @file" })],
-			{ type: "status", payload: { sessionId: "session-123", status: "running" } },
+			{ type: "status", payload: { sessionId, status: "running" } },
 		)
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()
+		expect(options.messages.appendAndEmit.mock.invocationCallOrder[0]).toBeLessThan(
+			options.sessions.startNewSession.mock.invocationCallOrder[0],
+		)
 		expect(options.resolveContextMentions).toHaveBeenCalledWith("hello @file")
 		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
 			expect.objectContaining({ send: expect.any(Function) }),
-			"session-123",
+			sessionId,
 			"resolved: hello @file",
 			["image.png"],
 			["a.ts"],
@@ -72,14 +85,15 @@ describe("SdkTaskStartCoordinator", () => {
 	})
 
 	it("emits a plain chat error when session start fails (e.g. provider misconfigured)", async () => {
-		const { coordinator, options } = makeCoordinator()
+		const { coordinator, options, state } = makeCoordinator()
 		options.sessions.startNewSession.mockRejectedValue(new Error("No model configured for provider openai"))
 
 		const sessionId = await coordinator.initTask("do something")
 
 		expect(sessionId).toBeUndefined()
 		expect(options.emitClineAuthError).not.toHaveBeenCalled()
-		expect(options.messages.emitSessionEvents).toHaveBeenCalledWith(
+		expect(state.task?.taskId).toEqual(expect.any(String))
+		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
 			[
 				expect.objectContaining({
 					type: "say",
@@ -87,8 +101,9 @@ describe("SdkTaskStartCoordinator", () => {
 					text: expect.stringContaining("No model configured for provider openai"),
 				}),
 			],
-			{ type: "status", payload: { sessionId: "", status: "error" } },
+			{ type: "status", payload: { sessionId: state.task?.taskId, status: "error" } },
 		)
+		expect(options.postStateToWebview).toHaveBeenCalledOnce()
 	})
 
 	it.each([true, false])("forwards task useAutoCondense=%s into SDK session config inputs", async (useAutoCondense) => {
@@ -182,10 +197,10 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 			getGlobalSettingsKey: vi.fn(() => input.mode ?? "act"),
 		} as unknown as StateManager,
 		sessions: {
-			startNewSession: vi.fn().mockResolvedValue({
-				startResult: { sessionId: "session-123" },
+			startNewSession: vi.fn((startInput?: { config?: { sessionId?: string } }) => ({
+				startResult: { sessionId: startInput?.config?.sessionId ?? "session-123" },
 				sdkHost,
-			}),
+			})),
 			fireAndForgetSend: vi.fn(),
 		},
 		messages: {

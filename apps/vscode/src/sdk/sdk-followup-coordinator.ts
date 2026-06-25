@@ -48,6 +48,10 @@ export class SdkFollowupCoordinator {
 	constructor(private readonly options: SdkFollowupCoordinatorOptions) {}
 
 	async askResponse(prompt?: string, images?: string[], files?: string[], askResponse?: ClineAskResponse): Promise<void> {
+		if (this.options.interactions.resolvePendingMistakeLimit(prompt, askResponse)) {
+			return
+		}
+
 		if (this.options.interactions.resolvePendingToolApproval(prompt, askResponse)) {
 			return
 		}

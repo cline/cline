@@ -121,13 +121,12 @@ describe("createTaskProxy", () => {
 		expect(proxy.api.getModel().id).toBe("unknown")
 	})
 
-	it("should return undefined for removed features and stubs for terminal manager", () => {
+	it("should expose stubs for terminal manager", () => {
 		const onAskResponse = vi.fn()
 		const onCancelTask = vi.fn()
 		const proxy = createTaskProxy("session-123", onAskResponse, onCancelTask)
 
 		expect(proxy.browserSession).toBeUndefined()
-		expect(proxy.checkpointManager).toBeUndefined()
 		// terminalManager is a stub object with no-op settings methods
 		expect(proxy.terminalManager).toBeDefined()
 		expect(typeof proxy.terminalManager.setDefaultTerminalProfile).toBe("function")

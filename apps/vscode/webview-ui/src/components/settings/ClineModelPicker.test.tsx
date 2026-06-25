@@ -140,4 +140,58 @@ describe("ClineModelPicker", () => {
 
 		expect(screen.getByRole("combobox")).toHaveValue("cline-next")
 	})
+
+	it("uses live catalog reasoning support when the saved Cline model snapshot is stale", () => {
+		vi.mocked(useExtensionState).mockReturnValue({
+			apiConfiguration: {
+				actModeClineModelId: "glm-5.2",
+				actModeClineModelInfo: {
+					name: "GLM 5.2",
+					supportsPromptCache: true,
+				},
+			},
+			favoritedModelIds: [],
+			planActSeparateModelsSetting: true,
+		} as ReturnType<typeof useExtensionState>)
+		vi.mocked(useProviderModels).mockReturnValue({
+			models: {
+				"glm-5.2": {
+					name: "GLM 5.2",
+					supportsPromptCache: true,
+					contextWindow: 1_048_576,
+					supportsReasoning: true,
+				},
+			},
+			defaultModelId: "glm-5.2",
+			isLoading: false,
+			isStale: false,
+			error: undefined,
+			refresh: vi.fn(),
+			fingerprint: "fingerprint",
+		})
+		vi.mocked(useProviderConfig).mockReturnValue({
+			config: {
+				providerId: "cline",
+				actSelection: {
+					providerId: "cline",
+					modelId: "glm-5.2",
+					modelInfo: toProtobufModelInfo({
+						name: "GLM 5.2",
+						supportsPromptCache: true,
+					}),
+				},
+			},
+			write: mocks.writeProviderConfig,
+			commitSelection: mocks.commitSelection,
+		})
+		vi.mocked(useDynamicProviderSelection).mockReturnValue({
+			selectedModelId: "glm-5.2",
+			selectedModelInfo: { name: "GLM 5.2", supportsPromptCache: true },
+			hideUsageCost: false,
+		})
+
+		render(<ClineModelPicker currentMode="act" />)
+
+		expect(screen.getByText("Reasoning Effort")).toBeInTheDocument()
+	})
 })
