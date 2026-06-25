@@ -73,6 +73,7 @@ interface ChatRowProps {
 	onHeightChange: (isTaller: boolean) => void
 	inputValue?: string
 	sendMessageFromChatRow?: (text: string, images: string[], files: string[]) => void
+	onOptimisticUserMessage?: (text: string, images?: string[], files?: string[]) => () => void
 	onSetQuote: (text: string) => void
 	onCancelCommand?: () => void
 	mode?: Mode
@@ -137,6 +138,7 @@ export const ChatRowContent = memo(
 		isLast,
 		inputValue,
 		sendMessageFromChatRow,
+		onOptimisticUserMessage,
 		onSetQuote,
 		onCancelCommand,
 		mode,
@@ -1135,6 +1137,7 @@ export const ChatRowContent = memo(
 											(isLast && lastModifiedMessage?.ask === "followup") ||
 											(!selected && options && options.length > 0)
 										}
+										onOptimisticUserMessage={onOptimisticUserMessage}
 										options={options}
 										selected={selected}
 									/>
@@ -1196,6 +1199,7 @@ export const ChatRowContent = memo(
 										(isLast && lastModifiedMessage?.ask === "plan_mode_respond") ||
 										(!selected && options && options.length > 0)
 									}
+									onOptimisticUserMessage={onOptimisticUserMessage}
 									options={options}
 									selected={selected}
 								/>

@@ -115,6 +115,7 @@ const MessageRenderer: React.FC<MessageRendererProps> = ({
 				mode={mode}
 				onCancelCommand={() => messageHandlers.executeButtonAction("cancel")}
 				onHeightChange={onHeightChange}
+				onOptimisticUserMessage={messageHandlers.addOptimisticUserMessage}
 				onSetQuote={onSetQuote}
 				onToggleExpand={onToggleExpand}
 				reasoningContent={reasoningData.reasoning}

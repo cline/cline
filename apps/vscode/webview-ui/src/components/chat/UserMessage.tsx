@@ -18,9 +18,10 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 	const [editedText, setEditedText] = useState(text ?? "")
 	const [isSaving, setIsSaving] = useState(false)
 	const highlightedText = useMemo(() => highlightText(text), [text])
+	const canEditMessage = !!messageTs && messageTs > 0
 
 	const handleSave = async () => {
-		if (!messageTs || isSaving) {
+		if (!canEditMessage || !messageTs || isSaving) {
 			return
 		}
 		setIsSaving(true)
@@ -48,7 +49,7 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 				whiteSpace: "pre-line",
 				wordWrap: "break-word",
 			}}>
-			{messageTs && !isEditing && (
+			{canEditMessage && !isEditing && (
 				<button
 					aria-label="Edit and regenerate from this message"
 					className="absolute right-1.5 top-1.5 opacity-0 group-hover:opacity-80 hover:opacity-100 bg-transparent border-0 text-badge-foreground cursor-pointer p-1"

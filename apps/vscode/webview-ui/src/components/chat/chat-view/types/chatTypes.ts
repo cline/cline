@@ -55,6 +55,7 @@ export interface ChatState {
  * Message handlers interface
  */
 export interface MessageHandlers {
+	addOptimisticUserMessage: (text: string, images?: string[], files?: string[]) => () => void
 	executeButtonAction: (action: ButtonActionType, text?: string, images?: string[], files?: string[]) => Promise<void>
 	handleSendMessage: (text: string, images: string[], files: string[]) => Promise<void>
 	handleTaskCloseButtonClick: () => void

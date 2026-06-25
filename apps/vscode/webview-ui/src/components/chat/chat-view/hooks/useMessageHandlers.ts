@@ -7,11 +7,19 @@ import { SlashServiceClient, TaskServiceClient } from "@/services/grpc-client"
 import type { ButtonActionType } from "../shared/buttonConfig"
 import type { ChatState, MessageHandlers } from "../types/chatTypes"
 
+interface MessageHandlerOptions {
+	addOptimisticUserMessage?: (text: string, images?: string[], files?: string[]) => () => void
+}
+
 /**
  * Custom hook for managing message handlers
  * Handles sending messages, button clicks, and task management
  */
-export function useMessageHandlers(messages: ClineMessage[], chatState: ChatState): MessageHandlers {
+export function useMessageHandlers(
+	messages: ClineMessage[],
+	chatState: ChatState,
+	options: MessageHandlerOptions = {},
+): MessageHandlers {
 	const { backgroundCommandRunning, turnState } = useExtensionState()
 	const {
 		setInputValue,
@@ -27,6 +35,17 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 		lastMessage,
 	} = chatState
 	const cancelInFlightRef = useRef(false)
+	const addOptimisticUserMessage = useCallback(
+		(text: string, images?: string[], files?: string[]) =>
+			options.addOptimisticUserMessage?.(text, images, files) ?? (() => {}),
+		[options.addOptimisticUserMessage],
+	)
+
+	const resetAutoScroll = useCallback(() => {
+		if ("disableAutoScrollRef" in chatState) {
+			;(chatState as any).disableAutoScrollRef.current = false
+		}
+	}, [chatState])
 
 	// Handle sending a message
 	const handleSendMessage = useCallback(
@@ -70,6 +89,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					setSelectedImages([])
 					setSelectedFiles([])
 					setEnableButtons(false)
+					resetAutoScroll()
 				}
 				const restorePendingMessageState = () => {
 					setInputValue(text)
@@ -78,6 +98,17 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					setSelectedImages(images)
 					setSelectedFiles(files)
 					setEnableButtons(enableButtons)
+				}
+				const sendAskResponseOptimistically = async (request: ReturnType<typeof AskResponseRequest.create>) => {
+					clearSentMessageState()
+					const removeOptimisticMessage = addOptimisticUserMessage(messageToSend, images, files)
+					try {
+						await TaskServiceClient.askResponse(request)
+					} catch (error) {
+						removeOptimisticMessage()
+						restorePendingMessageState()
+						throw error
+					}
 				}
 
 				if (messages.length === 0) {
@@ -98,7 +129,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					// For resume_task and resume_completed_task, use yesButtonClicked to match Resume button behavior
 					// This ensures Enter key and Resume button work identically
 					if (clineAsk === "resume_task" || clineAsk === "resume_completed_task") {
-						await TaskServiceClient.askResponse(
+						await sendAskResponseOptimistically(
 							AskResponseRequest.create({
 								responseType: "yesButtonClicked",
 								text: messageToSend,
@@ -124,7 +155,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 							case "new_task":
 							case "condense":
 							case "report_bug":
-								await TaskServiceClient.askResponse(
+								await sendAskResponseOptimistically(
 									AskResponseRequest.create({
 										responseType: "messageResponse",
 										text: messageToSend,
@@ -158,7 +189,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 
 					if (turnAllowsFollowup || isTaskRunning) {
 						// Continue the conversation / interrupt with feedback.
-						await TaskServiceClient.askResponse(
+						await sendAskResponseOptimistically(
 							AskResponseRequest.create({
 								responseType: "messageResponse",
 								text: messageToSend,
@@ -173,11 +204,6 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 				// New tasks clear optimistically before the RPC; the repeated success cleanup is idempotent.
 				if (messageSent) {
 					clearSentMessageState()
-
-					// Reset auto-scroll
-					if ("disableAutoScrollRef" in chatState) {
-						;(chatState as any).disableAutoScrollRef.current = false
-					}
 				}
 			}
 		},
@@ -195,6 +221,8 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			enableButtons,
 			setEnableButtons,
 			chatState,
+			addOptimisticUserMessage,
+			resetAutoScroll,
 		],
 	)
 
@@ -217,75 +245,104 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 		async (actionType: ButtonActionType, text?: string, images?: string[], files?: string[]) => {
 			const trimmedInput = text?.trim()
 			const hasContent = trimmedInput || (images && images.length > 0) || (files && files.length > 0)
+			const clearActionResponseState = () => {
+				clearInputState()
+				setSendingDisabled(true)
+				setEnableButtons(false)
+				resetAutoScroll()
+			}
+			const restoreActionResponseState = () => {
+				setInputValue(text ?? "")
+				setActiveQuote(activeQuote)
+				setSelectedImages(images ?? [])
+				setSelectedFiles(files ?? [])
+				setSendingDisabled(sendingDisabled)
+				setEnableButtons(enableButtons)
+			}
+			const sendButtonAskResponseOptimistically = async (
+				request: ReturnType<typeof AskResponseRequest.create>,
+				optimisticText?: string,
+			) => {
+				clearActionResponseState()
+				const removeOptimisticMessage = optimisticText
+					? addOptimisticUserMessage(optimisticText, images, files)
+					: () => {}
+				try {
+					await TaskServiceClient.askResponse(request)
+				} catch (error) {
+					removeOptimisticMessage()
+					restoreActionResponseState()
+					throw error
+				}
+			}
 
 			switch (actionType) {
 				case "retry":
 					// For API retry (api_req_failed), always send simple approval without content
-					await TaskServiceClient.askResponse(
+					await sendButtonAskResponseOptimistically(
 						AskResponseRequest.create({
 							responseType: "yesButtonClicked",
 						}),
 					)
-					clearInputState()
 					break
 				case "approve":
 					if (hasContent) {
-						await TaskServiceClient.askResponse(
+						await sendButtonAskResponseOptimistically(
 							AskResponseRequest.create({
 								responseType: "yesButtonClicked",
 								text: trimmedInput,
 								images: images,
 								files: files,
 							}),
+							trimmedInput,
 						)
 					} else {
-						await TaskServiceClient.askResponse(
+						await sendButtonAskResponseOptimistically(
 							AskResponseRequest.create({
 								responseType: "yesButtonClicked",
 							}),
 						)
 					}
-					clearInputState()
 					break
 
 				case "reject":
 					if (hasContent) {
-						await TaskServiceClient.askResponse(
+						await sendButtonAskResponseOptimistically(
 							AskResponseRequest.create({
 								responseType: "noButtonClicked",
 								text: trimmedInput,
 								images: images,
 								files: files,
 							}),
+							trimmedInput,
 						)
 					} else {
-						await TaskServiceClient.askResponse(
+						await sendButtonAskResponseOptimistically(
 							AskResponseRequest.create({
 								responseType: "noButtonClicked",
 							}),
 						)
 					}
-					clearInputState()
 					break
 
 				case "proceed":
 					if (hasContent) {
-						await TaskServiceClient.askResponse(
+						await sendButtonAskResponseOptimistically(
 							AskResponseRequest.create({
 								responseType: "yesButtonClicked",
 								text: trimmedInput,
 								images: images,
 								files: files,
 							}),
+							trimmedInput,
 						)
 					} else {
-						await TaskServiceClient.askResponse(
+						await sendButtonAskResponseOptimistically(
 							AskResponseRequest.create({
 								responseType: "yesButtonClicked",
 							}),
 						)
 					}
-					clearInputState()
 					break
 
 				case "new_task":
@@ -341,21 +398,28 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					break
 			}
 
-			if ("disableAutoScrollRef" in chatState) {
-				;(chatState as any).disableAutoScrollRef.current = false
-			}
+			resetAutoScroll()
 		},
 		[
 			clineAsk,
 			lastMessage,
 			messages,
+			activeQuote,
 			clearInputState,
 			handleSendMessage,
 			startNewTask,
 			chatState,
 			backgroundCommandRunning,
+			setInputValue,
+			setActiveQuote,
+			setSelectedImages,
+			setSelectedFiles,
+			sendingDisabled,
 			setSendingDisabled,
+			enableButtons,
 			setEnableButtons,
+			addOptimisticUserMessage,
+			resetAutoScroll,
 		],
 	)
 
@@ -365,6 +429,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 	}, [startNewTask])
 
 	return {
+		addOptimisticUserMessage,
 		handleSendMessage,
 		executeButtonAction,
 		handleTaskCloseButtonClick,

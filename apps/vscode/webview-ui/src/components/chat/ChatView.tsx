@@ -3,8 +3,9 @@ import { combineCommandSequences } from "@shared/combineCommandSequences"
 import { combineErrorRetryMessages } from "@shared/combineErrorRetryMessages"
 import { combineHookSequences } from "@shared/combineHookSequences"
 import { getApiMetrics, getLastApiReqTotalTokens } from "@shared/getApiMetrics"
+import type { ClineMessage } from "@shared/ExtensionMessage"
 import { BooleanRequest, StringRequest } from "@shared/proto/cline/common"
-import { useCallback, useEffect, useMemo, useRef } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useMount } from "react-use"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useShowNavbar } from "@/context/PlatformContext"
@@ -41,6 +42,23 @@ interface ChatViewProps {
 const MAX_IMAGES_AND_FILES_PER_MESSAGE = CHAT_CONSTANTS.MAX_IMAGES_AND_FILES_PER_MESSAGE
 const QUICK_WINS_HISTORY_THRESHOLD = 3
 
+const sameStringList = (a?: string[], b?: string[]) => {
+	const left = a ?? []
+	const right = b ?? []
+	return left.length === right.length && left.every((value, index) => value === right[index])
+}
+
+const hasAuthoritativeUserMessage = (messages: ClineMessage[], optimisticMessage: ClineMessage) => {
+	return messages.some(
+		(message) =>
+			message.type === "say" &&
+			message.say === "user_feedback" &&
+			message.text === optimisticMessage.text &&
+			sameStringList(message.images, optimisticMessage.images) &&
+			sameStringList(message.files, optimisticMessage.files),
+	)
+}
+
 const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryView }: ChatViewProps) => {
 	const showNavbar = useShowNavbar()
 	const {
@@ -55,15 +73,58 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	} = useExtensionState()
 	const isProdHostedApp = userInfo?.apiBaseUrl === "https://app.cline.bot"
 	const shouldShowQuickWins = isProdHostedApp && (!taskHistory || taskHistory.length < QUICK_WINS_HISTORY_THRESHOLD)
+	const [optimisticUserMessages, setOptimisticUserMessages] = useState<ClineMessage[]>([])
+	const optimisticMessageIdRef = useRef(0)
 
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
 	const task = useMemo(() => messages.at(0), [messages]) // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see Cline.abort)
+	const addOptimisticUserMessage = useCallback((text: string, images?: string[], files?: string[]) => {
+		const hasText = !!text.trim()
+		const hasImages = !!images?.length
+		const hasFiles = !!files?.length
+		if (!hasText && !hasImages && !hasFiles) {
+			return () => {}
+		}
+
+		const optimisticMessage: ClineMessage = {
+			ts: -(Date.now() * 1000 + optimisticMessageIdRef.current++),
+			type: "say",
+			say: "user_feedback",
+			text,
+			images,
+			files,
+			partial: false,
+		}
+
+		setOptimisticUserMessages((current) => [...current, optimisticMessage])
+		return () => {
+			setOptimisticUserMessages((current) => current.filter((message) => message.ts !== optimisticMessage.ts))
+		}
+	}, [])
+
+	useEffect(() => {
+		setOptimisticUserMessages([])
+	}, [task?.ts])
+
+	useEffect(() => {
+		setOptimisticUserMessages((current) =>
+			current.filter((optimisticMessage) => !hasAuthoritativeUserMessage(messages, optimisticMessage)),
+		)
+	}, [messages])
+
+	const displayMessages = useMemo(() => {
+		if (!task || optimisticUserMessages.length === 0) {
+			return messages
+		}
+		return [...messages, ...optimisticUserMessages]
+	}, [messages, optimisticUserMessages, task])
+
 	const modifiedMessages = useMemo(() => {
-		const slicedMessages = messages.slice(1)
+		const slicedMessages = displayMessages.slice(1)
 		// Only combine hook sequences if hooks are enabled
 		const withHooks = hooksEnabled ? combineHookSequences(slicedMessages) : slicedMessages
 		return combineErrorRetryMessages(combineApiRequests(combineCommandSequences(withHooks)))
-	}, [messages, hooksEnabled])
+	}, [displayMessages, hooksEnabled])
 	// has to be after api_req_finished are all reduced into api_req_started messages
 	const apiMetrics = useMemo(() => getApiMetrics(modifiedMessages), [modifiedMessages])
 
@@ -86,10 +147,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const lastAppliedCheckpointRestoreSessionId = useRef<string | undefined>(checkpointRestoreInput?.sessionId)
 
 	useEffect(() => {
-		if (
-			!checkpointRestoreInput ||
-			checkpointRestoreInput.sessionId === lastAppliedCheckpointRestoreSessionId.current
-		) {
+		if (!checkpointRestoreInput || checkpointRestoreInput.sessionId === lastAppliedCheckpointRestoreSessionId.current) {
 			return
 		}
 		lastAppliedCheckpointRestoreSessionId.current = checkpointRestoreInput.sessionId
@@ -192,7 +250,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	// handleFocusChange is already provided by chatState
 
 	// Use message handlers hook
-	const messageHandlers = useMessageHandlers(messages, chatState)
+	const messageHandlers = useMessageHandlers(messages, chatState, { addOptimisticUserMessage })
 
 	const { selectedModelInfo } = useNormalizedApiConfiguration(mode)
 
@@ -315,7 +373,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	}, [visibleMessages])
 
 	// Use scroll behavior hook
-	const scrollBehavior = useScrollBehavior(messages, visibleMessages, groupedMessages, expandedRows, setExpandedRows)
+	const scrollBehavior = useScrollBehavior(displayMessages, visibleMessages, groupedMessages, expandedRows, setExpandedRows)
 
 	const placeholderText = useMemo(() => {
 		const text = task ? "Type a message..." : "Type your task here..."
