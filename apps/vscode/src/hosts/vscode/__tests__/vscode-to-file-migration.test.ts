@@ -383,7 +383,6 @@ describe("vscode-to-file-migration", () => {
 				}),
 			)
 
-
 			const sharedSettingsDir = path.dirname(sharedMcpSettingsPath())
 			fs.mkdirSync(sharedSettingsDir, { recursive: true })
 			fs.writeFileSync(
