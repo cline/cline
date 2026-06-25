@@ -202,12 +202,15 @@ describe("useMessageHandlers — send routing", () => {
 		expect(setEnableButtons).toHaveBeenCalledWith(false)
 		expect(setPendingUserMessage).toHaveBeenCalledWith(
 			expect.objectContaining({
-				type: "say",
-				say: "user_feedback",
-				text: expect.stringContaining("another question"),
-				images: ["image.png"],
-				files: ["a.ts"],
-				partial: false,
+				afterTs: 2,
+				message: expect.objectContaining({
+					type: "say",
+					say: "user_feedback",
+					text: expect.stringContaining("another question"),
+					images: ["image.png"],
+					files: ["a.ts"],
+					partial: false,
+				}),
 			}),
 		)
 
@@ -267,9 +270,12 @@ describe("useMessageHandlers — send routing", () => {
 		expect(setPendingUserMessage).toHaveBeenNthCalledWith(
 			1,
 			expect.objectContaining({
-				type: "say",
-				say: "user_feedback",
-				text: expect.stringContaining("another question"),
+				afterTs: 2,
+				message: expect.objectContaining({
+					type: "say",
+					say: "user_feedback",
+					text: expect.stringContaining("another question"),
+				}),
 			}),
 		)
 		expect(setPendingUserMessage).toHaveBeenLastCalledWith(undefined)

@@ -86,14 +86,18 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 				) => {
 					clearSentMessageState()
 					if (options.showPendingMessage) {
+						const afterTs = Math.max(0, ...messages.map((message) => message.ts))
 						setPendingUserMessage({
-							ts: Date.now(),
-							type: "say",
-							say: "user_feedback",
-							text: request.text ?? "",
-							images: request.images,
-							files: request.files,
-							partial: false,
+							afterTs,
+							message: {
+								ts: Date.now(),
+								type: "say",
+								say: "user_feedback",
+								text: request.text ?? "",
+								images: request.images,
+								files: request.files,
+								partial: false,
+							},
 						})
 					}
 					try {
@@ -194,10 +198,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 								files,
 							}),
 							{
-								showPendingMessage:
-									turnState?.phase === "completed" ||
-									turnState?.phase === "awaiting_followup" ||
-									(!turnState && !isTaskRunning),
+								showPendingMessage: turnState?.phase === "completed" || turnState?.phase === "awaiting_followup",
 							},
 						)
 						messageSent = true

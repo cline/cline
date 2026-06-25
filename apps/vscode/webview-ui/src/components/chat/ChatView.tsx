@@ -96,14 +96,24 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	} = chatState
 
 	const displayMessages = useMemo(() => {
-		if (!pendingUserMessage || messages.some((message) => sameUserMessage(message, pendingUserMessage))) {
+		if (
+			!pendingUserMessage ||
+			messages.some(
+				(message) => message.ts > pendingUserMessage.afterTs && sameUserMessage(message, pendingUserMessage.message),
+			)
+		) {
 			return messages
 		}
-		return [...messages, pendingUserMessage]
+		return [...messages, pendingUserMessage.message]
 	}, [messages, pendingUserMessage])
 
 	useEffect(() => {
-		if (pendingUserMessage && messages.some((message) => sameUserMessage(message, pendingUserMessage))) {
+		if (
+			pendingUserMessage &&
+			messages.some(
+				(message) => message.ts > pendingUserMessage.afterTs && sameUserMessage(message, pendingUserMessage.message),
+			)
+		) {
 			setPendingUserMessage(undefined)
 		}
 	}, [messages, pendingUserMessage, setPendingUserMessage])
@@ -349,7 +359,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	}, [visibleMessages])
 
 	// Use scroll behavior hook
-	const scrollBehavior = useScrollBehavior(messages, visibleMessages, groupedMessages, expandedRows, setExpandedRows)
+	const scrollBehavior = useScrollBehavior(displayMessages, visibleMessages, groupedMessages, expandedRows, setExpandedRows)
 
 	const placeholderText = useMemo(() => {
 		const text = task ? "Type a message..." : "Type your task here..."
