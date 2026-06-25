@@ -51,8 +51,6 @@ interface ErrorDetails {
 }
 
 const RATE_LIMIT_PATTERNS = [/status code 429/i, /rate limit/i, /too many requests/i, /quota exceeded/i, /resource exhausted/i]
-const CLINE_NOT_SUBSCRIBED_ERROR_NAME = "ClineNotSubscribedError"
-const CLINE_ORG_INDIVIDUAL_INFERENCE_SUBSCRIPTION_ERROR_NAME = "ClineOrgIndividualInferenceSubscriptionError"
 
 export class ClineError extends Error {
 	readonly title = "ClineError"
