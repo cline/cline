@@ -1,5 +1,5 @@
-import { describe, expect, it } from "bun:test"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
+import { describe, expect, it } from "vitest"
 import { isToolAutoApproved } from "./sdk-tool-policies"
 
 describe("isToolAutoApproved", () => {
