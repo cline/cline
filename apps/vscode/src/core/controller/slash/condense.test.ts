@@ -1,5 +1,6 @@
+import { strict as assert } from "node:assert"
 import { StringRequest } from "@shared/proto/cline/common"
-import { describe, expect, it, vi } from "vitest"
+import { describe, it, vi } from "vitest"
 import type { Controller } from ".."
 import { condense } from "./condense"
 
@@ -13,7 +14,7 @@ describe("condense slash handler", () => {
 
 		await condense(controller, StringRequest.create({ value: "compact" }))
 
-		expect(controller.compactTask).toHaveBeenCalledTimes(1)
-		expect(handleWebviewAskResponse).not.toHaveBeenCalled()
+		assert.equal(controller.compactTask.mock.calls.length, 1)
+		assert.equal(handleWebviewAskResponse.mock.calls.length, 0)
 	})
 })
