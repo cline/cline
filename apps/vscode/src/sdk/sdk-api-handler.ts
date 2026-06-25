@@ -49,7 +49,7 @@ export function buildSdkProviderConfig(
 
 	const apiKey = resolveApiKey(providerId, configuration)
 	const modelId = resolveModelId(providerId, mode, configuration)
-	const baseUrl = resolveBaseUrl(providerId, configuration)
+	const baseUrl = resolveBaseUrl(providerId, mode, configuration)
 
 	const thinkingBudgetTokens =
 		mode === "plan" ? configuration.planModeThinkingBudgetTokens : configuration.actModeThinkingBudgetTokens

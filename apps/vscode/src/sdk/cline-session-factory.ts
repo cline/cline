@@ -412,9 +412,6 @@ export function resolveModelId(providerId: string, mode: Mode, config: ApiConfig
 	return (config[genericField] as string | undefined)?.trim() || undefined
 }
 
-/**
- * Resolve the base URL for a given provider from the ApiConfiguration.
- */
 export function normalizeSdkBaseUrl(providerId: string, baseUrl: unknown): string | undefined {
 	if (typeof baseUrl !== "string") {
 		return undefined
@@ -468,10 +465,21 @@ export function resolveVertexProviderConfig(config: ApiConfiguration): Pick<Prov
 	}
 }
 
-export function resolveBaseUrl(providerId: string, config: ApiConfiguration): string | undefined {
+/**
+ * Resolve the base URL for a given provider from the ApiConfiguration.
+ *
+ * OpenAI-compatible settings support per-mode overrides. An explicit empty
+ * string in the mode-specific field means "do not inherit the generic base
+ * URL", so only `undefined` falls back to `openAiBaseUrl`.
+ */
+export function resolveBaseUrl(providerId: string, mode: Mode, config: ApiConfiguration): string | undefined {
+	if (providerId === "openai") {
+		const modeSpecificBaseUrl = mode === "plan" ? config.planModeOpenAiBaseUrl : config.actModeOpenAiBaseUrl
+		return normalizeSdkBaseUrl(providerId, modeSpecificBaseUrl !== undefined ? modeSpecificBaseUrl : config.openAiBaseUrl)
+	}
+
 	const baseUrlMap: Record<string, keyof ApiConfiguration> = {
 		anthropic: "anthropicBaseUrl",
-		openai: "openAiBaseUrl",
 		ollama: "ollamaBaseUrl",
 		lmstudio: "lmStudioBaseUrl",
 		gemini: "geminiBaseUrl",
@@ -542,7 +550,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 			modelId = resolveModelId(providerId, mode, apiConfig)
 
 			// Resolve base URL
-			baseUrl = resolveBaseUrl(providerId, apiConfig)
+			baseUrl = resolveBaseUrl(providerId, mode, apiConfig)
 
 			// Resolve Bedrock region + AWS authentication options from the legacy
 			// ApiConfiguration (StateManager is the VSCode source of truth, not
