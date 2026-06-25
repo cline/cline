@@ -2,7 +2,7 @@ import type { CoreSessionEvent } from "@cline/core"
 import { refreshClineRecommendedModels } from "@/core/controller/models/refreshClineRecommendedModels"
 import type { StateManager } from "@/core/storage/StateManager"
 import { CLINE_RECOMMENDED_MODELS_FALLBACK } from "@/shared/cline/recommended-models"
-import type { ClineApiReqInfo, ClineMessage, TurnPhase } from "@/shared/ExtensionMessage"
+import type { ClineApiReqInfo, TurnPhase } from "@/shared/ExtensionMessage"
 import { Logger } from "@/shared/services/Logger"
 import type { MessageTranslatorState, TranslationResult } from "./message-translator"
 import { translateSessionEvent } from "./message-translator"
@@ -28,6 +28,7 @@ export interface SdkSessionEventCoordinatorOptions {
 	taskHistory: SdkTaskHistory
 	getTask: () => TaskProxy | undefined
 	postStateToWebview: () => Promise<void>
+	syncCheckpointRows?: () => Promise<void>
 	stateManager?: StateManager
 	translateSessionEvent?: (event: CoreSessionEvent, state: MessageTranslatorState) => TranslationResult
 	isClineFreeModel?: () => Promise<boolean>
@@ -42,16 +43,8 @@ export interface SdkSessionEventCoordinatorOptions {
 export class SdkSessionEventCoordinator {
 	private readonly translateSessionEvent: (event: CoreSessionEvent, state: MessageTranslatorState) => TranslationResult
 
-	/** Tracks consecutive tool errors for mistake_limit_reached detection */
-	private consecutiveToolErrorCount = 0
-
 	constructor(private readonly options: SdkSessionEventCoordinatorOptions) {
 		this.translateSessionEvent = options.translateSessionEvent ?? translateSessionEvent
-	}
-
-	/** Reset the consecutive tool error counter (e.g. when a new task starts or user responds) */
-	resetConsecutiveToolErrorCount(): void {
-		this.consecutiveToolErrorCount = 0
 	}
 
 	async handleSessionEvent(event: CoreSessionEvent): Promise<void> {
@@ -65,6 +58,12 @@ export class SdkSessionEventCoordinator {
 			return
 		}
 
+		if (event.type === "pending_prompts") {
+			this.options.postStateToWebview().catch((err) => {
+				Logger.error("[SdkController] Failed to post pending-prompt state update:", err)
+			})
+		}
+
 		const result = this.translateSessionEvent(event, this.options.messageTranslatorState)
 		const zeroCostPromise = this.zeroCostForFreeClineModel(result)
 		if (zeroCostPromise) {
@@ -76,10 +75,6 @@ export class SdkSessionEventCoordinator {
 				(m) => !(m.type === "ask" && (m.ask === "completion_result" || m.ask === "resume_completed_task")),
 			)
 		}
-
-		// Track consecutive tool errors and emit mistake_limit_reached once the
-		// count reaches the user's maxConsecutiveMistakes setting.
-		this.trackToolErrors(result)
 
 		if (result.messages.length > 0) {
 			this.options.messages.appendAndEmit(result.messages, event)
@@ -99,9 +94,6 @@ export class SdkSessionEventCoordinator {
 				// (showing the scroll-arrow default instead), so the cancel-set phase is preserved.
 				if (!activeSession.isRunning) {
 					Logger.debug("[SdkController] turn-complete straggler after cancel; preserving resumable phase")
-				} else if (result.toolError && this.consecutiveToolErrorCount === 0) {
-					// mistake_limit just fired (counter reset in trackToolErrors) — error UI.
-					this.options.setTurnPhase?.("error")
 				} else if (this.options.messageTranslatorState.wasAttemptCompletionSeen()) {
 					this.options.setTurnPhase?.("completed")
 				} else {
@@ -134,6 +126,10 @@ export class SdkSessionEventCoordinator {
 			}
 		}
 
+		if (result.sessionEnded || result.turnComplete) {
+			await this.options.syncCheckpointRows?.()
+		}
+
 		// Post state when there are messages to ship OR when the turn ended. A clean turn end's
 		// `done` event carries no transcript message, yet the authoritative phase just changed to
 		// completed/awaiting_followup/error above; without posting here the webview would stay on
@@ -143,77 +139,6 @@ export class SdkSessionEventCoordinator {
 			this.options.postStateToWebview().catch((err) => {
 				Logger.error("[SdkController] Failed to post state after event:", err)
 			})
-		}
-	}
-
-	/**
-	 * Track consecutive tool errors. When the count reaches maxConsecutiveMistakes,
-	 * append an ask="mistake_limit_reached" message so the webview shows
-	 * "Proceed Anyways" / "Start New Task" buttons instead of tool approval buttons.
-	 */
-	private trackToolErrors(result: TranslationResult): void {
-		if (result.toolSuccess) {
-			// A tool succeeded — reset the consecutive error counter
-			this.consecutiveToolErrorCount = 0
-		}
-
-		if (result.toolError) {
-			this.consecutiveToolErrorCount++
-
-			const stateManager = this.options.stateManager
-			const maxConsecutiveMistakes = stateManager ? stateManager.getGlobalSettingsKey("maxConsecutiveMistakes") : 3 // default fallback
-
-			if (this.consecutiveToolErrorCount >= maxConsecutiveMistakes) {
-				Logger.log(
-					`[SdkController] Consecutive tool error count (${this.consecutiveToolErrorCount}) reached limit (${maxConsecutiveMistakes}), emitting mistake_limit_reached`,
-				)
-
-				// Model-specific guidance message shown alongside the limit notice.
-				const modelId = this.getCurrentClineModelId() ?? ""
-				const guidanceMessage = modelId.includes("claude")
-					? `This may indicate a failure in Cline's thought process or inability to use a tool properly, which can be mitigated with some user guidance (e.g. "Try breaking down the task into smaller steps").`
-					: "Cline uses complex prompts and iterative task execution that may be challenging for less capable models. For best results, it's recommended to use newer, more capable models. If you continue to experience issues, try providing additional guidance or switch to a different model."
-
-				// Emit ask="mistake_limit_reached" message so the webview updates buttons
-				const mistakeLimitMessage: ClineMessage = {
-					ts: this.options.messageTranslatorState.nextTs(),
-					type: "ask",
-					ask: "mistake_limit_reached",
-					text: guidanceMessage,
-					partial: false,
-				}
-
-				result.messages.push(mistakeLimitMessage)
-
-				// Mark the turn complete so handleSessionEvent stops the session and
-				// the agent waits for user input. Otherwise it keeps running and
-				// appends more messages, pushing mistake_limit_reached out of the
-				// last-message slot so the webview never shows the correct buttons.
-				result.turnComplete = true
-
-				// Abort the SDK session so the agent actually stops producing events.
-				// Without this, the SDK's internal loop continues making API calls and
-				// tool calls, flooding the message list past our mistake_limit_reached
-				// ask message.
-				const activeSession = this.options.sessions.getActiveSession()
-				if (activeSession) {
-					const { sdkHost, sessionId } = activeSession
-					sdkHost.abort(sessionId).catch((err) => {
-						// AbortError is expected — the session was intentionally stopped
-						if (
-							err instanceof Error &&
-							(err.name === "AbortError" || err.message.toLowerCase().includes("aborted"))
-						) {
-							Logger.debug(`[SdkController] Session abort after mistake_limit_reached (expected): ${sessionId}`)
-						} else {
-							Logger.error("[SdkController] Failed to abort session after mistake_limit_reached:", err)
-						}
-					})
-				}
-
-				// Reset the counter after emitting so it can trigger again if the user continues
-				this.consecutiveToolErrorCount = 0
-			}
 		}
 	}
 

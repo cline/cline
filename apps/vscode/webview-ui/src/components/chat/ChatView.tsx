@@ -4,7 +4,7 @@ import { combineErrorRetryMessages } from "@shared/combineErrorRetryMessages"
 import { combineHookSequences } from "@shared/combineHookSequences"
 import { getApiMetrics, getLastApiReqTotalTokens } from "@shared/getApiMetrics"
 import { BooleanRequest, StringRequest } from "@shared/proto/cline/common"
-import { useCallback, useEffect, useMemo } from "react"
+import { useCallback, useEffect, useMemo, useRef } from "react"
 import { useMount } from "react-use"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useShowNavbar } from "@/context/PlatformContext"
@@ -23,6 +23,7 @@ import {
 	groupMessages,
 	InputSection,
 	MessagesArea,
+	QueuedPrompts,
 	TaskSection,
 	useChatState,
 	useMessageHandlers,
@@ -43,7 +44,17 @@ const QUICK_WINS_HISTORY_THRESHOLD = 3
 
 const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryView }: ChatViewProps) => {
 	const showNavbar = useShowNavbar()
-	const { version, clineMessages: messages, taskHistory, telemetrySetting, mode, userInfo, hooksEnabled } = useExtensionState()
+	const {
+		version,
+		clineMessages: messages,
+		taskHistory,
+		telemetrySetting,
+		mode,
+		userInfo,
+		hooksEnabled,
+		checkpointRestoreInput,
+		queuedPrompts,
+	} = useExtensionState()
 	const isProdHostedApp = userInfo?.apiBaseUrl === "https://app.cline.bot"
 	const shouldShowQuickWins = isProdHostedApp && (!taskHistory || taskHistory.length < QUICK_WINS_HISTORY_THRESHOLD)
 
@@ -74,6 +85,20 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		setExpandedRows,
 		textAreaRef,
 	} = chatState
+	const lastAppliedCheckpointRestoreSessionId = useRef<string | undefined>(checkpointRestoreInput?.sessionId)
+
+	useEffect(() => {
+		if (!checkpointRestoreInput || checkpointRestoreInput.sessionId === lastAppliedCheckpointRestoreSessionId.current) {
+			return
+		}
+		lastAppliedCheckpointRestoreSessionId.current = checkpointRestoreInput.sessionId
+		setInputValue(checkpointRestoreInput.text)
+		setSelectedImages(checkpointRestoreInput.images ?? [])
+		setSelectedFiles(checkpointRestoreInput.files ?? [])
+		setTimeout(() => {
+			textAreaRef.current?.focus()
+		}, 0)
+	}, [checkpointRestoreInput, setInputValue, setSelectedImages, setSelectedFiles, textAreaRef])
 
 	useEffect(() => {
 		const handleCopy = async (e: ClipboardEvent) => {
@@ -281,9 +306,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	}, [isHidden, sendingDisabled, enableButtons])
 
 	const visibleMessages = useMemo(() => {
-		// Temporarily hide checkpoint rows so users cannot restore the conversation to a specific checkpoint.
-		// Checkpoint support will be re-enabled once the restore flow is ready again.
-		return filterVisibleMessages(modifiedMessages).filter((message) => message.say !== "checkpoint_created")
+		return filterVisibleMessages(modifiedMessages)
 	}, [modifiedMessages])
 
 	const groupedMessages = useMemo(() => {
@@ -344,6 +367,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					mode={mode}
 					task={task}
 				/>
+				<QueuedPrompts items={queuedPrompts} />
 				<InputSection
 					chatState={chatState}
 					messageHandlers={messageHandlers}

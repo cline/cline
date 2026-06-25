@@ -1,31 +1,9 @@
 import { MODEL_COLLECTIONS_BY_PROVIDER_ID } from "@cline/llms"
-import { ApiHandlerModel, ApiProviderInfo } from "@core/api"
+import { ApiHandlerModel } from "@core/api"
 import type { AnthropicModelId } from "@/shared/api"
 
 const CLAUDE_VERSION_MATCH_REGEX = /[-_ ]([\d](?:\.[05])?)[-_ ]?/
 export const GEMINI_FLASH_MAX_OUTPUT_TOKENS = 8_192
-
-function isNextGenModelProvider(providerInfo: ApiProviderInfo): boolean {
-	const providerId = normalize(providerInfo.providerId)
-	return [
-		"cline",
-		"cline-pass",
-		"anthropic",
-		"bedrock",
-		"gemini",
-		"vertex",
-		"openrouter",
-		"openai",
-		"minimax",
-		"openai-native",
-		"openai-compatible",
-		"openai-codex",
-		"baseten",
-		"vercel-ai-gateway",
-		"deepseek",
-		"oca",
-	].some((id) => providerId === id)
-}
 
 export function modelDoesntSupportWebp(apiHandlerModel: ApiHandlerModel): boolean {
 	const modelId = apiHandlerModel.id.toLowerCase()
@@ -186,24 +164,6 @@ export function parsePrice(priceString: string | undefined): number {
 	}
 	// Convert from per-token to per-million-tokens (multiply by 1,000,000)
 	return parsed * 1_000_000
-}
-
-/**
- * Determines if the given provider and model combination will use native tool calling.
- * Helpful if we need to quickly check this for prompts or other logic.
- * @param providerInfo The provider and model information
- * @param enableNativeToolCalls Whether the native tool calls setting is enabled
- * @returns true if the model will use native tool calling, false otherwise
- */
-export function isNativeToolCallingConfig(providerInfo: ApiProviderInfo, enableNativeToolCalls: boolean): boolean {
-	if (!enableNativeToolCalls) {
-		return false
-	}
-	if (!isNextGenModelProvider(providerInfo)) {
-		return false
-	}
-	const modelId = providerInfo.model.id.toLowerCase()
-	return isNextGenModelFamily(modelId)
 }
 
 function normalize(text: string): string {

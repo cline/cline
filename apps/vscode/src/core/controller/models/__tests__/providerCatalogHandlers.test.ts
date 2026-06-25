@@ -8,6 +8,7 @@ import type { ProviderCatalogController } from "../providerCatalogShared"
 
 type TestStateManager = {
 	setGlobalStateBatch: ReturnType<typeof vi.fn>
+	flushPendingState?: ReturnType<typeof vi.fn<() => Promise<void>>>
 	getApiConfiguration?: ReturnType<typeof vi.fn<() => ApiConfiguration | undefined>>
 }
 
@@ -213,7 +214,10 @@ describe("provider model catalog handlers", () => {
 		const { commitModelSelection } = await import("../commitModelSelection")
 		const providerId = parseProviderId("deepseek")
 		const store = makeStore({ providerId })
-		const stateManager: TestStateManager = { setGlobalStateBatch: vi.fn() }
+		const stateManager: TestStateManager = {
+			setGlobalStateBatch: vi.fn(),
+			flushPendingState: vi.fn(async () => undefined),
+		}
 		const controller = makeController(store, makeCatalog(), stateManager)
 
 		await commitModelSelection(controller, {
@@ -242,6 +246,7 @@ describe("provider model catalog handlers", () => {
 			actModeApiProvider: "deepseek",
 			actModeApiModelId: "deepseek-v4-flash",
 		})
+		expect(stateManager.flushPendingState).toHaveBeenCalledTimes(1)
 	})
 
 	it("commitModelSelection reports provider changes when config is initialized", async () => {
@@ -250,6 +255,7 @@ describe("provider model catalog handlers", () => {
 		const store = makeStore({ providerId })
 		const stateManager: TestStateManager = {
 			setGlobalStateBatch: vi.fn(),
+			flushPendingState: vi.fn(async () => undefined),
 			getApiConfiguration: vi
 				.fn<() => ApiConfiguration | undefined>()
 				.mockReturnValueOnce(undefined)
@@ -269,6 +275,7 @@ describe("provider model catalog handlers", () => {
 		})
 
 		expect(handleApiConfigurationChanged).toHaveBeenCalledWith({}, { actModeApiProvider: "deepseek" })
+		expect(stateManager.flushPendingState).toHaveBeenCalledTimes(1)
 	})
 
 	it("commitModelSelection rejects invalid mode", async () => {

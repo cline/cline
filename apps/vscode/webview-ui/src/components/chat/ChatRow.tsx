@@ -71,6 +71,7 @@ interface ChatRowProps {
 	lastModifiedMessage?: ClineMessage
 	isLast: boolean
 	onHeightChange: (isTaller: boolean) => void
+	onLastRowContentChange: () => void
 	inputValue?: string
 	sendMessageFromChatRow?: (text: string, images: string[], files: string[]) => void
 	onSetQuote: (text: string) => void
@@ -88,7 +89,9 @@ export interface QuoteButtonState {
 	selectedText: string
 }
 
-interface ChatRowContentProps extends Omit<ChatRowProps, "onHeightChange"> {}
+interface ChatRowContentProps extends Omit<ChatRowProps, "onHeightChange" | "onLastRowContentChange"> {
+	onLastRowContentChange?: () => void
+}
 
 export const ProgressIndicator = () => <LoaderCircleIcon className="size-2 mr-2 animate-spin" />
 const InvisibleSpacer = () => <div aria-hidden className="h-px" />
@@ -139,20 +142,14 @@ export const ChatRowContent = memo(
 		sendMessageFromChatRow,
 		onSetQuote,
 		onCancelCommand,
+		onLastRowContentChange,
 		mode,
 		isRequestInProgress,
 		reasoningContent,
 		responseStarted,
 	}: ChatRowContentProps) => {
-		const {
-			backgroundEditEnabled,
-			mcpServers,
-			onRelinquishControl,
-			vscodeTerminalExecutionMode,
-			clineMessages,
-			showFeatureTips,
-		} = useExtensionState()
-		const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
+		const { backgroundEditEnabled, mcpServers, vscodeTerminalExecutionMode, clineMessages, showFeatureTips } =
+			useExtensionState()
 		const [quoteButtonState, setQuoteButtonState] = useState<QuoteButtonState>({
 			visible: false,
 			top: 0,
@@ -224,13 +221,6 @@ export const ChatRowContent = memo(
 		const handleToggle = useCallback(() => {
 			onToggleExpand(message.ts)
 		}, [onToggleExpand, message.ts])
-
-		// Use the onRelinquishControl hook instead of message event
-		useEffect(() => {
-			return onRelinquishControl(() => {
-				setSeeNewChangesDisabled(false)
-			})
-		}, [onRelinquishControl])
 
 		// --- Quote Button Logic ---
 		// MOVE handleQuoteClick INSIDE ChatRowContent
@@ -756,6 +746,7 @@ export const ChatRowContent = memo(
 					isCommandPending={isCommandPending}
 					isOutputFullyExpanded={isOutputFullyExpanded}
 					message={message}
+					onOutputChange={isLast ? onLastRowContentChange : undefined}
 					onCancelCommand={onCancelCommand}
 					setIsOutputFullyExpanded={setIsOutputFullyExpanded}
 					title={title}
@@ -933,7 +924,13 @@ export const ChatRowContent = memo(
 					case "clineignore_error":
 						return <ErrorRow errorType="clineignore_error" message={message} />
 					case "checkpoint_created":
-						return <CheckmarkControl isCheckpointCheckedOut={message.isCheckpointCheckedOut} messageTs={message.ts} />
+						return (
+							<CheckmarkControl
+								checkpointNumber={message.conversationHistoryIndex}
+								isCheckpointCheckedOut={message.isCheckpointCheckedOut}
+								messageTs={message.ts}
+							/>
+						)
 					case "load_mcp_documentation":
 						return (
 							<div className="text-foreground flex items-center opacity-70 text-[12px] py-1 px-0">
@@ -949,11 +946,7 @@ export const ChatRowContent = memo(
 							<CompletionOutputRow
 								handleQuoteClick={handleQuoteClick}
 								headClassNames={HEADER_CLASSNAMES}
-								messageTs={message.ts}
 								quoteButtonState={quoteButtonState}
-								seeNewChangesDisabled={seeNewChangesDisabled}
-								setSeeNewChangesDisabled={setSeeNewChangesDisabled}
-								showActionRow={message.partial !== true && hasChanges}
 								text={text || ""}
 							/>
 						)
@@ -1094,11 +1087,7 @@ export const ChatRowContent = memo(
 								<CompletionOutputRow
 									handleQuoteClick={handleQuoteClick}
 									headClassNames={HEADER_CLASSNAMES}
-									messageTs={message.ts}
 									quoteButtonState={quoteButtonState}
-									seeNewChangesDisabled={seeNewChangesDisabled}
-									setSeeNewChangesDisabled={setSeeNewChangesDisabled}
-									showActionRow={message.partial !== true && hasChanges}
 									text={text || ""}
 								/>
 							)

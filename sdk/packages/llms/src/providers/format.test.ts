@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
 	ClineNotSubscribedError,
 	ClineOrgIndividualInferenceSubscriptionError,
-	getClineOrgIndividualInferenceSubscriptionMessage,
 	getClineNotSubscribedMessage,
+	getClineOrgIndividualInferenceSubscriptionMessage,
 	isClineNotSubscribedMessage,
 	isClineOrgIndividualInferenceSubscriptionMessage,
 } from "./errors";
@@ -70,6 +70,14 @@ describe("ClineNotSubscribedError", () => {
 		expect(isClineNotSubscribedMessage("different forbidden error")).toBe(
 			false,
 		);
+	});
+
+	it("detects the formatted ClinePass subscription message regardless of URL", () => {
+		expect(
+			isClineNotSubscribedMessage(
+				"No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: https://staging-app.cline.bot/promo?code=CLI-100&personal=true",
+			),
+		).toBe(true);
 	});
 });
 

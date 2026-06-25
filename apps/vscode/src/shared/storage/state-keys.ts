@@ -86,7 +86,6 @@ const GLOBAL_STATE_FIELDS = {
 	lastDismissedInfoBannerVersion: { default: 0 as number },
 	lastDismissedModelBannerVersion: { default: 0 as number },
 	lastDismissedCliBannerVersion: { default: 0 as number },
-	nativeToolCallEnabled: { default: true as boolean },
 	remoteRulesToggles: { default: {} as ClineRulesToggles },
 	remoteWorkflowToggles: { default: {} as ClineRulesToggles },
 	remoteSkillsToggles: { default: {} as ClineRulesToggles },
@@ -141,7 +140,6 @@ const API_HANDLER_SETTINGS_FIELDS = {
 	ocaMode: { default: "internal" as string },
 	aihubmixBaseUrl: { default: undefined as string | undefined },
 	aihubmixAppCode: { default: undefined as string | undefined },
-	enableParallelToolCalling: { default: true as boolean },
 
 	// Plan mode configurations
 	planModeApiModelId: { default: undefined as string | undefined },
@@ -267,7 +265,6 @@ const USER_SETTINGS_FIELDS = {
 	autoApproveAllToggled: { default: false as boolean },
 	useAutoCondense: { default: false as boolean },
 	subagentsEnabled: { default: false as boolean },
-	clineWebToolsEnabled: { default: true as boolean },
 	worktreesEnabled: { default: false as boolean },
 	preferredLanguage: { default: "English" as string },
 	mode: { default: "act" as Mode },
@@ -275,7 +272,6 @@ const USER_SETTINGS_FIELDS = {
 	customPrompt: { default: undefined as "compact" | undefined },
 	backgroundEditEnabled: { default: false as boolean },
 	optOutOfRemoteConfig: { default: false as boolean },
-	doubleCheckCompletionEnabled: { default: false as boolean },
 	showFeatureTips: { default: true as boolean },
 
 	// OpenTelemetry configuration

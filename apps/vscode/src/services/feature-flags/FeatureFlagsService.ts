@@ -114,10 +114,6 @@ export class FeatureFlagsService {
 		return this.cache.get(flagName) ?? FeatureFlagDefaultValue[flagName]
 	}
 
-	public getWebtoolsEnabled(): boolean {
-		return this.getBooleanFlagEnabled(FeatureFlag.WEBTOOLS)
-	}
-
 	public getWorktreesEnabled(): boolean {
 		return this.getBooleanFlagEnabled(FeatureFlag.WORKTREES)
 	}
