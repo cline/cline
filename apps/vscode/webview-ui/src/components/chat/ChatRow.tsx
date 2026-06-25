@@ -144,14 +144,8 @@ export const ChatRowContent = memo(
 		reasoningContent,
 		responseStarted,
 	}: ChatRowContentProps) => {
-		const {
-			backgroundEditEnabled,
-			mcpServers,
-			onRelinquishControl,
-			vscodeTerminalExecutionMode,
-			clineMessages,
-			showFeatureTips,
-		} = useExtensionState()
+		const { backgroundEditEnabled, mcpServers, vscodeTerminalExecutionMode, clineMessages, showFeatureTips } =
+			useExtensionState()
 		const [quoteButtonState, setQuoteButtonState] = useState<QuoteButtonState>({
 			visible: false,
 			top: 0,
@@ -223,13 +217,6 @@ export const ChatRowContent = memo(
 		const handleToggle = useCallback(() => {
 			onToggleExpand(message.ts)
 		}, [onToggleExpand, message.ts])
-
-		// Use the onRelinquishControl hook instead of message event
-		useEffect(() => {
-			return onRelinquishControl(() => {
-				setSeeNewChangesDisabled(false)
-			})
-		}, [onRelinquishControl])
 
 		// --- Quote Button Logic ---
 		// MOVE handleQuoteClick INSIDE ChatRowContent
