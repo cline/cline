@@ -143,18 +143,6 @@ function createProviderModelsCache(options: ProviderModelsCacheOptions) {
 }
 
 function toSdkProviderConfig(config: EffectiveProviderConfig, selection: ModelSelection | undefined): ProviderConfig {
-	let sap: ProviderConfig["sap"] | undefined
-	if (config.providerId === "sapaicore") {
-		const resourceGroup =
-			typeof config.extras?.sapAiResourceGroup === "string" ? optionalNonEmpty(config.extras.sapAiResourceGroup) : undefined
-		sap = {
-			useOrchestrationMode:
-				typeof config.extras?.sapAiCoreUseOrchestrationMode === "boolean"
-					? config.extras.sapAiCoreUseOrchestrationMode
-					: true,
-			...(resourceGroup ? { resourceGroup } : {}),
-		}
-	}
 	return {
 		providerId: toSdkProviderId(config.providerId),
 		modelId: selection?.modelId ?? "",
@@ -167,7 +155,6 @@ function toSdkProviderConfig(config: EffectiveProviderConfig, selection: ModelSe
 		apiLine: config.apiLine === "china" || config.apiLine === "international" ? config.apiLine : undefined,
 		region: config.gcp?.region ?? config.region,
 		gcp: config.gcp ? { ...config.gcp } : undefined,
-		sap,
 	}
 }
 
