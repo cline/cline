@@ -16,8 +16,8 @@ export interface AutoApprovalSettings {
 		readFilesExternally?: boolean // Read files and directories outside of the working directory
 		editFiles: boolean // Edit files in the working directory
 		editFilesExternally?: boolean // Edit files outside of the working directory
-		executeSafeCommands?: boolean // Execute safe commands
-		executeAllCommands?: boolean // Execute all commands
+		executeSafeCommands?: boolean // Execute commands
+		executeAllCommands?: boolean // Legacy field - kept for backward compatibility with older extension versions
 		useBrowser: boolean // Use browser
 		useMcp: boolean // Use MCP servers
 	}
