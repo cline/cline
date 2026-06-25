@@ -58,7 +58,7 @@ export class SdkSessionEventCoordinator {
 			return
 		}
 
-		if (event.type === "pending_prompts" || event.type === "pending_prompt_submitted") {
+		if (event.type === "pending_prompts") {
 			this.options.postStateToWebview().catch((err) => {
 				Logger.error("[SdkController] Failed to post pending-prompt state update:", err)
 			})
