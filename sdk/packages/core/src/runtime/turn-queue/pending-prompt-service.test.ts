@@ -133,7 +133,7 @@ describe("PendingPromptService", () => {
 			],
 			aborting: false,
 			drainingPendingPrompts: false,
-			status: "idle",
+			status: "completed",
 			agent: {
 				canStartRun: () => true,
 			},
