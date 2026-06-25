@@ -1,5 +1,4 @@
 import { arePathsEqual } from "@utils/path"
-import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import { getShell, getShellForProfile } from "@utils/shell"
 import pWaitFor from "p-wait-for"
 import * as vscode from "vscode"
@@ -105,7 +104,6 @@ export class VscodeTerminalManager implements ITerminalManager {
 	private terminalReuseEnabled = true
 	private terminalOutputLineLimit = 500
 	private defaultTerminalProfile = "default"
-	private terminalShowDelayMs = 2000
 
 	/**
 	 * Resolve a terminal's stored shellPath to an effective path.
@@ -174,14 +172,6 @@ export class VscodeTerminalManager implements ITerminalManager {
 		return arePathsEqual(currentCwd, targetCwd)
 	}
 
-	private async showTerminalBeforeInput(terminal: vscode.Terminal, forceDelay = false): Promise<void> {
-		const wasActive = vscode.window.activeTerminal === terminal
-		terminal.show()
-		if (forceDelay || !wasActive) {
-			await setTimeoutPromise(this.terminalShowDelayMs)
-		}
-	}
-
 	runCommand(terminalInfo: ITerminalInfo, command: string): ITerminalProcessResultPromise {
 		// Cast to VSCode-specific TerminalInfo for internal use
 		// Using unknown as intermediate cast due to structural differences between ITerminal and vscode.Terminal
@@ -218,39 +208,37 @@ export class VscodeTerminalManager implements ITerminalManager {
 			})
 		})
 
-		this.showTerminalBeforeInput(vscodeTerminalInfo.terminal).then(() => {
-			// if shell integration is already active, run the command immediately
-			if (vscodeTerminalInfo.terminal.shellIntegration) {
-				process.waitForShellIntegration = false
-				process.run(vscodeTerminalInfo.terminal, command)
-			} else {
-				// docs recommend waiting 3s for shell integration to activate
-				Logger.log(
-					`[TerminalManager Test] Waiting for shell integration for terminal ${vscodeTerminalInfo.id} with timeout ${this.shellIntegrationTimeout}ms`,
-				)
-				pWaitFor(() => vscodeTerminalInfo.terminal.shellIntegration !== undefined, {
-					timeout: this.shellIntegrationTimeout,
+		// if shell integration is already active, run the command immediately
+		if (vscodeTerminalInfo.terminal.shellIntegration) {
+			process.waitForShellIntegration = false
+			process.run(vscodeTerminalInfo.terminal, command)
+		} else {
+			// docs recommend waiting 3s for shell integration to activate
+			Logger.log(
+				`[TerminalManager Test] Waiting for shell integration for terminal ${vscodeTerminalInfo.id} with timeout ${this.shellIntegrationTimeout}ms`,
+			)
+			pWaitFor(() => vscodeTerminalInfo.terminal.shellIntegration !== undefined, {
+				timeout: this.shellIntegrationTimeout,
+			})
+				.then(() => {
+					Logger.log(
+						`[TerminalManager Test] Shell integration activated for terminal ${vscodeTerminalInfo.id} within timeout.`,
+					)
 				})
-					.then(() => {
-						Logger.log(
-							`[TerminalManager Test] Shell integration activated for terminal ${vscodeTerminalInfo.id} within timeout.`,
-						)
-					})
-					.catch((err) => {
-						Logger.warn(
-							`[TerminalManager Test] Shell integration timed out or failed for terminal ${vscodeTerminalInfo.id}: ${err.message}`,
-						)
-					})
-					.finally(() => {
-						Logger.log(`[TerminalManager Test] Proceeding with command execution for terminal ${vscodeTerminalInfo.id}.`)
-						const existingProcess = this.processes.get(vscodeTerminalInfo.id)
-						if (existingProcess && existingProcess.waitForShellIntegration) {
-							existingProcess.waitForShellIntegration = false
-							existingProcess.run(vscodeTerminalInfo.terminal, command)
-						}
-					})
-			}
-		})
+				.catch((err) => {
+					Logger.warn(
+						`[TerminalManager Test] Shell integration timed out or failed for terminal ${vscodeTerminalInfo.id}: ${err.message}`,
+					)
+				})
+				.finally(() => {
+					Logger.log(`[TerminalManager Test] Proceeding with command execution for terminal ${vscodeTerminalInfo.id}.`)
+					const existingProcess = this.processes.get(vscodeTerminalInfo.id)
+					if (existingProcess && existingProcess.waitForShellIntegration) {
+						existingProcess.waitForShellIntegration = false
+						existingProcess.run(vscodeTerminalInfo.terminal, command)
+					}
+				})
+		}
 
 		return mergePromise(process, promise)
 	}
@@ -307,7 +295,8 @@ export class VscodeTerminalManager implements ITerminalManager {
 				// through VscodeTerminalProcess, since fast zero-output commands like `cd`
 				// can get stuck waiting on shell integration and prevent the real command
 				// from ever being sent.
-				await this.showTerminalBeforeInput(availableTerminal.terminal, true)
+				availableTerminal.terminal.show()
+				await new Promise((resolve) => setTimeout(resolve, 2000))
 				availableTerminal.terminal.sendText(`cd "${cwd}"`, true)
 
 				// Either resolve immediately if CWD already updated or wait for event/timeout
