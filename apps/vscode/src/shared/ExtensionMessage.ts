@@ -104,7 +104,6 @@ export interface ExtensionState {
 	yoloModeToggled?: boolean
 	useAutoCondense?: boolean
 	subagentsEnabled?: boolean
-	clineWebToolsEnabled?: ClineFeatureSetting
 	worktreesEnabled?: ClineFeatureSetting
 	customPrompt?: string
 	favoritedModelIds: string[]
@@ -121,11 +120,8 @@ export interface ExtensionState {
 	remoteConfigSettings?: Partial<RemoteConfigFields>
 	globalSkillsToggles?: Record<string, boolean>
 	localSkillsToggles?: Record<string, boolean>
-	nativeToolCallSetting?: boolean
-	enableParallelToolCalling?: boolean
 	backgroundEditEnabled?: boolean
 	optOutOfRemoteConfig?: boolean
-	doubleCheckCompletionEnabled?: boolean
 	showFeatureTips?: boolean
 	banners?: BannerCardData[]
 	welcomeBanners?: BannerCardData[]
