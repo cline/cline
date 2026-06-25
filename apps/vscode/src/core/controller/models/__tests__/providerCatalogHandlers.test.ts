@@ -275,6 +275,7 @@ describe("provider model catalog handlers", () => {
 		})
 
 		expect(handleApiConfigurationChanged).toHaveBeenCalledWith({}, { actModeApiProvider: "deepseek" })
+		expect(stateManager.flushPendingState).toHaveBeenCalledTimes(1)
 	})
 
 	it("commitModelSelection rejects invalid mode", async () => {

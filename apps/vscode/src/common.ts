@@ -155,28 +155,30 @@ async function checkWorktreeAutoOpen(stateManager: StateManager): Promise<void> 
  */
 export async function tearDown(): Promise<void> {
 	try {
-		await StateManager.get().flushPendingState()
-	} catch (error) {
-		Logger.error("[Cline] Failed to flush pending state during teardown:", error)
+		AgentConfigLoader.getInstance()?.dispose()
+		PostHogClientProvider.getInstance().dispose()
+		telemetryService.dispose()
+		ErrorService.get().dispose()
+		featureFlagsService.dispose()
+		// Dispose all webview instances
+		await WebviewProvider.disposeAllInstances()
+		syncWorker().dispose()
+		clearOnboardingModelsCache()
+
+		// Kill any running hook processes to prevent zombies
+		await HookProcessRegistry.terminateAll()
+		// Clean up hook discovery cache
+		HookDiscoveryCache.getInstance().dispose()
+		// Stop periodic temp file cleanup
+		ClineTempManager.stopPeriodicCleanup()
+
+		// Clean up test mode
+		cleanupTestMode()
+	} finally {
+		try {
+			await StateManager.get().flushPendingState()
+		} catch (error) {
+			Logger.error("[Cline] Failed to flush pending state during teardown:", error)
+		}
 	}
-
-	AgentConfigLoader.getInstance()?.dispose()
-	PostHogClientProvider.getInstance().dispose()
-	telemetryService.dispose()
-	ErrorService.get().dispose()
-	featureFlagsService.dispose()
-	// Dispose all webview instances
-	await WebviewProvider.disposeAllInstances()
-	syncWorker().dispose()
-	clearOnboardingModelsCache()
-
-	// Kill any running hook processes to prevent zombies
-	await HookProcessRegistry.terminateAll()
-	// Clean up hook discovery cache
-	HookDiscoveryCache.getInstance().dispose()
-	// Stop periodic temp file cleanup
-	ClineTempManager.stopPeriodicCleanup()
-
-	// Clean up test mode
-	cleanupTestMode()
 }
