@@ -45,13 +45,18 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 				let messageSent = false
 
 				if (messages.length === 0) {
-					await TaskServiceClient.newTask(
-						NewTaskRequest.create({
-							text: messageToSend,
-							images,
-							files,
-						}),
-					)
+					const request = NewTaskRequest.create({
+						text: messageToSend,
+						images,
+						files,
+					})
+					setInputValue("")
+					setActiveQuote(null)
+					setSendingDisabled(true)
+					setSelectedImages([])
+					setSelectedFiles([])
+					setEnableButtons(false)
+					await TaskServiceClient.newTask(request)
 					messageSent = true
 				} else if (clineAsk) {
 					// For resume_task and resume_completed_task, use yesButtonClicked to match Resume button behavior
