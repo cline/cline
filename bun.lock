@@ -718,6 +718,11 @@
     "grpc-tools",
   ],
   "overrides": {
+    "@sap-cloud-sdk/connectivity": "4.6.0",
+    "@sap-cloud-sdk/http-client": "4.6.0",
+    "@sap-cloud-sdk/openapi": "4.6.0",
+    "@sap-cloud-sdk/resilience": "4.6.0",
+    "@sap-cloud-sdk/util": "4.6.0",
     "diff": "8.0.4",
     "js-yaml": "^4.1.1",
     "protobufjs": "7.5.8",
@@ -2178,15 +2183,15 @@
 
     "@sap-ai-sdk/prompt-registry": ["@sap-ai-sdk/prompt-registry@2.11.0", "", { "dependencies": { "@sap-ai-sdk/core": "^2.11.0", "zod": "^4.4.3" } }, "sha512-1WrqGjwHltF/aOXoNDPYtvvaprQarPsKZUC0wSMeC6XZokoYvjvHNrltLm1IFygpjTr8yma45JJkKcwV1qzvDg=="],
 
-    "@sap-cloud-sdk/connectivity": ["@sap-cloud-sdk/connectivity@4.7.0", "", { "dependencies": { "@sap-cloud-sdk/resilience": "^4.7.0", "@sap-cloud-sdk/util": "^4.7.0", "@sap/xsenv": "^6.2.0", "@sap/xssec": "^4.13.0", "async-retry": "^1.3.3", "axios": "^1.15.0", "jks-js": "^1.1.6", "jsonwebtoken": "^9.0.3", "safe-stable-stringify": "^2.5.0" } }, "sha512-+EgdTpGi3ZomPuv/ab+bWQIxUfJvownW2MzdYSvX7hkEkmKJfod0O6ja2OqC+OJBLm1TE0JpbJ6AcCkqeZYuOg=="],
+    "@sap-cloud-sdk/connectivity": ["@sap-cloud-sdk/connectivity@4.6.0", "", { "dependencies": { "@sap-cloud-sdk/resilience": "^4.6.0", "@sap-cloud-sdk/util": "^4.6.0", "@sap/xsenv": "^6.1.0", "@sap/xssec": "^4.13.0", "async-retry": "^1.3.3", "axios": "^1.15.0", "jks-js": "^1.1.6", "jsonwebtoken": "^9.0.3" } }, "sha512-Pf+0O1s4eDNR/MZ+UcyOyPa/U8dl3xUHEbjY+BG7DHZtLZFYVfKg2dV63ZTzeHypqMRVQePCN8yIyIz296FWHg=="],
 
-    "@sap-cloud-sdk/http-client": ["@sap-cloud-sdk/http-client@4.7.0", "", { "dependencies": { "@sap-cloud-sdk/connectivity": "^4.7.0", "@sap-cloud-sdk/resilience": "^4.7.0", "@sap-cloud-sdk/util": "^4.7.0", "axios": "^1.15.0" } }, "sha512-7+S6ru7SrnyKA2MGimX09oix0EVwmPGcCAz0TRwFZVnglU+VTRmZ8QdcwcVTR26E9YhkR4OVl6EK7jb2Z0OxfQ=="],
+    "@sap-cloud-sdk/http-client": ["@sap-cloud-sdk/http-client@4.6.0", "", { "dependencies": { "@sap-cloud-sdk/connectivity": "^4.6.0", "@sap-cloud-sdk/resilience": "^4.6.0", "@sap-cloud-sdk/util": "^4.6.0", "axios": "^1.15.0" } }, "sha512-fBaJAnOsHGyIlRS4HA2XYxp9v3GjUWPACoGDRg01jjoq49r3KjIMi8FqycMwKTF9QnkX/4rlPtj2wnziHgG2bg=="],
 
-    "@sap-cloud-sdk/openapi": ["@sap-cloud-sdk/openapi@4.7.0", "", { "dependencies": { "@sap-cloud-sdk/connectivity": "^4.7.0", "@sap-cloud-sdk/http-client": "^4.7.0", "@sap-cloud-sdk/resilience": "^4.7.0", "@sap-cloud-sdk/util": "^4.7.0", "axios": "^1.15.0" } }, "sha512-OKTEGVScCRsfgL9Lk/bEKcGnyfq0GgruXuZfsxoMbTqbe2f9X/fgHgXIWQEkTuXQplkrSDiNFRyvl0n/ON9Ycg=="],
+    "@sap-cloud-sdk/openapi": ["@sap-cloud-sdk/openapi@4.6.0", "", { "dependencies": { "@sap-cloud-sdk/connectivity": "^4.6.0", "@sap-cloud-sdk/http-client": "^4.6.0", "@sap-cloud-sdk/resilience": "^4.6.0", "@sap-cloud-sdk/util": "^4.6.0", "axios": "^1.15.0" } }, "sha512-If5eD5DWUA7nXUUvMYuG3p8+JjSR2+DZPnE88YdDR7+kIbblDuV2c4QbyjpT0oeA2sQ3S9iZVx8cZP8n5dmdHQ=="],
 
-    "@sap-cloud-sdk/resilience": ["@sap-cloud-sdk/resilience@4.7.0", "", { "dependencies": { "@sap-cloud-sdk/util": "^4.7.0", "async-retry": "^1.3.3", "axios": "^1.15.0", "opossum": "^9.0.0" } }, "sha512-L6PV49nNyZHnTNFbvaufadm+qOhaammXLXkDQmD7WIzMjhiYMqa/obK3NJoohe/kZ7q73jPB2vdLsAqopqTh0A=="],
+    "@sap-cloud-sdk/resilience": ["@sap-cloud-sdk/resilience@4.6.0", "", { "dependencies": { "@sap-cloud-sdk/util": "^4.6.0", "async-retry": "^1.3.3", "axios": "^1.15.0", "opossum": "^9.0.0" } }, "sha512-NMY683lNvJcE5dghVqUsBLM/voTLE6MMn5OmmB5BkG8qp5TZSuy/lhMZCVfGpBVnRLv6k19vWiBcueXxYg8bcQ=="],
 
-    "@sap-cloud-sdk/util": ["@sap-cloud-sdk/util@4.7.0", "", { "dependencies": { "axios": "^1.15.0", "logform": "^2.7.0", "voca": "^1.4.1", "winston": "^3.19.0", "winston-transport": "^4.9.0" } }, "sha512-nWJXMdM0Pcx/ipM2+5BvSciQKyCc0LAAO+acCOAQp65SA4HEQ2Odp9yxidY4ijW42TVp3fSMBvGwVjbWWx9Uew=="],
+    "@sap-cloud-sdk/util": ["@sap-cloud-sdk/util@4.6.0", "", { "dependencies": { "axios": "^1.15.0", "logform": "^2.7.0", "voca": "^1.4.1", "winston": "^3.19.0", "winston-transport": "^4.9.0" } }, "sha512-z1gFjgzhAUhzPy1IkwWjfOrnPHh9KrEZbLlFBG5LbL3oBS3JMmKusW0162Hq4r+AVTR43akEoHxk07p247YQTw=="],
 
     "@sap/xsenv": ["@sap/xsenv@6.2.1", "", { "dependencies": { "debug": "4.4.3", "node-cache": "^5.1.2", "verror": "1.10.1" } }, "sha512-R1p7VdD3N3jvdkL8av4vLqF+cTQihTz9mCqqF+oa9rVZvgLaCb4ODyZ1dln5/fBgg1OSuch0ESxu3AqZrXVknw=="],
 

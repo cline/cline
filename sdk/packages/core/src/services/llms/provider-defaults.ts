@@ -215,6 +215,50 @@ async function mergeKnownModels(
 	});
 }
 
+function isSapAiCoreFoundationModels(
+	config: ProviderConfig | undefined,
+): boolean {
+	return (
+		config?.providerId === "sapaicore" &&
+		config.sap?.useOrchestrationMode === false
+	);
+}
+
+function isSapAiCoreFoundationChatModel(modelId: string): boolean {
+	const normalizedModelId = modelId.trim().toLowerCase();
+	const unsupportedModelKinds = ["base", "codex", "instruct", "realtime"];
+	return (
+		/^gpt-?\d/.test(normalizedModelId) &&
+		!unsupportedModelKinds.some((kind) => normalizedModelId.includes(kind))
+	);
+}
+
+function filterResolvedKnownModels(
+	providerId: string,
+	knownModels: Record<string, ModelInfo>,
+	config: ProviderConfig | undefined,
+): Record<string, ModelInfo> {
+	if (providerId !== "sapaicore" || !isSapAiCoreFoundationModels(config)) {
+		return knownModels;
+	}
+
+	return Object.fromEntries(
+		Object.entries(knownModels).filter(([modelId]) =>
+			isSapAiCoreFoundationChatModel(modelId),
+		),
+	);
+}
+
+function chooseResolvedModelId(
+	defaultModelId: string,
+	knownModels: Record<string, ModelInfo>,
+): string {
+	if (knownModels[defaultModelId]) {
+		return defaultModelId;
+	}
+	return Object.keys(knownModels)[0] ?? defaultModelId;
+}
+
 function resolveCatalogModels(
 	providerId: string,
 	modelsByProviderId: Record<string, Record<string, ModelInfo>>,
@@ -920,7 +964,7 @@ export async function resolveProviderConfig(
 					publicConfig,
 				).catch(() => ({}))
 			: {};
-		const knownModels = await mergeKnownModels(
+		const mergedModels = await mergeKnownModels(
 			providerId,
 			defaults.knownModels,
 			liveModels,
@@ -928,9 +972,15 @@ export async function resolveProviderConfig(
 			publicModels,
 			config?.knownModels,
 		);
+		const knownModels = filterResolvedKnownModels(
+			providerId,
+			mergedModels,
+			config,
+		);
 
 		return {
 			...defaults,
+			modelId: chooseResolvedModelId(defaults.modelId, knownModels),
 			knownModels,
 		};
 	} catch (error) {
