@@ -150,14 +150,6 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setGlobalState("yoloModeToggled", request.yoloModeToggled)
 		}
 
-		// Update cline web tools setting
-		if (request.clineWebToolsEnabled !== undefined) {
-			if (controller.task) {
-				telemetryService.captureClineWebToolsToggle(controller.task.ulid, request.clineWebToolsEnabled)
-			}
-			controller.stateManager.setGlobalState("clineWebToolsEnabled", request.clineWebToolsEnabled)
-		}
-
 		// Update worktrees setting
 		if (request.worktreesEnabled !== undefined) {
 			controller.stateManager.setGlobalState("worktreesEnabled", request.worktreesEnabled)
@@ -250,22 +242,6 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setGlobalState("multiRootEnabled", !!request.multiRootEnabled)
 		}
 
-		if (request.nativeToolCallEnabled !== undefined) {
-			controller.stateManager.setGlobalState("nativeToolCallEnabled", !!request.nativeToolCallEnabled)
-			if (controller.task) {
-				telemetryService.captureFeatureToggle(
-					controller.task.ulid,
-					"native-tool-call",
-					request.nativeToolCallEnabled,
-					controller.task.api.getModel().id,
-				)
-			}
-		}
-
-		if (request.enableParallelToolCalling !== undefined) {
-			controller.stateManager.setGlobalState("enableParallelToolCalling", !!request.enableParallelToolCalling)
-		}
-
 		if (request.optOutOfRemoteConfig !== undefined) {
 			const hadOptedOut = controller.stateManager.getGlobalSettingsKey("optOutOfRemoteConfig")
 			const isOptingOut = !!request.optOutOfRemoteConfig
@@ -283,10 +259,6 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 				// and we apply the actual config afterwards without blocking the settings update
 				fetchRemoteConfig(controller)
 			}
-		}
-
-		if (request.doubleCheckCompletionEnabled !== undefined) {
-			controller.stateManager.setGlobalState("doubleCheckCompletionEnabled", request.doubleCheckCompletionEnabled)
 		}
 
 		if (request.showFeatureTips !== undefined) {
