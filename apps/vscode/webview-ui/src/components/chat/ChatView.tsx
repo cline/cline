@@ -23,6 +23,7 @@ import {
 	groupMessages,
 	InputSection,
 	MessagesArea,
+	QueuedPrompts,
 	TaskSection,
 	useChatState,
 	useMessageHandlers,
@@ -52,6 +53,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		userInfo,
 		hooksEnabled,
 		checkpointRestoreInput,
+		queuedPrompts,
 	} = useExtensionState()
 	const isProdHostedApp = userInfo?.apiBaseUrl === "https://app.cline.bot"
 	const shouldShowQuickWins = isProdHostedApp && (!taskHistory || taskHistory.length < QUICK_WINS_HISTORY_THRESHOLD)
@@ -86,10 +88,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const lastAppliedCheckpointRestoreSessionId = useRef<string | undefined>(checkpointRestoreInput?.sessionId)
 
 	useEffect(() => {
-		if (
-			!checkpointRestoreInput ||
-			checkpointRestoreInput.sessionId === lastAppliedCheckpointRestoreSessionId.current
-		) {
+		if (!checkpointRestoreInput || checkpointRestoreInput.sessionId === lastAppliedCheckpointRestoreSessionId.current) {
 			return
 		}
 		lastAppliedCheckpointRestoreSessionId.current = checkpointRestoreInput.sessionId
@@ -368,6 +367,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					mode={mode}
 					task={task}
 				/>
+				<QueuedPrompts items={queuedPrompts} />
 				<InputSection
 					chatState={chatState}
 					messageHandlers={messageHandlers}
