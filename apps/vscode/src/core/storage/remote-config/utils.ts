@@ -1,5 +1,4 @@
 import { synchronizeRemoteRuleToggles } from "@core/context/instructions/user-instructions/rule-helpers"
-import path from "node:path"
 import { parseRemoteSkillEntries } from "@core/context/instructions/user-instructions/skills"
 import type { RemoteConfig, S3AccessKeySettings } from "@shared/remote-config/schema"
 import { ConfiguredAPIKeys, GlobalStateAndSettings, RemoteConfigFields } from "@shared/storage/state-keys"
@@ -374,8 +373,7 @@ export async function applyRemoteConfig(
 	try {
 		const serversToSync = remoteConfig.remoteMCPServers ?? []
 		const settingsPath = await mcpHub.getMcpSettingsFilePath()
-		const settingsDirectoryPath = path.dirname(settingsPath)
-		await syncRemoteMcpServersToSettings(serversToSync, settingsDirectoryPath, mcpHub)
+		await syncRemoteMcpServersToSettings(serversToSync, settingsPath, mcpHub)
 		stateManager.setRemoteConfigField("previousRemoteMCPServers", serversToSync)
 	} catch (error) {
 		Logger.error("[RemoteConfig] Failed to sync remote MCP servers to settings:", error)

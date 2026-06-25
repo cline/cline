@@ -211,7 +211,6 @@ export async function exportVSCodeStorageToSharedFiles(
 			storage.workspaceState.setBatch(workspaceStateBatch)
 		}
 
-
 		// If the original v1 export was already complete, still advance sentinels
 		// for this workspace after the v2 MCP migration attempt so future startups
 		// don't re-run it. New workspaces still have no workspace sentinel and will
@@ -223,8 +222,7 @@ export async function exportVSCodeStorageToSharedFiles(
 			storage.workspaceState.set(MIGRATION_VERSION_KEY, CURRENT_MIGRATION_VERSION)
 		}
 
-		result.migrated =
-			needGlobalMigration || needWorkspaceMigration || needMcpSettingsMigration || result.mcpServersAdded > 0
+		result.migrated = needGlobalMigration || needWorkspaceMigration || needMcpSettingsMigration || result.mcpServersAdded > 0
 
 		Logger.info(
 			`[Migration] Complete: ${result.globalStateCount} global state keys, ` +

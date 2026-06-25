@@ -77,11 +77,14 @@ describe("vscode-to-file-migration", () => {
 	let sandbox: sinon.SinonSandbox
 	let tempDir: string
 	let storageContext: StorageContext
+	let originalMcpSettingsPath: string | undefined
 
 	beforeEach(() => {
 		sandbox = sinon.createSandbox()
+		originalMcpSettingsPath = process.env.CLINE_MCP_SETTINGS_PATH
 		tempDir = path.join(os.tmpdir(), `migration-test-${Date.now()}-${Math.random().toString(36).slice(2)}`)
 		fs.mkdirSync(tempDir, { recursive: true })
+		process.env.CLINE_MCP_SETTINGS_PATH = path.join(tempDir, "runtime-mcp-settings", "cline_mcp_settings.json")
 
 		storageContext = createStorageContext({
 			clineDir: tempDir,
@@ -91,6 +94,11 @@ describe("vscode-to-file-migration", () => {
 
 	afterEach(() => {
 		sandbox.restore()
+		if (originalMcpSettingsPath === undefined) {
+			delete process.env.CLINE_MCP_SETTINGS_PATH
+		} else {
+			process.env.CLINE_MCP_SETTINGS_PATH = originalMcpSettingsPath
+		}
 		try {
 			fs.rmSync(tempDir, { recursive: true, force: true })
 		} catch {
@@ -289,19 +297,42 @@ describe("vscode-to-file-migration", () => {
 	})
 
 	describe("legacy MCP settings migration", () => {
-		function readSharedMcpSettings() {
-			return JSON.parse(fs.readFileSync(path.join(storageContext.dataDir, "settings", "cline_mcp_settings.json"), "utf8"))
+		function sharedMcpSettingsPath() {
+			return process.env.CLINE_MCP_SETTINGS_PATH!
 		}
+
+		function readSharedMcpSettings() {
+			return JSON.parse(fs.readFileSync(sharedMcpSettingsPath(), "utf8"))
+		}
+
+		it("writes to the runtime MCP settings resolver path rather than storage.dataDir", async () => {
+			const mockCtx = createMockVSCodeContext()
+			const extensionStorage = path.join(tempDir, "vscode-global-storage")
+			mockCtx.globalStorageUri.fsPath = extensionStorage
+			fs.mkdirSync(path.join(extensionStorage, "settings"), { recursive: true })
+			fs.writeFileSync(
+				path.join(extensionStorage, "settings", "cline_mcp_settings.json"),
+				JSON.stringify({ mcpServers: { overrideTarget: { command: "node" } } }),
+			)
+
+			const result = await exportVSCodeStorageToSharedFiles(mockCtx as any, storageContext, {
+				documentsDir: path.join(tempDir, "Documents"),
+			})
+
+			result.mcpServersAdded.should.equal(1)
+			fs.existsSync(sharedMcpSettingsPath()).should.be.true()
+			fs.existsSync(path.join(storageContext.dataDir, "settings", "cline_mcp_settings.json")).should.be.false()
+			readSharedMcpSettings().mcpServers.overrideTarget.should.deepEqual({
+				transport: { type: "stdio", command: "node" },
+			})
+		})
 
 		it("skips a legacy source that resolves to the shared MCP settings file", async () => {
 			const mockCtx = createMockVSCodeContext()
-			mockCtx.globalStorageUri.fsPath = storageContext.dataDir
-			const sharedSettingsDir = path.join(storageContext.dataDir, "settings")
+			const sharedSettingsDir = path.dirname(sharedMcpSettingsPath())
 			fs.mkdirSync(sharedSettingsDir, { recursive: true })
-			fs.writeFileSync(
-				path.join(sharedSettingsDir, "cline_mcp_settings.json"),
-				JSON.stringify({ mcpServers: { alreadyShared: { command: "node" } } }),
-			)
+			mockCtx.globalStorageUri.fsPath = path.dirname(sharedSettingsDir)
+			fs.writeFileSync(sharedMcpSettingsPath(), JSON.stringify({ mcpServers: { alreadyShared: { command: "node" } } }))
 
 			const result = await exportVSCodeStorageToSharedFiles(mockCtx as any, storageContext, {
 				documentsDir: path.join(tempDir, "Documents"),
@@ -324,7 +355,7 @@ describe("vscode-to-file-migration", () => {
 				JSON.stringify({ mcpServers: { lockedServer: { command: "node" } } }),
 			)
 
-			const sharedSettingsPath = path.join(storageContext.dataDir, "settings", "cline_mcp_settings.json")
+			const sharedSettingsPath = sharedMcpSettingsPath()
 			const lockDir = `${sharedSettingsPath}.lock`
 			fs.mkdirSync(lockDir, { recursive: true })
 			fs.writeFileSync(path.join(lockDir, "owner.test"), "test")
@@ -370,10 +401,10 @@ describe("vscode-to-file-migration", () => {
 				}),
 			)
 
-			const sharedSettingsDir = path.join(storageContext.dataDir, "settings")
+			const sharedSettingsDir = path.dirname(sharedMcpSettingsPath())
 			fs.mkdirSync(sharedSettingsDir, { recursive: true })
 			fs.writeFileSync(
-				path.join(sharedSettingsDir, "cline_mcp_settings.json"),
+				sharedMcpSettingsPath(),
 				JSON.stringify({
 					mcpServers: {
 						existing: {
@@ -401,6 +432,39 @@ describe("vscode-to-file-migration", () => {
 			settings.mcpServers.docsServer.should.deepEqual({
 				transport: { type: "sse", url: "https://example.com/sse" },
 				autoApprove: ["search"],
+			})
+		})
+
+		it("preserves top-level URL for migrated remote-configured URL servers", async () => {
+			const mockCtx = createMockVSCodeContext()
+			const extensionStorage = path.join(tempDir, "vscode-global-storage")
+			mockCtx.globalStorageUri.fsPath = extensionStorage
+			fs.mkdirSync(path.join(extensionStorage, "settings"), { recursive: true })
+			fs.writeFileSync(
+				path.join(extensionStorage, "settings", "cline_mcp_settings.json"),
+				JSON.stringify({
+					mcpServers: {
+						managed: {
+							url: "https://managed.example.com/mcp",
+							type: "streamableHttp",
+							remoteConfigured: true,
+							disabled: true,
+							autoApprove: ["tool-a"],
+						},
+					},
+				}),
+			)
+
+			await exportVSCodeStorageToSharedFiles(mockCtx as any, storageContext, {
+				documentsDir: path.join(tempDir, "Documents"),
+			})
+
+			readSharedMcpSettings().mcpServers.managed.should.deepEqual({
+				transport: { type: "streamableHttp", url: "https://managed.example.com/mcp" },
+				disabled: true,
+				autoApprove: ["tool-a"],
+				remoteConfigured: true,
+				url: "https://managed.example.com/mcp",
 			})
 		})
 
@@ -477,7 +541,7 @@ describe("vscode-to-file-migration", () => {
 			await exportVSCodeStorageToSharedFiles(mockCtx as any, storageContext, {
 				documentsDir: path.join(tempDir, "Documents"),
 			} as any)
-			const settingsPath = path.join(storageContext.dataDir, "settings", "cline_mcp_settings.json")
+			const settingsPath = sharedMcpSettingsPath()
 			fs.writeFileSync(settingsPath, JSON.stringify({ mcpServers: {} }))
 
 			const second = await exportVSCodeStorageToSharedFiles(mockCtx as any, storageContext, {

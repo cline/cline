@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
+import { getDocumentsPath } from "@/core/storage/documents-path"
 import type * as vscode from "vscode"
 import { updateMcpSettingsFile } from "@/services/mcp/settingsLock"
 import type { StorageContext } from "@/shared/storage/storage-context"
@@ -184,6 +185,12 @@ export function normalizeLegacyMcpServer(
 	if (typeof source.remoteConfigured === "boolean") {
 		normalized.remoteConfigured = source.remoteConfigured
 	}
+	// Remote-config sync historically keys URL-based remote servers by a top-level
+	// `url`. Keep that compatibility field on migrated remote-configured servers
+	// so the next sync does not delete/recreate them and lose user state.
+	if (source.remoteConfigured === true && typeof transport.url === "string") {
+		normalized.url = transport.url
+	}
 
 	const inlineOAuth = normalizeOauthState(source.oauth)
 	const serverUrl = getUrlForAuthHash(normalized)
@@ -232,11 +239,7 @@ async function readLegacyOAuthSecrets(
 	return { ...vscodeSecrets, ...fileBackedSecrets }
 }
 
-function defaultDocumentsDir(): string {
-	return path.join(os.homedir(), "Documents")
-}
-
-export function getLegacyMcpSettingsSources(options: LegacyMcpSourceOptions = {}): LegacyMcpSource[] {
+export async function getLegacyMcpSettingsSources(options: LegacyMcpSourceOptions = {}): Promise<LegacyMcpSource[]> {
 	const sources: LegacyMcpSource[] = []
 	if (options.extensionStorageDir) {
 		sources.push({
@@ -244,7 +247,7 @@ export function getLegacyMcpSettingsSources(options: LegacyMcpSourceOptions = {}
 			path: path.join(options.extensionStorageDir, "settings", MCP_SETTINGS_FILE_NAME),
 		})
 	}
-	const documentsDir = options.documentsDir ?? defaultDocumentsDir()
+	const documentsDir = options.documentsDir ?? (await getDocumentsPath())
 	sources.push({
 		id: "documentsClineMcp",
 		path: path.join(documentsDir, "Cline", "MCP", MCP_SETTINGS_FILE_NAME),
@@ -253,7 +256,16 @@ export function getLegacyMcpSettingsSources(options: LegacyMcpSourceOptions = {}
 }
 
 export function getSharedMcpSettingsPath(storage: StorageContext): string {
-	return path.join(storage.dataDir, "settings", MCP_SETTINGS_FILE_NAME)
+	const explicitPath = process.env.CLINE_MCP_SETTINGS_PATH?.trim()
+	if (explicitPath) {
+		return explicitPath
+	}
+	const explicitDataDir = process.env.CLINE_DATA_DIR?.trim()
+	if (explicitDataDir) {
+		return path.join(explicitDataDir, "settings", MCP_SETTINGS_FILE_NAME)
+	}
+	const clineDir = process.env.CLINE_DIR?.trim() || path.join(os.homedir(), ".cline")
+	return path.join(clineDir, "data", "settings", MCP_SETTINGS_FILE_NAME)
 }
 
 function readMigrationState(storage: StorageContext): JsonRecord {
@@ -309,7 +321,7 @@ export async function migrateLegacyMcpSettings(
 	const legacyOAuthSecrets = await readLegacyOAuthSecrets(vscodeContext, storage)
 	const preparedSources: PreparedLegacyMcpSource[] = []
 
-	for (const source of getLegacyMcpSettingsSources({
+	for (const source of await getLegacyMcpSettingsSources({
 		extensionStorageDir: options.extensionStorageDir ?? vscodeContext.globalStorageUri?.fsPath,
 		documentsDir: options.documentsDir,
 	})) {
