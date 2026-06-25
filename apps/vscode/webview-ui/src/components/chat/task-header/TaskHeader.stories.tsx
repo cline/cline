@@ -292,35 +292,6 @@ export const NoCost: Story = {
 	},
 }
 
-export const WithCheckpointError: Story = {
-	args: {
-		task: createTask("Fix authentication bug in login system"),
-		tokensIn: 1800,
-		tokensOut: 950,
-		totalCost: 0.065,
-		doesModelSupportPromptCache: true,
-		onClose: () => console.log("Close clicked"),
-	},
-	decorators: [
-		createStorybookDecorator({
-			expandTaskHeader: true,
-			checkpointManagerErrorMessage: "Git is not installed or not configured properly disabling checkpoints.",
-			apiConfiguration: {
-				actModeApiProvider: "anthropic",
-				actModeApiModelId: "claude-3-5-sonnet-20241022",
-			},
-			clineMessages: createMessages(),
-		}),
-	],
-	parameters: {
-		docs: {
-			description: {
-				story: "TaskHeader displaying a checkpoint error message with settings link.",
-			},
-		},
-	},
-}
-
 export const WithProgressMessage: Story = {
 	args: {
 		task: createTask("Build a REST API with Express and MongoDB"),

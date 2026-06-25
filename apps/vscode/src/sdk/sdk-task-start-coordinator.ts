@@ -1,4 +1,5 @@
 import { getProviderAuthStorageId } from "@cline/core"
+import { createSessionId } from "@cline/shared"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@shared/ClineAccount"
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
@@ -65,6 +66,7 @@ export class SdkTaskStartCoordinator {
 		taskSettings?: Partial<Settings>,
 	): Promise<string | undefined> {
 		Logger.log(`[SdkController] initTask called: "${prompt?.substring(0, 50)}"`)
+		let taskSessionId: string | undefined
 		try {
 			await this.options.clearTask()
 
@@ -93,7 +95,13 @@ export class SdkTaskStartCoordinator {
 				return undefined
 			}
 
-			const startInput = this.options.buildStartSessionInput(config, {
+			taskSessionId = config.sessionId?.trim() || createSessionId()
+			const configWithSessionId = {
+				...config,
+				sessionId: taskSessionId,
+			}
+
+			const startInput = this.options.buildStartSessionInput(configWithSessionId, {
 				prompt: prompt,
 				images,
 				files,
@@ -103,30 +111,40 @@ export class SdkTaskStartCoordinator {
 				mode,
 			})
 
+			const task = this.createAndSetTask(taskSessionId)
+			this.emitInitialTaskMessage(taskSessionId, prompt ?? "")
+
 			const { startResult, sdkHost } = await this.options.sessions.startNewSession(startInput)
-			this.createAndSetTask(startResult.sessionId)
+			if (startResult.sessionId !== taskSessionId) {
+				Logger.warn(
+					`[SdkController] SDK returned session id ${startResult.sessionId} after requested id ${taskSessionId}`,
+				)
+				task.taskId = startResult.sessionId
+				taskSessionId = startResult.sessionId
+			}
 
 			const newHistoryItem = this.options.createHistoryItemFromSession(
-				startResult.sessionId,
+				taskSessionId,
 				prompt ?? "",
-				config.modelId,
+				configWithSessionId.modelId,
 				cwd,
 			)
 			await this.options.taskHistory.updateTaskHistoryItem(newHistoryItem)
-
-			this.emitInitialTaskMessage(startResult.sessionId, prompt ?? "")
 			await this.options.postStateToWebview()
 
 			if (prompt?.trim()) {
-				Logger.log(`[SdkController] Sending prompt to session: ${startResult.sessionId}`)
+				Logger.log(`[SdkController] Sending prompt to session: ${taskSessionId}`)
 				const resolvedTask = await this.options.resolveContextMentions(prompt)
-				this.options.sessions.fireAndForgetSend(sdkHost, startResult.sessionId, resolvedTask, images, files)
+				this.options.sessions.fireAndForgetSend(sdkHost, taskSessionId, resolvedTask, images, files)
 			}
 
-			Logger.log(`[SdkController] Task initialized: ${startResult.sessionId}`)
-			return startResult.sessionId
+			Logger.log(`[SdkController] Task initialized: ${taskSessionId}`)
+			return taskSessionId
 		} catch (error) {
-			this.handleInitError(error)
+			this.handleInitError(error, taskSessionId)
+			await this.options.postStateToWebview().catch((postError) => {
+				Logger.error("[SdkController] Failed to post state after init error:", postError)
+			})
 			return undefined
 		}
 	}
@@ -172,14 +190,14 @@ export class SdkTaskStartCoordinator {
 		return m === "plan" ? m : "act"
 	}
 
-	private createAndSetTask(sessionId: string): void {
-		this.options.setTask(
-			createTaskProxy(
-				sessionId,
-				(text?: string, images?: string[], files?: string[]) => this.options.onAskResponse(text, images, files),
-				() => this.options.onCancelTask(),
-			),
+	private createAndSetTask(sessionId: string): TaskProxy {
+		const task = createTaskProxy(
+			sessionId,
+			(text?: string, images?: string[], files?: string[]) => this.options.onAskResponse(text, images, files),
+			() => this.options.onCancelTask(),
 		)
+		this.options.setTask(task)
+		return task
 	}
 
 	private emitInitialTaskMessage(sessionId: string, task: string): void {
@@ -196,13 +214,13 @@ export class SdkTaskStartCoordinator {
 		})
 	}
 
-	private handleInitError(error: unknown): void {
+	private handleInitError(error: unknown, sessionId?: string): void {
 		const errorDetails =
 			error instanceof Error ? `${error.name}: ${error.message}\n${error.stack?.substring(0, 500)}` : String(error)
 		Logger.error(`[SdkController] Failed to init task: ${errorDetails}`)
 		;(globalThis as Record<string, unknown>).__cline_last_init_error = errorDetails
 		;(globalThis as Record<string, unknown>).__cline_last_init_error_raw = error
-		this.options.messages.emitSessionEvents(
+		this.options.messages.appendAndEmit(
 			[
 				{
 					ts: Date.now(),
@@ -212,7 +230,7 @@ export class SdkTaskStartCoordinator {
 					partial: false,
 				},
 			],
-			{ type: "status", payload: { sessionId: "", status: "error" } },
+			{ type: "status", payload: { sessionId: sessionId ?? "", status: "error" } },
 		)
 	}
 

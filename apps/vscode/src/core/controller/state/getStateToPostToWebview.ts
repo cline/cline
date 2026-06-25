@@ -25,6 +25,7 @@ export async function getStateToPostToWebview(controller: {
 	backgroundCommandRunning?: boolean
 	backgroundCommandTaskId?: string
 	workspaceManager?: any
+	checkpointRestoreInput?: ExtensionState["checkpointRestoreInput"]
 }): Promise<ExtensionState> {
 	const stateManager = controller.stateManager
 
@@ -67,7 +68,6 @@ export async function getStateToPostToWebview(controller: {
 	const lastDismissedModelBannerVersion = stateManager.getGlobalStateKey("lastDismissedModelBannerVersion") || 0
 	const lastDismissedCliBannerVersion = stateManager.getGlobalStateKey("lastDismissedCliBannerVersion") || 0
 	const dismissedBanners = stateManager.getGlobalStateKey("dismissedBanners")
-	const doubleCheckCompletionEnabled = stateManager.getGlobalSettingsKey("doubleCheckCompletionEnabled")
 	const showFeatureTips = stateManager.getGlobalSettingsKey("showFeatureTips")
 
 	const localClineRulesToggles = stateManager.getWorkspaceStateKey("localClineRulesToggles")
@@ -80,7 +80,7 @@ export async function getStateToPostToWebview(controller: {
 		? (taskHistory || []).find((item: any) => item.id === controller.task?.taskId)
 		: undefined
 	const clineMessages = [...(controller.task?.messageStateHandler?.getClineMessages?.() || [])]
-	const checkpointManagerErrorMessage = controller.task?.taskState?.checkpointManagerErrorMessage
+	const checkpointRestoreInput = controller.checkpointRestoreInput
 
 	const processedTaskHistory = (taskHistory || [])
 		.filter((item: any) => item.ts && item.task)
@@ -111,7 +111,7 @@ export async function getStateToPostToWebview(controller: {
 		apiConfiguration,
 		currentTaskItem,
 		clineMessages,
-		checkpointManagerErrorMessage,
+		checkpointRestoreInput,
 		autoApprovalSettings,
 		browserSettings,
 		preferredLanguage,
@@ -161,10 +161,6 @@ export async function getStateToPostToWebview(controller: {
 			user: stateManager.getGlobalStateKey("multiRootEnabled"),
 			featureFlag: true,
 		},
-		clineWebToolsEnabled: {
-			user: stateManager.getGlobalSettingsKey("clineWebToolsEnabled"),
-			featureFlag: featureFlagsService.getWebtoolsEnabled(),
-		},
 		worktreesEnabled: {
 			user: stateManager.getGlobalSettingsKey("worktreesEnabled"),
 			featureFlag: featureFlagsService.getWorktreesEnabled(),
@@ -175,11 +171,8 @@ export async function getStateToPostToWebview(controller: {
 		remoteConfigSettings: stateManager.getRemoteConfigSettings?.(),
 		lastDismissedCliBannerVersion,
 		dismissedBanners,
-		nativeToolCallSetting: stateManager.getGlobalStateKey("nativeToolCallEnabled"),
-		enableParallelToolCalling: stateManager.getGlobalSettingsKey("enableParallelToolCalling"),
 		backgroundEditEnabled: stateManager.getGlobalSettingsKey("backgroundEditEnabled"),
 		optOutOfRemoteConfig: stateManager.getGlobalSettingsKey("optOutOfRemoteConfig"),
-		doubleCheckCompletionEnabled,
 		showFeatureTips,
 		banners,
 		welcomeBanners,

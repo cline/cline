@@ -14,10 +14,11 @@ import { CheckpointsServiceClient } from "@/services/grpc-client"
 
 interface CheckmarkControlProps {
 	messageTs?: number
+	checkpointNumber?: number
 	isCheckpointCheckedOut?: boolean
 }
 
-export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: CheckmarkControlProps) => {
+export const CheckmarkControl = ({ messageTs, checkpointNumber, isCheckpointCheckedOut }: CheckmarkControlProps) => {
 	const [compareDisabled, setCompareDisabled] = useState(false)
 	const [restoreTaskDisabled, setRestoreTaskDisabled] = useState(false)
 	const [restoreWorkspaceDisabled, setRestoreWorkspaceDisabled] = useState(false)
@@ -99,13 +100,28 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 		})
 	}, [onRelinquishControl])
 
+	const handleCompare = async () => {
+		setCompareDisabled(true)
+		try {
+			await CheckpointsServiceClient.checkpointDiff(
+				Int64Request.create({
+					value: checkpointNumber ?? messageTs,
+				}),
+			)
+		} catch (err) {
+			console.error("Checkpoint diff error:", err)
+		} finally {
+			setCompareDisabled(false)
+		}
+	}
+
 	const handleRestoreTask = async () => {
 		setRestoreTaskDisabled(true)
 		try {
 			const restoreType: ClineCheckpointRestore = "task"
 			await CheckpointsServiceClient.checkpointRestore(
 				CheckpointRestoreRequest.create({
-					number: messageTs,
+					number: checkpointNumber ?? messageTs,
 					restoreType,
 				}),
 			)
@@ -122,7 +138,7 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 			const restoreType: ClineCheckpointRestore = "workspace"
 			await CheckpointsServiceClient.checkpointRestore(
 				CheckpointRestoreRequest.create({
-					number: messageTs,
+					number: checkpointNumber ?? messageTs,
 					restoreType,
 				}),
 			)
@@ -139,7 +155,7 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 			const restoreType: ClineCheckpointRestore = "taskAndWorkspace"
 			await CheckpointsServiceClient.checkpointRestore(
 				CheckpointRestoreRequest.create({
-					number: messageTs,
+					number: checkpointNumber ?? messageTs,
 					restoreType,
 				}),
 			)
@@ -190,20 +206,7 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 					<CustomButton
 						$isCheckedOut={isCheckpointCheckedOut}
 						disabled={compareDisabled}
-						onClick={async () => {
-							setCompareDisabled(true)
-							try {
-								await CheckpointsServiceClient.checkpointDiff(
-									Int64Request.create({
-										value: messageTs,
-									}),
-								)
-							} catch (err) {
-								console.error("CheckpointDiff error:", err)
-							} finally {
-								setCompareDisabled(false)
-							}
-						}}
+						onClick={handleCompare}
 						style={{ cursor: compareDisabled ? "wait" : "pointer" }}>
 						Compare
 					</CustomButton>

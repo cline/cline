@@ -19,7 +19,9 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 		setActiveQuote,
 		setSelectedImages,
 		setSelectedFiles,
+		sendingDisabled,
 		setSendingDisabled,
+		enableButtons,
 		setEnableButtons,
 		clineAsk,
 		lastMessage,
@@ -40,18 +42,57 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 				messageToSend = `${prefix} ${formattedQuote} ${suffix} ${messageToSend}`
 			}
 
+			// Intercept the built-in compaction commands when an active task exists.
+			// `/compact` (and its alias `/smol`) must run a real SDK manual
+			// compaction via the condense RPC — sending the literal text to the
+			// model would make it improvise a fake summary instead of compacting
+			// the context window (CLINE-2503). With no active task there is nothing
+			// to compact, so fall through to normal new-task handling.
+			if (messages.length > 0 && (messageToSend === "/compact" || messageToSend === "/smol")) {
+				await SlashServiceClient.condense(StringRequest.create({ value: "compact" })).catch((err) =>
+					console.error("Failed to compact task:", err),
+				)
+				setInputValue("")
+				setActiveQuote(null)
+				if ("disableAutoScrollRef" in chatState) {
+					;(chatState as any).disableAutoScrollRef.current = false
+				}
+				return
+			}
+
 			if (hasContent) {
 				console.log("[ChatView] handleSendMessage - Sending message:", messageToSend)
 				let messageSent = false
+				const clearSentMessageState = () => {
+					setInputValue("")
+					setActiveQuote(null)
+					setSendingDisabled(true)
+					setSelectedImages([])
+					setSelectedFiles([])
+					setEnableButtons(false)
+				}
+				const restorePendingMessageState = () => {
+					setInputValue(text)
+					setActiveQuote(activeQuote)
+					setSendingDisabled(sendingDisabled)
+					setSelectedImages(images)
+					setSelectedFiles(files)
+					setEnableButtons(enableButtons)
+				}
 
 				if (messages.length === 0) {
-					await TaskServiceClient.newTask(
-						NewTaskRequest.create({
-							text: messageToSend,
-							images,
-							files,
-						}),
-					)
+					const request = NewTaskRequest.create({
+						text: messageToSend,
+						images,
+						files,
+					})
+					clearSentMessageState()
+					try {
+						await TaskServiceClient.newTask(request)
+					} catch (error) {
+						restorePendingMessageState()
+						throw error
+					}
 					messageSent = true
 				} else if (clineAsk) {
 					// For resume_task and resume_completed_task, use yesButtonClicked to match Resume button behavior
@@ -129,14 +170,9 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					}
 				}
 
-				// Only clear input and disable UI if message was actually sent
+				// New tasks clear optimistically before the RPC; the repeated success cleanup is idempotent.
 				if (messageSent) {
-					setInputValue("")
-					setActiveQuote(null)
-					setSendingDisabled(true)
-					setSelectedImages([])
-					setSelectedFiles([])
-					setEnableButtons(false)
+					clearSentMessageState()
 
 					// Reset auto-scroll
 					if ("disableAutoScrollRef" in chatState) {
@@ -152,9 +188,11 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			activeQuote,
 			setInputValue,
 			setActiveQuote,
+			sendingDisabled,
 			setSendingDisabled,
 			setSelectedImages,
 			setSelectedFiles,
+			enableButtons,
 			setEnableButtons,
 			chatState,
 		],

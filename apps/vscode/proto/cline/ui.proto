@@ -254,6 +254,9 @@ service UiService {
   // Subscribe to MCP button clicked events
   rpc subscribeToMcpButtonClicked(EmptyRequest) returns (stream Empty);
 
+  // Subscribe to customize button clicked events
+  rpc subscribeToMarketplaceButtonClicked(EmptyRequest) returns (stream Empty);
+
   // Subscribe to history button click events
   rpc subscribeToHistoryButtonClicked(EmptyRequest) returns (stream Empty);
 

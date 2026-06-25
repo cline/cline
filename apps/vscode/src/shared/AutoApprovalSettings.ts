@@ -12,12 +12,12 @@ export interface AutoApprovalSettings {
 	maxRequests: number
 	// Individual action permissions
 	actions: {
-		readFiles: boolean // Read files and directories in the working directory
-		readFilesExternally?: boolean // Read files and directories outside of the working directory
-		editFiles: boolean // Edit files in the working directory
-		editFilesExternally?: boolean // Edit files outside of the working directory
-		executeSafeCommands?: boolean // Execute safe commands
-		executeAllCommands?: boolean // Execute all commands
+		readFiles: boolean // Read files and directories
+		readFilesExternally?: boolean // Legacy field - kept for backward compatibility with older extension versions
+		editFiles: boolean // Edit files
+		editFilesExternally?: boolean // Legacy field - kept for backward compatibility with older extension versions
+		executeSafeCommands?: boolean // Execute commands
+		executeAllCommands?: boolean // Legacy field - kept for backward compatibility with older extension versions
 		useBrowser: boolean // Use browser
 		useMcp: boolean // Use MCP servers
 	}
@@ -32,9 +32,9 @@ export const DEFAULT_AUTO_APPROVAL_SETTINGS: AutoApprovalSettings = {
 	maxRequests: 20, // Legacy field - kept for backward compatibility
 	actions: {
 		readFiles: true,
-		readFilesExternally: false,
+		readFilesExternally: true,
 		editFiles: false,
-		editFilesExternally: false,
+		editFilesExternally: true,
 		executeSafeCommands: true,
 		executeAllCommands: false,
 		useBrowser: false,
