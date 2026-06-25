@@ -31,6 +31,8 @@ export interface ChatState {
 	setSecondaryButtonText: React.Dispatch<React.SetStateAction<string | undefined>>
 	expandedRows: Record<number, boolean>
 	setExpandedRows: React.Dispatch<React.SetStateAction<Record<number, boolean>>>
+	pendingUserMessage: ClineMessage | undefined
+	setPendingUserMessage: React.Dispatch<React.SetStateAction<ClineMessage | undefined>>
 
 	// Refs
 	textAreaRef: React.RefObject<HTMLTextAreaElement>
