@@ -307,6 +307,10 @@ export function createSearchTool(
 	});
 }
 
+const RUN_COMMANDS_SHARED_INSTRUCTIONS =
+	"Use for listing files, checking git status, running builds, executing tests, etc. " +
+	"Commands must be non-interactive and must not rely on pagers or prompts; use flags/env such as git --no-pager or GIT_PAGER=cat when output might page, and pass non-interactive/assume-yes flags such as --yes, -y, or --non-interactive when the command supports them. ";
+
 /**
  * Create the run_commands tool
  *
@@ -327,7 +331,7 @@ export function createBashTool(
 		name: "run_commands",
 		description:
 			"Run shell commands from the root of the workspace. " +
-			"Use for listing files, checking git status, running builds, executing tests, etc. " +
+			RUN_COMMANDS_SHARED_INSTRUCTIONS +
 			"Commands should be properly shell-escaped and targeted to avoid error or timeout. Include multiple commands in the same call when they are independent complete shell commands and safe to run concurrently; multiline scripts and heredocs must be a single command string. When independent reads, searches, or edits are also needed, call those tools in the same response. " +
 			`Output beyond ~${Math.round(MAX_COMMAND_OUTPUT_CHARS / 1000)}k characters is middle-truncated (start and end preserved); pipe through grep/head/tail when you need specific sections of large output. ` +
 			"For long-running commands, run them in background and redirect output to a tmp file that you can read from later.",
@@ -419,7 +423,7 @@ export function createWindowsShellTool(
 		name: "run_commands",
 		description:
 			"Run shell commands from the root of the workspace in Windows environment. " +
-			"Use for listing files, checking git status, running builds, executing tests, etc. " +
+			RUN_COMMANDS_SHARED_INSTRUCTIONS +
 			`Output beyond ~${Math.round(MAX_COMMAND_OUTPUT_CHARS / 1000)}k characters is middle-truncated (start and end preserved); filter output when you need specific sections. ` +
 			"Prefer structured { command, args } entries for portability; plain string commands should be properly shell-escaped. Include multiple commands in the same call when they are independent and safe to run concurrently. When independent reads, searches, or edits are also needed, call those tools in the same response.",
 		inputSchema: zodToJsonSchema(StructuredCommandsInputSchema),
