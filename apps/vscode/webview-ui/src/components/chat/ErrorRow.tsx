@@ -8,7 +8,6 @@ import SpendLimitError from "@/components/chat/SpendLimitError"
 import { Button } from "@/components/ui/button"
 import { useClineAuth, useClineSignIn } from "@/context/ClineAuthContext"
 import { ClineError, ClineErrorType } from "../../../../src/services/error/ClineError"
-import { isClineOrgIndividualInferenceSubscriptionErrorMessage, isClinePassSubscriptionErrorMessage } from "./clinePassErrorUtils"
 
 const _errorColor = "var(--vscode-errorForeground)"
 
@@ -67,11 +66,12 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 						)
 					}
 
-					if (isClinePassSubscriptionErrorMessage(rawApiError)) {
-						return <EntitlementError message={rawApiError} />
+					if (clineError?.isErrorType(ClineErrorType.Entitlement)) {
+						const detailMessage = clineError?._error?.details?.message || errorMessage
+						return <EntitlementError message={detailMessage} />
 					}
 
-					if (isClineOrgIndividualInferenceSubscriptionErrorMessage(rawApiError)) {
+					if (clineError?.isErrorType(ClineErrorType.OrgClinePassRestriction)) {
 						return <OrgClinePassRestrictionError />
 					}
 

@@ -1,7 +1,6 @@
 import React from "react"
 import { ClineError, ClineErrorType } from "../../../../src/services/error/ClineError"
 import { ProgressIndicator } from "./ChatRow"
-import { isClinePassSubscriptionErrorMessage } from "./clinePassErrorUtils"
 
 interface ErrorBlockTitleProps {
 	cost?: number
@@ -59,7 +58,7 @@ export const ErrorBlockTitle = ({
 		} else if (apiRequestFailedMessage) {
 			// Handle failed request
 			const clineError = ClineError.parse(apiRequestFailedMessage)
-			const titleText = isClinePassSubscriptionErrorMessage(apiRequestFailedMessage)
+			const titleText = clineError?.isErrorType(ClineErrorType.Entitlement)
 				? "ClinePass Required"
 				: clineError?.isErrorType(ClineErrorType.Balance)
 					? "Credit Limit Reached"

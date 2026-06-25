@@ -32,17 +32,6 @@ vi.mock("@/services/grpc-client", () => ({
 	},
 }))
 
-vi.mock("@cline/llms", () => ({
-	getClineOrgIndividualInferenceSubscriptionMessage: () =>
-		"Organization accounts cannot use ClinePass subscriptions. Go to /account -> change account to switch to your personal account for ClinePass",
-	getClineNotSubscribedMessage: () =>
-		"No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: https://app.cline.bot/promo?code=CLI-100&personal=true",
-	isClineNotSubscribedMessage: (text: string) =>
-		text.toLowerCase().includes("the user is not subscribed to required model plan"),
-	isClineOrgIndividualInferenceSubscriptionMessage: (text: string) =>
-		text.toLowerCase().includes("organization accounts cannot use individual model inference subscriptions"),
-}))
-
 // Mock ClineError
 vi.mock("../../../../src/services/error/ClineError", () => ({
 	ClineError: {
@@ -52,6 +41,8 @@ vi.mock("../../../../src/services/error/ClineError", () => ({
 		Balance: "balance",
 		RateLimit: "rateLimit",
 		Auth: "auth",
+		Entitlement: "entitlement",
+		OrgClinePassRestriction: "orgClinePassRestriction",
 		QuotaExceeded: "quotaExceeded",
 	},
 }))
@@ -178,12 +169,12 @@ describe("ErrorRow", () => {
 			expect(screen.getByText("Inference cap reached")).toBeInTheDocument()
 		})
 
-		it("renders entitlement error for the SDK/CLI plain ClineNotSubscribedError message", async () => {
+		it("renders entitlement error when ClineError detects ClineNotSubscribedError", async () => {
 			const cliMessage =
 				"No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: https://app.cline.bot/promo?code=CLI-100&personal=true"
 			const mockClineError = {
 				message: cliMessage,
-				isErrorType: vi.fn(() => false),
+				isErrorType: vi.fn((type) => type === "entitlement"),
 				providerId: "cline-pass",
 				_error: {
 					message: cliMessage,
@@ -196,14 +187,15 @@ describe("ErrorRow", () => {
 			render(<ErrorRow apiRequestFailedMessage={cliMessage} errorType="error" message={mockMessage} />)
 
 			expect(screen.getByTestId("entitlement-error")).toBeInTheDocument()
+			expect(screen.getByText(cliMessage)).toBeInTheDocument()
 			expect(screen.queryByText(/\[cline-pass\]/i)).not.toBeInTheDocument()
 		})
 
-		it("renders entitlement error for the SDK/CLI raw required-plan message", async () => {
+		it("renders entitlement error when ClineError detects a raw required-plan message", async () => {
 			const rawMessage = "403 Error 403: the user is not subscribed to required model plan"
 			const mockClineError = {
 				message: rawMessage,
-				isErrorType: vi.fn(() => false),
+				isErrorType: vi.fn((type) => type === "entitlement"),
 				providerId: "cline-pass",
 				_error: {
 					message: rawMessage,
@@ -223,7 +215,7 @@ describe("ErrorRow", () => {
 			const rawMessage = "403 Error 403: organization accounts cannot use individual model inference subscriptions"
 			const mockClineError = {
 				message: rawMessage,
-				isErrorType: vi.fn(() => false),
+				isErrorType: vi.fn((type) => type === "orgClinePassRestriction"),
 				providerId: "cline",
 				_error: {
 					message: rawMessage,
@@ -245,12 +237,12 @@ describe("ErrorRow", () => {
 			expect(screen.getByText("Switched to personal account")).toBeInTheDocument()
 		})
 
-		it("renders organization ClinePass restriction for the SDK/CLI formatted message", async () => {
+		it("renders organization ClinePass restriction when ClineError detects the SDK formatted message", async () => {
 			const formattedMessage =
 				"Organization accounts cannot use ClinePass subscriptions. Go to /account -> change account to switch to your personal account for ClinePass"
 			const mockClineError = {
 				message: formattedMessage,
-				isErrorType: vi.fn(() => false),
+				isErrorType: vi.fn((type) => type === "orgClinePassRestriction"),
 				providerId: "cline-pass",
 				_error: {
 					message: formattedMessage,

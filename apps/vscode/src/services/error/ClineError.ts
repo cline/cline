@@ -1,3 +1,9 @@
+import {
+	getClineNotSubscribedMessage,
+	getClineOrgIndividualInferenceSubscriptionMessage,
+	isClineNotSubscribedMessage,
+	isClineOrgIndividualInferenceSubscriptionMessage,
+} from "@cline/llms"
 import { serializeError } from "serialize-error"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "../../shared/ClineAccount"
 
@@ -7,6 +13,8 @@ export enum ClineErrorType {
 	Balance = "balance",
 	SpendLimit = "spendLimit",
 	QuotaExceeded = "quotaExceeded",
+	Entitlement = "entitlement",
+	OrgClinePassRestriction = "orgClinePassRestriction",
 }
 
 interface ErrorDetails {
@@ -43,6 +51,8 @@ interface ErrorDetails {
 }
 
 const RATE_LIMIT_PATTERNS = [/status code 429/i, /rate limit/i, /too many requests/i, /quota exceeded/i, /resource exhausted/i]
+const CLINE_NOT_SUBSCRIBED_ERROR_NAME = "ClineNotSubscribedError"
+const CLINE_ORG_INDIVIDUAL_INFERENCE_SUBSCRIPTION_ERROR_NAME = "ClineOrgIndividualInferenceSubscriptionError"
 
 export class ClineError extends Error {
 	readonly title = "ClineError"
@@ -138,7 +148,10 @@ export class ClineError extends Error {
 	 */
 	static getErrorType(err: ClineError): ClineErrorType | undefined {
 		const { code, status, details } = err._error
-		const message = (err._error?.message || err.message || JSON.stringify(err._error))?.toLowerCase()
+		const rawMessage = err._error?.message || err.message || JSON.stringify(err._error)
+		const message = rawMessage?.toLowerCase()
+		const detailMessage = typeof details?.message === "string" ? details.message : undefined
+		const errorName = err._error?.name
 
 		// Check balance error first (most specific)
 		if (code === "insufficient_credits" && typeof details?.current_balance === "number") {
@@ -149,6 +162,24 @@ export class ClineError extends Error {
 		// Must be checked before the generic rate-limit check since both use 429
 		if (code === "SPEND_LIMIT_EXCEEDED" || details?.code === "SPEND_LIMIT_EXCEEDED") {
 			return ClineErrorType.SpendLimit
+		}
+
+		if (
+			errorName === CLINE_ORG_INDIVIDUAL_INFERENCE_SUBSCRIPTION_ERROR_NAME ||
+			rawMessage === getClineOrgIndividualInferenceSubscriptionMessage() ||
+			(detailMessage ? isClineOrgIndividualInferenceSubscriptionMessage(detailMessage) : false) ||
+			(rawMessage ? isClineOrgIndividualInferenceSubscriptionMessage(rawMessage) : false)
+		) {
+			return ClineErrorType.OrgClinePassRestriction
+		}
+
+		if (
+			errorName === CLINE_NOT_SUBSCRIBED_ERROR_NAME ||
+			rawMessage === getClineNotSubscribedMessage() ||
+			(detailMessage ? isClineNotSubscribedMessage(detailMessage) : false) ||
+			(rawMessage ? isClineNotSubscribedMessage(rawMessage) : false)
+		) {
+			return ClineErrorType.Entitlement
 		}
 
 		// Check auth errors
