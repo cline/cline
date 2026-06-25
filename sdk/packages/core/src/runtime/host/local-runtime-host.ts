@@ -539,32 +539,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 							});
 						}
 					},
-					clearState: async () => {
-						const activeSession = activeSessionRef;
-						if (!activeSession?.compactionState) return;
-						try {
-							await this.clearActiveSessionCompactionState(activeSession);
-						} catch (error) {
-							configWithProvider.logger?.error?.(
-								"Failed to delete stale session compaction state",
-								{ sessionId: activeSession.sessionId, error },
-							);
-							captureSdkError(configWithProvider.telemetry, {
-								component: "core",
-								operation: "session.delete_compaction_state",
-								severity: "warn",
-								handled: true,
-								error,
-								context: {
-									sessionId: activeSession.sessionId,
-									providerId: configWithProvider.providerId,
-									modelId: configWithProvider.modelId,
-								},
-							});
-						}
-					},
-				})
-			: undefined;
+					})
+				: undefined;
 
 		const agentConfig = {
 			sessionId,
@@ -1193,21 +1169,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 			);
 			session.compactionState = state;
 			return { updated: true };
-		});
-	}
-
-	private async clearActiveSessionCompactionState(
-		session: ActiveSession,
-	): Promise<void> {
-		await this.enqueueCompactionStateWrite(session, async () => {
-			if (!session.compactionState) {
-				return;
-			}
-			await this.invoke<void>(
-				"deleteSessionCompactionState",
-				session.sessionId,
-			);
-			session.compactionState = undefined;
 		});
 	}
 

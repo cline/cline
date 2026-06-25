@@ -125,6 +125,7 @@ describe("UnifiedSessionPersistenceService", () => {
 
 		await service.persistSessionMessages(sessionId, sourceMessages);
 		await service.persistSessionCompactionState(sessionId, state);
+		expect(existsSync(artifacts.compactionPath ?? "")).toBe(true);
 		await service.deleteSessionCompactionState(sessionId);
 
 		expect(existsSync(artifacts.messagesPath)).toBe(true);
