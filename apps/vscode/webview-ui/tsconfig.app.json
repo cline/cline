@@ -30,6 +30,17 @@
 
 		/* Aliasing */
 		"paths": {
+			// Pin React types to webview-ui's own React 18 copy. In the bun
+			// workspace, @testing-library/react's optional peer pulls
+			// @types/react@19 into a resolvable location, and tsc would otherwise
+			// mix it with the toolkit's React 18 types (breaking JSX: React 19
+			// dropped Component.refs). These aliases force a single React 18 type.
+			"react": [
+				"./node_modules/@types/react"
+			],
+			"react-dom": [
+				"./node_modules/@types/react-dom"
+			],
 			"@/*": [
 				"./src/*"
 			],

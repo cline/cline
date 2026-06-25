@@ -1,7 +1,9 @@
 import type { ClineMessage } from "@shared/ExtensionMessage"
-import { render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 import ErrorRow from "./ErrorRow"
+
+const mockSetUserOrganization = vi.hoisted(() => vi.fn())
 
 // Mock the auth context
 vi.mock("@/context/ClineAuthContext", () => ({
@@ -24,6 +26,12 @@ vi.mock("@/components/chat/EntitlementError", () => ({
 	default: ({ message }: { message: string }) => <div data-testid="entitlement-error">{message}</div>,
 }))
 
+vi.mock("@/services/grpc-client", () => ({
+	AccountServiceClient: {
+		setUserOrganization: mockSetUserOrganization,
+	},
+}))
+
 // Mock ClineError
 vi.mock("../../../../src/services/error/ClineError", () => ({
 	ClineError: {
@@ -34,6 +42,7 @@ vi.mock("../../../../src/services/error/ClineError", () => ({
 		RateLimit: "rateLimit",
 		Auth: "auth",
 		Entitlement: "entitlement",
+		OrgClinePassRestriction: "orgClinePassRestriction",
 	},
 }))
 
@@ -47,6 +56,7 @@ describe("ErrorRow", () => {
 
 	beforeEach(() => {
 		vi.clearAllMocks()
+		mockSetUserOrganization.mockResolvedValue({})
 	})
 
 	it("renders basic error message", () => {
@@ -101,6 +111,30 @@ describe("ErrorRow", () => {
 
 			expect(screen.getByTestId("credit-limit-error")).toBeInTheDocument()
 			expect(screen.getByText("You have run out of credits.")).toBeInTheDocument()
+		})
+
+		it("does not show Cline credits CTA for non-Cline balance errors without a provider URL", async () => {
+			const mockClineError = {
+				message: "Not enough credits available",
+				providerId: "zai",
+				isErrorType: vi.fn((type) => type === "balance"),
+				_error: {
+					code: "insufficient_credits",
+					providerId: "zai",
+					details: {
+						current_balance: 0,
+						message: "Not enough credits available",
+					},
+				},
+			}
+
+			const { ClineError } = await import("../../../../src/services/error/ClineError")
+			vi.mocked(ClineError.parse).mockReturnValue(mockClineError as any)
+
+			render(<ErrorRow apiRequestFailedMessage="Insufficient credits error" errorType="error" message={mockMessage} />)
+
+			expect(screen.queryByTestId("credit-limit-error")).not.toBeInTheDocument()
+			expect(screen.getByText(/\[zai\]/)).toBeInTheDocument()
 		})
 
 		it("renders rate limit error with request ID", async () => {
@@ -164,6 +198,33 @@ describe("ErrorRow", () => {
 			expect(screen.getByText("Error 403: the user is not subscribed to required model plan")).toBeInTheDocument()
 			// ...and does not dump the raw JSON blob or the [CLINE-PASS] ENTITLEMENT_ERROR header.
 			expect(screen.queryByText(/ENTITLEMENT_ERROR/)).not.toBeInTheDocument()
+		})
+
+		it("renders organization account ClinePass restriction with friendly account switching copy", async () => {
+			const rawMessage = "403 Error 403: organization accounts cannot use individual model inference subscriptions"
+			const mockClineError = {
+				message: rawMessage,
+				isErrorType: vi.fn((type) => type === "orgClinePassRestriction"),
+				providerId: "cline",
+				_error: {
+					code: "ENTITLEMENT_ERROR",
+					message: rawMessage,
+				},
+			}
+
+			const { ClineError } = await import("../../../../src/services/error/ClineError")
+			vi.mocked(ClineError.parse).mockReturnValue(mockClineError as any)
+
+			render(<ErrorRow apiRequestFailedMessage={rawMessage} errorType="error" message={mockMessage} />)
+
+			expect(screen.getByTestId("org-cline-pass-restriction-error")).toBeInTheDocument()
+			expect(screen.getByText(/Organization accounts cannot use ClinePass subscriptions/)).toBeInTheDocument()
+			expect(screen.queryByText(rawMessage)).not.toBeInTheDocument()
+
+			fireEvent.click(screen.getByText("Switch to personal account"))
+
+			await waitFor(() => expect(mockSetUserOrganization).toHaveBeenCalledWith({}))
+			expect(screen.getByText("Switched to personal account")).toBeInTheDocument()
 		})
 
 		it("renders friendly logged-out message and sign in button when user is not signed in", async () => {

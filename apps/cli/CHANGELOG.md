@@ -1,5 +1,21 @@
 # Cline CLI Changelog
 
+## 3.0.29
+
+- Costs are now hidden for Cline free models
+- Fixed Z.ai model metadata resolution for Z.ai models accessed through the Cline provider
+- Reverted the model-name-only display change from v3.0.28; the model picker, selector, and status bar return to their previous display behavior
+
+## 3.0.28
+
+- Added a ClinePass onboarding flow with selectable ClinePass models, plus improved ClinePass error handling
+- Added hub primitive catalogs and refreshed the hub dashboard design with a dedicated customizations breakout
+- Auto-approve toggles now apply immediately when changed
+- Feature flags now resolve using your user ID on startup
+- Fixed Cline model display names so they resolve by model name
+- Truncate large tool results by default (including MCP and custom tool output) to keep requests within context budget
+- Hardened parallel tool-call guidance for faster, more reliable multi-tool execution
+
 ## 3.0.27
 
 - Added a `cline skill` command to install and manage skills, matching `cline plugin install` and `cline mcp` (installs default to the Cline agent directory)

@@ -51,7 +51,7 @@ export function formatStatusBarUsageText(input: {
 	totalCost: number;
 	showCost: boolean;
 }): string {
-	const tokens = `(${input.totalTokens.toLocaleString()})`;
+	const tokens = `(${input.totalTokens.toLocaleString()} tokens)`;
 	if (!input.showCost) return tokens;
 	return `${tokens} ${formatCost(input.totalCost)}`;
 }

@@ -9,7 +9,6 @@ import { BrowserSettings } from "./BrowserSettings"
 import { ClineFeatureSetting } from "./ClineFeatureSetting"
 import { BannerCardData } from "./cline/banner"
 import { ClineRulesToggles } from "./cline-rules"
-import { FocusChainSettings } from "./FocusChainSettings"
 import { HistoryItem } from "./HistoryItem"
 import { McpDisplayMode } from "./McpDisplayMode"
 import { ClineMessageModelInfo } from "./messages"
@@ -48,8 +47,25 @@ export interface ExtensionState {
 	mode: Mode
 	checkpointManagerErrorMessage?: string
 	clineMessages: ClineMessage[]
+	/**
+	 * The single authoritative UI mode for the current turn, owned by the extension. The webview
+	 * renders the footer/buttons/thinking indicator from this, NOT from the tail of clineMessages.
+	 * Optional for classic/legacy (absent => webview falls back to legacy tail heuristics).
+	 */
+	turnState?: TurnState
+	/**
+	 * Monotonic version of this state snapshot. The webview applies a snapshot only if its
+	 * stateVersion is newer than the last applied, so stale/out-of-order state pushes are
+	 * ignored. Stamped by the extension. Optional for classic/legacy.
+	 */
+	stateVersion?: number
+	/**
+	 * Conversation/replica fence for this snapshot (see ClineMessage.epoch). A snapshot with a
+	 * newer epoch replaces the webview transcript; an older one is dropped; an equal one merges.
+	 * Optional for classic/legacy.
+	 */
+	epoch?: number
 	currentTaskItem?: HistoryItem
-	currentFocusChainChecklist?: string | null
 	mcpMarketplaceEnabled?: boolean
 	mcpDisplayMode: McpDisplayMode
 	planActSeparateModelsSetting: boolean
@@ -61,7 +77,6 @@ export interface ExtensionState {
 	telemetrySetting: TelemetrySetting
 	shellIntegrationTimeout: number
 	terminalReuseEnabled?: boolean
-	terminalOutputLineLimit: number
 	maxConsecutiveMistakes: number
 	defaultTerminalProfile?: string
 	vscodeTerminalExecutionMode: string
@@ -81,13 +96,11 @@ export interface ExtensionState {
 	remoteWorkflowToggles?: ClineRulesToggles
 	localAgentsRulesToggles: ClineRulesToggles
 	mcpResponsesCollapsed?: boolean
-	strictPlanModeEnabled?: boolean
 	yoloModeToggled?: boolean
 	useAutoCondense?: boolean
 	subagentsEnabled?: boolean
 	clineWebToolsEnabled?: ClineFeatureSetting
 	worktreesEnabled?: ClineFeatureSetting
-	focusChainSettings: FocusChainSettings
 	customPrompt?: string
 	favoritedModelIds: string[]
 	// NEW: Add workspace information
@@ -108,11 +121,31 @@ export interface ExtensionState {
 	backgroundEditEnabled?: boolean
 	optOutOfRemoteConfig?: boolean
 	doubleCheckCompletionEnabled?: boolean
-	lazyTeammateModeEnabled?: boolean
 	showFeatureTips?: boolean
 	banners?: BannerCardData[]
 	welcomeBanners?: BannerCardData[]
 	openAiCodexIsAuthenticated?: boolean
+}
+
+/**
+ * The authoritative UI mode for the current agent turn, owned by the extension. The webview reads
+ * this instead of inferring mode from the tail of clineMessages.
+ */
+export type TurnPhase =
+	| "idle" // no active turn; input enabled, no buttons
+	| "streaming" // model producing content / tool running; Thinking + Cancel
+	| "awaiting_approval" // a tool/command/mcp/subagent approval is pending
+	| "awaiting_followup" // ask_question / plan_mode_respond / done-without-completion
+	| "completed" // attempt_completion done; Start New Task
+	| "error" // api_req_failed / fatal; Retry / recovery
+	| "resumable" // task cancelled / interrupted; Resume Task
+
+export interface TurnState {
+	phase: TurnPhase
+	/** ts of the ClineMessage this phase is "about" (e.g. the pending approval/ask). */
+	anchorTs?: number
+	/** Monotonic; the webview keeps the highest-seq TurnState and ignores older ones. */
+	seq: number
 }
 
 export interface ClineMessage {
@@ -125,6 +158,18 @@ export interface ClineMessage {
 	images?: string[]
 	files?: string[]
 	partial?: boolean
+	/**
+	 * Freshness counter for convergent-replica merging on the webview side. Monotonically
+	 * increasing per process; a higher `seq` means a newer copy of the SAME `ts` (identity).
+	 * Stamped by the extension as the message flows to the webview. Optional for classic/legacy.
+	 */
+	seq?: number
+	/**
+	 * Conversation/replica fence. Messages from an older epoch (a previous task or a previous
+	 * render of the same task) are dropped by the webview. Stamped by the extension. Optional
+	 * for classic/legacy.
+	 */
+	epoch?: number
 	commandCompleted?: boolean
 	lastCheckpointHash?: string
 	isCheckpointCheckedOut?: boolean
@@ -184,7 +229,6 @@ export type ClineSay =
 	| "command_permission_denied"
 	| "checkpoint_created"
 	| "load_mcp_documentation"
-	| "generate_explanation"
 	| "info" // Added for general informational messages like retry status
 	| "task_progress"
 	| "hook_status"
@@ -221,57 +265,14 @@ export interface ClineSayTool {
 	readLineEnd?: number
 }
 
-export interface ClineSayHook {
-	hookName: string // Name of the hook (e.g., "PreToolUse", "PostToolUse")
-	toolName?: string // Tool name if applicable (for PreToolUse/PostToolUse)
-	status: "running" | "completed" | "failed" | "cancelled" // Execution status
-	exitCode?: number // Exit code when completed
-	hasJsonResponse?: boolean // Whether a JSON response was parsed
-	// Pending tool information (only present during PreToolUse "running" status)
-	pendingToolInfo?: {
-		tool: string // Tool name (e.g., "write_to_file", "execute_command")
-		path?: string // File path for file operations
-		command?: string // Command for execute_command
-		content?: string // Content preview (first 200 chars)
-		diff?: string // Diff preview (first 200 chars)
-		regex?: string // Regex pattern for search_files
-		url?: string // URL for web_fetch or browser_action
-		mcpTool?: string // MCP tool name
-		mcpServer?: string // MCP server name
-		resourceUri?: string // MCP resource URI
-	}
-	// Structured error information (only present when status is "failed")
-	error?: {
-		type: "timeout" | "validation" | "execution" | "cancellation" // Type of error
-		message: string // User-friendly error message
-		details?: string // Technical details for expansion
-		scriptPath?: string // Path to the hook script
-	}
-}
-
-export type HookOutputStreamMeta = {
-	/** Which hook configuration the script originated from (global vs workspace). */
-	source: "global" | "workspace"
-	/** Full path to the hook script that emitted the output. */
-	scriptPath: string
-}
-
 // must keep in sync with system prompt
-export const browserActions = ["launch", "click", "type", "scroll_down", "scroll_up", "close"] as const
+const browserActions = ["launch", "click", "type", "scroll_down", "scroll_up", "close"] as const
 export type BrowserAction = (typeof browserActions)[number]
 
 export interface ClineSayBrowserAction {
 	action: BrowserAction
 	coordinate?: string
 	text?: string
-}
-
-export interface ClineSayGenerateExplanation {
-	title: string
-	fromRef: string
-	toRef: string
-	status: "generating" | "complete" | "error"
-	error?: string
 }
 
 export type SubagentExecutionStatus = "pending" | "running" | "completed" | "failed"
@@ -338,10 +339,6 @@ export interface ClineAskQuestion {
 	selected?: string
 }
 
-export interface ClineAskNewTask {
-	context: string
-}
-
 export interface ClineApiReqInfo {
 	request?: string
 	tokensIn?: number
@@ -368,6 +365,6 @@ export interface ClineSubagentUsageInfo {
 	cost: number
 }
 
-export type ClineApiReqCancelReason = "streaming_failed" | "user_cancelled" | "retries_exhausted"
+type ClineApiReqCancelReason = "streaming_failed" | "user_cancelled" | "retries_exhausted"
 
 export const COMPLETION_RESULT_CHANGES_FLAG = "HAS_CHANGES"

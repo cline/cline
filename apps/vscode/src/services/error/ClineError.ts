@@ -3,12 +3,12 @@ import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "../../shared/ClineAccount"
 
 export enum ClineErrorType {
 	Auth = "auth",
-	Network = "network",
 	RateLimit = "rateLimit",
 	Balance = "balance",
 	SpendLimit = "spendLimit",
 	QuotaExceeded = "quotaExceeded",
 	Entitlement = "entitlement",
+	OrgClinePassRestriction = "orgClinePassRestriction",
 }
 
 interface ErrorDetails {
@@ -45,6 +45,8 @@ interface ErrorDetails {
 }
 
 const RATE_LIMIT_PATTERNS = [/status code 429/i, /rate limit/i, /too many requests/i, /quota exceeded/i, /resource exhausted/i]
+const ORG_CLINE_PASS_RESTRICTION_MESSAGE = "organization accounts cannot use individual model inference subscriptions"
+const ORG_CLINE_PASS_RESTRICTION_USER_MESSAGE = "organization accounts cannot use clinepass subscriptions"
 
 export class ClineError extends Error {
 	readonly title = "ClineError"
@@ -153,10 +155,17 @@ export class ClineError extends Error {
 			return ClineErrorType.SpendLimit
 		}
 
-		// Scoped to the individual "not subscribed" case; other ENTITLEMENT_ERROR variants (e.g. org
-		// accounts) fall through. Checked before the generic auth check since these are returned as 403.
+		// ClinePass entitlement errors are user-actionable and should not fall through to generic 403 auth.
+		// The organization-account variant gets separate copy because subscribing is not the right action.
 		const isEntitlementCode = code === "ENTITLEMENT_ERROR" || details?.code === "ENTITLEMENT_ERROR"
 		const entitlementText = `${message ?? ""} ${details?.message ?? ""}`.toLowerCase()
+		if (
+			isEntitlementCode &&
+			(entitlementText.includes(ORG_CLINE_PASS_RESTRICTION_MESSAGE) ||
+				entitlementText.includes(ORG_CLINE_PASS_RESTRICTION_USER_MESSAGE))
+		) {
+			return ClineErrorType.OrgClinePassRestriction
+		}
 		if (isEntitlementCode && entitlementText.includes("not subscribed to required model plan")) {
 			return ClineErrorType.Entitlement
 		}
@@ -189,17 +198,7 @@ export class ClineError extends Error {
 	}
 }
 
-export class AuthNetworkError extends Error {
-	constructor(
-		message: string,
-		override readonly cause?: Error,
-	) {
-		super(message)
-		this.name = ClineErrorType.Network
-	}
-}
-
-export class AuthInvalidTokenError extends Error {
+class AuthInvalidTokenError extends Error {
 	constructor(message: string) {
 		super(message)
 		this.name = ClineErrorType.Auth

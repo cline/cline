@@ -2,6 +2,7 @@ export { resolveExistingFilePath } from "./path-resolution";
 export {
 	AGENT_CONFIG_DIRECTORY_NAME,
 	AGENTS_RULES_FILE_NAME,
+	CLINE_CONNECTOR_SETTINGS_FILE_NAME,
 	CLINE_MCP_SETTINGS_FILE_NAME,
 	type CronSpecsScope,
 	discoverPluginModulePaths,
@@ -17,6 +18,8 @@ export {
 	resolveClineDataDir,
 	resolveClineDir,
 	resolveConfiguredPluginModulePaths,
+	resolveConnectorDataDir,
+	resolveConnectorSettingsPath,
 	resolveCronDbPath,
 	resolveCronEventsDir,
 	resolveCronReportsDir,

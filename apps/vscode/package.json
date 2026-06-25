@@ -2,7 +2,7 @@
 	"name": "claude-dev",
 	"displayName": "Cline",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-	"version": "3.89.2",
+	"version": "4.0.0",
 	"icon": "assets/icons/icon.png",
 	"engines": {
 		"vscode": "^1.84.0"
@@ -89,7 +89,7 @@
 					{
 						"id": "mcp",
 						"title": "Extend with Powerful Tools (MCP)",
-						"description": "Connect to databases, APIs, or discover new capabilities in the MCP Marketplace.",
+						"description": "Connect to databases, APIs, and other external tools through MCP.",
 						"media": {
 							"markdown": "walkthrough/step4.md"
 						}
@@ -229,26 +229,9 @@
 				"command": "cline.reconstructTaskHistory",
 				"title": "Reconstruct Task History",
 				"category": "Cline"
-			},
-			{
-				"command": "cline.reviewComment.reply",
-				"title": "Reply",
-				"category": "Cline",
-				"enablement": "!commentIsEmpty"
-			},
-			{
-				"command": "cline.reviewComment.addToChat",
-				"title": "Add to Cline Chat",
-				"category": "Cline",
-				"icon": "$(link-external)"
 			}
 		],
 		"keybindings": [
-			{
-				"command": "editor.action.submitComment",
-				"key": "enter",
-				"when": "commentEditorFocused && commentController == cline-ai-review && !commentIsEmpty"
-			},
 			{
 				"command": "cline.addToChat",
 				"key": "cmd+'",
@@ -350,24 +333,6 @@
 				{
 					"command": "cline.abortGitCommitMessage",
 					"when": "config.git.enabled && cline.isGeneratingCommit"
-				},
-				{
-					"command": "cline.reviewComment.reply",
-					"when": "false"
-				}
-			],
-			"comments/commentThread/context": [
-				{
-					"command": "cline.reviewComment.reply",
-					"group": "inline",
-					"when": "commentController == cline-ai-review"
-				}
-			],
-			"comments/commentThread/title": [
-				{
-					"command": "cline.reviewComment.addToChat",
-					"group": "inline",
-					"when": "commentController == cline-ai-review"
 				}
 			]
 		},
@@ -377,66 +342,74 @@
 		}
 	},
 	"scripts": {
-		"vscode:prepublish": "npm run package",
-		"compile": "npm run check-types && npm run lint && node esbuild.mjs",
-		"compile-standalone": "npm run check-types && npm run lint && node esbuild.mjs --standalone",
+		"vscode:prepublish": "bun run package",
+		"compile": "bun run check-types && bun run lint && bun esbuild.mjs",
+		"compile-standalone": "bun run check-types && bun run lint && bun esbuild.mjs --standalone",
 		"postcompile-standalone": "node scripts/package-standalone.mjs",
-		"dev": "npm run protos && npm run watch",
-		"watch": "npx npm-run-all -p watch:*",
-		"watch:esbuild": "node esbuild.mjs --watch",
+		"dev": "bun run protos && bun run watch",
+		"watch": "bun run --parallel watch:esbuild watch:tsc",
+		"watch:esbuild": "bun esbuild.mjs --watch",
 		"watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
-		"package": "npm run check-types && npm run build:webview && npm run lint && node esbuild.mjs --production",
+		"package": "bun run check-types && bun run build:webview && bun run lint && bun esbuild.mjs --production",
 		"protos": "node scripts/build-proto.mjs",
 		"protos-python": "node scripts/build-python-proto.mjs",
 		"download-ripgrep": "node scripts/download-ripgrep.mjs",
-		"postprotos": "biome format --config-path ./biome.jsonc src/shared/proto src/generated webview-ui/src/services/grpc-client.ts --write --no-errors-on-unmatched",
+		"postprotos": "biome format --config-path ./biome.jsonc src/shared/proto src/core/controller src/hosts/ webview-ui/src/services src/generated --write --no-errors-on-unmatched",
 		"clean:build": "rimraf dist dist-standalone webview-ui/build src/generated out/",
 		"clean:deps": "rimraf node_modules webview-ui/node_modules",
-		"clean:all": "npm run clean:build && npm run clean:deps",
+		"clean:all": "bun run clean:build && bun run clean:deps",
 		"compile-tests": "node ./scripts/build-tests.js",
 		"watch-tests": "tsc -p . -w --outDir out",
-		"check-types": "npm run protos && tsc --noEmit && cd webview-ui && tsc --noEmit",
-		"lint": "biome lint --config-path ./biome.jsonc --no-errors-on-unmatched --files-ignore-unknown=true --diagnostic-level=error && npm run lint:proto",
+		"check-types": "bun run protos && bunx tsc --noEmit && cd webview-ui && bunx tsc --noEmit",
+		"lint": "biome lint --config-path ./biome.jsonc --no-errors-on-unmatched --files-ignore-unknown=true --diagnostic-level=error && bun run lint:proto",
 		"lint:proto": "bash ./scripts/proto-lint.sh",
-		"format": "biome format --config-path ./biome.jsonc --changed --since main --no-errors-on-unmatched --files-ignore-unknown=true --diagnostic-level=error",
-		"format:fix": "biome check --config-path ./biome.jsonc --changed --since main --no-errors-on-unmatched --files-ignore-unknown=true --write",
-		"fix:all": "biome check --config-path ./biome.jsonc --no-errors-on-unmatched --files-ignore-unknown=true --write --diagnostic-level=error --unsafe",
-		"ci:check-all": "npx npm-run-all -p check-types lint format",
-		"ci:build": "npm run protos && npm run build:webview && node esbuild.mjs && npm run compile-tests",
-		"pretest": "npm run compile && npm run compile-tests && npm run compile-standalone && npm run lint",
-		"test": "npx npm-run-all test:unit test:integration",
-		"test:integration": "vscode-test",
-		"test:unit": "cross-env TS_NODE_PROJECT=./tsconfig.unit-test.json mocha",
-		"test:coverage": "vscode-test --coverage",
-		"test:sca-server": "npx tsx watch scripts/test-standalone-core-api-server.ts",
-		"test:tp-orchestrator": "npx tsx scripts/testing-platform-orchestrator.ts",
+		"analyze:unused": "bunx --yes knip --config knip.json --include files,exports,types,enumMembers,duplicates",
+		"analyze:unused:prod": "bunx --yes knip --config knip.json --production --include files,exports,types,enumMembers,dependencies",
+		"analyze:unused:fix-exports": "node scripts/remove-unused-exports.mjs --apply",
+		"analyze:unused:fix-exports:dry": "node scripts/remove-unused-exports.mjs",
+		"format": "biome format --config-path ./biome.jsonc --changed --since main --no-errors-on-unmatched --files-ignore-unknown=true --diagnostic-level=error --semicolons=as-needed",
+		"format:fix": "biome check --config-path ./biome.jsonc --changed --since main --no-errors-on-unmatched --files-ignore-unknown=true --write --semicolons=as-needed",
+		"fix:all": "biome check --config-path ./biome.jsonc --no-errors-on-unmatched --files-ignore-unknown=true --write --diagnostic-level=error --unsafe --semicolons=as-needed",
+		"ci:check-all": "bun run --parallel check-types lint format",
+		"ci:build": "bun run protos && bun run build:webview && bun esbuild.mjs && bun run compile-tests",
+		"pretest": "bun run compile && bun run compile-tests && bun run compile-standalone && bun run lint",
+		"test": "bun run test:unit && bun run test:integration",
+		"test:integration": "bun run compile-tests && vscode-test",
+		"test:unit": "bun scripts/run-bun-unit-tests.ts",
+		"test:vitest": "vitest run --config vitest.config.ts",
+		"test:vitest:watch": "vitest --config vitest.config.ts",
+		"test:bun": "bun scripts/run-bun-tests.ts",
+		"test:bun:unit": "bun scripts/run-bun-unit-tests.ts",
+		"test:coverage": "bun run compile-tests && vscode-test --coverage",
+		"test:sca-server": "bun --watch scripts/test-standalone-core-api-server.ts",
+		"test:tp-orchestrator": "bun scripts/testing-platform-orchestrator.ts",
+		"dev:mcp-oauth-test-server": "bun src/dev/mcp-oauth-test-server/server.ts",
 		"e2e": "playwright test -c playwright.config.ts",
-		"test:e2e:build": "vsce package --allow-package-secrets sendgrid --out dist/e2e.vsix",
-		"test:e2e": "playwright install && npm run test:e2e:build && node src/test/e2e/utils/build.mjs && playwright test",
-		"test:e2e:optimal": "npm run test:e2e:build && node src/test/e2e/utils/build.mjs && playwright test",
-		"test:e2e:ui": "npx tsx scripts/interactive-playwright.ts",
-		"install:all": "npm install && cd webview-ui && npm install",
-		"dev:webview": "cd webview-ui && npm run dev",
-		"build:webview": "cd webview-ui && npm run build",
-		"test:webview": "cd webview-ui && npm run test",
+		"test:e2e:build": "vsce package --no-dependencies --allow-package-secrets sendgrid --out dist/e2e.vsix",
+		"test:e2e": "playwright install && bun run test:e2e:build && node src/test/e2e/utils/build.mjs && playwright test",
+		"test:e2e:optimal": "bun run test:e2e:build && node src/test/e2e/utils/build.mjs && playwright test",
+		"test:e2e:ui": "bun scripts/interactive-playwright.ts",
+		"install:all": "bun install",
+		"dev:webview": "cd webview-ui && bun run dev",
+		"build:webview": "cd webview-ui && bun run build",
+		"test:webview": "cd webview-ui && bun run test",
 		"publish:marketplace": "node scripts/publish-marketplace.mjs",
 		"publish:marketplace:prerelease": "node scripts/publish-marketplace.mjs --pre-release",
 		"publish:marketplace:nightly": "node ./scripts/publish-nightly.mjs",
-		"prepare": "npx husky",
-		"docs": "cd docs && npm run dev",
-		"docs:check-links": "cd docs && npm run check",
-		"docs:rename-file": "cd docs && npm run rename",
+		"docs": "cd docs && bun run dev",
+		"docs:check-links": "cd docs && bun run check",
+		"docs:rename-file": "cd docs && bun run rename",
 		"report-issue": "node scripts/report-issue.js",
-		"storybook": "cd webview-ui && npm run storybook",
-		"eval:smoke:run": "npx tsx evals/smoke-tests/run-smoke-tests.ts"
+		"storybook": "cd webview-ui && bun run storybook",
+		"eval:smoke:run": "bun evals/smoke-tests/run-smoke-tests.ts"
 	},
 	"lint-staged": {
 		"src/shared/storage/state-keys.ts": [
 			"node scripts/generate-state-proto.mjs",
-			"git add proto/cline/state.proto"
+			"git add apps/vscode/proto/cline/state.proto"
 		],
 		"*": [
-			"biome check --write --staged --no-errors-on-unmatched --files-ignore-unknown=true"
+			"biome check --write --staged --no-errors-on-unmatched --files-ignore-unknown=true --semicolons=as-needed"
 		]
 	},
 	"devDependencies": {
@@ -452,7 +425,6 @@
 		"@types/node": "20.x",
 		"@types/pdf-parse": "^1.1.4",
 		"@types/picomatch": "^4.0.2",
-		"@types/proxyquire": "^1.3.31",
 		"@types/shell-quote": "^1.7.5",
 		"@types/should": "^11.2.0",
 		"@types/sinon": "^21.0.0",
@@ -464,42 +436,41 @@
 		"c8": "^10.1.3",
 		"chai": "^4.3.10",
 		"chalk": "5.6.2",
-		"cross-env": "^10.1.0",
 		"dotenv": "^17.2.3",
 		"esbuild": "^0.25.0",
+		"glob": "^11.0.0",
 		"grpc-tools": "^1.13.0",
-		"husky": "^9.1.7",
 		"lint-staged": "^16.1.0",
 		"minimatch": "^3.0.3",
-		"npm-run-all": "^4.1.5",
-		"nyc": "^17.1.0",
+		"minimist": "^1.2.8",
+		"mocha": "^11.7.4",
+		"playwright": "^1.55.1",
 		"prebuild-install": "^7.1.3",
 		"protoc-gen-ts": "^0.8.7",
-		"proxyquire": "^2.1.3",
 		"rimraf": "^6.0.1",
 		"should": "^13.2.3",
 		"sinon": "^21.0.3",
+		"tar": "^7.5.2",
 		"tree-kill": "^1.2.2",
-		"ts-node": "^10.9.2",
 		"ts-proto": "^2.6.1",
 		"tsconfig-paths": "^4.2.0",
-		"typescript": "^5.4.5"
+		"typescript": "^5.4.5",
+		"vitest": "^4.0.17"
 	},
 	"dependencies": {
-		"@anthropic-ai/sdk": "^0.50.4",
-		"@anthropic-ai/vertex-sdk": "^0.11.5",
-		"@aws-sdk/client-bedrock-runtime": "^3.922.0",
-		"@aws-sdk/credential-providers": "^3.922.0",
-		"@azure/identity": "^4.13.0",
+		"@anthropic-ai/sdk": "^0.37.0",
 		"@bufbuild/protobuf": "^2.2.5",
-		"@cerebras/cerebras_cloud_sdk": "^1.35.0",
-		"@google-cloud/vertexai": "^1.9.3",
+		"@cline/agents": "workspace:*",
+		"@cline/core": "workspace:*",
+		"@cline/llms": "workspace:*",
+		"@cline/shared": "workspace:*",
 		"@google/genai": "^1.30.0",
 		"@grpc/grpc-js": "^1.9.15",
+		"@grpc/proto-loader": "^0.7.13",
 		"@grpc/reflection": "^1.0.4",
-		"@mistralai/mistralai": "^1.5.0",
 		"@modelcontextprotocol/sdk": "^1.25.1",
 		"@opentelemetry/api": "^1.9.0",
+		"@opentelemetry/api-logs": "^0.56.0",
 		"@opentelemetry/core": "^2.1.0",
 		"@opentelemetry/exporter-logs-otlp-grpc": "^0.56.0",
 		"@opentelemetry/exporter-logs-otlp-http": "^0.56.0",
@@ -519,9 +490,6 @@
 		"@opentelemetry/sdk-trace-node": "^1.30.1",
 		"@opentelemetry/semantic-conventions": "^1.37.0",
 		"@playwright/test": "^1.55.1",
-		"@sap-ai-sdk/ai-api": "^2.7.0",
-		"@sap-ai-sdk/orchestration": "^2.7.0",
-		"@sap-cloud-sdk/connectivity": "^4.6.0",
 		"@streamparser/json": "^0.0.22",
 		"@tailwindcss/vite": "^4.1.14",
 		"@types/uuid": "^10.0.0",
@@ -547,13 +515,15 @@
 		"ignore": "^7.0.3",
 		"image-size": "^2.0.2",
 		"isbinaryfile": "^5.0.2",
+		"js-yaml": "^4.1.1",
 		"jschardet": "^3.1.4",
 		"json5": "^2.2.3",
+		"jwt-decode": "^4.0.0",
 		"mammoth": "^1.11.0",
 		"nanoid": "^5.1.6",
 		"nice-grpc": "^2.1.12",
+		"nice-grpc-common": "^2.0.3",
 		"node-machine-id": "^1.1.12",
-		"ollama": "^0.5.13",
 		"open": "^10.1.2",
 		"open-graph-scraper": "^6.9.0",
 		"openai": "^6.21.0",
@@ -572,24 +542,13 @@
 		"simple-git": "3.36.0",
 		"strip-ansi": "^7.1.2",
 		"tailwindcss": "^4.1.14",
-		"tree-sitter-wasms": "^0.1.11",
 		"ts-morph": "^25.0.1",
 		"turndown": "^7.2.0",
 		"ulid": "^2.4.0",
 		"undici": "^7.26.0",
 		"uuid": "^11.1.0",
 		"vscode-uri": "^3.1.0",
-		"web-tree-sitter": "^0.22.6",
-		"zod": "^3.24.2"
-	},
-	"overrides": {
-		"tar-fs": ">=3.1.1",
-		"tar": "^7.5.2",
-		"vite": "^7.1.11",
-		"js-yaml": "^4.1.1",
-		"serialize-javascript": ">=7.0.3",
-		"protobufjs": "7.5.8",
-		"diff": "8.0.4"
+		"zod": "^4.3.6"
 	},
 	"c8": {
 		"reporter": [

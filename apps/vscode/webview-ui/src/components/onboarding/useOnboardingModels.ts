@@ -4,13 +4,12 @@ import { EmptyRequest } from "@shared/proto/cline/common"
 import type { ClineRecommendedModel } from "@shared/proto/cline/models"
 import type { OnboardingModel, OnboardingModelGroup } from "@shared/proto/cline/state"
 import { useEffect, useMemo, useState } from "react"
-import { CLINE_PASS_FEATURE_FLAG } from "@/constants/featureFlags"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { useHasFeatureFlag } from "@/hooks/useFeatureFlag"
+import { useProviderModels } from "@/hooks/useProviderModels"
 import { ModelsServiceClient } from "@/services/grpc-client"
-import { getRecommendedModelsData, type RecommendedModelsData } from "./data-models"
+import { CLINEPASS_GROUP, getRecommendedModelsData, type RecommendedModelsData } from "./data-models"
 
-export type OnboardingModelsStatus = "loading" | "success" | "empty"
+type OnboardingModelsStatus = "loading" | "success" | "empty"
 
 export interface UseOnboardingModelsResult {
 	status: OnboardingModelsStatus
@@ -50,8 +49,8 @@ function toOnboardingModel(
 type FetchState = { status: "loading" } | { status: "success"; data: RecommendedModelsData } | { status: "empty" }
 
 export function useOnboardingModels(): UseOnboardingModelsResult {
-	const { openRouterModels, clineModels, refreshClineModels } = useExtensionState()
-	const isClinePassEnabled = useHasFeatureFlag(CLINE_PASS_FEATURE_FLAG)
+	const { openRouterModels } = useExtensionState()
+	const { models: clineModels } = useProviderModels("cline")
 	const [fetchState, setFetchState] = useState<FetchState>({ status: "loading" })
 
 	useEffect(() => {
@@ -61,7 +60,7 @@ export function useOnboardingModels(): UseOnboardingModelsResult {
 			try {
 				const response = await ModelsServiceClient.refreshClineRecommendedModelsRpc(EmptyRequest.create({}))
 				if (!cancelled) {
-					const data = getRecommendedModelsData(response, isClinePassEnabled)
+					const data = getRecommendedModelsData(response)
 					if (!data) {
 						setFetchState({ status: "empty" })
 					} else {
@@ -80,11 +79,7 @@ export function useOnboardingModels(): UseOnboardingModelsResult {
 		return () => {
 			cancelled = true
 		}
-	}, [isClinePassEnabled])
-
-	useEffect(() => {
-		refreshClineModels()
-	}, [refreshClineModels])
+	}, [])
 
 	// Merge openRouter and cline models into a single catalog for lookups
 	const modelCatalog = useMemo<Record<string, ModelInfo>>(() => {
@@ -107,7 +102,7 @@ export function useOnboardingModels(): UseOnboardingModelsResult {
 		const clinePassCatalog = Object.fromEntries(
 			data.clinePass.map((rec) => [rec.id, resolveClinePassModelInfo(rec.id, openRouterModelsByName)]),
 		)
-		const clinePassModels = data.clinePass.map((rec) => toOnboardingModel(rec, "clinepass", "", clinePassCatalog))
+		const clinePassModels = data.clinePass.map((rec) => toOnboardingModel(rec, CLINEPASS_GROUP, "", clinePassCatalog))
 
 		return { status: "success", models: { models: [...clinePassModels, ...freeModels, ...frontierModels] } }
 	}, [fetchState, modelCatalog, openRouterModelsByName])

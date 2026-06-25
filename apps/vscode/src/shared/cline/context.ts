@@ -147,7 +147,7 @@ export interface ClineExtensionContext {
 	readonly extension: Extension<any>
 }
 
-export enum ExtensionKind {
+enum ExtensionKind {
 	/**
 	 * Extension runs where the UI runs.
 	 */

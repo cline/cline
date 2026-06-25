@@ -4,7 +4,7 @@ import { writeFileSync } from "node:fs"
 import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react-swc"
 import { resolve } from "path"
-import { defineConfig, type Plugin, ViteDevServer } from "vite"
+import { defineConfig, loadEnv, type Plugin, ViteDevServer } from "vite"
 
 // Custom plugin to write the server port to a file
 const writePortToFile = (): Plugin => {
@@ -27,6 +27,14 @@ const writePortToFile = (): Plugin => {
 }
 
 const isDevBuild = process.argv.includes("--dev-build")
+
+// VS Code launch configurations load apps/vscode/.env for the extension host,
+// but pre-launch webview tasks run as separate processes. Load the parent .env
+// here so F5 builds get the same build-time constants in the webview bundle.
+const parentEnv = loadEnv(process.env.NODE_ENV || "development", resolve(__dirname, ".."), "")
+for (const [key, value] of Object.entries(parentEnv)) {
+	process.env[key] ??= value
+}
 
 // Valid platforms, these should the keys in platform-configs.json
 const VALID_PLATFORMS = ["vscode", "standalone"]
@@ -135,7 +143,15 @@ export default defineConfig({
 		"process.env.OTEL_METRIC_EXPORT_INTERVAL": JSON.stringify(process.env.OTEL_METRIC_EXPORT_INTERVAL),
 	},
 	resolve: {
+		// Force a single React copy. In the bun workspace, sibling packages pull
+		// react@19 into the shared store; without deduping, transitive webview deps
+		// can resolve a second React instance, which bundles two copies and yields a
+		// null hook dispatcher at runtime ("Cannot read properties of null (reading
+		// 'useRef')"). Pin react/react-dom to webview-ui's own (React 18) copy.
+		dedupe: ["react", "react-dom"],
 		alias: {
+			react: resolve(__dirname, "node_modules/react"),
+			"react-dom": resolve(__dirname, "node_modules/react-dom"),
 			"@": resolve(__dirname, "./src"),
 			"@components": resolve(__dirname, "./src/components"),
 			"@context": resolve(__dirname, "./src/context"),

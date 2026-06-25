@@ -1,5 +1,19 @@
 # Cline SDK Changelog
 
+## 0.0.51
+
+- Fixed Z.ai model metadata not resolving correctly when using Z.ai models through the Cline provider; aliases now map to the right model metadata and user overrides are preserved
+
+## 0.0.50
+
+- Truncate every tool result by default (including MCP and custom tool output), with tightened `MessageBuilder` limits and tunable `CLINE_MESSAGE_BUILDER_*` env overrides, to keep provider requests within budget
+- Cap assistant text in provider messages and count `tool_use` input toward the request budget; protect binary carrier blocks (not just images) from truncation
+- Resolve tool names from `tool_result` when the paired `tool_use` is gone
+- Add ClinePass provider support (built-in provider, error handling, format compatibility)
+- Apply auto-approve toggles immediately in the agent runtime
+- Harden parallel tool-call guidance in the system prompt and tool definitions
+- Refresh the generated model catalog
+
 ## 0.0.49
 
 - Reverted ClinePass recommended-models support, removing the `clinePass` field from the recommended models data

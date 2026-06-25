@@ -58,6 +58,147 @@ describe("resolveProviderConfig", () => {
 		);
 	});
 
+	it("uses only live Cline recommended models for ClinePass when live models are found", async () => {
+		const fetchMock = vi.fn(async (url: string) => {
+			if (url === "https://models.test/api.json") {
+				return new Response(
+					JSON.stringify({
+						openrouter: {
+							models: {
+								"vendor/live-pass-model": {
+									name: "Live Pass Model",
+									tool_call: true,
+									reasoning: true,
+									limit: { context: 256_000, input: 200_000, output: 32_000 },
+								},
+							},
+						},
+					}),
+					{
+						status: 200,
+						headers: { "content-type": "application/json" },
+					},
+				);
+			}
+
+			return new Response(
+				JSON.stringify({
+					clinePass: [
+						{
+							id: "cline-pass/live-pass-model",
+							name: "vendor/live-pass-model",
+						},
+					],
+				}),
+				{
+					status: 200,
+					headers: { "content-type": "application/json" },
+				},
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const resolved = await resolveProviderConfig("cline-pass", {
+			loadLatestOnInit: true,
+			failOnError: false,
+			cacheTtlMs: 0,
+			url: "https://models.test/api.json",
+		});
+
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		expect(resolved?.knownModels?.["cline-pass/live-pass-model"]).toMatchObject({
+			id: "cline-pass/live-pass-model",
+			name: "Live Pass Model",
+			contextWindow: 256_000,
+			maxInputTokens: 200_000,
+			maxTokens: 32_000,
+		});
+		expect(resolved?.knownModels?.["cline-pass/mimo-v2.5-pro"]).toBeUndefined();
+	});
+
+	it("falls back to generated ClinePass models when no live ClinePass models are found", async () => {
+		const fetchMock = vi.fn(async (url: string) => {
+			if (url === "https://models.test/api.json") {
+				return new Response(
+					JSON.stringify({
+						openrouter: {
+							models: {
+								"vendor/live-openrouter-model": {
+									name: "Live OpenRouter Model",
+									tool_call: true,
+								},
+							},
+						},
+					}),
+					{
+						status: 200,
+						headers: { "content-type": "application/json" },
+					},
+				);
+			}
+
+			return new Response(JSON.stringify({ clinePass: [] }), {
+				status: 200,
+				headers: { "content-type": "application/json" },
+			});
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const resolved = await resolveProviderConfig("cline-pass", {
+			loadLatestOnInit: true,
+			failOnError: false,
+			cacheTtlMs: 0,
+			url: "https://models.test/api.json",
+		});
+
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		expect(
+			resolved?.knownModels?.["cline-pass/mimo-v2.5-pro"]?.name,
+		).toBe("MiMo-V2.5-Pro");
+		expect(
+			resolved?.knownModels?.["vendor/live-openrouter-model"],
+		).toBeUndefined();
+	});
+
+	it("prefers Vercel-style Z.ai ids in Cline known models", async () => {
+		const resolved = await resolveProviderConfig("cline");
+
+		expect(resolved?.knownModels?.["zai/glm-5.2"]).toMatchObject({
+			id: "zai/glm-5.2",
+			name: "GLM 5.2",
+			contextWindow: 1_000_000,
+			maxInputTokens: 1_000_000,
+		});
+		expect(resolved?.knownModels?.["z-ai/glm-5.2"]).toBeUndefined();
+	});
+
+	it("preserves explicit Cline known model overrides for alias ids", async () => {
+		const resolved = await resolveProviderConfig("cline", undefined, {
+			providerId: "cline",
+			modelId: "z-ai/glm-5.2",
+			knownModels: {
+				"z-ai/glm-5.2": {
+					id: "z-ai/glm-5.2",
+					name: "Custom GLM 5.2",
+					contextWindow: 123_456,
+					maxInputTokens: 123_456,
+				},
+			},
+		});
+
+		expect(resolved?.knownModels?.["z-ai/glm-5.2"]).toMatchObject({
+			id: "z-ai/glm-5.2",
+			name: "Custom GLM 5.2",
+			contextWindow: 123_456,
+			maxInputTokens: 123_456,
+		});
+		expect(resolved?.knownModels?.["zai/glm-5.2"]).toMatchObject({
+			id: "zai/glm-5.2",
+			contextWindow: 1_000_000,
+			maxInputTokens: 1_000_000,
+		});
+	});
+
 	it("uses the live OpenAI catalog for ChatGPT subscription models", async () => {
 		vi.stubGlobal(
 			"fetch",
@@ -208,6 +349,128 @@ describe("resolveProviderConfig", () => {
 				pricing: { input: 0, output: 0 },
 				status: "active",
 			}),
+		);
+	});
+
+	it("falls back to /model/info for LiteLLM private models", async () => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce(new Response("no v1 route", { status: 404 }))
+			.mockResolvedValueOnce(new Response("no v1 route", { status: 404 }))
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({
+						data: [
+							{
+								model_name: "private-proxy-model",
+								litellm_params: { model: "openai/gpt-4o-mini" },
+								model_info: {
+									supports_vision: true,
+									supports_reasoning: true,
+								},
+							},
+						],
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				),
+			);
+		vi.stubGlobal("fetch", fetchMock);
+
+		const resolved = await resolveProviderConfig(
+			"litellm",
+			{ failOnError: true, cacheTtlMs: 0 },
+			{
+				providerId: "litellm",
+				modelId: "",
+				apiKey: "litellm-key",
+				baseUrl: "http://localhost:4000/v1/",
+			},
+		);
+
+		expect(fetchMock.mock.calls.map((call) => call[0])).toEqual([
+			"http://localhost:4000/v1/model/info",
+			"http://localhost:4000/v1/model/info",
+			"http://localhost:4000/model/info",
+		]);
+		expect(resolved?.knownModels?.["openai/gpt-4o-mini"]).toEqual(
+			expect.objectContaining({
+				name: "private-proxy-model",
+				capabilities: expect.arrayContaining(["images", "reasoning"]),
+			}),
+		);
+		expect(resolved?.knownModels?.["private-proxy-model"]).toEqual(
+			expect.objectContaining({
+				name: "private-proxy-model",
+				capabilities: expect.arrayContaining(["images", "reasoning"]),
+			}),
+		);
+		expect(Object.keys(resolved?.knownModels ?? {}).sort()).toEqual([
+			"openai/gpt-4o-mini",
+			"private-proxy-model",
+		]);
+		expect(resolved?.knownModels?.["gpt-5.4"]).toBeUndefined();
+	});
+
+	it("returns an empty authoritative LiteLLM model list without auth", async () => {
+		const fetchMock = vi.fn();
+		vi.stubGlobal("fetch", fetchMock);
+
+		const resolved = await resolveProviderConfig(
+			"litellm",
+			{ failOnError: true, cacheTtlMs: 0 },
+			{
+				providerId: "litellm",
+				modelId: "",
+				baseUrl: "http://localhost:4000/v1/",
+			},
+		);
+
+		expect(fetchMock).not.toHaveBeenCalled();
+		expect(resolved?.knownModels).toEqual({});
+		expect(resolved?.knownModels?.["gpt-5.4"]).toBeUndefined();
+	});
+
+	it("does not fall back to bundled LiteLLM models when private model fetch fails non-strictly", async () => {
+		const fetchMock = vi.fn(
+			async () => new Response('{"error":"unauthorized"}', { status: 401 }),
+		);
+		vi.stubGlobal("fetch", fetchMock);
+
+		const resolved = await resolveProviderConfig(
+			"litellm",
+			{ failOnError: false, cacheTtlMs: 0 },
+			{
+				providerId: "litellm",
+				modelId: "",
+				apiKey: "litellm-key",
+				baseUrl: "http://localhost:4000",
+			},
+		);
+
+		expect(fetchMock).toHaveBeenCalled();
+		expect(resolved?.knownModels).toEqual({});
+		expect(resolved?.knownModels?.["gpt-5.4"]).toBeUndefined();
+	});
+
+	it("reports attempted path, auth header, status, and body for LiteLLM model fetch failures", async () => {
+		const fetchMock = vi.fn(
+			async () => new Response('{"error":"unauthorized"}', { status: 401 }),
+		);
+		vi.stubGlobal("fetch", fetchMock);
+
+		await expect(
+			resolveProviderConfig(
+				"litellm",
+				{ failOnError: true, cacheTtlMs: 0 },
+				{
+					providerId: "litellm",
+					modelId: "",
+					apiKey: "litellm-key",
+					baseUrl: "http://localhost:4000",
+				},
+			),
+		).rejects.toThrow(
+			'/model/info (Authorization): HTTP 401: {"error":"unauthorized"}',
 		);
 	});
 

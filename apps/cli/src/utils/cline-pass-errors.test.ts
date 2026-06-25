@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
 	formatCliErrorMessage,
+	getClineOrgIndividualInferenceSubscriptionMessage,
 	getClinePassSubscriptionUrl,
+	isClineOrgIndividualInferenceSubscriptionErrorMessage,
 	isClinePassSubscriptionError,
 } from "./cline-pass-errors";
 
@@ -20,7 +22,23 @@ describe("cline-pass-errors", () => {
 
 	it("formats the ClinePass subscription URL", () => {
 		expect(getClinePassSubscriptionUrl()).toBe(
-			"https://app.cline.bot/dashboard/subscription/",
+			"https://app.cline.bot/promo?code=CLI-100&personal=true",
 		);
+	});
+
+	it("recognizes and formats organization account individual subscription errors", () => {
+		const raw =
+			"403 Error 403: organization accounts cannot use individual model inference subscriptions";
+		const formatted = getClineOrgIndividualInferenceSubscriptionMessage();
+
+		expect(isClineOrgIndividualInferenceSubscriptionErrorMessage(raw)).toBe(
+			true,
+		);
+		expect(
+			isClineOrgIndividualInferenceSubscriptionErrorMessage(
+				new Error(formatted),
+			),
+		).toBe(true);
+		expect(formatCliErrorMessage(new Error(raw))).toBe(formatted);
 	});
 });

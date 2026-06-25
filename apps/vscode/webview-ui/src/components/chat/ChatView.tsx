@@ -6,9 +6,9 @@ import { getApiMetrics, getLastApiReqTotalTokens } from "@shared/getApiMetrics"
 import { BooleanRequest, StringRequest } from "@shared/proto/cline/common"
 import { useCallback, useEffect, useMemo } from "react"
 import { useMount } from "react-use"
-import { normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useShowNavbar } from "@/context/PlatformContext"
+import { useNormalizedApiConfiguration } from "@/hooks/useNormalizedApiConfiguration"
 import { FileServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { Navbar } from "../menu/Navbar"
 import AutoApproveBar from "./auto-approve-menu/AutoApproveBar"
@@ -43,18 +43,7 @@ const QUICK_WINS_HISTORY_THRESHOLD = 3
 
 const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryView }: ChatViewProps) => {
 	const showNavbar = useShowNavbar()
-	const {
-		version,
-		clineMessages: messages,
-		taskHistory,
-		apiConfiguration,
-		telemetrySetting,
-		mode,
-		userInfo,
-		currentFocusChainChecklist,
-		focusChainSettings,
-		hooksEnabled,
-	} = useExtensionState()
+	const { version, clineMessages: messages, taskHistory, telemetrySetting, mode, userInfo, hooksEnabled } = useExtensionState()
 	const isProdHostedApp = userInfo?.apiBaseUrl === "https://app.cline.bot"
 	const shouldShowQuickWins = isProdHostedApp && (!taskHistory || taskHistory.length < QUICK_WINS_HISTORY_THRESHOLD)
 
@@ -179,9 +168,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	// Use message handlers hook
 	const messageHandlers = useMessageHandlers(messages, chatState)
 
-	const { selectedModelInfo } = useMemo(() => {
-		return normalizeApiConfiguration(apiConfiguration, mode)
-	}, [apiConfiguration, mode])
+	const { selectedModelInfo } = useNormalizedApiConfiguration(mode)
 
 	const selectFilesAndImages = useCallback(async () => {
 		try {
@@ -225,13 +212,13 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		const cleanup = UiServiceClient.subscribeToShowWebview(
 			{},
 			{
-				onResponse: (event) => {
+				onResponse: (event: any) => {
 					// Only focus if not hidden and preserveEditorFocus is false
 					if (!isHidden && !event.preserveEditorFocus) {
 						textAreaRef.current?.focus()
 					}
 				},
-				onError: (error) => {
+				onError: (error: any) => {
 					console.error("Error in showWebview subscription:", error)
 				},
 				onComplete: () => {
@@ -248,7 +235,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		const cleanup = UiServiceClient.subscribeToAddToInput(
 			{},
 			{
-				onResponse: (event) => {
+				onResponse: (event: any) => {
 					if (event.value) {
 						setInputValue((prevValue) => {
 							const newText = event.value
@@ -265,7 +252,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						}, 0)
 					}
 				},
-				onError: (error) => {
+				onError: (error: any) => {
 					console.error("Error in addToInput subscription:", error)
 				},
 				onComplete: () => {
@@ -294,28 +281,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	}, [isHidden, sendingDisabled, enableButtons])
 
 	const visibleMessages = useMemo(() => {
-		return filterVisibleMessages(modifiedMessages)
+		// Temporarily hide checkpoint rows so users cannot restore the conversation to a specific checkpoint.
+		// Checkpoint support will be re-enabled once the restore flow is ready again.
+		return filterVisibleMessages(modifiedMessages).filter((message) => message.say !== "checkpoint_created")
 	}, [modifiedMessages])
-
-	const lastProgressMessageText = useMemo(() => {
-		if (!focusChainSettings.enabled) {
-			return undefined
-		}
-
-		// First check if we have a current focus chain list from the extension state
-		if (currentFocusChainChecklist) {
-			return currentFocusChainChecklist
-		}
-
-		// Fall back to the last task_progress message if no state focus chain list
-		const lastProgressMessage = [...modifiedMessages].reverse().find((message) => message.say === "task_progress")
-		return lastProgressMessage?.text
-	}, [focusChainSettings.enabled, modifiedMessages, currentFocusChainChecklist])
-
-	const showFocusChainPlaceholder = useMemo(() => {
-		// Show placeholder whenever focus chain is enabled and no checklist exists yet.
-		return focusChainSettings.enabled && !lastProgressMessageText
-	}, [focusChainSettings.enabled, lastProgressMessageText])
 
 	const groupedMessages = useMemo(() => {
 		return groupLowStakesTools(groupMessages(visibleMessages))
@@ -337,13 +306,11 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					<TaskSection
 						apiMetrics={apiMetrics}
 						lastApiReqTotalTokens={lastApiReqTotalTokens}
-						lastProgressMessageText={lastProgressMessageText}
 						messageHandlers={messageHandlers}
 						selectedModelInfo={{
 							supportsPromptCache: selectedModelInfo.supportsPromptCache,
 							supportsImages: selectedModelInfo.supportsImages || false,
 						}}
-						showFocusChainPlaceholder={showFocusChainPlaceholder}
 						task={task}
 					/>
 				) : (
@@ -368,19 +335,13 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					/>
 				)}
 			</div>
-			<footer className="bg-(--vscode-sidebar-background)" style={{ gridRow: "2" }}>
+			<footer className="bg-(--vscode-sidebar-background) flex flex-col" style={{ gridRow: "2" }}>
 				<AutoApproveBar />
 				<ActionButtons
 					chatState={chatState}
 					messageHandlers={messageHandlers}
 					messages={messages}
 					mode={mode}
-					scrollBehavior={{
-						scrollToBottomSmooth: scrollBehavior.scrollToBottomSmooth,
-						disableAutoScrollRef: scrollBehavior.disableAutoScrollRef,
-						showScrollToBottom: scrollBehavior.showScrollToBottom,
-						virtuosoRef: scrollBehavior.virtuosoRef,
-					}}
 					task={task}
 				/>
 				<InputSection

@@ -18,6 +18,25 @@ export {
 } from "./connectors/events";
 export type * from "./connectors/options";
 export type {
+	ActiveConnectorRecord,
+	ConfiguredConnectorRecord,
+	ConnectorCatalogEntry,
+	ConnectorChannel,
+	ConnectorChannelsResponse,
+	ConnectorFieldCondition,
+	ConnectorFieldDef,
+	ConnectorPlatformDef,
+	ConnectorSecurityDef,
+	ConnectorSecurityFieldDef,
+} from "./connectors/platforms";
+export {
+	CONNECTOR_CATALOG,
+	CONNECTOR_PLATFORMS,
+	connectorChannelsFromPlatforms,
+	listConnectorCatalog,
+	shouldIncludeConnectorField,
+} from "./connectors/platforms";
+export type {
 	AutomationEventEnvelope,
 	CronEventSpec,
 	CronOneOffSpec,
@@ -203,14 +222,17 @@ export {
 	noopBasicLogger,
 } from "./logging/logger";
 export {
+	normalizeJsonLikeStringsForSchema,
 	parseJsonStream,
 	safeJsonParse,
 	safeJsonStringify,
 } from "./parse/json";
+export { type OmitUndefinedValues, omitUndefinedValues } from "./parse/object";
 export { getDefaultShell, getShellArgs } from "./parse/shell";
 export {
 	maskSecret,
 	sanitizeFileName,
+	trimNonEmpty,
 	truncateSplit,
 	truncateStr,
 } from "./parse/string";

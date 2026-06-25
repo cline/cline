@@ -68,6 +68,41 @@ describe("AgentRuntime", () => {
 		expect(model.requests).toHaveLength(1);
 	});
 
+	it("does not persist an empty assistant message when the model stream fails", async () => {
+		const model = new ScriptedModel([
+			() => [{ type: "finish", reason: "error", error: "upstream failed" }],
+		]);
+		const addedMessages: AgentMessage[] = [];
+		const runtime = new AgentRuntime({ model });
+		runtime.subscribe((event) => {
+			if (event.type === "message-added") {
+				addedMessages.push(event.message);
+			}
+		});
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toBe("upstream failed");
+		expect(result.messages).toHaveLength(1);
+		expect(result.messages[0]?.role).toBe("user");
+		expect(addedMessages.map((message) => message.role)).toEqual(["user"]);
+	});
+
+	it("does not complete or persist history when the model returns no content", async () => {
+		const model = new ScriptedModel([
+			() => [{ type: "finish", reason: "stop" }],
+		]);
+		const runtime = new AgentRuntime({ model });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toBe("Model returned empty response");
+		expect(result.messages).toHaveLength(1);
+		expect(result.messages[0]?.role).toBe("user");
+	});
+
 	it("executes a tool call and continues the loop", async () => {
 		const model = new ScriptedModel([
 			() => [
@@ -781,6 +816,123 @@ describe("AgentRuntime", () => {
 		]);
 	});
 
+	it("normalizes JSON-encoded string fields when the tool schema expects arrays", async () => {
+		const executeTool = vi.fn(async (input: { commands: string[] }) => ({
+			joined: input.commands.join(" && "),
+		}));
+		const beforeTool = vi.fn();
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_commands",
+					toolName: "commands",
+					inputText: JSON.stringify({
+						commands: JSON.stringify(["git status", "bun test"]),
+					}),
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			(request) => {
+				const toolMessage = request.messages.at(-1) as AgentMessage;
+				expect(toolMessage.role).toBe("tool");
+				expect(toolMessage.content[0]).toMatchObject({
+					type: "tool-result",
+					toolName: "commands",
+					output: { joined: "git status && bun test" },
+				});
+				return [
+					{ type: "text-delta", text: "done" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			tools: [
+				{
+					name: "commands",
+					description: "Run commands",
+					inputSchema: {
+						type: "object",
+						properties: {
+							commands: {
+								type: "array",
+								items: { type: "string" },
+							},
+						},
+					},
+					execute: executeTool,
+				},
+			],
+			hooks: {
+				beforeTool,
+			},
+		});
+
+		const result = await runtime.run("Start");
+
+		expect(result.status).toBe("completed");
+		expect(executeTool).toHaveBeenCalledWith(
+			{ commands: ["git status", "bun test"] },
+			expect.anything(),
+		);
+		expect(beforeTool).toHaveBeenCalledWith(
+			expect.objectContaining({
+				input: { commands: ["git status", "bun test"] },
+				toolCall: expect.objectContaining({
+					input: { commands: ["git status", "bun test"] },
+				}),
+			}),
+		);
+	});
+
+	it("preserves JSON-looking strings when the tool schema expects strings", async () => {
+		const executeTool = vi.fn(async (input: { text: string }) => ({
+			echoed: input.text,
+		}));
+		const jsonText = JSON.stringify({ keep: "as text" });
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_text",
+					toolName: "echo_json",
+					inputText: JSON.stringify({ text: jsonText }),
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			() => [
+				{ type: "text-delta", text: "done" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			tools: [
+				{
+					name: "echo_json",
+					description: "Echo JSON-looking text",
+					inputSchema: {
+						type: "object",
+						properties: {
+							text: { type: "string" },
+						},
+					},
+					execute: executeTool,
+				},
+			],
+		});
+
+		const result = await runtime.run("Start");
+
+		expect(result.status).toBe("completed");
+		expect(executeTool).toHaveBeenCalledWith(
+			{ text: jsonText },
+			expect.anything(),
+		);
+	});
+
 	it("treats an unset maxIterations as unlimited", async () => {
 		const model = new ScriptedModel([
 			() => [
@@ -1066,6 +1218,66 @@ describe("AgentRuntime", () => {
 			runId: "run-1",
 			iteration: 1,
 		});
+	});
+
+	it("stamps runtime identity metadata onto model requests", async () => {
+		const model = new ScriptedModel([
+			(request) => {
+				const metadata = request.options?.metadata as
+					| Record<string, unknown>
+					| undefined;
+				expect(metadata).toMatchObject({
+					sessionId: "session-runtime",
+					agentId: "agent-runtime",
+					conversationId: "conversation-runtime",
+					iteration: 1,
+				});
+				expect(typeof metadata?.runId).toBe("string");
+				return [
+					{ type: "text-delta", text: "done" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({
+			sessionId: "session-runtime",
+			agentId: "agent-runtime",
+			conversationId: "conversation-runtime",
+			model,
+		});
+
+		await runtime.run("capture metadata");
+
+		expect(model.requests).toHaveLength(1);
+	});
+
+	it("does not synthesize session or conversation ids in model request metadata", async () => {
+		const model = new ScriptedModel([
+			(request) => {
+				const metadata = request.options?.metadata as
+					| Record<string, unknown>
+					| undefined;
+				expect(metadata).not.toHaveProperty("sessionId");
+				expect(metadata).not.toHaveProperty("conversationId");
+				expect(metadata).toMatchObject({
+					agentId: "agent-runtime",
+					iteration: 1,
+				});
+				expect(typeof metadata?.runId).toBe("string");
+				return [
+					{ type: "text-delta", text: "done" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({
+			agentId: "agent-runtime",
+			model,
+		});
+
+		await runtime.run("capture metadata");
+
+		expect(model.requests).toHaveLength(1);
 	});
 
 	it("preserves the existing system prompt when prepareTurn returns only messages", async () => {
