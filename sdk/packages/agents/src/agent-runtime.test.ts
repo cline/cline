@@ -906,20 +906,20 @@ describe("AgentRuntime", () => {
 	it("annotates assistant messages with per-turn metrics and model info", async () => {
 		const model = new ScriptedModel([
 			() => [
-					{
-						type: "usage",
-						usage: {
-							inputTokens: 12,
-							outputTokens: 7,
-							cacheReadTokens: 3,
-							cacheWriteTokens: 2,
-							reasoningTokenCount: 5,
-							totalCost: 0.42,
-						},
+				{
+					type: "usage",
+					usage: {
+						inputTokens: 12,
+						outputTokens: 7,
+						cacheReadTokens: 3,
+						cacheWriteTokens: 2,
+						reasoningTokenCount: 5,
+						totalCost: 0.42,
 					},
-					{ type: "text-delta", text: "hello" },
-					{ type: "finish", reason: "stop" },
-				],
+				},
+				{ type: "text-delta", text: "hello" },
+				{ type: "finish", reason: "stop" },
+			],
 		]);
 		const runtime = new AgentRuntime({
 			model,
@@ -938,16 +938,72 @@ describe("AgentRuntime", () => {
 			id: "anthropic/claude-sonnet-4.6",
 			provider: "openrouter",
 			family: "claude-sonnet",
-			});
-			expect(assistant?.metrics).toEqual({
-				inputTokens: 12,
-				outputTokens: 7,
-				cacheReadTokens: 3,
-				cacheWriteTokens: 2,
-				reasoningTokenCount: 5,
-				cost: 0.42,
-			});
 		});
+		expect(assistant?.metrics).toEqual({
+			inputTokens: 12,
+			outputTokens: 7,
+			cacheReadTokens: 3,
+			cacheWriteTokens: 2,
+			reasoningTokenCount: 5,
+			cost: 0.42,
+		});
+	});
+
+	it("captures telemetry when disabled reasoning still reports reasoning tokens", async () => {
+		const telemetry = {
+			capture: vi.fn(),
+			captureRequired: vi.fn(),
+			setDistinctId: vi.fn(),
+			setMetadata: vi.fn(),
+			updateMetadata: vi.fn(),
+			setCommonProperties: vi.fn(),
+			updateCommonProperties: vi.fn(),
+			isEnabled: () => true,
+			recordCounter: vi.fn(),
+			recordHistogram: vi.fn(),
+			recordGauge: vi.fn(),
+			flush: vi.fn(async () => undefined),
+			dispose: vi.fn(async () => undefined),
+		} as unknown as ITelemetryService;
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "usage",
+					usage: {
+						inputTokens: 12,
+						outputTokens: 7,
+						reasoningTokenCount: 5,
+					},
+				},
+				{ type: "text-delta", text: "hello" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			modelOptions: { thinking: false },
+			messageModelInfo: {
+				id: "z-ai/glm-4.7",
+				provider: "openrouter",
+			},
+			telemetry,
+		});
+
+		await runtime.run("Hi");
+
+		expect(telemetry.capture).toHaveBeenCalledWith(
+			expect.objectContaining({
+				event: "agent.reasoning.unexpected_tokens",
+				properties: expect.objectContaining({
+					providerId: "openrouter",
+					modelId: "z-ai/glm-4.7",
+					requestedThinking: false,
+					reasoningTokenCount: 5,
+					iteration: 1,
+				}),
+			}),
+		);
+	});
 
 	it("stops a run from beforeModel hooks and returns an aborted result", async () => {
 		const model = new ScriptedModel([

@@ -30,6 +30,8 @@ import {
 } from "@cline/shared";
 import { nanoid } from "nanoid";
 
+const UNEXPECTED_REASONING_TOKENS_EVENT = "agent.reasoning.unexpected_tokens";
+
 // Local `createUID` helper. The clinee source imports this from
 // `@cline/shared` (see `packages/shared/dist/identifier.ts`), but
 // sdk-re's shared package does not expose it yet. Inlining here keeps
@@ -322,6 +324,10 @@ function usageDelta(
 		...(reasoningTokenCount > 0 ? { reasoningTokenCount } : {}),
 		...(cost > 0 ? { cost } : {}),
 	};
+}
+
+function reasoningWasRequestedOff(request: AgentModelRequest): boolean {
+	return request.options?.thinking === false;
 }
 
 function textFromMessage(message: AgentMessage | undefined): string {
@@ -968,6 +974,7 @@ export class AgentRuntime {
 		const metrics = usageDelta(usageBeforeModel, this.state.usage);
 		if (metrics) {
 			message.metrics = metrics;
+			this.captureUnexpectedReasoningTokens(request, metrics);
 		}
 		if (this.config.messageModelInfo) {
 			message.modelInfo = { ...this.config.messageModelInfo };
@@ -982,6 +989,36 @@ export class AgentRuntime {
 		}
 
 		return { message, finishReason };
+	}
+
+	private captureUnexpectedReasoningTokens(
+		request: AgentModelRequest,
+		metrics: NonNullable<AgentMessage["metrics"]>,
+	): void {
+		if (
+			!reasoningWasRequestedOff(request) ||
+			(metrics.reasoningTokenCount ?? 0) <= 0
+		) {
+			return;
+		}
+
+		this.config.telemetry?.capture({
+			event: UNEXPECTED_REASONING_TOKENS_EVENT,
+			properties: {
+				sessionId: this.config.sessionId,
+				agentId: this.state.agentId,
+				runId: this.state.runId,
+				iteration: this.state.iteration,
+				...(this.config.messageModelInfo?.provider
+					? { providerId: this.config.messageModelInfo.provider }
+					: {}),
+				...(this.config.messageModelInfo?.id
+					? { modelId: this.config.messageModelInfo.id }
+					: {}),
+				requestedThinking: false,
+				reasoningTokenCount: metrics.reasoningTokenCount,
+			} satisfies TelemetryProperties,
+		});
 	}
 
 	private async prepareTurnForModelRequest(
