@@ -353,7 +353,9 @@ export class SdkSessionLifecycle {
 					return
 				}
 				Logger.error("[SdkController] Agent turn failed:", error)
-				this.setRunning(false)
+				// Thrown turn failures shut down the runtime session, so this
+				// reference is no longer reusable for follow-up sends.
+				this.clearActiveSessionReference()
 				await this.options.onSendError(error, sessionId)
 			})
 	}

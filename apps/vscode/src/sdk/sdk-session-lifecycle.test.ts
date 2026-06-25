@@ -164,7 +164,7 @@ describe("SdkSessionLifecycle", () => {
 		expect(lifecycle.getActiveSession()?.isRunning).toBe(true)
 	})
 
-	it("marks the active session idle and reports non-abort send errors", async () => {
+	it("clears the active session and reports non-abort send errors", async () => {
 		const onSendError = vi.fn()
 		const error = new Error("boom")
 		const sdkHost = makeSdkHost({ send: vi.fn().mockRejectedValue(error) })
@@ -177,7 +177,7 @@ describe("SdkSessionLifecycle", () => {
 		lifecycle.fireAndForgetSend(sdkHost as any, "session-123", "hello")
 		await vi.waitFor(() => expect(onSendError).toHaveBeenCalledWith(error, "session-123"))
 
-		expect(lifecycle.getActiveSession()?.isRunning).toBe(false)
+		expect(lifecycle.getActiveSession()).toBeUndefined()
 	})
 
 	it("skips completion bookkeeping when the session was replaced before the send settled", async () => {

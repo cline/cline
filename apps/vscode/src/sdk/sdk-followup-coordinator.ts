@@ -71,7 +71,7 @@ export class SdkFollowupCoordinator {
 			await this.options.waitForPendingModeRebuild()
 			activeSession = this.options.sessions.getActiveSession()
 		}
-		if (!activeSession?.isRunning && task) {
+		if (!activeSession && task) {
 			Logger.log(`[SdkController] askResponse: No active session but task exists (${task.taskId}), resuming...`)
 			await this.tryResumeSessionFromTask(task.taskId, prompt, images, files)
 			return

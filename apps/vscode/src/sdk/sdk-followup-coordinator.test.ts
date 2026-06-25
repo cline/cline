@@ -66,6 +66,27 @@ describe("SdkFollowupCoordinator", () => {
 		)
 	})
 
+	it("reuses an idle active session for a displayed task instead of resuming from disk", async () => {
+		const activeSession = makeActiveSession()
+		const task = makeTask("session-123")
+		const { coordinator, options } = makeCoordinator({ activeSession, task })
+
+		await coordinator.askResponse("keep going")
+
+		expect(options.waitForPendingModeRebuild).toHaveBeenCalledOnce()
+		expect(options.sessions.startNewSession).not.toHaveBeenCalled()
+		expect(options.createTempSessionHost).not.toHaveBeenCalled()
+		expect(options.loadInitialMessages).not.toHaveBeenCalled()
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
+			activeSession.sdkHost,
+			"session-123",
+			"resolved: keep going",
+			undefined,
+			undefined,
+			undefined,
+		)
+	})
+
 	it("queues a follow-up when the active session is already running", async () => {
 		const activeSession = makeActiveSession({ isRunning: true })
 		const { coordinator, options } = makeCoordinator({ activeSession })
