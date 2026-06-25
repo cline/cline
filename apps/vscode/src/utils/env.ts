@@ -38,16 +38,20 @@ export async function readTextFromClipboard(): Promise<string> {
  * Uses the host bridge RPC first (VS Code's openExternal which handles remote environments).
  * Falls back to the `open` npm package if the host doesn't implement the RPC (e.g., JetBrains).
  *
- * When CLINE_CAPTURE_BROWSER is set (debug harness mode), the URL is captured
- * to a file and/or posted to the debug harness instead of opening a real browser.
- * This enables automated OAuth flow testing.
+ * In development builds, when CLINE_CAPTURE_BROWSER is set (debug harness mode),
+ * the URL is captured to a file and/or posted to the debug harness instead of
+ * opening a real browser. This enables automated OAuth flow testing.
  *
  * @param url The URL to open
  * @returns Promise that resolves when the operation is complete
  */
 export async function openExternal(url: string): Promise<void> {
-	// Debug harness mode: capture URL instead of opening browser
-	if (process.env.CLINE_CAPTURE_BROWSER === "1" || process.env.CLINE_CAPTURE_BROWSER === "true") {
+	// Debug harness mode: capture URL instead of opening browser.
+	// Guard with IS_DEV so production builds compile this path out.
+	if (
+		process.env.IS_DEV === "true" &&
+		(process.env.CLINE_CAPTURE_BROWSER === "1" || process.env.CLINE_CAPTURE_BROWSER === "true")
+	) {
 		await captureBrowserUrl(url)
 		return
 	}
