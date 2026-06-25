@@ -291,6 +291,11 @@ export class VscodeTerminalManager implements ITerminalManager {
 					availableTerminal.cwdResolved = { resolve, reject }
 				})
 
+				// Open the terminal before the cwd setup command so VS Code has time
+				// to initialize the terminal surface and shell integration.
+				availableTerminal.terminal.show()
+				await new Promise((resolve) => setTimeout(resolve, 2000))
+
 				// Navigate back to the desired directory
 				// Cast to ITerminalInfo for interface compatibility
 				const cdProcess = this.runCommand(availableTerminal as unknown as ITerminalInfo, `cd "${cwd}"`)
