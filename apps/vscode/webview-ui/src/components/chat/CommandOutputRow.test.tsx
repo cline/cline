@@ -1,4 +1,4 @@
-import { render, waitFor } from "@testing-library/react"
+import { act, render, waitFor } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 import { CommandOutputContent } from "./CommandOutputRow"
 
@@ -73,6 +73,7 @@ describe("CommandOutputContent", () => {
 			/>,
 		)
 
-		await waitFor(() => expect(onOutputChange).not.toHaveBeenCalled())
+		await act(async () => {})
+		expect(onOutputChange).not.toHaveBeenCalled()
 	})
 })
