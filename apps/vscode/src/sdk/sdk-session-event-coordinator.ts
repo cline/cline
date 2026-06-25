@@ -64,6 +64,11 @@ export class SdkSessionEventCoordinator {
 		}
 
 		const result = this.translateSessionEvent(event, this.options.messageTranslatorState)
+		if (event.type === "pending_prompt_submitted") {
+			this.options.messageTranslatorState.clearTurnOutcome()
+			this.options.sessions.setRunning(true)
+			this.options.setTurnPhase?.("streaming")
+		}
 		const zeroCostPromise = this.zeroCostForFreeClineModel(result)
 		if (zeroCostPromise) {
 			await zeroCostPromise
@@ -130,7 +135,12 @@ export class SdkSessionEventCoordinator {
 		// completed/awaiting_followup/error above; without posting here the webview would stay on
 		// the prior phase (footer stuck on the streaming/scroll state). The webview reducer gates
 		// turnState by seq, so an extra no-message post is safe.
-		if (result.messages.length > 0 || result.sessionEnded || result.turnComplete) {
+		if (
+			result.messages.length > 0 ||
+			result.sessionEnded ||
+			result.turnComplete ||
+			event.type === "pending_prompt_submitted"
+		) {
 			this.options.postStateToWebview().catch((err) => {
 				Logger.error("[SdkController] Failed to post state after event:", err)
 			})
