@@ -67,6 +67,25 @@ describe("ClineError", () => {
 			;(result !== ClineErrorType.Entitlement).should.be.true()
 		})
 
+		it("should classify the org ClinePass user message as OrgClinePassRestriction even when the code is stripped", () => {
+			// SDK rethrows the org error as a plain Error; only the user-facing message survives.
+			const err = new ClineError({
+				message:
+					"Organization accounts cannot use ClinePass subscriptions. Go to /account -> change account to switch to your personal account for ClinePass",
+			})
+			ClineError.getErrorType(err)!.should.equal(ClineErrorType.OrgClinePassRestriction)
+		})
+
+		it("should return Entitlement for the personal ClinePass not-subscribed message even when the code is stripped", () => {
+			// The SDK rethrows ClineNotSubscribedError as a plain Error (no ENTITLEMENT_ERROR code),
+			// surfacing only the user-facing promo message. The card must still render.
+			const err = new ClineError({
+				message:
+					"No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: https://app.cline.bot/promo?code=CLI-100&personal=true",
+			})
+			ClineError.getErrorType(err)!.should.equal(ClineErrorType.Entitlement)
+		})
+
 		it("should not classify organization restriction text without ENTITLEMENT_ERROR as OrgClinePassRestriction", () => {
 			const err = new ClineError({
 				message: "Network error: organization accounts cannot use individual model inference subscriptions",
