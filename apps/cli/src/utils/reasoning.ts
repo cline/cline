@@ -46,7 +46,10 @@ export function resolveCliReasoning({
 		};
 	}
 
-	if (persistedReasoning?.enabled === false) {
+	if (
+		persistedReasoning?.enabled === false ||
+		persistedReasoning?.effort === "none"
+	) {
 		return { thinking: false, reasoningEffort: undefined };
 	}
 

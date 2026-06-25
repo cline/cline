@@ -51,6 +51,18 @@ describe("resolveCliReasoning", () => {
 		});
 	});
 
+	it("uses persisted effort none as disabled reasoning when --thinking is unset", () => {
+		expect(
+			resolveCliReasoning({
+				thinking: false,
+				persistedReasoning: { effort: "none" },
+			}),
+		).toEqual({
+			thinking: false,
+			reasoningEffort: undefined,
+		});
+	});
+
 	it("uses persisted active effort when --thinking is unset", () => {
 		expect(
 			resolveCliReasoning({
