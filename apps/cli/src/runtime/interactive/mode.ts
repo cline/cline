@@ -43,5 +43,6 @@ export async function applyInteractiveModeConfig(input: {
 		cwd: input.config.cwd,
 		providerId: input.config.providerId,
 		mode: input.mode,
+		agentPersona: input.config.agentProfile?.systemPrompt,
 	});
 }

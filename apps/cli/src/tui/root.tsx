@@ -41,6 +41,7 @@ import { EventBridgeProvider } from "./contexts/event-bridge-context";
 import { SessionProvider, useSession } from "./contexts/session-context";
 import { useAccountDialog } from "./hooks/use-account-dialog";
 import { useAgentEventHandlers } from "./hooks/use-agent-events";
+import { useAgentSelector } from "./hooks/use-agent-selector";
 import { useAutocomplete } from "./hooks/use-autocomplete";
 import { useConfigPanel } from "./hooks/use-config-panel";
 import { useLocalCommandActions } from "./hooks/use-local-command-actions";
@@ -184,6 +185,14 @@ function App(props: TuiProps) {
 		config: props.config,
 		termHeight,
 		onModelChange: handleModelChange,
+		refocusTextarea: () => refocusTextareaRef.current(),
+	});
+
+	const openAgentSelector = useAgentSelector({
+		dialog,
+		config: props.config,
+		termHeight,
+		onAgentProfileChange: props.onAgentProfileChange,
 		refocusTextarea: () => refocusTextareaRef.current(),
 	});
 
@@ -639,6 +648,7 @@ function App(props: TuiProps) {
 		openConfig,
 		openMcpManager,
 		openModelSelector,
+		openAgentSelector,
 		openSkills,
 		refocusTextarea: () => refocusTextareaRef.current(),
 		setAppView,
@@ -886,6 +896,9 @@ function App(props: TuiProps) {
 			void saveQueuedPromptEdit(id, prompt);
 		},
 		onToggleMode: toggleMode,
+		onOpenAgentSelector: () => {
+			void openAgentSelector();
+		},
 		runtimeInteraction,
 		onResolveToolApproval: runtimeBridge.resolveToolApproval,
 		onResolveAskQuestion: runtimeBridge.resolveAskQuestion,

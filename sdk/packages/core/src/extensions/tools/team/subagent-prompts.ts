@@ -26,15 +26,13 @@ export function buildSubAgentSystemPrompt(
 	config: DelegatedAgentRuntimeConfig,
 ): string {
 	const trimmedPrompt = prompt.trim();
-	if (config.providerId.toLowerCase() !== "cline") {
-		return trimmedPrompt;
-	}
-
+	// The spawn prompt fills the persona slot; the provider-agnostic harness
+	// (env block, tool-call loop contract) is kept for every provider.
 	return buildClineSystemPrompt({
 		ide: config.clineIdeName || "Terminal",
 		workspaceRoot: config.cwd?.trim() || "/",
 		providerId: config.providerId,
-		overridePrompt: trimmedPrompt,
+		personaPrompt: trimmedPrompt,
 		metadata: config.workspaceMetadata,
 		platform: config.clinePlatform,
 	});

@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import {
 	basename,
 	dirname,
@@ -14,11 +14,11 @@ import {
 	hasMcpSettingsFile,
 	listHookConfigFiles,
 	listPluginToolsWithDiagnostics,
+	loadConfiguredAgentConfigs,
 	type McpServerRegistration,
 	type PluginInitializationFailure,
 	type RuleConfig,
 	readGlobalSettings,
-	resolveAgentConfigSearchPaths,
 	resolveDefaultMcpSettingsPath,
 	resolveMcpServerRegistrations,
 	resolvePluginConfigSearchPaths,
@@ -178,58 +178,30 @@ function getMcpDescription(registration: McpServerRegistration): string {
 }
 
 function loadAgentConfigItems(workspaceRoot: string): InteractiveConfigItem[] {
-	const agentsById = new Map<string, InteractiveConfigItem>();
-	const directories = resolveAgentConfigSearchPaths(workspaceRoot).filter(
-		(directory) => existsSync(directory),
-	);
-
-	for (const directory of directories) {
-		try {
-			const entries = readdirSync(directory, { withFileTypes: true });
-			for (const entry of entries) {
-				if (!entry.isFile()) {
-					continue;
-				}
-				const extension = extname(entry.name).toLowerCase();
-				if (extension !== ".yml" && extension !== ".yaml") {
-					continue;
-				}
-				const filePath = join(directory, entry.name);
-				const raw = readFileSync(filePath, "utf8");
-				const frontmatterMatch = raw.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-				const frontmatter = frontmatterMatch?.[1] ?? "";
-				const nameMatch = frontmatter.match(/^\s*name:\s*(.+?)\s*$/m);
-				const descriptionMatch = frontmatter.match(
-					/^\s*description:\s*(.+?)\s*$/m,
-				);
-				const parsedName = nameMatch?.[1]?.replace(/^["']|["']$/g, "").trim();
-				const parsedDescription = descriptionMatch?.[1]
-					?.replace(/^["']|["']$/g, "")
-					.trim();
-				const name =
-					parsedName && parsedName.length > 0
-						? parsedName
-						: basename(entry.name, extension);
-				const id = name.toLowerCase();
-				if (agentsById.has(id)) {
-					continue;
-				}
-				agentsById.set(id, {
-					id,
-					name,
-					path: filePath,
-					enabled: true,
-					kind: "agent",
-					source: detectSource(filePath, workspaceRoot),
-					description: parsedDescription,
-				});
-			}
-		} catch {
-			// Best effort: keep listing other agent config roots.
-		}
+	const { configs, errors } = loadConfiguredAgentConfigs({ workspaceRoot });
+	const items: InteractiveConfigItem[] = configs.map((config) => ({
+		id: config.name.toLowerCase(),
+		name: config.name,
+		path: config.path ?? "",
+		enabled: true,
+		kind: "agent" as const,
+		source: detectSource(config.path ?? "", workspaceRoot),
+		description: config.description,
+	}));
+	// Keep broken profile files visible so users can spot and fix them.
+	for (const error of errors) {
+		items.push({
+			id: error.path,
+			name: basename(error.path, extname(error.path)),
+			path: error.path,
+			enabled: false,
+			kind: "agent" as const,
+			source: detectSource(error.path, workspaceRoot),
+			description: error.error.message,
+			loadError: error.error.message,
+		});
 	}
-
-	return [...agentsById.values()];
+	return items;
 }
 
 function readPackageName(packageJsonPath: string): string | undefined {

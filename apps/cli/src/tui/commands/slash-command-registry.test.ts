@@ -271,6 +271,35 @@ describe("slash command registry", () => {
 		).toContain("settings");
 	});
 
+	it("exposes agents as a local command with a hidden agent alias", () => {
+		const registry = buildSlashCommandRegistry({});
+		const commandNames = getVisibleSystemSlashCommands(registry).map(
+			(command) => command.name,
+		);
+
+		expect(resolveSlashCommand(registry, "agents")).toMatchObject({
+			source: "tui",
+			execution: "local",
+			description: "Switch agent profile",
+			visible: true,
+			selectable: true,
+		});
+		expect(resolveSlashCommand(registry, "agent")).toMatchObject({
+			source: "tui",
+			execution: "local",
+			visible: false,
+			selectable: false,
+		});
+		expect(commandNames).toContain("agents");
+		expect(commandNames).not.toContain("agent");
+		expect(commandNames.indexOf("agents")).toBeGreaterThan(
+			commandNames.indexOf("model"),
+		);
+		expect(commandNames.indexOf("agents")).toBeLessThan(
+			commandNames.indexOf("account"),
+		);
+	});
+
 	it("always exposes the account command", () => {
 		const registry = buildSlashCommandRegistry({});
 

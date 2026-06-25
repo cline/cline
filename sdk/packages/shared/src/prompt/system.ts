@@ -1,8 +1,15 @@
-export const DEFAULT_CLINE_SYSTEM_PROMPT = `You are Cline, an AI coding agent. Your primary goal is to assist users with various coding tasks by leveraging your knowledge and the tools at your disposal. Given the user's prompt, you should use the tools available to you to answer user's question.
+export const DEFAULT_CLINE_PERSONA = `You are Cline, an AI coding agent. Your primary goal is to assist users with various coding tasks by leveraging your knowledge and the tools at your disposal. Given the user's prompt, you should use the tools available to you to answer user's question.
 
 Always gather all the necessary context before starting to work on a task. For example, if you are generating a unit test or new code, make sure you understand the requirement, the naming conventions, frameworks and libraries used and aligned in the current codebase, and the environment and commands used to run and test the code etc. Always validate the new unit test at the end including running the code if possible for live feedback.
-Review each question carefully and answer it with detailed, accurate information.
-If you need more information, use one of the available tools or ask for clarification instead of making assumptions or lies.
+Review each question carefully and answer it with detailed, accurate information.`;
+
+// The agent harness: env block, working guidelines (including the no-guessing
+// norm: use tools or ask instead of fabricating), tool-call loop contract,
+// completion instructions, and rules/metadata placeholders. Only the
+// {{AGENT_PERSONA}} slot holds the coding-agent identity and workflow
+// prompting; an agent profile body replaces that slot while the rest of the
+// harness is always preserved.
+const CLINE_SYSTEM_PROMPT_TEMPLATE = `{{AGENT_PERSONA}}
 
 Environment you are running in:
 <env>
@@ -13,6 +20,7 @@ Environment you are running in:
 </env>
 
 Remember:
+- If you need more information, use one of the available tools or ask for clarification instead of making assumptions or lies.
 - Always adhere to existing code conventions and patterns.
 - Use only libraries and frameworks that are confirmed to be in use in the current codebase.
 - Provide complete and functional code without omissions or placeholders.
@@ -34,6 +42,33 @@ When you have completed the task, please provide a summary of what you did and a
 If user asked a simple question without any coding context, answer it directly without using any tools.
 {{CLINE_RULES}}
 {{CLINE_METADATA}}`;
+
+/** The persona placeholder of the harness template. */
+export const AGENT_PERSONA_SLOT = "{{AGENT_PERSONA}}";
+
+export interface ComposeClineSystemPromptInput {
+	/**
+	 * Replaces the default Cline persona (the identity intro) while keeping the
+	 * agent harness. The working guidelines are part of the harness and are
+	 * always retained, even when a custom persona (e.g. an agent profile body)
+	 * is supplied.
+	 */
+	persona?: string;
+}
+
+export function composeClineSystemPrompt(
+	input: ComposeClineSystemPromptInput = {},
+): string {
+	const persona = input.persona?.trim();
+	// The persona is inserted via a replacer function so `{{...}}` and
+	// `$&`-style sequences inside it stay literal.
+	return CLINE_SYSTEM_PROMPT_TEMPLATE.replace(
+		AGENT_PERSONA_SLOT,
+		() => persona || DEFAULT_CLINE_PERSONA,
+	);
+}
+
+export const DEFAULT_CLINE_SYSTEM_PROMPT = composeClineSystemPrompt();
 
 export const YOLO_CLINE_SYSTEM_PROMPT = `You are Cline, a careful and helpful coding agent that works in the background.
 You are tasked to solve an issue reported by the user who you cannot communicate with directly.

@@ -104,6 +104,23 @@ export function resolveModelMaxInputTokens(config: {
 	return undefined;
 }
 
+export function formatStatusBarAgentName(name: string, maxLen = 16): string {
+	const normalized = name.trim();
+	if (maxLen <= 0) return "";
+	if (normalized.length <= maxLen) return normalized;
+	if (maxLen <= 3) return ".".repeat(maxLen);
+	return `${normalized.slice(0, maxLen - 3)}...`;
+}
+
+export function formatStatusBarAgentLabel(
+	name: string,
+	maxLen = 18,
+): string | undefined {
+	const normalized = name.trim();
+	if (!normalized || maxLen <= 0) return undefined;
+	return formatStatusBarAgentName(normalized, maxLen);
+}
+
 export interface StatusBarProps {
 	providerId: string;
 	modelId: string;
@@ -120,6 +137,9 @@ export interface StatusBarProps {
 		deletions: number;
 	} | null;
 	onToggleMode?: () => void;
+	/** Active agent profile name; the indicator is hidden when unset */
+	agentName?: string | null;
+	onOpenAgent?: () => void;
 	variant?: "home" | "chat";
 }
 
@@ -135,6 +155,8 @@ export function StatusBar(props: StatusBarProps) {
 		gitBranch,
 		gitDiffStats,
 		onToggleMode,
+		agentName,
+		onOpenAgent,
 	} = props;
 
 	const { width } = useTerminalDimensions();
@@ -162,20 +184,26 @@ export function StatusBar(props: StatusBarProps) {
 			? Math.min(width, HOME_VIEW_MAX_WIDTH) - 2
 			: width - 2;
 
-	// Row 1 layout: [model + context info] .... [Plan/Act toggle]
+	// Row 1 layout: [model + context info] .... [agent label] [Plan/Act toggle]
 	// When the full row doesn't fit, context info drops to its own row 2.
 	// Model ID truncates with "..." before wrapping; toggle stays right-aligned.
 	const toggleWidth = 20;
+	const fullAgentLabel = agentName
+		? formatStatusBarAgentLabel(agentName)
+		: undefined;
+	const agentLabelWidth = fullAgentLabel ? fullAgentLabel.length + 3 : 0;
 	const usageText = formatStatusBarUsageText({
 		totalTokens,
 		totalCost,
 		showCost: showUsageCost,
 	});
-	const contextText = bar
-		? ` ${bar.filled}${bar.empty} ${usageText}`
-		: ` ${usageText}`;
+	const contextInlineText = bar
+		? `${bar.filled}${bar.empty} ${usageText}`
+		: usageText;
+	const contextText = ` ${contextInlineText}`;
 	const firstRowFits =
-		modelId.length + contextText.length + toggleWidth + 1 <= avail;
+		modelId.length + contextText.length + toggleWidth + agentLabelWidth + 1 <=
+		avail;
 	const renderContextText = (withLeadingSpace: boolean) => (
 		<>
 			{withLeadingSpace && " "}
@@ -191,7 +219,11 @@ export function StatusBar(props: StatusBarProps) {
 
 	const modelMaxLen = Math.max(
 		10,
-		avail - toggleWidth - (firstRowFits ? contextText.length : 0) - 1,
+		avail -
+			toggleWidth -
+			agentLabelWidth -
+			(firstRowFits ? contextText.length : 0) -
+			1,
 	);
 	const truncatedModel =
 		modelId.length > modelMaxLen
@@ -210,6 +242,14 @@ export function StatusBar(props: StatusBarProps) {
 		pathPart.length > pathMax
 			? `${pathPart.slice(0, pathMax - 3)}...`
 			: pathPart;
+	const firstRowAgentMaxLen = Math.min(
+		18,
+		Math.max(0, avail - toggleWidth - 3),
+	);
+	const agentLabel = agentName
+		? formatStatusBarAgentLabel(agentName, firstRowAgentMaxLen)
+		: undefined;
+
 	return (
 		<box flexDirection="column" paddingX={1}>
 			<box flexDirection="row" justifyContent="space-between">
@@ -223,6 +263,14 @@ export function StatusBar(props: StatusBarProps) {
 					flexShrink={0}
 					onMouseDown={onToggleMode}
 				>
+					{agentLabel && (
+						<>
+							<box flexShrink={0} onMouseDown={onOpenAgent}>
+								<text fg={defaultFg}>{agentLabel}</text>
+							</box>
+							<text fg="gray">|</text>
+						</>
+					)}
 					<text fg={uiMode === "plan" ? planAccent : "gray"}>
 						{uiMode === "plan" ? "●" : "○"} Plan
 					</text>

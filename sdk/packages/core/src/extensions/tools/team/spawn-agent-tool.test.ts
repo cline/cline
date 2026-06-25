@@ -320,11 +320,17 @@ describe("createSpawnAgentTool", () => {
 			},
 		);
 
-		expect(agentConstructorSpy).toHaveBeenCalledWith(
-			expect.objectContaining({
-				systemPrompt: inputSystemPrompt,
-			}),
+		const constructedConfig = agentConstructorSpy.mock.calls[0]?.[0] as {
+			systemPrompt: string;
+		};
+		expect(constructedConfig.systemPrompt.startsWith(inputSystemPrompt)).toBe(
+			true,
 		);
+		// The embedded workspace configuration is not injected a second time.
+		const markerCount = constructedConfig.systemPrompt.split(
+			"# Workspace Configuration",
+		).length;
+		expect(markerCount - 1).toBe(1);
 	});
 
 	it("resolves connection settings lazily at execution time", async () => {

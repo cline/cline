@@ -51,6 +51,10 @@ export function addRootOptions(cmd: Command): Command {
 				"-s, --system <system-prompt>",
 				"Override the default system prompt",
 			)
+			.option(
+				"--agent <name>",
+				"Use an agent profile from .cline/agents for this session",
+			)
 			.option("-z, --zen", "Start a session that runs in the background hub")
 			.option(
 				"--retries [value]",
@@ -224,6 +228,7 @@ export function commanderToParsedArgs(program: Command): ParsedArgs {
 	if (opts.cwd !== undefined) result.cwd = opts.cwd;
 	if (opts.teamName !== undefined) result.teamName = opts.teamName;
 	if (opts.system !== undefined) result.systemPrompt = opts.system;
+	if (opts.agent !== undefined) result.agent = opts.agent;
 	if (opts.model !== undefined) result.model = opts.model;
 	if (opts.provider !== undefined) result.provider = opts.provider;
 	if (opts.key !== undefined) result.key = opts.key;

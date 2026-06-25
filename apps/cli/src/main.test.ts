@@ -2,6 +2,23 @@ import { fstatSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CliMigrationNotice } from "./kanban-migration/notice";
 
+interface MockConfiguredAgentConfig {
+	name: string;
+	description: string;
+	systemPrompt: string;
+	path?: string;
+}
+
+interface MockConfiguredAgentReadError {
+	path: string;
+	error: Error;
+}
+
+interface MockConfiguredAgentLoadResult {
+	configs: MockConfiguredAgentConfig[];
+	errors: MockConfiguredAgentReadError[];
+}
+
 /** Real `fstatSync`: used when tests stub only stdin (fd 0); throwing for every fd breaks imports and session I/O. */
 const fsActual = vi.hoisted(() => ({
 	realFstatSync: null as null | typeof import("node:fs").fstatSync,
@@ -48,6 +65,14 @@ const sessionMocks = vi.hoisted(() => ({
 }));
 const llmMocks = vi.hoisted(() => ({
 	resolveProviderConfig: vi.fn(async (): Promise<unknown> => undefined),
+}));
+const agentConfigMocks = vi.hoisted(() => ({
+	loadConfiguredAgentConfigs: vi.fn<
+		(input: { workspaceRoot?: string }) => MockConfiguredAgentLoadResult
+	>(() => ({
+		configs: [],
+		errors: [],
+	})),
 }));
 const promptMocks = vi.hoisted(() => ({
 	resolveSystemPrompt: vi.fn(async () => "system prompt"),
@@ -153,6 +178,7 @@ vi.mock("./session/session", () => sessionMocks);
 vi.mock("@cline/core", () => {
 	return {
 		resolveProviderConfig: llmMocks.resolveProviderConfig,
+		loadConfiguredAgentConfigs: agentConfigMocks.loadConfiguredAgentConfigs,
 		createTeamName: vi.fn(() => "team-test"),
 		createUserInstructionConfigService: vi.fn(() => ({
 			start: vi.fn(async () => {}),
@@ -237,6 +263,11 @@ describe("runCli lightweight command dispatch", () => {
 		});
 		llmMocks.resolveProviderConfig.mockReset();
 		llmMocks.resolveProviderConfig.mockResolvedValue(undefined);
+		agentConfigMocks.loadConfiguredAgentConfigs.mockReset();
+		agentConfigMocks.loadConfiguredAgentConfigs.mockReturnValue({
+			configs: [],
+			errors: [],
+		});
 		authMocks.ensureOAuthProviderApiKey.mockReset();
 		authMocks.getPersistedProviderApiKey.mockReset();
 		authMocks.getPersistedProviderApiKey.mockReturnValue(undefined);
@@ -1020,6 +1051,133 @@ describe("runCli lightweight command dispatch", () => {
 		await expect(runCli()).resolves.toBeUndefined();
 		expect(runtimeMocks.runAgent).toHaveBeenCalledTimes(1);
 		expect(hubRuntimeMocks.ensureCliHubServer).not.toHaveBeenCalled();
+	});
+
+	it("applies an agent profile to prompt runs", async () => {
+		agentConfigMocks.loadConfiguredAgentConfigs.mockReturnValue({
+			configs: [
+				{
+					name: "Reviewer",
+					description: "Reviews code",
+					systemPrompt: "You are a reviewer.",
+					path: "/repo/.cline/agents/reviewer.yaml",
+				},
+			],
+			errors: [],
+		});
+		forcePromptModeInput();
+		process.argv = ["bun", "src/index.ts", "--agent", "reviewer", "hello"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(agentConfigMocks.loadConfiguredAgentConfigs).toHaveBeenCalledWith({
+			workspaceRoot: "/workspace/cline",
+		});
+		expect(promptMocks.resolveSystemPrompt).toHaveBeenCalledWith(
+			expect.objectContaining({
+				agentPersona: "You are a reviewer.",
+			}),
+		);
+		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
+			"hello",
+			expect.objectContaining({
+				agentProfile: {
+					name: "Reviewer",
+					systemPrompt: "You are a reviewer.",
+				},
+				systemPrompt: "system prompt",
+			}),
+			expect.anything(),
+		);
+	});
+
+	it("lets --system override --agent without storing the profile", async () => {
+		agentConfigMocks.loadConfiguredAgentConfigs.mockReturnValue({
+			configs: [
+				{
+					name: "Reviewer",
+					description: "Reviews code",
+					systemPrompt: "You are a reviewer.",
+					path: "/repo/.cline/agents/reviewer.yaml",
+				},
+			],
+			errors: [],
+		});
+		forcePromptModeInput();
+		process.argv = [
+			"bun",
+			"src/index.ts",
+			"--agent",
+			"reviewer",
+			"--system",
+			"Custom system.",
+			"hello",
+		];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(agentConfigMocks.loadConfiguredAgentConfigs).not.toHaveBeenCalled();
+		expect(promptMocks.resolveSystemPrompt).toHaveBeenCalledWith(
+			expect.objectContaining({
+				explicitSystemPrompt: "Custom system.",
+			}),
+		);
+		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
+			"hello",
+			expect.objectContaining({
+				agentProfile: undefined,
+			}),
+			expect.anything(),
+		);
+	});
+
+	it("rejects missing agent profiles before starting the runtime", async () => {
+		agentConfigMocks.loadConfiguredAgentConfigs.mockReturnValue({
+			configs: [
+				{
+					name: "Planner",
+					description: "Plans work",
+					systemPrompt: "You are a planner.",
+					path: "/repo/.cline/agents/planner.yaml",
+				},
+			],
+			errors: [
+				{
+					path: "/repo/.cline/agents/broken.yaml",
+					error: new Error("Missing system prompt body"),
+				},
+			],
+		});
+		forcePromptModeInput();
+		process.argv = ["bun", "src/index.ts", "--agent", "reviewer", "hello"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(process.exitCode).toBe(1);
+		expect(runtimeMocks.runAgent).not.toHaveBeenCalled();
+		expect(runtimeMocks.runInteractive).not.toHaveBeenCalled();
+	});
+
+	it("rejects --agent in yolo mode before loading profiles", async () => {
+		forcePromptModeInput();
+		process.argv = [
+			"bun",
+			"src/index.ts",
+			"--yolo",
+			"--agent",
+			"reviewer",
+			"hello",
+		];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(process.exitCode).toBe(1);
+		expect(agentConfigMocks.loadConfiguredAgentConfigs).not.toHaveBeenCalled();
+		expect(runtimeMocks.runAgent).not.toHaveBeenCalled();
 	});
 
 	it("rewrites /team prompts and enables teams in single-prompt mode", async () => {

@@ -2,8 +2,8 @@ import { EMPTY_CONTENT_TEXT } from "@cline/shared";
 import { describe, expect, it } from "vitest";
 import {
 	agentMessageToMessageWithMetadata,
-	messageToAgentMessages,
 	messagesToAgentMessages,
+	messageToAgentMessages,
 } from "./agent-message-codec";
 
 describe("agent message codec", () => {

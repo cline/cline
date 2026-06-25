@@ -21,6 +21,7 @@ interface SessionContextValue {
 	uiMode: AgentMode;
 	autoApproveAll: boolean;
 	compactionMode: CliCompactionMode;
+	activeAgentName: string | null;
 	lastTotalTokens: number;
 	lastTotalCost: number;
 	isExitRequested: boolean;
@@ -41,6 +42,7 @@ interface SessionContextValue {
 	setUiMode: (mode: AgentMode) => void;
 	toggleMode: () => void;
 	toggleAutoApprove: () => void;
+	setActiveAgentName: (name: string | null) => void;
 	setCompactionMode: (mode: CliCompactionMode) => void;
 	requestExit: () => void;
 	clearEntries: () => void;
@@ -111,6 +113,9 @@ export function SessionProvider(props: {
 	const [autoApproveAll, _setAutoApproveAll] = useState(initialAutoApproveAll);
 	const [compactionMode, _setCompactionMode] = useState<CliCompactionMode>(() =>
 		getCliCompactionMode(config),
+	);
+	const [activeAgentName, setActiveAgentName] = useState<string | null>(
+		config.agentProfile?.name ?? null,
 	);
 	const [lastTotalTokens, setLastTotalTokens] = useState(
 		() => initialUsage?.totalTokens ?? 0,
@@ -249,6 +254,7 @@ export function SessionProvider(props: {
 		uiMode,
 		autoApproveAll,
 		compactionMode,
+		activeAgentName,
 		lastTotalTokens,
 		lastTotalCost,
 		isExitRequested,
@@ -267,6 +273,7 @@ export function SessionProvider(props: {
 		setUiMode,
 		toggleMode,
 		toggleAutoApprove,
+		setActiveAgentName,
 		setCompactionMode,
 		requestExit,
 		clearEntries,

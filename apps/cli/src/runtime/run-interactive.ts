@@ -623,6 +623,10 @@ export async function runInteractive(
 			}
 			await applyModeChange(mode);
 		},
+		onAgentProfileChange: async (profile) => {
+			await sessionRuntime.ensureReady();
+			await sessionRuntime.applyAgentProfile(profile ?? undefined);
+		},
 		onNewSession: async () => {
 			await sessionRuntime.resetForNewSession();
 		},

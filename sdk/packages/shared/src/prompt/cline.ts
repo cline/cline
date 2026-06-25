@@ -2,7 +2,8 @@ import type { WorkspaceContext } from "../extensions/context";
 import { isClineProvider } from "../providers/utils";
 import type { WorkspaceInfo } from "../session/workspace";
 import {
-	DEFAULT_CLINE_SYSTEM_PROMPT,
+	AGENT_PERSONA_SLOT,
+	composeClineSystemPrompt,
 	YOLO_CLINE_SYSTEM_PROMPT,
 } from "./system";
 
@@ -60,14 +61,20 @@ export interface ClineSystemPromptOptions
 	extends Omit<WorkspaceContext, "rootPath"> {
 	/**
 	 * Workspace root path. Accepts either `rootPath` (from WorkspaceContext/WorkspaceInfo)
-	 * or `workspaceRoot` (legacy alias) — whichever is provided will be used.
+	 * or `workspaceRoot` (legacy alias) - whichever is provided will be used.
 	 */
 	rootPath?: string;
-	/** Alias for rootPath — kept for backwards compatibility with existing call sites */
+	/** Alias for rootPath - kept for backwards compatibility with existing call sites */
 	workspaceRoot?: string;
 	/** Per-request system prompt override */
 	overridePrompt?: string;
-	/** Provider ID — used to gate Cline-specific metadata injection */
+	/**
+	 * Agent-profile persona: replaces the default Cline persona (the identity
+	 * intro) while keeping the agent harness, including the working guidelines.
+	 * Ignored when `overridePrompt` is set or in yolo mode.
+	 */
+	personaPrompt?: string;
+	/** Provider ID - used to gate Cline-specific metadata injection */
 	providerId?: string;
 }
 
@@ -82,6 +89,7 @@ export function buildClineSystemPrompt(
 		metadata,
 		rules,
 		overridePrompt,
+		personaPrompt,
 		providerId,
 	} = options;
 	const workspaceRoot = options.workspaceRoot ?? options.rootPath ?? "";
@@ -99,20 +107,33 @@ export function buildClineSystemPrompt(
 		return trimmed;
 	}
 
+	const persona = mode === "yolo" ? undefined : personaPrompt?.trim();
+	// Keep the persona slot in place and fill it last, so `{{...}}` sequences
+	// inside a persona body stay literal.
 	const basePrompt =
-		mode === "yolo" ? YOLO_CLINE_SYSTEM_PROMPT : DEFAULT_CLINE_SYSTEM_PROMPT;
+		mode === "yolo"
+			? YOLO_CLINE_SYSTEM_PROMPT
+			: composeClineSystemPrompt(
+					persona ? { persona: AGENT_PERSONA_SLOT } : {},
+				);
+	// Skip metadata injection when the persona already embeds a workspace
+	// configuration block (e.g. spawn prompts composed by a parent agent).
+	const includeMetadata =
+		isCline && !persona?.includes(WORKSPACE_CONFIGURATION_MARKER);
 
+	// Replacer functions (not replacement strings) so values containing
+	// `$&`-style patterns are inserted literally.
 	return basePrompt
-		.replace("{{PLATFORM_NAME}}", platform)
-		.replace("{{CWD}}", workspaceRoot)
-		.replace("{{CURRENT_DATE}}", new Date().toLocaleDateString())
-		.replace("{{IDE_NAME}}", ide)
-		.replace(
-			"{{CLINE_METADATA}}",
-			isCline
+		.replace("{{PLATFORM_NAME}}", () => platform)
+		.replace("{{CWD}}", () => workspaceRoot)
+		.replace("{{CURRENT_DATE}}", () => new Date().toLocaleDateString())
+		.replace("{{IDE_NAME}}", () => ide)
+		.replace("{{CLINE_METADATA}}", () =>
+			includeMetadata
 				? buildWorkspaceMetadata(workspaceRoot, workspaceName, metadata)
 				: "",
 		)
-		.replace("{{CLINE_RULES}}", rules || "")
+		.replace("{{CLINE_RULES}}", () => rules || "")
+		.replace(AGENT_PERSONA_SLOT, () => persona ?? "")
 		.trim();
 }
