@@ -1451,7 +1451,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					<DynamicTextArea
 						autoFocus={true}
 						data-testid="chat-input"
-						disabled={sendingDisabled}
 						maxRows={10}
 						minRows={3}
 						onBlur={handleBlur}
@@ -1510,8 +1509,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							// Instead of using boxShadow, we use a div with a border to better replicate the behavior when the textarea is focused
 							// boxShadow: "0px 0px 0px 1px var(--vscode-input-border)",
 							padding: "9px 28px 9px 9px",
-							cursor: sendingDisabled ? "not-allowed" : "text",
-							opacity: sendingDisabled ? 0.65 : 1,
+							cursor: "text",
 							flex: 1,
 							zIndex: 1,
 							outline:
