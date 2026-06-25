@@ -143,6 +143,21 @@ function createProviderModelsCache(options: ProviderModelsCacheOptions) {
 }
 
 function toSdkProviderConfig(config: EffectiveProviderConfig, selection: ModelSelection | undefined): ProviderConfig {
+	const useOrchestrationMode =
+		config.providerId === "sapaicore" && typeof config.extras?.sapAiCoreUseOrchestrationMode === "boolean"
+			? config.extras.sapAiCoreUseOrchestrationMode
+			: undefined
+	const resourceGroup =
+		config.providerId === "sapaicore" && typeof config.extras?.sapAiResourceGroup === "string"
+			? config.extras.sapAiResourceGroup
+			: undefined
+	const sap =
+		config.providerId === "sapaicore" && (useOrchestrationMode !== undefined || resourceGroup)
+			? {
+					...(useOrchestrationMode === undefined ? {} : { useOrchestrationMode }),
+					...(resourceGroup ? { resourceGroup } : {}),
+				}
+			: undefined
 	return {
 		providerId: toSdkProviderId(config.providerId),
 		modelId: selection?.modelId ?? "",
@@ -155,6 +170,7 @@ function toSdkProviderConfig(config: EffectiveProviderConfig, selection: ModelSe
 		apiLine: config.apiLine === "china" || config.apiLine === "international" ? config.apiLine : undefined,
 		region: config.gcp?.region ?? config.region,
 		gcp: config.gcp ? { ...config.gcp } : undefined,
+		sap,
 	}
 }
 

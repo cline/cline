@@ -290,6 +290,64 @@ describe("ProviderCatalog Phase 3.2 resolveModels happy path", () => {
 		expect(result.defaultModelId).toBe("first")
 	})
 
+	it("passes SAP AI Core mode through to the SDK resolver", async () => {
+		const { createProviderCatalog } = await import("./catalog")
+		mocks.resolveProviderConfig.mockResolvedValue({
+			modelId: "anthropic--claude-4.6-sonnet",
+			knownModels: {
+				"anthropic--claude-4.6-sonnet": { id: "anthropic--claude-4.6-sonnet", name: "Claude 4.6 Sonnet" },
+				"gpt-5.5": { id: "gpt-5.5", name: "GPT-5.5" },
+				"gpt-5.4-nano": { id: "gpt-5.4-nano", name: "GPT-5.4 Nano" },
+			},
+		})
+		const providerId = parseProviderId("sapaicore")
+		const reader = makeReader({
+			providerId,
+			baseUrl: "https://sap.example.com",
+			extras: { sapAiCoreUseOrchestrationMode: false, sapAiResourceGroup: "rg-1" },
+		})
+
+		const result = await createProviderCatalog(reader).resolveModels(providerId)
+
+		expect(result.ok).toBe(true)
+		if (!result.ok) throw new Error("expected success")
+		expect(mocks.resolveProviderConfig).toHaveBeenCalledWith(
+			"sapaicore",
+			expect.anything(),
+			expect.objectContaining({
+				providerId: "sapaicore",
+				baseUrl: "https://sap.example.com",
+				sap: { useOrchestrationMode: false, resourceGroup: "rg-1" },
+			}),
+		)
+		expect([...result.models.keys()]).toEqual(["anthropic--claude-4.6-sonnet", "gpt-5.5", "gpt-5.4-nano"])
+	})
+
+	it("keeps SDK-provided SAP AI Core models unchanged in orchestration mode", async () => {
+		const { createProviderCatalog } = await import("./catalog")
+		mocks.resolveProviderConfig.mockResolvedValue({
+			modelId: "anthropic--claude-3.5-sonnet",
+			knownModels: {
+				"anthropic--claude-3.5-sonnet": { id: "anthropic--claude-3.5-sonnet", name: "Claude 3.5 Sonnet" },
+				"gpt-4o": { id: "gpt-4o", name: "GPT-4o" },
+				"gpt-5-codex": { id: "gpt-5-codex", name: "GPT-5 Codex" },
+			},
+		})
+		const providerId = parseProviderId("sapaicore")
+		const reader = makeReader({
+			providerId,
+			baseUrl: "https://sap.example.com",
+			extras: { sapAiCoreUseOrchestrationMode: true },
+		})
+
+		const result = await createProviderCatalog(reader).resolveModels(providerId)
+
+		expect(result.ok).toBe(true)
+		if (!result.ok) throw new Error("expected success")
+		expect([...result.models.keys()]).toEqual(["anthropic--claude-3.5-sonnet", "gpt-4o", "gpt-5-codex"])
+		expect(result.defaultModelId).toBe("anthropic--claude-3.5-sonnet")
+	})
+
 	it("returns cached result without calling SDK again for the same fingerprint", async () => {
 		const { createProviderCatalog } = await import("./catalog")
 		mocks.resolveProviderConfig.mockResolvedValue({

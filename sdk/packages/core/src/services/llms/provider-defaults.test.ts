@@ -520,4 +520,33 @@ describe("resolveProviderConfig", () => {
 		);
 		expect(resolved?.knownModels?.["gpt-5.4-nano"]).toBeUndefined();
 	});
+
+	it("filters SAP AI Core models in foundation-models mode", async () => {
+		const resolved = await resolveProviderConfig("sapaicore", undefined, {
+			providerId: "sapaicore",
+			modelId: "anthropic--claude-3.5-sonnet",
+			sap: { useOrchestrationMode: false },
+		});
+
+		expect(Object.keys(resolved?.knownModels ?? {})).toEqual(
+			expect.arrayContaining(["gpt-5.4", "gpt-5.5"]),
+		);
+		expect(
+			resolved?.knownModels?.["anthropic--claude-3.5-sonnet"],
+		).toBeUndefined();
+		expect(resolved?.knownModels?.["gpt-5.3-codex"]).toBeUndefined();
+	});
+
+	it("keeps the full SAP AI Core catalog in orchestration mode", async () => {
+		const resolved = await resolveProviderConfig("sapaicore", undefined, {
+			providerId: "sapaicore",
+			modelId: "anthropic--claude-3.5-sonnet",
+			sap: { useOrchestrationMode: true },
+		});
+
+		expect(
+			resolved?.knownModels?.["anthropic--claude-3.5-sonnet"],
+		).toBeDefined();
+		expect(resolved?.knownModels?.["gpt-5.4"]).toBeDefined();
+	});
 });
