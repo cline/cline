@@ -34,11 +34,6 @@ interface PreparedLegacyMcpSource {
 	skippedInvalid: number
 }
 
-export interface LegacyMcpSourceOptions {
-	extensionStorageDir?: string
-	documentsDir?: string
-}
-
 function isRecord(value: unknown): value is JsonRecord {
 	return typeof value === "object" && value !== null && !Array.isArray(value)
 }
@@ -239,15 +234,16 @@ async function readLegacyOAuthSecrets(
 	return { ...vscodeSecrets, ...fileBackedSecrets }
 }
 
-export async function getLegacyMcpSettingsSources(options: LegacyMcpSourceOptions = {}): Promise<LegacyMcpSource[]> {
+export async function getLegacyMcpSettingsSources(vscodeContext: vscode.ExtensionContext): Promise<LegacyMcpSource[]> {
 	const sources: LegacyMcpSource[] = []
-	if (options.extensionStorageDir) {
+	const extensionStorageDir = vscodeContext.globalStorageUri?.fsPath
+	if (extensionStorageDir) {
 		sources.push({
 			id: "vscodeGlobalStorage",
-			path: path.join(options.extensionStorageDir, "settings", MCP_SETTINGS_FILE_NAME),
+			path: path.join(extensionStorageDir, "settings", MCP_SETTINGS_FILE_NAME),
 		})
 	}
-	const documentsDir = options.documentsDir ?? (await getDocumentsPath())
+	const documentsDir = await getDocumentsPath()
 	sources.push({
 		id: "documentsClineMcp",
 		path: path.join(documentsDir, "Cline", "MCP", MCP_SETTINGS_FILE_NAME),
@@ -304,7 +300,6 @@ function prepareLegacySource(
 export async function migrateLegacyMcpSettings(
 	vscodeContext: vscode.ExtensionContext,
 	storage: StorageContext,
-	options: LegacyMcpSourceOptions = {},
 ): Promise<LegacyMcpSettingsMigrationResult> {
 	const result: LegacyMcpSettingsMigrationResult = {
 		migrated: false,
@@ -321,10 +316,7 @@ export async function migrateLegacyMcpSettings(
 	const legacyOAuthSecrets = await readLegacyOAuthSecrets(vscodeContext, storage)
 	const preparedSources: PreparedLegacyMcpSource[] = []
 
-	for (const source of await getLegacyMcpSettingsSources({
-		extensionStorageDir: options.extensionStorageDir ?? vscodeContext.globalStorageUri?.fsPath,
-		documentsDir: options.documentsDir,
-	})) {
+	for (const source of await getLegacyMcpSettingsSources(vscodeContext)) {
 		result.sourcesChecked++
 		if (migratedSources[source.id] || arePathsEqual(source.path, sharedSettingsPath)) {
 			continue

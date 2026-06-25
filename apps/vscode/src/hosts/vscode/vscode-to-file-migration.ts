@@ -36,7 +36,7 @@ import type * as vscode from "vscode"
 import { Logger } from "@/shared/services/Logger"
 import { GlobalStateAndSettingKeys, LocalStateKeys, SecretKeys } from "@/shared/storage/state-keys"
 import type { StorageContext } from "@/shared/storage/storage-context"
-import { migrateLegacyMcpSettings, type LegacyMcpSourceOptions } from "./mcp-settings-legacy-migration"
+import { migrateLegacyMcpSettings } from "./mcp-settings-legacy-migration"
 
 /** Version 1 exported VSCode memento/secrets/workspace state to file-backed stores. */
 const FILE_BACKED_STORAGE_EXPORT_VERSION = 1
@@ -87,7 +87,6 @@ export interface MigrationResult {
 export async function exportVSCodeStorageToSharedFiles(
 	vscodeContext: vscode.ExtensionContext,
 	storage: StorageContext,
-	legacyMcpOptions: LegacyMcpSourceOptions = {},
 ): Promise<MigrationResult> {
 	const result: MigrationResult = {
 		migrated: false,
@@ -121,7 +120,7 @@ export async function exportVSCodeStorageToSharedFiles(
 	try {
 		// ─── 0. Migrate legacy MCP settings files (if needed) ───────────
 		if (needMcpSettingsMigration) {
-			const mcpMigration = await migrateLegacyMcpSettings(vscodeContext, storage, legacyMcpOptions)
+			const mcpMigration = await migrateLegacyMcpSettings(vscodeContext, storage)
 			result.mcpServersAdded = mcpMigration.serversAdded
 			result.mcpServersSkippedExisting = mcpMigration.serversSkippedExisting
 		}
