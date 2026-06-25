@@ -353,7 +353,7 @@ describe("marketplace installer", () => {
 		const spawnCommand = vi.fn(async () => ({
 			exitCode: 1,
 			stdout:
-				"Authorization: Bearer stdout-token\napi key stdout-key\nOPENAI_API_KEY=compound-key",
+				"Authorization: Bearer stdout-token\nAuthorization: Basic basic-token\napi key stdout-key\nOPENAI_API_KEY=compound-key",
 			stderr:
 				"TOKEN=stderr-token\npassword is stderr-password\nANTHROPIC_SECRET_KEY=anthropic-secret",
 		}));
@@ -376,12 +376,15 @@ describe("marketplace installer", () => {
 		}
 
 		expect(message).toContain("Authorization: Bearer [redacted]");
+		expect(message).toContain("Authorization: [redacted]");
+		expect(message).not.toContain("Authorization: Bearer [redacted]]");
 		expect(message).toContain("api key [redacted]");
 		expect(message).toContain("OPENAI_API_KEY=[redacted]");
 		expect(message).toContain("TOKEN=[redacted]");
 		expect(message).toContain("password is [redacted]");
 		expect(message).toContain("ANTHROPIC_SECRET_KEY=[redacted]");
 		expect(message).not.toContain("stdout-token");
+		expect(message).not.toContain("basic-token");
 		expect(message).not.toContain("stdout-key");
 		expect(message).not.toContain("compound-key");
 		expect(message).not.toContain("stderr-token");

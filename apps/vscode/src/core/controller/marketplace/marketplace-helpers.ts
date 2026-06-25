@@ -45,6 +45,7 @@ const SECRET_PATTERN =
 const SECRET_KEY_VALUE_PATTERN =
 	/((?:^|[^\w])(?:[a-z0-9_]*?(?:api[_ -]?key|access[_ -]?token|refresh[_ -]?token|auth(?:orization)?[_ -]?token|token|secret|password|credential)[a-z0-9_]*)\s*[:=]\s*)(.+)$/gi
 const SECRET_BEARER_VALUE_PATTERN = /((?:^|[^\w])authorization\s*[:=]\s*)bearer\s+([^\s,"'}\]]+)/gi
+const SECRET_AUTHORIZATION_VALUE_PATTERN = /((?:^|[^\w])authorization\s*[:=])(?!\s*bearer\b)\s*(.+)$/gi
 
 function isMarketplaceType(value: string): value is MarketplaceType {
 	return value === "mcp" || value === "skill" || value === "plugin"
@@ -212,7 +213,8 @@ function redactOutput(value: string): string {
 			return line
 				.replace(SECRET_KEY_VALUE_PATTERN, "$1[redacted]")
 				.replace(SECRET_BEARER_VALUE_PATTERN, "$1Bearer [redacted]")
-				.replace(/\b(Bearer)\s+([^\s,"'}\]]+)/gi, "$1 [redacted]")
+				.replace(/\b(Bearer)\s+(?!\[redacted\])([^\s,"'}\]]+)/gi, "$1 [redacted]")
+				.replace(SECRET_AUTHORIZATION_VALUE_PATTERN, "$1 [redacted]")
 				.replace(
 					/((?:^|[^\w])(?:api\s+key|access\s+token|refresh\s+token|auth(?:orization)?\s+token|secret|password|credential)\s+(?:is\s+)?)(\S+)/gi,
 					"$1[redacted]",
