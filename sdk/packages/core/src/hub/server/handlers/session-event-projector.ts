@@ -82,6 +82,8 @@ export async function projectSessionEvent(
 				prompt: event.payload.prompt,
 				delivery: event.payload.delivery,
 				attachmentCount: event.payload.attachmentCount,
+				userImages: event.payload.userImages,
+				userFiles: event.payload.userFiles,
 			};
 			ctx.publish(
 				ctx.buildEvent(

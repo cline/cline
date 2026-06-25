@@ -1029,6 +1029,8 @@ export class Controller {
 			return
 		}
 
+		const turnStateBefore = this.turnStateTracker.get()
+
 		// Answering an ask / continuing after completion / resuming a cancelled task all kick off a
 		// new agent turn — move the authoritative phase to "streaming" so the footer shows
 		// Thinking + Cancel (and not the stale resumable/completed/awaiting_followup buttons or the
@@ -1038,7 +1040,7 @@ export class Controller {
 		this.turnStateTracker.set("streaming")
 		// Clear the previous turn's completion signal so this new turn's phase is computed fresh.
 		this.messageTranslatorState.clearTurnOutcome()
-		await this.followups.askResponse(prompt, images, files, this.task?.taskState?.askResponse)
+		await this.followups.askResponse(prompt, images, files, this.task?.taskState?.askResponse, turnStateBefore.phase)
 	}
 
 	async editMessageAndRegenerate(input: {
