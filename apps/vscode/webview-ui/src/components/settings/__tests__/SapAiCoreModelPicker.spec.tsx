@@ -1,23 +1,53 @@
 import { render, screen, waitFor } from "@testing-library/react"
-import { describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import { ExtensionStateContextProvider } from "@/context/ExtensionStateContext"
 import SapAiCoreModelPicker from "../SapAiCoreModelPicker"
 
-const resolveProviderModelsMock = vi.fn().mockResolvedValue({
-	providerId: "sapaicore",
-	requestId: "test-request-id",
-	configFingerprint: "test-fingerprint",
-	fetchedAt: Date.now(),
-	ok: true,
-	models: {},
-	defaultModelId: "",
-})
-
-vi.mock("@/services/grpc-client", () => ({
-	ModelsServiceClient: {
-		resolveProviderModels: resolveProviderModelsMock,
-	},
+const mocks = vi.hoisted(() => ({
+	resolveProviderModelsMock: vi.fn().mockResolvedValue({
+		providerId: "sapaicore",
+		requestId: "test-request-id",
+		configFingerprint: "test-fingerprint",
+		fetchedAt: Date.now(),
+		ok: true,
+		models: {},
+		defaultModelId: "",
+	}),
+	setApiConfigurationMock: vi.fn(),
+	startProviderModelsRequestMock: vi.fn(),
+	applyProviderModelsResponseMock: vi.fn(),
+	useExtensionStateMock: vi.fn(() => ({
+		apiConfiguration: {
+			apiProvider: "sapaicore",
+			sapAiCoreModelId: "anthropic--claude-3.5-sonnet",
+		},
+		setApiConfiguration: mocks.setApiConfigurationMock,
+		providerModelsByProvider: {
+			sapaicore: {
+				models: {
+					"anthropic--claude-3.5-sonnet": { maxTokens: 8192, contextWindow: 200_000, supportsPromptCache: false },
+					"anthropic--claude-3-haiku": { maxTokens: 4096, contextWindow: 200_000, supportsPromptCache: false },
+					"gpt-4o": { maxTokens: 4096, contextWindow: 200_000, supportsPromptCache: false },
+					"gemini-2.5-pro": { maxTokens: 65536, contextWindow: 1_048_576, supportsPromptCache: true },
+				},
+				defaultModelId: "anthropic--claude-3.5-sonnet",
+			},
+		},
+		startProviderModelsRequest: mocks.startProviderModelsRequestMock,
+		applyProviderModelsResponse: mocks.applyProviderModelsResponseMock,
+	})),
 }))
+
+vi.mock("@/services/grpc-client", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@/services/grpc-client")>()
+	return {
+		...actual,
+		ModelsServiceClient: {
+			...actual.ModelsServiceClient,
+			resolveProviderModels: mocks.resolveProviderModelsMock,
+		},
+	}
+})
 
 // Define the interface locally since it's not exported from the proto
 interface SapAiCoreModelDeployment {
@@ -33,43 +63,19 @@ const createDeployments = (modelNames: string[]): SapAiCoreModelDeployment[] => 
 	}))
 }
 
-// Mock the ExtensionStateContext
-vi.mock("../../../context/ExtensionStateContext", async (importOriginal) => {
-	const actual = await importOriginal()
-	return {
-		...(actual || {}),
-		useExtensionState: vi.fn(() => ({
-			apiConfiguration: {
-				apiProvider: "sapaicore",
-				sapAiCoreModelId: "anthropic--claude-3.5-sonnet",
-			},
-			setApiConfiguration: vi.fn(),
-			// Provider model-list context read by useProviderModels. The picker
-			// sources its supported-model list from the "sapaicore" entry here.
-			providerModelsByProvider: {
-				sapaicore: {
-					models: {
-						"anthropic--claude-3.5-sonnet": { maxTokens: 8192, contextWindow: 200_000, supportsPromptCache: false },
-						"anthropic--claude-3-haiku": { maxTokens: 4096, contextWindow: 200_000, supportsPromptCache: false },
-						"gpt-4o": { maxTokens: 4096, contextWindow: 200_000, supportsPromptCache: false },
-						"gemini-2.5-pro": { maxTokens: 65536, contextWindow: 1_048_576, supportsPromptCache: true },
-					},
-					defaultModelId: "anthropic--claude-3.5-sonnet",
-				},
-			},
-			startProviderModelsRequest: vi.fn(),
-			applyProviderModelsResponse: vi.fn(),
-		})),
-	}
-})
+// Mock the ExtensionStateContext used by the component and by this spec.
+vi.mock("@/context/ExtensionStateContext", () => ({
+	ExtensionStateContextProvider: ({ children }: { children: any }) => children,
+	useExtensionState: mocks.useExtensionStateMock,
+}))
 
 describe("SapAiCoreModelPicker Component", () => {
-	vi.clearAllMocks()
 	const mockOnModelChange = vi.fn()
 
 	beforeEach(() => {
+		vi.clearAllMocks()
 		mockOnModelChange.mockClear()
-		resolveProviderModelsMock.mockClear()
+		mocks.resolveProviderModelsMock.mockClear()
 	})
 
 	it("refreshes the provider model list when orchestration mode changes", async () => {
@@ -84,7 +90,7 @@ describe("SapAiCoreModelPicker Component", () => {
 			</ExtensionStateContextProvider>,
 		)
 
-		await waitFor(() => expect(resolveProviderModelsMock).toHaveBeenCalledTimes(1))
+		await waitFor(() => expect(mocks.resolveProviderModelsMock).toHaveBeenCalledTimes(1))
 
 		rerender(
 			<ExtensionStateContextProvider>
@@ -97,7 +103,7 @@ describe("SapAiCoreModelPicker Component", () => {
 			</ExtensionStateContextProvider>,
 		)
 
-		await waitFor(() => expect(resolveProviderModelsMock).toHaveBeenCalledTimes(2))
+		await waitFor(() => expect(mocks.resolveProviderModelsMock).toHaveBeenCalledTimes(2))
 	})
 
 	it("renders the model dropdown with correct label", () => {
