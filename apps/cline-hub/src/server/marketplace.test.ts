@@ -51,18 +51,23 @@ describe("marketplace installer", () => {
 		vi.restoreAllMocks();
 	});
 
-	it("maps remote MCP catalog args to the hub MCP upsert shape", () => {
+	it("maps remote MCP catalog args to MCP settings shape", () => {
 		expect(
 			buildMarketplaceMcpInput([
 				"context7",
 				"--transport",
 				"http",
 				"https://mcp.context7.com/mcp",
+				"--header",
+				"Authorization: Bearer <token>",
 			]),
 		).toEqual({
 			name: "context7",
 			transportType: "streamableHttp",
 			url: "https://mcp.context7.com/mcp",
+			headers: {
+				Authorization: "Bearer <token>",
+			},
 			disabled: false,
 		});
 	});
@@ -370,7 +375,7 @@ describe("marketplace installer", () => {
 			message = error instanceof Error ? error.message : String(error);
 		}
 
-		expect(message).toContain("Authorization: [redacted]");
+		expect(message).toContain("Authorization: Bearer [redacted]");
 		expect(message).toContain("api key [redacted]");
 		expect(message).toContain("OPENAI_API_KEY=[redacted]");
 		expect(message).toContain("TOKEN=[redacted]");
@@ -462,6 +467,68 @@ describe("marketplace installer", () => {
 			"install",
 			"marketplace-test-plugin",
 			"--json",
+		]);
+	});
+
+	it("runs MCP installs through the current Cline CLI without prompts", async () => {
+		process.env.CLINE_WRAPPER_PATH = "/usr/local/bin/cline";
+		const spawnCommand = vi.fn(async () => ({
+			exitCode: 0,
+			stdout: JSON.stringify({
+				name: "context7",
+				status: "installed",
+				transport: {
+					type: "streamableHttp",
+					url: "https://mcp.context7.com/mcp",
+					headers: {
+						Authorization: "Bearer token",
+					},
+				},
+			}),
+			stderr: "",
+		}));
+
+		await expect(
+			installMarketplaceEntry(
+				{
+					entry: {
+						id: "context7",
+						type: "mcp",
+						name: "Context7",
+						install: {
+							args: [
+								"context7",
+								"--transport",
+								"http",
+								"https://mcp.context7.com/mcp",
+								"--header",
+								"Authorization: Bearer token",
+							],
+						},
+					},
+				},
+				{ spawnCommand },
+			),
+		).resolves.toMatchObject({
+			status: "installed",
+			message: "Installed Context7.",
+			details: {
+				name: "context7",
+				status: "installed",
+			},
+		});
+
+		expect(spawnCommand).toHaveBeenCalledWith("/usr/local/bin/cline", [
+			"mcp",
+			"install",
+			"--yes",
+			"--json",
+			"context7",
+			"--transport",
+			"http",
+			"https://mcp.context7.com/mcp",
+			"--header",
+			"Authorization: Bearer token",
 		]);
 	});
 
