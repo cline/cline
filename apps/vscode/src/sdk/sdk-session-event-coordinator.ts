@@ -28,6 +28,7 @@ export interface SdkSessionEventCoordinatorOptions {
 	taskHistory: SdkTaskHistory
 	getTask: () => TaskProxy | undefined
 	postStateToWebview: () => Promise<void>
+	syncCheckpointRows?: () => Promise<void>
 	stateManager?: StateManager
 	translateSessionEvent?: (event: CoreSessionEvent, state: MessageTranslatorState) => TranslationResult
 	isClineFreeModel?: () => Promise<boolean>
@@ -132,6 +133,10 @@ export class SdkSessionEventCoordinator {
 					Logger.error("[SdkController] Failed to persist task usage:", error)
 				})
 			}
+		}
+
+		if (result.sessionEnded || result.turnComplete) {
+			await this.options.syncCheckpointRows?.()
 		}
 
 		// Post state when there are messages to ship OR when the turn ended. A clean turn end's
