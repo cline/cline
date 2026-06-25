@@ -7,8 +7,6 @@ export enum ClineErrorType {
 	Balance = "balance",
 	SpendLimit = "spendLimit",
 	QuotaExceeded = "quotaExceeded",
-	Entitlement = "entitlement",
-	OrgClinePassRestriction = "orgClinePassRestriction",
 }
 
 interface ErrorDetails {
@@ -45,8 +43,6 @@ interface ErrorDetails {
 }
 
 const RATE_LIMIT_PATTERNS = [/status code 429/i, /rate limit/i, /too many requests/i, /quota exceeded/i, /resource exhausted/i]
-const ORG_CLINE_PASS_RESTRICTION_MESSAGE = "organization accounts cannot use individual model inference subscriptions"
-const ORG_CLINE_PASS_RESTRICTION_USER_MESSAGE = "organization accounts cannot use clinepass subscriptions"
 
 export class ClineError extends Error {
 	readonly title = "ClineError"
@@ -153,21 +149,6 @@ export class ClineError extends Error {
 		// Must be checked before the generic rate-limit check since both use 429
 		if (code === "SPEND_LIMIT_EXCEEDED" || details?.code === "SPEND_LIMIT_EXCEEDED") {
 			return ClineErrorType.SpendLimit
-		}
-
-		// ClinePass entitlement errors are user-actionable and should not fall through to generic 403 auth.
-		// The organization-account variant gets separate copy because subscribing is not the right action.
-		const isEntitlementCode = code === "ENTITLEMENT_ERROR" || details?.code === "ENTITLEMENT_ERROR"
-		const entitlementText = `${message ?? ""} ${details?.message ?? ""}`.toLowerCase()
-		if (
-			isEntitlementCode &&
-			(entitlementText.includes(ORG_CLINE_PASS_RESTRICTION_MESSAGE) ||
-				entitlementText.includes(ORG_CLINE_PASS_RESTRICTION_USER_MESSAGE))
-		) {
-			return ClineErrorType.OrgClinePassRestriction
-		}
-		if (isEntitlementCode && entitlementText.includes("not subscribed to required model plan")) {
-			return ClineErrorType.Entitlement
 		}
 
 		// Check auth errors
