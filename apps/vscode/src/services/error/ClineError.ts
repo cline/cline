@@ -1,5 +1,4 @@
 import {
-	getClineNotSubscribedMessage,
 	getClineOrgIndividualInferenceSubscriptionMessage,
 	isClineNotSubscribedMessage,
 	isClineOrgIndividualInferenceSubscriptionMessage,
@@ -170,7 +169,6 @@ export class ClineError extends Error {
 		}
 
 		if (
-			rawMessage === getClineNotSubscribedMessage() ||
 			(detailMessage ? isClineNotSubscribedMessage(detailMessage) : false) ||
 			(rawMessage ? isClineNotSubscribedMessage(rawMessage) : false)
 		) {
