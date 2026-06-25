@@ -73,6 +73,43 @@ function isDuplicateAskOptionEcho(message: ClineMessage, previousMessage: ClineM
 	}
 }
 
+function isVisibleCheckpointUserMessage(message: ClineMessage): boolean {
+	return message.type === "say" && (message.say === "task" || message.say === "user_feedback")
+}
+
+function isCheckpointAnswerMessage(messages: ClineMessage[], index: number): boolean {
+	const message = messages[index]
+	if (message?.type !== "say" || message.say !== "user_feedback") {
+		return false
+	}
+
+	for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
+		const previous = messages[cursor]
+		if (previous.say === "checkpoint_created") {
+			continue
+		}
+		if (previous.type === "ask") {
+			return previous.ask === "followup" || previous.ask === "mistake_limit_reached"
+		}
+		if (isVisibleCheckpointUserMessage(previous)) {
+			return false
+		}
+	}
+
+	return false
+}
+
+export function canRestoreWorkspaceFromMessage(messages: ClineMessage[], messageTs: number | undefined): boolean {
+	if (messageTs === undefined) {
+		return false
+	}
+	const index = messages.findIndex((message) => message.ts === messageTs)
+	if (index === -1) {
+		return false
+	}
+	return isVisibleCheckpointUserMessage(messages[index]) && !isCheckpointAnswerMessage(messages, index)
+}
+
 /**
  * Filter messages that should be visible in the chat
  */

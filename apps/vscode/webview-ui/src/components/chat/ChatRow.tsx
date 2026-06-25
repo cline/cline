@@ -34,6 +34,7 @@ import {
 } from "lucide-react"
 import { MouseEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useSize } from "react-use"
+import { canRestoreWorkspaceFromMessage } from "@/components/chat/chat-view/utils/messageUtils"
 import { OptionsButtons } from "@/components/chat/OptionsButtons"
 import { WithCopyButton } from "@/components/common/CopyButton"
 import McpResponseDisplay from "@/components/mcp/chat-display/McpResponseDisplay"
@@ -745,8 +746,8 @@ export const ChatRowContent = memo(
 					isCommandPending={isCommandPending}
 					isOutputFullyExpanded={isOutputFullyExpanded}
 					message={message}
-					onOutputChange={isLast ? onLastRowContentChange : undefined}
 					onCancelCommand={onCancelCommand}
+					onOutputChange={isLast ? onLastRowContentChange : undefined}
 					setIsOutputFullyExpanded={setIsOutputFullyExpanded}
 					title={title}
 				/>
@@ -897,6 +898,7 @@ export const ChatRowContent = memo(
 					case "user_feedback":
 						return (
 							<UserMessage
+								canRestoreWorkspace={canRestoreWorkspaceFromMessage(clineMessages, message.ts)}
 								files={message.files}
 								images={message.images}
 								messageTs={message.ts}

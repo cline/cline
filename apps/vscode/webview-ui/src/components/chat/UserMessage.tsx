@@ -12,9 +12,10 @@ interface UserMessageProps {
 	images?: string[]
 	messageTs?: number
 	sendMessageFromChatRow?: (text: string, images: string[], files: string[]) => void
+	canRestoreWorkspace?: boolean
 }
 
-const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageTs }) => {
+const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageTs, canRestoreWorkspace = true }) => {
 	const [isEditing, setIsEditing] = useState(false)
 	const [editedText, setEditedText] = useState(text ?? "")
 	const [savingMode, setSavingMode] = useState<"chat" | "workspace" | undefined>()
@@ -128,22 +129,24 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 									</span>
 								</TooltipTrigger>
 							</Tooltip>
-							<Tooltip>
-								<TooltipContent side="top">
-									Restore workspace files to this checkpoint, then regenerate.
-								</TooltipContent>
-								<TooltipTrigger asChild>
-									<span className="inline-flex shrink-0">
-										<button
-											className="whitespace-nowrap px-2 py-1 rounded-xs border border-vscode-button-border bg-transparent text-badge-foreground cursor-pointer disabled:opacity-60 text-xs"
-											disabled={!!savingMode}
-											onClick={() => handleSave(true)}
-											type="button">
-											{savingMode === "workspace" ? "Restoring..." : "Restore + Run"}
-										</button>
-									</span>
-								</TooltipTrigger>
-							</Tooltip>
+							{canRestoreWorkspace && (
+								<Tooltip>
+									<TooltipContent side="top">
+										Restore workspace files to this checkpoint, then regenerate.
+									</TooltipContent>
+									<TooltipTrigger asChild>
+										<span className="inline-flex shrink-0">
+											<button
+												className="whitespace-nowrap px-2 py-1 rounded-xs border border-vscode-button-border bg-transparent text-badge-foreground cursor-pointer disabled:opacity-60 text-xs"
+												disabled={!!savingMode}
+												onClick={() => handleSave(true)}
+												type="button">
+												{savingMode === "workspace" ? "Restoring..." : "Restore + Run"}
+											</button>
+										</span>
+									</TooltipTrigger>
+								</Tooltip>
+							)}
 						</div>
 					</div>
 				</div>

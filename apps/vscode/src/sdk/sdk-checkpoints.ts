@@ -15,7 +15,12 @@ export function isCheckpointAnswerMessage(messages: ClineMessage[], index: numbe
 		if (previous.say === "checkpoint_created") {
 			continue
 		}
-		return previous.type === "ask" && (previous.ask === "followup" || previous.ask === "mistake_limit_reached")
+		if (previous.type === "ask") {
+			return previous.ask === "followup" || previous.ask === "mistake_limit_reached"
+		}
+		if (isVisibleCheckpointUserMessage(previous)) {
+			return false
+		}
 	}
 
 	return false

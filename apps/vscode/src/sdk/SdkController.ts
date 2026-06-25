@@ -1111,6 +1111,16 @@ export class Controller {
 				return
 			}
 
+			const resolvedPrompt = await this.resolveContextMentions(editedText)
+			const startInput = {
+				...buildStartSessionInput(config, { prompt: historyTitle, cwd, mode }),
+				initialMessages,
+				sessionMetadata: {
+					title: historyTitle,
+					modelId: config.modelId,
+				},
+			}
+
 			if (input.restoreWorkspace) {
 				if (activeSession?.isRunning) {
 					throw new Error("Wait for the current run to finish before restoring workspace changes")
@@ -1130,19 +1140,12 @@ export class Controller {
 				})
 			}
 
+			const { startResult, sdkHost } = await this.sessions.startNewSession(startInput)
+
 			this.turnStateTracker.set("streaming")
 			this.messageTranslatorState.clearTurnOutcome()
 			this.resetMessageTranslatorAndFence()
 
-			const startInput = {
-				...buildStartSessionInput(config, { prompt: historyTitle, cwd, mode }),
-				initialMessages,
-				sessionMetadata: {
-					title: historyTitle,
-					modelId: config.modelId,
-				},
-			}
-			const { startResult, sdkHost } = await this.sessions.startNewSession(startInput)
 			const task = createTaskProxy(
 				startResult.sessionId,
 				(text?: string, images?: string[], files?: string[]) => this.askResponse(text, images, files),
@@ -1170,7 +1173,6 @@ export class Controller {
 			])
 			await this.postStateToWebview()
 
-			const resolvedPrompt = await this.resolveContextMentions(editedText)
 			this.sessions.fireAndForgetSend(sdkHost, startResult.sessionId, resolvedPrompt, input.images, input.files)
 		} finally {
 			await tempHost?.dispose("editMessageAndRegenerate")

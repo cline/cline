@@ -80,4 +80,21 @@ describe("SDK checkpoint user-run mapping", () => {
 		expect(getCheckpointRunCountForMessage(messages, 5)).toBe(2)
 		expect(findVisibleCheckpointUserMessageByRun(messages, 2)?.message.text).toBe("next task")
 	})
+
+	it("keeps ask answers tied to the ask when assistant rows arrive between them", () => {
+		const messages = [
+			userTask("start", 1),
+			followupAsk("which file?", 2),
+			assistant("Let me know the file path.", 3),
+			checkpointRow(1, 4),
+			userFeedback("src/index.ts", 5),
+			userFeedback("next task", 6),
+		]
+
+		expect(isCheckpointAnswerMessage(messages, 4)).toBe(true)
+		expect(getCheckpointRunCountForMessage(messages, 4)).toBeUndefined()
+		expect(getCheckpointRunCountForMessage(messages, 5)).toBe(2)
+		expect(findVisibleCheckpointUserMessageByRun(messages, 1)?.message.text).toBe("start")
+		expect(findVisibleCheckpointUserMessageByRun(messages, 2)?.message.text).toBe("next task")
+	})
 })
