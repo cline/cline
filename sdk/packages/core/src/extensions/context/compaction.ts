@@ -442,7 +442,6 @@ export function createCompactionStateAwarePrepareTurn(input: {
 	compact?: ContextPipelinePrepareTurn;
 	getState?: () => SessionCompactionState | undefined;
 	saveState?: (state: SessionCompactionState) => void | Promise<void>;
-	clearState?: () => void | Promise<void>;
 }): ContextPipelinePrepareTurn {
 	return async (context) => {
 		const existingState = input.getState?.();
@@ -484,10 +483,6 @@ export function createCompactionStateAwarePrepareTurn(input: {
 						: {}),
 			};
 		}
-		if (existingState) {
-			await input.clearState?.();
-		}
-
 		const result = input.compact ? await input.compact(context) : undefined;
 		if (result?.messages) {
 			const nextState = createSessionCompactionState({

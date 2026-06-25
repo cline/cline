@@ -139,6 +139,8 @@ function messageBoundaryKey(message: MessageWithMetadata | undefined): string {
 		return "";
 	}
 	const normalized = normalizeMessageForSourceHash(message);
+	// Message roles are limited to "user" and "assistant", so ":" is only a
+	// separator in persisted fallback boundary keys.
 	if (typeof normalized.id === "string" && normalized.id.trim()) {
 		return `id:${normalized.id.trim()}`;
 	}
@@ -148,6 +150,8 @@ function messageBoundaryKey(message: MessageWithMetadata | undefined): string {
 	return `content:${normalized.role}:${JSON.stringify(normalized.content)}`;
 }
 
+// These anchors are persisted in session sidecars. Changing the format is safe
+// for saved transcripts, but invalidates existing compaction sidecars.
 function sourcePrefixHash(
 	messages: readonly MessageWithMetadata[],
 	count = messages.length,
@@ -193,24 +197,27 @@ export function projectSessionCompactionState(
 	state: SessionCompactionState,
 	sourceMessages: readonly MessageWithMetadata[],
 ): MessageWithMetadata[] | undefined {
-	if (state.source_message_count > sourceMessages.length) {
+	const hasEnoughSourceMessages =
+		state.source_message_count <= sourceMessages.length;
+	if (!hasEnoughSourceMessages) {
 		return undefined;
 	}
-	if (state.source_prefix_hash) {
-		if (
-			sourcePrefixHash(sourceMessages, state.source_message_count) !==
-			state.source_prefix_hash
-		) {
-			return undefined;
-		}
-	} else if (state.source_message_count > 0 && state.source_last_message_key) {
-		const boundary = sourceMessages[state.source_message_count - 1];
-		if (messageBoundaryKey(boundary) !== state.source_last_message_key) {
-			return undefined;
-		}
-	} else {
+
+	const hasMatchingSourcePrefix =
+		!!state.source_prefix_hash &&
+		sourcePrefixHash(sourceMessages, state.source_message_count) ===
+			state.source_prefix_hash;
+	const boundary = sourceMessages[state.source_message_count - 1];
+	const hasMatchingLegacyBoundary =
+		!state.source_prefix_hash &&
+		state.source_message_count > 0 &&
+		!!state.source_last_message_key &&
+		messageBoundaryKey(boundary) === state.source_last_message_key;
+	const canProjectState = hasMatchingSourcePrefix || hasMatchingLegacyBoundary;
+	if (!canProjectState) {
 		return undefined;
 	}
+
 	return [
 		...cloneMessages(state.messages),
 		...cloneMessages(sourceMessages.slice(state.source_message_count)),

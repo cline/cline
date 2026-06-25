@@ -55,7 +55,7 @@ async function writeFileAtomic(path: string, contents: string): Promise<void> {
 	const tempPath = `${path}.${process.pid}.${randomUUID()}.tmp`;
 	let handle: Awaited<ReturnType<typeof open>> | undefined;
 	try {
-		handle = await open(tempPath, "w");
+		handle = await open(tempPath, "wx");
 		await handle.writeFile(contents, "utf8");
 		await handle.sync();
 		await handle.close();
