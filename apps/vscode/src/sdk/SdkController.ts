@@ -54,12 +54,8 @@ import { createProviderCatalog } from "./model-catalog/catalog"
 import type { Disposable, ProviderCatalog, ProviderConfigChange, ProviderConfigStore } from "./model-catalog/contracts"
 import { parseProviderId } from "./model-catalog/provider-id"
 import { createProviderConfigStore } from "./model-catalog/store"
+import { buildSdkCheckpointRows, findVisibleCheckpointUserMessageByRun, isVisibleCheckpointUserMessage } from "./sdk-checkpoints"
 import { SdkCompactionCoordinator } from "./sdk-compaction-coordinator"
-import {
-	buildSdkCheckpointRows,
-	findVisibleCheckpointUserMessageByRun,
-	isVisibleCheckpointUserMessage,
-} from "./sdk-checkpoints"
 import { SdkFollowupCoordinator } from "./sdk-followup-coordinator"
 import { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import { SdkMcpCoordinator } from "./sdk-mcp-coordinator"
@@ -1720,6 +1716,16 @@ export class Controller {
 				.sort((a, b) => b.ts - a.ts)
 				.slice(0, 100)
 
+			let queuedPrompts: ExtensionState["queuedPrompts"] = []
+			const activeSession = this.sessions.getActiveSession()
+			if (activeSession) {
+				try {
+					queuedPrompts = await activeSession.sdkHost.pendingPrompts("list", { sessionId: activeSession.sessionId })
+				} catch (error) {
+					Logger.error("[SdkController] Failed to list pending prompts for webview state:", error)
+				}
+			}
+
 			// Stamp the snapshot with the current epoch and a fresh monotonic version, sampled
 			// from the SAME counter that stamps messages. This lets the webview ignore stale
 			// out-of-order state pushes and fence traffic from a previous task/render. Sampled
@@ -1732,6 +1738,7 @@ export class Controller {
 					: undefined,
 				taskHistory: processedTaskHistory,
 				turnState: this.turnStateTracker.get(),
+				queuedPrompts,
 				stateVersion: minter.nextSeq(),
 				epoch: minter.epoch,
 			}
