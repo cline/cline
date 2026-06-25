@@ -2,7 +2,13 @@
  * Utility functions for message filtering, grouping, and manipulation
  */
 
-import type { ClineMessage, ClineSayBrowserAction, ClineSayTool } from "@shared/ExtensionMessage"
+import type {
+	ClineAskQuestion,
+	ClineMessage,
+	ClinePlanModeResponse,
+	ClineSayBrowserAction,
+	ClineSayTool,
+} from "@shared/ExtensionMessage"
 import { FileIcon, FolderOpenDotIcon, FolderOpenIcon, SearchIcon, ShapesIcon, WrenchIcon } from "lucide-react"
 
 /**
@@ -35,7 +41,36 @@ export function isLowStakesTool(message: ClineMessage): boolean {
  * Check if a message group is a tool group (array with _isToolGroup marker)
  */
 export function isToolGroup(item: ClineMessage | ClineMessage[]): item is ClineMessage[] & { _isToolGroup: true } {
-	return Array.isArray(item) && (item as any)._isToolGroup === true
+	return Array.isArray(item) && (item as ClineMessage[] & { _isToolGroup?: boolean })._isToolGroup === true
+}
+
+function isDuplicateAskOptionEcho(message: ClineMessage, previousMessage: ClineMessage | undefined): boolean {
+	if (
+		message.type !== "say" ||
+		message.say !== "user_feedback" ||
+		(message.images?.length ?? 0) > 0 ||
+		(message.files?.length ?? 0) > 0 ||
+		previousMessage?.type !== "ask" ||
+		(previousMessage.ask !== "followup" && previousMessage.ask !== "plan_mode_respond")
+	) {
+		return false
+	}
+
+	const responseText = message.text ?? ""
+	if (!responseText) {
+		return false
+	}
+
+	try {
+		const parsed = JSON.parse(previousMessage.text || "{}") as ClineAskQuestion | ClinePlanModeResponse
+		if (!parsed.options?.includes(responseText)) {
+			return false
+		}
+
+		return parsed.selected === undefined || parsed.selected === responseText
+	} catch {
+		return false
+	}
 }
 
 /**
@@ -43,6 +78,10 @@ export function isToolGroup(item: ClineMessage | ClineMessage[]): item is ClineM
  */
 export function filterVisibleMessages(messages: ClineMessage[]): ClineMessage[] {
 	return messages.filter((message, index, arr) => {
+		if (isDuplicateAskOptionEcho(message, arr[index - 1])) {
+			return false
+		}
+
 		switch (message.ask) {
 			case "completion_result":
 				// don't show a chat row for a completion_result ask without text. This specific type of message only occurs if cline wants to execute a command as part of its completion result, in which case we interject the completion_result tool with the execute_command tool.
@@ -105,7 +144,7 @@ export function filterVisibleMessages(messages: ClineMessage[]): ClineMessage[] 
  */
 function isBrowserSessionMessage(message: ClineMessage): boolean {
 	if (message.type === "ask") {
-		return ["browser_action_launch"].includes(message.ask!)
+		return message.ask === "browser_action_launch"
 	}
 	if (message.type === "say") {
 		return [
@@ -117,7 +156,7 @@ function isBrowserSessionMessage(message: ClineMessage): boolean {
 			"checkpoint_created",
 			"reasoning",
 			"error_retry",
-		].includes(message.say!)
+		].includes(message.say ?? "")
 	}
 	return false
 }
@@ -501,8 +540,12 @@ export function groupLowStakesTools(groupedMessages: (ClineMessage | ClineMessag
 	const pendingTools: ClineMessage[] = []
 
 	const flushPending = () => {
-		pendingApiReq.forEach((m) => result.push(m))
-		pendingReasoning.forEach((m) => result.push(m))
+		pendingApiReq.forEach((m) => {
+			result.push(m)
+		})
+		pendingReasoning.forEach((m) => {
+			result.push(m)
+		})
 		pendingApiReq = []
 		pendingReasoning = []
 	}
