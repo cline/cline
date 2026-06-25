@@ -9,7 +9,7 @@ export const CLINE_ORG_INDIVIDUAL_INFERENCE_SUBSCRIPTION_RESPONSE_MESSAGE =
 
 export function getClinePassSubscriptionUrl(): string {
 	return `${new URL(
-		"/promo?code=CLI-100&personal=true",
+		"/dashboard/subscription?personal=true",
 		getClineEnvironmentConfig().appBaseUrl,
 	).toString()}`;
 }
