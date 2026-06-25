@@ -11,6 +11,7 @@ import {
 	createUserInstructionConfigService,
 	getProviderAuthStorageId,
 	type PreparedRemoteConfigCoreIntegration,
+	readSessionCheckpointHistory,
 	type SessionHistoryRecord,
 	setTelemetryOptOutGlobally,
 	type UserInstructionConfigService,
@@ -26,6 +27,7 @@ import { DeleteAllTaskHistoryCount, type GetTaskHistoryRequest, TaskHistoryArray
 import type { Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
+import type { ClineCheckpointRestore } from "@shared/WebviewMessage"
 import { parseMentions } from "@/core/mentions"
 import { ensureMcpServersDirectoryExists } from "@/core/storage/disk"
 import { refreshSdkRemoteConfig } from "@/core/storage/remote-config/sdk-refresh"
@@ -53,6 +55,11 @@ import type { Disposable, ProviderCatalog, ProviderConfigChange, ProviderConfigS
 import { parseProviderId } from "./model-catalog/provider-id"
 import { createProviderConfigStore } from "./model-catalog/store"
 import { SdkCompactionCoordinator } from "./sdk-compaction-coordinator"
+import {
+	buildSdkCheckpointRows,
+	findVisibleCheckpointUserMessageByRun,
+	isVisibleCheckpointUserMessage,
+} from "./sdk-checkpoints"
 import { SdkFollowupCoordinator } from "./sdk-followup-coordinator"
 import { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import { SdkMcpCoordinator } from "./sdk-mcp-coordinator"
@@ -181,6 +188,7 @@ export class Controller {
 	private backgroundCommandRunning = false
 	private backgroundCommandTaskId?: string
 	private pendingClineAuthRetryPrompt?: string
+	checkpointRestoreInput?: ExtensionState["checkpointRestoreInput"]
 
 	// Timer for periodic remote config fetching (enterprise policy enforcement)
 	private remoteConfigTimer?: NodeJS.Timeout
@@ -256,6 +264,7 @@ export class Controller {
 				this.mode.queueSwitchToActMode()
 			},
 			shouldStopAfterModeSwitch: () => this.mode.hasPendingModeChange(),
+			onConsecutiveMistakeLimitReached: (context) => this.interactions.handleConsecutiveMistakeLimitReached(context),
 		})
 		this.interactions = new SdkInteractionCoordinator({
 			messages: this.messages,
@@ -479,6 +488,7 @@ export class Controller {
 			getTask: () => this.task,
 			postStateToWebview: () => this.postStateToWebview(),
 			setTurnPhase: (phase, anchorTs) => this.turnStateTracker.set(phase, anchorTs),
+			syncCheckpointRows: () => this.syncCheckpointRowsFromActiveSession(),
 		})
 		// Subscribe to MCP tool list changes so we can restart the SDK session
 		// when servers are added/removed/reconnected. The SDK's DefaultSessionBuilder
@@ -1146,6 +1156,157 @@ export class Controller {
 
 		const resolvedPrompt = await this.resolveContextMentions(editedText)
 		this.sessions.fireAndForgetSend(sdkHost, startResult.sessionId, resolvedPrompt, input.images, input.files)
+	}
+
+	private async syncCheckpointRowsFromActiveSession(): Promise<void> {
+		const task = this.task
+		const activeSession = this.sessions.getActiveSession()
+		if (!task || !activeSession) {
+			return
+		}
+
+		const session = await activeSession.sdkHost.get(activeSession.sessionId)
+		const checkpointHistory = readSessionCheckpointHistory(session)
+		const currentMessages = task.messageStateHandler.getClineMessages()
+		const nextMessages = buildSdkCheckpointRows({
+			messages: currentMessages,
+			checkpointHistory,
+			createTimestamp: () => this.messageTranslatorState.nextTs(),
+		})
+		if (
+			nextMessages.length === currentMessages.length &&
+			nextMessages.every((message, index) => message === currentMessages[index])
+		) {
+			return
+		}
+
+		this.messages.replaceMessages(nextMessages)
+	}
+
+	async compareCheckpoint(input: { checkpointRunCount: number }): Promise<void> {
+		const checkpointRunCount = Number(input.checkpointRunCount)
+		if (!Number.isInteger(checkpointRunCount) || checkpointRunCount < 1) {
+			throw new Error("checkpointRunCount must be a positive integer")
+		}
+
+		const activeSession = this.sessions.getActiveSession()
+		if (!activeSession) {
+			throw new Error("No active task to compare")
+		}
+
+		const cwd = await this.getWorkspaceRoot()
+		const { diffs } = await activeSession.sdkHost.compareCheckpoint({
+			sessionId: activeSession.sessionId,
+			checkpointRunCount,
+			cwd,
+		})
+		if (diffs.length === 0) {
+			HostProvider.window.showMessage({
+				type: ShowMessageType.INFORMATION,
+				message: "No changes found",
+			})
+			return
+		}
+
+		await HostProvider.diff.openMultiFileDiff({
+			title: "Changes since checkpoint",
+			diffs,
+		})
+	}
+
+	async restoreCheckpoint(input: { checkpointRunCount: number; restoreType: ClineCheckpointRestore }): Promise<void> {
+		const restoreMessages = input.restoreType === "task" || input.restoreType === "taskAndWorkspace"
+		const restoreWorkspace = input.restoreType === "workspace" || input.restoreType === "taskAndWorkspace"
+		const checkpointRunCount = Number(input.checkpointRunCount)
+		if (!Number.isInteger(checkpointRunCount) || checkpointRunCount < 1) {
+			throw new Error("checkpointRunCount must be a positive integer")
+		}
+
+		const activeSession = this.sessions.getActiveSession()
+		const currentTask = this.task
+		if (!activeSession || !currentTask) {
+			throw new Error("No active task to restore")
+		}
+		if (activeSession.isRunning) {
+			await this.cancelTask()
+		}
+
+		const currentMessages = currentTask.messageStateHandler.getClineMessages()
+		const target = restoreMessages ? findVisibleCheckpointUserMessageByRun(currentMessages, checkpointRunCount) : undefined
+		if (restoreMessages && !target) {
+			throw new Error(`Could not find user message for checkpoint run ${checkpointRunCount}`)
+		}
+
+		const cwd = await this.getWorkspaceRoot()
+		const mode = this.stateManager.getGlobalSettingsKey("mode") === "plan" ? "plan" : "act"
+		const firstUserMessage = currentMessages.find(isVisibleCheckpointUserMessage)
+		const restoredText = target?.message.text ?? ""
+		const historyTitle = checkpointRunCount === 1 ? restoredText : firstUserMessage?.text || restoredText
+		const config = restoreMessages ? await this.sessionConfigBuilder.build({ cwd, mode, prompt: historyTitle }) : undefined
+		if (config && usesClineAccountAuth(config.providerId) && !config.apiKey) {
+			this.emitClineAuthError(restoredText)
+			return
+		}
+
+		const startInput = config
+			? {
+					...buildStartSessionInput(config, { prompt: historyTitle, cwd, mode }),
+					sessionMetadata: {
+						title: historyTitle,
+						modelId: config.modelId,
+					},
+				}
+			: undefined
+
+		const restored = await this.sessions.restoreActiveSession({
+			sessionId: activeSession.sessionId,
+			checkpointRunCount,
+			cwd,
+			restore: {
+				messages: restoreMessages,
+				workspace: restoreWorkspace,
+				omitCheckpointMessageFromSession: true,
+			},
+			...(startInput ? { start: startInput } : {}),
+		})
+
+		if (!restoreMessages) {
+			await this.syncCheckpointRowsFromActiveSession()
+			await this.postStateToWebview()
+			return
+		}
+
+		if (!restored.sessionId || !restored.startResult || !target) {
+			throw new Error("Checkpoint restore did not return a new session")
+		}
+
+		this.turnStateTracker.set("idle")
+		this.messageTranslatorState.clearTurnOutcome()
+		this.resetMessageTranslatorAndFence()
+
+		const task = createTaskProxy(
+			restored.sessionId,
+			(text?: string, images?: string[], files?: string[]) => this.askResponse(text, images, files),
+			() => this.cancelTask(),
+		)
+		this.task = task
+
+		const newHistoryItem = createHistoryItemFromSession(restored.sessionId, historyTitle, config?.modelId ?? "", cwd)
+		await this.taskHistory.updateTaskHistoryItem(newHistoryItem)
+
+		const visibleMessages = currentMessages.slice(0, target.index)
+		if (visibleMessages.length > 0) {
+			this.messages.replaceMessages(visibleMessages)
+		}
+
+		this.checkpointRestoreInput = {
+			text: restoredText,
+			images: target.message.images ?? [],
+			files: target.message.files ?? [],
+			sessionId: restored.sessionId,
+		}
+		await this.syncCheckpointRowsFromActiveSession()
+		await this.postStateToWebview()
 	}
 
 	/**

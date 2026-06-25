@@ -23,6 +23,8 @@ import type {
 	ClineCoreOptions,
 	ClineCoreSettingsApi,
 	ClineCoreStartInput,
+	CompareCheckpointInput,
+	CompareCheckpointResult,
 	RestoreInput,
 	RestoreResult,
 	StartSessionBootstrap,
@@ -42,6 +44,7 @@ import type {
 	StartSessionInput,
 	StartSessionResult,
 } from "./runtime/host/runtime-host";
+import { compareCheckpointToWorkspace } from "./session/checkpoint-diff";
 import {
 	FeatureFlagsService,
 	NoOpFeatureFlagsProvider,
@@ -68,6 +71,8 @@ export type {
 	ClineCoreStartInput,
 	HubOptions,
 	RemoteOptions,
+	CompareCheckpointInput,
+	CompareCheckpointResult,
 	RestoreInput,
 	RestoreOptions,
 	RestoreResult,
@@ -525,6 +530,24 @@ export class ClineCore {
 			cwd: input.cwd,
 			restore: input.restore,
 			start: normalizedStart,
+		});
+	}
+
+	async compareCheckpoint(
+		input: CompareCheckpointInput,
+	): Promise<CompareCheckpointResult> {
+		const sessionId = input.sessionId.trim();
+		if (!sessionId) {
+			throw new Error("sessionId is required");
+		}
+		const session = await this.host.getSession(sessionId);
+		if (!session) {
+			throw new Error(`Session ${sessionId} not found`);
+		}
+		return compareCheckpointToWorkspace({
+			session,
+			checkpointRunCount: input.checkpointRunCount,
+			cwd: input.cwd,
 		});
 	}
 

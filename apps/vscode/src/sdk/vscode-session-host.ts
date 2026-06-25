@@ -8,6 +8,8 @@ import {
 	ClineCore,
 	type ClineCoreListHistoryOptions,
 	type ClineCoreStartInput,
+	type CompareCheckpointInput,
+	type CompareCheckpointResult,
 	type CoreSessionEvent,
 	type HookEventPayload,
 	type ITelemetryService,
@@ -15,6 +17,8 @@ import {
 	type PendingPromptsDeleteInput,
 	type PendingPromptsListInput,
 	type PendingPromptsUpdateInput,
+	type RestoreInput,
+	type RestoreResult,
 	type PreparedRemoteConfigCoreIntegration,
 	type SendSessionInput,
 	type SessionAccumulatedUsage,
@@ -195,6 +199,14 @@ export class VscodeSessionHost implements SdkSessionHost {
 
 	async readMessages(sessionId: string) {
 		return this.inner.readMessages(sessionId)
+	}
+
+	async restore(input: RestoreInput): Promise<RestoreResult> {
+		return this.inner.restore(input)
+	}
+
+	async compareCheckpoint(input: CompareCheckpointInput): Promise<CompareCheckpointResult> {
+		return this.inner.compareCheckpoint(input)
 	}
 
 	async update(

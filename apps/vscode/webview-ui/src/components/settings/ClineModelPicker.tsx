@@ -251,11 +251,14 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 			? {
 					...selected,
 					selectedModelId: currentClineModelId,
-					selectedModelInfo:
-						committedModelInfo ||
-						modeFields.clineModelInfo ||
-						effectiveClineModels?.[currentClineModelId] ||
-						selected.selectedModelInfo,
+					selectedModelInfo: (() => {
+						const persistedModelInfo = committedModelInfo || modeFields.clineModelInfo || selected.selectedModelInfo
+						const liveModelInfo = effectiveClineModels?.[currentClineModelId]
+						// Persisted Cline model info is a snapshot from selection time. When the
+						// model is still in the catalog, refresh metadata/capability flags from
+						// the live catalog so UI controls reflect current model support.
+						return liveModelInfo ? { ...persistedModelInfo, ...liveModelInfo } : persistedModelInfo
+					})(),
 				}
 			: selected
 		if (freeClineModelIdSet.has(normalizeModelId(selectedWithCatalogDefault.selectedModelId))) {
