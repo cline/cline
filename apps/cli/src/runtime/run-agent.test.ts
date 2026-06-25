@@ -38,7 +38,7 @@ const sessionEventsMocks = vi.hoisted(() => ({
 }));
 
 const CLINE_PASS_SUBSCRIPTION_URL =
-	"https://app.cline.bot/promo?code=CLI-100&personal=true";
+	"https://app.cline.bot/dashboard/subscription?personal=true";
 const CLINE_PASS_SUBSCRIPTION_MESSAGE = `No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: ${CLINE_PASS_SUBSCRIPTION_URL}`;
 const CLINE_ORG_INDIVIDUAL_INFERENCE_SUBSCRIPTION_MESSAGE =
 	"Organization accounts cannot use ClinePass subscriptions. Go to /account -> change account to switch to your personal account for ClinePass";

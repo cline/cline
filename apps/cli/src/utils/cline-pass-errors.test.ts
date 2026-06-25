@@ -22,7 +22,7 @@ describe("cline-pass-errors", () => {
 
 	it("formats the ClinePass subscription URL", () => {
 		expect(getClinePassSubscriptionUrl()).toBe(
-			"https://app.cline.bot/promo?code=CLI-100&personal=true",
+			"https://app.cline.bot/dashboard/subscription?personal=true",
 		);
 	});
 
