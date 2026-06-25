@@ -53,7 +53,7 @@ export function isToolAutoApproved(toolName: string, settings: AutoApprovalSetti
 		return !!settings.actions.editFiles
 	}
 	if (isCommandTool(toolName)) {
-		return !!settings.actions.executeAllCommands || !!settings.actions.executeSafeCommands
+		return !!settings.actions.executeSafeCommands
 	}
 	if (isBrowserTool(toolName)) {
 		return !!settings.actions.useBrowser
