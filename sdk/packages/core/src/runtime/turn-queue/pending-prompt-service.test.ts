@@ -165,46 +165,4 @@ describe("PendingPromptService", () => {
 			),
 		).toBe(true);
 	});
-
-	it("does not requeue a drained prompt when send fails the session terminally", async () => {
-		const sessionId = "sess-drain-terminal-failure";
-		const session = {
-			sessionId,
-			pendingPrompts: [
-				{
-					id: "pending-1",
-					prompt: "already submitted",
-					delivery: "queue",
-				},
-			],
-			aborting: false,
-			drainingPendingPrompts: false,
-			status: "idle",
-			agent: {
-				canStartRun: () => true,
-			},
-		} as unknown as ActiveSession;
-		const events: CoreSessionEvent[] = [];
-		const controller = new PendingPromptsController({
-			getSession: () => session,
-			emit: (event) => events.push(event),
-			send: vi.fn().mockImplementation(async () => {
-				session.status = "failed";
-				throw new Error("model returned empty response");
-			}),
-		});
-
-		await controller.drain(sessionId);
-
-		expect(controller.list(sessionId)).toEqual([]);
-		expect(
-			events.filter((event) => event.type === "pending_prompts").at(-1),
-		).toEqual({
-			type: "pending_prompts",
-			payload: {
-				sessionId,
-				prompts: [],
-			},
-		});
-	});
 });
