@@ -700,10 +700,12 @@ async function getBinaryLocation(name: string): Promise<string> {
 // This method is called when your extension is deactivated
 export async function deactivate() {
 	// Dispose Non-VSCode-specific services
-	tearDown()
-
-	// VSCode-specific services
-	disposeVscodeCommentReviewController()
+	try {
+		await tearDown()
+	} finally {
+		// VSCode-specific services
+		disposeVscodeCommentReviewController()
+	}
 }
 
 // TODO: Find a solution for automatically removing DEV related content from production builds.

@@ -34,6 +34,7 @@ export interface ProviderCatalogController {
 export interface ProviderCatalogStateController extends ProviderCatalogController {
 	stateManager: {
 		setGlobalStateBatch(updates: Partial<GlobalStateAndSettings>): void
+		flushPendingState?(): Promise<void>
 		getApiConfiguration?(): ApiConfiguration
 	}
 	handleApiConfigurationChanged?(previous: ApiConfiguration, next: ApiConfiguration): void
