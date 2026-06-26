@@ -22,7 +22,7 @@ import type { ApiConfiguration } from "@shared/api"
 import type { HistoryItem } from "@shared/HistoryItem"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, type LanguageDisplay } from "@shared/Languages"
 import { Logger } from "@shared/services/Logger"
-import type { Settings } from "@shared/storage/state-keys"
+import type { CompactionStrategySetting, Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
 import { stringifyVsCodeLmModelSelector } from "@shared/vsCodeSelectorUtils"
 import { StateManager } from "@/core/storage/StateManager"
@@ -206,6 +206,10 @@ function resolveOpenAiCompatibleMaxTokens(config: ApiConfiguration | undefined, 
 	const modelInfo = mode === "plan" ? config?.planModeOpenAiModelInfo : config?.actModeOpenAiModelInfo
 	const maxTokens = modelInfo?.maxTokens
 	return typeof maxTokens === "number" && Number.isFinite(maxTokens) && maxTokens > 0 ? maxTokens : undefined
+}
+
+function resolveCompactionStrategy(value: unknown): CompactionStrategySetting {
+	return value === "agentic" ? "agentic" : "basic"
 }
 
 // ---------------------------------------------------------------------------
@@ -655,6 +659,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 
 	const stateManager = StateManager.get()
 	const globalUseAutoCondense = stateManager.getGlobalSettingsKey("useAutoCondense") ?? false
+	const compactionStrategy = resolveCompactionStrategy(stateManager.getGlobalSettingsKey("compactionStrategy"))
 	const enableCheckpoints = stateManager.getGlobalSettingsKey("enableCheckpointsSetting") ?? true
 	const useAutoCondense = input.taskSettings?.useAutoCondense ?? globalUseAutoCondense
 
@@ -699,7 +704,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 			? {
 					compaction: {
 						enabled: true,
-						strategy: "basic",
+						strategy: compactionStrategy,
 					},
 				}
 			: {}),
