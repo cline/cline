@@ -207,6 +207,33 @@ jobs:
                   fi
                   echo "Marketplace publish tokens are configured."
 
+            - name: Get Previous Tag
+              id: prev_tag
+              working-directory: ${{ github.workspace }}
+              run: |
+                  CURRENT_TAG="${{ steps.resolve_tag.outputs.tag }}"
+                  PREV_TAG=$(
+                    git tag --merged "$CURRENT_TAG^" --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname \
+                      | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.]+)?$' \
+                      | head -n 1 || true
+                  )
+                  echo "prev_tag=$PREV_TAG" >> $GITHUB_OUTPUT
+
+            - name: Get Changelog Entry
+              id: changelog
+              working-directory: ${{ github.workspace }}
+              run: |
+                  # Get content between the matching version heading and the next release heading.
+                  CONTENT=$(awk -v version="${{ steps.get_version.outputs.version }}" '
+                    $0 == "## [" version "]" { found=1; next }
+                    found && /^## \[/ { exit }
+                    found { print }
+                    END { if (!found) exit 1 }
+                  ' CHANGELOG.md)
+                  echo "content<<EOF" >> $GITHUB_OUTPUT
+                  echo "$CONTENT" >> $GITHUB_OUTPUT
+                  echo "EOF" >> $GITHUB_OUTPUT
+
             - name: Package and Publish Extension
               env:
                   VSCE_PAT: ${{ secrets.VSCE_PAT }}
@@ -246,33 +273,6 @@ jobs:
                     bun run publish:marketplace
                     echo "Successfully published release version ${{ steps.get_version.outputs.version }} to VS Code Marketplace and Open VSX Registry"
                   fi
-
-            - name: Get Previous Tag
-              id: prev_tag
-              working-directory: ${{ github.workspace }}
-              run: |
-                  CURRENT_TAG="${{ steps.resolve_tag.outputs.tag }}"
-                  PREV_TAG=$(
-                    git tag --merged "$CURRENT_TAG^" --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname \
-                      | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.]+)?$' \
-                      | head -n 1 || true
-                  )
-                  echo "prev_tag=$PREV_TAG" >> $GITHUB_OUTPUT
-
-            - name: Get Changelog Entry
-              id: changelog
-              working-directory: ${{ github.workspace }}
-              run: |
-                  # Get content between the matching version heading and the next release heading.
-                  CONTENT=$(awk -v version="${{ steps.get_version.outputs.version }}" '
-                    $0 == "## [" version "]" { found=1; next }
-                    found && /^## \[/ { exit }
-                    found { print }
-                    END { if (!found) exit 1 }
-                  ' CHANGELOG.md)
-                  echo "content<<EOF" >> $GITHUB_OUTPUT
-                  echo "$CONTENT" >> $GITHUB_OUTPUT
-                  echo "EOF" >> $GITHUB_OUTPUT
 
             - name: Create GitHub Release
               uses: softprops/action-gh-release@v1
