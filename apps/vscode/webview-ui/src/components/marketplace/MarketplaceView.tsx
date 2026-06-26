@@ -295,6 +295,16 @@ const MarketplaceStyles = () => (
 			color: var(--vscode-foreground);
 		}
 
+		.marketplace-subtab:disabled {
+			cursor: not-allowed;
+			opacity: 0.5;
+		}
+
+		.marketplace-subtab:disabled:hover {
+			background: transparent;
+			color: var(--vscode-descriptionForeground);
+		}
+
 		.marketplace-subtab[aria-selected="true"] {
 			color: var(--vscode-foreground);
 			border-bottom-color: var(--vscode-focusBorder);
@@ -979,7 +989,7 @@ const CatalogEntryRow = ({
 }
 
 const MarketplaceView = ({ initialType = "skill", onDone }: MarketplaceViewProps) => {
-	const { environment } = useExtensionState()
+	const { environment, remoteConfigSettings } = useExtensionState()
 	const [activeType, setActiveType] = useState<PrimitiveType>(initialType)
 	const [activeSection, setActiveSection] = useState<MarketplaceSectionType>("installed")
 	const [catalogEntries, setCatalogEntries] = useState<MarketplaceEntry[]>([])
@@ -1025,6 +1035,15 @@ const MarketplaceView = ({ initialType = "skill", onDone }: MarketplaceViewProps
 		setSelectedTag(null)
 		setActiveSection("installed")
 	}, [initialType])
+
+	const mcpMarketplaceDisabled = activeType === "mcp" && remoteConfigSettings?.mcpMarketplaceEnabled === false
+	const currentSection = mcpMarketplaceDisabled ? "installed" : activeSection
+
+	useEffect(() => {
+		if (mcpMarketplaceDisabled && activeSection === "marketplace") {
+			setActiveSection("installed")
+		}
+	}, [activeSection, mcpMarketplaceDisabled])
 
 	const primitive = getPrimitive(activeType)
 	const searchedCatalogEntries = useMemo(() => {
@@ -1188,9 +1207,13 @@ const MarketplaceView = ({ initialType = "skill", onDone }: MarketplaceViewProps
 		setActiveSection("installed")
 	}, [])
 
-	const handleSectionTabChange = useCallback((value: string) => {
-		setActiveSection(value as MarketplaceSectionType)
-	}, [])
+	const handleSectionTabChange = useCallback(
+		(value: string) => {
+			if (mcpMarketplaceDisabled && value === "marketplace") return
+			setActiveSection(value as MarketplaceSectionType)
+		},
+		[mcpMarketplaceDisabled],
+	)
 
 	return (
 		<Tab className="marketplace-view">
@@ -1213,9 +1236,13 @@ const MarketplaceView = ({ initialType = "skill", onDone }: MarketplaceViewProps
 							aria-label={`${primitive.title} sections`}
 							className="marketplace-subnav"
 							onValueChange={handleSectionTabChange}
-							value={activeSection}>
+							value={currentSection}>
 							{MARKETPLACE_SECTIONS.map((section) => (
-								<TabTrigger className="marketplace-subtab" key={section.type} value={section.type}>
+								<TabTrigger
+									className="marketplace-subtab"
+									disabled={mcpMarketplaceDisabled && section.type === "marketplace"}
+									key={section.type}
+									value={section.type}>
 									{section.label}
 								</TabTrigger>
 							))}
@@ -1231,7 +1258,7 @@ const MarketplaceView = ({ initialType = "skill", onDone }: MarketplaceViewProps
 							</div>
 						) : (
 							<>
-								{activeSection === "installed" &&
+								{currentSection === "installed" &&
 									(activeType === "mcp" ? (
 										<McpManagementPanel
 											marketplaceMetadataByServerName={marketplaceMcpMetadataByServerName}
@@ -1270,7 +1297,7 @@ const MarketplaceView = ({ initialType = "skill", onDone }: MarketplaceViewProps
 										</Section>
 									))}
 
-								{activeSection === "marketplace" && (
+								{currentSection === "marketplace" && (
 									<MarketplaceCatalogSection
 										count={visibleCatalogEntries.length}
 										empty={
