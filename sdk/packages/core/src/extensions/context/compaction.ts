@@ -170,7 +170,8 @@ function resolveTriggerState(input: {
 
 	if (
 		typeof input.modelMaxTokens === "number" &&
-		Number.isFinite(input.modelMaxTokens)
+		Number.isFinite(input.modelMaxTokens) &&
+		input.modelMaxTokens < input.maxInputTokens
 	) {
 		const triggerTokens = Math.max(
 			0,

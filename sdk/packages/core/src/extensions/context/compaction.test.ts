@@ -36,7 +36,7 @@ function totalJsonTokens(messages: LlmsProviders.Message[]): number {
 }
 
 describe("createTokenEstimator", () => {
-	it("uses per-message input and output token metrics when available", () => {
+	it("does not treat assistant request metrics as per-message token counts", () => {
 		const estimateMessageTokens = createTokenEstimator();
 		const message: MessageWithMetadata = {
 			role: "assistant",
@@ -47,7 +47,9 @@ describe("createTokenEstimator", () => {
 			},
 		};
 
-		expect(estimateMessageTokens(message)).toBe(19);
+		expect(estimateMessageTokens(message)).toBe(
+			Math.ceil(JSON.stringify(message).length / 3),
+		);
 	});
 
 	it("falls back to serialized character estimation when metrics are incomplete", () => {
@@ -1127,8 +1129,7 @@ describe("createContextCompactionPrepareTurn", () => {
 		const messages: MessageWithMetadata[] = [
 			{
 				role: "user",
-				content: "large prompt",
-				metrics: { inputTokens: 73_000, outputTokens: 0 },
+				content: "large prompt ".repeat(20_000),
 			},
 		];
 
@@ -1161,6 +1162,46 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(result?.messages).toEqual([
 			{ role: "user", content: "Compacted by output reserve" },
 		]);
+	});
+
+	it("falls back to the default trigger when model max output is not below input budget", async () => {
+		const compact = vi.fn((_context: CoreCompactionContext) => ({
+			messages: [{ role: "user" as const, content: "Compacted by fallback" }],
+		}));
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "openai-codex",
+			modelId: "large-output-model",
+			providerConfig: {
+				providerId: "openai-codex",
+				modelId: "large-output-model",
+			} as LlmsProviders.ProviderConfig,
+			compaction: { enabled: true, maxInputTokens: 200_000, compact },
+			logger: undefined,
+		});
+
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages: [{ role: "user", content: "small prompt" }],
+			apiMessages: [{ role: "user", content: "small prompt" }],
+			model: {
+				id: "large-output-model",
+				provider: "openai-codex",
+				info: {
+					id: "large-output-model",
+					maxInputTokens: 200_000,
+					maxTokens: 200_000,
+				},
+			},
+		});
+
+		expect(compact).not.toHaveBeenCalled();
+		expect(result).toBeUndefined();
 	});
 
 	it("triggers compaction from provider-sized tool result payloads", async () => {
