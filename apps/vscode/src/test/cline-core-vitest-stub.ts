@@ -10,6 +10,23 @@ export interface StartSessionResult {
 	sessionId: string
 }
 
+export const MAX_COMMAND_OUTPUT_CHARS = 200_000
+
+export function truncateCommandOutput(output: string): string {
+	return output
+}
+
+export function createShellExecutor() {
+	return async () => ""
+}
+
+export function createShellTool(execute: unknown) {
+	return {
+		name: "run_commands",
+		execute,
+	}
+}
+
 export interface SessionHistoryRecord {
 	id: string
 	metadata?: Record<string, unknown>
