@@ -354,19 +354,13 @@ export function ClinePassSubscriptionContent(
 	const [status, setStatus] = useState("Opening browser...");
 
 	useEffect(() => {
-		try {
-			void open(subscriptionUrl, { wait: false })
-				.then(() => {
-					setStatus("Opened subscription page in your browser.");
-				})
-				.catch(() => {
-					setStatus(
-						"Could not open browser automatically. Open the URL below.",
-					);
-				});
-		} catch {
-			setStatus("Could not open browser automatically. Open the URL below.");
-		}
+		void open(subscriptionUrl, { wait: false })
+			.then(() => {
+				setStatus("Opened subscription page in your browser.");
+			})
+			.catch(() => {
+				setStatus("Could not open browser automatically. Open the URL below.");
+			});
 	}, [subscriptionUrl]);
 
 	useDialogKeyboard((key) => {
@@ -393,7 +387,7 @@ export function ClinePassSubscriptionContent(
 			</text>
 
 			<text fg="gray">
-				<em>Enter to go back, Esc to cancel</em>
+				<em>Enter or Esc to go back</em>
 			</text>
 		</box>
 	);
