@@ -1,4 +1,5 @@
 import type * as LlmsProviders from "@cline/llms";
+import type { MessageWithMetadata } from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CoreCompactionContext } from "../../types/config";
 import { runBasicCompaction } from "./basic-compaction";
@@ -33,6 +34,37 @@ function totalJsonTokens(messages: LlmsProviders.Message[]): number {
 		0,
 	);
 }
+
+describe("createTokenEstimator", () => {
+	it("uses per-message input and output token metrics when available", () => {
+		const estimateMessageTokens = createTokenEstimator();
+		const message: MessageWithMetadata = {
+			role: "assistant",
+			content: "short",
+			metrics: {
+				inputTokens: 12,
+				outputTokens: 7,
+			},
+		};
+
+		expect(estimateMessageTokens(message)).toBe(19);
+	});
+
+	it("falls back to serialized character estimation when metrics are incomplete", () => {
+		const estimateMessageTokens = createTokenEstimator();
+		const message: MessageWithMetadata = {
+			role: "assistant",
+			content: "short",
+			metrics: {
+				inputTokens: 12,
+			},
+		};
+
+		expect(estimateMessageTokens(message)).toBe(
+			Math.ceil(JSON.stringify(message).length / 3),
+		);
+	});
+});
 
 function runForcedBasicCompaction(
 	messages: LlmsProviders.Message[],
@@ -1073,6 +1105,61 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(context?.thresholdRatio).toBe(0.9);
 		expect(result?.messages).toEqual([
 			{ role: "user", content: "Compacted by ratio" },
+		]);
+	});
+
+	it("reserves half of model max output tokens from explicit compaction input budget", async () => {
+		const compact = vi.fn((_context: CoreCompactionContext) => ({
+			messages: [
+				{ role: "user" as const, content: "Compacted by output reserve" },
+			],
+		}));
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "openai-codex",
+			modelId: "gpt-5.4-mini",
+			providerConfig: {
+				providerId: "openai-codex",
+				modelId: "gpt-5.4-mini",
+			} as LlmsProviders.ProviderConfig,
+			compaction: { enabled: true, maxInputTokens: 200_000, compact },
+			logger: undefined,
+		});
+		const messages: MessageWithMetadata[] = [
+			{
+				role: "user",
+				content: "large prompt",
+				metrics: { inputTokens: 137_000, outputTokens: 0 },
+			},
+		];
+
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages,
+			apiMessages: messages,
+			model: {
+				id: "gpt-5.4-mini",
+				provider: "openai-codex",
+				info: {
+					id: "gpt-5.4-mini",
+					maxInputTokens: 200_000,
+					maxTokens: 128_000,
+				},
+			},
+		});
+
+		expect(compact).toHaveBeenCalledTimes(1);
+		const context = compact.mock.calls[0]?.[0];
+		expect(context?.maxInputTokens).toBe(200_000);
+		expect(context?.triggerTokens).toBe(136_000);
+		expect(context?.thresholdRatio).toBe(0.68);
+		expect(result?.messages).toEqual([
+			{ role: "user", content: "Compacted by output reserve" },
 		]);
 	});
 

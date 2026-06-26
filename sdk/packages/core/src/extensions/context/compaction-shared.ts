@@ -143,6 +143,17 @@ export function serializeConversation(messages: MessageWithMetadata[]): string {
 export function createTokenEstimator(): EstimateMessageTokens {
 	const cache = new WeakMap<object, number>();
 	return (message) => {
+		const inputTokens = message.metrics?.inputTokens;
+		const outputTokens = message.metrics?.outputTokens;
+		if (
+			typeof inputTokens === "number" &&
+			Number.isFinite(inputTokens) &&
+			typeof outputTokens === "number" &&
+			Number.isFinite(outputTokens)
+		) {
+			return Math.max(1, Math.ceil(inputTokens + outputTokens));
+		}
+
 		const ref = message as unknown as object;
 		const cached = cache.get(ref);
 		if (typeof cached === "number") {

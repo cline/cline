@@ -144,6 +144,7 @@ const BUILTIN_COMPACTION_STRATEGIES = {
 function resolveTriggerState(input: {
 	inputTokens: number;
 	maxInputTokens: number;
+	modelMaxTokens?: number;
 	config: CoreCompactionConfig;
 }): { shouldCompact: boolean; triggerTokens: number; thresholdRatio: number } {
 	if (typeof input.config.reserveTokens === "number") {
@@ -157,13 +158,25 @@ function resolveTriggerState(input: {
 		};
 	}
 
-	if (typeof input.config.thresholdRatio !== "number") {
+	if (typeof input.config.thresholdRatio === "number") {
+		const thresholdRatio = input.config.thresholdRatio;
+		const triggerTokens = input.maxInputTokens * thresholdRatio;
+		return {
+			shouldCompact: input.inputTokens > triggerTokens,
+			triggerTokens,
+			thresholdRatio,
+		};
+	}
+
+	if (
+		typeof input.config.maxInputTokens === "number" &&
+		Number.isFinite(input.config.maxInputTokens) &&
+		typeof input.modelMaxTokens === "number" &&
+		Number.isFinite(input.modelMaxTokens)
+	) {
 		const triggerTokens = Math.max(
 			0,
-			Math.min(
-				input.maxInputTokens - DEFAULT_RESERVE_TOKENS,
-				input.maxInputTokens * DEFAULT_THRESHOLD_RATIO,
-			),
+			input.config.maxInputTokens - input.modelMaxTokens / 2,
 		);
 		return {
 			shouldCompact: input.inputTokens > triggerTokens,
@@ -173,12 +186,18 @@ function resolveTriggerState(input: {
 		};
 	}
 
-	const thresholdRatio = input.config.thresholdRatio ?? DEFAULT_THRESHOLD_RATIO;
-	const triggerTokens = input.maxInputTokens * thresholdRatio;
+	const triggerTokens = Math.max(
+		0,
+		Math.min(
+			input.maxInputTokens - DEFAULT_RESERVE_TOKENS,
+			input.maxInputTokens * DEFAULT_THRESHOLD_RATIO,
+		),
+	);
 	return {
 		shouldCompact: input.inputTokens > triggerTokens,
 		triggerTokens,
-		thresholdRatio,
+		thresholdRatio:
+			input.maxInputTokens > 0 ? triggerTokens / input.maxInputTokens : 0,
 	};
 }
 
@@ -280,7 +299,9 @@ export function createContextCompactionPrepareTurn(
 		const triggerState = resolveTriggerState({
 			inputTokens,
 			maxInputTokens,
+			modelMaxTokens: context.model.info?.maxTokens,
 			config: {
+				maxInputTokens: userCompaction?.maxInputTokens,
 				reserveTokens: userCompaction?.reserveTokens,
 				thresholdRatio: userCompaction?.thresholdRatio,
 			},
