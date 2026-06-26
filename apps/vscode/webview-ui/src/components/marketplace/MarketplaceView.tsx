@@ -180,34 +180,40 @@ const MarketplaceStyles = () => (
 		.marketplace-shell {
 			min-height: 0;
 			display: flex;
+			flex-direction: column;
 			flex: 1;
 		}
 
 		.marketplace-nav {
-			width: 148px;
-			flex: 0 0 148px;
-			overflow-y: auto;
-			border-right: 1px solid var(--vscode-panel-border);
+			flex: 0 0 auto;
+			display: flex;
+			align-items: center;
+			min-width: 0;
+			overflow-x: auto;
+			overflow-y: hidden;
+			border-bottom: 1px solid var(--vscode-panel-border);
 			background: var(--vscode-sideBar-background);
-			padding: 4px 0;
+			padding: 0 8px;
 		}
 
 		.marketplace-tab {
-			width: 100%;
+			width: auto;
+			flex: 0 1 auto;
+			min-width: fit-content;
 			height: 34px;
 			border: 0;
-			border-left: 2px solid transparent;
+			border-bottom: 2px solid transparent;
 			background: transparent;
 			color: var(--vscode-descriptionForeground);
 			font: inherit;
 			font-size: var(--vscode-font-size);
 			display: flex;
 			align-items: center;
+			justify-content: center;
 			gap: 8px;
-			padding: 0 10px;
-			text-align: left;
+			padding: 0 12px;
+			text-align: center;
 			cursor: pointer;
-			min-width: 0;
 		}
 
 		.marketplace-tab:hover {
@@ -218,7 +224,7 @@ const MarketplaceStyles = () => (
 		.marketplace-tab[aria-selected="true"] {
 			background: var(--vscode-list-activeSelectionBackground);
 			color: var(--vscode-list-activeSelectionForeground);
-			border-left-color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
+			border-bottom-color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
 		}
 
 		.marketplace-tab-label {
@@ -619,35 +625,15 @@ const MarketplaceStyles = () => (
 		}
 
 		@media (max-width: 520px) {
-			.marketplace-shell {
-				flex-direction: column;
-			}
-
 			.marketplace-nav {
-				width: auto;
-				flex: 0 0 auto;
-				display: flex;
-				flex-wrap: nowrap;
-				overflow: visible;
-				border-right: 0;
-				border-bottom: 1px solid var(--vscode-panel-border);
 				padding: 0 4px;
 			}
 
 			.marketplace-tab {
-				width: auto;
 				flex: 1 1 0;
 				min-width: 0;
-				justify-content: center;
-				border-left: 0;
-				border-bottom: 2px solid transparent;
 				gap: 5px;
 				padding: 0 6px;
-			}
-
-			.marketplace-tab[aria-selected="true"] {
-				border-bottom-color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
-				border-left-color: transparent;
 			}
 
 			.marketplace-inner {
@@ -963,7 +949,6 @@ const CatalogEntryRow = ({
 		<div className="marketplace-row">
 			<div className="marketplace-row-main">
 				<div className="marketplace-row-title">
-					{installed && <CheckIcon aria-hidden className="h-3.5 w-3.5" />}
 					<span className="marketplace-row-name">{entry.name || entry.id}</span>
 				</div>
 				{(entry.description || entry.tagline) && (
