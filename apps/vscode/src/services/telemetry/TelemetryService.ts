@@ -1386,6 +1386,8 @@ export class TelemetryService {
 		provider?: string
 		errorStatus?: number | undefined
 		requestId?: string | undefined
+		errorType?: string | undefined
+		failurePhase?: string | undefined
 		isNativeToolCall?: boolean
 	}) {
 		this.capture({
@@ -1402,12 +1404,16 @@ export class TelemetryService {
 			model: args.model,
 			provider: args.provider,
 			error_status: args.errorStatus,
+			error_type: args.errorType,
+			failure_phase: args.failurePhase,
 		})
 		const errorAttributes = {
 			ulid: args.ulid,
 			model: args.model,
 			provider: args.provider,
 			error_status: args.errorStatus,
+			error_type: args.errorType,
+			failure_phase: args.failurePhase,
 		}
 		const errorCount = this.incrementTaskCounter(this.taskErrorCounts, args.ulid)
 		this.recordHistogram(TelemetryService.METRICS.ERRORS.PER_TASK, errorCount, errorAttributes)

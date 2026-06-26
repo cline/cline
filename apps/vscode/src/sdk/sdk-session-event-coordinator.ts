@@ -18,6 +18,17 @@ function normalizeModelId(modelId: string): string {
 	return modelId.trim().toLowerCase()
 }
 
+type ProviderFailurePhase = "streaming"
+
+type ProviderFailureTelemetry = {
+	sessionId: string
+	error: unknown
+	errorType: string
+	failurePhase: ProviderFailurePhase
+}
+
+type AgentFailureTelemetry = Pick<ProviderFailureTelemetry, "sessionId" | "error" | "errorType"> | undefined
+
 export interface SdkSessionEventCoordinatorOptions {
 	messageTranslatorState: MessageTranslatorState
 	sessions: SdkSessionLifecycle
@@ -37,6 +48,7 @@ export interface SdkSessionEventCoordinatorOptions {
 	 * error. Optional for tests.
 	 */
 	setTurnPhase?: (phase: TurnPhase, anchorTs?: number) => void
+	captureProviderApiError?: (event: ProviderFailureTelemetry) => void
 }
 
 export class SdkSessionEventCoordinator {
@@ -64,6 +76,15 @@ export class SdkSessionEventCoordinator {
 		}
 
 		const result = this.translateSessionEvent(event, this.options.messageTranslatorState)
+		const agentFailure = this.getAgentFailureTelemetry(event)
+		if (agentFailure && !this.options.messageTranslatorState.isSuppressedToolApprovalDenial(agentFailure.error)) {
+			this.options.captureProviderApiError?.({
+				sessionId: agentFailure.sessionId,
+				error: agentFailure.error,
+				errorType: agentFailure.errorType,
+				failurePhase: "streaming",
+			})
+		}
 		if (event.type === "pending_prompt_submitted") {
 			this.options.messageTranslatorState.clearTurnOutcome()
 			this.options.sessions.setRunning(true)
@@ -145,6 +166,32 @@ export class SdkSessionEventCoordinator {
 				Logger.error("[SdkController] Failed to post state after event:", err)
 			})
 		}
+	}
+
+	private getAgentFailureTelemetry(event: CoreSessionEvent): AgentFailureTelemetry {
+		if (event.type !== "agent_event") {
+			return undefined
+		}
+
+		const agentEvent = event.payload.event as { type?: string; error?: unknown; reason?: string; text?: unknown }
+		if (agentEvent.type === "error") {
+			return {
+				sessionId: event.payload.sessionId,
+				error: agentEvent.error,
+				errorType: "sdk_agent_error",
+			}
+		}
+		if (agentEvent.type === "done" && agentEvent.reason === "error") {
+			return {
+				sessionId: event.payload.sessionId,
+				error:
+					typeof agentEvent.text === "string" && agentEvent.text.trim()
+						? agentEvent.text
+						: "SDK agent finished with error",
+				errorType: "sdk_agent_done_error",
+			}
+		}
+		return undefined
 	}
 
 	private zeroCostForFreeClineModel(result: TranslationResult): Promise<void> | undefined {

@@ -288,6 +288,8 @@ describe("TelemetryService metrics", () => {
 			errorMessage: "boom",
 			provider: "anthropic",
 			errorStatus: 500,
+			errorType: "sdk_agent_done_error",
+			failurePhase: "streaming",
 		})
 
 		assert.strictEqual(provider.counters.length, 1)
@@ -298,6 +300,8 @@ describe("TelemetryService metrics", () => {
 		assert.strictEqual(entry.attributes.provider, "anthropic")
 		assert.strictEqual(entry.attributes.model, "claude")
 		assert.strictEqual(entry.attributes.error_status, 500)
+		assert.strictEqual(entry.attributes.error_type, "sdk_agent_done_error")
+		assert.strictEqual(entry.attributes.failure_phase, "streaming")
 		assert.strictEqual(provider.histograms.length, 1)
 		const errorHistogram = provider.histograms[0]
 		assert.strictEqual(errorHistogram.name, TelemetryService.METRICS.ERRORS.PER_TASK)
@@ -306,6 +310,8 @@ describe("TelemetryService metrics", () => {
 		assert.strictEqual(errorHistogram.attributes.provider, "anthropic")
 		assert.strictEqual(errorHistogram.attributes.model, "claude")
 		assert.strictEqual(errorHistogram.attributes.error_status, 500)
+		assert.strictEqual(errorHistogram.attributes.error_type, "sdk_agent_done_error")
+		assert.strictEqual(errorHistogram.attributes.failure_phase, "streaming")
 	})
 
 	it("captureTaskCompleted records completion payload with TTFT and duration histograms", () => {

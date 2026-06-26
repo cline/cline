@@ -19,6 +19,15 @@ type StartInput = Parameters<VscodeSessionHost["start"]>[0]
 type InitialMessages = StartInput["initialMessages"]
 type SessionConfig = Awaited<ReturnType<SdkSessionConfigBuilder["build"]>>
 
+type TaskStartFailureTelemetry = {
+	sessionId?: string
+	error: unknown
+	providerId?: string
+	modelId?: string
+	errorType: string
+	failurePhase: "preflight"
+}
+
 function usesClineAccountAuth(providerId: string): boolean {
 	return getProviderAuthStorageId(providerId) === "cline"
 }
@@ -52,6 +61,7 @@ export interface SdkTaskStartCoordinatorOptions {
 	resolveContextMentions: (text: string) => Promise<string>
 	isClineProviderActive: () => boolean
 	emitClineAuthError: (task?: string) => void
+	captureProviderApiError?: (event: TaskStartFailureTelemetry) => void
 	postStateToWebview: () => Promise<void>
 }
 
@@ -67,6 +77,8 @@ export class SdkTaskStartCoordinator {
 	): Promise<string | undefined> {
 		Logger.log(`[SdkController] initTask called: "${prompt?.substring(0, 50)}"`)
 		let taskSessionId: string | undefined
+		let providerId: string | undefined
+		let modelId: string | undefined
 		try {
 			await this.options.clearTask()
 
@@ -82,6 +94,8 @@ export class SdkTaskStartCoordinator {
 				cwd,
 				mode,
 			})
+			providerId = config.providerId
+			modelId = config.modelId
 
 			Logger.log(
 				`[SdkController] Session config: provider=${config.providerId}, model=${config.modelId}, hasApiKey=${!!config.apiKey}`,
@@ -141,6 +155,14 @@ export class SdkTaskStartCoordinator {
 			Logger.log(`[SdkController] Task initialized: ${taskSessionId}`)
 			return taskSessionId
 		} catch (error) {
+			this.options.captureProviderApiError?.({
+				sessionId: taskSessionId,
+				error,
+				providerId,
+				modelId,
+				errorType: "task_init",
+				failurePhase: "preflight",
+			})
 			this.handleInitError(error, taskSessionId)
 			await this.options.postStateToWebview().catch((postError) => {
 				Logger.error("[SdkController] Failed to post state after init error:", postError)

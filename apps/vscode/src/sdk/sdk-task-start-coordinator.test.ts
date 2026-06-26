@@ -86,12 +86,21 @@ describe("SdkTaskStartCoordinator", () => {
 
 	it("emits a plain chat error when session start fails (e.g. provider misconfigured)", async () => {
 		const { coordinator, options, state } = makeCoordinator()
-		options.sessions.startNewSession.mockRejectedValue(new Error("No model configured for provider openai"))
+		const error = new Error("No model configured for provider openai")
+		options.sessions.startNewSession.mockRejectedValue(error)
 
 		const sessionId = await coordinator.initTask("do something")
 
 		expect(sessionId).toBeUndefined()
 		expect(options.emitClineAuthError).not.toHaveBeenCalled()
+		expect(options.captureProviderApiError).toHaveBeenCalledWith({
+			sessionId: state.task?.taskId,
+			error,
+			providerId: "anthropic",
+			modelId: "model",
+			errorType: "task_init",
+			failurePhase: "preflight",
+		})
 		expect(state.task?.taskId).toEqual(expect.any(String))
 		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
 			[
@@ -242,6 +251,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		resolveContextMentions: vi.fn(async (text: string) => `resolved: ${text}`),
 		isClineProviderActive: vi.fn(() => false),
 		emitClineAuthError: vi.fn(),
+		captureProviderApiError: vi.fn(),
 		postStateToWebview: vi.fn().mockResolvedValue(undefined),
 	} as unknown as SdkTaskStartCoordinatorOptions & {
 		sessions: SdkTaskStartCoordinatorOptions["sessions"] & {
@@ -266,6 +276,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		resolveContextMentions: ReturnType<typeof vi.fn>
 		isClineProviderActive: ReturnType<typeof vi.fn>
 		emitClineAuthError: ReturnType<typeof vi.fn>
+		captureProviderApiError: ReturnType<typeof vi.fn>
 		postStateToWebview: ReturnType<typeof vi.fn>
 	}
 
