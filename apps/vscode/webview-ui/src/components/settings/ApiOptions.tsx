@@ -1,9 +1,8 @@
 import { StringRequest } from "@shared/proto/cline/common"
-import PROVIDERS from "@shared/providers/providers.json"
-import { Mode } from "@shared/storage/types"
+import type { Mode } from "@shared/storage/types"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
-import { KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useInterval } from "react-use"
 import styled from "styled-components"
 
@@ -37,7 +36,12 @@ import { OpenAICompatibleProvider } from "./providers/OpenAICompatible"
 import { OpenAINativeProvider } from "./providers/OpenAINative"
 import { OpenAiCodexProvider } from "./providers/OpenAiCodexProvider"
 import { OpenRouterProvider } from "./providers/OpenRouterProvider"
-import { getFallbackGenericProviderSettings, getGenericProviderSettings } from "./providers/providerSettingsRegistry"
+import {
+	getFallbackGenericProviderSettings,
+	getGenericProviderSettings,
+	hasCustomProviderSettings,
+	isKnownGenericProvider,
+} from "./providers/providerSettingsRegistry"
 import { QwenCodeProvider } from "./providers/QwenCodeProvider"
 import { QwenProvider } from "./providers/QwenProvider"
 import { RequestyProvider } from "./providers/RequestyProvider"
@@ -103,9 +107,16 @@ const ApiOptions = ({
 		() => catalogProviderListings.find((provider) => provider.id === selectedProvider),
 		[catalogProviderListings, selectedProvider],
 	)
-	const genericProviderSettings =
-		getGenericProviderSettings(selectedProvider, catalogProviderListing) ??
-		getFallbackGenericProviderSettings(selectedProvider)
+	// A provider is custom/unknown when we ship neither a dedicated settings
+	// component nor a curated generic form for it. These are edited through the
+	// OpenAI-compatible form so they always get Base URL, Custom Headers, Model
+	// Configuration and Reasoning Effort sections — regardless of whether the id
+	// happens to appear in providers.json.
+	const isCustomProvider = !hasCustomProviderSettings(selectedProvider) && !isKnownGenericProvider(selectedProvider)
+	const genericProviderSettings = isCustomProvider
+		? undefined
+		: (getGenericProviderSettings(selectedProvider, catalogProviderListing) ??
+			getFallbackGenericProviderSettings(selectedProvider))
 
 	const { handleModeFieldChange } = useApiConfigurationHandlers()
 
@@ -145,7 +156,13 @@ const ApiOptions = ({
 	const dropdownListRef = useRef<HTMLDivElement>(null)
 
 	const providerOptions = useMemo(() => {
-		let providers = PROVIDERS.list
+		// Source the list from the live SDK provider catalog (same data the
+		// hub client uses) so user-configured/custom providers appear too,
+		// instead of a static hand-maintained list.
+		let providers = catalogProviderListings.map((provider) => ({
+			value: provider.id,
+			label: provider.name,
+		}))
 		if (!isClinePassEnabled) {
 			providers = providers.filter((option) => option.value !== "cline-pass")
 		}
@@ -162,7 +179,7 @@ const ApiOptions = ({
 		}
 
 		return providers
-	}, [isClinePassEnabled, remoteConfigSettings])
+	}, [catalogProviderListings, isClinePassEnabled, remoteConfigSettings])
 
 	const currentProviderLabel = useMemo(() => {
 		return providerOptions.find((option) => option.value === selectedProvider)?.label || selectedProvider
@@ -275,7 +292,13 @@ const ApiOptions = ({
 	*/
 
 	return (
-		<div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: isPopup ? -10 : 0 }}>
+		<div
+			style={{
+				display: "flex",
+				flexDirection: "column",
+				gap: 5,
+				marginBottom: isPopup ? -10 : 0,
+			}}>
 			<style>
 				{`
 				.provider-item-highlight {
@@ -421,10 +444,6 @@ const ApiOptions = ({
 				/>
 			)}
 
-			{apiConfiguration && selectedProvider === "openai" && (
-				<OpenAICompatibleProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
 			{apiConfiguration && selectedProvider === "vercel-ai-gateway" && !genericProviderSettings && (
 				<VercelAIGatewayProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
@@ -489,6 +508,15 @@ const ApiOptions = ({
 
 			{apiConfiguration && selectedProvider === "aihubmix" && (
 				<AIhubmixProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+			)}
+
+			{apiConfiguration && (selectedProvider.includes("openai") || isCustomProvider) && (
+				<OpenAICompatibleProvider
+					currentMode={currentMode}
+					isPopup={isPopup}
+					providerId={selectedProvider}
+					showModelOptions={showModelOptions}
+				/>
 			)}
 
 			{apiErrorMessage && (
