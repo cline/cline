@@ -6,9 +6,8 @@
 //
 //   1. Read the active session's transcript.
 //   2. Run a manual SDK compaction over it (sdk-compaction.ts).
-//   3. Restart the session with the compacted messages as initialMessages, so
-//      the model's working context is actually reduced (reusing the mode-rebuild
-//      replaceActiveSession path, which lazily persists on the next turn).
+//   3. Persist the SDK compaction sidecar and restart the session with that
+//      same state so resumes keep using the compacted working context.
 //
 // Before this, the VSCode button sent the literal text "/compact" to the model,
 // which the SDK does not treat as a runtime command, so the model improvised a
@@ -120,15 +119,29 @@ export class SdkCompactionCoordinator {
 			return
 		}
 
-		// Restart the session with the compacted transcript. Reusing the
+		if (!result.compactionState) {
+			throw new Error("Compaction did not return durable state.")
+		}
+		if (!sdkHost.updateSessionCompactionState) {
+			throw new Error("Compaction sidecar persistence is unavailable.")
+		}
+		const persisted = await sdkHost.updateSessionCompactionState(sessionId, result.compactionState)
+		if (!persisted.updated) {
+			throw new Error("Compaction sidecar could not be persisted.")
+		}
+
+		// Restart with canonical messages plus the sidecar state. Reusing the
 		// sessionId keeps the task identity (history item, task header) stable;
 		// replaceActiveSession waits for the old session's stop before starting
 		// the replacement (same sequencing as a mode rebuild).
 		config.sessionId = sessionId
-		const startInput = this.options.buildStartSessionInput(config, { cwd, mode })
+		const startInput = {
+			...this.options.buildStartSessionInput(config, { cwd, mode }),
+			initialCompactionState: result.compactionState,
+		}
 		const rebuildResult = await this.options.sessions.replaceActiveSession({
 			startInput,
-			initialMessages: result.messages as InitialMessages,
+			initialMessages: messages as InitialMessages,
 			disposeReason: "compactTask",
 		})
 		if (!rebuildResult) {
