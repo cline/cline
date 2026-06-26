@@ -96,6 +96,35 @@ describe("cline-pass builtin spec", () => {
 	});
 });
 
+describe("opencode builtin models", () => {
+	it("exposes the generated OpenCode catalog so the CLI picker has real choices", async () => {
+		const models = await getModelsForProvider("opencode");
+		const provider = await getProvider("opencode");
+
+		// Regression guard: the bug yielded length 1 (a synthetic echo of the
+		// default model via the fallback path), so assert > 1 — not > 0.
+		expect(Object.keys(models).length).toBeGreaterThan(1);
+
+		// OpenCode is a multi-vendor aggregator; its models.dev ids are bare
+		// (no `vendor/` prefix) and include non-OpenAI vendors.
+		expect(models).toHaveProperty("gpt-5.4");
+		expect(models).toHaveProperty("deepseek-v4-pro");
+
+		// The default must resolve to a real catalog entry, not the synthetic
+		// fallback (whose name would equal its id). Asserting name !== id keeps
+		// this resilient to upstream catalog renames.
+		const defaultModel = models[provider?.defaultModelId ?? ""];
+		expect(defaultModel).toBeDefined();
+		expect(defaultModel?.name).not.toBe(defaultModel?.id);
+
+		for (const model of Object.values(models)) {
+			expect(model.id.length).toBeGreaterThan(0);
+			expect(model.name?.length ?? 0).toBeGreaterThan(0);
+			expect(model.capabilities).toEqual(expect.arrayContaining(["tools"]));
+		}
+	});
+});
+
 describe("built-in provider metadata", () => {
 	it("marks popular providers with a provider capability and rank", async () => {
 		await expect(getProvider("cline")).resolves.toMatchObject({
