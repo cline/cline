@@ -490,6 +490,27 @@ export {
 	writeGlobalSettings,
 } from "./services/global-settings";
 export type {
+	McpInstallOptions,
+	McpInstallResult,
+} from "./services/mcp-install";
+export {
+	buildMcpInstallTransport,
+	installMcpServer,
+} from "./services/mcp-install";
+export type {
+	ParsedPluginSource,
+	PluginInstallOptions,
+	PluginInstallResult,
+	PluginInstallSourceType,
+	PluginMcpOAuthCandidate,
+} from "./services/plugin-install";
+export {
+	collectPluginMcpOAuthCandidates,
+	installPlugin,
+	isOfficialPluginSlug,
+	parsePluginSource,
+} from "./services/plugin-install";
+export type {
 	PluginMcpSettingsMutation,
 	PluginMcpSettingsSyncResult,
 	RemovePluginMcpServersFromSettingsOptions,
