@@ -59,6 +59,12 @@ export interface ExtensionState {
 	 */
 	turnState?: TurnState
 	/**
+	 * Follow-up prompts submitted while the active agent turn is still running.
+	 * These are owned by the SDK pending-prompt queue and are sent after the
+	 * current turn reaches a safe continuation point.
+	 */
+	queuedPrompts?: QueuedPrompt[]
+	/**
 	 * Monotonic version of this state snapshot. The webview applies a snapshot only if its
 	 * stateVersion is newer than the last applied, so stale/out-of-order state pushes are
 	 * ignored. Stamped by the extension. Optional for classic/legacy.
@@ -104,7 +110,6 @@ export interface ExtensionState {
 	yoloModeToggled?: boolean
 	useAutoCondense?: boolean
 	subagentsEnabled?: boolean
-	clineWebToolsEnabled?: ClineFeatureSetting
 	worktreesEnabled?: ClineFeatureSetting
 	customPrompt?: string
 	favoritedModelIds: string[]
@@ -121,11 +126,8 @@ export interface ExtensionState {
 	remoteConfigSettings?: Partial<RemoteConfigFields>
 	globalSkillsToggles?: Record<string, boolean>
 	localSkillsToggles?: Record<string, boolean>
-	nativeToolCallSetting?: boolean
-	enableParallelToolCalling?: boolean
 	backgroundEditEnabled?: boolean
 	optOutOfRemoteConfig?: boolean
-	doubleCheckCompletionEnabled?: boolean
 	showFeatureTips?: boolean
 	banners?: BannerCardData[]
 	welcomeBanners?: BannerCardData[]
@@ -151,6 +153,13 @@ export interface TurnState {
 	anchorTs?: number
 	/** Monotonic; the webview keeps the highest-seq TurnState and ignores older ones. */
 	seq: number
+}
+
+export interface QueuedPrompt {
+	id: string
+	prompt: string
+	delivery: "queue" | "steer"
+	attachmentCount: number
 }
 
 export interface ClineMessage {

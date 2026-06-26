@@ -2,7 +2,13 @@
  * Utility functions for message filtering, grouping, and manipulation
  */
 
-import type { ClineMessage, ClineSayBrowserAction, ClineSayTool } from "@shared/ExtensionMessage"
+import type {
+	ClineAskQuestion,
+	ClineMessage,
+	ClinePlanModeResponse,
+	ClineSayBrowserAction,
+	ClineSayTool,
+} from "@shared/ExtensionMessage"
 import { FileIcon, FolderOpenDotIcon, FolderOpenIcon, SearchIcon, ShapesIcon, WrenchIcon } from "lucide-react"
 
 /**
@@ -35,7 +41,73 @@ export function isLowStakesTool(message: ClineMessage): boolean {
  * Check if a message group is a tool group (array with _isToolGroup marker)
  */
 export function isToolGroup(item: ClineMessage | ClineMessage[]): item is ClineMessage[] & { _isToolGroup: true } {
-	return Array.isArray(item) && (item as any)._isToolGroup === true
+	return Array.isArray(item) && (item as ClineMessage[] & { _isToolGroup?: boolean })._isToolGroup === true
+}
+
+function isDuplicateAskOptionEcho(message: ClineMessage, previousMessage: ClineMessage | undefined): boolean {
+	if (
+		message.type !== "say" ||
+		message.say !== "user_feedback" ||
+		(message.images?.length ?? 0) > 0 ||
+		(message.files?.length ?? 0) > 0 ||
+		previousMessage?.type !== "ask" ||
+		(previousMessage.ask !== "followup" && previousMessage.ask !== "plan_mode_respond")
+	) {
+		return false
+	}
+
+	const responseText = message.text ?? ""
+	if (!responseText) {
+		return false
+	}
+
+	try {
+		const parsed = JSON.parse(previousMessage.text || "{}") as ClineAskQuestion | ClinePlanModeResponse
+		if (!parsed.options?.includes(responseText)) {
+			return false
+		}
+
+		return parsed.selected === undefined || parsed.selected === responseText
+	} catch {
+		return false
+	}
+}
+
+function isVisibleCheckpointUserMessage(message: ClineMessage): boolean {
+	return message.type === "say" && (message.say === "task" || message.say === "user_feedback")
+}
+
+function isCheckpointAnswerMessage(messages: ClineMessage[], index: number): boolean {
+	const message = messages[index]
+	if (message?.type !== "say" || message.say !== "user_feedback") {
+		return false
+	}
+
+	for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
+		const previous = messages[cursor]
+		if (previous.say === "checkpoint_created") {
+			continue
+		}
+		if (previous.type === "ask") {
+			return previous.ask === "followup" || previous.ask === "mistake_limit_reached"
+		}
+		if (isVisibleCheckpointUserMessage(previous)) {
+			return false
+		}
+	}
+
+	return false
+}
+
+export function canRestoreWorkspaceFromMessage(messages: ClineMessage[], messageTs: number | undefined): boolean {
+	if (messageTs === undefined) {
+		return false
+	}
+	const index = messages.findIndex((message) => message.ts === messageTs)
+	if (index === -1) {
+		return false
+	}
+	return isVisibleCheckpointUserMessage(messages[index]) && !isCheckpointAnswerMessage(messages, index)
 }
 
 /**
@@ -43,6 +115,10 @@ export function isToolGroup(item: ClineMessage | ClineMessage[]): item is ClineM
  */
 export function filterVisibleMessages(messages: ClineMessage[]): ClineMessage[] {
 	return messages.filter((message, index, arr) => {
+		if (isDuplicateAskOptionEcho(message, arr[index - 1])) {
+			return false
+		}
+
 		switch (message.ask) {
 			case "completion_result":
 				// don't show a chat row for a completion_result ask without text. This specific type of message only occurs if cline wants to execute a command as part of its completion result, in which case we interject the completion_result tool with the execute_command tool.
@@ -66,6 +142,7 @@ export function filterVisibleMessages(messages: ClineMessage[]): ClineMessage[] 
 			case "deleted_api_reqs": // aggregated api_req metrics from deleted messages
 			case "subagent_usage": // aggregated subagent usage metrics for task-level accounting
 			case "task_progress": // task progress messages are displayed in TaskHeader, not in main chat
+			case "checkpoint_created": // checkpoint restore is exposed from user-message edit controls
 				return false
 			// NOTE: reasoning passes through to be included in tool groups
 			case "api_req_started": {
@@ -105,7 +182,7 @@ export function filterVisibleMessages(messages: ClineMessage[]): ClineMessage[] 
  */
 function isBrowserSessionMessage(message: ClineMessage): boolean {
 	if (message.type === "ask") {
-		return ["browser_action_launch"].includes(message.ask!)
+		return message.ask === "browser_action_launch"
 	}
 	if (message.type === "say") {
 		return [
@@ -114,10 +191,9 @@ function isBrowserSessionMessage(message: ClineMessage): boolean {
 			"text",
 			"browser_action",
 			"browser_action_result",
-			"checkpoint_created",
 			"reasoning",
 			"error_retry",
-		].includes(message.say!)
+		].includes(message.say ?? "")
 	}
 	return false
 }
@@ -412,11 +488,6 @@ export function isApiReqAbsorbable(apiReqTs: number, allMessages: ClineMessage[]
 			continue
 		}
 
-		// Checkpoints do not affect absorbability
-		if (msg.say === "checkpoint_created") {
-			continue
-		}
-
 		// Text is allowed (we still want to absorb api_req into the tool group)
 		if (msg.say === "text") {
 			continue
@@ -468,10 +539,6 @@ function isApiReqFollowedOnlyByLowStakesTools(index: number, messages: (ClineMes
 			hasLowStakesTool = true
 			continue
 		}
-		// Checkpoint is OK
-		if (msg.say === "checkpoint_created") {
-			continue
-		}
 		// Text is OK - it will render separately, but we still absorb api_req
 		if (msg.say === "text") {
 			continue
@@ -501,8 +568,12 @@ export function groupLowStakesTools(groupedMessages: (ClineMessage | ClineMessag
 	const pendingTools: ClineMessage[] = []
 
 	const flushPending = () => {
-		pendingApiReq.forEach((m) => result.push(m))
-		pendingReasoning.forEach((m) => result.push(m))
+		pendingApiReq.forEach((m) => {
+			result.push(m)
+		})
+		pendingReasoning.forEach((m) => {
+			result.push(m)
+		})
 		pendingApiReq = []
 		pendingReasoning = []
 	}
@@ -579,12 +650,6 @@ export function groupLowStakesTools(groupedMessages: (ClineMessage | ClineMessag
 				flushPending()
 				result.push(message)
 			}
-			continue
-		}
-
-		// Checkpoint - absorb into active tool group
-		if (messageType === "checkpoint_created" && hasTools) {
-			toolGroup.push(message)
 			continue
 		}
 

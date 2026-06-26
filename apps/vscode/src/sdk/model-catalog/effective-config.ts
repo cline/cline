@@ -112,11 +112,6 @@ const extrasFields: Partial<Record<string, Partial<Record<string, keyof ApiConfi
 		awsProfile: "awsProfile",
 		awsUseProfile: "awsUseProfile",
 	},
-	sapaicore: {
-		sapAiCoreTokenUrl: "sapAiCoreTokenUrl",
-		sapAiCoreUseOrchestrationMode: "sapAiCoreUseOrchestrationMode",
-		sapAiResourceGroup: "sapAiResourceGroup",
-	},
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {

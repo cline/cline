@@ -17,7 +17,6 @@ import { getDistinctId } from "./services/logging/distinctId"
 import { telemetryService } from "./services/telemetry"
 import { PostHogClientProvider } from "./services/telemetry/providers/posthog/PostHogClientProvider"
 import { ClineTempManager } from "./services/temp"
-import { cleanupTestMode } from "./services/test/TestMode"
 import { ShowMessageType } from "./shared/proto/host/window"
 import { syncWorker } from "./shared/services/worker/sync"
 import { getBlobStoreSettingsFromEnv } from "./shared/services/worker/worker"
@@ -154,23 +153,28 @@ async function checkWorktreeAutoOpen(stateManager: StateManager): Promise<void> 
  * Performs cleanup when Cline is deactivated that is common to all platforms.
  */
 export async function tearDown(): Promise<void> {
-	AgentConfigLoader.getInstance()?.dispose()
-	PostHogClientProvider.getInstance().dispose()
-	telemetryService.dispose()
-	ErrorService.get().dispose()
-	featureFlagsService.dispose()
-	// Dispose all webview instances
-	await WebviewProvider.disposeAllInstances()
-	syncWorker().dispose()
-	clearOnboardingModelsCache()
+	try {
+		AgentConfigLoader.getInstance()?.dispose()
+		PostHogClientProvider.getInstance().dispose()
+		telemetryService.dispose()
+		ErrorService.get().dispose()
+		featureFlagsService.dispose()
+		// Dispose all webview instances
+		await WebviewProvider.disposeAllInstances()
+		syncWorker().dispose()
+		clearOnboardingModelsCache()
 
-	// Kill any running hook processes to prevent zombies
-	await HookProcessRegistry.terminateAll()
-	// Clean up hook discovery cache
-	HookDiscoveryCache.getInstance().dispose()
-	// Stop periodic temp file cleanup
-	ClineTempManager.stopPeriodicCleanup()
-
-	// Clean up test mode
-	cleanupTestMode()
+		// Kill any running hook processes to prevent zombies
+		await HookProcessRegistry.terminateAll()
+		// Clean up hook discovery cache
+		HookDiscoveryCache.getInstance().dispose()
+		// Stop periodic temp file cleanup
+		ClineTempManager.stopPeriodicCleanup()
+	} finally {
+		try {
+			await StateManager.get().flushPendingState()
+		} catch (error) {
+			Logger.error("[Cline] Failed to flush pending state during teardown:", error)
+		}
+	}
 }

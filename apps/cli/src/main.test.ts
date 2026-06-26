@@ -1082,12 +1082,33 @@ describe("runCli lightweight command dispatch", () => {
 		);
 	});
 
-	it("leaves thinking disabled when --thinking is not provided", async () => {
+	it("leaves thinking unset when --thinking is not provided", async () => {
 		mockState.runAgentCalls = 0;
 		runtimeMocks.runAgent.mockClear();
 
 		forcePromptModeInput();
 		process.argv = ["bun", "src/index.ts", "hello"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(mockState.runAgentCalls).toBe(1);
+		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
+			"hello",
+			expect.objectContaining({
+				thinking: undefined,
+				reasoningEffort: undefined,
+			}),
+			expect.anything(),
+		);
+	});
+
+	it("disables thinking when --thinking none is explicitly provided", async () => {
+		mockState.runAgentCalls = 0;
+		runtimeMocks.runAgent.mockClear();
+
+		forcePromptModeInput();
+		process.argv = ["bun", "src/index.ts", "--thinking", "none", "hello"];
 
 		const { runCli } = await import("./main");
 
@@ -1149,6 +1170,32 @@ describe("runCli lightweight command dispatch", () => {
 			expect.objectContaining({
 				thinking: true,
 				reasoningEffort: "high",
+			}),
+			expect.anything(),
+		);
+	});
+
+	it("uses persisted disabled reasoning when --thinking is not provided", async () => {
+		mockState.runAgentCalls = 0;
+		runtimeMocks.runAgent.mockClear();
+		providerSettingsMocks.getProviderSettings.mockReturnValue({
+			provider: "cline",
+			model: "openai/gpt-5",
+			reasoning: { enabled: false },
+		});
+
+		forcePromptModeInput();
+		process.argv = ["bun", "src/index.ts", "hello"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(mockState.runAgentCalls).toBe(1);
+		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
+			"hello",
+			expect.objectContaining({
+				thinking: false,
+				reasoningEffort: undefined,
 			}),
 			expect.anything(),
 		);

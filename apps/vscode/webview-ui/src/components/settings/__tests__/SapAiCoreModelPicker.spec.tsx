@@ -1,7 +1,58 @@
-import { render, screen } from "@testing-library/react"
-import { describe, expect, it, vi } from "vitest"
+import { render, screen, waitFor } from "@testing-library/react"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import { ExtensionStateContextProvider } from "@/context/ExtensionStateContext"
 import SapAiCoreModelPicker from "../SapAiCoreModelPicker"
+
+const mocks = vi.hoisted(() => ({
+	resolveProviderModelsMock: vi.fn().mockResolvedValue({
+		providerId: "sapaicore",
+		requestId: "test-request-id",
+		configFingerprint: "test-fingerprint",
+		fetchedAt: Date.now(),
+		ok: true,
+		models: {},
+		defaultModelId: "",
+	}),
+	setApiConfigurationMock: vi.fn(),
+	startProviderModelsRequestMock: vi.fn(),
+	applyProviderModelsResponseMock: vi.fn(),
+	useExtensionStateMock: vi.fn(() => ({
+		apiConfiguration: {
+			apiProvider: "sapaicore",
+			sapAiCoreModelId: "anthropic--claude-3.5-sonnet",
+		},
+		setApiConfiguration: mocks.setApiConfigurationMock,
+		providerModelsByProvider: {
+			sapaicore: {
+				models: {
+					"anthropic--claude-3.5-sonnet": { maxTokens: 8192, contextWindow: 200_000, supportsPromptCache: false },
+					"anthropic--claude-3-haiku": { maxTokens: 4096, contextWindow: 200_000, supportsPromptCache: false },
+					"gpt-4o": { maxTokens: 4096, contextWindow: 200_000, supportsPromptCache: false },
+					"gpt-5.5": { maxTokens: 4096, contextWindow: 200_000, supportsPromptCache: false },
+					"gpt-4-base": { maxTokens: 4096, contextWindow: 200_000, supportsPromptCache: false },
+					"gpt-5-codex": { maxTokens: 4096, contextWindow: 200_000, supportsPromptCache: false },
+					"gpt-4-instruct": { maxTokens: 4096, contextWindow: 200_000, supportsPromptCache: false },
+					"gpt-4-realtime": { maxTokens: 4096, contextWindow: 200_000, supportsPromptCache: false },
+					"gemini-2.5-pro": { maxTokens: 65536, contextWindow: 1_048_576, supportsPromptCache: true },
+				},
+				defaultModelId: "anthropic--claude-3.5-sonnet",
+			},
+		},
+		startProviderModelsRequest: mocks.startProviderModelsRequestMock,
+		applyProviderModelsResponse: mocks.applyProviderModelsResponseMock,
+	})),
+}))
+
+vi.mock("@/services/grpc-client", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@/services/grpc-client")>()
+	return {
+		...actual,
+		ModelsServiceClient: {
+			...actual.ModelsServiceClient,
+			resolveProviderModels: mocks.resolveProviderModelsMock,
+		},
+	}
+})
 
 // Define the interface locally since it's not exported from the proto
 interface SapAiCoreModelDeployment {
@@ -17,42 +68,71 @@ const createDeployments = (modelNames: string[]): SapAiCoreModelDeployment[] => 
 	}))
 }
 
-// Mock the ExtensionStateContext
-vi.mock("../../../context/ExtensionStateContext", async (importOriginal) => {
-	const actual = await importOriginal()
-	return {
-		...(actual || {}),
-		useExtensionState: vi.fn(() => ({
-			apiConfiguration: {
-				apiProvider: "sapaicore",
-				sapAiCoreModelId: "anthropic--claude-3.5-sonnet",
-			},
-			setApiConfiguration: vi.fn(),
-			// Provider model-list context read by useProviderModels. The picker
-			// sources its supported-model list from the "sapaicore" entry here.
-			providerModelsByProvider: {
-				sapaicore: {
-					models: {
-						"anthropic--claude-3.5-sonnet": { maxTokens: 8192, contextWindow: 200_000, supportsPromptCache: false },
-						"anthropic--claude-3-haiku": { maxTokens: 4096, contextWindow: 200_000, supportsPromptCache: false },
-						"gpt-4o": { maxTokens: 4096, contextWindow: 200_000, supportsPromptCache: false },
-						"gemini-2.5-pro": { maxTokens: 65536, contextWindow: 1_048_576, supportsPromptCache: true },
-					},
-					defaultModelId: "anthropic--claude-3.5-sonnet",
-				},
-			},
-			startProviderModelsRequest: vi.fn(),
-			applyProviderModelsResponse: vi.fn(),
-		})),
-	}
-})
+// Mock the ExtensionStateContext used by the component and by this spec.
+vi.mock("@/context/ExtensionStateContext", () => ({
+	ExtensionStateContextProvider: ({ children }: { children: any }) => children,
+	useExtensionState: mocks.useExtensionStateMock,
+}))
 
 describe("SapAiCoreModelPicker Component", () => {
-	vi.clearAllMocks()
 	const mockOnModelChange = vi.fn()
 
 	beforeEach(() => {
+		vi.clearAllMocks()
 		mockOnModelChange.mockClear()
+		mocks.resolveProviderModelsMock.mockClear()
+	})
+
+	it("does not refresh the provider model list when orchestration mode changes", async () => {
+		const { rerender } = render(
+			<ExtensionStateContextProvider>
+				<SapAiCoreModelPicker
+					onModelChange={mockOnModelChange}
+					sapAiCoreModelDeployments={createDeployments(["gpt-4o"])}
+					selectedModelId="gpt-4o"
+					useOrchestrationMode={false}
+				/>
+			</ExtensionStateContextProvider>,
+		)
+
+		await waitFor(() => expect(mocks.resolveProviderModelsMock).toHaveBeenCalledTimes(1))
+
+		rerender(
+			<ExtensionStateContextProvider>
+				<SapAiCoreModelPicker
+					onModelChange={mockOnModelChange}
+					sapAiCoreModelDeployments={createDeployments(["gpt-4o"])}
+					selectedModelId="gpt-4o"
+					useOrchestrationMode={true}
+				/>
+			</ExtensionStateContextProvider>,
+		)
+
+		await waitFor(() => expect(screen.getByText("anthropic--claude-3.5-sonnet")).toBeInTheDocument())
+		expect(mocks.resolveProviderModelsMock).toHaveBeenCalledTimes(1)
+	})
+
+	it("filters foundation-model mode to OpenAI chat models", () => {
+		render(
+			<ExtensionStateContextProvider>
+				<SapAiCoreModelPicker
+					onModelChange={mockOnModelChange}
+					sapAiCoreModelDeployments={createDeployments(["gpt-4o"])}
+					selectedModelId="gpt-4o"
+					useOrchestrationMode={false}
+				/>
+			</ExtensionStateContextProvider>,
+		)
+
+		expect(screen.getByText("gpt-4o")).toBeInTheDocument()
+		expect(screen.getByText("gpt-5.5")).toBeInTheDocument()
+		expect(screen.queryByText("anthropic--claude-3.5-sonnet")).not.toBeInTheDocument()
+		expect(screen.queryByText("anthropic--claude-3-haiku")).not.toBeInTheDocument()
+		expect(screen.queryByText("gemini-2.5-pro")).not.toBeInTheDocument()
+		expect(screen.queryByText("gpt-4-base")).not.toBeInTheDocument()
+		expect(screen.queryByText("gpt-5-codex")).not.toBeInTheDocument()
+		expect(screen.queryByText("gpt-4-instruct")).not.toBeInTheDocument()
+		expect(screen.queryByText("gpt-4-realtime")).not.toBeInTheDocument()
 	})
 
 	it("renders the model dropdown with correct label", () => {
@@ -106,8 +186,9 @@ describe("SapAiCoreModelPicker Component", () => {
 			<ExtensionStateContextProvider>
 				<SapAiCoreModelPicker
 					onModelChange={mockOnModelChange}
-					sapAiCoreModelDeployments={createDeployments(["anthropic--claude-3.5-sonnet", "gpt-4o"])}
-					selectedModelId="anthropic--claude-3.5-sonnet"
+					sapAiCoreModelDeployments={createDeployments(["gpt-4o", "gpt-5.5"])}
+					selectedModelId="gpt-4o"
+					useOrchestrationMode={false}
 				/>
 			</ExtensionStateContextProvider>,
 		)
@@ -117,10 +198,10 @@ describe("SapAiCoreModelPicker Component", () => {
 		expect(deployedHeader).toBeInTheDocument()
 
 		// Check for deployed model options
-		const claudeOption = screen.getByText("anthropic--claude-3.5-sonnet")
 		const gptOption = screen.getByText("gpt-4o")
-		expect(claudeOption).toBeInTheDocument()
+		const gptFiveOption = screen.getByText("gpt-5.5")
 		expect(gptOption).toBeInTheDocument()
+		expect(gptFiveOption).toBeInTheDocument()
 	})
 
 	it("shows not deployed models section when supported but not deployed models exist", () => {
@@ -128,8 +209,9 @@ describe("SapAiCoreModelPicker Component", () => {
 			<ExtensionStateContextProvider>
 				<SapAiCoreModelPicker
 					onModelChange={mockOnModelChange}
-					sapAiCoreModelDeployments={createDeployments(["anthropic--claude-3.5-sonnet"])}
-					selectedModelId="anthropic--claude-3.5-sonnet"
+					sapAiCoreModelDeployments={createDeployments(["gpt-4o"])}
+					selectedModelId="gpt-4o"
+					useOrchestrationMode={false}
 				/>
 			</ExtensionStateContextProvider>,
 		)
@@ -139,10 +221,8 @@ describe("SapAiCoreModelPicker Component", () => {
 		expect(notDeployedHeader).toBeInTheDocument()
 
 		// Check for not deployed model options
-		const haikuOption = screen.getByText("anthropic--claude-3-haiku")
-		const geminiOption = screen.getByText("gemini-2.5-pro")
-		expect(haikuOption).toBeInTheDocument()
-		expect(geminiOption).toBeInTheDocument()
+		const gptFiveOption = screen.getByText("gpt-5.5")
+		expect(gptFiveOption).toBeInTheDocument()
 	})
 
 	it("correctly categorizes models into deployed and not deployed", () => {
@@ -150,19 +230,18 @@ describe("SapAiCoreModelPicker Component", () => {
 			<ExtensionStateContextProvider>
 				<SapAiCoreModelPicker
 					onModelChange={mockOnModelChange}
-					sapAiCoreModelDeployments={createDeployments(["anthropic--claude-3.5-sonnet", "gpt-4o"])}
-					selectedModelId="anthropic--claude-3.5-sonnet"
+					sapAiCoreModelDeployments={createDeployments(["gpt-4o"])}
+					selectedModelId="gpt-4o"
+					useOrchestrationMode={false}
 				/>
 			</ExtensionStateContextProvider>,
 		)
 
 		// Deployed models should appear
-		expect(screen.getByText("anthropic--claude-3.5-sonnet")).toBeInTheDocument()
 		expect(screen.getByText("gpt-4o")).toBeInTheDocument()
 
 		// Not deployed models should appear
-		expect(screen.getByText("anthropic--claude-3-haiku")).toBeInTheDocument()
-		expect(screen.getByText("gemini-2.5-pro")).toBeInTheDocument()
+		expect(screen.getByText("gpt-5.5")).toBeInTheDocument()
 	})
 
 	it("calls onModelChange when a model is selected", () => {
@@ -192,8 +271,9 @@ describe("SapAiCoreModelPicker Component", () => {
 			<ExtensionStateContextProvider>
 				<SapAiCoreModelPicker
 					onModelChange={mockOnModelChange}
-					sapAiCoreModelDeployments={createDeployments(["anthropic--claude-3.5-sonnet"])}
-					selectedModelId="anthropic--claude-3.5-sonnet"
+					sapAiCoreModelDeployments={createDeployments(["gpt-4o"])}
+					selectedModelId="gpt-4o"
+					useOrchestrationMode={false}
 				/>
 			</ExtensionStateContextProvider>,
 		)
@@ -201,11 +281,10 @@ describe("SapAiCoreModelPicker Component", () => {
 		// Test that not deployed models are properly displayed
 		const dropdown = screen.getByRole("combobox")
 		expect(dropdown).toBeInTheDocument()
-		expect(dropdown).toHaveValue("anthropic--claude-3.5-sonnet")
+		expect(dropdown).toHaveValue("gpt-4o")
 
 		// Verify that not deployed models are shown with proper labeling
-		expect(screen.getByText("anthropic--claude-3-haiku")).toBeInTheDocument()
-		expect(screen.getByText("gemini-2.5-pro")).toBeInTheDocument()
+		expect(screen.getByText("gpt-5.5")).toBeInTheDocument()
 	})
 
 	it("updates selected value when selectedModelId prop changes", () => {
@@ -239,7 +318,12 @@ describe("SapAiCoreModelPicker Component", () => {
 	it("handles empty deployed models array", () => {
 		render(
 			<ExtensionStateContextProvider>
-				<SapAiCoreModelPicker onModelChange={mockOnModelChange} sapAiCoreModelDeployments={[]} selectedModelId="" />
+				<SapAiCoreModelPicker
+					onModelChange={mockOnModelChange}
+					sapAiCoreModelDeployments={[]}
+					selectedModelId=""
+					useOrchestrationMode={false}
+				/>
 			</ExtensionStateContextProvider>,
 		)
 
@@ -251,21 +335,23 @@ describe("SapAiCoreModelPicker Component", () => {
 		expect(notDeployedHeader).toBeInTheDocument()
 
 		// All models should be marked as not deployed
-		expect(screen.getByText("anthropic--claude-3.5-sonnet")).toBeInTheDocument()
-		expect(screen.getByText("anthropic--claude-3-haiku")).toBeInTheDocument()
 		expect(screen.getByText("gpt-4o")).toBeInTheDocument()
-		expect(screen.getByText("gemini-2.5-pro")).toBeInTheDocument()
+		expect(screen.getByText("gpt-5.5")).toBeInTheDocument()
+		expect(screen.queryByText("anthropic--claude-3.5-sonnet")).not.toBeInTheDocument()
+		expect(screen.queryByText("anthropic--claude-3-haiku")).not.toBeInTheDocument()
+		expect(screen.queryByText("gemini-2.5-pro")).not.toBeInTheDocument()
 	})
 
 	it("handles case where all supported models are deployed", () => {
-		const allSupportedModels = ["anthropic--claude-3.5-sonnet", "anthropic--claude-3-haiku", "gpt-4o", "gemini-2.5-pro"]
+		const allSupportedModels = ["gpt-4o", "gpt-5.5"]
 
 		render(
 			<ExtensionStateContextProvider>
 				<SapAiCoreModelPicker
 					onModelChange={mockOnModelChange}
 					sapAiCoreModelDeployments={createDeployments(allSupportedModels)}
-					selectedModelId="anthropic--claude-3.5-sonnet"
+					selectedModelId="gpt-4o"
+					useOrchestrationMode={false}
 				/>
 			</ExtensionStateContextProvider>,
 		)
@@ -278,10 +364,8 @@ describe("SapAiCoreModelPicker Component", () => {
 		expect(screen.queryByText("── Not Deployed Models ──")).not.toBeInTheDocument()
 
 		// All models should appear
-		expect(screen.getByText("anthropic--claude-3.5-sonnet")).toBeInTheDocument()
-		expect(screen.getByText("anthropic--claude-3-haiku")).toBeInTheDocument()
 		expect(screen.getByText("gpt-4o")).toBeInTheDocument()
-		expect(screen.getByText("gemini-2.5-pro")).toBeInTheDocument()
+		expect(screen.getByText("gpt-5.5")).toBeInTheDocument()
 	})
 
 	it("handles models that are deployed but not in supported list", () => {
@@ -290,18 +374,19 @@ describe("SapAiCoreModelPicker Component", () => {
 			<ExtensionStateContextProvider>
 				<SapAiCoreModelPicker
 					onModelChange={mockOnModelChange}
-					sapAiCoreModelDeployments={createDeployments(["anthropic--claude-3.5-sonnet", "unsupported-model"])}
-					selectedModelId="anthropic--claude-3.5-sonnet"
+					sapAiCoreModelDeployments={createDeployments(["gpt-4o", "unsupported-model"])}
+					selectedModelId="gpt-4o"
+					useOrchestrationMode={false}
 				/>
 			</ExtensionStateContextProvider>,
 		)
 
 		// Only supported deployed models should appear in deployed section
-		expect(screen.getByText("anthropic--claude-3.5-sonnet")).toBeInTheDocument()
+		expect(screen.getByText("gpt-4o")).toBeInTheDocument()
 		expect(screen.queryByText("unsupported-model")).not.toBeInTheDocument()
 
 		// Other supported models should appear in not deployed section
-		expect(screen.getByText("anthropic--claude-3-haiku")).toBeInTheDocument()
+		expect(screen.getByText("gpt-5.5")).toBeInTheDocument()
 	})
 
 	it("maintains correct dropdown structure with sections", () => {
@@ -309,8 +394,9 @@ describe("SapAiCoreModelPicker Component", () => {
 			<ExtensionStateContextProvider>
 				<SapAiCoreModelPicker
 					onModelChange={mockOnModelChange}
-					sapAiCoreModelDeployments={createDeployments(["anthropic--claude-3.5-sonnet"])}
-					selectedModelId="anthropic--claude-3.5-sonnet"
+					sapAiCoreModelDeployments={createDeployments(["gpt-4o"])}
+					selectedModelId="gpt-4o"
+					useOrchestrationMode={false}
 				/>
 			</ExtensionStateContextProvider>,
 		)
@@ -366,7 +452,12 @@ describe("SapAiCoreModelPicker Component", () => {
 		expect(screen.getByText("anthropic--claude-3.5-sonnet")).toBeInTheDocument()
 		expect(screen.getByText("anthropic--claude-3-haiku")).toBeInTheDocument()
 		expect(screen.getByText("gpt-4o")).toBeInTheDocument()
+		expect(screen.getByText("gpt-5.5")).toBeInTheDocument()
 		expect(screen.getByText("gemini-2.5-pro")).toBeInTheDocument()
+		expect(screen.getByText("gpt-4-base")).toBeInTheDocument()
+		expect(screen.getByText("gpt-5-codex")).toBeInTheDocument()
+		expect(screen.getByText("gpt-4-instruct")).toBeInTheDocument()
+		expect(screen.getByText("gpt-4-realtime")).toBeInTheDocument()
 	})
 
 	it("should auto-set deployment ID when model is selected but deployment ID is missing", () => {

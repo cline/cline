@@ -28,7 +28,6 @@ export interface SdkSessionEventCoordinatorOptions {
 	taskHistory: SdkTaskHistory
 	getTask: () => TaskProxy | undefined
 	postStateToWebview: () => Promise<void>
-	syncCheckpointRows?: () => Promise<void>
 	stateManager?: StateManager
 	translateSessionEvent?: (event: CoreSessionEvent, state: MessageTranslatorState) => TranslationResult
 	isClineFreeModel?: () => Promise<boolean>
@@ -58,7 +57,18 @@ export class SdkSessionEventCoordinator {
 			return
 		}
 
+		if (event.type === "pending_prompts") {
+			this.options.postStateToWebview().catch((err) => {
+				Logger.error("[SdkController] Failed to post pending-prompt state update:", err)
+			})
+		}
+
 		const result = this.translateSessionEvent(event, this.options.messageTranslatorState)
+		if (event.type === "pending_prompt_submitted") {
+			this.options.messageTranslatorState.clearTurnOutcome()
+			this.options.sessions.setRunning(true)
+			this.options.setTurnPhase?.("streaming")
+		}
 		const zeroCostPromise = this.zeroCostForFreeClineModel(result)
 		if (zeroCostPromise) {
 			await zeroCostPromise
@@ -120,16 +130,17 @@ export class SdkSessionEventCoordinator {
 			}
 		}
 
-		if (result.sessionEnded || result.turnComplete) {
-			await this.options.syncCheckpointRows?.()
-		}
-
 		// Post state when there are messages to ship OR when the turn ended. A clean turn end's
 		// `done` event carries no transcript message, yet the authoritative phase just changed to
 		// completed/awaiting_followup/error above; without posting here the webview would stay on
 		// the prior phase (footer stuck on the streaming/scroll state). The webview reducer gates
 		// turnState by seq, so an extra no-message post is safe.
-		if (result.messages.length > 0 || result.sessionEnded || result.turnComplete) {
+		if (
+			result.messages.length > 0 ||
+			result.sessionEnded ||
+			result.turnComplete ||
+			event.type === "pending_prompt_submitted"
+		) {
 			this.options.postStateToWebview().catch((err) => {
 				Logger.error("[SdkController] Failed to post state after event:", err)
 			})

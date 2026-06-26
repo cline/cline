@@ -68,7 +68,6 @@ export async function getStateToPostToWebview(controller: {
 	const lastDismissedModelBannerVersion = stateManager.getGlobalStateKey("lastDismissedModelBannerVersion") || 0
 	const lastDismissedCliBannerVersion = stateManager.getGlobalStateKey("lastDismissedCliBannerVersion") || 0
 	const dismissedBanners = stateManager.getGlobalStateKey("dismissedBanners")
-	const doubleCheckCompletionEnabled = stateManager.getGlobalSettingsKey("doubleCheckCompletionEnabled")
 	const showFeatureTips = stateManager.getGlobalSettingsKey("showFeatureTips")
 
 	const localClineRulesToggles = stateManager.getWorkspaceStateKey("localClineRulesToggles")
@@ -162,10 +161,6 @@ export async function getStateToPostToWebview(controller: {
 			user: stateManager.getGlobalStateKey("multiRootEnabled"),
 			featureFlag: true,
 		},
-		clineWebToolsEnabled: {
-			user: stateManager.getGlobalSettingsKey("clineWebToolsEnabled"),
-			featureFlag: featureFlagsService.getWebtoolsEnabled(),
-		},
 		worktreesEnabled: {
 			user: stateManager.getGlobalSettingsKey("worktreesEnabled"),
 			featureFlag: featureFlagsService.getWorktreesEnabled(),
@@ -176,11 +171,8 @@ export async function getStateToPostToWebview(controller: {
 		remoteConfigSettings: stateManager.getRemoteConfigSettings?.(),
 		lastDismissedCliBannerVersion,
 		dismissedBanners,
-		nativeToolCallSetting: stateManager.getGlobalStateKey("nativeToolCallEnabled"),
-		enableParallelToolCalling: stateManager.getGlobalSettingsKey("enableParallelToolCalling"),
 		backgroundEditEnabled: stateManager.getGlobalSettingsKey("backgroundEditEnabled"),
 		optOutOfRemoteConfig: stateManager.getGlobalSettingsKey("optOutOfRemoteConfig"),
-		doubleCheckCompletionEnabled,
 		showFeatureTips,
 		banners,
 		welcomeBanners,

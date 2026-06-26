@@ -49,6 +49,7 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 		scrollToMessage,
 		scrollToBottomSmooth,
 		scrollToBottomAuto,
+		handleLastRowContentChange,
 	} = scrollBehavior
 
 	// Find the index of the scrolled past user message for scrolling
@@ -247,6 +248,7 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 				expandedRows,
 				toggleRowExpansion,
 				handleRowHeightChange,
+				handleLastRowContentChange,
 				setActiveQuote,
 				inputValue,
 				messageHandlers,
@@ -258,6 +260,7 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 			expandedRows,
 			toggleRowExpansion,
 			handleRowHeightChange,
+			handleLastRowContentChange,
 			setActiveQuote,
 			inputValue,
 			messageHandlers,
