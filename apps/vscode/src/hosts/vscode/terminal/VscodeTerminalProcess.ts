@@ -62,9 +62,16 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 			// Shell integration is available (VS Code 1.93+). The read() stream yields
 			// raw terminal data including OSC 633 escape sequences. We use a
 			// chunk-boundary-safe parser to strip those sequences and extract the
-			// CommandExecuted (C) / CommandFinished (D) markers that delimit command
-			// output. Text between C and D is the command's actual output; everything
-			// else (prompt, command echo) is naturally excluded by the markers.
+			// CommandExecuted (C) marker that delimits the start of command output.
+			// Text after C is the command's actual output; everything before (prompt,
+			// command echo) is naturally excluded by the marker.
+			//
+			// NOTE: The CommandFinished (D) marker and its exit code do NOT appear in
+			// the read() stream. VS Code's shell integration addon consumes the D
+			// sequence synchronously and fires onDidEndTerminalShellExecution (with the
+			// exit code) before the debounced data event reaches the stream. We listen
+			// to that event to capture the exit code; the D-marker parsing in the parser
+			// is kept as a fallback for environments where the event isn't available.
 			const execution = terminal.shellIntegration.executeCommand(command)
 			const stream = execution.read()
 			const parser = new Osc633Parser()
@@ -72,6 +79,26 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 			let inCommandOutput = false
 			let preCommandBuffer = "" // text before C; emitted as fallback if C never arrives
 			let didEmitEmptyLine = false
+
+			// Listen for the shell execution end event to capture the exit code.
+			// This is the reliable source — the D marker is stripped from the stream.
+			let endEventExitCode: number | undefined
+			let endEventDisposable: vscode.Disposable | undefined
+			try {
+				endEventDisposable = (vscode.window as unknown as {
+					onDidEndTerminalShellExecution?: (
+						listener: (e: { terminal: vscode.Terminal; exitCode: number | undefined }) => any,
+						thisArgs?: any,
+						disposables?: vscode.Disposable[],
+					) => vscode.Disposable
+				}).onDidEndTerminalShellExecution?.((e) => {
+					if (e.terminal === terminal) {
+						endEventExitCode = e.exitCode
+					}
+				})
+			} catch {
+				// Event not available in this VS Code version; fall back to D-marker parsing.
+			}
 
 			for await (let data of stream) {
 				// Ctrl+C detection: if user presses Ctrl+C, treat as command terminated
@@ -160,6 +187,17 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 			}
 
 			this.emitRemainingBufferIfListening()
+
+			// Dispose the end-event listener now that the stream is done.
+			endEventDisposable?.dispose()
+
+			// The exit code from onDidEndTerminalShellExecution is the reliable
+			// source (the D marker is stripped from the read() stream by VS Code).
+			// Fall back to the parser-extracted exit code (from the D marker) only
+			// if the event wasn't available or didn't fire.
+			if (endEventExitCode !== undefined) {
+				this.exitCode = endEventExitCode
+			}
 
 			// If we never saw the CommandExecuted (C) marker (e.g. ssh/nested
 			// shells where shell integration is present but not emitting markers),

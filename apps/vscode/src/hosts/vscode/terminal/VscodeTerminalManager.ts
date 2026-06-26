@@ -95,6 +95,15 @@ declare module "vscode" {
 			thisArgs?: any,
 			disposables?: vscode.Disposable[],
 		) => vscode.Disposable
+		onDidEndTerminalShellExecution?: (
+			listener: (e: {
+				terminal: vscode.Terminal
+				execution: { read: () => AsyncIterable<string> }
+				exitCode: number | undefined
+			}) => any,
+			thisArgs?: any,
+			disposables?: vscode.Disposable[],
+		) => vscode.Disposable
 	}
 }
 
