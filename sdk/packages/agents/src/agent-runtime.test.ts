@@ -7,7 +7,14 @@ import type {
 	AgentTool,
 	ITelemetryService,
 } from "@cline/shared";
-import { AGENT_UNEXPECTED_REASONING_TOKENS_EVENT } from "@cline/shared";
+import {
+	AGENT_UNEXPECTED_REASONING_TOKENS_EVENT,
+	TASK_CANCELLED_EVENT,
+	TASK_FIRST_CHUNK_RECEIVED_EVENT,
+	TASK_PROVIDER_REQUEST_STARTED_EVENT,
+	TASK_PROVIDER_STREAM_FAILED_EVENT,
+	TASK_PROVIDER_STREAM_STARTED_EVENT,
+} from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import { AgentRuntime } from "./index";
 
@@ -50,6 +57,31 @@ const createEchoTool = (): AgentTool<{ text: string }, { echoed: string }> => ({
 		return { echoed: input.text };
 	},
 });
+
+function createTelemetryMock(): {
+	telemetry: ITelemetryService;
+	capture: ReturnType<typeof vi.fn>;
+} {
+	const capture = vi.fn();
+	return {
+		capture,
+		telemetry: {
+			capture,
+			captureRequired: vi.fn(),
+			setDistinctId: vi.fn(),
+			setMetadata: vi.fn(),
+			updateMetadata: vi.fn(),
+			setCommonProperties: vi.fn(),
+			updateCommonProperties: vi.fn(),
+			isEnabled: () => true,
+			recordCounter: vi.fn(),
+			recordHistogram: vi.fn(),
+			recordGauge: vi.fn(),
+			flush: vi.fn(async () => undefined),
+			dispose: vi.fn(async () => undefined),
+		} as unknown as ITelemetryService,
+	};
+}
 
 describe("AgentRuntime", () => {
 	it("completes a simple turn without tools", async () => {
@@ -1156,6 +1188,191 @@ describe("AgentRuntime", () => {
 				}),
 			}),
 		);
+	});
+
+	it("captures task lifecycle telemetry around a successful model stream", async () => {
+		const { capture, telemetry } = createTelemetryMock();
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "hello" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			agentId: "agent-1",
+			conversationId: "conversation-1",
+			sessionId: "session-1",
+			messageModelInfo: {
+				id: "anthropic/claude-sonnet-4.6",
+				provider: "openrouter",
+			},
+			telemetry,
+		});
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("completed");
+		const taskEvents = capture.mock.calls
+			.map(([input]) => input)
+			.filter((input) => input.event.startsWith("task."));
+		expect(taskEvents.map((input) => input.event)).toEqual([
+			TASK_PROVIDER_REQUEST_STARTED_EVENT,
+			TASK_PROVIDER_STREAM_STARTED_EVENT,
+			TASK_FIRST_CHUNK_RECEIVED_EVENT,
+		]);
+		expect(taskEvents[0]).toEqual(
+			expect.objectContaining({
+				event: TASK_PROVIDER_REQUEST_STARTED_EVENT,
+				properties: expect.objectContaining({
+					agentId: "agent-1",
+					conversationId: "conversation-1",
+					sessionId: "session-1",
+					ulid: "session-1",
+					iteration: 1,
+					provider: "openrouter",
+					providerId: "openrouter",
+					model: "anthropic/claude-sonnet-4.6",
+					modelId: "anthropic/claude-sonnet-4.6",
+					phase: "provider_request_started",
+				}),
+			}),
+		);
+		expect(taskEvents[2]?.properties).toEqual(
+			expect.objectContaining({
+				eventType: "text-delta",
+				phase: "first_chunk_received",
+			}),
+		);
+	});
+
+	it("captures task lifecycle telemetry when the provider stream fails", async () => {
+		const { capture, telemetry } = createTelemetryMock();
+		const model = new ScriptedModel([]);
+		const runtime = new AgentRuntime({
+			model,
+			agentId: "agent-1",
+			sessionId: "session-1",
+			messageModelInfo: {
+				id: "deepseek/deepseek-v4-flash",
+				provider: "cline",
+			},
+			telemetry,
+		});
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		const taskEvents = capture.mock.calls
+			.map(([input]) => input)
+			.filter((input) => input.event.startsWith("task."));
+		expect(taskEvents.map((input) => input.event)).toEqual([
+			TASK_PROVIDER_REQUEST_STARTED_EVENT,
+			TASK_PROVIDER_STREAM_FAILED_EVENT,
+		]);
+		expect(taskEvents[1]?.properties).toEqual(
+			expect.objectContaining({
+				error_message: "No scripted model step available",
+				error_type: "Error",
+				phase: "provider_request_started",
+				provider: "cline",
+				model: "deepseek/deepseek-v4-flash",
+			}),
+		);
+	});
+
+	it("captures task cancellation without reporting provider failure", async () => {
+		const { capture, telemetry } = createTelemetryMock();
+		let resolveStreamStarted: (() => void) | undefined;
+		const streamStarted = new Promise<void>((resolve) => {
+			resolveStreamStarted = resolve;
+		});
+		const model = new ScriptedModel([
+			async function* (request: AgentModelRequest) {
+				await new Promise<void>((_resolve, reject) => {
+					request.signal?.addEventListener(
+						"abort",
+						() => reject(request.signal?.reason),
+						{ once: true },
+					);
+					resolveStreamStarted?.();
+				});
+			},
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			agentId: "agent-1",
+			sessionId: "session-1",
+			messageModelInfo: {
+				id: "deepseek/deepseek-v4-pro",
+				provider: "cline",
+			},
+			telemetry,
+		});
+
+		const run = runtime.run("Hi");
+		await streamStarted;
+		runtime.abort("user cancelled");
+		const result = await run;
+
+		expect(result.status).toBe("aborted");
+		const taskEvents = capture.mock.calls
+			.map(([input]) => input)
+			.filter((input) => input.event.startsWith("task."));
+		expect(taskEvents.map((input) => input.event)).toEqual([
+			TASK_PROVIDER_REQUEST_STARTED_EVENT,
+			TASK_PROVIDER_STREAM_STARTED_EVENT,
+			TASK_CANCELLED_EVENT,
+		]);
+		expect(taskEvents[2]?.properties).toEqual(
+			expect.objectContaining({
+				error_message: "user cancelled",
+				error_type: "AgentRuntimeAbortError",
+			}),
+		);
+	});
+
+	it("does not report provider failure when cancelled before stream opens", async () => {
+		const { capture, telemetry } = createTelemetryMock();
+		let resolveStreamCalled: (() => void) | undefined;
+		const streamCalled = new Promise<void>((resolve) => {
+			resolveStreamCalled = resolve;
+		});
+		const model: AgentModel = {
+			async stream(request: AgentModelRequest) {
+				resolveStreamCalled?.();
+				await new Promise<void>((resolve) => {
+					request.signal?.addEventListener("abort", () => resolve(), {
+						once: true,
+					});
+				});
+				return toAsyncIterable([]);
+			},
+		};
+		const runtime = new AgentRuntime({
+			model,
+			agentId: "agent-1",
+			sessionId: "session-1",
+			messageModelInfo: {
+				id: "deepseek/deepseek-v4-pro",
+				provider: "cline",
+			},
+			telemetry,
+		});
+
+		const run = runtime.run("Hi");
+		await streamCalled;
+		runtime.abort("user cancelled before stream opened");
+		const result = await run;
+
+		expect(result.status).toBe("aborted");
+		const taskEvents = capture.mock.calls
+			.map(([input]) => input)
+			.filter((input) => input.event.startsWith("task."));
+		expect(taskEvents.map((input) => input.event)).toEqual([
+			TASK_PROVIDER_REQUEST_STARTED_EVENT,
+			TASK_CANCELLED_EVENT,
+		]);
 	});
 
 	it("stops a run from beforeModel hooks and returns an aborted result", async () => {
