@@ -78,7 +78,7 @@ export const OpenAICompatibleProvider = ({
 	// fields; custom/unknown providers persist via their per-provider committed
 	// selection. Prefer the committed selection and fall back to the legacy
 	// fields so the built-in provider keeps working unchanged.
-	const isOpenAiProvider = providerId === "openai"
+	const isOpenAiProvider = providerId === "openai" || providerId === "openai-compatible"
 	const { selectedModelId: legacySelectedModelId, selectedModelInfo: legacySelectedModelInfo } = useDynamicProviderSelection(
 		providerId,
 		apiConfiguration,
