@@ -163,6 +163,17 @@ describe("AgentRuntime", () => {
 
 		expect(result.status).toBe("completed");
 		expect(result.outputText).toBe("done");
+		const toolMessage = result.messages.find(
+			(message) => message.role === "tool",
+		);
+		expect(toolMessage?.content).toEqual([
+			expect.objectContaining({
+				type: "tool-result",
+				toolCallId: "call_1",
+				toolName: "echo",
+				output: { echoed: "hi" },
+			}),
+		]);
 	});
 
 	it("injects a pending user message after tool results and before the next model request", async () => {
