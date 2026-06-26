@@ -220,7 +220,7 @@ export const ClinePassEntitlementError: Story = {
 		message: createMockMessage(),
 		errorType: "error",
 		apiRequestFailedMessage:
-			"No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: https://app.cline.bot/promo?code=CLI-100&personal=true",
+			"No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: https://app.cline.bot/promo?code=CLI-8OFF&personal=true",
 	},
 	parameters: {
 		docs: {

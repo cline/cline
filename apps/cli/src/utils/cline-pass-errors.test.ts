@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
 	formatCliErrorMessage,
 	getCliNotSubscribedMessage,
-	getCliSubscriptionUrl,
 	getClineOrgIndividualInferenceSubscriptionMessage,
+	getCliSubscriptionUrl,
 	isClineOrgIndividualInferenceSubscriptionErrorMessage,
 	isClinePassSubscriptionError,
 } from "./cline-pass-errors";
@@ -27,7 +27,7 @@ describe("cline-pass-errors", () => {
 
 	it("formats the ClinePass subscription URL", () => {
 		expect(getCliSubscriptionUrl()).toBe(
-			"https://app.cline.bot/promo?code=CLI-100&personal=true",
+			"https://app.cline.bot/promo?code=CLI-8OFF&personal=true",
 		);
 	});
 
