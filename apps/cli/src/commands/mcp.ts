@@ -1,4 +1,5 @@
 import {
+	type McpInstallOptions as CoreMcpInstallOptions,
 	installMcpServer,
 	type McpInstallResult,
 	type McpServerTransportConfig,
@@ -12,11 +13,7 @@ export interface McpCommandIo {
 	writeErr: (text: string) => void;
 }
 
-export interface McpInstallOptions {
-	name: string;
-	headers?: string[];
-	targetArgs?: string[];
-	transport?: string;
+export interface McpInstallOptions extends CoreMcpInstallOptions {
 	io?: McpCommandIo;
 	isTty?: boolean;
 	json?: boolean;

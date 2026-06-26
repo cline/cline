@@ -139,12 +139,42 @@ function hashSource(source: string): string {
 	return createHash("sha256").update(source).digest("hex").slice(0, 12);
 }
 
+function trimDashes(value: string): string {
+	let start = 0;
+	while (start < value.length && value[start] === "-") {
+		start++;
+	}
+	let end = value.length;
+	while (end > start && value[end - 1] === "-") {
+		end--;
+	}
+	return value.slice(start, end);
+}
+
 function sanitizeSegment(value: string): string {
-	const sanitized = value
-		.replace(/^@/, "")
-		.replace(/[^a-zA-Z0-9._-]+/g, "-")
-		.replace(/^-+|-+$/g, "")
-		.slice(0, 80);
+	let output = "";
+	let previousDash = false;
+	const input = value.startsWith("@") ? value.slice(1) : value;
+	for (const char of input.slice(0, 256)) {
+		const isAllowed =
+			(char >= "a" && char <= "z") ||
+			(char >= "A" && char <= "Z") ||
+			(char >= "0" && char <= "9") ||
+			char === "." ||
+			char === "_" ||
+			char === "-";
+		if (isAllowed) {
+			output += char;
+			previousDash = char === "-";
+		} else if (!previousDash) {
+			output += "-";
+			previousDash = true;
+		}
+		if (output.length >= 80) {
+			break;
+		}
+	}
+	const sanitized = trimDashes(output);
 	return sanitized || "plugin";
 }
 
@@ -783,12 +813,15 @@ async function installGitPackage(
 	stagingRoot: string,
 	npmCommand: string,
 ): Promise<string> {
+	if (parsed.ref?.startsWith("-")) {
+		throw new Error(`Invalid git ref "${parsed.ref}".`);
+	}
 	const packageRoot = join(stagingRoot, PACKAGE_DIRECTORY_NAME);
 	const cloneArgs = ["clone", "--filter=blob:none"];
 	if (parsed.ref) {
 		cloneArgs.push("--branch", parsed.ref);
 	}
-	cloneArgs.push(parsed.repo, packageRoot);
+	cloneArgs.push("--", parsed.repo, packageRoot);
 	try {
 		await runCommand("git", cloneArgs);
 	} catch (error) {
@@ -798,10 +831,13 @@ async function installGitPackage(
 		await runCommand("git", [
 			"clone",
 			"--filter=blob:none",
+			"--",
 			parsed.repo,
 			packageRoot,
 		]);
-		await runCommand("git", ["checkout", parsed.ref], { cwd: packageRoot });
+		await runCommand("git", ["checkout", "--detach", parsed.ref], {
+			cwd: packageRoot,
+		});
 	}
 	await installPackageDependencies(packageRoot, npmCommand);
 	return packageRoot;

@@ -72,6 +72,11 @@ function parseHeader(value: string): [string, string] {
 	return [name, headerValue];
 }
 
+function containsPlaceholder(value: string): boolean {
+	const openIndex = value.indexOf("<");
+	return openIndex >= 0 && value.indexOf(">", openIndex + 1) > openIndex + 1;
+}
+
 function splitTargetArgsAndHeaders(input: {
 	headers?: string[];
 	targetArgs?: string[];
@@ -109,7 +114,7 @@ function buildHeaders(values: string[]): {
 	for (const value of values) {
 		const [name, headerValue] = parseHeader(value);
 		headers[name] = headerValue;
-		if (/<[^>]+>/.test(headerValue)) {
+		if (containsPlaceholder(headerValue)) {
 			warnings.push(
 				`Header "${name}" looks like it contains a placeholder. Update it in MCP settings before using this server.`,
 			);
