@@ -51,7 +51,7 @@ function formatCost(cost: number): string {
 
 function formatCostText(providerId: string, totalCost: number): string {
 	if (shouldShowCliUsageCoveredBySubscription(providerId)) {
-		return "$0.00 (included in your subscription)";
+		return "$0.00 (included with your subscription)";
 	}
 
 	if (!shouldShowCliUsageCost(providerId)) {

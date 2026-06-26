@@ -67,6 +67,6 @@ describe("formatStatusBarUsageText", () => {
 				totalCost: 0.123,
 				providerId: "cline-pass",
 			}),
-		).toBe("(12,345 tokens) $0.00 (included in your subscription)");
+		).toBe("(12,345 tokens) $0.00 (included with your subscription)");
 	});
 });
