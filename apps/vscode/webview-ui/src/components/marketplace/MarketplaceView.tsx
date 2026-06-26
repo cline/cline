@@ -1003,6 +1003,7 @@ const MarketplaceView = ({ initialType = "skill", onDone }: MarketplaceViewProps
 		setActiveType(value as PrimitiveType)
 		setQuery("")
 		setSelectedTag(null)
+		setActiveSection("installed")
 	}, [])
 
 	const handleSectionTabChange = useCallback((value: string) => {
