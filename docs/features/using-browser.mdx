@@ -1,0 +1,211 @@
+---
+title: "Using Browser"
+sidebarTitle: "Using Browser"
+description: "Automate web browsers with the Agent Browser plugin — navigate pages, fill forms, click elements, take screenshots, and extract data."
+---
+
+The Agent Browser plugin gives Cline the ability to drive a real Chrome/Chromium browser via the Chrome DevTools Protocol (CDP). Instead of parsing raw HTML, it uses accessibility-tree snapshots with compact element references (`@e1`, `@e2`, …) so Cline can interact with pages efficiently — typically in 200–400 tokens per snapshot.
+
+## How the Plugin Mechanism Works
+
+Cline plugins are modular extensions that add new tools, hooks, or capabilities to the agent. The Agent Browser plugin follows the same [plugin system](/customization/plugins) used by all Cline extensions:
+
+1. **Installation** — The plugin is installed globally (available in all sessions) or per-project via the `cline plugin install` command. It is stored under `~/.cline/plugins/` (global) or `.cline/plugins/` (project-scoped).
+
+2. **Registration** — When Cline starts a session, it loads installed plugins and registers any tools they expose. The Agent Browser plugin registers browser-related tools (open, snapshot, click, fill, screenshot, etc.) that Cline can call during a task.
+
+3. **Skill Discovery** — The plugin also ships a [skill](/customization/skills) that teaches Cline _how_ to use the browser tools effectively. At startup, only the skill's metadata (name + description, ~100 tokens) is loaded. When your request matches the skill — for example, "open a website" or "take a screenshot" — Cline activates the skill and loads the full workflow instructions on demand.
+
+4. **Execution** — Cline issues browser commands as shell calls to the `agent-browser` CLI. The CLI communicates with Chrome over CDP, performs the action (navigate, click, fill, etc.), and returns the result. The browser persists across commands so a multi-step interaction feels like a single session.
+
+```
+You: "open google.com"
+   ↓
+Cline activates the agent-browser skill
+   ↓
+Cline calls: agent-browser open https://google.com
+   ↓
+agent-browser CLI → Chrome (via CDP)
+   ↓
+Result returned to Cline → Cline responds
+```
+
+## Installing the Agent Browser Plugin
+
+<Steps>
+  <Step title="Install Node.js">
+    Ensure you have Node.js 20+ installed (22 recommended).
+  </Step>
+  <Step title="Install the plugin">
+    ```bash
+    cline plugin install npm:agent-browser
+    ```
+    This installs the plugin globally so it is available in all Cline sessions.
+  </Step>
+  <Step title="Install Chrome for Testing">
+    The plugin bundles a managed Chrome download. Run the install command once to fetch it:
+    ```bash
+    agent-browser install
+    ```
+    On Linux, use `agent-browser install --with-deps` to also install required system libraries.
+  </Step>
+  <Step title="Verify installation">
+    Run `agent-browser doctor` to diagnose any issues with the environment, Chrome binary, or daemon. You can also check that the plugin is loaded with `cline config`.
+  </Step>
+</Steps>
+
+<Note>
+  If the managed Chrome for Testing download fails or the binary is corrupted, you can connect to a system-installed Google Chrome instead. Launch Chrome with remote debugging enabled and pass `--executable-path` or `--cdp <port>` to point agent-browser at it. See [Troubleshooting](#troubleshooting) below.
+</Note>
+
+## The Core Workflow
+
+Once installed, Cline can drive the browser through a simple loop:
+
+```bash
+agent-browser open <url>        # 1. Open a page
+agent-browser snapshot -i       # 2. See what's on it (interactive elements only)
+agent-browser click @e3         # 3. Act on refs from the snapshot
+agent-browser snapshot -i       # 4. Re-snapshot after any page change
+```
+
+Element references (`@e1`, `@e2`, …) are assigned fresh on every snapshot. They become **stale the moment the page changes** — after clicks that navigate, form submits, or dynamic re-renders. Always re-snapshot before your next interaction.
+
+## Sample Prompts
+
+Here are example prompts you can use with Cline to trigger the Agent Browser plugin:
+
+### Open a page
+
+```
+can you use the agent browser skill to open a new page for me
+```
+
+Cline will activate the agent-browser skill, install the CLI if needed, and open a blank page in a headless Chrome session.
+
+### Navigate to a website
+
+```
+help me navigate to google.com
+```
+
+Cline runs `agent-browser open https://google.com` and confirms the page loaded.
+
+### Take a screenshot
+
+```
+can you take a screenshot and save locally
+```
+
+Cline runs `agent-browser screenshot /path/to/file.png` and saves the image to your workspace. This is especially useful because the browser runs headless by default — screenshots let you see what's on the page.
+
+### Search and interact
+
+```
+open duckduckgo.com, search for "cline ai", and take a screenshot of the results
+```
+
+Cline will:
+1. Open the page with `agent-browser open`
+2. Snapshot the interactive elements to find the search box
+3. Fill the search box with `agent-browser fill`
+4. Press Enter with `agent-browser press`
+5. Wait for results to load
+6. Take a screenshot with `agent-browser screenshot`
+
+### Fill out a form
+
+```
+go to the login page at https://example.com/login and fill in the email field with user@example.com
+```
+
+Cline snapshots the page to locate form fields by their `@eN` refs, then uses `agent-browser fill` to enter values.
+
+## Common Commands
+
+| Command | Purpose |
+|---------|---------|
+| `agent-browser open <url>` | Navigate to a URL |
+| `agent-browser snapshot -i` | List interactive elements with refs |
+| `agent-browser click @e1` | Click an element by ref |
+| `agent-browser fill @e1 "text"` | Enter text into an input |
+| `agent-browser press Enter` | Press a keyboard key |
+| `agent-browser screenshot file.png` | Capture a screenshot |
+| `agent-browser get text @e1` | Extract visible text from an element |
+| `agent-browser get url` | Get the current page URL |
+| `agent-browser close` | Close the current tab |
+| `agent-browser close --all` | Close the browser session |
+
+## Global Flags
+
+| Flag | Description |
+|------|-------------|
+| `--headed` | Show the browser window (default is headless) |
+| `--cdp <port>` | Connect to a Chrome instance on a specific CDP port |
+| `--auto-connect` | Auto-discover and connect to a running Chrome |
+| `--executable-path <path>` | Use a custom Chrome executable |
+| `--session <name>` | Use an isolated browser session |
+| `--profile <name>` | Use a Chrome profile (login state persists) |
+| `--json` | Output results as JSON for programmatic parsing |
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Chrome for Testing binary is corrupted or won't launch">
+    The managed Chrome download can be truncated by network issues or proxies. If you see `dlopen` errors about load commands extending beyond the end of a file, the binary is corrupted.
+
+    **Fix:** Delete the corrupted binary and reinstall:
+
+    ```bash
+    rm -rf ~/.agent-browser/browsers/chrome-*/
+    agent-browser install
+    ```
+
+    Alternatively, use your system-installed Google Chrome:
+
+    ```bash
+    # Launch Chrome with remote debugging
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+      --remote-debugging-port=9222 \
+      --user-data-dir=/tmp/agent-browser-chrome-profile \
+      --no-first-run \
+      --headless=new &
+
+    # Connect agent-browser to it
+    agent-browser --executable-path "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" open about:blank
+    ```
+  </Accordion>
+
+  <Accordion title="Browser runs but I can't see the window">
+    By default, agent-browser launches Chrome in **headless mode** — there is no visible window. This is normal and intended for automation.
+
+    To see the browser window, either:
+    - Pass `--headed` when opening a page: `agent-browser open https://example.com --headed`
+    - Or ask Cline to take a screenshot: `agent-browser screenshot page.png`
+  </Accordion>
+
+  <Accordion title="Element refs (@e1, @e2) are not working">
+    Refs are assigned fresh on every snapshot and become stale after any page change (navigation, click, form submit, dynamic re-render). Always re-snapshot before your next interaction:
+
+    ```bash
+    agent-browser snapshot -i    # get fresh refs
+    agent-browser click @e5      # act immediately
+    ```
+  </Accordion>
+
+  <Accordion title="Diagnosing general issues">
+    Run the built-in diagnostic tool for a full environment check:
+
+    ```bash
+    agent-browser doctor              # full diagnosis
+    agent-browser doctor --fix        # also attempt repairs (reinstall Chrome, purge state)
+    agent-browser doctor --offline    # fast, local-only check
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Learn More
+
+- [Plugins](/customization/plugins) — How the Cline plugin system works
+- [Skills](/customization/skills) — How Cline loads instructions on demand
+- [MCP Overview](/mcp/mcp-overview) — Model Context Protocol for external tool integration
