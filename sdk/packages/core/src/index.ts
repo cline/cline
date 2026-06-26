@@ -122,6 +122,7 @@ export {
 	type ClineAccountUsageTransaction,
 	type ClineAccountUser,
 	type ClineOrganization,
+	type ClineSubscriptionPlan,
 	executeClineAccountAction,
 	type FeaturebaseTokenResponse,
 	isClineAccountActionRequest,
