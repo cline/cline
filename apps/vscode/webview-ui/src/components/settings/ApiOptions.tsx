@@ -510,7 +510,7 @@ const ApiOptions = ({
 				<AIhubmixProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
-			{apiConfiguration && (selectedProvider === "openai" || isCustomProvider) && (
+			{apiConfiguration && (selectedProvider.includes("openai") || isCustomProvider) && (
 				<OpenAICompatibleProvider
 					currentMode={currentMode}
 					isPopup={isPopup}
