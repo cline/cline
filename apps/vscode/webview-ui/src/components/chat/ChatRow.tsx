@@ -230,7 +230,7 @@ export const ChatRowContent = memo(
 			isCommandMessage &&
 			!isCommandCompleted &&
 			!isCommandPending &&
-			(commandHasOutput || message.partial === true || (isLast && backgroundCommandRunning))
+			(commandHasOutput || message.partial === true || (isLast && backgroundCommandRunning === true))
 		const commandTitle = isCommandCompleted
 			? "Cline executed this command:"
 			: isCommandPending
