@@ -1,6 +1,6 @@
-import { act, render, waitFor } from "@testing-library/react"
+import { act, render, screen, waitFor } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
-import { CommandOutputContent } from "./CommandOutputRow"
+import { CommandOutputContent, CommandOutputRow } from "./CommandOutputRow"
 
 vi.mock("../common/CodeBlock", () => ({
 	default: ({ source }: { source: string }) => <pre>{source}</pre>,
@@ -75,5 +75,22 @@ describe("CommandOutputContent", () => {
 
 		await act(async () => {})
 		expect(onOutputChange).not.toHaveBeenCalled()
+	})
+})
+
+describe("CommandOutputRow", () => {
+	it("shows a spinner while a command is running", () => {
+		render(
+			<CommandOutputRow
+				isCommandExecuting={true}
+				isOutputFullyExpanded={false}
+				message={{ ts: 1, type: "say", say: "command", text: "sleep 10" }}
+				setIsOutputFullyExpanded={vi.fn()}
+				title={<span>Cline is executing this command:</span>}
+			/>,
+		)
+
+		expect(screen.getByLabelText("Command running")).toBeInTheDocument()
+		expect(screen.getByText("Running")).toBeInTheDocument()
 	})
 })
