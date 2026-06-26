@@ -13,7 +13,9 @@ service MarketplaceService {
   rpc listMarketplaceLocalInstalledEntries(EmptyRequest) returns (MarketplaceLocalInstalledEntries);
   rpc listMarketplaceInstalledEntries(MarketplaceEntriesRequest) returns (MarketplaceInstalledEntries);
   rpc installMarketplaceEntry(MarketplaceEntryRequest) returns (MarketplaceInstallResult);
+  rpc uninstallMarketplaceEntry(MarketplaceEntryRequest) returns (MarketplaceInstallResult);
   rpc toggleMarketplaceLocalInstalledEntry(ToggleMarketplaceLocalInstalledEntryRequest) returns (MarketplaceLocalInstalledEntries);
+  rpc uninstallMarketplaceLocalInstalledEntry(MarketplaceLocalInstalledEntryRequest) returns (MarketplaceInstallResult);
 }
 
 message MarketplaceTag {
@@ -85,6 +87,10 @@ message MarketplaceLocalInstalledEntries {
 message ToggleMarketplaceLocalInstalledEntryRequest {
   MarketplaceLocalInstalledEntry entry = 1;
   bool enabled = 2;
+}
+
+message MarketplaceLocalInstalledEntryRequest {
+  MarketplaceLocalInstalledEntry entry = 1;
 }
 
 message MarketplaceEntryRequest {
