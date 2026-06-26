@@ -126,10 +126,8 @@ export interface ClineCoreAutomationApi {
 
 export type ClineCoreListHistoryOptions = SessionHistoryListOptions;
 
-export interface ClineCoreStartInput extends Omit<
-  StartSessionInput,
-  "config" | "localRuntime"
-> {
+export interface ClineCoreStartInput
+	extends Omit<StartSessionInput, "config" | "localRuntime"> {
 	config: CoreSessionConfig;
 	localRuntime?: LocalRuntimeStartOptions;
 }
@@ -223,7 +221,7 @@ export interface ClineCoreOptions {
 	 */
 	featureFlags?: FeatureFlagsService;
 	/**
-   * Gets whether persisted compaction sidecar reads and writes are enabled.
+	 * Gets whether persisted compaction sidecar reads and writes are enabled.
 	 * @internal
 	 */
 	isCompactionSidecarEnabled?: () => boolean;

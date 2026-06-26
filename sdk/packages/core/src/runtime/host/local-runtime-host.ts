@@ -259,7 +259,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			new RuntimeOAuthTokenManager({
 				providerSettingsManager: this.providerSettingsManager,
 				telemetry: options.telemetry,
-		});
+			});
 		this.defaultTelemetry = options.telemetry;
 		this.defaultTelemetry?.setDistinctId(distinctId);
 		this.defaultFetch = options.fetch;
@@ -531,8 +531,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 										"Skipped stale session compaction state",
 										{
 											sessionId: activeSession.sessionId,
-											sourceMessageCount:
-												stateForSession.source_message_count,
+											sourceMessageCount: stateForSession.source_message_count,
 										},
 									);
 								}
@@ -559,7 +558,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 						});
 					},
 				})
-				: undefined;
+			: undefined;
 
 		const agentConfig = {
 			sessionId,
