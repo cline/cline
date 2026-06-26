@@ -8,7 +8,11 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { buildMcpInstallTransport, installMcpServer } from "./mcp-install";
+import {
+	buildMcpInstallTransport,
+	installMcpServer,
+	parseMcpInstallArgs,
+} from "./mcp-install";
 
 describe("MCP install service", () => {
 	let root = "";
@@ -81,6 +85,41 @@ describe("MCP install service", () => {
 		});
 		expect(readSettings(settingsPath).mcpServers?.docs).toEqual({
 			transport: result.transport,
+		});
+	});
+
+	it("parses marketplace-style MCP install args in core", () => {
+		expect(
+			parseMcpInstallArgs([
+				"docs",
+				"--transport=http",
+				"https://example.com/mcp",
+				"--header",
+				"Authorization: Bearer <token>",
+				"--header=X-Extra: yes",
+			]),
+		).toEqual({
+			name: "docs",
+			transport: "http",
+			targetArgs: ["https://example.com/mcp"],
+			headers: ["Authorization: Bearer <token>", "X-Extra: yes"],
+		});
+
+		expect(() => parseMcpInstallArgs([])).toThrow(
+			/Marketplace MCP install args/,
+		);
+	});
+
+	it("keeps transport-like values as stdio command args for direct builder input", () => {
+		expect(
+			buildMcpInstallTransport({
+				name: "custom",
+				targetArgs: ["node", "server.js", "--transport", "ipc"],
+			}).transport,
+		).toEqual({
+			type: "stdio",
+			command: "node",
+			args: ["server.js", "--transport", "ipc"],
 		});
 	});
 

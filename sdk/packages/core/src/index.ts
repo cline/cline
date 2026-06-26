@@ -496,6 +496,7 @@ export type {
 export {
 	buildMcpInstallTransport,
 	installMcpServer,
+	parseMcpInstallArgs,
 } from "./services/mcp-install";
 export type {
 	ParsedPluginSource,

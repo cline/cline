@@ -8,6 +8,7 @@ import {
 	discoverPluginModulePaths,
 	installMcpServer,
 	installPlugin,
+	parseMcpInstallArgs,
 	readGlobalSettings,
 	resolvePluginConfigSearchPaths,
 	setDisabledPlugin,
@@ -312,46 +313,6 @@ async function runCommand(command: string, args: string[]): Promise<SpawnResult>
 			})
 		})
 	})
-}
-
-function parseMcpInstallArgs(args: string[]): {
-	name: string
-	headers: string[]
-	targetArgs: string[]
-	transport?: string
-} {
-	const [name, ...rest] = args
-	if (!name) throw new Error("Marketplace MCP install args must start with a server name.")
-	const headers: string[] = []
-	const targetArgs: string[] = []
-	let transport: string | undefined
-	for (let index = 0; index < rest.length; index++) {
-		const arg = rest[index]
-		if (arg === "--transport") {
-			const value = rest[index + 1]
-			if (!value) throw new Error("--transport requires a value")
-			transport = value
-			index++
-			continue
-		}
-		if (arg?.startsWith("--transport=")) {
-			transport = arg.slice("--transport=".length)
-			continue
-		}
-		if (arg === "--header") {
-			const value = rest[index + 1]
-			if (!value) throw new Error("--header requires a value")
-			headers.push(value)
-			index++
-			continue
-		}
-		if (arg?.startsWith("--header=")) {
-			headers.push(arg.slice("--header=".length))
-			continue
-		}
-		targetArgs.push(arg)
-	}
-	return { name, headers, targetArgs, transport }
 }
 
 function installMcpMarketplaceEntry(entry: MarketplaceEntry, args: string[]): MarketplaceInstallResult {

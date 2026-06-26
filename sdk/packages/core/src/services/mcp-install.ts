@@ -79,13 +79,29 @@ function containsPlaceholder(value: string): boolean {
 
 function splitTargetArgsAndHeaders(input: {
 	headers?: string[];
+	parseTransport?: boolean;
 	targetArgs?: string[];
-}): { headers: string[]; targetArgs: string[] } {
+	transport?: string;
+}): { headers: string[]; targetArgs: string[]; transport?: string } {
 	const headers = [...(input.headers ?? [])];
 	const targetArgs: string[] = [];
+	let transport = input.transport;
 	const args = input.targetArgs ?? [];
 	for (let index = 0; index < args.length; index++) {
 		const arg = args[index];
+		if (input.parseTransport && arg === "--transport") {
+			const value = args[index + 1];
+			if (!value) {
+				throw new Error("--transport requires a value");
+			}
+			transport = value;
+			index++;
+			continue;
+		}
+		if (input.parseTransport && arg?.startsWith("--transport=")) {
+			transport = arg.slice("--transport=".length);
+			continue;
+		}
 		if (arg === "--header") {
 			const value = args[index + 1];
 			if (!value) {
@@ -101,7 +117,7 @@ function splitTargetArgsAndHeaders(input: {
 		}
 		targetArgs.push(arg);
 	}
-	return { headers, targetArgs };
+	return { headers, targetArgs, transport };
 }
 
 function buildHeaders(values: string[]): {
@@ -133,11 +149,16 @@ export function buildMcpInstallTransport(options: {
 	if (!name) {
 		throw new Error("MCP server name is required");
 	}
-	const type = normalizeTransportType(options.transport);
-	const { headers: rawHeaders, targetArgs } = splitTargetArgsAndHeaders({
+	const {
+		headers: rawHeaders,
+		targetArgs,
+		transport,
+	} = splitTargetArgsAndHeaders({
 		headers: options.headers,
 		targetArgs: options.targetArgs,
+		transport: options.transport,
 	});
+	const type = normalizeTransportType(transport);
 	const { headers, warnings } = buildHeaders(rawHeaders);
 	if (type === "stdio") {
 		if (rawHeaders.length > 0) {
@@ -171,6 +192,22 @@ export function buildMcpInstallTransport(options: {
 		name,
 		transport: headers ? { type, url, headers } : { type, url },
 		warnings,
+	};
+}
+
+export function parseMcpInstallArgs(args: string[]): McpInstallOptions {
+	const [name, ...targetArgs] = args;
+	if (!name) {
+		throw new Error(
+			"Marketplace MCP install args must start with a server name.",
+		);
+	}
+	return {
+		name,
+		...splitTargetArgsAndHeaders({
+			parseTransport: true,
+			targetArgs,
+		}),
 	};
 }
 
