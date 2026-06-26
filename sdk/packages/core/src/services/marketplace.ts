@@ -65,12 +65,22 @@ function resolveHomeDir(): string {
 	);
 }
 
+function trimSkillSegmentEdges(value: string): string {
+	let start = 0;
+	let end = value.length;
+	while (start < end && (value[start] === "." || value[start] === "-")) {
+		start++;
+	}
+	while (end > start && (value[end - 1] === "." || value[end - 1] === "-")) {
+		end--;
+	}
+	return value.slice(start, end);
+}
+
 function sanitizeSkillSegment(value: string): string {
-	const sanitized = value
-		.toLowerCase()
-		.replace(/[^a-z0-9._]+/g, "-")
-		.replace(/^[.-]+|[.-]+$/g, "")
-		.slice(0, 255);
+	const sanitized = trimSkillSegmentEdges(
+		value.toLowerCase().replace(/[^a-z0-9._]+/g, "-"),
+	).slice(0, 255);
 	return sanitized || "skill";
 }
 
