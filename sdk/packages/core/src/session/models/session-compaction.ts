@@ -65,49 +65,21 @@ export interface SessionCompactionSidecarAccess {
 	): Promise<SessionCompactionSidecarUpdateResult>;
 }
 
-type SessionCompactionSidecarRole = SessionCompactionSidecarAccess;
-
-class EnabledSessionCompactionSidecar implements SessionCompactionSidecarRole {
-	readonly enabled = true;
-
-	initialState(
-		state: SessionCompactionState | undefined,
-	): SessionCompactionState | undefined {
-		return state;
-	}
-
-	async read<T>(read: () => Promise<T | undefined>): Promise<T | undefined> {
-		return await read();
-	}
-
-	async update(
-		update: () => Promise<{ updated: boolean }>,
-	): Promise<SessionCompactionSidecarUpdateResult> {
-		return await update();
-	}
-}
-
-class DisabledSessionCompactionSidecar implements SessionCompactionSidecarRole {
-	readonly enabled = false;
-
-	initialState(): undefined {
-		return undefined;
-	}
-
-	async read(): Promise<undefined> {
-		return undefined;
-	}
-
-	async update(): Promise<SessionCompactionSidecarUpdateResult> {
-		return { updated: false, disabled: true };
-	}
-}
-
 export function createSessionCompactionSidecarAccess(
 	isEnabled: () => boolean = createSessionCompactionSidecarEnabledResolver(),
 ): SessionCompactionSidecarAccess {
-	const enabled = new EnabledSessionCompactionSidecar();
-	const disabled = new DisabledSessionCompactionSidecar();
+	const enabled: SessionCompactionSidecarAccess = {
+		enabled: true,
+		initialState: (state) => state,
+		read: (read) => read(),
+		update: (update) => update(),
+	};
+	const disabled: SessionCompactionSidecarAccess = {
+		enabled: false,
+		initialState: () => undefined,
+		read: async () => undefined,
+		update: async () => ({ updated: false, disabled: true }),
+	};
 	const current = () => (isEnabled() ? enabled : disabled);
 	return {
 		get enabled() {
