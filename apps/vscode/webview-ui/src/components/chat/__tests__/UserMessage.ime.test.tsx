@@ -5,7 +5,7 @@
  * even if you confirm the IME conversion (Enter) in message re-edit mode.
  */
 
-import { fireEvent, render } from "@testing-library/react"
+import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 
 vi.mock("@/context/ExtensionStateContext", () => ({
@@ -39,5 +39,27 @@ describe("UserMessage – IME composition handling", () => {
 		fireEvent.compositionEnd(editable)
 
 		expect(sendMessageFromChatRow).not.toHaveBeenCalled()
+	})
+
+	it("cancels inline editing on Escape without bubbling to global task shortcuts", () => {
+		const onWindowKeyDown = vi.fn()
+		window.addEventListener("keydown", onWindowKeyDown)
+
+		try {
+			render(<UserMessage images={[]} messageTs={Date.now()} text="Original prompt" />)
+
+			fireEvent.click(screen.getByText("Original prompt"))
+
+			const textbox = screen.getByRole("textbox")
+			fireEvent.change(textbox, { target: { value: "Edited prompt" } })
+
+			fireEvent.keyDown(textbox, { key: "Escape" })
+
+			expect(screen.queryByRole("textbox")).not.toBeInTheDocument()
+			expect(screen.getByText("Original prompt")).toBeInTheDocument()
+			expect(onWindowKeyDown).not.toHaveBeenCalled()
+		} finally {
+			window.removeEventListener("keydown", onWindowKeyDown)
+		}
 	})
 })
