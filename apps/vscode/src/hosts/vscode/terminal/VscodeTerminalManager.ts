@@ -346,6 +346,9 @@ export class VscodeTerminalManager implements ITerminalManager {
 					availableTerminal.pendingCwdChange = cwd
 					availableTerminal.cwdResolved = { resolve, reject }
 				})
+				// Showing the reused terminal gives VS Code a chance to initialize shell integration.
+				// runCommand() below waits up to shellIntegrationTimeout for executeCommand before falling back.
+				availableTerminal.terminal.show()
 
 				try {
 					const didCwdCommandTimeOut = await this.runCwdChangeCommand(availableTerminal, cwd)
