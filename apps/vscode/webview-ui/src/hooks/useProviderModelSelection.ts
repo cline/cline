@@ -30,11 +30,15 @@ export function useProviderModelSelection(
 	const committedSelection = currentMode === "plan" ? config?.planSelection : config?.actSelection
 	const fallbackModelId = defaultModelId || Object.keys(models)[0] || ""
 	const selectedModelId = committedSelection?.modelId ?? fallbackModelId
-	const selectedModelInfo = committedSelection?.modelInfo
-		? fromProtobufModelInfo(committedSelection.modelInfo)
-		: (models[selectedModelId] ??
-			(selectedModelId && customModelInfo ? customModelInfo(selectedModelId) : undefined) ??
-			fallbackModelInfo)
+	const persistedModelInfo = committedSelection?.modelInfo ? fromProtobufModelInfo(committedSelection.modelInfo) : undefined
+	const liveModelInfo = models[selectedModelId]
+	const selectedModelInfo =
+		persistedModelInfo || liveModelInfo
+			? {
+					...persistedModelInfo,
+					...liveModelInfo,
+				}
+			: ((selectedModelId && customModelInfo ? customModelInfo(selectedModelId) : undefined) ?? fallbackModelInfo)
 
 	const selectedModel: ProviderModelSelection = {
 		providerId,
