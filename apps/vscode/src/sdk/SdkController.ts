@@ -997,6 +997,29 @@ export class Controller {
 		stubWarn("cancelBackgroundCommand")
 	}
 
+	async cancelQueuedPrompt(promptId: string): Promise<void> {
+		const trimmedPromptId = promptId.trim()
+		if (!trimmedPromptId) {
+			Logger.warn("[SdkController] cancelQueuedPrompt: Missing prompt id")
+			return
+		}
+
+		const activeSession = this.sessions.getActiveSession()
+		if (!activeSession) {
+			Logger.warn("[SdkController] cancelQueuedPrompt: No active session")
+			return
+		}
+
+		const result = await activeSession.sdkHost.pendingPrompts("delete", {
+			sessionId: activeSession.sessionId,
+			promptId: trimmedPromptId,
+		})
+		if (!result.removed) {
+			Logger.warn(`[SdkController] cancelQueuedPrompt: Prompt not found: ${trimmedPromptId}`)
+		}
+		await this.postStateToWebview()
+	}
+
 	/**
 	 * Manually compact (condense) the active task's conversation. Triggered by
 	 * the compact button and the `/compact` (alias `/smol`) slash command.
