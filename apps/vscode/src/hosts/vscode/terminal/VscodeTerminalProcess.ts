@@ -82,22 +82,31 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 
 			// Listen for the shell execution end event to capture the exit code.
 			// This is the reliable source — the D marker is stripped from the stream.
-			let endEventExitCode: number | undefined
+			// The event fires asynchronously AFTER the read() stream completes (VS Code
+			// calls flush().then(() => fire(endEvent))), so we must await it rather
+			// than checking synchronously.
 			let endEventDisposable: vscode.Disposable | undefined
+			let resolveExitCode!: (exitCode: number | undefined) => void
+			const exitCodePromise = new Promise<number | undefined>((resolve) => {
+				resolveExitCode = resolve
+			})
 			try {
-				endEventDisposable = (vscode.window as unknown as {
-					onDidEndTerminalShellExecution?: (
-						listener: (e: { terminal: vscode.Terminal; exitCode: number | undefined }) => any,
-						thisArgs?: any,
-						disposables?: vscode.Disposable[],
-					) => vscode.Disposable
-				}).onDidEndTerminalShellExecution?.((e) => {
+				endEventDisposable = (
+					vscode.window as unknown as {
+						onDidEndTerminalShellExecution?: (
+							listener: (e: { terminal: vscode.Terminal; exitCode: number | undefined }) => any,
+							thisArgs?: any,
+							disposables?: vscode.Disposable[],
+						) => vscode.Disposable
+					}
+				).onDidEndTerminalShellExecution?.((e) => {
 					if (e.terminal === terminal) {
-						endEventExitCode = e.exitCode
+						resolveExitCode(e.exitCode)
 					}
 				})
 			} catch {
 				// Event not available in this VS Code version; fall back to D-marker parsing.
+				resolveExitCode(undefined)
 			}
 
 			for await (let data of stream) {
@@ -188,15 +197,23 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 
 			this.emitRemainingBufferIfListening()
 
-			// Dispose the end-event listener now that the stream is done.
+			// Await the exit code from onDidEndTerminalShellExecution.
+			// The event fires asynchronously AFTER the read() stream completes
+			// (VS Code calls flush().then(() => fire(endEvent))), so we must
+			// await it here. Race with a short timeout in case the event never
+			// fires (e.g. no shell integration markers in the stream).
+			const eventExitCode = await Promise.race([
+				exitCodePromise,
+				new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), 500)),
+			])
 			endEventDisposable?.dispose()
 
-			// The exit code from onDidEndTerminalShellExecution is the reliable
-			// source (the D marker is stripped from the read() stream by VS Code).
-			// Fall back to the parser-extracted exit code (from the D marker) only
-			// if the event wasn't available or didn't fire.
-			if (endEventExitCode !== undefined) {
-				this.exitCode = endEventExitCode
+			// Prefer the event-captured exit code (reliable source — the D marker
+			// is stripped from the read() stream by VS Code). Fall back to the
+			// parser-extracted exit code (from the D marker) if the event wasn't
+			// available or didn't fire in time.
+			if (eventExitCode !== undefined) {
+				this.exitCode = eventExitCode
 			}
 
 			// If we never saw the CommandExecuted (C) marker (e.g. ssh/nested
