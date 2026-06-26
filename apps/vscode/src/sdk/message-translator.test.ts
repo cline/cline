@@ -1275,7 +1275,11 @@ describe("translateSessionEvent — hook events", () => {
 		const result = translateSessionEvent(event, state)
 		expect(result.messages).toHaveLength(1)
 		expect(result.messages[0].say).toBe("hook_status")
-		expect(result.messages[0].text).toContain("write_to_file")
+		expect(JSON.parse(result.messages[0].text!)).toEqual({
+			hookName: "tool_call",
+			toolName: "write_to_file",
+			status: "completed",
+		})
 	})
 
 	it("translates tool_result hook to hook_status message", () => {
@@ -1291,7 +1295,11 @@ describe("translateSessionEvent — hook events", () => {
 
 		const result = translateSessionEvent(event, state)
 		expect(result.messages).toHaveLength(1)
-		expect(result.messages[0].text).toContain("completed")
+		expect(JSON.parse(result.messages[0].text!)).toEqual({
+			hookName: "tool_result",
+			toolName: "read_files",
+			status: "completed",
+		})
 	})
 })
 

@@ -260,7 +260,6 @@ const USER_SETTINGS_FIELDS = {
 	shellIntegrationTimeout: { default: 4000 as number },
 	defaultTerminalProfile: { default: "default" as string },
 	maxConsecutiveMistakes: { default: 3 as number },
-	hooksEnabled: { default: true as boolean },
 	yoloModeToggled: { default: false as boolean },
 	autoApproveAllToggled: { default: false as boolean },
 	useAutoCondense: { default: false as boolean },

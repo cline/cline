@@ -32,7 +32,6 @@ import { getDistinctId } from "@/services/logging/distinctId"
 import { fetch } from "@/shared/net"
 import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
 import { type BedrockProviderConfig, buildBedrockProviderConfig } from "./bedrock-config"
-import { buildAgentHooks } from "./hooks-adapter"
 import { readTaskHistory, resolveDataDir } from "./legacy-state-reader"
 import { toSdkProviderId } from "./model-catalog/sdk-provider-id"
 import { getProviderSettingsManager } from "./provider-migration"
@@ -719,7 +718,6 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 			},
 			logger: sdkLogger,
 		},
-		hooks: buildAgentHooks(StateManager.get()),
 	}
 
 	return config

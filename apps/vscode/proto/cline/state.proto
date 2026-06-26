@@ -258,7 +258,7 @@ message Settings {
   optional PlanActMode mode = 147;
   optional FocusChainSettings focus_chain_settings = 149;
   optional string custom_prompt = 150;
-  optional bool hooks_enabled = 152;
+  reserved 152;
   optional bool subagents_enabled = 153;
   optional bool background_edit_enabled = 155;
   optional bool opt_out_of_remote_config = 157;
@@ -413,7 +413,7 @@ message UpdateSettingsRequest {
   optional string default_terminal_profile = 21;
   optional bool yolo_mode_toggled = 22;
   optional bool multi_root_enabled = 25;
-  optional bool hooks_enabled = 26;
+  reserved 26;
   optional string vscode_terminal_execution_mode = 27;
   optional int32 max_consecutive_mistakes = 28;
   optional bool subagents_enabled = 29;

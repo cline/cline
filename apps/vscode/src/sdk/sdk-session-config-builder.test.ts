@@ -3,15 +3,10 @@ import { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
 
 const mocks = vi.hoisted(() => ({
 	buildSessionConfig: vi.fn(),
-	buildAgentHooks: vi.fn(() => ({})),
 }))
 
 vi.mock("./cline-session-factory", () => ({
 	buildSessionConfig: mocks.buildSessionConfig,
-}))
-
-vi.mock("./hooks-adapter", () => ({
-	buildAgentHooks: mocks.buildAgentHooks,
 }))
 
 describe("SdkSessionConfigBuilder", () => {
@@ -22,7 +17,6 @@ describe("SdkSessionConfigBuilder", () => {
 		const onSwitchToActMode = vi.fn()
 		const builder = new SdkSessionConfigBuilder({
 			stateManager: stateManager as never,
-			emitHookMessage: vi.fn(),
 			onSwitchToActMode,
 		})
 
@@ -52,12 +46,10 @@ describe("SdkSessionConfigBuilder", () => {
 
 	it("stops before the next model call after switch_to_act_mode queues a mode change", async () => {
 		const baseBeforeModel = vi.fn(async () => ({ metadata: "base" }))
-		mocks.buildAgentHooks.mockReturnValueOnce({ beforeModel: baseBeforeModel })
-		mocks.buildSessionConfig.mockResolvedValueOnce({ hooks: {} })
+		mocks.buildSessionConfig.mockResolvedValueOnce({ hooks: { beforeModel: baseBeforeModel } })
 
 		const builder = new SdkSessionConfigBuilder({
 			stateManager: {} as never,
-			emitHookMessage: vi.fn(),
 			onSwitchToActMode: vi.fn(),
 			shouldStopAfterModeSwitch: () => true,
 		})
@@ -77,7 +69,6 @@ describe("SdkSessionConfigBuilder", () => {
 
 		const builder = new SdkSessionConfigBuilder({
 			stateManager: { getGlobalSettingsKey: vi.fn(() => 3) } as never,
-			emitHookMessage: vi.fn(),
 			onSwitchToActMode: vi.fn(),
 			onConsecutiveMistakeLimitReached,
 		})

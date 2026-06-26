@@ -7,7 +7,6 @@ const mockUpdateSetting = vi.fn()
 vi.mock("@/context/ExtensionStateContext", () => ({
 	useExtensionState: vi.fn(() => ({
 		enableCheckpointsSetting: true,
-		hooksEnabled: false,
 		showFeatureTips: false,
 		mcpDisplayMode: "rich",
 		yoloModeToggled: false,
@@ -25,15 +24,15 @@ vi.mock("../utils/settingsHandlers", () => ({
 }))
 
 describe("FeatureSettingsSection", () => {
-	it("renders Hooks feature toggle", () => {
+	it("does not render a legacy Hooks feature toggle", () => {
 		const { container } = render(<FeatureSettingsSection renderSectionHeader={() => null} />)
 
-		expect(screen.getByText("Hooks")).toBeTruthy()
+		expect(screen.queryByText("Hooks")).toBeNull()
 
 		const advancedSection = container.querySelector("#advanced-features")
 		const agentSection = container.querySelector("#agent-features")
 
-		expect(advancedSection?.querySelector("#Hooks")).toBeTruthy()
+		expect(advancedSection?.querySelector("#Hooks")).toBeNull()
 		expect(agentSection?.querySelector("#Hooks")).toBeNull()
 	})
 
@@ -47,17 +46,6 @@ describe("FeatureSettingsSection", () => {
 
 		expect(editorSection?.querySelector('[id="Feature Tips"]')).toBeTruthy()
 		expect(agentSection?.querySelector('[id="Feature Tips"]')).toBeNull()
-	})
-
-	it("calls updateSetting with hooksEnabled when toggled", () => {
-		const { container } = render(<FeatureSettingsSection renderSectionHeader={() => null} />)
-
-		const hooksSwitch = container.querySelector("#Hooks")
-		expect(hooksSwitch).toBeTruthy()
-
-		fireEvent.click(hooksSwitch as Element)
-
-		expect(mockUpdateSetting).toHaveBeenCalledWith("hooksEnabled", true)
 	})
 
 	it("calls updateSetting with showFeatureTips when toggled", () => {

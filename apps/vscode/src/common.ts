@@ -5,8 +5,6 @@ import { HostProvider } from "@/hosts/host-provider"
 import { Logger } from "@/shared/services/Logger"
 import type { StorageContext } from "@/shared/storage/storage-context"
 import { clearOnboardingModelsCache } from "./core/controller/models/getClineOnboardingModels"
-import { HookDiscoveryCache } from "./core/hooks/HookDiscoveryCache"
-import { HookProcessRegistry } from "./core/hooks/HookProcessRegistry"
 import { StateManager } from "./core/storage/StateManager"
 import { AgentConfigLoader } from "./core/task/tools/subagent/AgentConfigLoader"
 import { ExtensionRegistryInfo } from "./registry"
@@ -164,10 +162,6 @@ export async function tearDown(): Promise<void> {
 		syncWorker().dispose()
 		clearOnboardingModelsCache()
 
-		// Kill any running hook processes to prevent zombies
-		await HookProcessRegistry.terminateAll()
-		// Clean up hook discovery cache
-		HookDiscoveryCache.getInstance().dispose()
 		// Stop periodic temp file cleanup
 		ClineTempManager.stopPeriodicCleanup()
 	} finally {
