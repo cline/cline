@@ -10,6 +10,9 @@ export async function installMarketplaceEntry(
 		throw new Error("Marketplace entry is required.")
 	}
 	const result = await installMarketplaceEntryFromCatalog(request.entry)
+	if (request.entry.type === "mcp") {
+		await controller.mcpHub?.reconcileMcpServersFromSettingsRPC()
+	}
 	if (request.entry.type === "skill" || request.entry.type === "plugin") {
 		await controller.invalidateUserInstructionService()
 	}
