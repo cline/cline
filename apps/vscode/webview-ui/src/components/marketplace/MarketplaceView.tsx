@@ -8,7 +8,6 @@ import {
 } from "@shared/proto/cline/marketplace"
 import { VSCodeButton, VSCodeLink, VSCodeProgressRing, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import {
-	BlocksIcon,
 	CheckIcon,
 	DownloadIcon,
 	LoaderCircleIcon,
@@ -27,6 +26,7 @@ import AddRemoteServerForm from "../mcp/configuration/tabs/add-server/AddRemoteS
 import ServersToggleList from "../mcp/configuration/tabs/installed/ServersToggleList"
 
 type PrimitiveType = "mcp" | "skill" | "plugin"
+type MarketplaceSectionType = "installed" | "marketplace"
 
 type MarketplaceViewProps = {
 	initialType?: PrimitiveType
@@ -87,6 +87,11 @@ const PRIMITIVES: PrimitiveConfig[] = [
 		),
 		icon: PuzzleIcon,
 	},
+]
+
+const MARKETPLACE_SECTIONS: Array<{ type: MarketplaceSectionType; label: string }> = [
+	{ type: "installed", label: "Installed" },
+	{ type: "marketplace", label: "Marketplace" },
 ]
 
 function isPrimitiveType(value: string): value is PrimitiveType {
@@ -253,6 +258,37 @@ const MarketplaceStyles = () => (
 			line-height: 1.4;
 			white-space: pre-wrap;
 			word-break: break-word;
+		}
+
+		.marketplace-subnav {
+			display: flex;
+			align-items: center;
+			gap: 0;
+			min-width: 0;
+			margin: 0 0 12px;
+			border-bottom: 1px solid var(--vscode-panel-border);
+		}
+
+		.marketplace-subtab {
+			height: 30px;
+			border: 0;
+			border-bottom: 2px solid transparent;
+			background: transparent;
+			color: var(--vscode-descriptionForeground);
+			font: inherit;
+			font-size: calc(var(--vscode-font-size) * 0.92);
+			padding: 0 10px;
+			cursor: pointer;
+		}
+
+		.marketplace-subtab:hover {
+			background: var(--vscode-list-hoverBackground);
+			color: var(--vscode-foreground);
+		}
+
+		.marketplace-subtab[aria-selected="true"] {
+			color: var(--vscode-foreground);
+			border-bottom-color: var(--vscode-focusBorder);
 		}
 
 		.marketplace-section {
@@ -626,17 +662,21 @@ const Section = ({
 	children,
 	count,
 	empty,
+	showHeader = true,
 	title,
 }: {
 	children: React.ReactNode
 	count: number
 	empty: string
+	showHeader?: boolean
 	title: string
 }) => (
 	<section className="marketplace-section">
-		<div className="marketplace-section-header">
-			<h3 className="marketplace-section-title">{title}</h3>
-		</div>
+		{showHeader && (
+			<div className="marketplace-section-header">
+				<h3 className="marketplace-section-title">{title}</h3>
+			</div>
+		)}
 		{count > 0 ? <div className="marketplace-list">{children}</div> : <div className="marketplace-empty">{empty}</div>}
 	</section>
 )
@@ -647,17 +687,21 @@ const MarketplaceCatalogSection = ({
 	empty,
 	filters,
 	search,
+	showHeader = true,
 }: {
 	children: React.ReactNode
 	count: number
 	empty: string
 	filters: React.ReactNode
 	search: React.ReactNode
+	showHeader?: boolean
 }) => (
 	<section className="marketplace-section">
-		<div className="marketplace-section-header">
-			<h3 className="marketplace-section-title">Marketplace</h3>
-		</div>
+		{showHeader && (
+			<div className="marketplace-section-header">
+				<h3 className="marketplace-section-title">Marketplace</h3>
+			</div>
+		)}
 		{search}
 		{filters}
 		{count > 0 ? <div className="marketplace-list">{children}</div> : <div className="marketplace-empty">{empty}</div>}
@@ -697,7 +741,7 @@ const TagFilters = ({
 	)
 }
 
-const McpManagementPanel = () => {
+const McpManagementPanel = ({ showHeader = true }: { showHeader?: boolean }) => {
 	const { mcpServers, navigateToSettings, remoteConfigSettings } = useExtensionState()
 	const [showAddRemote, setShowAddRemote] = useState(false)
 	const showRemoteServers = remoteConfigSettings?.blockPersonalRemoteMCPServers !== true
@@ -705,9 +749,11 @@ const McpManagementPanel = () => {
 
 	return (
 		<section className="marketplace-section">
-			<div className="marketplace-section-header">
-				<h3 className="marketplace-section-title">Installed MCP Servers</h3>
-			</div>
+			{showHeader && (
+				<div className="marketplace-section-header">
+					<h3 className="marketplace-section-title">Installed MCP Servers</h3>
+				</div>
+			)}
 			<div className="marketplace-mcp-panel">
 				{hasRemoteMCPServers && (
 					<div className="marketplace-mcp-managed">
@@ -839,6 +885,7 @@ const CatalogEntryRow = ({
 const MarketplaceView = ({ initialType = "skill", onDone }: MarketplaceViewProps) => {
 	const { environment } = useExtensionState()
 	const [activeType, setActiveType] = useState<PrimitiveType>(initialType)
+	const [activeSection, setActiveSection] = useState<MarketplaceSectionType>("installed")
 	const [catalogEntries, setCatalogEntries] = useState<MarketplaceEntry[]>([])
 	const [localEntries, setLocalEntries] = useState<MarketplaceLocalInstalledEntry[]>([])
 	const [installedKeys, setInstalledKeys] = useState<Set<string>>(new Set())
@@ -920,11 +967,6 @@ const MarketplaceView = ({ initialType = "skill", onDone }: MarketplaceViewProps
 		() => localEntries.filter((entry) => entry.type === activeType),
 		[localEntries, activeType],
 	)
-	const hasAnyCurrentPrimitiveEntries = useMemo(
-		() => catalogEntries.some((entry) => entry.type === activeType) || visibleLocalEntries.length > 0,
-		[catalogEntries, activeType, visibleLocalEntries.length],
-	)
-
 	const handleInstall = useCallback(
 		async (entry: MarketplaceEntry) => {
 			setInstallingId(entryKey(entry))
@@ -963,6 +1005,10 @@ const MarketplaceView = ({ initialType = "skill", onDone }: MarketplaceViewProps
 		setSelectedTag(null)
 	}, [])
 
+	const handleSectionTabChange = useCallback((value: string) => {
+		setActiveSection(value as MarketplaceSectionType)
+	}, [])
+
 	return (
 		<Tab className="marketplace-view">
 			<MarketplaceStyles />
@@ -980,6 +1026,18 @@ const MarketplaceView = ({ initialType = "skill", onDone }: MarketplaceViewProps
 
 				<TabContent className="marketplace-content">
 					<div className="marketplace-inner">
+						<TabList
+							aria-label={`${primitive.title} sections`}
+							className="marketplace-subnav"
+							onValueChange={handleSectionTabChange}
+							value={activeSection}>
+							{MARKETPLACE_SECTIONS.map((section) => (
+								<TabTrigger className="marketplace-subtab" key={section.type} value={section.type}>
+									{section.label}
+								</TabTrigger>
+							))}
+						</TabList>
+
 						<div className="marketplace-primitive-description">{primitive.description}</div>
 						{error && <div className="marketplace-error">{error}</div>}
 
@@ -990,75 +1048,73 @@ const MarketplaceView = ({ initialType = "skill", onDone }: MarketplaceViewProps
 							</div>
 						) : (
 							<>
-								{activeType === "mcp" ? (
-									<McpManagementPanel />
-								) : (
-									<Section
-										count={visibleLocalEntries.length}
-										empty={`No installed ${primitive.plural}.`}
-										title={`Installed ${primitive.title}`}>
-										{visibleLocalEntries.map((entry) => (
-											<LocalInstalledRow
+								{activeSection === "installed" &&
+									(activeType === "mcp" ? (
+										<McpManagementPanel showHeader={false} />
+									) : (
+										<Section
+											count={visibleLocalEntries.length}
+											empty={`No installed ${primitive.plural}.`}
+											showHeader={false}
+											title={`Installed ${primitive.title}`}>
+											{visibleLocalEntries.map((entry) => (
+												<LocalInstalledRow
+													entry={entry}
+													key={`${entry.type}:${entry.id}:${entry.path}`}
+													onToggle={handleToggleLocal}
+													toggling={togglingLocalId === `${entry.type}:${entry.id}:${entry.path}`}
+												/>
+											))}
+										</Section>
+									))}
+
+								{activeSection === "marketplace" && (
+									<MarketplaceCatalogSection
+										count={visibleCatalogEntries.length}
+										empty={
+											query || selectedTag
+												? `No ${primitive.plural} match your search.`
+												: `No marketplace ${primitive.plural}.`
+										}
+										filters={
+											<TagFilters
+												counts={tagFilters.counts}
+												onSelect={setSelectedTag}
+												selectedTag={selectedTag}
+												tags={tagFilters.tags}
+											/>
+										}
+										search={
+											<div className="marketplace-search">
+												<VSCodeTextField
+													aria-label={`Search ${primitive.title}`}
+													onInput={(event) => setQuery((event.target as HTMLInputElement).value)}
+													placeholder={`Search ${primitive.plural}`}
+													value={query}>
+													<span className="codicon codicon-search" slot="start" />
+													{query && (
+														<button
+															aria-label="Clear search"
+															className="codicon codicon-close marketplace-clear-search"
+															onClick={() => setQuery("")}
+															slot="end"
+															type="button"
+														/>
+													)}
+												</VSCodeTextField>
+											</div>
+										}
+										showHeader={false}>
+										{visibleCatalogEntries.map((entry) => (
+											<CatalogEntryRow
 												entry={entry}
-												key={`${entry.type}:${entry.id}:${entry.path}`}
-												onToggle={handleToggleLocal}
-												toggling={togglingLocalId === `${entry.type}:${entry.id}:${entry.path}`}
+												installed={installedKeys.has(entryKey(entry))}
+												installing={installingId === entryKey(entry)}
+												key={entryKey(entry)}
+												onInstall={handleInstall}
 											/>
 										))}
-									</Section>
-								)}
-
-								<MarketplaceCatalogSection
-									count={visibleCatalogEntries.length}
-									empty={
-										query || selectedTag
-											? `No ${primitive.plural} match your search.`
-											: `No marketplace ${primitive.plural}.`
-									}
-									filters={
-										<TagFilters
-											counts={tagFilters.counts}
-											onSelect={setSelectedTag}
-											selectedTag={selectedTag}
-											tags={tagFilters.tags}
-										/>
-									}
-									search={
-										<div className="marketplace-search">
-											<VSCodeTextField
-												aria-label={`Search ${primitive.title}`}
-												onInput={(event) => setQuery((event.target as HTMLInputElement).value)}
-												placeholder={`Search ${primitive.plural}`}
-												value={query}>
-												<span className="codicon codicon-search" slot="start" />
-												{query && (
-													<button
-														aria-label="Clear search"
-														className="codicon codicon-close marketplace-clear-search"
-														onClick={() => setQuery("")}
-														slot="end"
-														type="button"
-													/>
-												)}
-											</VSCodeTextField>
-										</div>
-									}>
-									{visibleCatalogEntries.map((entry) => (
-										<CatalogEntryRow
-											entry={entry}
-											installed={installedKeys.has(entryKey(entry))}
-											installing={installingId === entryKey(entry)}
-											key={entryKey(entry)}
-											onInstall={handleInstall}
-										/>
-									))}
-								</MarketplaceCatalogSection>
-
-								{!hasAnyCurrentPrimitiveEntries && (
-									<div className="marketplace-empty">
-										<BlocksIcon aria-hidden className="h-4 w-4" />
-										<span>No {primitive.plural} found.</span>
-									</div>
+									</MarketplaceCatalogSection>
 								)}
 							</>
 						)}
