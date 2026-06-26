@@ -94,9 +94,28 @@ describe("buildEffectiveProviderConfig", () => {
 		})
 	})
 
+	it("reads migrated OpenAI Compatible settings from the SDK provider id", async () => {
+		const { buildEffectiveProviderConfig } = await import("./effective-config")
+		mocks.setProviderSettings({
+			"openai-compatible": {
+				provider: "openai-compatible",
+				apiKey: "migrated-openai-compatible-key",
+				baseUrl: "https://gateway.example.invalid/v1",
+				headers: { "X-Test": "legacy-header" },
+			},
+		})
+
+		expect(buildEffectiveProviderConfig(parseProviderId("openai"))).toEqual({
+			providerId: parseProviderId("openai"),
+			apiKey: "migrated-openai-compatible-key",
+			baseUrl: "https://gateway.example.invalid/v1",
+			headers: { "X-Test": "legacy-header" },
+		})
+	})
+
 	it("reads normalized nousResearch API key from StateManager", async () => {
 		const { buildEffectiveProviderConfig } = await import("./effective-config")
-		mocks.setProviderSettings({ nousresearch: { provider: "nousresearch", apiKey: "provider-nous-key" } })
+		mocks.setProviderSettings({ nousResearch: { provider: "nousResearch", apiKey: "provider-nous-key" } })
 		mocks.setApiConfiguration({ nousResearchApiKey: "state-nous-key" })
 
 		expect(buildEffectiveProviderConfig(parseProviderId("nousResearch"))).toEqual({

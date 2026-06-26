@@ -333,6 +333,21 @@ describe("buildSessionConfig", () => {
 		expect(mocks.providerSettingsManager.getProviderSettings).not.toHaveBeenCalled()
 	})
 
+	it("resolves OpenAI Compatible API keys from migrated SDK provider settings", () => {
+		mocks.providerSettingsManager.getProviderSettings.mockImplementation((providerId?: string) => {
+			if (providerId !== "openai-compatible") {
+				return undefined
+			}
+			return {
+				provider: "openai-compatible",
+				apiKey: "migrated-openai-compatible-key",
+			} as any
+		})
+
+		expect(resolveApiKey("openai", {} as any)).toBe("migrated-openai-compatible-key")
+		expect(mocks.providerSettingsManager.getProviderSettings).toHaveBeenCalledWith("openai-compatible")
+	})
+
 	it("resolves OpenAI Codex through the shared OAuth provider registry", async () => {
 		mocks.providerSettingsManager.getProviderSettings.mockReturnValue({
 			provider: "openai-codex",
