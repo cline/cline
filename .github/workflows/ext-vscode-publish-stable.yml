@@ -27,6 +27,10 @@ permissions:
     checks: write
     pull-requests: write
 
+concurrency:
+    group: ext-vscode-publish-stable-${{ github.event.inputs.tag }}
+    cancel-in-progress: false
+
 jobs:
     test:
         uses: ./.github/workflows/ext-vscode-test.yml
@@ -102,7 +106,13 @@ jobs:
                       echo "Error: tag '$TAG' does not exist in the repository"
                       exit 1
                     fi
-                    echo "Using existing tag '$TAG'."
+                    TAG_SHA=$(git rev-list -n 1 "$TAG_REF^{commit}")
+                    if [[ "$TAG_SHA" != "$TESTED_SHA" ]]; then
+                      echo "Error: existing tag '$TAG' points to $TAG_SHA, but this workflow tested $TESTED_SHA"
+                      echo "Dispatch from the tag ref, or from the exact main commit the tag points to."
+                      exit 1
+                    fi
+                    echo "Using existing tag '$TAG' at tested SHA $TESTED_SHA."
                   fi
 
                   git checkout --detach "$TAG_REF^{commit}"
@@ -170,6 +180,33 @@ jobs:
                   fi
                   echo "Tag and package version match: $TAG"
 
+            - name: Verify Changelog Entry
+              working-directory: ${{ github.workspace }}
+              run: |
+                  EXPECTED_HEADING="## [${{ steps.get_version.outputs.version }}]"
+                  FIRST_HEADING=$(grep -m 1 '^## \[' CHANGELOG.md || true)
+                  if [[ "$FIRST_HEADING" != "$EXPECTED_HEADING" ]]; then
+                    echo "Error: CHANGELOG.md must start with '$EXPECTED_HEADING' before publishing."
+                    echo "Current first release heading: ${FIRST_HEADING:-<none>}"
+                    exit 1
+                  fi
+                  echo "Found changelog entry for ${{ steps.get_version.outputs.version }}"
+
+            - name: Verify Marketplace Tokens
+              env:
+                  VSCE_PAT: ${{ secrets.VSCE_PAT }}
+                  OVSX_PAT: ${{ secrets.OVSX_PAT }}
+              run: |
+                  if [[ -z "$VSCE_PAT" ]]; then
+                    echo "Error: VSCE_PAT is required to publish the stable VS Code extension."
+                    exit 1
+                  fi
+                  if [[ -z "$OVSX_PAT" ]]; then
+                    echo "Error: OVSX_PAT is required to publish the stable Open VSX extension."
+                    exit 1
+                  fi
+                  echo "Marketplace publish tokens are configured."
+
             - name: Package and Publish Extension
               env:
                   VSCE_PAT: ${{ secrets.VSCE_PAT }}
@@ -215,15 +252,24 @@ jobs:
               working-directory: ${{ github.workspace }}
               run: |
                   CURRENT_TAG="${{ steps.resolve_tag.outputs.tag }}"
-                  PREV_TAG=$(git describe --tags --abbrev=0 "$CURRENT_TAG^" 2>/dev/null || echo "")
+                  PREV_TAG=$(
+                    git tag --merged "$CURRENT_TAG^" --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname \
+                      | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.]+)?$' \
+                      | head -n 1 || true
+                  )
                   echo "prev_tag=$PREV_TAG" >> $GITHUB_OUTPUT
 
             - name: Get Changelog Entry
               id: changelog
               working-directory: ${{ github.workspace }}
               run: |
-                  # Get content between first ## [ and second ## [
-                  CONTENT=$(awk '/^## \[/{if(found) exit; found=1; next} found{print}' CHANGELOG.md)
+                  # Get content between the matching version heading and the next release heading.
+                  CONTENT=$(awk -v version="${{ steps.get_version.outputs.version }}" '
+                    $0 == "## [" version "]" { found=1; next }
+                    found && /^## \[/ { exit }
+                    found { print }
+                    END { if (!found) exit 1 }
+                  ' CHANGELOG.md)
                   echo "content<<EOF" >> $GITHUB_OUTPUT
                   echo "$CONTENT" >> $GITHUB_OUTPUT
                   echo "EOF" >> $GITHUB_OUTPUT
