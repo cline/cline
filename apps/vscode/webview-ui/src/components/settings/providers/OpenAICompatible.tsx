@@ -1,5 +1,10 @@
 import { TooltipContent, TooltipTrigger } from "@radix-ui/react-tooltip"
-import { azureOpenAiDefaultApiVersion, type ModelInfo, openAiModelInfoSafeDefaults } from "@shared/api"
+import {
+	azureOpenAiDefaultApiVersion,
+	type ModelInfo,
+	type OpenAiCompatibleModelInfo,
+	openAiModelInfoSafeDefaults,
+} from "@shared/api"
 import { OpenAiModelsRequest } from "@shared/proto/cline/models"
 import { fromProtobufModelInfo } from "@shared/proto-conversions/models/typeConversion"
 import type { Mode } from "@shared/storage/types"
@@ -85,7 +90,9 @@ export const OpenAICompatibleProvider = ({
 		? fromProtobufModelInfo(committedSelection.modelInfo)
 		: legacySelectedModelInfo
 	// The Model Configuration section reads/writes the resolved model info.
-	const openAiModelInfo = selectedModelInfo
+	// OpenAiCompatibleModelInfo only adds optional fields over ModelInfo, so a
+	// resolved ModelInfo satisfies it structurally.
+	const openAiModelInfo: OpenAiCompatibleModelInfo = selectedModelInfo
 
 	const commitOpenAiSelection = useCallback(
 		(modelId: string, modelInfo = openAiModelInfo ?? openAiModelInfoSafeDefaults) => {
