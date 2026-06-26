@@ -7,6 +7,7 @@ import type {
 	ClineAccountUsageTransaction,
 	ClineAccountUser,
 	ClineOrganization,
+	ClineSubscriptionPlan,
 	FeaturebaseTokenResponse,
 	UserRemoteConfigResponse,
 } from "./types";
@@ -141,6 +142,18 @@ export class ClineAccountService {
 	public async fetchUserOrganizations(): Promise<ClineAccountOrganization[]> {
 		const me = await this.fetchMe();
 		return me.organizations ?? [];
+	}
+
+	public async fetchAvailableSubscriptionPlans(input?: {
+		type?: "individual" | "teams";
+	}): Promise<ClineSubscriptionPlan[]> {
+		const path = new URL("/api/v1/plans", this.apiBaseUrl);
+		if (input?.type) {
+			path.searchParams.set("type", input.type);
+		}
+		return this.request<ClineSubscriptionPlan[]>(
+			`${path.pathname}${path.search}`,
+		);
 	}
 
 	public async fetchOrganization(

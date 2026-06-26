@@ -50,6 +50,7 @@ export function ChatView(props: {
 	};
 	textareaRef?: React.MutableRefObject<TextareaHandle | null>;
 	transcriptScrollRef?: React.Ref<TranscriptScrollHandle>;
+	loadIndividualSubscriptionPlans?: TuiProps["loadIndividualSubscriptionPlans"];
 	autocomplete?: AutocompleteDropdownProps;
 	queuedPrompts?: QueuedPromptItem[];
 	selectedQueuedPromptId?: string | null;
@@ -89,6 +90,7 @@ export function ChatView(props: {
 				ref={props.transcriptScrollRef}
 				entries={session.entries}
 				isStreaming={session.isStreaming}
+				loadIndividualSubscriptionPlans={props.loadIndividualSubscriptionPlans}
 				uiMode={session.uiMode}
 			/>
 
