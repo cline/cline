@@ -129,28 +129,34 @@ describe("marketplace service", () => {
 		expect(existsSync(skillDir)).toBe(false);
 	});
 
-	it("fails marketplace skill uninstall if the skill remains installed", async () => {
-		const skillDir = join(home, ".agents", "skills", "review-team");
-		await mkdir(skillDir, { recursive: true });
-		await writeFile(join(skillDir, "SKILL.md"), "# Review Team", "utf8");
+	it("cleans up remaining marketplace skill directories after skills CLI remove succeeds", async () => {
+		const clineSkillDir = join(
+			process.env.CLINE_DIR ?? "",
+			"skills",
+			"review-team",
+		);
+		await mkdir(clineSkillDir, { recursive: true });
+		await writeFile(join(clineSkillDir, "SKILL.md"), "# Review Team", "utf8");
 
-		await expect(
-			uninstallMarketplaceEntry(
-				{
-					id: "review-team",
-					type: "skill",
-					name: "Review Team",
-					install: { args: ["github.com/cline/skills@review-team"] },
-				},
-				{
-					spawnCommand: async () => ({
-						exitCode: 0,
-						stdout: "removed",
-						stderr: "",
-					}),
-				},
-			),
-		).rejects.toThrow(/still present/);
+		const result = await uninstallMarketplaceEntry(
+			{
+				id: "review-team",
+				type: "skill",
+				name: "Review Team",
+				install: { args: ["github.com/cline/skills@review-team"] },
+			},
+			{
+				spawnCommand: async () => ({
+					exitCode: 0,
+					stdout: "removed",
+					stderr: "",
+				}),
+			},
+		);
+
+		expect(result.status).toBe("uninstalled");
+		expect(result.output).toContain(`Removed: ${clineSkillDir}`);
+		expect(existsSync(clineSkillDir)).toBe(false);
 	});
 
 	it("uninstalls official marketplace plugins by marketplace slug", async () => {

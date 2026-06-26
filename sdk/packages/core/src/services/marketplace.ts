@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, rmSync } from "node:fs";
 import { homedir, platform } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { resolveClineDir, resolveMcpSettingsPath } from "@cline/shared/storage";
 import { updateMcpSettingsFileSync } from "../extensions/mcp";
 import { parseMcpInstallArgs } from "./mcp-install";
@@ -268,6 +268,22 @@ export function isMarketplaceSkillInstalled(
 	return findInstalledGlobalMarketplaceSkillName(entry) !== undefined;
 }
 
+function removeRemainingMarketplaceSkillPaths(
+	entry: MarketplaceEntryInput,
+): string[] {
+	const removedPaths: string[] = [];
+	if (entry.type !== "skill") return removedPaths;
+	for (const candidate of getMarketplaceSkillCandidates(entry)) {
+		for (const skillPath of getGlobalMarketplaceSkillPaths(candidate)) {
+			if (!existsSync(skillPath)) continue;
+			const skillDir = dirname(skillPath);
+			rmSync(skillDir, { recursive: true, force: true });
+			removedPaths.push(skillDir);
+		}
+	}
+	return removedPaths;
+}
+
 export async function uninstallMarketplaceSkill(
 	entry: MarketplaceEntryInput,
 	options: Pick<UninstallMarketplaceEntryOptions, "spawnCommand"> = {},
@@ -312,6 +328,7 @@ export async function uninstallMarketplaceSkill(
 			}`,
 		);
 	}
+	const removedPaths = removeRemainingMarketplaceSkillPaths(entry);
 	if (isMarketplaceSkillInstalled(entry)) {
 		throw new Error(
 			`Skill uninstall completed, but ${entry.name ?? entry.id} is still present in Cline's global skills directories.`,
@@ -322,7 +339,10 @@ export async function uninstallMarketplaceSkill(
 		type: "skill",
 		status: "uninstalled",
 		message: `Uninstalled ${entry.name ?? entry.id}.`,
-		output,
+		output:
+			[output, ...removedPaths.map((path) => `Removed: ${path}`)]
+				.filter(Boolean)
+				.join("\n") || undefined,
 	};
 }
 
