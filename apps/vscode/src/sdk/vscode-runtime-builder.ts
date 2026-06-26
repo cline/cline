@@ -1,6 +1,6 @@
 import { createDefaultShellExecutor, createMcpTools } from "@cline/core"
 import { type AgentTool, type AgentToolContext, createTool } from "@cline/shared"
-import type { ITerminalManager } from "@/integrations/terminal/types"
+import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import type { McpHub } from "@/services/mcp/McpHub"
 import { Logger } from "@/shared/services/Logger"
 import { createVscodeRunCommandsTool, VSCODE_FOREGROUND_RUN_COMMANDS_TIMEOUT_MS } from "./vscode-run-commands-tool"
@@ -121,7 +121,7 @@ export interface VscodeExtraToolsOptions {
 	 * When provided, the custom `run_commands` tool replaces the SDK's
 	 * built-in version with foreground/background terminal support.
 	 */
-	getTerminalManager?: () => ITerminalManager
+	getTerminalManager?: () => VscodeTerminalManager
 	/** Current VS Code terminal execution mode, captured when the session tools are built. */
 	vscodeTerminalExecutionMode?: "vscodeTerminal" | "backgroundExec"
 }
@@ -152,7 +152,7 @@ export async function createVscodeExtraTools(mcpHub: McpHub, options?: VscodeExt
 	// This replaces the SDK's built-in run_commands, which is suppressed via
 	// tool executor capabilities in VscodeSessionHost.
 	if (options?.getTerminalManager) {
-		const executionMode = options.vscodeTerminalExecutionMode ?? "vscodeTerminal"
+		const executionMode = options.vscodeTerminalExecutionMode ?? "backgroundExec"
 		tools.push(
 			createVscodeRunCommandsTool({
 				cwd: options.cwd ?? process.cwd(),

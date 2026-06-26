@@ -4,7 +4,6 @@ import pWaitFor from "p-wait-for"
 import * as vscode from "vscode"
 import {
 	TerminalInfo as ITerminalInfo,
-	ITerminalManager,
 	TerminalProcessResultPromise as ITerminalProcessResultPromise,
 } from "@/integrations/terminal/types"
 import { Logger } from "@/shared/services/Logger"
@@ -99,13 +98,12 @@ declare module "vscode" {
 	}
 }
 
-export class VscodeTerminalManager implements ITerminalManager {
+export class VscodeTerminalManager {
 	private terminalIds: Set<number> = new Set()
 	private processes: Map<number, VscodeTerminalProcess> = new Map()
 	private disposables: vscode.Disposable[] = []
 	private shellIntegrationTimeout = 4000
 	private terminalReuseEnabled = true
-	private terminalOutputLineLimit = 500
 	private defaultTerminalProfile = "default"
 
 	/**
@@ -422,17 +420,6 @@ export class VscodeTerminalManager implements ITerminalManager {
 		this.terminalReuseEnabled = enabled
 	}
 
-	public processOutput(outputLines: string[], overrideLimit?: number): string {
-		const limit = overrideLimit !== undefined ? overrideLimit : this.terminalOutputLineLimit
-		if (outputLines.length > limit) {
-			const halfLimit = Math.floor(limit / 2)
-			const start = outputLines.slice(0, halfLimit)
-			const end = outputLines.slice(outputLines.length - halfLimit)
-			return `${start.join("\n")}\n... (output truncated) ...\n${end.join("\n")}`.trim()
-		}
-		return outputLines.join("\n").trim()
-	}
-
 	setDefaultTerminalProfile(profileId: string): void {
 		// Just update the profile setting. We don't close existing terminals —
 		// they stay open and are reusable if the user switches back. New
@@ -440,57 +427,5 @@ export class VscodeTerminalManager implements ITerminalManager {
 		// and existing terminals with a different effective shell are simply
 		// skipped during reuse matching.
 		this.defaultTerminalProfile = profileId
-	}
-
-	/**
-	 * Filters terminals based on a provided criteria function
-	 * @param filterFn Function that accepts TerminalInfo and returns boolean
-	 * @returns Array of terminals that match the criteria
-	 */
-	filterTerminals(filterFn: (terminal: TerminalInfo) => boolean): TerminalInfo[] {
-		const terminals = TerminalRegistry.getAllTerminals()
-		return terminals.filter(filterFn)
-	}
-
-	/**
-	 * Closes terminals that match the provided criteria
-	 * @param filterFn Function that accepts TerminalInfo and returns boolean for terminals to close
-	 * @param force If true, closes even busy terminals (with warning)
-	 * @returns Number of terminals closed
-	 */
-	closeTerminals(filterFn: (terminal: TerminalInfo) => boolean, force = false): number {
-		const terminalsToClose = this.filterTerminals(filterFn)
-		let closedCount = 0
-
-		for (const terminalInfo of terminalsToClose) {
-			// Skip busy terminals unless force is true
-			if (terminalInfo.busy && !force) {
-				continue
-			}
-
-			// Remove from our tracking
-			if (this.terminalIds.has(terminalInfo.id)) {
-				this.terminalIds.delete(terminalInfo.id)
-			}
-			this.processes.delete(terminalInfo.id)
-
-			// Dispose the actual terminal
-			terminalInfo.terminal.dispose()
-
-			// Remove from registry
-			TerminalRegistry.removeTerminal(terminalInfo.id)
-
-			closedCount++
-		}
-
-		return closedCount
-	}
-
-	/**
-	 * Forces closure of all terminals (including busy ones)
-	 * @returns Number of terminals closed
-	 */
-	closeAllTerminals(): number {
-		return this.closeTerminals(() => true, true)
 	}
 }

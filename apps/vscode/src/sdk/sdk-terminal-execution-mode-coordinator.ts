@@ -77,7 +77,7 @@ export class SdkTerminalExecutionModeCoordinator {
 		}
 
 		const { sdkHost: oldManager, sessionId: oldSessionId } = activeSession
-		const terminalMode = this.options.stateManager.getGlobalStateKey("vscodeTerminalExecutionMode") ?? "vscodeTerminal"
+		const terminalMode = this.options.stateManager.getGlobalStateKey("vscodeTerminalExecutionMode")
 
 		Logger.log(`[SdkController] Restarting session ${oldSessionId} for terminal execution mode ${terminalMode}`)
 

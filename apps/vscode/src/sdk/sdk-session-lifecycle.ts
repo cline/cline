@@ -7,7 +7,7 @@ import type {
 	StartSessionResult,
 } from "@cline/core"
 import { StateManager } from "@/core/storage/StateManager"
-import { ITerminalManager } from "@/integrations/terminal"
+import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import { McpHub } from "@/services/mcp/McpHub"
 import { Logger } from "@/shared/services/Logger"
 import type { ActiveSession } from "./cline-session-factory"
@@ -24,7 +24,7 @@ export interface SdkSessionLifecycleOptions {
 	askQuestion: AskQuestionHandler
 	onSessionEvent: (event: CoreSessionEvent) => void
 	/** Lazy factory for the VscodeTerminalManager (foreground terminal support). */
-	getTerminalManager?: () => ITerminalManager
+	getTerminalManager?: () => VscodeTerminalManager
 	/** Returns the latest prepared remote-config integration, if remote config is active. */
 	getRemoteConfigIntegration?: () => PreparedRemoteConfigCoreIntegration | undefined
 	/** Shared SDK telemetry service owned by SdkController. */
