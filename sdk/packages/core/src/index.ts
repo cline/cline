@@ -500,6 +500,26 @@ export {
 	parseMcpInstallArgs,
 } from "./services/mcp-install";
 export type {
+	MarketplaceActionResult,
+	MarketplaceEntryInput,
+	MarketplacePrimitiveType,
+	MarketplaceSpawnCommand,
+	MarketplaceSpawnResult,
+	UninstallMarketplaceEntryOptions,
+} from "./services/marketplace";
+export {
+	findInstalledGlobalMarketplaceSkillName,
+	getGlobalMarketplaceSkillPaths,
+	getMarketplaceSkillCandidates,
+	isMarketplaceSkillInstalled,
+	marketplaceEntryKey,
+	resolveMarketplaceMcpServerName,
+	uninstallMarketplaceEntry,
+	uninstallMarketplaceMcpServerFromSettings,
+	uninstallMarketplacePlugin,
+	uninstallMarketplaceSkill,
+} from "./services/marketplace";
+export type {
 	ParsedPluginSource,
 	PluginInstallOptions,
 	PluginInstallResult,
