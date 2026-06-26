@@ -3,7 +3,11 @@ import { CLINE_BIN } from "./helpers/constants.js";
 import { clineEnv } from "./helpers/env.js";
 import { expectVisible } from "./helpers/terminal.js";
 
-const HELP_TERMINAL = { columns: 120, rows: 50 };
+// Wide enough that long option descriptions (e.g. --thinking) render on a
+// single line. At narrower widths commander wraps them, splitting phrases
+// like "omitted leaves provider default" across lines so the contiguous
+// getByText assertions below fail.
+const HELP_TERMINAL = { columns: 200, rows: 50 };
 
 // ===========================================================================
 // Root-level flag descriptions
