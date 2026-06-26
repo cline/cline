@@ -44,7 +44,6 @@ export type {
 	ClineAccountActionRequest,
 	ConnectorHookEvent,
 	ContentBlock,
-	FeatureFlag,
 	FeatureFlagPayload,
 	FeatureFlagsAndPayloads,
 	FeatureFlagsContext,
@@ -100,6 +99,7 @@ export {
 	createTool,
 	emptyWorkspaceManifest,
 	FEATURE_FLAGS,
+	FeatureFlag,
 	FeatureFlagDefaultValue,
 	formatDisplayUserInput,
 	noopBasicLogger,
@@ -879,6 +879,7 @@ export {
 	type TelemetryServiceOptions,
 } from "./services/telemetry/TelemetryService";
 export {
+	createSessionCompactionSidecarEnabledResolver,
 	createSessionCompactionState,
 	parseSessionCompactionState,
 	projectSessionCompactionState,

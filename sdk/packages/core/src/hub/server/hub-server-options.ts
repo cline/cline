@@ -43,6 +43,7 @@ export interface HubWebSocketServerOptions {
 	 * Ignored when `sessionHost` is supplied.
 	 */
 	telemetry?: ITelemetryService;
+	isCompactionSidecarEnabled?: () => boolean;
 }
 
 export interface HubWebSocketServer {

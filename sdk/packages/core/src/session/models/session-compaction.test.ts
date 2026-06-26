@@ -1,11 +1,31 @@
 import { describe, expect, it } from "vitest";
 import {
+	createSessionCompactionSidecarEnabledResolver,
 	createSessionCompactionState,
 	parseSessionCompactionState,
 	projectSessionCompactionState,
 } from "./session-compaction";
 
 describe("session compaction state", () => {
+	it("enables sidecar use unless the feature flag payload is explicitly false", () => {
+		expect(
+			createSessionCompactionSidecarEnabledResolver({
+				getFlagPayload: () => false,
+			})(),
+		).toBe(false);
+		expect(
+			createSessionCompactionSidecarEnabledResolver({
+				getFlagPayload: () => true,
+			})(),
+		).toBe(true);
+		expect(
+			createSessionCompactionSidecarEnabledResolver({
+				getFlagPayload: () => undefined,
+			})(),
+		).toBe(true);
+		expect(createSessionCompactionSidecarEnabledResolver()()).toBe(true);
+	});
+
 	it("rejects projection when the canonical prefix was edited before the boundary", () => {
 		const sourceMessages = [
 			{ id: "u1", role: "user" as const, content: "original detail" },

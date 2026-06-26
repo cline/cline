@@ -111,9 +111,9 @@ export async function handleSessionCreate(
 		payload.runtimeOptions && typeof payload.runtimeOptions === "object"
 			? (payload.runtimeOptions as Record<string, unknown>)
 			: {};
-	const initialCompactionState = parseSessionCompactionState(
-		payload.initialCompactionState,
-	);
+	const initialCompactionState = ctx.isCompactionSidecarEnabled()
+		? parseSessionCompactionState(payload.initialCompactionState)
+		: undefined;
 	if (typeof sessionConfig?.mode === "string") {
 		metadata.mode = sessionConfig.mode;
 	} else if (typeof runtimeOptions.mode === "string") {
@@ -387,9 +387,9 @@ export async function handleSessionRestore(
 			payload.runtimeOptions && typeof payload.runtimeOptions === "object"
 				? (payload.runtimeOptions as Record<string, unknown>)
 				: {};
-		const initialCompactionState = parseSessionCompactionState(
-			payload.initialCompactionState,
-		);
+		const initialCompactionState = ctx.isCompactionSidecarEnabled()
+			? parseSessionCompactionState(payload.initialCompactionState)
+			: undefined;
 		const metadata =
 			payload.metadata && typeof payload.metadata === "object"
 				? JSON.parse(JSON.stringify(payload.metadata))
@@ -757,6 +757,9 @@ export async function handleSessionCompactionGet(
 			`Unknown session: ${sessionId}`,
 		);
 	}
+	if (!ctx.isCompactionSidecarEnabled()) {
+		return okReply(envelope, { sessionId, state: undefined, disabled: true });
+	}
 	const clientId = envelope.clientId?.trim() || "hub-client";
 	const unauthorized = authorizeSessionCompactionAccess({
 		sessionId,
@@ -840,6 +843,9 @@ export async function handleSessionCompactionUpdate(
 			"session_not_found",
 			`Unknown session: ${sessionId}`,
 		);
+	}
+	if (!ctx.isCompactionSidecarEnabled()) {
+		return okReply(envelope, { sessionId, updated: false, disabled: true });
 	}
 	const unauthorized = authorizeSessionCompactionAccess({
 		sessionId,

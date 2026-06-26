@@ -109,6 +109,7 @@ function createLocalRuntimeHost(
 		toolPolicies: options.toolPolicies,
 		distinctId,
 		fetch: options.fetch,
+		isCompactionSidecarEnabled: options.isCompactionSidecarEnabled,
 	});
 }
 
