@@ -330,6 +330,14 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.NOUSRESEARCH
 		case "openai-codex":
 			return ProtoApiProvider.OPENAI_CODEX
+		case "poolside":
+			return ProtoApiProvider.POOLSIDE
+		case "v0":
+			return ProtoApiProvider.V0
+		case "xiaomi":
+			return ProtoApiProvider.XIAOMI
+		case "zai-coding-plan":
+			return ProtoApiProvider.ZAI_CODING_PLAN
 		default:
 			return ProtoApiProvider.ANTHROPIC
 	}
@@ -424,6 +432,14 @@ export function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvid
 			return "nousResearch"
 		case ProtoApiProvider.OPENAI_CODEX:
 			return "openai-codex"
+		case ProtoApiProvider.POOLSIDE:
+			return "poolside"
+		case ProtoApiProvider.V0:
+			return "v0"
+		case ProtoApiProvider.XIAOMI:
+			return "xiaomi"
+		case ProtoApiProvider.ZAI_CODING_PLAN:
+			return "zai-coding-plan"
 		default:
 			return "anthropic"
 	}

@@ -10,18 +10,13 @@ vi.mock("@/context/ExtensionStateContext", () => ({
 		hooksEnabled: false,
 		showFeatureTips: false,
 		mcpDisplayMode: "rich",
-		strictPlanModeEnabled: false,
 		yoloModeToggled: false,
 		useAutoCondense: false,
 		subagentsEnabled: false,
-		clineWebToolsEnabled: { user: true, featureFlag: true },
 		worktreesEnabled: { user: true, featureFlag: true },
 		focusChainSettings: { enabled: false, remindClineInterval: 6 },
 		remoteConfigSettings: {},
-		nativeToolCallSetting: false,
-		enableParallelToolCalling: false,
 		backgroundEditEnabled: false,
-		doubleCheckCompletionEnabled: false,
 	})),
 }))
 

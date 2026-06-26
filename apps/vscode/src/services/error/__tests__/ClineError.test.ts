@@ -1,4 +1,4 @@
-import { describe, it } from "mocha"
+import { describe, it } from "bun:test"
 import "should"
 import { ClineError, ClineErrorType } from "../ClineError"
 
@@ -9,61 +9,40 @@ describe("ClineError", () => {
 			ClineError.getErrorType(err)!.should.equal(ClineErrorType.QuotaExceeded)
 		})
 
-		it("should return Entitlement when code is ENTITLEMENT_ERROR", () => {
-			const err = new ClineError({
-				message: "403 Error 403: the user is not subscribed to required model plan",
-				code: "ENTITLEMENT_ERROR",
-				status: 403,
-			})
-			ClineError.getErrorType(err)!.should.equal(ClineErrorType.Entitlement)
-		})
-
-		it("should return Entitlement when details.code is ENTITLEMENT_ERROR", () => {
-			const err = new ClineError({
-				message: "403 Error 403: the user is not subscribed to required model plan",
-				status: 403,
-				details: { code: "ENTITLEMENT_ERROR", message: "Error 403: the user is not subscribed to required model plan" },
-			})
-			ClineError.getErrorType(err)!.should.equal(ClineErrorType.Entitlement)
-		})
-
-		it("should prefer Entitlement over Auth for 403 ENTITLEMENT_ERROR", () => {
-			// status 403 would otherwise be classified as Auth; the entitlement code must win.
-			const err = new ClineError({
-				message: "403 Error 403: the user is not subscribed to required model plan",
-				code: "ENTITLEMENT_ERROR",
-				status: 403,
-			})
-			ClineError.getErrorType(err)!.should.not.equal(ClineErrorType.Auth)
-			ClineError.getErrorType(err)!.should.equal(ClineErrorType.Entitlement)
-		})
-
-		it("should return Entitlement for the real Cline 403 provider error shape (nested error object)", () => {
-			// ClineError maps `error.error` into `details`, so `details.code` drives classification.
+		it("should return Entitlement for the SDK ClinePass subscription message", () => {
 			const err = new ClineError(
-				{
-					status: 403,
-					error: {
-						code: "ENTITLEMENT_ERROR",
-						message: "Error 403: the user is not subscribed to required model plan",
-					},
-				},
-				"cline-pass/glm-5.1",
-				"cline-pass",
+				"No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: https://app.cline.bot/promo?code=CLI-100&personal=true",
 			)
+
 			ClineError.getErrorType(err)!.should.equal(ClineErrorType.Entitlement)
 		})
 
-		it("should NOT classify the organization ENTITLEMENT_ERROR variant as Entitlement", () => {
-			// Org accounts can't use individual subs; this case is intentionally out of scope and
-			// falls through to generic handling rather than showing the ClinePass card.
-			const err = new ClineError({
-				message: "403 Error 403: organization accounts cannot use individual model inference subscriptions",
-				code: "ENTITLEMENT_ERROR",
-				status: 403,
-			})
-			const result = ClineError.getErrorType(err)
-			;(result !== ClineErrorType.Entitlement).should.be.true()
+		it("should return Entitlement for the SDK ClinePass subscription message with a different app URL", () => {
+			const err = new ClineError(
+				"No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: https://staging-app.cline.bot/promo?code=CLI-100&personal=true",
+			)
+
+			ClineError.getErrorType(err)!.should.equal(ClineErrorType.Entitlement)
+		})
+
+		it("should return Entitlement for the raw required-plan message", () => {
+			const err = new ClineError("403 Error 403: the user is not subscribed to required model plan")
+
+			ClineError.getErrorType(err)!.should.equal(ClineErrorType.Entitlement)
+		})
+
+		it("should classify the SDK org individual subscription message separately", () => {
+			const err = new ClineError(
+				"Organization accounts cannot use ClinePass subscriptions. Go to /account -> change account to switch to your personal account for ClinePass",
+			)
+
+			ClineError.getErrorType(err)!.should.equal(ClineErrorType.OrgClinePassRestriction)
+		})
+
+		it("should classify the raw organization individual subscription message separately", () => {
+			const err = new ClineError("403 Error 403: organization accounts cannot use individual model inference subscriptions")
+
+			ClineError.getErrorType(err)!.should.equal(ClineErrorType.OrgClinePassRestriction)
 		})
 	})
 })

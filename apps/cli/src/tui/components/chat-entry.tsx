@@ -1,9 +1,12 @@
+import type { ClineSubscriptionPlan } from "@cline/core";
 import { useTerminalDimensions } from "@opentui/react";
 import type React from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import "opentui-spinner/react";
 import {
-	getClinePassSubscriptionUrl,
+	getClineOrgIndividualInferenceSubscriptionMessage,
+	getCliSubscriptionUrl,
+	isClineOrgIndividualInferenceSubscriptionErrorMessage,
 	isClinePassSubscriptionError,
 } from "../../utils/cline-pass-errors";
 import {
@@ -32,6 +35,12 @@ import {
 	shortenPath,
 } from "../utils/tool-parsing";
 import { ToolOutput } from "./tool-output";
+
+function getIndividualPlanFeatures(plans: ClineSubscriptionPlan[]): string[] {
+	const planWithFeatures = plans.find((plan) => plan.interval === "Monthly");
+
+	return planWithFeatures?.features?.included ?? [];
+}
 
 function trimLeading(text: string): string {
 	return text.replace(/^\n+/, "");
@@ -294,8 +303,34 @@ function ClineCreditsErrorView(props: { defaultFg?: string }) {
 	);
 }
 
-function ClinePassSubscriptionErrorView(props: { defaultFg?: string }) {
-	const subscriptionUrl = getClinePassSubscriptionUrl();
+function ClinePassSubscriptionErrorView(props: {
+	defaultFg?: string;
+	loadIndividualSubscriptionPlans?: () => Promise<ClineSubscriptionPlan[]>;
+}) {
+	const subscriptionUrl = getCliSubscriptionUrl();
+	const [planFeatures, setPlanFeatures] = useState<string[]>([]);
+
+	useEffect(() => {
+		if (!props.loadIndividualSubscriptionPlans) {
+			return;
+		}
+		let isMounted = true;
+		void props
+			.loadIndividualSubscriptionPlans()
+			.then((plans) => {
+				if (isMounted) {
+					setPlanFeatures(getIndividualPlanFeatures(plans));
+				}
+			})
+			.catch(() => {
+				// Keep the subscription error view usable if plan metadata is unavailable.
+			});
+
+		return () => {
+			isMounted = false;
+		};
+	}, [props.loadIndividualSubscriptionPlans]);
+
 	return (
 		<box flexDirection="row">
 			<text fg="yellow" content="* " />
@@ -312,6 +347,19 @@ function ClinePassSubscriptionErrorView(props: { defaultFg?: string }) {
 					selectable
 					content="No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan."
 				/>
+				{planFeatures.length > 0 && (
+					<box flexDirection="column" marginTop={1}>
+						<text fg={props.defaultFg}>ClinePass includes:</text>
+						{planFeatures.map((feature) => (
+							<box key={feature} flexDirection="row">
+								<text fg="green" content="✓ " />
+								<text fg={props.defaultFg} selectable>
+									{feature}
+								</text>
+							</box>
+						))}
+					</box>
+				)}
 				<box flexDirection="row">
 					<text fg="gray">Subscribe: </text>
 					<text fg="cyan" selectable>
@@ -329,9 +377,34 @@ function ClinePassSubscriptionErrorView(props: { defaultFg?: string }) {
 	);
 }
 
+function ClineOrgIndividualInferenceSubscriptionErrorView(props: {
+	defaultFg?: string;
+}) {
+	return (
+		<box flexDirection="row">
+			<text fg="yellow" content="* " />
+			<box
+				flexDirection="column"
+				border
+				borderStyle="rounded"
+				borderColor="yellow"
+				paddingX={1}
+			>
+				<text fg="yellow">Personal ClinePass required</text>
+				<text
+					fg={props.defaultFg}
+					selectable
+					content={getClineOrgIndividualInferenceSubscriptionMessage()}
+				/>
+			</box>
+		</box>
+	);
+}
+
 export function ChatEntryView(props: {
 	entry: ChatEntry;
 	accent?: string;
+	loadIndividualSubscriptionPlans?: () => Promise<ClineSubscriptionPlan[]>;
 	terminalTheme: TerminalTheme;
 }) {
 	const { entry, accent = palette.act, terminalTheme } = props;
@@ -427,8 +500,22 @@ export function ChatEntryView(props: {
 			if (isClineAccountCreditsErrorMessage(entry.text)) {
 				return <ClineCreditsErrorView defaultFg={defaultFg} />;
 			}
+			if (isClineOrgIndividualInferenceSubscriptionErrorMessage(entry.text)) {
+				return (
+					<ClineOrgIndividualInferenceSubscriptionErrorView
+						defaultFg={defaultFg}
+					/>
+				);
+			}
 			if (isClinePassSubscriptionError(entry.text)) {
-				return <ClinePassSubscriptionErrorView defaultFg={defaultFg} />;
+				return (
+					<ClinePassSubscriptionErrorView
+						defaultFg={defaultFg}
+						loadIndividualSubscriptionPlans={
+							props.loadIndividualSubscriptionPlans
+						}
+					/>
+				);
 			}
 			return (
 				<box flexDirection="row">

@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
 	ClineNotSubscribedError,
+	ClineOrgIndividualInferenceSubscriptionError,
 	getClineNotSubscribedMessage,
+	getClineOrgIndividualInferenceSubscriptionMessage,
 	isClineNotSubscribedMessage,
+	isClineOrgIndividualInferenceSubscriptionMessage,
 } from "./errors";
 import { extractErrorMessage } from "./format";
 
@@ -67,5 +70,40 @@ describe("ClineNotSubscribedError", () => {
 		expect(isClineNotSubscribedMessage("different forbidden error")).toBe(
 			false,
 		);
+	});
+
+	it("detects the formatted ClinePass subscription message regardless of URL", () => {
+		expect(
+			isClineNotSubscribedMessage(
+				"No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: https://staging-app.cline.bot/promo?code=CLI-100&personal=true",
+			),
+		).toBe(true);
+	});
+});
+
+describe("ClineOrgIndividualInferenceSubscriptionError", () => {
+	it("uses the user-facing organization account message", () => {
+		expect(
+			new ClineOrgIndividualInferenceSubscriptionError("cline").message,
+		).toBe(getClineOrgIndividualInferenceSubscriptionMessage());
+	});
+
+	it("detects the organization individual-subscription entitlement message", () => {
+		expect(
+			isClineOrgIndividualInferenceSubscriptionMessage(
+				JSON.stringify({
+					error: {
+						code: "ENTITLEMENT_ERROR",
+						message:
+							"organization accounts cannot use individual model inference subscriptions",
+					},
+				}),
+			),
+		).toBe(true);
+		expect(
+			isClineOrgIndividualInferenceSubscriptionMessage(
+				"the user is not subscribed to required model plan",
+			),
+		).toBe(false);
 	});
 });

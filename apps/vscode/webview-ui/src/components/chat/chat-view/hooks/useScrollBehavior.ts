@@ -19,8 +19,6 @@ export function useScrollBehavior(
 	expandedRows: Record<number, boolean>,
 	setExpandedRows: React.Dispatch<React.SetStateAction<Record<number, boolean>>>,
 ): ScrollBehavior & {
-	showScrollToBottom: boolean
-	setShowScrollToBottom: React.Dispatch<React.SetStateAction<boolean>>
 	isAtBottom: boolean
 	setIsAtBottom: React.Dispatch<React.SetStateAction<boolean>>
 	pendingScrollToMessage: number | null
@@ -32,9 +30,9 @@ export function useScrollBehavior(
 	const virtuosoRef = useRef<VirtuosoHandle>(null)
 	const scrollContainerRef = useRef<HTMLDivElement>(null)
 	const disableAutoScrollRef = useRef(false)
+	const lastRowContentScrollTimersRef = useRef<ReturnType<typeof setTimeout>[]>([])
 
 	// State
-	const [showScrollToBottom, setShowScrollToBottom] = useState(false)
 	const [isAtBottom, setIsAtBottom] = useState(false)
 	const [pendingScrollToMessage, setPendingScrollToMessage] = useState<number | null>(null)
 	const [scrolledPastUserMessage, setScrolledPastUserMessage] = useState<ClineMessage | null>(null)
@@ -276,6 +274,29 @@ export function useScrollBehavior(
 		[scrollToBottomSmooth, scrollToBottomAuto],
 	)
 
+	const clearLastRowContentScrollTimers = useCallback(() => {
+		lastRowContentScrollTimersRef.current.forEach((timer) => clearTimeout(timer))
+		lastRowContentScrollTimersRef.current = []
+	}, [])
+
+	const handleLastRowContentChange = useCallback(() => {
+		if (disableAutoScrollRef.current) {
+			return
+		}
+
+		clearLastRowContentScrollTimers()
+		scrollToBottomSmooth()
+		lastRowContentScrollTimersRef.current = [0, 50].map((delay) =>
+			setTimeout(() => {
+				if (!disableAutoScrollRef.current) {
+					scrollToBottomAuto()
+				}
+			}, delay),
+		)
+	}, [clearLastRowContentScrollTimers, scrollToBottomSmooth, scrollToBottomAuto])
+
+	useEffect(() => clearLastRowContentScrollTimers, [clearLastRowContentScrollTimers])
+
 	useEffect(() => {
 		if (!disableAutoScrollRef.current) {
 			scrollToBottomSmooth()
@@ -299,12 +320,6 @@ export function useScrollBehavior(
 		}
 	}, [pendingScrollToMessage, groupedMessages, scrollToMessage])
 
-	useEffect(() => {
-		if (!messages?.length) {
-			setShowScrollToBottom(false)
-		}
-	}, [messages.length])
-
 	const handleWheel = useCallback((event: Event) => {
 		const wheelEvent = event as WheelEvent
 		if (wheelEvent.deltaY && wheelEvent.deltaY < 0) {
@@ -325,8 +340,7 @@ export function useScrollBehavior(
 		scrollToMessage,
 		toggleRowExpansion,
 		handleRowHeightChange,
-		showScrollToBottom,
-		setShowScrollToBottom,
+		handleLastRowContentChange,
 		isAtBottom,
 		setIsAtBottom,
 		pendingScrollToMessage,

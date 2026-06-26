@@ -18,6 +18,11 @@ import {
 } from "../utils/approval";
 import { formatCliErrorMessage } from "../utils/cline-pass-errors";
 import { handleEvent, handleTeamEvent } from "../utils/events";
+import {
+	shouldZeroClineFreeModelCost,
+	zeroCliAgentEventCost,
+	zeroCliUsageCost,
+} from "../utils/free-model-cost";
 import { createRuntimeHooks } from "../utils/hooks";
 import {
 	c,
@@ -184,8 +189,10 @@ export async function runAgent(
 	let reasoningChunkCount = 0;
 	let redactedReasoningChunkCount = 0;
 	const displayedErrorMessages = new Set<string>();
+	const shouldZeroCost = await shouldZeroClineFreeModelCost(config);
 
-	const onAgentEvent = (event: AgentEvent): void => {
+	const onAgentEvent = (rawEvent: AgentEvent): void => {
+		const event = zeroCliAgentEventCost(rawEvent, shouldZeroCost);
 		if (event.type === "content_start" && event.contentType === "reasoning") {
 			reasoningChunkCount += 1;
 			if (event.redacted) {
@@ -197,7 +204,9 @@ export async function runAgent(
 			(!event.recoverable || config.verbose) &&
 			event.error.message.trim()
 		) {
-			displayedErrorMessages.add(event.error.message.trim());
+			displayedErrorMessages.add(
+				formatCliErrorMessage(event.error.message).trim(),
+			);
 		}
 		handleEvent(event, config);
 	};
@@ -339,8 +348,14 @@ export async function runAgent(
 		const usageSummary = await sessionManager.getAccumulatedUsage(
 			started.sessionId,
 		);
-		const aggregateUsage = usageSummary?.aggregateUsage;
-		const usage = aggregateUsage ?? usageSummary?.usage ?? result.usage;
+		const aggregateUsage = zeroCliUsageCost(
+			usageSummary?.aggregateUsage,
+			shouldZeroCost,
+		);
+		const usage = zeroCliUsageCost(
+			aggregateUsage ?? usageSummary?.usage ?? result.usage,
+			shouldZeroCost,
+		);
 
 		if (config.outputMode === "json") {
 			emitJsonLine("stdout", {

@@ -1,4 +1,3 @@
-import { buildApiHandler } from "@core/api"
 import { Empty } from "@shared/proto/cline/common"
 import { PlanActMode, McpDisplayMode as ProtoMcpDisplayMode, UpdateSettingsRequest } from "@shared/proto/cline/state"
 import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion"
@@ -7,14 +6,14 @@ import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { ClineEnv } from "@/config"
 import { fetchRemoteConfig } from "@/core/storage/remote-config/fetch"
 import { clearRemoteConfig } from "@/core/storage/remote-config/utils"
-import { HostProvider } from "@/hosts/host-provider"
 import { McpDisplayMode } from "@/shared/McpDisplayMode"
-import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { telemetryService } from "../../../services/telemetry"
 import { BrowserSettings as SharedBrowserSettings } from "../../../shared/BrowserSettings"
 import { Controller } from ".."
 import { accountLogoutClicked } from "../account/accountLogoutClicked"
+import { normalizeProviderSwitchModel } from "../models/providerSwitchNormalization"
+import { createTaskApiModelShim, resolveActiveModelIdFromApiConfiguration } from "../models/taskApiModel"
 
 /**
  * Updates multiple extension settings in a single request
@@ -24,7 +23,7 @@ import { accountLogoutClicked } from "../account/accountLogoutClicked"
  */
 export async function updateSettings(controller: Controller, request: UpdateSettingsRequest): Promise<Empty> {
 	try {
-		if (request.clineEnv !== undefined) {
+		if (request.clineEnv !== undefined && request.clineEnv !== "") {
 			ClineEnv.setEnvironment(request.clineEnv)
 			await accountLogoutClicked(controller, Empty.create())
 		}
@@ -45,16 +44,21 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 				actModeReasoningEffort: protoApiConfiguration.actModeReasoningEffort as OpenaiReasoningEffort | undefined,
 			}
 
-			controller.stateManager.setApiConfiguration(convertedApiConfigurationFromProto)
+			const previousApiConfiguration = controller.stateManager.getApiConfiguration()
+			const normalizedApiConfiguration = normalizeProviderSwitchModel(
+				controller.getProviderConfigStore(),
+				previousApiConfiguration,
+				convertedApiConfigurationFromProto,
+			)
+
+			controller.stateManager.setApiConfiguration(normalizedApiConfiguration)
 
 			if (controller.task) {
 				const currentMode = controller.stateManager.getGlobalSettingsKey("mode")
-				const apiConfigForHandler = {
-					...convertedApiConfigurationFromProto,
-					ulid: controller.task.ulid,
-				}
-				controller.task.api = buildApiHandler(apiConfigForHandler, currentMode)
+				const modelId = resolveActiveModelIdFromApiConfiguration(normalizedApiConfiguration, currentMode)
+				controller.task.api = createTaskApiModelShim(modelId)
 			}
+			controller.handleApiConfigurationChanged(previousApiConfiguration, normalizedApiConfiguration)
 		}
 
 		// Update telemetry setting
@@ -109,16 +113,13 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 		// Update terminal timeout setting
 		if (request.shellIntegrationTimeout !== undefined) {
 			controller.stateManager.setGlobalState("shellIntegrationTimeout", Number(request.shellIntegrationTimeout))
+			controller.terminalManager?.setShellIntegrationTimeout(Number(request.shellIntegrationTimeout))
 		}
 
 		// Update terminal reuse setting
 		if (request.terminalReuseEnabled !== undefined) {
 			controller.stateManager.setGlobalState("terminalReuseEnabled", request.terminalReuseEnabled)
-		}
-
-		// Update terminal output line limit
-		if (request.terminalOutputLineLimit !== undefined) {
-			controller.stateManager.setGlobalState("terminalOutputLineLimit", Number(request.terminalOutputLineLimit))
+			controller.terminalManager?.setTerminalReuseEnabled(!!request.terminalReuseEnabled)
 		}
 
 		if (request.vscodeTerminalExecutionMode !== undefined && request.vscodeTerminalExecutionMode !== "") {
@@ -131,11 +132,6 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 		// Update max consecutive mistakes
 		if (request.maxConsecutiveMistakes !== undefined) {
 			controller.stateManager.setGlobalState("maxConsecutiveMistakes", Number(request.maxConsecutiveMistakes))
-		}
-
-		// Update strict plan mode setting
-		if (request.strictPlanModeEnabled !== undefined) {
-			controller.stateManager.setGlobalState("strictPlanModeEnabled", request.strictPlanModeEnabled)
 		}
 
 		if (request.hooksEnabled !== undefined) {
@@ -152,14 +148,6 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 				telemetryService.captureYoloModeToggle(controller.task.ulid, request.yoloModeToggled)
 			}
 			controller.stateManager.setGlobalState("yoloModeToggled", request.yoloModeToggled)
-		}
-
-		// Update cline web tools setting
-		if (request.clineWebToolsEnabled !== undefined) {
-			if (controller.task) {
-				telemetryService.captureClineWebToolsToggle(controller.task.ulid, request.clineWebToolsEnabled)
-			}
-			controller.stateManager.setGlobalState("clineWebToolsEnabled", request.clineWebToolsEnabled)
 		}
 
 		// Update worktrees setting
@@ -189,26 +177,6 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 				)
 			}
 			controller.stateManager.setGlobalState("useAutoCondense", request.useAutoCondense)
-		}
-
-		// Update focus chain settings
-		if (request.focusChainSettings !== undefined) {
-			{
-				const currentSettings = controller.stateManager.getGlobalSettingsKey("focusChainSettings")
-				const wasEnabled = currentSettings?.enabled ?? false
-				const isEnabled = request.focusChainSettings.enabled
-
-				const focusChainSettings = {
-					enabled: isEnabled,
-					remindClineInterval: request.focusChainSettings.remindClineInterval,
-				}
-				controller.stateManager.setGlobalState("focusChainSettings", focusChainSettings)
-
-				// Capture telemetry when setting changes
-				if (wasEnabled !== isEnabled) {
-					telemetryService.captureFocusChainToggle(isEnabled)
-				}
-			}
 		}
 
 		// Update custom prompt choice
@@ -259,42 +227,11 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 
 		// Update default terminal profile
 		if (request.defaultTerminalProfile !== undefined) {
-			const profileId = request.defaultTerminalProfile
-
-			// Update the terminal profile in the state
-			controller.stateManager.setGlobalState("defaultTerminalProfile", profileId)
-
-			let closedCount = 0
-			let busyTerminalsCount = 0
-
-			// Update the terminal manager of the current task if it exists
-			if (controller.task) {
-				// Call the updated setDefaultTerminalProfile method that returns closed terminal info
-				// Use `as any` to handle type incompatibility between VSCode's TerminalInfo and standalone TerminalInfo
-				const result = controller.task.terminalManager.setDefaultTerminalProfile(profileId) as any
-				closedCount = result.closedCount
-				busyTerminalsCount = result.busyTerminals?.length ?? 0
-
-				// Show information message if terminals were closed
-				if (closedCount > 0) {
-					const message = `Closed ${closedCount} ${closedCount === 1 ? "terminal" : "terminals"} with different profile.`
-					HostProvider.window.showMessage({
-						type: ShowMessageType.INFORMATION,
-						message,
-					})
-				}
-
-				// Show warning if there are busy terminals that couldn't be closed
-				if (busyTerminalsCount > 0) {
-					const message =
-						`${busyTerminalsCount} busy ${busyTerminalsCount === 1 ? "terminal has" : "terminals have"} a different profile. ` +
-						`Close ${busyTerminalsCount === 1 ? "it" : "them"} to use the new profile for all commands.`
-					HostProvider.window.showMessage({
-						type: ShowMessageType.WARNING,
-						message,
-					})
-				}
-			}
+			controller.stateManager.setGlobalState("defaultTerminalProfile", request.defaultTerminalProfile)
+			// Update the live terminal manager so new terminals use the new profile.
+			// Existing terminals are left open — they're keyed by effective shell
+			// and reused when compatible, or skipped when not.
+			controller.terminalManager?.setDefaultTerminalProfile(request.defaultTerminalProfile)
 		}
 
 		if (request.backgroundEditEnabled !== undefined) {
@@ -303,22 +240,6 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 
 		if (request.multiRootEnabled !== undefined) {
 			controller.stateManager.setGlobalState("multiRootEnabled", !!request.multiRootEnabled)
-		}
-
-		if (request.nativeToolCallEnabled !== undefined) {
-			controller.stateManager.setGlobalState("nativeToolCallEnabled", !!request.nativeToolCallEnabled)
-			if (controller.task) {
-				telemetryService.captureFeatureToggle(
-					controller.task.ulid,
-					"native-tool-call",
-					request.nativeToolCallEnabled,
-					controller.task.api.getModel().id,
-				)
-			}
-		}
-
-		if (request.enableParallelToolCalling !== undefined) {
-			controller.stateManager.setGlobalState("enableParallelToolCalling", !!request.enableParallelToolCalling)
 		}
 
 		if (request.optOutOfRemoteConfig !== undefined) {
@@ -338,14 +259,6 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 				// and we apply the actual config afterwards without blocking the settings update
 				fetchRemoteConfig(controller)
 			}
-		}
-
-		if (request.doubleCheckCompletionEnabled !== undefined) {
-			controller.stateManager.setGlobalState("doubleCheckCompletionEnabled", request.doubleCheckCompletionEnabled)
-		}
-
-		if (request.lazyTeammateModeEnabled !== undefined) {
-			controller.stateManager.setGlobalState("lazyTeammateModeEnabled", request.lazyTeammateModeEnabled)
 		}
 
 		if (request.showFeatureTips !== undefined) {

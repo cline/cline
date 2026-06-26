@@ -112,6 +112,9 @@ message Secrets {
 // in src/shared/storage/state-keys.ts and use the scripts/generate-state-proto.mjs
 // script to regenerate this list.
 message Settings {
+  reserved 144, 154, 176;
+  reserved "cline_web_tools_enabled", "enable_parallel_tool_calling", "double_check_completion_enabled";
+
   optional string lite_llm_base_url = 1;
   optional bool lite_llm_use_prompt_cache = 2;
   optional string anthropic_base_url = 4;
@@ -248,19 +251,15 @@ message Settings {
   optional bool enable_checkpoints_setting = 135;
   optional int32 shell_integration_timeout = 136;
   optional string default_terminal_profile = 137;
-  optional int32 terminal_output_line_limit = 138;
   optional int32 max_consecutive_mistakes = 139;
-  optional bool strict_plan_mode_enabled = 141;
   optional bool yolo_mode_toggled = 142;
   optional bool use_auto_condense = 143;
-  optional bool cline_web_tools_enabled = 144;
   optional string preferred_language = 145;
   optional PlanActMode mode = 147;
   optional FocusChainSettings focus_chain_settings = 149;
   optional string custom_prompt = 150;
   optional bool hooks_enabled = 152;
   optional bool subagents_enabled = 153;
-  optional bool enable_parallel_tool_calling = 154;
   optional bool background_edit_enabled = 155;
   optional bool opt_out_of_remote_config = 157;
   optional bool open_telemetry_enabled = 158;
@@ -279,14 +278,12 @@ message Settings {
   optional int32 open_telemetry_log_max_queue_size = 171;
   optional bool worktrees_enabled = 172;
   optional bool auto_approve_all_toggled = 174;
-  optional bool double_check_completion_enabled = 176;
   map<string, string> open_ai_headers = 177;
   optional string plan_mode_cline_model_id = 178;
   optional OpenRouterModelInfo plan_mode_cline_model_info = 179;
   optional string act_mode_cline_model_id = 180;
   optional OpenRouterModelInfo act_mode_cline_model_info = 181;
   optional bool show_feature_tips = 182;
-  optional bool lazy_teammate_mode_enabled = 183;
 }
 
 message State {
@@ -390,7 +387,11 @@ message UpdateTaskSettingsRequest {
 message UpdateSettingsRequest {
   reserved 15; // was openai_reasoning_effort (moved to mode-scoped reasoning effort)
   reserved 23; // was dictation_settings (dictation removed)
+  reserved 32, 34, 35, 41;
   reserved 38; // was skills_enabled (removed - now always enabled)
+  reserved 43; // was lazy_teammate_mode_enabled (removed)
+  reserved 12; // was terminal_output_line_limit (removed; SDK command output limits are character-based)
+  reserved "native_tool_call_enabled", "cline_web_tools_enabled", "enable_parallel_tool_calling", "double_check_completion_enabled";
 
   Metadata metadata = 1;
   optional ModelsApiConfiguration api_configuration = 2;
@@ -402,10 +403,9 @@ message UpdateSettingsRequest {
   optional bool terminal_reuse_enabled = 9;
   optional bool mcp_responses_collapsed = 10;
   optional McpDisplayMode mcp_display_mode = 11;
-  optional int32 terminal_output_line_limit = 12;
   optional PlanActMode mode = 13;
   optional string preferred_language = 14;
-  optional bool strict_plan_mode_enabled = 16;
+  reserved 16; // was strict_plan_mode_enabled (removed)
   optional FocusChainSettings focus_chain_settings = 17;
   optional bool use_auto_condense = 18;
   optional string custom_prompt = 19;
@@ -419,17 +419,12 @@ message UpdateSettingsRequest {
   optional bool subagents_enabled = 29;
   optional int32 subagent_terminal_output_line_limit = 30;
   optional string cline_env = 31;
-  optional bool native_tool_call_enabled = 32;
   optional OnboardingModelGroup onboarding_models = 33;
-  optional bool cline_web_tools_enabled = 34;
-  optional bool enable_parallel_tool_calling = 35;
   optional bool background_edit_enabled = 36;
   optional string oca_reasoning_effort = 37;
   optional bool opt_out_of_remote_config = 39;
   optional bool worktrees_enabled = 40;
-  optional bool double_check_completion_enabled = 41;
   optional bool show_feature_tips = 42;
-  optional bool lazy_teammate_mode_enabled = 43;
 }
 
 message UpdateTerminalConnectionTimeoutRequest {
@@ -456,6 +451,11 @@ message OnboardingProgressRequest {
   optional string action = 2;
   optional bool completed = 3;
   optional string model_selected = 4;
+  optional string page = 5;
+  optional string page_variant = 6;
+  optional string user_type = 7;
+  optional int32 destination_step = 8;
+  optional string destination_page = 9;
 }
 
 message OnboardingModelGroup {

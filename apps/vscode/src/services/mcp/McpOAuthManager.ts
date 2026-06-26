@@ -1,276 +1,193 @@
+// MCP OAuth state is stored in the shared MCP settings file
+// (~/.cline/data/settings/cline_mcp_settings.json) under each server's `oauth`
+// key, in the format @cline/core (CLI, JetBrains) reads and writes:
+//
+//   { "mcpServers": { "linear": { "transport": {...}, "oauth": { "tokens": {...}, ... } } } }
+//
+// This shared file is the single source of truth, which keeps the extension,
+// the CLI, and multiple extension windows interoperable:
+//  - Writes scope to ONE server's `oauth` key via @cline/core's
+//    updateMcpServerOAuthStateAsync, which re-reads the file under a
+//    cross-process lock and replaces it atomically (temp + rename), so
+//    concurrent writers never clobber other servers or the whole file. Lock
+//    acquisition yields the extension host event loop rather than blocking it.
+//  - Reads come fresh from disk, so a token authorized by the CLI or another
+//    window is picked up without restarting.
+//  - The interactive authorization flow is HTTP-based token collection via
+//    @cline/core's authorizeMcpServerOAuth, which binds a local loopback
+//    callback server — the same flow the CLI uses.
+
+import {
+	authorizeMcpServerOAuth,
+	getMcpServerOAuthState,
+	type McpServerOAuthState,
+	updateMcpServerOAuthStateAsync,
+} from "@cline/core"
 import { StateManager } from "@core/storage/StateManager"
 import { OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js"
-import type { OAuthClientInformationFull, OAuthClientMetadata, OAuthTokens } from "@modelcontextprotocol/sdk/shared/auth.js"
+import type { OAuthClientInformationMixed, OAuthClientMetadata, OAuthTokens } from "@modelcontextprotocol/sdk/shared/auth.js"
 import crypto from "crypto"
-import { HostProvider } from "@/hosts/host-provider"
+import { fetch } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
 import { openExternal } from "@/utils/env"
-import { getMcpServerCallbackPath, getServerAuthHash } from "@/utils/mcpAuth"
-import { McpOAuthRedirectResolver } from "./McpOAuthRedirectResolver"
+import { getServerAuthHash } from "@/utils/mcpAuth"
 
 /**
- * Structure for all OAuth data stored in the single mcpOAuthSecrets JSON
+ * Fallback redirect URL advertised in client metadata for connection-time
+ * providers. Matches @cline/core's DEFAULT_HTTP_MCP_REDIRECT_URL — the actual
+ * redirect URL used during an interactive flow is chosen by
+ * authorizeMcpServerOAuth when it binds its local callback server.
  */
-interface McpOAuthSecrets {
-	[serverHash: string]: {
-		tokens?: OAuthTokens
-		tokens_saved_at?: number
-		client_info?: OAuthClientInformationFull
-		redirect_url_at_registration?: string
-		code_verifier?: string
-		oauth_state?: string
-		oauth_state_timestamp?: number
-		pending_auth_url?: string
-	}
-}
+const DEFAULT_HTTP_MCP_REDIRECT_URL = "http://127.0.0.1:1456/mcp/oauth/callback"
 
 /**
- * Helper to read OAuth secrets from storage
+ * Ports the local OAuth callback server may bind. The first three match the
+ * @cline/core defaults; extras tolerate concurrent flows from other Cline
+ * processes (CLI, another extension window) holding a port.
  */
-function getMcpOAuthSecrets(): McpOAuthSecrets {
-	const stateManager = StateManager.get()
-	const secretsJson = stateManager.getSecretKey("mcpOAuthSecrets")
-	if (!secretsJson) {
-		return {}
-	}
+const MCP_OAUTH_CALLBACK_PORTS = [1456, 1457, 1458, 1459, 1460, 1461]
+
+/** How long the interactive flow waits for the browser callback. */
+const MCP_OAUTH_FLOW_TIMEOUT_MS = 10 * 60 * 1000 // 10 minutes
+
+/**
+ * Read a server's OAuth state fresh from the shared settings file.
+ * Never throws — a missing/unreadable file simply means "no state".
+ */
+function readOAuthState(serverName: string, settingsPath: string): McpServerOAuthState {
 	try {
-		return JSON.parse(secretsJson) as McpOAuthSecrets
-	} catch (error) {
-		Logger.error("[McpOAuth] Failed to parse MCP OAuth secrets:", error)
+		return getMcpServerOAuthState(serverName, { filePath: settingsPath }) ?? {}
+	} catch {
 		return {}
 	}
 }
 
 /**
- * Helper to save OAuth secrets to storage
+ * Scoped write of one server's OAuth state. The updater runs against the
+ * server's current state under a cross-process lock and returns the next state;
+ * concurrent writers are never clobbered wholesale. Lock acquisition yields the
+ * event loop. Failures are logged but non-fatal, so a missing server entry
+ * (e.g. deleted in another window) does not crash the MCP SDK provider callbacks
+ * that invoke this mid-connection.
  */
-function saveMcpOAuthSecrets(secrets: McpOAuthSecrets): void {
-	const stateManager = StateManager.get()
-	stateManager.setSecret("mcpOAuthSecrets", JSON.stringify(secrets))
+async function patchOAuthState(
+	serverName: string,
+	settingsPath: string,
+	updater: (current: McpServerOAuthState) => McpServerOAuthState,
+): Promise<void> {
+	try {
+		await updateMcpServerOAuthStateAsync(serverName, updater, { filePath: settingsPath })
+	} catch (error) {
+		Logger.warn(`[McpOAuth] Failed to persist OAuth state for ${serverName}: ${error}`)
+	}
 }
 
 /**
- * Implementation of OAuthClientProvider for Cline
- * Manages OAuth state and token storage for a single MCP server
+ * Implementation of OAuthClientProvider for connection-time auth.
+ *
+ * This provider is attached to SSE/StreamableHTTP transports so the MCP SDK
+ * can read tokens (and auto-refresh them with the stored refresh_token). It
+ * reads/writes the shared settings file in @cline/core's format.
+ *
+ * Note: `redirectToAuthorization` here is a no-op signal — connection attempts
+ * never open a browser. The interactive flow (Authenticate button) goes
+ * through McpOAuthManager.startOAuthFlow → authorizeMcpServerOAuth, which
+ * runs its own provider with a live local callback server.
  */
 class ClineOAuthClientProvider implements OAuthClientProvider {
-	private serverName: string
-	private serverUrl: string
-	private _redirectUrl: string
-	private isRegistrationValid: boolean
-	private serverHash: string
-
-	constructor(serverName: string, serverUrl: string) {
-		this.serverName = serverName
-		this.serverUrl = serverUrl
-		this.serverHash = getServerAuthHash(serverName, serverUrl)
-
-		// Redirect URL and registration validity will be set when initialize() is called
-		this._redirectUrl = ""
-		this.isRegistrationValid = false
-	}
-
-	async initialize(): Promise<void> {
-		// Get the full callback URL with the MCP server-specific path,
-		// attempting to reuse the previously-registered port to preserve the OAuth client registration.
-		const callbackPath = getMcpServerCallbackPath(this.serverName, this.serverUrl)
-		const secrets = getMcpOAuthSecrets()
-		const savedRedirectUrl = secrets[this.serverHash]?.redirect_url_at_registration
-
-		const resolution = await McpOAuthRedirectResolver.resolve(
-			savedRedirectUrl,
-			callbackPath,
-			HostProvider.get().getCallbackUrl,
-		)
-
-		this._redirectUrl = resolution.redirectUrl
-		this.isRegistrationValid = resolution.isRegistrationValid
-	}
+	constructor(
+		private readonly serverName: string,
+		private readonly settingsPath: string,
+	) {}
 
 	get redirectUrl(): string {
-		return this._redirectUrl
+		const state = readOAuthState(this.serverName, this.settingsPath)
+		return state.redirectUrl ?? DEFAULT_HTTP_MCP_REDIRECT_URL
 	}
 
 	get clientMetadata(): OAuthClientMetadata {
 		return {
-			redirect_uris: [this._redirectUrl],
+			redirect_uris: [this.redirectUrl],
 			token_endpoint_auth_method: "none",
 			grant_types: ["authorization_code", "refresh_token"],
 			response_types: ["code"],
 			client_name: "Cline",
-			client_uri: "https://cline.bot",
-			software_id: "cline",
 		}
 	}
 
 	state(): string {
-		// State is managed through storage, not instance variable
-		return crypto.randomBytes(32).toString("hex")
+		return crypto.randomUUID()
 	}
 
-	async clientInformation(): Promise<OAuthClientInformationFull | undefined> {
-		// If the redirect URL has changed since the client was registered
-		// (e.g., different port bound, platform migration), the saved client_info
-		// is stale — the OAuth server will reject requests with the old redirect_uri.
-		// Return undefined to force the SDK to re-register a new client.
-		if (!this.isRegistrationValid) {
-			const secrets = getMcpOAuthSecrets()
-			if (secrets[this.serverHash]?.client_info) {
-				Logger.log(`[McpOAuth] Discarding stale client registration for ${this.serverName} — redirect URL changed`)
-				// Clear the stale client_info and tokens (tokens are bound to the old client_id)
-				delete secrets[this.serverHash].client_info
-				delete secrets[this.serverHash].redirect_url_at_registration
-				delete secrets[this.serverHash].tokens
-				delete secrets[this.serverHash].tokens_saved_at
-				saveMcpOAuthSecrets(secrets)
-			}
-			return undefined
-		}
-
-		const secrets = getMcpOAuthSecrets()
-		return secrets[this.serverHash]?.client_info
+	async clientInformation(): Promise<OAuthClientInformationMixed | undefined> {
+		const state = readOAuthState(this.serverName, this.settingsPath)
+		return state.clientInformation as OAuthClientInformationMixed | undefined
 	}
 
-	async saveClientInformation(clientInformation: OAuthClientInformationFull): Promise<void> {
-		const secrets = getMcpOAuthSecrets()
-		if (!secrets[this.serverHash]) {
-			secrets[this.serverHash] = {}
-		}
-		secrets[this.serverHash].client_info = clientInformation
-		// Track the redirect URL used for this registration so we can detect
-		// when it changes and force re-registration (see clientInformation())
-		secrets[this.serverHash].redirect_url_at_registration = this._redirectUrl
-		saveMcpOAuthSecrets(secrets)
-
-		// After a successful registration, the current redirect URL is now the registered one
-		this.isRegistrationValid = true
+	async saveClientInformation(clientInformation: OAuthClientInformationMixed): Promise<void> {
+		await patchOAuthState(this.serverName, this.settingsPath, (current) => ({
+			...current,
+			clientInformation: clientInformation as Record<string, unknown>,
+		}))
 	}
 
 	async tokens(): Promise<OAuthTokens | undefined> {
-		// Called by the SDK to check if we have valid tokens
-		// This is called:
-		// - During connection setup (to check if auth is needed)
-		// - Before each request (to include Authorization header)
-		// - During token refresh (to get refresh_token)
-		//
-		// IMPORTANT: We should return expired tokens if they have a refresh_token
-		// The SDK will automatically attempt to refresh them
-		// Only return undefined if we have NO tokens at all
-
-		const secrets = getMcpOAuthSecrets()
-		const serverData = secrets[this.serverHash]
-
-		if (!serverData?.tokens) {
-			return undefined
-		}
-
-		// Check token expiration if timestamp exists
-		if (serverData.tokens_saved_at && serverData.tokens.expires_in) {
-			const expiresInMs = serverData.tokens.expires_in * 1000
-
-			if (serverData.tokens_saved_at + expiresInMs < Date.now()) {
-				// Token is expired
-				// If we have a refresh_token, return the expired tokens so SDK can refresh
-				// Otherwise return undefined to trigger full re-authentication
-				if (serverData.tokens.refresh_token) {
-					Logger.log(`[McpOAuth] Token expired for ${this.serverName}, will attempt refresh`)
-					return serverData.tokens
-				}
-				return undefined
-			}
-		}
-
-		return serverData.tokens
+		// Always read fresh from disk: tokens may have just been written by the
+		// CLI, another extension window, or the interactive authorize flow.
+		// Expired access tokens are still returned when a refresh_token exists —
+		// the MCP SDK refreshes them automatically and calls saveTokens().
+		const state = readOAuthState(this.serverName, this.settingsPath)
+		return state.tokens as OAuthTokens | undefined
 	}
 
 	async saveTokens(tokens: OAuthTokens): Promise<void> {
-		// Called by the SDK after successful token exchange
-		// Flow: finishAuth(code) → SDK's auth() → exchangeAuthorization() → THIS METHOD
-		// Stores tokens in the single mcpOAuthSecrets JSON for persistence
+		// Called by the SDK after a successful token exchange or refresh.
 		Logger.log(`[McpOAuth] Tokens saved for ${this.serverName}`)
-
-		const secrets = getMcpOAuthSecrets()
-		if (!secrets[this.serverHash]) {
-			secrets[this.serverHash] = {}
-		}
-
-		secrets[this.serverHash].tokens = tokens
-		secrets[this.serverHash].tokens_saved_at = Date.now()
-		saveMcpOAuthSecrets(secrets)
+		const lastAuthenticatedAt = Date.now()
+		await patchOAuthState(this.serverName, this.settingsPath, (current) => ({
+			...current,
+			tokens: tokens as Record<string, unknown>,
+			lastError: undefined,
+			lastAuthenticatedAt,
+		}))
 	}
 
-	async redirectToAuthorization(authorizationUrl: URL): Promise<void> {
-		// ========================================================================
-		// IMPORTANT: This is called AUTOMATICALLY by the MCP SDK during connection
-		// ========================================================================
-		//
-		// Flow:
-		// 1. Extension loads → McpHub.connectToServer() is called
-		// 2. authProvider.tokens() returns undefined (no tokens yet)
-		// 3. client.connect(transport) is called
-		// 4. SDK detects no tokens → calls auth(provider, {serverUrl})
-		// 5. SDK internally calls startAuthorization() to generate OAuth URL
-		// 6. SDK calls THIS METHOD with the generated authorizationUrl
-		// 7. SDK throws UnauthorizedError (caught by McpHub to show "Authenticate" button)
-		//
-		// Our Strategy:
-		// - Store the auth URL and state but DON'T open browser yet
-		// - Wait for user to explicitly click "Authenticate" button
-		// - When clicked, retrieve stored URL and open browser (see startOAuthFlow())
-		//
-		// This prevents automatic browser popups on every extension load!
-		// ========================================================================
-
-		// Guard: Check if we already have valid tokens
-		// If tokens exist, this method shouldn't be called (SDK would use them)
-		// But if it is called, don't overwrite existing auth state
-		const existingTokens = await this.tokens()
-		if (existingTokens && existingTokens.access_token) {
-			Logger.warn(`[McpOAuth] Preserving existing tokens for ${this.serverName}`)
-			return
-		}
-
-		// Generate and add state parameter for CSRF protection
-		const state = crypto.randomBytes(32).toString("hex")
-		authorizationUrl.searchParams.set("state", state)
-
-		// Save state, timestamp, and the complete auth URL for later use
-		// These will be used when the user clicks "Authenticate" button
-		const secrets = getMcpOAuthSecrets()
-		if (!secrets[this.serverHash]) {
-			secrets[this.serverHash] = {}
-		}
-
-		secrets[this.serverHash].oauth_state = state
-		secrets[this.serverHash].oauth_state_timestamp = Date.now()
-		secrets[this.serverHash].pending_auth_url = authorizationUrl.toString()
-		saveMcpOAuthSecrets(secrets)
-
-		Logger.log(`[McpOAuth] OAuth required for ${this.serverName} - user must click Authenticate button`)
+	async redirectToAuthorization(_authorizationUrl: URL): Promise<void> {
+		// Intentionally do nothing. The SDK calls this during a connection
+		// attempt when the server requires auth; it then throws
+		// UnauthorizedError, which McpHub catches to show the "Authenticate"
+		// button. The actual browser flow runs in startOAuthFlow(), with a
+		// dedicated provider whose local callback server is actually listening.
+		Logger.log(`[McpOAuth] OAuth required for ${this.serverName} - user must click Authenticate`)
 	}
 
 	async saveCodeVerifier(codeVerifier: string): Promise<void> {
-		// Called by SDK when starting authorization flow (PKCE)
-		// The verifier is used later in finishAuth() to exchange the auth code for tokens
-		const secrets = getMcpOAuthSecrets()
-		if (!secrets[this.serverHash]) {
-			secrets[this.serverHash] = {}
-		}
-		secrets[this.serverHash].code_verifier = codeVerifier
-		saveMcpOAuthSecrets(secrets)
+		await patchOAuthState(this.serverName, this.settingsPath, (current) => ({
+			...current,
+			codeVerifier,
+		}))
 	}
 
 	async codeVerifier(): Promise<string> {
-		// Called by SDK during finishAuth() to retrieve the PKCE verifier
-		// Used to prove that the same client that started auth is finishing it
-		const secrets = getMcpOAuthSecrets()
-		const verifier = secrets[this.serverHash]?.code_verifier
-
-		if (!verifier) {
+		const state = readOAuthState(this.serverName, this.settingsPath)
+		if (!state.codeVerifier) {
 			throw new Error(`No code verifier found for ${this.serverName}`)
 		}
+		return state.codeVerifier
+	}
 
-		return verifier
+	async invalidateCredentials(scope: "all" | "client" | "tokens" | "verifier"): Promise<void> {
+		await patchOAuthState(this.serverName, this.settingsPath, (current) => {
+			if (scope === "all") {
+				return { lastError: current.lastError, redirectUrl: current.redirectUrl }
+			}
+			return {
+				...current,
+				...(scope === "client" ? { clientInformation: undefined } : {}),
+				...(scope === "tokens" ? { tokens: undefined, lastAuthenticatedAt: undefined } : {}),
+				...(scope === "verifier" ? { codeVerifier: undefined } : {}),
+			}
+		})
 	}
 
 	/**
@@ -280,122 +197,126 @@ class ClineOAuthClientProvider implements OAuthClientProvider {
 		const tokens = await this.tokens()
 		return Boolean(tokens && tokens.access_token)
 	}
-
-	/**
-	 * Get the server hash for this provider
-	 */
-	getServerHash(): string {
-		return this.serverHash
-	}
 }
 
 /**
- * Manages OAuth authentication for MCP servers
- * Creates and manages OAuthClientProvider instances and handles token storage
+ * Manages OAuth authentication for MCP servers.
+ *
+ * Creates connection-time OAuthClientProvider instances (token reads/refresh
+ * writes against the shared settings file) and runs the interactive
+ * HTTP-callback authorization flow via @cline/core.
  */
 export class McpOAuthManager {
 	private providers: Map<string, OAuthClientProvider> = new Map()
-	// OAuth state parameter timeout - prevents replay attacks
-	// The state is used for CSRF protection during the redirect back from the OAuth provider
-	// Users typically complete the OAuth flow within seconds/minutes of clicking "Authenticate"
-	// but we allow 10 minutes in case they get distracted or need to create an account
-	// After 10 minutes, the state expires and user must click "Authenticate" again for security
-	private readonly STATE_EXPIRY_MS = 10 * 60 * 1000 // 10 minutes
+	/** Serializes interactive flows per server so double-clicks don't race. */
+	private activeFlows: Map<string, Promise<void>> = new Map()
+
+	constructor(private readonly getSettingsPath: () => Promise<string>) {}
 
 	/**
-	 * Gets or creates an OAuthClientProvider for a server
-	 * Note: This is async now because we need to initialize the redirect URL
+	 * Gets or creates an OAuthClientProvider for a server.
 	 */
 	async getOrCreateProvider(serverName: string, serverUrl: string): Promise<OAuthClientProvider> {
 		const key = `${serverName}:${serverUrl}`
-		if (this.providers.has(key)) {
-			return this.providers.get(key)!
+		const existing = this.providers.get(key)
+		if (existing) {
+			return existing
 		}
-
-		// Create provider
-		const provider = new ClineOAuthClientProvider(serverName, serverUrl)
-		await provider.initialize() // Sets the redirect URL
+		// Import tokens from the legacy `mcpOAuthSecrets` store into the shared
+		// settings file before the first read, if any are present.
+		await this.migrateLegacySecrets(serverName, serverUrl)
+		const provider = new ClineOAuthClientProvider(serverName, await this.getSettingsPath())
 		this.providers.set(key, provider)
 		return provider
 	}
 
 	/**
-	 * Validates and clears stored OAuth state using hash-based lookup
+	 * Runs the interactive OAuth flow when the user clicks "Authenticate".
+	 *
+	 * Delegates to @cline/core's authorizeMcpServerOAuth (the exact flow the
+	 * CLI uses): binds a local loopback callback server, performs discovery and
+	 * client registration, opens the browser, validates the returned state
+	 * in-process, exchanges the code, and writes tokens to the shared settings
+	 * file. Resolves when tokens are saved (or rejects on timeout/denial).
 	 */
-	validateAndClearState(serverHash: string, state: string): boolean {
-		const secrets = getMcpOAuthSecrets()
-		const serverData = secrets[serverHash]
-
-		if (!serverData?.oauth_state) {
-			Logger.error(`No stored state found for server hash: ${serverHash}`)
-			return false
+	async startOAuthFlow(serverName: string): Promise<void> {
+		const inFlight = this.activeFlows.get(serverName)
+		if (inFlight) {
+			Logger.log(`[McpOAuth] OAuth flow already in progress for ${serverName}`)
+			return inFlight
 		}
 
-		// Check if state has expired
-		if (serverData.oauth_state_timestamp) {
-			if (Date.now() - serverData.oauth_state_timestamp > this.STATE_EXPIRY_MS) {
-				Logger.error(`OAuth state expired for server hash: ${serverHash}`)
-				// Clear expired state
-				delete serverData.oauth_state
-				delete serverData.oauth_state_timestamp
-				saveMcpOAuthSecrets(secrets)
-				return false
-			}
-		}
+		const flow = (async () => {
+			const settingsPath = await this.getSettingsPath()
+			const result = await authorizeMcpServerOAuth({
+				serverName,
+				filePath: settingsPath,
+				clientName: "Cline",
+				fetch,
+				openUrl: (url) => openExternal(url),
+				callbackPorts: MCP_OAUTH_CALLBACK_PORTS,
+				timeoutMs: MCP_OAUTH_FLOW_TIMEOUT_MS,
+			})
+			Logger.log(`[McpOAuth] ${result.message}`)
+		})()
 
-		// Validate state matches
-		const isValid = serverData.oauth_state === state
-
-		// Clear state after validation
-		delete serverData.oauth_state
-		delete serverData.oauth_state_timestamp
-		saveMcpOAuthSecrets(secrets)
-
-		return isValid
-	}
-
-	/**
-	 * Opens the browser to the stored OAuth URL when user clicks "Authenticate"
-	 *
-	 * This retrieves the authorization URL that was stored by redirectToAuthorization()
-	 * when the SDK auto-detected that OAuth was needed during connection.
-	 *
-	 * Flow:
-	 * 1. User sees "Authenticate" button (because UnauthorizedError was caught)
-	 * 2. User clicks button → UI calls authenticateMcpServer RPC
-	 * 3. Controller calls mcpHub.initiateOAuth()
-	 * 4. McpHub calls THIS METHOD
-	 * 5. We retrieve the stored auth URL (generated by SDK, includes state)
-	 * 6. We open browser to that URL
-	 * 7. User authorizes → callback with code → completeOAuth()
-	 */
-	async startOAuthFlow(serverName: string, serverUrl: string): Promise<void> {
-		const serverHash = getServerAuthHash(serverName, serverUrl)
-		const secrets = getMcpOAuthSecrets()
-		const storedAuthUrl = secrets[serverHash]?.pending_auth_url
-
-		if (storedAuthUrl) {
-			// Use the URL that the SDK generated (with state already added in redirectToAuthorization)
-			await openExternal(storedAuthUrl)
-		} else {
-			// Fallback: if no stored URL, the SDK hasn't been triggered yet
-			// This could happen if the server was just added but connection hasn't been attempted
-			throw new Error(`No pending authorization URL found for ${serverName}. Please try restarting the server first.`)
+		this.activeFlows.set(serverName, flow)
+		try {
+			await flow
+		} finally {
+			this.activeFlows.delete(serverName)
 		}
 	}
 
 	/**
-	 * Clears all OAuth data for a server (used when server is deleted)
+	 * Clears all OAuth data for a server (used when server is deleted).
+	 * Tokens live in the server's own settings entry, so deleting the entry
+	 * removes them; this also drops the cached provider and proactively
+	 * clears the oauth block in case the entry itself is kept.
 	 */
 	async clearServerAuth(serverName: string, serverUrl: string): Promise<void> {
-		const key = `${serverName}:${serverUrl}`
-		const serverHash = getServerAuthHash(serverName, serverUrl)
+		this.providers.delete(`${serverName}:${serverUrl}`)
+		await patchOAuthState(serverName, await this.getSettingsPath(), () => ({}))
+	}
 
-		this.providers.delete(key)
+	/**
+	 * One-time migration of tokens from the legacy `mcpOAuthSecrets` secrets
+	 * blob into the shared settings file. Runs per server at connection time;
+	 * file-based state always wins (never overwrite newer shared state).
+	 */
+	private async migrateLegacySecrets(serverName: string, serverUrl: string): Promise<void> {
+		try {
+			const secretsJson = StateManager.get().getSecretKey("mcpOAuthSecrets")
+			if (!secretsJson) {
+				return
+			}
+			const secrets = JSON.parse(secretsJson) as Record<
+				string,
+				{ tokens?: OAuthTokens; tokens_saved_at?: number; client_info?: Record<string, unknown> }
+			>
+			const serverHash = getServerAuthHash(serverName, serverUrl)
+			const legacy = secrets[serverHash]
+			if (!legacy?.tokens?.access_token) {
+				return
+			}
 
-		// Clear all OAuth-related data for this server
-		const secrets = getMcpOAuthSecrets()
-		delete secrets[serverHash]
-		saveMcpOAuthSecrets(secrets)
+			const settingsPath = await this.getSettingsPath()
+			const current = readOAuthState(serverName, settingsPath)
+			if (!current.tokens) {
+				Logger.log(`[McpOAuth] Migrating legacy OAuth tokens for ${serverName} to shared settings file`)
+				await patchOAuthState(serverName, settingsPath, (state) => ({
+					...state,
+					tokens: legacy.tokens as unknown as Record<string, unknown>,
+					clientInformation: state.clientInformation ?? legacy.client_info,
+					lastAuthenticatedAt: legacy.tokens_saved_at ?? Date.now(),
+				}))
+			}
+
+			// Drop the migrated entry so this only happens once per server.
+			delete secrets[serverHash]
+			StateManager.get().setSecret("mcpOAuthSecrets", Object.keys(secrets).length ? JSON.stringify(secrets) : undefined)
+		} catch (error) {
+			Logger.warn(`[McpOAuth] Legacy OAuth migration failed for ${serverName}: ${error}`)
+		}
 	}
 }

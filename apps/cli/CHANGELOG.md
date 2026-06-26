@@ -1,5 +1,26 @@
 # Cline CLI Changelog
 
+## 3.0.30
+
+- Added a token count to the status bar, shown alongside cost
+- Added organization-specific error messages
+- Added SAP AI Core provider support
+- Refreshed the model catalog with the latest provider models
+- Preserved OpenRouter reasoning-disable behavior and improved OpenRouter prompt caching
+- Routed LiteLLM model fetches through the SDK and stopped unrelated models from appearing in the LiteLLM model list
+- Updated ClinePass models live, restored ClinePass models in onboarding, and improved ClinePass error messages
+- Threaded proxy/CA-aware networking into the inference path
+- Persisted Bedrock settings to providers.json
+- Normalized JSON-like tool inputs by schema for more reliable tool calls
+- Fixed an "ERROR: EMPTY CONTENT" message that could appear when an error occurred
+- Fixed a packaging issue (createRequire) that could break the CLI at runtime
+
+## 3.0.29
+
+- Costs are now hidden for Cline free models
+- Fixed Z.ai model metadata resolution for Z.ai models accessed through the Cline provider
+- Reverted the model-name-only display change from v3.0.28; the model picker, selector, and status bar return to their previous display behavior
+
 ## 3.0.28
 
 - Added a ClinePass onboarding flow with selectable ClinePass models, plus improved ClinePass error handling

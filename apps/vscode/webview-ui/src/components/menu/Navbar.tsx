@@ -1,20 +1,13 @@
-import { HistoryIcon, PlusIcon, SettingsIcon, UserCircleIcon } from "lucide-react"
+import { HistoryIcon, PlusIcon, PuzzleIcon, SettingsIcon, UserCircleIcon } from "lucide-react"
 import { useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { TaskServiceClient } from "@/services/grpc-client"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 
-// Custom MCP Server Icon component using VSCode codicon
-const McpServerIcon = ({ className, size }: { className?: string; size?: number }) => (
-	<span
-		className={`codicon codicon-server flex items-center ${className || ""}`}
-		style={{ fontSize: size ? `${size}px` : "12.5px", marginBottom: "1px" }}
-	/>
-)
-
 export const Navbar = () => {
-	const { navigateToHistory, navigateToSettings, navigateToAccount, navigateToMcp, navigateToChat } = useExtensionState()
+	const { navigateToHistory, navigateToSettings, navigateToAccount, navigateToMarketplace, navigateToChat } =
+		useExtensionState()
 
 	const SETTINGS_TABS = useMemo(
 		() => [
@@ -33,11 +26,11 @@ export const Navbar = () => {
 				},
 			},
 			{
-				id: "mcp",
-				name: "MCP",
-				tooltip: "MCP Servers",
-				icon: McpServerIcon,
-				navigate: navigateToMcp,
+				id: "customize",
+				name: "Customize",
+				tooltip: "Customize",
+				icon: PuzzleIcon,
+				navigate: navigateToMarketplace,
 			},
 			{
 				id: "history",
@@ -61,7 +54,7 @@ export const Navbar = () => {
 				navigate: navigateToSettings,
 			},
 		],
-		[navigateToAccount, navigateToChat, navigateToHistory, navigateToMcp, navigateToSettings],
+		[navigateToAccount, navigateToChat, navigateToHistory, navigateToMarketplace, navigateToSettings],
 	)
 
 	return (

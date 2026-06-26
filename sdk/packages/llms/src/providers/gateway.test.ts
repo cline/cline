@@ -38,6 +38,19 @@ const codexExecSpy = vi.fn((modelId: string) => ({
 	family: "openai-codex",
 }));
 
+function createFetchMock() {
+	const fetchMock = vi.fn(
+		async (
+			_input: Parameters<typeof fetch>[0],
+			_init?: Parameters<typeof fetch>[1],
+		) => new Response("ok"),
+	);
+	return {
+		fetchMock,
+		fetch: fetchMock as unknown as typeof fetch,
+	};
+}
+
 vi.mock("ai", () => ({
 	jsonSchema: (schema: unknown, options: unknown) => ({
 		jsonSchema: schema,
@@ -424,6 +437,11 @@ describe("sdk-gateway", () => {
 		const openrouter = gateway
 			.listProviders()
 			.find((provider) => provider.id === "openrouter");
+		expect(openrouter?.metadata?.stickySession).toEqual({
+			transport: "json-body",
+			field: "session_id",
+			metadataKey: "sessionId",
+		});
 		const promptCacheRoutes =
 			openrouter?.metadata?.routing?.promptCache?.routes ?? [];
 
@@ -784,6 +802,159 @@ describe("sdk-gateway", () => {
 				]),
 			}),
 		);
+	});
+
+	it("strips reasoning history before sending Cerebras follow-up requests", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "cerebras",
+					apiKey: "cerebras-key",
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "cerebras",
+				modelId: "zai-glm-4.7",
+				messages: [
+					baseMessages[0],
+					{
+						id: "assistant_1",
+						role: "assistant",
+						content: [
+							{ type: "reasoning", text: "internal thinking" },
+							{ type: "text", text: "Hello!" },
+						],
+						createdAt: Date.now(),
+					},
+					{
+						id: "user_2",
+						role: "user",
+						content: [{ type: "text", text: "tell me more" }],
+						createdAt: Date.now(),
+					},
+				],
+			}),
+		);
+
+		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+			| { messages?: unknown }
+			| undefined;
+		expect(call?.messages).toEqual([
+			{ role: "user", content: [{ type: "text", text: "Hello" }] },
+			{ role: "assistant", content: [{ type: "text", text: "Hello!" }] },
+			{ role: "user", content: [{ type: "text", text: "tell me more" }] },
+		]);
+		expect(JSON.stringify(call?.messages)).not.toContain("reasoning");
+	});
+
+	it("omits Cerebras reasoning-only assistant history instead of sending empty assistant content", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "cerebras",
+					apiKey: "cerebras-key",
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "cerebras",
+				modelId: "zai-glm-4.7",
+				messages: [
+					baseMessages[0],
+					{
+						id: "assistant_1",
+						role: "assistant",
+						content: [{ type: "reasoning", text: "internal thinking" }],
+						createdAt: Date.now(),
+					},
+					{
+						id: "user_2",
+						role: "user",
+						content: [{ type: "text", text: "tell me more" }],
+						createdAt: Date.now(),
+					},
+				],
+			}),
+		);
+
+		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+			| { messages?: unknown }
+			| undefined;
+		expect(call?.messages).toEqual([
+			{ role: "user", content: [{ type: "text", text: "Hello" }] },
+			{ role: "user", content: [{ type: "text", text: "tell me more" }] },
+		]);
+		expect(JSON.stringify(call?.messages)).not.toContain("reasoning");
+	});
+
+	it("strips reasoning history for Cerebras base URL aliases", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "openai-compatible",
+					apiKey: "cerebras-key",
+					baseUrl: "https://api.cerebras.ai",
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openai-compatible",
+				modelId: "zai-glm-4.7",
+				messages: [
+					baseMessages[0],
+					{
+						id: "assistant_1",
+						role: "assistant",
+						content: [
+							{ type: "reasoning", text: "internal thinking" },
+							{ type: "text", text: "Hello!" },
+						],
+						createdAt: Date.now(),
+					},
+					{
+						id: "user_2",
+						role: "user",
+						content: [{ type: "text", text: "tell me more" }],
+						createdAt: Date.now(),
+					},
+				],
+			}),
+		);
+
+		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+			| { messages?: unknown }
+			| undefined;
+		expect(call?.messages).toEqual([
+			{ role: "user", content: [{ type: "text", text: "Hello" }] },
+			{ role: "assistant", content: [{ type: "text", text: "Hello!" }] },
+			{ role: "user", content: [{ type: "text", text: "tell me more" }] },
+		]);
+		expect(JSON.stringify(call?.messages)).not.toContain("reasoning");
 	});
 
 	it("reads Anthropic cache usage from provider metadata", async () => {
@@ -3335,7 +3506,7 @@ describe("sdk-gateway", () => {
 			expect.objectContaining({
 				providerOptions: expect.objectContaining({
 					openrouter: expect.objectContaining({
-						reasoning: { exclude: true },
+						reasoning: { effort: "none" },
 					}),
 				}),
 			}),
@@ -3836,6 +4007,355 @@ describe("sdk-gateway", () => {
 				providerId: "openrouter",
 				modelId: "anthropic/claude-test",
 				messages: baseMessages,
+			}),
+		);
+
+		const config = openaiCompatibleFactorySpy.mock.calls[0]?.[0] as {
+			fetch?: typeof fetch;
+		};
+		expect(config.fetch).toBe(customFetch);
+	});
+
+	it("adds OpenRouter session_id to JSON wire requests from request metadata", async () => {
+		const { fetchMock: customFetchMock, fetch: customFetch } =
+			createFetchMock();
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{ providerId: "openrouter", apiKey: "test-key", fetch: customFetch },
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openrouter",
+				modelId: "anthropic/claude-test",
+				messages: baseMessages,
+				metadata: {
+					sessionId: "session-openrouter",
+					conversationId: "conversation-openrouter",
+				},
+			}),
+		);
+
+		const config = openaiCompatibleFactorySpy.mock.calls[0]?.[0] as {
+			fetch?: typeof fetch;
+		};
+		expect(config.fetch).not.toBe(customFetch);
+		await config.fetch?.("https://openrouter.ai/api/v1/chat/completions", {
+			method: "POST",
+			body: JSON.stringify({ messages: [{ role: "user", content: "hi" }] }),
+		});
+
+		expect(customFetch).toHaveBeenCalledOnce();
+		const init = customFetchMock.mock.calls[0]?.[1] as RequestInit | undefined;
+		expect(JSON.parse(String(init?.body))).toMatchObject({
+			session_id: "session-openrouter",
+		});
+	});
+
+	it("preserves default model metadata when request metadata is present", async () => {
+		const { fetchMock: customFetchMock, fetch: customFetch } =
+			createFetchMock();
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{ providerId: "openrouter", apiKey: "test-key", fetch: customFetch },
+			],
+		});
+		const model = gateway.createAgentModel(
+			{
+				providerId: "openrouter",
+				modelId: "anthropic/claude-test",
+			},
+			{
+				metadata: {
+					sessionId: "default-session",
+					traceId: "default-trace",
+				},
+			},
+		);
+
+		await collect(
+			await model.stream({
+				messages: baseMessages,
+				tools: [],
+				options: {
+					metadata: {
+						runId: "request-run",
+						traceId: "request-trace",
+					},
+				},
+			}),
+		);
+
+		const config = openaiCompatibleFactorySpy.mock.calls[0]?.[0] as {
+			fetch?: typeof fetch;
+		};
+		expect(config.fetch).not.toBe(customFetch);
+		await config.fetch?.("https://openrouter.ai/api/v1/chat/completions", {
+			method: "POST",
+			body: JSON.stringify({ messages: [{ role: "user", content: "hi" }] }),
+		});
+
+		expect(customFetch).toHaveBeenCalledOnce();
+		const init = customFetchMock.mock.calls[0]?.[1] as RequestInit | undefined;
+		expect(JSON.parse(String(init?.body))).toMatchObject({
+			session_id: "default-session",
+		});
+	});
+
+	it("adds configured JSON-body sticky session fields for providers that opt in", async () => {
+		const { fetchMock: customFetchMock, fetch: customFetch } =
+			createFetchMock();
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "openai-compatible",
+					apiKey: "test-key",
+					fetch: customFetch,
+					metadata: {
+						stickySession: {
+							transport: "json-body",
+							field: "sticky_session",
+							metadataKey: "sessionId",
+						},
+					},
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openai-compatible",
+				modelId: "custom/model",
+				messages: baseMessages,
+				metadata: { sessionId: "session-longer-than-eight" },
+			}),
+		);
+
+		const config = openaiCompatibleFactorySpy.mock.calls[0]?.[0] as {
+			fetch?: typeof fetch;
+		};
+		expect(config.fetch).not.toBe(customFetch);
+		await config.fetch?.("https://example.test/v1/chat/completions", {
+			method: "POST",
+			body: JSON.stringify({ messages: [{ role: "user", content: "hi" }] }),
+		});
+
+		expect(customFetch).toHaveBeenCalledOnce();
+		const init = customFetchMock.mock.calls[0]?.[1] as RequestInit | undefined;
+		expect(JSON.parse(String(init?.body))).toMatchObject({
+			sticky_session: "session-longer-than-eight",
+		});
+	});
+
+	it("adds configured header sticky session fields for providers that opt in", async () => {
+		const { fetchMock: customFetchMock, fetch: customFetch } =
+			createFetchMock();
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "openai-compatible",
+					apiKey: "test-key",
+					fetch: customFetch,
+					metadata: {
+						stickySession: {
+							transport: "header",
+							field: "x-session-id",
+							metadataKey: "sessionId",
+						},
+					},
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openai-compatible",
+				modelId: "custom/model",
+				messages: baseMessages,
+				metadata: { sessionId: "session-header" },
+			}),
+		);
+
+		const config = openaiCompatibleFactorySpy.mock.calls[0]?.[0] as {
+			fetch?: typeof fetch;
+		};
+		expect(config.fetch).not.toBe(customFetch);
+		await config.fetch?.("https://example.test/v1/chat/completions", {
+			method: "POST",
+			headers: { "x-existing": "kept" },
+			body: JSON.stringify({ messages: [{ role: "user", content: "hi" }] }),
+		});
+
+		expect(customFetch).toHaveBeenCalledOnce();
+		const init = customFetchMock.mock.calls[0]?.[1] as RequestInit | undefined;
+		const headers = new Headers(init?.headers);
+		expect(headers.get("x-session-id")).toBe("session-header");
+		expect(headers.get("x-existing")).toBe("kept");
+	});
+
+	it("preserves explicit configured header sticky session values", async () => {
+		const { fetchMock: customFetchMock, fetch: customFetch } =
+			createFetchMock();
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "openai-compatible",
+					apiKey: "test-key",
+					fetch: customFetch,
+					metadata: {
+						stickySession: {
+							transport: "header",
+							field: "x-session-id",
+							metadataKey: "sessionId",
+						},
+					},
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openai-compatible",
+				modelId: "custom/model",
+				messages: baseMessages,
+				metadata: { sessionId: "session-header" },
+			}),
+		);
+
+		const config = openaiCompatibleFactorySpy.mock.calls[0]?.[0] as {
+			fetch?: typeof fetch;
+		};
+		await config.fetch?.("https://example.test/v1/chat/completions", {
+			method: "POST",
+			headers: { "x-session-id": "explicit-header-session" },
+			body: JSON.stringify({ messages: [{ role: "user", content: "hi" }] }),
+		});
+
+		const init = customFetchMock.mock.calls[0]?.[1] as RequestInit | undefined;
+		expect(new Headers(init?.headers).get("x-session-id")).toBe(
+			"explicit-header-session",
+		);
+	});
+
+	it("preserves explicit OpenRouter session_id in JSON wire requests", async () => {
+		const { fetchMock: customFetchMock, fetch: customFetch } =
+			createFetchMock();
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{ providerId: "openrouter", apiKey: "test-key", fetch: customFetch },
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openrouter",
+				modelId: "anthropic/claude-test",
+				messages: baseMessages,
+				metadata: { sessionId: "session-openrouter" },
+			}),
+		);
+
+		const config = openaiCompatibleFactorySpy.mock.calls[0]?.[0] as {
+			fetch?: typeof fetch;
+		};
+		await config.fetch?.("https://openrouter.ai/api/v1/chat/completions", {
+			method: "POST",
+			body: JSON.stringify({
+				session_id: "explicit-session",
+				messages: [{ role: "user", content: "hi" }],
+			}),
+		});
+
+		const init = customFetchMock.mock.calls[0]?.[1] as RequestInit | undefined;
+		expect(JSON.parse(String(init?.body))).toMatchObject({
+			session_id: "explicit-session",
+		});
+	});
+
+	it("does not inspect a Request body when init explicitly sets a null body", async () => {
+		const { fetchMock: customFetchMock, fetch: customFetch } =
+			createFetchMock();
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{ providerId: "openrouter", apiKey: "test-key", fetch: customFetch },
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openrouter",
+				modelId: "anthropic/claude-test",
+				messages: baseMessages,
+				metadata: { sessionId: "session-openrouter" },
+			}),
+		);
+
+		const config = openaiCompatibleFactorySpy.mock.calls[0]?.[0] as {
+			fetch?: typeof fetch;
+		};
+		const request = new Request(
+			"https://openrouter.ai/api/v1/chat/completions",
+			{
+				method: "POST",
+				body: JSON.stringify({ messages: [{ role: "user", content: "hi" }] }),
+			},
+		);
+		await config.fetch?.(request, { body: null });
+
+		expect(customFetch).toHaveBeenCalledOnce();
+		expect(customFetchMock.mock.calls[0]?.[0]).toBe(request);
+		const init = customFetchMock.mock.calls[0]?.[1] as RequestInit | undefined;
+		expect(init?.body).toBeNull();
+	});
+
+	it("does not fall back to conversationId for OpenRouter session_id", async () => {
+		const { fetchMock: customFetchMock, fetch: customFetch } =
+			createFetchMock();
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{ providerId: "openrouter", apiKey: "test-key", fetch: customFetch },
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openrouter",
+				modelId: "anthropic/claude-test",
+				messages: baseMessages,
+				metadata: { conversationId: "conversation-openrouter" },
 			}),
 		);
 

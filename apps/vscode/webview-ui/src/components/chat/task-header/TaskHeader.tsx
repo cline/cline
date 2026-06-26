@@ -2,17 +2,17 @@ import { ClineMessage } from "@shared/ExtensionMessage"
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
 import React, { useCallback, useLayoutEffect, useMemo, useState } from "react"
 import Thumbnails from "@/components/common/Thumbnails"
-import { getModeSpecificFields, normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
+import { getModeSpecificFields } from "@/components/settings/utils/providerUtils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useNormalizedApiConfiguration } from "@/hooks/useNormalizedApiConfiguration"
+import { useProviderUsageCostDisplay } from "@/hooks/useProviderUsageCostDisplay"
 import { cn } from "@/lib/utils"
 import { getEnvironmentColor } from "@/utils/environmentColors"
 import CopyTaskButton from "./buttons/CopyTaskButton"
 import DeleteTaskButton from "./buttons/DeleteTaskButton"
 import NewTaskButton from "./buttons/NewTaskButton"
 import OpenDiskConversationHistoryButton from "./buttons/OpenDiskConversationHistoryButton"
-import { CheckpointError } from "./CheckpointError"
 import ContextWindow from "./ContextWindow"
-import { FocusChain } from "./FocusChain"
 import { highlightText } from "./Highlights"
 
 const IS_DEV = process.env.IS_DEV === "true"
@@ -25,8 +25,6 @@ interface TaskHeaderProps {
 	cacheReads?: number
 	totalCost: number
 	lastApiReqTotalTokens?: number
-	lastProgressMessageText?: string
-	showFocusChainPlaceholder?: boolean
 	onClose: () => void
 	onSendMessage?: (command: string, files: string[], images: string[]) => void
 }
@@ -41,17 +39,12 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	cacheReads,
 	totalCost,
 	lastApiReqTotalTokens,
-	lastProgressMessageText,
-	showFocusChainPlaceholder,
 	onClose,
 	onSendMessage,
 }) => {
 	const {
 		apiConfiguration,
 		currentTaskItem,
-		checkpointManagerErrorMessage,
-		focusChainSettings,
-		navigateToSettings,
 		mode,
 		expandTaskHeader: isTaskExpanded,
 		setExpandTaskHeader: setIsTaskExpanded,
@@ -90,9 +83,17 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	}, [isHighlightedTextExpanded])
 
 	// Simplified computed values
-	const { selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, mode)
+	const { selectedModelInfo } = useNormalizedApiConfiguration(mode)
 	const modeFields = getModeSpecificFields(apiConfiguration, mode)
 
+	// Local providers report no cost; the openai-compatible provider can
+	// report cost only when the user has supplied both prices. For every
+	// other provider, the SDK is the source of truth for whether to render
+	// per-task cost: providers with `metadata.usageCostDisplay = "hide"`
+	// (e.g. ChatGPT Plus/Pro subscription) are filtered out here. This
+	// mirrors the CLI's `shouldShowCliUsageCost` consumer and removes the
+	// previous extension-side hard-coded "openai-codex" check.
+	const usageCostDisplay = useProviderUsageCostDisplay(modeFields.apiProvider)
 	const isCostAvailable =
 		(totalCost &&
 			modeFields.apiProvider === "openai" &&
@@ -101,24 +102,15 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 		(modeFields.apiProvider !== "vscode-lm" &&
 			modeFields.apiProvider !== "ollama" &&
 			modeFields.apiProvider !== "lmstudio" &&
-			modeFields.apiProvider !== "openai-codex") // Subscription-based, no per-token costs
+			usageCostDisplay !== "hide")
 
 	// Event handlers
 	const toggleTaskExpanded = useCallback(() => setIsTaskExpanded(!isTaskExpanded), [setIsTaskExpanded, isTaskExpanded])
-
-	const handleCheckpointSettingsClick = useCallback(() => {
-		navigateToSettings("features")
-	}, [navigateToSettings])
 
 	const environmentBorderColor = getEnvironmentColor(environment, "border")
 
 	return (
 		<div className="py-2 px-4 flex flex-col gap-2">
-			{/* Display Checkpoint Error */}
-			<CheckpointError
-				checkpointManagerErrorMessage={checkpointManagerErrorMessage}
-				handleCheckpointSettingsClick={handleCheckpointSettingsClick}
-			/>
 			{/* Task Header */}
 			<div
 				className={cn(
@@ -222,15 +214,6 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 					</div>
 				)}
 			</div>
-
-			{/* Display Focus Chain To-Do List */}
-			{focusChainSettings.enabled && (
-				<FocusChain
-					currentTaskItemId={currentTaskItem?.id}
-					lastProgressMessageText={lastProgressMessageText}
-					showPlaceholderWhenEmpty={showFocusChainPlaceholder}
-				/>
-			)}
 		</div>
 	)
 }

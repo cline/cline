@@ -1,14 +1,19 @@
+import {
+	getClineOrgIndividualInferenceSubscriptionMessage,
+	isClineNotSubscribedMessage,
+	isClineOrgIndividualInferenceSubscriptionMessage,
+} from "@cline/llms"
 import { serializeError } from "serialize-error"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "../../shared/ClineAccount"
 
 export enum ClineErrorType {
 	Auth = "auth",
-	Network = "network",
 	RateLimit = "rateLimit",
 	Balance = "balance",
 	SpendLimit = "spendLimit",
 	QuotaExceeded = "quotaExceeded",
 	Entitlement = "entitlement",
+	OrgClinePassRestriction = "orgClinePassRestriction",
 }
 
 interface ErrorDetails {
@@ -140,7 +145,9 @@ export class ClineError extends Error {
 	 */
 	static getErrorType(err: ClineError): ClineErrorType | undefined {
 		const { code, status, details } = err._error
-		const message = (err._error?.message || err.message || JSON.stringify(err._error))?.toLowerCase()
+		const rawMessage = err._error?.message || err.message || JSON.stringify(err._error)
+		const message = rawMessage?.toLowerCase()
+		const detailMessage = typeof details?.message === "string" ? details.message : undefined
 
 		// Check balance error first (most specific)
 		if (code === "insufficient_credits" && typeof details?.current_balance === "number") {
@@ -153,11 +160,18 @@ export class ClineError extends Error {
 			return ClineErrorType.SpendLimit
 		}
 
-		// Scoped to the individual "not subscribed" case; other ENTITLEMENT_ERROR variants (e.g. org
-		// accounts) fall through. Checked before the generic auth check since these are returned as 403.
-		const isEntitlementCode = code === "ENTITLEMENT_ERROR" || details?.code === "ENTITLEMENT_ERROR"
-		const entitlementText = `${message ?? ""} ${details?.message ?? ""}`.toLowerCase()
-		if (isEntitlementCode && entitlementText.includes("not subscribed to required model plan")) {
+		if (
+			rawMessage === getClineOrgIndividualInferenceSubscriptionMessage() ||
+			(detailMessage ? isClineOrgIndividualInferenceSubscriptionMessage(detailMessage) : false) ||
+			(rawMessage ? isClineOrgIndividualInferenceSubscriptionMessage(rawMessage) : false)
+		) {
+			return ClineErrorType.OrgClinePassRestriction
+		}
+
+		if (
+			(detailMessage ? isClineNotSubscribedMessage(detailMessage) : false) ||
+			(rawMessage ? isClineNotSubscribedMessage(rawMessage) : false)
+		) {
 			return ClineErrorType.Entitlement
 		}
 
@@ -189,17 +203,7 @@ export class ClineError extends Error {
 	}
 }
 
-export class AuthNetworkError extends Error {
-	constructor(
-		message: string,
-		override readonly cause?: Error,
-	) {
-		super(message)
-		this.name = ClineErrorType.Network
-	}
-}
-
-export class AuthInvalidTokenError extends Error {
+class AuthInvalidTokenError extends Error {
 	constructor(message: string) {
 		super(message)
 		this.name = ClineErrorType.Auth

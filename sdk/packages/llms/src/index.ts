@@ -1,5 +1,6 @@
 export type {
 	ModelCollection,
+	ModelIdAliasRule,
 	ModelInfo,
 	ModelInfo as CatalogModelInfo,
 	ProviderCapability as CatalogProviderCapability,
@@ -8,6 +9,7 @@ export type {
 	ProviderProtocol,
 } from "./models";
 export {
+	fetchLiveProviderModels,
 	fetchModelsDevProviderModels,
 	filterOpenAICodexModels,
 	getAllProviders,
@@ -19,12 +21,15 @@ export {
 	getProviderCollectionSync,
 	getProviderIds,
 	hasProvider,
+	isCanonicalModelIdForAliasRules,
 	MODEL_COLLECTIONS_BY_PROVIDER_ID,
+	preferCanonicalModelIds,
 	registerModel,
 	registerProvider,
 	resetRegistry,
 	sortModelsByReleaseDate,
 	unregisterProvider,
+	VERCEL_OPENROUTER_MODEL_ID_ALIAS_RULES,
 } from "./models";
 export type {
 	ApiHandler,
@@ -53,8 +58,10 @@ export {
 	BUILT_IN_PROVIDER,
 	BUILT_IN_PROVIDER_IDS,
 	ClineNotSubscribedError,
+	ClineOrgIndividualInferenceSubscriptionError,
 	createHandler,
 	createHandlerAsync,
+	getClineOrgIndividualInferenceSubscriptionMessage,
 	getClineNotSubscribedMessage,
 	getClinePassSubscriptionUrl,
 	getRegisteredHandler,
@@ -63,6 +70,8 @@ export {
 	isBuiltInProviderId,
 	isClineNotSubscribedError,
 	isClineNotSubscribedMessage,
+	isClineOrgIndividualInferenceSubscriptionError,
+	isClineOrgIndividualInferenceSubscriptionMessage,
 	isRegisteredHandlerAsync,
 	normalizeProviderId,
 	registerAsyncHandler,

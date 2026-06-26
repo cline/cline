@@ -8,6 +8,7 @@ import type { CliMigrationNotice } from "../kanban-migration/notice";
 import { logCliError } from "../logging/errors";
 import {
 	loadClineAccountSnapshot,
+	loadIndividualSubscriptionPlans,
 	onProviderChange,
 	switchClineAccount,
 } from "../tui/cline-account";
@@ -24,6 +25,11 @@ import { disableOpenTuiGraphicsProbe } from "../tui/opentui-env";
 import type { QueuedPromptItem } from "../tui/types";
 import { type ChatCommandState, chatCommandHost } from "../utils/chat-commands";
 import { applyCliCompactionMode } from "../utils/compaction-mode";
+import {
+	shouldZeroClineFreeModelCost,
+	zeroCliAgentEventCost,
+	zeroCliUsageCost,
+} from "../utils/free-model-cost";
 import {
 	prepareTerminalForPostTuiOutput,
 	writeErr,
@@ -51,6 +57,23 @@ import { assertInteractivePreflight } from "./interactive/preflight";
 import { createInteractiveSessionRuntime } from "./interactive/session-runtime";
 import { buildUserInputMessage } from "./prompt";
 import { getUIEventEmitter } from "./session-events";
+
+type ModelChangeReasoningConfig = {
+	thinking?: boolean;
+	reasoningEffort?: Config["reasoningEffort"];
+};
+
+export function resolveReasoningForModelChange(
+	config: ModelChangeReasoningConfig,
+	existing: Pick<ProviderSettings, "reasoning">,
+): ProviderSettings["reasoning"] {
+	if (config.thinking === false) return { enabled: false };
+	if (config.reasoningEffort) {
+		return { enabled: true, effort: config.reasoningEffort };
+	}
+	if (config.thinking === true) return { enabled: true };
+	return existing.reasoning;
+}
 
 export async function runInteractive(
 	config: Config,
@@ -153,6 +176,7 @@ export async function runInteractive(
 		askQuestionRef: tuiAskQuestion,
 	});
 	const providerSettingsManager = new ProviderSettingsManager();
+	let zeroCurrentTurnCost = false;
 
 	const sessionRuntime = createInteractiveSessionRuntime({
 		config,
@@ -166,7 +190,7 @@ export async function runInteractive(
 		resolveMistakeLimitDecision,
 		switchToActModeTool,
 		onAgentEvent: (event) => {
-			uiEvents.emit("agent", event);
+			uiEvents.emit("agent", zeroCliAgentEventCost(event, zeroCurrentTurnCost));
 		},
 		onTeamEvent: (event) => {
 			uiEvents.emit("team", event);
@@ -404,6 +428,12 @@ export async function runInteractive(
 				config,
 				clineApiBaseUrl: options?.clineApiBaseUrl,
 			}),
+		loadIndividualSubscriptionPlans: async () =>
+			await loadIndividualSubscriptionPlans({
+				config,
+				clineApiBaseUrl: options?.clineApiBaseUrl,
+				clineProviderSettings: options?.clineProviderSettings,
+			}),
 		switchClineAccount: async (organizationId) =>
 			await switchClineAccount({
 				config,
@@ -432,6 +462,7 @@ export async function runInteractive(
 		},
 		onSubmit: async (input, mode, delivery, attachments, onCommandOutput) => {
 			let commandOutput: string | undefined;
+			let zeroTurnCost = false;
 			try {
 				await sessionRuntime.ensureReady();
 				await waitForSubmittedMode(mode);
@@ -478,6 +509,8 @@ export async function runInteractive(
 				}
 				input = chatCommandResult.input;
 				commandOutput = chatCommandResult.commandOutput;
+				zeroTurnCost = await shouldZeroClineFreeModelCost(config);
+				zeroCurrentTurnCost = zeroTurnCost;
 				const {
 					prompt: userInput,
 					userImages,
@@ -519,8 +552,9 @@ export async function runInteractive(
 				}
 				if (result.finishReason !== "completed") {
 					if (result.finishReason === "aborted" || isAbortInProgress()) {
-						const usage = await sessionRuntime.getAccumulatedUsage(
-							result.usage,
+						const usage = zeroCliUsageCost(
+							await sessionRuntime.getAccumulatedUsage(result.usage),
+							zeroTurnCost,
 						);
 						return {
 							usage,
@@ -535,7 +569,10 @@ export async function runInteractive(
 						errorText || `Turn finished with ${result.finishReason}`,
 					);
 				}
-				const usage = await sessionRuntime.getAccumulatedUsage(result.usage);
+				const usage = zeroCliUsageCost(
+					await sessionRuntime.getAccumulatedUsage(result.usage),
+					zeroTurnCost,
+				);
 				return {
 					usage,
 					currentContextSize: getCurrentContextSize(result.messages),
@@ -559,6 +596,7 @@ export async function runInteractive(
 				});
 				throw error;
 			} finally {
+				zeroCurrentTurnCost = false;
 				if (!delivery) {
 					isRunning = false;
 					clearAbortInProgress();
@@ -623,12 +661,11 @@ export async function runInteractive(
 			) ?? {
 				provider: config.providerId,
 			};
+			const reasoning = resolveReasoningForModelChange(config, existing);
 			providerSettingsManager.saveProviderSettings({
 				...existing,
 				model: config.modelId,
-				reasoning: config.reasoningEffort
-					? { enabled: true, effort: config.reasoningEffort }
-					: { enabled: false },
+				...(reasoning === undefined ? {} : { reasoning }),
 			});
 			await sessionRuntime.restartWithCurrentMessages();
 		},

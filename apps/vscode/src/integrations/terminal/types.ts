@@ -132,13 +132,6 @@ export interface ITerminal {
 }
 
 /**
- * Terminal process result interface.
- * @deprecated Use ITerminalProcess instead.
- * This is kept for backwards compatibility.
- */
-export type ITerminalProcessResult = ITerminalProcess
-
-/**
  * Promise-like interface for terminal process results.
  * Combines Promise<void> with ITerminalProcess for flexible usage.
  * This allows the process to be awaited while also providing access to events.
@@ -218,12 +211,6 @@ export interface ITerminalManager {
 	setTerminalReuseEnabled(enabled: boolean): void
 
 	/**
-	 * Set the maximum number of output lines to keep.
-	 * @param limit Maximum number of lines
-	 */
-	setTerminalOutputLineLimit(limit: number): void
-
-	/**
 	 * Set the default terminal profile.
 	 * @param profile The profile identifier
 	 */
@@ -282,33 +269,9 @@ export interface BackgroundCommand {
 // =============================================================================
 
 /**
- * Tracker for shell integration warnings to determine when to show background terminal suggestion.
- * Used internally by CommandExecutor to track warning frequency.
- */
-export interface ShellIntegrationWarningTracker {
-	/** Timestamps of recent shell integration warnings */
-	timestamps: number[]
-	/** Timestamp when the suggestion was last shown */
-	lastSuggestionShown?: number
-}
-
-/**
- * Represents an active background command that can be cancelled
- * @deprecated Use BackgroundCommand instead
- */
-export interface ActiveBackgroundCommand {
-	process: {
-		terminate?: () => void
-		continue?: () => void
-	}
-	command: string
-	outputLines: string[]
-}
-
-/**
  * Response from an ask() call
  */
-export interface AskResponse {
+interface AskResponse {
 	response: string // "yesButtonClicked" | "noButtonClicked" | "messageResponse"
 	text?: string
 	images?: string[]
@@ -342,41 +305,6 @@ export interface CommandExecutorCallbacks {
 	/** Add content to user message for next API request */
 	addToUserMessageContent: (content: { type: string; text: string }) => void
 }
-
-/**
- * Optional per-command execution behavior overrides.
- */
-export interface CommandExecutionOptions {
-	/**
-	 * Force command execution in standalone/background terminal mode for this command.
-	 * This is useful for subagent runs and headless-style execution flows.
-	 */
-	useBackgroundExecution?: boolean
-	/**
-	 * Suppress command interaction/output UI messages (ask/say) for this command execution.
-	 * Command output is still captured and returned as the tool result.
-	 */
-	suppressUserInteraction?: boolean
-}
-
-/**
- * Configuration for CommandExecutor
- */
-export interface CommandExecutorConfig {
-	/** Working directory for command execution */
-	cwd: string
-	/** Task ID for tracking */
-	taskId: string
-	/** Unique task identifier */
-	ulid: string
-	/** Terminal execution mode */
-	terminalExecutionMode: "vscodeTerminal" | "backgroundExec"
-	/** The primary terminal manager (VSCode or Standalone) */
-	terminalManager: ITerminalManager
-}
-
-/** Alias for backwards compatibility */
-export type FullCommandExecutorConfig = CommandExecutorConfig
 
 // =============================================================================
 // Command Orchestrator Types

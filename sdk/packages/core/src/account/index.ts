@@ -18,6 +18,7 @@ export type {
 	ClineAccountUsageTransaction,
 	ClineAccountUser,
 	ClineOrganization,
+	ClineSubscriptionPlan,
 	FeaturebaseTokenResponse,
 	UserRemoteConfigOrganization,
 	UserRemoteConfigResponse,

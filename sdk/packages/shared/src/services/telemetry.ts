@@ -41,6 +41,20 @@ export interface CaptureSdkErrorInput {
 	messageLimit?: number;
 }
 
+export const AGENT_UNEXPECTED_REASONING_TOKENS_EVENT =
+	"agent.reasoning.unexpected_tokens";
+
+export interface CaptureAgentUnexpectedReasoningTokensInput {
+	sessionId?: string;
+	agentId: string;
+	runId?: string;
+	iteration: number;
+	providerId?: string;
+	modelId?: string;
+	requestedThinking: false;
+	reasoningTokenCount: number;
+}
+
 export interface TelemetryMetadata {
 	extension_version: string;
 	cline_type: string;
@@ -88,6 +102,25 @@ export interface ITelemetryService {
 
 export const SDK_ERROR_TELEMETRY_EVENT = "sdk.error";
 
+export function captureAgentUnexpectedReasoningTokens(
+	telemetry: ITelemetryService | undefined,
+	input: CaptureAgentUnexpectedReasoningTokensInput,
+): void {
+	telemetry?.capture({
+		event: AGENT_UNEXPECTED_REASONING_TOKENS_EVENT,
+		properties: stripUndefinedTelemetryProperties({
+			sessionId: input.sessionId,
+			agentId: input.agentId,
+			runId: input.runId,
+			iteration: input.iteration,
+			providerId: input.providerId,
+			modelId: input.modelId,
+			requestedThinking: input.requestedThinking,
+			reasoningTokenCount: input.reasoningTokenCount,
+		}),
+	});
+}
+
 export function captureSdkError(
 	telemetry: ITelemetryService | undefined,
 	input: CaptureSdkErrorInput,
@@ -112,6 +145,18 @@ export function buildSdkErrorProperties(
 		handled: input.handled ?? true,
 		...normalizeSdkError(input.error, input.messageLimit),
 	};
+}
+
+function stripUndefinedTelemetryProperties(
+	properties: TelemetryProperties,
+): TelemetryProperties {
+	const result: TelemetryProperties = {};
+	for (const [key, value] of Object.entries(properties)) {
+		if (value !== undefined) {
+			result[key] = value;
+		}
+	}
+	return result;
 }
 
 export function normalizeSdkError(

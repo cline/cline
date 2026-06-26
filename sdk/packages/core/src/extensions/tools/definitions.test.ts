@@ -5,12 +5,11 @@ import {
 	getToolContextTelemetry,
 } from "../../services/telemetry/tool-context";
 import {
-	createBashTool,
 	createDefaultTools,
 	createReadFilesTool,
 	createSearchTool,
+	createShellTool,
 	createSkillsTool,
-	createWindowsShellTool,
 } from "./definitions";
 import { CommandExitError } from "./executors/bash";
 import { RUN_COMMAND_QUERY_PREVIEW_LIMIT, TimeoutError } from "./helpers";
@@ -508,7 +507,7 @@ describe("default run_commands tool", () => {
 		const execute = vi.fn(async (command: string | { command: string }) =>
 			typeof command === "string" ? `ran:${command}` : `ran:${command.command}`,
 		);
-		const tool = createWindowsShellTool(execute);
+		const tool = createShellTool(execute);
 
 		const result = await tool.execute({ commands: "ls" } as never, {
 			agentId: "agent-1",
@@ -540,7 +539,7 @@ describe("default run_commands tool", () => {
 			async (command: string | { command: string }) =>
 				`ran:${typeof command === "string" ? command : command.command}`,
 		);
-		const tool = createWindowsShellTool(execute);
+		const tool = createShellTool(execute);
 
 		await tool.execute({ command: "pwd" } as never, {
 			agentId: "agent-1",
@@ -574,7 +573,7 @@ describe("default run_commands tool", () => {
 					? `ran:${command}`
 					: `ran:${command.command}:${(command.args ?? []).join(",")}`,
 		);
-		const tool = createWindowsShellTool(execute);
+		const tool = createShellTool(execute);
 
 		const result = await tool.execute(
 			{
@@ -618,7 +617,7 @@ describe("default run_commands tool", () => {
 					? `ran:${command}`
 					: `ran:${command.command}:${(command.args ?? []).join(",")}`,
 		);
-		const tool = createWindowsShellTool(execute);
+		const tool = createShellTool(execute);
 
 		const result = await tool.execute(
 			{ command: "git", args: ["status", "--short"] } as never,
@@ -652,7 +651,7 @@ describe("default run_commands tool", () => {
 			async (command: string | { command: string }) =>
 				`ran:${typeof command === "string" ? command : command.command}`,
 		);
-		const tool = createBashTool(execute);
+		const tool = createShellTool(execute);
 
 		const result = await tool.execute(
 			{ commands: ["git status --short"] },
@@ -679,7 +678,7 @@ describe("default run_commands tool", () => {
 				"[Command exited with code 1]\nfailed assertion details",
 			);
 		});
-		const tool = createBashTool(execute);
+		const tool = createShellTool(execute);
 
 		const result = await tool.execute(
 			{ commands: ["bun test"] },
@@ -705,7 +704,7 @@ describe("default run_commands tool", () => {
 			async (command: string | { command: string }) =>
 				`ran:${typeof command === "string" ? command : command.command}`,
 		);
-		const tool = createBashTool(execute);
+		const tool = createShellTool(execute);
 
 		const result = await tool.execute(
 			{
@@ -746,7 +745,7 @@ describe("default run_commands tool", () => {
 			async (command: string | { command: string }) =>
 				`ran:${typeof command === "string" ? command : command.command}`,
 		);
-		const tool = createBashTool(execute);
+		const tool = createShellTool(execute);
 
 		const result = await tool.execute(
 			{
@@ -801,7 +800,7 @@ describe("default run_commands tool", () => {
 			async (command: string | { command: string }) =>
 				`ran:${typeof command === "string" ? command : command.command}`,
 		);
-		const tool = createBashTool(execute);
+		const tool = createShellTool(execute);
 
 		const result = await tool.execute(
 			{
@@ -837,7 +836,7 @@ describe("default run_commands tool", () => {
 			async (command: string | { command: string }) =>
 				`ran:${typeof command === "string" ? command : command.command}`,
 		);
-		const tool = createBashTool(execute);
+		const tool = createShellTool(execute);
 
 		const result = await tool.execute(
 			{ commands: ["pwd", "ls /app"] },
@@ -861,7 +860,7 @@ describe("default run_commands tool", () => {
 			async (command: string | { command: string }) =>
 				`ran:${typeof command === "string" ? command : command.command}`,
 		);
-		const tool = createBashTool(execute);
+		const tool = createShellTool(execute);
 
 		const result = await tool.execute(
 			{
@@ -914,7 +913,7 @@ describe("default run_commands tool", () => {
 			async (command: string | { command: string }) =>
 				`ran:${typeof command === "string" ? command : command.command}`,
 		);
-		const tool = createBashTool(execute);
+		const tool = createShellTool(execute);
 
 		const result = await tool.execute(
 			{ commands: ['wc -c <<< "hello"', "hello"] },
@@ -944,7 +943,7 @@ describe("default run_commands tool", () => {
 			async (command: string | { command: string }) =>
 				`ran:${typeof command === "string" ? command : command.command}`,
 		);
-		const tool = createBashTool(execute);
+		const tool = createShellTool(execute);
 
 		const result = await tool.execute(
 			{ commands: ["python3 << 'PYEOF'", "print('ok')"] },
@@ -974,7 +973,7 @@ describe("default run_commands tool", () => {
 			async (command: string | { command: string }) =>
 				`ran:${typeof command === "string" ? command.length : command.command.length}`,
 		);
-		const tool = createBashTool(execute);
+		const tool = createShellTool(execute);
 		const largeSource = "x".repeat(14000);
 		const command = `cat > /app/eval.scm << 'EOF'\n${largeSource}\nEOF`;
 
@@ -1008,7 +1007,7 @@ describe("default run_commands tool", () => {
 		const execute = vi.fn(async () => {
 			throw new Error("boom");
 		});
-		const tool = createBashTool(execute);
+		const tool = createShellTool(execute);
 		const command = `cat > /app/big.txt << 'EOF'\n${"y".repeat(10000)}\nEOF`;
 
 		const result = (await tool.execute(
@@ -1030,7 +1029,7 @@ describe("default run_commands tool", () => {
 
 	it("truncates long command echoes for the structured windows shell tool", async () => {
 		const execute = vi.fn(async () => "ok");
-		const tool = createWindowsShellTool(execute);
+		const tool = createShellTool(execute);
 		const command = `powershell -Command "${"z".repeat(9000)}"`;
 
 		const result = (await tool.execute({ commands: [command] } as never, {
@@ -1051,7 +1050,7 @@ describe("default run_commands tool", () => {
 		// race regardless of host load (a tight real-timer margin flaked under
 		// heavy parallel CI runs).
 		const execute = vi.fn((): Promise<string> => new Promise<string>(() => {}));
-		const tool = createWindowsShellTool(execute, { bashTimeoutMs: 5 });
+		const tool = createShellTool(execute, { bashTimeoutMs: 5 });
 		const telemetry = createTelemetryStub();
 
 		const result = await tool.execute(
@@ -1122,7 +1121,7 @@ describe("default run_commands tool", () => {
 			throw new Error("Command timed out after 5000ms");
 		});
 
-		await createWindowsShellTool(executorTimeout, {
+		await createShellTool(executorTimeout, {
 			bashTimeoutMs: 5000,
 		}).execute({ commands: ["echo timeout"] } as never, {
 			agentId: "agent-1",
@@ -1130,7 +1129,7 @@ describe("default run_commands tool", () => {
 			iteration: 1,
 			metadata: { [CLINE_INTERNAL_TELEMETRY_METADATA_KEY]: telemetry },
 		});
-		await createWindowsShellTool(plainFailure, { bashTimeoutMs: 5000 }).execute(
+		await createShellTool(plainFailure, { bashTimeoutMs: 5000 }).execute(
 			{ commands: ["echo not-timeout"] } as never,
 			{
 				agentId: "agent-1",
@@ -1155,7 +1154,7 @@ describe("default run_commands tool", () => {
 		// race regardless of host load (a tight real-timer margin flaked under
 		// heavy parallel CI runs).
 		const execute = vi.fn((): Promise<string> => new Promise<string>(() => {}));
-		const tool = createBashTool(execute, { bashTimeoutMs: 5 });
+		const tool = createShellTool(execute, { bashTimeoutMs: 5 });
 
 		const result = await tool.execute(
 			{ commands: ["echo secret-token", "pwd"] },
@@ -1207,7 +1206,7 @@ describe("default run_commands tool", () => {
 
 	it("does not emit timeout telemetry for normal command success", async () => {
 		const execute = vi.fn(async () => "ok");
-		const tool = createWindowsShellTool(execute, { bashTimeoutMs: 50 });
+		const tool = createShellTool(execute, { bashTimeoutMs: 50 });
 		const telemetry = createTelemetryStub();
 
 		await tool.execute({ commands: ["echo hi"] } as never, {

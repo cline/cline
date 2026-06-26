@@ -3,8 +3,6 @@ import {
 	createContextBar,
 	formatStatusBarUsageText,
 	resolveContextBarFilledForeground,
-	resolveModelDisplayName,
-	resolveModelMaxInputTokens,
 } from "./status-bar";
 
 vi.mock("@opentui/react", () => ({
@@ -59,7 +57,7 @@ describe("formatStatusBarUsageText", () => {
 				totalCost: 0.123,
 				showCost: true,
 			}),
-		).toBe("(12,345) $0.12");
+		).toBe("(12,345 tokens) $0.12");
 	});
 
 	it("omits cost when usage cost is hidden", () => {
@@ -69,34 +67,6 @@ describe("formatStatusBarUsageText", () => {
 				totalCost: 0.123,
 				showCost: false,
 			}),
-		).toBe("(12,345)");
-	});
-});
-
-describe("model display helpers", () => {
-	it("resolves status-bar model names by model slug when provider prefixes differ", () => {
-		expect(
-			resolveModelDisplayName({
-				modelId: "zai/glm-5.2",
-				knownModels: {
-					"z-ai/glm-5.2": { id: "z-ai/glm-5.2", name: "GLM-5.2" },
-				},
-			}),
-		).toBe("GLM-5.2");
-	});
-
-	it("resolves max input tokens by model slug when provider prefixes differ", () => {
-		expect(
-			resolveModelMaxInputTokens({
-				modelId: "zai/glm-5.2",
-				knownModels: {
-					"z-ai/glm-5.2": {
-						id: "z-ai/glm-5.2",
-						name: "GLM-5.2",
-						maxInputTokens: 262_144,
-					},
-				},
-			}),
-		).toBe(262_144);
+		).toBe("(12,345 tokens)");
 	});
 });

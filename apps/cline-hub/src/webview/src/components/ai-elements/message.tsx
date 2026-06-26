@@ -1,9 +1,5 @@
 "use client";
 
-import { cjk } from "@streamdown/cjk";
-import { code } from "@streamdown/code";
-import { math } from "@streamdown/math";
-import { mermaid } from "@streamdown/mermaid";
 import type { UIMessage } from "ai";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import type { ComponentProps, HTMLAttributes, ReactElement } from "react";
@@ -16,7 +12,6 @@ import {
 	useMemo,
 	useState,
 } from "react";
-import { Streamdown } from "streamdown";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup, ButtonGroupText } from "@/components/ui/button-group";
 import {
@@ -26,6 +21,7 @@ import {
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { HubStreamdown } from "./streamdown";
 
 export type MessageProps = HTMLAttributes<HTMLDivElement> & {
 	from: UIMessage["role"];
@@ -316,24 +312,18 @@ export const MessageBranchPage = ({
 	);
 };
 
-export type MessageResponseProps = ComponentProps<typeof Streamdown>;
-
-const streamdownPlugins = { cjk, code, math, mermaid };
+export type MessageResponseProps = ComponentProps<typeof HubStreamdown>;
 
 export const MessageResponse = memo(
 	({ className, ...props }: MessageResponseProps) => (
-		<Streamdown
+		<HubStreamdown
 			className={cn(
 				"size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
 				className,
 			)}
-			plugins={streamdownPlugins}
 			{...props}
 		/>
 	),
-	(prevProps, nextProps) =>
-		prevProps.children === nextProps.children &&
-		nextProps.isAnimating === prevProps.isAnimating,
 );
 
 MessageResponse.displayName = "MessageResponse";

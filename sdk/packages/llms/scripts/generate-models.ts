@@ -4,7 +4,10 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ModelInfo } from "@cline/shared";
-import { fetchClineRecommendedProviderModels } from "../src/catalog/catalog-cline-recommended";
+import {
+	fetchClineRecommendedModelsPayload,
+	normalizeClineRecommendedProviderModels,
+} from "../src/catalog/catalog-cline-recommended";
 import { loadModelsDevProviderModels } from "./models/generate-models-dev";
 
 const OUTPUT_FILE = "src/catalog/catalog.generated.ts";
@@ -44,23 +47,29 @@ async function generate(): Promise<void> {
 	const providerModels: Record<string, Record<string, ModelInfo>> = {};
 	let loadError: Error | undefined;
 
-	try {
-		const modelsDev = await loadModelsDevProviderModels();
-		Object.assign(providerModels, modelsDev);
-	} catch (error) {
-		loadError =
-			error instanceof Error ? error : new Error(String(error ?? "unknown"));
-	}
+	const [modelsDevResult, clineRecommendedPayloadResult] = await Promise.all([
+		loadModelsDevProviderModels().catch((error) => {
+			loadError =
+				error instanceof Error ? error : new Error(String(error ?? "unknown"));
+			return {};
+		}),
+		fetchClineRecommendedModelsPayload(fetch).catch((error) => {
+			loadError =
+				error instanceof Error ? error : new Error(String(error ?? "unknown"));
+			return undefined;
+		}),
+	]);
 
-	try {
-		const clineRecommended = await fetchClineRecommendedProviderModels(
-			fetch,
-			providerModels.openrouter || {},
+	Object.assign(providerModels, modelsDevResult);
+
+	if (clineRecommendedPayloadResult) {
+		Object.assign(
+			providerModels,
+			normalizeClineRecommendedProviderModels(
+				clineRecommendedPayloadResult,
+				providerModels.openrouter || {},
+			),
 		);
-		Object.assign(providerModels, clineRecommended);
-	} catch (error) {
-		loadError =
-			error instanceof Error ? error : new Error(String(error ?? "unknown"));
 	}
 
 	if (Object.keys(providerModels).length === 0) {

@@ -14,7 +14,6 @@ import { isOpenTelemetryConfigValid, remoteConfigToOtelConfig } from "@/shared/s
 import { Logger } from "@/shared/services/Logger"
 import { syncWorker } from "@/shared/services/worker/sync"
 import { BlobStoreSettings } from "@/shared/storage"
-import { ensureSettingsDirectoryExists } from "../disk"
 import { StateManager } from "../StateManager"
 import { syncRemoteMcpServersToSettings } from "./syncRemoteMcpServers"
 
@@ -373,7 +372,7 @@ export async function applyRemoteConfig(
 	// - No dependency on in-memory state that would be lost across restarts
 	try {
 		const serversToSync = remoteConfig.remoteMCPServers ?? []
-		const settingsPath = await ensureSettingsDirectoryExists()
+		const settingsPath = await mcpHub.getMcpSettingsFilePath()
 		await syncRemoteMcpServersToSettings(serversToSync, settingsPath, mcpHub)
 		stateManager.setRemoteConfigField("previousRemoteMCPServers", serversToSync)
 	} catch (error) {

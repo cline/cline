@@ -11,6 +11,7 @@ export interface ClineRecommendedModel {
 export interface ClineRecommendedModelsData {
 	recommended: ClineRecommendedModel[];
 	free: ClineRecommendedModel[];
+	clinePass: ClineRecommendedModel[];
 }
 
 export interface FetchClineRecommendedModelsOptions {
@@ -66,6 +67,7 @@ export const FALLBACK_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsData = {
 			tags: ["FREE"],
 		},
 	],
+	clinePass: [],
 };
 
 function cloneRecommendedModels(
@@ -77,6 +79,10 @@ function cloneRecommendedModels(
 			tags: [...model.tags],
 		})),
 		free: data.free.map((model) => ({ ...model, tags: [...model.tags] })),
+		clinePass: data.clinePass.map((model) => ({
+			...model,
+			tags: [...model.tags],
+		})),
 	};
 }
 
@@ -104,17 +110,21 @@ function normalizeResponse(raw: unknown): ClineRecommendedModelsData | null {
 		? data.recommended
 		: [];
 	const freeRaw = Array.isArray(data.free) ? data.free : [];
+	const clinePassRaw = Array.isArray(data.clinePass) ? data.clinePass : [];
 	const recommended = recommendedRaw
 		.map(normalizeModel)
 		.filter((model): model is ClineRecommendedModel => model !== null);
 	const free = freeRaw
 		.map(normalizeModel)
 		.filter((model): model is ClineRecommendedModel => model !== null);
-	if (recommended.length === 0 && free.length === 0) {
+	const clinePass = clinePassRaw
+		.map(normalizeModel)
+		.filter((model): model is ClineRecommendedModel => model !== null);
+	if (recommended.length === 0 && free.length === 0 && clinePass.length === 0) {
 		return null;
 	}
 
-	return { recommended, free };
+	return { recommended, free, clinePass };
 }
 
 function getConfiguredApiBaseUrl(

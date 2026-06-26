@@ -108,7 +108,6 @@ function convertClineSayToProtoEnum(say: AppClineSay | undefined): ClineSay | un
 		subagent: ClineSay.SUBAGENT_STATUS,
 		use_subagents: ClineSay.USE_SUBAGENTS_SAY,
 		subagent_usage: ClineSay.SUBAGENT_USAGE,
-		generate_explanation: ClineSay.GENERATE_EXPLANATION,
 	}
 
 	const result = mapping[say]
@@ -153,7 +152,6 @@ function convertProtoEnumToClineSay(say: ClineSay): AppClineSay | undefined {
 		[ClineSay.INFO]: "info",
 		[ClineSay.TASK_PROGRESS]: "task_progress",
 		[ClineSay.ERROR_RETRY]: "error_retry",
-		[ClineSay.GENERATE_EXPLANATION]: "generate_explanation",
 		[ClineSay.HOOK_STATUS]: "hook_status",
 		[ClineSay.HOOK_OUTPUT_STREAM]: "hook_output_stream",
 		[ClineSay.CONDITIONAL_RULES_APPLIED]: "conditional_rules_applied",
@@ -193,6 +191,9 @@ export function convertClineMessageToProto(message: AppClineMessage): ProtoCline
 		images: message.images ?? [],
 		files: message.files ?? [],
 		partial: message.partial ?? false,
+		// Convergent-replica fields (default 0 = unstamped, e.g. classic/legacy path).
+		seq: message.seq ?? 0,
+		epoch: message.epoch ?? 0,
 		lastCheckpointHash: message.lastCheckpointHash ?? "",
 		isCheckpointCheckedOut: message.isCheckpointCheckedOut ?? false,
 		isOperationOutsideWorkspace: message.isOperationOutsideWorkspace ?? false,
@@ -278,6 +279,15 @@ export function convertProtoToClineMessage(protoMessage: ProtoClineMessage): App
 			protoMessage.conversationHistoryDeletedRange.startIndex,
 			protoMessage.conversationHistoryDeletedRange.endIndex,
 		]
+	}
+
+	// Convergent-replica fields. 0 means unstamped (classic/legacy path) — leave undefined so
+	// the webview reducer treats such messages as always-applicable rather than epoch 0.
+	if (protoMessage.seq && protoMessage.seq !== 0) {
+		message.seq = protoMessage.seq
+	}
+	if (protoMessage.epoch && protoMessage.epoch !== 0) {
+		message.epoch = protoMessage.epoch
 	}
 
 	return message

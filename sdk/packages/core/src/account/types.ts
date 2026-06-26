@@ -83,6 +83,20 @@ export interface FeaturebaseTokenResponse {
 	featurebaseJwt: string;
 }
 
+export interface ClineSubscriptionPlan {
+	displayName?: string;
+	features?: {
+		included?: string[];
+		[key: string]: unknown;
+	};
+	id?: string;
+	interval?: string;
+	name?: string;
+	pricePerSeatCents?: number;
+	type?: string;
+	[key: string]: unknown;
+}
+
 export interface ClineAccountOrganizationUsageTransaction {
 	aiInferenceProviderName: string;
 	aiModelName: string;
