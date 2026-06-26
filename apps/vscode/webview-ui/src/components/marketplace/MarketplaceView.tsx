@@ -584,8 +584,8 @@ const MarketplaceStyles = () => (
 				width: auto;
 				flex: 0 0 auto;
 				display: flex;
-				overflow-x: auto;
-				overflow-y: hidden;
+				flex-wrap: wrap;
+				overflow: visible;
 				border-right: 0;
 				border-bottom: 1px solid var(--vscode-panel-border);
 				padding: 0 4px;
@@ -593,7 +593,8 @@ const MarketplaceStyles = () => (
 
 			.marketplace-tab {
 				width: auto;
-				flex: 0 0 auto;
+				flex: 1 1 96px;
+				min-width: 96px;
 				border-left: 0;
 				border-bottom: 2px solid transparent;
 				padding: 0 10px;

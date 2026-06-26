@@ -2,6 +2,7 @@ import {
 	type ClineAccountBalance,
 	type ClineAccountOrganization,
 	type ClineAccountOrganizationBalance,
+	type ClineSubscriptionPlan,
 	ClineAccountService,
 	type ClineAccountUser,
 	formatProviderOAuthApiKey,
@@ -201,6 +202,18 @@ export async function switchClineAccount(input: {
 		throw new Error("No Cline account auth token found");
 	}
 	await service.switchAccount(input.organizationId);
+}
+
+export async function loadIndividualSubscriptionPlans(input: {
+	config: ClineAccountConfig;
+	clineApiBaseUrl?: string;
+	clineProviderSettings?: ProviderSettings;
+}): Promise<ClineSubscriptionPlan[]> {
+	const service = await createClineAccountService(input);
+	if (!service) {
+		throw new Error("No Cline account auth token found");
+	}
+	return service.fetchAvailableSubscriptionPlans({ type: "individual" });
 }
 
 async function onChangeToClinePass(config: ClineAccountConfig) {
