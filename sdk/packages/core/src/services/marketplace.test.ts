@@ -120,8 +120,6 @@ describe("marketplace service", () => {
 					"remove",
 					"review-team",
 					"-g",
-					"-a",
-					"cline",
 					"-y",
 				],
 			},

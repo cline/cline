@@ -304,8 +304,6 @@ export async function uninstallMarketplaceSkill(
 		"remove",
 		installedName,
 		"-g",
-		"-a",
-		"cline",
 		"-y",
 	];
 	const displayCommand = formatCommand(command, commandArgs);
