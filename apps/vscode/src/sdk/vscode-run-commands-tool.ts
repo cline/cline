@@ -12,6 +12,7 @@
  */
 
 import {
+	CommandExitError,
 	createShellExecutor,
 	createShellTool,
 	MAX_COMMAND_OUTPUT_CHARS,
@@ -108,9 +109,27 @@ async function executeForeground(
 		throw new Error("Command execution aborted")
 	}
 
-	return truncateCommandOutput(outputLines.join("\n").trim(), {
+	const output = truncateCommandOutput(outputLines.join("\n").trim(), {
 		maxChars: maxOutputChars,
 	})
+
+	// Plumb the exit code from the OSC 633;D marker through to the tool result.
+	// When shell integration reports a non-zero exit code, throw CommandExitError
+	// so the SDK's shell tool wrapper marks the result as `success: false` and
+	// includes the exit code in the error message — matching the background
+	// (child_process) executor's behavior.
+	// If no exit code was captured (e.g. no shell integration markers), we can't
+	// determine success/failure, so we return the output as-is (success: true).
+	const exitCode = process.getCompletionDetails?.()?.exitCode
+	if (exitCode !== undefined && exitCode !== null && exitCode !== 0) {
+		const result =
+			output.length > 0
+				? `[Command exited with code ${exitCode}]\n${output}`
+				: `[Command exited with code ${exitCode}]`
+		throw new CommandExitError(exitCode, result)
+	}
+
+	return output
 }
 
 // ---------------------------------------------------------------------------
