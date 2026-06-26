@@ -175,35 +175,48 @@ export class VscodeTerminalManager implements ITerminalManager {
 		return arePathsEqual(currentCwd, targetCwd)
 	}
 
+	private async drainCommandOutput(output: AsyncIterable<string>): Promise<void> {
+		for await (const _chunk of output) {
+			// Drain the stream so shell integration can report command completion.
+		}
+	}
+
 	// VS Code shell integration sometimes finishes the internal `cd` command without
-	// reporting completion through the execution stream. Timeout and continue so
+	// reporting completion through the execution stream. Timeout this setup step so
 	// the user's actual command is still sent instead of leaving the chat stuck.
-	private async waitForCwdCommand(
-		terminalInfo: TerminalInfo,
-		cdProcess: ITerminalProcessResultPromise,
-		cwd: string,
-	): Promise<boolean> {
+	private async runCwdChangeCommand(terminalInfo: TerminalInfo, cwd: string): Promise<boolean> {
+		const command = `cd "${cwd}"`
+		const shellIntegration = terminalInfo.terminal.shellIntegration
+
+		if (!shellIntegration?.executeCommand) {
+			terminalInfo.terminal.sendText(command, true)
+			Logger.warn(
+				`[TerminalManager] Shell integration executeCommand is unavailable while changing terminal ${terminalInfo.id} cwd. Proceeding after ${CWD_COMMAND_TIMEOUT_MS}ms.`,
+			)
+			await new Promise((resolve) => setTimeout(resolve, CWD_COMMAND_TIMEOUT_MS))
+			return true
+		}
+
 		let timeout: NodeJS.Timeout | undefined
 		let didTimeOut = false
 
 		try {
+			const execution = shellIntegration.executeCommand(command)
 			await Promise.race([
-				cdProcess,
+				this.drainCommandOutput(execution.read()),
 				new Promise<void>((resolve) => {
 					timeout = setTimeout(() => {
 						didTimeOut = true
 						Logger.warn(
 							`[TerminalManager] Timed out waiting ${CWD_COMMAND_TIMEOUT_MS}ms for terminal ${terminalInfo.id} to run cd "${cwd}". Proceeding with requested command.`,
 						)
-						cdProcess.continue()
-						if (Object.is(this.processes.get(terminalInfo.id), cdProcess)) {
-							this.processes.delete(terminalInfo.id)
-						}
-						terminalInfo.busy = false
 						resolve()
 					}, CWD_COMMAND_TIMEOUT_MS)
 				}),
 			])
+		} catch (error) {
+			Logger.warn(`[TerminalManager] Failed to observe terminal ${terminalInfo.id} cwd command completion`, error)
+			return true
 		} finally {
 			if (timeout) {
 				clearTimeout(timeout)
@@ -226,10 +239,6 @@ export class VscodeTerminalManager implements ITerminalManager {
 		this.processes.set(vscodeTerminalInfo.id, process)
 
 		process.once("completed", () => {
-			if (this.processes.get(vscodeTerminalInfo.id) !== process) {
-				Logger.log(`[TerminalManager] Ignoring stale completion for terminal ${vscodeTerminalInfo.id}`)
-				return
-			}
 			Logger.log(`[TerminalManager] Terminal ${vscodeTerminalInfo.id} completed, setting busy to false`)
 			vscodeTerminalInfo.busy = false
 		})
@@ -237,10 +246,6 @@ export class VscodeTerminalManager implements ITerminalManager {
 		// if shell integration is not available, remove terminal so it does not get reused as it may be running a long-running process
 		process.once("no_shell_integration", () => {
 			Logger.log(`no_shell_integration received for terminal ${vscodeTerminalInfo.id}`)
-			if (this.processes.get(vscodeTerminalInfo.id) !== process) {
-				Logger.log(`[TerminalManager] Ignoring stale no_shell_integration for terminal ${vscodeTerminalInfo.id}`)
-				return
-			}
 			// Remove the terminal so we can't reuse it (in case it's running a long-running process)
 			TerminalRegistry.removeTerminal(vscodeTerminalInfo.id)
 			this.terminalIds.delete(vscodeTerminalInfo.id)
@@ -334,50 +339,34 @@ export class VscodeTerminalManager implements ITerminalManager {
 				(t) => !t.busy && VscodeTerminalManager.effectiveShellPath(t.shellPath) === effectiveExpected,
 			)
 			if (availableTerminal) {
+				availableTerminal.busy = true
+
 				// Set up promise and tracking for CWD change
 				const cwdPromise = new Promise<void>((resolve, reject) => {
 					availableTerminal.pendingCwdChange = cwd
 					availableTerminal.cwdResolved = { resolve, reject }
 				})
 
-				// Navigate back to the desired directory
-				// Cast to ITerminalInfo for interface compatibility
-				const cdProcess = this.runCommand(availableTerminal as unknown as ITerminalInfo, `cd "${cwd}"`)
+				try {
+					const didCwdCommandTimeOut = await this.runCwdChangeCommand(availableTerminal, cwd)
 
-				const didCwdCommandTimeOut = await this.waitForCwdCommand(availableTerminal, cdProcess, cwd)
-
-				// Add a small delay to ensure terminal is ready after cd
-				if (!didCwdCommandTimeOut) {
-					await new Promise((resolve) => setTimeout(resolve, 100))
-				}
-
-				// Either resolve immediately if CWD already updated or wait for event/timeout
-				if (this.isCwdMatchingExpected(availableTerminal)) {
-					if (availableTerminal.cwdResolved) {
-						availableTerminal.cwdResolved.resolve()
+					// Add a small delay to ensure terminal is ready after cd
+					if (!didCwdCommandTimeOut) {
+						await new Promise((resolve) => setTimeout(resolve, 100))
 					}
+
+					// Either resolve immediately if CWD already updated or wait for event/timeout
+					if (this.isCwdMatchingExpected(availableTerminal)) {
+						if (availableTerminal.cwdResolved) {
+							availableTerminal.cwdResolved.resolve()
+						}
+					} else if (!didCwdCommandTimeOut) {
+						await Promise.race([cwdPromise, new Promise((resolve) => setTimeout(resolve, CWD_STATE_TIMEOUT_MS))])
+					}
+				} finally {
 					availableTerminal.pendingCwdChange = undefined
 					availableTerminal.cwdResolved = undefined
-				} else if (!didCwdCommandTimeOut) {
-					try {
-						// Wait with a timeout for state change event to resolve
-						await Promise.race([
-							cwdPromise,
-							new Promise<void>((_, reject) =>
-								setTimeout(
-									() => reject(new Error(`CWD timeout: Failed to update to ${cwd}`)),
-									CWD_STATE_TIMEOUT_MS,
-								),
-							),
-						])
-					} catch (_err) {
-						// Clear pending state on timeout
-						availableTerminal.pendingCwdChange = undefined
-						availableTerminal.cwdResolved = undefined
-					}
-				} else {
-					availableTerminal.pendingCwdChange = undefined
-					availableTerminal.cwdResolved = undefined
+					availableTerminal.busy = false
 				}
 				this.terminalIds.add(availableTerminal.id)
 				// Cast to ITerminalInfo for interface compatibility
