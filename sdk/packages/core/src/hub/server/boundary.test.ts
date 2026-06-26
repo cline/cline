@@ -654,73 +654,73 @@ describe("HubServerTransport boundaries", () => {
 			},
 		});
 
-			await expect(answerPromise).resolves.toBe("Use hub");
-		});
+		await expect(answerPromise).resolves.toBe("Use hub");
+	});
 
-		it("ignores initial compaction sidecar state when the sidecar flag is off", async () => {
-			let capturedStartInput: StartSessionInput | undefined;
-			const startSession = vi.fn(async (input: StartSessionInput) => {
-				capturedStartInput = input;
-				const sessionId = input.config.sessionId?.trim() || "session-1";
-				return {
-					sessionId,
-					manifest: {
-						version: 1,
-						session_id: sessionId,
-						source: "cli",
-						pid: 1,
-						started_at: new Date(0).toISOString(),
-						status: "running",
-						interactive: true,
-						provider: "cline",
-						model: "test-model",
-						cwd: "/tmp/project",
-						workspace_root: "/tmp/project",
-						enable_tools: true,
-						enable_spawn: true,
-						enable_teams: false,
-					},
-					manifestPath: "",
-					messagesPath: "",
-					result: undefined,
-				};
-			});
-			const transport = createTransport({
-				sessionHost: { startSession },
-				isCompactionSidecarEnabled: () => false,
-			});
-			const initialCompactionState = createSessionCompactionState({
-				sourceMessages: [{ role: "user", content: "source" }],
-				compactedMessages: [{ role: "user", content: "summary" }],
-				conversationId: "session-1",
-			});
-
-			const reply = await transport.handleCommand({
-				version: "v1",
-				requestId: "req-create-sidecar-off",
-				command: "session.create",
-				clientId: "client-1",
-				payload: {
-					workspaceRoot: "/tmp/project",
+	it("ignores initial compaction sidecar state when the sidecar flag is off", async () => {
+		let capturedStartInput: StartSessionInput | undefined;
+		const startSession = vi.fn(async (input: StartSessionInput) => {
+			capturedStartInput = input;
+			const sessionId = input.config.sessionId?.trim() || "session-1";
+			return {
+				sessionId,
+				manifest: {
+					version: 1,
+					session_id: sessionId,
+					source: "cli",
+					pid: 1,
+					started_at: new Date(0).toISOString(),
+					status: "running",
+					interactive: true,
+					provider: "cline",
+					model: "test-model",
 					cwd: "/tmp/project",
-					sessionConfig: {
-						sessionId: "session-1",
-						providerId: "cline",
-						modelId: "test-model",
-						cwd: "/tmp/project",
-						workspaceRoot: "/tmp/project",
-						systemPrompt: "system",
-					},
-					initialCompactionState,
+					workspace_root: "/tmp/project",
+					enable_tools: true,
+					enable_spawn: true,
+					enable_teams: false,
 				},
-			});
-
-			expect(reply.ok).toBe(true);
-			expect(capturedStartInput?.initialCompactionState).toBeUndefined();
+				manifestPath: "",
+				messagesPath: "",
+				result: undefined,
+			};
+		});
+		const transport = createTransport({
+			sessionHost: { startSession },
+			isCompactionSidecarEnabled: () => false,
+		});
+		const initialCompactionState = createSessionCompactionState({
+			sourceMessages: [{ role: "user", content: "source" }],
+			compactedMessages: [{ role: "user", content: "summary" }],
+			conversationId: "session-1",
 		});
 
-		it("does not transfer capability ownership to attached clients", async () => {
-			let createdSessionId = "";
+		const reply = await transport.handleCommand({
+			version: "v1",
+			requestId: "req-create-sidecar-off",
+			command: "session.create",
+			clientId: "client-1",
+			payload: {
+				workspaceRoot: "/tmp/project",
+				cwd: "/tmp/project",
+				sessionConfig: {
+					sessionId: "session-1",
+					providerId: "cline",
+					modelId: "test-model",
+					cwd: "/tmp/project",
+					workspaceRoot: "/tmp/project",
+					systemPrompt: "system",
+				},
+				initialCompactionState,
+			},
+		});
+
+		expect(reply.ok).toBe(true);
+		expect(capturedStartInput?.initialCompactionState).toBeUndefined();
+	});
+
+	it("does not transfer capability ownership to attached clients", async () => {
+		let createdSessionId = "";
 		const startSession = vi.fn(async (input: StartSessionInput) => {
 			createdSessionId = input.config.sessionId?.trim() || "missing-session";
 			return {
