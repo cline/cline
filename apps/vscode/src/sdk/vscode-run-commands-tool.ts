@@ -53,9 +53,12 @@ function quoteShellArg(arg: string): string {
 	return `'${arg.replace(/'/g, `'\\''`)}'`
 }
 
-function formatCommandForTerminal(command: ShellCommand): string {
+export function formatCommandForTerminal(command: ShellCommand): string {
 	if (typeof command === "string") {
 		return command
+	}
+	if (!("args" in command)) {
+		return command.command
 	}
 	return [command.command, ...(command.args ?? [])].map(quoteShellArg).join(" ")
 }

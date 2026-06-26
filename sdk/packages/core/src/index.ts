@@ -122,6 +122,7 @@ export {
 	type ClineAccountUsageTransaction,
 	type ClineAccountUser,
 	type ClineOrganization,
+	type ClineSubscriptionPlan,
 	executeClineAccountAction,
 	type FeaturebaseTokenResponse,
 	isClineAccountActionRequest,
@@ -489,6 +490,28 @@ export {
 	toggleDisabledTool,
 	writeGlobalSettings,
 } from "./services/global-settings";
+export type {
+	McpInstallOptions,
+	McpInstallResult,
+} from "./services/mcp-install";
+export {
+	buildMcpInstallTransport,
+	installMcpServer,
+	parseMcpInstallArgs,
+} from "./services/mcp-install";
+export type {
+	ParsedPluginSource,
+	PluginInstallOptions,
+	PluginInstallResult,
+	PluginInstallSourceType,
+	PluginMcpOAuthCandidate,
+} from "./services/plugin-install";
+export {
+	collectPluginMcpOAuthCandidates,
+	installPlugin,
+	isOfficialPluginSlug,
+	parsePluginSource,
+} from "./services/plugin-install";
 export type {
 	PluginMcpSettingsMutation,
 	PluginMcpSettingsSyncResult,
