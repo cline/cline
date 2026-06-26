@@ -1,5 +1,4 @@
 import { StringRequest } from "@shared/proto/cline/common"
-import PROVIDERS from "@shared/providers/providers.json"
 import type { Mode } from "@shared/storage/types"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
@@ -37,7 +36,12 @@ import { OpenAICompatibleProvider } from "./providers/OpenAICompatible"
 import { OpenAINativeProvider } from "./providers/OpenAINative"
 import { OpenAiCodexProvider } from "./providers/OpenAiCodexProvider"
 import { OpenRouterProvider } from "./providers/OpenRouterProvider"
-import { getFallbackGenericProviderSettings, getGenericProviderSettings } from "./providers/providerSettingsRegistry"
+import {
+	getFallbackGenericProviderSettings,
+	getGenericProviderSettings,
+	hasCustomProviderSettings,
+	isKnownGenericProvider,
+} from "./providers/providerSettingsRegistry"
 import { QwenCodeProvider } from "./providers/QwenCodeProvider"
 import { QwenProvider } from "./providers/QwenProvider"
 import { RequestyProvider } from "./providers/RequestyProvider"
@@ -82,11 +86,6 @@ declare module "vscode" {
 	}
 }
 
-// Curated providers we ship dedicated/known settings UIs for. Catalog providers
-// not in this set are user-configured/custom and fall back to the generic
-// OpenAI-compatible settings form so users can still edit their config.
-const KNOWN_PROVIDER_IDS = new Set<string>(PROVIDERS.list.map((provider) => provider.value))
-
 const ApiOptions = ({
 	showModelOptions,
 	apiErrorMessage,
@@ -108,10 +107,12 @@ const ApiOptions = ({
 		() => catalogProviderListings.find((provider) => provider.id === selectedProvider),
 		[catalogProviderListings, selectedProvider],
 	)
-	// Custom/unknown catalog providers are edited through the OpenAI-compatible
-	// form, not the simpler generic settings, so they get Base URL, Custom
-	// Headers, Model Configuration and Reasoning Effort sections.
-	const isCustomProvider = !KNOWN_PROVIDER_IDS.has(selectedProvider)
+	// A provider is custom/unknown when we ship neither a dedicated settings
+	// component nor a curated generic form for it. These are edited through the
+	// OpenAI-compatible form so they always get Base URL, Custom Headers, Model
+	// Configuration and Reasoning Effort sections — regardless of whether the id
+	// happens to appear in providers.json.
+	const isCustomProvider = !hasCustomProviderSettings(selectedProvider) && !isKnownGenericProvider(selectedProvider)
 	const genericProviderSettings = isCustomProvider
 		? undefined
 		: (getGenericProviderSettings(selectedProvider, catalogProviderListing) ??
