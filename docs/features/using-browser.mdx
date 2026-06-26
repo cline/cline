@@ -6,30 +6,6 @@ description: "Automate web browsers with the Agent Browser plugin — navigate p
 
 The Agent Browser plugin gives Cline the ability to drive a real Chrome/Chromium browser via the Chrome DevTools Protocol (CDP). Instead of parsing raw HTML, it uses accessibility-tree snapshots with compact element references (`@e1`, `@e2`, …) so Cline can interact with pages efficiently — typically in 200–400 tokens per snapshot.
 
-## How the Plugin Mechanism Works
-
-Cline plugins are modular extensions that add new tools, hooks, or capabilities to the agent. The Agent Browser plugin follows the same [plugin system](/customization/plugins) used by all Cline extensions:
-
-1. **Installation** — The plugin is installed globally (available in all sessions) or per-project via the `cline plugin install` command. It is stored under `~/.cline/plugins/` (global) or `.cline/plugins/` (project-scoped).
-
-2. **Registration** — When Cline starts a session, it loads installed plugins and registers any tools they expose. The Agent Browser plugin registers browser-related tools (open, snapshot, click, fill, screenshot, etc.) that Cline can call during a task.
-
-3. **Skill Discovery** — The plugin also ships a [skill](/customization/skills) that teaches Cline _how_ to use the browser tools effectively. At startup, only the skill's metadata (name + description, ~100 tokens) is loaded. When your request matches the skill — for example, "open a website" or "take a screenshot" — Cline activates the skill and loads the full workflow instructions on demand.
-
-4. **Execution** — Cline issues browser commands as shell calls to the `agent-browser` CLI. The CLI communicates with Chrome over CDP, performs the action (navigate, click, fill, etc.), and returns the result. The browser persists across commands so a multi-step interaction feels like a single session.
-
-```
-You: "open google.com"
-   ↓
-Cline activates the agent-browser skill
-   ↓
-Cline calls: agent-browser open https://google.com
-   ↓
-agent-browser CLI → Chrome (via CDP)
-   ↓
-Result returned to Cline → Cline responds
-```
-
 ## Installing the Agent Browser Plugin
 
 <Steps>
@@ -57,6 +33,30 @@ Result returned to Cline → Cline responds
 <Note>
   If the managed Chrome for Testing download fails or the binary is corrupted, you can connect to a system-installed Google Chrome instead. Launch Chrome with remote debugging enabled and pass `--executable-path` or `--cdp <port>` to point agent-browser at it. See [Troubleshooting](#troubleshooting) below.
 </Note>
+
+## How the Plugin Mechanism Works
+
+Cline plugins are modular extensions that add new tools, hooks, or capabilities to the agent. The Agent Browser plugin follows the same [plugin system](/customization/plugins) used by all Cline extensions:
+
+1. **Installation** — The plugin is installed globally (available in all sessions) or per-project via the `cline plugin install` command. It is stored under `~/.cline/plugins/` (global) or `.cline/plugins/` (project-scoped).
+
+2. **Registration** — When Cline starts a session, it loads installed plugins and registers any tools they expose. The Agent Browser plugin registers browser-related tools (open, snapshot, click, fill, screenshot, etc.) that Cline can call during a task.
+
+3. **Skill Discovery** — The plugin also ships a [skill](/customization/skills) that teaches Cline _how_ to use the browser tools effectively. At startup, only the skill's metadata (name + description, ~100 tokens) is loaded. When your request matches the skill — for example, "open a website" or "take a screenshot" — Cline activates the skill and loads the full workflow instructions on demand.
+
+4. **Execution** — Cline issues browser commands as shell calls to the `agent-browser` CLI. The CLI communicates with Chrome over CDP, performs the action (navigate, click, fill, etc.), and returns the result. The browser persists across commands so a multi-step interaction feels like a single session.
+
+```
+You: "open google.com"
+   ↓
+Cline activates the agent-browser skill
+   ↓
+Cline calls: agent-browser open https://google.com
+   ↓
+agent-browser CLI → Chrome (via CDP)
+   ↓
+Result returned to Cline → Cline responds
+```
 
 ## The Core Workflow
 
