@@ -1854,4 +1854,107 @@ describe("createContextCompactionPrepareTurn", () => {
 			"manual",
 		);
 	});
+
+	it("does not immediately re-trigger basic compaction on the next turn after accounting for the protected tail", async () => {
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "openai-codex",
+			modelId: "mock-model",
+			providerConfig: {
+				providerId: "openai-codex",
+				modelId: "mock-model",
+			} as LlmsProviders.ProviderConfig,
+			compaction: { enabled: true, strategy: "basic", thresholdRatio: 0.5 },
+			logger: undefined,
+		});
+		const estimateMessageTokens = createTokenEstimator();
+		const model = {
+			id: "mock-model",
+			provider: "openai-codex",
+			info: { id: "mock-model", maxInputTokens: 300 },
+		};
+		const messages: LlmsProviders.Message[] = [
+			{ role: "user", content: "old user context ".repeat(80) },
+			{ role: "assistant", content: "old assistant context ".repeat(80) },
+			{ role: "user", content: "current request" },
+		];
+		const triggerTokens = 150;
+		const initialTokens = messages.reduce(
+			(total, message) => total + estimateMessageTokens(message),
+			0,
+		);
+		console.info("[basic compaction loop] round=1 before", {
+			triggerTokens,
+			messageCount: messages.length,
+			tokens: initialTokens,
+		});
+
+		const firstResult = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages,
+			apiMessages: messages,
+			model,
+		});
+
+		expect(firstResult?.messages).toBeDefined();
+		const firstAfterTokens = firstResult?.messages.reduce(
+			(total, message) => total + estimateMessageTokens(message),
+			0,
+		);
+		console.info("[basic compaction loop] round=1 after", {
+			compacted: Boolean(firstResult?.messages),
+			messageCount: firstResult?.messages.length,
+			tokens: firstAfterTokens,
+			overTrigger: (firstAfterTokens ?? 0) > triggerTokens,
+		});
+		expect(firstAfterTokens).toBeLessThanOrEqual(triggerTokens);
+
+		const nextTurnMessages: LlmsProviders.Message[] = [
+			...(firstResult?.messages ?? []),
+			{ role: "assistant", content: "short answer" },
+			{ role: "user", content: "next request" },
+		];
+		const nextTurnTokens = nextTurnMessages.reduce(
+			(total, message) => total + estimateMessageTokens(message),
+			0,
+		);
+		console.info("[basic compaction loop] round=2 before", {
+			triggerTokens,
+			messageCount: nextTurnMessages.length,
+			tokens: nextTurnTokens,
+			overTrigger: nextTurnTokens > triggerTokens,
+		});
+		const secondResult = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 2,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages: nextTurnMessages,
+			apiMessages: nextTurnMessages,
+			model,
+		});
+
+		const secondAfterTokens = secondResult?.messages.reduce(
+			(total, message) => total + estimateMessageTokens(message),
+			0,
+		);
+		console.info("[basic compaction loop] round=2 after", {
+			compacted: Boolean(secondResult?.messages),
+			messageCount: secondResult?.messages.length,
+			tokens: secondAfterTokens,
+			overTrigger:
+				typeof secondAfterTokens === "number"
+					? secondAfterTokens > triggerTokens
+					: undefined,
+		});
+		expect(secondResult).toBeUndefined();
+	});
 });

@@ -1,4 +1,8 @@
-import type { BasicLogger, MessageWithMetadata } from "@cline/shared";
+import {
+	type BasicLogger,
+	CHARS_PER_TOKEN,
+	type MessageWithMetadata,
+} from "@cline/shared";
 import type {
 	CoreCompactionContext,
 	CoreCompactionResult,
@@ -12,7 +16,6 @@ import {
 	isCompactionSummaryMessage,
 	isTurnStartMessage,
 	MIN_TRUNCATED_MESSAGE_TOKENS,
-	truncateText,
 	truncateToolResultContentForCompaction,
 } from "./compaction-shared";
 
@@ -74,15 +77,24 @@ function getTotalTokens(
 	);
 }
 
+function truncateMessageText(text: string, limit: number): string {
+	if (text.length <= limit) {
+		return text;
+	}
+	const suffix = "\n...";
+	const sliceLength = Math.max(1, limit - suffix.length);
+	return `${text.slice(0, sliceLength)}${suffix}`;
+}
+
 function truncateMessageToTokens(
 	message: MessageWithMetadata,
 	maxTokens: number,
 ): MessageWithMetadata {
-	const safeMaxTokens = Math.max(1, maxTokens);
-	const targetChars = Math.max(16, safeMaxTokens * 4);
+	const safeMaxTokens = Number.isFinite(maxTokens) ? Math.max(1, maxTokens) : 1;
+	const targetChars = Math.max(16, safeMaxTokens * CHARS_PER_TOKEN);
 
 	if (typeof message.content === "string") {
-		const truncated = truncateText(message.content, targetChars).trim();
+		const truncated = truncateMessageText(message.content, targetChars).trim();
 		return { ...message, content: truncated || "..." };
 	}
 
@@ -92,7 +104,7 @@ function truncateMessageToTokens(
 		if (block.type !== "text" || remaining <= 0) {
 			return block;
 		}
-		const truncated = truncateText(block.text, remaining).trim();
+		const truncated = truncateMessageText(block.text, remaining).trim();
 		remaining -= truncated.length;
 		return { ...block, text: truncated || "..." };
 	});
@@ -299,19 +311,26 @@ function trimCandidatesToBudget(
 		(candidate) => candidate.isFirstUser,
 	);
 	if (firstUserIndex >= 0) {
-		const desiredTokens = Math.max(
-			1,
-			candidates[firstUserIndex].estimatedTokens - (totalTokens - targetTokens),
-		);
-		totalTokens += updateCandidate(
-			candidates,
-			firstUserIndex,
-			truncateMessageToTokens(
-				candidates[firstUserIndex].message,
-				desiredTokens,
-			),
-			estimateMessageTokens,
-		);
+		while (totalTokens > targetTokens) {
+			const candidate = candidates[firstUserIndex];
+			const desiredTokens = Math.max(
+				1,
+				candidate.estimatedTokens - (totalTokens - targetTokens),
+			);
+			if (desiredTokens >= candidate.estimatedTokens) {
+				break;
+			}
+			const previousTokens = candidate.estimatedTokens;
+			totalTokens += updateCandidate(
+				candidates,
+				firstUserIndex,
+				truncateMessageToTokens(candidate.message, desiredTokens),
+				estimateMessageTokens,
+			);
+			if (candidate.estimatedTokens >= previousTokens) {
+				break;
+			}
+		}
 	}
 	return totalTokens;
 }
@@ -345,7 +364,7 @@ export function runBasicCompaction(options: {
 	estimateMessageTokens: EstimateMessageTokens;
 	logger?: BasicLogger;
 }): CoreCompactionResult | undefined {
-	const targetTokens = Math.max(
+	const totalTargetTokens = Math.max(
 		1,
 		Math.min(
 			Math.floor(options.context.triggerTokens * DEFAULT_TARGET_RATIO),
@@ -358,6 +377,11 @@ export function runBasicCompaction(options: {
 	if (compactable.length === 0) {
 		return undefined;
 	}
+	const protectedTailTokens = getTotalTokens(
+		protectedTail,
+		options.estimateMessageTokens,
+	);
+	const targetTokens = Math.max(1, totalTargetTokens - protectedTailTokens);
 	const candidateSet = buildBasicCandidates(
 		compactable,
 		options.estimateMessageTokens,
@@ -417,10 +441,6 @@ export function runBasicCompaction(options: {
 		return undefined;
 	}
 
-	const protectedTailTokens = getTotalTokens(
-		protectedTail,
-		options.estimateMessageTokens,
-	);
 	const beforeTokens = beforeCompactableTokens + protectedTailTokens;
 	const afterTokens = totalTokens + protectedTailTokens;
 	options.logger?.debug("Performed basic compaction", {
@@ -429,7 +449,7 @@ export function runBasicCompaction(options: {
 		messagesRemoved: options.context.messages.length - nextMessages.length,
 		tokensBefore: beforeTokens,
 		tokensAfter: afterTokens,
-		targetTokens,
+		targetTokens: totalTargetTokens,
 		maxInputTokens: options.context.maxInputTokens,
 	});
 
