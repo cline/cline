@@ -761,6 +761,7 @@ export {
 	ALL_DEFAULT_TOOL_NAMES,
 	type AskQuestionExecutor,
 	type BuiltinToolAvailabilityContext,
+	CommandExitError,
 	type CreateBuiltinToolsOptions,
 	type CreateDefaultToolsOptions,
 	createBuiltinTools,
