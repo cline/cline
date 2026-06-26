@@ -318,8 +318,6 @@ describe("marketplace installer", () => {
 			"remove",
 			"cline-sdk",
 			"-g",
-			"-a",
-			"cline",
 			"-y",
 		]);
 	});
