@@ -1,9 +1,9 @@
 import { StringRequest } from "@shared/proto/cline/common"
 import PROVIDERS from "@shared/providers/providers.json"
-import { Mode } from "@shared/storage/types"
+import type { Mode } from "@shared/storage/types"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
-import { KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useInterval } from "react-use"
 import styled from "styled-components"
 
@@ -82,6 +82,11 @@ declare module "vscode" {
 	}
 }
 
+// Curated providers we ship dedicated/known settings UIs for. Catalog providers
+// not in this set are user-configured/custom and fall back to the generic
+// OpenAI-compatible settings form so users can still edit their config.
+const KNOWN_PROVIDER_IDS = new Set<string>(PROVIDERS.list.map((provider) => provider.value))
+
 const ApiOptions = ({
 	showModelOptions,
 	apiErrorMessage,
@@ -103,9 +108,14 @@ const ApiOptions = ({
 		() => catalogProviderListings.find((provider) => provider.id === selectedProvider),
 		[catalogProviderListings, selectedProvider],
 	)
-	const genericProviderSettings =
-		getGenericProviderSettings(selectedProvider, catalogProviderListing) ??
-		getFallbackGenericProviderSettings(selectedProvider)
+	// Custom/unknown catalog providers are edited through the OpenAI-compatible
+	// form, not the simpler generic settings, so they get Base URL, Custom
+	// Headers, Model Configuration and Reasoning Effort sections.
+	const isCustomProvider = !KNOWN_PROVIDER_IDS.has(selectedProvider)
+	const genericProviderSettings = isCustomProvider
+		? undefined
+		: (getGenericProviderSettings(selectedProvider, catalogProviderListing) ??
+			getFallbackGenericProviderSettings(selectedProvider))
 
 	const { handleModeFieldChange } = useApiConfigurationHandlers()
 
@@ -145,7 +155,13 @@ const ApiOptions = ({
 	const dropdownListRef = useRef<HTMLDivElement>(null)
 
 	const providerOptions = useMemo(() => {
-		let providers = PROVIDERS.list
+		// Source the list from the live SDK provider catalog (same data the
+		// hub client uses) so user-configured/custom providers appear too,
+		// instead of a static hand-maintained list.
+		let providers = catalogProviderListings.map((provider) => ({
+			value: provider.id,
+			label: provider.name,
+		}))
 		if (!isClinePassEnabled) {
 			providers = providers.filter((option) => option.value !== "cline-pass")
 		}
@@ -162,7 +178,7 @@ const ApiOptions = ({
 		}
 
 		return providers
-	}, [isClinePassEnabled, remoteConfigSettings])
+	}, [catalogProviderListings, isClinePassEnabled, remoteConfigSettings])
 
 	const currentProviderLabel = useMemo(() => {
 		return providerOptions.find((option) => option.value === selectedProvider)?.label || selectedProvider
@@ -275,7 +291,13 @@ const ApiOptions = ({
 	*/
 
 	return (
-		<div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: isPopup ? -10 : 0 }}>
+		<div
+			style={{
+				display: "flex",
+				flexDirection: "column",
+				gap: 5,
+				marginBottom: isPopup ? -10 : 0,
+			}}>
 			<style>
 				{`
 				.provider-item-highlight {
@@ -421,10 +443,6 @@ const ApiOptions = ({
 				/>
 			)}
 
-			{apiConfiguration && selectedProvider === "openai" && (
-				<OpenAICompatibleProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
 			{apiConfiguration && selectedProvider === "vercel-ai-gateway" && !genericProviderSettings && (
 				<VercelAIGatewayProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
@@ -489,6 +507,15 @@ const ApiOptions = ({
 
 			{apiConfiguration && selectedProvider === "aihubmix" && (
 				<AIhubmixProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+			)}
+
+			{apiConfiguration && (selectedProvider === "openai" || isCustomProvider) && (
+				<OpenAICompatibleProvider
+					currentMode={currentMode}
+					isPopup={isPopup}
+					providerId={selectedProvider}
+					showModelOptions={showModelOptions}
+				/>
 			)}
 
 			{apiErrorMessage && (

@@ -1,7 +1,8 @@
 import { TooltipContent, TooltipTrigger } from "@radix-ui/react-tooltip"
 import { azureOpenAiDefaultApiVersion, type ModelInfo, openAiModelInfoSafeDefaults } from "@shared/api"
 import { OpenAiModelsRequest } from "@shared/proto/cline/models"
-import { Mode } from "@shared/storage/types"
+import { fromProtobufModelInfo } from "@shared/proto-conversions/models/typeConversion"
+import type { Mode } from "@shared/storage/types"
 import { VSCodeButton, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Tooltip } from "@/components/ui/tooltip"
@@ -16,7 +17,6 @@ import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import ReasoningEffortSelector from "../ReasoningEffortSelector"
 import { parsePrice } from "../utils/pricingUtils"
-import { getModeSpecificFields } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 import { useProviderApiKeyField } from "../utils/useProviderApiKeyField"
 
@@ -24,6 +24,7 @@ import { useProviderApiKeyField } from "../utils/useProviderApiKeyField"
  * Props for the OpenAICompatibleProvider component
  */
 interface OpenAICompatibleProviderProps {
+	providerId: string
 	showModelOptions: boolean
 	isPopup?: boolean
 	currentMode: Mode
@@ -32,18 +33,28 @@ interface OpenAICompatibleProviderProps {
 /**
  * The OpenAI Compatible provider configuration component
  */
-export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMode }: OpenAICompatibleProviderProps) => {
+export const OpenAICompatibleProvider = ({
+	providerId,
+	showModelOptions,
+	isPopup,
+	currentMode,
+}: OpenAICompatibleProviderProps) => {
 	const { apiConfiguration, remoteConfigSettings } = useExtensionState()
 	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
-	const { config, write, commitSelection } = useProviderConfig("openai")
+	const { config, write, commitSelection } = useProviderConfig(providerId)
 
 	const [modelConfigurationSelected, setModelConfigurationSelected] = useState(false)
 	const [isCustomOpenAiModelEntryVisible, setIsCustomOpenAiModelEntryVisible] = useState(false)
 	const [availableOpenAiModels, setAvailableOpenAiModels] = useState<string[]>([])
 	const [isRefreshingOpenAiModels, setIsRefreshingOpenAiModels] = useState(false)
 	const [openAiModelsError, setOpenAiModelsError] = useState<string | undefined>(undefined)
+	// Only the built-in "openai" provider stores its API key in the legacy
+	// ApiConfiguration field; custom providers keep it in their per-provider
+	// config (available only as a masked length), so there is no plaintext key
+	// to seed the model-refresh request with.
+	const legacyOpenAiApiKey = providerId === "openai" ? apiConfiguration?.openAiApiKey || "" : ""
 	const latestOpenAiBaseUrlRef = useRef(config?.baseUrl || "")
-	const latestOpenAiApiKeyRef = useRef(apiConfiguration?.openAiApiKey || "")
+	const latestOpenAiApiKeyRef = useRef(legacyOpenAiApiKey)
 	const openAiModelsRequestRef = useRef(0)
 
 	useEffect(() => {
@@ -51,18 +62,30 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 	}, [config?.baseUrl])
 
 	useEffect(() => {
-		latestOpenAiApiKeyRef.current = apiConfiguration?.openAiApiKey || ""
-	}, [apiConfiguration?.openAiApiKey])
+		latestOpenAiApiKeyRef.current = legacyOpenAiApiKey
+	}, [legacyOpenAiApiKey])
 
 	const handleProviderConfigWriteError = useCallback((fieldName: string, error: unknown) => {
 		console.error(`Failed to update OpenAI Compatible ${fieldName}:`, error)
 	}, [])
 
-	// Get the normalized configuration
-	const { selectedModelId, selectedModelInfo } = useDynamicProviderSelection("openai", apiConfiguration, currentMode)
-
-	// Get mode-specific fields
-	const { openAiModelInfo } = getModeSpecificFields(apiConfiguration, currentMode)
+	// Built-in "openai" persists model selection to its legacy ApiConfiguration
+	// fields; custom/unknown providers persist via their per-provider committed
+	// selection. Prefer the committed selection and fall back to the legacy
+	// fields so the built-in provider keeps working unchanged.
+	const isOpenAiProvider = providerId === "openai"
+	const { selectedModelId: legacySelectedModelId, selectedModelInfo: legacySelectedModelInfo } = useDynamicProviderSelection(
+		providerId,
+		apiConfiguration,
+		currentMode,
+	)
+	const committedSelection = currentMode === "plan" ? config?.planSelection : config?.actSelection
+	const selectedModelId = committedSelection?.modelId ?? legacySelectedModelId
+	const selectedModelInfo = committedSelection?.modelInfo
+		? fromProtobufModelInfo(committedSelection.modelInfo)
+		: legacySelectedModelInfo
+	// The Model Configuration section reads/writes the resolved model info.
+	const openAiModelInfo = selectedModelInfo
 
 	const commitOpenAiSelection = useCallback(
 		(modelId: string, modelInfo = openAiModelInfo ?? openAiModelInfoSafeDefaults) => {
@@ -71,7 +94,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 			}
 
 			void commitSelection(currentMode, {
-				providerId: "openai",
+				providerId,
 				modelId,
 				modelInfo: {
 					...modelInfo,
@@ -84,10 +107,12 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 
 	const handleOpenAiModelInfoChange = useCallback(
 		(modelInfo: typeof openAiModelInfoSafeDefaults) => {
-			handleModeFieldChange({ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" }, modelInfo, currentMode)
+			if (isOpenAiProvider) {
+				handleModeFieldChange({ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" }, modelInfo, currentMode)
+			}
 			commitOpenAiSelection(selectedModelId || "", modelInfo)
 		},
-		[commitOpenAiSelection, currentMode, handleModeFieldChange, selectedModelId],
+		[commitOpenAiSelection, currentMode, handleModeFieldChange, isOpenAiProvider, selectedModelId],
 	)
 
 	// Debounced function to refresh OpenAI models (prevents excessive API calls while typing)
@@ -167,10 +192,12 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 
 	const handleOpenAiModelSelection = useCallback(
 		(modelId: string, modelInfo = toOpenAiModelInfo(modelId)) => {
-			handleModeFieldChange({ plan: "planModeOpenAiModelId", act: "actModeOpenAiModelId" }, modelId, currentMode)
+			if (isOpenAiProvider) {
+				handleModeFieldChange({ plan: "planModeOpenAiModelId", act: "actModeOpenAiModelId" }, modelId, currentMode)
+			}
 			commitOpenAiSelection(modelId, modelInfo)
 		},
-		[commitOpenAiSelection, currentMode, handleModeFieldChange, toOpenAiModelInfo],
+		[commitOpenAiSelection, currentMode, handleModeFieldChange, isOpenAiProvider, toOpenAiModelInfo],
 	)
 
 	const { savedApiKeyMask, handleApiKeyChange } = useProviderApiKeyField({
@@ -223,7 +250,13 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 			{isRefreshingOpenAiModels && <div role="status">Loading models…</div>}
 			{openAiModelsError && <div role="alert">{openAiModelsError}</div>}
 			{availableOpenAiModels.length > 0 ? (
-				<div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 10 }}>
+				<div
+					style={{
+						display: "flex",
+						flexDirection: "column",
+						gap: 8,
+						marginBottom: 10,
+					}}>
 					<label htmlFor="openai-compatible-model-picker">
 						<span style={{ fontWeight: 500 }}>Model ID</span>
 					</label>
@@ -281,7 +314,12 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 
 				return (
 					<div style={{ marginBottom: 10 }}>
-						<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+						<div
+							style={{
+								display: "flex",
+								justifyContent: "space-between",
+								alignItems: "center",
+							}}>
 							<Tooltip>
 								<TooltipTrigger>
 									<div className="flex items-center gap-2">

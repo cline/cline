@@ -397,7 +397,7 @@ message ModelsApiOptions {
   optional bool azure_identity = 44;
 
   // Plan mode configurations
-  optional ApiProvider plan_mode_api_provider = 100;
+  optional string plan_mode_api_provider = 100;
   optional string plan_mode_api_model_id = 101;
   optional int64 plan_mode_thinking_budget_tokens = 102;
   optional string plan_mode_reasoning_effort = 103;
@@ -438,7 +438,7 @@ message ModelsApiOptions {
   optional OpenRouterModelInfo plan_mode_cline_pass_model_info = 138;
 
   // Act mode configurations
-  optional ApiProvider act_mode_api_provider = 200;
+  optional string act_mode_api_provider = 200;
   optional string act_mode_api_model_id = 201;
   optional int64 act_mode_thinking_budget_tokens = 202;
   optional string act_mode_reasoning_effort = 203;
@@ -566,59 +566,6 @@ message OcaCompatibleModelInfo {
   // value: OcaModelInfo describing that model
   map<string, OcaModelInfo> models = 1;
   optional string error = 2;
-}
-
-// API Provider enumeration
-enum ApiProvider {
-  ANTHROPIC = 0;
-  OPENROUTER = 1;
-  BEDROCK = 2;
-  VERTEX = 3;
-  OPENAI = 4;
-  OLLAMA = 5;
-  LMSTUDIO = 6;
-  GEMINI = 7;
-  OPENAI_NATIVE = 8;
-  REQUESTY = 9;
-  TOGETHER = 10;
-  DEEPSEEK = 11;
-  QWEN = 12;
-  DOUBAO = 13;
-  MISTRAL = 14;
-  VSCODE_LM = 15;
-  CLINE = 16;
-  LITELLM = 17;
-  NEBIUS = 18;
-  FIREWORKS = 19;
-  ASKSAGE = 20;
-  XAI = 21;
-  SAMBANOVA = 22;
-  CEREBRAS = 23;
-  GROQ = 24;
-  SAPAICORE = 25;
-  CLAUDE_CODE = 26;
-  MOONSHOT = 27;
-  HUGGINGFACE = 28;
-  HUAWEI_CLOUD_MAAS = 29;
-  BASETEN = 30;
-  ZAI = 31;
-  VERCEL_AI_GATEWAY = 32;
-  QWEN_CODE = 33;
-  DIFY = 34;
-  OCA = 35;
-  MINIMAX = 36;
-  HICAP = 37;
-  AIHUBMIX = 38;
-  NOUSRESEARCH = 39;
-  OPENAI_CODEX = 40;
-  WANDB = 41;
-  CLINE_PASS = 42;
-  POOLSIDE = 45;
-  V0 = 46;
-  XIAOMI = 47;
-  ZAI_CODING_PLAN = 49;
-  reserved 43, 44, 48;
-  reserved "OPENAI_CODEX_CLI", "OPENCODE", "KILO";
 }
 
 enum ApiFormat {
@@ -760,7 +707,7 @@ message ModelsApiConfiguration {
   optional string wandb_api_key = 87;
 
   // Plan mode configurations
-  optional ApiProvider plan_mode_api_provider = 100;
+  optional string plan_mode_api_provider = 100;
   optional string plan_mode_api_model_id = 101;
   optional int64 plan_mode_thinking_budget_tokens = 102;
   optional string plan_mode_reasoning_effort = 103;
@@ -806,7 +753,7 @@ message ModelsApiConfiguration {
   optional OpenRouterModelInfo plan_mode_cline_pass_model_info = 143;
 
   // Act mode configurations
-  optional ApiProvider act_mode_api_provider = 200;
+  optional string act_mode_api_provider = 200;
   optional string act_mode_api_model_id = 201;
   optional int64 act_mode_thinking_budget_tokens = 202;
   optional string act_mode_reasoning_effort = 203;
