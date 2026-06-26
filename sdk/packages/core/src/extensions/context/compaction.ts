@@ -169,14 +169,12 @@ function resolveTriggerState(input: {
 	}
 
 	if (
-		typeof input.config.maxInputTokens === "number" &&
-		Number.isFinite(input.config.maxInputTokens) &&
 		typeof input.modelMaxTokens === "number" &&
 		Number.isFinite(input.modelMaxTokens)
 	) {
 		const triggerTokens = Math.max(
 			0,
-			input.config.maxInputTokens - input.modelMaxTokens / 2,
+			input.maxInputTokens - input.modelMaxTokens,
 		);
 		return {
 			shouldCompact: input.inputTokens > triggerTokens,

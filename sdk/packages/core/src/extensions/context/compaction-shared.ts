@@ -11,6 +11,7 @@ import type { ProviderConfig } from "../../types/provider-settings";
 
 export const DEFAULT_MAX_INPUT_TOKENS = 200_000;
 export const DEFAULT_THRESHOLD_RATIO = 0.9;
+export const DEFAULT_TARGET_RATIO = 0.8;
 export const DEFAULT_RESERVE_TOKENS = 16_384;
 export const DEFAULT_PRESERVE_RECENT_TOKENS = 20_000;
 export const DEFAULT_SUMMARY_MAX_OUTPUT_TOKENS = 1_024;

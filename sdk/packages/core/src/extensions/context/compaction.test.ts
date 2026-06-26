@@ -1108,7 +1108,7 @@ describe("createContextCompactionPrepareTurn", () => {
 		]);
 	});
 
-	it("reserves half of model max output tokens from explicit compaction input budget", async () => {
+	it("reserves model max output tokens from explicit compaction input budget", async () => {
 		const compact = vi.fn((_context: CoreCompactionContext) => ({
 			messages: [
 				{ role: "user" as const, content: "Compacted by output reserve" },
@@ -1128,7 +1128,7 @@ describe("createContextCompactionPrepareTurn", () => {
 			{
 				role: "user",
 				content: "large prompt",
-				metrics: { inputTokens: 137_000, outputTokens: 0 },
+				metrics: { inputTokens: 73_000, outputTokens: 0 },
 			},
 		];
 
@@ -1156,8 +1156,8 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(compact).toHaveBeenCalledTimes(1);
 		const context = compact.mock.calls[0]?.[0];
 		expect(context?.maxInputTokens).toBe(200_000);
-		expect(context?.triggerTokens).toBe(136_000);
-		expect(context?.thresholdRatio).toBe(0.68);
+		expect(context?.triggerTokens).toBe(72_000);
+		expect(context?.thresholdRatio).toBe(0.36);
 		expect(result?.messages).toEqual([
 			{ role: "user", content: "Compacted by output reserve" },
 		]);
