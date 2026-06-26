@@ -1,4 +1,7 @@
 import type { QueuedPrompt } from "@shared/ExtensionMessage"
+import { StringRequest } from "@shared/proto/cline/common"
+import { useState } from "react"
+import { TaskServiceClient } from "@/services/grpc-client"
 
 function truncatePrompt(prompt: string): string {
 	const trimmed = prompt.trim()
@@ -29,8 +32,25 @@ interface QueuedPromptsProps {
 }
 
 export function QueuedPrompts({ items = [] }: QueuedPromptsProps) {
+	const [cancellingIds, setCancellingIds] = useState<Set<string>>(() => new Set())
+
 	if (items.length === 0) {
 		return null
+	}
+
+	const cancelQueuedPrompt = (promptId: string) => {
+		setCancellingIds((current) => new Set(current).add(promptId))
+		TaskServiceClient.cancelQueuedPrompt(StringRequest.create({ value: promptId }))
+			.catch((error) => {
+				console.error("Failed to cancel queued prompt:", error)
+			})
+			.finally(() => {
+				setCancellingIds((current) => {
+					const next = new Set(current)
+					next.delete(promptId)
+					return next
+				})
+			})
 	}
 
 	return (
@@ -43,6 +63,7 @@ export function QueuedPrompts({ items = [] }: QueuedPromptsProps) {
 				{items.map((item) => {
 					const attachments = attachmentLabel(item.attachmentCount)
 					const isSteer = item.delivery === "steer"
+					const isCancelling = cancellingIds.has(item.id)
 					return (
 						<div
 							className="flex items-start gap-2 rounded-[3px] bg-input-background/40 px-2 py-1.5 text-xs leading-snug"
@@ -59,6 +80,15 @@ export function QueuedPrompts({ items = [] }: QueuedPromptsProps) {
 									{attachments}
 								</span>
 							)}
+							<button
+								aria-label="Cancel queued message"
+								className="mt-[-2px] flex size-5 shrink-0 items-center justify-center rounded-[3px] text-description hover:bg-toolbar-hover-background hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+								disabled={isCancelling}
+								onClick={() => cancelQueuedPrompt(item.id)}
+								title="Cancel queued message"
+								type="button">
+								<span aria-hidden="true" className="codicon codicon-close text-[12px]" />
+							</button>
 						</div>
 					)
 				})}
