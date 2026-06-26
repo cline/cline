@@ -51,8 +51,10 @@ import {
 } from "../../services/usage";
 import { enrichPromptWithMentions } from "../../services/workspace";
 import {
+	createSessionCompactionSidecarAccess,
 	createSessionCompactionSidecarEnabledResolver,
 	projectSessionCompactionState,
+	type SessionCompactionSidecarAccess,
 	type SessionCompactionState,
 } from "../../session/models/session-compaction";
 import {
@@ -224,7 +226,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private readonly oauthTokenManager: RuntimeOAuthTokenManager;
 	private readonly defaultTelemetry?: ITelemetryService;
 	private readonly defaultFetch?: typeof fetch;
-	private readonly isCompactionSidecarEnabled: () => boolean;
+	private readonly compactionSidecar: SessionCompactionSidecarAccess;
 	private readonly events = new RuntimeHostEventBus();
 	private readonly sessions = new Map<string, ActiveSession>();
 	private readonly usageBySession = new Map<string, SessionAccumulatedUsage>();
@@ -261,9 +263,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 		this.defaultTelemetry = options.telemetry;
 		this.defaultTelemetry?.setDistinctId(distinctId);
 		this.defaultFetch = options.fetch;
-		this.isCompactionSidecarEnabled =
+		this.compactionSidecar = createSessionCompactionSidecarAccess(
 			options.isCompactionSidecarEnabled ??
-			createSessionCompactionSidecarEnabledResolver();
+				createSessionCompactionSidecarEnabledResolver(),
+		);
 
 		this.pendingPromptsController = new PendingPromptsController({
 			getSession: (sid) => this.sessions.get(sid),
@@ -381,18 +384,18 @@ export class LocalRuntimeHost implements RuntimeHost {
 			);
 			if (existingManifest) {
 				manifest = existingManifest;
-					resumedArtifacts = {
-						manifestPath,
-						messagesPath: existingManifest.messages_path || messagesPath,
-						compactionPath: existingManifest.compaction_path,
-						manifest: existingManifest,
-					};
-					resumedCompactionState = this.isCompactionSidecarEnabled()
-						? await this.invokeOptionalValue<SessionCompactionState>(
-								"readSessionCompactionState",
-								sessionId,
-							)
-						: undefined;
+				resumedArtifacts = {
+					manifestPath,
+					messagesPath: existingManifest.messages_path || messagesPath,
+					compactionPath: existingManifest.compaction_path,
+					manifest: existingManifest,
+				};
+				resumedCompactionState = await this.compactionSidecar.read(() =>
+					this.invokeOptionalValue<SessionCompactionState>(
+						"readSessionCompactionState",
+						sessionId,
+					),
+				);
 			}
 		}
 		const initialAggregateUsage = await this.seedAggregateUsageFromArtifacts({
@@ -492,64 +495,70 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const explicitInitialCompactionState = startInput.initialCompactionState;
 		let activeSessionRef: ActiveSession | undefined;
 		const compact = createContextCompactionPrepareTurn(configWithProvider);
-		const sidecarEnabled = this.isCompactionSidecarEnabled();
 		const rawInitialCompactionState =
 			explicitInitialCompactionState ?? resumedCompactionState;
-		const initialCompactionState =
-			sidecarEnabled && compact && rawInitialCompactionState
+		const initialCompactionState = this.compactionSidecar.initialState(
+			compact && rawInitialCompactionState
 				? {
 						...rawInitialCompactionState,
 						conversation_id:
 							rawInitialCompactionState.conversation_id?.trim() || sessionId,
 					}
-				: undefined;
+				: undefined,
+		);
 		const prepareTurn = compact
 			? createCompactionStateAwarePrepareTurn({
 					compact,
 					getState: () =>
-						sidecarEnabled ? activeSessionRef?.compactionState : undefined,
+						this.compactionSidecar.initialState(
+							activeSessionRef?.compactionState,
+						),
 					saveState: async (state) => {
-						if (!sidecarEnabled) return;
-						const activeSession = activeSessionRef;
-						if (!activeSession) return;
-						const stateForSession = {
-							...state,
-							conversation_id: activeSession.sessionId,
-						};
-						try {
-							const result = await this.persistActiveSessionCompactionState(
-								activeSession,
-								stateForSession,
-							);
-							if (!result.updated) {
-								configWithProvider.logger?.debug?.(
-									"Skipped stale session compaction state",
-									{
-										sessionId: activeSession.sessionId,
-										sourceMessageCount: stateForSession.source_message_count,
-									},
+						await this.compactionSidecar.update(async () => {
+							const activeSession = activeSessionRef;
+							if (!activeSession) return { updated: false };
+							const stateForSession = {
+								...state,
+								conversation_id: activeSession.sessionId,
+							};
+							try {
+								const result = await this.persistActiveSessionCompactionState(
+									activeSession,
+									stateForSession,
 								);
+								if (!result.updated) {
+									configWithProvider.logger?.debug?.(
+										"Skipped stale session compaction state",
+										{
+											sessionId: activeSession.sessionId,
+											sourceMessageCount:
+												stateForSession.source_message_count,
+										},
+									);
+								}
+								return result;
+							} catch (error) {
+								configWithProvider.logger?.error?.(
+									"Failed to persist session compaction state",
+									{ sessionId: activeSession.sessionId, error },
+								);
+								captureSdkError(configWithProvider.telemetry, {
+									component: "core",
+									operation: "session.persist_compaction_state",
+									severity: "warn",
+									handled: true,
+									error,
+									context: {
+										sessionId: activeSession.sessionId,
+										providerId: configWithProvider.providerId,
+										modelId: configWithProvider.modelId,
+									},
+								});
+								return { updated: false };
 							}
-						} catch (error) {
-							configWithProvider.logger?.error?.(
-								"Failed to persist session compaction state",
-								{ sessionId: activeSession.sessionId, error },
-							);
-							captureSdkError(configWithProvider.telemetry, {
-								component: "core",
-								operation: "session.persist_compaction_state",
-								severity: "warn",
-								handled: true,
-								error,
-								context: {
-									sessionId: activeSession.sessionId,
-									providerId: configWithProvider.providerId,
-									modelId: configWithProvider.modelId,
-								},
-							});
-						}
+						});
 					},
-					})
+				})
 				: undefined;
 
 		const agentConfig = {
@@ -1057,66 +1066,65 @@ export class LocalRuntimeHost implements RuntimeHost {
 		sessionId: string,
 		state: SessionCompactionState,
 	): Promise<{ updated: boolean }> {
-		if (!this.isCompactionSidecarEnabled()) {
-			return { updated: false };
-		}
-		const target = sessionId.trim();
-		if (!target) return { updated: false };
-		const activeSession = this.sessions.get(target);
-		const sessionRecord = activeSession
-			? undefined
-			: await this.getSession(target);
-		const existing = activeSession ?? sessionRecord;
-		if (!existing) return { updated: false };
-		if (
-			!(await this.canPersistCompactionState(
+		const result = await this.compactionSidecar.update(async () => {
+			const target = sessionId.trim();
+			if (!target) return { updated: false };
+			const activeSession = this.sessions.get(target);
+			const sessionRecord = activeSession
+				? undefined
+				: await this.getSession(target);
+			const existing = activeSession ?? sessionRecord;
+			if (!existing) return { updated: false };
+			if (
+				!(await this.canPersistCompactionState(
+					target,
+					state,
+					activeSession,
+					sessionRecord,
+				))
+			) {
+				return { updated: false };
+			}
+			if (activeSession) {
+				return await this.persistActiveSessionCompactionState(
+					activeSession,
+					state,
+				);
+			}
+			const current = await this.invokeOptionalValue<SessionCompactionState>(
+				"readSessionCompactionState",
 				target,
-				state,
-				activeSession,
-				sessionRecord,
-			))
-		) {
-			return { updated: false };
-		}
-		if (activeSession) {
-			return await this.persistActiveSessionCompactionState(
-				activeSession,
-				state,
 			);
-		}
-		const current = await this.invokeOptionalValue<SessionCompactionState>(
-			"readSessionCompactionState",
-			target,
-		);
-		if (isIncomingCompactionStateStale(state, current)) {
-			return { updated: false };
-		}
-		await this.invoke<void>("persistSessionCompactionState", target, state);
-		return { updated: true };
+			if (isIncomingCompactionStateStale(state, current)) {
+				return { updated: false };
+			}
+			await this.invoke<void>("persistSessionCompactionState", target, state);
+			return { updated: true };
+		});
+		return { updated: result.updated };
 	}
 
 	async readSessionCompactionState(
 		sessionId: string,
 	): Promise<SessionCompactionState | undefined> {
-		if (!this.isCompactionSidecarEnabled()) {
-			return undefined;
-		}
-		const target = sessionId.trim();
-		if (!target) return undefined;
-		const activeSession = this.sessions.get(target);
-		if (activeSession) {
-			for (;;) {
-				const pendingWrite = activeSession.compactionStateWriteQueue;
-				if (!pendingWrite) {
-					return activeSession.compactionState;
+		return await this.compactionSidecar.read(async () => {
+			const target = sessionId.trim();
+			if (!target) return undefined;
+			const activeSession = this.sessions.get(target);
+			if (activeSession) {
+				for (;;) {
+					const pendingWrite = activeSession.compactionStateWriteQueue;
+					if (!pendingWrite) {
+						return activeSession.compactionState;
+					}
+					await pendingWrite.catch(() => undefined);
 				}
-				await pendingWrite.catch(() => undefined);
 			}
-		}
-		return await this.invokeOptionalValue<SessionCompactionState>(
-			"readSessionCompactionState",
-			target,
-		);
+			return await this.invokeOptionalValue<SessionCompactionState>(
+				"readSessionCompactionState",
+				target,
+			);
+		});
 	}
 
 	private isCompactionStateForSession(

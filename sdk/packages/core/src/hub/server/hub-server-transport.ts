@@ -15,7 +15,10 @@ import type {
 	RuntimeHost,
 } from "../../runtime/host/runtime-host";
 import { SqliteSessionStore } from "../../services/storage/sqlite-session-store";
-import { createSessionCompactionSidecarEnabledResolver } from "../../session/models/session-compaction";
+import {
+  createSessionCompactionSidecarAccess,
+  createSessionCompactionSidecarEnabledResolver,
+} from "../../session/models/session-compaction";
 import { CoreSessionService } from "../../session/services/session-service";
 import {
 	type CoreSettingsListInput,
@@ -187,6 +190,9 @@ export class HubServerTransport implements NativeHubTransport {
 		const isCompactionSidecarEnabled =
 			options.isCompactionSidecarEnabled ??
 			createSessionCompactionSidecarEnabledResolver();
+    const compactionSidecar = createSessionCompactionSidecarAccess(
+      isCompactionSidecarEnabled,
+    );
 		this.sessionHost =
 			options.sessionHost ??
 			new LocalRuntimeHost({
@@ -203,7 +209,7 @@ export class HubServerTransport implements NativeHubTransport {
 			suppressNextTerminalEventBySession:
 				this.suppressNextTerminalEventBySession,
 			telemetry: options.telemetry,
-			isCompactionSidecarEnabled,
+      compactionSidecar,
 			sessionHost: this.sessionHost,
 			publish: (event) => this.publish(event),
 			buildEvent: buildHubEvent,
