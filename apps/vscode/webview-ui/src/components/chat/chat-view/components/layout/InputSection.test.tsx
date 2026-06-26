@@ -75,6 +75,28 @@ describe("InputSection", () => {
 		expect(handleSendMessage).toHaveBeenCalledWith("queue this", [], [])
 	})
 
+	it("allows submit while approval is pending so typed feedback can reject the approval", () => {
+		mockTurnState.mockReturnValue({ phase: "awaiting_approval", seq: 1 })
+		const handleSendMessage = vi.fn().mockResolvedValue(undefined)
+
+		render(
+			<InputSection
+				chatState={makeChatState({ sendingDisabled: true })}
+				messageHandlers={{ handleSendMessage } as unknown as MessageHandlers}
+				placeholderText="Type a message"
+				scrollBehavior={makeScrollBehavior()}
+				selectFilesAndImages={vi.fn()}
+				shouldDisableFilesAndImages={false}
+			/>,
+		)
+
+		const composer = screen.getByLabelText("composer")
+		expect(composer).not.toBeDisabled()
+
+		fireEvent.keyDown(composer, { key: "Enter" })
+		expect(handleSendMessage).toHaveBeenCalledWith("queue this", [], [])
+	})
+
 	it("allows submit for legacy active-task state when turnState is unavailable", () => {
 		mockTurnState.mockReturnValue(undefined)
 		const handleSendMessage = vi.fn().mockResolvedValue(undefined)

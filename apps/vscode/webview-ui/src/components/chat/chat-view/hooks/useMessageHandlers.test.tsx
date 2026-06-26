@@ -300,6 +300,36 @@ describe("useMessageHandlers — send routing", () => {
 		expect(setPendingUserMessage).not.toHaveBeenCalled()
 	})
 
+	it("rejects a pending approval when the composer is submitted with typed feedback", async () => {
+		mockTurnState = { phase: "awaiting_approval", anchorTs: 2, seq: 9 }
+		const approvalConversation: ClineMessage[] = [
+			{ ts: 1, type: "say", say: "task", text: "task" },
+			{ ts: 2, type: "ask", ask: "tool", text: JSON.stringify({ tool: "newFileCreated", path: "notes.txt" }) },
+		]
+		const setPendingUserMessage = vi.fn()
+		const { result } = renderHook(() =>
+			useMessageHandlers(approvalConversation, makeChatState(approvalConversation, { setPendingUserMessage })),
+		)
+
+		await act(async () => {
+			await result.current.handleSendMessage("use a different filename", ["image.png"], ["notes.txt"])
+		})
+
+		expect(newTask).not.toHaveBeenCalled()
+		expect(condense).not.toHaveBeenCalled()
+		expect(askResponse).toHaveBeenCalledTimes(1)
+		expect(askResponse).toHaveBeenCalledWith(
+			expect.objectContaining({
+				responseType: "noButtonClicked",
+				text: "use a different filename",
+				images: ["image.png"],
+				files: ["notes.txt"],
+			}),
+		)
+		expect(askResponse).not.toHaveBeenCalledWith(expect.objectContaining({ responseType: "messageResponse" }))
+		expect(setPendingUserMessage).not.toHaveBeenCalled()
+	})
+
 	it("phase awaiting_followup also routes a follow-up to askResponse", async () => {
 		mockTurnState = { phase: "awaiting_followup", seq: 3 }
 		const { result } = renderHook(() => useMessageHandlers(completedConversation, makeChatState(completedConversation)))
