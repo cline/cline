@@ -1,6 +1,7 @@
 // type that represents json data that is sent from extension to webview, called ExtensionMessage and has 'type' enum which can be 'plusButtonClicked' or 'settingsButtonClicked' or 'hello'
 
 import { WorkspaceRoot } from "@shared/multi-root/types"
+import type { CompactionStrategySetting } from "@shared/storage/state-keys"
 import { RemoteConfigFields } from "@shared/storage/state-keys"
 import type { Environment } from "../config"
 import { AutoApprovalSettings } from "./AutoApprovalSettings"
@@ -109,6 +110,7 @@ export interface ExtensionState {
 	mcpResponsesCollapsed?: boolean
 	yoloModeToggled?: boolean
 	useAutoCondense?: boolean
+	compactionStrategy?: CompactionStrategySetting
 	subagentsEnabled?: boolean
 	worktreesEnabled?: ClineFeatureSetting
 	customPrompt?: string

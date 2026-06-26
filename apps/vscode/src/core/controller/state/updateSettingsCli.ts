@@ -1,7 +1,7 @@
 import { Empty } from "@shared/proto/cline/common"
 import { PlanActMode, UpdateSettingsRequestCli } from "@shared/proto/cline/state"
 import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion"
-import { Settings } from "@shared/storage/state-keys"
+import type { CompactionStrategySetting, Settings } from "@shared/storage/state-keys"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { ClineEnv } from "@/config"
 import { Logger } from "@/shared/services/Logger"
@@ -44,6 +44,7 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 			telemetrySetting,
 			yoloModeToggled,
 			useAutoCondense,
+			compactionStrategy,
 			worktreesEnabled,
 			subagentsEnabled,
 			browserSettings,
@@ -139,6 +140,13 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 				)
 			}
 			controller.stateManager.setGlobalState("useAutoCondense", useAutoCondense)
+		}
+
+		if (compactionStrategy !== undefined) {
+			if (compactionStrategy !== "basic" && compactionStrategy !== "agentic") {
+				throw new Error(`Invalid compaction strategy value: ${compactionStrategy}`)
+			}
+			controller.stateManager.setGlobalState("compactionStrategy", compactionStrategy satisfies CompactionStrategySetting)
 		}
 
 		// Update worktrees setting

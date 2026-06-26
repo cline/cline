@@ -651,6 +651,50 @@ describe("buildSessionConfig", () => {
 		})
 	})
 
+	it("uses the configured SDK compaction strategy when auto condense is enabled", async () => {
+		mocks.stateManager.getGlobalSettingsKey.mockImplementation((key: string) => {
+			if (key === "useAutoCondense") {
+				return true
+			}
+			if (key === "compactionStrategy") {
+				return "agentic" as never
+			}
+			if (key === "subagentsEnabled") {
+				return false
+			}
+			return undefined
+		})
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.compaction).toEqual({
+			enabled: true,
+			strategy: "agentic",
+		})
+	})
+
+	it("falls back to basic SDK compaction for an invalid stored strategy", async () => {
+		mocks.stateManager.getGlobalSettingsKey.mockImplementation((key: string) => {
+			if (key === "useAutoCondense") {
+				return true
+			}
+			if (key === "compactionStrategy") {
+				return "invalid" as never
+			}
+			if (key === "subagentsEnabled") {
+				return false
+			}
+			return undefined
+		})
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.compaction).toEqual({
+			enabled: true,
+			strategy: "basic",
+		})
+	})
+
 	it("does not enable SDK compaction when global useAutoCondense is false", async () => {
 		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
 

@@ -8,6 +8,7 @@ import { fetchRemoteConfig } from "@/core/storage/remote-config/fetch"
 import { clearRemoteConfig } from "@/core/storage/remote-config/utils"
 import { McpDisplayMode } from "@/shared/McpDisplayMode"
 import { Logger } from "@/shared/services/Logger"
+import type { CompactionStrategySetting } from "@/shared/storage/state-keys"
 import { telemetryService } from "../../../services/telemetry"
 import { BrowserSettings as SharedBrowserSettings } from "../../../shared/BrowserSettings"
 import { Controller } from ".."
@@ -177,6 +178,14 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 				)
 			}
 			controller.stateManager.setGlobalState("useAutoCondense", request.useAutoCondense)
+		}
+
+		if (request.compactionStrategy !== undefined) {
+			const strategy = request.compactionStrategy
+			if (strategy !== "basic" && strategy !== "agentic") {
+				throw new Error(`Invalid compaction strategy value: ${strategy}`)
+			}
+			controller.stateManager.setGlobalState("compactionStrategy", strategy satisfies CompactionStrategySetting)
 		}
 
 		// Update custom prompt choice
