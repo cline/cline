@@ -248,18 +248,44 @@ export function ProviderPickerContent(
 	);
 }
 
-export type ExistingProviderAction = "use_existing" | "reconfigure";
+export type ExistingProviderAction =
+	| "use_existing"
+	| "reconfigure"
+	| "open_subscription";
+
+export interface ExistingProviderOption {
+	value: ExistingProviderAction;
+	label: string;
+	onSelect?: () => Promise<void> | void;
+}
+
+const CLINE_PASS_SUBSCRIPTION_PATH = "/dashboard/subscription";
+const DEFAULT_APP_BASE_URL = "https://app.cline.bot";
+
+export function buildClinePassSubscriptionPageUrl(
+	appBaseUrl: string | undefined,
+): string {
+	return new URL(
+		CLINE_PASS_SUBSCRIPTION_PATH,
+		appBaseUrl || DEFAULT_APP_BASE_URL,
+	).toString();
+}
 
 export function UseExistingOrReconfigureContent(
-	props: ChoiceContext<ExistingProviderAction> & {
+	props: ChoiceContext<ExistingProviderOption> & {
 		providerName: string;
+		extraOptions?: ExistingProviderOption[];
 	},
 ) {
-	const { resolve, dismiss, dialogId, providerName } = props;
-	const options: { value: ExistingProviderAction; label: string }[] = [
-		{ value: "use_existing", label: "Use existing configuration" },
-		{ value: "reconfigure", label: "Configure again" },
-	];
+	const { resolve, dismiss, dialogId, providerName, extraOptions } = props;
+	const options: ExistingProviderOption[] = useMemo(
+		() => [
+			{ value: "use_existing", label: "Use existing configuration" },
+			{ value: "reconfigure", label: "Configure again" },
+			...(extraOptions ?? []),
+		],
+		[extraOptions],
+	);
 	const [selected, setSelected] = useState(0);
 
 	useDialogKeyboard((key) => {
@@ -269,7 +295,7 @@ export function UseExistingOrReconfigureContent(
 		}
 		if (key.name === "return" || key.name === "enter") {
 			const opt = options[selected];
-			if (opt) resolve(opt.value);
+			if (opt) resolve(opt);
 			return;
 		}
 		if (key.name === "up" || (key.ctrl && key.name === "p")) {
@@ -310,6 +336,65 @@ export function UseExistingOrReconfigureContent(
 			</box>
 
 			<text fg="gray">↑/↓ navigate, Enter to select, Esc to go back</text>
+		</box>
+	);
+}
+
+export function ClinePassSubscriptionContent(
+	props: ChoiceContext<boolean> & {
+		providerName: string;
+	},
+) {
+	const { resolve, dismiss, dialogId, providerName } = props;
+	const subscriptionUrl = useMemo(
+		() =>
+			buildClinePassSubscriptionPageUrl(getClineEnvironmentConfig().appBaseUrl),
+		[],
+	);
+	const [status, setStatus] = useState("Opening browser...");
+
+	useEffect(() => {
+		try {
+			void open(subscriptionUrl, { wait: false })
+				.then(() => {
+					setStatus("Opened subscription page in your browser.");
+				})
+				.catch(() => {
+					setStatus(
+						"Could not open browser automatically. Open the URL below.",
+					);
+				});
+		} catch {
+			setStatus("Could not open browser automatically. Open the URL below.");
+		}
+	}, [subscriptionUrl]);
+
+	useDialogKeyboard((key) => {
+		if (key.name === "escape") {
+			dismiss();
+			return;
+		}
+		if (key.name === "return" || key.name === "enter") {
+			resolve(true);
+		}
+	}, dialogId);
+
+	return (
+		<box flexDirection="column" paddingX={1} gap={1}>
+			<text fg="cyan">
+				<strong>{providerName}</strong>
+			</text>
+
+			<text>{status}</text>
+
+			<text fg="gray">Subscription page:</text>
+			<text fg="cyan" selectable>
+				<a href={subscriptionUrl}>{subscriptionUrl}</a>
+			</text>
+
+			<text fg="gray">
+				<em>Enter to go back, Esc to cancel</em>
+			</text>
 		</box>
 	);
 }
