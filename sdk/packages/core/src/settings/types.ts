@@ -31,6 +31,8 @@ export interface CoreSettingsItem {
 	enabled?: boolean;
 	description?: string;
 	toggleable?: boolean;
+	pluginName?: string;
+	pluginPath?: string;
 }
 
 export interface CoreSettingsSnapshot {

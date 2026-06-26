@@ -543,6 +543,7 @@ export async function toggleLocalMarketplaceInstalledEntry(
 	}
 	if (entry.type === "plugin") {
 		await togglePluginLocalEntry(controller, entry, enabled)
+		await controller.invalidateUserInstructionService()
 		return listLocalMarketplaceInstalledEntries(controller)
 	}
 	throw new Error(`Marketplace toggle is not supported for ${entry.type}.`)
