@@ -14,6 +14,7 @@ function createContext(
 		pendingApprovals: new Map(),
 		pendingCapabilityRequests: new Map(),
 		suppressNextTerminalEventBySession: new Map(),
+		isCompactionSidecarEnabled: () => true,
 		sessionHost: {
 			startSession: vi.fn(),
 			runTurn: vi.fn(),

@@ -654,11 +654,73 @@ describe("HubServerTransport boundaries", () => {
 			},
 		});
 
-		await expect(answerPromise).resolves.toBe("Use hub");
-	});
+			await expect(answerPromise).resolves.toBe("Use hub");
+		});
 
-	it("does not transfer capability ownership to attached clients", async () => {
-		let createdSessionId = "";
+		it("ignores initial compaction sidecar state when the sidecar flag is off", async () => {
+			let capturedStartInput: StartSessionInput | undefined;
+			const startSession = vi.fn(async (input: StartSessionInput) => {
+				capturedStartInput = input;
+				const sessionId = input.config.sessionId?.trim() || "session-1";
+				return {
+					sessionId,
+					manifest: {
+						version: 1,
+						session_id: sessionId,
+						source: "cli",
+						pid: 1,
+						started_at: new Date(0).toISOString(),
+						status: "running",
+						interactive: true,
+						provider: "cline",
+						model: "test-model",
+						cwd: "/tmp/project",
+						workspace_root: "/tmp/project",
+						enable_tools: true,
+						enable_spawn: true,
+						enable_teams: false,
+					},
+					manifestPath: "",
+					messagesPath: "",
+					result: undefined,
+				};
+			});
+			const transport = createTransport({
+				sessionHost: { startSession },
+				isCompactionSidecarEnabled: () => false,
+			});
+			const initialCompactionState = createSessionCompactionState({
+				sourceMessages: [{ role: "user", content: "source" }],
+				compactedMessages: [{ role: "user", content: "summary" }],
+				conversationId: "session-1",
+			});
+
+			const reply = await transport.handleCommand({
+				version: "v1",
+				requestId: "req-create-sidecar-off",
+				command: "session.create",
+				clientId: "client-1",
+				payload: {
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+					sessionConfig: {
+						sessionId: "session-1",
+						providerId: "cline",
+						modelId: "test-model",
+						cwd: "/tmp/project",
+						workspaceRoot: "/tmp/project",
+						systemPrompt: "system",
+					},
+					initialCompactionState,
+				},
+			});
+
+			expect(reply.ok).toBe(true);
+			expect(capturedStartInput?.initialCompactionState).toBeUndefined();
+		});
+
+		it("does not transfer capability ownership to attached clients", async () => {
+			let createdSessionId = "";
 		const startSession = vi.fn(async (input: StartSessionInput) => {
 			createdSessionId = input.config.sessionId?.trim() || "missing-session";
 			return {
@@ -1071,6 +1133,30 @@ describe("HubServerTransport boundaries", () => {
 		expect(readSessionCompactionState).toHaveBeenCalledWith("session-1");
 	});
 
+	it("does not read compaction sidecar state when the sidecar flag is off", async () => {
+		const readSessionCompactionState = vi.fn();
+		const transport = createTransport({
+			sessionHost: { readSessionCompactionState },
+			isCompactionSidecarEnabled: () => false,
+		});
+		const ctx = getContext(transport);
+		ensureSessionState(ctx, "session-1", "owner-client", "creator");
+
+		const reply = await transport.handleCommand({
+			version: "v1",
+			requestId: "req-compact-get-off",
+			command: "session.compaction.get",
+			clientId: "owner-client",
+			sessionId: "session-1",
+		});
+
+		expect(reply).toMatchObject({
+			ok: true,
+			payload: { sessionId: "session-1", disabled: true },
+		});
+		expect(readSessionCompactionState).not.toHaveBeenCalled();
+	});
+
 	it("rejects invalid compaction sidecar updates before calling the session host", async () => {
 		const updateSessionCompactionState = vi.fn();
 		const transport = createTransport({
@@ -1091,6 +1177,36 @@ describe("HubServerTransport boundaries", () => {
 		expect(reply).toMatchObject({
 			ok: false,
 			error: { code: "invalid_compaction_state" },
+		});
+		expect(updateSessionCompactionState).not.toHaveBeenCalled();
+	});
+
+	it("does not update compaction sidecar state when the sidecar flag is off", async () => {
+		const state = createSessionCompactionState({
+			sourceMessages: [{ role: "user", content: "source" }],
+			compactedMessages: [{ role: "user", content: "summary" }],
+			conversationId: "session-1",
+		});
+		const updateSessionCompactionState = vi.fn();
+		const transport = createTransport({
+			sessionHost: { updateSessionCompactionState },
+			isCompactionSidecarEnabled: () => false,
+		});
+		const ctx = getContext(transport);
+		ensureSessionState(ctx, "session-1", "owner-client", "creator");
+
+		const reply = await transport.handleCommand({
+			version: "v1",
+			requestId: "req-compact-update-off",
+			command: "session.compaction.update",
+			clientId: "owner-client",
+			sessionId: "session-1",
+			payload: { state },
+		});
+
+		expect(reply).toMatchObject({
+			ok: true,
+			payload: { sessionId: "session-1", updated: false, disabled: true },
 		});
 		expect(updateSessionCompactionState).not.toHaveBeenCalled();
 	});

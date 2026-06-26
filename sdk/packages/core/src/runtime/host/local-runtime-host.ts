@@ -51,6 +51,7 @@ import {
 } from "../../services/usage";
 import { enrichPromptWithMentions } from "../../services/workspace";
 import {
+	createSessionCompactionSidecarEnabledResolver,
 	projectSessionCompactionState,
 	type SessionCompactionState,
 } from "../../session/models/session-compaction";
@@ -201,6 +202,7 @@ export interface LocalRuntimeHostOptions {
 	providerSettingsManager?: ProviderSettingsManager;
 	oauthTokenManager?: RuntimeOAuthTokenManager;
 	telemetry?: ITelemetryService;
+	isCompactionSidecarEnabled?: () => boolean;
 	/**
 	 * Default custom `fetch` implementation threaded into every
 	 * `ProviderConfig.fetch` built during local session bootstrap. Used by
@@ -222,6 +224,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private readonly oauthTokenManager: RuntimeOAuthTokenManager;
 	private readonly defaultTelemetry?: ITelemetryService;
 	private readonly defaultFetch?: typeof fetch;
+	private readonly isCompactionSidecarEnabled: () => boolean;
 	private readonly events = new RuntimeHostEventBus();
 	private readonly sessions = new Map<string, ActiveSession>();
 	private readonly usageBySession = new Map<string, SessionAccumulatedUsage>();
@@ -254,10 +257,13 @@ export class LocalRuntimeHost implements RuntimeHost {
 			new RuntimeOAuthTokenManager({
 				providerSettingsManager: this.providerSettingsManager,
 				telemetry: options.telemetry,
-			});
+		});
 		this.defaultTelemetry = options.telemetry;
 		this.defaultTelemetry?.setDistinctId(distinctId);
 		this.defaultFetch = options.fetch;
+		this.isCompactionSidecarEnabled =
+			options.isCompactionSidecarEnabled ??
+			createSessionCompactionSidecarEnabledResolver();
 
 		this.pendingPromptsController = new PendingPromptsController({
 			getSession: (sid) => this.sessions.get(sid),
@@ -375,17 +381,18 @@ export class LocalRuntimeHost implements RuntimeHost {
 			);
 			if (existingManifest) {
 				manifest = existingManifest;
-				resumedArtifacts = {
-					manifestPath,
-					messagesPath: existingManifest.messages_path || messagesPath,
-					compactionPath: existingManifest.compaction_path,
-					manifest: existingManifest,
-				};
-				resumedCompactionState =
-					await this.invokeOptionalValue<SessionCompactionState>(
-						"readSessionCompactionState",
-						sessionId,
-					);
+					resumedArtifacts = {
+						manifestPath,
+						messagesPath: existingManifest.messages_path || messagesPath,
+						compactionPath: existingManifest.compaction_path,
+						manifest: existingManifest,
+					};
+					resumedCompactionState = this.isCompactionSidecarEnabled()
+						? await this.invokeOptionalValue<SessionCompactionState>(
+								"readSessionCompactionState",
+								sessionId,
+							)
+						: undefined;
 			}
 		}
 		const initialAggregateUsage = await this.seedAggregateUsageFromArtifacts({
@@ -485,10 +492,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const explicitInitialCompactionState = startInput.initialCompactionState;
 		let activeSessionRef: ActiveSession | undefined;
 		const compact = createContextCompactionPrepareTurn(configWithProvider);
+		const sidecarEnabled = this.isCompactionSidecarEnabled();
 		const rawInitialCompactionState =
 			explicitInitialCompactionState ?? resumedCompactionState;
 		const initialCompactionState =
-			compact && rawInitialCompactionState
+			sidecarEnabled && compact && rawInitialCompactionState
 				? {
 						...rawInitialCompactionState,
 						conversation_id:
@@ -498,8 +506,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const prepareTurn = compact
 			? createCompactionStateAwarePrepareTurn({
 					compact,
-					getState: () => activeSessionRef?.compactionState,
+					getState: () =>
+						sidecarEnabled ? activeSessionRef?.compactionState : undefined,
 					saveState: async (state) => {
+						if (!sidecarEnabled) return;
 						const activeSession = activeSessionRef;
 						if (!activeSession) return;
 						const stateForSession = {
@@ -1047,6 +1057,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 		sessionId: string,
 		state: SessionCompactionState,
 	): Promise<{ updated: boolean }> {
+		if (!this.isCompactionSidecarEnabled()) {
+			return { updated: false };
+		}
 		const target = sessionId.trim();
 		if (!target) return { updated: false };
 		const activeSession = this.sessions.get(target);
@@ -1085,6 +1098,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 	async readSessionCompactionState(
 		sessionId: string,
 	): Promise<SessionCompactionState | undefined> {
+		if (!this.isCompactionSidecarEnabled()) {
+			return undefined;
+		}
 		const target = sessionId.trim();
 		if (!target) return undefined;
 		const activeSession = this.sessions.get(target);

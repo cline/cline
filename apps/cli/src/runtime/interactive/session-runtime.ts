@@ -3,6 +3,7 @@ import {
 	type AgentHooks,
 	type CheckpointEntry,
 	createSessionCompactionState,
+	createSessionCompactionSidecarEnabledResolver,
 	isSessionNotFoundError,
 	type PendingPromptMutationResult,
 	type ProviderSettingsManager,
@@ -103,8 +104,12 @@ export function createInteractiveSessionRuntime(input: {
 	onTeamEvent: (event: TeamEvent) => void;
 	onPendingPrompts: (event: PendingPromptSnapshot) => void;
 	onPendingPromptSubmitted: (event: PendingPromptSubmittedEvent) => void;
+	isCompactionSidecarEnabled?: () => boolean;
 }) {
 	let sessionManager: CliCore | undefined;
+	const isCompactionSidecarEnabled =
+		input.isCompactionSidecarEnabled ??
+		createSessionCompactionSidecarEnabledResolver();
 	let runtimeHooks: RuntimeHooks | undefined;
 	let unsubscribeAgent = () => {};
 	let unsubscribePendingPrompts = () => {};
@@ -219,7 +224,9 @@ export function createInteractiveSessionRuntime(input: {
 			toolPolicies: input.config.toolPolicies,
 			interactive: true,
 			initialMessages: initial,
-			...(initialCompactionState ? { initialCompactionState } : {}),
+			...(isCompactionSidecarEnabled() && initialCompactionState
+				? { initialCompactionState }
+				: {}),
 			...(sessionMetadata ? { sessionMetadata } : {}),
 			localRuntime: {
 				onTeamRestored: () => {},
@@ -318,6 +325,9 @@ export function createInteractiveSessionRuntime(input: {
 	const readCompactionState = async (
 		sessionId: string,
 	): Promise<SessionCompactionState | undefined> => {
+		if (!isCompactionSidecarEnabled()) {
+			return undefined;
+		}
 		const manager = sessionManager;
 		if (!manager) {
 			return undefined;
@@ -688,6 +698,14 @@ export function createInteractiveSessionRuntime(input: {
 				messagesBefore,
 				messagesAfter: messagesBefore,
 				compacted: false,
+			};
+		}
+		if (!isCompactionSidecarEnabled()) {
+			return {
+				messagesBefore,
+				messagesAfter: result.canonicalMessages.length,
+				workingContextMessagesAfter: result.compactionState.messages.length,
+				compacted: true,
 			};
 		}
 		const updated = await manager.updateSessionCompactionState(
