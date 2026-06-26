@@ -47,10 +47,6 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 	const openAiModelsRequestRef = useRef(0)
 
 	useEffect(() => {
-		latestOpenAiBaseUrlRef.current = config?.baseUrl || ""
-	}, [config?.baseUrl])
-
-	useEffect(() => {
 		latestOpenAiApiKeyRef.current = apiConfiguration?.openAiApiKey || ""
 	}, [apiConfiguration?.openAiApiKey])
 
@@ -63,6 +59,16 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 
 	// Get mode-specific fields
 	const { openAiModelInfo } = getModeSpecificFields(apiConfiguration, currentMode)
+	const modeSpecificOpenAiBaseUrl =
+		currentMode === "plan" ? apiConfiguration?.planModeOpenAiBaseUrl : apiConfiguration?.actModeOpenAiBaseUrl
+	const openAiBaseUrl =
+		modeSpecificOpenAiBaseUrl ||
+		apiConfiguration?.openAiBaseUrl ||
+		""
+
+	useEffect(() => {
+		latestOpenAiBaseUrlRef.current = openAiBaseUrl
+	}, [openAiBaseUrl])
 
 	const commitOpenAiSelection = useCallback(
 		(modelId: string, modelInfo = openAiModelInfo ?? openAiModelInfoSafeDefaults) => {
@@ -154,8 +160,33 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 	)
 
 	useEffect(() => {
-		void refreshOpenAiModels(config?.baseUrl, latestOpenAiApiKeyRef.current)
-	}, [config?.baseUrl, refreshOpenAiModels])
+		void refreshOpenAiModels(openAiBaseUrl, latestOpenAiApiKeyRef.current)
+	}, [openAiBaseUrl, refreshOpenAiModels])
+
+	const handleOpenAiBaseUrlChange = useCallback(
+		(value: string) => {
+			const genericOpenAiBaseUrl = apiConfiguration?.openAiBaseUrl || ""
+
+			if ((modeSpecificOpenAiBaseUrl === undefined || modeSpecificOpenAiBaseUrl === "") && value === genericOpenAiBaseUrl) {
+				return
+			}
+
+			latestOpenAiBaseUrlRef.current = value
+			handleModeFieldChange(
+				{ plan: "planModeOpenAiBaseUrl", act: "actModeOpenAiBaseUrl" },
+				value,
+				currentMode,
+			)
+			debouncedRefreshOpenAiModels(value, latestOpenAiApiKeyRef.current)
+		},
+		[
+			apiConfiguration?.openAiBaseUrl,
+			currentMode,
+			debouncedRefreshOpenAiModels,
+			handleModeFieldChange,
+			modeSpecificOpenAiBaseUrl,
+		],
+	)
 
 	const toOpenAiModelInfo = useCallback(
 		(modelId: string): ModelInfo => ({
@@ -183,7 +214,6 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 		providerName: "OpenAI Compatible",
 		write,
 	})
-
 	return (
 		<div>
 			<Tooltip>
@@ -197,16 +227,8 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 						</div>
 						<DebouncedTextField
 							disabled={remoteConfigSettings?.openAiBaseUrl !== undefined}
-							initialValue={config?.baseUrl || ""}
-							onChange={(value) => {
-								if (!config) {
-									return
-								}
-
-								latestOpenAiBaseUrlRef.current = value
-								void write({ baseUrl: value }).catch((error) => handleProviderConfigWriteError("base URL", error))
-								debouncedRefreshOpenAiModels(value, latestOpenAiApiKeyRef.current)
-							}}
+							initialValue={openAiBaseUrl}
+							onChange={handleOpenAiBaseUrlChange}
 							placeholder={"Enter base URL..."}
 							style={{ width: "100%", marginBottom: 10 }}
 							type="text"
@@ -277,7 +299,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 			{/* OpenAI Compatible Custom Headers */}
 			{(() => {
 				const headers = config?.headers ?? {}
-				const headerEntries = Object.entries(headers)
+				const headerEntries = Object.entries(headers).map(([key, value]) => [key, typeof value === "string" ? value : String(value)])
 
 				return (
 					<div style={{ marginBottom: 10 }}>

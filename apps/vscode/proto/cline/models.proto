@@ -408,6 +408,7 @@ message ModelsApiOptions {
   optional OpenRouterModelInfo plan_mode_open_router_model_info = 108;
   optional string plan_mode_open_ai_model_id = 109;
   optional OpenAiCompatibleModelInfo plan_mode_open_ai_model_info = 110;
+  optional string plan_mode_open_ai_base_url = 139;
   optional string plan_mode_ollama_model_id = 111;
   optional string plan_mode_lm_studio_model_id = 112;
   optional string plan_mode_lite_llm_model_id = 113;
@@ -449,6 +450,7 @@ message ModelsApiOptions {
   optional OpenRouterModelInfo act_mode_open_router_model_info = 208;
   optional string act_mode_open_ai_model_id = 209;
   optional OpenAiCompatibleModelInfo act_mode_open_ai_model_info = 210;
+  optional string act_mode_open_ai_base_url = 239;
   optional string act_mode_ollama_model_id = 211;
   optional string act_mode_lm_studio_model_id = 212;
   optional string act_mode_lite_llm_model_id = 213;
@@ -771,6 +773,7 @@ message ModelsApiConfiguration {
   optional OpenRouterModelInfo plan_mode_open_router_model_info = 108;
   optional string plan_mode_open_ai_model_id = 109;
   optional OpenAiCompatibleModelInfo plan_mode_open_ai_model_info = 110;
+  optional string plan_mode_open_ai_base_url = 144;
   optional string plan_mode_ollama_model_id = 111;
   optional string plan_mode_lm_studio_model_id = 112;
   optional string plan_mode_lite_llm_model_id = 113;
@@ -817,6 +820,7 @@ message ModelsApiConfiguration {
   optional OpenRouterModelInfo act_mode_open_router_model_info = 208;
   optional string act_mode_open_ai_model_id = 209;
   optional OpenAiCompatibleModelInfo act_mode_open_ai_model_info = 210;
+  optional string act_mode_open_ai_base_url = 244;
   optional string act_mode_ollama_model_id = 211;
   optional string act_mode_lm_studio_model_id = 212;
   optional string act_mode_lite_llm_model_id = 213;
