@@ -21,7 +21,7 @@ import {
 } from "@cline/core"
 import type { AgentTool } from "@cline/shared"
 import { StateManager } from "@/core/storage/StateManager"
-import type { ITerminalManager } from "@/integrations/terminal/types"
+import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import { Logger } from "@/shared/services/Logger"
 import { getShellForProfile } from "@/utils/shell"
 
@@ -40,7 +40,7 @@ export interface VscodeRunCommandsToolOptions {
 	/** Workspace root directory. */
 	cwd: string
 	/** Lazy factory for the VscodeTerminalManager. Called once on first foreground use. */
-	getTerminalManager: () => ITerminalManager
+	getTerminalManager: () => VscodeTerminalManager
 	/** Timeout passed to the SDK shell tool wrapper and timeout telemetry. */
 	bashTimeoutMs?: number
 	/** Terminal execution mode captured when this session's tool set is built. */
@@ -74,7 +74,7 @@ export function formatCommandForTerminal(command: ShellCommand): string {
 async function executeForeground(
 	command: ShellCommand,
 	cwd: string,
-	terminalManager: ITerminalManager,
+	terminalManager: VscodeTerminalManager,
 	maxOutputChars: number,
 	abortSignal?: AbortSignal,
 ): Promise<string> {
@@ -134,14 +134,14 @@ export function createVscodeRunCommandsTool(options: VscodeRunCommandsToolOption
 
 function createVscodeShellExecutor(options: VscodeRunCommandsToolOptions): ShellExecutor {
 	const { cwd, getTerminalManager } = options
-	const executionMode = options.vscodeTerminalExecutionMode ?? "vscodeTerminal"
+	const executionMode = options.vscodeTerminalExecutionMode ?? "backgroundExec"
 
 	// Lazy-init background executor — recreated when the user's shell profile changes.
 	let bgExecutor: ShellExecutor | undefined
 	let bgExecutorShell: string | undefined
 
 	// Lazy-init terminal manager reference
-	let terminalManager: ITerminalManager | undefined
+	let terminalManager: VscodeTerminalManager | undefined
 
 	return async (command, commandCwd, context): Promise<string> => {
 		Logger.log(`[VscodeRunCommands] Executing command in ${executionMode} mode`)

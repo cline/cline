@@ -8,7 +8,7 @@ import type {
 } from "@cline/core"
 import { formatModeSwitchNotice, type ModeSwitchNotice } from "@cline/shared"
 import { StateManager } from "@/core/storage/StateManager"
-import { ITerminalManager } from "@/integrations/terminal"
+import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import { McpHub } from "@/services/mcp/McpHub"
 import { Logger } from "@/shared/services/Logger"
 import type { ActiveSession } from "./cline-session-factory"
@@ -31,7 +31,7 @@ export interface SdkSessionLifecycleOptions {
 	applyPatchExecutor?: ApplyPatchExecutorHandler
 	onSessionEvent: (event: CoreSessionEvent) => void
 	/** Lazy factory for the VscodeTerminalManager (foreground terminal support). */
-	getTerminalManager?: () => ITerminalManager
+	getTerminalManager?: () => VscodeTerminalManager
 	/** Returns the latest prepared remote-config integration, if remote config is active. */
 	getRemoteConfigIntegration?: () => PreparedRemoteConfigCoreIntegration | undefined
 	/** Shared SDK telemetry service owned by SdkController. */

@@ -32,7 +32,7 @@ import {
 } from "@cline/core"
 import { type AgentToolContext, type ToolApprovalRequest, type ToolApprovalResult, type ToolPolicy } from "@cline/shared"
 import { StateManager } from "@/core/storage/StateManager"
-import type { ITerminalManager } from "@/integrations/terminal/types"
+import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import { getDistinctId } from "@/services/logging/distinctId"
 import type { McpHub } from "@/services/mcp/McpHub"
 import { Logger } from "@/shared/services/Logger"
@@ -73,7 +73,7 @@ export interface VscodeSessionHostOptions {
 	 * When provided, the SDK's built-in `run_commands` is suppressed and replaced
 	 * with a custom tool that supports foreground/background terminal execution.
 	 */
-	getTerminalManager?: () => ITerminalManager
+	getTerminalManager?: () => VscodeTerminalManager
 }
 
 export class VscodeSessionHost implements SdkSessionHost {
@@ -127,8 +127,7 @@ export class VscodeSessionHost implements SdkSessionHost {
 					const inputWithRemoteConfig = remoteConfigIntegration
 						? await remoteConfigIntegration.applyToStartSessionInput(input)
 						: input
-					const terminalExecutionMode =
-						StateManager.get().getGlobalStateKey("vscodeTerminalExecutionMode") ?? "vscodeTerminal"
+					const terminalExecutionMode = StateManager.get().getGlobalStateKey("vscodeTerminalExecutionMode")
 					const extraTools = await createVscodeExtraTools(options.mcpHub, {
 						cwd: inputWithRemoteConfig.config.cwd,
 						getTerminalManager: options.getTerminalManager,
