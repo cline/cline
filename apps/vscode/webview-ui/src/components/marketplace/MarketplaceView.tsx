@@ -926,6 +926,7 @@ const MarketplaceView = ({ initialType = "skill", onDone }: MarketplaceViewProps
 		setActiveType(initialType)
 		setQuery("")
 		setSelectedTag(null)
+		setActiveSection("installed")
 	}, [initialType])
 
 	const primitive = getPrimitive(activeType)
