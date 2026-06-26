@@ -14,6 +14,7 @@ import type {
 	RuntimeHost,
 	SessionUsageRuntimeService,
 } from "../../../runtime/host/runtime-host";
+import type { SessionCompactionSidecarAccess } from "../../../session/models/session-compaction";
 import {
 	type CoreSessionSnapshot,
 	createCoreSessionSnapshot,
@@ -51,7 +52,7 @@ export interface HubTransportContext {
 	readonly pendingCapabilityRequests: Map<string, PendingCapabilityRequest>;
 	readonly suppressNextTerminalEventBySession: Map<string, string>;
 	readonly telemetry?: ITelemetryService;
-	readonly isCompactionSidecarEnabled: () => boolean;
+  readonly compactionSidecar: SessionCompactionSidecarAccess;
 	readonly sessionHost: RuntimeHost &
 		Partial<PendingPromptsRuntimeService & SessionUsageRuntimeService>;
 	publish(event: HubEventEnvelope): void;

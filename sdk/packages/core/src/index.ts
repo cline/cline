@@ -734,10 +734,7 @@ export type {
 	CoreSettingsToggleInput,
 	CoreSettingsType,
 } from "./settings";
-export {
-	CoreSettingsService,
-	createCoreSettingsService,
-} from "./settings";
+export { CoreSettingsService, createCoreSettingsService } from "./settings";
 export type {
 	ChatMessage,
 	ChatSessionConfig,
@@ -883,10 +880,13 @@ export {
 	type TelemetryServiceOptions,
 } from "./services/telemetry/TelemetryService";
 export {
+  createSessionCompactionSidecarAccess,
 	createSessionCompactionSidecarEnabledResolver,
 	createSessionCompactionState,
 	parseSessionCompactionState,
 	projectSessionCompactionState,
+  type SessionCompactionSidecarAccess,
+  type SessionCompactionSidecarUpdateResult,
 	type SessionCompactionState,
 } from "./session/models/session-compaction";
 // Compatibility barrel (legacy imports).

@@ -3,6 +3,7 @@ import {
 	type AgentHooks,
 	type CheckpointEntry,
 	createSessionCompactionState,
+	createSessionCompactionSidecarAccess,
 	createSessionCompactionSidecarEnabledResolver,
 	isSessionNotFoundError,
 	type PendingPromptMutationResult,
@@ -110,6 +111,9 @@ export function createInteractiveSessionRuntime(input: {
 	const isCompactionSidecarEnabled =
 		input.isCompactionSidecarEnabled ??
 		createSessionCompactionSidecarEnabledResolver();
+	const compactionSidecar = createSessionCompactionSidecarAccess(
+		isCompactionSidecarEnabled,
+	);
 	let runtimeHooks: RuntimeHooks | undefined;
 	let unsubscribeAgent = () => {};
 	let unsubscribePendingPrompts = () => {};
@@ -218,14 +222,17 @@ export function createInteractiveSessionRuntime(input: {
 	): Promise<void> => {
 		const generation = sessionStartGeneration;
 		const manager = await ensureSessionManager();
+		const sidecarInitialCompactionState = compactionSidecar.initialState(
+			initialCompactionState,
+		);
 		const started = await manager.start({
 			source: SessionSource.CLI,
 			config: buildSessionConfig(),
 			toolPolicies: input.config.toolPolicies,
 			interactive: true,
 			initialMessages: initial,
-			...(isCompactionSidecarEnabled() && initialCompactionState
-				? { initialCompactionState }
+			...(sidecarInitialCompactionState
+				? { initialCompactionState: sidecarInitialCompactionState }
 				: {}),
 			...(sessionMetadata ? { sessionMetadata } : {}),
 			localRuntime: {
@@ -325,15 +332,14 @@ export function createInteractiveSessionRuntime(input: {
 	const readCompactionState = async (
 		sessionId: string,
 	): Promise<SessionCompactionState | undefined> => {
-		if (!isCompactionSidecarEnabled()) {
-			return undefined;
-		}
 		const manager = sessionManager;
 		if (!manager) {
 			return undefined;
 		}
 		try {
-			return await manager.readSessionCompactionState(sessionId);
+			return await compactionSidecar.read(() =>
+				manager.readSessionCompactionState(sessionId),
+			);
 		} catch (error) {
 			input.config.logger?.log?.("Failed to read session compaction state", {
 				sessionId,
@@ -700,25 +706,20 @@ export function createInteractiveSessionRuntime(input: {
 				compacted: false,
 			};
 		}
-		if (!isCompactionSidecarEnabled()) {
-			return {
-				messagesBefore,
-				messagesAfter: result.canonicalMessages.length,
-				workingContextMessagesAfter: result.compactionState.messages.length,
-				compacted: true,
-			};
-		}
-		const updated = await manager.updateSessionCompactionState(
-			sourceSessionId,
-			result.compactionState,
+		const compactionState = result.compactionState;
+		const updated = await compactionSidecar.update(() =>
+			manager.updateSessionCompactionState(
+				sourceSessionId,
+				compactionState,
+			),
 		);
-		if (!updated.updated) {
+		if (!updated.updated && !updated.disabled) {
 			throw new Error("Compaction could not be saved. Try again.");
 		}
 		return {
 			messagesBefore,
 			messagesAfter: result.canonicalMessages.length,
-			workingContextMessagesAfter: result.compactionState?.messages.length,
+			workingContextMessagesAfter: compactionState.messages.length,
 			compacted: true,
 		};
 	};
