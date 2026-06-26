@@ -94,10 +94,15 @@ describe("SdkCompactionCoordinator", () => {
 		compactSessionMessages.mockResolvedValueOnce({
 			compacted: true,
 			messages: [{ role: "user", content: "summary" }],
+			compactionState: { version: 1, messages: [{ role: "user", content: "summary" }] },
 		})
 
 		await coordinator.compactTask()
 
+		expect(activeSession.sdkHost.updateSessionCompactionState).toHaveBeenCalledWith("old-session", {
+			version: 1,
+			messages: [{ role: "user", content: "summary" }],
+		})
 		expect(options.buildStartSessionInput).toHaveBeenCalledWith(expect.objectContaining({ sessionId: "old-session" }), {
 			cwd: "/workspace",
 			mode: "act",
@@ -106,15 +111,42 @@ describe("SdkCompactionCoordinator", () => {
 			startInput: expect.objectContaining({
 				config: expect.objectContaining({ sessionId: "old-session" }),
 				interactive: true,
+				initialCompactionState: {
+					version: 1,
+					messages: [{ role: "user", content: "summary" }],
+				},
 				prompt: undefined,
 			}),
-			initialMessages: [{ role: "user", content: "summary" }],
+			initialMessages: [
+				{ role: "user", content: "1" },
+				{ role: "assistant", content: "2" },
+				{ role: "user", content: "3" },
+			],
 			disposeReason: "compactTask",
 		})
 		expect(task.taskId).toBe("new-session")
 		expect(options.resetMessageTranslator).toHaveBeenCalledOnce()
 		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
 			[expect.objectContaining({ say: "info", text: "Compacted 3 messages to 1." })],
+			expect.anything(),
+		)
+	})
+
+	it("does not restart or report success when sidecar persistence fails", async () => {
+		const activeSession = makeActiveSession()
+		activeSession.sdkHost.updateSessionCompactionState.mockResolvedValueOnce({ updated: false })
+		const { coordinator, options } = makeCoordinator({ activeSession })
+		compactSessionMessages.mockResolvedValueOnce({
+			compacted: true,
+			messages: [{ role: "user", content: "summary" }],
+			compactionState: { version: 1, messages: [{ role: "user", content: "summary" }] },
+		})
+
+		await coordinator.compactTask()
+
+		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
+		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
+			[expect.objectContaining({ say: "info", text: "Compaction failed: Compaction sidecar could not be persisted." })],
 			expect.anything(),
 		)
 	})
@@ -204,6 +236,7 @@ function makeActiveSession(input: { isRunning?: boolean } = {}) {
 		sessionId: "old-session",
 		sdkHost: {
 			readMessages: vi.fn().mockResolvedValue([{ role: "user", content: "1" }]),
+			updateSessionCompactionState: vi.fn().mockResolvedValue({ updated: true }),
 			send: vi.fn(),
 			abort: vi.fn().mockResolvedValue(undefined),
 			stop: vi.fn().mockResolvedValue(undefined),
