@@ -5,8 +5,9 @@
  * even if you confirm the IME conversion (Enter) in message re-edit mode.
  */
 
-import { fireEvent, render, screen } from "@testing-library/react"
-import { describe, expect, it, vi } from "vitest"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("@/context/ExtensionStateContext", () => ({
 	__esModule: true,
@@ -16,9 +17,29 @@ vi.mock("@/context/ExtensionStateContext", () => ({
 	}),
 }))
 
+vi.mock("@/services/grpc-client", () => ({
+	TaskServiceClient: {
+		editMessageAndRegenerate: vi.fn(),
+	},
+}))
+
+import { TaskServiceClient } from "@/services/grpc-client"
 import UserMessage from "../UserMessage"
 
 describe("UserMessage – IME composition handling", () => {
+	beforeEach(() => {
+		vi.clearAllMocks()
+		vi.stubGlobal(
+			"ResizeObserver",
+			class ResizeObserver {
+				observe() {}
+				unobserve() {}
+				disconnect() {}
+			},
+		)
+		vi.mocked(TaskServiceClient.editMessageAndRegenerate).mockResolvedValue({})
+	})
+
 	it("does NOT send when IME composition Enter is pressed while editing", () => {
 		const sendMessageFromChatRow = vi.fn()
 
@@ -61,5 +82,40 @@ describe("UserMessage – IME composition handling", () => {
 		} finally {
 			window.removeEventListener("keydown", onWindowKeyDown)
 		}
+	})
+
+	it("labels reset actions and preserves their restore behavior", async () => {
+		const user = userEvent.setup()
+		render(<UserMessage files={["src/app.ts"]} images={["image.png"]} messageTs={123} text="Update this" />)
+
+		await user.click(screen.getByText("Update this"))
+
+		expect(screen.getByRole("button", { name: "Reset Chat" })).toBeInTheDocument()
+		expect(screen.getByRole("button", { name: "Reset Code" })).toBeInTheDocument()
+
+		await user.click(screen.getByRole("button", { name: "Reset Chat" }))
+		await waitFor(() => expect(TaskServiceClient.editMessageAndRegenerate).toHaveBeenCalledTimes(1))
+		expect(TaskServiceClient.editMessageAndRegenerate).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				messageTs: 123,
+				text: "Update this",
+				images: ["image.png"],
+				files: ["src/app.ts"],
+				restoreWorkspace: false,
+			}),
+		)
+
+		await user.click(screen.getByText("Update this"))
+		await user.click(screen.getByRole("button", { name: "Reset Code" }))
+		await waitFor(() => expect(TaskServiceClient.editMessageAndRegenerate).toHaveBeenCalledTimes(2))
+		expect(TaskServiceClient.editMessageAndRegenerate).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				messageTs: 123,
+				text: "Update this",
+				images: ["image.png"],
+				files: ["src/app.ts"],
+				restoreWorkspace: true,
+			}),
+		)
 	})
 })
