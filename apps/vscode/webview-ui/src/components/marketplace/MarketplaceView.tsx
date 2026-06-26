@@ -949,23 +949,16 @@ const InstalledMarketplaceRow = ({
 
 const CatalogEntryRow = ({
 	entry,
-	installed,
 	installing,
 	onInstall,
-	onUninstall,
-	uninstalling,
 }: {
 	entry: MarketplaceEntry
-	installed: boolean
 	installing: boolean
 	onInstall: (entry: MarketplaceEntry) => void
-	onUninstall: (entry: MarketplaceEntry) => void
-	uninstalling: boolean
 }) => {
 	const summary = setupSummary(entry)
-	const busy = installing || uninstalling
-	const canAct = installArgs(entry).length > 0 && !busy
-	const label = installed ? `Uninstall ${entry.name || entry.id}` : `Install ${entry.name || entry.id}`
+	const canInstall = installArgs(entry).length > 0 && !installing
+	const label = `Install ${entry.name || entry.id}`
 	return (
 		<div className="marketplace-row">
 			<div className="marketplace-row-main">
@@ -984,15 +977,13 @@ const CatalogEntryRow = ({
 			<div className="marketplace-action">
 				<button
 					aria-label={label}
-					className={`marketplace-icon-button${installed ? " marketplace-icon-button-danger" : ""}`}
-					disabled={!canAct}
-					onClick={() => (installed ? onUninstall(entry) : onInstall(entry))}
+					className="marketplace-icon-button"
+					disabled={!canInstall}
+					onClick={() => onInstall(entry)}
 					title={label}
 					type="button">
-					{busy ? (
+					{installing ? (
 						<LoaderCircleIcon aria-hidden className="marketplace-icon-spin" />
-					) : installed ? (
-						<Trash2Icon aria-hidden />
 					) : (
 						<DownloadIcon aria-hidden />
 					)}
@@ -1334,12 +1325,9 @@ const MarketplaceView = ({ initialType = "skill", onDone }: MarketplaceViewProps
 										{visibleCatalogEntries.map((entry) => (
 											<CatalogEntryRow
 												entry={entry}
-												installed={installedKeys.has(entryKey(entry))}
 												installing={installingId === entryKey(entry)}
 												key={entryKey(entry)}
 												onInstall={handleInstall}
-												onUninstall={handleUninstallMarketplace}
-												uninstalling={uninstallingId === entryKey(entry)}
 											/>
 										))}
 									</MarketplaceCatalogSection>

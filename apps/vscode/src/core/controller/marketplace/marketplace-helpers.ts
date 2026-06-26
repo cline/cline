@@ -596,9 +596,10 @@ export async function uninstallLocalMarketplaceInstalledEntry(
 		})
 	}
 	if (entry.type === "skill") {
-		if (!entry.path || entry.path.startsWith("remote:")) {
+		if (entry.path?.startsWith("remote:")) {
 			throw new Error("Remote-managed skills cannot be uninstalled from Customize.")
 		}
+		if (!entry.path) throw new Error("Skill path is required for uninstall.")
 		await deleteSkillFile(
 			controller,
 			DeleteSkillRequest.create({
@@ -606,6 +607,7 @@ export async function uninstallLocalMarketplaceInstalledEntry(
 				isGlobal: entry.source === "global",
 			}),
 		)
+		await controller.invalidateUserInstructionService()
 		return MarketplaceInstallResult.create({
 			id: entry.id,
 			type: entry.type,
