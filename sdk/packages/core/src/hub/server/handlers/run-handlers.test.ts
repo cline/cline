@@ -1,6 +1,7 @@
 import type { HubEventEnvelope } from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { RuntimeHost } from "../../../runtime/host/runtime-host";
+import { createSessionCompactionSidecarAccess } from "../../../session/models/session-compaction";
 import { buildHubEvent, type HubTransportContext } from "./context";
 import { handleRunAbort, handleSessionInput } from "./run-handlers";
 
@@ -14,7 +15,7 @@ function createContext(
 		pendingApprovals: new Map(),
 		pendingCapabilityRequests: new Map(),
 		suppressNextTerminalEventBySession: new Map(),
-		isCompactionSidecarEnabled: () => true,
+    compactionSidecar: createSessionCompactionSidecarAccess(() => true),
 		sessionHost: {
 			startSession: vi.fn(),
 			runTurn: vi.fn(),

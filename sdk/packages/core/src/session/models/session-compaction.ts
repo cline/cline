@@ -49,6 +49,76 @@ export function createSessionCompactionSidecarEnabledResolver(
 		featureFlags?.getFlagPayload(FeatureFlag.COMPACTION_SIDECAR) !== false;
 }
 
+export type SessionCompactionSidecarUpdateResult = {
+	updated: boolean;
+	disabled?: true;
+};
+
+export interface SessionCompactionSidecarAccess {
+	readonly enabled: boolean;
+	initialState(
+		state: SessionCompactionState | undefined,
+	): SessionCompactionState | undefined;
+	read<T>(read: () => Promise<T | undefined>): Promise<T | undefined>;
+	update(
+		update: () => Promise<{ updated: boolean }>,
+	): Promise<SessionCompactionSidecarUpdateResult>;
+}
+
+type SessionCompactionSidecarRole = SessionCompactionSidecarAccess;
+
+class EnabledSessionCompactionSidecar implements SessionCompactionSidecarRole {
+	readonly enabled = true;
+
+	initialState(
+		state: SessionCompactionState | undefined,
+	): SessionCompactionState | undefined {
+		return state;
+	}
+
+	async read<T>(read: () => Promise<T | undefined>): Promise<T | undefined> {
+		return await read();
+	}
+
+	async update(
+		update: () => Promise<{ updated: boolean }>,
+	): Promise<SessionCompactionSidecarUpdateResult> {
+		return await update();
+	}
+}
+
+class DisabledSessionCompactionSidecar implements SessionCompactionSidecarRole {
+	readonly enabled = false;
+
+	initialState(): undefined {
+		return undefined;
+	}
+
+	async read(): Promise<undefined> {
+		return undefined;
+	}
+
+	async update(): Promise<SessionCompactionSidecarUpdateResult> {
+		return { updated: false, disabled: true };
+	}
+}
+
+export function createSessionCompactionSidecarAccess(
+	isEnabled: () => boolean = createSessionCompactionSidecarEnabledResolver(),
+): SessionCompactionSidecarAccess {
+	const enabled = new EnabledSessionCompactionSidecar();
+	const disabled = new DisabledSessionCompactionSidecar();
+	const current = () => (isEnabled() ? enabled : disabled);
+	return {
+		get enabled() {
+			return current().enabled;
+		},
+		initialState: (state) => current().initialState(state),
+		read: (read) => current().read(read),
+		update: (update) => current().update(update),
+	};
+}
+
 function cloneMessages(
 	messages: readonly MessageWithMetadata[],
 ): MessageWithMetadata[] {
