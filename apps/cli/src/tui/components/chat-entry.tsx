@@ -9,6 +9,7 @@ import {
 	isClineOrgIndividualInferenceSubscriptionErrorMessage,
 	isClinePassSubscriptionError,
 } from "../../utils/cline-pass-errors";
+import { getCliFeatureFlagsService } from "../../utils/feature-flags";
 import {
 	CLINE_CREDITS_DASHBOARD_URL,
 	isClineAccountCreditsErrorMessage,
@@ -273,7 +274,14 @@ function ToolCallView(props: {
 	);
 }
 
+const CLINE_PASS_ENABLED_OUT_OF_CREDITS_MESSAGE =
+	"You have run out of Cline credits. Add credits in the dashboard or purchase and switch to ClinePass to continue.";
+const OUT_OF_CREDITS_MESSAGE =
+	"You have run out of Cline credits. Add credits in the dashboard to continue.";
+
 function ClineCreditsErrorView(props: { defaultFg?: string }) {
+	const isClinePassEnabled =
+		getCliFeatureFlagsService().getBooleanFlagEnabled("ext-cline-pass");
 	return (
 		<box flexDirection="row">
 			<text fg="red" content="* " />
@@ -288,7 +296,11 @@ function ClineCreditsErrorView(props: { defaultFg?: string }) {
 				<text
 					fg={props.defaultFg}
 					selectable
-					content="You have run out of Cline credits. Add credits in the dashboard to continue."
+					content={
+						isClinePassEnabled
+							? CLINE_PASS_ENABLED_OUT_OF_CREDITS_MESSAGE
+							: OUT_OF_CREDITS_MESSAGE
+					}
 				/>
 				<box flexDirection="row">
 					<text fg="gray">Dashboard: </text>
