@@ -30,7 +30,7 @@ export function useScrollBehavior(
 	const virtuosoRef = useRef<VirtuosoHandle>(null)
 	const scrollContainerRef = useRef<HTMLDivElement>(null)
 	const disableAutoScrollRef = useRef(false)
-	const lastRowContentScrollTimersRef = useRef<ReturnType<typeof setTimeout>[]>([])
+	const layoutSettleScrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
 	// State
 	const [isAtBottom, setIsAtBottom] = useState(false)
@@ -214,7 +214,7 @@ export function useScrollBehavior(
 
 	// scroll when user toggles certain rows
 	const toggleRowExpansion = useCallback(
-		(ts: number) => {
+		(ts: number, options?: { preserveAutoScroll?: boolean }) => {
 			const isCollapsing = expandedRows[ts] ?? false
 			const lastGroup = groupedMessages.at(-1)
 			const isLast = Array.isArray(lastGroup) ? lastGroup[0].ts === ts : lastGroup?.ts === ts
@@ -234,8 +234,9 @@ export function useScrollBehavior(
 				[ts]: !prev[ts],
 			}))
 
-			// disable auto scroll when user expands row
-			if (!isCollapsing) {
+			// Disable auto-scroll when the user expands a row. Programmatic expansions
+			// for active command output should keep bottom pinning engaged.
+			if (!isCollapsing && !options?.preserveAutoScroll) {
 				disableAutoScrollRef.current = true
 			}
 			// Only scroll on collapse, never on expand - expanding should stay in place
@@ -259,43 +260,41 @@ export function useScrollBehavior(
 		[groupedMessages, expandedRows, scrollToBottomAuto, isAtBottom],
 	)
 
-	const handleRowHeightChange = useCallback(
-		(isTaller: boolean) => {
-			if (!disableAutoScrollRef.current) {
-				if (isTaller) {
-					scrollToBottomSmooth()
-				} else {
-					setTimeout(() => {
-						scrollToBottomAuto()
-					}, 0)
-				}
-			}
-		},
-		[scrollToBottomSmooth, scrollToBottomAuto],
-	)
-
-	const clearLastRowContentScrollTimers = useCallback(() => {
-		lastRowContentScrollTimersRef.current.forEach((timer) => clearTimeout(timer))
-		lastRowContentScrollTimersRef.current = []
+	const clearLayoutSettleScrollTimers = useCallback(() => {
+		if (layoutSettleScrollTimerRef.current !== null) {
+			clearTimeout(layoutSettleScrollTimerRef.current)
+			layoutSettleScrollTimerRef.current = null
+		}
 	}, [])
 
-	const handleLastRowContentChange = useCallback(() => {
+	const keepPinnedToBottomAfterLayout = useCallback(() => {
 		if (disableAutoScrollRef.current) {
 			return
 		}
 
-		clearLastRowContentScrollTimers()
-		scrollToBottomSmooth()
-		lastRowContentScrollTimersRef.current = [0, 50].map((delay) =>
-			setTimeout(() => {
-				if (!disableAutoScrollRef.current) {
-					scrollToBottomAuto()
-				}
-			}, delay),
-		)
-	}, [clearLastRowContentScrollTimers, scrollToBottomSmooth, scrollToBottomAuto])
+		if (layoutSettleScrollTimerRef.current !== null) {
+			clearTimeout(layoutSettleScrollTimerRef.current)
+		}
+		layoutSettleScrollTimerRef.current = setTimeout(() => {
+			if (!disableAutoScrollRef.current) {
+				scrollToBottomSmooth()
+			}
+			layoutSettleScrollTimerRef.current = null
+		}, 500)
+	}, [scrollToBottomSmooth])
 
-	useEffect(() => clearLastRowContentScrollTimers, [clearLastRowContentScrollTimers])
+	const handleRowHeightChange = useCallback(
+		(_isTaller: boolean) => {
+			keepPinnedToBottomAfterLayout()
+		},
+		[keepPinnedToBottomAfterLayout],
+	)
+
+	const handleLastRowContentChange = useCallback(() => {
+		keepPinnedToBottomAfterLayout()
+	}, [keepPinnedToBottomAfterLayout])
+
+	useEffect(() => clearLayoutSettleScrollTimers, [clearLayoutSettleScrollTimers])
 
 	useEffect(() => {
 		if (!disableAutoScrollRef.current) {
