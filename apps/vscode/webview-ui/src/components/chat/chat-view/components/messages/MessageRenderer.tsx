@@ -17,6 +17,7 @@ interface MessageRendererProps {
 	expandedRows: Record<number, boolean>
 	onToggleExpand: (ts: number) => void
 	onHeightChange: (isTaller: boolean) => void
+	onLastRowContentChange: () => void
 	onSetQuote: (quote: string | null) => void
 	inputValue: string
 	messageHandlers: MessageHandlers
@@ -35,6 +36,7 @@ const MessageRenderer: React.FC<MessageRendererProps> = ({
 	expandedRows,
 	onToggleExpand,
 	onHeightChange,
+	onLastRowContentChange,
 	onSetQuote,
 	inputValue,
 	messageHandlers,
@@ -115,6 +117,7 @@ const MessageRenderer: React.FC<MessageRendererProps> = ({
 				mode={mode}
 				onCancelCommand={() => messageHandlers.executeButtonAction("cancel")}
 				onHeightChange={onHeightChange}
+				onLastRowContentChange={onLastRowContentChange}
 				onSetQuote={onSetQuote}
 				onToggleExpand={onToggleExpand}
 				reasoningContent={reasoningData.reasoning}
@@ -135,6 +138,7 @@ export const createMessageRenderer = (
 	expandedRows: Record<number, boolean>,
 	onToggleExpand: (ts: number) => void,
 	onHeightChange: (isTaller: boolean) => void,
+	onLastRowContentChange: () => void,
 	onSetQuote: (quote: string | null) => void,
 	inputValue: string,
 	messageHandlers: MessageHandlers,
@@ -151,6 +155,7 @@ export const createMessageRenderer = (
 			messageOrGroup={messageOrGroup}
 			modifiedMessages={modifiedMessages}
 			onHeightChange={onHeightChange}
+			onLastRowContentChange={onLastRowContentChange}
 			onSetQuote={onSetQuote}
 			onToggleExpand={onToggleExpand}
 		/>

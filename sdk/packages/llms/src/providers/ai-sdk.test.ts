@@ -175,6 +175,48 @@ describe("ai-sdk usage normalization", () => {
 		expect(streamUsage.raw).toHaveProperty("cost_details");
 	});
 
+	it("maps provider reasoning tokens to reasoningTokenCount", () => {
+		expect(
+			normalizeUsage({
+				completion_tokens_details: { reasoning_tokens: 17 },
+			}).reasoningTokenCount,
+		).toBe(17);
+		expect(
+			normalizeUsage({
+				outputTokenDetails: { reasoningTokens: 23 },
+			}).reasoningTokenCount,
+		).toBe(23);
+		expect(
+			normalizeUsage({
+				raw: { outputTokenDetails: { reasoningTokens: 31 } },
+			}).reasoningTokenCount,
+		).toBe(31);
+		expect(
+			normalizeUsage({}, { openrouter: { usage: { reasoning_tokens: 37 } } })
+				.reasoningTokenCount,
+		).toBe(37);
+	});
+
+	it("preserves source precedence when multiple reasoning token values exist", () => {
+		const normalized = normalizeUsage(
+			{
+				reasoningTokens: 11,
+				raw: { reasoningTokens: 22 },
+			},
+			{ openrouter: { usage: { reasoning_tokens: 33 } } },
+		);
+
+		expect(normalized.reasoningTokenCount).toBe(11);
+	});
+
+	it("coerces string reasoning token counts", () => {
+		expect(
+			normalizeUsage({
+				raw: { outputTokenDetails: { reasoningTokens: "41" } },
+			}).reasoningTokenCount,
+		).toBe(41);
+	});
+
 	describe("cost extraction with pricing fallback", () => {
 		it("uses market_cost when available (Vercel)", () => {
 			const vercelUsage = (fixtures as Record<string, unknown>)

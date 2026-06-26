@@ -23,6 +23,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 		setSendingDisabled,
 		enableButtons,
 		setEnableButtons,
+		setPendingUserMessage,
 		clineAsk,
 		lastMessage,
 	} = chatState
@@ -79,6 +80,36 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					setSelectedFiles(files)
 					setEnableButtons(enableButtons)
 				}
+				const sendAskResponseWithPendingState = async (
+					request: ReturnType<typeof AskResponseRequest.create>,
+					options: { showPendingMessage?: boolean } = {},
+				) => {
+					clearSentMessageState()
+					if (options.showPendingMessage) {
+						const afterTs = Math.max(0, ...messages.map((message) => message.ts))
+						setPendingUserMessage({
+							afterTs,
+							message: {
+								ts: Date.now(),
+								type: "say",
+								say: "user_feedback",
+								text: request.text ?? "",
+								images: request.images,
+								files: request.files,
+								partial: false,
+							},
+						})
+					}
+					try {
+						await TaskServiceClient.askResponse(request)
+					} catch (error) {
+						if (options.showPendingMessage) {
+							setPendingUserMessage(undefined)
+						}
+						restorePendingMessageState()
+						throw error
+					}
+				}
 
 				if (messages.length === 0) {
 					const request = NewTaskRequest.create({
@@ -98,7 +129,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					// For resume_task and resume_completed_task, use yesButtonClicked to match Resume button behavior
 					// This ensures Enter key and Resume button work identically
 					if (clineAsk === "resume_task" || clineAsk === "resume_completed_task") {
-						await TaskServiceClient.askResponse(
+						await sendAskResponseWithPendingState(
 							AskResponseRequest.create({
 								responseType: "yesButtonClicked",
 								text: messageToSend,
@@ -123,17 +154,28 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 							case "api_req_failed":
 							case "new_task":
 							case "condense":
-							case "report_bug":
-								await TaskServiceClient.askResponse(
+							case "report_bug": {
+								// Most askResponse sends need a temporary webview-only user bubble because the
+								// extension will not echo the user's message until later. Active follow-up
+								// questions are the exception: they are backed by the SDK's pending ask_question
+								// resolver. When the user types a freeform answer instead of clicking one of the
+								// option buttons, that resolver consumes the response before normal follow-up
+								// routing and immediately appends the real say:user_feedback row. If we also add
+								// an optimistic pending row here, the chat shows the same answer twice.
+								const showPendingMessage = clineAsk !== "followup" && turnState?.phase !== "streaming"
+
+								await sendAskResponseWithPendingState(
 									AskResponseRequest.create({
 										responseType: "messageResponse",
 										text: messageToSend,
 										images,
 										files,
 									}),
+									{ showPendingMessage },
 								)
 								messageSent = true
 								break
+							}
 						}
 					}
 				} else if (messages.length > 0) {
@@ -158,13 +200,16 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 
 					if (turnAllowsFollowup || isTaskRunning) {
 						// Continue the conversation / interrupt with feedback.
-						await TaskServiceClient.askResponse(
+						await sendAskResponseWithPendingState(
 							AskResponseRequest.create({
 								responseType: "messageResponse",
 								text: messageToSend,
 								images,
 								files,
 							}),
+							{
+								showPendingMessage: turnState?.phase === "completed" || turnState?.phase === "awaiting_followup",
+							},
 						)
 						messageSent = true
 					}
@@ -194,6 +239,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			setSelectedFiles,
 			enableButtons,
 			setEnableButtons,
+			setPendingUserMessage,
 			chatState,
 		],
 	)

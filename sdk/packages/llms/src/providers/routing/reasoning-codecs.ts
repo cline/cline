@@ -19,7 +19,7 @@ export function buildOpenRouterReasoningOptions(
 	}
 
 	if (reasoning?.enabled === false) {
-		return { exclude: true };
+		return { effort: "none" };
 	}
 
 	// OpenRouter accepts one reasoning control mode. Preserve this precedence:

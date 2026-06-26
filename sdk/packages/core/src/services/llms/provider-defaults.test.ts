@@ -106,13 +106,15 @@ describe("resolveProviderConfig", () => {
 		});
 
 		expect(fetchMock).toHaveBeenCalledTimes(2);
-		expect(resolved?.knownModels?.["cline-pass/live-pass-model"]).toMatchObject({
-			id: "cline-pass/live-pass-model",
-			name: "Live Pass Model",
-			contextWindow: 256_000,
-			maxInputTokens: 200_000,
-			maxTokens: 32_000,
-		});
+		expect(resolved?.knownModels?.["cline-pass/live-pass-model"]).toMatchObject(
+			{
+				id: "cline-pass/live-pass-model",
+				name: "Live Pass Model",
+				contextWindow: 256_000,
+				maxInputTokens: 200_000,
+				maxTokens: 32_000,
+			},
+		);
 		expect(resolved?.knownModels?.["cline-pass/mimo-v2.5-pro"]).toBeUndefined();
 	});
 
@@ -152,9 +154,9 @@ describe("resolveProviderConfig", () => {
 		});
 
 		expect(fetchMock).toHaveBeenCalledTimes(2);
-		expect(
-			resolved?.knownModels?.["cline-pass/mimo-v2.5-pro"]?.name,
-		).toBe("MiMo-V2.5-Pro");
+		expect(resolved?.knownModels?.["cline-pass/mimo-v2.5-pro"]?.name).toBe(
+			"MiMo-V2.5-Pro",
+		);
 		expect(
 			resolved?.knownModels?.["vendor/live-openrouter-model"],
 		).toBeUndefined();
