@@ -135,6 +135,36 @@ describe("AgentRuntime", () => {
 		expect(result.outputText).toBe("done");
 	});
 
+	it("ignores non-string tool input text deltas when structured input is provided", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_1",
+					toolName: "echo",
+					inputText: '{"text"',
+				},
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_1",
+					input: { text: "hi" },
+					inputText: { text: "hi" },
+				} as AgentModelEvent,
+				{ type: "finish", reason: "tool-calls" },
+			],
+			() => [
+				{ type: "text-delta", text: "done" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({ model, tools: [createEchoTool()] });
+
+		const result = await runtime.run("Start");
+
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("done");
+	});
+
 	it("injects a pending user message after tool results and before the next model request", async () => {
 		const consumePendingUserMessage = vi.fn(() => "steer now");
 		const model = new ScriptedModel([
