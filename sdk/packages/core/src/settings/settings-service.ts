@@ -168,6 +168,13 @@ function resolveWorkspaceRoot(input: CoreSettingsListInput): string {
 	return input.workspaceRoot?.trim() || input.cwd?.trim() || "";
 }
 
+function resolveCwd(
+	input: CoreSettingsListInput,
+	workspaceRoot: string,
+): string {
+	return input.cwd?.trim() || workspaceRoot || process.cwd();
+}
+
 async function withUserInstructionService<T>(
 	input: CoreSettingsListInput,
 	run: (service?: UserInstructionConfigService) => Promise<T>,
@@ -176,7 +183,7 @@ async function withUserInstructionService<T>(
 		return await run(input.userInstructionService);
 	}
 	const workspaceRoot = resolveWorkspaceRoot(input);
-	const cwd = input.cwd?.trim() || workspaceRoot || process.cwd();
+	const cwd = resolveCwd(input, workspaceRoot);
 	const service = createUserInstructionConfigService({
 		skills: {
 			workspacePath: workspaceRoot || undefined,
@@ -226,7 +233,7 @@ export class CoreSettingsService {
 			const workspaceRoot = resolveWorkspaceRoot(input);
 			const pluginSkillOwners = buildPluginSkillOwners({
 				workspaceRoot,
-				cwd: input.cwd,
+				cwd: resolveCwd(input, workspaceRoot),
 			});
 			const workflows: CoreSettingsItem[] = [];
 			const rules: CoreSettingsItem[] = [];
