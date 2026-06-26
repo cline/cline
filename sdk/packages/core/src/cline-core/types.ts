@@ -221,6 +221,11 @@ export interface ClineCoreOptions {
 	 */
 	featureFlags?: FeatureFlagsService;
 	/**
+	 * Overrides the compaction sidecar rollout decision.
+	 * @internal
+	 */
+	isCompactionSidecarEnabled?: () => boolean;
+	/**
 	 * Optional structured logger for core-side operational diagnostics such as
 	 * runtime-host selection and fallback decisions.
 	 */

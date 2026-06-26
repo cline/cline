@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import {
+	FeatureFlag,
 	formatDisplayUserInput,
 	type MessageWithMetadata,
 } from "@cline/shared";
@@ -36,6 +37,17 @@ export const SessionCompactionStateSchema = z.object({
 export type SessionCompactionState = z.infer<
 	typeof SessionCompactionStateSchema
 >;
+
+type CompactionSidecarFeatureFlags = {
+	getFlagPayload(flagName: string): unknown;
+};
+
+export function createSessionCompactionSidecarEnabledResolver(
+	featureFlags?: CompactionSidecarFeatureFlags,
+): () => boolean {
+	return () =>
+		featureFlags?.getFlagPayload(FeatureFlag.COMPACTION_SIDECAR) !== false;
+}
 
 function cloneMessages(
 	messages: readonly MessageWithMetadata[],

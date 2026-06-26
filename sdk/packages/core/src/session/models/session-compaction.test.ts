@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	createSessionCompactionSidecarEnabledResolver,
 	createSessionCompactionState,
 	parseSessionCompactionState,
 	projectSessionCompactionState,
@@ -21,6 +22,25 @@ describe("session compaction state", () => {
 				updatedAt: "2026-01-01T00:00:00.000Z",
 			}),
 		).toThrow("Message role cannot contain ':'");
+	});
+
+	it("enables sidecar use only when the feature flag is explicitly true", () => {
+		expect(
+			createSessionCompactionSidecarEnabledResolver({
+				getBooleanFlagEnabled: () => false,
+			})(),
+		).toBe(false);
+		expect(
+			createSessionCompactionSidecarEnabledResolver({
+				getBooleanFlagEnabled: () => true,
+			})(),
+		).toBe(true);
+		expect(
+			createSessionCompactionSidecarEnabledResolver({
+				getBooleanFlagEnabled: () => undefined,
+			})(),
+		).toBe(false);
+		expect(createSessionCompactionSidecarEnabledResolver()()).toBe(false);
 	});
 
 	it("rejects projection when the canonical prefix was edited before the boundary", () => {

@@ -50,6 +50,7 @@ import {
 	NoOpFeatureFlagsProvider,
 } from "./services/feature-flags";
 import { resolveCoreDistinctId } from "./services/telemetry/distinct-id";
+import { createSessionCompactionSidecarEnabledResolver } from "./session/models/session-compaction";
 import type { CoreSessionEvent } from "./types/events";
 import type { SessionHistoryRecord } from "./types/sessions";
 
@@ -202,9 +203,6 @@ export class ClineCore {
 	static async create(options: ClineCoreOptions = {}): Promise<ClineCore> {
 		const distinctId = resolveCoreDistinctId(options.distinctId);
 		const capabilities = normalizeRuntimeCapabilities(options.capabilities);
-		const normalizedOptions = { ...options, capabilities, distinctId };
-		const host = await createRuntimeHost(normalizedOptions);
-		const automationOptions = normalizeAutomationOptions(options.automation);
 		const featureFlags =
 			options.featureFlags ||
 			new FeatureFlagsService({
@@ -216,6 +214,16 @@ export class ClineCore {
 					clientName: options.clientName,
 				},
 			});
+		const normalizedOptions = {
+			...options,
+			capabilities,
+			distinctId,
+			isCompactionSidecarEnabled:
+				options.isCompactionSidecarEnabled ??
+				createSessionCompactionSidecarEnabledResolver(featureFlags),
+		};
+		const host = await createRuntimeHost(normalizedOptions);
+		const automationOptions = normalizeAutomationOptions(options.automation);
 		const core = new ClineCore(
 			host,
 			options.clientName,

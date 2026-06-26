@@ -34,6 +34,7 @@ describe("connector hub handlers", () => {
 			pendingCapabilityRequests: new Map(),
 			suppressNextTerminalEventBySession: new Map(),
 			telemetry: telemetry as never,
+			isCompactionSidecarEnabled: () => true,
 			sessionHost: {} as never,
 			publish: vi.fn(),
 			buildEvent: vi.fn() as never,
