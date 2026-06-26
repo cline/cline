@@ -2,14 +2,13 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { TaskMetadata } from "@core/context/context-tracking/ContextTrackerTypes"
 import { RemoteConfig } from "@shared/remote-config/schema"
 import { GlobalState, Settings } from "@shared/storage/state-keys"
-import { fileExistsAtPath, isDirectory } from "@utils/fs"
+import { fileExistsAtPath } from "@utils/fs"
 import fs from "fs/promises"
 import os from "os"
 import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
 import { Logger } from "@/shared/services/Logger"
 import { getDocumentsPath } from "./documents-path"
-import { StateManager } from "./StateManager"
 
 export { getDocumentsPath } from "./documents-path"
 
@@ -28,7 +27,6 @@ export const GlobalFileNames = {
 	mcpSettings: "cline_mcp_settings.json",
 	clineRules: ".clinerules",
 	workflows: ".clinerules/workflows",
-	hooksDir: ".clinerules/hooks",
 	clineruleSkillsDir: ".clinerules/skills",
 	clineSkillsDir: ".cline/skills",
 	claudeSkillsDir: ".claude/skills",
@@ -270,78 +268,4 @@ export async function deleteRemoteConfigFromCache(organizationId: string): Promi
 	} catch (error) {
 		Logger.error("Failed to delete remote config from cache:", error)
 	}
-}
-
-/**
- * Gets the path to the global hooks directory if it exists.
- * Returns undefined if the directory doesn't exist.
- */
-async function getGlobalHooksDir(): Promise<string | undefined> {
-	const globalHooksDir = await ensureHooksDirectoryExists()
-	return (await isDirectory(globalHooksDir)) ? globalHooksDir : undefined
-}
-
-let runtimeHooksDir: string | undefined
-
-/**
- * Sets a runtime hooks directory, typically passed via the --hooks-dir CLI flag.
- * This directory is included alongside global and workspace hooks directories
- * when discovering hooks.
- */
-export function setRuntimeHooksDir(dir: string | undefined): void {
-	runtimeHooksDir = dir
-}
-
-/**
- * Gets the paths to all hooks directories to search for hooks, including:
- * 1. The runtime hooks directory (if set via --hooks-dir CLI flag)
- * 2. The global hooks directory (if it exists)
- * 3. Each workspace root's .clinerules/hooks directory (if they exist)
- *
- * Note: Hooks from different directories may be executed concurrently.
- * No execution order is guaranteed between hooks from different directories.
- * A workspace may not use hooks, and the resulting array will be empty. A
- * multi-root workspace may have multiple hooks directories.
- */
-export async function getAllHooksDirs(): Promise<string[]> {
-	const hooksDirs: string[] = []
-
-	// Add runtime hooks directory (set by --hooks-dir CLI flag)
-	if (runtimeHooksDir && (await isDirectory(runtimeHooksDir))) {
-		hooksDirs.push(runtimeHooksDir)
-	}
-
-	// Add global hooks directory (if it exists)
-	const globalHooksDir = await getGlobalHooksDir()
-	if (globalHooksDir) {
-		hooksDirs.push(globalHooksDir)
-	}
-
-	// Add workspace hooks directories
-	const workspaceHooksDirs = await getWorkspaceHooksDirs()
-	hooksDirs.push(...workspaceHooksDirs)
-
-	return hooksDirs
-}
-
-/**
- * Gets the paths to the workspace's .clinerules/hooks directories to search for
- * hooks. A workspace may not use hooks, and the resulting array will be empty. A
- * multi-root workspace may have multiple hooks directories.
- */
-export async function getWorkspaceHooksDirs(): Promise<string[]> {
-	const workspaceRootPaths =
-		StateManager.get()
-			.getGlobalStateKey("workspaceRoots")
-			?.map((root) => root.path) || []
-
-	return (
-		await Promise.all(
-			workspaceRootPaths.map(async (workspaceRootPath) => {
-				// Look for a .clinerules/hooks folder in this workspace root.
-				const candidate = path.join(workspaceRootPath, GlobalFileNames.hooksDir)
-				return (await isDirectory(candidate)) ? candidate : undefined
-			}),
-		)
-	).filter((path): path is string => Boolean(path))
 }

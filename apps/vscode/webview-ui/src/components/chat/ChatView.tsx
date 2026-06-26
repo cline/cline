@@ -71,7 +71,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		telemetrySetting,
 		mode,
 		userInfo,
-		hooksEnabled,
 		checkpointRestoreInput,
 		queuedPrompts,
 	} = useExtensionState()
@@ -122,10 +121,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const task = useMemo(() => messages.at(0), [messages]) // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see Cline.abort)
 	const modifiedMessages = useMemo(() => {
 		const slicedMessages = displayMessages.slice(1)
-		// Only combine hook sequences if hooks are enabled
-		const withHooks = hooksEnabled ? combineHookSequences(slicedMessages) : slicedMessages
+		const withHooks = combineHookSequences(slicedMessages)
 		return combineErrorRetryMessages(combineApiRequests(combineCommandSequences(withHooks)))
-	}, [displayMessages, hooksEnabled])
+	}, [displayMessages])
 	// has to be after api_req_finished are all reduced into api_req_started messages
 	const apiMetrics = useMemo(() => getApiMetrics(modifiedMessages), [modifiedMessages])
 

@@ -58,6 +58,10 @@ function parseHookMetadata(hookMessage: ClineMessage): HookMetadata | null {
 	}
 }
 
+function isPreToolHook(metadata: HookMetadata | null): boolean {
+	return metadata?.hookName === "PreToolUse" || metadata?.hookName === "tool_call"
+}
+
 // ============================================================================
 // PART 2: FILTERING & COMBINING
 // ============================================================================
@@ -166,7 +170,7 @@ function combineAllHooks(messages: ClineMessage[]): ClineMessage[] {
 }
 
 // ============================================================================
-// PART 3: PRETOOLUSE REORDERING
+// PART 3: PRE-TOOL HOOK REORDERING
 // ============================================================================
 
 /**
@@ -189,11 +193,11 @@ function findImmediateNextToolTimestamp(hookIndex: number, messages: ClineMessag
 			return msg.ts
 		}
 
-		// If we hit another PreToolUse hook before finding a tool, stop searching
-		// This prevents matching a hook to a tool that has its own PreToolUse hook
+		// If we hit another pre-tool hook before finding a tool, stop searching.
+		// This prevents matching a hook to a tool that has its own pre-tool hook.
 		if (isHookStatusSay(getSay(msg))) {
 			const metadata = parseHookMetadata(msg)
-			if (metadata?.hookName === "PreToolUse") {
+			if (isPreToolHook(metadata)) {
 				return null
 			}
 		}
@@ -202,21 +206,21 @@ function findImmediateNextToolTimestamp(hookIndex: number, messages: ClineMessag
 }
 
 /**
- * Builds a map of tool timestamps to their PreToolUse hooks.
+ * Builds a map of tool timestamps to their pre-tool hooks.
  *
  * This map indicates which hooks should be moved to appear before which tools.
- * Only PreToolUse hooks are included; PostToolUse hooks stay in their original position.
+ * Only pre-tool hooks are included; post-tool hooks stay in their original position.
  *
- * A PreToolUse hook should only be mapped to a tool if the hook was created AFTER the
+ * A pre-tool hook should only be mapped to a tool if the hook was created AFTER the
  * tool already exists in the message stream. This can happen when hooks arrive late
  * or out of order. If the hook timestamp < tool timestamp, it means the hook
  * naturally appears before the tool chronologically and should NOT be moved.
  *
  * @param processedMessages Messages after filtering and combining
  * @param originalMessages Original messages array (used to find tools)
- * @returns Map of tool timestamp -> array of PreToolUse hooks for that tool
+ * @returns Map of tool timestamp -> array of pre-tool hooks for that tool
  */
-function buildPreToolUseMap(processedMessages: ClineMessage[], originalMessages: ClineMessage[]): Map<number, ClineMessage[]> {
+function buildPreToolHookMap(processedMessages: ClineMessage[], originalMessages: ClineMessage[]): Map<number, ClineMessage[]> {
 	const map = new Map<number, ClineMessage[]>()
 
 	// Build timestamp-to-index map once to avoid O(n) findIndex calls
@@ -226,9 +230,9 @@ function buildPreToolUseMap(processedMessages: ClineMessage[], originalMessages:
 	}
 
 	for (const msg of processedMessages) {
-		// Only process PreToolUse hooks
+		// Only process pre-tool hooks.
 		const metadata = parseHookMetadata(msg)
-		if (metadata?.hookName !== "PreToolUse") {
+		if (!isPreToolHook(metadata)) {
 			continue
 		}
 
@@ -263,21 +267,21 @@ function buildPreToolUseMap(processedMessages: ClineMessage[], originalMessages:
 }
 
 /**
- * Reorders messages so PreToolUse hooks appear before their associated tools.
+ * Reorders messages so pre-tool hooks appear before their associated tools.
  *
  * Algorithm:
- * 1. When we encounter a tool, check if it has PreToolUse hooks mapped to it
+ * 1. When we encounter a tool, check if it has pre-tool hooks mapped to it
  * 2. If yes, insert those hooks BEFORE the tool
  * 3. Track which hooks and tools we've already added to avoid duplicates
- * 4. For PreToolUse hooks encountered in their original position:
+ * 4. For pre-tool hooks encountered in their original position:
  *    - If their tool is available and we'll process them before it, skip them
  *    - Otherwise, add them in their current position (tool not available yet)
  *
  * @param messages Messages after filtering and combining
- * @param preToolUseMap Map of tool timestamp -> PreToolUse hooks
+ * @param preToolHookMap Map of tool timestamp -> pre-tool hooks
  * @returns Reordered messages array
  */
-function reorderWithPreToolUseHooks(messages: ClineMessage[], preToolUseMap: Map<number, ClineMessage[]>): ClineMessage[] {
+function reorderWithPreToolHooks(messages: ClineMessage[], preToolHookMap: Map<number, ClineMessage[]>): ClineMessage[] {
 	const result: ClineMessage[] = []
 	const addedHooks = new Set<number>()
 	const addedTools = new Set<number>()
@@ -291,9 +295,9 @@ function reorderWithPreToolUseHooks(messages: ClineMessage[], preToolUseMap: Map
 	}
 
 	for (const msg of messages) {
-		// Case 1: This is a tool with PreToolUse hooks
-		if (isToolOrCommandMessage(msg) && preToolUseMap.has(msg.ts)) {
-			const hooksForTool = preToolUseMap.get(msg.ts)!
+		// Case 1: This is a tool with pre-tool hooks
+		if (isToolOrCommandMessage(msg) && preToolHookMap.has(msg.ts)) {
+			const hooksForTool = preToolHookMap.get(msg.ts)!
 
 			// Insert hooks that haven't been added yet
 			const newHooks = hooksForTool.filter((h) => !addedHooks.has(h.ts))
@@ -311,12 +315,12 @@ function reorderWithPreToolUseHooks(messages: ClineMessage[], preToolUseMap: Map
 			continue
 		}
 
-		// Case 3: This is a PreToolUse hook in its original position
+		// Case 3: This is a pre-tool hook in its original position
 		const metadata = parseHookMetadata(msg)
-		if (metadata?.hookName === "PreToolUse") {
+		if (isPreToolHook(metadata)) {
 			// Find which tool (if any) this hook is mapped to
 			let mappedToolTs: number | undefined
-			for (const [toolTs, hooks] of preToolUseMap) {
+			for (const [toolTs, hooks] of preToolHookMap) {
 				if (hooks.some((h) => h.ts === msg.ts)) {
 					mappedToolTs = toolTs
 					break
@@ -331,7 +335,7 @@ function reorderWithPreToolUseHooks(messages: ClineMessage[], preToolUseMap: Map
 			// Otherwise, keep hook in original position (tool not available yet)
 		}
 
-		// Case 4: All other messages (text, PostToolUse hooks, reasoning, etc.)
+		// Case 4: All other messages (text, post-tool hooks, reasoning, etc.)
 		result.push(msg)
 	}
 
@@ -344,16 +348,16 @@ function reorderWithPreToolUseHooks(messages: ClineMessage[], preToolUseMap: Map
 
 /**
  * Combines sequences of hook and hook_output messages, and reorders
- * PreToolUse hooks to appear before their associated tool messages.
+ * pre-tool hooks to appear before their associated tool messages.
  *
  * Process:
  * 1. Deduplicate tool/command messages by timestamp (preserve newest variant)
  * 2. Combine hooks with their hook_output messages
- * 3. Build mapping of tools to their PreToolUse hooks
- * 4. Reorder so PreToolUse hooks appear before their tools
+ * 3. Build mapping of tools to their pre-tool hooks
+ * 4. Reorder so pre-tool hooks appear before their tools
  *
  * @param messages Array of ClineMessage objects to process
- * @returns New array with hooks combined and PreToolUse hooks reordered
+ * @returns New array with hooks combined and pre-tool hooks reordered
  */
 export function combineHookSequences(messages: ClineMessage[]): ClineMessage[] {
 	// Phase 1: Deduplicate tool/command messages while preserving streaming partials
@@ -362,11 +366,11 @@ export function combineHookSequences(messages: ClineMessage[]): ClineMessage[] {
 	// Phase 2: Combine hooks with their outputs
 	const combined = combineAllHooks(filtered)
 
-	// Phase 3: Build PreToolUse hook mapping
-	const preToolUseMap = buildPreToolUseMap(combined, messages)
+	// Phase 3: Build pre-tool hook mapping
+	const preToolHookMap = buildPreToolHookMap(combined, messages)
 
-	// Phase 4: Reorder to place PreToolUse hooks before tools
-	const reordered = reorderWithPreToolUseHooks(combined, preToolUseMap)
+	// Phase 4: Reorder to place pre-tool hooks before tools
+	const reordered = reorderWithPreToolHooks(combined, preToolHookMap)
 
 	return reordered
 }

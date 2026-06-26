@@ -2161,7 +2161,7 @@ export class TelemetryService {
 	 * This is the simplified API that consolidates multiple hook execution methods.
 	 *
 	 * @param ulid Task identifier
-	 * @param hookName Type of hook (PreToolUse, PostToolUse, etc.)
+	 * @param hookName Type of hook, such as tool_call or tool_result
 	 * @param status Current execution status
 	 * @param metadata Optional execution metadata
 	 */
@@ -2546,12 +2546,12 @@ export class TelemetryService {
 	 * property access, calculations) and provider-level errors (network, API failures).
 	 *
 	 * @param telemetryFn The telemetry function to execute
-	 * @param context Optional context string for debugging (e.g., "HookFactory.exec")
+	 * @param context Optional context string for debugging (e.g., "hook.execution")
 	 *
 	 * @example
 	 * telemetryService.safeCapture(
 	 *   () => telemetryService.captureHookExecution(taskId, hookName, "started", {...}),
-	 *   'HookFactory.exec.started'
+	 *   'hook.execution.started'
 	 * )
 	 */
 	public safeCapture(telemetryFn: () => void, context?: string): void {

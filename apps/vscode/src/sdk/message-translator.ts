@@ -1566,28 +1566,21 @@ export function translateSessionEvent(event: CoreSessionEvent, state: MessageTra
 				break
 			}
 
-			// Tool hook events — translate to hook_status messages
 			const payload = event.payload
 			const hookName = payload.hookEventName
 			const toolName = payload.toolName
 
-			if (hookName === "tool_call") {
-				result.messages.push({
-					ts: state.nextTs(),
-					type: "say",
-					say: "hook_status" as ClineSay,
-					text: toolName ? `Running ${toolName}...` : "Running tool...",
-					partial: false,
-				})
-			} else if (hookName === "tool_result") {
-				result.messages.push({
-					ts: state.nextTs(),
-					type: "say",
-					say: "hook_status" as ClineSay,
-					text: toolName ? `${toolName} completed` : "Tool completed",
-					partial: false,
-				})
-			}
+			result.messages.push({
+				ts: state.nextTs(),
+				type: "say",
+				say: "hook_status" as ClineSay,
+				text: JSON.stringify({
+					hookName,
+					...(toolName && { toolName }),
+					status: hookName === "agent_error" ? "failed" : "completed",
+				}),
+				partial: false,
+			})
 			break
 		}
 

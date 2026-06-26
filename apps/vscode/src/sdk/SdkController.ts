@@ -257,7 +257,6 @@ export class Controller {
 		this.sessionHistory = new SdkSessionHistoryLoader()
 		this.sessionConfigBuilder = new SdkSessionConfigBuilder({
 			stateManager: this.stateManager,
-			emitHookMessage: (msg) => this.messages.emitHookMessage(msg),
 			onSwitchToActMode: () => {
 				this.mode.queueSwitchToActMode()
 			},

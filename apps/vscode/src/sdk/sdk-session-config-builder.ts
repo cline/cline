@@ -2,11 +2,9 @@ import type { CoreSessionConfig } from "@cline/core"
 import { type AgentTool, createTool } from "@cline/shared"
 import type { StateManager } from "@/core/storage/StateManager"
 import { buildSessionConfig, type SessionConfigInput } from "./cline-session-factory"
-import { buildAgentHooks, type HookMessageEmitter } from "./hooks-adapter"
 
 export interface SdkSessionConfigBuilderOptions {
 	stateManager: StateManager
-	emitHookMessage: HookMessageEmitter
 	onSwitchToActMode: () => void
 	shouldStopAfterModeSwitch?: () => boolean
 	onConsecutiveMistakeLimitReached?: CoreSessionConfig["onConsecutiveMistakeLimitReached"]
@@ -21,19 +19,21 @@ export class SdkSessionConfigBuilder {
 			config.onConsecutiveMistakeLimitReached = this.options.onConsecutiveMistakeLimitReached
 		}
 
-		const baseHooks = buildAgentHooks(this.options.stateManager, this.options.emitHookMessage)
-		config.hooks = {
-			...baseHooks,
-			beforeModel: async (ctx) => {
-				const baseControl = await baseHooks.beforeModel?.(ctx)
-				if (this.options.shouldStopAfterModeSwitch?.()) {
-					return {
-						...baseControl,
-						stop: true,
+		if (this.options.shouldStopAfterModeSwitch) {
+			const existingHooks = config.hooks
+			config.hooks = {
+				...existingHooks,
+				beforeModel: async (ctx) => {
+					const baseControl = await existingHooks?.beforeModel?.(ctx)
+					if (this.options.shouldStopAfterModeSwitch?.()) {
+						return {
+							...baseControl,
+							stop: true,
+						}
 					}
-				}
-				return baseControl
-			},
+					return baseControl
+				},
+			}
 		}
 		if (input.mode === "plan") {
 			// Match the CLI interactive runtime: plan-mode sessions expose a

@@ -28,7 +28,6 @@ import { fixWithCline } from "./core/controller/commands/fixWithCline"
 import { improveWithCline } from "./core/controller/commands/improveWithCline"
 import { sendAddToInputEvent } from "./core/controller/ui/subscribeToAddToInput"
 import { sendShowWebviewEvent } from "./core/controller/ui/subscribeToShowWebview"
-import { HookDiscoveryCache } from "./core/hooks/HookDiscoveryCache"
 import {
 	cleanupMcpMarketplaceCatalogFromGlobalState,
 	cleanupOldApiKey,
@@ -82,35 +81,6 @@ export async function activate(context: vscode.ExtensionContext) {
 	const webview = (await initialize(storageContext)) as VscodeWebviewProvider
 
 	// 5. Register services and commands specific to VS Code
-	// Initialize hook discovery cache for performance optimization
-	HookDiscoveryCache.getInstance().initialize(
-		// biome-ignore lint/suspicious/noExplicitAny: Adapt VSCode ExtensionContext to generic interface
-		context as any,
-		(dir: string) => {
-			try {
-				const pattern = new vscode.RelativePattern(dir, "*")
-				const watcher = vscode.workspace.createFileSystemWatcher(pattern)
-				// Ensure watcher is disposed when extension is deactivated
-				context.subscriptions.push(watcher)
-				// Adapt VSCode FileSystemWatcher to generic interface
-				return {
-					onDidCreate: (listener: () => void) => watcher.onDidCreate(listener),
-					onDidChange: (listener: () => void) => watcher.onDidChange(listener),
-					onDidDelete: (listener: () => void) => watcher.onDidDelete(listener),
-					dispose: () => watcher.dispose(),
-				}
-			} catch {
-				return null
-			}
-		},
-		(callback: () => void) => {
-			// Adapt VSCode Disposable to generic interface
-			const disposable = vscode.workspace.onDidChangeWorkspaceFolders(callback)
-			context.subscriptions.push(disposable)
-			return disposable
-		},
-	)
-
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(VscodeWebviewProvider.SIDEBAR_ID, webview, {
 			webviewOptions: { retainContextWhenHidden: true },
