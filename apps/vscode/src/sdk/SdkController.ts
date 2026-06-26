@@ -81,6 +81,7 @@ import { SdkTaskControlCoordinator } from "./sdk-task-control-coordinator"
 import { SdkTaskHistory, sessionHistoryRecordToHistoryItem } from "./sdk-task-history"
 import { SdkTaskStartCoordinator } from "./sdk-task-start-coordinator"
 import { createVscodeSdkTelemetryHandle, type VscodeSdkTelemetryHandle } from "./sdk-telemetry"
+import { SdkTerminalExecutionModeCoordinator } from "./sdk-terminal-execution-mode-coordinator"
 import { isToolAutoApproved } from "./sdk-tool-policies"
 import {
 	extractSdkUserText,
@@ -162,6 +163,7 @@ export class Controller {
 	private taskHistory: SdkTaskHistory
 	private mode: SdkModeCoordinator
 	private mcpTools: SdkMcpCoordinator
+	private terminalExecutionMode: SdkTerminalExecutionModeCoordinator
 	private providerChanges: SdkProviderChangeCoordinator
 	private followups: SdkFollowupCoordinator
 	private taskControl: SdkTaskControlCoordinator
@@ -447,6 +449,17 @@ export class Controller {
 			buildStartSessionInput,
 			postStateToWebview: () => this.postStateToWebview(),
 		})
+		this.terminalExecutionMode = new SdkTerminalExecutionModeCoordinator({
+			stateManager: this.stateManager,
+			sessions: this.sessions,
+			messages: this.messages,
+			sessionConfigBuilder: this.sessionConfigBuilder,
+			getWorkspaceRoot: () => this.getWorkspaceRoot(),
+			loadInitialMessages: async (sdkHost, sessionId) =>
+				(await this.sessionHistory.loadInitialMessages(sdkHost, sessionId)) ?? [],
+			buildStartSessionInput,
+			postStateToWebview: () => this.postStateToWebview(),
+		})
 		this.providerChanges = new SdkProviderChangeCoordinator({
 			stateManager: this.stateManager,
 			sessions: this.sessions,
@@ -540,6 +553,7 @@ export class Controller {
 			sessions: this.sessions,
 			messages: this.messages,
 			mcpTools: this.mcpTools,
+			terminalExecutionMode: this.terminalExecutionMode,
 			providerChanges: this.providerChanges,
 			mode: this.mode,
 			taskHistory: this.taskHistory,
@@ -605,6 +619,13 @@ export class Controller {
 
 	handleApiConfigurationChanged(previous: ApiConfiguration, next: ApiConfiguration): void {
 		this.providerChanges.handleApiConfigurationChanged(previous, next)
+	}
+
+	handleTerminalExecutionModeChanged(
+		previous: "vscodeTerminal" | "backgroundExec",
+		next: "vscodeTerminal" | "backgroundExec",
+	): void {
+		this.terminalExecutionMode.handleTerminalExecutionModeChanged(previous, next)
 	}
 
 	private isSelectionForActiveModeProvider(event: Extract<ProviderConfigChange, { kind: "selection" }>): boolean {

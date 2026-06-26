@@ -14,6 +14,7 @@ import type { SdkModeCoordinator } from "./sdk-mode-coordinator"
 import type { SdkProviderChangeCoordinator } from "./sdk-provider-change-coordinator"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import type { SdkTaskHistory } from "./sdk-task-history"
+import type { SdkTerminalExecutionModeCoordinator } from "./sdk-terminal-execution-mode-coordinator"
 import type { TaskProxy } from "./task-proxy"
 
 function normalizeModelId(modelId: string): string {
@@ -27,6 +28,7 @@ export interface SdkSessionEventCoordinatorOptions {
 	sessions: SdkSessionLifecycle
 	messages: SdkMessageCoordinator
 	mcpTools: SdkMcpCoordinator
+	terminalExecutionMode?: Pick<SdkTerminalExecutionModeCoordinator, "checkDeferredRestart">
 	providerChanges?: Pick<SdkProviderChangeCoordinator, "handleTurnComplete">
 	mode: SdkModeCoordinator
 	taskHistory: SdkTaskHistory
@@ -124,13 +126,25 @@ export class SdkSessionEventCoordinator {
 				this.options.mcpTools.checkDeferredRestart()
 
 				if (this.options.providerChanges) {
-					this.options.providerChanges.handleTurnComplete(this.options.mode).catch((err) => {
-						Logger.error("[SdkController] Failed to process deferred provider restart:", err)
-					})
+					this.options.providerChanges
+						.handleTurnComplete(this.options.mode)
+						.catch((err) => {
+							Logger.error("[SdkController] Failed to process deferred provider restart:", err)
+						})
+						.finally(() => {
+							this.options.terminalExecutionMode?.checkDeferredRestart()
+						})
 				} else if (this.options.mode.hasPendingModeChange()) {
-					this.options.mode.applyPendingModeChange().catch((err) => {
-						Logger.error("[SdkController] applyPendingModeChange failed:", err)
-					})
+					this.options.mode
+						.applyPendingModeChange()
+						.catch((err) => {
+							Logger.error("[SdkController] applyPendingModeChange failed:", err)
+						})
+						.finally(() => {
+							this.options.terminalExecutionMode?.checkDeferredRestart()
+						})
+				} else {
+					this.options.terminalExecutionMode?.checkDeferredRestart()
 				}
 			}
 
