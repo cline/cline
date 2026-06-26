@@ -30,6 +30,10 @@ import { getShellForProfile } from "@/utils/shell"
 // ---------------------------------------------------------------------------
 
 type ShellCommand = string | StructuredCommandInput
+type VscodeTerminalExecutionMode = "vscodeTerminal" | "backgroundExec"
+
+/** Foreground VS Code terminals cannot be forcibly terminated; give long-running commands room to finish. */
+export const VSCODE_FOREGROUND_RUN_COMMANDS_TIMEOUT_MS = 60 * 60 * 1000
 
 /** Options for creating the VSCode run_commands tool. */
 export interface VscodeRunCommandsToolOptions {
@@ -37,6 +41,10 @@ export interface VscodeRunCommandsToolOptions {
 	cwd: string
 	/** Lazy factory for the VscodeTerminalManager. Called once on first foreground use. */
 	getTerminalManager: () => ITerminalManager
+	/** Timeout passed to the SDK shell tool wrapper and timeout telemetry. */
+	bashTimeoutMs?: number
+	/** Terminal execution mode captured when this session's tool set is built. */
+	vscodeTerminalExecutionMode?: VscodeTerminalExecutionMode
 }
 
 // ---------------------------------------------------------------------------
@@ -113,18 +121,20 @@ async function executeForeground(
  * Creates the custom `run_commands` tool for the VSCode extension.
  *
  * This tool suppresses and replaces the SDK's built-in `run_commands` tool.
- * It reads `vscodeTerminalExecutionMode` from StateManager on every invocation
- * to dynamically switch between foreground (visible terminal) and background
- * (child_process.spawn) execution.
+ * The terminal execution mode is captured when the session's tool set is built.
+ * Switching modes rebuilds the active SDK session so the tool timeout and
+ * execution mode stay aligned.
  */
 export function createVscodeRunCommandsTool(options: VscodeRunCommandsToolOptions): AgentTool {
 	return createShellTool(createVscodeShellExecutor(options), {
 		cwd: options.cwd,
+		bashTimeoutMs: options.bashTimeoutMs,
 	})
 }
 
 function createVscodeShellExecutor(options: VscodeRunCommandsToolOptions): ShellExecutor {
 	const { cwd, getTerminalManager } = options
+	const executionMode = options.vscodeTerminalExecutionMode ?? "vscodeTerminal"
 
 	// Lazy-init background executor — recreated when the user's shell profile changes.
 	let bgExecutor: ShellExecutor | undefined
@@ -134,12 +144,9 @@ function createVscodeShellExecutor(options: VscodeRunCommandsToolOptions): Shell
 	let terminalManager: ITerminalManager | undefined
 
 	return async (command, commandCwd, context): Promise<string> => {
-		// Read current execution mode dynamically
-		const mode = StateManager.get().getGlobalStateKey("vscodeTerminalExecutionMode") ?? "vscodeTerminal"
+		Logger.log(`[VscodeRunCommands] Executing command in ${executionMode} mode`)
 
-		Logger.log(`[VscodeRunCommands] Executing command in ${mode} mode`)
-
-		if (mode === "backgroundExec") {
+		if (executionMode === "backgroundExec") {
 			// Background path — use SDK's createShellExecutor
 			// Resolve shell from the user's terminal profile setting
 			const profileId = (StateManager.get().getGlobalSettingsKey("defaultTerminalProfile") as string) || "default"

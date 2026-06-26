@@ -10,9 +10,18 @@ import { Controller } from ".."
 export async function setTerminalExecutionMode(controller: Controller, request: BooleanRequest): Promise<KeyValuePair> {
 	const enableBackgroundExec = request.value
 	const newMode = enableBackgroundExec ? "backgroundExec" : "vscodeTerminal"
+	const previousMode = controller.stateManager.getGlobalStateKey("vscodeTerminalExecutionMode") ?? "vscodeTerminal"
 
 	// Update the global state
 	controller.stateManager.setGlobalState("vscodeTerminalExecutionMode", newMode)
+	;(
+		controller as Controller & {
+			handleTerminalExecutionModeChanged?: (
+				previous: "vscodeTerminal" | "backgroundExec",
+				next: "vscodeTerminal" | "backgroundExec",
+			) => void
+		}
+	).handleTerminalExecutionModeChanged?.(previousMode, newMode)
 
 	// Post updated state to webview
 	await controller.postStateToWebview()

@@ -28,6 +28,7 @@ import {
 	type ToolExecutors,
 } from "@cline/core"
 import { type AgentToolContext, type ToolApprovalRequest, type ToolApprovalResult, type ToolPolicy } from "@cline/shared"
+import { StateManager } from "@/core/storage/StateManager"
 import type { ITerminalManager } from "@/integrations/terminal/types"
 import { getDistinctId } from "@/services/logging/distinctId"
 import type { McpHub } from "@/services/mcp/McpHub"
@@ -107,9 +108,12 @@ export class VscodeSessionHost implements SdkSessionHost {
 					const inputWithRemoteConfig = remoteConfigIntegration
 						? await remoteConfigIntegration.applyToStartSessionInput(input)
 						: input
+					const terminalExecutionMode =
+						StateManager.get().getGlobalStateKey("vscodeTerminalExecutionMode") ?? "vscodeTerminal"
 					const extraTools = await createVscodeExtraTools(options.mcpHub, {
 						cwd: inputWithRemoteConfig.config.cwd,
 						getTerminalManager: options.getTerminalManager,
+						vscodeTerminalExecutionMode: terminalExecutionMode,
 					})
 					return {
 						...inputWithRemoteConfig,
