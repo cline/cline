@@ -387,8 +387,7 @@ describe("createInteractiveSessionRuntime", () => {
 		expect(result).toEqual({
 			messagesBefore: messages.length,
 			messagesAfter: messages.length,
-			workingContextMessagesAfter: compactionState.messages.length,
-			compacted: true,
+			compacted: false,
 		});
 		expect(manager.updateSessionCompactionState).not.toHaveBeenCalled();
 		expect(runtime.getActiveSessionId()).toBe(sessionId);
