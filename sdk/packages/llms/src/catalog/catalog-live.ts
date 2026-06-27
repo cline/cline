@@ -37,7 +37,7 @@ interface ModelsDevProviderPayload {
 export type ModelsDevPayload = Record<string, ModelsDevProviderPayload>;
 export type ModelsDevProviderKeyMap = Record<string, string>;
 
-const DEFAULT_MAX_INPUT_TOKENS = 200_000;
+const DEFAULT_MAX_INPUT_TOKENS = 128_000;
 const DEFAULT_MAX_TOKENS = 4096;
 
 function parseReleaseDate(value: string | undefined): number {
