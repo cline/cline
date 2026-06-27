@@ -40,76 +40,7 @@ export type SessionCompactionState = z.infer<
 function cloneMessages(
 	messages: readonly MessageWithMetadata[],
 ): MessageWithMetadata[] {
-	return JSON.parse(canonicalJson(messages)) as MessageWithMetadata[];
-}
-
-function toCanonicalJsonValue(value: unknown, seen: WeakSet<object>): unknown {
-	if (
-		value === null ||
-		typeof value === "string" ||
-		typeof value === "boolean"
-	) {
-		return value;
-	}
-	if (typeof value === "number") {
-		return Number.isFinite(value) ? value : null;
-	}
-	if (typeof value === "bigint") {
-		throw new TypeError("Cannot serialize bigint in session compaction state");
-	}
-	if (
-		value === undefined ||
-		typeof value === "function" ||
-		typeof value === "symbol"
-	) {
-		return undefined;
-	}
-	if (typeof value !== "object") {
-		return value;
-	}
-
-	const withToJson = value as { toJSON?: () => unknown };
-	if (typeof withToJson.toJSON === "function") {
-		const jsonValue = withToJson.toJSON();
-		if (jsonValue !== value) {
-			return toCanonicalJsonValue(jsonValue, seen);
-		}
-	}
-
-	if (seen.has(value)) {
-		throw new TypeError("Cannot serialize circular session compaction state");
-	}
-	seen.add(value);
-	try {
-		if (Array.isArray(value)) {
-			return value.map((item) => {
-				const normalized = toCanonicalJsonValue(item, seen);
-				return normalized === undefined ? null : normalized;
-			});
-		}
-
-		const record = value as Record<string, unknown>;
-		const normalized: Record<string, unknown> = {};
-		for (const key of Object.keys(record).sort()) {
-			const item = toCanonicalJsonValue(record[key], seen);
-			if (item !== undefined) {
-				normalized[key] = item;
-			}
-		}
-		return normalized;
-	} finally {
-		seen.delete(value);
-	}
-}
-
-function canonicalJson(value: unknown): string {
-	const json = JSON.stringify(
-		toCanonicalJsonValue(value, new WeakSet<object>()),
-	);
-	if (json === undefined) {
-		throw new TypeError("Cannot serialize undefined session compaction state");
-	}
-	return json;
+	return JSON.parse(JSON.stringify(messages)) as MessageWithMetadata[];
 }
 
 function normalizeMessageForSourceHash(
@@ -134,6 +65,32 @@ function normalizeMessageForSourceHash(
 	};
 }
 
+function assertBoundaryRole(role: MessageWithMetadata["role"]): void {
+	if (role.includes(":")) {
+		throw new TypeError(
+			"Message role cannot contain ':' in compaction boundary keys",
+		);
+	}
+}
+
+// Hash the persisted message shape in a fixed top-level field order. Nested
+// objects keep their persisted JSON order because transcript writes are append-only.
+function sourceMessageHashInput(message: MessageWithMetadata): unknown[] {
+	const normalized = normalizeMessageForSourceHash(message);
+	assertBoundaryRole(normalized.role);
+	return [
+		["role", normalized.role],
+		["content", normalized.content],
+		["id", normalized.id ?? null],
+		["agent", normalized.agent ?? null],
+		["sessionId", normalized.sessionId ?? null],
+		["metadata", normalized.metadata ?? null],
+		["modelInfo", normalized.modelInfo ?? null],
+		["metrics", normalized.metrics ?? null],
+		["ts", normalized.ts ?? null],
+	];
+}
+
 function messageBoundaryKey(message: MessageWithMetadata | undefined): string {
 	if (!message) {
 		return "";
@@ -142,11 +99,7 @@ function messageBoundaryKey(message: MessageWithMetadata | undefined): string {
 	if (typeof normalized.id === "string" && normalized.id.trim()) {
 		return `id:${normalized.id.trim()}`;
 	}
-	if (normalized.role.includes(":")) {
-		throw new TypeError(
-			"Message role cannot contain ':' in compaction boundary keys",
-		);
-	}
+	assertBoundaryRole(normalized.role);
 	if (typeof normalized.ts === "number" && Number.isFinite(normalized.ts)) {
 		return `ts:${normalized.role}:${normalized.ts}`;
 	}
@@ -163,7 +116,7 @@ function sourcePrefixHash(
 	hash.update("cline-session-compaction-source-v1\n");
 	hash.update(`${count}\n`);
 	for (const message of messages.slice(0, count)) {
-		hash.update(canonicalJson(normalizeMessageForSourceHash(message)));
+		hash.update(JSON.stringify(sourceMessageHashInput(message)));
 		hash.update("\n");
 	}
 	return `sha256:${hash.digest("hex")}`;
