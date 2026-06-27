@@ -234,8 +234,8 @@ message Settings {
   optional string act_mode_nous_research_model_id = 121;
   optional string act_mode_vercel_ai_gateway_model_id = 122;
   optional OpenRouterModelInfo act_mode_vercel_ai_gateway_model_info = 123;
-  optional ApiProvider plan_mode_api_provider = 124;
-  optional ApiProvider act_mode_api_provider = 125;
+  optional string plan_mode_api_provider = 124;
+  optional string act_mode_api_provider = 125;
   optional string hicap_model_id = 126;
   optional string lm_studio_model_id = 127;
   optional AutoApprovalSettings auto_approval_settings = 128;
