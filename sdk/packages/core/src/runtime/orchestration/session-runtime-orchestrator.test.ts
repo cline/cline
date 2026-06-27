@@ -564,7 +564,7 @@ describe("SessionRuntime message preparation", () => {
 		]);
 		const textParts = result?.messages?.flatMap((message) =>
 			message.content.flatMap((part) =>
-				part.type === "text" ? [part.text] : [],
+				typeof part !== "string" && part.type === "text" ? [part.text] : [],
 			),
 		);
 		expect(textParts).toEqual(["original", "builder-added"]);
@@ -1426,7 +1426,10 @@ describe("SessionRuntime real AgentRuntime smoke", () => {
 		expect(
 			modelRequests[1]?.some((message) =>
 				message.content.some(
-					(part) => part.type === "text" && part.text === EMPTY_CONTENT_TEXT,
+					(part) =>
+						typeof part !== "string" &&
+						part.type === "text" &&
+						part.text === EMPTY_CONTENT_TEXT,
 				),
 			),
 		).toBe(false);
