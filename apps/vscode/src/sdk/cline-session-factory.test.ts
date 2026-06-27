@@ -71,9 +71,11 @@ vi.mock("@shared/services/Logger", () => ({
 // ---------------------------------------------------------------------------
 
 let tempDir: string
+const previousGlobalSettingsPath = process.env.CLINE_GLOBAL_SETTINGS_PATH
 
 beforeEach(() => {
 	tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "cline-session-factory-"))
+	process.env.CLINE_GLOBAL_SETTINGS_PATH = path.join(tempDir, "global-settings.json")
 	vi.clearAllMocks()
 	mocks.stateManager.getApiConfiguration.mockReturnValue({
 		actModeApiProvider: "anthropic",
@@ -91,6 +93,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+	process.env.CLINE_GLOBAL_SETTINGS_PATH = previousGlobalSettingsPath
 	fs.rmSync(tempDir, { recursive: true, force: true })
 })
 
@@ -652,12 +655,10 @@ describe("buildSessionConfig", () => {
 	})
 
 	it("uses the configured SDK compaction strategy when auto condense is enabled", async () => {
+		writeJson(process.env.CLINE_GLOBAL_SETTINGS_PATH!, { compactionStrategy: "agentic" })
 		mocks.stateManager.getGlobalSettingsKey.mockImplementation((key: string) => {
 			if (key === "useAutoCondense") {
 				return true
-			}
-			if (key === "compactionStrategy") {
-				return "agentic" as never
 			}
 			if (key === "subagentsEnabled") {
 				return false
@@ -674,12 +675,10 @@ describe("buildSessionConfig", () => {
 	})
 
 	it("falls back to basic SDK compaction for an invalid stored strategy", async () => {
+		writeJson(process.env.CLINE_GLOBAL_SETTINGS_PATH!, { compactionStrategy: "invalid" })
 		mocks.stateManager.getGlobalSettingsKey.mockImplementation((key: string) => {
 			if (key === "useAutoCondense") {
 				return true
-			}
-			if (key === "compactionStrategy") {
-				return "invalid" as never
 			}
 			if (key === "subagentsEnabled") {
 				return false

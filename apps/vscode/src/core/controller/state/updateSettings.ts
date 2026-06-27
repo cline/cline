@@ -1,3 +1,4 @@
+import { setCompactionStrategyGlobally } from "@cline/core"
 import { Empty } from "@shared/proto/cline/common"
 import { PlanActMode, McpDisplayMode as ProtoMcpDisplayMode, UpdateSettingsRequest } from "@shared/proto/cline/state"
 import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion"
@@ -8,7 +9,6 @@ import { fetchRemoteConfig } from "@/core/storage/remote-config/fetch"
 import { clearRemoteConfig } from "@/core/storage/remote-config/utils"
 import { McpDisplayMode } from "@/shared/McpDisplayMode"
 import { Logger } from "@/shared/services/Logger"
-import type { CompactionStrategySetting } from "@/shared/storage/state-keys"
 import { telemetryService } from "../../../services/telemetry"
 import { BrowserSettings as SharedBrowserSettings } from "../../../shared/BrowserSettings"
 import { Controller } from ".."
@@ -185,7 +185,7 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			if (strategy !== "basic" && strategy !== "agentic") {
 				throw new Error(`Invalid compaction strategy value: ${strategy}`)
 			}
-			controller.stateManager.setGlobalState("compactionStrategy", strategy satisfies CompactionStrategySetting)
+			setCompactionStrategyGlobally(strategy)
 		}
 
 		// Update custom prompt choice

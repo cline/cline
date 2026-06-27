@@ -1,3 +1,4 @@
+import { readFileSync, writeFileSync } from "node:fs"
 import { getGeneratedModelsForProvider, MODEL_COLLECTIONS_BY_PROVIDER_ID } from "@cline/llms"
 
 export interface OAuthCredentials {
@@ -11,6 +12,23 @@ export interface StartSessionResult {
 }
 
 export const MAX_COMMAND_OUTPUT_CHARS = 200_000
+
+export type GlobalCompactionStrategy = "basic" | "agentic"
+
+export function readCompactionStrategyGlobally(): GlobalCompactionStrategy {
+	try {
+		const settings = JSON.parse(readFileSync(process.env.CLINE_GLOBAL_SETTINGS_PATH ?? "", "utf8"))
+		return settings.compactionStrategy === "agentic" ? "agentic" : "basic"
+	} catch {
+		return "basic"
+	}
+}
+
+export function setCompactionStrategyGlobally(compactionStrategy: GlobalCompactionStrategy): void {
+	if (process.env.CLINE_GLOBAL_SETTINGS_PATH) {
+		writeFileSync(process.env.CLINE_GLOBAL_SETTINGS_PATH, JSON.stringify({ compactionStrategy }))
+	}
+}
 
 export function truncateCommandOutput(output: string): string {
 	return output
