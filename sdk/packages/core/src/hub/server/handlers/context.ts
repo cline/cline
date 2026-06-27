@@ -52,7 +52,7 @@ export interface HubTransportContext {
 	readonly pendingCapabilityRequests: Map<string, PendingCapabilityRequest>;
 	readonly suppressNextTerminalEventBySession: Map<string, string>;
 	readonly telemetry?: ITelemetryService;
-  readonly compactionSidecar: SessionCompactionSidecarAccess;
+	readonly compactionSidecar: SessionCompactionSidecarAccess;
 	readonly sessionHost: RuntimeHost &
 		Partial<PendingPromptsRuntimeService & SessionUsageRuntimeService>;
 	publish(event: HubEventEnvelope): void;
