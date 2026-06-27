@@ -68,6 +68,8 @@ export interface ContextCompactionPrepareTurnOptions {
 	manualTargetRatio?: number;
 }
 
+const AUTO_TARGET_RATIO = 0.5;
+
 function safeJsonSize(value: unknown): number {
 	try {
 		return JSON.stringify(value).length;
@@ -312,7 +314,18 @@ export function createContextCompactionPrepareTurn(
 						autoTriggerTokens: triggerState.triggerTokens,
 						manualTargetRatio: options.manualTargetRatio,
 					})
-				: triggerState;
+				: {
+						triggerTokens: Math.max(
+							0,
+							Math.floor(
+								Math.min(
+									triggerState.triggerTokens,
+									maxInputTokens * AUTO_TARGET_RATIO,
+								),
+							),
+						),
+						thresholdRatio: AUTO_TARGET_RATIO,
+					};
 
 		const compactionContext = {
 			agentId: context.agentId,

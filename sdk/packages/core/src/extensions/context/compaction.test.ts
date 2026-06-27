@@ -1028,7 +1028,7 @@ describe("createContextCompactionPrepareTurn", () => {
 		]);
 	});
 
-	it("caps the default trigger at 90 percent of the context window", async () => {
+	it("targets automatic compaction at 50 percent of the context window", async () => {
 		const compact = vi.fn((_context: CoreCompactionContext) => ({
 			messages: [{ role: "user" as const, content: "Compacted by ratio" }],
 		}));
@@ -1069,8 +1069,8 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(createHandlerMock).not.toHaveBeenCalled();
 		expect(compact).toHaveBeenCalledTimes(1);
 		const context = compact.mock.calls[0]?.[0];
-		expect(context?.triggerTokens).toBe(180_000);
-		expect(context?.thresholdRatio).toBe(0.9);
+		expect(context?.triggerTokens).toBe(100_000);
+		expect(context?.thresholdRatio).toBe(0.5);
 		expect(result?.messages).toEqual([
 			{ role: "user", content: "Compacted by ratio" },
 		]);
@@ -1139,7 +1139,7 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(createHandlerMock).not.toHaveBeenCalled();
 		expect(compact).toHaveBeenCalledTimes(1);
 		const context = compact.mock.calls[0]?.[0];
-		expect(context?.triggerTokens).toBe(244_800);
+		expect(context?.triggerTokens).toBe(136_000);
 		expect(context?.utilizationRatio).toBeGreaterThan(0.9);
 		expect(result?.messages).toEqual([
 			{ role: "user", content: "Compacted provider payload" },
