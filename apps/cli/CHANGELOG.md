@@ -1,5 +1,15 @@
 # Cline CLI Changelog
 
+## 3.0.31
+
+- Show when request cost is covered by your Cline subscription
+- Prompt to switch to ClinePass when you run out of credits, and list ClinePass features in the not-subscribed message
+- Added an option to open the subscription page from the ClinePass options
+- Added marketplace uninstall support and surfaced plugin-bundled skills
+- Require quoted prompts for one-shot mode
+- Capped MCP tool names at 64 characters for OpenAI-compatible providers
+- Updated coupon code
+
 ## 3.0.30
 
 - Added a token count to the status bar, shown alongside cost
