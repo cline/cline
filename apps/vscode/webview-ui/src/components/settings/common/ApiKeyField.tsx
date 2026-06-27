@@ -43,6 +43,7 @@ export const ApiKeyField = ({
 		// Do not replace their in-progress input with the new mask, or subsequent saves only
 		// persist the suffix typed after that rerender.
 		if (!isFocusedRef.current) {
+			hasPendingUserEditRef.current = false
 			setLocalValue(initialValue)
 		}
 	}, [initialValue])

@@ -248,6 +248,53 @@ describe("GenericProviderSettings", () => {
 		expect(write).not.toHaveBeenCalled()
 	})
 
+	it("does not write a mask if config hydrates after a blurred edit", async () => {
+		const write = vi.fn(async () => undefined)
+		vi.mocked(useProviderModels).mockReturnValue({
+			models: {},
+			defaultModelId: "",
+			isLoading: false,
+			isStale: false,
+			error: undefined,
+			refresh: vi.fn(),
+			fingerprint: "fingerprint",
+		})
+		vi.mocked(useProviderConfig).mockReturnValue({ config: undefined, write, commitSelection: vi.fn() })
+
+		const { rerender } = render(
+			<GenericProviderSettings
+				allowsCustomIds={false}
+				currentMode="act"
+				providerId="deepseek"
+				providerName="DeepSeek"
+				showModelOptions={false}
+			/>,
+		)
+
+		const apiKeyInput = screen.getByPlaceholderText("Enter API Key...")
+		fireEvent.input(apiKeyInput, { target: { value: "partial-key" } })
+		fireEvent.blur(apiKeyInput)
+
+		vi.mocked(useProviderConfig).mockReturnValue({
+			config: providerConfig({ apiKeyLength: 8 }),
+			write,
+			commitSelection: vi.fn(),
+		})
+		rerender(
+			<GenericProviderSettings
+				allowsCustomIds={false}
+				currentMode="act"
+				providerId="deepseek"
+				providerName="DeepSeek"
+				showModelOptions={false}
+			/>,
+		)
+
+		await new Promise((resolve) => setTimeout(resolve, 150))
+		expect(write).not.toHaveBeenCalledWith({ apiKey: "••••••••" })
+		expect(write).not.toHaveBeenCalled()
+	})
+
 	it("still allows users to clear a saved API key", async () => {
 		const write = vi.fn(async () => undefined)
 		vi.mocked(useProviderModels).mockReturnValue({
