@@ -9,7 +9,6 @@
 - Surfaced plugin-bundled skills
 - Capped MCP tool names at 64 characters for OpenAI-compatible providers
 - Updated coupon code
-- Refreshed the generated model catalog
 
 ## 0.0.52
 
