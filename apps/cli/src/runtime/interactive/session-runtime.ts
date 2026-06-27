@@ -644,7 +644,14 @@ export function createInteractiveSessionRuntime(input: {
 		const updated = await compactionSidecar.update(() =>
 			manager.updateSessionCompactionState(sourceSessionId, compactionState),
 		);
-		if (!updated.updated && !updated.disabled) {
+		if (updated.disabled) {
+			return {
+				messagesBefore,
+				messagesAfter: messagesBefore,
+				compacted: false,
+			};
+		}
+		if (!updated.updated) {
 			throw new Error("Compaction could not be saved. Try again.");
 		}
 		return {
