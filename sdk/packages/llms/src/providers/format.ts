@@ -13,6 +13,29 @@ export function extractErrorMessage(error: unknown): string {
 		if (typeof value !== "object") {
 			return undefined;
 		}
+		if (value instanceof Error) {
+			const causeMessage = extractStructuredMessage(
+				(value as { cause?: unknown }).cause,
+			);
+			const message = value.message.trim();
+			if (causeMessage && message && causeMessage !== message) {
+				const cause = (value as { cause?: unknown }).cause;
+				const causeName =
+					cause instanceof Error && cause.name && cause.name !== "Error"
+						? `${cause.name}: `
+						: "";
+				const causeCode =
+					cause && typeof cause === "object" && "code" in cause
+						? (cause as { code?: unknown }).code
+						: undefined;
+				const codeSuffix =
+					typeof causeCode === "string" && causeCode.trim()
+						? ` (${causeCode})`
+						: "";
+				return `${message}: ${causeName}${causeMessage}${codeSuffix}`;
+			}
+			return causeMessage ?? (message || undefined);
+		}
 		const payload = value as {
 			error?: { message?: string } | string;
 			errors?: unknown;
