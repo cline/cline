@@ -5,7 +5,7 @@ import {
 	readFileSync,
 	writeFileSync,
 } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { readFile, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type * as LlmsProviders from "@cline/llms";
 import type { BasicLogger } from "@cline/shared";

@@ -65,6 +65,55 @@ describe("session compaction state", () => {
 		).toEqual([...compactedMessages, tail]);
 	});
 
+	it("projects after persisted source messages are reloaded from JSON", () => {
+		const sourceMessages = [
+			{
+				id: "a1",
+				role: "assistant" as const,
+				content: "answer",
+				metadata: { b: 2, a: 1 },
+				metrics: { inputTokens: 10, outputTokens: 5 },
+			},
+		];
+		const compactedMessages = [
+			{ id: "summary", role: "user" as const, content: "summary" },
+		];
+		const state = createSessionCompactionState({
+			sourceMessages,
+			compactedMessages,
+			updatedAt: "2026-01-01T00:00:00.000Z",
+		});
+		const reloadedMessages = JSON.parse(JSON.stringify(sourceMessages));
+
+		expect(projectSessionCompactionState(state, reloadedMessages)).toEqual(
+			compactedMessages,
+		);
+	});
+
+	it("rejects projection when canonical message metadata changed", () => {
+		const sourceMessages = [
+			{
+				id: "a1",
+				role: "assistant" as const,
+				content: "answer",
+				metadata: { stable: true },
+			},
+		];
+		const state = createSessionCompactionState({
+			sourceMessages,
+			compactedMessages: [
+				{ id: "summary", role: "user" as const, content: "summary" },
+			],
+			updatedAt: "2026-01-01T00:00:00.000Z",
+		});
+
+		expect(
+			projectSessionCompactionState(state, [
+				{ ...sourceMessages[0], metadata: { stable: false } },
+			]),
+		).toBeUndefined();
+	});
+
 	it("projects when resumed user input was display-normalized from persisted history", () => {
 		const sourceMessages = [
 			{
