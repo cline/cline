@@ -29,6 +29,7 @@ export const ApiKeyField = ({
 }: ApiKeyFieldProps) => {
 	const [localValue, setLocalValue] = useState(initialValue)
 	const isFocusedRef = useRef(false)
+	const hasPendingUserEditRef = useRef(false)
 	const prevInitialValueRef = useRef(initialValue)
 
 	useEffect(() => {
@@ -48,6 +49,11 @@ export const ApiKeyField = ({
 
 	useDebounceEffect(
 		() => {
+			if (!hasPendingUserEditRef.current) {
+				return
+			}
+
+			hasPendingUserEditRef.current = false
 			onChange(localValue)
 		},
 		100,
@@ -63,7 +69,10 @@ export const ApiKeyField = ({
 				onFocus={() => {
 					isFocusedRef.current = true
 				}}
-				onInput={(e: any) => setLocalValue(e.target.value)}
+				onInput={(e) => {
+					hasPendingUserEditRef.current = true
+					setLocalValue((e.target as HTMLInputElement | null)?.value ?? "")
+				}}
 				placeholder={placeholder}
 				required={true}
 				style={{ width: "100%" }}
