@@ -285,19 +285,30 @@ function trimCandidatesToBudget(
 		(candidate) => candidate.isFirstUser,
 	);
 	if (firstUserIndex >= 0) {
-		const desiredTokens = Math.max(
-			1,
-			candidates[firstUserIndex].estimatedTokens - (totalTokens - targetTokens),
-		);
-		updateCandidate(
-			candidates,
-			firstUserIndex,
-			truncateMessageToTokens(
-				candidates[firstUserIndex].message,
-				desiredTokens,
-			),
-			estimateMessageTokens,
-		);
+		while (totalTokens > targetTokens) {
+			const candidate = candidates[firstUserIndex];
+			const desiredTokens = Math.max(
+				1,
+				candidate.estimatedTokens - (totalTokens - targetTokens),
+			);
+			if (desiredTokens >= candidate.estimatedTokens) {
+				break;
+			}
+			const previousTokens = candidate.estimatedTokens;
+			updateCandidate(
+				candidates,
+				firstUserIndex,
+				truncateMessageToTokens(candidate.message, desiredTokens),
+				estimateMessageTokens,
+			);
+			totalTokens = getTotalTokens(
+				candidates.map((item) => item.message),
+				estimateMessageTokens,
+			);
+			if (candidate.estimatedTokens >= previousTokens) {
+				break;
+			}
+		}
 	}
 }
 
@@ -332,7 +343,10 @@ export function runBasicCompaction(options: {
 }): CoreCompactionResult | undefined {
 	const targetTokens = Math.max(
 		1,
-		Math.min(options.context.triggerTokens, options.context.maxInputTokens),
+		Math.min(
+			options.context.targetTokens ?? options.context.triggerTokens,
+			options.context.maxInputTokens,
+		),
 	);
 	const { compactable, protectedTail } = splitLatestTurn(
 		options.context.messages,
@@ -340,6 +354,14 @@ export function runBasicCompaction(options: {
 	if (compactable.length === 0) {
 		return undefined;
 	}
+	const protectedTailTokens = getTotalTokens(
+		protectedTail,
+		options.estimateMessageTokens,
+	);
+	const compactableTargetTokens = Math.max(
+		1,
+		targetTokens - protectedTailTokens,
+	);
 	const candidates = buildBasicCandidates(
 		compactable,
 		options.estimateMessageTokens,
@@ -352,7 +374,7 @@ export function runBasicCompaction(options: {
 		candidates,
 		(candidate) =>
 			candidate.message.role === "assistant" && !candidate.isLastAssistant,
-		targetTokens,
+		compactableTargetTokens,
 		options.estimateMessageTokens,
 	);
 	removeCandidatesByPredicate(
@@ -361,14 +383,14 @@ export function runBasicCompaction(options: {
 			candidate.message.role === "user" &&
 			!candidate.isFirstUser &&
 			!candidate.isLastUser,
-		targetTokens,
+		compactableTargetTokens,
 		options.estimateMessageTokens,
 	);
 	removeCandidatesByPredicate(
 		candidates,
 		(candidate) =>
 			candidate.message.role === "assistant" && candidate.isLastAssistant,
-		targetTokens,
+		compactableTargetTokens,
 		options.estimateMessageTokens,
 	);
 	removeCandidatesByPredicate(
@@ -377,13 +399,13 @@ export function runBasicCompaction(options: {
 			candidate.message.role === "user" &&
 			candidate.isLastUser &&
 			!candidate.isFirstUser,
-		targetTokens,
+		compactableTargetTokens,
 		options.estimateMessageTokens,
 	);
 
 	trimCandidatesToBudget(
 		candidates,
-		targetTokens,
+		compactableTargetTokens,
 		options.estimateMessageTokens,
 	);
 

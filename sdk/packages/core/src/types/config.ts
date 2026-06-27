@@ -64,6 +64,7 @@ export interface CoreCompactionContext {
 	};
 	maxInputTokens: number;
 	triggerTokens: number;
+	targetTokens?: number;
 	thresholdRatio: number;
 	utilizationRatio: number;
 }
@@ -72,6 +73,7 @@ export interface CoreCompactionContext {
 // Keep this public API type decoupled from the internal projection module.
 export type CoreCompactionBudgetPolicyIntent =
 	| "agentic_summary"
+	| "agentic_compaction_projection"
 	| "basic_compaction_projection"
 	| "normal_provider_request";
 

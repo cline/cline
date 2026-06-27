@@ -21,6 +21,7 @@ import { runAgenticCompaction } from "./agentic-compaction";
 import { runBasicCompaction } from "./basic-compaction";
 import {
 	createTokenEstimator,
+	DEFAULT_AUTO_TARGET_RATIO,
 	DEFAULT_MAX_INPUT_TOKENS,
 	DEFAULT_PRESERVE_RECENT_TOKENS,
 	DEFAULT_RESERVE_TOKENS,
@@ -142,7 +143,7 @@ const BUILTIN_COMPACTION_STRATEGIES = {
 					? Math.min(
 							compaction?.preserveRecentTokens ??
 								DEFAULT_PRESERVE_RECENT_TOKENS,
-							context.triggerTokens,
+							context.targetTokens ?? context.triggerTokens,
 						)
 					: (compaction?.preserveRecentTokens ??
 						DEFAULT_PRESERVE_RECENT_TOKENS),
@@ -194,10 +195,9 @@ function resolveTriggerState(input: {
 
 function resolveManualTargetState(input: {
 	inputTokens: number;
-	maxInputTokens: number;
 	autoTriggerTokens: number;
 	manualTargetRatio: number | undefined;
-}): { triggerTokens: number; thresholdRatio: number } {
+}): { targetTokens: number } {
 	const ratio =
 		typeof input.manualTargetRatio === "number" &&
 		Number.isFinite(input.manualTargetRatio)
@@ -213,9 +213,21 @@ function resolveManualTargetState(input: {
 		),
 	);
 	return {
-		triggerTokens: targetTokens,
-		thresholdRatio:
-			input.maxInputTokens > 0 ? targetTokens / input.maxInputTokens : 0,
+		targetTokens,
+	};
+}
+
+function resolveAutoTargetState(input: { triggerTokens: number }): {
+	targetTokens: number;
+} {
+	if (input.triggerTokens <= 0) {
+		return { targetTokens: 0 };
+	}
+	return {
+		targetTokens: Math.max(
+			1,
+			Math.floor(input.triggerTokens * DEFAULT_AUTO_TARGET_RATIO),
+		),
 	};
 }
 
@@ -318,11 +330,12 @@ export function createContextCompactionPrepareTurn(
 			mode === "manual"
 				? resolveManualTargetState({
 						inputTokens,
-						maxInputTokens,
 						autoTriggerTokens: triggerState.triggerTokens,
 						manualTargetRatio: options.manualTargetRatio,
 					})
-				: triggerState;
+				: resolveAutoTargetState({
+						triggerTokens: triggerState.triggerTokens,
+					});
 
 		const compactionContext = {
 			agentId: context.agentId,
@@ -332,8 +345,9 @@ export function createContextCompactionPrepareTurn(
 			messages: context.messages,
 			model: context.model,
 			maxInputTokens,
-			triggerTokens: targetState.triggerTokens,
-			thresholdRatio: targetState.thresholdRatio,
+			triggerTokens: triggerState.triggerTokens,
+			targetTokens: targetState.targetTokens,
+			thresholdRatio: triggerState.thresholdRatio,
 			utilizationRatio: maxInputTokens > 0 ? inputTokens / maxInputTokens : 0,
 		};
 
@@ -345,7 +359,8 @@ export function createContextCompactionPrepareTurn(
 				kind: statusReason,
 				reason: statusReason,
 				iteration: context.iteration,
-				triggerTokens: targetState.triggerTokens,
+				triggerTokens: triggerState.triggerTokens,
+				targetTokens: targetState.targetTokens,
 				maxInputTokens,
 			},
 		);
@@ -393,7 +408,8 @@ export function createContextCompactionPrepareTurn(
 				tokensSaved: inputTokens - afterTokens,
 				utilizationBefore: `${((inputTokens / maxInputTokens) * 100).toFixed(1)}%`,
 				utilizationAfter: `${((afterTokens / maxInputTokens) * 100).toFixed(1)}%`,
-				thresholdTrigger: `${(targetState.thresholdRatio * 100).toFixed(1)}%`,
+				thresholdTrigger: `${(triggerState.thresholdRatio * 100).toFixed(1)}%`,
+				targetTrigger: `${((targetState.targetTokens / maxInputTokens) * 100).toFixed(1)}%`,
 				messagesBefore: beforeMessageCount,
 				messagesAfter: result.messages.length,
 				messagesRemoved: beforeMessageCount - result.messages.length,
@@ -408,9 +424,9 @@ export function createContextCompactionPrepareTurn(
 				tokensBefore: inputTokens,
 				tokensAfter: afterTokens,
 				tokensSaved: inputTokens - afterTokens,
-				triggerTokens: targetState.triggerTokens,
+				triggerTokens: triggerState.triggerTokens,
 				maxInputTokens,
-				thresholdRatio: targetState.thresholdRatio,
+				thresholdRatio: triggerState.thresholdRatio,
 				durationMs,
 				// Matches the field name used by other TASK telemetry helpers
 				// (e.g. captureTaskCompleted, captureToolUsage).
@@ -450,9 +466,9 @@ export function createContextCompactionPrepareTurn(
 				mode,
 				reason: "no_result",
 				tokensBefore: inputTokens,
-				triggerTokens: targetState.triggerTokens,
+				triggerTokens: triggerState.triggerTokens,
 				maxInputTokens,
-				thresholdRatio: targetState.thresholdRatio,
+				thresholdRatio: triggerState.thresholdRatio,
 				durationMs,
 				provider: config.providerId,
 				modelId: config.modelId,

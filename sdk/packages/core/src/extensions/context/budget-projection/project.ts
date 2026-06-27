@@ -5,10 +5,10 @@ import type {
 } from "@cline/shared";
 import type {
 	BudgetAction,
+	BudgetPolicyIntent,
 	BudgetProjectionOptions,
 	BudgetProjectionResult,
 	BudgetProjectionWarning,
-	BudgetPolicyIntent,
 } from "./types";
 
 type EstimateMessageTokens = (message: MessageWithMetadata) => number;
@@ -20,11 +20,10 @@ interface ProjectionPolicy {
 	dropThinkingBlocks: boolean;
 }
 
-function resolveProjectionPolicy(
-	intent: BudgetPolicyIntent,
-): ProjectionPolicy {
+function resolveProjectionPolicy(intent: BudgetPolicyIntent): ProjectionPolicy {
 	switch (intent) {
 		case "agentic_summary":
+		case "agentic_compaction_projection":
 		case "basic_compaction_projection":
 			return {
 				protectLatestTypedUser: true,
@@ -110,7 +109,11 @@ function buildToolPairIndex(
 	messages: MessageWithMetadata[],
 ): Map<string, Set<number>> {
 	const index = new Map<string, Set<number>>();
-	for (let messageIndex = 0; messageIndex < messages.length; messageIndex += 1) {
+	for (
+		let messageIndex = 0;
+		messageIndex < messages.length;
+		messageIndex += 1
+	) {
 		for (const id of collectToolIds(messages[messageIndex])) {
 			const existing = index.get(id);
 			if (existing) {
@@ -165,7 +168,9 @@ function shouldDropWholeBlock(
 	if (policy.dropThinkingBlocks && block.type === "thinking") {
 		return true;
 	}
-	return policy.dropUnsafeOutsideLiveTail && !isProtected && isUnsafeBlock(block);
+	return (
+		policy.dropUnsafeOutsideLiveTail && !isProtected && isUnsafeBlock(block)
+	);
 }
 
 function pruneEmptyMessages(
@@ -282,7 +287,6 @@ function dropThinkingBlocks(
 		return changed ? { ...message, content } : message;
 	});
 }
-
 
 function truncateText(text: string, maxChars: number): string {
 	if (maxChars <= 0) {
@@ -513,8 +517,7 @@ export function buildBudgetProjection(
 		const targetChars = Math.max(
 			16,
 			Math.floor(
-				(options.targetTokens * charsPerToken) /
-					Math.max(1, messages.length),
+				(options.targetTokens * charsPerToken) / Math.max(1, messages.length),
 			),
 		);
 		messages[index] = truncateMessageText(messages[index], targetChars);

@@ -7,8 +7,8 @@ import type {
 } from "../../types/config";
 import type { ProviderConfig } from "../../types/provider-settings";
 import {
-	buildBudgetProjection,
 	type BudgetProjectionResult,
+	buildBudgetProjection,
 } from "./budget-projection";
 import {
 	buildSummaryMessage,
@@ -147,10 +147,7 @@ export async function runAgenticCompaction(options: {
 		options.context.triggerTokens,
 		MIN_AGENTIC_SUMMARY_INPUT_TOKENS,
 	);
-	if (
-		resolvedSummarizerInputLimit === undefined &&
-		!canUseActiveContextLimit
-	) {
+	if (resolvedSummarizerInputLimit === undefined && !canUseActiveContextLimit) {
 		options.logger?.log(
 			"Agentic compaction summarizer has no known input limit; using conservative summary budget",
 			{
@@ -176,12 +173,15 @@ export async function runAgenticCompaction(options: {
 	const availableSummaryInputTokens =
 		summarizerInputLimit - summaryRequestOverheadTokens;
 	if (availableSummaryInputTokens <= 0) {
-		options.logger?.debug("Skipped agentic compaction: summarizer budget exhausted", {
-			summarizerProviderId: summarizerProviderConfig.providerId,
-			summarizerModelId: summarizerProviderConfig.modelId,
-			summarizerInputLimit,
-			summaryRequestOverheadTokens,
-		});
+		options.logger?.debug(
+			"Skipped agentic compaction: summarizer budget exhausted",
+			{
+				summarizerProviderId: summarizerProviderConfig.providerId,
+				summarizerModelId: summarizerProviderConfig.modelId,
+				summarizerInputLimit,
+				summaryRequestOverheadTokens,
+			},
+		);
 		return undefined;
 	}
 	const summaryInputBudget = buildAgenticSummaryInputBudget({
@@ -254,26 +254,57 @@ export async function runAgenticCompaction(options: {
 		}),
 		...messages.slice(cutIndex),
 	];
-	const tokensAfter = resultMessages.reduce(
+	const outputTargetTokens = Math.max(
+		1,
+		Math.min(
+			options.context.targetTokens ?? options.context.triggerTokens,
+			options.context.maxInputTokens,
+		),
+	);
+	const outputBudget = buildBudgetProjection({
+		messages: resultMessages,
+		targetTokens: outputTargetTokens,
+		policyIntent: "agentic_compaction_projection",
+		estimateMessageTokens: options.estimateMessageTokens,
+	});
+	if (outputBudget.status === "failed") {
+		options.logger?.debug(
+			"Agentic compaction returned best-effort projection",
+			{
+				budgetWarnings: outputBudget.warnings.map((warning) => warning.code),
+				projectedTokens: outputBudget.estimatedTokens,
+				targetTokens: outputTargetTokens,
+				maxInputTokens: options.context.maxInputTokens,
+			},
+		);
+	}
+	const projectedMessages = outputBudget.messages;
+	const tokensAfter = projectedMessages.reduce(
 		(total, message) => total + options.estimateMessageTokens(message),
 		0,
 	);
 	options.logger?.debug("Performed agentic compaction", {
 		messagesBefore: messages.length,
-		messagesAfter: resultMessages.length,
+		messagesAfter: projectedMessages.length,
 		messagesSummarized: cutIndex,
 		messagesPreserved: messages.length - cutIndex,
 		tokensBefore,
 		tokensAfter,
+		budgetStatus: outputBudget.status,
+		budgetActions: outputBudget.actions.length,
+		budgetWarnings: outputBudget.warnings.map((warning) => warning.code),
+		targetTokens: outputTargetTokens,
 		maxInputTokens: options.context.maxInputTokens,
 	});
 	return {
-		messages: resultMessages,
+		messages: projectedMessages,
 		budget: {
-			policyIntent: "agentic_summary",
-			actionCount: summaryInputBudget.actions.length,
-			warningCount: summaryInputBudget.warnings.length,
-			liveTailHandling: summaryInputBudget.liveTailHandling,
+			policyIntent: "agentic_compaction_projection",
+			actionCount:
+				summaryInputBudget.actions.length + outputBudget.actions.length,
+			warningCount:
+				summaryInputBudget.warnings.length + outputBudget.warnings.length,
+			liveTailHandling: outputBudget.liveTailHandling,
 		},
 	};
 }

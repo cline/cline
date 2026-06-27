@@ -2,6 +2,7 @@ import type { ContentBlock, MessageWithMetadata } from "@cline/shared";
 
 export type BudgetPolicyIntent =
 	| "agentic_summary"
+	| "agentic_compaction_projection"
 	| "basic_compaction_projection"
 	| "normal_provider_request";
 
