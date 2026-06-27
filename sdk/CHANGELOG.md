@@ -1,5 +1,16 @@
 # Cline SDK Changelog
 
+## 0.0.53
+
+- Show when request cost is covered by the user's Cline subscription
+- List ClinePass features in the not-subscribed message
+- Added shared marketplace uninstall support
+- Shared marketplace install logic through core
+- Surfaced plugin-bundled skills
+- Capped MCP tool names at 64 characters for OpenAI-compatible providers
+- Updated coupon code
+- Refreshed the generated model catalog
+
 ## 0.0.52
 
 - Added checkpoints support to the agent runtime
