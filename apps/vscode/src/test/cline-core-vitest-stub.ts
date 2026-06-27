@@ -25,8 +25,13 @@ export function readCompactionStrategyGlobally(): GlobalCompactionStrategy {
 }
 
 export function setCompactionStrategyGlobally(compactionStrategy: GlobalCompactionStrategy): void {
-	if (process.env.CLINE_GLOBAL_SETTINGS_PATH) {
-		writeFileSync(process.env.CLINE_GLOBAL_SETTINGS_PATH, JSON.stringify({ compactionStrategy }))
+	const filePath = process.env.CLINE_GLOBAL_SETTINGS_PATH
+	if (filePath) {
+		let settings = {}
+		try {
+			settings = JSON.parse(readFileSync(filePath, "utf8"))
+		} catch {}
+		writeFileSync(filePath, JSON.stringify({ ...settings, compactionStrategy }))
 	}
 }
 
