@@ -113,7 +113,7 @@ describe("models-dev-catalog", () => {
 	});
 
 	it("uses input limits as the model request context window", () => {
-		expect(resolveMaxInputTokens(undefined)).toBe(200_000);
+		expect(resolveMaxInputTokens(undefined)).toBe(128_000);
 		expect(
 			resolveMaxInputTokens({
 				context: 400_000,
@@ -275,7 +275,7 @@ describe("models-dev-catalog", () => {
 					id: "claude-defaults",
 					name: "claude-defaults",
 					contextWindow: undefined,
-					maxInputTokens: 200_000,
+					maxInputTokens: 128_000,
 					maxTokens: 4096,
 					capabilities: ["tools"],
 					pricing: {
@@ -292,7 +292,7 @@ describe("models-dev-catalog", () => {
 					id: "claude-older",
 					name: "claude-older",
 					contextWindow: undefined,
-					maxInputTokens: 200_000,
+					maxInputTokens: 128_000,
 					maxTokens: 4096,
 					capabilities: ["tools"],
 					pricing: {
