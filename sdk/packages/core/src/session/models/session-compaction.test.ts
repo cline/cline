@@ -6,6 +6,23 @@ import {
 } from "./session-compaction";
 
 describe("session compaction state", () => {
+	it("rejects fallback boundary keys when a message role contains the delimiter", () => {
+		expect(() =>
+			createSessionCompactionState({
+				sourceMessages: [
+					{
+						role: "user:custom",
+						content: "invalid role",
+					} as never,
+				],
+				compactedMessages: [
+					{ id: "summary", role: "user" as const, content: "summary" },
+				],
+				updatedAt: "2026-01-01T00:00:00.000Z",
+			}),
+		).toThrow("Message role cannot contain ':'");
+	});
+
 	it("rejects projection when the canonical prefix was edited before the boundary", () => {
 		const sourceMessages = [
 			{ id: "u1", role: "user" as const, content: "original detail" },
