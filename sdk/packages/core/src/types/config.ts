@@ -64,6 +64,7 @@ export interface CoreCompactionContext {
 	};
 	maxInputTokens: number;
 	triggerTokens: number;
+	targetTokens?: number;
 	thresholdRatio: number;
 	utilizationRatio: number;
 }

@@ -367,7 +367,8 @@ export function runBasicCompaction(options: {
 	const totalTargetTokens = Math.max(
 		1,
 		Math.min(
-			Math.floor(options.context.triggerTokens * DEFAULT_TARGET_RATIO),
+			options.context.targetTokens ??
+				Math.floor(options.context.triggerTokens * DEFAULT_TARGET_RATIO),
 			options.context.maxInputTokens,
 		),
 	);
