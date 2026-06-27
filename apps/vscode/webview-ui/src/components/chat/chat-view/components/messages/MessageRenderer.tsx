@@ -15,7 +15,7 @@ interface MessageRendererProps {
 	groupedMessages: (ClineMessage | ClineMessage[])[]
 	modifiedMessages: ClineMessage[]
 	expandedRows: Record<number, boolean>
-	onToggleExpand: (ts: number) => void
+	onToggleExpand: (ts: number, options?: { preserveAutoScroll?: boolean }) => void
 	onHeightChange: (isTaller: boolean) => void
 	onLastRowContentChange: () => void
 	onSetQuote: (quote: string | null) => void
@@ -136,7 +136,7 @@ export const createMessageRenderer = (
 	groupedMessages: (ClineMessage | ClineMessage[])[],
 	modifiedMessages: ClineMessage[],
 	expandedRows: Record<number, boolean>,
-	onToggleExpand: (ts: number) => void,
+	onToggleExpand: (ts: number, options?: { preserveAutoScroll?: boolean }) => void,
 	onHeightChange: (isTaller: boolean) => void,
 	onLastRowContentChange: () => void,
 	onSetQuote: (quote: string | null) => void,

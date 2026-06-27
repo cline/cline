@@ -1,6 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { TaskMetadata } from "@core/context/context-tracking/ContextTrackerTypes"
-import { execa } from "@packages/execa"
 import { RemoteConfig } from "@shared/remote-config/schema"
 import { GlobalState, Settings } from "@shared/storage/state-keys"
 import { fileExistsAtPath, isDirectory } from "@utils/fs"
@@ -9,7 +8,10 @@ import os from "os"
 import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
 import { Logger } from "@/shared/services/Logger"
+import { getDocumentsPath } from "./documents-path"
 import { StateManager } from "./StateManager"
+
+export { getDocumentsPath } from "./documents-path"
 
 export { getSkillsDirectoriesForScan, type SkillsScanDirectory } from "./skill-directories"
 
@@ -37,42 +39,6 @@ export const GlobalFileNames = {
 	agentsRulesFile: "AGENTS.md",
 	taskMetadata: "task_metadata.json",
 	remoteConfig: (orgId: string) => `remote_config_${orgId}.json`,
-}
-
-export async function getDocumentsPath(): Promise<string> {
-	if (process.platform === "win32") {
-		try {
-			const { stdout: docsPath } = await execa("powershell", [
-				"-NoProfile", // Ignore user's PowerShell profile(s)
-				"-Command",
-				"[System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::MyDocuments)",
-			])
-			const trimmedPath = docsPath.trim()
-			if (trimmedPath) {
-				return trimmedPath
-			}
-		} catch (_err) {
-			Logger.error("Failed to retrieve Windows Documents path. Falling back to homedir/Documents.")
-		}
-	} else if (process.platform === "linux") {
-		try {
-			// First check if xdg-user-dir exists
-			await execa("which", ["xdg-user-dir"])
-
-			// If it exists, try to get XDG documents path
-			const { stdout } = await execa("xdg-user-dir", ["DOCUMENTS"])
-			const trimmedPath = stdout.trim()
-			if (trimmedPath) {
-				return trimmedPath
-			}
-		} catch {
-			// Log error but continue to fallback
-			Logger.error("Failed to retrieve XDG Documents path. Falling back to homedir/Documents.")
-		}
-	}
-
-	// Default fallback for all platforms
-	return path.join(os.homedir(), "Documents")
 }
 
 /**

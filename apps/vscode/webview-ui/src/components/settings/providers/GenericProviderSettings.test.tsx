@@ -1,3 +1,4 @@
+import type { ProviderConfigResponse } from "@shared/proto/cline/models"
 import { ApiFormat } from "@shared/proto/cline/models"
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import type { ChangeEventHandler, ReactNode } from "react"
@@ -5,6 +6,8 @@ import { describe, expect, it, vi } from "vitest"
 import { useProviderConfig } from "@/hooks/useProviderConfig"
 import { useProviderModels } from "@/hooks/useProviderModels"
 import { GenericProviderSettings } from "./GenericProviderSettings"
+
+const providerConfig = (config: Partial<ProviderConfigResponse>): ProviderConfigResponse => config as ProviderConfigResponse
 
 vi.mock("@/hooks/useProviderModels", () => ({
 	useProviderModels: vi.fn(),
@@ -147,7 +150,11 @@ describe("GenericProviderSettings", () => {
 			refresh: vi.fn(),
 			fingerprint: "fingerprint",
 		})
-		vi.mocked(useProviderConfig).mockReturnValue({ config: { apiKeyLength: 12 } as any, write, commitSelection: vi.fn() })
+		vi.mocked(useProviderConfig).mockReturnValue({
+			config: providerConfig({ apiKeyLength: 12 }),
+			write,
+			commitSelection: vi.fn(),
+		})
 
 		render(
 			<GenericProviderSettings
@@ -168,6 +175,158 @@ describe("GenericProviderSettings", () => {
 		await waitFor(() => expect(write).toHaveBeenCalledWith({ apiKey: "new-secret" }))
 	})
 
+	it("does not clear API keys while provider config is loading", async () => {
+		const write = vi.fn(async () => undefined)
+		vi.mocked(useProviderModels).mockReturnValue({
+			models: {},
+			defaultModelId: "",
+			isLoading: false,
+			isStale: false,
+			error: undefined,
+			refresh: vi.fn(),
+			fingerprint: "fingerprint",
+		})
+		vi.mocked(useProviderConfig).mockReturnValue({ config: undefined, write, commitSelection: vi.fn() })
+
+		render(
+			<GenericProviderSettings
+				allowsCustomIds={false}
+				currentMode="act"
+				providerId="deepseek"
+				providerName="DeepSeek"
+				showModelOptions={false}
+			/>,
+		)
+
+		await new Promise((resolve) => setTimeout(resolve, 150))
+		expect(write).not.toHaveBeenCalled()
+	})
+
+	it("does not save when provider config hydrates a saved API key", async () => {
+		const write = vi.fn(async () => undefined)
+		vi.mocked(useProviderModels).mockReturnValue({
+			models: {},
+			defaultModelId: "",
+			isLoading: false,
+			isStale: false,
+			error: undefined,
+			refresh: vi.fn(),
+			fingerprint: "fingerprint",
+		})
+		vi.mocked(useProviderConfig).mockReturnValue({ config: undefined, write, commitSelection: vi.fn() })
+
+		const { rerender } = render(
+			<GenericProviderSettings
+				allowsCustomIds={false}
+				currentMode="act"
+				providerId="deepseek"
+				providerName="DeepSeek"
+				showModelOptions={false}
+			/>,
+		)
+
+		await new Promise((resolve) => setTimeout(resolve, 150))
+		expect(write).not.toHaveBeenCalled()
+
+		vi.mocked(useProviderConfig).mockReturnValue({
+			config: providerConfig({ apiKeyLength: 8 }),
+			write,
+			commitSelection: vi.fn(),
+		})
+		rerender(
+			<GenericProviderSettings
+				allowsCustomIds={false}
+				currentMode="act"
+				providerId="deepseek"
+				providerName="DeepSeek"
+				showModelOptions={false}
+			/>,
+		)
+
+		expect(screen.getByDisplayValue("••••••••")).toBeInTheDocument()
+		await new Promise((resolve) => setTimeout(resolve, 150))
+		expect(write).not.toHaveBeenCalled()
+	})
+
+	it("does not write a mask if config hydrates after a blurred edit", async () => {
+		const write = vi.fn(async () => undefined)
+		vi.mocked(useProviderModels).mockReturnValue({
+			models: {},
+			defaultModelId: "",
+			isLoading: false,
+			isStale: false,
+			error: undefined,
+			refresh: vi.fn(),
+			fingerprint: "fingerprint",
+		})
+		vi.mocked(useProviderConfig).mockReturnValue({ config: undefined, write, commitSelection: vi.fn() })
+
+		const { rerender } = render(
+			<GenericProviderSettings
+				allowsCustomIds={false}
+				currentMode="act"
+				providerId="deepseek"
+				providerName="DeepSeek"
+				showModelOptions={false}
+			/>,
+		)
+
+		const apiKeyInput = screen.getByPlaceholderText("Enter API Key...")
+		fireEvent.input(apiKeyInput, { target: { value: "partial-key" } })
+		fireEvent.blur(apiKeyInput)
+
+		vi.mocked(useProviderConfig).mockReturnValue({
+			config: providerConfig({ apiKeyLength: 8 }),
+			write,
+			commitSelection: vi.fn(),
+		})
+		rerender(
+			<GenericProviderSettings
+				allowsCustomIds={false}
+				currentMode="act"
+				providerId="deepseek"
+				providerName="DeepSeek"
+				showModelOptions={false}
+			/>,
+		)
+
+		await new Promise((resolve) => setTimeout(resolve, 150))
+		expect(write).not.toHaveBeenCalledWith({ apiKey: "••••••••" })
+		expect(write).not.toHaveBeenCalled()
+	})
+
+	it("still allows users to clear a saved API key", async () => {
+		const write = vi.fn(async () => undefined)
+		vi.mocked(useProviderModels).mockReturnValue({
+			models: {},
+			defaultModelId: "",
+			isLoading: false,
+			isStale: false,
+			error: undefined,
+			refresh: vi.fn(),
+			fingerprint: "fingerprint",
+		})
+		vi.mocked(useProviderConfig).mockReturnValue({
+			config: providerConfig({ apiKeyLength: 8 }),
+			write,
+			commitSelection: vi.fn(),
+		})
+
+		render(
+			<GenericProviderSettings
+				allowsCustomIds={false}
+				currentMode="act"
+				providerId="deepseek"
+				providerName="DeepSeek"
+				showModelOptions={false}
+			/>,
+		)
+
+		fireEvent.input(screen.getByDisplayValue("••••••••"), { target: { value: "" } })
+
+		await waitFor(() => expect(write).toHaveBeenCalledWith({ apiKey: "" }))
+	})
+
 	it("does not persist mask characters when editing a saved API key", async () => {
 		const write = vi.fn(async () => undefined)
 		vi.mocked(useProviderModels).mockReturnValue({
@@ -179,7 +338,11 @@ describe("GenericProviderSettings", () => {
 			refresh: vi.fn(),
 			fingerprint: "fingerprint",
 		})
-		vi.mocked(useProviderConfig).mockReturnValue({ config: { apiKeyLength: 7 } as any, write, commitSelection: vi.fn() })
+		vi.mocked(useProviderConfig).mockReturnValue({
+			config: providerConfig({ apiKeyLength: 7 }),
+			write,
+			commitSelection: vi.fn(),
+		})
 
 		render(
 			<GenericProviderSettings
@@ -208,7 +371,11 @@ describe("GenericProviderSettings", () => {
 			refresh: vi.fn(),
 			fingerprint: "fingerprint",
 		})
-		vi.mocked(useProviderConfig).mockReturnValue({ config: { apiKeyLength: 0 } as any, write, commitSelection: vi.fn() })
+		vi.mocked(useProviderConfig).mockReturnValue({
+			config: providerConfig({ apiKeyLength: 0 }),
+			write,
+			commitSelection: vi.fn(),
+		})
 
 		const { rerender } = render(
 			<GenericProviderSettings
@@ -226,7 +393,11 @@ describe("GenericProviderSettings", () => {
 
 		await waitFor(() => expect(write).toHaveBeenCalledWith({ apiKey: "max" }))
 
-		vi.mocked(useProviderConfig).mockReturnValue({ config: { apiKeyLength: 3 } as any, write, commitSelection: vi.fn() })
+		vi.mocked(useProviderConfig).mockReturnValue({
+			config: providerConfig({ apiKeyLength: 3 }),
+			write,
+			commitSelection: vi.fn(),
+		})
 		rerender(
 			<GenericProviderSettings
 				allowsCustomIds={false}
@@ -264,7 +435,7 @@ describe("GenericProviderSettings", () => {
 			fingerprint: "fingerprint",
 		})
 		vi.mocked(useProviderConfig).mockReturnValue({
-			config: { baseUrl: "https://custom.example", apiKeyLength: 0 } as any,
+			config: providerConfig({ baseUrl: "https://custom.example", apiKeyLength: 0 }),
 			write,
 			commitSelection: vi.fn(),
 		})

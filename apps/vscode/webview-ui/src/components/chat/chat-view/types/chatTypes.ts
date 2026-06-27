@@ -6,6 +6,11 @@ import { ClineAsk, ClineMessage } from "@shared/ExtensionMessage"
 import { ListRange, VirtuosoHandle } from "react-virtuoso"
 import { ButtonActionType } from "../shared/buttonConfig"
 
+export interface PendingUserMessage {
+	message: ClineMessage
+	afterTs: number
+}
+
 /**
  * Chat state interface
  */
@@ -31,6 +36,8 @@ export interface ChatState {
 	setSecondaryButtonText: React.Dispatch<React.SetStateAction<string | undefined>>
 	expandedRows: Record<number, boolean>
 	setExpandedRows: React.Dispatch<React.SetStateAction<Record<number, boolean>>>
+	pendingUserMessage: PendingUserMessage | undefined
+	setPendingUserMessage: React.Dispatch<React.SetStateAction<PendingUserMessage | undefined>>
 
 	// Refs
 	textAreaRef: React.RefObject<HTMLTextAreaElement>
@@ -71,7 +78,7 @@ export interface ScrollBehavior {
 	scrollToBottomSmooth: () => void
 	scrollToBottomAuto: () => void
 	scrollToMessage: (messageIndex: number) => void
-	toggleRowExpansion: (ts: number) => void
+	toggleRowExpansion: (ts: number, options?: { preserveAutoScroll?: boolean }) => void
 	handleRowHeightChange: (isTaller: boolean) => void
 	handleLastRowContentChange: () => void
 	isAtBottom: boolean

@@ -1,6 +1,9 @@
 import type { AgentMode } from "@cline/core";
 import { useTerminalDimensions } from "@opentui/react";
-import { shouldShowCliUsageCost } from "../../utils/usage-cost-display";
+import {
+	shouldShowCliUsageCost,
+	shouldShowCliUsageCoveredBySubscription,
+} from "../../utils/usage-cost-display";
 import {
 	useTerminalBackground,
 	useTerminalTheme,
@@ -46,14 +49,31 @@ function formatCost(cost: number): string {
 	return `$${cost.toFixed(2)}`;
 }
 
+function formatCostText(providerId: string, totalCost: number): string {
+	if (shouldShowCliUsageCoveredBySubscription(providerId)) {
+		return "$0.00 (included with your subscription)";
+	}
+
+	if (!shouldShowCliUsageCost(providerId)) {
+		return "";
+	}
+
+	return formatCost(totalCost);
+}
+
 export function formatStatusBarUsageText(input: {
 	totalTokens: number;
 	totalCost: number;
-	showCost: boolean;
+	providerId: string;
 }): string {
 	const tokens = `(${input.totalTokens.toLocaleString()} tokens)`;
-	if (!input.showCost) return tokens;
-	return `${tokens} ${formatCost(input.totalCost)}`;
+	const costText = formatCostText(input.providerId, input.totalCost);
+
+	if (!costText) {
+		return tokens;
+	}
+
+	return `${tokens} ${costText}`;
 }
 
 // knownModels keys are bare IDs ("claude-sonnet-4-6") but config.modelId
@@ -152,7 +172,6 @@ export function StatusBar(props: StatusBarProps) {
 	const bar = hasMaxInputTokens
 		? createContextBar(totalTokens, maxInputTokens)
 		: undefined;
-	const showUsageCost = shouldShowCliUsageCost(props.providerId);
 
 	// Available content width after accounting for padding.
 	// Home view: parent box is capped at 60 wide, status bar adds paddingX=1 (-2).
@@ -169,7 +188,7 @@ export function StatusBar(props: StatusBarProps) {
 	const usageText = formatStatusBarUsageText({
 		totalTokens,
 		totalCost,
-		showCost: showUsageCost,
+		providerId: props.providerId,
 	});
 	const contextText = bar
 		? ` ${bar.filled}${bar.empty} ${usageText}`

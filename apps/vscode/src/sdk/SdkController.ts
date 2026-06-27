@@ -5,12 +5,12 @@
 // cancelTask, …) to the Cline SDK (@cline/core) and bridges SDK events to
 // the webview's gRPC streams.
 import * as fs from "node:fs/promises"
-import * as os from "node:os"
 import * as path from "node:path"
 import {
 	createUserInstructionConfigService,
 	getProviderAuthStorageId,
 	type PreparedRemoteConfigCoreIntegration,
+	resolveDefaultMcpSettingsPath,
 	type SessionHistoryRecord,
 	setTelemetryOptOutGlobally,
 	type UserInstructionConfigService,
@@ -232,8 +232,7 @@ export class Controller {
 		this.mcpHub = new McpHub(
 			() => ensureMcpServersDirectoryExists(),
 			async () => {
-				const clineDir = process.env.CLINE_DIR || path.join(os.homedir(), ".cline")
-				const settingsDir = path.join(clineDir, "data", "settings")
+				const settingsDir = path.dirname(resolveDefaultMcpSettingsPath())
 				await fs.mkdir(settingsDir, { recursive: true })
 				return settingsDir
 			},
@@ -611,6 +610,15 @@ export class Controller {
 		}
 	}
 
+	async invalidateUserInstructionService(): Promise<void> {
+		const userInstructionServicePromise = this.userInstructionService
+		this.userInstructionService = undefined
+		this.userInstructionServiceRoot = undefined
+		if (userInstructionServicePromise) {
+			await userInstructionServicePromise.then((service) => service.stop()).catch(() => {})
+		}
+	}
+
 	async dispose(): Promise<void> {
 		this.providerConfigStoreSubscription.dispose()
 		// Clear the remote config timer to prevent stale fetches
@@ -620,11 +628,7 @@ export class Controller {
 		}
 		await this.setRemoteConfigCoreIntegration(undefined)
 		this.isDisposed = true
-		const userInstructionServicePromise = this.userInstructionService
-		this.userInstructionService = undefined
-		if (userInstructionServicePromise) {
-			await userInstructionServicePromise.then((service) => service.stop()).catch(() => {})
-		}
+		await this.invalidateUserInstructionService()
 		this.messages.cancelPendingSave()
 		// Clear MCP tool list change callback before disposing McpHub
 		this.mcpHub?.clearToolListChangeCallback()
@@ -667,7 +671,11 @@ export class Controller {
 		this.userInstructionService = (async () => {
 			const service = createUserInstructionConfigService({
 				workflows: { workspacePath: workspaceRoot },
-				skills: { workspacePath: workspaceRoot },
+				skills: {
+					workspacePath: workspaceRoot,
+					includePluginSkills: true,
+					cwd: workspaceRoot,
+				},
 				rules: { workspacePath: workspaceRoot },
 			})
 			// start() runs the initial scan; await so the snapshot is populated
@@ -989,6 +997,29 @@ export class Controller {
 		stubWarn("cancelBackgroundCommand")
 	}
 
+	async cancelQueuedPrompt(promptId: string): Promise<void> {
+		const trimmedPromptId = promptId.trim()
+		if (!trimmedPromptId) {
+			Logger.warn("[SdkController] cancelQueuedPrompt: Missing prompt id")
+			return
+		}
+
+		const activeSession = this.sessions.getActiveSession()
+		if (!activeSession) {
+			Logger.warn("[SdkController] cancelQueuedPrompt: No active session")
+			return
+		}
+
+		const result = await activeSession.sdkHost.pendingPrompts("delete", {
+			sessionId: activeSession.sessionId,
+			promptId: trimmedPromptId,
+		})
+		if (!result.removed) {
+			Logger.warn(`[SdkController] cancelQueuedPrompt: Prompt not found: ${trimmedPromptId}`)
+		}
+		await this.postStateToWebview()
+	}
+
 	/**
 	 * Manually compact (condense) the active task's conversation. Triggered by
 	 * the compact button and the `/compact` (alias `/smol`) slash command.
@@ -1029,6 +1060,8 @@ export class Controller {
 			return
 		}
 
+		const turnStateBefore = this.turnStateTracker.get()
+
 		// Answering an ask / continuing after completion / resuming a cancelled task all kick off a
 		// new agent turn — move the authoritative phase to "streaming" so the footer shows
 		// Thinking + Cancel (and not the stale resumable/completed/awaiting_followup buttons or the
@@ -1038,7 +1071,7 @@ export class Controller {
 		this.turnStateTracker.set("streaming")
 		// Clear the previous turn's completion signal so this new turn's phase is computed fresh.
 		this.messageTranslatorState.clearTurnOutcome()
-		await this.followups.askResponse(prompt, images, files, this.task?.taskState?.askResponse)
+		await this.followups.askResponse(prompt, images, files, this.task?.taskState?.askResponse, turnStateBefore.phase)
 	}
 
 	async editMessageAndRegenerate(input: {

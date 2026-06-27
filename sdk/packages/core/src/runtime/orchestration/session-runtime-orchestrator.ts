@@ -1267,8 +1267,8 @@ export class SessionRuntime {
 			? "error"
 			: deriveFinishReason(runResult);
 		const text =
-			runResult?.outputText ||
 			(runResult?.status === "failed" ? runResult.error?.message : undefined) ||
+			runResult?.outputText ||
 			"";
 		const usage: LegacyAgentUsage = runResult
 			? {

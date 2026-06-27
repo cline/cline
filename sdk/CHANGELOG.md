@@ -1,5 +1,33 @@
 # Cline SDK Changelog
 
+## 0.0.53
+
+- Show when request cost is covered by the user's Cline subscription
+- List ClinePass features in the not-subscribed message
+- Added shared marketplace uninstall support
+- Shared marketplace install logic through core
+- Surfaced plugin-bundled skills
+- Capped MCP tool names at 64 characters for OpenAI-compatible providers
+- Updated coupon code
+
+## 0.0.52
+
+- Added checkpoints support to the agent runtime
+- Added SAP AI Core provider support: stabilized provider setup, bundled provider auth, forwarded provider options to the gateway, aligned provider config, kept model filtering in clients, and added OCA legacy reasoning-effort handling
+- Routed LiteLLM model fetches through the SDK and stopped unrelated models from being injected into the LiteLLM model list
+- Preserved OpenRouter reasoning-disable semantics and included the session id for OpenRouter prompt caching
+- Updated the ClinePass model list live, restored ClinePass models in onboarding, fixed ClinePass error mapping, and scoped the ClinePass URL to the CLI
+- Threaded proxy/CA-aware fetch into the SDK inference path
+- Persisted Bedrock settings to providers.json
+- Repaired exposed provider auth routing and restored provider-request capture wiring lost in the SDK migration
+- Added a connector configure path and moved the shared connector catalog into the shared package
+- Normalized JSON-like tool inputs by schema and avoided a nullable editor `old_text` schema
+- Batched outdated-read rewrites in `MessageBuilder` to preserve provider prefix caches
+- Prevented an "ERROR: EMPTY CONTENT" message from appearing when an error occurs
+- Added non-interactive command guidance to the agent
+- Published SDK sourcemaps
+- Refreshed the generated model catalog
+
 ## 0.0.51
 
 - Fixed Z.ai model metadata not resolving correctly when using Z.ai models through the Cline provider; aliases now map to the right model metadata and user overrides are preserved

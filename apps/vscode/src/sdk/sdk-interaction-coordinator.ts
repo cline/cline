@@ -5,7 +5,7 @@ import { Logger } from "@/shared/services/Logger"
 import { MessageIdMinter } from "./message-id-minter"
 import { buildToolApprovalAskMessage } from "./message-translator"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
-import { DEFAULT_TOOL_APPROVAL_DENIAL_REASON, USER_MESSAGE_TOOL_APPROVAL_DENIAL_REASON } from "./tool-approval-denial"
+import { DEFAULT_TOOL_APPROVAL_DENIAL_REASON } from "./tool-approval-denial"
 
 export interface ToolApprovalRequest {
 	agentId: string
@@ -127,30 +127,28 @@ export class SdkInteractionCoordinator {
 		})
 	}
 
-	resolvePendingToolApproval(prompt: string | undefined, responseType: ClineAskResponse | undefined): boolean {
+	resolvePendingToolApproval(
+		prompt: string | undefined,
+		responseType: ClineAskResponse | undefined,
+		images?: string[],
+		files?: string[],
+	): boolean {
 		if (!this.pendingToolApprovalResolve) {
 			return false
 		}
 
 		const resolve = this.pendingToolApprovalResolve
 		const pendingMessage = this.pendingToolApprovalMessage
-		this.pendingToolApprovalResolve = undefined
-		this.pendingToolApprovalMessage = undefined
 
 		if (responseType === "messageResponse") {
-			Logger.log("[SdkController] Rejecting pending tool approval from user message and routing message as follow-up")
-			this.options.setTurnPhase?.("streaming")
-			if (pendingMessage) {
-				this.options.recordDeniedToolApproval?.(
-					pendingMessage.toolCallId,
-					pendingMessage.toolName,
-					USER_MESSAGE_TOOL_APPROVAL_DENIAL_REASON,
-				)
-			}
-			resolve({ approved: false, reason: USER_MESSAGE_TOOL_APPROVAL_DENIAL_REASON })
-			// The approval was resolved, but the chat message still needs normal follow-up routing.
+			Logger.log("[SdkController] Leaving pending tool approval open and routing user message as queued follow-up")
+			this.options.setTurnPhase?.("awaiting_approval", pendingMessage?.messageTs)
+			// The approval remains pending. The chat message still needs normal follow-up routing.
 			return false
 		}
+
+		this.pendingToolApprovalResolve = undefined
+		this.pendingToolApprovalMessage = undefined
 
 		const approved = responseType === "yesButtonClicked"
 		Logger.log(`[SdkController] Resolving pending tool approval: approved=${approved} (responseType=${responseType})`)
@@ -162,6 +160,21 @@ export class SdkInteractionCoordinator {
 		// On rejection the agent receives the denial and continues; the SDK drives the next phase.
 		this.options.setTurnPhase?.("streaming")
 		const denialReason = prompt || DEFAULT_TOOL_APPROVAL_DENIAL_REASON
+		if (!approved && (prompt?.trim() || images?.length || files?.length)) {
+			const userMessage: ClineMessage = {
+				ts: this.nextMessageTs(),
+				type: "say",
+				say: "user_feedback",
+				text: prompt ?? "",
+				images,
+				files,
+				partial: false,
+			}
+			this.options.messages.appendAndEmit([userMessage], {
+				type: "status",
+				payload: { sessionId: this.options.getSessionId(), status: "running" },
+			})
+		}
 		if (!approved && pendingMessage) {
 			this.options.recordDeniedToolApproval?.(pendingMessage.toolCallId, pendingMessage.toolName, denialReason)
 		}

@@ -3,7 +3,6 @@ import {
 	OpenAiCompatibleModelInfo,
 	OpenRouterModelInfo,
 	ModelsApiConfiguration as ProtoApiConfiguration,
-	ApiProvider as ProtoApiProvider,
 	OcaModelInfo as ProtoOcaModelInfo,
 	ThinkingConfig,
 } from "@shared/proto/cline/models"
@@ -241,208 +240,12 @@ function convertProtoToOpenAiCompatibleModelInfo(
 	}
 }
 
-// Convert application ApiProvider to proto ApiProvider
-function convertApiProviderToProto(provider: string | undefined): ProtoApiProvider {
-	switch (provider) {
-		case "anthropic":
-			return ProtoApiProvider.ANTHROPIC
-		case "openrouter":
-			return ProtoApiProvider.OPENROUTER
-		case "bedrock":
-			return ProtoApiProvider.BEDROCK
-		case "vertex":
-			return ProtoApiProvider.VERTEX
-		case "openai":
-			return ProtoApiProvider.OPENAI
-		case "ollama":
-			return ProtoApiProvider.OLLAMA
-		case "lmstudio":
-			return ProtoApiProvider.LMSTUDIO
-		case "gemini":
-			return ProtoApiProvider.GEMINI
-		case "openai-native":
-			return ProtoApiProvider.OPENAI_NATIVE
-		case "requesty":
-			return ProtoApiProvider.REQUESTY
-		case "together":
-			return ProtoApiProvider.TOGETHER
-		case "deepseek":
-			return ProtoApiProvider.DEEPSEEK
-		case "qwen":
-			return ProtoApiProvider.QWEN
-		case "qwen-code":
-			return ProtoApiProvider.QWEN_CODE
-		case "doubao":
-			return ProtoApiProvider.DOUBAO
-		case "mistral":
-			return ProtoApiProvider.MISTRAL
-		case "vscode-lm":
-			return ProtoApiProvider.VSCODE_LM
-		case "cline":
-			return ProtoApiProvider.CLINE
-		case "cline-pass":
-			return ProtoApiProvider.CLINE_PASS
-		case "litellm":
-			return ProtoApiProvider.LITELLM
-		case "moonshot":
-			return ProtoApiProvider.MOONSHOT
-		case "huggingface":
-			return ProtoApiProvider.HUGGINGFACE
-		case "nebius":
-			return ProtoApiProvider.NEBIUS
-		case "wandb":
-			return ProtoApiProvider.WANDB
-		case "fireworks":
-			return ProtoApiProvider.FIREWORKS
-		case "asksage":
-			return ProtoApiProvider.ASKSAGE
-		case "xai":
-			return ProtoApiProvider.XAI
-		case "sambanova":
-			return ProtoApiProvider.SAMBANOVA
-		case "cerebras":
-			return ProtoApiProvider.CEREBRAS
-		case "groq":
-			return ProtoApiProvider.GROQ
-		case "baseten":
-			return ProtoApiProvider.BASETEN
-		case "sapaicore":
-			return ProtoApiProvider.SAPAICORE
-		case "claude-code":
-			return ProtoApiProvider.CLAUDE_CODE
-		case "huawei-cloud-maas":
-			return ProtoApiProvider.HUAWEI_CLOUD_MAAS
-		case "vercel-ai-gateway":
-			return ProtoApiProvider.VERCEL_AI_GATEWAY
-		case "zai":
-			return ProtoApiProvider.ZAI
-		case "dify":
-			return ProtoApiProvider.DIFY
-		case "oca":
-			return ProtoApiProvider.OCA
-		case "aihubmix":
-			return ProtoApiProvider.AIHUBMIX
-		case "minimax":
-			return ProtoApiProvider.MINIMAX
-		case "hicap":
-			return ProtoApiProvider.HICAP
-		case "nousResearch":
-			return ProtoApiProvider.NOUSRESEARCH
-		case "openai-codex":
-			return ProtoApiProvider.OPENAI_CODEX
-		case "poolside":
-			return ProtoApiProvider.POOLSIDE
-		case "v0":
-			return ProtoApiProvider.V0
-		case "xiaomi":
-			return ProtoApiProvider.XIAOMI
-		case "zai-coding-plan":
-			return ProtoApiProvider.ZAI_CODING_PLAN
-		default:
-			return ProtoApiProvider.ANTHROPIC
-	}
-}
-
-// Convert proto ApiProvider to application ApiProvider
-export function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvider {
-	switch (provider) {
-		case ProtoApiProvider.ANTHROPIC:
-			return "anthropic"
-		case ProtoApiProvider.OPENROUTER:
-			return "openrouter"
-		case ProtoApiProvider.BEDROCK:
-			return "bedrock"
-		case ProtoApiProvider.VERTEX:
-			return "vertex"
-		case ProtoApiProvider.OPENAI:
-			return "openai"
-		case ProtoApiProvider.OLLAMA:
-			return "ollama"
-		case ProtoApiProvider.LMSTUDIO:
-			return "lmstudio"
-		case ProtoApiProvider.GEMINI:
-			return "gemini"
-		case ProtoApiProvider.OPENAI_NATIVE:
-			return "openai-native"
-		case ProtoApiProvider.REQUESTY:
-			return "requesty"
-		case ProtoApiProvider.TOGETHER:
-			return "together"
-		case ProtoApiProvider.DEEPSEEK:
-			return "deepseek"
-		case ProtoApiProvider.QWEN:
-			return "qwen"
-		case ProtoApiProvider.QWEN_CODE:
-			return "qwen-code"
-		case ProtoApiProvider.DOUBAO:
-			return "doubao"
-		case ProtoApiProvider.MISTRAL:
-			return "mistral"
-		case ProtoApiProvider.VSCODE_LM:
-			return "vscode-lm"
-		case ProtoApiProvider.CLINE:
-			return "cline"
-		case ProtoApiProvider.CLINE_PASS:
-			return "cline-pass"
-		case ProtoApiProvider.LITELLM:
-			return "litellm"
-		case ProtoApiProvider.MOONSHOT:
-			return "moonshot"
-		case ProtoApiProvider.HUGGINGFACE:
-			return "huggingface"
-		case ProtoApiProvider.NEBIUS:
-			return "nebius"
-		case ProtoApiProvider.WANDB:
-			return "wandb"
-		case ProtoApiProvider.FIREWORKS:
-			return "fireworks"
-		case ProtoApiProvider.ASKSAGE:
-			return "asksage"
-		case ProtoApiProvider.XAI:
-			return "xai"
-		case ProtoApiProvider.SAMBANOVA:
-			return "sambanova"
-		case ProtoApiProvider.CEREBRAS:
-			return "cerebras"
-		case ProtoApiProvider.GROQ:
-			return "groq"
-		case ProtoApiProvider.BASETEN:
-			return "baseten"
-		case ProtoApiProvider.SAPAICORE:
-			return "sapaicore"
-		case ProtoApiProvider.CLAUDE_CODE:
-			return "claude-code"
-		case ProtoApiProvider.HUAWEI_CLOUD_MAAS:
-			return "huawei-cloud-maas"
-		case ProtoApiProvider.VERCEL_AI_GATEWAY:
-			return "vercel-ai-gateway"
-		case ProtoApiProvider.ZAI:
-			return "zai"
-		case ProtoApiProvider.HICAP:
-			return "hicap"
-		case ProtoApiProvider.DIFY:
-			return "dify"
-		case ProtoApiProvider.OCA:
-			return "oca"
-		case ProtoApiProvider.AIHUBMIX:
-			return "aihubmix"
-		case ProtoApiProvider.MINIMAX:
-			return "minimax"
-		case ProtoApiProvider.NOUSRESEARCH:
-			return "nousResearch"
-		case ProtoApiProvider.OPENAI_CODEX:
-			return "openai-codex"
-		case ProtoApiProvider.POOLSIDE:
-			return "poolside"
-		case ProtoApiProvider.V0:
-			return "v0"
-		case ProtoApiProvider.XIAOMI:
-			return "xiaomi"
-		case ProtoApiProvider.ZAI_CODING_PLAN:
-			return "zai-coding-plan"
-		default:
-			return "anthropic"
-	}
+// Provider ids travel over the wire as plain strings (matching the `ApiProvider`
+// union in `@shared/api`), so no enum mapping is needed in either direction.
+// This thin helper just supplies the default and the single cast boundary for
+// callers reading a provider id off a proto message.
+export function convertProtoToApiProvider(provider: string | undefined): ApiProvider {
+	return (provider || "anthropic") as ApiProvider
 }
 
 // Converts application ApiConfiguration to proto ApiConfiguration
@@ -536,7 +339,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		hicapModelId: config.hicapModelId,
 
 		// Plan mode configurations
-		planModeApiProvider: config.planModeApiProvider ? convertApiProviderToProto(config.planModeApiProvider) : undefined,
+		planModeApiProvider: config.planModeApiProvider,
 		planModeApiModelId: config.planModeApiModelId,
 		planModeThinkingBudgetTokens: config.planModeThinkingBudgetTokens,
 		geminiPlanModeThinkingLevel: config.geminiPlanModeThinkingLevel,
@@ -582,7 +385,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		planModeVercelAiGatewayModelInfo: convertModelInfoToProtoOpenRouter(config.planModeVercelAiGatewayModelInfo),
 
 		// Act mode configurations
-		actModeApiProvider: config.actModeApiProvider ? convertApiProviderToProto(config.actModeApiProvider) : undefined,
+		actModeApiProvider: config.actModeApiProvider,
 		actModeApiModelId: config.actModeApiModelId,
 		actModeThinkingBudgetTokens: config.actModeThinkingBudgetTokens,
 		geminiActModeThinkingLevel: config.geminiActModeThinkingLevel,

@@ -133,6 +133,10 @@ function hasStaleDisabledReasoningFields(reasoning: ProviderReasoningSettings | 
 	return reasoning?.enabled === false && (reasoning.effort !== undefined || reasoning.budgetTokens !== undefined)
 }
 
+function providerSettingsProviderId(providerId: string): string {
+	return toSdkProviderId(providerId)
+}
+
 /**
  * Convert SDK provider-level reasoning settings into the SDK session fields that
  * are actually forwarded as model options. Keep `thinking` and
@@ -160,7 +164,7 @@ export function normalizeProviderReasoningSettings(reasoning: ProviderReasoningS
 function resolveProviderReasoningConfig(providerId: string): SessionReasoningConfig {
 	try {
 		const manager = getProviderSettingsManager(resolveDataDir())
-		const settings = manager.getProviderSettings(providerId)
+		const settings = manager.getProviderSettings(providerSettingsProviderId(providerId))
 		if (!settings) {
 			return {}
 		}
@@ -333,7 +337,7 @@ export function resolveApiKey(providerId: string, config: ApiConfiguration): str
 		// hardcoding provider exceptions.
 		try {
 			const manager = getProviderSettingsManager()
-			const apiKey = resolveProviderApiKeyFromSettings(manager, providerId)?.trim()
+			const apiKey = resolveProviderApiKeyFromSettings(manager, providerSettingsProviderId(providerId))?.trim()
 			if (apiKey) {
 				return apiKey
 			}
@@ -359,7 +363,7 @@ export function resolveApiKey(providerId: string, config: ApiConfiguration): str
 	// startup.
 	try {
 		const manager = getProviderSettingsManager()
-		const apiKey = resolveProviderApiKeyFromSettings(manager, providerId)?.trim()
+		const apiKey = resolveProviderApiKeyFromSettings(manager, providerSettingsProviderId(providerId))?.trim()
 		if (apiKey) {
 			return apiKey
 		}
@@ -648,7 +652,6 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	}
 
 	const stateManager = StateManager.get()
-	const globalSubagentsEnabled = stateManager.getGlobalSettingsKey("subagentsEnabled") ?? false
 	const globalUseAutoCondense = stateManager.getGlobalSettingsKey("useAutoCondense") ?? false
 	const enableCheckpoints = stateManager.getGlobalSettingsKey("enableCheckpointsSetting") ?? true
 	const useAutoCondense = input.taskSettings?.useAutoCondense ?? globalUseAutoCondense
@@ -688,7 +691,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		checkpoint: {
 			enabled: enableCheckpoints,
 		},
-		enableSpawnAgent: input.taskSettings?.subagentsEnabled ?? globalSubagentsEnabled,
+		enableSpawnAgent: false,
 		enableAgentTeams: false,
 		...(useAutoCondense
 			? {

@@ -8,13 +8,11 @@ import {
 
 import { getClineEnvironmentConfig } from "@cline/shared";
 
-export {
-	getClineOrgIndividualInferenceSubscriptionMessage,
-};
+export { getClineOrgIndividualInferenceSubscriptionMessage };
 
 export function getCliSubscriptionUrl(): string {
 	return `${new URL(
-		"/promo?code=CLI-100&personal=true",
+		"/promo?code=CLI-8OFF&personal=true",
 		getClineEnvironmentConfig().appBaseUrl,
 	).toString()}`;
 }

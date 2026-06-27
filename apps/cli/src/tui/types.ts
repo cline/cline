@@ -2,6 +2,7 @@ import type {
 	AgentEvent,
 	AgentMode,
 	CheckpointEntry,
+	ClineSubscriptionPlan,
 	TeamEvent,
 } from "@cline/core";
 import type {
@@ -129,6 +130,7 @@ export interface TuiProps {
 	loadAdditionalSlashCommands?: () => Promise<InteractiveSlashCommand[]>;
 	loadWelcomeLine?: () => Promise<string | undefined>;
 	loadClineAccount: () => Promise<ClineAccountSnapshot>;
+	loadIndividualSubscriptionPlans?: () => Promise<ClineSubscriptionPlan[]>;
 	switchClineAccount: (organizationId?: string | null) => Promise<void>;
 	loadConfigData: (
 		options?: LoadInteractiveConfigDataOptions,

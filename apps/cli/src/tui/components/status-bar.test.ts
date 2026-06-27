@@ -55,18 +55,18 @@ describe("formatStatusBarUsageText", () => {
 			formatStatusBarUsageText({
 				totalTokens: 12_345,
 				totalCost: 0.123,
-				showCost: true,
+				providerId: "cline",
 			}),
 		).toBe("(12,345 tokens) $0.12");
 	});
 
-	it("omits cost when usage cost is hidden", () => {
+	it("displays subscription message when the provider is a subscription provider", () => {
 		expect(
 			formatStatusBarUsageText({
 				totalTokens: 12_345,
 				totalCost: 0.123,
-				showCost: false,
+				providerId: "cline-pass",
 			}),
-		).toBe("(12,345 tokens)");
+		).toBe("(12,345 tokens) $0.00 (included with your subscription)");
 	});
 });

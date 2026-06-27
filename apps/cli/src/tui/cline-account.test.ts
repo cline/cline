@@ -12,6 +12,7 @@ const coreMocks = vi.hoisted(() => {
 		fetchMe: vi.fn(),
 		fetchBalance: vi.fn(),
 		fetchOrganizationBalance: vi.fn(),
+		fetchAvailableSubscriptionPlans: vi.fn(),
 		serviceOptions,
 	};
 });
@@ -38,6 +39,11 @@ vi.mock("@cline/core", async (importOriginal) => {
 			}
 			fetchOrganizationBalance(organizationId: string) {
 				return coreMocks.fetchOrganizationBalance(organizationId);
+			}
+			fetchAvailableSubscriptionPlans(input?: {
+				type?: "individual" | "teams";
+			}) {
+				return coreMocks.fetchAvailableSubscriptionPlans(input);
 			}
 		},
 		ProviderSettingsManager: class {
@@ -100,6 +106,7 @@ describe("createClineAccountService", () => {
 		coreMocks.fetchMe.mockReset();
 		coreMocks.fetchBalance.mockReset();
 		coreMocks.fetchOrganizationBalance.mockReset();
+		coreMocks.fetchAvailableSubscriptionPlans.mockReset();
 		coreMocks.serviceOptions.length = 0;
 		telemetryMocks.identifyTelemetryAccount.mockReset();
 	});
@@ -196,6 +203,7 @@ describe("loadClineAccountSnapshot", () => {
 		coreMocks.fetchMe.mockReset();
 		coreMocks.fetchBalance.mockReset();
 		coreMocks.fetchOrganizationBalance.mockReset();
+		coreMocks.fetchAvailableSubscriptionPlans.mockReset();
 		coreMocks.serviceOptions.length = 0;
 		telemetryMocks.identifyTelemetryAccount.mockReset();
 	});
@@ -247,5 +255,50 @@ describe("loadClineAccountSnapshot", () => {
 			},
 			expect.any(Object),
 		);
+	});
+});
+
+describe("loadIndividualSubscriptionPlans", () => {
+	beforeEach(() => {
+		vi.restoreAllMocks();
+		vi.unstubAllGlobals();
+		coreMocks.getProviderSettings.mockReset();
+		coreMocks.saveProviderSettings.mockReset();
+		coreMocks.fetchMe.mockReset();
+		coreMocks.fetchBalance.mockReset();
+		coreMocks.fetchOrganizationBalance.mockReset();
+		coreMocks.fetchAvailableSubscriptionPlans.mockReset();
+		coreMocks.serviceOptions.length = 0;
+		telemetryMocks.identifyTelemetryAccount.mockReset();
+	});
+
+	afterEach(() => {
+		vi.restoreAllMocks();
+		vi.unstubAllGlobals();
+	});
+
+	it("loads individual subscription plans through the authorized account service", async () => {
+		const plans = [
+			{
+				id: "plan-1",
+				interval: "Monthly",
+				features: { included: ["Major open-weights models"] },
+			},
+		];
+		coreMocks.getProviderSettings.mockReturnValue({
+			provider: "cline",
+			apiKey: "account-token",
+		});
+		coreMocks.fetchAvailableSubscriptionPlans.mockResolvedValue(plans);
+
+		const { loadIndividualSubscriptionPlans } = await import("./cline-account");
+		const result = await loadIndividualSubscriptionPlans({
+			config: makeConfig(),
+		});
+
+		expect(coreMocks.fetchAvailableSubscriptionPlans).toHaveBeenCalledWith({
+			type: "individual",
+		});
+		expect(result).toEqual(plans);
 	});
 });

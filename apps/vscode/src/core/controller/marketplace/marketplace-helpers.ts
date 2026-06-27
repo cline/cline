@@ -6,15 +6,25 @@ import { basename, dirname, extname, isAbsolute, join, relative, resolve } from 
 import {
 	disablePluginMcpServersInSettings,
 	discoverPluginModulePaths,
+	installMcpServer,
+	installPlugin,
+	isMarketplaceSkillInstalled,
+	type MarketplaceActionResult,
+	type MarketplaceEntryInput,
+	type MarketplacePrimitiveType,
+	parseMcpInstallArgs,
 	readGlobalSettings,
 	resolvePluginConfigSearchPaths,
 	setDisabledPlugin,
 	syncPluginMcpServersToSettings,
+	uninstallMarketplaceEntry as uninstallCoreMarketplaceEntry,
+	uninstallPlugin,
 } from "@cline/core"
+import { deleteSkillFile } from "@core/controller/file/deleteSkillFile"
 import { refreshSkills } from "@core/controller/file/refreshSkills"
 import { toggleSkill } from "@core/controller/file/toggleSkill"
 import { resolveActiveModelIdFromApiConfiguration } from "@core/controller/models/taskApiModel"
-import { ToggleSkillRequest } from "@shared/proto/cline/file"
+import { DeleteSkillRequest, ToggleSkillRequest } from "@shared/proto/cline/file"
 import {
 	MarketplaceCatalog,
 	MarketplaceEntry,
@@ -22,6 +32,7 @@ import {
 	MarketplaceInstallResult,
 	MarketplaceLocalInstalledEntries,
 	MarketplaceLocalInstalledEntry,
+	MarketplaceLocalInstalledEntryRequest,
 	ToggleMarketplaceLocalInstalledEntryRequest,
 } from "@shared/proto/cline/marketplace"
 import { HostProvider } from "@/hosts/host-provider"
@@ -39,7 +50,6 @@ const MARKETPLACE_CATALOG_URL = "https://cline.github.io/marketplace/catalog.jso
 const OFFICIAL_PLUGINS_REPO = "https://github.com/cline/plugins.git"
 const INSTALL_COMMAND_TIMEOUT_MS = 120_000
 const MAX_OUTPUT_CHARS = 12_000
-const LOCAL_CLI_ENTRYPOINT_ENV = "CLINE_MARKETPLACE_CLI_PATH"
 const SECRET_PATTERN =
 	/(api[_ -]?key|access[_ -]?token|refresh[_ -]?token|auth(?:orization)?[_ -]?token|token|secret|password|authorization|credential)/i
 const SECRET_KEY_VALUE_PATTERN =
@@ -167,31 +177,9 @@ function isOfficialPluginInstalled(entry: MarketplaceEntry): boolean {
 	return existsSync(installPath)
 }
 
-function getSkillCandidates(entry: MarketplaceEntry): string[] {
-	const candidates = new Set([normalizeMatchValue(entry.id), normalizeMatchValue(entry.name)])
-	const args = getEntryArgs(entry)
-	for (let index = 0; index < args.length; index++) {
-		const arg = args[index]
-		if ((arg === "--skill" || arg === "-s") && args[index + 1]) {
-			candidates.add(normalizeMatchValue(args[index + 1]))
-			index++
-			continue
-		}
-		const skillFilter = arg.split("@").at(1)
-		if (skillFilter) candidates.add(normalizeMatchValue(skillFilter))
-	}
-	candidates.delete("")
-	return [...candidates]
-}
-
 function isSkillInstalled(entry: MarketplaceEntry): boolean {
 	if (entry.type !== "skill") return false
-	return getSkillCandidates(entry).some((candidate) =>
-		[
-			join(resolveClineHome(), "skills", candidate, "SKILL.md"),
-			join(homedir(), ".agents", "skills", candidate, "SKILL.md"),
-		].some((path) => existsSync(path)),
-	)
+	return isMarketplaceSkillInstalled(toCoreMarketplaceEntry(entry))
 }
 
 export function listInstalledMarketplaceEntries(
@@ -313,60 +301,37 @@ async function runCommand(command: string, args: string[]): Promise<SpawnResult>
 	})
 }
 
-function localCliRunner(): { command: string; args: string[] } | undefined {
-	const overridePath = process.env[LOCAL_CLI_ENTRYPOINT_ENV]?.trim()
-	const devWorkspacePath = process.env.DEV_WORKSPACE_FOLDER?.trim()
-	const candidatePath =
-		overridePath ||
-		(devWorkspacePath ? join(devWorkspacePath, "apps", "cli", "src", "index.ts") : undefined) ||
-		findLocalCliEntrypointFromKnownDirectories()
-	if (!candidatePath || !existsSync(candidatePath)) return undefined
-	return {
-		command: "bun",
-		args: ["--conditions=development", candidatePath],
-	}
+function installMcpMarketplaceEntry(entry: MarketplaceEntry, args: string[]): MarketplaceInstallResult {
+	const parsed = parseMcpInstallArgs(args)
+	const result = installMcpServer(parsed)
+	return MarketplaceInstallResult.create({
+		id: entry.id,
+		type: entry.type,
+		status: "installed",
+		message: `Installed ${entry.name || entry.id}.`,
+		output: result.warnings.join("\n") || undefined,
+	})
 }
 
-function findLocalCliEntrypointFromKnownDirectories(): string | undefined {
-	const startDirectories = [process.cwd(), typeof __dirname === "string" ? __dirname : undefined].filter(
-		(directory): directory is string => Boolean(directory),
+async function installPluginMarketplaceEntry(entry: MarketplaceEntry, args: string[]): Promise<MarketplaceInstallResult> {
+	const [source] = args
+	if (!source) throw new Error("Marketplace plugin install args must start with a plugin source.")
+	const result = await installPlugin({ source })
+	const warnings = result.mcpSyncFailures.map(
+		(failure) => `Failed to sync plugin MCP servers for ${failure.pluginName ?? failure.pluginPath}: ${failure.message}`,
 	)
-	for (const startDirectory of startDirectories) {
-		const candidatePath = findLocalCliEntrypoint(startDirectory)
-		if (candidatePath) return candidatePath
-	}
-	return undefined
+	return MarketplaceInstallResult.create({
+		id: entry.id,
+		type: entry.type,
+		status: "installed",
+		message: `Installed ${entry.name || entry.id}.`,
+		output: [`Path: ${result.installPath}`, ...warnings].join("\n"),
+	})
 }
 
-function findLocalCliEntrypoint(startDirectory: string): string | undefined {
-	let current = resolve(startDirectory)
-	for (let depth = 0; depth < 8; depth++) {
-		const candidatePath = join(current, "apps", "cli", "src", "index.ts")
-		if (existsSync(candidatePath)) return candidatePath
-		const parent = dirname(current)
-		if (parent === current) break
-		current = parent
-	}
-	return undefined
-}
-
-export async function installMarketplaceEntryWithCli(entry: MarketplaceEntry): Promise<MarketplaceInstallResult> {
-	const args = getEntryArgs(entry)
-	if (args.length === 0) throw new Error("Marketplace install args are required.")
-	const localCli = entry.type === "mcp" || entry.type === "plugin" ? localCliRunner() : undefined
-	const command = localCli?.command ?? "npx"
-	const commandArgs = localCli
-		? [
-				...localCli.args,
-				...(entry.type === "mcp"
-					? ["mcp", "install", "--yes", "--json", ...args]
-					: ["plugin", "install", args[0] ?? "", "--json"]),
-			]
-		: entry.type === "skill"
-			? ["-y", "skills@latest", "add", ...args, "-g", "-a", "cline", "-y"]
-			: entry.type === "mcp"
-				? ["-y", "cline", "mcp", "install", "--yes", "--json", ...args]
-				: ["-y", "cline", "plugin", "install", args[0] ?? "", "--json"]
+async function installSkillMarketplaceEntry(entry: MarketplaceEntry, args: string[]): Promise<MarketplaceInstallResult> {
+	const command = "npx"
+	const commandArgs = ["-y", "skills@latest", "add", ...args, "-g", "-a", "cline", "-y"]
 	const displayCommand = formatCommand(command, commandArgs)
 	let result: SpawnResult
 	try {
@@ -393,6 +358,52 @@ export async function installMarketplaceEntryWithCli(entry: MarketplaceEntry): P
 		message: `Installed ${entry.name || entry.id}.`,
 		output,
 	})
+}
+
+export async function installMarketplaceEntryFromCatalog(entry: MarketplaceEntry): Promise<MarketplaceInstallResult> {
+	const args = getEntryArgs(entry)
+	if (args.length === 0) throw new Error("Marketplace install args are required.")
+	if (entry.type === "mcp") return installMcpMarketplaceEntry(entry, args)
+	if (entry.type === "plugin") return installPluginMarketplaceEntry(entry, args)
+	return installSkillMarketplaceEntry(entry, args)
+}
+
+function toCoreMarketplaceEntry(entry: MarketplaceEntry): MarketplaceEntryInput {
+	if (entry.type !== "mcp" && entry.type !== "skill" && entry.type !== "plugin") {
+		throw new Error(`Unsupported marketplace entry type: ${entry.type}`)
+	}
+	return {
+		id: entry.id,
+		type: entry.type as MarketplacePrimitiveType,
+		name: entry.name,
+		install: {
+			args: getEntryArgs(entry),
+		},
+	}
+}
+
+function toProtoMarketplaceInstallResult(result: MarketplaceActionResult): MarketplaceInstallResult {
+	return MarketplaceInstallResult.create({
+		id: result.id,
+		type: result.type,
+		status: result.status,
+		message: result.message,
+		output: result.output,
+	})
+}
+
+export async function uninstallMarketplaceEntryFromCatalog(
+	controller: Controller,
+	entry: MarketplaceEntry,
+): Promise<MarketplaceInstallResult> {
+	const workspaceRoot = await getWorkspacePath()
+	const result = await uninstallCoreMarketplaceEntry(toCoreMarketplaceEntry(entry), {
+		deleteMcpServer: async (name) => {
+			await controller.mcpHub?.deleteServerRPC(name)
+		},
+		workspaceRoot,
+	})
+	return toProtoMarketplaceInstallResult(result)
 }
 
 function readPackageName(packageJsonPath: string): string | undefined {
@@ -460,7 +471,6 @@ export async function listLocalMarketplaceInstalledEntries(controller: Controlle
 			type: "mcp",
 			name: server.name,
 			description: server.status,
-			path: server.config,
 			enabled: server.disabled !== true,
 		}),
 	)
@@ -543,6 +553,12 @@ export async function toggleLocalMarketplaceInstalledEntry(
 ): Promise<MarketplaceLocalInstalledEntries> {
 	const { entry, enabled } = request
 	if (!entry) throw new Error("Installed marketplace entry is required.")
+	if (entry.type === "mcp") {
+		const name = entry.name || entry.id
+		if (!name) throw new Error("MCP server name is required.")
+		await controller.mcpHub?.toggleServerDisabledRPC(name, !enabled)
+		return listLocalMarketplaceInstalledEntries(controller)
+	}
 	if (entry.type === "skill") {
 		await toggleSkill(
 			controller,
@@ -556,7 +572,64 @@ export async function toggleLocalMarketplaceInstalledEntry(
 	}
 	if (entry.type === "plugin") {
 		await togglePluginLocalEntry(controller, entry, enabled)
+		await controller.invalidateUserInstructionService()
 		return listLocalMarketplaceInstalledEntries(controller)
 	}
 	throw new Error(`Marketplace toggle is not supported for ${entry.type}.`)
+}
+
+export async function uninstallLocalMarketplaceInstalledEntry(
+	controller: Controller,
+	request: MarketplaceLocalInstalledEntryRequest,
+): Promise<MarketplaceInstallResult> {
+	const { entry } = request
+	if (!entry) throw new Error("Installed marketplace entry is required.")
+	const name = entry.name || entry.id
+	if (entry.type === "mcp") {
+		if (!name) throw new Error("MCP server name is required.")
+		await controller.mcpHub?.deleteServerRPC(name)
+		return MarketplaceInstallResult.create({
+			id: entry.id,
+			type: entry.type,
+			status: "uninstalled",
+			message: `Uninstalled ${name}.`,
+		})
+	}
+	if (entry.type === "skill") {
+		if (entry.path?.startsWith("remote:")) {
+			throw new Error("Remote-managed skills cannot be uninstalled from Customize.")
+		}
+		if (!entry.path) throw new Error("Skill path is required for uninstall.")
+		await deleteSkillFile(
+			controller,
+			DeleteSkillRequest.create({
+				skillPath: entry.path,
+				isGlobal: entry.source === "global",
+			}),
+		)
+		await controller.invalidateUserInstructionService()
+		return MarketplaceInstallResult.create({
+			id: entry.id,
+			type: entry.type,
+			status: "uninstalled",
+			message: `Uninstalled ${name || entry.id}.`,
+		})
+	}
+	if (entry.type === "plugin") {
+		const workspaceRoot = await getWorkspacePath()
+		const result = await uninstallPlugin({
+			name: entry.path ? undefined : name,
+			path: entry.path,
+			workspaceRoot,
+		})
+		await controller.invalidateUserInstructionService()
+		return MarketplaceInstallResult.create({
+			id: entry.id,
+			type: entry.type,
+			status: "uninstalled",
+			message: `Uninstalled ${result.name}.`,
+			output: [`Path: ${result.installPath}`, ...result.removedPaths.map((path) => `Removed: ${path}`)].join("\n"),
+		})
+	}
+	throw new Error(`Marketplace uninstall is not supported for ${entry.type}.`)
 }

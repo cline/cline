@@ -1597,9 +1597,27 @@ export function translateSessionEvent(event: CoreSessionEvent, state: MessageTra
 			break
 		}
 
-		case "team_progress":
-		case "pending_prompts":
 		case "pending_prompt_submitted": {
+			const { prompt, userImages, userFiles } = event.payload
+			const hasPrompt = prompt.trim().length > 0
+			const hasImages = (userImages?.length ?? 0) > 0
+			const hasFiles = (userFiles?.length ?? 0) > 0
+			if (hasPrompt || hasImages || hasFiles) {
+				result.messages.push({
+					ts: state.nextTs(),
+					type: "say",
+					say: "user_feedback",
+					text: prompt,
+					images: userImages,
+					files: userFiles,
+					partial: false,
+				})
+			}
+			break
+		}
+
+		case "team_progress":
+		case "pending_prompts": {
 			// These are handled by the team/subagent system, not translated
 			// to ClineMessages at this layer
 			break

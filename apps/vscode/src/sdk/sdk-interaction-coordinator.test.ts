@@ -4,7 +4,7 @@ import { MessageTranslatorState, translateSessionEvent } from "./message-transla
 import { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import { createTaskProxy } from "./task-proxy"
-import { DEFAULT_TOOL_APPROVAL_DENIAL_REASON, USER_MESSAGE_TOOL_APPROVAL_DENIAL_REASON } from "./tool-approval-denial"
+import { DEFAULT_TOOL_APPROVAL_DENIAL_REASON } from "./tool-approval-denial"
 
 vi.mock("./webview-grpc-bridge", () => ({
 	pushMessageToWebview: vi.fn().mockResolvedValue(undefined),
@@ -103,8 +103,9 @@ describe("SdkInteractionCoordinator", () => {
 		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
 		const recordApprovedToolMessage = vi.fn()
 		const recordDeniedToolApproval = vi.fn()
+		const messages = new SdkMessageCoordinator({ getTask: () => task })
 		const coordinator = new SdkInteractionCoordinator({
-			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			messages,
 			getSessionId: () => "session-123",
 			postStateToWebview: vi.fn().mockResolvedValue(undefined),
 			recordApprovedToolMessage,
@@ -125,13 +126,21 @@ describe("SdkInteractionCoordinator", () => {
 		const clineMessages = task.messageStateHandler.getClineMessages()
 		expect(clineMessages[0]).toMatchObject({ type: "ask", ask: "command", text: "npm test" })
 
-		expect(coordinator.resolvePendingToolApproval("too risky", "noButtonClicked")).toBe(true)
+		expect(coordinator.resolvePendingToolApproval("too risky", "noButtonClicked", ["image.png"], ["a.ts"])).toBe(true)
 		expect(recordApprovedToolMessage).not.toHaveBeenCalled()
 		expect(recordDeniedToolApproval).toHaveBeenCalledWith("tool-call", "execute_command", "too risky")
+		expect(task.messageStateHandler.getClineMessages()[1]).toMatchObject({
+			type: "say",
+			say: "user_feedback",
+			text: "too risky",
+			images: ["image.png"],
+			files: ["a.ts"],
+			partial: false,
+		})
 		await expect(approvalPromise).resolves.toEqual({ approved: false, reason: "too risky" })
 	})
 
-	it("routes message responses as follow-ups instead of tool denial text", async () => {
+	it("routes message responses as queued follow-ups without resolving pending tool approval", async () => {
 		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
 		const setTurnPhase = vi.fn()
 		const recordDeniedToolApproval = vi.fn()
@@ -155,16 +164,11 @@ describe("SdkInteractionCoordinator", () => {
 		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
 
 		expect(coordinator.resolvePendingToolApproval("just give me an answer", "messageResponse")).toBe(false)
-		await expect(approvalPromise).resolves.toEqual({
-			approved: false,
-			reason: USER_MESSAGE_TOOL_APPROVAL_DENIAL_REASON,
-		})
-		expect(recordDeniedToolApproval).toHaveBeenCalledWith(
-			"tool-call",
-			"fetch_web_content",
-			USER_MESSAGE_TOOL_APPROVAL_DENIAL_REASON,
-		)
-		expect(setTurnPhase).toHaveBeenLastCalledWith("streaming")
+		expect(recordDeniedToolApproval).not.toHaveBeenCalled()
+		expect(setTurnPhase).toHaveBeenLastCalledWith("awaiting_approval", task.messageStateHandler.getClineMessages()[0].ts)
+
+		expect(coordinator.resolvePendingToolApproval(undefined, "yesButtonClicked")).toBe(true)
+		await expect(approvalPromise).resolves.toEqual({ approved: true })
 	})
 
 	it("records generic no-button approval denials for UI suppression", async () => {
@@ -193,6 +197,7 @@ describe("SdkInteractionCoordinator", () => {
 			approved: false,
 			reason: DEFAULT_TOOL_APPROVAL_DENIAL_REASON,
 		})
+		expect(task.messageStateHandler.getClineMessages()).toHaveLength(1)
 		expect(recordDeniedToolApproval).toHaveBeenCalledWith(
 			"tool-call",
 			"fetch_web_content",
