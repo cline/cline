@@ -109,6 +109,38 @@ describe("AgentRuntime (provider-form config + Agent alias)", () => {
 		});
 	});
 
+	it("adds default SDK headers for Cline provider requests", () => {
+		const model = new ScriptedModel([]);
+		createAgentModel.mockReturnValue(model);
+
+		new Agent({
+			providerId: "cline",
+			modelId: "anthropic/claude-sonnet-4.6",
+			apiKey: "test-key",
+			headers: {
+				"x-custom": "kept",
+			},
+		});
+
+		expect(createGateway).toHaveBeenCalledWith({
+			providerConfigs: [
+				{
+					providerId: "cline",
+					apiKey: "test-key",
+					baseUrl: undefined,
+					headers: {
+						"HTTP-Referer": "https://cline.bot",
+						"X-Title": "Cline",
+						"X-IS-MULTIROOT": "false",
+						"X-CLIENT-TYPE": "cline-sdk",
+						"x-custom": "kept",
+					},
+					options: undefined,
+				},
+			],
+		});
+	});
+
 	it("forwards abort() to the active AgentRuntime", async () => {
 		let abortReason: unknown;
 		const model = new ScriptedModel([
