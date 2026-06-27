@@ -169,6 +169,7 @@ export interface ClineMessage {
 	say?: ClineSay
 	text?: string
 	reasoning?: string
+	metadata?: Record<string, unknown>
 	images?: string[]
 	files?: string[]
 	partial?: boolean

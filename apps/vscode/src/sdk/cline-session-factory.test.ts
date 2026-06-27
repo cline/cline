@@ -34,7 +34,7 @@ const mocks = vi.hoisted(() => {
 				apiKey: "test-key",
 			})),
 			getGlobalSettingsKey: vi.fn((key: string): boolean | undefined => {
-				if (key === "subagentsEnabled" || key === "useAutoCondense") {
+				if (key === "subagentsEnabled") {
 					return false
 				}
 				return undefined
@@ -81,7 +81,7 @@ beforeEach(() => {
 		apiKey: "test-key",
 	})
 	mocks.stateManager.getGlobalSettingsKey.mockImplementation((key: string) => {
-		if (key === "subagentsEnabled" || key === "useAutoCondense") {
+		if (key === "subagentsEnabled") {
 			return false
 		}
 		return undefined
@@ -632,36 +632,19 @@ describe("buildSessionConfig", () => {
 		expect(config.providerConfig).not.toHaveProperty("apiKey")
 	})
 
-	it("enables basic SDK compaction when global useAutoCondense is true", async () => {
-		mocks.stateManager.getGlobalSettingsKey.mockImplementation((key: string) => {
-			if (key === "useAutoCondense") {
-				return true
-			}
-			if (key === "subagentsEnabled") {
-				return false
-			}
-			return undefined
-		})
-
+	it("enables agentic SDK compaction by default", async () => {
 		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
 
 		expect(config.compaction).toEqual({
 			enabled: true,
-			strategy: "basic",
+			strategy: "agentic",
 		})
 	})
 
-	it("does not enable SDK compaction when global useAutoCondense is false", async () => {
-		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
-
-		expect(config.compaction).toBeUndefined()
-	})
-
-	it("lets task useAutoCondense override the global setting", async () => {
-		let globalUseAutoCondense = true
+	it("ignores legacy useAutoCondense global and task settings", async () => {
 		mocks.stateManager.getGlobalSettingsKey.mockImplementation((key: string) => {
 			if (key === "useAutoCondense") {
-				return globalUseAutoCondense
+				return false
 			}
 			if (key === "subagentsEnabled") {
 				return false
@@ -669,23 +652,14 @@ describe("buildSessionConfig", () => {
 			return undefined
 		})
 
-		// Task `false` overrides global `true`.
-		const disabledConfig = await buildSessionConfig({
+		const config = await buildSessionConfig({
 			cwd: "/tmp/workspace",
 			taskSettings: { useAutoCondense: false },
 		})
 
-		// Task `true` overrides global `false`.
-		globalUseAutoCondense = false
-		const enabledConfig = await buildSessionConfig({
-			cwd: "/tmp/workspace",
-			taskSettings: { useAutoCondense: true },
-		})
-
-		expect(disabledConfig.compaction).toBeUndefined()
-		expect(enabledConfig.compaction).toEqual({
+		expect(config.compaction).toEqual({
 			enabled: true,
-			strategy: "basic",
+			strategy: "agentic",
 		})
 	})
 })

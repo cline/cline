@@ -1,4 +1,5 @@
 import type { SessionHistoryRecord } from "@cline/core"
+import type { MessageWithMetadata } from "@cline/shared"
 import type { HistoryItem } from "@shared/HistoryItem"
 import getFolderSize from "get-folder-size"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -133,6 +134,33 @@ describe("SdkTaskHistory", () => {
 			{ type: "say", say: "user_feedback", text: "Follow up", partial: false },
 			// A trailing ask:"completion_result" is appended so a reopened task
 			// shows the completion/resume affordance instead of a stuck spinner.
+			{ type: "ask", ask: "completion_result", partial: false },
+		])
+	})
+
+	it("preserves internal compaction summary messages for UI filtering", async () => {
+		const { history } = makeHistory([makeSessionRecord("task-1")], undefined, undefined, [
+			{ role: "user", content: "Build the feature" },
+			{
+				role: "user",
+				content: "Context summary:\n\nThe user asked to build the feature.",
+				metadata: { kind: "compaction_summary" },
+			},
+			{ role: "assistant", content: [{ type: "text", text: "Done" }] },
+		])
+
+		const result = await history.getClineMessages("task-1")
+
+		expect(result).toMatchObject([
+			{ type: "say", say: "task", text: "Build the feature", partial: false },
+			{
+				type: "say",
+				say: "user_feedback",
+				text: "Context summary:\n\nThe user asked to build the feature.",
+				partial: false,
+				metadata: { kind: "compaction_summary" },
+			},
+			{ type: "say", say: "text", text: "Done", partial: false },
 			{ type: "ask", ask: "completion_result", partial: false },
 		])
 	})
@@ -591,7 +619,12 @@ function makeTelemetry(): TelemetryService {
 	} as unknown as TelemetryService
 }
 
-function makeHistory(records: SessionHistoryRecord[], telemetry?: TelemetryService, legacyExtensionStorageDir?: string) {
+function makeHistory(
+	records: SessionHistoryRecord[],
+	telemetry?: TelemetryService,
+	legacyExtensionStorageDir?: string,
+	messages: MessageWithMetadata[] = [],
+) {
 	let currentRecords = records
 	const updateSession = vi.fn(
 		async (
@@ -620,7 +653,7 @@ function makeHistory(records: SessionHistoryRecord[], telemetry?: TelemetryServi
 	})
 	const getSession = vi.fn(async (sessionId: string) => currentRecords.find((record) => record.sessionId === sessionId))
 	const listHistory = vi.fn(async () => currentRecords)
-	const readMessages = vi.fn(async () => [])
+	const readMessages = vi.fn(async () => messages)
 	const startSession = vi.fn(async (input: { config: { sessionId?: string } }) => {
 		currentRecords = [makeSessionRecord(input.config.sessionId ?? "started"), ...currentRecords]
 		return { sessionId: input.config.sessionId }

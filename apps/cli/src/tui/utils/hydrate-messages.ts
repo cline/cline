@@ -11,6 +11,15 @@ function getDisplayRole(msg: PersistedMessage): string | undefined {
 	return typeof role === "string" ? role.trim().toLowerCase() : undefined;
 }
 
+function shouldHydrateMessage(msg: PersistedMessage): boolean {
+	const displayRole = getDisplayRole(msg);
+	return (
+		displayRole !== "system" &&
+		displayRole !== "status" &&
+		msg.metadata?.kind !== "compaction_summary"
+	);
+}
+
 function stringifyToolResult(
 	content: string | Array<{ type: string; text?: string; path?: string }>,
 ): string {
@@ -32,8 +41,7 @@ export function hydrateSessionMessages(messages: Message[]): ChatEntry[] {
 	const toolUseMap = new Map<string, number>();
 
 	for (const msg of messages as PersistedMessage[]) {
-		const displayRole = getDisplayRole(msg);
-		if (displayRole === "system" || displayRole === "status") {
+		if (!shouldHydrateMessage(msg)) {
 			continue;
 		}
 

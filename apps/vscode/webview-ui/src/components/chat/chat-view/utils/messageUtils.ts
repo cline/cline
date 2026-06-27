@@ -115,6 +115,10 @@ export function canRestoreWorkspaceFromMessage(messages: ClineMessage[], message
  */
 export function filterVisibleMessages(messages: ClineMessage[]): ClineMessage[] {
 	return messages.filter((message, index, arr) => {
+		if (message.metadata?.kind === "compaction_summary") {
+			return false
+		}
+
 		if (isDuplicateAskOptionEcho(message, arr[index - 1])) {
 			return false
 		}

@@ -28,7 +28,7 @@ export function resolveStatusNoticeLabel(
 		return undefined;
 	}
 	if (event.reason === "auto_compaction") {
-		return "auto-compacting";
+		return "Compacting context...";
 	}
 	return event.message.trim() || undefined;
 }

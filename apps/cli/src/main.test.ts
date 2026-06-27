@@ -1183,7 +1183,7 @@ describe("runCli lightweight command dispatch", () => {
 			expect.objectContaining({
 				compaction: {
 					enabled: true,
-					strategy: "basic",
+					strategy: "agentic",
 				},
 				thinking: true,
 				reasoningEffort: "medium",
@@ -1270,7 +1270,7 @@ describe("runCli lightweight command dispatch", () => {
 		);
 	});
 
-	it("enables truncation compaction by default for prompt runs", async () => {
+	it("enables agentic compaction by default for prompt runs", async () => {
 		mockState.runAgentCalls = 0;
 		runtimeMocks.runAgent.mockClear();
 
@@ -1285,7 +1285,7 @@ describe("runCli lightweight command dispatch", () => {
 			expect.objectContaining({
 				compaction: {
 					enabled: true,
-					strategy: "basic",
+					strategy: "agentic",
 				},
 			}),
 			expect.anything(),

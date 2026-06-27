@@ -463,7 +463,7 @@ export class SdkTaskHistory {
 
 	async getClineMessages(taskId: string): Promise<ClineMessage[]> {
 		await this.migrateLegacyTaskIfNeeded(taskId)
-		const sdkMessages = await this.withHistoryHost((host) => host.readMessages(taskId) as Promise<SdkMessage[]>)
+		const sdkMessages = await this.withHistoryHost((host) => host.readMessages(taskId) as Promise<MessageWithMetadata[]>)
 		const clineMessages = sdkMessagesToClineMessages(
 			sanitizeSdkUserMessagesForDisplay(sdkMessages),
 			this.options.getMinter?.(),

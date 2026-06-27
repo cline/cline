@@ -166,25 +166,25 @@ describe("compactInteractiveMessages", () => {
 			role: index % 2 === 0 ? ("user" as const) : ("assistant" as const),
 			content: `message ${index} ${longText}`,
 		}));
+		const config = createConfig();
+		const compact = vi.fn((context: CoreCompactionContext) => {
+			expect(context.maxInputTokens).toBe(64_000);
+			expect(context.triggerTokens).toBeGreaterThan(1_000);
+			expect(context.triggerTokens).toBeLessThan(context.maxInputTokens);
+			return { messages: messages.slice(0, 2) };
+		});
+		config.compaction = { compact };
 
 		const result = await compactInteractiveMessages({
-			config: createConfig(),
+			config,
 			providerSettingsManager: createProviderSettingsManager(),
 			sessionId: "sess-compact",
 			messages,
 		});
 
-		const compactedTextLength = result.messages.reduce(
-			(total, message) =>
-				total +
-				(typeof message.content === "string" ? message.content.length : 0),
-			0,
-		);
-
+		expect(compact).toHaveBeenCalledTimes(1);
 		expect(result.compacted).toBe(true);
-		expect(result.messages.length).toBeGreaterThan(1);
-		expect(result.messages.length).toBeLessThan(messages.length);
-		expect(compactedTextLength).toBeGreaterThan(1_000);
+		expect(result.messages).toEqual(messages.slice(0, 2));
 	});
 
 	it("reports compaction when core returns changed messages with the same count", async () => {

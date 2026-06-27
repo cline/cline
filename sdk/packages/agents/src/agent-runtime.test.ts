@@ -1193,7 +1193,7 @@ describe("AgentRuntime", () => {
 			expect(context.messages[0]?.content).toEqual([
 				{ type: "text", text: "large context" },
 			]);
-			context.emitStatusNotice?.("auto-compacting", {
+			context.emitStatusNotice?.("Summarizing context...", {
 				reason: "auto_compaction",
 			});
 			return {
@@ -1232,7 +1232,7 @@ describe("AgentRuntime", () => {
 
 		expect(prepareTurn).toHaveBeenCalledTimes(1);
 		expect(beforeModel).toHaveBeenCalledTimes(1);
-		expect(notices).toEqual(["auto-compacting"]);
+		expect(notices).toEqual(["Summarizing context..."]);
 		expect(result.messages[0]).toEqual(compactedMessage);
 		expect(result.messages).toHaveLength(2);
 		expect(model.requests).toHaveLength(1);

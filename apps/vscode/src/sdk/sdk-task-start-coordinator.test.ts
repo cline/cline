@@ -106,25 +106,6 @@ describe("SdkTaskStartCoordinator", () => {
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()
 	})
 
-	it.each([true, false])("forwards task useAutoCondense=%s into SDK session config inputs", async (useAutoCondense) => {
-		const { coordinator, options } = makeCoordinator()
-		const taskSettings = { useAutoCondense }
-
-		await coordinator.initTask("hello", undefined, undefined, undefined, taskSettings)
-
-		expect(options.sessionConfigBuilder.build).toHaveBeenCalledWith(
-			expect.objectContaining({
-				taskSettings,
-			}),
-		)
-		expect(options.buildStartSessionInput).toHaveBeenCalledWith(
-			expect.any(Object),
-			expect.objectContaining({
-				taskSettings,
-			}),
-		)
-	})
-
 	it("reinitializes an existing task with preserved initial messages", async () => {
 		const historyItem: HistoryItem = {
 			id: "task-1",
