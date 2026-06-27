@@ -1435,6 +1435,69 @@ describe("SessionRuntime real AgentRuntime smoke", () => {
 			"user",
 		]);
 	});
+
+	it("uses the error message instead of replaying prior assistant text after a tool-call stream failure", async () => {
+		const scriptedModel: AgentModel = {
+			async stream(request) {
+				const turn = request.messages.filter(
+					(message) => message.role === "assistant",
+				).length;
+
+				return (async function* () {
+					if (turn === 0) {
+						yield {
+							type: "text-delta" as const,
+							text: "I am going to make one more cleanup.",
+						};
+						yield {
+							type: "tool-call-delta" as const,
+							toolCallId: "call_cleanup",
+							toolName: "cleanup",
+							inputText: JSON.stringify({ ok: true }),
+						};
+						yield { type: "finish" as const, reason: "tool-calls" as const };
+						return;
+					}
+					yield {
+						type: "finish" as const,
+						reason: "error" as const,
+						error: "upstream failed after tool result",
+					};
+				})();
+			},
+		};
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				providerId: "cline",
+				modelId: "openai/gpt-5.5",
+				apiKey: "test-key",
+				tools: [
+					{
+						name: "cleanup",
+						description: "cleanup",
+						inputSchema: { type: "object" },
+						execute: async () => ({ ok: true }),
+					},
+				],
+			}),
+			{
+				createAgentRuntimeImpl: (config) =>
+					createAgentRuntime({ ...config, model: scriptedModel }),
+			},
+		);
+
+		const result = await session.run("first");
+
+		expect(result.finishReason).toBe("error");
+		expect(result.text).toBe("upstream failed after tool result");
+		expect(result.text).not.toContain("one more cleanup");
+		expect(session.getMessages().map((message) => message.role)).toEqual([
+			"user",
+			"assistant",
+			"user",
+		]);
+		expect(session.getMessages().at(-1)?.content[0]?.type).toBe("tool_result");
+	});
 });
 
 // ---------------------------------------------------------------------------
