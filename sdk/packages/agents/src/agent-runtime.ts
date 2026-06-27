@@ -1,4 +1,4 @@
-import { createGateway, type GatewayProviderSettings } from "@cline/llms";
+import type { GatewayProviderSettings } from "@cline/llms";
 import type {
 	AgentAfterToolResult,
 	AgentBeforeModelResult,
@@ -86,26 +86,47 @@ export type AgentRuntimeConfig =
 	| AgentRuntimeConfigWithModel
 	| AgentRuntimeConfigWithProvider;
 
+type UnresolvedRuntimeConfig = Omit<BaseAgentRuntimeConfig, "model"> & {
+	model?: AgentModel;
+	providerId?: string;
+	modelId?: string;
+};
+
+type RuntimeConfig = Omit<BaseAgentRuntimeConfig, "model" | "toolExecution"> & {
+	toolExecution: NonNullable<BaseAgentRuntimeConfig["toolExecution"]>;
+	model?: AgentModel;
+	providerId?: string;
+	modelId?: string;
+};
+
+interface PendingProviderConfig {
+	providerId: string;
+	modelId: string;
+	apiKey?: string;
+	baseUrl?: string;
+	headers?: Record<string, string>;
+	options?: GatewayProviderSettings["options"];
+}
+
 function hasPrebuiltModel(
 	config: AgentRuntimeConfig,
 ): config is AgentRuntimeConfigWithModel {
 	return (config as AgentRuntimeConfigWithModel).model !== undefined;
 }
 
-function resolveRuntimeConfig(
-	config: AgentRuntimeConfig,
-): BaseAgentRuntimeConfig {
+function resolveRuntimeConfig(config: AgentRuntimeConfig): {
+	config: UnresolvedRuntimeConfig;
+	provider?: PendingProviderConfig;
+} {
 	if (hasPrebuiltModel(config)) {
-		return config;
+		return { config };
 	}
 	const { providerId, modelId, apiKey, baseUrl, headers, options, ...rest } =
 		config;
-	const gateway = createGateway({
-		providerConfigs: [{ providerId, apiKey, baseUrl, headers, options }],
-		telemetry: rest.telemetry,
-	});
-	const model = gateway.createAgentModel({ providerId, modelId });
-	return { ...rest, model };
+	return {
+		config: { ...rest, providerId, modelId },
+		provider: { providerId, modelId, apiKey, baseUrl, headers, options },
+	};
 }
 
 function resolveToolPolicy(
@@ -375,13 +396,8 @@ function normalizeInput(input: AgentRunInput): AgentMessage[] {
 	return cloneMessages([input as AgentMessage]);
 }
 
-export class AgentRuntime {
-	private config: Required<Pick<BaseAgentRuntimeConfig, "toolExecution">> &
-		BaseAgentRuntimeConfig;
-	private readonly listeners = new Set<AgentEventListener>();
-	// biome-ignore lint/suspicious/noExplicitAny: tool input/output types vary per tool
-	private readonly tools = new Map<string, AgentTool<any, any>>();
-	private hooks: HookBag = {
+function createHookBag(): HookBag {
+	return {
 		beforeRun: [],
 		afterRun: [],
 		beforeModel: [],
@@ -390,6 +406,15 @@ export class AgentRuntime {
 		afterTool: [],
 		onEvent: [],
 	};
+}
+
+export class AgentRuntime {
+	private config: RuntimeConfig;
+	private pendingProvider?: PendingProviderConfig;
+	private readonly listeners = new Set<AgentEventListener>();
+	// biome-ignore lint/suspicious/noExplicitAny: tool input/output types vary per tool
+	private readonly tools = new Map<string, AgentTool<any, any>>();
+	private hooks: HookBag = createHookBag();
 	private readonly state = {
 		agentId: "",
 		agentRole: undefined as string | undefined,
@@ -403,18 +428,20 @@ export class AgentRuntime {
 		lastError: undefined as string | undefined,
 	};
 	private initialization?: Promise<void>;
+	private initialized = false;
 	private abortController?: AbortController;
 
 	constructor(config: AgentRuntimeConfig) {
 		const resolved = resolveRuntimeConfig(config);
+		this.pendingProvider = resolved.provider;
 		this.config = {
-			...resolved,
-			toolExecution: resolved.toolExecution ?? "sequential",
+			...resolved.config,
+			toolExecution: resolved.config.toolExecution ?? "sequential",
 		};
-		this.state.agentId = resolved.agentId ?? createUID("agent");
-		this.state.agentRole = resolved.agentRole;
-		this.state.parentAgentId = resolved.parentAgentId;
-		this.state.messages = cloneMessages(resolved.initialMessages ?? []);
+		this.state.agentId = resolved.config.agentId ?? createUID("agent");
+		this.state.agentRole = resolved.config.agentRole;
+		this.state.parentAgentId = resolved.config.parentAgentId;
+		this.state.messages = cloneMessages(resolved.config.initialMessages ?? []);
 	}
 
 	async run(input: AgentRunInput): Promise<AgentRunResult> {
@@ -454,9 +481,16 @@ export class AgentRuntime {
 	 */
 	restore(messages: readonly AgentMessage[]): void {
 		this.abort("Agent state restored");
+		if (!this.initialized) {
+			this.initialization = undefined;
+			this.tools.clear();
+			this.hooks = createHookBag();
+		}
 		// Reset state that is not carried across restores. Keep `listeners`,
-		// tools, hooks, plugins, model, and agent identity so external event
-		// subscribers continue to receive events after restore().
+		// plugins, model, and agent identity so external event subscribers continue
+		// to receive events after restore(). Once initialized, tools and hooks are
+		// also preserved; before that, discard any partial init state so a retry
+		// starts from the configured hooks/tools instead of a cached rejection.
 		this.state.runId = undefined;
 		this.state.status = "idle";
 		this.state.iteration = 0;
@@ -492,6 +526,7 @@ export class AgentRuntime {
 	}
 
 	private async initialize(): Promise<void> {
+		await this.ensureModel();
 		this.registerHooks(this.config.hooks);
 		for (const tool of this.config.tools ?? []) {
 			this.tools.set(tool.name, tool);
@@ -507,6 +542,31 @@ export class AgentRuntime {
 			}
 			this.registerHooks(setup?.hooks);
 		}
+		this.initialized = true;
+	}
+
+	private async ensureModel(): Promise<void> {
+		if (this.config.model) {
+			return;
+		}
+		const provider = this.pendingProvider;
+		if (!provider) {
+			throw new Error("Agent runtime requires a model");
+		}
+		const llms = await import("@cline/llms");
+		const createGateway = llms.createGateway;
+		if (typeof createGateway !== "function") {
+			throw new Error(
+				"@cline/agents browser builds require a prebuilt AgentModel. Provider-id construction uses @cline/llms and is Node-only.",
+			);
+		}
+		const { providerId, modelId, apiKey, baseUrl, headers, options } = provider;
+		const gateway = createGateway({
+			providerConfigs: [{ providerId, apiKey, baseUrl, headers, options }],
+			telemetry: this.config.telemetry,
+		});
+		this.config.model = gateway.createAgentModel({ providerId, modelId });
+		this.pendingProvider = undefined;
 	}
 
 	private registerHooks(hooks: Partial<AgentRuntimeHooks> | undefined): void {
@@ -561,7 +621,6 @@ export class AgentRuntime {
 	}
 
 	private async execute(input?: AgentRunInput): Promise<AgentRunResult> {
-		await this.ensureInitialized();
 		if (this.state.status === "running") {
 			throw new Error("Agent runtime is already running");
 		}
@@ -575,6 +634,7 @@ export class AgentRuntime {
 		this.state.usage = cloneUsage(DEFAULT_USAGE);
 
 		try {
+			await this.ensureInitialized();
 			await this.callBeforeRunHooks();
 			await this.emit({ type: "run-started", snapshot: this.snapshot() });
 
@@ -831,7 +891,11 @@ export class AgentRuntime {
 			...summarizeModelRequest(request),
 		});
 
-		const stream = await this.config.model.stream(request);
+		const model = this.config.model;
+		if (!model) {
+			throw new Error("Agent runtime requires a model");
+		}
+		const stream = await model.stream(request);
 		const content: AgentMessagePart[] = [];
 		const toolAssemblies = new Map<string, PendingToolAssembly>();
 		const invalidToolCalls: InvalidToolCall[] = [];
