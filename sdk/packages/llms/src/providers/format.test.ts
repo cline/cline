@@ -34,6 +34,17 @@ describe("extractErrorMessage", () => {
 		);
 	});
 
+	it("preserves native transport error wrappers and cause metadata", () => {
+		const socketError = Object.assign(new Error("other side closed"), {
+			name: "SocketError",
+			code: "UND_ERR_SOCKET",
+		});
+
+		expect(
+			extractErrorMessage(new TypeError("fetch failed", { cause: socketError })),
+		).toBe("fetch failed: SocketError: other side closed (UND_ERR_SOCKET)");
+	});
+
 	it("prefers nested stream error details over generic wrapper messages", () => {
 		expect(
 			extractErrorMessage({
