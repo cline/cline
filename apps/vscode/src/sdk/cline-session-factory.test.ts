@@ -24,6 +24,13 @@ const mocks = vi.hoisted(() => {
 	}
 
 	return {
+		buildClineExtraHeaders: vi.fn(async () => ({
+			"User-Agent": "Cline/test",
+			"X-CLIENT-TYPE": "VSCode Extension",
+			"X-CLIENT-VERSION": "1.2.3",
+			"X-CORE-VERSION": "1.2.3",
+			"X-IS-MULTIROOT": "false",
+		})),
 		getDistinctId: vi.fn(() => "test-distinct-id"),
 		getProviderSettingsManager: vi.fn(() => providerSettingsManager),
 		providerSettingsManager,
@@ -52,6 +59,52 @@ vi.mock("@/core/storage/StateManager", () => ({
 vi.mock("@/services/logging/distinctId", () => ({
 	getDistinctId: mocks.getDistinctId,
 }))
+
+vi.mock("@/services/EnvUtils", () => ({
+	buildClineExtraHeaders: mocks.buildClineExtraHeaders,
+}))
+
+vi.mock("@cline/llms", () => {
+	const generatedModels = {
+		cline: {
+			"anthropic/claude-sonnet-4.6": { id: "anthropic/claude-sonnet-4.6" },
+		},
+		"cline-pass": {
+			"cline-pass/glm-5.1": { id: "cline-pass/glm-5.1" },
+		},
+		gemini: {
+			"gemini-3.5-flash": { id: "gemini-3.5-flash" },
+		},
+		"openai-compatible": {
+			"gpt-4o": { id: "gpt-4o" },
+		},
+	}
+	return {
+		getGeneratedModelsForProvider: (providerId: keyof typeof generatedModels) => generatedModels[providerId] ?? {},
+		MODEL_COLLECTIONS_BY_PROVIDER_ID: {
+			cline: {
+				provider: { name: "Cline", defaultModelId: "anthropic/claude-sonnet-4.6" },
+				models: {},
+			},
+			"cline-pass": {
+				provider: { name: "ClinePass", defaultModelId: "cline-pass/glm-5.1" },
+				models: {},
+			},
+			gemini: {
+				provider: { name: "Gemini", defaultModelId: "gemini-3.5-pro" },
+				models: {},
+			},
+			"openai-compatible": {
+				provider: { name: "OpenAI Compatible", defaultModelId: "gpt-4o", baseUrl: "https://api.openai.com/v1" },
+				models: {},
+			},
+			ollama: {
+				provider: { name: "Ollama", baseUrl: "http://localhost:11434/v1" },
+				models: {},
+			},
+		},
+	}
+})
 
 vi.mock("./provider-migration", () => ({
 	getProviderSettingsManager: mocks.getProviderSettingsManager,
@@ -88,6 +141,13 @@ beforeEach(() => {
 	})
 	mocks.providerSettingsManager.getLastUsedProviderSettings.mockReturnValue(undefined)
 	mocks.providerSettingsManager.getProviderSettings.mockReturnValue(undefined)
+	mocks.buildClineExtraHeaders.mockResolvedValue({
+		"User-Agent": "Cline/test",
+		"X-CLIENT-TYPE": "VSCode Extension",
+		"X-CLIENT-VERSION": "1.2.3",
+		"X-CORE-VERSION": "1.2.3",
+		"X-IS-MULTIROOT": "false",
+	})
 })
 
 afterEach(() => {
@@ -193,6 +253,32 @@ describe("buildStartSessionInput", () => {
 
 		expect(result.prompt).toBeUndefined()
 	})
+
+	it("stamps Cline provider headers with the session id before start", () => {
+		const headers = {
+			"HTTP-Referer": "https://cline.bot",
+			"X-Title": "Cline",
+			"X-Task-ID": "",
+			"X-CLIENT-TYPE": "VSCode Extension",
+		}
+		const config = makeBaseConfig({
+			providerId: "cline",
+			modelId: "anthropic/claude-sonnet-4.6",
+			sessionId: "session-123",
+			headers,
+			providerConfig: {
+				providerId: "cline",
+				modelId: "anthropic/claude-sonnet-4.6",
+				headers,
+			},
+		} as Partial<CoreSessionConfig>)
+
+		const result = buildStartSessionInput(config, { cwd: "/tmp/workspace" })
+
+		expect(result.config).toBe(config)
+		expect(config.headers?.["X-Task-ID"]).toBe("session-123")
+		expect((config.providerConfig as any).headers["X-Task-ID"]).toBe("session-123")
+	})
 })
 
 // ---------------------------------------------------------------------------
@@ -287,6 +373,29 @@ describe("buildSessionConfig", () => {
 
 		expect(config.providerId).toBe("cline")
 		expect(config.apiKey).toBe("workos:test-access-token")
+	})
+
+	it("adds classic VS Code Cline provider headers to session config", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "cline",
+			actModeClineModelId: "anthropic/claude-sonnet-4.6",
+			clineApiKey: "workos:test-access-token",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(mocks.buildClineExtraHeaders).toHaveBeenCalledTimes(1)
+		expect(config.headers).toEqual({
+			"HTTP-Referer": "https://cline.bot",
+			"User-Agent": "Cline/test",
+			"X-CLIENT-TYPE": "VSCode Extension",
+			"X-CLIENT-VERSION": "1.2.3",
+			"X-CORE-VERSION": "1.2.3",
+			"X-IS-MULTIROOT": "false",
+			"X-Task-ID": "",
+			"X-Title": "Cline",
+		})
+		expect((config.providerConfig as any).headers).toEqual(config.headers)
 	})
 
 	it("resolves ClinePass from the shared Cline OAuth credentials", async () => {

@@ -38,3 +38,18 @@ export async function buildBasicClineHeaders(): Promise<Record<string, string>> 
 
 	return headers
 }
+
+export async function buildClineExtraHeaders(): Promise<Record<string, string>> {
+	const headers = await buildBasicClineHeaders()
+
+	try {
+		const { paths } = await HostProvider.workspace.getWorkspacePaths({})
+		const isMultiRoot = paths.length > 1
+		headers[ClineHeaders.IS_MULTIROOT] = isMultiRoot ? "true" : "false"
+	} catch (error) {
+		Logger.log("Failed to detect multi-root workspace", error)
+		headers[ClineHeaders.IS_MULTIROOT] = "false"
+	}
+
+	return headers
+}
