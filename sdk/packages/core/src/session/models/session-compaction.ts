@@ -139,10 +139,13 @@ function messageBoundaryKey(message: MessageWithMetadata | undefined): string {
 		return "";
 	}
 	const normalized = normalizeMessageForSourceHash(message);
-	// Message roles are limited to "user" and "assistant", so ":" is only a
-	// separator in persisted fallback boundary keys.
 	if (typeof normalized.id === "string" && normalized.id.trim()) {
 		return `id:${normalized.id.trim()}`;
+	}
+	if (normalized.role.includes(":")) {
+		throw new TypeError(
+			"Message role cannot contain ':' in compaction boundary keys",
+		);
 	}
 	if (typeof normalized.ts === "number" && Number.isFinite(normalized.ts)) {
 		return `ts:${normalized.role}:${normalized.ts}`;
