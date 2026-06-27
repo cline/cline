@@ -100,7 +100,10 @@ function resolveMaxInputTokens(input: {
 			isPositiveFiniteNumber(input.modelMaxTokens) &&
 			input.modelMaxTokens < input.contextWindow
 		) {
-			candidates.push(input.contextWindow - input.modelMaxTokens);
+			const derivedInputTokens = input.contextWindow - input.modelMaxTokens;
+			if (derivedInputTokens > DEFAULT_RESERVE_TOKENS) {
+				candidates.push(derivedInputTokens);
+			}
 		}
 	}
 	return candidates.length > 0
@@ -164,7 +167,7 @@ const BUILTIN_COMPACTION_STRATEGIES = {
 					? Math.min(
 							compaction?.preserveRecentTokens ??
 								DEFAULT_PRESERVE_RECENT_TOKENS,
-							context.triggerTokens,
+							context.targetTokens ?? context.triggerTokens,
 						)
 					: (compaction?.preserveRecentTokens ??
 						DEFAULT_PRESERVE_RECENT_TOKENS),
@@ -216,10 +219,9 @@ function resolveTriggerState(input: {
 
 function resolveManualTargetState(input: {
 	inputTokens: number;
-	maxInputTokens: number;
 	autoTriggerTokens: number;
 	manualTargetRatio: number | undefined;
-}): { triggerTokens: number; thresholdRatio: number } {
+}): { targetTokens: number } {
 	const ratio =
 		typeof input.manualTargetRatio === "number" &&
 		Number.isFinite(input.manualTargetRatio)
@@ -235,9 +237,7 @@ function resolveManualTargetState(input: {
 		),
 	);
 	return {
-		triggerTokens: targetTokens,
-		thresholdRatio:
-			input.maxInputTokens > 0 ? targetTokens / input.maxInputTokens : 0,
+		targetTokens,
 	};
 }
 
@@ -351,37 +351,32 @@ export function createContextCompactionPrepareTurn(
 		if (mode === "auto" && !triggerState.shouldCompact) {
 			return undefined;
 		}
-			const targetState =
-				mode === "manual"
-					? resolveManualTargetState({
-							inputTokens,
-							maxInputTokens,
+		const targetTokens =
+			mode === "manual"
+				? resolveManualTargetState({
+						inputTokens,
 						autoTriggerTokens: triggerState.triggerTokens,
 						manualTargetRatio: options.manualTargetRatio,
-					})
-					: triggerState;
-			const targetTokens =
-				mode === "auto"
-					? resolveBasicTargetTokens({
-							maxInputTokens,
-							modelMaxTokens: context.model.info?.maxTokens,
-							triggerTokens: targetState.triggerTokens,
-						})
-					: undefined;
+					}).targetTokens
+				: resolveBasicTargetTokens({
+						maxInputTokens,
+						modelMaxTokens: context.model.info?.maxTokens,
+						triggerTokens: triggerState.triggerTokens,
+					});
 
-			const compactionContext = {
-				agentId: context.agentId,
-				conversationId: context.conversationId,
+		const compactionContext = {
+			agentId: context.agentId,
+			conversationId: context.conversationId,
 			parentAgentId: context.parentAgentId,
 			iteration: context.iteration,
 			messages: context.messages,
-				model: context.model,
-				maxInputTokens,
-				triggerTokens: targetState.triggerTokens,
-				targetTokens,
-				thresholdRatio: targetState.thresholdRatio,
-				utilizationRatio: maxInputTokens > 0 ? inputTokens / maxInputTokens : 0,
-			};
+			model: context.model,
+			maxInputTokens,
+			triggerTokens: triggerState.triggerTokens,
+			targetTokens,
+			thresholdRatio: triggerState.thresholdRatio,
+			utilizationRatio: maxInputTokens > 0 ? inputTokens / maxInputTokens : 0,
+		};
 
 		const statusReason =
 			mode === "manual" ? "manual_compaction" : "auto_compaction";
@@ -391,7 +386,8 @@ export function createContextCompactionPrepareTurn(
 				kind: statusReason,
 				reason: statusReason,
 				iteration: context.iteration,
-				triggerTokens: targetState.triggerTokens,
+				triggerTokens: triggerState.triggerTokens,
+				targetTokens,
 				maxInputTokens,
 			},
 		);
@@ -439,7 +435,8 @@ export function createContextCompactionPrepareTurn(
 				tokensSaved: inputTokens - afterTokens,
 				utilizationBefore: `${((inputTokens / maxInputTokens) * 100).toFixed(1)}%`,
 				utilizationAfter: `${((afterTokens / maxInputTokens) * 100).toFixed(1)}%`,
-				thresholdTrigger: `${(targetState.thresholdRatio * 100).toFixed(1)}%`,
+				thresholdTrigger: `${(triggerState.thresholdRatio * 100).toFixed(1)}%`,
+				targetTrigger: `${((targetTokens / maxInputTokens) * 100).toFixed(1)}%`,
 				messagesBefore: beforeMessageCount,
 				messagesAfter: result.messages.length,
 				messagesRemoved: beforeMessageCount - result.messages.length,
@@ -454,9 +451,9 @@ export function createContextCompactionPrepareTurn(
 				tokensBefore: inputTokens,
 				tokensAfter: afterTokens,
 				tokensSaved: inputTokens - afterTokens,
-				triggerTokens: targetState.triggerTokens,
+				triggerTokens: triggerState.triggerTokens,
 				maxInputTokens,
-				thresholdRatio: targetState.thresholdRatio,
+				thresholdRatio: triggerState.thresholdRatio,
 				durationMs,
 				// Matches the field name used by other TASK telemetry helpers
 				// (e.g. captureTaskCompleted, captureToolUsage).
@@ -471,9 +468,9 @@ export function createContextCompactionPrepareTurn(
 				mode,
 				reason: "no_result",
 				tokensBefore: inputTokens,
-				triggerTokens: targetState.triggerTokens,
+				triggerTokens: triggerState.triggerTokens,
 				maxInputTokens,
-				thresholdRatio: targetState.thresholdRatio,
+				thresholdRatio: triggerState.thresholdRatio,
 				durationMs,
 				provider: config.providerId,
 				modelId: config.modelId,
