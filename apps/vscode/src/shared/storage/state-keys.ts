@@ -48,7 +48,6 @@ type FieldDefinition<T> = {
 type FieldDefinitions = Record<string, FieldDefinition<any>>
 
 export type ConfiguredAPIKeys = Partial<Record<ApiProvider, boolean>>
-export type CompactionStrategySetting = "basic" | "agentic"
 const REMOTE_CONFIG_EXTRA_FIELDS = {
 	remoteConfiguredProviders: { default: [] as ApiProvider[] },
 	allowedMCPServers: { default: [] as Array<{ id: string }> },
@@ -265,7 +264,6 @@ const USER_SETTINGS_FIELDS = {
 	yoloModeToggled: { default: false as boolean },
 	autoApproveAllToggled: { default: false as boolean },
 	useAutoCondense: { default: false as boolean },
-	compactionStrategy: { default: "basic" as CompactionStrategySetting },
 	subagentsEnabled: { default: false as boolean },
 	worktreesEnabled: { default: false as boolean },
 	preferredLanguage: { default: "English" as string },
