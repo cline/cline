@@ -1025,7 +1025,7 @@ export const clineDevstralModelInfo: ModelInfo = {
 }
 
 export type ClinePassModelId = keyof typeof clinePassModels
-export const clinePassDefaultModelId = "cline-pass/glm-5.1"
+export const clinePassDefaultModelId = "cline-pass/glm-5.2"
 export const clinePassModelInfoSaneDefaults: ModelInfo = {
 	maxTokens: 8_192,
 	contextWindow: 128_000,
@@ -1039,6 +1039,19 @@ export const clinePassModelInfoSaneDefaults: ModelInfo = {
 	description: "",
 }
 export const clinePassModels = {
+	"cline-pass/glm-5.2": {
+		name: "cline-pass/glm-5.2",
+		maxTokens: 131_072,
+		contextWindow: 202_752,
+		supportsImages: false,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		inputPrice: 0.98,
+		outputPrice: 3.08,
+		cacheReadsPrice: 0.182,
+		cacheWritesPrice: 0,
+		description: "",
+	},
 	"cline-pass/glm-5.1": {
 		name: "cline-pass/glm-5.1",
 		maxTokens: 131_072,

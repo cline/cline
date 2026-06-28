@@ -29,7 +29,7 @@ export const ClineAccountInfoCard = () => {
 		<div className="max-w-[600px]">
 			{user ? (
 				<VSCodeButton appearance="secondary" onClick={handleShowAccount}>
-					View Billing & Usage
+					View Billing History
 				</VSCodeButton>
 			) : (
 				<div>
@@ -37,7 +37,7 @@ export const ClineAccountInfoCard = () => {
 						Sign Up with Cline
 						{isLoading && (
 							<span className="ml-1 animate-spin">
-								<span className="codicon codicon-refresh"></span>
+								<span className="codicon codicon-refresh" />
 							</span>
 						)}
 					</VSCodeButton>
