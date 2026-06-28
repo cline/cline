@@ -1185,7 +1185,7 @@ export class MessageBuilder {
 			// A large transcript can exceed the aggregate budget through hundreds
 			// of individually small tool fields. Preserve the normal 2KB floor
 			// first, then lower only tool-field floors as an overflow valve.
-			this.truncateCandidatesToTotalTextBudget(
+			totalBytes = this.truncateCandidatesToTotalTextBudget(
 				this.collectTruncationCandidates(
 					next,
 					EMERGENCY_MIN_TOTAL_BUDGET_TOOL_TEXT_BYTES,
