@@ -3,6 +3,7 @@ import {
 	type ClineAccountOrganization,
 	type ClineAccountOrganizationBalance,
 	type ClineSubscriptionPlan,
+	type UserCurrentPlan,
 	ClineAccountService,
 	type ClineAccountUser,
 	formatProviderOAuthApiKey,
@@ -125,8 +126,9 @@ export async function createClineAccountService(input: {
 	config: ClineAccountConfig;
 	clineApiBaseUrl?: string;
 	clineProviderSettings?: ProviderSettings;
+	providerSettingsManager?: ProviderSettingsManager;
 }): Promise<ClineAccountService | undefined> {
-	const manager = new ProviderSettingsManager();
+	const manager = input.providerSettingsManager ?? new ProviderSettingsManager();
 	const settings =
 		manager.getProviderSettings("cline") ?? input.clineProviderSettings;
 	const apiBaseUrl = resolveAccountApiBaseUrl({
@@ -210,6 +212,48 @@ export async function loadIndividualSubscriptionPlans(input: {
 	clineProviderSettings?: ProviderSettings;
 }): Promise<ClineSubscriptionPlan[]> {
 	const service = await createClineAccountService(input);
+	if (!service) {
+		throw new Error("No Cline account auth token found");
+	}
+	return service.fetchAvailableSubscriptionPlans({ type: "individual" });
+}
+
+export async function loadCurrentUserPlan(input: {
+	config: ClineAccountConfig;
+	clineApiBaseUrl?: string;
+	clineProviderSettings?: ProviderSettings;
+}): Promise<UserCurrentPlan | undefined> {
+	const service = await createClineAccountService(input);
+	if (!service) {
+		throw new Error("No Cline account auth token found");
+	}
+	return service.fetchCurrentUserPlan();
+}
+
+export async function loadCurrentUserPlanFromProviderSettings(input: {
+	providerSettingsManager: ProviderSettingsManager;
+	clineApiBaseUrl?: string;
+}): Promise<UserCurrentPlan | undefined> {
+	const service = await createClineAccountService({
+		config: { apiKey: "", logger: undefined, providerId: "cline" },
+		clineApiBaseUrl: input.clineApiBaseUrl,
+		providerSettingsManager: input.providerSettingsManager,
+	});
+	if (!service) {
+		throw new Error("No Cline account auth token found");
+	}
+	return service.fetchCurrentUserPlan();
+}
+
+export async function loadIndividualSubscriptionPlansFromProviderSettings(input: {
+	providerSettingsManager: ProviderSettingsManager;
+	clineApiBaseUrl?: string;
+}): Promise<ClineSubscriptionPlan[]> {
+	const service = await createClineAccountService({
+		config: { apiKey: "", logger: undefined, providerId: "cline" },
+		clineApiBaseUrl: input.clineApiBaseUrl,
+		providerSettingsManager: input.providerSettingsManager,
+	});
 	if (!service) {
 		throw new Error("No Cline account auth token found");
 	}
