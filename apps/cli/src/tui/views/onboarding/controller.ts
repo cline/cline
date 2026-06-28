@@ -285,13 +285,25 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		setClinePassCurrentPlanName("");
 		setClinePassPlanFeatures([]);
 
-		Promise.allSettled([
-			loadCurrentUserPlanFromProviderSettings({ providerSettingsManager }),
-			loadIndividualSubscriptionPlansFromProviderSettings({
-				providerSettingsManager,
-			}),
-		])
-			.then(([currentPlanResult, availablePlansResult]) => {
+		loadCurrentUserPlanFromProviderSettings({ providerSettingsManager })
+			.then(
+				(value) => ({ status: "fulfilled" as const, value }),
+				(reason) => ({ status: "rejected" as const, reason }),
+			)
+			.then((currentPlanResult) =>
+				loadIndividualSubscriptionPlansFromProviderSettings({
+					providerSettingsManager,
+				})
+					.then(
+						(value) => ({ status: "fulfilled" as const, value }),
+						(reason) => ({ status: "rejected" as const, reason }),
+					)
+					.then((availablePlansResult) => ({
+						availablePlansResult,
+						currentPlanResult,
+					})),
+			)
+			.then(({ currentPlanResult, availablePlansResult }) => {
 				if (availablePlansResult.status === "fulfilled") {
 					setClinePassPlanFeatures(
 						getIndividualPlanFeatures(availablePlansResult.value),
