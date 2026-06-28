@@ -6,14 +6,26 @@ import {
 	resolveClinePassModelInfo,
 } from "@shared/api"
 import { EmptyRequest } from "@shared/proto/cline/common"
+import type { Mode } from "@shared/storage/types"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { ClineAccountInfoCard } from "../ClineAccountInfoCard"
 import ClineModelPicker from "../ClineModelPicker"
-import { ClineProvider } from "./ClineProvider"
 
-export const ClinePassProvider: typeof ClineProvider = (props) => {
+interface ClinePassProviderProps {
+	showModelOptions: boolean
+	isPopup?: boolean
+	currentMode: Mode
+	showAccountCard?: boolean
+}
+
+export const ClinePassProvider = ({
+	showModelOptions,
+	isPopup,
+	currentMode,
+	showAccountCard = true,
+}: ClinePassProviderProps) => {
 	const { openRouterModels } = useExtensionState()
 	const openRouterModelsByName = useMemo(() => buildModelInfoNameMap(openRouterModels), [openRouterModels])
 	const [clinePassRecommendedModels, setClinePassRecommendedModels] = useState<Record<string, ModelInfo> | undefined>(undefined)
@@ -63,18 +75,23 @@ export const ClinePassProvider: typeof ClineProvider = (props) => {
 
 	return (
 		<div>
-			<div style={{ marginBottom: 14, marginTop: 4 }}>
-				<ClineAccountInfoCard />
-			</div>
+			{showAccountCard && (
+				<div style={{ marginBottom: 14, marginTop: 4 }}>
+					<ClineAccountInfoCard />
+				</div>
+			)}
 
-			<ClineModelPicker
-				{...props}
-				defaultModelId={clinePassDefaultModel}
-				modelIdFieldPair={{ plan: "planModeClinePassModelId", act: "actModeClinePassModelId" }}
-				modelInfoFieldPair={{ plan: "planModeClinePassModelInfo", act: "actModeClinePassModelInfo" }}
-				models={clinePassModelOptions}
-				showFeaturedModels={false}
-			/>
+			{showModelOptions && (
+				<ClineModelPicker
+					currentMode={currentMode}
+					defaultModelId={clinePassDefaultModel}
+					isPopup={isPopup}
+					modelIdFieldPair={{ plan: "planModeClinePassModelId", act: "actModeClinePassModelId" }}
+					modelInfoFieldPair={{ plan: "planModeClinePassModelInfo", act: "actModeClinePassModelInfo" }}
+					models={clinePassModelOptions}
+					showFeaturedModels={false}
+				/>
+			)}
 		</div>
 	)
 }
