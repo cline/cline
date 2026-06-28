@@ -312,9 +312,12 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 
 				if (currentPlanResult.status === "rejected") {
 					const error = currentPlanResult.reason;
-					setClinePassSubscriptionError(
-						error instanceof Error ? error.message : String(error),
-					);
+					const message = error instanceof Error ? error.message : String(error);
+					if (message.trim().toLowerCase() === "no plan found for user") {
+						setClinePassSubscriptionStatus("unsubscribed");
+						return;
+					}
+					setClinePassSubscriptionError(message);
 					setClinePassSubscriptionStatus("error");
 					return;
 				}
