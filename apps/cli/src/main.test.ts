@@ -630,8 +630,8 @@ describe("runCli lightweight command dispatch", () => {
 
 	it("passes the migration notice marker into interactive mode", async () => {
 		const notice = {
-			id: "cline-cli-tui-default",
-			title: "Welcome to the new Cline CLI",
+			id: "cline-cli-cline-pass-intro",
+			title: "Try Cline Pass",
 		};
 		migrationNoticeMocks.getClineCliMigrationNotice.mockReturnValue(notice);
 		Object.defineProperty(process.stdout, "isTTY", {
