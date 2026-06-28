@@ -39,6 +39,7 @@ export const DEFAULT_MAX_ASSISTANT_TOOL_MARKUP_CHARS = 12_000;
 // Batch stale-read rewrites to avoid breaking provider prefix caches on every re-read.
 // 64KB is roughly 8 provider-capped read results; set to 0 for eager rewriting.
 export const DEFAULT_MIN_OUTDATED_REWRITE_BYTES = 65_536;
+const MIN_CONTEXT_HISTORY_RATIO = 1 - DEFAULT_TARGET_RATIO;
 const MIN_TOTAL_BUDGET_TOOL_TEXT_BYTES = 2_000;
 const EMERGENCY_MIN_TOTAL_BUDGET_TEXT_BYTES = 256;
 const MIN_TOTAL_BUDGET_ASSISTANT_TEXT_BYTES = 40_000;
@@ -102,12 +103,15 @@ export function resolveMessageBuilderTextBudget(
 	) {
 		return DEFAULT_MAX_TOTAL_TEXT_BYTES;
 	}
+	const targetHistoryTokens =
+		resolveDefaultContextTriggerTokens(maxInputTokens) * DEFAULT_TARGET_RATIO;
+	// The fixed compaction reserve can consume the entire trigger on small models.
+	// Keep a proportional history slice instead of collapsing their budget to one byte.
+	const minimumHistoryTokens = maxInputTokens * MIN_CONTEXT_HISTORY_RATIO;
 	return Math.max(
 		1,
 		Math.floor(
-			resolveDefaultContextTriggerTokens(maxInputTokens) *
-				DEFAULT_TARGET_RATIO *
-				CHARS_PER_TOKEN,
+			Math.max(targetHistoryTokens, minimumHistoryTokens) * CHARS_PER_TOKEN,
 		),
 	);
 }

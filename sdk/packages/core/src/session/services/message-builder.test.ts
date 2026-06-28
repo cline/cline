@@ -219,6 +219,9 @@ describe("MessageBuilder", () => {
 
 	it("scales the aggregate text budget with the model input limit", () => {
 		expect(resolveMessageBuilderTextBudget(undefined)).toBe(250_000);
+		expect(resolveMessageBuilderTextBudget(11_904)).toBe(10_713);
+		expect(resolveMessageBuilderTextBudget(16_384)).toBe(14_745);
+		expect(resolveMessageBuilderTextBudget(16_385)).toBe(14_746);
 		expect(resolveMessageBuilderTextBudget(32_000)).toBe(32_793);
 		expect(resolveMessageBuilderTextBudget(128_000)).toBe(234_393);
 		expect(resolveMessageBuilderTextBudget(1_000_000)).toBe(1_890_000);
