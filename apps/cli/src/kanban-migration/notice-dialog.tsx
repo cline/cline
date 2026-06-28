@@ -1,7 +1,10 @@
 // @jsxImportSource @opentui/react
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
+import open from "open";
+import { useCallback, useMemo, useState } from "react";
 import { palette } from "../tui/palette";
+import { getCliSubscriptionUrl } from "../utils/cline-pass-errors";
 import type { CliMigrationNotice } from "./notice";
 
 export function MigrationNoticeContent(
@@ -10,10 +13,29 @@ export function MigrationNoticeContent(
 	},
 ) {
 	const { dialogId, notice, resolve } = props;
+	const subscriptionUrl = useMemo(() => getCliSubscriptionUrl(), []);
+	const [status, setStatus] = useState<string | undefined>();
+
+	const openSubscriptionPage = useCallback(() => {
+		setStatus("Opening Cline Pass in your browser...");
+		void open(subscriptionUrl, { wait: false })
+			.then(() => {
+				setStatus("Opened Cline Pass in your browser.");
+			})
+			.catch(() => {
+				setStatus(
+					"Could not open the browser automatically. Use the URL below.",
+				);
+			});
+	}, [subscriptionUrl]);
 
 	useDialogKeyboard((key) => {
 		if (key.name === "escape") {
 			resolve(true);
+			return;
+		}
+		if (key.name === "return" || key.name === "enter") {
+			openSubscriptionPage();
 		}
 	}, dialogId);
 
@@ -22,25 +44,24 @@ export function MigrationNoticeContent(
 			<text fg={palette.act}>{notice.title}</text>
 			<box flexDirection="column">
 				<text selectable>
-					We rebuilt the CLI from the ground up using the new Cline SDK. Learn
-					more:{" "}
-					<a href="https://github.com/cline/cline">
-						<span fg={palette.act}>https://github.com/cline/cline</span>
-					</a>
+					Cline Pass is a $9.99/month subscription plan to get access to the
+					latest open-weight coding models with enough quota for day-to-day
+					work, at a much lower cost than paying API costs directly.
 				</text>
-				<text selectable>
-					Running{" "}
-					<span fg="#98c379" bg="#1f2937">
-						{" cline "}
-					</span>{" "}
-					now opens the terminal UI. To open Kanban, use /quit and run{" "}
-					<span fg="#98c379" bg="#1f2937">
-						{" cline kanban "}
-					</span>{" "}
-					in your terminal
+				<text selectable>Try it now with a limited-time promo.</text>
+			</box>
+			<box flexDirection="row">
+				<text fg={palette.act} selectable>
+					<a href={subscriptionUrl}>{subscriptionUrl}</a>
 				</text>
 			</box>
-			<text fg={palette.muted}>Press Esc to close</text>
+			<box flexDirection="row">
+				<box paddingX={1} backgroundColor={palette.act}>
+					<text fg={palette.textOnSelection}>Open Cline Pass</text>
+				</box>
+			</box>
+			{status && <text fg={palette.muted}>{status}</text>}
+			<text fg={palette.muted}>Press Enter to open, Esc to close</text>
 		</box>
 	);
 }
