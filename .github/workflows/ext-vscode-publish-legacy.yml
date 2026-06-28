@@ -38,7 +38,64 @@ concurrency:
     cancel-in-progress: false
 
 jobs:
+    # Gate the publish on the legacy branch's own npm-based test suite. We can't
+    # reuse ./.github/workflows/ext-vscode-test.yml here — on main that's the
+    # bun-based suite and it would test main, not the legacy branch — so the
+    # essential quality + test steps are inlined against the checked-out legacy
+    # branch.
+    test:
+        name: Test Legacy Extension
+        runs-on: ubuntu-latest
+        defaults:
+          run:
+            working-directory: apps/vscode
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  ref: ${{ github.event.inputs.branch }}
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+                  cache: 'npm'
+                  cache-dependency-path: |
+                      apps/vscode/package-lock.json
+                      apps/vscode/webview-ui/package-lock.json
+
+            - name: Install extension dependencies
+              working-directory: ${{ github.workspace }}
+              run: npm --prefix apps/vscode ci
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Install webview-ui dependencies
+              working-directory: ${{ github.workspace }}
+              run: npm --prefix apps/vscode/webview-ui ci
+
+            - name: Run Quality Checks (lint + typecheck)
+              run: npm run ci:check-all
+
+            - name: Build Tests and Extension
+              id: build_step
+              run: npm run ci:build
+
+            - name: Unit Tests
+              if: ${{ !cancelled() && steps.build_step.outcome == 'success' }}
+              run: npm run test:unit
+
+            - name: Extension Integration Tests
+              if: ${{ !cancelled() && steps.build_step.outcome == 'success' }}
+              run: xvfb-run -a npm run test:coverage
+
+            - name: Webview Tests
+              if: ${{ !cancelled() && steps.build_step.outcome == 'success' }}
+              run: |
+                  cd webview-ui
+                  npm run test:coverage
+
     publish:
+        needs: test
         name: Publish Legacy Extension
         runs-on: ubuntu-latest
         environment: publish
