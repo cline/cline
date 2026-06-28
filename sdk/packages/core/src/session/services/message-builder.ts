@@ -10,6 +10,7 @@
  */
 
 import {
+	CHARS_PER_TOKEN,
 	type ContentBlock,
 	createMediaBudgetState,
 	IMAGE_OMITTED_PLACEHOLDER,
@@ -24,20 +25,23 @@ import {
 	type ToolResultContent,
 	validateAndReserveImageMedia,
 } from "@cline/shared";
+import {
+	DEFAULT_TARGET_RATIO,
+	resolveDefaultContextTriggerTokens,
+} from "../../extensions/context/compaction-shared";
 
 export const DEFAULT_MAX_TOOL_RESULT_CHARS = 8_000;
 export const DEFAULT_MAX_FILE_CONTENT_CHARS = 50_000;
-// The aggregate budget intentionally stays far above what the per-result cap
-// usually produces: budget truncation rewrites bytes mid-transcript, which
-// invalidates provider prefix caches from the first rewritten block onward,
-// so it must remain a rare overflow valve rather than the steady state.
-export const DEFAULT_MAX_TOTAL_TEXT_BYTES = 6_000_000;
+// Safe fallback for providers that do not expose model input limits.
+export const DEFAULT_MAX_TOTAL_TEXT_BYTES = 250_000;
 export const DEFAULT_MAX_ASSISTANT_TEXT_CHARS = 200_000;
 export const DEFAULT_MAX_ASSISTANT_TOOL_MARKUP_CHARS = 12_000;
 // Batch stale-read rewrites to avoid breaking provider prefix caches on every re-read.
 // 64KB is roughly 8 provider-capped read results; set to 0 for eager rewriting.
 export const DEFAULT_MIN_OUTDATED_REWRITE_BYTES = 65_536;
-const MIN_TOTAL_BUDGET_TOOL_RESULT_BYTES = 2_000;
+const MIN_CONTEXT_HISTORY_RATIO = 1 - DEFAULT_TARGET_RATIO;
+const MIN_TOTAL_BUDGET_TOOL_TEXT_BYTES = 2_000;
+const EMERGENCY_MIN_TOTAL_BUDGET_TEXT_BYTES = 256;
 const MIN_TOTAL_BUDGET_ASSISTANT_TEXT_BYTES = 40_000;
 const REPEATED_TOOL_CALL_MARKUP_THRESHOLD = 8;
 export const MESSAGE_BUILDER_LIMIT_ENV = {
@@ -78,10 +82,38 @@ export interface MessageBuilderOptions {
 	maxToolResultChars?: number;
 	maxFileContentChars?: number;
 	maxTotalTextBytes?: number;
+	maxInputTokens?: number;
 	mediaBudget?: MediaBudgetOptions;
 	maxAssistantTextChars?: number;
 	maxAssistantToolMarkupChars?: number;
 	minOutdatedRewriteBytes?: number;
+}
+
+export interface MessageBuilderBuildOptions {
+	maxInputTokens?: number;
+}
+
+export function resolveMessageBuilderTextBudget(
+	maxInputTokens: number | undefined,
+): number {
+	if (
+		typeof maxInputTokens !== "number" ||
+		!Number.isFinite(maxInputTokens) ||
+		maxInputTokens <= 0
+	) {
+		return DEFAULT_MAX_TOTAL_TEXT_BYTES;
+	}
+	const targetHistoryTokens =
+		resolveDefaultContextTriggerTokens(maxInputTokens) * DEFAULT_TARGET_RATIO;
+	// The fixed compaction reserve can consume the entire trigger on small models.
+	// Keep a proportional history slice instead of collapsing their budget to one byte.
+	const minimumHistoryTokens = maxInputTokens * MIN_CONTEXT_HISTORY_RATIO;
+	return Math.max(
+		1,
+		Math.floor(
+			Math.max(targetHistoryTokens, minimumHistoryTokens) * CHARS_PER_TOKEN,
+		),
+	);
 }
 
 export function getMessageBuilderOptionsFromEnv(
@@ -121,7 +153,8 @@ export class MessageBuilder {
 	private readResultLocatorCache = new WeakMap<object, ReadLocator[]>();
 	private readonly maxToolResultChars: number;
 	private readonly maxFileContentChars: number;
-	private readonly maxTotalTextBytes: number;
+	private readonly maxTotalTextBytesOverride: number | undefined;
+	private readonly defaultMaxInputTokens: number | undefined;
 	private readonly mediaBudget: MediaBudgetOptions;
 	private readonly maxAssistantTextChars: number;
 	private readonly maxAssistantToolMarkupChars: number;
@@ -139,10 +172,14 @@ export class MessageBuilder {
 			options.maxFileContentChars,
 			DEFAULT_MAX_FILE_CONTENT_CHARS,
 		);
-		this.maxTotalTextBytes = normalizePositiveLimit(
-			options.maxTotalTextBytes,
-			DEFAULT_MAX_TOTAL_TEXT_BYTES,
-		);
+		this.maxTotalTextBytesOverride =
+			options.maxTotalTextBytes === undefined
+				? undefined
+				: normalizePositiveLimit(
+						options.maxTotalTextBytes,
+						DEFAULT_MAX_TOTAL_TEXT_BYTES,
+					);
+		this.defaultMaxInputTokens = options.maxInputTokens;
 		this.mediaBudget = options.mediaBudget ?? {};
 		this.maxAssistantTextChars = normalizePositiveLimit(
 			options.maxAssistantTextChars,
@@ -163,7 +200,10 @@ export class MessageBuilder {
 		this.committedOutdatedRewrites.clear();
 	}
 
-	buildForApi(messages: Message[]): Message[] {
+	buildForApi(
+		messages: Message[],
+		options: MessageBuilderBuildOptions = {},
+	): Message[] {
 		this.reindex(messages);
 		this.commitOutdatedRewrites(messages);
 		const repairedMessages = this.addMissingToolResults(messages);
@@ -201,7 +241,12 @@ export class MessageBuilder {
 		});
 
 		const mediaLimited = this.applyMediaBudget(prepared);
-		return this.truncateToTotalTextBudget(mediaLimited);
+		const maxTotalTextBytes =
+			this.maxTotalTextBytesOverride ??
+			resolveMessageBuilderTextBudget(
+				options.maxInputTokens ?? this.defaultMaxInputTokens,
+			);
+		return this.truncateToTotalTextBudget(mediaLimited, maxTotalTextBytes);
 	}
 
 	private transformBlock(
@@ -1159,9 +1204,12 @@ export class MessageBuilder {
 		return false;
 	}
 
-	private truncateToTotalTextBudget(messages: Message[]): Message[] {
+	private truncateToTotalTextBudget(
+		messages: Message[],
+		maxTotalTextBytes: number,
+	): Message[] {
 		let totalBytes = this.countMessageTextBytes(messages);
-		if (totalBytes <= this.maxTotalTextBytes) {
+		if (totalBytes <= maxTotalTextBytes) {
 			return messages;
 		}
 
@@ -1177,16 +1225,43 @@ export class MessageBuilder {
 			};
 		});
 
-		const candidates = this.collectTruncationCandidates(next);
+		totalBytes = this.truncateCandidatesToTotalTextBudget(
+			this.collectTruncationCandidates(next),
+			totalBytes,
+			maxTotalTextBytes,
+		);
+		if (totalBytes > maxTotalTextBytes) {
+			// A large transcript can exceed the aggregate budget through hundreds
+			// of individually small tool fields. Preserve the normal 2KB floor
+			// first, then lower assistant/tool text floors as an overflow valve.
+			totalBytes = this.truncateCandidatesToTotalTextBudget(
+				this.collectTruncationCandidates(
+					next,
+					EMERGENCY_MIN_TOTAL_BUDGET_TEXT_BYTES,
+					EMERGENCY_MIN_TOTAL_BUDGET_TEXT_BYTES,
+				),
+				totalBytes,
+				maxTotalTextBytes,
+			);
+		}
+
+		return next;
+	}
+
+	private truncateCandidatesToTotalTextBudget(
+		candidates: TruncationCandidate[],
+		totalBytes: number,
+		maxTotalTextBytes: number,
+	): number {
 		for (const candidate of candidates) {
-			if (totalBytes <= this.maxTotalTextBytes) {
+			if (totalBytes <= maxTotalTextBytes) {
 				break;
 			}
 			const currentBytes = candidate.byteLength;
 			if (currentBytes <= candidate.minBytes) {
 				continue;
 			}
-			const overflow = totalBytes - this.maxTotalTextBytes;
+			const overflow = totalBytes - maxTotalTextBytes;
 			const targetBytes = Math.max(candidate.minBytes, currentBytes - overflow);
 			const truncated = truncateMiddleToBytes(
 				candidate.get(),
@@ -1196,8 +1271,7 @@ export class MessageBuilder {
 			candidate.set(truncated);
 			totalBytes -= currentBytes - utf8ByteLength(truncated);
 		}
-
-		return next;
+		return totalBytes;
 	}
 
 	private countMessageTextBytes(messages: Message[]): number {
@@ -1242,6 +1316,8 @@ export class MessageBuilder {
 
 	private collectTruncationCandidates(
 		messages: Message[],
+		minToolTextBytes = MIN_TOTAL_BUDGET_TOOL_TEXT_BYTES,
+		minAssistantTextBytes = MIN_TOTAL_BUDGET_ASSISTANT_TEXT_BYTES,
 	): TruncationCandidate[] {
 		const resultCandidates: TruncationCandidate[] = [];
 		const inputCandidates: TruncationCandidate[] = [];
@@ -1249,7 +1325,7 @@ export class MessageBuilder {
 			if (message.role === "assistant" && typeof message.content === "string") {
 				resultCandidates.push({
 					byteLength: utf8ByteLength(message.content),
-					minBytes: MIN_TOTAL_BUDGET_ASSISTANT_TEXT_BYTES,
+					minBytes: minAssistantTextBytes,
 					makeMarker: TRUNCATE_ASSISTANT_TEXT_BUDGET_MARKER,
 					get: () => message.content as string,
 					set: (value) => {
@@ -1263,13 +1339,17 @@ export class MessageBuilder {
 			}
 			for (const block of message.content) {
 				if (block.type === "tool_use") {
-					collectNestedStringCandidates(block.input, inputCandidates);
+					collectNestedStringCandidates(
+						block.input,
+						inputCandidates,
+						minToolTextBytes,
+					);
 					continue;
 				}
 				if (message.role === "assistant" && block.type === "text") {
 					resultCandidates.push({
 						byteLength: utf8ByteLength(block.text),
-						minBytes: MIN_TOTAL_BUDGET_ASSISTANT_TEXT_BYTES,
+						minBytes: minAssistantTextBytes,
 						makeMarker: TRUNCATE_ASSISTANT_TEXT_BUDGET_MARKER,
 						get: () => block.text,
 						set: (value) => {
@@ -1284,7 +1364,7 @@ export class MessageBuilder {
 				if (typeof block.content === "string") {
 					resultCandidates.push({
 						byteLength: utf8ByteLength(block.content),
-						minBytes: MIN_TOTAL_BUDGET_TOOL_RESULT_BYTES,
+						minBytes: minToolTextBytes,
 						makeMarker: TRUNCATE_MARKER_BUDGET,
 						get: () => block.content as string,
 						set: (value) => {
@@ -1297,7 +1377,7 @@ export class MessageBuilder {
 					if (entry.type === "text") {
 						resultCandidates.push({
 							byteLength: utf8ByteLength(entry.text),
-							minBytes: MIN_TOTAL_BUDGET_TOOL_RESULT_BYTES,
+							minBytes: minToolTextBytes,
 							makeMarker: TRUNCATE_MARKER_BUDGET,
 							get: () => entry.text,
 							set: (value) => {
@@ -1307,7 +1387,7 @@ export class MessageBuilder {
 					} else if (entry.type === "file") {
 						resultCandidates.push({
 							byteLength: utf8ByteLength(entry.content),
-							minBytes: MIN_TOTAL_BUDGET_TOOL_RESULT_BYTES,
+							minBytes: minToolTextBytes,
 							makeMarker: TRUNCATE_MARKER_BUDGET,
 							get: () => entry.content,
 							set: (value) => {
@@ -1315,7 +1395,11 @@ export class MessageBuilder {
 							},
 						});
 					} else if (isStructuredToolResultEntry(entry)) {
-						collectNestedStringCandidates(entry, resultCandidates);
+						collectNestedStringCandidates(
+							entry,
+							resultCandidates,
+							minToolTextBytes,
+						);
 					}
 				}
 			}
@@ -1540,20 +1624,28 @@ function truncateMiddleByChars(
 	if (text.length <= maxChars) {
 		return text;
 	}
-	// Two-pass: marker length depends on the removed-char count, which depends
-	// on the marker length. Compute a tentative marker, derive the final
-	// removed count, then build the real marker.
-	const tentativeMarker = makeMarker(text.length - maxChars);
-	const tentativeKeep = Math.max(
-		0,
-		Math.floor((maxChars - tentativeMarker.length) / 2),
-	);
-	const removed = Math.max(0, text.length - tentativeKeep * 2);
-	const marker = makeMarker(removed);
-	const keep = Math.max(0, Math.floor((maxChars - marker.length) / 2));
-	const start = text.slice(0, keep);
-	const end = keep > 0 ? text.slice(-keep) : "";
-	return `${start}${marker}${end}`;
+	if (maxChars <= 0) {
+		return "";
+	}
+
+	// Marker length depends on the omitted count. Recompute until the retained
+	// length and marker agree so digit-boundary changes cannot make the count
+	// inaccurate.
+	let keep = Math.max(0, Math.floor(maxChars / 2));
+	while (true) {
+		const removed = Math.max(0, text.length - keep * 2);
+		const marker = makeMarker(removed);
+		if (marker.length > maxChars) {
+			return marker.slice(0, maxChars);
+		}
+		const nextKeep = Math.max(0, Math.floor((maxChars - marker.length) / 2));
+		if (nextKeep === keep) {
+			const start = text.slice(0, keep);
+			const end = keep > 0 ? text.slice(-keep) : "";
+			return `${start}${marker}${end}`;
+		}
+		keep = nextKeep;
+	}
 }
 
 function truncateMiddleToBytes(
@@ -1669,13 +1761,14 @@ function countNestedStringBytes(value: unknown): number {
 function collectNestedStringCandidates(
 	container: unknown,
 	candidates: TruncationCandidate[],
+	minBytes: number,
 ): void {
 	if (Array.isArray(container)) {
 		container.forEach((item, index) => {
 			if (typeof item === "string") {
 				candidates.push({
 					byteLength: utf8ByteLength(item),
-					minBytes: MIN_TOTAL_BUDGET_TOOL_RESULT_BYTES,
+					minBytes,
 					makeMarker: TRUNCATE_MARKER_BUDGET,
 					get: () => container[index] as string,
 					set: (value) => {
@@ -1683,7 +1776,7 @@ function collectNestedStringCandidates(
 					},
 				});
 			} else {
-				collectNestedStringCandidates(item, candidates);
+				collectNestedStringCandidates(item, candidates, minBytes);
 			}
 		});
 		return;
@@ -1698,7 +1791,7 @@ function collectNestedStringCandidates(
 			if (typeof item === "string") {
 				candidates.push({
 					byteLength: utf8ByteLength(item),
-					minBytes: MIN_TOTAL_BUDGET_TOOL_RESULT_BYTES,
+					minBytes,
 					makeMarker: TRUNCATE_MARKER_BUDGET,
 					get: () => record[key] as string,
 					set: (value) => {
@@ -1706,7 +1799,7 @@ function collectNestedStringCandidates(
 					},
 				});
 			} else {
-				collectNestedStringCandidates(item, candidates);
+				collectNestedStringCandidates(item, candidates, minBytes);
 			}
 		}
 	}

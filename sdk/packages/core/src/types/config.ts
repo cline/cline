@@ -41,6 +41,10 @@ export interface CoreModelConfig {
 	 * Maximum output tokens per API call.
 	 */
 	maxTokensPerTurn?: number;
+	/**
+	 * Maximum input tokens available per API call.
+	 */
+	maxInputTokens?: number;
 }
 
 export interface CoreRuntimeFeatures {

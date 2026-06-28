@@ -15,6 +15,7 @@ import {
 	DEFAULT_MAX_TOTAL_TEXT_BYTES,
 	getMessageBuilderOptionsFromEnv,
 	MessageBuilder,
+	resolveMessageBuilderTextBudget,
 } from "./message-builder";
 
 describe("MessageBuilder", () => {
@@ -210,14 +211,169 @@ describe("MessageBuilder", () => {
 		expect(block.content).toContain("...[truncated");
 	});
 
-	it("uses an aggressive per-result cap and a loose aggregate budget", () => {
+	it("uses aggressive per-result and bounded aggregate budgets", () => {
 		expect(DEFAULT_MAX_TOOL_RESULT_CHARS).toBe(8_000);
 		expect(DEFAULT_MAX_FILE_CONTENT_CHARS).toBe(50_000);
-		// The aggregate budget stays loose on purpose: budget truncation
-		// rewrites mid-transcript bytes and breaks provider prefix caching, so
-		// it must stay a rare overflow valve while the per-result cap (which
-		// is deterministic per content) does the routine work.
-		expect(DEFAULT_MAX_TOTAL_TEXT_BYTES).toBe(6_000_000);
+		expect(DEFAULT_MAX_TOTAL_TEXT_BYTES).toBe(250_000);
+	});
+
+	it("scales the aggregate text budget with the model input limit", () => {
+		expect(resolveMessageBuilderTextBudget(undefined)).toBe(250_000);
+		expect(resolveMessageBuilderTextBudget(11_904)).toBe(10_713);
+		expect(resolveMessageBuilderTextBudget(16_384)).toBe(14_745);
+		expect(resolveMessageBuilderTextBudget(16_385)).toBe(14_746);
+		expect(resolveMessageBuilderTextBudget(32_000)).toBe(32_793);
+		expect(resolveMessageBuilderTextBudget(128_000)).toBe(234_393);
+		expect(resolveMessageBuilderTextBudget(1_000_000)).toBe(1_890_000);
+	});
+
+	it("can meet a 32K model budget across multiple assistant messages", () => {
+		const builder = new MessageBuilder({ maxInputTokens: 32_000 });
+		const messages: Message[] = [
+			{ role: "assistant", content: "a".repeat(50_000) },
+			{ role: "assistant", content: "b".repeat(50_000) },
+		];
+
+		const result = builder.buildForApi(messages);
+		const totalBytes = result.reduce(
+			(sum, message) =>
+				sum +
+				(typeof message.content === "string"
+					? Buffer.byteLength(message.content, "utf8")
+					: 0),
+			0,
+		);
+		expect(totalBytes).toBeLessThanOrEqual(
+			resolveMessageBuilderTextBudget(32_000),
+		);
+		expect(JSON.stringify(result)).toContain("provider request budget");
+		expect(messages[0].content).toHaveLength(50_000);
+	});
+
+	it("leaves the same history intact when a larger model has room", () => {
+		const messages: Message[] = [
+			{ role: "assistant", content: "x".repeat(100_000) },
+		];
+
+		const smallContext = new MessageBuilder({ maxInputTokens: 32_000 });
+		const largeContext = new MessageBuilder({ maxInputTokens: 1_000_000 });
+
+		expect(smallContext.buildForApi(messages)[0].content).not.toBe(
+			messages[0].content,
+		);
+		expect(largeContext.buildForApi(messages)).toEqual(messages);
+	});
+
+	it("reports the exact omitted count when marker length crosses a digit boundary", () => {
+		const builder = new MessageBuilder({
+			maxToolResultChars: 8_001,
+			maxTotalTextBytes: 1_000_000,
+		});
+		const original = `${"a".repeat(9_000)}${"b".repeat(9_000)}`;
+		const messages: Message[] = [
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: "tool_1",
+						name: "run_commands",
+						input: { commands: ["generate output"] },
+					},
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "tool_1",
+						name: "run_commands",
+						content: original,
+					},
+				],
+			},
+		];
+
+		const result = builder.buildForApi(messages);
+		const block = Array.isArray(result[1].content)
+			? result[1].content[0]
+			: undefined;
+		if (block?.type !== "tool_result" || typeof block.content !== "string") {
+			throw new Error("expected tool_result with string content");
+		}
+		const marker = block.content.match(
+			/\n\n\.\.\.\[truncated (\d+) chars\]\.\.\.\n\n/,
+		);
+		if (!marker) {
+			throw new Error("expected truncation marker");
+		}
+		const omitted = Number(marker[1]);
+		const retained = block.content.length - marker[0].length;
+		expect(omitted).toBe(original.length - retained);
+		expect(block.content.length).toBeLessThanOrEqual(8_001);
+	});
+
+	it("caps mixed array text without reordering image entries", () => {
+		const builder = new MessageBuilder({
+			maxToolResultChars: 5_000,
+			maxTotalTextBytes: 1_000,
+		});
+		const image = {
+			type: "image" as const,
+			data: "AQID",
+			mediaType: "image/png",
+		};
+		const messages: Message[] = [
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: "tool_1",
+						name: "read_files",
+						input: { file_paths: ["image.png"] },
+					},
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "tool_1",
+						name: "read_files",
+						content: [
+							{ type: "text", text: "a".repeat(1_500) },
+							image,
+							{ type: "text", text: "b".repeat(1_500) },
+						],
+					},
+				],
+			},
+		];
+
+		const result = builder.buildForApi(messages);
+		const block = Array.isArray(result[1].content)
+			? result[1].content[0]
+			: undefined;
+		if (block?.type !== "tool_result" || !Array.isArray(block.content)) {
+			throw new Error("expected tool_result with array content");
+		}
+		expect(block.content.map((entry) => entry.type)).toEqual([
+			"text",
+			"image",
+			"text",
+		]);
+		expect(block.content[1]).toEqual(image);
+		const textBytes = block.content.reduce(
+			(total, entry) =>
+				total +
+				(entry.type === "text" ? Buffer.byteLength(entry.text, "utf8") : 0),
+			0,
+		);
+		expect(textBytes).toBeLessThanOrEqual(1_000);
+		expect(JSON.stringify(block.content)).toContain("provider request budget");
 	});
 
 	it("accepts named limit options for targeted provider payload tests", () => {
@@ -739,6 +895,23 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
 		return 0;
 	}
 
+	function sumProviderToolTextBytes(messages: Message[]): number {
+		let total = 0;
+		for (const message of messages) {
+			if (!Array.isArray(message.content)) {
+				continue;
+			}
+			for (const block of message.content) {
+				if (block.type === "tool_use") {
+					total += sumStringBytes(block.input);
+				} else if (block.type === "tool_result") {
+					total += sumStringBytes(block.content);
+				}
+			}
+		}
+		return total;
+	}
+
 	function serializeForAiSdk(messages: Message[]): string {
 		const agentMessages = messagesToAgentMessages(messages);
 		const aiSdkMessages = formatMessagesForAiSdk(
@@ -1216,6 +1389,59 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
 
 		expect(toolResultStringBytes).toBeLessThanOrEqual(100_000);
 		expect(JSON.stringify(result)).toContain("provider request budget");
+	});
+
+	it("applies the default aggregate budget across accumulated tool results", () => {
+		const builder = new MessageBuilder();
+		const messages: Message[] = [];
+		for (let i = 0; i < 40; i++) {
+			messages.push(
+				toolUseMessage(`call_${i}`, "run_commands", {
+					commands: [`cmd ${i}`],
+				}),
+				structuredToolResultMessage(`call_${i}`, "run_commands", [
+					{
+						query: `cmd ${i}`,
+						result: `result_${i}_`.repeat(1_000),
+						success: true,
+					},
+				]),
+			);
+		}
+
+		const result = builder.buildForApi(messages);
+		expect(sumProviderToolTextBytes(result)).toBeLessThanOrEqual(
+			DEFAULT_MAX_TOTAL_TEXT_BYTES,
+		);
+		expect(JSON.stringify(result)).toContain("provider request budget");
+	});
+
+	it("lowers tool-field floors when many small strings exceed the aggregate budget", () => {
+		const builder = new MessageBuilder({
+			maxToolResultChars: 50_000,
+			maxTotalTextBytes: 20_000,
+		});
+		const messages: Message[] = [];
+		for (let i = 0; i < 30; i++) {
+			messages.push(
+				toolUseMessage(`call_${i}`, "run_commands", {
+					commands: [`arg_${i}_`.repeat(150)],
+				}),
+				structuredToolResultMessage(`call_${i}`, "run_commands", [
+					{
+						query: `cmd ${i}`,
+						result: `result_${i}_`.repeat(100),
+						success: true,
+					},
+				]),
+			);
+		}
+		const snapshot = structuredClone(messages);
+
+		const result = builder.buildForApi(messages);
+		expect(sumProviderToolTextBytes(result)).toBeLessThanOrEqual(20_000);
+		expect(JSON.stringify(result)).toContain("provider request budget");
+		expect(messages).toEqual(snapshot);
 	});
 
 	it("does not mutate the original structured tool results", () => {
