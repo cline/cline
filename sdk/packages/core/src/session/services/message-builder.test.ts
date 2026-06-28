@@ -216,6 +216,116 @@ describe("MessageBuilder", () => {
 		expect(DEFAULT_MAX_TOTAL_TEXT_BYTES).toBe(250_000);
 	});
 
+	it("reports the exact omitted count when marker length crosses a digit boundary", () => {
+		const builder = new MessageBuilder({
+			maxToolResultChars: 8_001,
+			maxTotalTextBytes: 1_000_000,
+		});
+		const original = `${"a".repeat(9_000)}${"b".repeat(9_000)}`;
+		const messages: Message[] = [
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: "tool_1",
+						name: "run_commands",
+						input: { commands: ["generate output"] },
+					},
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "tool_1",
+						content: original,
+					},
+				],
+			},
+		];
+
+		const result = builder.buildForApi(messages);
+		const block = Array.isArray(result[1].content)
+			? result[1].content[0]
+			: undefined;
+		if (block?.type !== "tool_result" || typeof block.content !== "string") {
+			throw new Error("expected tool_result with string content");
+		}
+		const marker = block.content.match(
+			/\n\n\.\.\.\[truncated (\d+) chars\]\.\.\.\n\n/,
+		);
+		if (!marker) {
+			throw new Error("expected truncation marker");
+		}
+		const omitted = Number(marker[1]);
+		const retained = block.content.length - marker[0].length;
+		expect(omitted).toBe(original.length - retained);
+		expect(block.content.length).toBeLessThanOrEqual(8_001);
+	});
+
+	it("caps mixed array text without reordering image entries", () => {
+		const builder = new MessageBuilder({
+			maxToolResultChars: 5_000,
+			maxTotalTextBytes: 1_000,
+		});
+		const image = {
+			type: "image" as const,
+			data: "AQID",
+			mediaType: "image/png",
+		};
+		const messages: Message[] = [
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: "tool_1",
+						name: "read_files",
+						input: { file_paths: ["image.png"] },
+					},
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "tool_1",
+						content: [
+							{ type: "text", text: "a".repeat(1_500) },
+							image,
+							{ type: "text", text: "b".repeat(1_500) },
+						],
+					},
+				],
+			},
+		];
+
+		const result = builder.buildForApi(messages);
+		const block = Array.isArray(result[1].content)
+			? result[1].content[0]
+			: undefined;
+		if (block?.type !== "tool_result" || !Array.isArray(block.content)) {
+			throw new Error("expected tool_result with array content");
+		}
+		expect(block.content.map((entry) => entry.type)).toEqual([
+			"text",
+			"image",
+			"text",
+		]);
+		expect(block.content[1]).toEqual(image);
+		const textBytes = block.content.reduce(
+			(total, entry) =>
+				total +
+				(entry.type === "text" ? Buffer.byteLength(entry.text, "utf8") : 0),
+			0,
+		);
+		expect(textBytes).toBeLessThanOrEqual(1_000);
+		expect(JSON.stringify(block.content)).toContain("provider request budget");
+	});
+
 	it("accepts named limit options for targeted provider payload tests", () => {
 		const builder = new MessageBuilder({
 			maxToolResultChars: 120,

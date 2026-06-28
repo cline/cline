@@ -1571,20 +1571,28 @@ function truncateMiddleByChars(
 	if (text.length <= maxChars) {
 		return text;
 	}
-	// Two-pass: marker length depends on the removed-char count, which depends
-	// on the marker length. Compute a tentative marker, derive the final
-	// removed count, then build the real marker.
-	const tentativeMarker = makeMarker(text.length - maxChars);
-	const tentativeKeep = Math.max(
-		0,
-		Math.floor((maxChars - tentativeMarker.length) / 2),
-	);
-	const removed = Math.max(0, text.length - tentativeKeep * 2);
-	const marker = makeMarker(removed);
-	const keep = Math.max(0, Math.floor((maxChars - marker.length) / 2));
-	const start = text.slice(0, keep);
-	const end = keep > 0 ? text.slice(-keep) : "";
-	return `${start}${marker}${end}`;
+	if (maxChars <= 0) {
+		return "";
+	}
+
+	// Marker length depends on the omitted count. Recompute until the retained
+	// length and marker agree so digit-boundary changes cannot make the count
+	// inaccurate.
+	let keep = Math.max(0, Math.floor(maxChars / 2));
+	while (true) {
+		const removed = Math.max(0, text.length - keep * 2);
+		const marker = makeMarker(removed);
+		if (marker.length > maxChars) {
+			return marker.slice(0, maxChars);
+		}
+		const nextKeep = Math.max(0, Math.floor((maxChars - marker.length) / 2));
+		if (nextKeep === keep) {
+			const start = text.slice(0, keep);
+			const end = keep > 0 ? text.slice(-keep) : "";
+			return `${start}${marker}${end}`;
+		}
+		keep = nextKeep;
+	}
 }
 
 function truncateMiddleToBytes(
