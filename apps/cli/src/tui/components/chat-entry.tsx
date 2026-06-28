@@ -275,6 +275,7 @@ function ToolCallView(props: {
 }
 
 function ClineCreditsClinePassErrorView(props: { defaultFg?: string }) {
+	const subscriptionUrl = getCliSubscriptionUrl();
 	return (
 		<box flexDirection="row">
 			<text fg="red" content="* " />
@@ -304,7 +305,7 @@ function ClineCreditsClinePassErrorView(props: { defaultFg?: string }) {
 				<box flexDirection="row">
 					<text fg="gray">Purchase ClinePass: </text>
 					<text fg="cyan" selectable>
-						<a href={getCliSubscriptionUrl()}>{getCliSubscriptionUrl()}</a>
+						<a href={subscriptionUrl}>{subscriptionUrl}</a>
 					</text>
 				</box>
 				<box flexDirection="row">
