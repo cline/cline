@@ -490,7 +490,9 @@ function ClinePassWarning() {
 				<a href={subscriptionUrl}>{subscriptionUrl}</a>
 			</text>
 			<text fg="gray">
-				<em>You can CMD/Ctrl+Click the link to open or highlight to copy it.</em>
+				<em>
+					You can CMD/Ctrl+Click the link to open or highlight to copy it.
+				</em>
 			</text>
 		</box>
 	);
