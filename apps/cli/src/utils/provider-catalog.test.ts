@@ -1,7 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
 
+type MockProviderCatalog = {
+	providers: Array<{ id: string; name: string }>;
+	settingsPath: string;
+};
+
 const mocks = vi.hoisted(() => ({
-	listLocalProviders: vi.fn(async () => ({ providers: [], settingsPath: "" })),
+	listLocalProviders: vi.fn(
+		async (): Promise<MockProviderCatalog> => ({
+			providers: [],
+			settingsPath: "",
+		}),
+	),
 	getBooleanFlagEnabled: vi.fn(() => true),
 }));
 
@@ -29,6 +39,24 @@ describe("listLocalProviders", () => {
 		expect(mocks.getBooleanFlagEnabled).toHaveBeenCalledWith("ext-cline-pass");
 		expect(mocks.listLocalProviders).toHaveBeenCalledWith(manager, {
 			isClinePassEnabled: true,
+		});
+	});
+
+	it("maps the Cline provider to the CLI display name", async () => {
+		mocks.listLocalProviders.mockResolvedValueOnce({
+			settingsPath: "",
+			providers: [
+				{ id: "cline", name: "Cline" },
+				{ id: "cline-pass", name: "ClinePass" },
+			],
+		});
+		const { listLocalProviders } = await import("./provider-catalog");
+
+		await expect(listLocalProviders({} as never)).resolves.toMatchObject({
+			providers: [
+				{ id: "cline", name: "Cline Usage-Billing" },
+				{ id: "cline-pass", name: "ClinePass" },
+			],
 		});
 	});
 });

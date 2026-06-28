@@ -48,7 +48,7 @@ export function MigrationNoticeContent(
 					latest open-weight coding models with enough quota for day-to-day
 					work, at a much lower cost than paying API costs directly.
 				</text>
-				<text selectable>Try it now with a limited-time promo.</text>
+				<text selectable>Try it now with a limited-time promo for $1.99.</text>
 			</box>
 			<box flexDirection="row">
 				<text fg={palette.act} selectable>

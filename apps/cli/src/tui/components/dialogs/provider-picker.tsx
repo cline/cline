@@ -37,6 +37,7 @@ import {
 	getSearchableListRowsWindow,
 	type SearchableItem,
 } from "../searchable-list";
+import { buildClinePassSubscriptionPageUrl } from "./provider-picker-helpers";
 
 interface ProviderItem {
 	id: string;
@@ -251,24 +252,13 @@ export function ProviderPickerContent(
 export type ExistingProviderAction =
 	| "use_existing"
 	| "reconfigure"
+	| "open_subscription_page"
 	| "open_subscription";
 
 export interface ExistingProviderOption {
 	value: ExistingProviderAction;
 	label: string;
 	onSelect?: () => Promise<void> | void;
-}
-
-const CLINE_PASS_SUBSCRIPTION_PATH = "/dashboard/subscription";
-const DEFAULT_APP_BASE_URL = "https://app.cline.bot";
-
-export function buildClinePassSubscriptionPageUrl(
-	appBaseUrl: string | undefined,
-): string {
-	return new URL(
-		CLINE_PASS_SUBSCRIPTION_PATH,
-		appBaseUrl || DEFAULT_APP_BASE_URL,
-	).toString();
 }
 
 export function UseExistingOrReconfigureContent(

@@ -15,6 +15,7 @@ import {
 	isOAuthProvider,
 	isProviderConfigured,
 } from "../../utils/provider-auth";
+import { getCliProviderDisplayName } from "../../utils/provider-catalog";
 import type { Config } from "../../utils/types";
 import { withLoadingDialog } from "../components/dialogs/loading-dialog";
 import {
@@ -48,7 +49,7 @@ export interface OpenModelSelectorOptions {
 
 async function getProviderDisplayName(providerId: string): Promise<string> {
 	const info = await Llms.getProvider(providerId);
-	return info?.name ?? providerId;
+	return getCliProviderDisplayName(providerId, info?.name);
 }
 
 async function refreshCurrentProviderModels(config: Config): Promise<void> {
@@ -91,8 +92,24 @@ function providerToExistingProviderOptions(input: {
 
 	return [
 		{
+			value: "open_subscription_page",
+			label: "Open subscription page",
+			onSelect: async () => {
+				await input.dialog.choice<boolean>({
+					style: { maxHeight: input.termHeight - 2 },
+					closeOnEscape: false,
+					content: (ctx: ChoiceContext<boolean>) => (
+						<ClinePassSubscriptionContent
+							{...ctx}
+							providerName={input.providerName}
+						/>
+					),
+				});
+			},
+		},
+		{
 			value: "open_subscription",
-			label: "See billing and usage",
+			label: "See usage and billing",
 			onSelect: async () => {
 				await input.dialog.choice<boolean>({
 					style: { maxHeight: input.termHeight - 2 },
