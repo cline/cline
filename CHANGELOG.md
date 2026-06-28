@@ -1,5 +1,11 @@
 # Changelog
 
+## [4.0.1]
+
+### Changed
+
+- Roll the stable VS Code extension back to the pre-SDK-migration codebase to resolve regressions reported in 4.0.0. This release ships the 3.89.2 extension code under a higher version number so existing 4.0.0 users receive the update. SDK-migration work continues separately on `main`.
+
 ## [3.89.2]
 
 ### Fixed
