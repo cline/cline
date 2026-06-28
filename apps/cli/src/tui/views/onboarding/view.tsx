@@ -124,6 +124,7 @@ export function OnboardingView(props: OnboardingViewProps) {
 	if (state.step === "model_picker") {
 		return (
 			<OnboardingModelPickerScreen
+				activeProviderId={state.activeProviderId}
 				activeProviderName={state.activeProviderName}
 				compact={compact}
 				contentWidth={contentWidth}

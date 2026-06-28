@@ -1,5 +1,6 @@
 import "opentui-spinner/react";
 import type { ReactNode } from "react";
+import { getCliSubscriptionUrl } from "../../../utils/cline-pass-errors";
 import {
 	CODEX_CLI_INSTALL_URL,
 	type CodexCliStatus,
@@ -468,7 +469,37 @@ export function OnboardingClineModelScreen(props: {
 	);
 }
 
+function ClinePassWarning() {
+	const defaultFg = useDefaultFg();
+	const subscriptionUrl = getCliSubscriptionUrl();
+
+	return (
+		<box
+			flexDirection="column"
+			border
+			borderStyle="rounded"
+			borderColor="#333333"
+			paddingX={1}
+			paddingY={1}
+		>
+			<text fg={defaultFg}>
+				<strong>Subscribe to ClinePass if you have not</strong>
+			</text>
+			<text fg="gray">Visit this page before choosing a ClinePass model:</text>
+			<text fg={palette.act} selectable>
+				<a href={subscriptionUrl}>{subscriptionUrl}</a>
+			</text>
+			<text fg="gray">
+				<em>
+					You can CMD/Ctrl+Click the link to open or highlight to copy it.
+				</em>
+			</text>
+		</box>
+	);
+}
+
 export function OnboardingModelPickerScreen(props: {
+	activeProviderId: string;
 	activeProviderName: string;
 	compact: boolean;
 	contentWidth: number;
@@ -484,6 +515,8 @@ export function OnboardingModelPickerScreen(props: {
 			contentWidth={props.contentWidth}
 			mouse={props.mouse}
 		>
+			{props.activeProviderId === "cline-pass" && <ClinePassWarning />}
+
 			<text fg={defaultFg} paddingX={1}>
 				<strong>Choose a model for {props.activeProviderName}</strong>
 			</text>
