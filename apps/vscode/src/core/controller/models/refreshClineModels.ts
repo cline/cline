@@ -144,7 +144,7 @@ export async function refreshClineModels(controller: Controller): Promise<Record
 	// Check in-memory cache first
 	const cache = StateManager.get().getModelsCache("cline")
 	if (cache) {
-		return preferClineCanonicalModelIds(cache)
+		return cache
 	}
 
 	// If a fetch is already in progress, return the same promise
@@ -350,10 +350,9 @@ async function fetchAndCacheClineModels(): Promise<Record<string, ModelInfo>> {
 		if (Object.keys(models).length === 0) {
 			throw new Error("No Cline models returned from API")
 		}
-		models = preferClineCanonicalModelIds(models)
 
 		// Save models and cache them in memory
-		await fs.writeFile(clineModelsFilePath, JSON.stringify(models))
+		await fs.writeFile(clineModelsFilePath, JSON.stringify(preferClineCanonicalModelIds(models)))
 		Logger.log("Cline models fetched and saved")
 	} catch (error) {
 		Logger.error("Error fetching Cline models:", error)
