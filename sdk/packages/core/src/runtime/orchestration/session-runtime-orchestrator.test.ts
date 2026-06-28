@@ -496,6 +496,39 @@ describe("SessionRuntime.getExtensionRegistry", () => {
 });
 
 describe("SessionRuntime message preparation", () => {
+	it("passes the resolved model input limit to provider message budgeting", async () => {
+		const { deps, configs } = makeRecordingRuntimeFactory();
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				maxInputTokens: 32_000,
+				knownModels: {
+					"claude-3-5-sonnet": {
+						id: "claude-3-5-sonnet",
+						contextWindow: 128_000,
+						maxTokens: 8_192,
+					},
+				},
+			}),
+			deps,
+		);
+		const buildForApi = vi.spyOn(session.messageBuilder, "buildForApi");
+
+		await session.run("go");
+		const beforeModel = configs[0]?.hooks?.beforeModel;
+		await beforeModel?.({
+			snapshot: makeSnapshot(),
+			request: {
+				systemPrompt: "system",
+				messages: [makeAgentMessage("m1", "user", "original")],
+				tools: [],
+			},
+		});
+
+		expect(buildForApi).toHaveBeenCalledWith(expect.any(Array), {
+			maxInputTokens: 32_000,
+		});
+	});
+
 	it("runs registered message builders and API-safe normalization before model calls", async () => {
 		const build = vi.fn(async (messages) => [
 			...messages,
@@ -1496,7 +1529,10 @@ describe("SessionRuntime real AgentRuntime smoke", () => {
 			"assistant",
 			"user",
 		]);
-		expect(session.getMessages().at(-1)?.content[0]?.type).toBe("tool_result");
+		const lastContent = session.getMessages().at(-1)?.content;
+		expect(Array.isArray(lastContent) ? lastContent[0]?.type : undefined).toBe(
+			"tool_result",
+		);
 	});
 });
 

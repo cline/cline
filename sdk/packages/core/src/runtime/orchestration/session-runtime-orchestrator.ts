@@ -47,6 +47,7 @@ import {
 	mergeModelOptions,
 	type ToolCallRecord,
 } from "@cline/shared";
+import { resolveMaxInputTokens } from "../../extensions/context/compaction-shared";
 import { filterDisabledTools } from "../../services/global-settings";
 import {
 	createAgentModelFromConfig,
@@ -1002,7 +1003,9 @@ export class SessionRuntime {
 		for (const builder of messageBuilders) {
 			providerMessages = await builder.build(providerMessages);
 		}
-		return this.messageBuilder.buildForApi(providerMessages);
+		return this.messageBuilder.buildForApi(providerMessages, {
+			maxInputTokens: resolveSessionMaxInputTokens(this.config),
+		});
 	}
 
 	private handleRuntimeEvent(event: AgentRuntimeEvent): void {
@@ -1373,4 +1376,14 @@ function tryGetModelInfo(config: AgentConfig): ModelInfo | undefined {
 		return resolvedKnownModels[config.modelId];
 	}
 	return undefined;
+}
+
+function resolveSessionMaxInputTokens(config: AgentConfig): number | undefined {
+	const modelInfo = tryGetModelInfo(config);
+	return resolveMaxInputTokens({
+		configMaxInputTokens: config.maxInputTokens,
+		modelMaxInputTokens: modelInfo?.maxInputTokens,
+		contextWindow: modelInfo?.contextWindow,
+		modelMaxTokens: config.maxTokensPerTurn ?? modelInfo?.maxTokens,
+	});
 }

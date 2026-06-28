@@ -15,6 +15,7 @@ import {
 	DEFAULT_MAX_TOTAL_TEXT_BYTES,
 	getMessageBuilderOptionsFromEnv,
 	MessageBuilder,
+	resolveMessageBuilderTextBudget,
 } from "./message-builder";
 
 describe("MessageBuilder", () => {
@@ -216,6 +217,50 @@ describe("MessageBuilder", () => {
 		expect(DEFAULT_MAX_TOTAL_TEXT_BYTES).toBe(250_000);
 	});
 
+	it("scales the aggregate text budget with the model input limit", () => {
+		expect(resolveMessageBuilderTextBudget(undefined)).toBe(250_000);
+		expect(resolveMessageBuilderTextBudget(32_000)).toBe(32_793);
+		expect(resolveMessageBuilderTextBudget(128_000)).toBe(234_393);
+		expect(resolveMessageBuilderTextBudget(1_000_000)).toBe(1_890_000);
+	});
+
+	it("can meet a 32K model budget across multiple assistant messages", () => {
+		const builder = new MessageBuilder({ maxInputTokens: 32_000 });
+		const messages: Message[] = [
+			{ role: "assistant", content: "a".repeat(50_000) },
+			{ role: "assistant", content: "b".repeat(50_000) },
+		];
+
+		const result = builder.buildForApi(messages);
+		const totalBytes = result.reduce(
+			(sum, message) =>
+				sum +
+				(typeof message.content === "string"
+					? Buffer.byteLength(message.content, "utf8")
+					: 0),
+			0,
+		);
+		expect(totalBytes).toBeLessThanOrEqual(
+			resolveMessageBuilderTextBudget(32_000),
+		);
+		expect(JSON.stringify(result)).toContain("provider request budget");
+		expect(messages[0].content).toHaveLength(50_000);
+	});
+
+	it("leaves the same history intact when a larger model has room", () => {
+		const messages: Message[] = [
+			{ role: "assistant", content: "x".repeat(100_000) },
+		];
+
+		const smallContext = new MessageBuilder({ maxInputTokens: 32_000 });
+		const largeContext = new MessageBuilder({ maxInputTokens: 1_000_000 });
+
+		expect(smallContext.buildForApi(messages)[0].content).not.toBe(
+			messages[0].content,
+		);
+		expect(largeContext.buildForApi(messages)).toEqual(messages);
+	});
+
 	it("reports the exact omitted count when marker length crosses a digit boundary", () => {
 		const builder = new MessageBuilder({
 			maxToolResultChars: 8_001,
@@ -240,6 +285,7 @@ describe("MessageBuilder", () => {
 					{
 						type: "tool_result",
 						tool_use_id: "tool_1",
+						name: "run_commands",
 						content: original,
 					},
 				],
@@ -293,6 +339,7 @@ describe("MessageBuilder", () => {
 					{
 						type: "tool_result",
 						tool_use_id: "tool_1",
+						name: "read_files",
 						content: [
 							{ type: "text", text: "a".repeat(1_500) },
 							image,

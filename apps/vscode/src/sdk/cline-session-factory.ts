@@ -34,7 +34,9 @@ import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
 import { type BedrockProviderConfig, buildBedrockProviderConfig } from "./bedrock-config"
 import { buildAgentHooks } from "./hooks-adapter"
 import { readTaskHistory, resolveDataDir } from "./legacy-state-reader"
+import { parseProviderId } from "./model-catalog/provider-id"
 import { toSdkProviderId } from "./model-catalog/sdk-provider-id"
+import { createProviderConfigStore } from "./model-catalog/store"
 import { getProviderSettingsManager } from "./provider-migration"
 import { buildSapProviderConfig, type SapProviderConfig } from "./sap-config"
 import type { SdkSessionHost } from "./session-host"
@@ -200,10 +202,31 @@ function resolveOcaReasoningConfig(mode: Mode, apiConfig: ApiConfiguration | und
 	return isReasoningEffort(effort) ? { thinking: true, reasoningEffort: effort } : undefined
 }
 
+function positiveNumber(value: unknown): number | undefined {
+	return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : undefined
+}
+
 function resolveOpenAiCompatibleMaxTokens(config: ApiConfiguration | undefined, mode: Mode): number | undefined {
 	const modelInfo = mode === "plan" ? config?.planModeOpenAiModelInfo : config?.actModeOpenAiModelInfo
-	const maxTokens = modelInfo?.maxTokens
-	return typeof maxTokens === "number" && Number.isFinite(maxTokens) && maxTokens > 0 ? maxTokens : undefined
+	return positiveNumber(modelInfo?.maxTokens)
+}
+
+function resolveSelectedModelMaxInputTokens(providerId: string, modelId: string, mode: Mode): number | undefined {
+	try {
+		const selection = createProviderConfigStore().readSelection(parseProviderId(providerId), mode)
+		if (!selection || selection.modelId !== modelId) {
+			return undefined
+		}
+		const contextWindow = positiveNumber(selection.modelInfo.contextWindow)
+		if (contextWindow === undefined) {
+			return undefined
+		}
+		const maxTokens = positiveNumber(selection.modelInfo.maxTokens)
+		return maxTokens !== undefined && maxTokens < contextWindow ? contextWindow - maxTokens : contextWindow
+	} catch (error) {
+		Logger.warn("[SessionFactory] Failed to resolve selected model input limit:", error)
+		return undefined
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -605,6 +628,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	}
 	apiKey = apiKey ?? ""
 	const maxTokensPerTurn = providerId === "openai" ? resolveOpenAiCompatibleMaxTokens(apiConfig, mode) : undefined
+	const maxInputTokens = resolveSelectedModelMaxInputTokens(providerId, modelId, mode)
 	const reasoningConfig =
 		providerId === "oca"
 			? (resolveOcaReasoningConfig(mode, apiConfig) ?? resolveProviderReasoningConfig(providerId))
@@ -705,6 +729,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		mode: mode === "plan" ? "plan" : "act",
 		...reasoningConfig,
 		...(maxTokensPerTurn !== undefined ? { maxTokensPerTurn } : {}),
+		...(maxInputTokens !== undefined ? { maxInputTokens } : {}),
 		maxIterations: undefined,
 		logger: sdkLogger,
 		extensionContext: {

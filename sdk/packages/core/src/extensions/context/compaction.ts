@@ -17,9 +17,9 @@ import {
 	createTokenEstimator,
 	DEFAULT_MAX_INPUT_TOKENS,
 	DEFAULT_PRESERVE_RECENT_TOKENS,
-	DEFAULT_RESERVE_TOKENS,
 	DEFAULT_TARGET_RATIO,
-	DEFAULT_THRESHOLD_RATIO,
+	resolveDefaultContextTriggerTokens,
+	resolveMaxInputTokens,
 } from "./compaction-shared";
 
 export interface ContextPipelinePrepareTurnInput {
@@ -75,37 +75,6 @@ function safeJsonSize(value: unknown): number {
 	} catch {
 		return String(value).length;
 	}
-}
-
-function isPositiveFiniteNumber(value: unknown): value is number {
-	return typeof value === "number" && Number.isFinite(value) && value > 0;
-}
-
-function resolveMaxInputTokens(input: {
-	configMaxInputTokens?: number;
-	modelMaxInputTokens?: number;
-	contextWindow?: number;
-	modelMaxTokens?: number;
-}): number {
-	const candidates: number[] = [];
-	if (isPositiveFiniteNumber(input.configMaxInputTokens)) {
-		candidates.push(input.configMaxInputTokens);
-	}
-	if (isPositiveFiniteNumber(input.modelMaxInputTokens)) {
-		candidates.push(input.modelMaxInputTokens);
-	}
-	if (isPositiveFiniteNumber(input.contextWindow)) {
-		candidates.push(input.contextWindow);
-		if (
-			isPositiveFiniteNumber(input.modelMaxTokens) &&
-			input.modelMaxTokens < input.contextWindow
-		) {
-			candidates.push(input.contextWindow - input.modelMaxTokens);
-		}
-	}
-	return candidates.length > 0
-		? Math.min(...candidates)
-		: DEFAULT_MAX_INPUT_TOKENS;
 }
 
 function summarizeToolResults(messages: CoreCompactionContext["messages"]): {
@@ -199,12 +168,8 @@ function resolveTriggerState(input: {
 		};
 	}
 
-	const triggerTokens = Math.max(
-		0,
-		Math.min(
-			input.maxInputTokens - DEFAULT_RESERVE_TOKENS,
-			input.maxInputTokens * DEFAULT_THRESHOLD_RATIO,
-		),
+	const triggerTokens = resolveDefaultContextTriggerTokens(
+		input.maxInputTokens,
 	);
 	return {
 		shouldCompact: input.inputTokens > triggerTokens,
@@ -316,12 +281,13 @@ export function createContextCompactionPrepareTurn(
 			(total: number, message) => total + estimateMessageTokens(message),
 			0,
 		);
-		const maxInputTokens = resolveMaxInputTokens({
-			configMaxInputTokens: userCompaction?.maxInputTokens,
-			modelMaxInputTokens: context.model.info?.maxInputTokens,
-			contextWindow: context.model.info?.contextWindow,
-			modelMaxTokens: context.model.info?.maxTokens,
-		});
+		const maxInputTokens =
+			resolveMaxInputTokens({
+				configMaxInputTokens: userCompaction?.maxInputTokens,
+				modelMaxInputTokens: context.model.info?.maxInputTokens,
+				contextWindow: context.model.info?.contextWindow,
+				modelMaxTokens: context.model.info?.maxTokens,
+			}) ?? DEFAULT_MAX_INPUT_TOKENS;
 
 		const triggerState = resolveTriggerState({
 			inputTokens,
@@ -351,37 +317,37 @@ export function createContextCompactionPrepareTurn(
 		if (mode === "auto" && !triggerState.shouldCompact) {
 			return undefined;
 		}
-			const targetState =
-				mode === "manual"
-					? resolveManualTargetState({
-							inputTokens,
-							maxInputTokens,
+		const targetState =
+			mode === "manual"
+				? resolveManualTargetState({
+						inputTokens,
+						maxInputTokens,
 						autoTriggerTokens: triggerState.triggerTokens,
 						manualTargetRatio: options.manualTargetRatio,
 					})
-					: triggerState;
-			const targetTokens =
-				mode === "auto"
-					? resolveBasicTargetTokens({
-							maxInputTokens,
-							modelMaxTokens: context.model.info?.maxTokens,
-							triggerTokens: targetState.triggerTokens,
-						})
-					: undefined;
+				: triggerState;
+		const targetTokens =
+			mode === "auto"
+				? resolveBasicTargetTokens({
+						maxInputTokens,
+						modelMaxTokens: context.model.info?.maxTokens,
+						triggerTokens: targetState.triggerTokens,
+					})
+				: undefined;
 
-			const compactionContext = {
-				agentId: context.agentId,
-				conversationId: context.conversationId,
+		const compactionContext = {
+			agentId: context.agentId,
+			conversationId: context.conversationId,
 			parentAgentId: context.parentAgentId,
 			iteration: context.iteration,
 			messages: context.messages,
-				model: context.model,
-				maxInputTokens,
-				triggerTokens: targetState.triggerTokens,
-				targetTokens,
-				thresholdRatio: targetState.thresholdRatio,
-				utilizationRatio: maxInputTokens > 0 ? inputTokens / maxInputTokens : 0,
-			};
+			model: context.model,
+			maxInputTokens,
+			triggerTokens: targetState.triggerTokens,
+			targetTokens,
+			thresholdRatio: targetState.thresholdRatio,
+			utilizationRatio: maxInputTokens > 0 ? inputTokens / maxInputTokens : 0,
+		};
 
 		const statusReason =
 			mode === "manual" ? "manual_compaction" : "auto_compaction";

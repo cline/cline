@@ -23,6 +23,51 @@ export const TOOL_RESULT_CHAR_LIMIT = 2_000;
 export const FILE_CONTENT_CHAR_LIMIT = 2_000;
 export const MIN_TRUNCATED_MESSAGE_TOKENS = 8;
 
+export interface MaxInputTokenLimits {
+	configMaxInputTokens?: number;
+	modelMaxInputTokens?: number;
+	contextWindow?: number;
+	modelMaxTokens?: number;
+}
+
+function isPositiveFiniteNumber(value: unknown): value is number {
+	return typeof value === "number" && Number.isFinite(value) && value > 0;
+}
+
+export function resolveMaxInputTokens(
+	input: MaxInputTokenLimits,
+): number | undefined {
+	const candidates: number[] = [];
+	if (isPositiveFiniteNumber(input.configMaxInputTokens)) {
+		candidates.push(input.configMaxInputTokens);
+	}
+	if (isPositiveFiniteNumber(input.modelMaxInputTokens)) {
+		candidates.push(input.modelMaxInputTokens);
+	}
+	if (isPositiveFiniteNumber(input.contextWindow)) {
+		candidates.push(input.contextWindow);
+		if (
+			isPositiveFiniteNumber(input.modelMaxTokens) &&
+			input.modelMaxTokens < input.contextWindow
+		) {
+			candidates.push(input.contextWindow - input.modelMaxTokens);
+		}
+	}
+	return candidates.length > 0 ? Math.min(...candidates) : undefined;
+}
+
+export function resolveDefaultContextTriggerTokens(
+	maxInputTokens: number,
+): number {
+	return Math.max(
+		0,
+		Math.min(
+			maxInputTokens - DEFAULT_RESERVE_TOKENS,
+			maxInputTokens * DEFAULT_THRESHOLD_RATIO,
+		),
+	);
+}
+
 export interface FileOperationSummary {
 	readFiles: string[];
 	modifiedFiles: string[];

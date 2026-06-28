@@ -451,6 +451,30 @@ describe("buildSessionConfig", () => {
 		expect((config.providerConfig as any).knownModels).toBeUndefined()
 		expect((config.providerConfig as any).maxOutputTokens).toBeUndefined()
 		expect((config as any).maxTokensPerTurn).toBe(4_096)
+		expect(config.maxInputTokens).toBe(11_904)
+	})
+
+	it("passes the selected input limit for other dynamic providers", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "openrouter",
+			actModeOpenRouterModelId: "vendor/large-context",
+			openRouterApiKey: "openrouter-key",
+			actModeOpenRouterModelInfo: {
+				name: "Large Context",
+				contextWindow: 1_000_000,
+				maxTokens: 32_000,
+				supportsImages: true,
+				supportsPromptCache: true,
+				inputPrice: 0,
+				outputPrice: 0,
+			},
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerId).toBe("openrouter")
+		expect(config.modelId).toBe("vendor/large-context")
+		expect(config.maxInputTokens).toBe(968_000)
 	})
 
 	it("passes OCA reasoning effort from legacy mode settings to SDK sessions", async () => {

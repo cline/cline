@@ -10,6 +10,7 @@
  */
 
 import {
+	CHARS_PER_TOKEN,
 	type ContentBlock,
 	createMediaBudgetState,
 	IMAGE_OMITTED_PLACEHOLDER,
@@ -24,12 +25,14 @@ import {
 	type ToolResultContent,
 	validateAndReserveImageMedia,
 } from "@cline/shared";
+import {
+	DEFAULT_TARGET_RATIO,
+	resolveDefaultContextTriggerTokens,
+} from "../../extensions/context/compaction-shared";
 
 export const DEFAULT_MAX_TOOL_RESULT_CHARS = 8_000;
 export const DEFAULT_MAX_FILE_CONTENT_CHARS = 50_000;
-// Keep provider-bound history below typical 128K-token context windows while
-// leaving room for the system prompt, tools, and model output. Per-result caps
-// still do the routine work so aggregate rewrites remain an overflow valve.
+// Safe fallback for providers that do not expose model input limits.
 export const DEFAULT_MAX_TOTAL_TEXT_BYTES = 250_000;
 export const DEFAULT_MAX_ASSISTANT_TEXT_CHARS = 200_000;
 export const DEFAULT_MAX_ASSISTANT_TOOL_MARKUP_CHARS = 12_000;
@@ -37,7 +40,7 @@ export const DEFAULT_MAX_ASSISTANT_TOOL_MARKUP_CHARS = 12_000;
 // 64KB is roughly 8 provider-capped read results; set to 0 for eager rewriting.
 export const DEFAULT_MIN_OUTDATED_REWRITE_BYTES = 65_536;
 const MIN_TOTAL_BUDGET_TOOL_TEXT_BYTES = 2_000;
-const EMERGENCY_MIN_TOTAL_BUDGET_TOOL_TEXT_BYTES = 256;
+const EMERGENCY_MIN_TOTAL_BUDGET_TEXT_BYTES = 256;
 const MIN_TOTAL_BUDGET_ASSISTANT_TEXT_BYTES = 40_000;
 const REPEATED_TOOL_CALL_MARKUP_THRESHOLD = 8;
 export const MESSAGE_BUILDER_LIMIT_ENV = {
@@ -78,10 +81,35 @@ export interface MessageBuilderOptions {
 	maxToolResultChars?: number;
 	maxFileContentChars?: number;
 	maxTotalTextBytes?: number;
+	maxInputTokens?: number;
 	mediaBudget?: MediaBudgetOptions;
 	maxAssistantTextChars?: number;
 	maxAssistantToolMarkupChars?: number;
 	minOutdatedRewriteBytes?: number;
+}
+
+export interface MessageBuilderBuildOptions {
+	maxInputTokens?: number;
+}
+
+export function resolveMessageBuilderTextBudget(
+	maxInputTokens: number | undefined,
+): number {
+	if (
+		typeof maxInputTokens !== "number" ||
+		!Number.isFinite(maxInputTokens) ||
+		maxInputTokens <= 0
+	) {
+		return DEFAULT_MAX_TOTAL_TEXT_BYTES;
+	}
+	return Math.max(
+		1,
+		Math.floor(
+			resolveDefaultContextTriggerTokens(maxInputTokens) *
+				DEFAULT_TARGET_RATIO *
+				CHARS_PER_TOKEN,
+		),
+	);
 }
 
 export function getMessageBuilderOptionsFromEnv(
@@ -121,7 +149,8 @@ export class MessageBuilder {
 	private readResultLocatorCache = new WeakMap<object, ReadLocator[]>();
 	private readonly maxToolResultChars: number;
 	private readonly maxFileContentChars: number;
-	private readonly maxTotalTextBytes: number;
+	private readonly maxTotalTextBytesOverride: number | undefined;
+	private readonly defaultMaxInputTokens: number | undefined;
 	private readonly mediaBudget: MediaBudgetOptions;
 	private readonly maxAssistantTextChars: number;
 	private readonly maxAssistantToolMarkupChars: number;
@@ -139,10 +168,14 @@ export class MessageBuilder {
 			options.maxFileContentChars,
 			DEFAULT_MAX_FILE_CONTENT_CHARS,
 		);
-		this.maxTotalTextBytes = normalizePositiveLimit(
-			options.maxTotalTextBytes,
-			DEFAULT_MAX_TOTAL_TEXT_BYTES,
-		);
+		this.maxTotalTextBytesOverride =
+			options.maxTotalTextBytes === undefined
+				? undefined
+				: normalizePositiveLimit(
+						options.maxTotalTextBytes,
+						DEFAULT_MAX_TOTAL_TEXT_BYTES,
+					);
+		this.defaultMaxInputTokens = options.maxInputTokens;
 		this.mediaBudget = options.mediaBudget ?? {};
 		this.maxAssistantTextChars = normalizePositiveLimit(
 			options.maxAssistantTextChars,
@@ -163,7 +196,10 @@ export class MessageBuilder {
 		this.committedOutdatedRewrites.clear();
 	}
 
-	buildForApi(messages: Message[]): Message[] {
+	buildForApi(
+		messages: Message[],
+		options: MessageBuilderBuildOptions = {},
+	): Message[] {
 		this.reindex(messages);
 		this.commitOutdatedRewrites(messages);
 		const repairedMessages = this.addMissingToolResults(messages);
@@ -201,7 +237,12 @@ export class MessageBuilder {
 		});
 
 		const mediaLimited = this.applyMediaBudget(prepared);
-		return this.truncateToTotalTextBudget(mediaLimited);
+		const maxTotalTextBytes =
+			this.maxTotalTextBytesOverride ??
+			resolveMessageBuilderTextBudget(
+				options.maxInputTokens ?? this.defaultMaxInputTokens,
+			);
+		return this.truncateToTotalTextBudget(mediaLimited, maxTotalTextBytes);
 	}
 
 	private transformBlock(
@@ -1159,9 +1200,12 @@ export class MessageBuilder {
 		return false;
 	}
 
-	private truncateToTotalTextBudget(messages: Message[]): Message[] {
+	private truncateToTotalTextBudget(
+		messages: Message[],
+		maxTotalTextBytes: number,
+	): Message[] {
 		let totalBytes = this.countMessageTextBytes(messages);
-		if (totalBytes <= this.maxTotalTextBytes) {
+		if (totalBytes <= maxTotalTextBytes) {
 			return messages;
 		}
 
@@ -1180,17 +1224,20 @@ export class MessageBuilder {
 		totalBytes = this.truncateCandidatesToTotalTextBudget(
 			this.collectTruncationCandidates(next),
 			totalBytes,
+			maxTotalTextBytes,
 		);
-		if (totalBytes > this.maxTotalTextBytes) {
+		if (totalBytes > maxTotalTextBytes) {
 			// A large transcript can exceed the aggregate budget through hundreds
 			// of individually small tool fields. Preserve the normal 2KB floor
-			// first, then lower only tool-field floors as an overflow valve.
+			// first, then lower assistant/tool text floors as an overflow valve.
 			totalBytes = this.truncateCandidatesToTotalTextBudget(
 				this.collectTruncationCandidates(
 					next,
-					EMERGENCY_MIN_TOTAL_BUDGET_TOOL_TEXT_BYTES,
+					EMERGENCY_MIN_TOTAL_BUDGET_TEXT_BYTES,
+					EMERGENCY_MIN_TOTAL_BUDGET_TEXT_BYTES,
 				),
 				totalBytes,
+				maxTotalTextBytes,
 			);
 		}
 
@@ -1200,16 +1247,17 @@ export class MessageBuilder {
 	private truncateCandidatesToTotalTextBudget(
 		candidates: TruncationCandidate[],
 		totalBytes: number,
+		maxTotalTextBytes: number,
 	): number {
 		for (const candidate of candidates) {
-			if (totalBytes <= this.maxTotalTextBytes) {
+			if (totalBytes <= maxTotalTextBytes) {
 				break;
 			}
 			const currentBytes = candidate.byteLength;
 			if (currentBytes <= candidate.minBytes) {
 				continue;
 			}
-			const overflow = totalBytes - this.maxTotalTextBytes;
+			const overflow = totalBytes - maxTotalTextBytes;
 			const targetBytes = Math.max(candidate.minBytes, currentBytes - overflow);
 			const truncated = truncateMiddleToBytes(
 				candidate.get(),
@@ -1265,6 +1313,7 @@ export class MessageBuilder {
 	private collectTruncationCandidates(
 		messages: Message[],
 		minToolTextBytes = MIN_TOTAL_BUDGET_TOOL_TEXT_BYTES,
+		minAssistantTextBytes = MIN_TOTAL_BUDGET_ASSISTANT_TEXT_BYTES,
 	): TruncationCandidate[] {
 		const resultCandidates: TruncationCandidate[] = [];
 		const inputCandidates: TruncationCandidate[] = [];
@@ -1272,7 +1321,7 @@ export class MessageBuilder {
 			if (message.role === "assistant" && typeof message.content === "string") {
 				resultCandidates.push({
 					byteLength: utf8ByteLength(message.content),
-					minBytes: MIN_TOTAL_BUDGET_ASSISTANT_TEXT_BYTES,
+					minBytes: minAssistantTextBytes,
 					makeMarker: TRUNCATE_ASSISTANT_TEXT_BUDGET_MARKER,
 					get: () => message.content as string,
 					set: (value) => {
@@ -1296,7 +1345,7 @@ export class MessageBuilder {
 				if (message.role === "assistant" && block.type === "text") {
 					resultCandidates.push({
 						byteLength: utf8ByteLength(block.text),
-						minBytes: MIN_TOTAL_BUDGET_ASSISTANT_TEXT_BYTES,
+						minBytes: minAssistantTextBytes,
 						makeMarker: TRUNCATE_ASSISTANT_TEXT_BUDGET_MARKER,
 						get: () => block.text,
 						set: (value) => {
