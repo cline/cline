@@ -210,14 +210,10 @@ describe("MessageBuilder", () => {
 		expect(block.content).toContain("...[truncated");
 	});
 
-	it("uses an aggressive per-result cap and a loose aggregate budget", () => {
+	it("uses aggressive per-result and bounded aggregate budgets", () => {
 		expect(DEFAULT_MAX_TOOL_RESULT_CHARS).toBe(8_000);
 		expect(DEFAULT_MAX_FILE_CONTENT_CHARS).toBe(50_000);
-		// The aggregate budget stays loose on purpose: budget truncation
-		// rewrites mid-transcript bytes and breaks provider prefix caching, so
-		// it must stay a rare overflow valve while the per-result cap (which
-		// is deterministic per content) does the routine work.
-		expect(DEFAULT_MAX_TOTAL_TEXT_BYTES).toBe(6_000_000);
+		expect(DEFAULT_MAX_TOTAL_TEXT_BYTES).toBe(250_000);
 	});
 
 	it("accepts named limit options for targeted provider payload tests", () => {
@@ -739,6 +735,23 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
 		return 0;
 	}
 
+	function sumProviderToolTextBytes(messages: Message[]): number {
+		let total = 0;
+		for (const message of messages) {
+			if (!Array.isArray(message.content)) {
+				continue;
+			}
+			for (const block of message.content) {
+				if (block.type === "tool_use") {
+					total += sumStringBytes(block.input);
+				} else if (block.type === "tool_result") {
+					total += sumStringBytes(block.content);
+				}
+			}
+		}
+		return total;
+	}
+
 	function serializeForAiSdk(messages: Message[]): string {
 		const agentMessages = messagesToAgentMessages(messages);
 		const aiSdkMessages = formatMessagesForAiSdk(
@@ -1216,6 +1229,59 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
 
 		expect(toolResultStringBytes).toBeLessThanOrEqual(100_000);
 		expect(JSON.stringify(result)).toContain("provider request budget");
+	});
+
+	it("applies the default aggregate budget across accumulated tool results", () => {
+		const builder = new MessageBuilder();
+		const messages: Message[] = [];
+		for (let i = 0; i < 40; i++) {
+			messages.push(
+				toolUseMessage(`call_${i}`, "run_commands", {
+					commands: [`cmd ${i}`],
+				}),
+				structuredToolResultMessage(`call_${i}`, "run_commands", [
+					{
+						query: `cmd ${i}`,
+						result: `result_${i}_`.repeat(1_000),
+						success: true,
+					},
+				]),
+			);
+		}
+
+		const result = builder.buildForApi(messages);
+		expect(sumProviderToolTextBytes(result)).toBeLessThanOrEqual(
+			DEFAULT_MAX_TOTAL_TEXT_BYTES,
+		);
+		expect(JSON.stringify(result)).toContain("provider request budget");
+	});
+
+	it("lowers tool-field floors when many small strings exceed the aggregate budget", () => {
+		const builder = new MessageBuilder({
+			maxToolResultChars: 50_000,
+			maxTotalTextBytes: 20_000,
+		});
+		const messages: Message[] = [];
+		for (let i = 0; i < 30; i++) {
+			messages.push(
+				toolUseMessage(`call_${i}`, "run_commands", {
+					commands: [`arg_${i}_`.repeat(150)],
+				}),
+				structuredToolResultMessage(`call_${i}`, "run_commands", [
+					{
+						query: `cmd ${i}`,
+						result: `result_${i}_`.repeat(100),
+						success: true,
+					},
+				]),
+			);
+		}
+		const snapshot = structuredClone(messages);
+
+		const result = builder.buildForApi(messages);
+		expect(sumProviderToolTextBytes(result)).toBeLessThanOrEqual(20_000);
+		expect(JSON.stringify(result)).toContain("provider request budget");
+		expect(messages).toEqual(snapshot);
 	});
 
 	it("does not mutate the original structured tool results", () => {
