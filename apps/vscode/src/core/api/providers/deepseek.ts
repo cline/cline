@@ -102,8 +102,9 @@ export class DeepSeekHandler implements ApiHandler {
 			stream_options: { include_usage: true },
 			// Only set temperature for non-thinking models
 			...(isDeepSeekThinkingModel ? {} : { temperature: 0 }),
-			// DeepSeek thinking models accept reasoning effort (low/medium map to high, xhigh maps to max)
-			...(isDeepSeekThinkingModel && this.options.reasoningEffort
+			// DeepSeek thinking models accept reasoning effort (low/medium map to high, xhigh maps to max).
+			// "none" isn't a valid DeepSeek value, so omit it and let the API use its default.
+			...(isDeepSeekThinkingModel && this.options.reasoningEffort && this.options.reasoningEffort !== "none"
 				? { reasoning_effort: this.options.reasoningEffort as ChatCompletionReasoningEffort }
 				: {}),
 			...getOpenAIToolParams(tools),
