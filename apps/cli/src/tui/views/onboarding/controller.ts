@@ -670,6 +670,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 
 	return {
 		activeProviderName,
+		activeProviderId,
 		authError,
 		authStatus,
 		authUrl,

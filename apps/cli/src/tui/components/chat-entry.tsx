@@ -274,14 +274,7 @@ function ToolCallView(props: {
 	);
 }
 
-const CLINE_PASS_ENABLED_OUT_OF_CREDITS_MESSAGE =
-	"You have run out of Cline credits. Add credits in the dashboard or purchase and switch to ClinePass to continue.";
-const OUT_OF_CREDITS_MESSAGE =
-	"You have run out of Cline credits. Add credits in the dashboard to continue.";
-
-function ClineCreditsErrorView(props: { defaultFg?: string }) {
-	const isClinePassEnabled =
-		getCliFeatureFlagsService().getBooleanFlagEnabled("ext-cline-pass");
+function ClineCreditsClinePassErrorView(props: { defaultFg?: string }) {
 	return (
 		<box flexDirection="row">
 			<text fg="red" content="* " />
@@ -297,9 +290,58 @@ function ClineCreditsErrorView(props: { defaultFg?: string }) {
 					fg={props.defaultFg}
 					selectable
 					content={
-						isClinePassEnabled
-							? CLINE_PASS_ENABLED_OUT_OF_CREDITS_MESSAGE
-							: OUT_OF_CREDITS_MESSAGE
+						"You have run out of Cline credits. Add credits in the dashboard or purchase and switch to ClinePass to continue."
+					}
+				/>
+				<box flexDirection="row">
+					<text fg="gray">Purchase Credits: </text>
+					<text fg="cyan" selectable>
+						<a href={CLINE_CREDITS_DASHBOARD_URL}>
+							{CLINE_CREDITS_DASHBOARD_URL}
+						</a>
+					</text>
+				</box>
+				<box flexDirection="row">
+					<text fg="gray">Purchase ClinePass: </text>
+					<text fg="cyan" selectable>
+						<a href={getCliSubscriptionUrl()}>{getCliSubscriptionUrl()}</a>
+					</text>
+				</box>
+				<box flexDirection="row">
+					<text fg="gray">Switch to ClinePass: </text>
+					<text fg="gray">
+						type /settings in CLI and switch provider to ClinePass
+					</text>
+				</box>
+			</box>
+		</box>
+	);
+}
+
+function ClineCreditsErrorView(props: { defaultFg?: string }) {
+	const isClinePassEnabled =
+		getCliFeatureFlagsService().getBooleanFlagEnabled("ext-cline-pass");
+
+	if (isClinePassEnabled) {
+		return <ClineCreditsClinePassErrorView defaultFg={props.defaultFg} />;
+	}
+
+	return (
+		<box flexDirection="row">
+			<text fg="red" content="* " />
+			<box
+				flexDirection="column"
+				border
+				borderStyle="rounded"
+				borderColor="red"
+				paddingX={1}
+			>
+				<text fg="red">Cline Credits depleted</text>
+				<text
+					fg={props.defaultFg}
+					selectable
+					content={
+						"You have run out of Cline credits. Add credits in the dashboard to continue."
 					}
 				/>
 				<box flexDirection="row">
