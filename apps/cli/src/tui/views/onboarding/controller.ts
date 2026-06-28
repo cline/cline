@@ -283,24 +283,31 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		setClinePassSubscriptionStatus("loading");
 		setClinePassSubscriptionError("");
 		setClinePassCurrentPlanName("");
+		setClinePassPlanFeatures([]);
 
-		Promise.all([
-			loadCurrentUserPlanFromProviderSettings({
-				providerSettingsManager,
-			}).catch((error: unknown) => {
-				// We need to catch loadCurrentUserPlan errors because fetching plan details will fail otherwise
-				setClinePassSubscriptionError(
-					error instanceof Error ? error.message : String(error),
-				);
-				setClinePassSubscriptionStatus("error");
-			}),
+		Promise.allSettled([
+			loadCurrentUserPlanFromProviderSettings({ providerSettingsManager }),
 			loadIndividualSubscriptionPlansFromProviderSettings({
 				providerSettingsManager,
 			}),
 		])
-			.then(([currentPlan, availablePlans]) => {
-				const plan = currentPlan?.plan;
-				setClinePassPlanFeatures(getIndividualPlanFeatures(availablePlans));
+			.then(([currentPlanResult, availablePlansResult]) => {
+				if (availablePlansResult.status === "fulfilled") {
+					setClinePassPlanFeatures(
+						getIndividualPlanFeatures(availablePlansResult.value),
+					);
+				}
+
+				if (currentPlanResult.status === "rejected") {
+					const error = currentPlanResult.reason;
+					setClinePassSubscriptionError(
+						error instanceof Error ? error.message : String(error),
+					);
+					setClinePassSubscriptionStatus("error");
+					return;
+				}
+
+				const plan = currentPlanResult.value?.plan;
 				if (plan) {
 					setClinePassCurrentPlanName(
 						plan.displayName || plan.name || plan.id || "ClinePass",
@@ -309,12 +316,6 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 				} else {
 					setClinePassSubscriptionStatus("unsubscribed");
 				}
-			})
-			.catch((error: unknown) => {
-				setClinePassSubscriptionError(
-					error instanceof Error ? error.message : String(error),
-				);
-				setClinePassSubscriptionStatus("error");
 			});
 	}, [providerSettingsManager]);
 

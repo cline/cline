@@ -486,6 +486,7 @@ export function OnboardingClinePassSubscriptionScreen(props: {
 	const subscriptionUrl = getCliSubscriptionUrl();
 	const isLoading = props.status === "loading";
 	const isSubscribed = props.status === "subscribed";
+	const isError = props.status === "error";
 
 	return (
 		<OnboardingFrame
@@ -516,6 +517,12 @@ export function OnboardingClinePassSubscriptionScreen(props: {
 					<text fg={defaultFg} selectable>
 						Current plan: {props.currentPlanName || "ClinePass"}
 					</text>
+				) : isError ? (
+					<text
+						fg={defaultFg}
+						selectable
+						content="Could not verify your ClinePass subscription. Re-check before choosing a ClinePass model."
+					/>
 				) : (
 					<text
 						fg={defaultFg}
