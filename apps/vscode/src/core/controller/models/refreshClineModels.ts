@@ -87,6 +87,37 @@ interface ClineRawModelInfo {
 // Track pending refresh promise to prevent duplicate concurrent fetches
 let pendingRefresh: Promise<Record<string, ModelInfo>> | null = null
 
+interface ModelIdAliasRule {
+	canonicalPrefix: string
+	aliasPrefix: string
+}
+
+// Mirrors @cline/llms VERCEL_OPENROUTER_MODEL_ID_ALIAS_RULES.
+const VERCEL_OPENROUTER_MODEL_ID_ALIAS_RULES = [
+	{ canonicalPrefix: "zai/", aliasPrefix: "z-ai/" },
+] as const satisfies readonly ModelIdAliasRule[]
+
+function preferCanonicalModelIds<T>(models: Record<string, T>, rules: readonly ModelIdAliasRule[]): Record<string, T> {
+	return Object.fromEntries(
+		Object.entries(models).filter(([modelId]) => {
+			for (const rule of rules) {
+				if (!modelId.startsWith(rule.aliasPrefix)) {
+					continue
+				}
+				const canonicalModelId = `${rule.canonicalPrefix}${modelId.slice(rule.aliasPrefix.length)}`
+				if (canonicalModelId in models) {
+					return false
+				}
+			}
+			return true
+		}),
+	)
+}
+
+function preferClineCanonicalModelIds(models: Record<string, ModelInfo>): Record<string, ModelInfo> {
+	return preferCanonicalModelIds(models, VERCEL_OPENROUTER_MODEL_ID_ALIAS_RULES)
+}
+
 async function fetchRawClineModels(): Promise<ClineRawModelInfo[]> {
 	const apiBaseUrl = ClineEnv.config().apiBaseUrl
 	const response = await axios.get(`${apiBaseUrl}/api/v1/ai/cline/models`, getAxiosSettings())
@@ -107,13 +138,13 @@ async function fetchRawClineModels(): Promise<ClineRawModelInfo[]> {
 export async function refreshClineModels(controller: Controller): Promise<Record<string, ModelInfo>> {
 	const shouldUseClineEndpointSource = featureFlagsService.getBooleanFlagEnabled(FeatureFlag.EXTENSION_CLINE_MODELS_ENDPOINT)
 	if (!shouldUseClineEndpointSource) {
-		return refreshOpenRouterModels(controller)
+		return preferClineCanonicalModelIds(await refreshOpenRouterModels(controller))
 	}
 
 	// Check in-memory cache first
 	const cache = StateManager.get().getModelsCache("cline")
 	if (cache) {
-		return cache
+		return preferClineCanonicalModelIds(cache)
 	}
 
 	// If a fetch is already in progress, return the same promise
@@ -319,6 +350,8 @@ async function fetchAndCacheClineModels(): Promise<Record<string, ModelInfo>> {
 		if (Object.keys(models).length === 0) {
 			throw new Error("No Cline models returned from API")
 		}
+		models = preferClineCanonicalModelIds(models)
+
 		// Save models and cache them in memory
 		await fs.writeFile(clineModelsFilePath, JSON.stringify(models))
 		Logger.log("Cline models fetched and saved")
@@ -340,6 +373,7 @@ async function fetchAndCacheClineModels(): Promise<Record<string, ModelInfo>> {
 
 	// Avoid poisoning in-memory cache with an empty model map after transient failures.
 	if (Object.keys(models).length > 0) {
+		models = preferClineCanonicalModelIds(models)
 		StateManager.get().setModelsCache("cline", models)
 	}
 
