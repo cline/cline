@@ -135,4 +135,72 @@ describe("refreshClineModels", () => {
 		expect(fable1m.contextWindow).to.equal(1_000_000)
 		expect(fable1m.tiers).to.not.equal(undefined)
 	})
+
+	it("prefers Vercel-style Z.ai IDs when the Cline model list includes OpenRouter aliases", async () => {
+		sandbox.stub(getFeatureFlagsService(), "getBooleanFlagEnabled").callsFake((flag) => {
+			return flag === FeatureFlag.EXTENSION_CLINE_MODELS_ENDPOINT
+		})
+		sandbox.stub(ClineEnv, "config").returns({
+			environment: Environment.production,
+			appBaseUrl: "https://app.cline-mock.bot",
+			apiBaseUrl: "https://api.cline-mock.bot",
+			mcpBaseUrl: "https://api.cline-mock.bot/v1/mcp",
+		})
+		sandbox.stub(StateManager, "get").returns({
+			getModelsCache: () => null,
+			setModelsCache: () => {},
+		} as unknown as StateManager)
+		sandbox.stub(disk, "ensureCacheDirectoryExists").resolves("/tmp")
+		sandbox.stub(fs, "writeFile").resolves()
+		sandbox.stub(axios, "get").resolves({
+			data: {
+				data: [
+					{
+						id: "z-ai/glm-5.2",
+						name: "OpenRouter GLM 5.2",
+						description: "OpenRouter alias",
+						context_length: 128_000,
+						top_provider: {
+							max_completion_tokens: 8_192,
+							context_length: 128_000,
+							is_moderated: false,
+						},
+						architecture: {
+							modality: "text->text",
+						},
+						pricing: {
+							prompt: "0.00000098",
+							completion: "0.00000308",
+						},
+						supported_parameters: ["include_reasoning", "reasoning"],
+					},
+					{
+						id: "zai/glm-5.2",
+						name: "GLM 5.2",
+						description: "Vercel canonical ID",
+						context_length: 1_000_000,
+						top_provider: {
+							max_completion_tokens: 131_072,
+							context_length: 1_000_000,
+							is_moderated: false,
+						},
+						architecture: {
+							modality: "text->text",
+						},
+						pricing: {
+							prompt: "0.0000015",
+							completion: "0.0000045",
+						},
+						supported_parameters: ["include_reasoning", "reasoning"],
+					},
+				],
+			},
+		})
+
+		const models = await refreshClineModels({} as Controller)
+
+		expect(models["zai/glm-5.2"]).to.not.equal(undefined)
+		expect(models["zai/glm-5.2"].contextWindow).to.equal(1_000_000)
+		expect(models["z-ai/glm-5.2"]).to.equal(undefined)
+	})
 })
