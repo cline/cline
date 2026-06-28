@@ -5,7 +5,7 @@
  * rather than after.
  */
 
-const CHARS_PER_TOKEN = 3;
+export const CHARS_PER_TOKEN = 3;
 
 export function estimateTokens(chars: number): number {
 	return Math.max(1, Math.ceil(chars / CHARS_PER_TOKEN));
