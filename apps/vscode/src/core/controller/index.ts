@@ -921,6 +921,7 @@ export class Controller {
 		const environment = clineConfig.environment
 		const banners = BannerService.get().getActiveBanners() ?? []
 		const welcomeBanners = BannerService.get().getWelcomeBanners() ?? []
+		const modelsDevProviderModels = this.stateManager.getModelsDevProviderModelsCache() ?? undefined
 
 		// Check OpenAI Codex authentication status
 		const { openAiCodexOAuthManager } = await import("@/integrations/openai-codex/oauth")
@@ -969,6 +970,7 @@ export class Controller {
 			isNewUser,
 			welcomeViewCompleted,
 			onboardingModels,
+			modelsDevProviderModels,
 			mcpResponsesCollapsed,
 			terminalOutputLineLimit,
 			maxConsecutiveMistakes,
