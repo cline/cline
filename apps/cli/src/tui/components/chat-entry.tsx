@@ -6,6 +6,7 @@ import "opentui-spinner/react";
 import {
 	getClineOrgIndividualInferenceSubscriptionMessage,
 	getCliSubscriptionUrl,
+	getIndividualPlanFeatures,
 	isClineOrgIndividualInferenceSubscriptionErrorMessage,
 	isClinePassSubscriptionError,
 } from "../../utils/cline-pass-errors";
@@ -36,12 +37,6 @@ import {
 	shortenPath,
 } from "../utils/tool-parsing";
 import { ToolOutput } from "./tool-output";
-
-function getIndividualPlanFeatures(plans: ClineSubscriptionPlan[]): string[] {
-	const planWithFeatures = plans.find((plan) => plan.interval === "Monthly");
-
-	return planWithFeatures?.features?.included ?? [];
-}
 
 function trimLeading(text: string): string {
 	return text.replace(/^\n+/, "");
@@ -406,12 +401,10 @@ function ClinePassSubscriptionErrorView(props: {
 					<box flexDirection="column" marginTop={1}>
 						<text fg={props.defaultFg}>ClinePass includes:</text>
 						{planFeatures.map((feature) => (
-							<box key={feature} flexDirection="row">
-								<text fg="green" content="✓ " />
-								<text fg={props.defaultFg} selectable>
-									{feature}
-								</text>
-							</box>
+							<text key={feature} fg={props.defaultFg} selectable>
+								<span fg="green">✓ </span>
+								<span>{feature}</span>
+							</text>
 						))}
 					</box>
 				)}

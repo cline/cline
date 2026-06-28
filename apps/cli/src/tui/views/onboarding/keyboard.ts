@@ -12,6 +12,7 @@ import {
 	type MenuOption,
 	type OnboardingStep,
 	THINKING_LEVELS,
+	type ClinePassSubscriptionStatus,
 	type ThinkingLevel,
 } from "./model";
 
@@ -26,6 +27,7 @@ export function useOnboardingKeyboard(input: {
 	modelList: SearchableListState;
 	clineEntries: ClineModelPickerEntry[];
 	clineModelSelected: number;
+	clinePassSubscriptionStatus: ClinePassSubscriptionStatus;
 	thinkingSelected: number;
 	setStep: (step: OnboardingStep) => void;
 	setMenuSelected: Dispatch<SetStateAction<number>>;
@@ -39,6 +41,8 @@ export function useOnboardingKeyboard(input: {
 	setDeviceStatus: (value: string) => void;
 	setClineModelSelected: Dispatch<SetStateAction<number>>;
 	setThinkingSelected: Dispatch<SetStateAction<number>>;
+	continueFromClinePassSubscription: () => void;
+	refreshClinePassSubscriptionStatus: () => void;
 	abortOAuth: () => void;
 	abortDeviceCode: () => void;
 	resetAuth: () => void;
@@ -93,6 +97,11 @@ export function useOnboardingKeyboard(input: {
 				input.setStep("byo_provider");
 				return;
 			}
+			if (input.step === "cline_pass_subscription") {
+				input.setStep("menu");
+				input.setMenuSelected(0);
+				return;
+			}
 			if (input.step === "cline_model") {
 				input.setStep("menu");
 				input.setMenuSelected(0);
@@ -134,6 +143,19 @@ export function useOnboardingKeyboard(input: {
 		}
 
 		if (input.step === "device_code") return;
+
+		if (input.step === "cline_pass_subscription") {
+			if (key.name === "r") {
+				input.refreshClinePassSubscriptionStatus();
+				return;
+			}
+			if (key.name === "return") {
+				if (input.clinePassSubscriptionStatus !== "loading") {
+					input.continueFromClinePassSubscription();
+				}
+			}
+			return;
+		}
 
 		if (input.step === "menu") {
 			if (key.name === "up") {
