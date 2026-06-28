@@ -7,6 +7,7 @@ const {
 	openSync,
 	rememberRecoverableLocalHubUrl,
 	verifyHubConnection,
+	resolveDefaultHubOwnerContext,
 	resolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext,
 	createHubServerUrl,
@@ -25,6 +26,9 @@ const {
 	openSync: vi.fn(() => 17),
 	rememberRecoverableLocalHubUrl: vi.fn((url: string) => url),
 	verifyHubConnection: vi.fn(),
+	resolveDefaultHubOwnerContext: vi.fn(() => ({
+		discoveryPath: "/tmp/hub-discovery.json",
+	})),
 	resolveProductionHubOwnerContext: vi.fn(() => ({
 		discoveryPath: "/tmp/hub-discovery.json",
 	})),
@@ -77,6 +81,7 @@ vi.mock("../client", () => ({
 }));
 
 vi.mock("../discovery/workspace", () => ({
+	resolveDefaultHubOwnerContext,
 	resolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext,
 }));

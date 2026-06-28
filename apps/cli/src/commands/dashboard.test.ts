@@ -20,6 +20,7 @@ const ENV_KEYS = [
 	"PUBLIC_URL",
 	"ROOM_SECRET",
 	"CLINE_HUB_WEBVIEW_DIST_DIR",
+	"CLINE_HUB_DASHBOARD_DISCOVERY_PATH",
 	"CLINE_WRAPPER_PATH",
 ] as const;
 
@@ -39,10 +40,9 @@ afterEach(() => {
 });
 
 describe("runDashboardCommand", () => {
-	it("starts the dashboard server, opens the invite URL, and waits for shutdown", async () => {
+	it("serves the dashboard in the foreground and waits for shutdown", async () => {
 		const output: string[] = [];
 		const errors: string[] = [];
-		const opened: string[] = [];
 		const stop = vi.fn();
 		let observedEnv:
 			| {
@@ -62,6 +62,7 @@ describe("runDashboardCommand", () => {
 		process.env.CLINE_HUB_WEBVIEW_DIST_DIR = webviewDistDir;
 
 		const exitCode = await runDashboardCommand({
+			action: "serve",
 			configDir: "/tmp/cline-config",
 			cwd: "sdk",
 			dataDir: ".cline-dashboard-data",
@@ -93,9 +94,6 @@ describe("runDashboardCommand", () => {
 					stop,
 				};
 			},
-			openUrl: async (url) => {
-				opened.push(url);
-			},
 			waitForShutdown: async (server) => {
 				await server.stop();
 			},
@@ -117,13 +115,48 @@ describe("runDashboardCommand", () => {
 			roomSecret: "secret",
 			webviewDistDir,
 		});
-		expect(opened).toEqual(["http://127.0.0.1:9090/?roomSecret=secret"]);
 		expect(stop).toHaveBeenCalledTimes(1);
 		expect(output.join("\n")).toContain("Cline dashboard listening at");
 		expect(output.join("\n")).toContain("ws://127.0.0.1:25463/hub");
 		expect(errors).toEqual([]);
 		expect(process.env.WORKSPACE_ROOT).toBe(originalEnv.WORKSPACE_ROOT);
 		expect(process.env.CLINE_HUB_WEBVIEW_DIST_DIR).toBe(webviewDistDir);
+	});
+
+	it("opens a detached dashboard and exits without waiting for shutdown", async () => {
+		const output: string[] = [];
+		const errors: string[] = [];
+		const opened: string[] = [];
+		const ensureDashboard = vi.fn(async () => ({
+			pid: 123,
+			listenUrl: "http://127.0.0.1:8787/",
+			publicUrl: "http://127.0.0.1:8787",
+			inviteUrl: "http://127.0.0.1:8787",
+			hubUrl: "ws://127.0.0.1:25463/hub",
+			startedAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
+		}));
+		const waitForShutdown = vi.fn();
+
+		const exitCode = await runDashboardCommand({
+			io: {
+				writeln: (text) => output.push(text ?? ""),
+				writeErr: (text) => errors.push(text),
+			},
+			ensureDashboard,
+			openUrl: async (url) => {
+				opened.push(url);
+			},
+			waitForShutdown,
+		});
+
+		expect(exitCode).toBe(0);
+		expect(ensureDashboard).toHaveBeenCalledTimes(1);
+		expect(waitForShutdown).not.toHaveBeenCalled();
+		expect(opened).toEqual(["http://127.0.0.1:8787"]);
+		expect(output.join("\n")).toContain("Cline dashboard listening at");
+		expect(output.join("\n")).toContain("ws://127.0.0.1:25463/hub");
+		expect(errors).toEqual([]);
 	});
 
 	it("honors --no-open behavior", async () => {
@@ -135,18 +168,67 @@ describe("runDashboardCommand", () => {
 				writeln: () => {},
 				writeErr: () => {},
 			},
-			startServer: async () => ({
+			ensureDashboard: async () => ({
+				pid: 123,
 				listenUrl: "http://127.0.0.1:8787/",
 				publicUrl: "http://127.0.0.1:8787",
 				inviteUrl: "http://127.0.0.1:8787",
-				stop: vi.fn(),
+				startedAt: new Date().toISOString(),
+				updatedAt: new Date().toISOString(),
 			}),
 			openUrl,
-			waitForShutdown: async () => {},
 		});
 
 		expect(exitCode).toBe(0);
 		expect(openUrl).not.toHaveBeenCalled();
+	});
+
+	it("stops a detached dashboard", async () => {
+		const output: string[] = [];
+		const stopDashboard = vi.fn(async () => true);
+
+		const exitCode = await runDashboardCommand({
+			action: "stop",
+			io: {
+				writeln: (text) => output.push(text ?? ""),
+				writeErr: () => {},
+			},
+			stopDashboard,
+		});
+
+		expect(exitCode).toBe(0);
+		expect(stopDashboard).toHaveBeenCalledTimes(1);
+		expect(output).toEqual([JSON.stringify({ stopped: true })]);
+	});
+
+	it("restarts a detached dashboard before opening it", async () => {
+		const stopDashboard = vi.fn(async () => true);
+		const ensureDashboard = vi.fn(async () => ({
+			pid: 456,
+			listenUrl: "http://127.0.0.1:8787/",
+			publicUrl: "http://127.0.0.1:8787",
+			inviteUrl: "http://127.0.0.1:8787",
+			startedAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
+		}));
+
+		const exitCode = await runDashboardCommand({
+			action: "restart",
+			io: {
+				writeln: () => {},
+				writeErr: () => {},
+			},
+			stopDashboard,
+			ensureDashboard,
+			openUrl: async () => {},
+		});
+
+		expect(exitCode).toBe(0);
+		expect(stopDashboard).toHaveBeenCalledTimes(1);
+		expect(ensureDashboard).toHaveBeenCalledTimes(1);
+		expect(stopDashboard.mock.invocationCallOrder[0]).toBeLessThan(
+			ensureDashboard.mock.invocationCallOrder[0],
+		);
 	});
 
 	it("finds webview assets from the published wrapper package layout", async () => {
@@ -170,6 +252,7 @@ describe("runDashboardCommand", () => {
 		let observedWebviewDistDir: string | undefined;
 
 		const exitCode = await runDashboardCommand({
+			action: "serve",
 			openBrowser: false,
 			io: {
 				writeln: () => {},

@@ -142,16 +142,26 @@ event payload and `source` field.
 1. Host constructs a `RuntimeHost` through `@cline/core`.
 2. `@cline/core` selects `HubRuntimeHost` or `RemoteRuntimeHost` through `packages/core/src/runtime/host.ts`.
 3. When no compatible local hub is already discovered, `@cline/core` can spawn a detached hub daemon and reconnect through discovery.
-4. Hosts attach and detach from shared sessions without stopping the authority runtime, so another client can keep streaming or resume the same session later.
-5. The hub-hosted runtime executes the agent loop using `@cline/agents` and `@cline/llms`.
-6. `@cline/core` hub services broker sessions, events, approvals, schedules, and client-owned runtime capabilities such as session-local tool executors.
-7. Hub event forwarding preserves structured streaming lifecycle boundaries: text/reasoning deltas, final text/reasoning completion, tool start/finish, and agent done events are translated across the hub transport so host UIs can reliably close loading/streaming state.
-8. Hub client adapters exported from `@cline/core/hub` (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) translate command/reply and event streams into host-facing APIs.
-9. Hub `session.get` records include both canonical root-session usage and explicit aggregate usage from the hub-owned `RuntimeHost`, so attached clients can intentionally render either root-only or root-plus-teammate costs without replaying event streams.
+4. CLI-launched hub daemons receive a dashboard launch spec from `apps/cli`. After the daemon starts, it stops any discovered dashboard process, spawns a fresh `cline dashboard serve` process, and records that dashboard in hub dashboard discovery.
+5. Hosts attach and detach from shared sessions without stopping the authority runtime, so another client can keep streaming or resume the same session later.
+6. The hub-hosted runtime executes the agent loop using `@cline/agents` and `@cline/llms`.
+7. `@cline/core` hub services broker sessions, events, approvals, schedules, and client-owned runtime capabilities such as session-local tool executors.
+8. Hub event forwarding preserves structured streaming lifecycle boundaries: text/reasoning deltas, final text/reasoning completion, tool start/finish, and agent done events are translated across the hub transport so host UIs can reliably close loading/streaming state.
+9. Hub client adapters exported from `@cline/core/hub` (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) translate command/reply and event streams into host-facing APIs.
+10. Hub `session.get` records include both canonical root-session usage and explicit aggregate usage from the hub-owned `RuntimeHost`, so attached clients can intentionally render either root-only or root-plus-teammate costs without replaying event streams.
 
 Detached daemon startup retries transient `ETXTBSY` spawn failures before
 polling discovery. This covers package-manager updates that replace the CLI
 binary immediately before a command restarts the shared hub.
+
+The local hub also owns the browser dashboard lifecycle when a dashboard launch
+spec is available. `cline dashboard` is only a controller: it ensures a detached
+dashboard exists, opens the discovered invite URL, and exits. The hidden
+`cline dashboard serve` process hosts the dashboard and writes
+owner-permissioned dashboard discovery; `cline dashboard stop` and
+`cline dashboard restart` use that same discovery record for manual lifecycle
+control. Dashboard children never inherit the hub-daemon marker environment, so
+they start the dashboard command instead of recursively entering the hub daemon.
 
 Local hub discovery also carries the authentication contract for the shared
 daemon. On startup, the hub server generates a cryptographically random

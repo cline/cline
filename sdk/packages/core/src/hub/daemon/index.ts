@@ -28,7 +28,7 @@ import {
 	resolveHubEndpointOptions,
 } from "../discovery/defaults";
 import {
-	resolveProductionHubOwnerContext,
+	resolveDefaultHubOwnerContext,
 	resolveSharedHubOwnerContext,
 } from "../discovery/workspace";
 
@@ -57,12 +57,6 @@ function openDetachedHubLogFile(): { fd: number; logPath: string } | undefined {
 	} catch {
 		return undefined;
 	}
-}
-
-function resolveDefaultHubOwnerContext() {
-	return resolveClineBuildEnv() === "production"
-		? resolveProductionHubOwnerContext()
-		: resolveSharedHubOwnerContext();
 }
 
 function isCompatibleHubRecord(record: HubServerProbeRecord): boolean {

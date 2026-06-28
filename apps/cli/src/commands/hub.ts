@@ -3,11 +3,10 @@ import {
 	ensureDetachedHubServer,
 	probeHubServer,
 	readHubDiscovery,
-	resolveProductionHubOwnerContext,
-	resolveSharedHubOwnerContext,
+	resolveDefaultHubOwnerContext,
 	stopLocalHubServerGracefully,
 } from "@cline/core";
-import { formatUptime, resolveClineBuildEnv } from "@cline/shared";
+import { formatUptime } from "@cline/shared";
 import { Command } from "commander";
 
 interface HubCommandIo {
@@ -48,9 +47,7 @@ function formatHubUptimeFromStartedAt(
 }
 
 function resolveCliHubOwnerContext() {
-	return resolveClineBuildEnv() === "production"
-		? resolveProductionHubOwnerContext()
-		: resolveSharedHubOwnerContext();
+	return resolveDefaultHubOwnerContext();
 }
 
 export function createHubCommand(

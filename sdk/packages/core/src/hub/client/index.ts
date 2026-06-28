@@ -6,7 +6,6 @@ import {
 	type HubReplyEnvelope,
 	type HubTransportFrame,
 	isHubProtocolCompatible,
-	resolveClineBuildEnv,
 	resolveHubCommandTimeoutMs,
 } from "@cline/shared";
 import {
@@ -20,10 +19,7 @@ import {
 	probeHubServer,
 	readHubDiscovery,
 } from "../discovery";
-import {
-	resolveProductionHubOwnerContext,
-	resolveSharedHubOwnerContext,
-} from "../discovery/workspace";
+import { resolveDefaultHubOwnerContext } from "../discovery/workspace";
 
 type PendingReply = {
 	resolve: (reply: HubReplyEnvelope) => void;
@@ -34,12 +30,6 @@ type SubscriptionEntry = {
 	listener: (event: HubEventEnvelope) => void;
 	sessionId?: string;
 };
-
-function resolveDefaultHubOwnerContext(): HubOwnerContext {
-	return resolveClineBuildEnv() === "production"
-		? resolveProductionHubOwnerContext()
-		: resolveSharedHubOwnerContext();
-}
 
 type WebSocketLike = {
 	readyState: number;

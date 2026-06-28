@@ -5,11 +5,9 @@ import {
 	isAutoUpdateEnabledGlobally,
 	probeHubServer,
 	readHubDiscovery,
-	resolveProductionHubOwnerContext,
-	resolveSharedHubOwnerContext,
+	resolveDefaultHubOwnerContext,
 	stopLocalHubServerGracefully,
 } from "@cline/core";
-import { resolveClineBuildEnv } from "@cline/shared";
 import { version } from "../../package.json";
 import { ensureCliHubServer } from "../utils/hub-runtime";
 import { c, writeErr, writeln } from "../utils/output";
@@ -272,9 +270,7 @@ export function getPreferredKanbanInstaller(
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 export function resolveCliHubOwnerContext() {
-	return resolveClineBuildEnv() === "production"
-		? resolveProductionHubOwnerContext()
-		: resolveSharedHubOwnerContext();
+	return resolveDefaultHubOwnerContext();
 }
 
 async function waitForHubToStop(

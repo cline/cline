@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const {
 	mockCreateLocalHubScheduleRuntimeHandlers,
 	mockInitVcr,
+	mockResolveDefaultHubOwnerContext,
 	mockResolveHubEndpointOptions,
 	mockResolveProductionHubOwnerContext,
 	mockResolveSharedHubOwnerContext,
@@ -25,6 +26,10 @@ const {
 			pathname: options.pathname ?? "/hub",
 		}),
 	),
+	mockResolveDefaultHubOwnerContext: vi.fn(() => ({
+		ownerId: "production",
+		discoveryPath: "/tmp/cline-data/locks/hub/production.json",
+	})),
 	mockResolveProductionHubOwnerContext: vi.fn(() => ({
 		ownerId: "production",
 		discoveryPath: "/tmp/cline-data/locks/hub/production.json",
@@ -53,6 +58,7 @@ vi.mock("../discovery/defaults", () => ({
 }));
 
 vi.mock("../discovery/workspace", () => ({
+	resolveDefaultHubOwnerContext: mockResolveDefaultHubOwnerContext,
 	resolveProductionHubOwnerContext: mockResolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext: mockResolveSharedHubOwnerContext,
 }));
@@ -74,6 +80,7 @@ describe("hub daemon entry", () => {
 		vi.resetModules();
 		mockCreateLocalHubScheduleRuntimeHandlers.mockClear();
 		mockInitVcr.mockClear();
+		mockResolveDefaultHubOwnerContext.mockClear();
 		mockResolveHubEndpointOptions.mockClear();
 		mockResolveProductionHubOwnerContext.mockClear();
 		mockResolveSharedHubOwnerContext.mockClear();

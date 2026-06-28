@@ -5,6 +5,7 @@ const {
 	mockEnsureHubWebSocketServer,
 	mockResolveHubEndpointOptions,
 	mockResolveClineBuildEnv,
+	mockResolveDefaultHubOwnerContext,
 	mockResolveProductionHubOwnerContext,
 	mockResolveSharedHubOwnerContext,
 	mockStartHubWebSocketServer,
@@ -22,6 +23,11 @@ const {
 		}),
 	),
 	mockResolveClineBuildEnv: vi.fn(() => "production"),
+	mockResolveDefaultHubOwnerContext: vi.fn(() =>
+		mockResolveClineBuildEnv() === "production"
+			? mockResolveProductionHubOwnerContext()
+			: mockResolveSharedHubOwnerContext(),
+	),
 	mockResolveProductionHubOwnerContext: vi.fn(() => ({
 		ownerId: "production",
 		discoveryPath: "/tmp/cline-data/locks/hub/production.json",
@@ -42,6 +48,7 @@ vi.mock("../discovery/defaults", () => ({
 }));
 
 vi.mock("../discovery/workspace", () => ({
+	resolveDefaultHubOwnerContext: mockResolveDefaultHubOwnerContext,
 	resolveProductionHubOwnerContext: mockResolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext: mockResolveSharedHubOwnerContext,
 }));
@@ -61,6 +68,7 @@ describe("ensureHubServer", () => {
 		mockResolveHubEndpointOptions.mockClear();
 		mockResolveClineBuildEnv.mockClear();
 		mockResolveClineBuildEnv.mockReturnValue("production");
+		mockResolveDefaultHubOwnerContext.mockClear();
 		mockResolveProductionHubOwnerContext.mockClear();
 		mockResolveSharedHubOwnerContext.mockClear();
 		mockStartHubWebSocketServer.mockClear();

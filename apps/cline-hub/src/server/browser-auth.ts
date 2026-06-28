@@ -2,6 +2,7 @@ import { isNonLocalBindHost } from "../options";
 
 export interface BrowserRequestAuthOptions {
 	bindHost: string;
+	dashboardWebUrl?: string;
 	port: number;
 	publicUrl: string;
 	roomSecret?: string;
@@ -57,12 +58,16 @@ function hostHeaderForHost(
 
 export function allowedBrowserOrigins({
 	bindHost,
+	dashboardWebUrl,
 	port,
 	publicUrl,
 }: BrowserRequestAuthOptions): Set<string> {
 	const publicUrlParts = new URL(publicUrl);
 	const origins = new Set<string>();
 	origins.add(publicUrlParts.origin);
+	if (dashboardWebUrl?.trim()) {
+		origins.add(new URL(dashboardWebUrl).origin);
+	}
 
 	origins.add(originForHost(publicUrlParts.protocol, bindHost, port));
 
