@@ -3,6 +3,7 @@ import type { Mode } from "@shared/storage/types"
 import styled from "styled-components"
 import VSCodeButtonLink from "@/components/common/VSCodeButtonLink"
 import { useClineAuth } from "@/context/ClineAuthContext"
+import { buildClinePassSubscriptionUrl } from "@/utils/clinePassSubscription"
 import { ClineAccountInfoCard } from "../ClineAccountInfoCard"
 import ClineModelPicker from "../ClineModelPicker"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
@@ -22,23 +23,6 @@ export interface ClineProviderProps {
 
 type ClineBillingRoute = "cline" | "cline-pass"
 
-const CLINE_PASS_SUBSCRIBE_PATH = "dashboard/subscription"
-
-function buildClinePassSubscribeUrl(appBaseUrl?: string): string | undefined {
-	if (!appBaseUrl) {
-		return undefined
-	}
-
-	try {
-		const base = appBaseUrl.endsWith("/") ? appBaseUrl : `${appBaseUrl}/`
-		const url = new URL(CLINE_PASS_SUBSCRIBE_PATH, base)
-		url.searchParams.set("personal", "true")
-		return url.toString()
-	} catch {
-		return undefined
-	}
-}
-
 /**
  * The Cline provider configuration component
  */
@@ -53,7 +37,7 @@ export const ClineProvider = ({
 	const { handleModeFieldChange } = useApiConfigurationHandlers()
 	const { clineUser } = useClineAuth()
 	const activeRoute: ClineBillingRoute = selectedProvider === "cline-pass" && isClinePassEnabled ? "cline-pass" : "cline"
-	const clinePassSubscribeUrl = buildClinePassSubscribeUrl(clineUser?.appBaseUrl)
+	const clinePassSubscribeUrl = clineUser ? buildClinePassSubscriptionUrl(clineUser.appBaseUrl) : undefined
 
 	const handleRouteChange = async (route: ClineBillingRoute) => {
 		if (route === activeRoute) {
@@ -98,15 +82,19 @@ export const ClineProvider = ({
 					</RouteStatus>
 					<RouteActions>
 						{activeRoute === "cline" && <ClineAccountInfoCard />}
-						{activeRoute === "cline-pass" && clinePassSubscribeUrl && (
-							<>
-								<VSCodeButtonLink appearance="secondary" href={clinePassSubscribeUrl}>
-									Manage ClinePass
-								</VSCodeButtonLink>
-								<VSCodeButtonLink appearance="secondary" href={clinePassSubscribeUrl}>
-									View Billing & Usage
-								</VSCodeButtonLink>
-							</>
+						{activeRoute === "cline-pass" && (
+							clinePassSubscribeUrl ? (
+								<>
+									<VSCodeButtonLink appearance="secondary" href={clinePassSubscribeUrl}>
+										Manage ClinePass
+									</VSCodeButtonLink>
+									<VSCodeButtonLink appearance="secondary" href={clinePassSubscribeUrl}>
+										View Billing & Usage
+									</VSCodeButtonLink>
+								</>
+							) : (
+								<ClineAccountInfoCard />
+							)
 						)}
 					</RouteActions>
 				</RouteContainer>
