@@ -1,7 +1,10 @@
 import { DeepSeekModelId, deepSeekDefaultModelId, deepSeekModels, ModelInfo } from "@shared/api"
 import { calculateApiCostOpenAI } from "@utils/cost"
 import OpenAI from "openai"
-import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
+import type {
+	ChatCompletionReasoningEffort,
+	ChatCompletionTool as OpenAITool,
+} from "openai/resources/chat/completions"
 import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
@@ -15,6 +18,7 @@ import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-p
 interface DeepSeekHandlerOptions extends CommonApiHandlerOptions {
 	deepSeekApiKey?: string
 	apiModelId?: string
+	reasoningEffort?: string
 }
 
 export class DeepSeekHandler implements ApiHandler {
@@ -98,6 +102,10 @@ export class DeepSeekHandler implements ApiHandler {
 			stream_options: { include_usage: true },
 			// Only set temperature for non-thinking models
 			...(isDeepSeekThinkingModel ? {} : { temperature: 0 }),
+			// DeepSeek thinking models accept reasoning effort (low/medium map to high, xhigh maps to max)
+			...(isDeepSeekThinkingModel && this.options.reasoningEffort
+				? { reasoning_effort: this.options.reasoningEffort as ChatCompletionReasoningEffort }
+				: {}),
 			...getOpenAIToolParams(tools),
 		})
 

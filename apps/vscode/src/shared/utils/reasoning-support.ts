@@ -42,6 +42,8 @@ export function supportsReasoningEffortForModel(modelId?: string): boolean {
 		id.startsWith("openai/o") ||
 		id.includes("/o") ||
 		id.startsWith("o") ||
-		id.includes("grok")
+		id.includes("grok") ||
+		id.includes("deepseek-v4") ||
+		id.includes("deepseek-reasoner")
 	)
 }

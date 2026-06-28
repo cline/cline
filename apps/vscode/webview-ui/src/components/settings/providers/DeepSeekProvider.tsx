@@ -4,7 +4,8 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { ModelSelector } from "../common/ModelSelector"
-import { normalizeApiConfiguration } from "../utils/providerUtils"
+import ReasoningEffortSelector from "../ReasoningEffortSelector"
+import { normalizeApiConfiguration, supportsReasoningEffortForModelId } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 /**
@@ -25,6 +26,7 @@ export const DeepSeekProvider = ({ showModelOptions, isPopup, currentMode }: Dee
 
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
+	const showReasoningEffort = supportsReasoningEffortForModelId(selectedModelId)
 
 	return (
 		<div>
@@ -49,6 +51,8 @@ export const DeepSeekProvider = ({ showModelOptions, isPopup, currentMode }: Dee
 						}
 						selectedModelId={selectedModelId}
 					/>
+
+					{showReasoningEffort && <ReasoningEffortSelector currentMode={currentMode} />}
 
 					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
 				</>
