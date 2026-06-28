@@ -127,4 +127,33 @@ describe("refreshClineRecommendedModels", () => {
 		expect(axiosGetStub.calledOnce).to.equal(true);
 		expect(secondResult).to.deep.equal(firstResult);
 	});
+
+	it("prefers canonical ClinePass Z.ai IDs when aliases are also present", async () => {
+		sandbox.stub(ClineEnv, "config").returns({
+			environment: Environment.production,
+			appBaseUrl: "https://app.cline-mock.bot",
+			apiBaseUrl: "https://api.cline-mock.bot",
+			mcpBaseUrl: "https://api.cline-mock.bot/v1/mcp",
+		});
+		sandbox.stub(disk, "ensureCacheDirectoryExists").resolves("/tmp");
+		sandbox.stub(fs, "writeFile").resolves();
+		sandbox.stub(axios, "get").resolves({
+			data: {
+				clinePass: [
+					{
+						id: "cline-pass/z-ai/glm-5.2",
+						description: "OpenRouter alias",
+					},
+					{
+						id: "cline-pass/zai/glm-5.2",
+						description: "Canonical ID",
+					},
+				],
+			},
+		});
+
+		const result = await refreshClineRecommendedModels();
+
+		expect(result.clinePass.map((model) => model.id)).to.deep.equal(["cline-pass/zai/glm-5.2"]);
+	});
 });

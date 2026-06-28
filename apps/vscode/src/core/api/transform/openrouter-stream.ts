@@ -12,7 +12,11 @@ import {
 	openRouterClaudeSonnet461mModelId,
 } from "@shared/api"
 import { normalizeOpenaiReasoningEffort } from "@shared/storage/types"
-import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
+import {
+	isClaudeOpusAdaptiveThinkingModel,
+	isClinePassModel,
+	resolveClaudeOpusAdaptiveThinking,
+} from "@shared/utils/reasoning-support"
 import {
 	GEMINI_FLASH_MAX_OUTPUT_TOKENS,
 	isGeminiFlashModel,
@@ -130,7 +134,8 @@ export async function createOpenRouterStream(
 		temperature = 1.0
 	}
 
-	const supportsReasoningEffort = supportsReasoningEffortForModel(model.id)
+	const isClinePass = isClinePassModel(model.id)
+	const supportsReasoningEffort = isClinePass ? !!model.info.supportsReasoning : supportsReasoningEffortForModel(model.id)
 
 	// Claude Opus 4.5+ uses adaptive thinking instead of budgeted extended thinking.
 	const isAdaptiveThinkingModel = isClaudeOpusAdaptiveThinkingModel(model.id)
@@ -185,7 +190,7 @@ export async function createOpenRouterStream(
 	// Skip reasoning for models that don't support it (e.g., devstral, grok-4), or when effort explicitly disables it.
 	const includeReasoning = isAdaptiveThinkingModel
 		? !!adaptiveThinking?.enabled
-		: !shouldSkipReasoningForModel(model.id) && reasoningEffortValue !== "none"
+		: supportsReasoningEffort && (isClinePass || !shouldSkipReasoningForModel(model.id)) && reasoningEffortValue !== "none"
 	const reasoningPayload = isAdaptiveThinkingModel
 		? adaptiveThinking?.enabled
 			? { enabled: true }

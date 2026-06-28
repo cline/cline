@@ -30,6 +30,10 @@ export function resolveClaudeOpusAdaptiveThinking(
 	return legacyThinkingBudgetTokens && legacyThinkingBudgetTokens > 0 ? { enabled: true, effort: "high" } : { enabled: false }
 }
 
+export function isClinePassModel(modelId?: string): boolean {
+	return modelId?.trim().toLowerCase().startsWith("cline-pass/") ?? false
+}
+
 export function supportsReasoningEffortForModel(modelId?: string): boolean {
 	if (!modelId) {
 		return false

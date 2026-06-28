@@ -13,6 +13,7 @@ import {
 	isPoolsideModelFamily,
 	modelDoesntSupportWebp,
 	shouldSkipReasoningForModel,
+	supportsReasoningEffortForModel,
 } from "../model-utils"
 
 // Minimal helper — modelDoesntSupportWebp only reads apiHandlerModel.id
@@ -47,6 +48,14 @@ describe("shouldSkipReasoningForModel", () => {
 	it("should be case sensitive", () => {
 		shouldSkipReasoningForModel("GROK-4").should.equal(false)
 		shouldSkipReasoningForModel("Grok-4").should.equal(false)
+	})
+})
+
+describe("supportsReasoningEffortForModel", () => {
+	it("should return false for undefined, unrelated, and metadata-driven model IDs", () => {
+		supportsReasoningEffortForModel(undefined).should.equal(false)
+		supportsReasoningEffortForModel("anthropic/claude-sonnet-4.5").should.equal(false)
+		supportsReasoningEffortForModel("cline-pass/glm-5.2").should.equal(false)
 	})
 })
 
