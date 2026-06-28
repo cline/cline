@@ -2,9 +2,9 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { resolveClineDataDir } from "@cline/shared/storage";
 
-const NOTICE_ID = "cline-cli-tui-default";
-const FORCE_NOTICE_ENV = "CLINE_FORCE_MIGRATION_NOTICE";
-const DISABLE_NOTICE_ENV = "CLINE_DISABLE_MIGRATION_NOTICE";
+const NOTICE_ID = "cline-cli-cline-pass-intro";
+const FORCE_NOTICE_ENV = "CLINE_FORCE_CLINE_PASS_NOTICE";
+const DISABLE_NOTICE_ENV = "CLINE_DISABLE_CLINE_PASS_NOTICE";
 
 export interface CliMigrationNotice {
 	id: string;
@@ -71,7 +71,7 @@ export function getClineCliMigrationNotice(
 	}
 	return {
 		id: NOTICE_ID,
-		title: "Welcome to the new Cline CLI",
+		title: "Try Cline Pass",
 	};
 }
 
