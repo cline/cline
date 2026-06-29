@@ -74,6 +74,8 @@ export interface AiSdkFormatterMessage {
 
 export const EMPTY_CONTENT_TEXT = "ERROR: EMPTY CONTENT";
 const IMAGE_ATTACHED_TEXT = "[image attached]";
+const IMAGE_UNSUPPORTED_TEXT =
+	"[image omitted: this model does not support image input]";
 
 export type AiSdkMessagePart = Record<string, unknown>;
 export type AiSdkMessage = {
@@ -135,6 +137,10 @@ function isAiSdkContentBlockArray(
 
 function imageOmittedTextPart(): { type: "text"; text: string } {
 	return { type: "text", text: IMAGE_OMITTED_PLACEHOLDER };
+}
+
+function imageUnsupportedTextPart(): { type: "text"; text: string } {
+	return { type: "text", text: IMAGE_UNSUPPORTED_TEXT };
 }
 
 function reserveRemoteImageUrlBudget(state: MediaBudgetState): boolean {
@@ -436,6 +442,7 @@ export function toAiSdkToolResultOutput(
 	output: unknown,
 	isError = false,
 	mediaState: MediaBudgetState = createMediaBudgetState(),
+	supportsImages = true,
 ): Record<string, unknown> {
 	if (typeof output === "string") {
 		return {
@@ -453,11 +460,16 @@ export function toAiSdkToolResultOutput(
 	if (!isError && isAiSdkContentBlockArray(output)) {
 		return {
 			type: "content",
-			value: output.map((block) =>
-				block.type === "image"
+			value: output.map((block) => {
+				if (block.type !== "image") {
+					return { type: "text", text: sanitizeSurrogates(block.text) };
+				}
+				// Text-only models cannot receive image parts; replace with a
+				// placeholder so the request isn't rejected wholesale.
+				return supportsImages
 					? toImageDataPart(block, mediaState)
-					: { type: "text", text: sanitizeSurrogates(block.text) },
-			),
+					: imageUnsupportedTextPart();
+			}),
 		};
 	}
 
@@ -471,11 +483,14 @@ export function toAiSdkToolResultOutput(
 	// base64 bytes as opaque text.
 	if (output !== null && typeof output === "object") {
 		const images: AiSdkImageContentBlock[] = [];
+		// hoistImages=false makes nested image blocks collapse to text
+		// placeholders instead of being extracted as multimodal parts, which is
+		// exactly what a text-only model needs.
 		const stripped = stripImagesFromOutput(
 			output,
 			images,
 			mediaState,
-			!isError,
+			!isError && supportsImages,
 		);
 		if (!isError && images.length > 0) {
 			const headerText =
@@ -523,9 +538,17 @@ export function toAiSdkToolResultOutput(
 export function formatMessagesForAiSdk(
 	systemContent: string | AiSdkMessagePart[] | undefined,
 	messages: readonly AiSdkFormatterMessage[],
-	options?: { assistantToolCallArgKey?: "args" | "input" },
+	options?: {
+		assistantToolCallArgKey?: "args" | "input";
+		supportsImages?: boolean;
+	},
 ): AiSdkMessage[] {
 	const toolCallArgKey = options?.assistantToolCallArgKey ?? "input";
+	// Default true preserves behavior for vision-capable models. Callers that
+	// know the target model lacks the "images" capability pass false so image
+	// blocks left in history are not sent (text-only endpoints reject them with
+	// `messages.content.type is invalid, allowed values: ['text']`).
+	const supportsImages = options?.supportsImages ?? true;
 	const result: AiSdkMessage[] = [];
 	const mediaState = createMediaBudgetState();
 
@@ -591,7 +614,11 @@ export function formatMessagesForAiSdk(
 					});
 					break;
 				case "image":
-					messageParts.push(toUserImagePart(part, mediaState));
+					messageParts.push(
+						supportsImages
+							? toUserImagePart(part, mediaState)
+							: imageUnsupportedTextPart(),
+					);
 					break;
 				case "file":
 					messageParts.push({
@@ -624,6 +651,7 @@ export function formatMessagesForAiSdk(
 							part.output,
 							part.isError ?? false,
 							mediaState,
+							supportsImages,
 						),
 					});
 					break;
