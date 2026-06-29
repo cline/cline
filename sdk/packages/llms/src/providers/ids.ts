@@ -25,6 +25,7 @@ export enum BUILT_IN_PROVIDER {
 	// Local/self-hosted
 	OLLAMA = "ollama",
 	LMSTUDIO = "lmstudio",
+	ATOMIC_CHAT = "atomic-chat",
 	// OpenAI-compatible
 	DEEPSEEK = "deepseek",
 	XAI = "xai",

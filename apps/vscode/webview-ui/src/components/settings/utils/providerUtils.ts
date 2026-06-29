@@ -40,6 +40,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			fireworksModelId: undefined,
 			lmStudioModelId: undefined,
 			ollamaModelId: undefined,
+			atomicChatModelId: undefined,
 			liteLlmModelId: undefined,
 			requestyModelId: undefined,
 			openAiModelId: undefined,
@@ -102,6 +103,8 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 		fireworksModelId: mode === "plan" ? apiConfiguration.planModeFireworksModelId : apiConfiguration.actModeFireworksModelId,
 		lmStudioModelId: mode === "plan" ? apiConfiguration.planModeLmStudioModelId : apiConfiguration.actModeLmStudioModelId,
 		ollamaModelId: mode === "plan" ? apiConfiguration.planModeOllamaModelId : apiConfiguration.actModeOllamaModelId,
+		atomicChatModelId:
+			mode === "plan" ? apiConfiguration.planModeAtomicChatModelId : apiConfiguration.actModeAtomicChatModelId,
 		liteLlmModelId: mode === "plan" ? apiConfiguration.planModeLiteLlmModelId : apiConfiguration.actModeLiteLlmModelId,
 		requestyModelId: mode === "plan" ? apiConfiguration.planModeRequestyModelId : apiConfiguration.actModeRequestyModelId,
 		openAiModelId: mode === "plan" ? apiConfiguration.planModeOpenAiModelId : apiConfiguration.actModeOpenAiModelId,
@@ -238,6 +241,11 @@ export async function syncModeConfigurations(
 		case "lmstudio":
 			updates.planModeLmStudioModelId = sourceFields.lmStudioModelId
 			updates.actModeLmStudioModelId = sourceFields.lmStudioModelId
+			break
+
+		case "atomic-chat":
+			updates.planModeAtomicChatModelId = sourceFields.atomicChatModelId
+			updates.actModeAtomicChatModelId = sourceFields.atomicChatModelId
 			break
 
 		case "vscode-lm":

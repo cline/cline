@@ -102,6 +102,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 		(modeFields.apiProvider !== "vscode-lm" &&
 			modeFields.apiProvider !== "ollama" &&
 			modeFields.apiProvider !== "lmstudio" &&
+			modeFields.apiProvider !== "atomic-chat" &&
 			usageCostDisplay !== "hide")
 
 	// Event handlers

@@ -87,6 +87,8 @@ export function useDynamicProviderSelection(
 				return resolve(fields.ollamaModelId, undefined)
 			case "lmstudio":
 				return resolve(fields.lmStudioModelId, undefined)
+			case "atomic-chat":
+				return resolve(fields.atomicChatModelId, undefined)
 			case "together":
 				return resolve(fields.togetherModelId, undefined)
 			case "fireworks":

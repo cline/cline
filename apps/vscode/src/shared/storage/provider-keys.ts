@@ -19,6 +19,7 @@ const ProviderKeyMap: Partial<Record<ApiProvider, string>> = {
 	openai: "OpenAiModelId",
 	ollama: "OllamaModelId",
 	lmstudio: "LmStudioModelId",
+	"atomic-chat": "AtomicChatModelId",
 	litellm: "LiteLlmModelId",
 	requesty: "RequestyModelId",
 	together: "TogetherModelId",
@@ -59,6 +60,7 @@ const NON_SDK_PROVIDER_DEFAULTS: Partial<Record<ApiProvider, string>> = {
 	// Local-only providers have no remote default to nominate.
 	ollama: "",
 	lmstudio: "",
+	"atomic-chat": "",
 	hicap: "",
 }
 
