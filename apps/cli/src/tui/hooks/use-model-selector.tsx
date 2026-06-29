@@ -91,8 +91,8 @@ function providerToExistingProviderOptions(input: {
 
 	return [
 		{
-			value: "open_subscription",
-			label: "Open ClinePass subscription page",
+			value: "open_subscription_page",
+			label: "Manage subscription & see usage",
 			onSelect: async () => {
 				await input.dialog.choice<boolean>({
 					style: { maxHeight: input.termHeight - 2 },

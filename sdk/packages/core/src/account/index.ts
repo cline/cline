@@ -20,6 +20,7 @@ export type {
 	ClineOrganization,
 	ClineSubscriptionPlan,
 	FeaturebaseTokenResponse,
+	UserCurrentPlan,
 	UserRemoteConfigOrganization,
 	UserRemoteConfigResponse,
 } from "./types";

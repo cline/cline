@@ -130,6 +130,7 @@ export {
 	RpcClineAccountService,
 	type UserRemoteConfigOrganization,
 	type UserRemoteConfigResponse,
+	type UserCurrentPlan,
 } from "./account";
 export {
 	createOAuthClientCallbacks,

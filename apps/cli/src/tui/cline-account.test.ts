@@ -13,6 +13,7 @@ const coreMocks = vi.hoisted(() => {
 		fetchBalance: vi.fn(),
 		fetchOrganizationBalance: vi.fn(),
 		fetchAvailableSubscriptionPlans: vi.fn(),
+		fetchCurrentUserPlan: vi.fn(),
 		serviceOptions,
 	};
 });
@@ -44,6 +45,9 @@ vi.mock("@cline/core", async (importOriginal) => {
 				type?: "individual" | "teams";
 			}) {
 				return coreMocks.fetchAvailableSubscriptionPlans(input);
+			}
+			fetchCurrentUserPlan() {
+				return coreMocks.fetchCurrentUserPlan();
 			}
 		},
 		ProviderSettingsManager: class {
@@ -107,6 +111,7 @@ describe("createClineAccountService", () => {
 		coreMocks.fetchBalance.mockReset();
 		coreMocks.fetchOrganizationBalance.mockReset();
 		coreMocks.fetchAvailableSubscriptionPlans.mockReset();
+		coreMocks.fetchCurrentUserPlan.mockReset();
 		coreMocks.serviceOptions.length = 0;
 		telemetryMocks.identifyTelemetryAccount.mockReset();
 	});
@@ -204,6 +209,7 @@ describe("loadClineAccountSnapshot", () => {
 		coreMocks.fetchBalance.mockReset();
 		coreMocks.fetchOrganizationBalance.mockReset();
 		coreMocks.fetchAvailableSubscriptionPlans.mockReset();
+		coreMocks.fetchCurrentUserPlan.mockReset();
 		coreMocks.serviceOptions.length = 0;
 		telemetryMocks.identifyTelemetryAccount.mockReset();
 	});
@@ -268,6 +274,7 @@ describe("loadIndividualSubscriptionPlans", () => {
 		coreMocks.fetchBalance.mockReset();
 		coreMocks.fetchOrganizationBalance.mockReset();
 		coreMocks.fetchAvailableSubscriptionPlans.mockReset();
+		coreMocks.fetchCurrentUserPlan.mockReset();
 		coreMocks.serviceOptions.length = 0;
 		telemetryMocks.identifyTelemetryAccount.mockReset();
 	});

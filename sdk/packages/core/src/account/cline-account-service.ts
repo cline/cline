@@ -9,6 +9,7 @@ import type {
 	ClineOrganization,
 	ClineSubscriptionPlan,
 	FeaturebaseTokenResponse,
+	UserCurrentPlan,
 	UserRemoteConfigResponse,
 } from "./types";
 
@@ -154,6 +155,10 @@ export class ClineAccountService {
 		return this.request<ClineSubscriptionPlan[]>(
 			`${path.pathname}${path.search}`,
 		);
+	}
+
+	public async fetchCurrentUserPlan(): Promise<UserCurrentPlan | undefined> {
+		return this.request<UserCurrentPlan | undefined>("/api/v1/users/me/plan");
 	}
 
 	public async fetchOrganization(
@@ -334,9 +339,7 @@ export class ClineAccountService {
 					if (!envelope.success) {
 						throw new Error(envelope.error || "Cline account request failed");
 					}
-					if (envelope.data !== undefined) {
-						return envelope.data;
-					}
+					return envelope.data as T;
 				}
 			}
 
