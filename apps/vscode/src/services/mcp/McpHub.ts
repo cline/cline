@@ -1267,6 +1267,15 @@ export class McpHub {
 		await this.notifyWebviewOfServerChanges()
 	}
 
+	async reconcileMcpServersFromSettingsRPC(): Promise<McpServer[]> {
+		const settings = await this.readPostWriteMcpSettings()
+		await this.updateServerConnectionsRPC(settings.mcpServers as Record<string, McpServerConfig>)
+		await this.notifyWebviewOfServerChanges()
+
+		const serverOrder = Object.keys(settings.mcpServers || {})
+		return this.getSortedMcpServers(serverOrder)
+	}
+
 	async getLatestMcpServersRPC(): Promise<McpServer[]> {
 		const settings = await this.readAndValidateMcpSettingsFile()
 		if (!settings) {

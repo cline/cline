@@ -11,7 +11,7 @@ describe("ClineError", () => {
 
 		it("should return Entitlement for the SDK ClinePass subscription message", () => {
 			const err = new ClineError(
-				"No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: https://app.cline.bot/promo?code=CLI-100&personal=true",
+				"No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: https://app.cline.bot/promo?code=CLI-8OFF&personal=true",
 			)
 
 			ClineError.getErrorType(err)!.should.equal(ClineErrorType.Entitlement)
@@ -19,7 +19,7 @@ describe("ClineError", () => {
 
 		it("should return Entitlement for the SDK ClinePass subscription message with a different app URL", () => {
 			const err = new ClineError(
-				"No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: https://staging-app.cline.bot/promo?code=CLI-100&personal=true",
+				"No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: https://staging-app.cline.bot/promo?code=CLI-8OFF&personal=true",
 			)
 
 			ClineError.getErrorType(err)!.should.equal(ClineErrorType.Entitlement)

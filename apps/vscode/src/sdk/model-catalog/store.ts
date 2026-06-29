@@ -127,6 +127,10 @@ function providerForStorage(providerId: ProviderId): ApiProvider | undefined {
 	return key as ApiProvider
 }
 
+function providerSettingsProviderId(providerId: ProviderId): string {
+	return toSdkProviderId(providerId)
+}
+
 function memoryKey(providerId: ProviderId, mode: Mode): string {
 	return `${providerId}:${mode}`
 }
@@ -280,12 +284,13 @@ function writeStateFields(providerId: ProviderId, patch: ProviderConfigPatch): v
 }
 
 function getProviderSettings(providerId: ProviderId): ProviderSettingsRecord {
-	const settings = getProviderSettingsManager().getProviderSettings(providerId)
+	const settings = getProviderSettingsManager().getProviderSettings(providerSettingsProviderId(providerId))
 	return isRecord(settings) ? settings : {}
 }
 
 function saveProviderSettings(providerId: ProviderId, next: ProviderSettingsRecord): void {
-	getProviderSettingsManager().saveProviderSettings({ provider: providerId, ...next }, { setLastUsed: false })
+	const provider = providerSettingsProviderId(providerId)
+	getProviderSettingsManager().saveProviderSettings({ ...next, provider }, { setLastUsed: false })
 }
 
 function writeProviderSettingsFields(providerId: ProviderId, patch: ProviderConfigPatch): void {

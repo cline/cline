@@ -300,6 +300,36 @@ describe("useMessageHandlers — send routing", () => {
 		expect(setPendingUserMessage).not.toHaveBeenCalled()
 	})
 
+	it("rejects a pending approval when the composer is submitted with typed feedback", async () => {
+		mockTurnState = { phase: "awaiting_approval", anchorTs: 2, seq: 9 }
+		const approvalConversation: ClineMessage[] = [
+			{ ts: 1, type: "say", say: "task", text: "task" },
+			{ ts: 2, type: "ask", ask: "tool", text: JSON.stringify({ tool: "newFileCreated", path: "notes.txt" }) },
+		]
+		const setPendingUserMessage = vi.fn()
+		const { result } = renderHook(() =>
+			useMessageHandlers(approvalConversation, makeChatState(approvalConversation, { setPendingUserMessage })),
+		)
+
+		await act(async () => {
+			await result.current.handleSendMessage("use a different filename", ["image.png"], ["notes.txt"])
+		})
+
+		expect(newTask).not.toHaveBeenCalled()
+		expect(condense).not.toHaveBeenCalled()
+		expect(askResponse).toHaveBeenCalledTimes(1)
+		expect(askResponse).toHaveBeenCalledWith(
+			expect.objectContaining({
+				responseType: "noButtonClicked",
+				text: "use a different filename",
+				images: ["image.png"],
+				files: ["notes.txt"],
+			}),
+		)
+		expect(askResponse).not.toHaveBeenCalledWith(expect.objectContaining({ responseType: "messageResponse" }))
+		expect(setPendingUserMessage).not.toHaveBeenCalled()
+	})
+
 	it("phase awaiting_followup also routes a follow-up to askResponse", async () => {
 		mockTurnState = { phase: "awaiting_followup", seq: 3 }
 		const { result } = renderHook(() => useMessageHandlers(completedConversation, makeChatState(completedConversation)))
@@ -310,6 +340,33 @@ describe("useMessageHandlers — send routing", () => {
 
 		expect(newTask).not.toHaveBeenCalled()
 		expect(askResponse).toHaveBeenCalledTimes(1)
+	})
+
+	it("does not show a pending chat bubble when answering an active follow-up question with freeform text", async () => {
+		mockTurnState = { phase: "awaiting_followup", anchorTs: 2, seq: 3 }
+		const questionConversation: ClineMessage[] = [
+			{ ts: 1, type: "say", say: "task", text: "task" },
+			{
+				ts: 2,
+				type: "ask",
+				ask: "followup",
+				text: JSON.stringify({ question: "Which approach?", options: ["A", "B"] }),
+			},
+		]
+		const setPendingUserMessage = vi.fn()
+		const { result } = renderHook(() =>
+			useMessageHandlers(questionConversation, makeChatState(questionConversation, { setPendingUserMessage })),
+		)
+
+		await act(async () => {
+			await result.current.handleSendMessage("something else", [], [])
+		})
+
+		expect(askResponse).toHaveBeenCalledTimes(1)
+		expect(askResponse).toHaveBeenCalledWith(
+			expect.objectContaining({ responseType: "messageResponse", text: "something else" }),
+		)
+		expect(setPendingUserMessage).not.toHaveBeenCalled()
 	})
 
 	it("an empty transcript still starts a NEW task (unchanged behavior)", async () => {

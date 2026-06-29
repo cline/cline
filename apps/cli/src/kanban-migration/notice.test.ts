@@ -1,6 +1,12 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import {
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	getClineCliMigrationNotice,
@@ -26,8 +32,25 @@ describe("migration notice", () => {
 	it("returns the notice for a fresh data dir", () => {
 		const dataDir = createTempDataDir();
 
-		expect(getClineCliMigrationNotice(dataDir)?.title).toBe(
-			"Welcome to the new Cline CLI",
+		expect(getClineCliMigrationNotice(dataDir)?.title).toBe("Try ClinePass");
+	});
+
+	it("shows when only the old Kanban notice was marked as shown", () => {
+		const dataDir = createTempDataDir();
+		const noticePath = resolveCliNoticeStatePath(dataDir);
+		mkdirSync(dirname(noticePath), { recursive: true, mode: 0o700 });
+		writeFileSync(
+			noticePath,
+			`${JSON.stringify(
+				{ shown: { "cline-cli-tui-default": true } },
+				null,
+				2,
+			)}\n`,
+			"utf8",
+		);
+
+		expect(getClineCliMigrationNotice(dataDir)?.id).toBe(
+			"cline-cli-cline-pass-intro",
 		);
 	});
 
@@ -46,7 +69,7 @@ describe("migration notice", () => {
 
 		expect(
 			getClineCliMigrationNotice(dataDir, {
-				CLINE_FORCE_MIGRATION_NOTICE: "1",
+				CLINE_FORCE_CLINE_PASS_NOTICE: "1",
 			}),
 		).toBeDefined();
 	});
@@ -56,7 +79,7 @@ describe("migration notice", () => {
 
 		expect(
 			getClineCliMigrationNotice(dataDir, {
-				CLINE_DISABLE_MIGRATION_NOTICE: "1",
+				CLINE_DISABLE_CLINE_PASS_NOTICE: "1",
 			}),
 		).toBeUndefined();
 	});
@@ -66,8 +89,8 @@ describe("migration notice", () => {
 
 		expect(
 			getClineCliMigrationNotice(dataDir, {
-				CLINE_DISABLE_MIGRATION_NOTICE: "1",
-				CLINE_FORCE_MIGRATION_NOTICE: "1",
+				CLINE_DISABLE_CLINE_PASS_NOTICE: "1",
+				CLINE_FORCE_CLINE_PASS_NOTICE: "1",
 			}),
 		).toBeDefined();
 	});
@@ -78,7 +101,7 @@ describe("migration notice", () => {
 		markClineCliMigrationNoticeShown(dataDir);
 
 		const rawState = readFileSync(resolveCliNoticeStatePath(dataDir), "utf8");
-		expect(rawState).toContain("cline-cli-tui-default");
+		expect(rawState).toContain("cline-cli-cline-pass-intro");
 		expect(getClineCliMigrationNotice(dataDir)).toBeUndefined();
 	});
 });

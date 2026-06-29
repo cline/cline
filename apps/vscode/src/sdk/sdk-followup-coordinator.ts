@@ -58,7 +58,7 @@ export class SdkFollowupCoordinator {
 			return
 		}
 
-		if (this.options.interactions.resolvePendingToolApproval(prompt, askResponse)) {
+		if (this.options.interactions.resolvePendingToolApproval(prompt, askResponse, images, files)) {
 			return
 		}
 

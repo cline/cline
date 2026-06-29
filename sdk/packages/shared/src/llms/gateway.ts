@@ -33,7 +33,8 @@ export type GatewayModelCapability =
 	| "structured-output";
 
 export type GatewayPromptCacheStrategy = "anthropic-automatic";
-export type GatewayUsageCostDisplay = "show" | "hide";
+export const USAGE_COST_DISPLAYS = ["show", "hide", "subscription"] as const;
+export type GatewayUsageCostDisplay = (typeof USAGE_COST_DISPLAYS)[number];
 export type GatewayPromptCacheFormat = "anthropic-cache-control";
 export type GatewayReasoningFormat =
 	| "anthropic-thinking"

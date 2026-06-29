@@ -8,6 +8,7 @@ export type OnboardingStep =
 	| "byo_provider"
 	| "byo_apikey"
 	| "codex_cli_setup"
+	| "cline_pass_subscription"
 	| "cline_model"
 	| "model_picker"
 	| "custom_model_id"
@@ -95,6 +96,8 @@ export interface ModelEntry {
 	name: string;
 	supportsReasoning: boolean;
 }
+
+export type ClinePassSubscriptionStatus = "loading" | "subscribed" | "unsubscribed" | "error";
 
 export interface ProviderCatalogItem {
 	id: string;

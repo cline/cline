@@ -1,5 +1,30 @@
 # Cline CLI Changelog
 
+## 3.0.31
+
+- Show when request cost is covered by your Cline subscription
+- Prompt to switch to ClinePass when you run out of credits, and list ClinePass features in the not-subscribed message
+- Added an option to open the subscription page from the ClinePass options
+- Added marketplace uninstall support and surfaced plugin-bundled skills
+- Require quoted prompts for one-shot mode
+- Capped MCP tool names at 64 characters for OpenAI-compatible providers
+- Updated coupon code
+
+## 3.0.30
+
+- Added a token count to the status bar, shown alongside cost
+- Added organization-specific error messages
+- Added SAP AI Core provider support
+- Refreshed the model catalog with the latest provider models
+- Preserved OpenRouter reasoning-disable behavior and improved OpenRouter prompt caching
+- Routed LiteLLM model fetches through the SDK and stopped unrelated models from appearing in the LiteLLM model list
+- Updated ClinePass models live, restored ClinePass models in onboarding, and improved ClinePass error messages
+- Threaded proxy/CA-aware networking into the inference path
+- Persisted Bedrock settings to providers.json
+- Normalized JSON-like tool inputs by schema for more reliable tool calls
+- Fixed an "ERROR: EMPTY CONTENT" message that could appear when an error occurred
+- Fixed a packaging issue (createRequire) that could break the CLI at runtime
+
 ## 3.0.29
 
 - Costs are now hidden for Cline free models

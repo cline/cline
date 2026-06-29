@@ -67,7 +67,7 @@ const HEADER_CLASSNAMES = "flex items-center gap-2.5 mb-3"
 interface ChatRowProps {
 	message: ClineMessage
 	isExpanded: boolean
-	onToggleExpand: (ts: number) => void
+	onToggleExpand: (ts: number, options?: { preserveAutoScroll?: boolean }) => void
 	lastModifiedMessage?: ClineMessage
 	isLast: boolean
 	onHeightChange: (isTaller: boolean) => void
@@ -729,7 +729,7 @@ export const ChatRowContent = memo(
 				// Wait 500ms before auto-expanding to avoid animating fast commands
 				const timer = setTimeout(() => {
 					// Expand after 500ms
-					onToggleExpand(message.ts)
+					onToggleExpand(message.ts, { preserveAutoScroll: true })
 				}, 500)
 
 				return () => clearTimeout(timer)
@@ -747,7 +747,7 @@ export const ChatRowContent = memo(
 					isOutputFullyExpanded={isOutputFullyExpanded}
 					message={message}
 					onCancelCommand={onCancelCommand}
-					onOutputChange={isLast ? onLastRowContentChange : undefined}
+					onOutputChange={onLastRowContentChange}
 					setIsOutputFullyExpanded={setIsOutputFullyExpanded}
 					title={title}
 				/>

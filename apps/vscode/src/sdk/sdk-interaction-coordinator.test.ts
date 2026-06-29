@@ -103,8 +103,9 @@ describe("SdkInteractionCoordinator", () => {
 		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
 		const recordApprovedToolMessage = vi.fn()
 		const recordDeniedToolApproval = vi.fn()
+		const messages = new SdkMessageCoordinator({ getTask: () => task })
 		const coordinator = new SdkInteractionCoordinator({
-			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			messages,
 			getSessionId: () => "session-123",
 			postStateToWebview: vi.fn().mockResolvedValue(undefined),
 			recordApprovedToolMessage,
@@ -125,9 +126,17 @@ describe("SdkInteractionCoordinator", () => {
 		const clineMessages = task.messageStateHandler.getClineMessages()
 		expect(clineMessages[0]).toMatchObject({ type: "ask", ask: "command", text: "npm test" })
 
-		expect(coordinator.resolvePendingToolApproval("too risky", "noButtonClicked")).toBe(true)
+		expect(coordinator.resolvePendingToolApproval("too risky", "noButtonClicked", ["image.png"], ["a.ts"])).toBe(true)
 		expect(recordApprovedToolMessage).not.toHaveBeenCalled()
 		expect(recordDeniedToolApproval).toHaveBeenCalledWith("tool-call", "execute_command", "too risky")
+		expect(task.messageStateHandler.getClineMessages()[1]).toMatchObject({
+			type: "say",
+			say: "user_feedback",
+			text: "too risky",
+			images: ["image.png"],
+			files: ["a.ts"],
+			partial: false,
+		})
 		await expect(approvalPromise).resolves.toEqual({ approved: false, reason: "too risky" })
 	})
 
@@ -188,6 +197,7 @@ describe("SdkInteractionCoordinator", () => {
 			approved: false,
 			reason: DEFAULT_TOOL_APPROVAL_DENIAL_REASON,
 		})
+		expect(task.messageStateHandler.getClineMessages()).toHaveLength(1)
 		expect(recordDeniedToolApproval).toHaveBeenCalledWith(
 			"tool-call",
 			"fetch_web_content",

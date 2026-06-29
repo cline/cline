@@ -128,7 +128,7 @@ export {
 	sanitizeSurrogates,
 	toAiSdkToolResultOutput,
 } from "./llms/ai-sdk-format";
-export type * from "./llms/gateway";
+export * from "./llms/gateway";
 export {
 	createMediaBudgetState,
 	DEFAULT_MAX_IMAGE_BASE64_BYTES,
@@ -194,7 +194,7 @@ export {
 	resolveReasoningEffortRatio,
 } from "./llms/reasoning-effort";
 export { DEFAULT_REQUEST_HEADERS, serializeAbortReason } from "./llms/requests";
-export { estimateTokens } from "./llms/tokens";
+export { CHARS_PER_TOKEN, estimateTokens } from "./llms/tokens";
 export type {
 	ToolApprovalRequest,
 	ToolApprovalResult,

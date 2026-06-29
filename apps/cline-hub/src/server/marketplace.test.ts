@@ -51,6 +51,36 @@ describe("marketplace installer", () => {
 		vi.restoreAllMocks();
 	});
 
+	function createInstalledOfficialPlugin(
+		clineDir: string,
+		slug: string,
+	): string {
+		const sourceKey = `official:https://github.com/cline/plugins.git#plugins/${slug}`;
+		const hash = createHash("sha256")
+			.update(sourceKey)
+			.digest("hex")
+			.slice(0, 12);
+		const installPath = join(
+			clineDir,
+			"plugins",
+			"_installed",
+			"official",
+			`${slug}-${hash}`,
+		);
+		mkdirSync(join(installPath, "package"), { recursive: true });
+		writeFileSync(
+			join(installPath, "package.json"),
+			JSON.stringify({ name: slug }, null, 2),
+			"utf8",
+		);
+		writeFileSync(
+			join(installPath, "package", "index.ts"),
+			`export default { name: "${slug}", manifest: { capabilities: ["tools"] } };`,
+			"utf8",
+		);
+		return installPath;
+	}
+
 	it("maps remote MCP catalog args to MCP settings shape", () => {
 		expect(
 			buildMarketplaceMcpInput([
@@ -288,8 +318,6 @@ describe("marketplace installer", () => {
 			"remove",
 			"cline-sdk",
 			"-g",
-			"-a",
-			"cline",
 			"-y",
 		]);
 	});
@@ -535,16 +563,13 @@ describe("marketplace installer", () => {
 		]);
 	});
 
-	it("runs official plugin uninstalls through the current Cline CLI", async () => {
-		process.env.CLINE_WRAPPER_PATH = "/usr/local/bin/cline";
+	it("uninstalls official marketplace plugins through the shared core service", async () => {
+		const clineDir = mkdtempSync(join(tmpdir(), "cline-marketplace-plugin-"));
+		process.env.CLINE_DIR = clineDir;
+		const installPath = createInstalledOfficialPlugin(clineDir, "goal");
 		const spawnCommand = vi.fn(async () => ({
 			exitCode: 0,
-			stdout: JSON.stringify({
-				name: "goal",
-				installPath: "/tmp/plugin",
-				removedPaths: ["/tmp/plugin"],
-				entryPaths: [],
-			}),
+			stdout: "",
 			stderr: "",
 		}));
 
@@ -565,12 +590,8 @@ describe("marketplace installer", () => {
 			message: "Uninstalled Goal.",
 		});
 
-		expect(spawnCommand).toHaveBeenCalledWith("/usr/local/bin/cline", [
-			"plugin",
-			"uninstall",
-			"goal",
-			"--json",
-		]);
+		expect(spawnCommand).not.toHaveBeenCalled();
+		expect(existsSync(installPath)).toBe(false);
 	});
 
 	it("resolves desktop installs from the server catalog instead of browser-sent args", async () => {
@@ -614,15 +635,12 @@ describe("marketplace installer", () => {
 	});
 
 	it("resolves desktop uninstalls from the server catalog instead of browser-sent args", async () => {
-		process.env.CLINE_WRAPPER_PATH = "/usr/local/bin/cline";
+		const clineDir = mkdtempSync(join(tmpdir(), "cline-marketplace-plugin-"));
+		process.env.CLINE_DIR = clineDir;
+		const installPath = createInstalledOfficialPlugin(clineDir, "goal");
 		const spawnCommand = vi.fn(async () => ({
 			exitCode: 0,
-			stdout: JSON.stringify({
-				name: "goal",
-				installPath: "/tmp/plugin",
-				removedPaths: ["/tmp/plugin"],
-				entryPaths: [],
-			}),
+			stdout: "",
 			stderr: "",
 		}));
 
@@ -650,12 +668,8 @@ describe("marketplace installer", () => {
 			},
 		);
 
-		expect(spawnCommand).toHaveBeenCalledWith("/usr/local/bin/cline", [
-			"plugin",
-			"uninstall",
-			"goal",
-			"--json",
-		]);
+		expect(spawnCommand).not.toHaveBeenCalled();
+		expect(existsSync(installPath)).toBe(false);
 	});
 
 	it("uninstalls MCP marketplace entries from Cline MCP settings", async () => {

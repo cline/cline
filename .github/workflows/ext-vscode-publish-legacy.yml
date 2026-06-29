@@ -1,0 +1,294 @@
+name: ext-vscode-publish-legacy
+
+# Publishes the legacy (pre-SDK-migration) VS Code extension from the
+# `legacy-extension` branch. This branch holds the npm-based 3.89.x codebase,
+# rolled forward under a 4.0.x version so existing 4.0.0 users still receive
+# the update. The main `ext-vscode-publish-stable.yml` workflow (bun-based)
+# stays the path for releasing main once the SDK migration is solid.
+#
+# This workflow lives on and is dispatched from `main` (so it satisfies the
+# default-branch dispatch requirement), but it checks out and builds the
+# `legacy-extension` branch.
+
+on:
+    workflow_dispatch:
+        inputs:
+            release-type:
+                description: "Choose release type (release or pre-release)"
+                required: true
+                default: "release"
+                type: choice
+                options:
+                    - pre-release
+                    - release
+            branch:
+                description: "Branch holding the legacy extension code"
+                required: true
+                default: "legacy-extension"
+                type: string
+
+permissions:
+    contents: write
+    packages: write
+    checks: write
+    pull-requests: write
+
+concurrency:
+    group: ext-vscode-publish-legacy-${{ github.event.inputs.branch }}
+    cancel-in-progress: false
+
+jobs:
+    # Gate the publish on the legacy branch's own npm-based test suite. We can't
+    # reuse ./.github/workflows/ext-vscode-test.yml here — on main that's the
+    # bun-based suite and it would test main, not the legacy branch — so the
+    # essential quality + test steps are inlined against the checked-out legacy
+    # branch.
+    test:
+        name: Test Legacy Extension
+        runs-on: ubuntu-latest
+        defaults:
+          run:
+            working-directory: apps/vscode
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  ref: ${{ github.event.inputs.branch }}
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+                  cache: 'npm'
+                  cache-dependency-path: |
+                      apps/vscode/package-lock.json
+                      apps/vscode/webview-ui/package-lock.json
+
+            - name: Install extension dependencies
+              working-directory: ${{ github.workspace }}
+              run: npm --prefix apps/vscode ci
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Install webview-ui dependencies
+              working-directory: ${{ github.workspace }}
+              run: npm --prefix apps/vscode/webview-ui ci
+
+            - name: Run Quality Checks (lint + typecheck)
+              run: npm run ci:check-all
+
+            - name: Build Tests and Extension
+              id: build_step
+              run: npm run ci:build
+
+            - name: Unit Tests
+              if: ${{ !cancelled() && steps.build_step.outcome == 'success' }}
+              run: npm run test:unit
+
+            - name: Extension Integration Tests
+              if: ${{ !cancelled() && steps.build_step.outcome == 'success' }}
+              run: xvfb-run -a npm run test:coverage
+
+            - name: Webview Tests
+              if: ${{ !cancelled() && steps.build_step.outcome == 'success' }}
+              run: |
+                  cd webview-ui
+                  npm run test:coverage
+
+    publish:
+        needs: test
+        name: Publish Legacy Extension
+        runs-on: ubuntu-latest
+        environment: publish
+        defaults:
+          run:
+            working-directory: apps/vscode
+
+        steps:
+            # Check out the legacy branch (NOT main). fetch-depth: 0 + tags so we
+            # can create/push the release tag and compute the previous tag.
+            - uses: actions/checkout@v4
+              with:
+                  ref: ${{ github.event.inputs.branch }}
+                  fetch-depth: 0
+                  fetch-tags: true
+                  lfs: true
+
+            - name: Resolve Release Tag
+              id: resolve_tag
+              working-directory: ${{ github.workspace }}
+              env:
+                  BRANCH: ${{ github.event.inputs.branch }}
+              run: |
+                  # Tag is derived from the package version on the legacy branch.
+                  VERSION=$(node -p "require('./apps/vscode/package.json').version")
+                  TAG="v$VERSION"
+
+                  if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.]+)?$ ]]; then
+                    echo "Error: derived tag '$TAG' does not match vX.Y.Z"
+                    exit 1
+                  fi
+                  TAG_REF="refs/tags/$TAG"
+                  HEAD_SHA=$(git rev-parse HEAD)
+
+                  if git show-ref --verify --quiet "$TAG_REF"; then
+                    TAG_SHA=$(git rev-list -n 1 "$TAG_REF^{commit}")
+                    if [[ "$TAG_SHA" != "$HEAD_SHA" ]]; then
+                      echo "Error: tag '$TAG' already exists at $TAG_SHA, not at branch head ($HEAD_SHA)"
+                      exit 1
+                    fi
+                    echo "Tag '$TAG' already exists at branch head. Continuing."
+                  else
+                    git config user.name "github-actions[bot]"
+                    git config user.email "github-actions[bot]@users.noreply.github.com"
+                    git tag "$TAG" "$HEAD_SHA"
+                    git push origin "$TAG_REF"
+                    echo "Created and pushed tag '$TAG' from $BRANCH head $HEAD_SHA."
+                  fi
+
+                  echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+
+            - name: Install extension dependencies
+              working-directory: ${{ github.workspace }}
+              run: npm --prefix apps/vscode install --include=optional
+
+            - name: Install webview-ui dependencies
+              working-directory: ${{ github.workspace }}
+              run: npm --prefix apps/vscode/webview-ui install --include=optional
+
+            - name: Install Publishing Tools
+              run: npm install -g @vscode/vsce ovsx
+
+            - name: Get Version
+              id: get_version
+              run: |
+                  VERSION=$(node -p "require('./package.json').version")
+                  echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+            - name: Verify Tag Matches Package Version
+              run: |
+                  TAG="${{ steps.resolve_tag.outputs.tag }}"
+                  VERSION="v${{ steps.get_version.outputs.version }}"
+                  if [[ "$TAG" != "$VERSION" ]]; then
+                    echo "Error: tag '$TAG' does not match package version '$VERSION'"
+                    exit 1
+                  fi
+                  echo "Tag and package version match: $TAG"
+
+            - name: Verify Changelog Entry
+              working-directory: ${{ github.workspace }}
+              run: |
+                  EXPECTED_HEADING="## [${{ steps.get_version.outputs.version }}]"
+                  FIRST_HEADING=$(grep -m 1 '^## \[' CHANGELOG.md || true)
+                  if [[ "$FIRST_HEADING" != "$EXPECTED_HEADING" ]]; then
+                    echo "Error: CHANGELOG.md must start with '$EXPECTED_HEADING' before publishing."
+                    echo "Current first release heading: ${FIRST_HEADING:-<none>}"
+                    exit 1
+                  fi
+                  echo "Found changelog entry for ${{ steps.get_version.outputs.version }}"
+
+            - name: Verify Marketplace Tokens
+              env:
+                  VSCE_PAT: ${{ secrets.VSCE_PAT }}
+                  OVSX_PAT: ${{ secrets.OVSX_PAT }}
+              run: |
+                  if [[ -z "$VSCE_PAT" ]]; then
+                    echo "Error: VSCE_PAT is required to publish the stable VS Code extension."
+                    exit 1
+                  fi
+                  if [[ -z "$OVSX_PAT" ]]; then
+                    echo "Error: OVSX_PAT is required to publish the stable Open VSX extension."
+                    exit 1
+                  fi
+                  echo "Marketplace publish tokens are configured."
+
+            - name: Package and Publish Extension
+              env:
+                  VSCE_PAT: ${{ secrets.VSCE_PAT }}
+                  OVSX_PAT: ${{ secrets.OVSX_PAT }}
+                  CLINE_ENVIRONMENT: production
+                  TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
+                  ERROR_SERVICE_API_KEY: ${{ secrets.ERROR_SERVICE_API_KEY }}
+                  # OpenTelemetry production defaults (can be overridden at runtime)
+                  OTEL_TELEMETRY_ENABLED: ${{ secrets.OTEL_TELEMETRY_ENABLED }}
+                  OTEL_LOGS_EXPORTER: otlp
+                  OTEL_METRICS_EXPORTER: otlp
+                  OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
+                  OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
+                  OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
+                  RELEASE_TYPE: ${{ github.event.inputs.release-type }}
+              run: |
+                  # Swap README.marketplace.md into README.md so both the GitHub
+                  # release artifact (vsce package below) and the marketplace
+                  # publish (npm run publish:marketplace below, which swaps
+                  # internally as an idempotent no-op) ship the same README.
+                  node scripts/marketplace-readme.mjs swap-in
+                  trap 'node scripts/marketplace-readme.mjs restore' EXIT
+
+                  # Required to generate the .vsix
+                  vsce package --allow-package-secrets sendgrid --out "cline-${{ steps.get_version.outputs.version }}.vsix"
+
+                  if [ "$RELEASE_TYPE" = "pre-release" ]; then
+                    npm run publish:marketplace:prerelease
+                    echo "Successfully published pre-release version ${{ steps.get_version.outputs.version }} to VS Code Marketplace and Open VSX Registry"
+                  else
+                    npm run publish:marketplace
+                    echo "Successfully published release version ${{ steps.get_version.outputs.version }} to VS Code Marketplace and Open VSX Registry"
+                  fi
+
+            - name: Get Previous Tag
+              id: prev_tag
+              working-directory: ${{ github.workspace }}
+              run: |
+                  CURRENT_TAG="${{ steps.resolve_tag.outputs.tag }}"
+                  PREV_TAG=$(git describe --tags --abbrev=0 "$CURRENT_TAG^" 2>/dev/null || echo "")
+                  echo "prev_tag=$PREV_TAG" >> $GITHUB_OUTPUT
+
+            - name: Get Changelog Entry
+              id: changelog
+              working-directory: ${{ github.workspace }}
+              run: |
+                  # Get content between first ## [ and second ## [
+                  CONTENT=$(awk '/^## \[/{if(found) exit; found=1; next} found{print}' CHANGELOG.md)
+                  echo "content<<EOF" >> $GITHUB_OUTPUT
+                  echo "$CONTENT" >> $GITHUB_OUTPUT
+                  echo "EOF" >> $GITHUB_OUTPUT
+
+            - name: Create GitHub Release
+              uses: softprops/action-gh-release@v1
+              with:
+                  tag_name: ${{ steps.resolve_tag.outputs.tag }}
+                  files: "apps/vscode/*.vsix"
+                  body: |
+                      ${{ steps.changelog.outputs.content }}
+
+                      **Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ steps.prev_tag.outputs.prev_tag }}...${{ steps.resolve_tag.outputs.tag }}
+                  prerelease: ${{ github.event.inputs.release-type == 'pre-release' }}
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Post release to Slack
+              uses: slackapi/slack-github-action@v3.0.1
+              with:
+                  method: chat.postMessage
+                  token: ${{ secrets.SLACK_RELEASE_BOT_TOKEN }}
+                  payload: |
+                    channel: "C0APVKGGZFC"
+                    text: "Cline ${{ steps.resolve_tag.outputs.tag }} (legacy)"
+                    blocks:
+                      - type: "section"
+                        text:
+                          type: "mrkdwn"
+                          text: "*Cline ${{ steps.resolve_tag.outputs.tag }} (legacy)*"
+                      - type: "section"
+                        text:
+                          type: "mrkdwn"
+                          text: ${{ toJSON(steps.changelog.outputs.content) }}
+                      - type: "context"
+                        elements:
+                          - type: "mrkdwn"
+                            text: "Full Changelog: https://github.com/${{ github.repository }}/compare/${{ steps.prev_tag.outputs.prev_tag }}...${{ steps.resolve_tag.outputs.tag }}"
