@@ -71,7 +71,7 @@ export function getClineCliMigrationNotice(
 	}
 	return {
 		id: NOTICE_ID,
-		title: "Try Cline Pass",
+		title: "Try ClinePass",
 	};
 }
 

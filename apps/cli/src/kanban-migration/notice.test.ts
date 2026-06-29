@@ -32,7 +32,7 @@ describe("migration notice", () => {
 	it("returns the notice for a fresh data dir", () => {
 		const dataDir = createTempDataDir();
 
-		expect(getClineCliMigrationNotice(dataDir)?.title).toBe("Try Cline Pass");
+		expect(getClineCliMigrationNotice(dataDir)?.title).toBe("Try ClinePass");
 	});
 
 	it("shows when only the old Kanban notice was marked as shown", () => {
