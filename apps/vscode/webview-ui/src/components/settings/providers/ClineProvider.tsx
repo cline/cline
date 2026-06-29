@@ -84,14 +84,9 @@ export const ClineProvider = ({
 						{activeRoute === "cline" && <ClineAccountInfoCard />}
 						{activeRoute === "cline-pass" && (
 							clinePassSubscribeUrl ? (
-								<>
-									<VSCodeButtonLink appearance="secondary" href={clinePassSubscribeUrl}>
-										Manage ClinePass
-									</VSCodeButtonLink>
-									<VSCodeButtonLink appearance="secondary" href={clinePassSubscribeUrl}>
-										View Billing & Usage
-									</VSCodeButtonLink>
-								</>
+								<VSCodeButtonLink appearance="secondary" href={clinePassSubscribeUrl}>
+									Manage ClinePass or See Usage
+								</VSCodeButtonLink>
 							) : (
 								<ClineAccountInfoCard />
 							)
