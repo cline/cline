@@ -2,10 +2,8 @@ import { AskResponseRequest } from "@shared/proto/cline/task"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import React, { useEffect, useMemo, useState } from "react"
 import VSCodeButtonLink from "@/components/common/VSCodeButtonLink"
-import { CLINE_PASS_FEATURE_FLAG } from "@/constants/featureFlags"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { useHasFeatureFlag } from "@/hooks/useFeatureFlag"
 import { AccountServiceClient, TaskServiceClient } from "@/services/grpc-client"
 import { useApiConfigurationHandlers } from "../settings/utils/useApiConfigurationHandlers"
 
@@ -32,7 +30,6 @@ const CreditLimitError: React.FC<CreditLimitErrorProps> = ({
 	const { activeOrganization } = useClineAuth()
 	const { mode, navigateToSettings } = useExtensionState()
 	const { handleModeFieldChange } = useApiConfigurationHandlers()
-	const isClinePassEnabled = useHasFeatureFlag(CLINE_PASS_FEATURE_FLAG)
 	const [fullBuyCreditsUrl, setFullBuyCreditsUrl] = useState<string>("")
 	const [isSwitchingToClinePass, setIsSwitchingToClinePass] = useState(false)
 	const [didSwitchToClinePass, setDidSwitchToClinePass] = useState(false)
@@ -88,25 +85,23 @@ const CreditLimitError: React.FC<CreditLimitErrorProps> = ({
 				</div>
 			</div>
 
-			{isClinePassEnabled && (
-				<div className="mb-2">
-					<div className="text-(--vscode-descriptionForeground) text-xs mb-2">
-						Trying to use ClinePass instead of credits?
-					</div>
-					<VSCodeButton
-						appearance="secondary"
-						className="w-full"
-						disabled={isSwitchingToClinePass || didSwitchToClinePass}
-						onClick={handleSwitchToClinePass}>
-						<span className="codicon codicon-arrow-swap mr-1.5" />
-						{isSwitchingToClinePass
-							? "Switching..."
-							: didSwitchToClinePass
-								? "Switched to ClinePass"
-								: "Switch to ClinePass"}
-					</VSCodeButton>
+			<div className="mb-2">
+				<div className="text-(--vscode-descriptionForeground) text-xs mb-2">
+					Trying to use ClinePass instead of credits?
 				</div>
-			)}
+				<VSCodeButton
+					appearance="secondary"
+					className="w-full"
+					disabled={isSwitchingToClinePass || didSwitchToClinePass}
+					onClick={handleSwitchToClinePass}>
+					<span className="codicon codicon-arrow-swap mr-1.5" />
+					{isSwitchingToClinePass
+						? "Switching..."
+						: didSwitchToClinePass
+							? "Switched to ClinePass"
+							: "Switch to ClinePass"}
+				</VSCodeButton>
+			</div>
 
 			<VSCodeButtonLink className="w-full mb-2" href={fullBuyCreditsUrl}>
 				<span className="codicon codicon-credit-card mr-[6px] text-[14px]" />

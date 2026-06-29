@@ -4,9 +4,7 @@ import { EmptyRequest } from "@shared/proto/cline/common"
 import type { ClineRecommendedModel } from "@shared/proto/cline/models"
 import type { OnboardingModel, OnboardingModelGroup } from "@shared/proto/cline/state"
 import { useEffect, useMemo, useState } from "react"
-import { CLINE_PASS_FEATURE_FLAG } from "@/constants/featureFlags"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { useHasFeatureFlag } from "@/hooks/useFeatureFlag"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { CLINEPASS_GROUP, getRecommendedModelsData, type RecommendedModelsData } from "./data-models"
 
@@ -51,7 +49,6 @@ type FetchState = { status: "loading" } | { status: "success"; data: Recommended
 
 export function useOnboardingModels(): UseOnboardingModelsResult {
 	const { openRouterModels, clineModels, refreshClineModels } = useExtensionState()
-	const isClinePassEnabled = useHasFeatureFlag(CLINE_PASS_FEATURE_FLAG)
 	const [fetchState, setFetchState] = useState<FetchState>({ status: "loading" })
 
 	useEffect(() => {
@@ -61,7 +58,7 @@ export function useOnboardingModels(): UseOnboardingModelsResult {
 			try {
 				const response = await ModelsServiceClient.refreshClineRecommendedModelsRpc(EmptyRequest.create({}))
 				if (!cancelled) {
-					const data = getRecommendedModelsData(response, isClinePassEnabled)
+					const data = getRecommendedModelsData(response, true)
 					if (!data) {
 						setFetchState({ status: "empty" })
 					} else {
@@ -80,7 +77,7 @@ export function useOnboardingModels(): UseOnboardingModelsResult {
 		return () => {
 			cancelled = true
 		}
-	}, [isClinePassEnabled])
+	}, [])
 
 	useEffect(() => {
 		refreshClineModels()

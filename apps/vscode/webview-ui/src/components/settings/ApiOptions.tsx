@@ -9,9 +9,7 @@ import styled from "styled-components"
 import { normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
-import { CLINE_PASS_FEATURE_FLAG } from "@/constants/featureFlags"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { useHasFeatureFlag } from "@/hooks/useFeatureFlag"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
 import { AIhubmixProvider } from "./providers/AihubmixProvider"
@@ -101,9 +99,8 @@ const ApiOptions = ({
 }: ApiOptionsProps) => {
 	// Use full context state for immediate save payload
 	const { apiConfiguration, remoteConfigSettings } = useExtensionState()
-	const isClinePassEnabled = useHasFeatureFlag(CLINE_PASS_FEATURE_FLAG)
 
-	const { selectedProvider } = normalizeApiConfiguration(apiConfiguration, currentMode, { isClinePassEnabled })
+	const { selectedProvider } = normalizeApiConfiguration(apiConfiguration, currentMode, { isClinePassEnabled: true })
 
 	const { handleModeFieldChange } = useApiConfigurationHandlers()
 
@@ -144,9 +141,6 @@ const ApiOptions = ({
 
 	const providerOptions = useMemo(() => {
 		let providers = PROVIDERS.list
-		if (!isClinePassEnabled) {
-			providers = providers.filter((option) => option.value !== "cline-pass")
-		}
 		// Filter by platform
 		if (PLATFORM_CONFIG.type !== PlatformType.VSCODE) {
 			// Don't include VS Code LM API for non-VSCode platforms
@@ -157,14 +151,14 @@ const ApiOptions = ({
 		const remoteProviders: string[] = remoteConfigSettings?.remoteConfiguredProviders || []
 		if (remoteProviders.length > 0) {
 			const effectiveRemoteProviders =
-				isClinePassEnabled && remoteProviders.includes("cline-pass") && !remoteProviders.includes("cline")
+				remoteProviders.includes("cline-pass") && !remoteProviders.includes("cline")
 					? [...remoteProviders, "cline"]
 					: remoteProviders
 			providers = providers.filter((option) => effectiveRemoteProviders.includes(option.value))
 		}
 
 		return providers
-	}, [isClinePassEnabled, remoteConfigSettings])
+	}, [remoteConfigSettings])
 
 	const getProviderDisplayLabel = useCallback((option: (typeof PROVIDERS.list)[number]) => {
 		return option.value === "cline" ? "Cline Usage-Billing" : option.label
@@ -380,11 +374,11 @@ const ApiOptions = ({
 				<HicapProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
-			{apiConfiguration && (selectedProvider === "cline" || (isClinePassEnabled && selectedProvider === "cline-pass")) && (
+			{apiConfiguration && (selectedProvider === "cline" || selectedProvider === "cline-pass") && (
 				<ClineProvider
 					currentMode={currentMode}
 					initialModelTab={initialModelTab}
-					isClinePassEnabled={isClinePassEnabled}
+					isClinePassEnabled={true}
 					isPopup={isPopup}
 					selectedProvider={selectedProvider}
 					showModelOptions={showModelOptions}
