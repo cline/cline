@@ -1,6 +1,6 @@
 import { UpdateTerminalConnectionTimeoutResponse } from "@shared/proto/index.cline"
 import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import React, { useRef, useState } from "react"
+import React, { useState } from "react"
 import { PlatformType } from "@/config/platform.config"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { usePlatform } from "@/context/PlatformContext"
@@ -24,13 +24,6 @@ const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = ({ rende
 	const isVsCodePlatform = platformConfig.type === PlatformType.VSCODE
 	const executionMode = vscodeTerminalExecutionMode ?? "backgroundExec"
 	const isBackgroundExec = executionMode === "backgroundExec"
-	// The reuse checkbox is bound to `!isBackgroundExec && saved`, so switching to
-	// background flips its `checked` prop programmatically. FAST's checkbox emits a
-	// real `change` event on that flip, and the React wrapper sets `checked` before
-	// re-binding `onChange`, so the handler can run with a stale closure. Read the
-	// latest mode from a ref to reliably ignore those programmatic events.
-	const isBackgroundExecRef = useRef(isBackgroundExec)
-	isBackgroundExecRef.current = isBackgroundExec
 
 	const [inputValue, setInputValue] = useState((shellIntegrationTimeout / 1000).toString())
 	const [inputError, setInputError] = useState<string | null>(null)
@@ -72,13 +65,6 @@ const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = ({ rende
 	}
 
 	const handleTerminalReuseChange = (event: Event) => {
-		// Ignore the spurious `change` the checkbox emits when its `checked` prop is
-		// flipped programmatically on switching to background mode (see ref comment
-		// above). Use the ref, not the captured `isBackgroundExec`, because the event
-		// can be handled by a stale render's closure.
-		if (isBackgroundExecRef.current) {
-			return
-		}
 		const target = event.target as HTMLInputElement
 		const checked = target.checked
 		updateSetting("terminalReuseEnabled", checked)
@@ -106,52 +92,33 @@ const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = ({ rende
 			{renderSectionHeader("terminal")}
 			<Section>
 				<div className="mb-5" id="terminal-settings-section">
-					<div className="mb-4">
-						<label className="font-medium block mb-1" htmlFor="default-terminal-profile">
-							Default Terminal Profile
-						</label>
-						<VSCodeDropdown
-							className="w-full"
-							id="default-terminal-profile"
-							onChange={handleDefaultTerminalProfileChange}
-							value={defaultTerminalProfile || "default"}>
-							{profilesToShow.map((profile) => (
-								<VSCodeOption key={profile.id} title={profile.description} value={profile.id}>
-									{profile.name}
-								</VSCodeOption>
-							))}
-						</VSCodeDropdown>
-						<p className="text-xs text-(--vscode-descriptionForeground) mt-1">
-							Select the default terminal Cline will use. 'Default' uses your VSCode global setting.
-						</p>
-					</div>
-
 					{isVsCodePlatform && (
-						<>
-							<div className="mb-4">
-								<label className="font-medium block mb-1" htmlFor="terminal-execution-mode">
-									Terminal Execution Mode
-								</label>
-								<VSCodeDropdown
-									className="w-full"
-									id="terminal-execution-mode"
-									onChange={(event) => handleExecutionModeChange(event as Event)}
-									value={executionMode}>
-									<VSCodeOption value="vscodeTerminal">VS Code Terminal</VSCodeOption>
-									<VSCodeOption value="backgroundExec">Background Exec</VSCodeOption>
-								</VSCodeDropdown>
-								<p className="text-xs text-[var(--vscode-descriptionForeground)] mt-1">
-									Choose whether Cline runs commands in the VS Code terminal or a background process.
-								</p>
-							</div>
+						<div className="mb-4">
+							<label className="font-medium block mb-1" htmlFor="terminal-execution-mode">
+								Terminal Execution Mode
+							</label>
+							<VSCodeDropdown
+								className="w-full"
+								id="terminal-execution-mode"
+								onChange={(event) => handleExecutionModeChange(event as Event)}
+								value={executionMode}>
+								<VSCodeOption value="vscodeTerminal">VS Code Terminal</VSCodeOption>
+								<VSCodeOption value="backgroundExec">Background Exec</VSCodeOption>
+							</VSCodeDropdown>
+							<p className="text-xs text-[var(--vscode-descriptionForeground)] mt-1">
+								Choose whether Cline runs commands in the VS Code terminal or a background process.
+							</p>
+						</div>
+					)}
 
+					{isVsCodePlatform && !isBackgroundExec && (
+						<>
 							<div className="mb-4">
 								<div className="mb-2">
 									<label className="font-medium block mb-1">Shell integration timeout (seconds)</label>
 									<div className="flex items-center">
 										<VSCodeTextField
 											className="w-full"
-											disabled={isBackgroundExec}
 											onBlur={handleInputBlur}
 											onChange={(event) => handleTimeoutChange(event as Event)}
 											placeholder="Enter timeout in seconds"
@@ -165,15 +132,13 @@ const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = ({ rende
 								<p className="text-xs text-(--vscode-descriptionForeground)">
 									Set how long Cline waits for shell integration to activate before executing commands. Increase
 									this value if you experience terminal connection timeouts.
-									{isBackgroundExec && " Only applies when using the VS Code terminal execution mode."}
 								</p>
 							</div>
 
 							<div className="mb-4">
 								<div className="flex items-center mb-2">
 									<VSCodeCheckbox
-										checked={!isBackgroundExec && (terminalReuseEnabled ?? true)}
-										disabled={isBackgroundExec}
+										checked={terminalReuseEnabled ?? true}
 										onChange={(event) => handleTerminalReuseChange(event as Event)}>
 										Enable aggressive terminal reuse
 									</VSCodeCheckbox>
@@ -181,10 +146,31 @@ const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = ({ rende
 								<p className="text-xs text-(--vscode-descriptionForeground)">
 									When enabled, Cline will reuse existing terminal windows that aren't in the current working
 									directory. Disable this if you experience issues with task lockout after a terminal command.
-									{isBackgroundExec && " Only applies when using the VS Code terminal execution mode."}
 								</p>
 							</div>
 						</>
+					)}
+
+					{(!isVsCodePlatform || isBackgroundExec) && (
+						<div className="mb-4">
+							<label className="font-medium block mb-1" htmlFor="default-terminal-profile">
+								Default Terminal Profile
+							</label>
+							<VSCodeDropdown
+								className="w-full"
+								id="default-terminal-profile"
+								onChange={handleDefaultTerminalProfileChange}
+								value={defaultTerminalProfile || "default"}>
+								{profilesToShow.map((profile) => (
+									<VSCodeOption key={profile.id} title={profile.description} value={profile.id}>
+										{profile.name}
+									</VSCodeOption>
+								))}
+							</VSCodeDropdown>
+							<p className="text-xs text-(--vscode-descriptionForeground) mt-1">
+								Select the default terminal Cline will use. 'Default' uses your VSCode global setting.
+							</p>
+						</div>
 					)}
 					<div className="mt-5 p-3 bg-(--vscode-textBlockQuote-background) rounded border border-(--vscode-textBlockQuote-border)">
 						<p className="text-[13px] m-0">
