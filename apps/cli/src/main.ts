@@ -1182,7 +1182,9 @@ export async function runCli(): Promise<void> {
 			if (!launchConfigView && process.stdin.isTTY && process.stdout.isTTY) {
 				const { getClineCliMigrationNotice, markClineCliMigrationNoticeShown } =
 					await import("./kanban-migration/notice");
-				initialNotice = getClineCliMigrationNotice();
+				initialNotice = getClineCliMigrationNotice(undefined, process.env, {
+					activeProviderId: provider,
+				});
 				if (initialNotice) {
 					markInitialNoticeShown = () => {
 						markClineCliMigrationNoticeShown();
