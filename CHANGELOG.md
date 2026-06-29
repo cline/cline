@@ -1,5 +1,11 @@
 # Changelog
 
+## [4.0.3]
+
+### Changed
+
+- Enable the ClinePass provider for all users by removing the feature-flag gate that previously fell back to the standard Cline provider.
+
 ## [4.0.2]
 
 ### Added
