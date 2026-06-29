@@ -7,9 +7,7 @@ import {
 	resolveClinePassModelInfo,
 } from "@shared/api"
 import { Mode } from "@shared/storage/types"
-import { featureFlagsService } from "@/services/feature-flags"
 import { ClineStorageMessage } from "@/shared/messages/content"
-import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
 import { Logger } from "@/shared/services/Logger"
 import { ClineTool } from "@/shared/tools"
 import { AIhubmixHandler } from "./providers/aihubmix"
@@ -87,10 +85,7 @@ function createHandlerForProvider(
 	options: Omit<ApiConfiguration, "apiProvider">,
 	mode: Mode,
 ): ApiHandler {
-	const effectiveApiProvider =
-		apiProvider === "cline-pass" && !featureFlagsService.getBooleanFlagEnabled(FeatureFlag.CLINE_PASS) ? "cline" : apiProvider
-
-	switch (effectiveApiProvider) {
+	switch (apiProvider) {
 		case "anthropic":
 			return new AnthropicHandler({
 				onRetryAttempt: options.onRetryAttempt,
@@ -302,7 +297,9 @@ function createHandlerForProvider(
 				: clinePassDefaultModelId
 			const clineModelInfo = resolveClinePassModelInfo(
 				clineModelId,
-				configuredClinePassModelInfo ? buildModelInfoNameMap({ [clineModelId]: configuredClinePassModelInfo }) : undefined,
+				configuredClinePassModelInfo
+					? buildModelInfoNameMap({ [clineModelId]: configuredClinePassModelInfo })
+					: undefined,
 			)
 			return new ClineHandler({
 				onRetryAttempt: options.onRetryAttempt,
