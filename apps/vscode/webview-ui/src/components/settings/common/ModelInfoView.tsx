@@ -1,5 +1,4 @@
 import { geminiModels, ModelInfo } from "@shared/api"
-import { isClinePassModel } from "@shared/utils/reasoning-support"
 import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useState } from "react"
 import styled from "styled-components"
@@ -190,7 +189,7 @@ export const ModelInfoView = ({
 	const [advancedExpanded, setAdvancedExpanded] = useState(false)
 
 	const isGemini = Object.keys(geminiModels).includes(selectedModelId)
-	const hidePricing = isClinePassModel(selectedModelId)
+	const hidePricing = selectedModelId.trim().toLowerCase().startsWith("cline-pass/")
 	const hasThinkingConfig = hasThinkingBudget(modelInfo)
 	const hasTiers = !hidePricing && !!modelInfo.tiers && modelInfo.tiers.length > 0
 
