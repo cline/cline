@@ -1,15 +1,13 @@
 /**
  * Early SDK logger for components that operate before/outside of `ClineCore`
- * sessions.
+ * sessions, plus a secret-hashing helper for credential diagnostics.
  *
  * `ClineCore.create({ logger })` receives a `BasicLogger` but it is only
- * threaded to session-scoped components. Several components —
- * `ProviderSettingsManager`, `RuntimeOAuthTokenManager`, and the Cline auth
- * functions in `cline.ts` — are constructed or called before `ClineCore`
- * exists or outside a session lifecycle.
- * This module-level logger bridges that gap: hosts call `setSdkLogger()` once
- * at startup and every early component picks it up without threading loggers
- * through every constructor.
+ * threaded to session-scoped components. `ProviderSettingsManager`,
+ * `RuntimeOAuthTokenManager`, and the Cline auth functions in `cline.ts` are
+ * constructed or called before `ClineCore` exists or outside a session.
+ * Hosts call `setSdkLogger()` once at startup and every early component picks
+ * it up without threading loggers through every constructor.
  *
  * When no logger is registered, every call is a no-op.
  *
@@ -49,15 +47,13 @@ export function hashSecret(value: unknown): string {
 }
 
 /**
- * Emit a debug-level SDK diagnostic event. Best-effort: swallows errors from
- * the underlying logger so logging never breaks auth/storage flows.
+ * Emit a debug-level SDK diagnostic message (already a formatted string).
+ * Best-effort: swallows errors from the underlying logger so logging never
+ * breaks auth/storage flows.
  */
-export function sdkDebug(
-	message: string,
-	metadata?: Record<string, unknown>,
-): void {
+export function sdkDebug(message: string): void {
 	try {
-		earlyLogger?.debug(message, metadata);
+		earlyLogger?.debug(message);
 	} catch {
 		// Never let logging break the app.
 	}

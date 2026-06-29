@@ -101,13 +101,9 @@ export class ProviderSettingsManager {
 			if (result.success) {
 				registerConfiguredProvidersFromSettings(result.data);
 				const clineAuth = result.data.providers["cline"]?.settings?.auth;
-				sdkDebug("providers.read", {
-					providers: Object.keys(result.data.providers),
-					lastUsed: result.data.lastUsedProvider,
-					clineAuthPresent: !!clineAuth?.accessToken,
-					clineAccessTokenHash: hashSecret(clineAuth?.accessToken),
-					clineRefreshTokenHash: hashSecret(clineAuth?.refreshToken),
-				});
+				sdkDebug(
+					`providers.read providers=[${Object.keys(result.data.providers).join(",")}] lastUsed=${result.data.lastUsedProvider ?? "none"} clineAuthPresent=${!!clineAuth?.accessToken} clineAccessTokenHash=${hashSecret(clineAuth?.accessToken)} clineRefreshTokenHash=${hashSecret(clineAuth?.refreshToken)}`,
+				);
 				return result.data;
 			}
 		} catch {
@@ -170,13 +166,9 @@ export class ProviderSettingsManager {
 				: next.providers["cline"]?.settings?.auth;
 		const authDropped =
 			!!prevClineAuth?.accessToken && !nextClineAuth?.accessToken;
-		sdkDebug("providers.save", {
-			providerId,
-			tokenSource,
-			clineAuthWasPresent: !!prevClineAuth?.accessToken,
-			clineAuthIsPresent: !!nextClineAuth?.accessToken,
-			authDropped,
-		});
+		sdkDebug(
+			`providers.save providerId=${providerId} tokenSource=${tokenSource} clineAuthWasPresent=${!!prevClineAuth?.accessToken} clineAuthIsPresent=${!!nextClineAuth?.accessToken} authDropped=${authDropped}`,
+		);
 		return next;
 	}
 
