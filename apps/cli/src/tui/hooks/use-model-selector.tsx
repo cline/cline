@@ -19,6 +19,7 @@ import type { Config } from "../../utils/types";
 import { withLoadingDialog } from "../components/dialogs/loading-dialog";
 import {
 	ClinePassSubscriptionContent,
+	ClineUsageBillingContent,
 	CodexCliStatusContent,
 	type ExistingProviderOption,
 	OAuthLoginContent,
@@ -91,14 +92,30 @@ function providerToExistingProviderOptions(input: {
 
 	return [
 		{
-			value: "open_subscription",
-			label: "See billing and usage",
+			value: "open_subscription_page",
+			label: "Open subscription page",
 			onSelect: async () => {
 				await input.dialog.choice<boolean>({
 					style: { maxHeight: input.termHeight - 2 },
 					closeOnEscape: false,
 					content: (ctx: ChoiceContext<boolean>) => (
 						<ClinePassSubscriptionContent
+							{...ctx}
+							providerName={input.providerName}
+						/>
+					),
+				});
+			},
+		},
+		{
+			value: "open_usage_billing",
+			label: "See usage and billing",
+			onSelect: async () => {
+				await input.dialog.choice<boolean>({
+					style: { maxHeight: input.termHeight - 2 },
+					closeOnEscape: false,
+					content: (ctx: ChoiceContext<boolean>) => (
+						<ClineUsageBillingContent
 							{...ctx}
 							providerName={input.providerName}
 						/>
