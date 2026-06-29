@@ -1,14 +1,14 @@
 ---
 title: "Local models"
 sidebarTitle: "Local models"
-description: "Run Cline with local models using Ollama or LM Studio."
+description: "Run Cline with local models using Ollama, LM Studio, or Atomic Chat."
 ---
 
 Run Cline with local inference on your machine.
 
 ## Quick Start
 
-1. Install a local runtime (**Ollama** or **LM Studio**)
+1. Install a local runtime (**Ollama**, **LM Studio** or **Atomic Chat**)
 2. Start the local server
 3. In Cline Settings, select the matching provider
 4. Select a local model
@@ -80,6 +80,30 @@ Run Cline with local inference on your machine.
     - Ensure LM Studio server is running
     - Ensure a model is loaded
     - If connection fails, verify `http://localhost:1234`
+  </Tab>
+
+  <Tab title="Atomic Chat">
+    ### 1) Install
+    - Download from [atomic.chat](https://atomic.chat) (macOS Apple Silicon)
+    - Or build from [AtomicBot-ai/Atomic-Chat](https://github.com/AtomicBot-ai/Atomic-Chat)
+
+    ### 2) Load a model
+    - Open Atomic Chat and download or load a local model from the catalog
+
+    ### 3) Start the local API
+    - Atomic Chat exposes an OpenAI-compatible server at `http://127.0.0.1:1337/v1` by default
+    - List loaded models: `curl http://127.0.0.1:1337/v1/models`
+
+    ### 4) Configure Cline
+    1. Open Cline Settings
+    2. Select provider: **Atomic Chat**
+    3. Base URL: `http://127.0.0.1:1337/v1` (default)
+    4. Select your model from the dropdown
+
+    ### 5) Troubleshooting
+    - Make sure Atomic Chat is running before sending prompts
+    - If connection fails, verify `http://127.0.0.1:1337/v1/models`
+    - If the model list is empty, load a model in Atomic Chat first
   </Tab>
 </Tabs>
 
