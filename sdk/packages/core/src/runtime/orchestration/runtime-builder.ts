@@ -693,9 +693,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					return undefined;
 				}
 			: undefined;
-		// Nudge the model once per run when it narrates an action in Act mode
-		// but stops without calling any tool. Excluded for plan mode (plan-only
-		// prose is legitimate) and yolo (already gated by requireCompletionTool).
+		// Act-only guard for "narrated action, no tool call" stalls.
 		const actionFollowThroughGuard =
 			normalized.mode === "act"
 				? createActionFollowThroughGuard()

@@ -413,8 +413,7 @@ export class AgentRuntime {
 	};
 	private initialization?: Promise<void>;
 	private actionFollowThroughGuardFired = false;
-	// Set on the turn the action-follow-through guard fires; checked on the next
-	// turn to record whether the model actually followed through with a tool call.
+	// Tracks the turn after a nudge so telemetry can record the outcome.
 	private actionFollowThroughGuardPending = false;
 	private abortController?: AbortController;
 
@@ -568,12 +567,8 @@ export class AgentRuntime {
 			messages.push(guardReminder);
 		}
 
-		// Action-follow-through guard. Only consult it when no stronger
-		// completion obligation already produced a reminder this turn, so the
-		// model never receives a "finish your obligations" nudge and a
-		// "follow through on your stated action" nudge stacked on the same turn.
-		// It also fires at most once per run so a model that keeps narrating
-		// without acting can never loop on it.
+		// Skip this heuristic if a stronger completion reminder already applies.
+		// It is capped to one fire per run to avoid nudge loops.
 		const actionGuard = this.config.completionPolicy?.actionFollowThroughGuard;
 		if (
 			actionGuard &&
@@ -674,9 +669,7 @@ export class AgentRuntime {
 						part.type === "tool-call",
 				);
 
-				// If the action-follow-through guard nudged on the previous turn,
-				// record whether the model actually followed through with a tool
-				// call this turn (success-rate signal).
+				// Outcome for the previous turn's action-follow-through nudge.
 				if (this.actionFollowThroughGuardPending) {
 					this.actionFollowThroughGuardPending = false;
 					captureAgentActionFollowThroughOutcome(this.config.telemetry, {
@@ -810,10 +803,7 @@ export class AgentRuntime {
 			}
 			return result;
 		} finally {
-			// If the action-follow-through guard fired but the run ended (completed,
-			// aborted, or errored) before a following assistant turn could be
-			// observed, record a terminal outcome so every `fired` event has a
-			// matching `outcome` event for analytics.
+			// Pair any nudge without a following turn with a terminal outcome.
 			if (this.actionFollowThroughGuardPending) {
 				this.actionFollowThroughGuardPending = false;
 				captureAgentActionFollowThroughOutcome(this.config.telemetry, {
