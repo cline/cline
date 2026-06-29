@@ -106,6 +106,16 @@ export function hasCustomProviderSettings(providerId: string): boolean {
 	return CUSTOM_PROVIDER_SETTINGS_IDS.has(providerId)
 }
 
+/**
+ * True when we ship a curated "generic" settings form for this provider id
+ * (presentation override or fallback name). Providers that are neither here nor
+ * in {@link hasCustomProviderSettings} are user-configured/custom and should use
+ * the richer OpenAI-compatible form instead.
+ */
+export function isKnownGenericProvider(providerId: string): boolean {
+	return providerId in GENERIC_PROVIDER_PRESENTATION_OVERRIDES || providerId in FALLBACK_GENERIC_PROVIDER_NAMES
+}
+
 export function isGenericProviderListing(listing: ProviderListing | undefined): listing is ProviderListing {
 	if (!listing) {
 		return false

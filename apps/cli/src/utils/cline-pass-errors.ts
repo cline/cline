@@ -1,4 +1,5 @@
 import {
+	type ClineSubscriptionPlan,
 	getClineOrgIndividualInferenceSubscriptionMessage,
 	isClineNotSubscribedError,
 	isClineNotSubscribedMessage,
@@ -8,19 +9,25 @@ import {
 
 import { getClineEnvironmentConfig } from "@cline/shared";
 
-export {
-	getClineOrgIndividualInferenceSubscriptionMessage,
-};
+export { getClineOrgIndividualInferenceSubscriptionMessage };
 
 export function getCliSubscriptionUrl(): string {
 	return `${new URL(
-		"/promo?code=CLI-100&personal=true",
+		"/promo?code=CLI-8OFF&personal=true",
 		getClineEnvironmentConfig().appBaseUrl,
 	).toString()}`;
 }
 
 export function getCliNotSubscribedMessage(): string {
 	return `No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: ${getCliSubscriptionUrl()}`;
+}
+
+export function getIndividualPlanFeatures(
+	plans: ClineSubscriptionPlan[],
+): string[] {
+	const planWithFeatures = plans.find((plan) => plan.interval === "Monthly");
+
+	return planWithFeatures?.features?.included ?? [];
 }
 
 function isFormattedClinePassSubscriptionMessage(message: string): boolean {

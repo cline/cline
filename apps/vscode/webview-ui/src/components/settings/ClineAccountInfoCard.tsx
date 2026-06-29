@@ -1,10 +1,12 @@
+import { StringRequest } from "@shared/proto/cline/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { useEffect, useState } from "react"
 import { ClineAuthStatus } from "@/components/account/ClineAuthStatus"
 import { useClineAuth, useClineSignIn } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { UiServiceClient } from "@/services/grpc-client"
 
-export const ClineAccountInfoCard = () => {
+export const ClineAccountInfoCard = ({ usageLink }: { usageLink?: string }) => {
 	const { clineUser } = useClineAuth()
 	const { navigateToAccount } = useExtensionState()
 	const { isLoginLoading, authStatusMessage, handleSignIn } = useClineSignIn()
@@ -24,7 +26,13 @@ export const ClineAccountInfoCard = () => {
 	}, [didStartLogin, navigateToAccount, user])
 
 	const handleShowAccount = () => {
-		navigateToAccount()
+		if (!usageLink) {
+			return navigateToAccount()
+		}
+
+		UiServiceClient.openUrl(StringRequest.create({ value: usageLink })).catch((err) => {
+			console.error("Failed to open usage link:", err)
+		})
 	}
 
 	return (

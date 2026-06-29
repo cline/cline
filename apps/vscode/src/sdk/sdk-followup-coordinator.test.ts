@@ -21,7 +21,12 @@ describe("SdkFollowupCoordinator", () => {
 
 		await coordinator.askResponse("yes", undefined, undefined, "yesButtonClicked")
 
-		expect(options.interactions.resolvePendingToolApproval).toHaveBeenCalledWith("yes", "yesButtonClicked")
+		expect(options.interactions.resolvePendingToolApproval).toHaveBeenCalledWith(
+			"yes",
+			"yesButtonClicked",
+			undefined,
+			undefined,
+		)
 		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
 	})
 
@@ -122,6 +127,8 @@ describe("SdkFollowupCoordinator", () => {
 		expect(options.interactions.resolvePendingToolApproval).toHaveBeenCalledWith(
 			"do the next thing after this",
 			"messageResponse",
+			undefined,
+			undefined,
 		)
 		expect(options.waitForPendingModeRebuild).not.toHaveBeenCalled()
 		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
@@ -204,7 +211,12 @@ describe("SdkFollowupCoordinator", () => {
 
 		await coordinator.askResponse("just give me an answer", undefined, undefined, "messageResponse")
 
-		expect(options.interactions.resolvePendingToolApproval).toHaveBeenCalledWith("just give me an answer", "messageResponse")
+		expect(options.interactions.resolvePendingToolApproval).toHaveBeenCalledWith(
+			"just give me an answer",
+			"messageResponse",
+			undefined,
+			undefined,
+		)
 		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
 		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
 			activeSession.sdkHost,

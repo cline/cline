@@ -125,6 +125,16 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 						throw error
 					}
 					messageSent = true
+				} else if (turnState?.phase === "awaiting_approval") {
+					await sendAskResponseWithPendingState(
+						AskResponseRequest.create({
+							responseType: "noButtonClicked",
+							text: messageToSend,
+							images,
+							files,
+						}),
+					)
+					messageSent = true
 				} else if (clineAsk) {
 					// For resume_task and resume_completed_task, use yesButtonClicked to match Resume button behavior
 					// This ensures Enter key and Resume button work identically
@@ -154,7 +164,16 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 							case "api_req_failed":
 							case "new_task":
 							case "condense":
-							case "report_bug":
+							case "report_bug": {
+								// Most askResponse sends need a temporary webview-only user bubble because the
+								// extension will not echo the user's message until later. Active follow-up
+								// questions are the exception: they are backed by the SDK's pending ask_question
+								// resolver. When the user types a freeform answer instead of clicking one of the
+								// option buttons, that resolver consumes the response before normal follow-up
+								// routing and immediately appends the real say:user_feedback row. If we also add
+								// an optimistic pending row here, the chat shows the same answer twice.
+								const showPendingMessage = clineAsk !== "followup" && turnState?.phase !== "streaming"
+
 								await sendAskResponseWithPendingState(
 									AskResponseRequest.create({
 										responseType: "messageResponse",
@@ -162,10 +181,11 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 										images,
 										files,
 									}),
-									{ showPendingMessage: turnState?.phase !== "streaming" },
+									{ showPendingMessage },
 								)
 								messageSent = true
 								break
+							}
 						}
 					}
 				} else if (messages.length > 0) {

@@ -12,6 +12,8 @@ option java_package = "bot.cline.proto";
 service TaskService {
   // Cancels the currently running task
   rpc cancelTask(EmptyRequest) returns (Empty);
+  // Cancels a queued prompt by ID
+  rpc cancelQueuedPrompt(StringRequest) returns (Empty);
   // Cancels the currently running background command
   rpc cancelBackgroundCommand(EmptyRequest) returns (Empty);
   // Clears the current task

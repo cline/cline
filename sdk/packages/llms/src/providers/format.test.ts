@@ -34,6 +34,17 @@ describe("extractErrorMessage", () => {
 		);
 	});
 
+	it("preserves native transport error wrappers and cause metadata", () => {
+		const socketError = Object.assign(new Error("other side closed"), {
+			name: "SocketError",
+			code: "UND_ERR_SOCKET",
+		});
+
+		expect(
+			extractErrorMessage(new TypeError("fetch failed", { cause: socketError })),
+		).toBe("fetch failed: SocketError: other side closed (UND_ERR_SOCKET)");
+	});
+
 	it("prefers nested stream error details over generic wrapper messages", () => {
 		expect(
 			extractErrorMessage({
@@ -75,7 +86,7 @@ describe("ClineNotSubscribedError", () => {
 	it("detects the formatted ClinePass subscription message regardless of URL", () => {
 		expect(
 			isClineNotSubscribedMessage(
-				"No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: https://staging-app.cline.bot/promo?code=CLI-100&personal=true",
+				"No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan: https://staging-app.cline.bot/promo?code=CLI-8OFF&personal=true",
 			),
 		).toBe(true);
 	});

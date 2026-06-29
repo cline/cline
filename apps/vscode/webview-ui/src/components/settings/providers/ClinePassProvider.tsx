@@ -1,6 +1,8 @@
 import type { ModelInfo } from "@shared/api"
 import { openAiModelInfoSafeDefaults } from "@shared/api"
 import { Mode } from "@shared/storage/types"
+import { buildClinePassSubscriptionPageUrl } from "@/components/onboarding/clinePassSubscribe"
+import { useClineAuth } from "@/context/ClineAuthContext"
 import { useProviderConfig } from "@/hooks/useProviderConfig"
 import { useProviderModelSelection } from "@/hooks/useProviderModelSelection"
 import { useProviderModels } from "@/hooks/useProviderModels"
@@ -44,6 +46,7 @@ export const ClinePassProvider = ({ showModelOptions, isPopup, currentMode }: Cl
 		commitSelection,
 		customModelInfo: clinePassFallbackModelInfo,
 	})
+	const { clineUser } = useClineAuth()
 
 	const handleModelSelect = (selection: ModelPickerSelection) => {
 		void commitModelSelection(selection).catch((err) => console.error("Failed to commit ClinePass model selection:", err))
@@ -52,7 +55,7 @@ export const ClinePassProvider = ({ showModelOptions, isPopup, currentMode }: Cl
 	return (
 		<div>
 			<div style={{ marginBottom: 14, marginTop: 4 }}>
-				<ClineAccountInfoCard />
+				<ClineAccountInfoCard usageLink={buildClinePassSubscriptionPageUrl(clineUser?.appBaseUrl)} />
 			</div>
 
 			{showModelOptions && (

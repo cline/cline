@@ -10,6 +10,7 @@ import {
 	useDialogState,
 } from "@opentui-ui/dialog/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { shouldSuppressClineCliMigrationNoticeForActiveProvider } from "../kanban-migration/notice";
 import { MigrationNoticeContent } from "../kanban-migration/notice-dialog";
 import type { RepoStatus } from "../utils/repo-status";
 import { readRepoStatus } from "../utils/repo-status";
@@ -541,10 +542,17 @@ function App(props: TuiProps) {
 
 	const notice = props.initialNotice;
 	const onInitialNoticeShown = props.onInitialNoticeShown;
+	const currentProviderId = props.config.providerId;
 	useEffect(() => {
 		if (!notice) return;
 		if (initialNoticeShownRef.current) return;
 		if (appView !== "home") return;
+		if (
+			shouldSuppressClineCliMigrationNoticeForActiveProvider(currentProviderId)
+		) {
+			initialNoticeShownRef.current = true;
+			return;
+		}
 
 		initialNoticeShownRef.current = true;
 		const timeout = setTimeout(() => {
@@ -560,7 +568,7 @@ function App(props: TuiProps) {
 				});
 		}, 0);
 		return () => clearTimeout(timeout);
-	}, [appView, dialog, notice, onInitialNoticeShown]);
+	}, [appView, currentProviderId, dialog, notice, onInitialNoticeShown]);
 
 	const {
 		appendEntry: appendSessionEntry,
@@ -879,6 +887,7 @@ function App(props: TuiProps) {
 		repoStatus,
 		textareaRef: promptInput.textareaRef,
 		transcriptScrollRef,
+		loadIndividualSubscriptionPlans: props.loadIndividualSubscriptionPlans,
 		queuedPrompts,
 		selectedQueuedPromptId,
 		editingQueuedPrompt,
