@@ -20,7 +20,6 @@ import {
 	CLI_COMPACTION_MODE_EXPECTED_TEXT,
 } from "./utils/compaction-mode";
 import {
-	getCliFeatureFlagsService,
 	refreshCliFeatureFlagsInBackground,
 	setCliFeatureFlagsAccountContext,
 } from "./utils/feature-flags";
@@ -956,8 +955,7 @@ export async function runCli(): Promise<void> {
 		refreshCliFeatureFlagsInBackground();
 		const lastUsedProviderSettings =
 			providerSettingsManager.getLastUsedProviderSettings({
-				isClinePassEnabled:
-					getCliFeatureFlagsService().getBooleanFlagEnabled("ext-cline-pass"),
+				isClinePassEnabled: true,
 			});
 		const provider = normalizeProviderId(
 			args.provider?.trim() || lastUsedProviderSettings?.provider || "cline",

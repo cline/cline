@@ -10,7 +10,6 @@ import {
 	isClineOrgIndividualInferenceSubscriptionErrorMessage,
 	isClinePassSubscriptionError,
 } from "../../utils/cline-pass-errors";
-import { getCliFeatureFlagsService } from "../../utils/feature-flags";
 import {
 	CLINE_CREDITS_DASHBOARD_URL,
 	isClineAccountCreditsErrorMessage,
@@ -316,42 +315,7 @@ function ClineCreditsClinePassErrorView(props: { defaultFg?: string }) {
 }
 
 function ClineCreditsErrorView(props: { defaultFg?: string }) {
-	const isClinePassEnabled =
-		getCliFeatureFlagsService().getBooleanFlagEnabled("ext-cline-pass");
-
-	if (isClinePassEnabled) {
-		return <ClineCreditsClinePassErrorView defaultFg={props.defaultFg} />;
-	}
-
-	return (
-		<box flexDirection="row">
-			<text fg="red" content="* " />
-			<box
-				flexDirection="column"
-				border
-				borderStyle="rounded"
-				borderColor="red"
-				paddingX={1}
-			>
-				<text fg="red">Cline Credits depleted</text>
-				<text
-					fg={props.defaultFg}
-					selectable
-					content={
-						"You have run out of Cline credits. Add credits in the dashboard to continue."
-					}
-				/>
-				<box flexDirection="row">
-					<text fg="gray">Dashboard: </text>
-					<text fg="cyan" selectable>
-						<a href={CLINE_CREDITS_DASHBOARD_URL}>
-							{CLINE_CREDITS_DASHBOARD_URL}
-						</a>
-					</text>
-				</box>
-			</box>
-		</box>
-	);
+	return <ClineCreditsClinePassErrorView defaultFg={props.defaultFg} />;
 }
 
 function ClinePassSubscriptionErrorView(props: {
