@@ -397,6 +397,71 @@ describe("formatMessagesForAiSdk", () => {
 		]);
 	});
 
+	it("replaces nested read_files image blocks with a placeholder for text-only models", () => {
+		// Same nested `[{query, result:[{text},{image}], success}]` shape as the
+		// hoisting test above, but with a model that lacks image support: the
+		// nested image must collapse to the capability placeholder (not be
+		// hoisted as an image-data part), so a text-only endpoint isn't sent
+		// image content.
+		const messages = formatMessagesForAiSdk(
+			undefined,
+			[
+				{
+					role: "user",
+					content: [
+						{
+							type: "tool-result",
+							toolCallId: "call_img",
+							toolName: "read_files",
+							output: [
+								{
+									query: "/tmp/image.jpg",
+									result: [
+										{ type: "text", text: "Successfully read image" },
+										{
+											type: "image",
+											data: "QkFTRTY0REFUQQ==",
+											mediaType: "image/jpeg",
+										},
+									],
+									success: true,
+								},
+							],
+						},
+					],
+				},
+			],
+			{ supportsImages: false },
+		);
+
+		expect(messages).toEqual([
+			{
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						toolCallId: "call_img",
+						toolName: "read_files",
+						output: {
+							type: "json",
+							value: [
+								{
+									query: "/tmp/image.jpg",
+									result: [
+										"Successfully read image",
+										"[image omitted: this model does not support image input]",
+									],
+									success: true,
+								},
+							],
+						},
+					},
+				],
+			},
+		]);
+		expect(JSON.stringify(messages)).not.toContain("QkFTRTY0REFUQQ==");
+	});
+
 	it("sanitizes nested strings before stringifying extracted image metadata", () => {
 		const output = toAiSdkToolResultOutput({
 			query: "bad\uD800name.jpg",

@@ -1,5 +1,6 @@
 ---
-"@cline/cli": patch
+"@cline/shared": patch
+"@cline/llms": patch
 ---
 
 fix: don't send image content to models without image capability

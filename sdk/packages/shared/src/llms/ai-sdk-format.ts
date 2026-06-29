@@ -308,6 +308,7 @@ function stripImagesFromOutput(
 	images: AiSdkImageContentBlock[],
 	state: MediaBudgetState,
 	hoistImages = true,
+	placeholder: string = IMAGE_OMITTED_PLACEHOLDER,
 ): StripImagesResult {
 	if (value == null || typeof value !== "object") {
 		return { value, changed: false, mediaChanged: false };
@@ -326,7 +327,7 @@ function stripImagesFromOutput(
 					typeof obj.mediaType === "string"
 				) {
 					if (!hoistImages) {
-						out.push(IMAGE_OMITTED_PLACEHOLDER);
+						out.push(placeholder);
 						changed = true;
 						mediaChanged = true;
 						continue;
@@ -351,7 +352,7 @@ function stripImagesFromOutput(
 					continue;
 				}
 				if (obj.type === "image") {
-					out.push(IMAGE_OMITTED_PLACEHOLDER);
+					out.push(placeholder);
 					changed = true;
 					mediaChanged = true;
 					continue;
@@ -362,7 +363,13 @@ function stripImagesFromOutput(
 					continue;
 				}
 			}
-			const stripped = stripImagesFromOutput(item, images, state, hoistImages);
+			const stripped = stripImagesFromOutput(
+				item,
+				images,
+				state,
+				hoistImages,
+				placeholder,
+			);
 			out.push(stripped.value);
 			changed ||= stripped.changed;
 			mediaChanged ||= stripped.mediaChanged;
@@ -375,7 +382,7 @@ function stripImagesFromOutput(
 		if (typeof obj.data === "string" && typeof obj.mediaType === "string") {
 			if (!hoistImages) {
 				return {
-					value: IMAGE_OMITTED_PLACEHOLDER,
+					value: placeholder,
 					changed: true,
 					mediaChanged: true,
 				};
@@ -401,7 +408,7 @@ function stripImagesFromOutput(
 			return { value: part.text, changed: true, mediaChanged: true };
 		}
 		return {
-			value: IMAGE_OMITTED_PLACEHOLDER,
+			value: placeholder,
 			changed: true,
 			mediaChanged: true,
 		};
@@ -411,7 +418,13 @@ function stripImagesFromOutput(
 	let changed = false;
 	let mediaChanged = false;
 	for (const [k, v] of Object.entries(obj)) {
-		const stripped = stripImagesFromOutput(v, images, state, hoistImages);
+		const stripped = stripImagesFromOutput(
+			v,
+			images,
+			state,
+			hoistImages,
+			placeholder,
+		);
 		out[k] = stripped.value;
 		changed ||= stripped.changed;
 		mediaChanged ||= stripped.mediaChanged;
@@ -491,6 +504,7 @@ export function toAiSdkToolResultOutput(
 			images,
 			mediaState,
 			!isError && supportsImages,
+			supportsImages ? IMAGE_OMITTED_PLACEHOLDER : IMAGE_UNSUPPORTED_TEXT,
 		);
 		if (!isError && images.length > 0) {
 			const headerText =
