@@ -11,6 +11,66 @@ function uniquePreserveOrder(values: string[]): string[] {
 	return [...new Set(values.filter(Boolean))]
 }
 
+function isCommandName(candidate: string): boolean {
+	return !candidate.includes("\\") && !candidate.includes("/") && !/^[a-zA-Z]:/.test(candidate)
+}
+
+async function resolveWindowsCommandPath(
+	commandName: string,
+	timeoutMs = POWERSHELL_PROBE_TIMEOUT_MS,
+): Promise<string | undefined> {
+	const systemRoot = process.env.SystemRoot || process.env.windir || "C:\\Windows"
+	const whereCandidates = uniquePreserveOrder([`${systemRoot}\\System32\\where.exe`, "where.exe"])
+
+	for (const whereCommand of whereCandidates) {
+		const resolvedPath = await new Promise<string | undefined>((resolve) => {
+			const child = childProcess.spawn(whereCommand, [commandName], {
+				stdio: ["ignore", "pipe", "ignore"],
+				windowsHide: true,
+				shell: false,
+			})
+
+			let settled = false
+			let stdout = ""
+			let timer: ReturnType<typeof setTimeout>
+
+			const finish = (resolved?: string) => {
+				if (settled) {
+					return
+				}
+				settled = true
+				clearTimeout(timer)
+				resolve(resolved)
+			}
+
+			timer = setTimeout(() => {
+				if (!child.killed) {
+					child.kill("SIGTERM")
+				}
+				finish()
+			}, timeoutMs)
+
+			child.stdout?.on("data", (chunk) => {
+				stdout += chunk.toString()
+			})
+			child.once("error", () => finish())
+			child.once("exit", (code) => {
+				const firstPath = stdout
+					.split(/\r?\n/)
+					.map((line) => line.trim())
+					.find(Boolean)
+				finish(code === 0 ? firstPath : undefined)
+			})
+		})
+
+		if (resolvedPath) {
+			return resolvedPath
+		}
+	}
+
+	return undefined
+}
+
 export function getFallbackWindowsPowerShellPath(): string {
 	return WINDOWS_POWERSHELL_LEGACY_PATH
 }
@@ -79,8 +139,13 @@ export async function resolveWindowsPowerShellExecutable(): Promise<string> {
 
 			for (const candidate of candidates) {
 				if (await probeWindowsExecutableImpl(candidate)) {
-					Logger.debug(`[PowerShellResolver] Using PowerShell executable: ${candidate}`)
-					return candidate
+					const executable = isCommandName(candidate) ? await resolveWindowsCommandPath(candidate) : candidate
+					if (!executable) {
+						Logger.debug(`[PowerShellResolver] Skipping unresolved PowerShell command candidate: ${candidate}`)
+						continue
+					}
+					Logger.debug(`[PowerShellResolver] Using PowerShell executable: ${executable}`)
+					return executable
 				}
 			}
 
