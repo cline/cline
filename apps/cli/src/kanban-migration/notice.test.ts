@@ -12,6 +12,7 @@ import {
 	getClineCliMigrationNotice,
 	markClineCliMigrationNoticeShown,
 	resolveCliNoticeStatePath,
+	shouldSuppressClineCliMigrationNoticeForActiveProvider,
 } from "./notice";
 
 const tempDirs: string[] = [];
@@ -94,6 +95,20 @@ describe("migration notice", () => {
 				{ activeProviderId: "cline-pass" },
 			),
 		).toBeUndefined();
+	});
+
+	it("suppresses the active ClinePass provider even when the provider id has surrounding whitespace", () => {
+		expect(
+			shouldSuppressClineCliMigrationNoticeForActiveProvider(" cline-pass "),
+		).toBe(true);
+	});
+
+	it("does not suppress the active ClinePass provider when forced", () => {
+		expect(
+			shouldSuppressClineCliMigrationNoticeForActiveProvider("cline-pass", {
+				CLINE_FORCE_CLINE_PASS_NOTICE: "1",
+			}),
+		).toBe(false);
 	});
 
 	it("shows for the active ClinePass provider when forced", () => {
