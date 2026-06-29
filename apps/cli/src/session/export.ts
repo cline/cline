@@ -5,6 +5,7 @@ import {
 	type ToolResultContent,
 	type ToolUseContent,
 } from "@cline/shared";
+import { formatStructuredCommand } from "../utils/helpers";
 
 export interface ConversationHistory {
 	version: number;
@@ -845,15 +846,15 @@ function renderDiffHTML(
 }
 
 function renderCommandsHTML(
-	commands: string[],
+	commands: unknown[],
 	_result?: ToolResultContent,
 ): string {
 	return commands
 		.map(
-			(cmd, i) => `
+			(command, i) => `
     <div class="command-block">
       <div class="command-label">Command ${i + 1}</div>
-      <code>${escapeHtml(cmd)}</code>
+      <code>${escapeHtml(formatStructuredCommand(command))}</code>
     </div>
   `,
 		)
