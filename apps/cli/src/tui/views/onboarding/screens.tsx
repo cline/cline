@@ -1,6 +1,5 @@
 import "opentui-spinner/react";
 import type { ReactNode } from "react";
-import { getCliSubscriptionUrl } from "../../../utils/cline-pass-errors";
 import {
 	CODEX_CLI_INSTALL_URL,
 	type CodexCliStatus,
@@ -22,6 +21,7 @@ import { useTerminalBackground } from "../../hooks/use-terminal-background";
 import { getDefaultForeground, palette } from "../../palette";
 import { FIELD_ORDER } from "./fields";
 import {
+	type ClinePassSubscriptionOption,
 	type ClinePassSubscriptionStatus,
 	type MenuOption,
 	THINKING_LEVELS,
@@ -479,11 +479,13 @@ export function OnboardingClinePassSubscriptionScreen(props: {
 	currentPlanName: string;
 	error: string;
 	mouse: MouseTrackerState;
+	openStatus: string;
+	options: ClinePassSubscriptionOption[];
 	planFeatures: string[];
+	selected: number;
 	status: ClinePassSubscriptionStatus;
 }) {
 	const defaultFg = useDefaultFg();
-	const subscriptionUrl = getCliSubscriptionUrl();
 	const isLoading = props.status === "loading";
 	const isSubscribed = props.status === "subscribed";
 	const isError = props.status === "error";
@@ -562,31 +564,44 @@ export function OnboardingClinePassSubscriptionScreen(props: {
 
 				{!isSubscribed && (
 					<box flexDirection="column" marginTop={1}>
-						<box flexDirection="row">
-							<text fg="gray">Subscribe: </text>
-							<text fg="cyan" selectable>
-								<a href={subscriptionUrl}>Open subscription page</a>
-							</text>
-						</box>
-						<box flexDirection="row">
-							<text fg="gray">URL: </text>
-							<text fg="cyan" selectable>
-								<a href={subscriptionUrl}>{subscriptionUrl}</a>
-							</text>
-						</box>
-						<text fg="gray">
-							<em>You can highlight/select the URL text to copy it.</em>
-						</text>
+						{props.options.map((option, i) => {
+							const isSel = i === props.selected;
+							return (
+								<box
+									key={option.value}
+									paddingX={1}
+									flexDirection="row"
+									gap={1}
+									backgroundColor={isSel ? palette.selection : undefined}
+									height={1}
+								>
+									<text
+										fg={isSel ? palette.textOnSelection : "gray"}
+										flexShrink={0}
+									>
+										{isSel ? "\u276f" : " "}
+									</text>
+									<text fg={isSel ? palette.textOnSelection : defaultFg}>
+										{option.label}
+									</text>
+									<text fg={isSel ? palette.textOnSelection : "gray"}>
+										{option.detail}
+									</text>
+								</box>
+							);
+						})}
 					</box>
+				)}
+
+				{props.openStatus && (
+					<text fg="gray" selectable>
+						{props.openStatus}
+					</text>
 				)}
 			</box>
 
 			<text fg="gray" paddingX={1}>
-				<em>
-					{isLoading
-						? "Checking subscription, Ctrl+C to exit"
-						: "Enter to continue, R to re-check, Esc to go back, Ctrl+C to exit"}
-				</em>
+				<em>↑/↓ navigate, Enter to select, Esc to go back, Ctrl+C to exit</em>
 			</text>
 		</OnboardingFrame>
 	);

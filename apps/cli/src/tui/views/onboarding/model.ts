@@ -37,6 +37,18 @@ export interface MenuOption {
 	icon: string;
 }
 
+export type ClinePassSubscriptionAction =
+	| "subscribe"
+	| "refresh"
+	| "skip"
+	| "back";
+
+export interface ClinePassSubscriptionOption {
+	value: ClinePassSubscriptionAction;
+	label: string;
+	detail: string;
+}
+
 export const MAIN_MENU: MenuOption[] = [
 	{
 		label: "Sign in with Cline",
@@ -72,6 +84,29 @@ export function getMainMenuOptions(options?: {
 	);
 }
 
+export const CLINE_PASS_SUBSCRIPTION_OPTIONS: ClinePassSubscriptionOption[] = [
+	{
+		value: "subscribe",
+		label: "Subscribe to ClinePass",
+		detail: "Open the subscription page in your browser",
+	},
+	{
+		value: "refresh",
+		label: "Re-check subscription status",
+		detail: "Verify your plan again",
+	},
+	{
+		value: "skip",
+		label: "Skip for now",
+		detail: "Choose a ClinePass model without verifying",
+	},
+	{
+		value: "back",
+		label: "Go back",
+		detail: "Return to provider options",
+	},
+];
+
 export interface OnboardingResult {
 	providerId: string;
 	modelId: string;
@@ -97,7 +132,11 @@ export interface ModelEntry {
 	supportsReasoning: boolean;
 }
 
-export type ClinePassSubscriptionStatus = "loading" | "subscribed" | "unsubscribed" | "error";
+export type ClinePassSubscriptionStatus =
+	| "loading"
+	| "subscribed"
+	| "unsubscribed"
+	| "error";
 
 export interface ProviderCatalogItem {
 	id: string;
