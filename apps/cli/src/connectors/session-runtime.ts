@@ -64,8 +64,7 @@ export async function buildConnectorStartRequest(input: {
 	const providerSettingsManager = new ProviderSettingsManager();
 	const lastUsedProviderSettings =
 		providerSettingsManager.getLastUsedProviderSettings({
-			isClinePassEnabled:
-				getCliFeatureFlagsService().getBooleanFlagEnabled("ext-cline-pass"),
+			isClinePassEnabled: true,
 		});
 	const provider = normalizeProviderId(
 		input.options.provider?.trim() ||
