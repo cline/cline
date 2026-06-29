@@ -579,17 +579,6 @@ export function OnboardingClinePassSubscriptionScreen(props: {
 								</text>
 							)}
 
-						{!isSubscribed && (
-							<box flexDirection="column" marginTop={1} flexShrink={0}>
-								<text fg="gray" flexShrink={0}>
-									If the browser button does not work:
-								</text>
-								<text fg={palette.act} selectable flexShrink={0}>
-									<a href={props.subscriptionUrl}>{props.subscriptionUrl}</a>
-								</text>
-							</box>
-						)}
-
 						{!isSubscribed && props.planFeatures.length > 0 && (
 							<box flexDirection="column" marginTop={1} flexShrink={0}>
 								<text fg={defaultFg}>ClinePass includes:</text>
@@ -654,6 +643,17 @@ export function OnboardingClinePassSubscriptionScreen(props: {
 							<text fg="gray" selectable flexShrink={0}>
 								{props.openStatus}
 							</text>
+						)}
+
+						{!isSubscribed && (
+							<box flexDirection="column" marginTop={1} flexShrink={0}>
+								<text fg="gray" flexShrink={0}>
+									If the browser button does not work:
+								</text>
+								<text fg={palette.act} selectable flexShrink={0}>
+									<a href={props.subscriptionUrl}>{props.subscriptionUrl}</a>
+								</text>
+							</box>
 						)}
 					</box>
 				</scrollbox>
