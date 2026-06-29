@@ -1,5 +1,11 @@
 # Changelog
 
+## [4.0.4]
+
+### Changed
+
+- Fully remove the ClinePass feature flag so ClinePass is available everywhere in the UI — onboarding, settings, the welcome promo banner, and the credit-limit "Switch to ClinePass" action.
+
 ## [4.0.3]
 
 ### Changed
