@@ -493,6 +493,7 @@ export function OnboardingClinePassSubscriptionScreen(props: {
 	planFeatures: string[];
 	selected: number;
 	status: ClinePassSubscriptionStatus;
+	subscriptionUrl: string;
 }) {
 	const defaultFg = useDefaultFg();
 	const terminalTheme = useTerminalTheme();
@@ -650,6 +651,17 @@ export function OnboardingClinePassSubscriptionScreen(props: {
 							<text fg="gray" selectable flexShrink={0}>
 								{props.openStatus}
 							</text>
+						)}
+
+						{!isSubscribed && (
+							<box flexDirection="column" marginTop={1} flexShrink={0}>
+								<text fg="gray" flexShrink={0}>
+									If the browser button does not work:
+								</text>
+								<text fg={palette.act} selectable flexShrink={0}>
+									<a href={props.subscriptionUrl}>{props.subscriptionUrl}</a>
+								</text>
+							</box>
 						)}
 					</box>
 				</scrollbox>
