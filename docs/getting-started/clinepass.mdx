@@ -47,18 +47,41 @@ ClinePass is a separate provider from Cline (usage-billing). You can use both in
 
 ClinePass includes the following models, tested and benchmarked for coding agent use:
 
-| Model | Model ID |
-|-------|----------|
-| GLM-5.2 | `glm-5.2` |
-| Kimi K2.7 Code | `kimi-k2.7-code` |
-| Kimi K2.6 | `kimi-k2.6` |
-| DeepSeek V4 Pro | `deepseek-v4-pro` |
-| DeepSeek V4 Flash | `deepseek-v4-flash` |
-| MiMo-V2.5 | `mimo-v2.5` |
-| MiMo-V2.5-Pro | `mimo-v2.5-pro` |
-| MiniMax M3 | `minimax-m3` |
-| Qwen3.7 Max | `qwen3.7-max` |
-| Qwen3.7 Plus | `qwen3.7-plus` |
+| Model | Model ID | API model slug |
+|-------|----------|----------------|
+| GLM-5.2 | `glm-5.2` | `cline-pass/glm-5.2` |
+| Kimi K2.7 Code | `kimi-k2.7-code` | `cline-pass/kimi-k2.7-code` |
+| Kimi K2.6 | `kimi-k2.6` | `cline-pass/kimi-k2.6` |
+| DeepSeek V4 Pro | `deepseek-v4-pro` | `cline-pass/deepseek-v4-pro` |
+| DeepSeek V4 Flash | `deepseek-v4-flash` | `cline-pass/deepseek-v4-flash` |
+| MiMo-V2.5 | `mimo-v2.5` | `cline-pass/mimo-v2.5` |
+| MiMo-V2.5-Pro | `mimo-v2.5-pro` | `cline-pass/mimo-v2.5-pro` |
+| MiniMax M3 | `minimax-m3` | `cline-pass/minimax-m3` |
+| Qwen3.7 Max | `qwen3.7-max` | `cline-pass/qwen3.7-max` |
+| Qwen3.7 Plus | `qwen3.7-plus` | `cline-pass/qwen3.7-plus` |
+
+## Using ClinePass outside of Cline
+
+You can use ClinePass models from your own scripts, apps, or automation through the Cline API. The API uses the same OpenAI-compatible Chat Completions format as the rest of Cline's API.
+
+To get started, create an API key from **Settings > API Keys** in [app.cline.bot](https://app.cline.bot). For the complete walkthrough, see the [Cline API Getting Started guide](/api/getting-started).
+
+Use the full ClinePass model slug in the `model` field:
+
+```bash
+export CLINE_API_KEY="your_api_key_here"
+
+curl -X POST https://api.cline.bot/api/v1/chat/completions \
+  -H "Authorization: Bearer $CLINE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "cline-pass/qwen3.7-max",
+    "messages": [
+      {"role": "user", "content": "Write a TypeScript function that validates an email address."}
+    ],
+    "stream": false
+  }'
+```
 
 
 ### Reference pricing
