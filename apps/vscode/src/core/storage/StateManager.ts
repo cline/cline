@@ -1,6 +1,8 @@
 import type { ApiConfiguration, ModelInfo } from "@shared/api"
 import {
 	ApiHandlerSettingsKeys,
+	applyTransform,
+	getDefaultValue,
 	type GlobalState,
 	type GlobalStateAndSettings,
 	type GlobalStateAndSettingsKey,
@@ -655,7 +657,13 @@ export class StateManager {
 		if (this.taskStateCache[key] !== undefined) {
 			return this.taskStateCache[key]
 		}
-		return this.globalStateCache[key]
+		const value = this.globalStateCache[key]
+		if (value !== undefined) {
+			return value
+		}
+
+		const defaultValue = getDefaultValue(key)
+		return defaultValue !== undefined ? applyTransform(key, defaultValue) : value
 	}
 
 	/**
