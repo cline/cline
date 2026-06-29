@@ -1,17 +1,15 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 const {
 	mockGetLastUsedProviderSettings,
 	mockGetProviderSettings,
 	mockResolveSystemPrompt,
 	mockGetProviderCollection,
-	mockGetBooleanFlagEnabled,
 } = vi.hoisted(() => ({
 	mockGetLastUsedProviderSettings: vi.fn(),
 	mockGetProviderSettings: vi.fn(),
 	mockResolveSystemPrompt: vi.fn(),
 	mockGetProviderCollection: vi.fn(),
-	mockGetBooleanFlagEnabled: vi.fn(),
 }));
 
 vi.mock("@cline/core", async () => {
@@ -45,12 +43,6 @@ vi.mock("../utils/helpers", () => ({
 	resolveWorkspaceRoot: vi.fn((cwd: string) => cwd),
 }));
 
-vi.mock("../utils/feature-flags", () => ({
-	getCliFeatureFlagsService: () => ({
-		getBooleanFlagEnabled: mockGetBooleanFlagEnabled,
-	}),
-}));
-
 vi.mock("../commands/auth", async () => {
 	const actual =
 		await vi.importActual<typeof import("../commands/auth")>(
@@ -65,10 +57,6 @@ vi.mock("../commands/auth", async () => {
 import { buildConnectorStartRequest } from "./session-runtime";
 
 describe("buildConnectorStartRequest", () => {
-	beforeEach(() => {
-		mockGetBooleanFlagEnabled.mockReturnValue(false);
-	});
-
 	afterEach(() => {
 		vi.clearAllMocks();
 		delete process.env.OPENROUTER_API_KEY;
@@ -100,9 +88,7 @@ describe("buildConnectorStartRequest", () => {
 		expect(request.provider).toBe("openrouter");
 		expect(request.apiKey).toBe("env-openrouter-key");
 		expect(request.model).toBe("anthropic/claude-sonnet-4.6");
-		expect(mockGetLastUsedProviderSettings).toHaveBeenCalledWith({
-			isClinePassEnabled: false,
-		});
+		expect(mockGetLastUsedProviderSettings).toHaveBeenCalledWith(undefined);
 	});
 
 	it("uses auth material resolved by provider settings manager", async () => {

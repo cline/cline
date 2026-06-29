@@ -684,6 +684,9 @@ describe("runCli lightweight command dispatch", () => {
 
 		await expect(runCli()).resolves.toBeUndefined();
 		expect(
+			providerSettingsMocks.getLastUsedProviderSettings,
+		).toHaveBeenCalledWith(undefined);
+		expect(
 			migrationNoticeMocks.getClineCliMigrationNotice,
 		).toHaveBeenCalledWith(undefined, process.env, {
 			activeProviderId: "cline-pass",
@@ -980,7 +983,7 @@ describe("runCli lightweight command dispatch", () => {
 		);
 	});
 
-	it("seeds feature flag identity from persisted Cline account id before checking flags", async () => {
+	it("seeds feature flag identity from persisted Cline account id before restoring provider", async () => {
 		const clineSettings = {
 			provider: "cline",
 			model: "anthropic/claude-sonnet-4.6",
@@ -1003,8 +1006,12 @@ describe("runCli lightweight command dispatch", () => {
 			featureFlagMocks.setCliFeatureFlagsAccountContext.mock
 				.invocationCallOrder[0],
 		).toBeLessThan(
-			featureFlagMocks.getBooleanFlagEnabled.mock.invocationCallOrder[0],
+			providerSettingsMocks.getLastUsedProviderSettings.mock
+				.invocationCallOrder[0],
 		);
+		expect(
+			providerSettingsMocks.getLastUsedProviderSettings,
+		).toHaveBeenCalledWith(undefined);
 	});
 
 	it("runs kanban before loading runtime modules", async () => {

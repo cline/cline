@@ -16,7 +16,6 @@ import {
 import type { CliLoggerAdapter } from "../logging/adapter";
 import { resolveSystemPrompt } from "../runtime/prompt";
 import { resolveCliSessionMetadata } from "../utils/enterprise";
-import { getCliFeatureFlagsService } from "../utils/feature-flags";
 import { resolveWorkspaceRoot } from "../utils/helpers";
 import {
 	parseLocalRowMetadata,
@@ -63,10 +62,7 @@ export async function buildConnectorStartRequest(input: {
 }): Promise<ChatStartSessionRequest> {
 	const providerSettingsManager = new ProviderSettingsManager();
 	const lastUsedProviderSettings =
-		providerSettingsManager.getLastUsedProviderSettings({
-			isClinePassEnabled:
-				getCliFeatureFlagsService().getBooleanFlagEnabled("ext-cline-pass"),
-		});
+		providerSettingsManager.getLastUsedProviderSettings();
 	const provider = normalizeProviderId(
 		input.options.provider?.trim() ||
 			lastUsedProviderSettings?.provider ||
