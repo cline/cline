@@ -10,7 +10,6 @@ import {
 	isClineOrgIndividualInferenceSubscriptionErrorMessage,
 	isClinePassSubscriptionError,
 } from "../../utils/cline-pass-errors";
-import { getCliFeatureFlagsService } from "../../utils/feature-flags";
 import {
 	CLINE_CREDITS_DASHBOARD_URL,
 	isClineAccountCreditsErrorMessage,

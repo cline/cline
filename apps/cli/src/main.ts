@@ -20,7 +20,6 @@ import {
 	CLI_COMPACTION_MODE_EXPECTED_TEXT,
 } from "./utils/compaction-mode";
 import {
-	getCliFeatureFlagsService,
 	refreshCliFeatureFlagsInBackground,
 	setCliFeatureFlagsAccountContext,
 } from "./utils/feature-flags";
