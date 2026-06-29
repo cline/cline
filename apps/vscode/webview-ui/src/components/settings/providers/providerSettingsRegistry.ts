@@ -8,6 +8,7 @@ type GenericProviderPresentationOverride = Pick<GenericProviderSettingsConfig, "
 
 const CUSTOM_PROVIDER_SETTINGS_IDS = new Set([
 	"aihubmix",
+	"atomic-chat",
 	"anthropic",
 	"asksage",
 	"bedrock",

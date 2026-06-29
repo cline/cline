@@ -19,6 +19,7 @@ const KNOWN_API_PROVIDERS = {
 	openai: true,
 	ollama: true,
 	lmstudio: true,
+	"atomic-chat": true,
 	gemini: true,
 	"openai-native": true,
 	"openai-codex": true,

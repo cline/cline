@@ -4,8 +4,15 @@ import { getModeSpecificFields } from "@/components/settings/utils/providerUtils
 
 export function validateApiConfiguration(currentMode: Mode, apiConfiguration?: ApiConfiguration): string | undefined {
 	if (apiConfiguration) {
-		const { apiProvider, openAiModelId, togetherModelId, ollamaModelId, lmStudioModelId, vsCodeLmModelSelector } =
-			getModeSpecificFields(apiConfiguration, currentMode)
+		const {
+			apiProvider,
+			openAiModelId,
+			togetherModelId,
+			ollamaModelId,
+			lmStudioModelId,
+			atomicChatModelId,
+			vsCodeLmModelSelector,
+		} = getModeSpecificFields(apiConfiguration, currentMode)
 
 		switch (apiProvider) {
 			case "anthropic":
@@ -100,6 +107,11 @@ export function validateApiConfiguration(currentMode: Mode, apiConfiguration?: A
 				break
 			case "lmstudio":
 				if (!lmStudioModelId) {
+					return "You must provide a valid model ID."
+				}
+				break
+			case "atomic-chat":
+				if (!atomicChatModelId) {
 					return "You must provide a valid model ID."
 				}
 				break

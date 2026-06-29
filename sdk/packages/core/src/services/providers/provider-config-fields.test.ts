@@ -36,6 +36,17 @@ describe("getProviderConfigFields", () => {
 		);
 	});
 
+	it("returns api-key auth with apiKey + baseUrl for Atomic Chat", () => {
+		const result = getProviderConfigFields("atomic-chat");
+		expect(result.authMethod).toBe("api-key");
+		expect(result.fields.apiKey).toEqual({
+			note: "Keep empty if no API key for local inference.",
+		});
+		expect(result.fields.baseUrl?.defaultValue).toBe(
+			"http://127.0.0.1:1337/v1",
+		);
+	});
+
 	it("returns api-key auth with apiKey + baseUrl for LiteLLM", () => {
 		const result = getProviderConfigFields("litellm");
 		expect(result.authMethod).toBe("api-key");

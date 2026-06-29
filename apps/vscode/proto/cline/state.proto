@@ -106,15 +106,13 @@ message Secrets {
   optional string cline_api_key = 44;
   optional string openai_codex_oauth_credentials = 48;
   optional string wandb_api_key = 50;
+  optional string atomic_chat_api_key = 51;
 }
 
 // NOTE: Add new fields under API_HANDLER_SETTINGS_FIELDS or USER_SETTINGS_FIELDS
 // in src/shared/storage/state-keys.ts and use the scripts/generate-state-proto.mjs
 // script to regenerate this list.
 message Settings {
-  reserved 144, 154, 176;
-  reserved "cline_web_tools_enabled", "enable_parallel_tool_calling", "double_check_completion_enabled";
-
   optional string lite_llm_base_url = 1;
   optional bool lite_llm_use_prompt_cache = 2;
   optional string anthropic_base_url = 4;
@@ -237,8 +235,8 @@ message Settings {
   optional string act_mode_nous_research_model_id = 121;
   optional string act_mode_vercel_ai_gateway_model_id = 122;
   optional OpenRouterModelInfo act_mode_vercel_ai_gateway_model_info = 123;
-  optional string plan_mode_api_provider = 124;
-  optional string act_mode_api_provider = 125;
+  optional ApiProvider plan_mode_api_provider = 124;
+  optional ApiProvider act_mode_api_provider = 125;
   optional string hicap_model_id = 126;
   optional string lm_studio_model_id = 127;
   optional AutoApprovalSettings auto_approval_settings = 128;
@@ -284,6 +282,13 @@ message Settings {
   optional string act_mode_cline_model_id = 180;
   optional OpenRouterModelInfo act_mode_cline_model_info = 181;
   optional bool show_feature_tips = 182;
+  optional string atomic_chat_base_url = 183;
+  optional string plan_mode_cline_pass_model_id = 184;
+  optional OpenRouterModelInfo plan_mode_cline_pass_model_info = 185;
+  optional string plan_mode_atomic_chat_model_id = 186;
+  optional string act_mode_cline_pass_model_id = 187;
+  optional OpenRouterModelInfo act_mode_cline_pass_model_info = 188;
+  optional string act_mode_atomic_chat_model_id = 189;
 }
 
 message State {
