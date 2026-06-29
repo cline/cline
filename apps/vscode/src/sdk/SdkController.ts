@@ -180,6 +180,7 @@ export class Controller {
 	private static readonly STATE_POST_DEBOUNCE_MS = 50
 	private statePostDebounceTimer?: NodeJS.Timeout
 	private statePostInFlight = false
+	private statePostInFlightPromise?: Promise<void>
 	private statePostQueued = false
 	private pendingStatePostResolvers: Array<() => void> = []
 
@@ -677,7 +678,9 @@ export class Controller {
 		this.isDisposed = true
 		// Tear down the debounced state-post machinery: cancel any pending timer
 		// and settle in-flight awaiters so callers blocked on postStateToWebview()
-		// don't hang past disposal.
+		// don't hang past disposal. Await any in-flight flush so it either
+		// completes or bails via the !this.isDisposed guard before downstream
+		// resources are torn down below.
 		if (this.statePostDebounceTimer) {
 			clearTimeout(this.statePostDebounceTimer)
 			this.statePostDebounceTimer = undefined
@@ -687,6 +690,11 @@ export class Controller {
 		this.pendingStatePostResolvers = []
 		for (const resolve of pendingStatePostResolvers) {
 			resolve()
+		}
+		const inFlight = this.statePostInFlightPromise
+		if (inFlight) {
+			await inFlight.catch(() => {})
+			this.statePostInFlightPromise = undefined
 		}
 		await this.invalidateUserInstructionService()
 		this.messages.cancelPendingSave()
@@ -1788,7 +1796,7 @@ export class Controller {
 			}
 			this.statePostDebounceTimer = setTimeout(() => {
 				this.statePostDebounceTimer = undefined
-				void this.runDebouncedStatePost()
+				this.statePostInFlightPromise = this.runDebouncedStatePost()
 			}, Controller.STATE_POST_DEBOUNCE_MS)
 			this.statePostDebounceTimer.unref?.()
 		})
@@ -1823,6 +1831,7 @@ export class Controller {
 			} while (this.statePostQueued && !this.isDisposed)
 		} finally {
 			this.statePostInFlight = false
+			this.statePostInFlightPromise = undefined
 		}
 	}
 
