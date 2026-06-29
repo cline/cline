@@ -19,7 +19,6 @@ import type { Config } from "../../utils/types";
 import { withLoadingDialog } from "../components/dialogs/loading-dialog";
 import {
 	ClinePassSubscriptionContent,
-	ClineUsageBillingContent,
 	CodexCliStatusContent,
 	type ExistingProviderOption,
 	OAuthLoginContent,
