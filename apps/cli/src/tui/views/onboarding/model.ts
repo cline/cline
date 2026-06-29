@@ -46,7 +46,6 @@ export type ClinePassSubscriptionAction =
 export interface ClinePassSubscriptionOption {
 	value: ClinePassSubscriptionAction;
 	label: string;
-	detail: string;
 }
 
 export const MAIN_MENU: MenuOption[] = [
@@ -88,22 +87,18 @@ export const CLINE_PASS_SUBSCRIPTION_OPTIONS: ClinePassSubscriptionOption[] = [
 	{
 		value: "subscribe",
 		label: "Subscribe to ClinePass",
-		detail: "Open the subscription page in your browser",
 	},
 	{
 		value: "refresh",
 		label: "Re-check subscription status",
-		detail: "Verify your plan again",
 	},
 	{
 		value: "skip",
 		label: "Skip for now",
-		detail: "Choose a ClinePass model without verifying",
 	},
 	{
 		value: "back",
 		label: "Go back",
-		detail: "Return to provider options",
 	},
 ];
 
