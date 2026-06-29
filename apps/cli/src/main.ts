@@ -956,8 +956,7 @@ export async function runCli(): Promise<void> {
 		refreshCliFeatureFlagsInBackground();
 		const lastUsedProviderSettings =
 			providerSettingsManager.getLastUsedProviderSettings({
-				isClinePassEnabled:
-					getCliFeatureFlagsService().getBooleanFlagEnabled("ext-cline-pass"),
+				isClinePassEnabled: true,
 			});
 		const provider = normalizeProviderId(
 			args.provider?.trim() || lastUsedProviderSettings?.provider || "cline",

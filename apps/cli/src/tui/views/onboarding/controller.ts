@@ -89,8 +89,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 	const menuOptions = useMemo(
 		() =>
 			getMainMenuOptions({
-				isClinePassEnabled:
-					getCliFeatureFlagsService().getBooleanFlagEnabled("ext-cline-pass"),
+				isClinePassEnabled: true,
 			}),
 		[],
 	);
