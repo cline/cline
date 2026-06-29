@@ -501,7 +501,7 @@ export function OnboardingClinePassSubscriptionScreen(props: {
 	const isLoading = props.status === "loading";
 	const isSubscribed = props.status === "subscribed";
 	const isError = props.status === "error";
-	const bodyHeight = props.compact ? 14 : 18;
+	const bodyHeight = props.compact ? 16 : 22;
 
 	useEffect(() => {
 		if (isSubscribed) {
