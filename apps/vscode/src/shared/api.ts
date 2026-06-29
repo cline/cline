@@ -1071,14 +1071,6 @@ export function getModelSlug(modelId: string): string {
 	return modelId.split("/").at(-1) ?? modelId
 }
 
-function normalizeClinePassModelInfo(modelInfo: ModelInfo): ModelInfo {
-	const { thinkingConfig: _thinkingConfig, ...info } = modelInfo
-	return {
-		...info,
-		supportsReasoning: true,
-	}
-}
-
 export function buildModelInfoNameMap(models: Record<string, ModelInfo>): Record<string, ModelInfo> {
 	const nameMap: Record<string, ModelInfo> = {}
 
@@ -1092,13 +1084,12 @@ export function buildModelInfoNameMap(models: Record<string, ModelInfo>): Record
 export function resolveClinePassModelInfo(modelId: string, modelInfoByName?: Record<string, ModelInfo>): ModelInfo {
 	const modelSlug = getModelSlug(modelId)
 	const clinePassSlugModelId = `cline-pass/${modelSlug}`
-	const modelInfo =
+	return (
 		clinePassModels[modelId as keyof typeof clinePassModels] ??
 		clinePassModels[clinePassSlugModelId as keyof typeof clinePassModels] ??
 		modelInfoByName?.[modelSlug] ??
 		clinePassModelInfoSaneDefaults
-
-	return normalizeClinePassModelInfo(modelInfo)
+	)
 }
 
 export const OPENROUTER_PROVIDER_PREFERENCES: Record<string, { order: string[]; allow_fallbacks: boolean }> = {

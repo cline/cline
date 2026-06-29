@@ -11,7 +11,7 @@ describe("ClinePass model info", () => {
 		thinkingConfig: { maxBudget: 16_384 },
 	})
 
-	it("normalizes ClinePass GLM aliases to ClinePass reasoning-effort metadata", () => {
+	it("resolves ClinePass GLM aliases to the static ClinePass metadata", () => {
 		const modelInfo = resolveClinePassModelInfo(
 			"cline-pass/z-ai/glm-5.2",
 			buildModelInfoNameMap({
@@ -24,7 +24,7 @@ describe("ClinePass model info", () => {
 		expect(modelInfo.thinkingConfig).to.equal(undefined)
 	})
 
-	it("normalizes dynamic ClinePass model info to reasoning effort instead of thinking budgets", () => {
+	it("preserves dynamic ClinePass model info when no static alias exists", () => {
 		const modelInfo = resolveClinePassModelInfo(
 			"cline-pass/new-model",
 			buildModelInfoNameMap({
@@ -33,7 +33,7 @@ describe("ClinePass model info", () => {
 		)
 
 		expect(modelInfo.name).to.equal("New model")
-		expect(modelInfo.supportsReasoning).to.equal(true)
-		expect(modelInfo.thinkingConfig).to.equal(undefined)
+		expect(modelInfo.supportsReasoning).to.equal(false)
+		expect(modelInfo.thinkingConfig).to.deep.equal({ maxBudget: 16_384 })
 	})
 })
