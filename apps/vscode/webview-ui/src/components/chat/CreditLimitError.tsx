@@ -2,10 +2,8 @@ import { AskResponseRequest } from "@shared/proto/cline/task"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import React, { useEffect, useMemo, useState } from "react"
 import VSCodeButtonLink from "@/components/common/VSCodeButtonLink"
-import { CLINE_PASS_FEATURE_FLAG } from "@/constants/featureFlags"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { useHasFeatureFlag } from "@/hooks/useFeatureFlag"
 import { AccountServiceClient, TaskServiceClient } from "@/services/grpc-client"
 import { useApiConfigurationHandlers } from "../settings/utils/useApiConfigurationHandlers"
 
@@ -32,7 +30,7 @@ const CreditLimitError: React.FC<CreditLimitErrorProps> = ({
 	const { activeOrganization } = useClineAuth()
 	const { mode, navigateToSettings } = useExtensionState()
 	const { handleModeFieldChange } = useApiConfigurationHandlers()
-	const isClinePassEnabled = useHasFeatureFlag(CLINE_PASS_FEATURE_FLAG)
+	const isClinePassEnabled = true
 	const [fullBuyCreditsUrl, setFullBuyCreditsUrl] = useState<string>("")
 	const [isSwitchingToClinePass, setIsSwitchingToClinePass] = useState(false)
 	const [didSwitchToClinePass, setDidSwitchToClinePass] = useState(false)
