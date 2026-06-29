@@ -16,7 +16,6 @@ import {
 import type { CliLoggerAdapter } from "../logging/adapter";
 import { resolveSystemPrompt } from "../runtime/prompt";
 import { resolveCliSessionMetadata } from "../utils/enterprise";
-import { getCliFeatureFlagsService } from "../utils/feature-flags";
 import { resolveWorkspaceRoot } from "../utils/helpers";
 import {
 	parseLocalRowMetadata,
