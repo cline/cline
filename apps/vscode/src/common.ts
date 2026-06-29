@@ -42,9 +42,9 @@ export async function initialize(storageContext: StorageContext): Promise<Webvie
 	// These components operate before/outside of ClineCore sessions, so the
 	// session-scoped logger can't reach them.
 	setSdkLogger({
-		debug: (message, metadata) => Logger.debug(message, metadata),
+		debug: (message, metadata) => Logger.debug(metadata ? `${message} ${JSON.stringify(metadata)}` : message),
 		log: (message) => Logger.log(message),
-		error: (message, metadata) => Logger.error(message, metadata),
+		error: (message, metadata) => Logger.error(metadata ? `${message} ${JSON.stringify(metadata)}` : message),
 	})
 
 	// Initialize ClineEndpoint configuration (reads bundled and ~/.cline/endpoints.json if present)
