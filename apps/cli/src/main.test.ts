@@ -122,6 +122,7 @@ const telemetryMocks = vi.hoisted(() => ({
 const featureFlagMocks = vi.hoisted(() => ({
 	getBooleanFlagEnabled: vi.fn(() => false),
 	setCliFeatureFlagsAccountContext: vi.fn(),
+	refreshCliFeatureFlagsInBackground: vi.fn(),
 }));
 
 function forcePromptModeInput() {
@@ -186,7 +187,8 @@ vi.mock("./utils/feature-flags", () => ({
 	getCliFeatureFlagsService: () => ({
 		getBooleanFlagEnabled: featureFlagMocks.getBooleanFlagEnabled,
 	}),
-	refreshCliFeatureFlagsInBackground: vi.fn(),
+	refreshCliFeatureFlagsInBackground:
+		featureFlagMocks.refreshCliFeatureFlagsInBackground,
 	setCliFeatureFlagsAccountContext:
 		featureFlagMocks.setCliFeatureFlagsAccountContext,
 }));
@@ -265,6 +267,7 @@ describe("runCli lightweight command dispatch", () => {
 		featureFlagMocks.getBooleanFlagEnabled.mockReset();
 		featureFlagMocks.getBooleanFlagEnabled.mockReturnValue(false);
 		featureFlagMocks.setCliFeatureFlagsAccountContext.mockReset();
+		featureFlagMocks.refreshCliFeatureFlagsInBackground.mockReset();
 		kanbanMocks.launchKanban.mockReset();
 		kanbanMocks.launchKanban.mockResolvedValue(0);
 		dashboardMocks.runDashboardCommand.mockReset();
@@ -980,7 +983,7 @@ describe("runCli lightweight command dispatch", () => {
 		);
 	});
 
-	it("seeds feature flag identity from persisted Cline account id before checking flags", async () => {
+	it("seeds feature flag identity from persisted Cline account id before refreshing flags", async () => {
 		const clineSettings = {
 			provider: "cline",
 			model: "anthropic/claude-sonnet-4.6",
@@ -999,11 +1002,14 @@ describe("runCli lightweight command dispatch", () => {
 		expect(
 			featureFlagMocks.setCliFeatureFlagsAccountContext,
 		).toHaveBeenCalledWith({ id: "acct-startup" });
+		// The account identity must be seeded before flags are refreshed/used so
+		// the background refresh resolves flags for the correct account.
 		expect(
 			featureFlagMocks.setCliFeatureFlagsAccountContext.mock
 				.invocationCallOrder[0],
 		).toBeLessThan(
-			featureFlagMocks.getBooleanFlagEnabled.mock.invocationCallOrder[0],
+			featureFlagMocks.refreshCliFeatureFlagsInBackground.mock
+				.invocationCallOrder[0],
 		);
 	});
 
