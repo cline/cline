@@ -135,6 +135,7 @@ export function OnboardingView(props: OnboardingViewProps) {
 				planFeatures={state.clinePassPlanFeatures}
 				selected={state.clinePassSubscriptionSelected}
 				status={state.clinePassSubscriptionStatus}
+				subscriptionUrl={state.clinePassSubscriptionUrl}
 			/>
 		);
 	}
