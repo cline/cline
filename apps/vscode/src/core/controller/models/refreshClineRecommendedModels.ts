@@ -27,6 +27,28 @@ const CLINE_PASS_MODEL_ID_ALIAS_RULES = [
 	{ canonicalPrefix: "cline-pass/zai/", aliasPrefix: "cline-pass/z-ai/" },
 ] as const;
 
+function normalizeClineProviderRecommendedModelId(modelId: string): string {
+	const zaiPrefix = "zai/";
+	return modelId.startsWith(zaiPrefix) ? `z-ai/${modelId.slice(zaiPrefix.length)}` : modelId;
+}
+
+function normalizeClineProviderRecommendedModels(
+	models: ClineRecommendedModelData[],
+): ClineRecommendedModelData[] {
+	return models.map((model) => {
+		const id = normalizeClineProviderRecommendedModelId(model.id);
+		if (id === model.id) {
+			return model;
+		}
+
+		return {
+			...model,
+			id,
+			name: model.name === model.id ? id : model.name,
+		};
+	});
+}
+
 let pendingRefresh: Promise<ClineRecommendedModelsData> | null = null;
 let inMemoryCache: {
 	data: ClineRecommendedModelsData;
@@ -112,7 +134,11 @@ function normalizeRecommendedModelsResponse(
 		.map((model) => normalizeRecommendedModel(model))
 		.filter((model): model is ClineRecommendedModelData => model !== null);
 
-	return { recommended, free, clinePass: preferCanonicalRecommendedModels(clinePass) };
+	return {
+		recommended: normalizeClineProviderRecommendedModels(recommended),
+		free: normalizeClineProviderRecommendedModels(free),
+		clinePass: preferCanonicalRecommendedModels(clinePass),
+	};
 }
 
 export async function refreshClineRecommendedModels(): Promise<ClineRecommendedModelsData> {
@@ -184,14 +210,9 @@ async function fetchAndCacheClineRecommendedModels(): Promise<ClineRecommendedMo
 					"utf8",
 				);
 				const parsed = JSON.parse(fileContents);
-				if (parsed) {
-					result = {
-						recommended: Array.isArray(parsed.recommended)
-							? parsed.recommended
-							: [],
-						free: Array.isArray(parsed.free) ? parsed.free : [],
-						clinePass: Array.isArray(parsed.clinePass) ? parsed.clinePass : [],
-					};
+				const normalized = normalizeRecommendedModelsResponse(parsed);
+				if (normalized) {
+					result = normalized;
 					Logger.log("Loaded Cline recommended models from cache");
 				}
 			}
