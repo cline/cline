@@ -1,13 +1,16 @@
+import type { ClineSubscriptionPlan } from "@cline/core";
 import { useTerminalDimensions } from "@opentui/react";
 import type React from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import "opentui-spinner/react";
 import {
-	getCliSubscriptionUrl,
 	getClineOrgIndividualInferenceSubscriptionMessage,
+	getCliSubscriptionUrl,
+	getIndividualPlanFeatures,
 	isClineOrgIndividualInferenceSubscriptionErrorMessage,
 	isClinePassSubscriptionError,
 } from "../../utils/cline-pass-errors";
+import { getCliFeatureFlagsService } from "../../utils/feature-flags";
 import {
 	CLINE_CREDITS_DASHBOARD_URL,
 	isClineAccountCreditsErrorMessage,
@@ -15,6 +18,7 @@ import {
 import { useTerminalBackground } from "../hooks/use-terminal-background";
 import {
 	getDefaultForeground,
+	getModeAccent,
 	getModeInputBackground,
 	palette,
 	type TerminalTheme,
@@ -266,7 +270,8 @@ function ToolCallView(props: {
 	);
 }
 
-function ClineCreditsErrorView(props: { defaultFg?: string }) {
+function ClineCreditsClinePassErrorView(props: { defaultFg?: string }) {
+	const subscriptionUrl = getCliSubscriptionUrl();
 	return (
 		<box flexDirection="row">
 			<text fg="red" content="* " />
@@ -281,7 +286,60 @@ function ClineCreditsErrorView(props: { defaultFg?: string }) {
 				<text
 					fg={props.defaultFg}
 					selectable
-					content="You have run out of Cline credits. Add credits in the dashboard to continue."
+					content={
+						"You have run out of Cline credits. Add credits in the dashboard or purchase and switch to ClinePass to continue."
+					}
+				/>
+				<box flexDirection="row">
+					<text fg="gray">Purchase Credits: </text>
+					<text fg="cyan" selectable>
+						<a href={CLINE_CREDITS_DASHBOARD_URL}>
+							{CLINE_CREDITS_DASHBOARD_URL}
+						</a>
+					</text>
+				</box>
+				<box flexDirection="row">
+					<text fg="gray">Purchase ClinePass: </text>
+					<text fg="cyan" selectable>
+						<a href={subscriptionUrl}>{subscriptionUrl}</a>
+					</text>
+				</box>
+				<box flexDirection="row">
+					<text fg="gray">Switch to ClinePass: </text>
+					<text fg="gray">
+						type /settings in CLI and switch provider to ClinePass
+					</text>
+				</box>
+			</box>
+		</box>
+	);
+}
+
+function ClineCreditsErrorView(props: { defaultFg?: string }) {
+	const isClinePassEnabled =
+		getCliFeatureFlagsService().getBooleanFlagEnabled("ext-cline-pass");
+
+	if (isClinePassEnabled) {
+		return <ClineCreditsClinePassErrorView defaultFg={props.defaultFg} />;
+	}
+
+	return (
+		<box flexDirection="row">
+			<text fg="red" content="* " />
+			<box
+				flexDirection="column"
+				border
+				borderStyle="rounded"
+				borderColor="red"
+				paddingX={1}
+			>
+				<text fg="red">Cline Credits depleted</text>
+				<text
+					fg={props.defaultFg}
+					selectable
+					content={
+						"You have run out of Cline credits. Add credits in the dashboard to continue."
+					}
 				/>
 				<box flexDirection="row">
 					<text fg="gray">Dashboard: </text>
@@ -296,24 +354,63 @@ function ClineCreditsErrorView(props: { defaultFg?: string }) {
 	);
 }
 
-function ClinePassSubscriptionErrorView(props: { defaultFg?: string }) {
+function ClinePassSubscriptionErrorView(props: {
+	defaultFg?: string;
+	loadIndividualSubscriptionPlans?: () => Promise<ClineSubscriptionPlan[]>;
+	terminalTheme: TerminalTheme;
+}) {
 	const subscriptionUrl = getCliSubscriptionUrl();
+	const [planFeatures, setPlanFeatures] = useState<string[]>([]);
+	const planAccent = getModeAccent("plan", props.terminalTheme);
+
+	useEffect(() => {
+		if (!props.loadIndividualSubscriptionPlans) {
+			return;
+		}
+		let isMounted = true;
+		void props
+			.loadIndividualSubscriptionPlans()
+			.then((plans) => {
+				if (isMounted) {
+					setPlanFeatures(getIndividualPlanFeatures(plans));
+				}
+			})
+			.catch(() => {
+				// Keep the subscription error view usable if plan metadata is unavailable.
+			});
+
+		return () => {
+			isMounted = false;
+		};
+	}, [props.loadIndividualSubscriptionPlans]);
+
 	return (
 		<box flexDirection="row">
-			<text fg="yellow" content="* " />
+			<text fg={planAccent} content="* " />
 			<box
 				flexDirection="column"
 				border
 				borderStyle="rounded"
-				borderColor="yellow"
+				borderColor={planAccent}
 				paddingX={1}
 			>
-				<text fg="yellow">ClinePass subscription required</text>
+				<text fg={planAccent}>ClinePass subscription required</text>
 				<text
 					fg={props.defaultFg}
 					selectable
 					content="No access to ClinePass subscription models yet. Subscribe to ClinePass, the low cost open weights model coding plan."
 				/>
+				{planFeatures.length > 0 && (
+					<box flexDirection="column" marginTop={1}>
+						<text fg={props.defaultFg}>ClinePass includes:</text>
+						{planFeatures.map((feature) => (
+							<text key={feature} fg={props.defaultFg} selectable>
+								<span fg="green">✓ </span>
+								<span>{feature}</span>
+							</text>
+						))}
+					</box>
+				)}
 				<box flexDirection="row">
 					<text fg="gray">Subscribe: </text>
 					<text fg="cyan" selectable>
@@ -333,18 +430,21 @@ function ClinePassSubscriptionErrorView(props: { defaultFg?: string }) {
 
 function ClineOrgIndividualInferenceSubscriptionErrorView(props: {
 	defaultFg?: string;
+	terminalTheme: TerminalTheme;
 }) {
+	const planAccent = getModeAccent("plan", props.terminalTheme);
+
 	return (
 		<box flexDirection="row">
-			<text fg="yellow" content="* " />
+			<text fg={planAccent} content="* " />
 			<box
 				flexDirection="column"
 				border
 				borderStyle="rounded"
-				borderColor="yellow"
+				borderColor={planAccent}
 				paddingX={1}
 			>
-				<text fg="yellow">Personal ClinePass required</text>
+				<text fg={planAccent}>Personal ClinePass required</text>
 				<text
 					fg={props.defaultFg}
 					selectable
@@ -358,6 +458,7 @@ function ClineOrgIndividualInferenceSubscriptionErrorView(props: {
 export function ChatEntryView(props: {
 	entry: ChatEntry;
 	accent?: string;
+	loadIndividualSubscriptionPlans?: () => Promise<ClineSubscriptionPlan[]>;
 	terminalTheme: TerminalTheme;
 }) {
 	const { entry, accent = palette.act, terminalTheme } = props;
@@ -457,11 +558,20 @@ export function ChatEntryView(props: {
 				return (
 					<ClineOrgIndividualInferenceSubscriptionErrorView
 						defaultFg={defaultFg}
+						terminalTheme={terminalTheme}
 					/>
 				);
 			}
 			if (isClinePassSubscriptionError(entry.text)) {
-				return <ClinePassSubscriptionErrorView defaultFg={defaultFg} />;
+				return (
+					<ClinePassSubscriptionErrorView
+						defaultFg={defaultFg}
+						loadIndividualSubscriptionPlans={
+							props.loadIndividualSubscriptionPlans
+						}
+						terminalTheme={terminalTheme}
+					/>
+				);
 			}
 			return (
 				<box flexDirection="row">

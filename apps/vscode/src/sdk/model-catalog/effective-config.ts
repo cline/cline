@@ -2,6 +2,7 @@ import type { ApiConfiguration } from "@shared/api"
 import { StateManager } from "@/core/storage/StateManager"
 import { getProviderSettingsManager } from "../provider-migration"
 import type { AwsProviderConfig, EffectiveProviderConfig, GcpProviderConfig, ProviderId } from "./contracts"
+import { toSdkProviderId } from "./sdk-provider-id"
 
 type AuthConfig = NonNullable<EffectiveProviderConfig["auth"]>
 type ExtrasConfig = NonNullable<EffectiveProviderConfig["extras"]>
@@ -192,7 +193,7 @@ function readAws(record: Record<string, unknown>): AwsProviderConfig | undefined
 
 function readProviderSettings(providerId: ProviderId): ConfigParts {
 	try {
-		const settings: unknown = getProviderSettingsManager().getProviderSettings(providerId)
+		const settings: unknown = getProviderSettingsManager().getProviderSettings(toSdkProviderId(providerId))
 		if (!isPlainRecord(settings)) {
 			return {}
 		}

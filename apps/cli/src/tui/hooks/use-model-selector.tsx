@@ -18,8 +18,9 @@ import {
 import type { Config } from "../../utils/types";
 import { withLoadingDialog } from "../components/dialogs/loading-dialog";
 import {
+	ClinePassSubscriptionContent,
 	CodexCliStatusContent,
-	type ExistingProviderAction,
+	type ExistingProviderOption,
 	OAuthLoginContent,
 	ProviderConfigInputContent,
 	ProviderPickerContent,
@@ -78,6 +79,36 @@ function usesModelIdInput(providerId: string): boolean {
 	return providerId === "openai-compatible";
 }
 
+function providerToExistingProviderOptions(input: {
+	providerId: string;
+	providerName: string;
+	dialog: DialogActions;
+	termHeight: number;
+}): ExistingProviderOption[] {
+	if (input.providerId !== "cline-pass") {
+		return [];
+	}
+
+	return [
+		{
+			value: "open_subscription_page",
+			label: "Manage subscription & see usage",
+			onSelect: async () => {
+				await input.dialog.choice<boolean>({
+					style: { maxHeight: input.termHeight - 2 },
+					closeOnEscape: false,
+					content: (ctx: ChoiceContext<boolean>) => (
+						<ClinePassSubscriptionContent
+							{...ctx}
+							providerName={input.providerName}
+						/>
+					),
+				});
+			},
+		},
+	];
+}
+
 async function runProviderChange(
 	dialog: DialogActions,
 	config: Config,
@@ -102,14 +133,33 @@ async function runProviderChange(
 
 	let needsAuth = true;
 	if (isProviderConfigured(newProviderId, existingSettings)) {
-		const action = await dialog.choice<ExistingProviderAction>({
-			style: { maxHeight: termHeight - 2 },
-			content: (ctx: ChoiceContext<ExistingProviderAction>) => (
-				<UseExistingOrReconfigureContent {...ctx} providerName={displayName} />
-			),
+		let option: ExistingProviderOption | undefined;
+		const extraOptions = providerToExistingProviderOptions({
+			providerId: newProviderId,
+			providerName: displayName,
+			dialog,
+			termHeight,
 		});
-		if (!action) return false;
-		needsAuth = action === "reconfigure";
+		while (true) {
+			option = await dialog.choice<ExistingProviderOption>({
+				style: { maxHeight: termHeight - 2 },
+				content: (ctx: ChoiceContext<ExistingProviderOption>) => (
+					<UseExistingOrReconfigureContent
+						{...ctx}
+						providerName={displayName}
+						extraOptions={extraOptions}
+					/>
+				),
+			});
+			if (!option) return false;
+			if (option.onSelect) {
+				await option.onSelect();
+				option = undefined;
+				continue;
+			}
+			break;
+		}
+		needsAuth = option.value === "reconfigure";
 	}
 
 	if (needsAuth) {

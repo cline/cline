@@ -1,14 +1,27 @@
+import { installMcpServer } from "@cline/core";
 import { describe, expect, it, vi } from "vitest";
 import {
 	buildMcpInstallDefaults,
 	buildMcpInstallTransport,
 	runMcpInstallCommand,
 } from "./mcp";
-import { addServer } from "../wizards/mcp/settings";
 
-vi.mock("../wizards/mcp/settings", () => ({
-	addServer: vi.fn(),
-}));
+vi.mock("@cline/core", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@cline/core")>();
+	return {
+		...actual,
+		installMcpServer: vi.fn((options) => {
+			const { name, transport, warnings } =
+				actual.buildMcpInstallTransport(options);
+			return {
+				name,
+				status: "installed",
+				transport,
+				warnings,
+			};
+		}),
+	};
+});
 
 describe("mcp install command", () => {
 	it("builds stdio wizard defaults from command args", () => {
@@ -216,12 +229,17 @@ describe("mcp install command", () => {
 		});
 
 		expect(code).toBe(0);
-		expect(addServer).toHaveBeenCalledWith("docs", {
-			type: "streamableHttp",
-			url: "https://example.com/mcp",
-			headers: {
-				Authorization: "Bearer token",
-			},
+		expect(installMcpServer).toHaveBeenCalledWith({
+			name: "docs",
+			transport: "http",
+			targetArgs: [
+				"https://example.com/mcp",
+				"--header",
+				"Authorization: Bearer token",
+			],
+			isTty: false,
+			yes: true,
+			io: { writeln, writeErr },
 		});
 		expect(writeln).toHaveBeenCalledWith("Installed MCP server docs.");
 		expect(writeErr).not.toHaveBeenCalled();

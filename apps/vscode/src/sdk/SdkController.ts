@@ -648,6 +648,15 @@ export class Controller {
 		}
 	}
 
+	async invalidateUserInstructionService(): Promise<void> {
+		const userInstructionServicePromise = this.userInstructionService
+		this.userInstructionService = undefined
+		this.userInstructionServiceRoot = undefined
+		if (userInstructionServicePromise) {
+			await userInstructionServicePromise.then((service) => service.stop()).catch(() => {})
+		}
+	}
+
 	async dispose(): Promise<void> {
 		this.providerConfigStoreSubscription.dispose()
 		// Clear the remote config timer to prevent stale fetches
@@ -657,11 +666,7 @@ export class Controller {
 		}
 		await this.setRemoteConfigCoreIntegration(undefined)
 		this.isDisposed = true
-		const userInstructionServicePromise = this.userInstructionService
-		this.userInstructionService = undefined
-		if (userInstructionServicePromise) {
-			await userInstructionServicePromise.then((service) => service.stop()).catch(() => {})
-		}
+		await this.invalidateUserInstructionService()
 		this.messages.cancelPendingSave()
 		// Clear MCP tool list change callback before disposing McpHub
 		this.mcpHub?.clearToolListChangeCallback()
@@ -704,7 +709,11 @@ export class Controller {
 		this.userInstructionService = (async () => {
 			const service = createUserInstructionConfigService({
 				workflows: { workspacePath: workspaceRoot },
-				skills: { workspacePath: workspaceRoot },
+				skills: {
+					workspacePath: workspaceRoot,
+					includePluginSkills: true,
+					cwd: workspaceRoot,
+				},
 				rules: { workspacePath: workspaceRoot },
 			})
 			// start() runs the initial scan; await so the snapshot is populated
@@ -1099,6 +1108,29 @@ export class Controller {
 
 	async cancelBackgroundCommand(): Promise<void> {
 		stubWarn("cancelBackgroundCommand")
+	}
+
+	async cancelQueuedPrompt(promptId: string): Promise<void> {
+		const trimmedPromptId = promptId.trim()
+		if (!trimmedPromptId) {
+			Logger.warn("[SdkController] cancelQueuedPrompt: Missing prompt id")
+			return
+		}
+
+		const activeSession = this.sessions.getActiveSession()
+		if (!activeSession) {
+			Logger.warn("[SdkController] cancelQueuedPrompt: No active session")
+			return
+		}
+
+		const result = await activeSession.sdkHost.pendingPrompts("delete", {
+			sessionId: activeSession.sessionId,
+			promptId: trimmedPromptId,
+		})
+		if (!result.removed) {
+			Logger.warn(`[SdkController] cancelQueuedPrompt: Prompt not found: ${trimmedPromptId}`)
+		}
+		await this.postStateToWebview()
 	}
 
 	/**

@@ -28,6 +28,23 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 		setIsEditing(true)
 	}
 
+	const cancelEditing = () => {
+		if (savingMode) {
+			return
+		}
+		setIsEditing(false)
+	}
+
+	const handleEditingKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+		if (event.key !== "Escape") {
+			return
+		}
+
+		event.preventDefault()
+		event.stopPropagation()
+		cancelEditing()
+	}
+
 	const handleSave = async (restoreWorkspace: boolean) => {
 		if (!messageTs || savingMode) {
 			return
@@ -95,7 +112,7 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 				</Tooltip>
 			)}
 			{isEditing ? (
-				<div className="flex flex-col gap-2">
+				<div className="flex flex-col gap-2" onKeyDown={handleEditingKeyDown}>
 					<textarea
 						className="w-full box-border rounded-xs border border-vscode-input-border bg-vscode-input-background text-vscode-input-foreground p-2 text-sm resize-vertical"
 						disabled={!!savingMode}
@@ -108,15 +125,13 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 						<button
 							className="shrink-0 whitespace-nowrap px-1 py-1 rounded-xs border-0 bg-transparent text-badge-foreground/80 hover:text-badge-foreground cursor-pointer text-xs"
 							disabled={!!savingMode}
-							onClick={() => setIsEditing(false)}
+							onClick={cancelEditing}
 							type="button">
 							Cancel
 						</button>
 						<div className="flex items-center gap-1.5">
 							<Tooltip>
-								<TooltipContent side="top">
-									Regenerate from this edited message without changing files.
-								</TooltipContent>
+								<TooltipContent side="top">Rewind conversation, keep current code edits</TooltipContent>
 								<TooltipTrigger asChild>
 									<span className="inline-flex shrink-0">
 										<button
@@ -124,16 +139,14 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 											disabled={!!savingMode}
 											onClick={() => handleSave(false)}
 											type="button">
-											{savingMode === "chat" ? "Running..." : "Regenerate"}
+											{savingMode === "chat" ? "Running..." : "Reset Chat"}
 										</button>
 									</span>
 								</TooltipTrigger>
 							</Tooltip>
 							{canRestoreWorkspace && (
 								<Tooltip>
-									<TooltipContent side="top">
-										Restore workspace files to this checkpoint, then regenerate.
-									</TooltipContent>
+									<TooltipContent side="top">Rewind conversation, reset code edits</TooltipContent>
 									<TooltipTrigger asChild>
 										<span className="inline-flex shrink-0">
 											<button
@@ -141,7 +154,7 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 												disabled={!!savingMode}
 												onClick={() => handleSave(true)}
 												type="button">
-												{savingMode === "workspace" ? "Restoring..." : "Restore + Run"}
+												{savingMode === "workspace" ? "Restoring..." : "Reset Code"}
 											</button>
 										</span>
 									</TooltipTrigger>

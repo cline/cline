@@ -125,6 +125,16 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 						throw error
 					}
 					messageSent = true
+				} else if (turnState?.phase === "awaiting_approval") {
+					await sendAskResponseWithPendingState(
+						AskResponseRequest.create({
+							responseType: "noButtonClicked",
+							text: messageToSend,
+							images,
+							files,
+						}),
+					)
+					messageSent = true
 				} else if (clineAsk) {
 					// For resume_task and resume_completed_task, use yesButtonClicked to match Resume button behavior
 					// This ensures Enter key and Resume button work identically

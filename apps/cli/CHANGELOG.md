@@ -1,5 +1,51 @@
 # Cline CLI Changelog
 
+## 3.0.34
+
+- Fixed the ClinePass upgrade notice appearing immediately after completing onboarding.
+- Improved the wording of the ClinePass onboarding step.
+- Streamlined the Cline provider picker by merging the subscription and usage/billing options into one and removing the credits link.
+
+## 3.0.33
+
+- Show a ClinePass subscription URL as a fallback during onboarding so you can still subscribe if the subscription screen can't open automatically
+- Hide the ClinePass promo for users who already have a ClinePass subscription
+- Use an adaptive plan accent color for ClinePass prompts so they fit the active theme
+
+## 3.0.32
+
+- Improved the ClinePass onboarding experience
+- Added an intermediate step before going to ClinePass model selection
+- Made the ClinePass subscription screen selectable
+- Promoted ClinePass in the startup notice
+- Used "ClinePass" as one word consistently and refined the provider UI copy
+- More accurate context compaction and clearer error messages (from SDK v0.0.54)
+
+## 3.0.31
+
+- Show when request cost is covered by your Cline subscription
+- Prompt to switch to ClinePass when you run out of credits, and list ClinePass features in the not-subscribed message
+- Added an option to open the subscription page from the ClinePass options
+- Added marketplace uninstall support and surfaced plugin-bundled skills
+- Require quoted prompts for one-shot mode
+- Capped MCP tool names at 64 characters for OpenAI-compatible providers
+- Updated coupon code
+
+## 3.0.30
+
+- Added a token count to the status bar, shown alongside cost
+- Added organization-specific error messages
+- Added SAP AI Core provider support
+- Refreshed the model catalog with the latest provider models
+- Preserved OpenRouter reasoning-disable behavior and improved OpenRouter prompt caching
+- Routed LiteLLM model fetches through the SDK and stopped unrelated models from appearing in the LiteLLM model list
+- Updated ClinePass models live, restored ClinePass models in onboarding, and improved ClinePass error messages
+- Threaded proxy/CA-aware networking into the inference path
+- Persisted Bedrock settings to providers.json
+- Normalized JSON-like tool inputs by schema for more reliable tool calls
+- Fixed an "ERROR: EMPTY CONTENT" message that could appear when an error occurred
+- Fixed a packaging issue (createRequire) that could break the CLI at runtime
+
 ## 3.0.29
 
 - Costs are now hidden for Cline free models

@@ -127,7 +127,12 @@ export class SdkInteractionCoordinator {
 		})
 	}
 
-	resolvePendingToolApproval(prompt: string | undefined, responseType: ClineAskResponse | undefined): boolean {
+	resolvePendingToolApproval(
+		prompt: string | undefined,
+		responseType: ClineAskResponse | undefined,
+		images?: string[],
+		files?: string[],
+	): boolean {
 		if (!this.pendingToolApprovalResolve) {
 			return false
 		}
@@ -155,6 +160,21 @@ export class SdkInteractionCoordinator {
 		// On rejection the agent receives the denial and continues; the SDK drives the next phase.
 		this.options.setTurnPhase?.("streaming")
 		const denialReason = prompt || DEFAULT_TOOL_APPROVAL_DENIAL_REASON
+		if (!approved && (prompt?.trim() || images?.length || files?.length)) {
+			const userMessage: ClineMessage = {
+				ts: this.nextMessageTs(),
+				type: "say",
+				say: "user_feedback",
+				text: prompt ?? "",
+				images,
+				files,
+				partial: false,
+			}
+			this.options.messages.appendAndEmit([userMessage], {
+				type: "status",
+				payload: { sessionId: this.options.getSessionId(), status: "running" },
+			})
+		}
 		if (!approved && pendingMessage) {
 			this.options.recordDeniedToolApproval?.(pendingMessage.toolCallId, pendingMessage.toolName, denialReason)
 		}

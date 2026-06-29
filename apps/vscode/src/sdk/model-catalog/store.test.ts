@@ -181,10 +181,126 @@ describe("createProviderConfigStore", () => {
 
 		expect(written).toEqual({ providerId, apiKey: "nous-key" })
 		expect(store.readSelection(providerId, "act")).toEqual(selection)
-		expect(mocks.getSavedProviderSettings("nousresearch")).toMatchObject({
-			provider: "nousresearch",
+		expect(mocks.getSavedProviderSettings("nousResearch")).toMatchObject({
+			provider: "nousResearch",
 			apiKey: "nous-key",
 			model: "nousresearch/hermes-4-70b",
+		})
+	})
+
+	it("reads migrated OpenAI Compatible settings from the SDK provider id", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		mocks.setProviderSettings({
+			"openai-compatible": {
+				provider: "openai-compatible",
+				apiKey: "migrated-openai-compatible-key",
+				baseUrl: "https://gateway.example.invalid/v1",
+				headers: { "X-Test": "legacy-header" },
+			},
+		})
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("openai")
+
+		expect(store.read(providerId)).toEqual({
+			providerId,
+			apiKey: "migrated-openai-compatible-key",
+			baseUrl: "https://gateway.example.invalid/v1",
+			headers: { "X-Test": "legacy-header" },
+		})
+	})
+
+	it("writes OpenAI Compatible settings under the SDK provider id", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("openai")
+
+		store.write(providerId, {
+			apiKey: "openai-compatible-key",
+			baseUrl: "https://gateway.example.invalid/v1",
+		})
+
+		expect(mocks.getSavedProviderSettings("openai")).toBeUndefined()
+		expect(mocks.getSavedProviderSettings("openai-compatible")).toMatchObject({
+			provider: "openai-compatible",
+			apiKey: "openai-compatible-key",
+			baseUrl: "https://gateway.example.invalid/v1",
+		})
+	})
+
+	it("preserves migrated OpenAI Compatible settings when committing model selections", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		mocks.setProviderSettings({
+			"openai-compatible": {
+				provider: "openai-compatible",
+				apiKey: "migrated-openai-compatible-key",
+			},
+		})
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("openai")
+		const selection = { providerId, modelId: "gpt-oss-120b", modelInfo: modelInfoA }
+
+		store.commitSelection(providerId, "act", selection)
+
+		expect(mocks.getSavedProviderSettings("openai-compatible")).toMatchObject({
+			provider: "openai-compatible",
+			apiKey: "migrated-openai-compatible-key",
+			model: "gpt-oss-120b",
+		})
+	})
+
+	it("keeps OpenAI Compatible Plan and Act selections independent when separate models are enabled", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		mocks.setApiConfiguration({ planActSeparateModelsSetting: true })
+		mocks.setProviderSettings({
+			"openai-compatible": {
+				provider: "openai-compatible",
+				apiKey: "migrated-openai-compatible-key",
+			},
+		})
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("openai")
+		const planSelection = { providerId, modelId: "plan-openai-model", modelInfo: modelInfoA }
+		const actSelection = { providerId, modelId: "act-openai-model", modelInfo: modelInfoB }
+
+		store.commitSelection(providerId, "plan", planSelection)
+		store.commitSelection(providerId, "act", actSelection)
+
+		expect(store.readSelection(providerId, "plan")).toEqual(planSelection)
+		expect(store.readSelection(providerId, "act")).toEqual(actSelection)
+		expect(mocks.getApiConfiguration()).toMatchObject({
+			planModeOpenAiModelId: "plan-openai-model",
+			planModeOpenAiModelInfo: modelInfoA,
+			actModeOpenAiModelId: "act-openai-model",
+			actModeOpenAiModelInfo: modelInfoB,
+		})
+		expect(mocks.getSavedProviderSettings("openai")).toBeUndefined()
+		expect(mocks.getSavedProviderSettings("openai-compatible")).toMatchObject({
+			provider: "openai-compatible",
+			apiKey: "migrated-openai-compatible-key",
+			model: "act-openai-model",
+		})
+	})
+
+	it("mirrors OpenAI Compatible selections to both modes when separate models are disabled", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		mocks.setApiConfiguration({ planActSeparateModelsSetting: false })
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("openai")
+		const selection = { providerId, modelId: "shared-openai-model", modelInfo: modelInfoA }
+
+		store.commitSelection(providerId, "act", selection)
+
+		expect(store.readSelection(providerId, "plan")).toEqual(selection)
+		expect(store.readSelection(providerId, "act")).toEqual(selection)
+		expect(mocks.getApiConfiguration()).toMatchObject({
+			planModeOpenAiModelId: "shared-openai-model",
+			planModeOpenAiModelInfo: modelInfoA,
+			actModeOpenAiModelId: "shared-openai-model",
+			actModeOpenAiModelInfo: modelInfoA,
+		})
+		expect(mocks.getSavedProviderSettings("openai-compatible")).toMatchObject({
+			provider: "openai-compatible",
+			model: "shared-openai-model",
 		})
 	})
 

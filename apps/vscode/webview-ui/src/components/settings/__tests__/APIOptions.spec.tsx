@@ -97,7 +97,7 @@ describe("ApiOptions Component", () => {
 		expect(modelIdInput).toBeInTheDocument()
 	})
 
-	it("renders the generic provider fallback for simple SDK-listed providers without a custom override", () => {
+	it("renders the OpenAI-compatible form for custom/unknown catalog providers", () => {
 		vi.mocked(useProviderListings).mockReturnValue({
 			providers: [
 				{
@@ -122,7 +122,11 @@ describe("ApiOptions Component", () => {
 			</ExtensionStateContextProvider>,
 		)
 
-		expect(screen.getByTestId("generic-provider-settings")).toHaveTextContent("Future Simple Provider")
+		// Custom/unknown providers use the richer OpenAI-compatible form (Base
+		// URL, Custom Headers, Model Configuration, Reasoning Effort) rather than
+		// the simpler generic settings form.
+		expect(screen.getByText("Custom Headers")).toBeInTheDocument()
+		expect(screen.queryByTestId("generic-provider-settings")).not.toBeInTheDocument()
 	})
 })
 

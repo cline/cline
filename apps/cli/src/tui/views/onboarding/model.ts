@@ -8,6 +8,7 @@ export type OnboardingStep =
 	| "byo_provider"
 	| "byo_apikey"
 	| "codex_cli_setup"
+	| "cline_pass_subscription"
 	| "cline_model"
 	| "model_picker"
 	| "custom_model_id"
@@ -34,6 +35,17 @@ export interface MenuOption {
 	value: string;
 	detail: string;
 	icon: string;
+}
+
+export type ClinePassSubscriptionAction =
+	| "subscribe"
+	| "refresh"
+	| "skip"
+	| "back";
+
+export interface ClinePassSubscriptionOption {
+	value: ClinePassSubscriptionAction;
+	label: string;
 }
 
 export const MAIN_MENU: MenuOption[] = [
@@ -71,6 +83,25 @@ export function getMainMenuOptions(options?: {
 	);
 }
 
+export const CLINE_PASS_SUBSCRIPTION_OPTIONS: ClinePassSubscriptionOption[] = [
+	{
+		value: "subscribe",
+		label: "Subscribe to ClinePass",
+	},
+	{
+		value: "refresh",
+		label: "Re-check subscription status",
+	},
+	{
+		value: "skip",
+		label: "Skip for now",
+	},
+	{
+		value: "back",
+		label: "Go back",
+	},
+];
+
 export interface OnboardingResult {
 	providerId: string;
 	modelId: string;
@@ -95,6 +126,12 @@ export interface ModelEntry {
 	name: string;
 	supportsReasoning: boolean;
 }
+
+export type ClinePassSubscriptionStatus =
+	| "loading"
+	| "subscribed"
+	| "unsubscribed"
+	| "error";
 
 export interface ProviderCatalogItem {
 	id: string;
