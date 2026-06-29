@@ -18345,9 +18345,9 @@ export const GENERATED_PROVIDER_MODELS: {
 				maxTokens: 64000,
 				capabilities: ["tools", "reasoning", "temperature"],
 				pricing: {
-					input: 0,
-					output: 0,
-					cacheRead: 0,
+					input: 0.29,
+					output: 1.18,
+					cacheRead: 0.12,
 					cacheWrite: 0,
 				},
 				releaseDate: "2026-04-20",
