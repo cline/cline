@@ -49,6 +49,7 @@ export type ApiProvider =
 	| "nousResearch"
 	| "wandb"
 	| "xiaomi"
+	| "tencent"
 
 export const DEFAULT_API_PROVIDER = "openrouter" as ApiProvider
 

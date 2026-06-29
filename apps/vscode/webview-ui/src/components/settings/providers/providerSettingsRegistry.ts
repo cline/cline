@@ -97,6 +97,9 @@ const GENERIC_PROVIDER_PRESENTATION_OVERRIDES: Record<string, GenericProviderPre
 		signupUrl: "https://wandb.ai",
 	},
 	xiaomi: {},
+	tencent: {
+		signupUrl: "https://cloud.tencent.com/document/product/1823/130050",
+	},
 	"zai-coding-plan": {},
 }
 
@@ -157,6 +160,7 @@ const FALLBACK_GENERIC_PROVIDER_NAMES = {
 	v0: "Vercel v0",
 	wandb: "W&B",
 	xiaomi: "Xiaomi",
+	tencent: "Tencent TokenHub",
 	"zai-coding-plan": "Z.AI Coding Plan",
 } as const
 

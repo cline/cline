@@ -168,6 +168,26 @@ describe("provider-ids", () => {
 		});
 	});
 
+	it("registers Tencent TokenHub as an OpenAI-compatible built-in provider", async () => {
+		await expect(getProvider("tencent")).resolves.toMatchObject({
+			id: "tencent",
+			baseUrl: "https://tokenhub.tencentmaas.com/v1",
+			defaultModelId: "hy3-preview",
+			client: "openai-compatible",
+		});
+
+		await expect(getModelsForProvider("tencent")).resolves.toHaveProperty(
+			"hy3-preview",
+		);
+
+		const registration = BUILTIN_PROVIDER_REGISTRATIONS.find(
+			(item) => item.manifest.id === "tencent",
+		);
+		await expect(registration?.loadProvider?.()).resolves.toMatchObject({
+			createProvider: createOpenAICompatibleProvider,
+		});
+	});
+
 	it("registers Z.AI Coding Plan with an accessible coding-plan default", async () => {
 		await expect(getProvider("zai-coding-plan")).resolves.toMatchObject({
 			id: "zai-coding-plan",
