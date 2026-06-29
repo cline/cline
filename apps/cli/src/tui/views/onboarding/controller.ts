@@ -292,7 +292,6 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		setClinePassSubscriptionStatus("loading");
 		setClinePassSubscriptionError("");
 		setClinePassCurrentPlanName("");
-		setClinePassPlanFeatures([]);
 		setClinePassSubscriptionOpenStatus("");
 
 		loadCurrentUserPlanFromProviderSettings({ providerSettingsManager })
