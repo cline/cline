@@ -1110,10 +1110,10 @@ describe("createContextCompactionPrepareTurn", () => {
 		]);
 	});
 
-		it("does not subtract model max output tokens from an explicit input budget", async () => {
-			const compact = vi.fn((_context: CoreCompactionContext) => ({
-				messages: [
-					{ role: "user" as const, content: "Compacted by input budget" },
+	it("does not subtract model max output tokens from an explicit input budget", async () => {
+		const compact = vi.fn((_context: CoreCompactionContext) => ({
+			messages: [
+				{ role: "user" as const, content: "Compacted by input budget" },
 			],
 		}));
 		const prepareTurn = createContextCompactionPrepareTurn({
@@ -1154,64 +1154,64 @@ describe("createContextCompactionPrepareTurn", () => {
 			},
 		});
 
-			expect(compact).not.toHaveBeenCalled();
-			expect(result).toBeUndefined();
-		});
+		expect(compact).not.toHaveBeenCalled();
+		expect(result).toBeUndefined();
+	});
 
-		it("targets basic compaction below the model output-reserved input budget", async () => {
-			const compact = vi.fn((_context: CoreCompactionContext) => ({
-				messages: [
-					{ role: "user" as const, content: "Compacted by target budget" },
-				],
-			}));
-			const prepareTurn = createContextCompactionPrepareTurn({
+	it("targets basic compaction below the model output-reserved input budget", async () => {
+		const compact = vi.fn((_context: CoreCompactionContext) => ({
+			messages: [
+				{ role: "user" as const, content: "Compacted by target budget" },
+			],
+		}));
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "openai-codex",
+			modelId: "gpt-5.5",
+			providerConfig: {
 				providerId: "openai-codex",
 				modelId: "gpt-5.5",
-				providerConfig: {
-					providerId: "openai-codex",
-					modelId: "gpt-5.5",
-				} as LlmsProviders.ProviderConfig,
-				compaction: { enabled: true, strategy: "basic", compact },
-				logger: undefined,
-			});
-			const messages: MessageWithMetadata[] = [
-				{
-					role: "user",
-					content: "large prompt ".repeat(70_000),
-				},
-			];
+			} as LlmsProviders.ProviderConfig,
+			compaction: { enabled: true, strategy: "basic", compact },
+			logger: undefined,
+		});
+		const messages: MessageWithMetadata[] = [
+			{
+				role: "user",
+				content: "large prompt ".repeat(70_000),
+			},
+		];
 
-			await prepareTurn?.({
-				agentId: "agent-1",
-				conversationId: "conv-1",
-				parentAgentId: null,
-				iteration: 1,
-				abortSignal: new AbortController().signal,
-				systemPrompt: "You are helpful.",
-				tools: [],
-				messages,
-				apiMessages: messages,
-				model: {
+		await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages,
+			apiMessages: messages,
+			model: {
+				id: "gpt-5.5",
+				provider: "openai-codex",
+				info: {
 					id: "gpt-5.5",
-					provider: "openai-codex",
-					info: {
-						id: "gpt-5.5",
-						maxInputTokens: 272_000,
-						maxTokens: 128_000,
-					},
+					maxInputTokens: 272_000,
+					maxTokens: 128_000,
 				},
-			});
-
-			expect(compact).toHaveBeenCalledTimes(1);
-			const context = compact.mock.calls[0]?.[0];
-			expect(context?.triggerTokens).toBe(244_800);
-			expect(context?.targetTokens).toBe(100_800);
+			},
 		});
 
-		it("derives input budget by reserving model max output tokens from context window", async () => {
-			const compact = vi.fn((_context: CoreCompactionContext) => ({
-				messages: [
-					{ role: "user" as const, content: "Compacted by derived input budget" },
+		expect(compact).toHaveBeenCalledTimes(1);
+		const context = compact.mock.calls[0]?.[0];
+		expect(context?.triggerTokens).toBe(244_800);
+		expect(context?.targetTokens).toBe(100_800);
+	});
+
+	it("derives input budget by reserving model max output tokens from context window", async () => {
+		const compact = vi.fn((_context: CoreCompactionContext) => ({
+			messages: [
+				{ role: "user" as const, content: "Compacted by derived input budget" },
 			],
 		}));
 		const prepareTurn = createContextCompactionPrepareTurn({
@@ -2032,16 +2032,6 @@ describe("createContextCompactionPrepareTurn", () => {
 			{ role: "user", content: "current request" },
 		];
 		const triggerTokens = 150;
-		const initialTokens = messages.reduce(
-			(total, message) => total + estimateMessageTokens(message),
-			0,
-		);
-		console.info("[basic compaction loop] round=1 before", {
-			triggerTokens,
-			messageCount: messages.length,
-			tokens: initialTokens,
-		});
-
 		const firstResult = await prepareTurn?.({
 			agentId: "agent-1",
 			conversationId: "conv-1",
@@ -2060,12 +2050,6 @@ describe("createContextCompactionPrepareTurn", () => {
 			(total, message) => total + estimateMessageTokens(message),
 			0,
 		);
-		console.info("[basic compaction loop] round=1 after", {
-			compacted: Boolean(firstResult?.messages),
-			messageCount: firstResult?.messages.length,
-			tokens: firstAfterTokens,
-			overTrigger: (firstAfterTokens ?? 0) > triggerTokens,
-		});
 		expect(firstAfterTokens).toBeLessThanOrEqual(triggerTokens);
 
 		const nextTurnMessages: LlmsProviders.Message[] = [
@@ -2073,16 +2057,6 @@ describe("createContextCompactionPrepareTurn", () => {
 			{ role: "assistant", content: "short answer" },
 			{ role: "user", content: "next request" },
 		];
-		const nextTurnTokens = nextTurnMessages.reduce(
-			(total, message) => total + estimateMessageTokens(message),
-			0,
-		);
-		console.info("[basic compaction loop] round=2 before", {
-			triggerTokens,
-			messageCount: nextTurnMessages.length,
-			tokens: nextTurnTokens,
-			overTrigger: nextTurnTokens > triggerTokens,
-		});
 		const secondResult = await prepareTurn?.({
 			agentId: "agent-1",
 			conversationId: "conv-1",
@@ -2096,19 +2070,6 @@ describe("createContextCompactionPrepareTurn", () => {
 			model,
 		});
 
-		const secondAfterTokens = secondResult?.messages.reduce(
-			(total, message) => total + estimateMessageTokens(message),
-			0,
-		);
-		console.info("[basic compaction loop] round=2 after", {
-			compacted: Boolean(secondResult?.messages),
-			messageCount: secondResult?.messages.length,
-			tokens: secondAfterTokens,
-			overTrigger:
-				typeof secondAfterTokens === "number"
-					? secondAfterTokens > triggerTokens
-					: undefined,
-		});
 		expect(secondResult).toBeUndefined();
 	});
 });
