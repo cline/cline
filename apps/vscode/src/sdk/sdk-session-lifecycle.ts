@@ -29,6 +29,7 @@ export interface SdkSessionLifecycleOptions {
 	getRemoteConfigIntegration?: () => PreparedRemoteConfigCoreIntegration | undefined
 	/** Shared SDK telemetry service owned by SdkController. */
 	telemetry?: ITelemetryService
+	onSendStart?: (sessionId: string) => void
 	onSendComplete: (sessionId: string) => Promise<void> | void
 	onSendError: (error: unknown, sessionId: string) => Promise<void> | void
 }
@@ -324,6 +325,7 @@ export class SdkSessionLifecycle {
 			Logger.debug(`[SdkController] Ignoring ${label} of superseded send for session: ${sessionId}`)
 			return true
 		}
+		this.options.onSendStart?.(sessionId)
 		sdkHost
 			.send({
 				sessionId,

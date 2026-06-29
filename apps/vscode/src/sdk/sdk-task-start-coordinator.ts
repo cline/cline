@@ -7,6 +7,7 @@ import type { Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
 import type { StateManager } from "@/core/storage/StateManager"
 import { Logger } from "@/shared/services/Logger"
+import { PROVIDER_FAILURE_ERROR_TYPE, PROVIDER_FAILURE_PHASE, type ProviderFailureTelemetry } from "./provider-failure-telemetry"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import type { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
@@ -18,15 +19,6 @@ import type { VscodeSessionHost } from "./vscode-session-host"
 type StartInput = Parameters<VscodeSessionHost["start"]>[0]
 type InitialMessages = StartInput["initialMessages"]
 type SessionConfig = Awaited<ReturnType<SdkSessionConfigBuilder["build"]>>
-
-type TaskStartFailureTelemetry = {
-	sessionId?: string
-	error: unknown
-	providerId?: string
-	modelId?: string
-	errorType: string
-	failurePhase: "preflight"
-}
 
 function usesClineAccountAuth(providerId: string): boolean {
 	return getProviderAuthStorageId(providerId) === "cline"
@@ -61,7 +53,7 @@ export interface SdkTaskStartCoordinatorOptions {
 	resolveContextMentions: (text: string) => Promise<string>
 	isClineProviderActive: () => boolean
 	emitClineAuthError: (task?: string) => void
-	captureProviderApiError?: (event: TaskStartFailureTelemetry) => void
+	captureProviderApiError?: (event: ProviderFailureTelemetry) => void
 	postStateToWebview: () => Promise<void>
 }
 
@@ -160,8 +152,8 @@ export class SdkTaskStartCoordinator {
 				error,
 				providerId,
 				modelId,
-				errorType: "task_init",
-				failurePhase: "preflight",
+				errorType: PROVIDER_FAILURE_ERROR_TYPE.TASK_INIT,
+				failurePhase: PROVIDER_FAILURE_PHASE.PREFLIGHT,
 			})
 			this.handleInitError(error, taskSessionId)
 			await this.options.postStateToWebview().catch((postError) => {

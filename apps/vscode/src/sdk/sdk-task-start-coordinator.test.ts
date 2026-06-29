@@ -1,6 +1,7 @@
 import type { HistoryItem } from "@shared/HistoryItem"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { StateManager } from "@/core/storage/StateManager"
+import { PROVIDER_FAILURE_ERROR_TYPE, PROVIDER_FAILURE_PHASE } from "./provider-failure-telemetry"
 import { SdkTaskStartCoordinator, type SdkTaskStartCoordinatorOptions } from "./sdk-task-start-coordinator"
 
 vi.mock("@/shared/services/Logger", () => ({
@@ -98,8 +99,8 @@ describe("SdkTaskStartCoordinator", () => {
 			error,
 			providerId: "anthropic",
 			modelId: "model",
-			errorType: "task_init",
-			failurePhase: "preflight",
+			errorType: PROVIDER_FAILURE_ERROR_TYPE.TASK_INIT,
+			failurePhase: PROVIDER_FAILURE_PHASE.PREFLIGHT,
 		})
 		expect(state.task?.taskId).toEqual(expect.any(String))
 		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(

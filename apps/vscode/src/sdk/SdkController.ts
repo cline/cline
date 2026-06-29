@@ -55,6 +55,13 @@ import type { Disposable, ProviderCatalog, ProviderConfigChange, ProviderConfigS
 import { parseProviderId } from "./model-catalog/provider-id"
 import { createProviderConfigStore } from "./model-catalog/store"
 import {
+	getProviderFailureDedupeKey,
+	PROVIDER_FAILURE_ERROR_TYPE,
+	PROVIDER_FAILURE_PHASE,
+	type ProviderFailureTelemetry,
+	ProviderFailureTelemetryDeduper,
+} from "./provider-failure-telemetry"
+import {
 	findVisibleCheckpointUserMessageByRun,
 	getCheckpointRunCountForMessage,
 	isVisibleCheckpointUserMessage,
@@ -102,17 +109,6 @@ function metadataNumber(metadata: SessionHistoryRecord["metadata"] | undefined, 
 
 function usesClineAccountAuth(providerId: string): boolean {
 	return getProviderAuthStorageId(providerId) === "cline"
-}
-
-type ProviderFailurePhase = "preflight" | "streaming"
-
-type ProviderFailureTelemetry = {
-	sessionId?: string
-	error: unknown
-	providerId?: string
-	modelId?: string
-	errorType: string
-	failurePhase: ProviderFailurePhase
 }
 
 function metadataBoolean(metadata: SessionHistoryRecord["metadata"] | undefined, key: string): boolean | undefined {
@@ -171,6 +167,7 @@ export class Controller {
 	private sessionEvents: SdkSessionEventCoordinator
 	private sessionHistory: SdkSessionHistoryLoader
 	private readonly sdkTelemetry: VscodeSdkTelemetryHandle
+	private readonly providerFailureTelemetryDeduper = new ProviderFailureTelemetryDeduper()
 	private readonly providerConfigStore: ProviderConfigStore
 	private readonly providerCatalog: ProviderCatalog
 	private readonly providerConfigStoreSubscription: Disposable
@@ -314,6 +311,9 @@ export class Controller {
 				}
 				return this._terminalManager
 			},
+			onSendStart: (sessionId) => {
+				this.providerFailureTelemetryDeduper.resetSession(sessionId)
+			},
 			onSendComplete: async () => {
 				await this.providerChanges.handleTurnComplete(this.mode)
 
@@ -337,8 +337,8 @@ export class Controller {
 						sessionId,
 						error,
 						providerId,
-						errorType: "auth",
-						failurePhase: "preflight",
+						errorType: PROVIDER_FAILURE_ERROR_TYPE.AUTH,
+						failurePhase: PROVIDER_FAILURE_PHASE.PREFLIGHT,
 					})
 					this.emitClineAuthError()
 				} else if (providerId === "cline" && this.isClineBalanceError(errorMessage)) {
@@ -346,8 +346,8 @@ export class Controller {
 						sessionId,
 						error,
 						providerId,
-						errorType: "balance",
-						failurePhase: "preflight",
+						errorType: PROVIDER_FAILURE_ERROR_TYPE.BALANCE,
+						failurePhase: PROVIDER_FAILURE_PHASE.PREFLIGHT,
 					})
 					this.emitClineBalanceError(errorMessage)
 				} else {
@@ -355,8 +355,9 @@ export class Controller {
 						sessionId,
 						error,
 						providerId,
-						errorType: "send_error",
-						failurePhase: "streaming",
+						errorType: PROVIDER_FAILURE_ERROR_TYPE.SEND_ERROR,
+						failurePhase: PROVIDER_FAILURE_PHASE.STREAMING,
+						dedupeKey: getProviderFailureDedupeKey(sessionId, PROVIDER_FAILURE_PHASE.STREAMING),
 					})
 					this.messages.emitSessionEvents(
 						[
@@ -522,6 +523,7 @@ export class Controller {
 			postStateToWebview: () => this.postStateToWebview(),
 			setTurnPhase: (phase, anchorTs) => this.turnStateTracker.set(phase, anchorTs),
 			captureProviderApiError: (event) => this.captureProviderFailure(event),
+			resetProviderFailureTelemetry: (sessionId) => this.providerFailureTelemetryDeduper.resetSession(sessionId),
 		})
 		// Subscribe to MCP tool list changes so we can restart the SDK session
 		// when servers are added/removed/reconnected. The SDK's DefaultSessionBuilder
@@ -891,6 +893,9 @@ export class Controller {
 		if (!ulid) {
 			return
 		}
+		if (!this.providerFailureTelemetryDeduper.shouldCapture(event)) {
+			return
+		}
 
 		const provider = event.providerId ?? this.getSessionProviderId(event.sessionId) ?? this.getActiveProviderId() ?? "unknown"
 		const model =
@@ -908,7 +913,7 @@ export class Controller {
 			errorMessage: clineError.message || String(event.error),
 			errorStatus: clineError._error.status,
 			requestId: clineError._error.request_id,
-			errorType: event.errorType || clineError._error.code,
+			errorType: event.errorType,
 			failurePhase: event.failurePhase,
 		})
 	}
@@ -919,8 +924,8 @@ export class Controller {
 			sessionId: sessionId ?? this.task?.taskId,
 			error: CLINE_ACCOUNT_AUTH_ERROR_MESSAGE,
 			providerId: this.getActiveProviderId(),
-			errorType: "auth",
-			failurePhase: "preflight",
+			errorType: PROVIDER_FAILURE_ERROR_TYPE.AUTH,
+			failurePhase: PROVIDER_FAILURE_PHASE.PREFLIGHT,
 		})
 	}
 

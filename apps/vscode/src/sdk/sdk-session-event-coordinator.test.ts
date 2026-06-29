@@ -2,6 +2,7 @@ import type { CoreSessionEvent } from "@cline/core"
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { MessageTranslatorState } from "./message-translator"
+import { getProviderFailureDedupeKey, PROVIDER_FAILURE_ERROR_TYPE, PROVIDER_FAILURE_PHASE } from "./provider-failure-telemetry"
 import { SdkSessionEventCoordinator, type SdkSessionEventCoordinatorOptions } from "./sdk-session-event-coordinator"
 
 vi.mock("@/shared/services/Logger", () => ({
@@ -135,6 +136,7 @@ describe("SdkSessionEventCoordinator", () => {
 		await coordinator.handleSessionEvent(event)
 
 		expect(clearTurnOutcome).toHaveBeenCalledOnce()
+		expect(options.resetProviderFailureTelemetry).toHaveBeenCalledWith("session-123")
 		expect(options.sessions.setRunning).toHaveBeenCalledWith(true)
 		expect(options.setTurnPhase).toHaveBeenCalledWith("streaming")
 		expect(options.messages.appendAndEmit).toHaveBeenCalledWith([message], event)
@@ -283,9 +285,27 @@ describe("SdkSessionEventCoordinator", () => {
 		expect(options.captureProviderApiError).toHaveBeenCalledWith({
 			sessionId: "session-123",
 			error,
-			errorType: "sdk_agent_error",
-			failurePhase: "streaming",
+			errorType: PROVIDER_FAILURE_ERROR_TYPE.SDK_AGENT_ERROR,
+			failurePhase: PROVIDER_FAILURE_PHASE.STREAMING,
+			dedupeKey: getProviderFailureDedupeKey("session-123", PROVIDER_FAILURE_PHASE.STREAMING),
 		})
+	})
+
+	it("does not capture provider failure telemetry for SDK agent errors without an error payload", async () => {
+		const { coordinator, options } = makeCoordinator()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-123",
+				event: {
+					type: "error",
+				},
+			},
+		} as unknown as CoreSessionEvent
+
+		await coordinator.handleSessionEvent(event)
+
+		expect(options.captureProviderApiError).not.toHaveBeenCalled()
 	})
 
 	it("captures provider failure telemetry when the SDK finishes a turn with reason error", async () => {
@@ -308,8 +328,9 @@ describe("SdkSessionEventCoordinator", () => {
 		expect(options.captureProviderApiError).toHaveBeenCalledWith({
 			sessionId: "session-123",
 			error: "stream failed before assistant output",
-			errorType: "sdk_agent_done_error",
-			failurePhase: "streaming",
+			errorType: PROVIDER_FAILURE_ERROR_TYPE.SDK_AGENT_DONE_ERROR,
+			failurePhase: PROVIDER_FAILURE_PHASE.STREAMING,
+			dedupeKey: getProviderFailureDedupeKey("session-123", PROVIDER_FAILURE_PHASE.STREAMING),
 		})
 	})
 })
@@ -349,6 +370,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		postStateToWebview: vi.fn().mockResolvedValue(undefined),
 		setTurnPhase: vi.fn(),
 		captureProviderApiError: vi.fn(),
+		resetProviderFailureTelemetry: vi.fn(),
 		translateSessionEvent: vi.fn(() => input.translation ?? { messages: [], sessionEnded: false, turnComplete: false }),
 		isClineFreeModel: input.isClineFreeModel,
 	} as unknown as SdkSessionEventCoordinatorOptions & {
@@ -368,6 +390,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		taskHistory: SdkSessionEventCoordinatorOptions["taskHistory"] & { updateTaskUsage: ReturnType<typeof vi.fn> }
 		postStateToWebview: ReturnType<typeof vi.fn>
 		captureProviderApiError: ReturnType<typeof vi.fn>
+		resetProviderFailureTelemetry: ReturnType<typeof vi.fn>
 		translateSessionEvent: ReturnType<typeof vi.fn>
 		messageTranslatorState: MessageTranslatorState
 	}

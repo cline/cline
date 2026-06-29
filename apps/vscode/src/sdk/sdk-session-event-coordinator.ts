@@ -6,6 +6,12 @@ import type { ClineApiReqInfo, TurnPhase } from "@/shared/ExtensionMessage"
 import { Logger } from "@/shared/services/Logger"
 import type { MessageTranslatorState, TranslationResult } from "./message-translator"
 import { translateSessionEvent } from "./message-translator"
+import {
+	getProviderFailureDedupeKey,
+	PROVIDER_FAILURE_ERROR_TYPE,
+	PROVIDER_FAILURE_PHASE,
+	type ProviderFailureTelemetry,
+} from "./provider-failure-telemetry"
 import type { SdkMcpCoordinator } from "./sdk-mcp-coordinator"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import type { SdkModeCoordinator } from "./sdk-mode-coordinator"
@@ -18,16 +24,7 @@ function normalizeModelId(modelId: string): string {
 	return modelId.trim().toLowerCase()
 }
 
-type ProviderFailurePhase = "streaming"
-
-type ProviderFailureTelemetry = {
-	sessionId: string
-	error: unknown
-	errorType: string
-	failurePhase: ProviderFailurePhase
-}
-
-type AgentFailureTelemetry = Pick<ProviderFailureTelemetry, "sessionId" | "error" | "errorType"> | undefined
+type AgentFailureTelemetry = Pick<ProviderFailureTelemetry, "sessionId" | "error" | "errorType" | "dedupeKey"> | undefined
 
 export interface SdkSessionEventCoordinatorOptions {
 	messageTranslatorState: MessageTranslatorState
@@ -49,6 +46,7 @@ export interface SdkSessionEventCoordinatorOptions {
 	 */
 	setTurnPhase?: (phase: TurnPhase, anchorTs?: number) => void
 	captureProviderApiError?: (event: ProviderFailureTelemetry) => void
+	resetProviderFailureTelemetry?: (sessionId: string) => void
 }
 
 export class SdkSessionEventCoordinator {
@@ -82,13 +80,15 @@ export class SdkSessionEventCoordinator {
 				sessionId: agentFailure.sessionId,
 				error: agentFailure.error,
 				errorType: agentFailure.errorType,
-				failurePhase: "streaming",
+				failurePhase: PROVIDER_FAILURE_PHASE.STREAMING,
+				dedupeKey: agentFailure.dedupeKey,
 			})
 		}
 		if (event.type === "pending_prompt_submitted") {
+			this.options.resetProviderFailureTelemetry?.(event.payload.sessionId)
 			this.options.messageTranslatorState.clearTurnOutcome()
 			this.options.sessions.setRunning(true)
-			this.options.setTurnPhase?.("streaming")
+			this.options.setTurnPhase?.(PROVIDER_FAILURE_PHASE.STREAMING)
 		}
 		const zeroCostPromise = this.zeroCostForFreeClineModel(result)
 		if (zeroCostPromise) {
@@ -175,10 +175,14 @@ export class SdkSessionEventCoordinator {
 
 		const agentEvent = event.payload.event as { type?: string; error?: unknown; reason?: string; text?: unknown }
 		if (agentEvent.type === "error") {
+			if (agentEvent.error == null) {
+				return undefined
+			}
 			return {
 				sessionId: event.payload.sessionId,
 				error: agentEvent.error,
-				errorType: "sdk_agent_error",
+				errorType: PROVIDER_FAILURE_ERROR_TYPE.SDK_AGENT_ERROR,
+				dedupeKey: getProviderFailureDedupeKey(event.payload.sessionId, PROVIDER_FAILURE_PHASE.STREAMING),
 			}
 		}
 		if (agentEvent.type === "done" && agentEvent.reason === "error") {
@@ -188,7 +192,8 @@ export class SdkSessionEventCoordinator {
 					typeof agentEvent.text === "string" && agentEvent.text.trim()
 						? agentEvent.text
 						: "SDK agent finished with error",
-				errorType: "sdk_agent_done_error",
+				errorType: PROVIDER_FAILURE_ERROR_TYPE.SDK_AGENT_DONE_ERROR,
+				dedupeKey: getProviderFailureDedupeKey(event.payload.sessionId, PROVIDER_FAILURE_PHASE.STREAMING),
 			}
 		}
 		return undefined

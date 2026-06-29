@@ -147,6 +147,23 @@ describe("SdkSessionLifecycle", () => {
 		expect(lifecycle.getActiveSession()?.isRunning).toBe(false)
 	})
 
+	it("calls the send-start hook before sending to the SDK host", async () => {
+		const onSendStart = vi.fn()
+		const send = vi.fn().mockResolvedValue(undefined)
+		const sdkHost = makeSdkHost({ send })
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		const lifecycle = makeLifecycle({ onSendStart })
+		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
+		await lifecycle.startNewSession({} as any)
+
+		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
+		lifecycle.fireAndForgetSend(sdkHost as any, "session-123", "hello")
+		await vi.waitFor(() => expect(send).toHaveBeenCalled())
+
+		expect(onSendStart).toHaveBeenCalledWith("session-123")
+		expect(onSendStart.mock.invocationCallOrder[0]).toBeLessThan(send.mock.invocationCallOrder[0])
+	})
+
 	it("leaves the active session running when a message is queued", async () => {
 		const onSendComplete = vi.fn()
 		const send = vi.fn().mockResolvedValue(undefined)
