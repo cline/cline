@@ -195,23 +195,4 @@ describe("createOpenRouterStream", () => {
 		payload.should.have.property("include_reasoning", true)
 		payload.reasoning.should.deepEqual({ effort: "high" })
 	})
-
-	it("does not send selected reasoning effort for ClinePass models without reasoning support", async () => {
-		const { client, create } = createClient()
-
-		await createOpenRouterStream(
-			client as any,
-			"system prompt",
-			[{ role: "user", content: "hello" }] as any,
-			{
-				id: "cline-pass/non-reasoning-model",
-				info: { ...createModelInfo(131_072), supportsReasoning: false },
-			},
-			"high",
-		)
-
-		const payload = create.firstCall.args[0] as any
-		payload.should.have.property("include_reasoning", false)
-		payload.should.not.have.property("reasoning")
-	})
 })

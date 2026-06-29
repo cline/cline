@@ -1071,35 +1071,6 @@ export function getModelSlug(modelId: string): string {
 	return modelId.split("/").at(-1) ?? modelId
 }
 
-interface ModelIdAliasRule {
-	canonicalPrefix: string
-	aliasPrefix: string
-}
-
-const OPENROUTER_MODEL_ID_ALIAS_RULES = [
-	{ canonicalPrefix: "zai/", aliasPrefix: "z-ai/" },
-] as const satisfies readonly ModelIdAliasRule[]
-
-function canonicalizeModelId(modelId: string, rules: readonly ModelIdAliasRule[]): string {
-	for (const rule of rules) {
-		if (modelId.startsWith(rule.aliasPrefix)) {
-			return `${rule.canonicalPrefix}${modelId.slice(rule.aliasPrefix.length)}`
-		}
-	}
-
-	return modelId
-}
-
-function modelIdAliasPriority(modelId: string): number {
-	return OPENROUTER_MODEL_ID_ALIAS_RULES.some((rule) => modelId.startsWith(rule.canonicalPrefix)) ? 1 : 0
-}
-
-function getClinePassUpstreamModelId(modelId: string): string {
-	const clinePassPrefix = "cline-pass/"
-	const upstreamModelId = modelId.startsWith(clinePassPrefix) ? modelId.slice(clinePassPrefix.length) : modelId
-	return canonicalizeModelId(upstreamModelId, OPENROUTER_MODEL_ID_ALIAS_RULES)
-}
-
 function normalizeClinePassModelInfo(modelInfo: ModelInfo): ModelInfo {
 	const { thinkingConfig: _thinkingConfig, ...info } = modelInfo
 	return {
@@ -1110,11 +1081,8 @@ function normalizeClinePassModelInfo(modelInfo: ModelInfo): ModelInfo {
 
 export function buildModelInfoNameMap(models: Record<string, ModelInfo>): Record<string, ModelInfo> {
 	const nameMap: Record<string, ModelInfo> = {}
-	const entries = Object.entries(models).sort(([a], [b]) => modelIdAliasPriority(a) - modelIdAliasPriority(b))
 
-	for (const [id, info] of entries) {
-		nameMap[id] = info
-		nameMap[canonicalizeModelId(id, OPENROUTER_MODEL_ID_ALIAS_RULES)] = info
+	for (const [id, info] of Object.entries(models)) {
 		nameMap[getModelSlug(id)] = info
 	}
 
@@ -1122,13 +1090,12 @@ export function buildModelInfoNameMap(models: Record<string, ModelInfo>): Record
 }
 
 export function resolveClinePassModelInfo(modelId: string, modelInfoByName?: Record<string, ModelInfo>): ModelInfo {
-	const upstreamModelId = getClinePassUpstreamModelId(modelId)
-	const clinePassSlugModelId = `cline-pass/${getModelSlug(upstreamModelId)}`
+	const modelSlug = getModelSlug(modelId)
+	const clinePassSlugModelId = `cline-pass/${modelSlug}`
 	const modelInfo =
 		clinePassModels[modelId as keyof typeof clinePassModels] ??
 		clinePassModels[clinePassSlugModelId as keyof typeof clinePassModels] ??
-		modelInfoByName?.[upstreamModelId] ??
-		modelInfoByName?.[getModelSlug(upstreamModelId)] ??
+		modelInfoByName?.[modelSlug] ??
 		clinePassModelInfoSaneDefaults
 
 	return normalizeClinePassModelInfo(modelInfo)

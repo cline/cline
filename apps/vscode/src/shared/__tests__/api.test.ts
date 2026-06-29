@@ -11,19 +11,6 @@ describe("ClinePass model info", () => {
 		thinkingConfig: { maxBudget: 16_384 },
 	})
 
-	it("prefers canonical Z.ai model info when building model name maps", () => {
-		const aliasInfo = createModelInfo("OpenRouter alias", 128_000)
-		const canonicalInfo = createModelInfo("Canonical model", 1_000_000)
-
-		const modelInfoByName = buildModelInfoNameMap({
-			"z-ai/glm-test": aliasInfo,
-			"zai/glm-test": canonicalInfo,
-		})
-
-		expect(modelInfoByName["zai/glm-test"]).to.equal(canonicalInfo)
-		expect(modelInfoByName["glm-test"]).to.equal(canonicalInfo)
-	})
-
 	it("normalizes ClinePass GLM aliases to ClinePass reasoning-effort metadata", () => {
 		const modelInfo = resolveClinePassModelInfo(
 			"cline-pass/z-ai/glm-5.2",
