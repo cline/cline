@@ -402,8 +402,8 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({
 		[modeFields.reasoningEffort, modeFields.thinkingBudgetTokens],
 	)
 	const showReasoningEffort = useMemo(
-		() => showAdaptiveThinkingEffort || supportsReasoningEffortForModelId(selectedModelId, selectedModelInfo),
-		[selectedModelId, selectedModelInfo, showAdaptiveThinkingEffort],
+		() => showAdaptiveThinkingEffort || supportsReasoningEffortForModelId(selectedModelId),
+		[selectedModelId, showAdaptiveThinkingEffort],
 	)
 
 	const showBudgetSlider = useMemo(() => {

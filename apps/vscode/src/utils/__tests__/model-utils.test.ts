@@ -57,7 +57,13 @@ describe("supportsReasoningEffortForModel", () => {
 		for (const modelId of [
 			"zai/glm-5.2",
 			"z-ai/glm-5.2",
+			"cline-pass/glm-5.2",
 			"moonshotai/kimi-k2-thinking",
+			"kimi-k2-thinking",
+			"accounts/fireworks/models/kimi-k2p6",
+			"accounts/fireworks/models/minimax-m3",
+			"minimax/MiniMax-M2.7",
+			"provider/mimo-vl",
 			"qwen/qwen3.7-max",
 			"deepseek/deepseek-r1",
 		]) {
@@ -65,17 +71,9 @@ describe("supportsReasoningEffortForModel", () => {
 		}
 	})
 
-	it("should use normalized ClinePass metadata for reasoning-effort support", () => {
-		supportsReasoningEffortForModel("cline-pass/glm-5.2", { supportsReasoning: true }).should.equal(true)
-		supportsReasoningEffortForModel("cline-pass/glm-5.2", {
-			supportsReasoning: false,
-		}).should.equal(false)
-	})
-
-	it("should return false for undefined, unrelated, and unresolved ClinePass slug model IDs", () => {
+	it("should return false for undefined and unrelated model IDs", () => {
 		supportsReasoningEffortForModel(undefined).should.equal(false)
 		supportsReasoningEffortForModel("anthropic/claude-sonnet-4.5").should.equal(false)
-		supportsReasoningEffortForModel("cline-pass/glm-5.2").should.equal(false)
 	})
 })
 

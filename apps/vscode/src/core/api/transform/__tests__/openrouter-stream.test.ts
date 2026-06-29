@@ -141,6 +141,8 @@ describe("createOpenRouterStream", () => {
 			"zai/glm-5.2",
 			"z-ai/glm-5.2",
 			"moonshotai/kimi-k2-thinking",
+			"accounts/fireworks/models/minimax-m3",
+			"provider/mimo-vl",
 			"qwen/qwen3.7-max",
 			"deepseek/deepseek-r1",
 		]) {
@@ -169,7 +171,7 @@ describe("createOpenRouterStream", () => {
 
 		await createOpenRouterStream(client as any, "system prompt", [{ role: "user", content: "hello" }] as any, {
 			id: "cline-pass/glm-5.2",
-			info: { ...createModelInfo(131_072), supportsReasoning: true },
+			info: createModelInfo(131_072),
 		})
 
 		const payload = create.firstCall.args[0] as any
@@ -186,7 +188,7 @@ describe("createOpenRouterStream", () => {
 			[{ role: "user", content: "hello" }] as any,
 			{
 				id: "cline-pass/glm-5.1",
-				info: { ...createModelInfo(131_072), supportsReasoning: true },
+				info: createModelInfo(131_072),
 			},
 			"high",
 		)

@@ -130,7 +130,7 @@ export async function createOpenRouterStream(
 		temperature = 1.0
 	}
 
-	const supportsReasoningEffort = supportsReasoningEffortForModel(model.id, model.info)
+	const supportsReasoningEffort = supportsReasoningEffortForModel(model.id)
 
 	// Claude Opus 4.5+ uses adaptive thinking instead of budgeted extended thinking.
 	const isAdaptiveThinkingModel = isClaudeOpusAdaptiveThinkingModel(model.id)
