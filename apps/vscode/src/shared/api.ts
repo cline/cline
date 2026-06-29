@@ -1085,9 +1085,9 @@ export function resolveClinePassModelInfo(modelId: string, modelInfoByName?: Rec
 	const modelSlug = getModelSlug(modelId)
 	const clinePassSlugModelId = `cline-pass/${modelSlug}`
 	return (
+		modelInfoByName?.[modelSlug] ??
 		clinePassModels[modelId as keyof typeof clinePassModels] ??
 		clinePassModels[clinePassSlugModelId as keyof typeof clinePassModels] ??
-		modelInfoByName?.[modelSlug] ??
 		clinePassModelInfoSaneDefaults
 	)
 }
@@ -4999,12 +4999,22 @@ export type BasetenModelId = keyof typeof basetenModels
 export const basetenDefaultModelId = "zai-org/GLM-4.6" satisfies BasetenModelId
 
 // Z AI
+// https://docs.z.ai/guides/llm/glm-5.2
 // https://docs.z.ai/guides/llm/glm-5.1
 // https://docs.z.ai/guides/llm/glm-5
 // https://docs.z.ai/guides/overview/pricing
 export type internationalZAiModelId = keyof typeof internationalZAiModels
 export const internationalZAiDefaultModelId: internationalZAiModelId = "glm-5.1"
 export const internationalZAiModels = {
+	"glm-5.2": {
+		maxTokens: 128_000,
+		contextWindow: 1_000_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		cacheReadsPrice: 0.26,
+		inputPrice: 1.4,
+		outputPrice: 4.4,
+	},
 	"glm-5.1": {
 		maxTokens: 128_000,
 		contextWindow: 200_000,
@@ -5070,6 +5080,15 @@ export const internationalZAiModels = {
 export type mainlandZAiModelId = keyof typeof mainlandZAiModels
 export const mainlandZAiDefaultModelId: mainlandZAiModelId = "glm-5.1"
 export const mainlandZAiModels = {
+	"glm-5.2": {
+		maxTokens: 128_000,
+		contextWindow: 1_000_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		cacheReadsPrice: 0.26,
+		inputPrice: 1.4,
+		outputPrice: 4.4,
+	},
 	"glm-5.1": {
 		maxTokens: 128_000,
 		contextWindow: 200_000,
