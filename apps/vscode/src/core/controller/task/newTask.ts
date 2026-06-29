@@ -72,6 +72,12 @@ export async function newTask(controller: Controller, request: NewTaskRequest): 
 		}).filter(([_, value]) => value !== undefined),
 	)
 
-	const taskId = await controller.initTask(request.text, request.images, request.files, undefined, filteredTaskSettings)
+	const ALLOWED_FILE_EXTENSIONS = ["xml", "json", "txt", "log", "md", "docx", "ipynb", "pdf", "xlsx", "csv", "png", "jpg", "jpeg", "webp"]
+	const MAX_FILES = 50
+	const validatedFiles = (request.files ?? [])
+		.slice(0, MAX_FILES)
+		.filter((f) => ALLOWED_FILE_EXTENSIONS.includes((f.split(".").pop() ?? "").toLowerCase()))
+
+	const taskId = await controller.initTask(request.text, request.images, validatedFiles, undefined, filteredTaskSettings)
 	return String.create({ value: taskId || "" })
 }
