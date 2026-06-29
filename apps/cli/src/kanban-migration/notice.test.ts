@@ -84,6 +84,30 @@ describe("migration notice", () => {
 		).toBeUndefined();
 	});
 
+	it("does not show when ClinePass is already the active provider", () => {
+		const dataDir = createTempDataDir();
+
+		expect(
+			getClineCliMigrationNotice(
+				dataDir,
+				{},
+				{ activeProviderId: "cline-pass" },
+			),
+		).toBeUndefined();
+	});
+
+	it("shows for the active ClinePass provider when forced", () => {
+		const dataDir = createTempDataDir();
+
+		expect(
+			getClineCliMigrationNotice(
+				dataDir,
+				{ CLINE_FORCE_CLINE_PASS_NOTICE: "1" },
+				{ activeProviderId: "cline-pass" },
+			),
+		).toBeDefined();
+	});
+
 	it("shows when forced even if disabled through the environment", () => {
 		const dataDir = createTempDataDir();
 
