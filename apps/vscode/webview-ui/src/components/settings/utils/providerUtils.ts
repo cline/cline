@@ -79,9 +79,10 @@ import * as reasoningSupport from "@shared/utils/reasoning-support";
 
 export function supportsReasoningEffortForModelId(
 	modelId?: string,
-	_allowShortOpenAiIds = false,
+	modelInfoOrAllowShortOpenAiIds?: Pick<ModelInfo, "supportsReasoning"> | boolean,
 ): boolean {
-	return reasoningSupport.supportsReasoningEffortForModel(modelId);
+	const modelInfo = typeof modelInfoOrAllowShortOpenAiIds === "object" ? modelInfoOrAllowShortOpenAiIds : undefined;
+	return reasoningSupport.supportsReasoningEffortForModel(modelId, modelInfo);
 }
 
 /**

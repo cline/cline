@@ -115,6 +115,34 @@ describe("createOpenRouterStream", () => {
 		should(payload.top_p).equal(undefined)
 	})
 
+	it("sends reasoning effort instead of token budgets for supported OpenRouter/Cline model families", async () => {
+		for (const modelId of [
+			"zai/glm-5.2",
+			"z-ai/glm-5.2",
+			"moonshotai/kimi-k2-thinking",
+			"qwen/qwen3.7-max",
+			"deepseek/deepseek-r1",
+		]) {
+			const { client, create } = createClient()
+
+			await createOpenRouterStream(
+				client as any,
+				"system prompt",
+				[{ role: "user", content: "hello" }] as any,
+				{
+					id: modelId,
+					info: { ...createModelInfo(131_072), thinkingConfig: { maxBudget: 16_384 } },
+				},
+				"high",
+				16_384,
+			)
+
+			const payload = create.firstCall.args[0] as any
+			payload.should.have.property("include_reasoning", true)
+			payload.reasoning.should.deepEqual({ effort: "high" })
+		}
+	})
+
 	it("does not send reasoning effort for ClinePass requests when unset", async () => {
 		const { client, create } = createClient()
 

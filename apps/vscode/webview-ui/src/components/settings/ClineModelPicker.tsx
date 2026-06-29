@@ -3,11 +3,7 @@ import { CLINE_RECOMMENDED_MODELS_FALLBACK } from "@shared/cline/recommended-mod
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import { type ClineRecommendedModel, ClineRecommendedModelsResponse } from "@shared/proto/cline/models"
 import type { Mode } from "@shared/storage/types"
-import {
-	isClaudeOpusAdaptiveThinkingModel,
-	isClinePassModel,
-	resolveClaudeOpusAdaptiveThinking,
-} from "@shared/utils/reasoning-support"
+import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
 import type React from "react"
@@ -401,17 +397,13 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({
 
 	const selectedModelIdLower = selectedModelId?.toLowerCase() || ""
 	const showAdaptiveThinkingEffort = useMemo(() => isClaudeOpusAdaptiveThinkingModel(selectedModelId), [selectedModelId])
-	const showClinePassReasoningEffort = useMemo(
-		() => isClinePassModel(selectedModelId) && selectedModelInfo.supportsReasoning === true,
-		[selectedModelId, selectedModelInfo.supportsReasoning],
-	)
 	const adaptiveThinkingDefaultEffort = useMemo(
 		() => resolveClaudeOpusAdaptiveThinking(modeFields.reasoningEffort, modeFields.thinkingBudgetTokens).effort ?? "none",
 		[modeFields.reasoningEffort, modeFields.thinkingBudgetTokens],
 	)
 	const showReasoningEffort = useMemo(
-		() => showAdaptiveThinkingEffort || showClinePassReasoningEffort || supportsReasoningEffortForModelId(selectedModelId),
-		[selectedModelId, showAdaptiveThinkingEffort, showClinePassReasoningEffort],
+		() => showAdaptiveThinkingEffort || supportsReasoningEffortForModelId(selectedModelId, selectedModelInfo),
+		[selectedModelId, selectedModelInfo, showAdaptiveThinkingEffort],
 	)
 
 	const showBudgetSlider = useMemo(() => {

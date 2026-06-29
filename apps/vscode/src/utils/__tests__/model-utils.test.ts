@@ -38,6 +38,7 @@ describe("shouldSkipReasoningForModel", () => {
 		shouldSkipReasoningForModel("claude-3-sonnet").should.equal(false)
 		shouldSkipReasoningForModel("gpt-4").should.equal(false)
 		shouldSkipReasoningForModel("gemini-pro").should.equal(false)
+		shouldSkipReasoningForModel("zai/glm-5.2").should.equal(false)
 	})
 
 	it("should return false for undefined or empty model IDs", () => {
@@ -52,7 +53,26 @@ describe("shouldSkipReasoningForModel", () => {
 })
 
 describe("supportsReasoningEffortForModel", () => {
-	it("should return false for undefined, unrelated, and metadata-driven model IDs", () => {
+	it("should return true for OpenRouter/Cline model families that use reasoning effort", () => {
+		for (const modelId of [
+			"zai/glm-5.2",
+			"z-ai/glm-5.2",
+			"moonshotai/kimi-k2-thinking",
+			"qwen/qwen3.7-max",
+			"deepseek/deepseek-r1",
+		]) {
+			supportsReasoningEffortForModel(modelId).should.equal(true)
+		}
+	})
+
+	it("should use normalized ClinePass metadata for reasoning-effort support", () => {
+		supportsReasoningEffortForModel("cline-pass/glm-5.2", { supportsReasoning: true }).should.equal(true)
+		supportsReasoningEffortForModel("cline-pass/glm-5.2", {
+			supportsReasoning: false,
+		}).should.equal(false)
+	})
+
+	it("should return false for undefined, unrelated, and unresolved ClinePass slug model IDs", () => {
 		supportsReasoningEffortForModel(undefined).should.equal(false)
 		supportsReasoningEffortForModel("anthropic/claude-sonnet-4.5").should.equal(false)
 		supportsReasoningEffortForModel("cline-pass/glm-5.2").should.equal(false)

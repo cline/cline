@@ -34,18 +34,31 @@ export function isClinePassModel(modelId?: string): boolean {
 	return modelId?.trim().toLowerCase().startsWith("cline-pass/") ?? false
 }
 
-export function supportsReasoningEffortForModel(modelId?: string): boolean {
+interface ReasoningModelMetadata {
+	supportsReasoning?: boolean
+}
+
+export function supportsReasoningEffortForModel(modelId?: string, metadata?: ReasoningModelMetadata): boolean {
 	if (!modelId) {
 		return false
 	}
 
+	if (isClinePassModel(modelId)) {
+		return metadata?.supportsReasoning === true
+	}
+
 	const id = modelId.toLowerCase()
 	return (
+		id.startsWith("deepseek/") ||
 		id.includes("gemini") ||
 		id.includes("gpt") ||
+		id.startsWith("moonshot") ||
 		id.startsWith("openai/o") ||
 		id.includes("/o") ||
 		id.startsWith("o") ||
+		id.startsWith("qwen/") ||
+		id.startsWith("z-ai/") ||
+		id.startsWith("zai/") ||
 		id.includes("grok")
 	)
 }
