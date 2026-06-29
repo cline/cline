@@ -36,13 +36,20 @@ export async function initialize(storageContext: StorageContext): Promise<Webvie
 	Logger.subscribe((msg: string) => HostProvider.get().logToChannel(msg)) // File system logging
 	Logger.subscribe((msg: string) => HostProvider.env.debugLog({ value: msg })) // Host debug logging
 
+	// Gate SDK debug logging on CLINE_LOG_LEVEL=debug (or trace), the same env var
+	// the CLI uses.
+	const debugEnabled = ["debug", "trace"].includes((process.env.CLINE_LOG_LEVEL ?? "").toLowerCase().trim())
+
 	// Register the SDK early logger so diagnostic events from
 	// ProviderSettingsManager, RuntimeOAuthTokenManager, and Cline auth
 	// flow through Logger.debug → Cline output channel.
 	// These components operate before/outside of ClineCore sessions, so the
 	// session-scoped logger can't reach them.
 	setSdkLogger({
-		debug: (message, metadata) => Logger.debug(metadata ? `${message} ${JSON.stringify(metadata)}` : message),
+		debug: (message, metadata) => {
+			if (!debugEnabled) return
+			Logger.debug(metadata ? `${message} ${JSON.stringify(metadata)}` : message)
+		},
 		log: (message) => Logger.log(message),
 		error: (message, metadata) => Logger.error(metadata ? `${message} ${JSON.stringify(metadata)}` : message),
 	})

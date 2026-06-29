@@ -16,6 +16,7 @@ import {
 	loginClineOAuth,
 	loginOcaOAuth,
 	loginOpenAICodex,
+	sdkDebug,
 } from "@cline/core"
 import type { ApiProvider } from "@shared/api"
 import { AuthState, UserInfo } from "@shared/proto/cline/account"
@@ -101,7 +102,7 @@ function readClineCredentials(): {
 		const manager = getProviderSettingsManager()
 		const settings = manager.getProviderSettings("cline")
 		if (!settings?.auth?.accessToken) {
-			Logger.debug("[SdkAuthService] readClineCredentials: no auth.accessToken found")
+			sdkDebug("[SdkAuthService] readClineCredentials: no auth.accessToken found")
 			return null
 		}
 
@@ -117,7 +118,7 @@ function readClineCredentials(): {
 			expiresAt: (settings.auth as { expiresAt?: number }).expiresAt,
 			accountId: settings.auth.accountId,
 		}
-		Logger.debug(
+		sdkDebug(
 			`[SdkAuthService] readClineCredentials: found credentials (accessHash=${hashSecret(result.accessToken)}, refreshHash=${hashSecret(result.refreshToken)}, expiresAt=${result.expiresAt})`,
 		)
 		return result
@@ -137,7 +138,7 @@ function writeClineCredentials(credentials: {
 	accountId?: string
 }): void {
 	try {
-		Logger.debug(
+		sdkDebug(
 			`[SdkAuthService] writeClineCredentials: writing (accessHash=${hashSecret(credentials.accessToken)}, refreshHash=${hashSecret(credentials.refreshToken)}, expiresAt=${credentials.expiresAt})`,
 		)
 		const manager = getProviderSettingsManager()
@@ -174,7 +175,7 @@ function clearClineCredentials(): void {
 		const manager = getProviderSettingsManager()
 		const existing = manager.getProviderSettings("cline")
 		if (existing) {
-			Logger.debug("[SdkAuthService] clearClineCredentials: clearing auth from providers.json")
+			sdkDebug("[SdkAuthService] clearClineCredentials: clearing auth from providers.json")
 			manager.saveProviderSettings(
 				{
 					...existing,
@@ -263,7 +264,7 @@ export class AuthService {
 			const bearerToken = accessToken.toLowerCase().startsWith(WORKOS_TOKEN_PREFIX)
 				? accessToken
 				: `${WORKOS_TOKEN_PREFIX}${accessToken}`
-			Logger.debug(
+			sdkDebug(
 				`[SdkAuthService] fetchUserInfoFromApi: GET ${apiBaseUrl}/api/v1/users/me (tokenHash=${hashSecret(accessToken)})`,
 			)
 			const response = await axios.get(`${apiBaseUrl}/api/v1/users/me`, {
@@ -274,7 +275,7 @@ export class AuthService {
 				},
 				...getAxiosSettings(),
 			})
-			Logger.debug(`[SdkAuthService] fetchUserInfoFromApi: response status=${response.status}`)
+			sdkDebug(`[SdkAuthService] fetchUserInfoFromApi: response status=${response.status}`)
 			return response.data?.data ?? null
 		} catch (error) {
 			Logger.error("[SdkAuthService] Failed to fetch user info from API:", error)
@@ -351,13 +352,11 @@ export class AuthService {
 		}
 
 		if (!this._clineAuthInfo?.refreshToken) {
-			Logger.debug("[SdkAuthService] refreshAccessToken: no refresh token available")
+			sdkDebug("[SdkAuthService] refreshAccessToken: no refresh token available")
 			return false
 		}
 
-		Logger.debug(
-			`[SdkAuthService] refreshAccessToken: starting (currentTokenHash=${hashSecret(this._clineAuthInfo.idToken)})`,
-		)
+		sdkDebug(`[SdkAuthService] refreshAccessToken: starting (currentTokenHash=${hashSecret(this._clineAuthInfo.idToken)})`)
 		this._refreshPromise = (async () => {
 			try {
 				const currentInfo = this._clineAuthInfo
@@ -366,7 +365,7 @@ export class AuthService {
 				}
 				const newCredentials = await this.resolveValidClineCredentials(currentInfo, { forceRefresh: true })
 				if (!newCredentials) {
-					Logger.debug("[SdkAuthService] refreshAccessToken: refresh returned null — clearing credentials")
+					sdkDebug("[SdkAuthService] refreshAccessToken: refresh returned null — clearing credentials")
 					this._clineAuthInfo = null
 					this._authenticated = false
 					clearClineCredentials()
@@ -396,7 +395,7 @@ export class AuthService {
 				this._authenticated = true
 
 				if (credentialsChanged) {
-					Logger.debug(
+					sdkDebug(
 						`[SdkAuthService] refreshAccessToken: credentials changed (newTokenHash=${hashSecret(newCredentials.access)})`,
 					)
 					writeClineCredentials({
@@ -412,7 +411,7 @@ export class AuthService {
 						})
 					})
 				} else {
-					Logger.debug("[SdkAuthService] refreshAccessToken: credentials unchanged after refresh")
+					sdkDebug("[SdkAuthService] refreshAccessToken: credentials unchanged after refresh")
 				}
 
 				return this._clineAuthInfo.idToken
