@@ -46,6 +46,7 @@ import {
 	type ModelInfo,
 	mergeModelOptions,
 	type ToolCallRecord,
+	EMPTY_CONTENT_TEXT,
 } from "@cline/shared";
 import { filterDisabledTools } from "../../services/global-settings";
 import {
@@ -376,7 +377,11 @@ export class SessionRuntime {
 		this.createAgentRuntimeImpl =
 			deps.createAgentRuntimeImpl ?? createAgentRuntime;
 
-		this.conversation = new ConversationStore(config.initialMessages);
+		this.conversation = new ConversationStore(
+			config.initialMessages
+				? pruneEmptyAssistantTurns(config.initialMessages)
+				: undefined,
+		);
 		this.messageBuilder = new MessageBuilder(getMessageBuilderOptionsFromEnv());
 		this.contributionRegistry = createContributionRegistry<
 			AgentExtension,
@@ -508,7 +513,7 @@ export class SessionRuntime {
 	}
 
 	restore(messages: readonly MessageWithMetadata[]): void {
-		this.conversation.restore(messages);
+		this.conversation.restore(pruneEmptyAssistantTurns(messages));
 		this.resetConversationBoundaryTrackers();
 	}
 
@@ -777,9 +782,13 @@ export class SessionRuntime {
 		// lost because `createAgentRuntimeConfig` received no seed and
 		// `replaceMessages(runResult.messages)` downstream overwrote the
 		// conversation with just the current-turn trail.
-		const initialMessages = messagesToAgentMessages(
+		const sanitizedConversation = pruneEmptyAssistantTurns(
 			this.conversation.getMessages(),
 		);
+		if (sanitizedConversation.length !== this.conversation.getMessages().length) {
+			this.conversation.replaceMessages(sanitizedConversation);
+		}
+		const initialMessages = messagesToAgentMessages(sanitizedConversation);
 		const runtimeConfig = createAgentRuntimeConfig({
 			agentConfig: this.config,
 			sessionId: this.config.sessionId,
@@ -851,8 +860,8 @@ export class SessionRuntime {
 		// was seeded with the full transcript, so `runResult.messages`
 		// IS the complete new transcript (seed + newly-produced turn).
 		if (runResult && runResult.messages.length > 0) {
-			const replacement = agentMessagesToMessagesWithMetadata(
-				runResult.messages,
+			const replacement = pruneEmptyAssistantTurns(
+				agentMessagesToMessagesWithMetadata(runResult.messages),
 			);
 			this.conversation.replaceMessages(replacement);
 		}
@@ -1286,7 +1295,9 @@ export class SessionRuntime {
 				}
 			: this.currentRunUsage;
 		const messages = runResult
-			? agentMessagesToMessagesWithMetadata(runResult.messages)
+			? pruneEmptyAssistantTurns(
+				agentMessagesToMessagesWithMetadata(runResult.messages),
+			)
 			: this.conversation.getMessages();
 		const modelInfo = tryGetModelInfo(this.config);
 		if (thrownError) {
@@ -1351,6 +1362,33 @@ function deriveFinishReason(
 		case "failed":
 			return "error";
 	}
+}
+
+function pruneEmptyAssistantTurns(
+	messages: readonly MessageWithMetadata[],
+): MessageWithMetadata[] {
+	return messages.filter((message) => !isEmptyAssistantTurn(message));
+}
+
+function isEmptyAssistantTurn(message: MessageWithMetadata): boolean {
+	if (message.role !== "assistant") {
+		return false;
+	}
+	const content = message.content;
+	if (typeof content === "string") {
+		const text = content.trim();
+		return text.length === 0 || text === EMPTY_CONTENT_TEXT;
+	}
+	if (content.length === 0) {
+		return true;
+	}
+	return content.every((block) => {
+		if (block.type !== "text") {
+			return false;
+		}
+		const text = block.text.trim();
+		return text.length === 0 || text === EMPTY_CONTENT_TEXT;
+	});
 }
 
 async function buildUserTurnContent(

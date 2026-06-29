@@ -1917,6 +1917,81 @@ describe("SessionRuntime.run — initialMessages seeding (P1 #1)", () => {
 		expect(seed.length).toBeGreaterThanOrEqual(3);
 		expect(seed.some((m) => m.role === "assistant")).toBe(true);
 	});
+
+	it("drops empty restored assistant turns before seeding a continued run", async () => {
+		const { deps, configs } = makeRecordingRuntimeFactory();
+		const session = new SessionRuntime(makeAgentConfig(), deps);
+		session.restore([
+			{ id: "u1", role: "user", content: [{ type: "text", text: "prior" }] },
+			{ id: "a_empty", role: "assistant", content: [] },
+			{
+				id: "a_sentinel",
+				role: "assistant",
+				content: [{ type: "text", text: EMPTY_CONTENT_TEXT }],
+			},
+			{
+				id: "a_blank",
+				role: "assistant",
+				content: "  \n\t  ",
+			},
+			{ id: "u2", role: "user", content: "" },
+		]);
+
+		await session.continue("followup");
+
+		expect(configs).toHaveLength(1);
+		const seed = configs[0].initialMessages ?? [];
+		expect(seed.map((message) => message.id).slice(0, 2)).toEqual(["u1", "u2"]);
+		expect(seed).toHaveLength(3);
+		expect(
+			seed.some(
+				(message) =>
+					message.role === "assistant" &&
+					message.content.some(
+						(part) =>
+							part.type === "text" && part.text === EMPTY_CONTENT_TEXT,
+					),
+			),
+		).toBe(false);
+		expect(session.getMessages().map((message) => message.id)).toEqual([
+			"u1",
+			"u2",
+			undefined,
+		]);
+	});
+
+	it("preserves assistant tool-call turns while pruning empty assistant text", async () => {
+		const { deps, configs } = makeRecordingRuntimeFactory();
+		const session = new SessionRuntime(makeAgentConfig(), deps);
+		session.restore([
+			{ id: "u1", role: "user", content: [{ type: "text", text: "prior" }] },
+			{
+				id: "a_tool",
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: "toolu_1",
+						name: "read_files",
+						input: { files: [] },
+					},
+				],
+			},
+			{ id: "a_empty", role: "assistant", content: [] },
+		]);
+
+		await session.continue("followup");
+
+		const seed = configs[0].initialMessages ?? [];
+		expect(seed.map((message) => message.id).slice(0, 2)).toEqual([
+			"u1",
+			"a_tool",
+		]);
+		expect(seed).toHaveLength(3);
+		expect(seed.find((message) => message.id === "a_tool")?.content).toEqual([
+			expect.objectContaining({ type: "tool-call", toolCallId: "toolu_1" }),
+		]);
+	});
 });
 
 // ---------------------------------------------------------------------------
