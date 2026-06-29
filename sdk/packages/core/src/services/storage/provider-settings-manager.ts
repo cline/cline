@@ -24,7 +24,7 @@ import {
 	ensureCustomProvidersLoadedSync,
 	registerConfiguredProvidersFromSettings,
 } from "../providers/local-provider-registry";
-import { hashSecret, sdkDebug } from "../../auth/auth-debug";
+import { hashSecret, sdkDebug } from "../../logging/early-logger";
 import { migrateLegacyProviderSettings } from "./provider-settings-legacy-migration";
 
 function nowIso(): string {

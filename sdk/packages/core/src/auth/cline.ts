@@ -11,7 +11,7 @@ import {
 } from "../services/telemetry/core-events";
 import { startLocalOAuthServer } from "./server";
 import type { OAuthCredentials, OAuthLoginCallbacks } from "./types";
-import { hashSecret, sdkDebug } from "./auth-debug";
+import { hashSecret, sdkDebug } from "../logging/early-logger";
 import {
 	isCredentialLikelyExpired,
 	parseAuthorizationInput,

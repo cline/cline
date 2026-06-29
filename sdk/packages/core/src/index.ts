@@ -137,7 +137,7 @@ export {
 	hashSecret,
 	setSdkLogger,
 	sdkDebug,
-} from "./auth/auth-debug";
+} from "./logging/early-logger";
 export {
 	createOAuthClientCallbacks,
 	type OAuthClientCallbacksOptions,

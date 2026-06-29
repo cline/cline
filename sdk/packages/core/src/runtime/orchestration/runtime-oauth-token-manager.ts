@@ -1,5 +1,5 @@
 import type { ITelemetryService } from "@cline/shared";
-import { hashSecret, sdkDebug } from "../../auth/auth-debug";
+import { hashSecret, sdkDebug } from "../../logging/early-logger";
 import {
 	getProviderAuthHandler,
 	getProviderOAuthCredentialsFromSettings,
