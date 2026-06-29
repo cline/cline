@@ -67,6 +67,24 @@ function dateStringToTimestamp(value: string | null | undefined): number {
 	return Number.isFinite(timestamp) ? timestamp : 0
 }
 
+/**
+ * Sort comparator for session history records by recency: newest first.
+ *
+ * Falls back through `updatedAt` → `endedAt` → `startedAt` so records that
+ * haven't been touched since creation still sort deterministically. Used both
+ * when merging the initial list and when re-sorting after a single-record
+ * patch, so the two orderings can never diverge.
+ */
+function compareSessionHistoryRecordsByRecencyDesc(
+	a: SessionHistoryRecord,
+	b: SessionHistoryRecord,
+): number {
+	return (
+		dateStringToTimestamp(b.updatedAt ?? b.endedAt ?? b.startedAt) -
+		dateStringToTimestamp(a.updatedAt ?? a.endedAt ?? a.startedAt)
+	)
+}
+
 function historyItemHasTokenUsage(item: HistoryItem): boolean {
 	return (item.tokensIn ?? 0) > 0 || (item.tokensOut ?? 0) > 0 || (item.cacheReads ?? 0) > 0 || (item.cacheWrites ?? 0) > 0
 }
@@ -383,32 +401,37 @@ export class SdkTaskHistory {
 	}
 
 	/**
-	 * Patch a single session's metadata in the cached merged history in place.
+	 * Mirror a persistence-layer write into the cache so the next read sees
+	 * the updated record without a full re-enumeration.
 	 *
-	 * A session update (e.g. per-turn token/cost usage) only changes one record,
-	 * but it used to drop the entire `metadataHistoryCache`, forcing the next
-	 * state post to re-enumerate, re-merge, and re-read manifest titles for ALL
-	 * sessions. During streaming this defeated the cache on the hot path. Instead
-	 * we mutate just the matching cached record so the rest of the merged history
-	 * survives. Returns true when the record was found and patched; callers fall
-	 * back to full invalidation only when the session isn't in the cache (e.g. a
-	 * brand-new id, where list ordering/membership may change).
+	 * The persistence layer bumps `updatedAt` on every write, so the cached
+	 * record is updated to match and the cache is re-sorted to preserve the
+	 * descending-`updatedAt` ordering that {@link listHistory} establishes.
+	 * When the session isn't in the cache (e.g. a brand-new task whose list
+	 * membership/ordering may change) the cache is invalidated so the next
+	 * read re-enumerates from disk.
 	 */
-	private patchMetadataHistoryCacheRecord(sessionId: string, metadata: Record<string, unknown>): boolean {
+	private updateCachedSessionRecord(
+		sessionId: string,
+		updates: { prompt: string; metadata: Record<string, unknown>; updatedAt: string },
+	): void {
 		const cache = this.metadataHistoryCache
 		if (!cache) {
-			return false
+			return
 		}
 		const index = cache.records.findIndex((record) => record.sessionId === sessionId)
 		if (index === -1) {
-			return false
+			this.invalidateMetadataHistoryCache()
+			return
 		}
 		const existing = cache.records[index]
 		cache.records[index] = {
 			...existing,
-			metadata: { ...(existing.metadata ?? {}), ...metadata },
+			prompt: updates.prompt,
+			metadata: updates.metadata,
+			updatedAt: updates.updatedAt,
 		}
-		return true
+		cache.records.sort(compareSessionHistoryRecordsByRecencyDesc)
 	}
 
 	private canUseMetadataHistoryCache(options: SdkTaskHistoryListOptions): boolean {
@@ -463,9 +486,7 @@ export class SdkTaskHistory {
 		).length
 
 		const mergedHistory = [...visibleSdkHistory, ...legacyHistory].sort(
-			(a, b) =>
-				dateStringToTimestamp(b.updatedAt ?? b.endedAt ?? b.startedAt) -
-				dateStringToTimestamp(a.updatedAt ?? a.endedAt ?? a.startedAt),
+			compareSessionHistoryRecordsByRecencyDesc,
 		)
 		if (useCache) {
 			this.metadataHistoryCache = {
@@ -629,15 +650,11 @@ export class SdkTaskHistory {
 			})
 			return metadata
 		})
-		// A single-session update only changes this one record. Patch it in the
-		// cached merged history in place instead of invalidating the whole cache,
-		// so frequent per-turn usage updates don't force the next state post to
-		// re-enumerate and re-merge every old session. Only when the record isn't
-		// already cached (e.g. a freshly-created task whose presence/order in the
-		// list may change) do we fall back to a full invalidation.
-		if (!this.patchMetadataHistoryCacheRecord(sessionId, writtenMetadata)) {
-			this.invalidateMetadataHistoryCache()
-		}
+		this.updateCachedSessionRecord(sessionId, {
+			prompt: item.task,
+			metadata: writtenMetadata,
+			updatedAt: new Date(item.ts || Date.now()).toISOString(),
+		})
 	}
 
 	async updateTaskHistoryItem(item: HistoryItem): Promise<void> {
