@@ -1953,11 +1953,19 @@ describe("SessionRuntime.run — initialMessages seeding (P1 #1)", () => {
 					),
 			),
 		).toBe(false);
-		expect(session.getMessages().map((message) => message.id)).toEqual([
+		const restoredMessages = session.getMessages();
+		expect(restoredMessages.map((message) => message.id).slice(0, 2)).toEqual([
 			"u1",
 			"u2",
-			undefined,
 		]);
+		expect(restoredMessages).toHaveLength(3);
+		expect(
+			restoredMessages.some(
+				(message) =>
+					message.role === "assistant" &&
+					JSON.stringify(message.content).includes(EMPTY_CONTENT_TEXT),
+			),
+		).toBe(false);
 	});
 
 	it("preserves assistant tool-call turns while pruning empty assistant text", async () => {

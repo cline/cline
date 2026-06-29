@@ -782,10 +782,9 @@ export class SessionRuntime {
 		// lost because `createAgentRuntimeConfig` received no seed and
 		// `replaceMessages(runResult.messages)` downstream overwrote the
 		// conversation with just the current-turn trail.
-		const sanitizedConversation = pruneEmptyAssistantTurns(
-			this.conversation.getMessages(),
-		);
-		if (sanitizedConversation.length !== this.conversation.getMessages().length) {
+		const conversationMessages = this.conversation.getMessages();
+		const sanitizedConversation = pruneEmptyAssistantTurns(conversationMessages);
+		if (sanitizedConversation.length !== conversationMessages.length) {
 			this.conversation.replaceMessages(sanitizedConversation);
 		}
 		const initialMessages = messagesToAgentMessages(sanitizedConversation);
