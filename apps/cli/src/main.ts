@@ -1040,6 +1040,13 @@ export async function runCli(): Promise<void> {
 			cwd,
 		});
 
+		// Register the SDK early logger so diagnostic events from
+		// ProviderSettingsManager, RuntimeOAuthTokenManager, and Cline auth
+		// flow through the CLI's pino logger.
+		// These components operate before/outside ClineCore sessions, so the
+		// session-scoped logger can't reach them.
+		coreServer.setSdkLogger(loggerAdapter.core);
+
 		const config: Config = {
 			providerId: provider,
 			modelId:

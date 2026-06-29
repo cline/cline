@@ -133,6 +133,12 @@ export {
 	type UserCurrentPlan,
 } from "./account";
 export {
+	getSdkLogger,
+	hashSecret,
+	setSdkLogger,
+	sdkDebug,
+} from "./auth/auth-debug";
+export {
 	createOAuthClientCallbacks,
 	type OAuthClientCallbacksOptions,
 } from "./auth/client";
