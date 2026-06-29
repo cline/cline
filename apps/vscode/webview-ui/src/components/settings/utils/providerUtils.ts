@@ -9,6 +9,7 @@ import {
 	basetenModels,
 	bedrockDefaultModelId,
 	bedrockModels,
+	buildModelInfoNameMap,
 	cerebrasDefaultModelId,
 	cerebrasModels,
 	claudeCodeDefaultModelId,
@@ -360,17 +361,20 @@ export function normalizeApiConfiguration(
 				? configuredClinePassModelId
 				: clinePassDefaultModelId;
 			const clinePassModelInfo =
-				(currentMode === "plan"
+				currentMode === "plan"
 					? apiConfiguration?.planModeClinePassModelInfo
-					: apiConfiguration?.actModeClinePassModelInfo) ||
-				resolveClinePassModelInfo(
-					clinePassModelId,
-					options.clinePassModelInfoByName,
-				);
+					: apiConfiguration?.actModeClinePassModelInfo;
+			const clinePassModelInfoByName = clinePassModelInfo
+				? buildModelInfoNameMap({ [clinePassModelId]: clinePassModelInfo })
+				: options.clinePassModelInfoByName;
+			const resolvedClinePassModelInfo = resolveClinePassModelInfo(
+				clinePassModelId,
+				clinePassModelInfoByName,
+			);
 			return {
 				selectedProvider: provider,
 				selectedModelId: clinePassModelId,
-				selectedModelInfo: clinePassModelInfo,
+				selectedModelInfo: resolvedClinePassModelInfo,
 			};
 		}
 		case "openai": {

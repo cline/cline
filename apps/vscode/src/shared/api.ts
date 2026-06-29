@@ -1082,9 +1082,12 @@ export function buildModelInfoNameMap(models: Record<string, ModelInfo>): Record
 }
 
 export function resolveClinePassModelInfo(modelId: string, modelInfoByName?: Record<string, ModelInfo>): ModelInfo {
+	const modelSlug = getModelSlug(modelId)
+	const clinePassSlugModelId = `cline-pass/${modelSlug}`
 	return (
 		clinePassModels[modelId as keyof typeof clinePassModels] ??
-		modelInfoByName?.[getModelSlug(modelId)] ??
+		clinePassModels[clinePassSlugModelId as keyof typeof clinePassModels] ??
+		modelInfoByName?.[modelSlug] ??
 		clinePassModelInfoSaneDefaults
 	)
 }

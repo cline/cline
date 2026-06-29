@@ -37,11 +37,20 @@ export function supportsReasoningEffortForModel(modelId?: string): boolean {
 
 	const id = modelId.toLowerCase()
 	return (
+		id.includes("deepseek") ||
 		id.includes("gemini") ||
+		id.includes("glm") ||
 		id.includes("gpt") ||
+		id.includes("kimi") ||
+		id.includes("mimo") ||
+		id.includes("minimax") ||
+		id.includes("moonshot") ||
 		id.startsWith("openai/o") ||
 		id.includes("/o") ||
 		id.startsWith("o") ||
+		id.includes("qwen") ||
+		id.includes("z-ai") ||
+		id.includes("zai") ||
 		id.includes("grok")
 	)
 }

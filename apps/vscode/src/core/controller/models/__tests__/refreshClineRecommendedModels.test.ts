@@ -127,4 +127,99 @@ describe("refreshClineRecommendedModels", () => {
 		expect(axiosGetStub.calledOnce).to.equal(true);
 		expect(secondResult).to.deep.equal(firstResult);
 	});
+
+	it("normalizes Cline provider Z.ai recommended IDs to the Cline API alias", async () => {
+		sandbox.stub(ClineEnv, "config").returns({
+			environment: Environment.production,
+			appBaseUrl: "https://app.cline-mock.bot",
+			apiBaseUrl: "https://api.cline-mock.bot",
+			mcpBaseUrl: "https://api.cline-mock.bot/v1/mcp",
+		});
+		sandbox.stub(disk, "ensureCacheDirectoryExists").resolves("/tmp");
+		sandbox.stub(fs, "writeFile").resolves();
+		sandbox.stub(axios, "get").resolves({
+			data: {
+				recommended: [
+					{
+						id: "zai/glm-5.2",
+						name: "zai/glm-5.2",
+						description: "Recommended GLM",
+					},
+				],
+				free: [
+					{
+						id: "zai/free-glm",
+						description: "Free GLM",
+					},
+				],
+			},
+		});
+
+		const result = await refreshClineRecommendedModels();
+
+		expect(result.recommended[0]).to.include({
+			id: "z-ai/glm-5.2",
+			name: "z-ai/glm-5.2",
+		});
+		expect(result.free[0]).to.include({
+			id: "z-ai/free-glm",
+			name: "z-ai/free-glm",
+		});
+	});
+
+	it("normalizes cached Cline provider Z.ai recommended IDs", async () => {
+		sandbox.stub(ClineEnv, "config").returns({
+			environment: Environment.production,
+			appBaseUrl: "https://app.cline-mock.bot",
+			apiBaseUrl: "https://api.cline-mock.bot",
+			mcpBaseUrl: "https://api.cline-mock.bot/v1/mcp",
+		});
+		sandbox.stub(disk, "ensureCacheDirectoryExists").resolves("/tmp");
+		sandbox.stub(axios, "get").rejects(new Error("network unavailable"));
+		sandbox.stub(fs, "access").resolves();
+		sandbox.stub(fs, "readFile").resolves(
+			JSON.stringify({
+				recommended: [
+					{
+						id: "zai/glm-5.2",
+						name: "zai/glm-5.2",
+					},
+				],
+			}),
+		);
+
+		const result = await refreshClineRecommendedModels();
+
+		expect(result.recommended.map((model) => model.id)).to.deep.equal(["z-ai/glm-5.2"]);
+		expect(result.recommended.map((model) => model.name)).to.deep.equal(["z-ai/glm-5.2"]);
+	});
+
+	it("prefers canonical ClinePass Z.ai IDs when aliases are also present", async () => {
+		sandbox.stub(ClineEnv, "config").returns({
+			environment: Environment.production,
+			appBaseUrl: "https://app.cline-mock.bot",
+			apiBaseUrl: "https://api.cline-mock.bot",
+			mcpBaseUrl: "https://api.cline-mock.bot/v1/mcp",
+		});
+		sandbox.stub(disk, "ensureCacheDirectoryExists").resolves("/tmp");
+		sandbox.stub(fs, "writeFile").resolves();
+		sandbox.stub(axios, "get").resolves({
+			data: {
+				clinePass: [
+					{
+						id: "cline-pass/z-ai/glm-5.2",
+						description: "OpenRouter alias",
+					},
+					{
+						id: "cline-pass/zai/glm-5.2",
+						description: "Canonical ID",
+					},
+				],
+			},
+		});
+
+		const result = await refreshClineRecommendedModels();
+
+		expect(result.clinePass.map((model) => model.id)).to.deep.equal(["cline-pass/zai/glm-5.2"]);
+	});
 });

@@ -13,6 +13,7 @@ import {
 	isPoolsideModelFamily,
 	modelDoesntSupportWebp,
 	shouldSkipReasoningForModel,
+	supportsReasoningEffortForModel,
 } from "../model-utils"
 
 // Minimal helper — modelDoesntSupportWebp only reads apiHandlerModel.id
@@ -37,6 +38,7 @@ describe("shouldSkipReasoningForModel", () => {
 		shouldSkipReasoningForModel("claude-3-sonnet").should.equal(false)
 		shouldSkipReasoningForModel("gpt-4").should.equal(false)
 		shouldSkipReasoningForModel("gemini-pro").should.equal(false)
+		shouldSkipReasoningForModel("zai/glm-5.2").should.equal(false)
 	})
 
 	it("should return false for undefined or empty model IDs", () => {
@@ -47,6 +49,31 @@ describe("shouldSkipReasoningForModel", () => {
 	it("should be case sensitive", () => {
 		shouldSkipReasoningForModel("GROK-4").should.equal(false)
 		shouldSkipReasoningForModel("Grok-4").should.equal(false)
+	})
+})
+
+describe("supportsReasoningEffortForModel", () => {
+	it("should return true for OpenRouter/Cline model families that use reasoning effort", () => {
+		for (const modelId of [
+			"zai/glm-5.2",
+			"z-ai/glm-5.2",
+			"cline-pass/glm-5.2",
+			"moonshotai/kimi-k2-thinking",
+			"kimi-k2-thinking",
+			"accounts/fireworks/models/kimi-k2p6",
+			"accounts/fireworks/models/minimax-m3",
+			"minimax/MiniMax-M2.7",
+			"provider/mimo-vl",
+			"qwen/qwen3.7-max",
+			"deepseek/deepseek-r1",
+		]) {
+			supportsReasoningEffortForModel(modelId).should.equal(true)
+		}
+	})
+
+	it("should return false for undefined and unrelated model IDs", () => {
+		supportsReasoningEffortForModel(undefined).should.equal(false)
+		supportsReasoningEffortForModel("anthropic/claude-sonnet-4.5").should.equal(false)
 	})
 })
 

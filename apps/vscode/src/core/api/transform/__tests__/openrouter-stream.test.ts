@@ -114,4 +114,87 @@ describe("createOpenRouterStream", () => {
 		should(payload.temperature).equal(undefined)
 		should(payload.top_p).equal(undefined)
 	})
+
+	it("includes reasoning for Claude budget-based reasoning models", async () => {
+		const { client, create } = createClient()
+
+		await createOpenRouterStream(
+			client as any,
+			"system prompt",
+			[{ role: "user", content: "hello" }] as any,
+			{
+				id: "anthropic/claude-sonnet-4.5",
+				info: createModelInfo(64_000),
+			},
+			undefined,
+			16_384,
+		)
+
+		const payload = create.firstCall.args[0] as any
+		payload.should.have.property("include_reasoning", true)
+		payload.reasoning.should.deepEqual({ max_tokens: 16_384 })
+		should(payload.temperature).equal(undefined)
+	})
+
+	it("sends reasoning effort instead of token budgets for supported OpenRouter/Cline model families", async () => {
+		for (const modelId of [
+			"zai/glm-5.2",
+			"z-ai/glm-5.2",
+			"moonshotai/kimi-k2-thinking",
+			"accounts/fireworks/models/minimax-m3",
+			"provider/mimo-vl",
+			"qwen/qwen3.7-max",
+			"deepseek/deepseek-r1",
+		]) {
+			const { client, create } = createClient()
+
+			await createOpenRouterStream(
+				client as any,
+				"system prompt",
+				[{ role: "user", content: "hello" }] as any,
+				{
+					id: modelId,
+					info: { ...createModelInfo(131_072), thinkingConfig: { maxBudget: 16_384 } },
+				},
+				"high",
+				16_384,
+			)
+
+			const payload = create.firstCall.args[0] as any
+			payload.should.have.property("include_reasoning", true)
+			payload.reasoning.should.deepEqual({ effort: "high" })
+		}
+	})
+
+	it("does not send reasoning effort for ClinePass requests when unset", async () => {
+		const { client, create } = createClient()
+
+		await createOpenRouterStream(client as any, "system prompt", [{ role: "user", content: "hello" }] as any, {
+			id: "cline-pass/glm-5.2",
+			info: createModelInfo(131_072),
+		})
+
+		const payload = create.firstCall.args[0] as any
+		payload.should.have.property("include_reasoning", true)
+		payload.should.not.have.property("reasoning")
+	})
+
+	it("sends the selected reasoning effort for ClinePass requests", async () => {
+		const { client, create } = createClient()
+
+		await createOpenRouterStream(
+			client as any,
+			"system prompt",
+			[{ role: "user", content: "hello" }] as any,
+			{
+				id: "cline-pass/glm-5.1",
+				info: createModelInfo(131_072),
+			},
+			"high",
+		)
+
+		const payload = create.firstCall.args[0] as any
+		payload.should.have.property("include_reasoning", true)
+		payload.reasoning.should.deepEqual({ effort: "high" })
+	})
 })

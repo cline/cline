@@ -189,8 +189,9 @@ export const ModelInfoView = ({
 	const [advancedExpanded, setAdvancedExpanded] = useState(false)
 
 	const isGemini = Object.keys(geminiModels).includes(selectedModelId)
+	const hidePricing = selectedModelId.trim().toLowerCase().startsWith("cline-pass/")
 	const hasThinkingConfig = hasThinkingBudget(modelInfo)
-	const hasTiers = !!modelInfo.tiers && modelInfo.tiers.length > 0
+	const hasTiers = !hidePricing && !!modelInfo.tiers && modelInfo.tiers.length > 0
 
 	// Capability checks
 	const hasImages = supportsImages(modelInfo)
@@ -198,7 +199,8 @@ export const ModelInfoView = ({
 	const hasCaching = !isGemini && supportsPromptCache(modelInfo)
 
 	// Check if we have cache pricing to show in Advanced section
-	const hasCachePricing = modelInfo.supportsPromptCache && (modelInfo.cacheWritesPrice || modelInfo.cacheReadsPrice)
+	const hasCachePricing =
+		!hidePricing && modelInfo.supportsPromptCache && (modelInfo.cacheWritesPrice || modelInfo.cacheReadsPrice)
 
 	return (
 		<div style={{ marginTop: 4 }}>
@@ -215,13 +217,13 @@ export const ModelInfoView = ({
 						<InfoValue>{formatCompactContext(modelInfo.contextWindow)}</InfoValue>
 					</InfoItem>
 				)}
-				{modelInfo.inputPrice !== undefined && (
+				{!hidePricing && modelInfo.inputPrice !== undefined && (
 					<InfoItem>
 						<InfoLabel>Input: </InfoLabel>
 						<InfoValue>{formatCompactPrice(modelInfo.inputPrice)}</InfoValue>
 					</InfoItem>
 				)}
-				{modelInfo.outputPrice !== undefined && (
+				{!hidePricing && modelInfo.outputPrice !== undefined && (
 					<InfoItem>
 						<InfoLabel>Output: </InfoLabel>
 						<InfoValue>
