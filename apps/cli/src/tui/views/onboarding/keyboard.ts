@@ -9,10 +9,11 @@ import {
 } from "./auth";
 import { FIELD_ORDER } from "./fields";
 import {
+	type ClinePassSubscriptionOption,
+	type ClinePassSubscriptionStatus,
 	type MenuOption,
 	type OnboardingStep,
 	THINKING_LEVELS,
-	type ClinePassSubscriptionStatus,
 	type ThinkingLevel,
 } from "./model";
 
@@ -28,6 +29,8 @@ export function useOnboardingKeyboard(input: {
 	clineEntries: ClineModelPickerEntry[];
 	clineModelSelected: number;
 	clinePassSubscriptionStatus: ClinePassSubscriptionStatus;
+	clinePassSubscriptionOptions: ClinePassSubscriptionOption[];
+	clinePassSubscriptionSelected: number;
 	thinkingSelected: number;
 	setStep: (step: OnboardingStep) => void;
 	setMenuSelected: Dispatch<SetStateAction<number>>;
@@ -40,9 +43,11 @@ export function useOnboardingKeyboard(input: {
 	setDeviceError: (value: string) => void;
 	setDeviceStatus: (value: string) => void;
 	setClineModelSelected: Dispatch<SetStateAction<number>>;
+	setClinePassSubscriptionSelected: Dispatch<SetStateAction<number>>;
 	setThinkingSelected: Dispatch<SetStateAction<number>>;
 	continueFromClinePassSubscription: () => void;
 	refreshClinePassSubscriptionStatus: () => void;
+	openClinePassSubscriptionPage: () => void;
 	abortOAuth: () => void;
 	abortDeviceCode: () => void;
 	resetAuth: () => void;
@@ -145,13 +150,37 @@ export function useOnboardingKeyboard(input: {
 		if (input.step === "device_code") return;
 
 		if (input.step === "cline_pass_subscription") {
-			if (key.name === "r") {
-				input.refreshClinePassSubscriptionStatus();
+			const total = input.clinePassSubscriptionOptions.length;
+			if (total === 0) return;
+			if (key.name === "up" || (key.ctrl && key.name === "p")) {
+				input.setClinePassSubscriptionSelected((s) =>
+					s <= 0 ? total - 1 : s - 1,
+				);
 				return;
 			}
-			if (key.name === "return") {
-				if (input.clinePassSubscriptionStatus !== "loading") {
+			if (key.name === "down" || (key.ctrl && key.name === "n")) {
+				input.setClinePassSubscriptionSelected((s) =>
+					s >= total - 1 ? 0 : s + 1,
+				);
+				return;
+			}
+			if (key.name === "return" || key.name === "enter") {
+				const option =
+					input.clinePassSubscriptionOptions[
+						Math.min(input.clinePassSubscriptionSelected, total - 1)
+					];
+				if (!option) return;
+				if (option.value === "subscribe") {
+					input.openClinePassSubscriptionPage();
+				} else if (option.value === "refresh") {
+					if (input.clinePassSubscriptionStatus !== "loading") {
+						input.refreshClinePassSubscriptionStatus();
+					}
+				} else if (option.value === "skip") {
 					input.continueFromClinePassSubscription();
+				} else if (option.value === "back") {
+					input.setStep("menu");
+					input.setMenuSelected(0);
 				}
 			}
 			return;
