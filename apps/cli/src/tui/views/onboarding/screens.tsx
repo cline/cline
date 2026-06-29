@@ -590,8 +590,11 @@ export function OnboardingClinePassSubscriptionScreen(props: {
 						{!isSubscribed && props.planFeatures.length > 0 && (
 							<box flexDirection="column" marginTop={1} flexShrink={0}>
 								{props.planFeatures.map((feature) => {
-									const isModelsOption = feature.startsWith("Includes ");
-									if (!isModelsOption) {
+									if (
+										feature === "Low cost subscription pricing" ||
+										feature === "Generous limits and reliable access" ||
+										feature === "Built for as many programmers as possible"
+									) {
 										return null;
 									}
 
