@@ -365,6 +365,48 @@ describe("createInteractiveSessionRuntime", () => {
 		expect(runtime.getActiveSessionId()).toBe("session-2");
 	});
 
+	it("recovers empty read-driven restarts when the active interactive session disappeared", async () => {
+		const manager = makeManager();
+		manager.readMessages.mockRejectedValueOnce(
+			new SessionNotFoundError("session-1"),
+		);
+		const runtime = makeRuntime(manager);
+
+		await runtime.ensureReady();
+		await runtime.restartWithCurrentMessages();
+
+		expect(manager.readMessages).toHaveBeenCalledWith("session-1");
+		expect(manager.start).toHaveBeenCalledTimes(2);
+		expect(manager.start).toHaveBeenNthCalledWith(
+			2,
+			expect.objectContaining({
+				initialMessages: [],
+			}),
+		);
+		expect(runtime.getActiveSessionId()).toBe("session-2");
+	});
+
+	it("does not restart with stale messages when another operation changes the active session during a read", async () => {
+		const manager = makeManager();
+		let runtime!: ReturnType<typeof makeRuntime>;
+		manager.readMessages.mockImplementationOnce(async () => {
+			await runtime.restartEmpty();
+			return [
+				{
+					role: "user" as const,
+					content: [{ type: "text" as const, text: "stale" }],
+				},
+			];
+		});
+		runtime = makeRuntime(manager);
+
+		await runtime.ensureReady();
+		await runtime.restartWithCurrentMessages();
+
+		expect(manager.start).toHaveBeenCalledTimes(2);
+		expect(runtime.getActiveSessionId()).toBe("session-2");
+	});
+
 	it("waits for missing-session recovery before cleanup disposes the manager", async () => {
 		const manager = makeManager();
 		const recoveryRead = deferred<Message[]>();
