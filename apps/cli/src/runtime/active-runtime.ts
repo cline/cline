@@ -75,7 +75,7 @@ export function clearAbortInProgress(): void {
 			}
 			savedRejectionListeners = undefined;
 		}
-	}, 2000);
+	}, 5000);
 }
 
 export function isAbortInProgress(): boolean {

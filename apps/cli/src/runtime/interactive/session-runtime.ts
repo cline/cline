@@ -279,7 +279,14 @@ export function createInteractiveSessionRuntime(input: {
 		if (!sessionManager || !activeSessionId) {
 			return [];
 		}
-		return (await sessionManager.readMessages(activeSessionId)) ?? [];
+		try {
+			return (await sessionManager.readMessages(activeSessionId)) ?? [];
+		} catch (error) {
+			if (isSessionNotFoundError(error)) {
+				return [];
+			}
+			throw error;
+		}
 	};
 
 	const recoverMissingActiveSession = async (error: unknown): Promise<void> => {

@@ -53,6 +53,16 @@ if (!isMainThread) {
 			promise.catch(() => {});
 			return;
 		}
+		// AgentRuntimeAbortError can leak from streaming LLM or hub
+		// capability teardown after the abort grace window expires.
+		// Treat it as a non-fatal side-effect of an abort.
+		if (
+			reason instanceof Error &&
+			reason.name === "AgentRuntimeAbortError"
+		) {
+			promise.catch(() => {});
+			return;
+		}
 		handleFatalProcessError("unhandledRejection", reason);
 	});
 
