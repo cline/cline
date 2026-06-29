@@ -13,10 +13,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import HomeHeader from "@/components/welcome/HomeHeader"
 import { SuggestedTasks } from "@/components/welcome/SuggestedTasks"
 import CreateWorktreeModal from "@/components/worktrees/CreateWorktreeModal"
-import { CLINE_PASS_FEATURE_FLAG } from "@/constants/featureFlags"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { useHasFeatureFlag } from "@/hooks/useFeatureFlag"
 import { AccountServiceClient, StateServiceClient, UiServiceClient, WorktreeServiceClient } from "@/services/grpc-client"
 import { convertBannerData } from "@/utils/bannerUtils"
 import { buildClinePassSubscriptionUrl } from "@/utils/clinePassSubscription"
@@ -64,7 +62,6 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 	}, [])
 
 	const { clineUser } = useClineAuth()
-	const isClinePassEnabled = useHasFeatureFlag(CLINE_PASS_FEATURE_FLAG)
 	const {
 		openRouterModels,
 		navigateToSettings,
@@ -237,7 +234,6 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 
 	const clinePassPromoBanner = useMemo((): BannerData | undefined => {
 		if (
-			!isClinePassEnabled ||
 			isBannerDismissed(CLINE_PASS_PROMO_BANNER_ID) ||
 			dismissedLocalBanners.has(CLINE_PASS_PROMO_BANNER_ID)
 		) {
@@ -292,7 +288,6 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 		handleBannerDismiss,
 		handleFieldsChange,
 		isBannerDismissed,
-		isClinePassEnabled,
 		navigateToSettings,
 	])
 
