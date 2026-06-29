@@ -11,6 +11,10 @@ export interface CliMigrationNotice {
 	title: string;
 }
 
+export interface CliMigrationNoticeOptions {
+	activeProviderId?: string;
+}
+
 interface CliNoticeState {
 	shown: Record<string, boolean>;
 }
@@ -58,12 +62,16 @@ export function resolveCliNoticeStatePath(
 export function getClineCliMigrationNotice(
 	dataDir = resolveClineDataDir(),
 	env: NodeJS.ProcessEnv = process.env,
+	options: CliMigrationNoticeOptions = {},
 ): CliMigrationNotice | undefined {
 	const noticePath = resolveCliNoticeStatePath(dataDir);
 	const noticeState = readNoticeState(noticePath);
 	const forceNotice = env[FORCE_NOTICE_ENV]?.trim() === "1";
 	const disableNotice = env[DISABLE_NOTICE_ENV]?.trim() === "1";
 	if (disableNotice && !forceNotice) {
+		return undefined;
+	}
+	if (options.activeProviderId?.trim() === "cline-pass" && !forceNotice) {
 		return undefined;
 	}
 	if (noticeState.shown[NOTICE_ID] && !forceNotice) {
