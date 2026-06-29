@@ -502,7 +502,7 @@ export function OnboardingClinePassSubscriptionScreen(props: {
 	const isLoading = props.status === "loading";
 	const isSubscribed = props.status === "subscribed";
 	const isError = props.status === "error";
-	const bodyHeight = props.compact ? 17 : 21;
+	const bodyHeight = props.compact ? 17 : 19;
 
 	useEffect(() => {
 		if (isSubscribed) {
@@ -589,9 +589,9 @@ export function OnboardingClinePassSubscriptionScreen(props: {
 
 						{!isSubscribed && props.planFeatures.length > 0 && (
 							<box flexDirection="column" marginTop={1} flexShrink={0}>
-								<text fg={defaultFg}>ClinePass includes:</text>
 								{props.planFeatures.map((feature) => {
 									if (
+										feature === "Low cost subscription pricing" ||
 										feature === "Generous limits and reliable access" ||
 										feature === "Built for as many programmers as possible"
 									) {
