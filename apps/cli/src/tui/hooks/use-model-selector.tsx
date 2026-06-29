@@ -15,7 +15,6 @@ import {
 	isOAuthProvider,
 	isProviderConfigured,
 } from "../../utils/provider-auth";
-import { getCliProviderDisplayName } from "../../utils/provider-catalog";
 import type { Config } from "../../utils/types";
 import { withLoadingDialog } from "../components/dialogs/loading-dialog";
 import {
@@ -49,7 +48,7 @@ export interface OpenModelSelectorOptions {
 
 async function getProviderDisplayName(providerId: string): Promise<string> {
 	const info = await Llms.getProvider(providerId);
-	return getCliProviderDisplayName(providerId, info?.name);
+	return info?.name ?? providerId;
 }
 
 async function refreshCurrentProviderModels(config: Config): Promise<void> {
