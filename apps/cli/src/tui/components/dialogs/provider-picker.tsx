@@ -37,10 +37,7 @@ import {
 	getSearchableListRowsWindow,
 	type SearchableItem,
 } from "../searchable-list";
-import {
-	buildClinePassSubscriptionPageUrl,
-	buildClineUsageBillingPageUrl,
-} from "./provider-picker-helpers";
+import { buildClinePassSubscriptionPageUrl } from "./provider-picker-helpers";
 
 interface ProviderItem {
 	id: string;
@@ -409,26 +406,6 @@ export function ClinePassSubscriptionContent(
 			pageLabel="Subscription page"
 			url={subscriptionUrl}
 			openedStatus="Opened subscription page in your browser."
-		/>
-	);
-}
-
-export function ClineUsageBillingContent(
-	props: ChoiceContext<boolean> & {
-		providerName: string;
-	},
-) {
-	const usageBillingUrl = useMemo(
-		() => buildClineUsageBillingPageUrl(getClineEnvironmentConfig().appBaseUrl),
-		[],
-	);
-
-	return (
-		<ClinePassBrowserPageContent
-			{...props}
-			pageLabel="Usage and billing"
-			url={usageBillingUrl}
-			openedStatus="Opened usage and billing in your browser."
 		/>
 	);
 }
