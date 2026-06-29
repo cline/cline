@@ -115,6 +115,27 @@ describe("createOpenRouterStream", () => {
 		should(payload.top_p).equal(undefined)
 	})
 
+	it("includes reasoning for Claude budget-based reasoning models", async () => {
+		const { client, create } = createClient()
+
+		await createOpenRouterStream(
+			client as any,
+			"system prompt",
+			[{ role: "user", content: "hello" }] as any,
+			{
+				id: "anthropic/claude-sonnet-4.5",
+				info: createModelInfo(64_000),
+			},
+			undefined,
+			16_384,
+		)
+
+		const payload = create.firstCall.args[0] as any
+		payload.should.have.property("include_reasoning", true)
+		payload.reasoning.should.deepEqual({ max_tokens: 16_384 })
+		should(payload.temperature).equal(undefined)
+	})
+
 	it("sends reasoning effort instead of token budgets for supported OpenRouter/Cline model families", async () => {
 		for (const modelId of [
 			"zai/glm-5.2",

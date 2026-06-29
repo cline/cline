@@ -185,7 +185,7 @@ export async function createOpenRouterStream(
 	// Skip reasoning for models that don't support it (e.g., devstral, grok-4), or when effort explicitly disables it.
 	const includeReasoning = isAdaptiveThinkingModel
 		? !!adaptiveThinking?.enabled
-		: supportsReasoningEffort && !shouldSkipReasoningForModel(model.id) && reasoningEffortValue !== "none"
+		: !!reasoning || (supportsReasoningEffort && !shouldSkipReasoningForModel(model.id) && reasoningEffortValue !== "none")
 	const reasoningPayload = isAdaptiveThinkingModel
 		? adaptiveThinking?.enabled
 			? { enabled: true }
