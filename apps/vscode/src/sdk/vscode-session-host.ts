@@ -32,7 +32,7 @@ import type { ITerminalManager } from "@/integrations/terminal/types"
 import { getDistinctId } from "@/services/logging/distinctId"
 import type { McpHub } from "@/services/mcp/McpHub"
 import { Logger } from "@/shared/services/Logger"
-import type { SdkSessionHost } from "./session-host"
+import type { SdkInitialMessages, SdkSessionHost } from "./session-host"
 import { createVscodeExtraTools } from "./vscode-runtime-builder"
 
 export interface VscodeSessionHostOptions {
@@ -197,6 +197,10 @@ export class VscodeSessionHost implements SdkSessionHost {
 
 	async readMessages(sessionId: string) {
 		return this.inner.readMessages(sessionId)
+	}
+
+	async writeMessages(sessionId: string, messages: SdkInitialMessages): Promise<void> {
+		return this.inner.writeMessages(sessionId, messages)
 	}
 
 	async restore(input: RestoreInput): Promise<RestoreResult> {

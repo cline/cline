@@ -19,11 +19,13 @@ import type { ClineMessage } from "@shared/ExtensionMessage"
 import type { Mode } from "@shared/storage/types"
 import type { StateManager } from "@/core/storage/StateManager"
 import { Logger } from "@/shared/services/Logger"
+import { historyItemToSessionMetadata } from "./session-metadata"
 import { compactSessionMessages } from "./sdk-compaction"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import type { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
-import type { SdkSessionHost } from "./session-host"
+import type { SdkTaskHistory } from "./sdk-task-history"
+import type { SdkInitialMessages, SdkSessionHost } from "./session-host"
 import type { TaskProxy } from "./task-proxy"
 import type { VscodeSessionHost } from "./vscode-session-host"
 
@@ -35,10 +37,14 @@ export interface SdkCompactionCoordinatorOptions {
 	stateManager: StateManager
 	sessions: SdkSessionLifecycle
 	messages: SdkMessageCoordinator
+	taskHistory: SdkTaskHistory
 	sessionConfigBuilder: SdkSessionConfigBuilder
 	getTask: () => TaskProxy | undefined
+	createTempSessionHost: () => Promise<SdkSessionHost>
 	getWorkspaceRoot: () => Promise<string>
+	loadInitialMessages: (reader: SdkSessionHost, taskId: string) => Promise<unknown[] | undefined>
 	buildStartSessionInput: (config: SessionConfig, input: { cwd: string; mode: Mode }) => StartInput
+	setTurnPhase?: (phase: "awaiting_followup") => void
 	resetMessageTranslator: () => void
 	postStateToWebview: () => Promise<void>
 }
@@ -61,9 +67,15 @@ export class SdkCompactionCoordinator {
 
 		const activeSession = this.options.sessions.getActiveSession()
 		if (!activeSession) {
-			Logger.warn("[SdkController] compactTask: No active session to compact")
-			this.emitInfo("There is no active task to compact.")
-			await this.options.postStateToWebview()
+			const task = this.options.getTask()
+			if (!task) {
+				Logger.warn("[SdkController] compactTask: No active session or displayed task to compact")
+				this.emitInfo("There is no task to compact.")
+				await this.options.postStateToWebview()
+				return
+			}
+
+			await this.compactDisplayedTask(task)
 			return
 		}
 
@@ -87,8 +99,86 @@ export class SdkCompactionCoordinator {
 		}
 	}
 
+	private async compactDisplayedTask(task: TaskProxy): Promise<void> {
+		this.compactInFlight = true
+		try {
+			const taskId = task.taskId
+			Logger.log(`[SdkController] compactTask: compacting displayed history task ${taskId}`)
+
+			const tempHost = await this.options.createTempSessionHost()
+			let messages: SdkMessage[]
+			try {
+				messages = ((await this.options.loadInitialMessages(tempHost, taskId)) ?? []) as SdkMessage[]
+			} finally {
+				await tempHost.dispose("compactTask.readMessages")
+			}
+
+			await this.runCompactionForMessages(messages, taskId, async (config, compactedMessages, cwd, mode) => {
+				const historyItem = await this.options.taskHistory.findHistoryItem(taskId)
+				config.sessionId = taskId
+				const startInput = this.options.buildStartSessionInput(config, { cwd, mode })
+				const { startResult } = await this.options.sessions.startNewSession({
+					...startInput,
+					initialMessages: compactedMessages as InitialMessages,
+					...(historyItem ? { sessionMetadata: historyItemToSessionMetadata(historyItem, config.modelId) } : {}),
+				})
+				this.options.sessions.setRunning(false)
+
+				if (task.taskId !== startResult.sessionId) {
+					task.taskId = startResult.sessionId
+				}
+
+				return startResult.sessionId
+			})
+		} catch (error) {
+			Logger.error("[SdkController] Compaction failed:", error)
+			this.emitInfo(`Compaction failed: ${error instanceof Error ? error.message : String(error)}`)
+			await this.options.postStateToWebview()
+		} finally {
+			this.compactInFlight = false
+		}
+	}
+
 	private async runCompaction(sdkHost: SdkSessionHost, sessionId: string): Promise<void> {
 		const messages = (await sdkHost.readMessages(sessionId)) as SdkMessage[]
+		await this.runCompactionForMessages(messages, sessionId, async (config, compactedMessages, cwd, mode) => {
+			// Restart the session with the compacted transcript. Reusing the
+			// sessionId keeps the task identity (history item, task header) stable;
+			// replaceActiveSession waits for the old session's stop before starting
+			// the replacement (same sequencing as a mode rebuild).
+			config.sessionId = sessionId
+			const startInput = this.options.buildStartSessionInput(config, { cwd, mode })
+			const rebuildResult = await this.options.sessions.replaceActiveSession({
+				startInput,
+				initialMessages: compactedMessages as InitialMessages,
+				disposeReason: "compactTask",
+			})
+			if (!rebuildResult) {
+				this.emitInfo("Compaction could not be applied because the session was replaced.")
+				await this.options.postStateToWebview()
+				return undefined
+			}
+
+			const { startResult } = rebuildResult
+			const task = this.options.getTask()
+			if (task && task.taskId !== startResult.sessionId) {
+				task.taskId = startResult.sessionId
+			}
+
+			return startResult.sessionId
+		})
+	}
+
+	private async runCompactionForMessages(
+		messages: SdkMessage[],
+		sessionId: string,
+		applyCompactedMessages: (
+			config: SessionConfig,
+			compactedMessages: SdkMessage[],
+			cwd: string,
+			mode: Mode,
+		) => Promise<string | undefined>,
+	): Promise<void> {
 		const messagesBefore = messages.length
 		if (messagesBefore === 0) {
 			this.emitInfo("No messages to compact.")
@@ -120,38 +210,33 @@ export class SdkCompactionCoordinator {
 			return
 		}
 
-		// Restart the session with the compacted transcript. Reusing the
-		// sessionId keeps the task identity (history item, task header) stable;
-		// replaceActiveSession waits for the old session's stop before starting
-		// the replacement (same sequencing as a mode rebuild).
-		config.sessionId = sessionId
-		const startInput = this.options.buildStartSessionInput(config, { cwd, mode })
-		const rebuildResult = await this.options.sessions.replaceActiveSession({
-			startInput,
-			initialMessages: result.messages as InitialMessages,
-			disposeReason: "compactTask",
-		})
-		if (!rebuildResult) {
-			this.emitInfo("Compaction could not be applied because the session was replaced.")
-			await this.options.postStateToWebview()
+		const appliedSessionId = await applyCompactedMessages(config, result.messages, cwd, mode)
+		if (!appliedSessionId) {
 			return
 		}
 
-		const { startResult } = rebuildResult
-		const task = this.options.getTask()
-		if (task && task.taskId !== startResult.sessionId) {
-			task.taskId = startResult.sessionId
+		// Persist the compacted messages to disk so reopening the task later
+		// shows the compacted transcript, not the original. startSession skips
+		// persistence for "read-only resume" starts (same sessionId +
+		// initialMessages + no prompt), so the host must write explicitly.
+		const activeSession = this.options.sessions.getActiveSession()
+		if (activeSession) {
+			await activeSession.sdkHost.writeMessages(
+				appliedSessionId,
+				result.messages as SdkInitialMessages,
+			)
 		}
 
 		// Fence the conversation boundary so any straggler events from the old
 		// session carry an older epoch and are dropped by the webview.
 		this.options.resetMessageTranslator()
+		this.options.setTurnPhase?.("awaiting_followup")
 
 		this.emitInfo(this.formatCompactionStatus(messagesBefore, result.messages.length))
 		await this.options.postStateToWebview()
 
 		Logger.log(
-			`[SdkController] Compacted session ${sessionId}: ${messagesBefore} -> ${result.messages.length} messages (new session ${startResult.sessionId})`,
+			`[SdkController] Compacted session ${sessionId}: ${messagesBefore} -> ${result.messages.length} messages (new session ${appliedSessionId})`,
 		)
 	}
 
@@ -182,4 +267,5 @@ export class SdkCompactionCoordinator {
 			payload: { sessionId, status: "running" },
 		})
 	}
+
 }

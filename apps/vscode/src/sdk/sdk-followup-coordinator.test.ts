@@ -71,6 +71,27 @@ describe("SdkFollowupCoordinator", () => {
 		)
 	})
 
+	it("does not resume from history when a displayed task already has an idle active session", async () => {
+		const activeSession = makeActiveSession()
+		const task = makeTask("session-123")
+		const { coordinator, options } = makeCoordinator({ activeSession, task })
+
+		await coordinator.askResponse("after compact")
+
+		expect(options.waitForPendingModeRebuild).not.toHaveBeenCalled()
+		expect(options.sessions.startNewSession).not.toHaveBeenCalled()
+		expect(options.createTempSessionHost).not.toHaveBeenCalled()
+		expect(options.taskHistory.findHistoryItem).not.toHaveBeenCalled()
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
+			activeSession.sdkHost,
+			"session-123",
+			"resolved: after compact",
+			undefined,
+			undefined,
+			undefined,
+		)
+	})
+
 	it("queues a follow-up when the active session is already running", async () => {
 		const activeSession = makeActiveSession({ isRunning: true })
 		const { coordinator, options } = makeCoordinator({ activeSession })

@@ -13,8 +13,11 @@ import { sanitizeInitialMessagesForSessionStart } from "./initial-message-saniti
 import { deleteLegacyTask, readApiConversationHistory, readTaskHistory } from "./legacy-state-reader"
 import type { MessageIdMinter } from "./message-id-minter"
 import { sdkMessagesToClineMessages } from "./message-translator"
+import { historyItemToSessionMetadata } from "./session-metadata"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import type { VscodeSessionHost } from "./vscode-session-host"
+
+export { historyItemToSessionMetadata }
 
 export interface TaskUsage {
 	tokensIn: number
@@ -69,20 +72,6 @@ function dateStringToTimestamp(value: string | null | undefined): number {
 
 function historyItemHasTokenUsage(item: HistoryItem): boolean {
 	return (item.tokensIn ?? 0) > 0 || (item.tokensOut ?? 0) > 0 || (item.cacheReads ?? 0) > 0 || (item.cacheWrites ?? 0) > 0
-}
-
-export function historyItemToSessionMetadata(item: HistoryItem, fallbackModelId?: string): Record<string, unknown> {
-	return {
-		title: item.task,
-		isFavorited: item.isFavorited ?? false,
-		size: item.size ?? 0,
-		totalCost: item.totalCost ?? 0,
-		tokensIn: item.tokensIn ?? 0,
-		tokensOut: item.tokensOut ?? 0,
-		cacheWrites: item.cacheWrites ?? 0,
-		cacheReads: item.cacheReads ?? 0,
-		modelId: item.modelId ?? fallbackModelId ?? "",
-	}
 }
 
 function historyItemToSessionHistoryRecord(item: HistoryItem): SessionHistoryRecord {
