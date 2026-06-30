@@ -36,12 +36,13 @@ describe("github PR dashboard GitHub client", () => {
 
 	it("normalizes reviews", () => {
 		expect(
-			normalizeReview(12, {
+			normalizeReview("cline/cline", 12, {
 				user: { login: "amy" },
 				state: "APPROVED",
 				submitted_at: "2026-06-02T00:00:00Z",
 			}),
 		).toEqual({
+			repository: "cline/cline",
 			prNumber: 12,
 			reviewer: "amy",
 			state: "APPROVED",
@@ -124,5 +125,42 @@ describe("github PR dashboard GitHub client", () => {
 		expect(urls.some((url) => url.includes("state=all"))).toBe(true);
 		expect(urls.some((url) => url.includes("/pulls/4/reviews"))).toBe(true);
 		expect(urls.some((url) => url.includes("/pulls/1/reviews"))).toBe(false);
+	});
+
+	it("caps open PR pagination and returns a warning when the cap is reached", async () => {
+		const urls: string[] = [];
+		const fullPage = Array.from({ length: 100 }, (_, index) => ({
+			number: index + 1,
+			title: `Open PR ${index + 1}`,
+			state: "open",
+			user: { login: "john" },
+			created_at: "2026-06-01T00:00:00Z",
+			updated_at: "2026-06-02T00:00:00Z",
+		}));
+		const result = await fetchGitHubPrDashboardData({
+			env: {
+				GITHUB_REPOSITORIES: "cline/cline",
+				GITHUB_PR_DASHBOARD_MAX_OPEN_PAGES: "2",
+			} as NodeJS.ProcessEnv,
+			fetchJson: async (url) => {
+				urls.push(url);
+				if (url.includes("state=open")) return fullPage;
+				return [];
+			},
+			now: new Date("2026-06-04T00:00:00Z"),
+		});
+
+		expect(result.pullsByRepo["cline/cline"]).toHaveLength(100);
+		expect(
+			urls
+				.filter((url) => url.includes("state=open"))
+				.map((url) => new URL(url).searchParams.get("page")),
+		).toEqual(["1", "2"]);
+		expect(result.warnings).toEqual([
+			expect.objectContaining({
+				repository: "cline/cline",
+				type: "open-pr-page-limit",
+			}),
+		]);
 	});
 });

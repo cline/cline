@@ -1,10 +1,15 @@
 import type { BasicLogger } from "@cline/core";
 import { formatDashboardHandoff, summarizeDashboardChanges } from "./format";
-import { type FetchJson, fetchGitHubPrDashboardData } from "./github";
+import {
+	type FetchJson,
+	fetchGitHubPrDashboardData,
+	type GitHubPrDashboardDataWarning,
+} from "./github";
 import { buildDashboardSnapshot, hashDashboardSnapshot } from "./metrics";
 import type { GitHubPrDashboardRun, GitHubPrDashboardSnapshot } from "./schema";
 import {
 	type GitHubPrDashboardState,
+	markSnapshotApplied,
 	readState,
 	resolveStatePath,
 	writeState,
@@ -28,6 +33,16 @@ export interface GitHubPrDashboardGateResult {
 	handoffText?: string;
 	changeSummary?: string[];
 	run?: GitHubPrDashboardRun;
+	statePath?: string;
+	warnings?: GitHubPrDashboardDataWarning[];
+}
+
+export interface ApplyGitHubPrDashboardSnapshotOptions {
+	env?: NodeJS.ProcessEnv;
+	statePath?: string;
+	snapshotHash: string;
+	readState?: () => GitHubPrDashboardState;
+	writeState?: (state: GitHubPrDashboardState) => void;
 }
 
 function log(
@@ -74,6 +89,7 @@ export async function runGitHubPrDashboardGate(
 		log(options.logger, "github-pr-dashboard: no dashboard changes, exiting", {
 			repositories: data.config.repositories,
 			snapshotHash,
+			warnings: data.warnings,
 		});
 		return {
 			stop: true,
@@ -82,14 +98,23 @@ export async function runGitHubPrDashboardGate(
 			snapshotHash,
 			dashboardPath: data.config.dashboardPath,
 			changeSummary: [],
+			statePath,
+			warnings: data.warnings,
 		};
 	}
 
 	persistState({
 		version: 1,
-		lastSnapshotHash: snapshotHash,
-		lastGeneratedAt: generatedAt,
-		lastSnapshot: snapshot,
+		...(state.lastSnapshotHash
+			? { lastSnapshotHash: state.lastSnapshotHash }
+			: {}),
+		...(state.lastGeneratedAt
+			? { lastGeneratedAt: state.lastGeneratedAt }
+			: {}),
+		...(state.lastSnapshot ? { lastSnapshot: state.lastSnapshot } : {}),
+		pendingSnapshotHash: snapshotHash,
+		pendingGeneratedAt: generatedAt,
+		pendingSnapshot: snapshot,
 	});
 	const run: GitHubPrDashboardRun = {
 		runId: `github-pr-dashboard-${generatedAt}`,
@@ -103,6 +128,7 @@ export async function runGitHubPrDashboardGate(
 		repositories: data.config.repositories,
 		snapshotHash,
 		openCount: snapshot.summary.openCount,
+		warnings: data.warnings,
 	});
 	return {
 		reason: "GitHub PR dashboard data changed",
@@ -112,5 +138,22 @@ export async function runGitHubPrDashboardGate(
 		changeSummary,
 		handoffText,
 		run,
+		statePath,
+		warnings: data.warnings,
 	};
+}
+
+export function markGitHubPrDashboardSnapshotApplied(
+	options: ApplyGitHubPrDashboardSnapshotOptions,
+): boolean {
+	const statePath =
+		options.statePath ?? resolveStatePath(options.env ?? process.env);
+	const currentState = options.readState?.() ?? readState(statePath);
+	const nextState = markSnapshotApplied(currentState, options.snapshotHash);
+	if (nextState === currentState) return false;
+	(
+		options.writeState ??
+		((state: GitHubPrDashboardState) => writeState(state, statePath))
+	)(nextState);
+	return true;
 }

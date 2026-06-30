@@ -43,6 +43,7 @@ describe("github PR dashboard metrics", () => {
 			reviewsByRepo: {
 				"cline/cline": [
 					{
+						repository: "cline/cline",
 						prNumber: 2,
 						reviewer: "amy",
 						state: "APPROVED",
@@ -55,7 +56,7 @@ describe("github PR dashboard metrics", () => {
 		expect(snapshot.summary.openCount).toBe(1);
 		expect(snapshot.summary.newOpenCount).toBe(1);
 		expect(snapshot.summary.recentlyClosedCount).toBe(1);
-		expect(snapshot.waitingForReview[0]?.waitingHours).toBe(12);
+		expect(snapshot.waitingForReview[0]?.waitingHours).toBe(24);
 		expect(snapshot.leadingAuthors.week).toEqual([
 			{ login: "john", count: 1 },
 			{ login: "sam", count: 1 },
@@ -69,6 +70,48 @@ describe("github PR dashboard metrics", () => {
 			closed: 1,
 			merged: 1,
 		});
+	});
+
+	it("de-duplicates reviewer counts per repository and PR number", () => {
+		const snapshot = buildDashboardSnapshot({
+			generatedAt: new Date("2026-06-10T00:00:00Z"),
+			repositories: ["cline/cline", "cline/sdk"],
+			newPrHours: 24,
+			recentlyClosedDays: 7,
+			trendDays: 1,
+			pullsByRepo: { "cline/cline": [], "cline/sdk": [] },
+			reviewsByRepo: {
+				"cline/cline": [
+					{
+						repository: "cline/cline",
+						prNumber: 12,
+						reviewer: "amy",
+						state: "APPROVED",
+						submittedAt: "2026-06-09T00:00:00Z",
+					},
+					{
+						repository: "cline/cline",
+						prNumber: 12,
+						reviewer: "amy",
+						state: "COMMENTED",
+						submittedAt: "2026-06-09T01:00:00Z",
+					},
+				],
+				"cline/sdk": [
+					{
+						repository: "cline/sdk",
+						prNumber: 12,
+						reviewer: "amy",
+						state: "APPROVED",
+						submittedAt: "2026-06-09T00:00:00Z",
+					},
+				],
+			},
+		});
+
+		expect(snapshot.leadingReviewers.week).toEqual([
+			{ login: "amy", count: 2 },
+		]);
 	});
 
 	it("hash ignores generatedAt and time-derived age fields", () => {

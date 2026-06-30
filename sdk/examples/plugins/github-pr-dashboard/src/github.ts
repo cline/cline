@@ -6,11 +6,18 @@ import type {
 export interface GitHubPrDashboardConfig {
 	repositories: string[];
 	maxPullsPerRepo: number;
+	maxOpenPages: number;
 	newPrHours: number;
 	recentlyClosedDays: number;
 	trendDays: number;
 	dashboardPath: string;
 	token?: string;
+}
+
+export interface GitHubPrDashboardDataWarning {
+	repository: string;
+	type: "open-pr-page-limit";
+	message: string;
 }
 
 export interface GitHubPullApiRecord {
@@ -73,6 +80,7 @@ export function resolveGitHubPrDashboardConfig(
 	return {
 		repositories,
 		maxPullsPerRepo: positiveInt(env.GITHUB_PR_DASHBOARD_MAX_PRS, 25, 100),
+		maxOpenPages: positiveInt(env.GITHUB_PR_DASHBOARD_MAX_OPEN_PAGES, 10, 50),
 		newPrHours: positiveInt(env.GITHUB_PR_DASHBOARD_NEW_HOURS, 24, 24 * 30),
 		recentlyClosedDays: positiveInt(
 			env.GITHUB_PR_DASHBOARD_RECENTLY_CLOSED_DAYS,
@@ -157,10 +165,14 @@ async function fetchAllOpenPulls(options: {
 	repository: string;
 	config: GitHubPrDashboardConfig;
 	fetchJson: FetchJson;
-}): Promise<GitHubPullRequestRecord[]> {
+}): Promise<{
+	pulls: GitHubPullRequestRecord[];
+	warnings: GitHubPrDashboardDataWarning[];
+}> {
 	const perPage = 100;
 	const pulls: GitHubPullRequestRecord[] = [];
-	for (let page = 1; ; page += 1) {
+	const warnings: GitHubPrDashboardDataWarning[] = [];
+	for (let page = 1; page <= options.config.maxOpenPages; page += 1) {
 		const pagePulls = await fetchPullsPage({
 			...options,
 			state: "open",
@@ -169,8 +181,15 @@ async function fetchAllOpenPulls(options: {
 		});
 		pulls.push(...pagePulls);
 		if (pagePulls.length < perPage) break;
+		if (page === options.config.maxOpenPages) {
+			warnings.push({
+				repository: options.repository,
+				type: "open-pr-page-limit",
+				message: `Open PR pagination reached ${options.config.maxOpenPages} pages for ${options.repository}; dashboard counts may be capped. Increase GITHUB_PR_DASHBOARD_MAX_OPEN_PAGES if needed.`,
+			});
+		}
 	}
-	return pulls;
+	return { pulls, warnings };
 }
 
 async function fetchRecentlyClosedPulls(options: {
@@ -247,11 +266,13 @@ export function normalizePullRequest(
 }
 
 export function normalizeReview(
+	repository: string,
 	prNumber: number,
 	review: GitHubReviewApiRecord,
 ): GitHubPullRequestReviewRecord | undefined {
 	if (!review.submitted_at || !review.user?.login) return undefined;
 	return {
+		repository,
 		prNumber,
 		reviewer: review.user.login,
 		state: review.state ?? "COMMENTED",
@@ -267,25 +288,28 @@ export async function fetchGitHubPrDashboardData(options: {
 	config: GitHubPrDashboardConfig;
 	pullsByRepo: Record<string, GitHubPullRequestRecord[]>;
 	reviewsByRepo: Record<string, GitHubPullRequestReviewRecord[]>;
+	warnings: GitHubPrDashboardDataWarning[];
 }> {
 	const config = resolveGitHubPrDashboardConfig(options.env ?? process.env);
 	const fetchJson = options.fetchJson ?? defaultFetchJson;
 	const now = options.now ?? new Date();
 	const pullsByRepo: Record<string, GitHubPullRequestRecord[]> = {};
 	const reviewsByRepo: Record<string, GitHubPullRequestReviewRecord[]> = {};
+	const warnings: GitHubPrDashboardDataWarning[] = [];
 
 	for (const repository of config.repositories) {
 		// Open PR count must be exact, so fetch and paginate open PRs separately.
 		// Review calls remain bounded to the recent activity sample to avoid one
 		// extra API request per open PR on large repositories.
-		const [openPulls, recentlyClosedPulls, recentActivityPulls] =
+		const [openPullsResult, recentlyClosedPulls, recentActivityPulls] =
 			await Promise.all([
 				fetchAllOpenPulls({ repository, config, fetchJson }),
 				fetchRecentlyClosedPulls({ repository, config, fetchJson, now }),
 				fetchRecentActivityPulls({ repository, config, fetchJson }),
 			]);
+		warnings.push(...openPullsResult.warnings);
 		const pulls = mergePullsByNumber(
-			mergePullsByNumber(openPulls, recentlyClosedPulls),
+			mergePullsByNumber(openPullsResult.pulls, recentlyClosedPulls),
 			recentActivityPulls,
 		);
 		pullsByRepo[repository] = pulls;
@@ -298,12 +322,12 @@ export async function fetchGitHubPrDashboardData(options: {
 			);
 			if (!Array.isArray(reviewsPayload)) continue;
 			for (const review of reviewsPayload as GitHubReviewApiRecord[]) {
-				const normalized = normalizeReview(pull.number, review);
+				const normalized = normalizeReview(repository, pull.number, review);
 				if (normalized) reviews.push(normalized);
 			}
 		}
 		reviewsByRepo[repository] = reviews;
 	}
 
-	return { config, pullsByRepo, reviewsByRepo };
+	return { config, pullsByRepo, reviewsByRepo, warnings };
 }

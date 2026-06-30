@@ -67,7 +67,7 @@ function countByReviewer(
 	for (const review of reviews) {
 		const submittedMs = timeMs(review.submittedAt);
 		if (submittedMs === undefined || submittedMs < sinceMs) continue;
-		const key = `${review.prNumber}:${review.reviewer}`;
+		const key = `${review.repository}:${review.prNumber}:${review.reviewer}`;
 		if (unique.has(key)) continue;
 		unique.add(key);
 		increment(counts, review.reviewer);
@@ -132,7 +132,7 @@ export function buildDashboardSnapshot(input: {
 			title: pull.title,
 			url: pull.url,
 			author: pull.author,
-			waitingHours: round1(hoursBetween(pull.updatedAt, now)),
+			waitingHours: round1(hoursBetween(pull.createdAt, now)),
 			requestedReviewers: pull.requestedReviewers,
 			requestedTeams: pull.requestedTeams,
 			updatedAt: pull.updatedAt,
@@ -181,7 +181,7 @@ export function buildDashboardSnapshot(input: {
 				repoOpen.map((pull) => hoursBetween(pull.createdAt, now)),
 			),
 			avgWaitingForReviewHours: average(
-				repoWaiting.map((pull) => hoursBetween(pull.updatedAt, now)),
+				repoWaiting.map((pull) => hoursBetween(pull.createdAt, now)),
 			),
 		};
 	});

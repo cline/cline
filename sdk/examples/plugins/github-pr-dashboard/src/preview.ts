@@ -3,7 +3,10 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, extname, resolve } from "node:path";
 import { renderDashboardHtml, renderDashboardMarkdown } from "./format";
-import { runGitHubPrDashboardGate } from "./gate";
+import {
+	markGitHubPrDashboardSnapshotApplied,
+	runGitHubPrDashboardGate,
+} from "./gate";
 
 function readFlag(name: string): string | undefined {
 	const args = process.argv.slice(2);
@@ -140,6 +143,12 @@ const htmlPath = resolveOutputPath(
 
 writeTextFile(markdownPath, renderDashboardMarkdown(result.snapshot));
 writeTextFile(htmlPath, renderDashboardHtml(result.snapshot));
+if (result.snapshotHash) {
+	markGitHubPrDashboardSnapshotApplied({
+		snapshotHash: result.snapshotHash,
+		statePath: result.statePath,
+	});
+}
 await openIfRequested(htmlPath, args.has("--open"));
 
 console.log(
@@ -153,6 +162,7 @@ console.log(
 			htmlPath,
 			summary: result.snapshot.summary,
 			changes: result.changeSummary,
+			warnings: result.warnings?.map((warning) => warning.message),
 			next: args.has("--open")
 				? undefined
 				: `Open ${htmlPath} in a browser to view the dashboard.`,

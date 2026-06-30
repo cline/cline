@@ -1,10 +1,30 @@
 import type { AgentPlugin, BasicLogger } from "@cline/core";
 import { makeDashboardHandoffMessage } from "./format";
-import { runGitHubPrDashboardGate } from "./gate";
+import {
+	markGitHubPrDashboardSnapshotApplied,
+	runGitHubPrDashboardGate,
+} from "./gate";
 
 let setupLogger: BasicLogger | undefined;
-let pendingDashboardHandoff: string | undefined;
-let handoffInjected = false;
+
+interface PendingDashboardHandoff {
+	text: string;
+	snapshotHash: string;
+	statePath: string;
+	injected: boolean;
+}
+
+const pendingDashboardHandoffs = new Map<string, PendingDashboardHandoff>();
+
+function handoffKey(snapshot: {
+	runId?: string;
+	conversationId?: string;
+	agentId?: string;
+}): string {
+	return (
+		snapshot.runId ?? snapshot.conversationId ?? snapshot.agentId ?? "default"
+	);
+}
 
 const plugin: AgentPlugin = {
 	name: "github-pr-dashboard-gate",
@@ -17,27 +37,52 @@ const plugin: AgentPlugin = {
 	},
 
 	hooks: {
-		async beforeRun() {
+		async beforeRun({ snapshot }) {
 			const result = await runGitHubPrDashboardGate({ logger: setupLogger });
+			const key = handoffKey(snapshot);
 			if (result.stop) {
-				pendingDashboardHandoff = undefined;
-				handoffInjected = false;
+				pendingDashboardHandoffs.delete(key);
 				return { stop: true, reason: result.reason };
 			}
-			pendingDashboardHandoff = result.handoffText;
-			handoffInjected = false;
+			if (result.handoffText) {
+				pendingDashboardHandoffs.set(key, {
+					text: result.handoffText,
+					snapshotHash: result.snapshotHash ?? "",
+					statePath: result.statePath ?? "",
+					injected: false,
+				});
+			} else {
+				pendingDashboardHandoffs.delete(key);
+			}
 			return { reason: result.reason };
 		},
 
-		beforeModel({ request }) {
-			if (!pendingDashboardHandoff || handoffInjected) return undefined;
-			handoffInjected = true;
+		beforeModel({ request, snapshot }) {
+			const key = handoffKey(snapshot);
+			const pending = pendingDashboardHandoffs.get(key);
+			if (!pending || pending.injected) return undefined;
+			pending.injected = true;
 			return {
 				messages: [
 					...request.messages,
-					makeDashboardHandoffMessage(pendingDashboardHandoff),
+					makeDashboardHandoffMessage(pending.text),
 				],
 			};
+		},
+
+		afterRun({ result, snapshot }) {
+			const key = handoffKey(snapshot);
+			const pending = pendingDashboardHandoffs.get(key);
+			if (result.status !== "completed") {
+				pendingDashboardHandoffs.delete(key);
+				return;
+			}
+			if (!pending?.snapshotHash || !pending.statePath) return;
+			markGitHubPrDashboardSnapshotApplied({
+				snapshotHash: pending.snapshotHash,
+				statePath: pending.statePath,
+			});
+			pendingDashboardHandoffs.delete(key);
 		},
 	},
 };
@@ -50,10 +95,14 @@ export {
 	renderDashboardMarkdown,
 } from "./format";
 export type {
+	ApplyGitHubPrDashboardSnapshotOptions,
 	GitHubPrDashboardGateOptions,
 	GitHubPrDashboardGateResult,
 } from "./gate";
-export { runGitHubPrDashboardGate } from "./gate";
+export {
+	markGitHubPrDashboardSnapshotApplied,
+	runGitHubPrDashboardGate,
+} from "./gate";
 export {
 	fetchGitHubPrDashboardData,
 	normalizePullRequest,

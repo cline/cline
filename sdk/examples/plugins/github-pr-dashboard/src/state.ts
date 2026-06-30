@@ -8,6 +8,9 @@ export interface GitHubPrDashboardState {
 	lastSnapshotHash?: string;
 	lastGeneratedAt?: string;
 	lastSnapshot?: GitHubPrDashboardSnapshot;
+	pendingSnapshotHash?: string;
+	pendingGeneratedAt?: string;
+	pendingSnapshot?: GitHubPrDashboardSnapshot;
 }
 
 export const EMPTY_GITHUB_PR_DASHBOARD_STATE: GitHubPrDashboardState = {
@@ -39,6 +42,30 @@ function normalizeState(value: unknown): GitHubPrDashboardState {
 		...(input.lastSnapshot && typeof input.lastSnapshot === "object"
 			? { lastSnapshot: input.lastSnapshot }
 			: {}),
+		...(typeof input.pendingSnapshotHash === "string"
+			? { pendingSnapshotHash: input.pendingSnapshotHash }
+			: {}),
+		...(typeof input.pendingGeneratedAt === "string"
+			? { pendingGeneratedAt: input.pendingGeneratedAt }
+			: {}),
+		...(input.pendingSnapshot && typeof input.pendingSnapshot === "object"
+			? { pendingSnapshot: input.pendingSnapshot }
+			: {}),
+	};
+}
+
+export function markSnapshotApplied(
+	state: GitHubPrDashboardState,
+	snapshotHash: string,
+): GitHubPrDashboardState {
+	if (state.pendingSnapshotHash !== snapshotHash || !state.pendingSnapshot) {
+		return state;
+	}
+	return {
+		version: 1,
+		lastSnapshotHash: state.pendingSnapshotHash,
+		lastGeneratedAt: state.pendingGeneratedAt,
+		lastSnapshot: state.pendingSnapshot,
 	};
 }
 

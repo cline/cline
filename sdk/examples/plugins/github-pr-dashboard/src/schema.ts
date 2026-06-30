@@ -18,6 +18,7 @@ export interface GitHubPullRequestRecord {
 }
 
 export interface GitHubPullRequestReviewRecord {
+	repository: string;
 	prNumber: number;
 	reviewer: string;
 	state: string;

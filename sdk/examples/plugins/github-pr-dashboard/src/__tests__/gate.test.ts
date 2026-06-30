@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { runGitHubPrDashboardGate } from "../gate";
+import {
+	markGitHubPrDashboardSnapshotApplied,
+	runGitHubPrDashboardGate,
+} from "../gate";
 
 const env = {
 	GITHUB_REPOSITORIES: "cline/cline",
@@ -40,26 +43,33 @@ describe("github PR dashboard gate", () => {
 		]);
 		expect(writeState).toHaveBeenCalledWith(
 			expect.objectContaining({
-				lastSnapshotHash: result.snapshotHash,
-				lastSnapshot: result.snapshot,
+				pendingSnapshotHash: result.snapshotHash,
+				pendingSnapshot: result.snapshot,
 			}),
 		);
 	});
 
 	it("stops before model when snapshot hash is unchanged", async () => {
-		let hash = "";
+		let state: import("../state").GitHubPrDashboardState = { version: 1 };
 		const first = await runGitHubPrDashboardGate({
 			env,
-			readState: () => ({ version: 1 }),
-			writeState: (state) => {
-				hash = state.lastSnapshotHash ?? "";
+			readState: () => state,
+			writeState: (nextState) => {
+				state = nextState;
 			},
 			now: () => new Date("2026-06-10T00:00:00Z"),
 			fetchJson: async (url) => (url.includes("/reviews") ? [] : [pull]),
 		});
+		markGitHubPrDashboardSnapshotApplied({
+			snapshotHash: first.snapshotHash ?? "",
+			readState: () => state,
+			writeState: (nextState) => {
+				state = nextState;
+			},
+		});
 		const second = await runGitHubPrDashboardGate({
 			env,
-			readState: () => ({ version: 1, lastSnapshotHash: hash }),
+			readState: () => state,
 			writeState: vi.fn(),
 			now: () => new Date("2026-06-10T00:00:00Z"),
 			fetchJson: async (url) => (url.includes("/reviews") ? [] : [pull]),
@@ -73,25 +83,26 @@ describe("github PR dashboard gate", () => {
 	});
 
 	it("includes deterministic change summary from previous snapshot", async () => {
-		let previousSnapshot:
-			| import("../schema").GitHubPrDashboardSnapshot
-			| undefined;
+		let state: import("../state").GitHubPrDashboardState = { version: 1 };
 		const first = await runGitHubPrDashboardGate({
 			env,
-			readState: () => ({ version: 1 }),
-			writeState: (state) => {
-				previousSnapshot = state.lastSnapshot;
+			readState: () => state,
+			writeState: (nextState) => {
+				state = nextState;
 			},
 			now: () => new Date("2026-06-10T00:00:00Z"),
 			fetchJson: async (url) => (url.includes("/reviews") ? [] : [pull]),
 		});
+		markGitHubPrDashboardSnapshotApplied({
+			snapshotHash: first.snapshotHash ?? "",
+			readState: () => state,
+			writeState: (nextState) => {
+				state = nextState;
+			},
+		});
 		const second = await runGitHubPrDashboardGate({
 			env,
-			readState: () => ({
-				version: 1,
-				lastSnapshotHash: first.snapshotHash,
-				lastSnapshot: previousSnapshot,
-			}),
+			readState: () => state,
 			writeState: () => undefined,
 			now: () => new Date("2026-06-10T00:00:00Z"),
 			fetchJson: async (url) =>
@@ -126,5 +137,32 @@ describe("github PR dashboard gate", () => {
 
 		expect(result.stop).toBeUndefined();
 		expect(result.handoffText).toContain("# GitHub PR Dashboard");
+	});
+
+	it("does not mark a changed snapshot as applied until explicitly promoted", async () => {
+		let state: import("../state").GitHubPrDashboardState = { version: 1 };
+		const result = await runGitHubPrDashboardGate({
+			env,
+			readState: () => state,
+			writeState: (nextState) => {
+				state = nextState;
+			},
+			now: () => new Date("2026-06-10T00:00:00Z"),
+			fetchJson: async (url) => (url.includes("/reviews") ? [] : [pull]),
+		});
+
+		expect(state.lastSnapshotHash).toBeUndefined();
+		expect(state.pendingSnapshotHash).toBe(result.snapshotHash);
+		expect(
+			markGitHubPrDashboardSnapshotApplied({
+				snapshotHash: result.snapshotHash ?? "",
+				readState: () => state,
+				writeState: (nextState) => {
+					state = nextState;
+				},
+			}),
+		).toBe(true);
+		expect(state.lastSnapshotHash).toBe(result.snapshotHash);
+		expect(state.pendingSnapshotHash).toBeUndefined();
 	});
 });
