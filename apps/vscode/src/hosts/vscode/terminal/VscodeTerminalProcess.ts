@@ -94,13 +94,17 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 				endEventDisposable = (
 					vscode.window as unknown as {
 						onDidEndTerminalShellExecution?: (
-							listener: (e: { terminal: vscode.Terminal; exitCode: number | undefined }) => any,
+							listener: (e: {
+								terminal: vscode.Terminal
+								execution: { read: () => AsyncIterable<string> }
+								exitCode: number | undefined
+							}) => any,
 							thisArgs?: any,
 							disposables?: vscode.Disposable[],
 						) => vscode.Disposable
 					}
 				).onDidEndTerminalShellExecution?.((e) => {
-					if (e.terminal === terminal) {
+					if (e.terminal === terminal && e.execution === execution) {
 						resolveExitCode(e.exitCode)
 					}
 				})
