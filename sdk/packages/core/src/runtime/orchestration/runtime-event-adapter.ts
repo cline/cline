@@ -336,17 +336,27 @@ export class RuntimeEventAdapter {
 			cacheWriteTokens: next.cacheWriteTokens,
 			totalCost: next.totalCost,
 		};
+		// Emit prompt-only inputTokens (excluding cache reads/writes) so consumers
+		// can explicitly add cache_read themselves, consistent with other agents.
+		const promptOnlyDeltaInput = Math.max(
+			0,
+			deltaInput - Math.max(0, deltaCacheRead) - Math.max(0, deltaCacheWrite),
+		);
+		const totalPromptOnlyInput = Math.max(
+			0,
+			next.inputTokens - next.cacheReadTokens - next.cacheWriteTokens,
+		);
 		return [
 			{
 				type: "usage",
-				inputTokens: Math.max(0, deltaInput),
+				inputTokens: promptOnlyDeltaInput,
 				outputTokens: Math.max(0, deltaOutput),
 				cacheReadTokens:
 					deltaCacheRead === 0 ? undefined : Math.max(0, deltaCacheRead),
 				cacheWriteTokens:
 					deltaCacheWrite === 0 ? undefined : Math.max(0, deltaCacheWrite),
 				cost: deltaCost === 0 ? undefined : deltaCost,
-				totalInputTokens: next.inputTokens,
+				totalInputTokens: totalPromptOnlyInput,
 				totalOutputTokens: next.outputTokens,
 				totalCacheReadTokens:
 					next.cacheReadTokens === 0 ? undefined : next.cacheReadTokens,

@@ -140,6 +140,8 @@ export interface AgentUsageEvent extends AgentEventMetadata {
 	cacheReadTokens?: number;
 	/** Tokens written to cache */
 	cacheWriteTokens?: number;
+	/** Number of tokens used for reasoning */
+	reasoningTokens?: number;
 	/** Cost for this turn */
 	cost?: number;
 

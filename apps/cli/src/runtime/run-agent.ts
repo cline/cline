@@ -362,7 +362,15 @@ export async function runAgent(
 				type: "run_result",
 				finishReason: result.finishReason,
 				iterations: result.iterations,
-				usage,
+				usage: usage && {
+					...usage,
+					inputTokens: Math.max(
+						0,
+						usage.inputTokens -
+							(usage.cacheReadTokens ?? 0) -
+							(usage.cacheWriteTokens ?? 0),
+					),
+				},
 				...(aggregateUsage ? { aggregateUsage } : {}),
 				durationMs: result.durationMs,
 				text: result.text,
