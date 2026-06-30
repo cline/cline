@@ -1,6 +1,9 @@
 import { fstatSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { CliMigrationNotice } from "./kanban-migration/notice";
+import type {
+	CliMigrationNotice,
+	CliMigrationNoticeOptions,
+} from "./kanban-migration/notice";
 
 /** Real `fstatSync`: used when tests stub only stdin (fd 0); throwing for every fd breaks imports and session I/O. */
 const fsActual = vi.hoisted(() => ({
@@ -59,9 +62,13 @@ const dashboardMocks = vi.hoisted(() => ({
 	runDashboardCommand: vi.fn(),
 }));
 const migrationNoticeMocks = vi.hoisted(() => ({
-	getClineCliMigrationNotice: vi.fn<() => CliMigrationNotice | undefined>(
-		() => undefined,
-	),
+	getClineCliMigrationNotice: vi.fn<
+		(
+			dataDir?: string,
+			env?: NodeJS.ProcessEnv,
+			options?: CliMigrationNoticeOptions,
+		) => CliMigrationNotice | undefined
+	>(() => undefined),
 	markClineCliMigrationNoticeShown: vi.fn(),
 }));
 const updateMocks = vi.hoisted(() => ({
@@ -115,6 +122,7 @@ const telemetryMocks = vi.hoisted(() => ({
 const featureFlagMocks = vi.hoisted(() => ({
 	getBooleanFlagEnabled: vi.fn(() => false),
 	setCliFeatureFlagsAccountContext: vi.fn(),
+	refreshCliFeatureFlagsInBackground: vi.fn(),
 }));
 
 function forcePromptModeInput() {
@@ -179,7 +187,8 @@ vi.mock("./utils/feature-flags", () => ({
 	getCliFeatureFlagsService: () => ({
 		getBooleanFlagEnabled: featureFlagMocks.getBooleanFlagEnabled,
 	}),
-	refreshCliFeatureFlagsInBackground: vi.fn(),
+	refreshCliFeatureFlagsInBackground:
+		featureFlagMocks.refreshCliFeatureFlagsInBackground,
 	setCliFeatureFlagsAccountContext:
 		featureFlagMocks.setCliFeatureFlagsAccountContext,
 }));
@@ -258,6 +267,7 @@ describe("runCli lightweight command dispatch", () => {
 		featureFlagMocks.getBooleanFlagEnabled.mockReset();
 		featureFlagMocks.getBooleanFlagEnabled.mockReturnValue(false);
 		featureFlagMocks.setCliFeatureFlagsAccountContext.mockReset();
+		featureFlagMocks.refreshCliFeatureFlagsInBackground.mockReset();
 		kanbanMocks.launchKanban.mockReset();
 		kanbanMocks.launchKanban.mockResolvedValue(0);
 		dashboardMocks.runDashboardCommand.mockReset();
@@ -630,8 +640,8 @@ describe("runCli lightweight command dispatch", () => {
 
 	it("passes the migration notice marker into interactive mode", async () => {
 		const notice = {
-			id: "cline-cli-tui-default",
-			title: "Welcome to the new Cline CLI",
+			id: "cline-cli-cline-pass-intro",
+			title: "Try ClinePass",
 		};
 		migrationNoticeMocks.getClineCliMigrationNotice.mockReturnValue(notice);
 		Object.defineProperty(process.stdout, "isTTY", {
@@ -660,6 +670,37 @@ describe("runCli lightweight command dispatch", () => {
 		expect(
 			migrationNoticeMocks.markClineCliMigrationNoticeShown,
 		).toHaveBeenCalledTimes(1);
+	});
+
+	it("passes the active ClinePass provider into the migration notice gate", async () => {
+		providerSettingsMocks.getLastUsedProviderSettings.mockReturnValue({
+			provider: "cline-pass",
+			model: "cline-pass/test-model",
+		});
+		Object.defineProperty(process.stdout, "isTTY", {
+			value: true,
+			configurable: true,
+		});
+		process.argv = ["bun", "src/index.ts"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(
+			migrationNoticeMocks.getClineCliMigrationNotice,
+		).toHaveBeenCalledWith(undefined, process.env, {
+			activeProviderId: "cline-pass",
+		});
+		expect(runtimeMocks.runInteractive).toHaveBeenCalledWith(
+			expect.objectContaining({
+				providerId: "cline-pass",
+			}),
+			expect.anything(),
+			undefined,
+			expect.objectContaining({
+				initialNotice: undefined,
+			}),
+		);
 	});
 
 	it("does not start OAuth before onboarding in interactive mode", async () => {
@@ -942,7 +983,7 @@ describe("runCli lightweight command dispatch", () => {
 		);
 	});
 
-	it("seeds feature flag identity from persisted Cline account id before checking flags", async () => {
+	it("seeds feature flag identity from persisted Cline account id before refreshing flags", async () => {
 		const clineSettings = {
 			provider: "cline",
 			model: "anthropic/claude-sonnet-4.6",
@@ -961,11 +1002,14 @@ describe("runCli lightweight command dispatch", () => {
 		expect(
 			featureFlagMocks.setCliFeatureFlagsAccountContext,
 		).toHaveBeenCalledWith({ id: "acct-startup" });
+		// The account identity must be seeded before flags are refreshed/used so
+		// the background refresh resolves flags for the correct account.
 		expect(
 			featureFlagMocks.setCliFeatureFlagsAccountContext.mock
 				.invocationCallOrder[0],
 		).toBeLessThan(
-			featureFlagMocks.getBooleanFlagEnabled.mock.invocationCallOrder[0],
+			featureFlagMocks.refreshCliFeatureFlagsInBackground.mock
+				.invocationCallOrder[0],
 		);
 	});
 
@@ -1297,7 +1341,13 @@ describe("runCli lightweight command dispatch", () => {
 		runtimeMocks.runAgent.mockClear();
 
 		forcePromptModeInput();
-		process.argv = ["bun", "src/index.ts", "--compaction", "basic", "say hello"];
+		process.argv = [
+			"bun",
+			"src/index.ts",
+			"--compaction",
+			"basic",
+			"say hello",
+		];
 
 		const { runCli } = await import("./main");
 

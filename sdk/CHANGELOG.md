@@ -1,5 +1,13 @@
 # Cline SDK Changelog
 
+## 0.0.54
+
+- Improve basic compaction token budgeting so context compaction is more accurate
+- Preserve error detail and fetch error cause information so failures surface clearer messages
+- Preserve failed run error messages instead of dropping them
+- Derive model info in the provider/model runtime path for more reliable provider/model handling
+- Add ClinePass subscription support to the account service
+
 ## 0.0.53
 
 - Show when request cost is covered by the user's Cline subscription

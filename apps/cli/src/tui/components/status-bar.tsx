@@ -51,7 +51,7 @@ function formatCost(cost: number): string {
 
 function formatCostText(providerId: string, totalCost: number): string {
 	if (shouldShowCliUsageCoveredBySubscription(providerId)) {
-		return "$0.00 (included with your subscription)";
+		return "$0.00 (included with subscription)";
 	}
 
 	if (!shouldShowCliUsageCost(providerId)) {
@@ -94,17 +94,22 @@ function lookupModelInfo(
 }
 
 export function resolveModelDisplayName(config: {
+	providerId?: string;
 	modelId: string;
 	knownModels?: Record<string, unknown>;
 	thinking?: boolean;
 	reasoningEffort?: string;
 }): string {
 	const info = lookupModelInfo(config.modelId, config.knownModels);
-	const name = info?.name ?? config.modelId.split("/").pop() ?? config.modelId;
+	const modelIdTail = config.modelId.split("/").pop() ?? config.modelId;
+	const displayName =
+		config.providerId === "cline-pass"
+			? `ClinePass/${modelIdTail}`
+			: (info?.name ?? modelIdTail);
 	if (config.thinking && config.reasoningEffort) {
-		return `${name} (${config.reasoningEffort})`;
+		return `${displayName} (${config.reasoningEffort})`;
 	}
-	return name;
+	return displayName;
 }
 
 export function resolveModelMaxInputTokens(config: {

@@ -1496,7 +1496,10 @@ describe("SessionRuntime real AgentRuntime smoke", () => {
 			"assistant",
 			"user",
 		]);
-		expect(session.getMessages().at(-1)?.content[0]?.type).toBe("tool_result");
+		const lastContent = session.getMessages().at(-1)?.content[0];
+		expect(typeof lastContent === "object" ? lastContent.type : undefined).toBe(
+			"tool_result",
+		);
 	});
 });
 

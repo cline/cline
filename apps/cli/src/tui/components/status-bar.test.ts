@@ -3,6 +3,7 @@ import {
 	createContextBar,
 	formatStatusBarUsageText,
 	resolveContextBarFilledForeground,
+	resolveModelDisplayName,
 } from "./status-bar";
 
 vi.mock("@opentui/react", () => ({
@@ -67,6 +68,32 @@ describe("formatStatusBarUsageText", () => {
 				totalCost: 0.123,
 				providerId: "cline-pass",
 			}),
-		).toBe("(12,345 tokens) $0.00 (included with your subscription)");
+		).toBe("(12,345 tokens) $0.00 (included with subscription)");
+	});
+});
+
+describe("resolveModelDisplayName", () => {
+	it("keeps ClinePass visible when model ids have provider prefixes", () => {
+		expect(
+			resolveModelDisplayName({
+				providerId: "cline-pass",
+				modelId: "zai/glm-5.2",
+				knownModels: {
+					"zai/glm-5.2": { name: "GLM 5.2" },
+				},
+			}),
+		).toBe("ClinePass/glm-5.2");
+	});
+
+	it("uses the friendly model name for non-ClinePass providers", () => {
+		expect(
+			resolveModelDisplayName({
+				providerId: "cline",
+				modelId: "zai/glm-5.2",
+				knownModels: {
+					"zai/glm-5.2": { name: "GLM 5.2" },
+				},
+			}),
+		).toBe("GLM 5.2");
 	});
 });
