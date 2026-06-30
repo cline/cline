@@ -236,4 +236,57 @@ describe("TextDeltaToolCallParser", () => {
 
 		expect(parser.flush()).toEqual([]);
 	});
+
+	it("treats </invoke> inside a parameter body as content, not a close tag", () => {
+		// Regression: a parameter value that documents the very format we
+		// parse must not be mistaken for the block's closing tag.
+		const parser = new TextDeltaToolCallParser(makeUid());
+
+		const events = parser.consume(
+			'<invoke name="write_file"><parameter name="content">end: </invoke></parameter></invoke>',
+		);
+
+		expect(events).toEqual([
+			{
+				kind: "tool-call",
+				toolCallId: "tool_1",
+				toolName: "write_file",
+				input: { content: "end: </invoke>" },
+			},
+		]);
+	});
+
+	it("handles </invoke> embedded in a later parameter of a multi-parameter block", () => {
+		const parser = new TextDeltaToolCallParser(makeUid());
+
+		const events = parser.consume(
+			'<invoke name="a"><parameter name="x">safe</parameter><parameter name="y">has </invoke> here</parameter></invoke>',
+		);
+
+		expect(events).toEqual([
+			{
+				kind: "tool-call",
+				toolCallId: "tool_1",
+				toolName: "a",
+				input: { x: "safe", y: "has </invoke> here" },
+			},
+		]);
+	});
+
+	it("handles a self-closing <parameter> tag", () => {
+		const parser = new TextDeltaToolCallParser(makeUid());
+
+		const events = parser.consume(
+			'<invoke name="x"><parameter name="k"/></invoke>',
+		);
+
+		expect(events).toEqual([
+			{
+				kind: "tool-call",
+				toolCallId: "tool_1",
+				toolName: "x",
+				input: { k: "" },
+			},
+		]);
+	});
 });

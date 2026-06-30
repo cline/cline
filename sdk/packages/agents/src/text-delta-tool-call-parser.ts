@@ -28,8 +28,6 @@ const MAX_BUFFER_BYTES = 64 * 1024;
 // `<invoke ...>` opening tag. Matches `<invoke`, `<invoke>`, `< invoke >`,
 // `<invoke\n name="...">`, etc.
 const INVOKE_OPEN_PATTERN = /<\s*invoke\b[^>]*>/gi;
-// `</invoke>` closing tag.
-const INVOKE_CLOSE_PATTERN = /<\s*\/\s*invoke\s*>/gi;
 // `name="..."` attribute extractor (no /g flag — single match per tag).
 const NAME_ATTR_PATTERN = /\bname\s*=\s*"([^"]*)"/i;
 // `<parameter name="K">V</parameter>` (or self-closing). Global so we can
@@ -81,10 +79,11 @@ export class TextDeltaToolCallParser {
 				break;
 			}
 
-			// Look for a matching closing tag *after* the opening tag.
-			const closeRegex = new RegExp(INVOKE_CLOSE_PATTERN.source, "gi");
-			closeRegex.lastIndex = openMatch.end;
-			const closeMatch = closeRegex.exec(this.buffer);
+			// Look for a matching closing tag *after* the opening tag,
+			// skipping any `</invoke>` that appears inside an unclosed
+			// `<parameter>...</parameter>` body (e.g. a parameter value
+			// whose contents describe this format).
+			const closeMatch = findCloseTag(this.buffer, openMatch.end);
 
 			if (!closeMatch) {
 				// Incomplete: closing tag not yet seen. Emit the prefix
@@ -113,7 +112,7 @@ export class TextDeltaToolCallParser {
 			}
 
 			const toolName = nameMatch[1];
-			const innerContent = this.buffer.slice(openMatch.end, closeMatch.index);
+			const innerContent = this.buffer.slice(openMatch.end, closeMatch.start);
 			const input = parseParameters(innerContent);
 
 			if (openMatch.start > 0) {
@@ -130,7 +129,7 @@ export class TextDeltaToolCallParser {
 				input,
 			});
 
-			this.buffer = this.buffer.slice(closeMatch.index + closeMatch[0].length);
+			this.buffer = this.buffer.slice(closeMatch.end);
 		}
 
 		// No more complete tool calls in the buffer. Emit any buffer
@@ -198,4 +197,59 @@ function parseParameters(content: string): Record<string, unknown> {
 		result[nameMatch[1]] = innerText;
 	}
 	return result;
+}
+
+/**
+ * Forward scan from `openEnd` in `buffer` for the real `</invoke>` closer
+ * of the current `<invoke>` block. Tracks `<parameter>` depth so that
+ * `</invoke>` candidates appearing inside an unclosed parameter body are
+ * skipped (they are content, not the block closer). Linear in body length,
+ * bounded by buffer size.
+ *
+ * Returns `{ start, end }` of the matching `</invoke>` tag, or `null` if
+ * the scan runs off the end without finding one (caller should keep the
+ * tail buffered for more input).
+ */
+function findCloseTag(
+	buffer: string,
+	openEnd: number,
+): { start: number; end: number } | null {
+	const closeInvoke = /^<\s*\/\s*invoke\s*>/i;
+	const closeParam = /^<\s*\/\s*parameter\s*>/i;
+	const selfCloseParam = /^<\s*parameter\b[^>]*\/\s*>/i;
+	const openParam = /^<\s*parameter\b[^>]*>/i;
+
+	let paramDepth = 0;
+	let i = openEnd;
+	while (i < buffer.length) {
+		const lt = buffer.indexOf("<", i);
+		if (lt === -1) {
+			return null;
+		}
+		const slice = buffer.slice(lt);
+		let m: RegExpExecArray | null;
+		if ((m = closeInvoke.exec(slice))) {
+			if (paramDepth === 0) {
+				return { start: lt, end: lt + m[0].length };
+			}
+			i = lt + m[0].length;
+		} else if ((m = closeParam.exec(slice))) {
+			if (paramDepth > 0) {
+				paramDepth--;
+			}
+			i = lt + m[0].length;
+		} else if ((m = selfCloseParam.exec(slice))) {
+			i = lt + m[0].length;
+		} else if ((m = openParam.exec(slice))) {
+			paramDepth++;
+			i = lt + m[0].length;
+		} else {
+			// Anything else (prose '<' or other tag) — step over and keep
+			// scanning. Depth is unchanged for non-parameter tags, so a
+			// stray '<' inside a parameter body does not corrupt depth
+			// tracking.
+			i = lt + 1;
+		}
+	}
+	return null;
 }
