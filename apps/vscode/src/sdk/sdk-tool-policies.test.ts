@@ -1,6 +1,33 @@
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import { describe, expect, it } from "vitest"
-import { isToolAutoApproved } from "./sdk-tool-policies"
+import { buildToolPolicies, isToolAutoApproved } from "./sdk-tool-policies"
+
+describe("buildToolPolicies", () => {
+	it("keeps command tools enabled in plan mode", () => {
+		const policies = buildToolPolicies(DEFAULT_AUTO_APPROVAL_SETTINGS, undefined, "plan")
+
+		expect(policies.run_commands).toEqual({ autoApprove: false })
+		expect(policies.execute_command).toEqual({ autoApprove: false })
+	})
+
+	it("disables file mutation tools in plan mode", () => {
+		const policies = buildToolPolicies(DEFAULT_AUTO_APPROVAL_SETTINGS, undefined, "plan")
+
+		expect(policies.editor).toEqual({ enabled: false, autoApprove: false })
+		expect(policies.write_to_file).toEqual({ enabled: false, autoApprove: false })
+		expect(policies.replace_in_file).toEqual({ enabled: false, autoApprove: false })
+		expect(policies.apply_patch).toEqual({ enabled: false, autoApprove: false })
+		expect(policies.delete_file).toEqual({ enabled: false, autoApprove: false })
+		expect(policies.new_rule).toEqual({ enabled: false, autoApprove: false })
+	})
+
+	it("keeps file mutation tools approval-gated in act mode", () => {
+		const policies = buildToolPolicies(DEFAULT_AUTO_APPROVAL_SETTINGS, undefined, "act")
+
+		expect(policies.editor).toEqual({ autoApprove: false })
+		expect(policies.write_to_file).toEqual({ autoApprove: false })
+	})
+})
 
 describe("isToolAutoApproved", () => {
 	it("does not auto-approve command tools by default", () => {

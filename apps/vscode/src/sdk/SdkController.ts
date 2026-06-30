@@ -258,10 +258,6 @@ export class Controller {
 		this.sessionConfigBuilder = new SdkSessionConfigBuilder({
 			stateManager: this.stateManager,
 			emitHookMessage: (msg) => this.messages.emitHookMessage(msg),
-			onSwitchToActMode: () => {
-				this.mode.queueSwitchToActMode()
-			},
-			shouldStopAfterModeSwitch: () => this.mode.hasPendingModeChange(),
 			onConsecutiveMistakeLimitReached: (context) => this.interactions.handleConsecutiveMistakeLimitReached(context),
 		})
 		this.interactions = new SdkInteractionCoordinator({
