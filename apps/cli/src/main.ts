@@ -924,7 +924,18 @@ export async function runCli(): Promise<void> {
 		coreServer: { createUserInstructionConfigService },
 		resolveSystemPrompt,
 		runAgent,
-	} = await loadCliRuntimeModules();
+		} = await loadCliRuntimeModules();
+
+	// Register the SDK early logger as early as possible — before any
+	// provider settings reads — so the full startup sequence is captured.
+	// These components operate before/outside ClineCore sessions, so the
+	// session-scoped logger can't reach them.
+	const { createCliLoggerAdapter } = await import("./logging/adapter");
+	const loggerAdapter = createCliLoggerAdapter({
+		runtime: "cli",
+		component: "main",
+	});
+	coreServer.setSdkLogger(loggerAdapter.core);
 
 	const userInstructionService = createUserInstructionConfigService({
 		skills: {
@@ -1038,14 +1049,7 @@ export async function runCli(): Promise<void> {
 			interactive: args.interactive === true,
 			hasPrompt: !!args.prompt?.trim(),
 			cwd,
-		});
-
-		// Register the SDK early logger so diagnostic events from
-		// ProviderSettingsManager, RuntimeOAuthTokenManager, and Cline auth
-		// flow through the CLI's pino logger.
-		// These components operate before/outside ClineCore sessions, so the
-		// session-scoped logger can't reach them.
-		coreServer.setSdkLogger(loggerAdapter.core);
+			});
 
 		const config: Config = {
 			providerId: provider,

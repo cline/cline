@@ -138,9 +138,6 @@ function writeClineCredentials(credentials: {
 	accountId?: string
 }): void {
 	try {
-		sdkDebug(
-			`[SdkAuthService] writeClineCredentials: writing (accessHash=${hashSecret(credentials.accessToken)}, refreshHash=${hashSecret(credentials.refreshToken)}, expiresAt=${credentials.expiresAt})`,
-		)
 		const manager = getProviderSettingsManager()
 		const existing = manager.getProviderSettings("cline")
 
@@ -161,6 +158,9 @@ function writeClineCredentials(credentials: {
 				auth: auth as { accessToken?: string; refreshToken?: string; accountId?: string },
 			},
 			{ tokenSource: "oauth", setLastUsed: true },
+		)
+		sdkDebug(
+			`[SdkAuthService] writeClineCredentials: wrote (accessHash=${hashSecret(credentials.accessToken)}, refreshHash=${hashSecret(credentials.refreshToken)}, expiresAt=${credentials.expiresAt})`,
 		)
 	} catch (error) {
 		Logger.error("[SdkAuthService] Failed to write credentials to providers.json:", error)

@@ -133,7 +133,6 @@ export {
 	type UserCurrentPlan,
 } from "./account";
 export {
-	getSdkLogger,
 	hashSecret,
 	setSdkLogger,
 	sdkDebug,
