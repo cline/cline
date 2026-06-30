@@ -1,16 +1,22 @@
-import { ModelInfo } from "@shared/api"
-import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
-import styled from "styled-components"
+import type { ModelInfo } from "@shared/api";
+import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react";
+import styled from "styled-components";
+
+export type ModelSelectorChangeEvent = Event & {
+	target: EventTarget & { value: string };
+};
 
 /**
  * Container for dropdowns that ensures proper z-index handling
  * This is necessary to ensure dropdown opens downward
  */
-export const DropdownContainer = styled.div.attrs<{ zIndex?: number }>(({ zIndex }) => ({
-	style: {
-		zIndex: zIndex || 1000,
-	},
-}))`
+export const DropdownContainer = styled.div.attrs<{ zIndex?: number }>(
+	({ zIndex }) => ({
+		style: {
+			zIndex: zIndex || 1000,
+		},
+	}),
+)`
 	position: relative;
 
 	// Force dropdowns to open downward
@@ -19,17 +25,17 @@ export const DropdownContainer = styled.div.attrs<{ zIndex?: number }>(({ zIndex
 		top: 100% !important;
 		bottom: auto !important;
 	}
-`
+`;
 
 /**
  * Props for the ModelSelector component
  */
 interface ModelSelectorProps {
-	models: Record<string, ModelInfo>
-	selectedModelId: string | undefined
-	onChange: (e: any) => void
-	zIndex?: number
-	label?: string
+	models: Record<string, ModelInfo>;
+	selectedModelId: string | undefined;
+	onChange: (e: ModelSelectorChangeEvent) => void;
+	zIndex?: number;
+	label?: string;
 }
 
 /*
@@ -46,20 +52,35 @@ OG Saoud Note:
 /**
  * A reusable component for selecting models from a dropdown
  */
-export const ModelSelector = ({ models, selectedModelId, onChange, zIndex, label = "Model" }: ModelSelectorProps) => {
+export const ModelSelector = ({
+	models,
+	selectedModelId,
+	onChange,
+	zIndex,
+	label = "Model",
+}: ModelSelectorProps) => {
 	return (
 		<DropdownContainer className="dropdown-container" zIndex={zIndex}>
 			<label htmlFor="model-id">
 				<span className="font-medium">{label}</span>
 			</label>
-			<VSCodeDropdown className="w-full" id="model-id" onChange={onChange} value={selectedModelId}>
+			<VSCodeDropdown
+				className="w-full"
+				id="model-id"
+				onChange={onChange}
+				value={selectedModelId}
+			>
 				<VSCodeOption value="">Select a model...</VSCodeOption>
 				{Object.keys(models).map((modelId) => (
-					<VSCodeOption className="break-words whitespace-normal max-w-full" key={modelId} value={modelId}>
+					<VSCodeOption
+						className="break-words whitespace-normal max-w-full"
+						key={modelId}
+						value={modelId}
+					>
 						{modelId}
 					</VSCodeOption>
 				))}
 			</VSCodeDropdown>
 		</DropdownContainer>
-	)
-}
+	);
+};

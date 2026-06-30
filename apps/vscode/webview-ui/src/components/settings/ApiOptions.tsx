@@ -1,72 +1,84 @@
-import { StringRequest } from "@shared/proto/cline/common"
-import PROVIDERS from "@shared/providers/providers.json"
-import { Mode } from "@shared/storage/types"
-import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import Fuse from "fuse.js"
-import { KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useInterval } from "react-use"
-import styled from "styled-components"
-import { normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { ModelsServiceClient } from "@/services/grpc-client"
-import { OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
-import { AIhubmixProvider } from "./providers/AihubmixProvider"
-import { AnthropicProvider } from "./providers/AnthropicProvider"
-import { AskSageProvider } from "./providers/AskSageProvider"
-import { BasetenProvider } from "./providers/BasetenProvider"
-import { BedrockProvider } from "./providers/BedrockProvider"
-import { CerebrasProvider } from "./providers/CerebrasProvider"
-import { ClaudeCodeProvider } from "./providers/ClaudeCodeProvider"
-import { ClineProvider } from "./providers/ClineProvider"
-import { DeepSeekProvider } from "./providers/DeepSeekProvider"
-import { DifyProvider } from "./providers/DifyProvider"
-import { DoubaoProvider } from "./providers/DoubaoProvider"
-import { FireworksProvider } from "./providers/FireworksProvider"
-import { GeminiProvider } from "./providers/GeminiProvider"
-import { GroqProvider } from "./providers/GroqProvider"
-import { HicapProvider } from "./providers/HicapProvider"
-import { HuaweiCloudMaasProvider } from "./providers/HuaweiCloudMaasProvider"
-import { HuggingFaceProvider } from "./providers/HuggingFaceProvider"
-import { LiteLlmProvider } from "./providers/LiteLlmProvider"
-import { LMStudioProvider } from "./providers/LMStudioProvider"
-import { MinimaxProvider } from "./providers/MiniMaxProvider"
-import { MistralProvider } from "./providers/MistralProvider"
-import { MoonshotProvider } from "./providers/MoonshotProvider"
-import { NebiusProvider } from "./providers/NebiusProvider"
-import { NousResearchProvider } from "./providers/NousresearchProvider"
-import { OcaProvider } from "./providers/OcaProvider"
-import { OllamaProvider } from "./providers/OllamaProvider"
-import { OpenAICompatibleProvider } from "./providers/OpenAICompatible"
-import { OpenAINativeProvider } from "./providers/OpenAINative"
-import { OpenAiCodexProvider } from "./providers/OpenAiCodexProvider"
-import { OpenRouterProvider } from "./providers/OpenRouterProvider"
-import { QwenCodeProvider } from "./providers/QwenCodeProvider"
-import { QwenProvider } from "./providers/QwenProvider"
-import { RequestyProvider } from "./providers/RequestyProvider"
-import { SambanovaProvider } from "./providers/SambanovaProvider"
-import { SapAiCoreProvider } from "./providers/SapAiCoreProvider"
-import { TogetherProvider } from "./providers/TogetherProvider"
-import { VercelAIGatewayProvider } from "./providers/VercelAIGatewayProvider"
-import { VertexProvider } from "./providers/VertexProvider"
-import { VSCodeLmProvider } from "./providers/VSCodeLmProvider"
-import { WandbProvider } from "./providers/WandbProvider"
-import { XaiProvider } from "./providers/XaiProvider"
-import { ZAiProvider } from "./providers/ZAiProvider"
-import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
+import type { ApiProvider } from "@shared/api";
+import { modelsDevProviderOptions } from "@shared/models/models-dev-catalog";
+import { StringRequest } from "@shared/proto/cline/common";
+import type { Mode } from "@shared/storage/types";
+import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react";
+import Fuse from "fuse.js";
+import {
+	type KeyboardEvent,
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
+import { useInterval } from "react-use";
+import styled from "styled-components";
+import { normalizeApiConfiguration } from "@/components/settings/utils/providerUtils";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config";
+import { useExtensionState } from "@/context/ExtensionStateContext";
+import { ModelsServiceClient } from "@/services/grpc-client";
+import { OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker";
+import { AIhubmixProvider } from "./providers/AihubmixProvider";
+import { AnthropicProvider } from "./providers/AnthropicProvider";
+import { AskSageProvider } from "./providers/AskSageProvider";
+import { BasetenProvider } from "./providers/BasetenProvider";
+import { BedrockProvider } from "./providers/BedrockProvider";
+import { CerebrasProvider } from "./providers/CerebrasProvider";
+import { ClaudeCodeProvider } from "./providers/ClaudeCodeProvider";
+import { ClineProvider } from "./providers/ClineProvider";
+import { DeepSeekProvider } from "./providers/DeepSeekProvider";
+import { DifyProvider } from "./providers/DifyProvider";
+import { DoubaoProvider } from "./providers/DoubaoProvider";
+import { FireworksProvider } from "./providers/FireworksProvider";
+import { GeminiProvider } from "./providers/GeminiProvider";
+import { GroqProvider } from "./providers/GroqProvider";
+import { HicapProvider } from "./providers/HicapProvider";
+import { HuaweiCloudMaasProvider } from "./providers/HuaweiCloudMaasProvider";
+import { HuggingFaceProvider } from "./providers/HuggingFaceProvider";
+import { LiteLlmProvider } from "./providers/LiteLlmProvider";
+import { LMStudioProvider } from "./providers/LMStudioProvider";
+import { MinimaxProvider } from "./providers/MiniMaxProvider";
+import { MistralProvider } from "./providers/MistralProvider";
+import { MoonshotProvider } from "./providers/MoonshotProvider";
+import { NebiusProvider } from "./providers/NebiusProvider";
+import { NousResearchProvider } from "./providers/NousresearchProvider";
+import { OcaProvider } from "./providers/OcaProvider";
+import { OllamaProvider } from "./providers/OllamaProvider";
+import { OpenAICompatibleProvider } from "./providers/OpenAICompatible";
+import { OpenAINativeProvider } from "./providers/OpenAINative";
+import { OpenAiCodexProvider } from "./providers/OpenAiCodexProvider";
+import { OpenRouterProvider } from "./providers/OpenRouterProvider";
+import { QwenCodeProvider } from "./providers/QwenCodeProvider";
+import { QwenProvider } from "./providers/QwenProvider";
+import { RequestyProvider } from "./providers/RequestyProvider";
+import { SambanovaProvider } from "./providers/SambanovaProvider";
+import { SapAiCoreProvider } from "./providers/SapAiCoreProvider";
+import { TogetherProvider } from "./providers/TogetherProvider";
+import { VercelAIGatewayProvider } from "./providers/VercelAIGatewayProvider";
+import { VertexProvider } from "./providers/VertexProvider";
+import { VSCodeLmProvider } from "./providers/VSCodeLmProvider";
+import { WandbProvider } from "./providers/WandbProvider";
+import { XaiProvider } from "./providers/XaiProvider";
+import { ZAiProvider } from "./providers/ZAiProvider";
+import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers";
 
 interface ApiOptionsProps {
-	showModelOptions: boolean
-	apiErrorMessage?: string
-	modelIdErrorMessage?: string
-	isPopup?: boolean
-	currentMode: Mode
-	initialModelTab?: "recommended" | "free"
+	showModelOptions: boolean;
+	apiErrorMessage?: string;
+	modelIdErrorMessage?: string;
+	isPopup?: boolean;
+	currentMode: Mode;
+	initialModelTab?: "recommended" | "free";
 }
 
 // This is necessary to ensure dropdown opens downward, important for when this is used in popup
-export const DROPDOWN_Z_INDEX = OPENROUTER_MODEL_PICKER_Z_INDEX + 2 // Higher than the OpenRouterModelPicker's and ModelSelectorTooltip's z-index
+export const DROPDOWN_Z_INDEX = OPENROUTER_MODEL_PICKER_Z_INDEX + 2; // Higher than the OpenRouterModelPicker's and ModelSelectorTooltip's z-index
 
 export const DropdownContainer = styled.div<{ zIndex?: number }>`
 	position: relative;
@@ -78,14 +90,14 @@ export const DropdownContainer = styled.div<{ zIndex?: number }>`
 		top: 100% !important;
 		bottom: auto !important;
 	}
-`
+`;
 
 declare module "vscode" {
 	interface LanguageModelChatSelector {
-		vendor?: string
-		family?: string
-		version?: string
-		id?: string
+		vendor?: string;
+		family?: string;
+		version?: string;
+		id?: string;
 	}
 }
 
@@ -98,13 +110,17 @@ const ApiOptions = ({
 	initialModelTab,
 }: ApiOptionsProps) => {
 	// Use full context state for immediate save payload
-	const { apiConfiguration, remoteConfigSettings } = useExtensionState()
+	const { apiConfiguration, remoteConfigSettings } = useExtensionState();
 
-	const { selectedProvider } = normalizeApiConfiguration(apiConfiguration, currentMode, { isClinePassEnabled: true })
+	const { selectedProvider } = normalizeApiConfiguration(
+		apiConfiguration,
+		currentMode,
+		{ isClinePassEnabled: true },
+	);
 
-	const { handleModeFieldChange } = useApiConfigurationHandlers()
+	const { handleModeFieldChange } = useApiConfigurationHandlers();
 
-	const [_ollamaModels, setOllamaModels] = useState<string[]>([])
+	const [_ollamaModels, setOllamaModels] = useState<string[]>([]);
 
 	// Poll ollama/vscode-lm models
 	const requestLocalModels = useCallback(async () => {
@@ -114,67 +130,78 @@ const ApiOptions = ({
 					StringRequest.create({
 						value: apiConfiguration?.ollamaBaseUrl || "",
 					}),
-				)
-				if (response && response.values) {
-					setOllamaModels(response.values)
+				);
+				if (response?.values) {
+					setOllamaModels(response.values);
 				}
 			} catch (error) {
-				console.error("Failed to fetch Ollama models:", error)
-				setOllamaModels([])
+				console.error("Failed to fetch Ollama models:", error);
+				setOllamaModels([]);
 			}
 		}
-	}, [selectedProvider, apiConfiguration?.ollamaBaseUrl])
+	}, [selectedProvider, apiConfiguration?.ollamaBaseUrl]);
 	useEffect(() => {
 		if (selectedProvider === "ollama") {
-			requestLocalModels()
+			requestLocalModels();
 		}
-	}, [selectedProvider, requestLocalModels])
-	useInterval(requestLocalModels, selectedProvider === "ollama" ? 2000 : null)
+	}, [selectedProvider, requestLocalModels]);
+	useInterval(requestLocalModels, selectedProvider === "ollama" ? 2000 : null);
 
 	// Provider search state
-	const [searchTerm, setSearchTerm] = useState("")
-	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
-	const [selectedIndex, setSelectedIndex] = useState(-1)
-	const dropdownRef = useRef<HTMLDivElement>(null)
-	const itemRefs = useRef<(HTMLDivElement | null)[]>([])
-	const dropdownListRef = useRef<HTMLDivElement>(null)
+	const [searchTerm, setSearchTerm] = useState("");
+	const [isDropdownVisible, setIsDropdownVisible] = useState(false);
+	const [selectedIndex, setSelectedIndex] = useState(-1);
+	const dropdownRef = useRef<HTMLDivElement>(null);
+	const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
+	const dropdownListRef = useRef<HTMLDivElement>(null);
 
 	const providerOptions = useMemo(() => {
-		let providers = PROVIDERS.list
+		let providers = [...modelsDevProviderOptions];
 		// Filter by platform
 		if (PLATFORM_CONFIG.type !== PlatformType.VSCODE) {
 			// Don't include VS Code LM API for non-VSCode platforms
-			providers = providers.filter((option) => option.value !== "vscode-lm")
+			providers = providers.filter((option) => option.value !== "vscode-lm");
 		}
 
 		// Filter by remote config if remoteConfiguredProviders is set
-		const remoteProviders: string[] = remoteConfigSettings?.remoteConfiguredProviders || []
+		const remoteProviders: string[] =
+			remoteConfigSettings?.remoteConfiguredProviders || [];
 		if (remoteProviders.length > 0) {
 			const effectiveRemoteProviders =
-				remoteProviders.includes("cline-pass") && !remoteProviders.includes("cline")
+				remoteProviders.includes("cline-pass") &&
+				!remoteProviders.includes("cline")
 					? [...remoteProviders, "cline"]
-					: remoteProviders
-			providers = providers.filter((option) => effectiveRemoteProviders.includes(option.value))
+					: remoteProviders;
+			providers = providers.filter((option) =>
+				effectiveRemoteProviders.includes(option.value),
+			);
 		}
 
-		return providers
-	}, [remoteConfigSettings])
+		return providers;
+	}, [remoteConfigSettings]);
 
-	const getProviderDisplayLabel = useCallback((option: (typeof PROVIDERS.list)[number]) => {
-		return option.value === "cline" ? "Cline Usage-Billing" : option.label
-	}, [])
+	const getProviderDisplayLabel = useCallback(
+		(option: (typeof modelsDevProviderOptions)[number]) => {
+			return option.value === "cline" ? "Cline Usage-Billing" : option.label;
+		},
+		[],
+	);
 
 	const currentProviderLabel = useMemo(() => {
-		const selectedOption = providerOptions.find((option) => option.value === selectedProvider)
-		return selectedOption ? getProviderDisplayLabel(selectedOption) : selectedProvider
-	}, [getProviderDisplayLabel, providerOptions, selectedProvider])
+		const selectedOption = providerOptions.find(
+			(option) => option.value === selectedProvider,
+		);
+		return selectedOption
+			? getProviderDisplayLabel(selectedOption)
+			: selectedProvider;
+	}, [getProviderDisplayLabel, providerOptions, selectedProvider]);
 
 	// Sync search term with current provider when not searching
 	useEffect(() => {
 		if (!isDropdownVisible) {
-			setSearchTerm(currentProviderLabel)
+			setSearchTerm(currentProviderLabel);
 		}
-	}, [currentProviderLabel, isDropdownVisible])
+	}, [currentProviderLabel, isDropdownVisible]);
 
 	const searchableItems = useMemo(() => {
 		return providerOptions.map((option) => ({
@@ -186,8 +213,8 @@ const ApiOptions = ({
 					: option.value === "cline-pass"
 						? "ClinePass subscription included models"
 						: option.label,
-		}))
-	}, [getProviderDisplayLabel, providerOptions])
+		}));
+	}, [getProviderDisplayLabel, providerOptions]);
 
 	const fuse = useMemo(() => {
 		return new Fuse(searchableItems, {
@@ -198,69 +225,84 @@ const ApiOptions = ({
 			ignoreLocation: false,
 			includeMatches: true,
 			minMatchCharLength: 1,
-		})
-	}, [searchableItems])
+		});
+	}, [searchableItems]);
 
 	const providerSearchResults = useMemo(() => {
-		return searchTerm && searchTerm !== currentProviderLabel ? fuse.search(searchTerm)?.map((r) => r.item) : searchableItems
-	}, [searchableItems, searchTerm, fuse, currentProviderLabel])
+		return searchTerm && searchTerm !== currentProviderLabel
+			? fuse.search(searchTerm)?.map((r) => r.item)
+			: searchableItems;
+	}, [searchableItems, searchTerm, fuse, currentProviderLabel]);
 
-	const handleProviderChange = (newProvider: string) => {
-		handleModeFieldChange({ plan: "planModeApiProvider", act: "actModeApiProvider" }, newProvider as any, currentMode)
-		setIsDropdownVisible(false)
-		setSelectedIndex(-1)
-	}
+	const handleProviderChange = (newProvider: ApiProvider) => {
+		handleModeFieldChange(
+			{ plan: "planModeApiProvider", act: "actModeApiProvider" },
+			newProvider,
+			currentMode,
+		);
+		setIsDropdownVisible(false);
+		setSelectedIndex(-1);
+	};
 
 	const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
 		if (!isDropdownVisible) {
-			return
+			return;
 		}
 
 		switch (event.key) {
 			case "ArrowDown":
-				event.preventDefault()
-				setSelectedIndex((prev) => (prev < providerSearchResults.length - 1 ? prev + 1 : prev))
-				break
+				event.preventDefault();
+				setSelectedIndex((prev) =>
+					prev < providerSearchResults.length - 1 ? prev + 1 : prev,
+				);
+				break;
 			case "ArrowUp":
-				event.preventDefault()
-				setSelectedIndex((prev) => (prev > 0 ? prev - 1 : prev))
-				break
+				event.preventDefault();
+				setSelectedIndex((prev) => (prev > 0 ? prev - 1 : prev));
+				break;
 			case "Enter":
-				event.preventDefault()
-				if (selectedIndex >= 0 && selectedIndex < providerSearchResults.length) {
-					handleProviderChange(providerSearchResults[selectedIndex].value)
+				event.preventDefault();
+				if (
+					selectedIndex >= 0 &&
+					selectedIndex < providerSearchResults.length
+				) {
+					handleProviderChange(providerSearchResults[selectedIndex].value);
 				}
-				break
+				break;
 			case "Escape":
-				setIsDropdownVisible(false)
-				setSelectedIndex(-1)
-				setSearchTerm(currentProviderLabel)
-				break
+				setIsDropdownVisible(false);
+				setSelectedIndex(-1);
+				setSearchTerm(currentProviderLabel);
+				break;
 		}
-	}
+	};
 
 	// Close dropdown when clicking outside
 	useEffect(() => {
 		const handleClickOutside = (event: MouseEvent) => {
-			if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-				setIsDropdownVisible(false)
-				setSearchTerm(currentProviderLabel)
+			if (
+				dropdownRef.current &&
+				!dropdownRef.current.contains(event.target as Node)
+			) {
+				setIsDropdownVisible(false);
+				setSearchTerm(currentProviderLabel);
 			}
-		}
+		};
 
-		document.addEventListener("mousedown", handleClickOutside)
+		document.addEventListener("mousedown", handleClickOutside);
 		return () => {
-			document.removeEventListener("mousedown", handleClickOutside)
-		}
-	}, [currentProviderLabel])
+			document.removeEventListener("mousedown", handleClickOutside);
+		};
+	}, [currentProviderLabel]);
 
 	// Reset selection when search term changes
 	useEffect(() => {
-		setSelectedIndex(-1)
+		void searchTerm;
+		setSelectedIndex(-1);
 		if (dropdownListRef.current) {
-			dropdownListRef.current.scrollTop = 0
+			dropdownListRef.current.scrollTop = 0;
 		}
-	}, [searchTerm])
+	}, [searchTerm]);
 
 	// Scroll selected item into view
 	useEffect(() => {
@@ -268,9 +310,9 @@ const ApiOptions = ({
 			itemRefs.current[selectedIndex]?.scrollIntoView({
 				block: "nearest",
 				behavior: "smooth",
-			})
+			});
 		}
-	}, [selectedIndex])
+	}, [selectedIndex]);
 
 	/*
 	VSCodeDropdown has an open bug where dynamically rendered options don't auto select the provided value prop. You can see this for yourself by comparing  it with normal select/option elements, which work as expected.
@@ -282,7 +324,14 @@ const ApiOptions = ({
 	*/
 
 	return (
-		<div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: isPopup ? -10 : 0 }}>
+		<div
+			style={{
+				display: "flex",
+				flexDirection: "column",
+				gap: 5,
+				marginBottom: isPopup ? -10 : 0,
+			}}
+		>
 			<style>
 				{`
 				.provider-item-highlight {
@@ -292,7 +341,8 @@ const ApiOptions = ({
 				`}
 			</style>
 			<DropdownContainer className="dropdown-container">
-				{remoteConfigSettings?.remoteConfiguredProviders && remoteConfigSettings.remoteConfiguredProviders.length > 0 ? (
+				{remoteConfigSettings?.remoteConfiguredProviders &&
+				remoteConfigSettings.remoteConfiguredProviders.length > 0 ? (
 					<Tooltip>
 						<TooltipTrigger>
 							<div className="flex items-center gap-2 mb-1">
@@ -302,7 +352,10 @@ const ApiOptions = ({
 								<i className="codicon codicon-lock text-description text-sm" />
 							</div>
 						</TooltipTrigger>
-						<TooltipContent>Provider options are managed by your organization's remote configuration</TooltipContent>
+						<TooltipContent>
+							Provider options are managed by your organization's remote
+							configuration
+						</TooltipContent>
 					</Tooltip>
 				) : (
 					<label htmlFor="api-provider">
@@ -314,12 +367,12 @@ const ApiOptions = ({
 						data-testid="provider-selector-input"
 						id="api-provider"
 						onFocus={() => {
-							setIsDropdownVisible(true)
-							setSearchTerm("")
+							setIsDropdownVisible(true);
+							setSearchTerm("");
 						}}
 						onInput={(e) => {
-							setSearchTerm((e.target as HTMLInputElement)?.value || "")
-							setIsDropdownVisible(true)
+							setSearchTerm((e.target as HTMLInputElement)?.value || "");
+							setIsDropdownVisible(true);
 						}}
 						onKeyDown={handleKeyDown}
 						placeholder="Search and select provider..."
@@ -330,22 +383,28 @@ const ApiOptions = ({
 							position: "relative",
 							minWidth: 130,
 						}}
-						value={searchTerm}>
+						value={searchTerm}
+					>
 						{searchTerm && searchTerm !== currentProviderLabel && (
-							<div
+							<button
 								aria-label="Clear search"
 								className="input-icon-button codicon codicon-close"
 								onClick={() => {
-									setSearchTerm("")
-									setIsDropdownVisible(true)
+									setSearchTerm("");
+									setIsDropdownVisible(true);
 								}}
 								slot="end"
 								style={{
+									background: "none",
+									border: 0,
+									color: "inherit",
+									cursor: "pointer",
 									display: "flex",
 									justifyContent: "center",
 									alignItems: "center",
 									height: "100%",
 								}}
+								type="button"
 							/>
 						)}
 					</VSCodeTextField>
@@ -359,9 +418,10 @@ const ApiOptions = ({
 									onClick={() => handleProviderChange(item.value)}
 									onMouseEnter={() => setSelectedIndex(index)}
 									ref={(el) => {
-										itemRefs.current[index] = el
+										itemRefs.current[index] = el;
 									}}
-									role="option">
+									role="option"
+								>
 									<span>{item.html}</span>
 								</ProviderDropdownItem>
 							))}
@@ -371,172 +431,333 @@ const ApiOptions = ({
 			</DropdownContainer>
 
 			{apiConfiguration && selectedProvider === "hicap" && (
-				<HicapProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
-			)}
-
-			{apiConfiguration && (selectedProvider === "cline" || selectedProvider === "cline-pass") && (
-				<ClineProvider
+				<HicapProvider
 					currentMode={currentMode}
-					initialModelTab={initialModelTab}
-					isClinePassEnabled={true}
 					isPopup={isPopup}
-					selectedProvider={selectedProvider}
 					showModelOptions={showModelOptions}
 				/>
 			)}
 
+			{apiConfiguration &&
+				(selectedProvider === "cline" || selectedProvider === "cline-pass") && (
+					<ClineProvider
+						currentMode={currentMode}
+						initialModelTab={initialModelTab}
+						isClinePassEnabled={true}
+						isPopup={isPopup}
+						selectedProvider={selectedProvider}
+						showModelOptions={showModelOptions}
+					/>
+				)}
+
 			{apiConfiguration && selectedProvider === "asksage" && (
-				<AskSageProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+				<AskSageProvider
+					currentMode={currentMode}
+					isPopup={isPopup}
+					showModelOptions={showModelOptions}
+				/>
 			)}
 
 			{apiConfiguration && selectedProvider === "anthropic" && (
-				<AnthropicProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+				<AnthropicProvider
+					currentMode={currentMode}
+					isPopup={isPopup}
+					showModelOptions={showModelOptions}
+				/>
 			)}
 
 			{apiConfiguration && selectedProvider === "claude-code" && (
-				<ClaudeCodeProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+				<ClaudeCodeProvider
+					currentMode={currentMode}
+					isPopup={isPopup}
+					showModelOptions={showModelOptions}
+				/>
 			)}
 
 			{apiConfiguration && selectedProvider === "openai-native" && (
-				<OpenAINativeProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+				<OpenAINativeProvider
+					currentMode={currentMode}
+					isPopup={isPopup}
+					showModelOptions={showModelOptions}
+				/>
 			)}
 
 			{apiConfiguration && selectedProvider === "openai-codex" && (
-				<OpenAiCodexProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+				<OpenAiCodexProvider
+					currentMode={currentMode}
+					isPopup={isPopup}
+					showModelOptions={showModelOptions}
+				/>
 			)}
 
 			{apiConfiguration && selectedProvider === "qwen" && (
-				<QwenProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+				<QwenProvider
+					currentMode={currentMode}
+					isPopup={isPopup}
+					showModelOptions={showModelOptions}
+				/>
 			)}
 
 			{apiConfiguration && selectedProvider === "qwen-code" && (
-				<QwenCodeProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+				<QwenCodeProvider
+					currentMode={currentMode}
+					isPopup={isPopup}
+					showModelOptions={showModelOptions}
+				/>
 			)}
 
 			{apiConfiguration && selectedProvider === "doubao" && (
-				<DoubaoProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+				<DoubaoProvider
+					currentMode={currentMode}
+					isPopup={isPopup}
+					showModelOptions={showModelOptions}
+				/>
 			)}
 
 			{apiConfiguration && selectedProvider === "mistral" && (
-				<MistralProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+				<MistralProvider
+					currentMode={currentMode}
+					isPopup={isPopup}
+					showModelOptions={showModelOptions}
+				/>
 			)}
 
 			{apiConfiguration && selectedProvider === "openrouter" && (
-				<OpenRouterProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+				<OpenRouterProvider
+					currentMode={currentMode}
+					isPopup={isPopup}
+					showModelOptions={showModelOptions}
+				/>
 			)}
 
 			{apiConfiguration && selectedProvider === "deepseek" && (
-				<DeepSeekProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+				<DeepSeekProvider
+					currentMode={currentMode}
+					isPopup={isPopup}
+					showModelOptions={showModelOptions}
+				/>
 			)}
 
 			{apiConfiguration && selectedProvider === "together" && (
-				<TogetherProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+				<TogetherProvider
+					currentMode={currentMode}
+					isPopup={isPopup}
+					showModelOptions={showModelOptions}
+				/>
 			)}
 
 			{apiConfiguration && selectedProvider === "openai" && (
-				<OpenAICompatibleProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+				<OpenAICompatibleProvider
+					currentMode={currentMode}
+					isPopup={isPopup}
+					showModelOptions={showModelOptions}
+				/>
 			)}
 
 			{apiConfiguration && selectedProvider === "vercel-ai-gateway" && (
-				<VercelAIGatewayProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+				<VercelAIGatewayProvider
+					currentMode={currentMode}
+					isPopup={isPopup}
+					showModelOptions={showModelOptions}
+				/>
 			)}
 
 			{apiConfiguration && selectedProvider === "sambanova" && (
-				<SambanovaProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+				<SambanovaProvider
+					currentMode={currentMode}
+					isPopup={isPopup}
+					showModelOptions={showModelOptions}
+				/>
 			)}
 
 			{apiConfiguration && selectedProvider === "bedrock" && (
-				<BedrockProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+				<BedrockProvider
+					currentMode={currentMode}
+					isPopup={isPopup}
+					showModelOptions={showModelOptions}
+				/>
 			)}
 
 			{apiConfiguration && selectedProvider === "vertex" && (
-				<VertexProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+				<VertexProvider
+					currentMode={currentMode}
+					isPopup={isPopup}
+					showModelOptions={showModelOptions}
+				/>
 			)}
 
 			{apiConfiguration && selectedProvider === "gemini" && (
-				<GeminiProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+				<GeminiProvider
+					currentMode={currentMode}
+					isPopup={isPopup}
+					showModelOptions={showModelOptions}
+				/>
 			)}
 
 			{apiConfiguration && selectedProvider === "requesty" && (
-				<RequestyProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+				<RequestyProvider
+					currentMode={currentMode}
+					isPopup={isPopup}
+					showModelOptions={showModelOptions}
+				/>
 			)}
 
 			{apiConfiguration && selectedProvider === "fireworks" && (
-				<FireworksProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+				<FireworksProvider
+					currentMode={currentMode}
+					isPopup={isPopup}
+					showModelOptions={showModelOptions}
+				/>
 			)}
 
-			{apiConfiguration && selectedProvider === "vscode-lm" && <VSCodeLmProvider currentMode={currentMode} />}
+			{apiConfiguration && selectedProvider === "vscode-lm" && (
+				<VSCodeLmProvider currentMode={currentMode} />
+			)}
 
 			{apiConfiguration && selectedProvider === "groq" && (
-				<GroqProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+				<GroqProvider
+					currentMode={currentMode}
+					isPopup={isPopup}
+					showModelOptions={showModelOptions}
+				/>
 			)}
 			{apiConfiguration && selectedProvider === "baseten" && (
-				<BasetenProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+				<BasetenProvider
+					currentMode={currentMode}
+					isPopup={isPopup}
+					showModelOptions={showModelOptions}
+				/>
 			)}
 			{apiConfiguration && selectedProvider === "litellm" && (
-				<LiteLlmProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+				<LiteLlmProvider
+					currentMode={currentMode}
+					isPopup={isPopup}
+					showModelOptions={showModelOptions}
+				/>
 			)}
 
 			{apiConfiguration && selectedProvider === "lmstudio" && (
-				<LMStudioProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+				<LMStudioProvider
+					currentMode={currentMode}
+					isPopup={isPopup}
+					showModelOptions={showModelOptions}
+				/>
 			)}
 
 			{apiConfiguration && selectedProvider === "ollama" && (
-				<OllamaProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+				<OllamaProvider
+					currentMode={currentMode}
+					isPopup={isPopup}
+					showModelOptions={showModelOptions}
+				/>
 			)}
 
 			{apiConfiguration && selectedProvider === "moonshot" && (
-				<MoonshotProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+				<MoonshotProvider
+					currentMode={currentMode}
+					isPopup={isPopup}
+					showModelOptions={showModelOptions}
+				/>
 			)}
 
 			{apiConfiguration && selectedProvider === "huggingface" && (
-				<HuggingFaceProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+				<HuggingFaceProvider
+					currentMode={currentMode}
+					isPopup={isPopup}
+					showModelOptions={showModelOptions}
+				/>
 			)}
 
 			{apiConfiguration && selectedProvider === "nebius" && (
-				<NebiusProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+				<NebiusProvider
+					currentMode={currentMode}
+					isPopup={isPopup}
+					showModelOptions={showModelOptions}
+				/>
 			)}
 
 			{apiConfiguration && selectedProvider === "wandb" && (
-				<WandbProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+				<WandbProvider
+					currentMode={currentMode}
+					isPopup={isPopup}
+					showModelOptions={showModelOptions}
+				/>
 			)}
 
 			{apiConfiguration && selectedProvider === "xai" && (
-				<XaiProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+				<XaiProvider
+					currentMode={currentMode}
+					isPopup={isPopup}
+					showModelOptions={showModelOptions}
+				/>
 			)}
 
 			{apiConfiguration && selectedProvider === "cerebras" && (
-				<CerebrasProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+				<CerebrasProvider
+					currentMode={currentMode}
+					isPopup={isPopup}
+					showModelOptions={showModelOptions}
+				/>
 			)}
 
 			{apiConfiguration && selectedProvider === "sapaicore" && (
-				<SapAiCoreProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+				<SapAiCoreProvider
+					currentMode={currentMode}
+					isPopup={isPopup}
+					showModelOptions={showModelOptions}
+				/>
 			)}
 
 			{apiConfiguration && selectedProvider === "huawei-cloud-maas" && (
-				<HuaweiCloudMaasProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+				<HuaweiCloudMaasProvider
+					currentMode={currentMode}
+					isPopup={isPopup}
+					showModelOptions={showModelOptions}
+				/>
 			)}
 
 			{apiConfiguration && selectedProvider === "dify" && (
-				<DifyProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+				<DifyProvider
+					currentMode={currentMode}
+					isPopup={isPopup}
+					showModelOptions={showModelOptions}
+				/>
 			)}
 
 			{apiConfiguration && selectedProvider === "zai" && (
-				<ZAiProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+				<ZAiProvider
+					currentMode={currentMode}
+					isPopup={isPopup}
+					showModelOptions={showModelOptions}
+				/>
 			)}
 
 			{apiConfiguration && selectedProvider === "minimax" && (
-				<MinimaxProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+				<MinimaxProvider
+					currentMode={currentMode}
+					isPopup={isPopup}
+					showModelOptions={showModelOptions}
+				/>
 			)}
 
 			{apiConfiguration && selectedProvider === "nousResearch" && (
-				<NousResearchProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+				<NousResearchProvider
+					currentMode={currentMode}
+					isPopup={isPopup}
+					showModelOptions={showModelOptions}
+				/>
 			)}
 
-			{apiConfiguration && selectedProvider === "oca" && <OcaProvider currentMode={currentMode} isPopup={isPopup} />}
+			{apiConfiguration && selectedProvider === "oca" && (
+				<OcaProvider currentMode={currentMode} isPopup={isPopup} />
+			)}
 
 			{apiConfiguration && selectedProvider === "aihubmix" && (
-				<AIhubmixProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+				<AIhubmixProvider
+					currentMode={currentMode}
+					isPopup={isPopup}
+					showModelOptions={showModelOptions}
+				/>
 			)}
 
 			{apiErrorMessage && (
@@ -545,7 +766,8 @@ const ApiOptions = ({
 						margin: "-10px 0 4px 0",
 						fontSize: 12,
 						color: "var(--vscode-errorForeground)",
-					}}>
+					}}
+				>
 					{apiErrorMessage}
 				</p>
 			)}
@@ -555,20 +777,21 @@ const ApiOptions = ({
 						margin: "-10px 0 4px 0",
 						fontSize: 12,
 						color: "var(--vscode-errorForeground)",
-					}}>
+					}}
+				>
 					{modelIdErrorMessage}
 				</p>
 			)}
 		</div>
-	)
-}
+	);
+};
 
-export default ApiOptions
+export default ApiOptions;
 
 const ProviderDropdownWrapper = styled.div`
 	position: relative;
 	width: 100%;
-`
+`;
 
 const ProviderDropdownList = styled.div`
 	position: absolute;
@@ -582,7 +805,7 @@ const ProviderDropdownList = styled.div`
 	z-index: ${DROPDOWN_Z_INDEX - 1};
 	border-bottom-left-radius: 3px;
 	border-bottom-right-radius: 3px;
-`
+`;
 
 const ProviderDropdownItem = styled.div<{ isSelected: boolean }>`
 	padding: 5px 10px;
@@ -595,4 +818,4 @@ const ProviderDropdownItem = styled.div<{ isSelected: boolean }>`
 	&:hover {
 		background-color: var(--vscode-list-activeSelectionBackground);
 	}
-`
+`;

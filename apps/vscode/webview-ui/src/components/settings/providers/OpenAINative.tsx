@@ -1,32 +1,46 @@
-import { openAiNativeModels } from "@shared/api"
-import { Mode } from "@shared/storage/types"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { ApiKeyField } from "../common/ApiKeyField"
-import { ModelInfoView } from "../common/ModelInfoView"
-import { ModelSelector } from "../common/ModelSelector"
-import ReasoningEffortSelector from "../ReasoningEffortSelector"
-import { normalizeApiConfiguration, supportsReasoningEffortForModelId } from "../utils/providerUtils"
-import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { modelsDevOpenAiNativeModels } from "@shared/models/models-dev-catalog";
+import type { Mode } from "@shared/storage/types";
+import { useExtensionState } from "@/context/ExtensionStateContext";
+import { ApiKeyField } from "../common/ApiKeyField";
+import { ModelInfoView } from "../common/ModelInfoView";
+import { ModelSelector } from "../common/ModelSelector";
+import ReasoningEffortSelector from "../ReasoningEffortSelector";
+import {
+	normalizeApiConfiguration,
+	supportsReasoningEffortForModelId,
+} from "../utils/providerUtils";
+import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers";
 
 /**
  * Props for the OpenAINativeProvider component
  */
 interface OpenAINativeProviderProps {
-	showModelOptions: boolean
-	isPopup?: boolean
-	currentMode: Mode
+	showModelOptions: boolean;
+	isPopup?: boolean;
+	currentMode: Mode;
 }
 
 /**
  * The OpenAI (native) provider configuration component
  */
-export const OpenAINativeProvider = ({ showModelOptions, isPopup, currentMode }: OpenAINativeProviderProps) => {
-	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
+export const OpenAINativeProvider = ({
+	showModelOptions,
+	isPopup,
+	currentMode,
+}: OpenAINativeProviderProps) => {
+	const { apiConfiguration } = useExtensionState();
+	const { handleFieldChange, handleModeFieldChange } =
+		useApiConfigurationHandlers();
 
 	// Get the normalized configuration
-	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
-	const showReasoningEffort = supportsReasoningEffortForModelId(selectedModelId, true)
+	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(
+		apiConfiguration,
+		currentMode,
+	);
+	const showReasoningEffort = supportsReasoningEffortForModelId(
+		selectedModelId,
+		true,
+	);
 
 	return (
 		<div>
@@ -41,8 +55,8 @@ export const OpenAINativeProvider = ({ showModelOptions, isPopup, currentMode }:
 				<>
 					<ModelSelector
 						label="Model"
-						models={openAiNativeModels}
-						onChange={(e: any) =>
+						models={modelsDevOpenAiNativeModels}
+						onChange={(e) =>
 							handleModeFieldChange(
 								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
 								e.target.value,
@@ -51,11 +65,17 @@ export const OpenAINativeProvider = ({ showModelOptions, isPopup, currentMode }:
 						}
 						selectedModelId={selectedModelId}
 					/>
-					{showReasoningEffort && <ReasoningEffortSelector currentMode={currentMode} />}
+					{showReasoningEffort && (
+						<ReasoningEffortSelector currentMode={currentMode} />
+					)}
 
-					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
+					<ModelInfoView
+						isPopup={isPopup}
+						modelInfo={selectedModelInfo}
+						selectedModelId={selectedModelId}
+					/>
 				</>
 			)}
 		</div>
-	)
-}
+	);
+};

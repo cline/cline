@@ -1,137 +1,147 @@
 // type that represents json data that is sent from extension to webview, called ExtensionMessage and has 'type' enum which can be 'plusButtonClicked' or 'settingsButtonClicked' or 'hello'
 
-import { WorkspaceRoot } from "@shared/multi-root/types"
-import { RemoteConfigFields } from "@shared/storage/state-keys"
-import type { Environment } from "../config"
-import { AutoApprovalSettings } from "./AutoApprovalSettings"
-import { ApiConfiguration } from "./api"
-import { BrowserSettings } from "./BrowserSettings"
-import { ClineFeatureSetting } from "./ClineFeatureSetting"
-import { BannerCardData } from "./cline/banner"
-import { ClineRulesToggles } from "./cline-rules"
-import { FocusChainSettings } from "./FocusChainSettings"
-import { HistoryItem } from "./HistoryItem"
-import { McpDisplayMode } from "./McpDisplayMode"
-import { ClineMessageModelInfo } from "./messages"
-import { OnboardingModelGroup } from "./proto/cline/state"
-import { Mode } from "./storage/types"
-import { TelemetrySetting } from "./TelemetrySetting"
-import { UserInfo } from "./UserInfo"
+import type { WorkspaceRoot } from "@shared/multi-root/types";
+import type { RemoteConfigFields } from "@shared/storage/state-keys";
+import type { Environment } from "../config";
+import type { AutoApprovalSettings } from "./AutoApprovalSettings";
+import type { ApiConfiguration } from "./api";
+import type { BrowserSettings } from "./BrowserSettings";
+import type { ClineFeatureSetting } from "./ClineFeatureSetting";
+import type { BannerCardData } from "./cline/banner";
+import type { ClineRulesToggles } from "./cline-rules";
+import type { FocusChainSettings } from "./FocusChainSettings";
+import type { HistoryItem } from "./HistoryItem";
+import type { McpDisplayMode } from "./McpDisplayMode";
+import type { ClineMessageModelInfo } from "./messages";
+import type { ModelsDevProviderModels } from "./models/models-dev-catalog";
+import type { OnboardingModelGroup } from "./proto/cline/state";
+import type { Mode } from "./storage/types";
+import type { TelemetrySetting } from "./TelemetrySetting";
+import type { UserInfo } from "./UserInfo";
 // webview will hold state
 export interface ExtensionMessage {
-	type: "grpc_response" // New type for gRPC responses
-	grpc_response?: GrpcResponse
+	type: "grpc_response"; // New type for gRPC responses
+	grpc_response?: GrpcResponse;
 }
 
 export type GrpcResponse = {
-	message?: any // JSON serialized protobuf message
-	request_id: string // Same ID as the request
-	error?: string // Optional error message
-	is_streaming?: boolean // Whether this is part of a streaming response
-	sequence_number?: number // For ordering chunks in streaming responses
-}
+	message?: unknown; // JSON serialized protobuf message
+	request_id: string; // Same ID as the request
+	error?: string; // Optional error message
+	is_streaming?: boolean; // Whether this is part of a streaming response
+	sequence_number?: number; // For ordering chunks in streaming responses
+};
 
-export type Platform = "aix" | "darwin" | "freebsd" | "linux" | "openbsd" | "sunos" | "win32" | "unknown"
+export type Platform =
+	| "aix"
+	| "darwin"
+	| "freebsd"
+	| "linux"
+	| "openbsd"
+	| "sunos"
+	| "win32"
+	| "unknown";
 
-export const DEFAULT_PLATFORM = "unknown"
+export const DEFAULT_PLATFORM = "unknown";
 
-export const COMMAND_CANCEL_TOKEN = "__cline_command_cancel__"
+export const COMMAND_CANCEL_TOKEN = "__cline_command_cancel__";
 export interface ExtensionState {
-	isNewUser: boolean
-	welcomeViewCompleted: boolean
-	onboardingModels: OnboardingModelGroup | undefined
-	apiConfiguration?: ApiConfiguration
-	autoApprovalSettings: AutoApprovalSettings
-	browserSettings: BrowserSettings
-	remoteBrowserHost?: string
-	preferredLanguage?: string
-	mode: Mode
-	checkpointManagerErrorMessage?: string
-	clineMessages: ClineMessage[]
-	currentTaskItem?: HistoryItem
-	currentFocusChainChecklist?: string | null
-	mcpMarketplaceEnabled?: boolean
-	mcpDisplayMode: McpDisplayMode
-	planActSeparateModelsSetting: boolean
-	enableCheckpointsSetting?: boolean
-	platform: Platform
-	environment?: Environment
-	shouldShowAnnouncement: boolean
-	taskHistory: HistoryItem[]
-	telemetrySetting: TelemetrySetting
-	shellIntegrationTimeout: number
-	terminalReuseEnabled?: boolean
-	terminalOutputLineLimit: number
-	maxConsecutiveMistakes: number
-	defaultTerminalProfile?: string
-	vscodeTerminalExecutionMode: string
-	backgroundCommandRunning?: boolean
-	backgroundCommandTaskId?: string
-	lastCompletedCommandTs?: number
-	userInfo?: UserInfo
-	version: string
-	distinctId: string
-	globalClineRulesToggles: ClineRulesToggles
-	localClineRulesToggles: ClineRulesToggles
-	localWorkflowToggles: ClineRulesToggles
-	globalWorkflowToggles: ClineRulesToggles
-	localCursorRulesToggles: ClineRulesToggles
-	localWindsurfRulesToggles: ClineRulesToggles
-	remoteRulesToggles?: ClineRulesToggles
-	remoteWorkflowToggles?: ClineRulesToggles
-	localAgentsRulesToggles: ClineRulesToggles
-	mcpResponsesCollapsed?: boolean
-	strictPlanModeEnabled?: boolean
-	yoloModeToggled?: boolean
-	useAutoCondense?: boolean
-	subagentsEnabled?: boolean
-	clineWebToolsEnabled?: ClineFeatureSetting
-	worktreesEnabled?: ClineFeatureSetting
-	focusChainSettings: FocusChainSettings
-	customPrompt?: string
-	favoritedModelIds: string[]
+	isNewUser: boolean;
+	welcomeViewCompleted: boolean;
+	onboardingModels: OnboardingModelGroup | undefined;
+	apiConfiguration?: ApiConfiguration;
+	autoApprovalSettings: AutoApprovalSettings;
+	browserSettings: BrowserSettings;
+	remoteBrowserHost?: string;
+	preferredLanguage?: string;
+	mode: Mode;
+	checkpointManagerErrorMessage?: string;
+	clineMessages: ClineMessage[];
+	currentTaskItem?: HistoryItem;
+	currentFocusChainChecklist?: string | null;
+	mcpMarketplaceEnabled?: boolean;
+	mcpDisplayMode: McpDisplayMode;
+	planActSeparateModelsSetting: boolean;
+	enableCheckpointsSetting?: boolean;
+	platform: Platform;
+	environment?: Environment;
+	shouldShowAnnouncement: boolean;
+	taskHistory: HistoryItem[];
+	telemetrySetting: TelemetrySetting;
+	shellIntegrationTimeout: number;
+	terminalReuseEnabled?: boolean;
+	terminalOutputLineLimit: number;
+	maxConsecutiveMistakes: number;
+	defaultTerminalProfile?: string;
+	vscodeTerminalExecutionMode: string;
+	backgroundCommandRunning?: boolean;
+	backgroundCommandTaskId?: string;
+	lastCompletedCommandTs?: number;
+	userInfo?: UserInfo;
+	version: string;
+	distinctId: string;
+	globalClineRulesToggles: ClineRulesToggles;
+	localClineRulesToggles: ClineRulesToggles;
+	localWorkflowToggles: ClineRulesToggles;
+	globalWorkflowToggles: ClineRulesToggles;
+	localCursorRulesToggles: ClineRulesToggles;
+	localWindsurfRulesToggles: ClineRulesToggles;
+	remoteRulesToggles?: ClineRulesToggles;
+	remoteWorkflowToggles?: ClineRulesToggles;
+	localAgentsRulesToggles: ClineRulesToggles;
+	mcpResponsesCollapsed?: boolean;
+	strictPlanModeEnabled?: boolean;
+	yoloModeToggled?: boolean;
+	useAutoCondense?: boolean;
+	subagentsEnabled?: boolean;
+	clineWebToolsEnabled?: ClineFeatureSetting;
+	worktreesEnabled?: ClineFeatureSetting;
+	focusChainSettings: FocusChainSettings;
+	customPrompt?: string;
+	favoritedModelIds: string[];
 	// NEW: Add workspace information
-	workspaceRoots: WorkspaceRoot[]
-	primaryRootIndex: number
-	isMultiRootWorkspace: boolean
-	multiRootSetting: ClineFeatureSetting
-	lastDismissedInfoBannerVersion: number
-	lastDismissedModelBannerVersion: number
-	lastDismissedCliBannerVersion: number
-	dismissedBanners?: Array<{ bannerId: string; dismissedAt: number }>
-	hooksEnabled?: boolean
-	remoteConfigSettings?: Partial<RemoteConfigFields>
-	globalSkillsToggles?: Record<string, boolean>
-	localSkillsToggles?: Record<string, boolean>
-	nativeToolCallSetting?: boolean
-	enableParallelToolCalling?: boolean
-	backgroundEditEnabled?: boolean
-	optOutOfRemoteConfig?: boolean
-	doubleCheckCompletionEnabled?: boolean
-	lazyTeammateModeEnabled?: boolean
-	showFeatureTips?: boolean
-	banners?: BannerCardData[]
-	welcomeBanners?: BannerCardData[]
-	openAiCodexIsAuthenticated?: boolean
+	workspaceRoots: WorkspaceRoot[];
+	primaryRootIndex: number;
+	isMultiRootWorkspace: boolean;
+	multiRootSetting: ClineFeatureSetting;
+	lastDismissedInfoBannerVersion: number;
+	lastDismissedModelBannerVersion: number;
+	lastDismissedCliBannerVersion: number;
+	dismissedBanners?: Array<{ bannerId: string; dismissedAt: number }>;
+	hooksEnabled?: boolean;
+	remoteConfigSettings?: Partial<RemoteConfigFields>;
+	globalSkillsToggles?: Record<string, boolean>;
+	localSkillsToggles?: Record<string, boolean>;
+	nativeToolCallSetting?: boolean;
+	enableParallelToolCalling?: boolean;
+	backgroundEditEnabled?: boolean;
+	optOutOfRemoteConfig?: boolean;
+	doubleCheckCompletionEnabled?: boolean;
+	lazyTeammateModeEnabled?: boolean;
+	showFeatureTips?: boolean;
+	banners?: BannerCardData[];
+	welcomeBanners?: BannerCardData[];
+	openAiCodexIsAuthenticated?: boolean;
+	modelsDevProviderModels?: ModelsDevProviderModels;
 }
 
 export interface ClineMessage {
-	ts: number
-	type: "ask" | "say"
-	ask?: ClineAsk
-	say?: ClineSay
-	text?: string
-	reasoning?: string
-	images?: string[]
-	files?: string[]
-	partial?: boolean
-	commandCompleted?: boolean
-	lastCheckpointHash?: string
-	isCheckpointCheckedOut?: boolean
-	isOperationOutsideWorkspace?: boolean
-	conversationHistoryIndex?: number
-	conversationHistoryDeletedRange?: [number, number] // for when conversation history is truncated for API requests
-	modelInfo?: ClineMessageModelInfo
+	ts: number;
+	type: "ask" | "say";
+	ask?: ClineAsk;
+	say?: ClineSay;
+	text?: string;
+	reasoning?: string;
+	images?: string[];
+	files?: string[];
+	partial?: boolean;
+	commandCompleted?: boolean;
+	lastCheckpointHash?: string;
+	isCheckpointCheckedOut?: boolean;
+	isOperationOutsideWorkspace?: boolean;
+	conversationHistoryIndex?: number;
+	conversationHistoryDeletedRange?: [number, number]; // for when conversation history is truncated for API requests
+	modelInfo?: ClineMessageModelInfo;
 }
 
 export type ClineAsk =
@@ -152,7 +162,7 @@ export type ClineAsk =
 	| "condense"
 	| "summarize_task"
 	| "report_bug"
-	| "use_subagents"
+	| "use_subagents";
 
 export type ClineSay =
 	| "task"
@@ -192,7 +202,7 @@ export type ClineSay =
 	| "subagent"
 	| "use_subagents"
 	| "subagent_usage"
-	| "conditional_rules_applied"
+	| "conditional_rules_applied";
 
 export interface ClineSayTool {
 	tool:
@@ -207,167 +217,181 @@ export interface ClineSayTool {
 		| "webFetch"
 		| "webSearch"
 		| "summarizeTask"
-		| "useSkill"
-	path?: string
-	diff?: string
-	content?: string
-	regex?: string
-	filePattern?: string
-	operationIsLocatedInWorkspace?: boolean
+		| "useSkill";
+	path?: string;
+	diff?: string;
+	content?: string;
+	regex?: string;
+	filePattern?: string;
+	operationIsLocatedInWorkspace?: boolean;
 	/** Starting line numbers in the original file where each SEARCH block matched */
-	startLineNumbers?: number[]
+	startLineNumbers?: number[];
 	/** Inclusive line range actually returned by read_file (for UI summaries). */
-	readLineStart?: number
-	readLineEnd?: number
+	readLineStart?: number;
+	readLineEnd?: number;
 }
 
 export interface ClineSayHook {
-	hookName: string // Name of the hook (e.g., "PreToolUse", "PostToolUse")
-	toolName?: string // Tool name if applicable (for PreToolUse/PostToolUse)
-	status: "running" | "completed" | "failed" | "cancelled" // Execution status
-	exitCode?: number // Exit code when completed
-	hasJsonResponse?: boolean // Whether a JSON response was parsed
+	hookName: string; // Name of the hook (e.g., "PreToolUse", "PostToolUse")
+	toolName?: string; // Tool name if applicable (for PreToolUse/PostToolUse)
+	status: "running" | "completed" | "failed" | "cancelled"; // Execution status
+	exitCode?: number; // Exit code when completed
+	hasJsonResponse?: boolean; // Whether a JSON response was parsed
 	// Pending tool information (only present during PreToolUse "running" status)
 	pendingToolInfo?: {
-		tool: string // Tool name (e.g., "write_to_file", "execute_command")
-		path?: string // File path for file operations
-		command?: string // Command for execute_command
-		content?: string // Content preview (first 200 chars)
-		diff?: string // Diff preview (first 200 chars)
-		regex?: string // Regex pattern for search_files
-		url?: string // URL for web_fetch or browser_action
-		mcpTool?: string // MCP tool name
-		mcpServer?: string // MCP server name
-		resourceUri?: string // MCP resource URI
-	}
+		tool: string; // Tool name (e.g., "write_to_file", "execute_command")
+		path?: string; // File path for file operations
+		command?: string; // Command for execute_command
+		content?: string; // Content preview (first 200 chars)
+		diff?: string; // Diff preview (first 200 chars)
+		regex?: string; // Regex pattern for search_files
+		url?: string; // URL for web_fetch or browser_action
+		mcpTool?: string; // MCP tool name
+		mcpServer?: string; // MCP server name
+		resourceUri?: string; // MCP resource URI
+	};
 	// Structured error information (only present when status is "failed")
 	error?: {
-		type: "timeout" | "validation" | "execution" | "cancellation" // Type of error
-		message: string // User-friendly error message
-		details?: string // Technical details for expansion
-		scriptPath?: string // Path to the hook script
-	}
+		type: "timeout" | "validation" | "execution" | "cancellation"; // Type of error
+		message: string; // User-friendly error message
+		details?: string; // Technical details for expansion
+		scriptPath?: string; // Path to the hook script
+	};
 }
 
 export type HookOutputStreamMeta = {
 	/** Which hook configuration the script originated from (global vs workspace). */
-	source: "global" | "workspace"
+	source: "global" | "workspace";
 	/** Full path to the hook script that emitted the output. */
-	scriptPath: string
-}
+	scriptPath: string;
+};
 
 // must keep in sync with system prompt
-export const browserActions = ["launch", "click", "type", "scroll_down", "scroll_up", "close"] as const
-export type BrowserAction = (typeof browserActions)[number]
+export const browserActions = [
+	"launch",
+	"click",
+	"type",
+	"scroll_down",
+	"scroll_up",
+	"close",
+] as const;
+export type BrowserAction = (typeof browserActions)[number];
 
 export interface ClineSayBrowserAction {
-	action: BrowserAction
-	coordinate?: string
-	text?: string
+	action: BrowserAction;
+	coordinate?: string;
+	text?: string;
 }
 
 export interface ClineSayGenerateExplanation {
-	title: string
-	fromRef: string
-	toRef: string
-	status: "generating" | "complete" | "error"
-	error?: string
+	title: string;
+	fromRef: string;
+	toRef: string;
+	status: "generating" | "complete" | "error";
+	error?: string;
 }
 
-export type SubagentExecutionStatus = "pending" | "running" | "completed" | "failed"
+export type SubagentExecutionStatus =
+	| "pending"
+	| "running"
+	| "completed"
+	| "failed";
 
 export interface SubagentStatusItem {
-	index: number
-	prompt: string
-	status: SubagentExecutionStatus
-	toolCalls: number
-	inputTokens: number
-	outputTokens: number
-	totalCost: number
-	contextTokens: number
-	contextWindow: number
-	contextUsagePercentage: number
-	latestToolCall?: string
-	result?: string
-	error?: string
+	index: number;
+	prompt: string;
+	status: SubagentExecutionStatus;
+	toolCalls: number;
+	inputTokens: number;
+	outputTokens: number;
+	totalCost: number;
+	contextTokens: number;
+	contextWindow: number;
+	contextUsagePercentage: number;
+	latestToolCall?: string;
+	result?: string;
+	error?: string;
 }
 
 export interface ClineSaySubagentStatus {
-	status: "running" | "completed" | "failed"
-	total: number
-	completed: number
-	successes: number
-	failures: number
-	toolCalls: number
-	inputTokens: number
-	outputTokens: number
-	contextWindow: number
-	maxContextTokens: number
-	maxContextUsagePercentage: number
-	items: SubagentStatusItem[]
+	status: "running" | "completed" | "failed";
+	total: number;
+	completed: number;
+	successes: number;
+	failures: number;
+	toolCalls: number;
+	inputTokens: number;
+	outputTokens: number;
+	contextWindow: number;
+	maxContextTokens: number;
+	maxContextUsagePercentage: number;
+	items: SubagentStatusItem[];
 }
 
 export type BrowserActionResult = {
-	screenshot?: string
-	logs?: string
-	currentUrl?: string
-	currentMousePosition?: string
-}
+	screenshot?: string;
+	logs?: string;
+	currentUrl?: string;
+	currentMousePosition?: string;
+};
 
 export interface ClineAskUseMcpServer {
-	serverName: string
-	type: "use_mcp_tool" | "access_mcp_resource"
-	toolName?: string
-	arguments?: string
-	uri?: string
+	serverName: string;
+	type: "use_mcp_tool" | "access_mcp_resource";
+	toolName?: string;
+	arguments?: string;
+	uri?: string;
 }
 
 export interface ClineAskUseSubagents {
-	prompts: string[]
+	prompts: string[];
 }
 
 export interface ClinePlanModeResponse {
-	response: string
-	options?: string[]
-	selected?: string
+	response: string;
+	options?: string[];
+	selected?: string;
 }
 
 export interface ClineAskQuestion {
-	question: string
-	options?: string[]
-	selected?: string
+	question: string;
+	options?: string[];
+	selected?: string;
 }
 
 export interface ClineAskNewTask {
-	context: string
+	context: string;
 }
 
 export interface ClineApiReqInfo {
-	request?: string
-	tokensIn?: number
-	tokensOut?: number
-	cacheWrites?: number
-	cacheReads?: number
-	cost?: number
-	cancelReason?: ClineApiReqCancelReason
-	streamingFailedMessage?: string
+	request?: string;
+	tokensIn?: number;
+	tokensOut?: number;
+	cacheWrites?: number;
+	cacheReads?: number;
+	cost?: number;
+	cancelReason?: ClineApiReqCancelReason;
+	streamingFailedMessage?: string;
 	retryStatus?: {
-		attempt: number
-		maxAttempts: number
-		delaySec: number
-		errorSnippet?: string
-	}
+		attempt: number;
+		maxAttempts: number;
+		delaySec: number;
+		errorSnippet?: string;
+	};
 }
 
 export interface ClineSubagentUsageInfo {
-	source: "subagents"
-	tokensIn: number
-	tokensOut: number
-	cacheWrites: number
-	cacheReads: number
-	cost: number
+	source: "subagents";
+	tokensIn: number;
+	tokensOut: number;
+	cacheWrites: number;
+	cacheReads: number;
+	cost: number;
 }
 
-export type ClineApiReqCancelReason = "streaming_failed" | "user_cancelled" | "retries_exhausted"
+export type ClineApiReqCancelReason =
+	| "streaming_failed"
+	| "user_cancelled"
+	| "retries_exhausted";
 
-export const COMPLETION_RESULT_CHANGES_FLAG = "HAS_CHANGES"
+export const COMPLETION_RESULT_CHANGES_FLAG = "HAS_CHANGES";

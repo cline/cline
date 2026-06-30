@@ -387,6 +387,7 @@
 		"watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
 		"package": "npm run check-types && npm run build:webview && npm run lint && node esbuild.mjs --production",
 		"protos": "node scripts/build-proto.mjs",
+		"models": "node scripts/generate-models-dev-catalog.mjs",
 		"protos-python": "node scripts/build-python-proto.mjs",
 		"download-ripgrep": "node scripts/download-ripgrep.mjs",
 		"postprotos": "biome format --config-path ./biome.jsonc src/shared/proto src/generated webview-ui/src/services/grpc-client.ts --write --no-errors-on-unmatched",

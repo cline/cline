@@ -1,17 +1,27 @@
-import { ANTHROPIC_FAST_MODE_SUFFIX, anthropicModels, CLAUDE_SONNET_1M_SUFFIX } from "@shared/api"
-import type { Mode } from "@shared/storage/types"
-import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { ApiKeyField } from "../common/ApiKeyField"
-import { BaseUrlField } from "../common/BaseUrlField"
-import { ContextWindowSwitcher } from "../common/ContextWindowSwitcher"
-import { ModelInfoView } from "../common/ModelInfoView"
-import { ModelSelector } from "../common/ModelSelector"
-import { RemotelyConfiguredInputWrapper } from "../common/RemotelyConfiguredInputWrapper"
-import ReasoningEffortSelector from "../ReasoningEffortSelector"
-import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
-import { getModeSpecificFields, normalizeApiConfiguration } from "../utils/providerUtils"
-import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import {
+	ANTHROPIC_FAST_MODE_SUFFIX,
+	CLAUDE_SONNET_1M_SUFFIX,
+} from "@shared/api";
+import { modelsDevAnthropicModels } from "@shared/models/models-dev-catalog";
+import type { Mode } from "@shared/storage/types";
+import {
+	isClaudeOpusAdaptiveThinkingModel,
+	resolveClaudeOpusAdaptiveThinking,
+} from "@shared/utils/reasoning-support";
+import { useExtensionState } from "@/context/ExtensionStateContext";
+import { ApiKeyField } from "../common/ApiKeyField";
+import { BaseUrlField } from "../common/BaseUrlField";
+import { ContextWindowSwitcher } from "../common/ContextWindowSwitcher";
+import { ModelInfoView } from "../common/ModelInfoView";
+import { ModelSelector } from "../common/ModelSelector";
+import { RemotelyConfiguredInputWrapper } from "../common/RemotelyConfiguredInputWrapper";
+import ReasoningEffortSelector from "../ReasoningEffortSelector";
+import ThinkingBudgetSlider from "../ThinkingBudgetSlider";
+import {
+	getModeSpecificFields,
+	normalizeApiConfiguration,
+} from "../utils/providerUtils";
+import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers";
 
 // Anthropic models that support thinking/reasoning mode
 export const SUPPORTED_ANTHROPIC_THINKING_MODELS = [
@@ -25,35 +35,51 @@ export const SUPPORTED_ANTHROPIC_THINKING_MODELS = [
 	"claude-sonnet-4-5-20250929",
 	`claude-sonnet-4-5-20250929${CLAUDE_SONNET_1M_SUFFIX}`,
 	"claude-haiku-4-5-20251001",
-]
+];
 
 /**
  * Props for the AnthropicProvider component
  */
 interface AnthropicProviderProps {
-	showModelOptions: boolean
-	isPopup?: boolean
-	currentMode: Mode
+	showModelOptions: boolean;
+	isPopup?: boolean;
+	currentMode: Mode;
 }
 
 /**
  * The Anthropic provider configuration component
  */
-export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: AnthropicProviderProps) => {
-	const { apiConfiguration, remoteConfigSettings } = useExtensionState()
-	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
-	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
+export const AnthropicProvider = ({
+	showModelOptions,
+	isPopup,
+	currentMode,
+}: AnthropicProviderProps) => {
+	const { apiConfiguration, remoteConfigSettings } = useExtensionState();
+	const { handleFieldChange, handleModeFieldChange } =
+		useApiConfigurationHandlers();
+	const modeFields = getModeSpecificFields(apiConfiguration, currentMode);
 
 	// Get the normalized configuration
-	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
-	const isAdaptiveThinkingModel = isClaudeOpusAdaptiveThinkingModel(selectedModelId)
+	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(
+		apiConfiguration,
+		currentMode,
+	);
+	const isAdaptiveThinkingModel =
+		isClaudeOpusAdaptiveThinkingModel(selectedModelId);
 	const adaptiveThinkingDefaultEffort =
-		resolveClaudeOpusAdaptiveThinking(modeFields.reasoningEffort, modeFields.thinkingBudgetTokens).effort ?? "none"
+		resolveClaudeOpusAdaptiveThinking(
+			modeFields.reasoningEffort,
+			modeFields.thinkingBudgetTokens,
+		).effort ?? "none";
 
 	// Helper function for model switching
 	const handleModelChange = (modelId: string) => {
-		handleModeFieldChange({ plan: "planModeApiModelId", act: "actModeApiModelId" }, modelId, currentMode)
-	}
+		handleModeFieldChange(
+			{ plan: "planModeApiModelId", act: "actModeApiModelId" },
+			modelId,
+			currentMode,
+		);
+	};
 
 	return (
 		<div>
@@ -64,7 +90,9 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 				signupUrl="https://console.anthropic.com/settings/keys"
 			/>
 
-			<RemotelyConfiguredInputWrapper hidden={remoteConfigSettings?.anthropicBaseUrl === undefined}>
+			<RemotelyConfiguredInputWrapper
+				hidden={remoteConfigSettings?.anthropicBaseUrl === undefined}
+			>
 				<BaseUrlField
 					disabled={!!remoteConfigSettings?.anthropicBaseUrl}
 					initialValue={apiConfiguration?.anthropicBaseUrl}
@@ -79,7 +107,7 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 				<>
 					<ModelSelector
 						label="Model"
-						models={anthropicModels}
+						models={modelsDevAnthropicModels}
 						onChange={(e) =>
 							handleModeFieldChange(
 								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
@@ -131,19 +159,28 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 
 					{isAdaptiveThinkingModel ? (
 						<ReasoningEffortSelector
-							allowedEfforts={["none", "low", "medium", "high", "xhigh"] as const}
+							allowedEfforts={
+								["none", "low", "medium", "high", "xhigh"] as const
+							}
 							currentMode={currentMode}
 							defaultEffort={adaptiveThinkingDefaultEffort}
 							description="Use None to disable adaptive thinking. Higher effort increases response detail and token usage."
 							label="Adaptive Thinking"
 						/>
 					) : SUPPORTED_ANTHROPIC_THINKING_MODELS.includes(selectedModelId) ? (
-						<ThinkingBudgetSlider currentMode={currentMode} maxBudget={selectedModelInfo.thinkingConfig?.maxBudget} />
+						<ThinkingBudgetSlider
+							currentMode={currentMode}
+							maxBudget={selectedModelInfo.thinkingConfig?.maxBudget}
+						/>
 					) : null}
 
-					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
+					<ModelInfoView
+						isPopup={isPopup}
+						modelInfo={selectedModelInfo}
+						selectedModelId={selectedModelId}
+					/>
 				</>
 			)}
 		</div>
-	)
-}
+	);
+};

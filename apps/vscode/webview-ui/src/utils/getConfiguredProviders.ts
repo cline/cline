@@ -1,6 +1,6 @@
-import type { ApiConfiguration, ApiProvider } from "@shared/api"
-import PROVIDERS from "@shared/providers/providers.json"
-import type { RemoteConfigFields } from "@shared/storage/state-keys"
+import type { ApiConfiguration, ApiProvider } from "@shared/api";
+import { modelsDevProviderOptions } from "@shared/models/models-dev-catalog";
+import type { RemoteConfigFields } from "@shared/storage/state-keys";
 
 /**
  * Returns a list of API providers that are configured (have required credentials/settings)
@@ -11,114 +11,114 @@ export function getConfiguredProviders(
 	apiConfiguration: ApiConfiguration | undefined,
 ): ApiProvider[] {
 	if (remoteConfig?.remoteConfiguredProviders?.length) {
-		return remoteConfig.remoteConfiguredProviders
+		return remoteConfig.remoteConfiguredProviders;
 	}
 
-	const configured: ApiProvider[] = []
+	const configured: ApiProvider[] = [];
 
 	if (!apiConfiguration) {
-		return ["cline"] // Cline is always available
+		return ["cline"]; // Cline is always available
 	}
 
 	// Cline - always available (uses account-based auth)
-	configured.push("cline")
+	configured.push("cline");
 
 	// Anthropic - requires API key
 	if (apiConfiguration.apiKey) {
-		configured.push("anthropic")
+		configured.push("anthropic");
 	}
 
 	// OpenRouter - requires API key
 	if (apiConfiguration.openRouterApiKey) {
-		configured.push("openrouter")
+		configured.push("openrouter");
 	}
 
 	// Bedrock - requires region
 	if (apiConfiguration.awsRegion) {
-		configured.push("bedrock")
+		configured.push("bedrock");
 	}
 
 	// Vertex - requires project ID and region
 	if (apiConfiguration.vertexProjectId && apiConfiguration.vertexRegion) {
-		configured.push("vertex")
+		configured.push("vertex");
 	}
 
 	// Gemini - requires API key
 	if (apiConfiguration.geminiApiKey) {
-		configured.push("gemini")
+		configured.push("gemini");
 	}
 
 	// OpenAI Native - requires API key
 	if (apiConfiguration.openAiNativeApiKey) {
-		configured.push("openai-native")
+		configured.push("openai-native");
 	}
 
 	// OpenAI Codex - subscription-based OAuth, always available
-	configured.push("openai-codex")
+	configured.push("openai-codex");
 
 	// DeepSeek - requires API key
 	if (apiConfiguration.deepSeekApiKey) {
-		configured.push("deepseek")
+		configured.push("deepseek");
 	}
 
 	// xAI - requires API key
 	if (apiConfiguration.xaiApiKey) {
-		configured.push("xai")
+		configured.push("xai");
 	}
 
 	// Qwen - requires API key
 	if (apiConfiguration.qwenApiKey) {
-		configured.push("qwen")
+		configured.push("qwen");
 	}
 
 	// Doubao - requires API key
 	if (apiConfiguration.doubaoApiKey) {
-		configured.push("doubao")
+		configured.push("doubao");
 	}
 
 	// Mistral - requires API key
 	if (apiConfiguration.mistralApiKey) {
-		configured.push("mistral")
+		configured.push("mistral");
 	}
 
 	// Requesty - requires API key
 	if (apiConfiguration.requestyApiKey) {
-		configured.push("requesty")
+		configured.push("requesty");
 	}
 
 	// Fireworks - requires API key
 	if (apiConfiguration.fireworksApiKey) {
-		configured.push("fireworks")
+		configured.push("fireworks");
 	}
 
 	// Together - requires API key
 	if (apiConfiguration.togetherApiKey) {
-		configured.push("together")
+		configured.push("together");
 	}
 
 	// Moonshot - requires API key
 	if (apiConfiguration.moonshotApiKey) {
-		configured.push("moonshot")
+		configured.push("moonshot");
 	}
 
 	// Nebius - requires API key
 	if (apiConfiguration.nebiusApiKey) {
-		configured.push("nebius")
+		configured.push("nebius");
 	}
 
 	// AskSage - requires API key
 	if (apiConfiguration.asksageApiKey) {
-		configured.push("asksage")
+		configured.push("asksage");
 	}
 
 	// SambaNova - requires API key
 	if (apiConfiguration.sambanovaApiKey) {
-		configured.push("sambanova")
+		configured.push("sambanova");
 	}
 
 	// Cerebras - requires API key
 	if (apiConfiguration.cerebrasApiKey) {
-		configured.push("cerebras")
+		configured.push("cerebras");
 	}
 
 	// SAP AI Core - requires base URL, client ID, client secret, and token URL
@@ -128,62 +128,62 @@ export function getConfiguredProviders(
 		apiConfiguration.sapAiCoreClientSecret &&
 		apiConfiguration.sapAiCoreTokenUrl
 	) {
-		configured.push("sapaicore")
+		configured.push("sapaicore");
 	}
 
 	// Z AI - requires API key
 	if (apiConfiguration.zaiApiKey) {
-		configured.push("zai")
+		configured.push("zai");
 	}
 
 	// Groq - requires API key
 	if (apiConfiguration.groqApiKey) {
-		configured.push("groq")
+		configured.push("groq");
 	}
 
 	// Hugging Face - requires API key
 	if (apiConfiguration.huggingFaceApiKey) {
-		configured.push("huggingface")
+		configured.push("huggingface");
 	}
 
 	// Baseten - requires API key
 	if (apiConfiguration.basetenApiKey) {
-		configured.push("baseten")
+		configured.push("baseten");
 	}
 
 	// Dify - requires base URL and API key
 	if (apiConfiguration.difyBaseUrl && apiConfiguration.difyApiKey) {
-		configured.push("dify")
+		configured.push("dify");
 	}
 
 	// Minimax - requires API key
 	if (apiConfiguration.minimaxApiKey) {
-		configured.push("minimax")
+		configured.push("minimax");
 	}
 
 	// Hicap - requires API key
 	if (apiConfiguration.hicapApiKey) {
-		configured.push("hicap")
+		configured.push("hicap");
 	}
 
 	// Huawei Cloud MaaS - requires API key
 	if (apiConfiguration.huaweiCloudMaasApiKey) {
-		configured.push("huawei-cloud-maas")
+		configured.push("huawei-cloud-maas");
 	}
 
 	// Vercel AI Gateway - requires API key
 	if (apiConfiguration.vercelAiGatewayApiKey) {
-		configured.push("vercel-ai-gateway")
+		configured.push("vercel-ai-gateway");
 	}
 
 	// AIHubMix - requires API key
 	if (apiConfiguration.aihubmixApiKey) {
-		configured.push("aihubmix")
+		configured.push("aihubmix");
 	}
 
 	// NousResearch - requires API key
 	if (apiConfiguration.nousResearchApiKey) {
-		configured.push("nousResearch")
+		configured.push("nousResearch");
 	}
 
 	// OpenAI Compatible - requires base URL and API key, OR has model configured
@@ -192,17 +192,25 @@ export function getConfiguredProviders(
 		apiConfiguration.planModeOpenAiModelId ||
 		apiConfiguration.actModeOpenAiModelId
 	) {
-		configured.push("openai")
+		configured.push("openai");
 	}
 
 	// Ollama - local provider, check base URL OR model configured
-	if (apiConfiguration.ollamaBaseUrl || apiConfiguration.planModeOllamaModelId || apiConfiguration.actModeOllamaModelId) {
-		configured.push("ollama")
+	if (
+		apiConfiguration.ollamaBaseUrl ||
+		apiConfiguration.planModeOllamaModelId ||
+		apiConfiguration.actModeOllamaModelId
+	) {
+		configured.push("ollama");
 	}
 
 	// LM Studio - local provider, check base URL OR model configured
-	if (apiConfiguration.lmStudioBaseUrl || apiConfiguration.planModeLmStudioModelId || apiConfiguration.actModeLmStudioModelId) {
-		configured.push("lmstudio")
+	if (
+		apiConfiguration.lmStudioBaseUrl ||
+		apiConfiguration.planModeLmStudioModelId ||
+		apiConfiguration.actModeLmStudioModelId
+	) {
+		configured.push("lmstudio");
 	}
 
 	// LiteLLM - check base URL, API key OR model configured
@@ -212,35 +220,37 @@ export function getConfiguredProviders(
 		apiConfiguration.planModeLiteLlmModelId ||
 		apiConfiguration.actModeLiteLlmModelId
 	) {
-		configured.push("litellm")
+		configured.push("litellm");
 	}
 
 	// VSCode LM - always potentially available
-	configured.push("vscode-lm")
+	configured.push("vscode-lm");
 
 	// Claude Code - requires path
 	if (apiConfiguration.claudeCodePath) {
-		configured.push("claude-code")
+		configured.push("claude-code");
 	}
 
 	// Qwen Code - requires API key (same as Qwen)
 	if (apiConfiguration.qwenApiKey) {
-		configured.push("qwen-code")
+		configured.push("qwen-code");
 	}
 
 	// OCA - requires base URL
 	if (apiConfiguration.ocaBaseUrl) {
-		configured.push("oca")
+		configured.push("oca");
 	}
 
-	return configured
+	return configured;
 }
 
 /**
  * Get provider display label from provider value
- * Uses the canonical providers.json as source of truth
+ * Uses the generated models.dev provider catalog as source of truth
  */
 export function getProviderLabel(provider: ApiProvider): string {
-	const providerEntry = PROVIDERS.list.find((p) => p.value === provider)
-	return providerEntry?.label || provider
+	const providerEntry = modelsDevProviderOptions.find(
+		(p) => p.value === provider,
+	);
+	return providerEntry?.label || provider;
 }
