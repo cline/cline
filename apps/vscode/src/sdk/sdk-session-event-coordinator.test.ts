@@ -2,7 +2,7 @@ import type { CoreSessionEvent } from "@cline/core"
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { MessageTranslatorState } from "./message-translator"
-import { getProviderFailureDedupeKey, PROVIDER_FAILURE_ERROR_TYPE, PROVIDER_FAILURE_PHASE } from "./provider-failure-telemetry"
+import { PROVIDER_FAILURE_ERROR_TYPE, PROVIDER_FAILURE_PHASE } from "./provider-failure-telemetry"
 import { SdkSessionEventCoordinator, type SdkSessionEventCoordinatorOptions } from "./sdk-session-event-coordinator"
 
 vi.mock("@/shared/services/Logger", () => ({
@@ -287,7 +287,6 @@ describe("SdkSessionEventCoordinator", () => {
 			error,
 			errorType: PROVIDER_FAILURE_ERROR_TYPE.SDK_AGENT_ERROR,
 			failurePhase: PROVIDER_FAILURE_PHASE.STREAMING,
-			dedupeKey: getProviderFailureDedupeKey("turn-1", PROVIDER_FAILURE_PHASE.STREAMING),
 		})
 	})
 
@@ -330,7 +329,6 @@ describe("SdkSessionEventCoordinator", () => {
 			error: "stream failed before assistant output",
 			errorType: PROVIDER_FAILURE_ERROR_TYPE.SDK_AGENT_DONE_ERROR,
 			failurePhase: PROVIDER_FAILURE_PHASE.STREAMING,
-			dedupeKey: getProviderFailureDedupeKey("turn-1", PROVIDER_FAILURE_PHASE.STREAMING),
 		})
 	})
 })
@@ -371,7 +369,6 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		setTurnPhase: vi.fn(),
 		captureProviderApiError: vi.fn(),
 		beginProviderFailureTelemetryTurn: vi.fn(),
-		getProviderFailureDedupeKey: vi.fn((failurePhase) => getProviderFailureDedupeKey("turn-1", failurePhase)),
 		translateSessionEvent: vi.fn(() => input.translation ?? { messages: [], sessionEnded: false, turnComplete: false }),
 		isClineFreeModel: input.isClineFreeModel,
 	} as unknown as SdkSessionEventCoordinatorOptions & {
@@ -392,7 +389,6 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		postStateToWebview: ReturnType<typeof vi.fn>
 		captureProviderApiError: ReturnType<typeof vi.fn>
 		beginProviderFailureTelemetryTurn: ReturnType<typeof vi.fn>
-		getProviderFailureDedupeKey: ReturnType<typeof vi.fn>
 		translateSessionEvent: ReturnType<typeof vi.fn>
 		messageTranslatorState: MessageTranslatorState
 	}

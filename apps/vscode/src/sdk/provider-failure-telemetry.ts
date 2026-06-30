@@ -23,26 +23,24 @@ export type ProviderFailureTelemetry = {
 	modelId?: string
 	errorType: ProviderFailureErrorType
 	failurePhase: ProviderFailurePhase
-	dedupeKey?: string
 }
 
-const PROVIDER_FAILURE_DEDUPE_KEY_PREFIX = "provider-failure"
+export class ProviderFailureTelemetryTurnGate {
+	private activeTurnId: number | undefined
+	private streamingFailureCapturedTurnId: number | undefined
 
-export function getProviderFailureDedupeKey(turnKey: string | undefined, failurePhase: ProviderFailurePhase): string | undefined {
-	return turnKey ? `${PROVIDER_FAILURE_DEDUPE_KEY_PREFIX}:${turnKey}:${failurePhase}` : undefined
-}
+	beginTurn(turnId: number): void {
+		this.activeTurnId = turnId
+	}
 
-export class ProviderFailureTelemetryDeduper {
-	private readonly capturedKeys = new Set<string>()
-
-	shouldCapture(event: Pick<ProviderFailureTelemetry, "dedupeKey">): boolean {
-		if (!event.dedupeKey) {
+	shouldCaptureStreamingFailure(): boolean {
+		if (this.activeTurnId === undefined) {
 			return true
 		}
-		if (this.capturedKeys.has(event.dedupeKey)) {
+		if (this.streamingFailureCapturedTurnId === this.activeTurnId) {
 			return false
 		}
-		this.capturedKeys.add(event.dedupeKey)
+		this.streamingFailureCapturedTurnId = this.activeTurnId
 		return true
 	}
 }

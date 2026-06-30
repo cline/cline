@@ -6,12 +6,7 @@ import type { ClineApiReqInfo, TurnPhase } from "@/shared/ExtensionMessage"
 import { Logger } from "@/shared/services/Logger"
 import type { MessageTranslatorState, TranslationResult } from "./message-translator"
 import { translateSessionEvent } from "./message-translator"
-import {
-	PROVIDER_FAILURE_ERROR_TYPE,
-	PROVIDER_FAILURE_PHASE,
-	type ProviderFailurePhase,
-	type ProviderFailureTelemetry,
-} from "./provider-failure-telemetry"
+import { PROVIDER_FAILURE_ERROR_TYPE, PROVIDER_FAILURE_PHASE, type ProviderFailureTelemetry } from "./provider-failure-telemetry"
 import type { SdkMcpCoordinator } from "./sdk-mcp-coordinator"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import type { SdkModeCoordinator } from "./sdk-mode-coordinator"
@@ -24,7 +19,7 @@ function normalizeModelId(modelId: string): string {
 	return modelId.trim().toLowerCase()
 }
 
-type AgentFailureTelemetry = Pick<ProviderFailureTelemetry, "sessionId" | "error" | "errorType" | "dedupeKey"> | undefined
+type AgentFailureTelemetry = Pick<ProviderFailureTelemetry, "sessionId" | "error" | "errorType"> | undefined
 
 export interface SdkSessionEventCoordinatorOptions {
 	messageTranslatorState: MessageTranslatorState
@@ -47,7 +42,6 @@ export interface SdkSessionEventCoordinatorOptions {
 	setTurnPhase?: (phase: TurnPhase, anchorTs?: number) => void
 	captureProviderApiError?: (event: ProviderFailureTelemetry) => void
 	beginProviderFailureTelemetryTurn?: () => void
-	getProviderFailureDedupeKey?: (failurePhase: ProviderFailurePhase) => string | undefined
 }
 
 export class SdkSessionEventCoordinator {
@@ -82,7 +76,6 @@ export class SdkSessionEventCoordinator {
 				error: agentFailure.error,
 				errorType: agentFailure.errorType,
 				failurePhase: PROVIDER_FAILURE_PHASE.STREAMING,
-				dedupeKey: agentFailure.dedupeKey,
 			})
 		}
 		if (event.type === "pending_prompt_submitted") {
@@ -183,7 +176,6 @@ export class SdkSessionEventCoordinator {
 				sessionId: event.payload.sessionId,
 				error: agentEvent.error,
 				errorType: PROVIDER_FAILURE_ERROR_TYPE.SDK_AGENT_ERROR,
-				dedupeKey: this.options.getProviderFailureDedupeKey?.(PROVIDER_FAILURE_PHASE.STREAMING),
 			}
 		}
 		if (agentEvent.type === "done" && agentEvent.reason === "error") {
@@ -192,7 +184,6 @@ export class SdkSessionEventCoordinator {
 				sessionId: event.payload.sessionId,
 				error: errorMessage,
 				errorType: PROVIDER_FAILURE_ERROR_TYPE.SDK_AGENT_DONE_ERROR,
-				dedupeKey: this.options.getProviderFailureDedupeKey?.(PROVIDER_FAILURE_PHASE.STREAMING),
 			}
 		}
 		return undefined

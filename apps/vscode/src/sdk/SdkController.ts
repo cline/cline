@@ -54,12 +54,10 @@ import type { Disposable, ProviderCatalog, ProviderConfigChange, ProviderConfigS
 import { parseProviderId } from "./model-catalog/provider-id"
 import { createProviderConfigStore } from "./model-catalog/store"
 import {
-	getProviderFailureDedupeKey as buildProviderFailureDedupeKey,
 	PROVIDER_FAILURE_ERROR_TYPE,
 	PROVIDER_FAILURE_PHASE,
-	type ProviderFailurePhase,
 	type ProviderFailureTelemetry,
-	ProviderFailureTelemetryDeduper,
+	ProviderFailureTelemetryTurnGate,
 } from "./provider-failure-telemetry"
 import {
 	findVisibleCheckpointUserMessageByRun,
@@ -167,9 +165,8 @@ export class Controller {
 	private sessionEvents: SdkSessionEventCoordinator
 	private sessionHistory: SdkSessionHistoryLoader
 	private readonly sdkTelemetry: VscodeSdkTelemetryHandle
-	private readonly providerFailureTelemetryDeduper = new ProviderFailureTelemetryDeduper()
+	private readonly providerFailureTelemetryTurnGate = new ProviderFailureTelemetryTurnGate()
 	private providerFailureTelemetryTurnCounter = 0
-	private providerFailureTelemetryTurnKey: string | undefined
 	private readonly providerConfigStore: ProviderConfigStore
 	private readonly providerCatalog: ProviderCatalog
 	private readonly providerConfigStoreSubscription: Disposable
@@ -359,7 +356,6 @@ export class Controller {
 						providerId,
 						errorType: PROVIDER_FAILURE_ERROR_TYPE.SEND_ERROR,
 						failurePhase: PROVIDER_FAILURE_PHASE.STREAMING,
-						dedupeKey: this.getProviderFailureDedupeKey(PROVIDER_FAILURE_PHASE.STREAMING),
 					})
 					this.messages.emitSessionEvents(
 						[
@@ -526,7 +522,6 @@ export class Controller {
 			setTurnPhase: (phase, anchorTs) => this.turnStateTracker.set(phase, anchorTs),
 			captureProviderApiError: (event) => this.captureProviderFailure(event),
 			beginProviderFailureTelemetryTurn: () => this.beginProviderFailureTelemetryTurn(),
-			getProviderFailureDedupeKey: (failurePhase) => this.getProviderFailureDedupeKey(failurePhase),
 		})
 		// Subscribe to MCP tool list changes so we can restart the SDK session
 		// when servers are added/removed/reconnected. The SDK's DefaultSessionBuilder
@@ -885,11 +880,7 @@ export class Controller {
 
 	private beginProviderFailureTelemetryTurn(): void {
 		this.providerFailureTelemetryTurnCounter += 1
-		this.providerFailureTelemetryTurnKey = `turn-${this.providerFailureTelemetryTurnCounter}`
-	}
-
-	private getProviderFailureDedupeKey(failurePhase: ProviderFailurePhase): string | undefined {
-		return buildProviderFailureDedupeKey(this.providerFailureTelemetryTurnKey, failurePhase)
+		this.providerFailureTelemetryTurnGate.beginTurn(this.providerFailureTelemetryTurnCounter)
 	}
 
 	/**
@@ -904,7 +895,10 @@ export class Controller {
 		if (!ulid) {
 			return
 		}
-		if (!this.providerFailureTelemetryDeduper.shouldCapture(event)) {
+		if (
+			event.failurePhase === PROVIDER_FAILURE_PHASE.STREAMING &&
+			!this.providerFailureTelemetryTurnGate.shouldCaptureStreamingFailure()
+		) {
 			return
 		}
 

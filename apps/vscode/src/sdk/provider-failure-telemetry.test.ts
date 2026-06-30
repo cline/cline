@@ -1,26 +1,31 @@
 import { describe, expect, it } from "vitest"
-import {
-	getProviderFailureDedupeKey,
-	PROVIDER_FAILURE_PHASE,
-	ProviderFailureTelemetryDeduper,
-} from "./provider-failure-telemetry"
+import { ProviderFailureTelemetryTurnGate } from "./provider-failure-telemetry"
 
-describe("ProviderFailureTelemetryDeduper", () => {
-	it("suppresses duplicate keyed captures for the same turn", () => {
-		const deduper = new ProviderFailureTelemetryDeduper()
-		const dedupeKey = getProviderFailureDedupeKey("turn-1", PROVIDER_FAILURE_PHASE.STREAMING)
-		const nextTurnDedupeKey = getProviderFailureDedupeKey("turn-2", PROVIDER_FAILURE_PHASE.STREAMING)
+describe("ProviderFailureTelemetryTurnGate", () => {
+	it("captures one streaming failure per active turn", () => {
+		const gate = new ProviderFailureTelemetryTurnGate()
 
-		expect(deduper.shouldCapture({ dedupeKey })).toBe(true)
-		expect(deduper.shouldCapture({ dedupeKey })).toBe(false)
+		gate.beginTurn(1)
 
-		expect(deduper.shouldCapture({ dedupeKey: nextTurnDedupeKey })).toBe(true)
+		expect(gate.shouldCaptureStreamingFailure()).toBe(true)
+		expect(gate.shouldCaptureStreamingFailure()).toBe(false)
 	})
 
-	it("always captures events without a dedupe key", () => {
-		const deduper = new ProviderFailureTelemetryDeduper()
+	it("captures again when a new turn starts", () => {
+		const gate = new ProviderFailureTelemetryTurnGate()
 
-		expect(deduper.shouldCapture({})).toBe(true)
-		expect(deduper.shouldCapture({})).toBe(true)
+		gate.beginTurn(1)
+		expect(gate.shouldCaptureStreamingFailure()).toBe(true)
+		expect(gate.shouldCaptureStreamingFailure()).toBe(false)
+
+		gate.beginTurn(2)
+		expect(gate.shouldCaptureStreamingFailure()).toBe(true)
+	})
+
+	it("does not suppress streaming failures when no turn is active", () => {
+		const gate = new ProviderFailureTelemetryTurnGate()
+
+		expect(gate.shouldCaptureStreamingFailure()).toBe(true)
+		expect(gate.shouldCaptureStreamingFailure()).toBe(true)
 	})
 })
