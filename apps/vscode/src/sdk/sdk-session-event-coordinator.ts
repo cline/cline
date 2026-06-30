@@ -1,4 +1,4 @@
-import type { CoreSessionEvent } from "@cline/core"
+import type { AgentEvent, CoreSessionEvent } from "@cline/core"
 import { refreshClineRecommendedModels } from "@/core/controller/models/refreshClineRecommendedModels"
 import type { StateManager } from "@/core/storage/StateManager"
 import { CLINE_RECOMMENDED_MODELS_FALLBACK } from "@/shared/cline/recommended-models"
@@ -7,9 +7,9 @@ import { Logger } from "@/shared/services/Logger"
 import type { MessageTranslatorState, TranslationResult } from "./message-translator"
 import { translateSessionEvent } from "./message-translator"
 import {
-	getProviderFailureDedupeKey,
 	PROVIDER_FAILURE_ERROR_TYPE,
 	PROVIDER_FAILURE_PHASE,
+	type ProviderFailurePhase,
 	type ProviderFailureTelemetry,
 } from "./provider-failure-telemetry"
 import type { SdkMcpCoordinator } from "./sdk-mcp-coordinator"
@@ -46,7 +46,8 @@ export interface SdkSessionEventCoordinatorOptions {
 	 */
 	setTurnPhase?: (phase: TurnPhase, anchorTs?: number) => void
 	captureProviderApiError?: (event: ProviderFailureTelemetry) => void
-	resetProviderFailureTelemetry?: (sessionId: string) => void
+	beginProviderFailureTelemetryTurn?: () => void
+	getProviderFailureDedupeKey?: (failurePhase: ProviderFailurePhase) => string | undefined
 }
 
 export class SdkSessionEventCoordinator {
@@ -85,7 +86,7 @@ export class SdkSessionEventCoordinator {
 			})
 		}
 		if (event.type === "pending_prompt_submitted") {
-			this.options.resetProviderFailureTelemetry?.(event.payload.sessionId)
+			this.options.beginProviderFailureTelemetryTurn?.()
 			this.options.messageTranslatorState.clearTurnOutcome()
 			this.options.sessions.setRunning(true)
 			this.options.setTurnPhase?.(PROVIDER_FAILURE_PHASE.STREAMING)
@@ -173,7 +174,7 @@ export class SdkSessionEventCoordinator {
 			return undefined
 		}
 
-		const agentEvent = event.payload.event as { type?: string; error?: unknown; reason?: string; text?: unknown }
+		const agentEvent: AgentEvent = event.payload.event
 		if (agentEvent.type === "error") {
 			if (agentEvent.error == null) {
 				return undefined
@@ -182,18 +183,16 @@ export class SdkSessionEventCoordinator {
 				sessionId: event.payload.sessionId,
 				error: agentEvent.error,
 				errorType: PROVIDER_FAILURE_ERROR_TYPE.SDK_AGENT_ERROR,
-				dedupeKey: getProviderFailureDedupeKey(event.payload.sessionId, PROVIDER_FAILURE_PHASE.STREAMING),
+				dedupeKey: this.options.getProviderFailureDedupeKey?.(PROVIDER_FAILURE_PHASE.STREAMING),
 			}
 		}
 		if (agentEvent.type === "done" && agentEvent.reason === "error") {
+			const errorMessage = agentEvent.text.trim() || "SDK agent finished with error"
 			return {
 				sessionId: event.payload.sessionId,
-				error:
-					typeof agentEvent.text === "string" && agentEvent.text.trim()
-						? agentEvent.text
-						: "SDK agent finished with error",
+				error: errorMessage,
 				errorType: PROVIDER_FAILURE_ERROR_TYPE.SDK_AGENT_DONE_ERROR,
-				dedupeKey: getProviderFailureDedupeKey(event.payload.sessionId, PROVIDER_FAILURE_PHASE.STREAMING),
+				dedupeKey: this.options.getProviderFailureDedupeKey?.(PROVIDER_FAILURE_PHASE.STREAMING),
 			}
 		}
 		return undefined

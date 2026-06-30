@@ -28,11 +28,8 @@ export type ProviderFailureTelemetry = {
 
 const PROVIDER_FAILURE_DEDUPE_KEY_PREFIX = "provider-failure"
 
-export function getProviderFailureDedupeKey(
-	sessionId: string | undefined,
-	failurePhase: ProviderFailurePhase,
-): string | undefined {
-	return sessionId ? `${PROVIDER_FAILURE_DEDUPE_KEY_PREFIX}:${sessionId}:${failurePhase}` : undefined
+export function getProviderFailureDedupeKey(turnKey: string | undefined, failurePhase: ProviderFailurePhase): string | undefined {
+	return turnKey ? `${PROVIDER_FAILURE_DEDUPE_KEY_PREFIX}:${turnKey}:${failurePhase}` : undefined
 }
 
 export class ProviderFailureTelemetryDeduper {
@@ -47,14 +44,5 @@ export class ProviderFailureTelemetryDeduper {
 		}
 		this.capturedKeys.add(event.dedupeKey)
 		return true
-	}
-
-	resetSession(sessionId: string): void {
-		const sessionPrefix = `${PROVIDER_FAILURE_DEDUPE_KEY_PREFIX}:${sessionId}:`
-		for (const key of this.capturedKeys) {
-			if (key.startsWith(sessionPrefix)) {
-				this.capturedKeys.delete(key)
-			}
-		}
 	}
 }

@@ -136,7 +136,7 @@ describe("SdkSessionEventCoordinator", () => {
 		await coordinator.handleSessionEvent(event)
 
 		expect(clearTurnOutcome).toHaveBeenCalledOnce()
-		expect(options.resetProviderFailureTelemetry).toHaveBeenCalledWith("session-123")
+		expect(options.beginProviderFailureTelemetryTurn).toHaveBeenCalledOnce()
 		expect(options.sessions.setRunning).toHaveBeenCalledWith(true)
 		expect(options.setTurnPhase).toHaveBeenCalledWith("streaming")
 		expect(options.messages.appendAndEmit).toHaveBeenCalledWith([message], event)
@@ -287,7 +287,7 @@ describe("SdkSessionEventCoordinator", () => {
 			error,
 			errorType: PROVIDER_FAILURE_ERROR_TYPE.SDK_AGENT_ERROR,
 			failurePhase: PROVIDER_FAILURE_PHASE.STREAMING,
-			dedupeKey: getProviderFailureDedupeKey("session-123", PROVIDER_FAILURE_PHASE.STREAMING),
+			dedupeKey: getProviderFailureDedupeKey("turn-1", PROVIDER_FAILURE_PHASE.STREAMING),
 		})
 	})
 
@@ -330,7 +330,7 @@ describe("SdkSessionEventCoordinator", () => {
 			error: "stream failed before assistant output",
 			errorType: PROVIDER_FAILURE_ERROR_TYPE.SDK_AGENT_DONE_ERROR,
 			failurePhase: PROVIDER_FAILURE_PHASE.STREAMING,
-			dedupeKey: getProviderFailureDedupeKey("session-123", PROVIDER_FAILURE_PHASE.STREAMING),
+			dedupeKey: getProviderFailureDedupeKey("turn-1", PROVIDER_FAILURE_PHASE.STREAMING),
 		})
 	})
 })
@@ -370,7 +370,8 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		postStateToWebview: vi.fn().mockResolvedValue(undefined),
 		setTurnPhase: vi.fn(),
 		captureProviderApiError: vi.fn(),
-		resetProviderFailureTelemetry: vi.fn(),
+		beginProviderFailureTelemetryTurn: vi.fn(),
+		getProviderFailureDedupeKey: vi.fn((failurePhase) => getProviderFailureDedupeKey("turn-1", failurePhase)),
 		translateSessionEvent: vi.fn(() => input.translation ?? { messages: [], sessionEnded: false, turnComplete: false }),
 		isClineFreeModel: input.isClineFreeModel,
 	} as unknown as SdkSessionEventCoordinatorOptions & {
@@ -390,7 +391,8 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		taskHistory: SdkSessionEventCoordinatorOptions["taskHistory"] & { updateTaskUsage: ReturnType<typeof vi.fn> }
 		postStateToWebview: ReturnType<typeof vi.fn>
 		captureProviderApiError: ReturnType<typeof vi.fn>
-		resetProviderFailureTelemetry: ReturnType<typeof vi.fn>
+		beginProviderFailureTelemetryTurn: ReturnType<typeof vi.fn>
+		getProviderFailureDedupeKey: ReturnType<typeof vi.fn>
 		translateSessionEvent: ReturnType<typeof vi.fn>
 		messageTranslatorState: MessageTranslatorState
 	}

@@ -90,6 +90,8 @@ export interface SessionConfigInput {
 export interface ActiveSession {
 	/** The session ID */
 	sessionId: string
+	/** The config used to start the active session. */
+	startConfig?: Pick<CoreSessionConfig, "providerId" | "modelId">
 	/** The runtime host instance managing this session (VscodeSessionHost) */
 	sdkHost: SdkSessionHost
 	/** Unsubscribe function for session events */

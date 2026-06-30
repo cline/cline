@@ -27,7 +27,6 @@ import type { Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
 import type { ClineCheckpointRestore } from "@shared/WebviewMessage"
-import { resolveActiveModelIdFromApiConfiguration } from "@/core/controller/models/taskApiModel"
 import { parseMentions } from "@/core/mentions"
 import { ensureMcpServersDirectoryExists } from "@/core/storage/disk"
 import { refreshSdkRemoteConfig } from "@/core/storage/remote-config/sdk-refresh"
@@ -55,9 +54,10 @@ import type { Disposable, ProviderCatalog, ProviderConfigChange, ProviderConfigS
 import { parseProviderId } from "./model-catalog/provider-id"
 import { createProviderConfigStore } from "./model-catalog/store"
 import {
-	getProviderFailureDedupeKey,
+	getProviderFailureDedupeKey as buildProviderFailureDedupeKey,
 	PROVIDER_FAILURE_ERROR_TYPE,
 	PROVIDER_FAILURE_PHASE,
+	type ProviderFailurePhase,
 	type ProviderFailureTelemetry,
 	ProviderFailureTelemetryDeduper,
 } from "./provider-failure-telemetry"
@@ -168,6 +168,8 @@ export class Controller {
 	private sessionHistory: SdkSessionHistoryLoader
 	private readonly sdkTelemetry: VscodeSdkTelemetryHandle
 	private readonly providerFailureTelemetryDeduper = new ProviderFailureTelemetryDeduper()
+	private providerFailureTelemetryTurnCounter = 0
+	private providerFailureTelemetryTurnKey: string | undefined
 	private readonly providerConfigStore: ProviderConfigStore
 	private readonly providerCatalog: ProviderCatalog
 	private readonly providerConfigStoreSubscription: Disposable
@@ -311,8 +313,8 @@ export class Controller {
 				}
 				return this._terminalManager
 			},
-			onSendStart: (sessionId) => {
-				this.providerFailureTelemetryDeduper.resetSession(sessionId)
+			onSendStart: () => {
+				this.beginProviderFailureTelemetryTurn()
 			},
 			onSendComplete: async () => {
 				await this.providerChanges.handleTurnComplete(this.mode)
@@ -357,7 +359,7 @@ export class Controller {
 						providerId,
 						errorType: PROVIDER_FAILURE_ERROR_TYPE.SEND_ERROR,
 						failurePhase: PROVIDER_FAILURE_PHASE.STREAMING,
-						dedupeKey: getProviderFailureDedupeKey(sessionId, PROVIDER_FAILURE_PHASE.STREAMING),
+						dedupeKey: this.getProviderFailureDedupeKey(PROVIDER_FAILURE_PHASE.STREAMING),
 					})
 					this.messages.emitSessionEvents(
 						[
@@ -523,7 +525,8 @@ export class Controller {
 			postStateToWebview: () => this.postStateToWebview(),
 			setTurnPhase: (phase, anchorTs) => this.turnStateTracker.set(phase, anchorTs),
 			captureProviderApiError: (event) => this.captureProviderFailure(event),
-			resetProviderFailureTelemetry: (sessionId) => this.providerFailureTelemetryDeduper.resetSession(sessionId),
+			beginProviderFailureTelemetryTurn: () => this.beginProviderFailureTelemetryTurn(),
+			getProviderFailureDedupeKey: (failurePhase) => this.getProviderFailureDedupeKey(failurePhase),
 		})
 		// Subscribe to MCP tool list changes so we can restart the SDK session
 		// when servers are added/removed/reconnected. The SDK's DefaultSessionBuilder
@@ -856,17 +859,6 @@ export class Controller {
 		}
 	}
 
-	private getActiveModelId(): string | undefined {
-		try {
-			const apiConfig = this.stateManager.getApiConfiguration()
-			const modeValue = this.stateManager.getGlobalSettingsKey("mode")
-			const mode = modeValue === "plan" ? "plan" : "act"
-			return resolveActiveModelIdFromApiConfiguration(apiConfig, mode)
-		} catch {
-			return undefined
-		}
-	}
-
 	private getTaskModelId(): string | undefined {
 		const modelId = this.task?.api?.getModel?.().id?.trim()
 		return modelId && modelId !== "unknown" ? modelId : undefined
@@ -877,7 +869,8 @@ export class Controller {
 		if (sessionId && activeSession?.sessionId !== sessionId) {
 			return undefined
 		}
-		const providerId = activeSession?.startResult?.manifest?.provider?.trim()
+		const providerId =
+			activeSession?.startResult?.manifest?.provider?.trim() || activeSession?.startConfig?.providerId?.trim()
 		return providerId && providerId !== "unknown" ? providerId : undefined
 	}
 
@@ -886,8 +879,17 @@ export class Controller {
 		if (sessionId && activeSession?.sessionId !== sessionId) {
 			return undefined
 		}
-		const modelId = activeSession?.startResult?.manifest?.model?.trim()
+		const modelId = activeSession?.startResult?.manifest?.model?.trim() || activeSession?.startConfig?.modelId?.trim()
 		return modelId && modelId !== "unknown" ? modelId : undefined
+	}
+
+	private beginProviderFailureTelemetryTurn(): void {
+		this.providerFailureTelemetryTurnCounter += 1
+		this.providerFailureTelemetryTurnKey = `turn-${this.providerFailureTelemetryTurnCounter}`
+	}
+
+	private getProviderFailureDedupeKey(failurePhase: ProviderFailurePhase): string | undefined {
+		return buildProviderFailureDedupeKey(this.providerFailureTelemetryTurnKey, failurePhase)
 	}
 
 	/**
@@ -906,13 +908,8 @@ export class Controller {
 			return
 		}
 
-		const provider = event.providerId ?? this.getSessionProviderId(event.sessionId) ?? this.getActiveProviderId() ?? "unknown"
-		const model =
-			event.modelId ??
-			this.getSessionModelId(event.sessionId) ??
-			this.getTaskModelId() ??
-			this.getActiveModelId() ??
-			"unknown"
+		const provider = event.providerId ?? this.getSessionProviderId(event.sessionId) ?? "unknown"
+		const model = event.modelId ?? this.getSessionModelId(event.sessionId) ?? this.getTaskModelId() ?? "unknown"
 		const clineError = ClineError.transform(event.error, model, provider)
 
 		telemetryService.captureProviderApiError({
@@ -920,8 +917,8 @@ export class Controller {
 			model,
 			provider,
 			errorMessage: clineError.message || String(event.error),
-			errorStatus: clineError._error.status,
-			requestId: clineError._error.request_id,
+			errorStatus: clineError.status,
+			requestId: clineError.requestId,
 			errorType: event.errorType,
 			failurePhase: event.failurePhase,
 		})

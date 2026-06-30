@@ -6,16 +6,15 @@ import {
 } from "./provider-failure-telemetry"
 
 describe("ProviderFailureTelemetryDeduper", () => {
-	it("suppresses duplicate keyed captures until the session is reset", () => {
+	it("suppresses duplicate keyed captures for the same turn", () => {
 		const deduper = new ProviderFailureTelemetryDeduper()
-		const dedupeKey = getProviderFailureDedupeKey("session-123", PROVIDER_FAILURE_PHASE.STREAMING)
+		const dedupeKey = getProviderFailureDedupeKey("turn-1", PROVIDER_FAILURE_PHASE.STREAMING)
+		const nextTurnDedupeKey = getProviderFailureDedupeKey("turn-2", PROVIDER_FAILURE_PHASE.STREAMING)
 
 		expect(deduper.shouldCapture({ dedupeKey })).toBe(true)
 		expect(deduper.shouldCapture({ dedupeKey })).toBe(false)
 
-		deduper.resetSession("session-123")
-
-		expect(deduper.shouldCapture({ dedupeKey })).toBe(true)
+		expect(deduper.shouldCapture({ dedupeKey: nextTurnDedupeKey })).toBe(true)
 	})
 
 	it("always captures events without a dedupe key", () => {
