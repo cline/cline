@@ -1004,6 +1004,13 @@ export class AgentRuntime {
 							part: { type: "text", text: piece.text },
 						});
 					}
+					await this.emit({
+						type: "assistant-text-delta",
+						snapshot: this.snapshot(),
+						iteration: this.state.iteration,
+						text: piece.text,
+						accumulatedText,
+					});
 				} else {
 					const key = piece.toolCallId;
 					let assembly = toolAssemblies.get(key);

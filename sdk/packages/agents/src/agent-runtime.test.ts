@@ -1877,4 +1877,48 @@ describe("AgentRuntime", () => {
 			.join("");
 		expect(text).toContain("<invoke>");
 	});
+
+	it("emits assistant-text-delta for text released by the tool-call parser flush", async () => {
+		// Regression: when the model stream ends mid-markup (last delta ends
+		// with '<inv'), the parser flushes the held-back tail as text. The
+		// flush path must fire assistant-text-delta so subscribers that
+		// accumulate text from those events see the full transcript —
+		// without it, the final characters appear in the message but were
+		// silently skipped during the stream.
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "Hello " },
+				{ type: "text-delta", text: "world" },
+				{ type: "text-delta", text: "<inv" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({ model });
+
+		const textDeltas: Array<{
+			text: string;
+			accumulatedText: string;
+		}> = [];
+		runtime.subscribe((event) => {
+			if (event.type === "assistant-text-delta") {
+				textDeltas.push({
+					text: event.text,
+					accumulatedText: event.accumulatedText,
+				});
+			}
+		});
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("completed");
+		// One delta per inline text piece plus one for the flushed tail.
+		expect(textDeltas.map((d) => d.text)).toEqual(["Hello ", "world", "<inv"]);
+		// Each accumulatedText includes the current piece plus everything
+		// that came before it — including the flushed tail.
+		expect(textDeltas.map((d) => d.accumulatedText)).toEqual([
+			"Hello ",
+			"Hello world",
+			"Hello world<inv",
+		]);
+	});
 });
