@@ -1,6 +1,13 @@
 import type { AgentMessage } from "@cline/shared";
 import type { GitHubPrDashboardRun, GitHubPrDashboardSnapshot } from "./schema";
 
+export interface DashboardHtmlRenderOptions {
+	checkpointStatus?: "changed" | "unchanged";
+	checkpointReason?: string;
+	snapshotHash?: string;
+	changeSummary?: string[];
+}
+
 function tableRows(rows: string[][]): string {
 	return rows.map((row) => `| ${row.join(" | ")} |`).join("\n");
 }
@@ -222,6 +229,7 @@ function topList(items: Array<{ login: string; count: number }>): string {
 
 export function renderDashboardHtml(
 	snapshot: GitHubPrDashboardSnapshot,
+	options: DashboardHtmlRenderOptions = {},
 ): string {
 	const waitingRows = snapshot.waitingForReview.map((pr) => [
 		`<a href="${escapeHtml(pr.url)}">${escapeHtml(`${pr.repository}#${pr.number}`)}</a>`,
@@ -253,6 +261,29 @@ export function renderDashboardHtml(
 				`<span class="repo-pill">${escapeHtml(repository)}</span>`,
 		)
 		.join("");
+	const checkpointBanner = options.checkpointStatus
+		? (() => {
+				const checkpointChanged = options.checkpointStatus === "changed";
+				const checkpointTitle = checkpointChanged
+					? "Checkpoint: dashboard data changed"
+					: "Checkpoint: no dashboard changes";
+				const checkpointDescription =
+					options.checkpointReason ??
+					(checkpointChanged
+						? "The gate found a new dashboard snapshot and would wake the agent."
+						: "The gate matched the previous applied snapshot and skipped the agent run.");
+				const checkpointChanges = options.changeSummary?.length
+					? `<ul class="checkpoint-list">${options.changeSummary.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
+					: "";
+				const checkpointHash = options.snapshotHash
+					? `<code>${escapeHtml(options.snapshotHash.slice(0, 12))}</code>`
+					: "";
+				return `<section class="checkpoint ${checkpointChanged ? "checkpoint-changed" : "checkpoint-unchanged"}">
+<div><span class="checkpoint-kicker">${checkpointChanged ? "Agent wake" : "Checkpoint hit"}</span><h2>${checkpointTitle}</h2><p>${escapeHtml(checkpointDescription)}</p>${checkpointChanges}</div>
+<div class="checkpoint-hash"><span>Snapshot</span>${checkpointHash}</div>
+</section>`;
+			})()
+		: "";
 
 	return `<!doctype html>
 <html lang="en">
@@ -318,6 +349,16 @@ a:hover { color: white; text-decoration: underline; text-underline-offset: 3px; 
 .repo-list { display: flex; flex-wrap: wrap; gap: 8px; }
 .repo-pill { background: rgba(255, 255, 255, 0.06); border: 1px solid var(--divider); border-radius: 999px; color: var(--muted-strong); font-size: 0.78rem; font-weight: 700; padding: 7px 10px; }
 .timestamp { color: var(--muted); font-size: 0.82rem; margin: 0; text-align: right; }
+.checkpoint { align-items: center; border: 1px solid var(--divider); border-radius: var(--radius-card); display: flex; gap: 18px; justify-content: space-between; margin-top: 18px; padding: 18px 20px; }
+.checkpoint-unchanged { background: linear-gradient(135deg, rgba(16,185,129,0.20), rgba(20,184,166,0.10) 52%, rgba(24,24,27,0.78)); border-color: rgba(52,211,153,0.28); }
+.checkpoint-changed { background: linear-gradient(135deg, rgba(168,85,247,0.24), rgba(232,121,249,0.10) 52%, rgba(24,24,27,0.78)); border-color: rgba(192,132,252,0.32); }
+.checkpoint-kicker { color: var(--emerald); display: block; font-size: 0.7rem; font-weight: 800; letter-spacing: 0.14em; margin-bottom: 8px; text-transform: uppercase; }
+.checkpoint-changed .checkpoint-kicker { color: #f0abfc; }
+.checkpoint p { color: var(--muted); font-size: 0.9rem; line-height: 1.55; margin: 8px 0 0; max-width: 700px; }
+.checkpoint-list { color: var(--muted-strong); font-size: 0.85rem; margin: 10px 0 0; padding-left: 18px; }
+.checkpoint-hash { align-items: flex-end; display: flex; flex-direction: column; gap: 6px; white-space: nowrap; }
+.checkpoint-hash span { color: var(--muted); font-size: 0.7rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; }
+.checkpoint-hash code { background: rgba(0,0,0,0.24); border: 1px solid var(--divider); border-radius: 8px; color: var(--muted-strong); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.82rem; padding: 6px 8px; }
 .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
 .metric, .panel, .section-card { background: var(--card); border: 1px solid var(--divider); border-radius: var(--radius-card); box-shadow: 0 12px 42px rgba(0,0,0,0.22); }
 .metric { min-height: 132px; padding: 20px; position: relative; overflow: hidden; }
@@ -346,6 +387,8 @@ section.dashboard-section { margin-top: 28px; }
   main { padding: 22px 14px 36px; }
   .hero { border-radius: 18px; }
   .timestamp { text-align: left; }
+  .checkpoint { align-items: flex-start; flex-direction: column; }
+  .checkpoint-hash { align-items: flex-start; }
   .section-header { align-items: flex-start; flex-direction: column; gap: 6px; }
   th, td { padding: 12px; }
 }
@@ -370,6 +413,7 @@ ${metricCard(`New open PRs (${snapshot.window.newPrHours}h)`, String(snapshot.su
 ${metricCard(`Recently closed (${snapshot.window.recentlyClosedDays}d)`, String(snapshot.summary.recentlyClosedCount))}
 ${metricCard("Avg review wait", `${snapshot.summary.avgWaitingForReviewHours}h`)}
 </div>
+${checkpointBanner}
 </div>
 </section>
 <section class="dashboard-section section-card"><div class="section-header"><h2>Waiting for Review</h2><span class="muted">${snapshot.waitingForReview.length} PRs</span></div><div class="section-body">${

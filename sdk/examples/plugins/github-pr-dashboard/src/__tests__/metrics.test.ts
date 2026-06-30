@@ -190,6 +190,29 @@ describe("github PR dashboard metrics", () => {
 		expect(html).toContain("<!doctype html>");
 		expect(html).toContain("GitHub PR Dashboard");
 		expect(html).toContain("cline/cline");
+		expect(html).not.toContain("Checkpoint:");
+	});
+
+	it("renders checkpoint status in the standalone HTML dashboard", () => {
+		const snapshot = buildDashboardSnapshot({
+			generatedAt: new Date("2026-06-10T00:00:00Z"),
+			repositories: ["cline/cline"],
+			newPrHours: 24,
+			recentlyClosedDays: 7,
+			trendDays: 1,
+			pullsByRepo: { "cline/cline": [] },
+			reviewsByRepo: { "cline/cline": [] },
+		});
+
+		const html = renderDashboardHtml(snapshot, {
+			checkpointStatus: "unchanged",
+			checkpointReason: "no GitHub PR dashboard changes, exiting",
+			snapshotHash: "abcdef1234567890",
+		});
+
+		expect(html).toContain("Checkpoint: no dashboard changes");
+		expect(html).toContain("no GitHub PR dashboard changes, exiting");
+		expect(html).toContain("abcdef123456");
 	});
 
 	it("summarizes dashboard deltas from a previous snapshot", () => {

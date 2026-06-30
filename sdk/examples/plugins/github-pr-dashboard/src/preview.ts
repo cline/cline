@@ -142,7 +142,15 @@ const htmlPath = resolveOutputPath(
 );
 
 writeTextFile(markdownPath, renderDashboardMarkdown(result.snapshot));
-writeTextFile(htmlPath, renderDashboardHtml(result.snapshot));
+writeTextFile(
+	htmlPath,
+	renderDashboardHtml(result.snapshot, {
+		checkpointStatus: result.stop ? "unchanged" : "changed",
+		checkpointReason: result.reason,
+		changeSummary: result.changeSummary,
+		snapshotHash: result.snapshotHash,
+	}),
+);
 if (result.snapshotHash) {
 	markGitHubPrDashboardSnapshotApplied({
 		snapshotHash: result.snapshotHash,
