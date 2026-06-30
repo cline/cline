@@ -269,7 +269,9 @@ describe("TerminalProcess (Integration Tests)", () => {
 			const emitSpy = sandbox.spy(process, "emit")
 
 			// Run the command
-			await process.run(terminal, "echo test")
+			const runPromise = process.run(terminal, "echo test")
+			await sandbox.clock.tickAsync(500)
+			await runPromise
 
 			// Verify the executeCommand was called with the right command
 			mockExecuteCommand.calledWith("echo test").should.be.true()
@@ -299,7 +301,9 @@ describe("TerminalProcess (Integration Tests)", () => {
 
 			const emitSpy = sandbox.spy(process, "emit")
 
-			await process.run(terminal, "test-command")
+			const runPromise = process.run(terminal, "test-command")
+			await sandbox.clock.tickAsync(500)
+			await runPromise
 
 			// Check that line events were emitted for each line
 			;(emitSpy as sinon.SinonSpy).calledWith("line", "line1").should.be.true()
@@ -325,7 +329,9 @@ describe("TerminalProcess (Integration Tests)", () => {
 			// Spy on global setTimeout
 			const setTimeoutSpy = sandbox.spy(global, "setTimeout")
 
-			await process.run(terminal, "build command")
+			const runPromise = process.run(terminal, "build command")
+			await sandbox.clock.tickAsync(500)
+			await runPromise
 
 			// Move time forward enough to schedule
 			sandbox.clock.tick(100)
@@ -352,16 +358,19 @@ describe("TerminalProcess (Integration Tests)", () => {
 
 			const setTimeoutSpy = sandbox.spy(global, "setTimeout")
 
-			await process.run(terminal, "standard command")
+			const runPromise = process.run(terminal, "standard command")
+			await sandbox.clock.tickAsync(500)
+			await runPromise
 			sandbox.clock.tick(100)
 
 			// Expect a short hot timeout (<= 5000)
 			const foundNormalTimeout = setTimeoutSpy.args.filter((args) => args[1] && args[1] <= 5000)
 			foundNormalTimeout.length.should.be.greaterThan(0)
 
-			// Also check that "completed" eventually emits
 			const emitSpy = sandbox.spy(process, "emit")
-			await process.run(terminal, "another command")
+			const runPromise2 = process.run(terminal, "another command")
+			await sandbox.clock.tickAsync(500)
+			await runPromise2
 			;(emitSpy as sinon.SinonSpy).calledWith("completed").should.be.true()
 		})
 
@@ -388,7 +397,9 @@ describe("TerminalProcess (Integration Tests)", () => {
 
 			const emitSpy = sandbox.spy(process, "emit")
 
-			await process.run(terminal, "test-command")
+			const runPromise = process.run(terminal, "test-command")
+			await sandbox.clock.tickAsync(500)
+			await runPromise
 
 			// Output after C should be emitted
 			;(emitSpy as sinon.SinonSpy).calledWith("line", "test command").should.be.true()
@@ -419,7 +430,9 @@ describe("TerminalProcess (Integration Tests)", () => {
 
 			const emitSpy = sandbox.spy(process, "emit")
 
-			await process.run(terminal, "npm run build")
+			const runPromise = process.run(terminal, "npm run build")
+			await sandbox.clock.tickAsync(500)
+			await runPromise
 
 			// The command echo should be excluded; the rest (after C) should be emitted
 			;(emitSpy as sinon.SinonSpy).calledWith("line", "> project@1.0.0 build").should.be.true()
