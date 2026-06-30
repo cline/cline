@@ -76,6 +76,7 @@ import { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
 import { SdkSessionEventCoordinator } from "./sdk-session-event-coordinator"
 import { SdkSessionHistoryLoader } from "./sdk-session-history-loader"
 import { SdkSessionLifecycle } from "./sdk-session-lifecycle"
+import { SdkPluginCommandCoordinator, type PluginSlashCommand } from "./sdk-plugin-commands"
 import { SdkTaskControlCoordinator } from "./sdk-task-control-coordinator"
 import { SdkTaskHistory, sessionHistoryRecordToHistoryItem } from "./sdk-task-history"
 import { SdkTaskStartCoordinator } from "./sdk-task-start-coordinator"
@@ -166,6 +167,7 @@ export class Controller {
 	private compaction: SdkCompactionCoordinator
 	private sessionEvents: SdkSessionEventCoordinator
 	private sessionHistory: SdkSessionHistoryLoader
+	private pluginCommands: SdkPluginCommandCoordinator
 	private readonly sdkTelemetry: VscodeSdkTelemetryHandle
 	private readonly providerFailureTelemetryTurnGate = new ProviderFailureTelemetryTurnGate()
 	private readonly providerConfigStore: ProviderConfigStore
@@ -480,6 +482,7 @@ export class Controller {
 			},
 			postStateToWebview: () => this.postStateToWebview(),
 		})
+		this.pluginCommands = new SdkPluginCommandCoordinator()
 		this.taskStart = new SdkTaskStartCoordinator({
 			stateManager: this.stateManager,
 			sessions: this.sessions,
@@ -570,6 +573,15 @@ export class Controller {
 
 	invalidateProviderListings(): void {
 		this.providerCatalog.invalidateProviderListings()
+	}
+
+	/**
+	 * Return plugin-registered slash commands for autocomplete. Used by the
+	 * getAvailableSlashCommands gRPC handler to surface plugin commands in the
+	 * webview's slash command picker.
+	 */
+	getPluginSlashCommands(): Promise<PluginSlashCommand[]> {
+		return this.pluginCommands.getSlashCommands()
 	}
 
 	private handleProviderConfigChange(event: ProviderConfigChange): void {
@@ -674,6 +686,7 @@ export class Controller {
 		// are disposed below — see StatePostDebouncer.dispose().
 		await this.statePostDebouncer.dispose()
 		await this.invalidateUserInstructionService()
+		await this.pluginCommands.dispose()
 		this.messages.cancelPendingSave()
 		// Clear MCP tool list change callback before disposing McpHub
 		this.mcpHub?.clearToolListChangeCallback()
@@ -734,14 +747,42 @@ export class Controller {
 	}
 
 	/**
-	 * Expand a leading `/workflow` or `/skill` slash command into its instruction
-	 * body. Mirrors the CLI's `buildUserInputMessage`. Returns the input unchanged
-	 * if it is not a known command or expansion fails.
+	 * Expand a leading slash command. First checks plugin-registered commands
+	 * (e.g. `/goal`), then falls back to workflow/skill expansion via the
+	 * user-instruction service. For plugin commands:
+	 * - If the handler returns `submitPrompt`, that becomes the prompt text.
+	 * - If the handler returns `reply`, it is emitted as a say message.
+	 * - If only `reply` is returned (no `submitPrompt`), returns empty string
+	 *   so the agent turn is suppressed (the reply was already shown).
+	 * Returns the input unchanged if it is not a known command.
 	 */
 	private async resolveSlashCommands(text: string): Promise<string> {
 		if (this.isDisposed) {
 			return text
 		}
+
+		// Check plugin commands first — they take precedence over
+		// workflow/skill expansion so plugin names cannot be shadowed.
+		try {
+			const result = await this.pluginCommands.resolveCommand(text)
+			if (result) {
+				if (result.reply) {
+					this.messages.emitSessionEvents([
+						{
+							ts: Date.now(),
+							type: "say",
+							say: "text",
+							text: result.reply,
+							partial: false,
+						},
+					])
+				}
+				return result.submitPrompt ?? ""
+			}
+		} catch (error) {
+			Logger.warn("[SdkController] Plugin command resolution failed, falling through:", error)
+		}
+
 		try {
 			const workspaceRoot = await this.getWorkspaceRoot()
 			const service = await this.ensureUserInstructionService(workspaceRoot)

@@ -21,6 +21,23 @@ export async function getAvailableSlashCommands(controller: Controller, _request
 		)
 	}
 
+	// Add plugin-registered commands
+	try {
+		const pluginCommands = await controller.getPluginSlashCommands()
+		for (const cmd of pluginCommands) {
+			commands.push(
+				SlashCommandInfo.create({
+					name: cmd.name,
+					description: cmd.description ?? `Plugin command: ${cmd.name}`,
+					section: "custom",
+					cliCompatible: true,
+				}),
+			)
+		}
+	} catch {
+		// Plugin command discovery is best-effort; don't fail the whole list.
+	}
+
 	// Get workflow toggles from state
 	const localWorkflowToggles = controller.stateManager.getWorkspaceStateKey("workflowToggles") ?? {}
 	const globalWorkflowToggles = controller.stateManager.getGlobalSettingsKey("globalWorkflowToggles") ?? {}
