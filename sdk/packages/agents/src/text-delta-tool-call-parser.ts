@@ -30,10 +30,6 @@ const MAX_BUFFER_BYTES = 64 * 1024;
 const INVOKE_OPEN_PATTERN = /<\s*invoke\b[^>]*>/gi;
 // `name="..."` attribute extractor (no /g flag — single match per tag).
 const NAME_ATTR_PATTERN = /\bname\s*=\s*"([^"]*)"/i;
-// `<parameter name="K">V</parameter>` (or self-closing). Global so we can
-// iterate parameters inside a single `<invoke>` body.
-const PARAMETER_PATTERN =
-	/<\s*parameter\b([^>]*?)(?:\/\s*>|>([\s\S]*?)<\s*\/\s*parameter\s*>)/gi;
 
 export type ParsedDelta =
 	| { kind: "text"; text: string }
@@ -183,19 +179,99 @@ function matchFirst(
 	return { start: m.index, end: m.index + m[0].length };
 }
 
+/**
+ * Parse `<parameter ...>...</parameter>` (or self-closing) blocks out of the
+ * content between `<invoke>` and `</invoke>`. Walks forward to classify
+ * every `<parameter>` open, self-close, and `</parameter>` close, then
+ * processes opens LEFT to RIGHT, binding each open to the LAST `</parameter>`
+ * that lies within its scope (i.e. between this open's end and the next
+ * open's start, or end of buffer). Any `</parameter>` that sits between an
+ * open and its binding close is absorbed as content rather than treated
+ * as the open's closer.
+ *
+ * This is what lets a parameter value contain the literal `</parameter>`
+ * without truncating: the stray close inside the value lands between the
+ * open and the LAST close in scope, so it ends up inside the slice that
+ * becomes the value. Tolerant of malformed input: an open whose close
+ * never arrives keeps the remainder as its value rather than throwing.
+ */
 function parseParameters(content: string): Record<string, unknown> {
 	const result: Record<string, unknown> = {};
-	PARAMETER_PATTERN.lastIndex = 0;
-	let m: RegExpExecArray | null;
-	while ((m = PARAMETER_PATTERN.exec(content)) !== null) {
-		const attrs = m[1];
-		const innerText = (m[2] ?? "").trim();
-		const nameMatch = NAME_ATTR_PATTERN.exec(attrs);
-		if (!nameMatch || !nameMatch[1]) {
+	const closeParam = /^<\s*\/\s*parameter\s*>/i;
+	const selfCloseParam = /^<\s*parameter\b[^>]*\/\s*>/i;
+	const openParam = /^<\s*parameter\b[^>]*>/i;
+
+	type Open = { start: number; end: number; key: string | null };
+	const opens: Open[] = [];
+	const selfs: Open[] = [];
+	const closes: { start: number; end: number }[] = [];
+
+	let i = 0;
+	while (i < content.length) {
+		const lt = content.indexOf("<", i);
+		if (lt === -1) {
+			break;
+		}
+		const slice = content.slice(lt);
+		let m: RegExpExecArray | null;
+		if ((m = selfCloseParam.exec(slice))) {
+			const nameMatch = NAME_ATTR_PATTERN.exec(slice);
+			selfs.push({
+				start: lt,
+				end: lt + m[0].length,
+				key: nameMatch?.[1] ?? null,
+			});
+			i = lt + m[0].length;
+		} else if ((m = openParam.exec(slice))) {
+			const nameMatch = NAME_ATTR_PATTERN.exec(slice);
+			opens.push({
+				start: lt,
+				end: lt + m[0].length,
+				key: nameMatch?.[1] ?? null,
+			});
+			i = lt + m[0].length;
+		} else if ((m = closeParam.exec(slice))) {
+			closes.push({ start: lt, end: lt + m[0].length });
+			i = lt + m[0].length;
+		} else {
+			// Anything else (prose '<' or other tag) — step over.
+			i = lt + 1;
+		}
+	}
+
+	// Self-closing tags resolve immediately — empty value, no pairing needed.
+	for (const s of selfs) {
+		if (s.key !== null) {
+			result[s.key] = "";
+		}
+	}
+
+	// Process opens LEFT to RIGHT. For each open, find the LAST close that
+	// lies within its scope (after this open's end and before the next
+	// open's start, or end of buffer). That close binds the open; any
+	// other closes between the open's end and the binding close are
+	// absorbed into the value as content. If no close is in scope, the
+	// open keeps the remainder as its value (tolerant of malformed input).
+	for (let oi = 0; oi < opens.length; oi++) {
+		const open = opens[oi];
+		if (open.key === null) {
 			continue;
 		}
-		result[nameMatch[1]] = innerText;
+		const nextStart =
+			oi + 1 < opens.length ? opens[oi + 1].start : content.length;
+		let binding: { start: number; end: number } | null = null;
+		for (const close of closes) {
+			if (close.start >= open.end && close.end <= nextStart) {
+				binding = close;
+			}
+		}
+		if (binding) {
+			result[open.key] = content.slice(open.end, binding.start).trim();
+		} else {
+			result[open.key] = content.slice(open.end, nextStart).trim();
+		}
 	}
+
 	return result;
 }
 

@@ -273,6 +273,48 @@ describe("TextDeltaToolCallParser", () => {
 		]);
 	});
 
+	it("treats </parameter> inside a parameter body as content, not a close tag", () => {
+		// Regression (Greptile follow-up): a parameter value that documents
+		// the very format we parse must not be mistaken for the parameter's
+		// closer. The outer <invoke>...</invoke> scan was already correct
+		// (see findCloseTag); parseParameters must mirror that at the
+		// parameter layer.
+		const parser = new TextDeltaToolCallParser(makeUid());
+
+		const events = parser.consume(
+			'<invoke name="write_file"><parameter name="content">has </parameter> here</parameter></invoke>',
+		);
+
+		expect(events).toEqual([
+			{
+				kind: "tool-call",
+				toolCallId: "tool_1",
+				toolName: "write_file",
+				input: { content: "has </parameter> here" },
+			},
+		]);
+	});
+
+	it("handles </parameter> embedded in a later parameter of a multi-parameter block", () => {
+		// Symmetric to the </invoke>-embedded test above: an earlier
+		// parameter closes cleanly, then a later parameter contains the
+		// literal </parameter> substring and must not truncate.
+		const parser = new TextDeltaToolCallParser(makeUid());
+
+		const events = parser.consume(
+			'<invoke name="a"><parameter name="x">safe</parameter><parameter name="y">has </parameter> here</parameter></invoke>',
+		);
+
+		expect(events).toEqual([
+			{
+				kind: "tool-call",
+				toolCallId: "tool_1",
+				toolName: "a",
+				input: { x: "safe", y: "has </parameter> here" },
+			},
+		]);
+	});
+
 	it("handles a self-closing <parameter> tag", () => {
 		const parser = new TextDeltaToolCallParser(makeUid());
 
