@@ -117,6 +117,7 @@ const PROVIDER_IDS_MAP: ReadonlyArray<{
 	{ modelsDevKey: "kilo", generatedProviderId: "kilo" },
 	{ modelsDevKey: "xiaomi", generatedProviderId: "xiaomi" },
 	{ modelsDevKey: "v0", generatedProviderId: "v0" },
+	{ modelsDevKey: "tencent-tokenhub", generatedProviderId: "tencent" },
 ];
 
 function dedupe(values: readonly string[]): string[] {

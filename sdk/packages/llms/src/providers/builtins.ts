@@ -871,6 +871,17 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		defaults: { baseUrl: "https://api.xiaomimimo.com/v1" },
 	},
 	{
+		id: "tencent",
+		name: "Tencent TokenHub",
+		description: "Tencent TokenHub AI models",
+		family: "openai-compatible",
+		capabilities: ["tools", "reasoning"],
+		defaultModelId: "hy3-preview",
+		apiKeyEnv: ["TENCENT_API_KEY"],
+		modelsProviderId: "tencent",
+		defaults: { baseUrl: "https://tokenhub.tencentmaas.com/v1" },
+	},
+	{
 		id: "kilo",
 		name: "Kilo Gateway",
 		description: "Kilo Gateway",

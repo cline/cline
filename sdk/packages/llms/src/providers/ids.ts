@@ -47,6 +47,7 @@ export enum BUILT_IN_PROVIDER {
 	HUAWEI_CLOUD_MAAS = "huawei-cloud-maas",
 	WANDB = "wandb",
 	XIAOMI = "xiaomi",
+	TENCENT = "tencent",
 	KILO = "kilo",
 	ZAI = "zai",
 	ZAI_CODING_PLAN = "zai-coding-plan",

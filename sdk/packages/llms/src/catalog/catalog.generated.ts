@@ -18336,6 +18336,24 @@ export const GENERATED_PROVIDER_MODELS: {
 				family: "claude-opus",
 			},
 		},
+		tencent: {
+			"hy3-preview": {
+				id: "hy3-preview",
+				name: "Hy3 preview",
+				contextWindow: 256000,
+				maxInputTokens: 256000,
+				maxTokens: 64000,
+				capabilities: ["tools", "reasoning", "temperature"],
+				pricing: {
+					input: 0.29,
+					output: 1.18,
+					cacheRead: 0.12,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-04-20",
+				family: "Hy",
+			},
+		},
 		together: {
 			"moonshotai/Kimi-K2.7-Code": {
 				id: "moonshotai/Kimi-K2.7-Code",
