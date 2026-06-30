@@ -1,5 +1,6 @@
 import fs from "node:fs"
 import path from "node:path"
+import { createRequire } from "node:module"
 import { fileURLToPath } from "node:url"
 import * as esbuild from "esbuild"
 
@@ -178,6 +179,39 @@ const e2eBuildConfig = {
 	plugins: [aliasResolverPlugin, esbuildProblemMatcherPlugin],
 }
 
+/**
+ * Copies the plugin sandbox bootstrap from the built @cline/core package into
+ * the extension's dist directory. The bootstrap runs in an isolated child
+ * process spawned by SubprocessSandbox and must be a separate file — it cannot
+ * be inlined into the main bundle. resolveBootstrap() (bundled into
+ * extension.js) searches for it at dist/extensions/plugin-sandbox-bootstrap.js.
+ *
+ * The bootstrap has external runtime dependencies (jiti for TypeScript
+ * transpilation, @cline/shared) that it resolves via Node's standard module
+ * resolution from its on-disk location. Both must be direct dependencies of
+ * the extension so they are present in node_modules and resolvable from
+ * dist/extensions/. The CLI build performs the same copy in apps/cli/bun.mts.
+ */
+function copyPluginSandboxBootstrap() {
+	if (e2eBuild) return
+	const projectRequire = createRequire(import.meta.url)
+	let corePackageDir
+	try {
+		corePackageDir = path.dirname(projectRequire.resolve("@cline/core/package.json"))
+	} catch {
+		console.warn("[esbuild] @cline/core not found — skipping plugin sandbox bootstrap copy")
+		return
+	}
+	const bootstrapSrc = path.join(corePackageDir, "dist", "extensions", "plugin-sandbox-bootstrap.js")
+	if (!fs.existsSync(bootstrapSrc)) {
+		console.warn(`[esbuild] plugin-sandbox-bootstrap.js not found at ${bootstrapSrc} — build @cline/core first`)
+		return
+	}
+	const bootstrapDest = path.join(__dirname, destDir, "extensions", "plugin-sandbox-bootstrap.js")
+	fs.mkdirSync(path.dirname(bootstrapDest), { recursive: true })
+	fs.copyFileSync(bootstrapSrc, bootstrapDest)
+}
+
 async function main() {
 	const config = standalone ? standaloneConfig : e2eBuild ? e2eBuildConfig : extensionConfig
 	const extensionCtx = await esbuild.context(config)
@@ -187,6 +221,7 @@ async function main() {
 		await extensionCtx.rebuild()
 		await extensionCtx.dispose()
 	}
+	copyPluginSandboxBootstrap()
 }
 
 main().catch((e) => {
