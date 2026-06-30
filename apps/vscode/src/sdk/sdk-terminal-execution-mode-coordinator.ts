@@ -95,6 +95,18 @@ export class SdkTerminalExecutionModeCoordinator {
 
 			const initialMessages = await this.options.loadInitialMessages(oldManager, oldSessionId)
 			const startInput = this.options.buildStartSessionInput(config, { cwd, mode })
+
+			// Re-check that the active session hasn't been replaced by another path
+			// (e.g. user started a new task or a provider restart completed) during
+			// the async operations above. Bail out if it no longer matches.
+			const currentSession = this.options.sessions.getActiveSession()
+			if (!currentSession || currentSession.sessionId !== oldSessionId) {
+				Logger.log(
+					`[SdkController] Active session changed during terminal mode restart (was ${oldSessionId}); aborting`,
+				)
+			return
+			}
+
 			const restartResult = await this.options.sessions.replaceActiveSession({
 				startInput,
 				initialMessages: initialMessages as InitialMessages,
