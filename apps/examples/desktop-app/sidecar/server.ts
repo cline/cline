@@ -15,12 +15,48 @@ type SidecarServer = {
 	upgrade(req: Request): boolean;
 };
 
+const TRUSTED_BROWSER_ORIGINS = new Set([
+	"tauri://localhost",
+	"http://tauri.localhost",
+	"https://tauri.localhost",
+	"http://localhost:3125",
+	"http://127.0.0.1:3125",
+]);
+
 const JSON_HEADERS = {
-	"access-control-allow-headers": "accept, content-type",
-	"access-control-allow-methods": "GET, POST, OPTIONS",
-	"access-control-allow-origin": "*",
 	"content-type": "application/json",
 };
+
+function readOrigin(req: Request): string | undefined {
+	const origin = req.headers.get("origin")?.trim();
+	return origin ? origin : undefined;
+}
+
+function isTrustedRequestOrigin(req: Request): boolean {
+	const origin = readOrigin(req);
+	return !origin || TRUSTED_BROWSER_ORIGINS.has(origin);
+}
+
+function corsHeaders(req: Request): Record<string, string> {
+	const origin = readOrigin(req);
+	return {
+		"access-control-allow-headers": "accept, content-type",
+		"access-control-allow-methods": "GET, POST, OPTIONS",
+		...(origin && TRUSTED_BROWSER_ORIGINS.has(origin)
+			? {
+					"access-control-allow-origin": origin,
+					vary: "Origin",
+				}
+			: {}),
+	};
+}
+
+function jsonHeaders(req: Request): Record<string, string> {
+	return {
+		...JSON_HEADERS,
+		...corsHeaders(req),
+	};
+}
 
 // ---------------------------------------------------------------------------
 // JSON response helper
@@ -35,10 +71,14 @@ function jsonResponse(
 	return JSON.stringify({ type: "response", id, ok, result, error });
 }
 
-function createJsonResponse(body: unknown, status = 200): Response {
+function createJsonResponse(
+	req: Request,
+	body: unknown,
+	status = 200,
+): Response {
 	return new Response(JSON.stringify(body), {
 		status,
-		headers: JSON_HEADERS,
+		headers: jsonHeaders(req),
 	});
 }
 
@@ -93,7 +133,7 @@ export function startServer(
 	return { port: server.port };
 }
 
-function createFetchHandler(
+export function createFetchHandler(
 	_ctx: SidecarContext,
 	onShutdown?: (reason?: string) => Promise<void>,
 ) {
@@ -101,7 +141,10 @@ function createFetchHandler(
 		const url = new URL(req.url);
 
 		if (req.method === "OPTIONS") {
-			return new Response(null, { status: 204, headers: JSON_HEADERS });
+			if (!isTrustedRequestOrigin(req)) {
+				return new Response(null, { status: 403 });
+			}
+			return new Response(null, { status: 204, headers: corsHeaders(req) });
 		}
 
 		if (url.pathname === "/health") {
@@ -111,19 +154,23 @@ function createFetchHandler(
 					mode: SIDECAR_MODE,
 					pid: process.pid,
 				}),
-				{ headers: JSON_HEADERS },
+				{ headers: jsonHeaders(req) },
 			);
 		}
 
-		if (url.pathname === "/transport" && server.upgrade(req)) {
+		if (
+			url.pathname === "/transport" &&
+			isTrustedRequestOrigin(req) &&
+			server.upgrade(req)
+		) {
 			return undefined;
 		}
 
 		if (url.pathname === "/api/marketplace/catalog") {
 			try {
-				return createJsonResponse(await fetchMarketplaceCatalog());
+				return createJsonResponse(req, await fetchMarketplaceCatalog());
 			} catch (error) {
-				return createJsonResponse({
+				return createJsonResponse(req, {
 					...EMPTY_MARKETPLACE_CATALOG,
 					error:
 						error instanceof Error
@@ -134,6 +181,12 @@ function createFetchHandler(
 		}
 
 		if (url.pathname === "/shutdown" && req.method === "POST") {
+			if (!isTrustedRequestOrigin(req)) {
+				return new Response(JSON.stringify({ ok: false }), {
+					status: 403,
+					headers: jsonHeaders(req),
+				});
+			}
 			queueMicrotask(() => {
 				void onShutdown?.("code_sidecar_shutdown_endpoint")
 					.catch((error) => {
@@ -146,7 +199,7 @@ function createFetchHandler(
 					.finally(() => process.exit(0));
 			});
 			return new Response(JSON.stringify({ ok: true }), {
-				headers: { "content-type": "application/json" },
+				headers: jsonHeaders(req),
 			});
 		}
 
