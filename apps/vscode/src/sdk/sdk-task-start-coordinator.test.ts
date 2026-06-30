@@ -72,6 +72,7 @@ describe("SdkTaskStartCoordinator", () => {
 
 		expect(sessionId).toBeUndefined()
 		expect(options.emitClineAuthError).toHaveBeenCalledWith("needs auth")
+		expect(options.captureProviderApiError).not.toHaveBeenCalled()
 		expect(options.sessions.startNewSession).not.toHaveBeenCalled()
 	})
 
@@ -82,6 +83,7 @@ describe("SdkTaskStartCoordinator", () => {
 
 		expect(sessionId).toBeUndefined()
 		expect(options.emitClineAuthError).toHaveBeenCalledWith("needs clinepass auth")
+		expect(options.captureProviderApiError).not.toHaveBeenCalled()
 		expect(options.sessions.startNewSession).not.toHaveBeenCalled()
 	})
 
