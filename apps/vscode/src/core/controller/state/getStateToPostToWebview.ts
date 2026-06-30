@@ -27,6 +27,7 @@ export async function getStateToPostToWebview(controller: {
 	backgroundCommandTaskId?: string
 	workspaceManager?: any
 	checkpointRestoreInput?: ExtensionState["checkpointRestoreInput"]
+	getPluginSlashCommands?: () => Promise<{ name: string; description?: string }[]>
 }): Promise<ExtensionState> {
 	const stateManager = controller.stateManager
 
@@ -108,6 +109,15 @@ export async function getStateToPostToWebview(controller: {
 		// Codex OAuth not available
 	}
 
+	// Plugin slash commands are fetched best-effort so autocomplete failures
+	// don't block state posting.
+	let pluginSlashCommands: { name: string; description?: string }[] = []
+	try {
+		pluginSlashCommands = (await controller.getPluginSlashCommands?.()) ?? []
+	} catch {
+		// Plugin command discovery is best-effort.
+	}
+
 	return {
 		version,
 		apiConfiguration,
@@ -155,6 +165,7 @@ export async function getStateToPostToWebview(controller: {
 		taskHistory: processedTaskHistory,
 		shouldShowAnnouncement,
 		favoritedModelIds,
+		pluginSlashCommands,
 		backgroundCommandRunning: controller.backgroundCommandRunning ?? false,
 		backgroundCommandTaskId: controller.backgroundCommandTaskId,
 		workspaceRoots: controller.workspaceManager?.getRoots?.() ?? [],

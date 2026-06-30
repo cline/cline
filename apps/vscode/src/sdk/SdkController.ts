@@ -1844,6 +1844,7 @@ export class Controller {
 				mcpHub: this.mcpHub,
 				backgroundCommandRunning: this.backgroundCommandRunning,
 				backgroundCommandTaskId: this.backgroundCommandTaskId,
+			getPluginSlashCommands: () => this.pluginCommands.getSlashCommands(),
 			})
 			const sdkTaskHistory = (await this.taskHistory.listHistory({ limit: 100, hydrate: false }))
 				.map(sessionHistoryRecordToHistoryItem)

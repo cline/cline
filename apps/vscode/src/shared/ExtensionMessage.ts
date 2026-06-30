@@ -16,6 +16,7 @@ import { OnboardingModelGroup } from "./proto/cline/state"
 import { Mode } from "./storage/types"
 import { TelemetrySetting } from "./TelemetrySetting"
 import { UserInfo } from "./UserInfo"
+import type { SlashCommand } from "./slashCommands"
 // webview will hold state
 export interface ExtensionMessage {
 	type: "grpc_response" // New type for gRPC responses
@@ -114,6 +115,8 @@ export interface ExtensionState {
 	worktreesEnabled?: ClineFeatureSetting
 	customPrompt?: string
 	favoritedModelIds: string[]
+	/** Plugin-registered slash commands surfaced for autocomplete. */
+	pluginSlashCommands?: SlashCommand[]
 	// NEW: Add workspace information
 	workspaceRoots: WorkspaceRoot[]
 	primaryRootIndex: number
