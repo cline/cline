@@ -176,7 +176,7 @@ function buildCoreSessionConfig(config: JsonRecord): JsonRecord {
 	};
 }
 
-function buildSessionConnectionUpdate(
+export function buildSessionConnectionUpdate(
 	config: JsonRecord,
 ): SessionConnectionUpdate {
 	const thinking =
@@ -219,19 +219,17 @@ function buildSessionConnectionUpdate(
 		updates.thinkingBudgetTokens = null;
 		return updates;
 	}
-	if (
-		thinking === true ||
-		reasoningEffort ||
-		thinkingBudgetTokens !== undefined
-	) {
+	if (thinking === true) {
 		updates.thinking = true;
-		updates.reasoningEffort = reasoningEffort ?? null;
-		updates.thinkingBudgetTokens = thinkingBudgetTokens ?? null;
-		return updates;
 	}
-	updates.thinking = null;
-	updates.reasoningEffort = null;
-	updates.thinkingBudgetTokens = null;
+	if (reasoningEffort) {
+		updates.thinking = true;
+		updates.reasoningEffort = reasoningEffort;
+	}
+	if (thinkingBudgetTokens !== undefined) {
+		updates.thinking = true;
+		updates.thinkingBudgetTokens = thinkingBudgetTokens;
+	}
 	return updates;
 }
 

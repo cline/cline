@@ -328,8 +328,8 @@ export function ChatInputBar({
 
 	useEffect(() => {
 		if (!modelSupportsReasoning) {
-			if (thinking !== undefined || reasoningEffort !== undefined) {
-				onReasoningChange({ thinking: undefined, reasoningEffort: undefined });
+			if (thinking !== false || reasoningEffort !== undefined) {
+				onReasoningChange({ thinking: false, reasoningEffort: undefined });
 			}
 			return;
 		}
