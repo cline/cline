@@ -215,6 +215,13 @@ async function fetchAndCacheClineModels(): Promise<Record<string, ModelInfo>> {
 			switch (rawModel.id) {
 				case "anthropic/claude-sonnet-5":
 				case "anthropic/claude-5-sonnet":
+					modelInfo.contextWindow = 200_000
+					modelInfo.supportsPromptCache = true
+					modelInfo.inputPrice = 2.0
+					modelInfo.outputPrice = 10.0
+					modelInfo.cacheWritesPrice = 2.5
+					modelInfo.cacheReadsPrice = 0.2
+					break
 				case "anthropic/claude-sonnet-4.6":
 				case "anthropic/claude-4.6-sonnet":
 				case "anthropic/claude-sonnet-4.5":
