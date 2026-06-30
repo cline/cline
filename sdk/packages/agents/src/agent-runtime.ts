@@ -43,6 +43,8 @@ function createUID(prefix: string, length = 8): string {
 	return `${prefix}_${nanoid(length)}`;
 }
 
+const DEFAULT_MODEL_EMPTY_RESPONSE_RETRIES = 1;
+
 export type AgentRunInput = string | AgentMessage | readonly AgentMessage[];
 export type AgentEventListener = (event: AgentRuntimeEvent) => void;
 
@@ -372,6 +374,16 @@ function textFromToolMessage(message: AgentMessage | undefined): string {
 	}
 }
 
+function resolveModelEmptyResponseRetries(value: unknown): number {
+	if (value === undefined) {
+		return DEFAULT_MODEL_EMPTY_RESPONSE_RETRIES;
+	}
+	if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+		return 0;
+	}
+	return Math.floor(value);
+}
+
 function normalizeInput(input: AgentRunInput): AgentMessage[] {
 	if (typeof input === "string") {
 		return [createMessage("user", [{ type: "text", text: input }])];
@@ -614,16 +626,44 @@ export class AgentRuntime {
 					iteration: this.state.iteration,
 				});
 
-				const { message, finishReason } = await this.generateAssistantMessage();
-				if (finishReason === "aborted") {
-					throw this.normalizeAbortError();
-				}
-				if (message.content.length === 0) {
-					throw new Error(
-						finishReason === "error"
-							? (this.state.lastError ?? "Model stream failed")
-							: "Model returned empty response",
-					);
+				const maxEmptyResponseRetries = resolveModelEmptyResponseRetries(
+					this.config.modelEmptyResponseRetries,
+				);
+				let emptyResponseRetries = 0;
+				let message: AgentMessage;
+				let finishReason: AgentModelFinishReason;
+				while (true) {
+					({ message, finishReason } = await this.generateAssistantMessage());
+					if (finishReason === "aborted") {
+						throw this.normalizeAbortError();
+					}
+					if (message.content.length > 0) {
+						break;
+					}
+					if (finishReason === "error") {
+						throw new Error(this.state.lastError ?? "Model stream failed");
+					}
+					if (emptyResponseRetries >= maxEmptyResponseRetries) {
+						throw new Error("Model returned empty response");
+					}
+					emptyResponseRetries += 1;
+					this.config.logger?.log("Model returned empty response; retrying", {
+						severity: "warn",
+						iteration: this.state.iteration,
+						retry: emptyResponseRetries,
+						maxRetries: maxEmptyResponseRetries,
+					});
+					await this.emit({
+						type: "status-notice",
+						snapshot: this.snapshot(),
+						message: `Model returned empty response; retrying (${emptyResponseRetries}/${maxEmptyResponseRetries})`,
+						metadata: {
+							reason: "empty_model_response_retry",
+							iteration: this.state.iteration,
+							retry: emptyResponseRetries,
+							maxRetries: maxEmptyResponseRetries,
+						},
+					});
 				}
 				const toolCalls = message.content.filter(
 					(part: AgentMessagePart): part is AgentToolCallPart =>

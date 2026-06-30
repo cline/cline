@@ -110,6 +110,7 @@ export function createAgentRuntimeConfig(
 		initialMessages: input.initialMessages,
 		completionPolicy: agentConfig.completionPolicy,
 		maxIterations: agentConfig.maxIterations,
+		modelEmptyResponseRetries: agentConfig.modelEmptyResponseRetries,
 		toolExecution,
 		toolPolicies: agentConfig.toolPolicies,
 		toolContextMetadata: input.toolContextMetadata,
