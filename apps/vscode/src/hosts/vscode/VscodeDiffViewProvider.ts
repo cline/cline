@@ -9,6 +9,7 @@ import { arePathsEqual } from "@/utils/path"
 export const DIFF_VIEW_URI_SCHEME = "cline-diff"
 
 export class VscodeDiffViewProvider extends DiffViewProvider {
+	protected readonly editSurface = "vscode_diff"
 	private activeDiffEditor?: vscode.TextEditor
 
 	private fadedOverlayController?: DecorationController
@@ -190,7 +191,7 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 		return this.activeDiffEditor.document.getText()
 	}
 
-	protected override async saveDocument(): Promise<Boolean> {
+	protected override async saveDocument(): Promise<boolean> {
 		if (!this.activeDiffEditor) {
 			return false
 		}

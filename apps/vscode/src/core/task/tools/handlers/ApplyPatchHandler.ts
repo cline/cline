@@ -304,7 +304,8 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 				if (!approved) {
 					this.config = undefined
 					config.taskState.didRejectTool = true
-					await provider.revertChanges()
+					provider.recordDiffViewRejected()
+					await provider.revertChanges("user_rejected")
 					await provider.reset()
 					return "The user denied this patch operation."
 				}
@@ -406,7 +407,7 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 
 			return responseLines.join("\n")
 		} catch (error) {
-			await provider.revertChanges()
+			await provider.revertChanges("error_cleanup")
 			throw error
 		} finally {
 			await provider.reset()

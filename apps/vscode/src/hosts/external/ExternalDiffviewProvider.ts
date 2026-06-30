@@ -4,6 +4,7 @@ import { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
 import { Logger } from "@/shared/services/Logger"
 
 export class ExternalDiffViewProvider extends DiffViewProvider {
+	protected readonly editSurface = "external"
 	private activeDiffEditorId: string | undefined
 
 	override async openDiffEditor(): Promise<void> {
@@ -55,7 +56,7 @@ export class ExternalDiffViewProvider extends DiffViewProvider {
 		return lines.length
 	}
 
-	protected async saveDocument(): Promise<Boolean> {
+	protected async saveDocument(): Promise<boolean> {
 		if (!this.activeDiffEditorId) {
 			return false
 		}
