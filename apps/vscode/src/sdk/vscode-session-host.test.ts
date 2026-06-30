@@ -18,6 +18,14 @@ vi.mock("@/services/logging/distinctId", () => ({
 	getDistinctId: () => "distinct-id",
 }))
 
+vi.mock("@/core/storage/StateManager", () => ({
+	StateManager: {
+		get: () => ({
+			getGlobalStateKey: () => undefined,
+		}),
+	},
+}))
+
 vi.mock("./vscode-runtime-builder", () => ({
 	createVscodeExtraTools: mockCreateVscodeExtraTools,
 }))
@@ -125,6 +133,7 @@ describe("VscodeSessionHost telemetry wiring", () => {
 		expect(mockCreateVscodeExtraTools).toHaveBeenCalledWith({} as never, {
 			cwd: "/workspace",
 			getTerminalManager: undefined,
+			vscodeTerminalExecutionMode: undefined,
 		})
 		expect(result.source).toBe("vscode")
 		expect(result.config.extensions).toEqual([{ name: "remote-config" }])
