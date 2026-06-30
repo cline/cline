@@ -469,6 +469,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			thinking: configWithProvider.thinking,
 			reasoningEffort:
 				configWithProvider.reasoningEffort ?? providerConfig.reasoningEffort,
+			thinkingBudgetTokens: configWithProvider.thinkingBudgetTokens,
 			maxTokensPerTurn: configWithProvider.maxTokensPerTurn,
 			systemPrompt: configWithProvider.systemPrompt,
 			maxIterations: configWithProvider.maxIterations,
@@ -985,10 +986,15 @@ export class LocalRuntimeHost implements RuntimeHost {
 		if (Object.hasOwn(updates, "reasoningEffort")) {
 			session.config.reasoningEffort = updates.reasoningEffort ?? undefined;
 		}
+		if (Object.hasOwn(updates, "thinkingBudgetTokens")) {
+			session.config.thinkingBudgetTokens =
+				updates.thinkingBudgetTokens ?? undefined;
+		}
 		if (Object.hasOwn(updates, "thinking")) {
 			session.config.thinking = updates.thinking ?? undefined;
 			if (updates.thinking === false || updates.thinking === null) {
 				session.config.reasoningEffort = undefined;
+				session.config.thinkingBudgetTokens = undefined;
 			}
 		}
 		const delegatedUpdates = {

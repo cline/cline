@@ -361,6 +361,93 @@ describe("LocalRuntimeHost", () => {
 		);
 	});
 
+	it("persists thinking budget token connection updates", async () => {
+		const sessionId = "sess-thinking-budget-update";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest.json",
+				messagesPath: "/tmp/messages.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({ tools: [], shutdown: vi.fn() }),
+		};
+		const agent = {
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			updateConnection: vi.fn(),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const createAgent = vi.fn(() => agent as never);
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent,
+		});
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({
+					sessionId,
+					thinking: true,
+					reasoningEffort: "high",
+					thinkingBudgetTokens: 1024,
+				}),
+				prompt: "hello",
+				interactive: true,
+			}),
+		);
+
+		expect(createAgent).toHaveBeenCalledWith(
+			expect.objectContaining({
+				thinking: true,
+				reasoningEffort: "high",
+				thinkingBudgetTokens: 1024,
+			}),
+		);
+
+		await manager.updateSessionConnection(sessionId, {
+			thinkingBudgetTokens: 2048,
+		});
+
+		const getSessionOrThrow = Reflect.get(
+			manager as object,
+			"getSessionOrThrow",
+		) as (sessionId: string) => { config: CoreSessionConfig };
+		const session = Reflect.apply(getSessionOrThrow, manager, [sessionId]) as {
+			config: CoreSessionConfig;
+		};
+		expect(session.config.thinkingBudgetTokens).toBe(2048);
+		expect(agent.updateConnection).toHaveBeenLastCalledWith({
+			thinkingBudgetTokens: 2048,
+		});
+
+		await manager.updateSessionConnection(sessionId, {
+			thinking: null,
+			reasoningEffort: null,
+			thinkingBudgetTokens: null,
+		});
+
+		expect(session.config.thinking).toBeUndefined();
+		expect(session.config.reasoningEffort).toBeUndefined();
+		expect(session.config.thinkingBudgetTokens).toBeUndefined();
+	});
+
 	it("captures active session lookup misses as handled telemetry", async () => {
 		const adapter = {
 			name: "test",

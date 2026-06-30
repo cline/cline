@@ -203,6 +203,9 @@ async function waitForConnectorState(
 		if (predicate()) return;
 		await new Promise((resolve) => setTimeout(resolve, 250));
 	}
+	throw new Error(
+		`connector did not reach expected state within ${timeoutMs}ms`,
+	);
 }
 
 function buildConnectorStartArgs(args?: Record<string, unknown>): string[] {

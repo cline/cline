@@ -269,13 +269,14 @@ export type SessionConnectionUpdate = Partial<
 			| "providerConfig"
 			| "reasoningEffort"
 			| "thinking"
+			| "thinkingBudgetTokens"
 		>,
-		"reasoningEffort" | "thinking"
+		"reasoningEffort" | "thinking" | "thinkingBudgetTokens"
 	>
 > & {
 	reasoningEffort?: CoreSessionConfig["reasoningEffort"] | null;
 	thinking?: CoreSessionConfig["thinking"] | null;
-	thinkingBudgetTokens?: number | null;
+	thinkingBudgetTokens?: CoreSessionConfig["thinkingBudgetTokens"] | null;
 };
 
 export interface SessionModelRuntimeService {

@@ -121,6 +121,13 @@ function readReasoningEffort(
 	return undefined;
 }
 
+function readPositiveInteger(value: unknown): number | undefined {
+	if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+		return Math.trunc(value);
+	}
+	return undefined;
+}
+
 function buildCoreSessionConfig(config: JsonRecord): JsonRecord {
 	const thinking =
 		typeof config.thinking === "boolean" ? config.thinking : undefined;
@@ -128,6 +135,12 @@ function buildCoreSessionConfig(config: JsonRecord): JsonRecord {
 		thinking === false
 			? undefined
 			: readReasoningEffort(config.reasoningEffort);
+	const thinkingBudgetTokens =
+		thinking === false
+			? undefined
+			: readPositiveInteger(
+					config.thinkingBudgetTokens ?? config.thinking_budget_tokens,
+				);
 	return {
 		sessionId: config.sessionId ?? config.session_id,
 		providerId: config.provider ?? config.providerId ?? "",
@@ -151,6 +164,7 @@ function buildCoreSessionConfig(config: JsonRecord): JsonRecord {
 			false,
 		...(thinking !== undefined ? { thinking } : {}),
 		...(reasoningEffort ? { reasoningEffort } : {}),
+		...(thinkingBudgetTokens !== undefined ? { thinkingBudgetTokens } : {}),
 		teamName: config.teamName ?? config.team_name,
 		missionLogIntervalSteps:
 			config.missionStepInterval ?? config.missionLogIntervalSteps,
@@ -168,11 +182,27 @@ function buildSessionConnectionUpdate(
 	const thinking =
 		typeof config.thinking === "boolean" ? config.thinking : undefined;
 	const reasoningEffort = readReasoningEffort(config.reasoningEffort);
-	const updates: SessionConnectionUpdate = {
-		providerId: String(config.provider ?? config.providerId ?? "").trim(),
-		modelId: String(config.model ?? config.modelId ?? "").trim(),
-		apiKey: String(config.apiKey ?? config.api_key ?? ""),
-	};
+	const thinkingBudgetTokens = readPositiveInteger(
+		config.thinkingBudgetTokens ?? config.thinking_budget_tokens,
+	);
+	const updates: SessionConnectionUpdate = {};
+	const providerId = String(config.provider ?? config.providerId ?? "").trim();
+	if (providerId) {
+		updates.providerId = providerId;
+	}
+	const modelId = String(config.model ?? config.modelId ?? "").trim();
+	if (modelId) {
+		updates.modelId = modelId;
+	}
+	const apiKey =
+		typeof config.apiKey === "string"
+			? config.apiKey.trim()
+			: typeof config.api_key === "string"
+				? config.api_key.trim()
+				: undefined;
+	if (apiKey) {
+		updates.apiKey = apiKey;
+	}
 	if (typeof config.baseUrl === "string" && config.baseUrl.trim()) {
 		updates.baseUrl = config.baseUrl.trim();
 	}
@@ -189,9 +219,14 @@ function buildSessionConnectionUpdate(
 		updates.thinkingBudgetTokens = null;
 		return updates;
 	}
-	if (thinking === true || reasoningEffort) {
+	if (
+		thinking === true ||
+		reasoningEffort ||
+		thinkingBudgetTokens !== undefined
+	) {
 		updates.thinking = true;
 		updates.reasoningEffort = reasoningEffort ?? null;
+		updates.thinkingBudgetTokens = thinkingBudgetTokens ?? null;
 		return updates;
 	}
 	updates.thinking = null;

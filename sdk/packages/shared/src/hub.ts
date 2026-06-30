@@ -664,6 +664,7 @@ export interface HubSessionRuntimeOptions {
 	timeoutSeconds?: number;
 	thinking?: boolean;
 	reasoningEffort?: ReasoningEffort;
+	thinkingBudgetTokens?: number;
 	checkpointEnabled?: boolean;
 	enableTools?: boolean;
 	enableSpawn?: boolean;
