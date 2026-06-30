@@ -414,6 +414,8 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({
 			Object.entries(resolvedModels ?? {})?.some(([id, m]) => id === selectedModelId && m.thinkingConfig) ||
 			selectedModelIdLower.includes("claude-haiku-4.5") ||
 			selectedModelIdLower.includes("claude-4.5-haiku") ||
+			selectedModelIdLower.includes("claude-sonnet-5") ||
+			selectedModelIdLower.includes("claude-5-sonnet") ||
 			selectedModelIdLower.includes("claude-sonnet-4.6") ||
 			selectedModelIdLower.includes("claude-sonnet-4-6") ||
 			selectedModelIdLower.includes("claude-4.6-sonnet") ||
@@ -570,6 +572,14 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({
 					selectedModelId={selectedModelId}
 				/>
 
+				{/* Context window switcher for Claude Sonnet 5 */}
+				<ContextWindowSwitcher
+					base1mModelId={`anthropic/claude-sonnet-5${CLAUDE_SONNET_1M_SUFFIX}`}
+					base200kModelId="anthropic/claude-sonnet-5"
+					onModelChange={handleModelChange}
+					selectedModelId={selectedModelId}
+				/>
+
 				{/* Context window switcher for Claude Opus 4.8 */}
 				<ContextWindowSwitcher
 					base1mModelId={`anthropic/claude-opus-4.8${CLAUDE_SONNET_1M_SUFFIX}`}
@@ -655,7 +665,7 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({
 						color: "var(--vscode-descriptionForeground)",
 					}}>
 					The extension automatically fetches the latest Cline model list. If you're unsure which model to choose, Cline
-					works best with <strong>anthropic/claude-sonnet-4.5</strong>.
+					works best with <strong>anthropic/claude-sonnet-5</strong>.
 				</p>
 			)}
 		</div>

@@ -672,6 +672,7 @@ export class SapAiCoreHandler implements ApiHandler {
 
 		const anthropicModels = [
 			"anthropic--claude-4.5-haiku",
+			"anthropic--claude-sonnet-5",
 			"anthropic--claude-4.7-opus",
 			"anthropic--claude-4.6-opus",
 			"anthropic--claude-4.5-opus",
@@ -725,6 +726,7 @@ export class SapAiCoreHandler implements ApiHandler {
 			"amazon--nova-micro",
 		];
 		const converseStreamModels = [
+			"anthropic--claude-sonnet-5",
 			"anthropic--claude-4.7-opus",
 			"anthropic--claude-4.6-opus",
 			"anthropic--claude-4.5-opus",

@@ -18,6 +18,7 @@ import {
 	openRouterClaudeSonnet41mModelId,
 	openRouterClaudeSonnet451mModelId,
 	openRouterClaudeSonnet461mModelId,
+	openRouterClaudeSonnet51mModelId,
 } from "@/shared/api"
 import { getAxiosSettings } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
@@ -150,6 +151,8 @@ async function fetchAndCacheModels(controller: Controller): Promise<Record<strin
 				}
 
 				switch (rawModel.id) {
+					case "anthropic/claude-sonnet-5":
+					case "anthropic/claude-5-sonnet":
 					case "anthropic/claude-sonnet-4.6":
 					case "anthropic/claude-4.6-sonnet":
 					case "anthropic/claude-sonnet-4.5":
@@ -294,11 +297,17 @@ async function fetchAndCacheModels(controller: Controller): Promise<Record<strin
 					rawModel.id === "anthropic/claude-sonnet-4.5" ||
 					rawModel.id === "anthropic/claude-4.5-sonnet" ||
 					rawModel.id === "anthropic/claude-sonnet-4.6" ||
-					rawModel.id === "anthropic/claude-4.6-sonnet"
+					rawModel.id === "anthropic/claude-4.6-sonnet" ||
+					rawModel.id === "anthropic/claude-sonnet-5" ||
+					rawModel.id === "anthropic/claude-5-sonnet"
 				) {
 					const claudeSonnet1mModelInfo = cloneDeep(modelInfo)
 					claudeSonnet1mModelInfo.contextWindow = 1_000_000 // limiting providers to those that support 1m context window
 					claudeSonnet1mModelInfo.tiers = CLAUDE_SONNET_1M_TIERS
+					// sonnet 5
+					if (rawModel.id === "anthropic/claude-sonnet-5" || rawModel.id === "anthropic/claude-5-sonnet") {
+						models[openRouterClaudeSonnet51mModelId] = claudeSonnet1mModelInfo
+					}
 					// sonnet 4
 					if (rawModel.id === "anthropic/claude-sonnet-4") {
 						models[openRouterClaudeSonnet41mModelId] = claudeSonnet1mModelInfo

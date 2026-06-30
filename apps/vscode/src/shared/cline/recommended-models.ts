@@ -22,8 +22,8 @@ export const CLINE_RECOMMENDED_MODELS_FALLBACK: ClineRecommendedModelsData = {
 			tags: ["NEW"],
 		},
 		{
-			id: "anthropic/claude-sonnet-4.6",
-			name: "Anthropic Claude Sonnet 4.6",
+			id: "anthropic/claude-sonnet-5",
+			name: "Anthropic Claude Sonnet 5",
 			description: "Latest Sonnet release with strong coding and agent performance",
 			tags: ["NEW"],
 		},

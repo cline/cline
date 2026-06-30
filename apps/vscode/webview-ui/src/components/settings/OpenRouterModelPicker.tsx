@@ -221,6 +221,8 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 			Object.entries(openRouterModels)?.some(([id, m]) => id === selectedModelId && m.thinkingConfig) ||
 			selectedModelIdLower.includes("claude-haiku-4.5") ||
 			selectedModelIdLower.includes("claude-4.5-haiku") ||
+			selectedModelIdLower.includes("claude-sonnet-5") ||
+			selectedModelIdLower.includes("claude-5-sonnet") ||
 			selectedModelIdLower.includes("claude-sonnet-4.6") ||
 			selectedModelIdLower.includes("claude-sonnet-4-6") ||
 			selectedModelIdLower.includes("claude-4.6-sonnet") ||
@@ -331,6 +333,14 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 					selectedModelId={selectedModelId}
 				/>
 
+				{/* Context window switcher for Claude Sonnet 5 */}
+				<ContextWindowSwitcher
+					base1mModelId={`anthropic/claude-sonnet-5${CLAUDE_SONNET_1M_SUFFIX}`}
+					base200kModelId="anthropic/claude-sonnet-5"
+					onModelChange={handleModelChange}
+					selectedModelId={selectedModelId}
+				/>
+
 				{/* Context window switcher for Claude Opus 4.8 */}
 				<ContextWindowSwitcher
 					base1mModelId={`anthropic/claude-opus-4.8${CLAUDE_SONNET_1M_SUFFIX}`}
@@ -421,9 +431,9 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 					</VSCodeLink>
 					If you're unsure which model to choose, Cline works best with{" "}
 					<VSCodeLink
-						onClick={() => handleModelChange("anthropic/claude-sonnet-4.6")}
+						onClick={() => handleModelChange("anthropic/claude-sonnet-5")}
 						style={{ display: "inline", fontSize: "inherit" }}>
-						anthropic/claude-sonnet-4.6.
+						anthropic/claude-sonnet-5.
 					</VSCodeLink>
 					You can also try searching "free" for no-cost options currently available.
 				</p>
