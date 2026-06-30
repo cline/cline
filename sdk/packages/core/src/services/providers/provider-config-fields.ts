@@ -120,6 +120,13 @@ const PROVIDER_CONFIG_FIELD_METADATA: Partial<
 			},
 		},
 	},
+	"atomic-chat": {
+		fields: {
+			apiKey: {
+				note: "Keep empty if no API key for local inference.",
+			},
+		},
+	},
 	sapaicore: {
 		mode: "replace",
 		description:
@@ -187,6 +194,7 @@ function applyProviderConfigFieldMetadata(
 const EDITABLE_BASE_URL_PROVIDER_IDS = new Set([
 	"ollama",
 	"lmstudio",
+	"atomic-chat",
 	"litellm",
 	"openai-compatible",
 ]);

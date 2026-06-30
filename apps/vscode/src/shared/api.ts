@@ -10,6 +10,7 @@ export type ApiProvider =
 	| "openai"
 	| "ollama"
 	| "lmstudio"
+	| "atomic-chat"
 	| "gemini"
 	| "openai-native"
 	| "openai-codex"

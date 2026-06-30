@@ -1106,6 +1106,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				togetherModelId,
 				lmStudioModelId,
 				ollamaModelId,
+				atomicChatModelId,
 				liteLlmModelId,
 				requestyModelId,
 				vercelAiGatewayModelId,
@@ -1126,6 +1127,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					return `${selectedProvider}:${togetherModelId}`
 				case "lmstudio":
 					return `${selectedProvider}:${lmStudioModelId}`
+				case "atomic-chat":
+					return `${selectedProvider}:${atomicChatModelId}`
 				case "ollama":
 					return `${selectedProvider}:${ollamaModelId}`
 				case "litellm":

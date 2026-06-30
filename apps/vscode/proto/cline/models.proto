@@ -15,6 +15,8 @@ service ModelsService {
   rpc getOllamaModels(StringRequest) returns (StringArray);
   // Fetches available models from LM Studio
   rpc getLmStudioModels(StringRequest) returns (StringArray);
+  // Fetches available models from Atomic Chat
+  rpc getAtomicChatModels(StringRequest) returns (StringArray);
   // Fetches available models from VS Code LM API
   rpc getVsCodeLmModels(EmptyRequest) returns (VsCodeLmModelsArray);
   // Refreshes and returns OpenRouter models
@@ -346,6 +348,7 @@ message ModelsApiSecrets {
   optional string oca_refresh_token = 37;
   optional string minimax_api_key = 38;
   optional string aihubmix_api_key = 39;
+  optional string atomic_chat_api_key = 40;
 }
 
 // API configuration options (non-secret settings)
@@ -395,6 +398,7 @@ message ModelsApiOptions {
   optional string aihubmix_base_url = 42;
   optional string aihubmix_app_code = 43;
   optional bool azure_identity = 44;
+  optional string atomic_chat_base_url = 45;
 
   // Plan mode configurations
   optional string plan_mode_api_provider = 100;
@@ -436,6 +440,7 @@ message ModelsApiOptions {
   optional OpenRouterModelInfo plan_mode_cline_model_info = 136;
   optional string plan_mode_cline_pass_model_id = 137;
   optional OpenRouterModelInfo plan_mode_cline_pass_model_info = 138;
+  optional string plan_mode_atomic_chat_model_id = 139;
 
   // Act mode configurations
   optional string act_mode_api_provider = 200;
@@ -477,6 +482,7 @@ message ModelsApiOptions {
   optional OpenRouterModelInfo act_mode_cline_model_info = 236;
   optional string act_mode_cline_pass_model_id = 237;
   optional OpenRouterModelInfo act_mode_cline_pass_model_info = 238;
+  optional string act_mode_atomic_chat_model_id = 239;
 }
 
 // Request for updating API configuration (legacy - uses combined configuration)
@@ -705,6 +711,8 @@ message ModelsApiConfiguration {
   optional string nous_research_api_key = 85;
   optional bool azure_identity = 86;
   optional string wandb_api_key = 87;
+  optional string atomic_chat_base_url = 88;
+  optional string atomic_chat_api_key = 89;
 
   // Plan mode configurations
   optional string plan_mode_api_provider = 100;
@@ -751,6 +759,7 @@ message ModelsApiConfiguration {
   optional OpenRouterModelInfo plan_mode_cline_model_info = 141;
   optional string plan_mode_cline_pass_model_id = 142;
   optional OpenRouterModelInfo plan_mode_cline_pass_model_info = 143;
+  optional string plan_mode_atomic_chat_model_id = 144;
 
   // Act mode configurations
   optional string act_mode_api_provider = 200;
@@ -797,4 +806,5 @@ message ModelsApiConfiguration {
   optional OpenRouterModelInfo act_mode_cline_model_info = 241;
   optional string act_mode_cline_pass_model_id = 242;
   optional OpenRouterModelInfo act_mode_cline_pass_model_info = 243;
+  optional string act_mode_atomic_chat_model_id = 244;
 }

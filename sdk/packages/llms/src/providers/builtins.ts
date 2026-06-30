@@ -922,6 +922,18 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		modelsSourceUrl: "http://localhost:1234/v1/models",
 	},
 	{
+		id: "atomic-chat",
+		name: "Atomic Chat",
+		description: "Local LLM inference via Atomic Chat OpenAI-compatible API",
+		family: "openai-compatible",
+		capabilities: ["tools"],
+		defaultModelId: "",
+		apiKeyEnv: ["ATOMIC_CHAT_API_KEY"],
+		defaults: { baseUrl: "http://127.0.0.1:1337/v1" },
+		modelsSourceUrl: "http://127.0.0.1:1337/v1/models",
+		docsUrl: "https://atomic.chat",
+	},
+	{
 		id: "oca",
 		name: "Oracle Code Assist",
 		description: "Oracle Code Assist (OCA) LiteLLM gateway",

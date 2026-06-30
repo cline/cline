@@ -226,6 +226,7 @@ const PROVIDER_API_KEY_MAP: Record<string, keyof ApiConfiguration> = {
 	cline: "clineApiKey",
 	"cline-pass": "clineApiKey",
 	ollama: "ollamaApiKey",
+	"atomic-chat": "atomicChatApiKey",
 	lmstudio: "apiKey", // LM Studio doesn't need a key but uses the generic field
 	requesty: "requestyApiKey",
 	together: "togetherApiKey",
@@ -269,6 +270,7 @@ const PROVIDER_MODEL_ID_MAP: Record<string, { plan: keyof ApiConfiguration; act:
 	"openai-codex": { plan: "planModeApiModelId", act: "actModeApiModelId" },
 	ollama: { plan: "planModeOllamaModelId", act: "actModeOllamaModelId" },
 	lmstudio: { plan: "planModeLmStudioModelId", act: "actModeLmStudioModelId" },
+	"atomic-chat": { plan: "planModeAtomicChatModelId", act: "actModeAtomicChatModelId" },
 	gemini: { plan: "planModeApiModelId", act: "actModeApiModelId" },
 	bedrock: { plan: "planModeApiModelId", act: "actModeApiModelId" },
 	vertex: { plan: "planModeApiModelId", act: "actModeApiModelId" },
@@ -478,6 +480,7 @@ export function resolveBaseUrl(providerId: string, config: ApiConfiguration): st
 		openai: "openAiBaseUrl",
 		ollama: "ollamaBaseUrl",
 		lmstudio: "lmStudioBaseUrl",
+		"atomic-chat": "atomicChatBaseUrl",
 		gemini: "geminiBaseUrl",
 		requesty: "requestyBaseUrl",
 		litellm: "liteLlmBaseUrl",

@@ -34,6 +34,7 @@ interface LegacyGlobalState {
 	openAiBaseUrl?: string;
 	ollamaBaseUrl?: string;
 	lmStudioBaseUrl?: string;
+	atomicChatBaseUrl?: string;
 	liteLlmBaseUrl?: string;
 	geminiBaseUrl?: string;
 	requestyBaseUrl?: string;
@@ -76,6 +77,8 @@ interface LegacyGlobalState {
 	actModeOllamaModelId?: string;
 	planModeLmStudioModelId?: string;
 	actModeLmStudioModelId?: string;
+	planModeAtomicChatModelId?: string;
+	actModeAtomicChatModelId?: string;
 	planModeLiteLlmModelId?: string;
 	actModeLiteLlmModelId?: string;
 	planModeRequestyModelId?: string;
@@ -122,6 +125,7 @@ interface LegacySecrets {
 	geminiApiKey?: string;
 	openAiNativeApiKey?: string;
 	ollamaApiKey?: string;
+	atomicChatApiKey?: string;
 	deepSeekApiKey?: string;
 	requestyApiKey?: string;
 	togetherApiKey?: string;
@@ -306,6 +310,7 @@ function resolveModelForProvider(
 		openai: `${modePrefix}OpenAiModelId` as keyof LegacyGlobalState,
 		ollama: `${modePrefix}OllamaModelId` as keyof LegacyGlobalState,
 		lmstudio: `${modePrefix}LmStudioModelId` as keyof LegacyGlobalState,
+		"atomic-chat": `${modePrefix}AtomicChatModelId` as keyof LegacyGlobalState,
 		litellm: `${modePrefix}LiteLlmModelId` as keyof LegacyGlobalState,
 		requesty: `${modePrefix}RequestyModelId` as keyof LegacyGlobalState,
 		together: `${modePrefix}TogetherModelId` as keyof LegacyGlobalState,
@@ -456,6 +461,7 @@ function buildLegacyProviderSettings(
 		bedrock: legacySecrets.awsBedrockApiKey,
 		gemini: legacySecrets.geminiApiKey,
 		ollama: legacySecrets.ollamaApiKey,
+		"atomic-chat": legacySecrets.atomicChatApiKey,
 		deepseek: legacySecrets.deepSeekApiKey,
 		requesty: legacySecrets.requestyApiKey,
 		together: legacySecrets.togetherApiKey,
@@ -601,6 +607,7 @@ function buildLegacyProviderSettings(
 		openai: legacyGlobalState.openAiBaseUrl,
 		ollama: legacyGlobalState.ollamaBaseUrl,
 		lmstudio: legacyGlobalState.lmStudioBaseUrl,
+		"atomic-chat": legacyGlobalState.atomicChatBaseUrl,
 		litellm: legacyGlobalState.liteLlmBaseUrl,
 		gemini: legacyGlobalState.geminiBaseUrl,
 		requesty: legacyGlobalState.requestyBaseUrl,
