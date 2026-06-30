@@ -203,8 +203,16 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		telemetry: undefined,
 		sessionId: undefined as string | undefined,
 	}
-	const startedSdkHost = { send: vi.fn(), writeMessages: vi.fn().mockResolvedValue(undefined) }
-	const replacedSdkHost = { send: vi.fn(), writeMessages: vi.fn().mockResolvedValue(undefined) }
+		const mockSdkHost = () => ({
+		readMessages: vi.fn().mockResolvedValue([]),
+		send: vi.fn(),
+		writeMessages: vi.fn().mockResolvedValue(undefined),
+		abort: vi.fn().mockResolvedValue(undefined),
+		stop: vi.fn().mockResolvedValue(undefined),
+		dispose: vi.fn().mockResolvedValue(undefined),
+	})
+	const startedSdkHost = mockSdkHost()
+	const replacedSdkHost = mockSdkHost()
 	let currentSession = activeSession
 	const options = {
 		stateManager: {
@@ -214,11 +222,11 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 			getActiveSession: vi.fn(() => currentSession),
 			startNewSession: vi.fn().mockImplementation(async () => {
 				currentSession = { sessionId: "history-task", sdkHost: startedSdkHost, isRunning: true, startResult: { sessionId: "history-task" }, unsubscribe: vi.fn() }
-				return { startResult: currentSession.startResult, sdkHost: startedSdkHost }
+				return { startResult: currentSession!.startResult, sdkHost: startedSdkHost }
 			}),
 			replaceActiveSession: vi.fn().mockImplementation(async () => {
 				currentSession = { sessionId: "new-session", sdkHost: replacedSdkHost, isRunning: false, startResult: { sessionId: "new-session" }, unsubscribe: vi.fn() }
-				return { oldSessionId: "old-session", startResult: currentSession.startResult, sdkHost: replacedSdkHost }
+				return { oldSessionId: "old-session", startResult: currentSession!.startResult, sdkHost: replacedSdkHost }
 			}),
 			setRunning: vi.fn().mockImplementation((isRunning: boolean) => {
 				if (currentSession) currentSession.isRunning = isRunning
