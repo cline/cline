@@ -50,7 +50,9 @@ const MODELS_DEV_PROVIDER_KEY_MAP: ReadonlyArray<{
 	{ source: "anthropic", target: "anthropic" },
 	{ source: "google", target: "gemini" },
 	{ source: "deepseek", target: "deepseek" },
+	{ source: "doubao", target: "doubao" },
 	{ source: "xai", target: "xai" },
+	{ source: "mistral", target: "mistral" },
 	{ source: "togetherai", target: "together" },
 	{ source: "sap-ai-core", target: "sapaicore" },
 	{ source: "ollama-cloud", target: "ollama" },
@@ -62,6 +64,7 @@ const MODELS_DEV_PROVIDER_KEY_MAP: ReadonlyArray<{
 	{ source: "huggingface", target: "huggingface" },
 	{ source: "openrouter", target: "openrouter" },
 	{ source: "openrouter", target: "cline" },
+	{ source: "nous-research", target: "nousResearch" },
 	{ source: "vercel", target: "vercel-ai-gateway" },
 	{ source: "aihubmix", target: "aihubmix" },
 	{ source: "baseten", target: "baseten" },
@@ -79,6 +82,10 @@ const DEFAULT_MAX_INPUT_TOKENS = 4096;
 const DEFAULT_MAX_TOKENS = 4096;
 
 let liveModelsDevProviderModels: ModelsDevProviderModels | undefined;
+
+type ModelsDevModelInfo = (ModelInfo | OpenAiCompatibleModelInfo) & {
+	releaseDate?: string;
+};
 
 export function setLiveModelsDevProviderModels(
 	models: ModelsDevProviderModels | undefined,
@@ -197,7 +204,7 @@ export function normalizeModelsDevProviderModels(
 function toModelInfo(
 	_modelId: string,
 	model: ModelsDevModel,
-): ModelInfo | OpenAiCompatibleModelInfo {
+): ModelsDevModelInfo {
 	const inputLimit = resolveMaxInputTokens(model.limit);
 	const outputLimit = Math.floor(model.limit?.output ?? DEFAULT_MAX_TOKENS);
 	const capabilities = toCapabilities(model);
@@ -214,6 +221,7 @@ function toModelInfo(
 		cacheReadsPrice: model.cost?.cache_read ?? 0,
 		cacheWritesPrice: model.cost?.cache_write ?? 0,
 		supportsTools: capabilities.has("tools"),
+		releaseDate: model.release_date,
 	};
 }
 
@@ -260,10 +268,10 @@ function sortModelsByReleaseDate<
 	return Object.fromEntries(
 		Object.entries(models).sort(([modelIdA, modelA], [modelIdB, modelB]) => {
 			const releaseDateA = parseReleaseDate(
-				(modelA as { releaseDate?: string }).releaseDate,
+				(modelA as ModelsDevModelInfo).releaseDate,
 			);
 			const releaseDateB = parseReleaseDate(
-				(modelB as { releaseDate?: string }).releaseDate,
+				(modelB as ModelsDevModelInfo).releaseDate,
 			);
 			if (releaseDateA !== releaseDateB) {
 				return releaseDateB - releaseDateA;
