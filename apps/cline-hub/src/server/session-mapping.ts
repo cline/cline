@@ -110,12 +110,21 @@ function blockType(block: Record<string, unknown>): string {
 	return asString(block.type)?.toLowerCase() ?? "";
 }
 
-function toolCallIdFor(block: Record<string, unknown>): string | undefined {
+function toolCallIdForCall(block: Record<string, unknown>): string | undefined {
 	return (
 		asString(block.id) ??
 		asString(block.toolCallId) ??
-		asString(block.tool_call_id) ??
-		asString(block.tool_use_id)
+		asString(block.tool_call_id)
+	);
+}
+
+function toolCallIdForResult(
+	block: Record<string, unknown>,
+): string | undefined {
+	return (
+		asString(block.tool_use_id) ??
+		asString(block.toolCallId) ??
+		asString(block.tool_call_id)
 	);
 }
 
@@ -251,7 +260,8 @@ export function mapHistoryToWebviewMessages(
 			}
 
 			if (type === "tool_use" || type === "tool-call") {
-				const toolCallId = toolCallIdFor(part) ?? `${messageKey}:${partIndex}`;
+				const toolCallId =
+					toolCallIdForCall(part) ?? `${messageKey}:${partIndex}`;
 				const name = toolNameFor(part);
 				const toolEvent = {
 					id: `${messageKey}:${toolCallId}`,
@@ -276,7 +286,8 @@ export function mapHistoryToWebviewMessages(
 			}
 
 			if (type === "tool_result" || type === "tool-result") {
-				const toolCallId = toolCallIdFor(part) ?? `${messageKey}:${partIndex}`;
+				const toolCallId =
+					toolCallIdForResult(part) ?? `${messageKey}:${partIndex}`;
 				const name = toolNameFor(part);
 				const output = toolOutputFor(part);
 				const isError = isErrorToolResult(part);
