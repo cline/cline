@@ -116,7 +116,11 @@ export class SdkSessionLifecycle {
 		}
 
 		const autoApprovalSettings = StateManager.get().getGlobalSettingsKey("autoApprovalSettings")
-		const toolPolicies = autoApprovalSettings ? buildToolPolicies(autoApprovalSettings, this.options.mcpHub) : undefined
+		const mode = startInput.config?.mode === "plan" ? "plan" : "act"
+		const toolPolicies =
+			autoApprovalSettings || mode === "plan"
+				? buildToolPolicies(autoApprovalSettings, this.options.mcpHub, mode)
+				: undefined
 
 		const sdkHost = await this.getOrCreateSharedHost()
 

@@ -1,5 +1,8 @@
 import type { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
+import type { Mode } from "@shared/storage/types"
 import type { McpHub } from "@/services/mcp/McpHub"
+
+const FILE_MUTATION_TOOLS = ["editor", "replace_in_file", "write_to_file", "apply_patch", "delete_file", "new_rule"]
 
 /**
  * Build SDK `toolPolicies` for tools governed by Cline's auto-approval UI.
@@ -11,19 +14,20 @@ import type { McpHub } from "@/services/mcp/McpHub"
  * active sessions in sync when the user toggles auto-approval mid-task.
  */
 export function buildToolPolicies(
-	_settings: AutoApprovalSettings,
+	_settings: AutoApprovalSettings | undefined,
 	mcpHub?: McpHub,
+	mode: Mode = "act",
 ): Record<string, { enabled?: boolean; autoApprove?: boolean }> {
 	const policies: Record<string, { enabled?: boolean; autoApprove?: boolean }> = {}
 
-	const set = (tools: string[]) => {
+	const set = (tools: string[], policy: { enabled?: boolean; autoApprove?: boolean } = { autoApprove: false }) => {
 		for (const tool of tools) {
-			policies[tool] = { autoApprove: false }
+			policies[tool] = { ...policy }
 		}
 	}
 
 	set(["read_files", "read_file", "list_files", "list_code_definition_names", "search_codebase", "search_files"])
-	set(["editor", "replace_in_file", "write_to_file", "apply_patch", "delete_file"])
+	set(FILE_MUTATION_TOOLS, mode === "plan" ? { enabled: false, autoApprove: false } : { autoApprove: false })
 	set(["run_commands", "execute_command"])
 	set(["fetch_web_content", "web_fetch", "web_search"])
 
@@ -79,7 +83,7 @@ function isReadTool(toolName: string): boolean {
 }
 
 function isEditTool(toolName: string): boolean {
-	return ["editor", "replace_in_file", "write_to_file", "apply_patch", "delete_file"].includes(toolName)
+	return FILE_MUTATION_TOOLS.includes(toolName)
 }
 
 function isCommandTool(toolName: string): boolean {

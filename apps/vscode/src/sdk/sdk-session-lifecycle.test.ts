@@ -41,6 +41,24 @@ describe("SdkSessionLifecycle", () => {
 		expect(lifecycle.getActiveSession()?.isRunning).toBe(true)
 	})
 
+	it("disables file mutation tools for plan-mode sessions even without auto-approval settings", async () => {
+		const sdkHost = makeSdkHost()
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		const lifecycle = makeLifecycle()
+
+		await lifecycle.startNewSession({ config: { mode: "plan" } } as StartInput)
+
+		expect(sdkHost.start).toHaveBeenCalledWith(
+			expect.objectContaining({
+				toolPolicies: expect.objectContaining({
+					editor: { enabled: false, autoApprove: false },
+					write_to_file: { enabled: false, autoApprove: false },
+					run_commands: { autoApprove: false },
+				}),
+			}),
+		)
+	})
+
 	it("reuses the shared session host across sessions", async () => {
 		const sdkHost = makeSdkHost({
 			start: vi.fn().mockResolvedValueOnce({ sessionId: "session-1" }).mockResolvedValueOnce({ sessionId: "session-2" }),
@@ -475,7 +493,7 @@ describe("SdkSessionLifecycle", () => {
 function makeLifecycle(overrides: Partial<ConstructorParameters<typeof SdkSessionLifecycle>[0]> = {}) {
 	return new SdkSessionLifecycle({
 		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
-		mcpHub: {} as any,
+		mcpHub: { getServers: () => [] } as any,
 		requestToolApproval: vi.fn(),
 		askQuestion: vi.fn(),
 		onSessionEvent: vi.fn(),
