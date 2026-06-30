@@ -7,6 +7,7 @@ export interface GitHubPrDashboardConfig {
 	repositories: string[];
 	maxPullsPerRepo: number;
 	maxOpenPages: number;
+	maxClosedPages: number;
 	newPrHours: number;
 	recentlyClosedDays: number;
 	trendDays: number;
@@ -16,7 +17,7 @@ export interface GitHubPrDashboardConfig {
 
 export interface GitHubPrDashboardDataWarning {
 	repository: string;
-	type: "open-pr-page-limit";
+	type: "closed-pr-page-limit" | "open-pr-page-limit";
 	message: string;
 }
 
@@ -81,6 +82,11 @@ export function resolveGitHubPrDashboardConfig(
 		repositories,
 		maxPullsPerRepo: positiveInt(env.GITHUB_PR_DASHBOARD_MAX_PRS, 25, 100),
 		maxOpenPages: positiveInt(env.GITHUB_PR_DASHBOARD_MAX_OPEN_PAGES, 10, 50),
+		maxClosedPages: positiveInt(
+			env.GITHUB_PR_DASHBOARD_MAX_CLOSED_PAGES,
+			10,
+			50,
+		),
 		newPrHours: positiveInt(env.GITHUB_PR_DASHBOARD_NEW_HOURS, 24, 24 * 30),
 		recentlyClosedDays: positiveInt(
 			env.GITHUB_PR_DASHBOARD_RECENTLY_CLOSED_DAYS,
@@ -197,12 +203,16 @@ async function fetchRecentlyClosedPulls(options: {
 	config: GitHubPrDashboardConfig;
 	fetchJson: FetchJson;
 	now: Date;
-}): Promise<GitHubPullRequestRecord[]> {
+}): Promise<{
+	pulls: GitHubPullRequestRecord[];
+	warnings: GitHubPrDashboardDataWarning[];
+}> {
 	const perPage = 100;
 	const closedSinceMs =
 		options.now.getTime() - options.config.recentlyClosedDays * 24 * 3_600_000;
 	const pulls: GitHubPullRequestRecord[] = [];
-	for (let page = 1; ; page += 1) {
+	const warnings: GitHubPrDashboardDataWarning[] = [];
+	for (let page = 1; page <= options.config.maxClosedPages; page += 1) {
 		const pagePulls = await fetchPullsPage({
 			...options,
 			state: "closed",
@@ -221,8 +231,15 @@ async function fetchRecentlyClosedPulls(options: {
 			...pagePulls.map((pull) => new Date(pull.updatedAt).getTime()),
 		);
 		if (pagePulls.length < perPage || oldestUpdatedMs < closedSinceMs) break;
+		if (page === options.config.maxClosedPages) {
+			warnings.push({
+				repository: options.repository,
+				type: "closed-pr-page-limit",
+				message: `Recently closed PR pagination reached ${options.config.maxClosedPages} pages for ${options.repository}; recently closed counts may be capped. Increase GITHUB_PR_DASHBOARD_MAX_CLOSED_PAGES if needed.`,
+			});
+		}
 	}
-	return pulls;
+	return { pulls, warnings };
 }
 
 async function fetchRecentActivityPulls(options: {
@@ -301,15 +318,19 @@ export async function fetchGitHubPrDashboardData(options: {
 		// Open PR count must be exact, so fetch and paginate open PRs separately.
 		// Review calls remain bounded to the recent activity sample to avoid one
 		// extra API request per open PR on large repositories.
-		const [openPullsResult, recentlyClosedPulls, recentActivityPulls] =
+		const [openPullsResult, recentlyClosedPullsResult, recentActivityPulls] =
 			await Promise.all([
 				fetchAllOpenPulls({ repository, config, fetchJson }),
 				fetchRecentlyClosedPulls({ repository, config, fetchJson, now }),
 				fetchRecentActivityPulls({ repository, config, fetchJson }),
 			]);
 		warnings.push(...openPullsResult.warnings);
+		warnings.push(...recentlyClosedPullsResult.warnings);
 		const pulls = mergePullsByNumber(
-			mergePullsByNumber(openPullsResult.pulls, recentlyClosedPulls),
+			mergePullsByNumber(
+				openPullsResult.pulls,
+				recentlyClosedPullsResult.pulls,
+			),
 			recentActivityPulls,
 		);
 		pullsByRepo[repository] = pulls;

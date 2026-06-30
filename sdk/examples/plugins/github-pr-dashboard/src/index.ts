@@ -16,14 +16,12 @@ interface PendingDashboardHandoff {
 
 const pendingDashboardHandoffs = new Map<string, PendingDashboardHandoff>();
 
-function handoffKey(snapshot: {
+export function resolveDashboardHandoffKey(snapshot: {
 	runId?: string;
 	conversationId?: string;
-	agentId?: string;
+	agentId: string;
 }): string {
-	return (
-		snapshot.runId ?? snapshot.conversationId ?? snapshot.agentId ?? "default"
-	);
+	return snapshot.runId ?? snapshot.conversationId ?? snapshot.agentId;
 }
 
 const plugin: AgentPlugin = {
@@ -39,7 +37,7 @@ const plugin: AgentPlugin = {
 	hooks: {
 		async beforeRun({ snapshot }) {
 			const result = await runGitHubPrDashboardGate({ logger: setupLogger });
-			const key = handoffKey(snapshot);
+			const key = resolveDashboardHandoffKey(snapshot);
 			if (result.stop) {
 				pendingDashboardHandoffs.delete(key);
 				return { stop: true, reason: result.reason };
@@ -58,7 +56,7 @@ const plugin: AgentPlugin = {
 		},
 
 		beforeModel({ request, snapshot }) {
-			const key = handoffKey(snapshot);
+			const key = resolveDashboardHandoffKey(snapshot);
 			const pending = pendingDashboardHandoffs.get(key);
 			if (!pending || pending.injected) return undefined;
 			pending.injected = true;
@@ -71,7 +69,7 @@ const plugin: AgentPlugin = {
 		},
 
 		afterRun({ result, snapshot }) {
-			const key = handoffKey(snapshot);
+			const key = resolveDashboardHandoffKey(snapshot);
 			const pending = pendingDashboardHandoffs.get(key);
 			if (result.status !== "completed") {
 				pendingDashboardHandoffs.delete(key);

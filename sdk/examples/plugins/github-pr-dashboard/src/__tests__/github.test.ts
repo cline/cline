@@ -163,4 +163,42 @@ describe("github PR dashboard GitHub client", () => {
 			}),
 		]);
 	});
+
+	it("caps recently closed pagination and returns a warning when the cap is reached", async () => {
+		const urls: string[] = [];
+		const fullClosedPage = Array.from({ length: 100 }, (_, index) => ({
+			number: index + 1,
+			title: `Closed PR ${index + 1}`,
+			state: "closed",
+			user: { login: "john" },
+			created_at: "2026-06-01T00:00:00Z",
+			updated_at: "2026-06-03T00:00:00Z",
+			closed_at: "2026-06-03T00:00:00Z",
+		}));
+		const result = await fetchGitHubPrDashboardData({
+			env: {
+				GITHUB_REPOSITORIES: "cline/cline",
+				GITHUB_PR_DASHBOARD_MAX_CLOSED_PAGES: "2",
+			} as NodeJS.ProcessEnv,
+			fetchJson: async (url) => {
+				urls.push(url);
+				if (url.includes("state=closed")) return fullClosedPage;
+				return [];
+			},
+			now: new Date("2026-06-04T00:00:00Z"),
+		});
+
+		expect(result.pullsByRepo["cline/cline"]).toHaveLength(100);
+		expect(
+			urls
+				.filter((url) => url.includes("state=closed"))
+				.map((url) => new URL(url).searchParams.get("page")),
+		).toEqual(["1", "2"]);
+		expect(result.warnings).toEqual([
+			expect.objectContaining({
+				repository: "cline/cline",
+				type: "closed-pr-page-limit",
+			}),
+		]);
+	});
 });

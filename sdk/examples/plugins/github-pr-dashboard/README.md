@@ -110,6 +110,10 @@ export GITHUB_PR_DASHBOARD_HTML_PATH=github-pr-dashboard.html
 # This is not an open PR count cap; open PRs are paginated separately.
 export GITHUB_PR_DASHBOARD_MAX_PRS=25
 
+# Pagination caps for exact open counts and recently closed scans. Default 10.
+export GITHUB_PR_DASHBOARD_MAX_OPEN_PAGES=10
+export GITHUB_PR_DASHBOARD_MAX_CLOSED_PAGES=10
+
 export GITHUB_PR_DASHBOARD_NEW_HOURS=24
 export GITHUB_PR_DASHBOARD_RECENTLY_CLOSED_DAYS=7
 export GITHUB_PR_DASHBOARD_TREND_DAYS=14
