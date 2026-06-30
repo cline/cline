@@ -65,6 +65,19 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			if (hasContent) {
 				console.log("[ChatView] handleSendMessage - Sending message:", messageToSend)
 				let messageSent = false
+				const trackPromptSubmitted = (hasActiveTask: boolean) => {
+					UiServiceClient.trackIntent(
+						IntentEvent.create({
+							action: "prompt_submitted",
+							source: "chat_submit",
+							hasText: messageToSend.length > 0,
+							hasImages: images.length > 0,
+							hasFiles: files.length > 0,
+							hasActiveTask,
+							textLength: messageToSend.length,
+						}),
+					).catch((error) => console.error("Failed to track prompt submit:", error))
+				}
 				const clearSentMessageState = () => {
 					setInputValue("")
 					setActiveQuote(null)
@@ -85,6 +98,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					request: ReturnType<typeof AskResponseRequest.create>,
 					options: { showPendingMessage?: boolean } = {},
 				) => {
+					trackPromptSubmitted(true)
 					clearSentMessageState()
 					if (options.showPendingMessage) {
 						const afterTs = Math.max(0, ...messages.map((message) => message.ts))
@@ -119,6 +133,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 						files,
 					})
 					clearSentMessageState()
+					trackPromptSubmitted(false)
 					try {
 						await TaskServiceClient.newTask(request)
 					} catch (error) {

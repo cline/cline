@@ -117,6 +117,7 @@ describe("useMessageHandlers — send routing", () => {
 		expect(condense).toHaveBeenCalledWith(expect.objectContaining({ value: "compact" }))
 		expect(newTask).not.toHaveBeenCalled()
 		expect(askResponse).not.toHaveBeenCalled()
+		expect(trackIntent).not.toHaveBeenCalled()
 	})
 
 	it("routes the /smol alias to the condense RPC as well", async () => {
@@ -130,6 +131,7 @@ describe("useMessageHandlers — send routing", () => {
 		expect(condense).toHaveBeenCalledTimes(1)
 		expect(newTask).not.toHaveBeenCalled()
 		expect(askResponse).not.toHaveBeenCalled()
+		expect(trackIntent).not.toHaveBeenCalled()
 	})
 
 	it("does not intercept /compact when there is no active task (starts a new task instead)", async () => {
@@ -142,6 +144,17 @@ describe("useMessageHandlers — send routing", () => {
 
 		expect(condense).not.toHaveBeenCalled()
 		expect(newTask).toHaveBeenCalledTimes(1)
+		expect(trackIntent).toHaveBeenCalledWith(
+			expect.objectContaining({
+				action: "prompt_submitted",
+				source: "chat_submit",
+				hasText: true,
+				hasImages: false,
+				hasFiles: false,
+				hasActiveTask: false,
+				textLength: "/compact".length,
+			}),
+		)
 	})
 
 	it("after a completed turn (no clineAsk), Enter continues the conversation via askResponse — NOT newTask", async () => {
@@ -156,6 +169,17 @@ describe("useMessageHandlers — send routing", () => {
 		expect(askResponse).toHaveBeenCalledTimes(1)
 		expect(askResponse).toHaveBeenCalledWith(
 			expect.objectContaining({ responseType: "messageResponse", text: "another question" }),
+		)
+		expect(trackIntent).toHaveBeenCalledWith(
+			expect.objectContaining({
+				action: "prompt_submitted",
+				source: "chat_submit",
+				hasText: true,
+				hasImages: false,
+				hasFiles: false,
+				hasActiveTask: true,
+				textLength: "another question".length,
+			}),
 		)
 	})
 
@@ -388,6 +412,17 @@ describe("useMessageHandlers — send routing", () => {
 
 		expect(newTask).toHaveBeenCalledTimes(1)
 		expect(askResponse).not.toHaveBeenCalled()
+		expect(trackIntent).toHaveBeenCalledWith(
+			expect.objectContaining({
+				action: "prompt_submitted",
+				source: "chat_submit",
+				hasText: true,
+				hasImages: false,
+				hasFiles: false,
+				hasActiveTask: false,
+				textLength: "brand new task".length,
+			}),
+		)
 	})
 
 	it("restores pending new-task UI state when the RPC fails", async () => {
