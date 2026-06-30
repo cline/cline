@@ -1,9 +1,14 @@
+import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
+import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { promisify } from "node:util";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const require = createRequire(import.meta.url);
+const execFileAsync = promisify(execFile);
 const repoRoot = path.resolve(__dirname, "../../..");
 const sdkCatalogPath = path.join(
 	repoRoot,
@@ -195,3 +200,13 @@ export const modelsDevXaiModels = getModelsDevProviderModels("xai")
 
 await fs.mkdir(path.dirname(outputPath), { recursive: true });
 await fs.writeFile(outputPath, file);
+await execFileAsync(
+	process.execPath,
+	[
+		require.resolve("@biomejs/biome/bin/biome"),
+		"format",
+		"--write",
+		outputPath,
+	],
+	{ cwd: path.resolve(__dirname, "..") },
+);
