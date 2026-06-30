@@ -1,65 +1,157 @@
-import { formatResponse } from "@core/prompts/responses"
-import { workspaceResolver } from "@core/workspace"
-import { createDirectoriesForFile } from "@utils/fs"
-import { getCwd } from "@utils/path"
-import * as diff from "diff"
-import * as fs from "fs/promises"
-import * as iconv from "iconv-lite"
-import { HostProvider } from "@/hosts/host-provider"
-import { diagnosticsToProblemsString, getNewDiagnostics } from "@/integrations/diagnostics"
-import { DiagnosticSeverity, FileDiagnostics } from "@/shared/proto/index.cline"
-import { Logger } from "@/shared/services/Logger"
-import { detectEncoding } from "../misc/extract-text"
-import { sanitizeNotebookForLLM } from "../misc/notebook-utils"
-import { openFile } from "../misc/open-file"
+import { formatResponse } from "@core/prompts/responses";
+import { workspaceResolver } from "@core/workspace";
+import { createDirectoriesForFile } from "@utils/fs";
+import { getCwd } from "@utils/path";
+import * as diff from "diff";
+import * as fs from "fs/promises";
+import * as iconv from "iconv-lite";
+import { HostProvider } from "@/hosts/host-provider";
+import {
+	diagnosticsToProblemsString,
+	getNewDiagnostics,
+} from "@/integrations/diagnostics";
+import { telemetryService } from "@/services/telemetry";
+import {
+	DiagnosticSeverity,
+	type FileDiagnostics,
+} from "@/shared/proto/index.cline";
+import { Logger } from "@/shared/services/Logger";
+import { detectEncoding } from "../misc/extract-text";
+import { sanitizeNotebookForLLM } from "../misc/notebook-utils";
+import { openFile } from "../misc/open-file";
+
+export type DiffEditSurface = "vscode_diff" | "background" | "external";
+export type DiffViewOutcome = "accepted" | "rejected";
+export type DiffViewRevertReason =
+	| "user_rejected"
+	| "error_cleanup"
+	| "hook_cancelled"
+	| "task_aborted"
+	| "unknown";
+
+type DiffViewTelemetry = Pick<
+	typeof telemetryService,
+	| "captureDiffViewOpened"
+	| "captureDiffViewAccepted"
+	| "captureDiffViewRejected"
+	| "captureDiffViewReverted"
+>;
+
+let diffViewTelemetry: DiffViewTelemetry = telemetryService;
+
+export function setDiffViewTelemetryForTesting(
+	telemetry: DiffViewTelemetry,
+): () => void {
+	const previous = diffViewTelemetry;
+	diffViewTelemetry = telemetry;
+	return () => {
+		diffViewTelemetry = previous;
+	};
+}
 
 export abstract class DiffViewProvider {
-	editType?: "create" | "modify" | "delete"
-	isEditing = false
-	originalContent: string | undefined
-	private createdDirs: string[] = []
-	protected documentWasOpen = false
-	private preDiagnostics: FileDiagnostics[] = []
-	protected relPath?: string
-	protected absolutePath?: string
-	protected fileEncoding: string = "utf8"
-	private streamedLines: string[] = []
-	private newContent?: string
+	protected abstract readonly editSurface: DiffEditSurface;
+	editType?: "create" | "modify" | "delete";
+	isEditing = false;
+	originalContent: string | undefined;
+	private createdDirs: string[] = [];
+	protected documentWasOpen = false;
+	private preDiagnostics: FileDiagnostics[] = [];
+	protected relPath?: string;
+	protected absolutePath?: string;
+	protected fileEncoding: string = "utf8";
+	private streamedLines: string[] = [];
+	private newContent?: string;
+	private diffViewOutcome?: DiffViewOutcome;
+	private diffViewReverted = false;
 
-	constructor() {}
-
-	public async open(relPath: string, options?: { displayPath?: string }): Promise<void> {
-		this.isEditing = true
-		const cwd = await getCwd()
-		const absolutePathResolved = workspaceResolver.resolveWorkspacePath(cwd, relPath, "DiffViewProvider.open.absolutePath")
-		this.absolutePath = typeof absolutePathResolved === "string" ? absolutePathResolved : absolutePathResolved.absolutePath
-		this.relPath = options?.displayPath ?? relPath
-		const fileExists = this.editType === "modify"
+	public async open(
+		relPath: string,
+		options?: { displayPath?: string },
+	): Promise<void> {
+		this.isEditing = true;
+		const cwd = await getCwd();
+		const absolutePathResolved = workspaceResolver.resolveWorkspacePath(
+			cwd,
+			relPath,
+			"DiffViewProvider.open.absolutePath",
+		);
+		this.absolutePath =
+			typeof absolutePathResolved === "string"
+				? absolutePathResolved
+				: absolutePathResolved.absolutePath;
+		this.relPath = options?.displayPath ?? relPath;
+		const fileExists = this.editType === "modify";
 
 		// if the file is already open, ensure it's not dirty before getting its contents
 		if (fileExists) {
 			await HostProvider.workspace.saveOpenDocumentIfDirty({
 				filePath: this.absolutePath!,
-			})
+			});
 
-			const fileBuffer = await fs.readFile(this.absolutePath)
-			this.fileEncoding = await detectEncoding(fileBuffer)
-			this.originalContent = iconv.decode(fileBuffer, this.fileEncoding)
+			const fileBuffer = await fs.readFile(this.absolutePath);
+			this.fileEncoding = await detectEncoding(fileBuffer);
+			this.originalContent = iconv.decode(fileBuffer, this.fileEncoding);
 		} else {
-			this.originalContent = ""
-			this.fileEncoding = "utf8"
+			this.originalContent = "";
+			this.fileEncoding = "utf8";
 		}
 		// for new files, create any necessary directories and keep track of new directories to delete if the user denies the operation
-		this.createdDirs = await createDirectoriesForFile(this.absolutePath)
+		this.createdDirs = await createDirectoriesForFile(this.absolutePath);
 		// make sure the file exists before we open it
 		if (!fileExists) {
-			await fs.writeFile(this.absolutePath, "")
+			await fs.writeFile(this.absolutePath, "");
 		}
 		// get diagnostics before editing the file, we'll compare to diagnostics after editing to see if cline needs to fix anything
-		this.preDiagnostics = (await HostProvider.workspace.getDiagnostics({})).fileDiagnostics
-		await this.openDiffEditor()
-		await this.scrollEditorToLine(0)
-		this.streamedLines = []
+		this.preDiagnostics = (
+			await HostProvider.workspace.getDiagnostics({})
+		).fileDiagnostics;
+		await this.openDiffEditor();
+		diffViewTelemetry.captureDiffViewOpened({
+			editType: this.editType,
+			editSurface: this.editSurface,
+			isNotebook: this.isNotebookFile(),
+		});
+		await this.scrollEditorToLine(0);
+		this.streamedLines = [];
+	}
+
+	private recordDiffViewAccepted(): void {
+		if (this.diffViewOutcome) {
+			return;
+		}
+		diffViewTelemetry.captureDiffViewAccepted({
+			editType: this.editType,
+			editSurface: this.editSurface,
+			isNotebook: this.isNotebookFile(),
+		});
+		this.diffViewOutcome = "accepted";
+	}
+
+	public recordDiffViewRejected(): void {
+		if (this.diffViewOutcome) {
+			return;
+		}
+		diffViewTelemetry.captureDiffViewRejected({
+			editType: this.editType,
+			editSurface: this.editSurface,
+			isNotebook: this.isNotebookFile(),
+		});
+		this.diffViewOutcome = "rejected";
+	}
+
+	private recordDiffViewReverted(reason: DiffViewRevertReason): void {
+		if (this.diffViewReverted) {
+			return;
+		}
+		diffViewTelemetry.captureDiffViewReverted({
+			editType: this.editType,
+			editSurface: this.editSurface,
+			isNotebook: this.isNotebookFile(),
+			revertReason: reason,
+			previousOutcome: this.diffViewOutcome ?? "none",
+		});
+		this.diffViewReverted = true;
 	}
 
 	/**
@@ -70,7 +162,7 @@ export abstract class DiffViewProvider {
 	 *
 	 * @returns A promise that resolves when the diff editor is open and ready
 	 */
-	protected abstract openDiffEditor(): Promise<void>
+	protected abstract openDiffEditor(): Promise<void>;
 
 	/**
 	 * Scrolls the diff editor to reveal a specific line.
@@ -79,7 +171,7 @@ export abstract class DiffViewProvider {
 	 *
 	 * @param line The 0-based line number to scroll to
 	 */
-	protected abstract scrollEditorToLine(line: number): Promise<void>
+	protected abstract scrollEditorToLine(line: number): Promise<void>;
 
 	/**
 	 * Creates a smooth scrolling animation between two lines in the diff editor.
@@ -90,29 +182,32 @@ export abstract class DiffViewProvider {
 	 * @param startLine The 0-based line number to begin the animation from
 	 * @param endLine The 0-based line number to animate to
 	 */
-	protected abstract scrollAnimation(startLine: number, endLine: number): Promise<void>
+	protected abstract scrollAnimation(
+		startLine: number,
+		endLine: number,
+	): Promise<void>;
 
 	/**
 	 * Removes content from the specified line to the end of the document.
 	 * Called after the final update is received.
 	 */
-	protected abstract truncateDocument(lineNumber: number): Promise<void>
+	protected abstract truncateDocument(lineNumber: number): Promise<void>;
 
 	/**
 	 * Returns the current line count of the document being edited.
 	 * Used for boundary validation before calling truncateDocument.
 	 */
-	protected abstract getDocumentLineCount(): Promise<number>
+	protected abstract getDocumentLineCount(): Promise<number>;
 
 	/**
 	 * Safely truncates the document, ensuring the line number is within bounds.
 	 * This prevents errors on hosts that strictly validate line numbers (e.g., JetBrains via gRPC).
 	 */
 	private async safelyTruncateDocument(lineNumber: number): Promise<void> {
-		const lineCount = await this.getDocumentLineCount()
+		const lineCount = await this.getDocumentLineCount();
 		// Only truncate if there's content beyond the specified line
 		if (lineNumber < lineCount) {
-			await this.truncateDocument(lineNumber)
+			await this.truncateDocument(lineNumber);
 		}
 	}
 
@@ -121,7 +216,7 @@ export abstract class DiffViewProvider {
 	 *
 	 * Returns undefined if the diff editor was closed.
 	 */
-	protected abstract getDocumentText(): Promise<string | undefined>
+	protected abstract getDocumentText(): Promise<string | undefined>;
 
 	/**
 	 * Get any new diagnostic problems that appeared after applying the diff.
@@ -144,13 +239,16 @@ export abstract class DiffViewProvider {
 	 */
 	private async getNewDiagnosticProblems(): Promise<string> {
 		// Get the diagnostics after changing the document.
-		const postDiagnostics = (await HostProvider.workspace.getDiagnostics({})).fileDiagnostics
+		const postDiagnostics = (await HostProvider.workspace.getDiagnostics({}))
+			.fileDiagnostics;
 
-		const newProblems = getNewDiagnostics(this.preDiagnostics, postDiagnostics)
+		const newProblems = getNewDiagnostics(this.preDiagnostics, postDiagnostics);
 		// Only including errors since warnings can be distracting (if user wants to fix warnings they can use the @problems mention)
 		// will be empty string if no errors
-		const problems = await diagnosticsToProblemsString(newProblems, [DiagnosticSeverity.DIAGNOSTIC_ERROR])
-		return problems
+		const problems = await diagnosticsToProblemsString(newProblems, [
+			DiagnosticSeverity.DIAGNOSTIC_ERROR,
+		]);
+		return problems;
 	}
 
 	/**
@@ -158,17 +256,17 @@ export abstract class DiffViewProvider {
 	 *
 	 * @returns true if the file was saved.
 	 */
-	protected abstract saveDocument(): Promise<Boolean>
+	protected abstract saveDocument(): Promise<boolean>;
 
 	/**
 	 * Closes all open diff views.
 	 */
-	protected abstract closeAllDiffViews(): Promise<void>
+	protected abstract closeAllDiffViews(): Promise<void>;
 
 	/**
 	 * Cleans up the diff view resources and resets internal state.
 	 */
-	protected abstract resetDiffView(): Promise<void>
+	protected abstract resetDiffView(): Promise<void>;
 
 	/**
 	 * Switches to a specialized editor for specific file types after final content is available.
@@ -183,36 +281,44 @@ export abstract class DiffViewProvider {
 		// Default no-op - subclasses can override if needed
 	}
 
-	private lastUpdateContentLength = -1
-	private lastUpdateTime = 0
-	private static readonly UPDATE_THROTTLE_MS = 100 // Throttle updates to max 10/second during streaming
+	private lastUpdateContentLength = -1;
+	private lastUpdateTime = 0;
+	private static readonly UPDATE_THROTTLE_MS = 100; // Throttle updates to max 10/second during streaming
 
 	async update(
 		accumulatedContent: string,
 		isFinal: boolean,
-		changeLocation?: { startLine: number; endLine: number; startChar: number; endChar: number },
+		changeLocation?: {
+			startLine: number;
+			endLine: number;
+			startChar: number;
+			endChar: number;
+		},
 	) {
 		if (!this.isEditing) {
-			throw new Error("Not editing any file")
+			throw new Error("Not editing any file");
 		}
 
 		// Throttle updates during streaming to prevent performance issues with large files
 		// This is especially important for notebooks where streaming can trigger thousands of calls
 		if (!isFinal) {
-			const now = Date.now()
-			const contentLength = accumulatedContent.length
-			const timeSinceLastUpdate = now - this.lastUpdateTime
+			const now = Date.now();
+			const contentLength = accumulatedContent.length;
+			const timeSinceLastUpdate = now - this.lastUpdateTime;
 
 			// Skip if: no content, content unchanged, or throttle period not elapsed
-			if (contentLength === 0 || contentLength === this.lastUpdateContentLength) {
-				return
+			if (
+				contentLength === 0 ||
+				contentLength === this.lastUpdateContentLength
+			) {
+				return;
 			}
 			if (timeSinceLastUpdate < DiffViewProvider.UPDATE_THROTTLE_MS) {
-				return // Throttle: too soon since last update
+				return; // Throttle: too soon since last update
 			}
 
-			this.lastUpdateContentLength = contentLength
-			this.lastUpdateTime = now
+			this.lastUpdateContentLength = contentLength;
+			this.lastUpdateTime = now;
 		}
 
 		// --- Fix to prevent duplicate BOM ---
@@ -220,28 +326,30 @@ export abstract class DiffViewProvider {
 		// when replacing from the start (0,0), and we want to avoid duplication.
 		// Final BOM is handled in `saveChanges`.
 		if (accumulatedContent.startsWith("\ufeff")) {
-			accumulatedContent = accumulatedContent.slice(1) // Remove the BOM character
+			accumulatedContent = accumulatedContent.slice(1); // Remove the BOM character
 		}
 
-		this.newContent = accumulatedContent
-		const accumulatedLines = accumulatedContent.split("\n")
+		this.newContent = accumulatedContent;
+		const accumulatedLines = accumulatedContent.split("\n");
 		if (!isFinal) {
-			accumulatedLines.pop() // remove the last partial line only if it's not the final update
+			accumulatedLines.pop(); // remove the last partial line only if it's not the final update
 		}
-		const diffLines = accumulatedLines.slice(this.streamedLines.length)
+		const diffLines = accumulatedLines.slice(this.streamedLines.length);
 
 		// Instead of animating each line, we'll update in larger chunks
-		const currentLine = this.streamedLines.length + diffLines.length - 1
+		const currentLine = this.streamedLines.length + diffLines.length - 1;
 		if (currentLine >= 0) {
 			// Only proceed if we have new lines
 
 			// Replace all content up to the current line with accumulated lines
 			// This is necessary (as compared to inserting one line at a time) to handle cases where html tags
 			// on previous lines are auto closed for example
-			let contentToReplace = accumulatedLines.slice(0, currentLine + 1).join("\n")
+			let contentToReplace = accumulatedLines
+				.slice(0, currentLine + 1)
+				.join("\n");
 			if (!isFinal) {
 				// During streaming, add trailing newline for cursor positioning
-				contentToReplace += "\n"
+				contentToReplace += "\n";
 			}
 
 			// For the final update, replace the entire document to prevent concatenation
@@ -249,41 +357,43 @@ export abstract class DiffViewProvider {
 			// with content lacking a trailing newline causes line N+1's content to be
 			// directly appended to our content (e.g., "Hello World" + "# Old Header" becomes
 			// "Hello World# Old Header").
-			const endLine = isFinal ? await this.getDocumentLineCount() : currentLine + 1
+			const endLine = isFinal
+				? await this.getDocumentLineCount()
+				: currentLine + 1;
 
-			const rangeToReplace = { startLine: 0, endLine }
-			await this.replaceText(contentToReplace, rangeToReplace, currentLine)
+			const rangeToReplace = { startLine: 0, endLine };
+			await this.replaceText(contentToReplace, rangeToReplace, currentLine);
 
 			// Scroll to the actual change location if provided.
 			if (changeLocation) {
 				// We have the actual location of the change, scroll to it
-				const targetLine = changeLocation.startLine
-				await this.scrollEditorToLine(targetLine)
+				const targetLine = changeLocation.startLine;
+				await this.scrollEditorToLine(targetLine);
 			} else {
 				// Fallback to the old logic for non-replacement updates
 				if (diffLines.length <= 5) {
 					// For small changes, just jump directly to the line
-					await this.scrollEditorToLine(currentLine)
+					await this.scrollEditorToLine(currentLine);
 				} else {
 					// For larger changes, create a quick scrolling animation
-					const startLine = this.streamedLines.length
-					const endLine = currentLine
-					await this.scrollAnimation(startLine, endLine)
+					const startLine = this.streamedLines.length;
+					const endLine = currentLine;
+					await this.scrollAnimation(startLine, endLine);
 					// Ensure we end at the final line
-					await this.scrollEditorToLine(currentLine)
+					await this.scrollEditorToLine(currentLine);
 				}
 			}
 		}
 
 		// Update the streamedLines with the new accumulated content
-		this.streamedLines = accumulatedLines
+		this.streamedLines = accumulatedLines;
 		if (isFinal) {
 			// Handle any remaining lines if the new content is shorter than the original
-			await this.safelyTruncateDocument(this.streamedLines.length)
+			await this.safelyTruncateDocument(this.streamedLines.length);
 			// Allow subclasses to perform cleanup (e.g., clearing decorations)
-			await this.onFinalUpdate()
+			await this.onFinalUpdate();
 			// Switch to specialized editor for specific file types (e.g., Jupyter notebooks)
-			await this.switchToSpecializedEditor()
+			await this.switchToSpecializedEditor();
 		}
 	}
 
@@ -295,7 +405,7 @@ export abstract class DiffViewProvider {
 	}
 
 	async showFile(absolutePath: string): Promise<void> {
-		await openFile(absolutePath, true)
+		await openFile(absolutePath, true);
 	}
 
 	/**
@@ -314,7 +424,7 @@ export abstract class DiffViewProvider {
 		content: string,
 		rangeToReplace: { startLine: number; endLine: number },
 		currentLine: number | undefined,
-	): Promise<void>
+	): Promise<void>;
 
 	/**
 	 * Checks if the current file is a Jupyter notebook file.
@@ -322,7 +432,7 @@ export abstract class DiffViewProvider {
 	 * @returns true if the file has .ipynb extension
 	 */
 	protected isNotebookFile(): boolean {
-		return this.relPath?.toLowerCase().endsWith(".ipynb") ?? false
+		return this.relPath?.toLowerCase().endsWith(".ipynb") ?? false;
 	}
 
 	/**
@@ -330,180 +440,212 @@ export abstract class DiffViewProvider {
 	 * For notebooks, strips all outputs since they aren't needed for editing.
 	 */
 	getOriginalContentForLLM(): string | undefined {
-		if (this.originalContent === undefined) return undefined
-		return this.isNotebookFile() ? sanitizeNotebookForLLM(this.originalContent, true) : this.originalContent
+		if (this.originalContent === undefined) return undefined;
+		return this.isNotebookFile()
+			? sanitizeNotebookForLLM(this.originalContent, true)
+			: this.originalContent;
 	}
 
 	async saveChanges(): Promise<{
-		newProblemsMessage: string | undefined
-		userEdits: string | undefined
-		autoFormattingEdits: string | undefined
-		finalContent: string | undefined
+		newProblemsMessage: string | undefined;
+		userEdits: string | undefined;
+		autoFormattingEdits: string | undefined;
+		finalContent: string | undefined;
 	}> {
 		// get the contents before save operation which may do auto-formatting
-		const preSaveContent = await this.getDocumentText()
+		const preSaveContent = await this.getDocumentText();
 
-		if (!this.relPath || !this.absolutePath || !this.newContent || preSaveContent === undefined) {
+		if (
+			!this.relPath ||
+			!this.absolutePath ||
+			this.newContent === undefined ||
+			preSaveContent === undefined
+		) {
 			return {
 				newProblemsMessage: undefined,
 				userEdits: undefined,
 				autoFormattingEdits: undefined,
 				finalContent: undefined,
-			}
+			};
 		}
 
-		await this.saveDocument()
+		await this.saveDocument();
+		this.recordDiffViewAccepted();
 		// get text after save in case there is any auto-formatting done by the editor
-		const postSaveContent = (await this.getDocumentText()) || ""
+		const postSaveContent = (await this.getDocumentText()) || "";
 
-		await this.showFile(this.absolutePath)
-		await this.closeAllDiffViews()
+		await this.showFile(this.absolutePath);
+		await this.closeAllDiffViews();
 
-		const newProblems = await this.getNewDiagnosticProblems()
+		const newProblems = await this.getNewDiagnosticProblems();
 		const newProblemsMessage =
-			newProblems.length > 0 ? `\n\nNew problems detected after saving the file:\n${newProblems}` : ""
+			newProblems.length > 0
+				? `\n\nNew problems detected after saving the file:\n${newProblems}`
+				: "";
 
 		// If the edited content has different EOL characters, we don't want to show a diff with all the EOL differences.
-		const newContentEOL = this.newContent.includes("\r\n") ? "\r\n" : "\n"
-		const normalizedPreSaveContent = preSaveContent.replace(/\r\n|\n/g, newContentEOL).trimEnd() + newContentEOL // trimEnd to fix issue where editor adds in extra new line automatically
-		const normalizedPostSaveContent = postSaveContent.replace(/\r\n|\n/g, newContentEOL).trimEnd() + newContentEOL // this is the final content we return to the model to use as the new baseline for future edits
+		const newContentEOL = this.newContent.includes("\r\n") ? "\r\n" : "\n";
+		const normalizedPreSaveContent =
+			preSaveContent.replace(/\r\n|\n/g, newContentEOL).trimEnd() +
+			newContentEOL; // trimEnd to fix issue where editor adds in extra new line automatically
+		const normalizedPostSaveContent =
+			postSaveContent.replace(/\r\n|\n/g, newContentEOL).trimEnd() +
+			newContentEOL; // this is the final content we return to the model to use as the new baseline for future edits
 		// just in case the new content has a mix of varying EOL characters
-		const normalizedNewContent = this.newContent.replace(/\r\n|\n/g, newContentEOL).trimEnd() + newContentEOL
+		const normalizedNewContent =
+			this.newContent.replace(/\r\n|\n/g, newContentEOL).trimEnd() +
+			newContentEOL;
 
-		let userEdits: string | undefined
+		let userEdits: string | undefined;
 		if (normalizedPreSaveContent !== normalizedNewContent) {
 			// user made changes before approving edit. let the model know about user made changes (not including post-save auto-formatting changes)
-			userEdits = formatResponse.createPrettyPatch(this.relPath.toPosix(), normalizedNewContent, normalizedPreSaveContent)
+			userEdits = formatResponse.createPrettyPatch(
+				this.relPath.toPosix(),
+				normalizedNewContent,
+				normalizedPreSaveContent,
+			);
 			// return { newProblemsMessage, userEdits, finalContent: normalizedPostSaveContent }
 		} else {
 			// no changes to cline's edits
 			// return { newProblemsMessage, userEdits: undefined, finalContent: normalizedPostSaveContent }
 		}
 
-		let autoFormattingEdits: string | undefined
+		let autoFormattingEdits: string | undefined;
 		if (normalizedPreSaveContent !== normalizedPostSaveContent) {
 			// auto-formatting was done by the editor
 			autoFormattingEdits = formatResponse.createPrettyPatch(
 				this.relPath.toPosix(),
 				normalizedPreSaveContent,
 				normalizedPostSaveContent,
-			)
+			);
 		}
 
 		// Strip notebook outputs to reduce context size (outputs aren't needed for editing)
 		const finalContent = this.isNotebookFile()
 			? sanitizeNotebookForLLM(normalizedPostSaveContent, true)
-			: normalizedPostSaveContent
+			: normalizedPostSaveContent;
 
 		return {
 			newProblemsMessage,
 			userEdits,
 			autoFormattingEdits,
 			finalContent,
-		}
+		};
 	}
 
-	async revertChanges(): Promise<void> {
+	async revertChanges(reason: DiffViewRevertReason = "unknown"): Promise<void> {
 		if (!this.absolutePath || !this.isEditing) {
-			return
+			return;
 		}
-		const fileExists = this.editType === "modify"
+		this.recordDiffViewReverted(reason);
+		const fileExists = this.editType === "modify";
 
 		if (!fileExists) {
 			// This is a load-bearing save statement- even though the file is saved and then immediately deleted.
 			// In vscode, it will not close the diff editor correctly if the file is not saved.
-			await this.saveDocument()
-			await this.closeAllDiffViews()
-			await fs.rm(this.absolutePath, { force: true })
-			Logger.log(`File ${this.absolutePath} has been deleted.`)
+			await this.saveDocument();
+			await this.closeAllDiffViews();
+			await fs.rm(this.absolutePath, { force: true });
+			Logger.log(`File ${this.absolutePath} has been deleted.`);
 
 			// Remove only the directories we created, in reverse order
 			for (let i = this.createdDirs.length - 1; i >= 0; i--) {
 				try {
-					await fs.rmdir(this.createdDirs[i])
-					Logger.log(`Directory ${this.createdDirs[i]} has been deleted.`)
+					await fs.rmdir(this.createdDirs[i]);
+					Logger.log(`Directory ${this.createdDirs[i]} has been deleted.`);
 				} catch (error) {
-					Logger.log(`Could not delete directory ${this.createdDirs[i]}`, error)
+					Logger.log(
+						`Could not delete directory ${this.createdDirs[i]}`,
+						error,
+					);
 				}
 			}
 		} else {
 			// revert document
 			// Apply the edit and save, since contents shouldn't have changed this won't show in local history unless of
 			// course the user made changes and saved during the edit.
-			const contents = (await this.getDocumentText()) || ""
-			const lineCount = (contents.match(/\n/g) || []).length + 1
-			await this.replaceText(this.originalContent ?? "", { startLine: 0, endLine: lineCount }, undefined)
+			const contents = (await this.getDocumentText()) || "";
+			const lineCount = (contents.match(/\n/g) || []).length + 1;
+			await this.replaceText(
+				this.originalContent ?? "",
+				{ startLine: 0, endLine: lineCount },
+				undefined,
+			);
 
-			await this.saveDocument()
-			Logger.log(`File ${this.absolutePath} has been reverted to its original content.`)
+			await this.saveDocument();
+			Logger.log(
+				`File ${this.absolutePath} has been reverted to its original content.`,
+			);
 			if (this.documentWasOpen) {
-				openFile(this.absolutePath, true)
+				openFile(this.absolutePath, true);
 			}
-			await this.closeAllDiffViews()
+			await this.closeAllDiffViews();
 		}
 
 		// edit is done
-		await this.reset()
+		await this.reset();
 	}
 
 	async scrollToFirstDiff() {
 		if (!this.isEditing) {
-			return
+			return;
 		}
-		const currentContent = (await this.getDocumentText()) || ""
-		const diffs = diff.diffLines(this.originalContent || "", currentContent)
-		let lineCount = 0
+		const currentContent = (await this.getDocumentText()) || "";
+		const diffs = diff.diffLines(this.originalContent || "", currentContent);
+		let lineCount = 0;
 		for (const part of diffs) {
 			if (part.added || part.removed) {
 				// Found the first diff, scroll to it
-				this.scrollEditorToLine(lineCount)
-				return
+				this.scrollEditorToLine(lineCount);
+				return;
 			}
 			if (!part.removed) {
-				lineCount += part.count || 0
+				lineCount += part.count || 0;
 			}
 		}
 	}
 
 	async deleteFile(fileName: string) {
-		const fileLocation = this.absolutePath
+		const fileLocation = this.absolutePath;
 		if (!fileLocation?.endsWith(fileName) || !this.isEditing) {
-			return
+			return;
 		}
 
 		// Close diff views before deleting the file
-		await this.closeAllDiffViews()
+		await this.closeAllDiffViews();
 
 		// Delete the file
 		try {
-			await fs.rm(fileLocation, { force: true })
-			Logger.log(`File ${fileLocation} has been deleted.`)
+			await fs.rm(fileLocation, { force: true });
+			Logger.log(`File ${fileLocation} has been deleted.`);
 		} catch (error) {
-			Logger.error(`Failed to delete file ${fileLocation}:`, error)
+			Logger.error(`Failed to delete file ${fileLocation}:`, error);
 		}
 
-		this.isEditing = false
-		this.newContent = undefined
+		this.isEditing = false;
+		this.newContent = undefined;
 	}
 
 	// close editor if open?
 	async reset() {
-		this.isEditing = false
-		this.editType = undefined
-		this.absolutePath = undefined
-		this.relPath = undefined
-		this.preDiagnostics = []
+		this.isEditing = false;
+		this.editType = undefined;
+		this.absolutePath = undefined;
+		this.relPath = undefined;
+		this.preDiagnostics = [];
 
-		this.originalContent = undefined
-		this.fileEncoding = "utf8"
-		this.documentWasOpen = false
+		this.originalContent = undefined;
+		this.fileEncoding = "utf8";
+		this.documentWasOpen = false;
 
-		this.streamedLines = []
-		this.createdDirs = []
-		this.newContent = undefined
-		this.lastUpdateContentLength = -1
-		this.lastUpdateTime = 0
+		this.streamedLines = [];
+		this.createdDirs = [];
+		this.newContent = undefined;
+		this.diffViewOutcome = undefined;
+		this.diffViewReverted = false;
+		this.lastUpdateContentLength = -1;
+		this.lastUpdateTime = 0;
 
-		await this.resetDiffView()
+		await this.resetDiffView();
 	}
 }

@@ -1,44 +1,58 @@
-import { HostProvider } from "@hosts/host-provider"
-import type { BrowserSettings } from "@shared/BrowserSettings"
-import { ApiFormat, apiFormatToJSON } from "@shared/proto/cline/models"
-import { ShowMessageType } from "@shared/proto/host/window"
-import type { TaskFeedbackType } from "@shared/WebviewMessage"
-import * as os from "os"
-import { ClineAccountUserInfo } from "@/services/auth/AuthService"
-import { Setting } from "@/shared/proto/index.host"
-import { Logger } from "@/shared/services/Logger"
-import { Mode } from "@/shared/storage/types"
-import { version as extensionVersion } from "../../../package.json"
-import { setDistinctId } from "../logging/distinctId"
-import type { ITelemetryProvider, TelemetryProperties } from "./providers/ITelemetryProvider"
-import { TelemetryProviderFactory } from "./TelemetryProviderFactory"
+import { HostProvider } from "@hosts/host-provider";
+import type { BrowserSettings } from "@shared/BrowserSettings";
+import { type ApiFormat, apiFormatToJSON } from "@shared/proto/cline/models";
+import { ShowMessageType } from "@shared/proto/host/window";
+import type { TaskFeedbackType } from "@shared/WebviewMessage";
+import * as os from "os";
+import type { ClineAccountUserInfo } from "@/services/auth/AuthService";
+import { Setting } from "@/shared/proto/index.host";
+import { Logger } from "@/shared/services/Logger";
+import type { Mode } from "@/shared/storage/types";
+import { version as extensionVersion } from "../../../package.json";
+import type {
+	DiffEditSurface,
+	DiffViewOutcome,
+	DiffViewRevertReason,
+} from "../../integrations/editor/DiffViewProvider";
+import { setDistinctId } from "../logging/distinctId";
+import type {
+	ITelemetryProvider,
+	TelemetryProperties,
+} from "./providers/ITelemetryProvider";
+import { TelemetryProviderFactory } from "./TelemetryProviderFactory";
 
 /**
  * Represents telemetry event categories that can be individually enabled or disabled
  * When adding a new category, add it both here and to the initial values in telemetryCategoryEnabled
  * Ensure `if (!this.isCategoryEnabled('<category_name>')` is added to the capture method
  */
-type TelemetryCategory = "checkpoints" | "browser" | "focus_chain" | "subagents" | "skills" | "hooks"
+type TelemetryCategory =
+	| "checkpoints"
+	| "browser"
+	| "focus_chain"
+	| "subagents"
+	| "skills"
+	| "hooks";
 
 /**
  * Terminal type for telemetry differentiation
  */
-export type TerminalType = "vscode" | "standalone"
+export type TerminalType = "vscode" | "standalone";
 
 /**
  * VSCode-specific output capture methods
  */
-export type VscodeOutputMethod = "shell_integration" | "clipboard" | "none"
+export type VscodeOutputMethod = "shell_integration" | "clipboard" | "none";
 
 /**
  * Standalone-specific output capture methods
  */
-export type StandaloneOutputMethod = "child_process" | "child_process_error"
+export type StandaloneOutputMethod = "child_process" | "child_process_error";
 
 /**
  * Combined type for terminal output methods
  */
-export type TerminalOutputMethod = VscodeOutputMethod | StandaloneOutputMethod
+export type TerminalOutputMethod = VscodeOutputMethod | StandaloneOutputMethod;
 
 /**
  * Enum for terminal output failure reasons
@@ -73,44 +87,44 @@ export type TelemetryMetadata = {
 	 * versioning than the VSCode Extension, but on those platforms this will be the _cline-core version_
 	 * which uses the same as the versioning as the VSCode extension.
 	 */
-	extension_version: string
+	extension_version: string;
 	/**
 	 * The type of cline distribution, e.g VSCode Extension, JetBrains Plugin or CLI. This
 	 * is different than the `platform` because there are many variants of VSCode and JetBrains but they
 	 * all use the same extension or plugin.
 	 */
-	cline_type: string
+	cline_type: string;
 	/** The name of the host IDE or environment e.g. VSCode, Cursor, IntelliJ Professional Edition, etc. */
-	platform: string
+	platform: string;
 	/** The version of the host environment */
-	platform_version: string
+	platform_version: string;
 	/** The operating system type, e.g. darwin, win32. This is the value returned by os.platform() */
-	os_type: string
+	os_type: string;
 	/** The operating system version e.g. 'Windows 10 Pro', 'Darwin Kernel Version 21.6.0...'
 	 * This is the value returned by os.version() */
-	os_version: string
+	os_version: string;
 	/** Whether the current workspace is a VS Code remote workspace */
-	is_remote_workspace: boolean
+	is_remote_workspace: boolean;
 	/** Whether the extension is running in development mode */
-	is_dev: string | undefined
-}
+	is_dev: string | undefined;
+};
 
 /**
  * Token usage data shared across telemetry capture methods.
  * Used by both `captureTokenUsage` and `captureConversationTurnEvent`.
  */
 export interface TokenUsage {
-	tokensIn?: number
-	tokensOut?: number
-	cacheWriteTokens?: number
-	cacheReadTokens?: number
-	totalCost?: number
+	tokensIn?: number;
+	tokensOut?: number;
+	cacheWriteTokens?: number;
+	cacheReadTokens?: number;
+	totalCost?: number;
 }
 
 /**
  * Maximum length for error messages to prevent excessive data
  */
-const MAX_ERROR_MESSAGE_LENGTH = 500
+const MAX_ERROR_MESSAGE_LENGTH = 500;
 
 /**
  * TelemetryService handles telemetry event tracking for the Cline extension
@@ -126,17 +140,17 @@ export class TelemetryService {
 		["subagents", true], // CLI Subagents telemetry enabled
 		["skills", true], // Skills telemetry enabled
 		["hooks", true], // Hooks telemetry enabled
-	])
+	]);
 
-	private userId?: string
+	private userId?: string;
 	private activeOrg: {
-		organization_id: string
-		organization_name: string
-		member_id: string
-	} | null = null
-	private taskTurnCounts = new Map<string, number>()
-	private taskToolCallCounts = new Map<string, number>()
-	private taskErrorCounts = new Map<string, number>()
+		organization_id: string;
+		organization_name: string;
+		member_id: string;
+	} | null = null;
+	private taskTurnCounts = new Map<string, number>();
+	private taskToolCallCounts = new Map<string, number>();
+	private taskErrorCounts = new Map<string, number>();
 	public static readonly METRICS = {
 		TASK: {
 			TURNS_TOTAL: "cline.turns.total",
@@ -193,7 +207,13 @@ export class TelemetryService {
 		GRPC: {
 			RESPONSE_SIZE_BYTES: "cline.grpc.response.size_bytes",
 		},
-	}
+		DIFF_VIEW: {
+			OPENED_TOTAL: "cline.diff_view.opened.total",
+			ACCEPTED_TOTAL: "cline.diff_view.accepted.total",
+			REJECTED_TOTAL: "cline.diff_view.rejected.total",
+			REVERTED_TOTAL: "cline.diff_view.reverted.total",
+		},
+	};
 	// Event constants for tracking user interactions and system events
 	private static readonly EVENTS = {
 		// Task-related events for tracking conversation and execution flow
@@ -273,7 +293,8 @@ export class TelemetryService {
 			// Tracks when subsequent focus chain list returns are returned
 			FOCUS_CHAIN_PROGRESS_UPDATE: "task.focus_chain_progress_update",
 			// Tracks the statusn of the focus chain list when the task reaches a task completion state
-			FOCUS_CHAIN_INCOMPLETE_ON_COMPLETION: "task.focus_chain_incomplete_on_completion",
+			FOCUS_CHAIN_INCOMPLETE_ON_COMPLETION:
+				"task.focus_chain_incomplete_on_completion",
 			// Tracks when users click to open the focus chain markdfown file
 			FOCUS_CHAIN_LIST_OPENED: "task.focus_chain_list_opened",
 			// Tracks when users save and write to the focus chain markdown file
@@ -350,11 +371,11 @@ export class TelemetryService {
 			// Tracks events detected from the host environment
 			DETECTED: "host.detected",
 		},
-	}
+	};
 
 	public static async create(): Promise<TelemetryService> {
-		const providers = await TelemetryProviderFactory.createProviders()
-		const hostVersion = await HostProvider.env.getHostVersion({})
+		const providers = await TelemetryProviderFactory.createProviders();
+		const hostVersion = await HostProvider.env.getHostVersion({});
 		const metadata: TelemetryMetadata = {
 			extension_version: extensionVersion,
 			platform: hostVersion.platform || "unknown",
@@ -365,8 +386,8 @@ export class TelemetryService {
 			// `remoteName` is normalized by the host bridge to `undefined` for local workspaces.
 			is_remote_workspace: !!hostVersion.remoteName,
 			is_dev: process.env.IS_DEV,
-		}
-		return new TelemetryService(providers, metadata)
+		};
+		return new TelemetryService(providers, metadata);
 	}
 
 	/**
@@ -377,16 +398,18 @@ export class TelemetryService {
 		private providers: ITelemetryProvider[],
 		private telemetryMetadata: TelemetryMetadata,
 	) {
-		this.capture({ event: TelemetryService.EVENTS.USER.TELEMETRY_ENABLED })
-		Logger.info(`[TelemetryService] Initialized with ${providers.length} telemetry provider(s)`)
+		this.capture({ event: TelemetryService.EVENTS.USER.TELEMETRY_ENABLED });
+		Logger.info(
+			`[TelemetryService] Initialized with ${providers.length} telemetry provider(s)`,
+		);
 	}
 
 	public addProvider(provider: ITelemetryProvider) {
-		this.providers.push(provider)
+		this.providers.push(provider);
 	}
 
 	public removeProvider(name: string) {
-		this.providers = this.providers.filter((p) => p.name !== name)
+		this.providers = this.providers.filter((p) => p.name !== name);
 	}
 
 	/**
@@ -398,7 +421,7 @@ export class TelemetryService {
 		// First check global telemetry level - telemetry should only be enabled when level is "all"
 
 		// We only enable telemetry if global host telemetry is enabled
-		const hostSetting = await HostProvider.env.getTelemetrySettings({})
+		const hostSetting = await HostProvider.env.getTelemetrySettings({});
 		if (hostSetting.isEnabled === Setting.DISABLED) {
 			// Only show warning if user has opted in to Cline telemetry but host telemetry is disabled
 			if (didUserOptIn) {
@@ -415,9 +438,9 @@ export class TelemetryService {
 						if (response.selectedOption === "Open Settings") {
 							void HostProvider.window.openSettings({
 								query: "telemetry.telemetryLevel",
-							})
+							});
 						}
-					})
+					});
 			}
 		}
 	}
@@ -428,7 +451,7 @@ export class TelemetryService {
 	 * Should only be called on explicit user action, not on init/sync.
 	 */
 	public captureUserOptOut(): void {
-		this.captureRequired(TelemetryService.EVENTS.USER.OPT_OUT, {})
+		this.captureRequired(TelemetryService.EVENTS.USER.OPT_OUT, {});
 	}
 
 	/**
@@ -436,19 +459,22 @@ export class TelemetryService {
 	 * Should only be called on explicit user action, not on init/sync.
 	 */
 	public captureUserOptIn(): void {
-		this.capture({ event: TelemetryService.EVENTS.USER.OPT_IN })
+		this.capture({ event: TelemetryService.EVENTS.USER.OPT_IN });
 	}
 
 	/**
 	 * Captures a telemetry event if telemetry is enabled
 	 * @param event The event to capture with its properties
 	 */
-	public capture(event: { event: string; properties?: TelemetryProperties }): void {
+	public capture(event: {
+		event: string;
+		properties?: TelemetryProperties;
+	}): void {
 		const propertiesWithMetadata: TelemetryProperties = {
 			...(event.properties || {}),
 			...this.telemetryMetadata,
-		}
-		this.captureToProviders(event.event, propertiesWithMetadata, false)
+		};
+		this.captureToProviders(event.event, propertiesWithMetadata, false);
 	}
 
 	/**
@@ -456,12 +482,15 @@ export class TelemetryService {
 	 * @param event The event name to capture
 	 * @param properties Optional properties to attach to the event
 	 */
-	public captureRequired(event: string, properties?: TelemetryProperties): void {
+	public captureRequired(
+		event: string,
+		properties?: TelemetryProperties,
+	): void {
 		const propertiesWithMetadata: TelemetryProperties = {
 			...(properties || {}),
 			...this.telemetryMetadata,
-		}
-		this.captureToProviders(event, propertiesWithMetadata, true)
+		};
+		this.captureToProviders(event, propertiesWithMetadata, true);
 	}
 
 	/**
@@ -470,27 +499,36 @@ export class TelemetryService {
 	 * @param properties Event properties (must be JSON-serializable)
 	 * @param required Whether this is a required event
 	 */
-	private captureToProviders(event: string, properties: TelemetryProperties, required: boolean): void {
+	private captureToProviders(
+		event: string,
+		properties: TelemetryProperties,
+		required: boolean,
+	): void {
 		this.providers.forEach((provider) => {
 			try {
 				if (required) {
-					provider.logRequired(event, properties)
+					provider.logRequired(event, properties);
 				} else {
-					provider.log(event, properties)
+					provider.log(event, properties);
 				}
 			} catch (error) {
-				Logger.error(`[TelemetryService] Provider failed for event ${event}:`, error)
+				Logger.error(
+					`[TelemetryService] Provider failed for event ${event}:`,
+					error,
+				);
 			}
-		})
+		});
 	}
 
-	private getStandardAttributes(extra?: TelemetryProperties): TelemetryProperties {
+	private getStandardAttributes(
+		extra?: TelemetryProperties,
+	): TelemetryProperties {
 		return {
 			...this.telemetryMetadata,
 			...(this.userId ? { userId: this.userId } : {}),
 			...this.activeOrg,
 			...(extra ?? {}),
-		}
+		};
 	}
 
 	private recordCounter(
@@ -500,14 +538,14 @@ export class TelemetryService {
 		description?: string,
 		required = false,
 	): void {
-		const attrs = this.getStandardAttributes(attributes)
+		const attrs = this.getStandardAttributes(attributes);
 		this.providers.forEach((provider) => {
 			try {
-				provider.recordCounter(name, value, attrs, description, required)
+				provider.recordCounter(name, value, attrs, description, required);
 			} catch (error) {
-				Logger.error(`[TelemetryService] recordCounter failed: ${name}`, error)
+				Logger.error(`[TelemetryService] recordCounter failed: ${name}`, error);
 			}
-		})
+		});
 	}
 
 	private recordHistogram(
@@ -517,14 +555,17 @@ export class TelemetryService {
 		description?: string,
 		required = false,
 	): void {
-		const attrs = this.getStandardAttributes(attributes)
+		const attrs = this.getStandardAttributes(attributes);
 		this.providers.forEach((provider) => {
 			try {
-				provider.recordHistogram(name, value, attrs, description, required)
+				provider.recordHistogram(name, value, attrs, description, required);
 			} catch (error) {
-				Logger.error(`[TelemetryService] recordHistogram failed: ${name}`, error)
+				Logger.error(
+					`[TelemetryService] recordHistogram failed: ${name}`,
+					error,
+				);
 			}
-		})
+		});
 	}
 
 	/**
@@ -538,32 +579,109 @@ export class TelemetryService {
 		description?: string,
 		required = false,
 	): void {
-		const attrs = this.getStandardAttributes(attributes)
+		const attrs = this.getStandardAttributes(attributes);
 		this.providers.forEach((provider) => {
 			try {
-				provider.recordGauge(name, value, attrs, description, required)
+				provider.recordGauge(name, value, attrs, description, required);
 			} catch (error) {
-				Logger.error(`[TelemetryService] recordGauge failed: ${name}`, error)
+				Logger.error(`[TelemetryService] recordGauge failed: ${name}`, error);
 			}
-		})
+		});
 	}
 
-	private incrementTaskCounter(store: Map<string, number>, ulid: string): number {
-		const nextValue = (store.get(ulid) ?? 0) + 1
-		store.set(ulid, nextValue)
-		return nextValue
+	private incrementTaskCounter(
+		store: Map<string, number>,
+		ulid: string,
+	): number {
+		const nextValue = (store.get(ulid) ?? 0) + 1;
+		store.set(ulid, nextValue);
+		return nextValue;
+	}
+
+	private getDiffViewAttributes(attributes?: {
+		editType?: "create" | "modify" | "delete";
+		editSurface?: DiffEditSurface;
+		isNotebook?: boolean;
+		revertReason?: DiffViewRevertReason;
+		previousOutcome?: DiffViewOutcome | "none";
+	}): TelemetryProperties {
+		return {
+			edit_type: attributes?.editType ?? "unknown",
+			edit_surface: attributes?.editSurface ?? "unknown",
+			is_notebook: attributes?.isNotebook ?? false,
+			...(attributes?.revertReason
+				? { revert_reason: attributes.revertReason }
+				: {}),
+			...(attributes?.previousOutcome
+				? { previous_outcome: attributes.previousOutcome }
+				: {}),
+		};
+	}
+
+	public captureDiffViewOpened(attributes?: {
+		editType?: "create" | "modify" | "delete";
+		editSurface?: DiffEditSurface;
+		isNotebook?: boolean;
+	}): void {
+		this.recordCounter(
+			TelemetryService.METRICS.DIFF_VIEW.OPENED_TOTAL,
+			1,
+			this.getDiffViewAttributes(attributes),
+			"Number of Cline diff views opened",
+		);
+	}
+
+	public captureDiffViewAccepted(attributes?: {
+		editType?: "create" | "modify" | "delete";
+		editSurface?: DiffEditSurface;
+		isNotebook?: boolean;
+	}): void {
+		this.recordCounter(
+			TelemetryService.METRICS.DIFF_VIEW.ACCEPTED_TOTAL,
+			1,
+			this.getDiffViewAttributes(attributes),
+			"Number of Cline diff view changes accepted",
+		);
+	}
+
+	public captureDiffViewRejected(attributes?: {
+		editType?: "create" | "modify" | "delete";
+		editSurface?: DiffEditSurface;
+		isNotebook?: boolean;
+	}): void {
+		this.recordCounter(
+			TelemetryService.METRICS.DIFF_VIEW.REJECTED_TOTAL,
+			1,
+			this.getDiffViewAttributes(attributes),
+			"Number of Cline diff view changes explicitly rejected by the user",
+		);
+	}
+
+	public captureDiffViewReverted(attributes?: {
+		editType?: "create" | "modify" | "delete";
+		editSurface?: DiffEditSurface;
+		isNotebook?: boolean;
+		revertReason?: DiffViewRevertReason;
+		previousOutcome?: DiffViewOutcome | "none";
+	}): void {
+		this.recordCounter(
+			TelemetryService.METRICS.DIFF_VIEW.REVERTED_TOTAL,
+			1,
+			this.getDiffViewAttributes(attributes),
+			"Number of Cline diff view changes reverted or cleaned up",
+		);
 	}
 
 	private resetTaskAggregates(ulid: string): void {
-		this.taskTurnCounts.delete(ulid)
-		this.taskToolCallCounts.delete(ulid)
-		this.taskErrorCounts.delete(ulid)
+		this.taskTurnCounts.delete(ulid);
+		this.taskToolCallCounts.delete(ulid);
+		this.taskErrorCounts.delete(ulid);
 	}
 
 	public captureExtensionActivated() {
 		this.capture({
 			event: TelemetryService.EVENTS.USER.EXTENSION_ACTIVATED,
-		})
+		});
 	}
 
 	public captureExtensionStorageError(errorMessage: string, eventName: string) {
@@ -577,7 +695,7 @@ export class TelemetryService {
 						: errorMessage,
 				eventName,
 			},
-		})
+		});
 	}
 
 	/**
@@ -590,7 +708,7 @@ export class TelemetryService {
 			properties: {
 				provider,
 			},
-		})
+		});
 	}
 
 	/**
@@ -603,7 +721,7 @@ export class TelemetryService {
 			properties: {
 				provider,
 			},
-		})
+		});
 	}
 
 	/**
@@ -616,7 +734,7 @@ export class TelemetryService {
 			properties: {
 				provider,
 			},
-		})
+		});
 	}
 
 	/**
@@ -631,7 +749,7 @@ export class TelemetryService {
 				provider,
 				reason,
 			},
-		})
+		});
 	}
 
 	/**
@@ -641,30 +759,33 @@ export class TelemetryService {
 	public identifyAccount(userInfo: ClineAccountUserInfo) {
 		const propertiesWithMetadata: TelemetryProperties = {
 			...this.telemetryMetadata,
-		}
+		};
 
-		this.userId = userInfo.id
-		const activeOrg = userInfo.organizations?.find((org) => org.active)
+		this.userId = userInfo.id;
+		const activeOrg = userInfo.organizations?.find((org) => org.active);
 		if (activeOrg) {
 			this.activeOrg = {
 				organization_id: activeOrg.organizationId,
 				organization_name: activeOrg.name,
 				member_id: activeOrg.memberId,
-			}
+			};
 		} else {
-			this.activeOrg = null
+			this.activeOrg = null;
 		}
 		// Update all providers with error isolation
 		this.providers.forEach((provider) => {
 			try {
-				provider.identifyUser(userInfo, propertiesWithMetadata)
+				provider.identifyUser(userInfo, propertiesWithMetadata);
 			} catch (error) {
-				Logger.error(`[TelemetryService] Provider failed for user identification:`, error)
+				Logger.error(
+					`[TelemetryService] Provider failed for user identification:`,
+					error,
+				);
 			}
-		})
+		});
 
 		if (userInfo.id) {
-			setDistinctId(userInfo.id)
+			setDistinctId(userInfo.id);
 		}
 	}
 
@@ -675,12 +796,16 @@ export class TelemetryService {
 	 * @param apiProvider Optional API provider
 	 * @param openAiCompatibleDomain Optional domain for OpenAI Compatible providers (e.g., "api.example.com")
 	 */
-	public captureTaskCreated(ulid: string, apiProvider?: string, openAiCompatibleDomain?: string) {
-		this.resetTaskAggregates(ulid)
+	public captureTaskCreated(
+		ulid: string,
+		apiProvider?: string,
+		openAiCompatibleDomain?: string,
+	) {
+		this.resetTaskAggregates(ulid);
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.CREATED,
 			properties: { ulid, apiProvider, openAiCompatibleDomain },
-		})
+		});
 	}
 
 	/**
@@ -689,12 +814,16 @@ export class TelemetryService {
 	 * @param apiProvider Optional API provider
 	 * @param openAiCompatibleDomain Optional domain for OpenAI Compatible providers (e.g., "api.example.com")
 	 */
-	public captureTaskRestarted(ulid: string, apiProvider?: string, openAiCompatibleDomain?: string) {
-		this.resetTaskAggregates(ulid)
+	public captureTaskRestarted(
+		ulid: string,
+		apiProvider?: string,
+		openAiCompatibleDomain?: string,
+	) {
+		this.resetTaskAggregates(ulid);
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.RESTARTED,
 			properties: { ulid, apiProvider, openAiCompatibleDomain },
-		})
+		});
 	}
 
 	/**
@@ -704,15 +833,18 @@ export class TelemetryService {
 	public captureTaskCompleted(
 		ulid: string,
 		args?: {
-			provider?: string
-			modelId?: string
-			apiFormat?: ApiFormat
-			timeToFirstTokenMs?: number
-			durationMs?: number
-			mode: Mode
+			provider?: string;
+			modelId?: string;
+			apiFormat?: ApiFormat;
+			timeToFirstTokenMs?: number;
+			durationMs?: number;
+			mode: Mode;
 		},
 	) {
-		const apiFormatName = args?.apiFormat !== undefined ? apiFormatToJSON(args.apiFormat) : undefined
+		const apiFormatName =
+			args?.apiFormat !== undefined
+				? apiFormatToJSON(args.apiFormat)
+				: undefined;
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.COMPLETED,
 			properties: {
@@ -725,30 +857,38 @@ export class TelemetryService {
 				durationMs: args?.durationMs,
 				mode: args?.mode,
 			},
-		})
+		});
 
 		if (Number.isFinite(args?.timeToFirstTokenMs)) {
-			this.recordHistogram(TelemetryService.METRICS.API.TTFT_SECONDS, (args?.timeToFirstTokenMs ?? 0) / 1000, {
-				ulid,
-				provider: args?.provider,
-				model: args?.modelId,
-				apiFormat: apiFormatName,
-				mode: args?.mode,
-			})
+			this.recordHistogram(
+				TelemetryService.METRICS.API.TTFT_SECONDS,
+				(args?.timeToFirstTokenMs ?? 0) / 1000,
+				{
+					ulid,
+					provider: args?.provider,
+					model: args?.modelId,
+					apiFormat: apiFormatName,
+					mode: args?.mode,
+				},
+			);
 		}
 
 		if (Number.isFinite(args?.durationMs)) {
-			this.recordHistogram(TelemetryService.METRICS.API.DURATION_SECONDS, (args?.durationMs ?? 0) / 1000, {
-				ulid,
-				provider: args?.provider,
-				model: args?.modelId,
-				apiFormat: apiFormatName,
-				scope: "task",
-				mode: args?.mode,
-			})
+			this.recordHistogram(
+				TelemetryService.METRICS.API.DURATION_SECONDS,
+				(args?.durationMs ?? 0) / 1000,
+				{
+					ulid,
+					provider: args?.provider,
+					model: args?.modelId,
+					apiFormat: apiFormatName,
+					scope: "task",
+					mode: args?.mode,
+				},
+			);
 		}
 
-		this.resetTaskAggregates(ulid)
+		this.resetTaskAggregates(ulid);
 	}
 
 	/**
@@ -771,8 +911,10 @@ export class TelemetryService {
 	) {
 		// Ensure required parameters are provided
 		if (!ulid || !provider || !model || !source) {
-			Logger.warn("TelemetryService: Missing required parameters for message capture")
-			return
+			Logger.warn(
+				"TelemetryService: Missing required parameters for message capture",
+			);
+			return;
 		}
 
 		this.capture({
@@ -787,51 +929,83 @@ export class TelemetryService {
 				...tokenUsage,
 				isNativeToolCall,
 			},
-		})
+		});
 
-		const turnCount = this.incrementTaskCounter(this.taskTurnCounts, ulid)
+		const turnCount = this.incrementTaskCounter(this.taskTurnCounts, ulid);
 
-		const turnAttributes = { ulid, provider, model, source, mode }
-		this.recordCounter(TelemetryService.METRICS.TASK.TURNS_TOTAL, 1, turnAttributes)
-		this.recordHistogram(TelemetryService.METRICS.TASK.TURNS_PER_TASK, turnCount, turnAttributes)
+		const turnAttributes = { ulid, provider, model, source, mode };
+		this.recordCounter(
+			TelemetryService.METRICS.TASK.TURNS_TOTAL,
+			1,
+			turnAttributes,
+		);
+		this.recordHistogram(
+			TelemetryService.METRICS.TASK.TURNS_PER_TASK,
+			turnCount,
+			turnAttributes,
+		);
 
 		if (Number.isFinite(tokenUsage.cacheWriteTokens)) {
-			const cacheWriteTokens = tokenUsage.cacheWriteTokens ?? 0
-			this.recordCounter(TelemetryService.METRICS.CACHE.WRITE_TOTAL, cacheWriteTokens, {
-				ulid,
-				provider,
-				model,
-				mode,
-			})
-			this.recordHistogram(TelemetryService.METRICS.CACHE.WRITE_PER_EVENT, cacheWriteTokens, {
-				ulid,
-				provider,
-				model,
-				mode,
-			})
+			const cacheWriteTokens = tokenUsage.cacheWriteTokens ?? 0;
+			this.recordCounter(
+				TelemetryService.METRICS.CACHE.WRITE_TOTAL,
+				cacheWriteTokens,
+				{
+					ulid,
+					provider,
+					model,
+					mode,
+				},
+			);
+			this.recordHistogram(
+				TelemetryService.METRICS.CACHE.WRITE_PER_EVENT,
+				cacheWriteTokens,
+				{
+					ulid,
+					provider,
+					model,
+					mode,
+				},
+			);
 		}
 
 		if (Number.isFinite(tokenUsage.cacheReadTokens)) {
-			const cacheReadTokens = tokenUsage.cacheReadTokens ?? 0
-			this.recordCounter(TelemetryService.METRICS.CACHE.READ_TOTAL, cacheReadTokens, {
-				ulid,
-				provider,
-				model,
-				mode,
-			})
-			this.recordHistogram(TelemetryService.METRICS.CACHE.READ_PER_EVENT, cacheReadTokens, {
-				ulid,
-				provider,
-				model,
-				mode,
-			})
+			const cacheReadTokens = tokenUsage.cacheReadTokens ?? 0;
+			this.recordCounter(
+				TelemetryService.METRICS.CACHE.READ_TOTAL,
+				cacheReadTokens,
+				{
+					ulid,
+					provider,
+					model,
+					mode,
+				},
+			);
+			this.recordHistogram(
+				TelemetryService.METRICS.CACHE.READ_PER_EVENT,
+				cacheReadTokens,
+				{
+					ulid,
+					provider,
+					model,
+					mode,
+				},
+			);
 		}
 
 		if (Number.isFinite(tokenUsage.totalCost)) {
-			const totalCost = tokenUsage.totalCost ?? 0
-			const costAttributes = { ulid, provider, model, mode, currency: "USD" }
-			this.recordCounter(TelemetryService.METRICS.TASK.COST_TOTAL, totalCost, costAttributes)
-			this.recordHistogram(TelemetryService.METRICS.TASK.COST_PER_EVENT, totalCost, costAttributes)
+			const totalCost = tokenUsage.totalCost ?? 0;
+			const costAttributes = { ulid, provider, model, mode, currency: "USD" };
+			this.recordCounter(
+				TelemetryService.METRICS.TASK.COST_TOTAL,
+				totalCost,
+				costAttributes,
+			);
+			this.recordHistogram(
+				TelemetryService.METRICS.TASK.COST_PER_EVENT,
+				totalCost,
+				costAttributes,
+			);
 		}
 	}
 
@@ -861,39 +1035,79 @@ export class TelemetryService {
 				model,
 				...options,
 			},
-		})
+		});
 
-		const attributes = { ulid, provider, model }
+		const attributes = { ulid, provider, model };
 
 		if (Number.isFinite(tokensIn)) {
-			const value = tokensIn ?? 0
-			this.recordCounter(TelemetryService.METRICS.TASK.TOKENS_INPUT_TOTAL, value, attributes)
-			this.recordHistogram(TelemetryService.METRICS.TASK.TOKENS_INPUT_PER_RESPONSE, value, attributes)
+			const value = tokensIn ?? 0;
+			this.recordCounter(
+				TelemetryService.METRICS.TASK.TOKENS_INPUT_TOTAL,
+				value,
+				attributes,
+			);
+			this.recordHistogram(
+				TelemetryService.METRICS.TASK.TOKENS_INPUT_PER_RESPONSE,
+				value,
+				attributes,
+			);
 		}
 
 		if (Number.isFinite(tokensOut)) {
-			const value = tokensOut ?? 0
-			this.recordCounter(TelemetryService.METRICS.TASK.TOKENS_OUTPUT_TOTAL, value, attributes)
-			this.recordHistogram(TelemetryService.METRICS.TASK.TOKENS_OUTPUT_PER_RESPONSE, value, attributes)
+			const value = tokensOut ?? 0;
+			this.recordCounter(
+				TelemetryService.METRICS.TASK.TOKENS_OUTPUT_TOTAL,
+				value,
+				attributes,
+			);
+			this.recordHistogram(
+				TelemetryService.METRICS.TASK.TOKENS_OUTPUT_PER_RESPONSE,
+				value,
+				attributes,
+			);
 		}
 
 		if (Number.isFinite(options?.cacheWriteTokens)) {
-			const cacheWriteTokens = options!.cacheWriteTokens ?? 0
-			this.recordCounter(TelemetryService.METRICS.CACHE.WRITE_TOTAL, cacheWriteTokens, attributes)
-			this.recordHistogram(TelemetryService.METRICS.CACHE.WRITE_PER_EVENT, cacheWriteTokens, attributes)
+			const cacheWriteTokens = options!.cacheWriteTokens ?? 0;
+			this.recordCounter(
+				TelemetryService.METRICS.CACHE.WRITE_TOTAL,
+				cacheWriteTokens,
+				attributes,
+			);
+			this.recordHistogram(
+				TelemetryService.METRICS.CACHE.WRITE_PER_EVENT,
+				cacheWriteTokens,
+				attributes,
+			);
 		}
 
 		if (Number.isFinite(options?.cacheReadTokens)) {
-			const cacheReadTokens = options!.cacheReadTokens ?? 0
-			this.recordCounter(TelemetryService.METRICS.CACHE.READ_TOTAL, cacheReadTokens, attributes)
-			this.recordHistogram(TelemetryService.METRICS.CACHE.READ_PER_EVENT, cacheReadTokens, attributes)
+			const cacheReadTokens = options!.cacheReadTokens ?? 0;
+			this.recordCounter(
+				TelemetryService.METRICS.CACHE.READ_TOTAL,
+				cacheReadTokens,
+				attributes,
+			);
+			this.recordHistogram(
+				TelemetryService.METRICS.CACHE.READ_PER_EVENT,
+				cacheReadTokens,
+				attributes,
+			);
 		}
 
 		if (Number.isFinite(options?.totalCost)) {
-			const totalCost = options!.totalCost ?? 0
-			const costAttributes = { ...attributes, currency: "USD" }
-			this.recordCounter(TelemetryService.METRICS.TASK.COST_TOTAL, totalCost, costAttributes)
-			this.recordHistogram(TelemetryService.METRICS.TASK.COST_PER_EVENT, totalCost, costAttributes)
+			const totalCost = options!.totalCost ?? 0;
+			const costAttributes = { ...attributes, currency: "USD" };
+			this.recordCounter(
+				TelemetryService.METRICS.TASK.COST_TOTAL,
+				totalCost,
+				costAttributes,
+			);
+			this.recordHistogram(
+				TelemetryService.METRICS.TASK.COST_PER_EVENT,
+				totalCost,
+				costAttributes,
+			);
 		}
 	}
 
@@ -909,7 +1123,7 @@ export class TelemetryService {
 				ulid,
 				mode,
 			},
-		})
+		});
 	}
 
 	/**
@@ -936,7 +1150,7 @@ export class TelemetryService {
 				currentTokens,
 				maxContextWindow,
 			},
-		})
+		});
 	}
 
 	/**
@@ -948,15 +1162,15 @@ export class TelemetryService {
 		Logger.info("TelemetryService: Capturing task feedback", {
 			ulid,
 			feedbackType,
-		})
+		});
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.FEEDBACK,
 			properties: {
 				ulid,
 				feedbackType,
 			},
-		})
-		this.resetTaskAggregates(ulid)
+		});
+		this.resetTaskAggregates(ulid);
 	}
 
 	// Tool events
@@ -978,10 +1192,10 @@ export class TelemetryService {
 		autoApproved: boolean,
 		success: boolean,
 		workspaceContext?: {
-			isMultiRootEnabled: boolean
-			usedWorkspaceHint: boolean
-			resolvedToNonPrimary: boolean
-			resolutionMethod: "hint" | "primary_fallback" | "path_detection"
+			isMultiRootEnabled: boolean;
+			usedWorkspaceHint: boolean;
+			resolvedToNonPrimary: boolean;
+			resolutionMethod: "hint" | "primary_fallback" | "path_detection";
 		},
 		isNativeToolCall = false,
 	) {
@@ -1003,7 +1217,7 @@ export class TelemetryService {
 				}),
 				isNativeToolCall,
 			},
-		})
+		});
 
 		const toolAttributes = {
 			ulid,
@@ -1011,31 +1225,42 @@ export class TelemetryService {
 			model: modelId,
 			success,
 			autoApproved,
-		}
-		const toolCallCount = this.incrementTaskCounter(this.taskToolCallCounts, ulid)
-		this.recordCounter(TelemetryService.METRICS.TOOLS.CALLS_TOTAL, 1, toolAttributes)
-		this.recordHistogram(TelemetryService.METRICS.TOOLS.CALLS_PER_TASK, toolCallCount, toolAttributes)
+		};
+		const toolCallCount = this.incrementTaskCounter(
+			this.taskToolCallCounts,
+			ulid,
+		);
+		this.recordCounter(
+			TelemetryService.METRICS.TOOLS.CALLS_TOTAL,
+			1,
+			toolAttributes,
+		);
+		this.recordHistogram(
+			TelemetryService.METRICS.TOOLS.CALLS_PER_TASK,
+			toolCallCount,
+			toolAttributes,
+		);
 	}
 
 	public captureSkillUsed(args: {
-		ulid: string
-		skillName: string
-		skillSource: "global" | "project"
-		skillsAvailableGlobal: number
-		skillsAvailableProject: number
-		provider?: string
-		modelId?: string
+		ulid: string;
+		skillName: string;
+		skillSource: "global" | "project";
+		skillsAvailableGlobal: number;
+		skillsAvailableProject: number;
+		provider?: string;
+		modelId?: string;
 	}): void {
 		if (!this.isCategoryEnabled("skills")) {
-			return
+			return;
 		}
 
 		if (!args.ulid || !args.skillName) {
-			return
+			return;
 		}
 
-		const skillsAvailableGlobal = Math.max(0, args.skillsAvailableGlobal)
-		const skillsAvailableProject = Math.max(0, args.skillsAvailableProject)
+		const skillsAvailableGlobal = Math.max(0, args.skillsAvailableGlobal);
+		const skillsAvailableProject = Math.max(0, args.skillsAvailableProject);
 
 		const properties = {
 			ulid: args.ulid,
@@ -1045,12 +1270,12 @@ export class TelemetryService {
 			skillsAvailableProject,
 			provider: args.provider,
 			modelId: args.modelId,
-		}
+		};
 
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.SKILL_USED,
 			properties,
-		})
+		});
 	}
 
 	/**
@@ -1086,7 +1311,7 @@ export class TelemetryService {
 				argumentKeys,
 				isNativeToolCall,
 			},
-		})
+		});
 	}
 
 	/**
@@ -1097,11 +1322,15 @@ export class TelemetryService {
 	 */
 	public captureCheckpointUsage(
 		ulid: string,
-		action: "shadow_git_initialized" | "commit_created" | "restored" | "diff_generated",
+		action:
+			| "shadow_git_initialized"
+			| "commit_created"
+			| "restored"
+			| "diff_generated",
 		durationMs?: number,
 	) {
 		if (!this.isCategoryEnabled("checkpoints")) {
-			return
+			return;
 		}
 
 		this.capture({
@@ -1111,7 +1340,7 @@ export class TelemetryService {
 				action,
 				durationMs,
 			},
-		})
+		});
 	}
 
 	/**
@@ -1122,7 +1351,13 @@ export class TelemetryService {
 	 * @param errorType Type of error that occurred (e.g., "search_not_found", "invalid_format")
 	 * @param isNativeToolCall Whether the diff edit was invoked by a native tool call
 	 */
-	public captureDiffEditFailure(ulid: string, modelId: string, provider: string, errorType?: string, isNativeToolCall = false) {
+	public captureDiffEditFailure(
+		ulid: string,
+		modelId: string,
+		provider: string,
+		errorType?: string,
+		isNativeToolCall = false,
+	) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.DIFF_EDIT_FAILED,
 			properties: {
@@ -1132,7 +1367,7 @@ export class TelemetryService {
 				provider,
 				isNativeToolCall,
 			},
-		})
+		});
 	}
 
 	/**
@@ -1149,7 +1384,7 @@ export class TelemetryService {
 				provider,
 				ulid,
 			},
-		})
+		});
 	}
 
 	/**
@@ -1157,9 +1392,12 @@ export class TelemetryService {
 	 * @param ulid Unique identifier for the task
 	 * @param browserSettings The browser settings being used
 	 */
-	public captureBrowserToolStart(ulid: string, browserSettings: BrowserSettings) {
+	public captureBrowserToolStart(
+		ulid: string,
+		browserSettings: BrowserSettings,
+	) {
 		if (!this.isCategoryEnabled("browser")) {
-			return
+			return;
 		}
 
 		this.capture({
@@ -1171,7 +1409,7 @@ export class TelemetryService {
 				remoteBrowserHost: browserSettings.remoteBrowserHost,
 				timestamp: new Date().toISOString(),
 			},
-		})
+		});
 	}
 
 	/**
@@ -1182,13 +1420,13 @@ export class TelemetryService {
 	public captureBrowserToolEnd(
 		ulid: string,
 		stats: {
-			actionCount: number
-			duration: number
-			actions?: string[]
+			actionCount: number;
+			duration: number;
+			actions?: string[];
 		},
 	) {
 		if (!this.isCategoryEnabled("browser")) {
-			return
+			return;
 		}
 
 		this.capture({
@@ -1200,7 +1438,7 @@ export class TelemetryService {
 				actions: stats.actions,
 				timestamp: new Date().toISOString(),
 			},
-		})
+		});
 	}
 
 	/**
@@ -1215,15 +1453,15 @@ export class TelemetryService {
 		errorType: string,
 		errorMessage: string,
 		context?: {
-			action?: string
-			url?: string
-			isRemote?: boolean
-			remoteBrowserHost?: string
-			endpoint?: string
+			action?: string;
+			url?: string;
+			isRemote?: boolean;
+			remoteBrowserHost?: string;
+			endpoint?: string;
 		},
 	) {
 		if (!this.isCategoryEnabled("browser")) {
-			return
+			return;
 		}
 
 		this.capture({
@@ -1235,7 +1473,7 @@ export class TelemetryService {
 				...(context && { context }),
 				timestamp: new Date().toISOString(),
 			},
-		})
+		});
 	}
 
 	/**
@@ -1252,7 +1490,7 @@ export class TelemetryService {
 				qty,
 				mode,
 			},
-		})
+		});
 	}
 
 	/**
@@ -1269,7 +1507,7 @@ export class TelemetryService {
 				qty,
 				mode,
 			},
-		})
+		});
 	}
 
 	/**
@@ -1282,16 +1520,16 @@ export class TelemetryService {
 		ulid: string,
 		modelId: string,
 		data: {
-			ttftSec?: number
-			totalDurationSec?: number
-			promptTokens: number
-			outputTokens: number
-			cacheReadTokens: number
-			cacheHit: boolean
-			cacheHitPercentage?: number
-			apiSuccess: boolean
-			apiError?: string
-			throughputTokensPerSec?: number
+			ttftSec?: number;
+			totalDurationSec?: number;
+			promptTokens: number;
+			outputTokens: number;
+			cacheReadTokens: number;
+			cacheHit: boolean;
+			cacheHitPercentage?: number;
+			apiSuccess: boolean;
+			apiError?: string;
+			throughputTokensPerSec?: number;
 		},
 	) {
 		this.capture({
@@ -1301,34 +1539,50 @@ export class TelemetryService {
 				modelId,
 				...data,
 			},
-		})
+		});
 
 		if (typeof data.ttftSec === "number") {
-			this.recordHistogram(TelemetryService.METRICS.API.TTFT_SECONDS, data.ttftSec, {
-				ulid,
-				model: modelId,
-				provider: "gemini",
-			})
+			this.recordHistogram(
+				TelemetryService.METRICS.API.TTFT_SECONDS,
+				data.ttftSec,
+				{
+					ulid,
+					model: modelId,
+					provider: "gemini",
+				},
+			);
 		}
 
 		if (typeof data.totalDurationSec === "number") {
-			this.recordHistogram(TelemetryService.METRICS.API.DURATION_SECONDS, data.totalDurationSec, {
-				ulid,
-				model: modelId,
-				provider: "gemini",
-			})
+			this.recordHistogram(
+				TelemetryService.METRICS.API.DURATION_SECONDS,
+				data.totalDurationSec,
+				{
+					ulid,
+					model: modelId,
+					provider: "gemini",
+				},
+			);
 		}
 
 		if (typeof data.throughputTokensPerSec === "number") {
-			this.recordHistogram(TelemetryService.METRICS.API.THROUGHPUT_TOKENS_PER_SECOND, data.throughputTokensPerSec, {
-				ulid,
-				model: modelId,
-				provider: "gemini",
-			})
+			this.recordHistogram(
+				TelemetryService.METRICS.API.THROUGHPUT_TOKENS_PER_SECOND,
+				data.throughputTokensPerSec,
+				{
+					ulid,
+					model: modelId,
+					provider: "gemini",
+				},
+			);
 		}
 
 		if (data.cacheHit) {
-			this.recordCounter(TelemetryService.METRICS.CACHE.HITS_TOTAL, 1, { ulid, model: modelId, provider: "gemini" })
+			this.recordCounter(TelemetryService.METRICS.CACHE.HITS_TOTAL, 1, {
+				ulid,
+				model: modelId,
+				provider: "gemini",
+			});
 		}
 	}
 
@@ -1344,7 +1598,7 @@ export class TelemetryService {
 				model,
 				isFavorited,
 			},
-		})
+		});
 	}
 
 	public captureButtonClick(button: string, ulid?: string) {
@@ -1354,7 +1608,7 @@ export class TelemetryService {
 				button,
 				ulid,
 			},
-		})
+		});
 	}
 
 	/**
@@ -1367,13 +1621,13 @@ export class TelemetryService {
 	 * @param collect Optional flag to determine if the event should be collected for batch sending
 	 */
 	public captureProviderApiError(args: {
-		ulid: string
-		model: string
-		errorMessage: string
-		provider?: string
-		errorStatus?: number | undefined
-		requestId?: string | undefined
-		isNativeToolCall?: boolean
+		ulid: string;
+		model: string;
+		errorMessage: string;
+		provider?: string;
+		errorStatus?: number | undefined;
+		requestId?: string | undefined;
+		isNativeToolCall?: boolean;
 	}) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.PROVIDER_API_ERROR,
@@ -1382,22 +1636,29 @@ export class TelemetryService {
 				errorMessage: args.errorMessage.substring(0, MAX_ERROR_MESSAGE_LENGTH), // Truncate long error messages
 				timestamp: new Date().toISOString(),
 			},
-		})
+		});
 
 		this.recordCounter(TelemetryService.METRICS.ERRORS.TOTAL, 1, {
 			ulid: args.ulid,
 			model: args.model,
 			provider: args.provider,
 			error_status: args.errorStatus,
-		})
+		});
 		const errorAttributes = {
 			ulid: args.ulid,
 			model: args.model,
 			provider: args.provider,
 			error_status: args.errorStatus,
-		}
-		const errorCount = this.incrementTaskCounter(this.taskErrorCounts, args.ulid)
-		this.recordHistogram(TelemetryService.METRICS.ERRORS.PER_TASK, errorCount, errorAttributes)
+		};
+		const errorCount = this.incrementTaskCounter(
+			this.taskErrorCounts,
+			args.ulid,
+		);
+		this.recordHistogram(
+			TelemetryService.METRICS.ERRORS.PER_TASK,
+			errorCount,
+			errorAttributes,
+		);
 	}
 
 	/**
@@ -1406,15 +1667,17 @@ export class TelemetryService {
 	 */
 	public captureFocusChainToggle(enabled: boolean) {
 		if (!this.isCategoryEnabled("focus_chain")) {
-			return
+			return;
 		}
 
 		this.capture({
-			event: enabled ? TelemetryService.EVENTS.TASK.FOCUS_CHAIN_ENABLED : TelemetryService.EVENTS.TASK.FOCUS_CHAIN_DISABLED,
+			event: enabled
+				? TelemetryService.EVENTS.TASK.FOCUS_CHAIN_ENABLED
+				: TelemetryService.EVENTS.TASK.FOCUS_CHAIN_DISABLED,
 			properties: {
 				enabled,
 			},
-		})
+		});
 	}
 
 	/**
@@ -1424,7 +1687,7 @@ export class TelemetryService {
 	 */
 	public captureFocusChainProgressFirst(ulid: string, totalItems: number) {
 		if (!this.isCategoryEnabled("focus_chain")) {
-			return
+			return;
 		}
 
 		this.capture({
@@ -1433,7 +1696,7 @@ export class TelemetryService {
 				ulid,
 				totalItems,
 			},
-		})
+		});
 	}
 
 	/**
@@ -1442,9 +1705,13 @@ export class TelemetryService {
 	 * @param totalItems Total number of items in the focus chain list
 	 * @param completedItems Number of completed items in the focus chain list
 	 */
-	public captureFocusChainProgressUpdate(ulid: string, totalItems: number, completedItems: number) {
+	public captureFocusChainProgressUpdate(
+		ulid: string,
+		totalItems: number,
+		completedItems: number,
+	) {
 		if (!this.isCategoryEnabled("focus_chain")) {
-			return
+			return;
 		}
 
 		this.capture({
@@ -1453,9 +1720,10 @@ export class TelemetryService {
 				ulid,
 				totalItems,
 				completedItems,
-				completionPercentage: totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0,
+				completionPercentage:
+					totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0,
 			},
-		})
+		});
 	}
 
 	/**
@@ -1476,7 +1744,7 @@ export class TelemetryService {
 		provider: string,
 	) {
 		if (!this.isCategoryEnabled("focus_chain")) {
-			return
+			return;
 		}
 
 		this.capture({
@@ -1486,11 +1754,12 @@ export class TelemetryService {
 				totalItems,
 				completedItems,
 				incompleteItems,
-				completionPercentage: totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0,
+				completionPercentage:
+					totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0,
 				modelId,
 				provider,
 			},
-		})
+		});
 	}
 
 	/**
@@ -1499,7 +1768,7 @@ export class TelemetryService {
 	 */
 	public captureFocusChainListOpened(ulid: string) {
 		if (!this.isCategoryEnabled("focus_chain")) {
-			return
+			return;
 		}
 
 		this.capture({
@@ -1507,7 +1776,7 @@ export class TelemetryService {
 			properties: {
 				ulid,
 			},
-		})
+		});
 	}
 
 	/**
@@ -1516,7 +1785,7 @@ export class TelemetryService {
 	 */
 	public captureFocusChainListWritten(ulid: string) {
 		if (!this.isCategoryEnabled("focus_chain")) {
-			return
+			return;
 		}
 
 		this.capture({
@@ -1524,7 +1793,7 @@ export class TelemetryService {
 			properties: {
 				ulid,
 			},
-		})
+		});
 	}
 
 	/**
@@ -1533,7 +1802,11 @@ export class TelemetryService {
 	 * @param commandName The name of the command (e.g., "newtask", "reportbug", or custom workflow name)
 	 * @param commandType Whether it's a built-in command, custom workflow, or MCP prompt
 	 */
-	public captureSlashCommandUsed(ulid: string, commandName: string, commandType: "builtin" | "workflow" | "mcp_prompt") {
+	public captureSlashCommandUsed(
+		ulid: string,
+		commandName: string,
+		commandType: "builtin" | "workflow" | "mcp_prompt",
+	) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.SLASH_COMMAND_USED,
 			properties: {
@@ -1541,7 +1814,7 @@ export class TelemetryService {
 				commandName,
 				commandType,
 			},
-		})
+		});
 	}
 
 	/**
@@ -1551,7 +1824,12 @@ export class TelemetryService {
 	 * @param enabled Whether the feature was enabled (true) or disabled (false)
 	 * @param modelId The model ID being used when the toggle occurred
 	 */
-	public captureFeatureToggle(ulid: string, featureName: string, enabled: boolean, modelId: string) {
+	public captureFeatureToggle(
+		ulid: string,
+		featureName: string,
+		enabled: boolean,
+		modelId: string,
+	) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.FEATURE_TOGGLED,
 			properties: {
@@ -1560,7 +1838,7 @@ export class TelemetryService {
 				enabled,
 				modelId,
 			},
-		})
+		});
 	}
 
 	/**
@@ -1570,9 +1848,17 @@ export class TelemetryService {
 	 * @param enabled Whether the rule is being enabled (true) or disabled (false)
 	 * @param isGlobal Whether this is a global rule or workspace-specific rule
 	 */
-	public captureClineRuleToggled(ulid: string, ruleFileName: string, enabled: boolean, isGlobal: boolean) {
+	public captureClineRuleToggled(
+		ulid: string,
+		ruleFileName: string,
+		enabled: boolean,
+		isGlobal: boolean,
+	) {
 		// Sanitize filename to remove any path information for privacy
-		const sanitizedFileName = ruleFileName.split("/").pop() || ruleFileName.split("\\").pop() || ruleFileName
+		const sanitizedFileName =
+			ruleFileName.split("/").pop() ||
+			ruleFileName.split("\\").pop() ||
+			ruleFileName;
 
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.RULE_TOGGLED,
@@ -1582,7 +1868,7 @@ export class TelemetryService {
 				enabled,
 				isGlobal,
 			},
-		})
+		});
 	}
 
 	/**
@@ -1591,7 +1877,11 @@ export class TelemetryService {
 	 * @param enabled Whether auto condense was enabled (true) or disabled (false)
 	 * @param modelId The model ID being used when the toggle occurred
 	 */
-	public captureAutoCondenseToggle(ulid: string, enabled: boolean, modelId: string) {
+	public captureAutoCondenseToggle(
+		ulid: string,
+		enabled: boolean,
+		modelId: string,
+	) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.AUTO_CONDENSE_TOGGLED,
 			properties: {
@@ -1599,7 +1889,7 @@ export class TelemetryService {
 				enabled,
 				modelId,
 			},
-		})
+		});
 	}
 
 	/**
@@ -1614,7 +1904,7 @@ export class TelemetryService {
 				ulid,
 				enabled,
 			},
-		})
+		});
 	}
 
 	/**
@@ -1629,7 +1919,7 @@ export class TelemetryService {
 				ulid,
 				enabled,
 			},
-		})
+		});
 	}
 
 	/**
@@ -1639,7 +1929,12 @@ export class TelemetryService {
 	 * @param durationMs Duration of initialization in milliseconds
 	 * @param hasCheckpoints Whether checkpoints are enabled for this task
 	 */
-	public captureTaskInitialization(ulid: string, taskId: string, durationMs: number, hasCheckpoints: boolean) {
+	public captureTaskInitialization(
+		ulid: string,
+		taskId: string,
+		durationMs: number,
+		hasCheckpoints: boolean,
+	) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.INITIALIZATION,
 			properties: {
@@ -1648,7 +1943,7 @@ export class TelemetryService {
 				durationMs,
 				hasCheckpoints,
 			},
-		})
+		});
 	}
 
 	/**
@@ -1658,7 +1953,7 @@ export class TelemetryService {
 		this.capture({
 			event: TelemetryService.EVENTS.UI.RULES_MENU_OPENED,
 			properties: {},
-		})
+		});
 	}
 
 	// Terminal telemetry methods
@@ -1669,7 +1964,11 @@ export class TelemetryService {
 	 * @param terminalType The type of terminal ("vscode")
 	 * @param method The VSCode-specific method used to capture output
 	 */
-	public captureTerminalExecution(success: boolean, terminalType: "vscode", method: VscodeOutputMethod): void
+	public captureTerminalExecution(
+		success: boolean,
+		terminalType: "vscode",
+		method: VscodeOutputMethod,
+	): void;
 	/**
 	 * Records terminal command execution outcomes for standalone terminal
 	 * @param success Whether the command output was successfully captured
@@ -1682,7 +1981,7 @@ export class TelemetryService {
 		terminalType: "standalone",
 		method: StandaloneOutputMethod,
 		exitCode?: number | null,
-	): void
+	): void;
 	/**
 	 * Implementation of captureTerminalExecution
 	 */
@@ -1699,9 +1998,11 @@ export class TelemetryService {
 				terminalType,
 				method,
 				// Only include exitCode for standalone terminals when it's a meaningful value
-				...(terminalType === "standalone" && exitCode !== undefined && exitCode !== null && { exitCode }),
+				...(terminalType === "standalone" &&
+					exitCode !== undefined &&
+					exitCode !== null && { exitCode }),
 			},
-		})
+		});
 	}
 
 	/**
@@ -1709,14 +2010,17 @@ export class TelemetryService {
 	 * @param reason The reason for failure
 	 * @param terminalType The type of terminal (defaults to "vscode" for backward compatibility)
 	 */
-	public captureTerminalOutputFailure(reason: TerminalOutputFailureReason, terminalType: TerminalType = "vscode") {
+	public captureTerminalOutputFailure(
+		reason: TerminalOutputFailureReason,
+		terminalType: TerminalType = "vscode",
+	) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.TERMINAL_OUTPUT_FAILURE,
 			properties: {
 				reason,
 				terminalType,
 			},
-		})
+		});
 	}
 
 	/**
@@ -1724,14 +2028,17 @@ export class TelemetryService {
 	 * @param action The user action
 	 * @param terminalType The type of terminal (defaults to "vscode" for backward compatibility)
 	 */
-	public captureTerminalUserIntervention(action: TerminalUserInterventionAction, terminalType: TerminalType = "vscode") {
+	public captureTerminalUserIntervention(
+		action: TerminalUserInterventionAction,
+		terminalType: TerminalType = "vscode",
+	) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.TERMINAL_USER_INTERVENTION,
 			properties: {
 				action,
 				terminalType,
 			},
-		})
+		});
 	}
 
 	/**
@@ -1739,14 +2046,17 @@ export class TelemetryService {
 	 * @param stage Where the hang occurred
 	 * @param terminalType The type of terminal (defaults to "vscode" for backward compatibility)
 	 */
-	public captureTerminalHang(stage: TerminalHangStage, terminalType: TerminalType = "vscode") {
+	public captureTerminalHang(
+		stage: TerminalHangStage,
+		terminalType: TerminalType = "vscode",
+	) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.TERMINAL_HANG,
 			properties: {
 				stage,
 				terminalType,
 			},
-		})
+		});
 	}
 
 	// Workspace telemetry methods
@@ -1775,16 +2085,16 @@ export class TelemetryService {
 				init_duration_ms: initDurationMs,
 				feature_flag_enabled: featureFlagEnabled,
 			},
-		})
+		});
 
-		const isMultiRoot = rootCount > 1
+		const isMultiRoot = rootCount > 1;
 		this.recordGauge("cline.workspace.active_roots", rootCount, {
 			is_multi_root: isMultiRoot,
-		})
+		});
 		// Retire the previous series to avoid leaking gauge entries when the flag flips.
 		this.recordGauge("cline.workspace.active_roots", null, {
 			is_multi_root: !isMultiRoot,
-		})
+		});
 	}
 
 	/**
@@ -1793,7 +2103,11 @@ export class TelemetryService {
 	 * @param fallbackMode Whether system fell back to single-root mode
 	 * @param workspaceCount Number of workspace folders detected
 	 */
-	public captureWorkspaceInitError(error: Error, fallbackMode: boolean, workspaceCount?: number) {
+	public captureWorkspaceInitError(
+		error: Error,
+		fallbackMode: boolean,
+		workspaceCount?: number,
+	) {
 		this.capture({
 			event: TelemetryService.EVENTS.WORKSPACE.INIT_ERROR,
 			properties: {
@@ -1802,7 +2116,7 @@ export class TelemetryService {
 				fallback_to_single_root: fallbackMode,
 				workspace_count: workspaceCount ?? 0,
 			},
-		})
+		});
 	}
 
 	/**
@@ -1833,7 +2147,7 @@ export class TelemetryService {
 				success_rate: rootCount > 0 ? successCount / rootCount : 0,
 				duration_ms: durationMs,
 			},
-		})
+		});
 	}
 
 	/**
@@ -1849,7 +2163,10 @@ export class TelemetryService {
 	public captureWorkspacePathResolved(
 		ulid: string,
 		context: string,
-		resolutionType: "hint_provided" | "fallback_to_primary" | "cross_workspace_search",
+		resolutionType:
+			| "hint_provided"
+			| "fallback_to_primary"
+			| "cross_workspace_search",
 		hintType?: "workspace_name" | "workspace_path" | "invalid",
 		resolutionSuccess?: boolean,
 		targetWorkspaceIndex?: number,
@@ -1866,7 +2183,7 @@ export class TelemetryService {
 				target_workspace_index: targetWorkspaceIndex,
 				is_multi_root_enabled: isMultiRootEnabled,
 			},
-		})
+		});
 	}
 
 	/**
@@ -1896,7 +2213,7 @@ export class TelemetryService {
 				results_found: resultsFound,
 				search_duration_ms: searchDurationMs,
 			},
-		})
+		});
 	}
 
 	/**
@@ -1909,7 +2226,7 @@ export class TelemetryService {
 			properties: {
 				source,
 			},
-		})
+		});
 	}
 
 	/**
@@ -1924,7 +2241,7 @@ export class TelemetryService {
 				success,
 				worktree_count: worktreeCount,
 			},
-		})
+		});
 	}
 
 	/**
@@ -1933,7 +2250,11 @@ export class TelemetryService {
 	 * @param hasConflicts Whether merge conflicts were detected
 	 * @param deleteAfterMerge Whether user chose to delete worktree after merge
 	 */
-	public captureWorktreeMergeAttempted(success: boolean, hasConflicts: boolean, deleteAfterMerge: boolean) {
+	public captureWorktreeMergeAttempted(
+		success: boolean,
+		hasConflicts: boolean,
+		deleteAfterMerge: boolean,
+	) {
 		this.capture({
 			event: TelemetryService.EVENTS.WORKTREE.MERGE_ATTEMPTED,
 			properties: {
@@ -1941,7 +2262,7 @@ export class TelemetryService {
 				has_conflicts: hasConflicts,
 				delete_after_merge: deleteAfterMerge,
 			},
-		})
+		});
 	}
 
 	/**
@@ -1951,7 +2272,7 @@ export class TelemetryService {
 	 */
 	public isCategoryEnabled(category: TelemetryCategory): boolean {
 		// Default to true if category has not been explicitly configured
-		return this.telemetryCategoryEnabled.get(category) ?? true
+		return this.telemetryCategoryEnabled.get(category) ?? true;
 	}
 
 	/**
@@ -1959,7 +2280,7 @@ export class TelemetryService {
 	 * @returns The array of telemetry providers
 	 */
 	public getProviders(): ITelemetryProvider[] {
-		return [...this.providers]
+		return [...this.providers];
 	}
 
 	/**
@@ -1967,7 +2288,7 @@ export class TelemetryService {
 	 * @returns Boolean indicating whether any provider is enabled
 	 */
 	public isEnabled(): boolean {
-		return this.providers.some((provider) => provider.isEnabled())
+		return this.providers.some((provider) => provider.isEnabled());
 	}
 
 	/**
@@ -1980,7 +2301,7 @@ export class TelemetryService {
 			: {
 					hostEnabled: false,
 					level: "off" as const,
-				}
+				};
 	}
 
 	/**
@@ -1989,7 +2310,14 @@ export class TelemetryService {
 	 * @param contentLength Optional length of content retrieved (for size tracking)
 	 */
 	public captureMentionUsed(
-		mentionType: "file" | "folder" | "url" | "problems" | "terminal" | "git-changes" | "commit",
+		mentionType:
+			| "file"
+			| "folder"
+			| "url"
+			| "problems"
+			| "terminal"
+			| "git-changes"
+			| "commit",
 		contentLength?: number,
 	) {
 		this.capture({
@@ -1999,7 +2327,7 @@ export class TelemetryService {
 				contentLength,
 				timestamp: new Date().toISOString(),
 			},
-		})
+		});
 	}
 
 	/**
@@ -2013,7 +2341,14 @@ export class TelemetryService {
 	 * @param fsContext Optional filesystem info, emitted as `fs_class` and `fs_type`.
 	 */
 	public captureMentionFailed(
-		mentionType: "file" | "folder" | "url" | "problems" | "terminal" | "git-changes" | "commit",
+		mentionType:
+			| "file"
+			| "folder"
+			| "url"
+			| "problems"
+			| "terminal"
+			| "git-changes"
+			| "commit",
 		errorType:
 			| "not_found"
 			| "permission_denied"
@@ -2035,7 +2370,7 @@ export class TelemetryService {
 				...(fsContext?.fsType ? { fs_type: fsContext.fsType } : {}),
 				timestamp: new Date().toISOString(),
 			},
-		})
+		});
 	}
 
 	/**
@@ -2070,7 +2405,7 @@ export class TelemetryService {
 				...(searchSource ? { search_source: searchSource } : {}),
 				timestamp: new Date().toISOString(),
 			},
-		})
+		});
 	}
 
 	// CLI Subagents telemetry methods
@@ -2081,16 +2416,18 @@ export class TelemetryService {
 	 */
 	public captureSubagentToggle(enabled: boolean) {
 		if (!this.isCategoryEnabled("subagents")) {
-			return
+			return;
 		}
 
 		this.capture({
-			event: enabled ? TelemetryService.EVENTS.TASK.SUBAGENT_ENABLED : TelemetryService.EVENTS.TASK.SUBAGENT_DISABLED,
+			event: enabled
+				? TelemetryService.EVENTS.TASK.SUBAGENT_ENABLED
+				: TelemetryService.EVENTS.TASK.SUBAGENT_DISABLED,
 			properties: {
 				enabled,
 				timestamp: new Date().toISOString(),
 			},
-		})
+		});
 	}
 
 	/**
@@ -2100,13 +2437,20 @@ export class TelemetryService {
 	 * @param outputLines Number of lines of output produced by the subagent
 	 * @param success Whether the subagent execution was successful
 	 */
-	public captureSubagentExecution(ulid: string, durationMs: number, outputLines: number, success: boolean) {
+	public captureSubagentExecution(
+		ulid: string,
+		durationMs: number,
+		outputLines: number,
+		success: boolean,
+	) {
 		if (!this.isCategoryEnabled("subagents")) {
-			return
+			return;
 		}
 
 		this.capture({
-			event: success ? TelemetryService.EVENTS.TASK.SUBAGENT_COMPLETED : TelemetryService.EVENTS.TASK.SUBAGENT_STARTED,
+			event: success
+				? TelemetryService.EVENTS.TASK.SUBAGENT_COMPLETED
+				: TelemetryService.EVENTS.TASK.SUBAGENT_STARTED,
 			properties: {
 				ulid,
 				durationMs,
@@ -2114,16 +2458,21 @@ export class TelemetryService {
 				success,
 				timestamp: new Date().toISOString(),
 			},
-		})
+		});
 	}
 
-	public captureOnboardingProgress(args: { step: number; action?: string; model?: string; completed?: boolean }) {
+	public captureOnboardingProgress(args: {
+		step: number;
+		action?: string;
+		model?: string;
+		completed?: boolean;
+	}) {
 		this.capture({
 			event: TelemetryService.EVENTS.USER.ONBOARDING_PROGRESS,
 			properties: {
 				...args,
 			},
-		})
+		});
 	}
 
 	// Hooks telemetry methods
@@ -2135,7 +2484,7 @@ export class TelemetryService {
 	 */
 	public captureHookCacheAccess(hookName: string, cacheHit: boolean) {
 		if (!this.isCategoryEnabled("hooks")) {
-			return
+			return;
 		}
 
 		// Record cache access counter with hit/miss attribute
@@ -2143,7 +2492,7 @@ export class TelemetryService {
 		this.recordCounter(TelemetryService.METRICS.HOOKS.CACHE_ACCESSES_TOTAL, 1, {
 			hookName,
 			cacheHit: cacheHit.toString(),
-		})
+		});
 	}
 
 	// Simplified Hook Telemetry API (following MCP pattern)
@@ -2162,19 +2511,19 @@ export class TelemetryService {
 		hookName: string,
 		status: "started" | "completed" | "failed" | "cancelled",
 		metadata?: {
-			source?: "global" | "workspace"
-			toolName?: string
-			durationMs?: number
-			exitCode?: number
-			errorType?: "timeout" | "execution" | "validation"
-			errorMessage?: string
-			cancelRequested?: boolean
-			contextModified?: boolean
-			contextSize?: number
+			source?: "global" | "workspace";
+			toolName?: string;
+			durationMs?: number;
+			exitCode?: number;
+			errorType?: "timeout" | "execution" | "validation";
+			errorMessage?: string;
+			cancelRequested?: boolean;
+			contextModified?: boolean;
+			contextSize?: number;
 		},
 	) {
 		if (!this.isCategoryEnabled("hooks")) {
-			return
+			return;
 		}
 
 		const properties: TelemetryProperties = {
@@ -2184,22 +2533,33 @@ export class TelemetryService {
 			timestamp: new Date().toISOString(),
 			...(metadata?.source && { source: metadata.source }),
 			...(metadata?.toolName && { toolName: metadata.toolName }),
-			...(metadata?.durationMs !== undefined && { durationMs: metadata.durationMs }),
+			...(metadata?.durationMs !== undefined && {
+				durationMs: metadata.durationMs,
+			}),
 			...(metadata?.exitCode !== undefined && { exitCode: metadata.exitCode }),
 			...(metadata?.errorType && { errorType: metadata.errorType }),
 			...(metadata?.errorMessage && {
-				errorMessage: metadata.errorMessage.substring(0, MAX_ERROR_MESSAGE_LENGTH),
+				errorMessage: metadata.errorMessage.substring(
+					0,
+					MAX_ERROR_MESSAGE_LENGTH,
+				),
 			}),
-			...(metadata?.cancelRequested !== undefined && { cancelRequested: metadata.cancelRequested }),
-			...(metadata?.contextModified !== undefined && { contextModified: metadata.contextModified }),
-			...(metadata?.contextSize !== undefined && { contextSize: metadata.contextSize }),
-		}
+			...(metadata?.cancelRequested !== undefined && {
+				cancelRequested: metadata.cancelRequested,
+			}),
+			...(metadata?.contextModified !== undefined && {
+				contextModified: metadata.contextModified,
+			}),
+			...(metadata?.contextSize !== undefined && {
+				contextSize: metadata.contextSize,
+			}),
+		};
 
 		// Single event for all statuses
 		this.capture({
 			event: "hooks.execution",
 			properties,
-		})
+		});
 
 		// Record metrics based on status
 		const hookAttributes = {
@@ -2208,27 +2568,47 @@ export class TelemetryService {
 			status,
 			...(metadata?.source && { source: metadata.source }),
 			...(metadata?.toolName && { toolName: metadata.toolName }),
-		}
+		};
 
 		if (status === "started") {
-			this.recordCounter(TelemetryService.METRICS.HOOKS.EXECUTIONS_TOTAL, 1, hookAttributes)
+			this.recordCounter(
+				TelemetryService.METRICS.HOOKS.EXECUTIONS_TOTAL,
+				1,
+				hookAttributes,
+			);
 		} else if (status === "completed") {
 			if (metadata?.durationMs !== undefined) {
-				this.recordHistogram(TelemetryService.METRICS.HOOKS.DURATION_SECONDS, metadata.durationMs / 1000, hookAttributes)
+				this.recordHistogram(
+					TelemetryService.METRICS.HOOKS.DURATION_SECONDS,
+					metadata.durationMs / 1000,
+					hookAttributes,
+				);
 			}
 			if (metadata?.cancelRequested) {
-				this.recordCounter(TelemetryService.METRICS.HOOKS.CANCELLATIONS_TOTAL, 1, hookAttributes)
+				this.recordCounter(
+					TelemetryService.METRICS.HOOKS.CANCELLATIONS_TOTAL,
+					1,
+					hookAttributes,
+				);
 			}
 			if (metadata?.contextModified) {
-				this.recordCounter(TelemetryService.METRICS.HOOKS.CONTEXT_MODIFICATIONS_TOTAL, 1, hookAttributes)
+				this.recordCounter(
+					TelemetryService.METRICS.HOOKS.CONTEXT_MODIFICATIONS_TOTAL,
+					1,
+					hookAttributes,
+				);
 			}
 		} else if (status === "failed") {
 			this.recordCounter(TelemetryService.METRICS.HOOKS.FAILURES_TOTAL, 1, {
 				...hookAttributes,
 				errorType: metadata?.errorType || "unknown",
-			})
+			});
 		} else if (status === "cancelled") {
-			this.recordCounter(TelemetryService.METRICS.HOOKS.CANCELLATIONS_TOTAL, 1, hookAttributes)
+			this.recordCounter(
+				TelemetryService.METRICS.HOOKS.CANCELLATIONS_TOTAL,
+				1,
+				hookAttributes,
+			);
 		}
 	}
 
@@ -2239,9 +2619,13 @@ export class TelemetryService {
 	 * @param globalCount Number of global hooks found
 	 * @param workspaceCount Number of workspace-specific hooks found
 	 */
-	public captureHookDiscovery(hookName: string, globalCount: number, workspaceCount: number) {
+	public captureHookDiscovery(
+		hookName: string,
+		globalCount: number,
+		workspaceCount: number,
+	) {
 		if (!this.isCategoryEnabled("hooks")) {
-			return
+			return;
 		}
 
 		this.capture({
@@ -2253,7 +2637,7 @@ export class TelemetryService {
 				totalCount: globalCount + workspaceCount,
 				timestamp: new Date().toISOString(),
 			},
-		})
+		});
 	}
 
 	/**
@@ -2263,17 +2647,17 @@ export class TelemetryService {
 	 * @param args Properties for the accepted AI output event
 	 */
 	public captureAiOutputAccepted(args: {
-		ulid: string
-		tool: string
-		provider?: string
-		model?: string
-		source: "agent" | "human"
-		linesAdded: number
-		linesDeleted: number
-		linesChanged: number
-		filesCreated?: number
-		filesDeleted?: number
-		filesMoved?: number
+		ulid: string;
+		tool: string;
+		provider?: string;
+		model?: string;
+		source: "agent" | "human";
+		linesAdded: number;
+		linesDeleted: number;
+		linesChanged: number;
+		filesCreated?: number;
+		filesDeleted?: number;
+		filesMoved?: number;
 	}): void {
 		this.capture({
 			event: "task.ai_output.accepted",
@@ -2290,20 +2674,50 @@ export class TelemetryService {
 				filesDeleted: args.filesDeleted ?? 0,
 				filesMoved: args.filesMoved ?? 0,
 			},
-		})
+		});
 
-		const attrs = { ulid: args.ulid, tool: args.tool, provider: args.provider, model: args.model, source: args.source }
-		this.recordCounter(TelemetryService.METRICS.AI_OUTPUT.ACCEPTED_LINES_ADDED, args.linesAdded, attrs)
-		this.recordCounter(TelemetryService.METRICS.AI_OUTPUT.ACCEPTED_LINES_DELETED, args.linesDeleted, attrs)
-		this.recordCounter(TelemetryService.METRICS.AI_OUTPUT.ACCEPTED_LINES_CHANGED, args.linesChanged, attrs)
+		const attrs = {
+			ulid: args.ulid,
+			tool: args.tool,
+			provider: args.provider,
+			model: args.model,
+			source: args.source,
+		};
+		this.recordCounter(
+			TelemetryService.METRICS.AI_OUTPUT.ACCEPTED_LINES_ADDED,
+			args.linesAdded,
+			attrs,
+		);
+		this.recordCounter(
+			TelemetryService.METRICS.AI_OUTPUT.ACCEPTED_LINES_DELETED,
+			args.linesDeleted,
+			attrs,
+		);
+		this.recordCounter(
+			TelemetryService.METRICS.AI_OUTPUT.ACCEPTED_LINES_CHANGED,
+			args.linesChanged,
+			attrs,
+		);
 		if (args.filesCreated) {
-			this.recordCounter(TelemetryService.METRICS.AI_OUTPUT.ACCEPTED_FILES_CREATED, args.filesCreated, attrs)
+			this.recordCounter(
+				TelemetryService.METRICS.AI_OUTPUT.ACCEPTED_FILES_CREATED,
+				args.filesCreated,
+				attrs,
+			);
 		}
 		if (args.filesDeleted) {
-			this.recordCounter(TelemetryService.METRICS.AI_OUTPUT.ACCEPTED_FILES_DELETED, args.filesDeleted, attrs)
+			this.recordCounter(
+				TelemetryService.METRICS.AI_OUTPUT.ACCEPTED_FILES_DELETED,
+				args.filesDeleted,
+				attrs,
+			);
 		}
 		if (args.filesMoved) {
-			this.recordCounter(TelemetryService.METRICS.AI_OUTPUT.ACCEPTED_FILES_MOVED, args.filesMoved, attrs)
+			this.recordCounter(
+				TelemetryService.METRICS.AI_OUTPUT.ACCEPTED_FILES_MOVED,
+				args.filesMoved,
+				attrs,
+			);
 		}
 	}
 
@@ -2314,17 +2728,17 @@ export class TelemetryService {
 	 * @param args Properties for the rejected AI output event
 	 */
 	public captureAiOutputRejected(args: {
-		ulid: string
-		tool: string
-		provider?: string
-		model?: string
-		source: "agent" | "human"
-		linesAdded: number
-		linesDeleted: number
-		linesChanged: number
-		filesCreated?: number
-		filesDeleted?: number
-		filesMoved?: number
+		ulid: string;
+		tool: string;
+		provider?: string;
+		model?: string;
+		source: "agent" | "human";
+		linesAdded: number;
+		linesDeleted: number;
+		linesChanged: number;
+		filesCreated?: number;
+		filesDeleted?: number;
+		filesMoved?: number;
 	}): void {
 		this.capture({
 			event: "task.ai_output.rejected",
@@ -2341,20 +2755,50 @@ export class TelemetryService {
 				filesDeleted: args.filesDeleted ?? 0,
 				filesMoved: args.filesMoved ?? 0,
 			},
-		})
+		});
 
-		const attrs = { ulid: args.ulid, tool: args.tool, provider: args.provider, model: args.model, source: args.source }
-		this.recordCounter(TelemetryService.METRICS.AI_OUTPUT.REJECTED_LINES_ADDED, args.linesAdded, attrs)
-		this.recordCounter(TelemetryService.METRICS.AI_OUTPUT.REJECTED_LINES_DELETED, args.linesDeleted, attrs)
-		this.recordCounter(TelemetryService.METRICS.AI_OUTPUT.REJECTED_LINES_CHANGED, args.linesChanged, attrs)
+		const attrs = {
+			ulid: args.ulid,
+			tool: args.tool,
+			provider: args.provider,
+			model: args.model,
+			source: args.source,
+		};
+		this.recordCounter(
+			TelemetryService.METRICS.AI_OUTPUT.REJECTED_LINES_ADDED,
+			args.linesAdded,
+			attrs,
+		);
+		this.recordCounter(
+			TelemetryService.METRICS.AI_OUTPUT.REJECTED_LINES_DELETED,
+			args.linesDeleted,
+			attrs,
+		);
+		this.recordCounter(
+			TelemetryService.METRICS.AI_OUTPUT.REJECTED_LINES_CHANGED,
+			args.linesChanged,
+			attrs,
+		);
 		if (args.filesCreated) {
-			this.recordCounter(TelemetryService.METRICS.AI_OUTPUT.REJECTED_FILES_CREATED, args.filesCreated, attrs)
+			this.recordCounter(
+				TelemetryService.METRICS.AI_OUTPUT.REJECTED_FILES_CREATED,
+				args.filesCreated,
+				attrs,
+			);
 		}
 		if (args.filesDeleted) {
-			this.recordCounter(TelemetryService.METRICS.AI_OUTPUT.REJECTED_FILES_DELETED, args.filesDeleted, attrs)
+			this.recordCounter(
+				TelemetryService.METRICS.AI_OUTPUT.REJECTED_FILES_DELETED,
+				args.filesDeleted,
+				attrs,
+			);
 		}
 		if (args.filesMoved) {
-			this.recordCounter(TelemetryService.METRICS.AI_OUTPUT.REJECTED_FILES_MOVED, args.filesMoved, attrs)
+			this.recordCounter(
+				TelemetryService.METRICS.AI_OUTPUT.REJECTED_FILES_MOVED,
+				args.filesMoved,
+				attrs,
+			);
 		}
 	}
 
@@ -2365,7 +2809,7 @@ export class TelemetryService {
 				name,
 				content,
 			},
-		})
+		});
 	}
 
 	/**
@@ -2376,7 +2820,12 @@ export class TelemetryService {
 	 * @param method The gRPC method name
 	 * @param requestId Optional request ID for correlation
 	 */
-	public captureGrpcResponseSize(sizeUtf8Bytes: number, service: string, method: string, requestId?: string): void {
+	public captureGrpcResponseSize(
+		sizeUtf8Bytes: number,
+		service: string,
+		method: string,
+		requestId?: string,
+	): void {
 		this.recordHistogram(
 			TelemetryService.METRICS.GRPC.RESPONSE_SIZE_BYTES,
 			sizeUtf8Bytes,
@@ -2386,14 +2835,14 @@ export class TelemetryService {
 				...(requestId && { request_id: requestId }),
 			},
 			"Size of gRPC response messages in bytes",
-		)
+		);
 
 		if (sizeUtf8Bytes > 4 * 1024 * 1024) {
 			Logger.warn(
 				`[TelemetryService] Large gRPC response: ${service}.${method} ` +
 					`size=${(sizeUtf8Bytes / (1024 * 1024)).toFixed(1)}MB` +
 					(requestId ? ` request_id=${requestId}` : ""),
-			)
+			);
 		}
 	}
 
@@ -2425,10 +2874,13 @@ export class TelemetryService {
 	 */
 	public safeCapture(telemetryFn: () => void, context?: string): void {
 		try {
-			telemetryFn()
+			telemetryFn();
 		} catch (error) {
-			const contextStr = context ? ` [Context: ${context}]` : ""
-			Logger.error(`[Telemetry] Failed to capture telemetry${contextStr}:`, error)
+			const contextStr = context ? ` [Context: ${context}]` : "";
+			Logger.error(
+				`[Telemetry] Failed to capture telemetry${contextStr}:`,
+				error,
+			);
 		}
 	}
 
@@ -2436,7 +2888,9 @@ export class TelemetryService {
 	 * Clean up resources when the service is disposed
 	 */
 	public async dispose(): Promise<void> {
-		const disposePromises = this.providers.map((provider) => provider.dispose())
-		await Promise.allSettled(disposePromises)
+		const disposePromises = this.providers.map((provider) =>
+			provider.dispose(),
+		);
+		await Promise.allSettled(disposePromises);
 	}
 }

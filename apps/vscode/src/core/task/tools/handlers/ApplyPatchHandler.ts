@@ -1,155 +1,188 @@
-import { readFile } from "node:fs/promises"
-import { resolve as resolvePath } from "node:path"
-import type { ToolUse } from "@core/assistant-message"
-import { resolveWorkspacePath } from "@core/workspace"
-import { processFilesIntoText } from "@integrations/misc/extract-text"
-import type { ClineSayTool } from "@shared/ExtensionMessage"
-import { fileExistsAtPath } from "@utils/fs"
-import { getReadablePath, isLocatedInWorkspace } from "@utils/path"
-import { applyPatch } from "diff"
-import { telemetryService } from "@/services/telemetry"
-import { BASH_WRAPPERS, DiffError, PATCH_MARKERS, type Patch, PatchActionType, type PatchChunk } from "@/shared/Patch"
-import { preserveEscaping } from "@/shared/string"
-import { ClineDefaultTool } from "@/shared/tools"
-import type { ToolResponse } from "../../index"
-import { showNotificationForApproval } from "../../utils"
-import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
-import type { ToolValidator } from "../ToolValidator"
-import type { TaskConfig } from "../types/TaskConfig"
-import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
-import { captureAccepted, captureRejected, getModelInfo } from "../utils/AiOutputTelemetry"
-import { type FileOpsResult, FileProviderOperations } from "../utils/FileProviderOperations"
-import { PatchParser } from "../utils/PatchParser"
-import { PathResolver } from "../utils/PathResolver"
-import { ToolResultUtils } from "../utils/ToolResultUtils"
+import { readFile } from "node:fs/promises";
+import { resolve as resolvePath } from "node:path";
+import type { ToolUse } from "@core/assistant-message";
+import { resolveWorkspacePath } from "@core/workspace";
+import { processFilesIntoText } from "@integrations/misc/extract-text";
+import type { ClineSayTool } from "@shared/ExtensionMessage";
+import { fileExistsAtPath } from "@utils/fs";
+import { getReadablePath, isLocatedInWorkspace } from "@utils/path";
+import { applyPatch } from "diff";
+import { telemetryService } from "@/services/telemetry";
+import {
+	BASH_WRAPPERS,
+	DiffError,
+	PATCH_MARKERS,
+	type Patch,
+	PatchActionType,
+	type PatchChunk,
+} from "@/shared/Patch";
+import { preserveEscaping } from "@/shared/string";
+import { ClineDefaultTool } from "@/shared/tools";
+import type { ToolResponse } from "../../index";
+import { showNotificationForApproval } from "../../utils";
+import type { IFullyManagedTool } from "../ToolExecutorCoordinator";
+import type { ToolValidator } from "../ToolValidator";
+import type { TaskConfig } from "../types/TaskConfig";
+import type { StronglyTypedUIHelpers } from "../types/UIHelpers";
+import {
+	captureAccepted,
+	captureRejected,
+	getModelInfo,
+} from "../utils/AiOutputTelemetry";
+import {
+	type FileOpsResult,
+	FileProviderOperations,
+} from "../utils/FileProviderOperations";
+import { PatchParser } from "../utils/PatchParser";
+import { PathResolver } from "../utils/PathResolver";
+import { ToolResultUtils } from "../utils/ToolResultUtils";
 
 interface FileChange {
-	type: PatchActionType
-	oldContent?: string
-	newContent?: string
-	movePath?: string
+	type: PatchActionType;
+	oldContent?: string;
+	newContent?: string;
+	movePath?: string;
 	/** Starting line numbers (1-indexed) for each chunk in the patch */
-	startLineNumbers?: number[]
+	startLineNumbers?: number[];
 }
 
 interface Commit {
-	changes: Record<string, FileChange>
+	changes: Record<string, FileChange>;
 }
 
 export const PatchClineSayMap = {
 	[PatchActionType.ADD]: "newFileCreated",
 	[PatchActionType.DELETE]: "fileDeleted",
 	[PatchActionType.UPDATE]: "editedExistingFile",
-}
+};
 
 export class ApplyPatchHandler implements IFullyManagedTool {
-	readonly name = ClineDefaultTool.APPLY_PATCH
-	private config?: TaskConfig
-	private pathResolver?: PathResolver
-	private providerOps?: FileProviderOperations
+	readonly name = ClineDefaultTool.APPLY_PATCH;
+	private config?: TaskConfig;
+	private pathResolver?: PathResolver;
+	private providerOps?: FileProviderOperations;
 
 	constructor(private validator: ToolValidator) {}
 
 	private initializeHelpers(config: TaskConfig): void {
 		if (!this.pathResolver || this.config !== config) {
-			this.pathResolver = new PathResolver(config, this.validator)
+			this.pathResolver = new PathResolver(config, this.validator);
 		}
 		if (!this.providerOps) {
-			this.providerOps = new FileProviderOperations(config.services.diffViewProvider)
+			this.providerOps = new FileProviderOperations(
+				config.services.diffViewProvider,
+			);
 		}
 	}
 
 	getDescription(_block: ToolUse): string {
-		return `[${this.name} for patch application]`
+		return `[${this.name} for patch application]`;
 	}
 
-	async handlePartialBlock(block: ToolUse, uiHelpers: StronglyTypedUIHelpers): Promise<void> {
-		const rawInput = block.params.input
+	async handlePartialBlock(
+		block: ToolUse,
+		uiHelpers: StronglyTypedUIHelpers,
+	): Promise<void> {
+		const rawInput = block.params.input;
 		if (!rawInput) {
-			return
+			return;
 		}
 
 		try {
-			const allFiles = this.extractAllFiles(rawInput)
+			const allFiles = this.extractAllFiles(rawInput);
 			if (allFiles.length === 0) {
-				return
+				return;
 			}
 
-			const config = uiHelpers.getConfig()
-			this.initializeHelpers(config)
+			const config = uiHelpers.getConfig();
+			this.initializeHelpers(config);
 
 			// Preview the first file being edited
-			await this.previewPatchStream(rawInput, uiHelpers).catch(() => {})
+			await this.previewPatchStream(rawInput, uiHelpers).catch(() => {});
 		} catch {
 			// Wait for more data if parsing fails
 		}
 	}
 
-	private async previewPatchStream(rawInput: string, uiHelpers: StronglyTypedUIHelpers): Promise<void> {
-		const config = uiHelpers.getConfig()
-		const provider = config.services.diffViewProvider
-		this.initializeHelpers(config)
+	private async previewPatchStream(
+		rawInput: string,
+		uiHelpers: StronglyTypedUIHelpers,
+	): Promise<void> {
+		const config = uiHelpers.getConfig();
+		const provider = config.services.diffViewProvider;
+		this.initializeHelpers(config);
 
-		const lines = this.stripBashWrapper(rawInput.split("\n"))
+		const lines = this.stripBashWrapper(rawInput.split("\n"));
 
 		// Extract the first operation path and type
-		let targetPath: string | undefined
-		let actionType: PatchActionType | undefined
-		let contentStartIndex = -1
+		let targetPath: string | undefined;
+		let actionType: PatchActionType | undefined;
+		let contentStartIndex = -1;
 
 		for (let i = 0; i < lines.length; i++) {
-			const line = lines[i]
+			const line = lines[i];
 			if (line.startsWith(PATCH_MARKERS.ADD)) {
-				provider.editType = "modify"
-				targetPath = line.substring(PATCH_MARKERS.ADD.length).trim()
-				actionType = PatchActionType.ADD
-				contentStartIndex = i + 1
-				break
+				provider.editType = "modify";
+				targetPath = line.substring(PATCH_MARKERS.ADD.length).trim();
+				actionType = PatchActionType.ADD;
+				contentStartIndex = i + 1;
+				break;
 			}
 			if (line.startsWith(PATCH_MARKERS.UPDATE)) {
-				provider.editType = "modify"
-				targetPath = line.substring(PATCH_MARKERS.UPDATE.length).trim()
-				actionType = PatchActionType.UPDATE
-				contentStartIndex = i + 1
-				break
+				provider.editType = "modify";
+				targetPath = line.substring(PATCH_MARKERS.UPDATE.length).trim();
+				actionType = PatchActionType.UPDATE;
+				contentStartIndex = i + 1;
+				break;
 			}
 			if (line.startsWith(PATCH_MARKERS.DELETE)) {
-				targetPath = line.substring(PATCH_MARKERS.DELETE.length).trim()
-				actionType = PatchActionType.DELETE
-				contentStartIndex = i + 1
-				break
+				targetPath = line.substring(PATCH_MARKERS.DELETE.length).trim();
+				actionType = PatchActionType.DELETE;
+				contentStartIndex = i + 1;
+				break;
 			}
 		}
 
-		if (!targetPath || targetPath.length === 0 || targetPath.includes("***") || !actionType) {
-			return
+		if (
+			!targetPath ||
+			targetPath.length === 0 ||
+			targetPath.includes("***") ||
+			!actionType
+		) {
+			return;
 		}
 
 		// Check for move marker
-		let movePath: string | undefined
+		let movePath: string | undefined;
 		if (actionType === PatchActionType.UPDATE && contentStartIndex >= 0) {
-			const nextLine = lines[contentStartIndex]
+			const nextLine = lines[contentStartIndex];
 			if (nextLine?.startsWith(PATCH_MARKERS.MOVE)) {
-				movePath = nextLine.substring(PATCH_MARKERS.MOVE.length).trim()
-				contentStartIndex++
+				movePath = nextLine.substring(PATCH_MARKERS.MOVE.length).trim();
+				contentStartIndex++;
 			}
 		}
 
 		// For ADD operations, ensure we have content
 		if (actionType === PatchActionType.ADD) {
 			if (contentStartIndex < 0 || contentStartIndex >= lines.length) {
-				return
+				return;
 			}
-			const contentLines = lines.slice(contentStartIndex)
-			if (contentLines.length === 0 || (contentLines.length === 1 && contentLines[0] === "")) {
-				return
+			const contentLines = lines.slice(contentStartIndex);
+			if (
+				contentLines.length === 0 ||
+				(contentLines.length === 1 && contentLines[0] === "")
+			) {
+				return;
 			}
 		}
 
-		const finalPath = movePath || targetPath
-		const targetResolution = await this.pathResolver!.resolveAndValidate(finalPath, "ApplyPatchHandler.previewPatch")
+		const finalPath = movePath || targetPath;
+		const targetResolution = await this.pathResolver!.resolveAndValidate(
+			finalPath,
+			"ApplyPatchHandler.previewPatch",
+		);
 		if (!targetResolution) {
-			return
+			return;
 		}
 
 		await config.callbacks
@@ -163,206 +196,238 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 				}),
 				true,
 			)
-			.catch(() => {}) // sending true for partial even though it's not a partial, this shows the edit row before the content is streamed into the editor
+			.catch(() => {}); // sending true for partial even though it's not a partial, this shows the edit row before the content is streamed into the editor
 
-		const stream: { content: string | undefined } = { content: undefined }
+		const stream: { content: string | undefined } = { content: undefined };
 
 		switch (actionType) {
 			case PatchActionType.ADD: {
-				const contentLines = lines.slice(contentStartIndex)
+				const contentLines = lines.slice(contentStartIndex);
 				stream.content = contentLines
 					.filter((l) => l.startsWith("+"))
 					.map((l) => l.substring(1))
-					.join("\n")
-				break
+					.join("\n");
+				break;
 			}
 			case PatchActionType.UPDATE: {
 				const sourceResolution = await this.pathResolver!.resolveAndValidate(
 					targetPath,
 					"ApplyPatchHandler.previewPatch.source",
-				)
+				);
 				if (!sourceResolution) {
-					return
+					return;
 				}
 
-				const originalContent = provider.originalContent
+				const originalContent = provider.originalContent;
 				if (originalContent === undefined) {
-					return
+					return;
 				}
 
 				// For streaming preview, just show original content - full application happens in execute
-				stream.content = originalContent
-				break
+				stream.content = originalContent;
+				break;
 			}
 			case PatchActionType.DELETE:
-				stream.content = ""
-				provider.editType = "modify"
-				break
+				stream.content = "";
+				provider.editType = "modify";
+				break;
 			default:
-				return
+				return;
 		}
 
 		if (stream.content === undefined) {
-			return
+			return;
 		}
 	}
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
-		const provider = config.services.diffViewProvider
-		const rawInput = block.params.input
+		const provider = config.services.diffViewProvider;
+		const rawInput = block.params.input;
 
 		if (!rawInput) {
-			config.taskState.consecutiveMistakeCount++
-			return await config.callbacks.sayAndCreateMissingParamError(block.name, "input")
+			config.taskState.consecutiveMistakeCount++;
+			return await config.callbacks.sayAndCreateMissingParamError(
+				block.name,
+				"input",
+			);
 		}
 
-		config.taskState.consecutiveMistakeCount = 0
-		this.initializeHelpers(config)
+		config.taskState.consecutiveMistakeCount = 0;
+		this.initializeHelpers(config);
 
 		if (provider.isEditing) {
 			try {
-				await provider.reset()
+				await provider.reset();
 			} catch {
 				// Ignore reset errors
 			}
 		}
 
 		try {
-			const lines = this.preprocessLines(rawInput)
+			const lines = this.preprocessLines(rawInput);
 
 			// Identify files needed
-			const filesToLoad = this.extractFilesForOperations(rawInput, [PATCH_MARKERS.UPDATE, PATCH_MARKERS.DELETE])
-			const currentFiles = await this.loadFiles(config, filesToLoad)
+			const filesToLoad = this.extractFilesForOperations(rawInput, [
+				PATCH_MARKERS.UPDATE,
+				PATCH_MARKERS.DELETE,
+			]);
+			const currentFiles = await this.loadFiles(config, filesToLoad);
 
 			// Parse patch
-			const parser = new PatchParser(lines, currentFiles)
-			const { patch, fuzz } = parser.parse()
+			const parser = new PatchParser(lines, currentFiles);
+			const { patch, fuzz } = parser.parse();
 
 			// Convert to commit
-			const commit = await this.patchToCommit(patch, currentFiles)
+			const commit = await this.patchToCommit(patch, currentFiles);
 
-			this.config = config
+			this.config = config;
 
 			// Run PreToolUse hook before applying changes
 			try {
-				const { ToolHookUtils } = await import("../utils/ToolHookUtils")
-				await ToolHookUtils.runPreToolUseIfEnabled(config, block)
+				const { ToolHookUtils } = await import("../utils/ToolHookUtils");
+				await ToolHookUtils.runPreToolUseIfEnabled(config, block);
 			} catch (error) {
-				const { PreToolUseHookCancellationError } = await import("@core/hooks/PreToolUseHookCancellationError")
+				const { PreToolUseHookCancellationError } = await import(
+					"@core/hooks/PreToolUseHookCancellationError"
+				);
 				if (error instanceof PreToolUseHookCancellationError) {
-					await provider.reset()
-					return "The user denied this patch operation."
+					await provider.reset();
+					return "The user denied this patch operation.";
 				}
-				throw error
+				throw error;
 			}
 
 			// Generate summary
-			const changedFiles = Object.keys(commit.changes)
-			const messages = await this.generateChangeSummary(commit.changes)
+			const changedFiles = Object.keys(commit.changes);
+			const messages = await this.generateChangeSummary(commit.changes);
 
-			const finalResponses = []
-			const applyResults: Record<string, FileOpsResult> = {}
+			const finalResponses = [];
+			const applyResults: Record<string, FileOpsResult> = {};
 
 			// Create a mapping from message path to original commit change key
 			// (needed because for move operations, message.path is the new path, but commit.changes key is the old path)
-			const pathToChangeKey = new Map<string, string>()
+			const pathToChangeKey = new Map<string, string>();
 			for (const [originalPath, change] of Object.entries(commit.changes)) {
 				if (change.type === PatchActionType.UPDATE && change.movePath) {
-					pathToChangeKey.set(change.movePath, originalPath)
+					pathToChangeKey.set(change.movePath, originalPath);
 				} else {
-					pathToChangeKey.set(originalPath, originalPath)
+					pathToChangeKey.set(originalPath, originalPath);
 				}
 			}
 
 			// For each file: prepare, get approval, then save
 			for (const message of messages) {
-				const messagePath = message.path
+				const messagePath = message.path;
 				if (!messagePath) {
-					continue
+					continue;
 				}
 
 				// Get the original change key (for move operations, this is the old path)
-				const originalPath = pathToChangeKey.get(messagePath)
+				const originalPath = pathToChangeKey.get(messagePath);
 				if (!originalPath) {
-					continue
+					continue;
 				}
 
-				const change = commit.changes[originalPath]
+				const change = commit.changes[originalPath];
 				if (!change) {
-					continue
+					continue;
 				}
 
 				// Determine the actual file path to use for operations
 				// For move operations, we prepare the new file, but the change is keyed by the old path
-				const operationPath = change.type === PatchActionType.UPDATE && change.movePath ? change.movePath : originalPath
+				const operationPath =
+					change.type === PatchActionType.UPDATE && change.movePath
+						? change.movePath
+						: originalPath;
 
 				// Prepare the change for this file (open and update, but don't save)
-				await this.prepareFileChange(change, operationPath)
+				await this.prepareFileChange(change, operationPath);
 
 				// Get approval
-				const approved = await this.handleApproval(config, block, message, rawInput, change)
+				const approved = await this.handleApproval(
+					config,
+					block,
+					message,
+					rawInput,
+					change,
+				);
 				if (!approved) {
-					this.config = undefined
-					config.taskState.didRejectTool = true
-					await provider.revertChanges()
-					await provider.reset()
-					return "The user denied this patch operation."
+					this.config = undefined;
+					config.taskState.didRejectTool = true;
+					provider.recordDiffViewRejected();
+					await provider.revertChanges("user_rejected");
+					await provider.reset();
+					return "The user denied this patch operation.";
 				}
 
 				// Save the changes for this file after approval
-				const fileResult = await this.saveFileChange(change, operationPath)
+				const fileResult = await this.saveFileChange(change, operationPath);
 				if (fileResult) {
 					// For move operations, we need to handle both old and new paths
 					if (change.type === PatchActionType.UPDATE && change.movePath) {
-						applyResults[change.movePath] = fileResult
+						applyResults[change.movePath] = fileResult;
 						// Delete the old file after saving the new one
-						await this.providerOps!.deleteFile(originalPath)
-						applyResults[originalPath] = { deleted: true }
+						await this.providerOps!.deleteFile(originalPath);
+						applyResults[originalPath] = { deleted: true };
 					} else {
-						applyResults[originalPath] = fileResult
+						applyResults[originalPath] = fileResult;
 					}
 				}
 
 				// Reset provider state to ensure clean state for the next file operation
-				await provider.reset()
+				await provider.reset();
 
-				finalResponses.push(messagePath)
+				finalResponses.push(messagePath);
 			}
 
 			// Track all changed files once after all operations are complete
 			for (const changedFilePath of changedFiles) {
-				const change = commit.changes[changedFilePath]
+				const change = commit.changes[changedFilePath];
 				// For move operations, track the new path instead
-				const pathToTrack = change.type === PatchActionType.UPDATE && change.movePath ? change.movePath : changedFilePath
-				config.services.fileContextTracker.markFileAsEditedByCline(pathToTrack)
-				await config.services.fileContextTracker.trackFileContext(pathToTrack, "cline_edited")
+				const pathToTrack =
+					change.type === PatchActionType.UPDATE && change.movePath
+						? change.movePath
+						: changedFilePath;
+				config.services.fileContextTracker.markFileAsEditedByCline(pathToTrack);
+				await config.services.fileContextTracker.trackFileContext(
+					pathToTrack,
+					"cline_edited",
+				);
 
 				// Invalidate file read cache for all changed files so re-reads get fresh content
-				config.taskState.fileReadCache.delete(resolvePath(config.cwd, pathToTrack).toLowerCase())
+				config.taskState.fileReadCache.delete(
+					resolvePath(config.cwd, pathToTrack).toLowerCase(),
+				);
 				// Also invalidate old path for move operations
 				if (change.type === PatchActionType.UPDATE && change.movePath) {
-					config.taskState.fileReadCache.delete(resolvePath(config.cwd, changedFilePath).toLowerCase())
+					config.taskState.fileReadCache.delete(
+						resolvePath(config.cwd, changedFilePath).toLowerCase(),
+					);
 				}
 			}
 
-			this.config = undefined
+			this.config = undefined;
 
 			// Extract provider info for human edit telemetry
-			const { providerId, modelId } = getModelInfo(config)
+			const { providerId, modelId } = getModelInfo(config);
 
 			// Build response with file contents and diagnostics
-			const responseLines = ["Successfully applied patch to the following files:"]
+			const responseLines = [
+				"Successfully applied patch to the following files:",
+			];
 
 			for (const [path, result] of Object.entries(applyResults)) {
 				if (result.deleted) {
-					config.taskState.didEditFile = true
+					config.taskState.didEditFile = true;
 					// Note: cache invalidation for deleted files is already handled in the changedFiles loop above
-					responseLines.push(`\n${path}: [deleted]`)
+					responseLines.push(`\n${path}: [deleted]`);
 				} else {
 					// Format response similar to WriteToFileToolHandler
 					if (result.userEdits) {
 						// User made edits during approval
-						responseLines.push(`\nThe user made edits to the file:\n${result.userEdits}\n`)
+						responseLines.push(
+							`\nThe user made edits to the file:\n${result.userEdits}\n`,
+						);
 						await config.callbacks.say(
 							"user_feedback_diff",
 							JSON.stringify({
@@ -370,12 +435,16 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 								path,
 								diff: result.userEdits,
 							}),
-						)
+						);
 
 						// Capture human edit telemetry: diff between agent's proposed content and user's pre-save edits
 						// Use applyPatch to reconstruct pre-save content from userEdits, excluding auto-formatting noise
-						const change = commit.changes[path] || Object.values(commit.changes).find((c) => c.movePath === path)
-						const preSaveContent = result.userEdits ? applyPatch(change?.newContent || "", result.userEdits) : false
+						const change =
+							commit.changes[path] ||
+							Object.values(commit.changes).find((c) => c.movePath === path);
+						const preSaveContent = result.userEdits
+							? applyPatch(change?.newContent || "", result.userEdits)
+							: false;
 						captureAccepted({
 							ulid: config.ulid,
 							tool: this.name,
@@ -384,92 +453,105 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 							afterContent: preSaveContent || result.finalContent || "",
 							providerId,
 							modelId,
-						})
+						});
 					}
 					if (result.autoFormattingEdits) {
-						responseLines.push(`\nAuto-formatting was applied to ${path}:\n${result.autoFormattingEdits}\n`)
+						responseLines.push(
+							`\nAuto-formatting was applied to ${path}:\n${result.autoFormattingEdits}\n`,
+						);
 					}
 					if (result.finalContent) {
-						responseLines.push(`\n<final_file_content path="${path}">`)
-						responseLines.push(result.finalContent)
-						responseLines.push(`</final_file_content>`)
+						responseLines.push(`\n<final_file_content path="${path}">`);
+						responseLines.push(result.finalContent);
+						responseLines.push(`</final_file_content>`);
 					}
 					if (result.newProblemsMessage) {
-						responseLines.push(`\n\n${result.newProblemsMessage}`)
+						responseLines.push(`\n\n${result.newProblemsMessage}`);
 					}
 				}
 			}
 
 			if (fuzz > 0) {
-				responseLines.push(`\nNote: Patch applied with fuzz factor ${fuzz}`)
+				responseLines.push(`\nNote: Patch applied with fuzz factor ${fuzz}`);
 			}
 
-			return responseLines.join("\n")
+			return responseLines.join("\n");
 		} catch (error) {
-			await provider.revertChanges()
-			throw error
+			await provider.revertChanges("error_cleanup");
+			throw error;
 		} finally {
-			await provider.reset()
+			await provider.reset();
 		}
 	}
 
 	private preprocessLines(text: string): string[] {
-		let lines = text.split("\n").map((line) => line.replace(/\r$/, ""))
-		lines = this.stripBashWrapper(lines)
+		let lines = text.split("\n").map((line) => line.replace(/\r$/, ""));
+		lines = this.stripBashWrapper(lines);
 
-		const hasBegin = lines.length > 0 && lines[0].startsWith(PATCH_MARKERS.BEGIN)
-		const hasEnd = lines.length > 0 && lines[lines.length - 1] === PATCH_MARKERS.END
+		const hasBegin =
+			lines.length > 0 && lines[0].startsWith(PATCH_MARKERS.BEGIN);
+		const hasEnd =
+			lines.length > 0 && lines[lines.length - 1] === PATCH_MARKERS.END;
 
 		if (!hasBegin && !hasEnd) {
-			return [PATCH_MARKERS.BEGIN, ...lines, PATCH_MARKERS.END]
+			return [PATCH_MARKERS.BEGIN, ...lines, PATCH_MARKERS.END];
 		}
 		if (hasBegin && hasEnd) {
-			return lines
+			return lines;
 		}
 		// Missing one of the sentinels: BEGIN or END PATCH
-		throw new DiffError("Invalid patch text - incomplete sentinels. Try breaking it into smaller patches.")
+		throw new DiffError(
+			"Invalid patch text - incomplete sentinels. Try breaking it into smaller patches.",
+		);
 	}
 
 	private stripBashWrapper(lines: string[]): string[] {
-		const result: string[] = []
-		let insidePatch = false
-		let foundBegin = false
-		let foundContent = false
+		const result: string[] = [];
+		let insidePatch = false;
+		let foundBegin = false;
+		let foundContent = false;
 
 		for (let i = 0; i < lines.length; i++) {
-			const line = lines[i]
-			if (!insidePatch && BASH_WRAPPERS.some((wrapper) => line.startsWith(wrapper))) {
-				continue
+			const line = lines[i];
+			if (
+				!insidePatch &&
+				BASH_WRAPPERS.some((wrapper) => line.startsWith(wrapper))
+			) {
+				continue;
 			}
 
 			if (line.startsWith(PATCH_MARKERS.BEGIN)) {
-				insidePatch = true
-				foundBegin = true
-				result.push(line)
-				continue
+				insidePatch = true;
+				foundBegin = true;
+				result.push(line);
+				continue;
 			}
 
 			if (line === PATCH_MARKERS.END) {
-				insidePatch = false
-				result.push(line)
-				continue
+				insidePatch = false;
+				result.push(line);
+				continue;
 			}
 
-			const isPatchContent = this.isPatchLine(line)
+			const isPatchContent = this.isPatchLine(line);
 			if (isPatchContent && i !== lines.length - 1) {
-				foundContent = true
+				foundContent = true;
 			}
 
-			if (insidePatch || (!foundBegin && isPatchContent) || (line === "" && foundContent)) {
-				result.push(line)
+			if (
+				insidePatch ||
+				(!foundBegin && isPatchContent) ||
+				(line === "" && foundContent)
+			) {
+				result.push(line);
 			}
 		}
 
 		while (result.length > 0 && result[result.length - 1] === "") {
-			result.pop()
+			result.pop();
 		}
 
-		return !foundBegin && !foundContent ? lines : result
+		return !foundBegin && !foundContent ? lines : result;
 	}
 
 	private isPatchLine(line: string): boolean {
@@ -483,93 +565,129 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 			line.startsWith("-") ||
 			line.startsWith(" ") ||
 			line === "***"
-		)
+		);
 	}
 
-	private extractFilesForOperations(text: string, markers: readonly string[]): string[] {
-		const lines = this.stripBashWrapper(text.split("\n"))
-		const files: string[] = []
+	private extractFilesForOperations(
+		text: string,
+		markers: readonly string[],
+	): string[] {
+		const lines = this.stripBashWrapper(text.split("\n"));
+		const files: string[] = [];
 
 		for (const line of lines) {
 			for (const marker of markers) {
 				if (line.startsWith(marker)) {
-					const file = line.substring(marker.length).trim()
+					const file = line.substring(marker.length).trim();
 					if (text.trim().endsWith(file)) {
 						// Ignore if the file path is at the very end of the text (likely incomplete)
-						continue
+						continue;
 					}
-					files.push(file)
-					break
+					files.push(file);
+					break;
 				}
 			}
 		}
 
-		return files
+		return files;
 	}
 
 	private extractAllFiles(text: string): string[] {
-		return this.extractFilesForOperations(text, [PATCH_MARKERS.ADD, PATCH_MARKERS.UPDATE, PATCH_MARKERS.DELETE])
+		return this.extractFilesForOperations(text, [
+			PATCH_MARKERS.ADD,
+			PATCH_MARKERS.UPDATE,
+			PATCH_MARKERS.DELETE,
+		]);
 	}
 
-	private async loadFiles(config: TaskConfig, filePaths: string[]): Promise<Record<string, string>> {
-		const files: Record<string, string> = {}
+	private async loadFiles(
+		config: TaskConfig,
+		filePaths: string[],
+	): Promise<Record<string, string>> {
+		const files: Record<string, string> = {};
 
 		for (const filePath of filePaths) {
-			const pathResult = resolveWorkspacePath(config, filePath, "ApplyPatchHandler.loadFiles")
-			const absolutePath = typeof pathResult === "string" ? pathResult : pathResult.absolutePath
-			const resolvedPath = typeof pathResult === "string" ? filePath : pathResult.resolvedPath
+			const pathResult = resolveWorkspacePath(
+				config,
+				filePath,
+				"ApplyPatchHandler.loadFiles",
+			);
+			const absolutePath =
+				typeof pathResult === "string" ? pathResult : pathResult.absolutePath;
+			const resolvedPath =
+				typeof pathResult === "string" ? filePath : pathResult.resolvedPath;
 
-			const accessValidation = this.validator.checkClineIgnorePath(resolvedPath)
+			const accessValidation =
+				this.validator.checkClineIgnorePath(resolvedPath);
 			if (!accessValidation.ok) {
-				await config.callbacks.say("clineignore_error", resolvedPath)
-				throw new DiffError(`Access denied: ${resolvedPath}`)
+				await config.callbacks.say("clineignore_error", resolvedPath);
+				throw new DiffError(`Access denied: ${resolvedPath}`);
 			}
 
 			if (!(await fileExistsAtPath(absolutePath))) {
-				throw new DiffError(`File not found: ${filePath}`)
+				throw new DiffError(`File not found: ${filePath}`);
 			}
-			const fileContent = await readFile(absolutePath, "utf8")
-			const normalizedContent = fileContent.replace(/\r\n/g, "\n")
-			files[filePath] = normalizedContent
+			const fileContent = await readFile(absolutePath, "utf8");
+			const normalizedContent = fileContent.replace(/\r\n/g, "\n");
+			files[filePath] = normalizedContent;
 		}
 
-		return files
+		return files;
 	}
 
-	private async patchToCommit(patch: Patch, originalFiles: Record<string, string>): Promise<Commit> {
-		const changes: Record<string, FileChange> = {}
+	private async patchToCommit(
+		patch: Patch,
+		originalFiles: Record<string, string>,
+	): Promise<Commit> {
+		const changes: Record<string, FileChange> = {};
 
 		for (const [path, action] of Object.entries(patch.actions)) {
-			const targetResolution = await this.pathResolver!.resolveAndValidate(path, "ApplyPatchHandler.previewPatch")
+			const targetResolution = await this.pathResolver!.resolveAndValidate(
+				path,
+				"ApplyPatchHandler.previewPatch",
+			);
 			if (!targetResolution) {
-				continue
+				continue;
 			}
 
 			switch (action.type) {
 				case PatchActionType.DELETE:
-					changes[path] = { type: PatchActionType.DELETE, oldContent: originalFiles[path] }
-					break
+					changes[path] = {
+						type: PatchActionType.DELETE,
+						oldContent: originalFiles[path],
+					};
+					break;
 				case PatchActionType.ADD:
 					if (!action.newFile) {
-						throw new DiffError("ADD action without file content")
+						throw new DiffError("ADD action without file content");
 					}
-					changes[path] = { type: PatchActionType.ADD, newContent: action.newFile }
-					break
-				case PatchActionType.UPDATE:
+					changes[path] = {
+						type: PatchActionType.ADD,
+						newContent: action.newFile,
+					};
+					break;
+				case PatchActionType.UPDATE: {
 					// Extract starting line numbers from chunks (convert from 0-indexed to 1-indexed)
-					const startLineNumbers = action.chunks.map((chunk) => chunk.origIndex + 1)
+					const startLineNumbers = action.chunks.map(
+						(chunk) => chunk.origIndex + 1,
+					);
 					changes[path] = {
 						type: PatchActionType.UPDATE,
 						oldContent: originalFiles[path],
-						newContent: this.applyChunks(originalFiles[path]!, action.chunks, path),
+						newContent: this.applyChunks(
+							originalFiles[path]!,
+							action.chunks,
+							path,
+						),
 						movePath: action.movePath,
 						startLineNumbers,
-					}
-					break
+					};
+					break;
+				}
 			}
 		}
 
-		return { changes }
+		return { changes };
 	}
 
 	/**
@@ -581,110 +699,130 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 	 * @param tryPreserveEscaping Whether to attempt preserving escaping style in cases where the provider has escaped the shared content during the API call.
 	 * @returns The modified content after applying the chunks.
 	 */
-	private applyChunks(content: string, chunks: PatchChunk[], path: string, tryPreserveEscaping = false): string {
+	private applyChunks(
+		content: string,
+		chunks: PatchChunk[],
+		path: string,
+		tryPreserveEscaping = false,
+	): string {
 		if (chunks.length === 0) {
-			return content
+			return content;
 		}
 
-		const lines = content.split("\n")
-		const result: string[] = []
-		let currentIndex = 0
+		const lines = content.split("\n");
+		const result: string[] = [];
+		let currentIndex = 0;
 
 		for (const chunk of chunks) {
 			if (chunk.origIndex > lines.length) {
-				throw new DiffError(`${path}: chunk.origIndex ${chunk.origIndex} > lines.length ${lines.length}`)
+				throw new DiffError(
+					`${path}: chunk.origIndex ${chunk.origIndex} > lines.length ${lines.length}`,
+				);
 			}
 			if (currentIndex > chunk.origIndex) {
-				throw new DiffError(`${path}: currentIndex ${currentIndex} > chunk.origIndex ${chunk.origIndex}`)
+				throw new DiffError(
+					`${path}: currentIndex ${currentIndex} > chunk.origIndex ${chunk.origIndex}`,
+				);
 			}
 
 			// Copy lines before the chunk
-			result.push(...lines.slice(currentIndex, chunk.origIndex))
+			result.push(...lines.slice(currentIndex, chunk.origIndex));
 
 			// Get the original lines being replaced to detect escaping style
-			const originalLines = lines.slice(chunk.origIndex, chunk.origIndex + chunk.delLines.length)
-			const originalText = originalLines.join("\n")
+			const originalLines = lines.slice(
+				chunk.origIndex,
+				chunk.origIndex + chunk.delLines.length,
+			);
+			const originalText = originalLines.join("\n");
 
 			// Add inserted lines, preserving escaping style from original
 			const insertedLines = chunk.insLines.map((line) => {
 				// Only preserve escaping if we have original text to compare against
 				if (tryPreserveEscaping && originalText) {
-					return preserveEscaping(originalText, line)
+					return preserveEscaping(originalText, line);
 				}
-				return line
-			})
-			result.push(...insertedLines)
+				return line;
+			});
+			result.push(...insertedLines);
 
 			// Skip deleted lines
-			currentIndex = chunk.origIndex + chunk.delLines.length
+			currentIndex = chunk.origIndex + chunk.delLines.length;
 		}
 
 		// Copy remaining lines
-		result.push(...lines.slice(currentIndex))
+		result.push(...lines.slice(currentIndex));
 
-		return result.join("\n")
+		return result.join("\n");
 	}
 
 	/**
 	 * Prepares a single file change (opens file and updates content) without saving.
 	 * Call saveFileChange() after approval.
 	 */
-	private async prepareFileChange(change: FileChange, path: string): Promise<void> {
-		const ops = this.providerOps!
+	private async prepareFileChange(
+		change: FileChange,
+		path: string,
+	): Promise<void> {
+		const ops = this.providerOps!;
 
 		switch (change.type) {
 			case PatchActionType.DELETE:
-				await ops.deleteFile(path, false)
-				break
+				await ops.deleteFile(path, false);
+				break;
 			case PatchActionType.ADD:
 				if (!change.newContent) {
-					throw new DiffError(`Cannot create ${path} with no content`)
+					throw new DiffError(`Cannot create ${path} with no content`);
 				}
-				await ops.createFile(path, change.newContent, false)
-				break
+				await ops.createFile(path, change.newContent, false);
+				break;
 			case PatchActionType.UPDATE:
 				if (!change.newContent) {
-					throw new DiffError(`UPDATE change for ${path} has no new content`)
+					throw new DiffError(`UPDATE change for ${path} has no new content`);
 				}
 				if (change.movePath) {
 					// For move operations, prepare the new file (the old file will be handled separately)
-					await ops.createFile(change.movePath, change.newContent, false)
+					await ops.createFile(change.movePath, change.newContent, false);
 				} else {
-					await ops.modifyFile(path, change.newContent, false)
+					await ops.modifyFile(path, change.newContent, false);
 				}
-				break
+				break;
 		}
 	}
 
 	/**
 	 * Saves the changes for a single file after approval.
 	 */
-	private async saveFileChange(change: FileChange, path: string): Promise<FileOpsResult | undefined> {
-		const ops = this.providerOps!
+	private async saveFileChange(
+		change: FileChange,
+		path: string,
+	): Promise<FileOpsResult | undefined> {
+		const ops = this.providerOps!;
 
 		switch (change.type) {
 			case PatchActionType.DELETE:
 				// For delete operations, actually delete the file now (after approval)
-				await ops.deleteFile(path)
-				return { deleted: true }
+				await ops.deleteFile(path);
+				return { deleted: true };
 			case PatchActionType.ADD:
 				if (!change.newContent) {
-					throw new DiffError(`Cannot create ${path} with no content`)
+					throw new DiffError(`Cannot create ${path} with no content`);
 				}
-				return await ops.saveChanges()
+				return await ops.saveChanges();
 			case PatchActionType.UPDATE:
 				if (!change.newContent) {
-					throw new DiffError(`UPDATE change for ${path} has no new content`)
+					throw new DiffError(`UPDATE change for ${path} has no new content`);
 				}
 				// For move operations, we're saving the new file (the old file deletion is handled in the calling code)
-				return await ops.saveChanges()
+				return await ops.saveChanges();
 		}
 	}
 
-	private async generateChangeSummary(changes: Record<string, FileChange>): Promise<ClineSayTool[]> {
+	private async generateChangeSummary(
+		changes: Record<string, FileChange>,
+	): Promise<ClineSayTool[]> {
 		const summaries = await Promise.all(
 			Object.entries(changes).map(async ([file, change]) => {
-				const operationIsLocatedInWorkspace = await isLocatedInWorkspace(file)
+				const operationIsLocatedInWorkspace = await isLocatedInWorkspace(file);
 				switch (change.type) {
 					case PatchActionType.ADD:
 						return {
@@ -692,7 +830,7 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 							path: file,
 							content: change.newContent,
 							operationIsLocatedInWorkspace,
-						} as ClineSayTool
+						} as ClineSayTool;
 					case PatchActionType.UPDATE:
 						return {
 							tool: change.movePath ? "newFileCreated" : "editedExistingFile",
@@ -700,19 +838,19 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 							content: change.movePath ? change.oldContent : change.newContent,
 							operationIsLocatedInWorkspace,
 							startLineNumbers: change.startLineNumbers,
-						} as ClineSayTool
+						} as ClineSayTool;
 					case PatchActionType.DELETE:
 						return {
 							tool: "fileDeleted",
 							path: file,
 							content: change.newContent,
 							operationIsLocatedInWorkspace,
-						} as ClineSayTool
+						} as ClineSayTool;
 				}
 			}),
-		)
+		);
 
-		return summaries
+		return summaries;
 	}
 
 	private async handleApproval(
@@ -722,25 +860,39 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 		rawInput: string,
 		change?: FileChange,
 	): Promise<boolean> {
-		const patch = { ...message, content: rawInput }
-		const completeMessage = JSON.stringify(patch)
-		const shouldAutoApprove = await config.callbacks.shouldAutoApproveToolWithPath(block.name, message.path)
+		const patch = { ...message, content: rawInput };
+		const completeMessage = JSON.stringify(patch);
+		const shouldAutoApprove =
+			await config.callbacks.shouldAutoApproveToolWithPath(
+				block.name,
+				message.path,
+			);
 
 		// Extract provider info for telemetry
-		const { providerId, modelId } = getModelInfo(config)
+		const { providerId, modelId } = getModelInfo(config);
 
 		// Determine file-level operation counts from the change type
 		const fileOps = change
 			? {
 					filesCreated: change.type === PatchActionType.ADD ? 1 : 0,
 					filesDeleted: change.type === PatchActionType.DELETE ? 1 : 0,
-					filesMoved: change.type === PatchActionType.UPDATE && change.movePath ? 1 : 0,
+					filesMoved:
+						change.type === PatchActionType.UPDATE && change.movePath ? 1 : 0,
 				}
-			: { filesCreated: 0, filesDeleted: 0, filesMoved: 0 }
+			: { filesCreated: 0, filesDeleted: 0, filesMoved: 0 };
 
 		if (shouldAutoApprove) {
-			await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "tool")
-			await config.callbacks.say("tool", completeMessage, undefined, undefined, false)
+			await config.callbacks.removeLastPartialMessageIfExistsWithType(
+				"ask",
+				"tool",
+			);
+			await config.callbacks.say(
+				"tool",
+				completeMessage,
+				undefined,
+				undefined,
+				false,
+			);
 			telemetryService.captureToolUsage(
 				config.ulid,
 				this.name,
@@ -750,7 +902,7 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 				true,
 				undefined,
 				block.isNativeToolCall,
-			)
+			);
 			captureAccepted({
 				ulid: config.ulid,
 				tool: this.name,
@@ -760,23 +912,40 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 				providerId,
 				modelId,
 				...fileOps,
-			})
-			return true
+			});
+			return true;
 		}
 
-		showNotificationForApproval(`Cline wants to edit '${message.path}'`, config.autoApprovalSettings.enableNotifications)
+		showNotificationForApproval(
+			`Cline wants to edit '${message.path}'`,
+			config.autoApprovalSettings.enableNotifications,
+		);
 
-		await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "tool")
-		const { response, text, images, files } = await config.callbacks.ask("tool", completeMessage, false)
+		await config.callbacks.removeLastPartialMessageIfExistsWithType(
+			"say",
+			"tool",
+		);
+		const { response, text, images, files } = await config.callbacks.ask(
+			"tool",
+			completeMessage,
+			false,
+		);
 
 		if (text || images?.length || files?.length) {
-			const fileContent = files?.length ? await processFilesIntoText(files) : ""
-			ToolResultUtils.pushAdditionalToolFeedback(config.taskState.userMessageContent, text, images, fileContent)
-			await config.callbacks.say("user_feedback", text, images, files)
+			const fileContent = files?.length
+				? await processFilesIntoText(files)
+				: "";
+			ToolResultUtils.pushAdditionalToolFeedback(
+				config.taskState.userMessageContent,
+				text,
+				images,
+				fileContent,
+			);
+			await config.callbacks.say("user_feedback", text, images, files);
 		}
 
-		const approved = response === "yesButtonClicked"
-		config.taskState.didRejectTool = !approved
+		const approved = response === "yesButtonClicked";
+		config.taskState.didRejectTool = !approved;
 		telemetryService.captureToolUsage(
 			config.ulid,
 			this.name,
@@ -786,7 +955,7 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 			approved,
 			undefined,
 			block.isNativeToolCall,
-		)
+		);
 
 		if (approved) {
 			captureAccepted({
@@ -798,7 +967,7 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 				providerId,
 				modelId,
 				...fileOps,
-			})
+			});
 		} else {
 			captureRejected({
 				ulid: config.ulid,
@@ -809,9 +978,9 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 				providerId,
 				modelId,
 				...fileOps,
-			})
+			});
 		}
 
-		return approved
+		return approved;
 	}
 }

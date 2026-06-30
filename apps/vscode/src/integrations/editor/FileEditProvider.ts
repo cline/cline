@@ -1,6 +1,6 @@
-import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
-import * as fs from "fs/promises"
-import { Logger } from "@/shared/services/Logger"
+import { DiffViewProvider } from "@integrations/editor/DiffViewProvider";
+import * as fs from "fs/promises";
+import { Logger } from "@/shared/services/Logger";
 
 /**
  * A file-system-based implementation of DiffViewProvider that performs direct file operations
@@ -11,26 +11,30 @@ import { Logger } from "@/shared/services/Logger"
  * This makes it suitable for headless or non-interactive environments.
  */
 export class FileEditProvider extends DiffViewProvider {
-	private documentContent?: string
+	protected readonly editSurface = "background";
+	private documentContent?: string;
 
 	constructor() {
-		super()
+		super();
 	}
 
 	override showFile(_absolutePath: string): Promise<void> {
 		// No-op: No visual editor to show the file
-		return Promise.resolve()
+		return Promise.resolve();
 	}
 
 	protected async openDiffEditor(): Promise<void> {
 		// No-op: No visual editor to open in a file-system-only provider
 		// The file content is already loaded in the base class's open() method
-		this.documentContent = this.originalContent || ""
+		this.documentContent = this.originalContent || "";
 	}
 
-	override async open(relPath: string, options?: { displayPath?: string }): Promise<void> {
-		await super.open(relPath, options)
-		this.documentContent = this.originalContent || ""
+	override async open(
+		relPath: string,
+		options?: { displayPath?: string },
+	): Promise<void> {
+		await super.open(relPath, options);
+		this.documentContent = this.originalContent || "";
 	}
 
 	async replaceText(
@@ -39,61 +43,68 @@ export class FileEditProvider extends DiffViewProvider {
 		_currentLine: number | undefined,
 	): Promise<void> {
 		if (this.documentContent === undefined) {
-			throw new Error("Document not initialized")
+			throw new Error("Document not initialized");
 		}
 
 		// Split the document into lines
-		const lines = this.documentContent.split("\n")
+		const lines = this.documentContent.split("\n");
 
 		// Check if we're replacing to the end of the document
-		const replacingToEnd = rangeToReplace.endLine >= lines.length
+		const replacingToEnd = rangeToReplace.endLine >= lines.length;
 
 		// Replace the specified range with the new content
-		const newContentLines = content.split("\n")
+		const newContentLines = content.split("\n");
 
 		// Remove trailing empty line for proper splicing, BUT only when NOT replacing
 		// to the end of the document. When replacing to the end, keep the trailing
 		// empty string to preserve trailing newlines from the content.
 		if (!replacingToEnd && newContentLines[newContentLines.length - 1] === "") {
-			newContentLines.pop()
+			newContentLines.pop();
 		}
 
 		// Splice the lines array to replace the range
-		lines.splice(rangeToReplace.startLine, rangeToReplace.endLine - rangeToReplace.startLine, ...newContentLines)
+		lines.splice(
+			rangeToReplace.startLine,
+			rangeToReplace.endLine - rangeToReplace.startLine,
+			...newContentLines,
+		);
 
 		// Join the lines back together
-		this.documentContent = lines.join("\n")
+		this.documentContent = lines.join("\n");
 	}
 
 	protected async scrollEditorToLine(_line: number): Promise<void> {
 		// No-op: No visual editor to scroll
 	}
 
-	protected async scrollAnimation(_startLine: number, _endLine: number): Promise<void> {
+	protected async scrollAnimation(
+		_startLine: number,
+		_endLine: number,
+	): Promise<void> {
 		// No-op: No visual editor to animate
 	}
 
 	protected async truncateDocument(lineNumber: number): Promise<void> {
 		if (!this.documentContent) {
-			return
+			return;
 		}
 
 		// Split the document into lines and keep only up to lineNumber
-		const lines = this.documentContent.split("\n")
+		const lines = this.documentContent.split("\n");
 		if (lineNumber < lines.length) {
-			this.documentContent = lines.slice(0, lineNumber).join("\n")
+			this.documentContent = lines.slice(0, lineNumber).join("\n");
 		}
 	}
 
 	protected async getDocumentLineCount(): Promise<number> {
 		if (!this.documentContent) {
-			return 0
+			return 0;
 		}
-		return this.documentContent.split("\n").length
+		return this.documentContent.split("\n").length;
 	}
 
 	protected async getDocumentText(): Promise<string | undefined> {
-		return this.documentContent
+		return this.documentContent;
 	}
 
 	/**
@@ -101,23 +112,25 @@ export class FileEditProvider extends DiffViewProvider {
 	 * This is exposed for use by tools that need to read the document state.
 	 */
 	public async getContent(): Promise<string | undefined> {
-		return this.getDocumentText()
+		return this.getDocumentText();
 	}
 
-	protected async saveDocument(): Promise<Boolean> {
+	protected async saveDocument(): Promise<boolean> {
 		if (!this.absolutePath || !this.documentContent) {
-			return false
+			return false;
 		}
 
 		try {
 			// Always use UTF-8 for writing - it's the modern standard and handles all characters
 			// including emojis. The detected fileEncoding was used for reading to preserve
 			// compatibility, but writing as UTF-8 ensures no character corruption.
-			await fs.writeFile(this.absolutePath, this.documentContent, { encoding: "utf8" })
-			return true
+			await fs.writeFile(this.absolutePath, this.documentContent, {
+				encoding: "utf8",
+			});
+			return true;
 		} catch (error) {
-			Logger.error(`Failed to save document to ${this.absolutePath}:`, error)
-			return false
+			Logger.error(`Failed to save document to ${this.absolutePath}:`, error);
+			return false;
 		}
 	}
 
@@ -127,6 +140,6 @@ export class FileEditProvider extends DiffViewProvider {
 
 	protected async resetDiffView(): Promise<void> {
 		// Clean up the in-memory document content
-		this.documentContent = undefined
+		this.documentContent = undefined;
 	}
 }
