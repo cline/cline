@@ -195,14 +195,14 @@ function escapeHtml(value: string): string {
 
 function htmlTable(headers: string[], rows: string[][]): string {
 	return [
-		"<table>",
+		'<div class="table-wrap"><table>',
 		`<thead><tr>${headers.map((header) => `<th>${escapeHtml(header)}</th>`).join("")}</tr></thead>`,
 		`<tbody>${rows
 			.map(
 				(row) => `<tr>${row.map((cell) => `<td>${cell}</td>`).join("")}</tr>`,
 			)
 			.join("")}</tbody>`,
-		"</table>",
+		"</table></div>",
 	].join("\n");
 }
 
@@ -247,6 +247,13 @@ export function renderDashboardHtml(
 		escapeHtml(`${repo.avgWaitingForReviewHours}h`),
 	]);
 
+	const repositoryPills = snapshot.repositories
+		.map(
+			(repository) =>
+				`<span class="repo-pill">${escapeHtml(repository)}</span>`,
+		)
+		.join("");
+
 	return `<!doctype html>
 <html lang="en">
 <head>
@@ -254,49 +261,131 @@ export function renderDashboardHtml(
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>GitHub PR Dashboard</title>
 <style>
-:root { color-scheme: light dark; --bg: #0f172a; --panel: #111827; --muted: #94a3b8; --text: #e5e7eb; --accent: #38bdf8; --border: #334155; }
-body { margin: 0; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); }
-main { max-width: 1120px; margin: 0 auto; padding: 32px; }
-h1, h2, h3 { line-height: 1.1; }
-a { color: var(--accent); }
+:root {
+  color-scheme: dark;
+  --background: #09090b;
+  --foreground: #fafafa;
+  --card: rgba(24, 24, 27, 0.86);
+  --card-strong: rgba(39, 39, 42, 0.88);
+  --muted: #a1a1aa;
+  --muted-strong: #d4d4d8;
+  --divider: rgba(255, 255, 255, 0.10);
+  --divider-strong: rgba(255, 255, 255, 0.16);
+  --purple: #c084fc;
+  --purple-strong: #a855f7;
+  --fuchsia: #e879f9;
+  --emerald: #34d399;
+  --amber: #fbbf24;
+  --radius-card: 14px;
+  --shadow-card: 0 18px 70px rgba(0, 0, 0, 0.38);
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Inter Variable", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  letter-spacing: normal;
+  background:
+    radial-gradient(circle at 18% 10%, rgba(168, 85, 247, 0.24), transparent 34rem),
+    radial-gradient(circle at 88% 4%, rgba(217, 70, 239, 0.16), transparent 28rem),
+    linear-gradient(180deg, #111113 0%, var(--background) 46%, #050506 100%);
+  color: var(--foreground);
+}
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image: linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: linear-gradient(to bottom, black, transparent 78%);
+}
+main { max-width: 1180px; margin: 0 auto; padding: 40px 24px 56px; position: relative; }
+h1, h2, h3, p { margin-top: 0; }
+h1 { font-size: clamp(2rem, 5vw, 4rem); line-height: 0.95; letter-spacing: -0.055em; margin: 0; }
+h2 { font-size: 1rem; line-height: 1.1; letter-spacing: -0.02em; margin: 0; }
+h3 { color: var(--muted-strong); font-size: 0.8rem; letter-spacing: 0.06em; margin: 18px 0 10px; text-transform: uppercase; }
+a { color: #d8b4fe; font-weight: 650; text-decoration: none; }
+a:hover { color: white; text-decoration: underline; text-underline-offset: 3px; }
 .muted { color: var(--muted); }
-.grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
-.metric, .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
-.metric span { color: var(--muted); display: block; font-size: 13px; margin-bottom: 8px; }
-.metric strong { font-size: 28px; }
-table { border-collapse: collapse; width: 100%; overflow: hidden; border-radius: 12px; }
-th, td { border: 1px solid var(--border); padding: 10px 12px; text-align: left; vertical-align: top; }
-th { background: #1e293b; }
-ol { margin: 0; padding-left: 24px; }
-li { margin: 6px 0; }
-li strong { margin-left: 8px; color: var(--accent); }
-section { margin: 28px 0; }
+.eyebrow { align-items: center; background: rgba(251, 191, 36, 0.16); border: 1px solid rgba(251, 191, 36, 0.26); border-radius: 999px; color: #fcd34d; display: inline-flex; font-size: 0.72rem; font-weight: 800; gap: 7px; letter-spacing: 0.12em; padding: 7px 10px; text-transform: uppercase; width: fit-content; }
+.eyebrow::before { content: "✦"; color: var(--amber); }
+.hero { background: radial-gradient(circle at 18% 18%, rgba(168,85,247,0.24), transparent 62%), linear-gradient(135deg, rgba(88,28,135,0.38), rgba(76,29,149,0.24) 56%, rgba(17,24,39,0.34)); border: 1px solid var(--divider); border-radius: 24px; box-shadow: var(--shadow-card); overflow: hidden; padding: clamp(24px, 5vw, 42px); position: relative; }
+.hero::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(135deg, rgba(255,255,255,0.12), transparent 32%, rgba(255,255,255,0.04)); }
+.hero-content { display: grid; gap: 26px; position: relative; z-index: 1; }
+.hero-top { display: flex; flex-wrap: wrap; gap: 18px; justify-content: space-between; }
+.subtitle { color: var(--muted); font-size: 1rem; line-height: 1.65; margin: 18px 0 0; max-width: 760px; }
+.repo-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.repo-pill { background: rgba(255, 255, 255, 0.06); border: 1px solid var(--divider); border-radius: 999px; color: var(--muted-strong); font-size: 0.78rem; font-weight: 700; padding: 7px 10px; }
+.timestamp { color: var(--muted); font-size: 0.82rem; margin: 0; text-align: right; }
+.grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+.metric, .panel, .section-card { background: var(--card); border: 1px solid var(--divider); border-radius: var(--radius-card); box-shadow: 0 12px 42px rgba(0,0,0,0.22); }
+.metric { min-height: 132px; padding: 20px; position: relative; overflow: hidden; }
+.metric::after { background: linear-gradient(135deg, rgba(168,85,247,0.18), rgba(232,121,249,0.08)); border-radius: 999px; content: ""; height: 92px; position: absolute; right: -32px; top: -34px; width: 92px; }
+.metric span { color: var(--muted); display: block; font-size: 0.72rem; font-weight: 800; letter-spacing: 0.12em; margin-bottom: 14px; max-width: 150px; text-transform: uppercase; }
+.metric strong { display: block; font-size: clamp(2rem, 5vw, 3.6rem); font-weight: 750; letter-spacing: -0.06em; line-height: 0.95; }
+.section-card { margin-top: 18px; overflow: hidden; }
+.section-header { align-items: center; border-bottom: 1px solid var(--divider); display: flex; justify-content: space-between; min-height: 68px; padding: 20px 24px 16px; }
+.section-body { padding: 0; }
+.panel { padding: 22px 24px; }
+.panel h2 { margin-bottom: 12px; }
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border-bottom: 1px solid var(--divider); padding: 14px 16px; text-align: left; vertical-align: top; }
+th { background: rgba(255,255,255,0.035); color: var(--muted); font-size: 0.72rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; white-space: nowrap; }
+td { color: var(--muted-strong); font-size: 0.9rem; }
+tbody tr:hover { background: rgba(255,255,255,0.035); }
+tbody tr:last-child td { border-bottom: 0; }
+ol { margin: 0; padding-left: 22px; }
+li { color: var(--muted-strong); margin: 8px 0; }
+li strong { background: rgba(168,85,247,0.16); border: 1px solid rgba(168,85,247,0.22); border-radius: 999px; color: #e9d5ff; margin-left: 8px; padding: 2px 8px; }
+.panel-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); margin-top: 18px; }
+.empty { padding: 22px 24px; }
+section.dashboard-section { margin-top: 28px; }
+@media (max-width: 720px) {
+  main { padding: 22px 14px 36px; }
+  .hero { border-radius: 18px; }
+  .timestamp { text-align: left; }
+  .section-header { align-items: flex-start; flex-direction: column; gap: 6px; }
+  th, td { padding: 12px; }
+}
 </style>
 </head>
 <body>
 <main>
+<section class="hero">
+<div class="hero-content">
+<div class="hero-top">
+<span class="eyebrow">Cline PR Intelligence</span>
+<p class="timestamp">Generated ${escapeHtml(snapshot.generatedAt)}</p>
+</div>
+<div>
 <h1>GitHub PR Dashboard</h1>
-<p class="muted">Generated ${escapeHtml(snapshot.generatedAt)} for ${escapeHtml(snapshot.repositories.join(", "))}</p>
-<section class="grid">
+<p class="subtitle">A scheduled Cline dashboard for review load, PR velocity, and repository health. Metrics are generated by the deterministic before-run gate and styled after the Cline dashboard UI.</p>
+</div>
+<div class="repo-list">${repositoryPills}</div>
+<div class="grid">
 ${metricCard("Open PRs", String(snapshot.summary.openCount))}
 ${metricCard(`New open PRs (${snapshot.window.newPrHours}h)`, String(snapshot.summary.newOpenCount))}
 ${metricCard(`Recently closed (${snapshot.window.recentlyClosedDays}d)`, String(snapshot.summary.recentlyClosedCount))}
 ${metricCard("Avg review wait", `${snapshot.summary.avgWaitingForReviewHours}h`)}
+</div>
+</div>
 </section>
-<section><h2>Waiting for Review</h2>${
+<section class="dashboard-section section-card"><div class="section-header"><h2>Waiting for Review</h2><span class="muted">${snapshot.waitingForReview.length} PRs</span></div><div class="section-body">${
 		waitingRows.length > 0
 			? htmlTable(
 					["PR", "Title", "Author", "Waiting", "Requested"],
 					waitingRows,
 				)
-			: '<p class="muted">No open PRs are currently waiting for requested reviewers.</p>'
-	}</section>
-<section><h2>Volume Trend</h2>${htmlTable(["Date", "Opened", "Closed", "Merged"], trendRows)}</section>
-<section class="grid">
+			: '<p class="muted empty">No open PRs are currently waiting for requested reviewers.</p>'
+	}</div></section>
+<section class="dashboard-section section-card"><div class="section-header"><h2>Volume Trend</h2><span class="muted">Last ${snapshot.window.trendDays} days</span></div><div class="section-body">${htmlTable(["Date", "Opened", "Closed", "Merged"], trendRows)}</div></section>
+<section class="panel-grid">
 <div class="panel"><h2>Leading Authors</h2><h3>This Week</h3>${topList(snapshot.leadingAuthors.week)}<h3>This Month</h3>${topList(snapshot.leadingAuthors.month)}</div>
 <div class="panel"><h2>Leading Reviewers</h2><h3>This Week</h3>${topList(snapshot.leadingReviewers.week)}<h3>This Month</h3>${topList(snapshot.leadingReviewers.month)}</div>
 </section>
-<section><h2>Repository Breakdown</h2>${htmlTable(["Repository", "Open", "New", "Recently Closed", "Avg Open Age", "Avg Review Wait"], repoRows)}</section>
+<section class="dashboard-section section-card"><div class="section-header"><h2>Repository Breakdown</h2><span class="muted">${snapshot.repositories.length} repositories</span></div><div class="section-body">${htmlTable(["Repository", "Open", "New", "Recently Closed", "Avg Open Age", "Avg Review Wait"], repoRows)}</div></section>
 </main>
 </body>
 </html>
