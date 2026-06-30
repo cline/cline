@@ -426,6 +426,26 @@ describe("ClaudeCodeHandler", () => {
 			model.info.contextWindow.should.equal(200_000)
 		})
 
+		it("should support Sonnet 5 model id", () => {
+			const handler = new ClaudeCodeHandler({
+				apiModelId: "claude-sonnet-5",
+			})
+
+			const model = handler.getModel()
+			model.id.should.equal("claude-sonnet-5")
+			model.info.contextWindow.should.equal(200_000)
+		})
+
+		it("should support Sonnet 5 1m model id", () => {
+			const handler = new ClaudeCodeHandler({
+				apiModelId: "claude-sonnet-5[1m]",
+			})
+
+			const model = handler.getModel()
+			model.id.should.equal("claude-sonnet-5[1m]")
+			model.info.contextWindow.should.equal(1_000_000)
+		})
+
 		it("should support Fable 5 1m model id", () => {
 			const handler = new ClaudeCodeHandler({
 				apiModelId: "claude-fable-5[1m]",

@@ -1,6 +1,7 @@
 import { describe, it } from "mocha"
 import "should"
 import type { ApiHandlerModel, ApiProviderInfo } from "@core/api"
+import { isClaudeAdaptiveThinkingModel } from "@shared/utils/reasoning-support"
 import {
 	GEMINI_FLASH_MAX_OUTPUT_TOKENS,
 	isClaude4PlusModelFamily,
@@ -101,6 +102,18 @@ describe("isClaude4PlusModelFamily", () => {
 		isClaude4PlusModelFamily("gpt-4").should.equal(false)
 		isClaude4PlusModelFamily("gemini-pro").should.equal(false)
 		isClaude4PlusModelFamily("llama-3").should.equal(false)
+	})
+})
+
+describe("isClaudeAdaptiveThinkingModel", () => {
+	it("should return true for Claude Sonnet 5 IDs across provider naming variants", () => {
+		for (const modelId of [
+			"claude-sonnet-5",
+			"anthropic/claude-sonnet-5:1m",
+			"anthropic/claude-5-sonnet",
+		]) {
+			isClaudeAdaptiveThinkingModel(modelId).should.equal(true)
+		}
 	})
 })
 

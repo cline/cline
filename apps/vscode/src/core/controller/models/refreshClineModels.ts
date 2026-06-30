@@ -21,6 +21,7 @@ import {
 	openRouterClaudeSonnet41mModelId,
 	openRouterClaudeSonnet451mModelId,
 	openRouterClaudeSonnet461mModelId,
+	openRouterClaudeSonnet51mModelId,
 } from "@/shared/api"
 import { getAxiosSettings } from "@/shared/net"
 import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
@@ -212,6 +213,8 @@ async function fetchAndCacheClineModels(): Promise<Record<string, ModelInfo>> {
 
 			// Apply model-specific overrides for known models
 			switch (rawModel.id) {
+				case "anthropic/claude-sonnet-5":
+				case "anthropic/claude-5-sonnet":
 				case "anthropic/claude-sonnet-4.6":
 				case "anthropic/claude-4.6-sonnet":
 				case "anthropic/claude-sonnet-4.5":
@@ -304,12 +307,17 @@ async function fetchAndCacheClineModels(): Promise<Record<string, ModelInfo>> {
 				rawModel.id === "anthropic/claude-sonnet-4" ||
 				rawModel.id === "anthropic/claude-sonnet-4.5" ||
 				rawModel.id === "anthropic/claude-sonnet-4.6" ||
-				rawModel.id === "anthropic/claude-4.6-sonnet"
+				rawModel.id === "anthropic/claude-4.6-sonnet" ||
+				rawModel.id === "anthropic/claude-sonnet-5" ||
+				rawModel.id === "anthropic/claude-5-sonnet"
 			) {
 				const claudeSonnet1mModelInfo = cloneDeep(modelInfo)
 				claudeSonnet1mModelInfo.contextWindow = 1_000_000
 				claudeSonnet1mModelInfo.tiers = CLAUDE_SONNET_1M_TIERS
 
+				if (rawModel.id === "anthropic/claude-sonnet-5" || rawModel.id === "anthropic/claude-5-sonnet") {
+					models[openRouterClaudeSonnet51mModelId] = claudeSonnet1mModelInfo
+				}
 				if (rawModel.id === "anthropic/claude-sonnet-4") {
 					models[openRouterClaudeSonnet41mModelId] = claudeSonnet1mModelInfo
 				}

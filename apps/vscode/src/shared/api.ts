@@ -179,10 +179,33 @@ export const hicapModelInfoSaneDefaults: HicapCompatibleModelInfo = {
 // Anthropic
 // https://docs.anthropic.com/en/docs/about-claude/models // prices updated 2025-01-02
 export type AnthropicModelId = keyof typeof anthropicModels
-export const anthropicDefaultModelId: AnthropicModelId = "claude-sonnet-4-5-20250929"
+export const anthropicDefaultModelId: AnthropicModelId = "claude-sonnet-5"
 export const ANTHROPIC_MIN_THINKING_BUDGET = 1_024
 export const ANTHROPIC_MAX_THINKING_BUDGET = 6_000
 export const anthropicModels = {
+	"claude-sonnet-5": {
+		maxTokens: 128_000,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+		cacheWritesPrice: 3.75,
+		cacheReadsPrice: 0.3,
+	},
+	"claude-sonnet-5:1m": {
+		maxTokens: 128_000,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+		cacheWritesPrice: 3.75,
+		cacheReadsPrice: 0.3,
+		tiers: CLAUDE_SONNET_1M_TIERS,
+	},
 	"claude-sonnet-4-6": {
 		maxTokens: 64_000,
 		contextWindow: 200_000,
@@ -471,15 +494,15 @@ export const anthropicModels = {
 
 // Claude Code
 export type ClaudeCodeModelId = keyof typeof claudeCodeModels
-export const claudeCodeDefaultModelId: ClaudeCodeModelId = "claude-sonnet-4-5-20250929"
+export const claudeCodeDefaultModelId: ClaudeCodeModelId = "claude-sonnet-5"
 export const claudeCodeModels = {
 	sonnet: {
-		...anthropicModels["claude-sonnet-4-5-20250929"],
+		...anthropicModels["claude-sonnet-5"],
 		supportsImages: false,
 		supportsPromptCache: false,
 	},
 	"sonnet[1m]": {
-		...anthropicModels["claude-sonnet-4-5-20250929:1m"],
+		...anthropicModels["claude-sonnet-5:1m"],
 		supportsImages: false,
 		supportsPromptCache: false,
 	},
@@ -496,6 +519,16 @@ export const claudeCodeModels = {
 	},
 	"claude-haiku-4-5-20251001": {
 		...anthropicModels["claude-haiku-4-5-20251001"],
+		supportsImages: false,
+		supportsPromptCache: false,
+	},
+	"claude-sonnet-5": {
+		...anthropicModels["claude-sonnet-5"],
+		supportsImages: false,
+		supportsPromptCache: false,
+	},
+	"claude-sonnet-5[1m]": {
+		...anthropicModels["claude-sonnet-5:1m"],
 		supportsImages: false,
 		supportsPromptCache: false,
 	},
@@ -597,8 +630,33 @@ export const claudeCodeModels = {
 // AWS Bedrock
 // https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html
 export type BedrockModelId = keyof typeof bedrockModels
-export const bedrockDefaultModelId: BedrockModelId = "anthropic.claude-sonnet-4-5-20250929-v1:0"
+export const bedrockDefaultModelId: BedrockModelId = "anthropic.claude-sonnet-5"
 export const bedrockModels = {
+	"anthropic.claude-sonnet-5": {
+		maxTokens: 128_000,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		supportsGlobalEndpoint: true,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+		cacheWritesPrice: 3.75,
+		cacheReadsPrice: 0.3,
+	},
+	"anthropic.claude-sonnet-5:1m": {
+		maxTokens: 128_000,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		supportsGlobalEndpoint: true,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+		cacheWritesPrice: 3.75,
+		cacheReadsPrice: 0.3,
+		tiers: CLAUDE_SONNET_1M_TIERS,
+	},
 	"anthropic.claude-sonnet-4-6": {
 		maxTokens: 64_000,
 		contextWindow: 200_000,
@@ -991,16 +1049,17 @@ export const bedrockModels = {
 
 // OpenRouter
 // https://openrouter.ai/models?order=newest&supported_parameters=tools
-export const openRouterDefaultModelId = "anthropic/claude-sonnet-4.5" // will always exist in openRouterModels
+export const openRouterDefaultModelId = "anthropic/claude-sonnet-5" // will always exist in openRouterModels
 export const openRouterClaudeSonnet41mModelId = `anthropic/claude-sonnet-4${CLAUDE_SONNET_1M_SUFFIX}`
 export const openRouterClaudeSonnet451mModelId = `anthropic/claude-sonnet-4.5${CLAUDE_SONNET_1M_SUFFIX}`
 export const openRouterClaudeSonnet461mModelId = `anthropic/claude-sonnet-4.6${CLAUDE_SONNET_1M_SUFFIX}`
+export const openRouterClaudeSonnet51mModelId = `anthropic/claude-sonnet-5${CLAUDE_SONNET_1M_SUFFIX}`
 export const openRouterClaudeOpus461mModelId = `anthropic/claude-opus-4.6${CLAUDE_SONNET_1M_SUFFIX}`
 export const openRouterClaudeOpus471mModelId = `anthropic/claude-opus-4.7${CLAUDE_SONNET_1M_SUFFIX}`
 export const openRouterClaudeOpus481mModelId = `anthropic/claude-opus-4.8${CLAUDE_SONNET_1M_SUFFIX}`
 export const openRouterClaudeFable51mModelId = `anthropic/claude-fable-5${CLAUDE_SONNET_1M_SUFFIX}`
 export const openRouterDefaultModelInfo: ModelInfo = {
-	maxTokens: 64_000,
+	maxTokens: 128_000,
 	contextWindow: 200_000,
 	supportsImages: true,
 	supportsPromptCache: true,
@@ -1009,7 +1068,7 @@ export const openRouterDefaultModelInfo: ModelInfo = {
 	cacheWritesPrice: 3.75,
 	cacheReadsPrice: 0.3,
 	description:
-		"Claude Sonnet 4.5 delivers superior intelligence across coding, agentic search, and AI agent capabilities. It's a powerful choice for agentic coding, and can complete tasks across the entire software development lifecycle, from initial planning to bug fixes, maintenance to large refactors. It offers strong performance in both planning and solving for complex coding tasks, making it an ideal choice to power end-to-end software development processes.\n\nRead more in the [blog post here](https://www.anthropic.com/claude/sonnet)",
+		"Claude Sonnet 5 is Anthropic's latest Sonnet model for coding, agents, and professional work. It supports adaptive thinking, prompt caching, image inputs, and long-context workflows.",
 }
 
 // Cline custom model - Devstral
@@ -1245,6 +1304,29 @@ export const vertexModels = {
 			geminiThinkingLevel: "high",
 			supportsThinkingLevel: true,
 		},
+	},
+	"claude-sonnet-5": {
+		maxTokens: 128_000,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+		cacheWritesPrice: 3.75,
+		cacheReadsPrice: 0.3,
+		supportsReasoning: true,
+	},
+	"claude-sonnet-5:1m": {
+		maxTokens: 128_000,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+		cacheWritesPrice: 3.75,
+		cacheReadsPrice: 0.3,
+		supportsReasoning: true,
+		tiers: CLAUDE_SONNET_1M_TIERS,
 	},
 	"claude-sonnet-4-6": {
 		maxTokens: 64_000,
@@ -4376,9 +4458,9 @@ export const groqModels = {
 
 // Requesty
 // https://requesty.ai/models
-export const requestyDefaultModelId = "anthropic/claude-3-7-sonnet-latest"
+export const requestyDefaultModelId = "anthropic/claude-sonnet-5"
 export const requestyDefaultModelInfo: ModelInfo = {
-	maxTokens: 8192,
+	maxTokens: 128_000,
 	contextWindow: 200_000,
 	supportsImages: true,
 
@@ -4387,7 +4469,7 @@ export const requestyDefaultModelInfo: ModelInfo = {
 	outputPrice: 15.0,
 	cacheWritesPrice: 3.75,
 	cacheReadsPrice: 0.3,
-	description: "Anthropic's most intelligent model. Highest level of intelligence and capability.",
+	description: "Anthropic's latest Sonnet model for coding, agents, and professional work.",
 }
 
 // SAP AI Core
@@ -4396,6 +4478,13 @@ export const sapAiCoreDefaultModelId: SapAiCoreModelId = "anthropic--claude-3.5-
 // Pricing is calculated using Capacity Units, not directly in USD
 const sapAiCoreModelDescription = "Pricing is calculated using SAP's Capacity Units rather than direct USD pricing."
 export const sapAiCoreModels = {
+	"anthropic--claude-sonnet-5": {
+		maxTokens: 128_000,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		description: sapAiCoreModelDescription,
+	},
 	"anthropic--claude-4.5-haiku": {
 		maxTokens: 64000,
 		contextWindow: 200_000,

@@ -9,6 +9,7 @@ import {
 	openRouterClaudeSonnet41mModelId,
 	openRouterClaudeSonnet451mModelId,
 	openRouterClaudeSonnet461mModelId,
+	openRouterClaudeSonnet51mModelId,
 } from "@shared/api"
 import { normalizeOpenaiReasoningEffort } from "@shared/storage/types"
 import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
@@ -38,6 +39,7 @@ export async function createVercelAIGatewayStream(
 		model.id === openRouterClaudeSonnet41mModelId ||
 		model.id === openRouterClaudeSonnet451mModelId ||
 		model.id === openRouterClaudeSonnet461mModelId ||
+		model.id === openRouterClaudeSonnet51mModelId ||
 		model.id === openRouterClaudeOpus461mModelId ||
 		model.id === openRouterClaudeOpus471mModelId ||
 		model.id === openRouterClaudeOpus481mModelId ||

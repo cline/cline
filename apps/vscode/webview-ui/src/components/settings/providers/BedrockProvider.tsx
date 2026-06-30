@@ -24,6 +24,8 @@ import { getModeSpecificFields, normalizeApiConfiguration } from "../utils/provi
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 export const SUPPORTED_BEDROCK_THINKING_MODELS = [
+	"anthropic.claude-sonnet-5",
+	`anthropic.claude-sonnet-5${CLAUDE_SONNET_1M_SUFFIX}`,
 	"anthropic.claude-sonnet-4-6",
 	`anthropic.claude-sonnet-4-6${CLAUDE_SONNET_1M_SUFFIX}`,
 	"anthropic.claude-3-7-sonnet-20250219-v1:0",

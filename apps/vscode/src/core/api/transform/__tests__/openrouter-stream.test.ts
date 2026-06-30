@@ -78,6 +78,19 @@ describe("createOpenRouterStream", () => {
 		payload.should.not.have.property("max_tokens")
 	})
 
+	it("strips the custom Sonnet 5 1m suffix and pins Anthropic/Vertex routing", async () => {
+		const { client, create } = createClient()
+
+		await createOpenRouterStream(client as any, "system prompt", [{ role: "user", content: "hello" }] as any, {
+			id: "anthropic/claude-sonnet-5:1m",
+			info: createModelInfo(128_000),
+		})
+
+		const payload = create.firstCall.args[0] as any
+		payload.should.have.property("model", "anthropic/claude-sonnet-5")
+		payload.provider.should.deepEqual({ order: ["anthropic", "google-vertex/global"], allow_fallbacks: false })
+	})
+
 	it("adds cache_control blocks for Qwen models that require explicit OpenRouter caching", async () => {
 		for (const modelId of ["qwen/qwen3.6-plus", "qwen/qwen3.7-max"]) {
 			const { client, create } = createClient()

@@ -39,7 +39,7 @@ describe("refreshClineRecommendedModels", () => {
 			data: {
 				recommended: [
 					{
-						id: "anthropic/claude-sonnet-4.6",
+						id: "anthropic/claude-sonnet-5",
 						description: "Remote recommended",
 						tags: ["NEW"],
 					},
@@ -61,8 +61,8 @@ describe("refreshClineRecommendedModels", () => {
 		expect(result).to.deep.equal({
 			recommended: [
 				{
-					id: "anthropic/claude-sonnet-4.6",
-					name: "anthropic/claude-sonnet-4.6",
+					id: "anthropic/claude-sonnet-5",
+					name: "anthropic/claude-sonnet-5",
 					description: "Remote recommended",
 					tags: ["NEW"],
 				},

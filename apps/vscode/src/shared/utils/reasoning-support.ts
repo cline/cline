@@ -1,11 +1,13 @@
 import { normalizeOpenaiReasoningEffort, type OpenaiReasoningEffort } from "../storage/types"
 
-export interface ClaudeOpusAdaptiveThinkingSettings {
+export interface ClaudeAdaptiveThinkingSettings {
 	enabled: boolean
 	effort?: OpenaiReasoningEffort
 }
 
-export function isClaudeOpusAdaptiveThinkingModel(modelId?: string): boolean {
+export type ClaudeOpusAdaptiveThinkingSettings = ClaudeAdaptiveThinkingSettings
+
+export function isClaudeAdaptiveThinkingModel(modelId?: string): boolean {
 	if (!modelId) {
 		return false
 	}
@@ -14,14 +16,18 @@ export function isClaudeOpusAdaptiveThinkingModel(modelId?: string): boolean {
 	const adaptiveVersions = ["4-6", "4.6", "4-7", "4.7", "4-8", "4.8"]
 	return (
 		id.includes("claude-fable-5") ||
+		id.includes("claude-sonnet-5") ||
+		id.includes("claude-5-sonnet") ||
 		adaptiveVersions.some((version) => id.includes(`claude-opus-${version}`) || id.includes(`claude-${version}-opus`))
 	)
 }
 
-export function resolveClaudeOpusAdaptiveThinking(
+export const isClaudeOpusAdaptiveThinkingModel = isClaudeAdaptiveThinkingModel
+
+export function resolveClaudeAdaptiveThinking(
 	reasoningEffort?: string,
 	legacyThinkingBudgetTokens?: number,
-): ClaudeOpusAdaptiveThinkingSettings {
+): ClaudeAdaptiveThinkingSettings {
 	if (reasoningEffort) {
 		const effort = normalizeOpenaiReasoningEffort(reasoningEffort)
 		return effort === "none" ? { enabled: false } : { enabled: true, effort }
@@ -29,6 +35,8 @@ export function resolveClaudeOpusAdaptiveThinking(
 
 	return legacyThinkingBudgetTokens && legacyThinkingBudgetTokens > 0 ? { enabled: true, effort: "high" } : { enabled: false }
 }
+
+export const resolveClaudeOpusAdaptiveThinking = resolveClaudeAdaptiveThinking
 
 export function supportsReasoningEffortForModel(modelId?: string): boolean {
 	if (!modelId) {
