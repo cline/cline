@@ -110,20 +110,6 @@ const providerOrder = [
 	"wandb",
 ];
 
-const staticOnlyProviders = new Set([
-	"cline",
-	"cline-pass",
-	"openai",
-	"vscode-lm",
-	"ollama",
-	"litellm",
-	"claude-code",
-	"qwen-code",
-	"dify",
-	"oca",
-	"asksage",
-]);
-
 function toLegacyModelInfo(model) {
 	const capabilities = new Set(model.capabilities ?? []);
 	const output = {
@@ -164,11 +150,7 @@ const providerModels = Object.fromEntries(
 );
 
 const providerOptions = providerOrder
-	.filter(
-		(value) =>
-			providerLabels[value] &&
-			(providerModels[value] || staticOnlyProviders.has(value)),
-	)
+	.filter((value) => providerLabels[value])
 	.map((value) => ({ value, label: providerLabels[value] }));
 
 const file = `/**

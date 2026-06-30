@@ -15657,6 +15657,10 @@ export const modelsDevProviderOptions = [
 		label: "ClinePass",
 	},
 	{
+		value: "openai-codex",
+		label: "ChatGPT Subscription",
+	},
+	{
 		value: "gemini",
 		label: "Google Gemini",
 	},
@@ -15709,6 +15713,10 @@ export const modelsDevProviderOptions = [
 		label: "SAP AI Core",
 	},
 	{
+		value: "mistral",
+		label: "Mistral",
+	},
+	{
 		value: "zai",
 		label: "Z AI",
 	},
@@ -15741,8 +15749,16 @@ export const modelsDevProviderOptions = [
 		label: "Together",
 	},
 	{
+		value: "qwen",
+		label: "Alibaba Qwen",
+	},
+	{
 		value: "qwen-code",
 		label: "Qwen Code",
+	},
+	{
+		value: "doubao",
+		label: "Bytedance Doubao",
 	},
 	{
 		value: "lmstudio",
@@ -15769,6 +15785,14 @@ export const modelsDevProviderOptions = [
 		label: "xAI",
 	},
 	{
+		value: "sambanova",
+		label: "SambaNova",
+	},
+	{
+		value: "huawei-cloud-maas",
+		label: "Huawei Cloud MaaS",
+	},
+	{
 		value: "dify",
 		label: "Dify.ai",
 	},
@@ -15781,8 +15805,16 @@ export const modelsDevProviderOptions = [
 		label: "MiniMax",
 	},
 	{
+		value: "hicap",
+		label: "Hicap",
+	},
+	{
 		value: "aihubmix",
 		label: "AIhubmix",
+	},
+	{
+		value: "nousResearch",
+		label: "NousResearch",
 	},
 	{
 		value: "wandb",
