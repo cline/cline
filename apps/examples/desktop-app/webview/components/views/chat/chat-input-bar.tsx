@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/combobox";
 import { useWorkspace } from "@/contexts/workspace-context";
 import type { PromptInQueue } from "@/hooks/chat-session/types";
-import type { ChatSessionStatus } from "@/lib/chat-schema";
+import type { ChatSessionConfig, ChatSessionStatus } from "@/lib/chat-schema";
 import { desktopClient } from "@/lib/desktop-client";
 import {
 	readModelSelectionStorageFromWindow,
@@ -66,18 +66,61 @@ const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
 const FALLBACK_PROVIDER_MODELS: Record<string, string[]> = {
 	cline: ["anthropic/claude-sonnet-4.6"],
 	anthropic: ["claude-sonnet-4-6"],
-	"openai-native": ["gpt-5.3-codex"],
+	"openai-native": ["gpt-5.5"],
 	openrouter: ["anthropic/claude-sonnet-4.6"],
-	gemini: ["gemini-2.5-pro"],
+	gemini: ["gemini-3-pro-latest"],
 };
 
 const FALLBACK_PROVIDER_REASONING_MODELS: Record<string, string[]> = {
 	cline: ["anthropic/claude-sonnet-4.6"],
 	anthropic: ["claude-sonnet-4-6"],
-	"openai-native": ["gpt-5.3-codex"],
+	"openai-native": ["gpt-5.5"],
 	openrouter: ["anthropic/claude-sonnet-4.6"],
-	gemini: ["gemini-2.5-pro"],
+	gemini: ["gemini-3-pro-latest"],
 };
+
+type ReasoningEffort = NonNullable<ChatSessionConfig["reasoningEffort"]>;
+type ReasoningEffortOption = {
+	label: string;
+	value: "none" | ReasoningEffort;
+};
+
+const DEFAULT_REASONING_EFFORT: ReasoningEffortOption = {
+	label: "Low",
+	value: "low",
+};
+
+const EFFORT_LEVELS: ReasoningEffortOption[] = [
+	{ label: "None", value: "none" },
+	DEFAULT_REASONING_EFFORT,
+	{ label: "Medium", value: "medium" },
+	{ label: "High", value: "high" },
+	{ label: "Extra", value: "xhigh" },
+];
+const PROMPT_INPUT_COLLAPSED_ROWS = 1;
+const PROMPT_INPUT_FOCUSED_ROWS = 5;
+
+function resolveEffortIndex(
+	thinking: ChatSessionConfig["thinking"],
+	reasoningEffort: ChatSessionConfig["reasoningEffort"],
+): number {
+	if (thinking === false) {
+		return 0;
+	}
+	const index = EFFORT_LEVELS.findIndex(
+		(option) => option.value === reasoningEffort,
+	);
+	return index >= 0 ? index : 1;
+}
+
+function buildReasoningConfig(
+	option: ReasoningEffortOption,
+): Pick<ChatSessionConfig, "thinking" | "reasoningEffort"> {
+	if (option.value === "none") {
+		return { thinking: false, reasoningEffort: undefined };
+	}
+	return { thinking: true, reasoningEffort: option.value };
+}
 
 function hasReasoningCapability(
 	providerReasoningModels: Record<string, string[]>,
@@ -149,12 +192,17 @@ type ChatInputBarProps = {
 	provider: string;
 	model: string;
 	mode: "act" | "plan";
+	thinking: ChatSessionConfig["thinking"];
+	reasoningEffort: ChatSessionConfig["reasoningEffort"];
 	gitBranch: string;
 	promptInput: string;
 	onPromptInputChange: (value: string) => void;
 	onProviderChange: (provider: string) => void;
 	onModelChange: (model: string) => void;
 	onModeToggle: () => void;
+	onReasoningChange: (
+		next: Pick<ChatSessionConfig, "thinking" | "reasoningEffort">,
+	) => void;
 	onRefreshGitBranch: () => void;
 	onListGitBranches: () => Promise<{ current: string; branches: string[] }>;
 	onSwitchGitBranch: (branch: string) => Promise<boolean>;
@@ -183,12 +231,15 @@ export function ChatInputBar({
 	provider,
 	model,
 	mode,
+	thinking,
+	reasoningEffort,
 	gitBranch,
 	promptInput,
 	onPromptInputChange,
 	onProviderChange,
 	onModelChange,
 	onModeToggle,
+	onReasoningChange,
 	onRefreshGitBranch,
 	onListGitBranches,
 	onSwitchGitBranch,
@@ -219,10 +270,9 @@ export function ChatInputBar({
 		hasReasoningCapability(FALLBACK_PROVIDER_REASONING_MODELS, provider, model),
 	);
 	const canSend = hasDraft;
-	const effortLevels = ["Low", "Medium", "High"] as const;
-	const [effortIndex, setEffortIndex] = useState(1);
 	const fileInputRef = useRef<HTMLInputElement | null>(null);
 	const promptInputRef = useRef<HTMLTextAreaElement | null>(null);
+	const [promptInputFocused, setPromptInputFocused] = useState(false);
 	const [cursorIndex, setCursorIndex] = useState(() => promptInput.length);
 	const [mentionOpen, setMentionOpen] = useState(false);
 	const [activeMention, setActiveMention] = useState<ActiveMention | null>(
@@ -258,13 +308,35 @@ export function ChatInputBar({
 		}
 		return `${total.toLocaleString()} tokens`;
 	}, [summary.tokensIn, summary.tokensOut]);
-	const effortLabel = effortLevels[effortIndex];
+	const effortIndex = useMemo(
+		() => resolveEffortIndex(thinking, reasoningEffort),
+		[reasoningEffort, thinking],
+	);
+	const effortLabel = modelSupportsReasoning
+		? (EFFORT_LEVELS[effortIndex]?.label ?? "Low")
+		: "None";
 	const handleEffortCycle = useCallback(() => {
 		if (!modelSupportsReasoning) {
 			return;
 		}
-		setEffortIndex((current) => (current + 1) % effortLevels.length);
-	}, [effortLevels.length, modelSupportsReasoning]);
+		const nextOption = EFFORT_LEVELS[(effortIndex + 1) % EFFORT_LEVELS.length];
+		if (!nextOption) {
+			return;
+		}
+		onReasoningChange(buildReasoningConfig(nextOption));
+	}, [effortIndex, modelSupportsReasoning, onReasoningChange]);
+
+	useEffect(() => {
+		if (!modelSupportsReasoning) {
+			if (thinking !== undefined || reasoningEffort !== undefined) {
+				onReasoningChange({ thinking: undefined, reasoningEffort: undefined });
+			}
+			return;
+		}
+		if (thinking === undefined && reasoningEffort === undefined) {
+			onReasoningChange(buildReasoningConfig(DEFAULT_REASONING_EFFORT));
+		}
+	}, [modelSupportsReasoning, onReasoningChange, reasoningEffort, thinking]);
 
 	const startQueuedPromptEdit = useCallback((item: PromptInQueue) => {
 		setEditingQueuedPromptId(item.id);
@@ -329,20 +401,6 @@ export function ChatInputBar({
 			cancelQueuedPromptEdit();
 		}
 	}, [cancelQueuedPromptEdit, editingQueuedPromptId, promptsInQueue]);
-
-	useEffect(() => {
-		const input = promptInputRef.current;
-		if (!input) {
-			return;
-		}
-		input.style.height = "0px";
-		const styles = window.getComputedStyle(input);
-		const lineHeight = Number.parseFloat(styles.lineHeight) || 20;
-		const maxHeight = lineHeight * 10;
-		const nextHeight = Math.min(input.scrollHeight, maxHeight);
-		input.style.height = `${nextHeight}px`;
-		input.style.overflowY = input.scrollHeight > maxHeight ? "auto" : "hidden";
-	}, []);
 
 	useEffect(() => {
 		const nextMention = getActiveMention(promptInput, cursorIndex);
@@ -748,7 +806,7 @@ export function ChatInputBar({
 					)}
 					<div className="flex items-end gap-2 rounded-lg border border-border bg-background px-3 py-2.5 transition-all focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20">
 						<textarea
-							className="max-h-60 min-h-5 flex-1 resize-none bg-transparent text-sm leading-5 text-foreground placeholder:text-muted-foreground outline-none"
+							className="max-h-60 min-h-5 flex-1 resize-none overflow-y-auto bg-transparent text-sm leading-5 text-foreground placeholder:text-muted-foreground outline-none"
 							onChange={(e) => {
 								onPromptInputChange(e.target.value);
 								setCursorIndex(
@@ -760,6 +818,8 @@ export function ChatInputBar({
 									e.currentTarget.selectionStart ?? promptInput.length,
 								)
 							}
+							onBlur={() => setPromptInputFocused(false)}
+							onFocus={() => setPromptInputFocused(true)}
 							onKeyDown={(e) => {
 								// Slash command menu takes priority when open.
 								if (slashOpen && filteredSlashCommands.length > 0) {
@@ -835,10 +895,14 @@ export function ChatInputBar({
 							placeholder={
 								isBusy
 									? "Agent is working... submit to queue another message"
-									: "Enter your question or type / for workflow or @ to attach files"
+									: "Enter your question or type / for commands or @ for context"
 							}
 							ref={promptInputRef}
-							rows={1}
+							rows={
+								promptInputFocused
+									? PROMPT_INPUT_FOCUSED_ROWS
+									: PROMPT_INPUT_COLLAPSED_ROWS
+							}
 							value={promptInput}
 						/>
 					</div>

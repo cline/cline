@@ -1,9 +1,8 @@
-"use client";
-
-import { ChevronDown, ChevronRight, X } from "lucide-react";
+import { X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Switch } from "@/components/ui/switch";
 import { desktopClient } from "@/lib/desktop-client";
 import type {
 	Provider,
@@ -11,20 +10,25 @@ import type {
 	ProviderModelsResponse,
 	ProviderSettingsUpdate,
 } from "@/lib/provider-schema";
+import {
+	type HubTheme,
+	readStoredHubTheme,
+	readSystemHubTheme,
+	setStoredHubTheme,
+} from "@/lib/theme";
 import { cn } from "@/lib/utils";
+import { PageFrame, PageHeader } from "../page-layout";
 import { AccountView } from "./account-view";
 import { AddProviderContent, type AddProviderPayload } from "./add-provider";
-import { primeExtensionsListsCache, RulesView } from "./extensions-view";
+import { ChannelsContent } from "./channels-view";
+import { CustomizationSectionView, RulesView } from "./extensions-view";
 import { McpServersContent } from "./mcp-view";
 import {
 	ProviderDetailContent,
 	ProviderListContent,
-	toSettingsPatch,
 } from "./provider-list-view";
-import {
-	primeRoutineOverviewCache,
-	RoutineSchedulesContent,
-} from "./routine-view";
+import { RoutineSchedulesContent } from "./routine-view";
+import { toSettingsPatch } from "./settings-patch";
 
 // -----------------------------------------------------------
 // Settings nav categories
@@ -33,14 +37,15 @@ import {
 const navCategories = [
 	"General",
 	"Providers",
-	"Extensions",
 	"MCP",
-	"Routine",
-	"Features",
+	"Marketplace",
+	"Extensions",
+	"Channels",
+	"Schedules",
 	"Account",
 ] as const;
 
-type NavCategory = (typeof navCategories)[number];
+export type SettingsSection = (typeof navCategories)[number];
 
 const PROVIDER_CATALOG_CACHE_TTL_MS = 60_000;
 
@@ -53,9 +58,18 @@ let providerCatalogCache: {
 // Component
 // -----------------------------------------------------------
 
-export function SettingsView({ onClose }: { onClose: () => void }) {
-	const [activeNav, setActiveNav] = useState<NavCategory>("Providers");
-	const [providersExpanded, setProvidersExpanded] = useState(true);
+export function SettingsView({
+	chrome = "full",
+	initialSection = "General",
+	onClose,
+	onNavigateSection,
+}: {
+	chrome?: "full" | "content";
+	initialSection?: SettingsSection;
+	onClose: () => void;
+	onNavigateSection?: (section: SettingsSection) => void;
+}) {
+	const [activeNav, setActiveNav] = useState<SettingsSection>(initialSection);
 	const [providers, setProviders] = useState<Provider[]>(
 		() => providerCatalogCache?.providers ?? [],
 	);
@@ -125,14 +139,14 @@ export function SettingsView({ onClose }: { onClose: () => void }) {
 	}, [setProvidersWithCache]);
 
 	useEffect(() => {
-		void loadProviderCatalog();
-		void primeRoutineOverviewCache().catch(() => {
-			// Keep settings responsive even if routine prefetch fails.
-		});
-		void primeExtensionsListsCache().catch(() => {
-			// Keep settings responsive even if extension prefetch fails.
-		});
-	}, [loadProviderCatalog]);
+		if (activeNav !== "Providers") {
+			return;
+		}
+		const timeoutId = window.setTimeout(() => {
+			void loadProviderCatalog();
+		}, 0);
+		return () => window.clearTimeout(timeoutId);
+	}, [activeNav, loadProviderCatalog]);
 
 	const persistProviderSettings = useCallback(
 		async (
@@ -237,7 +251,6 @@ export function SettingsView({ onClose }: { onClose: () => void }) {
 		[setProvidersWithCache],
 	);
 
-	const enabledProviders = providers.filter((p) => p.enabled);
 	const selectedProvider = selectedProviderId
 		? (providers.find((p) => p.id === selectedProviderId) ?? null)
 		: null;
@@ -276,6 +289,7 @@ export function SettingsView({ onClose }: { onClose: () => void }) {
 
 	const openProviderDetail = (id: string) => {
 		setActiveNav("Providers");
+		onNavigateSection?.("Providers");
 		setSelectedProviderId(id);
 	};
 
@@ -289,10 +303,14 @@ export function SettingsView({ onClose }: { onClose: () => void }) {
 		if (!selected || (selected.modelList?.length ?? 0) > 0) {
 			return;
 		}
-		void loadProviderModels(selectedProviderId);
+		const timeoutId = window.setTimeout(() => {
+			void loadProviderModels(selectedProviderId);
+		}, 0);
+		return () => window.clearTimeout(timeoutId);
 	}, [loadProviderModels, providers, selectedProviderId]);
 
 	const backToProviderList = () => {
+		onNavigateSection?.("Providers");
 		setSelectedProviderId(null);
 		setAddingProvider(false);
 	};
@@ -319,9 +337,101 @@ export function SettingsView({ onClose }: { onClose: () => void }) {
 	);
 
 	const openAddProvider = () => {
+		onNavigateSection?.("Providers");
 		setSelectedProviderId(null);
 		setAddingProvider(true);
 	};
+
+	const selectSection = (section: SettingsSection) => {
+		setActiveNav(section);
+		onNavigateSection?.(section);
+		setSelectedProviderId(null);
+		setAddingProvider(false);
+	};
+
+	const providerContent = addingProvider ? (
+		<AddProviderContent
+			existingProviderIds={providers.map((provider) => provider.id)}
+			onBack={backToProviderList}
+			onSave={saveNewProvider}
+		/>
+	) : providersLoading ? (
+		<div className="flex h-full items-center justify-center">
+			<p className="text-sm text-muted-foreground">Loading providers...</p>
+		</div>
+	) : providerCatalogError ? (
+		<div className="flex h-full items-center justify-center">
+			<p className="max-w-xl px-4 text-center text-sm text-destructive">
+				Failed to load providers: {providerCatalogError}
+			</p>
+		</div>
+	) : selectedProvider ? (
+		<div className="grid h-full grid-cols-[minmax(24rem,0.95fr)_minmax(28rem,1.05fr)] overflow-hidden max-[1100px]:grid-cols-1 max-[1100px]:grid-rows-[minmax(24rem,0.9fr)_minmax(26rem,1fr)]">
+			<ProviderListContent
+				onAddProvider={openAddProvider}
+				onConfigure={openProviderDetail}
+				onToggle={toggleProvider}
+				providers={providers}
+				selectedProviderId={selectedProvider.id}
+				variant="panel"
+			/>
+			<aside className="min-h-0 overflow-hidden border-l bg-background max-[1100px]:border-l-0 max-[1100px]:border-t">
+				<ProviderDetailContent
+					modelsError={modelsErrorByProvider[selectedProvider.id] ?? null}
+					modelsLoading={modelsLoadingByProvider[selectedProvider.id] ?? false}
+					oauthLoginPending={oauthSigningProviderId === selectedProvider.id}
+					onBack={backToProviderList}
+					onLoadModels={() => void loadProviderModels(selectedProvider.id)}
+					onOAuthLogin={
+						isOAuthProvider(selectedProvider.id)
+							? () => void runOAuthProviderLogin(selectedProvider.id)
+							: undefined
+					}
+					onUpdate={(updates) => updateProvider(selectedProvider.id, updates)}
+					provider={selectedProvider}
+					variant="panel"
+				/>
+			</aside>
+		</div>
+	) : (
+		<ProviderListContent
+			onAddProvider={openAddProvider}
+			onConfigure={openProviderDetail}
+			onToggle={toggleProvider}
+			providers={providers}
+		/>
+	);
+
+	const content =
+		activeNav === "Providers" ? (
+			providerContent
+		) : activeNav === "MCP" ? (
+			<McpServersContent />
+		) : activeNav === "Marketplace" ? (
+			<CustomizationSectionView catalogPrimitive="mcp" section="MCP" />
+		) : activeNav === "Extensions" ? (
+			<RulesView />
+		) : activeNav === "Channels" ? (
+			<ChannelsContent />
+		) : activeNav === "Schedules" ? (
+			<RoutineSchedulesContent />
+		) : activeNav === "Account" ? (
+			<AccountView />
+		) : activeNav === "General" ? (
+			<GeneralSettingsContent />
+		) : (
+			<div className="flex h-full items-center justify-center">
+				<p className="text-sm text-muted-foreground">
+					{activeNav} settings coming soon.
+				</p>
+			</div>
+		);
+
+	if (chrome === "content") {
+		return (
+			<div className="h-full overflow-hidden bg-background">{content}</div>
+		);
+	}
 
 	return (
 		<div className="flex h-full flex-col overflow-hidden bg-background">
@@ -344,144 +454,68 @@ export function SettingsView({ onClose }: { onClose: () => void }) {
 				<nav className="w-56 shrink-0 border-r border-border">
 					<ScrollArea className="h-full">
 						<div className="flex flex-col gap-0.5 p-3">
-							{navCategories.map((cat) => {
-								if (cat === "Providers") {
-									return (
-										<div key={cat}>
-											<Button
-												className={cn(
-													"flex w-full items-center justify-between rounded-md px-3 py-2 text-sm transition-colors",
-													activeNav === "Providers"
-														? "bg-accent text-accent-foreground font-medium"
-														: "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
-												)}
-												onClick={() => {
-													setActiveNav("Providers");
-													setSelectedProviderId(null);
-													setAddingProvider(false);
-													setProvidersExpanded((p) => !p);
-												}}
-												variant="ghost"
-											>
-												<span>Providers</span>
-												{providersExpanded ? (
-													<ChevronDown className="size-3" />
-												) : (
-													<ChevronRight className="size-3" />
-												)}
-											</Button>
-											{providersExpanded && (
-												<div className="ml-3 mt-0.5 flex flex-col gap-0.5 border-l border-border pl-2">
-													{enabledProviders.map((prov) => (
-														<Button
-															className={cn(
-																"justify-start",
-																selectedProviderId === prov.id
-																	? "bg-accent/80 text-foreground"
-																	: "text-muted-foreground hover:text-foreground hover:bg-accent/30",
-															)}
-															disabled={oauthSigningProviderId === prov.id}
-															key={prov.id}
-															onClick={() => openProviderDetail(prov.id)}
-															variant="ghost"
-														>
-															<span className="truncate">{prov.name}</span>
-														</Button>
-													))}
-												</div>
-											)}
-										</div>
-									);
-								}
-								return (
-									<Button
-										className={cn(
-											"justify-start",
-											activeNav === cat && !selectedProviderId
-												? "bg-accent text-accent-foreground font-medium"
-												: "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
-										)}
-										key={cat}
-										onClick={() => {
-											setActiveNav(cat);
-											setSelectedProviderId(null);
-											setAddingProvider(false);
-										}}
-										variant="ghost"
-									>
-										{cat}
-									</Button>
-								);
-							})}
+							{navCategories.map((cat) => (
+								<Button
+									className={cn(
+										"justify-start",
+										activeNav === cat
+											? "bg-accent text-accent-foreground font-medium"
+											: "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+									)}
+									key={cat}
+									onClick={() => {
+										selectSection(cat);
+									}}
+									variant="ghost"
+								>
+									{cat}
+								</Button>
+							))}
 						</div>
 					</ScrollArea>
 				</nav>
 
 				{/* Content area */}
-				<div className="flex-1 overflow-hidden">
-					{activeNav === "Providers" && selectedProvider ? (
-						<ProviderDetailContent
-							modelsError={modelsErrorByProvider[selectedProvider.id] ?? null}
-							modelsLoading={
-								modelsLoadingByProvider[selectedProvider.id] ?? false
-							}
-							oauthLoginPending={oauthSigningProviderId === selectedProvider.id}
-							onBack={backToProviderList}
-							onLoadModels={() => void loadProviderModels(selectedProvider.id)}
-							onOAuthLogin={
-								isOAuthProvider(selectedProvider.id)
-									? () => void runOAuthProviderLogin(selectedProvider.id)
-									: undefined
-							}
-							onUpdate={(updates) =>
-								updateProvider(selectedProvider.id, updates)
-							}
-							provider={selectedProvider}
-						/>
-					) : activeNav === "Providers" ? (
-						addingProvider ? (
-							<AddProviderContent
-								existingProviderIds={providers.map((provider) => provider.id)}
-								onBack={backToProviderList}
-								onSave={saveNewProvider}
-							/>
-						) : providersLoading ? (
-							<div className="flex h-full items-center justify-center">
-								<p className="text-sm text-muted-foreground">
-									Loading providers...
-								</p>
-							</div>
-						) : providerCatalogError ? (
-							<div className="flex h-full items-center justify-center">
-								<p className="max-w-xl px-4 text-center text-sm text-destructive">
-									Failed to load providers: {providerCatalogError}
-								</p>
-							</div>
-						) : (
-							<ProviderListContent
-								onAddProvider={openAddProvider}
-								onConfigure={openProviderDetail}
-								onToggle={toggleProvider}
-								providers={providers}
-							/>
-						)
-					) : activeNav === "MCP" ? (
-						<McpServersContent />
-					) : activeNav === "Routine" ? (
-						<RoutineSchedulesContent />
-					) : activeNav === "Extensions" ? (
-						<RulesView />
-					) : activeNav === "Account" ? (
-						<AccountView />
-					) : (
-						<div className="flex h-full items-center justify-center">
-							<p className="text-sm text-muted-foreground">
-								{activeNav} settings coming soon.
-							</p>
-						</div>
-					)}
-				</div>
+				<div className="flex-1 overflow-hidden">{content}</div>
 			</div>
 		</div>
+	);
+}
+
+function GeneralSettingsContent() {
+	const [theme, setTheme] = useState<HubTheme>(() => {
+		if (typeof window === "undefined") return "light";
+		return readStoredHubTheme() ?? readSystemHubTheme();
+	});
+
+	const updateTheme = (darkModeEnabled: boolean) => {
+		const nextTheme = darkModeEnabled ? "dark" : "light";
+		setTheme(setStoredHubTheme(nextTheme));
+	};
+
+	return (
+		<PageFrame>
+			<PageHeader
+				description="Manage desktop preferences for this browser and CLI environment."
+				title="Settings"
+			/>
+			<section className="max-w-[86rem]">
+				<div className="flex min-h-20 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
+					<div>
+						<p className="text-[17px] font-semibold text-foreground">
+							Dark mode
+						</p>
+						<p className="mt-1 text-[15px] text-muted-foreground">
+							Keep the desktop interface in dark mode on this browser.
+						</p>
+					</div>
+					<Switch
+						aria-label="Dark mode"
+						checked={theme === "dark"}
+						onCheckedChange={updateTheme}
+					/>
+				</div>
+			</section>
+		</PageFrame>
 	);
 }

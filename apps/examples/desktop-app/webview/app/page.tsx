@@ -27,12 +27,14 @@ import { WorkspaceProvider } from "@/contexts/workspace-context";
 import type { PromptInQueue } from "@/hooks/chat-session/types";
 import { useChatSession } from "@/hooks/use-chat-session";
 import { toast } from "@/hooks/use-toast";
+import type { ChatSessionConfig } from "@/lib/chat-schema";
 import { desktopClient } from "@/lib/desktop-client";
 import {
 	getSessionMetadataTitle,
 	type SessionHistoryItem,
 	type SessionMetadata,
 } from "@/lib/session-history";
+import { syncHubTheme } from "@/lib/theme";
 
 function makeThreadId(): string {
 	return `thread_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
@@ -77,6 +79,11 @@ export default function Home() {
 	const [activeThreadId, setActiveThreadId] = useState<string>(
 		() => threads[0]?.id,
 	);
+
+	useEffect(() => {
+		syncHubTheme();
+	}, []);
+
 	const handleNewThread = useCallback(() => {
 		const id = makeThreadId();
 		setThreads((prev) => [...prev, { id }]);
@@ -241,6 +248,7 @@ function ChatThreadPane({
 		sessionId,
 		status,
 		chatTransportState,
+		chatTransportError,
 		isHydratingSession,
 		activeAssistantMessageId,
 		config,
@@ -595,6 +603,26 @@ function ChatThreadPane({
 		await sendPrompt(trimmed, toSend);
 	}, [pendingAttachments, promptInput, sendPrompt]);
 
+	const handleReasoningChange = useCallback(
+		(next: Pick<ChatSessionConfig, "thinking" | "reasoningEffort">) => {
+			setConfig((prev) => {
+				if (
+					prev.thinking === next.thinking &&
+					prev.reasoningEffort === next.reasoningEffort
+				) {
+					return prev;
+				}
+				return {
+					...prev,
+					thinking: next.thinking,
+					reasoningEffort:
+						next.thinking === false ? undefined : next.reasoningEffort,
+				};
+			});
+		},
+		[setConfig],
+	);
+
 	const handleUndoQueuedPrompt = useCallback(
 		async (item: PromptInQueue) => {
 			const removed = await removePromptInQueue(item.id);
@@ -851,8 +879,17 @@ function ChatThreadPane({
 			<div className="flex h-full flex-1 flex-col items-center justify-center gap-3 bg-background text-foreground">
 				<div className="h-5 w-5 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
 				<p className="text-sm text-muted-foreground">
-					{chatTransportState !== "connected" ? "Connecting..." : "Loading..."}
+					{chatTransportState === "unavailable"
+						? "Desktop backend unavailable"
+						: chatTransportState !== "connected"
+							? "Connecting..."
+							: "Loading..."}
 				</p>
+				{chatTransportError ? (
+					<p className="max-w-xl px-6 text-center text-xs text-muted-foreground">
+						{chatTransportError}
+					</p>
+				) : null}
 			</div>
 		);
 	}
@@ -959,6 +996,7 @@ function ChatThreadPane({
 							}))
 						}
 						onPromptInputChange={setPromptInput}
+						onReasoningChange={handleReasoningChange}
 						onSteerPromptInQueue={(promptId) => {
 							void steerPromptInQueue(promptId);
 						}}
@@ -996,8 +1034,10 @@ function ChatThreadPane({
 						promptsInQueue={promptsInQueue}
 						promptInput={promptInput}
 						provider={config.provider}
+						reasoningEffort={config.reasoningEffort}
 						status={status}
 						summary={summary}
+						thinking={config.thinking}
 					/>
 				</div>
 			</div>

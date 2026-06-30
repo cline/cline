@@ -28,6 +28,8 @@ export const DEFAULT_CHAT_CONFIG: ChatSessionConfig = {
 	mode: "act",
 	systemPrompt: undefined,
 	maxIterations: undefined,
+	thinking: undefined,
+	reasoningEffort: undefined,
 	enableTools: true,
 	enableSpawn: undefined,
 	enableTeams: undefined,

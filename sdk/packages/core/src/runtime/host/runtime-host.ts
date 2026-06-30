@@ -257,8 +257,36 @@ export interface SessionUsageRuntimeService {
 	): Promise<SessionUsageSummary | undefined>;
 }
 
+export type SessionConnectionUpdate = Partial<
+	Omit<
+		Pick<
+			CoreSessionConfig,
+			| "providerId"
+			| "modelId"
+			| "apiKey"
+			| "baseUrl"
+			| "headers"
+			| "providerConfig"
+			| "reasoningEffort"
+			| "thinking"
+		>,
+		"reasoningEffort" | "thinking"
+	>
+> & {
+	reasoningEffort?: CoreSessionConfig["reasoningEffort"] | null;
+	thinking?: CoreSessionConfig["thinking"] | null;
+	thinkingBudgetTokens?: number | null;
+};
+
 export interface SessionModelRuntimeService {
 	updateSessionModel(sessionId: string, modelId: string): Promise<void>;
+}
+
+export interface SessionConnectionRuntimeService {
+	updateSessionConnection(
+		sessionId: string,
+		updates: SessionConnectionUpdate,
+	): Promise<void>;
 }
 
 export interface RuntimeHostSubscribeOptions {

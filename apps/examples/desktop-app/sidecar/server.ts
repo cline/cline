@@ -1,6 +1,7 @@
 import type { DesktopTransportRequest } from "../webview/lib/desktop-transport";
 import { handleCommand } from "./commands";
 import { sendEvent } from "./context";
+import { fetchMarketplaceCatalog } from "./marketplace";
 import {
 	BunRuntime,
 	SIDECAR_MODE,
@@ -12,6 +13,13 @@ import {
 type SidecarServer = {
 	port: number;
 	upgrade(req: Request): boolean;
+};
+
+const JSON_HEADERS = {
+	"access-control-allow-headers": "accept, content-type",
+	"access-control-allow-methods": "GET, POST, OPTIONS",
+	"access-control-allow-origin": "*",
+	"content-type": "application/json",
 };
 
 // ---------------------------------------------------------------------------
@@ -26,6 +34,25 @@ function jsonResponse(
 ): string {
 	return JSON.stringify({ type: "response", id, ok, result, error });
 }
+
+function createJsonResponse(body: unknown, status = 200): Response {
+	return new Response(JSON.stringify(body), {
+		status,
+		headers: JSON_HEADERS,
+	});
+}
+
+const EMPTY_MARKETPLACE_CATALOG = {
+	version: 1,
+	counts: {
+		total: 0,
+		plugins: 0,
+		skills: 0,
+		mcps: 0,
+	},
+	tags: [],
+	entries: [],
+};
 
 // ---------------------------------------------------------------------------
 // Bun HTTP + WebSocket server
@@ -73,6 +100,10 @@ function createFetchHandler(
 	return async (req: Request, server: SidecarServer) => {
 		const url = new URL(req.url);
 
+		if (req.method === "OPTIONS") {
+			return new Response(null, { status: 204, headers: JSON_HEADERS });
+		}
+
 		if (url.pathname === "/health") {
 			return new Response(
 				JSON.stringify({
@@ -80,12 +111,26 @@ function createFetchHandler(
 					mode: SIDECAR_MODE,
 					pid: process.pid,
 				}),
-				{ headers: { "content-type": "application/json" } },
+				{ headers: JSON_HEADERS },
 			);
 		}
 
 		if (url.pathname === "/transport" && server.upgrade(req)) {
 			return undefined;
+		}
+
+		if (url.pathname === "/api/marketplace/catalog") {
+			try {
+				return createJsonResponse(await fetchMarketplaceCatalog());
+			} catch (error) {
+				return createJsonResponse({
+					...EMPTY_MARKETPLACE_CATALOG,
+					error:
+						error instanceof Error
+							? error.message
+							: "Failed to fetch marketplace catalog",
+				});
+			}
 		}
 
 		if (url.pathname === "/shutdown" && req.method === "POST") {

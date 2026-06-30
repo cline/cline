@@ -20,6 +20,10 @@ import type {
 	SidecarContext,
 } from "./types";
 
+type SessionConnectionUpdate = Parameters<
+	ClineCore["updateSessionConnection"]
+>[1];
+
 // ---------------------------------------------------------------------------
 // Session data helpers
 // ---------------------------------------------------------------------------
@@ -103,7 +107,27 @@ function isoTimestampToMs(
 	return Number.isFinite(parsed) ? parsed : undefined;
 }
 
+function readReasoningEffort(
+	value: unknown,
+): "low" | "medium" | "high" | "xhigh" | undefined {
+	if (
+		value === "low" ||
+		value === "medium" ||
+		value === "high" ||
+		value === "xhigh"
+	) {
+		return value;
+	}
+	return undefined;
+}
+
 function buildCoreSessionConfig(config: JsonRecord): JsonRecord {
+	const thinking =
+		typeof config.thinking === "boolean" ? config.thinking : undefined;
+	const reasoningEffort =
+		thinking === false
+			? undefined
+			: readReasoningEffort(config.reasoningEffort);
 	return {
 		sessionId: config.sessionId ?? config.session_id,
 		providerId: config.provider ?? config.providerId ?? "",
@@ -125,6 +149,8 @@ function buildCoreSessionConfig(config: JsonRecord): JsonRecord {
 			config.enableAgentTeams ??
 			config.enable_teams ??
 			false,
+		...(thinking !== undefined ? { thinking } : {}),
+		...(reasoningEffort ? { reasoningEffort } : {}),
 		teamName: config.teamName ?? config.team_name,
 		missionLogIntervalSteps:
 			config.missionStepInterval ?? config.missionLogIntervalSteps,
@@ -134,6 +160,44 @@ function buildCoreSessionConfig(config: JsonRecord): JsonRecord {
 		sessions: config.sessions,
 		initialMessages: config.initialMessages,
 	};
+}
+
+function buildSessionConnectionUpdate(
+	config: JsonRecord,
+): SessionConnectionUpdate {
+	const thinking =
+		typeof config.thinking === "boolean" ? config.thinking : undefined;
+	const reasoningEffort = readReasoningEffort(config.reasoningEffort);
+	const updates: SessionConnectionUpdate = {
+		providerId: String(config.provider ?? config.providerId ?? "").trim(),
+		modelId: String(config.model ?? config.modelId ?? "").trim(),
+		apiKey: String(config.apiKey ?? config.api_key ?? ""),
+	};
+	if (typeof config.baseUrl === "string" && config.baseUrl.trim()) {
+		updates.baseUrl = config.baseUrl.trim();
+	}
+	if (config.headers && typeof config.headers === "object") {
+		updates.headers = config.headers as Record<string, string>;
+	}
+	if (config.providerConfig && typeof config.providerConfig === "object") {
+		updates.providerConfig =
+			config.providerConfig as SessionConnectionUpdate["providerConfig"];
+	}
+	if (thinking === false) {
+		updates.thinking = false;
+		updates.reasoningEffort = null;
+		updates.thinkingBudgetTokens = null;
+		return updates;
+	}
+	if (thinking === true || reasoningEffort) {
+		updates.thinking = true;
+		updates.reasoningEffort = reasoningEffort ?? null;
+		return updates;
+	}
+	updates.thinking = null;
+	updates.reasoningEffort = null;
+	updates.thinkingBudgetTokens = null;
+	return updates;
 }
 
 async function resolveSystemPrompt(config: JsonRecord): Promise<string> {
@@ -363,6 +427,13 @@ async function handleSend(
 	if (!prompt) throw new Error("prompt is required");
 	const manager = getSessionManager(ctx);
 	const session = ctx.liveSessions.get(sessionId);
+	if (request.config) {
+		const connectionUpdate = buildSessionConnectionUpdate(request.config);
+		await manager.updateSessionConnection(sessionId, connectionUpdate);
+		if (session) {
+			session.config = { ...session.config, ...request.config };
+		}
+	}
 
 	// Determine effective delivery mode.
 	// When the session is busy and no explicit delivery was requested, queue it

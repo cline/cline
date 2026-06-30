@@ -3,11 +3,15 @@
 import {
 	ChevronDown,
 	Filter,
+	GitFork,
 	Loader2,
 	MessageSquare,
+	PanelLeftOpen,
+	Pencil,
 	Plus,
 	Search,
 	Settings,
+	Trash2,
 } from "lucide-react";
 import {
 	type ReactNode,
@@ -17,7 +21,23 @@ import {
 	useRef,
 	useState,
 } from "react";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import {
+	ContextMenu,
+	ContextMenuContent,
+	ContextMenuItem,
+	ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -25,10 +45,16 @@ import {
 	DropdownMenuRadioItem,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+	HoverCard,
+	HoverCardContent,
+	HoverCardTrigger,
+} from "@/components/ui/hover-card";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useSidebar } from "@/components/ui/sidebar";
 import { normalizeTitle } from "@/components/utils";
+import { toast } from "@/hooks/use-toast";
 import { desktopClient } from "@/lib/desktop-client";
 import type {
 	SessionHistoryItem,
@@ -450,7 +476,7 @@ export function AgentSidebar({
 	setView: (view: "chat" | "settings") => void;
 	activeSessionId?: string | null;
 }) {
-	const { isMobile, state } = useSidebar();
+	const { isMobile, setOpen, state } = useSidebar();
 	const isCollapsed = !isMobile && state === "collapsed";
 	const [sessions, setSessions] = useState<SessionHistoryItem[]>([]);
 	const [threads, setThreads] = useState<Thread[]>([]);
@@ -463,6 +489,18 @@ export function AgentSidebar({
 	);
 	const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 	const [isLoadingMore, setIsLoadingMore] = useState(false);
+	const [pendingAction, setPendingAction] = useState<{
+		sessionId: string;
+		action: "rename" | "fork" | "delete";
+	} | null>(null);
+	const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+	const [editingTitle, setEditingTitle] = useState("");
+	const [deleteConfirmThread, setDeleteConfirmThread] = useState<Thread | null>(
+		null,
+	);
+	const [unreadSessionIds, setUnreadSessionIds] = useState<Set<string>>(
+		() => new Set(),
+	);
 	const fetchLimitRef = useRef(INITIAL_HISTORY_FETCH_LIMIT);
 	const usageLoadingRef = useRef<Set<string>>(new Set());
 	const usageHydratedStatusRef = useRef<Map<string, SessionHistoryStatus>>(
@@ -489,6 +527,20 @@ export function AgentSidebar({
 			setSearchOpen(false);
 		}
 	}, [isCollapsed, searchOpen]);
+
+	useEffect(() => {
+		if (!activeSessionId) {
+			return;
+		}
+		setUnreadSessionIds((current) => {
+			if (!current.has(activeSessionId)) {
+				return current;
+			}
+			const next = new Set(current);
+			next.delete(activeSessionId);
+			return next;
+		});
+	}, [activeSessionId]);
 
 	const refreshSessions = useCallback(async () => {
 		const limit = fetchLimitRef.current;
@@ -819,6 +871,13 @@ export function AgentSidebar({
 				) {
 					scheduleRefresh(50);
 				}
+				if (sessionId !== activeSessionId) {
+					setUnreadSessionIds((current) => {
+						const next = new Set(current);
+						next.add(sessionId);
+						return next;
+					});
+				}
 			},
 		);
 		const unsubscribeTransportEnded = desktopClient.subscribe(
@@ -830,6 +889,14 @@ export function AgentSidebar({
 				const record = payload as SidecarSessionStateEvent;
 				if (record.sessionId?.trim()) {
 					scheduleRefresh(50);
+					const sessionId = record.sessionId.trim();
+					if (sessionId !== activeSessionId) {
+						setUnreadSessionIds((current) => {
+							const next = new Set(current);
+							next.add(sessionId);
+							return next;
+						});
+					}
 				}
 			},
 		);
@@ -850,6 +917,13 @@ export function AgentSidebar({
 				if (!known) {
 					scheduleRefresh(50);
 				}
+				if (sessionId !== activeSessionId) {
+					setUnreadSessionIds((current) => {
+						const next = new Set(current);
+						next.add(sessionId);
+						return next;
+					});
+				}
 			},
 		);
 		return () => {
@@ -866,7 +940,7 @@ export function AgentSidebar({
 			unsubscribeTransportEnded();
 			unsubscribeTransportChatEvent();
 		};
-	}, [scheduleRefresh]);
+	}, [activeSessionId, scheduleRefresh]);
 
 	useEffect(() => {
 		const recent = sessions
@@ -978,16 +1052,199 @@ export function AgentSidebar({
 		}
 	}, [filter, searchQuery, threads]);
 
+	const getSessionByThreadId = useCallback(
+		(threadId: string) =>
+			sessionsRef.current.find((session) => session.sessionId === threadId),
+		[],
+	);
+
+	const openThread = useCallback(
+		(threadId: string) => {
+			const session = getSessionByThreadId(threadId);
+			if (session) {
+				setUnreadSessionIds((current) => {
+					if (!current.has(threadId)) {
+						return current;
+					}
+					const next = new Set(current);
+					next.delete(threadId);
+					return next;
+				});
+				onOpenSession?.(session);
+			}
+		},
+		[getSessionByThreadId, onOpenSession],
+	);
+
+	const openNewThread = useCallback(() => {
+		setView("chat");
+		onNewThread?.();
+	}, [onNewThread, setView]);
+
+	const startRenameThread = useCallback((thread: Thread) => {
+		setEditingSessionId(thread.id);
+		setEditingTitle(normalizeTitle(thread.title));
+	}, []);
+
+	const cancelRenameThread = useCallback(() => {
+		setEditingSessionId(null);
+		setEditingTitle("");
+	}, []);
+
+	const commitRenameThread = useCallback(
+		async (thread: Thread) => {
+			if (pendingAction?.action === "rename") {
+				return;
+			}
+			const currentTitle = normalizeTitle(thread.title);
+			const normalizedTitle = normalizeTitle(editingTitle).trim();
+			if (normalizedTitle === currentTitle) {
+				cancelRenameThread();
+				return;
+			}
+			setPendingAction({ sessionId: thread.id, action: "rename" });
+			try {
+				await desktopClient.invoke("update_chat_session_title", {
+					sessionId: thread.id,
+					title: normalizedTitle,
+				});
+				window.dispatchEvent(
+					new CustomEvent("cline:session-title-updated", {
+						detail: {
+							sessionId: thread.id,
+							title: normalizedTitle,
+						},
+					}),
+				);
+				cancelRenameThread();
+			} catch (error) {
+				toast({
+					variant: "destructive",
+					title: "Rename failed",
+					description:
+						error instanceof Error
+							? error.message
+							: "The session title could not be updated.",
+				});
+			} finally {
+				setPendingAction(null);
+			}
+		},
+		[cancelRenameThread, editingTitle, pendingAction],
+	);
+
+	const forkThread = useCallback(
+		async (thread: Thread) => {
+			const sourceSession = getSessionByThreadId(thread.id);
+			setPendingAction({ sessionId: thread.id, action: "fork" });
+			try {
+				const payload = await desktopClient.invoke<{
+					sessionId?: string;
+					forkedFromSessionId?: string;
+				}>("chat_session_command", {
+					request: {
+						action: "fork",
+						sessionId: thread.id,
+						config: {
+							provider: sourceSession?.provider || thread.provider,
+							model: sourceSession?.model || thread.model,
+							cwd: sourceSession?.cwd || sourceSession?.workspaceRoot || "",
+							workspaceRoot:
+								sourceSession?.workspaceRoot || sourceSession?.cwd || "",
+						},
+					},
+				});
+				const newSessionId = payload.sessionId?.trim();
+				if (!newSessionId) {
+					throw new Error("Fork did not return a new session id.");
+				}
+				const forkedSession: SessionHistoryItem = {
+					sessionId: newSessionId,
+					status: "completed",
+					provider: sourceSession?.provider || thread.provider,
+					model: sourceSession?.model || thread.model,
+					cwd: sourceSession?.cwd || "",
+					workspaceRoot:
+						sourceSession?.workspaceRoot || sourceSession?.cwd || "",
+					startedAt: new Date().toISOString(),
+					metadata: {
+						fork: {
+							forkedFromSessionId: payload.forkedFromSessionId || thread.id,
+							forkedAt: new Date().toISOString(),
+						},
+					},
+				};
+				scheduleRefresh(50);
+				onOpenSession?.(forkedSession);
+			} catch (error) {
+				toast({
+					variant: "destructive",
+					title: "Fork failed",
+					description:
+						error instanceof Error
+							? error.message
+							: "The session could not be forked.",
+				});
+			} finally {
+				setPendingAction(null);
+			}
+		},
+		[getSessionByThreadId, onOpenSession, scheduleRefresh],
+	);
+
+	const requestDeleteThread = useCallback((thread: Thread) => {
+		setDeleteConfirmThread(thread);
+	}, []);
+
+	const deleteThread = useCallback(async (thread: Thread) => {
+		setPendingAction({ sessionId: thread.id, action: "delete" });
+		try {
+			console.error(
+				`[webview:delete] invoke delete_chat_session sessionId=${thread.id}`,
+			);
+			const deleteResult = await desktopClient.invoke<
+				boolean | { deleted?: boolean }
+			>("delete_chat_session", {
+				sessionId: thread.id,
+			});
+			const deleted =
+				typeof deleteResult === "boolean"
+					? deleteResult
+					: deleteResult.deleted === true;
+			console.error(
+				`[webview:delete] invoke result sessionId=${thread.id} deleted=${deleted}`,
+			);
+			if (!deleted) {
+				throw new Error("The session could not be removed from local history.");
+			}
+			window.dispatchEvent(
+				new CustomEvent("cline:session-deleted", {
+					detail: {
+						sessionId: thread.id,
+					},
+				}),
+			);
+		} catch (error) {
+			toast({
+				variant: "destructive",
+				title: "Delete failed",
+				description:
+					error instanceof Error
+						? error.message
+						: "The session could not be removed from local history.",
+			});
+		} finally {
+			setDeleteConfirmThread(null);
+			setPendingAction(null);
+		}
+	}, []);
+
 	const pinnedThreads = useMemo(
 		() => filteredThreads.filter((t) => t.pinned),
 		[filteredThreads],
 	);
-	const runningThreads = useMemo(
-		() => filteredThreads.filter((t) => t.status === "running" && !t.pinned),
-		[filteredThreads],
-	);
-	const recentThreads = useMemo(
-		() => filteredThreads.filter((t) => t.status !== "running" && !t.pinned),
+	const sessionThreads = useMemo(
+		() => filteredThreads.filter((t) => !t.pinned),
 		[filteredThreads],
 	);
 	const displayedThreads =
@@ -996,15 +1253,14 @@ export function AgentSidebar({
 	// might have more (total fetched sessions reached the fetch limit).
 	const mayHaveMoreSessions = sessions.length >= fetchLimitRef.current;
 	const showShowMore =
-		recentThreads.length + filteredThreads.length > showMoreCount ||
-		mayHaveMoreSessions;
+		sessionThreads.length > showMoreCount || mayHaveMoreSessions;
 
 	const filterMenu = (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
 				<Button
 					aria-label="Filter sessions"
-					className="inline-flex items-center justify-center rounded-md m-0! p-0! text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
+					className="inline-flex size-6 items-center justify-center rounded-md m-0! p-0! text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
 					variant="ghost"
 					size="icon"
 				>
@@ -1030,242 +1286,294 @@ export function AgentSidebar({
 	);
 
 	return (
-		<div className="flex h-full min-h-0 w-full min-w-0 shrink-0 flex-col overflow-hidden bg-sidebar text-sidebar-foreground">
-			<div className="mt-2 flex w-full min-w-0 flex-col gap-1">
-				<Button
-					className={cn(
-						"justify-start min-w-0",
-						isCollapsed && "mx-auto size-9 justify-center px-0",
-					)}
-					onClick={() => onNewThread?.()}
-					title="New Session"
-					variant="sidebar"
-				>
-					<Plus className="size-4" />
-					{!isCollapsed ? "New Session" : null}
-				</Button>
-			</div>
-
-			<div className="flex w-full min-w-0 flex-col gap-1">
-				{searchOpen && !isCollapsed ? (
-					<div className="flex min-w-0 items-center gap-2 overflow-hidden rounded-md bg-sidebar-accent px-2 py-1.5">
-						<Search className="size-4 shrink-0" />
-						<Input
-							className="min-w-0 flex-1 bg-transparent text-sm text-sidebar-foreground outline-none placeholder:text-muted-foreground"
-							onBlur={() => {
-								if (!searchQuery) setSearchOpen(false);
-							}}
-							autoFocus={true}
-							onChange={(e) => setSearchQuery(e.target.value)}
-							placeholder="Search sessions..."
-							value={searchQuery}
-						/>
-					</div>
-				) : (
+		<>
+			<div className="flex h-full min-h-0 w-full min-w-0 shrink-0 flex-col overflow-hidden bg-sidebar text-sidebar-foreground">
+				<div className="mt-2 flex w-full min-w-0 flex-col gap-1">
 					<Button
 						className={cn(
-							"py-1.5 min-w-0",
+							"justify-start min-w-0",
 							isCollapsed && "mx-auto size-9 justify-center px-0",
 						)}
-						onClick={() => setSearchOpen(true)}
-						title="Search sessions"
-						type="button"
-						variant="sidebarItem"
+						aria-label="New Session"
+						onClick={openNewThread}
+						title="New Session"
+						variant="sidebar"
 					>
-						<Search className="size-4 shrink-0" />
-						{!isCollapsed ? <span>Search</span> : null}
-					</Button>
-				)}
-			</div>
-
-			<div className="mt-2 min-h-0 w-full flex-1">
-				<ScrollArea className="h-full min-h-0 w-full min-w-0">
-					<div className="flex min-w-0 flex-col gap-0.5 pb-3 px-3">
-						{isLoadingHistory && threads.length === 0 ? (
-							<div className="p-4 text-xs text-muted-foreground">
-								Loading session history...
-							</div>
-						) : filter === "All" ? (
-							<>
-								{pinnedThreads.length > 0 && (
-									<ThreadSection collapsed={isCollapsed} label="Pinned">
-										{pinnedThreads.map((thread) => (
-											<ThreadItem
-												collapsed={isCollapsed}
-												isActive={activeThread === thread.id}
-												key={thread.id}
-												onClick={() => {
-													const session = sessions.find(
-														(item) => item.sessionId === thread.id,
-													);
-													if (session) {
-														onOpenSession?.(session);
-													}
-												}}
-												thread={thread}
-											/>
-										))}
-									</ThreadSection>
-								)}
-
-								{runningThreads.length > 0 && (
-									<ThreadSection collapsed={isCollapsed} label="Running">
-										{runningThreads.map((thread) => (
-											<ThreadItem
-												collapsed={isCollapsed}
-												isActive={activeThread === thread.id}
-												key={thread.id}
-												onClick={() => {
-													const session = sessions.find(
-														(item) => item.sessionId === thread.id,
-													);
-													if (session) {
-														onOpenSession?.(session);
-													}
-												}}
-												thread={thread}
-											/>
-										))}
-									</ThreadSection>
-								)}
-
-								{recentThreads.length > 0 && (
-									<ThreadSection
-										action={filterMenu}
-										collapsed={isCollapsed}
-										label="Sessions"
-									>
-										{recentThreads.slice(0, showMoreCount).map((thread) => (
-											<ThreadItem
-												collapsed={isCollapsed}
-												isActive={activeThread === thread.id}
-												key={thread.id}
-												onClick={() => {
-													const session = sessions.find(
-														(item) => item.sessionId === thread.id,
-													);
-													if (session) {
-														onOpenSession?.(session);
-													}
-												}}
-												thread={thread}
-											/>
-										))}
-									</ThreadSection>
-								)}
-
-								{filteredThreads.length === 0 && (
-									<div className="p-4 text-xs text-muted-foreground">
-										{searchQuery
-											? "No sessions match your search."
-											: "No sessions found in history."}
-									</div>
-								)}
-							</>
+						{isCollapsed ? (
+							<MessageSquare className="size-4" />
 						) : (
-							<ThreadSection
-								action={filterMenu}
-								collapsed={isCollapsed}
-								label={filter}
-							>
-								{displayedThreads?.map((thread) => (
-									<ThreadItem
-										collapsed={isCollapsed}
-										isActive={activeThread === thread.id}
-										key={thread.id}
-										onClick={() => {
-											const session = sessions.find(
-												(item) => item.sessionId === thread.id,
-											);
-											if (session) {
-												onOpenSession?.(session);
-											}
-										}}
-										thread={thread}
-									/>
-								))}
-							</ThreadSection>
+							<Plus className="size-4" />
 						)}
-						{showShowMore && (
+						{!isCollapsed ? "New Session" : null}
+					</Button>
+					{isCollapsed ? (
+						<Button
+							aria-label="Expand sidebar"
+							className="mx-auto size-9 justify-center px-0"
+							onClick={() => setOpen(true)}
+							title="Expand sidebar"
+							type="button"
+							variant="sidebar"
+						>
+							<PanelLeftOpen className="size-4" />
+						</Button>
+					) : null}
+				</div>
+
+				{!isCollapsed ? (
+					<div className="flex w-full min-w-0 flex-col gap-1">
+						{searchOpen ? (
+							<div className="flex min-w-0 items-center gap-2 overflow-hidden rounded-md bg-sidebar-accent px-2 py-1.5">
+								<Search className="size-4 shrink-0" />
+								<Input
+									className="min-w-0 flex-1 bg-transparent text-sm text-sidebar-foreground outline-none placeholder:text-muted-foreground"
+									onBlur={() => {
+										if (!searchQuery) setSearchOpen(false);
+									}}
+									autoFocus={true}
+									onChange={(e) => setSearchQuery(e.target.value)}
+									placeholder="Search sessions..."
+									value={searchQuery}
+								/>
+							</div>
+						) : (
 							<Button
-								className={cn(
-									isCollapsed && "mx-auto justify-center rounded-md p-0",
-								)}
-								disabled={isLoadingMore}
-								onClick={() => {
-									const nextCount =
-										showMoreCount + INITIAL_VISIBLE_THREAD_COUNT;
-									setShowMoreCount(nextCount);
-									if (fetchLimitRef.current < nextCount) {
-										fetchLimitRef.current = nextCount;
-										setIsLoadingMore(true);
-										void refreshSessions().finally(() =>
-											setIsLoadingMore(false),
-										);
-									}
-								}}
+								className="py-1.5 min-w-0"
+								onClick={() => setSearchOpen(true)}
+								title="Search sessions"
 								type="button"
-								variant="sidebarText"
+								variant="sidebarItem"
 							>
-								{isLoadingMore ? (
-									<>
-										<Loader2 className="size-3 animate-spin" />
-										{!isCollapsed ? "Loading..." : null}
-									</>
-								) : (
-									<>
-										{!isCollapsed ? "Show more" : null}
-										<ChevronDown className="size-3" />
-									</>
-								)}
+								<Search className="size-4 shrink-0" />
+								<span>Search</span>
 							</Button>
 						)}
 					</div>
-				</ScrollArea>
-			</div>
+				) : null}
 
-			<div className="shrink-0 px-2 py-3">
-				<Button
-					type="button"
-					variant="sidebarItem"
-					className={cn(
-						"justify-start min-w-0",
-						isCollapsed && "mx-auto size-9 justify-center px-0",
-					)}
-					onClick={() => setView("settings")}
-					title="Settings"
-				>
-					<Settings className="size-4" />
-					{!isCollapsed ? "Settings" : null}
-				</Button>
+				{!isCollapsed ? (
+					<div className="mt-2 min-h-0 w-full flex-1">
+						<ScrollArea className="h-full min-h-0 w-full min-w-0">
+							<div className="flex min-w-0 flex-col gap-0.5 pb-3 px-3">
+								{isLoadingHistory && threads.length === 0 ? (
+									<div className="p-4 text-xs text-muted-foreground">
+										Loading session history...
+									</div>
+								) : filter === "All" ? (
+									<>
+										{pinnedThreads.length > 0 && (
+											<ThreadSection label="Pinned">
+												{pinnedThreads.map((thread) => (
+													<ThreadItem
+														editTitle={editingTitle}
+														editing={editingSessionId === thread.id}
+														isActive={activeThread === thread.id}
+														key={thread.id}
+														onCancelRename={cancelRenameThread}
+														onClick={() => openThread(thread.id)}
+														onCommitRename={() =>
+															void commitRenameThread(thread)
+														}
+														onDelete={() => requestDeleteThread(thread)}
+														onEditTitleChange={setEditingTitle}
+														onFork={() => void forkThread(thread)}
+														onRename={() => startRenameThread(thread)}
+														pendingAction={
+															pendingAction?.sessionId === thread.id
+																? pendingAction.action
+																: null
+														}
+														thread={thread}
+														unread={unreadSessionIds.has(thread.id)}
+													/>
+												))}
+											</ThreadSection>
+										)}
+
+										{sessionThreads.length > 0 && (
+											<ThreadSection action={filterMenu} label="Sessions">
+												{sessionThreads
+													.slice(0, showMoreCount)
+													.map((thread) => (
+														<ThreadItem
+															editTitle={editingTitle}
+															editing={editingSessionId === thread.id}
+															isActive={activeThread === thread.id}
+															key={thread.id}
+															onCancelRename={cancelRenameThread}
+															onClick={() => openThread(thread.id)}
+															onCommitRename={() =>
+																void commitRenameThread(thread)
+															}
+															onDelete={() => requestDeleteThread(thread)}
+															onEditTitleChange={setEditingTitle}
+															onFork={() => void forkThread(thread)}
+															onRename={() => startRenameThread(thread)}
+															pendingAction={
+																pendingAction?.sessionId === thread.id
+																	? pendingAction.action
+																	: null
+															}
+															thread={thread}
+															unread={unreadSessionIds.has(thread.id)}
+														/>
+													))}
+											</ThreadSection>
+										)}
+
+										{filteredThreads.length === 0 && (
+											<div className="p-4 text-xs text-muted-foreground">
+												{searchQuery
+													? "No sessions match your search."
+													: "No sessions found in history."}
+											</div>
+										)}
+									</>
+								) : (
+									<ThreadSection action={filterMenu} label={filter}>
+										{displayedThreads?.map((thread) => (
+											<ThreadItem
+												editTitle={editingTitle}
+												editing={editingSessionId === thread.id}
+												isActive={activeThread === thread.id}
+												key={thread.id}
+												onCancelRename={cancelRenameThread}
+												onClick={() => openThread(thread.id)}
+												onCommitRename={() => void commitRenameThread(thread)}
+												onDelete={() => requestDeleteThread(thread)}
+												onEditTitleChange={setEditingTitle}
+												onFork={() => void forkThread(thread)}
+												onRename={() => startRenameThread(thread)}
+												pendingAction={
+													pendingAction?.sessionId === thread.id
+														? pendingAction.action
+														: null
+												}
+												thread={thread}
+												unread={unreadSessionIds.has(thread.id)}
+											/>
+										))}
+									</ThreadSection>
+								)}
+								{showShowMore && (
+									<Button
+										disabled={isLoadingMore}
+										onClick={() => {
+											const nextCount =
+												showMoreCount + INITIAL_VISIBLE_THREAD_COUNT;
+											setShowMoreCount(nextCount);
+											if (fetchLimitRef.current < nextCount) {
+												fetchLimitRef.current = nextCount;
+												setIsLoadingMore(true);
+												void refreshSessions().finally(() =>
+													setIsLoadingMore(false),
+												);
+											}
+										}}
+										type="button"
+										variant="sidebarText"
+									>
+										{isLoadingMore ? (
+											<>
+												<Loader2 className="size-3 animate-spin" />
+												Loading...
+											</>
+										) : (
+											<>
+												Show more
+												<ChevronDown className="size-3" />
+											</>
+										)}
+									</Button>
+								)}
+							</div>
+						</ScrollArea>
+					</div>
+				) : (
+					<div className="min-h-0 w-full flex-1" />
+				)}
+
+				<div className="shrink-0 px-2 py-3">
+					<Button
+						type="button"
+						variant="sidebarItem"
+						className={cn(
+							"justify-start min-w-0",
+							isCollapsed && "mx-auto size-9 justify-center px-0",
+						)}
+						onClick={() => setView("settings")}
+						title="Settings"
+					>
+						<Settings className="size-4" />
+						{!isCollapsed ? "Settings" : null}
+					</Button>
+				</div>
 			</div>
-		</div>
+			<AlertDialog
+				open={deleteConfirmThread !== null}
+				onOpenChange={(open) => {
+					if (!open && pendingAction?.action !== "delete") {
+						setDeleteConfirmThread(null);
+					}
+				}}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Delete session?</AlertDialogTitle>
+						<AlertDialogDescription>
+							This removes "
+							{normalizeTitle(deleteConfirmThread?.title ?? "this session")}"
+							from local history.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel disabled={pendingAction?.action === "delete"}>
+							Cancel
+						</AlertDialogCancel>
+						<AlertDialogAction
+							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+							disabled={
+								!deleteConfirmThread || pendingAction?.action === "delete"
+							}
+							onClick={(event) => {
+								event.preventDefault();
+								if (deleteConfirmThread) {
+									void deleteThread(deleteConfirmThread);
+								}
+							}}
+						>
+							{pendingAction?.action === "delete" ? (
+								<>
+									<Loader2 className="size-4 animate-spin" />
+									Deleting...
+								</>
+							) : (
+								"Delete"
+							)}
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
+		</>
 	);
 }
 
 function ThreadSection({
 	label,
-	collapsed,
 	action,
 	children,
 }: {
 	label: string;
-	collapsed?: boolean;
 	action?: ReactNode;
 	children: ReactNode;
 }) {
 	return (
 		<div className={cn("mb-1 min-w-0")}>
-			<div
-				className={cn(
-					"flex w-full min-w-0 flex-nowrap items-center gap-2 py-1.5 text-xs uppercase tracking-wider text-muted-foreground",
-					collapsed && "hidden",
-				)}
-			>
-				<div className="block min-w-0 flex-1 truncate">{label}</div>
+			<div className="flex w-full min-w-0 flex-nowrap items-center gap-1.5 py-1.5 text-xs tracking-wider text-foreground">
 				{action ? (
-					<div className="shrink-0 flex justify-end">{action}</div>
+					<div className="flex shrink-0 items-center">{action}</div>
 				) : null}
+				<div className="block min-w-0 shrink truncate">{label}</div>
 			</div>
 			{children}
 		</div>
@@ -1274,77 +1582,230 @@ function ThreadSection({
 
 function ThreadItem({
 	thread,
-	collapsed,
+	editTitle,
+	editing,
 	isActive,
 	onClick,
+	onCancelRename,
+	onCommitRename,
+	onEditTitleChange,
+	onRename,
+	onFork,
+	onDelete,
+	pendingAction,
+	unread,
 }: {
 	thread: Thread;
-	collapsed?: boolean;
+	editTitle: string;
+	editing: boolean;
 	isActive: boolean;
 	onClick: () => void;
+	onCancelRename: () => void;
+	onCommitRename: () => void;
+	onEditTitleChange: (title: string) => void;
+	onRename: () => void;
+	onFork: () => void;
+	onDelete: () => void;
+	pendingAction: "rename" | "fork" | "delete" | null;
+	unread: boolean;
 }) {
 	const tokenLabel = formatTokenCount(thread.inputTokens, thread.outputTokens);
 	const costLabel = formatCostUsd(thread.totalCostUsd);
-	if (collapsed) {
+	const title = normalizeTitle(thread.title);
+	const pending = pendingAction !== null;
+	const statusDotClass = pending
+		? "bg-yellow-400"
+		: thread.status === "running"
+			? "bg-green-500"
+			: unread
+				? "bg-blue-500"
+				: "";
+	const infoItems: Array<[string, string | null | undefined]> = [
+		["Workspace", thread.codebase],
+		["Status", thread.status],
+		["Updated", thread.time],
+		["Provider", thread.provider],
+		["Model", thread.model],
+		["Tokens", tokenLabel],
+		["Cost", costLabel],
+	].filter((item): item is [string, string] => Boolean(item[1]));
+
+	if (editing) {
 		return (
-			<Button
+			<div
 				className={cn(
-					"mx-auto inline-flexitems-center justify-center rounded-md p-0",
+					"grid h-8 w-full max-w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1 overflow-hidden rounded-md px-2",
 					isActive
 						? "bg-sidebar-accent text-sidebar-accent-foreground"
-						: "text-sidebar-foreground/80 hover:bg-sidebar-accent/50",
+						: "text-sidebar-foreground/80",
 				)}
-				onClick={onClick}
-				title={normalizeTitle(thread.title)}
-				type="button"
-				variant="ghost"
 			>
-				<MessageSquare className="size-3" />
-			</Button>
+				<EditableSessionTitle
+					disabled={pendingAction === "rename"}
+					onCancel={onCancelRename}
+					onChange={onEditTitleChange}
+					onCommit={onCommitRename}
+					value={editTitle}
+				/>
+				{pendingAction === "rename" ? (
+					<Loader2 className="size-3 shrink-0 animate-spin text-muted-foreground" />
+				) : null}
+			</div>
 		);
 	}
 
 	return (
-		<button
-			className={cn(
-				"group flex h-auto w-full min-w-0 items-start justify-start rounded-md py-2 px-0 text-left text-sm font-normal transition-colors",
-				isActive
-					? "bg-sidebar-accent text-sidebar-accent-foreground"
-					: "text-sidebar-foreground/80 hover:bg-sidebar-accent/50",
-			)}
-			onClick={onClick}
-			type="button"
-		>
-			<div className="flex w-full min-w-0 flex-col gap-1.5 overflow-hidden">
-				<div className="flex w-full min-w-0 flex-nowrap items-center justify-between gap-2">
-					<div className="block min-w-0 flex-1 truncate whitespace-nowrap text-sm font-semibold leading-tight">
-						{normalizeTitle(thread.title)}
+		<ContextMenu>
+			<HoverCard openDelay={250} closeDelay={100}>
+				<ContextMenuTrigger asChild>
+					<HoverCardTrigger asChild>
+						<button
+							className={cn(
+								"group grid h-8 w-full max-w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 overflow-hidden rounded-md px-2 text-left text-sm font-normal transition-colors",
+								isActive
+									? "bg-sidebar-accent text-sidebar-accent-foreground"
+									: "text-sidebar-foreground/80 hover:bg-sidebar-accent/50",
+							)}
+							disabled={pending}
+							onClick={onClick}
+							type="button"
+						>
+							<span className="block max-w-full min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-sm font-semibold leading-tight">
+								{title}
+							</span>
+							{statusDotClass ? (
+								<span
+									aria-hidden="true"
+									className={cn("size-2 rounded-full", statusDotClass)}
+								/>
+							) : null}
+						</button>
+					</HoverCardTrigger>
+				</ContextMenuTrigger>
+				<HoverCardContent
+					align="start"
+					avoidCollisions={false}
+					className="w-72 p-3"
+					side="right"
+					sideOffset={8}
+				>
+					<div className="min-w-0 space-y-2">
+						<div className="truncate text-sm font-medium">{title}</div>
+						<div className="grid grid-cols-[72px_minmax(0,1fr)] gap-x-2 gap-y-1 text-xs">
+							{infoItems.map(([label, value]) => (
+								<div className="contents" key={label}>
+									<span className="text-muted-foreground">{label}</span>
+									<span className="min-w-0 truncate font-mono">{value}</span>
+								</div>
+							))}
+						</div>
 					</div>
-					<span className="ml-2 shrink-0 whitespace-nowrap text-right text-[10px] text-muted-foreground tabular-nums">
-						{thread.time}
-					</span>
-				</div>
-				<div className="flex w-full min-w-0 flex-nowrap items-center gap-1 overflow-hidden text-xs text-muted-foreground">
-					<span className="block min-w-0 max-w-[40%] shrink truncate rounded bg-secondary px-1 py-0.5 font-mono text-xs">
-						{thread.codebase}
-					</span>
-					{thread.model && (
-						<span className="block min-w-0 max-w-[55%] shrink truncate rounded border border-sidebar-border px-1 py-0.5 font-mono text-[10px]">
-							{thread.model}
-						</span>
-					)}
-					{tokenLabel ? (
-						<span className="block min-w-0 shrink truncate rounded border border-sidebar-border px-1 py-0.5 font-mono text-[10px]">
-							{tokenLabel}
-						</span>
-					) : null}
-					{costLabel ? (
-						<span className="block min-w-0 shrink truncate rounded border border-sidebar-border px-1 py-0.5 font-mono text-[10px]">
-							{costLabel}
-						</span>
-					) : null}
-				</div>
-			</div>
-		</button>
+				</HoverCardContent>
+			</HoverCard>
+			<SessionContextMenuContent
+				onDelete={onDelete}
+				onFork={onFork}
+				onRename={onRename}
+				pendingAction={pendingAction}
+			/>
+		</ContextMenu>
+	);
+}
+
+function EditableSessionTitle({
+	value,
+	disabled,
+	onChange,
+	onCommit,
+	onCancel,
+}: {
+	value: string;
+	disabled: boolean;
+	onChange: (value: string) => void;
+	onCommit: () => void;
+	onCancel: () => void;
+}) {
+	const inputRef = useRef<HTMLInputElement>(null);
+
+	useEffect(() => {
+		const input = inputRef.current;
+		if (!input) {
+			return;
+		}
+		input.focus();
+		input.setSelectionRange(0, 0);
+		input.scrollLeft = 0;
+	}, []);
+
+	return (
+		<Input
+			ref={inputRef}
+			className="h-6 max-w-full min-w-0 bg-background px-1.5 py-0 text-sm"
+			disabled={disabled}
+			onBlur={() => {
+				if (!disabled) {
+					onCommit();
+				}
+			}}
+			onChange={(event) => onChange(event.target.value)}
+			onClick={(event) => event.stopPropagation()}
+			onKeyDown={(event) => {
+				if (event.key === "Enter") {
+					event.preventDefault();
+					onCommit();
+				}
+				if (event.key === "Escape") {
+					event.preventDefault();
+					onCancel();
+				}
+			}}
+			value={value}
+		/>
+	);
+}
+
+function SessionContextMenuContent({
+	onRename,
+	onFork,
+	onDelete,
+	pendingAction,
+}: {
+	onRename: () => void;
+	onFork: () => void;
+	onDelete: () => void;
+	pendingAction: "rename" | "fork" | "delete" | null;
+}) {
+	const pending = pendingAction !== null;
+	return (
+		<ContextMenuContent className="w-40">
+			<ContextMenuItem disabled={pending} onSelect={onRename}>
+				{pendingAction === "rename" ? (
+					<Loader2 className="size-4 animate-spin" />
+				) : (
+					<Pencil className="size-4" />
+				)}
+				{pendingAction === "rename" ? "Renaming..." : "Rename"}
+			</ContextMenuItem>
+			<ContextMenuItem disabled={pending} onSelect={onFork}>
+				{pendingAction === "fork" ? (
+					<Loader2 className="size-4 animate-spin" />
+				) : (
+					<GitFork className="size-4" />
+				)}
+				{pendingAction === "fork" ? "Forking..." : "Fork"}
+			</ContextMenuItem>
+			<ContextMenuItem
+				disabled={pending}
+				onSelect={onDelete}
+				variant="destructive"
+			>
+				{pendingAction === "delete" ? (
+					<Loader2 className="size-4 animate-spin" />
+				) : (
+					<Trash2 className="size-4" />
+				)}
+				{pendingAction === "delete" ? "Deleting..." : "Delete"}
+			</ContextMenuItem>
+		</ContextMenuContent>
 	);
 }
