@@ -203,7 +203,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		telemetry: undefined,
 		sessionId: undefined as string | undefined,
 	}
-		const mockSdkHost = () => ({
+	const mockSdkHost = () => ({
 		readMessages: vi.fn().mockResolvedValue([]),
 		send: vi.fn(),
 		writeMessages: vi.fn().mockResolvedValue(undefined),

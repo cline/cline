@@ -1315,12 +1315,11 @@ export class HubRuntimeHost implements RuntimeHost {
 		_sessionId: string,
 		_messages: import("@cline/llms").Message[],
 	): Promise<void> {
-		// Manual compaction is a local-runtime-only operation. The hub server
-		// manages its own session persistence and does not expose a write
-		// endpoint, so overwriting the on-disk transcript from the client is not
-		// supported. If this is needed in the future, add a hub server command
-		// and dispatch it here.
-		throw new Error("writeSessionMessages is not supported on HubRuntimeHost");
+		// The hub server manages its own session persistence, so a client-side
+		// write is not needed — the compacted transcript was already installed
+		// in memory by startSession/replaceActiveSession. If server-side
+		// persistence of the compacted messages is needed in the future, add a
+		// hub server command and dispatch it here.
 	}
 
 	async dispatchHookEvent(_payload: HookEventPayload): Promise<void> {
