@@ -7,6 +7,8 @@ import type {
 	ContentBlock,
 	InitializeRequest,
 	InitializeResponse,
+	LoadSessionRequest,
+	LoadSessionResponse,
 	NewSessionRequest,
 	NewSessionResponse,
 	PromptRequest,
@@ -176,6 +178,84 @@ export class AcpAgent implements Agent {
 				await buildProviderConfigOption(providerId),
 				buildModelConfigOption(defaultModelId, providerModels),
 				buildModeConfigOption(defaultMode),
+			],
+		};
+	}
+
+	async loadSession(params: LoadSessionRequest): Promise<LoadSessionResponse> {
+		// Require authentication, same gate as newSession.
+		if (!this.authResult && !process.env.CLINE_API_KEY) {
+			this.authResult = this.tryRestoreAuth();
+
+			if (!this.authResult) {
+				throw RequestError.authRequired(
+					undefined,
+					"Call authenticate before loading a session",
+				);
+			}
+		}
+
+		// Tear down any existing session under this id to avoid leaking
+		// the old sessionManager and event subscription.
+		const existing = this.sessions.get(params.sessionId);
+		if (existing) {
+			await this.teardownSessionManager(existing);
+			if (existing.unsubscribe) {
+				existing.unsubscribe();
+			}
+		}
+
+		// The CLI does not persist session history across process restarts.
+		// We create a new session under the requested sessionId so the client
+		// can continue sending prompts without receiving a hard -32601 error.
+		// TODO: restore conversation history when a session store is available
+		const providerId =
+			process.env.CLINE_PROVIDER ?? this.authResult?.providerId ?? "cline";
+		const defaultModelId =
+			process.env.CLINE_MODEL ?? "anthropic/claude-sonnet-4.6";
+
+		this.sessions.set(params.sessionId, {
+			id: params.sessionId,
+			cwd: params.cwd,
+			mcpServers: params.mcpServers,
+			currentMode: "act",
+			currentProviderId: providerId,
+			currentModelId: defaultModelId,
+		});
+
+		const providerModels = await Llms.getModelsForProvider(providerId);
+
+		return {
+			modes: {
+				availableModes: [
+					{
+						id: "plan",
+						name: "Plan",
+						description:
+							"Explore the codebase and plan changes without modifying files",
+					},
+					{
+						id: "act",
+						name: "Act",
+						description: "Make changes to the codebase",
+					},
+				],
+				currentModeId: "act",
+			},
+			models: {
+				availableModels: Object.entries(providerModels).map(
+					([modelId, info]) => ({
+						modelId,
+						name: info.name ?? modelId,
+						description: info.description,
+					}),
+				),
+				currentModelId: defaultModelId,
+			},
+			configOptions: [
+				await buildProviderConfigOption(providerId),
+				buildModelConfigOption(defaultModelId, providerModels),
+				buildModeConfigOption("act"),
 			],
 		};
 	}
