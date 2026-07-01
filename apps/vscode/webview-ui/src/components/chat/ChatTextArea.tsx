@@ -81,6 +81,7 @@ interface ChatTextAreaProps {
 	onSend: () => void
 	onSelectFilesAndImages: () => void
 	shouldDisableFilesAndImages: boolean
+	supportsImages: boolean
 	onHeightChange?: (height: number) => void
 	onFocusChange?: (isFocused: boolean) => void
 }
@@ -208,6 +209,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			onSend,
 			onSelectFilesAndImages,
 			shouldDisableFilesAndImages,
+			supportsImages,
 			onHeightChange,
 			onFocusChange,
 		},
@@ -255,6 +257,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const unsupportedFileTimerRef = useRef<NodeJS.Timeout | null>(null)
 		const [showDimensionError, setShowDimensionError] = useState(false)
 		const dimensionErrorTimerRef = useRef<NodeJS.Timeout | null>(null)
+		const [showImageUnsupportedError, setShowImageUnsupportedError] = useState(false)
+		const imageUnsupportedErrorTimerRef = useRef<NodeJS.Timeout | null>(null)
 
 		const [fileSearchResults, setFileSearchResults] = useState<SearchResult[]>([])
 		const [searchLoading, setSearchLoading] = useState(false)
@@ -843,6 +847,17 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			}, 3000)
 		}, [])
 
+		const showImageUnsupportedErrorMessage = useCallback(() => {
+			setShowImageUnsupportedError(true)
+			if (imageUnsupportedErrorTimerRef.current) {
+				clearTimeout(imageUnsupportedErrorTimerRef.current)
+			}
+			imageUnsupportedErrorTimerRef.current = setTimeout(() => {
+				setShowImageUnsupportedError(false)
+				imageUnsupportedErrorTimerRef.current = null
+			}, 3000)
+		}, [])
+
 		const handlePaste = useCallback(
 			async (e: React.ClipboardEvent) => {
 				const items = e.clipboardData.items
@@ -878,6 +893,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					const [type, subtype] = item.type.split("/")
 					return type === "image" && acceptedTypes.includes(subtype)
 				})
+				if (!supportsImages && imageItems.length > 0) {
+					e.preventDefault()
+					showImageUnsupportedErrorMessage()
+					return
+				}
 				if (!shouldDisableFilesAndImages && imageItems.length > 0) {
 					e.preventDefault()
 					const imagePromises = imageItems.map((item) => {
@@ -929,6 +949,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			},
 			[
 				shouldDisableFilesAndImages,
+				supportsImages,
 				setSelectedImages,
 				selectedImages,
 				selectedFiles,
@@ -936,6 +957,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				setInputValue,
 				inputValue,
 				showDimensionErrorMessage,
+				showImageUnsupportedErrorMessage,
 			],
 		)
 
@@ -1296,7 +1318,16 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				return type === "image" && acceptedTypes.includes(subtype)
 			})
 
-			if (shouldDisableFilesAndImages || imageFiles.length === 0) {
+			if (imageFiles.length === 0) {
+				return
+			}
+
+			if (!supportsImages) {
+				showImageUnsupportedErrorMessage()
+				return
+			}
+
+			if (shouldDisableFilesAndImages) {
 				return
 			}
 
@@ -1390,6 +1421,14 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					{showUnsupportedFileError && (
 						<div className="absolute inset-2.5 bg-[rgba(var(--vscode-errorForeground-rgb),0.1)] border-2 border-error rounded-xs flex items-center justify-center z-10 pointer-events-none">
 							<span className="text-error font-bold text-xs">Files other than images are currently disabled</span>
+						</div>
+					)}
+					{showImageUnsupportedError && (
+						<div className="absolute inset-2.5 bg-[rgba(var(--vscode-errorForeground-rgb),0.1)] border-2 border-error rounded-xs flex items-center justify-center z-10 pointer-events-none">
+							<span className="text-error font-bold text-xs text-center">
+								The current model does not support images. Enable &quot;Supports images&quot; in model settings to
+								use this feature.
+							</span>
 						</div>
 					)}
 					{showSlashCommandsMenu && (

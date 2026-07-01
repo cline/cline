@@ -10,6 +10,7 @@ interface InputSectionProps {
 	scrollBehavior: ScrollBehavior
 	placeholderText: string
 	shouldDisableFilesAndImages: boolean
+	supportsImages: boolean
 	selectFilesAndImages: () => Promise<void>
 }
 
@@ -22,6 +23,7 @@ export const InputSection: React.FC<InputSectionProps> = ({
 	scrollBehavior,
 	placeholderText,
 	shouldDisableFilesAndImages,
+	supportsImages,
 	selectFilesAndImages,
 }) => {
 	const {
@@ -80,6 +82,7 @@ export const InputSection: React.FC<InputSectionProps> = ({
 				setSelectedFiles={setSelectedFiles}
 				setSelectedImages={setSelectedImages}
 				shouldDisableFilesAndImages={shouldDisableFilesAndImages}
+				supportsImages={supportsImages}
 			/>
 		</>
 	)
