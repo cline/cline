@@ -35,6 +35,7 @@ import type {
 	RuntimeHostSubscribeOptions,
 	SendSessionInput,
 	SessionAccumulatedUsage,
+	SessionConnectionUpdate,
 	SessionUsageSummary,
 	StartSessionInput,
 	StartSessionResult,
@@ -1275,6 +1276,27 @@ export class HubRuntimeHost implements RuntimeHost {
 			metadata,
 		});
 		return { updated: reply.ok };
+	}
+
+	async updateSessionConnection(
+		sessionId: string,
+		updates: SessionConnectionUpdate,
+	): Promise<void> {
+		const target = sessionId.trim();
+		if (!target) {
+			return;
+		}
+		const reply = await this.client.command(
+			"session.update_connection",
+			{
+				sessionId: target,
+				updates,
+			},
+			target,
+		);
+		if (!reply.ok) {
+			throw new Error(hubReplyErrorMessage(reply, "session.update_connection"));
+		}
 	}
 
 	async readSessionMessages(

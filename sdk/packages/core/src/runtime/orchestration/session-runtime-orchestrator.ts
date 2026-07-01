@@ -263,9 +263,9 @@ export interface ConnectionOverrides {
 	baseUrl?: string;
 	headers?: Record<string, string>;
 	providerConfig?: unknown;
-	reasoningEffort?: AgentConfig["reasoningEffort"];
-	thinking?: boolean;
-	thinkingBudgetTokens?: number;
+	reasoningEffort?: AgentConfig["reasoningEffort"] | null;
+	thinking?: boolean | null;
+	thinkingBudgetTokens?: number | null;
 }
 
 // =============================================================================
@@ -494,11 +494,19 @@ export class SessionRuntime {
 		if (overrides.headers !== undefined) next.headers = overrides.headers;
 		if (overrides.providerConfig !== undefined)
 			next.providerConfig = overrides.providerConfig;
-		if (overrides.reasoningEffort !== undefined)
-			next.reasoningEffort = overrides.reasoningEffort;
-		if (overrides.thinking !== undefined) next.thinking = overrides.thinking;
-		if (overrides.thinkingBudgetTokens !== undefined)
-			next.thinkingBudgetTokens = overrides.thinkingBudgetTokens;
+		if (Object.hasOwn(overrides, "reasoningEffort")) {
+			next.reasoningEffort = overrides.reasoningEffort ?? undefined;
+		}
+		if (Object.hasOwn(overrides, "thinking")) {
+			next.thinking = overrides.thinking ?? undefined;
+			if (overrides.thinking === false || overrides.thinking === null) {
+				next.reasoningEffort = undefined;
+				next.thinkingBudgetTokens = undefined;
+			}
+		}
+		if (Object.hasOwn(overrides, "thinkingBudgetTokens")) {
+			next.thinkingBudgetTokens = overrides.thinkingBudgetTokens ?? undefined;
+		}
 		this.config = next;
 	}
 

@@ -1210,6 +1210,25 @@ describe("SessionRuntime.addTools / updateConnection / clearHistory / restore", 
 		expect(calls.run).toHaveLength(1);
 	});
 
+	it("updateConnection clears stale reasoning fields for next run", async () => {
+		const { deps, configs } = withCapturingFakeRuntime();
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				thinking: true,
+				reasoningEffort: "high",
+				thinkingBudgetTokens: 1024,
+			}),
+			deps,
+		);
+		session.updateConnection({
+			thinking: null,
+			reasoningEffort: null,
+			thinkingBudgetTokens: null,
+		});
+		await session.run("go");
+		expect(configs[0]?.modelOptions).toBeUndefined();
+	});
+
 	it("clearHistory resets the conversation store", () => {
 		const session = new SessionRuntime(
 			makeAgentConfig({

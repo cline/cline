@@ -10,6 +10,11 @@
 		"build:sidecar": "mkdir -p dist/sidecar && bun build ./sidecar/index.ts --outfile ./dist/sidecar/index.js --target bun",
 		"build:sidecar:bin": "bun run scripts/build-sidecar-bin.ts",
 		"build:binary": "tauri build",
+		"package": "bun run package:desktop",
+		"package:desktop": "bun run scripts/package-desktop.ts",
+		"package:desktop:mac": "bun run scripts/package-desktop.ts --platform mac",
+		"package:desktop:windows": "bun run scripts/package-desktop.ts --platform windows",
+		"package:desktop:linux": "bun run scripts/package-desktop.ts --platform linux",
 		"start": "next start webview",
 		"typecheck": "tsc -p tsconfig.dev.json --noEmit",
 		"clean": "rm -rf webview/.next webview/out node_modules dist && (cd src-tauri && rm -rf target node_modules dist)"

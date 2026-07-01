@@ -3,19 +3,21 @@
 import {
 	AlertCircle,
 	Bot,
+	BrainIcon,
+	Check,
 	ChevronDown,
 	ChevronRight,
 	Clock3,
 	Copy,
 	FileEdit,
 	FileSearch,
-	GitBranch,
 	Loader2,
 	MessagesSquare,
-	RotateCcw,
 	Search,
 	ShieldAlert,
+	SplitIcon,
 	Terminal,
+	UndoIcon,
 } from "lucide-react";
 import {
 	memo,
@@ -36,7 +38,11 @@ import { WelcomeScreen } from "./welcome-chat";
 type ChatMessagesProps = {
 	sessionId: string | null;
 	status: ChatSessionStatus;
-	chatTransportState?: "connecting" | "reconnecting" | "connected";
+	chatTransportState?:
+		| "connecting"
+		| "reconnecting"
+		| "connected"
+		| "unavailable";
 	isSessionSwitching?: boolean;
 	provider: string;
 	model: string;
@@ -365,10 +371,10 @@ function ChatMessagesImpl({
 	return (
 		<div className="relative h-full min-h-0 min-w-0">
 			<div
-				className="h-full min-h-0 min-w-0 overflow-y-auto"
+				className="h-full min-h-0 min-w-0 overflow-x-hidden overflow-y-auto"
 				ref={scrollAreaRef}
 			>
-				<div className="relative mx-auto w-full px-6 py-6">
+				<div className="relative mx-auto w-full min-w-0 max-w-full overflow-x-hidden px-6 py-6">
 					{showIdleDetails ? (
 						<WelcomeScreen
 							provider={provider}
@@ -377,7 +383,7 @@ function ChatMessagesImpl({
 							quickActions={[]}
 						/>
 					) : (
-						<div className="flex flex-col gap-2 w-full h-full">
+						<div className="flex h-full w-full min-w-0 flex-col gap-2 overflow-x-hidden">
 							{pendingToolApprovals.length > 0 ? (
 								<ToolApprovalPanel
 									items={pendingToolApprovals}
@@ -474,7 +480,9 @@ function ChatMessagesImpl({
 							<Loader2 className="h-3.5 w-3.5 animate-spin" />
 							{chatTransportState === "reconnecting"
 								? "Reconnecting chat..."
-								: "Connecting chat..."}
+								: chatTransportState === "unavailable"
+									? "Chat backend unavailable"
+									: "Connecting chat..."}
 						</div>
 					) : null}
 					{shouldShowErrorBanner ? (
@@ -569,7 +577,7 @@ function ToolApprovalPanel({
 								Request {item.requestId}
 								{item.iteration != null ? ` · Iteration ${item.iteration}` : ""}
 							</div>
-							<pre className="mt-2 max-h-44 overflow-auto rounded-md border border-border/70 bg-background p-2 text-xs text-muted-foreground">
+							<pre className="mt-2 max-h-44 max-w-full overflow-x-hidden overflow-y-auto whitespace-pre-wrap wrap-break-word rounded-md border border-border/70 bg-background p-2 text-xs text-muted-foreground">
 								{formatApprovalInput(item.input)}
 							</pre>
 							{error ? (
@@ -722,6 +730,17 @@ function MessageBubble({
 	const isUser = message.role === "user";
 	const isError = message.role === "error";
 	const checkpoint = message.meta?.checkpoint;
+	const shouldRenderAssistantActions =
+		message.role === "assistant" &&
+		!isStreaming &&
+		!isError &&
+		Boolean(onCopyRawText || onForkSession);
+	const shouldRenderUserActions =
+		isUser && Boolean(onCopyRawText || checkpoint);
+	const keepUserActionsVisible = restorePending || Boolean(restoreError);
+	const keepAssistantActionsVisible = forkPending || Boolean(forkError);
+	const hiddenActionButtonsClassName =
+		"pointer-events-none opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100";
 
 	if (message.role === "tool") {
 		return <ToolMessageBlock message={message} />;
@@ -732,71 +751,106 @@ function MessageBubble({
 
 	return (
 		<div
-			className={cn("flex", isUser ? "justify-end" : "justify-start w-full")}
+			className={cn(
+				"flex min-w-0",
+				isUser ? "justify-end" : "w-full justify-start",
+			)}
 		>
 			<div
 				className={cn(
-					"space-y-2 pl-3 text-sm",
-					isUser && "bg-card text-foreground/80 max-w-[50%]",
-					!isUser && !isError && "text-foreground w-full",
+					"group max-w-full min-w-0 wrap-break-word text-sm",
+					isUser && "flex max-w-[50%] flex-col items-end gap-1",
+					!isUser && "flex flex-col items-start gap-2 overflow-hidden",
+					!isUser && !isError && "text-foreground",
 					isError &&
 						"bg-destructive/10 border border-destructive/40 text-destructive",
 				)}
 			>
-				{isStreaming && message.role === "assistant" ? (
-					<>
-						{reasoningContent || message.reasoningRedacted ? (
-							<ReasoningBlock
-								content={reasoningContent}
-								redacted={message.reasoningRedacted === true}
-							/>
-						) : null}
-						<div className="whitespace-pre-wrap">
-							{normalizedContent || " "}
-						</div>
-					</>
-				) : (
-					<>
-						{reasoningContent || message.reasoningRedacted ? (
-							<ReasoningBlock
-								content={reasoningContent}
-								redacted={message.reasoningRedacted === true}
-							/>
-						) : null}
-						<MemoizedMarkdown
-							content={normalizedContent || " "}
-							id={message.id}
-						/>
-					</>
-				)}
-				{isUser && checkpoint ? (
-					<div className="space-y-2 pt-1">
-						<div className="flex items-center justify-end gap-2">
-							<Button
-								className="h-7 px-2 text-xs"
-								onClick={onCopyRawText}
-								size="sm"
-								type="button"
-								variant="outline"
-							>
-								<Copy className="h-3.5 w-3.5" />
-								{wasCopied ? "Copied" : "Copy"}
-							</Button>
-							<Button
-								className="h-7 px-2 text-xs"
-								disabled={restoreDisabled || restorePending}
-								onClick={() => onRestoreCheckpoint?.(checkpoint.runCount)}
-								size="sm"
-								type="button"
-								variant="outline"
-							>
-								{restorePending ? (
-									<Loader2 className="h-3.5 w-3.5 animate-spin" />
-								) : (
-									<RotateCcw className="h-3.5 w-3.5" />
+				<div
+					className={cn(
+						"max-w-full min-w-0 space-y-2 overflow-hidden wrap-break-word",
+						isUser && "rounded-sm bg-card p-2 text-foreground/80",
+					)}
+				>
+					{isStreaming && message.role === "assistant" ? (
+						<>
+							{reasoningContent || message.reasoningRedacted ? (
+								<ReasoningBlock
+									content={reasoningContent}
+									redacted={message.reasoningRedacted === true}
+								/>
+							) : null}
+							<div className="whitespace-pre-wrap wrap-break-word">
+								{normalizedContent || " "}
+							</div>
+						</>
+					) : (
+						<>
+							{reasoningContent || message.reasoningRedacted ? (
+								<ReasoningBlock
+									content={reasoningContent}
+									redacted={message.reasoningRedacted === true}
+								/>
+							) : null}
+
+							<div className="my-1 ml-3 min-w-0 max-w-full overflow-x-hidden wrap-break-word **:max-w-full [&_code]:whitespace-pre-wrap [&_code]:wrap-break-word [&_pre]:overflow-x-hidden [&_pre]:whitespace-pre-wrap [&_pre]:wrap-break-word">
+								<MemoizedMarkdown
+									content={normalizedContent || " "}
+									id={message.id}
+								/>
+							</div>
+						</>
+					)}
+				</div>
+				{shouldRenderUserActions ? (
+					<div className="space-y-1">
+						<div className="flex h-6 items-center justify-end">
+							<div
+								className={cn(
+									"flex items-center justify-end gap-2",
+									keepUserActionsVisible
+										? "pointer-events-auto opacity-100"
+										: hiddenActionButtonsClassName,
 								)}
-								Undo
-							</Button>
+							>
+								{onCopyRawText ? (
+									<Button
+										className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+										aria-label={
+											wasCopied ? "Copied user message" : "Copy user message"
+										}
+										onClick={onCopyRawText}
+										size="sm"
+										title={wasCopied ? "Copied" : "Copy message"}
+										type="button"
+										variant="ghost"
+									>
+										{wasCopied ? (
+											<Check className="h-3.5 w-3.5" />
+										) : (
+											<Copy className="h-3.5 w-3.5" />
+										)}
+									</Button>
+								) : null}
+								{checkpoint ? (
+									<Button
+										className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+										aria-label="Restore checkpoint"
+										disabled={restoreDisabled || restorePending}
+										onClick={() => onRestoreCheckpoint?.(checkpoint.runCount)}
+										size="sm"
+										title="Restore checkpoint"
+										type="button"
+										variant="ghost"
+									>
+										{restorePending ? (
+											<Loader2 className="h-3.5 w-3.5 animate-spin" />
+										) : (
+											<UndoIcon className="h-3.5 w-3.5" />
+										)}
+									</Button>
+								) : null}
+							</div>
 						</div>
 						{restoreError ? (
 							<div className="text-right text-xs text-destructive">
@@ -805,30 +859,61 @@ function MessageBubble({
 						) : null}
 					</div>
 				) : null}
-				{!isUser &&
-				!isError &&
-				!isStreaming &&
-				message.role === "assistant" &&
-				onForkSession ? (
-					<div className="mt-1 flex items-center gap-1">
-						<Button
-							className="h-6 gap-1.5 px-2 text-[11px] text-muted-foreground hover:text-foreground"
-							disabled={forkPending}
-							onClick={onForkSession}
-							size="sm"
-							title="Fork session — copy full message history into a new session"
-							type="button"
-							variant="ghost"
-						>
-							{forkPending ? (
-								<Loader2 className="h-3 w-3 animate-spin" />
-							) : (
-								<GitBranch className="h-3 w-3" />
+				{shouldRenderAssistantActions ? (
+					<div className="flex h-6 items-center hidden">
+						<div
+							className={cn(
+								"flex items-center gap-0",
+								keepAssistantActionsVisible
+									? "pointer-events-auto opacity-100"
+									: hiddenActionButtonsClassName,
 							)}
-						</Button>
-						{forkError ? (
-							<span className="text-[11px] text-destructive">{forkError}</span>
-						) : null}
+						>
+							{onCopyRawText ? (
+								<Button
+									className="h-6 gap-1.5 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+									aria-label={
+										wasCopied
+											? "Copied assistant message"
+											: "Copy assistant message"
+									}
+									onClick={onCopyRawText}
+									size="sm"
+									title={wasCopied ? "Copied" : "Copy raw assistant output"}
+									type="button"
+									variant="ghost"
+								>
+									{wasCopied ? (
+										<Check className="h-3 w-3" />
+									) : (
+										<Copy className="h-3 w-3" />
+									)}
+								</Button>
+							) : null}
+							{onForkSession ? (
+								<Button
+									className="h-6 gap-1.5 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+									aria-label="Fork session"
+									disabled={forkPending}
+									onClick={onForkSession}
+									size="sm"
+									title="Fork session - copy full message history into a new session"
+									type="button"
+									variant="ghost"
+								>
+									{forkPending ? (
+										<Loader2 className="h-3 w-3 animate-spin" />
+									) : (
+										<SplitIcon className="h-3 w-3" />
+									)}
+								</Button>
+							) : null}
+							{forkError ? (
+								<span className="text-[11px] text-destructive">
+									{forkError}
+								</span>
+							) : null}
+						</div>
 					</div>
 				) : null}
 			</div>
@@ -852,15 +937,16 @@ function ReasoningBlock({
 	return (
 		<div className="mb-2">
 			<Button
-				className="w-full justify-start gap-2 p-0 text-left font-medium text-foreground/70 hover:bg-transparent text-xs"
+				className="h-auto min-h-0 max-w-full justify-start gap-2 whitespace-normal px-0 py-0 text-left text-xs font-medium text-foreground/70 hover:bg-transparent hover:text-foreground dark:hover:bg-transparent dark:hover:text-foreground"
 				onClick={() => setExpanded((current) => !current)}
 				type="button"
 				variant="ghost"
 			>
+				<BrainIcon className="size-3" />
 				Thinking
 			</Button>
 			{expanded ? (
-				<div className="mt-1 whitespace-pre-wrap rounded-lg border border-border/70 bg-muted/30 p-3 text-xs text-muted-foreground">
+				<div className="mt-1 whitespace-pre-wrap rounded-lg border border-border/70 bg-muted/30 p-3 text-sm text-muted-foreground">
 					{displayContent}
 				</div>
 			) : null}
@@ -1183,10 +1269,12 @@ function ToolMessageBlock({ message }: { message: ChatMessage }) {
 		details.length > 1 || Boolean(inputPreview || resultPreview);
 
 	return (
-		<div className="flex justify-start w-full">
-			<div className={cn("w-full rounded-xl text-xs")}>
+		<div className="flex w-full min-w-0 justify-start">
+			<div
+				className={cn("min-w-0 max-w-full overflow-hidden rounded-xl text-sm")}
+			>
 				<Button
-					className="w-full justify-start gap-2 p-0 text-left font-medium text-foreground/70 hover:bg-transparent text-xs"
+					className="h-auto min-h-0 max-w-full justify-start gap-2 whitespace-normal px-0 py-0 text-left text-xs font-medium text-foreground/70 hover:bg-transparent hover:text-foreground dark:hover:bg-transparent dark:hover:text-foreground"
 					onClick={() => setExpanded((current) => !current)}
 					type="button"
 					variant="ghost"
@@ -1196,9 +1284,9 @@ function ToolMessageBlock({ message }: { message: ChatMessage }) {
 					) : (
 						<Icon className="size-3" />
 					)}
-					<span>{summary.label}</span>
+					<span className="min-w-0 wrap-break-word">{summary.label}</span>
 					{hasExpandedSections ? (
-						<span className="text-muted-foreground">
+						<span className="shrink-0 text-muted-foreground">
 							{expanded ? (
 								<ChevronDown className="size-3" />
 							) : (
@@ -1208,11 +1296,14 @@ function ToolMessageBlock({ message }: { message: ChatMessage }) {
 					) : null}
 				</Button>
 				{expanded ? (
-					<div className="pl-8 text-muted-foreground">
+					<div className="min-w-0 max-w-full overflow-x-hidden pl-8 text-muted-foreground">
 						{hasExpandedSections ? (
 							<div className="space-y-1">
 								{details.map((detail) => (
-									<div className="text-xxs" key={`${message.id}_${detail}`}>
+									<div
+										className="wrap-break-word text-xxs"
+										key={`${message.id}_${detail}`}
+									>
 										{detail}
 									</div>
 								))}
@@ -1223,7 +1314,7 @@ function ToolMessageBlock({ message }: { message: ChatMessage }) {
 								<div className="text-xxs uppercase tracking-wide text-muted-foreground/80">
 									Input
 								</div>
-								<pre className="max-h-52 overflow-auto rounded-md border border-border/70 bg-background/60 p-2 text-xxs leading-relaxed text-foreground whitespace-pre-wrap break-all">
+								<pre className="max-h-52 max-w-full overflow-x-hidden overflow-y-auto whitespace-pre-wrap wrap-break-word rounded-md border border-border/70 bg-background/60 p-2 text-xxs leading-relaxed text-foreground">
 									{inputPreview}
 								</pre>
 							</div>
@@ -1235,7 +1326,7 @@ function ToolMessageBlock({ message }: { message: ChatMessage }) {
 								</div>
 							) : (
 								<div className="space-y-1">
-									<pre className="max-h-64 overflow-auto rounded-md border border-border/70 bg-background/60 p-2 text-xxs leading-relaxed text-foreground whitespace-pre-wrap break-all">
+									<pre className="max-h-64 max-w-full overflow-x-hidden overflow-y-auto whitespace-pre-wrap wrap-break-word rounded-md border border-border/70 bg-background/60 p-2 text-xxs leading-relaxed text-foreground">
 										{resultPreview}
 									</pre>
 								</div>

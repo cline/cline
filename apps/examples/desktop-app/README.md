@@ -13,7 +13,25 @@ From `apps/examples/desktop-app/`:
 - `bun run build:sidecar` - build the Bun sidecar bundle
 - `bun run build:sidecar:bin` - compile the Bun sidecar into a local binary
 - `bun run build:binary` - build desktop binary
+- `bun run package:desktop` - package the current OS desktop app into `dist/desktop/`
 - `bun run typecheck` - TypeScript check
+
+## Shareable Desktop Packages
+
+Tauri desktop bundles are OS-specific, so build each package on the target OS:
+
+- macOS: `bun run package:desktop:mac`
+- Windows: `bun run package:desktop:windows`
+- Linux: `bun run package:desktop:linux`
+
+The macOS package script refuses to create a shareable package unless Developer ID signing and notarization credentials are configured. This prevents the common Gatekeeper failure where a downloaded unsigned build appears damaged on a teammate's Mac.
+
+Set either `APPLE_CERTIFICATE` or `APPLE_SIGNING_IDENTITY`, plus one notarization credential set before packaging macOS:
+
+- `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`
+- `APPLE_API_KEY` or `APPLE_API_KEY_PATH`, `APPLE_API_KEY_ID`, `APPLE_API_ISSUER`
+
+For local-only macOS testing, use `bun run package:desktop:mac --allow-unsigned-mac`. That ad-hoc signs the `.app` and strips quarantine attributes, but it is not suitable for a downloaded build shared with teammates.
 
 ## Runtime Overview
 

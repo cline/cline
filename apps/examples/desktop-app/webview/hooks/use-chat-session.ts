@@ -241,6 +241,9 @@ export function useChatSession() {
 	const hydrationRequestIdRef = useRef(0);
 	const [chatTransportState, setChatTransportState] =
 		useState<ChatTransportState>(desktopClient.getTransportState());
+	const [chatTransportError, setChatTransportError] = useState<string | null>(
+		desktopClient.getTransportError(),
+	);
 	// ---- Ref syncs ----
 
 	useEffect(() => {
@@ -790,7 +793,10 @@ export function useChatSession() {
 
 	useEffect(() => {
 		const unsubscribeTransport = desktopClient.subscribeTransportState(
-			setChatTransportState,
+			(state) => {
+				setChatTransportState(state);
+				setChatTransportError(desktopClient.getTransportError());
+			},
 		);
 		const unsubscribeEvents = desktopClient.subscribe(
 			"chat_event",
@@ -1669,6 +1675,7 @@ export function useChatSession() {
 		sessionId,
 		status,
 		chatTransportState,
+		chatTransportError,
 		isHydratingSession,
 		activeAssistantMessageId,
 		config,

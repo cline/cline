@@ -67,6 +67,7 @@ import {
 	handleSessionRemovePendingPrompt,
 	handleSessionRestore,
 	handleSessionUpdate,
+	handleSessionUpdateConnection,
 	handleSessionUpdatePendingPrompt,
 } from "./handlers/session-handlers";
 import { eventNameForScheduleCommand } from "./hub-schedule-events";
@@ -365,6 +366,8 @@ export class HubServerTransport implements NativeHubTransport {
 				return await handleSessionList(this.ctx, envelope);
 			case "session.update":
 				return await handleSessionUpdate(this.ctx, envelope);
+			case "session.update_connection":
+				return await handleSessionUpdateConnection(this.ctx, envelope);
 			case "session.pending_prompts":
 				return await handleSessionPendingPrompts(this.ctx, envelope);
 			case "session.update_pending_prompt":
