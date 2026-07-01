@@ -36,13 +36,14 @@ function totalJsonTokens(messages: LlmsProviders.Message[]): number {
 }
 
 describe("createTokenEstimator", () => {
-	it("does not treat assistant request metrics as per-message token counts", () => {
+	it("does not treat cumulative request metrics as per-message token counts", () => {
 		const estimateMessageTokens = createTokenEstimator();
 		const message: MessageWithMetadata = {
 			role: "assistant",
 			content: "short",
 			metrics: {
-				inputTokens: 12,
+				inputTokens: 100,
+				cacheReadTokens: 80,
 				outputTokens: 7,
 			},
 		};
