@@ -703,6 +703,11 @@ export interface AgentConfig {
 	 */
 	maxIterations?: number;
 	/**
+	 * Number of times to retry a model call that finishes successfully but
+	 * produces no assistant content. Defaults to 1 in AgentRuntime.
+	 */
+	modelEmptyResponseRetries?: number;
+	/**
 	 * Maximum number of tool calls to execute concurrently in a single iteration.
 	 * @default 8
 	 */
