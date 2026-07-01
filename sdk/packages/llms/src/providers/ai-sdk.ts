@@ -14,7 +14,7 @@ import {
 	formatMessagesForAiSdk,
 	sanitizeSurrogates,
 } from "@cline/shared";
-import { jsonSchema, streamText } from "ai";
+import { type CallSettings, jsonSchema, streamText } from "ai";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import { extractErrorMessage } from "./format";
@@ -52,6 +52,18 @@ interface GatewayNormalizedUsage {
 	totalCost?: number;
 }
 type ProviderModuleKind = AiSdkProviderOptionsTarget;
+
+export function buildAiSdkStreamConfig(
+	request: GatewayStreamRequest,
+	_context: GatewayProviderContext,
+): Partial<CallSettings> {
+	return {
+		...(request.maxTokens !== undefined
+			? { maxOutputTokens: request.maxTokens }
+			: {}),
+		temperature: request.temperature,
+	};
+}
 
 function buildCachedAiSdkMessages(
 	request: GatewayStreamRequest,
@@ -355,7 +367,6 @@ function toAiSdkMessages(
 		if (content.length > 0) {
 			normalizedMessages.push({ role: message.role, content });
 		} else if (!includeReasoning && skippedReasoning) {
-			continue;
 		} else if (message.role === "user" || message.role === "assistant") {
 			normalizedMessages.push({ role: message.role, content: "" });
 		}
@@ -1140,12 +1151,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 				) as never;
 				const requestConfig = provider.buildStreamConfig
 					? provider.buildStreamConfig(request, context)
-					: {
-							...(request.maxTokens !== undefined
-								? { maxOutputTokens: request.maxTokens }
-								: {}),
-							temperature: request.temperature,
-						};
+					: buildAiSdkStreamConfig(request, context);
 				recordProviderRequestCapture({
 					stage: "ai_sdk_prompt",
 					request,
