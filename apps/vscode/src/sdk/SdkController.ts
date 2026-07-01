@@ -34,7 +34,7 @@ import { clearRemoteConfig } from "@/core/storage/remote-config/utils"
 import { StateManager } from "@/core/storage/StateManager"
 import type { WorkspaceRootManager } from "@/core/workspace/WorkspaceRootManager"
 import { HostProvider } from "@/hosts/host-provider"
-import type { ITerminalManager } from "@/integrations/terminal/types"
+import { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import { ExtensionRegistryInfo } from "@/registry"
 import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
 import { UrlContentFetcher } from "@/services/browser/UrlContentFetcher"
@@ -80,6 +80,7 @@ import { SdkTaskControlCoordinator } from "./sdk-task-control-coordinator"
 import { SdkTaskHistory, sessionHistoryRecordToHistoryItem } from "./sdk-task-history"
 import { SdkTaskStartCoordinator } from "./sdk-task-start-coordinator"
 import { createVscodeSdkTelemetryHandle, type VscodeSdkTelemetryHandle } from "./sdk-telemetry"
+import { SdkTerminalExecutionModeCoordinator } from "./sdk-terminal-execution-mode-coordinator"
 import { isToolAutoApproved } from "./sdk-tool-policies"
 import {
 	extractSdkUserText,
@@ -158,6 +159,7 @@ export class Controller {
 	private taskHistory: SdkTaskHistory
 	private mode: SdkModeCoordinator
 	private mcpTools: SdkMcpCoordinator
+	private terminalExecutionMode: SdkTerminalExecutionModeCoordinator
 	private providerChanges: SdkProviderChangeCoordinator
 	private followups: SdkFollowupCoordinator
 	private taskControl: SdkTaskControlCoordinator
@@ -185,11 +187,11 @@ export class Controller {
 	ocaAuthService: OcaAuthService
 	readonly stateManager: StateManager
 
-	// Lazy terminal manager for foreground terminal execution.
-	// Concrete impl comes from HostProvider (VscodeTerminalManager in VSCode,
-	// StandaloneTerminalManager in cline-core / JetBrains).
+	// Lazy terminal manager for foreground (VS Code terminal) command execution.
 	// Created on first use; shared across all sessions in this Controller's lifetime.
-	private _terminalManager?: ITerminalManager
+	// Only used in the `vscodeTerminal` execution mode — `backgroundExec` and the
+	// standalone (JetBrains/CLI) host run commands through the SDK's built-in tool.
+	private _terminalManager?: VscodeTerminalManager
 
 	// Private state kept for stub compatibility
 	private backgroundCommandRunning = false
@@ -302,11 +304,9 @@ export class Controller {
 			getRemoteConfigIntegration: () => this.remoteConfigCoreIntegration,
 			getTerminalManager: () => {
 				if (!this._terminalManager) {
-					this._terminalManager = HostProvider.get().createTerminalManager()
+					this._terminalManager = new VscodeTerminalManager()
 					this.applyTerminalSettings(this._terminalManager)
-					Logger.log(
-						`[SdkController] Created ${this._terminalManager.constructor.name} for foreground terminal execution`,
-					)
+					Logger.log("[SdkController] Created VscodeTerminalManager for foreground terminal execution")
 				}
 				return this._terminalManager
 			},
@@ -417,6 +417,17 @@ export class Controller {
 			buildStartSessionInput,
 			postStateToWebview: () => this.postStateToWebview(),
 		})
+		this.terminalExecutionMode = new SdkTerminalExecutionModeCoordinator({
+			stateManager: this.stateManager,
+			sessions: this.sessions,
+			messages: this.messages,
+			sessionConfigBuilder: this.sessionConfigBuilder,
+			getWorkspaceRoot: () => this.getWorkspaceRoot(),
+			loadInitialMessages: async (sdkHost, sessionId) =>
+				(await this.sessionHistory.loadInitialMessages(sdkHost, sessionId)) ?? [],
+			buildStartSessionInput,
+			postStateToWebview: () => this.postStateToWebview(),
+		})
 		this.providerChanges = new SdkProviderChangeCoordinator({
 			stateManager: this.stateManager,
 			sessions: this.sessions,
@@ -513,6 +524,7 @@ export class Controller {
 			sessions: this.sessions,
 			messages: this.messages,
 			mcpTools: this.mcpTools,
+			terminalExecutionMode: this.terminalExecutionMode,
 			providerChanges: this.providerChanges,
 			mode: this.mode,
 			taskHistory: this.taskHistory,
@@ -578,6 +590,13 @@ export class Controller {
 
 	handleApiConfigurationChanged(previous: ApiConfiguration, next: ApiConfiguration): void {
 		this.providerChanges.handleApiConfigurationChanged(previous, next)
+	}
+
+	handleTerminalExecutionModeChanged(
+		previous: "vscodeTerminal" | "backgroundExec",
+		next: "vscodeTerminal" | "backgroundExec",
+	): void {
+		this.terminalExecutionMode.handleTerminalExecutionModeChanged(previous, next)
 	}
 
 	private isSelectionForActiveModeProvider(event: Extract<ProviderConfigChange, { kind: "selection" }>): boolean {
@@ -1858,7 +1877,7 @@ export class Controller {
 	 * Called once when the lazy terminal manager is first created, and can be
 	 * called again when settings change at runtime.
 	 */
-	applyTerminalSettings(terminalManager: ITerminalManager): void {
+	applyTerminalSettings(terminalManager: VscodeTerminalManager): void {
 		const shellIntegrationTimeout = this.stateManager.getGlobalSettingsKey("shellIntegrationTimeout")
 		if (shellIntegrationTimeout !== undefined) {
 			terminalManager.setShellIntegrationTimeout(Number(shellIntegrationTimeout))
@@ -1884,7 +1903,7 @@ export class Controller {
 	 * Get the terminal manager instance (if created).
 	 * Used by updateSettings handlers to apply runtime changes.
 	 */
-	get terminalManager(): ITerminalManager | undefined {
+	get terminalManager(): VscodeTerminalManager | undefined {
 		return this._terminalManager
 	}
 

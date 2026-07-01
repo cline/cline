@@ -18,38 +18,9 @@ export const PROCESS_HOT_TIMEOUT_NORMAL = 2_000
 export const PROCESS_HOT_TIMEOUT_COMPILING = 15_000
 
 // =============================================================================
-// Output Buffering (CommandOrchestrator)
-// =============================================================================
-// Controls how output is chunked and sent to the UI
-
-/** Lines to buffer before flushing to UI */
-export const CHUNK_LINE_COUNT = 20
-
-/** Bytes to buffer before flushing to UI */
-export const CHUNK_BYTE_SIZE = 2048 // 2KB
-
-/** Debounce time for buffer flush */
-export const CHUNK_DEBOUNCE_MS = 100
-
-/** Timeout to detect stuck buffer */
-export const BUFFER_STUCK_TIMEOUT_MS = 6000 // 6 seconds
-
-/** Timeout to detect stuck completion */
-export const COMPLETION_TIMEOUT_MS = 6000 // 6 seconds
-
-// =============================================================================
 // Large Output Protection
 // =============================================================================
 // Prevents memory exhaustion and context window overflow
-
-/** Switch to file-based logging after this many lines */
-export const MAX_LINES_BEFORE_FILE = 1000
-
-/** Switch to file-based logging after this many bytes */
-export const MAX_BYTES_BEFORE_FILE = 512 * 1024 // 512KB
-
-/** Lines to keep at start/end for summary when truncating */
-export const SUMMARY_LINES_TO_KEEP = 100
 
 /** Maximum size for fullOutput storage (memory protection) */
 export const MAX_FULL_OUTPUT_SIZE = 1024 * 1024 // 1MB
@@ -59,22 +30,6 @@ export const MAX_UNRETRIEVED_LINES = 500
 
 /** Lines to keep at start/end when truncating unretrieved output */
 export const TRUNCATE_KEEP_LINES = 100
-
-// =============================================================================
-// Output Line Limits (processOutput)
-// =============================================================================
-// Controls truncation when returning output to AI
-
-/** Default max lines for command output */
-export const DEFAULT_TERMINAL_OUTPUT_LINE_LIMIT = 500
-
-// =============================================================================
-// Background Command Tracking
-// =============================================================================
-// Controls background command behavior for "Proceed While Running"
-
-/** Hard timeout for background commands to prevent zombie processes (10 minutes) */
-export const BACKGROUND_COMMAND_TIMEOUT_MS = 10 * 60 * 1000
 
 // =============================================================================
 // Compilation Detection Markers

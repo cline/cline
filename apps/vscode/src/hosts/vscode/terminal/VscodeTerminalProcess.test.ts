@@ -30,6 +30,24 @@ function createMockStream(lines: string[] = ["test-command", "line1", "line2", "
 	}
 }
 
+// OSC 633 shell integration markers, as raw escape sequences (what read() yields).
+const OSC633_C = "\x1b]633;C\x07" // CommandExecuted — output begins
+const OSC633_D = "\x1b]633;D;0\x07" // CommandFinished, exit code 0
+
+// Create a mock stream that wraps output lines with C/D markers, simulating a
+// real shell-integration stream. The commandEcho (if provided) is emitted before
+// C and should be excluded from the output by the marker-based gating.
+function createMockStreamWithMarkers(outputLines: string[], commandEcho?: string) {
+	const lines: string[] = []
+	if (commandEcho) {
+		lines.push(commandEcho)
+	}
+	lines.push(OSC633_C)
+	lines.push(...outputLines)
+	lines.push(OSC633_D)
+	return createMockStream(lines)
+}
+
 describe("TerminalProcess (Integration Tests)", () => {
 	let process: VscodeTerminalProcess
 	let sandbox: sinon.SinonSandbox
@@ -234,9 +252,9 @@ describe("TerminalProcess (Integration Tests)", () => {
 			const terminal = TerminalRegistry.createTerminal().terminal
 			createdTerminals.push(terminal)
 
-			// Create a mock implementation of executeCommand
+			// Create a mock implementation of executeCommand with C/D markers
 			const mockExecuteCommand = sandbox.stub().returns({
-				read: () => createMockStream(["echo test", "test output"]),
+				read: () => createMockStreamWithMarkers(["test output"], "echo test"),
 			})
 
 			// Create a fake shell integration object
@@ -251,7 +269,9 @@ describe("TerminalProcess (Integration Tests)", () => {
 			const emitSpy = sandbox.spy(process, "emit")
 
 			// Run the command
-			await process.run(terminal, "echo test")
+			const runPromise = process.run(terminal, "echo test")
+			await sandbox.clock.tickAsync(500)
+			await runPromise
 
 			// Verify the executeCommand was called with the right command
 			mockExecuteCommand.calledWith("echo test").should.be.true()
@@ -269,9 +289,9 @@ describe("TerminalProcess (Integration Tests)", () => {
 			const terminal = TerminalRegistry.createTerminal().terminal
 			createdTerminals.push(terminal)
 
-			// Mock the shell integration with controlled output
+			// Mock the shell integration with controlled output, wrapped in C/D markers
 			const mockExecuteCommand = sandbox.stub().returns({
-				read: () => createMockStream(["test-command", "line1", "line2", "line3"]),
+				read: () => createMockStreamWithMarkers(["line1", "line2", "line3"], "test-command"),
 			})
 
 			// Create a mock shell integration object and stub the getter
@@ -281,7 +301,9 @@ describe("TerminalProcess (Integration Tests)", () => {
 
 			const emitSpy = sandbox.spy(process, "emit")
 
-			await process.run(terminal, "test-command")
+			const runPromise = process.run(terminal, "test-command")
+			await sandbox.clock.tickAsync(500)
+			await runPromise
 
 			// Check that line events were emitted for each line
 			;(emitSpy as sinon.SinonSpy).calledWith("line", "line1").should.be.true()
@@ -294,9 +316,9 @@ describe("TerminalProcess (Integration Tests)", () => {
 			const terminal = TerminalRegistry.createTerminal().terminal
 			createdTerminals.push(terminal)
 
-			// Mock the shell integration
+			// Mock the shell integration with C/D markers
 			const mockExecuteCommand = sandbox.stub().returns({
-				read: () => createMockStream(["compiling..."]),
+				read: () => createMockStreamWithMarkers(["compiling..."]),
 			})
 
 			// Create a mock shell integration object and stub the getter
@@ -307,7 +329,9 @@ describe("TerminalProcess (Integration Tests)", () => {
 			// Spy on global setTimeout
 			const setTimeoutSpy = sandbox.spy(global, "setTimeout")
 
-			await process.run(terminal, "build command")
+			const runPromise = process.run(terminal, "build command")
+			await sandbox.clock.tickAsync(500)
+			await runPromise
 
 			// Move time forward enough to schedule
 			sandbox.clock.tick(100)
@@ -322,9 +346,9 @@ describe("TerminalProcess (Integration Tests)", () => {
 			const terminal = TerminalRegistry.createTerminal().terminal
 			createdTerminals.push(terminal)
 
-			// Mock the shell integration
+			// Mock the shell integration with C/D markers
 			const mockExecuteCommand = sandbox.stub().returns({
-				read: () => createMockStream(["some normal output"]),
+				read: () => createMockStreamWithMarkers(["some normal output"]),
 			})
 
 			// Create a mock shell integration object and stub the getter
@@ -334,32 +358,36 @@ describe("TerminalProcess (Integration Tests)", () => {
 
 			const setTimeoutSpy = sandbox.spy(global, "setTimeout")
 
-			await process.run(terminal, "standard command")
+			const runPromise = process.run(terminal, "standard command")
+			await sandbox.clock.tickAsync(500)
+			await runPromise
 			sandbox.clock.tick(100)
 
 			// Expect a short hot timeout (<= 5000)
 			const foundNormalTimeout = setTimeoutSpy.args.filter((args) => args[1] && args[1] <= 5000)
 			foundNormalTimeout.length.should.be.greaterThan(0)
 
-			// Also check that "completed" eventually emits
 			const emitSpy = sandbox.spy(process, "emit")
-			await process.run(terminal, "another command")
+			const runPromise2 = process.run(terminal, "another command")
+			await sandbox.clock.tickAsync(500)
+			await runPromise2
 			;(emitSpy as sinon.SinonSpy).calledWith("completed").should.be.true()
 		})
 
-		it("should correctly filter command echoes based on current implementation", async () => {
+		it("should exclude command echo (pre-C text) and include output (post-C text)", async () => {
 			// Create a terminal
 			const terminal = TerminalRegistry.createTerminal().terminal
 			createdTerminals.push(terminal)
 
-			// Mock the shell integration
+			// Mock the shell integration with C/D markers around output.
+			// "test-command" is the command echo (before C) → excluded by markers.
+			// "test command" and "other output" are actual output (after C) → emitted.
 			const mockExecuteCommand = sandbox.stub().returns({
 				read: () =>
-					createMockStream([
-						"test-command", // This should be filtered (command contains this exactly)
-						"test command", // This should NOT be filtered (doesn't match exactly)
-						"other output",
-					]),
+					createMockStreamWithMarkers(
+						["test command", "other output"],
+						"test-command", // command echo, before C marker
+					),
 			})
 
 			// Create a mock shell integration object and stub the getter
@@ -369,12 +397,14 @@ describe("TerminalProcess (Integration Tests)", () => {
 
 			const emitSpy = sandbox.spy(process, "emit")
 
-			await process.run(terminal, "test-command")
+			const runPromise = process.run(terminal, "test-command")
+			await sandbox.clock.tickAsync(500)
+			await runPromise
 
-			// Check that "test-command" was filtered out but "test command" was not
+			// Output after C should be emitted
 			;(emitSpy as sinon.SinonSpy).calledWith("line", "test command").should.be.true()
 			;(emitSpy as sinon.SinonSpy).calledWith("line", "other output").should.be.true()
-			// This should never be called because it should be filtered
+			// Command echo before C should NOT be emitted (excluded by marker gating)
 			;(emitSpy as sinon.SinonSpy).calledWith("line", "test-command").should.be.false()
 		})
 
@@ -383,9 +413,14 @@ describe("TerminalProcess (Integration Tests)", () => {
 			const terminal = TerminalRegistry.createTerminal().terminal
 			createdTerminals.push(terminal)
 
-			// Mock the shell integration
+			// Mock the shell integration with C/D markers.
+			// "npm run build" is the command echo (before C) → excluded by markers.
 			const mockExecuteCommand = sandbox.stub().returns({
-				read: () => createMockStream(["npm run build", "> project@1.0.0 build", "> tsc", "files built successfully"]),
+				read: () =>
+					createMockStreamWithMarkers(
+						["> project@1.0.0 build", "> tsc", "files built successfully"],
+						"npm run build", // command echo, before C marker
+					),
 			})
 
 			// Create a mock shell integration object and stub the getter
@@ -395,9 +430,11 @@ describe("TerminalProcess (Integration Tests)", () => {
 
 			const emitSpy = sandbox.spy(process, "emit")
 
-			await process.run(terminal, "npm run build")
+			const runPromise = process.run(terminal, "npm run build")
+			await sandbox.clock.tickAsync(500)
+			await runPromise
 
-			// The "npm run build" line should be filtered, but the rest should be emitted
+			// The command echo should be excluded; the rest (after C) should be emitted
 			;(emitSpy as sinon.SinonSpy).calledWith("line", "> project@1.0.0 build").should.be.true()
 			;(emitSpy as sinon.SinonSpy).calledWith("line", "> tsc").should.be.true()
 			;(emitSpy as sinon.SinonSpy).calledWith("line", "files built successfully").should.be.true()

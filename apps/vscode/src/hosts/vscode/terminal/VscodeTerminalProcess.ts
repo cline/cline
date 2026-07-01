@@ -13,6 +13,7 @@ import {
 } from "@/integrations/terminal/constants"
 import type { ITerminalProcess, TerminalCompletionDetails, TerminalProcessEvents } from "@/integrations/terminal/types"
 import { Logger } from "@/shared/services/Logger"
+import { Osc633EventType, Osc633Parser } from "./osc633Parser"
 
 /**
  * VscodeTerminalProcess - Manages command execution in VSCode's integrated terminal.
@@ -58,93 +59,61 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 		}
 
 		if (terminal.shellIntegration && terminal.shellIntegration.executeCommand) {
-			// Track that we're using shell integration
+			// Shell integration is available (VS Code 1.93+). The read() stream yields
+			// raw terminal data including OSC 633 escape sequences. We use a
+			// chunk-boundary-safe parser to strip those sequences and extract the
+			// CommandExecuted (C) marker that delimits the start of command output.
+			// Text after C is the command's actual output; everything before (prompt,
+			// command echo) is naturally excluded by the marker.
+			//
+			// NOTE: The CommandFinished (D) marker and its exit code do NOT appear in
+			// the read() stream. VS Code's shell integration addon consumes the D
+			// sequence synchronously and fires onDidEndTerminalShellExecution (with the
+			// exit code) before the debounced data event reaches the stream. We listen
+			// to that event to capture the exit code; the D-marker parsing in the parser
+			// is kept as a fallback for environments where the event isn't available.
 			const execution = terminal.shellIntegration.executeCommand(command)
 			const stream = execution.read()
-			// todo: need to handle errors
-			let isFirstChunk = true
-			let didOutputNonCommand = false
+			const parser = new Osc633Parser()
+			let didSeeCommandExecuted = false
+			let inCommandOutput = false
+			let preCommandBuffer = "" // text before C; emitted as fallback if C never arrives
 			let didEmitEmptyLine = false
 
+			// Listen for the shell execution end event to capture the exit code.
+			// This is the reliable source — the D marker is stripped from the stream.
+			// The event fires asynchronously AFTER the read() stream completes (VS Code
+			// calls flush().then(() => fire(endEvent))), so we must await it rather
+			// than checking synchronously.
+			let endEventDisposable: vscode.Disposable | undefined
+			let resolveExitCode!: (exitCode: number | undefined) => void
+			const exitCodePromise = new Promise<number | undefined>((resolve) => {
+				resolveExitCode = resolve
+			})
+			try {
+				endEventDisposable = (
+					vscode.window as unknown as {
+						onDidEndTerminalShellExecution?: (
+							listener: (e: {
+								terminal: vscode.Terminal
+								execution: { read: () => AsyncIterable<string> }
+								exitCode: number | undefined
+							}) => any,
+							thisArgs?: any,
+							disposables?: vscode.Disposable[],
+						) => vscode.Disposable
+					}
+				).onDidEndTerminalShellExecution?.((e) => {
+					if (e.terminal === terminal && e.execution === execution) {
+						resolveExitCode(e.exitCode)
+					}
+				})
+			} catch {
+				// Event not available in this VS Code version; fall back to D-marker parsing.
+				resolveExitCode(undefined)
+			}
+
 			for await (let data of stream) {
-				// Parse shell integration completion markers when present.
-				// Sequence format: ]633;D;<exitCode>
-				const completionMatches = [...data.matchAll(/\]633;D(?:;(-?\d+))?/g)]
-				const latestCompletionMatch = completionMatches[completionMatches.length - 1]
-				if (latestCompletionMatch?.[1] !== undefined) {
-					const parsedExitCode = Number.parseInt(latestCompletionMatch[1], 10)
-					if (Number.isInteger(parsedExitCode)) {
-						this.exitCode = parsedExitCode
-					}
-				}
-
-				// 1. Process chunk and remove artifacts
-				if (isFirstChunk) {
-					/*
-					The first chunk we get from this stream needs to be processed to be more human readable, ie remove vscode's custom escape sequences and identifiers, removing duplicate first char bug, etc.
-					*/
-
-					// bug where sometimes the command output makes its way into vscode shell integration metadata
-					/*
-					]633 is a custom sequence number used by VSCode shell integration:
-					- OSC 633 ; A ST - Mark prompt start
-					- OSC 633 ; B ST - Mark prompt end
-					- OSC 633 ; C ST - Mark pre-execution (start of command output)
-					- OSC 633 ; D [; <exitcode>] ST - Mark execution finished with optional exit code
-					- OSC 633 ; E ; <commandline> [; <nonce>] ST - Explicitly set command line with optional nonce
-					*/
-					// if you print this data you might see something like "eecho hello worldo hello world;5ba85d14-e92a-40c4-b2fd-71525581eeb0]633;C" but this is actually just a bunch of escape sequences, ignore up to the first ;C
-					/* ddateb15026-6a64-40db-b21f-2a621a9830f0]633;CTue Sep 17 06:37:04 EDT 2024 % ]633;D;0]633;P;Cwd=/Users/saoud/Repositories/test */
-					// Gets output between ]633;C (command start) and ]633;D (command end)
-					const outputBetweenSequences = this.removeLastLineArtifacts(
-						data.match(/\]633;C([\s\S]*?)\]633;D/)?.[1] || "",
-					).trim()
-
-					// Once we've retrieved any potential output between sequences, we can remove everything up to end of the last sequence
-					// https://code.visualstudio.com/docs/terminal/shell-integration#_vs-code-custom-sequences-osc-633-st
-					const vscodeSequenceRegex = /\x1b\]633;.[^\x07]*\x07/g
-					const lastMatch = [...data.matchAll(vscodeSequenceRegex)].pop()
-					if (lastMatch && lastMatch.index !== undefined) {
-						data = data.slice(lastMatch.index + lastMatch[0].length)
-					}
-					// Place output back after removing vscode sequences
-					if (outputBetweenSequences) {
-						data = outputBetweenSequences + "\n" + data
-					}
-					// remove ansi
-					data = stripAnsi(data)
-					// Split data by newlines
-					const lines = data ? data.split("\n") : []
-					// Remove non-human readable characters from the first line
-					if (lines.length > 0) {
-						lines[0] = lines[0].replace(/[^\x20-\x7E]/g, "")
-					}
-					// Check for duplicated first character that might be a terminal artifact
-					// But skip this check for known syntax characters like {, [, ", etc.
-					if (
-						lines.length > 0 &&
-						lines[0].length >= 2 &&
-						lines[0][0] === lines[0][1] &&
-						!["[", "{", '"', "'", "<", "("].includes(lines[0][0])
-					) {
-						lines[0] = lines[0].slice(1)
-					}
-					// Only remove specific terminal artifacts from line beginnings while preserving JSON syntax
-					if (lines.length > 0) {
-						// This regex only removes common terminal artifacts (%, $, >, #) and invisible control chars
-						// but preserves important syntax chars like {, [, ", etc.
-						lines[0] = lines[0].replace(/^[\x00-\x1F%$>#\s]*/, "")
-					}
-					if (lines.length > 1) {
-						lines[1] = lines[1].replace(/^[\x00-\x1F%$>#\s]*/, "")
-					}
-					// Join lines back
-					data = lines.join("\n")
-					isFirstChunk = false
-				} else {
-					data = stripAnsi(data)
-				}
-
 				// Ctrl+C detection: if user presses Ctrl+C, treat as command terminated
 				if (data.includes("^C") || data.includes("\u0003")) {
 					if (this.hotTimer) {
@@ -154,20 +123,42 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 					break
 				}
 
-				// first few chunks could be the command being echoed back, so we must ignore
-				// note this means that 'echo' commands won't work
-				if (!didOutputNonCommand) {
-					const lines = data.split("\n")
-					for (let i = 0; i < lines.length; i++) {
-						if (command.includes(lines[i].trim())) {
-							lines.splice(i, 1)
-							i-- // Adjust index after removal
-						} else {
-							didOutputNonCommand = true
-							break
+				const { segments } = parser.parse(data)
+
+				// Walk segments in order, gating text on the [C, D) marker window.
+				// Text before C (prompt/echo) is buffered separately as a fallback;
+				// if C never arrives (e.g. ssh/nested shells where SI is present
+				// but not emitting markers), the buffered text is emitted at the end.
+				let chunkOutput = ""
+				for (const seg of segments) {
+					if (seg.kind === "event") {
+						if (seg.event.type === Osc633EventType.CommandExecuted) {
+							didSeeCommandExecuted = true
+							inCommandOutput = true
+							preCommandBuffer = "" // discard pre-C text (was prompt/echo)
+						} else if (seg.event.type === Osc633EventType.CommandFinished) {
+							inCommandOutput = false
+							if (seg.event.exitCode !== undefined) {
+								this.exitCode = seg.event.exitCode
+							}
 						}
+					} else {
+						// Text segment
+						if (inCommandOutput) {
+							chunkOutput += seg.text
+						} else if (!didSeeCommandExecuted) {
+							// Pre-C text; buffer for the no-markers fallback.
+							preCommandBuffer += seg.text
+						}
+						// Post-D text (next prompt) is discarded.
 					}
-					data = lines.join("\n")
+				}
+
+				// Strip remaining ANSI escape sequences (colors, cursor moves, etc.)
+				data = stripAnsi(chunkOutput)
+
+				if (!data) {
+					continue
 				}
 
 				// 2. Set isHot depending on the command
@@ -209,6 +200,40 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 			}
 
 			this.emitRemainingBufferIfListening()
+
+			// Await the exit code from onDidEndTerminalShellExecution.
+			// The event fires asynchronously AFTER the read() stream completes
+			// (VS Code calls flush().then(() => fire(endEvent))), so we must
+			// await it here. Race with a short timeout in case the event never
+			// fires (e.g. no shell integration markers in the stream).
+			const eventExitCode = await Promise.race([
+				exitCodePromise,
+				new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), 500)),
+			])
+			endEventDisposable?.dispose()
+
+			// Prefer the event-captured exit code (reliable source — the D marker
+			// is stripped from the read() stream by VS Code). Fall back to the
+			// parser-extracted exit code (from the D marker) if the event wasn't
+			// available or didn't fire in time.
+			if (eventExitCode !== undefined) {
+				this.exitCode = eventExitCode
+			}
+
+			// If we never saw the CommandExecuted (C) marker (e.g. ssh/nested
+			// shells where shell integration is present but not emitting markers),
+			// emit the buffered pre-C text as a fallback so the user still gets
+			// output.
+			if (!didSeeCommandExecuted && preCommandBuffer.trim()) {
+				const fallbackData = stripAnsi(preCommandBuffer)
+				if (fallbackData) {
+					this.fullOutput += fallbackData
+					if (this.isListening) {
+						this.emitIfEol(fallbackData)
+						this.emitRemainingBufferIfListening()
+					}
+				}
+			}
 
 			// the command process is finished, let's check the output to see if we need to use the terminal capture fallback
 			if (!this.fullOutput.trim()) {
@@ -258,10 +283,6 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 			this.emit("completed", this.getCompletionDetails())
 			this.emit("continue")
 			this.emit("no_shell_integration")
-			// setTimeout(() => {
-			// 	Logger.log(`Emitting continue after delay for terminal`)
-			// 	// can't emit completed since we don't if the command actually completed, it could still be running server
-			// }, 500) // Adjust this delay as needed
 		}
 	}
 

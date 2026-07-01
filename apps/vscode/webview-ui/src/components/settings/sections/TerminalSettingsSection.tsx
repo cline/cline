@@ -22,6 +22,8 @@ const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = ({ rende
 	} = useExtensionState()
 	const platformConfig = usePlatform()
 	const isVsCodePlatform = platformConfig.type === PlatformType.VSCODE
+	const executionMode = vscodeTerminalExecutionMode ?? "backgroundExec"
+	const isBackgroundExec = executionMode === "backgroundExec"
 
 	const [inputValue, setInputValue] = useState((shellIntegrationTimeout / 1000).toString())
 	const [inputError, setInputError] = useState<string | null>(null)
@@ -90,59 +92,6 @@ const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = ({ rende
 			{renderSectionHeader("terminal")}
 			<Section>
 				<div className="mb-5" id="terminal-settings-section">
-					<div className="mb-4">
-						<label className="font-medium block mb-1" htmlFor="default-terminal-profile">
-							Default Terminal Profile
-						</label>
-						<VSCodeDropdown
-							className="w-full"
-							id="default-terminal-profile"
-							onChange={handleDefaultTerminalProfileChange}
-							value={defaultTerminalProfile || "default"}>
-							{profilesToShow.map((profile) => (
-								<VSCodeOption key={profile.id} title={profile.description} value={profile.id}>
-									{profile.name}
-								</VSCodeOption>
-							))}
-						</VSCodeDropdown>
-						<p className="text-xs text-(--vscode-descriptionForeground) mt-1">
-							Select the default terminal Cline will use. 'Default' uses your VSCode global setting.
-						</p>
-					</div>
-
-					<div className="mb-4">
-						<div className="mb-2">
-							<label className="font-medium block mb-1">Shell integration timeout (seconds)</label>
-							<div className="flex items-center">
-								<VSCodeTextField
-									className="w-full"
-									onBlur={handleInputBlur}
-									onChange={(event) => handleTimeoutChange(event as Event)}
-									placeholder="Enter timeout in seconds"
-									value={inputValue}
-								/>
-							</div>
-							{inputError && <div className="text-(--vscode-errorForeground) text-xs mt-1">{inputError}</div>}
-						</div>
-						<p className="text-xs text-(--vscode-descriptionForeground)">
-							Set how long Cline waits for shell integration to activate before executing commands. Increase this
-							value if you experience terminal connection timeouts.
-						</p>
-					</div>
-
-					<div className="mb-4">
-						<div className="flex items-center mb-2">
-							<VSCodeCheckbox
-								checked={terminalReuseEnabled ?? true}
-								onChange={(event) => handleTerminalReuseChange(event as Event)}>
-								Enable aggressive terminal reuse
-							</VSCodeCheckbox>
-						</div>
-						<p className="text-xs text-(--vscode-descriptionForeground)">
-							When enabled, Cline will reuse existing terminal windows that aren't in the current working directory.
-							Disable this if you experience issues with task lockout after a terminal command.
-						</p>
-					</div>
 					{isVsCodePlatform && (
 						<div className="mb-4">
 							<label className="font-medium block mb-1" htmlFor="terminal-execution-mode">
@@ -152,12 +101,74 @@ const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = ({ rende
 								className="w-full"
 								id="terminal-execution-mode"
 								onChange={(event) => handleExecutionModeChange(event as Event)}
-								value={vscodeTerminalExecutionMode ?? "vscodeTerminal"}>
+								value={executionMode}>
 								<VSCodeOption value="vscodeTerminal">VS Code Terminal</VSCodeOption>
 								<VSCodeOption value="backgroundExec">Background Exec</VSCodeOption>
 							</VSCodeDropdown>
 							<p className="text-xs text-[var(--vscode-descriptionForeground)] mt-1">
 								Choose whether Cline runs commands in the VS Code terminal or a background process.
+							</p>
+						</div>
+					)}
+
+					{isVsCodePlatform && !isBackgroundExec && (
+						<>
+							<div className="mb-4">
+								<div className="mb-2">
+									<label className="font-medium block mb-1">Shell integration timeout (seconds)</label>
+									<div className="flex items-center">
+										<VSCodeTextField
+											className="w-full"
+											onBlur={handleInputBlur}
+											onChange={(event) => handleTimeoutChange(event as Event)}
+											placeholder="Enter timeout in seconds"
+											value={inputValue}
+										/>
+									</div>
+									{inputError && (
+										<div className="text-(--vscode-errorForeground) text-xs mt-1">{inputError}</div>
+									)}
+								</div>
+								<p className="text-xs text-(--vscode-descriptionForeground)">
+									Set how long Cline waits for shell integration to activate before executing commands. Increase
+									this value if you experience terminal connection timeouts.
+								</p>
+							</div>
+
+							<div className="mb-4">
+								<div className="flex items-center mb-2">
+									<VSCodeCheckbox
+										checked={terminalReuseEnabled ?? true}
+										onChange={(event) => handleTerminalReuseChange(event as Event)}>
+										Enable aggressive terminal reuse
+									</VSCodeCheckbox>
+								</div>
+								<p className="text-xs text-(--vscode-descriptionForeground)">
+									When enabled, Cline will reuse existing terminal windows that aren't in the current working
+									directory. Disable this if you experience issues with task lockout after a terminal command.
+								</p>
+							</div>
+						</>
+					)}
+
+					{(!isVsCodePlatform || isBackgroundExec) && (
+						<div className="mb-4">
+							<label className="font-medium block mb-1" htmlFor="default-terminal-profile">
+								Default Terminal Profile
+							</label>
+							<VSCodeDropdown
+								className="w-full"
+								id="default-terminal-profile"
+								onChange={handleDefaultTerminalProfileChange}
+								value={defaultTerminalProfile || "default"}>
+								{profilesToShow.map((profile) => (
+									<VSCodeOption key={profile.id} title={profile.description} value={profile.id}>
+										{profile.name}
+									</VSCodeOption>
+								))}
+							</VSCodeDropdown>
+							<p className="text-xs text-(--vscode-descriptionForeground) mt-1">
+								Select the default terminal Cline will use. 'Default' uses your VSCode global setting.
 							</p>
 						</div>
 					)}

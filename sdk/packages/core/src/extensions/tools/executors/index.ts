@@ -31,6 +31,7 @@ export {
 export {
 	type ShellExecutorOptions,
 	createShellExecutor,
+	CommandExitError,
 } from "./bash";
 export { createEditorExecutor, type EditorExecutorOptions } from "./editor";
 export {

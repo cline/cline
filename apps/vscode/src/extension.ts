@@ -45,7 +45,6 @@ import {
 	disposeVscodeCommentReviewController,
 	getVscodeCommentReviewController,
 } from "./hosts/vscode/review/VscodeCommentReviewController"
-import { VscodeTerminalManager } from "./hosts/vscode/terminal/VscodeTerminalManager"
 import { VscodeDiffViewProvider } from "./hosts/vscode/VscodeDiffViewProvider"
 import { VscodeWebviewProvider } from "./hosts/vscode/VscodeWebviewProvider"
 import { exportVSCodeStorageToSharedFiles } from "./hosts/vscode/vscode-to-file-migration"
@@ -604,7 +603,6 @@ function setupHostProvider(context: ExtensionContext) {
 	const createWebview = () => new VscodeWebviewProvider(context)
 	const createDiffView = () => new VscodeDiffViewProvider()
 	const createCommentReview = () => getVscodeCommentReviewController()
-	const createTerminalManager = () => new VscodeTerminalManager()
 
 	const getCallbackUrl = async (path: string, _preferredPort?: number) => {
 		const scheme = vscode.env.uriScheme || "vscode"
@@ -625,7 +623,6 @@ function setupHostProvider(context: ExtensionContext) {
 		createWebview,
 		createDiffView,
 		createCommentReview,
-		createTerminalManager,
 		vscodeHostBridgeClient,
 		() => {}, // No-op logger, logging is handled via HostProvider.env.debugLog
 		getCallbackUrl,
