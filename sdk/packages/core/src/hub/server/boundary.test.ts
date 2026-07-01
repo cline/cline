@@ -891,6 +891,7 @@ describe("HubServerTransport boundaries", () => {
 	it("authorizes compaction sidecar access from server session state, not mutable metadata", async () => {
 		const readSessionCompactionState = vi.fn();
 		const transport = createTransport({
+			isCompactionSidecarEnabled: () => true,
 			sessionHost: {
 				getSession: vi.fn().mockResolvedValue({
 					sessionId: "session-1",
@@ -932,12 +933,13 @@ describe("HubServerTransport boundaries", () => {
 		const updateSessionCompactionState = vi
 			.fn()
 			.mockResolvedValue({ updated: true });
-		const transport = createTransport({
-			sessionHost: {
-				readSessionCompactionState,
-				updateSessionCompactionState,
-			},
-		});
+			const transport = createTransport({
+				sessionHost: {
+					readSessionCompactionState,
+					updateSessionCompactionState,
+				},
+				isCompactionSidecarEnabled: () => true,
+			});
 		const ctx = getContext(transport);
 		expect(ctx.sessionState.has("session-1")).toBe(false);
 
@@ -992,9 +994,10 @@ describe("HubServerTransport boundaries", () => {
 			conversationId: "session-1",
 		});
 		const readSessionCompactionState = vi.fn().mockResolvedValue(state);
-		const transport = createTransport({
-			sessionHost: { readSessionCompactionState },
-		});
+			const transport = createTransport({
+				sessionHost: { readSessionCompactionState },
+				isCompactionSidecarEnabled: () => true,
+			});
 		const ctx = getContext(transport);
 		ensureSessionParticipant(ctx, "session-1", "viewer-client", "participant");
 
@@ -1028,9 +1031,10 @@ describe("HubServerTransport boundaries", () => {
 
 	it("clears compaction sidecar ownership when the owner detaches", async () => {
 		const readSessionCompactionState = vi.fn();
-		const transport = createTransport({
-			sessionHost: { readSessionCompactionState },
-		});
+			const transport = createTransport({
+				sessionHost: { readSessionCompactionState },
+				isCompactionSidecarEnabled: () => true,
+			});
 		const ctx = getContext(transport);
 		ensureSessionState(ctx, "session-1", "owner-client", "creator");
 		ensureSessionParticipant(ctx, "session-1", "viewer-client", "participant");
@@ -1068,9 +1072,10 @@ describe("HubServerTransport boundaries", () => {
 
 	it("clears compaction sidecar ownership when the owner unregisters", async () => {
 		const readSessionCompactionState = vi.fn();
-		const transport = createTransport({
-			sessionHost: { readSessionCompactionState },
-		});
+			const transport = createTransport({
+				sessionHost: { readSessionCompactionState },
+				isCompactionSidecarEnabled: () => true,
+			});
 		const ctx = getContext(transport);
 		ensureSessionState(ctx, "session-1", "owner-client", "creator");
 		ensureSessionParticipant(ctx, "session-1", "viewer-client", "participant");
@@ -1113,6 +1118,7 @@ describe("HubServerTransport boundaries", () => {
 		});
 		const readSessionCompactionState = vi.fn().mockResolvedValue(state);
 		const transport = createTransport({
+			isCompactionSidecarEnabled: () => true,
 			sessionHost: { readSessionCompactionState },
 		});
 		const ctx = getContext(transport);
@@ -1159,9 +1165,10 @@ describe("HubServerTransport boundaries", () => {
 
 	it("rejects invalid compaction sidecar updates before calling the session host", async () => {
 		const updateSessionCompactionState = vi.fn();
-		const transport = createTransport({
-			sessionHost: { updateSessionCompactionState },
-		});
+			const transport = createTransport({
+				sessionHost: { updateSessionCompactionState },
+				isCompactionSidecarEnabled: () => true,
+			});
 		const ctx = getContext(transport);
 		ensureSessionState(ctx, "session-1", "owner-client", "creator");
 
@@ -1220,9 +1227,10 @@ describe("HubServerTransport boundaries", () => {
 		const updateSessionCompactionState = vi
 			.fn()
 			.mockResolvedValue({ updated: true });
-		const transport = createTransport({
-			sessionHost: { updateSessionCompactionState },
-		});
+			const transport = createTransport({
+				sessionHost: { updateSessionCompactionState },
+				isCompactionSidecarEnabled: () => true,
+			});
 		const ctx = getContext(transport);
 		const events: HubEventEnvelope[] = [];
 		ensureSessionState(ctx, "session-1", "owner-client", "creator");

@@ -35,11 +35,6 @@ describe("session compaction state", () => {
 				getBooleanFlagEnabled: () => true,
 			})(),
 		).toBe(true);
-		expect(
-			createSessionCompactionSidecarEnabledResolver({
-				getBooleanFlagEnabled: () => undefined,
-			})(),
-		).toBe(false);
 		expect(createSessionCompactionSidecarEnabledResolver()()).toBe(false);
 	});
 

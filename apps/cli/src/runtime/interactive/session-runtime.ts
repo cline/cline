@@ -683,16 +683,17 @@ export function createInteractiveSessionRuntime(input: {
 			};
 		}
 		const compactionState = result.compactionState;
-		const updated = await compactionSidecar.update(() =>
-			manager.updateSessionCompactionState(sourceSessionId, compactionState),
-		);
-		if (updated.disabled) {
+		if (!compactionSidecar.enabled) {
 			return {
 				messagesBefore,
 				messagesAfter: messagesBefore,
 				compacted: false,
 			};
 		}
+		const updated = await manager.updateSessionCompactionState(
+			sourceSessionId,
+			compactionState,
+		);
 		if (!updated.updated) {
 			throw new Error("Compaction could not be saved. Try again.");
 		}

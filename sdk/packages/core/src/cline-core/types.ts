@@ -222,6 +222,7 @@ export interface ClineCoreOptions {
 	featureFlags?: FeatureFlagsService;
 	/**
 	 * Gets whether persisted compaction sidecar reads and writes are enabled.
+	 * See createSessionCompactionSidecarAccess.
 	 * @internal
 	 */
 	isCompactionSidecarEnabled?: () => boolean;
