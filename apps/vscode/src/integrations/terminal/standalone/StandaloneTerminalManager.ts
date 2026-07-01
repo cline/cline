@@ -13,6 +13,7 @@
  */
 
 import { ClineTempManager } from "@services/temp"
+import { getShellForProfile } from "@utils/shell"
 import * as fs from "fs"
 import { Logger } from "@/shared/services/Logger"
 import { BACKGROUND_COMMAND_TIMEOUT_MS, DEFAULT_TERMINAL_OUTPUT_LINE_LIMIT } from "../constants"
@@ -146,9 +147,18 @@ export class StandaloneTerminalManager implements ITerminalManager {
 	async getOrCreateTerminal(cwd: string): Promise<TerminalInfo> {
 		const terminals = this.registry.getAllTerminals()
 
-		// Find available terminal with matching CWD
+		// Resolve the configured terminal profile to a shell path so background
+		// execution honors the user's "Default Terminal Profile" setting instead
+		// of always falling back to the system default shell.
+		const expectedShellPath =
+			this.defaultTerminalProfile !== "default" ? getShellForProfile(this.defaultTerminalProfile) : undefined
+
+		// Find available terminal with matching CWD and shell profile
 		const matchingTerminal = terminals.find((t) => {
 			if (t.busy) {
+				return false
+			}
+			if (t.shellPath !== expectedShellPath) {
 				return false
 			}
 			return (t.terminal as any)._cwd === cwd
@@ -159,9 +169,9 @@ export class StandaloneTerminalManager implements ITerminalManager {
 			return matchingTerminal
 		}
 
-		// Find any available terminal if reuse is enabled
+		// Find any available terminal with a matching shell profile if reuse is enabled
 		if (this.terminalReuseEnabled) {
-			const availableTerminal = terminals.find((t) => !t.busy)
+			const availableTerminal = terminals.find((t) => !t.busy && t.shellPath === expectedShellPath)
 			if (availableTerminal) {
 				// Change directory
 				await this.runCommand(availableTerminal, `cd "${cwd}"`)
@@ -174,10 +184,11 @@ export class StandaloneTerminalManager implements ITerminalManager {
 			}
 		}
 
-		// Create new terminal
+		// Create new terminal with the configured shell
 		const newTerminalInfo = this.registry.createTerminal({
 			cwd: cwd,
 			name: `Cline Terminal ${this.registry.size + 1}`,
+			shellPath: expectedShellPath,
 		})
 		this.terminalIds.add(newTerminalInfo.id)
 		return newTerminalInfo
@@ -295,9 +306,12 @@ export class StandaloneTerminalManager implements ITerminalManager {
 		const previousProfile = this.defaultTerminalProfile
 		this.defaultTerminalProfile = profile
 
-		// If profile changed, handle terminal cleanup like TerminalManager does
+		// If profile changed, handle terminal cleanup like TerminalManager does.
+		// Resolve the profile id to an actual shell path first so existing
+		// terminals are matched against the same value newly created terminals use.
 		if (previousProfile !== profile) {
-			return this.handleTerminalProfileChange(profile)
+			const newShellPath = profile !== "default" ? getShellForProfile(profile) : undefined
+			return this.handleTerminalProfileChange(newShellPath)
 		}
 
 		return { closedCount: 0, busyTerminals: [] }
