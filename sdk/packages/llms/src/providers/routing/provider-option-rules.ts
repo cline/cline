@@ -59,9 +59,15 @@ function isMiniMaxM3(input: ProviderOptionMatchInput): boolean {
 function isOllamaReasoningDefaultOnDisable(
 	input: ProviderOptionMatchInput,
 ): boolean {
+	// Ollama models whose reasoning defaults on (e.g. qwen3) keep "thinking"
+	// enabled unless we explicitly opt out. For Cline's agent/tool-use flows this
+	// produces slow, thinking-bloated turns and less reliable tool calls, so we
+	// treat thinking as off by default: disable it whenever the request has not
+	// explicitly opted into reasoning (`enabled === true`). Users can still turn
+	// thinking back on via the explicit reasoning toggle.
 	return (
 		input.request.providerId === "ollama" &&
-		input.request.reasoning?.enabled === false &&
+		input.request.reasoning?.enabled !== true &&
 		modelReasoningDefaultsOn({
 			request: input.request,
 			context: input.context,
