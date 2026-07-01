@@ -3558,7 +3558,7 @@ describe("sdk-gateway", () => {
 						reasoning: { enabled: true },
 					}),
 					openrouter: expect.objectContaining({
-						reasoning: { enabled: true },
+						reasoning: { enabled: true, max_tokens: 19_200 },
 					}),
 				}),
 			}),
