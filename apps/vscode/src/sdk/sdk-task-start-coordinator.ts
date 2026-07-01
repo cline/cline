@@ -7,6 +7,7 @@ import type { Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
 import type { StateManager } from "@/core/storage/StateManager"
 import { Logger } from "@/shared/services/Logger"
+import { PROVIDER_FAILURE_ERROR_TYPE, PROVIDER_FAILURE_PHASE, type ProviderFailureTelemetry } from "./provider-failure-telemetry"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import type { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
@@ -52,6 +53,7 @@ export interface SdkTaskStartCoordinatorOptions {
 	resolveContextMentions: (text: string) => Promise<string>
 	isClineProviderActive: () => boolean
 	emitClineAuthError: (task?: string) => void
+	captureProviderApiError?: (event: ProviderFailureTelemetry) => void
 	postStateToWebview: () => Promise<void>
 }
 
@@ -67,6 +69,8 @@ export class SdkTaskStartCoordinator {
 	): Promise<string | undefined> {
 		Logger.log(`[SdkController] initTask called: "${prompt?.substring(0, 50)}"`)
 		let taskSessionId: string | undefined
+		let providerId: string | undefined
+		let modelId: string | undefined
 		try {
 			await this.options.clearTask()
 
@@ -82,6 +86,8 @@ export class SdkTaskStartCoordinator {
 				cwd,
 				mode,
 			})
+			providerId = config.providerId
+			modelId = config.modelId
 
 			Logger.log(
 				`[SdkController] Session config: provider=${config.providerId}, model=${config.modelId}, hasApiKey=${!!config.apiKey}`,
@@ -91,6 +97,8 @@ export class SdkTaskStartCoordinator {
 				Logger.warn(
 					`[SdkController] ${config.providerId} provider selected but no Cline auth token — emitting auth error`,
 				)
+				// No task/session id exists yet, so this preflight auth UI path is
+				// intentionally not recorded as task-joinable provider error telemetry.
 				this.options.emitClineAuthError(prompt)
 				return undefined
 			}
@@ -141,6 +149,14 @@ export class SdkTaskStartCoordinator {
 			Logger.log(`[SdkController] Task initialized: ${taskSessionId}`)
 			return taskSessionId
 		} catch (error) {
+			this.options.captureProviderApiError?.({
+				sessionId: taskSessionId,
+				error,
+				providerId,
+				modelId,
+				errorType: PROVIDER_FAILURE_ERROR_TYPE.TASK_INIT,
+				failurePhase: PROVIDER_FAILURE_PHASE.PREFLIGHT,
+			})
 			this.handleInitError(error, taskSessionId)
 			await this.options.postStateToWebview().catch((postError) => {
 				Logger.error("[SdkController] Failed to post state after init error:", postError)

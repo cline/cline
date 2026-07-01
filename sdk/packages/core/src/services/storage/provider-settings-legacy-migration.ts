@@ -416,6 +416,12 @@ function resolveLegacyCodexAuth(
 
 function getDefaultModelForProvider(providerId: string): string | undefined {
 	const builtInModels = LlmsModels.getGeneratedModelsForProvider(providerId);
+	const providerCollection = LlmsModels.getProviderCollectionSync(providerId);
+	const defaultModelId = providerCollection?.provider.defaultModelId;
+	if (defaultModelId && builtInModels[defaultModelId]) {
+		return defaultModelId;
+	}
+
 	const firstModelId = Object.keys(builtInModels)[0];
 	return firstModelId ?? undefined;
 }

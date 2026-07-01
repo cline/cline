@@ -152,18 +152,39 @@ describe("provider-ids", () => {
 		await expect(getProvider("xiaomi")).resolves.toMatchObject({
 			id: "xiaomi",
 			baseUrl: "https://api.xiaomimimo.com/v1",
-			defaultModelId: "mimo-v2-omni",
+			defaultModelId: "mimo-v2.5",
 			client: "openai-compatible",
 		});
 
 		await expect(getModelsForProvider("xiaomi")).resolves.toHaveProperty(
-			"mimo-v2-omni",
+			"mimo-v2.5",
 		);
 
 		const registration = BUILTIN_PROVIDER_REGISTRATIONS.find(
 			(item) => item.manifest.id === "xiaomi",
 		);
 		await expect(registration?.loadProvider?.()).resolves.toMatchObject({
+			createProvider: createOpenAICompatibleProvider,
+		});
+	});
+
+	it("registers Tencent TokenHub as an OpenAI-compatible built-in provider", async () => {
+		await expect(getProvider("tencent-tokenhub")).resolves.toMatchObject({
+			id: "tencent-tokenhub",
+			baseUrl: "https://tokenhub.tencentmaas.com/v1",
+			defaultModelId: "hy3-preview",
+			client: "openai-compatible",
+		});
+
+		await expect(
+			getModelsForProvider("tencent-tokenhub"),
+		).resolves.toHaveProperty("hy3-preview");
+
+		const registration = BUILTIN_PROVIDER_REGISTRATIONS.find(
+			(item) => item.manifest.id === "tencent-tokenhub",
+		);
+		expect(registration).toBeDefined();
+		await expect(registration?.loadProvider()).resolves.toMatchObject({
 			createProvider: createOpenAICompatibleProvider,
 		});
 	});
