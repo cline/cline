@@ -60,6 +60,7 @@ function buildCachedAiSdkMessages(
 ) {
 	const aiMessages = toAiSdkMessages(request.messages, systemPrompt, {
 		includeReasoning: shouldIncludeReasoningHistory(request, context),
+		supportsImages: shouldIncludeImages(context),
 	}) as Array<Record<string, unknown>>;
 	const includeAnthropic = isAnthropicCompatibleModel({
 		modelId: request.modelId,
@@ -246,6 +247,13 @@ function shouldIncludeReasoningHistory(
 	return !isCerebrasProvider(request, context);
 }
 
+function shouldIncludeImages(context: GatewayProviderContext): boolean {
+	// Only omit image blocks when we positively know the model lacks the
+	// "images" capability (e.g. text-only GLM models). If capabilities are
+	// unknown, preserve prior behavior and include them.
+	return context.model.capabilities?.includes("images") ?? true;
+}
+
 async function ensureGatewayLangfuseTelemetry(
 	providerId: string,
 ): Promise<boolean> {
@@ -260,9 +268,10 @@ async function ensureGatewayLangfuseTelemetry(
 function toAiSdkMessages(
 	messages: readonly AgentMessage[],
 	systemPrompt?: string,
-	options?: { includeReasoning?: boolean },
+	options?: { includeReasoning?: boolean; supportsImages?: boolean },
 ) {
 	const includeReasoning = options?.includeReasoning ?? true;
+	const supportsImages = options?.supportsImages ?? true;
 	const normalizedMessages: AiSdkFormatterMessage[] = [];
 
 	for (const message of messages) {
@@ -363,6 +372,7 @@ function toAiSdkMessages(
 
 	return formatMessagesForAiSdk(systemPrompt, normalizedMessages, {
 		assistantToolCallArgKey: "input",
+		supportsImages,
 	});
 }
 
@@ -1132,6 +1142,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					? buildCachedAiSdkMessages(request, context, messagesSystemPrompt)
 					: toAiSdkMessages(request.messages, messagesSystemPrompt, {
 							includeReasoning: shouldIncludeReasoningHistory(request, context),
+							supportsImages: shouldIncludeImages(context),
 						});
 				const providerOptions = composeAiSdkProviderOptions(
 					request,
