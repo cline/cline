@@ -1,3 +1,7 @@
+export {
+	buildBudgetProjection,
+	findLatestTypedUserMessageIndex,
+} from "./project";
 export type {
 	BlockBudgetClass,
 	BudgetAction,
@@ -11,4 +15,3 @@ export type {
 	ContentBlockBudgetClassification,
 	LiveTailHandling,
 } from "./types";
-
