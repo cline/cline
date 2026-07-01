@@ -211,7 +211,7 @@ export async function runInteractive(
 		onPendingPromptSubmitted: (event) => {
 			uiEvents.emit("pending-prompt-submitted", event);
 		},
-		isCompactionSidecarEnabled:
+		getCompactionSidecarEnabled:
 			createSessionCompactionSidecarEnabledResolver(getCliFeatureFlagsService()),
 	});
 	let modeChangePromise: Promise<void> | undefined;

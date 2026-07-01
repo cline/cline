@@ -187,11 +187,11 @@ export class HubServerTransport implements NativeHubTransport {
 	private readonly ctx: HubTransportContext;
 
 	constructor(readonly options: HubWebSocketServerOptions) {
-		const isCompactionSidecarEnabled =
-			options.isCompactionSidecarEnabled ??
+		const getCompactionSidecarEnabled =
+			options.getCompactionSidecarEnabled ??
 			createSessionCompactionSidecarEnabledResolver();
 		const compactionSidecar = createSessionCompactionSidecarAccess(
-			isCompactionSidecarEnabled,
+			getCompactionSidecarEnabled,
 		);
 		this.sessionHost =
 			options.sessionHost ??
@@ -199,7 +199,7 @@ export class HubServerTransport implements NativeHubTransport {
 				sessionService: new CoreSessionService(new SqliteSessionStore()),
 				fetch: options.fetch,
 				telemetry: options.telemetry,
-				isCompactionSidecarEnabled,
+				getCompactionSidecarEnabled,
 			});
 		this.ctx = {
 			clients: this.clients,

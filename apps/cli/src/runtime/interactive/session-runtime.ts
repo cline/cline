@@ -105,14 +105,14 @@ export function createInteractiveSessionRuntime(input: {
 	onTeamEvent: (event: TeamEvent) => void;
 	onPendingPrompts: (event: PendingPromptSnapshot) => void;
 	onPendingPromptSubmitted: (event: PendingPromptSubmittedEvent) => void;
-	isCompactionSidecarEnabled?: () => boolean;
+	getCompactionSidecarEnabled?: () => boolean;
 }) {
 	let sessionManager: CliCore | undefined;
-	const isCompactionSidecarEnabled =
-		input.isCompactionSidecarEnabled ??
+	const getCompactionSidecarEnabled =
+		input.getCompactionSidecarEnabled ??
 		createSessionCompactionSidecarEnabledResolver();
 	const compactionSidecar = createSessionCompactionSidecarAccess(
-		isCompactionSidecarEnabled,
+		getCompactionSidecarEnabled,
 	);
 	let runtimeHooks: RuntimeHooks | undefined;
 	let unsubscribeAgent = () => {};

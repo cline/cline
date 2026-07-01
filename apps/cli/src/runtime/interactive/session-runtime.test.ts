@@ -217,7 +217,7 @@ async function makeRuntime(
 				onTeamEvent: vi.fn(),
 				onPendingPrompts: vi.fn(),
 				onPendingPromptSubmitted: vi.fn(),
-				isCompactionSidecarEnabled: () => true,
+				getCompactionSidecarEnabled: () => true,
 			});
 }
 
@@ -295,7 +295,7 @@ describe("createInteractiveSessionRuntime", () => {
 				onTeamEvent: vi.fn(),
 				onPendingPrompts: vi.fn(),
 				onPendingPromptSubmitted: vi.fn(),
-				isCompactionSidecarEnabled: () => true,
+				getCompactionSidecarEnabled: () => true,
 			});
 
 		await runtime.ensureReady();
@@ -380,7 +380,7 @@ describe("createInteractiveSessionRuntime", () => {
 			onTeamEvent: vi.fn(),
 			onPendingPrompts: vi.fn(),
 			onPendingPromptSubmitted: vi.fn(),
-			isCompactionSidecarEnabled: () => false,
+			getCompactionSidecarEnabled: () => false,
 		});
 
 		await runtime.ensureReady();
@@ -442,7 +442,7 @@ describe("createInteractiveSessionRuntime", () => {
 				onTeamEvent: vi.fn(),
 				onPendingPrompts: vi.fn(),
 				onPendingPromptSubmitted: vi.fn(),
-				isCompactionSidecarEnabled: () => true,
+				getCompactionSidecarEnabled: () => true,
 			});
 
 		await runtime.ensureReady();
@@ -540,7 +540,7 @@ describe("createInteractiveSessionRuntime", () => {
 				onTeamEvent: vi.fn(),
 				onPendingPrompts: vi.fn(),
 				onPendingPromptSubmitted: vi.fn(),
-				isCompactionSidecarEnabled: () => true,
+				getCompactionSidecarEnabled: () => true,
 			});
 
 		await runtime.ensureReady();

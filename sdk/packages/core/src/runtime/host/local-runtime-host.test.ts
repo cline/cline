@@ -4248,7 +4248,7 @@ describe("LocalRuntimeHost", () => {
 				}),
 				},
 				createAgent: createAgent as never,
-				isCompactionSidecarEnabled: () => true,
+				getCompactionSidecarEnabled: () => true,
 			});
 
 		await manager.startSession(
@@ -4314,7 +4314,7 @@ describe("LocalRuntimeHost", () => {
 				}),
 			},
 			createAgent: createAgent as never,
-			isCompactionSidecarEnabled: () => true,
+			getCompactionSidecarEnabled: () => true,
 		});
 
 		await manager.startSession(
@@ -4388,7 +4388,7 @@ describe("LocalRuntimeHost", () => {
 				}),
 			},
 			createAgent: createAgent as never,
-			isCompactionSidecarEnabled: () => true,
+			getCompactionSidecarEnabled: () => true,
 		});
 
 		await manager.startSession(
@@ -4428,6 +4428,9 @@ describe("LocalRuntimeHost", () => {
 			conversationId: sessionId,
 			updatedAt: "2026-01-01T00:00:00.000Z",
 		});
+		const compact = vi.fn().mockResolvedValue({
+			messages: [{ role: "user", content: "compact summary" }],
+		});
 		const sessionService = {
 			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
 			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
@@ -4465,7 +4468,7 @@ describe("LocalRuntimeHost", () => {
 				}),
 			},
 			createAgent: createAgent as never,
-			isCompactionSidecarEnabled: () => false,
+			getCompactionSidecarEnabled: () => false,
 		});
 
 		await manager.startSession(
@@ -4475,7 +4478,8 @@ describe("LocalRuntimeHost", () => {
 					compaction: {
 						enabled: true,
 						strategy: "basic",
-						compact: vi.fn(),
+						compact,
+						maxInputTokens: 10,
 					},
 				}),
 				initialMessages,
@@ -4484,9 +4488,26 @@ describe("LocalRuntimeHost", () => {
 			}),
 		);
 
-		expect(createAgent.mock.calls[0]?.[0]?.prepareTurn).toEqual(
-			expect.any(Function),
-		);
+		const prepareTurn = createAgent.mock.calls[0]?.[0]?.prepareTurn;
+		expect(prepareTurn).toEqual(expect.any(Function));
+		await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: sessionId,
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "",
+			tools: [],
+			messages: initialMessages,
+			apiMessages: initialMessages,
+			model: {
+				id: "mock-model",
+				provider: "mock-provider",
+				info: { id: "mock-model", maxInputTokens: 10 },
+			},
+		});
+
+		expect(compact).toHaveBeenCalled();
 		expect(sessionService.persistSessionCompactionState).not.toHaveBeenCalled();
 		await expect(
 			manager.readSessionCompactionState(sessionId),
@@ -4546,7 +4567,7 @@ describe("LocalRuntimeHost", () => {
 				}),
 			},
 			createAgent: createAgent as never,
-			isCompactionSidecarEnabled: () => true,
+			getCompactionSidecarEnabled: () => true,
 		});
 
 		await manager.startSession(

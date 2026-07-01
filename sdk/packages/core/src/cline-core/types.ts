@@ -225,7 +225,7 @@ export interface ClineCoreOptions {
 	 * See createSessionCompactionSidecarAccess.
 	 * @internal
 	 */
-	isCompactionSidecarEnabled?: () => boolean;
+	getCompactionSidecarEnabled?: () => boolean;
 	/**
 	 * Optional structured logger for core-side operational diagnostics such as
 	 * runtime-host selection and fallback decisions.
