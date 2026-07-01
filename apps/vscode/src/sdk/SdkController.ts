@@ -44,6 +44,7 @@ import { telemetryService } from "@/services/telemetry"
 import type { ClineExtensionContext } from "@/shared/cline"
 import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
+import { isClineProvider } from "@/shared/utils/cline"
 import { arePathsEqual, getDesktopDir } from "@/utils/path"
 import { ClineAccountService } from "./account-service"
 import { AuthService, LogoutReason } from "./auth-service"
@@ -326,7 +327,7 @@ export class Controller {
 				const errorMessage = error instanceof Error ? error.message : String(error)
 				const providerId = this.getSessionProviderId(sessionId) ?? this.getActiveProviderId()
 				const isClineAuthError =
-					providerId === "cline" &&
+					isClineProvider(providerId) &&
 					(errorMessage.includes(CLINE_ACCOUNT_AUTH_ERROR_MESSAGE) ||
 						errorMessage.toLowerCase().includes("missing api key") ||
 						errorMessage.toLowerCase().includes("unauthorized"))
@@ -340,7 +341,7 @@ export class Controller {
 						failurePhase: PROVIDER_FAILURE_PHASE.PREFLIGHT,
 					})
 					this.emitClineAuthError()
-				} else if (providerId === "cline" && this.isClineBalanceError(errorMessage)) {
+				} else if (isClineProvider(providerId) && this.isClineBalanceError(errorMessage)) {
 					this.captureProviderFailure({
 						sessionId,
 						error,
@@ -884,10 +885,10 @@ export class Controller {
 	}
 
 	/**
-	 * Check if the active API provider is 'cline' (for current mode).
+	 * Check if the active API provider uses Cline account auth for the current mode.
 	 */
 	private isClineProviderActive(): boolean {
-		return this.getActiveProviderId() === "cline"
+		return isClineProvider(this.getActiveProviderId())
 	}
 
 	private captureProviderFailure(event: ProviderFailureTelemetry): void {
