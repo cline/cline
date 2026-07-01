@@ -2,8 +2,9 @@ import type { AgentEvent, CoreSessionEvent } from "@cline/core"
 import { refreshClineRecommendedModels } from "@/core/controller/models/refreshClineRecommendedModels"
 import type { StateManager } from "@/core/storage/StateManager"
 import { CLINE_RECOMMENDED_MODELS_FALLBACK } from "@/shared/cline/recommended-models"
-import type { ClineApiReqInfo, TurnPhase } from "@/shared/ExtensionMessage"
+import type { ClineApiReqInfo, ClineAsk, ClineMessage, TurnPhase } from "@/shared/ExtensionMessage"
 import { Logger } from "@/shared/services/Logger"
+import { awaitingUserActionTypeForAsk, type SdkAwaitingUserActionTelemetry } from "./awaiting-user-action-telemetry"
 import type { MessageTranslatorState, TranslationResult } from "./message-translator"
 import { translateSessionEvent } from "./message-translator"
 import { PROVIDER_FAILURE_ERROR_TYPE, PROVIDER_FAILURE_PHASE, type ProviderFailureTelemetry } from "./provider-failure-telemetry"
@@ -40,6 +41,7 @@ export interface SdkSessionEventCoordinatorOptions {
 	 * error. Optional for tests.
 	 */
 	setTurnPhase?: (phase: TurnPhase, anchorTs?: number) => void
+	captureTaskAwaitingUserAction?: (event: SdkAwaitingUserActionTelemetry) => void
 	captureProviderApiError?: (event: ProviderFailureTelemetry) => void
 	beginProviderFailureTelemetryTurn?: () => void
 }
@@ -117,6 +119,7 @@ export class SdkSessionEventCoordinator {
 					this.options.setTurnPhase?.("completed")
 				} else {
 					this.options.setTurnPhase?.("awaiting_followup")
+					this.captureAwaitingUserActionForTurnEnd(activeSession.sessionId, result.messages)
 				}
 
 				this.options.sessions.setRunning(false)
@@ -187,6 +190,18 @@ export class SdkSessionEventCoordinator {
 			}
 		}
 		return undefined
+	}
+
+	private captureAwaitingUserActionForTurnEnd(sessionId: string, messages: ClineMessage[]): void {
+		const askType = messages.find((message): message is ClineMessage & { type: "ask"; ask: ClineAsk } => {
+			return message.type === "ask" && typeof message.ask === "string"
+		})?.ask
+
+		this.options.captureTaskAwaitingUserAction?.({
+			sessionId,
+			awaitingType: askType ? awaitingUserActionTypeForAsk(askType) : "turn_finished_without_completion",
+			askType,
+		})
 	}
 
 	private zeroCostForFreeClineModel(result: TranslationResult): Promise<void> | undefined {

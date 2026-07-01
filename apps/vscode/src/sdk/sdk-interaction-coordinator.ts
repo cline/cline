@@ -1,7 +1,11 @@
 import type { ConsecutiveMistakeLimitContext, ConsecutiveMistakeLimitDecision } from "@cline/shared"
-import type { ClineAskQuestion, ClineMessage, TurnPhase } from "@shared/ExtensionMessage"
+import type { ClineAsk, ClineAskQuestion, ClineMessage, TurnPhase } from "@shared/ExtensionMessage"
 import type { ClineAskResponse } from "@shared/WebviewMessage"
 import { Logger } from "@/shared/services/Logger"
+import {
+	awaitingUserActionTypeForAsk,
+	type SdkAwaitingUserActionTelemetry,
+} from "./awaiting-user-action-telemetry"
 import { MessageIdMinter } from "./message-id-minter"
 import { buildToolApprovalAskMessage } from "./message-translator"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
@@ -36,6 +40,7 @@ export interface SdkInteractionCoordinatorOptions {
 	 * Optional for tests.
 	 */
 	setTurnPhase?: (phase: TurnPhase, anchorTs?: number) => void
+	captureTaskAwaitingUserAction?: (event: SdkAwaitingUserActionTelemetry) => void
 }
 
 export class SdkInteractionCoordinator {
@@ -70,6 +75,7 @@ export class SdkInteractionCoordinator {
 			payload: { sessionId: this.options.getSessionId(), status: "running" },
 		})
 		this.options.setTurnPhase?.("error", askMessage.ts)
+		this.captureAwaitingUserAction("mistake_limit_reached")
 		await this.options.postStateToWebview()
 
 		return new Promise<ConsecutiveMistakeLimitDecision>((resolve) => {
@@ -90,6 +96,9 @@ export class SdkInteractionCoordinator {
 			payload: { sessionId: this.options.getSessionId(), status: "running" },
 		})
 		this.options.setTurnPhase?.("awaiting_approval", toolAskMessage.ts)
+		if (toolAskMessage.ask) {
+			this.captureAwaitingUserAction(toolAskMessage.ask)
+		}
 		await this.options.postStateToWebview()
 
 		return new Promise<{ approved: boolean; reason?: string }>((resolve) => {
@@ -120,6 +129,7 @@ export class SdkInteractionCoordinator {
 			payload: { sessionId: this.options.getSessionId(), status: "running" },
 		})
 		this.options.setTurnPhase?.("awaiting_followup", askMessage.ts)
+		this.captureAwaitingUserAction("followup")
 		await this.options.postStateToWebview()
 
 		return new Promise<string>((resolve) => {
@@ -292,5 +302,13 @@ export class SdkInteractionCoordinator {
 			this.fallbackMinter = new MessageIdMinter()
 		}
 		return this.fallbackMinter
+	}
+
+	private captureAwaitingUserAction(askType: ClineAsk): void {
+		this.options.captureTaskAwaitingUserAction?.({
+			sessionId: this.options.getSessionId(),
+			awaitingType: awaitingUserActionTypeForAsk(askType),
+			askType,
+		})
 	}
 }
