@@ -245,8 +245,10 @@ function resolveBasicTargetTokens(input: {
 	maxInputTokens: number;
 	modelMaxTokens?: number;
 	triggerTokens: number;
+	messagePairCount: number;
 }): number {
 	const targetBaseTokens =
+		input.messagePairCount >= 5 &&
 		typeof input.modelMaxTokens === "number" &&
 		Number.isFinite(input.modelMaxTokens) &&
 		input.modelMaxTokens < input.maxInputTokens
@@ -259,6 +261,22 @@ function resolveBasicTargetTokens(input: {
 			input.maxInputTokens,
 		),
 	);
+}
+
+function countUserAssistantPairs(
+	messages: CoreCompactionContext["messages"],
+): number {
+	let pairs = 0;
+	let hasPendingUser = false;
+	for (const message of messages) {
+		if (message.role === "user") {
+			hasPendingUser = true;
+		} else if (message.role === "assistant" && hasPendingUser) {
+			pairs += 1;
+			hasPendingUser = false;
+		}
+	}
+	return pairs;
 }
 
 /**
@@ -351,37 +369,38 @@ export function createContextCompactionPrepareTurn(
 		if (mode === "auto" && !triggerState.shouldCompact) {
 			return undefined;
 		}
-			const targetState =
-				mode === "manual"
-					? resolveManualTargetState({
-							inputTokens,
-							maxInputTokens,
+		const targetState =
+			mode === "manual"
+				? resolveManualTargetState({
+						inputTokens,
+						maxInputTokens,
 						autoTriggerTokens: triggerState.triggerTokens,
 						manualTargetRatio: options.manualTargetRatio,
 					})
-					: triggerState;
-			const targetTokens =
-				mode === "auto"
-					? resolveBasicTargetTokens({
-							maxInputTokens,
-							modelMaxTokens: context.model.info?.maxTokens,
-							triggerTokens: targetState.triggerTokens,
-						})
-					: undefined;
+				: triggerState;
+		const targetTokens =
+			mode === "auto"
+				? resolveBasicTargetTokens({
+						maxInputTokens,
+						modelMaxTokens: context.model.info?.maxTokens,
+						triggerTokens: targetState.triggerTokens,
+						messagePairCount: countUserAssistantPairs(context.messages),
+					})
+				: undefined;
 
-			const compactionContext = {
-				agentId: context.agentId,
-				conversationId: context.conversationId,
+		const compactionContext = {
+			agentId: context.agentId,
+			conversationId: context.conversationId,
 			parentAgentId: context.parentAgentId,
 			iteration: context.iteration,
 			messages: context.messages,
-				model: context.model,
-				maxInputTokens,
-				triggerTokens: targetState.triggerTokens,
-				targetTokens,
-				thresholdRatio: targetState.thresholdRatio,
-				utilizationRatio: maxInputTokens > 0 ? inputTokens / maxInputTokens : 0,
-			};
+			model: context.model,
+			maxInputTokens,
+			triggerTokens: targetState.triggerTokens,
+			targetTokens,
+			thresholdRatio: targetState.thresholdRatio,
+			utilizationRatio: maxInputTokens > 0 ? inputTokens / maxInputTokens : 0,
+		};
 
 		const statusReason =
 			mode === "manual" ? "manual_compaction" : "auto_compaction";
