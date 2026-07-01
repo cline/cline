@@ -121,6 +121,7 @@ const PROVIDER_IDS_MAP: ReadonlyArray<{
 		generatedProviderId: "tencent-tokenhub",
 	},
 	{ modelsDevKey: "v0", generatedProviderId: "v0" },
+	{ modelsDevKey: "opencode", generatedProviderId: "opencode" },
 ];
 
 function dedupe(values: readonly string[]): string[] {
