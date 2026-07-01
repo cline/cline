@@ -20,5 +20,8 @@ export async function createOpenAIProviderModule(
 	});
 	return {
 		model: (modelId) => provider.responses(modelId),
+		buildStreamConfig: (request) => ({
+			temperature: request.temperature,
+		}),
 	};
 }

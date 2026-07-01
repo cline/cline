@@ -14,7 +14,7 @@ import {
 	formatMessagesForAiSdk,
 	sanitizeSurrogates,
 } from "@cline/shared";
-import { jsonSchema, streamText } from "ai";
+import { type CallSettings, jsonSchema, streamText } from "ai";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import { extractErrorMessage } from "./format";
@@ -52,6 +52,18 @@ interface GatewayNormalizedUsage {
 	totalCost?: number;
 }
 type ProviderModuleKind = AiSdkProviderOptionsTarget;
+
+export function buildAiSdkStreamConfig(
+	request: GatewayStreamRequest,
+	_context: GatewayProviderContext,
+): Partial<CallSettings> {
+	return {
+		...(request.maxTokens !== undefined
+			? { maxOutputTokens: request.maxTokens }
+			: {}),
+		temperature: request.temperature,
+	};
+}
 
 function buildCachedAiSdkMessages(
 	request: GatewayStreamRequest,
@@ -355,7 +367,6 @@ function toAiSdkMessages(
 		if (content.length > 0) {
 			normalizedMessages.push({ role: message.role, content });
 		} else if (!includeReasoning && skippedReasoning) {
-			continue;
 		} else if (message.role === "user" || message.role === "assistant") {
 			normalizedMessages.push({ role: message.role, content: "" });
 		}
@@ -1138,6 +1149,9 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					context,
 					kind,
 				) as never;
+				const requestConfig = provider.buildStreamConfig
+					? provider.buildStreamConfig(request, context)
+					: buildAiSdkStreamConfig(request, context);
 				recordProviderRequestCapture({
 					stage: "ai_sdk_prompt",
 					request,
@@ -1146,8 +1160,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 						...(useSystemOption ? { system: systemPrompt } : {}),
 						tools,
 						providerOptions,
-						maxOutputTokens: request.maxTokens,
-						temperature: request.temperature,
+						...requestConfig,
 					},
 				});
 				stream = streamText({
@@ -1155,15 +1168,12 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					messages: messages as never,
 					...(useSystemOption ? { system: systemPrompt } : {}),
 					tools: tools as never,
-					temperature: request.temperature,
-					...(request.maxTokens !== undefined
-						? { maxOutputTokens: request.maxTokens }
-						: {}),
 					abortSignal: request.signal,
 					experimental_telemetry: {
 						isEnabled: langfuse,
 					},
 					providerOptions,
+					...requestConfig,
 					onError: ({ error: streamError }) => {
 						const msg = extractErrorMessage(streamError);
 						capturedError.current = msg;

@@ -19,6 +19,7 @@ import { GatewayRegistry } from "./registry";
 
 export type * from "@cline/shared";
 
+export const DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS = 32_000;
 const GATEWAY_OUTPUT_RESERVE_TOKENS = 1_024;
 
 function mergeRequestMetadata(
@@ -169,6 +170,7 @@ export function resolveGatewayRequestMaxTokens(input: {
 	requestedMaxTokens?: number;
 	model: Pick<GatewayModelDefinition, "contextWindow" | "maxOutputTokens">;
 	estimatedInputTokens: number;
+	defaultMaxOutputTokens?: number;
 	outputReserveTokens?: number;
 	onContextOverflow?: (details: {
 		contextWindow: number;
@@ -176,11 +178,19 @@ export function resolveGatewayRequestMaxTokens(input: {
 		reserveTokens: number;
 	}) => void;
 }): number | undefined {
-	if (!isPositiveFiniteNumber(input.requestedMaxTokens)) {
-		return undefined;
+	const caps: number[] = [];
+	if (isPositiveFiniteNumber(input.requestedMaxTokens)) {
+		caps.push(Math.floor(input.requestedMaxTokens));
+	} else {
+		const defaultMaxOutputTokens =
+			input.defaultMaxOutputTokens ?? DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS;
+		if (
+			isPositiveFiniteNumber(input.model.maxOutputTokens) ||
+			isPositiveFiniteNumber(input.model.contextWindow)
+		) {
+			caps.push(defaultMaxOutputTokens);
+		}
 	}
-
-	const caps: number[] = [Math.floor(input.requestedMaxTokens)];
 
 	if (isPositiveFiniteNumber(input.model.maxOutputTokens)) {
 		caps.push(Math.floor(input.model.maxOutputTokens));
@@ -280,24 +290,22 @@ export class DefaultGateway implements Gateway {
 			request.providerId,
 		);
 		const provider = await providerRecord.createProvider(providerRecord.config);
-		const maxTokens = isPositiveFiniteNumber(request.maxTokens)
-			? resolveGatewayRequestMaxTokens({
-					requestedMaxTokens: request.maxTokens,
-					model: resolved.model,
-					estimatedInputTokens: estimateRequestInputTokens(request),
-					onContextOverflow: (details) => {
-						this.logger?.log(
-							"Estimated prompt tokens exceed model context window",
-							{
-								severity: "warn",
-								providerId: resolved.provider.id,
-								modelId: resolved.model.id,
-								...details,
-							},
-						);
+		const maxTokens = resolveGatewayRequestMaxTokens({
+			requestedMaxTokens: request.maxTokens,
+			model: resolved.model,
+			estimatedInputTokens: estimateRequestInputTokens(request),
+			onContextOverflow: (details) => {
+				this.logger?.log(
+					"Estimated prompt tokens exceed model context window",
+					{
+						severity: "warn",
+						providerId: resolved.provider.id,
+						modelId: resolved.model.id,
+						...details,
 					},
-				})
-			: undefined;
+				);
+			},
+		});
 		const stream = await provider.stream(
 			{
 				...request,

@@ -20,6 +20,7 @@ type ContextOverrides = {
 	providerId?: string;
 	modelId?: string;
 	family?: string;
+	maxOutputTokens?: number;
 	modelMetadata?: NonNullable<GatewayProviderContext["model"]["metadata"]>;
 	capabilities?: GatewayProviderContext["model"]["capabilities"];
 	metadata?: GatewayProviderContext["provider"]["metadata"];
@@ -87,6 +88,7 @@ function makeContext(options?: ContextOverrides): GatewayProviderContext {
 			id: modelId,
 			name: modelId,
 			providerId,
+			maxOutputTokens: options?.maxOutputTokens,
 			capabilities: options?.capabilities,
 			metadata: modelMetadata,
 		},
@@ -605,8 +607,67 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			expect: [
 				{
 					bucket: "openrouter",
-					has: { reasoning: { enabled: true } },
+					has: { reasoning: { enabled: true, max_tokens: 19_200 } },
 					lacks: ["thinking", "effort", "reasoningEffort"],
+				},
+				{
+					bucket: "openaiCompatible",
+					lacks: ["thinking", "reasoning", "effort", "reasoningEffort"],
+				},
+			],
+		},
+		{
+			name: "openrouter reasoning enabled-only uses resolved output cap for reasoning budget",
+			request: {
+				providerId: "openrouter",
+				modelId: "openai/gpt-oss-120b",
+				maxTokens: 10_000,
+				reasoning: { enabled: true },
+			},
+			expect: [
+				{
+					bucket: "openrouter",
+					has: { reasoning: { enabled: true, max_tokens: 6_000 } },
+					lacks: ["thinking", "effort", "reasoningEffort"],
+				},
+				{
+					bucket: "openaiCompatible",
+					lacks: ["thinking", "reasoning", "effort", "reasoningEffort"],
+				},
+			],
+		},
+		{
+			name: "openrouter reasoning enabled-only uses model output cap when request cap is absent",
+			request: {
+				providerId: "openrouter",
+				modelId: "openai/gpt-oss-120b",
+				reasoning: { enabled: true },
+			},
+			context: { maxOutputTokens: 12_000 },
+			expect: [
+				{
+					bucket: "openrouter",
+					has: { reasoning: { enabled: true, max_tokens: 7_200 } },
+					lacks: ["thinking", "effort", "reasoningEffort"],
+				},
+				{
+					bucket: "openaiCompatible",
+					lacks: ["thinking", "reasoning", "effort", "reasoningEffort"],
+				},
+			],
+		},
+		{
+			name: "openrouter reasoning effort uses default output cap fallback for direct composer calls",
+			request: {
+				providerId: "openrouter",
+				modelId: "openai/gpt-oss-120b",
+				reasoning: { effort: "high" },
+			},
+			expect: [
+				{
+					bucket: "openrouter",
+					has: { reasoning: { effort: "high", max_tokens: 19_200 } },
+					lacks: ["thinking", "reasoningEffort"],
 				},
 				{
 					bucket: "openaiCompatible",
@@ -665,7 +726,7 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			expect: [
 				{
 					bucket: "openrouter",
-					has: { reasoning: { enabled: true } },
+					has: { reasoning: { enabled: true, max_tokens: 19_200 } },
 					lacks: ["thinking"],
 				},
 				{
@@ -705,7 +766,7 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			expect: [
 				{
 					bucket: "openrouter",
-					has: { reasoning: { effort: "medium" } },
+					has: { reasoning: { effort: "medium", max_tokens: 19_200 } },
 					lacks: ["thinking"],
 				},
 				{
@@ -1307,7 +1368,7 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			expect: [
 				{
 					bucket: "openrouter",
-					has: { reasoning: { enabled: true } },
+					has: { reasoning: { enabled: true, max_tokens: 19_200 } },
 					lacks: ["thinking", "effort", "reasoningEffort"],
 				},
 				{
