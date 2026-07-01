@@ -31,7 +31,9 @@ const PROVIDER_IDS_MAP: ReadonlyArray<{
 		generatedProviderId: "deepseek",
 		runtimeProviderId: "deepseek",
 	},
+	{ modelsDevKey: "doubao", generatedProviderId: "doubao" },
 	{ modelsDevKey: "xai", generatedProviderId: "xai" },
+	{ modelsDevKey: "mistral", generatedProviderId: "mistral" },
 	{
 		modelsDevKey: "togetherai",
 		generatedProviderId: "together",
@@ -98,7 +100,11 @@ const PROVIDER_IDS_MAP: ReadonlyArray<{
 		runtimeProviderId: "aihubmix",
 	},
 	{ modelsDevKey: "hicap", runtimeProviderId: "hicap" },
-	{ modelsDevKey: "nous-research", runtimeProviderId: "nousResearch" },
+	{
+		modelsDevKey: "nous-research",
+		generatedProviderId: "nousResearch",
+		runtimeProviderId: "nousResearch",
+	},
 	{ modelsDevKey: "huawei-cloud-maas", runtimeProviderId: "huawei-cloud-maas" },
 	{
 		modelsDevKey: "baseten",

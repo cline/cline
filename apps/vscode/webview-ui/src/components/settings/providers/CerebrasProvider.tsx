@@ -1,30 +1,38 @@
-import { cerebrasModels } from "@shared/api"
-import { Mode } from "@shared/storage/types"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { ApiKeyField } from "../common/ApiKeyField"
-import { ModelInfoView } from "../common/ModelInfoView"
-import { ModelSelector } from "../common/ModelSelector"
-import { normalizeApiConfiguration } from "../utils/providerUtils"
-import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { modelsDevCerebrasModels } from "@shared/models/models-dev-catalog";
+import type { Mode } from "@shared/storage/types";
+import { useExtensionState } from "@/context/ExtensionStateContext";
+import { ApiKeyField } from "../common/ApiKeyField";
+import { ModelInfoView } from "../common/ModelInfoView";
+import { ModelSelector } from "../common/ModelSelector";
+import { normalizeApiConfiguration } from "../utils/providerUtils";
+import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers";
 
 /**
  * Props for the CerebrasProvider component
  */
 interface CerebrasProviderProps {
-	showModelOptions: boolean
-	isPopup?: boolean
-	currentMode: Mode
+	showModelOptions: boolean;
+	isPopup?: boolean;
+	currentMode: Mode;
 }
 
 /**
  * The Cerebras provider configuration component
  */
-export const CerebrasProvider = ({ showModelOptions, isPopup, currentMode }: CerebrasProviderProps) => {
-	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
+export const CerebrasProvider = ({
+	showModelOptions,
+	isPopup,
+	currentMode,
+}: CerebrasProviderProps) => {
+	const { apiConfiguration } = useExtensionState();
+	const { handleFieldChange, handleModeFieldChange } =
+		useApiConfigurationHandlers();
 
 	// Get the normalized configuration
-	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
+	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(
+		apiConfiguration,
+		currentMode,
+	);
 
 	return (
 		<div>
@@ -39,8 +47,8 @@ export const CerebrasProvider = ({ showModelOptions, isPopup, currentMode }: Cer
 				<>
 					<ModelSelector
 						label="Model"
-						models={cerebrasModels}
-						onChange={(e: any) =>
+						models={modelsDevCerebrasModels}
+						onChange={(e) =>
 							handleModeFieldChange(
 								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
 								e.target.value,
@@ -50,9 +58,13 @@ export const CerebrasProvider = ({ showModelOptions, isPopup, currentMode }: Cer
 						selectedModelId={selectedModelId}
 					/>
 
-					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
+					<ModelInfoView
+						isPopup={isPopup}
+						modelInfo={selectedModelInfo}
+						selectedModelId={selectedModelId}
+					/>
 				</>
 			)}
 		</div>
-	)
-}
+	);
+};
