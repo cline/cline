@@ -167,7 +167,6 @@ export class Controller {
 	private sessionHistory: SdkSessionHistoryLoader
 	private readonly sdkTelemetry: VscodeSdkTelemetryHandle
 	private readonly providerFailureTelemetryTurnGate = new ProviderFailureTelemetryTurnGate()
-	private providerFailureTelemetryTurnCounter = 0
 	private readonly providerConfigStore: ProviderConfigStore
 	private readonly providerCatalog: ProviderCatalog
 	private readonly providerConfigStoreSubscription: Disposable
@@ -880,8 +879,7 @@ export class Controller {
 	}
 
 	private beginProviderFailureTelemetryTurn(): void {
-		this.providerFailureTelemetryTurnCounter += 1
-		this.providerFailureTelemetryTurnGate.beginTurn(this.providerFailureTelemetryTurnCounter)
+		this.providerFailureTelemetryTurnGate.beginTurn()
 	}
 
 	/**

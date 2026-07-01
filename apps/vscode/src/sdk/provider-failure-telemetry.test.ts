@@ -5,7 +5,7 @@ describe("ProviderFailureTelemetryTurnGate", () => {
 	it("captures one streaming failure per active turn", () => {
 		const gate = new ProviderFailureTelemetryTurnGate()
 
-		gate.beginTurn(1)
+		gate.beginTurn()
 
 		expect(gate.shouldCaptureStreamingFailure()).toBe(true)
 		expect(gate.shouldCaptureStreamingFailure()).toBe(false)
@@ -14,11 +14,11 @@ describe("ProviderFailureTelemetryTurnGate", () => {
 	it("captures again when a new turn starts", () => {
 		const gate = new ProviderFailureTelemetryTurnGate()
 
-		gate.beginTurn(1)
+		gate.beginTurn()
 		expect(gate.shouldCaptureStreamingFailure()).toBe(true)
 		expect(gate.shouldCaptureStreamingFailure()).toBe(false)
 
-		gate.beginTurn(2)
+		gate.beginTurn()
 		expect(gate.shouldCaptureStreamingFailure()).toBe(true)
 	})
 

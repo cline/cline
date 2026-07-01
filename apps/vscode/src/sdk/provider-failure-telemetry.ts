@@ -26,11 +26,13 @@ export type ProviderFailureTelemetry = {
 }
 
 export class ProviderFailureTelemetryTurnGate {
+	private turnCounter = 0
 	private activeTurnId: number | undefined
 	private streamingFailureCapturedTurnId: number | undefined
 
-	beginTurn(turnId: number): void {
-		this.activeTurnId = turnId
+	beginTurn(): void {
+		this.turnCounter += 1
+		this.activeTurnId = this.turnCounter
 	}
 
 	shouldCaptureStreamingFailure(): boolean {
