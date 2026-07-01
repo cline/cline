@@ -1,0 +1,35 @@
+---
+title: "Tuning Engines"
+description: "Configure Cline with Tuning Engines through the OpenAI-compatible provider."
+---
+
+Tuning Engines exposes an OpenAI-compatible inference endpoint for governed model access, routing, policy, and usage tracking. In Cline, configure it through the **OpenAI Compatible** API provider.
+
+## Quickstart
+
+1. Open Cline settings.
+2. Set **API Provider** to **OpenAI Compatible**.
+3. Set **Base URL** to `https://api.tuningengines.com/v1`.
+4. Paste your Tuning Engines inference key into the **API Key** field, for example `sk-te-...`.
+5. Set **Model ID** to a model alias enabled for your Tuning Engines key.
+6. Click **Verify** to confirm the connection.
+
+You can find available model aliases in the [Tuning Engines model catalog](https://app.tuningengines.com/inference/catalog).
+
+## Model Configuration
+
+Use Cline's **Model Configuration** fields to match the model exposed by your Tuning Engines workspace:
+
+- **Max Output Tokens**
+- **Context Window size**
+- **Image Support**
+- **Computer Use**
+- **Input Price** and **Output Price**
+
+These settings help Cline estimate usage and enable the capabilities supported by the selected model alias.
+
+## Troubleshooting
+
+- **Invalid API Key:** Confirm the key starts with `sk-te-` and is active in your Tuning Engines workspace.
+- **Model Not Found:** Confirm the model alias is enabled for the key you are using.
+- **Connection Errors:** Confirm the Base URL is exactly `https://api.tuningengines.com/v1`.
