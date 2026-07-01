@@ -104,6 +104,32 @@ export interface TokenUsage {
 	totalCost?: number
 }
 
+export type TaskAwaitingUserActionType =
+	| "followup"
+	| "plan_response"
+	| "act_response"
+	| "tool_approval"
+	| "command_approval"
+	| "mcp_approval"
+	| "subagent_approval"
+	| "browser_action"
+	| "api_retry"
+	| "mistake_limit"
+	| "condense"
+	| "summarize_task"
+	| "completion_result"
+	| "turn_finished_without_completion"
+	| "unknown"
+
+export interface TaskAwaitingUserActionTelemetry {
+	ulid: string
+	awaitingType: TaskAwaitingUserActionType
+	askType?: string
+	provider?: string
+	modelId?: string
+	mode?: Mode
+}
+
 /**
  * Maximum length for error messages to prevent excessive data
  */
@@ -247,6 +273,8 @@ export class TelemetryService {
 			RESTARTED: "task.restarted",
 			// Tracks when a task is finished, with acceptance or rejection status
 			COMPLETED: "task.completed",
+			// Tracks when a live task reaches a user-waiting state without ending the task
+			AWAITING_USER_ACTION: "task.awaiting_user_action",
 			// Tracks user feedback on completed tasks
 			FEEDBACK: "task.feedback",
 			// Tracks when a message is sent in a conversation
@@ -772,6 +800,21 @@ export class TelemetryService {
 		}
 
 		this.resetTaskAggregates(ulid)
+	}
+
+	public captureTaskAwaitingUserAction(args: TaskAwaitingUserActionTelemetry) {
+		if (!args.ulid || !args.awaitingType) {
+			Logger.warn("TelemetryService: Missing required parameters for awaiting user action capture")
+			return
+		}
+
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.AWAITING_USER_ACTION,
+			properties: {
+				...args,
+				timestamp: new Date().toISOString(),
+			},
+		})
 	}
 
 	/**

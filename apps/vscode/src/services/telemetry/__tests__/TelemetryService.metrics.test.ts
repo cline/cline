@@ -353,6 +353,30 @@ describe("TelemetryService metrics", () => {
 		assert.strictEqual(durationMetric?.attributes.scope, "task")
 	})
 
+	it("captureTaskAwaitingUserAction records a low-cardinality waiting-state payload", () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider)
+
+		service.captureTaskAwaitingUserAction({
+			ulid: "task-5",
+			awaitingType: "tool_approval",
+			askType: "tool",
+			provider: "cline",
+			modelId: "deepseek/deepseek-v4-flash",
+			mode: "act",
+		})
+
+		const waitingEvent = provider.logs.find((entry) => entry.event === "task.awaiting_user_action")
+		assert.ok(waitingEvent)
+		assert.strictEqual(waitingEvent?.properties?.ulid, "task-5")
+		assert.strictEqual(waitingEvent?.properties?.awaitingType, "tool_approval")
+		assert.strictEqual(waitingEvent?.properties?.askType, "tool")
+		assert.strictEqual(waitingEvent?.properties?.provider, "cline")
+		assert.strictEqual(waitingEvent?.properties?.modelId, "deepseek/deepseek-v4-flash")
+		assert.strictEqual(waitingEvent?.properties?.mode, "act")
+		assert.strictEqual(typeof waitingEvent?.properties?.timestamp, "string")
+	})
+
 	it("captureGrpcResponseSize records histogram with correct name, value, and attributes", () => {
 		const provider = new FakeProvider()
 		const service = createTelemetryService(provider)

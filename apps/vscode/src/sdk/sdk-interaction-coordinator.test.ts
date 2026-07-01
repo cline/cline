@@ -21,11 +21,13 @@ describe("SdkInteractionCoordinator", () => {
 		const listener = vi.fn()
 		const postStateToWebview = vi.fn().mockResolvedValue(undefined)
 		const recordApprovedToolMessage = vi.fn()
+		const captureTaskAwaitingUserAction = vi.fn()
 		const coordinator = new SdkInteractionCoordinator({
 			messages,
 			getSessionId: () => "session-123",
 			postStateToWebview,
 			recordApprovedToolMessage,
+			captureTaskAwaitingUserAction,
 		})
 		messages.onSessionEvent(listener)
 
@@ -46,6 +48,11 @@ describe("SdkInteractionCoordinator", () => {
 		expect(clineMessages[0].ask).toBe("tool")
 		expect(JSON.parse(clineMessages[0].text || "{}")).toMatchObject({ tool: "readFile", path: "README.md" })
 		expect(listener).toHaveBeenCalledOnce()
+		expect(captureTaskAwaitingUserAction).toHaveBeenCalledWith({
+			sessionId: "session-123",
+			awaitingType: "tool_approval",
+			askType: "tool",
+		})
 
 		expect(coordinator.resolvePendingToolApproval(undefined, "yesButtonClicked")).toBe(true)
 		expect(recordApprovedToolMessage).toHaveBeenCalledWith("tool-call", clineMessages[0].ts)
@@ -265,10 +272,12 @@ describe("SdkInteractionCoordinator", () => {
 
 	it("emits an MCP approval ask with server, tool, and arguments", async () => {
 		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const captureTaskAwaitingUserAction = vi.fn()
 		const coordinator = new SdkInteractionCoordinator({
 			messages: new SdkMessageCoordinator({ getTask: () => task }),
 			getSessionId: () => "session-123",
 			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+			captureTaskAwaitingUserAction,
 		})
 
 		void coordinator.handleRequestToolApproval({
@@ -290,15 +299,22 @@ describe("SdkInteractionCoordinator", () => {
 			toolName: "search-repos",
 			arguments: '{\n  "query": "cline"\n}',
 		})
+		expect(captureTaskAwaitingUserAction).toHaveBeenCalledWith({
+			sessionId: "session-123",
+			awaitingType: "mcp_approval",
+			askType: "use_mcp_server",
+		})
 	})
 
 	it("emits ask_question and resolves it with rendered user feedback", async () => {
 		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
 		const messages = new SdkMessageCoordinator({ getTask: () => task })
+		const captureTaskAwaitingUserAction = vi.fn()
 		const coordinator = new SdkInteractionCoordinator({
 			messages,
 			getSessionId: () => "session-123",
 			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+			captureTaskAwaitingUserAction,
 		})
 
 		const answerPromise = coordinator.handleAskQuestion("Continue?", ["Yes"], undefined)
@@ -311,16 +327,23 @@ describe("SdkInteractionCoordinator", () => {
 			{ type: "ask", ask: "followup" },
 			{ type: "say", say: "user_feedback", text: "yes" },
 		])
+		expect(captureTaskAwaitingUserAction).toHaveBeenCalledWith({
+			sessionId: "session-123",
+			awaitingType: "followup",
+			askType: "followup",
+		})
 	})
 
 	it("emits mistake_limit_reached and resolves proceed as SDK recovery guidance", async () => {
 		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
 		const setTurnPhase = vi.fn()
+		const captureTaskAwaitingUserAction = vi.fn()
 		const coordinator = new SdkInteractionCoordinator({
 			messages: new SdkMessageCoordinator({ getTask: () => task }),
 			getSessionId: () => "session-123",
 			postStateToWebview: vi.fn().mockResolvedValue(undefined),
 			setTurnPhase,
+			captureTaskAwaitingUserAction,
 		})
 
 		const decisionPromise = coordinator.handleConsecutiveMistakeLimitReached({
@@ -338,6 +361,11 @@ describe("SdkInteractionCoordinator", () => {
 			partial: false,
 		})
 		expect(setTurnPhase).toHaveBeenCalledWith("error", task.messageStateHandler.getClineMessages()[0].ts)
+		expect(captureTaskAwaitingUserAction).toHaveBeenCalledWith({
+			sessionId: "session-123",
+			awaitingType: "mistake_limit",
+			askType: "mistake_limit_reached",
+		})
 
 		expect(coordinator.resolvePendingMistakeLimit("try smaller steps", "yesButtonClicked")).toBe(true)
 		await expect(decisionPromise).resolves.toEqual({
