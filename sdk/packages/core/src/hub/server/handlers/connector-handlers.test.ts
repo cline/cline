@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { HubCommandEnvelope } from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { createSessionCompactionSidecarAccess } from "../../../session/models/session-compaction";
 import { __test__, handleConnectorCommand } from "./connector-handlers";
 import type { HubTransportContext } from "./context";
 
@@ -34,6 +35,7 @@ describe("connector hub handlers", () => {
 			pendingCapabilityRequests: new Map(),
 			suppressNextTerminalEventBySession: new Map(),
 			telemetry: telemetry as never,
+      compactionSidecar: createSessionCompactionSidecarAccess(() => true),
 			sessionHost: {} as never,
 			publish: vi.fn(),
 			buildEvent: vi.fn() as never,

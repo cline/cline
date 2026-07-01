@@ -15,6 +15,10 @@ import type {
 	RuntimeHost,
 } from "../../runtime/host/runtime-host";
 import { SqliteSessionStore } from "../../services/storage/sqlite-session-store";
+import {
+	createSessionCompactionSidecarAccess,
+	createSessionCompactionSidecarEnabledResolver,
+} from "../../session/models/session-compaction";
 import { CoreSessionService } from "../../session/services/session-service";
 import {
 	type CoreSettingsListInput,
@@ -183,12 +187,19 @@ export class HubServerTransport implements NativeHubTransport {
 	private readonly ctx: HubTransportContext;
 
 	constructor(readonly options: HubWebSocketServerOptions) {
+		const getCompactionSidecarEnabled =
+			options.getCompactionSidecarEnabled ??
+			createSessionCompactionSidecarEnabledResolver();
+		const compactionSidecar = createSessionCompactionSidecarAccess(
+			getCompactionSidecarEnabled,
+		);
 		this.sessionHost =
 			options.sessionHost ??
 			new LocalRuntimeHost({
 				sessionService: new CoreSessionService(new SqliteSessionStore()),
 				fetch: options.fetch,
 				telemetry: options.telemetry,
+				getCompactionSidecarEnabled,
 			});
 		this.ctx = {
 			clients: this.clients,
@@ -198,6 +209,7 @@ export class HubServerTransport implements NativeHubTransport {
 			suppressNextTerminalEventBySession:
 				this.suppressNextTerminalEventBySession,
 			telemetry: options.telemetry,
+			compactionSidecar,
 			sessionHost: this.sessionHost,
 			publish: (event) => this.publish(event),
 			buildEvent: buildHubEvent,

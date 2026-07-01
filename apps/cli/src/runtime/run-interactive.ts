@@ -1,5 +1,6 @@
 import {
 	getCurrentContextSize,
+	createSessionCompactionSidecarEnabledResolver,
 	type ProviderSettings,
 	ProviderSettingsManager,
 	type UserInstructionConfigService,
@@ -25,6 +26,7 @@ import { disableOpenTuiGraphicsProbe } from "../tui/opentui-env";
 import type { QueuedPromptItem } from "../tui/types";
 import { type ChatCommandState, chatCommandHost } from "../utils/chat-commands";
 import { applyCliCompactionMode } from "../utils/compaction-mode";
+import { getCliFeatureFlagsService } from "../utils/feature-flags";
 import {
 	shouldZeroClineFreeModelCost,
 	zeroCliAgentEventCost,
@@ -201,6 +203,8 @@ export async function runInteractive(
 		onPendingPromptSubmitted: (event) => {
 			uiEvents.emit("pending-prompt-submitted", event);
 		},
+		getCompactionSidecarEnabled:
+			createSessionCompactionSidecarEnabledResolver(getCliFeatureFlagsService()),
 	});
 	let modeChangePromise: Promise<void> | undefined;
 	let modeChangeTarget: "plan" | "act" | undefined;
