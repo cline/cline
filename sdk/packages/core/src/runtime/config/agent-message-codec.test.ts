@@ -1,7 +1,12 @@
-import { EMPTY_CONTENT_TEXT, type MessageWithMetadata } from "@cline/shared";
+import {
+	type AgentMessage,
+	EMPTY_CONTENT_TEXT,
+	type MessageWithMetadata,
+} from "@cline/shared";
 import { describe, expect, it } from "vitest";
 import { projectSessionMessagesForDisplay } from "../../session/display-messages";
 import {
+	agentMessagesToMessages,
 	agentMessageToMessageWithMetadata,
 	messagesToAgentMessages,
 	messageToAgentMessages,
@@ -376,6 +381,35 @@ describe("agent message codec", () => {
 			"msg_mixed",
 			"msg_mixed_tool_call_a",
 			"msg_mixed_tool_call_b",
+		]);
+	});
+
+	it("normalizes string agent message content before decoding", () => {
+		const persisted = agentMessageToMessageWithMetadata({
+			id: "msg_string_content",
+			role: "assistant",
+			createdAt: 1,
+			content: "plain text payload",
+		} as unknown as AgentMessage);
+
+		expect(persisted.content).toEqual([
+			{ type: "text", text: "plain text payload" },
+		]);
+
+		expect(
+			agentMessagesToMessages([
+				{
+					id: "msg_tool_string_content",
+					role: "tool",
+					createdAt: 1,
+					content: "tool output",
+				} as unknown as AgentMessage,
+			]),
+		).toEqual([
+			{
+				role: "user",
+				content: [{ type: "text", text: "tool output" }],
+			},
 		]);
 	});
 });
