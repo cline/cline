@@ -1138,6 +1138,14 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					context,
 					kind,
 				) as never;
+				const requestConfig = provider.buildStreamConfig
+					? provider.buildStreamConfig(request, context)
+					: {
+							...(request.maxTokens !== undefined
+								? { maxOutputTokens: request.maxTokens }
+								: {}),
+							temperature: request.temperature,
+						};
 				recordProviderRequestCapture({
 					stage: "ai_sdk_prompt",
 					request,
@@ -1146,8 +1154,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 						...(useSystemOption ? { system: systemPrompt } : {}),
 						tools,
 						providerOptions,
-						maxOutputTokens: request.maxTokens,
-						temperature: request.temperature,
+						...requestConfig,
 					},
 				});
 				stream = streamText({
@@ -1155,15 +1162,12 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					messages: messages as never,
 					...(useSystemOption ? { system: systemPrompt } : {}),
 					tools: tools as never,
-					temperature: request.temperature,
-					...(request.maxTokens !== undefined
-						? { maxOutputTokens: request.maxTokens }
-						: {}),
 					abortSignal: request.signal,
 					experimental_telemetry: {
 						isEnabled: langfuse,
 					},
 					providerOptions,
+					...requestConfig,
 					onError: ({ error: streamError }) => {
 						const msg = extractErrorMessage(streamError);
 						capturedError.current = msg;
