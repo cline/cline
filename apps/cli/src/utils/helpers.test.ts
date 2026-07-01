@@ -42,10 +42,10 @@ describe("parseArgs", () => {
 	it("returns defaults when no arguments are supplied", () => {
 		const parsed = parseArgs([]);
 		expect(parsed).toEqual({
-			verbose: false,
+			verbose: undefined,
 			interactive: false,
 			outputMode: "text",
-			mode: "act",
+			mode: undefined,
 			sandbox: false,
 			acpMode: false,
 			thinking: false,

@@ -67,10 +67,10 @@ export interface ParsedArgs {
 	prompt?: string;
 	systemPrompt?: string;
 	key?: string;
-	verbose: boolean;
+	verbose?: boolean;
 	interactive: boolean;
 	outputMode: CliOutputMode;
-	mode: CliAgentMode;
+	mode?: CliAgentMode;
 	timeoutSeconds?: number;
 	invalidTimeoutSeconds?: string;
 	thinking: boolean;
