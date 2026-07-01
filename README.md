@@ -165,7 +165,7 @@ Cline is not locked to a single AI provider. Use whichever model fits your workf
 | AWS Bedrock | Claude, Llama, and more |
 | Azure / GCP Vertex | All hosted models |
 | Cerebras / Groq | Fast inference models |
-| Ollama / LM Studio | Run local models on your machine |
+| Ollama / LM Studio / Atomic Chat | Run local models on your machine |
 | Any OpenAI-compatible API | Self-hosted or third-party endpoints |
 
 ## Extend With Plugins or MCP Servers
