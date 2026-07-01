@@ -9,6 +9,7 @@ import type { HubContext } from "./state";
 import type { SessionContext, TrackedClient, TrackedSession } from "./types";
 import {
 	asNumber,
+	asRecord,
 	asString,
 	asTimestamp,
 	basename,
@@ -88,27 +89,286 @@ function summarizeClient(client: TrackedClient): {
 	};
 }
 
+type HistoryToolLocation = {
+	messageIndex: number;
+	blockIndex: number;
+};
+
+function historyContentParts(content: unknown): Record<string, unknown>[] {
+	if (Array.isArray(content)) {
+		return content
+			.map((part) => asRecord(part))
+			.filter((part): part is Record<string, unknown> => Boolean(part));
+	}
+	if (typeof content === "string" && content.trim()) {
+		return [{ type: "text", text: content }];
+	}
+	return [];
+}
+
+function blockType(block: Record<string, unknown>): string {
+	return asString(block.type)?.toLowerCase() ?? "";
+}
+
+function toolCallIdForCall(block: Record<string, unknown>): string | undefined {
+	return (
+		asString(block.id) ??
+		asString(block.toolCallId) ??
+		asString(block.tool_call_id)
+	);
+}
+
+function toolCallIdForResult(
+	block: Record<string, unknown>,
+): string | undefined {
+	return (
+		asString(block.tool_use_id) ??
+		asString(block.toolCallId) ??
+		asString(block.tool_call_id)
+	);
+}
+
+function toolNameFor(block: Record<string, unknown>): string {
+	return (
+		asString(block.name) ??
+		asString(block.toolName) ??
+		asString(block.tool_name) ??
+		"tool"
+	);
+}
+
+function toolInputFor(block: Record<string, unknown>): unknown {
+	return block.input ?? block.args ?? block.arguments;
+}
+
+function toolOutputFor(block: Record<string, unknown>): unknown {
+	return block.output ?? block.result ?? block.content;
+}
+
+function isErrorToolResult(block: Record<string, unknown>): boolean {
+	return block.is_error === true || block.isError === true || block.error === true;
+}
+
+function pushTextBlock(
+	blocks: NonNullable<WebviewChatMessage["blocks"]>,
+	textParts: string[],
+	messageKey: string | number,
+	partIndex: number,
+	text: string,
+): void {
+	if (!text) return;
+	textParts.push(text);
+	blocks.push({
+		id: `${messageKey}:text:${partIndex}`,
+		type: "text",
+		text,
+	});
+}
+
+function pushReasoningBlock(
+	blocks: NonNullable<WebviewChatMessage["blocks"]>,
+	reasoningParts: string[],
+	messageKey: string | number,
+	partIndex: number,
+	text: string,
+	redacted?: boolean,
+): boolean {
+	if (!text) return false;
+	reasoningParts.push(text);
+	blocks.push({
+		id: `${messageKey}:reasoning:${partIndex}`,
+		type: "reasoning",
+		text,
+		redacted,
+	});
+	return redacted === true;
+}
+
 export function mapHistoryToWebviewMessages(
 	history: unknown[],
 ): WebviewChatMessage[] {
-	return history.map((entry, index) => {
+	const mapped: WebviewChatMessage[] = [];
+	const toolLocations = new Map<string, HistoryToolLocation>();
+
+	for (const [index, entry] of history.entries()) {
 		const record =
 			entry && typeof entry === "object"
 				? (entry as Record<string, unknown>)
 				: { content: entry };
+		const messageKey = asString(record.id) ?? `history-${index}`;
 		const rawRole = asString(record.role)?.toLowerCase();
-		const role: WebviewChatMessage["role"] =
+		let role: WebviewChatMessage["role"] =
 			rawRole === "user" || rawRole === "assistant" || rawRole === "error"
 				? rawRole
 				: "meta";
-		const text = stringifyContent(record.content ?? record.text ?? record);
-		return {
-			id: asString(record.id) ?? `history-${index}`,
+		const blocks: NonNullable<WebviewChatMessage["blocks"]> = [];
+		const textParts: string[] = [];
+		const reasoningParts: string[] = [];
+		const toolEvents = new Map<
+			string,
+			NonNullable<WebviewChatMessage["toolEvents"]>[number]
+		>();
+		const currentToolBlockIndexes = new Map<string, number>();
+		let reasoningRedacted = false;
+
+		const contentParts = historyContentParts(record.content);
+		if (contentParts.length === 0) {
+			const text = stringifyContent(record.content ?? record.text ?? record);
+			pushTextBlock(blocks, textParts, messageKey, 0, text);
+		}
+
+		for (const [partIndex, part] of contentParts.entries()) {
+			const type = blockType(part);
+			if (type === "text") {
+				pushTextBlock(
+					blocks,
+					textParts,
+					messageKey,
+					partIndex,
+					asString(part.text) ?? asString(part.content) ?? "",
+				);
+				continue;
+			}
+
+			if (type === "thinking" || type === "reasoning") {
+				reasoningRedacted =
+					pushReasoningBlock(
+						blocks,
+						reasoningParts,
+						messageKey,
+						partIndex,
+						asString(part.thinking) ??
+							asString(part.reasoning) ??
+							asString(part.text) ??
+							"",
+						part.redacted === true,
+					) || reasoningRedacted;
+				continue;
+			}
+
+			if (type === "redacted_thinking") {
+				reasoningRedacted =
+					pushReasoningBlock(
+						blocks,
+						reasoningParts,
+						messageKey,
+						partIndex,
+						"[redacted]",
+						true,
+					) || reasoningRedacted;
+				continue;
+			}
+
+			if (type === "tool_use" || type === "tool-call") {
+				const toolCallId =
+					toolCallIdForCall(part) ?? `${messageKey}:${partIndex}`;
+				const name = toolNameFor(part);
+				const toolEvent = {
+					id: `${messageKey}:${toolCallId}`,
+					toolCallId,
+					name,
+					text: `Running ${name}...`,
+					state: "input-available" as const,
+					input: toolInputFor(part),
+				};
+				toolEvents.set(toolCallId, toolEvent);
+				blocks.push({
+					id: `${messageKey}:tool:${toolCallId}`,
+					type: "tool",
+					toolEvent,
+				});
+				currentToolBlockIndexes.set(toolCallId, blocks.length - 1);
+				toolLocations.set(toolCallId, {
+					messageIndex: mapped.length,
+					blockIndex: blocks.length - 1,
+				});
+				continue;
+			}
+
+			if (type === "tool_result" || type === "tool-result") {
+				const toolCallId =
+					toolCallIdForResult(part) ?? `${messageKey}:${partIndex}`;
+				const name = toolNameFor(part);
+				const output = toolOutputFor(part);
+				const isError = isErrorToolResult(part);
+				const currentBlockIndex = currentToolBlockIndexes.get(toolCallId);
+				const existingLocation = toolLocations.get(toolCallId);
+				const existing =
+					currentBlockIndex !== undefined
+						? blocks[currentBlockIndex]
+						: existingLocation !== undefined
+						? mapped[existingLocation.messageIndex]?.blocks?.[
+								existingLocation.blockIndex
+							]
+						: undefined;
+				const existingToolEvent =
+					existing?.type === "tool" ? existing.toolEvent : undefined;
+				const toolEvent = {
+					id: existingToolEvent?.id ?? `${messageKey}:${toolCallId}`,
+					toolCallId,
+					name: existingToolEvent?.name ?? name,
+					text: isError
+						? `${existingToolEvent?.name ?? name} failed`
+						: `${existingToolEvent?.name ?? name} completed`,
+					state: isError
+						? ("output-error" as const)
+						: ("output-available" as const),
+					input: existingToolEvent?.input,
+					output,
+					error: isError ? stringifyContent(output) : undefined,
+				};
+
+				if (currentBlockIndex !== undefined && existing?.type === "tool") {
+					blocks[currentBlockIndex] = {
+						...existing,
+						toolEvent,
+					};
+					toolEvents.set(toolCallId, toolEvent);
+				} else if (existingLocation !== undefined && existing?.type === "tool") {
+					const target = mapped[existingLocation.messageIndex];
+					const targetBlocks = target.blocks;
+					const targetBlock = targetBlocks?.[existingLocation.blockIndex];
+					if (targetBlocks && targetBlock?.type === "tool") {
+						targetBlocks[existingLocation.blockIndex] = {
+							...targetBlock,
+							toolEvent,
+						};
+					}
+					target.toolEvents = (target.toolEvents ?? []).map((event) =>
+						event.toolCallId === toolCallId ? toolEvent : event,
+					);
+				} else {
+					toolEvents.set(toolCallId, toolEvent);
+					blocks.push({
+						id: `${messageKey}:tool:${toolCallId}`,
+						type: "tool",
+						toolEvent,
+					});
+				}
+			}
+		}
+
+		const text = textParts.join("\n");
+		const toolEventList = [...toolEvents.values()];
+		if (!text && reasoningParts.length === 0 && toolEventList.length === 0) {
+			continue;
+		}
+		if (!text && role === "user" && toolEventList.length > 0) {
+			role = "meta";
+		}
+		mapped.push({
+			id: messageKey,
 			role,
 			text,
-			blocks: text ? [{ id: `history-${index}-text`, type: "text", text }] : [],
-		};
-	});
+			reasoning:
+				reasoningParts.length > 0 ? reasoningParts.join("\n") : undefined,
+			reasoningRedacted: reasoningRedacted || undefined,
+			toolEvents: toolEventList.length > 0 ? toolEventList : undefined,
+			blocks,
+		});
+	}
+
+	return mapped;
 }
 
 export function trackSession(record: unknown): TrackedSession | undefined {
