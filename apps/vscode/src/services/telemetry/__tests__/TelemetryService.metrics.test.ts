@@ -383,4 +383,51 @@ describe("TelemetryService metrics", () => {
 		assert.strictEqual(entry.attributes.extension_version, "test")
 		assert.strictEqual(entry.attributes.platform, "test-platform")
 	})
+
+	it("captureDiffView lifecycle methods emit counters with edit metadata", () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider)
+
+		service.captureDiffViewOpened({ editType: "modify", editSurface: "vscode_diff", isNotebook: false })
+		service.captureDiffViewAccepted({ editType: "modify", editSurface: "background", isNotebook: false })
+		service.captureDiffViewRejected({ editType: "delete", editSurface: "external", isNotebook: true })
+		service.captureDiffViewReverted({
+			editType: "modify",
+			editSurface: "vscode_diff",
+			isNotebook: false,
+			revertReason: "error_cleanup",
+			previousOutcome: "accepted",
+		})
+
+		assert.strictEqual(provider.counters.length, 4)
+		assert.deepStrictEqual(
+			provider.counters.map((entry) => entry.name),
+			[
+				TelemetryService.METRICS.DIFF_VIEW.OPENED_TOTAL,
+				TelemetryService.METRICS.DIFF_VIEW.ACCEPTED_TOTAL,
+				TelemetryService.METRICS.DIFF_VIEW.REJECTED_TOTAL,
+				TelemetryService.METRICS.DIFF_VIEW.REVERTED_TOTAL,
+			],
+		)
+
+		const opened = provider.counters[0]
+		assert.strictEqual(opened.value, 1)
+		assert.strictEqual(opened.attributes.edit_type, "modify")
+		assert.strictEqual(opened.attributes.edit_surface, "vscode_diff")
+		assert.strictEqual(opened.attributes.is_notebook, false)
+		assert.strictEqual(opened.attributes.extension_version, "test")
+
+		const rejected = provider.counters[2]
+		assert.strictEqual(rejected.value, 1)
+		assert.strictEqual(rejected.attributes.edit_type, "delete")
+		assert.strictEqual(rejected.attributes.edit_surface, "external")
+		assert.strictEqual(rejected.attributes.is_notebook, true)
+
+		const reverted = provider.counters[3]
+		assert.strictEqual(reverted.value, 1)
+		assert.strictEqual(reverted.attributes.edit_type, "modify")
+		assert.strictEqual(reverted.attributes.edit_surface, "vscode_diff")
+		assert.strictEqual(reverted.attributes.revert_reason, "error_cleanup")
+		assert.strictEqual(reverted.attributes.previous_outcome, "accepted")
+	})
 })
