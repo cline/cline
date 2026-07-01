@@ -70,6 +70,7 @@ export interface ContextCompactionPrepareTurnOptions {
 }
 
 const MIN_CONTEXT_DERIVED_INPUT_RATIO = 0.5;
+const LONG_CONVERSATION_TARGET_RATIO = 0.5;
 
 function safeJsonSize(value: unknown): number {
 	try {
@@ -258,9 +259,13 @@ function resolveBasicTargetTokens(input: {
 		typeof input.modelMaxTokens === "number" &&
 		Number.isFinite(input.modelMaxTokens) &&
 		input.modelMaxTokens < input.maxInputTokens
-			? Math.floor(input.maxInputTokens * 0.5)
+			? Math.floor(input.maxInputTokens * LONG_CONVERSATION_TARGET_RATIO)
 			: Math.floor(input.triggerTokens * DEFAULT_TARGET_RATIO);
-	return Math.max(1, Math.min(targetTokens, input.maxInputTokens));
+	const triggerCeiling = Math.max(1, input.triggerTokens - 1);
+	return Math.max(
+		1,
+		Math.min(targetTokens, input.maxInputTokens, triggerCeiling),
+	);
 }
 
 function countUserAssistantPairs(
