@@ -400,11 +400,26 @@ describe("createContextCompactionPrepareTurn", () => {
 		const compacted = runForcedBasicCompaction(messages, 1);
 
 		expect(compacted).toEqual([
-			{ role: "user", content: "Old request" },
 			{ role: "user", content: "Read the latest file" },
 			assistantToolUseMessage("tool-a"),
 			toolResultMessage("tool-a", "latest result"),
 		]);
+	});
+
+	it("budgets the complete basic compaction output including the latest turn", () => {
+		const messages: LlmsProviders.Message[] = [
+			{ role: "user", content: "original task" },
+			{ role: "assistant", content: "old assistant " + "x".repeat(10_000) },
+			{ role: "user", content: "latest typed prompt" },
+			assistantToolUseMessage("tool-live"),
+			toolResultMessage("tool-live", "live result " + "y".repeat(10_000)),
+		];
+
+		const compacted = runForcedBasicCompaction(messages, 700);
+
+		expect(totalJsonTokens(compacted)).toBeLessThanOrEqual(700);
+		expect(JSON.stringify(compacted)).toContain("latest typed prompt");
+		expectNoOrphanedToolPairs(compacted);
 	});
 
 	it("does not compact a single typed user message", () => {
@@ -1927,7 +1942,7 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(result?.messages.length).toBeLessThan(4);
 	});
 
-	it("preserves user image blocks during basic compaction sanitization", () => {
+	it("drops old user image blocks during basic compaction sanitization", () => {
 		const messages: LlmsProviders.Message[] = [
 			{
 				role: "user",
@@ -1963,7 +1978,6 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(result?.messages).toBeDefined();
 		expect(result?.messages[0]?.content).toEqual([
 			{ type: "text", text: "Older user turn" },
-			{ type: "image", data: "abc", mediaType: "image/png" },
 		]);
 		expect(result?.messages.at(-1)).toEqual({
 			role: "user",

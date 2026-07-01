@@ -7,6 +7,7 @@ import type {
 	CoreCompactionContext,
 	CoreCompactionResult,
 } from "../../types/config";
+import { buildBudgetProjection } from "./budget-projection";
 import {
 	DEFAULT_TARGET_RATIO,
 	type EstimateMessageTokens,
@@ -444,21 +445,46 @@ export function runBasicCompaction(options: {
 		...candidates.map((candidate) => candidate.message),
 		...protectedTail,
 	];
-	if (!haveMessagesChanged(options.context.messages, nextMessages)) {
+	const budgeted = buildBudgetProjection({
+		messages: nextMessages,
+		targetTokens: totalTargetTokens,
+		policyIntent: "basic_compaction_projection",
+		estimateMessageTokens: options.estimateMessageTokens,
+	});
+	// This final projection owns the hard output budget. Unlike the earlier
+	// basic candidate passes, it may drop the original first-user message when
+	// preserving the latest typed prompt and coherent tool closures requires it.
+	if (budgeted.status === "failed") {
+		options.logger?.debug("Basic compaction returned best-effort projection", {
+			budgetWarnings: budgeted.warnings.map((warning) => warning.code),
+			projectedTokens: budgeted.estimatedTokens,
+			targetTokens: totalTargetTokens,
+			maxInputTokens: options.context.maxInputTokens,
+		});
+	}
+	const resultMessages = budgeted.messages;
+
+	if (!haveMessagesChanged(options.context.messages, resultMessages)) {
 		return undefined;
 	}
 
 	const beforeTokens = beforeCompactableTokens + protectedTailTokens;
-	const afterTokens = totalTokens + protectedTailTokens;
+	const afterTokens = getTotalTokens(
+		resultMessages,
+		options.estimateMessageTokens,
+	);
 	options.logger?.debug("Performed basic compaction", {
 		messagesBefore: options.context.messages.length,
-		messagesAfter: nextMessages.length,
-		messagesRemoved: options.context.messages.length - nextMessages.length,
+		messagesAfter: resultMessages.length,
+		messagesRemoved: options.context.messages.length - resultMessages.length,
 		tokensBefore: beforeTokens,
 		tokensAfter: afterTokens,
+		budgetStatus: budgeted.status,
+		budgetActions: budgeted.actions.length,
+		budgetWarnings: budgeted.warnings.map((warning) => warning.code),
 		targetTokens: totalTargetTokens,
 		maxInputTokens: options.context.maxInputTokens,
 	});
 
-	return { messages: nextMessages };
+	return { messages: resultMessages };
 }
