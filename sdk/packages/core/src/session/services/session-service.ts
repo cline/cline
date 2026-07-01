@@ -81,6 +81,7 @@ class LocalSessionPersistenceAdapter implements SessionPersistenceAdapter {
 
 	async listSessions(options: {
 		limit: number;
+		offset?: number;
 		parentSessionId?: string;
 		status?: string;
 	}): Promise<SessionRow[]> {
@@ -102,8 +103,12 @@ class LocalSessionPersistenceAdapter implements SessionPersistenceAdapter {
 				 FROM sessions
 				 ${where}
 				 ORDER BY started_at DESC
-				 LIMIT ?`,
-				[...params, options.limit],
+				 LIMIT ? OFFSET ?`,
+				[
+					...params,
+					options.limit,
+					Math.max(0, Math.floor(options.offset ?? 0)),
+				],
 			)
 			.map(patchSqliteRow);
 	}

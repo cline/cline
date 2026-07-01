@@ -1,4 +1,10 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import {
+	existsSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -101,6 +107,246 @@ describe("UnifiedSessionPersistenceService", () => {
 		},
 		15_000,
 	);
+
+	sqliteIt(
+		"prunes database rows when a root session artifact directory is removed",
+		async () => {
+			const dbDir = mkdtempSync(join(tmpdir(), "removed-session-prune-db-"));
+			const sessionsDir = mkdtempSync(
+				join(tmpdir(), "removed-session-prune-sessions-"),
+			);
+			tempDirs.push(dbDir, sessionsDir);
+
+			const store = new SqliteSessionStore({ sessionsDir: dbDir });
+			stores.push(store);
+			const service = new CoreSessionService(store, {
+				sessionArtifactsDir: sessionsDir,
+			});
+			const sessionId = "removed-root-session";
+			await service.createRootSessionWithArtifacts({
+				sessionId,
+				source: SessionSource.CLI,
+				pid: process.pid,
+				interactive: false,
+				provider: "mock-provider",
+				model: "mock-model",
+				cwd: "/tmp/project",
+				workspaceRoot: "/tmp/project",
+				enableTools: true,
+				enableSpawn: true,
+				enableTeams: true,
+				prompt: "hello",
+				startedAt: "2026-01-01T00:00:00.000Z",
+			});
+			await service.onTeamTaskStart(
+				sessionId,
+				"java-haiku-agent",
+				"Write a haiku about Java",
+			);
+			await expect(
+				service.updateSessionStatus(sessionId, "completed", 0),
+			).resolves.toMatchObject({ updated: true });
+
+			rmSync(join(sessionsDir, sessionId), { recursive: true, force: true });
+
+			await expect(service.listSessions(10)).resolves.toEqual([]);
+			await expect(
+				service.reconcileMissingArtifactSessions(10),
+			).resolves.toBeGreaterThanOrEqual(0);
+			expect(
+				store.queryOne(`SELECT session_id FROM sessions WHERE session_id = ?`, [
+					sessionId,
+				]),
+			).toBeUndefined();
+			expect(
+				store.queryAll(
+					`SELECT session_id FROM sessions WHERE parent_session_id = ?`,
+					[sessionId],
+				),
+			).toEqual([]);
+		},
+	);
+
+	it("prunes indexed rows when a root session artifact directory is removed", async () => {
+		const sessionsDir = mkdtempSync(
+			join(tmpdir(), "removed-session-prune-file-"),
+		);
+		tempDirs.push(sessionsDir);
+
+		const service = new FileSessionService(sessionsDir);
+		const sessionId = "removed-file-root-session";
+		await service.createRootSessionWithArtifacts({
+			sessionId,
+			source: SessionSource.CLI,
+			pid: process.pid,
+			interactive: false,
+			provider: "mock-provider",
+			model: "mock-model",
+			cwd: "/tmp/project",
+			workspaceRoot: "/tmp/project",
+			enableTools: true,
+			enableSpawn: true,
+			enableTeams: true,
+			prompt: "hello",
+			startedAt: "2026-01-01T00:00:00.000Z",
+		});
+		await service.onTeamTaskStart(
+			sessionId,
+			"java-haiku-agent",
+			"Write a haiku about Java",
+		);
+		await expect(
+			service.updateSessionStatus(sessionId, "completed", 0),
+		).resolves.toMatchObject({ updated: true });
+
+		rmSync(join(sessionsDir, sessionId), { recursive: true, force: true });
+
+		await expect(service.listSessions(10)).resolves.toEqual([]);
+		await expect(
+			service.reconcileMissingArtifactSessions(10),
+		).resolves.toBeGreaterThanOrEqual(0);
+		const index = JSON.parse(
+			readFileSync(join(sessionsDir, "sessions.index.json"), "utf8"),
+		) as { sessions: Record<string, unknown> };
+		expect(index.sessions[sessionId]).toBeUndefined();
+		expect(Object.values(index.sessions)).toEqual([]);
+	});
+
+	it("does not prune a live non-terminal session with missing artifacts", async () => {
+		const sessionsDir = mkdtempSync(join(tmpdir(), "live-session-prune-file-"));
+		tempDirs.push(sessionsDir);
+
+		const service = new FileSessionService(sessionsDir);
+		const sessionId = "live-file-root-session";
+		await service.createRootSessionWithArtifacts({
+			sessionId,
+			source: SessionSource.CLI,
+			pid: process.pid,
+			interactive: false,
+			provider: "mock-provider",
+			model: "mock-model",
+			cwd: "/tmp/project",
+			workspaceRoot: "/tmp/project",
+			enableTools: true,
+			enableSpawn: false,
+			enableTeams: false,
+			prompt: "still running",
+			startedAt: "2026-01-01T00:00:00.000Z",
+		});
+
+		rmSync(join(sessionsDir, sessionId), { recursive: true, force: true });
+
+		await expect(service.reconcileMissingArtifactSessions(10)).resolves.toBe(0);
+		const index = JSON.parse(
+			readFileSync(join(sessionsDir, "sessions.index.json"), "utf8"),
+		) as { sessions: Record<string, unknown> };
+		expect(index.sessions[sessionId]).toBeTruthy();
+	});
+
+	it("does not prune a child row with null messagesPath while its parent artifacts exist", async () => {
+		const sessionsDir = mkdtempSync(
+			join(tmpdir(), "null-child-messages-prune-file-"),
+		);
+		tempDirs.push(sessionsDir);
+
+		const service = new FileSessionService(sessionsDir);
+		const rootSessionId = "healthy-parent-session";
+		await service.createRootSessionWithArtifacts({
+			sessionId: rootSessionId,
+			source: SessionSource.CLI,
+			pid: process.pid,
+			interactive: false,
+			provider: "mock-provider",
+			model: "mock-model",
+			cwd: "/tmp/project",
+			workspaceRoot: "/tmp/project",
+			enableTools: true,
+			enableSpawn: true,
+			enableTeams: true,
+			prompt: "parent",
+			startedAt: "2026-01-01T00:00:00.000Z",
+		});
+		await service.onTeamTaskStart(
+			rootSessionId,
+			"java-haiku-agent",
+			"Write a haiku about Java",
+		);
+
+		const indexPath = join(sessionsDir, "sessions.index.json");
+		const index = JSON.parse(readFileSync(indexPath, "utf8")) as {
+			sessions: Record<
+				string,
+				{ messagesPath?: string | null; status?: string }
+			>;
+		};
+		const childSessionId = Object.keys(index.sessions).find(
+			(sessionId) => sessionId !== rootSessionId,
+		);
+		expect(childSessionId).toBeTruthy();
+		const child = index.sessions[childSessionId as string];
+		child.messagesPath = null;
+		child.status = "completed";
+		writeFileSync(indexPath, `${JSON.stringify(index, null, 2)}\n`, "utf8");
+
+		await expect(service.reconcileMissingArtifactSessions(10)).resolves.toBe(0);
+		const nextIndex = JSON.parse(readFileSync(indexPath, "utf8")) as {
+			sessions: Record<string, unknown>;
+		};
+		expect(nextIndex.sessions[childSessionId as string]).toBeTruthy();
+	});
+
+	it("continues scanning after stale rows to return older valid sessions", async () => {
+		const sessionsDir = mkdtempSync(
+			join(tmpdir(), "stale-session-window-file-"),
+		);
+		tempDirs.push(sessionsDir);
+
+		const service = new FileSessionService(sessionsDir);
+		for (let index = 0; index < 11; index += 1) {
+			const sessionId = `removed-window-session-${index}`;
+			await service.createRootSessionWithArtifacts({
+				sessionId,
+				source: SessionSource.CLI,
+				pid: process.pid,
+				interactive: false,
+				provider: "mock-provider",
+				model: "mock-model",
+				cwd: "/tmp/project",
+				workspaceRoot: "/tmp/project",
+				enableTools: true,
+				enableSpawn: false,
+				enableTeams: false,
+				prompt: `removed ${index}`,
+				startedAt: `2026-01-02T00:00:${String(index).padStart(2, "0")}.000Z`,
+			});
+			rmSync(join(sessionsDir, sessionId), { recursive: true, force: true });
+		}
+
+		for (let index = 0; index < 2; index += 1) {
+			await service.createRootSessionWithArtifacts({
+				sessionId: `valid-window-session-${index}`,
+				source: SessionSource.CLI,
+				pid: process.pid,
+				interactive: false,
+				provider: "mock-provider",
+				model: "mock-model",
+				cwd: "/tmp/project",
+				workspaceRoot: "/tmp/project",
+				enableTools: true,
+				enableSpawn: false,
+				enableTeams: false,
+				prompt: `valid ${index}`,
+				startedAt: `2026-01-01T00:00:${String(index).padStart(2, "0")}.000Z`,
+			});
+		}
+
+		const rows = await service.listSessions(2);
+
+		expect(rows.map((row) => row.sessionId)).toEqual([
+			"valid-window-session-1",
+			"valid-window-session-0",
+		]);
+	});
 
 	sqliteIt(
 		"persists teammate task metadata in the file envelope and usage on messages",

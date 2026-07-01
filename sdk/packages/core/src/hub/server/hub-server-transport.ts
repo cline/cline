@@ -177,17 +177,22 @@ export class HubServerTransport implements NativeHubTransport {
 	private readonly cronService?: CronService;
 	private readonly sessionHost: RuntimeHost &
 		Partial<PendingPromptsRuntimeService>;
+	private readonly stopSessionCleanup?: () => void;
 	private readonly hubId = createSessionId("hub_");
 	private readonly ctx: HubTransportContext;
 
 	constructor(readonly options: HubWebSocketServerOptions) {
-		this.sessionHost =
-			options.sessionHost ??
-			new LocalRuntimeHost({
-				sessionService: new CoreSessionService(new SqliteSessionStore()),
+		if (options.sessionHost) {
+			this.sessionHost = options.sessionHost;
+		} else {
+			const sessionService = new CoreSessionService(new SqliteSessionStore());
+			this.stopSessionCleanup = sessionService.startBackgroundSessionCleanup();
+			this.sessionHost = new LocalRuntimeHost({
+				sessionService,
 				fetch: options.fetch,
 				telemetry: options.telemetry,
 			});
+		}
 		this.ctx = {
 			clients: this.clients,
 			sessionState: this.sessionState,
@@ -295,6 +300,7 @@ export class HubServerTransport implements NativeHubTransport {
 			() => true,
 			"Hub shutting down before capability request was resolved.",
 		);
+		this.stopSessionCleanup?.();
 		await this.sessionHost.dispose("hub_server_stop");
 		await this.schedules.dispose();
 		if (this.cronService) {
@@ -303,6 +309,11 @@ export class HubServerTransport implements NativeHubTransport {
 			} catch (err) {
 				console.error("[hub] cron service stop failed", err);
 			}
+		}
+		try {
+			await this.options.runtimeHandlers.dispose?.();
+		} catch (err) {
+			console.error("[hub] schedule runtime stop failed", err);
 		}
 	}
 
