@@ -27,6 +27,7 @@ import type { Mode } from "@shared/storage/types"
 import { stringifyVsCodeLmModelSelector } from "@shared/vsCodeSelectorUtils"
 import { StateManager } from "@/core/storage/StateManager"
 import { ExtensionRegistryInfo } from "@/registry"
+import { buildClineExtraHeaders } from "@/services/EnvUtils"
 import { getFeatureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { fetch } from "@/shared/net"
@@ -61,6 +62,36 @@ You are in Plan mode. Your role is to explore, analyze, and plan -- not to execu
 - Do NOT implement anything -- focus on understanding and alignment first
 
 Once the user has reviewed your plan and explicitly approved it in a follow-up message, use the switch_to_act_mode tool to switch to act mode and begin implementation. Calling switch_to_act_mode immediately starts execution, so never call it in the same turn you present a plan and never treat the original task request as approval -- end your turn after presenting the plan and wait for the user's response.`
+
+function isSdkClineProvider(providerId: string): boolean {
+	return providerId === "cline" || providerId === "cline-pass"
+}
+
+async function buildClineProviderHeaders(taskId = ""): Promise<Record<string, string>> {
+	return {
+		"HTTP-Referer": "https://cline.bot",
+		"X-Title": "Cline",
+		"X-Task-ID": taskId,
+		...(await buildClineExtraHeaders()),
+	}
+}
+
+function updateClineProviderTaskHeader(config: CoreSessionConfig): void {
+	const taskId = config.sessionId?.trim()
+	if (!taskId) {
+		return
+	}
+
+	const headers = config.headers
+	if (headers?.["X-Task-ID"] !== undefined) {
+		headers["X-Task-ID"] = taskId
+	}
+
+	const providerHeaders = (config.providerConfig as { headers?: Record<string, string> } | undefined)?.headers
+	if (providerHeaders && providerHeaders !== headers && providerHeaders["X-Task-ID"] !== undefined) {
+		providerHeaders["X-Task-ID"] = taskId
+	}
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -669,6 +700,8 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	// additionally need structured options (region/project/auth/SAP OAuth), which core
 	// reads from providerConfig in createAgentModelFromConfig.
 	const cloudProviderConfig = bedrockProviderConfig ?? vertexProviderConfig ?? sapProviderConfig
+	const clineTaskId = input.historyItem?.ulid || input.historyItem?.id || ""
+	const headers = isSdkClineProvider(sdkProviderId) ? await buildClineProviderHeaders(clineTaskId) : undefined
 	// Spread the cloud config first so the explicit fields below — notably the
 	// proxy/CA-aware fetch — can never be clobbered if those types gain matching keys.
 	const providerConfig = {
@@ -677,6 +710,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		modelId,
 		...(apiKey ? { apiKey } : {}),
 		...(baseUrl !== undefined ? { baseUrl } : {}),
+		...(headers ? { headers } : {}),
 		fetch,
 	}
 
@@ -685,6 +719,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		modelId,
 		apiKey,
 		baseUrl,
+		...(headers ? { headers } : {}),
 		providerConfig,
 		cwd,
 		workspaceRoot,
@@ -746,6 +781,8 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
  * agent turn completes.
  */
 export function buildStartSessionInput(config: CoreSessionConfig, input: SessionConfigInput): ClineCoreStartInput {
+	updateClineProviderTaskHeader(config)
+
 	return {
 		config,
 		// Do NOT pass prompt here — start() should return immediately.

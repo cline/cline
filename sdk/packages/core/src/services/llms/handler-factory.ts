@@ -5,13 +5,15 @@ import {
 	MODEL_COLLECTIONS_BY_PROVIDER_ID,
 	normalizeProviderId,
 } from "@cline/llms";
-import type {
-	AgentConfig,
-	AgentModel,
-	BasicLogger,
-	GatewayModelDefinition,
-	ITelemetryService,
-	ModelInfo,
+import {
+	type AgentConfig,
+	type AgentModel,
+	type BasicLogger,
+	buildClineRequestHeaders,
+	type GatewayModelDefinition,
+	type ITelemetryService,
+	isClineProvider,
+	type ModelInfo,
 } from "@cline/shared";
 import { createAgentModelFromApiHandler } from "./apihandler-agent-model-adapter";
 import type { ProviderConfig } from "./provider-settings";
@@ -96,6 +98,42 @@ export function resolveKnownModelsFromConfig(
 	);
 }
 
+function mergeHeaders(
+	baseHeaders: Record<string, string> | undefined,
+	overrideHeaders: Record<string, string> | undefined,
+): Record<string, string> | undefined {
+	if (!baseHeaders && !overrideHeaders) {
+		return undefined;
+	}
+	return {
+		...(baseHeaders ?? {}),
+		...(overrideHeaders ?? {}),
+	};
+}
+
+function resolveHeadersFromConfig(
+	config: AgentConfig,
+	baseProviderConfig: ProviderConfig | undefined,
+): Record<string, string> | undefined {
+	const providerId = normalizeProviderId(config.providerId);
+	if (!isClineProvider(providerId)) {
+		return config.headers ?? baseProviderConfig?.headers;
+	}
+
+	const extensionContext =
+		config.extensionContext ?? baseProviderConfig?.extensionContext;
+	const headers = mergeHeaders(baseProviderConfig?.headers, config.headers);
+
+	return buildClineRequestHeaders({
+		providerId,
+		headers,
+		clientName: extensionContext?.client?.name,
+		clientVersion: extensionContext?.client?.version,
+		platform: extensionContext?.workspace?.platform,
+		taskId: config.sessionId ?? baseProviderConfig?.taskId,
+	});
+}
+
 function toGatewayCapabilities(
 	capabilities: ModelInfo["capabilities"],
 ): GatewayModelDefinition["capabilities"] {
@@ -161,14 +199,15 @@ export function createAgentModelFromConfig(
 		modelId: config.modelId,
 		apiKey: config.apiKey ?? baseProviderConfig?.apiKey,
 		baseUrl: config.baseUrl ?? baseProviderConfig?.baseUrl,
-		headers: config.headers ?? baseProviderConfig?.headers,
+		headers: resolveHeadersFromConfig(config, baseProviderConfig),
 		knownModels: resolveKnownModelsFromConfig(config),
 		maxOutputTokens: config.maxTokensPerTurn,
 		reasoningEffort: config.reasoningEffort,
 		thinkingBudgetTokens: config.thinkingBudgetTokens,
 		thinking: config.thinking,
 		logger,
-		extensionContext: config.extensionContext,
+		extensionContext:
+			config.extensionContext ?? baseProviderConfig?.extensionContext,
 	};
 
 	// Host-registered custom handlers (e.g. VS Code LM, which needs the host's

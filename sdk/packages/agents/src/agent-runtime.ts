@@ -24,6 +24,7 @@ import type {
 	ToolPolicy,
 } from "@cline/shared";
 import {
+	buildClineRequestHeaders,
 	captureAgentUnexpectedReasoningTokens,
 	captureSdkError,
 	estimateTokens,
@@ -101,7 +102,15 @@ function resolveRuntimeConfig(
 	const { providerId, modelId, apiKey, baseUrl, headers, options, ...rest } =
 		config;
 	const gateway = createGateway({
-		providerConfigs: [{ providerId, apiKey, baseUrl, headers, options }],
+		providerConfigs: [
+			{
+				providerId,
+				apiKey,
+				baseUrl,
+				headers: buildClineRequestHeaders({ providerId, headers }),
+				options,
+			},
+		],
 		telemetry: rest.telemetry,
 	});
 	const model = gateway.createAgentModel({ providerId, modelId });

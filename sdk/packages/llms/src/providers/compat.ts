@@ -1,9 +1,10 @@
-import type {
-	AgentModelEvent,
-	GatewayModelDefinition,
-	GatewayProviderFactory,
-	GatewayProviderRegistration,
-	GatewayStreamRequest,
+import {
+	type AgentModelEvent,
+	buildClineRequestHeaders,
+	type GatewayModelDefinition,
+	type GatewayProviderFactory,
+	type GatewayProviderRegistration,
+	type GatewayStreamRequest,
 } from "@cline/shared";
 import { nanoid } from "nanoid";
 import type {
@@ -449,7 +450,14 @@ function buildGatewayConfig(config: ProviderConfig) {
 		providerId,
 		apiKey: config.apiKey ?? config.accessToken,
 		baseUrl: config.baseUrl,
-		headers: config.headers,
+		headers: buildClineRequestHeaders({
+			providerId,
+			headers: config.headers,
+			clientName: config.extensionContext?.client?.name,
+			clientVersion: config.extensionContext?.client?.version,
+			platform: config.extensionContext?.workspace?.platform,
+			taskId: config.taskId,
+		}),
 		timeoutMs: config.timeoutMs,
 		fetch: config.fetch,
 		defaultModelId: config.modelId,

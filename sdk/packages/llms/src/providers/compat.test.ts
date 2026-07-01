@@ -357,6 +357,53 @@ describe("createGatewayApiHandler.createMessage", () => {
 		openaiCompatibleSpy.mockClear();
 	});
 
+	it("adds SDK client headers for Cline provider requests", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: (async function* () {
+				yield { type: "finish", finishReason: "stop" };
+			})(),
+			usage: Promise.resolve({ inputTokens: 1, outputTokens: 1 }),
+		});
+
+		const handler = createGatewayApiHandler({
+			providerId: "cline",
+			clientType: "openai-compatible",
+			modelId: "anthropic/claude-sonnet-4.6",
+			apiKey: "test-key",
+			taskId: "task-jetbrains",
+			extensionContext: {
+				client: { name: "cline-jetbrains", version: "2.3.4" },
+				workspace: {
+					rootPath: "/tmp/project",
+					platform: "darwin",
+				},
+			},
+			headers: {
+				"x-custom": "kept",
+			},
+		});
+
+		for await (const _chunk of handler.createMessage("", [
+			{ role: "user", content: "Hello" },
+		])) {
+			// Drain the stream so the provider is constructed.
+		}
+
+		const factoryConfig = openaiCompatibleFactorySpy.mock.calls.at(-1)?.[0] as
+			| { headers?: Record<string, string> }
+			| undefined;
+		expect(factoryConfig?.headers).toMatchObject({
+			"HTTP-Referer": "https://cline.bot",
+			"X-Title": "Cline",
+			"X-IS-MULTIROOT": "false",
+			"X-CLIENT-TYPE": "cline-jetbrains",
+			"X-CLIENT-VERSION": "2.3.4",
+			"X-PLATFORM": "darwin",
+			"X-Task-ID": "task-jetbrains",
+			"x-custom": "kept",
+		});
+	});
+
 	it("does not convert catalog maxTokens into request maxOutputTokens", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: (async function* () {

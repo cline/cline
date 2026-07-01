@@ -21,6 +21,18 @@ vi.mock("@cline/llms", () => ({
 	normalizeProviderId: (id: string) => id,
 }));
 
+type GatewayConfigCall = {
+	providerConfigs: Array<{ headers?: Record<string, string> }>;
+};
+
+function getLastGatewayConfig(): GatewayConfigCall | undefined {
+	return (
+		gatewayMock.createGateway.mock.calls as unknown as Array<
+			[GatewayConfigCall]
+		>
+	).at(-1)?.[0];
+}
+
 describe("createAgentModelFromConfig", () => {
 	beforeEach(() => {
 		gatewayMock.createAgentModel.mockReset();
@@ -123,6 +135,124 @@ describe("createAgentModelFromConfig", () => {
 				],
 			}),
 		);
+	});
+
+	it("adds SDK client headers for Cline provider requests", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+
+		createAgentModelFromConfig(
+			{
+				providerId: "cline",
+				modelId: "anthropic/claude-sonnet-4.6",
+				apiKey: "key",
+				sessionId: "sess-cli",
+				systemPrompt: "",
+				tools: [],
+				extensionContext: {
+					client: { name: "cline-cli", version: "1.2.3" },
+					workspace: {
+						rootPath: "/tmp/project",
+						platform: "darwin",
+					},
+				},
+				providerConfig: {
+					providerId: "cline",
+					modelId: "anthropic/claude-sonnet-4.6",
+					headers: {
+						"x-provider": "kept",
+					},
+				},
+			},
+			undefined,
+		);
+
+		const gatewayConfig = getLastGatewayConfig();
+		expect(gatewayConfig?.providerConfigs[0].headers).toMatchObject({
+			"HTTP-Referer": "https://cline.bot",
+			"X-Title": "Cline",
+			"X-IS-MULTIROOT": "false",
+			"X-CLIENT-TYPE": "cline-cli",
+			"X-CLIENT-VERSION": "1.2.3",
+			"X-PLATFORM": "darwin",
+			"X-Task-ID": "sess-cli",
+			"x-provider": "kept",
+		});
+	});
+
+	it("lets explicit Cline headers override derived SDK client headers", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+
+		createAgentModelFromConfig(
+			{
+				providerId: "cline",
+				modelId: "anthropic/claude-sonnet-4.6",
+				apiKey: "key",
+				sessionId: "sess-vscode",
+				systemPrompt: "",
+				tools: [],
+				headers: {
+					"X-CLIENT-TYPE": "VSCode Extension",
+					"X-IS-MULTIROOT": "true",
+					"x-top": "wins",
+				},
+				extensionContext: {
+					client: { name: "cline-vscode", version: "1.2.3" },
+					workspace: {
+						rootPath: "/tmp/project",
+						platform: "darwin",
+					},
+				},
+				providerConfig: {
+					providerId: "cline",
+					modelId: "anthropic/claude-sonnet-4.6",
+					headers: {
+						"X-CLIENT-TYPE": "provider-client",
+						"x-provider": "kept",
+					},
+				},
+			},
+			undefined,
+		);
+
+		const gatewayConfig = getLastGatewayConfig();
+		expect(gatewayConfig?.providerConfigs[0].headers).toMatchObject({
+			"X-CLIENT-TYPE": "VSCode Extension",
+			"X-CLIENT-VERSION": "1.2.3",
+			"X-IS-MULTIROOT": "true",
+			"X-Task-ID": "sess-vscode",
+			"x-provider": "kept",
+			"x-top": "wins",
+		});
+	});
+
+	it("preserves existing header precedence for non-Cline providers", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+
+		createAgentModelFromConfig(
+			{
+				providerId: "openai-compatible",
+				modelId: "custom-model",
+				apiKey: "key",
+				systemPrompt: "",
+				tools: [],
+				headers: {
+					"x-top": "wins",
+				},
+				providerConfig: {
+					providerId: "openai-compatible",
+					modelId: "custom-model",
+					headers: {
+						"x-provider": "not-merged",
+					},
+				},
+			},
+			undefined,
+		);
+
+		const gatewayConfig = getLastGatewayConfig();
+		expect(gatewayConfig?.providerConfigs[0].headers).toEqual({
+			"x-top": "wins",
+		});
 	});
 
 	it("preserves model capabilities and metadata when configuring gateway models", async () => {
