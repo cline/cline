@@ -172,6 +172,18 @@ export class Controller {
 	private readonly providerConfigStoreSubscription: Disposable
 	private providerConfigStatePostScheduled = false
 
+	// Debounce/coalesce state posts. During a streaming turn the session event
+	// coordinator fires postStateToWebview() many times per second; each call
+	// rebuilds the full ExtensionState (including task history). Coalescing the
+	// rapid bursts into a single trailing rebuild keeps the extension host
+	// responsive while still shipping a fresh snapshot promptly.
+	private static readonly STATE_POST_DEBOUNCE_MS = 50
+	private statePostDebounceTimer?: NodeJS.Timeout
+	private statePostInFlight = false
+	private statePostInFlightPromise?: Promise<void>
+	private statePostQueued = false
+	private pendingStatePostResolvers: Array<() => void> = []
+
 	// Bridges SDK events to the webview's gRPC streams.
 	private grpcBridge: WebviewGrpcBridge
 
@@ -664,6 +676,26 @@ export class Controller {
 		}
 		await this.setRemoteConfigCoreIntegration(undefined)
 		this.isDisposed = true
+		// Tear down the debounced state-post machinery: cancel any pending timer
+		// and settle in-flight awaiters so callers blocked on postStateToWebview()
+		// don't hang past disposal. Await any in-flight flush so it either
+		// completes or bails via the !this.isDisposed guard before downstream
+		// resources are torn down below.
+		if (this.statePostDebounceTimer) {
+			clearTimeout(this.statePostDebounceTimer)
+			this.statePostDebounceTimer = undefined
+		}
+		this.statePostQueued = false
+		const pendingStatePostResolvers = this.pendingStatePostResolvers
+		this.pendingStatePostResolvers = []
+		for (const resolve of pendingStatePostResolvers) {
+			resolve()
+		}
+		const inFlight = this.statePostInFlightPromise
+		if (inFlight) {
+			await inFlight.catch(() => {})
+			this.statePostInFlightPromise = undefined
+		}
 		await this.invalidateUserInstructionService()
 		this.messages.cancelPendingSave()
 		// Clear MCP tool list change callback before disposing McpHub
@@ -1742,7 +1774,69 @@ export class Controller {
 
 	// ---- State management ----
 
-	async postStateToWebview(): Promise<void> {
+	/**
+	 * Request a webview state update.
+	 *
+	 * Callers fire this very frequently (notably the session event coordinator,
+	 * once per streamed message/turn boundary), and each rebuild walks the full
+	 * task history. To avoid hammering the extension host we coalesce bursts: a
+	 * short trailing debounce collapses rapid calls into a single rebuild, and
+	 * while a rebuild is in flight further requests are folded into one queued
+	 * follow-up. The returned promise resolves once a snapshot reflecting this
+	 * request has been shipped.
+	 */
+	postStateToWebview(): Promise<void> {
+		if (this.isDisposed) {
+			return Promise.resolve()
+		}
+		return new Promise<void>((resolve) => {
+			this.pendingStatePostResolvers.push(resolve)
+			if (this.statePostDebounceTimer) {
+				return
+			}
+			this.statePostDebounceTimer = setTimeout(() => {
+				this.statePostDebounceTimer = undefined
+				this.statePostInFlightPromise = this.runDebouncedStatePost()
+			}, Controller.STATE_POST_DEBOUNCE_MS)
+			this.statePostDebounceTimer.unref?.()
+		})
+	}
+
+	/**
+	 * Drive a single coalesced state rebuild. If requests arrive while a rebuild
+	 * is already running they set `statePostQueued`, and exactly one more rebuild
+	 * runs afterward so the final snapshot is never stale. Resolvers captured for
+	 * the in-flight batch are settled when that batch ships.
+	 */
+	private async runDebouncedStatePost(): Promise<void> {
+		if (this.statePostInFlight) {
+			this.statePostQueued = true
+			return
+		}
+		this.statePostInFlight = true
+		try {
+			do {
+				this.statePostQueued = false
+				const resolvers = this.pendingStatePostResolvers
+				this.pendingStatePostResolvers = []
+				try {
+					await this.flushStateToWebview()
+				} catch (error) {
+					Logger.error("[SdkController] Failed to post state to webview:", error)
+				} finally {
+					for (const resolve of resolvers) {
+						resolve()
+					}
+				}
+			} while (this.statePostQueued && !this.isDisposed)
+		} finally {
+			this.statePostInFlight = false
+			this.statePostInFlightPromise = undefined
+		}
+	}
+
+	/** Build the current ExtensionState and push it to the webview immediately. */
+	private async flushStateToWebview(): Promise<void> {
 		// Import dynamically to avoid circular deps
 		const { sendStateUpdate } = await import("@core/controller/state/subscribeToState")
 		const state = await this.getStateToPostToWebview()

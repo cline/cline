@@ -544,6 +544,99 @@ describe("SdkTaskHistory", () => {
 			}),
 		)
 	})
+
+	it("patches cached history record in place without re-listing from host", async () => {
+		const { history, listHistory } = makeHistory([
+			makeSessionRecord("task-1", { updatedAt: "2026-01-01T00:00:00.000Z" }),
+			makeSessionRecord("task-2", { updatedAt: "2026-01-02T00:00:00.000Z" }),
+		])
+
+		// Populate cache
+		await history.listHistory({ hydrate: false })
+		expect(listHistory).toHaveBeenCalledTimes(1)
+
+		// Update task-1
+		await history.updateTaskHistoryItem(makeHistoryItem("task-1", { task: "new title" }))
+
+		// Read again — should use cache, not re-list from host
+		const result = await history.listHistory({ hydrate: false })
+		expect(listHistory).toHaveBeenCalledTimes(1)
+
+		// Cached record should reflect the updated prompt and metadata
+		const updated = result.find((r) => r.sessionId === "task-1")
+		expect(updated?.prompt).toBe("new title")
+		expect(updated?.metadata).toEqual(expect.objectContaining({ title: "new title" }))
+		// updatedAt should be bumped, not the original "2026-01-01T00:00:00.000Z"
+		expect(updated?.updatedAt).not.toBe("2026-01-01T00:00:00.000Z")
+	})
+
+	it("re-sorts cached history after patching so the updated record bubbles up", async () => {
+		const { history } = makeHistory([
+			makeSessionRecord("task-1", { updatedAt: "2026-01-01T00:00:00.000Z" }),
+			makeSessionRecord("task-2", { updatedAt: "2026-01-02T00:00:00.000Z" }),
+		])
+
+		// Populate cache — task-2 (newer) should be first
+		const initial = await history.listHistory({ hydrate: false })
+		expect(initial[0].sessionId).toBe("task-2")
+		expect(initial[1].sessionId).toBe("task-1")
+
+		// Update task-1 with a timestamp newer than task-2
+		await history.updateTaskHistoryItem(
+			makeHistoryItem("task-1", { task: "updated", ts: Date.parse("2026-01-03T00:00:00.000Z") }),
+		)
+
+		// task-1 should now be first due to re-sort
+		const result = await history.listHistory({ hydrate: false })
+		expect(result[0].sessionId).toBe("task-1")
+	})
+
+	it("patches cache in place on per-turn usage updates", async () => {
+		const { history, listHistory } = makeHistory([
+			makeSessionRecord("task-1", {
+				metadata: { tokensIn: 10, tokensOut: 20, totalCost: 0.01 },
+			}),
+		])
+
+		// Populate cache
+		await history.listHistory({ hydrate: false })
+		expect(listHistory).toHaveBeenCalledTimes(1)
+
+		// Per-turn usage update (the streaming hot path)
+		await history.updateTaskUsage("task-1", {
+			tokensIn: 100,
+			tokensOut: 200,
+			totalCost: 0.03,
+		})
+
+		// Read again — should use cache, not re-list from host
+		const result = await history.listHistory({ hydrate: false })
+		expect(listHistory).toHaveBeenCalledTimes(1)
+
+		const updated = result.find((r) => r.sessionId === "task-1")
+		expect(updated?.metadata).toEqual(
+			expect.objectContaining({
+				tokensIn: 110,
+				tokensOut: 220,
+				totalCost: 0.04,
+			}),
+		)
+	})
+
+	it("invalidates cache when updating a session not present in it", async () => {
+		const { history, listHistory } = makeHistory([makeSessionRecord("task-1")])
+
+		// Populate cache with just task-1
+		await history.listHistory({ hydrate: false })
+		expect(listHistory).toHaveBeenCalledTimes(1)
+
+		// Update task-2, which is NOT in the cache
+		await history.updateTaskHistoryItem(makeHistoryItem("task-2", { task: "new" }))
+
+		// Next read should re-list from host (cache was invalidated)
+		await history.listHistory({ hydrate: false })
+		expect(listHistory).toHaveBeenCalledTimes(2)
+	})
 })
 
 function makeHistoryItem(id: string, overrides: Partial<HistoryItem> = {}): HistoryItem {

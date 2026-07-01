@@ -67,6 +67,24 @@ function dateStringToTimestamp(value: string | null | undefined): number {
 	return Number.isFinite(timestamp) ? timestamp : 0
 }
 
+/**
+ * Sort comparator for session history records by recency: newest first.
+ *
+ * Falls back through `updatedAt` → `endedAt` → `startedAt` so records that
+ * haven't been touched since creation still sort deterministically. Used both
+ * when merging the initial list and when re-sorting after a single-record
+ * patch, so the two orderings can never diverge.
+ */
+function compareSessionHistoryRecordsByRecencyDesc(
+	a: SessionHistoryRecord,
+	b: SessionHistoryRecord,
+): number {
+	return (
+		dateStringToTimestamp(b.updatedAt ?? b.endedAt ?? b.startedAt) -
+		dateStringToTimestamp(a.updatedAt ?? a.endedAt ?? a.startedAt)
+	)
+}
+
 function historyItemHasTokenUsage(item: HistoryItem): boolean {
 	return (item.tokensIn ?? 0) > 0 || (item.tokensOut ?? 0) > 0 || (item.cacheReads ?? 0) > 0 || (item.cacheWrites ?? 0) > 0
 }
@@ -382,6 +400,40 @@ export class SdkTaskHistory {
 		this.metadataHistoryCache = undefined
 	}
 
+	/**
+	 * Mirror a persistence-layer write into the cache so the next read sees
+	 * the updated record without a full re-enumeration.
+	 *
+	 * The persistence layer bumps `updatedAt` on every write, so the cached
+	 * record is updated to match and the cache is re-sorted to preserve the
+	 * descending-`updatedAt` ordering that {@link listHistory} establishes.
+	 * When the session isn't in the cache (e.g. a brand-new task whose list
+	 * membership/ordering may change) the cache is invalidated so the next
+	 * read re-enumerates from disk.
+	 */
+	private updateCachedSessionRecord(
+		sessionId: string,
+		updates: { prompt: string; metadata: Record<string, unknown>; updatedAt: string },
+	): void {
+		const cache = this.metadataHistoryCache
+		if (!cache) {
+			return
+		}
+		const index = cache.records.findIndex((record) => record.sessionId === sessionId)
+		if (index === -1) {
+			this.invalidateMetadataHistoryCache()
+			return
+		}
+		const existing = cache.records[index]
+		cache.records[index] = {
+			...existing,
+			prompt: updates.prompt,
+			metadata: updates.metadata,
+			updatedAt: updates.updatedAt,
+		}
+		cache.records.sort(compareSessionHistoryRecordsByRecencyDesc)
+	}
+
 	private canUseMetadataHistoryCache(options: SdkTaskHistoryListOptions): boolean {
 		return options.hydrate === false
 	}
@@ -434,9 +486,7 @@ export class SdkTaskHistory {
 		).length
 
 		const mergedHistory = [...visibleSdkHistory, ...legacyHistory].sort(
-			(a, b) =>
-				dateStringToTimestamp(b.updatedAt ?? b.endedAt ?? b.startedAt) -
-				dateStringToTimestamp(a.updatedAt ?? a.endedAt ?? a.startedAt),
+			compareSessionHistoryRecordsByRecencyDesc,
 		)
 		if (useCache) {
 			this.metadataHistoryCache = {
@@ -579,7 +629,7 @@ export class SdkTaskHistory {
 	}
 
 	private async updateSession(sessionId: string, item: HistoryItem): Promise<void> {
-		await this.withHistoryHost(async (host) => {
+		const writtenMetadata = await this.withHistoryHost(async (host) => {
 			const existing = await host.get(sessionId)
 			const metadata: Record<string, unknown> = {
 				...(existing?.metadata ?? {}),
@@ -598,8 +648,13 @@ export class SdkTaskHistory {
 				metadata,
 				title: item.task,
 			})
+			return metadata
 		})
-		this.invalidateMetadataHistoryCache()
+		this.updateCachedSessionRecord(sessionId, {
+			prompt: item.task,
+			metadata: writtenMetadata,
+			updatedAt: new Date(item.ts || Date.now()).toISOString(),
+		})
 	}
 
 	async updateTaskHistoryItem(item: HistoryItem): Promise<void> {
