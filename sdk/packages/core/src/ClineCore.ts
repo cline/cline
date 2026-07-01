@@ -218,8 +218,8 @@ export class ClineCore {
 			...options,
 			capabilities,
 			distinctId,
-			isCompactionSidecarEnabled:
-				options.isCompactionSidecarEnabled ??
+			getCompactionSidecarEnabled:
+				options.getCompactionSidecarEnabled ??
 				createSessionCompactionSidecarEnabledResolver(featureFlags),
 		};
 		const host = await createRuntimeHost(normalizedOptions);

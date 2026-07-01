@@ -204,7 +204,7 @@ export interface LocalRuntimeHostOptions {
 	providerSettingsManager?: ProviderSettingsManager;
 	oauthTokenManager?: RuntimeOAuthTokenManager;
 	telemetry?: ITelemetryService;
-	isCompactionSidecarEnabled?: () => boolean;
+	getCompactionSidecarEnabled?: () => boolean;
 	/**
 	 * Default custom `fetch` implementation threaded into every
 	 * `ProviderConfig.fetch` built during local session bootstrap. Used by
@@ -264,7 +264,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		this.defaultTelemetry?.setDistinctId(distinctId);
 		this.defaultFetch = options.fetch;
 		this.compactionSidecar = createSessionCompactionSidecarAccess(
-			options.isCompactionSidecarEnabled ??
+			options.getCompactionSidecarEnabled ??
 				createSessionCompactionSidecarEnabledResolver(),
 		);
 
