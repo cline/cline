@@ -807,22 +807,36 @@ export async function verifyHubConnection(
 	url: string,
 	options?: Pick<HubClientOptions, "workspaceRoot" | "cwd" | "authToken">,
 ): Promise<boolean> {
-	const client = new NodeHubClient({
-		url,
-		authToken: options?.authToken,
-		clientType: "hub-healthcheck",
-		displayName: "hub healthcheck",
-		workspaceRoot: options?.workspaceRoot,
-		cwd: options?.cwd,
-	});
-	try {
-		await client.connect();
-		return true;
-	} catch {
-		return false;
-	} finally {
-		client.close();
+	const maxAttempts = 3;
+	const retryDelayMs = 100;
+
+	for (let attempt = 0; attempt < maxAttempts; attempt++) {
+		const client = new NodeHubClient({
+			url,
+			authToken: options?.authToken,
+			clientType: "hub-healthcheck",
+			displayName: "hub healthcheck",
+			workspaceRoot: options?.workspaceRoot,
+			cwd: options?.cwd,
+		});
+		try {
+			await client.connect();
+			return true;
+		} catch (error) {
+			const isConnectionRefused =
+				error instanceof Error &&
+				(error.message.includes("ECONNREFUSED") ||
+					error.message.includes("Connection refused"));
+			if (!isConnectionRefused || attempt === maxAttempts - 1) {
+				return false;
+			}
+			await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+		} finally {
+			client.close();
+		}
 	}
+
+	return false;
 }
 
 type HubProbeResult =
