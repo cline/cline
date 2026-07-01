@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, it } from "mocha"
-import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
 import "should"
 import * as sinon from "sinon"
 import * as vscode from "vscode"
+import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
+import * as terminalOutputModule from "./get-latest-output"
 import { VscodeTerminalProcess } from "./VscodeTerminalProcess"
 import { TerminalRegistry } from "./VscodeTerminalRegistry"
 
@@ -194,16 +195,13 @@ describe("TerminalProcess (Integration Tests)", () => {
 	})
 
 	// Test that specifically checks for no shell integration
-	it("should handle terminals without shell integration", async () => {
-		// Create a real terminal without explicitly providing shell integration
-		const terminal = vscode.window.createTerminal({ name: "Test Terminal" })
-		createdTerminals.push(terminal)
+	it("should emit no_shell_integration when fallback output is empty", async () => {
+		const terminal = {
+			sendText: sandbox.stub(),
+			shellIntegration: undefined,
+		} as unknown as vscode.Terminal
 
-		// Stub the shellIntegration getter to return undefined for this test
-		sandbox.stub(terminal, "shellIntegration").get(() => undefined)
-
-		// Stub the sendText method to verify it's called
-		const sendTextStub = sandbox.stub(terminal, "sendText")
+		sandbox.stub(terminalOutputModule, "getLatestTerminalOutput").resolves("")
 
 		// Spy on the emit function to verify events
 		const emitSpy = sandbox.spy(process, "emit")
@@ -218,12 +216,40 @@ describe("TerminalProcess (Integration Tests)", () => {
 		await runPromise
 
 		// Check that the correct methods were called and events emitted
-		sendTextStub.calledWith("test-command", true).should.be.true()
+		;(terminal.sendText as sinon.SinonStub).calledWith("test-command", true).should.be.true()
 		;(emitSpy as sinon.SinonSpy).calledWith("completed").should.be.true()
 		;(emitSpy as sinon.SinonSpy).calledWith("continue").should.be.true()
-
-		// This event should be emitted for terminals without shell integration
 		;(emitSpy as sinon.SinonSpy).calledWith("no_shell_integration").should.be.true()
+	})
+
+	it("should suppress no_shell_integration when fallback output is captured", async () => {
+		const terminal = {
+			sendText: sandbox.stub(),
+			shellIntegration: undefined,
+		} as unknown as vscode.Terminal
+
+		sandbox.stub(terminalOutputModule, "getLatestTerminalOutput").resolves("command output\nmore output")
+
+		// Spy on the emit function to verify events
+		const emitSpy = sandbox.spy(process, "emit")
+
+		const runPromise = process.run(terminal, "test-command")
+
+		await sandbox.clock.tickAsync(3000)
+		await runPromise
+
+		;(terminal.sendText as sinon.SinonStub).calledWith("test-command", true).should.be.true()
+		;(emitSpy as sinon.SinonSpy).calledWith("completed").should.be.true()
+		;(emitSpy as sinon.SinonSpy).calledWith("continue").should.be.true()
+		;(emitSpy as sinon.SinonSpy).calledWith("no_shell_integration").should.be.false()
+		;(emitSpy as sinon.SinonSpy)
+			.calledWithMatch(
+				"line",
+				sinon.match(
+					(value: unknown) => typeof value === "string" && value.includes("Here's the current terminal's content"),
+				),
+			)
+			.should.be.true()
 	})
 
 	// The following tests require shell integration and controlled terminal output
