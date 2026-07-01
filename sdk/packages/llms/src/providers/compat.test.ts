@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createGatewayApiHandler, toGatewayRequestMessages } from "./compat";
 import { ClineNotSubscribedError } from "./errors";
+import { DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS } from "./gateway";
 import type { Message } from "./types";
 
 const streamTextSpy = vi.fn();
@@ -357,7 +358,7 @@ describe("createGatewayApiHandler.createMessage", () => {
 		openaiCompatibleSpy.mockClear();
 	});
 
-	it("does not convert catalog maxTokens into request maxOutputTokens", async () => {
+	it("uses the default maxOutputTokens without expanding to catalog maxTokens", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: (async function* () {
 				yield { type: "finish", finishReason: "stop" };
@@ -391,7 +392,10 @@ describe("createGatewayApiHandler.createMessage", () => {
 		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
 			| { maxOutputTokens?: unknown }
 			| undefined;
-		expect(call).not.toHaveProperty("maxOutputTokens");
+		expect(call).toHaveProperty(
+			"maxOutputTokens",
+			DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS,
+		);
 	});
 
 	it("sends configured OpenAI-compatible maxOutputTokens to the provider request", async () => {
