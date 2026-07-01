@@ -80,6 +80,7 @@ export interface ResumedSessionResult {
 export interface InteractiveCompactionResult {
 	messagesBefore: number;
 	messagesAfter: number;
+	workingContextMessagesAfter?: number;
 	compacted: boolean;
 }
 

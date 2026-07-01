@@ -183,6 +183,9 @@ export function ensureSessionState(
 		if (options.interactive !== undefined) {
 			existing.interactive = options.interactive;
 		}
+		if (role === "creator" && !existing.createdByClientId) {
+			existing.createdByClientId = clientId;
+		}
 		if (!existing.participants.has(clientId)) {
 			existing.participants.set(clientId, {
 				clientId,
@@ -194,6 +197,44 @@ export function ensureSessionState(
 	}
 	const state: HubSessionState = {
 		createdByClientId: clientId,
+		interactive: options.interactive ?? true,
+		participants: new Map([
+			[
+				clientId,
+				{
+					clientId,
+					attachedAt: Date.now(),
+					role,
+				},
+			],
+		]),
+	};
+	ctx.sessionState.set(sessionId, state);
+	return state;
+}
+
+export function ensureSessionParticipant(
+	ctx: HubTransportContext,
+	sessionId: string,
+	clientId: string,
+	role: SessionParticipant["role"],
+	options: { interactive?: boolean } = {},
+): HubSessionState {
+	const existing = ctx.sessionState.get(sessionId);
+	if (existing) {
+		if (options.interactive !== undefined) {
+			existing.interactive = options.interactive;
+		}
+		if (!existing.participants.has(clientId)) {
+			existing.participants.set(clientId, {
+				clientId,
+				attachedAt: Date.now(),
+				role,
+			});
+		}
+		return existing;
+	}
+	const state: HubSessionState = {
 		interactive: options.interactive ?? true,
 		participants: new Map([
 			[
