@@ -18,7 +18,7 @@ import {
 } from "@cline/core"
 import { getGeneratedModelsForProvider, MODEL_COLLECTIONS_BY_PROVIDER_ID } from "@cline/llms"
 import { buildClineSystemPrompt } from "@cline/shared"
-import type { ApiConfiguration } from "@shared/api"
+import type { ApiConfiguration, ModelInfo } from "@shared/api"
 import type { HistoryItem } from "@shared/HistoryItem"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, type LanguageDisplay } from "@shared/Languages"
 import { Logger } from "@shared/services/Logger"
@@ -202,10 +202,87 @@ function resolveOcaReasoningConfig(mode: Mode, apiConfig: ApiConfiguration | und
 	return isReasoningEffort(effort) ? { thinking: true, reasoningEffort: effort } : undefined
 }
 
-function resolveOpenAiCompatibleMaxTokens(config: ApiConfiguration | undefined, mode: Mode): number | undefined {
-	const modelInfo = mode === "plan" ? config?.planModeOpenAiModelInfo : config?.actModeOpenAiModelInfo
-	const maxTokens = modelInfo?.maxTokens
-	return typeof maxTokens === "number" && Number.isFinite(maxTokens) && maxTokens > 0 ? maxTokens : undefined
+function isFiniteNumber(value: unknown): value is number {
+	return typeof value === "number" && Number.isFinite(value)
+}
+
+function positiveFiniteNumber(value: unknown): number | undefined {
+	return isFiniteNumber(value) && value > 0 ? value : undefined
+}
+
+function resolveOpenAiCompatibleModelInfo(config: ApiConfiguration | undefined, mode: Mode): ModelInfo | undefined {
+	const stateModelInfo = mode === "plan" ? config?.planModeOpenAiModelInfo : config?.actModeOpenAiModelInfo
+	if (stateModelInfo) {
+		return stateModelInfo
+	}
+
+	try {
+		const settings = getProviderSettingsManager(resolveDataDir()).getProviderSettings("openai")
+		if (!settings) {
+			return undefined
+		}
+
+		const modelSettings = settings as ProviderSettings
+		const contextWindow = positiveFiniteNumber(modelSettings.contextWindow)
+		const maxTokens = positiveFiniteNumber(modelSettings.maxTokens)
+		const inputPrice = isFiniteNumber(modelSettings.pricing?.input) ? modelSettings.pricing.input : undefined
+		const outputPrice = isFiniteNumber(modelSettings.pricing?.output) ? modelSettings.pricing.output : undefined
+		const cacheReadsPrice = isFiniteNumber(modelSettings.pricing?.cacheRead) ? modelSettings.pricing.cacheRead : undefined
+		const cacheWritesPrice = isFiniteNumber(modelSettings.pricing?.cacheWrite) ? modelSettings.pricing.cacheWrite : undefined
+		const temperature = isFiniteNumber(modelSettings.temperature) ? modelSettings.temperature : undefined
+
+		if (
+			contextWindow === undefined &&
+			maxTokens === undefined &&
+			inputPrice === undefined &&
+			outputPrice === undefined &&
+			cacheReadsPrice === undefined &&
+			cacheWritesPrice === undefined &&
+			temperature === undefined
+		) {
+			return undefined
+		}
+
+		return {
+			name: settings.model,
+			supportsPromptCache: false,
+			...(contextWindow !== undefined ? { contextWindow } : {}),
+			...(maxTokens !== undefined ? { maxTokens } : {}),
+			...(inputPrice !== undefined ? { inputPrice } : {}),
+			...(outputPrice !== undefined ? { outputPrice } : {}),
+			...(cacheReadsPrice !== undefined ? { cacheReadsPrice } : {}),
+			...(cacheWritesPrice !== undefined ? { cacheWritesPrice } : {}),
+			...(temperature !== undefined ? { temperature } : {}),
+		}
+	} catch (error) {
+		Logger.warn("[SessionFactory] Failed to read OpenAI Compatible model settings from providers.json", error)
+		return undefined
+	}
+}
+
+function toSdkKnownModelInfo(modelId: string, modelInfo: ModelInfo): NonNullable<CoreSessionConfig["knownModels"]> {
+	return {
+		[modelId]: {
+			id: modelId,
+			name: modelInfo.name ?? modelId,
+			maxTokens: modelInfo.maxTokens,
+			contextWindow: modelInfo.contextWindow,
+			maxInputTokens: modelInfo.contextWindow,
+			temperature: modelInfo.temperature,
+			pricing:
+				modelInfo.inputPrice !== undefined ||
+				modelInfo.outputPrice !== undefined ||
+				modelInfo.cacheReadsPrice !== undefined ||
+				modelInfo.cacheWritesPrice !== undefined
+					? {
+							input: modelInfo.inputPrice ?? 0,
+							output: modelInfo.outputPrice ?? 0,
+							cacheRead: modelInfo.cacheReadsPrice ?? 0,
+							cacheWrite: modelInfo.cacheWritesPrice ?? 0,
+						}
+					: undefined,
+		},
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -606,7 +683,8 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		apiKey = resolveApiKey(providerId, apiConfig)
 	}
 	apiKey = apiKey ?? ""
-	const maxTokensPerTurn = providerId === "openai" ? resolveOpenAiCompatibleMaxTokens(apiConfig, mode) : undefined
+	const openAiCompatibleModelInfo = providerId === "openai" ? resolveOpenAiCompatibleModelInfo(apiConfig, mode) : undefined
+	const maxTokensPerTurn = positiveFiniteNumber(openAiCompatibleModelInfo?.maxTokens)
 	const reasoningConfig =
 		providerId === "oca"
 			? (resolveOcaReasoningConfig(mode, apiConfig) ?? resolveProviderReasoningConfig(providerId))
@@ -677,6 +755,13 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		modelId,
 		...(apiKey ? { apiKey } : {}),
 		...(baseUrl !== undefined ? { baseUrl } : {}),
+		...(openAiCompatibleModelInfo ? { knownModels: toSdkKnownModelInfo(modelId, openAiCompatibleModelInfo) } : {}),
+		...(positiveFiniteNumber(openAiCompatibleModelInfo?.contextWindow) !== undefined
+			? { maxInputTokens: openAiCompatibleModelInfo?.contextWindow }
+			: {}),
+		...(isFiniteNumber(openAiCompatibleModelInfo?.temperature)
+			? { temperature: openAiCompatibleModelInfo?.temperature }
+			: {}),
 		fetch,
 	}
 

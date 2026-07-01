@@ -15,6 +15,34 @@ describe("provider settings", () => {
 		expect(config.accessToken).toBe("oauth-access-token");
 	});
 
+	it("maps OpenAI Compatible provider pricing settings into model pricing", () => {
+		const config = toProviderConfig({
+			provider: "openai-compatible",
+			model: "custom-model",
+			pricing: { input: 0.1, output: 0.5, cacheRead: 0.01, cacheWrite: 0.02 },
+		});
+
+		expect(config.knownModels?.["custom-model"]?.pricing).toEqual({
+			input: 0.1,
+			output: 0.5,
+			cacheRead: 0.01,
+			cacheWrite: 0.02,
+		});
+	});
+
+	it("does not overwrite catalog model info with sparse settings for non-OpenAI-Compatible providers", () => {
+		const config = toProviderConfig({
+			provider: "anthropic",
+			model: "claude-sonnet-4-6",
+		});
+
+		expect(config.knownModels?.["claude-sonnet-4-6"]).toMatchObject({
+			id: "claude-sonnet-4-6",
+			contextWindow: expect.any(Number),
+			maxTokens: expect.any(Number),
+		});
+	});
+
 	it("accepts the Bedrock apikey authentication alias", () => {
 		const result = safeParseSettings({
 			provider: "bedrock",

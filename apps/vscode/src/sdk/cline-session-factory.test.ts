@@ -448,9 +448,45 @@ describe("buildSessionConfig", () => {
 		expect(config.providerId).toBe("openai-compatible")
 		expect(config.modelId).toBe("custom-reasoner")
 		expect(config.knownModels).toBeUndefined()
-		expect((config.providerConfig as any).knownModels).toBeUndefined()
+		expect((config.providerConfig as any).knownModels?.["custom-reasoner"]).toMatchObject({
+			id: "custom-reasoner",
+			name: "Custom Reasoner",
+			contextWindow: 16_000,
+			maxInputTokens: 16_000,
+			maxTokens: 4_096,
+			pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+		})
 		expect((config.providerConfig as any).maxOutputTokens).toBeUndefined()
 		expect((config as any).maxTokensPerTurn).toBe(4_096)
+	})
+
+	it("hydrates OpenAI Compatible model metadata from providers.json when state lacks model info", async () => {
+		mocks.providerSettingsManager.getProviderSettings.mockReturnValue({
+			provider: "openai",
+			model: "custom-reasoner",
+			contextWindow: 32_000,
+			maxTokens: 2_048,
+			pricing: { input: 0.1, output: 0.5, cacheRead: 0.01, cacheWrite: 0.02 },
+			temperature: 0.3,
+		} as any)
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "openai",
+			actModeOpenAiModelId: "custom-reasoner",
+			openAiApiKey: "openai-compatible-key",
+			openAiBaseUrl: "https://openai-compatible.example/v1",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect((config as any).maxTokensPerTurn).toBe(2_048)
+		expect((config.providerConfig as any).maxInputTokens).toBe(32_000)
+		expect((config.providerConfig as any).temperature).toBe(0.3)
+		expect((config.providerConfig as any).knownModels?.["custom-reasoner"]).toMatchObject({
+			contextWindow: 32_000,
+			maxTokens: 2_048,
+			pricing: { input: 0.1, output: 0.5, cacheRead: 0.01, cacheWrite: 0.02 },
+			temperature: 0.3,
+		})
 	})
 
 	it("passes OCA reasoning effort from legacy mode settings to SDK sessions", async () => {

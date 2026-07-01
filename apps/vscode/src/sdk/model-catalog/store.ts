@@ -21,7 +21,20 @@ import { toSdkProviderId } from "./sdk-provider-id"
 import { adaptSdkModelInfo } from "./shape-adapter"
 
 type ProviderSettingsRecord = Record<string, unknown>
-type ProviderSettingsPatchKey = "apiKey" | "baseUrl" | "apiLine" | "headers" | "region" | "auth" | "extras" | "aws" | "gcp"
+type ProviderSettingsPatchKey =
+	| "apiKey"
+	| "baseUrl"
+	| "apiLine"
+	| "headers"
+	| "region"
+	| "auth"
+	| "extras"
+	| "aws"
+	| "gcp"
+	| "maxTokens"
+	| "contextWindow"
+	| "temperature"
+	| "pricing"
 
 type ModelInfoKeys = {
 	readonly plan: keyof ApiConfiguration & SettingsKey
@@ -89,6 +102,10 @@ const providerConfigStateKeys: Record<ProviderSettingsPatchKey, Partial<Record<s
 	extras: {},
 	aws: {},
 	gcp: {},
+	maxTokens: {},
+	contextWindow: {},
+	temperature: {},
+	pricing: {},
 }
 
 const modelInfoKeysByProvider: Partial<Record<string, ModelInfoKeys>> = {
@@ -129,6 +146,10 @@ function providerForStorage(providerId: ProviderId): ApiProvider | undefined {
 
 function providerSettingsProviderId(providerId: ProviderId): string {
 	return toSdkProviderId(providerId)
+}
+
+function supportsCustomModelSettings(providerId: ProviderId): boolean {
+	return providerKey(providerId) === "openai"
 }
 
 function memoryKey(providerId: ProviderId, mode: Mode): string {
@@ -296,14 +317,49 @@ function saveProviderSettings(providerId: ProviderId, next: ProviderSettingsReco
 function writeProviderSettingsFields(providerId: ProviderId, patch: ProviderConfigPatch): void {
 	const existing = getProviderSettings(providerId)
 	const next: ProviderSettingsRecord = { ...existing }
+	const canWriteCustomModelSettings = supportsCustomModelSettings(providerId)
+	const providerSettingsKeys = [
+		"apiKey",
+		"baseUrl",
+		"apiLine",
+		"headers",
+		"region",
+		"auth",
+		"extras",
+		...(canWriteCustomModelSettings ? (["maxTokens", "contextWindow", "temperature"] as const) : []),
+	] as const
 
-	for (const key of ["apiKey", "baseUrl", "apiLine", "headers", "region", "auth", "extras"] as const) {
+	for (const key of providerSettingsKeys) {
 		if (key in patch) {
 			const value = typeof patch[key] === "string" ? patchStringValue(patch[key]) : patchValue(patch[key])
 			if (value === undefined) {
 				delete next[key]
 			} else {
 				next[key] = value
+			}
+		}
+	}
+
+	if (!canWriteCustomModelSettings) {
+		delete next.maxTokens
+		delete next.contextWindow
+		delete next.temperature
+		delete next.pricing
+	}
+
+	if ("pricing" in patch && canWriteCustomModelSettings) {
+		const pricingPatch = patch.pricing
+		if (pricingPatch === null || pricingPatch === undefined) {
+			delete next.pricing
+		} else {
+			const existingPricing = isRecord(next.pricing) ? next.pricing : {}
+			const numberOrZero = (value: unknown): number =>
+				typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : 0
+			next.pricing = {
+				input: numberOrZero(pricingPatch.input ?? existingPricing.input),
+				output: numberOrZero(pricingPatch.output ?? existingPricing.output),
+				cacheRead: numberOrZero(pricingPatch.cacheRead ?? existingPricing.cacheRead),
+				cacheWrite: numberOrZero(pricingPatch.cacheWrite ?? existingPricing.cacheWrite),
 			}
 		}
 	}
