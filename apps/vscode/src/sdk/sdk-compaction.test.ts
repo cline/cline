@@ -1,14 +1,17 @@
-import { beforeEach, describe, expect, it, vi } from "vitest"
-import { compactSessionMessages } from "./sdk-compaction"
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
 const createContextCompactionPrepareTurn = vi.fn()
+const createSessionCompactionState = vi.fn((input: unknown) => ({ version: 1, input }))
 vi.mock("@cline/core", () => ({
 	createContextCompactionPrepareTurn: (...args: unknown[]) => createContextCompactionPrepareTurn(...args),
+	createSessionCompactionState: (input: unknown) => createSessionCompactionState(input),
 }))
 
 vi.mock("@/shared/services/Logger", () => ({
 	Logger: { debug: vi.fn(), error: vi.fn(), log: vi.fn(), warn: vi.fn() },
 }))
+
+let compactSessionMessages: typeof import("./sdk-compaction").compactSessionMessages
 
 const baseConfig = {
 	providerConfig: { providerId: "anthropic", modelId: "claude" },
@@ -21,6 +24,10 @@ const baseConfig = {
 } as unknown as Parameters<typeof compactSessionMessages>[0]["config"]
 
 describe("compactSessionMessages", () => {
+	beforeAll(async () => {
+		;({ compactSessionMessages } = await import("./sdk-compaction"))
+	})
+
 	beforeEach(() => {
 		vi.clearAllMocks()
 	})
@@ -53,7 +60,17 @@ describe("compactSessionMessages", () => {
 			{ mode: "manual" },
 		)
 		expect(compact).toHaveBeenCalledOnce()
-		expect(result).toEqual({ compacted: true, messages: [{ role: "user", content: "summary" }] })
+		expect(createSessionCompactionState).toHaveBeenCalledWith({
+			sourceMessages: messages,
+			compactedMessages: [{ role: "user", content: "summary" }],
+			conversationId: "s1",
+			systemPrompt: undefined,
+		})
+		expect(result).toEqual({
+			compacted: true,
+			messages: [{ role: "user", content: "summary" }],
+			compactionState: { version: 1, input: expect.anything() },
+		})
 	})
 
 	it("returns compacted=false when prepareTurn is unavailable", async () => {
