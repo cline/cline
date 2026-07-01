@@ -79,12 +79,36 @@ export async function runGitHubPrDashboardGate(
 	const snapshotHash = hashDashboardSnapshot(snapshot);
 	const changeSummary = summarizeDashboardChanges(state.lastSnapshot, snapshot);
 
-	if (state.lastSnapshotHash === snapshotHash) {
+	const hasAppliedSnapshot = state.lastSnapshotHash === snapshotHash;
+	const hasPendingSnapshot = state.pendingSnapshotHash === snapshotHash;
+
+	if (hasAppliedSnapshot || hasPendingSnapshot) {
 		persistState({
 			version: 1,
-			lastSnapshotHash: snapshotHash,
-			lastGeneratedAt: generatedAt,
-			lastSnapshot: snapshot,
+			...(hasAppliedSnapshot
+				? { lastSnapshotHash: snapshotHash }
+				: state.lastSnapshotHash
+					? { lastSnapshotHash: state.lastSnapshotHash }
+					: {}),
+			...(hasAppliedSnapshot
+				? { lastGeneratedAt: generatedAt }
+				: state.lastGeneratedAt
+					? { lastGeneratedAt: state.lastGeneratedAt }
+					: {}),
+			...(hasAppliedSnapshot
+				? { lastSnapshot: snapshot }
+				: state.lastSnapshot
+					? { lastSnapshot: state.lastSnapshot }
+					: {}),
+			...(state.pendingSnapshotHash
+				? { pendingSnapshotHash: state.pendingSnapshotHash }
+				: {}),
+			...(state.pendingGeneratedAt
+				? { pendingGeneratedAt: state.pendingGeneratedAt }
+				: {}),
+			...(state.pendingSnapshot
+				? { pendingSnapshot: state.pendingSnapshot }
+				: {}),
 		});
 		log(options.logger, "github-pr-dashboard: no dashboard changes, exiting", {
 			repositories: data.config.repositories,

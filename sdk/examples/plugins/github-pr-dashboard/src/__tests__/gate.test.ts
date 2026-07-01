@@ -82,6 +82,41 @@ describe("github PR dashboard gate", () => {
 		expect(second.handoffText).toBeUndefined();
 	});
 
+	it("stops before model when an identical snapshot is already pending", async () => {
+		let state: import("../state").GitHubPrDashboardState = { version: 1 };
+		const first = await runGitHubPrDashboardGate({
+			env,
+			readState: () => state,
+			writeState: (nextState) => {
+				state = nextState;
+			},
+			now: () => new Date("2026-06-10T00:00:00Z"),
+			fetchJson: async (url) => (url.includes("/reviews") ? [] : [pull]),
+		});
+		const writeState = vi.fn((nextState) => {
+			state = nextState;
+		});
+		const second = await runGitHubPrDashboardGate({
+			env,
+			readState: () => state,
+			writeState,
+			now: () => new Date("2026-06-10T00:00:00Z"),
+			fetchJson: async (url) => (url.includes("/reviews") ? [] : [pull]),
+		});
+
+		expect(first.stop).toBeUndefined();
+		expect(state.pendingSnapshotHash).toBe(first.snapshotHash);
+		expect(second.stop).toBe(true);
+		expect(second.handoffText).toBeUndefined();
+		expect(second.changeSummary).toEqual([]);
+		expect(writeState).toHaveBeenCalledWith(
+			expect.objectContaining({
+				pendingSnapshotHash: first.snapshotHash,
+			}),
+		);
+		expect(state.lastSnapshotHash).toBeUndefined();
+	});
+
 	it("includes deterministic change summary from previous snapshot", async () => {
 		let state: import("../state").GitHubPrDashboardState = { version: 1 };
 		const first = await runGitHubPrDashboardGate({
