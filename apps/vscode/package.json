@@ -426,7 +426,7 @@
 		"@types/get-folder-size": "^3.0.4",
 		"@types/js-yaml": "^4.0.9",
 		"@types/mocha": "^10.0.7",
-		"@types/node": "20.x",
+		"@types/node": "26.x",
 		"@types/pdf-parse": "^1.1.4",
 		"@types/picomatch": "^4.0.2",
 		"@types/shell-quote": "^1.7.5",
