@@ -64,7 +64,7 @@ export const FeatureFlagDefaultValue: Partial<
 	Record<FeatureFlag, FeatureFlagPayload | undefined>
 > = {
 	[FeatureFlag.CLINE_PASS]: false,
-	[FeatureFlag.COMPACTION_SIDECAR]: true,
+	[FeatureFlag.COMPACTION_SIDECAR]: false,
 };
 
 export const FEATURE_FLAGS: readonly FeatureFlag[] = Object.values(FeatureFlag);

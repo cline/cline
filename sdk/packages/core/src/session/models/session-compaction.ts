@@ -39,14 +39,15 @@ export type SessionCompactionState = z.infer<
 >;
 
 type CompactionSidecarFeatureFlags = {
-	getFlagPayload(flagName: string): unknown;
+	getBooleanFlagEnabled(flagName: string): boolean;
 };
 
 export function createSessionCompactionSidecarEnabledResolver(
 	featureFlags?: CompactionSidecarFeatureFlags,
 ): () => boolean {
 	return () =>
-		featureFlags?.getFlagPayload(FeatureFlag.COMPACTION_SIDECAR) !== false;
+		featureFlags?.getBooleanFlagEnabled(FeatureFlag.COMPACTION_SIDECAR) ??
+		false;
 }
 
 export type SessionCompactionSidecarUpdateResult = {

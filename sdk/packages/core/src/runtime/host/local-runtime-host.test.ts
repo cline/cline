@@ -4246,9 +4246,10 @@ describe("LocalRuntimeHost", () => {
 					tools: [],
 					shutdown: vi.fn(),
 				}),
-			},
-			createAgent: createAgent as never,
-		});
+				},
+				createAgent: createAgent as never,
+				isCompactionSidecarEnabled: () => true,
+			});
 
 		await manager.startSession(
 			normalizeStartInput({
@@ -4313,6 +4314,7 @@ describe("LocalRuntimeHost", () => {
 				}),
 			},
 			createAgent: createAgent as never,
+			isCompactionSidecarEnabled: () => true,
 		});
 
 		await manager.startSession(
@@ -4386,6 +4388,7 @@ describe("LocalRuntimeHost", () => {
 				}),
 			},
 			createAgent: createAgent as never,
+			isCompactionSidecarEnabled: () => true,
 		});
 
 		await manager.startSession(
@@ -4543,6 +4546,7 @@ describe("LocalRuntimeHost", () => {
 				}),
 			},
 			createAgent: createAgent as never,
+			isCompactionSidecarEnabled: () => true,
 		});
 
 		await manager.startSession(

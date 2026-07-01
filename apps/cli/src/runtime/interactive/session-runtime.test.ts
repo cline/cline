@@ -213,11 +213,12 @@ async function makeRuntime(
 		askQuestionRef: { current: null },
 		resolveMistakeLimitDecision: undefined,
 		switchToActModeTool: makeSwitchToActModeTool(),
-		onAgentEvent: vi.fn(),
-		onTeamEvent: vi.fn(),
-		onPendingPrompts: vi.fn(),
-		onPendingPromptSubmitted: vi.fn(),
-	});
+				onAgentEvent: vi.fn(),
+				onTeamEvent: vi.fn(),
+				onPendingPrompts: vi.fn(),
+				onPendingPromptSubmitted: vi.fn(),
+				isCompactionSidecarEnabled: () => true,
+			});
 }
 
 describe("createInteractiveSessionRuntime", () => {
@@ -281,20 +282,21 @@ describe("createInteractiveSessionRuntime", () => {
 			compactionState,
 		});
 		const { createInteractiveSessionRuntime } = await importRuntime();
-		const runtime = createInteractiveSessionRuntime({
-			config: createConfig(),
-			providerSettingsManager: createProviderSettingsManager(),
-			chatCommandState: createChatCommandState(),
-			requestToolApproval: vi.fn(),
+			const runtime = createInteractiveSessionRuntime({
+				config: createConfig(),
+				providerSettingsManager: createProviderSettingsManager(),
+				chatCommandState: createChatCommandState(),
+				requestToolApproval: vi.fn(),
 			resolveToolPolicy: () => ({ autoApprove: true }),
-			askQuestionRef: { current: null },
-			resolveMistakeLimitDecision: undefined,
-			switchToActModeTool: {} as never,
-			onAgentEvent: vi.fn(),
-			onTeamEvent: vi.fn(),
-			onPendingPrompts: vi.fn(),
-			onPendingPromptSubmitted: vi.fn(),
-		});
+				askQuestionRef: { current: null },
+				resolveMistakeLimitDecision: undefined,
+				switchToActModeTool: {} as never,
+				onAgentEvent: vi.fn(),
+				onTeamEvent: vi.fn(),
+				onPendingPrompts: vi.fn(),
+				onPendingPromptSubmitted: vi.fn(),
+				isCompactionSidecarEnabled: () => true,
+			});
 
 		await runtime.ensureReady();
 		const result = await runtime.compactCurrentSession();
@@ -327,7 +329,7 @@ describe("createInteractiveSessionRuntime", () => {
 		expect(runtime.getActiveSessionId()).toBe(sessionId);
 	});
 
-	it("manual compact skips sidecar writes when the sidecar flag is off", async () => {
+	it("manual compact runs compaction but reports not compacted when the sidecar flag is off", async () => {
 		const sessionId = "sess-active-sidecar-off";
 		const messages = [
 			{ id: "u1", role: "user" as const, content: "hello" },
@@ -365,11 +367,11 @@ describe("createInteractiveSessionRuntime", () => {
 			compactionState,
 		});
 		const { createInteractiveSessionRuntime } = await importRuntime();
-		const runtime = createInteractiveSessionRuntime({
-			config: createConfig(),
-			providerSettingsManager: createProviderSettingsManager(),
-			chatCommandState: createChatCommandState(),
-			requestToolApproval: vi.fn(),
+			const runtime = createInteractiveSessionRuntime({
+				config: createConfig(),
+				providerSettingsManager: createProviderSettingsManager(),
+				chatCommandState: createChatCommandState(),
+				requestToolApproval: vi.fn(),
 			resolveToolPolicy: () => ({ autoApprove: true }),
 			askQuestionRef: { current: null },
 			resolveMistakeLimitDecision: undefined,
@@ -389,6 +391,12 @@ describe("createInteractiveSessionRuntime", () => {
 			messagesAfter: messages.length,
 			compacted: false,
 		});
+		expect(compactInteractiveMessagesMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				sessionId,
+				messages,
+			}),
+		);
 		expect(manager.updateSessionCompactionState).not.toHaveBeenCalled();
 		expect(runtime.getActiveSessionId()).toBe(sessionId);
 	});
@@ -430,11 +438,12 @@ describe("createInteractiveSessionRuntime", () => {
 			askQuestionRef: { current: null },
 			resolveMistakeLimitDecision: undefined,
 			switchToActModeTool: {} as never,
-			onAgentEvent: vi.fn(),
-			onTeamEvent: vi.fn(),
-			onPendingPrompts: vi.fn(),
-			onPendingPromptSubmitted: vi.fn(),
-		});
+				onAgentEvent: vi.fn(),
+				onTeamEvent: vi.fn(),
+				onPendingPrompts: vi.fn(),
+				onPendingPromptSubmitted: vi.fn(),
+				isCompactionSidecarEnabled: () => true,
+			});
 
 		await runtime.ensureReady();
 
@@ -527,11 +536,12 @@ describe("createInteractiveSessionRuntime", () => {
 			askQuestionRef: { current: null },
 			resolveMistakeLimitDecision: undefined,
 			switchToActModeTool: {} as never,
-			onAgentEvent: vi.fn(),
-			onTeamEvent: vi.fn(),
-			onPendingPrompts: vi.fn(),
-			onPendingPromptSubmitted: vi.fn(),
-		});
+				onAgentEvent: vi.fn(),
+				onTeamEvent: vi.fn(),
+				onPendingPrompts: vi.fn(),
+				onPendingPromptSubmitted: vi.fn(),
+				isCompactionSidecarEnabled: () => true,
+			});
 
 		await runtime.ensureReady();
 		await runtime.applyMode("plan");
