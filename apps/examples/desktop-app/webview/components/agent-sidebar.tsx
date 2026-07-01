@@ -8,6 +8,7 @@ import {
 	MessageSquare,
 	PanelLeftOpen,
 	Pencil,
+	Pin,
 	Plus,
 	Search,
 	Settings,
@@ -126,6 +127,11 @@ const filterOptions = ["All", "Running", "Recent", "Pinned"] as const;
 type FilterOption = (typeof filterOptions)[number];
 const INITIAL_HISTORY_FETCH_LIMIT = 300;
 const INITIAL_VISIBLE_THREAD_COUNT = 10;
+const HISTORY_REFRESH_INTERVAL_MS = 12_000;
+const MIN_EVENT_HISTORY_REFRESH_INTERVAL_MS = 2_000;
+const HISTORY_EVENT_REFRESH_DELAY_MS = 1_000;
+const HISTORY_FAST_REFRESH_DELAY_MS = 50;
+const HISTORY_TERMINAL_REFRESH_DELAY_MS = 250;
 
 function parseTimestamp(value?: string): number {
 	if (!value) return Number.NEGATIVE_INFINITY;
@@ -173,6 +179,14 @@ function normalizeDiscoveredStatus(
 		return hasPrompt ? "running" : "idle";
 	if (normalized === "idle") return "idle";
 	return "idle";
+}
+
+function isTerminalHistoryStatus(status: SessionHistoryStatus): boolean {
+	return (
+		status === "completed" ||
+		status === "failed" ||
+		status === "cancelled"
+	);
 }
 
 function formatRelativeTime(value?: string): string {
@@ -513,6 +527,9 @@ export function AgentSidebar({
 	const sessionsRef = useRef<SessionHistoryItem[]>([]);
 	const threadsRef = useRef<Thread[]>([]);
 	const refreshTimeoutRef = useRef<number | null>(null);
+	const scheduledRefreshAtRef = useRef<number | null>(null);
+	const refreshPromiseRef = useRef<Promise<void> | null>(null);
+	const lastRefreshStartedAtRef = useRef(0);
 
 	useEffect(() => {
 		sessionsRef.current = sessions;
@@ -543,97 +560,127 @@ export function AgentSidebar({
 	}, [activeSessionId]);
 
 	const refreshSessions = useCallback(async () => {
-		const limit = fetchLimitRef.current;
-		setIsLoadingHistory(true);
-		try {
-			const discovered = await desktopClient
-				.invoke<CliDiscoveredSession[]>("list_discovered_sessions", { limit })
-				.catch(() => []);
-			const topLevelSessions = discovered
-				.map((session) => {
-					const normalized: SessionHistoryItem = {
-						...session,
-						sessionId: String(session.sessionId ?? "").trim(),
-						status: normalizeDiscoveredStatus(session.status, session.prompt),
-						provider: session.provider || "",
-						model: session.model || "",
-						cwd: session.cwd || "",
-						workspaceRoot: session.workspaceRoot || session.cwd || "",
-						startedAt: String(session.startedAt ?? ""),
-						metadata:
-							session.metadata && typeof session.metadata === "object"
-								? (session.metadata as SessionMetadata)
-								: undefined,
-					};
-					return normalized;
-				})
-				.filter((session) => Boolean(session.sessionId))
-				.filter(isValidHistorySession)
-				.filter((session) => !session.isSubagent && !session.parentSessionId)
-				.sort(compareSessionsByStartedAtDesc);
-			const mergedSessions = mergeDiscoveredSessions(
-				sessionsRef.current,
-				topLevelSessions,
-			);
+		if (refreshPromiseRef.current) {
+			return refreshPromiseRef.current;
+		}
 
-			setSessions((current) =>
-				areSessionsEquivalent(current, mergedSessions)
-					? current
-					: mergedSessions,
-			);
-			const mapped = mergedSessions.map(toThread);
-			const metadataTitleById = new Map(
-				mergedSessions.map((session) => [
-					session.sessionId,
-					getSessionMetadataTitle(session.metadata),
-				]),
-			);
-			setThreads((current) => {
-				const existingById = new Map(
-					current.map((thread) => [thread.id, thread]),
+		const refreshPromise = (async () => {
+			lastRefreshStartedAtRef.current = Date.now();
+			const limit = fetchLimitRef.current;
+			setIsLoadingHistory(true);
+			try {
+				const discovered = await desktopClient
+					.invoke<CliDiscoveredSession[]>("list_discovered_sessions", { limit })
+					.catch(() => []);
+				const topLevelSessions = discovered
+					.map((session) => {
+						const normalized: SessionHistoryItem = {
+							...session,
+							sessionId: String(session.sessionId ?? "").trim(),
+							status: normalizeDiscoveredStatus(session.status, session.prompt),
+							provider: session.provider || "",
+							model: session.model || "",
+							cwd: session.cwd || "",
+							workspaceRoot: session.workspaceRoot || session.cwd || "",
+							startedAt: String(session.startedAt ?? ""),
+							metadata:
+								session.metadata && typeof session.metadata === "object"
+									? (session.metadata as SessionMetadata)
+									: undefined,
+						};
+						return normalized;
+					})
+					.filter((session) => Boolean(session.sessionId))
+					.filter(isValidHistorySession)
+					.filter((session) => !session.isSubagent && !session.parentSessionId)
+					.sort(compareSessionsByStartedAtDesc);
+				const mergedSessions = mergeDiscoveredSessions(
+					sessionsRef.current,
+					topLevelSessions,
 				);
-				const usageById = new Map(
-					current.map((thread) => [
-						thread.id,
-						{
-							inputTokens: thread.inputTokens,
-							outputTokens: thread.outputTokens,
-							totalCostUsd: thread.totalCostUsd,
-						},
+
+				setSessions((current) =>
+					areSessionsEquivalent(current, mergedSessions)
+						? current
+						: mergedSessions,
+				);
+				const mapped = mergedSessions.map(toThread);
+				const metadataTitleById = new Map(
+					mergedSessions.map((session) => [
+						session.sessionId,
+						getSessionMetadataTitle(session.metadata),
 					]),
 				);
-				const next = mapped.map((thread) => {
-					const existing = existingById.get(thread.id);
-					const incomingMetadataTitle = metadataTitleById.get(thread.id);
-					const keepExistingTitle =
-						Boolean(existing) &&
-						!incomingMetadataTitle &&
-						!(existing?.title.startsWith("Session ") ?? true);
-					return {
-						...thread,
-						title:
-							keepExistingTitle && existing ? existing.title : thread.title,
-						...usageById.get(thread.id),
-					};
+				setThreads((current) => {
+					const existingById = new Map(
+						current.map((thread) => [thread.id, thread]),
+					);
+					const usageById = new Map(
+						current.map((thread) => [
+							thread.id,
+							{
+								inputTokens: thread.inputTokens,
+								outputTokens: thread.outputTokens,
+								totalCostUsd: thread.totalCostUsd,
+							},
+						]),
+					);
+					const next = mapped.map((thread) => {
+						const existing = existingById.get(thread.id);
+						const incomingMetadataTitle = metadataTitleById.get(thread.id);
+						const keepExistingTitle =
+							Boolean(existing) &&
+							!incomingMetadataTitle &&
+							!(existing?.title.startsWith("Session ") ?? true);
+						return {
+							...thread,
+							title:
+								keepExistingTitle && existing ? existing.title : thread.title,
+							...usageById.get(thread.id),
+						};
+					});
+					return areThreadsEquivalent(current, next) ? current : next;
 				});
-				return areThreadsEquivalent(current, next) ? current : next;
-			});
-		} catch {
-			// Ignore in browser mode or when tauri command is unavailable.
+			} catch {
+				// Ignore in browser mode or when tauri command is unavailable.
+			} finally {
+				setIsLoadingHistory(false);
+			}
+		})();
+
+		refreshPromiseRef.current = refreshPromise;
+		try {
+			await refreshPromise;
 		} finally {
-			setIsLoadingHistory(false);
+			if (refreshPromiseRef.current === refreshPromise) {
+				refreshPromiseRef.current = null;
+			}
 		}
 	}, []);
 
 	const scheduleRefresh = useCallback(
-		(delayMs = 0) => {
+		(delayMs = 0, options: { force?: boolean } = {}) => {
+			const now = Date.now();
+			const minTarget = options.force
+				? now
+				: lastRefreshStartedAtRef.current + MIN_EVENT_HISTORY_REFRESH_INTERVAL_MS;
+			const target = Math.max(now + delayMs, minTarget);
+			if (
+				refreshTimeoutRef.current !== null &&
+				scheduledRefreshAtRef.current !== null &&
+				scheduledRefreshAtRef.current <= target
+			) {
+				return;
+			}
 			if (refreshTimeoutRef.current !== null) {
 				window.clearTimeout(refreshTimeoutRef.current);
 			}
+			scheduledRefreshAtRef.current = target;
 			refreshTimeoutRef.current = window.setTimeout(() => {
 				refreshTimeoutRef.current = null;
+				scheduledRefreshAtRef.current = null;
 				void refreshSessions();
-			}, delayMs);
+			}, Math.max(0, target - now));
 		},
 		[refreshSessions],
 	);
@@ -643,7 +690,7 @@ export function AgentSidebar({
 
 		const runRefresh = () => {
 			if (!disposed) {
-				scheduleRefresh();
+				scheduleRefresh(0, { force: true });
 			}
 		};
 
@@ -653,7 +700,7 @@ export function AgentSidebar({
 				return;
 			}
 			runRefresh();
-		}, 12000);
+		}, HISTORY_REFRESH_INTERVAL_MS);
 
 		return () => {
 			disposed = true;
@@ -661,6 +708,7 @@ export function AgentSidebar({
 			if (refreshTimeoutRef.current !== null) {
 				window.clearTimeout(refreshTimeoutRef.current);
 				refreshTimeoutRef.current = null;
+				scheduledRefreshAtRef.current = null;
 			}
 		};
 	}, [scheduleRefresh]);
@@ -818,7 +866,7 @@ export function AgentSidebar({
 			setThreads((current) =>
 				current.filter((thread) => thread.id !== sessionId),
 			);
-			scheduleRefresh(50);
+			scheduleRefresh(HISTORY_FAST_REFRESH_DELAY_MS, { force: true });
 		};
 
 		window.addEventListener(
@@ -863,13 +911,13 @@ export function AgentSidebar({
 				const known = sessionsRef.current.some(
 					(session) => session.sessionId === sessionId,
 				);
-				if (
-					!known ||
-					record.status === "running" ||
-					record.status === "starting" ||
-					record.status === "idle"
-				) {
-					scheduleRefresh(50);
+				const status = normalizeDiscoveredStatus(record.status);
+				if (!known) {
+					scheduleRefresh(HISTORY_EVENT_REFRESH_DELAY_MS);
+				} else if (isTerminalHistoryStatus(status)) {
+					scheduleRefresh(HISTORY_TERMINAL_REFRESH_DELAY_MS, {
+						force: true,
+					});
 				}
 				if (sessionId !== activeSessionId) {
 					setUnreadSessionIds((current) => {
@@ -888,7 +936,9 @@ export function AgentSidebar({
 				}
 				const record = payload as SidecarSessionStateEvent;
 				if (record.sessionId?.trim()) {
-					scheduleRefresh(50);
+					scheduleRefresh(HISTORY_TERMINAL_REFRESH_DELAY_MS, {
+						force: true,
+					});
 					const sessionId = record.sessionId.trim();
 					if (sessionId !== activeSessionId) {
 						setUnreadSessionIds((current) => {
@@ -915,7 +965,7 @@ export function AgentSidebar({
 					(session) => session.sessionId === sessionId,
 				);
 				if (!known) {
-					scheduleRefresh(50);
+					scheduleRefresh(HISTORY_EVENT_REFRESH_DELAY_MS);
 				}
 				if (sessionId !== activeSessionId) {
 					setUnreadSessionIds((current) => {
@@ -1247,8 +1297,13 @@ export function AgentSidebar({
 		() => filteredThreads.filter((t) => !t.pinned),
 		[filteredThreads],
 	);
-	const displayedThreads =
-		filter === "All" ? null : filteredThreads.slice(0, showMoreCount);
+	const displayedThreads = useMemo(
+		() =>
+			filter === "All"
+				? [...pinnedThreads, ...sessionThreads.slice(0, showMoreCount)]
+				: [...pinnedThreads, ...sessionThreads].slice(0, showMoreCount),
+		[filter, pinnedThreads, sessionThreads, showMoreCount],
+	);
 	// Show "Show more" if there are more to display locally, or if the backend
 	// might have more (total fetched sessions reached the fetch limit).
 	const mayHaveMoreSessions = sessions.length >= fetchLimitRef.current;
@@ -1359,11 +1414,14 @@ export function AgentSidebar({
 									<div className="p-4 text-xs text-muted-foreground">
 										Loading session history...
 									</div>
-								) : filter === "All" ? (
+								) : (
 									<>
-										{pinnedThreads.length > 0 && (
-											<ThreadSection label="Pinned">
-												{pinnedThreads.map((thread) => (
+										{displayedThreads.length > 0 && (
+											<ThreadSection
+												action={filterMenu}
+												label={filter === "All" ? "Sessions" : filter}
+											>
+												{displayedThreads.map((thread) => (
 													<ThreadItem
 														editTitle={editingTitle}
 														editing={editingSessionId === thread.id}
@@ -1390,38 +1448,7 @@ export function AgentSidebar({
 											</ThreadSection>
 										)}
 
-										{sessionThreads.length > 0 && (
-											<ThreadSection action={filterMenu} label="Sessions">
-												{sessionThreads
-													.slice(0, showMoreCount)
-													.map((thread) => (
-														<ThreadItem
-															editTitle={editingTitle}
-															editing={editingSessionId === thread.id}
-															isActive={activeThread === thread.id}
-															key={thread.id}
-															onCancelRename={cancelRenameThread}
-															onClick={() => openThread(thread.id)}
-															onCommitRename={() =>
-																void commitRenameThread(thread)
-															}
-															onDelete={() => requestDeleteThread(thread)}
-															onEditTitleChange={setEditingTitle}
-															onFork={() => void forkThread(thread)}
-															onRename={() => startRenameThread(thread)}
-															pendingAction={
-																pendingAction?.sessionId === thread.id
-																	? pendingAction.action
-																	: null
-															}
-															thread={thread}
-															unread={unreadSessionIds.has(thread.id)}
-														/>
-													))}
-											</ThreadSection>
-										)}
-
-										{filteredThreads.length === 0 && (
+										{displayedThreads.length === 0 && (
 											<div className="p-4 text-xs text-muted-foreground">
 												{searchQuery
 													? "No sessions match your search."
@@ -1429,31 +1456,6 @@ export function AgentSidebar({
 											</div>
 										)}
 									</>
-								) : (
-									<ThreadSection action={filterMenu} label={filter}>
-										{displayedThreads?.map((thread) => (
-											<ThreadItem
-												editTitle={editingTitle}
-												editing={editingSessionId === thread.id}
-												isActive={activeThread === thread.id}
-												key={thread.id}
-												onCancelRename={cancelRenameThread}
-												onClick={() => openThread(thread.id)}
-												onCommitRename={() => void commitRenameThread(thread)}
-												onDelete={() => requestDeleteThread(thread)}
-												onEditTitleChange={setEditingTitle}
-												onFork={() => void forkThread(thread)}
-												onRename={() => startRenameThread(thread)}
-												pendingAction={
-													pendingAction?.sessionId === thread.id
-														? pendingAction.action
-														: null
-												}
-												thread={thread}
-												unread={unreadSessionIds.has(thread.id)}
-											/>
-										))}
-									</ThreadSection>
 								)}
 								{showShowMore && (
 									<Button
@@ -1673,7 +1675,12 @@ function ThreadItem({
 							<span className="block max-w-full min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-sm font-semibold leading-tight">
 								{title}
 							</span>
-							{statusDotClass ? (
+							{thread.pinned ? (
+								<Pin
+									aria-label="Pinned"
+									className="size-3 shrink-0 text-muted-foreground"
+								/>
+							) : statusDotClass ? (
 								<span
 									aria-hidden="true"
 									className={cn("size-2 rounded-full", statusDotClass)}

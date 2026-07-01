@@ -860,10 +860,10 @@ function MessageBubble({
 					</div>
 				) : null}
 				{shouldRenderAssistantActions ? (
-					<div className="flex h-6 items-center">
+					<div className="flex h-6 items-center hidden">
 						<div
 							className={cn(
-								"flex items-center gap-2",
+								"flex items-center gap-0",
 								keepAssistantActionsVisible
 									? "pointer-events-auto opacity-100"
 									: hiddenActionButtonsClassName,

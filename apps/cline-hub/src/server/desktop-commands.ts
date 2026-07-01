@@ -11,6 +11,7 @@ import {
 	getValidClineCredentials,
 	listLocalProviders,
 	loginAndSaveLocalProviderOAuthCredentials,
+	markLocalProviderEnabled,
 	normalizeOAuthProvider,
 	type ProviderCapability,
 	type ProviderClient,
@@ -103,7 +104,9 @@ export async function handleDesktopCommand(
 ): Promise<unknown> {
 	if (command === "list_provider_catalog") {
 		await ensureCustomProvidersLoaded(providerSettingsManager);
-		return await listLocalProviders(providerSettingsManager);
+		return await listLocalProviders(providerSettingsManager, {
+			isClinePassEnabled: true,
+		});
 	}
 	if (command === "list_provider_models") {
 		const provider = String(args?.provider ?? "").trim();
@@ -165,6 +168,11 @@ export async function handleDesktopCommand(
 			providerId,
 			openExternalUrl,
 		);
+		if (saved.provider !== providerId) {
+			markLocalProviderEnabled(providerSettingsManager, providerId, {
+				tokenSource: "oauth",
+			});
+		}
 		return {
 			provider: providerId,
 			accessToken: saved.auth?.accessToken ?? saved.apiKey ?? "",

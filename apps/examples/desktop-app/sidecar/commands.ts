@@ -25,6 +25,7 @@ import {
 	listLocalProviders,
 	listPluginTools,
 	loginAndSaveLocalProviderOAuthCredentials,
+	markLocalProviderEnabled,
 	normalizeOAuthProvider,
 	ProviderSettingsManager,
 	readGlobalSettings,
@@ -958,7 +959,7 @@ export async function handleCommand(
 	if (command === "list_provider_catalog") {
 		const manager = new ProviderSettingsManager();
 		await ensureCustomProvidersLoaded(manager);
-		return await listLocalProviders(manager);
+		return await listLocalProviders(manager, { isClinePassEnabled: true });
 	}
 	if (command === "list_provider_models") {
 		const manager = new ProviderSettingsManager();
@@ -1038,6 +1039,9 @@ export async function handleCommand(
 				spawned.unref();
 			},
 		);
+		if (saved.provider !== providerId) {
+			markLocalProviderEnabled(manager, providerId, { tokenSource: "oauth" });
+		}
 		return {
 			provider: providerId,
 			accessToken: saved.auth?.accessToken ?? saved.apiKey ?? "",
