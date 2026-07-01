@@ -47,9 +47,6 @@ console.log("Building webview for", platform)
 
 export default defineConfig({
 	base: "./",
-	optimizeDeps: {
-		force: true, // Forces re-optimization
-	},
 	plugins: [react(), tailwindcss(), writePortToFile()],
 	test: {
 		environment: "jsdom",
@@ -112,6 +109,9 @@ export default defineConfig({
 	},
 	server: {
 		port: 25463,
+		fs: {
+			allow: [resolve(__dirname, "..")],
+		},
 		hmr: {
 			host: "localhost",
 			protocol: "ws",
