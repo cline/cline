@@ -1803,4 +1803,122 @@ describe("AgentRuntime", () => {
 			totalCost: 1.0,
 		});
 	});
+
+	it("recovers a tool call from inline XML markup emitted in text-delta chunks (cline#9848)", async () => {
+		// Models fronted by transports that do not relay native tool_use
+		// blocks (e.g. some OpenAI-compatible gateways) emit tool
+		// invocations as inline XML in the assistant text. The runtime
+		// must parse those into proper tool-call events and execute them.
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "Let me echo that. " },
+				{ type: "text-delta", text: '<invoke name="echo">' },
+				{ type: "text-delta", text: '<parameter name="text">hi</parameter>' },
+				{ type: "text-delta", text: "</invoke>" },
+				{ type: "finish", reason: "tool-calls" },
+			],
+			() => [
+				{ type: "text-delta", text: "done" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			tools: [createEchoTool()],
+		});
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("completed");
+		const toolMessage = result.messages.find((m) => m.role === "tool");
+		expect(toolMessage).toBeDefined();
+		const toolResult = toolMessage?.content.find(
+			(c) => c.type === "tool-result",
+		);
+		expect(toolResult).toMatchObject({
+			type: "tool-result",
+			toolName: "echo",
+		});
+		// The recovered tool call should not leak the XML markup into the
+		// final assistant transcript as plain text.
+		const assistantMessages = result.messages.filter(
+			(m) => m.role === "assistant",
+		);
+		const assistantText = assistantMessages
+			.flatMap((m) => m.content)
+			.filter((c) => c.type === "text")
+			.map((c) => (c as { type: "text"; text: string }).text)
+			.join("");
+		expect(assistantText).not.toContain("<invoke");
+		expect(assistantText).not.toContain("</invoke>");
+	});
+
+	it("treats malformed XML in text-delta chunks as plain text", async () => {
+		// A <invoke> tag with no `name="..."` attribute must not be turned
+		// into a tool call. The runtime should pass the markup through to
+		// the assistant message as text.
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "Oops " },
+				{ type: "text-delta", text: "<invoke>missing name</invoke>" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({ model });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("completed");
+		const assistant = result.messages.find((m) => m.role === "assistant");
+		expect(assistant?.content.some((c) => c.type === "tool-call")).toBe(false);
+		const text = assistant?.content
+			.filter((c) => c.type === "text")
+			.map((c) => (c as { type: "text"; text: string }).text)
+			.join("");
+		expect(text).toContain("<invoke>");
+	});
+
+	it("emits assistant-text-delta for text released by the tool-call parser flush", async () => {
+		// Regression: when the model stream ends mid-markup (last delta ends
+		// with '<inv'), the parser flushes the held-back tail as text. The
+		// flush path must fire assistant-text-delta so subscribers that
+		// accumulate text from those events see the full transcript —
+		// without it, the final characters appear in the message but were
+		// silently skipped during the stream.
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "Hello " },
+				{ type: "text-delta", text: "world" },
+				{ type: "text-delta", text: "<inv" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({ model });
+
+		const textDeltas: Array<{
+			text: string;
+			accumulatedText: string;
+		}> = [];
+		runtime.subscribe((event) => {
+			if (event.type === "assistant-text-delta") {
+				textDeltas.push({
+					text: event.text,
+					accumulatedText: event.accumulatedText,
+				});
+			}
+		});
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("completed");
+		// One delta per inline text piece plus one for the flushed tail.
+		expect(textDeltas.map((d) => d.text)).toEqual(["Hello ", "world", "<inv"]);
+		// Each accumulatedText includes the current piece plus everything
+		// that came before it — including the flushed tail.
+		expect(textDeltas.map((d) => d.accumulatedText)).toEqual([
+			"Hello ",
+			"Hello world",
+			"Hello world<inv",
+		]);
+	});
 });
