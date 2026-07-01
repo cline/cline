@@ -1,0 +1,39 @@
+---
+title: "QuickSilver Pro"
+description: "Use QuickSilver Pro with Cline for OpenAI-compatible access to DeepSeek V3, R1, and Qwen3.5-35B-A3B."
+---
+
+QuickSilver Pro is an OpenAI-compatible inference API for open-source models —
+DeepSeek V3, DeepSeek R1, and Qwen3.5-35B-A3B.
+
+**Website:** [https://quicksilverpro.io](https://quicksilverpro.io)
+
+### Getting an API Key
+
+1. **Sign up:** Go to the [QuickSilver Pro dashboard](https://quicksilverpro.io/dashboard) and register with your email.
+2. **Verify:** Click the magic link in the verification email to activate your account.
+3. **Copy the key:** Your API key is displayed on the Overview page.
+
+### Supported Models
+
+- `deepseek-v3` — general-purpose, coding, structured JSON (131K context)
+- `deepseek-r1` — reasoning, math, logic (131K context)
+- `qwen3.5-35b` — long-context RAG, summarization (262K context, 3B active MoE)
+
+See the [models page](https://quicksilverpro.io/#models) for current pricing.
+
+### Configuration in Cline
+
+1. **Open Cline Settings:** Click the settings icon (⚙️) in the Cline panel.
+2. **Select Provider:** Choose **OpenAI Compatible** from the "API Provider" dropdown.
+3. **Base URL:** Enter `https://api.quicksilverpro.io/v1`
+4. **API Key:** Paste your QuickSilver Pro key.
+5. **Model ID:** Enter one of `deepseek-v3`, `deepseek-r1`, or `qwen3.5-35b`.
+
+### Notes
+
+- **Cost visibility:** Responses include `usage.cost` and `usage.currency` fields
+  alongside the standard OpenAI usage details, so per-request cost is directly
+  observable in the response body.
+- **R1 availability:** DeepSeek removed R1 from their direct API in December 2025.
+  Third-party providers like QuickSilver Pro are the only way to continue using it.
