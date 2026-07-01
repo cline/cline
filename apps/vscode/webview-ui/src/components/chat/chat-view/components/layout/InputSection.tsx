@@ -11,6 +11,7 @@ interface InputSectionProps {
 	placeholderText: string
 	shouldDisableFilesAndImages: boolean
 	selectFilesAndImages: () => Promise<void>
+	supportsImages: boolean
 }
 
 /**
@@ -23,6 +24,7 @@ export const InputSection: React.FC<InputSectionProps> = ({
 	placeholderText,
 	shouldDisableFilesAndImages,
 	selectFilesAndImages,
+	supportsImages,
 }) => {
 	const {
 		activeQuote,
@@ -80,6 +82,7 @@ export const InputSection: React.FC<InputSectionProps> = ({
 				setSelectedFiles={setSelectedFiles}
 				setSelectedImages={setSelectedImages}
 				shouldDisableFilesAndImages={shouldDisableFilesAndImages}
+				supportsImages={supportsImages}
 			/>
 		</>
 	)
