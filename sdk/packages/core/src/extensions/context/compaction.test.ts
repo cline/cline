@@ -1358,6 +1358,48 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(result).toBeUndefined();
 	});
 
+	it("ignores a derived input budget that would collapse the trigger threshold", async () => {
+		const compact = vi.fn((_context: CoreCompactionContext) => ({
+			messages: [
+				{ role: "user" as const, content: "Compacted by tiny input budget" },
+			],
+		}));
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "openai-codex",
+			modelId: "large-output-model",
+			providerConfig: {
+				providerId: "openai-codex",
+				modelId: "large-output-model",
+			} as LlmsProviders.ProviderConfig,
+			compaction: { enabled: true, compact },
+			logger: undefined,
+		});
+
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages: [{ role: "user", content: "small prompt" }],
+			apiMessages: [{ role: "user", content: "small prompt" }],
+			model: {
+				id: "large-output-model",
+				provider: "openai-codex",
+				info: {
+					id: "large-output-model",
+					contextWindow: 200_000,
+					maxTokens: 190_000,
+				},
+			},
+		});
+
+		expect(compact).not.toHaveBeenCalled();
+		expect(result).toBeUndefined();
+	});
+
 	it("triggers compaction from provider-sized tool result payloads", async () => {
 		const compact = vi.fn((_context: CoreCompactionContext) => ({
 			messages: [
@@ -1519,7 +1561,9 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(compact).toHaveBeenCalledTimes(1);
 		const context = compact.mock.calls[0]?.[0];
 		expect(context?.maxInputTokens).toBe(100);
-		expect(context?.triggerTokens).toBeLessThan(95);
+		expect(context?.triggerTokens).toBe(95);
+		expect(context?.targetTokens).toBeLessThan(95);
+		expect(context?.thresholdRatio).toBe(0.95);
 		expect(result?.messages).toEqual([
 			{ role: "user", content: "Compacted manually" },
 		]);
@@ -2032,6 +2076,7 @@ describe("createContextCompactionPrepareTurn", () => {
 			{ role: "user", content: "current request" },
 		];
 		const triggerTokens = 150;
+
 		const firstResult = await prepareTurn?.({
 			agentId: "agent-1",
 			conversationId: "conv-1",
