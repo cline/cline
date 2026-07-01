@@ -374,38 +374,75 @@ function toAiSdkTools(
 	}
 
 	return Object.fromEntries(
-		request.tools.map((definition) => [
-			definition.name,
-			{
-				description: definition.description,
-				inputSchema: jsonSchema(
-					normalizeAiSdkToolInputSchema(definition.inputSchema),
-					{
+		request.tools.map((definition) => {
+			const inputSchema = normalizeAiSdkToolInputSchema(definition.inputSchema);
+			return [
+				definition.name,
+				{
+					description: definition.description,
+					inputSchema: jsonSchema(inputSchema, {
 						validate: async (value) => {
 							const result = await z
-								.fromJSONSchema(definition.inputSchema)
+								.fromJSONSchema(inputSchema)
 								.safeParseAsync(value);
 							return result.success
 								? { success: true, value: result.data }
 								: { success: false, error: result.error };
 						},
-					},
-				) as never,
-			} as unknown,
-		]),
+					}) as never,
+				} as unknown,
+			];
+		}),
 	);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
 function normalizeAiSdkToolInputSchema(
 	inputSchema: Record<string, unknown>,
 ): Record<string, unknown> {
-	if (inputSchema.type === "object") {
-		return inputSchema;
+	const schema: Record<string, unknown> = { ...inputSchema };
+	if (typeof inputSchema.type === "string") {
+		schema.type = inputSchema.type.toLowerCase();
+	}
+
+	const isObjectLike =
+		schema.type === "object" ||
+		"properties" in schema ||
+		"required" in schema ||
+		"additionalProperties" in schema;
+
+	if (!isObjectLike) {
+		return schema;
+	}
+
+	const properties: Record<string, unknown> = {};
+	if (isRecord(schema.properties)) {
+		for (const [key, value] of Object.entries(schema.properties)) {
+			properties[key] = isRecord(value)
+				? normalizeAiSdkToolInputSchema(value)
+				: value;
+		}
+	}
+
+	const required = Array.isArray(schema.required)
+		? schema.required.filter((key): key is string => typeof key === "string")
+		: undefined;
+	delete schema.required;
+
+	for (const key of required ?? []) {
+		properties[key] ??= {};
 	}
 
 	return {
+		...schema,
 		type: "object",
-		...inputSchema,
+		...(Object.keys(properties).length > 0 || "properties" in schema
+			? { properties }
+			: {}),
+		...(required ? { required } : {}),
 	};
 }
 
