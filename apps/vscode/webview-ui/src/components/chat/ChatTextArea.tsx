@@ -1018,39 +1018,64 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			[updateCursorPosition],
 		)
 
-		const onModeToggle = useCallback(() => {
-			void (async () => {
-				const convertedProtoMode = mode === "plan" ? PlanActMode.ACT : PlanActMode.PLAN
-				const submittedText = inputValue
-				const submittedImages = selectedImages
-				const submittedFiles = selectedFiles
-				const response = await StateServiceClient.togglePlanActModeProto(
-					TogglePlanActModeRequest.create({
-						mode: convertedProtoMode,
-						chatContent: {
-							message: submittedText.trim() ? submittedText : undefined,
-							images: submittedImages,
-							files: submittedFiles,
-						},
-					}),
-				)
-				// Focus the textarea after mode toggle with slight delay
-				setTimeout(() => {
-					if (response.value) {
-						// The toggle consumed the composer content as the continuation
-						// message. Clear only what was submitted: the rebuild can take a
-						// moment and the user may have typed or attached new content in
-						// the meantime, which must not be wiped.
-						if ((textAreaRef.current?.value ?? "") === submittedText) {
-							setInputValue("")
+		const setMode = useCallback(
+			(targetMode: "plan" | "act") => {
+				// No-op if already in the target mode (e.g. re-selecting the active radio),
+				// which avoids a redundant togglePlanActModeProto round-trip and focus shift.
+				if (targetMode === mode) {
+					return
+				}
+				void (async () => {
+					const convertedProtoMode = targetMode === "plan" ? PlanActMode.PLAN : PlanActMode.ACT
+					const submittedText = inputValue
+					const submittedImages = selectedImages
+					const submittedFiles = selectedFiles
+					const response = await StateServiceClient.togglePlanActModeProto(
+						TogglePlanActModeRequest.create({
+							mode: convertedProtoMode,
+							chatContent: {
+								message: submittedText.trim() ? submittedText : undefined,
+								images: submittedImages,
+								files: submittedFiles,
+							},
+						}),
+					)
+					// Focus the textarea after mode toggle with slight delay
+					setTimeout(() => {
+						if (response.value) {
+							// The toggle consumed the composer content as the continuation
+							// message. Clear only what was submitted: the rebuild can take a
+							// moment and the user may have typed or attached new content in
+							// the meantime, which must not be wiped.
+							if ((textAreaRef.current?.value ?? "") === submittedText) {
+								setInputValue("")
+							}
+							setSelectedImages((current) => (current === submittedImages ? [] : current))
+							setSelectedFiles((current) => (current === submittedFiles ? [] : current))
 						}
-						setSelectedImages((current) => (current === submittedImages ? [] : current))
-						setSelectedFiles((current) => (current === submittedFiles ? [] : current))
-					}
-					textAreaRef.current?.focus()
-				}, 100)
-			})()
-		}, [mode, inputValue, selectedImages, selectedFiles, setInputValue, setSelectedImages, setSelectedFiles])
+						textAreaRef.current?.focus()
+					}, 100)
+				})()
+			},
+			[mode, inputValue, selectedImages, selectedFiles, setInputValue, setSelectedImages, setSelectedFiles],
+		)
+
+		const onModeToggle = useCallback(() => {
+			setMode(mode === "plan" ? "act" : "plan")
+		}, [mode, setMode])
+
+		const onRadioGroupKeyDown = useCallback(
+			(e: React.KeyboardEvent<HTMLDivElement>) => {
+				if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+					e.preventDefault()
+					setMode("plan")
+				} else if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+					e.preventDefault()
+					setMode("act")
+				}
+			},
+			[setMode],
+		)
 
 		useShortcut(usePlatform().togglePlanActKeys, onModeToggle, { disableTextInputs: false }) // important that we don't disable the text input here
 
@@ -1633,21 +1658,40 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							</p>
 						</TooltipContent>
 						<TooltipTrigger>
-							<SwitchContainer data-testid="mode-switch" disabled={false} onClick={onModeToggle}>
+							<SwitchContainer
+								aria-label="Cline mode"
+								data-testid="mode-switch"
+								disabled={false}
+								onKeyDown={onRadioGroupKeyDown}
+								role="radiogroup">
 								<Slider isAct={mode === "act"} isPlan={mode === "plan"} />
-								{["Plan", "Act"].map((m) => (
-									<div
-										aria-checked={mode === m.toLowerCase()}
-										className={cn(
-											"pt-0.5 pb-px px-2 z-10 text-xs w-1/2 text-center bg-transparent",
-											mode === m.toLowerCase() ? "text-white" : "text-input-foreground",
-										)}
-										onMouseLeave={() => setShownTooltipMode(null)}
-										onMouseOver={() => setShownTooltipMode(m.toLowerCase() === "plan" ? "plan" : "act")}
-										role="switch">
-										{m}
-									</div>
-								))}
+								{(["Plan", "Act"] as const).map((m) => {
+									const mLower = m.toLowerCase() as "plan" | "act"
+									const isChecked = mode === mLower
+									return (
+										<div
+											aria-checked={isChecked}
+											aria-label={m}
+											className={cn(
+												"pt-0.5 pb-px px-2 z-10 text-xs w-1/2 text-center bg-transparent",
+												isChecked ? "text-white" : "text-input-foreground",
+											)}
+											key={m}
+											onClick={() => setMode(mLower)}
+											onKeyDown={(e) => {
+												if (e.key === " " || e.key === "Enter") {
+													e.preventDefault()
+													setMode(mLower)
+												}
+											}}
+											onMouseLeave={() => setShownTooltipMode(null)}
+											onMouseOver={() => setShownTooltipMode(mLower)}
+											role="radio"
+											tabIndex={isChecked ? 0 : -1}>
+											{m}
+										</div>
+									)
+								})}
 							</SwitchContainer>
 						</TooltipTrigger>
 					</Tooltip>
