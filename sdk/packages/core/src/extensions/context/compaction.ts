@@ -69,6 +69,8 @@ export interface ContextCompactionPrepareTurnOptions {
 	manualTargetRatio?: number;
 }
 
+const MIN_CONTEXT_DERIVED_INPUT_RATIO = 0.5;
+
 function safeJsonSize(value: unknown): number {
 	try {
 		return JSON.stringify(value).length;
@@ -96,11 +98,15 @@ function resolveMaxInputTokens(input: {
 	}
 	if (isPositiveFiniteNumber(input.contextWindow)) {
 		candidates.push(input.contextWindow);
+		const derivedInputTokens = isPositiveFiniteNumber(input.modelMaxTokens)
+			? input.contextWindow - input.modelMaxTokens
+			: undefined;
 		if (
-			isPositiveFiniteNumber(input.modelMaxTokens) &&
-			input.modelMaxTokens < input.contextWindow
+			isPositiveFiniteNumber(derivedInputTokens) &&
+			derivedInputTokens >=
+				input.contextWindow * MIN_CONTEXT_DERIVED_INPUT_RATIO
 		) {
-			candidates.push(input.contextWindow - input.modelMaxTokens);
+			candidates.push(derivedInputTokens);
 		}
 	}
 	return candidates.length > 0
@@ -247,20 +253,14 @@ function resolveBasicTargetTokens(input: {
 	triggerTokens: number;
 	messagePairCount: number;
 }): number {
-	const targetBaseTokens =
+	const targetTokens =
 		input.messagePairCount >= 5 &&
 		typeof input.modelMaxTokens === "number" &&
 		Number.isFinite(input.modelMaxTokens) &&
 		input.modelMaxTokens < input.maxInputTokens
-			? input.maxInputTokens - input.modelMaxTokens
-			: input.triggerTokens;
-	return Math.max(
-		1,
-		Math.min(
-			Math.floor(targetBaseTokens * DEFAULT_TARGET_RATIO),
-			input.maxInputTokens,
-		),
-	);
+			? Math.floor(input.maxInputTokens * 0.5)
+			: Math.floor(input.triggerTokens * DEFAULT_TARGET_RATIO);
+	return Math.max(1, Math.min(targetTokens, input.maxInputTokens));
 }
 
 function countUserAssistantPairs(

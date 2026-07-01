@@ -1243,7 +1243,7 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(result).toBeUndefined();
 	});
 
-	it("targets basic compaction below the model output-reserved input budget", async () => {
+	it("targets basic compaction at half the input budget for long conversations", async () => {
 		const compact = vi.fn((_context: CoreCompactionContext) => ({
 			messages: [
 				{ role: "user" as const, content: "Compacted by target budget" },
@@ -1297,7 +1297,7 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(compact).toHaveBeenCalledTimes(1);
 		const context = compact.mock.calls[0]?.[0];
 		expect(context?.triggerTokens).toBe(244_800);
-		expect(context?.targetTokens).toBe(100_800);
+		expect(context?.targetTokens).toBe(136_000);
 	});
 
 	it("derives input budget by reserving model max output tokens from context window", async () => {
@@ -1442,6 +1442,52 @@ describe("createContextCompactionPrepareTurn", () => {
 					maxInputTokens: 200_000,
 					contextWindow: 200_000,
 					maxTokens: 200_000,
+				},
+			},
+		});
+
+		expect(compact).not.toHaveBeenCalled();
+		expect(result).toBeUndefined();
+	});
+
+	it("does not collapse context-only input budget when output is nearly the full context", async () => {
+		const compact = vi.fn((_context: CoreCompactionContext) => ({
+			messages: [{ role: "user" as const, content: "Compacted by fallback" }],
+		}));
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "openrouter",
+			modelId: "minimax/minimax-m3",
+			providerConfig: {
+				providerId: "openrouter",
+				modelId: "minimax/minimax-m3",
+			} as LlmsProviders.ProviderConfig,
+			compaction: { enabled: true, strategy: "basic", compact },
+			logger: undefined,
+		});
+		const messages: MessageWithMetadata[] = [
+			{
+				role: "user",
+				content: "regex prompt ".repeat(2_000),
+			},
+		];
+
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages,
+			apiMessages: messages,
+			model: {
+				id: "minimax/minimax-m3",
+				provider: "openrouter",
+				info: {
+					id: "minimax/minimax-m3",
+					contextWindow: 524_288,
+					maxTokens: 512_000,
 				},
 			},
 		});
