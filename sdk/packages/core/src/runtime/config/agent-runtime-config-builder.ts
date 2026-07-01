@@ -88,7 +88,6 @@ export function createAgentRuntimeConfig(
 	const modelOptions = buildModelOptions(agentConfig);
 	const messageModelInfo = buildMessageModelInfo(agentConfig);
 	const hooks = input.hooks;
-	const toolExecution = resolveToolExecution(agentConfig.maxParallelToolCalls);
 
 	const config: AgentRuntimeConfig = {
 		sessionId: input.sessionId ?? agentConfig.sessionId,
@@ -110,7 +109,6 @@ export function createAgentRuntimeConfig(
 		initialMessages: input.initialMessages,
 		completionPolicy: agentConfig.completionPolicy,
 		maxIterations: agentConfig.maxIterations,
-		toolExecution,
 		toolPolicies: agentConfig.toolPolicies,
 		toolContextMetadata: input.toolContextMetadata,
 		requestToolApproval: agentConfig.requestToolApproval,
@@ -165,17 +163,4 @@ export function buildMessageModelInfo(
 		provider: config.providerId,
 		family,
 	};
-}
-
-/**
- * `"parallel"` when `maxParallelToolCalls ≥ 2`, `"sequential"` when
- * `1`, `undefined` when the caller did not specify.
- */
-export function resolveToolExecution(
-	maxParallelToolCalls: number | undefined,
-): "sequential" | "parallel" | undefined {
-	if (maxParallelToolCalls === undefined) {
-		return undefined;
-	}
-	return maxParallelToolCalls >= 2 ? "parallel" : "sequential";
 }

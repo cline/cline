@@ -1600,69 +1600,6 @@ describe("AgentRuntime", () => {
 		expect(result.outputText).toBe("done");
 	});
 
-	it("executes tools in parallel but preserves assistant order in appended messages", async () => {
-		const executionOrder: string[] = [];
-		const finishOrder: string[] = [];
-		const slow: AgentTool = {
-			name: "slow",
-			description: "slow tool",
-			inputSchema: { type: "object" },
-			async execute() {
-				executionOrder.push("slow-start");
-				await new Promise((resolve) => setTimeout(resolve, 25));
-				finishOrder.push("slow-finish");
-				return { name: "slow" };
-			},
-		};
-		const fast: AgentTool = {
-			name: "fast",
-			description: "fast tool",
-			inputSchema: { type: "object" },
-			async execute() {
-				executionOrder.push("fast-start");
-				finishOrder.push("fast-finish");
-				return { name: "fast" };
-			},
-		};
-		const model = new ScriptedModel([
-			() => [
-				{
-					type: "tool-call-delta",
-					toolCallId: "slow_call",
-					toolName: "slow",
-					inputText: "{}",
-				},
-				{
-					type: "tool-call-delta",
-					toolCallId: "fast_call",
-					toolName: "fast",
-					inputText: "{}",
-				},
-				{ type: "finish", reason: "tool-calls" },
-			],
-			() => [
-				{ type: "text-delta", text: "done" },
-				{ type: "finish", reason: "stop" },
-			],
-		]);
-
-		const runtime = new AgentRuntime({
-			model,
-			tools: [slow, fast],
-			toolExecution: "parallel",
-		});
-
-		const result = await runtime.run("Parallel");
-
-		expect(executionOrder).toEqual(["slow-start", "fast-start"]);
-		expect(finishOrder).toEqual(["fast-finish", "slow-finish"]);
-		const toolMessages = result.messages.filter(
-			(message) => message.role === "tool",
-		);
-		expect(toolMessages[0]?.content[0]).toMatchObject({ toolName: "slow" });
-		expect(toolMessages[1]?.content[0]).toMatchObject({ toolName: "fast" });
-	});
-
 	it("captures events, logger calls, telemetry, and failed tool runs", async () => {
 		const telemetry = {
 			capture: vi.fn(),

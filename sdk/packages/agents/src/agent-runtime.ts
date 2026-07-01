@@ -383,8 +383,7 @@ function normalizeInput(input: AgentRunInput): AgentMessage[] {
 }
 
 export class AgentRuntime {
-	private config: Required<Pick<BaseAgentRuntimeConfig, "toolExecution">> &
-		BaseAgentRuntimeConfig;
+	private config: BaseAgentRuntimeConfig;
 	private readonly listeners = new Set<AgentEventListener>();
 	// biome-ignore lint/suspicious/noExplicitAny: tool input/output types vary per tool
 	private readonly tools = new Map<string, AgentTool<any, any>>();
@@ -414,10 +413,7 @@ export class AgentRuntime {
 
 	constructor(config: AgentRuntimeConfig) {
 		const resolved = resolveRuntimeConfig(config);
-		this.config = {
-			...resolved,
-			toolExecution: resolved.toolExecution ?? "sequential",
-		};
+		this.config = resolved;
 		this.state.agentId = resolved.agentId ?? createUID("agent");
 		this.state.agentRole = resolved.agentRole;
 		this.state.parentAgentId = resolved.parentAgentId;
@@ -1133,12 +1129,6 @@ export class AgentRuntime {
 		const prepared: PreparedToolExecution[] = [];
 		for (const toolCall of toolCalls) {
 			prepared.push(await this.prepareToolExecution(toolCall));
-		}
-
-		if (this.config.toolExecution === "parallel") {
-			return Promise.all(
-				prepared.map((execution) => this.executePreparedTool(execution)),
-			);
 		}
 
 		const results: AgentMessage[] = [];

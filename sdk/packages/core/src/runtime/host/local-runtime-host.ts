@@ -8,6 +8,7 @@ import {
 	type AgentResult,
 	captureSdkError,
 	createSessionId,
+	DEFAULT_API_TIMEOUT_MS,
 	type ITelemetryService,
 	isLikelyAuthError,
 	normalizeUserInput,
@@ -465,18 +466,26 @@ export class LocalRuntimeHost implements RuntimeHost {
 			headers: providerConfig.headers,
 			knownModels: providerConfig.knownModels,
 			providerConfig,
-			thinking: configWithProvider.thinking,
+			thinking: configWithProvider.thinking ?? providerConfig.thinking,
 			reasoningEffort:
 				configWithProvider.reasoningEffort ?? providerConfig.reasoningEffort,
-			maxTokensPerTurn: configWithProvider.maxTokensPerTurn,
+			thinkingBudgetTokens:
+				configWithProvider.thinkingBudgetTokens ??
+				providerConfig.thinkingBudgetTokens,
 			systemPrompt: configWithProvider.systemPrompt,
 			maxIterations: configWithProvider.maxIterations,
+			maxTokensPerTurn:
+				configWithProvider.maxTokensPerTurn ?? providerConfig.maxOutputTokens,
+			apiTimeoutMs:
+				configWithProvider.apiTimeoutMs ??
+				providerConfig.timeoutMs ??
+				DEFAULT_API_TIMEOUT_MS,
 			execution: configWithProvider.execution,
 			prepareTurn: createContextCompactionPrepareTurn(configWithProvider),
 			tools,
 			hooks: bootstrap.hooks,
 			extensions,
-			hookErrorMode: configWithProvider.hookErrorMode,
+			hookErrorMode: configWithProvider.hookErrorMode ?? "ignore",
 			initialMessages: bootstrap.effectiveInput.initialMessages,
 			userFileContentLoader: loadUserFileContent,
 			toolPolicies: bootstrap.toolPolicies,
