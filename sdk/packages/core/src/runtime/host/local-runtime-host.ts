@@ -941,6 +941,21 @@ export class LocalRuntimeHost implements RuntimeHost {
 		return readPersistedMessagesFile(manifest?.messages_path);
 	}
 
+	async writeSessionMessages(
+		sessionId: string,
+		messages: LlmsProviders.Message[],
+	): Promise<void> {
+		const target = sessionId.trim();
+		if (!target) return;
+		const session = this.sessions.get(target);
+		await this.invoke<void>(
+			"persistSessionMessages",
+			target,
+			messages,
+			session?.config.systemPrompt,
+		);
+	}
+
 	async dispatchHookEvent(payload: HookEventPayload): Promise<void> {
 		await replaySubagentHookEvent(payload, {
 			queueSpawnRequest: (event: HookEventPayload) =>

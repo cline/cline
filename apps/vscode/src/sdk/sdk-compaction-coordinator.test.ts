@@ -30,7 +30,50 @@ describe("SdkCompactionCoordinator", () => {
 		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
 		expect(compactSessionMessages).not.toHaveBeenCalled()
 		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
-			[expect.objectContaining({ say: "info", text: "There is no active task to compact." })],
+			[expect.objectContaining({ say: "info", text: "There is no task to compact." })],
+			expect.anything(),
+		)
+	})
+
+	it("compacts a displayed history task by starting an idle session with compacted messages", async () => {
+		const task = makeTask("history-task")
+		const { coordinator, options, tempHost } = makeCoordinator({ activeSession: undefined, task })
+		options.loadInitialMessages.mockResolvedValueOnce([
+			{ role: "user", content: "1" },
+			{ role: "assistant", content: "2" },
+		])
+		compactSessionMessages.mockResolvedValueOnce({
+			compacted: true,
+			messages: [{ role: "user", content: "summary" }],
+		})
+
+		await coordinator.compactTask()
+
+		expect(options.createTempSessionHost).toHaveBeenCalledOnce()
+		expect(options.loadInitialMessages).toHaveBeenCalledWith(tempHost, "history-task")
+		expect(tempHost.dispose).toHaveBeenCalledWith("compactTask.readMessages")
+		expect(options.taskHistory.findHistoryItem).toHaveBeenCalledWith("history-task")
+		expect(options.buildStartSessionInput).toHaveBeenCalledWith(expect.objectContaining({ sessionId: "history-task" }), {
+			cwd: "/workspace",
+			mode: "act",
+		})
+		expect(options.sessions.startNewSession).toHaveBeenCalledWith({
+			config: expect.objectContaining({ sessionId: "history-task" }),
+			prompt: undefined,
+			interactive: true,
+			initialMessages: [{ role: "user", content: "summary" }],
+			sessionMetadata: expect.objectContaining({ title: "history task" }),
+		})
+		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
+		expect(options.sessions.setRunning).toHaveBeenCalledWith(false)
+		expect(options.resetMessageTranslator).toHaveBeenCalledOnce()
+		expect(options.setTurnPhase).toHaveBeenCalledWith("awaiting_followup")
+		expect(options.sessions.getActiveSession()?.sdkHost.writeMessages).toHaveBeenCalledWith(
+			"history-task",
+			[{ role: "user", content: "summary" }],
+		)
+		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
+			[expect.objectContaining({ say: "info", text: "Compacted 2 messages to 1." })],
 			expect.anything(),
 		)
 	})
@@ -113,6 +156,11 @@ describe("SdkCompactionCoordinator", () => {
 		})
 		expect(task.taskId).toBe("new-session")
 		expect(options.resetMessageTranslator).toHaveBeenCalledOnce()
+		expect(options.setTurnPhase).toHaveBeenCalledWith("awaiting_followup")
+		expect(options.sessions.getActiveSession()?.sdkHost.writeMessages).toHaveBeenCalledWith(
+			"new-session",
+			[{ role: "user", content: "summary" }],
+		)
 		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
 			[expect.objectContaining({ say: "info", text: "Compacted 3 messages to 1." })],
 			expect.anything(),
@@ -141,6 +189,10 @@ interface MakeCoordinatorInput {
 
 function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 	const activeSession = "activeSession" in input ? input.activeSession : makeActiveSession()
+	const tempHost = {
+		readMessages: vi.fn().mockResolvedValue([{ role: "user", content: "1" }]),
+		dispose: vi.fn().mockResolvedValue(undefined),
+	}
 	const config = {
 		providerConfig: { providerId: "anthropic", modelId: "claude" },
 		providerId: "anthropic",
@@ -151,44 +203,76 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		telemetry: undefined,
 		sessionId: undefined as string | undefined,
 	}
+	const mockSdkHost = () => ({
+		readMessages: vi.fn().mockResolvedValue([]),
+		send: vi.fn(),
+		writeMessages: vi.fn().mockResolvedValue(undefined),
+		abort: vi.fn().mockResolvedValue(undefined),
+		stop: vi.fn().mockResolvedValue(undefined),
+		dispose: vi.fn().mockResolvedValue(undefined),
+	})
+	const startedSdkHost = mockSdkHost()
+	const replacedSdkHost = mockSdkHost()
+	let currentSession = activeSession
 	const options = {
 		stateManager: {
 			getGlobalSettingsKey: vi.fn(() => "act"),
 		} as unknown as StateManager,
 		sessions: {
-			getActiveSession: vi.fn(() => activeSession),
-			replaceActiveSession: vi.fn().mockResolvedValue({
-				startResult: { sessionId: "new-session" },
-				sdkHost: { send: vi.fn() },
+			getActiveSession: vi.fn(() => currentSession),
+			startNewSession: vi.fn().mockImplementation(async () => {
+				currentSession = { sessionId: "history-task", sdkHost: startedSdkHost, isRunning: true, startResult: { sessionId: "history-task" }, unsubscribe: vi.fn() }
+				return { startResult: currentSession!.startResult, sdkHost: startedSdkHost }
+			}),
+			replaceActiveSession: vi.fn().mockImplementation(async () => {
+				currentSession = { sessionId: "new-session", sdkHost: replacedSdkHost, isRunning: false, startResult: { sessionId: "new-session" }, unsubscribe: vi.fn() }
+				return { oldSessionId: "old-session", startResult: currentSession!.startResult, sdkHost: replacedSdkHost }
+			}),
+			setRunning: vi.fn().mockImplementation((isRunning: boolean) => {
+				if (currentSession) currentSession.isRunning = isRunning
 			}),
 		},
 		messages: {
 			appendAndEmit: vi.fn(),
 		},
+		taskHistory: {
+			findHistoryItem: vi.fn().mockResolvedValue({ id: "history-task", task: "history task", ts: Date.now() }),
+		},
 		sessionConfigBuilder: {
 			build: vi.fn().mockResolvedValue(config),
 		},
 		getTask: vi.fn(() => input.task),
+		createTempSessionHost: vi.fn().mockResolvedValue(tempHost),
 		getWorkspaceRoot: vi.fn().mockResolvedValue("/workspace"),
+		loadInitialMessages: vi.fn(async (reader, taskId) => reader.readMessages(taskId)),
 		buildStartSessionInput: vi.fn((startConfig) => ({
 			config: startConfig,
 			prompt: undefined,
 			interactive: true,
 		})),
+		setTurnPhase: vi.fn(),
 		resetMessageTranslator: vi.fn(),
 		postStateToWebview: vi.fn().mockResolvedValue(undefined),
 	} as unknown as SdkCompactionCoordinatorOptions & {
 		sessions: SdkCompactionCoordinatorOptions["sessions"] & {
 			getActiveSession: ReturnType<typeof vi.fn>
+			startNewSession: ReturnType<typeof vi.fn>
 			replaceActiveSession: ReturnType<typeof vi.fn>
+			setRunning: ReturnType<typeof vi.fn>
 		}
 		messages: SdkCompactionCoordinatorOptions["messages"] & {
 			appendAndEmit: ReturnType<typeof vi.fn>
 		}
+		taskHistory: SdkCompactionCoordinatorOptions["taskHistory"] & {
+			findHistoryItem: ReturnType<typeof vi.fn>
+		}
 		sessionConfigBuilder: SdkCompactionCoordinatorOptions["sessionConfigBuilder"] & {
 			build: ReturnType<typeof vi.fn>
 		}
+		createTempSessionHost: ReturnType<typeof vi.fn>
+		loadInitialMessages: ReturnType<typeof vi.fn>
 		buildStartSessionInput: ReturnType<typeof vi.fn>
+		setTurnPhase: ReturnType<typeof vi.fn>
 		resetMessageTranslator: ReturnType<typeof vi.fn>
 		postStateToWebview: ReturnType<typeof vi.fn>
 	}
@@ -196,15 +280,16 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 	return {
 		coordinator: new SdkCompactionCoordinator(options),
 		options,
+		tempHost,
 	}
 }
-
 function makeActiveSession(input: { isRunning?: boolean } = {}) {
 	return {
 		sessionId: "old-session",
 		sdkHost: {
 			readMessages: vi.fn().mockResolvedValue([{ role: "user", content: "1" }]),
 			send: vi.fn(),
+			writeMessages: vi.fn().mockResolvedValue(undefined),
 			abort: vi.fn().mockResolvedValue(undefined),
 			stop: vi.fn().mockResolvedValue(undefined),
 			dispose: vi.fn().mockResolvedValue(undefined),

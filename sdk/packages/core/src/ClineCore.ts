@@ -508,6 +508,9 @@ export class ClineCore {
 	readMessages: RuntimeHost["readSessionMessages"] = (...args) =>
 		this.host.readSessionMessages(...args);
 
+	writeMessages: RuntimeHost["writeSessionMessages"] = (...args) =>
+		this.host.writeSessionMessages(...args);
+
 	async restore(input: RestoreInput): Promise<RestoreResult> {
 		const normalizedStart = input.start
 			? normalizeClineCoreStartInput(input.start, {

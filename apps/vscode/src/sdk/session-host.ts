@@ -33,6 +33,7 @@ export interface SdkSessionHost {
 	listHistory(options?: ClineCoreListHistoryOptions): Promise<SessionHistoryRecord[]>
 	delete(sessionId: string): Promise<boolean>
 	readMessages(sessionId: string): Promise<SdkInitialMessages>
+	writeMessages(sessionId: string, messages: SdkInitialMessages): Promise<void>
 	restore(input: RestoreInput): Promise<RestoreResult>
 	update(
 		sessionId: string,

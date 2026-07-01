@@ -1311,6 +1311,17 @@ export class HubRuntimeHost implements RuntimeHost {
 			: [];
 	}
 
+	async writeSessionMessages(
+		_sessionId: string,
+		_messages: import("@cline/llms").Message[],
+	): Promise<void> {
+		// The hub server manages its own session persistence, so a client-side
+		// write is not needed — the compacted transcript was already installed
+		// in memory by startSession/replaceActiveSession. If server-side
+		// persistence of the compacted messages is needed in the future, add a
+		// hub server command and dispatch it here.
+	}
+
 	async dispatchHookEvent(_payload: HookEventPayload): Promise<void> {
 		await this.client.command("session.hook", { payload: _payload });
 	}

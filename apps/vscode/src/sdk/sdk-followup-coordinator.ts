@@ -4,11 +4,12 @@ import type { Mode } from "@shared/storage/types"
 import type { ClineAskResponse } from "@shared/WebviewMessage"
 import type { StateManager } from "@/core/storage/StateManager"
 import { Logger } from "@/shared/services/Logger"
+import { historyItemToSessionMetadata } from "./session-metadata"
 import type { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import type { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
-import { historyItemToSessionMetadata, type SdkTaskHistory } from "./sdk-task-history"
+import type { SdkTaskHistory } from "./sdk-task-history"
 import type { SdkSessionHost } from "./session-host"
 import type { TaskProxy } from "./task-proxy"
 import type { VscodeSessionHost } from "./vscode-session-host"
@@ -70,16 +71,18 @@ export class SdkFollowupCoordinator {
 		const task = this.options.getTask()
 		const submittedDuringActiveTurn = turnPhaseAtSubmit === "streaming" || turnPhaseAtSubmit === "awaiting_approval"
 		const isActiveTurnInProgress = () => !!activeSession && (activeSession.isRunning || submittedDuringActiveTurn)
-		if (!isActiveTurnInProgress() && task) {
-			// A mode rebuild clears the active session while the old stop is
-			// awaited and only marks the replacement running after the
-			// continuation send. Resuming in that window would start a parallel
-			// session that the rebuild then kills, losing this message. Wait for
-			// the rebuild and re-evaluate against the rebuilt session.
+		// Resume from history only when there is genuinely no active session.
+		// Compaction (and a completed turn) leave an idle active session holding
+		// the live transcript; resuming over it would re-read stale on-disk
+		// history and discard the in-memory state. A mode rebuild clears the
+		// active session while the old stop is awaited and only marks the
+		// replacement running after the continuation send, so this also bridges
+		// that window by waiting for the rebuild and re-evaluating.
+		if (!activeSession && task) {
 			await this.options.waitForPendingModeRebuild()
 			activeSession = this.options.sessions.getActiveSession()
 		}
-		if (!isActiveTurnInProgress() && task) {
+		if (!activeSession && task) {
 			Logger.log(`[SdkController] askResponse: No active session but task exists (${task.taskId}), resuming...`)
 			await this.tryResumeSessionFromTask(task.taskId, prompt, images, files)
 			return
@@ -225,4 +228,5 @@ export class SdkFollowupCoordinator {
 			payload: { sessionId, status: "running" },
 		})
 	}
+
 }

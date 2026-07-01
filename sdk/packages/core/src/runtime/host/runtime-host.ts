@@ -309,6 +309,17 @@ export interface RuntimeHost {
 		},
 	): Promise<{ updated: boolean }>;
 	readSessionMessages(sessionId: string): Promise<LlmsProviders.Message[]>;
+	/**
+	 * Overwrite the persisted messages for a session on disk. Used by manual
+	 * compaction to replace the on-disk transcript with the compacted version;
+	 * startSession skips persistence for "read-only resume" starts (same
+	 * sessionId + initialMessages + no prompt), so the host must write
+	 * explicitly to keep disk in sync with the in-memory session.
+	 */
+	writeSessionMessages(
+		sessionId: string,
+		messages: LlmsProviders.Message[],
+	): Promise<void>;
 	dispatchHookEvent(payload: HookEventPayload): Promise<void>;
 	subscribe(
 		listener: (event: CoreSessionEvent) => void,
