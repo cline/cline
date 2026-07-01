@@ -65,12 +65,16 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 			let isFirstChunk = true
 			let didOutputNonCommand = false
 			let didEmitEmptyLine = false
+			let didSeeCompletionMarker = false
 
 			for await (let data of stream) {
 				// Parse shell integration completion markers when present.
-				// Sequence format: ]633;D;<exitCode>
-				const completionMatches = [...data.matchAll(/\]633;D(?:;(-?\d+))?/g)]
+				// Sequence format: ESC ]633;D;<exitCode> BEL
+				const completionMatches = [...data.matchAll(/\x1b\]633;D(?:;(-?\d+))?\x07/g)]
 				const latestCompletionMatch = completionMatches[completionMatches.length - 1]
+				if (latestCompletionMatch) {
+					didSeeCompletionMarker = true
+				}
 				if (latestCompletionMatch?.[1] !== undefined) {
 					const parsedExitCode = Number.parseInt(latestCompletionMatch[1], 10)
 					if (Number.isInteger(parsedExitCode)) {
@@ -205,6 +209,10 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 				if (this.isListening) {
 					this.emitIfEol(data)
 					this.lastRetrievedIndex = this.fullOutput.length - this.buffer.length
+				}
+
+				if (didSeeCompletionMarker) {
+					break
 				}
 			}
 
