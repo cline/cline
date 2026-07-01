@@ -5,6 +5,11 @@
 // Creates a hard link (or copy fallback) from the platform-specific binary
 // to bin/.cline for fast startup on subsequent runs.
 //
+// On x64 Linux without AVX2 (e.g. Sandy Bridge / Xeon E5-2620 v1),
+// the standard Bun-compiled binary requires AVX2 and will SIGILL immediately.
+// This script detects the CPU capability and caches the -baseline variant when
+// AVX2 is absent so the fast-path cached binary is always runnable.
+//
 // This script must use only Node.js APIs (no Bun) since it runs via
 // "node script/postinstall.mjs" in the npm lifecycle.
 
@@ -17,6 +22,25 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
 
+// Reuse the pure helpers from bin/resolver-helpers.cjs so the package-selection
+// logic is shared and testable without duplicating the AVX2 detection regex.
+const { cpuHasAvx2, choosePackageName } = require(
+	path.join(__dirname, "..", "bin", "resolver-helpers.cjs"),
+);
+
+// Reads /proc/cpuinfo on Linux to detect AVX2 support. Returns true on non-Linux platforms.
+function hostCpuHasAvx2() {
+	if (os.platform() !== "linux") {
+		return true; // /proc/cpuinfo is only reliable on Linux; assume capable elsewhere.
+	}
+	try {
+		const cpuinfo = fs.readFileSync("/proc/cpuinfo", "utf8");
+		return cpuHasAvx2(cpuinfo);
+	} catch (_) {
+		return true; // If unreadable, conservatively assume capable.
+	}
+}
+
 function main() {
 	if (os.platform() === "win32") {
 		// On Windows, npm creates .cmd shims from the bin field.
@@ -25,13 +49,19 @@ function main() {
 		return;
 	}
 
-	const platformMap = {
-		darwin: "darwin",
-		linux: "linux",
-	};
-	const platform = platformMap[os.platform()] || os.platform();
 	const arch = os.arch();
-	const packageName = `@cline/cli-${platform}-${arch}`;
+	const hasAvx2 = hostCpuHasAvx2();
+
+	// choosePackageName picks the -baseline variant when arch=x64 and !hasAvx2.
+	// Returns null for unsupported platforms (e.g. win32 is already handled above).
+	const packageName = choosePackageName(os.platform(), arch, hasAvx2);
+	if (!packageName) {
+		console.log(
+			`Note: platform ${os.platform()} not supported, skipping binary cache`,
+		);
+		return;
+	}
+
 	const binaryName = "cline";
 
 	let binaryPath;
@@ -44,10 +74,14 @@ function main() {
 			throw new Error(`Binary not found at ${binaryPath}`);
 		}
 	} catch (_error) {
-		// Platform package not available. The resolver script will find
-		// it at runtime by walking node_modules. This is expected on
-		// platforms we don't ship binaries for.
-		console.log(`Note: ${packageName} not found, skipping binary cache`);
+		// Platform package not available. On a no-AVX2 host this means the baseline
+		// package is missing — do NOT fall back to caching the standard (AVX2) binary
+		// because that would SIGILL at runtime. Instead skip caching entirely so the
+		// runtime resolver's node_modules walk (which prefers baseline) handles it.
+		const reason = !hasAvx2 && arch === "x64" ? "baseline " : "";
+		console.log(
+			`Note: ${reason}${packageName} not found, skipping binary cache`,
+		);
 		return;
 	}
 

@@ -9,6 +9,7 @@ import {
 	realpathSync,
 	statSync,
 } from "node:fs";
+import { platform as osPlatform } from "node:os";
 import { join, relative, resolve } from "node:path";
 import { $ } from "bun";
 import {
@@ -45,6 +46,28 @@ function buildInlinedEnvDefines(): Record<string, string> {
 	return defines;
 }
 
+// Reads /proc/cpuinfo on Linux to detect AVX2 support at build time. Returns true on non-Linux hosts.
+//
+// Note: The AVX2 regex below is intentionally duplicated from
+// bin/resolver-helpers.cjs. build.ts runs under Bun and could technically
+// require() the .cjs helper, but doing so would make the build script depend
+// on a runtime artifact that may not be present in all CI environments (e.g.
+// a fresh checkout before any install step). The duplication is two lines and
+// the risk of divergence is low; keeping build.ts self-contained is simpler.
+function buildHostHasAvx2(): boolean {
+	if (osPlatform() !== "linux") {
+		return true;
+	}
+	try {
+		const cpuinfo = readFileSync("/proc/cpuinfo", "utf-8");
+		return /(^|\s)avx2(\s|$)/m.test(cpuinfo);
+	} catch {
+		return true;
+	}
+}
+
+const hostHasAvx2 = buildHostHasAvx2();
+
 const pkg = JSON.parse(readFileSync(join(cliDir, "package.json"), "utf-8"));
 const version: string = pkg.version;
 const repository: unknown = pkg.repository;
@@ -53,12 +76,18 @@ console.log(`Building @cline/cli v${version}`);
 
 const buildOptions = parseBuildOptions(process.argv.slice(2));
 
+// "baseline" variant: compiled with bun-linux-x64-baseline.
+// These binaries use the x86-64-v2 instruction set (no AVX2) and are required on
+// older Intel CPUs such as Sandy Bridge (issue #10514). Baseline support is scoped
+// to x64 Linux; Windows and macOS detection is out of scope for this patch.
 const allTargets: {
 	os: string;
 	arch: "arm64" | "x64";
+	variant?: "baseline";
 }[] = [
 	{ os: "linux", arch: "arm64" },
 	{ os: "linux", arch: "x64" },
+	{ os: "linux", arch: "x64", variant: "baseline" },
 	{ os: "darwin", arch: "arm64" },
 	{ os: "darwin", arch: "x64" },
 	{ os: "win32", arch: "x64" },
@@ -164,7 +193,9 @@ function getBunTarget(
 	item: (typeof allTargets)[number],
 ): Bun.Build.CompileTarget {
 	const targetOs = item.os === "win32" ? "windows" : item.os;
-	return `bun-${targetOs}-${item.arch}` as Bun.Build.CompileTarget;
+	// Append "-baseline" for baseline variants so Bun embeds the no-AVX2 runtime.
+	const suffix = item.variant === "baseline" ? "-baseline" : "";
+	return `bun-${targetOs}-${item.arch}${suffix}` as Bun.Build.CompileTarget;
 }
 
 async function buildCompiledBinary(input: {
@@ -225,8 +256,11 @@ async function buildCompiledBinary(input: {
 for (const item of targets) {
 	// npm treats "win32" specially in os field, but for package naming use "windows"
 	const displayOs = item.os === "win32" ? "windows" : item.os;
-	const name = `@cline/cli-${displayOs}-${item.arch}`;
-	const dirName = `cli-${displayOs}-${item.arch}`;
+	// Baseline variants get a "-baseline" suffix in both the package name and
+	// directory name so they can coexist alongside the standard packages.
+	const variantSuffix = item.variant === "baseline" ? "-baseline" : "";
+	const name = `@cline/cli-${displayOs}-${item.arch}${variantSuffix}`;
+	const dirName = `cli-${displayOs}-${item.arch}${variantSuffix}`;
 	const binaryName = item.os === "win32" ? "cline.exe" : "cline";
 	const bunTarget = getBunTarget(item);
 
@@ -238,21 +272,60 @@ for (const item of targets) {
 
 	await buildCompiledBinary({ bunTarget, dirName, outfile });
 
-	// Smoke test: only run on current platform
+	// Smoke test: only run on current platform.
+	// On x64 Linux without AVX2 (e.g. Sandy Bridge / Xeon E5-2620 v1), the
+	// standard x64 binary requires AVX2 and will SIGILL immediately — which
+	// would fail the build on a host that is working correctly. When AVX2 is
+	// absent we skip the standard x64 smoke test with a warning and instead
+	// run the baseline x64 binary (if it was just built) to prove the build
+	// produced a working artifact. On AVX2-capable hosts all smoke tests run
+	// normally.
 	if (item.os === process.platform && item.arch === process.arch) {
-		console.log(`  Smoke test: ${outfile} --version`);
-		try {
-			const output = await $`${outfile} --version`.text();
-			const actualVersion = output.trim();
-			if (actualVersion !== version) {
-				throw new Error(
-					`Expected --version to print ${version}, got ${actualVersion}`,
-				);
+		const isStandardX64 = item.arch === "x64" && item.variant !== "baseline";
+		const skipBecauseNoAvx2 =
+			isStandardX64 && process.platform === "linux" && !hostHasAvx2;
+
+		if (skipBecauseNoAvx2) {
+			console.warn(
+				`  WARNING: Skipping smoke test for ${name} — ` +
+					`build host lacks AVX2 (standard x64 binary would SIGILL). ` +
+					`The baseline x64 binary will be smoke-tested instead.`,
+			);
+		} else if (
+			item.arch === "x64" &&
+			item.variant === "baseline" &&
+			!hostHasAvx2
+		) {
+			// On a no-AVX2 host, run the baseline binary as the smoke test substitute.
+			console.log(`  Smoke test (baseline substitute): ${outfile} --version`);
+			try {
+				const output = await $`${outfile} --version`.text();
+				const actualVersion = output.trim();
+				if (actualVersion !== version) {
+					throw new Error(
+						`Expected --version to print ${version}, got ${actualVersion}`,
+					);
+				}
+				console.log(`  Passed (baseline): ${actualVersion}`);
+			} catch (e) {
+				console.error(`  Smoke test FAILED for ${name}:`, e);
+				process.exit(1);
 			}
-			console.log(`  Passed: ${actualVersion}`);
-		} catch (e) {
-			console.error(`  Smoke test FAILED for ${name}:`, e);
-			process.exit(1);
+		} else {
+			console.log(`  Smoke test: ${outfile} --version`);
+			try {
+				const output = await $`${outfile} --version`.text();
+				const actualVersion = output.trim();
+				if (actualVersion !== version) {
+					throw new Error(
+						`Expected --version to print ${version}, got ${actualVersion}`,
+					);
+				}
+				console.log(`  Passed: ${actualVersion}`);
+			} catch (e) {
+				console.error(`  Smoke test FAILED for ${name}:`, e);
+				process.exit(1);
+			}
 		}
 	}
 
@@ -277,14 +350,18 @@ for (const item of targets) {
 	}
 
 	// Generate platform package.json
+	const descriptionSuffix =
+		item.variant === "baseline" ? " (baseline / no-AVX2)" : "";
 	await Bun.write(
 		join(cliDir, `dist/${dirName}/package.json`),
 		`${JSON.stringify(
 			{
 				name,
 				version,
-				description: `Cline CLI binary for ${displayOs} ${item.arch}`,
+				description: `Cline CLI binary for ${displayOs} ${item.arch}${descriptionSuffix}`,
 				os: [item.os],
+				// cpu still lists the base architecture; the "-baseline" suffix in the
+				// package name is the signal to npm that this variant targets no-AVX2.
 				cpu: [item.arch],
 				...(repository ? { repository } : {}),
 				bin: {
