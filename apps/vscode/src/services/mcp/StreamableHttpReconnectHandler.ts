@@ -15,8 +15,6 @@ export interface ReconnectCallbacks {
 	notifyWebviewOfServerChanges: () => Promise<void>
 	/** Appends an error message to the connection's server object */
 	appendErrorMessage: (connection: { server: { status: string } }, message: string) => void
-	/** Removes the server key from the global registry */
-	deleteServerKey: (uid: string) => void
 	/** Awaitable delay — injected so tests can substitute a zero-delay or fake timer */
 	delay: (ms: number) => Promise<void>
 }
@@ -94,7 +92,6 @@ export class StreamableHttpReconnectHandler {
 					`exhausted for "${this.serverName}". Server marked as disconnected.`,
 			)
 			connection.server.status = "disconnected"
-			this.callbacks.deleteServerKey(connection.server.uid || this.serverName)
 			this.callbacks.appendErrorMessage(connection, error instanceof Error ? error.message : `${error}`)
 			await this.callbacks.notifyWebviewOfServerChanges()
 			return
@@ -157,7 +154,6 @@ export class StreamableHttpReconnectHandler {
 		const exhaustedConnection = this.callbacks.findConnection()
 		if (exhaustedConnection) {
 			exhaustedConnection.server.status = "disconnected"
-			this.callbacks.deleteServerKey(exhaustedConnection.server.uid || this.serverName)
 			this.callbacks.appendErrorMessage(exhaustedConnection, error instanceof Error ? error.message : `${error}`)
 		}
 		await this.callbacks.notifyWebviewOfServerChanges()
