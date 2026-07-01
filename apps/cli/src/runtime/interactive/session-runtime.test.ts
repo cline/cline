@@ -783,7 +783,7 @@ describe("createInteractiveSessionRuntime", () => {
 		manager.readMessages.mockRejectedValueOnce(
 			new SessionNotFoundError("session-1"),
 		);
-		const runtime = makeRuntime(manager);
+		const runtime = await makeRuntime(manager);
 
 		await runtime.ensureReady();
 		await runtime.restartWithCurrentMessages();
@@ -801,7 +801,7 @@ describe("createInteractiveSessionRuntime", () => {
 
 	it("does not restart with stale messages when another operation changes the active session during a read", async () => {
 		const manager = makeManager();
-		let runtime!: ReturnType<typeof makeRuntime>;
+		let runtime!: Awaited<ReturnType<typeof makeRuntime>>;
 		manager.readMessages.mockImplementationOnce(async () => {
 			await runtime.restartEmpty();
 			return [
@@ -811,7 +811,7 @@ describe("createInteractiveSessionRuntime", () => {
 				},
 			];
 		});
-		runtime = makeRuntime(manager);
+		runtime = await makeRuntime(manager);
 
 		await runtime.ensureReady();
 		await runtime.restartWithCurrentMessages();
