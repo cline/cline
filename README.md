@@ -32,6 +32,10 @@ The open source coding agent in your IDE and terminal.
 </table>
 </div>
 
+<p align="center">
+  <a href="https://www.aiflowlearn.net/en/codex/cline"><img alt="Sagerbuddy Repo Guide" src="https://img.shields.io/badge/Sagerbuddy-Repo%20Guide-00B8A9?style=flat&logo=readthedocs&logoColor=white" /></a>
+</p>
+
 </div>
 
 <br>
