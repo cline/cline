@@ -3990,8 +3990,14 @@ describe("sdk-gateway", () => {
 		}
 	});
 
-	it("does not wrap provider fetch when wire capture is disabled", async () => {
-		const customFetch = vi.fn() as unknown as typeof fetch;
+	it("wraps provider fetch with the retry-after guard when wire capture is disabled", async () => {
+		const customFetch = vi.fn(
+			async () =>
+				new Response("rate limited", {
+					headers: { "retry-after": "10800" },
+					status: 429,
+				}),
+		) as unknown as typeof fetch;
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
 		});
@@ -4013,7 +4019,14 @@ describe("sdk-gateway", () => {
 		const config = openaiCompatibleFactorySpy.mock.calls[0]?.[0] as {
 			fetch?: typeof fetch;
 		};
-		expect(config.fetch).toBe(customFetch);
+		expect(config.fetch).not.toBe(customFetch);
+
+		const response = await config.fetch?.("https://example.test");
+
+		expect(customFetch).toHaveBeenCalledOnce();
+		expect(response?.status).toBe(429);
+		expect(response?.headers.get("retry-after")).toBeNull();
+		expect(response?.headers.get("x-cline-retry-after-truncated")).toBe("true");
 	});
 
 	it("adds OpenRouter session_id to JSON wire requests from request metadata", async () => {
@@ -4362,7 +4375,15 @@ describe("sdk-gateway", () => {
 		const config = openaiCompatibleFactorySpy.mock.calls[0]?.[0] as {
 			fetch?: typeof fetch;
 		};
-		expect(config.fetch).toBe(customFetch);
+		expect(config.fetch).not.toBe(customFetch);
+		await config.fetch?.("https://openrouter.ai/api/v1/chat/completions", {
+			method: "POST",
+			body: JSON.stringify({ messages: [{ role: "user", content: "hi" }] }),
+		});
+
+		expect(customFetch).toHaveBeenCalledOnce();
+		const init = customFetchMock.mock.calls[0]?.[1] as RequestInit | undefined;
+		expect(JSON.parse(String(init?.body))).not.toHaveProperty("session_id");
 	});
 
 	it("wraps provider fetch for wire capture while delegating to the configured fetch", async () => {
