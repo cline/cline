@@ -1639,6 +1639,7 @@ export function translateSessionEvent(event: CoreSessionEvent, state: MessageTra
 type SdkContentBlock = Exclude<SdkMessage["content"], string>[number]
 type SdkToolUseBlock = Extract<SdkContentBlock, { type: "tool_use" }>
 type SdkMessageWithMetrics = SdkMessage & {
+	metadata?: Record<string, unknown>
 	metrics?: {
 		inputTokens?: number
 		outputTokens?: number
@@ -1834,6 +1835,7 @@ export function sdkMessagesToClineMessages(messages: SdkMessageWithMetrics[], mi
 					say: clineMessages.length === 0 ? "task" : "user_feedback",
 					text,
 					partial: false,
+					metadata: message.metadata,
 				})
 			}
 			continue
@@ -1847,6 +1849,7 @@ export function sdkMessagesToClineMessages(messages: SdkMessageWithMetrics[], mi
 				say: clineMessages.length === 0 ? "task" : "user_feedback",
 				text: userText,
 				partial: false,
+				metadata: message.metadata,
 			})
 		}
 

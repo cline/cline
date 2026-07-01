@@ -52,6 +52,19 @@ const createAskMessage = (
 })
 
 describe("filterVisibleMessages", () => {
+	it("hides internal compaction summaries from chat rendering", () => {
+		const visibleMessage = createTaskMessage(1, "Build the feature")
+		const compactionSummary: ClineMessage = {
+			type: "say",
+			say: "user_feedback",
+			text: "Context summary:\n\nThe user asked to build the feature.",
+			metadata: { kind: "compaction_summary" },
+			ts: 2,
+		}
+
+		expect(filterVisibleMessages([visibleMessage, compactionSummary])).toEqual([visibleMessage])
+	})
+
 	it("hides exact user feedback echoes for selected follow-up options", () => {
 		const askMessage = createAskMessage(1, "followup", ["Use this", "Use that"], "Use this")
 		const visible = filterVisibleMessages([askMessage, createUserFeedbackMessage(2, "Use this")])

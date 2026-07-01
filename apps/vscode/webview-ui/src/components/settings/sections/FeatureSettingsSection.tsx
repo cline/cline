@@ -29,16 +29,6 @@ interface FeatureToggle {
 	stateKey: string
 }
 
-const agentFeatures: FeatureToggle[] = [
-	{
-		id: "auto-compact",
-		label: "Auto Compact",
-		description: "Automatically compress conversation history.",
-		stateKey: "useAutoCondense",
-		settingKey: "useAutoCondense",
-	},
-]
-
 const editorFeatures: FeatureToggle[] = [
 	{
 		id: "show-feature-tips",
@@ -153,8 +143,6 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		hooksEnabled,
 		mcpDisplayMode,
 		yoloModeToggled,
-		useAutoCondense,
-		subagentsEnabled,
 		worktreesEnabled,
 		remoteConfigSettings,
 		backgroundEditEnabled,
@@ -168,8 +156,6 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		showFeatureTips,
 		enableCheckpointsSetting,
 		hooksEnabled,
-		useAutoCondense,
-		subagentsEnabled,
 		worktreesEnabled: worktreesEnabled?.user,
 		backgroundEditEnabled,
 		yoloModeToggled: isYoloRemoteLocked ? remoteConfigSettings?.yoloModeToggled : yoloModeToggled,
@@ -185,25 +171,6 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 			{renderSectionHeader("features")}
 			<Section>
 				<div className="mb-5 flex flex-col gap-3">
-					{/* Core features */}
-					<div>
-						<div className="text-xs font-medium text-foreground/80 uppercase tracking-wider mb-3">Agent</div>
-						<div
-							className="relative p-3 pt-0 my-3 rounded-md border border-editor-widget-border/50"
-							id="agent-features">
-							{agentFeatures.map((feature) => (
-								<FeatureRow
-									checked={featureState[feature.stateKey]}
-									description={feature.description}
-									isVisible={featureVisibility[feature.stateKey] ?? true}
-									key={feature.id}
-									label={feature.label}
-									onChange={(checked) => updateSetting(feature.settingKey, checked)}
-								/>
-							))}
-						</div>
-					</div>
-
 					{/* Editor features */}
 					<div>
 						<div className="text-xs font-medium text-foreground/80 uppercase tracking-wider mb-3">Editor</div>

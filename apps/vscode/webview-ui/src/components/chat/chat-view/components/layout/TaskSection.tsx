@@ -38,7 +38,6 @@ export const TaskSection: React.FC<TaskSectionProps> = ({
 			doesModelSupportPromptCache={selectedModelInfo.supportsPromptCache}
 			lastApiReqTotalTokens={lastApiReqTotalTokens}
 			onClose={messageHandlers.handleTaskCloseButtonClick}
-			onSendMessage={messageHandlers.handleSendMessage}
 			task={task}
 			tokensIn={apiMetrics.totalTokensIn}
 			tokensOut={apiMetrics.totalTokensOut}

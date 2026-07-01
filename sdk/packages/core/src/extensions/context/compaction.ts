@@ -177,8 +177,10 @@ const BUILTIN_COMPACTION_STRATEGIES = {
 						DEFAULT_PRESERVE_RECENT_TOKENS),
 			estimateMessageTokens,
 			logger,
-		}),
+	}),
 } satisfies Record<CoreCompactionStrategy, BuiltinCompactionStrategyRunner>;
+
+const COMPACTION_STATUS_NOTICE = "Compacting context...";
 
 function resolveTriggerState(input: {
 	inputTokens: number;
@@ -410,7 +412,7 @@ export function createContextCompactionPrepareTurn(
 		const statusReason =
 			mode === "manual" ? "manual_compaction" : "auto_compaction";
 		context.emitStatusNotice?.(
-			mode === "manual" ? "compacting" : "auto-compacting",
+			COMPACTION_STATUS_NOTICE,
 			{
 				kind: statusReason,
 				reason: statusReason,
