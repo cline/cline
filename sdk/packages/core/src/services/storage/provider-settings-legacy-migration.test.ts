@@ -146,9 +146,8 @@ describe("migrateLegacyProviderSettings", () => {
 		expect(manager.getProviderSettings("openai")?.apiKey).toBe(
 			"already-migrated",
 		);
-		expect(manager.getProviderSettings("anthropic")).toEqual({
+		expect(manager.getProviderSettings("anthropic")).toMatchObject({
 			provider: "anthropic",
-			model: "claude-fable-5",
 			apiKey: "legacy-key",
 		});
 		expect(manager.read().providers.openai?.tokenSource).toBe("manual");

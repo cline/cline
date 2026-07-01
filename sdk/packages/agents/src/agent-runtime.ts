@@ -6,6 +6,7 @@ import type {
 	AgentMessage,
 	AgentMessagePart,
 	AgentModel,
+	AgentModelEvent,
 	AgentModelFinishReason,
 	AgentModelRequest,
 	AgentRunResult,
@@ -19,6 +20,7 @@ import type {
 	AgentToolResult,
 	AgentUsage,
 	AgentRuntimeConfig as BaseAgentRuntimeConfig,
+	CaptureTaskLifecycleEventInput,
 	TelemetryProperties,
 	ToolApprovalResult,
 	ToolPolicy,
@@ -26,10 +28,16 @@ import type {
 import {
 	captureAgentUnexpectedReasoningTokens,
 	captureSdkError,
+	captureTaskLifecycleEvent,
 	estimateTokens,
 	mergeModelOptions,
 	normalizeJsonLikeStringsForSchema,
 	omitUndefinedValues,
+	TASK_CANCELLED_EVENT,
+	TASK_FIRST_CHUNK_RECEIVED_EVENT,
+	TASK_PROVIDER_REQUEST_STARTED_EVENT,
+	TASK_PROVIDER_STREAM_FAILED_EVENT,
+	TASK_PROVIDER_STREAM_STARTED_EVENT,
 	trimNonEmpty,
 } from "@cline/shared";
 import { nanoid } from "nanoid";
@@ -411,8 +419,16 @@ export class AgentRuntime {
 	};
 	private initialization?: Promise<void>;
 	private abortController?: AbortController;
+	private readonly telemetryProviderId?: string;
+	private readonly telemetryModelId?: string;
 
 	constructor(config: AgentRuntimeConfig) {
+		this.telemetryProviderId =
+			trimNonEmpty(config.messageModelInfo?.provider) ??
+			("providerId" in config ? trimNonEmpty(config.providerId) : undefined);
+		this.telemetryModelId =
+			trimNonEmpty(config.messageModelInfo?.id) ??
+			("modelId" in config ? trimNonEmpty(config.modelId) : undefined);
 		const resolved = resolveRuntimeConfig(config);
 		this.config = {
 			...resolved,
@@ -436,11 +452,17 @@ export class AgentRuntime {
 		if (!this.abortController) {
 			return;
 		}
+		if (this.abortController.signal.aborted) {
+			return;
+		}
 		const abortError =
 			reason instanceof AgentRuntimeAbortError
 				? reason
 				: new AgentRuntimeAbortError(reason);
 		this.state.lastError = abortError.message;
+		this.captureTaskLifecycle(TASK_CANCELLED_EVENT, {
+			error: abortError,
+		});
 		this.abortController.abort(abortError);
 	}
 
@@ -796,9 +818,16 @@ export class AgentRuntime {
 			}),
 		};
 
+		const taskLifecycleStartedAt = Date.now();
+		const getTaskLifecycleDurationMs = () =>
+			Date.now() - taskLifecycleStartedAt;
+
 		if (this.state.iteration > 1) {
 			if (await this.consumePendingUserMessage()) {
-				request = { ...request, messages: cloneMessages(this.state.messages) };
+				request = {
+					...request,
+					messages: cloneMessages(this.state.messages),
+				};
 			}
 		}
 
@@ -838,7 +867,15 @@ export class AgentRuntime {
 			...summarizeModelRequest(request),
 		});
 
-		const stream = await this.config.model.stream(request);
+		this.captureTaskLifecycle(TASK_PROVIDER_REQUEST_STARTED_EVENT, {
+			durationMs: getTaskLifecycleDurationMs(),
+			phase: "provider_request_started",
+		});
+		const stream = this.openTaskLifecycleStream(
+			request,
+			getTaskLifecycleDurationMs,
+		);
+
 		const content: AgentMessagePart[] = [];
 		const toolAssemblies = new Map<string, PendingToolAssembly>();
 		const invalidToolCalls: InvalidToolCall[] = [];
@@ -1014,6 +1051,108 @@ export class AgentRuntime {
 		}
 
 		return { message, finishReason };
+	}
+
+	private async *openTaskLifecycleStream(
+		request: AgentModelRequest,
+		getTaskLifecycleDurationMs: () => number | undefined,
+	): AsyncIterable<AgentModelEvent> {
+		let stream: AsyncIterable<AgentModelEvent>;
+		let phase = "provider_request_started";
+		try {
+			stream = await this.config.model.stream(request);
+			this.throwIfAborted();
+			phase = "provider_stream_started";
+			this.captureTaskLifecycle(TASK_PROVIDER_STREAM_STARTED_EVENT, {
+				durationMs: getTaskLifecycleDurationMs(),
+				phase,
+			});
+		} catch (error) {
+			if (!this.isAbortError(error)) {
+				this.captureTaskLifecycleFailure(
+					error,
+					phase,
+					getTaskLifecycleDurationMs(),
+				);
+			}
+			throw error;
+		}
+
+		let receivedFirstChunk = false;
+		try {
+			for await (const event of stream) {
+				if (!receivedFirstChunk) {
+					receivedFirstChunk = true;
+					phase = "first_chunk_received";
+					this.captureTaskLifecycle(TASK_FIRST_CHUNK_RECEIVED_EVENT, {
+						durationMs: getTaskLifecycleDurationMs(),
+						phase,
+						eventType: event.type,
+					});
+				}
+				yield event;
+			}
+		} catch (error) {
+			if (!this.isAbortError(error)) {
+				this.captureTaskLifecycleFailure(
+					error,
+					phase,
+					getTaskLifecycleDurationMs(),
+				);
+			}
+			throw error;
+		}
+	}
+
+	private captureTaskLifecycleFailure(
+		error: unknown,
+		phase: string,
+		durationMs: number | undefined,
+	): void {
+		this.captureTaskLifecycle(TASK_PROVIDER_STREAM_FAILED_EVENT, {
+			durationMs,
+			error,
+			phase,
+		});
+	}
+
+	private captureTaskLifecycle(
+		event: string,
+		input: Partial<Omit<CaptureTaskLifecycleEventInput, "event">> = {},
+	): void {
+		const sessionId = trimNonEmpty(this.config.sessionId);
+		captureTaskLifecycleEvent(this.config.telemetry, {
+			event,
+			sessionId,
+			ulid: sessionId,
+			agentId: this.state.agentId,
+			conversationId: trimNonEmpty(this.config.conversationId),
+			runId: this.state.runId,
+			iteration: this.state.iteration > 0 ? this.state.iteration : undefined,
+			providerId: this.getTelemetryProviderId(),
+			modelId: this.getTelemetryModelId(),
+			...input,
+		});
+	}
+
+	private getTelemetryProviderId(): string | undefined {
+		return (
+			trimNonEmpty(this.config.messageModelInfo?.provider) ??
+			this.telemetryProviderId
+		);
+	}
+
+	private getTelemetryModelId(): string | undefined {
+		return (
+			trimNonEmpty(this.config.messageModelInfo?.id) ?? this.telemetryModelId
+		);
+	}
+
+	private isAbortError(error: unknown): boolean {
+		return (
+			error instanceof AgentRuntimeAbortError ||
+			this.abortController?.signal.aborted === true
+		);
 	}
 
 	private captureUnexpectedReasoningTokens(
