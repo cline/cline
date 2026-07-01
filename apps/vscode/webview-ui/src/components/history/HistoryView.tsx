@@ -373,6 +373,17 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		[taskHistorySearchResults],
 	)
 
+	const hasHistoryResults = groupedTasks.length > 0
+	const historyEmptyMessage = searchQuery
+		? "No history matches your search."
+		: showFavoritesOnly && showCurrentWorkspaceOnly
+			? "No favorite history in this workspace."
+			: showFavoritesOnly
+				? "No favorite history available."
+				: showCurrentWorkspaceOnly
+					? "No history in this workspace."
+					: "No history available."
+
 	return (
 		<div className="fixed overflow-hidden inset-0 flex flex-col w-full">
 			{/* HEADER */}
@@ -476,38 +487,44 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 
 			{/* HISTORY ITEMS */}
 			<div className="flex-grow overflow-y-auto m-0 w-full py-2">
-				<GroupedVirtuoso
-					className="flex-grow overflow-y-scroll"
-					components={{
-						Footer: () =>
-							hasMoreTasks ? (
-								<div className="px-4 py-3 text-center text-xs text-description">
-									{isLoadingHistory ? "Loading..." : ""}
-								</div>
-							) : null,
-					}}
-					endReached={loadMoreTaskHistory}
-					groupContent={(index) => (
-						<div className="px-4 py-2 text-xs font-bold uppercase tracking-wide sticky top-0 z-10 text-description bg-sidebar-background border-b-border-panel">
-							{groupLabels[index]}
-						</div>
-					)}
-					groupCounts={groupCounts}
-					itemContent={(index) => {
-						const item = groupedTasks[index]
-						return (
-							<HistoryViewItem
-								handleDeleteHistoryItem={handleDeleteHistoryItem}
-								handleHistorySelect={handleHistorySelect}
-								index={index}
-								item={item}
-								pendingFavoriteToggles={pendingFavoriteToggles}
-								selectedItems={selectedItems}
-								toggleFavorite={toggleFavorite}
-							/>
-						)
-					}}
-				/>
+				{hasHistoryResults ? (
+					<GroupedVirtuoso
+						className="flex-grow overflow-y-scroll"
+						components={{
+							Footer: () =>
+								hasMoreTasks ? (
+									<div className="px-4 py-3 text-center text-xs text-description">
+										{isLoadingHistory ? "Loading..." : ""}
+									</div>
+								) : null,
+						}}
+						endReached={loadMoreTaskHistory}
+						groupContent={(index) => (
+							<div className="px-4 py-2 text-xs font-bold uppercase tracking-wide sticky top-0 z-10 text-description bg-sidebar-background border-b-border-panel">
+								{groupLabels[index]}
+							</div>
+						)}
+						groupCounts={groupCounts}
+						itemContent={(index) => {
+							const item = groupedTasks[index]
+							return (
+								<HistoryViewItem
+									handleDeleteHistoryItem={handleDeleteHistoryItem}
+									handleHistorySelect={handleHistorySelect}
+									index={index}
+									item={item}
+									pendingFavoriteToggles={pendingFavoriteToggles}
+									selectedItems={selectedItems}
+									toggleFavorite={toggleFavorite}
+								/>
+							)
+						}}
+					/>
+				) : (
+					<div className="flex h-full items-center justify-center px-4 text-center text-sm text-description">
+						{historyEmptyMessage}
+					</div>
+				)}
 			</div>
 
 			{/* FOOTER */}
