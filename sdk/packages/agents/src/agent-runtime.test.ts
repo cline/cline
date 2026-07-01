@@ -331,6 +331,235 @@ describe("AgentRuntime", () => {
 		});
 	});
 
+	it("nudges once when the model narrates an action but calls no tool", async () => {
+		const model = new ScriptedModel([
+			// Turn 1: narrate an action, no tool call.
+			() => [
+				{ type: "text-delta", text: "I'll run the echo tool now." },
+				{ type: "finish", reason: "stop" },
+			],
+			// Turn 2: after the nudge, actually call the tool.
+			(request) => {
+				const reminder = request.messages.at(-1);
+				expect(reminder?.role).toBe("user");
+				expect(
+					reminder?.content.some(
+						(part) =>
+							part.type === "text" &&
+							part.text.includes("did not call any tool"),
+					),
+				).toBe(true);
+				return [
+					{
+						type: "tool-call-delta",
+						toolCallId: "call_echo",
+						toolName: "echo",
+						inputText: '{"text":"done"}',
+					},
+					{ type: "finish", reason: "tool-calls" },
+				];
+			},
+			// Turn 3: final wrap-up text, no tool.
+			() => [
+				{ type: "text-delta", text: "All set." },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			tools: [createEchoTool()],
+			completionPolicy: {
+				actionFollowThroughGuard: ({ assistantText }) =>
+					/I'll run/.test(assistantText)
+						? "[SYSTEM] Your previous response described an action you would take but did not call any tool to do it."
+						: undefined,
+			},
+		});
+
+		const result = await runtime.run("Start");
+
+		expect(result.status).toBe("completed");
+		expect(model.requests).toHaveLength(3);
+	});
+
+	it("fires the action-follow-through guard at most once per run", async () => {
+		const guard = vi.fn(
+			({ assistantText }: { assistantText: string }) =>
+				/I'll/.test(assistantText)
+					? "[SYSTEM] follow through with a tool call."
+					: undefined,
+		);
+		const model = new ScriptedModel([
+			// Turn 1: narrate, no tool -> guard fires, loop continues.
+			() => [
+				{ type: "text-delta", text: "I'll do it." },
+				{ type: "finish", reason: "stop" },
+			],
+			// Turn 2: STILL narrates, no tool -> guard is capped, run completes.
+			() => [
+				{ type: "text-delta", text: "I'll do it for real." },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			tools: [createEchoTool()],
+			completionPolicy: { actionFollowThroughGuard: guard },
+		});
+
+		const result = await runtime.run("Start");
+
+		// Completed (did not loop forever) and the guard was only consulted
+		// until it fired once.
+		expect(result.status).toBe("completed");
+		expect(model.requests).toHaveLength(2);
+		expect(guard).toHaveBeenCalledTimes(1);
+	});
+
+	it("emits fired + outcome telemetry for the action-follow-through guard", async () => {
+		const telemetry = {
+			capture: vi.fn(),
+			captureRequired: vi.fn(),
+			setDistinctId: vi.fn(),
+			setMetadata: vi.fn(),
+			updateMetadata: vi.fn(),
+			setCommonProperties: vi.fn(),
+			updateCommonProperties: vi.fn(),
+			isEnabled: () => true,
+			recordCounter: vi.fn(),
+			recordHistogram: vi.fn(),
+			recordGauge: vi.fn(),
+			flush: vi.fn(async () => undefined),
+			dispose: vi.fn(async () => undefined),
+		} as unknown as ITelemetryService;
+		const model = new ScriptedModel([
+			// Turn 1: narrate, no tool -> guard fires.
+			() => [
+				{ type: "text-delta", text: "I'll run it." },
+				{ type: "finish", reason: "stop" },
+			],
+			// Turn 2: follows through with a tool call.
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_echo",
+					toolName: "echo",
+					inputText: '{"text":"done"}',
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			// Turn 3: final text, no tool.
+			() => [
+				{ type: "text-delta", text: "Done." },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			tools: [createEchoTool()],
+			telemetry,
+			completionPolicy: {
+				actionFollowThroughGuard: ({ assistantText }) =>
+					/I'll run/.test(assistantText) ? "[SYSTEM] follow through." : undefined,
+			},
+		});
+
+		await runtime.run("Start");
+
+		const events = (telemetry.capture as ReturnType<typeof vi.fn>).mock.calls.map(
+			(c) => c[0]?.event,
+		);
+		expect(events).toContain("agent.action_follow_through.fired");
+		const outcomeCall = (
+			telemetry.capture as ReturnType<typeof vi.fn>
+		).mock.calls.find(
+			(c) => c[0]?.event === "agent.action_follow_through.outcome",
+		);
+		expect(outcomeCall?.[0]?.properties?.followed_through).toBe(true);
+	});
+
+	it("emits a terminal outcome when the run ends after the guard fires before a next turn", async () => {
+		const telemetry = {
+			capture: vi.fn(),
+			captureRequired: vi.fn(),
+			setDistinctId: vi.fn(),
+			setMetadata: vi.fn(),
+			updateMetadata: vi.fn(),
+			setCommonProperties: vi.fn(),
+			updateCommonProperties: vi.fn(),
+			isEnabled: () => true,
+			recordCounter: vi.fn(),
+			recordHistogram: vi.fn(),
+			recordGauge: vi.fn(),
+			flush: vi.fn(async () => undefined),
+			dispose: vi.fn(async () => undefined),
+		} as unknown as ITelemetryService;
+		const model = new ScriptedModel([
+			// Turn 1: narrate, no tool -> guard fires, loop wants to continue but
+			// maxIterations is reached, so the run ends before a following turn.
+			() => [
+				{ type: "text-delta", text: "I'll run it." },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			tools: [createEchoTool()],
+			telemetry,
+			maxIterations: 1,
+			completionPolicy: {
+				actionFollowThroughGuard: () => "[SYSTEM] follow through.",
+			},
+		});
+
+		await runtime.run("Start").catch(() => undefined);
+
+		const calls = (telemetry.capture as ReturnType<typeof vi.fn>).mock.calls;
+		const events = calls.map((c) => c[0]?.event);
+		expect(events).toContain("agent.action_follow_through.fired");
+		const outcomeCall = calls.find(
+			(c) => c[0]?.event === "agent.action_follow_through.outcome",
+		);
+		// Every `fired` has a matching `outcome`, here flagged terminal.
+		expect(outcomeCall?.[0]?.properties?.terminal).toBe(true);
+		expect(outcomeCall?.[0]?.properties?.followed_through).toBe(false);
+	});
+
+	it("does not stack the action guard on top of a completionGuard reminder", async () => {
+		const actionGuard = vi.fn(() => "[SYSTEM] action nudge.");
+		const model = new ScriptedModel([
+			// Turn 1: no tool -> completionGuard fires, action guard suppressed.
+			() => [
+				{ type: "text-delta", text: "I'll run it." },
+				{ type: "finish", reason: "stop" },
+			],
+			// Turn 2: tool call -> completes.
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_echo",
+					toolName: "echo",
+					inputText: '{"text":"done"}',
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			tools: [createEchoTool()],
+			completionPolicy: {
+				completionGuard: () => "[SYSTEM] finish your obligations.",
+				actionFollowThroughGuard: actionGuard,
+			},
+		});
+
+		await runtime.run("Start");
+
+		// The team/obligation completionGuard already produced a reminder, so the
+		// action-follow-through guard must not be consulted that turn.
+		expect(actionGuard).not.toHaveBeenCalled();
+	});
+
 	it("continues when completionGuard rejects a no-tool response", async () => {
 		const submitTool: AgentTool<{ summary: string }, string> = {
 			name: "submit",

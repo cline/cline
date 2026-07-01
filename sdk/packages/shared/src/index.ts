@@ -419,8 +419,12 @@ export type {
 	TelemetryValue,
 } from "./services/telemetry";
 export {
+	AGENT_ACTION_FOLLOW_THROUGH_FIRED_EVENT,
+	AGENT_ACTION_FOLLOW_THROUGH_OUTCOME_EVENT,
 	AGENT_UNEXPECTED_REASONING_TOKENS_EVENT,
 	buildSdkErrorProperties,
+	captureAgentActionFollowThroughFired,
+	captureAgentActionFollowThroughOutcome,
 	captureAgentUnexpectedReasoningTokens,
 	captureSdkError,
 	normalizeSdkError,

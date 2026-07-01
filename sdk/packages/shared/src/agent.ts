@@ -430,6 +430,9 @@ export interface AgentRuntimeConfig {
 	completionPolicy?: {
 		requireCompletionTool?: boolean;
 		completionGuard?: () => string | undefined;
+		actionFollowThroughGuard?: (context: {
+			assistantText: string;
+		}) => string | undefined;
 	};
 	toolExecution?: "sequential" | "parallel";
 	toolPolicies?: Record<string, ToolPolicy>;

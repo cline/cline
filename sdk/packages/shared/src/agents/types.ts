@@ -832,11 +832,21 @@ export interface AgentConfig {
 	 * If it returns a non-empty string, that string is injected as a
 	 * system-level nudge and the loop continues instead of completing.
 	 * Use this to prevent premature exit when the agent has unfinished
-	 * obligations (e.g. in-progress team tasks).
+	 * obligations (e.g. in-progress team tasks). It may fire on every
+	 * no-tool turn (it is expected to be self-limiting).
+	 *
+	 * `actionFollowThroughGuard` also runs when the model returns no tool
+	 * calls, but additionally receives the final assistant text so it can
+	 * detect "narrate an action then stop without doing it" turns. Unlike
+	 * `completionGuard`, it is capped to fire at most once per run so a
+	 * stubborn model can never loop on it.
 	 */
 	completionPolicy?: {
 		requireCompletionTool?: boolean;
 		completionGuard?: () => string | undefined;
+		actionFollowThroughGuard?: (context: {
+			assistantText: string;
+		}) => string | undefined;
 	};
 
 	// -------------------------------------------------------------------------

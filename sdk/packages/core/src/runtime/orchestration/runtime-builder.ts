@@ -1,3 +1,4 @@
+import { createActionFollowThroughGuard } from "@cline/agents";
 import type {
 	AgentTool,
 	BasicLogger,
@@ -692,15 +693,22 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					return undefined;
 				}
 			: undefined;
-		const completionPolicy = requiresCompletionTool
-			? {
-					requireCompletionTool: true,
-					...(teamCompletionGuard
-						? { completionGuard: teamCompletionGuard }
-						: {}),
-				}
-			: teamCompletionGuard
+		// Act-only guard for "narrated action, no tool call" stalls.
+		const actionFollowThroughGuard =
+			normalized.mode === "act"
+				? createActionFollowThroughGuard()
+				: undefined;
+
+		const completionPolicyEntries = {
+			...(requiresCompletionTool ? { requireCompletionTool: true } : {}),
+			...(teamCompletionGuard
 				? { completionGuard: teamCompletionGuard }
+				: {}),
+			...(actionFollowThroughGuard ? { actionFollowThroughGuard } : {}),
+		};
+		const completionPolicy =
+			Object.keys(completionPolicyEntries).length > 0
+				? completionPolicyEntries
 				: undefined;
 
 		return {

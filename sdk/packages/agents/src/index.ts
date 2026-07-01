@@ -55,3 +55,9 @@ export {
 	createAgent,
 	createAgentRuntime,
 } from "./agent-runtime";
+export {
+	ACTION_FOLLOW_THROUGH_NUDGE,
+	type ActionFollowThroughGuardContext,
+	createActionFollowThroughGuard,
+	looksLikeUnfulfilledAction,
+} from "./action-follow-through-guard";
