@@ -14,18 +14,66 @@ import { main as generateProtoBusSetup } from "./generate-protobus-setup.mjs"
 
 const require = createRequire(import.meta.url)
 const isWindows = process.platform === "win32"
-const GRPC_TOOLS_PROTOC = path.join(require.resolve("grpc-tools"), "../bin", isWindows ? "protoc.exe" : "protoc")
+// Resolve the grpc-tools package root via its package.json (stable regardless of `main`), so we
+// can both locate the bundled protoc and re-run its install script when the binary is missing.
+const GRPC_TOOLS_DIR = path.dirname(require.resolve("grpc-tools/package.json"))
+const GRPC_TOOLS_PROTOC = path.join(GRPC_TOOLS_DIR, "bin", isWindows ? "protoc.exe" : "protoc")
 // Legacy compatibility: some older/local Windows setups provision protoc into tmp-protoc.
 // Prefer that path when present, but fall back to the grpc-tools bundled binary used by CI/npm installs.
 const LEGACY_WINDOWS_PROTOC = path.resolve("tmp-protoc/bin/protoc.exe")
 const PROTOC = isWindows && fsSync.existsSync(LEGACY_WINDOWS_PROTOC) ? LEGACY_WINDOWS_PROTOC : GRPC_TOOLS_PROTOC
 
+// `bun install` skips grpc-tools' `install` lifecycle script (`node-pre-gyp install`), so the prebuilt
+// protoc is never downloaded into bin/. When it's missing, run that same command here to fetch it.
+// grpc-tools depends on @mapbox/node-pre-gyp, which exposes the `node-pre-gyp` CLI.
+function resolveNodePreGypCli() {
+	const candidates = ["@mapbox/node-pre-gyp/bin/node-pre-gyp", "node-pre-gyp/bin/node-pre-gyp"]
+	for (const candidate of candidates) {
+		try {
+			// Resolve from the grpc-tools package (its direct dependency).
+			return require.resolve(candidate, { paths: [GRPC_TOOLS_DIR] })
+		} catch {
+			// Fall back to resolving from this script's location (covers hoisted installs).
+			try {
+				return require.resolve(candidate)
+			} catch {
+				// try the next candidate
+			}
+		}
+	}
+	return null
+}
+
+function ensureProtocBinary() {
+	console.warn(chalk.yellow(`protoc not found at ${GRPC_TOOLS_PROTOC}; downloading the grpc-tools prebuilt binary...`))
+	const nodePreGypCli = resolveNodePreGypCli()
+	if (!nodePreGypCli) {
+		console.error(
+			chalk.red(
+				`Could not resolve the node-pre-gyp CLI from ${GRPC_TOOLS_DIR}. Run \`bun install\`, then retry \`bun run protos\`.`,
+			),
+		)
+		process.exit(1)
+	}
+	try {
+		// Mirrors grpc-tools' `scripts.install` ("node-pre-gyp install"): downloads the prebuilt
+		// protoc for the current platform/arch into grpc-tools/bin.
+		execFileSync(process.execPath, [nodePreGypCli, "install"], { cwd: GRPC_TOOLS_DIR, stdio: "inherit" })
+	} catch (error) {
+		console.error(chalk.red(`Failed to download protoc via node-pre-gyp: ${error?.message ?? error}`))
+		process.exit(1)
+	}
+	if (!fsSync.existsSync(GRPC_TOOLS_PROTOC)) {
+		console.error(chalk.red(`protoc still not found at ${GRPC_TOOLS_PROTOC} after node-pre-gyp install.`))
+		process.exit(1)
+	}
+	console.log(chalk.green("✓ protoc binary installed."))
+}
+
 if (!fsSync.existsSync(PROTOC)) {
-	const windowsHint = isWindows
-		? ` Neither ${LEGACY_WINDOWS_PROTOC} nor the grpc-tools bundled protoc at ${GRPC_TOOLS_PROTOC} exists.`
-		: ""
-	console.error(chalk.red(`protoc not found at ${PROTOC}.${windowsHint}`))
-	process.exit(1)
+	// PROTOC only differs from GRPC_TOOLS_PROTOC when the legacy Windows path exists, so a missing
+	// PROTOC always means the grpc-tools-bundled protoc needs to be fetched.
+	ensureProtocBinary()
 }
 
 const PROTO_DIR = path.resolve("proto")

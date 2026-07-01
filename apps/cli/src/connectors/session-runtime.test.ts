@@ -101,7 +101,7 @@ describe("buildConnectorStartRequest", () => {
 		expect(request.apiKey).toBe("env-openrouter-key");
 		expect(request.model).toBe("anthropic/claude-sonnet-4.6");
 		expect(mockGetLastUsedProviderSettings).toHaveBeenCalledWith({
-			isClinePassEnabled: false,
+			isClinePassEnabled: true,
 		});
 	});
 

@@ -378,7 +378,7 @@ describe("buildSessionConfig", () => {
 		const providers = [
 			{ providerId: "poolside", modelId: "poolside/laguna-m.1" },
 			{ providerId: "v0", modelId: "v0-1.5-md" },
-			{ providerId: "xiaomi", modelId: "mimo-v2-omni" },
+			{ providerId: "xiaomi", modelId: "mimo-v2.5" },
 			{ providerId: "zai-coding-plan", modelId: "glm-5.2" },
 		] as const
 

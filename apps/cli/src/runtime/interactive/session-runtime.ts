@@ -49,6 +49,13 @@ type CurrentTurnResult = Awaited<ReturnType<CliCore["send"]>>;
 type AskQuestionRef = {
 	current: ((question: string, options: string[]) => Promise<string>) | null;
 };
+type CurrentMessagesRead =
+	| { messages: Message[]; status: "read" }
+	| { messages: Message[]; status: "recovered" }
+	| { messages: Message[]; status: "stale" };
+type MissingSessionRecovery = {
+	messages: Message[];
+};
 type ToolPolicyResolver = (
 	toolName: string,
 ) => NonNullable<Config["toolPolicies"]>[string];
@@ -103,7 +110,9 @@ export function createInteractiveSessionRuntime(input: {
 	let shutdownRequested = false;
 	let activeSessionId = "";
 	let abortRequested = false;
-	let missingSessionRecoveryPromise: Promise<void> | undefined;
+	let missingSessionRecoveryPromise:
+		| Promise<MissingSessionRecovery>
+		| undefined;
 	// A reset can happen while an earlier manager.start() is still in flight.
 	// Bump this before resets and restarts so stale starts cannot become active.
 	let sessionStartGeneration = 0;
@@ -275,14 +284,34 @@ export function createInteractiveSessionRuntime(input: {
 		return await startupPromise;
 	};
 
-	const readCurrentMessages = async (): Promise<Message[]> => {
-		if (!sessionManager || !activeSessionId) {
-			return [];
+	const readCurrentMessages = async (): Promise<CurrentMessagesRead> => {
+		const manager = sessionManager;
+		const sessionId = activeSessionId;
+		if (!manager || !sessionId) {
+			return { messages: [], status: "read" };
 		}
-		return (await sessionManager.readMessages(activeSessionId)) ?? [];
+		try {
+			const messages = (await manager.readMessages(sessionId)) ?? [];
+			return {
+				messages,
+				status: activeSessionId === sessionId ? "read" : "stale",
+			};
+		} catch (error) {
+			if (
+				abortRequested ||
+				shutdownRequested ||
+				!isSessionNotFoundError(error)
+			) {
+				throw error;
+			}
+			const recovery = await recoverMissingActiveSession(error);
+			return { messages: recovery.messages, status: "recovered" };
+		}
 	};
 
-	const recoverMissingActiveSession = async (error: unknown): Promise<void> => {
+	const recoverMissingActiveSession = async (
+		error: unknown,
+	): Promise<MissingSessionRecovery> => {
 		if (missingSessionRecoveryPromise) {
 			return await missingSessionRecoveryPromise;
 		}
@@ -290,7 +319,7 @@ export function createInteractiveSessionRuntime(input: {
 			const manager = sessionManager;
 			const missingSessionId = activeSessionId;
 			if (!manager || !missingSessionId || shutdownRequested) {
-				return;
+				return { messages: [] };
 			}
 			const messages = await manager
 				.readMessages(missingSessionId)
@@ -307,6 +336,7 @@ export function createInteractiveSessionRuntime(input: {
 			startupError = undefined;
 			clearActiveSession();
 			await startFreshSession(messages);
+			return { messages };
 		})().finally(() => {
 			missingSessionRecoveryPromise = undefined;
 		});
@@ -361,7 +391,13 @@ export function createInteractiveSessionRuntime(input: {
 	};
 
 	const restartWithCurrentMessages = async (): Promise<void> => {
-		const messages = await readCurrentMessages();
+		const { messages, status } = await readCurrentMessages();
+		if (status !== "read") {
+			// If reading recovered a missing hub session, the current messages are
+			// already in the replacement session. If the read is stale, another async
+			// operation changed the active session while this read was in flight.
+			return;
+		}
 		await restartWithMessages(messages);
 	};
 
@@ -510,7 +546,13 @@ export function createInteractiveSessionRuntime(input: {
 		if (!sessionManager) {
 			return { messagesBefore: 0, messagesAfter: 0, compacted: false };
 		}
-		const messages = await readCurrentMessages();
+		const { messages, status } = await readCurrentMessages();
+		if (status === "stale" || (status === "recovered" && !activeSessionId)) {
+			return { messagesBefore: 0, messagesAfter: 0, compacted: false };
+		}
+		// If reading messages recovered the session, `messages` are the same messages
+		// used to seed the replacement session, so it is safe to compact the current
+		// active session with them.
 		const messagesBefore = messages.length;
 		if (messagesBefore === 0) {
 			return { messagesBefore: 0, messagesAfter: 0, compacted: false };
@@ -551,7 +593,10 @@ export function createInteractiveSessionRuntime(input: {
 			return undefined;
 		}
 		const checkpointHistory = readSessionCheckpointHistory(sessionRecord);
-		const messages = await readCurrentMessages();
+		const { messages, status } = await readCurrentMessages();
+		if (status !== "read") {
+			return undefined;
+		}
 		return { messages, checkpointHistory };
 	};
 

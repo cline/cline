@@ -37,6 +37,7 @@ import {
 	getSearchableListRowsWindow,
 	type SearchableItem,
 } from "../searchable-list";
+import { buildClinePassSubscriptionPageUrl } from "./provider-picker-helpers";
 
 interface ProviderItem {
 	id: string;
@@ -251,24 +252,13 @@ export function ProviderPickerContent(
 export type ExistingProviderAction =
 	| "use_existing"
 	| "reconfigure"
-	| "open_subscription";
+	| "open_subscription_page"
+	| "open_usage_billing";
 
 export interface ExistingProviderOption {
 	value: ExistingProviderAction;
 	label: string;
 	onSelect?: () => Promise<void> | void;
-}
-
-const CLINE_PASS_SUBSCRIPTION_PATH = "/dashboard/subscription";
-const DEFAULT_APP_BASE_URL = "https://app.cline.bot";
-
-export function buildClinePassSubscriptionPageUrl(
-	appBaseUrl: string | undefined,
-): string {
-	return new URL(
-		CLINE_PASS_SUBSCRIPTION_PATH,
-		appBaseUrl || DEFAULT_APP_BASE_URL,
-	).toString();
 }
 
 export function UseExistingOrReconfigureContent(
@@ -340,28 +330,34 @@ export function UseExistingOrReconfigureContent(
 	);
 }
 
-export function ClinePassSubscriptionContent(
+function ClinePassBrowserPageContent(
 	props: ChoiceContext<boolean> & {
 		providerName: string;
+		pageLabel: string;
+		url: string;
+		openedStatus: string;
 	},
 ) {
-	const { resolve, dismiss, dialogId, providerName } = props;
-	const subscriptionUrl = useMemo(
-		() =>
-			buildClinePassSubscriptionPageUrl(getClineEnvironmentConfig().appBaseUrl),
-		[],
-	);
+	const {
+		resolve,
+		dismiss,
+		dialogId,
+		providerName,
+		pageLabel,
+		url,
+		openedStatus,
+	} = props;
 	const [status, setStatus] = useState("Opening browser...");
 
 	useEffect(() => {
-		void open(subscriptionUrl, { wait: false })
+		void open(url, { wait: false })
 			.then(() => {
-				setStatus("Opened subscription page in your browser.");
+				setStatus(openedStatus);
 			})
 			.catch(() => {
 				setStatus("Could not open browser automatically. Open the URL below.");
 			});
-	}, [subscriptionUrl]);
+	}, [url, openedStatus]);
 
 	useDialogKeyboard((key) => {
 		if (key.name === "escape") {
@@ -381,15 +377,36 @@ export function ClinePassSubscriptionContent(
 
 			<text>{status}</text>
 
-			<text fg="gray">Subscription page:</text>
+			<text fg="gray">{pageLabel}:</text>
 			<text fg="cyan" selectable>
-				<a href={subscriptionUrl}>{subscriptionUrl}</a>
+				<a href={url}>{url}</a>
 			</text>
 
 			<text fg="gray">
 				<em>Enter or Esc to go back</em>
 			</text>
 		</box>
+	);
+}
+
+export function ClinePassSubscriptionContent(
+	props: ChoiceContext<boolean> & {
+		providerName: string;
+	},
+) {
+	const subscriptionUrl = useMemo(
+		() =>
+			buildClinePassSubscriptionPageUrl(getClineEnvironmentConfig().appBaseUrl),
+		[],
+	);
+
+	return (
+		<ClinePassBrowserPageContent
+			{...props}
+			pageLabel="Subscription page"
+			url={subscriptionUrl}
+			openedStatus="Opened subscription page in your browser."
+		/>
 	);
 }
 
