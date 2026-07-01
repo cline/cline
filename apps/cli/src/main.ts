@@ -827,9 +827,11 @@ export async function runCli(): Promise<void> {
 		return;
 	}
 	if (args.invalidRetries) {
-		writeln(
-			`${c.dim}[warn] ignoring invalid --retries value "${args.invalidRetries}" (expected integer >= 1)${c.reset}`,
+		writeErr(
+			`invalid retries "${args.invalidRetries}" (expected integer >= 1)`,
 		);
+		process.exitCode = 1;
+		return;
 	}
 	if (args.hooksDir?.trim()) {
 		process.env.CLINE_HOOKS_DIR = args.hooksDir.trim();
@@ -851,7 +853,11 @@ export async function runCli(): Promise<void> {
 		},
 	};
 
-	if (args.outputMode === "json" && (args.interactive || !args.prompt)) {
+	if (
+		args.outputMode === "json" &&
+		(args.interactive || !args.prompt) &&
+		!args.id
+	) {
 		writeErr(
 			"JSON output mode requires a prompt argument or piped stdin (interactive mode is unsupported)",
 		);
