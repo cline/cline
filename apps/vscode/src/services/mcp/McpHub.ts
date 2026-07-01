@@ -33,7 +33,6 @@ import { secondsToMs } from "@utils/time"
 import chokidar, { type FSWatcher } from "chokidar"
 import deepEqual from "fast-deep-equal"
 import * as fs from "fs/promises"
-import { nanoid } from "nanoid"
 import ReconnectingEventSource from "reconnecting-eventsource"
 import { z } from "zod"
 import { HostProvider } from "@/hosts/host-provider"
@@ -140,8 +139,22 @@ export class McpHub {
 	}
 
 	/**
-	 * Create a unique key for an MCP server based on its name.
-	 * This avoids making a tool name too long while still ensuring uniqueness.
+	 * Derive a stable, deterministic key for an MCP server from its name.
+	 *
+	 * The key is embedded in every tool function name sent to the LLM
+	 * (format: `{uid}0mcp0{toolName}`), so it must be stable across restarts
+	 * and reconnections. Previously a per-run nanoid was used, which broke
+	 * tool routing whenever the extension restarted because the LLM context
+	 * still held the old ephemeral key.
+	 *
+	 * Algorithm:
+	 *   1. Strip all characters that are not alphanumeric or underscore.
+	 *   2. Ensure the result starts with a letter (prefix "c" when the
+	 *      sanitised string starts with a digit or is empty).
+	 *   3. Truncate to MAX_UID_LEN (20) chars to leave room for
+	 *      "0mcp0" (5 chars) + tool name within the 64-char provider limit.
+	 *   4. Collision-safe: if two different server names produce the same
+	 *      sanitised prefix, append "_2", "_3", … to disambiguate.
 	 */
 	private getMcpServerKey(server: string): string {
 		// Reuse existing key if server is already registered
@@ -150,10 +163,26 @@ export class McpHub {
 				return existingKey
 			}
 		}
-		// Generate a short 6-character unique ID for the server
-		// Add c prefix to ensure it starts with a letter (for compatibility with Gemini)
-		// Only use the first 5 characters of nanoid to keep it short
-		const uid = "c" + nanoid(5)
+
+		// Build a sanitised, deterministic prefix from the server name
+		const MAX_UID_LEN = 20
+		let sanitised = server.replace(/[^a-zA-Z0-9_]/g, "")
+		if (sanitised.length === 0 || !/^[a-zA-Z]/.test(sanitised)) {
+			sanitised = `c${sanitised}`
+		}
+		sanitised = sanitised.slice(0, MAX_UID_LEN)
+
+		// Deterministic, order-independent uid: sanitised prefix + a short stable hash of the
+		// FULL server name. Distinct servers always get distinct uids regardless of connection
+		// order, so cached tool IDs keep routing correctly across restarts even when two server
+		// names sanitise to the same prefix.
+		let hash = 5381
+		for (let i = 0; i < server.length; i++) {
+			hash = (hash * 33) ^ server.charCodeAt(i)
+		}
+		const suffix = `_${(hash >>> 0).toString(36)}`
+		const uid = sanitised.slice(0, Math.max(1, MAX_UID_LEN - suffix.length)) + suffix
+
 		McpHub.mcpServerKeys.set(uid, server)
 		return uid
 	}
