@@ -198,4 +198,69 @@ describe("agent message codec", () => {
 			},
 		]);
 	});
+
+	it("filters blank string agent message content before decoding", () => {
+		const persisted = agentMessageToMessageWithMetadata({
+			id: "msg_blank_content",
+			role: "assistant",
+			createdAt: 1,
+			content: " \n\t ",
+		} as unknown as AgentMessage);
+
+		expect(persisted.content).toEqual([]);
+
+		expect(
+			agentMessagesToMessages([
+				{
+					id: "msg_empty_content",
+					role: "assistant",
+					createdAt: 1,
+					content: "",
+				} as unknown as AgentMessage,
+			]),
+		).toEqual([
+			{
+				role: "assistant",
+				content: [],
+			},
+		]);
+	});
+
+	it("tolerates single-part and unknown agent message content before decoding", () => {
+		const singlePart = agentMessageToMessageWithMetadata({
+			id: "msg_single_part",
+			role: "assistant",
+			createdAt: 1,
+			content: { type: "text", text: "single text part" },
+		} as unknown as AgentMessage);
+
+		expect(singlePart.content).toEqual([
+			{ type: "text", text: "single text part" },
+		]);
+
+		const nullContent = agentMessageToMessageWithMetadata({
+			id: "msg_null_content",
+			role: "assistant",
+			createdAt: 1,
+			content: null,
+		} as unknown as AgentMessage);
+
+		expect(nullContent.content).toEqual([]);
+
+		expect(
+			agentMessagesToMessages([
+				{
+					id: "msg_unknown_content",
+					role: "assistant",
+					createdAt: 1,
+					content: { text: "missing type" },
+				} as unknown as AgentMessage,
+			]),
+		).toEqual([
+			{
+				role: "assistant",
+				content: [],
+			},
+		]);
+	});
 });

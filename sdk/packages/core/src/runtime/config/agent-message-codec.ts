@@ -137,7 +137,7 @@ function normalizeAgentMessageParts(content: unknown): AgentMessagePart[] {
 		return content;
 	}
 	if (typeof content === "string") {
-		return [{ type: "text", text: content }];
+		return content.trim().length > 0 ? [{ type: "text", text: content }] : [];
 	}
 	if (content && typeof content === "object" && "type" in content) {
 		return [content as AgentMessagePart];
