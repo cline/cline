@@ -83,7 +83,9 @@ function App(props: TuiProps) {
 	const [appView, setAppView] = useState<AppView>(() => {
 		if (process.env.CLINE_FORCE_ONBOARDING === "1") return "onboarding";
 		if (!isProviderConfigured(props.config)) return "onboarding";
-		return props.initialView === "chat" || session.entries.length > 0
+		return props.initialView === "chat" ||
+			props.initialView === "history" ||
+			session.entries.length > 0
 			? "chat"
 			: "home";
 	});
@@ -640,7 +642,7 @@ function App(props: TuiProps) {
 		}
 	}, []);
 
-	const { handleSlashCommand } = useLocalCommandActions({
+	const { handleSlashCommand, openHistory } = useLocalCommandActions({
 		slashCommandRegistry,
 		canForkSession,
 		openAccount,
@@ -657,6 +659,13 @@ function App(props: TuiProps) {
 		onUndo: openCheckpointRestore,
 		onExit: exitCline,
 	});
+
+	// biome-ignore lint/correctness/useExhaustiveDependencies: run once on mount
+	useEffect(() => {
+		if (props.initialView === "history") {
+			void openHistory();
+		}
+	}, []);
 
 	const runCommandPaletteResult = useCallback(
 		async (result: CommandPaletteResult) => {
