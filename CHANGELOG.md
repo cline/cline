@@ -2,10 +2,6 @@
 
 ## [4.0.6]
 
-### Added
-
-- Add diff view telemetry metrics.
-
 ### Fixed
 
 - Generalize the model capability warning so it applies more broadly.
