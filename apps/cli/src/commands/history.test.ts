@@ -16,18 +16,12 @@ vi.mock("../session/session", () => ({
 	readSessionMessagesArtifact: vi.fn(),
 }));
 
-vi.mock("../tui/history-standalone", () => ({
-	renderHistoryStandalone: vi.fn(async () => 0),
-}));
-
 import { listSessions, readSessionMessagesArtifact } from "../session/session";
-import { renderHistoryStandalone } from "../tui/history-standalone";
 
 const mockedReadSessionMessagesArtifact = vi.mocked(
 	readSessionMessagesArtifact,
 );
 const mockedListSessions = vi.mocked(listSessions);
-const mockedRenderHistoryStandalone = vi.mocked(renderHistoryStandalone);
 
 function createHistoryRow(
 	overrides: Partial<SessionHistoryRecord> = {},
@@ -200,8 +194,11 @@ describe("runHistoryList", () => {
 		vi.clearAllMocks();
 	});
 
-	it("hydrates interactive history rows so titles can be inferred from messages", async () => {
-		const row = createHistoryRow({ prompt: undefined, metadata: undefined });
+	it("requests hydrated text history rows so titles can come from messages", async () => {
+		const row = createHistoryRow({
+			prompt: undefined,
+			metadata: { title: "hydrated title", totalCost: 0.25 },
+		});
 		mockedListSessions.mockResolvedValue([row]);
 		const io = {
 			writeln: vi.fn(),
@@ -218,8 +215,8 @@ describe("runHistoryList", () => {
 		expect(mockedListSessions).toHaveBeenCalledWith(25, {
 			hydrate: true,
 		});
-		expect(mockedRenderHistoryStandalone).toHaveBeenCalledWith(
-			expect.objectContaining({ rows: [row] }),
+		expect(io.writeln).toHaveBeenCalledWith(
+			expect.stringContaining("hydrated title"),
 		);
 	});
 

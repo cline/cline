@@ -7,7 +7,7 @@ import {
 	readSessionMessagesArtifact,
 	updateSession,
 } from "../session/session";
-import { disableOpenTuiGraphicsProbe } from "../tui/opentui-env";
+import { formatHistoryListLine } from "../utils/history-format";
 import { writeln } from "../utils/output";
 import type { CliOutputMode } from "../utils/types";
 
@@ -161,7 +161,7 @@ export async function runHistoryList(input: {
 	outputMode: CliOutputMode;
 	workspaceRoot?: string;
 	io?: HistoryIo;
-}): Promise<number | string> {
+}): Promise<number> {
 	const io = input.io ?? {
 		writeln,
 		writeErr: (text: string) => process.stderr.write(`${text}\n`),
@@ -186,18 +186,10 @@ export async function runHistoryList(input: {
 		return 0;
 	}
 
-	disableOpenTuiGraphicsProbe();
-	const { renderHistoryStandalone } = await import("../tui/history-standalone");
-	return await renderHistoryStandalone({
-		rows,
-		refreshRows: async () =>
-			await listSessions(limit, {
-				workspaceRoot: input.workspaceRoot,
-				hydrate: false,
-			}),
-		onExport: async (sessionId: string) =>
-			await exportHistorySession(sessionId, undefined),
-	});
+	for (const row of rows) {
+		io.writeln(formatHistoryListLine(row));
+	}
+	return 0;
 }
 
 export {
