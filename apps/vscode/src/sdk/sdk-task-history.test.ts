@@ -623,6 +623,31 @@ describe("SdkTaskHistory", () => {
 		)
 	})
 
+	it("bumps cached updatedAt to the write time, not a stale HistoryItem.ts", async () => {
+		// Simulates toggleTaskFavorite(), which reuses an existing HistoryItem
+		// (with its original, possibly old, `ts`) to flip just `isFavorited`. The
+		// persistence adapter always stamps `updatedAt` with the wall-clock write
+		// time (nowIso()), so the cache patch must do the same rather than
+		// deriving `updatedAt` from the stale `item.ts` — otherwise the cached
+		// ordering would diverge from what's on disk until the TTL expires.
+		const { history } = makeHistory([
+			makeSessionRecord("task-1", { updatedAt: "2020-01-01T00:00:00.000Z" }),
+			makeSessionRecord("task-2", { updatedAt: "2026-01-02T00:00:00.000Z" }),
+		])
+
+		const initial = await history.listHistory({ hydrate: false })
+		expect(initial[0].sessionId).toBe("task-2")
+
+		// Reuse task-1's original (stale) ts, as toggleTaskFavorite() does.
+		await history.updateTaskHistoryItem(makeHistoryItem("task-1", { ts: Date.parse("2020-01-01T00:00:00.000Z") }))
+
+		const result = await history.listHistory({ hydrate: false })
+		const updated = result.find((r) => r.sessionId === "task-1")
+		// updatedAt must reflect the write time, not the stale 2020 timestamp.
+		expect(updated?.updatedAt).not.toBe("2020-01-01T00:00:00.000Z")
+		expect(result[0].sessionId).toBe("task-1")
+	})
+
 	it("invalidates cache when updating a session not present in it", async () => {
 		const { history, listHistory } = makeHistory([makeSessionRecord("task-1")])
 

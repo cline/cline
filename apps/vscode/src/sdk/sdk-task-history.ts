@@ -75,10 +75,7 @@ function dateStringToTimestamp(value: string | null | undefined): number {
  * when merging the initial list and when re-sorting after a single-record
  * patch, so the two orderings can never diverge.
  */
-function compareSessionHistoryRecordsByRecencyDesc(
-	a: SessionHistoryRecord,
-	b: SessionHistoryRecord,
-): number {
+function compareSessionHistoryRecordsByRecencyDesc(a: SessionHistoryRecord, b: SessionHistoryRecord): number {
 	return (
 		dateStringToTimestamp(b.updatedAt ?? b.endedAt ?? b.startedAt) -
 		dateStringToTimestamp(a.updatedAt ?? a.endedAt ?? a.startedAt)
@@ -485,9 +482,7 @@ export class SdkTaskHistory {
 			(item) => metadataBoolean(item.metadata, "migratedFromLegacyTask") === true,
 		).length
 
-		const mergedHistory = [...visibleSdkHistory, ...legacyHistory].sort(
-			compareSessionHistoryRecordsByRecencyDesc,
-		)
+		const mergedHistory = [...visibleSdkHistory, ...legacyHistory].sort(compareSessionHistoryRecordsByRecencyDesc)
 		if (useCache) {
 			this.metadataHistoryCache = {
 				records: mergedHistory,
@@ -650,10 +645,15 @@ export class SdkTaskHistory {
 			})
 			return metadata
 		})
+		// The persistence adapter stamps `updatedAt` with the wall-clock write time
+		// (see `nowIso()` in file-session-service.ts), not `item.ts`. Mirror that here
+		// rather than deriving from `item.ts`: callers like toggleTaskFavorite() reuse
+		// an old HistoryItem whose `ts` predates this write, which would otherwise let
+		// the cached ordering diverge from what's on disk until the cache TTL expires.
 		this.updateCachedSessionRecord(sessionId, {
 			prompt: item.task,
 			metadata: writtenMetadata,
-			updatedAt: new Date(item.ts || Date.now()).toISOString(),
+			updatedAt: new Date().toISOString(),
 		})
 	}
 
