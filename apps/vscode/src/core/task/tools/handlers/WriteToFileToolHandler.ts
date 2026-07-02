@@ -88,7 +88,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 			await config.services.diffViewProvider.update(newContent, false)
 		} catch (error) {
 			// Reset diff view on error
-			await config.services.diffViewProvider.revertChanges("error_cleanup")
+			await config.services.diffViewProvider.revertChanges()
 			await config.services.diffViewProvider.reset()
 			throw error
 		}
@@ -297,8 +297,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 						filesCreated: fileExists ? 0 : 1,
 					})
 
-					config.services.diffViewProvider.recordDiffViewRejected()
-					await config.services.diffViewProvider.revertChanges("user_rejected")
+					await config.services.diffViewProvider.revertChanges()
 					return `The user denied this operation. ${fileDeniedNote}`
 				}
 				// User hit the approve button, and may have provided feedback
@@ -349,7 +348,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 			} catch (error) {
 				const { PreToolUseHookCancellationError } = await import("@core/hooks/PreToolUseHookCancellationError")
 				if (error instanceof PreToolUseHookCancellationError) {
-					await config.services.diffViewProvider.revertChanges("hook_cancelled")
+					await config.services.diffViewProvider.revertChanges()
 					await config.services.diffViewProvider.reset()
 					return formatResponse.toolDenied()
 				}
@@ -413,7 +412,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 			return formatResponse.fileEditWithoutUserChanges(relPath, autoFormattingEdits, finalContent, newProblemsMessage)
 		} catch (error) {
 			// Reset diff view on error
-			await config.services.diffViewProvider.revertChanges("error_cleanup")
+			await config.services.diffViewProvider.revertChanges()
 			await config.services.diffViewProvider.reset()
 			throw error
 		}
@@ -552,7 +551,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				}
 
 				// Revert changes and reset diff view
-				await config.services.diffViewProvider.revertChanges("error_cleanup")
+				await config.services.diffViewProvider.revertChanges()
 				await config.services.diffViewProvider.reset()
 
 				return

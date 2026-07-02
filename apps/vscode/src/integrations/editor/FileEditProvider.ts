@@ -11,7 +11,6 @@ import { Logger } from "@/shared/services/Logger"
  * This makes it suitable for headless or non-interactive environments.
  */
 export class FileEditProvider extends DiffViewProvider {
-	protected readonly editSurface = "background"
 	private documentContent?: string
 
 	constructor() {
@@ -105,7 +104,7 @@ export class FileEditProvider extends DiffViewProvider {
 		return this.getDocumentText()
 	}
 
-	protected async saveDocument(): Promise<boolean> {
+	protected async saveDocument(): Promise<Boolean> {
 		if (!this.absolutePath || !this.documentContent) {
 			return false
 		}

@@ -8,7 +8,6 @@ import { ClineAccountUserInfo } from "@/services/auth/AuthService"
 import { Setting } from "@/shared/proto/index.host"
 import { Logger } from "@/shared/services/Logger"
 import { Mode } from "@/shared/storage/types"
-import type { DiffEditSurface, DiffViewOutcome, DiffViewRevertReason } from "../../integrations/editor/DiffViewProvider"
 import { version as extensionVersion } from "../../../package.json"
 import { setDistinctId } from "../logging/distinctId"
 import type { ITelemetryProvider, TelemetryProperties } from "./providers/ITelemetryProvider"
@@ -193,12 +192,6 @@ export class TelemetryService {
 		},
 		GRPC: {
 			RESPONSE_SIZE_BYTES: "cline.grpc.response.size_bytes",
-		},
-		DIFF_VIEW: {
-			OPENED_TOTAL: "cline.diff_view.opened.total",
-			ACCEPTED_TOTAL: "cline.diff_view.accepted.total",
-			REJECTED_TOTAL: "cline.diff_view.rejected.total",
-			REVERTED_TOTAL: "cline.diff_view.reverted.total",
 		},
 	}
 	// Event constants for tracking user interactions and system events
@@ -559,76 +552,6 @@ export class TelemetryService {
 		const nextValue = (store.get(ulid) ?? 0) + 1
 		store.set(ulid, nextValue)
 		return nextValue
-	}
-
-	private getDiffViewAttributes(attributes?: {
-		editType?: "create" | "modify" | "delete"
-		editSurface?: DiffEditSurface
-		isNotebook?: boolean
-		revertReason?: DiffViewRevertReason
-		previousOutcome?: DiffViewOutcome | "none"
-	}): TelemetryProperties {
-		return {
-			edit_type: attributes?.editType ?? "unknown",
-			edit_surface: attributes?.editSurface ?? "unknown",
-			is_notebook: attributes?.isNotebook ?? false,
-			...(attributes?.revertReason ? { revert_reason: attributes.revertReason } : {}),
-			...(attributes?.previousOutcome ? { previous_outcome: attributes.previousOutcome } : {}),
-		}
-	}
-
-	public captureDiffViewOpened(attributes?: {
-		editType?: "create" | "modify" | "delete"
-		editSurface?: DiffEditSurface
-		isNotebook?: boolean
-	}): void {
-		this.recordCounter(
-			TelemetryService.METRICS.DIFF_VIEW.OPENED_TOTAL,
-			1,
-			this.getDiffViewAttributes(attributes),
-			"Number of Cline diff views opened",
-		)
-	}
-
-	public captureDiffViewAccepted(attributes?: {
-		editType?: "create" | "modify" | "delete"
-		editSurface?: DiffEditSurface
-		isNotebook?: boolean
-	}): void {
-		this.recordCounter(
-			TelemetryService.METRICS.DIFF_VIEW.ACCEPTED_TOTAL,
-			1,
-			this.getDiffViewAttributes(attributes),
-			"Number of Cline diff view changes accepted",
-		)
-	}
-
-	public captureDiffViewRejected(attributes?: {
-		editType?: "create" | "modify" | "delete"
-		editSurface?: DiffEditSurface
-		isNotebook?: boolean
-	}): void {
-		this.recordCounter(
-			TelemetryService.METRICS.DIFF_VIEW.REJECTED_TOTAL,
-			1,
-			this.getDiffViewAttributes(attributes),
-			"Number of Cline diff view changes explicitly rejected by the user",
-		)
-	}
-
-	public captureDiffViewReverted(attributes?: {
-		editType?: "create" | "modify" | "delete"
-		editSurface?: DiffEditSurface
-		isNotebook?: boolean
-		revertReason?: DiffViewRevertReason
-		previousOutcome?: DiffViewOutcome | "none"
-	}): void {
-		this.recordCounter(
-			TelemetryService.METRICS.DIFF_VIEW.REVERTED_TOTAL,
-			1,
-			this.getDiffViewAttributes(attributes),
-			"Number of Cline diff view changes reverted or cleaned up",
-		)
 	}
 
 	private resetTaskAggregates(ulid: string): void {

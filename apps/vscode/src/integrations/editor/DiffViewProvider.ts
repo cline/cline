@@ -7,24 +7,13 @@ import * as fs from "fs/promises"
 import * as iconv from "iconv-lite"
 import { HostProvider } from "@/hosts/host-provider"
 import { diagnosticsToProblemsString, getNewDiagnostics } from "@/integrations/diagnostics"
-import { telemetryService } from "@/services/telemetry"
 import { DiagnosticSeverity, FileDiagnostics } from "@/shared/proto/index.cline"
 import { Logger } from "@/shared/services/Logger"
 import { detectEncoding } from "../misc/extract-text"
 import { sanitizeNotebookForLLM } from "../misc/notebook-utils"
 import { openFile } from "../misc/open-file"
 
-export type DiffEditSurface = "vscode_diff" | "background" | "external"
-export type DiffViewOutcome = "accepted" | "rejected"
-export type DiffViewRevertReason = "user_rejected" | "error_cleanup" | "hook_cancelled" | "task_aborted" | "unknown"
-
-export type DiffViewTelemetry = Pick<
-	typeof telemetryService,
-	"captureDiffViewOpened" | "captureDiffViewAccepted" | "captureDiffViewRejected" | "captureDiffViewReverted"
->
-
 export abstract class DiffViewProvider {
-	protected abstract readonly editSurface: DiffEditSurface
 	editType?: "create" | "modify" | "delete"
 	isEditing = false
 	originalContent: string | undefined
@@ -36,10 +25,8 @@ export abstract class DiffViewProvider {
 	protected fileEncoding: string = "utf8"
 	private streamedLines: string[] = []
 	private newContent?: string
-	private diffViewOutcome?: DiffViewOutcome
-	private diffViewReverted = false
 
-	constructor(protected readonly diffViewTelemetry: DiffViewTelemetry = telemetryService) {}
+	constructor() {}
 
 	public async open(relPath: string, options?: { displayPath?: string }): Promise<void> {
 		this.isEditing = true
@@ -71,51 +58,8 @@ export abstract class DiffViewProvider {
 		// get diagnostics before editing the file, we'll compare to diagnostics after editing to see if cline needs to fix anything
 		this.preDiagnostics = (await HostProvider.workspace.getDiagnostics({})).fileDiagnostics
 		await this.openDiffEditor()
-		this.diffViewTelemetry.captureDiffViewOpened({
-			editType: this.editType,
-			editSurface: this.editSurface,
-			isNotebook: this.isNotebookFile(),
-		})
 		await this.scrollEditorToLine(0)
 		this.streamedLines = []
-	}
-
-	private recordDiffViewAccepted(): void {
-		if (this.diffViewOutcome) {
-			return
-		}
-		this.diffViewTelemetry.captureDiffViewAccepted({
-			editType: this.editType,
-			editSurface: this.editSurface,
-			isNotebook: this.isNotebookFile(),
-		})
-		this.diffViewOutcome = "accepted"
-	}
-
-	public recordDiffViewRejected(): void {
-		if (this.diffViewOutcome) {
-			return
-		}
-		this.diffViewTelemetry.captureDiffViewRejected({
-			editType: this.editType,
-			editSurface: this.editSurface,
-			isNotebook: this.isNotebookFile(),
-		})
-		this.diffViewOutcome = "rejected"
-	}
-
-	private recordDiffViewReverted(reason: DiffViewRevertReason): void {
-		if (this.diffViewReverted) {
-			return
-		}
-		this.diffViewTelemetry.captureDiffViewReverted({
-			editType: this.editType,
-			editSurface: this.editSurface,
-			isNotebook: this.isNotebookFile(),
-			revertReason: reason,
-			previousOutcome: this.diffViewOutcome ?? "none",
-		})
-		this.diffViewReverted = true
 	}
 
 	/**
@@ -214,7 +158,7 @@ export abstract class DiffViewProvider {
 	 *
 	 * @returns true if the file was saved.
 	 */
-	protected abstract saveDocument(): Promise<boolean>
+	protected abstract saveDocument(): Promise<Boolean>
 
 	/**
 	 * Closes all open diff views.
@@ -399,7 +343,7 @@ export abstract class DiffViewProvider {
 		// get the contents before save operation which may do auto-formatting
 		const preSaveContent = await this.getDocumentText()
 
-		if (!this.relPath || !this.absolutePath || this.newContent === undefined || preSaveContent === undefined) {
+		if (!this.relPath || !this.absolutePath || !this.newContent || preSaveContent === undefined) {
 			return {
 				newProblemsMessage: undefined,
 				userEdits: undefined,
@@ -408,10 +352,7 @@ export abstract class DiffViewProvider {
 			}
 		}
 
-		const saved = await this.saveDocument()
-		if (saved) {
-			this.recordDiffViewAccepted()
-		}
+		await this.saveDocument()
 		// get text after save in case there is any auto-formatting done by the editor
 		const postSaveContent = (await this.getDocumentText()) || ""
 
@@ -462,11 +403,10 @@ export abstract class DiffViewProvider {
 		}
 	}
 
-	async revertChanges(reason: DiffViewRevertReason = "unknown"): Promise<void> {
+	async revertChanges(): Promise<void> {
 		if (!this.absolutePath || !this.isEditing) {
 			return
 		}
-		this.recordDiffViewReverted(reason)
 		const fileExists = this.editType === "modify"
 
 		if (!fileExists) {
@@ -561,8 +501,6 @@ export abstract class DiffViewProvider {
 		this.streamedLines = []
 		this.createdDirs = []
 		this.newContent = undefined
-		this.diffViewOutcome = undefined
-		this.diffViewReverted = false
 		this.lastUpdateContentLength = -1
 		this.lastUpdateTime = 0
 

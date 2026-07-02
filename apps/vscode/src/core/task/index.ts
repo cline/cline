@@ -1933,7 +1933,7 @@ export class Task {
 			this.fileContextTracker.dispose();
 			// need to await for when we want to make sure directories/files are reverted before
 			// re-starting the task from a checkpoint
-			await this.diffViewProvider.revertChanges("task_aborted");
+			await this.diffViewProvider.revertChanges();
 			// Clear the notification callback when task is aborted
 			this.mcpHub.clearNotificationCallback();
 			if (this.FocusChainManager) {
@@ -3224,7 +3224,7 @@ export class Task {
 				Session.get().finalizeRequest();
 
 				if (this.diffViewProvider.isEditing) {
-					await this.diffViewProvider.revertChanges("task_aborted"); // closes diff view
+					await this.diffViewProvider.revertChanges(); // closes diff view
 				}
 
 				// if last message is a partial we need to update and save it
