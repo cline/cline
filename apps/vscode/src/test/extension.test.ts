@@ -20,7 +20,9 @@ describe("Cline Extension", () => {
 	})
 
 	it("should successfully execute the plus button command", async () => {
-		await new Promise((resolve) => setTimeout(resolve, 400))
+		const packageJSON = JSON.parse(await readFile(packagePath, "utf8"))
+		const id = packageJSON.publisher + "." + packageJSON.name
+		await vscode.extensions.getExtension(id)?.activate()
 		await vscode.commands.executeCommand("cline.plusButtonClicked")
 	})
 
