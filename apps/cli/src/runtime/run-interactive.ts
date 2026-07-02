@@ -82,7 +82,7 @@ export async function runInteractive(
 	options?: {
 		clineApiBaseUrl?: string;
 		clineProviderSettings?: ProviderSettings;
-		initialView?: "chat" | "config";
+		initialView?: "chat" | "config" | "history";
 		initialPrompt?: string;
 		initialNotice?: CliMigrationNotice;
 		onInitialNoticeShown?: (notice: CliMigrationNotice) => void | Promise<void>;
@@ -727,7 +727,7 @@ export async function runInteractive(
 		},
 	});
 
-	if (!loadDeferredInitialMessages) {
+	if (!loadDeferredInitialMessages && options?.initialView !== "history") {
 		setTimeout(() => {
 			void sessionRuntime.ensureReady().catch((error) => {
 				if (sessionRuntime.isShutdownRequested() || startupErrorReported) {

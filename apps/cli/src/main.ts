@@ -14,6 +14,7 @@ import {
 	autoUpdateOnStartup,
 	getPreferredKanbanInstaller,
 } from "./commands/update";
+import { registerHistoryCommand } from "./commands/history-command";
 import { CLI_DEFAULT_CHECKPOINT_CONFIG } from "./runtime/defaults";
 import {
 	buildCliCompactionConfig,
@@ -151,7 +152,10 @@ export async function runCli(): Promise<void> {
 	const normalizedArgs = normalizeAutoApproveArgs(cliArgs);
 
 	// Subcommand routing via Commander
-	const ctx: { exitCode?: number; resumeSessionId?: string } = {};
+	const ctx: {
+		exitCode?: number;
+		launchHistoryView?: boolean;
+	} = {};
 	const io = { writeln, writeErr };
 	const program = createProgram();
 	// Re-enable built-in help/version output for the routing program
@@ -465,107 +469,16 @@ export async function runCli(): Promise<void> {
 			await doctorCmd.parseAsync(cmd.args, { from: "user" });
 		});
 
-	const historyCmd = program
-		.command("history")
-		.alias("h")
-		.description("List session history or manage saved sessions")
-		.option("--json", "Output as JSON")
-		.option("--limit <count>", "Maximum number of sessions to show", "50")
-		.option("--page <number>", "Page number for paginated results")
-		.option("--config <dir>", "configuration directory")
-		.action(async () => {
-			const opts = historyCmd.opts();
-			const limit = Number.parseInt(opts.limit, 10);
-			const outputMode =
-				program.opts().json || opts.json
-					? ("json" as const)
-					: ("text" as const);
-			const { runHistoryList } = await import("./commands/history");
-			const result = await runHistoryList({
-				limit,
-				outputMode,
-				io,
-			});
-			if (typeof result === "string") {
-				ctx.resumeSessionId = result;
-				// JSON listing should never return a session id; if it does, still exit here so
-				// we never fall through to agent bootstrap (which can block on stdin in CI).
-				if (outputMode === "json") {
-					ctx.exitCode = 0;
-				}
-			} else {
-				// Always set exit code for numeric results so `ctx.exitCode` is never left
-				// undefined (that would fall through and load the full CLI runtime).
-				ctx.exitCode = result ?? 0;
-			}
-		});
-
-	const historyDeleteCmd = historyCmd
-		.command("delete")
-		.description("Delete a session from history")
-		.option("--session-id <id>", "Session ID to delete")
-		.action(async () => {
-			const opts = historyDeleteCmd.opts();
-			if (!opts.sessionId) {
-				writeErr("history delete requires --session-id <id>");
-				ctx.exitCode = 0;
-				return;
-			}
-			const outputMode =
-				program.opts().json || historyCmd.opts().json
-					? ("json" as const)
-					: ("text" as const);
-			const { runHistoryDelete } = await import("./commands/history");
-			ctx.exitCode = await runHistoryDelete(opts.sessionId, outputMode, io);
-		});
-
-	const historyUpdateCmd = historyCmd
-		.command("update")
-		.description("Update a session in history")
-		.option("--metadata <json>", "Metadata as JSON string")
-		.option("--prompt <text>", "New prompt text")
-		.option("--session-id <id>", "Session ID to update")
-		.option("--title <text>", "New title")
-		.action(async () => {
-			const opts = historyUpdateCmd.opts();
-			if (!opts.sessionId) {
-				writeErr("history update requires --session-id <id>");
-				ctx.exitCode = 1;
-				return;
-			}
-			const outputMode =
-				program.opts().json || historyCmd.opts().json
-					? ("json" as const)
-					: ("text" as const);
-			const { runHistoryUpdate } = await import("./commands/history");
-			ctx.exitCode = await runHistoryUpdate(
-				opts.sessionId,
-				opts.prompt,
-				opts.title,
-				opts.metadata,
-				outputMode,
-				io,
-			);
-		});
-
-	const historyExportCmd = historyCmd
-		.command("export <sessionId>")
-		.description("Export a session as a standalone HTML file")
-		.option("-o, --output <path>", "Output HTML file path")
-		.action(async (sessionId: string) => {
-			const opts = historyExportCmd.opts();
-			const outputMode =
-				program.opts().json || historyCmd.opts().json
-					? ("json" as const)
-					: ("text" as const);
-			const { runHistoryExport } = await import("./commands/history");
-			ctx.exitCode = await runHistoryExport(
-				sessionId,
-				opts.output,
-				outputMode,
-				io,
-			);
-		});
+	registerHistoryCommand({
+		program,
+		io,
+		setExitCode: (code) => {
+			ctx.exitCode = code;
+		},
+		launchHistoryView: () => {
+			ctx.launchHistoryView = true;
+		},
+	});
 
 	program
 		.command("hook")
@@ -749,23 +662,8 @@ export async function runCli(): Promise<void> {
 	// Default flow: no subcommand matched, or fall-through from config/history.
 	let args = commanderToParsedArgs(program);
 
-	let resumeSessionId: string | undefined = ctx.resumeSessionId;
-	if (resumeSessionId) {
-		// The history picker already created (and tore down) an OpenTUI renderer
-		// in this process; starting the interactive TUI here would create a
-		// second one, which can crash natively during teardown. Resume in a
-		// fresh `cline --id <session-id>` child process instead.
-		const { spawnHistoryResume } = await import("./utils/history-resume");
-		const childExitCode = await spawnHistoryResume({
-			sessionId: resumeSessionId,
-			normalizedArgs,
-			remainingArgs: program.args,
-			configDir,
-		});
-		if (childExitCode !== undefined) {
-			process.exitCode = childExitCode;
-			return;
-		}
+	let resumeSessionId: string | undefined;
+	if (ctx.launchHistoryView) {
 		args = {
 			...args,
 			interactive: true,
@@ -1161,9 +1059,11 @@ export async function runCli(): Promise<void> {
 				return;
 			}
 			const runInteractive = await loadInteractiveRuntimeModule();
-			let initialView: "chat" | "config" | undefined;
+			let initialView: "chat" | "config" | "history" | undefined;
 			if (launchConfigView) {
 				initialView = "config";
+			} else if (ctx.launchHistoryView) {
+				initialView = "history";
 			} else if (resumeSessionId) {
 				initialView = "chat";
 			}
@@ -1177,7 +1077,12 @@ export async function runCli(): Promise<void> {
 						notice: import("./kanban-migration/notice").CliMigrationNotice,
 				  ) => void)
 				| undefined;
-			if (!launchConfigView && process.stdin.isTTY && process.stdout.isTTY) {
+			if (
+				!launchConfigView &&
+				!ctx.launchHistoryView &&
+				process.stdin.isTTY &&
+				process.stdout.isTTY
+			) {
 				const { getClineCliMigrationNotice, markClineCliMigrationNoticeShown } =
 					await import("./kanban-migration/notice");
 				initialNotice = getClineCliMigrationNotice(undefined, process.env, {
