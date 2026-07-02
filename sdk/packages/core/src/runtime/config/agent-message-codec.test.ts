@@ -1,9 +1,10 @@
-import { EMPTY_CONTENT_TEXT } from "@cline/shared";
+import { type AgentMessage, EMPTY_CONTENT_TEXT } from "@cline/shared";
 import { describe, expect, it } from "vitest";
 import {
+	agentMessagesToMessages,
 	agentMessageToMessageWithMetadata,
-	messageToAgentMessages,
 	messagesToAgentMessages,
+	messageToAgentMessages,
 } from "./agent-message-codec";
 
 describe("agent message codec", () => {
@@ -167,5 +168,99 @@ describe("agent message codec", () => {
 				signature: "sig_4",
 			},
 		});
+	});
+
+	it("normalizes string agent message content before decoding", () => {
+		const persisted = agentMessageToMessageWithMetadata({
+			id: "msg_string_content",
+			role: "assistant",
+			createdAt: 1,
+			content: "plain text payload",
+		} as unknown as AgentMessage);
+
+		expect(persisted.content).toEqual([
+			{ type: "text", text: "plain text payload" },
+		]);
+
+		expect(
+			agentMessagesToMessages([
+				{
+					id: "msg_tool_string_content",
+					role: "tool",
+					createdAt: 1,
+					content: "tool output",
+				} as unknown as AgentMessage,
+			]),
+		).toEqual([
+			{
+				role: "user",
+				content: [{ type: "text", text: "tool output" }],
+			},
+		]);
+	});
+
+	it("filters blank string agent message content before decoding", () => {
+		const persisted = agentMessageToMessageWithMetadata({
+			id: "msg_blank_content",
+			role: "assistant",
+			createdAt: 1,
+			content: " \n\t ",
+		} as unknown as AgentMessage);
+
+		expect(persisted.content).toEqual([]);
+
+		expect(
+			agentMessagesToMessages([
+				{
+					id: "msg_empty_content",
+					role: "assistant",
+					createdAt: 1,
+					content: "",
+				} as unknown as AgentMessage,
+			]),
+		).toEqual([
+			{
+				role: "assistant",
+				content: [],
+			},
+		]);
+	});
+
+	it("tolerates single-part and unknown agent message content before decoding", () => {
+		const singlePart = agentMessageToMessageWithMetadata({
+			id: "msg_single_part",
+			role: "assistant",
+			createdAt: 1,
+			content: { type: "text", text: "single text part" },
+		} as unknown as AgentMessage);
+
+		expect(singlePart.content).toEqual([
+			{ type: "text", text: "single text part" },
+		]);
+
+		const nullContent = agentMessageToMessageWithMetadata({
+			id: "msg_null_content",
+			role: "assistant",
+			createdAt: 1,
+			content: null,
+		} as unknown as AgentMessage);
+
+		expect(nullContent.content).toEqual([]);
+
+		expect(
+			agentMessagesToMessages([
+				{
+					id: "msg_unknown_content",
+					role: "assistant",
+					createdAt: 1,
+					content: { text: "missing type" },
+				} as unknown as AgentMessage,
+			]),
+		).toEqual([
+			{
+				role: "assistant",
+				content: [],
+			},
+		]);
 	});
 });
