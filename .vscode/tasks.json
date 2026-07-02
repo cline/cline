@@ -108,7 +108,7 @@
 		},
 		{
 			"type": "shell",
-			"command": "rm -rf webview-ui/node_modules/.vite && bun run dev:webview",
+			"command": "bun run dev:webview",
 			"group": "build",
 			"problemMatcher": [
 				{

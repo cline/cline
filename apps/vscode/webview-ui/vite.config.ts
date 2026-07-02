@@ -110,7 +110,7 @@ export default defineConfig({
 	server: {
 		port: 25463,
 		fs: {
-			allow: [resolve(__dirname, "..")],
+			allow: [resolve(__dirname, "../src/shared")],
 		},
 		hmr: {
 			host: "localhost",
