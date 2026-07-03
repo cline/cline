@@ -16,7 +16,9 @@ export function formatUserCommandBlock(input: string, slash: string): string {
 /**
  * Marks the exact point in the conversation where the user switched between
  * plan and act modes. Prepended to the first user message sent after the
- * switch; stripped from transcript display by normalizeUserInput.
+ * switch. It survives normalizeUserInput (so the outbound sanitize in
+ * prepareTurnInput delivers it to the model) and is hidden from transcript
+ * display by stripModeNotices at display boundaries.
  */
 export function formatModeSwitchNotice(
 	from: "act" | "plan",
