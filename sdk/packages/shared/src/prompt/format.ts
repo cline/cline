@@ -90,35 +90,15 @@ export function normalizeUserInput(input?: string): string {
 }
 
 /**
- * Tags whose whole element (content included) is runtime-generated context
- * for the model, not user-typed text, and must be hidden from display.
- */
-const DISPLAY_HIDDEN_TAGS = ["mode_notice"] as const;
-
-/**
- * Removes runtime-generated elements that must not render as user text.
- * Deliberately NOT part of normalizeUserInput -- that function also sanitizes
- * outbound prompts before the host wraps them (prepareTurnInput), and
- * stripping there deletes the content before the model ever sees it.
+ * Removes runtime-generated <mode_notice> elements (content included): they
+ * are not user-typed text and must not render as such. Deliberately NOT part
+ * of normalizeUserInput -- that function also sanitizes outbound prompts
+ * before the host wraps them (prepareTurnInput), and stripping there deletes
+ * the notice before the model ever sees it.
  */
 export function stripModeNotices(input?: string): string {
-	return stripTagElements(input, DISPLAY_HIDDEN_TAGS);
-}
-
-/**
- * Removes each listed tag's elements entirely, content included. Counterpart
- * to xmlTagsRemoval, which unwraps a tag but keeps its content.
- */
-export function stripTagElements(
-	input: string | undefined,
-	tags: readonly string[],
-): string {
 	if (!input?.trim()) return "";
-	let result = input;
-	for (const tag of tags) {
-		result = removeTagElements(result, tag);
-	}
-	return result.trim();
+	return removeTagElements(input, "mode_notice").trim();
 }
 
 // indexOf-based rather than a regex: a lazy dot-all pattern re-scans to the
