@@ -1,5 +1,4 @@
 import { formatDisplayUserInput, type Message } from "@cline/shared";
-import { ACT_MODE_CONTINUATION_PROMPT } from "../../runtime/interactive/mode";
 import { formatToolInput } from "../../utils/helpers";
 import type { ChatEntry } from "../types";
 
@@ -10,12 +9,6 @@ type PersistedMessage = Message & {
 function getDisplayRole(msg: PersistedMessage): string | undefined {
 	const role = msg.metadata?.displayRole;
 	return typeof role === "string" ? role.trim().toLowerCase() : undefined;
-}
-
-// The act-mode continuation prompt is runtime-generated, not typed by the
-// user, so it should not surface as a user bubble in the transcript.
-function isSyntheticUserText(text: string): boolean {
-	return text === ACT_MODE_CONTINUATION_PROMPT;
 }
 
 function stringifyToolResult(
@@ -47,9 +40,7 @@ export function hydrateSessionMessages(messages: Message[]): ChatEntry[] {
 		if (typeof msg.content === "string") {
 			if (msg.role === "user") {
 				const text = formatDisplayUserInput(msg.content);
-				if (text && !isSyntheticUserText(text)) {
-					entries.push({ kind: "user_submitted", text });
-				}
+				if (text) entries.push({ kind: "user_submitted", text });
 			} else {
 				entries.push({
 					kind: "assistant_text",
@@ -124,7 +115,7 @@ export function hydrateSessionMessages(messages: Message[]): ChatEntry[] {
 		if (msg.role === "user" && userTextParts.length > 0) {
 			const combined = userTextParts.join("\n");
 			const text = formatDisplayUserInput(combined);
-			if (text && !isSyntheticUserText(text)) {
+			if (text) {
 				entries.push({ kind: "user_submitted", text });
 			}
 		}
