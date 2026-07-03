@@ -1,3 +1,4 @@
+import type { MessageWithMetadata } from "@cline/shared";
 import { EMPTY_CONTENT_TEXT } from "@cline/shared";
 import { describe, expect, it } from "vitest";
 import {
@@ -167,5 +168,113 @@ describe("agent message codec", () => {
 				signature: "sig_4",
 			},
 		});
+	});
+
+	it("keeps tool-result ids stable across repeated encode/decode cycles", () => {
+		// One encode -> decode round trip. Returns the decoded message so the
+		// caller can feed it back in and prove re-encoding does not grow the id.
+		const cycle = (message: MessageWithMetadata): MessageWithMetadata => {
+			const [encoded] = messageToAgentMessages(message);
+			expect(encoded?.id).toBe("msg_x_tool_call_abc");
+			return agentMessageToMessageWithMetadata(
+				encoded ?? { id: "", role: "user", content: [], createdAt: 0 },
+			);
+		};
+
+		const source: MessageWithMetadata = {
+			id: "msg_x",
+			role: "user",
+			ts: 1,
+			content: [
+				{
+					type: "tool_result",
+					tool_use_id: "call_abc",
+					name: "run_commands",
+					content: "tool output",
+				},
+			],
+		};
+
+		let persisted = source;
+		for (let pass = 0; pass < 3; pass += 1) {
+			persisted = cycle(persisted);
+			expect(persisted.id).toBe("msg_x_tool_call_abc");
+		}
+	});
+
+	it("keeps ids stable for a message with multiple tool results", () => {
+		const first = messageToAgentMessages({
+			id: "msg_multi",
+			role: "user",
+			ts: 1,
+			content: [
+				{
+					type: "tool_result",
+					tool_use_id: "call_a",
+					name: "read_files",
+					content: "a",
+				},
+				{
+					type: "tool_result",
+					tool_use_id: "call_b",
+					name: "read_files",
+					content: "b",
+				},
+			],
+		});
+
+		const firstIds = first.map((message) => message.id);
+		expect(firstIds).toEqual([
+			"msg_multi_tool_call_a",
+			"msg_multi_tool_call_b",
+		]);
+
+		const reEncodedIds = first.flatMap((message) =>
+			messageToAgentMessages(agentMessageToMessageWithMetadata(message)).map(
+				(re) => re.id,
+			),
+		);
+		expect(reEncodedIds).toEqual(firstIds);
+	});
+
+	it("keeps ids distinct across re-encode when text surrounds a tool result", () => {
+		// A tool result with non-tool blocks on BOTH sides splits into three
+		// AgentMessages: baseId, baseId_tool_<id>, baseId_part_1. Only the
+		// `_tool_` suffix may be stripped on re-encode — stripping `_part_1`
+		// would collapse the trailing text segment back onto the base id and
+		// collide with the leading one.
+		const first = messageToAgentMessages({
+			id: "msg_mixed_id",
+			role: "user",
+			ts: 1,
+			content: [
+				{ type: "text", text: "before" },
+				{
+					type: "tool_result",
+					tool_use_id: "call_c",
+					name: "editor",
+					content: "done",
+				},
+				{ type: "text", text: "after" },
+			],
+		});
+
+		expect(first.map((message) => message.id)).toEqual([
+			"msg_mixed_id",
+			"msg_mixed_id_tool_call_c",
+			"msg_mixed_id_part_1",
+		]);
+
+		const reEncoded = first.flatMap((message) =>
+			messageToAgentMessages(agentMessageToMessageWithMetadata(message)).map(
+				(re) => re.id,
+			),
+		);
+		expect(reEncoded).toEqual([
+			"msg_mixed_id",
+			"msg_mixed_id_tool_call_c",
+			"msg_mixed_id_part_1",
+		]);
+		expect(new Set(reEncoded).size).toBe(reEncoded.length);
 	});
 });

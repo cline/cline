@@ -20,7 +20,9 @@ export function messageToAgentMessages(
 ): AgentMessage[] {
 	const blocks = normalizeContentBlocks(message.content);
 	const out: AgentMessage[] = [];
-	const baseId = message.id ?? generateMessageId();
+	const baseId = message.id
+		? stripEncodedIdSuffix(message.id)
+		: generateMessageId();
 	let nonToolSegmentCount = 0;
 	let nonToolBlocks: Exclude<ContentBlock, ToolResultContent>[] = [];
 
@@ -298,4 +300,20 @@ let msgSeq = 0;
 function generateMessageId(): string {
 	msgSeq += 1;
 	return `msg_${Date.now().toString(36)}_${msgSeq.toString(36)}`;
+}
+
+/**
+ * Strips a trailing `_tool_<toolUseId>` suffix that a previous encode appended
+ * to a tool-result message id, so that re-encoding an already-persisted message
+ * produces a stable, byte-identical id instead of growing the suffix on every
+ * persist cycle.
+ *
+ * Only the `_tool_` suffix is stripped. The `_part_<n>` suffix used for split
+ * non-tool segments must NOT be stripped: on decode each segment becomes its own
+ * single-block message, so re-encoding never regenerates `_part_<n>`. Stripping
+ * it would collapse a `..._part_1` id back to the bare base id and collide with
+ * the message's first segment.
+ */
+function stripEncodedIdSuffix(id: string): string {
+	return id.replace(/_tool_.+$/, "");
 }
