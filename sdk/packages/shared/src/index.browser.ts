@@ -234,6 +234,7 @@ export {
 	formatUserInputBlock,
 	normalizeUserInput,
 	parseUserCommandEnvelope,
+	stripModeNotices,
 	xmlTagsRemoval,
 } from "./prompt/format";
 export { isClineProvider } from "./providers/utils";

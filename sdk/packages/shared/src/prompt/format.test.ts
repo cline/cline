@@ -6,6 +6,7 @@ import {
 	formatUserInputBlock,
 	normalizeUserInput,
 	parseUserCommandEnvelope,
+	stripModeNotices,
 } from "./format";
 
 describe("prompt format helpers", () => {
@@ -53,26 +54,33 @@ describe("prompt format helpers", () => {
 		expect(formatDisplayUserInput(wrapped)).toBe(
 			"how should we refactor this?",
 		);
-		expect(normalizeUserInput(wrapped)).toBe("how should we refactor this?");
+	});
+
+	it("keeps mode switch notices when normalizing outbound prompts", () => {
+		// prepareTurnInput sanitizes prompts with normalizeUserInput before the
+		// host wraps them; stripping notices here would delete the switch
+		// signal before the model ever sees it.
+		const prompt = `${formatModeSwitchNotice("plan", "act")}\ndo it`;
+		expect(normalizeUserInput(prompt)).toBe(prompt);
 	});
 
 	it("removes every mode notice and leaves unclosed ones intact", () => {
 		expect(
-			normalizeUserInput(
+			stripModeNotices(
 				"<mode_notice>a</mode_notice>hello<mode_notice>b</mode_notice> there",
 			),
 		).toBe("hello there");
-		expect(normalizeUserInput("<mode_notice>dangling")).toBe(
+		expect(stripModeNotices("<mode_notice>dangling")).toBe(
 			"<mode_notice>dangling",
 		);
 	});
 
-	it("normalizes adversarial repeated open tags in linear time", () => {
+	it("strips adversarial repeated open tags in linear time", () => {
 		// Regression guard for CodeQL js/polynomial-redos: many unmatched
 		// opening tags must not trigger quadratic rescanning.
 		const hostile = "<mode_notice>".repeat(50_000);
 		const started = performance.now();
-		const result = normalizeUserInput(hostile);
+		const result = stripModeNotices(hostile);
 		expect(performance.now() - started).toBeLessThan(1_000);
 		expect(result).toBe(hostile);
 	});
