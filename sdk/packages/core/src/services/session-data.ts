@@ -231,6 +231,10 @@ export function normalizeTitle(title?: string | null): string | undefined {
 export function deriveTitleFromPrompt(
 	prompt?: string | null,
 ): string | undefined {
+	// Titles are display-only, so runtime-generated notice elements are
+	// stripped here rather than inside normalizeUserInput -- that function also
+	// sanitizes model-bound prompts (prepareTurnInput), where the notice must
+	// survive to reach the model.
 	const normalized = stripModeNotices(normalizeUserInput(prompt ?? "")).trim();
 	if (!normalized) return undefined;
 	return normalizeTitle(normalized.split("\n")[0]?.trim());

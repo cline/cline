@@ -7,6 +7,7 @@ import {
 	normalizeUserInput,
 	parseUserCommandEnvelope,
 	stripModeNotices,
+	stripTagElements,
 } from "./format";
 
 describe("prompt format helpers", () => {
@@ -62,6 +63,12 @@ describe("prompt format helpers", () => {
 		// signal before the model ever sees it.
 		const prompt = `${formatModeSwitchNotice("plan", "act")}\ndo it`;
 		expect(normalizeUserInput(prompt)).toBe(prompt);
+	});
+
+	it("strips arbitrary tag elements content included", () => {
+		expect(
+			stripTagElements("<foo>x</foo>keep<bar>y</bar>", ["foo", "bar"]),
+		).toBe("keep");
 	});
 
 	it("removes every mode notice and leaves unclosed ones intact", () => {

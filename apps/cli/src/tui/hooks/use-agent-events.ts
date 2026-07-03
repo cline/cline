@@ -297,6 +297,9 @@ export function useAgentEventHandlers(deps: AgentEventDeps) {
 	const handlePendingPromptSubmitted = useCallback(
 		(event: PendingPromptSubmittedEvent) => {
 			knownPendingPromptIdsRef.current.delete(event.id);
+			// Display boundary: formatDisplayUserInput strips runtime-generated
+			// notice elements (e.g. mode_notice) that normalizeUserInput must
+			// preserve, since the latter also sanitizes model-bound prompts.
 			appendEntry({
 				kind: "user_submitted",
 				text: formatDisplayUserInput(event.prompt),
