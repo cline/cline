@@ -2363,6 +2363,63 @@ describe("sdk-gateway", () => {
 		});
 	});
 
+	it("normalizes MCP object schemas before sending them to Gemini", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "gemini", apiKey: "google-key" }],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "gemini",
+				modelId: "gemini-2.5-flash",
+				messages: baseMessages,
+				tools: [
+					{
+						name: "serial.open",
+						description: "Open a serial port",
+						inputSchema: {
+							type: "OBJECT",
+							required: ["port"],
+							properties: {
+								settings: {
+									type: "OBJECT",
+									required: true,
+									properties: {
+										label: { type: "STRING" },
+									},
+								},
+							},
+						},
+					},
+				],
+			}),
+		);
+
+		const call = streamTextSpy.mock.calls[0]?.[0] as
+			| { tools?: Record<string, { inputSchema?: { jsonSchema?: unknown } }> }
+			| undefined;
+		const schema = await call?.tools?.["serial.open"].inputSchema?.jsonSchema;
+		expect(schema).toEqual({
+			type: "object",
+			required: ["port"],
+			properties: {
+				port: {},
+				settings: {
+					type: "object",
+					properties: {
+						label: { type: "string" },
+					},
+				},
+			},
+		});
+	});
+
 	it("passes reasoning effort through to Anthropic provider options", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([
