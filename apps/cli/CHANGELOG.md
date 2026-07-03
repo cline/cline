@@ -1,5 +1,17 @@
 # Cline CLI Changelog
 
+## 3.0.35
+
+- ClinePass is now enabled for all CLI users
+- Recover missing interactive sessions when reading messages
+- Format structured commands in history export
+- Add the subscription promo code when linking to the dashboard subscription page
+- Add Tencent TokenHub as a provider (from SDK v0.0.55)
+- Fix first-prompt truncation on high-output models (e.g. MiniMax M3) that could immediately auto-compact and cut the initial task down to just the input wrapper (from SDK v0.0.55)
+- Use a curated default when migrating legacy provider settings (from SDK v0.0.55)
+- Advertise run commands as shell strings (from SDK v0.0.55)
+- Refresh the bundled model catalog with the latest provider models (from SDK v0.0.55)
+
 ## 3.0.34
 
 - Fixed the ClinePass upgrade notice appearing immediately after completing onboarding.
