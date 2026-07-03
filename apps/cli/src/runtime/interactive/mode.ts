@@ -22,11 +22,8 @@ export type AppliedModeChange = {
 
 /**
  * Canned prompt that drives the auto-continue turn after the model calls
- * switch_to_act_mode. It is stored as a regular user message: the live TUI
- * never echoes it, but it does show as a user bubble when a session is
- * resumed. Accepted tradeoff -- hiding it would take either brittle text
- * matching at display time or a synthetic-message marker plumbed through
- * SendSessionInput.
+ * switch_to_act_mode. It is a synthetic user message, so transcript hydration
+ * filters it out of the chat display.
  */
 export const ACT_MODE_CONTINUATION_PROMPT =
 	"The user approved switching to act mode. Continue with the approved plan now.";
