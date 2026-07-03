@@ -468,6 +468,12 @@ describe("LocalRuntimeHost", () => {
 			undefined,
 			undefined,
 		);
+		const initialPrompt = agent.run.mock.calls[0]?.[0] as string;
+		expect(initialPrompt).toContain("<environment_details>");
+		expect(initialPrompt).toContain(
+			"# Current Working Directory\n/tmp/project",
+		);
+		expect(initialPrompt).toContain("# Current Mode\nACT MODE");
 	});
 
 	it("marks interactive sessions pending while awaiting tool approval", async () => {
@@ -2041,11 +2047,12 @@ describe("LocalRuntimeHost", () => {
 		await vi.waitFor(() => {
 			expect(continueFn).toHaveBeenCalledTimes(2);
 		});
-		expect(continueFn).toHaveBeenLastCalledWith(
+		const steeredPrompt = continueFn.mock.calls.at(-1)?.[0] as string;
+		expect(steeredPrompt).toContain(
 			'<user_input mode="act">async result</user_input>',
-			undefined,
-			undefined,
 		);
+		expect(steeredPrompt).toContain("<environment_details>");
+		expect(steeredPrompt).toContain("# Current Mode\nACT MODE");
 	});
 
 	it("promotes queued prompts to the front when they become steer", async () => {
@@ -2196,7 +2203,11 @@ describe("LocalRuntimeHost", () => {
 		const consumed = await Promise.resolve(
 			agentConfig?.consumePendingUserMessage?.(),
 		);
-		expect(consumed).toBe('<user_input mode="plan">steer this</user_input>');
+		expect(consumed).toContain(
+			'<user_input mode="plan">steer this</user_input>',
+		);
+		expect(consumed).toContain("<environment_details>");
+		expect(consumed).toContain("# Current Mode\nPLAN MODE");
 		expect(agentConfig?.telemetry).toBe(telemetry);
 	});
 
@@ -2794,16 +2805,16 @@ describe("LocalRuntimeHost", () => {
 		expect(second?.text).toBe("second");
 		expect(run).toHaveBeenCalledTimes(1);
 		expect(continueFn).toHaveBeenCalledTimes(1);
-		expect(run).toHaveBeenCalledWith(
-			'<user_input mode="act">first</user_input>',
-			undefined,
-			undefined,
-		);
-		expect(continueFn).toHaveBeenCalledWith(
+		const runPrompt = run.mock.calls[0]?.[0] as string;
+		const continuedPrompt = continueFn.mock.calls[0]?.[0] as string;
+		expect(runPrompt).toContain('<user_input mode="act">first</user_input>');
+		expect(runPrompt).toContain("<environment_details>");
+		expect(runPrompt).toContain("# Current Mode\nACT MODE");
+		expect(continuedPrompt).toContain(
 			'<user_input mode="plan">second</user_input>',
-			undefined,
-			undefined,
 		);
+		expect(continuedPrompt).toContain("<environment_details>");
+		expect(continuedPrompt).toContain("# Current Mode\nPLAN MODE");
 		expect(sessionService.persistSessionMessages).toHaveBeenCalledTimes(2);
 	});
 
@@ -4404,8 +4415,13 @@ describe("LocalRuntimeHost", () => {
 				userFiles: ["note.md"],
 			});
 
-			expect(run).toHaveBeenCalledWith(
+			const prompt = run.mock.calls[0]?.[0] as string;
+			expect(prompt).toContain(
 				'<user_input mode="act">explain @src/app.ts</user_input>',
+			);
+			expect(prompt).toContain("<environment_details>");
+			expect(run).toHaveBeenCalledWith(
+				expect.any(String),
 				undefined,
 				expect.arrayContaining([mentionPath, explicitPath]),
 			);

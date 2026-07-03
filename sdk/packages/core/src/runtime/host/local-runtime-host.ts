@@ -83,6 +83,7 @@ import {
 import type { RuntimeBuilder } from "../orchestration/session-runtime";
 import { SessionRuntime } from "../orchestration/session-runtime-orchestrator";
 import { PendingPromptsController } from "../turn-queue/pending-prompt-service";
+import { appendEnvironmentDetails } from "./environment-details";
 import { manifestToSessionRecord } from "./history";
 import { AgentEventBridge } from "./local/agent-event-bridge";
 import {
@@ -510,9 +511,16 @@ export class LocalRuntimeHost implements RuntimeHost {
 			consumePendingUserMessage: () => {
 				const entry = this.pendingPromptsController.consumeSteer(sessionId);
 				return entry
-					? formatModePrompt(
-							entry.prompt,
-							entry.mode ?? configWithProvider.mode,
+					? appendEnvironmentDetails(
+							formatModePrompt(
+								entry.prompt,
+								entry.mode ?? configWithProvider.mode,
+							),
+							{
+								cwd: configWithProvider.cwd,
+								mode: entry.mode ?? configWithProvider.mode,
+								workspaceMetadata: configWithProvider.workspaceMetadata,
+							},
 						)
 					: undefined;
 			},
@@ -1272,9 +1280,14 @@ export class LocalRuntimeHost implements RuntimeHost {
 		);
 		emitMentionTelemetry(session.config.telemetry, enriched);
 
-		const prompt = formatModePrompt(
-			enriched.prompt,
-			input.mode ?? session.config.mode,
+		const mode = input.mode ?? session.config.mode;
+		const prompt = appendEnvironmentDetails(
+			formatModePrompt(enriched.prompt, mode),
+			{
+				cwd: session.config.cwd,
+				mode,
+				workspaceMetadata: session.config.workspaceMetadata,
+			},
 		);
 		const explicitUserFiles = this.resolveAbsoluteFilePaths(
 			session.config.cwd,
