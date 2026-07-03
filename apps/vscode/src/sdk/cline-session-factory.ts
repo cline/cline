@@ -16,7 +16,7 @@ import {
 	resolveProviderApiKeyFromSettings,
 	type StartSessionResult,
 } from "@cline/core"
-import { getGeneratedModelsForProvider, MODEL_COLLECTIONS_BY_PROVIDER_ID } from "@cline/llms"
+import { getGeneratedModelsForProvider, MODEL_COLLECTIONS_BY_PROVIDER_ID, type ProviderConfig } from "@cline/llms"
 import { buildClineSystemPrompt } from "@cline/shared"
 import type { ApiConfiguration } from "@shared/api"
 import type { HistoryItem } from "@shared/HistoryItem"
@@ -474,6 +474,28 @@ export function resolveVertexProviderConfig(config: ApiConfiguration): Pick<Prov
 	}
 }
 
+/**
+ * Map the legacy `claudeCodePath` setting onto the SDK provider options for the
+ * Claude Code provider. The ai-sdk provider spawns the Claude Code CLI, and
+ * without `pathToClaudeCodeExecutable` the agent SDK falls back to its bundled
+ * binary resolution, which fails for CLI-native installs (e.g. the curl
+ * installer putting `claude` in ~/.local/bin).
+ */
+export function resolveClaudeCodeProviderConfig(config: ApiConfiguration): Pick<ProviderConfig, "claudeCode"> {
+	const executablePath = config.claudeCodePath?.trim()
+	if (!executablePath) {
+		return {}
+	}
+
+	return {
+		claudeCode: {
+			defaultSettings: {
+				pathToClaudeCodeExecutable: executablePath,
+			},
+		},
+	}
+}
+
 export function resolveBaseUrl(providerId: string, config: ApiConfiguration): string | undefined {
 	const baseUrlMap: Record<string, keyof ApiConfiguration> = {
 		anthropic: "anthropicBaseUrl",
@@ -663,16 +685,22 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	// extension's "openai"). Convert before handing the id to core.
 	const sdkProviderId = toSdkProviderId(providerId)
 
+	// Claude Code runs the local CLI rather than an HTTP endpoint, so the
+	// user-configured executable path has to travel through providerConfig too.
+	const claudeCodeProviderConfig =
+		providerId === "claude-code" && apiConfig ? resolveClaudeCodeProviderConfig(apiConfig) : undefined
+
 	// Always pass a providerConfig so the proxy/CA-aware fetch reaches the SDK
 	// gateway; without it the agent loop uses bare global fetch and corporate
 	// proxy/self-signed CA setups fail on JetBrains and CLI. Cloud providers
 	// additionally need structured options (region/project/auth/SAP OAuth), which core
 	// reads from providerConfig in createAgentModelFromConfig.
-	const cloudProviderConfig = bedrockProviderConfig ?? vertexProviderConfig ?? sapProviderConfig
-	// Spread the cloud config first so the explicit fields below — notably the
+	const structuredProviderConfig =
+		bedrockProviderConfig ?? vertexProviderConfig ?? sapProviderConfig ?? claudeCodeProviderConfig
+	// Spread the structured config first so the explicit fields below — notably the
 	// proxy/CA-aware fetch — can never be clobbered if those types gain matching keys.
 	const providerConfig = {
-		...(cloudProviderConfig ?? {}),
+		...(structuredProviderConfig ?? {}),
 		providerId: sdkProviderId,
 		modelId,
 		...(apiKey ? { apiKey } : {}),

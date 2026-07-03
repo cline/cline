@@ -426,6 +426,26 @@ describe("buildSessionConfig", () => {
 		expect(config.providerConfig).not.toHaveProperty("apiKey")
 	})
 
+	it("forwards the configured Claude Code executable path", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "claude-code",
+			actModeApiModelId: "opus",
+			claudeCodePath: " /Users/test/.local/bin/claude ",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerConfig).toMatchObject({
+			providerId: "claude-code",
+			modelId: "opus",
+			claudeCode: {
+				defaultSettings: {
+					pathToClaudeCodeExecutable: "/Users/test/.local/bin/claude",
+				},
+			},
+		})
+	})
+
 	it("passes OpenAI Compatible max output tokens as an explicit request limit", async () => {
 		mocks.stateManager.getApiConfiguration.mockReturnValue({
 			actModeApiProvider: "openai",

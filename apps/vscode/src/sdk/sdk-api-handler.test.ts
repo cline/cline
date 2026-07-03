@@ -82,4 +82,38 @@ describe("buildSdkProviderConfig", () => {
 		})
 		expect(mocks.providerSettingsManager.getProviderSettings).toHaveBeenCalledWith("v0")
 	})
+
+	it("forwards the configured Claude Code executable path", () => {
+		const providerConfig = buildSdkProviderConfig(
+			{
+				actModeApiProvider: "claude-code",
+				actModeApiModelId: "opus",
+				claudeCodePath: " /Users/test/.local/bin/claude ",
+			},
+			"act",
+		)
+
+		expect(providerConfig).toMatchObject({
+			providerId: "claude-code",
+			modelId: "opus",
+			claudeCode: {
+				defaultSettings: {
+					pathToClaudeCodeExecutable: "/Users/test/.local/bin/claude",
+				},
+			},
+		})
+	})
+
+	it("omits a blank Claude Code executable path", () => {
+		const providerConfig = buildSdkProviderConfig(
+			{
+				actModeApiProvider: "claude-code",
+				actModeApiModelId: "opus",
+				claudeCodePath: "   ",
+			},
+			"act",
+		)
+
+		expect(providerConfig).not.toHaveProperty("claudeCode")
+	})
 })
