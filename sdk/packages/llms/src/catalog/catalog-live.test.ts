@@ -466,7 +466,9 @@ describe("models-dev-catalog", () => {
 		);
 
 		expect(result["openai-native"]).toBeUndefined();
-		expect(result["cline-pass"]?.["cline-pass/live-default-model"]).toMatchObject({
+		expect(
+			result["cline-pass"]?.["cline-pass/live-default-model"],
+		).toMatchObject({
 			id: "cline-pass/live-default-model",
 			name: "Live Default Model",
 			contextWindow: 128_000,

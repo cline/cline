@@ -29,9 +29,13 @@ const GlobalSettingsStringListSchema = z
 		return normalized.length > 0 ? normalized : undefined;
 	});
 
-const GlobalCompactionStrategySchema = z.enum(["basic", "agentic"]).catch("basic");
+const GlobalCompactionStrategySchema = z
+	.enum(["basic", "agentic"])
+	.catch("basic");
 
-export type GlobalCompactionStrategy = z.infer<typeof GlobalCompactionStrategySchema>;
+export type GlobalCompactionStrategy = z.infer<
+	typeof GlobalCompactionStrategySchema
+>;
 
 export const GlobalSettingsSchema = z
 	.object({
