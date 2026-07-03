@@ -1,4 +1,8 @@
-import { readGlobalSettings, setAutoUpdateEnabledGlobally } from "@cline/core";
+import {
+	readGlobalSettings,
+	setAutoUpdateEnabledGlobally,
+	setCliPreferencesGlobally,
+} from "@cline/core";
 import { useTerminalDimensions } from "@opentui/react";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
@@ -597,10 +601,13 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 				break;
 			case "toggle":
 				switch (row.id) {
-					case "mode":
-						setMode(mode === "plan" ? "act" : "plan");
+					case "mode": {
+						const nextMode = mode === "plan" ? "act" : "plan";
+						setMode(nextMode);
 						props.onToggleMode();
+						setCliPreferencesGlobally({ mode: nextMode });
 						break;
+					}
 					case "auto-approve":
 						setAutoApprove(!autoApprove);
 						props.onToggleAutoApprove();
@@ -616,12 +623,16 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 						const nextMode = getNextCliCompactionMode(compactionMode);
 						setCompactionMode(nextMode);
 						props.onSetCompactionMode(nextMode);
+						setCliPreferencesGlobally({ compactionMode: nextMode });
 						break;
 					}
-					case "verbose":
-						config.verbose = !verbose;
-						setVerbose(!verbose);
+					case "verbose": {
+						const nextVerbose = !verbose;
+						config.verbose = nextVerbose;
+						setVerbose(nextVerbose);
+						setCliPreferencesGlobally({ verbose: nextVerbose });
 						break;
+					}
 				}
 				break;
 			case "ext": {

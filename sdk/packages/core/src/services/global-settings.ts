@@ -35,6 +35,12 @@ export const GlobalSettingsSchema = z
 		autoUpdateEnabled: z.boolean().default(true).catch(true),
 		disabledTools: GlobalSettingsStringListSchema.optional(),
 		disabledPlugins: GlobalSettingsStringListSchema.optional(),
+		mode: z.enum(["act", "plan"]).optional().catch(undefined),
+		verbose: z.boolean().optional().catch(undefined),
+		compactionMode: z
+			.enum(["agentic", "basic", "off"])
+			.optional()
+			.catch(undefined),
 	})
 	.strip()
 	.transform((settings) => {
@@ -43,6 +49,9 @@ export const GlobalSettingsSchema = z
 			autoUpdateEnabled: boolean;
 			disabledTools?: string[];
 			disabledPlugins?: string[];
+			mode?: "act" | "plan";
+			verbose?: boolean;
+			compactionMode?: "agentic" | "basic" | "off";
 		} = {
 			autoUpdateEnabled: settings.autoUpdateEnabled,
 			telemetryOptOut: settings.telemetryOptOut,
@@ -53,6 +62,11 @@ export const GlobalSettingsSchema = z
 		if (settings.disabledPlugins?.length) {
 			normalized.disabledPlugins = settings.disabledPlugins;
 		}
+		if (settings.mode) normalized.mode = settings.mode;
+		if (typeof settings.verbose === "boolean")
+			normalized.verbose = settings.verbose;
+		if (settings.compactionMode)
+			normalized.compactionMode = settings.compactionMode;
 		return normalized;
 	});
 
@@ -178,6 +192,14 @@ export function setAutoUpdateEnabledGlobally(
 		},
 		options,
 	);
+}
+
+export function setCliPreferencesGlobally(prefs: {
+	mode?: "act" | "plan";
+	verbose?: boolean;
+	compactionMode?: "agentic" | "basic" | "off";
+}): void {
+	writeGlobalSettings({ ...readGlobalSettings(), ...prefs });
 }
 
 export function resolveDisabledToolNames(
