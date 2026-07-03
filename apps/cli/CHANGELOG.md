@@ -1,5 +1,9 @@
 # Cline CLI Changelog
 
+## 3.0.36
+
+- Fixed plan mode's `switch_to_act_mode` tool not taking effect until the end of the turn: the model would keep running with plan-mode tools (no file editor) and fall back to editing files through shell commands. Switching to act mode now ends the plan-mode run and automatically continues with the approved plan using the full act-mode toolset. A Tab mode toggle racing a completing turn can no longer auto-start plan execution you didn't approve.
+
 ## 3.0.35
 
 - ClinePass is now enabled for all CLI users
