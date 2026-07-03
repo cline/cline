@@ -52,7 +52,12 @@ import {
 	type InteractiveExitSummary,
 } from "./interactive/exit-summary";
 import { createMistakeLimitDecisionResolver } from "./interactive/mistakes";
-import { createInteractiveModeSwitchTool } from "./interactive/mode";
+import {
+	type AppliedModeChange,
+	createInteractiveModeSwitchTool,
+	type PendingModeChange,
+	sendTurnWithActModeContinuation,
+} from "./interactive/mode";
 import { assertInteractivePreflight } from "./interactive/preflight";
 import { createInteractiveSessionRuntime } from "./interactive/session-runtime";
 import { buildUserInputMessage } from "./prompt";
@@ -149,8 +154,9 @@ export async function runInteractive(
 		tuiAskQuestion,
 	} = createInteractiveApprovalController(config);
 
-	const pendingModeChange: { current: "plan" | "act" | null } = {
+	const pendingModeChange: PendingModeChange = {
 		current: null,
+		source: null,
 	};
 	const tuiModeChanged: {
 		current: ((mode: "plan" | "act") => void) | null;
@@ -521,25 +527,35 @@ export async function runInteractive(
 					...userImages,
 				];
 
-				const applyPendingModeChange = async () => {
+				const applyPendingModeChange = async (): Promise<
+					AppliedModeChange | undefined
+				> => {
 					if (!pendingModeChange.current) return undefined;
-					const newMode = pendingModeChange.current;
+					const applied: AppliedModeChange = {
+						mode: pendingModeChange.current,
+						source: pendingModeChange.source ?? "ui",
+					};
 					pendingModeChange.current = null;
-					await sessionRuntime.applyMode(newMode);
-					tuiModeChanged.current?.(newMode);
-					return newMode;
+					pendingModeChange.source = null;
+					await sessionRuntime.applyMode(applied.mode);
+					tuiModeChanged.current?.(applied.mode);
+					return applied;
 				};
 
-				const result = await sessionRuntime.sendCurrentTurn({
-					prompt: userInput,
-					mode,
-					userImages:
-						mergedUserImages.length > 0 ? mergedUserImages : undefined,
-					userFiles: userFiles.length > 0 ? userFiles : undefined,
-					delivery,
+				const result = await sendTurnWithActModeContinuation({
+					sendInitialTurn: () =>
+						sessionRuntime.sendCurrentTurn({
+							prompt: userInput,
+							mode,
+							userImages:
+								mergedUserImages.length > 0 ? mergedUserImages : undefined,
+							userFiles: userFiles.length > 0 ? userFiles : undefined,
+							delivery,
+						}),
+					sendContinuationTurn: (prompt) =>
+						sessionRuntime.sendCurrentTurn({ prompt, mode: "act" }),
+					applyPendingModeChange,
 				});
-
-				await applyPendingModeChange();
 
 				if (!result) {
 					return {
@@ -642,6 +658,7 @@ export async function runInteractive(
 			if (!isInteractiveMode(mode)) return;
 			if (isRunning) {
 				pendingModeChange.current = mode;
+				pendingModeChange.source = "ui";
 				sessionRuntime.abortAll();
 				return;
 			}
