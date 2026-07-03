@@ -204,7 +204,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							))}
 							<div className="space-y-2 py-3">
 								<Label className="text-sm font-medium text-foreground">Auto Compact Strategy</Label>
-								<p className="text-xs text-muted-foreground">Controls how SDK auto compaction rewrites context.</p>
+								<p className="text-xs text-muted-foreground">Controls how auto compaction rewrites context.</p>
 								<Select
 									disabled={!useAutoCondense}
 									onValueChange={(value) => updateSetting("compactionStrategy", value)}
