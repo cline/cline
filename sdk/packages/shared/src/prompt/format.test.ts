@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
 	formatDisplayUserInput,
+	formatModeSwitchNotice,
 	formatUserCommandBlock,
+	formatUserInputBlock,
 	normalizeUserInput,
 	parseUserCommandEnvelope,
 } from "./format";
@@ -35,5 +37,22 @@ describe("prompt format helpers", () => {
 			"team",
 		);
 		expect(formatDisplayUserInput(wrapped)).toBe("/team inspect rpc startup");
+	});
+
+	it("formats a mode switch notice", () => {
+		expect(formatModeSwitchNotice("plan", "act")).toBe(
+			"<mode_notice>The user switched from plan mode to act mode before sending this message.</mode_notice>",
+		);
+	});
+
+	it("hides mode switch notices from displayed user input", () => {
+		const wrapped = formatUserInputBlock(
+			`${formatModeSwitchNotice("act", "plan")}\nhow should we refactor this?`,
+			"plan",
+		);
+		expect(formatDisplayUserInput(wrapped)).toBe(
+			"how should we refactor this?",
+		);
+		expect(normalizeUserInput(wrapped)).toBe("how should we refactor this?");
 	});
 });

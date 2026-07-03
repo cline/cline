@@ -7,6 +7,7 @@ import {
 	type AppliedModeChange,
 	applyInteractiveModeConfig,
 	createInteractiveModeSwitchTool,
+	createModeSwitchNoticeTracker,
 	type PendingModeChange,
 	sendTurnWithActModeContinuation,
 } from "./mode";
@@ -190,6 +191,44 @@ describe("sendTurnWithActModeContinuation", () => {
 		const result = await run();
 
 		expect(result).toEqual({ finishReason: "completed", iterations: 2 });
+	});
+});
+
+describe("createModeSwitchNoticeTracker", () => {
+	it("records a switch and clears it on consume", () => {
+		const tracker = createModeSwitchNoticeTracker();
+
+		tracker.record("act", "plan");
+
+		expect(tracker.consume()).toEqual({ from: "act", to: "plan" });
+		expect(tracker.consume()).toBeNull();
+	});
+
+	it("cancels a round trip that returns to the mode the model last saw", () => {
+		const tracker = createModeSwitchNoticeTracker();
+
+		tracker.record("act", "plan");
+		tracker.record("plan", "act");
+
+		expect(tracker.consume()).toBeNull();
+	});
+
+	it("keeps the original starting mode across chained switches", () => {
+		const tracker = createModeSwitchNoticeTracker();
+
+		tracker.record("act", "plan");
+		tracker.record("plan", "act");
+		tracker.record("act", "plan");
+
+		expect(tracker.consume()).toEqual({ from: "act", to: "plan" });
+	});
+
+	it("ignores a no-op switch", () => {
+		const tracker = createModeSwitchNoticeTracker();
+
+		tracker.record("plan", "plan");
+
+		expect(tracker.consume()).toBeNull();
 	});
 });
 

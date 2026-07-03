@@ -13,6 +13,18 @@ export function formatUserCommandBlock(input: string, slash: string): string {
 	return `<user_command slash="${slash}">${input}</user_command>`;
 }
 
+/**
+ * Marks the exact point in the conversation where the user switched between
+ * plan and act modes. Prepended to the first user message sent after the
+ * switch; stripped from transcript display by normalizeUserInput.
+ */
+export function formatModeSwitchNotice(
+	from: "act" | "plan",
+	to: "act" | "plan",
+): string {
+	return `<mode_notice>The user switched from ${from} mode to ${to} mode before sending this message.</mode_notice>`;
+}
+
 export type UserCommandEnvelope = {
 	slash: string;
 	content: string;
@@ -72,6 +84,9 @@ export function normalizeUserInput(input?: string): string {
 				: next.replace(new RegExp(`<${tag}[^>]*>`, "g"), "")
 		).trim();
 	}
+	// mode_notice is runtime-generated context, not user-typed text; unlike the
+	// wrapper tags above, the whole element (content included) is hidden.
+	next = next.replace(/<mode_notice>[\s\S]*?<\/mode_notice>/gi, "").trim();
 	return next;
 }
 

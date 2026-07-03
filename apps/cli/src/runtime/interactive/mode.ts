@@ -107,6 +107,39 @@ export async function sendTurnWithActModeContinuation<
 	};
 }
 
+export type ModeSwitchNotice = {
+	from: InteractiveUiMode;
+	to: InteractiveUiMode;
+};
+
+/**
+ * Tracks a user-initiated mode switch so the next user message can carry a
+ * <mode_notice> marking it. Only UI toggles are recorded: the model-initiated
+ * switch_to_act_mode path already announces itself via the continuation
+ * prompt. A round trip (plan -> act -> plan before sending anything) cancels
+ * out, since the mode the model last saw never effectively changed.
+ */
+export function createModeSwitchNoticeTracker() {
+	let pending: ModeSwitchNotice | null = null;
+	return {
+		record(from: InteractiveUiMode, to: InteractiveUiMode): void {
+			if (from === to) {
+				return;
+			}
+			if (pending) {
+				pending = pending.from === to ? null : { from: pending.from, to };
+				return;
+			}
+			pending = { from, to };
+		},
+		consume(): ModeSwitchNotice | null {
+			const notice = pending;
+			pending = null;
+			return notice;
+		},
+	};
+}
+
 export async function applyInteractiveModeConfig(input: {
 	config: Config;
 	mode: InteractiveUiMode;

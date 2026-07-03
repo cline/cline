@@ -9,6 +9,10 @@ import {
 import { type AgentMode, buildClineSystemPrompt } from "@cline/shared";
 import { isImagePath, loadImageAsDataUrl } from "../utils/image-attachments";
 
+const MODE_TAG_INSTRUCTIONS = `# Plan / Act Modes
+
+User messages arrive wrapped in a <user_input mode="..."> tag. The mode attribute is the interaction mode the user was in when they sent that message: "plan" means plan-mode constraints applied (explore, analyze, and align on a plan -- no edits or state-changing commands), while "act" (or "yolo") means implementation was allowed. If the mode attribute changes between messages, the user switched modes -- the newest message's mode is what governs right now, regardless of what earlier messages allowed. A <mode_notice> block inside a message marks exactly when such a switch happened.`;
+
 const PLAN_MODE_INSTRUCTIONS = `# Plan Mode
 
 You are in Plan mode. Your role is to explore, analyze, and plan -- not to execute.
@@ -31,10 +35,13 @@ export async function resolveSystemPrompt(input: {
 }): Promise<string> {
 	const metadata = await buildWorkspaceMetadata(input.cwd);
 	let rules = mergeRulesForSystemPrompt(undefined, input.rules);
+	// Both modes get the mode-tag explanation: after a switch, the transcript
+	// still contains messages tagged with the other mode.
+	rules = rules
+		? `${rules}\n\n${MODE_TAG_INSTRUCTIONS}`
+		: MODE_TAG_INSTRUCTIONS;
 	if (input.mode === "plan") {
-		rules = rules
-			? `${rules}\n\n${PLAN_MODE_INSTRUCTIONS}`
-			: PLAN_MODE_INSTRUCTIONS;
+		rules = `${rules}\n\n${PLAN_MODE_INSTRUCTIONS}`;
 	}
 	return buildClineSystemPrompt({
 		ide: "Terminal Shell",
