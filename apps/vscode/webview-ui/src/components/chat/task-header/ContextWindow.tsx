@@ -19,10 +19,8 @@ interface ContextWindowInfoProps {
 }
 
 interface ContextWindowProgressProps extends ContextWindowInfoProps {
-	useAutoCondense: boolean
 	lastApiReqTotalTokens?: number
 	contextWindow?: number
-	onSendMessage?: (command: string, files: string[], images: string[]) => void
 }
 
 const ConfirmationDialog = memo<{
@@ -57,8 +55,6 @@ ConfirmationDialog.displayName = "ConfirmationDialog"
 const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 	contextWindow = 0,
 	lastApiReqTotalTokens = 0,
-	onSendMessage,
-	useAutoCondense,
 	tokensIn,
 	tokensOut,
 	cacheWrites,

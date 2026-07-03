@@ -55,21 +55,11 @@ describe("ContextWindow compact button", () => {
 	})
 
 	it("runs the compact RPC after confirmation instead of sending /compact as a message", async () => {
-		const onSendMessage = vi.fn()
-
-		render(
-			<ContextWindow
-				contextWindow={200_000}
-				lastApiReqTotalTokens={120_000}
-				onSendMessage={onSendMessage}
-				useAutoCondense={false}
-			/>,
-		)
+		render(<ContextWindow contextWindow={200_000} lastApiReqTotalTokens={120_000} />)
 
 		fireEvent.click(screen.getByRole("button", { name: /compact task/i }))
 		fireEvent.click(screen.getByRole("button", { name: /yes/i }))
 
 		await waitFor(() => expect(condense).toHaveBeenCalledWith({ value: "compact" }))
-		expect(onSendMessage).not.toHaveBeenCalled()
 	})
 })

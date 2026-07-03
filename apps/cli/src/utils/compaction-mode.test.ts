@@ -15,14 +15,12 @@ function createConfig(compaction?: Config["compaction"]): Config {
 }
 
 describe("CLI compaction mode helpers", () => {
-	it("defaults enabled compaction to basic truncation", () => {
-		expect(DEFAULT_CLI_COMPACTION_MODE).toBe("basic");
+	it("defaults enabled compaction to agentic summarization", () => {
+		expect(DEFAULT_CLI_COMPACTION_MODE).toBe("agentic");
 		expect(getCliCompactionMode(createConfig())).toBe(
 			DEFAULT_CLI_COMPACTION_MODE,
 		);
-		expect(formatCliCompactionMode(DEFAULT_CLI_COMPACTION_MODE)).toBe(
-			"Truncation",
-		);
+		expect(formatCliCompactionMode(DEFAULT_CLI_COMPACTION_MODE)).toBe("LLM");
 	});
 
 	it("maps basic and off modes to core compaction config", () => {
@@ -47,11 +45,11 @@ describe("CLI compaction mode helpers", () => {
 	it("builds default and explicit core compaction config", () => {
 		expect(buildCliCompactionConfig()).toEqual({
 			enabled: true,
-			strategy: "basic",
-		});
-		expect(buildCliCompactionConfig("agentic")).toEqual({
-			enabled: true,
 			strategy: "agentic",
+		});
+		expect(buildCliCompactionConfig("basic")).toEqual({
+			enabled: true,
+			strategy: "basic",
 		});
 		expect(buildCliCompactionConfig("off")).toEqual({ enabled: false });
 	});
@@ -79,8 +77,8 @@ describe("CLI compaction mode helpers", () => {
 	});
 
 	it("cycles TUI choices in a stable order", () => {
-		expect(getNextCliCompactionMode("basic")).toBe("agentic");
-		expect(getNextCliCompactionMode("agentic")).toBe("off");
-		expect(getNextCliCompactionMode("off")).toBe("basic");
+		expect(getNextCliCompactionMode("agentic")).toBe("basic");
+		expect(getNextCliCompactionMode("basic")).toBe("off");
+		expect(getNextCliCompactionMode("off")).toBe("agentic");
 	});
 });

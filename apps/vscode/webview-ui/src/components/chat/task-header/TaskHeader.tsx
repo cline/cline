@@ -26,7 +26,6 @@ interface TaskHeaderProps {
 	totalCost: number
 	lastApiReqTotalTokens?: number
 	onClose: () => void
-	onSendMessage?: (command: string, files: string[], images: string[]) => void
 }
 
 const BUTTON_CLASS = "max-h-3 border-0 font-bold bg-transparent hover:opacity-100 text-foreground"
@@ -40,7 +39,6 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	totalCost,
 	lastApiReqTotalTokens,
 	onClose,
-	onSendMessage,
 }) => {
 	const {
 		apiConfiguration,
@@ -206,10 +204,8 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 							cacheWrites={cacheWrites}
 							contextWindow={selectedModelInfo?.contextWindow}
 							lastApiReqTotalTokens={lastApiReqTotalTokens}
-							onSendMessage={onSendMessage}
 							tokensIn={tokensIn}
 							tokensOut={tokensOut}
-							useAutoCondense={false} // Disable auto-condense configuration in UI for now
 						/>
 					</div>
 				)}

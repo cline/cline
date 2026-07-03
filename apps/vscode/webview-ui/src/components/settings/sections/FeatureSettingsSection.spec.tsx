@@ -11,8 +11,6 @@ vi.mock("@/context/ExtensionStateContext", () => ({
 		showFeatureTips: false,
 		mcpDisplayMode: "rich",
 		yoloModeToggled: false,
-		useAutoCondense: false,
-		subagentsEnabled: false,
 		worktreesEnabled: { user: true, featureFlag: true },
 		focusChainSettings: { enabled: false, remindClineInterval: 6 },
 		remoteConfigSettings: {},
@@ -31,10 +29,8 @@ describe("FeatureSettingsSection", () => {
 		expect(screen.getByText("Hooks")).toBeTruthy()
 
 		const advancedSection = container.querySelector("#advanced-features")
-		const agentSection = container.querySelector("#agent-features")
 
 		expect(advancedSection?.querySelector("#Hooks")).toBeTruthy()
-		expect(agentSection?.querySelector("#Hooks")).toBeNull()
 	})
 
 	it("renders Feature Tips toggle in the Editor section", () => {
@@ -43,10 +39,14 @@ describe("FeatureSettingsSection", () => {
 		expect(screen.getByText("Feature Tips")).toBeTruthy()
 
 		const editorSection = container.querySelector("#optional-features")
-		const agentSection = container.querySelector("#agent-features")
 
 		expect(editorSection?.querySelector('[id="Feature Tips"]')).toBeTruthy()
-		expect(agentSection?.querySelector('[id="Feature Tips"]')).toBeNull()
+	})
+
+	it("does not render the removed Auto Compact setting", () => {
+		render(<FeatureSettingsSection renderSectionHeader={() => null} />)
+
+		expect(screen.queryByText("Auto Compact")).toBeNull()
 	})
 
 	it("calls updateSetting with hooksEnabled when toggled", () => {

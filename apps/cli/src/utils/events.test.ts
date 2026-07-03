@@ -1,6 +1,6 @@
 import type { AgentEvent, TeamEvent } from "@cline/core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { handleEvent, handleTeamEvent } from "./events";
+import { handleEvent, handleTeamEvent, resolveStatusNoticeLabel } from "./events";
 import { setCurrentOutputMode } from "./output";
 import type { Config } from "./types";
 
@@ -158,6 +158,18 @@ describe("handleEvent text formatting", () => {
 		);
 
 		expect(output).toContain("── aborted (2 iterations) ──");
+	});
+
+	it("uses stable copy for compaction status notices", () => {
+		expect(
+			resolveStatusNoticeLabel({
+				type: "notice",
+				noticeType: "status",
+				displayRole: "status",
+				reason: "auto_compaction",
+				message: "Summarizing context...",
+			} as AgentEvent),
+		).toBe("Compacting context...");
 	});
 
 	it("suppresses heartbeat-only team progress messages", () => {

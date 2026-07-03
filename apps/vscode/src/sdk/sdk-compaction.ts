@@ -65,6 +65,7 @@ export async function compactSessionMessages(input: CompactSessionMessagesInput)
 			compaction: {
 				...input.config.compaction,
 				enabled: true,
+				strategy: "agentic",
 			},
 			logger: input.config.logger,
 			// Forward telemetry + sessionId so manual compactions emit

@@ -70,6 +70,7 @@ export async function compactInteractiveMessages(input: {
 			compaction: {
 				...input.config.compaction,
 				enabled: true,
+				strategy: "agentic",
 			},
 			logger: input.config.logger,
 			// Forward telemetry + sessionId so manual compactions emit

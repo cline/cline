@@ -1,11 +1,11 @@
 import type { CliCompactionMode, Config } from "./types";
 
-export const CLI_COMPACTION_MODES = ["basic", "agentic", "off"] as const;
+export const CLI_COMPACTION_MODES = ["agentic", "basic", "off"] as const;
 
 export const DEFAULT_CLI_COMPACTION_MODE: Extract<
 	CliCompactionMode,
 	"agentic" | "basic"
-> = "basic";
+> = "agentic";
 
 const CLI_COMPACTION_MODE_ALIASES: Record<string, CliCompactionMode> = {
 	agentic: "agentic",
@@ -20,7 +20,7 @@ const CLI_COMPACTION_MODE_LABELS = {
 } as const satisfies Record<CliCompactionMode, string>;
 
 export const CLI_COMPACTION_MODE_OPTION_DESCRIPTION =
-	"Context compaction mode: agentic|basic|off (default: basic)";
+	"Context compaction mode: agentic|basic|off (default: agentic)";
 
 export const CLI_COMPACTION_MODE_EXPECTED_TEXT = '"agentic", "basic", or "off"';
 
@@ -43,8 +43,8 @@ export function getCliCompactionMode(config: Config): CliCompactionMode {
 	if (config.compaction?.enabled === false) {
 		return "off";
 	}
-	return config.compaction?.strategy === "agentic"
-		? "agentic"
+	return config.compaction?.strategy === "basic"
+		? "basic"
 		: DEFAULT_CLI_COMPACTION_MODE;
 }
 

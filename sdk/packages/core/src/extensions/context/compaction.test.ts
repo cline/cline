@@ -621,7 +621,7 @@ describe("createContextCompactionPrepareTurn", () => {
 
 		expect(createHandlerMock).toHaveBeenCalledTimes(1);
 		expect(emitStatusNotice).toHaveBeenCalledWith(
-			"auto-compacting",
+			"Compacting context...",
 			expect.objectContaining({
 				kind: "auto_compaction",
 				reason: "auto_compaction",
@@ -1075,7 +1075,7 @@ describe("createContextCompactionPrepareTurn", () => {
 
 		expect(createHandlerMock).not.toHaveBeenCalled();
 		expect(emitStatusNotice).toHaveBeenCalledWith(
-			"auto-compacting",
+			"Compacting context...",
 			expect.objectContaining({
 				kind: "auto_compaction",
 				reason: "auto_compaction",
