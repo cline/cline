@@ -229,6 +229,7 @@ export { buildClineSystemPrompt } from "./prompt/cline";
 export {
 	formatDisplayUserInput,
 	formatFileContentBlock,
+	formatModeSwitchNotice,
 	formatUserCommandBlock,
 	formatUserInputBlock,
 	normalizeUserInput,

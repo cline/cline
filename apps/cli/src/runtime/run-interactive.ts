@@ -4,6 +4,7 @@ import {
 	ProviderSettingsManager,
 	type UserInstructionConfigService,
 } from "@cline/core";
+import { formatModeSwitchNotice } from "@cline/shared";
 import type { CliMigrationNotice } from "../kanban-migration/notice";
 import { logCliError } from "../logging/errors";
 import {
@@ -55,6 +56,7 @@ import { createMistakeLimitDecisionResolver } from "./interactive/mistakes";
 import {
 	type AppliedModeChange,
 	createInteractiveModeSwitchTool,
+	createModeSwitchNoticeTracker,
 	type PendingModeChange,
 	sendTurnWithActModeContinuation,
 } from "./interactive/mode";
@@ -210,6 +212,7 @@ export async function runInteractive(
 	});
 	let modeChangePromise: Promise<void> | undefined;
 	let modeChangeTarget: "plan" | "act" | undefined;
+	const modeSwitchNotice = createModeSwitchNoticeTracker();
 
 	const isInteractiveMode = (mode: unknown): mode is "plan" | "act" =>
 		mode === "plan" || mode === "act";
@@ -224,7 +227,11 @@ export async function runInteractive(
 				await modeChangePromise;
 			}
 			await sessionRuntime.ensureReady();
+			const from = config.mode;
 			await sessionRuntime.applyMode(mode);
+			if (isInteractiveMode(from)) {
+				modeSwitchNotice.record(from, mode);
+			}
 		})().finally(() => {
 			if (modeChangePromise === next) {
 				modeChangePromise = undefined;
@@ -526,6 +533,13 @@ export async function runInteractive(
 					...(attachments?.userImages ?? []),
 					...userImages,
 				];
+				// Mark a preceding user-initiated mode switch on this message so
+				// the model sees exactly when the rules changed, instead of only
+				// inferring it from the user_input mode attribute flipping.
+				const switchNotice = modeSwitchNotice.consume();
+				const noticedUserInput = switchNotice
+					? `${formatModeSwitchNotice(switchNotice.from, switchNotice.to)}\n${userInput}`
+					: userInput;
 
 				const applyPendingModeChange = async (): Promise<
 					AppliedModeChange | undefined
@@ -537,15 +551,21 @@ export async function runInteractive(
 					};
 					pendingModeChange.current = null;
 					pendingModeChange.source = null;
+					const from = config.mode;
 					await sessionRuntime.applyMode(applied.mode);
 					tuiModeChanged.current?.(applied.mode);
+					// The switch_to_act_mode path announces itself through the
+					// continuation prompt; only UI toggles need a notice.
+					if (applied.source === "ui" && isInteractiveMode(from)) {
+						modeSwitchNotice.record(from, applied.mode);
+					}
 					return applied;
 				};
 
 				const result = await sendTurnWithActModeContinuation({
 					sendInitialTurn: () =>
 						sessionRuntime.sendCurrentTurn({
-							prompt: userInput,
+							prompt: noticedUserInput,
 							mode,
 							userImages:
 								mergedUserImages.length > 0 ? mergedUserImages : undefined,
