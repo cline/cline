@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import type * as LlmsProviders from "@cline/llms";
 import type { AgentConfig, AgentEvent, AgentResult } from "@cline/shared";
-import { normalizeUserInput } from "@cline/shared";
+import { normalizeUserInput, stripModeNotices } from "@cline/shared";
 import { nanoid } from "nanoid";
 import {
 	parseSubSessionId,
@@ -231,7 +231,7 @@ export function normalizeTitle(title?: string | null): string | undefined {
 export function deriveTitleFromPrompt(
 	prompt?: string | null,
 ): string | undefined {
-	const normalized = normalizeUserInput(prompt ?? "").trim();
+	const normalized = stripModeNotices(normalizeUserInput(prompt ?? "")).trim();
 	if (!normalized) return undefined;
 	return normalizeTitle(normalized.split("\n")[0]?.trim());
 }

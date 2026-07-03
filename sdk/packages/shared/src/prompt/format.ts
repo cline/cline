@@ -84,10 +84,19 @@ export function normalizeUserInput(input?: string): string {
 				: next.replace(new RegExp(`<${tag}[^>]*>`, "g"), "")
 		).trim();
 	}
-	// mode_notice is runtime-generated context, not user-typed text; unlike the
-	// wrapper tags above, the whole element (content included) is hidden.
-	next = removeTagElements(next, "mode_notice").trim();
 	return next;
+}
+
+/**
+ * Removes runtime-generated <mode_notice> elements (content included): they
+ * are not user-typed text and must not render as such. Deliberately NOT part
+ * of normalizeUserInput -- that function also sanitizes outbound prompts
+ * before the host wraps them (prepareTurnInput), and stripping there deletes
+ * the notice before the model ever sees it.
+ */
+export function stripModeNotices(input?: string): string {
+	if (!input?.trim()) return "";
+	return removeTagElements(input, "mode_notice").trim();
 }
 
 // indexOf-based rather than a regex: a lazy dot-all pattern re-scans to the
@@ -110,7 +119,7 @@ function removeTagElements(input: string, tag: string): string {
 }
 
 export function formatDisplayUserInput(input?: string): string {
-	const normalized = normalizeUserInput(input);
+	const normalized = stripModeNotices(normalizeUserInput(input));
 	const envelope = parseUserCommandEnvelope(input);
 	if (!envelope) {
 		return normalized;
