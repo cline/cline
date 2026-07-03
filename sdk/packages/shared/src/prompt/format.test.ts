@@ -55,4 +55,25 @@ describe("prompt format helpers", () => {
 		);
 		expect(normalizeUserInput(wrapped)).toBe("how should we refactor this?");
 	});
+
+	it("removes every mode notice and leaves unclosed ones intact", () => {
+		expect(
+			normalizeUserInput(
+				"<mode_notice>a</mode_notice>hello<mode_notice>b</mode_notice> there",
+			),
+		).toBe("hello there");
+		expect(normalizeUserInput("<mode_notice>dangling")).toBe(
+			"<mode_notice>dangling",
+		);
+	});
+
+	it("normalizes adversarial repeated open tags in linear time", () => {
+		// Regression guard for CodeQL js/polynomial-redos: many unmatched
+		// opening tags must not trigger quadratic rescanning.
+		const hostile = "<mode_notice>".repeat(50_000);
+		const started = performance.now();
+		const result = normalizeUserInput(hostile);
+		expect(performance.now() - started).toBeLessThan(1_000);
+		expect(result).toBe(hostile);
+	});
 });

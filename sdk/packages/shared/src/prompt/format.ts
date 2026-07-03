@@ -86,8 +86,27 @@ export function normalizeUserInput(input?: string): string {
 	}
 	// mode_notice is runtime-generated context, not user-typed text; unlike the
 	// wrapper tags above, the whole element (content included) is hidden.
-	next = next.replace(/<mode_notice>[\s\S]*?<\/mode_notice>/gi, "").trim();
+	next = removeTagElements(next, "mode_notice").trim();
 	return next;
+}
+
+// indexOf-based rather than a regex: a lazy dot-all pattern re-scans to the
+// end of the string from every unmatched opening tag, which is polynomial on
+// adversarial transcript content (CodeQL js/polynomial-redos).
+function removeTagElements(input: string, tag: string): string {
+	const open = `<${tag}>`;
+	const close = `</${tag}>`;
+	let result = input;
+	let start = result.indexOf(open);
+	while (start !== -1) {
+		const end = result.indexOf(close, start + open.length);
+		if (end === -1) {
+			break;
+		}
+		result = result.slice(0, start) + result.slice(end + close.length);
+		start = result.indexOf(open, start);
+	}
+	return result;
 }
 
 export function formatDisplayUserInput(input?: string): string {
