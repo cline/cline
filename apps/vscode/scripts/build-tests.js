@@ -61,33 +61,36 @@ async function main() {
 fs.rmSync(path.join(__dirname, "..", "out", "src"), { recursive: true, force: true })
 fs.rmSync(path.join(__dirname, "..", "out", "packages"), { recursive: true, force: true })
 
-// Single source of truth for the bun-vs-integration test split: any *.test.ts that
-// imports from "bun:test" is owned by the bun runner (scripts/run-bun-unit-tests.ts)
-// and must NOT be compiled into the Node-based @vscode/test-cli `out/` tree (Node
-// cannot load the `bun:test` builtin, and these files use bun-only APIs like
-// `mock.module` / 3-arg `it`). Generate a tsconfig that excludes them so the
+// Single source of truth for the test-runner split: any *.test.ts that imports
+// from "bun:test" is owned by the bun runner (scripts/run-bun-unit-tests.ts),
+// and any that imports from "vitest" is owned by the vitest runner (test:vitest,
+// see vitest.config.ts). Neither may be compiled into the Node-based
+// @vscode/test-cli `out/` tree: Node cannot load `bun:test`, and vitest suites
+// use vitest-only APIs/matchers (e.g. `toHaveBeenCalledWith`) that the mocha
+// runner does not provide. Generate a tsconfig that excludes them so the
 // integration compile only ever sees mocha-owned tests.
 const projectRoot = path.join(__dirname, "..")
-const bunTestImport = /from\s+["']bun:test["']/
-function collectBunTestFiles(dir, acc) {
+const nonMochaTestImport =
+	/from\s+["'](?:bun:test|vitest(?:\/[^"']*)?|@vitest\/[^"']*)["']/
+function collectNonMochaTestFiles(dir, acc) {
 	for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
 		if (entry.name === "node_modules") continue
 		const full = path.join(dir, entry.name)
 		if (entry.isDirectory()) {
-			collectBunTestFiles(full, acc)
+			collectNonMochaTestFiles(full, acc)
 		} else if (entry.isFile() && entry.name.endsWith(".test.ts")) {
-			if (bunTestImport.test(fs.readFileSync(full, "utf-8"))) {
+			if (nonMochaTestImport.test(fs.readFileSync(full, "utf-8"))) {
 				acc.push(path.relative(projectRoot, full).split(path.sep).join("/"))
 			}
 		}
 	}
 	return acc
 }
-const bunOwnedTests = collectBunTestFiles(path.join(projectRoot, "src"), [])
+const nonMochaOwnedTests = collectNonMochaTestFiles(path.join(projectRoot, "src"), [])
 // tsconfig.test.json is JSONC (contains comments); parse with json5 (a project dep).
 const JSON5 = require("json5")
 const baseTestConfig = JSON5.parse(fs.readFileSync(path.join(projectRoot, "tsconfig.test.json"), "utf-8"))
-baseTestConfig.exclude = [...(baseTestConfig.exclude ?? []), ...bunOwnedTests]
+baseTestConfig.exclude = [...(baseTestConfig.exclude ?? []), ...nonMochaOwnedTests]
 const generatedConfigPath = path.join(projectRoot, "tsconfig.test.generated.json")
 fs.writeFileSync(generatedConfigPath, JSON.stringify(baseTestConfig, null, "\t"))
 

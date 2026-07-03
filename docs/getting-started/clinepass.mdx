@@ -1,19 +1,31 @@
 ---
-title: "ClinePass (beta)"
+title: "ClinePass"
 description: "A low-cost monthly subscription that gives you reliable access to popular open coding models with 2-5x API rate limits."
 ---
-
-<Warning>
-ClinePass is currently under invite-only private preview.
-</Warning>
 
 ClinePass is a low-cost monthly subscription — **$9.99/month** — that gives you reliable access to popular open coding models with **2-5x the API rate limits** of standard access.
 
 It's completely optional. You don't need ClinePass to use Cline, and you can always use any other provider alongside it.
 
-<Card title="Subscribe to ClinePass" icon="credit-card" href="https://app.cline.bot/dashboard/subscription">
+<Card title="Subscribe to ClinePass" icon="credit-card" href="https://app.cline.bot/dashboard/subscription?personal=true">
   Get started for $9.99/month and unlock 2-5x API rate limits.
 </Card>
+
+## How it works
+
+ClinePass is a separate provider in Cline. After subscribing, select **ClinePass** wherever you configure your provider.
+
+- **IDE Extension**: Go to IDE extension settings, set **API Provider** to **ClinePass**, and sign in.
+
+<Frame>
+  <img src="/assets/clinepass/clinepass-ide-extension.png" alt="Cline IDE extension settings with ClinePass selected as the API Provider" />
+</Frame>
+
+- **CLI**: Go to `/settings` and select **ClinePass** as your provider.
+
+<Frame>
+  <img src="/assets/clinepass/clinepass-cli.png" alt="Cline CLI settings showing ClinePass selected as the provider" />
+</Frame>
 
 ## Why ClinePass
 
@@ -27,15 +39,8 @@ ClinePass solves this by:
 - Offering **2-5x the API rate limits** so you can run long, complex agent tasks without interruption
 - Providing stable access through Cline's infrastructure
 
-## How it works
-
-ClinePass is a separate provider in Cline. After subscribing, select **ClinePass** wherever you configure your provider.
-
-- **IDE Extension**: Go to IDE extension settings, set **API Provider** to **ClinePass**, and sign in.
-- **CLI**: Go to `/settings` and select **ClinePass** as your provider.
-
 <Note>
-ClinePass is a separate provider from the Cline Provider. You can use both independently — subscribe to ClinePass for 2-5x API rate limits, or use the Cline Provider for pay-as-you-go access.
+ClinePass is a separate provider from Cline (usage-billing). You can use both independently — subscribe to ClinePass for 2-5x API rate limits, or use Cline (usage-billing) for pay-as-you-go access.
 </Note>
 
 ## Models
@@ -43,16 +48,43 @@ ClinePass is a separate provider from the Cline Provider. You can use both indep
 ClinePass includes the following models, tested and benchmarked for coding agent use:
 
 | Model | Model ID |
-|-------|----------|
-| GLM-5.2 | `glm-5.2` |
-| Kimi K2.7 Code | `kimi-k2.7-code` |
-| Kimi K2.6 | `kimi-k2.6` |
-| DeepSeek V4 Pro | `deepseek-v4-pro` |
-| DeepSeek V4 Flash | `deepseek-v4-flash` |
-| MiMo-V2.5 | `mimo-v2.5` |
-| MiMo-V2.5-Pro | `mimo-v2.5-pro` |
+|-------|------------|
+| GLM-5.2 | `cline-pass/glm-5.2` |
+| Kimi K2.7 Code | `cline-pass/kimi-k2.7-code` |
+| Kimi K2.6 | `cline-pass/kimi-k2.6` |
+| DeepSeek V4 Pro | `cline-pass/deepseek-v4-pro` |
+| DeepSeek V4 Flash | `cline-pass/deepseek-v4-flash` |
+| MiMo-V2.5 | `cline-pass/mimo-v2.5` |
+| MiMo-V2.5-Pro | `cline-pass/mimo-v2.5-pro` |
+| MiniMax M3 | `cline-pass/minimax-m3` |
+| Qwen3.7 Max | `cline-pass/qwen3.7-max` |
+| Qwen3.7 Plus | `cline-pass/qwen3.7-plus` |
 
-### Reference pricing
+## Using ClinePass outside of Cline
+
+You can use ClinePass models from your own scripts, apps, or automation through the Cline API. The API uses the same OpenAI-compatible Chat Completions format as the rest of Cline's API.
+
+To get started, create an API key from **Settings > API Keys** in [app.cline.bot](https://app.cline.bot). For the complete walkthrough, see the [Cline API Getting Started guide](/api/getting-started).
+
+Use the full ClinePass model slug in the `model` field:
+
+```bash
+export CLINE_API_KEY="your_api_key_here"
+
+curl -X POST https://api.cline.bot/api/v1/chat/completions \
+  -H "Authorization: Bearer $CLINE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "cline-pass/qwen3.7-max",
+    "messages": [
+      {"role": "user", "content": "Write a TypeScript function that validates an email address."}
+    ],
+    "stream": false
+  }'
+```
+
+
+## Reference pricing
 
 ClinePass is a flat monthly subscription, so you are not charged the individual API prices below. These reference prices show the underlying per-1M-token rates for each model and can help you understand how usage is measured against your ClinePass quota (2-5x quota compares to paying standard api rate).
 
@@ -65,19 +97,23 @@ ClinePass is a flat monthly subscription, so you are not charged the individual 
 | DeepSeek V4 Flash | $0.14 | $0.28 | $0.0028 | - |
 | MiMo-V2.5 | $0.14 | $0.28 | $0.0028 | - |
 | MiMo-V2.5-Pro | $1.74 | $3.48 | $0.0145 | - |
+| MiniMax M3 | $0.30 | $1.20 | $0.06 | - |
+| Qwen3.7 Max | $2.50 | $7.50 | $0.50 | $3.125 |
+| Qwen3.7 Plus (≤ 256K tokens) | $0.40 | $1.60 | $0.04 | $0.50 |
+| Qwen3.7 Plus (> 256K tokens) | $1.20 | $4.80 | $0.12 | $1.50 |
 
-## Goals
+## Usage
 
-We created ClinePass to:
+ClinePass measures usage against three limits:
 
-- Make AI coding accessible to more people with a low-cost subscription
-- Provide reliable access to the best open coding models
-- Curate models that are tested and benchmarked for coding agent use
-- Remove rate-limit friction with **2-5x API rate limits**
-- Have no lock-in — you can use any other provider with Cline as well
+- **5-hour rolling window** — your usage within rolling 5-hour period
+- **Weekly** — your usage over the calendar week
+- **Monthly** — your usage over the calendar month
+
+To check your current usage, visit your [Cline dashboard](https://app.cline.bot/dashboard/subscription?personal=true).
 
 ## Related
 
-- [Cline Provider](/getting-started/cline-provider)
+- [Cline (usage-billing)](/getting-started/cline-provider)
 - [Authorization](/getting-started/authorizing-with-cline)
 - [Local models](/running-models-locally/overview)

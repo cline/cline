@@ -116,6 +116,10 @@ const PROVIDER_IDS_MAP: ReadonlyArray<{
 	{ modelsDevKey: "wandb", generatedProviderId: "wandb" },
 	{ modelsDevKey: "kilo", generatedProviderId: "kilo" },
 	{ modelsDevKey: "xiaomi", generatedProviderId: "xiaomi" },
+	{
+		modelsDevKey: "tencent-tokenhub",
+		generatedProviderId: "tencent-tokenhub",
+	},
 	{ modelsDevKey: "v0", generatedProviderId: "v0" },
 ];
 

@@ -389,7 +389,7 @@ export async function runInteractive(
 		? async () => {
 				try {
 					await sessionRuntime.ensureReady();
-					const messages = await sessionRuntime.readCurrentMessages();
+					const { messages } = await sessionRuntime.readCurrentMessages();
 					const usage = await sessionRuntime.getAccumulatedUsage({
 						inputTokens: 0,
 						outputTokens: 0,

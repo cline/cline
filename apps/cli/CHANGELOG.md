@@ -1,5 +1,11 @@
 # Cline CLI Changelog
 
+## 3.0.34
+
+- Fixed the ClinePass upgrade notice appearing immediately after completing onboarding.
+- Improved the wording of the ClinePass onboarding step.
+- Streamlined the Cline provider picker by merging the subscription and usage/billing options into one and removing the credits link.
+
 ## 3.0.33
 
 - Show a ClinePass subscription URL as a fallback during onboarding so you can still subscribe if the subscription screen can't open automatically

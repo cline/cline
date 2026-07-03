@@ -1,6 +1,7 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import * as LlmsModels from "@cline/llms";
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	type LegacyClineUserInfo,
@@ -146,9 +147,13 @@ describe("migrateLegacyProviderSettings", () => {
 		expect(manager.getProviderSettings("openai")?.apiKey).toBe(
 			"already-migrated",
 		);
+		const anthropicDefault =
+			LlmsModels.getProviderCollectionSync("anthropic")?.provider
+				.defaultModelId;
+		expect(anthropicDefault).toBeDefined();
 		expect(manager.getProviderSettings("anthropic")).toEqual({
 			provider: "anthropic",
-			model: "claude-fable-5",
+			model: anthropicDefault,
 			apiKey: "legacy-key",
 		});
 		expect(manager.read().providers.openai?.tokenSource).toBe("manual");

@@ -69,6 +69,9 @@ export interface ContextCompactionPrepareTurnOptions {
 	manualTargetRatio?: number;
 }
 
+const MIN_CONTEXT_DERIVED_INPUT_RATIO = 0.5;
+const LONG_CONVERSATION_TARGET_RATIO = 0.5;
+
 function safeJsonSize(value: unknown): number {
 	try {
 		return JSON.stringify(value).length;
@@ -96,11 +99,15 @@ function resolveMaxInputTokens(input: {
 	}
 	if (isPositiveFiniteNumber(input.contextWindow)) {
 		candidates.push(input.contextWindow);
+		const derivedInputTokens = isPositiveFiniteNumber(input.modelMaxTokens)
+			? input.contextWindow - input.modelMaxTokens
+			: undefined;
 		if (
-			isPositiveFiniteNumber(input.modelMaxTokens) &&
-			input.modelMaxTokens < input.contextWindow
+			isPositiveFiniteNumber(derivedInputTokens) &&
+			derivedInputTokens >=
+				input.contextWindow * MIN_CONTEXT_DERIVED_INPUT_RATIO
 		) {
-			candidates.push(input.contextWindow - input.modelMaxTokens);
+			candidates.push(derivedInputTokens);
 		}
 	}
 	return candidates.length > 0
@@ -245,20 +252,36 @@ function resolveBasicTargetTokens(input: {
 	maxInputTokens: number;
 	modelMaxTokens?: number;
 	triggerTokens: number;
+	messagePairCount: number;
 }): number {
-	const targetBaseTokens =
+	const targetTokens =
+		input.messagePairCount >= 5 &&
 		typeof input.modelMaxTokens === "number" &&
 		Number.isFinite(input.modelMaxTokens) &&
 		input.modelMaxTokens < input.maxInputTokens
-			? input.maxInputTokens - input.modelMaxTokens
-			: input.triggerTokens;
+			? Math.floor(input.maxInputTokens * LONG_CONVERSATION_TARGET_RATIO)
+			: Math.floor(input.triggerTokens * DEFAULT_TARGET_RATIO);
+	const triggerCeiling = Math.max(1, input.triggerTokens - 1);
 	return Math.max(
 		1,
-		Math.min(
-			Math.floor(targetBaseTokens * DEFAULT_TARGET_RATIO),
-			input.maxInputTokens,
-		),
+		Math.min(targetTokens, input.maxInputTokens, triggerCeiling),
 	);
+}
+
+function countUserAssistantPairs(
+	messages: CoreCompactionContext["messages"],
+): number {
+	let pairs = 0;
+	let hasPendingUser = false;
+	for (const message of messages) {
+		if (message.role === "user") {
+			hasPendingUser = true;
+		} else if (message.role === "assistant" && hasPendingUser) {
+			pairs += 1;
+			hasPendingUser = false;
+		}
+	}
+	return pairs;
 }
 
 /**
@@ -351,37 +374,38 @@ export function createContextCompactionPrepareTurn(
 		if (mode === "auto" && !triggerState.shouldCompact) {
 			return undefined;
 		}
-			const targetState =
-				mode === "manual"
-					? resolveManualTargetState({
-							inputTokens,
-							maxInputTokens,
+		const targetState =
+			mode === "manual"
+				? resolveManualTargetState({
+						inputTokens,
+						maxInputTokens,
 						autoTriggerTokens: triggerState.triggerTokens,
 						manualTargetRatio: options.manualTargetRatio,
 					})
-					: triggerState;
-			const targetTokens =
-				mode === "auto"
-					? resolveBasicTargetTokens({
-							maxInputTokens,
-							modelMaxTokens: context.model.info?.maxTokens,
-							triggerTokens: targetState.triggerTokens,
-						})
-					: undefined;
+				: triggerState;
+		const targetTokens =
+			mode === "auto"
+				? resolveBasicTargetTokens({
+						maxInputTokens,
+						modelMaxTokens: context.model.info?.maxTokens,
+						triggerTokens: targetState.triggerTokens,
+						messagePairCount: countUserAssistantPairs(context.messages),
+					})
+				: undefined;
 
-			const compactionContext = {
-				agentId: context.agentId,
-				conversationId: context.conversationId,
+		const compactionContext = {
+			agentId: context.agentId,
+			conversationId: context.conversationId,
 			parentAgentId: context.parentAgentId,
 			iteration: context.iteration,
 			messages: context.messages,
-				model: context.model,
-				maxInputTokens,
-				triggerTokens: targetState.triggerTokens,
-				targetTokens,
-				thresholdRatio: targetState.thresholdRatio,
-				utilizationRatio: maxInputTokens > 0 ? inputTokens / maxInputTokens : 0,
-			};
+			model: context.model,
+			maxInputTokens,
+			triggerTokens: targetState.triggerTokens,
+			targetTokens,
+			thresholdRatio: targetState.thresholdRatio,
+			utilizationRatio: maxInputTokens > 0 ? inputTokens / maxInputTokens : 0,
+		};
 
 		const statusReason =
 			mode === "manual" ? "manual_compaction" : "auto_compaction";
