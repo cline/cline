@@ -16,6 +16,19 @@ import { RUN_COMMAND_QUERY_PREVIEW_LIMIT, TimeoutError } from "./helpers";
 import { INPUT_ARG_CHAR_LIMIT } from "./schemas";
 import type { SkillsExecutorWithMetadata } from "./types";
 
+function hasSchemaKey(value: unknown, key: string): boolean {
+	if (Array.isArray(value)) {
+		return value.some((item) => hasSchemaKey(item, key));
+	}
+	if (value && typeof value === "object") {
+		return Object.entries(value).some(
+			([entryKey, entryValue]) =>
+				entryKey === key || hasSchemaKey(entryValue, key),
+		);
+	}
+	return false;
+}
+
 function createMockSkillsExecutor(
 	fn: (...args: unknown[]) => Promise<string> = async () => "ok",
 	configuredSkills?: SkillsExecutorWithMetadata["configuredSkills"],
@@ -608,6 +621,62 @@ describe("default run_commands tool", () => {
 				iteration: 1,
 			}),
 		);
+	});
+
+	it("accepts mixed structured and string command arrays", async () => {
+		const execute = vi.fn(
+			async (command: string | { command: string; args?: string[] }) =>
+				typeof command === "string"
+					? `ran:${command}`
+					: `ran:${command.command}:${(command.args ?? []).join(",")}`,
+		);
+		const tool = createShellTool(execute);
+
+		const result = await tool.execute(
+			{
+				commands: ["pwd", { command: "node", args: ["--version"] }],
+			} as never,
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		expect(result).toEqual([
+			{ query: "pwd", result: "ran:pwd", success: true },
+			{
+				query: "node --version",
+				result: "ran:node:--version",
+				success: true,
+			},
+		]);
+		expect(execute).toHaveBeenNthCalledWith(
+			1,
+			"pwd",
+			process.cwd(),
+			expect.objectContaining({ iteration: 1 }),
+		);
+		expect(execute).toHaveBeenNthCalledWith(
+			2,
+			{ command: "node", args: ["--version"] },
+			process.cwd(),
+			expect.objectContaining({ iteration: 1 }),
+		);
+	});
+
+	it("rejects invalid text-object command entries", async () => {
+		const execute = vi.fn(async () => "ran");
+		const tool = createShellTool(execute);
+
+		await expect(
+			tool.execute({ commands: [{ $text: "pwd" }] } as never, {
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			}),
+		).rejects.toThrow("Invalid input");
+		expect(execute).not.toHaveBeenCalled();
 	});
 
 	it("preserves args on direct structured command objects", async () => {
@@ -1495,6 +1564,22 @@ describe("default read_files tool", () => {
 });
 
 describe("zod schema conversion", () => {
+	it("advertises run_commands as string-only command arrays", () => {
+		const tool = createShellTool(async () => "ok");
+		const inputSchema = tool.inputSchema as Record<string, unknown>;
+		const serialized = JSON.stringify(inputSchema);
+
+		expect(serialized).not.toContain('"anyOf"');
+		expect(serialized).not.toContain("Prefer structured");
+		expect(hasSchemaKey(inputSchema, "command")).toBe(false);
+
+		const properties = inputSchema.properties as Record<string, unknown>;
+		const commands = properties.commands as {
+			items?: { type?: string };
+		};
+		expect(commands.items?.type).toBe("string");
+	});
+
 	it("preserves read_files required properties in generated JSON schema", () => {
 		const tool = createReadFilesTool(async () => "ok");
 		const inputSchema = tool.inputSchema as Record<string, unknown>;

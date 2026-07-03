@@ -120,19 +120,14 @@ export const StructuredCommandEntrySchema = z.union([
 	StructuredCommandInputSchema,
 ]);
 
-/**
- * Schema for run_commands tool input.
- *
- * Supports both shell strings and direct structured `{ command, args }` entries
- * on every platform. Plain strings are interpreted by the active shell;
- * structured entries bypass shell parsing and execute the command directly.
- */
 export const RunCommandsInputSchema = z.object({
 	commands: z
-		.array(StructuredCommandEntrySchema)
-		.describe(
-			"Array of commands to execute. Prefer structured { command, args } entries for portability; plain strings are still supported and are interpreted by the active shell.",
-		),
+		.array(CommandInputSchema)
+		.describe("Array of complete shell command strings to execute."),
+});
+
+const StructuredCommandsInputSchema = z.object({
+	commands: z.array(StructuredCommandEntrySchema),
 });
 
 /**
@@ -140,6 +135,7 @@ export const RunCommandsInputSchema = z.object({
  */
 export const RunCommandsInputUnionSchema = z.union([
 	RunCommandsInputSchema,
+	StructuredCommandsInputSchema,
 	z.object({ commands: StructuredCommandEntrySchema }),
 	z.array(StructuredCommandInputSchema),
 	StructuredCommandInputSchema,

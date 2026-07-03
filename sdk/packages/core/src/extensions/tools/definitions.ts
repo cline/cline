@@ -49,8 +49,8 @@ import {
 	SearchCodebaseInputSchema,
 	SearchCodebaseUnionInputSchema,
 	type SkillsInput,
-	type StructuredCommandInput,
 	SkillsInputSchema,
+	type StructuredCommandInput,
 	type SubmitInput,
 	SubmitInputSchema,
 } from "./schemas";
@@ -415,7 +415,7 @@ export function createShellTool(
 			? "Run non-interactive shell commands from the root of the workspace in Windows environment. " +
 				RUN_COMMANDS_SHARED_INSTRUCTIONS +
 				`Output beyond ~${Math.round(MAX_COMMAND_OUTPUT_CHARS / 1000)}k characters is middle-truncated (start and end preserved); filter output when you need specific sections. ` +
-				"Prefer structured { command, args } entries for portability; plain string commands should be properly shell-escaped. Include multiple commands in the same call when they are independent and safe to run concurrently. When independent reads, searches, or edits are also needed, call those tools in the same response."
+				"Commands run through PowerShell; quote paths and arguments for PowerShell and use ';' to sequence commands. Include multiple commands in the same call when they are independent and safe to run concurrently. When independent reads, searches, or edits are also needed, call those tools in the same response."
 			: "Run non-interactive shell commands from the root of the workspace. " +
 				RUN_COMMANDS_SHARED_INSTRUCTIONS +
 				"Commands should be properly shell-escaped and targeted to avoid error or timeout. Include multiple commands in the same call when they are independent complete shell commands and safe to run concurrently; multiline scripts and heredocs must be a single command string. When independent reads, searches, or edits are also needed, call those tools in the same response. " +
