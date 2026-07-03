@@ -20,9 +20,10 @@ export function messageToAgentMessages(
 ): AgentMessage[] {
 	const blocks = normalizeContentBlocks(message.content);
 	const out: AgentMessage[] = [];
-	const baseId = message.id
-		? stripEncodedIdSuffix(message.id)
-		: generateMessageId();
+	const baseId =
+		message.id == null
+			? generateMessageId()
+			: stripEncodedIdSuffix(message.id, blocks);
 	let nonToolSegmentCount = 0;
 	let nonToolBlocks: Exclude<ContentBlock, ToolResultContent>[] = [];
 
@@ -303,17 +304,33 @@ function generateMessageId(): string {
 }
 
 /**
- * Strips a trailing `_tool_<toolUseId>` suffix that a previous encode appended
- * to a tool-result message id, so that re-encoding an already-persisted message
- * produces a stable, byte-identical id instead of growing the suffix on every
- * persist cycle.
+ * Recovers the original base id from a message id that a previous encode may
+ * have suffixed, so that re-encoding an already-persisted message produces a
+ * stable, byte-identical id instead of growing the suffix on every persist
+ * cycle.
  *
- * Only the `_tool_` suffix is stripped. The `_part_<n>` suffix used for split
- * non-tool segments must NOT be stripped: on decode each segment becomes its own
- * single-block message, so re-encoding never regenerates `_part_<n>`. Stripping
- * it would collapse a `..._part_1` id back to the bare base id and collide with
- * the message's first segment.
+ * A tool-result block is encoded as `${baseId}_tool_${block.tool_use_id}`. To
+ * avoid mistaking an id that legitimately contains `_tool_` for an encoded
+ * suffix, only a trailing `_tool_<toolUseId>` whose `<toolUseId>` matches a
+ * tool_use_id actually present in this message is stripped.
+ *
+ * The `_part_<n>` suffix used for split non-tool segments is intentionally not
+ * stripped: on decode each segment becomes its own single-block message, so
+ * re-encoding never regenerates `_part_<n>`, and stripping it would collapse a
+ * `..._part_1` id back onto the base id and collide with the first segment.
  */
-function stripEncodedIdSuffix(id: string): string {
-	return id.replace(/_tool_.+$/, "");
+function stripEncodedIdSuffix(
+	id: string,
+	blocks: readonly ContentBlock[],
+): string {
+	for (const block of blocks) {
+		if (block.type !== "tool_result") {
+			continue;
+		}
+		const suffix = `_tool_${block.tool_use_id}`;
+		if (id.endsWith(suffix)) {
+			return id.slice(0, -suffix.length);
+		}
+	}
+	return id;
 }

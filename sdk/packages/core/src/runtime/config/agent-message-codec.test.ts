@@ -277,4 +277,46 @@ describe("agent message codec", () => {
 		]);
 		expect(new Set(reEncoded).size).toBe(reEncoded.length);
 	});
+
+	it("does not strip a base id that contains _tool_ but is not an encoded suffix", () => {
+		// The base id legitimately ends in `_tool_summary`, which is NOT the
+		// message's tool_use_id (`call_d`). Only a `_tool_<toolUseId>` that
+		// matches an actual tool_use_id in the message is treated as an encoded
+		// suffix, so the base id must survive untouched.
+		const [encoded] = messageToAgentMessages({
+			id: "msg_tool_summary",
+			role: "user",
+			ts: 1,
+			content: [
+				{
+					type: "tool_result",
+					tool_use_id: "call_d",
+					name: "editor",
+					content: "done",
+				},
+			],
+		});
+
+		expect(encoded?.id).toBe("msg_tool_summary_tool_call_d");
+
+		const [reEncoded] = messageToAgentMessages(
+			agentMessageToMessageWithMetadata(
+				encoded ?? { id: "", role: "user", content: [], createdAt: 0 },
+			),
+		);
+		expect(reEncoded?.id).toBe("msg_tool_summary_tool_call_d");
+	});
+
+	it("preserves an empty-string message id", () => {
+		// An empty-string id is a real (if unusual) value, distinct from a
+		// missing id. It must be preserved, not replaced with a generated id.
+		const [encoded] = messageToAgentMessages({
+			id: "",
+			role: "user",
+			ts: 1,
+			content: [{ type: "text", text: "hi" }],
+		});
+
+		expect(encoded?.id).toBe("");
+	});
 });
