@@ -383,11 +383,31 @@ export function createInteractiveSessionRuntime(input: {
 	): Promise<void> => {
 		sessionStartGeneration += 1;
 		pendingResumeSessionId = undefined;
-		startupPromise = undefined;
 		startupError = undefined;
-		await stopCurrentSession();
-		clearActiveSession();
-		await startFreshSession(messages, sessionMetadata);
+		// Publish the restart as the in-flight startup. Teardown leaves a window
+		// with no active session, and without this barrier a concurrent
+		// ensureReady() (e.g. a message submitted right after a plan/act toggle)
+		// reads that window as "no session" and boots an empty session that then
+		// races the restarted one for the active slot.
+		const restart = (async () => {
+			await stopCurrentSession();
+			clearActiveSession();
+			await startFreshSession(messages, sessionMetadata);
+		})().catch((error) => {
+			startupError = error;
+			throw error;
+		});
+		startupPromise = restart;
+		try {
+			await restart;
+		} finally {
+			// Restore the pre-restart steady state (startupPromise unset) so a
+			// failed restart stays retryable by the next ensureReady(). A newer
+			// startup that already replaced the barrier is left alone.
+			if (startupPromise === restart) {
+				startupPromise = undefined;
+			}
+		}
 	};
 
 	const restartWithCurrentMessages = async (): Promise<void> => {
