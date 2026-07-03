@@ -1,5 +1,14 @@
 # Cline SDK Changelog
 
+## 0.0.55
+
+- Add Tencent TokenHub as a provider
+- Add a compaction strategy setting so you can choose how context compaction works
+- Fix first-prompt truncation on high-output models (e.g. MiniMax M3), where a shallow session could auto-compact immediately and reduce the initial task to just the input wrapper
+- Use a curated default when migrating legacy provider settings
+- Advertise run commands as shell strings
+- Refresh the bundled model catalog with the latest provider models
+
 ## 0.0.54
 
 - Improve basic compaction token budgeting so context compaction is more accurate
