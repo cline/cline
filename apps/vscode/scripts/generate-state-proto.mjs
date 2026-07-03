@@ -85,7 +85,7 @@ function inferProtoType(typeText, fieldName) {
 		["FocusChainSettings", "FocusChainSettings"],
 		["OpenaiReasoningEffort", "OpenaiReasoningEffort"],
 		["PlanActMode", "PlanActMode"],
-		["ApiProvider", "ApiProvider"],
+		["ApiProvider", "string"],
 		["LanguageModelChatSelector", "LanguageModelChatSelector"], // Must come before "Mode" check
 	]
 

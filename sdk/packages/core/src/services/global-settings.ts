@@ -29,10 +29,15 @@ const GlobalSettingsStringListSchema = z
 		return normalized.length > 0 ? normalized : undefined;
 	});
 
+const GlobalCompactionStrategySchema = z.enum(["basic", "agentic"]).catch("basic");
+
+export type GlobalCompactionStrategy = z.infer<typeof GlobalCompactionStrategySchema>;
+
 export const GlobalSettingsSchema = z
 	.object({
 		telemetryOptOut: z.boolean().default(false).catch(false),
 		autoUpdateEnabled: z.boolean().default(true).catch(true),
+		compactionStrategy: GlobalCompactionStrategySchema.optional(),
 		disabledTools: GlobalSettingsStringListSchema.optional(),
 		disabledPlugins: GlobalSettingsStringListSchema.optional(),
 	})
@@ -41,12 +46,16 @@ export const GlobalSettingsSchema = z
 		const normalized: {
 			telemetryOptOut: boolean;
 			autoUpdateEnabled: boolean;
+			compactionStrategy?: GlobalCompactionStrategy;
 			disabledTools?: string[];
 			disabledPlugins?: string[];
 		} = {
 			autoUpdateEnabled: settings.autoUpdateEnabled,
 			telemetryOptOut: settings.telemetryOptOut,
 		};
+		if (settings.compactionStrategy) {
+			normalized.compactionStrategy = settings.compactionStrategy;
+		}
 		if (settings.disabledTools?.length) {
 			normalized.disabledTools = settings.disabledTools;
 		}
@@ -178,6 +187,16 @@ export function setAutoUpdateEnabledGlobally(
 		},
 		options,
 	);
+}
+
+export function readCompactionStrategyGlobally(): GlobalCompactionStrategy {
+	return readGlobalSettings().compactionStrategy ?? "basic";
+}
+
+export function setCompactionStrategyGlobally(
+	compactionStrategy: GlobalCompactionStrategy,
+): void {
+	writeGlobalSettings({ ...readGlobalSettings(), compactionStrategy });
 }
 
 export function resolveDisabledToolNames(
