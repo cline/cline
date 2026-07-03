@@ -30,6 +30,29 @@ export interface ClientContext {
 }
 
 /**
+ * Client/runtime metadata used when constructing provider request metadata.
+ *
+ * This is intentionally separate from WorkspaceContext so request headers can
+ * preserve legacy host metadata without changing prompt/workspace semantics.
+ */
+export interface RequestMetadataContext {
+	/** Legacy client type value for provider request headers. */
+	clientType?: string;
+	/** Client version value for provider request headers. */
+	clientVersion?: string;
+	/** HTTP User-Agent value for provider requests. */
+	userAgent?: string;
+	/** Host/application platform label, e.g. "Visual Studio Code". */
+	platform?: string;
+	/** Host/application version, e.g. the VS Code version. */
+	platformVersion?: string;
+	/** Cline core/runtime version. */
+	coreVersion?: string;
+	/** Whether the host is currently operating on multiple workspace roots. */
+	isMultiRoot?: boolean;
+}
+
+/**
  * Identity of the authenticated user.
  */
 export interface UserContext {
@@ -80,6 +103,7 @@ export interface ExtensionContext {
 	user?: UserContext;
 	client?: ClientContext;
 	workspace?: WorkspaceContext;
+	requestMetadata?: RequestMetadataContext;
 	/** Core session metadata forwarded into plugin setup context. */
 	session?: AgentExtensionSessionContext;
 	/**

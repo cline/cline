@@ -24,12 +24,14 @@ const mocks = vi.hoisted(() => {
 	}
 
 	return {
-		buildClineExtraHeaders: vi.fn(async () => ({
-			"User-Agent": "Cline/test",
-			"X-CLIENT-TYPE": "VSCode Extension",
-			"X-CLIENT-VERSION": "1.2.3",
-			"X-CORE-VERSION": "1.2.3",
-			"X-IS-MULTIROOT": "false",
+		buildClientRuntimeContext: vi.fn(async () => ({
+			userAgent: "Cline/test",
+			clientName: "VSCode Extension",
+			clientVersion: "1.2.3",
+			platform: "Visual Studio Code",
+			platformVersion: "1.90.0",
+			coreVersion: "1.2.3",
+			isMultiRoot: false,
 		})),
 		getDistinctId: vi.fn(() => "test-distinct-id"),
 		getProviderSettingsManager: vi.fn(() => providerSettingsManager),
@@ -61,7 +63,7 @@ vi.mock("@/services/logging/distinctId", () => ({
 }))
 
 vi.mock("@/services/EnvUtils", () => ({
-	buildClineExtraHeaders: mocks.buildClineExtraHeaders,
+	buildClientRuntimeContext: mocks.buildClientRuntimeContext,
 }))
 
 vi.mock("@cline/llms", () => {
@@ -141,12 +143,14 @@ beforeEach(() => {
 	})
 	mocks.providerSettingsManager.getLastUsedProviderSettings.mockReturnValue(undefined)
 	mocks.providerSettingsManager.getProviderSettings.mockReturnValue(undefined)
-	mocks.buildClineExtraHeaders.mockResolvedValue({
-		"User-Agent": "Cline/test",
-		"X-CLIENT-TYPE": "VSCode Extension",
-		"X-CLIENT-VERSION": "1.2.3",
-		"X-CORE-VERSION": "1.2.3",
-		"X-IS-MULTIROOT": "false",
+	mocks.buildClientRuntimeContext.mockResolvedValue({
+		userAgent: "Cline/test",
+		clientName: "VSCode Extension",
+		clientVersion: "1.2.3",
+		platform: "Visual Studio Code",
+		platformVersion: "1.90.0",
+		coreVersion: "1.2.3",
+		isMultiRoot: false,
 	})
 })
 
@@ -254,7 +258,7 @@ describe("buildStartSessionInput", () => {
 		expect(result.prompt).toBeUndefined()
 	})
 
-	it("stamps Cline provider headers with the session id before start", () => {
+	it("does not rewrite provider headers before start", () => {
 		const headers = {
 			"HTTP-Referer": "https://cline.bot",
 			"X-Title": "Cline",
@@ -276,8 +280,8 @@ describe("buildStartSessionInput", () => {
 		const result = buildStartSessionInput(config, { cwd: "/tmp/workspace" })
 
 		expect(result.config).toBe(config)
-		expect(config.headers?.["X-Task-ID"]).toBe("session-123")
-		expect((config.providerConfig as any).headers["X-Task-ID"]).toBe("session-123")
+		expect(config.headers?.["X-Task-ID"]).toBe("")
+		expect((config.providerConfig as any).headers["X-Task-ID"]).toBe("")
 	})
 })
 
@@ -375,7 +379,7 @@ describe("buildSessionConfig", () => {
 		expect(config.apiKey).toBe("workos:test-access-token")
 	})
 
-	it("adds classic VS Code Cline provider headers to session config", async () => {
+	it("passes VS Code client request metadata without owning Cline provider headers", async () => {
 		mocks.stateManager.getApiConfiguration.mockReturnValue({
 			actModeApiProvider: "cline",
 			actModeClineModelId: "anthropic/claude-sonnet-4.6",
@@ -384,18 +388,29 @@ describe("buildSessionConfig", () => {
 
 		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
 
-		expect(mocks.buildClineExtraHeaders).toHaveBeenCalledTimes(1)
-		expect(config.headers).toEqual({
-			"HTTP-Referer": "https://cline.bot",
-			"User-Agent": "Cline/test",
-			"X-CLIENT-TYPE": "VSCode Extension",
-			"X-CLIENT-VERSION": "1.2.3",
-			"X-CORE-VERSION": "1.2.3",
-			"X-IS-MULTIROOT": "false",
-			"X-Task-ID": "",
-			"X-Title": "Cline",
+		expect(mocks.buildClientRuntimeContext).toHaveBeenCalledTimes(1)
+		expect(config.headers).toBeUndefined()
+		expect((config.providerConfig as any).headers).toBeUndefined()
+		expect(config.extensionContext).toMatchObject({
+			client: {
+				name: "cline-vscode",
+				version: "1.2.3",
+			},
+			workspace: {
+				cwd: "/tmp/workspace",
+				ide: "VS Code",
+				platform: process.platform,
+			},
+			requestMetadata: {
+				clientType: "VSCode Extension",
+				clientVersion: "1.2.3",
+				userAgent: "Cline/test",
+				platform: "Visual Studio Code",
+				platformVersion: "1.90.0",
+				coreVersion: "1.2.3",
+				isMultiRoot: false,
+			},
 		})
-		expect((config.providerConfig as any).headers).toEqual(config.headers)
 	})
 
 	it("resolves ClinePass from the shared Cline OAuth credentials", async () => {

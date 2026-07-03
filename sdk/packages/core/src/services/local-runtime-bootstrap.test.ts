@@ -1,6 +1,7 @@
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { ExtensionContext } from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ProviderSettings } from "../types/provider-settings";
 
@@ -392,6 +393,58 @@ describe("prepareLocalRuntimeBootstrap", () => {
 		});
 
 		expect(bootstrap.providerConfig.fetch).toBeUndefined();
+	});
+
+	it("preserves stored Cline headers when session config only supplies request metadata", async () => {
+		const { prepareLocalRuntimeBootstrap } = await import(
+			"./local-runtime-bootstrap"
+		);
+
+		const input = createStartInput();
+		const config = input.config as typeof input.config & {
+			extensionContext: ExtensionContext;
+		};
+		config.extensionContext = {
+			client: { name: "cline-vscode", version: "1.2.3" },
+			requestMetadata: {
+				clientType: "VSCode Extension",
+				clientVersion: "1.2.3",
+				platform: "Visual Studio Code",
+				platformVersion: "1.90.0",
+				coreVersion: "1.2.3",
+				isMultiRoot: false,
+			},
+		};
+
+		const bootstrap = await prepareLocalRuntimeBootstrap({
+			input,
+			sessionId: "sess-cline",
+			providerSettingsManager: createProviderSettingsManager({
+				provider: "cline",
+				model: "anthropic/claude-haiku-4.5",
+				headers: {
+					"x-stored": "stored",
+				},
+			}) as never,
+			defaultTelemetry: undefined,
+			defaultToolPolicies: undefined,
+			onPluginEvent: () => {},
+			onTeamEvent: () => {},
+			createSpawnTool,
+			readSessionMetadata: async () => undefined,
+			writeSessionMetadata: async () => {},
+		});
+
+		expect(bootstrap.config.headers).toBeUndefined();
+		expect(bootstrap.providerConfig.headers).toEqual({
+			"x-stored": "stored",
+		});
+		expect(
+			bootstrap.providerConfig.extensionContext?.requestMetadata,
+		).toMatchObject({
+			clientType: "VSCode Extension",
+			platform: "Visual Studio Code",
+		});
 	});
 
 	it("adds Codex backend headers for openai-codex from stored OAuth settings", async () => {

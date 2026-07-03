@@ -145,14 +145,23 @@ describe("createAgentModelFromConfig", () => {
 				providerId: "cline",
 				modelId: "anthropic/claude-sonnet-4.6",
 				apiKey: "key",
-				sessionId: "sess-cli",
+				sessionId: "sess-vscode",
 				systemPrompt: "",
 				tools: [],
 				extensionContext: {
-					client: { name: "cline-cli", version: "1.2.3" },
+					client: { name: "cline-vscode", version: "1.2.3" },
 					workspace: {
 						rootPath: "/tmp/project",
 						platform: "darwin",
+					},
+					requestMetadata: {
+						clientType: "VSCode Extension",
+						clientVersion: "1.2.3",
+						userAgent: "Cline/1.2.3",
+						platform: "Visual Studio Code",
+						platformVersion: "1.90.0",
+						coreVersion: "1.2.3",
+						isMultiRoot: true,
 					},
 				},
 				providerConfig: {
@@ -170,11 +179,14 @@ describe("createAgentModelFromConfig", () => {
 		expect(gatewayConfig?.providerConfigs[0].headers).toMatchObject({
 			"HTTP-Referer": "https://cline.bot",
 			"X-Title": "Cline",
-			"X-IS-MULTIROOT": "false",
-			"X-CLIENT-TYPE": "cline-cli",
+			"User-Agent": "Cline/1.2.3",
+			"X-IS-MULTIROOT": "true",
+			"X-CLIENT-TYPE": "VSCode Extension",
 			"X-CLIENT-VERSION": "1.2.3",
-			"X-PLATFORM": "darwin",
-			"X-Task-ID": "sess-cli",
+			"X-PLATFORM": "Visual Studio Code",
+			"X-PLATFORM-VERSION": "1.90.0",
+			"X-CORE-VERSION": "1.2.3",
+			"X-Task-ID": "sess-vscode",
 			"x-provider": "kept",
 		});
 	});

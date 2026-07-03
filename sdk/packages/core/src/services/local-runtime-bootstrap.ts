@@ -179,6 +179,51 @@ function deriveOpenAICodexAccountId(
 	return undefined;
 }
 
+function mergeExtensionContext(
+	base: ExtensionContext | undefined,
+	override: ExtensionContext | undefined,
+): ExtensionContext | undefined {
+	if (!base && !override) {
+		return undefined;
+	}
+	return {
+		...(base ?? {}),
+		...(override ?? {}),
+		user:
+			base?.user || override?.user
+				? { ...(base?.user ?? {}), ...(override?.user ?? {}) }
+				: undefined,
+		client:
+			base?.client || override?.client
+				? ({
+						...(base?.client ?? {}),
+						...(override?.client ?? {}),
+					} as ExtensionContext["client"])
+				: undefined,
+		workspace:
+			base?.workspace || override?.workspace
+				? ({
+						...(base?.workspace ?? {}),
+						...(override?.workspace ?? {}),
+					} as ExtensionContext["workspace"])
+				: undefined,
+		requestMetadata:
+			base?.requestMetadata || override?.requestMetadata
+				? {
+						...(base?.requestMetadata ?? {}),
+						...(override?.requestMetadata ?? {}),
+					}
+				: undefined,
+		session:
+			base?.session || override?.session
+				? { ...(base?.session ?? {}), ...(override?.session ?? {}) }
+				: undefined,
+		automation: override?.automation ?? base?.automation,
+		logger: override?.logger ?? base?.logger,
+		telemetry: override?.telemetry ?? base?.telemetry,
+	};
+}
+
 function buildProviderConfig(
 	config: CoreSessionConfig,
 	sessionId: string,
@@ -319,7 +364,10 @@ export async function prepareLocalRuntimeBootstrap(
 	// as workspaceMetadata; the structured object is kept as workspaceInfo.
 	const { workspaceInfo, workspaceMetadata, durationMs, vcsType, initError } =
 		await buildWorkspaceMetadataWithInfo(workspacePath);
-	const configuredExtensionContext = localConfig?.extensionContext;
+	const configuredExtensionContext = mergeExtensionContext(
+		(input.config as { extensionContext?: ExtensionContext }).extensionContext,
+		localConfig?.extensionContext,
+	);
 	const extensionContext: ExtensionContext = {
 		...(configuredExtensionContext ?? {}),
 		workspace: {

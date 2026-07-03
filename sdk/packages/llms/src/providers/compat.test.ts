@@ -377,6 +377,13 @@ describe("createGatewayApiHandler.createMessage", () => {
 					rootPath: "/tmp/project",
 					platform: "darwin",
 				},
+				requestMetadata: {
+					userAgent: "Cline/2.3.4",
+					platform: "JetBrains",
+					platformVersion: "2026.1",
+					coreVersion: "2.3.4",
+					isMultiRoot: true,
+				},
 			},
 			headers: {
 				"x-custom": "kept",
@@ -395,10 +402,13 @@ describe("createGatewayApiHandler.createMessage", () => {
 		expect(factoryConfig?.headers).toMatchObject({
 			"HTTP-Referer": "https://cline.bot",
 			"X-Title": "Cline",
-			"X-IS-MULTIROOT": "false",
+			"User-Agent": "Cline/2.3.4",
+			"X-IS-MULTIROOT": "true",
 			"X-CLIENT-TYPE": "cline-jetbrains",
 			"X-CLIENT-VERSION": "2.3.4",
-			"X-PLATFORM": "darwin",
+			"X-PLATFORM": "JetBrains",
+			"X-PLATFORM-VERSION": "2026.1",
+			"X-CORE-VERSION": "2.3.4",
 			"X-Task-ID": "task-jetbrains",
 			"x-custom": "kept",
 		});

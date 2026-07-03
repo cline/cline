@@ -13,27 +13,76 @@ const ClineHeaders = {
 	IS_MULTIROOT: "X-IS-MULTIROOT",
 } as const
 
+interface HostRuntimeInfo {
+	platform: string
+	platformVersion: string
+	clientName: string
+	clientVersion: string
+}
+
+export interface ClientRuntimeContext {
+	platform: string
+	platformVersion: string
+	clientName: string
+	clientVersion: string
+	userAgent: string
+	coreVersion: string
+	isMultiRoot: boolean
+}
+
 export function buildExternalBasicHeaders(): Record<string, string> {
 	return {
 		"User-Agent": `Cline/${ExtensionRegistryInfo.version}`,
 	}
 }
 
-export async function buildBasicClineHeaders(): Promise<Record<string, string>> {
-	const headers: Record<string, string> = buildExternalBasicHeaders()
+async function getHostRuntimeInfo(): Promise<HostRuntimeInfo> {
 	try {
 		const host = await HostProvider.env.getHostVersion(EmptyRequest.create({}))
-		headers[ClineHeaders.PLATFORM] = host.platform || "unknown"
-		headers[ClineHeaders.PLATFORM_VERSION] = host.version || "unknown"
-		headers[ClineHeaders.CLIENT_TYPE] = host.clineType || "unknown"
-		headers[ClineHeaders.CLIENT_VERSION] = host.clineVersion || "unknown"
+		return {
+			platform: host.platform || "unknown",
+			platformVersion: host.version || "unknown",
+			clientName: host.clineType || "unknown",
+			clientVersion: host.clineVersion || "unknown",
+		}
 	} catch (error) {
 		Logger.log("Failed to get IDE/platform info via HostBridge EnvService.getHostVersion", error)
-		headers[ClineHeaders.PLATFORM] = "unknown"
-		headers[ClineHeaders.PLATFORM_VERSION] = "unknown"
-		headers[ClineHeaders.CLIENT_TYPE] = "unknown"
-		headers[ClineHeaders.CLIENT_VERSION] = "unknown"
+		return {
+			platform: "unknown",
+			platformVersion: "unknown",
+			clientName: "unknown",
+			clientVersion: "unknown",
+		}
 	}
+}
+
+async function isMultiRootWorkspace(): Promise<boolean> {
+	try {
+		const { paths } = await HostProvider.workspace.getWorkspacePaths({})
+		return paths.length > 1
+	} catch (error) {
+		Logger.log("Failed to detect multi-root workspace", error)
+		return false
+	}
+}
+
+export async function buildClientRuntimeContext(): Promise<ClientRuntimeContext> {
+	const host = await getHostRuntimeInfo()
+	return {
+		...host,
+		userAgent: buildExternalBasicHeaders()["User-Agent"],
+		coreVersion: ExtensionRegistryInfo.version,
+		isMultiRoot: await isMultiRootWorkspace(),
+	}
+}
+
+export async function buildBasicClineHeaders(): Promise<Record<string, string>> {
+	const host = await getHostRuntimeInfo()
+	const headers: Record<string, string> = buildExternalBasicHeaders()
+	headers[ClineHeaders.PLATFORM] = host.platform
+	headers[ClineHeaders.PLATFORM_VERSION] = host.platformVersion
+	headers[ClineHeaders.CLIENT_TYPE] = host.clientName
+	headers[ClineHeaders.CLIENT_VERSION] = host.clientVersion
 	headers[ClineHeaders.CORE_VERSION] = ExtensionRegistryInfo.version
 
 	return headers
@@ -41,15 +90,7 @@ export async function buildBasicClineHeaders(): Promise<Record<string, string>> 
 
 export async function buildClineExtraHeaders(): Promise<Record<string, string>> {
 	const headers = await buildBasicClineHeaders()
-
-	try {
-		const { paths } = await HostProvider.workspace.getWorkspacePaths({})
-		const isMultiRoot = paths.length > 1
-		headers[ClineHeaders.IS_MULTIROOT] = isMultiRoot ? "true" : "false"
-	} catch (error) {
-		Logger.log("Failed to detect multi-root workspace", error)
-		headers[ClineHeaders.IS_MULTIROOT] = "false"
-	}
+	headers[ClineHeaders.IS_MULTIROOT] = (await isMultiRootWorkspace()) ? "true" : "false"
 
 	return headers
 }

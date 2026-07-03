@@ -24,7 +24,6 @@ import type {
 	ToolPolicy,
 } from "@cline/shared";
 import {
-	buildClineRequestHeaders,
 	captureAgentUnexpectedReasoningTokens,
 	captureSdkError,
 	estimateTokens,
@@ -107,7 +106,7 @@ function resolveRuntimeConfig(
 				providerId,
 				apiKey,
 				baseUrl,
-				headers: buildClineRequestHeaders({ providerId, headers }),
+				headers,
 				options,
 			},
 		],

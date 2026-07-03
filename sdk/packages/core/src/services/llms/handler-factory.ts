@@ -127,9 +127,19 @@ function resolveHeadersFromConfig(
 	return buildClineRequestHeaders({
 		providerId,
 		headers,
-		clientName: extensionContext?.client?.name,
-		clientVersion: extensionContext?.client?.version,
-		platform: extensionContext?.workspace?.platform,
+		clientName:
+			extensionContext?.requestMetadata?.clientType ??
+			extensionContext?.client?.name,
+		clientVersion:
+			extensionContext?.requestMetadata?.clientVersion ??
+			extensionContext?.client?.version,
+		userAgent: extensionContext?.requestMetadata?.userAgent,
+		platform:
+			extensionContext?.requestMetadata?.platform ??
+			extensionContext?.workspace?.platform,
+		platformVersion: extensionContext?.requestMetadata?.platformVersion,
+		coreVersion: extensionContext?.requestMetadata?.coreVersion,
+		isMultiRoot: extensionContext?.requestMetadata?.isMultiRoot,
 		taskId: config.sessionId ?? baseProviderConfig?.taskId,
 	});
 }

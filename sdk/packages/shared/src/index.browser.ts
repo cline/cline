@@ -41,6 +41,7 @@ export type {
 	ClientContext,
 	ClientName,
 	ExtensionContext,
+	RequestMetadataContext,
 	UserContext,
 	WorkspaceContext,
 } from "./extensions/context";

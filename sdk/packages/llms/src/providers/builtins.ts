@@ -1,4 +1,5 @@
 import {
+	DEFAULT_REQUEST_HEADERS,
 	type GatewayModelCapability,
 	type GatewayModelDefinition,
 	type GatewayProviderManifest,
@@ -492,6 +493,8 @@ function createClineLikeSpec(
 			>
 		>,
 ): BuiltinSpec {
+	const { headers, ...defaults } = input.defaults ?? {};
+
 	return {
 		id: input.id,
 		name: input.name,
@@ -507,7 +510,11 @@ function createClineLikeSpec(
 			get baseUrl(): string {
 				return `${getClineEnvironmentConfig().apiBaseUrl}/api/v1`;
 			},
-			...input.defaults,
+			headers: {
+				...DEFAULT_REQUEST_HEADERS,
+				...(headers ?? {}),
+			},
+			...defaults,
 		},
 		metadata: {
 			...ANTHROPIC_AND_QWEN_CACHE_ROUTING_METADATA,

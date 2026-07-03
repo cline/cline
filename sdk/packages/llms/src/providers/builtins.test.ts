@@ -1,4 +1,8 @@
-import { CLINE_ENVIRONMENT_ENV, CLINE_ENVIRONMENTS } from "@cline/shared";
+import {
+	CLINE_ENVIRONMENT_ENV,
+	CLINE_ENVIRONMENTS,
+	DEFAULT_REQUEST_HEADERS,
+} from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { BUILTIN_SPECS } from "./builtins";
 import { getModelsForProvider, getProvider } from "./model-registry";
@@ -7,6 +11,14 @@ function findClineSpec() {
 	const spec = BUILTIN_SPECS.find((s) => s.id === "cline");
 	if (!spec) {
 		throw new Error("cline builtin spec not found");
+	}
+	return spec;
+}
+
+function findClinePassSpec() {
+	const spec = BUILTIN_SPECS.find((s) => s.id === "cline-pass");
+	if (!spec) {
+		throw new Error("cline-pass builtin spec not found");
 	}
 	return spec;
 }
@@ -46,6 +58,15 @@ describe("cline builtin spec defaults.baseUrl", () => {
 		delete process.env[CLINE_ENVIRONMENT_ENV];
 		expect(spec.defaults?.baseUrl).toBe(
 			`${CLINE_ENVIRONMENTS.production.apiBaseUrl}/api/v1`,
+		);
+	});
+});
+
+describe("cline builtin spec request headers", () => {
+	it("uses the shared default request headers for Cline-compatible providers", () => {
+		expect(findClineSpec().defaults?.headers).toEqual(DEFAULT_REQUEST_HEADERS);
+		expect(findClinePassSpec().defaults?.headers).toEqual(
+			DEFAULT_REQUEST_HEADERS,
 		);
 	});
 });

@@ -109,7 +109,7 @@ describe("AgentRuntime (provider-form config + Agent alias)", () => {
 		});
 	});
 
-	it("adds default SDK headers for Cline provider requests", () => {
+	it("passes provider headers through to the llms gateway", () => {
 		const model = new ScriptedModel([]);
 		createAgentModel.mockReturnValue(model);
 
@@ -129,10 +129,6 @@ describe("AgentRuntime (provider-form config + Agent alias)", () => {
 					apiKey: "test-key",
 					baseUrl: undefined,
 					headers: {
-						"HTTP-Referer": "https://cline.bot",
-						"X-Title": "Cline",
-						"X-IS-MULTIROOT": "false",
-						"X-CLIENT-TYPE": "cline-sdk",
 						"x-custom": "kept",
 					},
 					options: undefined,

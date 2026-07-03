@@ -453,9 +453,20 @@ function buildGatewayConfig(config: ProviderConfig) {
 		headers: buildClineRequestHeaders({
 			providerId,
 			headers: config.headers,
-			clientName: config.extensionContext?.client?.name,
-			clientVersion: config.extensionContext?.client?.version,
-			platform: config.extensionContext?.workspace?.platform,
+			clientName:
+				config.extensionContext?.requestMetadata?.clientType ??
+				config.extensionContext?.client?.name,
+			clientVersion:
+				config.extensionContext?.requestMetadata?.clientVersion ??
+				config.extensionContext?.client?.version,
+			userAgent: config.extensionContext?.requestMetadata?.userAgent,
+			platform:
+				config.extensionContext?.requestMetadata?.platform ??
+				config.extensionContext?.workspace?.platform,
+			platformVersion:
+				config.extensionContext?.requestMetadata?.platformVersion,
+			coreVersion: config.extensionContext?.requestMetadata?.coreVersion,
+			isMultiRoot: config.extensionContext?.requestMetadata?.isMultiRoot,
 			taskId: config.taskId,
 		}),
 		timeoutMs: config.timeoutMs,
