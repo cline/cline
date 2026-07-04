@@ -419,8 +419,9 @@ export async function repairMalformedToolCall<T extends RepairableToolCall>({
 	}
 	try {
 		JSON.parse(toolCall.input);
-		// Valid JSON means the failure was schema validation, which the
-		// lenient validate callback already had its chance to coerce.
+		// Valid JSON means the failure was a schema mismatch, not a parse
+		// error. That is left to the tool executor's own lenient union
+		// schemas; there is nothing to repair here.
 		return null;
 	} catch {
 		// Not valid JSON — attempt repair below.
