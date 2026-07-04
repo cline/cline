@@ -1,5 +1,12 @@
 # Cline CLI Changelog
 
+## 3.0.37
+
+- Weaker models (e.g. DeepSeek) that emit malformed tool calls — wrong argument types or truncated JSON — are now handled gracefully and run instead of erroring out
+- Plan/act mode switches are now visible to the model, so it knows when you change modes mid-session
+- Fixed plan/act mode notices being dropped from prompts sent to the model
+- Fixed a race where switching modes in an empty session could trigger an unexpected restart
+
 ## 3.0.36
 
 - Fixed plan mode's `switch_to_act_mode` tool not taking effect until the end of the turn: the model would keep running with plan-mode tools (no file editor) and fall back to editing files through shell commands. Switching to act mode now ends the plan-mode run and automatically continues with the approved plan using the full act-mode toolset. A Tab mode toggle racing a completing turn can no longer auto-start plan execution you didn't approve.
