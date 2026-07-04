@@ -1,8 +1,9 @@
-import { exec } from "child_process"
+import { exec, execFile } from "child_process"
 import { promisify } from "util"
 import { Logger } from "@/shared/services/Logger"
 
 const execAsync = promisify(exec)
+const execFileAsync = promisify(execFile)
 const GIT_OUTPUT_LINE_LIMIT = 500
 
 export interface GitCommit {
@@ -214,6 +215,17 @@ export async function getGitDiff(cwd: string, stagedOnly = false): Promise<strin
 			diff = unstaged.trim()
 		}
 
+		// `git diff` never reports untracked (new, never-staged) files, so an
+		// add-only working tree produces an empty diff above. Include them here so
+		// commit-message generation works before the user stages anything.
+		if (!stagedOnly && !diff) {
+			const untracked = await getUntrackedFilesDiff(cwd)
+			if (untracked) {
+				command = "git --no-pager diff --no-index -- /dev/null (per untracked file)"
+				diff = untracked
+			}
+		}
+
 		if (!diff) {
 			throw new Error("No changes in workspace for commit message")
 		}
@@ -222,6 +234,40 @@ export async function getGitDiff(cwd: string, stagedOnly = false): Promise<strin
 	} catch (error) {
 		throw error
 	}
+}
+
+/**
+ * Builds a diff for untracked (new, never-staged) files, which `git diff` and
+ * `git diff --staged` both omit. Each file is diffed against an empty file via
+ * `git diff --no-index` so the output looks like a normal added-file diff.
+ * Returns an empty string when there are no untracked files.
+ */
+async function getUntrackedFilesDiff(cwd: string): Promise<string> {
+	// `-z` returns NUL-separated, unquoted paths so filenames with spaces or
+	// special characters survive intact.
+	const { stdout: list } = await execFileAsync("git", ["ls-files", "--others", "--exclude-standard", "-z"], { cwd })
+	const files = list.split("\0").filter((file) => file.length > 0)
+	if (files.length === 0) {
+		return ""
+	}
+
+	const diffs: string[] = []
+	for (const file of files) {
+		// Pass the filename as a separate argv entry (no shell) so names containing
+		// quotes, `$`, backticks, or spaces can't be interpreted as shell syntax.
+		// `git diff --no-index` exits with code 1 when the files differ (the normal
+		// case here), which rejects the promise — capture stdout from the error too.
+		const { stdout } = await execFileAsync(
+			"git",
+			["--no-pager", "diff", "--no-index", "--diff-filter=d", "--", "/dev/null", file],
+			{ cwd },
+		).catch((error: { stdout?: string }) => ({ stdout: error?.stdout ?? "" }))
+		const trimmed = stdout.trim()
+		if (trimmed) {
+			diffs.push(trimmed)
+		}
+	}
+	return diffs.join("\n\n")
 }
 
 export async function getGitRemoteUrls(cwd: string): Promise<string[]> {
