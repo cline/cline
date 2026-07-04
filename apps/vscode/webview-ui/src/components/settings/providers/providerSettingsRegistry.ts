@@ -100,6 +100,9 @@ const GENERIC_PROVIDER_PRESENTATION_OVERRIDES: Record<string, GenericProviderPre
 	"tencent-tokenhub": {
 		signupUrl: "https://cloud.tencent.com/document/product/1823/130050",
 	},
+	chutes: {
+		signupUrl: "https://chutes.ai/app/api",
+	},
 	"zai-coding-plan": {},
 }
 
@@ -161,6 +164,7 @@ const FALLBACK_GENERIC_PROVIDER_NAMES = {
 	wandb: "W&B",
 	xiaomi: "Xiaomi",
 	"tencent-tokenhub": "Tencent TokenHub",
+	chutes: "Chutes",
 	"zai-coding-plan": "Z.AI Coding Plan",
 } as const
 

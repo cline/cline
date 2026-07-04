@@ -50,6 +50,7 @@ export type ApiProvider =
 	| "wandb"
 	| "xiaomi"
 	| "tencent-tokenhub"
+	| "chutes"
 
 export const DEFAULT_API_PROVIDER = "openrouter" as ApiProvider
 
