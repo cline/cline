@@ -62,6 +62,22 @@ describe("getGitDiff", () => {
 		diff.should.match(/content of the tricky file/)
 	})
 
+	it("includes both a tracked unstaged edit and an untracked file", async () => {
+		// A modified tracked file makes `git diff HEAD` non-empty; the new file must
+		// still be appended so the commit message covers the whole working tree.
+		await writeFile(path.join(repoDir, "tracked.txt"), "original\n")
+		await git("add tracked.txt")
+		await git('commit -m "initial"')
+		await writeFile(path.join(repoDir, "tracked.txt"), "original\nmodified line\n")
+		await writeFile(path.join(repoDir, "brand-new.txt"), "the new file\n")
+
+		const diff = await getGitDiff(repoDir, false)
+
+		diff.should.match(/modified line/)
+		diff.should.match(/brand-new\.txt/)
+		diff.should.match(/the new file/)
+	})
+
 	it("prefers staged changes over untracked files", async () => {
 		await writeFile(path.join(repoDir, "staged.txt"), "staged content\n")
 		await git("add staged.txt")
