@@ -100,6 +100,7 @@ const GENERIC_PROVIDER_PRESENTATION_OVERRIDES: Record<string, GenericProviderPre
 	"tencent-tokenhub": {
 		signupUrl: "https://cloud.tencent.com/document/product/1823/130050",
 	},
+	manifest: {},
 	"zai-coding-plan": {},
 }
 
@@ -158,6 +159,7 @@ const FALLBACK_GENERIC_PROVIDER_NAMES = {
 	poolside: "Poolside",
 	together: "Together",
 	v0: "Vercel v0",
+	manifest: "Manifest",
 	wandb: "W&B",
 	xiaomi: "Xiaomi",
 	"tencent-tokenhub": "Tencent TokenHub",

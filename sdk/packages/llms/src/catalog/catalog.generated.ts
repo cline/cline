@@ -24068,4 +24068,15 @@ export const GENERATED_PROVIDER_MODELS: {
 			},
 		},
 	},
+	manifest: {
+		auto: {
+			id: "auto",
+			name: "Manifest Auto",
+			contextWindow: 200000,
+			maxTokens: 64000,
+			capabilities: [
+				"reasoning",
+			],
+		},
+	},
 };

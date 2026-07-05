@@ -120,6 +120,7 @@ const PROVIDER_IDS_MAP: ReadonlyArray<{
 		modelsDevKey: "tencent-tokenhub",
 		generatedProviderId: "tencent-tokenhub",
 	},
+	{ modelsDevKey: "manifest", generatedProviderId: "manifest" },
 	{ modelsDevKey: "v0", generatedProviderId: "v0" },
 ];
 

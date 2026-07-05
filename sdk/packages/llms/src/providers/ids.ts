@@ -48,6 +48,7 @@ export enum BUILT_IN_PROVIDER {
 	WANDB = "wandb",
 	XIAOMI = "xiaomi",
 	TENCENT_TOKENHUB = "tencent-tokenhub",
+	MANIFEST = "manifest",
 	KILO = "kilo",
 	ZAI = "zai",
 	ZAI_CODING_PLAN = "zai-coding-plan",

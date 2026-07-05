@@ -70,6 +70,7 @@ describe("providerSettingsRegistry", () => {
 			["poolside", "Poolside", undefined],
 			["sambanova", "SambaNova", "https://docs.sambanova.ai/cloud/docs/get-started/overview"],
 			["tencent-tokenhub", "Tencent TokenHub", "https://cloud.tencent.com/document/product/1823/130050"],
+			["manifest", "Manifest", "https://manifest.build/docs"],
 			["vercel-ai-gateway", "Vercel AI Gateway", "https://vercel.com/d?to=%2F%5Bteam%5D%2F%7E%2Fai"],
 			["v0", "Vercel v0", undefined],
 			["wandb", "W&B", "https://wandb.ai"],

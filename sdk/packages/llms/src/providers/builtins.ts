@@ -883,6 +883,18 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		defaults: { baseUrl: "https://tokenhub.tencentmaas.com/v1" },
 	},
 	{
+		id: "manifest",
+		name: "Manifest",
+		description: "OpenAI-compatible gateway for AI agents with multiprovider fallback and per-message cost tracking",
+		family: "openai-compatible",
+		capabilities: ["reasoning"],
+		defaultModelId: "auto",
+		apiKeyEnv: ["MANIFEST_API_KEY"],
+		modelsProviderId: "manifest",
+		docsUrl: "https://manifest.build/docs",
+		defaults: { baseUrl: "https://app.manifest.build/v1" },
+	},
+	{
 		id: "kilo",
 		name: "Kilo Gateway",
 		description: "Kilo Gateway",

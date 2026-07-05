@@ -189,6 +189,27 @@ describe("provider-ids", () => {
 		});
 	});
 
+	it("registers Manifest as an OpenAI-compatible built-in provider", async () => {
+		await expect(getProvider("manifest")).resolves.toMatchObject({
+			id: "manifest",
+			baseUrl: "https://app.manifest.build/v1",
+			defaultModelId: "auto",
+			client: "openai-compatible",
+		});
+
+		await expect(
+			getModelsForProvider("manifest"),
+		).resolves.toHaveProperty("auto");
+
+		const registration = BUILTIN_PROVIDER_REGISTRATIONS.find(
+			(item) => item.manifest.id === "manifest",
+		);
+		expect(registration).toBeDefined();
+		await expect(registration?.loadProvider()).resolves.toMatchObject({
+			createProvider: createOpenAICompatibleProvider,
+		});
+	});
+
 	it("registers Z.AI Coding Plan with an accessible coding-plan default", async () => {
 		await expect(getProvider("zai-coding-plan")).resolves.toMatchObject({
 			id: "zai-coding-plan",
