@@ -1,5 +1,5 @@
 import { RGBA, type StyleDefinition, SyntaxStyle } from "@opentui/core";
-import type { TerminalTheme } from "../palette";
+import { type TerminalTheme, themePalette } from "../palette";
 
 const instances: Record<TerminalTheme, SyntaxStyle | null> = {
 	dark: null,
@@ -46,9 +46,9 @@ const syntaxColors: Record<TerminalTheme, SyntaxColors> = {
 		attribute: "#d19a66",
 		escape: "#56b6c2",
 		markdownCode: "#98c379",
-		markdownHeading: "#56b6c2",
+		markdownHeading: themePalette.dark.act,
 		markdownMuted: "#808080",
-		markdownLink: "#56b6c2",
+		markdownLink: themePalette.dark.act,
 		markdownItalic: "#e5c07b",
 	},
 	light: {
@@ -67,9 +67,9 @@ const syntaxColors: Record<TerminalTheme, SyntaxColors> = {
 		attribute: "#0550ae",
 		escape: "#0550ae",
 		markdownCode: "#116329",
-		markdownHeading: "#0969da",
+		markdownHeading: themePalette.light.act,
 		markdownMuted: "#6e7781",
-		markdownLink: "#0969da",
+		markdownLink: themePalette.light.act,
 		markdownItalic: "#8250df",
 		markdownDefault: "#1a1a1a",
 	},

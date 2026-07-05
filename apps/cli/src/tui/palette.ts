@@ -3,7 +3,7 @@ export const palette = {
 	plan: "#ffea7f",
 	selection: "#79b8ff",
 	error: "red",
-	success: "brightGreen",
+	success: "#87af87",
 	muted: "gray",
 	textOnSelection: "black",
 } as const;
@@ -31,7 +31,7 @@ export const diffPalettes = {
 		removedBg: "#4d1a1a",
 		addedLineNumberBg: "#1a4d1a",
 		removedLineNumberBg: "#4d1a1a",
-		addedSignColor: "#22c55e",
+		addedSignColor: "#87af87",
 		removedSignColor: "#ef4444",
 		lineNumberFg: "#888888",
 	},
