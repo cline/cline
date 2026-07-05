@@ -1,6 +1,9 @@
-import { ClineMessage } from "@shared/ExtensionMessage"
+import type { ClineMessage } from "@shared/ExtensionMessage"
 import { memo } from "react"
+import { ClineAuthStatus } from "@/components/account/ClineAuthStatus"
 import CreditLimitError from "@/components/chat/CreditLimitError"
+import EntitlementError from "@/components/chat/EntitlementError"
+import OrgClinePassRestrictionError from "@/components/chat/OrgClinePassRestrictionError"
 import SpendLimitError from "@/components/chat/SpendLimitError"
 import { Button } from "@/components/ui/button"
 import { useClineAuth, useClineSignIn } from "@/context/ClineAuthContext"
@@ -19,7 +22,7 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 	const { clineUser } = useClineAuth()
 	const rawApiError = apiRequestFailedMessage || apiReqStreamingFailedMessage
 
-	const { isLoginLoading, handleSignIn } = useClineSignIn()
+	const { isLoginLoading, authStatusMessage, handleSignIn } = useClineSignIn()
 
 	const renderErrorContent = () => {
 		switch (errorType) {
@@ -37,15 +40,17 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 
 					if (clineError?.isErrorType(ClineErrorType.Balance)) {
 						const errorDetails = clineError._error?.details
-						return (
-							<CreditLimitError
-								buyCreditsUrl={errorDetails?.buy_credits_url}
-								currentBalance={errorDetails?.current_balance}
-								message={errorDetails?.message}
-								totalPromotions={errorDetails?.total_promotions}
-								totalSpent={errorDetails?.total_spent}
-							/>
-						)
+						if (isClineProvider || errorDetails?.buy_credits_url) {
+							return (
+								<CreditLimitError
+									buyCreditsUrl={errorDetails?.buy_credits_url}
+									currentBalance={errorDetails?.current_balance}
+									message={errorDetails?.message}
+									totalPromotions={errorDetails?.total_promotions}
+									totalSpent={errorDetails?.total_spent}
+								/>
+							)
+						}
 					}
 
 					if (clineError?.isErrorType(ClineErrorType.SpendLimit)) {
@@ -59,6 +64,15 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 								spentUsd={d?.spent_usd}
 							/>
 						)
+					}
+
+					if (clineError?.isErrorType(ClineErrorType.Entitlement)) {
+						const detailMessage = clineError?._error?.details?.message || errorMessage
+						return <EntitlementError message={detailMessage} />
+					}
+
+					if (clineError?.isErrorType(ClineErrorType.OrgClinePassRestriction)) {
+						return <OrgClinePassRestrictionError />
 					}
 
 					if (clineError?.isErrorType(ClineErrorType.RateLimit)) {
@@ -90,6 +104,7 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 										</span>
 									)}
 								</Button>
+								<ClineAuthStatus message={authStatusMessage} />
 							</div>
 						) : (
 							// Don't show sign in button after the user has logged in, just ask them to retry
@@ -125,10 +140,6 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 
 							{/* Display raw API error if different from parsed error message */}
 							{errorMessage !== rawApiError && <div>{rawApiError}</div>}
-
-							<div className="mt-4">
-								<span className="text-description">(Click "Retry" below)</span>
-							</div>
 						</p>
 					)
 				}

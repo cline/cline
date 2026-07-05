@@ -1,0 +1,9 @@
+title = "Cline SDK secret scanning"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Synthetic SAP AI Core model IDs in session factory tests"
+paths = ['''apps/vscode/src/sdk/cline-session-factory\.test\.ts''']
+regexes = ['''anthropic--claude-(?:3\.5|4\.6)-sonnet''']

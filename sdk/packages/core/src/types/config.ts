@@ -37,6 +37,10 @@ export interface CoreModelConfig {
 	 * Explicit reasoning effort override for capable models.
 	 */
 	reasoningEffort?: ProviderConfig["reasoningEffort"];
+	/**
+	 * Maximum output tokens per API call.
+	 */
+	maxTokensPerTurn?: number;
 }
 
 export interface CoreRuntimeFeatures {
@@ -60,6 +64,7 @@ export interface CoreCompactionContext {
 	};
 	maxInputTokens: number;
 	triggerTokens: number;
+	targetTokens?: number;
 	thresholdRatio: number;
 	utilizationRatio: number;
 }

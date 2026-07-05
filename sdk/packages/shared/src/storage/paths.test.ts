@@ -2,11 +2,14 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	AGENT_CONFIG_DIRECTORY_NAME,
+	CLINE_CONNECTOR_SETTINGS_FILE_NAME,
 	CLINE_MCP_SETTINGS_FILE_NAME,
 	HOOKS_CONFIG_DIRECTORY_NAME,
 	RULES_CONFIG_DIRECTORY_NAME,
 	resolveAgentsConfigDirPath,
 	resolveClineDataDir,
+	resolveConnectorDataDir,
+	resolveConnectorSettingsPath,
 	resolveDbDataDir,
 	resolveGlobalAgentsRulesPath,
 	resolveGlobalSettingsPath,
@@ -22,6 +25,8 @@ import {
 type EnvSnapshot = {
 	CLINE_DIR: string | undefined;
 	CLINE_DATA_DIR: string | undefined;
+	CLINE_CONNECTOR_DATA_DIR: string | undefined;
+	CLINE_CONNECTOR_SETTINGS_PATH: string | undefined;
 	CLINE_DB_DATA_DIR: string | undefined;
 	CLINE_GLOBAL_SETTINGS_PATH: string | undefined;
 	CLINE_MCP_SETTINGS_PATH: string | undefined;
@@ -34,6 +39,8 @@ function captureEnv(): EnvSnapshot {
 	return {
 		CLINE_DIR: process.env.CLINE_DIR,
 		CLINE_DATA_DIR: process.env.CLINE_DATA_DIR,
+		CLINE_CONNECTOR_DATA_DIR: process.env.CLINE_CONNECTOR_DATA_DIR,
+		CLINE_CONNECTOR_SETTINGS_PATH: process.env.CLINE_CONNECTOR_SETTINGS_PATH,
 		CLINE_DB_DATA_DIR: process.env.CLINE_DB_DATA_DIR,
 		CLINE_GLOBAL_SETTINGS_PATH: process.env.CLINE_GLOBAL_SETTINGS_PATH,
 		CLINE_MCP_SETTINGS_PATH: process.env.CLINE_MCP_SETTINGS_PATH,
@@ -45,6 +52,9 @@ function captureEnv(): EnvSnapshot {
 
 function restoreEnv(snapshot: EnvSnapshot): void {
 	process.env.CLINE_DATA_DIR = snapshot.CLINE_DATA_DIR;
+	process.env.CLINE_CONNECTOR_DATA_DIR = snapshot.CLINE_CONNECTOR_DATA_DIR;
+	process.env.CLINE_CONNECTOR_SETTINGS_PATH =
+		snapshot.CLINE_CONNECTOR_SETTINGS_PATH;
 	process.env.CLINE_DIR = snapshot.CLINE_DIR;
 	process.env.CLINE_DB_DATA_DIR = snapshot.CLINE_DB_DATA_DIR;
 	process.env.CLINE_GLOBAL_SETTINGS_PATH = snapshot.CLINE_GLOBAL_SETTINGS_PATH;
@@ -83,6 +93,37 @@ describe("storage path resolution", () => {
 		process.env.CLINE_DATA_DIR = "/tmp/cline-data";
 
 		expect(resolveTeamDataDir()).toBe(join("/tmp/cline-data", "teams"));
+	});
+
+	it("falls back to CLINE_DATA_DIR/connectors for connector storage", () => {
+		snapshot = captureEnv();
+		delete process.env.CLINE_CONNECTOR_DATA_DIR;
+		process.env.CLINE_DATA_DIR = "/tmp/cline-data";
+
+		expect(resolveConnectorDataDir()).toBe(
+			join("/tmp/cline-data", "connectors"),
+		);
+	});
+
+	it("falls back to CLINE_DATA_DIR/connectors/settings.json for connector settings", () => {
+		snapshot = captureEnv();
+		delete process.env.CLINE_CONNECTOR_DATA_DIR;
+		delete process.env.CLINE_CONNECTOR_SETTINGS_PATH;
+		process.env.CLINE_DATA_DIR = "/tmp/cline-data";
+
+		expect(resolveConnectorSettingsPath()).toBe(
+			join("/tmp/cline-data", "connectors", CLINE_CONNECTOR_SETTINGS_FILE_NAME),
+		);
+	});
+
+	it("uses CLINE_CONNECTOR_SETTINGS_PATH as-is when set", () => {
+		snapshot = captureEnv();
+		process.env.CLINE_CONNECTOR_SETTINGS_PATH =
+			"/tmp/cline-connectors/custom-settings.json";
+
+		expect(resolveConnectorSettingsPath()).toBe(
+			"/tmp/cline-connectors/custom-settings.json",
+		);
 	});
 
 	it("falls back to CLINE_DATA_DIR/db for sqlite storage", () => {

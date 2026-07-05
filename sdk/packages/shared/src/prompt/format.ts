@@ -13,6 +13,20 @@ export function formatUserCommandBlock(input: string, slash: string): string {
 	return `<user_command slash="${slash}">${input}</user_command>`;
 }
 
+/**
+ * Marks the exact point in the conversation where the user switched between
+ * plan and act modes. Prepended to the first user message sent after the
+ * switch. It survives normalizeUserInput (so the outbound sanitize in
+ * prepareTurnInput delivers it to the model) and is hidden from transcript
+ * display by stripModeNotices at display boundaries.
+ */
+export function formatModeSwitchNotice(
+	from: "act" | "plan",
+	to: "act" | "plan",
+): string {
+	return `<mode_notice>The user switched from ${from} mode to ${to} mode before sending this message.</mode_notice>`;
+}
+
 export type UserCommandEnvelope = {
 	slash: string;
 	content: string;
@@ -75,8 +89,39 @@ export function normalizeUserInput(input?: string): string {
 	return next;
 }
 
+/**
+ * Removes runtime-generated <mode_notice> elements (content included): they
+ * are not user-typed text and must not render as such. Deliberately NOT part
+ * of normalizeUserInput -- that function also sanitizes outbound prompts
+ * before the host wraps them (prepareTurnInput), and stripping there deletes
+ * the notice before the model ever sees it.
+ */
+export function stripModeNotices(input?: string): string {
+	if (!input?.trim()) return "";
+	return removeTagElements(input, "mode_notice").trim();
+}
+
+// indexOf-based rather than a regex: a lazy dot-all pattern re-scans to the
+// end of the string from every unmatched opening tag, which is polynomial on
+// adversarial transcript content (CodeQL js/polynomial-redos).
+function removeTagElements(input: string, tag: string): string {
+	const open = `<${tag}>`;
+	const close = `</${tag}>`;
+	let result = input;
+	let start = result.indexOf(open);
+	while (start !== -1) {
+		const end = result.indexOf(close, start + open.length);
+		if (end === -1) {
+			break;
+		}
+		result = result.slice(0, start) + result.slice(end + close.length);
+		start = result.indexOf(open, start);
+	}
+	return result;
+}
+
 export function formatDisplayUserInput(input?: string): string {
-	const normalized = normalizeUserInput(input);
+	const normalized = stripModeNotices(normalizeUserInput(input));
 	const envelope = parseUserCommandEnvelope(input);
 	if (!envelope) {
 		return normalized;

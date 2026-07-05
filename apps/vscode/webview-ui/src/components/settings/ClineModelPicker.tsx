@@ -1,37 +1,36 @@
-import { CLAUDE_SONNET_1M_SUFFIX, openRouterDefaultModelId } from "@shared/api"
+import { openAiModelInfoSafeDefaults } from "@shared/api"
 import { CLINE_RECOMMENDED_MODELS_FALLBACK } from "@shared/cline/recommended-models"
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import { type ClineRecommendedModel, ClineRecommendedModelsResponse } from "@shared/proto/cline/models"
+import { fromProtobufModelInfo } from "@shared/proto-conversions/models/typeConversion"
 import type { Mode } from "@shared/storage/types"
 import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
 import type React from "react"
 import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useMount } from "react-use"
 import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useDynamicProviderSelection } from "@/hooks/useDynamicProviderSelection"
+import { useProviderConfig } from "@/hooks/useProviderConfig"
+import { useProviderModels } from "@/hooks/useProviderModels"
 import { ModelsServiceClient, StateServiceClient } from "@/services/grpc-client"
 import { highlight } from "../history/HistoryView"
-import { ContextWindowSwitcher } from "./common/ContextWindowSwitcher"
 import { ModelInfoView } from "./common/ModelInfoView"
 import FeaturedModelCard from "./FeaturedModelCard"
 import ReasoningEffortSelector from "./ReasoningEffortSelector"
-import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
-import {
-	filterOpenRouterModelIds,
-	getModeSpecificFields,
-	normalizeApiConfiguration,
-	supportsReasoningEffortForModelId,
-} from "./utils/providerUtils"
+import { filterOpenRouterModelIds, getModeSpecificFields } from "./utils/providerUtils"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
 // Star icon for favorites
 const StarIcon = ({ isFavorite, onClick }: { isFavorite: boolean; onClick: (e: React.MouseEvent) => void }) => {
 	return (
-		<div
+		<button
 			onClick={onClick}
 			style={{
+				background: "none",
+				border: "none",
+				padding: 0,
 				cursor: "pointer",
 				color: isFavorite ? "var(--vscode-terminal-ansiBlue)" : "var(--vscode-descriptionForeground)",
 				marginLeft: "8px",
@@ -41,13 +40,14 @@ const StarIcon = ({ isFavorite, onClick }: { isFavorite: boolean; onClick: (e: R
 				justifyContent: "center",
 				userSelect: "none",
 				WebkitUserSelect: "none",
-			}}>
+			}}
+			type="button">
 			{isFavorite ? "★" : "☆"}
-		</div>
+		</button>
 	)
 }
 
-export interface ClineModelPickerProps {
+interface ClineModelPickerProps {
 	isPopup?: boolean
 	currentMode: Mode
 	showProviderRouting?: boolean
@@ -94,9 +94,21 @@ const FREE_MODELS_FALLBACK: FeaturedModelCardEntry[] = CLINE_RECOMMENDED_MODELS_
 
 const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMode, showProviderRouting, initialTab }) => {
 	const { handleModeFieldsChange, handleFieldChange } = useApiConfigurationHandlers()
-	const { apiConfiguration, favoritedModelIds, clineModels, refreshClineModels } = useExtensionState()
+	const { apiConfiguration, favoritedModelIds } = useExtensionState()
+	const { models: catalogClineModels, defaultModelId: clineDefaultModelId } = useProviderModels("cline")
+	const { config, write: writeProviderConfig, commitSelection } = useProviderConfig("cline")
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
-	const [searchTerm, setSearchTerm] = useState(modeFields.clineModelId || openRouterDefaultModelId)
+	const effectiveClineModels = catalogClineModels
+	const committedSelection = currentMode === "plan" ? config?.planSelection : config?.actSelection
+	const committedModelInfo = committedSelection?.modelInfo ? fromProtobufModelInfo(committedSelection.modelInfo) : undefined
+	const currentClineModelId =
+		committedSelection?.modelId ||
+		modeFields.clineModelId ||
+		clineDefaultModelId ||
+		Object.keys(effectiveClineModels ?? {})[0] ||
+		""
+	const [searchTerm, setSearchTerm] = useState(currentClineModelId)
+	const searchTermEditedByUserRef = useRef(false)
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(-1)
 	const [clineRecommendedModels, setClineRecommendedModels] = useState<FeaturedModelCardEntry[]>([])
@@ -188,36 +200,72 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 		if (initialTab) {
 			return
 		}
-		const currentModelId = modeFields.clineModelId || openRouterDefaultModelId
-		setActiveTab(freeClineModelIdSet.has(normalizeModelId(currentModelId)) ? "free" : "recommended")
-	}, [modeFields.clineModelId, freeClineModelIdSet, initialTab])
+		setActiveTab(freeClineModelIdSet.has(normalizeModelId(currentClineModelId)) ? "free" : "recommended")
+	}, [currentClineModelId, freeClineModelIdSet, initialTab])
 	const dropdownRef = useRef<HTMLDivElement>(null)
 	const itemRefs = useRef<(HTMLDivElement | null)[]>([])
 	const dropdownListRef = useRef<HTMLDivElement>(null)
 
 	const handleModelChange = (newModelId: string) => {
+		searchTermEditedByUserRef.current = false
 		setSearchTerm(newModelId)
 
-		handleModeFieldsChange(
+		const modelInfo = effectiveClineModels?.[newModelId] ?? {
+			...openAiModelInfoSafeDefaults,
+			name: newModelId,
+		}
+
+		void commitSelection(currentMode, {
+			providerId: "cline",
+			modelId: newModelId,
+			modelInfo,
+		}).catch((err) => console.error("Failed to commit Cline model selection:", err))
+
+		void handleModeFieldsChange(
 			{
-				clineModelId: { plan: "planModeClineModelId", act: "actModeClineModelId" },
-				clineModelInfo: { plan: "planModeClineModelInfo", act: "actModeClineModelInfo" },
+				clineModelId: {
+					plan: "planModeClineModelId",
+					act: "actModeClineModelId",
+				},
+				clineModelInfo: {
+					plan: "planModeClineModelInfo",
+					act: "actModeClineModelInfo",
+				},
 			},
 			{
 				clineModelId: newModelId,
-				clineModelInfo: clineModels?.[newModelId],
+				clineModelInfo: modelInfo,
 			},
 			currentMode,
 		)
 	}
 
+	const baseSelection = useDynamicProviderSelection("cline", apiConfiguration, currentMode)
 	const { selectedModelId, selectedModelInfo } = useMemo(() => {
-		const selected = normalizeApiConfiguration(apiConfiguration, currentMode)
-		if (freeClineModelIdSet.has(normalizeModelId(selected.selectedModelId))) {
+		const selected = {
+			selectedProvider: "cline" as const,
+			selectedModelId: baseSelection.selectedModelId,
+			selectedModelInfo: baseSelection.selectedModelInfo,
+		}
+		const selectedWithCatalogDefault = currentClineModelId
+			? {
+					...selected,
+					selectedModelId: currentClineModelId,
+					selectedModelInfo: (() => {
+						const persistedModelInfo = committedModelInfo || modeFields.clineModelInfo || selected.selectedModelInfo
+						const liveModelInfo = effectiveClineModels?.[currentClineModelId]
+						// Persisted Cline model info is a snapshot from selection time. When the
+						// model is still in the catalog, refresh metadata/capability flags from
+						// the live catalog so UI controls reflect current model support.
+						return liveModelInfo ? { ...persistedModelInfo, ...liveModelInfo } : persistedModelInfo
+					})(),
+				}
+			: selected
+		if (freeClineModelIdSet.has(normalizeModelId(selectedWithCatalogDefault.selectedModelId))) {
 			return {
-				...selected,
+				...selectedWithCatalogDefault,
 				selectedModelInfo: {
-					...selected.selectedModelInfo,
+					...selectedWithCatalogDefault.selectedModelInfo,
 					inputPrice: 0,
 					outputPrice: 0,
 					cacheReadsPrice: 0,
@@ -225,12 +273,16 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 				},
 			}
 		}
-		return selected
-	}, [apiConfiguration, currentMode, freeClineModelIdSet])
-
-	useMount(() => {
-		refreshClineModels()
-	})
+		return selectedWithCatalogDefault
+	}, [
+		baseSelection.selectedModelId,
+		baseSelection.selectedModelInfo,
+		committedModelInfo,
+		currentClineModelId,
+		effectiveClineModels,
+		freeClineModelIdSet,
+		modeFields.clineModelInfo,
+	])
 
 	useEffect(() => {
 		void fetchClineRecommendedModels()
@@ -238,9 +290,9 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 
 	// Sync external changes when the modelId changes
 	useEffect(() => {
-		const currentModelId = modeFields.clineModelId || openRouterDefaultModelId
-		setSearchTerm(currentModelId)
-	}, [modeFields.clineModelId])
+		searchTermEditedByUserRef.current = false
+		setSearchTerm(currentClineModelId)
+	}, [currentClineModelId])
 
 	useEffect(() => {
 		const handleClickOutside = (event: MouseEvent) => {
@@ -256,9 +308,9 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 	}, [])
 
 	const modelIds = useMemo(() => {
-		const unfilteredModelIds = Object.keys(clineModels ?? {}).sort((a, b) => a.localeCompare(b))
+		const unfilteredModelIds = Object.keys(effectiveClineModels ?? {}).sort((a, b) => a.localeCompare(b))
 		return filterOpenRouterModelIds(unfilteredModelIds, "cline", freeClineModelIds)
-	}, [clineModels, freeClineModelIds])
+	}, [effectiveClineModels, freeClineModelIds])
 
 	const searchableItems = useMemo(() => {
 		return modelIds.map((id) => ({
@@ -331,6 +383,7 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 		}
 	}, [modelIds, searchTerm])
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: reset dropdown navigation whenever the search text changes
 	useEffect(() => {
 		setSelectedIndex(-1)
 		if (dropdownListRef.current) {
@@ -347,37 +400,17 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 		}
 	}, [selectedIndex])
 
-	const selectedModelIdLower = selectedModelId?.toLowerCase() || ""
 	const showAdaptiveThinkingEffort = useMemo(() => isClaudeOpusAdaptiveThinkingModel(selectedModelId), [selectedModelId])
 	const adaptiveThinkingDefaultEffort = useMemo(
 		() => resolveClaudeOpusAdaptiveThinking(modeFields.reasoningEffort, modeFields.thinkingBudgetTokens).effort ?? "none",
 		[modeFields.reasoningEffort, modeFields.thinkingBudgetTokens],
 	)
+	// Show reasoning effort selector for all models that support reasoning,
+	// using the SDK catalog's supportsReasoning capability flag.
 	const showReasoningEffort = useMemo(
-		() => showAdaptiveThinkingEffort || supportsReasoningEffortForModelId(selectedModelId),
-		[selectedModelId, showAdaptiveThinkingEffort],
+		() => showAdaptiveThinkingEffort || selectedModelInfo?.supportsReasoning === true,
+		[showAdaptiveThinkingEffort, selectedModelInfo?.supportsReasoning],
 	)
-
-	const showBudgetSlider = useMemo(() => {
-		if (showReasoningEffort) {
-			return false
-		}
-		return (
-			Object.entries(clineModels ?? {})?.some(([id, m]) => id === selectedModelId && m.thinkingConfig) ||
-			selectedModelIdLower.includes("claude-haiku-4.5") ||
-			selectedModelIdLower.includes("claude-4.5-haiku") ||
-			selectedModelIdLower.includes("claude-sonnet-4.6") ||
-			selectedModelIdLower.includes("claude-sonnet-4-6") ||
-			selectedModelIdLower.includes("claude-4.6-sonnet") ||
-			selectedModelIdLower.includes("claude-sonnet-4.5") ||
-			selectedModelIdLower.includes("claude-sonnet-4") ||
-			selectedModelIdLower.includes("claude-opus-4.1") ||
-			selectedModelIdLower.includes("claude-opus-4") ||
-			selectedModelIdLower.includes("claude-3-7-sonnet") ||
-			selectedModelIdLower.includes("claude-3.7-sonnet") ||
-			selectedModelIdLower.includes("claude-3.7-sonnet:thinking")
-		)
-	}, [clineModels, selectedModelId, selectedModelIdLower, showReasoningEffort])
 
 	return (
 		<div style={{ width: "100%", paddingBottom: 2 }}>
@@ -394,60 +427,60 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 					<span style={{ fontWeight: 500 }}>Model</span>
 				</label>
 
-				<>
-					{/* Tabs */}
-					<TabsContainer style={{ marginTop: 4 }}>
-						<Tab active={activeTab === "recommended"} onClick={() => setActiveTab("recommended")}>
-							Recommended
-						</Tab>
-						<Tab active={activeTab === "free"} onClick={() => setActiveTab("free")}>
-							Free
-						</Tab>
-					</TabsContainer>
+				{/* Tabs */}
+				<TabsContainer style={{ marginTop: 4 }}>
+					<Tab active={activeTab === "recommended"} onClick={() => setActiveTab("recommended")}>
+						Recommended
+					</Tab>
+					<Tab active={activeTab === "free"} onClick={() => setActiveTab("free")}>
+						Free
+					</Tab>
+				</TabsContainer>
 
-					{/* Model Cards */}
-					<div style={{ marginBottom: "6px" }}>
-						{activeTab === "recommended" &&
-							recommendedModels.map((model) => (
-								<FeaturedModelCard
-									description={model.description}
-									isSelected={selectedModelId === model.id}
-									key={model.id}
-									label={model.label}
-									modelId={model.id}
-									onClick={() => {
-										handleModelChange(model.id)
-										setIsDropdownVisible(false)
-									}}
-								/>
-							))}
-						{activeTab === "free" &&
-							freeModels.map((model) => (
-								<FeaturedModelCard
-									description={model.description}
-									isSelected={selectedModelId === model.id}
-									key={model.id}
-									label={model.label}
-									modelId={model.id}
-									onClick={() => {
-										handleModelChange(model.id)
-										setIsDropdownVisible(false)
-									}}
-								/>
-							))}
-					</div>
-				</>
+				{/* Model Cards */}
+				<div style={{ marginBottom: "6px" }}>
+					{activeTab === "recommended" &&
+						recommendedModels.map((model) => (
+							<FeaturedModelCard
+								description={model.description}
+								isSelected={selectedModelId === model.id}
+								key={model.id}
+								label={model.label}
+								modelId={model.id}
+								onClick={() => {
+									handleModelChange(model.id)
+									setIsDropdownVisible(false)
+								}}
+							/>
+						))}
+					{activeTab === "free" &&
+						freeModels.map((model) => (
+							<FeaturedModelCard
+								description={model.description}
+								isSelected={selectedModelId === model.id}
+								key={model.id}
+								label={model.label}
+								modelId={model.id}
+								onClick={() => {
+									handleModelChange(model.id)
+									setIsDropdownVisible(false)
+								}}
+							/>
+						))}
+				</div>
 
 				<DropdownWrapper ref={dropdownRef}>
 					<VSCodeTextField
 						id="model-search"
+						key={currentClineModelId}
 						onBlur={() => {
-							if (searchTerm !== selectedModelId) {
+							if (searchTermEditedByUserRef.current && searchTerm !== selectedModelId) {
 								handleModelChange(searchTerm)
 							}
 						}}
 						onFocus={() => setIsDropdownVisible(true)}
 						onInput={(e) => {
+							searchTermEditedByUserRef.current = true
 							setSearchTerm((e.target as HTMLInputElement)?.value.toLowerCase() || "")
 							setIsDropdownVisible(true)
 						}}
@@ -461,7 +494,7 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 						}}
 						value={searchTerm}>
 						{searchTerm && (
-							<div
+							<button
 								aria-label="Clear search"
 								className="input-icon-button codicon codicon-close"
 								onClick={() => {
@@ -470,11 +503,15 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 								}}
 								slot="end"
 								style={{
+									background: "none",
+									border: "none",
+									padding: 0,
 									display: "flex",
 									justifyContent: "center",
 									alignItems: "center",
 									height: "100%",
 								}}
+								type="button"
 							/>
 						)}
 					</VSCodeTextField>
@@ -493,7 +530,13 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 										onMouseEnter={() => setSelectedIndex(index)}
 										ref={(el) => (itemRefs.current[index] = el)}
 										role="option">
-										<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+										<div
+											style={{
+												display: "flex",
+												justifyContent: "space-between",
+												alignItems: "center",
+											}}>
+											{/* biome-ignore lint/security/noDangerouslySetInnerHtml: highlight() returns sanitized model-id markup for matched search text */}
 											<span dangerouslySetInnerHTML={{ __html: item.html }} />
 											<StarIcon
 												isFavorite={isFavorite}
@@ -511,59 +554,10 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 						</DropdownList>
 					)}
 				</DropdownWrapper>
-
-				{/* Context window switcher for Claude Opus 4.8 */}
-				<ContextWindowSwitcher
-					base1mModelId={`anthropic/claude-opus-4.8${CLAUDE_SONNET_1M_SUFFIX}`}
-					base200kModelId="anthropic/claude-opus-4.8"
-					onModelChange={handleModelChange}
-					selectedModelId={selectedModelId}
-				/>
-
-				{/* Context window switcher for Claude Opus 4.7 */}
-				<ContextWindowSwitcher
-					base1mModelId={`anthropic/claude-opus-4.7${CLAUDE_SONNET_1M_SUFFIX}`}
-					base200kModelId="anthropic/claude-opus-4.7"
-					onModelChange={handleModelChange}
-					selectedModelId={selectedModelId}
-				/>
-
-				{/* Context window switcher for Claude Opus 4.6 */}
-				<ContextWindowSwitcher
-					base1mModelId={`anthropic/claude-opus-4.6${CLAUDE_SONNET_1M_SUFFIX}`}
-					base200kModelId="anthropic/claude-opus-4.6"
-					onModelChange={handleModelChange}
-					selectedModelId={selectedModelId}
-				/>
-
-				{/* Context window switcher for Claude Sonnet 4.6 */}
-				<ContextWindowSwitcher
-					base1mModelId={`anthropic/claude-sonnet-4.6${CLAUDE_SONNET_1M_SUFFIX}`}
-					base200kModelId="anthropic/claude-sonnet-4.6"
-					onModelChange={handleModelChange}
-					selectedModelId={selectedModelId}
-				/>
-
-				{/* Context window switcher for Claude Sonnet 4.5 */}
-				<ContextWindowSwitcher
-					base1mModelId={`anthropic/claude-sonnet-4.5${CLAUDE_SONNET_1M_SUFFIX}`}
-					base200kModelId="anthropic/claude-sonnet-4.5"
-					onModelChange={handleModelChange}
-					selectedModelId={selectedModelId}
-				/>
-
-				{/* Context window switcher for Claude Sonnet 4 */}
-				<ContextWindowSwitcher
-					base1mModelId={`anthropic/claude-sonnet-4${CLAUDE_SONNET_1M_SUFFIX}`}
-					base200kModelId="anthropic/claude-sonnet-4"
-					onModelChange={handleModelChange}
-					selectedModelId={selectedModelId}
-				/>
 			</div>
 
 			{hasInfo ? (
 				<>
-					{showBudgetSlider && <ThinkingBudgetSlider currentMode={currentMode} />}
 					{showReasoningEffort && (
 						<ReasoningEffortSelector
 							allowedEfforts={
@@ -577,6 +571,14 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 									: undefined
 							}
 							label={showAdaptiveThinkingEffort ? "Adaptive Thinking" : undefined}
+							onEffortChange={(effort) => {
+								writeProviderConfig({
+									reasoning: {
+										enabled: effort !== "none",
+										effort: effort !== "none" ? effort : undefined,
+									},
+								})
+							}}
 						/>
 					)}
 
@@ -596,8 +598,8 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 						marginTop: 0,
 						color: "var(--vscode-descriptionForeground)",
 					}}>
-					The extension automatically fetches the latest Cline model list. If you're unsure which model to choose, Cline
-					works best with <strong>anthropic/claude-sonnet-4.5</strong>.
+					The extension automatically fetches the latest Cline model list. If you're unsure which model to choose,
+					compare available models by context window, pricing, and capabilities.
 				</p>
 			)}
 		</div>

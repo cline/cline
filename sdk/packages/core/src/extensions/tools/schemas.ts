@@ -34,7 +34,7 @@ export const ReadFileLineRangeSchema = z
 			.nullable()
 			.optional()
 			.describe(
-				"Optional one-based ending line number to read through; use null or omit for the end of the file",
+				"Optional one-based ending line number to read through; use null or omit to read to the end of the file or the read cap, whichever comes first",
 			),
 	})
 	.describe("Optional inclusive one-based file line range");
@@ -56,7 +56,7 @@ export const ReadFilesInputSchema = z.object({
 	files: z
 		.array(ReadFileRequestSchema)
 		.describe(
-			"Array of file read requests. Omit start_line/end_line or set them to null to return the full file content boundaries; provide integers to return only that inclusive one-based line range. Prefer this tool over running terminal command to get file content for better performance and reliability.",
+			"Array of file read requests. Omit start_line/end_line or set them to null to read from the start; provide integers to return only that inclusive one-based line range. Reads are capped, so page through long files with start_line/end_line. Prefer this tool over running terminal command to get file content for better performance and reliability.",
 		),
 });
 
@@ -69,7 +69,9 @@ export const ReadFilesInputUnionSchema = z.union([
 	z.array(ReadFileRequestSchema),
 	z.array(z.string()),
 	z.string(),
+	z.object({ files: z.array(z.union([AbsolutePath, ReadFileRequestSchema])) }),
 	z.object({ files: ReadFileRequestSchema }),
+	z.object({ files: AbsolutePath }),
 	z.object({ file_paths: z.array(AbsolutePath) }),
 	z.object({ file_paths: z.string() }),
 	z.object({ paths: z.array(z.union([AbsolutePath, ReadFileRequestSchema])) }),
@@ -102,27 +104,6 @@ const CommandInputSchema = z
 		`The non-interactive shell command to execute - MUST keep input short and concise (within ${INPUT_ARG_CHAR_LIMIT * 2} characters) to avoid timeouts.`,
 	);
 
-/**
- * Schema for run_commands tool input
- */
-export const RunCommandsInputSchema = z.object({
-	commands: z
-		.array(CommandInputSchema)
-		.describe("Array of shell commands to execute"),
-});
-
-/**
- * Union schema for run_commands tool input. More flexible.
- */
-export const RunCommandsInputUnionSchema = z.union([
-	RunCommandsInputSchema,
-	z.object({ commands: CommandInputSchema }),
-	z.object({ command: CommandInputSchema }),
-	z.object({ cmd: CommandInputSchema }),
-	z.array(z.string()),
-	z.string(),
-]);
-
 export const StructuredCommandInputSchema = z.object({
 	command: z
 		.string()
@@ -138,21 +119,21 @@ export const StructuredCommandEntrySchema = z.union([
 	CommandInputSchema,
 	StructuredCommandInputSchema,
 ]);
-/**
- * Schema for run_commands tool input
- */
-export const StructuredCommandsInputSchema = z.object({
+
+export const RunCommandsInputSchema = z.object({
 	commands: z
-		.array(StructuredCommandEntrySchema)
-		.describe(
-			"Array of commands to execute. Prefer structured { command, args } entries for portability; plain strings are still supported and are interpreted by the active shell.",
-		),
+		.array(CommandInputSchema)
+		.describe("Array of complete shell command strings to execute."),
+});
+
+const StructuredCommandsInputSchema = z.object({
+	commands: z.array(StructuredCommandEntrySchema),
 });
 
 /**
  * Union schema for run_commands tool input. More flexible.
  */
-export const StructuredCommandsInputUnionSchema = z.union([
+export const RunCommandsInputUnionSchema = z.union([
 	RunCommandsInputSchema,
 	StructuredCommandsInputSchema,
 	z.object({ commands: StructuredCommandEntrySchema }),

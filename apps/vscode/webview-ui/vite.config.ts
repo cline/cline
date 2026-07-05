@@ -4,7 +4,7 @@ import { writeFileSync } from "node:fs"
 import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react-swc"
 import { resolve } from "path"
-import { defineConfig, type Plugin, ViteDevServer } from "vite"
+import { defineConfig, loadEnv, type Plugin, ViteDevServer } from "vite"
 
 // Custom plugin to write the server port to a file
 const writePortToFile = (): Plugin => {
@@ -27,6 +27,14 @@ const writePortToFile = (): Plugin => {
 }
 
 const isDevBuild = process.argv.includes("--dev-build")
+
+// VS Code launch configurations load apps/vscode/.env for the extension host,
+// but pre-launch webview tasks run as separate processes. Load the parent .env
+// here so F5 builds get the same build-time constants in the webview bundle.
+const parentEnv = loadEnv(process.env.NODE_ENV || "development", resolve(__dirname, ".."), "")
+for (const [key, value] of Object.entries(parentEnv)) {
+	process.env[key] ??= value
+}
 
 // Valid platforms, these should the keys in platform-configs.json
 const VALID_PLATFORMS = ["vscode", "standalone"]
@@ -116,22 +124,34 @@ export default defineConfig({
 	},
 	define: {
 		__PLATFORM__: JSON.stringify(platform),
-		process: JSON.stringify({
-			platform: JSON.stringify(process?.platform),
-			env: {
-				NODE_ENV: JSON.stringify(process?.env?.IS_DEV ? "development" : "production"),
-				CLINE_ENVIRONMENT: JSON.stringify(process?.env?.CLINE_ENVIRONMENT ?? "production"),
-				IS_DEV: JSON.stringify(process?.env?.IS_DEV),
-				IS_TEST: JSON.stringify(process?.env?.IS_TEST),
-				CI: JSON.stringify(process?.env?.CI),
-				// PostHog environment variables
-				TELEMETRY_SERVICE_API_KEY: JSON.stringify(process?.env?.TELEMETRY_SERVICE_API_KEY),
-				ERROR_SERVICE_API_KEY: JSON.stringify(process?.env?.ERROR_SERVICE_API_KEY),
-			},
-		}),
+		__NODE_PLATFORM__: JSON.stringify(process.platform),
+		"process.env.CLINE_ENVIRONMENT": JSON.stringify(process.env.CLINE_ENVIRONMENT ?? "production"),
+		"process.env.IS_DEV": JSON.stringify(process.env.IS_DEV),
+		"process.env.IS_TEST": JSON.stringify(process.env.IS_TEST),
+		"process.env.CI": JSON.stringify(process.env.CI),
+		// PostHog environment variables
+		"process.env.TELEMETRY_SERVICE_API_KEY": JSON.stringify(process.env.TELEMETRY_SERVICE_API_KEY),
+		"process.env.ERROR_SERVICE_API_KEY": JSON.stringify(process.env.ERROR_SERVICE_API_KEY),
+		"process.env.ENABLE_ERROR_AUTOCAPTURE": JSON.stringify(process.env.ENABLE_ERROR_AUTOCAPTURE),
+		// OpenTelemetry environment variables
+		"process.env.OTEL_TELEMETRY_ENABLED": JSON.stringify(process.env.OTEL_TELEMETRY_ENABLED),
+		"process.env.OTEL_METRICS_EXPORTER": JSON.stringify(process.env.OTEL_METRICS_EXPORTER),
+		"process.env.OTEL_LOGS_EXPORTER": JSON.stringify(process.env.OTEL_LOGS_EXPORTER),
+		"process.env.OTEL_EXPORTER_OTLP_PROTOCOL": JSON.stringify(process.env.OTEL_EXPORTER_OTLP_PROTOCOL),
+		"process.env.OTEL_EXPORTER_OTLP_ENDPOINT": JSON.stringify(process.env.OTEL_EXPORTER_OTLP_ENDPOINT),
+		"process.env.OTEL_EXPORTER_OTLP_HEADERS": JSON.stringify(process.env.OTEL_EXPORTER_OTLP_HEADERS),
+		"process.env.OTEL_METRIC_EXPORT_INTERVAL": JSON.stringify(process.env.OTEL_METRIC_EXPORT_INTERVAL),
 	},
 	resolve: {
+		// Force a single React copy. In the bun workspace, sibling packages pull
+		// react@19 into the shared store; without deduping, transitive webview deps
+		// can resolve a second React instance, which bundles two copies and yields a
+		// null hook dispatcher at runtime ("Cannot read properties of null (reading
+		// 'useRef')"). Pin react/react-dom to webview-ui's own (React 18) copy.
+		dedupe: ["react", "react-dom"],
 		alias: {
+			react: resolve(__dirname, "node_modules/react"),
+			"react-dom": resolve(__dirname, "node_modules/react-dom"),
 			"@": resolve(__dirname, "./src"),
 			"@components": resolve(__dirname, "./src/components"),
 			"@context": resolve(__dirname, "./src/context"),

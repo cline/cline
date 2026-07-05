@@ -5,13 +5,31 @@
 # Agent tooling, never shipped in the VSIX
 .agents/**
 .claude/**
+.cline/**
 .codex/**
 CLAUDE.local.md
 out/
 dist-standalone/
 node_modules/
+# Nested workspace-member node_modules (bun links these under each package).
+# Scoped to the sub-package dirs so it doesn't shadow the top-level
+# node_modules/@vscode/codicons re-include below.
+webview-ui/node_modules/**
+testing-platform/node_modules/**
+standalone/**/node_modules/**
 src/**
 standalone/**
+# Build/dev tooling and inputs — bundled into dist/extension.js, not needed in the VSIX.
+bunfig.toml
+esbuild.mjs
+knip.json
+biome.jsonc
+test-setup.js
+.env.example
+scripts/**
+proto/**
+testing-platform/**
+tests/**
 .gitignore
 .yarnrc
 esbuild.js
@@ -34,6 +52,7 @@ sdk/**
 # only exists if a publish aborts mid-swap; neither should ship in the .vsix.
 README.marketplace.md
 .README.github.bak
+package.json.backup
 
 # Custom
 **/demo.gif
@@ -46,7 +65,6 @@ eslint-rules/
 old_docs/
 evals/
 .codespellrc
-.mocharc.json
 buf.yaml
 .clinerules/
 
@@ -78,6 +96,9 @@ old_docs/**
 e2e-build.mjs
 e2e.vsix
 test-results/
+coverage/**
+webview-ui/coverage/**
+webview-ui/.vite-port
 
 # Ignore Storybook files
 **/*.stories.tsx

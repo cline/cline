@@ -23,6 +23,8 @@ import type {
 	ClineCoreOptions,
 	ClineCoreSettingsApi,
 	ClineCoreStartInput,
+	CompareCheckpointInput,
+	CompareCheckpointResult,
 	RestoreInput,
 	RestoreResult,
 	StartSessionBootstrap,
@@ -42,6 +44,12 @@ import type {
 	StartSessionInput,
 	StartSessionResult,
 } from "./runtime/host/runtime-host";
+import { compareCheckpointToWorkspace } from "./session/checkpoint-diff";
+import {
+	FeatureFlagsService,
+	NoOpFeatureFlagsProvider,
+} from "./services/feature-flags";
+import { resolveCoreDistinctId } from "./services/telemetry/distinct-id";
 import type { CoreSessionEvent } from "./types/events";
 import type { SessionHistoryRecord } from "./types/sessions";
 
@@ -63,6 +71,8 @@ export type {
 	ClineCoreStartInput,
 	HubOptions,
 	RemoteOptions,
+	CompareCheckpointInput,
+	CompareCheckpointResult,
 	RestoreInput,
 	RestoreOptions,
 	RestoreResult,
@@ -86,6 +96,7 @@ export class ClineCore {
 	readonly runtimeAddress: string | undefined;
 	readonly automation: ClineCoreAutomationApi;
 	readonly settings: ClineCoreSettingsApi;
+	readonly featureFlags: FeatureFlagsService;
 	readonly pendingPrompts: PendingPromptsServiceApi;
 	private readonly host: RuntimeHost;
 	private readonly prepare: ClineCoreOptions["prepare"] | undefined;
@@ -109,6 +120,7 @@ export class ClineCore {
 		logger: BasicLogger | undefined,
 		telemetry: ITelemetryService | undefined,
 		distinctId: string | undefined,
+		featureFlags: FeatureFlagsService,
 		automationOptions:
 			| (ClineCoreAutomationOptions & { logger?: BasicLogger })
 			| undefined,
@@ -121,6 +133,7 @@ export class ClineCore {
 		this.logger = logger;
 		this.telemetry = telemetry;
 		this.distinctId = distinctId;
+		this.featureFlags = featureFlags;
 		this.settings = createClineCoreSettingsApi(host);
 		this.pendingPrompts = createClineCorePendingPromptsApi(host);
 		this.automation = new ClineCoreAutomationController(() => {
@@ -187,9 +200,22 @@ export class ClineCore {
 	 * ```
 	 */
 	static async create(options: ClineCoreOptions = {}): Promise<ClineCore> {
+		const distinctId = resolveCoreDistinctId(options.distinctId);
 		const capabilities = normalizeRuntimeCapabilities(options.capabilities);
-		const host = await createRuntimeHost({ ...options, capabilities });
+		const normalizedOptions = { ...options, capabilities, distinctId };
+		const host = await createRuntimeHost(normalizedOptions);
 		const automationOptions = normalizeAutomationOptions(options.automation);
+		const featureFlags =
+			options.featureFlags ||
+			new FeatureFlagsService({
+				provider: new NoOpFeatureFlagsProvider(),
+				telemetry: options.telemetry,
+				logger: options.logger,
+				context: {
+					distinctId,
+					clientName: options.clientName,
+				},
+			});
 		const core = new ClineCore(
 			host,
 			options.clientName,
@@ -198,7 +224,8 @@ export class ClineCore {
 			capabilities,
 			options.logger,
 			options.telemetry,
-			options.distinctId,
+			distinctId,
+			featureFlags,
 			automationOptions
 				? { ...automationOptions, logger: options.logger }
 				: undefined,
@@ -503,6 +530,24 @@ export class ClineCore {
 			cwd: input.cwd,
 			restore: input.restore,
 			start: normalizedStart,
+		});
+	}
+
+	async compareCheckpoint(
+		input: CompareCheckpointInput,
+	): Promise<CompareCheckpointResult> {
+		const sessionId = input.sessionId.trim();
+		if (!sessionId) {
+			throw new Error("sessionId is required");
+		}
+		const session = await this.host.getSession(sessionId);
+		if (!session) {
+			throw new Error(`Session ${sessionId} not found`);
+		}
+		return compareCheckpointToWorkspace({
+			session,
+			checkpointRunCount: input.checkpointRunCount,
+			cwd: input.cwd,
 		});
 	}
 

@@ -1,28 +1,38 @@
-import { EmptyRequest } from "@shared/proto/cline/common"
+import { StringRequest } from "@shared/proto/cline/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import { useState } from "react"
-import { useClineAuth } from "@/context/ClineAuthContext"
+import { useEffect, useState } from "react"
+import { ClineAuthStatus } from "@/components/account/ClineAuthStatus"
+import { useClineAuth, useClineSignIn } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { AccountServiceClient } from "@/services/grpc-client"
+import { UiServiceClient } from "@/services/grpc-client"
 
-export const ClineAccountInfoCard = () => {
+export const ClineAccountInfoCard = ({ usageLink }: { usageLink?: string }) => {
 	const { clineUser } = useClineAuth()
 	const { navigateToAccount } = useExtensionState()
-	const [isLoading, setIsLoading] = useState(false)
+	const { isLoginLoading, authStatusMessage, handleSignIn } = useClineSignIn()
+	const [didStartLogin, setDidStartLogin] = useState(false)
 
 	const user = clineUser || undefined
 
 	const handleLogin = () => {
-		setIsLoading(true)
-		AccountServiceClient.accountLoginClicked(EmptyRequest.create())
-			.catch((err) => console.error("Failed to get login URL:", err))
-			.finally(() => {
-				setIsLoading(false)
-			})
+		setDidStartLogin(true)
+		handleSignIn()
 	}
 
+	useEffect(() => {
+		if (didStartLogin && user) {
+			navigateToAccount()
+		}
+	}, [didStartLogin, navigateToAccount, user])
+
 	const handleShowAccount = () => {
-		navigateToAccount()
+		if (!usageLink) {
+			return navigateToAccount()
+		}
+
+		UiServiceClient.openUrl(StringRequest.create({ value: usageLink })).catch((err) => {
+			console.error("Failed to open usage link:", err)
+		})
 	}
 
 	return (
@@ -32,15 +42,16 @@ export const ClineAccountInfoCard = () => {
 					View Billing & Usage
 				</VSCodeButton>
 			) : (
-				<div>
-					<VSCodeButton className="mt-0" disabled={isLoading} onClick={handleLogin}>
+				<div className="flex flex-col gap-3">
+					<VSCodeButton className="mt-0" disabled={isLoginLoading} onClick={handleLogin}>
 						Sign Up with Cline
-						{isLoading && (
+						{isLoginLoading && (
 							<span className="ml-1 animate-spin">
-								<span className="codicon codicon-refresh"></span>
+								<span className="codicon codicon-refresh" />
 							</span>
 						)}
 					</VSCodeButton>
+					<ClineAuthStatus message={authStatusMessage} />
 				</div>
 			)}
 		</div>

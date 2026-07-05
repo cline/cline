@@ -14,11 +14,13 @@ export const CommandOutputContent = memo(
 		isOutputFullyExpanded,
 		onToggle,
 		isContainerExpanded,
+		onOutputChange,
 	}: {
 		output: string
 		isOutputFullyExpanded: boolean
 		onToggle: () => void
 		isContainerExpanded: boolean
+		onOutputChange?: () => void
 	}) => {
 		const outputLines = output.split("\n")
 		const lineCount = outputLines.length
@@ -39,6 +41,12 @@ export const CommandOutputContent = memo(
 				}, 50)
 			}
 		}, [output, isOutputFullyExpanded])
+
+		useEffect(() => {
+			if (isContainerExpanded) {
+				onOutputChange?.()
+			}
+		}, [output, isOutputFullyExpanded, isContainerExpanded, onOutputChange])
 
 		// Don't render anything if container is collapsed
 		if (!isContainerExpanded) {
@@ -118,6 +126,7 @@ export const CommandOutputRow = memo(
 		title,
 		isOutputFullyExpanded,
 		setIsOutputFullyExpanded,
+		onOutputChange,
 	}: {
 		message: ClineMessage
 		isCommandExecuting?: boolean
@@ -129,6 +138,7 @@ export const CommandOutputRow = memo(
 		title?: JSX.Element | null
 		isOutputFullyExpanded: boolean
 		setIsOutputFullyExpanded: (expanded: boolean) => void
+		onOutputChange?: () => void
 	}) => {
 		const splitMessage = (text: string) => {
 			const outputIndex = text.indexOf(COMMAND_OUTPUT_STRING)
@@ -229,6 +239,7 @@ export const CommandOutputRow = memo(
 						<CommandOutputContent
 							isContainerExpanded={true}
 							isOutputFullyExpanded={isOutputFullyExpanded}
+							onOutputChange={onOutputChange}
 							onToggle={() => setIsOutputFullyExpanded(!isOutputFullyExpanded)}
 							output={output}
 						/>

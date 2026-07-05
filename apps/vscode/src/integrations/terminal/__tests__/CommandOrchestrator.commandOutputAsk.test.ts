@@ -1,6 +1,6 @@
+import { describe, it } from "bun:test"
 import assert from "node:assert/strict"
 import { EventEmitter } from "events"
-import { describe, it } from "mocha"
 import { orchestrateCommandExecution } from "../CommandOrchestrator"
 import { CHUNK_DEBOUNCE_MS } from "../constants"
 import type {

@@ -13,6 +13,7 @@ import {
 	normalizeUserInput,
 } from "@cline/shared";
 import { setHomeDirIfUnset } from "@cline/shared/storage";
+import { isOAuthProvider } from "../../auth/provider-auth-registry";
 import { createContextCompactionPrepareTurn } from "../../extensions/context/compaction";
 import type { ToolExecutors } from "../../extensions/tools";
 import { DefaultToolNames } from "../../extensions/tools";
@@ -95,6 +96,7 @@ import {
 } from "./local/session-service-invoker";
 import {
 	createSessionSpawnTool,
+	createSessionSubAgentLifecycleCallbacks,
 	type SubAgentStartTracker,
 } from "./local/spawn-tool";
 import { loadUserFileContent } from "./local/user-files";
@@ -110,6 +112,7 @@ import type {
 	StartSessionInput,
 	StartSessionResult,
 } from "./runtime-host";
+import { SessionNotFoundError } from "./runtime-host";
 import {
 	cloneAccumulatedUsage,
 	RuntimeHostEventBus,
@@ -267,6 +270,29 @@ export class LocalRuntimeHost implements RuntimeHost {
 		});
 	}
 
+	private async applyInitialOAuthCredentials(
+		input: StartSessionInput,
+	): Promise<StartSessionInput> {
+		if (input.config.apiKey?.trim()) {
+			return input;
+		}
+
+		const resolved = await this.oauthTokenManager.resolveProviderApiKey({
+			providerId: input.config.providerId,
+		});
+		if (!resolved?.apiKey) {
+			return input;
+		}
+
+		return {
+			...input,
+			config: {
+				...input.config,
+				apiKey: resolved.apiKey,
+			},
+		};
+	}
+
 	// ── Public API ──────────────────────────────────────────────────────
 
 	async startSession(input: StartSessionInput): Promise<StartSessionResult> {
@@ -274,7 +300,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const startedAt = nowIso();
 		const requestedSessionId = input.config.sessionId?.trim() ?? "";
 		const sessionId = requestedSessionId || createSessionId();
-		const startInput: StartSessionInput = input;
+		const startInput: StartSessionInput =
+			await this.applyInitialOAuthCredentials(input);
 		const initialMessages = startInput.initialMessages ?? [];
 		const initialUsage =
 			initialMessages.length > 0
@@ -357,6 +384,17 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const pluginEventFallbackAutomation =
 			inputLocalConfig?.extensionContext?.automation;
 		let bootstrap!: Awaited<ReturnType<typeof prepareLocalRuntimeBootstrap>>;
+		const subAgentDeps = {
+			getSession: (sid: string) => this.sessions.get(sid),
+			subAgentStarts: this.subAgentStarts,
+			onAgentEvent: (
+				rootSessionId: string,
+				config: CoreSessionConfig,
+				event: AgentEvent,
+			) => this.eventBridge.dispatchAgentEvent(rootSessionId, config, event),
+			invokeBackendOptional: (method: string, ...args: unknown[]) =>
+				this.invokeOptional(method, ...args),
+		};
 		bootstrap = await prepareLocalRuntimeBootstrap({
 			input: startInput,
 			localRuntime: input.localRuntime,
@@ -387,17 +425,16 @@ export class LocalRuntimeHost implements RuntimeHost {
 			},
 			createSpawnTool: () =>
 				createSessionSpawnTool(
-					{
-						getSession: (sid) => this.sessions.get(sid),
-						subAgentStarts: this.subAgentStarts,
-						onAgentEvent: (rootSessionId, config, event) =>
-							this.eventBridge.dispatchAgentEvent(rootSessionId, config, event),
-						invokeBackendOptional: (method, ...args) =>
-							this.invokeOptional(method, ...args),
-					},
+					subAgentDeps,
 					bootstrap.config,
 					sessionId,
 					sessionToolExecutors,
+				),
+			createSubAgentLifecycleCallbacks: (config) =>
+				createSessionSubAgentLifecycleCallbacks(
+					subAgentDeps,
+					config,
+					sessionId,
 				),
 			readSessionMetadata: async () =>
 				(await this.getSession(sessionId))?.metadata as
@@ -431,6 +468,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			thinking: configWithProvider.thinking,
 			reasoningEffort:
 				configWithProvider.reasoningEffort ?? providerConfig.reasoningEffort,
+			maxTokensPerTurn: configWithProvider.maxTokensPerTurn,
 			systemPrompt: configWithProvider.systemPrompt,
 			maxIterations: configWithProvider.maxIterations,
 			execution: configWithProvider.execution,
@@ -632,7 +670,16 @@ export class LocalRuntimeHost implements RuntimeHost {
 						modelId: active.config.modelId,
 					},
 				});
-				await this.failSession(active);
+				try {
+					await this.failSession(active);
+				} catch (cleanupError) {
+					// Never let cleanup failures mask the error that actually
+					// killed the turn; that one is what callers must see.
+					active.config.logger?.error?.("Session failure cleanup threw", {
+						sessionId: active.sessionId,
+						error: cleanupError,
+					});
+				}
 				throw error;
 			}
 		}
@@ -1532,7 +1579,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 		try {
 			return await run();
 		} catch (error) {
-			if (!isLikelyAuthError(error, session.config.providerId)) {
+			if (
+				!isOAuthProvider(session.config.providerId) ||
+				!isLikelyAuthError(error)
+			) {
 				throw error;
 			}
 			await this.syncOAuthCredentials(session, { forceRefresh: true });
@@ -1573,7 +1623,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private getSessionOrThrow(sessionId: string): ActiveSession {
 		const session = this.sessions.get(sessionId);
 		if (!session) {
-			const error = new Error(`session not found: ${sessionId}`);
+			const error = new SessionNotFoundError(sessionId);
 			captureSdkError(this.defaultTelemetry, {
 				component: "core",
 				operation: "session.active_lookup",

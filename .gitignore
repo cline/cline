@@ -13,6 +13,9 @@ tmp
 pnpm-lock.yaml
 
 .clineignore
+.cline/enterprise
+.cline/remote-config
+**/.cline/remote-config
 .venv
 .actrc
 CLAUDE.local.md
@@ -61,6 +64,17 @@ tests/**/cache
 # Should never be committed: only exists if a publish aborts mid-swap.
 .README.github.bak
 
+# Tauri generated code
+apps/*/src-tauri/gen
+apps/*/src-tauri/bin
+apps/examples/*/src-tauri/gen
+apps/examples/*/src-tauri/bin
+# Tauri UI test snapshots
+apps/*/src/tests/.tui-test
+apps/*/src/tests/tui-traces
+apps/vscode/webview-ui/src/**/*.js
+apps/vscode/webview-ui/src/**/*.js.map
+
 
 # SDK Session files / User data
 .cline/data
@@ -70,3 +84,4 @@ tests/**/cache
 *.db-wal
 .cline/**/managed.json
 .cline/**/bundle.json
+apps/vscode/tsconfig.test.generated.json

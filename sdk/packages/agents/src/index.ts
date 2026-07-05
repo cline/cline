@@ -51,6 +51,7 @@ export type {
 export {
 	Agent,
 	AgentRuntime,
+	AgentRuntimeAbortError,
 	createAgent,
 	createAgentRuntime,
 } from "./agent-runtime";

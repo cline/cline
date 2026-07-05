@@ -15,7 +15,7 @@ const IMAGE_MIME_TYPES = ["image/png", "image/jpeg", "image/gif", "image/svg+xml
  * @param cell A notebook cell object
  * @returns The cell with sanitized outputs
  */
-export function sanitizeCellOutputs(cell: Record<string, unknown>): Record<string, unknown> {
+function sanitizeCellOutputs(cell: Record<string, unknown>): Record<string, unknown> {
 	if (cell.cell_type !== "code" || !cell.outputs || !Array.isArray(cell.outputs)) {
 		return cell
 	}

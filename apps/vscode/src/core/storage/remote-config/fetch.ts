@@ -1,5 +1,6 @@
 import axios, { AxiosRequestConfig, AxiosResponse } from "axios"
 import { Controller } from "@/core/controller"
+import { CLINE_PASS_PROVIDER_ID } from "@/core/controller/models/handleClinePassProviderSelection"
 import { ClineAccountService } from "@/services/account/ClineAccountService"
 import { buildBasicClineHeaders } from "@/services/EnvUtils"
 import { getAxiosSettings } from "@/shared/net"
@@ -157,9 +158,7 @@ async function fetchApiKeysForOrganization(organizationId: string): Promise<APIK
 	}
 }
 
-async function discoverRemoteConfigOrg(): Promise<
-	{ organizationId: string; discoveredValue?: string } | undefined
-> {
+async function discoverRemoteConfigOrg(): Promise<{ organizationId: string; discoveredValue?: string } | undefined> {
 	const accountService = ClineAccountService.getInstance()
 
 	const discovery = await accountService.fetchUserRemoteConfig()
@@ -194,10 +193,7 @@ function parseDiscoveredConfig(value: string, organizationId: string): RemoteCon
 	}
 }
 
-async function resolveRemoteConfig(
-	organizationId: string,
-	discoveredValue?: string,
-): Promise<RemoteConfig | undefined> {
+async function resolveRemoteConfig(organizationId: string, discoveredValue?: string): Promise<RemoteConfig | undefined> {
 	if (discoveredValue) {
 		const config = parseDiscoveredConfig(discoveredValue, organizationId)
 		if (config) {
@@ -205,6 +201,15 @@ async function resolveRemoteConfig(
 		}
 	}
 	return fetchRemoteConfigForOrganization(organizationId)
+}
+
+function isClinePassSelected(controller: Controller): boolean {
+	const apiConfiguration = controller.stateManager.getApiConfiguration()
+
+	return (
+		apiConfiguration.planModeApiProvider === CLINE_PASS_PROVIDER_ID ||
+		apiConfiguration.actModeApiProvider === CLINE_PASS_PROVIDER_ID
+	)
 }
 
 /**
@@ -217,6 +222,13 @@ async function resolveRemoteConfig(
  */
 async function ensureUserInOrgWithRemoteConfig(controller: Controller): Promise<RemoteConfig | undefined> {
 	const authService = AuthService.getInstance()
+
+	if (isClinePassSelected(controller)) {
+		clearRemoteConfig()
+		controller.postStateToWebview()
+		return undefined
+	}
+
 	const discovered = await discoverRemoteConfigOrg()
 
 	if (!discovered) {

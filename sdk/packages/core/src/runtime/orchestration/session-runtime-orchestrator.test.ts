@@ -14,20 +14,27 @@
  *  - `canStartRun` / `shutdown` guards enforce the lifecycle rules.
  */
 
-import type { AgentRuntime, AgentRuntimeConfig } from "@cline/agents";
-import type {
-	AgentConfig,
-	AgentEvent,
-	AgentExtension,
-	AgentExtensionContext,
-	AgentMessage,
-	AgentRunResult,
-	AgentRuntimeEvent,
-	AgentTool,
-	AgentToolContext,
+import {
+	type AgentRuntime,
+	type AgentRuntimeConfig,
+	createAgentRuntime,
+} from "@cline/agents";
+import {
+	type AgentConfig,
+	type AgentEvent,
+	type AgentExtension,
+	type AgentExtensionContext,
+	type AgentMessage,
+	type AgentModel,
+	type AgentRunResult,
+	type AgentRuntimeEvent,
+	type AgentTool,
+	type AgentToolContext,
+	EMPTY_CONTENT_TEXT,
 } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import { CLINE_INTERNAL_TELEMETRY_METADATA_KEY } from "../../services/telemetry/tool-context";
+import { MESSAGE_BUILDER_LIMIT_ENV } from "../../session/services/message-builder";
 import {
 	SessionRuntime,
 	type SessionRuntimeOrchestratorDeps,
@@ -243,6 +250,7 @@ describe("SessionRuntime construction", () => {
 			messageBuilder: [],
 			providers: [],
 			automationEventTypes: [],
+			mcpServers: [],
 		});
 	});
 });
@@ -295,6 +303,44 @@ describe("SessionRuntime.getExtensionRegistry", () => {
 		expect(registry.commands).toHaveLength(1);
 		expect(registry.commands[0].name).toBe("ext-cmd");
 		expect(registry.automationEventTypes).toEqual([]);
+		expect(registry.mcpServers).toEqual([]);
+	});
+
+	it("keeps plugin-registered MCP servers out of direct runtime tools", async () => {
+		const extension: AgentExtension = {
+			name: "mcp-ext",
+			manifest: { capabilities: ["mcp"] },
+			setup(api) {
+				api.registerMcpServer({
+					name: "plugin-mock",
+					transport: {
+						type: "stdio",
+						command: process.execPath,
+					},
+				});
+			},
+		};
+		const { deps, configs } = withCapturingFakeRuntime();
+		const session = new SessionRuntime(
+			makeAgentConfig({ extensions: [extension] }),
+			deps,
+		);
+
+		await session.run("go");
+
+		expect((configs[0]?.tools ?? []).map((tool) => tool.name)).not.toContain(
+			"plugin-mock__echo",
+		);
+		expect(session.getExtensionRegistry().mcpServers).toEqual([
+			expect.objectContaining({
+				name: "plugin-mock",
+				metadata: {
+					source: "plugin",
+					plugin: "mcp-ext",
+				},
+			}),
+		]);
+		await session.shutdown("test");
 	});
 
 	it("composes extension-registered rules into the runtime system prompt", async () => {
@@ -522,6 +568,85 @@ describe("SessionRuntime message preparation", () => {
 			),
 		);
 		expect(textParts).toEqual(["original", "builder-added"]);
+	});
+
+	it("merges beforeModel metadata through final message preparation", async () => {
+		const extension: AgentExtension = {
+			name: "metadata-ext",
+			manifest: { capabilities: ["hooks"] },
+			hooks: {
+				beforeModel: () => ({
+					options: {
+						metadata: {
+							runId: "run-plugin",
+							iteration: 2,
+						},
+					},
+				}),
+			},
+		};
+		const { deps, configs } = makeRecordingRuntimeFactory();
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				extensions: [extension],
+				hooks: {
+					beforeModel: () => ({
+						options: {
+							metadata: {
+								sessionId: "session-config",
+								conversationId: "conversation-config",
+							},
+						},
+					}),
+				},
+			}),
+			deps,
+		);
+
+		await (
+			session as unknown as {
+				ensureExtensionsInitialized(): Promise<void>;
+			}
+		).ensureExtensionsInitialized();
+		const hooks = (
+			session as unknown as {
+				createRuntimeHooks(): AgentRuntimeConfig["hooks"];
+			}
+		).createRuntimeHooks();
+		const beforeModel = hooks?.beforeModel;
+		expect(beforeModel).toBeDefined();
+
+		const result = await beforeModel?.({
+			snapshot: makeSnapshot(),
+			request: {
+				systemPrompt: "system",
+				messages: [
+					{
+						id: "m1",
+						role: "user",
+						content: [
+							{
+								type: "text",
+								text: "<user_input>original</user_input>",
+							},
+						],
+						createdAt: 1,
+					},
+				],
+				tools: [],
+			},
+		});
+
+		expect(result?.options?.metadata).toMatchObject({
+			sessionId: "session-config",
+			conversationId: "conversation-config",
+			runId: "run-plugin",
+			iteration: 2,
+		});
+		expect(result?.messages?.[0]?.content).toEqual([
+			{ type: "text", text: "original" },
+		]);
+		expect(configs).toHaveLength(0);
 	});
 
 	it("adapts prepareTurn with API-safe messages for runtime compaction", async () => {
@@ -1108,6 +1233,273 @@ describe("SessionRuntime.addTools / updateConnection / clearHistory / restore", 
 		expect(messages).toHaveLength(2);
 		expect(messages[0].role).toBe("user");
 		expect(messages[1].role).toBe("assistant");
+	});
+
+	it("restore clears stale MessageBuilder rewrite state when tool ids are reused", async () => {
+		const previousThresholdEnv =
+			process.env[MESSAGE_BUILDER_LIMIT_ENV.minOutdatedRewriteBytes];
+		process.env[MESSAGE_BUILDER_LIMIT_ENV.minOutdatedRewriteBytes] = "7000";
+		const { deps, configs } = makeRecordingRuntimeFactory();
+		const session = new SessionRuntime(makeAgentConfig(), deps);
+		if (previousThresholdEnv === undefined) {
+			delete process.env[MESSAGE_BUILDER_LIMIT_ENV.minOutdatedRewriteBytes];
+		} else {
+			process.env[MESSAGE_BUILDER_LIMIT_ENV.minOutdatedRewriteBytes] =
+				previousThresholdEnv;
+		}
+		await session.run("go");
+		const beforeModel = configs[0]?.hooks?.beforeModel;
+		if (!beforeModel) {
+			throw new Error("expected beforeModel hook");
+		}
+
+		const staleRead = "export const x = 1;\n".repeat(7_000);
+		const latestRead = "export const x = 2;\n".repeat(7_000);
+		const beforeRestore = await beforeModel({
+			snapshot: makeSnapshot(),
+			request: {
+				systemPrompt: "system",
+				messages: [
+					{
+						id: "m0",
+						role: "user",
+						content: [{ type: "text", text: "task" }],
+						createdAt: 1,
+					},
+					{
+						id: "m1",
+						role: "assistant",
+						content: [
+							{
+								type: "tool-call",
+								toolCallId: "t1",
+								toolName: "read_files",
+								input: { files: [{ path: "src/a.ts" }] },
+							},
+						],
+						createdAt: 2,
+					},
+					{
+						id: "m2",
+						role: "tool",
+						content: [
+							{
+								type: "tool-result",
+								toolCallId: "t1",
+								toolName: "read_files",
+								output: JSON.stringify([
+									{ path: "src/a.ts", result: staleRead },
+								]),
+							},
+						],
+						createdAt: 3,
+					},
+					{
+						id: "m3",
+						role: "assistant",
+						content: [
+							{
+								type: "tool-call",
+								toolCallId: "t2",
+								toolName: "read_files",
+								input: { files: [{ path: "src/a.ts" }] },
+							},
+						],
+						createdAt: 4,
+					},
+					{
+						id: "m4",
+						role: "tool",
+						content: [
+							{
+								type: "tool-result",
+								toolCallId: "t2",
+								toolName: "read_files",
+								output: JSON.stringify([
+									{ path: "src/a.ts", result: latestRead },
+								]),
+							},
+						],
+						createdAt: 5,
+					},
+				],
+				tools: [],
+			},
+		});
+		expect(JSON.stringify(beforeRestore?.messages?.[2])).toContain("outdated");
+
+		session.restore([]);
+		const afterRestore = await beforeModel({
+			snapshot: makeSnapshot(),
+			request: {
+				systemPrompt: "system",
+				messages: [
+					{
+						id: "r1",
+						role: "assistant",
+						content: [
+							{
+								type: "tool-call",
+								toolCallId: "t1",
+								toolName: "read_files",
+								input: { files: [{ path: "src/a.ts" }] },
+							},
+						],
+						createdAt: 6,
+					},
+					{
+						id: "r2",
+						role: "tool",
+						content: [
+							{
+								type: "tool-result",
+								toolCallId: "t1",
+								toolName: "read_files",
+								output: JSON.stringify([
+									{ path: "src/a.ts", result: staleRead },
+								]),
+							},
+						],
+						createdAt: 7,
+					},
+				],
+				tools: [],
+			},
+		});
+
+		expect(JSON.stringify(afterRestore?.messages)).not.toContain("outdated");
+		expect(JSON.stringify(afterRestore?.messages)).toContain(
+			"export const x = 1;",
+		);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// real AgentRuntime smoke
+// ---------------------------------------------------------------------------
+
+describe("SessionRuntime real AgentRuntime smoke", () => {
+	it("does not replay ERROR: EMPTY CONTENT after an empty upstream failure", async () => {
+		const modelRequests: AgentMessage[][] = [];
+		const scriptedModel: AgentModel = {
+			async stream(request) {
+				modelRequests.push(request.messages.map((message) => ({ ...message })));
+				const turn = modelRequests.length;
+
+				return (async function* () {
+					if (turn === 1) {
+						yield {
+							type: "finish" as const,
+							reason: "error" as const,
+							error: "upstream failed",
+						};
+						return;
+					}
+					yield { type: "text-delta" as const, text: "second ok" };
+					yield { type: "finish" as const, reason: "stop" as const };
+				})();
+			},
+		};
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				providerId: "cline",
+				modelId: "openai/gpt-5.5",
+				apiKey: "test-key",
+			}),
+			{
+				createAgentRuntimeImpl: (config) =>
+					createAgentRuntime({ ...config, model: scriptedModel }),
+			},
+		);
+
+		const first = await session.run("first");
+		expect(first.finishReason).toBe("error");
+		expect(first.text).toBe("upstream failed");
+		expect(session.getMessages().map((message) => message.role)).toEqual([
+			"user",
+		]);
+
+		const second = await session.continue("second");
+		expect(second.finishReason).toBe("completed");
+		expect(second.text).toBe("second ok");
+		expect(modelRequests).toHaveLength(2);
+		expect(
+			modelRequests[1]?.some((message) =>
+				message.content.some(
+					(part) => part.type === "text" && part.text === EMPTY_CONTENT_TEXT,
+				),
+			),
+		).toBe(false);
+		expect(modelRequests[1]?.map((message) => message.role)).toEqual([
+			"user",
+			"user",
+		]);
+	});
+
+	it("uses the error message instead of replaying prior assistant text after a tool-call stream failure", async () => {
+		const scriptedModel: AgentModel = {
+			async stream(request) {
+				const turn = request.messages.filter(
+					(message) => message.role === "assistant",
+				).length;
+
+				return (async function* () {
+					if (turn === 0) {
+						yield {
+							type: "text-delta" as const,
+							text: "I am going to make one more cleanup.",
+						};
+						yield {
+							type: "tool-call-delta" as const,
+							toolCallId: "call_cleanup",
+							toolName: "cleanup",
+							inputText: JSON.stringify({ ok: true }),
+						};
+						yield { type: "finish" as const, reason: "tool-calls" as const };
+						return;
+					}
+					yield {
+						type: "finish" as const,
+						reason: "error" as const,
+						error: "upstream failed after tool result",
+					};
+				})();
+			},
+		};
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				providerId: "cline",
+				modelId: "openai/gpt-5.5",
+				apiKey: "test-key",
+				tools: [
+					{
+						name: "cleanup",
+						description: "cleanup",
+						inputSchema: { type: "object" },
+						execute: async () => ({ ok: true }),
+					},
+				],
+			}),
+			{
+				createAgentRuntimeImpl: (config) =>
+					createAgentRuntime({ ...config, model: scriptedModel }),
+			},
+		);
+
+		const result = await session.run("first");
+
+		expect(result.finishReason).toBe("error");
+		expect(result.text).toBe("upstream failed after tool result");
+		expect(result.text).not.toContain("one more cleanup");
+		expect(session.getMessages().map((message) => message.role)).toEqual([
+			"user",
+			"assistant",
+			"user",
+		]);
+		const lastContent = session.getMessages().at(-1)?.content[0];
+		expect(typeof lastContent === "object" ? lastContent.type : undefined).toBe(
+			"tool_result",
+		);
 	});
 });
 

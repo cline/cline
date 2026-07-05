@@ -1,4 +1,7 @@
 import {
+	AGENT_UNEXPECTED_REASONING_TOKENS_EVENT,
+	type CaptureAgentUnexpectedReasoningTokensInput,
+	captureAgentUnexpectedReasoningTokens,
 	type ITelemetryService,
 	SDK_ERROR_TELEMETRY_EVENT,
 	type TelemetryProperties,
@@ -32,6 +35,9 @@ export const CORE_TELEMETRY_EVENTS = {
 	SESSION: {
 		STARTED: "session.started",
 		ENDED: "session.ended",
+	},
+	AGENT: {
+		UNEXPECTED_REASONING_TOKENS: AGENT_UNEXPECTED_REASONING_TOKENS_EVENT,
 	},
 	USER: {
 		AUTH_STARTED: "user.auth_started",
@@ -74,6 +80,9 @@ export const CORE_TELEMETRY_EVENTS = {
 		ERROR: SDK_ERROR_TELEMETRY_EVENT,
 		TOOL_TIMEOUT: "sdk.tool_timeout",
 	},
+	FEATURE_FLAGS: {
+		FLAG_CALLED: "$feature_flag_called",
+	},
 } as const;
 
 export interface RunCommandsTimeoutTelemetryProperties {
@@ -92,6 +101,11 @@ export interface RunCommandsTimeoutTelemetryProperties {
 	iteration?: number;
 	tool_call_id?: string;
 }
+
+export {
+	captureAgentUnexpectedReasoningTokens,
+	type CaptureAgentUnexpectedReasoningTokensInput,
+};
 
 export interface WorkspaceInitializedProperties {
 	root_count: number;

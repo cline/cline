@@ -1,3 +1,9 @@
+// Side-effect import: in the standalone (JetBrains/CLI) build (IS_STANDALONE==="true"),
+// loading @/shared/net installs the undici EnvHttpProxyAgent as the global dispatcher
+// so all HTTP/inference honors proxy/CA configuration. It must run before any network
+// I/O, so KEEP IT FIRST: do not add an import above this line that performs network
+// work at module-eval time, or proxy support silently breaks on JetBrains/CLI.
+import "@/shared/net"
 import { ExternalCommentReviewController } from "@hosts/external/ExternalCommentReviewController"
 import { ExternalDiffViewProvider } from "@hosts/external/ExternalDiffviewProvider"
 import { ExternalWebviewProvider } from "@hosts/external/ExternalWebviewProvider"
@@ -14,7 +20,6 @@ import { StandaloneTerminalManager } from "@/integrations/terminal"
 import { Logger } from "@/shared/services/Logger"
 import { createStorageContext } from "@/shared/storage/storage-context"
 import { HOSTBRIDGE_PORT, waitForHostBridgeReady } from "./hostbridge-client"
-import { setLockManager } from "./lock-manager"
 import { startMemoryMonitoring, stopMemoryMonitoring } from "./memory-monitor"
 import { PROTOBUS_PORT, startProtobusService } from "./protobus-service"
 import { log } from "./utils"
@@ -83,9 +88,6 @@ async function main() {
 			dbPath,
 			instanceAddress: protobusAddress,
 		})
-
-		// Make lock manager available to other modules
-		setLockManager(globalLockManager)
 
 		await globalLockManager.registerInstance({
 			hostAddress,
@@ -261,7 +263,7 @@ async function shutdownGracefully(lockManager?: SqliteLockManager) {
 		// Step 3: Tear down services
 		log("Tearing down services...")
 		try {
-			tearDown()
+			await tearDown()
 			log("Services torn down successfully")
 		} catch (error) {
 			log(`Warning: Failed to tear down services: ${error}`)

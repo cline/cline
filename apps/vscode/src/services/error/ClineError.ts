@@ -1,13 +1,19 @@
+import {
+	getClineOrgIndividualInferenceSubscriptionMessage,
+	isClineNotSubscribedMessage,
+	isClineOrgIndividualInferenceSubscriptionMessage,
+} from "@cline/llms"
 import { serializeError } from "serialize-error"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "../../shared/ClineAccount"
 
 export enum ClineErrorType {
 	Auth = "auth",
-	Network = "network",
 	RateLimit = "rateLimit",
 	Balance = "balance",
 	SpendLimit = "spendLimit",
 	QuotaExceeded = "quotaExceeded",
+	Entitlement = "entitlement",
+	OrgClinePassRestriction = "orgClinePassRestriction",
 }
 
 interface ErrorDetails {
@@ -103,6 +109,14 @@ export class ClineError extends Error {
 		})
 	}
 
+	public get status(): number | undefined {
+		return this._error.status
+	}
+
+	public get requestId(): string | undefined {
+		return this._error.request_id
+	}
+
 	/**
 	 * Parses a stringified error into a ClineError instance.
 	 */
@@ -139,7 +153,9 @@ export class ClineError extends Error {
 	 */
 	static getErrorType(err: ClineError): ClineErrorType | undefined {
 		const { code, status, details } = err._error
-		const message = (err._error?.message || err.message || JSON.stringify(err._error))?.toLowerCase()
+		const rawMessage = err._error?.message || err.message || JSON.stringify(err._error)
+		const message = rawMessage?.toLowerCase()
+		const detailMessage = typeof details?.message === "string" ? details.message : undefined
 
 		// Check balance error first (most specific)
 		if (code === "insufficient_credits" && typeof details?.current_balance === "number") {
@@ -150,6 +166,21 @@ export class ClineError extends Error {
 		// Must be checked before the generic rate-limit check since both use 429
 		if (code === "SPEND_LIMIT_EXCEEDED" || details?.code === "SPEND_LIMIT_EXCEEDED") {
 			return ClineErrorType.SpendLimit
+		}
+
+		if (
+			rawMessage === getClineOrgIndividualInferenceSubscriptionMessage() ||
+			(detailMessage ? isClineOrgIndividualInferenceSubscriptionMessage(detailMessage) : false) ||
+			(rawMessage ? isClineOrgIndividualInferenceSubscriptionMessage(rawMessage) : false)
+		) {
+			return ClineErrorType.OrgClinePassRestriction
+		}
+
+		if (
+			(detailMessage ? isClineNotSubscribedMessage(detailMessage) : false) ||
+			(rawMessage ? isClineNotSubscribedMessage(rawMessage) : false)
+		) {
+			return ClineErrorType.Entitlement
 		}
 
 		// Check auth errors
@@ -180,17 +211,7 @@ export class ClineError extends Error {
 	}
 }
 
-export class AuthNetworkError extends Error {
-	constructor(
-		message: string,
-		override readonly cause?: Error,
-	) {
-		super(message)
-		this.name = ClineErrorType.Network
-	}
-}
-
-export class AuthInvalidTokenError extends Error {
+class AuthInvalidTokenError extends Error {
 	constructor(message: string) {
 		super(message)
 		this.name = ClineErrorType.Auth

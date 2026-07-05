@@ -51,7 +51,7 @@ for CI/CD and scripting.
 npm i -g cline
 ```
 
-<a href="./sdk/apps/cli/README.md">Learn more</a>
+<a href="./apps/cli/README.md">Learn more</a>
 <br><br>
 
 </td>
@@ -129,7 +129,7 @@ npm install @cline/sdk
 | Product | Description | Location | CHANGELOG |
 |---------|------------|--------------|--------------|
 | **SDK** | Node.js programmatic agent API and extension exports. | [`sdk/`](https://github.com/cline/cline/tree/main/sdk) | [CHANGELOG.md](https://github.com/cline/cline/blob/main/sdk/CHANGELOG.md) |
-| **CLI** | Terminal UI, headless mode, shell commands, and CLI-specific flows. | [`sdk/apps/cli/`](https://github.com/cline/cline/tree/main/sdk/apps/cli) | [CHANGELOG.md](https://github.com/cline/cline/blob/main/sdk/apps/cli/CHANGELOG.md) |
+| **CLI** | Terminal UI, headless mode, shell commands, and CLI-specific flows. | [`apps/cli/`](https://github.com/cline/cline/tree/main/apps/cli) | [CHANGELOG.md](https://github.com/cline/cline/blob/main/apps/cli/CHANGELOG.md) |
 | **VS Code Extension** | The Marketplace extension and extension host integration. | [`/`](https://github.com/cline/cline/tree/main) (WIP migrating) | [CHANGELOG.md](https://github.com/cline/cline/blob/main/CHANGELOG.md) |
 | **JetBrains Plugin** | JetBrains-hosted client that talks to the shared agent core. | Currently we are not open-sourcing JetBrains plugins | - |
 | **Kanban** | Web-based multi-agent task board. | [`cline/kanban`](https://github.com/cline/kanban) | [CHANGELOG.md](https://github.com/cline/kanban/blob/main/CHANGELOG.md) |
@@ -212,8 +212,12 @@ cline schedule create "PR summary" \
 Chat with your agent from any messaging platform: Telegram, Slack, Discord, Google Chat, WhatsApp, and Linear. Each conversation thread maps to an agent session with full context. Set up access control to restrict who can interact with your agent.
 
 ```bash
+# Connect to Telegram
 cline connect telegram -k $BOT_TOKEN
-cline connect slack --token $SLACK_TOKEN --signing-secret $SECRET --base-url $URL
+# Connect to Slack through webhook
+cline connect slack --bot-token $SLACK_TOKEN --signing-secret $SECRET --base-url $URL
+# Connect to Slack using socket mode
+cline connect slack --bot-token $SLACK_TOKEN --app-token $SLACK_APP_TOKEN
 ```
 
 ## Headless CLI for CI/CD

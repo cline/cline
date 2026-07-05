@@ -3,9 +3,10 @@ title: "Authorization"
 description: "Authenticate with Cline and choose your first AI model"
 ---
 
-Cline connects to AI models through a **provider**. You have two paths:
+Cline connects to AI models through a **provider**. You have three common paths:
 
-- **Cline Provider** (recommended): sign in with Google/GitHub/email, no API key setup.
+- **Cline (usage-billing)** (recommended): sign in with Google/GitHub/email, no API key setup.
+- **ClinePass**: a $9.99/month subscription provider with access to selected open coding models and 2-5x API rate limits.
 - **Bring Your Own Key (BYOK)**: use your own provider credentials (cloud or local runtimes).
 
 ## Menu
@@ -25,7 +26,8 @@ Cline connects to AI models through a **provider**. You have two paths:
   </Step>
 
   <Step title="Authenticate">
-    - **Cline Provider:** Click **Sign In** and complete OAuth.
+    - **Cline (usage-billing):** Click **Sign In** and complete OAuth.
+    - **ClinePass:** Select **ClinePass**, click **Sign In**, and subscribe if prompted.
     - **BYOK cloud provider:** Paste your API key into the **API Key** field.
     - **Local runtime (Ollama/LM Studio):** no key needed; ensure runtime is running.
   </Step>
@@ -37,13 +39,21 @@ Cline connects to AI models through a **provider**. You have two paths:
 
 ## Provider Options
 
-### Cline Provider
+### Cline (usage-billing)
 
 - One sign-in, no key management
 - Built-in billing and free model options
 - Access to multiple providers from one account
 
 Add credits in Cline settings or at [app.cline.bot/dashboard](https://app.cline.bot/dashboard).
+
+### ClinePass
+
+- Flat **$9.99/month** subscription
+- 2-5x API rate limits for longer agent sessions
+- Curated open coding models including GLM, Kimi, DeepSeek, and MiMo
+
+Subscribe from the [ClinePass dashboard](https://app.cline.bot/dashboard/subscription?personal=true), then select **ClinePass** as your provider in Cline. See the [ClinePass guide](/getting-started/clinepass) for included models and reference pricing.
 
 ### BYOK (cloud + local)
 

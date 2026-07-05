@@ -4,20 +4,19 @@ import "./utils/path" // necessary to have access to String.prototype.toPosix
 import { HostProvider } from "@/hosts/host-provider"
 import { Logger } from "@/shared/services/Logger"
 import type { StorageContext } from "@/shared/storage/storage-context"
-import { FileContextTracker } from "./core/context/context-tracking/FileContextTracker"
 import { clearOnboardingModelsCache } from "./core/controller/models/getClineOnboardingModels"
 import { HookDiscoveryCache } from "./core/hooks/HookDiscoveryCache"
 import { HookProcessRegistry } from "./core/hooks/HookProcessRegistry"
 import { StateManager } from "./core/storage/StateManager"
 import { AgentConfigLoader } from "./core/task/tools/subagent/AgentConfigLoader"
 import { ExtensionRegistryInfo } from "./registry"
+import { registerVsCodeLmHandler } from "./sdk/vscode-lm/register-vscode-lm"
 import { ErrorService } from "./services/error"
 import { featureFlagsService } from "./services/feature-flags"
 import { getDistinctId } from "./services/logging/distinctId"
 import { telemetryService } from "./services/telemetry"
 import { PostHogClientProvider } from "./services/telemetry/providers/posthog/PostHogClientProvider"
 import { ClineTempManager } from "./services/temp"
-import { cleanupTestMode } from "./services/test/TestMode"
 import { ShowMessageType } from "./shared/proto/host/window"
 import { syncWorker } from "./shared/services/worker/sync"
 import { getBlobStoreSettingsFromEnv } from "./shared/services/worker/worker"
@@ -52,6 +51,11 @@ export async function initialize(storageContext: StorageContext): Promise<Webvie
 		})
 	}
 
+	// Register host-only SDK provider handlers (e.g. VS Code Language Model API),
+	// which depend on the `vscode` module and cannot live in the SDK package.
+	// Must run before any handler is built (standalone utilities or task loop).
+	registerVsCodeLmHandler()
+
 	// =============== External services ===============
 	await ErrorService.initialize()
 	// Initialize PostHog client provider (skip in self-hosted mode)
@@ -74,8 +78,6 @@ export async function initialize(storageContext: StorageContext): Promise<Webvie
 	syncWorker().init({ ...blobStoreSettings, userDistinctId: getDistinctId() })
 	// Clean up old temp files in background (non-blocking) and start periodic cleanup every 24 hours
 	ClineTempManager.startPeriodicCleanup()
-	// Clean up orphaned file context warnings (startup cleanup)
-	FileContextTracker.cleanupOrphanedWarnings(stateManager)
 
 	telemetryService.captureExtensionActivated()
 
@@ -106,7 +108,7 @@ async function showVersionUpdateAnnouncement(stateManager: StateManager) {
 				})
 			}
 			// Always update the main version tracker for the next launch.
-			await stateManager.setGlobalState("clineVersion", currentVersion)
+			stateManager.setGlobalState("clineVersion", currentVersion)
 		}
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : String(error)
@@ -151,23 +153,28 @@ async function checkWorktreeAutoOpen(stateManager: StateManager): Promise<void> 
  * Performs cleanup when Cline is deactivated that is common to all platforms.
  */
 export async function tearDown(): Promise<void> {
-	AgentConfigLoader.getInstance()?.dispose()
-	PostHogClientProvider.getInstance().dispose()
-	telemetryService.dispose()
-	ErrorService.get().dispose()
-	featureFlagsService.dispose()
-	// Dispose all webview instances
-	await WebviewProvider.disposeAllInstances()
-	syncWorker().dispose()
-	clearOnboardingModelsCache()
+	try {
+		AgentConfigLoader.getInstance()?.dispose()
+		PostHogClientProvider.getInstance().dispose()
+		telemetryService.dispose()
+		ErrorService.get().dispose()
+		featureFlagsService.dispose()
+		// Dispose all webview instances
+		await WebviewProvider.disposeAllInstances()
+		syncWorker().dispose()
+		clearOnboardingModelsCache()
 
-	// Kill any running hook processes to prevent zombies
-	await HookProcessRegistry.terminateAll()
-	// Clean up hook discovery cache
-	HookDiscoveryCache.getInstance().dispose()
-	// Stop periodic temp file cleanup
-	ClineTempManager.stopPeriodicCleanup()
-
-	// Clean up test mode
-	cleanupTestMode()
+		// Kill any running hook processes to prevent zombies
+		await HookProcessRegistry.terminateAll()
+		// Clean up hook discovery cache
+		HookDiscoveryCache.getInstance().dispose()
+		// Stop periodic temp file cleanup
+		ClineTempManager.stopPeriodicCleanup()
+	} finally {
+		try {
+			await StateManager.get().flushPendingState()
+		} catch (error) {
+			Logger.error("[Cline] Failed to flush pending state during teardown:", error)
+		}
+	}
 }

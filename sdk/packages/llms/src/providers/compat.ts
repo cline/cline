@@ -535,6 +535,7 @@ function toApiStreamChunk(id: string, event: AgentModelEvent): ApiStreamChunk {
 				outputTokens: event.usage.outputTokens ?? 0,
 				cacheReadTokens: event.usage.cacheReadTokens,
 				cacheWriteTokens: event.usage.cacheWriteTokens,
+				thoughtsTokenCount: event.usage.reasoningTokenCount,
 				totalCost: event.usage.totalCost,
 			};
 		case "finish":

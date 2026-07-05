@@ -1,7 +1,7 @@
 /**
  * Types of errors that can occur during hook execution
  */
-export enum HookErrorType {
+enum HookErrorType {
 	/** Hook execution exceeded the timeout limit */
 	TIMEOUT = "timeout",
 	/** Hook output failed JSON validation */

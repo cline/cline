@@ -3,9 +3,9 @@
  * Tests API fetching, caching, auth updates, and rate limit backoff
  */
 
+import { afterEach, beforeEach, describe, it } from "bun:test"
 import type { BannerRules } from "@shared/ClineBanner"
 import { expect } from "chai"
-import { afterEach, beforeEach, describe, it } from "mocha"
 import * as sinon from "sinon"
 import { ClineEnv, Environment } from "@/config"
 import { Controller } from "@/core/controller"
@@ -17,8 +17,6 @@ import { mockFetchForTesting } from "@/shared/net"
 import { FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
 import { Logger } from "@/shared/services/Logger"
 import { BannerService } from "../BannerService"
-
-const BANNER_FAKE_TIMER_TEST_TIMEOUT_MS = 8_000
 
 describe("BannerService", () => {
 	let sandbox: sinon.SinonSandbox
@@ -248,9 +246,7 @@ describe("BannerService", () => {
 			clock.restore()
 		})
 
-		it("should fall back to 24 hours when payload is invalid", async function () {
-			this.timeout(BANNER_FAKE_TIMER_TEST_TIMEOUT_MS)
-
+		it("should fall back to 24 hours when payload is invalid", async () => {
 			const clock = useBannerFakeTimers()
 			try {
 				flagPayloadStub.callsFake((flag: FeatureFlag) =>
@@ -1119,9 +1115,7 @@ describe("BannerService", () => {
 			clock.restore()
 		})
 
-		it("should clear pending retry timeout on auth update", async function () {
-			this.timeout(BANNER_FAKE_TIMER_TEST_TIMEOUT_MS)
-
+		it("should clear pending retry timeout on auth update", async () => {
 			const clock = useBannerFakeTimers()
 			try {
 				const successResponse = {

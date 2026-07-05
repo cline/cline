@@ -10,6 +10,7 @@ export enum BUILT_IN_PROVIDER {
 	ANTHROPIC = "anthropic",
 	CLAUDE_CODE = "claude-code",
 	CLINE = "cline",
+	CLINE_PASS = "cline-pass",
 	// OpenAI variants
 	OPENAI_COMPATIBLE = "openai-compatible",
 	OPENAI_NATIVE = "openai-native",
@@ -46,6 +47,7 @@ export enum BUILT_IN_PROVIDER {
 	HUAWEI_CLOUD_MAAS = "huawei-cloud-maas",
 	WANDB = "wandb",
 	XIAOMI = "xiaomi",
+	TENCENT_TOKENHUB = "tencent-tokenhub",
 	KILO = "kilo",
 	ZAI = "zai",
 	ZAI_CODING_PLAN = "zai-coding-plan",

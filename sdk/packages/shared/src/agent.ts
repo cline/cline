@@ -81,6 +81,8 @@ export interface AgentTokenUsage {
 	outputTokens: number;
 	cacheReadTokens: number;
 	cacheWriteTokens: number;
+	/** Provider-reported hidden reasoning tokens, when available. */
+	reasoningTokenCount?: number;
 }
 
 /**
@@ -300,6 +302,7 @@ export interface AgentBeforeToolResult {
 	stop?: boolean;
 	reason?: string;
 	input?: unknown;
+	policy?: ToolPolicy;
 }
 
 export interface AgentAfterToolContext {

@@ -33,9 +33,13 @@ export type GatewayModelCapability =
 	| "structured-output";
 
 export type GatewayPromptCacheStrategy = "anthropic-automatic";
-export type GatewayUsageCostDisplay = "show" | "hide";
+export const USAGE_COST_DISPLAYS = ["show", "hide", "subscription"] as const;
+export type GatewayUsageCostDisplay = (typeof USAGE_COST_DISPLAYS)[number];
 export type GatewayPromptCacheFormat = "anthropic-cache-control";
-export type GatewayReasoningFormat = "anthropic-thinking" | "glm-thinking";
+export type GatewayReasoningFormat =
+	| "anthropic-thinking"
+	| "glm-thinking"
+	| "minimax-thinking";
 export type GatewayModelRoute =
 	| { matcher: "anthropic-compatible" }
 	| {
@@ -59,14 +63,29 @@ export interface GatewayProviderRouting {
 	};
 }
 
+export type GatewayStickySessionTransport = "json-body" | "header";
+
+export interface GatewayStickySessionMetadata {
+	/**
+	 * Where the provider expects the sticky-session identifier on the wire.
+	 * `field` is a JSON body property for `json-body`, and an HTTP header name
+	 * for `header`.
+	 */
+	transport: GatewayStickySessionTransport;
+	field: string;
+	metadataKey: string;
+}
+
 export interface GatewayProviderMetadata {
 	promptCacheStrategy?: GatewayPromptCacheStrategy;
 	usageCostDisplay?: GatewayUsageCostDisplay;
 	routing?: GatewayProviderRouting;
+	stickySession?: GatewayStickySessionMetadata;
 	configFields?: readonly ProviderConfigField[];
 	[key: string]:
 		| JsonValue
 		| GatewayProviderRouting
+		| GatewayStickySessionMetadata
 		| readonly ProviderConfigField[]
 		| undefined;
 }

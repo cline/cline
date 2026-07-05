@@ -22,7 +22,6 @@ const socketBindingSupported = await (async () => {
 		return false;
 	}
 })();
-const _socketIt = socketBindingSupported ? it : it.skip;
 
 function createCredentials(
 	overrides: Partial<ClineOAuthCredentials> = {},
