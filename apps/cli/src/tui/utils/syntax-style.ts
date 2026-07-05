@@ -30,7 +30,7 @@ interface SyntaxColors {
 }
 
 // Dark syntax colors are a pastel family harmonized with the brand accents
-// (act #79b8ff, plan #ffea7f, success #87af87): every hue sits near the same
+// (act #79b8ff, plan #ffea7f, success #8bd28d): every hue sits near the same
 // OKLCH lightness/chroma weight (~L 0.78, C 0.11) so code blocks feel like
 // part of the same palette instead of a bolted-on editor theme.
 const syntaxColors: Record<TerminalTheme, SyntaxColors> = {
@@ -40,7 +40,7 @@ const syntaxColors: Record<TerminalTheme, SyntaxColors> = {
 		type: "#dfca7d",
 		functionName: themePalette.dark.act,
 		variable: "#ee939b",
-		string: "#87af87",
+		string: "#8bd28d",
 		number: "#f0ad7f",
 		comment: "#5c6370",
 		punctuation: "#abb2bf",
@@ -49,7 +49,7 @@ const syntaxColors: Record<TerminalTheme, SyntaxColors> = {
 		tag: "#ee939b",
 		attribute: "#f0ad7f",
 		escape: "#9bbbdd",
-		markdownCode: "#87af87",
+		markdownCode: "#8bd28d",
 		markdownHeading: themePalette.dark.act,
 		markdownMuted: "#808080",
 		markdownLink: themePalette.dark.act,
