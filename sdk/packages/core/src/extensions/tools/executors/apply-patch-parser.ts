@@ -312,9 +312,8 @@ export class PatchParser {
 }
 
 function calculateSimilarity(str1: string, str2: string): number {
-	// Skip Levenshtein-based fuzzy matching for oversized comparisons.
-	if (str1.length * str2.length > MAX_FUZZY_MATCH_CELLS) {
-		return 0;
+	if (str1 === str2) {
+		return 1;
 	}
 
 	const longer = str1.length > str2.length ? str1 : str2;
@@ -322,6 +321,31 @@ function calculateSimilarity(str1: string, str2: string): number {
 
 	if (longer.length === 0) {
 		return 1;
+	}
+
+	// Avoid allocating a huge Levenshtein matrix for oversized comparisons,
+	// but still preserve a meaningful similarity score for large near-matches.
+	if (str1.length * str2.length > MAX_FUZZY_MATCH_CELLS) {
+		let prefix = 0;
+		while (
+			prefix < shorter.length &&
+			prefix < longer.length &&
+			shorter[prefix] === longer[prefix]
+		) {
+			prefix++;
+		}
+
+		let suffix = 0;
+		while (
+			suffix < shorter.length - prefix &&
+			suffix < longer.length - prefix &&
+			shorter[shorter.length - 1 - suffix] ===
+				longer[longer.length - 1 - suffix]
+		) {
+			suffix++;
+		}
+
+		return (prefix + suffix) / longer.length;
 	}
 
 	const editDistance = levenshteinDistance(shorter, longer);
