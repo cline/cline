@@ -57,8 +57,8 @@ describe("cline builtin models", () => {
 		expect(models["zai/glm-5.2"]).toMatchObject({
 			id: "zai/glm-5.2",
 			name: "GLM 5.2",
-			contextWindow: 1_000_000,
-			maxInputTokens: 1_000_000,
+			contextWindow: 1_040_000,
+			maxInputTokens: 1_040_000,
 		});
 		expect(models["zai/glm-5.1"]).toMatchObject({
 			id: "zai/glm-5.1",

@@ -109,7 +109,9 @@ describe("createSapAiCoreProviderModule", () => {
 		const firstModel = firstProvider.model("anthropic--claude-4.6-sonnet") as {
 			doGenerate: () => Promise<string>;
 		};
-		const secondModel = secondProvider.model("anthropic--claude-4.6-sonnet") as {
+		const secondModel = secondProvider.model(
+			"anthropic--claude-4.6-sonnet",
+		) as {
 			doGenerate: () => Promise<string>;
 		};
 		const firstStarted = deferred();

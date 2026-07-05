@@ -1,10 +1,5 @@
 import { execFileSync, spawn } from "node:child_process";
-import {
-	existsSync,
-	readdirSync,
-	readFileSync,
-	rmSync,
-} from "node:fs";
+import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { basename, dirname, extname, join } from "node:path";
 import type {
 	ClineAccountActionRequest,
@@ -1043,7 +1038,8 @@ export async function handleCommand(
 	if (command === "set_mcp_server_disabled") {
 		const path = ensureMcpSettingsFile();
 		updateMcpSettingsFileSync(path, (settings) => {
-			const servers = ((settings.mcpServers as JsonRecord | undefined) ?? {}) as JsonRecord;
+			const servers = ((settings.mcpServers as JsonRecord | undefined) ??
+				{}) as JsonRecord;
 			const name = String(args?.name ?? "").trim();
 			const current = servers[name];
 			if (!current || typeof current !== "object") {
@@ -1094,7 +1090,8 @@ export async function handleCommand(
 					};
 		const path = ensureMcpSettingsFile();
 		updateMcpSettingsFileSync(path, (settings) => {
-			const servers = ((settings.mcpServers as JsonRecord | undefined) ?? {}) as JsonRecord;
+			const servers = ((settings.mcpServers as JsonRecord | undefined) ??
+				{}) as JsonRecord;
 			if (previousName && previousName !== name) {
 				delete servers[previousName];
 			}
@@ -1106,7 +1103,8 @@ export async function handleCommand(
 	if (command === "delete_mcp_server") {
 		const path = ensureMcpSettingsFile();
 		updateMcpSettingsFileSync(path, (settings) => {
-			const servers = ((settings.mcpServers as JsonRecord | undefined) ?? {}) as JsonRecord;
+			const servers = ((settings.mcpServers as JsonRecord | undefined) ??
+				{}) as JsonRecord;
 			delete servers[String(args?.name ?? "")];
 			settings.mcpServers = servers;
 		});

@@ -1,5 +1,20 @@
 # Cline SDK Changelog
 
+## 0.0.56
+
+- Tool calls from weaker models that use slightly-off argument shapes (e.g. a bare string where an array is expected) or malformed/truncated JSON are now coerced or repaired and executed, instead of being rejected before the tools can handle them
+- Fixed plan/act mode notices being stripped from outbound prompts
+- Added support for surfacing plan/act mode switches to the model
+
+## 0.0.55
+
+- Add Tencent TokenHub as a provider
+- Add a compaction strategy setting so you can choose how context compaction works
+- Fix first-prompt truncation on high-output models (e.g. MiniMax M3), where a shallow session could auto-compact immediately and reduce the initial task to just the input wrapper
+- Use a curated default when migrating legacy provider settings
+- Advertise run commands as shell strings
+- Refresh the bundled model catalog with the latest provider models
+
 ## 0.0.54
 
 - Improve basic compaction token budgeting so context compaction is more accurate

@@ -243,10 +243,12 @@ export { buildClineSystemPrompt, processWorkspaceInfo } from "./prompt/cline";
 export {
 	formatDisplayUserInput,
 	formatFileContentBlock,
+	formatModeSwitchNotice,
 	formatUserCommandBlock,
 	formatUserInputBlock,
 	normalizeUserInput,
 	parseUserCommandEnvelope,
+	stripModeNotices,
 	xmlTagsRemoval,
 } from "./prompt/format";
 export { isClineProvider } from "./providers/utils";
