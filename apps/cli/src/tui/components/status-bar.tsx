@@ -102,13 +102,12 @@ export function resolveModelDisplayName(config: {
 }): string {
 	const info = lookupModelInfo(config.modelId, config.knownModels);
 	const modelIdTail = config.modelId.split("/").pop() ?? config.modelId;
-	const friendlyName = info?.name ?? modelIdTail;
-	const displayName =
-		config.providerId === "cline-pass"
-			? `${friendlyName} (ClinePass)`
-			: friendlyName;
+	let displayName = info?.name ?? modelIdTail;
 	if (config.thinking && config.reasoningEffort) {
-		return `${displayName} (${config.reasoningEffort})`;
+		displayName = `${displayName} (${config.reasoningEffort})`;
+	}
+	if (config.providerId === "cline-pass") {
+		displayName = `${displayName} (ClinePass)`;
 	}
 	return displayName;
 }

@@ -104,6 +104,20 @@ describe("resolveModelDisplayName", () => {
 		).toBe("glm-5.2 (ClinePass)");
 	});
 
+	it("places the ClinePass suffix after the reasoning effort", () => {
+		expect(
+			resolveModelDisplayName({
+				providerId: "cline-pass",
+				modelId: "zai/glm-5.2",
+				knownModels: {
+					"zai/glm-5.2": { name: "GLM 5.2" },
+				},
+				thinking: true,
+				reasoningEffort: "high",
+			}),
+		).toBe("GLM 5.2 (high) (ClinePass)");
+	});
+
 	it("uses the friendly model name for non-ClinePass providers", () => {
 		expect(
 			resolveModelDisplayName({
