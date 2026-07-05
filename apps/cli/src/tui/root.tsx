@@ -401,9 +401,10 @@ function App(props: TuiProps) {
 			if (lastEntry && lastEntry.kind === "user_submitted") {
 				entries.pop();
 			}
-			for (const entry of entries) {
-				session.appendEntry(entry);
-			}
+			// replaceEntries rather than appendEntry: appendEntry stamps
+			// unstamped entries with the CURRENT mode, which would lock
+			// hydrated history to the restore-time accent.
+			session.replaceEntries(entries);
 			session.setHasSubmitted(entries.length > 0);
 			setAppView(entries.length > 0 ? "chat" : "home");
 			populateInputRef.current(picked.fullText);

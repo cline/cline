@@ -248,6 +248,7 @@ export {
 	formatUserInputBlock,
 	normalizeUserInput,
 	parseUserCommandEnvelope,
+	parseUserInputMode,
 	stripModeNotices,
 	xmlTagsRemoval,
 } from "./prompt/format";

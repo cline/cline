@@ -1,7 +1,7 @@
 import {
 	type ContentBlock,
+	formatDisplayUserInput,
 	type MessageWithMetadata,
-	normalizeUserInput,
 	type ToolResultContent,
 	type ToolUseContent,
 } from "@cline/shared";
@@ -681,7 +681,7 @@ function renderContentHTML(
 	toolResultsMap: Map<string, ToolResultContent>,
 ): string {
 	if (typeof content === "string") {
-		const text = isUser ? normalizeUserInput(content) : content;
+		const text = isUser ? formatDisplayUserInput(content) : content;
 		return renderTextHTML(text);
 	}
 
@@ -689,7 +689,7 @@ function renderContentHTML(
 		.map((block) => {
 			switch (block.type) {
 				case "text": {
-					const text = isUser ? normalizeUserInput(block.text) : block.text;
+					const text = isUser ? formatDisplayUserInput(block.text) : block.text;
 					return renderTextHTML(text);
 				}
 				case "tool_use":

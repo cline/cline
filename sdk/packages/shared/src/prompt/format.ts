@@ -13,6 +13,25 @@ export function formatUserCommandBlock(input: string, slash: string): string {
 	return `<user_command slash="${slash}">${input}</user_command>`;
 }
 
+// Searches rather than anchors: persisted user content can carry prepended
+// <mode_notice> elements or trailing attachment blocks around the wrapper.
+const USER_INPUT_MODE_RE = /<user_input\b[^>]*\bmode="(act|plan|yolo|zen)"/i;
+
+/**
+ * Recovers the agent mode a persisted user message was sent in from its
+ * <user_input mode="..."> wrapper. Returns undefined when the input isn't
+ * wrapped (plain text, user_command envelopes, older transcripts).
+ */
+export function parseUserInputMode(
+	input?: string,
+): "act" | "plan" | "yolo" | "zen" | undefined {
+	const match = USER_INPUT_MODE_RE.exec(input ?? "");
+	return match
+		? (match[1]?.toLowerCase() as "act" | "plan" | "yolo" | "zen")
+		: undefined;
+}
+
+
 /**
  * Marks the exact point in the conversation where the user switched between
  * plan and act modes. Prepended to the first user message sent after the
