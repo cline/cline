@@ -107,7 +107,7 @@ export function resolveModelDisplayName(config: {
 		displayName = `${displayName} (${config.reasoningEffort})`;
 	}
 	if (config.providerId === "cline-pass") {
-		displayName = `${displayName} (ClinePass)`;
+		displayName = `ClinePass: ${displayName}`;
 	}
 	return displayName;
 }

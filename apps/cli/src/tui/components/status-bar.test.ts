@@ -83,7 +83,7 @@ describe("formatStatusBarUsageText", () => {
 });
 
 describe("resolveModelDisplayName", () => {
-	it("uses the friendly model name with a ClinePass suffix", () => {
+	it("uses the friendly model name with a ClinePass prefix", () => {
 		expect(
 			resolveModelDisplayName({
 				providerId: "cline-pass",
@@ -92,19 +92,19 @@ describe("resolveModelDisplayName", () => {
 					"zai/glm-5.2": { name: "GLM 5.2" },
 				},
 			}),
-		).toBe("GLM 5.2 (ClinePass)");
+		).toBe("ClinePass: GLM 5.2");
 	});
 
-	it("falls back to the bare model id with a ClinePass suffix when unknown", () => {
+	it("falls back to the bare model id with a ClinePass prefix when unknown", () => {
 		expect(
 			resolveModelDisplayName({
 				providerId: "cline-pass",
 				modelId: "zai/glm-5.2",
 			}),
-		).toBe("glm-5.2 (ClinePass)");
+		).toBe("ClinePass: glm-5.2");
 	});
 
-	it("places the ClinePass suffix after the reasoning effort", () => {
+	it("keeps the reasoning effort next to the model name", () => {
 		expect(
 			resolveModelDisplayName({
 				providerId: "cline-pass",
@@ -115,7 +115,7 @@ describe("resolveModelDisplayName", () => {
 				thinking: true,
 				reasoningEffort: "high",
 			}),
-		).toBe("GLM 5.2 (high) (ClinePass)");
+		).toBe("ClinePass: GLM 5.2 (high)");
 	});
 
 	it("uses the friendly model name for non-ClinePass providers", () => {
