@@ -753,6 +753,75 @@ function getNumberField(input: Record<string, unknown> | undefined, field: strin
 	return undefined
 }
 
+// apply_patch grammar markers. Duplicated as local literals rather than imported
+// from the SDK's apply-patch-parser (World A / bun) to avoid a bun→npm cross-world
+// import; they are stable literals shared with the webview's DiffEditRow parser.
+const AP_MARKERS = {
+	BEGIN: "*** Begin Patch",
+	END: "*** End Patch",
+	ADD: "*** Add File: ",
+	UPDATE: "*** Update File: ",
+	DELETE: "*** Delete File: ",
+} as const
+
+/**
+ * Extract the raw patch string from an apply_patch tool input. The SDK sends it as
+ * `{ input: '...' }`; classic callers use `{ patch }` / `{ diff }`. Kept in sync with
+ * the `case "apply_patch"` field precedence in sdkToolToClineSayTool.
+ */
+function getApplyPatchString(input: unknown): string | undefined {
+	const parsed = parseToolInput(input)
+	return getStringField(parsed, "patch") ?? getStringField(parsed, "diff") ?? getStringField(parsed, "input")
+}
+
+/**
+ * Split a multi-file apply_patch string into one ClineSayTool per file so each
+ * "Cline wants to edit this file" row renders only that file's diff (cline#9904).
+ *
+ * Returns [] for single-file (or unparseable) patches so callers keep the existing
+ * single-message behavior — only genuinely multi-file patches are split.
+ */
+function splitApplyPatchByFile(patch: string): ClineSayTool[] {
+	const lines = patch.split("\n")
+	const blocks: { tool: ClineSayTool["tool"]; path: string; lines: string[] }[] = []
+	let current: { tool: ClineSayTool["tool"]; path: string; lines: string[] } | undefined
+
+	for (const line of lines) {
+		if (line === AP_MARKERS.END) {
+			break
+		}
+		const marker = [AP_MARKERS.ADD, AP_MARKERS.UPDATE, AP_MARKERS.DELETE].find((m) => line.startsWith(m))
+		if (marker) {
+			if (current) {
+				blocks.push(current)
+			}
+			const tool: ClineSayTool["tool"] =
+				marker === AP_MARKERS.ADD ? "newFileCreated" : marker === AP_MARKERS.DELETE ? "fileDeleted" : "editedExistingFile"
+			current = { tool, path: line.substring(marker.length).trim(), lines: [line] }
+		} else if (current) {
+			current.lines.push(line)
+		}
+	}
+	if (current) {
+		blocks.push(current)
+	}
+
+	// Only split genuine multi-file patches. Bail out (→ single whole-patch
+	// message) if fewer than two files, or if any block has an empty path — a
+	// pathless row can't route to the per-file diff view (cline#9904).
+	if (blocks.length < 2 || blocks.some((block) => block.path === "")) {
+		return []
+	}
+
+	return blocks.map((block) => {
+		if (block.tool === "fileDeleted") {
+			return { tool: block.tool, path: block.path }
+		}
+		const subPatch = [AP_MARKERS.BEGIN, ...block.lines, AP_MARKERS.END].join("\n")
+		return { tool: block.tool, path: block.path, content: subPatch, diff: subPatch }
+	})
+}
+
 /** Get an array field from a parsed input object */
 function getArrayField(input: Record<string, unknown> | undefined, field: string): string[] | undefined {
 	if (!input) return undefined
@@ -1168,6 +1237,11 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 					}
 
 					// All other tools → say="tool" with ClineSayTool JSON
+					// apply_patch is intentionally NOT split per-file here: the streaming
+					// (partial) row shows the whole patch, and the per-file split happens
+					// only at content_end (see below), mirroring read_files. Splitting at
+					// content_start would mint streaming ids that content_end cannot
+					// reproduce for files ≥2, orphaning those partial rows (cline#9904).
 					const sayTool = sdkToolToClineSayTool(toolName, input)
 					messages.push({
 						ts: state.getStreamingToolTs(),
@@ -1436,6 +1510,27 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 										path: fileRead.path,
 										...readLineRangeFields(fileRead),
 									} satisfies ClineSayTool),
+									partial: false,
+								})
+							})
+							break
+						}
+					}
+
+					// apply_patch may edit multiple files in one call. Emit one tool
+					// message per file so each diff row shows only that file's changes
+					// instead of the whole multi-file patch (cline#9904). Single-file
+					// patches fall through to the single-message path below.
+					if (toolName === "apply_patch" && !event.error) {
+						const patch = getApplyPatchString(storedInput)
+						const perFileTools = patch ? splitApplyPatchByFile(patch) : []
+						if (perFileTools.length > 1) {
+							perFileTools.forEach((sayTool, index) => {
+								messages.push({
+									ts: index === 0 ? ts : state.nextTs(),
+									type: "say",
+									say: "tool",
+									text: JSON.stringify(sayTool),
 									partial: false,
 								})
 							})
