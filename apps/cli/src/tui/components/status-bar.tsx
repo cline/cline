@@ -18,7 +18,7 @@ import { HOME_VIEW_MAX_WIDTH } from "../types";
 export function createContextBar(
 	used: number,
 	total?: number,
-	width = 8,
+	width = 6,
 ): { filled: string; empty: string } {
 	const normalizedWidth = Math.max(0, Math.floor(width));
 	const ratio = total && total > 0 ? Math.min(used / total, 1) : 0;
@@ -45,13 +45,13 @@ export function resolveContextBarFilledForeground(
 }
 
 function formatCost(cost: number): string {
-	if (cost < 0.01) return `$${cost.toFixed(4)}`;
 	return `$${cost.toFixed(2)}`;
 }
 
 function formatCostText(providerId: string, totalCost: number): string {
+	// Subscription providers (ClinePass) have no per-use cost worth surfacing.
 	if (shouldShowCliUsageCoveredBySubscription(providerId)) {
-		return "$0.00 (included with subscription)";
+		return "";
 	}
 
 	if (!shouldShowCliUsageCost(providerId)) {
@@ -66,7 +66,7 @@ export function formatStatusBarUsageText(input: {
 	totalCost: number;
 	providerId: string;
 }): string {
-	const tokens = `(${input.totalTokens.toLocaleString()} tokens)`;
+	const tokens = `(${input.totalTokens.toLocaleString()})`;
 	const costText = formatCostText(input.providerId, input.totalCost);
 
 	if (!costText) {
@@ -102,10 +102,11 @@ export function resolveModelDisplayName(config: {
 }): string {
 	const info = lookupModelInfo(config.modelId, config.knownModels);
 	const modelIdTail = config.modelId.split("/").pop() ?? config.modelId;
+	const friendlyName = info?.name ?? modelIdTail;
 	const displayName =
 		config.providerId === "cline-pass"
-			? `ClinePass/${modelIdTail}`
-			: (info?.name ?? modelIdTail);
+			? `${friendlyName} (ClinePass)`
+			: friendlyName;
 	if (config.thinking && config.reasoningEffort) {
 		return `${displayName} (${config.reasoningEffort})`;
 	}
