@@ -18,7 +18,7 @@ import { useTerminalBackground } from "../hooks/use-terminal-background";
 import {
 	getDefaultForeground,
 	getModeAccent,
-	getModeInputBackground,
+	getUserMessageBackground,
 	palette,
 	type TerminalTheme,
 } from "../palette";
@@ -428,10 +428,7 @@ export function ChatEntryView(props: {
 	const { entry, accent = palette.act, terminalTheme } = props;
 	const terminalBg = useTerminalBackground();
 	const defaultFg = getDefaultForeground(terminalBg);
-	const userMsgBg = getModeInputBackground(
-		accent === palette.plan ? "plan" : "act",
-		terminalBg,
-	);
+	const userMsgBg = getUserMessageBackground(terminalBg);
 
 	switch (entry.kind) {
 		case "user":
@@ -442,10 +439,9 @@ export function ChatEntryView(props: {
 					marginX={-1}
 					paddingLeft={1}
 					paddingRight={2}
-					paddingY={1}
 				>
 					<box width={2}>
-						<text fg={accent}>{">"}</text>
+						<text fg={accent}>{"❯"}</text>
 					</box>
 					<text fg={defaultFg} selectable>
 						{entry.text}
@@ -461,10 +457,9 @@ export function ChatEntryView(props: {
 					marginX={-1}
 					paddingLeft={1}
 					paddingRight={2}
-					paddingY={1}
 				>
 					<box width={2}>
-						<text fg={accent}>{">"}</text>
+						<text fg={accent}>{"❯"}</text>
 					</box>
 					{entry.delivery === "steer" && <text fg="yellow">[steer] </text>}
 					{entry.delivery === "queue" && <text fg="gray">[queued] </text>}

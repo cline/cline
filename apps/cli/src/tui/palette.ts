@@ -131,20 +131,51 @@ export function getDefaultForeground(
 	return isLightTheme(terminalBg) ? "#1a1a1a" : undefined;
 }
 
-export function getModeInputBackground(
-	mode: string,
+function liftedFromTerminalBg(
 	terminalBg: string | null,
+	baseLift: number,
+	nudgeA: number,
+	nudgeB: number,
 ): string {
 	const hex = normalizeHex(terminalBg) ?? "#000000";
 	const base = hexToOklab(hex);
 	const light = base.L > LIGHT_THEME_THRESHOLD;
-	const lift = BASE_LIFT / (1 + (light ? 1 - base.L : base.L) * LIFT_DAMPING);
-	const warm = mode === "plan";
+	const lift = baseLift / (1 + (light ? 1 - base.L : base.L) * LIFT_DAMPING);
 	return oklabToHex(
 		base.L + (light ? -lift : lift),
-		base.a + (warm ? CHROMA_NUDGE : -CHROMA_NUDGE),
-		base.b + CHROMA_NUDGE,
+		base.a + nudgeA,
+		base.b + nudgeB,
 	);
+}
+
+export function getModeInputBackground(
+	mode: string,
+	terminalBg: string | null,
+): string {
+	const warm = mode === "plan";
+	return liftedFromTerminalBg(
+		terminalBg,
+		BASE_LIFT,
+		warm ? CHROMA_NUDGE : -CHROMA_NUDGE,
+		CHROMA_NUDGE,
+	);
+}
+
+// The `─` rules framing the input field are thin foreground strokes rather
+// than filled cells, so they need a much larger lift than a background tint
+// to register at the same perceptual weight — this lands them around mid-gray
+// on both black and white terminals. They stay neutral (no mode chroma) so
+// the frame doesn't shift color when toggling plan/act.
+const RULE_BASE_LIFT = 0.5;
+
+export function getInputRuleColor(terminalBg: string | null): string {
+	return liftedFromTerminalBg(terminalBg, RULE_BASE_LIFT, 0, 0);
+}
+
+// User message bubbles stay neutral (no mode chroma) so the transcript reads
+// as history rather than tracking whichever mode is currently active.
+export function getUserMessageBackground(terminalBg: string | null): string {
+	return liftedFromTerminalBg(terminalBg, BASE_LIFT, 0, 0);
 }
 
 export function getModeInputForeground(
