@@ -1,7 +1,7 @@
 export const palette = {
-	act: "cyan",
-	plan: "yellow",
-	selection: "cyan",
+	act: "#79b8ff",
+	plan: "#ffea7f",
+	selection: "#79b8ff",
 	error: "red",
 	success: "brightGreen",
 	muted: "gray",
@@ -16,9 +16,11 @@ export const themePalette = {
 		plan: palette.plan,
 		success: palette.success,
 	},
+	// Same OKLCH hues as the dark accents, darkened to hold >=4.5:1 contrast
+	// on white so the plan/act identity carries across themes.
 	light: {
-		act: "#0969da",
-		plan: "#9a6700",
+		act: "#0f72cb",
+		plan: "#867100",
 		success: "#116329",
 	},
 } as const;
@@ -75,8 +77,8 @@ export function getSuccessColor(theme: TerminalTheme = "dark"): string {
 //      overshoot.
 //   3. On dark themes, raise L (lighten). On light themes, lower L (darken).
 //   4. Nudge the a/b chromatic channels by CHROMA_NUDGE toward the mode's
-//      accent color. For plan (warm/yellow): +a, +b. For act (cool/cyan):
-//      -a, +b. At 0.003 this is ~10x below OKLAB's just-noticeable-difference
+//      accent color. For plan (warm/yellow): +a, +b. For act (cool/blue):
+//      -a, -b. At 0.003 this is ~10x below OKLAB's just-noticeable-difference
 //      threshold (~0.03), so it registers as a "feel" rather than visible color.
 //
 // Sample outputs on common terminals (act mode / plan mode bg):
@@ -157,7 +159,7 @@ export function getModeInputBackground(
 		terminalBg,
 		BASE_LIFT,
 		warm ? CHROMA_NUDGE : -CHROMA_NUDGE,
-		CHROMA_NUDGE,
+		warm ? CHROMA_NUDGE : -CHROMA_NUDGE,
 	);
 }
 
@@ -188,7 +190,7 @@ export function getModeInputForeground(
 	return oklabToHex(
 		base.L,
 		base.a + (warm ? CHROMA_NUDGE : -CHROMA_NUDGE),
-		base.b + CHROMA_NUDGE,
+		base.b + (warm ? CHROMA_NUDGE : -CHROMA_NUDGE),
 	);
 }
 
@@ -202,7 +204,7 @@ export function getModeInputPlaceholder(
 	return oklabToHex(
 		base.L,
 		base.a + (warm ? CHROMA_NUDGE * 2 : -CHROMA_NUDGE * 2),
-		base.b + CHROMA_NUDGE * 2,
+		base.b + (warm ? CHROMA_NUDGE * 2 : -CHROMA_NUDGE * 2),
 	);
 }
 
