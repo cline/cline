@@ -13,9 +13,11 @@ export function formatUserCommandBlock(input: string, slash: string): string {
 	return `<user_command slash="${slash}">${input}</user_command>`;
 }
 
-// Searches rather than anchors: persisted user content can carry prepended
-// <mode_notice> elements or trailing attachment blocks around the wrapper.
-const USER_INPUT_MODE_RE = /<user_input\b[^>]*\bmode="(act|plan|yolo|zen)"/i;
+// Mirrors exactly what formatUserInputBlock writes (lowercase tag, lowercase
+// mode values), but searches rather than anchors: persisted user content can
+// carry prepended <mode_notice> elements or trailing attachment blocks
+// around the wrapper.
+const USER_INPUT_MODE_RE = /<user_input\b[^>]*\bmode="(act|plan|yolo)"/;
 
 /**
  * Recovers the agent mode a persisted user message was sent in from its
@@ -24,13 +26,10 @@ const USER_INPUT_MODE_RE = /<user_input\b[^>]*\bmode="(act|plan|yolo|zen)"/i;
  */
 export function parseUserInputMode(
 	input?: string,
-): "act" | "plan" | "yolo" | "zen" | undefined {
+): "act" | "plan" | "yolo" | undefined {
 	const match = USER_INPUT_MODE_RE.exec(input ?? "");
-	return match
-		? (match[1]?.toLowerCase() as "act" | "plan" | "yolo" | "zen")
-		: undefined;
+	return match ? (match[1] as "act" | "plan" | "yolo") : undefined;
 }
-
 
 /**
  * Marks the exact point in the conversation where the user switched between
