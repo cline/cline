@@ -54,7 +54,7 @@ export const ClineProvider = ({
 					<RouteStatus>
 						{activeRoute === "cline-pass" ? (
 							<>
-								ClinePass lets you use the best open weights models.{" "}
+								ClinePass is a low cost subscription plan including usage of the best open weights models.{" "}
 								<RouteLink
 									href="#"
 									onClick={(event) => {
