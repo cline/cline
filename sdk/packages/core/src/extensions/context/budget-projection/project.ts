@@ -91,6 +91,18 @@ export function findLatestTypedUserMessageIndex(
 	return -1;
 }
 
+function findFirstTypedUserMessageIndex(
+	messages: MessageWithMetadata[],
+): number {
+	for (let index = 0; index < messages.length; index += 1) {
+		const message = messages[index];
+		if (message.role === "user" && !isToolResultOnlyUserMessage(message)) {
+			return index;
+		}
+	}
+	return -1;
+}
+
 function collectToolIds(message: MessageWithMetadata): Set<string> {
 	const ids = new Set<string>();
 	if (!Array.isArray(message.content)) {
@@ -121,6 +133,35 @@ function buildToolPairIndex(
 		}
 	}
 	return index;
+}
+
+function findProtectedTailStartIndex(messages: MessageWithMetadata[]): number {
+	const resolvedToolUseIds = new Set<string>();
+	for (const message of messages) {
+		if (!Array.isArray(message.content)) {
+			continue;
+		}
+		for (const block of message.content) {
+			if (block.type === "tool_result") {
+				resolvedToolUseIds.add(block.tool_use_id);
+			}
+		}
+	}
+	for (let index = messages.length - 1; index >= 0; index -= 1) {
+		const message = messages[index];
+		if (!Array.isArray(message.content)) {
+			continue;
+		}
+		if (
+			message.content.some(
+				(block) =>
+					block.type === "tool_use" && !resolvedToolUseIds.has(block.id),
+			)
+		) {
+			return index;
+		}
+	}
+	return messages.length;
 }
 
 function collectMessageClosure(
@@ -197,7 +238,8 @@ function dropUnsafeBlocks(
 	messages: MessageWithMetadata[],
 	originalIndexes: number[],
 	actions: BudgetAction[],
-	protectedStartIndex: number,
+	latestTypedUserIndex: number,
+	protectedTailStartIndex: number,
 	policy: ProjectionPolicy,
 ): MessageWithMetadata[] {
 	return messages.map((message, messageIndex) => {
@@ -206,7 +248,8 @@ function dropUnsafeBlocks(
 		}
 		let changed = false;
 		const protectedBlock =
-			protectedStartIndex >= 0 && messageIndex >= protectedStartIndex;
+			messageIndex === latestTypedUserIndex ||
+			messageIndex >= protectedTailStartIndex;
 		const content = message.content.flatMap((block, blockIndex) => {
 			if (shouldDropWholeBlock(block, policy, protectedBlock)) {
 				changed = true;
@@ -242,12 +285,6 @@ function dropUnsafeBlocks(
 					});
 					return [nextBlock];
 				}
-			}
-			if (!isUnsafeBlock(block)) {
-				return [block];
-			}
-			if (protectedBlock) {
-				return [block];
 			}
 			return [block];
 		});
@@ -425,6 +462,13 @@ function closureTouchesProtectedTail(
 	return false;
 }
 
+function closureTouchesPinnedMessage(
+	closure: Set<number>,
+	pinnedIndex: number,
+): boolean {
+	return pinnedIndex >= 0 && closure.has(pinnedIndex);
+}
+
 export function buildBudgetProjection(
 	options: BudgetProjectionOptions,
 ): BudgetProjectionResult {
@@ -461,16 +505,20 @@ export function buildBudgetProjection(
 		messages = prunedThinking.messages;
 		originalIndexes = prunedThinking.originalIndexes;
 	}
-	const protectedStartIndex = policy.protectLatestTypedUser
+	const latestTypedUserIndex = policy.protectLatestTypedUser
 		? findLatestTypedUserMessageIndex(messages)
 		: -1;
+	const protectedTailStartIndex = policy.protectLiveTailFromDrop
+		? findProtectedTailStartIndex(messages)
+		: messages.length;
 	if (policy.dropUnsafeOutsideLiveTail) {
 		const prunedUnsafe = pruneEmptyMessages(
 			dropUnsafeBlocks(
 				messages,
 				originalIndexes,
 				actions,
-				protectedStartIndex,
+				latestTypedUserIndex,
+				protectedTailStartIndex,
 				policy,
 			),
 			originalIndexes,
@@ -499,6 +547,12 @@ export function buildBudgetProjection(
 	) {
 		const latestTypedUserIndex = findLatestTypedUserMessageIndex(messages);
 		if (index === latestTypedUserIndex) {
+			continue;
+		}
+		if (
+			policy.protectLiveTailFromDrop &&
+			index >= findProtectedTailStartIndex(messages)
+		) {
 			continue;
 		}
 		if (!hasTruncatableText(messages[index])) {
@@ -532,11 +586,12 @@ export function buildBudgetProjection(
 		let index = 0;
 		index < messages.length && estimatedTokens > options.targetTokens;
 	) {
+		const firstTypedUserIndex = findFirstTypedUserMessageIndex(messages);
 		const latestTypedUserIndex = findLatestTypedUserMessageIndex(messages);
 		const protectedStartIndex = policy.protectLiveTailFromDrop
-			? latestTypedUserIndex
-			: -1;
-		if (index === latestTypedUserIndex) {
+			? findProtectedTailStartIndex(messages)
+			: messages.length;
+		if (index === firstTypedUserIndex || index === latestTypedUserIndex) {
 			actions.push({
 				kind: "preserved",
 				path: { messageIndex: originalIndexes[index] },
@@ -548,6 +603,14 @@ export function buildBudgetProjection(
 			continue;
 		}
 		const closure = collectMessageClosure(messages, index);
+		if (closureTouchesPinnedMessage(closure, firstTypedUserIndex)) {
+			index += 1;
+			continue;
+		}
+		if (closureTouchesPinnedMessage(closure, latestTypedUserIndex)) {
+			index += 1;
+			continue;
+		}
 		if (closureTouchesProtectedTail(closure, protectedStartIndex)) {
 			index += 1;
 			continue;
