@@ -1,5 +1,5 @@
 import { RGBA, type StyleDefinition, SyntaxStyle } from "@opentui/core";
-import type { TerminalTheme } from "../palette";
+import { type TerminalTheme, themePalette } from "../palette";
 
 const instances: Record<TerminalTheme, SyntaxStyle | null> = {
 	dark: null,
@@ -29,27 +29,31 @@ interface SyntaxColors {
 	markdownDefault?: string;
 }
 
+// Dark syntax colors are a pastel family harmonized with the brand accents
+// (act #79b8ff, plan #ffea7f, success #99e89b): every hue sits near the same
+// OKLCH lightness/chroma weight (~L 0.78, C 0.11) so code blocks feel like
+// part of the same palette instead of a bolted-on editor theme.
 const syntaxColors: Record<TerminalTheme, SyntaxColors> = {
 	dark: {
-		keyword: "#c678dd",
-		operator: "#56b6c2",
-		type: "#e5c07b",
-		functionName: "#61afef",
-		variable: "#e06c75",
-		string: "#98c379",
-		number: "#d19a66",
+		keyword: "#d7a0e3",
+		operator: "#9bbbdd",
+		type: "#dfca7d",
+		functionName: themePalette.dark.act,
+		variable: "#ee939b",
+		string: "#99e89b",
+		number: "#f0ad7f",
 		comment: "#5c6370",
 		punctuation: "#abb2bf",
-		property: "#e06c75",
-		constant: "#d19a66",
-		tag: "#e06c75",
-		attribute: "#d19a66",
-		escape: "#56b6c2",
-		markdownCode: "#98c379",
-		markdownHeading: "#56b6c2",
+		property: "#ee939b",
+		constant: "#f0ad7f",
+		tag: "#ee939b",
+		attribute: "#f0ad7f",
+		escape: "#9bbbdd",
+		markdownCode: "#99e89b",
+		markdownHeading: themePalette.dark.act,
 		markdownMuted: "#808080",
-		markdownLink: "#56b6c2",
-		markdownItalic: "#e5c07b",
+		markdownLink: themePalette.dark.act,
+		markdownItalic: "#dfca7d",
 	},
 	light: {
 		keyword: "#cf222e",
@@ -67,9 +71,9 @@ const syntaxColors: Record<TerminalTheme, SyntaxColors> = {
 		attribute: "#0550ae",
 		escape: "#0550ae",
 		markdownCode: "#116329",
-		markdownHeading: "#0969da",
+		markdownHeading: themePalette.light.act,
 		markdownMuted: "#6e7781",
-		markdownLink: "#0969da",
+		markdownLink: themePalette.light.act,
 		markdownItalic: "#8250df",
 		markdownDefault: "#1a1a1a",
 	},

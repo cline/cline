@@ -121,7 +121,7 @@ export function McpManagerContent(
 
 	return (
 		<box flexDirection="column" paddingX={1}>
-			<text fg="cyan">MCP Servers</text>
+			<text fg={palette.act}>MCP Servers</text>
 
 			<text fg="gray" marginTop={1}>
 				Settings file:
@@ -141,7 +141,7 @@ export function McpManagerContent(
 						const enabledIcon =
 							typeof srv.enabled === "boolean" ? (enabled ? "● " : "○ ") : "";
 						const status = getMcpManagerEntryStatus(srv);
-						let rowColor = isSel ? "cyan" : "gray";
+						let rowColor = isSel ? palette.act : "gray";
 						if (enabled && typeof srv.enabled === "boolean") {
 							rowColor = palette.success;
 						}

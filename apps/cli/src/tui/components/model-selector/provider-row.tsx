@@ -13,7 +13,7 @@ export function ProviderRow({
 			<text fg={focused ? palette.selection : "gray"} flexShrink={0}>
 				{focused ? "❯" : " "}
 			</text>
-			<text fg={focused ? palette.selection : "cyan"} flexShrink={0}>
+			<text fg={focused ? palette.selection : palette.act} flexShrink={0}>
 				Provider:
 			</text>
 			<text fg="white">{providerName}</text>
