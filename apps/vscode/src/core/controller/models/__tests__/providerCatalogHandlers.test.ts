@@ -1,10 +1,17 @@
 import type { ApiConfiguration } from "@shared/api"
+import axios from "axios"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import type { EffectiveProviderConfig, ProviderCatalog, ProviderConfigStore } from "@/sdk/model-catalog/contracts"
 import { computeConfigFingerprint } from "@/sdk/model-catalog/fingerprint"
 import { parseProviderId } from "@/sdk/model-catalog/provider-id"
-import { ApiFormat, OpenRouterModelInfo } from "@/shared/proto/cline/models"
+import { ApiFormat, OpenAiModelsRequest, OpenRouterModelInfo } from "@/shared/proto/cline/models"
 import type { ProviderCatalogController } from "../providerCatalogShared"
+
+vi.mock("axios", () => ({
+	default: {
+		get: vi.fn(),
+	},
+}))
 
 type TestStateManager = {
 	setGlobalStateBatch: ReturnType<typeof vi.fn>
@@ -142,6 +149,35 @@ describe("provider model catalog handlers", () => {
 			apiFormat: ApiFormat.OPENAI_CHAT,
 		})
 		expect(catalog.resolveModels).toHaveBeenCalledWith(providerId, { forceRefresh: true })
+	})
+
+	it("refreshOpenAiModels falls back to the saved provider API key", async () => {
+		const { refreshOpenAiModels } = await import("../refreshOpenAiModels")
+		vi.mocked(axios.get).mockResolvedValueOnce({
+			data: { data: [{ id: "gpt-4.1" }] },
+		})
+		const providerId = parseProviderId("openai")
+		const store = makeStore({
+			providerId,
+			apiKey: "saved-openai-key",
+			baseUrl: "https://openai-compatible.example/v1",
+		})
+		const controller = makeController(store, makeCatalog())
+
+		const response = await refreshOpenAiModels(controller as any, OpenAiModelsRequest.create({
+			baseUrl: "https://openai-compatible.example/v1",
+			apiKey: "",
+		}))
+
+		expect(response.values).toEqual(["gpt-4.1"])
+		expect(axios.get).toHaveBeenCalledWith(
+			"https://openai-compatible.example/v1/models",
+			expect.objectContaining({
+				headers: expect.objectContaining({
+					Authorization: "Bearer saved-openai-key",
+				}),
+			}),
+		)
 	})
 
 	it("readProviderConfig redacts secrets", async () => {
