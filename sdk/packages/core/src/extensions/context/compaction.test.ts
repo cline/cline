@@ -331,10 +331,10 @@ describe("createContextCompactionPrepareTurn", () => {
 
 		expectNoOrphanedToolPairs(compacted);
 		expect(pairs.get("tool-a")).toBeUndefined();
-		expect(pairs.get("tool-b")).toEqual({ hasResult: true, hasUse: true });
+		expect(JSON.stringify(compacted)).toContain("Read the latest file");
 	});
 
-	it("preserves the latest tool pair under aggressive basic compaction", () => {
+	it("may drop the latest completed tool pair under aggressive basic compaction", () => {
 		const messages: LlmsProviders.Message[] = [
 			{ role: "user", content: "Read the files" },
 			assistantToolUseMessage("tool-a"),
@@ -349,7 +349,8 @@ describe("createContextCompactionPrepareTurn", () => {
 
 		expectNoOrphanedToolPairs(compacted);
 		expect(pairs.get("tool-a")).toBeUndefined();
-		expect(pairs.get("tool-b")).toEqual({ hasResult: true, hasUse: true });
+		expect(pairs.get("tool-b")).toBeUndefined();
+		expect(JSON.stringify(compacted)).toContain("Read the latest file");
 	});
 
 	it("treats multi-tool assistant turns as one atomic group in basic compaction", () => {
@@ -388,7 +389,7 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(collectToolPairPresence(compacted).get("tool-a")).toBeUndefined();
 	});
 
-	it("preserves the latest typed user turn with its tool work during basic compaction", () => {
+	it("preserves the latest typed user prompt without requiring completed tool work", () => {
 		const messages: LlmsProviders.Message[] = [
 			{ role: "user", content: "Old request" },
 			{ role: "assistant", content: "Old answer that can be compacted" },
@@ -403,6 +404,7 @@ describe("createContextCompactionPrepareTurn", () => {
 			{ role: "user", content: "Old request" },
 			{ role: "user", content: "Read the latest file" },
 		]);
+		expectNoOrphanedToolPairs(compacted);
 	});
 
 	it("budgets the complete basic compaction output including the latest turn", () => {
@@ -2205,6 +2207,83 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect((executed?.properties as Record<string, unknown>).strategy).toBe(
 			"custom",
 		);
+	});
+
+	it("accounts executed compaction telemetry against compaction messages", async () => {
+		const captureCalls: Array<{
+			event: string;
+			properties?: Record<string, unknown>;
+		}> = [];
+		const telemetry = {
+			capture: (call: {
+				event: string;
+				properties?: Record<string, unknown>;
+			}) => captureCalls.push(call),
+			captureRequired: () => {},
+			setDistinctId: () => {},
+			updateCommonProperties: () => {},
+			identify: () => {},
+		} as unknown as Parameters<
+			typeof createContextCompactionPrepareTurn
+		>[0]["telemetry"];
+
+		const compact = vi.fn(async () => ({
+			messages: [{ role: "user" as const, content: "trimmed" }],
+		}));
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "anthropic",
+			modelId: "mock-model",
+			providerConfig: {
+				providerId: "anthropic",
+				modelId: "mock-model",
+			} as LlmsProviders.ProviderConfig,
+			compaction: {
+				enabled: true,
+				strategy: "basic",
+				reserveTokens: 1,
+				compact,
+			},
+			telemetry,
+		});
+		const messages: LlmsProviders.Message[] = [
+			{ role: "user", content: "Original task" },
+			{ role: "assistant", content: "short answer" },
+			{ role: "user", content: "Latest" },
+		];
+		const apiMessages: LlmsProviders.Message[] = [
+			...messages,
+			{ role: "assistant", content: "provider-only payload ".repeat(1_000) },
+		];
+
+		await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 3,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "",
+			tools: [],
+			messages,
+			apiMessages,
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: { id: "mock-model", maxInputTokens: 100 },
+			},
+		});
+
+		expect(compact).toHaveBeenCalledTimes(1);
+		const executed = captureCalls.find(
+			(call) => call.event === "task.compaction_executed",
+		);
+		const props = executed?.properties as Record<string, unknown>;
+		expect(props.tokensBefore as number).toBeLessThan(
+			props.triggerTokens as number,
+		);
+		expect(props.tokensSaved).toBe(
+			(props.tokensBefore as number) - (props.tokensAfter as number),
+		);
+		expect(props.tokensSaved as number).toBeGreaterThanOrEqual(0);
 	});
 
 	it("emits task.compaction_skipped when the strategy returns undefined", async () => {

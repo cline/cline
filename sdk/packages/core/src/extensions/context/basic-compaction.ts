@@ -452,8 +452,8 @@ export function runBasicCompaction(options: {
 		estimateMessageTokens: options.estimateMessageTokens,
 	});
 	// This final projection owns the hard output budget. Unlike the earlier
-	// basic candidate passes, it may drop the original first-user message when
-	// preserving the latest typed prompt and coherent tool closures requires it.
+	// basic candidate passes, it can drop completed tool pairs after the latest
+	// typed prompt while preserving coherent tool closures.
 	if (budgeted.status === "failed") {
 		options.logger?.debug("Basic compaction returned best-effort projection", {
 			budgetWarnings: budgeted.warnings.map((warning) => warning.code),
@@ -473,6 +473,11 @@ export function runBasicCompaction(options: {
 		resultMessages,
 		options.estimateMessageTokens,
 	);
+	const budgetActionCount = budgeted.actions.filter(
+		(action) =>
+			action.reason === "over_budget" ||
+			action.reason === "tool_pair_boundary",
+	).length;
 	options.logger?.debug("Performed basic compaction", {
 		messagesBefore: options.context.messages.length,
 		messagesAfter: resultMessages.length,
@@ -480,7 +485,7 @@ export function runBasicCompaction(options: {
 		tokensBefore: beforeTokens,
 		tokensAfter: afterTokens,
 		budgetStatus: budgeted.status,
-		budgetActions: budgeted.actions.length,
+		budgetActions: budgetActionCount,
 		budgetWarnings: budgeted.warnings.map((warning) => warning.code),
 		targetTokens: totalTargetTokens,
 		maxInputTokens: options.context.maxInputTokens,
@@ -490,7 +495,7 @@ export function runBasicCompaction(options: {
 		messages: resultMessages,
 		budget: {
 			policyIntent: "basic_compaction_projection",
-			actionCount: budgeted.actions.length,
+			actionCount: budgetActionCount,
 			warningCount: budgeted.warnings.length,
 			liveTailHandling: budgeted.liveTailHandling,
 		},

@@ -268,11 +268,16 @@ export async function runAgenticCompaction(options: {
 		tokensAfter,
 		maxInputTokens: options.context.maxInputTokens,
 	});
+	const budgetActionCount = summaryInputBudget.actions.filter(
+		(action) =>
+			action.reason === "over_budget" ||
+			action.reason === "tool_pair_boundary",
+	).length;
 	return {
 		messages: resultMessages,
 		budget: {
 			policyIntent: "agentic_summary",
-			actionCount: summaryInputBudget.actions.length,
+			actionCount: budgetActionCount,
 			warningCount: summaryInputBudget.warnings.length,
 			liveTailHandling: summaryInputBudget.liveTailHandling,
 		},
