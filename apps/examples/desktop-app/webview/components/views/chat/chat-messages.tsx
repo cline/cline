@@ -10,13 +10,14 @@ import {
 	Clock3,
 	Copy,
 	FileEdit,
+	FileIcon,
 	FileSearch,
 	Loader2,
 	MessagesSquare,
 	Search,
 	ShieldAlert,
 	SplitIcon,
-	Terminal,
+	SquareTerminalIcon,
 	UndoIcon,
 } from "lucide-react";
 import {
@@ -965,6 +966,10 @@ type ToolPayload = {
 type ToolSummary = {
 	label: string;
 	details: string[];
+	diff?: {
+		additions: number;
+		deletions: number;
+	};
 };
 
 function pruneRequestMap<T extends string>(
@@ -1077,6 +1082,62 @@ function asStringArray(value: unknown): string[] {
 	);
 }
 
+/**
+ * read_files accepts many input shapes: { files: [{ path }] }, { files: path },
+ * { file_paths: [...] }, { paths: [...] }, a bare request, an array, or a string.
+ */
+function extractReadFilePaths(input: unknown): string[] {
+	const out: string[] = [];
+	const push = (value: unknown) => {
+		if (typeof value === "string" && value.length > 0) {
+			out.push(value);
+			return;
+		}
+		const record = asRecord(value);
+		if (record && typeof record.path === "string" && record.path.length > 0) {
+			out.push(record.path);
+		}
+	};
+	const record = asRecord(input);
+	const candidates =
+		record?.files ?? record?.file_paths ?? record?.paths ?? record ?? input;
+	if (Array.isArray(candidates)) {
+		for (const candidate of candidates) {
+			push(candidate);
+		}
+	} else {
+		push(candidates);
+	}
+	return out;
+}
+
+/**
+ * run_commands entries can be shell strings or structured { command, args }.
+ */
+function extractCommands(input: unknown): string[] {
+	const inputObject = asRecord(input);
+	const raw = Array.isArray(inputObject?.commands)
+		? inputObject.commands
+		: typeof inputObject?.command === "string"
+			? [inputObject.command]
+			: typeof input === "string"
+				? [input]
+				: [];
+	const out: string[] = [];
+	for (const entry of raw) {
+		if (typeof entry === "string" && entry.length > 0) {
+			out.push(entry);
+			continue;
+		}
+		const record = asRecord(entry);
+		if (record && typeof record.command === "string") {
+			const args = asStringArray(record.args);
+			out.push([record.command, ...args].join(" "));
+		}
+	}
+	return out;
+}
+
 function toDisplayPath(path: string): string {
 	const parts = path.split(/[\\/]/);
 	return parts.at(-1) || path;
@@ -1117,10 +1178,10 @@ function buildToolSummary(
 	const inputObject = asRecord(input);
 
 	if (["read_files", "file_read", "file-read"].includes(normalized)) {
-		const files = asStringArray(inputObject?.file_paths);
+		const files = extractReadFilePaths(input);
 		if (files.length > 0) {
 			return {
-				label: `${inProgress ? "Exploring" : "Explored"} ${pluralize(files.length, "file")}`,
+				label: `${inProgress ? "Reading" : "Read"} ${pluralize(files.length, "file")}`,
 				details: files.map(
 					(file) => `${inProgress ? "Reading" : "Read"} ${toDisplayPath(file)}`,
 				),
@@ -1139,14 +1200,8 @@ function buildToolSummary(
 	}
 
 	if (["run_commands", "bash"].includes(normalized)) {
-		const commands = asStringArray(inputObject?.commands);
-		if (commands.length === 1) {
-			return {
-				label: `${inProgress ? "Running" : "Ran"} ${commands[0]}`,
-				details: [commands[0]],
-			};
-		}
-		if (commands.length > 1) {
+		const commands = extractCommands(input);
+		if (commands.length > 0) {
 			return {
 				label: `${inProgress ? "Running" : "Ran"} ${pluralize(commands.length, "command")}`,
 				details: commands.map((command) => command.trim()),
@@ -1188,7 +1243,8 @@ function buildToolSummary(
 			const additions = fileDiffs.reduce((sum, d) => sum + d.additions, 0);
 			const deletions = fileDiffs.reduce((sum, d) => sum + d.deletions, 0);
 			return {
-				label: `${inProgress ? "Editing" : "Edited"} ${pluralize(fileDiffs.length, "file")} +${additions} -${deletions}`,
+				label: `${inProgress ? "Editing" : "Edited"} ${pluralize(fileDiffs.length, "file")}`,
+				diff: { additions, deletions },
 				details: fileDiffs.map(
 					(d) =>
 						`${inProgress ? "Editing" : "Edited"} ${toDisplayPath(d.path)} +${d.additions} -${d.deletions}`,
@@ -1233,14 +1289,12 @@ function buildToolSummary(
 					: command === "insert"
 						? "Inserted"
 						: "Edited";
+		// The label already carries all the information; no expandable details.
 		const detail = `${action} ${path}`;
 		if (diff) {
-			return {
-				label: `${detail} +${diff.additions} -${diff.deletions}`,
-				details: [detail],
-			};
+			return { label: detail, diff, details: [] };
 		}
-		return { label: detail, details: [detail] };
+		return { label: detail, details: [] };
 	}
 
 	const query =
@@ -1288,13 +1342,17 @@ function ToolMessageBlock({ message }: { message: ChatMessage }) {
 		hookEventName === "history_tool_use" ||
 		(Boolean(payload) && payload?.result == null && !payload?.isError);
 	const kind = classifyTool(toolName);
-	const Icon =
-		kind === "exploration"
+	const isFileRead = ["read_files", "file_read", "file-read"].includes(
+		toolName.toLowerCase(),
+	);
+	const Icon = isFileRead
+		? FileIcon
+		: kind === "exploration"
 			? Search
 			: kind === "file-edit"
 				? FileEdit
 				: kind === "bash"
-					? Terminal
+					? SquareTerminalIcon
 					: kind === "spawn"
 						? Bot
 						: FileSearch;
@@ -1306,7 +1364,7 @@ function ToolMessageBlock({ message }: { message: ChatMessage }) {
 		IS_DEBUG && payload ? formatToolValue(payload.input) : "";
 	const resultPreview = payload?.isError ? formatToolValue(payload.result) : "";
 	const hasExpandedSections =
-		details.length > 1 || Boolean(inputPreview || resultPreview);
+		details.length > 0 || Boolean(inputPreview || resultPreview);
 
 	return (
 		<div className="my-2 flex w-full min-w-0 justify-start">
@@ -1314,7 +1372,7 @@ function ToolMessageBlock({ message }: { message: ChatMessage }) {
 				className={cn("min-w-0 max-w-full overflow-hidden rounded-xl text-sm")}
 			>
 				<Button
-					className="h-auto min-h-0 max-w-full justify-start gap-2 whitespace-normal px-0 py-1 text-left text-sm font-medium text-foreground/70 hover:bg-transparent hover:text-foreground dark:hover:bg-transparent dark:hover:text-foreground"
+					className="h-auto min-h-0 max-w-full justify-start gap-2 whitespace-normal px-0 py-1 text-left text-sm font-medium text-primary hover:bg-transparent hover:text-primary/80 dark:hover:bg-transparent dark:hover:text-primary/80"
 					onClick={() => setExpanded((current) => !current)}
 					type="button"
 					variant="ghost"
@@ -1325,6 +1383,14 @@ function ToolMessageBlock({ message }: { message: ChatMessage }) {
 						<Icon className="size-4" />
 					)}
 					<span className="min-w-0 wrap-break-word">{summary.label}</span>
+					{summary.diff ? (
+						<span className="shrink-0 font-mono text-xs">
+							<span className="text-chart-2">+{summary.diff.additions}</span>{" "}
+							<span className="text-destructive">
+								-{summary.diff.deletions}
+							</span>
+						</span>
+					) : null}
 					{hasExpandedSections ? (
 						<span className="shrink-0 text-muted-foreground">
 							{expanded ? (

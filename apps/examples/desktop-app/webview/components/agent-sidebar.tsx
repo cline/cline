@@ -355,6 +355,7 @@ export function AgentSidebar({
 								)}
 								{showShowMore && (
 									<Button
+										className="pl-0"
 										disabled={isLoadingMore}
 										onClick={() => {
 											const nextCount =

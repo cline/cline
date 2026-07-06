@@ -179,7 +179,7 @@ export function AgentHeader({
 					type="button"
 					variant="secondary"
 				>
-					<span className="text-primary">+{additions}</span>
+					<span className="text-chart-2">+{additions}</span>
 					<span className="text-destructive">-{deletions}</span>
 				</Button>
 				{/* New Chat Button */}

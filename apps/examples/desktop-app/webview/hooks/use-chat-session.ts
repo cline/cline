@@ -34,6 +34,7 @@ import {
 import { desktopClient } from "@/lib/desktop-client";
 import {
 	buildSessionDiffState,
+	type SessionHookEvent,
 	EMPTY_DIFF_SUMMARY,
 	type SessionDiffSummary,
 	type SessionFileDiff,
@@ -495,6 +496,50 @@ export function useChatSession() {
 		void refreshSessionDiffSummary(sessionId);
 		void refreshPromptsInQueue(sessionId);
 	}, [refreshPromptsInQueue, refreshSessionDiffSummary, sessionId]);
+
+	// Fallback for sessions with no tool events in the hook log (e.g. sessions
+	// recorded before tool_call/tool_result hook logging existed): rebuild the
+	// diff state from the tool messages themselves.
+	useEffect(() => {
+		if (!sessionId || fileDiffs.length > 0) {
+			return;
+		}
+		const events: SessionHookEvent[] = [];
+		for (const message of messages) {
+			if (message.sessionId !== sessionId || message.role !== "tool") {
+				continue;
+			}
+			let payload: {
+				toolName?: string;
+				input?: unknown;
+				result?: unknown;
+				isError?: boolean;
+			} | null = null;
+			try {
+				payload = JSON.parse(message.content);
+			} catch {
+				continue;
+			}
+			if (!payload?.toolName || payload.result == null || payload.isError) {
+				continue;
+			}
+			events.push({
+				hookName: "tool_result",
+				toolName: payload.toolName,
+				toolInput: payload.input,
+				toolOutput: payload.result,
+			});
+		}
+		if (events.length === 0) {
+			return;
+		}
+		const diffState = buildSessionDiffState(events);
+		if (diffState.fileDiffs.length === 0) {
+			return;
+		}
+		setFileDiffs(diffState.fileDiffs);
+		setDiffSummary(diffState.summary);
+	}, [sessionId, messages, fileDiffs.length]);
 
 	useEffect(() => {
 		const activeSessionId = sessionId;

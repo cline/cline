@@ -59,6 +59,39 @@ function toStringValue(value: unknown): string | undefined {
 	return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
+/**
+ * Tool outputs arrive in several shapes depending on the source: a plain
+ * record (live hook events), a JSON-encoded string, or a list of content
+ * blocks such as [{ type: "text", text: "<json>" }] (persisted history).
+ */
+function normalizeToolOutput(value: unknown): Record<string, unknown> | null {
+	if (typeof value === "string") {
+		try {
+			return asRecord(JSON.parse(value));
+		} catch {
+			return null;
+		}
+	}
+	if (Array.isArray(value)) {
+		for (const entry of value) {
+			const record = asRecord(entry);
+			if (!record) {
+				continue;
+			}
+			if (typeof record.text === "string") {
+				const inner = normalizeToolOutput(record.text);
+				if (inner) {
+					return inner;
+				}
+				continue;
+			}
+			return record;
+		}
+		return null;
+	}
+	return asRecord(value);
+}
+
 function getHookEventName(event: SessionHookEvent): string {
 	return event.hookEventName ?? event.hookName ?? "";
 }
@@ -332,7 +365,7 @@ function parseEditorFileDiff(event: SessionHookEvent): SessionFileDiff | null {
 	}
 
 	const input = asRecord(event.toolInput);
-	const output = asRecord(event.toolOutput);
+	const output = normalizeToolOutput(event.toolOutput);
 	if (!input || !output || output.success === false) {
 		return null;
 	}
@@ -403,7 +436,7 @@ function parseApplyPatchFileDiffs(event: SessionHookEvent): SessionFileDiff[] {
 		return [];
 	}
 
-	const output = asRecord(event.toolOutput);
+	const output = normalizeToolOutput(event.toolOutput);
 	if (!output || output.success === false) {
 		return [];
 	}
