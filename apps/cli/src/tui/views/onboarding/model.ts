@@ -30,8 +30,6 @@ export const THINKING_LEVELS: {
 	{ value: "xhigh", label: "Extra High", desc: "Maximum reasoning" },
 ];
 
-// Medium is the recommended starting point, so the picker highlights it
-// rather than "Off" when no thinking level is configured yet.
 export const DEFAULT_THINKING_LEVEL_INDEX = THINKING_LEVELS.findIndex(
 	(l) => l.value === "medium",
 );
