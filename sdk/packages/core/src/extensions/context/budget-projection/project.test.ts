@@ -213,7 +213,7 @@ describe("buildBudgetProjection", () => {
 		expect(result.actions).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({
-					kind: "dropped_message",
+					kind: "preserved",
 					path: expect.objectContaining({ messageIndex: 1 }),
 				}),
 				expect.objectContaining({
@@ -280,6 +280,84 @@ describe("buildBudgetProjection", () => {
 		);
 	});
 
+	it("drops completed tool pairs after the latest typed prompt", () => {
+		const result = buildBudgetProjection({
+			messages: [
+				{ role: "user", content: "old task " + "x".repeat(500) },
+				{ role: "user", content: "latest typed prompt" },
+				{
+					role: "assistant",
+					content: [
+						{ type: "tool_use", id: "tool_after", name: "read", input: {} },
+					],
+				},
+				{
+					role: "user",
+					content: [
+						{
+							type: "tool_result",
+							tool_use_id: "tool_after",
+							name: "read",
+							content: "huge result " + "y".repeat(2_000),
+						},
+					],
+				},
+			],
+			targetTokens: 140,
+			policyIntent: "agentic_summary",
+			estimateMessageTokens: estimateChars,
+		});
+
+		const serialized = JSON.stringify(result.messages);
+		expect(serialized).toContain("latest typed prompt");
+		expect(serialized).not.toContain("tool_after");
+		expect(result.actions).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					kind: "dropped_message",
+					reason: "tool_pair_boundary",
+					path: expect.objectContaining({ messageIndex: 2 }),
+				}),
+				expect.objectContaining({
+					kind: "dropped_message",
+					reason: "tool_pair_boundary",
+					path: expect.objectContaining({ messageIndex: 3 }),
+				}),
+			]),
+		);
+	});
+
+	it("preserves unresolved tool use after the latest typed prompt", () => {
+		const result = buildBudgetProjection({
+			messages: [
+				{ role: "user", content: "old task " + "x".repeat(500) },
+				{ role: "user", content: "latest typed prompt" },
+				{
+					role: "assistant",
+					content: [
+						{
+							type: "tool_use",
+							id: "tool_live",
+							name: "run_command",
+							input: { command: "sleep 1" },
+						},
+					],
+				},
+			],
+			targetTokens: 80,
+			policyIntent: "agentic_summary",
+			estimateMessageTokens: estimateChars,
+		});
+
+		const serialized = JSON.stringify(result.messages);
+		expect(serialized).toContain("latest typed prompt");
+		expect(serialized).toContain("tool_live");
+		expect(result.status).toBe("failed");
+		expect(result.warnings[0]?.code).toBe(
+			"budget_unachievable_with_protections",
+		);
+	});
+
 	it("does not preserve later text or file blocks after tool-result budget is exhausted", () => {
 		const result = buildBudgetProjection({
 			messages: [
@@ -335,7 +413,7 @@ describe("buildBudgetProjection", () => {
 					],
 				},
 			],
-			targetTokens: 190,
+			targetTokens: 900,
 			policyIntent: "agentic_summary",
 			estimateMessageTokens: estimateChars,
 		});
