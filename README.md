@@ -149,7 +149,7 @@ Toggle between Plan mode and Act mode. In Plan mode, Cline explores your codebas
 
 ## Rules and Skills
 
-Define project-specific rules in `.clinerules` files that guide how Cline works in your codebase: coding standards, architecture conventions, deployment procedures, testing requirements. Rules are picked up automatically by the CLI, VS Code extension, and JetBrains plugin. Use skills to let the model load specific rules when needed. 
+Define project-specific rules in `.clinerules` files that guide how Cline works in your codebase: coding standards, architecture conventions, deployment procedures, testing requirements. Rules are picked up automatically by the CLI, VS Code extension, and JetBrains plugin. Use skills to let the model load specific rules when needed.
 
 ## Works With Every Model
 
@@ -158,10 +158,10 @@ Cline is not locked to a single AI provider. Use whichever model fits your workf
 | Provider | Models |
 |----------|--------|
 | Anthropic | Claude Opus, Sonnet, Haiku |
-| OpenAI | GPT series model |
-| Google | Gemini series model |
+| OpenAI | GPT series models |
+| Google | Gemini series models |
 | OpenRouter | 200+ models from any provider |
-| Vercel AI Gateway | Models through Vercel AI Gateway |
+| Vercel AI Gateway | Any model routed through your Gateway |
 | AWS Bedrock | Claude, Llama, and more |
 | Azure / GCP Vertex | All hosted models |
 | Cerebras / Groq | Fast inference models |
@@ -226,7 +226,7 @@ Run Cline with zero interaction for scripting and automation. Pipe input, get JS
 
 ```bash
 cline "Run tests and fix any failures"
-git diff origin/main | cline  "Review these changes for issues"
+git diff origin/main | cline "Review these changes for issues"
 cline --json "List all TODO comments" | jq -r 'select(.type == "agent_event" and .event.text) | .event.text'
 ```
 
