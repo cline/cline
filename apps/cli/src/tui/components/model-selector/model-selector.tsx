@@ -329,7 +329,10 @@ export function ThinkingLevelContent(
 ) {
 	const { resolve, dismiss, dialogId, modelName, currentLevel } = props;
 	const [selected, setSelected] = useState(() => {
-		const idx = THINKING_LEVELS.findIndex((l) => l.value === currentLevel);
+		// Start the cursor on Medium (the recommended level) when thinking is
+		// off, so accepting the default enables it rather than keeping it off.
+		const initialLevel = currentLevel === "none" ? "medium" : currentLevel;
+		const idx = THINKING_LEVELS.findIndex((l) => l.value === initialLevel);
 		return idx >= 0 ? idx : 0;
 	});
 
