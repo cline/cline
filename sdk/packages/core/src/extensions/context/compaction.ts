@@ -431,6 +431,10 @@ export function createContextCompactionPrepareTurn(
 		);
 
 		const beforeMessageCount = context.messages.length;
+		const compactionInputTokens = context.messages.reduce(
+			(total: number, message) => total + estimateMessageTokens(message),
+			0,
+		);
 		const startedAt = Date.now();
 
 		const result = userCompaction?.compact
@@ -468,10 +472,11 @@ export function createContextCompactionPrepareTurn(
 				severity: "info",
 				strategy: strategy,
 				maxInputTokens,
-				inputTokens,
+				inputTokens: compactionInputTokens,
+				apiInputTokens: inputTokens,
 				afterTokens,
-				tokensSaved: inputTokens - afterTokens,
-				utilizationBefore: `${((inputTokens / maxInputTokens) * 100).toFixed(1)}%`,
+				tokensSaved: compactionInputTokens - afterTokens,
+				utilizationBefore: `${((compactionInputTokens / maxInputTokens) * 100).toFixed(1)}%`,
 				utilizationAfter: `${((afterTokens / maxInputTokens) * 100).toFixed(1)}%`,
 				thresholdTrigger: `${(targetState.thresholdRatio * 100).toFixed(1)}%`,
 				messagesBefore: beforeMessageCount,
@@ -485,9 +490,9 @@ export function createContextCompactionPrepareTurn(
 				messagesBefore: beforeMessageCount,
 				messagesAfter: result.messages.length,
 				messagesRemoved: beforeMessageCount - result.messages.length,
-				tokensBefore: inputTokens,
+				tokensBefore: compactionInputTokens,
 				tokensAfter: afterTokens,
-				tokensSaved: inputTokens - afterTokens,
+				tokensSaved: compactionInputTokens - afterTokens,
 				triggerTokens: targetState.triggerTokens,
 				maxInputTokens,
 				thresholdRatio: targetState.thresholdRatio,
