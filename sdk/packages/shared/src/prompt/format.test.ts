@@ -6,6 +6,7 @@ import {
 	formatUserInputBlock,
 	normalizeUserInput,
 	parseUserCommandEnvelope,
+	parseUserInputMode,
 	stripModeNotices,
 } from "./format";
 
@@ -38,6 +39,28 @@ describe("prompt format helpers", () => {
 			"team",
 		);
 		expect(formatDisplayUserInput(wrapped)).toBe("/team inspect rpc startup");
+	});
+
+	it("parses the mode attribute from a user_input wrapper", () => {
+		expect(
+			parseUserInputMode(formatUserInputBlock("hello", "plan")),
+		).toBe("plan");
+		expect(parseUserInputMode(formatUserInputBlock("hello", "act"))).toBe(
+			"act",
+		);
+	});
+
+	it("parses the mode when a mode notice precedes the wrapper", () => {
+		const input = `${formatModeSwitchNotice("act", "plan")}${formatUserInputBlock("hello", "plan")}`;
+		expect(parseUserInputMode(input)).toBe("plan");
+	});
+
+	it("returns undefined for unwrapped or unknown-mode input", () => {
+		expect(parseUserInputMode("plain text")).toBeUndefined();
+		expect(parseUserInputMode(undefined)).toBeUndefined();
+		expect(
+			parseUserInputMode('<user_input mode="warp">hello</user_input>'),
+		).toBeUndefined();
 	});
 
 	it("formats a mode switch notice", () => {

@@ -560,7 +560,7 @@ export function ChatEntryView(props: {
 			if (entry.elapsed) parts.push(`${entry.elapsed}s`);
 			if (entry.tokens > 0)
 				parts.push(`${entry.tokens.toLocaleString()} tokens`);
-			if (entry.cost > 0) parts.push(`$${entry.cost.toFixed(3)}`);
+			if (entry.cost > 0) parts.push(`$${entry.cost.toFixed(2)}`);
 			if (entry.iterations > 0)
 				parts.push(
 					`${entry.iterations} iteration${entry.iterations !== 1 ? "s" : ""}`,

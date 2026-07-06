@@ -25,7 +25,7 @@ import type {
 } from "./interactive-config";
 import type { InteractiveSlashCommand } from "./interactive-welcome";
 
-export type ChatEntry =
+export type ChatEntry = (
 	| { kind: "user"; text: string }
 	| { kind: "assistant_text"; text: string; streaming: boolean }
 	| { kind: "reasoning"; text: string; streaming: boolean }
@@ -52,7 +52,17 @@ export type ChatEntry =
 			cost: number;
 			elapsed: string;
 			iterations: number;
-	  };
+	  }
+) & {
+	/**
+	 * Agent mode active when the entry was produced. Stamped by appendEntry
+	 * (live sessions) and hydrateSessionMessages (resumed sessions) so the
+	 * transcript renders each entry with the accent of its own mode instead
+	 * of retinting everything to the current mode. Absent on entries from
+	 * transcripts that predate mode stamping.
+	 */
+	mode?: AgentMode;
+};
 
 export interface InteractiveTurnResult {
 	usage: {
