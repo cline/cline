@@ -9,7 +9,12 @@ export function readStoredHubTheme(): HubTheme | null {
 
 export function readSystemHubTheme(): HubTheme {
 	const kind = document.body.dataset.vscodeThemeKind;
-	return kind === "vscode-dark" || kind === "vscode-high-contrast"
+	if (kind) {
+		return kind === "vscode-dark" || kind === "vscode-high-contrast"
+			? "dark"
+			: "light";
+	}
+	return window.matchMedia?.("(prefers-color-scheme: dark)").matches
 		? "dark"
 		: "light";
 }
@@ -27,4 +32,25 @@ export function syncHubTheme(): HubTheme {
 export function setStoredHubTheme(theme: HubTheme): HubTheme {
 	window.localStorage.setItem(HUB_THEME_STORAGE_KEY, theme);
 	return applyHubTheme(theme);
+}
+
+/**
+ * Follow OS light/dark changes while the user has no stored preference.
+ * Returns a cleanup function that removes the listener.
+ */
+export function watchSystemHubTheme(
+	onChange?: (theme: HubTheme) => void,
+): () => void {
+	const media = window.matchMedia?.("(prefers-color-scheme: dark)");
+	if (!media) {
+		return () => {};
+	}
+	const handle = () => {
+		if (readStoredHubTheme() !== null) {
+			return;
+		}
+		onChange?.(applyHubTheme(readSystemHubTheme()));
+	};
+	media.addEventListener("change", handle);
+	return () => media.removeEventListener("change", handle);
 }

@@ -22,10 +22,12 @@ import {
 import { ChatInputBar } from "@/components/views/chat/chat-input-bar";
 import { ChatMessages } from "@/components/views/chat/chat-messages";
 import { DiffView } from "@/components/views/chat/diff-view";
+import { SessionsView } from "@/components/views/sessions/sessions-view";
 import { SettingsView } from "@/components/views/settings/settings-view";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
 import type { PromptInQueue } from "@/hooks/chat-session/types";
 import { useChatSession } from "@/hooks/use-chat-session";
+import { useSessionHistory } from "@/hooks/use-session-history";
 import { toast } from "@/hooks/use-toast";
 import type { ChatSessionConfig } from "@/lib/chat-schema";
 import { desktopClient } from "@/lib/desktop-client";
@@ -34,7 +36,7 @@ import {
 	type SessionHistoryItem,
 	type SessionMetadata,
 } from "@/lib/session-history";
-import { syncHubTheme } from "@/lib/theme";
+import { syncHubTheme, watchSystemHubTheme } from "@/lib/theme";
 
 function makeThreadId(): string {
 	return `thread_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
@@ -72,7 +74,7 @@ function toThreadTitle(options: { title?: string; prompt?: string }): string {
 }
 
 export default function Home() {
-	const [view, setView] = useState<"chat" | "diff" | "settings">("chat");
+	const [view, setView] = useState<"chat" | "sessions" | "settings">("chat");
 	const [threads, setThreads] = useState<Thread[]>(() => [
 		{ id: makeThreadId() },
 	]);
@@ -82,12 +84,14 @@ export default function Home() {
 
 	useEffect(() => {
 		syncHubTheme();
+		return watchSystemHubTheme();
 	}, []);
 
 	const handleNewThread = useCallback(() => {
 		const id = makeThreadId();
 		setThreads((prev) => [...prev, { id }]);
 		setActiveThreadId(id);
+		setView("chat");
 	}, []);
 
 	const handleOpenSession = useCallback((session: SessionHistoryItem) => {
@@ -105,6 +109,7 @@ export default function Home() {
 			return [...prev, { id: threadId, historySession: session }];
 		});
 		setActiveThreadId(threadId);
+		setView("chat");
 	}, []);
 
 	const handleDeleteSession = useCallback(
@@ -183,6 +188,12 @@ export default function Home() {
 			?.sessionId ?? null;
 	const activeThread =
 		threads.find((thread) => thread.id === activeThreadId) ?? threads[0];
+	const sessionHistory = useSessionHistory({
+		activeSessionId: activeHistorySessionId,
+		onDeleteSession: handleDeleteSession,
+		onOpenSession: handleOpenSession,
+		onUpdateSessionMetadata: handleUpdateSessionMetadata,
+	});
 
 	return (
 		<>
@@ -195,13 +206,18 @@ export default function Home() {
 						<AgentSidebar
 							activeSessionId={activeHistorySessionId}
 							onNewThread={handleNewThread}
-							onOpenSession={handleOpenSession}
+							sessionHistory={sessionHistory}
 							setView={setView}
 						/>
 						<SidebarRail />
 					</Sidebar>
 					<SidebarInset className="min-h-0 min-w-0 overflow-hidden">
-						{activeThread ? (
+						{view === "sessions" ? (
+							<SessionsView
+								activeSessionId={activeHistorySessionId}
+								history={sessionHistory}
+							/>
+						) : activeThread ? (
 							<div className="flex min-h-0 flex-1 flex-col">
 								<ChatThreadPane
 									key={activeThread.id}
@@ -462,7 +478,12 @@ function ChatThreadPane({
 		async (preferredWorkspace?: string) => {
 			try {
 				const results = await listWorkspaces(preferredWorkspace);
-				setWorkspaces(results);
+				setWorkspaces((current) =>
+					current.length === results.length &&
+					current.every((workspace, index) => workspace === results[index])
+						? current
+						: results,
+				);
 			} finally {
 				setWorkspacesLoaded(true);
 			}
@@ -855,9 +876,7 @@ function ChatThreadPane({
 			workspaceRoot: resolvedWorkspaceRoot,
 			workspaces,
 			listWorkspaces,
-			refreshWorkspaces: async () => {
-				await refreshWorkspaces();
-			},
+			refreshWorkspaces,
 			switchWorkspace,
 			pickWorkspaceDirectory,
 		}),

@@ -33,6 +33,31 @@ Set either `APPLE_CERTIFICATE` or `APPLE_SIGNING_IDENTITY`, plus one notarizatio
 
 For local-only macOS testing, use `bun run package:desktop:mac --allow-unsigned-mac`. That ad-hoc signs the `.app` and strips quarantine attributes, but it is not suitable for a downloaded build shared with teammates.
 
+### macOS signing & notarization, step by step
+
+One-time keychain setup:
+
+1. Get the **Developer ID Application** identity from your team admin. A `.cer` alone is not enough — you need the private key. If the admin generated the CSR, have them export the identity from Keychain Access as a `.p12` and import it:
+   `security import BeeCertificates.p12 -k ~/Library/Keychains/login.keychain-db -T /usr/bin/codesign -T /usr/bin/security`
+2. If `security find-identity -v -p codesigning` still reports `0 valid identities`, the Apple intermediate CA is missing. Install it:
+   `curl -O https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer && security import DeveloperIDG2CA.cer -k ~/Library/Keychains/login.keychain-db`
+3. Re-run `security find-identity -v -p codesigning` — it should now list `Developer ID Application: <Team Name> (<TEAMID>)`. That exact quoted string is your `APPLE_SIGNING_IDENTITY`.
+4. Get an **App Store Connect API key** from the admin: the `AuthKey_<KEYID>.p8` file, the Key ID, and the Issuer ID (a UUID from App Store Connect → Users and Access → Integrations). This is used for notarization only — nothing is published.
+
+Per-build:
+
+```bash
+export APPLE_SIGNING_IDENTITY="Developer ID Application: <Team Name> (<TEAMID>)"
+export APPLE_API_KEY="<KEYID>"           # Tauri reads APPLE_API_KEY (the Key ID); APPLE_API_KEY_ID alone silently skips notarization
+export APPLE_API_KEY_PATH="/path/to/AuthKey_<KEYID>.p8"
+export APPLE_API_ISSUER="<issuer UUID>"
+bun run package:desktop:mac
+```
+
+The first signing run pops a keychain dialog — enter your macOS login password and click **Always Allow**. Notarization uploads the app to Apple's automated malware scan (typically 2–10 minutes) and staples the ticket. Artifacts land in `dist/desktop/`; share the `.dmg`. The DMG name takes its version from `src-tauri/tauri.conf.json`, the zip name from `package.json` — bump both.
+
+Do not remove `src-tauri/entitlements.plist` or the `bundle.macOS.entitlements` reference in `tauri.conf.json`: notarization requires the hardened runtime, which breaks the Bun-compiled sidecar (`SharedArrayBuffer is not defined`, surfacing in-app as "desktop backend endpoint not ready") unless the JIT entitlements are present.
+
 ## Runtime Overview
 
 Startup flow:

@@ -1,6 +1,6 @@
 {
 	"name": "@cline/code",
-	"version": "0.0.0",
+	"version": "0.0.1",
 	"private": true,
 	"scripts": {
 		"dev:web": "next dev webview -p 3125 --turbo",
