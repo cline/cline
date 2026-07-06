@@ -8,3 +8,14 @@ preview_urls = false
 binding = "DB"
 database_name = "aihydro_recognition"
 database_id = "0f043f39-f1e8-4d86-9ef3-eb6578898d47"
+
+# Daily retention cron for the events audit log (see scheduled() in
+# src/index.ts). item_counts, the durable aggregate, is never pruned.
+[triggers]
+crons = ["0 3 * * *"]
+
+# Cloudflare Rate Limiting on /v1/events and /v1/stars is NOT configured here.
+# It requires a rate-limiting rule/namespace provisioned via the Cloudflare
+# dashboard or API against this zone/route — that's a live infrastructure
+# change (shared, hard to reverse) this repo shouldn't make unattended. See
+# README.md "Rate limiting" for the manual setup step.

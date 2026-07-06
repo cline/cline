@@ -5,6 +5,10 @@ export interface Env {
 const MARKETPLACES = new Set(["gallery", "skills", "modules", "mcp", "connectors"])
 const EVENT_TYPES = new Set(["import", "install", "open_source", "copy_citation", "template_open", "uninstall"])
 
+// events rows older than this are pruned by the scheduled() cron handler.
+// item_counts (the durable aggregate) is never pruned.
+const EVENTS_RETENTION_DAYS = 90
+
 interface CountSummary {
 	marketplace: string
 	itemId: string
@@ -19,6 +23,11 @@ function json(data: unknown, init: ResponseInit = {}): Response {
 		...init,
 		headers: {
 			"Content-Type": "application/json; charset=utf-8",
+			// Origin stays "*": these routes are called from static community
+			// surfaces (Gallery/Skills/Modules JSON APIs, GitHub Pages, the
+			// marketplace site) whose exact origin set isn't fixed/enumerable
+			// here, and every write is anonymous + rate/dedup-limited server
+			// side rather than origin-gated.
 			"Access-Control-Allow-Origin": "*",
 			"Access-Control-Allow-Methods": "GET,POST,OPTIONS",
 			"Access-Control-Allow-Headers": "Content-Type",
@@ -35,6 +44,28 @@ function cleanText(value: unknown, maxLength = 120): string {
 
 function validateClientHash(clientIdHash: string): boolean {
 	return /^[a-f0-9]{32,128}$/i.test(clientIdHash)
+}
+
+// Server-derived dedup key for the write routes. clientIdHash in the request
+// body is client-supplied and trivially rotated per request, so it cannot be
+// trusted as an identity for abuse control (see daily_dedup in schema.sql).
+// This key is NOT a security credential — it's a cheap, non-client-chosen
+// grouping key (IP + User-Agent + UTC day) that raises the cost of casual
+// inflation (retry loops, buggy clients). A determined attacker who varies
+// IP/UA per request still defeats it; the Cloudflare-level rate limit rule
+// (provisioned via the dashboard/API, not this file — see README) is the
+// control for that case.
+async function dailyDedupKey(request: Request): Promise<string> {
+	const ip = request.headers.get("CF-Connecting-IP") ?? "unknown-ip"
+	const ua = request.headers.get("User-Agent") ?? "unknown-ua"
+	const day = new Date().toISOString().slice(0, 10)
+	const data = new TextEncoder().encode(`${ip}|${ua}|${day}`)
+	const digest = await crypto.subtle.digest("SHA-256", data)
+	return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("")
+}
+
+function todayUtc(): string {
+	return new Date().toISOString().slice(0, 10)
 }
 
 async function recordEvent(request: Request, env: Env): Promise<Response> {
@@ -66,6 +97,22 @@ async function recordEvent(request: Request, env: Env): Promise<Response> {
 	const itemVersion = cleanText(body.itemVersion ?? body.item_version, 40)
 	const source = cleanText(body.source, 40)
 
+	// Server-derived dedup gate: only the first (marketplace, item_id,
+	// event_type) event from a given (IP, UA) pair per UTC day is counted.
+	// INSERT OR IGNORE + meta.changes mirrors the existing item_stars pattern.
+	const dedupKey = await dailyDedupKey(request)
+	const dedupResult = await env.DB.prepare(
+		`INSERT OR IGNORE INTO daily_dedup (marketplace, item_id, event_type, dedup_key, day)
+		 VALUES (?, ?, ?, ?, ?)`,
+	)
+		.bind(marketplace, itemId, eventType, dedupKey, todayUtc())
+		.run()
+	if (!dedupResult.meta.changes) {
+		// Duplicate within the same day from the same (IP, UA) — no-op, but
+		// still report success so the caller doesn't retry.
+		return json({ ok: true, deduped: true })
+	}
+
 	await env.DB.batch([
 		env.DB.prepare(
 			`INSERT INTO events (
@@ -84,6 +131,16 @@ async function recordEvent(request: Request, env: Env): Promise<Response> {
 	])
 
 	return json({ ok: true })
+}
+
+async function pruneOldEvents(env: Env): Promise<number> {
+	const cutoff = new Date(Date.now() - EVENTS_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString()
+	const result = await env.DB.prepare(`DELETE FROM events WHERE created_at < ?`).bind(cutoff).run()
+	// Also prune dedup rows older than a couple of days — they only need to
+	// survive long enough to catch same-day repeats.
+	const dedupCutoff = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+	await env.DB.prepare(`DELETE FROM daily_dedup WHERE day < ?`).bind(dedupCutoff).run()
+	return result.meta.changes ?? 0
 }
 
 async function setStar(request: Request, env: Env): Promise<Response> {
@@ -261,5 +318,12 @@ export default {
 		if (request.method === "POST" && url.pathname === "/v1/stars") return setStar(request, env)
 		if (request.method === "GET" && url.pathname === "/v1/counts") return getCounts(url, env)
 		return json({ error: "Not found." }, { status: 404 })
+	},
+
+	// Retention cron (see [triggers] in wrangler.toml) — events is an
+	// append-only audit log with no natural cap; item_counts (the durable
+	// aggregate the marketplace UI actually reads) is never touched.
+	async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
+		ctx.waitUntil(pruneOldEvents(env))
 	},
 }
