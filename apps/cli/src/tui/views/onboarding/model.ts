@@ -30,6 +30,10 @@ export const THINKING_LEVELS: {
 	{ value: "xhigh", label: "Extra High", desc: "Maximum reasoning" },
 ];
 
+export const DEFAULT_THINKING_LEVEL_INDEX = THINKING_LEVELS.findIndex(
+	(l) => l.value === "medium",
+);
+
 export interface MenuOption {
 	label: string;
 	value: string;
