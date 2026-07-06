@@ -150,7 +150,7 @@ describe("createEditorExecutor", () => {
 		});
 	});
 
-	it("truncates long diffs at maxDiffLines", async () => {
+	it("truncates long diffs at maxDiffLines while keeping both sides visible", async () => {
 		const oldLines = Array.from({ length: 10 }, (_, i) => `old-${i}`);
 		await withTempFile(oldLines.join("\n"), async (filePath, dir) => {
 			const editor = createEditorExecutor({ maxDiffLines: 3 });
@@ -165,7 +165,30 @@ describe("createEditorExecutor", () => {
 			);
 
 			expect(result).toBe(
-				`Edited ${filePath}\n\`\`\`diff\n-1: old-0\n-2: old-1\n-3: old-2\n... diff truncated ...\n\`\`\``,
+				`Edited ${filePath}\n\`\`\`diff\n-1: old-0\n-2: old-1\n+1: replaced\n... diff truncated (8 more removed, 0 more added lines) ...\n\`\`\``,
+			);
+		});
+	});
+
+	it("does not drop additions when removals alone exhaust maxDiffLines", async () => {
+		const oldLines = Array.from({ length: 6 }, (_, i) => `old-${i}`);
+		const newLines = Array.from({ length: 4 }, (_, i) => `new-${i}`);
+		await withTempFile(oldLines.join("\n"), async (filePath, dir) => {
+			const editor = createEditorExecutor({ maxDiffLines: 6 });
+			const result = await editor(
+				{
+					path: filePath,
+					old_text: oldLines.join("\n"),
+					new_text: newLines.join("\n"),
+				},
+				dir,
+				context,
+			);
+
+			// Budget splits 3/3 instead of removals consuming all 6 lines and
+			// reporting +0 additions.
+			expect(result).toBe(
+				`Edited ${filePath}\n\`\`\`diff\n-1: old-0\n-2: old-1\n-3: old-2\n+1: new-0\n+2: new-1\n+3: new-2\n... diff truncated (3 more removed, 1 more added lines) ...\n\`\`\``,
 			);
 		});
 	});

@@ -94,28 +94,34 @@ function createLineDiff(
 		newEnd--;
 	}
 
-	const out: string[] = ["```diff"];
-	let emitted = 0;
-	let truncated = false;
+	// Split the line budget between removals and additions so neither side is
+	// silently dropped when the other alone would exhaust maxLines.
+	const removedCount = oldEnd - start;
+	const addedCount = newEnd - start;
+	let removedBudget = removedCount;
+	let addedBudget = addedCount;
+	if (removedCount + addedCount > maxLines) {
+		removedBudget = Math.min(
+			removedCount,
+			Math.max(Math.ceil(maxLines / 2), maxLines - addedCount),
+		);
+		addedBudget = Math.min(addedCount, maxLines - removedBudget);
+	}
 
-	for (let i = start; i < oldEnd; i++) {
-		if (emitted >= maxLines) {
-			truncated = true;
-			break;
-		}
+	const out: string[] = ["```diff"];
+	for (let i = start; i < start + removedBudget; i++) {
 		out.push(`-${i + 1}: ${oldLines[i]}`);
-		emitted++;
 	}
-	for (let i = start; i < newEnd && !truncated; i++) {
-		if (emitted >= maxLines) {
-			truncated = true;
-			break;
-		}
+	for (let i = start; i < start + addedBudget; i++) {
 		out.push(`+${i + 1}: ${newLines[i]}`);
-		emitted++;
 	}
-	if (truncated) {
-		out.push("... diff truncated ...");
+
+	const omittedRemoved = removedCount - removedBudget;
+	const omittedAdded = addedCount - addedBudget;
+	if (omittedRemoved > 0 || omittedAdded > 0) {
+		out.push(
+			`... diff truncated (${omittedRemoved} more removed, ${omittedAdded} more added lines) ...`,
+		);
 	}
 
 	out.push("```");
