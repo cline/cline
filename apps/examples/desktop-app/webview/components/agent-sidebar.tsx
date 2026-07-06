@@ -214,7 +214,7 @@ export function AgentSidebar({
 					variant="ghost"
 					size="icon"
 				>
-					<Filter className="size-4 stroke-2" />
+					<Filter className="size-3 stroke-2" />
 				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="end" className="w-36">
@@ -464,17 +464,17 @@ function ThreadSection({
 	return (
 		<div className={cn("mb-1 min-w-0")}>
 			<div className="flex h-9 w-full min-w-0 flex-nowrap items-center gap-1 text-sm font-medium text-muted-foreground">
-				{action ? (
-					<div className="flex shrink-0 items-center">{action}</div>
-				) : null}
 				<button
 					aria-label={`Open ${label} sessions view`}
-					className="flex min-w-0 flex-1 items-center self-stretch rounded-md px-2 text-left transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+					className="flex min-w-0 flex-1 items-center self-stretch rounded-md pl-0 pr-2 text-left transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 					onClick={onClick}
 					type="button"
 				>
 					<span className="block min-w-0 shrink truncate">{label}</span>
 				</button>
+				{action ? (
+					<div className="flex shrink-0 items-center">{action}</div>
+				) : null}
 			</div>
 			{children}
 		</div>
@@ -522,6 +522,7 @@ function ThreadItem({
 				? "bg-blue-500"
 				: "";
 	const infoItems: Array<[string, string | null | undefined]> = [
+		["ID", thread.id],
 		["Workspace", thread.codebase],
 		["Status", thread.status],
 		["Updated", thread.time],

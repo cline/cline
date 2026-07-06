@@ -30,6 +30,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import type { ChatMessage, ChatSessionStatus } from "@/lib/chat-schema";
+import { parseApplyPatchInput } from "@/lib/session-diff";
 import { cn } from "@/lib/utils";
 import { MemoizedMarkdown } from "../../ui/markdown";
 import { normalizeTitle } from "../../utils";
@@ -780,7 +781,7 @@ function MessageBubble({
 									redacted={message.reasoningRedacted === true}
 								/>
 							) : null}
-							<div className="whitespace-pre-wrap wrap-break-word">
+							<div className="whitespace-pre-wrap wrap-break-word leading-relaxed">
 								{normalizedContent || " "}
 							</div>
 						</>
@@ -946,7 +947,7 @@ function ReasoningBlock({
 				Thinking
 			</Button>
 			{expanded ? (
-				<div className="mt-1.5 whitespace-pre-wrap rounded-lg border border-border/70 bg-muted/30 p-3 text-sm text-muted-foreground">
+				<div className="mt-1.5 whitespace-pre-wrap rounded-lg border border-border/70 bg-muted/30 p-3 text-sm leading-relaxed text-muted-foreground">
 					{displayContent}
 				</div>
 			) : null}
@@ -1052,7 +1053,12 @@ function classifyTool(
 		].includes(normalized)
 	)
 		return "exploration";
-	if (["editor", "edit_file", "edit"].includes(normalized)) return "file-edit";
+	if (
+		["editor", "edit_file", "edit", "apply_patch", "apply-patch"].includes(
+			normalized,
+		)
+	)
+		return "file-edit";
 	if (["bash", "run_commands"].includes(normalized)) return "bash";
 	if (["spawn_agent", "spawn-agent", "spawn_agent_tool"].includes(normalized))
 		return "spawn";
@@ -1170,9 +1176,43 @@ function buildToolSummary(
 		}
 	}
 
+	if (["apply_patch", "apply-patch"].includes(normalized)) {
+		const patchText =
+			typeof input === "string"
+				? input
+				: typeof inputObject?.input === "string"
+					? inputObject.input
+					: "";
+		const fileDiffs = patchText ? parseApplyPatchInput(patchText) : [];
+		if (fileDiffs.length > 0) {
+			const additions = fileDiffs.reduce((sum, d) => sum + d.additions, 0);
+			const deletions = fileDiffs.reduce((sum, d) => sum + d.deletions, 0);
+			return {
+				label: `${inProgress ? "Editing" : "Edited"} ${pluralize(fileDiffs.length, "file")} +${additions} -${deletions}`,
+				details: fileDiffs.map(
+					(d) =>
+						`${inProgress ? "Editing" : "Edited"} ${toDisplayPath(d.path)} +${d.additions} -${d.deletions}`,
+				),
+			};
+		}
+		return {
+			label: inProgress ? "Applying patch" : "Applied patch",
+			details: [],
+		};
+	}
+
 	if (["editor", "edit_file", "edit"].includes(normalized)) {
+		// Current editor schema has no `command`; derive it from the input shape.
 		const command =
-			typeof inputObject?.command === "string" ? inputObject.command : "edit";
+			typeof inputObject?.command === "string"
+				? inputObject.command
+				: inputObject?.insert_line != null
+					? "insert"
+					: typeof inputObject?.old_text === "string"
+						? "str_replace"
+						: typeof inputObject?.new_text === "string"
+							? "create"
+							: "edit";
 		const path =
 			typeof inputObject?.path === "string"
 				? toDisplayPath(inputObject.path)

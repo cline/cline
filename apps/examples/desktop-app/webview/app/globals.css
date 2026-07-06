@@ -138,8 +138,17 @@
 }
 
 @layer components {
+	.markdown {
+		@apply leading-relaxed;
+	}
 	.markdown * {
-		@apply text-sm;
+		@apply text-sm leading-relaxed;
+	}
+	.markdown + .markdown {
+		@apply mt-2;
+	}
+	.markdown p {
+		@apply my-2 first:mt-0 last:mb-0;
 	}
 	.markdown a {
 		@apply underline;
