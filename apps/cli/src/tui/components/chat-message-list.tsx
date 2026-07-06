@@ -100,7 +100,9 @@ export const ChatMessageList = forwardRef<
 						<ChatEntryView
 							key={key}
 							entry={entry}
-							accent={accent}
+							accent={
+								entry.mode ? getModeAccent(entry.mode, terminalTheme) : accent
+							}
 							loadIndividualSubscriptionPlans={
 								props.loadIndividualSubscriptionPlans
 							}
