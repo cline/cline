@@ -71,32 +71,51 @@ function createLineDiff(
 ): string {
 	const oldLines = oldContent.split("\n");
 	const newLines = newContent.split("\n");
-	const max = Math.max(oldLines.length, newLines.length);
+
+	// Trim the common prefix and suffix so only the changed region is emitted;
+	// a naive positional compare would mispair every line after an edit that
+	// changes the line count.
+	let start = 0;
+	while (
+		start < oldLines.length &&
+		start < newLines.length &&
+		oldLines[start] === newLines[start]
+	) {
+		start++;
+	}
+	let oldEnd = oldLines.length;
+	let newEnd = newLines.length;
+	while (
+		oldEnd > start &&
+		newEnd > start &&
+		oldLines[oldEnd - 1] === newLines[newEnd - 1]
+	) {
+		oldEnd--;
+		newEnd--;
+	}
+
 	const out: string[] = ["```diff"];
 	let emitted = 0;
+	let truncated = false;
 
-	for (let i = 0; i < max; i++) {
+	for (let i = start; i < oldEnd; i++) {
 		if (emitted >= maxLines) {
-			out.push("... diff truncated ...");
+			truncated = true;
 			break;
 		}
-
-		const oldLine = oldLines[i];
-		const newLine = newLines[i];
-
-		if (oldLine === newLine) {
-			continue;
+		out.push(`-${i + 1}: ${oldLines[i]}`);
+		emitted++;
+	}
+	for (let i = start; i < newEnd && !truncated; i++) {
+		if (emitted >= maxLines) {
+			truncated = true;
+			break;
 		}
-
-		const lineNo = i + 1;
-		if (oldLine !== undefined) {
-			out.push(`-${lineNo}: ${oldLine}`);
-			emitted++;
-		}
-		if (newLine !== undefined && emitted < maxLines) {
-			out.push(`+${lineNo}: ${newLine}`);
-			emitted++;
-		}
+		out.push(`+${i + 1}: ${newLines[i]}`);
+		emitted++;
+	}
+	if (truncated) {
+		out.push("... diff truncated ...");
 	}
 
 	out.push("```");
