@@ -210,6 +210,20 @@ describe("provider model catalog handlers", () => {
 		expect(store.write).toHaveBeenCalledWith(providerId, { headers: {} })
 	})
 
+	it("writeProviderConfig preserves the max tokens unset sentinel", async () => {
+		const { writeProviderConfig } = await import("../writeProviderConfig")
+		const providerId = parseProviderId("openai-compatible")
+		const store = makeStore({ providerId, maxTokens: -1 })
+		const controller = makeController(store, makeCatalog())
+
+		await writeProviderConfig(controller, {
+			providerId: "openai-compatible",
+			patch: { headers: {}, maxTokens: -1 },
+		})
+
+		expect(store.write).toHaveBeenCalledWith(providerId, { maxTokens: -1 })
+	})
+
 	it("commitModelSelection validates mode and commits the full selection envelope", async () => {
 		const { commitModelSelection } = await import("../commitModelSelection")
 		const providerId = parseProviderId("deepseek")

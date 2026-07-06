@@ -208,6 +208,11 @@ message GcpProviderConfig {
   optional string region = 2;
 }
 
+message AzureProviderConfig {
+  optional string api_version = 1;
+  optional bool use_identity = 2;
+}
+
 message ProviderConfigResponse {
   string provider_id = 1;
   optional string base_url = 2;
@@ -222,6 +227,12 @@ message ProviderConfigResponse {
   optional CommittedModelSelection act_selection = 11;
   optional AwsProviderConfig aws = 12;
   optional GcpProviderConfig gcp = 13;
+  optional AzureProviderConfig azure = 14;
+  optional int64 max_tokens = 15;
+  optional int64 context_window = 16;
+  optional double temperature = 17;
+  optional ProviderPricingPatch pricing = 18;
+  optional ProviderReasoningPatch reasoning = 19;
 }
 
 message CommittedModelSelection {
@@ -260,6 +271,7 @@ message WriteProviderConfigPatch {
   optional int64 context_window = 14;
   optional double temperature = 15;
   optional ProviderPricingPatch pricing = 16;
+  optional AzureProviderConfig azure = 17;
 }
 
 message WriteProviderConfigRequest {

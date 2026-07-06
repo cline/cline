@@ -218,7 +218,8 @@ function resolveOpenAiCompatibleModelInfo(config: ApiConfiguration | undefined, 
 	}
 
 	try {
-		const settings = getProviderSettingsManager(resolveDataDir()).getProviderSettings("openai")
+		const manager = getProviderSettingsManager(resolveDataDir())
+		const settings = manager.getProviderSettings("openai-compatible") ?? manager.getProviderSettings("openai")
 		if (!settings) {
 			return undefined
 		}
@@ -258,6 +259,26 @@ function resolveOpenAiCompatibleModelInfo(config: ApiConfiguration | undefined, 
 	} catch (error) {
 		Logger.warn("[SessionFactory] Failed to read OpenAI Compatible model settings from providers.json", error)
 		return undefined
+	}
+}
+
+function resolveOpenAiCompatibleAzureConfig(config: ApiConfiguration | undefined): ProviderSettings["azure"] | undefined {
+	let providerAzure: ProviderSettings["azure"] | undefined
+	try {
+		const manager = getProviderSettingsManager(resolveDataDir())
+		providerAzure = manager.getProviderSettings("openai-compatible")?.azure ?? manager.getProviderSettings("openai")?.azure
+	} catch (error) {
+		Logger.warn("[SessionFactory] Failed to read OpenAI Compatible Azure settings from providers.json", error)
+	}
+
+	const apiVersion = providerAzure?.apiVersion?.trim() || config?.azureApiVersion?.trim() || undefined
+	const useIdentity = providerAzure?.useIdentity ?? config?.azureIdentity
+	if (apiVersion === undefined && useIdentity === undefined) {
+		return undefined
+	}
+	return {
+		...(apiVersion !== undefined ? { apiVersion } : {}),
+		...(useIdentity !== undefined ? { useIdentity } : {}),
 	}
 }
 
@@ -685,6 +706,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	}
 	apiKey = apiKey ?? ""
 	const openAiCompatibleModelInfo = providerId === "openai" ? resolveOpenAiCompatibleModelInfo(apiConfig, mode) : undefined
+	const openAiCompatibleAzureConfig = providerId === "openai" ? resolveOpenAiCompatibleAzureConfig(apiConfig) : undefined
 	const maxTokensPerTurn = positiveFiniteNumber(openAiCompatibleModelInfo?.maxTokens)
 	const reasoningConfig =
 		providerId === "oca"
@@ -757,12 +779,10 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		modelId,
 		...(apiKey ? { apiKey } : {}),
 		...(baseUrl !== undefined ? { baseUrl } : {}),
+		...(openAiCompatibleAzureConfig ? { azure: openAiCompatibleAzureConfig } : {}),
 		...(openAiCompatibleModelInfo ? { knownModels: toSdkKnownModelInfo(modelId, openAiCompatibleModelInfo) } : {}),
 		...(positiveFiniteNumber(openAiCompatibleModelInfo?.contextWindow) !== undefined
 			? { maxInputTokens: openAiCompatibleModelInfo?.contextWindow }
-			: {}),
-		...(isFiniteNumber(openAiCompatibleModelInfo?.temperature)
-			? { temperature: openAiCompatibleModelInfo?.temperature }
 			: {}),
 		fetch,
 	}

@@ -483,7 +483,7 @@ describe("buildSessionConfig", () => {
 
 		expect((config as any).maxTokensPerTurn).toBe(2_048)
 		expect((config.providerConfig as any).maxInputTokens).toBe(32_000)
-		expect((config.providerConfig as any).temperature).toBe(0.3)
+		expect((config.providerConfig as any).temperature).toBeUndefined()
 		expect((config.providerConfig as any).knownModels?.["custom-reasoner"]).toMatchObject({
 			contextWindow: 32_000,
 			maxTokens: 2_048,

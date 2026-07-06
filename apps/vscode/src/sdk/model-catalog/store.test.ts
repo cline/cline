@@ -233,6 +233,10 @@ describe("createProviderConfigStore", () => {
 			"openai-compatible": {
 				provider: "openai-compatible",
 				apiKey: "migrated-openai-compatible-key",
+				contextWindow: 128_000,
+				maxTokens: 8_192,
+				pricing: { input: 0.1, output: 0.5, cacheRead: 0.01, cacheWrite: 0.02 },
+				temperature: 0.2,
 			},
 		})
 		const store = createProviderConfigStore()
@@ -245,6 +249,10 @@ describe("createProviderConfigStore", () => {
 			provider: "openai-compatible",
 			apiKey: "migrated-openai-compatible-key",
 			model: "gpt-oss-120b",
+			contextWindow: 128_000,
+			maxTokens: 8_192,
+			pricing: { input: 0.1, output: 0.5, cacheRead: 0.01, cacheWrite: 0.02 },
+			temperature: 0.2,
 		})
 	})
 
@@ -359,18 +367,61 @@ describe("createProviderConfigStore", () => {
 		const providerId = parseProviderId("openai")
 
 		store.write(providerId, {
+			headers: { "X-Test": "1" },
+			azure: { apiVersion: "2025-01-01-preview", useIdentity: true },
+			reasoning: { enabled: true, effort: "high" },
 			contextWindow: 128_000,
 			maxTokens: 8_192,
 			pricing: { input: 0, output: 2.5, cacheRead: 0.1, cacheWrite: 0.2 },
 			temperature: 0.2,
 		})
 
-		expect(mocks.getSavedProviderSettings("openai")).toMatchObject({
-			provider: "openai",
+		expect(mocks.getSavedProviderSettings("openai")).toBeUndefined()
+		expect(mocks.getSavedProviderSettings("openai-compatible")).toMatchObject({
+			provider: "openai-compatible",
+			headers: { "X-Test": "1" },
+			azure: { apiVersion: "2025-01-01-preview", useIdentity: true },
+			reasoning: { enabled: true, effort: "high" },
 			contextWindow: 128_000,
 			maxTokens: 8_192,
 			pricing: { input: 0, output: 2.5, cacheRead: 0.1, cacheWrite: 0.2 },
 			temperature: 0.2,
+		})
+	})
+
+	it("persists explicit model overrides for the SDK OpenAI Compatible id", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("openai-compatible")
+
+		store.write(providerId, {
+			contextWindow: 64_000,
+			maxTokens: 4_096,
+			pricing: { input: 0.2, output: 0.6, cacheRead: 0.03, cacheWrite: 0.04 },
+			temperature: 0.1,
+		})
+
+		expect(mocks.getSavedProviderSettings("openai-compatible")).toMatchObject({
+			provider: "openai-compatible",
+			contextWindow: 64_000,
+			maxTokens: 4_096,
+			pricing: { input: 0.2, output: 0.6, cacheRead: 0.03, cacheWrite: 0.04 },
+			temperature: 0.1,
+		})
+	})
+
+	it("persists the OpenAI Compatible max tokens unset sentinel", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("openai-compatible")
+
+		store.write(providerId, {
+			maxTokens: -1,
+		})
+
+		expect(mocks.getSavedProviderSettings("openai-compatible")).toMatchObject({
+			provider: "openai-compatible",
+			maxTokens: -1,
 		})
 	})
 

@@ -31,6 +31,7 @@ type ProviderSettingsPatchKey =
 	| "extras"
 	| "aws"
 	| "gcp"
+	| "azure"
 	| "maxTokens"
 	| "contextWindow"
 	| "temperature"
@@ -102,6 +103,7 @@ const providerConfigStateKeys: Record<ProviderSettingsPatchKey, Partial<Record<s
 	extras: {},
 	aws: {},
 	gcp: {},
+	azure: {},
 	maxTokens: {},
 	contextWindow: {},
 	temperature: {},
@@ -149,7 +151,8 @@ function providerSettingsProviderId(providerId: ProviderId): string {
 }
 
 function supportsCustomModelSettings(providerId: ProviderId): boolean {
-	return providerKey(providerId) === "openai"
+	const key = providerKey(providerId)
+	return key === "openai" || key === "openai-compatible" || toSdkProviderId(providerId) === "openai-compatible"
 }
 
 function memoryKey(providerId: ProviderId, mode: Mode): string {
@@ -356,6 +359,7 @@ function writeProviderSettingsFields(providerId: ProviderId, patch: ProviderConf
 			const numberOrZero = (value: unknown): number =>
 				typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : 0
 			next.pricing = {
+				...existingPricing,
 				input: numberOrZero(pricingPatch.input ?? existingPricing.input),
 				output: numberOrZero(pricingPatch.output ?? existingPricing.output),
 				cacheRead: numberOrZero(pricingPatch.cacheRead ?? existingPricing.cacheRead),
@@ -382,6 +386,28 @@ function writeProviderSettingsFields(providerId: ProviderId, patch: ProviderConf
 				delete next.gcp
 			} else {
 				next.gcp = nextGcp
+			}
+		}
+	}
+
+	if ("azure" in patch) {
+		const azurePatch = patch.azure
+		if (azurePatch === null || azurePatch === undefined) {
+			delete next.azure
+		} else {
+			const existingAzure = isRecord(next.azure) ? next.azure : {}
+			const nextAzure: ProviderSettingsRecord = { ...existingAzure }
+			for (const [key, value] of Object.entries(azurePatch)) {
+				if (typeof value === "string" && value.length === 0) {
+					delete nextAzure[key]
+				} else {
+					nextAzure[key] = value
+				}
+			}
+			if (Object.keys(nextAzure).length === 0) {
+				delete next.azure
+			} else {
+				next.azure = nextAzure
 			}
 		}
 	}
@@ -416,7 +442,11 @@ function writeProviderSettingsFields(providerId: ProviderId, patch: ProviderConf
 				merged.enabled = reasoningPatch.enabled
 			}
 			if (reasoningPatch.effort !== undefined) {
-				merged.effort = reasoningPatch.effort === "none" ? undefined : reasoningPatch.effort
+				if (reasoningPatch.effort === "none") {
+					delete merged.effort
+				} else {
+					merged.effort = reasoningPatch.effort
+				}
 				// When effort is "none", disable reasoning
 				if (reasoningPatch.effort === "none") {
 					merged.enabled = false
@@ -460,9 +490,14 @@ function writeSelectionToState(providerId: ProviderId, mode: Mode, selection: Mo
 
 function writeSelectionToProviderSettings(providerId: ProviderId, selection: ModelSelection): void {
 	const next: ProviderSettingsRecord = { ...getProviderSettings(providerId), model: selection.modelId }
-	// Prune model metadata that earlier builds may have written to providers.json.
-	delete next.contextWindow
-	delete next.maxTokens
+	// Prune model metadata that earlier builds may have written for providers
+	// whose catalog, not per-provider settings, owns model metadata.
+	if (!supportsCustomModelSettings(providerId)) {
+		delete next.contextWindow
+		delete next.maxTokens
+		delete next.temperature
+		delete next.pricing
+	}
 
 	saveProviderSettings(providerId, next)
 }

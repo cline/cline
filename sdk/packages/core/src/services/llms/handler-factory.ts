@@ -25,6 +25,12 @@ function compactOptions(
 	return Object.keys(compacted).length > 0 ? compacted : undefined;
 }
 
+function nonNegativeFiniteNumber(value: unknown): number | undefined {
+	return typeof value === "number" && Number.isFinite(value) && value >= 0
+		? value
+		: undefined;
+}
+
 function usesOpenAICompatibleClient(config: ProviderConfig): boolean {
 	return (
 		config.providerId === "openai-compatible" ||
@@ -216,9 +222,9 @@ export function createAgentModelFromConfig(
 			providerId: normalizedProviderConfig.providerId,
 			modelId: normalizedProviderConfig.modelId,
 		},
-		{
+		compactOptions({
 			maxTokens: normalizedProviderConfig.maxOutputTokens,
-			temperature: normalizedProviderConfig.temperature,
-		},
+			temperature: nonNegativeFiniteNumber(normalizedProviderConfig.temperature),
+		}),
 	);
 }

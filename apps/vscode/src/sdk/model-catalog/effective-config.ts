@@ -1,7 +1,15 @@
 import type { ApiConfiguration } from "@shared/api"
 import { StateManager } from "@/core/storage/StateManager"
 import { getProviderSettingsManager } from "../provider-migration"
-import type { AwsProviderConfig, EffectiveProviderConfig, GcpProviderConfig, ProviderId } from "./contracts"
+import type {
+	AwsProviderConfig,
+	AzureProviderConfig,
+	EffectiveProviderConfig,
+	GcpProviderConfig,
+	ProviderId,
+	ProviderPricingConfig,
+	ProviderReasoningConfig,
+} from "./contracts"
 import { toSdkProviderId } from "./sdk-provider-id"
 
 type AuthConfig = NonNullable<EffectiveProviderConfig["auth"]>
@@ -18,6 +26,12 @@ type ProviderSettingsLike = {
 	readonly region?: string
 	readonly aws?: AwsProviderConfig
 	readonly gcp?: GcpProviderConfig
+	readonly azure?: AzureProviderConfig
+	readonly maxTokens?: number
+	readonly contextWindow?: number
+	readonly temperature?: number
+	readonly pricing?: ProviderPricingConfig
+	readonly reasoning?: ProviderReasoningConfig
 	readonly auth?: AuthConfig
 	readonly extras?: ExtrasConfig
 }
@@ -157,6 +171,38 @@ function readBoolean(record: Record<string, unknown>, key: string): boolean | un
 	return typeof value === "boolean" ? value : undefined
 }
 
+function readNumber(record: Record<string, unknown>, key: string): number | undefined {
+	const value = record[key]
+	return typeof value === "number" && Number.isFinite(value) ? value : undefined
+}
+
+function readPricing(record: Record<string, unknown>): ProviderPricingConfig | undefined {
+	const pricing = record.pricing
+	if (!isPlainRecord(pricing)) {
+		return undefined
+	}
+	const result: ProviderPricingConfig = {
+		input: readNumber(pricing, "input"),
+		output: readNumber(pricing, "output"),
+		cacheRead: readNumber(pricing, "cacheRead"),
+		cacheWrite: readNumber(pricing, "cacheWrite"),
+	}
+	return Object.values(result).some((value) => value !== undefined) ? result : undefined
+}
+
+function readReasoning(record: Record<string, unknown>): ProviderReasoningConfig | undefined {
+	const reasoning = record.reasoning
+	if (!isPlainRecord(reasoning)) {
+		return undefined
+	}
+	const result: ProviderReasoningConfig = {
+		enabled: readBoolean(reasoning, "enabled"),
+		effort: readString(reasoning, "effort"),
+		budgetTokens: readNumber(reasoning, "budgetTokens"),
+	}
+	return Object.values(result).some((value) => value !== undefined) ? result : undefined
+}
+
 function readGcp(record: Record<string, unknown>): GcpProviderConfig | undefined {
 	const gcp = record.gcp
 	if (!isPlainRecord(gcp)) {
@@ -166,6 +212,19 @@ function readGcp(record: Record<string, unknown>): GcpProviderConfig | undefined
 	const result: GcpProviderConfig = {
 		projectId: readString(gcp, "projectId"),
 		region: readString(gcp, "region"),
+	}
+	return Object.values(result).some((value) => value !== undefined) ? result : undefined
+}
+
+function readAzure(record: Record<string, unknown>): AzureProviderConfig | undefined {
+	const azure = record.azure
+	if (!isPlainRecord(azure)) {
+		return undefined
+	}
+
+	const result: AzureProviderConfig = {
+		apiVersion: readString(azure, "apiVersion"),
+		useIdentity: readBoolean(azure, "useIdentity"),
 	}
 	return Object.values(result).some((value) => value !== undefined) ? result : undefined
 }
@@ -206,6 +265,12 @@ function readProviderSettings(providerId: ProviderId): ConfigParts {
 			region: readString(settings, "region"),
 			aws: readAws(settings),
 			gcp: readGcp(settings),
+			azure: readAzure(settings),
+			maxTokens: readNumber(settings, "maxTokens"),
+			contextWindow: readNumber(settings, "contextWindow"),
+			temperature: readNumber(settings, "temperature"),
+			pricing: readPricing(settings),
+			reasoning: readReasoning(settings),
 			auth: readAuth(settings),
 			extras: isPlainRecord(settings.extras) ? settings.extras : undefined,
 		} satisfies ProviderSettingsLike
@@ -279,6 +344,18 @@ function readStateGcp(provider: string, config: ApiConfiguration): GcpProviderCo
 	return Object.values(gcp).some((value) => value !== undefined) ? gcp : undefined
 }
 
+function readStateAzure(provider: string, config: ApiConfiguration): AzureProviderConfig | undefined {
+	if (provider !== "openai") {
+		return undefined
+	}
+
+	const azure: AzureProviderConfig = {
+		apiVersion: readStringFromConfig(config, "azureApiVersion"),
+		useIdentity: readStateBoolean(config, "azureIdentity"),
+	}
+	return Object.values(azure).some((value) => value !== undefined) ? azure : undefined
+}
+
 function readStateAws(provider: string, config: ApiConfiguration): AwsProviderConfig | undefined {
 	if (provider !== "bedrock") {
 		return undefined
@@ -308,6 +385,7 @@ function readStateConfig(providerId: ProviderId, config: ApiConfiguration): Conf
 		region: readStringFromConfig(config, regionFields[provider]),
 		aws: readStateAws(provider, config),
 		gcp: readStateGcp(provider, config),
+		azure: readStateAzure(provider, config),
 		auth: readStateAuth(provider, config),
 		extras: readStateExtras(provider, config),
 	}
@@ -324,6 +402,19 @@ function mergeExtras(first: ExtrasConfig | undefined, second: ExtrasConfig | und
 }
 
 function mergeGcp(first: GcpProviderConfig | undefined, second: GcpProviderConfig | undefined): GcpProviderConfig | undefined {
+	if (!first) {
+		return second
+	}
+	if (!second) {
+		return first
+	}
+	return { ...first, ...second }
+}
+
+function mergeAzure(
+	first: AzureProviderConfig | undefined,
+	second: AzureProviderConfig | undefined,
+): AzureProviderConfig | undefined {
 	if (!first) {
 		return second
 	}
@@ -372,6 +463,12 @@ export function buildEffectiveProviderConfig(providerId: ProviderId): EffectiveP
 	// fields as a fallback for old installs, but let providers.json win when both exist.
 	assignIfDefined(merged, "aws", mergeAws(stateConfig.aws, providerSettings.aws))
 	assignIfDefined(merged, "gcp", mergeGcp(stateConfig.gcp, providerSettings.gcp))
+	assignIfDefined(merged, "azure", mergeAzure(stateConfig.azure, providerSettings.azure))
+	assignIfDefined(merged, "maxTokens", providerSettings.maxTokens)
+	assignIfDefined(merged, "contextWindow", providerSettings.contextWindow)
+	assignIfDefined(merged, "temperature", providerSettings.temperature)
+	assignIfDefined(merged, "pricing", providerSettings.pricing)
+	assignIfDefined(merged, "reasoning", providerSettings.reasoning)
 	assignIfDefined(merged, "auth", stateConfig.auth ?? providerSettings.auth)
 	assignIfDefined(merged, "extras", mergeExtras(providerSettings.extras, stateConfig.extras))
 

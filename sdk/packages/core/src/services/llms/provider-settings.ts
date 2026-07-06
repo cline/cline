@@ -23,6 +23,18 @@ export const BUILT_IN_PROVIDER_IDS = Llms.BUILT_IN_PROVIDER_IDS;
 export const isBuiltInProviderId = Llms.isBuiltInProviderId;
 export const normalizeProviderId = Llms.normalizeProviderId;
 
+function nonNegativeFiniteNumber(value: unknown): number | undefined {
+	return typeof value === "number" && Number.isFinite(value) && value >= 0
+		? value
+		: undefined;
+}
+
+function positiveFiniteNumber(value: unknown): number | undefined {
+	return typeof value === "number" && Number.isFinite(value) && value > 0
+		? value
+		: undefined;
+}
+
 export type ProviderDefaultsConfig = ProviderDefaults;
 
 export const ProviderIdSchema = z
@@ -150,7 +162,7 @@ export const ProviderSettingsSchema = z.object({
 	protocol: ProviderProtocolSchema.optional(),
 	client: ProviderClientSchema.optional(),
 	routingProviderId: ProviderIdSchema.optional(),
-	maxTokens: z.number().int().positive().optional(),
+	maxTokens: z.union([z.literal(-1), z.number().int().positive()]).optional(),
 	contextWindow: z.number().int().positive().optional(),
 	/** Pricing per million tokens (for usage tracking). */
 	pricing: PricingSettingsSchema.optional(),
@@ -243,11 +255,13 @@ export function toProviderConfig(
 			: undefined);
 
 	const supportsCustomModelSettings = normalizedProviderId === BUILT_IN_PROVIDER.OPENAI_COMPATIBLE;
+	const temperature = nonNegativeFiniteNumber(settings.temperature);
+	const maxTokens = positiveFiniteNumber(settings.maxTokens);
 	const configuredModelInfo = supportsCustomModelSettings && settings.model
 		? {
 				id: settings.model,
 				name: settings.model,
-				maxTokens: settings.maxTokens,
+				maxTokens,
 				contextWindow: settings.contextWindow,
 				maxInputTokens: settings.contextWindow,
 				temperature: settings.temperature,
@@ -288,9 +302,9 @@ export function toProviderConfig(
 		baseUrl: resolvedBaseUrl,
 		headers: settings.headers,
 		timeoutMs: settings.timeout,
-		maxOutputTokens: settings.maxTokens,
+		maxOutputTokens: maxTokens,
 		maxInputTokens: settings.contextWindow,
-		temperature: settings.temperature,
+		temperature,
 		thinking: settings.reasoning?.enabled,
 		reasoningEffort,
 		thinkingBudgetTokens: settings.reasoning?.budgetTokens,

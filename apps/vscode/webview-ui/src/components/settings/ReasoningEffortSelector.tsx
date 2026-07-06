@@ -12,6 +12,8 @@ interface ReasoningEffortSelectorProps {
 	description?: string
 	allowedEfforts?: readonly OpenaiReasoningEffort[]
 	defaultEffort?: OpenaiReasoningEffort
+	value?: OpenaiReasoningEffort
+	persistToApiConfiguration?: boolean
 	/** Optional callback invoked after the effort value changes. Use to persist to provider-specific stores. */
 	onEffortChange?: (effort: OpenaiReasoningEffort) => void
 }
@@ -22,22 +24,32 @@ const ReasoningEffortSelector = ({
 	description = "Higher effort improves depth, but uses more tokens.",
 	allowedEfforts = OPENAI_REASONING_EFFORT_OPTIONS,
 	defaultEffort = "medium",
+	value,
+	persistToApiConfiguration = true,
 	onEffortChange,
 }: ReasoningEffortSelectorProps) => {
 	const { apiConfiguration } = useExtensionState()
 	const { handleModeFieldChange } = useApiConfigurationHandlers()
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 	const selectedEffort =
-		isOpenaiReasoningEffort(modeFields.reasoningEffort) && allowedEfforts.includes(modeFields.reasoningEffort)
-			? modeFields.reasoningEffort
-			: defaultEffort
+		value && allowedEfforts.includes(value)
+			? value
+			: isOpenaiReasoningEffort(modeFields.reasoningEffort) && allowedEfforts.includes(modeFields.reasoningEffort)
+				? modeFields.reasoningEffort
+				: defaultEffort
 
 	return (
 		<div style={{ marginTop: 10, marginBottom: 5 }}>
 			<Label className="text-xs font-medium">{label}</Label>
 			<Select
 				onValueChange={(value) => {
-					handleModeFieldChange({ plan: "planModeReasoningEffort", act: "actModeReasoningEffort" }, value, currentMode)
+					if (persistToApiConfiguration) {
+						handleModeFieldChange(
+							{ plan: "planModeReasoningEffort", act: "actModeReasoningEffort" },
+							value,
+							currentMode,
+						)
+					}
 					if (onEffortChange && isOpenaiReasoningEffort(value)) {
 						onEffortChange(value)
 					}

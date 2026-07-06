@@ -13,6 +13,7 @@ import type {
 import { parseProviderId } from "@/sdk/model-catalog/provider-id"
 import {
 	AwsProviderConfig,
+	AzureProviderConfig,
 	CatalogErrorInfo,
 	CommitModelSelectionRequest,
 	CommittedModelSelection,
@@ -143,6 +144,16 @@ function toRedactedGcpProviderConfigProto(gcp: EffectiveProviderConfig["gcp"]): 
 	})
 }
 
+function toRedactedAzureProviderConfigProto(azure: EffectiveProviderConfig["azure"]): AzureProviderConfig | undefined {
+	if (!azure) {
+		return undefined
+	}
+	return AzureProviderConfig.create({
+		apiVersion: azure.apiVersion,
+		useIdentity: azure.useIdentity,
+	})
+}
+
 function toAwsProviderConfigPatch(protoPatch: WriteProviderConfigPatch): ProviderConfigPatch["aws"] {
 	if (!protoPatch.aws) {
 		return undefined
@@ -160,6 +171,16 @@ function toAwsProviderConfigPatch(protoPatch: WriteProviderConfigPatch): Provide
 			? { useCrossRegionInference: protoPatch.aws.useCrossRegionInference }
 			: {}),
 		...(protoPatch.aws.useGlobalInference !== undefined ? { useGlobalInference: protoPatch.aws.useGlobalInference } : {}),
+	}
+}
+
+function toAzureProviderConfigPatch(protoPatch: WriteProviderConfigPatch): ProviderConfigPatch["azure"] {
+	if (!protoPatch.azure) {
+		return undefined
+	}
+	return {
+		...(protoPatch.azure.apiVersion !== undefined ? { apiVersion: protoPatch.azure.apiVersion } : {}),
+		...(protoPatch.azure.useIdentity !== undefined ? { useIdentity: protoPatch.azure.useIdentity } : {}),
 	}
 }
 
@@ -199,6 +220,25 @@ export function toRedactedProviderConfigResponse(
 		actSelection: toCommittedModelSelectionProto(store?.readSelection(config.providerId, "act")),
 		aws: toRedactedAwsProviderConfigProto(config.aws),
 		gcp: toRedactedGcpProviderConfigProto(config.gcp),
+		azure: toRedactedAzureProviderConfigProto(config.azure),
+		maxTokens: config.maxTokens,
+		contextWindow: config.contextWindow,
+		temperature: config.temperature,
+		pricing: config.pricing
+			? {
+					input: config.pricing.input,
+					output: config.pricing.output,
+					cacheRead: config.pricing.cacheRead,
+					cacheWrite: config.pricing.cacheWrite,
+				}
+			: undefined,
+		reasoning: config.reasoning
+			? {
+					enabled: config.reasoning.enabled,
+					effort: config.reasoning.effort,
+					budgetTokens: config.reasoning.budgetTokens,
+				}
+			: undefined,
 	})
 }
 
@@ -218,6 +258,7 @@ export function toProviderConfigPatch(protoPatch: WriteProviderConfigPatch | und
 		...(protoPatch.apiLine !== undefined ? { apiLine: protoPatch.apiLine } : {}),
 		...(protoPatch.aws !== undefined ? { aws: toAwsProviderConfigPatch(protoPatch) } : {}),
 		...(protoPatch.gcp !== undefined ? { gcp: toGcpProviderConfigPatch(protoPatch) } : {}),
+		...(protoPatch.azure !== undefined ? { azure: toAzureProviderConfigPatch(protoPatch) } : {}),
 		...(protoPatch.maxTokens !== undefined ? { maxTokens: Number(protoPatch.maxTokens) } : {}),
 		...(protoPatch.contextWindow !== undefined ? { contextWindow: Number(protoPatch.contextWindow) } : {}),
 		...(protoPatch.temperature !== undefined ? { temperature: protoPatch.temperature } : {}),

@@ -225,6 +225,31 @@ describe("createAgentModelFromConfig", () => {
 		);
 	});
 
+	it("omits negative temperature sentinel from gateway request options", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+
+		createAgentModelFromConfig(
+			{
+				providerId: "openai-compatible",
+				modelId: "custom-model",
+				apiKey: "key",
+				systemPrompt: "",
+				tools: [],
+				providerConfig: {
+					providerId: "openai-compatible",
+					modelId: "custom-model",
+					temperature: -1,
+				},
+			},
+			undefined,
+		);
+
+		expect(gatewayMock.createAgentModel).toHaveBeenLastCalledWith(
+			{ providerId: "openai-compatible", modelId: "custom-model" },
+			undefined,
+		);
+	});
+
 	it("forwards Bedrock AWS settings as gateway provider options", async () => {
 		const { createAgentModelFromConfig } = await import("./handler-factory");
 

@@ -97,8 +97,8 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	const isCostAvailable =
 		(totalCost &&
 			modeFields.apiProvider === "openai" &&
-			modeFields.openAiModelInfo?.inputPrice &&
-			modeFields.openAiModelInfo?.outputPrice) ||
+			selectedModelInfo.inputPrice !== undefined &&
+			selectedModelInfo.outputPrice !== undefined) ||
 		(modeFields.apiProvider !== "vscode-lm" &&
 			modeFields.apiProvider !== "ollama" &&
 			modeFields.apiProvider !== "lmstudio" &&

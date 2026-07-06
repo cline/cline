@@ -89,6 +89,24 @@ export interface GcpProviderConfig {
 	readonly region?: string
 }
 
+export interface AzureProviderConfig {
+	readonly apiVersion?: string
+	readonly useIdentity?: boolean
+}
+
+export interface ProviderPricingConfig {
+	readonly input?: number
+	readonly output?: number
+	readonly cacheRead?: number
+	readonly cacheWrite?: number
+}
+
+export interface ProviderReasoningConfig {
+	readonly enabled?: boolean
+	readonly effort?: string
+	readonly budgetTokens?: number
+}
+
 export interface EffectiveProviderConfig {
 	readonly providerId: ProviderId
 	readonly apiKey?: string
@@ -98,6 +116,12 @@ export interface EffectiveProviderConfig {
 	readonly region?: string
 	readonly aws?: AwsProviderConfig
 	readonly gcp?: GcpProviderConfig
+	readonly azure?: AzureProviderConfig
+	readonly maxTokens?: number
+	readonly contextWindow?: number
+	readonly temperature?: number
+	readonly pricing?: ProviderPricingConfig
+	readonly reasoning?: ProviderReasoningConfig
 	/**
 	 * OAuth-style auth bundle (e.g. cline provider's WorkOS token).
 	 * Compatible with `apiKey`; some providers populate both.
@@ -147,6 +171,7 @@ export interface ProviderConfigPatch {
 	readonly region?: string | null
 	readonly aws?: AwsProviderConfig | null
 	readonly gcp?: GcpProviderConfig | null
+	readonly azure?: AzureProviderConfig | null
 	readonly auth?: {
 		readonly accessToken?: string
 		readonly refreshToken?: string

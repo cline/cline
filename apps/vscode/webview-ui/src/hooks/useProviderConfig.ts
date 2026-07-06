@@ -1,6 +1,7 @@
 import { StringRequest } from "@shared/proto/cline/common"
 import {
 	type AwsProviderConfig,
+	type AzureProviderConfig,
 	CommitModelSelectionRequest,
 	type GcpProviderConfig,
 	type ProviderConfigResponse,
@@ -17,6 +18,7 @@ export type ProviderConfigWritePatch = Partial<Omit<WriteProviderConfigPatch, "h
 	headers?: Record<string, string>
 	aws?: Partial<AwsProviderConfig>
 	gcp?: Partial<GcpProviderConfig>
+	azure?: Partial<AzureProviderConfig>
 }
 
 export interface ProviderModelSelection {

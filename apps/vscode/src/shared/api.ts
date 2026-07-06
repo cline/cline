@@ -202,7 +202,7 @@ export const openAiModelInfoSafeDefaults: OpenAiCompatibleModelInfo = {
 	isR1FormatRequired: false,
 	inputPrice: 0,
 	outputPrice: 0,
-	temperature: 0,
+	temperature: -1,
 }
 
 // OpenAI Codex (ChatGPT Plus/Pro subscription)

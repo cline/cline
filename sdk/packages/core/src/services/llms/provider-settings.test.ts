@@ -30,6 +30,17 @@ describe("provider settings", () => {
 		});
 	});
 
+	it("treats maxTokens -1 as unset for OpenAI Compatible runtime config", () => {
+		const config = toProviderConfig({
+			provider: "openai-compatible",
+			model: "custom-model",
+			maxTokens: -1,
+		});
+
+		expect(config.maxOutputTokens).toBeUndefined();
+		expect(config.knownModels?.["custom-model"]?.maxTokens).toBeUndefined();
+	});
+
 	it("does not overwrite catalog model info with sparse settings for non-OpenAI-Compatible providers", () => {
 		const config = toProviderConfig({
 			provider: "anthropic",
