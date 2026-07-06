@@ -291,7 +291,7 @@ function ClineCreditsClinePassErrorView(props: { defaultFg?: string }) {
 				/>
 				<box flexDirection="row">
 					<text fg="gray">Purchase Credits: </text>
-					<text fg="cyan" selectable>
+					<text fg={palette.act} selectable>
 						<a href={CLINE_CREDITS_DASHBOARD_URL}>
 							{CLINE_CREDITS_DASHBOARD_URL}
 						</a>
@@ -299,7 +299,7 @@ function ClineCreditsClinePassErrorView(props: { defaultFg?: string }) {
 				</box>
 				<box flexDirection="row">
 					<text fg="gray">Purchase ClinePass: </text>
-					<text fg="cyan" selectable>
+					<text fg={palette.act} selectable>
 						<a href={subscriptionUrl}>{subscriptionUrl}</a>
 					</text>
 				</box>
@@ -377,13 +377,13 @@ function ClinePassSubscriptionErrorView(props: {
 				)}
 				<box flexDirection="row">
 					<text fg="gray">Subscribe: </text>
-					<text fg="cyan" selectable>
+					<text fg={palette.act} selectable>
 						<a href={subscriptionUrl}>Open subscription page</a>
 					</text>
 				</box>
 				<box flexDirection="row">
 					<text fg="gray">URL: </text>
-					<text fg="cyan" selectable>
+					<text fg={palette.act} selectable>
 						<a href={subscriptionUrl}>{subscriptionUrl}</a>
 					</text>
 				</box>

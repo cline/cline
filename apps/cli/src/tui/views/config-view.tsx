@@ -721,7 +721,7 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 
 	return (
 		<box flexDirection="column" paddingX={1}>
-			<text fg="cyan">
+			<text fg={palette.act}>
 				<strong>Settings</strong>
 			</text>
 
@@ -793,7 +793,7 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 								flexDirection="row"
 								justifyContent="space-between"
 							>
-								<text fg={isSel ? "cyan" : undefined}>{pfx}Provider</text>
+								<text fg={isSel ? palette.act : undefined}>{pfx}Provider</text>
 								<text fg="white">{props.providerDisplayName}</text>
 							</box>
 						);
@@ -804,7 +804,7 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 								flexDirection="row"
 								justifyContent="space-between"
 							>
-								<text fg={isSel ? "cyan" : undefined}>{pfx}Model</text>
+								<text fg={isSel ? palette.act : undefined}>{pfx}Model</text>
 								<text fg="white">{displayName}</text>
 							</box>
 						);
@@ -833,7 +833,7 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 								flexDirection="row"
 								justifyContent="space-between"
 							>
-								<text fg={isSel ? "cyan" : undefined}>
+								<text fg={isSel ? palette.act : undefined}>
 									{pfx}
 									{row.label}
 								</text>
@@ -866,7 +866,7 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 								: enabledState === "partial"
 									? "yellow"
 									: isSel
-										? "cyan"
+										? palette.act
 										: "gray";
 						return (
 							<box
@@ -886,7 +886,7 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 					}
 					case "mcp-manager":
 						return (
-							<text key={absIdx} fg={isSel ? "cyan" : "gray"}>
+							<text key={absIdx} fg={isSel ? palette.act : "gray"}>
 								{pfx}Manage MCP Servers...
 							</text>
 						);
