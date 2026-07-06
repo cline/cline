@@ -96,6 +96,7 @@ export const ChatMessageList = forwardRef<
 			<box flexDirection="column" paddingX={1} paddingY={1} gap={1}>
 				{props.entries.map((entry, i) => {
 					const key = `${i}:${entry.kind}`;
+					const entryMode = entry.mode ?? props.uiMode ?? "act";
 					return (
 						<ChatEntryView
 							key={key}
@@ -103,6 +104,7 @@ export const ChatMessageList = forwardRef<
 							accent={
 								entry.mode ? getModeAccent(entry.mode, terminalTheme) : accent
 							}
+							mode={entryMode === "plan" ? "plan" : "act"}
 							loadIndividualSubscriptionPlans={
 								props.loadIndividualSubscriptionPlans
 							}

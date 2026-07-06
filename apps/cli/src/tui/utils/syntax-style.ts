@@ -1,10 +1,12 @@
 import { RGBA, type StyleDefinition, SyntaxStyle } from "@opentui/core";
 import { type TerminalTheme, themePalette } from "../palette";
 
-const instances: Record<TerminalTheme, SyntaxStyle | null> = {
-	dark: null,
-	light: null,
-};
+// Markdown's prominent elements (headings, bold, list markers, links) take
+// the accent of the mode the content was produced in, so assistant output
+// reads plan-yellow or act-blue alongside the rest of the transcript.
+export type SyntaxAccentMode = "act" | "plan";
+
+const instances = new Map<string, SyntaxStyle>();
 
 interface SyntaxColors {
 	keyword: string;
@@ -22,9 +24,7 @@ interface SyntaxColors {
 	attribute: string;
 	escape: string;
 	markdownCode: string;
-	markdownHeading: string;
 	markdownMuted: string;
-	markdownLink: string;
 	markdownItalic: string;
 	markdownDefault?: string;
 }
@@ -50,9 +50,7 @@ const syntaxColors: Record<TerminalTheme, SyntaxColors> = {
 		attribute: "#f0ad7f",
 		escape: "#9bbbdd",
 		markdownCode: "#99e89b",
-		markdownHeading: themePalette.dark.act,
 		markdownMuted: "#808080",
-		markdownLink: themePalette.dark.act,
 		markdownItalic: "#dfca7d",
 	},
 	light: {
@@ -71,9 +69,7 @@ const syntaxColors: Record<TerminalTheme, SyntaxColors> = {
 		attribute: "#0550ae",
 		escape: "#0550ae",
 		markdownCode: "#116329",
-		markdownHeading: themePalette.light.act,
 		markdownMuted: "#6e7781",
-		markdownLink: themePalette.light.act,
 		markdownItalic: "#8250df",
 		markdownDefault: "#1a1a1a",
 	},
@@ -95,16 +91,16 @@ function italic(hex: string): StyleDefinition {
 	return { fg: color(hex), italic: true };
 }
 
-function underline(hex: string): StyleDefinition {
-	return { fg: color(hex), underline: true };
-}
-
-function buildSyntaxStyle(theme: TerminalTheme): SyntaxStyle {
+function buildSyntaxStyle(
+	theme: TerminalTheme,
+	mode: SyntaxAccentMode,
+): SyntaxStyle {
 	const colors = syntaxColors[theme];
-	const markdownHeading = color(colors.markdownHeading);
+	const accent = color(themePalette[theme][mode]);
+	const markdownHeading = accent;
 	const markdownCode = color(colors.markdownCode);
 	const markdownMuted = color(colors.markdownMuted);
-	const markdownLink = color(colors.markdownLink);
+	const markdownLink = accent;
 
 	return SyntaxStyle.fromStyles({
 		...(colors.markdownDefault ? { default: fg(colors.markdownDefault) } : {}),
@@ -149,10 +145,19 @@ function buildSyntaxStyle(theme: TerminalTheme): SyntaxStyle {
 		"markup.link.url": { fg: markdownLink, underline: true },
 		label: { fg: markdownLink },
 		conceal: { fg: markdownMuted },
-		"string.special.url": underline(colors.markdownLink),
+		"string.special.url": { fg: markdownLink, underline: true },
 	});
 }
 
-export function getSyntaxStyle(theme: TerminalTheme = "dark"): SyntaxStyle {
-	return (instances[theme] ??= buildSyntaxStyle(theme));
+export function getSyntaxStyle(
+	theme: TerminalTheme = "dark",
+	mode: SyntaxAccentMode = "act",
+): SyntaxStyle {
+	const key = `${theme}:${mode}`;
+	let style = instances.get(key);
+	if (!style) {
+		style = buildSyntaxStyle(theme, mode);
+		instances.set(key, style);
+	}
+	return style;
 }

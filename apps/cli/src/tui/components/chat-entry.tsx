@@ -23,7 +23,7 @@ import {
 	type TerminalTheme,
 } from "../palette";
 import type { ChatEntry } from "../types";
-import { getSyntaxStyle } from "../utils/syntax-style";
+import { getSyntaxStyle, type SyntaxAccentMode } from "../utils/syntax-style";
 import { isWarningToolError } from "../utils/tool-errors";
 import {
 	parseApplyPatchInput,
@@ -422,10 +422,12 @@ function ClineOrgIndividualInferenceSubscriptionErrorView(props: {
 export function ChatEntryView(props: {
 	entry: ChatEntry;
 	accent?: string;
+	/** Mode the entry was produced in (resolved with the current-mode fallback). */
+	mode?: SyntaxAccentMode;
 	loadIndividualSubscriptionPlans?: () => Promise<ClineSubscriptionPlan[]>;
 	terminalTheme: TerminalTheme;
 }) {
-	const { entry, accent = palette.act, terminalTheme } = props;
+	const { entry, accent = palette.act, mode = "act", terminalTheme } = props;
 	const terminalBg = useTerminalBackground();
 	const defaultFg = getDefaultForeground(terminalBg);
 	const userMsgBg = getUserMessageBackground(terminalBg);
@@ -484,7 +486,7 @@ export function ChatEntryView(props: {
 					<box flexGrow={1}>
 						<markdown
 							content={content}
-							syntaxStyle={getSyntaxStyle(terminalTheme)}
+							syntaxStyle={getSyntaxStyle(terminalTheme, mode)}
 							streaming={entry.streaming}
 							fg={defaultFg}
 						/>
