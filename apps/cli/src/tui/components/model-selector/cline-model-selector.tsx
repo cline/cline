@@ -17,7 +17,7 @@ type ClineModelEntriesState =
 function tagColor(tag: string): string {
 	if (tag === "FREE") return palette.success;
 	if (tag === "BEST") return "magenta";
-	return "cyan";
+	return palette.act;
 }
 
 function resolveDisplayName(
@@ -272,7 +272,7 @@ export function ClineModelSelectorDialogContent(
 	if (state.status === "error") {
 		return (
 			<box flexDirection="column" gap={1}>
-				<text fg="cyan">Choose a model</text>
+				<text fg={palette.act}>Choose a model</text>
 				<ProviderRow providerName={props.currentProviderName} focused={false} />
 				<text fg="red">{state.message}</text>
 				<text fg="gray">R to retry, Esc to go back</text>
@@ -282,7 +282,7 @@ export function ClineModelSelectorDialogContent(
 
 	return (
 		<box flexDirection="column" gap={1}>
-			<text fg="cyan">Choose a model</text>
+			<text fg={palette.act}>Choose a model</text>
 			<ProviderRow providerName={props.currentProviderName} focused={false} />
 			<text fg="gray">{state.message}</text>
 			<text fg="gray">Esc to go back</text>

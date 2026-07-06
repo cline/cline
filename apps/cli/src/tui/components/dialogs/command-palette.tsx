@@ -191,7 +191,7 @@ export function CommandPaletteContent(
 											{" "}
 										</text>
 										<text
-											fg={isSelected ? palette.textOnSelection : "cyan"}
+											fg={isSelected ? palette.textOnSelection : palette.act}
 											width={shortcutWidth}
 											flexShrink={0}
 										>

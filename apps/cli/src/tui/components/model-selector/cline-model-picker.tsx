@@ -27,7 +27,7 @@ export type ClineModelPickerEntry =
 function tagColor(tag: string): string {
 	if (tag === "FREE") return palette.success;
 	if (tag === "BEST") return "magenta";
-	return "cyan";
+	return palette.act;
 }
 
 function resolveDisplayName(
