@@ -74,6 +74,8 @@ export interface FeaturedModelCardEntry {
 	id: string
 	description: string
 	label: string
+	// Shown on the card instead of the id (e.g. ClinePass ids without their prefix)
+	displayName?: string
 }
 
 const CLINE_RECOMMENDED_MODELS_RETRY_DELAY_MS = 5000
@@ -505,7 +507,7 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({
 									isSelected={selectedModelId === model.id}
 									key={model.id}
 									label={model.label}
-									modelId={model.id}
+									modelId={model.displayName ?? model.id}
 									onClick={() => {
 										handleModelChange(model.id)
 										setIsDropdownVisible(false)

@@ -33,7 +33,6 @@ const CLINE_PASS_MODEL_FIELD_PAIRS = {
 	modelInfo: { plan: "planModeClinePassModelInfo", act: "actModeClinePassModelInfo" },
 } as const
 
-const SUBSCRIBED_CARD_DESCRIPTION = "Included with your ClinePass subscription"
 const FREE_TAB_DESCRIPTION =
 	"A rotating set of models with limited free usage — included at no cost and separate from your ClinePass quota."
 
@@ -148,19 +147,18 @@ export const ClinePassProvider = ({
 			: (Object.keys(clinePassModelOptions)[0] ?? clinePassDefaultModelId)
 	}, [clinePassModelOptions])
 
+	// Subscription models are a uniform list, so the cards show just the model name —
+	// no label chip or repeated description
 	const subscribedModelCards = useMemo<FeaturedModelCardEntry[]>(() => {
-		if (clinePassRawModels.length > 0) {
-			return clinePassRawModels.map((model) => ({
-				id: model.id,
-				label: (model.tags?.[0] || "INCLUDED").toUpperCase(),
-				description: model.description || SUBSCRIBED_CARD_DESCRIPTION,
-			}))
-		}
-
-		return Object.entries(clinePassRecommendedModels ?? clinePassModels).map(([id, info]) => ({
+		const modelIds =
+			clinePassRawModels.length > 0
+				? clinePassRawModels.map((model) => model.id)
+				: Object.keys(clinePassRecommendedModels ?? clinePassModels)
+		return modelIds.map((id) => ({
 			id,
-			label: "INCLUDED",
-			description: info.description || SUBSCRIBED_CARD_DESCRIPTION,
+			displayName: id.replace(/^cline-pass\//, ""),
+			label: "",
+			description: "",
 		}))
 	}, [clinePassRawModels, clinePassRecommendedModels])
 
