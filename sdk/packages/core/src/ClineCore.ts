@@ -493,6 +493,18 @@ export class ClineCore {
 	update: RuntimeHost["updateSession"] = (...args) =>
 		this.host.updateSession(...args);
 	/**
+	 * Stores the compacted working-context state for an existing session.
+	 */
+	updateSessionCompactionState: RuntimeHost["updateSessionCompactionState"] = (
+		...args
+	) => this.host.updateSessionCompactionState(...args);
+	/**
+	 * Reads the compacted working-context sidecar for a session, if one exists.
+	 */
+	readSessionCompactionState: RuntimeHost["readSessionCompactionState"] = (
+		...args
+	) => this.host.readSessionCompactionState(...args);
+	/**
 	 * Reads message history for a session.
 	 *
 	 * Retrieves the full message transcript for a specific session, including all

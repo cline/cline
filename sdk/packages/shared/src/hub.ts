@@ -385,6 +385,8 @@ export type HubCommandName =
 	| "session.delete"
 	| "session.update"
 	| "session.update_connection"
+	| "session.compaction.get"
+	| "session.compaction.update"
 	| "session.pending_prompts"
 	| "session.update_pending_prompt"
 	| "session.remove_pending_prompt"

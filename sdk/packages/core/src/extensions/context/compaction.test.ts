@@ -1,9 +1,13 @@
 import type * as LlmsProviders from "@cline/llms";
 import type { MessageWithMetadata } from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createSessionCompactionState } from "../../session/models/session-compaction";
 import type { CoreCompactionContext } from "../../types/config";
 import { runBasicCompaction } from "./basic-compaction";
-import { createContextCompactionPrepareTurn } from "./compaction";
+import {
+	createCompactionStateAwarePrepareTurn,
+	createContextCompactionPrepareTurn,
+} from "./compaction";
 import {
 	createTokenEstimator,
 	resolveSummarizerConfig,
@@ -2272,5 +2276,50 @@ describe("createContextCompactionPrepareTurn", () => {
 		});
 
 		expect(secondResult).toBeUndefined();
+	});
+
+	it("keeps stale sidecar state when replacement compaction returns no result", async () => {
+		const originalMessages: LlmsProviders.Message[] = [
+			{ role: "user", content: "original" },
+		];
+		const existingState = createSessionCompactionState({
+			sourceMessages: originalMessages,
+			compactedMessages: [{ role: "user", content: "summary" }],
+			updatedAt: "2026-01-01T00:00:00.000Z",
+		});
+		const compact = vi.fn().mockResolvedValue(undefined);
+		const saveState = vi.fn();
+		const prepareTurn = createCompactionStateAwarePrepareTurn({
+			compact,
+			getState: () => existingState,
+			saveState,
+		});
+		const currentMessages: LlmsProviders.Message[] = [
+			{ role: "user", content: "edited original" },
+			{ role: "assistant", content: "tail" },
+		];
+
+		const result = await prepareTurn({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "",
+			tools: [],
+			messages: currentMessages,
+			apiMessages: currentMessages,
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: { id: "mock-model", maxInputTokens: 100_000 },
+			},
+		});
+
+		expect(result).toBeUndefined();
+		expect(compact).toHaveBeenCalledWith(
+			expect.objectContaining({ messages: currentMessages }),
+		);
+		expect(saveState).not.toHaveBeenCalled();
 	});
 });

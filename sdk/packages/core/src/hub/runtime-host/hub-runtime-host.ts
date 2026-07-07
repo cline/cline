@@ -43,6 +43,10 @@ import type {
 import { isSessionNotFoundError } from "../../runtime/host/runtime-host";
 import { RuntimeHostEventBus } from "../../runtime/host/runtime-host-support";
 import {
+	parseSessionCompactionState,
+	type SessionCompactionState,
+} from "../../session/models/session-compaction";
+import {
 	type SessionManifest,
 	SessionManifestSchema,
 } from "../../session/models/session-manifest";
@@ -822,6 +826,9 @@ export class HubRuntimeHost implements RuntimeHost {
 					input.toolPolicies as Record<string, unknown> | undefined,
 				),
 				initialMessages: input.initialMessages,
+				...(input.initialCompactionState
+					? { initialCompactionState: input.initialCompactionState }
+					: {}),
 			});
 		this.registerPlannedSession(
 			plannedSessionId,
@@ -959,6 +966,12 @@ export class HubRuntimeHost implements RuntimeHost {
 										| Record<string, unknown>
 										| undefined,
 								),
+								...(startConfig.initialCompactionState
+									? {
+											initialCompactionState:
+												startConfig.initialCompactionState,
+										}
+									: {}),
 							}
 						: {}),
 				},
@@ -1297,6 +1310,54 @@ export class HubRuntimeHost implements RuntimeHost {
 		if (!reply.ok) {
 			throw new Error(hubReplyErrorMessage(reply, "session.update_connection"));
 		}
+	}
+
+	async updateSessionCompactionState(
+		sessionId: string,
+		state: SessionCompactionState,
+	): Promise<{ updated: boolean }> {
+		const target = sessionId.trim();
+		if (!target) return { updated: false };
+		const reply = await this.client.command(
+			"session.compaction.update",
+			{ sessionId: target, state },
+			target,
+		);
+		if (!reply.ok) {
+			captureSdkError(this.telemetry, {
+				component: "core",
+				operation: "hub.runtime_host.update_session_compaction_state",
+				error: new Error(
+					hubReplyErrorMessage(reply, "session.compaction.update"),
+				),
+				severity: "warn",
+				handled: true,
+				context: {
+					command: "session.compaction.update",
+					sessionId: target,
+					errorCode: reply.error?.code,
+				},
+			});
+		}
+		return {
+			updated: reply.ok && reply.payload?.updated === true,
+		};
+	}
+
+	async readSessionCompactionState(
+		sessionId: string,
+	): Promise<SessionCompactionState | undefined> {
+		const target = sessionId.trim();
+		if (!target) return undefined;
+		const reply = await this.client.command(
+			"session.compaction.get",
+			{ sessionId: target },
+			target,
+		);
+		if (!reply.ok) {
+			throw new Error(hubReplyErrorMessage(reply, "session.compaction.get"));
+		}
+		return parseSessionCompactionState(reply.payload?.state);
 	}
 
 	async readSessionMessages(

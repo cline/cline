@@ -5,6 +5,7 @@ import {
 	readFileSync,
 	writeFileSync,
 } from "node:fs";
+import { readFile, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type * as LlmsProviders from "@cline/llms";
 import type { BasicLogger } from "@cline/shared";
@@ -21,9 +22,24 @@ import type {
 	StoredMessageWithMetadata,
 } from "../../types/session";
 import {
+	parseSessionCompactionState,
+	type SessionCompactionState,
+	SessionCompactionStateSchema,
+} from "../models/session-compaction";
+import {
 	type SessionManifest,
 	SessionManifestSchema,
 } from "../models/session-manifest";
+import { writeFileAtomic } from "./atomic-file";
+
+function isNotFoundError(error: unknown): boolean {
+	return (
+		typeof error === "object" &&
+		error !== null &&
+		"code" in error &&
+		error.code === "ENOENT"
+	);
+}
 
 export class SessionManifestStore {
 	readonly artifacts: SessionArtifacts;
@@ -133,6 +149,66 @@ export class SessionManifestStore {
 				error,
 			});
 		}
+	}
+
+	private resolveCompactionPath(sessionId: string): string {
+		const { manifest } = this.readManifestFile(sessionId);
+		return (
+			manifest?.compaction_path?.trim() ||
+			this.artifacts.sessionCompactionPath(sessionId)
+		);
+	}
+
+	private updateCompactionPath(sessionId: string, path: string | undefined): void {
+		const manifestFile = this.readManifestFile(sessionId);
+		if (!manifestFile.manifest) {
+			return;
+		}
+		if (manifestFile.manifest.compaction_path === path) {
+			return;
+		}
+		this.writeSessionManifest(manifestFile.path, {
+			...manifestFile.manifest,
+			compaction_path: path,
+		});
+	}
+
+	async readSessionCompactionState(
+		sessionId: string,
+	): Promise<SessionCompactionState | undefined> {
+		const path = this.resolveCompactionPath(sessionId);
+		try {
+			return parseSessionCompactionState(
+				JSON.parse(await readFile(path, "utf8")) as unknown,
+			);
+		} catch (error) {
+			if (isNotFoundError(error)) {
+				return undefined;
+			}
+			this.logger?.debug("Ignoring invalid session compaction state", {
+				sessionId,
+				path,
+				error,
+				recovery:
+					"Canonical history is unchanged; deleting the sidecar is safe.",
+			});
+			return undefined;
+		}
+	}
+
+	async persistSessionCompactionState(
+		sessionId: string,
+		state: SessionCompactionState,
+	): Promise<void> {
+		const path = this.resolveCompactionPath(sessionId);
+		const payload = SessionCompactionStateSchema.parse(state);
+		await writeFileAtomic(path, `${JSON.stringify(payload, null, 2)}\n`);
+		this.updateCompactionPath(sessionId, path);
+	}
+
+	async deleteSessionCompactionState(sessionId: string): Promise<void> {
+		await rm(this.resolveCompactionPath(sessionId), { force: true });
+		this.updateCompactionPath(sessionId, undefined);
 	}
 
 	appendStaleSessionHookLog(

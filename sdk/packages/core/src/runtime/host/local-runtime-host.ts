@@ -14,7 +14,10 @@ import {
 } from "@cline/shared";
 import { setHomeDirIfUnset } from "@cline/shared/storage";
 import { isOAuthProvider } from "../../auth/provider-auth-registry";
-import { createContextCompactionPrepareTurn } from "../../extensions/context/compaction";
+import {
+	createCompactionStateAwarePrepareTurn,
+	createContextCompactionPrepareTurn,
+} from "../../extensions/context/compaction";
 import type { ToolExecutors } from "../../extensions/tools";
 import { DefaultToolNames } from "../../extensions/tools";
 import type { TeamEvent } from "../../extensions/tools/team";
@@ -47,6 +50,10 @@ import {
 	sumUsageTotals,
 } from "../../services/usage";
 import { enrichPromptWithMentions } from "../../services/workspace";
+import {
+	projectSessionCompactionState,
+	type SessionCompactionState,
+} from "../../session/models/session-compaction";
 import {
 	type SessionManifest,
 	SessionManifestSchema,
@@ -170,6 +177,19 @@ function maxAccumulatedUsage(
 		cacheWriteTokens: Math.max(left.cacheWriteTokens, right.cacheWriteTokens),
 		totalCost: Math.max(left.totalCost, right.totalCost),
 	};
+}
+
+function isIncomingCompactionStateStale(
+	incoming: SessionCompactionState,
+	current: SessionCompactionState | undefined,
+): boolean {
+	if (!current) {
+		return false;
+	}
+	if (incoming.source_message_count !== current.source_message_count) {
+		return incoming.source_message_count < current.source_message_count;
+	}
+	return Date.parse(incoming.updated_at) < Date.parse(current.updated_at);
 }
 
 export interface LocalRuntimeHostOptions {
@@ -344,6 +364,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			messages_path: messagesPath,
 		});
 		let resumedArtifacts: RootSessionArtifacts | undefined;
+		let resumedCompactionState: SessionCompactionState | undefined;
 		const isReadOnlyResumeStart =
 			requestedSessionId.length > 0 &&
 			initialMessages.length > 0 &&
@@ -358,8 +379,14 @@ export class LocalRuntimeHost implements RuntimeHost {
 				resumedArtifacts = {
 					manifestPath,
 					messagesPath: existingManifest.messages_path || messagesPath,
+					compactionPath: existingManifest.compaction_path,
 					manifest: existingManifest,
 				};
+				resumedCompactionState =
+					await this.invokeOptionalValue<SessionCompactionState>(
+						"readSessionCompactionState",
+						sessionId,
+					);
 			}
 		}
 		const initialAggregateUsage = await this.seedAggregateUsageFromArtifacts({
@@ -456,6 +483,65 @@ export class LocalRuntimeHost implements RuntimeHost {
 
 		const tools = [...runtime.tools, ...(configWithProvider.extraTools ?? [])];
 		const extensions = runtime.extensions ?? bootstrap.extensions;
+		const explicitInitialCompactionState = startInput.initialCompactionState;
+		let activeSessionRef: ActiveSession | undefined;
+		const compact = createContextCompactionPrepareTurn(configWithProvider);
+		const rawInitialCompactionState =
+			explicitInitialCompactionState ?? resumedCompactionState;
+		const initialCompactionState =
+			compact && rawInitialCompactionState
+				? {
+						...rawInitialCompactionState,
+						conversation_id:
+							rawInitialCompactionState.conversation_id?.trim() || sessionId,
+					}
+				: undefined;
+		const prepareTurn = compact
+			? createCompactionStateAwarePrepareTurn({
+					compact,
+					getState: () => activeSessionRef?.compactionState,
+					saveState: async (state) => {
+						const activeSession = activeSessionRef;
+						if (!activeSession) return;
+						const stateForSession = {
+							...state,
+							conversation_id: activeSession.sessionId,
+						};
+						try {
+							const result = await this.persistActiveSessionCompactionState(
+								activeSession,
+								stateForSession,
+							);
+							if (!result.updated) {
+								configWithProvider.logger?.debug?.(
+									"Skipped stale session compaction state",
+									{
+										sessionId: activeSession.sessionId,
+										sourceMessageCount: stateForSession.source_message_count,
+									},
+								);
+							}
+						} catch (error) {
+							configWithProvider.logger?.error?.(
+								"Failed to persist session compaction state",
+								{ sessionId: activeSession.sessionId, error },
+							);
+							captureSdkError(configWithProvider.telemetry, {
+								component: "core",
+								operation: "session.persist_compaction_state",
+								severity: "warn",
+								handled: true,
+								error,
+								context: {
+									sessionId: activeSession.sessionId,
+									providerId: configWithProvider.providerId,
+									modelId: configWithProvider.modelId,
+								},
+							});
+						}
+					},
+					})
+				: undefined;
 
 		const agentConfig = {
 			sessionId,
@@ -474,7 +560,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			systemPrompt: configWithProvider.systemPrompt,
 			maxIterations: configWithProvider.maxIterations,
 			execution: configWithProvider.execution,
-			prepareTurn: createContextCompactionPrepareTurn(configWithProvider),
+			prepareTurn,
 			tools,
 			hooks: bootstrap.hooks,
 			extensions,
@@ -618,6 +704,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			aborting: false,
 			interactive: input.interactive === true,
 			persistedMessages: initialMessages,
+			compactionState: initialCompactionState,
 			activeTeamRunIds: new Set<string>(),
 			pendingTeamRunUpdates: [],
 			teamRunWaiters: [],
@@ -627,6 +714,25 @@ export class LocalRuntimeHost implements RuntimeHost {
 			submitAndExitObserved: false,
 			lastInteractiveTurnFinishReason: undefined,
 		};
+		activeSessionRef = active;
+		if (
+			active.compactionState &&
+			!this.isCompactionStateForSession(
+				active.sessionId,
+				active.compactionState,
+				active,
+			)
+		) {
+			active.config.logger?.log?.(
+				"Ignoring session compaction state for a different conversation",
+				{
+					severity: "warn",
+					sessionId: active.sessionId,
+					conversationId: active.compactionState.conversation_id,
+				},
+			);
+			active.compactionState = undefined;
+		}
 		this.sessions.set(sessionId, active);
 		this.emitStatus(sessionId, "running");
 		if (initialMessages.length > 0 && !resumedArtifacts) {
@@ -637,6 +743,15 @@ export class LocalRuntimeHost implements RuntimeHost {
 				initialMessages,
 				active.config.systemPrompt,
 			);
+			if (active.compactionState) {
+				const result = await this.persistActiveSessionCompactionState(
+					active,
+					active.compactionState,
+				);
+				if (!result.updated) {
+					active.compactionState = undefined;
+				}
+			}
 			if (!startInput.prompt?.trim()) {
 				await this.updateStatus(active, "completed", 0);
 			}
@@ -928,6 +1043,155 @@ export class LocalRuntimeHost implements RuntimeHost {
 			},
 		);
 		return { updated: result?.updated === true };
+	}
+
+	async updateSessionCompactionState(
+		sessionId: string,
+		state: SessionCompactionState,
+	): Promise<{ updated: boolean }> {
+		const target = sessionId.trim();
+		if (!target) return { updated: false };
+		const activeSession = this.sessions.get(target);
+		const sessionRecord = activeSession
+			? undefined
+			: await this.getSession(target);
+		const existing = activeSession ?? sessionRecord;
+		if (!existing) return { updated: false };
+		if (
+			!(await this.canPersistCompactionState(
+				target,
+				state,
+				activeSession,
+				sessionRecord,
+			))
+		) {
+			return { updated: false };
+		}
+		if (activeSession) {
+			return await this.persistActiveSessionCompactionState(
+				activeSession,
+				state,
+			);
+		}
+		const current = await this.invokeOptionalValue<SessionCompactionState>(
+			"readSessionCompactionState",
+			target,
+		);
+		if (isIncomingCompactionStateStale(state, current)) {
+			return { updated: false };
+		}
+		await this.invoke<void>("persistSessionCompactionState", target, state);
+		return { updated: true };
+	}
+
+	async readSessionCompactionState(
+		sessionId: string,
+	): Promise<SessionCompactionState | undefined> {
+		const target = sessionId.trim();
+		if (!target) return undefined;
+		const activeSession = this.sessions.get(target);
+		if (activeSession) {
+			for (;;) {
+				const pendingWrite = activeSession.compactionStateWriteQueue;
+				if (!pendingWrite) {
+					return activeSession.compactionState;
+				}
+				await pendingWrite.catch(() => undefined);
+			}
+		}
+		return await this.invokeOptionalValue<SessionCompactionState>(
+			"readSessionCompactionState",
+			target,
+		);
+	}
+
+	private isCompactionStateForSession(
+		sessionId: string,
+		state: SessionCompactionState,
+		activeSession?: ActiveSession,
+		sessionRecord?: SessionRecord,
+	): boolean {
+		const conversationId = state.conversation_id?.trim();
+		if (!conversationId) {
+			return true;
+		}
+		if (conversationId === sessionId) {
+			return true;
+		}
+		const expectedConversationId =
+			activeSession?.agent.getConversationId()?.trim() ||
+			sessionRecord?.conversationId?.trim();
+		return expectedConversationId
+			? conversationId === expectedConversationId
+			: false;
+	}
+
+	private async canPersistCompactionState(
+		sessionId: string,
+		state: SessionCompactionState,
+		activeSession?: ActiveSession,
+		sessionRecord?: SessionRecord,
+	): Promise<boolean> {
+		if (!state.conversation_id?.trim()) {
+			return false;
+		}
+		if (
+			!this.isCompactionStateForSession(
+				sessionId,
+				state,
+				activeSession,
+				sessionRecord,
+			)
+		) {
+			return false;
+		}
+		const sourceMessages =
+			activeSession?.agent.getMessages() ??
+			(await this.readSessionMessages(sessionId));
+		return projectSessionCompactionState(state, sourceMessages) !== undefined;
+	}
+
+	private async persistActiveSessionCompactionState(
+		session: ActiveSession,
+		state: SessionCompactionState,
+	): Promise<{ updated: boolean }> {
+		if (
+			!(await this.canPersistCompactionState(session.sessionId, state, session))
+		) {
+			return { updated: false };
+		}
+		return await this.enqueueCompactionStateWrite(session, async () => {
+			if (isIncomingCompactionStateStale(state, session.compactionState)) {
+				return { updated: false };
+			}
+			await this.invoke<void>(
+				"persistSessionCompactionState",
+				session.sessionId,
+				state,
+			);
+			session.compactionState = state;
+			return { updated: true };
+		});
+	}
+
+	private async enqueueCompactionStateWrite<T>(
+		session: ActiveSession,
+		action: () => Promise<T>,
+	): Promise<T> {
+		const previous = session.compactionStateWriteQueue ?? Promise.resolve();
+		const run = previous.catch(() => undefined).then(action);
+		const tracked = run.then(
+			() => undefined,
+			() => undefined,
+		);
+		session.compactionStateWriteQueue = tracked;
+		try {
+			return await run;
+		} finally {
+			if (session.compactionStateWriteQueue === tracked) {
+				session.compactionStateWriteQueue = undefined;
+			}
+		}
 	}
 
 	async readSessionMessages(
