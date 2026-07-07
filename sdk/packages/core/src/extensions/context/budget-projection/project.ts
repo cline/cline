@@ -5,6 +5,7 @@ import type {
 } from "@cline/shared";
 import type {
 	BudgetAction,
+	BudgetMutationAction,
 	BudgetProjectionOptions,
 	BudgetProjectionResult,
 	BudgetProjectionWarning,
@@ -213,19 +214,20 @@ function pruneEmptyMessages(
 	messages: MessageWithMetadata[],
 	originalIndexes: number[],
 	actions: BudgetAction[],
+	reason: BudgetMutationAction["reason"] = "over_budget",
 ): { messages: MessageWithMetadata[]; originalIndexes: number[] } {
 	const next: MessageWithMetadata[] = [];
 	const nextOriginalIndexes: number[] = [];
 	for (let index = 0; index < messages.length; index += 1) {
 		const message = messages[index];
 		if (Array.isArray(message.content) && message.content.length === 0) {
-			actions.push({
-				kind: "dropped_message",
-				path: { messageIndex: originalIndexes[index] },
-				reason: "over_budget",
-				originalSize: safeJsonSize(message),
-				finalSize: 0,
-			});
+				actions.push({
+					kind: "dropped_message",
+					path: { messageIndex: originalIndexes[index] },
+					reason,
+					originalSize: safeJsonSize(message),
+					finalSize: 0,
+				});
 			continue;
 		}
 		next.push(message);
@@ -402,6 +404,12 @@ function truncateMessageText(
 				if (block.type === "file") {
 					return { ...block, content: "" };
 				}
+				if (block.type === "tool_result") {
+					return {
+						...block,
+						content: truncateToolResultContent(block.content, 0),
+					};
+				}
 				return block;
 			}
 			if (block.type === "text") {
@@ -501,6 +509,7 @@ export function buildBudgetProjection(
 			dropThinkingBlocks(messages, originalIndexes, actions),
 			originalIndexes,
 			actions,
+			"unsafe_to_truncate",
 		);
 		messages = prunedThinking.messages;
 		originalIndexes = prunedThinking.originalIndexes;
