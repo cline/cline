@@ -1,7 +1,7 @@
 {
 	"name": "@cline/core",
 	"description": "Cline Core SDK for Node Runtime",
-	"version": "0.0.54",
+	"version": "0.0.58",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/cline/cline",

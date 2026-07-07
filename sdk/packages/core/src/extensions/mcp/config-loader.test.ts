@@ -1,4 +1,13 @@
-import { existsSync, mkdirSync, readdirSync, renameSync, rmdirSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	readdirSync,
+	renameSync,
+	rmdirSync,
+	statSync,
+	unlinkSync,
+	writeFileSync,
+} from "node:fs";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -413,8 +422,18 @@ describe("mcp config loader", () => {
 			JSON.stringify(
 				{
 					mcpServers: {
-						linear: { transport: { type: "streamableHttp", url: "https://linear.example.com" } },
-						github: { transport: { type: "streamableHttp", url: "https://github.example.com" } },
+						linear: {
+							transport: {
+								type: "streamableHttp",
+								url: "https://linear.example.com",
+							},
+						},
+						github: {
+							transport: {
+								type: "streamableHttp",
+								url: "https://github.example.com",
+							},
+						},
 					},
 				},
 				null,
@@ -423,16 +442,28 @@ describe("mcp config loader", () => {
 			"utf8",
 		);
 
-		updateMcpServerOAuthState("linear", () => ({ tokens: { access_token: "linear-token" } }), {
-			filePath,
-		});
-		updateMcpServerOAuthState("github", () => ({ tokens: { access_token: "github-token" } }), {
-			filePath,
-		});
+		updateMcpServerOAuthState(
+			"linear",
+			() => ({ tokens: { access_token: "linear-token" } }),
+			{
+				filePath,
+			},
+		);
+		updateMcpServerOAuthState(
+			"github",
+			() => ({ tokens: { access_token: "github-token" } }),
+			{
+				filePath,
+			},
+		);
 
 		const written = JSON.parse(await readFile(filePath, "utf8"));
-		expect(written.mcpServers.linear.oauth?.tokens?.access_token).toBe("linear-token");
-		expect(written.mcpServers.github.oauth?.tokens?.access_token).toBe("github-token");
+		expect(written.mcpServers.linear.oauth?.tokens?.access_token).toBe(
+			"linear-token",
+		);
+		expect(written.mcpServers.github.oauth?.tokens?.access_token).toBe(
+			"github-token",
+		);
 		// Lockfile is released after each critical section.
 		expect(existsSync(`${filePath}.lock`)).toBe(false);
 	});
@@ -441,7 +472,11 @@ describe("mcp config loader", () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
 		tempRoots.push(tempRoot);
 		const filePath = join(tempRoot, "cline_mcp_settings.json");
-		await writeFile(filePath, JSON.stringify({ mcpServers: {} }, null, 2), "utf8");
+		await writeFile(
+			filePath,
+			JSON.stringify({ mcpServers: {} }, null, 2),
+			"utf8",
+		);
 
 		// Simulate a crashed writer that left a lock directory behind, backdated well
 		// past the 10s stale threshold.
@@ -467,7 +502,11 @@ describe("mcp config loader", () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
 		tempRoots.push(tempRoot);
 		const filePath = join(tempRoot, "cline_mcp_settings.json");
-		await writeFile(filePath, JSON.stringify({ mcpServers: {} }, null, 2), "utf8");
+		await writeFile(
+			filePath,
+			JSON.stringify({ mcpServers: {} }, null, 2),
+			"utf8",
+		);
 
 		const lockPath = `${filePath}.lock`;
 		updateMcpSettingsFileSync(filePath, () => {
@@ -479,7 +518,11 @@ describe("mcp config loader", () => {
 			rmdirSync(lockPath);
 			const replacement = `${lockPath}.replacement`;
 			mkdirSync(replacement);
-			writeFileSync(join(replacement, "owner.replacement"), "replacement-owner", { flag: "wx" });
+			writeFileSync(
+				join(replacement, "owner.replacement"),
+				"replacement-owner",
+				{ flag: "wx" },
+			);
 			renameSync(replacement, lockPath);
 		});
 
@@ -490,7 +533,11 @@ describe("mcp config loader", () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
 		tempRoots.push(tempRoot);
 		const filePath = join(tempRoot, "cline_mcp_settings.json");
-		await writeFile(filePath, JSON.stringify({ mcpServers: {} }, null, 2), "utf8");
+		await writeFile(
+			filePath,
+			JSON.stringify({ mcpServers: {} }, null, 2),
+			"utf8",
+		);
 
 		let count = 0;
 		expect(() =>
@@ -507,16 +554,24 @@ describe("updateMcpSettingsFile (async acquisition)", () => {
 
 	afterEach(async () => {
 		await Promise.all(
-			tempRoots.map((directory) => rm(directory, { recursive: true, force: true })),
+			tempRoots.map((directory) =>
+				rm(directory, { recursive: true, force: true }),
+			),
 		);
 		tempRoots.length = 0;
 	});
 
 	async function makeSettingsFile(): Promise<string> {
-		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-async-"));
+		const tempRoot = await mkdtemp(
+			join(tmpdir(), "core-mcp-config-loader-async-"),
+		);
 		tempRoots.push(tempRoot);
 		const filePath = join(tempRoot, "cline_mcp_settings.json");
-		await writeFile(filePath, JSON.stringify({ mcpServers: {} }, null, 2), "utf8");
+		await writeFile(
+			filePath,
+			JSON.stringify({ mcpServers: {} }, null, 2),
+			"utf8",
+		);
 		return filePath;
 	}
 
@@ -526,7 +581,9 @@ describe("updateMcpSettingsFile (async acquisition)", () => {
 
 		const result = await updateMcpSettingsFile(filePath, (settings) => {
 			mutatorRan = true;
-			settings.mcpServers = { alpha: { transport: { type: "stdio", command: "node" } } };
+			settings.mcpServers = {
+				alpha: { transport: { type: "stdio", command: "node" } },
+			};
 			return "ok";
 		});
 
@@ -554,7 +611,10 @@ describe("updateMcpSettingsFile (async acquisition)", () => {
 			const linear = updateMcpSettingsFile(
 				filePath,
 				(settings) => {
-					const servers = settings.mcpServers as Record<string, Record<string, unknown>>;
+					const servers = settings.mcpServers as Record<
+						string,
+						Record<string, unknown>
+					>;
 					servers.linear.oauth = { tokens: { access_token: "linear-token" } };
 				},
 				{ timeoutMs: 5_000 },
@@ -562,7 +622,10 @@ describe("updateMcpSettingsFile (async acquisition)", () => {
 			const github = updateMcpSettingsFile(
 				filePath,
 				(settings) => {
-					const servers = settings.mcpServers as Record<string, Record<string, unknown>>;
+					const servers = settings.mcpServers as Record<
+						string,
+						Record<string, unknown>
+					>;
 					servers.github.oauth = { tokens: { access_token: "github-token" } };
 				},
 				{ timeoutMs: 5_000 },
@@ -575,8 +638,18 @@ describe("updateMcpSettingsFile (async acquisition)", () => {
 				JSON.stringify(
 					{
 						mcpServers: {
-							linear: { transport: { type: "streamableHttp", url: "https://linear.example.com" } },
-							github: { transport: { type: "streamableHttp", url: "https://github.example.com" } },
+							linear: {
+								transport: {
+									type: "streamableHttp",
+									url: "https://linear.example.com",
+								},
+							},
+							github: {
+								transport: {
+									type: "streamableHttp",
+									url: "https://github.example.com",
+								},
+							},
 						},
 					},
 					null,
@@ -590,8 +663,12 @@ describe("updateMcpSettingsFile (async acquisition)", () => {
 			await Promise.all([linear, github]);
 
 			const written = JSON.parse(await readFile(filePath, "utf8"));
-			expect(written.mcpServers.linear.oauth?.tokens?.access_token).toBe("linear-token");
-			expect(written.mcpServers.github.oauth?.tokens?.access_token).toBe("github-token");
+			expect(written.mcpServers.linear.oauth?.tokens?.access_token).toBe(
+				"linear-token",
+			);
+			expect(written.mcpServers.github.oauth?.tokens?.access_token).toBe(
+				"github-token",
+			);
 			// Lock released after each critical section.
 			expect(existsSync(lockDir)).toBe(false);
 			// The whole point of the async path: it must never freeze the loop.
@@ -602,7 +679,9 @@ describe("updateMcpSettingsFile (async acquisition)", () => {
 	});
 
 	it("creates a missing settings file inside the lock", async () => {
-		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-async-"));
+		const tempRoot = await mkdtemp(
+			join(tmpdir(), "core-mcp-config-loader-async-"),
+		);
 		tempRoots.push(tempRoot);
 		const filePath = join(tempRoot, "cline_mcp_settings.json");
 

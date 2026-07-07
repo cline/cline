@@ -46,7 +46,7 @@ export const ReadFileRequestSchema = z
 		end_line: ReadFileLineRangeSchema.shape.end_line,
 	})
 	.describe(
-		"A file read request with optional inclusive one-based line bounds",
+		"A file read request with optional inclusive one-based line bounds. Always include path; start_line/end_line must be on the same object as the path they apply to, never in a separate array element",
 	);
 
 /**
@@ -56,7 +56,7 @@ export const ReadFilesInputSchema = z.object({
 	files: z
 		.array(ReadFileRequestSchema)
 		.describe(
-			"Array of file read requests. Omit start_line/end_line or set them to null to read from the start; provide integers to return only that inclusive one-based line range. Reads are capped, so page through long files with start_line/end_line. Prefer this tool over running terminal command to get file content for better performance and reliability.",
+			"Array of file read requests; each element is one file and must include path. Omit start_line/end_line or set them to null to read from the start; provide integers on the same object as the path to return only that inclusive one-based line range — never emit a range as its own array element. Reads are capped, so page through long files with start_line/end_line. Prefer this tool over running terminal command to get file content for better performance and reliability.",
 		),
 });
 
@@ -120,19 +120,14 @@ export const StructuredCommandEntrySchema = z.union([
 	StructuredCommandInputSchema,
 ]);
 
-/**
- * Schema for run_commands tool input.
- *
- * Supports both shell strings and direct structured `{ command, args }` entries
- * on every platform. Plain strings are interpreted by the active shell;
- * structured entries bypass shell parsing and execute the command directly.
- */
 export const RunCommandsInputSchema = z.object({
 	commands: z
-		.array(StructuredCommandEntrySchema)
-		.describe(
-			"Array of commands to execute. Prefer structured { command, args } entries for portability; plain strings are still supported and are interpreted by the active shell.",
-		),
+		.array(CommandInputSchema)
+		.describe("Array of complete shell command strings to execute."),
+});
+
+const StructuredCommandsInputSchema = z.object({
+	commands: z.array(StructuredCommandEntrySchema),
 });
 
 /**
@@ -140,6 +135,7 @@ export const RunCommandsInputSchema = z.object({
  */
 export const RunCommandsInputUnionSchema = z.union([
 	RunCommandsInputSchema,
+	StructuredCommandsInputSchema,
 	z.object({ commands: StructuredCommandEntrySchema }),
 	z.array(StructuredCommandInputSchema),
 	StructuredCommandInputSchema,

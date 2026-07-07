@@ -53,6 +53,19 @@ function readNoticeState(filePath: string): CliNoticeState {
 	return { shown };
 }
 
+function isForceNoticeEnabled(env: NodeJS.ProcessEnv): boolean {
+	return env[FORCE_NOTICE_ENV]?.trim() === "1";
+}
+
+export function shouldSuppressClineCliMigrationNoticeForActiveProvider(
+	activeProviderId: string | undefined,
+	env: NodeJS.ProcessEnv = process.env,
+): boolean {
+	return (
+		activeProviderId?.trim() === "cline-pass" && !isForceNoticeEnabled(env)
+	);
+}
+
 export function resolveCliNoticeStatePath(
 	dataDir = resolveClineDataDir(),
 ): string {
@@ -66,12 +79,17 @@ export function getClineCliMigrationNotice(
 ): CliMigrationNotice | undefined {
 	const noticePath = resolveCliNoticeStatePath(dataDir);
 	const noticeState = readNoticeState(noticePath);
-	const forceNotice = env[FORCE_NOTICE_ENV]?.trim() === "1";
+	const forceNotice = isForceNoticeEnabled(env);
 	const disableNotice = env[DISABLE_NOTICE_ENV]?.trim() === "1";
 	if (disableNotice && !forceNotice) {
 		return undefined;
 	}
-	if (options.activeProviderId?.trim() === "cline-pass" && !forceNotice) {
+	if (
+		shouldSuppressClineCliMigrationNoticeForActiveProvider(
+			options.activeProviderId,
+			env,
+		)
+	) {
 		return undefined;
 	}
 	if (noticeState.shown[NOTICE_ID] && !forceNotice) {

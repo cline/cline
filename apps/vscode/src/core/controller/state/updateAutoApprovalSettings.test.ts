@@ -58,9 +58,9 @@ describe("updateAutoApprovalSettings", () => {
 			},
 		}
 
-		expect(controller.stateManager.setGlobalState).toHaveBeenCalledWith("autoApprovalSettings", expectedSettings)
-		expect(controller.stateManager.setTaskSettings).toHaveBeenCalledWith("task-1", "autoApprovalSettings", expectedSettings)
-		expect(controller.postStateToWebview).toHaveBeenCalledOnce()
+		expect(controller.stateManager.setGlobalState.mock.calls).toEqual([["autoApprovalSettings", expectedSettings]])
+		expect(controller.stateManager.setTaskSettings.mock.calls).toEqual([["task-1", "autoApprovalSettings", expectedSettings]])
+		expect(controller.postStateToWebview.mock.calls.length).toBe(1)
 	})
 
 	it("does not create a task override when no task is active", async () => {
@@ -76,9 +76,9 @@ describe("updateAutoApprovalSettings", () => {
 			}),
 		)
 
-		expect(controller.stateManager.setGlobalState).toHaveBeenCalledOnce()
-		expect(controller.stateManager.setTaskSettings).not.toHaveBeenCalled()
-		expect(controller.postStateToWebview).toHaveBeenCalledOnce()
+		expect(controller.stateManager.setGlobalState.mock.calls.length).toBe(1)
+		expect(controller.stateManager.setTaskSettings.mock.calls.length).toBe(0)
+		expect(controller.postStateToWebview.mock.calls.length).toBe(1)
 	})
 
 	it("ignores stale auto-approval settings versions", async () => {
@@ -100,8 +100,8 @@ describe("updateAutoApprovalSettings", () => {
 			}),
 		)
 
-		expect(controller.stateManager.setGlobalState).not.toHaveBeenCalled()
-		expect(controller.stateManager.setTaskSettings).not.toHaveBeenCalled()
-		expect(controller.postStateToWebview).not.toHaveBeenCalled()
+		expect(controller.stateManager.setGlobalState.mock.calls.length).toBe(0)
+		expect(controller.stateManager.setTaskSettings.mock.calls.length).toBe(0)
+		expect(controller.postStateToWebview.mock.calls.length).toBe(0)
 	})
 })

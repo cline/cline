@@ -109,6 +109,7 @@ export interface ExtensionState {
 	mcpResponsesCollapsed?: boolean
 	yoloModeToggled?: boolean
 	useAutoCondense?: boolean
+	compactionStrategy?: string
 	subagentsEnabled?: boolean
 	worktreesEnabled?: ClineFeatureSetting
 	customPrompt?: string

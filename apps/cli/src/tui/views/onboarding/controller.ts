@@ -21,7 +21,6 @@ import {
 	checkCodexCliInstalled,
 	isOpenAICodexCliProvider,
 } from "../../../utils/codex-cli";
-import { getCliFeatureFlagsService } from "../../../utils/feature-flags";
 import { getPersistedProviderApiKey } from "../../../utils/provider-auth";
 import { listLocalProviders } from "../../../utils/provider-catalog";
 import { getCliTelemetryService } from "../../../utils/telemetry";
@@ -59,6 +58,7 @@ import { useOnboardingKeyboard } from "./keyboard";
 import {
 	CLINE_PASS_SUBSCRIPTION_OPTIONS,
 	type ClinePassSubscriptionStatus,
+	DEFAULT_THINKING_LEVEL_INDEX,
 	getMainMenuOptions,
 	type ModelEntry,
 	type OnboardingResult,
@@ -89,8 +89,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 	const menuOptions = useMemo(
 		() =>
 			getMainMenuOptions({
-				isClinePassEnabled:
-					getCliFeatureFlagsService().getBooleanFlagEnabled("ext-cline-pass"),
+				isClinePassEnabled: true,
 			}),
 		[],
 	);
@@ -239,7 +238,9 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 	}, []);
 
 	// Thinking level
-	const [thinkingSelected, setThinkingSelected] = useState(0);
+	const [thinkingSelected, setThinkingSelected] = useState(
+		DEFAULT_THINKING_LEVEL_INDEX,
+	);
 	const [selectedModelName, setSelectedModelName] = useState("");
 	const [selectedModelId, setSelectedModelId] = useState("");
 	const [selectedThinking, setSelectedThinking] = useState(false);
@@ -643,7 +644,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 			const entry = modelEntries.find((m) => m.id === modelId);
 			if (entry?.supportsReasoning) {
 				setSelectedModelName(entry.name);
-				setThinkingSelected(0);
+				setThinkingSelected(DEFAULT_THINKING_LEVEL_INDEX);
 				setStep("thinking_level");
 			} else {
 				setStep("done");
@@ -693,7 +694,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 			setSelectedModelId(modelId);
 			if (clineModelReasoningIds.has(modelId)) {
 				setSelectedModelName(modelName);
-				setThinkingSelected(0);
+				setThinkingSelected(DEFAULT_THINKING_LEVEL_INDEX);
 				setStep("thinking_level");
 			} else {
 				setStep("done");

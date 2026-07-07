@@ -85,7 +85,8 @@ export function setMcpServerDisabled(
 	// Hold the cross-process lock across read-modify-write so a concurrent writer
 	// (the extension, the CLI) cannot clobber this change.
 	updateMcpSettingsFileSync(resolveMcpSettingsPath(), (settings) => {
-		const servers = ((settings.mcpServers as JsonRecord | undefined) ?? {}) as JsonRecord;
+		const servers = ((settings.mcpServers as JsonRecord | undefined) ??
+			{}) as JsonRecord;
 		const current = servers[name];
 		if (!current || typeof current !== "object") {
 			throw new Error(`unknown MCP server: ${name}`);
@@ -128,7 +129,8 @@ export function upsertMcpServer(input: JsonRecord): JsonRecord {
 	// Hold the cross-process lock across read-modify-write so a concurrent writer
 	// cannot clobber this upsert.
 	updateMcpSettingsFileSync(resolveMcpSettingsPath(), (settings) => {
-		const servers = ((settings.mcpServers as JsonRecord | undefined) ?? {}) as JsonRecord;
+		const servers = ((settings.mcpServers as JsonRecord | undefined) ??
+			{}) as JsonRecord;
 		if (previousName && previousName !== name) {
 			delete servers[previousName];
 		}
@@ -143,7 +145,8 @@ export function deleteMcpServer(name: string): JsonRecord {
 	// Hold the cross-process lock across read-modify-write so a concurrent writer
 	// cannot resurrect the deleted server from a stale snapshot.
 	updateMcpSettingsFileSync(resolveMcpSettingsPath(), (settings) => {
-		const servers = ((settings.mcpServers as JsonRecord | undefined) ?? {}) as JsonRecord;
+		const servers = ((settings.mcpServers as JsonRecord | undefined) ??
+			{}) as JsonRecord;
 		delete servers[name];
 		settings.mcpServers = servers;
 	});

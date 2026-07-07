@@ -237,6 +237,16 @@ message ShowWebviewEvent {
   bool preserve_editor_focus = 1; // When true, webview should not steal focus from editor
 }
 
+message IntentEvent {
+  string action = 1;
+  string source = 2;
+  bool has_text = 3;
+  bool has_images = 4;
+  bool has_files = 5;
+  bool has_active_task = 6;
+  int32 text_length = 7;
+}
+
 // UiService provides methods for managing UI interactions
 service UiService {
   // Scrolls to a specific settings section in the settings view
@@ -292,4 +302,7 @@ service UiService {
 
   // Opens the Cline walkthrough
   rpc openWalkthrough(EmptyRequest) returns (Empty);
+
+  // Tracks intent signals before task creation or first model activity
+  rpc trackIntent(IntentEvent) returns (Empty);
 }

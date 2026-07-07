@@ -75,9 +75,10 @@ export function useLocalCommandActions(input: {
 						});
 					} else {
 						session.clearEntries();
-						for (const entry of entries) {
-							session.appendEntry(entry);
-						}
+						// replaceEntries rather than appendEntry: appendEntry
+						// stamps unstamped entries with the CURRENT mode, which
+						// would lock hydrated history to the resume-time accent.
+						session.replaceEntries(entries);
 						if (typeof result.currentContextSize === "number") {
 							session.setLastTotalTokens(result.currentContextSize);
 						}

@@ -1,5 +1,6 @@
+import { CLI_PROMO_CODE } from "../../../utils/cline-pass-errors";
+
 const CLINE_PASS_SUBSCRIPTION_PATH = "/dashboard/subscription";
-const CLINE_USAGE_BILLING_PATH = "/dashboard/account";
 const DEFAULT_APP_BASE_URL = "https://app.cline.bot";
 
 export function buildClinePassSubscriptionPageUrl(
@@ -10,16 +11,6 @@ export function buildClinePassSubscriptionPageUrl(
 		appBaseUrl || DEFAULT_APP_BASE_URL,
 	);
 	url.searchParams.set("personal", "true");
-	return url.toString();
-}
-
-export function buildClineUsageBillingPageUrl(
-	appBaseUrl: string | undefined,
-): string {
-	const url = new URL(
-		CLINE_USAGE_BILLING_PATH,
-		appBaseUrl || DEFAULT_APP_BASE_URL,
-	);
-	url.searchParams.set("tab", "credits");
+	url.searchParams.set("code", CLI_PROMO_CODE);
 	return url.toString();
 }

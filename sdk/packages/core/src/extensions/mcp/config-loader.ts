@@ -309,12 +309,18 @@ interface AcquiredSettingsLock {
  * operations and avoids inode- or handle-based deletion, so it works with
  * Node's portable fs APIs on Windows and POSIX.
  */
-function tryAcquireSettingsLock(lockDir: string, token: string): AcquiredSettingsLock | undefined {
+function tryAcquireSettingsLock(
+	lockDir: string,
+	token: string,
+): AcquiredSettingsLock | undefined {
 	mkdirSync(dirname(lockDir), { recursive: true });
 	const stagingDir = `${lockDir}.tmp.${token}`;
 	rmSync(stagingDir, { recursive: true, force: true });
 	mkdirSync(stagingDir, { recursive: true });
-	writeFileSync(join(stagingDir, `owner.${token}`), token, { encoding: "utf8", flag: "wx" });
+	writeFileSync(join(stagingDir, `owner.${token}`), token, {
+		encoding: "utf8",
+		flag: "wx",
+	});
 	try {
 		renameSync(stagingDir, lockDir);
 		return { lockDir, ownerFile: join(lockDir, `owner.${token}`) };
@@ -327,7 +333,10 @@ function tryAcquireSettingsLock(lockDir: string, token: string): AcquiredSetting
 	}
 }
 
-function reclaimStaleLock(lockDir: string, options: McpSettingsLockOptions): void {
+function reclaimStaleLock(
+	lockDir: string,
+	options: McpSettingsLockOptions,
+): void {
 	let ageMs: number;
 	try {
 		ageMs = Date.now() - statSync(lockDir).mtimeMs;
@@ -340,9 +349,12 @@ function reclaimStaleLock(lockDir: string, options: McpSettingsLockOptions): voi
 	if (ageMs < SETTINGS_LOCK_STALE_MS) {
 		return;
 	}
-	options.logger?.log(`[mcp-settings] Stale lock directory at ${lockDir} (age ${ageMs}ms); reclaiming.`, {
-		severity: "warn",
-	});
+	options.logger?.log(
+		`[mcp-settings] Stale lock directory at ${lockDir} (age ${ageMs}ms); reclaiming.`,
+		{
+			severity: "warn",
+		},
+	);
 	const staleDir = `${lockDir}.stale.${makeLockToken()}`;
 	try {
 		renameSync(lockDir, staleDir);
@@ -383,7 +395,10 @@ function beginAcquire(filePath: string): { lockDir: string; token: string } {
 	return { lockDir, token: makeLockToken() };
 }
 
-function acquireSettingsLockSync(filePath: string, options: McpSettingsLockOptions): AcquiredSettingsLock {
+function acquireSettingsLockSync(
+	filePath: string,
+	options: McpSettingsLockOptions,
+): AcquiredSettingsLock {
 	const { lockDir, token } = beginAcquire(filePath);
 	const timeoutMs = options.timeoutMs ?? SETTINGS_LOCK_STALE_MS;
 	const startedAt = Date.now();
@@ -408,7 +423,10 @@ function acquireSettingsLockSync(filePath: string, options: McpSettingsLockOptio
  * attempts. Reclaims a stale lock left by a crashed holder and throws
  * McpSettingsLockTimeoutError once `timeoutMs` elapses.
  */
-async function acquireSettingsLockAsync(filePath: string, options: McpSettingsLockOptions): Promise<AcquiredSettingsLock> {
+async function acquireSettingsLockAsync(
+	filePath: string,
+	options: McpSettingsLockOptions,
+): Promise<AcquiredSettingsLock> {
 	const { lockDir, token } = beginAcquire(filePath);
 	const timeoutMs = options.timeoutMs ?? SETTINGS_LOCK_STALE_MS;
 	const startedAt = Date.now();
@@ -433,7 +451,11 @@ async function acquireSettingsLockAsync(filePath: string, options: McpSettingsLo
  * never yields, so a concurrent waiter cannot interleave between the read and
  * the write, and the lock is released the moment the mutation completes.
  */
-function runLockedSettingsMutation<T>(lock: AcquiredSettingsLock, filePath: string, mutator: McpSettingsMutator<T>): T {
+function runLockedSettingsMutation<T>(
+	lock: AcquiredSettingsLock,
+	filePath: string,
+	mutator: McpSettingsMutator<T>,
+): T {
 	try {
 		const settings = loadRawSettingsObject(filePath);
 		const result = runPureSettingsMutator(settings, mutator);
@@ -495,13 +517,20 @@ export async function updateMcpSettingsFile<T>(
  */
 function loadRawSettingsObject(filePath: string): Record<string, unknown> {
 	const settings = readJsonObjectOrEmpty(filePath);
-	if (!settings.mcpServers || typeof settings.mcpServers !== "object" || Array.isArray(settings.mcpServers)) {
+	if (
+		!settings.mcpServers ||
+		typeof settings.mcpServers !== "object" ||
+		Array.isArray(settings.mcpServers)
+	) {
 		settings.mcpServers = {};
 	}
 	return settings;
 }
 
-function runPureSettingsMutator<T>(settings: Record<string, unknown>, mutator: McpSettingsMutator<T>): T {
+function runPureSettingsMutator<T>(
+	settings: Record<string, unknown>,
+	mutator: McpSettingsMutator<T>,
+): T {
 	const before = JSON.stringify(settings);
 	const shadow = JSON.parse(before) as Record<string, unknown>;
 	const shadowResult = mutator(shadow);
@@ -742,7 +771,10 @@ export function updateMcpServerOAuthState(
 	options: LoadMcpSettingsOptions = {},
 ): McpServerOAuthState {
 	const filePath = options.filePath ?? resolveDefaultMcpSettingsPath();
-	return updateMcpSettingsFileSync(filePath, buildOAuthStateMutator(serverName, updater));
+	return updateMcpSettingsFileSync(
+		filePath,
+		buildOAuthStateMutator(serverName, updater),
+	);
 }
 
 /**
@@ -756,7 +788,10 @@ export async function updateMcpServerOAuthStateAsync(
 	options: LoadMcpSettingsOptions = {},
 ): Promise<McpServerOAuthState> {
 	const filePath = options.filePath ?? resolveDefaultMcpSettingsPath();
-	return updateMcpSettingsFile(filePath, buildOAuthStateMutator(serverName, updater));
+	return updateMcpSettingsFile(
+		filePath,
+		buildOAuthStateMutator(serverName, updater),
+	);
 }
 
 export function listMcpServerOAuthStatuses(

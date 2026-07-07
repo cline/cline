@@ -1,4 +1,10 @@
-import { formatDisplayUserInput, type Message } from "@cline/shared";
+import type { AgentMode } from "@cline/core";
+import {
+	formatDisplayUserInput,
+	type Message,
+	parseUserInputMode,
+} from "@cline/shared";
+import { ACT_MODE_CONTINUATION_PROMPT } from "../../runtime/interactive/mode";
 import { formatToolInput } from "../../utils/helpers";
 import type { ChatEntry } from "../types";
 
@@ -9,6 +15,12 @@ type PersistedMessage = Message & {
 function getDisplayRole(msg: PersistedMessage): string | undefined {
 	const role = msg.metadata?.displayRole;
 	return typeof role === "string" ? role.trim().toLowerCase() : undefined;
+}
+
+// The act-mode continuation prompt is runtime-generated, not typed by the
+// user, so it should not surface as a user bubble in the transcript.
+function isSyntheticUserText(text: string): boolean {
+	return text === ACT_MODE_CONTINUATION_PROMPT;
 }
 
 function stringifyToolResult(
@@ -30,6 +42,12 @@ function stringifyToolResult(
 export function hydrateSessionMessages(messages: Message[]): ChatEntry[] {
 	const entries: ChatEntry[] = [];
 	const toolUseMap = new Map<string, number>();
+	// Mode each entry was produced in, recovered from <user_input mode="...">
+	// wrappers and switch_to_act_mode tool calls as we walk the transcript.
+	// Stays undefined for transcripts with no mode markers (pre-wrapper
+	// builds, or transcripts laundered by older builds that stripped the
+	// wrappers on session restarts).
+	let mode: AgentMode | undefined;
 
 	for (const msg of messages as PersistedMessage[]) {
 		const displayRole = getDisplayRole(msg);
@@ -39,13 +57,17 @@ export function hydrateSessionMessages(messages: Message[]): ChatEntry[] {
 
 		if (typeof msg.content === "string") {
 			if (msg.role === "user") {
+				mode = parseUserInputMode(msg.content) ?? mode;
 				const text = formatDisplayUserInput(msg.content);
-				if (text) entries.push({ kind: "user_submitted", text });
+				if (text && !isSyntheticUserText(text)) {
+					entries.push({ kind: "user_submitted", text, mode });
+				}
 			} else {
 				entries.push({
 					kind: "assistant_text",
 					text: msg.content,
 					streaming: false,
+					mode,
 				});
 			}
 			continue;
@@ -62,6 +84,7 @@ export function hydrateSessionMessages(messages: Message[]): ChatEntry[] {
 						kind: "assistant_text",
 						text: block.text,
 						streaming: false,
+						mode,
 					});
 				}
 				continue;
@@ -72,6 +95,7 @@ export function hydrateSessionMessages(messages: Message[]): ChatEntry[] {
 					kind: "reasoning",
 					text: block.thinking,
 					streaming: false,
+					mode,
 				});
 				continue;
 			}
@@ -87,8 +111,14 @@ export function hydrateSessionMessages(messages: Message[]): ChatEntry[] {
 					inputSummary: formatToolInput(block.name, block.input),
 					rawInput: block.input,
 					streaming: false,
+					mode,
 				});
 				toolUseMap.set(block.id, entries.length - 1);
+				// The switch tool flips the session to act mid-run; everything
+				// after it was produced in act mode.
+				if (block.name === "switch_to_act_mode") {
+					mode = "act";
+				}
 				continue;
 			}
 
@@ -114,9 +144,10 @@ export function hydrateSessionMessages(messages: Message[]): ChatEntry[] {
 
 		if (msg.role === "user" && userTextParts.length > 0) {
 			const combined = userTextParts.join("\n");
+			mode = parseUserInputMode(combined) ?? mode;
 			const text = formatDisplayUserInput(combined);
-			if (text) {
-				entries.push({ kind: "user_submitted", text });
+			if (text && !isSyntheticUserText(text)) {
+				entries.push({ kind: "user_submitted", text, mode });
 			}
 		}
 	}

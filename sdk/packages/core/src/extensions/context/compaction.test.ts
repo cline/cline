@@ -1,9 +1,13 @@
 import type * as LlmsProviders from "@cline/llms";
 import type { MessageWithMetadata } from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createSessionCompactionState } from "../../session/models/session-compaction";
 import type { CoreCompactionContext } from "../../types/config";
 import { runBasicCompaction } from "./basic-compaction";
-import { createContextCompactionPrepareTurn } from "./compaction";
+import {
+	createCompactionStateAwarePrepareTurn,
+	createContextCompactionPrepareTurn,
+} from "./compaction";
 import {
 	createTokenEstimator,
 	resolveSummarizerConfig,
@@ -36,13 +40,14 @@ function totalJsonTokens(messages: LlmsProviders.Message[]): number {
 }
 
 describe("createTokenEstimator", () => {
-	it("does not treat assistant request metrics as per-message token counts", () => {
+	it("does not treat cumulative request metrics as per-message token counts", () => {
 		const estimateMessageTokens = createTokenEstimator();
 		const message: MessageWithMetadata = {
 			role: "assistant",
 			content: "short",
 			metrics: {
-				inputTokens: 12,
+				inputTokens: 100,
+				cacheReadTokens: 80,
 				outputTokens: 7,
 			},
 		};
@@ -408,6 +413,91 @@ describe("createContextCompactionPrepareTurn", () => {
 		const compacted = runForcedBasicCompaction(messages, 1);
 
 		expect(compacted).toBe(messages);
+	});
+
+	it("does not truncate a shallow first task prompt below the trigger for high-output models", async () => {
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "openrouter",
+			modelId: "minimax/minimax-m3",
+			providerConfig: {
+				providerId: "openrouter",
+				modelId: "minimax/minimax-m3",
+			} as LlmsProviders.ProviderConfig,
+			compaction: {
+				enabled: true,
+				strategy: "basic",
+				maxInputTokens: 1_000,
+				thresholdRatio: 0.9,
+			},
+			logger: undefined,
+		});
+		const task =
+			'<user_input mode="act">Create /app/filter.py that removes JavaScript from HTML files. ' +
+			"Keep this task prompt intact. ".repeat(25) +
+			"</user_input>";
+		const messages: LlmsProviders.Message[] = [
+			{ role: "user", content: task },
+			{ role: "assistant", content: "old assistant context ".repeat(500) },
+			{ role: "user", content: "Continue" },
+		];
+
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages,
+			apiMessages: messages,
+			model: {
+				id: "minimax/minimax-m3",
+				provider: "openrouter",
+				info: {
+					id: "minimax/minimax-m3",
+					maxInputTokens: 1_000,
+					maxTokens: 950,
+				},
+			},
+		});
+
+		expect(result?.messages?.[0]?.content).toBe(task);
+		expect(JSON.stringify(result?.messages)).toContain("Create /app/filter.py");
+		expect(JSON.stringify(result?.messages)).not.toContain("<user_input\n...");
+	});
+
+	it("can truncate an oversized first task prompt when it exceeds the trigger", () => {
+		const oversizedPrompt = "<user_input>".repeat(500);
+		const messages: LlmsProviders.Message[] = [
+			{ role: "user", content: oversizedPrompt },
+			{ role: "assistant", content: "old assistant context ".repeat(500) },
+			{ role: "user", content: "current turn" },
+		];
+
+		const compacted = runBasicCompaction({
+			context: {
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				parentAgentId: null,
+				iteration: 1,
+				messages,
+				model: {
+					id: "mock-model",
+					provider: "openrouter",
+					info: { id: "mock-model", maxInputTokens: 1_000 },
+				},
+				maxInputTokens: 1_000,
+				triggerTokens: 900,
+				targetTokens: 100,
+				thresholdRatio: 0.9,
+				utilizationRatio: 2,
+			},
+			estimateMessageTokens: estimateJsonTokens,
+		});
+
+		expect(compacted?.messages[0]?.content).not.toBe(oversizedPrompt);
+		expect(String(compacted?.messages[0]?.content)).toContain("\n...");
 	});
 
 	it("does not add unsupported max output tokens to Codex OAuth summarizer requests", () => {
@@ -1110,10 +1200,10 @@ describe("createContextCompactionPrepareTurn", () => {
 		]);
 	});
 
-		it("does not subtract model max output tokens from an explicit input budget", async () => {
-			const compact = vi.fn((_context: CoreCompactionContext) => ({
-				messages: [
-					{ role: "user" as const, content: "Compacted by input budget" },
+	it("does not subtract model max output tokens from an explicit input budget", async () => {
+		const compact = vi.fn((_context: CoreCompactionContext) => ({
+			messages: [
+				{ role: "user" as const, content: "Compacted by input budget" },
 			],
 		}));
 		const prepareTurn = createContextCompactionPrepareTurn({
@@ -1154,64 +1244,133 @@ describe("createContextCompactionPrepareTurn", () => {
 			},
 		});
 
-			expect(compact).not.toHaveBeenCalled();
-			expect(result).toBeUndefined();
-		});
+		expect(compact).not.toHaveBeenCalled();
+		expect(result).toBeUndefined();
+	});
 
-		it("targets basic compaction below the model output-reserved input budget", async () => {
-			const compact = vi.fn((_context: CoreCompactionContext) => ({
-				messages: [
-					{ role: "user" as const, content: "Compacted by target budget" },
-				],
-			}));
-			const prepareTurn = createContextCompactionPrepareTurn({
+	it("targets basic compaction at half the input budget for long conversations", async () => {
+		const compact = vi.fn((_context: CoreCompactionContext) => ({
+			messages: [
+				{ role: "user" as const, content: "Compacted by target budget" },
+			],
+		}));
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "openai-codex",
+			modelId: "gpt-5.5",
+			providerConfig: {
 				providerId: "openai-codex",
 				modelId: "gpt-5.5",
-				providerConfig: {
-					providerId: "openai-codex",
-					modelId: "gpt-5.5",
-				} as LlmsProviders.ProviderConfig,
-				compaction: { enabled: true, strategy: "basic", compact },
-				logger: undefined,
-			});
-			const messages: MessageWithMetadata[] = [
-				{
-					role: "user",
-					content: "large prompt ".repeat(70_000),
-				},
-			];
+			} as LlmsProviders.ProviderConfig,
+			compaction: { enabled: true, strategy: "basic", compact },
+			logger: undefined,
+		});
+		const messages: MessageWithMetadata[] = [
+			{ role: "user", content: "turn 1" },
+			{ role: "assistant", content: "answer 1" },
+			{ role: "user", content: "turn 2" },
+			{ role: "assistant", content: "answer 2" },
+			{ role: "user", content: "turn 3" },
+			{ role: "assistant", content: "answer 3" },
+			{ role: "user", content: "turn 4" },
+			{ role: "assistant", content: "answer 4" },
+			{ role: "user", content: "turn 5" },
+			{ role: "assistant", content: "answer 5" },
+			{ role: "user", content: "large prompt ".repeat(70_000) },
+		];
 
-			await prepareTurn?.({
-				agentId: "agent-1",
-				conversationId: "conv-1",
-				parentAgentId: null,
-				iteration: 1,
-				abortSignal: new AbortController().signal,
-				systemPrompt: "You are helpful.",
-				tools: [],
-				messages,
-				apiMessages: messages,
-				model: {
+		await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages,
+			apiMessages: messages,
+			model: {
+				id: "gpt-5.5",
+				provider: "openai-codex",
+				info: {
 					id: "gpt-5.5",
-					provider: "openai-codex",
-					info: {
-						id: "gpt-5.5",
-						maxInputTokens: 272_000,
-						maxTokens: 128_000,
-					},
+					maxInputTokens: 272_000,
+					maxTokens: 128_000,
 				},
-			});
-
-			expect(compact).toHaveBeenCalledTimes(1);
-			const context = compact.mock.calls[0]?.[0];
-			expect(context?.triggerTokens).toBe(244_800);
-			expect(context?.targetTokens).toBe(100_800);
+			},
 		});
 
-		it("derives input budget by reserving model max output tokens from context window", async () => {
-			const compact = vi.fn((_context: CoreCompactionContext) => ({
-				messages: [
-					{ role: "user" as const, content: "Compacted by derived input budget" },
+		expect(compact).toHaveBeenCalledTimes(1);
+		const context = compact.mock.calls[0]?.[0];
+		expect(context?.triggerTokens).toBe(244_800);
+		expect(context?.targetTokens).toBe(136_000);
+	});
+
+	it("keeps the long-conversation target below low custom trigger thresholds", async () => {
+		const compact = vi.fn((_context: CoreCompactionContext) => ({
+			messages: [
+				{ role: "user" as const, content: "Compacted by low threshold" },
+			],
+		}));
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "anthropic",
+			modelId: "mock-model",
+			providerConfig: {
+				providerId: "anthropic",
+				modelId: "mock-model",
+			} as LlmsProviders.ProviderConfig,
+			compaction: {
+				enabled: true,
+				strategy: "basic",
+				thresholdRatio: 0.4,
+				compact,
+			},
+			logger: undefined,
+		});
+		const messages: MessageWithMetadata[] = [
+			{ role: "user", content: "turn 1" },
+			{ role: "assistant", content: "answer 1" },
+			{ role: "user", content: "turn 2" },
+			{ role: "assistant", content: "answer 2" },
+			{ role: "user", content: "turn 3" },
+			{ role: "assistant", content: "answer 3" },
+			{ role: "user", content: "turn 4" },
+			{ role: "assistant", content: "answer 4" },
+			{ role: "user", content: "turn 5" },
+			{ role: "assistant", content: "answer 5" },
+			{ role: "user", content: "large prompt ".repeat(20) },
+		];
+
+		await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages,
+			apiMessages: messages,
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: {
+					id: "mock-model",
+					maxInputTokens: 100,
+					maxTokens: 20,
+				},
+			},
+		});
+
+		expect(compact).toHaveBeenCalledTimes(1);
+		const context = compact.mock.calls[0]?.[0];
+		expect(context?.triggerTokens).toBe(40);
+		expect(context?.targetTokens).toBe(39);
+	});
+
+	it("derives input budget by reserving model max output tokens from context window", async () => {
+		const compact = vi.fn((_context: CoreCompactionContext) => ({
+			messages: [
+				{ role: "user" as const, content: "Compacted by derived input budget" },
 			],
 		}));
 		const prepareTurn = createContextCompactionPrepareTurn({
@@ -1350,6 +1509,52 @@ describe("createContextCompactionPrepareTurn", () => {
 					maxInputTokens: 200_000,
 					contextWindow: 200_000,
 					maxTokens: 200_000,
+				},
+			},
+		});
+
+		expect(compact).not.toHaveBeenCalled();
+		expect(result).toBeUndefined();
+	});
+
+	it("does not collapse context-only input budget when output is nearly the full context", async () => {
+		const compact = vi.fn((_context: CoreCompactionContext) => ({
+			messages: [{ role: "user" as const, content: "Compacted by fallback" }],
+		}));
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "openrouter",
+			modelId: "minimax/minimax-m3",
+			providerConfig: {
+				providerId: "openrouter",
+				modelId: "minimax/minimax-m3",
+			} as LlmsProviders.ProviderConfig,
+			compaction: { enabled: true, strategy: "basic", compact },
+			logger: undefined,
+		});
+		const messages: MessageWithMetadata[] = [
+			{
+				role: "user",
+				content: "regex prompt ".repeat(2_000),
+			},
+		];
+
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages,
+			apiMessages: messages,
+			model: {
+				id: "minimax/minimax-m3",
+				provider: "openrouter",
+				info: {
+					id: "minimax/minimax-m3",
+					contextWindow: 524_288,
+					maxTokens: 512_000,
 				},
 			},
 		});
@@ -2032,16 +2237,6 @@ describe("createContextCompactionPrepareTurn", () => {
 			{ role: "user", content: "current request" },
 		];
 		const triggerTokens = 150;
-		const initialTokens = messages.reduce(
-			(total, message) => total + estimateMessageTokens(message),
-			0,
-		);
-		console.info("[basic compaction loop] round=1 before", {
-			triggerTokens,
-			messageCount: messages.length,
-			tokens: initialTokens,
-		});
-
 		const firstResult = await prepareTurn?.({
 			agentId: "agent-1",
 			conversationId: "conv-1",
@@ -2060,12 +2255,6 @@ describe("createContextCompactionPrepareTurn", () => {
 			(total, message) => total + estimateMessageTokens(message),
 			0,
 		);
-		console.info("[basic compaction loop] round=1 after", {
-			compacted: Boolean(firstResult?.messages),
-			messageCount: firstResult?.messages.length,
-			tokens: firstAfterTokens,
-			overTrigger: (firstAfterTokens ?? 0) > triggerTokens,
-		});
 		expect(firstAfterTokens).toBeLessThanOrEqual(triggerTokens);
 
 		const nextTurnMessages: LlmsProviders.Message[] = [
@@ -2073,16 +2262,6 @@ describe("createContextCompactionPrepareTurn", () => {
 			{ role: "assistant", content: "short answer" },
 			{ role: "user", content: "next request" },
 		];
-		const nextTurnTokens = nextTurnMessages.reduce(
-			(total, message) => total + estimateMessageTokens(message),
-			0,
-		);
-		console.info("[basic compaction loop] round=2 before", {
-			triggerTokens,
-			messageCount: nextTurnMessages.length,
-			tokens: nextTurnTokens,
-			overTrigger: nextTurnTokens > triggerTokens,
-		});
 		const secondResult = await prepareTurn?.({
 			agentId: "agent-1",
 			conversationId: "conv-1",
@@ -2096,19 +2275,51 @@ describe("createContextCompactionPrepareTurn", () => {
 			model,
 		});
 
-		const secondAfterTokens = secondResult?.messages.reduce(
-			(total, message) => total + estimateMessageTokens(message),
-			0,
-		);
-		console.info("[basic compaction loop] round=2 after", {
-			compacted: Boolean(secondResult?.messages),
-			messageCount: secondResult?.messages.length,
-			tokens: secondAfterTokens,
-			overTrigger:
-				typeof secondAfterTokens === "number"
-					? secondAfterTokens > triggerTokens
-					: undefined,
-		});
 		expect(secondResult).toBeUndefined();
+	});
+
+	it("keeps stale sidecar state when replacement compaction returns no result", async () => {
+		const originalMessages: LlmsProviders.Message[] = [
+			{ role: "user", content: "original" },
+		];
+		const existingState = createSessionCompactionState({
+			sourceMessages: originalMessages,
+			compactedMessages: [{ role: "user", content: "summary" }],
+			updatedAt: "2026-01-01T00:00:00.000Z",
+		});
+		const compact = vi.fn().mockResolvedValue(undefined);
+		const saveState = vi.fn();
+		const prepareTurn = createCompactionStateAwarePrepareTurn({
+			compact,
+			getState: () => existingState,
+			saveState,
+		});
+		const currentMessages: LlmsProviders.Message[] = [
+			{ role: "user", content: "edited original" },
+			{ role: "assistant", content: "tail" },
+		];
+
+		const result = await prepareTurn({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "",
+			tools: [],
+			messages: currentMessages,
+			apiMessages: currentMessages,
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: { id: "mock-model", maxInputTokens: 100_000 },
+			},
+		});
+
+		expect(result).toBeUndefined();
+		expect(compact).toHaveBeenCalledWith(
+			expect.objectContaining({ messages: currentMessages }),
+		);
+		expect(saveState).not.toHaveBeenCalled();
 	});
 });

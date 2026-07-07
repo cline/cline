@@ -13,6 +13,7 @@ import {
 	type CoreSessionConfig,
 	getProviderAuthHandler,
 	type ProviderSettings,
+	readCompactionStrategyGlobally,
 	resolveProviderApiKeyFromSettings,
 	type StartSessionResult,
 } from "@cline/core"
@@ -90,6 +91,8 @@ export interface SessionConfigInput {
 export interface ActiveSession {
 	/** The session ID */
 	sessionId: string
+	/** The config used to start the active session. */
+	startConfig?: Pick<CoreSessionConfig, "providerId" | "modelId">
 	/** The runtime host instance managing this session (VscodeSessionHost) */
 	sdkHost: SdkSessionHost
 	/** Unsubscribe function for session events */
@@ -653,6 +656,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 
 	const stateManager = StateManager.get()
 	const globalUseAutoCondense = stateManager.getGlobalSettingsKey("useAutoCondense") ?? false
+	const compactionStrategy = readCompactionStrategyGlobally()
 	const enableCheckpoints = stateManager.getGlobalSettingsKey("enableCheckpointsSetting") ?? true
 	const useAutoCondense = input.taskSettings?.useAutoCondense ?? globalUseAutoCondense
 
@@ -697,7 +701,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 			? {
 					compaction: {
 						enabled: true,
-						strategy: "basic",
+						strategy: compactionStrategy,
 					},
 				}
 			: {}),

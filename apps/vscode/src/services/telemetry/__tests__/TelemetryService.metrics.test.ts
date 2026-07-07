@@ -1,6 +1,7 @@
 import { describe, it } from "bun:test"
 import { ApiFormat } from "@shared/proto/cline/models"
 import * as assert from "assert"
+import { PROVIDER_FAILURE_ERROR_TYPE, PROVIDER_FAILURE_PHASE } from "../../../sdk/provider-failure-telemetry"
 import type { ITelemetryProvider, TelemetryProperties, TelemetrySettings } from "../providers/ITelemetryProvider"
 import { TelemetryMetadata, TelemetryService } from "../TelemetryService"
 
@@ -288,6 +289,8 @@ describe("TelemetryService metrics", () => {
 			errorMessage: "boom",
 			provider: "anthropic",
 			errorStatus: 500,
+			errorType: PROVIDER_FAILURE_ERROR_TYPE.SDK_AGENT_DONE_ERROR,
+			failurePhase: PROVIDER_FAILURE_PHASE.STREAMING,
 		})
 
 		assert.strictEqual(provider.counters.length, 1)
@@ -298,6 +301,8 @@ describe("TelemetryService metrics", () => {
 		assert.strictEqual(entry.attributes.provider, "anthropic")
 		assert.strictEqual(entry.attributes.model, "claude")
 		assert.strictEqual(entry.attributes.error_status, 500)
+		assert.strictEqual(entry.attributes.error_type, PROVIDER_FAILURE_ERROR_TYPE.SDK_AGENT_DONE_ERROR)
+		assert.strictEqual(entry.attributes.failure_phase, PROVIDER_FAILURE_PHASE.STREAMING)
 		assert.strictEqual(provider.histograms.length, 1)
 		const errorHistogram = provider.histograms[0]
 		assert.strictEqual(errorHistogram.name, TelemetryService.METRICS.ERRORS.PER_TASK)
@@ -306,6 +311,8 @@ describe("TelemetryService metrics", () => {
 		assert.strictEqual(errorHistogram.attributes.provider, "anthropic")
 		assert.strictEqual(errorHistogram.attributes.model, "claude")
 		assert.strictEqual(errorHistogram.attributes.error_status, 500)
+		assert.strictEqual(errorHistogram.attributes.error_type, PROVIDER_FAILURE_ERROR_TYPE.SDK_AGENT_DONE_ERROR)
+		assert.strictEqual(errorHistogram.attributes.failure_phase, PROVIDER_FAILURE_PHASE.STREAMING)
 	})
 
 	it("captureTaskCompleted records completion payload with TTFT and duration histograms", () => {

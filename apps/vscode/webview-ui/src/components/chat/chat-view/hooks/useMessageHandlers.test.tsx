@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 const newTask = vi.fn().mockResolvedValue(undefined)
 const askResponse = vi.fn().mockResolvedValue(undefined)
 const condense = vi.fn().mockResolvedValue(undefined)
+const trackIntent = vi.fn().mockResolvedValue(undefined)
 
 vi.mock("@/services/grpc-client", () => ({
 	TaskServiceClient: {
@@ -18,12 +19,18 @@ vi.mock("@/services/grpc-client", () => ({
 		condense: (req: unknown) => condense(req),
 		reportBug: vi.fn().mockResolvedValue(undefined),
 	},
+	UiServiceClient: {
+		trackIntent: (req: unknown) => trackIntent(req),
+	},
 }))
 
 // Proto request factories just echo their input so we can assert on it.
 vi.mock("@shared/proto/cline/task", () => ({
 	AskResponseRequest: { create: (x: unknown) => x },
 	NewTaskRequest: { create: (x: unknown) => x },
+}))
+vi.mock("@shared/proto/cline/ui", () => ({
+	IntentEvent: { create: (x: unknown) => x },
 }))
 vi.mock("@shared/proto/cline/common", () => ({
 	EmptyRequest: { create: (x: unknown) => x },
@@ -93,6 +100,8 @@ describe("useMessageHandlers — send routing", () => {
 		askResponse.mockResolvedValue(undefined)
 		condense.mockReset()
 		condense.mockResolvedValue(undefined)
+		trackIntent.mockReset()
+		trackIntent.mockResolvedValue(undefined)
 		mockTurnState = undefined
 	})
 
@@ -108,6 +117,7 @@ describe("useMessageHandlers — send routing", () => {
 		expect(condense).toHaveBeenCalledWith(expect.objectContaining({ value: "compact" }))
 		expect(newTask).not.toHaveBeenCalled()
 		expect(askResponse).not.toHaveBeenCalled()
+		expect(trackIntent).not.toHaveBeenCalled()
 	})
 
 	it("routes the /smol alias to the condense RPC as well", async () => {
@@ -121,6 +131,7 @@ describe("useMessageHandlers — send routing", () => {
 		expect(condense).toHaveBeenCalledTimes(1)
 		expect(newTask).not.toHaveBeenCalled()
 		expect(askResponse).not.toHaveBeenCalled()
+		expect(trackIntent).not.toHaveBeenCalled()
 	})
 
 	it("does not intercept /compact when there is no active task (starts a new task instead)", async () => {
@@ -133,6 +144,17 @@ describe("useMessageHandlers — send routing", () => {
 
 		expect(condense).not.toHaveBeenCalled()
 		expect(newTask).toHaveBeenCalledTimes(1)
+		expect(trackIntent).toHaveBeenCalledWith(
+			expect.objectContaining({
+				action: "prompt_submitted",
+				source: "chat_submit",
+				hasText: true,
+				hasImages: false,
+				hasFiles: false,
+				hasActiveTask: false,
+				textLength: "/compact".length,
+			}),
+		)
 	})
 
 	it("after a completed turn (no clineAsk), Enter continues the conversation via askResponse — NOT newTask", async () => {
@@ -147,6 +169,17 @@ describe("useMessageHandlers — send routing", () => {
 		expect(askResponse).toHaveBeenCalledTimes(1)
 		expect(askResponse).toHaveBeenCalledWith(
 			expect.objectContaining({ responseType: "messageResponse", text: "another question" }),
+		)
+		expect(trackIntent).toHaveBeenCalledWith(
+			expect.objectContaining({
+				action: "prompt_submitted",
+				source: "chat_submit",
+				hasText: true,
+				hasImages: false,
+				hasFiles: false,
+				hasActiveTask: true,
+				textLength: "another question".length,
+			}),
 		)
 	})
 
@@ -379,6 +412,17 @@ describe("useMessageHandlers — send routing", () => {
 
 		expect(newTask).toHaveBeenCalledTimes(1)
 		expect(askResponse).not.toHaveBeenCalled()
+		expect(trackIntent).toHaveBeenCalledWith(
+			expect.objectContaining({
+				action: "prompt_submitted",
+				source: "chat_submit",
+				hasText: true,
+				hasImages: false,
+				hasFiles: false,
+				hasActiveTask: false,
+				textLength: "brand new task".length,
+			}),
+		)
 	})
 
 	it("restores pending new-task UI state when the RPC fails", async () => {
