@@ -1,6 +1,9 @@
 name: ext-vscode-publish-nightly
 
 on:
+  schedule:
+    # Every day at 4:00 AM PST (12:00 UTC)
+    - cron: "0 12 * * *"
   workflow_dispatch:
 
 run-name: "Publish Nightly from ${{ github.ref_name }} @ ${{ github.sha }}"
