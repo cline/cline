@@ -105,6 +105,7 @@ export interface SessionPersistenceAdapter {
 	getSession(sessionId: string): Promise<SessionRow | undefined>;
 	listSessions(options: {
 		limit: number;
+		offset?: number;
 		parentSessionId?: string;
 		status?: string;
 	}): Promise<SessionRow[]>;

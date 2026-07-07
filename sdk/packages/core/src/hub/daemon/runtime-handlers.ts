@@ -72,11 +72,16 @@ export interface CreateLocalHubScheduleRuntimeHandlersOptions
 export function createLocalHubScheduleRuntimeHandlers(
 	options: CreateLocalHubScheduleRuntimeHandlersOptions = {},
 ): HubScheduleRuntimeHandlers {
+	const sessionService = new CoreSessionService(new SqliteSessionStore(), {
+		logger: options.logger,
+	});
+	const stopSessionCleanup = sessionService.startBackgroundSessionCleanup();
 	const sessionHost = new LocalRuntimeHost({
-		sessionService: new CoreSessionService(new SqliteSessionStore()),
+		sessionService,
 		fetch: options.fetch,
 		telemetry: options.telemetry,
 	});
+	let disposed = false;
 
 	return {
 		async startSession(request) {
@@ -139,6 +144,14 @@ export function createLocalHubScheduleRuntimeHandlers(
 		async stopSession(sessionId) {
 			await sessionHost.stopSession(sessionId);
 			return { applied: true };
+		},
+		async dispose() {
+			if (disposed) {
+				return;
+			}
+			disposed = true;
+			stopSessionCleanup();
+			await sessionHost.dispose("hub_schedule_runtime_stop");
 		},
 	};
 }
