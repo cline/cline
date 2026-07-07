@@ -552,7 +552,7 @@ describe("createInteractiveSessionRuntime", () => {
 
 	it("holds concurrent ensureReady during a restart instead of booting an empty session", async () => {
 		const manager = makeManager();
-		const runtime = makeRuntime(manager);
+		const runtime = await makeRuntime(manager);
 
 		await runtime.ensureReady();
 		expect(runtime.getActiveSessionId()).toBe("session-1");
@@ -564,7 +564,9 @@ describe("createInteractiveSessionRuntime", () => {
 			await gate.promise;
 			return {
 				sessionId: "session-restarted",
-				manifest: { session_id: "session-restarted" },
+				manifest: createManifest("session-restarted"),
+				manifestPath: "/tmp/session-restarted.json",
+				messagesPath: "/tmp/session-restarted.messages.json",
 			};
 		});
 
