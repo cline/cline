@@ -34,7 +34,7 @@ const CLINE_PASS_MODEL_FIELD_PAIRS = {
 } as const
 
 const FREE_TAB_DESCRIPTION =
-	"A rotating set of models with limited free usage — included at no cost and separate from your ClinePass quota."
+	"Try these models with limited free usage, included at no cost and separate from your ClinePass quota."
 
 function zeroPriced(info: ModelInfo): ModelInfo {
 	return {
