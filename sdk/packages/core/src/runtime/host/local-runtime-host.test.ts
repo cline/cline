@@ -4490,6 +4490,59 @@ describe("LocalRuntimeHost", () => {
 		expect(createAgent.mock.calls[0]?.[0]?.prepareTurn).toBeUndefined();
 	});
 
+	it("orders equal-length compaction updates by parsed timestamp", async () => {
+		const sessionId = "inactive-session";
+		const tempCwd = mkdtempSync(join(tmpdir(), "compaction-stale-"));
+		try {
+			const messagesPath = join(tempCwd, "messages.json");
+			const sourceMessages: MessageWithMetadata[] = [
+				{ role: "user", content: "source" },
+			];
+			writeFileSync(messagesPath, JSON.stringify(sourceMessages), "utf8");
+			const current = createSessionCompactionState({
+				sourceMessages,
+				compactedMessages: [{ role: "user", content: "current" }],
+				conversationId: sessionId,
+				updatedAt: "2026-01-01T00:00:00.500Z",
+			});
+			const incoming = createSessionCompactionState({
+				sourceMessages,
+				compactedMessages: [{ role: "user", content: "incoming" }],
+				conversationId: sessionId,
+				updatedAt: "2026-01-01T00:00:00Z",
+			});
+			const sessionService = {
+				ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+				listSessions: vi.fn().mockResolvedValue([
+					{
+						sessionId,
+						provider: "mock-provider",
+						model: "mock-model",
+						cwd: "/tmp/project",
+						workspaceRoot: "/tmp/project",
+						createdAt: "2026-01-01T00:00:00.000Z",
+						updatedAt: "2026-01-01T00:00:00.000Z",
+						status: "running",
+						messagesPath,
+					},
+				]),
+				readSessionCompactionState: vi.fn().mockResolvedValue(current),
+				persistSessionCompactionState: vi.fn(),
+			};
+			const manager = new RuntimeHostUnderTest({
+				distinctId,
+				sessionService: sessionService as never,
+			});
+
+			await expect(
+				manager.updateSessionCompactionState(sessionId, incoming),
+			).resolves.toEqual({ updated: false });
+			expect(sessionService.persistSessionCompactionState).not.toHaveBeenCalled();
+		} finally {
+			rmSync(tempCwd, { recursive: true, force: true });
+		}
+	});
+
 	it("formats prompt in core and merges explicit + mention user files", async () => {
 		const tempCwd = mkdtempSync(join(tmpdir(), "core-session-format-"));
 		try {

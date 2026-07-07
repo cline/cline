@@ -164,6 +164,9 @@ export class SessionManifestStore {
 		if (!manifestFile.manifest) {
 			return;
 		}
+		if (manifestFile.manifest.compaction_path === path) {
+			return;
+		}
 		this.writeSessionManifest(manifestFile.path, {
 			...manifestFile.manifest,
 			compaction_path: path,

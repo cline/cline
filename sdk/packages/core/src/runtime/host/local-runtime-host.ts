@@ -188,7 +188,7 @@ function isIncomingCompactionStateStale(
 	if (incoming.source_message_count !== current.source_message_count) {
 		return incoming.source_message_count < current.source_message_count;
 	}
-	return incoming.updated_at < current.updated_at;
+	return Date.parse(incoming.updated_at) < Date.parse(current.updated_at);
 }
 
 export interface LocalRuntimeHostOptions {
