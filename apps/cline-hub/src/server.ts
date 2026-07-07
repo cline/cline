@@ -86,6 +86,24 @@ export async function startClineHubDashboardServer(): Promise<ClineHubDashboardS
 	let stopped = false;
 
 	await attachHub(ctx);
+	// Bring back connectors that were connected before the hub was restarted.
+	// Fire-and-forget: dashboard startup must not block on connector spawns.
+	void (async () => {
+		try {
+			const { reconnectConfiguredConnectors } = await import(
+				"./server/connectors"
+			);
+			await reconnectConfiguredConnectors((message) =>
+				console.error(`[cline-hub] ${message}`),
+			);
+		} catch (error) {
+			console.error(
+				`[cline-hub] connector reconnect failed: ${
+					error instanceof Error ? error.message : String(error)
+				}`,
+			);
+		}
+	})();
 	const healthInterval = setInterval(() => {
 		void (async () => {
 			await syncHubHealth(ctx);

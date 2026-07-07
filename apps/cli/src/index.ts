@@ -59,6 +59,29 @@ if (!isMainThread) {
 	void (async () => {
 		if (isHubDaemonProcess()) {
 			await import("@cline/core/hub/daemon-entry");
+			// Bring back connectors that were connected before the hub/CLI was
+			// restarted. Best-effort: the daemon must come up regardless.
+			try {
+				const [{ reconnectPersistedConnectors }, { runConnectAdapter }] =
+					await Promise.all([
+						import("./connectors/autostart"),
+						import("./commands/connect"),
+					]);
+				const log = (message: string) =>
+					process.stderr.write(`[hub-daemon] ${message}\n`);
+				await reconnectPersistedConnectors({
+					start: async (channel, args) =>
+						(await runConnectAdapter(channel, args, {
+							writeln: (text) => {
+								if (text) log(text);
+							},
+							writeErr: log,
+						})) === 0,
+					log,
+				});
+			} catch (error) {
+				logCliProcessError("connectorAutostart", error);
+			}
 			return;
 		}
 

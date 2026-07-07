@@ -1,5 +1,11 @@
+import {
+	disableConnectorAutostart,
+	persistConnectorConnection,
+} from "../connectors/autostart";
 import { getConnector, listConnectors } from "../connectors/registry";
 import type { ConnectIo, ConnectStopResult } from "../connectors/types";
+
+const HELP_FLAGS = new Set(["-h", "--help"]);
 
 export async function stopAllConnectors(
 	io: ConnectIo,
@@ -30,6 +36,7 @@ export async function runStopAllConnectors(io: ConnectIo): Promise<number> {
 		io.writeln("[connect] no adapters support stop yet");
 		return 0;
 	}
+	disableConnectorAutostart();
 	io.writeln(
 		`[connect] stopped processes=${stoppedProcesses} sessions=${stoppedSessions}`,
 	);
@@ -50,6 +57,7 @@ export async function runStopConnector(
 		return 1;
 	}
 	const result: ConnectStopResult = await connector.stopAll(io);
+	disableConnectorAutostart(connector.name);
 	io.writeln(
 		`[connect] ${connector.name} stopped processes=${result.stoppedProcesses} sessions=${result.stoppedSessions}`,
 	);
@@ -66,7 +74,14 @@ export async function runConnectAdapter(
 		io.writeErr(`unknown connect adapter "${adapterName}"`);
 		return 1;
 	}
-	return connector.run(passthroughArgs, io);
+	const exitCode = await connector.run(passthroughArgs, io);
+	const isHelpInvocation =
+		passthroughArgs.length === 0 ||
+		passthroughArgs.some((arg) => HELP_FLAGS.has(arg));
+	if (exitCode === 0 && !isHelpInvocation) {
+		persistConnectorConnection(connector.name, passthroughArgs);
+	}
+	return exitCode;
 }
 
 export function formatAdapterList(): string {
