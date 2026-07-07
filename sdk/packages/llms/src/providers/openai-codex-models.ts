@@ -1,9 +1,12 @@
 import type { ModelInfo } from "../catalog/types";
 
-// The ChatGPT/Codex backend starts rejecting requests around 95% of a
-// model's advertised input cap, so every model exposed through this
-// provider gets its maxInputTokens scaled down to the effective budget.
-// REF: https://github.com/openai/codex/issues/19319
+/**
+ * The ChatGPT/Codex backend starts rejecting requests around 95% of a
+ * model's advertised input cap, so every model exposed through this
+ * provider gets its maxInputTokens scaled down to the effective budget.
+ *
+ * REF: https://github.com/openai/codex/issues/19319
+ */
 export const CODEX_EFFECTIVE_CONTEXT_WINDOW_PERCENT = 0.95;
 
 const GPT_VERSION_REGEX = /^gpt-(\d+\.\d+)/;
@@ -24,10 +27,12 @@ function isOpenAICodexAllowedModel(id: string, model: ModelInfo): boolean {
 	return match ? Number.parseFloat(match[1]) > 5.3 : false;
 }
 
-// Applies the effective input budget to every allowed model. GPT-5.5
-// additionally gets hardcoded limits because the ChatGPT/Codex backend
-// enforces a 272K input / 128K output cap that is lower than what the
-// generated OpenAI API catalog reports.
+/**
+ * Applies the effective input budget to every allowed model. GPT-5.5
+ * additionally gets hardcoded limits because the ChatGPT/Codex backend
+ * enforces a 272K input / 128K output cap that is lower than what the
+ * generated OpenAI API catalog reports.
+ */
 function toOpenAICodexModel(id: string, model: ModelInfo): ModelInfo {
 	if (id.includes("gpt-5.5")) {
 		return {
