@@ -400,9 +400,8 @@ describe("createContextCompactionPrepareTurn", () => {
 		const compacted = runForcedBasicCompaction(messages, 1);
 
 		expect(compacted).toEqual([
+			{ role: "user", content: "Old request" },
 			{ role: "user", content: "Read the latest file" },
-			assistantToolUseMessage("tool-a"),
-			toolResultMessage("tool-a", "latest result"),
 		]);
 	});
 
