@@ -1480,7 +1480,9 @@ describe("default read_files tool", () => {
 		// Leading orphan range: no preceding file entry to fold into.
 		await expect(
 			tool.execute(
-				{ files: [{ start_line: 1, end_line: 2 }, { path: "/tmp/a.ts" }] } as never,
+				{
+					files: [{ start_line: 1, end_line: 2 }, { path: "/tmp/a.ts" }],
+				} as never,
 				{
 					agentId: "agent-1",
 					conversationId: "conv-1",
