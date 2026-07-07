@@ -77,6 +77,63 @@ export function getReadFileRangeError(request: ReadFileRequest): string | null {
 	return `start_line must be less than or equal to end_line (received start_line: ${start_line}, end_line: ${end_line})`;
 }
 
+const READ_RANGE_KEYS = new Set(["start_line", "end_line"]);
+
+function isOrphanReadRangeEntry(
+	value: unknown,
+): value is Record<string, unknown> {
+	if (value === null || typeof value !== "object" || Array.isArray(value)) {
+		return false;
+	}
+	const keys = Object.keys(value);
+	return keys.length > 0 && keys.every((key) => READ_RANGE_KEYS.has(key));
+}
+
+function coalesceOrphanReadRangeEntries(entries: unknown[]): unknown[] {
+	const coalesced: unknown[] = [];
+	for (const entry of entries) {
+		if (isOrphanReadRangeEntry(entry)) {
+			const previous = coalesced[coalesced.length - 1];
+			if (typeof previous === "string") {
+				coalesced[coalesced.length - 1] = { path: previous, ...entry };
+				continue;
+			}
+			if (
+				previous !== null &&
+				typeof previous === "object" &&
+				!Array.isArray(previous) &&
+				"path" in previous &&
+				Object.keys(entry).every((key) => !(key in previous))
+			) {
+				coalesced[coalesced.length - 1] = { ...previous, ...entry };
+				continue;
+			}
+		}
+		coalesced.push(entry);
+	}
+	return coalesced;
+}
+
+/**
+ * Some models emit a file's line range as a separate array element instead of
+ * placing start_line/end_line on the same object as its path. Fold such
+ * orphan range entries into the preceding file entry before validation.
+ */
+export function coalesceOrphanReadRanges(input: unknown): unknown {
+	if (Array.isArray(input)) {
+		return coalesceOrphanReadRangeEntries(input);
+	}
+	if (input !== null && typeof input === "object") {
+		for (const key of ["files", "paths"] as const) {
+			const value = (input as Record<string, unknown>)[key];
+			if (Array.isArray(value)) {
+				return { ...input, [key]: coalesceOrphanReadRangeEntries(value) };
+			}
+		}
+	}
+	return input;
+}
+
 export function normalizeRunCommandsInput(
 	input: unknown,
 ): Array<string | StructuredCommandInput> {
