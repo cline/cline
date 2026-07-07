@@ -70,10 +70,17 @@ describe("UnifiedSessionPersistenceService", () => {
 			conversationId: "conv-1",
 			updatedAt: "2026-01-01T00:00:01.000Z",
 		});
+		expect(
+			JSON.parse(readFileSync(artifacts.manifestPath, "utf8")),
+		).not.toHaveProperty("compaction_path");
+		expect(existsSync(artifacts.compactionPath ?? "")).toBe(false);
 
 		await service.persistSessionMessages(sessionId, sourceMessages);
 		await service.persistSessionCompactionState(sessionId, state);
 
+		expect(
+			JSON.parse(readFileSync(artifacts.manifestPath, "utf8")),
+		).toHaveProperty("compaction_path", artifacts.compactionPath);
 		const messagesPayload = JSON.parse(
 			readFileSync(artifacts.messagesPath, "utf8"),
 		) as { messages?: unknown[] };
@@ -130,12 +137,15 @@ describe("UnifiedSessionPersistenceService", () => {
 
 		expect(existsSync(artifacts.messagesPath)).toBe(true);
 		expect(existsSync(artifacts.compactionPath ?? "")).toBe(false);
+		expect(
+			JSON.parse(readFileSync(artifacts.manifestPath, "utf8")),
+		).not.toHaveProperty("compaction_path");
 		await expect(
 			service.readSessionCompactionState(sessionId),
 		).resolves.toBeUndefined();
 	});
 
-	it("persists compaction state without backfilling old manifests during path resolution", async () => {
+	it("adds compaction path to old manifests only when sidecar is written", async () => {
 		const sessionsDir = mkdtempSync(join(tmpdir(), "compaction-old-manifest-"));
 		tempDirs.push(sessionsDir);
 		const service = new FileSessionService(sessionsDir);
@@ -180,7 +190,7 @@ describe("UnifiedSessionPersistenceService", () => {
 		expect(existsSync(artifacts.compactionPath ?? "")).toBe(true);
 		expect(
 			JSON.parse(readFileSync(artifacts.manifestPath, "utf8")),
-		).not.toHaveProperty("compaction_path");
+		).toHaveProperty("compaction_path", artifacts.compactionPath);
 	});
 
 	sqliteIt(

@@ -137,7 +137,6 @@ export class UnifiedSessionPersistenceService {
 			prompt: input.prompt?.trim() || undefined,
 			metadata,
 			messages_path: messagesPath,
-			compaction_path: compactionPath,
 		};
 
 		await this.adapter.upsertSession({

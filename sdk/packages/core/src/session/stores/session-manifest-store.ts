@@ -159,6 +159,17 @@ export class SessionManifestStore {
 		);
 	}
 
+	private updateCompactionPath(sessionId: string, path: string | undefined): void {
+		const manifestFile = this.readManifestFile(sessionId);
+		if (!manifestFile.manifest) {
+			return;
+		}
+		this.writeSessionManifest(manifestFile.path, {
+			...manifestFile.manifest,
+			compaction_path: path,
+		});
+	}
+
 	async readSessionCompactionState(
 		sessionId: string,
 	): Promise<SessionCompactionState | undefined> {
@@ -189,10 +200,12 @@ export class SessionManifestStore {
 		const path = this.resolveCompactionPath(sessionId);
 		const payload = SessionCompactionStateSchema.parse(state);
 		await writeFileAtomic(path, `${JSON.stringify(payload, null, 2)}\n`);
+		this.updateCompactionPath(sessionId, path);
 	}
 
 	async deleteSessionCompactionState(sessionId: string): Promise<void> {
 		await rm(this.resolveCompactionPath(sessionId), { force: true });
+		this.updateCompactionPath(sessionId, undefined);
 	}
 
 	appendStaleSessionHookLog(
