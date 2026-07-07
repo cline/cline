@@ -133,7 +133,7 @@ export async function runAgenticCompaction(options: {
 		return undefined;
 	}
 
-	const fileOps = extractFileOps(messagesToSummarize);
+	const preProjectionFileOps = extractFileOps(messagesToSummarize);
 	const summarizerProviderConfig = resolveSummarizerConfig({
 		activeProviderConfig: options.providerConfig,
 		summarizer: options.summarizer,
@@ -170,7 +170,7 @@ export async function runAgenticCompaction(options: {
 		buildSummaryRequest({
 			previousSummary,
 			conversationText: "",
-			fileOps,
+			fileOps: preProjectionFileOps,
 		}).length,
 	);
 	const availableSummaryInputTokens =
@@ -205,6 +205,7 @@ export async function runAgenticCompaction(options: {
 		);
 		return undefined;
 	}
+	const fileOps = extractFileOps(summaryInputBudget.messages);
 	const conversationText = serializeConversation(summaryInputBudget.messages);
 	const summaryRequest = buildSummaryRequest({
 		previousSummary,
