@@ -1,6 +1,7 @@
 import type { TeamTeammateSpec } from "@cline/shared";
 import type { AgentTeamsRuntime } from "../../extensions/tools/team";
 import type { SessionSource, SessionStatus } from "../../types/common";
+import { stringifyJsonRecord } from "../../utils/json-record";
 import type { SessionManifest } from "./session-manifest";
 
 export interface SessionRow {
@@ -141,8 +142,7 @@ export function patchSqliteRow(raw: Record<string, unknown>): SessionRow {
 export function stringifyMetadata(
 	metadata: Record<string, unknown> | null | undefined,
 ): string | null {
-	if (!metadata || Object.keys(metadata).length === 0) return null;
-	return JSON.stringify(metadata);
+	return stringifyJsonRecord(metadata);
 }
 
 export type TeamRuntimeState = ReturnType<AgentTeamsRuntime["exportState"]>;

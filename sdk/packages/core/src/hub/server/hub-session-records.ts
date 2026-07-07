@@ -5,6 +5,7 @@ import type {
 } from "@cline/shared";
 import type { SessionAccumulatedUsage } from "../../runtime/host/runtime-host";
 import type { SessionRecord as LocalSessionRecord } from "../../types/sessions";
+import { cloneJsonRecord } from "../../utils/json-record";
 
 export type HubSessionState = {
 	createdByClientId?: string;
@@ -36,7 +37,7 @@ function cloneSessionMetadata(
 ): Record<string, JsonValue | undefined> | undefined {
 	const metadata =
 		session.metadata && typeof session.metadata === "object"
-			? (JSON.parse(JSON.stringify(session.metadata)) as Record<
+			? ((cloneJsonRecord(session.metadata) ?? {}) as Record<
 					string,
 					JsonValue | undefined
 				>)
