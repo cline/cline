@@ -264,6 +264,7 @@ export async function createSapAiCoreProviderModule(
 			: {}),
 	});
 	return {
-		model: (modelId) => wrapSapModelWithServiceKey(provider(modelId), serviceKey),
+		model: (modelId) =>
+			wrapSapModelWithServiceKey(provider(modelId), serviceKey),
 	};
 }

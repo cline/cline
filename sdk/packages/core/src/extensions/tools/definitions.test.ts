@@ -16,6 +16,19 @@ import { RUN_COMMAND_QUERY_PREVIEW_LIMIT, TimeoutError } from "./helpers";
 import { INPUT_ARG_CHAR_LIMIT } from "./schemas";
 import type { SkillsExecutorWithMetadata } from "./types";
 
+function hasSchemaKey(value: unknown, key: string): boolean {
+	if (Array.isArray(value)) {
+		return value.some((item) => hasSchemaKey(item, key));
+	}
+	if (value && typeof value === "object") {
+		return Object.entries(value).some(
+			([entryKey, entryValue]) =>
+				entryKey === key || hasSchemaKey(entryValue, key),
+		);
+	}
+	return false;
+}
+
 function createMockSkillsExecutor(
 	fn: (...args: unknown[]) => Promise<string> = async () => "ok",
 	configuredSkills?: SkillsExecutorWithMetadata["configuredSkills"],
@@ -608,6 +621,62 @@ describe("default run_commands tool", () => {
 				iteration: 1,
 			}),
 		);
+	});
+
+	it("accepts mixed structured and string command arrays", async () => {
+		const execute = vi.fn(
+			async (command: string | { command: string; args?: string[] }) =>
+				typeof command === "string"
+					? `ran:${command}`
+					: `ran:${command.command}:${(command.args ?? []).join(",")}`,
+		);
+		const tool = createShellTool(execute);
+
+		const result = await tool.execute(
+			{
+				commands: ["pwd", { command: "node", args: ["--version"] }],
+			} as never,
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		expect(result).toEqual([
+			{ query: "pwd", result: "ran:pwd", success: true },
+			{
+				query: "node --version",
+				result: "ran:node:--version",
+				success: true,
+			},
+		]);
+		expect(execute).toHaveBeenNthCalledWith(
+			1,
+			"pwd",
+			process.cwd(),
+			expect.objectContaining({ iteration: 1 }),
+		);
+		expect(execute).toHaveBeenNthCalledWith(
+			2,
+			{ command: "node", args: ["--version"] },
+			process.cwd(),
+			expect.objectContaining({ iteration: 1 }),
+		);
+	});
+
+	it("rejects invalid text-object command entries", async () => {
+		const execute = vi.fn(async () => "ran");
+		const tool = createShellTool(execute);
+
+		await expect(
+			tool.execute({ commands: [{ $text: "pwd" }] } as never, {
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			}),
+		).rejects.toThrow("Invalid input");
+		expect(execute).not.toHaveBeenCalled();
 	});
 
 	it("preserves args on direct structured command objects", async () => {
@@ -1359,6 +1428,89 @@ describe("default read_files tool", () => {
 		);
 	});
 
+	it("folds orphan range entries into the preceding file entry", async () => {
+		const execute = vi.fn(
+			async (request: { path: string }) => `content:${request.path}`,
+		);
+		const tool = createReadFilesTool(execute);
+
+		await tool.execute(
+			{
+				files: [
+					{ path: "/tmp/example.ips" },
+					{ start_line: 45, end_line: 100 },
+				],
+			} as never,
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+		await tool.execute(
+			{ paths: ["/tmp/a.ts", { end_line: 4 }, "/tmp/b.ts"] } as never,
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 2,
+			},
+		);
+
+		expect(execute).toHaveBeenNthCalledWith(
+			1,
+			{ path: "/tmp/example.ips", start_line: 45, end_line: 100 },
+			expect.objectContaining({ iteration: 1 }),
+		);
+		expect(execute).toHaveBeenNthCalledWith(
+			2,
+			{ path: "/tmp/a.ts", end_line: 4 },
+			expect.objectContaining({ iteration: 2 }),
+		);
+		expect(execute).toHaveBeenNthCalledWith(
+			3,
+			{ path: "/tmp/b.ts" },
+			expect.objectContaining({ iteration: 2 }),
+		);
+	});
+
+	it("rejects orphan range entries that cannot be attached to a file entry", async () => {
+		const execute = vi.fn(async () => "should not run");
+		const tool = createReadFilesTool(execute);
+
+		// Leading orphan range: no preceding file entry to fold into.
+		await expect(
+			tool.execute(
+				{
+					files: [{ start_line: 1, end_line: 2 }, { path: "/tmp/a.ts" }],
+				} as never,
+				{
+					agentId: "agent-1",
+					conversationId: "conv-1",
+					iteration: 1,
+				},
+			),
+		).rejects.toThrow();
+
+		// Preceding entry already has its own range: keep the conflict visible.
+		await expect(
+			tool.execute(
+				{
+					files: [
+						{ path: "/tmp/a.ts", start_line: 1 },
+						{ start_line: 4, end_line: 8 },
+					],
+				} as never,
+				{
+					agentId: "agent-1",
+					conversationId: "conv-1",
+					iteration: 2,
+				},
+			),
+		).rejects.toThrow();
+
+		expect(execute).not.toHaveBeenCalled();
+	});
+
 	it("rejects invalid union inputs before calling the executor", async () => {
 		const execute = vi.fn(async () => "should not run");
 		const tool = createReadFilesTool(execute);
@@ -1495,6 +1647,22 @@ describe("default read_files tool", () => {
 });
 
 describe("zod schema conversion", () => {
+	it("advertises run_commands as string-only command arrays", () => {
+		const tool = createShellTool(async () => "ok");
+		const inputSchema = tool.inputSchema as Record<string, unknown>;
+		const serialized = JSON.stringify(inputSchema);
+
+		expect(serialized).not.toContain('"anyOf"');
+		expect(serialized).not.toContain("Prefer structured");
+		expect(hasSchemaKey(inputSchema, "command")).toBe(false);
+
+		const properties = inputSchema.properties as Record<string, unknown>;
+		const commands = properties.commands as {
+			items?: { type?: string };
+		};
+		expect(commands.items?.type).toBe("string");
+	});
+
 	it("preserves read_files required properties in generated JSON schema", () => {
 		const tool = createReadFilesTool(async () => "ok");
 		const inputSchema = tool.inputSchema as Record<string, unknown>;
@@ -1524,7 +1692,7 @@ describe("zod schema conversion", () => {
 				required: ["path"],
 			},
 			description:
-				"Array of file read requests. Omit start_line/end_line or set them to null to read from the start; provide integers to return only that inclusive one-based line range. Reads are capped, so page through long files with start_line/end_line. Prefer this tool over running terminal command to get file content for better performance and reliability.",
+				"Array of file read requests; each element is one file and must include path. Omit start_line/end_line or set them to null to read from the start; provide integers on the same object as the path to return only that inclusive one-based line range — never emit a range as its own array element. Reads are capped, so page through long files with start_line/end_line. Prefer this tool over running terminal command to get file content for better performance and reliability.",
 		});
 		expect(inputSchema.required).toEqual(["files"]);
 	});

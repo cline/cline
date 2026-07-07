@@ -109,6 +109,14 @@ export class ClineError extends Error {
 		})
 	}
 
+	public get status(): number | undefined {
+		return this._error.status
+	}
+
+	public get requestId(): string | undefined {
+		return this._error.request_id
+	}
+
 	/**
 	 * Parses a stringified error into a ClineError instance.
 	 */

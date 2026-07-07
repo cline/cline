@@ -165,9 +165,7 @@ describe("ClineAccountService", () => {
 			userId: "user-1",
 		};
 		const fetchImpl = vi.fn(async (input: unknown, init?: RequestInit) => {
-			expect(String(input)).toBe(
-				"https://api.cline.bot/api/v1/users/me/plan",
-			);
+			expect(String(input)).toBe("https://api.cline.bot/api/v1/users/me/plan");
 			expect(init?.headers).toMatchObject({
 				Authorization: "Bearer workos:token-123",
 			});

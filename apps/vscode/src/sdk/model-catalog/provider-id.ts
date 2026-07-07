@@ -57,6 +57,7 @@ const KNOWN_API_PROVIDERS = {
 	nousResearch: true,
 	wandb: true,
 	xiaomi: true,
+	"tencent-tokenhub": true,
 	"cline-pass": true,
 } satisfies Record<ApiProvider, true>
 

@@ -338,6 +338,12 @@ export class TelemetryService {
 			MODEL_FAVORITE_TOGGLED: "ui.model_favorite_toggled",
 			// Tracks when a button is clicked
 			BUTTON_CLICKED: "ui.button_clicked",
+			// Tracks when the Cline panel becomes visible
+			PANEL_OPENED: "ui.panel_opened",
+			// Tracks when the user explicitly starts a new task flow
+			NEW_TASK_CLICKED: "ui.new_task_clicked",
+			// Tracks when the user submits chat composer content
+			PROMPT_SUBMITTED: "ui.prompt_submitted",
 			// Tracks when the rules menu button is clicked
 			RULES_MENU_OPENED: "ui.rules_menu_opened",
 		},
@@ -1370,6 +1376,34 @@ export class TelemetryService {
 		})
 	}
 
+	public capturePanelOpened(source?: string) {
+		this.capture({
+			event: TelemetryService.EVENTS.UI.PANEL_OPENED,
+			properties: { source },
+		})
+	}
+
+	public captureNewTaskClicked(source?: string, hasActiveTask?: boolean) {
+		this.capture({
+			event: TelemetryService.EVENTS.UI.NEW_TASK_CLICKED,
+			properties: { source, hasActiveTask },
+		})
+	}
+
+	public capturePromptSubmitted(args: {
+		source?: string
+		hasText?: boolean
+		hasImages?: boolean
+		hasFiles?: boolean
+		hasActiveTask?: boolean
+		textLength?: number
+	}) {
+		this.capture({
+			event: TelemetryService.EVENTS.UI.PROMPT_SUBMITTED,
+			properties: args,
+		})
+	}
+
 	/**
 	 * Records telemetry when an API provider returns an error
 	 * @param ulid Unique identifier for the task
@@ -1386,6 +1420,8 @@ export class TelemetryService {
 		provider?: string
 		errorStatus?: number | undefined
 		requestId?: string | undefined
+		errorType?: string | undefined
+		failurePhase?: string | undefined
 		isNativeToolCall?: boolean
 	}) {
 		this.capture({
@@ -1402,12 +1438,16 @@ export class TelemetryService {
 			model: args.model,
 			provider: args.provider,
 			error_status: args.errorStatus,
+			error_type: args.errorType,
+			failure_phase: args.failurePhase,
 		})
 		const errorAttributes = {
 			ulid: args.ulid,
 			model: args.model,
 			provider: args.provider,
 			error_status: args.errorStatus,
+			error_type: args.errorType,
+			failure_phase: args.failurePhase,
 		}
 		const errorCount = this.incrementTaskCounter(this.taskErrorCounts, args.ulid)
 		this.recordHistogram(TelemetryService.METRICS.ERRORS.PER_TASK, errorCount, errorAttributes)

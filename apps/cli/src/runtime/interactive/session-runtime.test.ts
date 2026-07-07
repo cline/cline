@@ -210,6 +210,40 @@ describe("createInteractiveSessionRuntime", () => {
 		expect(runtime.getActiveSessionId()).toBe("session-2");
 	});
 
+	it("holds concurrent ensureReady during a restart instead of booting an empty session", async () => {
+		const manager = makeManager();
+		const runtime = makeRuntime(manager);
+
+		await runtime.ensureReady();
+		expect(runtime.getActiveSessionId()).toBe("session-1");
+
+		// Keep the replacement session's start in flight so the restart window
+		// (old session stopped, no active session yet) stays open.
+		const gate = deferred<void>();
+		manager.start.mockImplementationOnce(async () => {
+			await gate.promise;
+			return {
+				sessionId: "session-restarted",
+				manifest: { session_id: "session-restarted" },
+			};
+		});
+
+		const restart = runtime.restartWithCurrentMessages();
+		await vi.waitFor(() => {
+			expect(manager.start).toHaveBeenCalledTimes(2);
+		});
+
+		// A message submitted mid-restart (e.g. right after a plan/act toggle)
+		// calls ensureReady; it must wait for the restart instead of booting a
+		// blank session that races the replacement for the active slot.
+		const ready = runtime.ensureReady();
+		gate.resolve();
+		await Promise.all([restart, ready]);
+
+		expect(manager.start).toHaveBeenCalledTimes(2);
+		expect(runtime.getActiveSessionId()).toBe("session-restarted");
+	});
+
 	it("adds a live interactive approval policy hook to started sessions", async () => {
 		const manager = makeManager();
 		const upstreamBeforeTool = vi.fn(async () => ({

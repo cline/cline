@@ -21,6 +21,7 @@ import {
 	MAX_SEARCH_OUTPUT_CHARS,
 } from "./executors/output-limits";
 import {
+	coalesceOrphanReadRanges,
 	formatError,
 	formatReadFileQuery,
 	formatRunCommandQueryPreview,
@@ -49,8 +50,8 @@ import {
 	SearchCodebaseInputSchema,
 	SearchCodebaseUnionInputSchema,
 	type SkillsInput,
-	type StructuredCommandInput,
 	SkillsInputSchema,
+	type StructuredCommandInput,
 	type SubmitInput,
 	SubmitInputSchema,
 } from "./schemas";
@@ -246,9 +247,9 @@ export function createReadFilesTool(
 	return createTool<ReadFilesInput, ToolOperationResult[]>({
 		name: "read_files",
 		description:
-			"Read the content of text or image files at the provided absolute paths, or return only an inclusive one-based line range when start_line/end_line are provided. " +
+			"Read the content of text or image files at the provided absolute paths, or return only an inclusive one-based line range when start_line/end_line are provided on the same file entry as its path. " +
 			"When you already know multiple files you need, read them together in one call, and call this tool in the same response as other independent tool calls. " +
-			`Each read returns at most ${MAX_READ_LINES} lines / ~${Math.round(MAX_READ_OUTPUT_CHARS / 1024)}k characters; longer files report their total line count, page through them with start_line/end_line. ` +
+			`Each read returns at most ${MAX_READ_LINES} lines / ~${Math.round(MAX_READ_OUTPUT_CHARS / 1024)}k characters; longer files report their total line count, page through them with start_line/end_line on that file's entry. ` +
 			"Binary files that are not image and large files are not supported. " +
 			"Returns file contents or error messages for each path. ",
 		inputSchema: zodToJsonSchema(ReadFilesInputSchema),
@@ -256,7 +257,10 @@ export function createReadFilesTool(
 		retryable: true,
 		maxRetries: 1,
 		execute: async (input, context) => {
-			const validate = validateWithZod(ReadFilesInputUnionSchema, input);
+			const validate = validateWithZod(
+				ReadFilesInputUnionSchema,
+				coalesceOrphanReadRanges(input),
+			);
 			let requests: ReadFileRequest[];
 			if (typeof validate === "string") {
 				requests = [{ path: validate }];
@@ -415,7 +419,7 @@ export function createShellTool(
 			? "Run non-interactive shell commands from the root of the workspace in Windows environment. " +
 				RUN_COMMANDS_SHARED_INSTRUCTIONS +
 				`Output beyond ~${Math.round(MAX_COMMAND_OUTPUT_CHARS / 1000)}k characters is middle-truncated (start and end preserved); filter output when you need specific sections. ` +
-				"Prefer structured { command, args } entries for portability; plain string commands should be properly shell-escaped. Include multiple commands in the same call when they are independent and safe to run concurrently. When independent reads, searches, or edits are also needed, call those tools in the same response."
+				"Commands run through PowerShell; quote paths and arguments for PowerShell and use ';' to sequence commands. Include multiple commands in the same call when they are independent and safe to run concurrently. When independent reads, searches, or edits are also needed, call those tools in the same response."
 			: "Run non-interactive shell commands from the root of the workspace. " +
 				RUN_COMMANDS_SHARED_INSTRUCTIONS +
 				"Commands should be properly shell-escaped and targeted to avoid error or timeout. Include multiple commands in the same call when they are independent complete shell commands and safe to run concurrently; multiline scripts and heredocs must be a single command string. When independent reads, searches, or edits are also needed, call those tools in the same response. " +

@@ -18,12 +18,12 @@ import { useTerminalBackground } from "../hooks/use-terminal-background";
 import {
 	getDefaultForeground,
 	getModeAccent,
-	getModeInputBackground,
+	getUserMessageBackground,
 	palette,
 	type TerminalTheme,
 } from "../palette";
 import type { ChatEntry } from "../types";
-import { getSyntaxStyle } from "../utils/syntax-style";
+import { getSyntaxStyle, type SyntaxAccentMode } from "../utils/syntax-style";
 import { isWarningToolError } from "../utils/tool-errors";
 import {
 	parseApplyPatchInput,
@@ -291,7 +291,7 @@ function ClineCreditsClinePassErrorView(props: { defaultFg?: string }) {
 				/>
 				<box flexDirection="row">
 					<text fg="gray">Purchase Credits: </text>
-					<text fg="cyan" selectable>
+					<text fg={palette.act} selectable>
 						<a href={CLINE_CREDITS_DASHBOARD_URL}>
 							{CLINE_CREDITS_DASHBOARD_URL}
 						</a>
@@ -299,7 +299,7 @@ function ClineCreditsClinePassErrorView(props: { defaultFg?: string }) {
 				</box>
 				<box flexDirection="row">
 					<text fg="gray">Purchase ClinePass: </text>
-					<text fg="cyan" selectable>
+					<text fg={palette.act} selectable>
 						<a href={subscriptionUrl}>{subscriptionUrl}</a>
 					</text>
 				</box>
@@ -377,13 +377,13 @@ function ClinePassSubscriptionErrorView(props: {
 				)}
 				<box flexDirection="row">
 					<text fg="gray">Subscribe: </text>
-					<text fg="cyan" selectable>
+					<text fg={palette.act} selectable>
 						<a href={subscriptionUrl}>Open subscription page</a>
 					</text>
 				</box>
 				<box flexDirection="row">
 					<text fg="gray">URL: </text>
-					<text fg="cyan" selectable>
+					<text fg={palette.act} selectable>
 						<a href={subscriptionUrl}>{subscriptionUrl}</a>
 					</text>
 				</box>
@@ -422,16 +422,15 @@ function ClineOrgIndividualInferenceSubscriptionErrorView(props: {
 export function ChatEntryView(props: {
 	entry: ChatEntry;
 	accent?: string;
+	/** Mode the entry was produced in (resolved with the current-mode fallback). */
+	mode?: SyntaxAccentMode;
 	loadIndividualSubscriptionPlans?: () => Promise<ClineSubscriptionPlan[]>;
 	terminalTheme: TerminalTheme;
 }) {
-	const { entry, accent = palette.act, terminalTheme } = props;
+	const { entry, accent = palette.act, mode = "act", terminalTheme } = props;
 	const terminalBg = useTerminalBackground();
 	const defaultFg = getDefaultForeground(terminalBg);
-	const userMsgBg = getModeInputBackground(
-		accent === palette.plan ? "plan" : "act",
-		terminalBg,
-	);
+	const userMsgBg = getUserMessageBackground(terminalBg);
 
 	switch (entry.kind) {
 		case "user":
@@ -442,10 +441,9 @@ export function ChatEntryView(props: {
 					marginX={-1}
 					paddingLeft={1}
 					paddingRight={2}
-					paddingY={1}
 				>
 					<box width={2}>
-						<text fg={accent}>{">"}</text>
+						<text fg={accent}>{"❯"}</text>
 					</box>
 					<text fg={defaultFg} selectable>
 						{entry.text}
@@ -461,10 +459,9 @@ export function ChatEntryView(props: {
 					marginX={-1}
 					paddingLeft={1}
 					paddingRight={2}
-					paddingY={1}
 				>
 					<box width={2}>
-						<text fg={accent}>{">"}</text>
+						<text fg={accent}>{"❯"}</text>
 					</box>
 					{entry.delivery === "steer" && <text fg="yellow">[steer] </text>}
 					{entry.delivery === "queue" && <text fg="gray">[queued] </text>}
@@ -489,7 +486,7 @@ export function ChatEntryView(props: {
 					<box flexGrow={1}>
 						<markdown
 							content={content}
-							syntaxStyle={getSyntaxStyle(terminalTheme)}
+							syntaxStyle={getSyntaxStyle(terminalTheme, mode)}
 							streaming={entry.streaming}
 							fg={defaultFg}
 						/>
@@ -565,7 +562,7 @@ export function ChatEntryView(props: {
 			if (entry.elapsed) parts.push(`${entry.elapsed}s`);
 			if (entry.tokens > 0)
 				parts.push(`${entry.tokens.toLocaleString()} tokens`);
-			if (entry.cost > 0) parts.push(`$${entry.cost.toFixed(3)}`);
+			if (entry.cost > 0) parts.push(`$${entry.cost.toFixed(2)}`);
 			if (entry.iterations > 0)
 				parts.push(
 					`${entry.iterations} iteration${entry.iterations !== 1 ? "s" : ""}`,

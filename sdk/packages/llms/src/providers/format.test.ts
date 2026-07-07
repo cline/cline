@@ -41,7 +41,9 @@ describe("extractErrorMessage", () => {
 		});
 
 		expect(
-			extractErrorMessage(new TypeError("fetch failed", { cause: socketError })),
+			extractErrorMessage(
+				new TypeError("fetch failed", { cause: socketError }),
+			),
 		).toBe("fetch failed: SocketError: other side closed (UND_ERR_SOCKET)");
 	});
 

@@ -1,3 +1,4 @@
+import { setCompactionStrategyGlobally } from "@cline/core"
 import { Empty } from "@shared/proto/cline/common"
 import { PlanActMode, McpDisplayMode as ProtoMcpDisplayMode, UpdateSettingsRequest } from "@shared/proto/cline/state"
 import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion"
@@ -177,6 +178,14 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 				)
 			}
 			controller.stateManager.setGlobalState("useAutoCondense", request.useAutoCondense)
+		}
+
+		if (request.compactionStrategy !== undefined) {
+			const strategy = request.compactionStrategy
+			if (strategy !== "basic" && strategy !== "agentic") {
+				throw new Error(`Invalid compaction strategy value: ${strategy}`)
+			}
+			setCompactionStrategyGlobally(strategy)
 		}
 
 		// Update custom prompt choice
