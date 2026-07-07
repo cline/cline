@@ -140,6 +140,7 @@ describe("isGeminiFlashModel", () => {
 	it("should return true for Gemini Flash model IDs", () => {
 		isGeminiFlashModel("google/gemini-2.5-flash").should.equal(true)
 		isGeminiFlashModel("google/gemini-3.5-flash").should.equal(true)
+		isGeminiFlashModel("google/gemini-3.1-flash-lite").should.equal(true)
 		isGeminiFlashModel("google/gemini-3-flash-preview").should.equal(true)
 		isGeminiFlashModel("google/gemini-2.5-flash-lite").should.equal(true)
 	})
@@ -151,6 +152,7 @@ describe("isGeminiFlashModel", () => {
 
 	it("should return true for direct Gemini provider IDs", () => {
 		isGeminiFlashModel("gemini-2.5-flash").should.equal(true)
+		isGeminiFlashModel("gemini-3.1-flash-lite").should.equal(true)
 		isGeminiFlashModel("gemini-3.5-flash").should.equal(true)
 		isGeminiFlashModel("gemini-3-flash-preview").should.equal(true)
 	})
