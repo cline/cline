@@ -42,9 +42,9 @@ describe("prompt format helpers", () => {
 	});
 
 	it("parses the mode attribute from a user_input wrapper", () => {
-		expect(
-			parseUserInputMode(formatUserInputBlock("hello", "plan")),
-		).toBe("plan");
+		expect(parseUserInputMode(formatUserInputBlock("hello", "plan"))).toBe(
+			"plan",
+		);
 		expect(parseUserInputMode(formatUserInputBlock("hello", "act"))).toBe(
 			"act",
 		);
