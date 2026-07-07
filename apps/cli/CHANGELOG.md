@@ -1,5 +1,16 @@
 # Cline CLI Changelog
 
+## 3.0.38
+
+- New plan/act accent palette: act mode is now blue (`#79b8ff`) and plan mode amber, replacing the old cyan/yellow — applied across dialogs, the model selector, config, onboarding, markdown, and syntax highlighting, with light-theme variants tuned for contrast
+- Restyled chat input: a minimal frame with full-width horizontal rules and a bold accent prompt glyph instead of the tinted background, plus slimmer user-message bubbles
+- Assistant markdown accents are now tinted by the mode (plan/act) they were produced in
+- Polished the status bar usage display and ClinePass model name
+- Harmonized the success/diff green and dark syntax-highlighting colors with the new brand palette
+- The thinking-level picker now defaults its cursor to Medium instead of Off
+- `read_files` now tolerates malformed input from weaker models: line-range entries (`start_line`/`end_line`) sent as separate array items are coalesced back onto the preceding file path instead of being rejected (from SDK v0.0.58)
+- Models in the live catalog that don't report a context window now default to a 128K input-token limit, so under-specified models get a usable context budget (from SDK v0.0.57)
+
 ## 3.0.37
 
 - Weaker models (e.g. DeepSeek) that emit malformed tool calls — wrong argument types or truncated JSON — are now handled gracefully and run instead of erroring out
