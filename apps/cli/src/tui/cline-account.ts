@@ -128,7 +128,8 @@ export async function createClineAccountService(input: {
 	clineProviderSettings?: ProviderSettings;
 	providerSettingsManager?: ProviderSettingsManager;
 }): Promise<ClineAccountService | undefined> {
-	const manager = input.providerSettingsManager ?? new ProviderSettingsManager();
+	const manager =
+		input.providerSettingsManager ?? new ProviderSettingsManager();
 	const settings =
 		manager.getProviderSettings("cline") ?? input.clineProviderSettings;
 	const apiBaseUrl = resolveAccountApiBaseUrl({

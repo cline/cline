@@ -1,10 +1,11 @@
 import {
 	type ContentBlock,
+	formatDisplayUserInput,
 	type MessageWithMetadata,
-	normalizeUserInput,
 	type ToolResultContent,
 	type ToolUseContent,
 } from "@cline/shared";
+import { formatStructuredCommand } from "../utils/helpers";
 
 export interface ConversationHistory {
 	version: number;
@@ -680,7 +681,7 @@ function renderContentHTML(
 	toolResultsMap: Map<string, ToolResultContent>,
 ): string {
 	if (typeof content === "string") {
-		const text = isUser ? normalizeUserInput(content) : content;
+		const text = isUser ? formatDisplayUserInput(content) : content;
 		return renderTextHTML(text);
 	}
 
@@ -688,7 +689,7 @@ function renderContentHTML(
 		.map((block) => {
 			switch (block.type) {
 				case "text": {
-					const text = isUser ? normalizeUserInput(block.text) : block.text;
+					const text = isUser ? formatDisplayUserInput(block.text) : block.text;
 					return renderTextHTML(text);
 				}
 				case "tool_use":
@@ -845,15 +846,15 @@ function renderDiffHTML(
 }
 
 function renderCommandsHTML(
-	commands: string[],
+	commands: unknown[],
 	_result?: ToolResultContent,
 ): string {
 	return commands
 		.map(
-			(cmd, i) => `
+			(command, i) => `
     <div class="command-block">
       <div class="command-label">Command ${i + 1}</div>
-      <code>${escapeHtml(cmd)}</code>
+      <code>${escapeHtml(formatStructuredCommand(command))}</code>
     </div>
   `,
 		)

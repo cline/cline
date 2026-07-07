@@ -273,6 +273,7 @@ function trimCandidatesToBudget(
 	candidates: BasicCompactionCandidate[],
 	targetTokens: number,
 	totalTokens: number,
+	triggerTokens: number,
 	estimateMessageTokens: EstimateMessageTokens,
 ): number {
 	if (totalTokens <= targetTokens) {
@@ -311,6 +312,10 @@ function trimCandidatesToBudget(
 		(candidate) => candidate.isFirstUser,
 	);
 	if (firstUserIndex >= 0) {
+		const firstUser = candidates[firstUserIndex];
+		if (firstUser.estimatedTokens <= triggerTokens) {
+			return totalTokens;
+		}
 		while (totalTokens > targetTokens) {
 			const candidate = candidates[firstUserIndex];
 			const desiredTokens = Math.max(
@@ -431,6 +436,7 @@ export function runBasicCompaction(options: {
 		candidates,
 		targetTokens,
 		totalTokens,
+		options.context.triggerTokens,
 		options.estimateMessageTokens,
 	);
 

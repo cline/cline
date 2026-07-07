@@ -1,5 +1,28 @@
 # Cline CLI Changelog
 
+## 3.0.37
+
+- Weaker models (e.g. DeepSeek) that emit malformed tool calls — wrong argument types or truncated JSON — are now handled gracefully and run instead of erroring out
+- Plan/act mode switches are now visible to the model, so it knows when you change modes mid-session
+- Fixed plan/act mode notices being dropped from prompts sent to the model
+- Fixed a race where switching modes in an empty session could trigger an unexpected restart
+
+## 3.0.36
+
+- Fixed plan mode's `switch_to_act_mode` tool not taking effect until the end of the turn: the model would keep running with plan-mode tools (no file editor) and fall back to editing files through shell commands. Switching to act mode now ends the plan-mode run and automatically continues with the approved plan using the full act-mode toolset. A Tab mode toggle racing a completing turn can no longer auto-start plan execution you didn't approve.
+
+## 3.0.35
+
+- ClinePass is now enabled for all CLI users
+- Recover missing interactive sessions when reading messages
+- Format structured commands in history export
+- Add the subscription promo code when linking to the dashboard subscription page
+- Add Tencent TokenHub as a provider (from SDK v0.0.55)
+- Fix first-prompt truncation on high-output models (e.g. MiniMax M3) that could immediately auto-compact and cut the initial task down to just the input wrapper (from SDK v0.0.55)
+- Use a curated default when migrating legacy provider settings (from SDK v0.0.55)
+- Advertise run commands as shell strings (from SDK v0.0.55)
+- Refresh the bundled model catalog with the latest provider models (from SDK v0.0.55)
+
 ## 3.0.34
 
 - Fixed the ClinePass upgrade notice appearing immediately after completing onboarding.

@@ -12,11 +12,11 @@ import {
 	type AiSdkFormatterPart,
 	captureSdkError,
 	formatMessagesForAiSdk,
+	parseJsonStream,
 	sanitizeSurrogates,
 } from "@cline/shared";
-import { type CallSettings, jsonSchema, streamText } from "ai";
+import { type CallSettings, jsonSchema, NoSuchToolError, streamText } from "ai";
 import { nanoid } from "nanoid";
-import { z } from "zod";
 import { extractErrorMessage } from "./format";
 import {
 	isAnthropicCompatibleModel,
@@ -384,6 +384,11 @@ function toAiSdkTools(
 		return undefined;
 	}
 
+	// No validate callback on purpose: schema validation belongs to the tools
+	// themselves (core executors validate with lenient union schemas that
+	// accept common weak-model shapes like a bare string for a string[]
+	// property). Rejecting here would return an error to the model without
+	// the tool's own input handling ever seeing the call.
 	return Object.fromEntries(
 		request.tools.map((definition) => [
 			definition.name,
@@ -391,20 +396,52 @@ function toAiSdkTools(
 				description: definition.description,
 				inputSchema: jsonSchema(
 					normalizeAiSdkToolInputSchema(definition.inputSchema),
-					{
-						validate: async (value) => {
-							const result = await z
-								.fromJSONSchema(definition.inputSchema)
-								.safeParseAsync(value);
-							return result.success
-								? { success: true, value: result.data }
-								: { success: false, error: result.error };
-						},
-					},
 				) as never,
 			} as unknown,
 		]),
 	);
+}
+
+interface RepairableToolCall {
+	toolCallId: string;
+	toolName: string;
+	input: string;
+}
+
+/**
+ * Last-chance repair for tool calls whose arguments are not valid JSON
+ * (truncated payloads, single quotes, unescaped newlines — common with
+ * weaker models). Runs the raw argument text through the shared jsonrepair
+ * strategies; unknown tool names and already-valid JSON are not repairable
+ * here, and returning null preserves the AI SDK's original error behavior.
+ */
+export async function repairMalformedToolCall<T extends RepairableToolCall>({
+	toolCall,
+	error,
+}: {
+	toolCall: T;
+	error: unknown;
+}): Promise<T | null> {
+	if (NoSuchToolError.isInstance(error)) {
+		return null;
+	}
+	if (typeof toolCall.input !== "string" || toolCall.input.trim() === "") {
+		return null;
+	}
+	try {
+		JSON.parse(toolCall.input);
+		// Valid JSON means the failure was a schema mismatch, not a parse
+		// error. That is left to the tool executor's own lenient union
+		// schemas; there is nothing to repair here.
+		return null;
+	} catch {
+		// Not valid JSON — attempt repair below.
+	}
+	const repaired = parseJsonStream(toolCall.input);
+	if (repaired === toolCall.input || typeof repaired === "string") {
+		return null;
+	}
+	return { ...toolCall, input: JSON.stringify(repaired) };
 }
 
 function normalizeAiSdkToolInputSchema(
@@ -1169,6 +1206,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					...(useSystemOption ? { system: systemPrompt } : {}),
 					tools: tools as never,
 					abortSignal: request.signal,
+					experimental_repairToolCall: repairMalformedToolCall as never,
 					experimental_telemetry: {
 						isEnabled: langfuse,
 					},
