@@ -167,11 +167,13 @@ export interface GatewayStreamRequest {
 	temperature?: number;
 	maxTokens?: number;
 	/**
-	 * The caller-provided max tokens before gateway defaulting/clamping.
-	 * Set by the gateway when forwarding to providers so they can distinguish
-	 * an explicit caller output cap from a synthesized gateway default.
+	 * Set by the gateway when `maxTokens` was synthesized from gateway/model
+	 * defaults rather than derived from an explicit caller cap. Providers can
+	 * use this to avoid forwarding synthesized caps to backends that reject
+	 * them, while still honoring explicit caps from any caller — including
+	 * ones that reach the provider without going through the gateway.
 	 */
-	requestedMaxTokens?: number;
+	defaultedMaxTokens?: boolean;
 	metadata?: Record<string, unknown>;
 	reasoning?: {
 		enabled?: boolean;

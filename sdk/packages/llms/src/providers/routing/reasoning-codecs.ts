@@ -2,7 +2,10 @@ import type {
 	GatewayProviderContext,
 	GatewayStreamRequest,
 } from "@cline/shared";
-import { DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS } from "../gateway";
+import {
+	DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS,
+	isPositiveFiniteNumber,
+} from "../gateway";
 
 // OpenRouter separates total output limits (`max_tokens` / `max_output_tokens`)
 // from `reasoning.max_tokens`, which caps only the reasoning-token portion.
@@ -19,10 +22,6 @@ export function hasReasoningControls(
 		!!reasoning?.effort ||
 		typeof reasoning?.budgetTokens === "number"
 	);
-}
-
-function isPositiveFiniteNumber(value: unknown): value is number {
-	return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
 
 function resolveOpenRouterReasoningMaxTokens(

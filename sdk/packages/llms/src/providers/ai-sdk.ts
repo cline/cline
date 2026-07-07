@@ -364,10 +364,15 @@ function toAiSdkMessages(
 			}
 		}
 
+		// A message left empty only because its reasoning was dropped is
+		// omitted entirely instead of forwarded as an empty turn.
+		const emptiedByDroppedReasoning = !includeReasoning && skippedReasoning;
 		if (content.length > 0) {
 			normalizedMessages.push({ role: message.role, content });
-		} else if (!includeReasoning && skippedReasoning) {
-		} else if (message.role === "user" || message.role === "assistant") {
+		} else if (
+			!emptiedByDroppedReasoning &&
+			(message.role === "user" || message.role === "assistant")
+		) {
 			normalizedMessages.push({ role: message.role, content: "" });
 		}
 	}

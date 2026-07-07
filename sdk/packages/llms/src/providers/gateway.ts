@@ -117,7 +117,7 @@ class GatewayModelAdapter implements AgentModel {
 	}
 }
 
-function isPositiveFiniteNumber(value: unknown): value is number {
+export function isPositiveFiniteNumber(value: unknown): value is number {
 	return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
 
@@ -323,7 +323,8 @@ export class DefaultGateway implements Gateway {
 				modelId: resolved.model.id,
 				providerId: resolved.provider.id,
 				maxTokens,
-				requestedMaxTokens: request.maxTokens,
+				defaultedMaxTokens:
+					maxTokens !== undefined && !isPositiveFiniteNumber(request.maxTokens),
 			},
 			{
 				provider: resolved.provider,
