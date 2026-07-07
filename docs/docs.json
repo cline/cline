@@ -87,6 +87,7 @@
 											},
 											"provider-config/deepseek",
 											"provider-config/google-gemini",
+											"provider-config/lynkr",
 											"provider-config/minimax",
 											"provider-config/openai",
 											"provider-config/openai-compatible",
