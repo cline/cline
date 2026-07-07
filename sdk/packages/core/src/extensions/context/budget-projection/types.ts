@@ -50,7 +50,12 @@ export type BudgetMutationAction =
 			reason: Extract<BudgetActionReason, "over_budget">;
 	  })
 	| (BaseBudgetAction & {
-			kind: "dropped_block" | "dropped_message";
+			kind: "dropped_block";
+			path: Required<BudgetPath>;
+			reason: Exclude<BudgetActionReason, "protected_live_tail">;
+	  })
+	| (BaseBudgetAction & {
+			kind: "dropped_message";
 			reason: Exclude<BudgetActionReason, "protected_live_tail">;
 	  });
 
