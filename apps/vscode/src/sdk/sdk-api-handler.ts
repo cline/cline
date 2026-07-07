@@ -10,6 +10,7 @@
 import { type ApiHandler, createHandler, type ProviderConfig } from "@cline/llms"
 import type { ApiConfiguration } from "@shared/api"
 import type { Mode } from "@shared/storage/types"
+import { buildClientRuntimeContext } from "@/services/EnvUtils"
 import { fetch } from "@/shared/net"
 import { buildBedrockProviderConfig } from "./bedrock-config"
 import { resolveApiKey, resolveBaseUrl, resolveModelId, resolveVertexProviderConfig } from "./cline-session-factory"
@@ -24,6 +25,27 @@ export interface BuildApiHandlerOptions {
 	 * OpenRouter don't receive a reasoning config at all.
 	 */
 	disableReasoning?: boolean
+	extensionContext?: ProviderConfig["extensionContext"]
+}
+
+function buildStandaloneExtensionContext(
+	clientRuntimeContext: Awaited<ReturnType<typeof buildClientRuntimeContext>>,
+): ProviderConfig["extensionContext"] {
+	return {
+		client: {
+			name: "cline-vscode",
+			version: clientRuntimeContext.clientVersion,
+		},
+		requestMetadata: {
+			clientType: clientRuntimeContext.clientName,
+			clientVersion: clientRuntimeContext.clientVersion,
+			userAgent: clientRuntimeContext.userAgent,
+			platform: clientRuntimeContext.platform,
+			platformVersion: clientRuntimeContext.platformVersion,
+			coreVersion: clientRuntimeContext.coreVersion,
+			isMultiRoot: clientRuntimeContext.isMultiRoot,
+		},
+	}
 }
 
 /**
@@ -70,6 +92,7 @@ export function buildSdkProviderConfig(
 		// Bedrock needs its region + structured AWS auth options forwarded to the
 		// SDK gateway. Without these, a pasted Bedrock API key / region is dropped.
 		...(providerId === "bedrock" ? buildBedrockProviderConfig(configuration, mode) : {}),
+		...(options?.extensionContext ? { extensionContext: options.extensionContext } : {}),
 	}
 
 	if (options?.disableReasoning) {
@@ -95,8 +118,16 @@ export function buildSdkProviderConfig(
  * returned handler implements the same `createMessage`/`getModel` surface, so
  * existing callers continue to work unchanged.
  */
-export function buildApiHandler(configuration: ApiConfiguration, mode: Mode, options?: BuildApiHandlerOptions): ApiHandler {
-	const providerConfig = buildSdkProviderConfig(configuration, mode, options)
+export async function buildApiHandler(
+	configuration: ApiConfiguration,
+	mode: Mode,
+	options?: BuildApiHandlerOptions,
+): Promise<ApiHandler> {
+	const extensionContext = options?.extensionContext ?? buildStandaloneExtensionContext(await buildClientRuntimeContext())
+	const providerConfig = buildSdkProviderConfig(configuration, mode, {
+		...options,
+		extensionContext,
+	})
 	const handler = createHandler(providerConfig)
 	const getModel = handler.getModel.bind(handler)
 

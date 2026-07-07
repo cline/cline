@@ -1,13 +1,41 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { buildSdkProviderConfig } from "./sdk-api-handler"
+import { buildApiHandler, buildSdkProviderConfig } from "./sdk-api-handler"
 
 const mocks = vi.hoisted(() => {
 	const providerSettingsManager = {
 		getProviderSettings: vi.fn(),
 	}
 	return {
+		buildClientRuntimeContext: vi.fn(async () => ({
+			userAgent: "Cline/test",
+			clientName: "VSCode Extension",
+			clientVersion: "1.2.3",
+			platform: "Visual Studio Code",
+			platformVersion: "1.90.0",
+			coreVersion: "1.2.3",
+			isMultiRoot: false,
+		})),
+		createHandler: vi.fn((config: { modelId?: string }) => ({
+			createMessage: vi.fn(),
+			getModel: vi.fn(() => ({
+				id: config.modelId ?? "",
+				info: {},
+			})),
+		})),
 		getProviderSettingsManager: vi.fn(() => providerSettingsManager),
 		providerSettingsManager,
+	}
+})
+
+vi.mock("@/services/EnvUtils", () => ({
+	buildClientRuntimeContext: mocks.buildClientRuntimeContext,
+}))
+
+vi.mock("@cline/llms", async () => {
+	const actual = await vi.importActual<typeof import("@cline/llms")>("@cline/llms")
+	return {
+		...actual,
+		createHandler: mocks.createHandler,
 	}
 })
 
@@ -81,5 +109,40 @@ describe("buildSdkProviderConfig", () => {
 			apiKey: "v0-key",
 		})
 		expect(mocks.providerSettingsManager.getProviderSettings).toHaveBeenCalledWith("v0")
+	})
+
+	it("threads VS Code request metadata into standalone Cline handlers", async () => {
+		const handler = await buildApiHandler(
+			{
+				actModeApiProvider: "cline",
+				actModeClineModelId: "anthropic/claude-sonnet-4.6",
+				clineApiKey: "test-key",
+			},
+			"act",
+			{ disableReasoning: true },
+		)
+
+		expect(mocks.buildClientRuntimeContext).toHaveBeenCalledTimes(1)
+		expect(mocks.createHandler).toHaveBeenCalledWith(
+			expect.objectContaining({
+				providerId: "cline",
+				extensionContext: expect.objectContaining({
+					client: {
+						name: "cline-vscode",
+						version: "1.2.3",
+					},
+					requestMetadata: {
+						clientType: "VSCode Extension",
+						clientVersion: "1.2.3",
+						userAgent: "Cline/test",
+						platform: "Visual Studio Code",
+						platformVersion: "1.90.0",
+						coreVersion: "1.2.3",
+						isMultiRoot: false,
+					},
+				}),
+			}),
+		)
+		expect((handler.getModel() as { providerId?: string }).providerId).toBe("cline")
 	})
 })

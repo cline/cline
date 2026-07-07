@@ -43,7 +43,7 @@ async function getHostRuntimeInfo(): Promise<HostRuntimeInfo> {
 			platform: host.platform || "unknown",
 			platformVersion: host.version || "unknown",
 			clientName: host.clineType || "unknown",
-			clientVersion: host.clineVersion || "unknown",
+			clientVersion: host.clineVersion || ExtensionRegistryInfo.version,
 		}
 	} catch (error) {
 		Logger.log("Failed to get IDE/platform info via HostBridge EnvService.getHostVersion", error)
@@ -51,7 +51,7 @@ async function getHostRuntimeInfo(): Promise<HostRuntimeInfo> {
 			platform: "unknown",
 			platformVersion: "unknown",
 			clientName: "unknown",
-			clientVersion: "unknown",
+			clientVersion: ExtensionRegistryInfo.version,
 		}
 	}
 }
@@ -84,13 +84,6 @@ export async function buildBasicClineHeaders(): Promise<Record<string, string>> 
 	headers[ClineHeaders.CLIENT_TYPE] = host.clientName
 	headers[ClineHeaders.CLIENT_VERSION] = host.clientVersion
 	headers[ClineHeaders.CORE_VERSION] = ExtensionRegistryInfo.version
-
-	return headers
-}
-
-export async function buildClineExtraHeaders(): Promise<Record<string, string>> {
-	const headers = await buildBasicClineHeaders()
-	headers[ClineHeaders.IS_MULTIROOT] = (await isMultiRootWorkspace()) ? "true" : "false"
 
 	return headers
 }

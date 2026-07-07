@@ -215,7 +215,7 @@ async function performCommitMsgGeneration(controller: Controller, gitDiff: strin
 		// transform that doesn't need extended thinking; disabling reasoning also
 		// avoids sending both reasoning.effort and reasoning.max_tokens, which
 		// some providers (e.g. OpenRouter) reject.
-		const apiHandler = buildApiHandler(apiConfiguration, currentMode, { disableReasoning: true })
+		const apiHandler = await buildApiHandler(apiConfiguration, currentMode, { disableReasoning: true })
 
 		// Create a system prompt
 		const systemPrompt = PROMPT.system

@@ -191,7 +191,7 @@ describe("createAgentModelFromConfig", () => {
 		});
 	});
 
-	it("lets explicit Cline headers override derived SDK client headers", async () => {
+	it("keeps custom Cline headers while derived SDK client headers win", async () => {
 		const { createAgentModelFromConfig } = await import("./handler-factory");
 
 		createAgentModelFromConfig(
@@ -203,8 +203,8 @@ describe("createAgentModelFromConfig", () => {
 				systemPrompt: "",
 				tools: [],
 				headers: {
-					"X-CLIENT-TYPE": "VSCode Extension",
-					"X-IS-MULTIROOT": "true",
+					"X-CLIENT-TYPE": "",
+					"X-IS-MULTIROOT": "",
 					"x-top": "wins",
 				},
 				extensionContext: {
@@ -213,12 +213,18 @@ describe("createAgentModelFromConfig", () => {
 						rootPath: "/tmp/project",
 						platform: "darwin",
 					},
+					requestMetadata: {
+						clientType: "VSCode Extension",
+						clientVersion: "1.2.3",
+						isMultiRoot: true,
+					},
 				},
 				providerConfig: {
 					providerId: "cline",
 					modelId: "anthropic/claude-sonnet-4.6",
 					headers: {
 						"X-CLIENT-TYPE": "provider-client",
+						"X-CLIENT-VERSION": "stale-provider-version",
 						"x-provider": "kept",
 					},
 				},
@@ -235,6 +241,9 @@ describe("createAgentModelFromConfig", () => {
 			"x-provider": "kept",
 			"x-top": "wins",
 		});
+		expect(gatewayConfig?.providerConfigs[0].headers).not.toHaveProperty(
+			"X-PLATFORM",
+		);
 	});
 
 	it("preserves existing header precedence for non-Cline providers", async () => {
