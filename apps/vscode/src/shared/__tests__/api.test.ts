@@ -1,6 +1,7 @@
 import { expect } from "chai"
 import {
 	buildModelInfoNameMap,
+	clinePassModelInfoSaneDefaults,
 	internationalZAiModels,
 	mainlandZAiModels,
 	type ModelInfo,
@@ -49,6 +50,22 @@ describe("ClinePass model info", () => {
 		expect(modelInfo.name).to.equal("New model")
 		expect(modelInfo.supportsReasoning).to.equal(false)
 		expect(modelInfo.thinkingConfig).to.deep.equal({ maxBudget: 16_384 })
+	})
+
+	it("returns stored info for a free (non cline-pass prefixed) model id", () => {
+		const freeModelInfo = createModelInfo("Trinity Large Preview", 512_000)
+		const modelInfo = resolveClinePassModelInfo(
+			"arcee-ai/trinity-large-preview:free",
+			buildModelInfoNameMap({ "arcee-ai/trinity-large-preview:free": freeModelInfo }),
+		)
+
+		expect(modelInfo).to.deep.equal(freeModelInfo)
+	})
+
+	it("falls back to sane defaults for a free model id without dynamic metadata", () => {
+		const modelInfo = resolveClinePassModelInfo("kwaipilot/kat-coder-pro")
+
+		expect(modelInfo).to.deep.equal(clinePassModelInfoSaneDefaults)
 	})
 })
 

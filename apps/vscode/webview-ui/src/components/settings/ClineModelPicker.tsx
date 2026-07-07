@@ -60,7 +60,7 @@ export interface ClineModelPickerProps {
 	showFeaturedModels?: boolean
 }
 
-interface FeaturedModelCardEntry {
+export interface FeaturedModelCardEntry {
 	id: string
 	description: string
 	label: string
@@ -72,7 +72,7 @@ function normalizeModelId(modelId: string): string {
 	return modelId.trim().toLowerCase()
 }
 
-function toFeaturedModelCardEntry(
+export function toFeaturedModelCardEntry(
 	model: Pick<ClineRecommendedModel, "id" | "description" | "tags">,
 	fallbackLabel: string,
 ): FeaturedModelCardEntry | null {
@@ -234,7 +234,10 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({
 	const itemRefs = useRef<(HTMLDivElement | null)[]>([])
 	const dropdownListRef = useRef<HTMLDivElement>(null)
 
-	const handleModelChange = (newModelId: string) => {
+	const handleModelChange = (rawModelId: string) => {
+		// When a fixed models map is provided (ClinePass), only ids in the map may be
+		// stored — otherwise the host would send arbitrary typed text to the API.
+		const newModelId = models && !(rawModelId in models) ? resolveModelId(rawModelId) : rawModelId
 		setSearchTerm(newModelId)
 
 		handleModeFieldsChange(

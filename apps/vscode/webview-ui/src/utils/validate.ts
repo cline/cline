@@ -1,4 +1,5 @@
 import { ApiConfiguration, clinePassDefaultModelId, clinePassModels, ModelInfo, openRouterDefaultModelId } from "@shared/api"
+import { CLINE_RECOMMENDED_MODELS_FALLBACK } from "@shared/cline/recommended-models"
 import { Mode } from "@shared/storage/types"
 import { getModeSpecificFields } from "@/components/settings/utils/providerUtils"
 
@@ -222,7 +223,10 @@ export function validateModelId(
 				}
 				if (
 					!Object.keys(clinePassModels).includes(clinePassResolvedModelId) &&
-					!clinePassResolvedModelId.startsWith("cline-pass/")
+					!clinePassResolvedModelId.startsWith("cline-pass/") &&
+					// ClinePass users may also select Cline free models (OpenRouter-style ids)
+					!(clineModels && Object.keys(clineModels).includes(clinePassResolvedModelId)) &&
+					!CLINE_RECOMMENDED_MODELS_FALLBACK.free.some((model) => model.id === clinePassResolvedModelId)
 				) {
 					return "The model ID you provided is not available. Please choose a different model."
 				}

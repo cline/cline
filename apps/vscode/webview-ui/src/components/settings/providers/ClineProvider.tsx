@@ -54,14 +54,15 @@ export const ClineProvider = ({
 					<RouteStatus>
 						{activeRoute === "cline-pass" ? (
 							<>
-								ClinePass is a low cost subscription plan including usage of the best open weights models.{" "}
+								ClinePass is a low cost subscription plan including usage of the best open weights models, plus
+								Cline's free models.{" "}
 								<RouteLink
 									href="#"
 									onClick={(event) => {
 										event.preventDefault()
 										handleRouteChange("cline").catch((error) => console.error("Failed to switch to Cline:", error))
 									}}>
-									Switch to Cline Usage-Billing for other models.
+									Switch to Cline Usage-Billing for the full model catalog.
 								</RouteLink>
 							</>
 						) : (
