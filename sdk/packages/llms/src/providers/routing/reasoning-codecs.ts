@@ -57,18 +57,22 @@ export function buildOpenRouterReasoningOptions(
 	// reserves room within that response by capping OpenRouter reasoning tokens.
 	// Preserve explicit reasoning budgets when present; otherwise derive the cap
 	// from the resolved request budget, model catalog output limit, or default.
+	// OpenRouter rejects requests carrying both `reasoning.effort` and
+	// `reasoning.max_tokens`, so the effort branch sends only `effort`.
 	// DOCS: https://openrouter.ai/docs/api/reference/responses/reasoning
-	const maxTokens = resolveOpenRouterReasoningMaxTokens(request, context);
 	if (typeof reasoning?.budgetTokens === "number") {
 		return { max_tokens: reasoning.budgetTokens };
 	}
 
 	if (reasoning?.effort) {
-		return { effort: reasoning.effort, max_tokens: maxTokens };
+		return { effort: reasoning.effort };
 	}
 
 	if (reasoning?.enabled === true) {
-		return { enabled: true, max_tokens: maxTokens };
+		return {
+			enabled: true,
+			max_tokens: resolveOpenRouterReasoningMaxTokens(request, context),
+		};
 	}
 
 	return undefined;

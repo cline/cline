@@ -172,6 +172,7 @@ export function resolveGatewayRequestMaxTokens(input: {
 	estimatedInputTokens: number;
 	defaultMaxOutputTokens?: number;
 	outputReserveTokens?: number;
+	reasoningBudgetTokens?: number;
 	onContextOverflow?: (details: {
 		contextWindow: number;
 		estimatedInputTokens: number;
@@ -182,8 +183,17 @@ export function resolveGatewayRequestMaxTokens(input: {
 	if (isPositiveFiniteNumber(input.requestedMaxTokens)) {
 		caps.push(Math.floor(input.requestedMaxTokens));
 	} else {
-		const defaultMaxOutputTokens =
-			input.defaultMaxOutputTokens ?? DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS;
+		// Providers like Anthropic require max_tokens to exceed the thinking
+		// budget, so an explicit reasoning budget lifts the synthesized default
+		// (still clamped by model max output and remaining context below).
+		const reasoningFloor = isPositiveFiniteNumber(input.reasoningBudgetTokens)
+			? Math.floor(input.reasoningBudgetTokens) +
+				(input.outputReserveTokens ?? GATEWAY_OUTPUT_RESERVE_TOKENS)
+			: 0;
+		const defaultMaxOutputTokens = Math.max(
+			input.defaultMaxOutputTokens ?? DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS,
+			reasoningFloor,
+		);
 		if (
 			isPositiveFiniteNumber(input.model.maxOutputTokens) ||
 			isPositiveFiniteNumber(input.model.contextWindow)
@@ -294,6 +304,7 @@ export class DefaultGateway implements Gateway {
 			requestedMaxTokens: request.maxTokens,
 			model: resolved.model,
 			estimatedInputTokens: estimateRequestInputTokens(request),
+			reasoningBudgetTokens: request.reasoning?.budgetTokens,
 			onContextOverflow: (details) => {
 				this.logger?.log(
 					"Estimated prompt tokens exceed model context window",
@@ -312,6 +323,7 @@ export class DefaultGateway implements Gateway {
 				modelId: resolved.model.id,
 				providerId: resolved.provider.id,
 				maxTokens,
+				requestedMaxTokens: request.maxTokens,
 			},
 			{
 				provider: resolved.provider,

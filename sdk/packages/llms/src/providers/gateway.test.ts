@@ -229,6 +229,38 @@ describe("sdk-gateway", () => {
 		).toBe(DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS);
 	});
 
+	it("lifts the default output cap above an explicit reasoning budget", () => {
+		expect(
+			resolveGatewayRequestMaxTokens({
+				requestedMaxTokens: undefined,
+				reasoningBudgetTokens: 50_000,
+				model: { maxOutputTokens: 202_800, contextWindow: 202_800 },
+				estimatedInputTokens: 1_000,
+				outputReserveTokens: 1_024,
+			}),
+		).toBe(51_024);
+
+		// Still clamped by the model's max output tokens.
+		expect(
+			resolveGatewayRequestMaxTokens({
+				requestedMaxTokens: undefined,
+				reasoningBudgetTokens: 50_000,
+				model: { maxOutputTokens: 40_000, contextWindow: 202_800 },
+				estimatedInputTokens: 1_000,
+			}),
+		).toBe(40_000);
+
+		// Explicit request max tokens still win over the reasoning floor.
+		expect(
+			resolveGatewayRequestMaxTokens({
+				requestedMaxTokens: 8_192,
+				reasoningBudgetTokens: 50_000,
+				model: { maxOutputTokens: 202_800, contextWindow: 202_800 },
+				estimatedInputTokens: 1_000,
+			}),
+		).toBe(8_192);
+	});
+
 	it("resolves explicit request max tokens from model and context caps", () => {
 		expect(
 			resolveGatewayRequestMaxTokens({
@@ -589,7 +621,7 @@ describe("sdk-gateway", () => {
 		expect(call).not.toHaveProperty("maxOutputTokens");
 	});
 
-	it("does not send explicit maxOutputTokens through the OpenAI Responses provider", async () => {
+	it("sends explicit maxOutputTokens through the OpenAI Responses provider", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([
 				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
@@ -617,7 +649,7 @@ describe("sdk-gateway", () => {
 		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
 			| { maxOutputTokens?: unknown }
 			| undefined;
-		expect(call).not.toHaveProperty("maxOutputTokens");
+		expect(call?.maxOutputTokens).toBe(8_192);
 	});
 
 	it("surfaces nested AI SDK stream errors as human-readable finish messages", async () => {

@@ -18,9 +18,19 @@ export async function createOpenAIProviderModule(
 		fetch: config.fetch,
 		name: context.provider.id,
 	});
+	// The ChatGPT OAuth Codex backend rejects `max_output_tokens`, and the
+	// OpenAI Responses API applies its own defaults, so synthesized gateway
+	// caps are never forwarded. Explicit caller caps are still honored for
+	// API-key usage because that endpoint supports output limits.
+	const isChatGptOAuth = !!config.baseUrl?.includes("chatgpt.com");
 	return {
 		model: (modelId) => provider.responses(modelId),
 		buildStreamConfig: (request) => ({
+			...(!isChatGptOAuth &&
+			typeof request.requestedMaxTokens === "number" &&
+			request.maxTokens !== undefined
+				? { maxOutputTokens: request.maxTokens }
+				: {}),
 			temperature: request.temperature,
 		}),
 	};

@@ -166,6 +166,12 @@ export interface GatewayStreamRequest {
 	tools?: readonly AgentToolDefinition[];
 	temperature?: number;
 	maxTokens?: number;
+	/**
+	 * The caller-provided max tokens before gateway defaulting/clamping.
+	 * Set by the gateway when forwarding to providers so they can distinguish
+	 * an explicit caller output cap from a synthesized gateway default.
+	 */
+	requestedMaxTokens?: number;
 	metadata?: Record<string, unknown>;
 	reasoning?: {
 		enabled?: boolean;

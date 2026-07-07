@@ -657,7 +657,7 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			],
 		},
 		{
-			name: "openrouter reasoning effort uses default output cap fallback for direct composer calls",
+			name: "openrouter reasoning effort sends only effort (no max_tokens, which OpenRouter rejects alongside effort)",
 			request: {
 				providerId: "openrouter",
 				modelId: "openai/gpt-oss-120b",
@@ -666,7 +666,7 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			expect: [
 				{
 					bucket: "openrouter",
-					has: { reasoning: { effort: "high", max_tokens: 19_200 } },
+					has: { reasoning: { effort: "high" } },
 					lacks: ["thinking", "reasoningEffort"],
 				},
 				{
@@ -766,7 +766,7 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			expect: [
 				{
 					bucket: "openrouter",
-					has: { reasoning: { effort: "medium", max_tokens: 19_200 } },
+					has: { reasoning: { effort: "medium" } },
 					lacks: ["thinking"],
 				},
 				{
