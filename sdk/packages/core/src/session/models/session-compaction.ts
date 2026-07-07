@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import {
+	FeatureFlag,
 	formatDisplayUserInput,
 	type MessageWithMetadata,
 } from "@cline/shared";
@@ -36,6 +37,60 @@ export const SessionCompactionStateSchema = z.object({
 export type SessionCompactionState = z.infer<
 	typeof SessionCompactionStateSchema
 >;
+
+type CompactionSidecarFeatureFlags = {
+	getBooleanFlagEnabled(flagName: string): boolean;
+};
+
+export function createSessionCompactionSidecarEnabledResolver(
+	featureFlags?: CompactionSidecarFeatureFlags,
+): () => boolean {
+	return () =>
+		featureFlags?.getBooleanFlagEnabled(FeatureFlag.COMPACTION_SIDECAR) ??
+		false;
+}
+
+export type SessionCompactionSidecarUpdateResult = {
+	updated: boolean;
+	disabled?: true;
+};
+
+export interface SessionCompactionSidecarAccess {
+	readonly enabled: boolean;
+	initialState(
+		state: SessionCompactionState | undefined,
+	): SessionCompactionState | undefined;
+	read<T>(read: () => Promise<T | undefined>): Promise<T | undefined>;
+	update(
+		update: () => Promise<{ updated: boolean }>,
+	): Promise<SessionCompactionSidecarUpdateResult>;
+}
+
+export function createSessionCompactionSidecarAccess(
+	isEnabled: () => boolean = createSessionCompactionSidecarEnabledResolver(),
+): SessionCompactionSidecarAccess {
+	const enabled: SessionCompactionSidecarAccess = {
+		enabled: true,
+		initialState: (state) => state,
+		read: (read) => read(),
+		update: (update) => update(),
+	};
+	const disabled: SessionCompactionSidecarAccess = {
+		enabled: false,
+		initialState: () => undefined,
+		read: async () => undefined,
+		update: async () => ({ updated: false, disabled: true }),
+	};
+	const current = () => (isEnabled() ? enabled : disabled);
+	return {
+		get enabled() {
+			return current().enabled;
+		},
+		initialState: (state) => current().initialState(state),
+		read: (read) => current().read(read),
+		update: (update) => current().update(update),
+	};
+}
 
 function cloneMessages(
 	messages: readonly MessageWithMetadata[],

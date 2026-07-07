@@ -657,6 +657,68 @@ describe("HubServerTransport boundaries", () => {
 		await expect(answerPromise).resolves.toBe("Use hub");
 	});
 
+	it("ignores initial compaction sidecar state when the sidecar flag is off", async () => {
+		let capturedStartInput: StartSessionInput | undefined;
+		const startSession = vi.fn(async (input: StartSessionInput) => {
+			capturedStartInput = input;
+			const sessionId = input.config.sessionId?.trim() || "session-1";
+			return {
+				sessionId,
+				manifest: {
+					version: 1,
+					session_id: sessionId,
+					source: "cli",
+					pid: 1,
+					started_at: new Date(0).toISOString(),
+					status: "running",
+					interactive: true,
+					provider: "cline",
+					model: "test-model",
+					cwd: "/tmp/project",
+					workspace_root: "/tmp/project",
+					enable_tools: true,
+					enable_spawn: true,
+					enable_teams: false,
+				},
+				manifestPath: "",
+				messagesPath: "",
+				result: undefined,
+			};
+		});
+		const transport = createTransport({
+			sessionHost: { startSession },
+			getCompactionSidecarEnabled: () => false,
+		});
+		const initialCompactionState = createSessionCompactionState({
+			sourceMessages: [{ role: "user", content: "source" }],
+			compactedMessages: [{ role: "user", content: "summary" }],
+			conversationId: "session-1",
+		});
+
+		const reply = await transport.handleCommand({
+			version: "v1",
+			requestId: "req-create-sidecar-off",
+			command: "session.create",
+			clientId: "client-1",
+			payload: {
+				workspaceRoot: "/tmp/project",
+				cwd: "/tmp/project",
+				sessionConfig: {
+					sessionId: "session-1",
+					providerId: "cline",
+					modelId: "test-model",
+					cwd: "/tmp/project",
+					workspaceRoot: "/tmp/project",
+					systemPrompt: "system",
+				},
+				initialCompactionState,
+			},
+		});
+
+		expect(reply.ok).toBe(true);
+		expect(capturedStartInput?.initialCompactionState).toBeUndefined();
+	});
+
 	it("does not transfer capability ownership to attached clients", async () => {
 		let createdSessionId = "";
 		const startSession = vi.fn(async (input: StartSessionInput) => {
@@ -829,6 +891,7 @@ describe("HubServerTransport boundaries", () => {
 	it("authorizes compaction sidecar access from server session state, not mutable metadata", async () => {
 		const readSessionCompactionState = vi.fn();
 		const transport = createTransport({
+			getCompactionSidecarEnabled: () => true,
 			sessionHost: {
 				getSession: vi.fn().mockResolvedValue({
 					sessionId: "session-1",
@@ -870,12 +933,13 @@ describe("HubServerTransport boundaries", () => {
 		const updateSessionCompactionState = vi
 			.fn()
 			.mockResolvedValue({ updated: true });
-		const transport = createTransport({
-			sessionHost: {
-				readSessionCompactionState,
-				updateSessionCompactionState,
-			},
-		});
+			const transport = createTransport({
+				sessionHost: {
+					readSessionCompactionState,
+					updateSessionCompactionState,
+				},
+				getCompactionSidecarEnabled: () => true,
+			});
 		const ctx = getContext(transport);
 		expect(ctx.sessionState.has("session-1")).toBe(false);
 
@@ -930,9 +994,10 @@ describe("HubServerTransport boundaries", () => {
 			conversationId: "session-1",
 		});
 		const readSessionCompactionState = vi.fn().mockResolvedValue(state);
-		const transport = createTransport({
-			sessionHost: { readSessionCompactionState },
-		});
+			const transport = createTransport({
+				sessionHost: { readSessionCompactionState },
+				getCompactionSidecarEnabled: () => true,
+			});
 		const ctx = getContext(transport);
 		ensureSessionParticipant(ctx, "session-1", "viewer-client", "participant");
 
@@ -966,9 +1031,10 @@ describe("HubServerTransport boundaries", () => {
 
 	it("clears compaction sidecar ownership when the owner detaches", async () => {
 		const readSessionCompactionState = vi.fn();
-		const transport = createTransport({
-			sessionHost: { readSessionCompactionState },
-		});
+			const transport = createTransport({
+				sessionHost: { readSessionCompactionState },
+				getCompactionSidecarEnabled: () => true,
+			});
 		const ctx = getContext(transport);
 		ensureSessionState(ctx, "session-1", "owner-client", "creator");
 		ensureSessionParticipant(ctx, "session-1", "viewer-client", "participant");
@@ -1006,9 +1072,10 @@ describe("HubServerTransport boundaries", () => {
 
 	it("clears compaction sidecar ownership when the owner unregisters", async () => {
 		const readSessionCompactionState = vi.fn();
-		const transport = createTransport({
-			sessionHost: { readSessionCompactionState },
-		});
+			const transport = createTransport({
+				sessionHost: { readSessionCompactionState },
+				getCompactionSidecarEnabled: () => true,
+			});
 		const ctx = getContext(transport);
 		ensureSessionState(ctx, "session-1", "owner-client", "creator");
 		ensureSessionParticipant(ctx, "session-1", "viewer-client", "participant");
@@ -1051,6 +1118,7 @@ describe("HubServerTransport boundaries", () => {
 		});
 		const readSessionCompactionState = vi.fn().mockResolvedValue(state);
 		const transport = createTransport({
+			getCompactionSidecarEnabled: () => true,
 			sessionHost: { readSessionCompactionState },
 		});
 		const ctx = getContext(transport);
@@ -1071,11 +1139,36 @@ describe("HubServerTransport boundaries", () => {
 		expect(readSessionCompactionState).toHaveBeenCalledWith("session-1");
 	});
 
+	it("does not read compaction sidecar state when the sidecar flag is off", async () => {
+		const readSessionCompactionState = vi.fn();
+		const transport = createTransport({
+			sessionHost: { readSessionCompactionState },
+			getCompactionSidecarEnabled: () => false,
+		});
+		const ctx = getContext(transport);
+		ensureSessionState(ctx, "session-1", "owner-client", "creator");
+
+		const reply = await transport.handleCommand({
+			version: "v1",
+			requestId: "req-compact-get-off",
+			command: "session.compaction.get",
+			clientId: "owner-client",
+			sessionId: "session-1",
+		});
+
+		expect(reply).toMatchObject({
+			ok: true,
+			payload: { sessionId: "session-1", disabled: true },
+		});
+		expect(readSessionCompactionState).not.toHaveBeenCalled();
+	});
+
 	it("rejects invalid compaction sidecar updates before calling the session host", async () => {
 		const updateSessionCompactionState = vi.fn();
-		const transport = createTransport({
-			sessionHost: { updateSessionCompactionState },
-		});
+			const transport = createTransport({
+				sessionHost: { updateSessionCompactionState },
+				getCompactionSidecarEnabled: () => true,
+			});
 		const ctx = getContext(transport);
 		ensureSessionState(ctx, "session-1", "owner-client", "creator");
 
@@ -1095,6 +1188,36 @@ describe("HubServerTransport boundaries", () => {
 		expect(updateSessionCompactionState).not.toHaveBeenCalled();
 	});
 
+	it("does not update compaction sidecar state when the sidecar flag is off", async () => {
+		const state = createSessionCompactionState({
+			sourceMessages: [{ role: "user", content: "source" }],
+			compactedMessages: [{ role: "user", content: "summary" }],
+			conversationId: "session-1",
+		});
+		const updateSessionCompactionState = vi.fn();
+		const transport = createTransport({
+			sessionHost: { updateSessionCompactionState },
+			getCompactionSidecarEnabled: () => false,
+		});
+		const ctx = getContext(transport);
+		ensureSessionState(ctx, "session-1", "owner-client", "creator");
+
+		const reply = await transport.handleCommand({
+			version: "v1",
+			requestId: "req-compact-update-off",
+			command: "session.compaction.update",
+			clientId: "owner-client",
+			sessionId: "session-1",
+			payload: { state },
+		});
+
+		expect(reply).toMatchObject({
+			ok: true,
+			payload: { sessionId: "session-1", updated: false, disabled: true },
+		});
+		expect(updateSessionCompactionState).not.toHaveBeenCalled();
+	});
+
 	it("publishes session updates after successful compaction sidecar updates", async () => {
 		const state = createSessionCompactionState({
 			sourceMessages: [{ role: "user", content: "source" }],
@@ -1104,9 +1227,10 @@ describe("HubServerTransport boundaries", () => {
 		const updateSessionCompactionState = vi
 			.fn()
 			.mockResolvedValue({ updated: true });
-		const transport = createTransport({
-			sessionHost: { updateSessionCompactionState },
-		});
+			const transport = createTransport({
+				sessionHost: { updateSessionCompactionState },
+				getCompactionSidecarEnabled: () => true,
+			});
 		const ctx = getContext(transport);
 		const events: HubEventEnvelope[] = [];
 		ensureSessionState(ctx, "session-1", "owner-client", "creator");

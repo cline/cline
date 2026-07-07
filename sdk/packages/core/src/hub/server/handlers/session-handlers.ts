@@ -111,8 +111,8 @@ export async function handleSessionCreate(
 		payload.runtimeOptions && typeof payload.runtimeOptions === "object"
 			? (payload.runtimeOptions as Record<string, unknown>)
 			: {};
-	const initialCompactionState = parseSessionCompactionState(
-		payload.initialCompactionState,
+	const initialCompactionState = ctx.compactionSidecar.initialState(
+		parseSessionCompactionState(payload.initialCompactionState),
 	);
 	if (typeof sessionConfig?.mode === "string") {
 		metadata.mode = sessionConfig.mode;
@@ -387,8 +387,8 @@ export async function handleSessionRestore(
 			payload.runtimeOptions && typeof payload.runtimeOptions === "object"
 				? (payload.runtimeOptions as Record<string, unknown>)
 				: {};
-		const initialCompactionState = parseSessionCompactionState(
-			payload.initialCompactionState,
+		const initialCompactionState = ctx.compactionSidecar.initialState(
+			parseSessionCompactionState(payload.initialCompactionState),
 		);
 		const metadata =
 			payload.metadata && typeof payload.metadata === "object"
@@ -757,6 +757,9 @@ export async function handleSessionCompactionGet(
 			`Unknown session: ${sessionId}`,
 		);
 	}
+	if (!ctx.compactionSidecar.enabled) {
+		return okReply(envelope, { sessionId, state: undefined, disabled: true });
+	}
 	const clientId = envelope.clientId?.trim() || "hub-client";
 	const unauthorized = authorizeSessionCompactionAccess({
 		sessionId,
@@ -767,7 +770,9 @@ export async function handleSessionCompactionGet(
 	if (unauthorized) {
 		return unauthorized;
 	}
-	const state = await ctx.sessionHost.readSessionCompactionState(sessionId);
+	const state = await ctx.compactionSidecar.read(() =>
+		ctx.sessionHost.readSessionCompactionState(sessionId),
+	);
 	return okReply(envelope, { sessionId, state });
 }
 
@@ -841,6 +846,9 @@ export async function handleSessionCompactionUpdate(
 			`Unknown session: ${sessionId}`,
 		);
 	}
+	if (!ctx.compactionSidecar.enabled) {
+		return okReply(envelope, { sessionId, updated: false, disabled: true });
+	}
 	const unauthorized = authorizeSessionCompactionAccess({
 		sessionId,
 		ctx,
@@ -862,9 +870,8 @@ export async function handleSessionCompactionUpdate(
 			"session.compaction.update requires a valid compaction state",
 		);
 	}
-	const updated = await ctx.sessionHost.updateSessionCompactionState(
-		sessionId,
-		state,
+	const updated = await ctx.compactionSidecar.update(() =>
+		ctx.sessionHost.updateSessionCompactionState(sessionId, state),
 	);
 	const [updatedSession, snapshot] = updated.updated
 		? await Promise.all([
