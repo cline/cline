@@ -70,13 +70,15 @@
         "tar": "^7.5.2",
         "js-yaml": "^4.1.1",
         "serialize-javascript": ">=7.0.3",
-        "protobufjs": "7.5.8",
         "diff": "8.0.4",
         "@sap-cloud-sdk/connectivity": "4.6.0",
         "@sap-cloud-sdk/http-client": "4.6.0",
         "@sap-cloud-sdk/openapi": "4.6.0",
         "@sap-cloud-sdk/resilience": "4.6.0",
-        "@sap-cloud-sdk/util": "4.6.0"
+        "@sap-cloud-sdk/util": "4.6.0",
+        "protobufjs": "7.6.3",
+        "undici": "6.27.0",
+        "mermaid": "11.15.0"
     },
     "trustedDependencies": [
         "better-sqlite3",
