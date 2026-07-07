@@ -1,7 +1,7 @@
 import type { ModelInfo } from "../catalog/types";
 
 // REF: https://github.com/openai/codex/issues/19319
-const CODEX_EFFECTIVE_CONTEXT_WINDOW_PERCENT = 0.95;
+export const CODEX_EFFECTIVE_CONTEXT_WINDOW_PERCENT = 0.95;
 
 const GPT_VERSION_REGEX = /^gpt-(\d+\.\d+)/;
 
@@ -10,7 +10,9 @@ function isOpenAICodexAllowedModel(id: string, model: ModelInfo): boolean {
 	const family = model.family;
 	if (
 		family &&
-		(family.startsWith("o") || family.includes("pro") || family.includes("nano"))
+		(family.startsWith("o") ||
+			family.includes("pro") ||
+			family.includes("nano"))
 	) {
 		return false;
 	}
