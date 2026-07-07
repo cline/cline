@@ -38,30 +38,31 @@ import type { ProviderId } from "./contracts"
  */
 const VERTEX_GLOBAL_ENDPOINT_BASE_IDS: readonly string[] = [
 	// Claude on Vertex: every variant of these base ids supports global.
-	"claude-3-7-sonnet",
 	"claude-sonnet-4",
 	"claude-sonnet-4-5",
 	"claude-sonnet-4-6",
+	"claude-sonnet-5",
 	"claude-opus-4",
 	"claude-opus-4-1",
 	"claude-opus-4-5",
 	"claude-opus-4-6",
 	"claude-opus-4-7",
+	"claude-opus-4-8",
 	"claude-haiku-4-5",
+	"claude-fable-5",
 	// Gemini on Vertex: not in the SDK's Vertex catalog today; listed
 	// here so they are honored when the SDK adds them.
-	"gemini-2.0-flash-001",
-	"gemini-2.0-flash-lite-001",
-	"gemini-2.0-flash-thinking-exp-1219",
-	"gemini-2.0-flash-thinking-exp-01-21",
-	"gemini-2.0-flash-exp",
 	"gemini-2.5-flash",
-	"gemini-2.5-flash-lite-preview-06-17",
+	"gemini-2.5-flash-lite",
 	"gemini-2.5-pro",
 	"gemini-3-flash-preview",
-	"gemini-3-pro-preview",
+	"gemini-3.1-flash-lite",
 	"gemini-3.1-pro-preview",
 	"gemini-3.5-flash",
+	// Grok on Vertex: these models are available on the global endpoint.
+	"grok-4.1-fast-reasoning",
+	"grok-4.20-reasoning",
+	"grok-4.3",
 ]
 
 /**
