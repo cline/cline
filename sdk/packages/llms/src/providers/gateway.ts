@@ -16,6 +16,7 @@ import { estimateTokens } from "@cline/shared";
 import { toAsyncIterable } from "./async";
 import { BUILTIN_PROVIDER_REGISTRATIONS } from "./builtins-runtime";
 import { GatewayRegistry } from "./registry";
+import { isPositiveFiniteNumber } from "./utils";
 
 export type * from "@cline/shared";
 
@@ -115,10 +116,6 @@ class GatewayModelAdapter implements AgentModel {
 			signal: request.signal ?? this.defaults?.signal,
 		});
 	}
-}
-
-export function isPositiveFiniteNumber(value: unknown): value is number {
-	return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
 
 function safeStringify(value: unknown): string {
