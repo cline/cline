@@ -14,10 +14,12 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { ClineAccountInfoCard } from "../ClineAccountInfoCard"
-import ClineModelPicker, { type FeaturedModelCardEntry, toFeaturedModelCardEntry } from "../ClineModelPicker"
-import FeaturedModelCard from "../FeaturedModelCard"
+import ClineModelPicker, {
+	type FeaturedModelCardEntry,
+	type FeaturedModelTab,
+	toFeaturedModelCardEntry,
+} from "../ClineModelPicker"
 import { getModeSpecificFields } from "../utils/providerUtils"
-import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 interface ClinePassProviderProps {
 	showModelOptions: boolean
@@ -30,6 +32,10 @@ const CLINE_PASS_MODEL_FIELD_PAIRS = {
 	modelId: { plan: "planModeClinePassModelId", act: "actModeClinePassModelId" },
 	modelInfo: { plan: "planModeClinePassModelInfo", act: "actModeClinePassModelInfo" },
 } as const
+
+const SUBSCRIBED_CARD_DESCRIPTION = "Included with your ClinePass subscription"
+const FREE_TAB_DESCRIPTION =
+	"A rotating set of models with limited free usage — included at no cost and separate from your ClinePass quota."
 
 function zeroPriced(info: ModelInfo): ModelInfo {
 	return {
@@ -48,33 +54,33 @@ export const ClinePassProvider = ({
 	showAccountCard = true,
 }: ClinePassProviderProps) => {
 	const { apiConfiguration, openRouterModels, clineModels, refreshClineModels } = useExtensionState()
-	const { handleModeFieldsChange } = useApiConfigurationHandlers()
 	const openRouterModelsByName = useMemo(() => buildModelInfoNameMap(openRouterModels), [openRouterModels])
+	const [clinePassRawModels, setClinePassRawModels] = useState<ClineRecommendedModel[]>([])
 	const [clinePassRecommendedModels, setClinePassRecommendedModels] = useState<Record<string, ModelInfo> | undefined>(undefined)
 	const [clineFreeModels, setClineFreeModels] = useState<ClineRecommendedModel[]>([])
 
 	const refreshClinePassModels = useCallback(async () => {
 		try {
 			const response = await ModelsServiceClient.refreshClineRecommendedModelsRpc(EmptyRequest.create({}))
+			const clinePassResponseModels = (response.clinePass ?? []).filter((model) => model.id)
 			const models = Object.fromEntries(
-				(response.clinePass ?? [])
-					.filter((model) => model.id)
-					.map((model) => {
-						// ClinePass model IDs omit the upstream lab, so look up capabilities using
-						// the model slug (for example, glm-5.1 instead of cline-pass/glm-5.1).
-						// If the model is not in OpenRouter yet, use conservative generic defaults
-						// instead of copying GLM-5.1-specific context/max-token values.
-						const fallback = resolveClinePassModelInfo(model.id, openRouterModelsByName)
-						return [
-							model.id,
-							{
-								...fallback,
-								name: model.name || fallback.name || model.id,
-								description: model.description || fallback.description,
-							},
-						]
-					}),
+				clinePassResponseModels.map((model) => {
+					// ClinePass model IDs omit the upstream lab, so look up capabilities using
+					// the model slug (for example, glm-5.1 instead of cline-pass/glm-5.1).
+					// If the model is not in OpenRouter yet, use conservative generic defaults
+					// instead of copying GLM-5.1-specific context/max-token values.
+					const fallback = resolveClinePassModelInfo(model.id, openRouterModelsByName)
+					return [
+						model.id,
+						{
+							...fallback,
+							name: model.name || fallback.name || model.id,
+							description: model.description || fallback.description,
+						},
+					]
+				}),
 			)
+			setClinePassRawModels(clinePassResponseModels)
 			setClinePassRecommendedModels(Object.keys(models).length > 0 ? models : undefined)
 			setClineFreeModels((response.free ?? []).filter((model) => model.id))
 		} catch (error) {
@@ -142,10 +148,21 @@ export const ClinePassProvider = ({
 			: (Object.keys(clinePassModelOptions)[0] ?? clinePassDefaultModelId)
 	}, [clinePassModelOptions])
 
-	const selectedModelId =
-		configuredClinePassModelId && configuredClinePassModelId in clinePassModelOptions
-			? configuredClinePassModelId
-			: clinePassDefaultModel
+	const subscribedModelCards = useMemo<FeaturedModelCardEntry[]>(() => {
+		if (clinePassRawModels.length > 0) {
+			return clinePassRawModels.map((model) => ({
+				id: model.id,
+				label: (model.tags?.[0] || "INCLUDED").toUpperCase(),
+				description: model.description || SUBSCRIBED_CARD_DESCRIPTION,
+			}))
+		}
+
+		return Object.entries(clinePassRecommendedModels ?? clinePassModels).map(([id, info]) => ({
+			id,
+			label: "INCLUDED",
+			description: info.description || SUBSCRIBED_CARD_DESCRIPTION,
+		}))
+	}, [clinePassRawModels, clinePassRecommendedModels])
 
 	const freeModelCards = useMemo(
 		() =>
@@ -155,19 +172,13 @@ export const ClinePassProvider = ({
 		[freeRecommendedModels],
 	)
 
-	const handleFreeModelSelect = (modelId: string) => {
-		handleModeFieldsChange(
-			{
-				clineModelId: CLINE_PASS_MODEL_FIELD_PAIRS.modelId,
-				clineModelInfo: CLINE_PASS_MODEL_FIELD_PAIRS.modelInfo,
-			},
-			{
-				clineModelId: modelId,
-				clineModelInfo: clinePassModelOptions[modelId],
-			},
-			currentMode,
-		)
-	}
+	const featuredTabs = useMemo<FeaturedModelTab[]>(() => {
+		const tabs: FeaturedModelTab[] = [{ label: "Subscribed", models: subscribedModelCards }]
+		if (freeModelCards.length > 0) {
+			tabs.push({ label: "Free", models: freeModelCards, description: FREE_TAB_DESCRIPTION })
+		}
+		return tabs
+	}, [subscribedModelCards, freeModelCards])
 
 	return (
 		<div>
@@ -178,34 +189,15 @@ export const ClinePassProvider = ({
 			)}
 
 			{showModelOptions && (
-				<>
-					<ClineModelPicker
-						currentMode={currentMode}
-						defaultModelId={clinePassDefaultModel}
-						isPopup={isPopup}
-						modelIdFieldPair={CLINE_PASS_MODEL_FIELD_PAIRS.modelId}
-						modelInfoFieldPair={CLINE_PASS_MODEL_FIELD_PAIRS.modelInfo}
-						models={clinePassModelOptions}
-						showFeaturedModels={false}
-					/>
-					{freeModelCards.length > 0 && (
-						<div style={{ marginTop: 10 }}>
-							<span style={{ fontWeight: 500 }}>Free models</span>
-							<div style={{ marginTop: 4 }}>
-								{freeModelCards.map((model) => (
-									<FeaturedModelCard
-										description={model.description}
-										isSelected={selectedModelId === model.id}
-										key={model.id}
-										label={model.label}
-										modelId={model.id}
-										onClick={() => handleFreeModelSelect(model.id)}
-									/>
-								))}
-							</div>
-						</div>
-					)}
-				</>
+				<ClineModelPicker
+					currentMode={currentMode}
+					defaultModelId={clinePassDefaultModel}
+					featuredTabs={featuredTabs}
+					isPopup={isPopup}
+					modelIdFieldPair={CLINE_PASS_MODEL_FIELD_PAIRS.modelId}
+					modelInfoFieldPair={CLINE_PASS_MODEL_FIELD_PAIRS.modelInfo}
+					models={clinePassModelOptions}
+				/>
 			)}
 		</div>
 	)
