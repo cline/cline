@@ -1,7 +1,6 @@
 /**
  * Unit tests for `createAgentRuntimeConfig` and its small pure
- * helpers (`buildModelOptions`, `buildMessageModelInfo`,
- * `resolveToolExecution`).
+ * helpers (`buildModelOptions`, `buildMessageModelInfo`).
  *
  */
 
@@ -17,7 +16,6 @@ import {
 	buildMessageModelInfo,
 	buildModelOptions,
 	createAgentRuntimeConfig,
-	resolveToolExecution,
 } from "./agent-runtime-config-builder";
 
 // ---------------------------------------------------------------------------
@@ -103,25 +101,6 @@ describe("buildMessageModelInfo", () => {
 });
 
 // ---------------------------------------------------------------------------
-// resolveToolExecution
-// ---------------------------------------------------------------------------
-
-describe("resolveToolExecution", () => {
-	it("returns undefined when unset", () => {
-		expect(resolveToolExecution(undefined)).toBeUndefined();
-	});
-
-	it("returns 'sequential' for 1", () => {
-		expect(resolveToolExecution(1)).toBe("sequential");
-	});
-
-	it("returns 'parallel' for >= 2", () => {
-		expect(resolveToolExecution(2)).toBe("parallel");
-		expect(resolveToolExecution(8)).toBe("parallel");
-	});
-});
-
-// ---------------------------------------------------------------------------
 // createAgentRuntimeConfig
 // ---------------------------------------------------------------------------
 
@@ -135,7 +114,6 @@ describe("createAgentRuntimeConfig", () => {
 			thinking: true,
 			reasoningEffort: "high",
 			maxIterations: 7,
-			maxParallelToolCalls: 4,
 			completionPolicy: { requireCompletionTool: true },
 			toolPolicies: { "*": { autoApprove: false } },
 			requestToolApproval: async () => ({ approved: true }),
@@ -175,7 +153,6 @@ describe("createAgentRuntimeConfig", () => {
 		});
 		expect(runtimeConfig.tools).toBe(tools);
 		expect(runtimeConfig.maxIterations).toBe(7);
-		expect(runtimeConfig.toolExecution).toBe("parallel");
 		expect(runtimeConfig.completionPolicy).toEqual({
 			requireCompletionTool: true,
 		});

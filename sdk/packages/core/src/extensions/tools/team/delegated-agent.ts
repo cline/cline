@@ -1,13 +1,14 @@
-import type {
-	AgentConfig,
-	AgentEvent,
-	AgentHooks,
-	AgentTool,
-	BasicLogger,
-	HookErrorMode,
-	ITelemetryService,
-	ToolApprovalRequest,
-	ToolApprovalResult,
+import {
+	type AgentConfig,
+	type AgentEvent,
+	type AgentHooks,
+	type AgentTool,
+	type BasicLogger,
+	DEFAULT_API_TIMEOUT_MS,
+	type HookErrorMode,
+	type ITelemetryService,
+	type ToolApprovalRequest,
+	type ToolApprovalResult,
 } from "@cline/shared";
 import { SessionRuntime } from "../../../runtime/orchestration/session-runtime-orchestrator";
 import {
@@ -27,6 +28,8 @@ export type DelegatedAgentConnectionConfig = Pick<
 	| "providerConfig"
 	| "knownModels"
 	| "thinking"
+	| "thinkingBudgetTokens"
+	| "reasoningEffort"
 	| "maxTokensPerTurn"
 >;
 
@@ -37,6 +40,7 @@ export interface DelegatedAgentRuntimeConfig
 	clinePlatform?: string;
 	clineIdeName?: string;
 	maxIterations?: number;
+	apiTimeoutMs?: number;
 	hooks?: AgentHooks;
 	extensions?: AgentExtension[];
 	logger?: BasicLogger;
@@ -88,6 +92,8 @@ export function createDelegatedAgentConfigProvider(
 			providerConfig: runtimeConfig.providerConfig,
 			knownModels: runtimeConfig.knownModels,
 			thinking: runtimeConfig.thinking,
+			thinkingBudgetTokens: runtimeConfig.thinkingBudgetTokens,
+			reasoningEffort: runtimeConfig.reasoningEffort,
 			maxTokensPerTurn: runtimeConfig.maxTokensPerTurn,
 		}),
 		updateConnectionDefaults: (overrides) => {
@@ -113,12 +119,13 @@ export function buildDelegatedAgentConfig(
 		systemPrompt,
 		tools: options.tools,
 		maxIterations: options.maxIterations ?? runtimeConfig.maxIterations,
+		apiTimeoutMs: runtimeConfig.apiTimeoutMs ?? DEFAULT_API_TIMEOUT_MS,
 		parentAgentId: options.parentAgentId,
 		abortSignal: options.abortSignal,
 		onEvent: options.onEvent,
 		hooks: runtimeConfig.hooks,
 		extensions: runtimeConfig.extensions,
-		hookErrorMode: options.hookErrorMode,
+		hookErrorMode: options.hookErrorMode ?? "ignore",
 		toolPolicies: options.toolPolicies,
 		requestToolApproval: options.requestToolApproval,
 		logger: runtimeConfig.logger,

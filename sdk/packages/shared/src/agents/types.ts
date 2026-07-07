@@ -36,6 +36,8 @@ import type { BasicLogger } from "../logging/logger";
 import type { ITelemetryService } from "../services/telemetry";
 import type { WorkspaceInfo } from "../session/workspace";
 
+export const DEFAULT_API_TIMEOUT_MS = 180_000;
+
 // =============================================================================
 // Agent Events
 // =============================================================================
@@ -703,11 +705,6 @@ export interface AgentConfig {
 	 */
 	maxIterations?: number;
 	/**
-	 * Maximum number of tool calls to execute concurrently in a single iteration.
-	 * @default 8
-	 */
-	maxParallelToolCalls?: number;
-	/**
 	 * Maximum output tokens per API call
 	 */
 	maxTokensPerTurn?: number;
@@ -878,9 +875,8 @@ export const AgentConfigSchema = z.object({
 	systemPrompt: z.string(),
 	tools: z.array(z.custom<AgentTool>()),
 	maxIterations: z.number().positive().optional(),
-	maxParallelToolCalls: z.number().int().positive().default(8),
 	maxTokensPerTurn: z.number().positive().optional(),
-	apiTimeoutMs: z.number().positive().default(180000),
+	apiTimeoutMs: z.number().positive().default(DEFAULT_API_TIMEOUT_MS),
 	userFileContentLoader: z
 		.function()
 		.input([z.string()])
