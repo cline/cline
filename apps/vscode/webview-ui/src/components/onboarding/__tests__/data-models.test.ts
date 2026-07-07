@@ -54,7 +54,7 @@ describe("getRecommendedModelsData", () => {
 			{
 				recommended: [],
 				free: [],
-				clinePass: [{ id: "cline-pass/glm-5.2", name: "GLM 5.1", description: "", tags: [] }],
+				clinePass: [{ id: "cline-pass/glm-5.2", name: "GLM 5.2", description: "", tags: [] }],
 			},
 			false,
 		)
@@ -67,7 +67,7 @@ describe("getRecommendedModelsData", () => {
 			{
 				recommended: [],
 				free: [],
-				clinePass: [{ id: "cline-pass/glm-5.2", name: "GLM 5.1", description: "", tags: [] }],
+				clinePass: [{ id: "cline-pass/glm-5.2", name: "GLM 5.2", description: "", tags: [] }],
 			},
 			true,
 		)
@@ -80,7 +80,7 @@ describe("getRecommendedModelsData", () => {
 			{
 				recommended: [{ id: "anthropic/claude", name: "Claude", description: "", tags: [] }],
 				free: [{ id: "free-model", name: "Free", description: "", tags: [] }],
-				clinePass: [{ id: "cline-pass/glm-5.2", name: "GLM 5.1", description: "", tags: [] }],
+				clinePass: [{ id: "cline-pass/glm-5.2", name: "GLM 5.2", description: "", tags: [] }],
 			},
 			false,
 		)
