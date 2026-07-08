@@ -230,6 +230,13 @@ git diff origin/main | cline  "Review these changes for issues"
 cline --json "List all TODO comments" | jq -r 'select(.type == "agent_event" and .event.text) | .event.text'
 ```
 
+<div align="center">
+
+[![HVTrust](https://hvtracker.net/badge/cline.svg)](https://hvtracker.net/agents/cline/)
+[![Evidence Grade](https://hvtracker.net/badge/cline-grade.svg)](https://hvtracker.net/agents/cline/)
+
+</div>
+
 ## Contributing
 
 Start with the [Contributing Guide](CONTRIBUTING.md). Join our [Discord](https://discord.gg/cline) and head to the `#contributors` channel to connect with other contributors. Check our [careers page](https://cline.bot/join-us) for full-time roles.
