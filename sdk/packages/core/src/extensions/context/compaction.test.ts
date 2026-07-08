@@ -1105,7 +1105,7 @@ describe("createContextCompactionPrepareTurn", () => {
 		}
 	});
 
-	it("uses the default reserve when no trigger is configured", async () => {
+	it("uses the true input budget when no context window is available", async () => {
 		const compact = vi.fn((_context: CoreCompactionContext) => ({
 			messages: [{ role: "user" as const, content: "Compacted by reserve" }],
 		}));
@@ -1146,7 +1146,7 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(createHandlerMock).not.toHaveBeenCalled();
 		expect(compact).toHaveBeenCalledTimes(1);
 		const context = compact.mock.calls[0]?.[0];
-		expect(context?.triggerTokens).toBe(0);
+		expect(context?.triggerTokens).toBe(180);
 		expect(result?.messages).toEqual([
 			{ role: "user", content: "Compacted by reserve" },
 		]);
@@ -1367,7 +1367,7 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(context?.targetTokens).toBe(39);
 	});
 
-	it("derives input budget by reserving model max output tokens from context window", async () => {
+	it("reserves output once for a shared context window", async () => {
 		const compact = vi.fn((_context: CoreCompactionContext) => ({
 			messages: [
 				{ role: "user" as const, content: "Compacted by derived input budget" },
@@ -1413,12 +1413,197 @@ describe("createContextCompactionPrepareTurn", () => {
 
 		expect(compact).toHaveBeenCalledTimes(1);
 		const context = compact.mock.calls[0]?.[0];
-		expect(context?.maxInputTokens).toBe(272_000);
+		expect(context?.maxInputTokens).toBe(400_000);
 		expect(context?.triggerTokens).toBe(244_800);
-		expect(context?.thresholdRatio).toBe(0.9);
+		expect(context?.thresholdRatio).toBe(244_800 / 400_000);
 		expect(result?.messages).toEqual([
 			{ role: "user", content: "Compacted by derived input budget" },
 		]);
+	});
+
+	it("does not double-reserve output for mirrored Qwen context metadata", async () => {
+		const compact = vi.fn((_context: CoreCompactionContext) => ({
+			messages: [{ role: "user" as const, content: "Compacted Qwen" }],
+		}));
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "openrouter",
+			modelId: "qwen/qwen3-32b",
+			providerConfig: {
+				providerId: "openrouter",
+				modelId: "qwen/qwen3-32b",
+			} as LlmsProviders.ProviderConfig,
+			compaction: { enabled: true, compact },
+			logger: undefined,
+		});
+		const messages: MessageWithMetadata[] = [
+			{ role: "user", content: "large prompt ".repeat(6_000) },
+		];
+
+		await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages,
+			apiMessages: messages,
+			model: {
+				id: "qwen/qwen3-32b",
+				provider: "openrouter",
+				info: {
+					id: "qwen/qwen3-32b",
+					contextWindow: 40_960,
+					maxInputTokens: 40_960,
+					maxTokens: 16_384,
+				},
+			},
+		});
+
+		expect(compact).toHaveBeenCalledTimes(1);
+		const context = compact.mock.calls[0]?.[0];
+		expect(context?.maxInputTokens).toBe(40_960);
+		expect(context?.triggerTokens).toBe(22_118);
+		expect(context?.thresholdRatio).toBe(22_118 / 40_960);
+	});
+
+	it("caps shared-context output reserve at half the context window", async () => {
+		const compact = vi.fn((_context: CoreCompactionContext) => ({
+			messages: [{ role: "user" as const, content: "Compacted capped output" }],
+		}));
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "kilo",
+			modelId: "qwen/qwen3-32b",
+			providerConfig: {
+				providerId: "kilo",
+				modelId: "qwen/qwen3-32b",
+			} as LlmsProviders.ProviderConfig,
+			compaction: { enabled: true, compact },
+			logger: undefined,
+		});
+		const messages: MessageWithMetadata[] = [
+			{ role: "user", content: "large prompt ".repeat(5_000) },
+		];
+
+		await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages,
+			apiMessages: messages,
+			model: {
+				id: "qwen/qwen3-32b",
+				provider: "kilo",
+				info: {
+					id: "qwen/qwen3-32b",
+					contextWindow: 40_960,
+					maxInputTokens: 40_960,
+					maxTokens: 40_960,
+				},
+			},
+		});
+
+		expect(compact).toHaveBeenCalledTimes(1);
+		const context = compact.mock.calls[0]?.[0];
+		expect(context?.maxInputTokens).toBe(40_960);
+		expect(context?.triggerTokens).toBe(18_432);
+	});
+
+	it("applies explicit threshold ratio to the usable budget", async () => {
+		const compact = vi.fn((_context: CoreCompactionContext) => ({
+			messages: [{ role: "user" as const, content: "Compacted threshold" }],
+		}));
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "openrouter",
+			modelId: "qwen/qwen3-32b",
+			providerConfig: {
+				providerId: "openrouter",
+				modelId: "qwen/qwen3-32b",
+			} as LlmsProviders.ProviderConfig,
+			compaction: { enabled: true, thresholdRatio: 0.8, compact },
+			logger: undefined,
+		});
+		const messages: MessageWithMetadata[] = [
+			{ role: "user", content: "large prompt ".repeat(6_000) },
+		];
+
+		await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages,
+			apiMessages: messages,
+			model: {
+				id: "qwen/qwen3-32b",
+				provider: "openrouter",
+				info: {
+					id: "qwen/qwen3-32b",
+					contextWindow: 40_960,
+					maxInputTokens: 40_960,
+					maxTokens: 16_384,
+				},
+			},
+		});
+
+		expect(compact).toHaveBeenCalledTimes(1);
+		const context = compact.mock.calls[0]?.[0];
+		expect(context?.triggerTokens).toBe(19_660);
+		expect(context?.thresholdRatio).toBe(0.8);
+	});
+
+	it("applies explicit reserve tokens to the usable budget", async () => {
+		const compact = vi.fn((_context: CoreCompactionContext) => ({
+			messages: [{ role: "user" as const, content: "Compacted reserve" }],
+		}));
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "openrouter",
+			modelId: "qwen/qwen3-32b",
+			providerConfig: {
+				providerId: "openrouter",
+				modelId: "qwen/qwen3-32b",
+			} as LlmsProviders.ProviderConfig,
+			compaction: { enabled: true, reserveTokens: 4_096, compact },
+			logger: undefined,
+		});
+		const messages: MessageWithMetadata[] = [
+			{ role: "user", content: "large prompt ".repeat(6_000) },
+		];
+
+		await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages,
+			apiMessages: messages,
+			model: {
+				id: "qwen/qwen3-32b",
+				provider: "openrouter",
+				info: {
+					id: "qwen/qwen3-32b",
+					contextWindow: 40_960,
+					maxInputTokens: 40_960,
+					maxTokens: 16_384,
+				},
+			},
+		});
+
+		expect(compact).toHaveBeenCalledTimes(1);
+		const context = compact.mock.calls[0]?.[0];
+		expect(context?.triggerTokens).toBe(20_480);
+		expect(context?.thresholdRatio).toBe(0.5);
 	});
 
 	it("uses the lower split input budget when it is below context-derived input budget", async () => {

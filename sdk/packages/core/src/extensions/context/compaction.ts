@@ -78,7 +78,6 @@ export interface ContextCompactionPrepareTurnOptions {
 	manualTargetRatio?: number;
 }
 
-const MIN_CONTEXT_DERIVED_INPUT_RATIO = 0.5;
 const LONG_CONVERSATION_TARGET_RATIO = 0.5;
 
 function safeJsonSize(value: unknown): number {
@@ -93,35 +92,88 @@ function isPositiveFiniteNumber(value: unknown): value is number {
 	return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
 
-function resolveMaxInputTokens(input: {
-	configMaxInputTokens?: number;
+type CompactionBudgetSource = "config" | "true_input" | "context" | "default";
+
+interface CompactionBudget {
+	ceilingTokens: number;
+	usableBudgetTokens: number;
+	outputReserveTokens: number;
+	triggerTokens: number;
+	thresholdRatio: number;
+	usableThresholdRatio: number;
+	ceilingSource: CompactionBudgetSource;
+	reserveCapped: boolean;
+}
+
+function resolveCompactionBudget(input: {
+	config: CoreCompactionConfig;
 	modelMaxInputTokens?: number;
 	contextWindow?: number;
 	modelMaxTokens?: number;
-}): number {
-	const candidates: number[] = [];
-	if (isPositiveFiniteNumber(input.configMaxInputTokens)) {
-		candidates.push(input.configMaxInputTokens);
+}): CompactionBudget {
+	let ceilingTokens = DEFAULT_MAX_INPUT_TOKENS;
+	let ceilingSource: CompactionBudgetSource = "default";
+
+	if (isPositiveFiniteNumber(input.config.maxInputTokens)) {
+		ceilingTokens = input.config.maxInputTokens;
+		ceilingSource = "config";
+	} else if (
+		isPositiveFiniteNumber(input.modelMaxInputTokens) &&
+		(!isPositiveFiniteNumber(input.contextWindow) ||
+			input.modelMaxInputTokens < input.contextWindow)
+	) {
+		ceilingTokens = input.modelMaxInputTokens;
+		ceilingSource = "true_input";
+	} else if (isPositiveFiniteNumber(input.contextWindow)) {
+		ceilingTokens = input.contextWindow;
+		ceilingSource = "context";
 	}
-	if (isPositiveFiniteNumber(input.modelMaxInputTokens)) {
-		candidates.push(input.modelMaxInputTokens);
+
+	const maxReserveTokens = Math.floor(ceilingTokens / 2);
+	const outputReserveTokens =
+		ceilingSource === "config" ||
+		ceilingSource === "true_input" ||
+		ceilingSource === "default"
+			? 0
+			: isPositiveFiniteNumber(input.modelMaxTokens)
+				? Math.min(input.modelMaxTokens, maxReserveTokens)
+				: Math.min(DEFAULT_RESERVE_TOKENS, Math.floor(ceilingTokens * 0.25));
+	const usableBudgetTokens = Math.max(1, ceilingTokens - outputReserveTokens);
+
+	let triggerTokens: number;
+	if (typeof input.config.reserveTokens === "number") {
+		triggerTokens = Math.max(
+			0,
+			usableBudgetTokens - Math.max(0, input.config.reserveTokens),
+		);
+	} else if (typeof input.config.thresholdRatio === "number") {
+		triggerTokens = Math.floor(
+			usableBudgetTokens * input.config.thresholdRatio,
+		);
+	} else {
+		triggerTokens = Math.floor(usableBudgetTokens * DEFAULT_THRESHOLD_RATIO);
 	}
-	if (isPositiveFiniteNumber(input.contextWindow)) {
-		candidates.push(input.contextWindow);
-		const derivedInputTokens = isPositiveFiniteNumber(input.modelMaxTokens)
-			? input.contextWindow - input.modelMaxTokens
-			: undefined;
-		if (
-			isPositiveFiniteNumber(derivedInputTokens) &&
-			derivedInputTokens >=
-				input.contextWindow * MIN_CONTEXT_DERIVED_INPUT_RATIO
-		) {
-			candidates.push(derivedInputTokens);
-		}
-	}
-	return candidates.length > 0
-		? Math.min(...candidates)
-		: DEFAULT_MAX_INPUT_TOKENS;
+
+	return {
+		ceilingTokens,
+		usableBudgetTokens,
+		outputReserveTokens,
+		triggerTokens,
+		// Preserve explicit thresholdRatio as configured; usableThresholdRatio records the effective trigger point.
+		thresholdRatio:
+			typeof input.config.thresholdRatio === "number"
+				? input.config.thresholdRatio
+				: ceilingTokens > 0
+					? triggerTokens / ceilingTokens
+					: 0,
+		usableThresholdRatio:
+			usableBudgetTokens > 0 ? triggerTokens / usableBudgetTokens : 0,
+		ceilingSource,
+		reserveCapped:
+			ceilingSource === "context" &&
+			isPositiveFiniteNumber(input.modelMaxTokens) &&
+			input.modelMaxTokens > maxReserveTokens,
+	};
 }
 
 function summarizeToolResults(messages: CoreCompactionContext["messages"]): {
@@ -189,47 +241,6 @@ const BUILTIN_COMPACTION_STRATEGIES = {
 		}),
 } satisfies Record<CoreCompactionStrategy, BuiltinCompactionStrategyRunner>;
 
-function resolveTriggerState(input: {
-	inputTokens: number;
-	maxInputTokens: number;
-	config: CoreCompactionConfig;
-}): { shouldCompact: boolean; triggerTokens: number; thresholdRatio: number } {
-	if (typeof input.config.reserveTokens === "number") {
-		const reserveTokens = Math.max(0, input.config.reserveTokens);
-		const triggerTokens = Math.max(0, input.maxInputTokens - reserveTokens);
-		return {
-			shouldCompact: input.inputTokens > triggerTokens,
-			triggerTokens,
-			thresholdRatio:
-				input.maxInputTokens > 0 ? triggerTokens / input.maxInputTokens : 0,
-		};
-	}
-
-	if (typeof input.config.thresholdRatio === "number") {
-		const thresholdRatio = input.config.thresholdRatio;
-		const triggerTokens = input.maxInputTokens * thresholdRatio;
-		return {
-			shouldCompact: input.inputTokens > triggerTokens,
-			triggerTokens,
-			thresholdRatio,
-		};
-	}
-
-	const triggerTokens = Math.max(
-		0,
-		Math.min(
-			input.maxInputTokens - DEFAULT_RESERVE_TOKENS,
-			input.maxInputTokens * DEFAULT_THRESHOLD_RATIO,
-		),
-	);
-	return {
-		shouldCompact: input.inputTokens > triggerTokens,
-		triggerTokens,
-		thresholdRatio:
-			input.maxInputTokens > 0 ? triggerTokens / input.maxInputTokens : 0,
-	};
-}
-
 function resolveManualTargetState(input: {
 	inputTokens: number;
 	maxInputTokens: number;
@@ -258,7 +269,8 @@ function resolveManualTargetState(input: {
 }
 
 function resolveBasicTargetTokens(input: {
-	maxInputTokens: number;
+	ceilingTokens: number;
+	usableBudgetTokens: number;
 	modelMaxTokens?: number;
 	triggerTokens: number;
 	messagePairCount: number;
@@ -267,13 +279,13 @@ function resolveBasicTargetTokens(input: {
 		input.messagePairCount >= 5 &&
 		typeof input.modelMaxTokens === "number" &&
 		Number.isFinite(input.modelMaxTokens) &&
-		input.modelMaxTokens < input.maxInputTokens
-			? Math.floor(input.maxInputTokens * LONG_CONVERSATION_TARGET_RATIO)
+		input.modelMaxTokens < input.ceilingTokens
+			? Math.floor(input.usableBudgetTokens * LONG_CONVERSATION_TARGET_RATIO)
 			: Math.floor(input.triggerTokens * DEFAULT_TARGET_RATIO);
 	const triggerCeiling = Math.max(1, input.triggerTokens - 1);
 	return Math.max(
 		1,
-		Math.min(targetTokens, input.maxInputTokens, triggerCeiling),
+		Math.min(targetTokens, input.usableBudgetTokens, triggerCeiling),
 	);
 }
 
@@ -348,22 +360,18 @@ export function createContextCompactionPrepareTurn(
 			(total: number, message) => total + estimateMessageTokens(message),
 			0,
 		);
-		const maxInputTokens = resolveMaxInputTokens({
-			configMaxInputTokens: userCompaction?.maxInputTokens,
-			modelMaxInputTokens: context.model.info?.maxInputTokens,
-			contextWindow: context.model.info?.contextWindow,
-			modelMaxTokens: context.model.info?.maxTokens,
-		});
-
-		const triggerState = resolveTriggerState({
-			inputTokens,
-			maxInputTokens,
+		const compactionBudget = resolveCompactionBudget({
 			config: {
 				maxInputTokens: userCompaction?.maxInputTokens,
 				reserveTokens: userCompaction?.reserveTokens,
 				thresholdRatio: userCompaction?.thresholdRatio,
 			},
+			modelMaxInputTokens: context.model.info?.maxInputTokens,
+			contextWindow: context.model.info?.contextWindow,
+			modelMaxTokens: context.model.info?.maxTokens,
 		});
+		const maxInputTokens = compactionBudget.ceilingTokens;
+		const shouldCompact = inputTokens > compactionBudget.triggerTokens;
 		config.logger?.debug("Context compaction diagnostics", {
 			mode,
 			strategy,
@@ -372,15 +380,20 @@ export function createContextCompactionPrepareTurn(
 			modelId: config.modelId,
 			inputTokens,
 			maxInputTokens,
-			triggerTokens: triggerState.triggerTokens,
-			thresholdRatio: triggerState.thresholdRatio,
-			shouldCompact: triggerState.shouldCompact,
+			usableBudgetTokens: compactionBudget.usableBudgetTokens,
+			outputReserveTokens: compactionBudget.outputReserveTokens,
+			ceilingSource: compactionBudget.ceilingSource,
+			reserveCapped: compactionBudget.reserveCapped,
+			triggerTokens: compactionBudget.triggerTokens,
+			thresholdRatio: compactionBudget.thresholdRatio,
+			usableThresholdRatio: compactionBudget.usableThresholdRatio,
+			shouldCompact,
 			messageCount: context.messages.length,
 			apiMessageCount: context.apiMessages.length,
 			apiMessagesJsonChars: safeJsonSize(context.apiMessages),
 			...summarizeToolResults(context.apiMessages),
 		});
-		if (mode === "auto" && !triggerState.shouldCompact) {
+		if (mode === "auto" && !shouldCompact) {
 			return undefined;
 		}
 		const targetState =
@@ -388,14 +401,15 @@ export function createContextCompactionPrepareTurn(
 				? resolveManualTargetState({
 						inputTokens,
 						maxInputTokens,
-						autoTriggerTokens: triggerState.triggerTokens,
+						autoTriggerTokens: compactionBudget.triggerTokens,
 						manualTargetRatio: options.manualTargetRatio,
 					})
-				: triggerState;
+				: compactionBudget;
 		const targetTokens =
 			mode === "auto"
 				? resolveBasicTargetTokens({
-						maxInputTokens,
+						ceilingTokens: compactionBudget.ceilingTokens,
+						usableBudgetTokens: compactionBudget.usableBudgetTokens,
 						modelMaxTokens: context.model.info?.maxTokens,
 						triggerTokens: targetState.triggerTokens,
 						messagePairCount: countUserAssistantPairs(context.messages),
@@ -426,6 +440,9 @@ export function createContextCompactionPrepareTurn(
 				iteration: context.iteration,
 				triggerTokens: targetState.triggerTokens,
 				maxInputTokens,
+				usableBudgetTokens: compactionBudget.usableBudgetTokens,
+				outputReserveTokens: compactionBudget.outputReserveTokens,
+				ceilingSource: compactionBudget.ceilingSource,
 			},
 		);
 
@@ -467,6 +484,10 @@ export function createContextCompactionPrepareTurn(
 				severity: "info",
 				strategy: strategy,
 				maxInputTokens,
+				usableBudgetTokens: compactionBudget.usableBudgetTokens,
+				outputReserveTokens: compactionBudget.outputReserveTokens,
+				ceilingSource: compactionBudget.ceilingSource,
+				reserveCapped: compactionBudget.reserveCapped,
 				inputTokens,
 				afterTokens,
 				tokensSaved: inputTokens - afterTokens,
