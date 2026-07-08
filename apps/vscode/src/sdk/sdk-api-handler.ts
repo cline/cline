@@ -10,7 +10,7 @@
 import { type ApiHandler, createHandler, type ProviderConfig } from "@cline/llms"
 import type { ApiConfiguration } from "@shared/api"
 import type { Mode } from "@shared/storage/types"
-import { buildClientRuntimeContext } from "@/services/EnvUtils"
+import { buildClineRequestMetadata } from "@/services/EnvUtils"
 import { fetch } from "@/shared/net"
 import { buildBedrockProviderConfig } from "./bedrock-config"
 import { resolveApiKey, resolveBaseUrl, resolveModelId, resolveVertexProviderConfig } from "./cline-session-factory"
@@ -29,21 +29,21 @@ export interface BuildApiHandlerOptions {
 }
 
 function buildStandaloneExtensionContext(
-	clientRuntimeContext: Awaited<ReturnType<typeof buildClientRuntimeContext>>,
+	clineRequestMetadata: Awaited<ReturnType<typeof buildClineRequestMetadata>>,
 ): ProviderConfig["extensionContext"] {
 	return {
 		client: {
 			name: "cline-vscode",
-			version: clientRuntimeContext.clientVersion,
+			version: clineRequestMetadata.clientVersion,
 		},
 		requestMetadata: {
-			clientType: clientRuntimeContext.clientName,
-			clientVersion: clientRuntimeContext.clientVersion,
-			userAgent: clientRuntimeContext.userAgent,
-			platform: clientRuntimeContext.platform,
-			platformVersion: clientRuntimeContext.platformVersion,
-			coreVersion: clientRuntimeContext.coreVersion,
-			isMultiRoot: clientRuntimeContext.isMultiRoot,
+			clientType: clineRequestMetadata.clientName,
+			clientVersion: clineRequestMetadata.clientVersion,
+			userAgent: clineRequestMetadata.userAgent,
+			platform: clineRequestMetadata.platform,
+			platformVersion: clineRequestMetadata.platformVersion,
+			coreVersion: clineRequestMetadata.coreVersion,
+			isMultiRoot: clineRequestMetadata.isMultiRoot,
 		},
 	}
 }
@@ -123,7 +123,7 @@ export async function buildApiHandler(
 	mode: Mode,
 	options?: BuildApiHandlerOptions,
 ): Promise<ApiHandler> {
-	const extensionContext = options?.extensionContext ?? buildStandaloneExtensionContext(await buildClientRuntimeContext())
+	const extensionContext = options?.extensionContext ?? buildStandaloneExtensionContext(await buildClineRequestMetadata())
 	const providerConfig = buildSdkProviderConfig(configuration, mode, {
 		...options,
 		extensionContext,

@@ -24,7 +24,7 @@ const mocks = vi.hoisted(() => {
 	}
 
 	return {
-		buildClientRuntimeContext: vi.fn(async () => ({
+		buildClineRequestMetadata: vi.fn(async () => ({
 			userAgent: "Cline/test",
 			clientName: "VSCode Extension",
 			clientVersion: "1.2.3",
@@ -63,7 +63,7 @@ vi.mock("@/services/logging/distinctId", () => ({
 }))
 
 vi.mock("@/services/EnvUtils", () => ({
-	buildClientRuntimeContext: mocks.buildClientRuntimeContext,
+	buildClineRequestMetadata: mocks.buildClineRequestMetadata,
 }))
 
 vi.mock("@cline/llms", () => {
@@ -143,7 +143,7 @@ beforeEach(() => {
 	})
 	mocks.providerSettingsManager.getLastUsedProviderSettings.mockReturnValue(undefined)
 	mocks.providerSettingsManager.getProviderSettings.mockReturnValue(undefined)
-	mocks.buildClientRuntimeContext.mockResolvedValue({
+	mocks.buildClineRequestMetadata.mockResolvedValue({
 		userAgent: "Cline/test",
 		clientName: "VSCode Extension",
 		clientVersion: "1.2.3",
@@ -388,7 +388,7 @@ describe("buildSessionConfig", () => {
 
 		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
 
-		expect(mocks.buildClientRuntimeContext).toHaveBeenCalledTimes(1)
+		expect(mocks.buildClineRequestMetadata).toHaveBeenCalledTimes(1)
 		expect(config.headers).toBeUndefined()
 		expect((config.providerConfig as any).headers).toBeUndefined()
 		expect(config.extensionContext).toMatchObject({

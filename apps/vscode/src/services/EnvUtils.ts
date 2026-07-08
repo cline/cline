@@ -12,20 +12,16 @@ const ClineHeaders = {
 	IS_MULTIROOT: "X-IS-MULTIROOT",
 } as const
 
-interface HostRuntimeInfo {
-	platform: string
-	platformVersion: string
-	clientName: string
-	clientVersion: string
-}
-
-export interface ClientRuntimeContext {
+export interface ClientIdentityContext {
 	platform: string
 	platformVersion: string
 	clientName: string
 	clientVersion: string
 	userAgent: string
 	coreVersion: string
+}
+
+export interface ClineRequestMetadataContext extends ClientIdentityContext {
 	isMultiRoot: boolean
 }
 
@@ -35,17 +31,19 @@ export function buildExternalBasicHeaders(): Record<string, string> {
 	}
 }
 
-function getHostRuntimeInfo(): HostRuntimeInfo {
+export function buildClientIdentityContext(): ClientIdentityContext {
 	const host = HostRegistryInfo.get()
 	return {
 		platform: host.platform || "unknown",
 		platformVersion: host.hostVersion || "unknown",
 		clientName: host.ide || "unknown",
 		clientVersion: host.extensionVersion || ExtensionRegistryInfo.version,
+		userAgent: buildExternalBasicHeaders()["User-Agent"],
+		coreVersion: ExtensionRegistryInfo.version,
 	}
 }
 
-async function isMultiRootWorkspace(): Promise<boolean> {
+export async function isMultiRootWorkspace(): Promise<boolean> {
 	try {
 		const { paths } = await HostProvider.workspace.getWorkspacePaths({})
 		return paths.length > 1
@@ -55,18 +53,15 @@ async function isMultiRootWorkspace(): Promise<boolean> {
 	}
 }
 
-export async function buildClientRuntimeContext(): Promise<ClientRuntimeContext> {
-	const host = getHostRuntimeInfo()
+export async function buildClineRequestMetadata(): Promise<ClineRequestMetadataContext> {
 	return {
-		...host,
-		userAgent: buildExternalBasicHeaders()["User-Agent"],
-		coreVersion: ExtensionRegistryInfo.version,
+		...buildClientIdentityContext(),
 		isMultiRoot: await isMultiRootWorkspace(),
 	}
 }
 
 export function buildBasicClineHeaders(): Record<string, string> {
-	const host = getHostRuntimeInfo()
+	const host = buildClientIdentityContext()
 	const headers: Record<string, string> = buildExternalBasicHeaders()
 	headers[ClineHeaders.PLATFORM] = host.platform
 	headers[ClineHeaders.PLATFORM_VERSION] = host.platformVersion

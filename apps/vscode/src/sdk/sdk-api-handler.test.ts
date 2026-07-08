@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => {
 		getProviderSettings: vi.fn(),
 	}
 	return {
-		buildClientRuntimeContext: vi.fn(async () => ({
+		buildClineRequestMetadata: vi.fn(async () => ({
 			userAgent: "Cline/test",
 			clientName: "VSCode Extension",
 			clientVersion: "1.2.3",
@@ -28,7 +28,7 @@ const mocks = vi.hoisted(() => {
 })
 
 vi.mock("@/services/EnvUtils", () => ({
-	buildClientRuntimeContext: mocks.buildClientRuntimeContext,
+	buildClineRequestMetadata: mocks.buildClineRequestMetadata,
 }))
 
 vi.mock("@cline/llms", async () => {
@@ -122,7 +122,7 @@ describe("buildSdkProviderConfig", () => {
 			{ disableReasoning: true },
 		)
 
-		expect(mocks.buildClientRuntimeContext).toHaveBeenCalledTimes(1)
+		expect(mocks.buildClineRequestMetadata).toHaveBeenCalledTimes(1)
 		expect(mocks.createHandler).toHaveBeenCalledWith(
 			expect.objectContaining({
 				providerId: "cline",

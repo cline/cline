@@ -26,7 +26,7 @@ import type { Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
 import { stringifyVsCodeLmModelSelector } from "@shared/vsCodeSelectorUtils"
 import { StateManager } from "@/core/storage/StateManager"
-import { buildClientRuntimeContext } from "@/services/EnvUtils"
+import { buildClineRequestMetadata } from "@/services/EnvUtils"
 import { getFeatureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { fetch } from "@/shared/net"
@@ -662,7 +662,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	// own provider id spelling (e.g. "openai-compatible" rather than the
 	// extension's "openai"). Convert before handing the id to core.
 	const sdkProviderId = toSdkProviderId(providerId)
-	const clientRuntimeContext = await buildClientRuntimeContext()
+	const clineRequestMetadata = await buildClineRequestMetadata()
 
 	// Always pass a providerConfig so the proxy/CA-aware fetch reaches the SDK
 	// gateway; without it the agent loop uses bare global fetch and corporate
@@ -714,7 +714,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 			user: distinctId ? { distinctId } : undefined,
 			client: {
 				name: "cline-vscode",
-				version: clientRuntimeContext.clientVersion,
+				version: clineRequestMetadata.clientVersion,
 			},
 			workspace: {
 				rootPath: workspaceRoot,
@@ -725,13 +725,13 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 				mode: mode === "plan" ? "plan" : "act",
 			},
 			requestMetadata: {
-				clientType: clientRuntimeContext.clientName,
-				clientVersion: clientRuntimeContext.clientVersion,
-				userAgent: clientRuntimeContext.userAgent,
-				platform: clientRuntimeContext.platform,
-				platformVersion: clientRuntimeContext.platformVersion,
-				coreVersion: clientRuntimeContext.coreVersion,
-				isMultiRoot: clientRuntimeContext.isMultiRoot,
+				clientType: clineRequestMetadata.clientName,
+				clientVersion: clineRequestMetadata.clientVersion,
+				userAgent: clineRequestMetadata.userAgent,
+				platform: clineRequestMetadata.platform,
+				platformVersion: clineRequestMetadata.platformVersion,
+				coreVersion: clineRequestMetadata.coreVersion,
+				isMultiRoot: clineRequestMetadata.isMultiRoot,
 			},
 			logger: sdkLogger,
 		},
