@@ -7,6 +7,7 @@ import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import ReasoningEffortSelector from "../ReasoningEffortSelector"
+import UseCustomPromptCheckbox from "../UseCustomPromptCheckbox"
 import { useProviderApiKeyField } from "../utils/useProviderApiKeyField"
 import { type ModelPickerSelection, ModelPickerWithManualEntry } from "./ModelPickerWithManualEntry"
 
@@ -15,12 +16,20 @@ interface GenericProviderBaseUrlFieldConfig {
 	placeholder?: string
 }
 
+interface GenericProviderApiKeyFieldConfig {
+	label?: string
+	placeholder?: string
+	helpText?: string
+}
+
 export interface GenericProviderSettingsProps {
 	providerId: ProviderId
 	providerName: string
 	signupUrl?: string
+	apiKeyField?: GenericProviderApiKeyFieldConfig
 	baseUrlField?: GenericProviderBaseUrlFieldConfig
 	allowsCustomIds: boolean
+	showCustomPromptCheckbox?: boolean
 	showModelOptions: boolean
 	isPopup?: boolean
 	currentMode: Mode
@@ -36,8 +45,10 @@ export const GenericProviderSettings = ({
 	providerId,
 	providerName,
 	signupUrl,
+	apiKeyField,
 	baseUrlField,
 	allowsCustomIds,
+	showCustomPromptCheckbox,
 	showModelOptions,
 	isPopup,
 	currentMode,
@@ -69,9 +80,11 @@ export const GenericProviderSettings = ({
 	return (
 		<div>
 			<ApiKeyField
+				helpText={apiKeyField?.helpText}
 				initialValue={savedApiKeyMask}
+				label={apiKeyField?.label}
 				onChange={handleApiKeyChange}
-				placeholder="Enter API Key..."
+				placeholder={apiKeyField?.placeholder}
 				providerName={providerName}
 				signupUrl={signupUrl}
 			/>
@@ -118,6 +131,8 @@ export const GenericProviderSettings = ({
 					/>
 				</>
 			)}
+
+			{showCustomPromptCheckbox && <UseCustomPromptCheckbox providerId={providerId} />}
 		</div>
 	)
 }

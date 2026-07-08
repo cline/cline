@@ -48,6 +48,7 @@ describe("providerSettingsRegistry", () => {
 		expect(hasCustomProviderSettings("cerebras")).toBe(false)
 		expect(hasCustomProviderSettings("minimax")).toBe(false)
 		expect(hasCustomProviderSettings("together")).toBe(false)
+		expect(hasCustomProviderSettings("atomic-chat")).toBe(false)
 		expect(getGenericProviderSettings("openai", listing({ id: "openai", name: "OpenAI" }))).toBeUndefined()
 	})
 
@@ -121,6 +122,33 @@ describe("providerSettingsRegistry", () => {
 		})
 	})
 
+	it("builds Atomic Chat settings through the generic registry", () => {
+		expect(
+			getGenericProviderSettings(
+				"atomic-chat",
+				listing({
+					allowsCustomModelIds: true,
+					id: "atomic-chat",
+					name: "Atomic Chat",
+					protocol: "openai-chat",
+				}),
+			),
+		).toEqual({
+			allowsCustomIds: true,
+			apiKeyField: {
+				helpText: "Optional API key for authenticated Atomic Chat instances. Leave empty for local use.",
+				placeholder: "Enter API Key (optional)...",
+			},
+			baseUrlField: {
+				label: "Use custom base URL",
+				placeholder: "Default: http://127.0.0.1:1337/v1",
+			},
+			providerId: "atomic-chat",
+			providerName: "Atomic Chat",
+			showCustomPromptCheckbox: true,
+		})
+	})
+
 	it("allows future simple SDK providers to use the generic fallback", () => {
 		const futureProvider = listing({
 			allowsCustomModelIds: true,
@@ -180,6 +208,20 @@ describe("providerSettingsRegistry", () => {
 			allowsCustomIds: false,
 			providerId: "zai-coding-plan",
 			providerName: "Z.AI Coding Plan",
+		})
+		expect(getFallbackGenericProviderSettings("atomic-chat")).toEqual({
+			allowsCustomIds: true,
+			apiKeyField: {
+				helpText: "Optional API key for authenticated Atomic Chat instances. Leave empty for local use.",
+				placeholder: "Enter API Key (optional)...",
+			},
+			baseUrlField: {
+				label: "Use custom base URL",
+				placeholder: "Default: http://127.0.0.1:1337/v1",
+			},
+			providerId: "atomic-chat",
+			providerName: "Atomic Chat",
+			showCustomPromptCheckbox: true,
 		})
 		expect(getFallbackGenericProviderSettings("openai")).toBeUndefined()
 	})

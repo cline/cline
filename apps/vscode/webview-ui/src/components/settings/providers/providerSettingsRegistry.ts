@@ -3,12 +3,14 @@ import type { GenericProviderSettingsProps } from "./GenericProviderSettings"
 
 type GenericProviderSettingsConfig = Omit<GenericProviderSettingsProps, "currentMode" | "isPopup" | "showModelOptions">
 
-type GenericProviderPresentationOverride = Pick<GenericProviderSettingsConfig, "signupUrl" | "baseUrlField"> &
+type GenericProviderPresentationOverride = Pick<
+	GenericProviderSettingsConfig,
+	"signupUrl" | "apiKeyField" | "baseUrlField" | "showCustomPromptCheckbox"
+> &
 	Partial<Pick<GenericProviderSettingsConfig, "allowsCustomIds">>
 
 const CUSTOM_PROVIDER_SETTINGS_IDS = new Set([
 	"aihubmix",
-	"atomic-chat",
 	"anthropic",
 	"asksage",
 	"bedrock",
@@ -37,6 +39,18 @@ const CUSTOM_PROVIDER_SETTINGS_IDS = new Set([
 ])
 
 const GENERIC_PROVIDER_PRESENTATION_OVERRIDES: Record<string, GenericProviderPresentationOverride> = {
+	"atomic-chat": {
+		allowsCustomIds: true,
+		apiKeyField: {
+			helpText: "Optional API key for authenticated Atomic Chat instances. Leave empty for local use.",
+			placeholder: "Enter API Key (optional)...",
+		},
+		baseUrlField: {
+			label: "Use custom base URL",
+			placeholder: "Default: http://127.0.0.1:1337/v1",
+		},
+		showCustomPromptCheckbox: true,
+	},
 	baseten: {
 		signupUrl: "https://app.baseten.co/settings/api_keys",
 	},
@@ -139,9 +153,11 @@ export function getGenericProviderSettings(
 	}
 
 	const overrides = GENERIC_PROVIDER_PRESENTATION_OVERRIDES[providerId]
+	const apiKeyField = overrides?.apiKeyField ?? (listing.authDescription ? { helpText: listing.authDescription } : undefined)
 
 	return {
 		...overrides,
+		...(apiKeyField ? { apiKeyField } : {}),
 		allowsCustomIds: overrides?.allowsCustomIds ?? listing.allowsCustomModelIds,
 		providerId: listing.id,
 		providerName: listing.name,
@@ -149,6 +165,7 @@ export function getGenericProviderSettings(
 }
 
 const FALLBACK_GENERIC_PROVIDER_NAMES = {
+	"atomic-chat": "Atomic Chat",
 	deepseek: "DeepSeek",
 	doubao: "Doubao",
 	gemini: "Gemini",
