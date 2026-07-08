@@ -190,7 +190,7 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 		return this.activeDiffEditor.document.getText()
 	}
 
-	protected override async saveDocument(): Promise<Boolean> {
+	protected override async saveDocument(): Promise<boolean> {
 		if (!this.activeDiffEditor) {
 			return false
 		}
@@ -249,13 +249,16 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 			// Open with Jupyter notebook editor if available
 			const jupyterExtension = vscode.extensions.getExtension("ms-toolsai.jupyter")
 			if (jupyterExtension) {
-				await vscode.commands.executeCommand("vscode.openWith", uri, "jupyter-notebook")
+				// preserveFocus: this runs on every saveChanges(), including auto-approved
+				// edits with no user interaction, so it must never steal focus away from
+				// wherever the user actually is (e.g. mid-keystroke in the chat composer).
+				await vscode.commands.executeCommand("vscode.openWith", uri, "jupyter-notebook", { preserveFocus: true })
 				return
 			}
 		}
 
-		// Default: open as text
-		await vscode.window.showTextDocument(uri, { preview: false })
+		// Default: open as text. preserveFocus for the same reason as above.
+		await vscode.window.showTextDocument(uri, { preview: false, preserveFocus: true })
 	}
 }
 
