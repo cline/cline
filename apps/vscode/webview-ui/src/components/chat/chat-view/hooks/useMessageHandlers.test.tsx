@@ -17,7 +17,6 @@ vi.mock("@/services/grpc-client", () => ({
 	},
 	SlashServiceClient: {
 		condense: (req: unknown) => condense(req),
-		reportBug: vi.fn().mockResolvedValue(undefined),
 	},
 	UiServiceClient: {
 		trackIntent: (req: unknown) => trackIntent(req),
