@@ -53,6 +53,25 @@ describe("cline model picker entries", () => {
 		]);
 	});
 
+	it("adds the browse-all escape when the clinePass bucket is empty", () => {
+		// The fetch fell back to the bundled list (no pass models); the sections
+		// alone would leave a subscriber able to pick only free models.
+		const entries = buildFeaturedModelEntries("cline-pass", {
+			recommended: [],
+			free: [model("deepseek/deepseek-v4-flash")],
+			clinePass: [],
+		});
+
+		expect(entries).toEqual([
+			{
+				kind: "model",
+				model: model("deepseek/deepseek-v4-flash"),
+				tier: "free",
+			},
+			{ kind: "browse" },
+		]);
+	});
+
 	it("attaches the quota explainer only to the ClinePass picker's free section", () => {
 		const data = {
 			recommended: [model("anthropic/claude-sonnet-5")],

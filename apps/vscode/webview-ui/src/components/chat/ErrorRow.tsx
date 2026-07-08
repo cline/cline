@@ -35,12 +35,15 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 					const errorMessage = clineError?._error?.message || clineError?.message || rawApiError
 					const requestId = clineError?._error?.request_id
 					const providerId = clineError?.providerId || clineError?._error?.providerId
-					const isClineManagedProvider = providerId === "cline"
+					// Deliberately narrower than the shared isClineManagedProvider (which
+					// also matches cline-pass): only usage-billing errors get the credit
+					// and login prompts below.
+					const isClineUsageBillingProvider = providerId === "cline"
 					const errorCode = clineError?._error?.code
 
 					if (clineError?.isErrorType(ClineErrorType.Balance)) {
 						const errorDetails = clineError._error?.details
-						if (isClineManagedProvider || errorDetails?.buy_credits_url) {
+						if (isClineUsageBillingProvider || errorDetails?.buy_credits_url) {
 							return (
 								<CreditLimitError
 									buyCreditsUrl={errorDetails?.buy_credits_url}
@@ -89,7 +92,7 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 						return <p className="m-0 whitespace-pre-wrap text-error wrap-anywhere">{detailMessage}</p>
 					}
 
-					if (clineError?.isErrorType(ClineErrorType.Auth) && isClineManagedProvider) {
+					if (clineError?.isErrorType(ClineErrorType.Auth) && isClineUsageBillingProvider) {
 						return !clineUser ? (
 							// User is using Cline provider and is not logged in
 							<div className="flex flex-col gap-3">

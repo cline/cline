@@ -61,8 +61,12 @@ export const CLINE_PASS_FREE_SECTION_DESCRIPTION =
 // ClinePass shows the subscription's models plus the Cline free models — both
 // providers hit the same Cline API, so free models are selectable in place
 // (they ride usage billing at $0 instead of the subscription quota).
-// No "browse all" entry: unlike cline, the ClinePass catalog contains exactly
-// these two buckets, so the sections already list every selectable model.
+// No "browse all" entry when the clinePass bucket is populated: unlike cline,
+// the ClinePass catalog contains exactly these two buckets, so the sections
+// already list every selectable model. An empty clinePass bucket means the
+// fetch fell back to the bundled list (which has no pass models) — without an
+// escape into the full catalog a subscriber could only pick free models, so
+// browse-all comes back in that degraded mode.
 function buildClinePassModelEntries(
 	data: ClineRecommendedModelsData,
 ): ClineModelPickerEntry[] {
@@ -72,6 +76,9 @@ function buildClinePassModelEntries(
 	}
 	for (const m of data.free) {
 		entries.push({ kind: "model", model: m, tier: "free" });
+	}
+	if (data.clinePass.length === 0) {
+		entries.push({ kind: "browse" });
 	}
 	return entries;
 }
