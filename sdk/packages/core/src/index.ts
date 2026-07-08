@@ -8,6 +8,7 @@ export * as Llms from "@cline/llms";
 export {
 	ClineNotSubscribedError,
 	ClineOrgIndividualInferenceSubscriptionError,
+	ClinePassLimitError,
 	getClineOrgIndividualInferenceSubscriptionMessage,
 	getClineNotSubscribedMessage,
 	getClinePassSubscriptionUrl,
@@ -15,6 +16,8 @@ export {
 	isClineNotSubscribedMessage,
 	isClineOrgIndividualInferenceSubscriptionError,
 	isClineOrgIndividualInferenceSubscriptionMessage,
+	isClinePassLimitError,
+	isClinePassLimitMessage,
 } from "@cline/llms";
 // Shared contracts and path helpers re-exported for app consumers.
 export type {

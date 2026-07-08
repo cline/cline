@@ -2,6 +2,7 @@ import {
 	getClineOrgIndividualInferenceSubscriptionMessage,
 	isClineNotSubscribedMessage,
 	isClineOrgIndividualInferenceSubscriptionMessage,
+	isClinePassLimitMessage,
 } from "@cline/llms"
 import { serializeError } from "serialize-error"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "../../shared/ClineAccount"
@@ -14,6 +15,7 @@ export enum ClineErrorType {
 	QuotaExceeded = "quotaExceeded",
 	Entitlement = "entitlement",
 	OrgClinePassRestriction = "orgClinePassRestriction",
+	ClinePassLimit = "clinePassLimit",
 }
 
 interface ErrorDetails {
@@ -181,6 +183,13 @@ export class ClineError extends Error {
 			(rawMessage ? isClineNotSubscribedMessage(rawMessage) : false)
 		) {
 			return ClineErrorType.Entitlement
+		}
+
+		if (
+			(detailMessage ? isClinePassLimitMessage(detailMessage) : false) ||
+			(rawMessage ? isClinePassLimitMessage(rawMessage) : false)
+		) {
+			return ClineErrorType.ClinePassLimit
 		}
 
 		// Check auth errors
