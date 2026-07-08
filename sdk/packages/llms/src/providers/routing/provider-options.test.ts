@@ -1294,6 +1294,19 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			],
 		},
 		{
+			name: "openai-compatible future non-thinking DeepSeek V4 family -> no thinking emitted",
+			request: {
+				providerId: "openai-compatible",
+				modelId: "deepseek-v4-chat",
+				reasoning: { enabled: true },
+			},
+			context: { family: "deepseek-v4-chat" },
+			expect: [
+				{ bucket: "openai-compatible", lacks: ["thinking"] },
+				{ bucket: "openaiCompatible", lacks: ["thinking"] },
+			],
+		},
+		{
 			name: "openrouter MiniMax M3 reasoning enabled -> OpenRouter reasoning shape",
 			request: {
 				providerId: "openrouter",
