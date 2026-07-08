@@ -249,8 +249,8 @@ export class ClineError extends Error {
 		const detailMessage =
 			typeof details?.message === "string" ? details.message : undefined;
 		if (
-			(detailMessage ? isClinePassLimitMessage(detailMessage) : false) ||
-			(message ? isClinePassLimitMessage(message) : false)
+			isClinePassLimitMessage(detailMessage ?? "") ||
+			isClinePassLimitMessage(message ?? "")
 		) {
 			return ClineErrorType.ClinePassLimit;
 		}
