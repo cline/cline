@@ -64,20 +64,28 @@ async function main(): Promise<void> {
 
 	const daemonTelemetry = createHubDaemonTelemetry();
 
-	const server = await startHubWebSocketServer({
-		host: endpoint.host,
-		port: endpoint.port,
-		pathname: endpoint.pathname,
-		owner:
-			resolveClineBuildEnv() === "production"
-				? resolveProductionHubOwnerContext()
-				: resolveSharedHubOwnerContext(),
-		telemetry: daemonTelemetry.telemetry,
-		runtimeHandlers: createLocalHubScheduleRuntimeHandlers({
+	let server: Awaited<ReturnType<typeof startHubWebSocketServer>>;
+	try {
+		server = await startHubWebSocketServer({
+			host: endpoint.host,
+			port: endpoint.port,
+			pathname: endpoint.pathname,
+			owner:
+				resolveClineBuildEnv() === "production"
+					? resolveProductionHubOwnerContext()
+					: resolveSharedHubOwnerContext(),
 			telemetry: daemonTelemetry.telemetry,
-		}),
-		cronOptions: { workspaceRoot: options.cwd },
-	});
+			runtimeHandlers: createLocalHubScheduleRuntimeHandlers({
+				telemetry: daemonTelemetry.telemetry,
+			}),
+			cronOptions: { workspaceRoot: options.cwd },
+		});
+	} catch (error) {
+		// Flush before the top-level catch exits so failed daemon starts are
+		// still visible in telemetry instead of dying silently.
+		await daemonTelemetry.dispose().catch(() => undefined);
+		throw error;
+	}
 
 	const shutdown = async (): Promise<void> => {
 		await server.close();
