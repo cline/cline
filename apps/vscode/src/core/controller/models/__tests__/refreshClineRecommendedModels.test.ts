@@ -11,6 +11,19 @@ import {
 	resetClineRecommendedModelsCacheForTests,
 } from "../refreshClineRecommendedModels";
 
+const expectedClinePassModelOrder = [
+	"cline-pass/glm-5.2",
+	"cline-pass/deepseek-v4-pro",
+	"cline-pass/deepseek-v4-flash",
+	"cline-pass/kimi-k2.7-code",
+	"cline-pass/kimi-k2.6",
+	"cline-pass/mimo-v2.5-pro",
+	"cline-pass/mimo-v2.5",
+	"cline-pass/minimax-m3",
+	"cline-pass/qwen3.7-max",
+	"cline-pass/qwen3.7-plus",
+] as const;
+
 describe("refreshClineRecommendedModels", () => {
 	let sandbox: sinon.SinonSandbox;
 
@@ -126,6 +139,41 @@ describe("refreshClineRecommendedModels", () => {
 
 		expect(axiosGetStub.calledOnce).to.equal(true);
 		expect(secondResult).to.deep.equal(firstResult);
+	});
+
+	it("orders ClinePass models using the curated display order", async () => {
+		sandbox.stub(ClineEnv, "config").returns({
+			environment: Environment.production,
+			appBaseUrl: "https://app.cline-mock.bot",
+			apiBaseUrl: "https://api.cline-mock.bot",
+			mcpBaseUrl: "https://api.cline-mock.bot/v1/mcp",
+		});
+		sandbox.stub(disk, "ensureCacheDirectoryExists").resolves("/tmp");
+		sandbox.stub(fs, "writeFile").resolves();
+		sandbox.stub(axios, "get").resolves({
+			data: {
+				clinePass: [
+					{ id: "cline-pass/qwen3.7-plus" },
+					{ id: "cline-pass/new-model" },
+					{ id: "cline-pass/deepseek-v4-flash" },
+					{ id: "cline-pass/glm-5.2" },
+					{ id: "cline-pass/qwen3.7-max" },
+					{ id: "cline-pass/deepseek-v4-pro" },
+					{ id: "cline-pass/minimax-m3" },
+					{ id: "cline-pass/kimi-k2.6" },
+					{ id: "cline-pass/mimo-v2.5" },
+					{ id: "cline-pass/mimo-v2.5-pro" },
+					{ id: "cline-pass/kimi-k2.7-code" },
+				],
+			},
+		});
+
+		const result = await refreshClineRecommendedModels();
+
+		expect(result.clinePass.map((model) => model.id)).to.deep.equal([
+			...expectedClinePassModelOrder,
+			"cline-pass/new-model",
+		]);
 	});
 
 	it("normalizes Cline provider Z.ai recommended IDs to the Cline API alias", async () => {

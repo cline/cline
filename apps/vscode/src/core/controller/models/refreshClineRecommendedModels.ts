@@ -26,6 +26,21 @@ const RECOMMENDED_MODELS_CACHE_TTL_MS = 60 * 60 * 1000;
 const CLINE_PASS_MODEL_ID_ALIAS_RULES = [
 	{ canonicalPrefix: "cline-pass/zai/", aliasPrefix: "cline-pass/z-ai/" },
 ] as const;
+const CLINE_PASS_MODEL_ORDER = [
+	"cline-pass/glm-5.2",
+	"cline-pass/deepseek-v4-pro",
+	"cline-pass/deepseek-v4-flash",
+	"cline-pass/kimi-k2.7-code",
+	"cline-pass/kimi-k2.6",
+	"cline-pass/mimo-v2.5-pro",
+	"cline-pass/mimo-v2.5",
+	"cline-pass/minimax-m3",
+	"cline-pass/qwen3.7-max",
+	"cline-pass/qwen3.7-plus",
+] as const;
+const CLINE_PASS_MODEL_ORDER_INDEX = new Map<string, number>(
+	CLINE_PASS_MODEL_ORDER.map((modelId, index) => [modelId, index]),
+);
 
 function normalizeClineProviderRecommendedModelId(modelId: string): string {
 	const zaiPrefix = "zai/";
@@ -72,6 +87,18 @@ function preferCanonicalRecommendedModels(
 		}
 
 		return true;
+	});
+}
+
+function orderClinePassRecommendedModels(
+	models: ClineRecommendedModelData[],
+): ClineRecommendedModelData[] {
+	return [...models].sort((a, b) => {
+		const aIndex =
+			CLINE_PASS_MODEL_ORDER_INDEX.get(a.id) ?? Number.MAX_SAFE_INTEGER;
+		const bIndex =
+			CLINE_PASS_MODEL_ORDER_INDEX.get(b.id) ?? Number.MAX_SAFE_INTEGER;
+		return aIndex - bIndex;
 	});
 }
 
@@ -137,7 +164,9 @@ function normalizeRecommendedModelsResponse(
 	return {
 		recommended: normalizeClineProviderRecommendedModels(recommended),
 		free: normalizeClineProviderRecommendedModels(free),
-		clinePass: preferCanonicalRecommendedModels(clinePass),
+		clinePass: orderClinePassRecommendedModels(
+			preferCanonicalRecommendedModels(clinePass),
+		),
 	};
 }
 
