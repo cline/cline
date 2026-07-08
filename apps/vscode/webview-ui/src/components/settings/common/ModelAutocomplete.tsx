@@ -167,7 +167,10 @@ export const ModelAutocomplete = ({
 						onBlur={() => {
 							// Delay to allow click events on dropdown items to fire first
 							setTimeout(() => {
-								if (!isSelectingRef.current && searchTerm !== selectedModelId) {
+								// Skip committing the stale search term when the blur was caused by
+								// selecting a dropdown item (the click handler already committed it).
+								// Also never commit an empty model ID, which would reset to the default model.
+								if (!isSelectingRef.current && searchTerm && searchTerm !== selectedModelId) {
 									handleModelChange(searchTerm)
 								}
 								isSelectingRef.current = false
@@ -221,7 +224,10 @@ export const ModelAutocomplete = ({
 									onClick={() => {
 										handleModelChange(item.id)
 										setIsDropdownVisible(false)
-										isSelectingRef.current = false
+										// Note: isSelectingRef is intentionally NOT reset here.
+										// The blur timeout (scheduled before this click lands) resets it,
+										// and resetting it early would let that timeout commit the stale
+										// pre-click search term, overwriting this selection.
 									}}
 									onMouseDown={() => {
 										isSelectingRef.current = true

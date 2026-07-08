@@ -24,6 +24,7 @@ import {
 	fireworksModels,
 	geminiDefaultModelId,
 	geminiModels,
+	getVertexCustomModelInfo,
 	groqDefaultModelId,
 	groqModels,
 	hicapModelInfoSaneDefaults,
@@ -263,6 +264,13 @@ export function normalizeApiConfiguration(
 			return getProviderData(bedrockModels, bedrockDefaultModelId);
 		}
 		case "vertex":
+			if (modelId && !(modelId in vertexModels)) {
+				return {
+					selectedProvider: provider,
+					selectedModelId: modelId,
+					selectedModelInfo: getVertexCustomModelInfo(modelId),
+				};
+			}
 			return getProviderData(vertexModels, vertexDefaultModelId);
 		case "gemini":
 			return getProviderData(geminiModels, geminiDefaultModelId);

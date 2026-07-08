@@ -1307,14 +1307,16 @@ export const vertexModels = {
 	},
 	"claude-sonnet-5": {
 		maxTokens: 128_000,
-		contextWindow: 200_000,
+		contextWindow: 1_000_000,
 		supportsImages: true,
 		supportsPromptCache: true,
+		supportsGlobalEndpoint: true,
 		inputPrice: 2.0,
 		outputPrice: 10.0,
 		cacheWritesPrice: 2.5,
 		cacheReadsPrice: 0.2,
 		supportsReasoning: true,
+		tiers: CLAUDE_SONNET_1M_TIERS,
 	},
 	"claude-sonnet-5:1m": {
 		maxTokens: 128_000,
@@ -1329,18 +1331,20 @@ export const vertexModels = {
 		tiers: CLAUDE_SONNET_1M_TIERS,
 	},
 	"claude-sonnet-4-6": {
-		maxTokens: 64_000,
-		contextWindow: 200_000,
+		maxTokens: 128_000,
+		contextWindow: 1_000_000,
 		supportsImages: true,
 		supportsPromptCache: true,
+		supportsGlobalEndpoint: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
 		cacheWritesPrice: 3.75,
 		cacheReadsPrice: 0.3,
 		supportsReasoning: true,
+		tiers: CLAUDE_SONNET_1M_TIERS,
 	},
 	"claude-sonnet-4-6:1m": {
-		maxTokens: 64_000,
+		maxTokens: 128_000,
 		contextWindow: 1_000_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -1361,6 +1365,19 @@ export const vertexModels = {
 		cacheWritesPrice: 3.75,
 		cacheReadsPrice: 0.3,
 		supportsReasoning: true,
+	},
+	"claude-sonnet-4-5": {
+		maxTokens: 64_000,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsGlobalEndpoint: true,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+		cacheWritesPrice: 3.75,
+		cacheReadsPrice: 0.3,
+		supportsReasoning: true,
+		tiers: CLAUDE_SONNET_1M_TIERS,
 	},
 	"claude-sonnet-4@20250514": {
 		maxTokens: 64_000,
@@ -1384,9 +1401,21 @@ export const vertexModels = {
 		cacheReadsPrice: 0.1,
 		supportsReasoning: true,
 	},
+	"claude-haiku-4-5": {
+		maxTokens: 64_000,
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		supportsGlobalEndpoint: true,
+		inputPrice: 1.0,
+		outputPrice: 5.0,
+		cacheWritesPrice: 1.25,
+		cacheReadsPrice: 0.1,
+		supportsReasoning: true,
+	},
 	"claude-opus-4-6": {
 		maxTokens: 128_000,
-		contextWindow: 200_000,
+		contextWindow: 1_000_000,
 		supportsImages: true,
 		supportsPromptCache: true,
 		supportsGlobalEndpoint: true,
@@ -1395,6 +1424,7 @@ export const vertexModels = {
 		cacheWritesPrice: 6.25,
 		cacheReadsPrice: 0.5,
 		supportsReasoning: true,
+		tiers: CLAUDE_OPUS_1M_TIERS,
 	},
 	"claude-opus-4-6:1m": {
 		maxTokens: 128_000,
@@ -1411,7 +1441,7 @@ export const vertexModels = {
 	},
 	"claude-opus-4-8": {
 		maxTokens: 128_000,
-		contextWindow: 200_000,
+		contextWindow: 1_000_000,
 		supportsImages: true,
 		supportsPromptCache: true,
 		supportsGlobalEndpoint: true,
@@ -1420,6 +1450,7 @@ export const vertexModels = {
 		cacheWritesPrice: 6.25,
 		cacheReadsPrice: 0.5,
 		supportsReasoning: true,
+		tiers: CLAUDE_OPUS_1M_TIERS,
 	},
 	"claude-opus-4-8:1m": {
 		maxTokens: 128_000,
@@ -1436,7 +1467,7 @@ export const vertexModels = {
 	},
 	"claude-fable-5": {
 		maxTokens: 128_000,
-		contextWindow: 200_000,
+		contextWindow: 1_000_000,
 		supportsImages: true,
 		supportsPromptCache: true,
 		supportsGlobalEndpoint: true,
@@ -1445,6 +1476,7 @@ export const vertexModels = {
 		cacheWritesPrice: 12.5,
 		cacheReadsPrice: 1,
 		supportsReasoning: true,
+		tiers: CLAUDE_FABLE_1M_TIERS,
 	},
 	"claude-fable-5:1m": {
 		maxTokens: 128_000,
@@ -1461,7 +1493,7 @@ export const vertexModels = {
 	},
 	"claude-opus-4-7": {
 		maxTokens: 128_000,
-		contextWindow: 200_000,
+		contextWindow: 1_000_000,
 		supportsImages: true,
 		supportsPromptCache: true,
 		supportsGlobalEndpoint: true,
@@ -1470,6 +1502,7 @@ export const vertexModels = {
 		cacheWritesPrice: 6.25,
 		cacheReadsPrice: 0.5,
 		supportsReasoning: true,
+		tiers: CLAUDE_OPUS_1M_TIERS,
 	},
 	"claude-opus-4-7:1m": {
 		maxTokens: 128_000,
@@ -1495,11 +1528,35 @@ export const vertexModels = {
 		cacheReadsPrice: 0.5,
 		supportsReasoning: true,
 	},
+	"claude-opus-4-5": {
+		maxTokens: 64_000,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsGlobalEndpoint: true,
+		inputPrice: 5.0,
+		outputPrice: 25.0,
+		cacheWritesPrice: 6.25,
+		cacheReadsPrice: 0.5,
+		supportsReasoning: true,
+	},
 	"claude-opus-4-1@20250805": {
 		maxTokens: 32_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
+		inputPrice: 15.0,
+		outputPrice: 75.0,
+		cacheWritesPrice: 18.75,
+		cacheReadsPrice: 1.5,
+		supportsReasoning: true,
+	},
+	"claude-opus-4-1": {
+		maxTokens: 32_000,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsGlobalEndpoint: true,
 		inputPrice: 15.0,
 		outputPrice: 75.0,
 		cacheWritesPrice: 18.75,
@@ -1802,6 +1859,33 @@ export const vertexModels = {
 export const vertexGlobalModels: Record<string, ModelInfo> = Object.fromEntries(
 	Object.entries(vertexModels).filter(([_k, v]) => Object.hasOwn(v, "supportsGlobalEndpoint")),
 ) as Record<string, ModelInfo>
+
+export function getVertexCustomModelInfo(modelId: string): ModelInfo {
+	if (modelId.toLowerCase().includes("claude")) {
+		return {
+			maxTokens: 128_000,
+			contextWindow: 1_000_000,
+			supportsImages: true,
+			supportsPromptCache: true,
+			supportsGlobalEndpoint: true,
+			inputPrice: 0,
+			outputPrice: 0,
+			cacheWritesPrice: 0,
+			cacheReadsPrice: 0,
+			supportsReasoning: true,
+		}
+	}
+
+	return {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		supportsGlobalEndpoint: true,
+		inputPrice: 0,
+		outputPrice: 0,
+	}
+}
 
 export const openAiModelInfoSaneDefaults: OpenAiCompatibleModelInfo = {
 	maxTokens: -1,

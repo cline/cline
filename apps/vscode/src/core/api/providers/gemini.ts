@@ -8,7 +8,7 @@ import {
 	FunctionDeclaration as GoogleTool,
 	ThinkingLevel,
 } from "@google/genai"
-import { GeminiModelId, geminiDefaultModelId, geminiModels, ModelInfo } from "@shared/api"
+import { GeminiModelId, geminiDefaultModelId, geminiModels, getVertexCustomModelInfo, ModelInfo } from "@shared/api"
 import { GEMINI_FLASH_MAX_OUTPUT_TOKENS, isGeminiFlashModel } from "@utils/model-utils"
 import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { telemetryService } from "@/services/telemetry"
@@ -464,11 +464,14 @@ export class GeminiHandler implements ApiHandler {
 	/**
 	 * Get the model ID and info for the current configuration
 	 */
-	getModel(): { id: GeminiModelId; info: ModelInfo } {
+	getModel(): { id: string; info: ModelInfo } {
 		const modelId = this.options.apiModelId
 		if (modelId && modelId in geminiModels) {
 			const id = modelId as GeminiModelId
 			return { id, info: geminiModels[id] }
+		}
+		if (modelId && this.options.isVertex) {
+			return { id: modelId, info: getVertexCustomModelInfo(modelId) }
 		}
 		return {
 			id: geminiDefaultModelId,

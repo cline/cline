@@ -6,8 +6,8 @@ import { VSCodeDropdown, VSCodeLink, VSCodeOption } from "@vscode/webview-ui-too
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { DROPDOWN_Z_INDEX, DropdownContainer } from "../ApiOptions"
 import { DebouncedTextField } from "../common/DebouncedTextField"
+import { ModelAutocomplete } from "../common/ModelAutocomplete"
 import { ModelInfoView } from "../common/ModelInfoView"
-import { ModelSelector } from "../common/ModelSelector"
 import { LockIcon, RemotelyConfiguredInputWrapper } from "../common/RemotelyConfiguredInputWrapper"
 import ReasoningEffortSelector from "../ReasoningEffortSelector"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
@@ -29,12 +29,20 @@ const SUPPORTED_THINKING_MODELS = [
 	"claude-sonnet-5:1m",
 	"claude-sonnet-4-6",
 	"claude-sonnet-4-6:1m",
+	"claude-fable-5",
+	"claude-haiku-4-5",
 	"claude-haiku-4-5@20251001",
+	"claude-sonnet-4-5",
 	"claude-sonnet-4-5@20250929",
 	"claude-3-7-sonnet@20250219",
 	"claude-sonnet-4@20250514",
 	"claude-opus-4@20250514",
+	"claude-opus-4-1",
 	"claude-opus-4-1@20250805",
+	"claude-opus-4-5",
+	"claude-opus-4-6",
+	"claude-opus-4-7",
+	"claude-opus-4-8",
 	"gemini-2.5-flash",
 	"gemini-2.5-pro",
 	"gemini-2.5-flash-lite-preview-06-17",
@@ -127,13 +135,13 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 
 			{showModelOptions && (
 				<>
-					<ModelSelector
+					<ModelAutocomplete
 						label="Model"
 						models={modelsToUse}
-						onChange={(e: any) =>
+						onChange={(modelId) =>
 							handleModeFieldChange(
 								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
-								e.target.value,
+								modelId,
 								currentMode,
 							)
 						}
