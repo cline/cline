@@ -511,10 +511,7 @@ export class Controller {
 			sessions: this.sessions,
 			messages: this.messages,
 			sessionConfigBuilder: this.sessionConfigBuilder,
-			getTask: () => this.task,
 			getWorkspaceRoot: () => this.getWorkspaceRoot(),
-			buildStartSessionInput,
-			resetMessageTranslator: () => this.resetMessageTranslatorAndFence(),
 			postStateToWebview: () => this.postStateToWebview(),
 		})
 		this.sessionEvents = new SdkSessionEventCoordinator({
@@ -1139,8 +1136,8 @@ export class Controller {
 	 * Manually compact (condense) the active task's conversation. Triggered by
 	 * the compact button and the `/compact` (alias `/smol`) slash command.
 	 * Mirrors the CLI's `/compact` local command: runs an SDK manual compaction
-	 * and restarts the session with the compacted transcript so the model's
-	 * working context is actually reduced.
+	 * and persists the compaction sidecar so the model's working context is
+	 * reduced on the next turn and later resumes.
 	 */
 	async compactTask(): Promise<void> {
 		await this.compaction.compactTask()
