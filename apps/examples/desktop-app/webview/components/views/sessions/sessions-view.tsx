@@ -396,9 +396,9 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 											</span>
 										</form>
 									) : (
-										<div
-											aria-disabled={Boolean(pendingKind)}
-											className="col-span-6 grid cursor-pointer select-text grid-cols-[minmax(14rem,1.35fr)_minmax(9rem,0.8fr)_minmax(12rem,1fr)_7rem_5rem_6rem] items-center gap-x-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+										<button
+											className="col-span-6 grid cursor-pointer select-text grid-cols-[minmax(14rem,1.35fr)_minmax(9rem,0.8fr)_minmax(12rem,1fr)_7rem_5rem_6rem] items-center gap-x-4 border-0 bg-transparent p-0 text-left font-inherit text-inherit focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-default"
+											disabled={Boolean(pendingKind)}
 											onClick={() => {
 												if (pendingKind) {
 													return;
@@ -417,8 +417,7 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 													}
 												}
 											}}
-											role="button"
-											tabIndex={0}
+											type="button"
 										>
 											<span className="flex min-w-0 items-center gap-3 font-semibold">
 												<span
@@ -447,7 +446,7 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 											<span className="text-muted-foreground">
 												{updated || thread.time}
 											</span>
-										</div>
+										</button>
 									)}
 									<DropdownMenu>
 										<DropdownMenuTrigger asChild>
