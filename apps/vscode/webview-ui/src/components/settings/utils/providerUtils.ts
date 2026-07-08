@@ -355,11 +355,10 @@ export function normalizeApiConfiguration(
 				currentMode === "plan"
 					? apiConfiguration?.planModeClinePassModelId
 					: apiConfiguration?.actModeClinePassModelId;
-			const clinePassModelId = configuredClinePassModelId?.startsWith(
-				"cline-pass/",
-			)
-				? configuredClinePassModelId
-				: clinePassDefaultModelId;
+			// ClinePass users may also select Cline free models (OpenRouter-style ids
+			// without the cline-pass/ prefix), so pass any configured id through.
+			const clinePassModelId =
+				configuredClinePassModelId || clinePassDefaultModelId;
 			const clinePassModelInfo =
 				currentMode === "plan"
 					? apiConfiguration?.planModeClinePassModelInfo
