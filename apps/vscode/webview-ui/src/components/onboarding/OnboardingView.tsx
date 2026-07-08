@@ -242,6 +242,7 @@ const UserTypeSelectionStep = ({ userType, onSelectUserType, userTypeSelections 
 										{" "}
 										<VSCodeLink
 											className="inline"
+											style={{ fontSize: "inherit" }}
 											onClick={(e) => {
 												e.stopPropagation()
 												UiServiceClient.openUrl(
