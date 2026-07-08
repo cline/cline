@@ -39,17 +39,18 @@ import type {
 	PendingPromptsServiceApi,
 	RuntimeHost,
 	RuntimeHostSubscribeOptions,
+	SessionConnectionRuntimeService,
 	SessionModelRuntimeService,
 	SessionUsageRuntimeService,
 	StartSessionInput,
 	StartSessionResult,
 } from "./runtime/host/runtime-host";
-import { compareCheckpointToWorkspace } from "./session/checkpoint-diff";
 import {
 	FeatureFlagsService,
 	NoOpFeatureFlagsProvider,
 } from "./services/feature-flags";
 import { resolveCoreDistinctId } from "./services/telemetry/distinct-id";
+import { compareCheckpointToWorkspace } from "./session/checkpoint-diff";
 import type { CoreSessionEvent } from "./types/events";
 import type { SessionHistoryRecord } from "./types/sessions";
 
@@ -69,10 +70,10 @@ export type {
 	ClineCoreOptions,
 	ClineCoreSettingsApi,
 	ClineCoreStartInput,
-	HubOptions,
-	RemoteOptions,
 	CompareCheckpointInput,
 	CompareCheckpointResult,
+	HubOptions,
+	RemoteOptions,
 	RestoreInput,
 	RestoreOptions,
 	RestoreResult,
@@ -620,4 +621,13 @@ export class ClineCore {
 		const service = this.host as RuntimeHostServiceExtensions;
 		return service.updateSessionModel?.(...args) ?? Promise.resolve();
 	};
+	/**
+	 * Updates provider/model/reasoning connection options for subsequent turns in
+	 * an active session.
+	 */
+	updateSessionConnection: SessionConnectionRuntimeService["updateSessionConnection"] =
+		(...args) => {
+			const service = this.host as RuntimeHostServiceExtensions;
+			return service.updateSessionConnection?.(...args) ?? Promise.resolve();
+		};
 }

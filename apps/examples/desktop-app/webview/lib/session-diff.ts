@@ -59,6 +59,39 @@ function toStringValue(value: unknown): string | undefined {
 	return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
+/**
+ * Tool outputs arrive in several shapes depending on the source: a plain
+ * record (live hook events), a JSON-encoded string, or a list of content
+ * blocks such as [{ type: "text", text: "<json>" }] (persisted history).
+ */
+function normalizeToolOutput(value: unknown): Record<string, unknown> | null {
+	if (typeof value === "string") {
+		try {
+			return asRecord(JSON.parse(value));
+		} catch {
+			return null;
+		}
+	}
+	if (Array.isArray(value)) {
+		for (const entry of value) {
+			const record = asRecord(entry);
+			if (!record) {
+				continue;
+			}
+			if (typeof record.text === "string") {
+				const inner = normalizeToolOutput(record.text);
+				if (inner) {
+					return inner;
+				}
+				continue;
+			}
+			return record;
+		}
+		return null;
+	}
+	return asRecord(value);
+}
+
 function getHookEventName(event: SessionHookEvent): string {
 	return event.hookEventName ?? event.hookName ?? "";
 }
@@ -101,7 +134,7 @@ function stripApplyPatchWrapperLines(lines: string[]): string[] {
 	return result;
 }
 
-function parseApplyPatchInput(input: string): SessionFileDiff[] {
+export function parseApplyPatchInput(input: string): SessionFileDiff[] {
 	const lines = stripApplyPatchWrapperLines(
 		input.split("\n").map((line) => line.replace(/\r$/, "")),
 	);
@@ -332,12 +365,20 @@ function parseEditorFileDiff(event: SessionHookEvent): SessionFileDiff | null {
 	}
 
 	const input = asRecord(event.toolInput);
-	const output = asRecord(event.toolOutput);
+	const output = normalizeToolOutput(event.toolOutput);
 	if (!input || !output || output.success === false) {
 		return null;
 	}
 
-	const command = toStringValue(input.command);
+	// Current editor schema has no `command` field; derive the operation from
+	// the input shape (legacy `command` values still take precedence).
+	const command =
+		toStringValue(input.command) ??
+		(input.insert_line != null
+			? "insert"
+			: toStringValue(input.old_text) != null
+				? "str_replace"
+				: "create");
 	const pathFromInput = toStringValue(input.path);
 	const query = toStringValue(output.query);
 	const pathFromQuery = query?.includes(":")
@@ -348,10 +389,10 @@ function parseEditorFileDiff(event: SessionHookEvent): SessionFileDiff | null {
 		return null;
 	}
 
-	if (command === "str_replace") {
-		const parsed = parseDiffFromEditorResult(
-			toStringValue(output.result) ?? "",
-		);
+	const resultText = toStringValue(output.result) ?? "";
+
+	if (command === "str_replace" && !resultText.startsWith("File created")) {
+		const parsed = parseDiffFromEditorResult(resultText);
 		return {
 			path,
 			additions: parsed.additions,
@@ -360,9 +401,12 @@ function parseEditorFileDiff(event: SessionHookEvent): SessionFileDiff | null {
 		};
 	}
 
-	if (command === "create" || command === "insert") {
+	if (command === "create" || command === "insert" || command === "str_replace") {
 		const newContent =
-			toStringValue(input.file_text) ?? toStringValue(input.new_str) ?? "";
+			toStringValue(input.new_text) ??
+			toStringValue(input.file_text) ??
+			toStringValue(input.new_str) ??
+			"";
 		return {
 			path,
 			additions: countAddedLines(newContent),
@@ -392,13 +436,15 @@ function parseApplyPatchFileDiffs(event: SessionHookEvent): SessionFileDiff[] {
 		return [];
 	}
 
-	const input = asRecord(event.toolInput);
-	const output = asRecord(event.toolOutput);
-	if (!input || !output || output.success === false) {
+	const output = normalizeToolOutput(event.toolOutput);
+	if (!output || output.success === false) {
 		return [];
 	}
 
-	const patchInput = toStringValue(input.input);
+	// apply_patch accepts either { input: string } or a raw patch string.
+	const patchInput =
+		toStringValue(event.toolInput) ??
+		toStringValue(asRecord(event.toolInput)?.input);
 	if (!patchInput) {
 		return [];
 	}
