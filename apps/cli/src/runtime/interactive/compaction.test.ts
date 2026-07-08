@@ -138,7 +138,7 @@ describe("compactInteractiveMessages", () => {
 		}));
 		const config = createConfig();
 		const compact = vi.fn((context: CoreCompactionContext) => {
-			expect(context.maxInputTokens).toBe(400_000);
+			expect(context.maxInputTokens).toBe(383_616);
 			return { messages: [messages[0]] };
 		});
 		config.knownModels = {
