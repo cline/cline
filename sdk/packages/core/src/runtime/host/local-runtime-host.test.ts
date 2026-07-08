@@ -344,7 +344,7 @@ describe("LocalRuntimeHost", () => {
 				config: createConfig({
 					sessionId,
 					providerId: "cline-pass",
-					modelId: "cline-pass/glm-5.1",
+					modelId: "cline-pass/glm-5.2",
 					apiKey: undefined,
 				}),
 				prompt: "hello",
