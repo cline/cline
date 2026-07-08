@@ -1,4 +1,3 @@
-import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -150,25 +149,6 @@ function normalizeStartInput(
 		...input,
 		...split,
 	};
-}
-
-function _createGitRepo(cwd: string): void {
-	execFileSync("git", ["-C", cwd, "init"], { stdio: "pipe" });
-	execFileSync("git", ["-C", cwd, "config", "user.name", "Codex Test"], {
-		stdio: "pipe",
-	});
-	execFileSync(
-		"git",
-		["-C", cwd, "config", "user.email", "codex@example.com"],
-		{
-			stdio: "pipe",
-		},
-	);
-	writeFileSync(join(cwd, "note.txt"), "base\n", "utf8");
-	execFileSync("git", ["-C", cwd, "add", "note.txt"], { stdio: "pipe" });
-	execFileSync("git", ["-C", cwd, "commit", "-m", "initial"], {
-		stdio: "pipe",
-	});
 }
 
 describe("LocalRuntimeHost", () => {
@@ -344,7 +324,7 @@ describe("LocalRuntimeHost", () => {
 				config: createConfig({
 					sessionId,
 					providerId: "cline-pass",
-					modelId: "cline-pass/glm-5.1",
+					modelId: "cline-pass/glm-5.2",
 					apiKey: undefined,
 				}),
 				prompt: "hello",

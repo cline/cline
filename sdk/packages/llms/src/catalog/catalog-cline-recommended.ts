@@ -46,7 +46,7 @@ function findORModelCapabilities(
 }
 
 // Cline-Pass models have only the model name (and not the lab),
-// so we need to look-up using glm-5.1 instead of cline-pass/glm-5.1
+// so we need to look-up using glm-5.2 instead of cline-pass/glm-5.2
 function buildModelsNameMap(
 	openrouterModels: Record<string, ModelInfo>,
 ): Record<string, ModelInfo> {
