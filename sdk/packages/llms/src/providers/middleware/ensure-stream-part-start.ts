@@ -1,6 +1,7 @@
-import type { LanguageModelV3Middleware } from "@ai-sdk/provider";
-
-type StreamChunk = { type: string; id?: string; [key: string]: unknown };
+import type {
+	LanguageModelV3Middleware,
+	LanguageModelV3StreamPart,
+} from "@ai-sdk/provider";
 
 /**
  * Some OpenAI-compatible backends (e.g. llama.cpp server-rocm) omit the `content`
@@ -20,41 +21,37 @@ export const ensureStreamPartStartMiddleware: LanguageModelV3Middleware = {
 		const activeReasoning = new Set<string>();
 
 		const normalized = stream.pipeThrough(
-			new TransformStream<StreamChunk, StreamChunk>({
+			new TransformStream<
+				LanguageModelV3StreamPart,
+				LanguageModelV3StreamPart
+			>({
 				transform(chunk, controller) {
 					switch (chunk.type) {
 						case "text-start": {
-							if (typeof chunk.id === "string") {
-								activeText.add(chunk.id);
-							}
+							activeText.add(chunk.id);
 							controller.enqueue(chunk);
 							return;
 						}
 						case "text-delta":
 						case "text-end": {
-							if (typeof chunk.id === "string" && !activeText.has(chunk.id)) {
+							if (!activeText.has(chunk.id)) {
 								controller.enqueue({ type: "text-start", id: chunk.id });
 								activeText.add(chunk.id);
 							}
 							controller.enqueue(chunk);
-							if (chunk.type === "text-end" && typeof chunk.id === "string") {
+							if (chunk.type === "text-end") {
 								activeText.delete(chunk.id);
 							}
 							return;
 						}
 						case "reasoning-start": {
-							if (typeof chunk.id === "string") {
-								activeReasoning.add(chunk.id);
-							}
+							activeReasoning.add(chunk.id);
 							controller.enqueue(chunk);
 							return;
 						}
 						case "reasoning-delta":
 						case "reasoning-end": {
-							if (
-								typeof chunk.id === "string" &&
-								!activeReasoning.has(chunk.id)
-							) {
+							if (!activeReasoning.has(chunk.id)) {
 								controller.enqueue({
 									type: "reasoning-start",
 									id: chunk.id,
@@ -62,10 +59,7 @@ export const ensureStreamPartStartMiddleware: LanguageModelV3Middleware = {
 								activeReasoning.add(chunk.id);
 							}
 							controller.enqueue(chunk);
-							if (
-								chunk.type === "reasoning-end" &&
-								typeof chunk.id === "string"
-							) {
+							if (chunk.type === "reasoning-end") {
 								activeReasoning.delete(chunk.id);
 							}
 							return;
