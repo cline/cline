@@ -619,6 +619,11 @@ export class AgentRuntime {
 					throw this.normalizeAbortError();
 				}
 				if (message.content.length === 0) {
+					if (finishReason === "max-tokens") {
+						throw new Error(
+							"Model reached its token limit before generating a response. Consider increasing the output token limit.",
+						)
+					}
 					throw new Error(
 						finishReason === "error"
 							? (this.state.lastError ?? "Model stream failed")
