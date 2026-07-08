@@ -534,7 +534,7 @@ export function createContextCompactionPrepareTurn(
 				strategy: telemetryStrategy,
 				mode,
 				reason: "no_result",
-				tokensBefore: inputTokens,
+				tokensBefore: compactionInputTokens,
 				triggerTokens: targetState.triggerTokens,
 				maxInputTokens,
 				thresholdRatio: targetState.thresholdRatio,

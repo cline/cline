@@ -2329,6 +2329,19 @@ describe("createContextCompactionPrepareTurn", () => {
 			{ role: "assistant", content: "x".repeat(500) },
 			{ role: "user", content: "Latest" },
 		];
+		const apiMessages: LlmsProviders.Message[] = [
+			{ role: "user", content: "api-shaped ".repeat(500) },
+		];
+		const estimateMessageTokens = createTokenEstimator();
+		const sessionInputTokens = messages.reduce(
+			(total, message) => total + estimateMessageTokens(message),
+			0,
+		);
+		const apiInputTokens = apiMessages.reduce(
+			(total, message) => total + estimateMessageTokens(message),
+			0,
+		);
+		expect(apiInputTokens).not.toBe(sessionInputTokens);
 
 		const result = await prepareTurn?.({
 			agentId: "agent-1",
@@ -2339,7 +2352,7 @@ describe("createContextCompactionPrepareTurn", () => {
 			systemPrompt: "",
 			tools: [],
 			messages,
-			apiMessages: messages,
+			apiMessages,
 			model: {
 				id: "mock-model",
 				provider: "anthropic",
@@ -2357,6 +2370,7 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(props.mode).toBe("auto");
 		expect(props.reason).toBe("no_result");
 		expect(props.ulid).toBe("ulid-test-skip");
+		expect(props.tokensBefore).toBe(sessionInputTokens);
 		expect(typeof props.durationMs).toBe("number");
 		expect(
 			captureCalls.find((call) => call.event === "task.compaction_executed"),
