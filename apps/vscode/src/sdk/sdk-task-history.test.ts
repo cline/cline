@@ -662,6 +662,32 @@ describe("SdkTaskHistory", () => {
 		await history.listHistory({ hydrate: false })
 		expect(listHistory).toHaveBeenCalledTimes(2)
 	})
+
+	it("invalidates rather than patches the cache when the underlying write didn't land", async () => {
+		// host.update() resolves { updated: false } when the session was deleted
+		// out from under the write, or an optimistic-concurrency retry was
+		// exhausted by a racing writer. Patching the cache in that case would show
+		// a fake "updated" record until the TTL expires.
+		const { history, listHistory, updateSession } = makeHistory([
+			makeSessionRecord("task-1", { prompt: "original", updatedAt: "2026-01-01T00:00:00.000Z" }),
+		])
+
+		// Populate cache
+		await history.listHistory({ hydrate: false })
+		expect(listHistory).toHaveBeenCalledTimes(1)
+
+		updateSession.mockResolvedValueOnce({ updated: false })
+		await history.updateTaskHistoryItem(makeHistoryItem("task-1", { task: "should not stick" }))
+
+		// Next read should re-list from host (cache was invalidated, not patched)
+		const result = await history.listHistory({ hydrate: false })
+		expect(listHistory).toHaveBeenCalledTimes(2)
+		// The mock's underlying store was never touched since update() bailed early,
+		// so the re-listed record still shows the original prompt/updatedAt.
+		const record = result.find((r) => r.sessionId === "task-1")
+		expect(record?.prompt).toBe("original")
+		expect(record?.updatedAt).toBe("2026-01-01T00:00:00.000Z")
+	})
 })
 
 function makeHistoryItem(id: string, overrides: Partial<HistoryItem> = {}): HistoryItem {

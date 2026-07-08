@@ -624,7 +624,7 @@ export class SdkTaskHistory {
 	}
 
 	private async updateSession(sessionId: string, item: HistoryItem): Promise<void> {
-		const writtenMetadata = await this.withHistoryHost(async (host) => {
+		const { metadata: writtenMetadata, updated } = await this.withHistoryHost(async (host) => {
 			const existing = await host.get(sessionId)
 			const metadata: Record<string, unknown> = {
 				...(existing?.metadata ?? {}),
@@ -638,13 +638,21 @@ export class SdkTaskHistory {
 					delete metadata.size
 				}
 			}
-			await host.update(sessionId, {
+			const result = await host.update(sessionId, {
 				prompt: item.task,
 				metadata,
 				title: item.task,
 			})
-			return metadata
+			return { metadata, updated: result.updated }
 		})
+		if (!updated) {
+			// The write didn't land (e.g. the session was deleted, or an optimistic-
+			// concurrency retry was exhausted by a racing writer). Patching the cache
+			// here would show a fake "updated" record until the TTL expires, so
+			// invalidate instead and let the next read re-enumerate from disk.
+			this.invalidateMetadataHistoryCache()
+			return
+		}
 		// The persistence adapter stamps `updatedAt` with the wall-clock write time
 		// (see `nowIso()` in file-session-service.ts), not `item.ts`. Mirror that here
 		// rather than deriving from `item.ts`: callers like toggleTaskFavorite() reuse
