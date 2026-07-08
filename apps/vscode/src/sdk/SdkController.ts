@@ -71,12 +71,12 @@ import { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import { SdkMcpCoordinator } from "./sdk-mcp-coordinator"
 import { SdkMessageCoordinator, type SessionEventListener } from "./sdk-message-coordinator"
 import { SdkModeCoordinator } from "./sdk-mode-coordinator"
+import { type PluginSlashCommand, SdkPluginCommandCoordinator } from "./sdk-plugin-commands"
 import { SdkProviderChangeCoordinator } from "./sdk-provider-change-coordinator"
 import { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
 import { SdkSessionEventCoordinator } from "./sdk-session-event-coordinator"
 import { SdkSessionHistoryLoader } from "./sdk-session-history-loader"
 import { SdkSessionLifecycle } from "./sdk-session-lifecycle"
-import { SdkPluginCommandCoordinator, type PluginSlashCommand } from "./sdk-plugin-commands"
 import { SdkTaskControlCoordinator } from "./sdk-task-control-coordinator"
 import { SdkTaskHistory, sessionHistoryRecordToHistoryItem } from "./sdk-task-history"
 import { SdkTaskStartCoordinator } from "./sdk-task-start-coordinator"
@@ -767,15 +767,21 @@ export class Controller {
 			const result = await this.pluginCommands.resolveCommand(text)
 			if (result) {
 				if (result.reply) {
-					this.messages.emitSessionEvents([
+					this.messages.emitSessionEvents(
+						[
+							{
+								ts: Date.now(),
+								type: "say",
+								say: "text",
+								text: result.reply,
+								partial: false,
+							},
+						],
 						{
-							ts: Date.now(),
-							type: "say",
-							say: "text",
-							text: result.reply,
-							partial: false,
+							type: "status",
+							payload: { sessionId: this.sessions.getActiveSession()?.sessionId ?? "", status: "running" },
 						},
-					])
+					)
 				}
 				return result.submitPrompt ?? ""
 			}
@@ -1841,7 +1847,7 @@ export class Controller {
 				mcpHub: this.mcpHub,
 				backgroundCommandRunning: this.backgroundCommandRunning,
 				backgroundCommandTaskId: this.backgroundCommandTaskId,
-			getPluginSlashCommands: () => this.pluginCommands.getSlashCommands(),
+				getPluginSlashCommands: () => this.pluginCommands.getSlashCommands(),
 			})
 			const sdkTaskHistory = (await this.taskHistory.listHistory({ limit: 100, hydrate: false }))
 				.map(sessionHistoryRecordToHistoryItem)
