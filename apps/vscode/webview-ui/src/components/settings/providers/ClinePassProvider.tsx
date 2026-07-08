@@ -147,18 +147,21 @@ export const ClinePassProvider = ({
 			: (Object.keys(clinePassModelOptions)[0] ?? clinePassDefaultModelId)
 	}, [clinePassModelOptions])
 
-	// Subscription models are a uniform list, so the cards show just the model name —
-	// no label chip or repeated description
+	// Subscription models show their endpoint description but no label chip — the
+	// whole list is included with the plan, so a per-card tag adds nothing
 	const subscribedModelCards = useMemo<FeaturedModelCardEntry[]>(() => {
-		const modelIds =
+		const models =
 			clinePassRawModels.length > 0
-				? clinePassRawModels.map((model) => model.id)
-				: Object.keys(clinePassRecommendedModels ?? clinePassModels)
-		return modelIds.map((id) => ({
-			id,
-			displayName: id.replace(/^cline-pass\//, ""),
+				? clinePassRawModels.map((model) => ({ id: model.id, description: model.description }))
+				: Object.entries(clinePassRecommendedModels ?? clinePassModels).map(([id, info]) => ({
+						id,
+						description: info.description,
+					}))
+		return models.map((model) => ({
+			id: model.id,
+			displayName: model.id.replace(/^cline-pass\//, ""),
 			label: "",
-			description: "",
+			description: model.description || "",
 		}))
 	}, [clinePassRawModels, clinePassRecommendedModels])
 
