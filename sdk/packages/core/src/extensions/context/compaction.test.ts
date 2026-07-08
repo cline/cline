@@ -90,6 +90,7 @@ function runForcedBasicCompaction(
 				info: { id: "mock-model", maxInputTokens: targetTokens },
 			},
 			maxInputTokens: targetTokens,
+			usableBudgetTokens: targetTokens,
 			triggerTokens: targetTokens,
 			thresholdRatio: 1,
 			utilizationRatio: 2,
@@ -265,6 +266,7 @@ describe("createContextCompactionPrepareTurn", () => {
 					info: { id: "mock-model", maxInputTokens: 100_000 },
 				},
 				maxInputTokens: 100_000,
+				usableBudgetTokens: 100_000,
 				triggerTokens: 100_000,
 				thresholdRatio: 1,
 				utilizationRatio: 0.1,
@@ -488,6 +490,7 @@ describe("createContextCompactionPrepareTurn", () => {
 					info: { id: "mock-model", maxInputTokens: 1_000 },
 				},
 				maxInputTokens: 1_000,
+				usableBudgetTokens: 1_000,
 				triggerTokens: 900,
 				targetTokens: 100,
 				thresholdRatio: 0.9,
@@ -1464,6 +1467,7 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(compact).toHaveBeenCalledTimes(1);
 		const context = compact.mock.calls[0]?.[0];
 		expect(context?.maxInputTokens).toBe(40_960);
+		expect(context?.usableBudgetTokens).toBe(24_576);
 		expect(context?.triggerTokens).toBe(22_118);
 		expect(context?.thresholdRatio).toBe(22_118 / 40_960);
 	});
@@ -1557,7 +1561,7 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(compact).toHaveBeenCalledTimes(1);
 		const context = compact.mock.calls[0]?.[0];
 		expect(context?.triggerTokens).toBe(19_660);
-		expect(context?.thresholdRatio).toBe(0.8);
+		expect(context?.thresholdRatio).toBe(19_660 / 40_960);
 	});
 
 	it("applies explicit reserve tokens to the usable budget", async () => {
@@ -2009,6 +2013,7 @@ describe("createContextCompactionPrepareTurn", () => {
 					info: { id: "mock-model", maxInputTokens: 100 },
 				},
 				maxInputTokens: 100,
+				usableBudgetTokens: 100,
 				triggerTokens: 100,
 				thresholdRatio: 1,
 				utilizationRatio: 0.1,

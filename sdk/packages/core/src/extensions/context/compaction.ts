@@ -159,13 +159,8 @@ function resolveCompactionBudget(input: {
 		usableBudgetTokens,
 		outputReserveTokens,
 		triggerTokens,
-		// Preserve explicit thresholdRatio as configured; usableThresholdRatio records the effective trigger point.
 		thresholdRatio:
-			typeof input.config.thresholdRatio === "number"
-				? input.config.thresholdRatio
-				: ceilingTokens > 0
-					? triggerTokens / ceilingTokens
-					: 0,
+			ceilingTokens > 0 ? triggerTokens / ceilingTokens : 0,
 		usableThresholdRatio:
 			usableBudgetTokens > 0 ? triggerTokens / usableBudgetTokens : 0,
 		ceilingSource,
@@ -424,6 +419,7 @@ export function createContextCompactionPrepareTurn(
 			messages: context.messages,
 			model: context.model,
 			maxInputTokens,
+			usableBudgetTokens: compactionBudget.usableBudgetTokens,
 			triggerTokens: targetState.triggerTokens,
 			targetTokens,
 			thresholdRatio: targetState.thresholdRatio,
