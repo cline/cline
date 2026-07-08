@@ -1058,21 +1058,28 @@ export class LocalRuntimeHost implements RuntimeHost {
 			: await this.getSession(target);
 		const existing = activeSession ?? sessionRecord;
 		if (!existing) return { updated: false };
+		if (activeSession) {
+			const persistedMessages = await this.readSessionMessages(target);
+			const validationMessages =
+				persistedMessages.length >= state.source_message_count ||
+				state.source_message_count === 0
+					? persistedMessages
+					: undefined;
+			return await this.persistActiveSessionCompactionState(
+				activeSession,
+				state,
+				validationMessages,
+			);
+		}
 		if (
 			!(await this.canPersistCompactionState(
 				target,
 				state,
-				activeSession,
+				undefined,
 				sessionRecord,
 			))
 		) {
 			return { updated: false };
-		}
-		if (activeSession) {
-			return await this.persistActiveSessionCompactionState(
-				activeSession,
-				state,
-			);
 		}
 		const current = await this.invokeOptionalValue<SessionCompactionState>(
 			"readSessionCompactionState",
@@ -1132,6 +1139,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		state: SessionCompactionState,
 		activeSession?: ActiveSession,
 		sessionRecord?: SessionRecord,
+		sourceMessages?: readonly LlmsProviders.Message[],
 	): Promise<boolean> {
 		if (!state.conversation_id?.trim()) {
 			return false;
@@ -1146,18 +1154,28 @@ export class LocalRuntimeHost implements RuntimeHost {
 		) {
 			return false;
 		}
-		const sourceMessages =
+		const messagesForProjection =
+			sourceMessages ??
 			activeSession?.agent.getMessages() ??
 			(await this.readSessionMessages(sessionId));
-		return projectSessionCompactionState(state, sourceMessages) !== undefined;
+		return (
+			projectSessionCompactionState(state, messagesForProjection) !== undefined
+		);
 	}
 
 	private async persistActiveSessionCompactionState(
 		session: ActiveSession,
 		state: SessionCompactionState,
+		sourceMessages?: readonly LlmsProviders.Message[],
 	): Promise<{ updated: boolean }> {
 		if (
-			!(await this.canPersistCompactionState(session.sessionId, state, session))
+			!(await this.canPersistCompactionState(
+				session.sessionId,
+				state,
+				session,
+				undefined,
+				sourceMessages,
+			))
 		) {
 			return { updated: false };
 		}

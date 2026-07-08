@@ -4594,6 +4594,105 @@ describe("LocalRuntimeHost", () => {
 		expect(createAgent.mock.calls[0]?.[0]?.prepareTurn).toBeUndefined();
 	});
 
+	it("persists active manual compaction state against the persisted transcript", async () => {
+		const sessionId = "sess-compaction-active-persisted";
+		const tempCwd = mkdtempSync(join(tmpdir(), "compaction-active-"));
+		try {
+			const messagesPath = join(tempCwd, "messages.json");
+			const persistedMessages = [
+				{ role: "user", content: "hi" },
+				{
+					role: "assistant",
+					content: "hello",
+					modelInfo: { maxTokens: 1 },
+				},
+			] as MessageWithMetadata[];
+			const liveMessages = [
+				{ role: "user", content: "hi" },
+				{ role: "assistant", content: "hello" },
+			] as MessageWithMetadata[];
+			writeFileSync(messagesPath, JSON.stringify(persistedMessages), "utf8");
+			const manifest = {
+				...createManifest(sessionId),
+				messages_path: messagesPath,
+			};
+			const incoming = createSessionCompactionState({
+				sourceMessages: persistedMessages,
+				compactedMessages: [{ role: "user", content: "summary" }],
+				conversationId: sessionId,
+				updatedAt: "2026-01-01T00:00:00Z",
+			});
+			const sessionService = {
+				ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+				createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+					manifestPath: "/tmp/manifest-compaction-active.json",
+					messagesPath,
+					manifest,
+				}),
+				persistSessionMessages: vi.fn(),
+				persistSessionCompactionState: vi.fn(),
+				updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+				writeSessionManifest: vi.fn(),
+				listSessions: vi.fn().mockResolvedValue([
+					{
+						sessionId,
+						provider: "mock-provider",
+						model: "mock-model",
+						cwd: "/tmp/project",
+						workspaceRoot: "/tmp/project",
+						createdAt: "2026-01-01T00:00:00.000Z",
+						updatedAt: "2026-01-01T00:00:00.000Z",
+						status: "completed",
+						messagesPath,
+					},
+				]),
+				deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+			};
+			const createAgent = vi.fn().mockReturnValue({
+				run: vi.fn().mockResolvedValue(createResult()),
+				continue: vi.fn(),
+				abort: vi.fn(),
+				subscribeEvents: vi.fn().mockReturnValue(() => {}),
+				canStartRun: vi.fn().mockReturnValue(true),
+				getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+				getConversationId: vi.fn().mockReturnValue(sessionId),
+				restore: vi.fn(),
+				shutdown: vi.fn().mockResolvedValue(undefined),
+				getMessages: vi.fn().mockReturnValue(liveMessages),
+				messages: liveMessages,
+			});
+			const manager = new RuntimeHostUnderTest({
+				distinctId,
+				sessionService: sessionService as never,
+				runtimeBuilder: {
+					build: vi.fn().mockReturnValue({
+						tools: [],
+						shutdown: vi.fn(),
+					}),
+				},
+				createAgent: createAgent as never,
+			});
+
+			await manager.startSession(
+				normalizeStartInput({
+					config: createConfig({ sessionId }),
+					initialMessages: liveMessages,
+					interactive: true,
+				}),
+			);
+
+			await expect(
+				manager.updateSessionCompactionState(sessionId, incoming),
+			).resolves.toEqual({ updated: true });
+			expect(sessionService.persistSessionCompactionState).toHaveBeenCalledWith(
+				sessionId,
+				incoming,
+			);
+		} finally {
+			rmSync(tempCwd, { recursive: true, force: true });
+		}
+	});
+
 	it("orders equal-length compaction updates by parsed timestamp", async () => {
 		const sessionId = "inactive-session";
 		const tempCwd = mkdtempSync(join(tmpdir(), "compaction-stale-"));
