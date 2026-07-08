@@ -22,9 +22,9 @@ import {
 	createTokenEstimator,
 	DEFAULT_MAX_INPUT_TOKENS,
 	DEFAULT_PRESERVE_RECENT_TOKENS,
-	DEFAULT_RESERVE_TOKENS,
 	DEFAULT_TARGET_RATIO,
 	DEFAULT_THRESHOLD_RATIO,
+	FALLBACK_OUTPUT_RESERVE_TOKENS,
 } from "./compaction-shared";
 
 export interface ContextPipelinePrepareTurnInput {
@@ -129,6 +129,9 @@ function resolveCompactionBudget(input: {
 		ceilingSource = "context";
 	}
 
+	// Output space is reserved once, and only when the ceiling is a shared
+	// context window. Explicit config and true input limits already describe
+	// input-only budgets, so reserving there would double-count output.
 	const maxReserveTokens = Math.floor(ceilingTokens / 2);
 	const outputReserveTokens =
 		ceilingSource === "config" ||
@@ -137,7 +140,10 @@ function resolveCompactionBudget(input: {
 			? 0
 			: isPositiveFiniteNumber(input.modelMaxTokens)
 				? Math.min(input.modelMaxTokens, maxReserveTokens)
-				: Math.min(DEFAULT_RESERVE_TOKENS, Math.floor(ceilingTokens * 0.25));
+				: Math.min(
+						FALLBACK_OUTPUT_RESERVE_TOKENS,
+						Math.floor(ceilingTokens * 0.25),
+					);
 	const usableBudgetTokens = Math.max(1, ceilingTokens - outputReserveTokens);
 
 	let triggerTokens: number;
