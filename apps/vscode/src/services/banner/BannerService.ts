@@ -71,9 +71,6 @@ export class BannerService {
 			return BannerService.instance
 		}
 		const hostInfo = HostRegistryInfo.get()
-		if (!hostInfo) {
-			throw new Error("[BannerService] Ensure HostRegistryInfo is initialized before BannerService.")
-		}
 		BannerService.instance = new BannerService(controller, hostInfo)
 		return BannerService.instance
 	}

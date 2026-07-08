@@ -37,22 +37,11 @@ export function buildExternalBasicHeaders(): Record<string, string> {
 
 function getHostRuntimeInfo(): HostRuntimeInfo {
 	const host = HostRegistryInfo.get()
-
-	if (host) {
-		return {
-			platform: host.platform || "unknown",
-			platformVersion: host.hostVersion || "unknown",
-			clientName: host.ide || "unknown",
-			clientVersion: host.extensionVersion || ExtensionRegistryInfo.version,
-		}
-	}
-
-	Logger.log("HostRegistryInfo is not initialized; falling back to unknown host runtime info.")
 	return {
-		platform: "unknown",
-		platformVersion: "unknown",
-		clientName: "unknown",
-		clientVersion: ExtensionRegistryInfo.version,
+		platform: host.platform || "unknown",
+		platformVersion: host.hostVersion || "unknown",
+		clientName: host.ide || "unknown",
+		clientVersion: host.extensionVersion || ExtensionRegistryInfo.version,
 	}
 }
 
