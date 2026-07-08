@@ -50,4 +50,19 @@ describe("cline model picker entries", () => {
 			},
 		]);
 	});
+
+	it("omits the free section when includeFree is false (onboarding)", () => {
+		const entries = buildClinePassModelEntries(
+			{
+				recommended: [],
+				free: [model("deepseek/deepseek-v4-flash")],
+				clinePass: [model("cline-pass/glm-5.1")],
+			},
+			{ includeFree: false },
+		);
+
+		expect(entries).toEqual([
+			{ kind: "model", model: model("cline-pass/glm-5.1"), tier: "subscribed" },
+		]);
+	});
 });

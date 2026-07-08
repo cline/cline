@@ -47,15 +47,20 @@ export function buildClineModelEntries(
 // (they ride usage billing at $0 instead of the subscription quota).
 // No "browse all" entry: unlike cline, the ClinePass catalog contains exactly
 // these two buckets, so the sections already list every selectable model.
+// Onboarding passes includeFree: false — right after choosing the subscription,
+// the picker should focus on the plan's models; Free stays discoverable later.
 export function buildClinePassModelEntries(
 	data: ClineRecommendedModelsData,
+	options?: { includeFree?: boolean },
 ): ClineModelPickerEntry[] {
 	const entries: ClineModelPickerEntry[] = [];
 	for (const m of data.clinePass) {
 		entries.push({ kind: "model", model: m, tier: "subscribed" });
 	}
-	for (const m of data.free) {
-		entries.push({ kind: "model", model: m, tier: "free" });
+	if (options?.includeFree !== false) {
+		for (const m of data.free) {
+			entries.push({ kind: "model", model: m, tier: "free" });
+		}
 	}
 	return entries;
 }

@@ -207,14 +207,15 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 
 	const modelList = useSearchableList(modelItems, createCustomModelItem);
 
-	// Cline featured model picker (ClinePass gets Subscribed/Free sections)
+	// Cline featured model picker. ClinePass onboarding shows only the
+	// subscription's models — free models stay discoverable later via /model
 	const recommended = useClineRecommendedModels();
 	const clineEntries: ClineModelPickerEntry[] = useMemo(() => {
 		if (!recommended.data) {
 			return [];
 		}
 		return activeProviderId === "cline-pass"
-			? buildClinePassModelEntries(recommended.data)
+			? buildClinePassModelEntries(recommended.data, { includeFree: false })
 			: buildClineModelEntries(recommended.data);
 	}, [recommended.data, activeProviderId]);
 	const [clineModelSelected, setClineModelSelected] = useState(0);
