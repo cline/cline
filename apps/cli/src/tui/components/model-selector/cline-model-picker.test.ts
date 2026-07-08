@@ -48,7 +48,6 @@ describe("cline model picker entries", () => {
 				model: model("deepseek/deepseek-v4-flash"),
 				tier: "free",
 			},
-			{ kind: "browse" },
 		]);
 	});
 });

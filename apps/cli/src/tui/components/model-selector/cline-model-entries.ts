@@ -45,6 +45,8 @@ export function buildClineModelEntries(
 // ClinePass shows the subscription's models plus the Cline free models — both
 // providers hit the same Cline API, so free models are selectable in place
 // (they ride usage billing at $0 instead of the subscription quota).
+// No "browse all" entry: unlike cline, the ClinePass catalog contains exactly
+// these two buckets, so the sections already list every selectable model.
 export function buildClinePassModelEntries(
 	data: ClineRecommendedModelsData,
 ): ClineModelPickerEntry[] {
@@ -55,6 +57,5 @@ export function buildClinePassModelEntries(
 	for (const m of data.free) {
 		entries.push({ kind: "model", model: m, tier: "free" });
 	}
-	entries.push({ kind: "browse" });
 	return entries;
 }
