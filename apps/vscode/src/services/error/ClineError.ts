@@ -10,6 +10,7 @@ export enum ClineErrorType {
 	QuotaExceeded = "quotaExceeded",
 	Entitlement = "entitlement",
 	OrgClinePassRestriction = "orgClinePassRestriction",
+	ClinePassLimit = "clinePassLimit",
 }
 
 interface ErrorDetails {
@@ -56,6 +57,46 @@ const ORG_CLINE_PASS_RESTRICTION_MESSAGE =
 	"organization accounts cannot use individual model inference subscriptions";
 const ORG_CLINE_PASS_RESTRICTION_USER_MESSAGE =
 	"organization accounts cannot use clinepass subscriptions";
+
+// The ClinePass period limit message is dynamic ("weekly"/"5-hour" period, "7d"/"12h"
+// reset), so it is matched by its fixed prefix/suffix with the ClinePass marker in
+// between. Plain indexOf scanning — no regex, so no backtracking on hostile input.
+const CLINE_PASS_LIMIT_PREFIX = "you have reached your";
+const CLINE_PASS_LIMIT_MARKER = "clinepass limit";
+const CLINE_PASS_LIMIT_SUFFIX = "please try again later.";
+
+function findClinePassLimitMessageBounds(
+	text: string,
+): { start: number; end: number } | undefined {
+	const normalized = text.toLowerCase();
+	const start = normalized.indexOf(CLINE_PASS_LIMIT_PREFIX);
+	if (start === -1) {
+		return undefined;
+	}
+
+	const suffixStart = normalized.indexOf(CLINE_PASS_LIMIT_SUFFIX, start);
+	if (suffixStart === -1) {
+		return undefined;
+	}
+
+	const end = suffixStart + CLINE_PASS_LIMIT_SUFFIX.length;
+	if (!normalized.slice(start, end).includes(CLINE_PASS_LIMIT_MARKER)) {
+		return undefined;
+	}
+
+	return { start, end };
+}
+
+export function isClinePassLimitMessage(text: string): boolean {
+	return findClinePassLimitMessageBounds(text) !== undefined;
+}
+
+export function extractClinePassLimitMessage(
+	text: string,
+): string | undefined {
+	const bounds = findClinePassLimitMessageBounds(text);
+	return bounds ? text.slice(bounds.start, bounds.end) : undefined;
+}
 
 export class ClineError extends Error {
 	readonly title = "ClineError";
@@ -200,6 +241,18 @@ export class ClineError extends Error {
 			entitlementText.includes("not subscribed to required model plan")
 		) {
 			return ClineErrorType.Entitlement;
+		}
+
+		// ClinePass period limits (weekly/5-hour) are user-actionable (switch to
+		// usage-based billing) and must not fall through to the generic 403 auth
+		// handling below or the 429 rate-limit patterns.
+		const detailMessage =
+			typeof details?.message === "string" ? details.message : undefined;
+		if (
+			(detailMessage ? isClinePassLimitMessage(detailMessage) : false) ||
+			(message ? isClinePassLimitMessage(message) : false)
+		) {
+			return ClineErrorType.ClinePassLimit;
 		}
 
 		// Check auth errors
