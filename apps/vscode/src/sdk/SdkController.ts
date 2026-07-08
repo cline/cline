@@ -295,7 +295,9 @@ export class Controller {
 				this.messageTranslatorState.recordDeniedToolApproval(toolCallId, toolName, reason),
 			shouldAutoApproveTool: (request) => {
 				const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
-				return autoApprovalSettings ? isToolAutoApproved(request.toolName, autoApprovalSettings, this.mcpHub) : false
+				return autoApprovalSettings
+					? isToolAutoApproved(request.toolName, autoApprovalSettings, this.mcpHub, request.input)
+					: false
 			},
 		})
 		this.sessions = new SdkSessionLifecycle({

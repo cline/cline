@@ -39,13 +39,63 @@ export function buildToolPolicies(
 	return policies
 }
 
+const DANGEROUS_COMMAND_PATTERNS: RegExp[] = [
+	/\bgit\s+commit\b[\s\S]*?--amend\b/,
+	/\bgit\s+push\b[\s\S]*?(?:-f\b|--force\b)/,
+	/\bgit\s+reset\s+--hard\b/,
+	/\bgit\s+rebase\b/,
+	/\brm\s+(?:-(?:rf|r\s*-f\b|-f\s*r\b|fr)\b|--recursive\s+--force\b)/,
+]
+
+function extractCommandStrings(input: unknown): string[] {
+	if (typeof input === "string") {
+		return [input]
+	}
+	if (Array.isArray(input)) {
+		return input.filter((s): s is string => typeof s === "string")
+	}
+	if (input && typeof input === "object") {
+		const obj = input as Record<string, unknown>
+		if (Array.isArray(obj.commands)) {
+			return obj.commands
+				.map((c) => {
+					if (typeof c === "string") {
+						return c
+					}
+					if (c && typeof c === "object" && typeof (c as Record<string, unknown>).command === "string") {
+						const cmdObj = c as { command: string; args?: string[] }
+						return cmdObj.args?.length ? `${cmdObj.command} ${cmdObj.args.join(" ")}` : cmdObj.command
+					}
+					return ""
+				})
+				.filter(Boolean)
+		}
+		if (typeof obj.command === "string") {
+			return [obj.command]
+		}
+		if (typeof obj.cmd === "string") {
+			return [obj.cmd]
+		}
+	}
+	return []
+}
+
+function inputContainsDangerousCommand(input: unknown): boolean {
+	const commands = extractCommandStrings(input)
+	return commands.some((cmd) => DANGEROUS_COMMAND_PATTERNS.some((pattern) => pattern.test(cmd)))
+}
+
 /**
  * Evaluate the current UI auto-approval settings for a single SDK tool name.
  * Used both when building initial SDK policies and as a live guard in the
  * approval callback, so changes from the AutoApproveBar are respected even if
  * an SDK session was created before the toggle changed.
+ *
+ * When `input` is provided for command tools, destructive commands (e.g.
+ * `git commit --amend`, `git push --force`, `rm -rf`) are excluded from
+ * auto-approval even when `executeSafeCommands` is enabled.
  */
-export function isToolAutoApproved(toolName: string, settings: AutoApprovalSettings, mcpHub?: McpHub): boolean {
+export function isToolAutoApproved(toolName: string, settings: AutoApprovalSettings, mcpHub?: McpHub, input?: unknown): boolean {
 	if (isReadTool(toolName)) {
 		return !!settings.actions.readFiles
 	}
@@ -53,7 +103,13 @@ export function isToolAutoApproved(toolName: string, settings: AutoApprovalSetti
 		return !!settings.actions.editFiles
 	}
 	if (isCommandTool(toolName)) {
-		return !!settings.actions.executeSafeCommands
+		if (!settings.actions.executeSafeCommands) {
+			return false
+		}
+		if (input !== undefined && inputContainsDangerousCommand(input)) {
+			return false
+		}
+		return true
 	}
 	if (isBrowserTool(toolName)) {
 		return !!settings.actions.useBrowser
