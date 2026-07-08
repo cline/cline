@@ -59,7 +59,7 @@ describe("ClineError", () => {
 							"Error 403: the user is not subscribed to required model plan",
 					},
 				},
-				"cline-pass/glm-5.1",
+				"cline-pass/glm-5.2",
 				"cline-pass",
 			);
 			ClineError.getErrorType(err)!.should.equal(ClineErrorType.Entitlement);

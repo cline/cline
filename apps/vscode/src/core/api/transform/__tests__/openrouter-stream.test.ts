@@ -200,7 +200,7 @@ describe("createOpenRouterStream", () => {
 			"system prompt",
 			[{ role: "user", content: "hello" }] as any,
 			{
-				id: "cline-pass/glm-5.1",
+				id: "cline-pass/glm-5.2",
 				info: createModelInfo(131_072),
 			},
 			"high",

@@ -47,6 +47,13 @@ const StarIcon = ({ isFavorite, onClick }: { isFavorite: boolean; onClick: (e: R
 	)
 }
 
+export interface FeaturedModelTab {
+	label: string
+	models: FeaturedModelCardEntry[]
+	// Optional explanatory copy shown between the tab bar and the model cards
+	description?: string
+}
+
 export interface ClineModelPickerProps {
 	isPopup?: boolean
 	currentMode: Mode
@@ -58,12 +65,17 @@ export interface ClineModelPickerProps {
 	models?: Record<string, ModelInfo>
 	isClinePassEnabled?: boolean
 	showFeaturedModels?: boolean
+	// Custom featured tabs (e.g. ClinePass "Subscribed"/"Free") shown instead of the
+	// built-in Recommended/Free tabs
+	featuredTabs?: FeaturedModelTab[]
 }
 
-interface FeaturedModelCardEntry {
+export interface FeaturedModelCardEntry {
 	id: string
 	description: string
 	label: string
+	// Shown on the card instead of the id (e.g. ClinePass ids without their prefix)
+	displayName?: string
 }
 
 const CLINE_RECOMMENDED_MODELS_RETRY_DELAY_MS = 5000
@@ -72,7 +84,7 @@ function normalizeModelId(modelId: string): string {
 	return modelId.trim().toLowerCase()
 }
 
-function toFeaturedModelCardEntry(
+export function toFeaturedModelCardEntry(
 	model: Pick<ClineRecommendedModel, "id" | "description" | "tags">,
 	fallbackLabel: string,
 ): FeaturedModelCardEntry | null {
@@ -109,6 +121,7 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({
 	models,
 	isClinePassEnabled = true,
 	showFeaturedModels = true,
+	featuredTabs,
 }) => {
 	const { handleModeFieldsChange, handleFieldChange } = useApiConfigurationHandlers()
 	const { apiConfiguration, favoritedModelIds, clineModels, openRouterModels, refreshClineModels } = useExtensionState()
@@ -150,6 +163,7 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({
 		[freeClineModelIds],
 	)
 	const [activeTab, setActiveTab] = useState<"recommended" | "free">(initialTab ?? "recommended")
+	const [activeFeaturedTabIndex, setActiveFeaturedTabIndex] = useState(0)
 	const recommendedModels = useMemo(
 		() => (clineRecommendedModels.length > 0 ? clineRecommendedModels : RECOMMENDED_MODELS_FALLBACK),
 		[clineRecommendedModels],
@@ -230,11 +244,26 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({
 		const currentModelId = resolveModelId(configuredModelId)
 		setActiveTab(freeClineModelIdSet.has(normalizeModelId(currentModelId)) ? "free" : "recommended")
 	}, [configuredModelId, freeClineModelIdSet, initialTab, resolveModelId])
+
+	// Keep the active custom tab on the tab containing the configured model
+	useEffect(() => {
+		if (!featuredTabs) {
+			return
+		}
+		const currentModelId = resolveModelId(configuredModelId)
+		const tabIndex = featuredTabs.findIndex((tab) => tab.models.some((model) => model.id === currentModelId))
+		if (tabIndex >= 0) {
+			setActiveFeaturedTabIndex(tabIndex)
+		}
+	}, [configuredModelId, featuredTabs, resolveModelId])
 	const dropdownRef = useRef<HTMLDivElement>(null)
 	const itemRefs = useRef<(HTMLDivElement | null)[]>([])
 	const dropdownListRef = useRef<HTMLDivElement>(null)
 
-	const handleModelChange = (newModelId: string) => {
+	const handleModelChange = (rawModelId: string) => {
+		// When a fixed models map is provided (ClinePass), only ids in the map may be
+		// stored — otherwise the host would send arbitrary typed text to the API.
+		const newModelId = models && !(rawModelId in models) ? resolveModelId(rawModelId) : rawModelId
 		setSearchTerm(newModelId)
 
 		handleModeFieldsChange(
@@ -444,7 +473,52 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({
 					<span style={{ fontWeight: 500 }}>Model</span>
 				</label>
 
-				{showFeaturedModels && (
+				{showFeaturedModels && featuredTabs && (
+					<>
+						{/* Custom Tabs (e.g. ClinePass Subscribed/Free) */}
+						<TabsContainer style={{ marginTop: 4 }}>
+							{featuredTabs.map((tab, index) => (
+								<Tab
+									active={activeFeaturedTabIndex === index}
+									key={tab.label}
+									onClick={() => setActiveFeaturedTabIndex(index)}>
+									{tab.label}
+								</Tab>
+							))}
+						</TabsContainer>
+
+						{/* Tab Description */}
+						{featuredTabs[activeFeaturedTabIndex]?.description && (
+							<p
+								style={{
+									fontSize: "11px",
+									margin: "4px 0 6px 0",
+									color: "var(--vscode-descriptionForeground)",
+								}}>
+								{featuredTabs[activeFeaturedTabIndex].description}
+							</p>
+						)}
+
+						{/* Model Cards */}
+						<div style={{ marginBottom: "6px" }}>
+							{featuredTabs[activeFeaturedTabIndex]?.models.map((model) => (
+								<FeaturedModelCard
+									description={model.description}
+									isSelected={selectedModelId === model.id}
+									key={model.id}
+									label={model.label}
+									modelId={model.displayName ?? model.id}
+									onClick={() => {
+										handleModelChange(model.id)
+										setIsDropdownVisible(false)
+									}}
+								/>
+							))}
+						</div>
+					</>
+				)}
+
+				{showFeaturedModels && !featuredTabs && (
 					<>
 						{/* Tabs */}
 						<TabsContainer style={{ marginTop: 4 }}>
@@ -664,8 +738,7 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({
 						marginTop: 0,
 						color: "var(--vscode-descriptionForeground)",
 					}}>
-					The extension automatically fetches the latest Cline model list. If you're unsure which model to choose, Cline
-					works best with <strong>anthropic/claude-sonnet-5</strong>.
+					The extension automatically fetches the latest Cline model list.
 				</p>
 			)}
 		</div>
