@@ -108,6 +108,7 @@ const PROVIDER_IDS_MAP: ReadonlyArray<{
 	{ modelsDevKey: "zai-coding-plan", generatedProviderId: "zai-coding-plan" },
 	{ modelsDevKey: "google-vertex", generatedProviderId: "vertex" },
 	{ modelsDevKey: "lmstudio", generatedProviderId: "lmstudio" },
+	{ modelsDevKey: "atomic-chat", generatedProviderId: "atomic-chat" },
 	{ modelsDevKey: "zai", generatedProviderId: "zai" },
 	{ modelsDevKey: "requesty", generatedProviderId: "requesty" },
 	{ modelsDevKey: "amazon-bedrock", generatedProviderId: "bedrock" },

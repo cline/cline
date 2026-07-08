@@ -86,4 +86,17 @@ describe("provider model catalog backend smoke", () => {
 		expect(config.actSelection?.modelInfo).toEqual(modelInfo)
 		expect(JSON.stringify(config)).not.toContain("SECRET")
 	})
+
+	it("resolves Atomic Chat models through the SDK catalog", async () => {
+		const models = await resolveProviderModels(controller, {
+			providerId: "atomic-chat",
+			forceRefresh: false,
+			requestId: "atomic-chat-smoke-request",
+		})
+
+		expect(models.ok).toBe(true)
+		expect(models.requestId).toBe("atomic-chat-smoke-request")
+		expect(Object.keys(models.models).length).toBeGreaterThan(0)
+		expect(Object.values(models.models).some((modelInfo) => Number(modelInfo.maxTokens) > 0)).toBe(true)
+	})
 })

@@ -169,6 +169,17 @@ describe("models-dev-catalog", () => {
 
 	it("normalizes payload with model filtering and defaults", () => {
 		const payload: ModelsDevPayload = {
+			"atomic-chat": {
+				models: {
+					"gemma-atomic": {
+						name: "Gemma Atomic",
+						tool_call: true,
+						limit: { context: 32_000, output: 8_000 },
+						cost: { input: 0, output: 0 },
+						family: "gemma",
+					},
+				},
+			},
 			openai: {
 				models: {
 					"gpt-live": {
@@ -227,6 +238,25 @@ describe("models-dev-catalog", () => {
 		const providerModels = normalizeModelsDevProviderModels(payload);
 
 		expect(providerModels).toEqual({
+			"atomic-chat": {
+				"gemma-atomic": {
+					id: "gemma-atomic",
+					name: "Gemma Atomic",
+					contextWindow: 32_000,
+					maxInputTokens: 32_000,
+					maxTokens: 8_000,
+					capabilities: ["tools"],
+					pricing: {
+						input: 0,
+						output: 0,
+						cacheRead: 0,
+						cacheWrite: 0,
+					},
+					status: undefined,
+					releaseDate: undefined,
+					family: "gemma",
+				},
+			},
 			"openai-native": {
 				"gpt-live": {
 					id: "gpt-live",

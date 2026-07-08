@@ -941,6 +941,7 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		capabilities: ["tools"],
 		defaultModelId: "",
 		apiKeyEnv: ["ATOMIC_CHAT_API_KEY"],
+		modelsProviderId: "atomic-chat",
 		defaults: { baseUrl: "http://127.0.0.1:1337/v1" },
 		modelsSourceUrl: "http://127.0.0.1:1337/v1/models",
 		docsUrl: "https://atomic.chat",

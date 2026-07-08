@@ -1,19 +1,16 @@
-import { openAiModelInfoSafeDefaults } from "@shared/api"
-import { StringRequest } from "@shared/proto/cline/common"
 import type { Mode } from "@shared/storage/types"
-import { VSCodeDropdown, VSCodeLink, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
-import { useCallback, useEffect, useMemo, useState } from "react"
-import { useInterval } from "react-use"
+import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { useCallback, useMemo } from "react"
 import UseCustomPromptCheckbox from "@/components/settings/UseCustomPromptCheckbox"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useProviderConfig } from "@/hooks/useProviderConfig"
 import { useProviderModelSelection } from "@/hooks/useProviderModelSelection"
-import { ModelsServiceClient } from "@/services/grpc-client"
+import { useProviderModels } from "@/hooks/useProviderModels"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
-import { DebouncedTextField } from "../common/DebouncedTextField"
-import { DropdownContainer } from "../common/ModelSelector"
+import { ModelInfoView } from "../common/ModelInfoView"
 import { useProviderApiKeyField } from "../utils/useProviderApiKeyField"
+import { type ModelPickerSelection, ModelPickerWithManualEntry } from "./ModelPickerWithManualEntry"
 
 interface AtomicChatProviderProps {
 	showModelOptions: boolean
@@ -21,27 +18,20 @@ interface AtomicChatProviderProps {
 	currentMode: Mode
 }
 
-export const AtomicChatProvider = ({ currentMode }: AtomicChatProviderProps) => {
+export const AtomicChatProvider = ({ currentMode, isPopup, showModelOptions }: AtomicChatProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
 	const { config, write, commitSelection } = useProviderConfig("atomic-chat")
-
-	const [atomicChatModels, setAtomicChatModels] = useState<string[]>([])
+	const { models, defaultModelId, isLoading, isStale, error } = useProviderModels("atomic-chat")
 
 	const atomicChatBaseUrl = useMemo(
 		() => config?.baseUrl ?? apiConfiguration?.atomicChatBaseUrl ?? "http://127.0.0.1:1337/v1",
 		[apiConfiguration?.atomicChatBaseUrl, config?.baseUrl],
 	)
-
-	const atomicChatModelInfoById = useMemo(
-		() => Object.fromEntries(atomicChatModels.map((modelId) => [modelId, { ...openAiModelInfoSafeDefaults, name: modelId }])),
-		[atomicChatModels],
-	)
 	const { selectedModel, commitModelSelection } = useProviderModelSelection("atomic-chat", currentMode, {
-		models: atomicChatModelInfoById,
+		models,
+		defaultModelId,
 		config,
 		commitSelection,
-		fallbackModelInfo: openAiModelInfoSafeDefaults,
-		customModelInfo: (modelId) => ({ ...openAiModelInfoSafeDefaults, name: modelId }),
 	})
 	const { savedApiKeyMask, handleApiKeyChange } = useProviderApiKeyField({
 		apiKeyLength: config?.apiKeyLength,
@@ -56,27 +46,14 @@ export const AtomicChatProvider = ({ currentMode }: AtomicChatProviderProps) => 
 		[write],
 	)
 
-	const requestAtomicChatModels = useCallback(async () => {
-		try {
-			const response = await ModelsServiceClient.getAtomicChatModels(
-				StringRequest.create({
-					value: atomicChatBaseUrl,
-				}),
+	const handleModelSelect = useCallback(
+		(selection: ModelPickerSelection) => {
+			void commitModelSelection(selection).catch((error) =>
+				console.error("Failed to update Atomic Chat model selection:", error),
 			)
-			if (response?.values) {
-				setAtomicChatModels(response.values)
-			}
-		} catch (error) {
-			console.error("Failed to fetch Atomic Chat models:", error)
-			setAtomicChatModels([])
-		}
-	}, [atomicChatBaseUrl])
-
-	useEffect(() => {
-		requestAtomicChatModels()
-	}, [requestAtomicChatModels])
-
-	useInterval(requestAtomicChatModels, 6000)
+		},
+		[commitModelSelection],
+	)
 
 	return (
 		<div className="flex flex-col gap-2">
@@ -95,51 +72,24 @@ export const AtomicChatProvider = ({ currentMode }: AtomicChatProviderProps) => 
 				providerName="Atomic Chat"
 			/>
 
-			<div className="font-semibold">Model</div>
-			{atomicChatModels.length > 0 ? (
-				<DropdownContainer className="dropdown-container" zIndex={10}>
-					<VSCodeDropdown
-						className="w-full mb-3"
-						onChange={(e: any) => {
-							const value = e?.target?.value
-							if (typeof value === "string") {
-								const trimmedModelId = value.trim()
-								if (!trimmedModelId) return
-								void commitModelSelection({
-									modelId: trimmedModelId,
-									modelInfo: { ...openAiModelInfoSafeDefaults, name: trimmedModelId },
-								}).catch((error) => console.error("Failed to update Atomic Chat model selection:", error))
-							}
-						}}
-						value={selectedModel.modelId}>
-						{atomicChatModels.map((model) => (
-							<VSCodeOption className="w-full" key={model} value={model}>
-								{model}
-							</VSCodeOption>
-						))}
-					</VSCodeDropdown>
-				</DropdownContainer>
-			) : (
-				<DebouncedTextField
-					initialValue={selectedModel.modelId || ""}
-					onChange={(modelId) => {
-						const trimmedModelId = modelId.trim()
-						if (!trimmedModelId) return
-						void commitModelSelection({
-							modelId: trimmedModelId,
-							modelInfo: { ...openAiModelInfoSafeDefaults, name: trimmedModelId },
-						}).catch((error) => console.error("Failed to update Atomic Chat model selection:", error))
-					}}
-					placeholder="e.g. gemma-local"
-					style={{ width: "100%" }}
-				/>
-			)}
+			{showModelOptions && (
+				<>
+					<ModelPickerWithManualEntry
+						allowsCustomIds={true}
+						error={error}
+						isLoading={isLoading}
+						isStale={isStale}
+						models={models}
+						onSelect={handleModelSelect}
+						selectedModel={selectedModel}
+					/>
 
-			{atomicChatModels.length === 0 && (
-				<p className="text-sm mt-1 text-description italic">
-					Unable to fetch models from Atomic Chat. Ensure the app is running and a model is loaded, or enter a model ID
-					manually.
-				</p>
+					<ModelInfoView
+						isPopup={isPopup}
+						modelInfo={selectedModel.modelInfo}
+						selectedModelId={selectedModel.modelId}
+					/>
+				</>
 			)}
 
 			<UseCustomPromptCheckbox providerId="atomic-chat" />
