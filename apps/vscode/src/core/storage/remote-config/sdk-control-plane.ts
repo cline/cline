@@ -63,7 +63,7 @@ async function makeAuthenticatedRequest<T>(endpoint: string, organizationId: str
 		headers: {
 			Authorization: `Bearer ${authToken}`,
 			"Content-Type": "application/json",
-			...(await buildBasicClineHeaders()),
+			...buildBasicClineHeaders(),
 		},
 		...getAxiosSettings(),
 	}

@@ -41,7 +41,7 @@ vi.mock("@/core/storage/remote-config/utils", () => ({
 	isRemoteConfigEnabled,
 }))
 
-vi.mock("@/services/EnvUtils", () => ({ buildBasicClineHeaders: async () => ({}) }))
+vi.mock("@/services/EnvUtils", () => ({ buildBasicClineHeaders: () => ({}) }))
 vi.mock("@/shared/net", () => ({ getAxiosSettings: () => ({}) }))
 vi.mock("axios", () => ({ default: { request: vi.fn() } }))
 

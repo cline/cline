@@ -257,7 +257,7 @@ export class BannerService {
 				method: "POST",
 				headers: {
 					"Content-Type": "application/json",
-					...(await buildBasicClineHeaders()),
+					...buildBasicClineHeaders(),
 				},
 				body: JSON.stringify({
 					banner_id: bannerId,
@@ -299,7 +299,7 @@ export class BannerService {
 			const url = this.buildFetchUrl()
 			const headers: Record<string, string> = {
 				"Content-Type": "application/json",
-				...(await buildBasicClineHeaders()),
+				...buildBasicClineHeaders(),
 			}
 			const authToken = await AuthService.getInstance().getAuthToken()
 			if (authToken) {
