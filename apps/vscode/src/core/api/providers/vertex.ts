@@ -8,7 +8,11 @@ import {
 	vertexDefaultModelId,
 	vertexModels,
 } from "@shared/api"
-import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
+import {
+	isClaudeOpusAdaptiveThinkingModel,
+	resolveClaudeManualThinkingBudget,
+	resolveClaudeOpusAdaptiveThinking,
+} from "@shared/utils/reasoning-support"
 import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { ClineTool } from "@/shared/tools"
@@ -102,7 +106,12 @@ export class VertexHandler implements ApiHandler {
 		const clientAnthropic = this.ensureAnthropicClient()
 
 		// Claude implementation
-		const budget_tokens = this.options.thinkingBudgetTokens || 0
+		const budget_tokens = resolveClaudeManualThinkingBudget(
+			this.options.reasoningEffort,
+			this.options.thinkingBudgetTokens,
+			model.info.maxTokens,
+			model.info.thinkingConfig?.maxBudget,
+		)
 		// Use model metadata to determine if reasoning should be enabled
 		const reasoningOn = (model.info.supportsReasoning ?? false) && budget_tokens !== 0
 

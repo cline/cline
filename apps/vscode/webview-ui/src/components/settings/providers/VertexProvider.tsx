@@ -23,26 +23,34 @@ interface VertexProviderProps {
 	currentMode: Mode
 }
 
-// Vertex models that support thinking
-const SUPPORTED_THINKING_MODELS = [
+// New Vertex Claude models use the reasoning-effort dropdown instead of the legacy thinking-budget slider.
+const VERTEX_REASONING_EFFORT_MODELS = [
 	"claude-sonnet-5",
 	"claude-sonnet-5:1m",
 	"claude-sonnet-4-6",
 	"claude-sonnet-4-6:1m",
 	"claude-fable-5",
+	"claude-fable-5:1m",
 	"claude-haiku-4-5",
-	"claude-haiku-4-5@20251001",
 	"claude-sonnet-4-5",
+	"claude-opus-4-1",
+	"claude-opus-4-5",
+	"claude-opus-4-6",
+	"claude-opus-4-6:1m",
+	"claude-opus-4-7",
+	"claude-opus-4-7:1m",
+	"claude-opus-4-8",
+	"claude-opus-4-8:1m",
+]
+
+// Older Vertex models that still use a token-budget slider.
+const SUPPORTED_THINKING_BUDGET_MODELS = [
+	"claude-haiku-4-5@20251001",
 	"claude-sonnet-4-5@20250929",
 	"claude-3-7-sonnet@20250219",
 	"claude-sonnet-4@20250514",
 	"claude-opus-4@20250514",
-	"claude-opus-4-1",
 	"claude-opus-4-1@20250805",
-	"claude-opus-4-5",
-	"claude-opus-4-6",
-	"claude-opus-4-7",
-	"claude-opus-4-8",
 	"gemini-2.5-flash",
 	"gemini-2.5-pro",
 	"gemini-2.5-flash-lite-preview-06-17",
@@ -63,6 +71,8 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 	const isAdaptiveThinkingModel = isClaudeOpusAdaptiveThinkingModel(selectedModelId)
 	const adaptiveThinkingDefaultEffort =
 		resolveClaudeOpusAdaptiveThinking(modeFields.reasoningEffort, modeFields.thinkingBudgetTokens).effort ?? "none"
+	const usesReasoningEffortDropdown =
+		isAdaptiveThinkingModel || VERTEX_REASONING_EFFORT_MODELS.includes(selectedModelId)
 
 	// Determine which models to use based on region
 	const modelsToUse = apiConfiguration?.vertexRegion === "global" ? vertexGlobalModels : vertexModels
@@ -149,15 +159,17 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 						zIndex={DROPDOWN_Z_INDEX - 2}
 					/>
 
-					{isAdaptiveThinkingModel ? (
+					{usesReasoningEffortDropdown ? (
 						<ReasoningEffortSelector
 							allowedEfforts={["none", "low", "medium", "high", "xhigh"] as const}
 							currentMode={currentMode}
 							defaultEffort={adaptiveThinkingDefaultEffort}
-							description="Use None to disable adaptive thinking. Higher effort increases response detail and token usage."
-							label="Adaptive Thinking"
+							description={`Use None to disable ${
+								isAdaptiveThinkingModel ? "adaptive thinking" : "thinking"
+							}. Higher effort increases response detail and token usage.`}
+							label={isAdaptiveThinkingModel ? "Adaptive Thinking" : "Reasoning Effort"}
 						/>
-					) : SUPPORTED_THINKING_MODELS.includes(selectedModelId) ? (
+					) : SUPPORTED_THINKING_BUDGET_MODELS.includes(selectedModelId) ? (
 						<ThinkingBudgetSlider currentMode={currentMode} maxBudget={selectedModelInfo.thinkingConfig?.maxBudget} />
 					) : null}
 

@@ -5,6 +5,16 @@ import { calculateApiCostAnthropic, calculateApiCostOpenAI, calculateApiCostQwen
 
 describe("Cost Utilities", () => {
 	describe("calculateApiCostAnthropic", () => {
+		it("should return undefined when pricing is unknown", () => {
+			const modelInfo: ModelInfo = {
+				supportsPromptCache: true,
+				pricingUnknown: true,
+			}
+
+			const cost = calculateApiCostAnthropic(modelInfo, 1000, 500)
+			should(cost).equal(undefined)
+		})
+
 		it("should calculate basic input/output costs", () => {
 			const modelInfo: ModelInfo = {
 				supportsPromptCache: false,
@@ -16,7 +26,7 @@ describe("Cost Utilities", () => {
 			// Input: (3.0 / 1_000_000) * 1000 = 0.003
 			// Output: (15.0 / 1_000_000) * 500 = 0.0075
 			// Total: 0.003 + 0.0075 = 0.0105
-			cost.should.equal(0.0105)
+			should(cost).equal(0.0105)
 		})
 
 		it("should handle missing prices", () => {
@@ -26,7 +36,7 @@ describe("Cost Utilities", () => {
 			}
 
 			const cost = calculateApiCostAnthropic(modelInfo, 1000, 500)
-			cost.should.equal(0)
+			should(cost).equal(0)
 		})
 
 		it("should use real model configuration (Claude 3.5 Sonnet)", () => {
@@ -47,7 +57,7 @@ describe("Cost Utilities", () => {
 			// Input: (3.0 / 1_000_000) * 2000 = 0.006
 			// Output: (15.0 / 1_000_000) * 1000 = 0.015
 			// Total: 0.005625 + 0.00015 + 0.006 + 0.015 = 0.026775
-			cost.should.equal(0.026775)
+			should(cost).equal(0.026775)
 		})
 
 		it("should handle zero token counts", () => {
@@ -60,7 +70,7 @@ describe("Cost Utilities", () => {
 			}
 
 			const cost = calculateApiCostAnthropic(modelInfo, 0, 0, 0, 0)
-			cost.should.equal(0)
+			should(cost).equal(0)
 		})
 	})
 
@@ -76,7 +86,7 @@ describe("Cost Utilities", () => {
 			// Input: (3.0 / 1_000_000) * 1000 = 0.003
 			// Output: (15.0 / 1_000_000) * 500 = 0.0075
 			// Total: 0.003 + 0.0075 = 0.0105
-			cost.should.equal(0.0105)
+			should(cost).equal(0.0105)
 		})
 
 		it("should handle missing prices", () => {
@@ -86,7 +96,7 @@ describe("Cost Utilities", () => {
 			}
 
 			const cost = calculateApiCostOpenAI(modelInfo, 1000, 500)
-			cost.should.equal(0)
+			should(cost).equal(0)
 		})
 
 		it("should use real model configuration (Claude 3.5 Sonnet)", () => {
@@ -107,7 +117,7 @@ describe("Cost Utilities", () => {
 			// Input: (3.0 / 1_000_000) * (2100 - 1500 - 500) = 0.0003
 			// Output: (15.0 / 1_000_000) * 1000 = 0.015
 			// Total: 0.005625 + 0.00015 + 0.0003 + 0.015 = 0.021075
-			cost.should.equal(0.021075)
+			should(cost).equal(0.021075)
 		})
 
 		it("should handle zero token counts", () => {
@@ -120,7 +130,7 @@ describe("Cost Utilities", () => {
 			}
 
 			const cost = calculateApiCostOpenAI(modelInfo, 0, 0, 0, 0)
-			cost.should.equal(0)
+			should(cost).equal(0)
 		})
 	})
 
@@ -136,7 +146,7 @@ describe("Cost Utilities", () => {
 			// Input: (0.15 / 1_000_000) * 1000 = 0.00015
 			// Output: (0.6 / 1_000_000) * 500 = 0.0003
 			// Total: 0.00015 + 0.0003 = 0.00045
-			cost.should.equal(0.00045)
+			should(cost).equal(0.00045)
 		})
 
 		it("should handle missing prices", () => {
@@ -146,7 +156,7 @@ describe("Cost Utilities", () => {
 			}
 
 			const cost = calculateApiCostQwen(modelInfo, 1000, 500)
-			cost.should.equal(0)
+			should(cost).equal(0)
 		})
 
 		it("should use real Qwen model configuration (30B)", () => {
@@ -163,7 +173,7 @@ describe("Cost Utilities", () => {
 			// Input: (0.15 / 1_000_000) * 1000 = 0.00015
 			// Output: (0.6 / 1_000_000) * 500 = 0.0003
 			// Total: 0.00015 + 0.0003 = 0.00045
-			cost.should.equal(0.00045)
+			should(cost).equal(0.00045)
 		})
 
 		it("should handle cache tokens correctly (Qwen-style)", () => {
@@ -182,7 +192,7 @@ describe("Cost Utilities", () => {
 			// Input: (0.15 / 1_000_000) * (2100 - 1500 - 500) = 0.000015
 			// Output: (0.6 / 1_000_000) * 1000 = 0.0006
 			// Total: 0.0003 + 0.000025 + 0.000015 + 0.0006 = 0.00094
-			cost.should.equal(0.00094)
+			should(cost).equal(0.00094)
 		})
 
 		it("should handle zero token counts", () => {
@@ -195,7 +205,7 @@ describe("Cost Utilities", () => {
 			}
 
 			const cost = calculateApiCostQwen(modelInfo, 0, 0, 0, 0)
-			cost.should.equal(0)
+			should(cost).equal(0)
 		})
 	})
 })
