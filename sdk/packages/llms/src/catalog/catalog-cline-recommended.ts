@@ -9,6 +9,7 @@ export interface ClineRecommendedModelEntry {
 
 export interface ClineRecommendedModelsPayload {
 	clinePass?: ClineRecommendedModelEntry[];
+	free?: ClineRecommendedModelEntry[];
 }
 
 type ModelCapabilities = Pick<
@@ -81,6 +82,28 @@ export function normalizeClineRecommendedProviderModels(
 			...capabilities,
 			id: entry.id,
 			description: entry.description,
+		};
+	});
+
+	// Cline free models are selectable on the ClinePass provider too (same API
+	// underneath; they ride usage billing at $0 instead of the subscription quota).
+	// Unlike pass models their ids are full OpenRouter-style ids, so look up
+	// capabilities by full id before falling back to the slug map.
+	(payload.free ?? []).forEach((entry) => {
+		if (models[entry.id]) {
+			return;
+		}
+
+		const capabilities =
+			openRouterModels?.[entry.id] ??
+			findORModelCapabilities(entry, openRouterModelsByName);
+
+		models[entry.id] = {
+			name: entry.name,
+			...capabilities,
+			id: entry.id,
+			description: entry.description,
+			pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 		};
 	});
 
