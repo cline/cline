@@ -138,11 +138,12 @@ describe("ClinePassLimitError", () => {
 				"You have reached your weekly Clinepass limit. The limit resets in 7d, please try again later.",
 			),
 		).toBe(true);
+		expect(isClinePassLimitMessage("You have reached your monthly Clinepass limit. The limit resets in 12h, please try again later.")).toBe(true);
 		expect(
 			isClinePassLimitMessage(
-				"You have reached your monthly ClinePass limit. The limit resets in 12h, please try again later.",
+				`You have reached your\t-\tClinepass limit.The limit resets in\t${"\t".repeat(10_000)}`,
 			),
-		).toBe(true);
+		).toBe(false);
 		expect(isClinePassLimitMessage("the user is not subscribed to required model plan")).toBe(false);
 	});
 });

@@ -6,8 +6,30 @@ const CLINE_NOT_SUBSCRIBED_FORMATTED_MESSAGE_PREFIX =
 	"no access to clinepass subscription models yet. subscribe to clinepass";
 export const CLINE_ORG_INDIVIDUAL_INFERENCE_SUBSCRIPTION_RESPONSE_MESSAGE =
 	"organization accounts cannot use individual model inference subscriptions";
-export const CLINE_PASS_LIMIT_RESPONSE_PATTERN =
-	/you have reached your\s+[^.]+?\s+clinepass limit\.\s*the limit resets in\s+[^,]+,\s*please try again later\.?/i;
+
+const CLINE_PASS_LIMIT_PREFIX = "you have reached your";
+const CLINE_PASS_LIMIT_MARKER = "clinepass limit";
+const CLINE_PASS_LIMIT_SUFFIX = "please try again later.";
+
+function findClinePassLimitMessageBounds(text: string): { start: number; end: number } | undefined {
+	const normalized = text.toLowerCase();
+	const start = normalized.indexOf(CLINE_PASS_LIMIT_PREFIX);
+	if (start === -1) {
+		return undefined;
+	}
+
+	const suffixStart = normalized.indexOf(CLINE_PASS_LIMIT_SUFFIX, start);
+	if (suffixStart === -1) {
+		return undefined;
+	}
+
+	const end = suffixStart + CLINE_PASS_LIMIT_SUFFIX.length;
+	if (!normalized.slice(start, end).includes(CLINE_PASS_LIMIT_MARKER)) {
+		return undefined;
+	}
+
+	return { start, end };
+}
 
 export function getClinePassSubscriptionUrl(): string {
 	return `${new URL(
@@ -89,9 +111,10 @@ export function isClineOrgIndividualInferenceSubscriptionMessage(
 }
 
 export function isClinePassLimitMessage(text: string): boolean {
-	return CLINE_PASS_LIMIT_RESPONSE_PATTERN.test(text.trim());
+	return findClinePassLimitMessageBounds(text) !== undefined;
 }
 
 export function extractClinePassLimitMessage(text: string): string | undefined {
-	return text.match(CLINE_PASS_LIMIT_RESPONSE_PATTERN)?.[0];
+	const bounds = findClinePassLimitMessageBounds(text);
+	return bounds ? text.slice(bounds.start, bounds.end) : undefined;
 }
