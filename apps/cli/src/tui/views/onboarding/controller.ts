@@ -30,6 +30,7 @@ import {
 } from "../../cline-account";
 import {
 	buildClineModelEntries,
+	buildClinePassModelEntries,
 	type ClineModelPickerEntry,
 	useClineRecommendedModels,
 } from "../../components/model-selector/cline-model-picker";
@@ -206,12 +207,16 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 
 	const modelList = useSearchableList(modelItems, createCustomModelItem);
 
-	// Cline featured model picker
+	// Cline featured model picker (ClinePass gets Subscribed/Free sections)
 	const recommended = useClineRecommendedModels();
-	const clineEntries: ClineModelPickerEntry[] = useMemo(
-		() => (recommended.data ? buildClineModelEntries(recommended.data) : []),
-		[recommended.data],
-	);
+	const clineEntries: ClineModelPickerEntry[] = useMemo(() => {
+		if (!recommended.data) {
+			return [];
+		}
+		return activeProviderId === "cline-pass"
+			? buildClinePassModelEntries(recommended.data)
+			: buildClineModelEntries(recommended.data);
+	}, [recommended.data, activeProviderId]);
 	const [clineModelSelected, setClineModelSelected] = useState(0);
 	const [clineModelReasoningIds, setClineModelReasoningIds] = useState<
 		Set<string>
@@ -221,20 +226,37 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 	>(undefined);
 
 	useEffect(() => {
-		getLocalProviderModels("cline")
-			.then(({ models }) => {
-				const ids = new Set<string>();
-				for (const m of models) {
+		// The featured picker serves both cline and cline-pass, so pool reasoning
+		// support and display names from both catalogs
+		void Promise.allSettled(
+			["cline", "cline-pass"].map((providerId) =>
+				getLocalProviderModels(providerId),
+			),
+		).then((results) => {
+			const ids = new Set<string>();
+			for (const result of results) {
+				if (result.status !== "fulfilled") continue;
+				for (const m of result.value.models) {
 					if (m.supportsReasoning) ids.add(m.id);
 				}
-				setClineModelReasoningIds(ids);
-			})
-			.catch(() => {});
-		resolveProviderConfig("cline")
-			.then((resolved) => {
-				if (resolved?.knownModels) setClineKnownModels(resolved.knownModels);
-			})
-			.catch(() => {});
+			}
+			setClineModelReasoningIds(ids);
+		});
+		void Promise.allSettled(
+			["cline", "cline-pass"].map((providerId) =>
+				resolveProviderConfig(providerId),
+			),
+		).then((results) => {
+			const merged: Record<string, unknown> = {};
+			for (const result of results) {
+				if (result.status === "fulfilled" && result.value?.knownModels) {
+					Object.assign(merged, result.value.knownModels);
+				}
+			}
+			if (Object.keys(merged).length > 0) {
+				setClineKnownModels(merged);
+			}
+		});
 	}, []);
 
 	// Thinking level

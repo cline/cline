@@ -53,6 +53,37 @@ describe("shouldZeroClineFreeModelCost", () => {
 		expect(fetchMock).not.toHaveBeenCalled();
 	});
 
+	it("zeros free models selected on the cline-pass provider", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => {
+				return new Response(
+					JSON.stringify({
+						free: [{ id: "deepseek/deepseek-v4-flash" }],
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			}),
+		);
+
+		await expect(
+			shouldZeroClineFreeModelCost({
+				providerId: "cline-pass",
+				modelId: "deepseek/deepseek-v4-flash",
+				baseUrl: "https://cline.test/api/v1",
+			}),
+		).resolves.toBe(true);
+
+		// subscription (cline-pass/...) models are not in the free bucket
+		await expect(
+			shouldZeroClineFreeModelCost({
+				providerId: "cline-pass",
+				modelId: "cline-pass/glm-5.1",
+				baseUrl: "https://cline.test/api/v1",
+			}),
+		).resolves.toBe(false);
+	});
+
 	it("does not match a paid model by only the final path segment", async () => {
 		vi.stubGlobal(
 			"fetch",

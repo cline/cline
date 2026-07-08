@@ -3,7 +3,10 @@ import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { palette } from "../../palette";
-import type { ClineModelPickerEntry } from "./cline-model-picker";
+import {
+	CLINE_MODEL_PICKER_TIER_LABELS,
+	type ClineModelPickerEntry,
+} from "./cline-model-picker";
 import { CHANGE_PROVIDER_ACTION } from "./model-selector";
 import { ProviderRow } from "./provider-row";
 
@@ -76,7 +79,7 @@ export function ClineModelSelectorContent(
 					rows.push({
 						key: `tier-${entry.tier}`,
 						kind: "header",
-						label: entry.tier === "recommended" ? "Recommended" : "Free",
+						label: CLINE_MODEL_PICKER_TIER_LABELS[entry.tier],
 						tags: [],
 						isCurrent: false,
 						entryIndex: -1,

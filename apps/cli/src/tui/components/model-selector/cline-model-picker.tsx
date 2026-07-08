@@ -1,7 +1,6 @@
 // @jsxImportSource @opentui/react
 
 import {
-	type ClineRecommendedModel,
 	type ClineRecommendedModelsData,
 	fetchClineRecommendedModels,
 } from "@cline/core";
@@ -9,20 +8,20 @@ import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import "opentui-spinner/react";
 import { palette } from "../../palette";
+import {
+	CLINE_MODEL_PICKER_TIER_LABELS,
+	type ClineModelPickerEntry,
+} from "./cline-model-entries";
 
-export interface ClineModelPickerItem {
-	kind: "model";
-	model: ClineRecommendedModel;
-	tier: "recommended" | "free";
-}
-
-export interface ClineModelPickerBrowse {
-	kind: "browse";
-}
-
-export type ClineModelPickerEntry =
-	| ClineModelPickerItem
-	| ClineModelPickerBrowse;
+export {
+	buildClineModelEntries,
+	buildClinePassModelEntries,
+	CLINE_MODEL_PICKER_TIER_LABELS,
+	type ClineModelPickerBrowse,
+	type ClineModelPickerEntry,
+	type ClineModelPickerItem,
+	type ClineModelPickerTier,
+} from "./cline-model-entries";
 
 function tagColor(tag: string): string {
 	if (tag === "FREE") return palette.success;
@@ -68,20 +67,6 @@ export function useClineRecommendedModels() {
 	return { data, loading };
 }
 
-export function buildClineModelEntries(
-	data: ClineRecommendedModelsData,
-): ClineModelPickerEntry[] {
-	const entries: ClineModelPickerEntry[] = [];
-	for (const m of data.recommended) {
-		entries.push({ kind: "model", model: m, tier: "recommended" });
-	}
-	for (const m of data.free) {
-		entries.push({ kind: "model", model: m, tier: "free" });
-	}
-	entries.push({ kind: "browse" });
-	return entries;
-}
-
 export function ClineModelPicker(props: {
 	entries: ClineModelPickerEntry[];
 	selected: number;
@@ -112,7 +97,7 @@ export function ClineModelPicker(props: {
 		if (entry.kind === "model") {
 			if (entry.tier !== lastTier) {
 				lastTier = entry.tier;
-				const label = entry.tier === "recommended" ? "Recommended" : "Free";
+				const label = CLINE_MODEL_PICKER_TIER_LABELS[entry.tier];
 				rows.push(
 					<box
 						key={`tier-${entry.tier}`}
