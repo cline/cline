@@ -3,8 +3,6 @@
 	"compilerOptions": {
 		"rootDir": "..",
 		"noEmit": true,
-		"noUnusedLocals": false,
-		"noUnusedParameters": false,
 		"paths": {
 			"@cline/agents": ["../agents/src/index.ts"],
 			"@cline/agents/*": ["../agents/src/*", "../agents/src/*/index.ts"],
