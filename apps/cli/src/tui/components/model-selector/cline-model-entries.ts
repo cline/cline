@@ -44,7 +44,7 @@ export function buildClineModelEntries(
 
 // Shown under the Free section header when picking a model for ClinePass
 export const CLINE_PASS_FREE_SECTION_DESCRIPTION =
-	"Try with limited usage, separate from your ClinePass quota.";
+	"Try with limited usage, separate from ClinePass quota.";
 
 // ClinePass shows the subscription's models plus the Cline free models — both
 // providers hit the same Cline API, so free models are selectable in place
