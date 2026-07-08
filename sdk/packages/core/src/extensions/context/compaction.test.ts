@@ -90,7 +90,6 @@ function runForcedBasicCompaction(
 				info: { id: "mock-model", maxInputTokens: targetTokens },
 			},
 			maxInputTokens: targetTokens,
-			usableBudgetTokens: targetTokens,
 			triggerTokens: targetTokens,
 			thresholdRatio: 1,
 			utilizationRatio: 2,
@@ -266,7 +265,6 @@ describe("createContextCompactionPrepareTurn", () => {
 					info: { id: "mock-model", maxInputTokens: 100_000 },
 				},
 				maxInputTokens: 100_000,
-				usableBudgetTokens: 100_000,
 				triggerTokens: 100_000,
 				thresholdRatio: 1,
 				utilizationRatio: 0.1,
@@ -490,7 +488,6 @@ describe("createContextCompactionPrepareTurn", () => {
 					info: { id: "mock-model", maxInputTokens: 1_000 },
 				},
 				maxInputTokens: 1_000,
-				usableBudgetTokens: 1_000,
 				triggerTokens: 900,
 				targetTokens: 100,
 				thresholdRatio: 0.9,
@@ -1416,9 +1413,9 @@ describe("createContextCompactionPrepareTurn", () => {
 
 		expect(compact).toHaveBeenCalledTimes(1);
 		const context = compact.mock.calls[0]?.[0];
-		expect(context?.maxInputTokens).toBe(400_000);
+		expect(context?.maxInputTokens).toBe(272_000);
 		expect(context?.triggerTokens).toBe(244_800);
-		expect(context?.thresholdRatio).toBe(244_800 / 400_000);
+		expect(context?.thresholdRatio).toBe(0.9);
 		expect(result?.messages).toEqual([
 			{ role: "user", content: "Compacted by derived input budget" },
 		]);
@@ -1466,10 +1463,9 @@ describe("createContextCompactionPrepareTurn", () => {
 
 		expect(compact).toHaveBeenCalledTimes(1);
 		const context = compact.mock.calls[0]?.[0];
-		expect(context?.maxInputTokens).toBe(40_960);
-		expect(context?.usableBudgetTokens).toBe(24_576);
+		expect(context?.maxInputTokens).toBe(24_576);
 		expect(context?.triggerTokens).toBe(22_118);
-		expect(context?.thresholdRatio).toBe(22_118 / 40_960);
+		expect(context?.thresholdRatio).toBe(22_118 / 24_576);
 	});
 
 	it("caps shared-context output reserve at half the context window", async () => {
@@ -1514,7 +1510,7 @@ describe("createContextCompactionPrepareTurn", () => {
 
 		expect(compact).toHaveBeenCalledTimes(1);
 		const context = compact.mock.calls[0]?.[0];
-		expect(context?.maxInputTokens).toBe(40_960);
+		expect(context?.maxInputTokens).toBe(20_480);
 		expect(context?.triggerTokens).toBe(18_432);
 	});
 
@@ -1561,7 +1557,7 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(compact).toHaveBeenCalledTimes(1);
 		const context = compact.mock.calls[0]?.[0];
 		expect(context?.triggerTokens).toBe(19_660);
-		expect(context?.thresholdRatio).toBe(19_660 / 40_960);
+		expect(context?.thresholdRatio).toBe(19_660 / 24_576);
 	});
 
 	it("applies explicit reserve tokens to the usable budget", async () => {
@@ -1607,7 +1603,7 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(compact).toHaveBeenCalledTimes(1);
 		const context = compact.mock.calls[0]?.[0];
 		expect(context?.triggerTokens).toBe(20_480);
-		expect(context?.thresholdRatio).toBe(0.5);
+		expect(context?.thresholdRatio).toBe(20_480 / 24_576);
 	});
 
 	it("uses the lower split input budget when it is below context-derived input budget", async () => {
@@ -2013,7 +2009,6 @@ describe("createContextCompactionPrepareTurn", () => {
 					info: { id: "mock-model", maxInputTokens: 100 },
 				},
 				maxInputTokens: 100,
-				usableBudgetTokens: 100,
 				triggerTokens: 100,
 				thresholdRatio: 1,
 				utilizationRatio: 0.1,

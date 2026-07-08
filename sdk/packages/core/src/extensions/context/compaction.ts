@@ -100,7 +100,6 @@ interface CompactionBudget {
 	outputReserveTokens: number;
 	triggerTokens: number;
 	thresholdRatio: number;
-	usableThresholdRatio: number;
 	ceilingSource: CompactionBudgetSource;
 	reserveCapped: boolean;
 }
@@ -166,8 +165,6 @@ function resolveCompactionBudget(input: {
 		outputReserveTokens,
 		triggerTokens,
 		thresholdRatio:
-			ceilingTokens > 0 ? triggerTokens / ceilingTokens : 0,
-		usableThresholdRatio:
 			usableBudgetTokens > 0 ? triggerTokens / usableBudgetTokens : 0,
 		ceilingSource,
 		reserveCapped:
@@ -371,7 +368,7 @@ export function createContextCompactionPrepareTurn(
 			contextWindow: context.model.info?.contextWindow,
 			modelMaxTokens: context.model.info?.maxTokens,
 		});
-		const maxInputTokens = compactionBudget.ceilingTokens;
+		const maxInputTokens = compactionBudget.usableBudgetTokens;
 		const shouldCompact = inputTokens > compactionBudget.triggerTokens;
 		config.logger?.debug("Context compaction diagnostics", {
 			mode,
@@ -381,13 +378,12 @@ export function createContextCompactionPrepareTurn(
 			modelId: config.modelId,
 			inputTokens,
 			maxInputTokens,
-			usableBudgetTokens: compactionBudget.usableBudgetTokens,
+			ceilingTokens: compactionBudget.ceilingTokens,
 			outputReserveTokens: compactionBudget.outputReserveTokens,
 			ceilingSource: compactionBudget.ceilingSource,
 			reserveCapped: compactionBudget.reserveCapped,
 			triggerTokens: compactionBudget.triggerTokens,
 			thresholdRatio: compactionBudget.thresholdRatio,
-			usableThresholdRatio: compactionBudget.usableThresholdRatio,
 			shouldCompact,
 			messageCount: context.messages.length,
 			apiMessageCount: context.apiMessages.length,
@@ -425,7 +421,6 @@ export function createContextCompactionPrepareTurn(
 			messages: context.messages,
 			model: context.model,
 			maxInputTokens,
-			usableBudgetTokens: compactionBudget.usableBudgetTokens,
 			triggerTokens: targetState.triggerTokens,
 			targetTokens,
 			thresholdRatio: targetState.thresholdRatio,
@@ -442,7 +437,7 @@ export function createContextCompactionPrepareTurn(
 				iteration: context.iteration,
 				triggerTokens: targetState.triggerTokens,
 				maxInputTokens,
-				usableBudgetTokens: compactionBudget.usableBudgetTokens,
+				ceilingTokens: compactionBudget.ceilingTokens,
 				outputReserveTokens: compactionBudget.outputReserveTokens,
 				ceilingSource: compactionBudget.ceilingSource,
 			},
@@ -486,7 +481,7 @@ export function createContextCompactionPrepareTurn(
 				severity: "info",
 				strategy: strategy,
 				maxInputTokens,
-				usableBudgetTokens: compactionBudget.usableBudgetTokens,
+				ceilingTokens: compactionBudget.ceilingTokens,
 				outputReserveTokens: compactionBudget.outputReserveTokens,
 				ceilingSource: compactionBudget.ceilingSource,
 				reserveCapped: compactionBudget.reserveCapped,

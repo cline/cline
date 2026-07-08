@@ -67,20 +67,15 @@ export interface CoreCompactionContext {
 		info?: ModelInfo;
 	};
 	/**
-	 * Full input ceiling for the model (context window or explicit override),
-	 * before any output-token reserve is subtracted.
+	 * Usable input budget after reserving any shared context window space needed
+	 * for model output.
 	 */
 	maxInputTokens: number;
-	/**
-	 * Tokens the input may actually occupy: `maxInputTokens` minus the output
-	 * reserve held back on shared-context models. Compact below this value.
-	 */
-	usableBudgetTokens: number;
 	triggerTokens: number;
 	targetTokens?: number;
 	/**
-	 * Effective trigger point as a fraction of `maxInputTokens`
-	 * (`triggerTokens / maxInputTokens`), not the raw configured ratio.
+	 * Effective trigger point as a fraction of the usable input budget
+	 * (`triggerTokens / maxInputTokens`).
 	 */
 	thresholdRatio: number;
 	utilizationRatio: number;
