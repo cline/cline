@@ -100,7 +100,9 @@ const GENERIC_PROVIDER_PRESENTATION_OVERRIDES: Record<string, GenericProviderPre
 	"tencent-tokenhub": {
 		signupUrl: "https://cloud.tencent.com/document/product/1823/130050",
 	},
-	manifest: {},
+	manifest: {
+		signupUrl: "https://manifest.build/docs",
+	},
 	"zai-coding-plan": {},
 }
 
