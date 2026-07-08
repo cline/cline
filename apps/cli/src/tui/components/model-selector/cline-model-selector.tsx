@@ -7,6 +7,7 @@ import {
 	CLINE_MODEL_PICKER_TIER_LABELS,
 	type ClineModelPickerEntry,
 	freeTierDescriptionFor,
+	stripFreeMarker,
 } from "./cline-model-picker";
 import { CHANGE_PROVIDER_ACTION } from "./model-selector";
 import { ProviderRow } from "./provider-row";
@@ -33,12 +34,13 @@ function resolveDisplayName(
 		for (const key of candidates) {
 			if (!key) continue;
 			const hit = knownModels[key] as { name?: string } | undefined;
-			if (hit?.name) return hit.name;
+			if (hit?.name) return stripFreeMarker(hit.name);
 		}
 	}
-	return modelId.includes("/")
+	const fallback = modelId.includes("/")
 		? (modelId.split("/").pop() ?? modelId)
 		: modelId;
+	return stripFreeMarker(fallback);
 }
 
 export function ClineModelSelectorContent(

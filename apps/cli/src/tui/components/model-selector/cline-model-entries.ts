@@ -74,3 +74,14 @@ export function freeTierDescriptionFor(
 	);
 	return isClinePassPicker ? CLINE_PASS_FREE_SECTION_DESCRIPTION : undefined;
 }
+
+// OpenRouter marks free variants with "(free)" in names and ":free" in ids to
+// disambiguate them from their paid twins. Inside the sectioned pickers the
+// Free header already says it, so the markers are redundant — but keep them in
+// flat lists (e.g. browse-all), where both variants appear side by side.
+export function stripFreeMarker(displayName: string): string {
+	return displayName
+		.replace(/\s*\(free\)\s*$/i, "")
+		.replace(/:free$/i, "")
+		.trim();
+}

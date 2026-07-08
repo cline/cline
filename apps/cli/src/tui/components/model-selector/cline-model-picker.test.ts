@@ -4,6 +4,7 @@ import {
 	buildClinePassModelEntries,
 	CLINE_PASS_FREE_SECTION_DESCRIPTION,
 	freeTierDescriptionFor,
+	stripFreeMarker,
 } from "./cline-model-entries";
 
 const model = (id: string) => ({ id, name: id, description: "", tags: [] });
@@ -66,5 +67,14 @@ describe("cline model picker entries", () => {
 		expect(freeTierDescriptionFor(buildClineModelEntries(data))).toBe(
 			undefined,
 		);
+	});
+
+	it("strips redundant free markers from display names", () => {
+		expect(stripFreeMarker("Laguna M.1 (free)")).toBe("Laguna M.1");
+		expect(stripFreeMarker("Trinity Large Preview (FREE)")).toBe(
+			"Trinity Large Preview",
+		);
+		expect(stripFreeMarker("laguna-m.1:free")).toBe("laguna-m.1");
+		expect(stripFreeMarker("DeepSeek V4 Flash")).toBe("DeepSeek V4 Flash");
 	});
 });
