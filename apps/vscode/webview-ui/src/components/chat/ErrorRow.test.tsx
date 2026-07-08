@@ -372,7 +372,7 @@ describe("ErrorRow", () => {
 			render(<ErrorRow apiRequestFailedMessage="Some API error" errorType="error" message={mockMessage} />)
 
 			// When ClineError.parse returns null, we display the raw error message for non-Cline providers
-			// Since clineError is undefined, isClineProvider is false, so we show the raw apiRequestFailedMessage
+			// Since clineError is undefined, isClineUsageBillingProvider is false, so we show the raw apiRequestFailedMessage
 			expect(screen.getByText("Some API error")).toBeInTheDocument()
 		})
 

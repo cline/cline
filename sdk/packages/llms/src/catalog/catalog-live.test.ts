@@ -112,6 +112,75 @@ describe("models-dev-catalog", () => {
 		).toEqual({});
 	});
 
+	it("includes zero-priced Cline free models alongside ClinePass models", () => {
+		const result = normalizeClineRecommendedProviderModels(
+			{
+				clinePass: [{ id: "cline-pass/glm-5.1", name: "glm-5.1" }],
+				free: [{ id: "kwaipilot/kat-coder-pro", name: "kat-coder-pro" }],
+			},
+			{
+				"kwaipilot/kat-coder-pro": {
+					id: "kwaipilot/kat-coder-pro",
+					name: "KAT Coder Pro",
+					contextWindow: 256_000,
+					maxInputTokens: 200_000,
+					maxTokens: 32_000,
+					capabilities: ["tools", "temperature"],
+					pricing: { input: 1, output: 2, cacheRead: 0.1, cacheWrite: 0 },
+				},
+			},
+		);
+
+		const models = result["cline-pass"] ?? {};
+		// ClinePass models stay first so the provider default remains a pass model
+		expect(Object.keys(models)).toEqual([
+			"cline-pass/glm-5.1",
+			"kwaipilot/kat-coder-pro",
+		]);
+		expect(models["kwaipilot/kat-coder-pro"]).toMatchObject({
+			id: "kwaipilot/kat-coder-pro",
+			name: "KAT Coder Pro",
+			contextWindow: 256_000,
+			maxInputTokens: 200_000,
+			// free models are billed at $0 regardless of catalog pricing
+			pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+		});
+	});
+
+	it("resolves free-model capabilities by slug and ignores free-only payloads", () => {
+		const suffixed = normalizeClineRecommendedProviderModels(
+			{
+				clinePass: [{ id: "cline-pass/glm-5.1" }],
+				free: [{ id: "arcee-ai/trinity-large-preview:free" }],
+			},
+			{
+				"arcee-ai/trinity-large-preview:free": {
+					id: "arcee-ai/trinity-large-preview:free",
+					name: "Trinity Large Preview",
+					contextWindow: 512_000,
+					maxInputTokens: 400_000,
+					maxTokens: 64_000,
+					capabilities: ["tools"],
+					pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+				},
+			},
+		);
+		expect(
+			suffixed["cline-pass"]?.["arcee-ai/trinity-large-preview:free"],
+		).toMatchObject({
+			name: "Trinity Large Preview",
+			contextWindow: 512_000,
+		});
+
+		// free bucket alone does not create a cline-pass catalog
+		expect(
+			normalizeClineRecommendedProviderModels(
+				{ free: [{ id: "kwaipilot/kat-coder-pro" }] },
+				{},
+			),
+		).toEqual({});
+	});
+
 	it("uses input limits as the model request context window", () => {
 		expect(resolveMaxInputTokens(undefined)).toBe(128_000);
 		expect(

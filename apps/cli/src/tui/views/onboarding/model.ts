@@ -207,5 +207,6 @@ export function getOAuthProviderLabel(providerId: string): string {
 }
 
 export function shouldUseFeaturedClineModelPicker(providerId: string): boolean {
-	return providerId === "cline";
+	// ClinePass uses the featured picker too, with Subscribed/Free sections
+	return providerId === "cline" || providerId === "cline-pass";
 }

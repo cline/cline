@@ -44,7 +44,7 @@ import { telemetryService } from "@/services/telemetry"
 import type { ClineExtensionContext } from "@/shared/cline"
 import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
-import { isClineProvider } from "@/shared/utils/cline"
+import { isClineManagedProvider } from "@/shared/utils/cline"
 import { arePathsEqual, getDesktopDir } from "@/utils/path"
 import { ClineAccountService } from "./account-service"
 import { AuthService, LogoutReason } from "./auth-service"
@@ -335,7 +335,7 @@ export class Controller {
 				const errorMessage = error instanceof Error ? error.message : String(error)
 				const providerId = this.getSessionProviderId(sessionId) ?? this.getActiveProviderId()
 				const isClineAuthError =
-					isClineProvider(providerId) &&
+					isClineManagedProvider(providerId) &&
 					(errorMessage.includes(CLINE_ACCOUNT_AUTH_ERROR_MESSAGE) ||
 						errorMessage.toLowerCase().includes("missing api key") ||
 						errorMessage.toLowerCase().includes("unauthorized"))
@@ -349,7 +349,7 @@ export class Controller {
 						failurePhase: PROVIDER_FAILURE_PHASE.PREFLIGHT,
 					})
 					this.emitClineAuthError()
-				} else if (isClineProvider(providerId) && this.isClineBalanceError(errorMessage)) {
+				} else if (isClineManagedProvider(providerId) && this.isClineBalanceError(errorMessage)) {
 					this.captureProviderFailure({
 						sessionId,
 						error,
@@ -452,7 +452,7 @@ export class Controller {
 			loadInitialMessages: (sessionHost, taskId) => this.sessionHistory.loadInitialMessages(sessionHost, taskId),
 			buildStartSessionInput,
 			resolveContextMentions: (text) => this.resolveContextMentions(text),
-			isClineProviderActive: () => this.isClineProviderActive(),
+			isClineManagedProviderActive: () => this.isClineManagedProviderActive(),
 			emitClineAuthError: () => this.emitClineAuthErrorWithTelemetry(),
 			resetMessageTranslator: () => this.resetMessageTranslatorAndFence(),
 			postStateToWebview: () => this.postStateToWebview(),
@@ -501,7 +501,7 @@ export class Controller {
 			createTempSessionHost: () => VscodeSessionHost.create({ mcpHub: this.mcpHub }),
 			loadInitialMessages: (reader, taskId) => this.sessionHistory.loadInitialMessages(reader, taskId),
 			resolveContextMentions: (text) => this.resolveContextMentions(text),
-			isClineProviderActive: () => this.isClineProviderActive(),
+			isClineManagedProviderActive: () => this.isClineManagedProviderActive(),
 			emitClineAuthError: (task) => this.emitClineAuthErrorWithTelemetry(task),
 			captureProviderApiError: (event) => this.captureProviderFailure(event),
 			postStateToWebview: () => this.postStateToWebview(),
@@ -894,8 +894,8 @@ export class Controller {
 	/**
 	 * Check if the active API provider uses Cline account auth for the current mode.
 	 */
-	private isClineProviderActive(): boolean {
-		return isClineProvider(this.getActiveProviderId())
+	private isClineManagedProviderActive(): boolean {
+		return isClineManagedProvider(this.getActiveProviderId())
 	}
 
 	private captureProviderFailure(event: ProviderFailureTelemetry): void {
