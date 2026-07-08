@@ -38,6 +38,19 @@ const {
 	})),
 }));
 
+const { mockDaemonTelemetryService, mockCreateHubDaemonTelemetry } = vi.hoisted(
+	() => {
+		const telemetry = { capture: vi.fn() };
+		return {
+			mockDaemonTelemetryService: telemetry,
+			mockCreateHubDaemonTelemetry: vi.fn(() => ({
+				telemetry,
+				dispose: vi.fn(async () => undefined),
+			})),
+		};
+	},
+);
+
 vi.mock("@cline/shared", () => ({
 	initVcr: mockInitVcr,
 	resolveClineBuildEnv: () => "production",
@@ -61,6 +74,10 @@ vi.mock("../server", () => ({
 	startHubWebSocketServer: mockStartHubWebSocketServer,
 }));
 
+vi.mock("./telemetry", () => ({
+	createHubDaemonTelemetry: mockCreateHubDaemonTelemetry,
+}));
+
 const originalArgv = [...process.argv];
 const originalCwd = process.cwd();
 
@@ -78,6 +95,7 @@ describe("hub daemon entry", () => {
 		mockResolveProductionHubOwnerContext.mockClear();
 		mockResolveSharedHubOwnerContext.mockClear();
 		mockStartHubWebSocketServer.mockClear();
+		mockCreateHubDaemonTelemetry.mockClear();
 		for (const dir of tempDirs.splice(0)) {
 			rmSync(dir, { recursive: true, force: true });
 		}
@@ -111,9 +129,13 @@ describe("hub daemon entry", () => {
 				port: 30000,
 				pathname: "/hub",
 				owner: expect.objectContaining({ ownerId: "production" }),
+				telemetry: mockDaemonTelemetryService,
 				cronOptions: { workspaceRoot: cwd },
 			}),
 		);
 		expect(mockCreateLocalHubScheduleRuntimeHandlers).toHaveBeenCalledOnce();
+		expect(mockCreateLocalHubScheduleRuntimeHandlers).toHaveBeenCalledWith({
+			telemetry: mockDaemonTelemetryService,
+		});
 	});
 });

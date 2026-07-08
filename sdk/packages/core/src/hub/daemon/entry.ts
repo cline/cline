@@ -7,6 +7,7 @@ import {
 	resolveSharedHubOwnerContext,
 } from "../discovery/workspace";
 import { startHubWebSocketServer } from "../server";
+import { createHubDaemonTelemetry } from "./telemetry";
 
 initVcr(process.env.CLINE_VCR);
 
@@ -61,6 +62,8 @@ async function main(): Promise<void> {
 		pathname: options.pathname,
 	});
 
+	const daemonTelemetry = createHubDaemonTelemetry();
+
 	const server = await startHubWebSocketServer({
 		host: endpoint.host,
 		port: endpoint.port,
@@ -69,12 +72,16 @@ async function main(): Promise<void> {
 			resolveClineBuildEnv() === "production"
 				? resolveProductionHubOwnerContext()
 				: resolveSharedHubOwnerContext(),
-		runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+		telemetry: daemonTelemetry.telemetry,
+		runtimeHandlers: createLocalHubScheduleRuntimeHandlers({
+			telemetry: daemonTelemetry.telemetry,
+		}),
 		cronOptions: { workspaceRoot: options.cwd },
 	});
 
 	const shutdown = async (): Promise<void> => {
 		await server.close();
+		await daemonTelemetry.dispose().catch(() => undefined);
 		process.exit(0);
 	};
 
@@ -99,7 +106,12 @@ async function main(): Promise<void> {
 				);
 			})
 			.finally(() => {
-				process.exit(1);
+				void daemonTelemetry
+					.dispose()
+					.catch(() => undefined)
+					.finally(() => {
+						process.exit(1);
+					});
 			});
 	};
 
