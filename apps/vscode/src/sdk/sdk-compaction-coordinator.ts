@@ -6,9 +6,8 @@
 //
 //   1. Read the active session's transcript.
 //   2. Run a manual SDK compaction over it (sdk-compaction.ts).
-//   3. Restart the session with the compacted messages as initialMessages, so
-//      the model's working context is actually reduced (reusing the mode-rebuild
-//      replaceActiveSession path, which lazily persists on the next turn).
+//   3. Persist the SDK compaction sidecar so the next turn and resumes keep
+//      using the compacted working context.
 //
 // Before this, the VSCode button sent the literal text "/compact" to the model,
 // which the SDK does not treat as a runtime command, so the model improvised a
@@ -24,22 +23,16 @@ import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import type { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import type { SdkSessionHost } from "./session-host"
-import type { TaskProxy } from "./task-proxy"
-import type { VscodeSessionHost } from "./vscode-session-host"
 
-type StartInput = Parameters<VscodeSessionHost["start"]>[0]
-type InitialMessages = StartInput["initialMessages"]
-type SessionConfig = Awaited<ReturnType<SdkSessionConfigBuilder["build"]>>
+const COMPACTION_FAILURE_MESSAGE = "Couldn't compact the conversation. Please try again."
+const COMPACTION_UNSUPPORTED_MESSAGE = "Compaction is not supported by this runtime yet. Please update Cline and try again."
 
 export interface SdkCompactionCoordinatorOptions {
 	stateManager: StateManager
 	sessions: SdkSessionLifecycle
 	messages: SdkMessageCoordinator
 	sessionConfigBuilder: SdkSessionConfigBuilder
-	getTask: () => TaskProxy | undefined
 	getWorkspaceRoot: () => Promise<string>
-	buildStartSessionInput: (config: SessionConfig, input: { cwd: string; mode: Mode }) => StartInput
-	resetMessageTranslator: () => void
 	postStateToWebview: () => Promise<void>
 }
 
@@ -70,7 +63,10 @@ export class SdkCompactionCoordinator {
 		// A turn is still running; compacting mid-turn would race the live agent
 		// loop's own message persistence. Ask the user to wait until it finishes.
 		if (activeSession.isRunning) {
-			this.emitInfo("Cannot compact while a response is in progress. Try again once the current turn finishes.")
+			this.emitInfo(
+				"Cannot compact while a response is in progress. Try again once the current turn finishes.",
+				activeSession.sessionId,
+			)
 			await this.options.postStateToWebview()
 			return
 		}
@@ -80,7 +76,7 @@ export class SdkCompactionCoordinator {
 			await this.runCompaction(activeSession.sdkHost, activeSession.sessionId)
 		} catch (error) {
 			Logger.error("[SdkController] compactTask failed:", error)
-			this.emitInfo(`Compaction failed: ${error instanceof Error ? error.message : String(error)}`)
+			this.emitInfo(COMPACTION_FAILURE_MESSAGE, activeSession.sessionId)
 			await this.options.postStateToWebview()
 		} finally {
 			this.compactInFlight = false
@@ -88,10 +84,15 @@ export class SdkCompactionCoordinator {
 	}
 
 	private async runCompaction(sdkHost: SdkSessionHost, sessionId: string): Promise<void> {
+		if (!sdkHost.updateSessionCompactionState) {
+			this.emitInfo(COMPACTION_UNSUPPORTED_MESSAGE, sessionId)
+			await this.options.postStateToWebview()
+			return
+		}
 		const messages = (await sdkHost.readMessages(sessionId)) as SdkMessage[]
 		const messagesBefore = messages.length
 		if (messagesBefore === 0) {
-			this.emitInfo("No messages to compact.")
+			this.emitInfo("No messages to compact.", sessionId)
 			await this.options.postStateToWebview()
 			return
 		}
@@ -115,44 +116,23 @@ export class SdkCompactionCoordinator {
 		})
 
 		if (!result.compacted) {
-			this.emitInfo("No compaction needed.")
+			this.emitInfo("No compaction needed.", sessionId)
 			await this.options.postStateToWebview()
 			return
 		}
 
-		// Restart the session with the compacted transcript. Reusing the
-		// sessionId keeps the task identity (history item, task header) stable;
-		// replaceActiveSession waits for the old session's stop before starting
-		// the replacement (same sequencing as a mode rebuild).
-		config.sessionId = sessionId
-		const startInput = this.options.buildStartSessionInput(config, { cwd, mode })
-		const rebuildResult = await this.options.sessions.replaceActiveSession({
-			startInput,
-			initialMessages: result.messages as InitialMessages,
-			disposeReason: "compactTask",
-		})
-		if (!rebuildResult) {
-			this.emitInfo("Compaction could not be applied because the session was replaced.")
-			await this.options.postStateToWebview()
-			return
+		if (!result.compactionState) {
+			throw new Error("Compaction did not return durable state.")
+		}
+		const persisted = await sdkHost.updateSessionCompactionState(sessionId, result.compactionState)
+		if (!persisted.updated) {
+			throw new Error("Compaction sidecar could not be persisted.")
 		}
 
-		const { startResult } = rebuildResult
-		const task = this.options.getTask()
-		if (task && task.taskId !== startResult.sessionId) {
-			task.taskId = startResult.sessionId
-		}
-
-		// Fence the conversation boundary so any straggler events from the old
-		// session carry an older epoch and are dropped by the webview.
-		this.options.resetMessageTranslator()
-
-		this.emitInfo(this.formatCompactionStatus(messagesBefore, result.messages.length))
+		this.emitInfo(this.formatCompactionStatus(messagesBefore, result.messages.length), sessionId)
 		await this.options.postStateToWebview()
 
-		Logger.log(
-			`[SdkController] Compacted session ${sessionId}: ${messagesBefore} -> ${result.messages.length} messages (new session ${startResult.sessionId})`,
-		)
+		Logger.log(`[SdkController] Compacted session ${sessionId}: ${messagesBefore} -> ${result.messages.length} messages`)
 	}
 
 	private getCurrentMode(): Mode {
@@ -168,8 +148,13 @@ export class SdkCompactionCoordinator {
 		return `Compacted ${messagesBefore} messages to ${messagesAfter}.`
 	}
 
-	private emitInfo(text: string): void {
-		const sessionId = this.options.sessions.getActiveSession()?.sessionId ?? ""
+	private emitInfo(text: string, sessionId?: string): void {
+		const activeSessionId = this.options.sessions.getActiveSession()?.sessionId
+		if (sessionId && activeSessionId !== sessionId) {
+			Logger.warn(`[SdkController] compactTask: skipped info for inactive session ${sessionId}`)
+			return
+		}
+		const targetSessionId = sessionId ?? activeSessionId ?? ""
 		const infoMessage: ClineMessage = {
 			ts: Date.now(),
 			type: "say",
@@ -179,7 +164,7 @@ export class SdkCompactionCoordinator {
 		}
 		this.options.messages.appendAndEmit([infoMessage], {
 			type: "status",
-			payload: { sessionId, status: "running" },
+			payload: { sessionId: targetSessionId, status: "running" },
 		})
 	}
 }
