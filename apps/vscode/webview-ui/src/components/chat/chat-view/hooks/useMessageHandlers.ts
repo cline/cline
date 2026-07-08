@@ -179,8 +179,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 							case "mistake_limit_reached":
 							case "api_req_failed":
 							case "new_task":
-							case "condense":
-							case "report_bug": {
+							case "condense": {
 								// Most askResponse sends need a temporary webview-only user bubble because the
 								// extension will not echo the user's message until later. Active follow-up
 								// questions are the exception: they are backed by the SDK's pending ask_question
@@ -408,11 +407,6 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					switch (clineAsk) {
 						case "condense":
 							await SlashServiceClient.condense(StringRequest.create({ value: lastMessage?.text })).catch((err) =>
-								console.error(err),
-							)
-							break
-						case "report_bug":
-							await SlashServiceClient.reportBug(StringRequest.create({ value: lastMessage?.text })).catch((err) =>
 								console.error(err),
 							)
 							break

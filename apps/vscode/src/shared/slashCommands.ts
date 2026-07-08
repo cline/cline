@@ -25,11 +25,6 @@ export const BASE_SLASH_COMMANDS: SlashCommand[] = [
 		description: "Create a new Cline rule based on your conversation",
 		section: "default",
 	},
-	{
-		name: "reportbug",
-		description: "Create a Github issue with Cline",
-		section: "default",
-	},
 ]
 
 // VS Code-only slash commands
