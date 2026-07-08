@@ -40,7 +40,9 @@ describe("compactSessionMessages", () => {
 	})
 
 	it("builds a manual-mode prepareTurn and force-enables compaction", async () => {
-		const compact = vi.fn().mockResolvedValue({ messages: [{ role: "user", content: "summary" }] })
+		const compact = vi
+			.fn()
+			.mockResolvedValue({ messages: [{ role: "user", content: "summary" }], systemPrompt: "rewritten system" })
 		createContextCompactionPrepareTurn.mockReturnValueOnce(compact)
 
 		const messages = [
@@ -64,7 +66,7 @@ describe("compactSessionMessages", () => {
 			sourceMessages: messages,
 			compactedMessages: [{ role: "user", content: "summary" }],
 			conversationId: "s1",
-			systemPrompt: undefined,
+			systemPrompt: "rewritten system",
 		})
 		expect(result).toEqual({
 			compacted: true,

@@ -69,6 +69,21 @@ describe("SdkCompactionCoordinator", () => {
 		)
 	})
 
+	it("reports unsupported runtime without running compaction", async () => {
+		const activeSession = makeActiveSession()
+		;(activeSession.sdkHost as Partial<typeof activeSession.sdkHost>).updateSessionCompactionState = undefined
+		const { coordinator, options } = makeCoordinator({ activeSession })
+
+		await coordinator.compactTask()
+
+		expect(activeSession.sdkHost.readMessages).not.toHaveBeenCalled()
+		expect(mockCreateContextCompactionPrepareTurn).not.toHaveBeenCalled()
+		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
+			[expect.objectContaining({ say: "info", text: expect.stringContaining("not supported") })],
+			expect.anything(),
+		)
+	})
+
 	it("reports when the strategy declines to compact", async () => {
 		const activeSession = makeActiveSession()
 		const { coordinator, options } = makeCoordinator({ activeSession })
@@ -107,6 +122,22 @@ describe("SdkCompactionCoordinator", () => {
 			[expect.objectContaining({ say: "info", text: "Compacted 3 messages to 1." })],
 			expect.anything(),
 		)
+	})
+
+	it("does not append compaction status to a different active session", async () => {
+		const activeSession = makeActiveSession()
+		const { coordinator, options } = makeCoordinator({ activeSession })
+		options.sessions.getActiveSession
+			.mockReturnValueOnce(activeSession)
+			.mockReturnValueOnce(makeActiveSession({ sessionId: "other-session" }))
+		mockCreateContextCompactionPrepareTurn.mockReturnValueOnce(
+			vi.fn().mockResolvedValue({ messages: [{ role: "user", content: "summary" }] }),
+		)
+
+		await coordinator.compactTask()
+
+		expect(activeSession.sdkHost.updateSessionCompactionState).toHaveBeenCalled()
+		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
 	})
 
 	it("does not restart or report success when sidecar persistence fails", async () => {
@@ -196,9 +227,9 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 	}
 }
 
-function makeActiveSession(input: { isRunning?: boolean } = {}) {
+function makeActiveSession(input: { isRunning?: boolean; sessionId?: string } = {}) {
 	return {
-		sessionId: "old-session",
+		sessionId: input.sessionId ?? "old-session",
 		sdkHost: {
 			readMessages: vi.fn().mockResolvedValue([{ role: "user", content: "1" }]),
 			updateSessionCompactionState: vi.fn().mockResolvedValue({ updated: true }),

@@ -25,6 +25,7 @@ import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import type { SdkSessionHost } from "./session-host"
 
 const COMPACTION_FAILURE_MESSAGE = "Couldn't compact the conversation. Please try again."
+const COMPACTION_UNSUPPORTED_MESSAGE = "Compaction is not supported by this runtime yet. Please update Cline and try again."
 
 export interface SdkCompactionCoordinatorOptions {
 	stateManager: StateManager
@@ -62,7 +63,10 @@ export class SdkCompactionCoordinator {
 		// A turn is still running; compacting mid-turn would race the live agent
 		// loop's own message persistence. Ask the user to wait until it finishes.
 		if (activeSession.isRunning) {
-			this.emitInfo("Cannot compact while a response is in progress. Try again once the current turn finishes.")
+			this.emitInfo(
+				"Cannot compact while a response is in progress. Try again once the current turn finishes.",
+				activeSession.sessionId,
+			)
 			await this.options.postStateToWebview()
 			return
 		}
@@ -72,7 +76,7 @@ export class SdkCompactionCoordinator {
 			await this.runCompaction(activeSession.sdkHost, activeSession.sessionId)
 		} catch (error) {
 			Logger.error("[SdkController] compactTask failed:", error)
-			this.emitInfo(COMPACTION_FAILURE_MESSAGE)
+			this.emitInfo(COMPACTION_FAILURE_MESSAGE, activeSession.sessionId)
 			await this.options.postStateToWebview()
 		} finally {
 			this.compactInFlight = false
@@ -80,10 +84,15 @@ export class SdkCompactionCoordinator {
 	}
 
 	private async runCompaction(sdkHost: SdkSessionHost, sessionId: string): Promise<void> {
+		if (!sdkHost.updateSessionCompactionState) {
+			this.emitInfo(COMPACTION_UNSUPPORTED_MESSAGE, sessionId)
+			await this.options.postStateToWebview()
+			return
+		}
 		const messages = (await sdkHost.readMessages(sessionId)) as SdkMessage[]
 		const messagesBefore = messages.length
 		if (messagesBefore === 0) {
-			this.emitInfo("No messages to compact.")
+			this.emitInfo("No messages to compact.", sessionId)
 			await this.options.postStateToWebview()
 			return
 		}
@@ -107,7 +116,7 @@ export class SdkCompactionCoordinator {
 		})
 
 		if (!result.compacted) {
-			this.emitInfo("No compaction needed.")
+			this.emitInfo("No compaction needed.", sessionId)
 			await this.options.postStateToWebview()
 			return
 		}
@@ -115,15 +124,12 @@ export class SdkCompactionCoordinator {
 		if (!result.compactionState) {
 			throw new Error("Compaction did not return durable state.")
 		}
-		if (!sdkHost.updateSessionCompactionState) {
-			throw new Error("Compaction sidecar persistence is unavailable.")
-		}
 		const persisted = await sdkHost.updateSessionCompactionState(sessionId, result.compactionState)
 		if (!persisted.updated) {
 			throw new Error("Compaction sidecar could not be persisted.")
 		}
 
-		this.emitInfo(this.formatCompactionStatus(messagesBefore, result.messages.length))
+		this.emitInfo(this.formatCompactionStatus(messagesBefore, result.messages.length), sessionId)
 		await this.options.postStateToWebview()
 
 		Logger.log(`[SdkController] Compacted session ${sessionId}: ${messagesBefore} -> ${result.messages.length} messages`)
@@ -142,8 +148,13 @@ export class SdkCompactionCoordinator {
 		return `Compacted ${messagesBefore} messages to ${messagesAfter}.`
 	}
 
-	private emitInfo(text: string): void {
-		const sessionId = this.options.sessions.getActiveSession()?.sessionId ?? ""
+	private emitInfo(text: string, sessionId?: string): void {
+		const activeSessionId = this.options.sessions.getActiveSession()?.sessionId
+		if (sessionId && activeSessionId !== sessionId) {
+			Logger.warn(`[SdkController] compactTask: skipped info for inactive session ${sessionId}`)
+			return
+		}
+		const targetSessionId = sessionId ?? activeSessionId ?? ""
 		const infoMessage: ClineMessage = {
 			ts: Date.now(),
 			type: "say",
@@ -153,7 +164,7 @@ export class SdkCompactionCoordinator {
 		}
 		this.options.messages.appendAndEmit([infoMessage], {
 			type: "status",
-			payload: { sessionId, status: "running" },
+			payload: { sessionId: targetSessionId, status: "running" },
 		})
 	}
 }

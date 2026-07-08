@@ -6,9 +6,9 @@
 // `createContextCompactionPrepareTurn` and runs it against the current session
 // transcript, returning the compacted working-context sidecar state.
 //
-// The VSCode coordinator persists that sidecar and restarts with canonical
-// messages intact, so the persisted transcript remains unchanged while the
-// restarted session receives compacted working context.
+// The VSCode coordinator persists that sidecar without replacing the canonical
+// transcript, so the active session and later resumes use compacted working
+// context while saved messages remain intact.
 
 import {
 	type CoreSessionConfig,

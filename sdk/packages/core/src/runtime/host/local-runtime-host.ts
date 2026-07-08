@@ -1060,11 +1060,26 @@ export class LocalRuntimeHost implements RuntimeHost {
 		if (!existing) return { updated: false };
 		if (activeSession) {
 			const persistedMessages = await this.readSessionMessages(target);
-			const validationMessages =
-				persistedMessages.length >= state.source_message_count ||
-				state.source_message_count === 0
-					? persistedMessages
-					: undefined;
+			const hasPersistedSource =
+				state.source_message_count > 0 &&
+				persistedMessages.length >= state.source_message_count;
+			const validationMessages = hasPersistedSource
+				? persistedMessages
+				: undefined;
+			if (hasPersistedSource) {
+				if (
+					!(await this.canPersistCompactionState(
+						target,
+						state,
+						activeSession,
+						undefined,
+						persistedMessages,
+					))
+				) {
+					return { updated: false };
+				}
+				activeSession.agent.restore(persistedMessages);
+			}
 			return await this.persistActiveSessionCompactionState(
 				activeSession,
 				state,

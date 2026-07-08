@@ -4675,7 +4675,14 @@ describe("LocalRuntimeHost", () => {
 
 			await manager.startSession(
 				normalizeStartInput({
-					config: createConfig({ sessionId }),
+					config: createConfig({
+						sessionId,
+						compaction: {
+							enabled: true,
+							strategy: "basic",
+							compact: vi.fn().mockResolvedValue(undefined),
+						},
+					}),
 					initialMessages: liveMessages,
 					interactive: true,
 				}),
@@ -4688,6 +4695,39 @@ describe("LocalRuntimeHost", () => {
 				sessionId,
 				incoming,
 			);
+			expect(createAgent.mock.results[0]?.value.restore).toHaveBeenCalledWith(
+				persistedMessages,
+			);
+			const prepareTurn = createAgent.mock.calls[0]?.[0]?.prepareTurn;
+			await expect(
+				prepareTurn?.({
+					agentId: "agent-root-1",
+					conversationId: sessionId,
+					parentAgentId: null,
+					iteration: 1,
+					abortSignal: new AbortController().signal,
+					systemPrompt: "",
+					tools: [],
+					messages: [
+						...persistedMessages,
+						{ role: "user", content: "next" },
+					] as MessageWithMetadata[],
+					apiMessages: [
+						...persistedMessages,
+						{ role: "user", content: "next" },
+					] as MessageWithMetadata[],
+					model: {
+						id: "mock-model",
+						provider: "mock-provider",
+						info: { id: "mock-model", maxInputTokens: 100_000 },
+					},
+				}),
+			).resolves.toEqual({
+				messages: [
+					{ role: "user", content: "summary" },
+					{ role: "user", content: "next" },
+				],
+			});
 		} finally {
 			rmSync(tempCwd, { recursive: true, force: true });
 		}
