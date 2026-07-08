@@ -74,7 +74,9 @@ export const ClinePassProvider = ({
 						{
 							...fallback,
 							name: model.name || fallback.name || model.id,
-							description: model.description || fallback.description,
+							// The info panel shows the full catalog description; the endpoint's
+							// short blurb is only for the featured cards
+							description: fallback.description || model.description,
 						},
 					]
 				}),
@@ -116,7 +118,9 @@ export const ClinePassProvider = ({
 						zeroPriced({
 							...base,
 							name: model.name || base.name || model.id,
-							description: model.description || base.description,
+							// The info panel shows the full catalog description; the endpoint's
+							// short blurb is only for the featured cards
+							description: base.description || model.description,
 						}),
 					]
 				}),
