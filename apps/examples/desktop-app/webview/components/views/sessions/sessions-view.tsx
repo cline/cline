@@ -409,14 +409,6 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 												}
 												history.openThread(thread.id);
 											}}
-											onKeyDown={(event) => {
-												if (event.key === "Enter" || event.key === " ") {
-													event.preventDefault();
-													if (!pendingKind) {
-														history.openThread(thread.id);
-													}
-												}
-											}}
 											type="button"
 										>
 											<span className="flex min-w-0 items-center gap-3 font-semibold">
