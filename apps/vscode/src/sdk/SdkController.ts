@@ -41,6 +41,7 @@ import { UrlContentFetcher } from "@/services/browser/UrlContentFetcher"
 import { ClineError } from "@/services/error/ClineError"
 import { McpHub } from "@/services/mcp/McpHub"
 import { telemetryService } from "@/services/telemetry"
+import type { TaskAwaitingUserActionTelemetry } from "@/services/telemetry/TelemetryService"
 import type { ClineExtensionContext } from "@/shared/cline"
 import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
@@ -48,6 +49,7 @@ import { isClineProvider } from "@/shared/utils/cline"
 import { arePathsEqual, getDesktopDir } from "@/utils/path"
 import { ClineAccountService } from "./account-service"
 import { AuthService, LogoutReason } from "./auth-service"
+import type { SdkAwaitingUserActionTelemetry } from "./awaiting-user-action-telemetry"
 import { buildStartSessionInput, createHistoryItemFromSession } from "./cline-session-factory"
 import { MessageTranslatorState, reshapeErrorForWebview } from "./message-translator"
 import { createProviderCatalog } from "./model-catalog/catalog"
@@ -289,6 +291,7 @@ export class Controller {
 			// asks, ask_question, user_feedback) never collide with translator-minted ids.
 			getMinter: () => this.messageTranslatorState.getMinter(),
 			setTurnPhase: (phase, anchorTs) => this.turnStateTracker.set(phase, anchorTs),
+			captureTaskAwaitingUserAction: (event) => this.captureTaskAwaitingUserAction(event),
 			recordApprovedToolMessage: (toolCallId, messageTs) =>
 				this.messageTranslatorState.recordApprovedToolMessageTs(toolCallId, messageTs),
 			recordDeniedToolApproval: (toolCallId, toolName, reason) =>
@@ -529,6 +532,7 @@ export class Controller {
 			getTask: () => this.task,
 			postStateToWebview: () => this.postStateToWebview(),
 			setTurnPhase: (phase, anchorTs) => this.turnStateTracker.set(phase, anchorTs),
+			captureTaskAwaitingUserAction: (event) => this.captureTaskAwaitingUserAction(event),
 			captureProviderApiError: (event) => this.captureProviderFailure(event),
 			beginProviderFailureTelemetryTurn: () => this.beginProviderFailureTelemetryTurn(),
 		})
@@ -892,6 +896,25 @@ export class Controller {
 
 	private beginProviderFailureTelemetryTurn(): void {
 		this.providerFailureTelemetryTurnGate.beginTurn()
+	}
+
+	private captureTaskAwaitingUserAction(event: SdkAwaitingUserActionTelemetry): void {
+		const ulid = event.sessionId ?? this.task?.taskId ?? this.sessions.getActiveSession()?.sessionId
+		if (!ulid) {
+			return
+		}
+
+		const mode = this.stateManager.getGlobalSettingsKey("mode") === "plan" ? "plan" : "act"
+		const payload: TaskAwaitingUserActionTelemetry = {
+			ulid,
+			awaitingType: event.awaitingType,
+			askType: event.askType,
+			provider: this.getSessionProviderId(event.sessionId) ?? this.getActiveProviderId(),
+			modelId: this.getSessionModelId(event.sessionId) ?? this.getTaskModelId(),
+			mode,
+		}
+
+		telemetryService.captureTaskAwaitingUserAction(payload)
 	}
 
 	/**

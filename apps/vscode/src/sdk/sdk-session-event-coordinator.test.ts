@@ -109,7 +109,47 @@ describe("SdkSessionEventCoordinator", () => {
 		await coordinator.handleSessionEvent(event)
 
 		expect(options.setTurnPhase).toHaveBeenCalledWith("awaiting_followup")
+		expect(options.captureTaskAwaitingUserAction).toHaveBeenCalledWith({
+			sessionId: "session-123",
+			awaitingType: "turn_finished_without_completion",
+			askType: undefined,
+		})
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()
+	})
+
+	it("classifies a turn-ending API error ask as an awaiting retry state", async () => {
+		const errorAsk: ClineMessage = { ts: 1, type: "ask", ask: "api_req_failed", text: "{}" }
+		const { coordinator, options, event } = makeCoordinator({
+			translation: {
+				messages: [errorAsk],
+				sessionEnded: false,
+				turnComplete: true,
+			},
+		})
+
+		await coordinator.handleSessionEvent(event)
+
+		expect(options.captureTaskAwaitingUserAction).toHaveBeenCalledWith({
+			sessionId: "session-123",
+			awaitingType: "api_retry",
+			askType: "api_req_failed",
+		})
+	})
+
+	it("does not emit awaiting-user telemetry for completed attempt_completion turns", async () => {
+		const { coordinator, options, event } = makeCoordinator({
+			translation: {
+				messages: [],
+				sessionEnded: false,
+				turnComplete: true,
+			},
+		})
+		options.messageTranslatorState.setAttemptCompletionSeen()
+
+		await coordinator.handleSessionEvent(event)
+
+		expect(options.setTurnPhase).toHaveBeenCalledWith("completed")
+		expect(options.captureTaskAwaitingUserAction).not.toHaveBeenCalled()
 	})
 
 	it("marks a submitted queued prompt as a new streaming turn", async () => {
@@ -186,6 +226,7 @@ describe("SdkSessionEventCoordinator", () => {
 		await coordinator.handleSessionEvent(event)
 
 		expect(options.setTurnPhase).not.toHaveBeenCalled()
+		expect(options.captureTaskAwaitingUserAction).not.toHaveBeenCalled()
 	})
 
 	it("updates task usage when the active session has a start result", async () => {
@@ -367,6 +408,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		getTask: vi.fn(() => input.task),
 		postStateToWebview: vi.fn().mockResolvedValue(undefined),
 		setTurnPhase: vi.fn(),
+		captureTaskAwaitingUserAction: vi.fn(),
 		captureProviderApiError: vi.fn(),
 		beginProviderFailureTelemetryTurn: vi.fn(),
 		translateSessionEvent: vi.fn(() => input.translation ?? { messages: [], sessionEnded: false, turnComplete: false }),
@@ -387,6 +429,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		}
 		taskHistory: SdkSessionEventCoordinatorOptions["taskHistory"] & { updateTaskUsage: ReturnType<typeof vi.fn> }
 		postStateToWebview: ReturnType<typeof vi.fn>
+		captureTaskAwaitingUserAction: ReturnType<typeof vi.fn>
 		captureProviderApiError: ReturnType<typeof vi.fn>
 		beginProviderFailureTelemetryTurn: ReturnType<typeof vi.fn>
 		translateSessionEvent: ReturnType<typeof vi.fn>
