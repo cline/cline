@@ -3,7 +3,9 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import type { EffectiveProviderConfig, ProviderCatalog, ProviderConfigStore } from "@/sdk/model-catalog/contracts"
 import { computeConfigFingerprint } from "@/sdk/model-catalog/fingerprint"
 import { parseProviderId } from "@/sdk/model-catalog/provider-id"
+import { mockFetchForTesting } from "@/shared/net"
 import { ApiFormat, OpenRouterModelInfo } from "@/shared/proto/cline/models"
+import type { Controller } from "../.."
 import type { ProviderCatalogController } from "../providerCatalogShared"
 
 type TestStateManager = {
@@ -153,7 +155,7 @@ describe("provider model catalog handlers", () => {
 			baseUrl: "https://api.example.com/v1",
 			auth: { accessToken: "SECRET_SENTINEL_ACCESS", refreshToken: "SECRET_SENTINEL_REFRESH", accountId: "acct-1" },
 		})
-		const controller = makeController(store, makeCatalog())
+		const controller = makeController(store, makeCatalog()) as unknown as Controller
 
 		const response = await readProviderConfig(controller, { value: "cline" })
 
@@ -208,6 +210,28 @@ describe("provider model catalog handlers", () => {
 		})
 
 		expect(store.write).toHaveBeenCalledWith(providerId, { headers: {} })
+	})
+
+	it("getLmStudioModels sends the saved LM Studio API key when fetching models", async () => {
+		const { getLmStudioModels } = await import("../getLmStudioModels")
+		const providerId = parseProviderId("lmstudio")
+		const store = makeStore({ providerId, apiKey: "lm-studio-token" })
+		const controller = makeController(store, makeCatalog())
+		const fetchMock = vi.fn(
+			async () =>
+				new Response(JSON.stringify({ data: [{ id: "qwen/qwen3" }] }), {
+					headers: { "content-type": "application/json" },
+				}),
+		)
+
+		const response = await mockFetchForTesting(fetchMock, () =>
+			getLmStudioModels(controller, { value: "http://localhost:1234" }),
+		)
+
+		expect(fetchMock).toHaveBeenCalledWith("http://localhost:1234/api/v0/models", {
+			headers: { Authorization: "Bearer lm-studio-token" },
+		})
+		expect(response.values).toEqual([JSON.stringify({ id: "qwen/qwen3" })])
 	})
 
 	it("commitModelSelection validates mode and commits the full selection envelope", async () => {

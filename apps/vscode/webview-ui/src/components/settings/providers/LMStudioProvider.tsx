@@ -8,10 +8,12 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useProviderConfig } from "@/hooks/useProviderConfig"
 import { useProviderModelSelection } from "@/hooks/useProviderModelSelection"
 import { ModelsServiceClient } from "@/services/grpc-client"
+import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { DropdownContainer } from "../common/ModelSelector"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { useProviderApiKeyField } from "../utils/useProviderApiKeyField"
 
 /**
  * Props for the LMStudioProvider component
@@ -77,6 +79,11 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 		() => config?.baseUrl ?? apiConfiguration?.lmStudioBaseUrl ?? "http://localhost:1234",
 		[apiConfiguration?.lmStudioBaseUrl, config?.baseUrl],
 	)
+	const { savedApiKeyMask, handleApiKeyChange } = useProviderApiKeyField({
+		apiKeyLength: config?.apiKeyLength,
+		providerName: "LM Studio",
+		write,
+	})
 
 	const handleBaseUrlChange = useCallback(
 		(value: string) => {
@@ -158,13 +165,21 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 				placeholder="Default: http://localhost:1234"
 			/>
 
+			<ApiKeyField
+				helpText="Optional API key for LM Studio servers with Require Authentication enabled. Leave empty for local servers without authentication."
+				initialValue={savedApiKeyMask}
+				onChange={handleApiKeyChange}
+				placeholder="Enter API Key (optional)..."
+				providerName="LM Studio"
+			/>
+
 			<div className="font-semibold">Model</div>
 			{lmStudioModels.length > 0 ? (
 				<DropdownContainer className="dropdown-container" zIndex={10}>
 					<VSCodeDropdown
 						className="w-full mb-3"
-						onChange={(e: any) => {
-							const value = e?.target?.value
+						onChange={(e: Event) => {
+							const value = (e.target as HTMLSelectElement | null)?.value
 							if (typeof value === "string") {
 								handleModelChange(value)
 							}
