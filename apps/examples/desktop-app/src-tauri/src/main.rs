@@ -179,30 +179,37 @@ fn resolve_desktop_backend_script_path(context: &AppContext) -> Option<PathBuf> 
     candidates.into_iter().find(|path| path.exists())
 }
 
-fn desktop_backend_binary_name() -> String {
+fn desktop_backend_binary_names() -> Vec<String> {
+    let extension = if cfg!(windows) { ".exe" } else { "" };
+    let bundled_name = format!("code-sidecar{extension}");
     let target_triple = option_env!("TAURI_ENV_TARGET_TRIPLE").unwrap_or("").trim();
     if target_triple.is_empty() {
-        return "code-sidecar".to_string();
+        return vec![bundled_name];
     }
 
-    let extension = if cfg!(windows) { ".exe" } else { "" };
-    format!("code-sidecar-{target_triple}{extension}")
+    vec![
+        bundled_name,
+        format!("code-sidecar-{target_triple}{extension}"),
+    ]
 }
 
 fn resolve_desktop_backend_binary_path(context: &AppContext) -> Option<PathBuf> {
     if cfg!(debug_assertions) {
         return None;
     }
-    let binary_name = desktop_backend_binary_name();
     let explicit = std::env::var("CLINE_CODE_SIDECAR_BIN")
         .ok()
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
         .map(PathBuf::from);
     let current_exe = std::env::current_exe().ok();
-    let candidates = [
-        explicit,
-        Some(
+    let mut candidates = Vec::new();
+    if let Some(path) = explicit {
+        candidates.push(path);
+    }
+
+    for binary_name in desktop_backend_binary_names() {
+        candidates.push(
             PathBuf::from(&context.workspace_root)
                 .join("apps")
                 .join("examples")
@@ -210,17 +217,23 @@ fn resolve_desktop_backend_binary_path(context: &AppContext) -> Option<PathBuf> 
                 .join("src-tauri")
                 .join("bin")
                 .join(&binary_name),
-        ),
-        current_exe
+        );
+        if let Some(path) = current_exe
             .as_ref()
-            .and_then(|path| path.parent().map(|parent| parent.join(&binary_name))),
-        current_exe.as_ref().and_then(|path| {
+            .and_then(|path| path.parent().map(|parent| parent.join(&binary_name)))
+        {
+            candidates.push(path);
+        }
+        if let Some(path) = current_exe.as_ref().and_then(|path| {
             path.parent()
                 .and_then(|parent| parent.parent())
                 .map(|parent| parent.join("Resources").join(&binary_name))
-        }),
-    ];
-    candidates.into_iter().flatten().find(|path| path.exists())
+        }) {
+            candidates.push(path);
+        }
+    }
+
+    candidates.into_iter().find(|path| path.exists())
 }
 
 fn ensure_desktop_backend_started(

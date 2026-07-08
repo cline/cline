@@ -81,6 +81,7 @@ import type { ActiveSession, PreparedTurnInput } from "../../types/session";
 import type { SessionRecord } from "../../types/sessions";
 import type { RuntimeCapabilities } from "../capabilities";
 import { normalizeRuntimeCapabilities } from "../capabilities";
+import { normalizeConnectionUpdate } from "../config/connection-update";
 import { DefaultRuntimeBuilder } from "../orchestration/runtime-builder";
 import {
 	OAuthReauthRequiredError,
@@ -115,6 +116,7 @@ import type {
 	RuntimeHostSubscribeOptions,
 	SendSessionInput,
 	SessionAccumulatedUsage,
+	SessionConnectionUpdate,
 	SessionUsageSummary,
 	StartSessionInput,
 	StartSessionResult,
@@ -539,8 +541,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 							});
 						}
 					},
-					})
-				: undefined;
+				})
+			: undefined;
 
 		const agentConfig = {
 			sessionId,
@@ -554,6 +556,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			thinking: configWithProvider.thinking,
 			reasoningEffort:
 				configWithProvider.reasoningEffort ?? providerConfig.reasoningEffort,
+			thinkingBudgetTokens: configWithProvider.thinkingBudgetTokens,
 			maxTokensPerTurn: configWithProvider.maxTokensPerTurn,
 			systemPrompt: configWithProvider.systemPrompt,
 			maxIterations: configWithProvider.maxIterations,
@@ -1229,12 +1232,72 @@ export class LocalRuntimeHost implements RuntimeHost {
 	}
 
 	async updateSessionModel(sessionId: string, modelId: string): Promise<void> {
+		await this.updateSessionConnection(sessionId, { modelId });
+	}
+
+	async updateSessionConnection(
+		sessionId: string,
+		rawUpdates: SessionConnectionUpdate,
+	): Promise<void> {
+		const updates = normalizeConnectionUpdate(rawUpdates);
 		const session = this.getSessionOrThrow(sessionId);
-		session.config.modelId = modelId;
-		session.runtime.delegatedAgentConfigProvider?.updateConnectionDefaults({
-			modelId,
-		});
-		session.agent.updateConnection({ modelId });
+		if (updates.providerId !== undefined)
+			session.config.providerId = updates.providerId;
+		if (updates.modelId !== undefined) session.config.modelId = updates.modelId;
+		if (updates.apiKey !== undefined) session.config.apiKey = updates.apiKey;
+		if (updates.baseUrl !== undefined) session.config.baseUrl = updates.baseUrl;
+		if (updates.headers !== undefined) session.config.headers = updates.headers;
+		if (updates.providerConfig !== undefined)
+			session.config.providerConfig = updates.providerConfig;
+		if (Object.hasOwn(updates, "reasoningEffort")) {
+			session.config.reasoningEffort = updates.reasoningEffort ?? undefined;
+		}
+		if (Object.hasOwn(updates, "thinkingBudgetTokens")) {
+			session.config.thinkingBudgetTokens =
+				updates.thinkingBudgetTokens ?? undefined;
+		}
+		if (Object.hasOwn(updates, "thinking")) {
+			session.config.thinking = updates.thinking ?? undefined;
+			if (updates.thinking === false || updates.thinking === null) {
+				session.config.reasoningEffort = undefined;
+				session.config.thinkingBudgetTokens = undefined;
+			}
+		}
+		const delegatedUpdates = {
+			...(updates.providerId !== undefined
+				? { providerId: updates.providerId }
+				: {}),
+			...(updates.modelId !== undefined ? { modelId: updates.modelId } : {}),
+			...(updates.apiKey !== undefined ? { apiKey: updates.apiKey } : {}),
+			...(updates.baseUrl !== undefined ? { baseUrl: updates.baseUrl } : {}),
+			...(updates.headers !== undefined ? { headers: updates.headers } : {}),
+			...(updates.providerConfig !== undefined
+				? { providerConfig: updates.providerConfig }
+				: {}),
+			...(Object.hasOwn(updates, "reasoningEffort")
+				? { reasoningEffort: updates.reasoningEffort ?? undefined }
+				: {}),
+			...(Object.hasOwn(updates, "thinking")
+				? { thinking: updates.thinking ?? undefined }
+				: {}),
+			...(Object.hasOwn(updates, "thinkingBudgetTokens")
+				? { thinkingBudgetTokens: updates.thinkingBudgetTokens ?? undefined }
+				: {}),
+		};
+		if (updates.thinking === false || updates.thinking === null) {
+			delegatedUpdates.reasoningEffort = undefined;
+			delegatedUpdates.thinkingBudgetTokens = undefined;
+		}
+		const teammateUpdates = {
+			...(updates.apiKey !== undefined ? { apiKey: updates.apiKey } : {}),
+			...(updates.baseUrl !== undefined ? { baseUrl: updates.baseUrl } : {}),
+			...(updates.headers !== undefined ? { headers: updates.headers } : {}),
+		};
+		session.runtime.delegatedAgentConfigProvider?.updateConnectionDefaults(
+			delegatedUpdates,
+		);
+		session.agent.updateConnection(updates);
+		session.runtime.teamRuntime?.updateTeammateConnections(teammateUpdates);
 	}
 
 	// Retained for unit tests that reach in via Reflect.

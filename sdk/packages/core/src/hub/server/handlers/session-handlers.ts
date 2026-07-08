@@ -5,7 +5,11 @@ import type {
 	ToolApprovalRequest,
 } from "@cline/shared";
 import { createSessionId, parseRuntimeConfigExtensions } from "@cline/shared";
-import type { RuntimeSessionConfig } from "../../../runtime/host/runtime-host";
+import { normalizeConnectionUpdate } from "../../../runtime/config/connection-update";
+import type {
+	RuntimeSessionConfig,
+	SessionConnectionUpdate,
+} from "../../../runtime/host/runtime-host";
 import { parseSessionCompactionState } from "../../../session/models/session-compaction";
 import {
 	SessionVersioningError,
@@ -31,6 +35,74 @@ import {
 } from "./context";
 
 const CAPABILITY_OWNER_METADATA_KEY = "hubCapabilityOwnerClientId";
+
+function readConnectionString(value: unknown): string | undefined {
+	return typeof value === "string" && value.trim().length > 0
+		? value.trim()
+		: undefined;
+}
+
+function readConnectionReasoningEffort(
+	value: unknown,
+): SessionConnectionUpdate["reasoningEffort"] | undefined {
+	if (
+		value === "low" ||
+		value === "medium" ||
+		value === "high" ||
+		value === "xhigh" ||
+		value === null
+	) {
+		return value;
+	}
+	return undefined;
+}
+
+export function readSessionConnectionUpdate(
+	value: unknown,
+): SessionConnectionUpdate {
+	const record = asPlainRecord(value) ?? {};
+	const updates: SessionConnectionUpdate = {};
+	const providerId = readConnectionString(record.providerId);
+	if (providerId) updates.providerId = providerId;
+	const modelId = readConnectionString(record.modelId);
+	if (modelId) updates.modelId = modelId;
+	const apiKey = readConnectionString(record.apiKey);
+	if (apiKey !== undefined) updates.apiKey = apiKey;
+	const baseUrl = readConnectionString(record.baseUrl);
+	if (baseUrl !== undefined) updates.baseUrl = baseUrl;
+	if (record.headers && typeof record.headers === "object") {
+		updates.headers = record.headers as Record<string, string>;
+	}
+	if (record.providerConfig && typeof record.providerConfig === "object") {
+		updates.providerConfig =
+			record.providerConfig as unknown as SessionConnectionUpdate["providerConfig"];
+	}
+	if (Object.hasOwn(record, "thinking")) {
+		if (typeof record.thinking === "boolean" || record.thinking === null) {
+			updates.thinking = record.thinking;
+		}
+	}
+	if (Object.hasOwn(record, "reasoningEffort")) {
+		const reasoningEffort = readConnectionReasoningEffort(
+			record.reasoningEffort,
+		);
+		if (reasoningEffort !== undefined) {
+			updates.reasoningEffort = reasoningEffort;
+		}
+	}
+	if (Object.hasOwn(record, "thinkingBudgetTokens")) {
+		if (
+			typeof record.thinkingBudgetTokens === "number" &&
+			Number.isFinite(record.thinkingBudgetTokens) &&
+			record.thinkingBudgetTokens > 0
+		) {
+			updates.thinkingBudgetTokens = Math.trunc(record.thinkingBudgetTokens);
+		} else if (record.thinkingBudgetTokens === null) {
+			updates.thinkingBudgetTokens = null;
+		}
+	}
+	return normalizeConnectionUpdate(updates);
+}
 
 function getCapabilityOwnerClientId(
 	ctx: HubTransportContext,
@@ -818,6 +890,32 @@ export async function handleSessionUpdate(
 			...(snapshot ? { snapshot } : {}),
 		},
 	};
+}
+
+export async function handleSessionUpdateConnection(
+	ctx: HubTransportContext,
+	envelope: HubCommandEnvelope,
+): Promise<HubReplyEnvelope> {
+	const sessionId = extractSessionId(envelope);
+	if (!sessionId) {
+		return errorReply(
+			envelope,
+			"invalid_session_update_connection",
+			"session.update_connection requires a session id",
+		);
+	}
+	const updateSessionConnection = ctx.sessionHost.updateSessionConnection;
+	if (!updateSessionConnection) {
+		return errorReply(
+			envelope,
+			"unsupported_session_update_connection",
+			"runtime host does not support session connection updates",
+		);
+	}
+	const payload = asPlainRecord(envelope.payload);
+	const updates = readSessionConnectionUpdate(payload?.updates);
+	await updateSessionConnection.call(ctx.sessionHost, sessionId, updates);
+	return okReply(envelope, { sessionId, updated: true });
 }
 
 export async function handleSessionCompactionUpdate(

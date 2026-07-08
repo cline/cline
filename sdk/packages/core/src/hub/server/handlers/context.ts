@@ -12,6 +12,7 @@ import { createSessionId } from "@cline/shared";
 import type {
 	PendingPromptsRuntimeService,
 	RuntimeHost,
+	SessionConnectionRuntimeService,
 	SessionUsageRuntimeService,
 } from "../../../runtime/host/runtime-host";
 import {
@@ -52,7 +53,11 @@ export interface HubTransportContext {
 	readonly suppressNextTerminalEventBySession: Map<string, string>;
 	readonly telemetry?: ITelemetryService;
 	readonly sessionHost: RuntimeHost &
-		Partial<PendingPromptsRuntimeService & SessionUsageRuntimeService>;
+		Partial<
+			PendingPromptsRuntimeService &
+				SessionUsageRuntimeService &
+				SessionConnectionRuntimeService
+		>;
 	publish(event: HubEventEnvelope): void;
 	buildEvent(
 		event: HubEventEnvelope["event"],

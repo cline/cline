@@ -64,6 +64,10 @@ import {
 	messagesToAgentMessages,
 } from "../config/agent-message-codec";
 import { createAgentRuntimeConfig } from "../config/agent-runtime-config-builder";
+import {
+	type ConnectionUpdate,
+	normalizeConnectionUpdate,
+} from "../config/connection-update";
 import { LoopDetectionTracker } from "../safety/loop-detection";
 import { MistakeTracker } from "../safety/mistake-tracker";
 import { RuntimeEventAdapter } from "./runtime-event-adapter";
@@ -256,17 +260,7 @@ export interface SessionRuntimeOrchestratorDeps {
 }
 
 /** Connection overrides applied via `updateConnection`. */
-export interface ConnectionOverrides {
-	providerId?: string;
-	modelId?: string;
-	apiKey?: string;
-	baseUrl?: string;
-	headers?: Record<string, string>;
-	providerConfig?: unknown;
-	reasoningEffort?: AgentConfig["reasoningEffort"];
-	thinking?: boolean;
-	thinkingBudgetTokens?: number;
-}
+export type ConnectionOverrides = ConnectionUpdate;
 
 // =============================================================================
 // SessionRuntime orchestrator
@@ -485,20 +479,28 @@ export class SessionRuntime {
 
 	/** Mutate provider / reasoning fields for subsequent runs. */
 	updateConnection(overrides: ConnectionOverrides): void {
+		const updates = normalizeConnectionUpdate(overrides);
 		const next: AgentConfig = { ...this.config };
-		if (overrides.providerId !== undefined)
-			next.providerId = overrides.providerId;
-		if (overrides.modelId !== undefined) next.modelId = overrides.modelId;
-		if (overrides.apiKey !== undefined) next.apiKey = overrides.apiKey;
-		if (overrides.baseUrl !== undefined) next.baseUrl = overrides.baseUrl;
-		if (overrides.headers !== undefined) next.headers = overrides.headers;
-		if (overrides.providerConfig !== undefined)
-			next.providerConfig = overrides.providerConfig;
-		if (overrides.reasoningEffort !== undefined)
-			next.reasoningEffort = overrides.reasoningEffort;
-		if (overrides.thinking !== undefined) next.thinking = overrides.thinking;
-		if (overrides.thinkingBudgetTokens !== undefined)
-			next.thinkingBudgetTokens = overrides.thinkingBudgetTokens;
+		if (updates.providerId !== undefined) next.providerId = updates.providerId;
+		if (updates.modelId !== undefined) next.modelId = updates.modelId;
+		if (updates.apiKey !== undefined) next.apiKey = updates.apiKey;
+		if (updates.baseUrl !== undefined) next.baseUrl = updates.baseUrl;
+		if (updates.headers !== undefined) next.headers = updates.headers;
+		if (updates.providerConfig !== undefined)
+			next.providerConfig = updates.providerConfig;
+		if (Object.hasOwn(updates, "reasoningEffort")) {
+			next.reasoningEffort = updates.reasoningEffort ?? undefined;
+		}
+		if (Object.hasOwn(updates, "thinkingBudgetTokens")) {
+			next.thinkingBudgetTokens = updates.thinkingBudgetTokens ?? undefined;
+		}
+		if (Object.hasOwn(updates, "thinking")) {
+			next.thinking = updates.thinking ?? undefined;
+			if (updates.thinking === false || updates.thinking === null) {
+				next.reasoningEffort = undefined;
+				next.thinkingBudgetTokens = undefined;
+			}
+		}
 		this.config = next;
 	}
 
