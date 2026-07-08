@@ -16,6 +16,7 @@ import {
 	noopBasicLogger,
 	resolveAndLoadAgentPlugins,
 } from "@cline/core"
+import type { AgentTool, Message } from "@cline/shared"
 import { Logger } from "@shared/services/Logger"
 
 export interface PluginSlashCommand {
@@ -61,7 +62,7 @@ export class SdkPluginCommandCoordinator {
 				return undefined
 			}
 
-			const registry = createContributionRegistry({
+			const registry = createContributionRegistry<(typeof loaded.extensions)[number], AgentTool, Message[]>({
 				extensions: loaded.extensions,
 			})
 			try {
@@ -120,9 +121,7 @@ export class SdkPluginCommandCoordinator {
 		if (!loaded) {
 			return null
 		}
-		const command = loaded.commands.find(
-			(cmd) => cmd.name === name && typeof cmd.handler === "function",
-		)
+		const command = loaded.commands.find((cmd) => cmd.name === name && typeof cmd.handler === "function")
 		if (!command?.handler) {
 			return null
 		}
