@@ -6,7 +6,7 @@ import type {
 	PendingPromptSubmittedEvent,
 } from "../../runtime/session-events";
 import { formatCliErrorMessage } from "../../utils/cline-pass-errors";
-import { resolveStatusNoticeLabel } from "../../utils/events";
+import { resolveNonCompactionStatusLabel } from "../../utils/events";
 import {
 	formatToolInput,
 	formatToolOutput,
@@ -253,7 +253,7 @@ export function useAgentEventHandlers(deps: AgentEventDeps) {
 							}
 							break;
 						}
-						const label = resolveStatusNoticeLabel(event);
+						const label = resolveNonCompactionStatusLabel(event);
 						if (label) {
 							appendEntry({ kind: "status", text: label });
 						}

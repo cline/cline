@@ -35,6 +35,20 @@ export function resolveStatusNoticeLabel(
 	if (compaction) {
 		return formatCompactionDividerLabel({ kind: "compaction", ...compaction });
 	}
+	return resolveNonCompactionStatusLabel(event);
+}
+
+/**
+ * Label for a status notice already known not to be a compaction notice.
+ * Callers that have parsed the compaction metadata themselves use this to
+ * avoid re-parsing.
+ */
+export function resolveNonCompactionStatusLabel(
+	event: AgentEvent,
+): string | undefined {
+	if (event.type !== "notice" || event.displayRole !== "status") {
+		return undefined;
+	}
 	if (event.reason === "auto_compaction") {
 		return "auto-compacting";
 	}
