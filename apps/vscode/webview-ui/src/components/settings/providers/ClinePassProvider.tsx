@@ -65,9 +65,9 @@ export const ClinePassProvider = ({
 			const models = Object.fromEntries(
 				clinePassResponseModels.map((model) => {
 					// ClinePass model IDs omit the upstream lab, so look up capabilities using
-					// the model slug (for example, glm-5.1 instead of cline-pass/glm-5.1).
+					// the model slug (for example, glm-5.2 instead of cline-pass/glm-5.2).
 					// If the model is not in OpenRouter yet, use conservative generic defaults
-					// instead of copying GLM-5.1-specific context/max-token values.
+					// instead of copying GLM-5.2-specific context/max-token values.
 					const fallback = resolveClinePassModelInfo(model.id, openRouterModelsByName)
 					return [
 						model.id,

@@ -223,7 +223,7 @@ export const ClinePassEntitlementError: Story = {
 			message: "403 Error 403: the user is not subscribed to required model plan",
 			status: 403,
 			code: "ENTITLEMENT_ERROR",
-			modelId: "cline-pass/glm-5.1",
+			modelId: "cline-pass/glm-5.2",
 			providerId: "cline-pass",
 			details: {
 				code: "ENTITLEMENT_ERROR",
