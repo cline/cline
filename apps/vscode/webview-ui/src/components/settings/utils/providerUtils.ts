@@ -74,6 +74,7 @@ import {
 	xaiDefaultModelId,
 	xaiModels,
 } from "@shared/api";
+import { getModelsDevProviderModels } from "@shared/models/models-dev-catalog";
 import type { Mode } from "@shared/storage/types";
 import * as reasoningSupport from "@shared/utils/reasoning-support";
 
@@ -97,25 +98,29 @@ export function getModelsForProvider(
 		basetenModels?: Record<string, ModelInfo>;
 	} = {},
 ): Record<string, ModelInfo> | undefined {
+	const modelsDevModels = getModelsDevProviderModels(provider);
+	const modelsDevOrFallback = (fallback: Record<string, ModelInfo>) =>
+		Object.keys(modelsDevModels).length > 0 ? modelsDevModels : fallback;
+
 	switch (provider) {
 		case "anthropic":
-			return anthropicModels;
+			return modelsDevOrFallback(anthropicModels);
 		case "claude-code":
 			return claudeCodeModels;
 		case "bedrock":
-			return bedrockModels;
+			return modelsDevOrFallback(bedrockModels);
 		case "vertex":
-			return vertexModels;
+			return modelsDevOrFallback(vertexModels);
 		case "gemini":
-			return geminiModels;
+			return modelsDevOrFallback(geminiModels);
 		case "openai-native":
-			return openAiNativeModels;
+			return modelsDevOrFallback(openAiNativeModels);
 		case "openai-codex":
-			return openAiCodexModels;
+			return modelsDevOrFallback(openAiCodexModels);
 		case "cline-pass":
 			return clinePassModels;
 		case "deepseek":
-			return deepSeekModels;
+			return modelsDevOrFallback(deepSeekModels);
 		case "qwen":
 			return apiConfiguration?.qwenApiLine === "china"
 				? mainlandQwenModels
@@ -123,59 +128,45 @@ export function getModelsForProvider(
 		case "qwen-code":
 			return qwenCodeModels;
 		case "doubao":
-			return doubaoModels;
+			return modelsDevOrFallback(doubaoModels);
 		case "mistral":
-			return mistralModels;
+			return modelsDevOrFallback(mistralModels);
 		case "asksage":
 			return askSageModels;
 		case "xai":
-			return xaiModels;
+			return modelsDevOrFallback(xaiModels);
 		case "moonshot":
-			return moonshotModels;
+			return modelsDevOrFallback(moonshotModels);
 		case "nebius":
-			return nebiusModels;
+			return modelsDevOrFallback(nebiusModels);
 		case "wandb":
-			return wandbModels;
+			return modelsDevOrFallback(wandbModels);
 		case "sambanova":
-			return sambanovaModels;
+			return modelsDevOrFallback(sambanovaModels);
 		case "cerebras":
-			return cerebrasModels;
+			return modelsDevOrFallback(cerebrasModels);
 		case "groq":
-			return groqModels;
+			return modelsDevOrFallback(groqModels);
 		case "baseten":
-			return dynamicModels?.basetenModels || basetenModels;
+			return dynamicModels?.basetenModels || modelsDevOrFallback(basetenModels);
 		case "sapaicore":
-			return sapAiCoreModels;
+			return modelsDevOrFallback(sapAiCoreModels);
 		case "huawei-cloud-maas":
-			return huaweiCloudMaasModels;
+			return modelsDevOrFallback(huaweiCloudMaasModels);
 		case "zai":
 			return apiConfiguration?.zaiApiLine === "china"
 				? mainlandZAiModels
 				: internationalZAiModels;
 		case "fireworks":
-			return fireworksModels;
+			return modelsDevOrFallback(fireworksModels);
 		case "minimax":
-			return minimaxModels;
+			return modelsDevOrFallback(minimaxModels);
 		case "huggingface":
-			return huggingFaceModels;
+			return modelsDevOrFallback(huggingFaceModels);
 		case "nousResearch":
-			return nousResearchModels;
+			return modelsDevOrFallback(nousResearchModels);
 		case "litellm":
 			return dynamicModels?.liteLlmModels;
-		// Providers with dynamic models - return undefined
-		case "openrouter":
-		case "cline":
-		case "openai":
-		case "ollama":
-		case "lmstudio":
-		case "vscode-lm":
-		case "requesty":
-		case "hicap":
-		case "dify":
-		case "vercel-ai-gateway":
-		case "oca":
-		case "aihubmix":
-		case "together":
 		default:
 			return undefined;
 	}
@@ -234,10 +225,29 @@ export function normalizeApiConfiguration(
 			selectedModelInfo,
 		};
 	};
+	const getModelsDevProviderData = (
+		providerId: ApiProvider,
+		fallbackModels: Record<string, ModelInfo>,
+		defaultId: string,
+	) => {
+		const modelsDevModels = getModelsDevProviderModels(providerId);
+		const models =
+			Object.keys(modelsDevModels).length > 0
+				? modelsDevModels
+				: fallbackModels;
+		const resolvedDefaultId = models[defaultId]
+			? defaultId
+			: (Object.keys(models)[0] ?? defaultId);
+		return getProviderData(models, resolvedDefaultId);
+	};
 
 	switch (provider) {
 		case "anthropic":
-			return getProviderData(anthropicModels, anthropicDefaultModelId);
+			return getModelsDevProviderData(
+				"anthropic",
+				anthropicModels,
+				anthropicDefaultModelId,
+			);
 		case "claude-code":
 			return getProviderData(claudeCodeModels, claudeCodeDefaultModelId);
 		case "bedrock": {
@@ -260,18 +270,42 @@ export function normalizeApiConfiguration(
 						bedrockModels[bedrockDefaultModelId],
 				};
 			}
-			return getProviderData(bedrockModels, bedrockDefaultModelId);
+			return getModelsDevProviderData(
+				"bedrock",
+				bedrockModels,
+				bedrockDefaultModelId,
+			);
 		}
 		case "vertex":
-			return getProviderData(vertexModels, vertexDefaultModelId);
+			return getModelsDevProviderData(
+				"vertex",
+				vertexModels,
+				vertexDefaultModelId,
+			);
 		case "gemini":
-			return getProviderData(geminiModels, geminiDefaultModelId);
+			return getModelsDevProviderData(
+				"gemini",
+				geminiModels,
+				geminiDefaultModelId,
+			);
 		case "openai-native":
-			return getProviderData(openAiNativeModels, openAiNativeDefaultModelId);
+			return getModelsDevProviderData(
+				"openai-native",
+				openAiNativeModels,
+				openAiNativeDefaultModelId,
+			);
 		case "openai-codex":
-			return getProviderData(openAiCodexModels, openAiCodexDefaultModelId);
+			return getModelsDevProviderData(
+				"openai-codex",
+				openAiCodexModels,
+				openAiCodexDefaultModelId,
+			);
 		case "deepseek":
-			return getProviderData(deepSeekModels, deepSeekDefaultModelId);
+			return getModelsDevProviderData(
+				"deepseek",
+				deepSeekModels,
+				deepSeekDefaultModelId,
+			);
 		case "qwen": {
 			const qwenModels =
 				apiConfiguration?.qwenApiLine === "china"
@@ -286,9 +320,17 @@ export function normalizeApiConfiguration(
 		case "qwen-code":
 			return getProviderData(qwenCodeModels, qwenCodeDefaultModelId);
 		case "doubao":
-			return getProviderData(doubaoModels, doubaoDefaultModelId);
+			return getModelsDevProviderData(
+				"doubao",
+				doubaoModels,
+				doubaoDefaultModelId,
+			);
 		case "mistral":
-			return getProviderData(mistralModels, mistralDefaultModelId);
+			return getModelsDevProviderData(
+				"mistral",
+				mistralModels,
+				mistralDefaultModelId,
+			);
 		case "asksage":
 			return getProviderData(askSageModels, askSageDefaultModelId);
 		case "openrouter": {
@@ -464,9 +506,13 @@ export function normalizeApiConfiguration(
 			};
 		}
 		case "xai":
-			return getProviderData(xaiModels, xaiDefaultModelId);
+			return getModelsDevProviderData("xai", xaiModels, xaiDefaultModelId);
 		case "moonshot":
-			return getProviderData(moonshotModels, moonshotDefaultModelId);
+			return getModelsDevProviderData(
+				"moonshot",
+				moonshotModels,
+				moonshotDefaultModelId,
+			);
 		case "huggingface": {
 			const huggingFaceModelId =
 				currentMode === "plan"
@@ -476,21 +522,41 @@ export function normalizeApiConfiguration(
 				currentMode === "plan"
 					? apiConfiguration?.planModeHuggingFaceModelInfo
 					: apiConfiguration?.actModeHuggingFaceModelInfo;
+			const huggingFaceModelCatalog = getModelsDevProviderModels("huggingface");
 			return {
 				selectedProvider: provider,
 				selectedModelId: huggingFaceModelId || huggingFaceDefaultModelId,
 				selectedModelInfo:
-					huggingFaceModelInfo || huggingFaceModels[huggingFaceDefaultModelId],
+					huggingFaceModelInfo ||
+					huggingFaceModelCatalog[huggingFaceDefaultModelId] ||
+					Object.values(huggingFaceModelCatalog)[0] ||
+					huggingFaceModels[huggingFaceDefaultModelId],
 			};
 		}
 		case "nebius":
-			return getProviderData(nebiusModels, nebiusDefaultModelId);
+			return getModelsDevProviderData(
+				"nebius",
+				nebiusModels,
+				nebiusDefaultModelId,
+			);
 		case "wandb":
-			return getProviderData(wandbModels, wandbDefaultModelId);
+			return getModelsDevProviderData(
+				"wandb",
+				wandbModels,
+				wandbDefaultModelId,
+			);
 		case "sambanova":
-			return getProviderData(sambanovaModels, sambanovaDefaultModelId);
+			return getModelsDevProviderData(
+				"sambanova",
+				sambanovaModels,
+				sambanovaDefaultModelId,
+			);
 		case "cerebras":
-			return getProviderData(cerebrasModels, cerebrasDefaultModelId);
+			return getModelsDevProviderData(
+				"cerebras",
+				cerebrasModels,
+				cerebrasDefaultModelId,
+			);
 		case "groq": {
 			const groqModelId =
 				currentMode === "plan"
@@ -500,10 +566,15 @@ export function normalizeApiConfiguration(
 				currentMode === "plan"
 					? apiConfiguration?.planModeGroqModelInfo
 					: apiConfiguration?.actModeGroqModelInfo;
+			const groqModelCatalog = getModelsDevProviderModels("groq");
 			return {
 				selectedProvider: provider,
 				selectedModelId: groqModelId || groqDefaultModelId,
-				selectedModelInfo: groqModelInfo || groqModels[groqDefaultModelId],
+				selectedModelInfo:
+					groqModelInfo ||
+					groqModelCatalog[groqDefaultModelId] ||
+					Object.values(groqModelCatalog)[0] ||
+					groqModels[groqDefaultModelId],
 			};
 		}
 		case "baseten": {
@@ -516,10 +587,14 @@ export function normalizeApiConfiguration(
 					? apiConfiguration?.planModeBasetenModelInfo
 					: apiConfiguration?.actModeBasetenModelInfo;
 			const finalBasetenModelId = basetenModelId || basetenDefaultModelId;
+			const basetenModelCatalog = getModelsDevProviderModels("baseten");
 			return {
 				selectedProvider: provider,
 				selectedModelId: finalBasetenModelId,
 				selectedModelInfo: basetenModelInfo ||
+					basetenModelCatalog[finalBasetenModelId] ||
+					basetenModelCatalog[basetenDefaultModelId] ||
+					Object.values(basetenModelCatalog)[0] ||
 					basetenModels[finalBasetenModelId as keyof typeof basetenModels] ||
 					basetenModels[basetenDefaultModelId] || {
 						description: "Baseten model",
@@ -527,7 +602,11 @@ export function normalizeApiConfiguration(
 			};
 		}
 		case "sapaicore":
-			return getProviderData(sapAiCoreModels, sapAiCoreDefaultModelId);
+			return getModelsDevProviderData(
+				"sapaicore",
+				sapAiCoreModels,
+				sapAiCoreDefaultModelId,
+			);
 		case "huawei-cloud-maas": {
 			const huaweiCloudMaasModelId =
 				currentMode === "plan"
@@ -537,12 +616,16 @@ export function normalizeApiConfiguration(
 				currentMode === "plan"
 					? apiConfiguration?.planModeHuaweiCloudMaasModelInfo
 					: apiConfiguration?.actModeHuaweiCloudMaasModelInfo;
+			const huaweiCloudMaasModelCatalog =
+				getModelsDevProviderModels("huawei-cloud-maas");
 			return {
 				selectedProvider: provider,
 				selectedModelId:
 					huaweiCloudMaasModelId || huaweiCloudMaasDefaultModelId,
 				selectedModelInfo:
 					huaweiCloudMaasModelInfo ||
+					huaweiCloudMaasModelCatalog[huaweiCloudMaasDefaultModelId] ||
+					Object.values(huaweiCloudMaasModelCatalog)[0] ||
 					huaweiCloudMaasModels[huaweiCloudMaasDefaultModelId],
 			};
 		}
@@ -593,13 +676,17 @@ export function normalizeApiConfiguration(
 				currentMode === "plan"
 					? apiConfiguration?.planModeFireworksModelId
 					: apiConfiguration?.actModeFireworksModelId;
+			const fireworksModelCatalog = getModelsDevProviderModels("fireworks");
 			return {
 				selectedProvider: provider,
 				selectedModelId: fireworksModelId || fireworksDefaultModelId,
 				selectedModelInfo:
-					fireworksModelId && fireworksModelId in fireworksModels
+					(fireworksModelId && fireworksModelCatalog[fireworksModelId]) ||
+					fireworksModelCatalog[fireworksDefaultModelId] ||
+					Object.values(fireworksModelCatalog)[0] ||
+					(fireworksModelId && fireworksModelId in fireworksModels
 						? fireworksModels[fireworksModelId as keyof typeof fireworksModels]
-						: fireworksModels[fireworksDefaultModelId],
+						: fireworksModels[fireworksDefaultModelId]),
 			};
 		}
 		case "oca": {
@@ -633,21 +720,31 @@ export function normalizeApiConfiguration(
 			};
 		}
 		case "minimax":
-			return getProviderData(minimaxModels, minimaxDefaultModelId);
+			return getModelsDevProviderData(
+				"minimax",
+				minimaxModels,
+				minimaxDefaultModelId,
+			);
 		case "nousResearch": {
 			const nousResearchModelId =
 				currentMode === "plan"
 					? apiConfiguration?.planModeNousResearchModelId
 					: apiConfiguration?.actModeNousResearchModelId;
+			const nousResearchModelCatalog =
+				getModelsDevProviderModels("nousResearch");
 			return {
 				selectedProvider: provider,
 				selectedModelId: nousResearchModelId || nousResearchDefaultModelId,
 				selectedModelInfo:
-					nousResearchModelId && nousResearchModelId in nousResearchModels
+					(nousResearchModelId &&
+						nousResearchModelCatalog[nousResearchModelId]) ||
+					nousResearchModelCatalog[nousResearchDefaultModelId] ||
+					Object.values(nousResearchModelCatalog)[0] ||
+					(nousResearchModelId && nousResearchModelId in nousResearchModels
 						? nousResearchModels[
 								nousResearchModelId as keyof typeof nousResearchModels
 							]
-						: nousResearchModels[nousResearchDefaultModelId],
+						: nousResearchModels[nousResearchDefaultModelId]),
 			};
 		}
 		default:
@@ -1088,26 +1185,6 @@ export async function syncModeConfigurations(
 			updates.actModeAihubmixModelInfo = sourceFields.aihubmixModelInfo;
 			break;
 
-		// Providers that use apiProvider + apiModelId fields
-		case "anthropic":
-		case "claude-code":
-		case "vertex":
-		case "gemini":
-		case "openai-native":
-		case "openai-codex":
-		case "deepseek":
-		case "qwen":
-		case "doubao":
-		case "mistral":
-		case "asksage":
-		case "xai":
-		case "nebius":
-		case "wandb":
-		case "sambanova":
-		case "cerebras":
-		case "sapaicore":
-		case "zai":
-		case "minimax":
 		default:
 			updates.planModeApiModelId = sourceFields.apiModelId;
 			updates.actModeApiModelId = sourceFields.apiModelId;
@@ -1123,7 +1200,7 @@ export { filterOpenRouterModelIds } from "@shared/utils/model-filters";
 // Helper to get provider-specific configuration info and empty state guidance
 export const getProviderInfo = (
 	provider: ApiProvider,
-	apiConfiguration: any,
+	apiConfiguration: ApiConfiguration,
 	effectiveMode: "plan" | "act",
 ): { modelId?: string; baseUrl?: string; helpText: string } => {
 	switch (provider) {

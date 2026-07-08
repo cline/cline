@@ -1,23 +1,31 @@
-import { wandbModels } from "@shared/api"
-import { Mode } from "@shared/storage/types"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { ApiKeyField } from "../common/ApiKeyField"
-import { ModelInfoView } from "../common/ModelInfoView"
-import { ModelSelector } from "../common/ModelSelector"
-import { normalizeApiConfiguration } from "../utils/providerUtils"
-import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { modelsDevWandbModels } from "@shared/models/models-dev-catalog";
+import type { Mode } from "@shared/storage/types";
+import { useExtensionState } from "@/context/ExtensionStateContext";
+import { ApiKeyField } from "../common/ApiKeyField";
+import { ModelInfoView } from "../common/ModelInfoView";
+import { ModelSelector } from "../common/ModelSelector";
+import { normalizeApiConfiguration } from "../utils/providerUtils";
+import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers";
 
 interface WandbProviderProps {
-	showModelOptions: boolean
-	isPopup?: boolean
-	currentMode: Mode
+	showModelOptions: boolean;
+	isPopup?: boolean;
+	currentMode: Mode;
 }
 
-export const WandbProvider = ({ showModelOptions, isPopup, currentMode }: WandbProviderProps) => {
-	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
+export const WandbProvider = ({
+	showModelOptions,
+	isPopup,
+	currentMode,
+}: WandbProviderProps) => {
+	const { apiConfiguration } = useExtensionState();
+	const { handleFieldChange, handleModeFieldChange } =
+		useApiConfigurationHandlers();
 
-	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
+	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(
+		apiConfiguration,
+		currentMode,
+	);
 
 	return (
 		<div>
@@ -33,8 +41,8 @@ export const WandbProvider = ({ showModelOptions, isPopup, currentMode }: WandbP
 				<>
 					<ModelSelector
 						label="Model"
-						models={wandbModels}
-						onChange={(e: any) =>
+						models={modelsDevWandbModels}
+						onChange={(e) =>
 							handleModeFieldChange(
 								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
 								e.target.value,
@@ -44,9 +52,13 @@ export const WandbProvider = ({ showModelOptions, isPopup, currentMode }: WandbP
 						selectedModelId={selectedModelId}
 					/>
 
-					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
+					<ModelInfoView
+						isPopup={isPopup}
+						modelInfo={selectedModelInfo}
+						selectedModelId={selectedModelId}
+					/>
 				</>
 			)}
 		</div>
-	)
-}
+	);
+};
