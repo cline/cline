@@ -1,5 +1,6 @@
 import { buildModelInfoNameMap, type ModelInfo, resolveClinePassModelInfo } from "@shared/api"
 import type { OnboardingModel, OnboardingModelGroup, OpenRouterModelInfo } from "@shared/proto/index.cline"
+import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { AlertCircleIcon, CircleCheckIcon, CircleIcon, ListIcon, LoaderCircleIcon, ZapIcon } from "lucide-react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import ClineLogoWhite from "@/assets/ClineLogoWhite"
@@ -233,7 +234,20 @@ const UserTypeSelectionStep = ({ userType, onSelectUserType, userTypeSelections 
 						</ItemMedia>
 						<ItemContent className="w-full">
 							<ItemTitle>{option.title}</ItemTitle>
-							<ItemDescription>{option.description}</ItemDescription>
+							<ItemDescription>
+								{option.description}
+								{option.learnMoreUrl && (
+									<>
+										{" "}
+										<VSCodeLink
+											className="inline text-inherit"
+											href={option.learnMoreUrl}
+											onClick={(e) => e.stopPropagation()}>
+											Learn more
+										</VSCodeLink>
+									</>
+								)}
+							</ItemDescription>
 						</ItemContent>
 					</Item>
 				)
