@@ -14,6 +14,7 @@ import {
 	captureWorkspaceInitError,
 	captureWorkspaceInitialized,
 	captureWorkspacePathResolved,
+	identifyAccount,
 } from "./core-events";
 import type { ITelemetryAdapter } from "./ITelemetryAdapter";
 import { TelemetryService } from "./TelemetryService";
@@ -703,5 +704,91 @@ describe("telemetry policy: helpers respect telemetry opt-out", () => {
 			"task.compaction_skipped",
 			"sdk.tool_timeout",
 		]);
+	});
+});
+
+describe("identifyAccount", () => {
+	test("sets user_id, account_id, and distinct_id for an authenticated user without org", () => {
+		const stub = createTelemetryStub();
+		identifyAccount(stub.telemetry, {
+			id: "usr-123",
+			email: "test@example.com",
+			provider: "cline",
+		});
+		expect(vi.mocked(stub.telemetry.setDistinctId)).toHaveBeenCalledWith(
+			"usr-123",
+		);
+		expect(
+			vi.mocked(stub.telemetry.updateCommonProperties),
+		).toHaveBeenCalledWith(
+			expect.objectContaining({
+				user_id: "usr-123",
+				account_id: "usr-123",
+				account_email: "test@example.com",
+				provider: "cline",
+			}),
+		);
+	});
+
+	test("sets user_id, org context for an authenticated user with an active organization", () => {
+		const stub = createTelemetryStub();
+		identifyAccount(stub.telemetry, {
+			id: "usr-456",
+			email: "alice@example.com",
+			provider: "cline",
+			organizationId: "org-1",
+			organizationName: "Acme",
+			memberId: "member-9",
+		});
+		expect(
+			vi.mocked(stub.telemetry.updateCommonProperties),
+		).toHaveBeenCalledWith(
+			expect.objectContaining({
+				user_id: "usr-456",
+				account_id: "usr-456",
+				organization_id: "org-1",
+				organization_name: "Acme",
+				member_id: "member-9",
+			}),
+		);
+	});
+
+	test("user_id and account_id are set to the same value", () => {
+		const stub = createTelemetryStub();
+		identifyAccount(stub.telemetry, { id: "usr-789", provider: "cline" });
+		const call = vi.mocked(stub.telemetry.updateCommonProperties).mock
+			.calls[0]?.[0] as Record<string, unknown> | undefined;
+		expect(call?.user_id).toBe("usr-789");
+		expect(call?.account_id).toBe("usr-789");
+		expect(call?.user_id).toBe(call?.account_id);
+	});
+
+	test("does not set distinct_id when account id is absent", () => {
+		const stub = createTelemetryStub();
+		identifyAccount(stub.telemetry, {
+			email: "anon@example.com",
+			provider: "cline",
+		});
+		expect(stub.telemetry.setDistinctId).not.toHaveBeenCalled();
+	});
+
+	test("trims whitespace from account.id before setting distinct_id", () => {
+		const stub = createTelemetryStub();
+		identifyAccount(stub.telemetry, { id: "  usr-trim  " });
+		expect(vi.mocked(stub.telemetry.setDistinctId)).toHaveBeenCalledWith(
+			"usr-trim",
+		);
+	});
+
+	test("does not set distinct_id for blank id string", () => {
+		const stub = createTelemetryStub();
+		identifyAccount(stub.telemetry, { id: "   " });
+		expect(stub.telemetry.setDistinctId).not.toHaveBeenCalled();
+	});
+
+	test("no-ops when telemetry is undefined", () => {
+		expect(() =>
+			identifyAccount(undefined, { id: "usr-123", provider: "cline" }),
+		).not.toThrow();
 	});
 });

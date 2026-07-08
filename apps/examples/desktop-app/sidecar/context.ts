@@ -5,10 +5,13 @@ import { dirname } from "node:path";
 import {
 	type AgentToolContext,
 	ClineCore,
+	createLocalHubScheduleRuntimeHandlers,
 	type CoreSessionEvent,
 	NodeHubClient,
+	resolveHubOwnerContext,
 	type RuntimeCapabilities,
 	setHomeDirIfUnset,
+	startHubWebSocketServer,
 	type ToolApprovalRequest,
 	type ToolApprovalResult,
 } from "@cline/core";
@@ -386,6 +389,7 @@ export function createSidecarContext(workspaceRoot: string): SidecarContext {
 		pendingQuestions: new Map(),
 		sessionManager: null,
 		hubClient: null,
+		hubServer: null,
 		workspaceRoot,
 		unsubscribeSessionEvents: null,
 	};
@@ -428,6 +432,12 @@ export async function disposeSidecarContext(
 	ctx.sessionManager = null;
 	if (sessionManager) {
 		cleanup.push(sessionManager.dispose(reason));
+	}
+
+	const hubServer = ctx.hubServer;
+	ctx.hubServer = null;
+	if (hubServer) {
+		cleanup.push(hubServer.close());
 	}
 
 	const results = await Promise.allSettled(cleanup);
@@ -682,10 +692,17 @@ export async function initializeSessionManager(
 	ctx: SidecarContext,
 ): Promise<void> {
 	setHomeDirIfUnset(homedir());
+	const hubServer = await startHubWebSocketServer({
+		port: 0,
+		owner: resolveHubOwnerContext(`code-sidecar:${process.pid}:${randomUUID()}`),
+		runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+	});
 	const sessionManager = await ClineCore.create({
 		backendMode: "hub",
 		capabilities: createSidecarRuntimeCapabilities(ctx),
 		hub: {
+			endpoint: hubServer.url,
+			authToken: hubServer.authToken,
 			workspaceRoot: ctx.workspaceRoot,
 			cwd: ctx.workspaceRoot,
 			clientType: "code-sidecar",
@@ -703,6 +720,7 @@ export async function initializeSessionManager(
 	if (runtimeAddress) {
 		hubClient = new NodeHubClient({
 			url: runtimeAddress,
+			authToken: hubServer.authToken,
 			clientType: "code-sidecar-approvals",
 			displayName: "Code App approvals",
 			workspaceRoot: ctx.workspaceRoot,
@@ -716,5 +734,6 @@ export async function initializeSessionManager(
 
 	ctx.sessionManager = sessionManager;
 	ctx.hubClient = hubClient;
+	ctx.hubServer = hubServer;
 	ctx.unsubscribeSessionEvents = unsubscribe;
 }

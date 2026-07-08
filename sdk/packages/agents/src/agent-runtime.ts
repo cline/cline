@@ -813,8 +813,15 @@ export class AgentRuntime {
 		};
 
 		if (this.state.iteration > 1) {
-			if (await this.consumePendingUserMessage()) {
-				request = { ...request, messages: cloneMessages(this.state.messages) };
+			const pendingUserMessage = await this.consumePendingUserMessage();
+			if (pendingUserMessage) {
+				request = {
+					...request,
+					messages: [
+						...request.messages,
+						...cloneMessages([pendingUserMessage]),
+					],
+				};
 			}
 		}
 
@@ -1095,7 +1102,6 @@ export class AgentRuntime {
 		let next = request;
 		if (result.messages) {
 			const preparedMessages = cloneMessages(result.messages);
-			this.state.messages = preparedMessages;
 			next = { ...next, messages: cloneMessages(preparedMessages) };
 		}
 		if (result.systemPrompt !== undefined) {
@@ -1104,14 +1110,14 @@ export class AgentRuntime {
 		return next;
 	}
 
-	private async consumePendingUserMessage(): Promise<boolean> {
+	private async consumePendingUserMessage(): Promise<AgentMessage | undefined> {
 		const consumePendingUserMessage = this.config.consumePendingUserMessage;
 		if (!consumePendingUserMessage) {
-			return false;
+			return undefined;
 		}
 		const pending = (await consumePendingUserMessage())?.trim();
 		if (!pending) {
-			return false;
+			return undefined;
 		}
 		const message = createMessage("user", [{ type: "text", text: pending }]);
 		this.state.messages.push(message);
@@ -1120,7 +1126,7 @@ export class AgentRuntime {
 			snapshot: this.snapshot(),
 			message,
 		});
-		return true;
+		return message;
 	}
 
 	private async updateUsage(usage: Partial<AgentUsage>): Promise<void> {

@@ -569,6 +569,7 @@ export {
 	listLocalProviders,
 	loginAndSaveLocalProviderOAuthCredentials,
 	loginLocalProvider,
+	markLocalProviderEnabled,
 	normalizeOAuthProvider,
 	refreshProviderModelsFromSource,
 	resolveLocalClineAuthToken,
@@ -759,7 +760,10 @@ export async function loadOpenTelemetryAdapter() {
 	return import("./services/telemetry/index.js");
 }
 export { Agent, createAgentRuntime } from "@cline/agents";
-export { createContextCompactionPrepareTurn } from "./extensions/context/compaction";
+export {
+	createCompactionStateAwarePrepareTurn,
+	createContextCompactionPrepareTurn,
+} from "./extensions/context/compaction";
 export {
 	ALL_DEFAULT_TOOL_NAMES,
 	type AskQuestionExecutor,
@@ -879,6 +883,12 @@ export {
 	TelemetryService,
 	type TelemetryServiceOptions,
 } from "./services/telemetry/TelemetryService";
+export {
+	createSessionCompactionState,
+	parseSessionCompactionState,
+	projectSessionCompactionState,
+	type SessionCompactionState,
+} from "./session/models/session-compaction";
 // Compatibility barrel (legacy imports).
 export type { RuntimeEnvironment } from "./types";
 export type { SessionStatus } from "./types/common";
