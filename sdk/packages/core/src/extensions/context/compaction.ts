@@ -3,6 +3,11 @@ import {
 	captureCompactionSkipped,
 	type TelemetryCompactionStrategy,
 } from "../../services/telemetry/core-events";
+import {
+	createSessionCompactionState,
+	projectSessionCompactionState,
+	type SessionCompactionState,
+} from "../../session/models/session-compaction";
 import type {
 	CoreCompactionConfig,
 	CoreCompactionContext,
@@ -43,6 +48,10 @@ export interface ContextPipelinePrepareTurnResult {
 	messages: CoreCompactionContext["messages"];
 	systemPrompt?: string;
 }
+
+export type ContextPipelinePrepareTurn = (
+	context: ContextPipelinePrepareTurnInput,
+) => Promise<ContextPipelinePrepareTurnResult | undefined>;
 
 type EstimateMessageTokens = ReturnType<typeof createTokenEstimator>;
 
@@ -505,6 +514,65 @@ export function createContextCompactionPrepareTurn(
 			});
 		}
 
+		return result;
+	};
+}
+
+export function createCompactionStateAwarePrepareTurn(input: {
+	compact?: ContextPipelinePrepareTurn;
+	getState?: () => SessionCompactionState | undefined;
+	saveState?: (state: SessionCompactionState) => void | Promise<void>;
+}): ContextPipelinePrepareTurn {
+	return async (context) => {
+		const existingState = input.getState?.();
+		const projectedMessages = existingState
+			? projectSessionCompactionState(existingState, context.messages)
+			: undefined;
+		if (existingState && projectedMessages) {
+			// Re-compaction intentionally starts from the compacted projection plus
+			// canonical tail. This keeps automatic turns bounded without rebuilding a
+			// full-transcript summary every turn; manual `/compact` is the path for a
+			// fresh summary from canonical history.
+			const result = input.compact
+				? await input.compact({
+						...context,
+						messages: projectedMessages,
+						apiMessages: projectedMessages,
+					})
+				: undefined;
+			if (result?.messages) {
+				const systemPrompt = result.systemPrompt ?? existingState.system_prompt;
+				const nextState = createSessionCompactionState({
+					sourceMessages: context.messages,
+					compactedMessages: result.messages,
+					conversationId: context.conversationId,
+					systemPrompt,
+				});
+				await input.saveState?.(nextState);
+				return {
+					...result,
+					...(systemPrompt !== undefined ? { systemPrompt } : {}),
+				};
+			}
+			return {
+				messages: projectedMessages,
+				...(result?.systemPrompt !== undefined
+					? { systemPrompt: result.systemPrompt }
+					: existingState.system_prompt !== undefined
+						? { systemPrompt: existingState.system_prompt }
+						: {}),
+			};
+		}
+		const result = input.compact ? await input.compact(context) : undefined;
+		if (result?.messages) {
+			const nextState = createSessionCompactionState({
+				sourceMessages: context.messages,
+				compactedMessages: result.messages,
+				conversationId: context.conversationId,
+				systemPrompt: result.systemPrompt,
+			});
+			await input.saveState?.(nextState);
+		}
 		return result;
 	};
 }

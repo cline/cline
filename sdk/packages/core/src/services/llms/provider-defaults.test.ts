@@ -216,8 +216,8 @@ describe("resolveProviderConfig", () => {
 									family: "gpt",
 									release_date: "2027-01-01",
 								},
-								"gpt-5.4-live": {
-									name: "GPT-5.4 Live",
+								"gpt-5.3-live": {
+									name: "GPT-5.3 Live",
 									tool_call: true,
 									reasoning: true,
 									family: "gpt",
@@ -256,7 +256,7 @@ describe("resolveProviderConfig", () => {
 		});
 
 		expect(resolved?.knownModels?.["gpt-5.6-live"]?.name).toBe("GPT-5.6 Live");
-		expect(resolved?.knownModels?.["gpt-5.4-live"]).toBeUndefined();
+		expect(resolved?.knownModels?.["gpt-5.3-live"]).toBeUndefined();
 		expect(resolved?.knownModels?.["gpt-5.4-nano"]).toBeUndefined();
 		expect(resolved?.knownModels?.["o-live"]).toBeUndefined();
 	});
@@ -481,9 +481,8 @@ describe("resolveProviderConfig", () => {
 		const openAiResolved = await resolveProviderConfig("openai-native");
 		const modelIds = Object.keys(resolved?.knownModels ?? {});
 
-		expect(modelIds).toEqual(
-			expect.arrayContaining(["gpt-5.5", "gpt-5.5-pro", "gpt-5.4"]),
-		);
+		expect(modelIds).toEqual(expect.arrayContaining(["gpt-5.5", "gpt-5.4"]));
+		expect(modelIds).not.toContain("gpt-5.5-pro");
 		expect(modelIds).not.toContain("gpt-5.1-codex-max");
 		expect(modelIds).not.toContain("gpt-5.2-codex");
 		expect(modelIds).not.toContain("gpt-5.4-nano");
@@ -492,8 +491,10 @@ describe("resolveProviderConfig", () => {
 		expect(resolved?.knownModels?.["gpt-5.5"]).toEqual(
 			expect.objectContaining({
 				...openAiResolved?.knownModels?.["gpt-5.5"],
-				maxInputTokens: 272_000,
+				// ChatGPT/Codex backend caps: 272K input at the 95% effective budget
+				maxInputTokens: 272_000 * 0.95,
 				contextWindow: 400_000,
+				maxTokens: 128_000,
 			}),
 		);
 	});
@@ -516,7 +517,8 @@ describe("resolveProviderConfig", () => {
 		expect(resolved?.knownModels?.["gpt-5.4-mini"]).toEqual(
 			expect.objectContaining({
 				name: "GPT-5.4 mini",
-				maxInputTokens: 272_000,
+				// catalog input cap scaled to the 95% effective Codex budget
+				maxInputTokens: 272_000 * 0.95,
 				contextWindow: 400_000,
 			}),
 		);

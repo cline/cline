@@ -38,6 +38,10 @@ export interface CoreModelConfig {
 	 */
 	reasoningEffort?: ProviderConfig["reasoningEffort"];
 	/**
+	 * Explicit thinking/reasoning token budget for capable models.
+	 */
+	thinkingBudgetTokens?: number;
+	/**
 	 * Maximum output tokens per API call.
 	 */
 	maxTokensPerTurn?: number;

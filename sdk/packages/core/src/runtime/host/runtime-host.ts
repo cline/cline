@@ -7,6 +7,7 @@ import type {
 import type { HookEventPayload } from "../../hooks";
 import type { CheckpointEntry } from "../../hooks/checkpoint-hooks";
 import type { ProviderSettings } from "../../services/llms/provider-settings";
+import type { SessionCompactionState } from "../../session/models/session-compaction";
 import type { SessionManifest } from "../../session/models/session-manifest";
 import type { SessionSource } from "../../types/common";
 import type { CoreSessionConfig } from "../../types/config";
@@ -16,6 +17,7 @@ import type {
 } from "../../types/events";
 import type { SessionRecord } from "../../types/sessions";
 import type { RuntimeCapabilities } from "../capabilities";
+import type { ConnectionUpdate } from "../config/connection-update";
 
 export const SESSION_NOT_FOUND_ERROR_CODE = "session_not_found";
 
@@ -104,6 +106,7 @@ export interface StartSessionInput {
 	interactive?: boolean;
 	sessionMetadata?: Record<string, unknown>;
 	initialMessages?: LlmsProviders.Message[];
+	initialCompactionState?: SessionCompactionState;
 	userImages?: string[];
 	userFiles?: string[];
 	/**
@@ -257,8 +260,17 @@ export interface SessionUsageRuntimeService {
 	): Promise<SessionUsageSummary | undefined>;
 }
 
+export type SessionConnectionUpdate = ConnectionUpdate;
+
 export interface SessionModelRuntimeService {
 	updateSessionModel(sessionId: string, modelId: string): Promise<void>;
+}
+
+export interface SessionConnectionRuntimeService {
+	updateSessionConnection(
+		sessionId: string,
+		updates: SessionConnectionUpdate,
+	): Promise<void>;
 }
 
 export interface RuntimeHostSubscribeOptions {
@@ -308,6 +320,13 @@ export interface RuntimeHost {
 			title?: string | null;
 		},
 	): Promise<{ updated: boolean }>;
+	updateSessionCompactionState(
+		sessionId: string,
+		state: SessionCompactionState,
+	): Promise<{ updated: boolean }>;
+	readSessionCompactionState(
+		sessionId: string,
+	): Promise<SessionCompactionState | undefined>;
 	readSessionMessages(sessionId: string): Promise<LlmsProviders.Message[]>;
 	dispatchHookEvent(payload: HookEventPayload): Promise<void>;
 	subscribe(

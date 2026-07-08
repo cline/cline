@@ -25,6 +25,7 @@ import {
 	listLocalProviders,
 	listPluginTools,
 	loginAndSaveLocalProviderOAuthCredentials,
+	markLocalProviderEnabled,
 	normalizeOAuthProvider,
 	ProviderSettingsManager,
 	readGlobalSettings,
@@ -35,13 +36,26 @@ import {
 	SqliteSessionStore,
 	saveLocalProviderSettings,
 	sendHubCommand,
+	setAutoUpdateEnabledGlobally,
 	setDisabledPlugin,
 	setDisabledTools,
+	setTelemetryOptOutGlobally,
 	toggleDisabledTool,
 	updateMcpSettingsFileSync,
 } from "@cline/core";
 import { getClineEnvironmentConfig } from "@cline/shared";
+import {
+	connectorChannelsPayload,
+	startConnectorChannel,
+	stopConnectorChannel,
+} from "./connectors";
 import { broadcastEvent, resolveSidecarAskQuestion } from "./context";
+import {
+	installMarketplaceEntryForDesktopCommand,
+	listMarketplaceInstalledEntries,
+	uninstallLocalPrimitive,
+	uninstallMarketplaceEntryForDesktopCommand,
+} from "./marketplace";
 import {
 	findArtifactUnderDir,
 	readSessionManifest,
@@ -945,7 +959,7 @@ export async function handleCommand(
 	if (command === "list_provider_catalog") {
 		const manager = new ProviderSettingsManager();
 		await ensureCustomProvidersLoaded(manager);
-		return await listLocalProviders(manager);
+		return await listLocalProviders(manager, { isClinePassEnabled: true });
 	}
 	if (command === "list_provider_models") {
 		const manager = new ProviderSettingsManager();
@@ -1025,10 +1039,43 @@ export async function handleCommand(
 				spawned.unref();
 			},
 		);
+		if (saved.provider !== providerId) {
+			markLocalProviderEnabled(manager, providerId, { tokenSource: "oauth" });
+		}
 		return {
 			provider: providerId,
 			accessToken: saved.auth?.accessToken ?? saved.apiKey ?? "",
 		};
+	}
+
+	// ── Global settings ────────────────────────────────────────────────
+	if (command === "get_global_settings") {
+		return readGlobalSettings();
+	}
+	if (command === "set_telemetry_opt_out") {
+		if (typeof args?.telemetry_opt_out !== "boolean") {
+			throw new Error("telemetry_opt_out must be a boolean");
+		}
+		setTelemetryOptOutGlobally(args.telemetry_opt_out);
+		return readGlobalSettings();
+	}
+	if (command === "set_auto_update_enabled") {
+		if (typeof args?.auto_update_enabled !== "boolean") {
+			throw new Error("auto_update_enabled must be a boolean");
+		}
+		setAutoUpdateEnabledGlobally(args.auto_update_enabled);
+		return readGlobalSettings();
+	}
+
+	// ── Connector channels ─────────────────────────────────────────────
+	if (command === "list_connector_channels") {
+		return connectorChannelsPayload();
+	}
+	if (command === "start_connector_channel") {
+		return await startConnectorChannel(ctx.workspaceRoot, args);
+	}
+	if (command === "stop_connector_channel") {
+		return await stopConnectorChannel(ctx.workspaceRoot, args);
 	}
 
 	// ── MCP server management ─────────────────────────────────────────
@@ -1155,6 +1202,26 @@ export async function handleCommand(
 	// ── User instruction configs ──────────────────────────────────────
 	if (command === "list_user_instruction_configs") {
 		return await listUserInstructionConfigs(ctx.workspaceRoot);
+	}
+	if (command === "list_marketplace_installed_entries") {
+		return listMarketplaceInstalledEntries(
+			args,
+			await listUserInstructionConfigs(ctx.workspaceRoot),
+		);
+	}
+	if (command === "install_marketplace_entry") {
+		const result = await installMarketplaceEntryForDesktopCommand(args);
+		return result;
+	}
+	if (command === "uninstall_marketplace_entry") {
+		const result = await uninstallMarketplaceEntryForDesktopCommand(args);
+		return result;
+	}
+	if (command === "uninstall_local_primitive") {
+		const result = await uninstallLocalPrimitive(args, {
+			workspaceRoot: ctx.workspaceRoot,
+		});
+		return result;
 	}
 	if (command === "toggle_disabled_plugin_tool") {
 		const toolName = String(args?.name ?? "").trim();

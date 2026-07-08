@@ -13,7 +13,7 @@ import type {
 } from "../../types/config";
 import type { ProviderConfig } from "../../types/provider-settings";
 
-export const DEFAULT_MAX_INPUT_TOKENS = 200_000;
+export const DEFAULT_MAX_INPUT_TOKENS = 128_000;
 export const DEFAULT_THRESHOLD_RATIO = 0.9;
 export const DEFAULT_TARGET_RATIO = 0.7;
 export const DEFAULT_RESERVE_TOKENS = 16_384;
