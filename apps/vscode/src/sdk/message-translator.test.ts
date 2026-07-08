@@ -1149,6 +1149,25 @@ describe("translateSessionEvent — agent_event error", () => {
 		expect(parsed.providerId).toBe("cline")
 	})
 
+	it("preserves ClinePass period limit errors for specialized webview rendering", () => {
+		const state = new MessageTranslatorState(undefined, () => "cline-pass")
+		const message = "You have reached your weekly Clinepass limit. The limit resets in 7d, please try again later."
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: { message },
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages).toHaveLength(2)
+		expect(result.messages[1].text).toBe(message)
+	})
+
 	it("rewrites Anthropic bare 'model: <id>' 404 into an actionable message", () => {
 		const state = new MessageTranslatorState(undefined, () => "anthropic")
 		const event: CoreSessionEvent = {

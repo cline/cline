@@ -6,6 +6,8 @@ const CLINE_NOT_SUBSCRIBED_FORMATTED_MESSAGE_PREFIX =
 	"no access to clinepass subscription models yet. subscribe to clinepass";
 export const CLINE_ORG_INDIVIDUAL_INFERENCE_SUBSCRIPTION_RESPONSE_MESSAGE =
 	"organization accounts cannot use individual model inference subscriptions";
+export const CLINE_PASS_LIMIT_RESPONSE_PATTERN =
+	/you have reached your\s+[^.]+?\s+clinepass limit\.\s*the limit resets in\s+[^,]+,\s*please try again later\.?/i;
 
 export function getClinePassSubscriptionUrl(): string {
 	return `${new URL(
@@ -42,6 +44,16 @@ export class ClineOrgIndividualInferenceSubscriptionError extends Error {
 	}
 }
 
+export class ClinePassLimitError extends Error {
+	public readonly providerId?: string;
+
+	constructor(message: string, providerId?: string) {
+		super(message);
+		this.name = "ClinePassLimitError";
+		this.providerId = providerId;
+	}
+}
+
 export function isClineNotSubscribedError(
 	error: unknown,
 ): error is ClineNotSubscribedError {
@@ -52,6 +64,12 @@ export function isClineOrgIndividualInferenceSubscriptionError(
 	error: unknown,
 ): error is ClineOrgIndividualInferenceSubscriptionError {
 	return error instanceof ClineOrgIndividualInferenceSubscriptionError;
+}
+
+export function isClinePassLimitError(
+	error: unknown,
+): error is ClinePassLimitError {
+	return error instanceof ClinePassLimitError;
 }
 
 export function isClineNotSubscribedMessage(text: string): boolean {
@@ -68,4 +86,12 @@ export function isClineOrgIndividualInferenceSubscriptionMessage(
 	return text
 		.toLowerCase()
 		.includes(CLINE_ORG_INDIVIDUAL_INFERENCE_SUBSCRIPTION_RESPONSE_MESSAGE);
+}
+
+export function isClinePassLimitMessage(text: string): boolean {
+	return CLINE_PASS_LIMIT_RESPONSE_PATTERN.test(text.trim());
+}
+
+export function extractClinePassLimitMessage(text: string): string | undefined {
+	return text.match(CLINE_PASS_LIMIT_RESPONSE_PATTERN)?.[0];
 }
