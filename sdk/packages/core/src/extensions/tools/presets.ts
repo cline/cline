@@ -43,7 +43,7 @@ export const ToolPresets = {
 	plan: {
 		enableReadFiles: true,
 		enableSearch: true,
-		enableBash: true,
+		enableBash: false,
 		enableWebFetch: true,
 		enableApplyPatch: false,
 		enableEditor: false,
