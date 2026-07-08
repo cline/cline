@@ -9,8 +9,8 @@ const createSessionCompactionState = vi.fn((input: { compactedMessages: unknown[
 	messages: input.compactedMessages,
 }))
 vi.mock("@cline/core", () => ({
-	createContextCompactionPrepareTurn: (...args: unknown[]) => createContextCompactionPrepareTurn(...args),
-	createSessionCompactionState: (input: { compactedMessages: unknown[] }) => createSessionCompactionState(input),
+	createContextCompactionPrepareTurn,
+	createSessionCompactionState,
 }))
 
 vi.mock("@/shared/services/Logger", () => ({

@@ -7,15 +7,14 @@
 // transcript, returning the compacted working-context sidecar state.
 //
 // The VSCode coordinator persists that sidecar and restarts with canonical
-// messages intact. Keeping the actual compaction effect in the SDK (rather than
-// asking the model to "summarize the conversation") is what makes the compact
-// button real instead of improvised.
+// messages intact, so the persisted transcript remains unchanged while the
+// restarted session receives compacted working context.
 
 import {
 	type CoreSessionConfig,
-	type SessionCompactionState,
 	createContextCompactionPrepareTurn,
 	createSessionCompactionState,
+	type SessionCompactionState,
 } from "@cline/core"
 import type { Message as SdkMessage, ModelInfo as SdkModelInfo } from "@cline/llms"
 import { Logger } from "@/shared/services/Logger"
