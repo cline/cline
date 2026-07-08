@@ -20,6 +20,7 @@ import {
 	type RestoreResult,
 	type SendSessionInput,
 	type SessionAccumulatedUsage,
+	type SessionCompactionState,
 	type SessionHistoryRecord,
 	type SessionPendingPrompt,
 	type SessionRecord,
@@ -197,6 +198,10 @@ export class VscodeSessionHost implements SdkSessionHost {
 
 	async readMessages(sessionId: string) {
 		return this.inner.readMessages(sessionId)
+	}
+
+	async updateSessionCompactionState(sessionId: string, state: SessionCompactionState): Promise<{ updated: boolean }> {
+		return this.inner.updateSessionCompactionState(sessionId, state)
 	}
 
 	async restore(input: RestoreInput): Promise<RestoreResult> {
