@@ -29,6 +29,7 @@ import { formatCompactionDividerLabel } from "../utils/compaction-status";
 import { getSyntaxStyle, type SyntaxAccentMode } from "../utils/syntax-style";
 import { isWarningToolError } from "../utils/tool-errors";
 import {
+	buildReadFilesKeys,
 	parseApplyPatchInput,
 	parseAskQuestionInput,
 	parseEditorInput,
@@ -129,12 +130,13 @@ function formatToolParams(
 		case "read_files": {
 			const info = parseReadFilesInput(rawInput);
 			if (!info?.files.length) return fallback;
+			const keys = buildReadFilesKeys(info.files);
 			return info.files.map((f, i) => {
 				const sl = f.startLine != null ? String(f.startLine) : "undefined";
 				const el = f.endLine != null ? String(f.endLine) : "undefined";
 				const sep = i > 0 ? "; " : "";
 				return (
-					<span key={`${f.path}:${sl}:${el}`}>
+					<span key={keys[i]}>
 						{sep}
 						{shortenPath(f.path)}
 						<span fg="gray">
