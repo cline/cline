@@ -30,6 +30,7 @@ Use this page for providers that follow the same setup pattern.
   - [Requesty](#requesty)
   - [SambaNova](#sambanova)
   - [SAP AI Core](#sap-ai-core)
+  - [TokenLab](#tokenlab)
   - [Together](#together)
   - [Vercel AI Gateway](#vercel-ai-gateway)
   - [VS Code Language Model API](#vs-code-language-model-api)
@@ -276,6 +277,21 @@ SAP AI Core is SAP’s enterprise AI platform for model integration and governan
 1. Set up SAP AI Core / generative AI hub access.
 2. Configure your service key/endpoint credentials.
 3. In Cline, select **SAP AI Core** and provide required values.
+
+### TokenLab
+TokenLab is a unified AI gateway for GPT, Claude, Gemini, Grok, DeepSeek, GLM, Qwen, Kimi, MiniMax, and other model families.
+
+**Website:** [https://tokenlab.sh/](https://tokenlab.sh/)
+
+**Docs:** [https://docs.tokenlab.sh/introduction](https://docs.tokenlab.sh/introduction)
+
+#### Basic Setup
+
+1. Create/sign in to TokenLab and generate an API key.
+2. In Cline, select **TokenLab** and paste the key.
+3. Choose a model such as `gpt-5.5`, `claude-sonnet-5`, `gemini-3.5-flash`, `grok-4.3`, `qwen3.7-max`, or another model returned by TokenLab's model catalog.
+
+Cline uses TokenLab's OpenAI-compatible chat endpoint. TokenLab also exposes native endpoints for Responses, Anthropic Messages, Gemini generateContent, embeddings, images, videos, audio, realtime, and translations for applications that call those APIs directly.
 
 ### Together
 Together provides hosted inference for many popular open models.

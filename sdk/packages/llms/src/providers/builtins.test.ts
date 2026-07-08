@@ -96,6 +96,48 @@ describe("cline-pass builtin spec", () => {
 	});
 });
 
+describe("tokenlab builtin spec", () => {
+	it("registers TokenLab with curated defaults and the public model source", async () => {
+		const provider = await getProvider("tokenlab");
+		const models = await getModelsForProvider("tokenlab");
+
+		expect(provider).toMatchObject({
+			id: "tokenlab",
+			name: "TokenLab",
+			baseUrl: "https://api.tokenlab.sh/v1",
+			modelsSourceUrl: "https://api.tokenlab.sh/v1/models",
+			defaultModelId: "gpt-5.5",
+			client: "openai-compatible",
+			protocol: "openai-chat",
+			capabilities: expect.arrayContaining([
+				"tools",
+				"reasoning",
+				"prompt-cache",
+				"vision",
+				"popular",
+			]),
+			env: ["TOKENLAB_API_KEY"],
+		});
+		expect(provider?.description).toContain("Anthropic Messages");
+		expect(provider?.description).toContain("Gemini");
+		expect(models).toHaveProperty("gpt-5.5");
+		expect(models).toHaveProperty("claude-sonnet-5");
+		expect(models).toHaveProperty("gemini-3.5-flash");
+		expect(models).toHaveProperty("qwen3.7-max");
+		expect(models["gpt-5.5"]).toMatchObject({
+			contextWindow: 1_000_000,
+			maxTokens: 128_000,
+			capabilities: expect.arrayContaining(["tools", "reasoning", "images"]),
+			pricing: { input: 1.5, output: 9, cacheRead: 0.15 },
+		});
+		expect(models["minimax-m3"]).toMatchObject({
+			contextWindow: 1_048_576,
+			maxTokens: 524_288,
+			family: "minimax",
+		});
+	});
+});
+
 describe("built-in provider metadata", () => {
 	it("marks popular providers with a provider capability and rank", async () => {
 		await expect(getProvider("cline")).resolves.toMatchObject({
