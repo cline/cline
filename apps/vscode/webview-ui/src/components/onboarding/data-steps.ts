@@ -9,6 +9,7 @@ type UserTypeSelection = {
 	title: string
 	description: string
 	type: NEW_USER_TYPE
+	learnMoreUrl?: string
 }
 
 export const STEP_CONFIG = {
@@ -56,9 +57,10 @@ export const STEP_CONFIG = {
 } as const
 
 const CLINE_PASS_USER_TYPE_SELECTION: UserTypeSelection = {
-	title: "ClinePass (Recommended)",
-	description: "One subscription, curated models, no API keys",
+	title: "ClinePass",
+	description: "Low cost subscription plan for best open weights model.",
 	type: NEW_USER_TYPE.CLINE_PASS,
+	learnMoreUrl: "https://docs.cline.bot/getting-started/clinepass",
 }
 
 const BASE_USER_TYPE_SELECTIONS: UserTypeSelection[] = [
@@ -69,10 +71,9 @@ const BASE_USER_TYPE_SELECTIONS: UserTypeSelection[] = [
 
 /**
  * Returns the onboarding user-type options. The free option leads the list and is
- * the default selection; ClinePass is inserted as a recommended-but-optional
- * choice (labeled "Recommended") right after it, only when the `ext-cline-pass`
- * feature flag is enabled. When the flag is off, the classic Free / Frontier /
- * BYOK options are shown unchanged.
+ * the default selection; ClinePass is inserted right after it, only when the
+ * `ext-cline-pass` feature flag is enabled. When the flag is off, the classic
+ * Free / Frontier / BYOK options are shown unchanged.
  */
 export function getUserTypeSelections(isClinePassEnabled: boolean): UserTypeSelection[] {
 	if (!isClinePassEnabled) {
