@@ -250,11 +250,12 @@ export class SdkSessionEventCoordinator {
 			const apiConfig = stateManager.getApiConfiguration()
 			const mode = stateManager.getGlobalSettingsKey("mode") === "plan" ? "plan" : "act"
 			const provider = mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider
-			if (provider !== "cline") {
+			// Free models are also selectable on ClinePass — they ride usage billing at $0
+			if (provider !== "cline" && provider !== "cline-pass") {
 				return false
 			}
 
-			const modelId = mode === "plan" ? apiConfig.planModeClineModelId : apiConfig.actModeClineModelId
+			const modelId = this.getCurrentClineModelId()
 			if (!modelId) {
 				return false
 			}
@@ -283,6 +284,10 @@ export class SdkSessionEventCoordinator {
 		}
 		const apiConfig = stateManager.getApiConfiguration()
 		const mode = stateManager.getGlobalSettingsKey("mode") === "plan" ? "plan" : "act"
+		const provider = mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider
+		if (provider === "cline-pass") {
+			return mode === "plan" ? apiConfig.planModeClinePassModelId : apiConfig.actModeClinePassModelId
+		}
 		return mode === "plan" ? apiConfig.planModeClineModelId : apiConfig.actModeClineModelId
 	}
 
