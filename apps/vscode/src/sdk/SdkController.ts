@@ -579,9 +579,10 @@ export class Controller {
 	}
 
 	/**
-	 * Return plugin-registered slash commands for autocomplete. Used by the
-	 * getAvailableSlashCommands gRPC handler to surface plugin commands in the
-	 * webview's slash command picker.
+	 * Return plugin-registered slash commands for autocomplete. Surfaced to
+	 * the webview as `pluginSlashCommands` in ExtensionState (see
+	 * getStateToPostToWebview) so the chat input's slash-command menu can
+	 * show them.
 	 */
 	getPluginSlashCommands(): Promise<PluginSlashCommand[]> {
 		return this.pluginCommands.getSlashCommands()
